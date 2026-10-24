@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Auto3DModeler</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 3 28 10v12L16 29 4 22V10z' fill='%233b82f6'/%3E%3Cpath d='M16 3v26M4 10l12 7 12-7' stroke='%23fff' stroke-width='1.5' fill='none'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Auto3D<span>Modeler</span></div>
+    <div class="file-name" id="fileName">No drawing loaded</div>
+    <div class="actions">
+      <label class="btn primary">Open PDF<input type="file" id="pdfInput" accept="application/pdf,.pdf" hidden></label>
+      <button class="btn" id="sampleBtn" title="Load initial draft.pdf">Sample drawing</button>
+      <span class="sep"></span>
+      <label class="btn">Open project<input type="file" id="projectInput" accept=".json,application/json" hidden></label>
+      <button class="btn" id="saveBtn" disabled>Save project</button>
+      <span class="sep"></span>
+      <div class="menu">
+        <button class="btn accent" id="exportBtn" disabled>Export ▾</button>
+        <div class="menu-list" id="exportMenu">
+          <button data-fmt="stl">STL — 3D printing, whole part (mm)</button>
+          <button data-fmt="step">STEP — CAD solid (mm)</button>
+          <button data-fmt="glb">GLB — 3D preview (colours)</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel left">
+      <nav class="tabs">
+        <button class="tab active" data-tab="params">Dimensions</button>
+        <button class="tab" data-tab="issues">Checks <span class="count" id="issueCount"></span></button>
+        <button class="tab" data-tab="drawing">Drawing</button>
+      </nav>
+      <section class="tab-body active" id="tab-params">
+        <div class="empty" id="paramsEmpty">Open a PDF drawing to start.</div>
+        <div id="paramList"></div>
+        <p class="hint" id="paramHint" hidden>
+          Click a value in the 3D view to type it, drag it left/right to scrub, or scroll over it.
+          <kbd>Shift</kbd> = ×10, <kbd>Alt</kbd> = ×0.1. Values accept math, e.g. <code>78.7/2</code>.
+        </p>
+      </section>
+      <section class="tab-body" id="tab-issues"><div id="issueList"></div></section>
+      <section class="tab-body" id="tab-drawing">
+        <div class="drawing-wrap" id="drawingWrap"><div class="empty">No drawing.</div></div>
+        <div class="legend">
+          <span><i style="--c:var(--ok)"></i>outline</span>
+          <span><i style="--c:var(--dim)"></i>dimension</span>
+          <span><i style="--c:var(--warn)"></i>estimated</span>
+          <span><i style="--c:var(--err)"></i>problem</span>
+        </div>
+      </section>
+    </aside>
+
+    <section class="viewport" id="viewport">
+      <div class="view-tools">
+        <button class="chip" data-view="iso">Iso</button>
+        <button class="chip" data-view="front">Front</button>
+        <button class="chip" data-view="back">Back</button>
+        <button class="chip" data-view="side">Side</button>
+        <span class="sep"></span>
+        <button class="chip toggle on" id="dimsToggle">Dimensions</button>
+        <button class="chip toggle" id="wireToggle">Edges only</button>
+        <span class="sep"></span>
+        <button class="chip tool" id="dimToolBtn" title="Add a dimension between two edges or corners (D)">＋ Dimension</button>
+      </div>
+      <div class="tool-hint" id="toolHint" hidden></div>
+      <div class="busy" id="busy" hidden>Building 3D…</div>
+      <div class="status-bar" id="statusBar"></div>
+      <div class="drop-hint" id="dropHint">Drop a PDF drawing here</div>
+    </section>
+
+    <aside class="panel right">
+      <nav class="tabs">
+        <button class="rtab active" data-rtab="design">3D design</button>
+        <button class="rtab" data-rtab="print">3D print</button>
+      </nav>
+      <section class="rtab-body active" id="rtab-design">
+        <p class="hint">Layers are real geometry: a <b>mask</b> (face, rectangle, ellipse or traced image) filled
+          solid or with a grid pattern, then <b>embossed</b>, <b>engraved</b> or <b>cut through</b>. Included in STL/STEP.</p>
+        <div class="row-actions add-layer">
+          <button class="btn small" id="addGrid">＋ Grid</button>
+          <button class="btn small" id="addShape">＋ Shape</button>
+          <label class="btn small">＋ Image<input type="file" id="imageInput" accept="image/png,image/jpeg,image/svg+xml,image/webp,.svg" hidden></label>
+        </div>
+        <div id="layerList"></div>
+        <label class="check snap"><input type="checkbox" id="snapToggle" checked> Snap dragged masks to</label>
+        <input type="number" id="snapStep" class="snap-step" step="0.1" min="0" title="Snap step">
+        <h3>Colours</h3>
+        <div class="field two"><label>Part / design</label><input type="color" id="baseColor" value="#d9dee6"><input type="color" id="featureColor" value="#4f8cff"></div>
+      </section>
+      <section class="rtab-body" id="rtab-print"></section>
+    </aside>
+  </main>
+
+  <div class="toast-stack" id="toasts"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
