@@ -127,3 +127,57 @@ class BendTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BentJointTest(unittest.TestCase):
+    """Joints on seams that lie inside a bend (unavoidable for a rolled part)."""
+
+    @classmethod
+    def setUpClass(cls):
+        model, _, _ = build_model(SAMPLE.read_bytes())
+        cls.unit = model["unit"]
+        cls.solid = build_solid(solve(model), cls.unit)
+        cls.final, cls.bender, _ = bend_solid(cls.solid, [{"id": "r", "axis": "x", "angle": 120, "mode": "roll",
+                                                          "toward": "back"}], cls.unit)
+        cls.zones = [(cls.bender.axis, op["s"], op["e"], op["rn"]) for op in cls.bender.ops]
+
+    def split(self, **joint):
+        r = plan(self.solid, self.unit, BUILTIN_PRINTERS[0], 5, True, joint,
+                 avoid=[z[:3] for z in self.zones], bend_zones=self.zones)
+        bend_pieces(r, self.bender, self.unit, 5, self.final.frame)
+        return r
+
+    def test_integral_joints_get_curvature_clearance(self):
+        flat = plan(self.solid, self.unit, BUILTIN_PRINTERS[0], 5, True, {"type": "dovetail"})
+        bent = self.split(type="dovetail")
+        note = next(n for n in bent["notes"] if "clearance there is increased" in n)
+        rn = self.zones[0][3]
+        self.assertIn(f"{1.0 * 1.2 / rn * 10:.2f} mm", note)  # thickness × depth ÷ radius, in mm
+        # more clearance removes more material from the receiving pieces
+        self.assertLess(sum(p["solid"].volume() for p in bent["pieces"]),
+                        sum(p["solid"].volume() for p in flat["pieces"]))
+        for p in bent["pieces"]:
+            self.assertEqual(mesh_stats(p["solid"])[1], 0)
+            self.assertEqual(mesh_stats(p["assembled"])[1], 0)
+
+    def test_connectors_are_printed_curved(self):
+        for kind, extra in (("butterfly", {}), ("dowel", {"height": 3}), ("plate", {})):
+            with self.subTest(kind=kind):
+                r = self.split(type=kind, **extra)
+                self.assertTrue(r["connectors"])
+                for g in r["connectors"]:
+                    self.assertTrue(g["curved"])
+                    self.assertIn("(curved)", g["name"])
+                    for inst in g["instances"]:
+                        self.assertEqual(mesh_stats(inst["solid"])[1], 0)
+                        z0, z1 = inst["solid"].z_range()
+                        self.assertGreater(z1 - z0, g["size_mm"][2] / 10 + 1e-3)  # no longer a flat slab
+                self.assertTrue(any("printed curved" in i["message"] for i in r["issues"]))
+
+    def test_assembled_pieces_line_up(self):
+        r = self.split(type="hidden_dovetail")
+        # in the assembled pose the pieces together span the bent part's footprint
+        xs = [b for p in r["pieces"] for b in p["assembled"].xy_bounds()[0::2]]
+        fx0, _, fx1, _ = self.final.xy_bounds()
+        self.assertAlmostEqual(min(xs), fx0, delta=0.05)
+        self.assertAlmostEqual(max(xs), fx1, delta=0.05)

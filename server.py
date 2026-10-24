@@ -141,15 +141,16 @@ def api_printer_delete(pid):
         return jsonify({"error": str(exc)}), 400
 
 
-def _plan(body, solid, model, bender=None):
+def _plan(body, solid, model, bender=None, final=None):
     printer = printers.get(body.get("printer"))
     if printer is None:
         raise ValueError("Unknown printer.")
     avoid = [(bender.axis, op["s"], op["e"]) for op in bender.ops] if bender else []
+    zones = [(bender.axis, op["s"], op["e"], op["rn"]) for op in bender.ops] if bender else []
     result = plan(solid, model["unit"], printer, float(body.get("margin", 5)), bool(body.get("split")),
-                  body.get("joint"), avoid=avoid)
+                  body.get("joint"), avoid=avoid, bend_zones=zones)
     if bender is not None:
-        bend_pieces(result, bender, model["unit"], float(body.get("margin", 5)))
+        bend_pieces(result, bender, model["unit"], float(body.get("margin", 5)), getattr(final, "frame", None))
     return result
 
 
@@ -162,14 +163,17 @@ def api_print_plan():
     if bender is None and body.get("bends") and not solution.get("design_ok", True):
         return jsonify({"error": " ".join(i["message"] for i in solution["design_issues"] if i["severity"] == "error")}), 400
     try:
-        result = _plan(body, solid, model, bender)
+        result = _plan(body, solid, model, bender, final)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
+    # the preview shows bent pieces / connectors in their assembled position
     for p in result["pieces"]:
-        p["mesh"] = mesh_payload(p.pop("solid"))
+        solid_p = p.pop("solid")
+        p["mesh"] = mesh_payload(p.pop("assembled", solid_p))
     for g in result.get("connectors", []):
         for inst in g["instances"]:
-            inst["mesh"] = mesh_payload(inst.pop("solid"))
+            solid_i = inst.pop("solid")
+            inst["mesh"] = mesh_payload(inst.pop("assembled", solid_i))
     return jsonify(result)
 
 
@@ -196,7 +200,7 @@ def api_export(fmt):
 
     if body.get("split") and body.get("printer"):
         try:
-            result = _plan(body, solid, model, bender)
+            result = _plan(body, solid, model, bender, final)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         if not result["pieces"]:

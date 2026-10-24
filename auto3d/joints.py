@@ -130,7 +130,15 @@ def protrusion_mm(joint):
     return 0.0
 
 
-def apply_joints(solid, cells, seams, joint, mm):
+def _seam_bend_radius(seam, bend_zones):
+    """Neutral bend radius at a seam, or None if the seam is not inside a bend zone."""
+    for axis, s, e, rn in bend_zones:
+        if seam.axis == axis and s < seam.pos < e:
+            return rn
+    return None
+
+
+def apply_joints(solid, cells, seams, joint, mm, bend_zones=()):
     """Build pieces + connector parts.
 
     cells: {key: Polygon} piece regions; seams: [Seam]; mm: millimetres per model unit.
@@ -180,6 +188,7 @@ def apply_joints(solid, cells, seams, joint, mm):
         return shape.within(inner)
 
     keepout = {si: [] for si in range(len(seams))}  # joint features the glue channel must avoid
+    curved = []  # extra clearance given to joints on curved seams
     if kind == "hidden_dovetail":
         if u(p["skin"]) < wall or zb < 3 * wall:
             issues.append({"severity": "error", "message": f"Front skin {p['skin']} mm does not suit a {t * mm:.1f} mm "
@@ -191,6 +200,15 @@ def apply_joints(solid, cells, seams, joint, mm):
 
     for si, seam in enumerate(seams):
         label = f"cut {si + 1}"
+        # On a seam inside a bend the pieces are pushed together along the curve, not straight down
+        # the thickness: the joint walls fan out by (reach / bend radius), so give integral joints that
+        # much extra clearance over the full height.
+        rn = _seam_bend_radius(seam, bend_zones)
+        reach = {"dovetail": u(p.get("depth", 0)), "hidden_dovetail": u(p.get("depth", 0)),
+                 "puzzle": 1.25 * u(p.get("size", 0))}.get(kind, 0.0)
+        cs = c + ((hi_z - lo_z) * reach / rn if rn else 0.0)
+        if rn and reach:
+            curved.append(cs - c)
         if kind == "hidden_dovetail":
             w, d, ang = u(p["width"]), u(p["depth"]), float(p["angle"])
             wt = w + 2 * d * math.tan(math.radians(ang))
@@ -200,14 +218,14 @@ def apply_joints(solid, cells, seams, joint, mm):
             tabs = []
             for v in vs:
                 tab = seam.to_world(affinity.scale(_dovetail(v, w, d, ang, c), sign, 1, origin=(0, 0)))
-                if fits(tab.buffer(c)):
+                if fits(tab.buffer(cs)):
                     tabs.append(tab)
                 else:
                     skipped += 1
             if tabs:
                 g = unary_union(tabs)
                 lower[owner] = lower[owner].union(g)
-                lower[other] = lower[other].difference(g.buffer(c, join_style="mitre"))
+                lower[other] = lower[other].difference(g.buffer(cs, join_style="mitre"))
                 keepout[si].append(g)
             else:
                 issues.append({"severity": "warning", "message": f"No room for a dovetail on {label} — it stays a butt joint."})
@@ -218,14 +236,14 @@ def apply_joints(solid, cells, seams, joint, mm):
             tabs = []
             for v in vs:
                 tab = seam.to_world(_dovetail(v, w, d, ang, c))
-                if fits(tab.buffer(c)):
+                if fits(tab.buffer(cs)):
                     tabs.append(tab)
                 else:
                     skipped += 1
             if tabs:
                 g = unary_union(tabs)
                 regions[seam.a] = regions[seam.a].union(g)
-                regions[seam.b] = regions[seam.b].difference(g.buffer(c, join_style="mitre"))
+                regions[seam.b] = regions[seam.b].difference(g.buffer(cs, join_style="mitre"))
                 keepout[si].append(g)
             else:
                 issues.append({"severity": "warning", "message": f"No room for a dovetail on {label} — it stays a butt joint."})
@@ -236,14 +254,14 @@ def apply_joints(solid, cells, seams, joint, mm):
             for i, v in enumerate(vs):
                 sign = 1 if i % 2 == 0 or not p.get("alternate", True) else -1
                 knob = seam.to_world(_knob(v, D, c, sign))
-                if fits(knob.buffer(c)):
+                if fits(knob.buffer(cs)):
                     (plus if sign > 0 else minus).append(knob)
                 else:
                     skipped += 1
             if plus or minus:
                 gp, gm = unary_union(plus), unary_union(minus)
-                regions[seam.a] = regions[seam.a].union(gp).difference(gm.buffer(c))
-                regions[seam.b] = regions[seam.b].union(gm).difference(gp.buffer(c))
+                regions[seam.a] = regions[seam.a].union(gp).difference(gm.buffer(cs))
+                regions[seam.b] = regions[seam.b].union(gm).difference(gp.buffer(cs))
                 keepout[si] += [gp, gm]
             else:
                 issues.append({"severity": "warning", "message": f"No room for puzzle knobs on {label} — it stays a butt joint."})
@@ -332,6 +350,10 @@ def apply_joints(solid, cells, seams, joint, mm):
                 parts.append({"kind": "plate", "name": "Splice plate", "shape": plate, "z0": t - depth if top else 0.0,
                               "z1": t if top else depth, "seam": si, "lift": 1 if top else -1,
                               "size_mm": ((bx[2] - bx[0]) * mm, (bx[3] - bx[1]) * mm, p["depth"])})
+    if curved:
+        notes.append(f"{len(curved)} cut(s) lie in a bend: the joint clearance there is increased by up to "
+                     f"{max(curved) * mm:.2f} mm (thickness × joint depth ÷ bend radius) so the curved pieces can be "
+                     "pushed together along the bend.")
     if kind == "hidden_dovetail":
         # below the skin: dovetailed outline; the front skin keeps the straight cut (flat, flush front)
         regions = {key: [(lo_z - 1, zb, lower[key]), (zb, hi_z + 1, cells[key])] for key in cells}

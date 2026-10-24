@@ -92,8 +92,15 @@ zones running off the part, and inner radii smaller than embossed design on the 
 
 Bent STL files are smooth (one facet per ≤ 3°). Bent STEP files are faceted solids (flat facets),
 because exact cylindrical faces would need a CAD kernel. When splitting a bent part, cuts are kept out
-of the bend zones and each piece is exported bent (curved parts usually need supports; alternatively
-print flat with the bends hidden and heat-bend).
+of the bend zones where possible and each piece is exported bent, levelled at its middle (curved parts
+usually need supports; alternatively print flat with the bends hidden and heat-bend).
+
+**Joints in a bend** (unavoidable for rolls): joints are built on the flat part and bent with it, so
+both sides match exactly on the curve. Because curved pieces are pushed together along the bend rather
+than straight through the thickness, integral joints (dovetails, puzzle knobs) on curved seams get extra
+clearance = thickness × joint depth ÷ bend radius. Separate connectors on curved seams (butterfly keys,
+dowels, splice plates) are printed curved to fit their curved pockets and are grouped by curvature.
+The split preview shows pieces and connectors in their assembled, bent position.
 
 ## 3D print (right panel)
 

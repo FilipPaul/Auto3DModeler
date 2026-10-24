@@ -399,13 +399,16 @@ export class Viewer {
       const fits = p.orientation !== 'too big';
       const rot = p.orientation === 'rotated';
       const [vx, vy] = rot ? [vol.y, vol.x] : [vol.x, vol.y];
-      const cx = (p.rect[0] + p.rect[2]) / 2, cy = (p.rect[1] + p.rect[3]) / 2;
-      g.add(this._volumeBox(vx, vy, vol.z * 0.15, [cx - vx / 2, cy - vy / 2, this.zRange[0]], fits ? 0x3fb950 : 0xf85149));
+      // plate under the piece's actual mesh (bent pieces are not where their flat rectangle was)
+      geo.computeBoundingBox();
+      const bb = geo.boundingBox;
+      const cx = (bb.min.x + bb.max.x) / 2, cy = (bb.min.y + bb.max.y) / 2;
+      g.add(this._volumeBox(vx, vy, vol.z * 0.15, [cx - vx / 2, cy - vy / 2, bb.min.z], fits ? 0x3fb950 : 0xf85149));
       const tag = document.createElement('div');
       tag.className = `piece-tag${fits ? '' : ' bad'}`;
       tag.textContent = `#${p.index}  ${p.size_mm[0].toFixed(0)}×${p.size_mm[1].toFixed(0)} mm${rot ? ' ⟲90°' : ''}`;
       const lbl = new CSS2DObject(tag);
-      lbl.position.set(cx, cy, this.zRange[1] + this.size * 0.02);
+      lbl.position.set(cx, cy, bb.max.z + this.size * 0.02);
       g.add(lbl);
       this.printGroup.add(g);
       offsets[p.index] = [ox, oy];

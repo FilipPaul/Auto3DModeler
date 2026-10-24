@@ -132,10 +132,11 @@ def _pieces_needed(length, bed_len, joint, single_row):
 
 
 def plan(solid: Solid, unit: str, printer: dict, margin_mm: float = 5.0, split: bool = False,
-         joint: dict | None = None, avoid=()) -> dict:
+         joint: dict | None = None, avoid=(), bend_zones=()) -> dict:
     """Fit check and (optionally) split into printable pieces.
 
     avoid: [(axis, from, to), ...] ranges where cuts should not go (e.g. bend zones).
+    bend_zones: [(axis, from, to, neutral_radius), ...] so joints on curved seams can be compensated.
     """
     s = UNIT_IN_MM[unit]
     x0, y0, x1, y1 = solid.xy_bounds()
@@ -227,7 +228,7 @@ def plan(solid: Solid, unit: str, printer: dict, margin_mm: float = 5.0, split: 
         for i in range(len(xs) - 1):
             seams.append(Seam("y", ys[j], (xs[i], xs[i + 1]), (i, j - 1), (i, j)))
 
-    regions, voids, parts, j_issues, notes, flips = apply_joints(solid, cells, seams, joint, s)
+    regions, voids, parts, j_issues, notes, flips = apply_joints(solid, cells, seams, joint, s, bend_zones)
     issues += j_issues
 
     # print orientation: pockets must open upwards (no unsupported ceilings)
@@ -312,18 +313,22 @@ def assembly_text(result, name):
     return "\n".join(lines) + "\n"
 
 
-def bend_pieces(result, bender, unit, margin_mm):
-    """Bend the split pieces like the whole part and re-check them against the printer."""
+def bend_pieces(result, bender, unit, margin_mm, frame=None):
+    """Bend the split pieces and their connectors like the whole part, then re-check the printer.
+
+    Each piece / connector gets two bent versions: `solid` levelled on its own (what is printed and
+    exported) and `assembled`, placed with the whole part's `frame` (for the exploded preview).
+    Connectors on curved seams are bent too, so they fit their curved pockets; identical ones are
+    regrouped by curvature.
+    """
     from .bend import BentSolid
 
     s = UNIT_IN_MM[unit]
     ux, uy, uz = result["usable_mm"]
-    in_zone = 0
-    for sm in result.get("seams", []):
-        if sm["axis"] == bender.axis and any(op["s"] < sm["pos"] < op["e"] for op in bender.ops):
-            in_zone += 1
     for p in result["pieces"]:
-        bent = BentSolid.of(p["solid"], bender)
+        flat = p["solid"]
+        bent = BentSolid.of(flat, bender)
+        p["assembled"] = BentSolid.of(flat, bender, frame) if frame else bent
         x0, y0, x1, y1 = bent.xy_bounds()
         z0, z1 = bent.z_range()
         w, h, z = (x1 - x0) * s, (y1 - y0) * s, (z1 - z0) * s
@@ -333,9 +338,42 @@ def bend_pieces(result, bender, unit, margin_mm):
         if not fits:
             result["issues"].append({"severity": "error", "message": f"Bent piece {p['index']} "
                                      f"({w:.0f} × {h:.0f} × {z:.0f} mm) does not fit the printer."})
+
+    seams = result.get("seams", [])
+
+    def seam_rn(si):
+        sm = seams[si]
+        return next((op["rn"] for op in bender.ops if sm["axis"] == bender.axis and op["s"] < sm["pos"] < op["e"]), None)
+
+    groups = {}
+    curved_parts = 0
+    for g in result.get("connectors", []):
+        for inst in g["instances"]:
+            rn = seam_rn(inst["seam"])
+            flat = inst["solid"]
+            if rn:
+                curved_parts += 1
+                printed = BentSolid.of(flat, bender)
+                inst["solid"] = printed
+                inst["assembled"] = BentSolid.of(flat, bender, frame) if frame else printed
+            else:
+                inst["assembled"] = BentSolid.of(flat, bender, frame) if frame else flat
+            key = (g["kind"], tuple(g["size_mm"]), round(rn, 6) if rn else None)
+            grp = groups.setdefault(key, {**{k: v for k, v in g.items() if k not in ("instances", "qty")},
+                                          "qty": 0, "instances": [], "curved": bool(rn)})
+            if rn:
+                grp["name"] = f"{g['name']} (curved)"
+            grp["qty"] += 1
+            grp["instances"].append(inst)
+    if groups:
+        result["connectors"] = list(groups.values())
+
+    in_zone = sum(1 for si in range(len(seams)) if seam_rn(si))
     if in_zone:
-        result["issues"].append({"severity": "warning", "message": f"{in_zone} cut(s) fall inside a bend — joints on a "
-                                 "curved seam fit less precisely; move the bend or use a bigger printer."})
-    result["notes"].append("Bent pieces are exported in their bent shape, levelled at their middle. Curved parts "
+        result["issues"].append({"severity": "info", "message": f"{in_zone} cut(s) lie in a bend (unavoidable here). "
+                                 "The joints there are shaped along the curve"
+                                 + (f" and {curved_parts} connector part(s) are printed curved to fit their pockets"
+                                    if curved_parts else "")
+                                 + "; assemble those pieces by sliding them together along the bend."})
+    result["notes"].append("Bent pieces are exported in their bent shape, each levelled at its middle. Curved parts "
                            "usually need supports — or print the flat version (hide the bends) and heat-bend it.")
-    result["fits"] = result.get("fits", False)

@@ -223,21 +223,28 @@ def _split_all(V, tags, planes, k):
     return V, tags
 
 
-def deform(tris, tags, bender: Bender):
+def deform(tris, tags, bender: Bender, frame=None):
     """Split the mesh across the bend zones and map it to the bent shape.
 
-    Returns (triangles, tags, place) where place(points) maps any further flat points (e.g. dimension
-    labels) exactly like the mesh, including the final levelling / placement.
+    The result is levelled at its own middle and rested on z = 0 — unless `frame` (from another
+    deform, e.g. the whole part) is given, in which case it is placed exactly like that one (used to
+    show split pieces and connectors in their assembled position).
+
+    Returns (triangles, tags, place, frame); place(points) maps further flat points (e.g. dimension
+    labels) exactly like the mesh.
     """
     V = np.array(tris, dtype=float).reshape(-1, 3, 3)
     V, tg = _split_all(V, np.array(tags, dtype=np.uint8), bender.planes(), bender.k)
     pts = V.reshape(-1, 3)
     mapped = bender.map(pts)
     k = bender.k
-    # level the result at its middle (a single roof / roll comes out symmetric), rest it on z = 0
-    ang = -bender.tangent_angle((pts[:, k].min() + pts[:, k].max()) / 2)
+    if frame is None:
+        # level the result at its middle (a single roof / roll comes out symmetric), rest it on z = 0
+        ang = -bender.tangent_angle((pts[:, k].min() + pts[:, k].max()) / 2)
+        ca, cz = (mapped[:, k].min() + mapped[:, k].max()) / 2, (mapped[:, 2].min() + mapped[:, 2].max()) / 2
+    else:
+        ang, ca, cz = frame["ang"], frame["ca"], frame["cz"]
     c, sn = math.cos(ang), math.sin(ang)
-    ca, cz = (mapped[:, k].min() + mapped[:, k].max()) / 2, (mapped[:, 2].min() + mapped[:, 2].max()) / 2
 
     def level(P):
         P = P.copy()
@@ -246,8 +253,11 @@ def deform(tris, tags, bender: Bender):
         return P
 
     leveled = level(mapped)
-    dz = -leveled[:, 2].min()
-    da = (pts[:, k].min() + pts[:, k].max()) / 2 - (leveled[:, k].min() + leveled[:, k].max()) / 2
+    if frame is None:
+        dz = -leveled[:, 2].min()
+        da = (pts[:, k].min() + pts[:, k].max()) / 2 - (leveled[:, k].min() + leveled[:, k].max()) / 2
+    else:
+        dz, da = frame["dz"], frame["da"]
 
     def place(P):
         Q = level(bender.map(np.asarray(P, dtype=float).reshape(-1, 3)))
@@ -258,7 +268,8 @@ def deform(tris, tags, bender: Bender):
     leveled[:, 2] += dz
     leveled[:, k] += da
     M = leveled.reshape(-1, 3, 3)
-    return [tuple(map(tuple, t)) for t in M.tolist()], tg.tolist(), place
+    used = {"ang": ang, "ca": ca, "cz": cz, "dz": dz, "da": da}
+    return [tuple(map(tuple, t)) for t in M.tolist()], tg.tolist(), place, used
 
 
 def bend_info(ops, unit):
@@ -277,11 +288,11 @@ class BentSolid:
         self.bent = True
 
     @classmethod
-    def of(cls, solid, bender):
+    def of(cls, solid, bender, frame=None):
         tris, tags = solid.triangles()
-        bt, bg, place = deform(tris, tags, bender)
+        bt, bg, place, used = deform(tris, tags, bender, frame)
         out = cls(bt, bg, solid.t, solid.issues)
-        out.place = place
+        out.place, out.frame = place, used
         return out
 
     def triangles(self):
