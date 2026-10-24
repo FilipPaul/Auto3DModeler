@@ -18,7 +18,7 @@ def build_solid(solution: dict, unit: str, layers=None) -> Solid:
     return Solid(solution, layers, unit)
 
 
-def mesh_payload(solid: Solid) -> dict:
+def mesh_payload(solid) -> dict:
     """Compact mesh for the viewer (model units): base64 float32 positions + uint8 tags."""
     tris, tags = solid.triangles()
     flat = [c for tri in tris for p in tri for c in p]
@@ -30,7 +30,7 @@ def mesh_payload(solid: Solid) -> dict:
 
 
 # --------------------------------------------------------------------------- STL
-def to_stl(solid: Solid, unit: str, name: str = "part") -> bytes:
+def to_stl(solid, unit: str, name: str = "part") -> bytes:
     s = UNIT_IN_MM[unit]
     tris, _ = solid.triangles()
     out = bytearray(name.encode()[:80].ljust(80, b" "))
@@ -80,7 +80,7 @@ def _components(faces):
     return list(groups.values())
 
 
-def to_step(solid: Solid, unit: str, name: str = "part") -> bytes:
+def to_step(solid, unit: str, name: str = "part") -> bytes:
     s = UNIT_IN_MM[unit]
     r = lambda p: (round(p[0] * s, 9), round(p[1] * s, 9), round(p[2] * s, 9))
 
@@ -142,10 +142,13 @@ def to_step(solid: Solid, unit: str, name: str = "part") -> bytes:
     for loops, n in zip(faces, normals):
         bounds = [A(f"{'FACE_OUTER_BOUND' if i == 0 else 'FACE_BOUND'}('',{loop(l)},.T.)") for i, l in enumerate(loops)]
         o = loops[0][0]
-        if n[2] != 0:
-            xdir = (1.0, 0.0, 0.0)
-        else:
-            xdir = (-n[1], n[0], 0.0)
+        # reference direction in the face plane (must be perpendicular to the normal; faces of a
+        # bent part can face any way)
+        ref = (1.0, 0.0, 0.0) if abs(n[0]) < 0.9 else (0.0, 1.0, 0.0)
+        d = sum(ref[i] * n[i] for i in range(3))
+        xdir = tuple(ref[i] - d * n[i] for i in range(3))
+        ln = sum(v * v for v in xdir) ** 0.5
+        xdir = tuple(v / ln for v in xdir)
         face_ids.append(A(f"ADVANCED_FACE('',({','.join(bounds)}),{plane(o, n, xdir)},.T.)"))
 
     breps = []

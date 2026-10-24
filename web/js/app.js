@@ -3,6 +3,7 @@ import { DrawingView } from './drawing.js';
 import { LayersPanel, newLayer, maskRings, hitMask, nice } from './layers.js';
 import { DimensionTool, addDimension, deleteDimension, promoteDimension, planDimension, evalNumber } from './dimtool.js';
 import { PrintPanel } from './printers.js';
+import { BendsPanel } from './bends.js';
 
 const $ = (id) => document.getElementById(id);
 const UNIT_TO_M = { mm: 0.001, cm: 0.01, m: 1, in: 0.0254 };
@@ -11,6 +12,7 @@ const RESOLVABLE = new Set(['missing_dimension', 'invalid_dimension', 'missing_t
 
 const state = {
   model: null, preview: null, solution: null, values: {}, userSet: new Set(), lastError: null,
+  flatView: false, // show the part unbent (bends ignored) to edit masks / dimensions
 };
 const viewer = new Viewer($('viewport'));
 const drawing = new DrawingView($('drawingWrap'));
@@ -70,9 +72,44 @@ const layers = new LayersPanel($('layerList'), {
 
 const printPanel = new PrintPanel($('rtab-print'), {
   api, viewer, toast, download,
-  getBody: () => (state.model && state.solution ? { model: state.model, values: state.values, layers: layers.layers, solution: state.solution } : null),
+  getBody: () => (state.model && state.solution ? { model: state.model, values: state.values, layers: layers.layers, bends: activeBends(), solution: state.solution } : null),
 });
 printPanel.load().catch((e) => toast(e.message, 'error'));
+
+const bends = new BendsPanel($('bendList'), {
+  viewer, toast,
+  getSolution: () => state.solution,
+  onChange: (added) => {
+    updateFlatToggle();
+    if (added && state.flatView) setFlatView(false);
+    else scheduleRebuild();
+  },
+  ensureFlat: async () => {
+    if (!state.flatView && bends.bends.some((b) => b.visible)) {
+      await setFlatView(true);
+      toast('Switched to Flat view to place the fold line.', 'info', 3000);
+    }
+  },
+});
+
+/** Bends sent to the server (none while editing in Flat view). */
+function activeBends() { return state.flatView ? [] : bends.bends; }
+
+function updateFlatToggle() {
+  const any = bends.bends.some((b) => b.visible);
+  $('flatToggle').hidden = !any;
+  $('flatToggle').classList.toggle('on', state.flatView && any);
+  if (!any) state.flatView = false;
+}
+
+async function setFlatView(on) {
+  state.flatView = on;
+  updateFlatToggle();
+  await applyValues({ ...state.values }, { quiet: true });
+}
+$('flatToggle').addEventListener('click', () => setFlatView(!state.flatView));
+$('addFold').addEventListener('click', () => bends.startPlacing());
+$('addRoll').addEventListener('click', () => { if (state.solution) bends.addRoll(); });
 
 // ------------------------------------------------------------------ loading
 async function loadParsed(data) {
@@ -81,10 +118,19 @@ async function loadParsed(data) {
   state.preview = data.preview;
   state.userSet = new Set(data.userSet || []);
   state.values = data.values || Object.fromEntries(data.model.params.map((p) => [p.id, p.value]));
+  // what the drawing defined (values + structure), for "restore defaults"; projects carry it along
+  state.original = data.original || {
+    params: structuredClone(data.model.params),
+    values: Object.fromEntries(data.model.params.map((p) => [p.id, p.value])),
+  };
   state.solution = null;
   layers.unit = data.model.unit;
   layers.selected = null;
   layers.set(data.layers || []);
+  bends.unit = data.model.unit;
+  state.flatView = false;
+  bends.set(data.bends || []);
+  updateFlatToggle();
   viewer.setSelection(null);
   dimTool.stop();
   $('fileName').textContent = data.model.source || 'drawing.pdf';
@@ -151,7 +197,7 @@ async function pump() {
     const job = queued;
     queued = null;
     try {
-      const sol = await (await api('/api/solve', { model: state.model, values: job.values, layers: layers.layers })).json();
+      const sol = await (await api('/api/solve', { model: state.model, values: job.values, layers: layers.layers, bends: activeBends() })).json();
       if (sol.ok) {
         state.values = job.values;
         state.solution = sol;
@@ -238,7 +284,11 @@ function renderSolution() {
   viewer.setSolution(sol);
   const [x0, y0, x1] = sol.bbox;
   const gap = Math.max(x1 - x0, sol.bbox[3] - y0) * 0.035;
-  const anns = [...sol.annotations, { param: 'thickness', axis: 'z', p1: [x1 + gap, y0], p2: [x1 + gap, y0], z: 0, z2: sol.thickness }];
+  const thk = sol.thickness_3d
+    ? { param: 'thickness', axis: 'z', p1_3d: sol.thickness_3d[0], p2_3d: sol.thickness_3d[1] }
+    : { param: 'thickness', axis: 'z', p1: [x1 + gap, y0], p2: [x1 + gap, y0], z: 0, z2: sol.thickness };
+  const anns = [...sol.annotations, thk];
+  bends.setInfo(sol.bends_info);
   viewer.setAnnotations(anns, makeLabel, statusOf);
   const sel = layers.layers.find((l) => l.id === layers.selected);
   viewer.setSelection(sel ? maskRings(sel) : null, sel?.face);
@@ -250,9 +300,10 @@ function renderSolution() {
 
 function renderStatus() {
   const sol = state.solution, u = state.model.unit;
-  const [x0, y0, x1, y1] = sol.bbox;
+  const [x0, y0, x1, y1] = sol.bbox3 ? sol.bbox3.slice(0, 4) : sol.bbox;
   const [z0, z1] = sol.z_range || [0, sol.thickness];
-  $('statusBar').innerHTML = `<span>${fmt(x1 - x0)} × ${fmt(y1 - y0)} × ${fmt(z1 - z0)} ${u}</span>
+  const size = (v) => fmt(+v.toFixed(2));
+  $('statusBar').innerHTML = `<span>${size(x1 - x0)} × ${size(y1 - y0)} × ${size(z1 - z0)} ${u}${sol.bent ? ' (bent)' : ''}</span>
     <span>${sol.loops.length - 1} cutout(s)</span><span>${layers.layers.filter((l) => l.visible).length} design layer(s)</span>
     <span>volume ${fmt(+(sol.volume ?? 0).toFixed(3))} ${u}³</span><span>${sol.mesh?.count ?? 0} triangles</span>`;
 }
@@ -266,10 +317,50 @@ function groupOf(p) {
   return 'main';
 }
 
+// ------------------------------------------------------------------ restore defaults
+const defaultOf = (id) => state.original?.values[id];
+const isChanged = (id) => {
+  const d = defaultOf(id);
+  return d !== undefined && param(id)?.role === 'driving' && Math.abs((state.values[id] ?? d) - d) > 1e-9;
+};
+
+/** Number of differences from the drawing: edited values plus structural edits (added / promoted). */
+function changeCount() {
+  if (!state.original) return 0;
+  const orig = new Map(state.original.params.map((p) => [p.id, p]));
+  let n = state.model.params.filter((p) => isChanged(p.id)).length;
+  n += state.model.params.filter((p) => !orig.has(p.id) || orig.get(p.id).role !== p.role).length;
+  n += state.original.params.filter((p) => !state.model.params.some((q) => q.id === p.id)).length;
+  return n;
+}
+
+function resetParam(id) {
+  const d = defaultOf(id);
+  const wasUser = state.userSet.has(id);
+  state.userSet.delete(id);
+  applyValues({ ...state.values, [id]: d }, {
+    onReject: () => { if (wasUser) state.userSet.add(id); flashParam(id); },
+  }).then(() => { renderParams(); renderIssues(); });
+}
+
+$('resetAll').addEventListener('click', () => {
+  const n = changeCount();
+  if (!n || !confirm(`Restore all dimensions to the drawing? This undoes ${n} change(s), including dimensions you added.`)) return;
+  structuralChange(() => {
+    state.model.params = structuredClone(state.original.params);
+    state.values = { ...state.original.values };
+    state.userSet = new Set();
+  }, 'Dimensions restored to the drawing defaults.');
+});
+
 function renderParams() {
   const list = $('paramList');
   list.innerHTML = '';
+  $('paramsToolbar').hidden = !state.model;
   if (!state.model) return;
+  const n = changeCount();
+  $('changeCount').textContent = n ? `${n} change(s) from the drawing` : 'Matches the drawing';
+  $('resetAll').disabled = !n;
   const groups = {
     attention: 'Needs your attention', main: 'Dimensions', added: 'Added by you', assumed: 'Assumptions',
     reference: 'Reference (driven by others)',
@@ -305,6 +396,7 @@ function paramRow(p) {
     </div>
     <div class="meta"><span class="badge ${st}">${STATUS_LABEL[st]}</span><span class="src"></span>
       <span class="acts">
+        ${isChanged(p.id) ? `<button class="mini reset" title="Restore ${fmt(defaultOf(p.id))} ${p.unit} (${p.source === 'drawing' ? 'from the drawing' : 'original value'})">↺ ${fmt(defaultOf(p.id))}</button>` : ''}
         ${canPromote ? `<button class="mini promote" title="Make this dimension drive the geometry">${p.role === 'conflict' ? 'Use this value' : 'Make driving'}</button>` : ''}
         ${p.source === 'added' ? '<button class="mini danger remove" title="Remove this dimension">Remove</button>' : ''}
       </span></div>`;
@@ -335,6 +427,7 @@ function paramRow(p) {
   row.querySelectorAll('.step').forEach((b) => b.addEventListener('click', (e) => nudge(p.id, +b.dataset.d, e)));
   row.querySelector('.remove')?.addEventListener('click', () => structuralChange(() => deleteDimension(state.model, state, p.id), `${p.name} removed.`));
   row.querySelector('.promote')?.addEventListener('click', () => promote(p, row));
+  row.querySelector('.reset')?.addEventListener('click', () => resetParam(p.id));
   row.addEventListener('mouseenter', () => { viewer.highlight(p.id, true); drawing.highlight(p.id, true); });
   row.addEventListener('mouseleave', () => { viewer.highlight(p.id, false); drawing.highlight(p.id, false); });
   return row;
@@ -561,14 +654,15 @@ const dimTool = new DimensionTool({
   getState: () => state,
   onAdd: (spec) => structuralChange(() => addDimension(state.model, state, spec), 'Dimension added — edit it like any other.'),
 });
-$('dimToolBtn').addEventListener('click', () => {
+$('dimToolBtn').addEventListener('click', async () => {
   if (!state.solution) return;
+  if (state.solution.bent) { await setFlatView(true); toast('Switched to Flat view to pick edges.', 'info', 3000); }
   if (printPanel.pieces) printPanel.exitSplit();
   if (dimTool.active) dimTool.stop(); else dimTool.start();
 });
 window.addEventListener('keydown', (e) => {
   if (e.target.closest?.('input,select,textarea,[contenteditable]')) return;
-  if ((e.key === 'd' || e.key === 'D') && state.solution && !dimTool.active) dimTool.start();
+  if ((e.key === 'd' || e.key === 'D') && state.solution && !dimTool.active) $('dimToolBtn').click();
   if ((e.key === 'Delete') && layers.selected) {
     layers.layers = layers.layers.filter((l) => l.id !== layers.selected);
     layers.selected = null;
@@ -609,7 +703,7 @@ async function addImageLayer(file) {
 const canvas = viewer.renderer.domElement;
 let drag = null;
 canvas.addEventListener('pointerdown', (e) => {
-  if (!state.solution || e.button !== 0 || dimTool.active || printPanel.pieces) return;
+  if (!state.solution || e.button !== 0 || dimTool.active || printPanel.pieces || bends.placing || state.solution.bent) return;
   const ordered = [...layers.layers].reverse().sort((a, b) => (b.id === layers.selected) - (a.id === layers.selected));
   for (const L of ordered) {
     if (!L.visible) continue;
@@ -664,7 +758,7 @@ $('exportMenu').addEventListener('click', async (e) => {
       const buf = await viewer.exportGLB(UNIT_TO_M[state.model.unit]);
       download(new Blob([buf], { type: 'model/gltf-binary' }), `${base}.glb`);
     } else {
-      const res = await api(`/api/export/${fmtName}`, { model: state.model, values: state.values, layers: layers.layers });
+      const res = await api(`/api/export/${fmtName}`, { model: state.model, values: state.values, layers: layers.layers, bends: bends.bends });
       download(await res.blob(), `${base}.${fmtName}`);
     }
     toast(open.length ? `Exported ${fmtName.toUpperCase()} (in mm). Note: ${open.length} unresolved check(s) — estimated values may be wrong.`
@@ -675,7 +769,7 @@ $('exportMenu').addEventListener('click', async (e) => {
 $('saveBtn').addEventListener('click', () => {
   const proj = {
     app: 'Auto3DModeler', version: 2, model: state.model, preview: state.preview, values: state.values,
-    userSet: [...state.userSet], layers: layers.layers, snap: parseFloat($('snapStep').value),
+    userSet: [...state.userSet], layers: layers.layers, bends: bends.bends, snap: parseFloat($('snapStep').value), original: state.original,
   };
   const base = (state.model.source || 'part').replace(/\.pdf$/i, '');
   download(new Blob([JSON.stringify(proj)], { type: 'application/json' }), `${base}.a3d.json`);
@@ -692,4 +786,4 @@ $('projectInput').addEventListener('change', (e) => { if (e.target.files[0]) ope
 
 // auto-load the sample when opened with ?sample
 if (new URLSearchParams(location.search).has('sample')) $('sampleBtn').click();
-window.__app = { state, viewer, layers, printPanel, dimTool };
+window.__app = { state, viewer, layers, printPanel, dimTool, bends };

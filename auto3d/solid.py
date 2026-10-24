@@ -15,6 +15,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 import shapely
+from shapely import affinity
 from shapely.geometry import MultiPolygon, Point, Polygon
 from shapely.geometry.polygon import orient
 from shapely.ops import unary_union
@@ -26,6 +27,8 @@ BASE, FEATURE = 0, 1
 
 def _union(geoms):
     geoms = [g for g in geoms if g is not None and not g.is_empty]
+    if len(geoms) == 1:
+        return geoms[0]  # already a valid (multi)polygon; re-unioning a complex pattern is expensive
     return unary_union(geoms) if geoms else Polygon()
 
 
@@ -49,11 +52,34 @@ class Solid:
         piece.issues, piece.guides = [], []
         piece.slabs = []
         for z0, z1, sec in self.slabs:
-            polys = [orient(p, 1.0) for p in polygons_of(shapely.set_precision(sec.intersection(rect), self.grid))]
+            # cheap bounding-box clip first: intersecting a dense pattern with a complex region is costly
+            local = shapely.clip_by_rect(sec, *rect.bounds)
+            polys = [orient(p, 1.0) for p in polygons_of(shapely.set_precision(local.intersection(rect), self.grid))]
             if polys:
                 piece.slabs.append((z0, z1, MultiPolygon(polys)))
         piece.levels = sorted({z for s in piece.slabs for z in s[:2]})
         return piece
+
+    def clipped_layers(self, layers) -> "Solid":
+        """Like clipped(), but with a different outline per height: layers = [(z0, z1, Polygon), ...].
+        Used by joints that change shape through the thickness (hidden dovetails)."""
+        zs = set(self.levels)
+        lo, hi = self.z_range()
+        for a, b, _ in layers:
+            zs |= {min(max(a, lo), hi), min(max(b, lo), hi)}
+        zs = sorted(zs)
+        slabs = []
+        for z0, z1 in zip(zs, zs[1:]):
+            if z1 - z0 < 1e-9:
+                continue
+            zm = (z0 + z1) / 2
+            sec = next((s for a, b, s in self.slabs if a <= zm < b), None)
+            region = next((r for a, b, r in layers if a <= zm < b), None)
+            if sec is None or region is None:
+                continue
+            slabs.append((z0, z1, shapely.clip_by_rect(sec, *region.bounds).intersection(region)))
+        outline = unary_union([r for _, _, r in layers])
+        return self._derived(slabs, profile=self.profile.intersection(outline))
 
     def z_range(self):
         return (self.slabs[0][0], self.slabs[-1][1]) if self.slabs else (0.0, self.t)
@@ -61,6 +87,79 @@ class Solid:
     def xy_bounds(self):
         bs = [sec.bounds for _, _, sec in self.slabs]
         return (min(b[0] for b in bs), min(b[1] for b in bs), max(b[2] for b in bs), max(b[3] for b in bs))
+
+    def base_section(self):
+        """Material that runs through the full base thickness [0, t]."""
+        return self.material_between(0.0, self.t)
+
+    def material_between(self, z0: float, z1: float):
+        """Footprint that is solid over the whole height range [z0, z1] (e.g. where a joint sits)."""
+        base = None
+        for a, b, sec in self.slabs:
+            if b > z0 + 1e-12 and a < z1 - 1e-12:
+                base = sec if base is None else base.intersection(sec)
+        return MultiPolygon(polygons_of(base)) if base is not None else MultiPolygon()
+
+    # ------------------------------------------------------------------ derived solids
+    def _derived(self, slabs, profile=None) -> "Solid":
+        s = Solid.__new__(Solid)
+        s.__dict__.update({k: v for k, v in self.__dict__.items() if k not in ("slabs", "levels", "profile")})
+        s.profile = self.profile if profile is None else profile
+        s.issues, s.guides = [], []
+        s.slabs = [(z0, z1, MultiPolygon([orient(p, 1.0) for p in polygons_of(shapely.set_precision(sec, self.grid))]))
+                   for z0, z1, sec in slabs]
+        s.slabs = [sl for sl in s.slabs if not sl[2].is_empty]
+        s.levels = sorted({z for sl in s.slabs for z in sl[:2]})
+        return s
+
+    @classmethod
+    def prism(cls, poly, z0: float, z1: float, like: "Solid") -> "Solid":
+        """A plain extruded part (e.g. a connector), sharing tolerances with `like`."""
+        s = like._derived([(z0, z1, poly)], profile=poly)
+        s.t = z1
+        return s
+
+    def carved(self, voids) -> "Solid":
+        """Remove material: voids = [(region, z_from, z_to), ...] (pockets, recesses, holes)."""
+        voids = [(g, a, b) for g, a, b in voids if g is not None and not g.is_empty and b > a]
+        if not voids:
+            return self
+        zs = set(self.levels)
+        lo, hi = self.z_range()
+        for _, a, b in voids:
+            zs |= {min(max(a, lo), hi), min(max(b, lo), hi)}
+        zs = sorted(zs)
+        slabs = []
+        for z0, z1 in zip(zs, zs[1:]):
+            if z1 - z0 < 1e-9:
+                continue
+            zm = (z0 + z1) / 2
+            sec = next((s for a, b, s in self.slabs if a <= zm < b), None)
+            if sec is None:
+                continue
+            cut = _union([g for g, a, b in voids if a <= zm < b])
+            slabs.append((z0, z1, sec.difference(cut) if not cut.is_empty else sec))
+        return self._derived(slabs)
+
+    def flipped(self) -> "Solid":
+        """Turned upside down (180° about the x axis) so the back face is on top."""
+        lo, hi = self.z_range()
+        cy = sum(self.xy_bounds()[1::2]) / 2
+        mirror = lambda g: affinity.scale(g, 1, -1, origin=(0, cy))
+        s = self._derived([(lo + hi - z1, lo + hi - z0, mirror(sec)) for z0, z1, sec in reversed(self.slabs)],
+                          profile=mirror(self.profile))
+        return s
+
+    def translated(self, dx=0.0, dy=0.0, dz=0.0) -> "Solid":
+        move = lambda g: affinity.translate(g, dx, dy)
+        s = self._derived([(z0 + dz, z1 + dz, move(sec)) for z0, z1, sec in self.slabs], profile=move(self.profile))
+        s.t = self.t + dz
+        return s
+
+    def at_origin(self) -> "Solid":
+        """Moved so its bounding box starts at (0, 0, 0) — convenient for slicers."""
+        x0, y0, _, _ = self.xy_bounds()
+        return self.translated(-x0, -y0, -self.z_range()[0])
 
     # ------------------------------------------------------------------ slabs
     def _build_slabs(self, regions):
@@ -135,7 +234,9 @@ class Solid:
                         coords.update(ring.coords)
             pts_at[z] = _PointGrid(coords, self.size / 200)
 
-        tol = self.eps * 10
+        # coordinates are snapped to self.grid, so a point on a segment is within ~half a grid step;
+        # a larger tolerance would pull in vertices from the far side of thin slivers
+        tol = 2 * self.grid
         cache = {}
 
         def split(a, b, z):
@@ -202,8 +303,7 @@ class Solid:
         tris, tags = [], []
         for kind, z, rings, normal, tag in self.faces():
             if kind == "cap":
-                poly = Polygon(rings[0], rings[1:])
-                for tri in shapely.constrained_delaunay_triangles(poly).geoms:
+                for tri in _triangulate(Polygon(rings[0], rings[1:])):
                     a, b, c = list(tri.exterior.coords)[:3]
                     ccw = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]) > 0
                     if ccw != (normal[2] > 0):
@@ -212,6 +312,11 @@ class Solid:
                     tags.append(tag)
             else:
                 loop, nb = rings
+                if nb == 2 and len(loop) == 4:  # plain quad (no split points): the common case
+                    b0, b1, t1, t0 = loop
+                    tris += [(b0, b1, t0), (b1, t1, t0)]
+                    tags += [tag, tag]
+                    continue
                 bottom = loop[:nb]
                 top = list(reversed(loop[nb:]))  # a -> b at z1
                 # zip the two polylines (same direction) into triangles
@@ -239,6 +344,20 @@ class Solid:
                 for ring in (p.exterior, *p.interiors):
                     out.append({"layer": g["id"], "z": z, "points": [list(c) for c in ring.coords]})
         return out
+
+
+def _triangulate(poly):
+    """Constrained Delaunay triangles of a cap face; repairs the rare degenerate ring first."""
+    try:
+        return list(shapely.constrained_delaunay_triangles(poly).geoms)
+    except shapely.errors.GEOSException:
+        tris = []
+        for part in polygons_of(shapely.make_valid(poly)):
+            try:
+                tris += list(shapely.constrained_delaunay_triangles(part).geoms)
+            except shapely.errors.GEOSException:
+                continue
+        return tris
 
 
 class _PointGrid:

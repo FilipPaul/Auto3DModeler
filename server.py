@@ -15,10 +15,12 @@ from pathlib import Path
 
 from flask import Flask, Response, jsonify, request, send_from_directory
 
+from auto3d.bend import bend_info, bend_solid
 from auto3d.design import trace_image
 from auto3d.export import build_solid, mesh_payload, to_step, to_stl
 from auto3d.extract import render_page_png
-from auto3d.printing import PrinterStore, plan
+from auto3d.joints import joint_catalog
+from auto3d.printing import PrinterStore, assembly_text, bend_pieces, plan
 from auto3d.sketch import build_model
 from auto3d.solver import solve
 
@@ -42,21 +44,34 @@ def static_files(path):
 
 
 def _solve_full(body):
-    """Solve the sketch and build the 3D solid incl. design layers."""
+    """Solve the sketch and build the 3D solid incl. design layers and bends.
+
+    Returns (model, solution, final_solid, flat_solid, bender): the final solid is bent when bends
+    apply; joints / splitting work on the flat solid and are bent afterwards.
+    """
     model = body["model"]
     solution = solve(model, body.get("values"))
-    solid = None
+    solid = final = bender = None
     if solution["ok"]:
         solid = build_solid(solution, model["unit"], body.get("layers"))
-        solution["design_issues"] = solid.issues
-        solution["volume"] = solid.volume()
-        solution["z_range"] = solid.z_range()
+        final, bender, bend_issues = bend_solid(solid, body.get("bends"), model["unit"])
+        solution["design_issues"] = solid.issues + bend_issues
+        solution["volume"] = final.volume()
+        solution["z_range"] = final.z_range()
         solution["guides"] = solid.guide_rings()
-        if any(i["severity"] == "error" for i in solid.issues):
-            solution["design_ok"] = False
-        else:
-            solution["design_ok"] = True
-    return model, solution, solid
+        solution["design_ok"] = not any(i["severity"] == "error" for i in solution["design_issues"])
+        if bender is not None:
+            solution["bent"] = True
+            solution["bends_info"] = bend_info(bender.ops, model["unit"])
+            solution["bbox3"] = [*final.xy_bounds(), *final.z_range()]
+            lift = solution["thickness"] * 1.002
+            for a in solution["annotations"]:
+                q = final.place([[*a["p1"], lift], [*a["p2"], lift]])
+                a["p1_3d"], a["p2_3d"] = q[0].tolist(), q[1].tolist()
+            x0, y0, x1, _ = solution["bbox"]
+            q = final.place([[x1, y0, 0.0], [x1, y0, solution["thickness"]]])
+            solution["thickness_3d"] = [q[0].tolist(), q[1].tolist()]
+    return model, solution, final, solid, bender
 
 
 def _parse(pdf: bytes, page: int, filename: str):
@@ -88,9 +103,9 @@ def api_sample():
 @app.post("/api/solve")
 def api_solve():
     body = request.get_json(force=True)
-    _model, solution, solid = _solve_full(body)
-    if solid is not None and body.get("mesh", True):
-        solution["mesh"] = mesh_payload(solid)
+    _model, solution, final, _flat, _bender = _solve_full(body)
+    if final is not None and body.get("mesh", True):
+        solution["mesh"] = mesh_payload(final)
     return jsonify(solution)
 
 
@@ -126,33 +141,48 @@ def api_printer_delete(pid):
         return jsonify({"error": str(exc)}), 400
 
 
-def _plan(body, solid, model):
+def _plan(body, solid, model, bender=None):
     printer = printers.get(body.get("printer"))
     if printer is None:
         raise ValueError("Unknown printer.")
-    return plan(solid, model["unit"], printer, float(body.get("margin", 5)), bool(body.get("split")))
+    avoid = [(bender.axis, op["s"], op["e"]) for op in bender.ops] if bender else []
+    result = plan(solid, model["unit"], printer, float(body.get("margin", 5)), bool(body.get("split")),
+                  body.get("joint"), avoid=avoid)
+    if bender is not None:
+        bend_pieces(result, bender, model["unit"], float(body.get("margin", 5)))
+    return result
 
 
 @app.post("/api/print/plan")
 def api_print_plan():
     body = request.get_json(force=True)
-    model, solution, solid = _solve_full(body)
+    model, solution, final, solid, bender = _solve_full(body)
     if solid is None:
         return jsonify({"error": "The model is invalid."}), 400
+    if bender is None and body.get("bends") and not solution.get("design_ok", True):
+        return jsonify({"error": " ".join(i["message"] for i in solution["design_issues"] if i["severity"] == "error")}), 400
     try:
-        result = _plan(body, solid, model)
+        result = _plan(body, solid, model, bender)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     for p in result["pieces"]:
         p["mesh"] = mesh_payload(p.pop("solid"))
+    for g in result.get("connectors", []):
+        for inst in g["instances"]:
+            inst["mesh"] = mesh_payload(inst.pop("solid"))
     return jsonify(result)
+
+
+@app.get("/api/joints")
+def api_joints():
+    return jsonify(joint_catalog())
 
 
 # --------------------------------------------------------------------------- export
 @app.post("/api/export/<fmt>")
 def api_export(fmt):
     body = request.get_json(force=True)
-    model, solution, solid = _solve_full(body)
+    model, solution, final, solid, bender = _solve_full(body)
     if solid is None:
         return jsonify({"error": "The model is invalid and cannot be exported.", "issues": solution["issues"]}), 400
     if not solution.get("design_ok", True):
@@ -166,7 +196,7 @@ def api_export(fmt):
 
     if body.get("split") and body.get("printer"):
         try:
-            result = _plan(body, solid, model)
+            result = _plan(body, solid, model, bender)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         if not result["pieces"]:
@@ -175,11 +205,16 @@ def api_export(fmt):
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
             for p in result["pieces"]:
                 pname = f"{name}_part{p['index']}"
-                z.writestr(f"{pname}.{fmt}", writer(p["solid"], model["unit"], pname))
+                piece = p["solid"].flipped() if p["flip"] else p["solid"]
+                z.writestr(f"{pname}.{fmt}", writer(piece.at_origin(), model["unit"], pname))
+            for k, g in enumerate(result.get("connectors", []), 1):
+                cname = f"{name}_{g['kind']}{k}_x{g['qty']}"
+                z.writestr(f"{cname}.{fmt}", writer(g["instances"][0]["solid"].at_origin(), model["unit"], cname))
+            z.writestr("ASSEMBLY.txt", assembly_text(result, name))
         return Response(buf.getvalue(), mimetype="application/zip",
                         headers={"Content-Disposition": f'attachment; filename="{name}_{fmt}_pieces.zip"'})
 
-    return Response(writer(solid, model["unit"], name), mimetype=mime,
+    return Response(writer(final, model["unit"], name), mimetype=mime,
                     headers={"Content-Disposition": f'attachment; filename="{name}.{fmt}"'})
 
 

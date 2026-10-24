@@ -16,6 +16,7 @@ from __future__ import annotations
 import base64
 import io
 import math
+import random
 
 import shapely
 from shapely import affinity
@@ -23,7 +24,6 @@ from shapely.geometry import LineString, MultiLineString, MultiPolygon, Point, P
 from shapely.ops import unary_union
 
 OPS = ("emboss", "engrave", "cut", "guide")
-PATTERNS = ("solid", "square", "rect", "diamond", "triangle", "hex", "dots", "columns", "radial")
 
 
 def _fmt(v: float) -> str:
@@ -71,12 +71,22 @@ def mask_region(layer: dict, face_area, bbox) -> shapely.Geometry:
 
 
 # --------------------------------------------------------------------------- patterns
-def _line_families(fill, bbox):
-    """Pattern centre-lines (and dots) covering bbox, in model coordinates."""
+# Line patterns produce centre-lines (buffered to `width`); motif patterns produce
+# filled shapes. "use = lines" gives ribs (line pattern) / outlines (motifs),
+# "use = cells" gives the areas between lines / the filled motifs.
+LINE_PATTERNS = {"square", "rect", "columns", "diamond", "triangle", "hex", "radial", "waves", "zigzag", "chevron",
+                 "brick", "scales", "voronoi", "contour", "spiral"}
+MOTIF_PATTERNS = {"dots", "checker", "circles", "stars", "crosses"}
+
+
+def _pattern(fill, bbox, mask):
+    """Return (lines, motifs) for a pattern, in model coordinates (either may be None)."""
     kind = fill.get("pattern", "square")
     sx = max(float(fill.get("sx") or 1), 1e-3)
     sy = max(float(fill.get("sy") or sx), 1e-3)
     angle = float(fill.get("angle") or 0)
+    amp = float(fill.get("amp") if fill.get("amp") is not None else 0.25) * sx
+    size = min(max(float(fill.get("size") or 0.6), 0.05), 1.0)
     x0, y0, x1, y1 = bbox
     if fill.get("origin", "center") == "corner":
         ox, oy = x0, y0
@@ -84,15 +94,45 @@ def _line_families(fill, bbox):
         ox, oy = (x0 + x1) / 2, (y0 + y1) / 2
     ox += float(fill.get("ox") or 0)
     oy += float(fill.get("oy") or 0)
-    R = math.hypot(x1 - x0, y1 - y0) + math.hypot(ox - (x0 + x1) / 2, oy - (y0 + y1) / 2) + max(sx, sy)
+    # Work only over the target box, expressed in the pattern's own (rotated, shifted) frame.
+    pad = 2 * max(sx, sy) + amp
+    a = math.radians(angle)
+    local = [((cx - ox) * math.cos(a) + (cy - oy) * math.sin(a), -(cx - ox) * math.sin(a) + (cy - oy) * math.cos(a))
+             for cx, cy in ((x0, y0), (x1, y0), (x1, y1), (x0, y1))]
+    lx0, lx1 = min(p[0] for p in local) - pad, max(p[0] for p in local) + pad
+    ly0, ly1 = min(p[1] for p in local) - pad, max(p[1] for p in local) + pad
+    R = max(math.hypot(px, py) for px, py in ((lx0, ly0), (lx1, ly0), (lx1, ly1), (lx0, ly1)))
 
-    lines: list[LineString] = []
-    points: list[tuple[float, float]] = []
+    lines: list = []
+    motifs: list = []
 
     def family(step, deg):
-        n = int(math.ceil(R / step))
-        for i in range(-n, n + 1):
-            lines.append(affinity.rotate(LineString([(i * step, -R), (i * step, R)]), deg, origin=(0, 0)))
+        """Parallel lines with spacing `step`, at `deg` from the local y axis, covering the local box."""
+        t = math.radians(deg)
+        n = (math.cos(t), math.sin(t))   # line normal
+        d = (-n[1], n[0])                 # line direction
+        corners = ((lx0, ly0), (lx1, ly0), (lx1, ly1), (lx0, ly1))
+        proj = [c[0] * n[0] + c[1] * n[1] for c in corners]
+        along = [c[0] * d[0] + c[1] * d[1] for c in corners]
+        a0, a1 = min(along), max(along)
+        for i in range(math.floor(min(proj) / step), math.ceil(max(proj) / step) + 1):
+            p = (n[0] * i * step, n[1] * i * step)
+            lines.append(LineString([(p[0] + d[0] * a0, p[1] + d[1] * a0), (p[0] + d[0] * a1, p[1] + d[1] * a1)]))
+
+    def wavy(step, shape):
+        """Horizontal rows (spacing `step`) of a periodic curve; shape(t) in [-1, 1] for t in [0, 1)."""
+        samples = max(8, int((lx1 - lx0) / sx * 16))
+        xs = [lx0 + (lx1 - lx0) * i / samples for i in range(samples + 1)]
+        for j in range(math.floor(ly0 / step), math.ceil(ly1 / step) + 1):
+            lines.append(LineString([(x, j * step + amp * shape((x / sx) % 1.0)) for x in xs]))
+
+    def grid_centres(stx, sty, stagger=False):
+        for j in range(math.floor(ly0 / sty), math.ceil(ly1 / sty) + 1):
+            off = stx / 2 if stagger and j & 1 else 0
+            for i in range(math.floor(lx0 / stx) - 1, math.ceil(lx1 / stx) + 1):
+                yield i * stx + off, j * sty, i, j
+
+    tri = lambda t: 4 * t - 1 if t < 0.5 else 3 - 4 * t
 
     if kind == "square":
         family(sx, 0), family(sx, 90)
@@ -108,10 +148,9 @@ def _line_families(fill, bbox):
     elif kind == "hex":
         r = sx / 2
         w, hh = 1.5 * r, math.sqrt(3) * r
-        nx, ny = int(R / w) + 2, int(R / hh) + 2
         segs = set()
-        for i in range(-nx, nx + 1):
-            for j in range(-ny, ny + 1):
+        for i in range(math.floor(lx0 / w) - 1, math.ceil(lx1 / w) + 2):
+            for j in range(math.floor(ly0 / hh) - 1, math.ceil(ly1 / hh) + 2):
                 cx, cy = i * w, j * hh + (hh / 2 if i & 1 else 0)
                 pts = [(round(cx + r * math.cos(math.pi / 3 * k), 9), round(cy + r * math.sin(math.pi / 3 * k), 9))
                        for k in range(6)]
@@ -119,9 +158,6 @@ def _line_families(fill, bbox):
                     a, b = pts[k], pts[(k + 1) % 6]
                     segs.add((min(a, b), max(a, b)))
         lines += [LineString(s) for s in segs]
-    elif kind == "dots":
-        nx, ny = int(R / sx) + 1, int(R / sy) + 1
-        points += [(i * sx, j * sy) for i in range(-nx, nx + 1) for j in range(-ny, ny + 1)]
     elif kind == "radial":
         r = sx
         while r <= R:
@@ -131,6 +167,61 @@ def _line_families(fill, bbox):
         for k in range(rays):
             a = 2 * math.pi * k / rays
             lines.append(LineString([(0, 0), (R * math.cos(a), R * math.sin(a))]))
+    elif kind == "waves":
+        wavy(sy, lambda t: math.sin(2 * math.pi * t))
+    elif kind == "zigzag":
+        wavy(sy, tri)
+    elif kind == "chevron":
+        wavy(sy, tri)  # zigzag rows split into columns at every apex -> herringbone / chevron look
+        family(sx / 2, 0)
+    elif kind == "brick":
+        for j in range(math.floor(ly0 / sy), math.ceil(ly1 / sy) + 1):
+            lines.append(LineString([(lx0, j * sy), (lx1, j * sy)]))
+            off = sx / 2 if j & 1 else 0
+            for i in range(math.floor(lx0 / sx) - 1, math.ceil(lx1 / sx) + 1):
+                lines.append(LineString([(i * sx + off, j * sy), (i * sx + off, (j + 1) * sy)]))
+    elif kind == "scales":
+        r = sx / 2
+        for cx, cy, _, _ in grid_centres(sx, r, stagger=True):
+            lines.append(LineString([(cx + r * math.cos(a), cy + r * math.sin(a))
+                                     for a in (math.pi + math.pi * k / 10 for k in range(11))]))
+    elif kind == "voronoi":
+        rng = random.Random(int(fill.get("seed") or 1))
+        jitter = min(max(float(fill.get("jitter") if fill.get("jitter") is not None else 0.8), 0.0), 1.0)
+        pts = [(cx + (rng.random() - 0.5) * jitter * sx, cy + (rng.random() - 0.5) * jitter * sy)
+               for cx, cy, _, _ in grid_centres(sx, sy, stagger=True)]
+        cells = shapely.voronoi_polygons(shapely.MultiPoint(pts))
+        lines += [c.exterior for c in cells.geoms]
+    elif kind == "spiral":
+        turns = R / sx
+        steps = int(turns * 64) + 2
+        lines.append(LineString([(sx * th / (2 * math.pi) * math.cos(th), sx * th / (2 * math.pi) * math.sin(th))
+                                 for th in (2 * math.pi * turns * k / steps for k in range(steps + 1))]))
+    elif kind == "contour":
+        pass  # built below in absolute coordinates: rings that follow the mask outline
+    elif kind == "dots":
+        for cx, cy, _, _ in grid_centres(sx, sy):
+            motifs.append(Point(cx, cy).buffer(size * min(sx, sy) / 2, quad_segs=8))
+    elif kind == "circles":
+        for cx, cy, _, _ in grid_centres(sx, sx * math.sqrt(3) / 2, stagger=True):
+            motifs.append(Point(cx, cy).buffer(size * sx / 2, quad_segs=8))
+    elif kind == "checker":
+        for cx, cy, i, j in grid_centres(sx, sy):
+            if (i + j) & 1 == 0:
+                motifs.append(box(cx - sx / 2, cy - sy / 2, cx + sx / 2, cy + sy / 2))
+    elif kind == "stars":
+        n = max(3, int(fill.get("points") or 5))
+        ro = size * sx / 2
+        ri = ro * 0.45
+        star = Polygon([((ro if k % 2 == 0 else ri) * math.cos(math.pi / 2 + math.pi * k / n),
+                         (ro if k % 2 == 0 else ri) * math.sin(math.pi / 2 + math.pi * k / n)) for k in range(2 * n)])
+        for cx, cy, _, _ in grid_centres(sx, sy, stagger=True):
+            motifs.append(affinity.translate(star, cx, cy))
+    elif kind == "crosses":
+        a, b = size * sx / 2, size * sx / 6
+        cross = box(-a, -b, a, b).union(box(-b, -a, b, a))
+        for cx, cy, _, _ in grid_centres(sx, sy):
+            motifs.append(affinity.translate(cross, cx, cy))
     else:
         raise ValueError(f"unknown pattern '{kind}'")
 
@@ -139,25 +230,36 @@ def _line_families(fill, bbox):
 
     clip = box(*bbox).buffer(max(sx, sy))
     geo_lines = place(MultiLineString(lines)).intersection(clip) if lines else None
-    geo_points = place(shapely.MultiPoint(points)).intersection(clip) if points else None
-    return geo_lines, geo_points
+    geo_motifs = place(unary_union(motifs)).intersection(clip) if motifs else None
+    if kind == "contour" and not mask.is_empty:
+        rings, d = [], sx / 2
+        while len(rings) < 2000:
+            inner = mask.buffer(-d, join_style="mitre")
+            if inner.is_empty:
+                break
+            rings.append(inner.boundary)
+            d += sx
+        geo_lines = unary_union(rings) if rings else None
+    return geo_lines, geo_motifs
 
 
 def fill_region(layer: dict, mask, bbox):
     fill = layer.get("fill") or {"pattern": "solid"}
-    if fill.get("pattern", "solid") == "solid":
+    kind = fill.get("pattern", "solid")
+    if kind == "solid":
         return mask
     width = max(float(fill.get("width") or 0.1), 1e-4)
-    lines, points = _line_families(fill, mask.bounds if not mask.is_empty else bbox)
-    parts = []
-    if lines is not None and not lines.is_empty:
-        parts.append(lines.buffer(width / 2, cap_style="flat", join_style="mitre", quad_segs=4))
-    if points is not None and not points.is_empty:
-        parts.append(points.buffer(width / 2, quad_segs=8))
-    pattern = unary_union(parts) if parts else Polygon()
-    if fill.get("use", "lines") == "cells":
-        return mask.difference(pattern)
-    return mask.intersection(pattern)
+    lines, motifs = _pattern(fill, mask.bounds if not mask.is_empty else bbox, mask)
+    use_cells = fill.get("use", "lines") == "cells"
+    rib = lambda g: g.buffer(width / 2, cap_style="flat", join_style="mitre", quad_segs=4)
+    if kind in MOTIF_PATTERNS:
+        if motifs is None or motifs.is_empty:
+            return Polygon()
+        # cells = the filled shapes, lines = their outlines as ribs
+        filled = MultiPolygon(polygons_of(motifs))
+        return mask.intersection(filled if use_cells else rib(filled.boundary))
+    pattern = rib(lines) if lines is not None and not lines.is_empty else Polygon()
+    return mask.difference(pattern) if use_cells else mask.intersection(pattern)
 
 
 def polygons_of(g) -> list[Polygon]:
@@ -216,7 +318,8 @@ def layer_regions(solution: dict, layers: list[dict], unit: str = "mm"):
         except (ValueError, shapely.errors.GEOSException) as exc:
             issue("error", f"could not build the pattern ({exc}).")
             continue
-        region = _clean(shapely.set_precision(region, grid))
+        # 0.02 mm is far below any FDM resolution (~0.1 mm); dropping finer detail keeps meshes small
+        region = _clean(shapely.set_precision(region.simplify(0.02 / mm), grid))
         if region.is_empty:
             issue("warning", "has no effect — it lies outside the face (check its mask, position and margin).")
             continue

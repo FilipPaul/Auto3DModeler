@@ -30,7 +30,10 @@ Click **Sample drawing** to load `initial draft.pdf`, or open/drop your own PDF.
 4. **3D solid** ([auto3d/design.py](auto3d/design.py), [auto3d/solid.py](auto3d/solid.py)) – design layers become 2D
    regions, the part is built as a stack of z-slabs and meshed without T-junctions (watertight).
 5. **Export** ([auto3d/export.py](auto3d/export.py)) – binary STL and AP214 STEP (one solid per connected body), in **mm**.
-6. **Printing** ([auto3d/printing.py](auto3d/printing.py)) – printer profiles, fit check, split planning.
+6. **Printing** ([auto3d/printing.py](auto3d/printing.py), [auto3d/joints.py](auto3d/joints.py)) – printer profiles,
+   fit check, split planning and joints between pieces.
+7. **Bending** ([auto3d/bend.py](auto3d/bend.py)) – folds and rolls applied to the final mesh (split across the
+   bend zones, then mapped onto the bent shape).
 
 ## What gets reported (Checks tab)
 
@@ -65,11 +68,32 @@ Each layer = **mask × fill → operation**:
 | | options |
 | --- | --- |
 | Mask | whole face (with edge margin), rectangle, ellipse, image/logo (PNG/JPG/SVG traced to a silhouette); position, size, rotation, invert |
-| Fill | solid, or a pattern — square, rectangular, diagonal, triangular, hexagonal, dots, columns, radial — using the *lines* (ribs) or the *cells* between them; spacing, line width, angle, origin, offset |
+| Fill | solid, or one of 20 patterns. **Line patterns** — square, rectangular, diagonal, triangular, hexagonal, brick, columns, waves, zigzag, chevron, fish scales, Voronoi (seeded, adjustable randomness), contour (follows the mask outline), spiral, radial — use the *lines* (ribs) or the *cells* between them. **Shape patterns** — dots, circles, checkerboard, stars, crosses — use the *filled shapes* or their *outlines*. Spacing, line width, shape size, amplitude, angle, origin, offset |
 | Operation | **emboss** (raise by height), **engrave** (cut in by depth), **cut through** (lattice / perforation), **guide** (outline only) |
 
 Layers are real geometry and are included in STL/STEP. Masks can be dragged on the part (with snapping).
 Checks warn about depths ≥ thickness, layers outside the face, and features thinner than 0.4 mm.
+
+### Bending
+
+Bends are applied last, to the finished part, so cutouts, design layers and joints bend with it
+(length is kept on the mid-thickness, like real sheet bending).
+
+- **＋ Fold line** — click on the part where the fold goes (`R` rotates the line). Set the bend angle
+  (0° = flat, 90° = right angle), the inner radius, and the shape: *front outside* (roof ∧, tube) or
+  *front inside* (gutter ∨). Several folds in the same direction give U, Z or multi-facet roof shapes.
+- **＋ Roll** — bends the whole length into one arc of the given angle (180° = half tube, up to almost a
+  full ring); the inner radius follows from length and angle.
+- **Flat view** switches the bends off temporarily to edit masks and dimensions; the dimension tool and
+  fold placement switch to it automatically.
+
+Checks refuse overlapping bends, bends in two crossing directions (a flat sheet can't do that), bend
+zones running off the part, and inner radii smaller than embossed design on the inner face.
+
+Bent STL files are smooth (one facet per ≤ 3°). Bent STEP files are faceted solids (flat facets),
+because exact cylindrical faces would need a CAD kernel. When splitting a bent part, cuts are kept out
+of the bend zones and each piece is exported bent (curved parts usually need supports; alternatively
+print flat with the bends hidden and heat-bend).
 
 ## 3D print (right panel)
 
@@ -77,7 +101,37 @@ Built-in printers: **Creality Ender-3 Pro** (220 × 220 × 250 mm) and **Bambu L
 add your own with **＋ New printer** (stored in `data/printers.json`). The build volume is shown in 3D and
 the part is checked against it (with a configurable bed margin, 90° rotation allowed). **Split to fit**
 cuts the part into the fewest pieces that fit, preferring even pieces and cuts through solid material
-(more glue area); pieces are exported as a ZIP of STL or STEP files.
+(more glue area); pieces are exported as a ZIP of STL or STEP files with an `ASSEMBLY.txt` sheet.
+
+### Joining split pieces
+
+All joints are vertical extrusions, so pieces and connectors print flat without supports. Connectors are
+placed only where the cut runs through solid material, keeping ≥ 1.2 mm of wall to edges, cutouts and
+design features; every option has a print *clearance* (default 0.15–0.2 mm).
+
+| Joint | How it works | Extra parts |
+| --- | --- | --- |
+| Butt joint | straight cut, glued (glue channel + ports by default) | – |
+| Dovetail — through | trapezoid tabs through the full thickness (outline visible on the front) | – |
+| Dovetail — hidden, flat front | tabs only behind a straight front skin (default 3 mm), so the assembled front is flat with a hairline seam. Pieces alternate male (print front-up, tabs on the bed) / female (print front-down, sockets open upwards); male pieces drop into the sockets from the back | – |
+| Jigsaw puzzle | round knobs printed into the cut (alternating or one direction) | – |
+| Butterfly keys | bow-tie pockets across the seam (front or back), keys printed separately | bow-tie keys |
+| Dowel pins | rectangular pockets inside the cut faces (short bridge, no supports) | rectangular pins |
+| Splice plate | plate recessed across the seam (back by default), optional M-screw pilot holes | plates |
+
+**Glue features** (butt joint, both dovetails, puzzle, dowels): a small *glue channel* runs along each seam
+inside the thickness (below the skin for hidden dovetails) so glue spreads along the joint and excess
+collects there instead of squeezing out onto the front; optional *injection ports* — half-holes in both
+pieces that form round holes on the back once assembled — let you dry-fit the parts and then inject thin
+CA or slow epoxy until it appears at the next port. Channel size and port diameter are adjustable.
+
+The split planner gives every piece its own length allowance (e.g. in a male / female row only the male
+pieces get longer), so joints cost as few extra pieces as possible.
+
+Connector parts are grouped into identical parts (`…_butterfly1_x4.stl` = print 4). When the pockets
+open on the back, pieces are exported back-face up so the pockets face upwards; if the front has
+embossed design this is reported instead. Integral joints make pieces longer, which the split planner
+accounts for.
 
 Projects (model, edited/added dimensions, design layers) can be saved/loaded as `.a3d.json`.
 
@@ -90,12 +144,13 @@ python -m unittest discover -s tests -v
 The suite covers the sample drawing (all 12 dimensions, geometry, propagation, exports), synthetic
 drawings for each failure mode (invalid/missing/zero labels, missing dimensions, conflicts, redundancy,
 open outline, no dimensions, thickness note), every design operation and pattern (watertight mesh,
-volumes, STEP bodies), image tracing, printer profiles and splitting.
+volumes, STEP bodies), image tracing, printer profiles, splitting and every joint type (fit, watertight
+pieces and connectors, material conservation, wall checks, joints through engraved patterns).
 
 ## Current limitations
 
 - Single view, straight-line profiles extruded to a constant thickness; arcs/holes (Ø, R), angled
   dimensions and multi-view drawings are reported but not modelled yet.
-- Design features are vertical extrusions (no chamfers/rounded profiles). Split pieces have plain butt
-  joints (no dowels/dovetails yet).
+- Design features and joints are vertical extrusions (no chamfers/rounded profiles, no round dowels).
+- Very dense curved patterns over a large face (hundreds of circles/scales) can take several seconds to rebuild.
 - Scanned (raster) PDFs and PDFs with text converted to outlines can't be read (no OCR).

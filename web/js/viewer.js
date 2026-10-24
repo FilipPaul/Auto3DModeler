@@ -146,7 +146,8 @@ export class Viewer {
     this.invalidate();
     this.clearGroup(this.overlay);
     const mat = new THREE.LineDashedMaterial({ color: 0x2f81f7, dashSize: this.size / 150, gapSize: this.size / 300, depthTest: false });
-    for (const g of guides) {
+    // guides / mask outlines live on the flat face; they are hidden while the part is shown bent
+    for (const g of this.solution?.bent ? [] : guides) {
       const z = g.z + (g.z > 0 ? 1 : -1) * this.size * 0.0008;
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(g.points.map((p) => new THREE.Vector3(p[0], p[1], z))), mat);
       line.computeLineDistances();
@@ -165,7 +166,7 @@ export class Viewer {
       this.overlay.remove(o);
       o.geometry.dispose();
     }
-    if (!rings || !this.solution) return;
+    if (!rings || !this.solution || this.solution.bent) return;
     const z = face === 'bottom' ? this.zRange[0] - this.size * 0.001 : this.zRange[1] + this.size * 0.001;
     const mat = new THREE.LineBasicMaterial({ color: 0xff2d95, depthTest: false });
     for (const r of rings) {
@@ -191,10 +192,11 @@ export class Viewer {
       const color = DIM_COLORS[status] ?? DIM_COLORS.drawing;
       const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.95, depthTest: false });
       const g = new THREE.Group();
-      const p1 = new THREE.Vector3(a.p1[0], a.p1[1], a.z ?? z);
-      const p2 = new THREE.Vector3(a.p2[0], a.p2[1], a.z2 ?? a.z ?? z);
+      // on a bent part the server maps the label points onto the bent surface (drawn as a chord)
+      const p1 = a.p1_3d ? new THREE.Vector3(...a.p1_3d) : new THREE.Vector3(a.p1[0], a.p1[1], a.z ?? z);
+      const p2 = a.p2_3d ? new THREE.Vector3(...a.p2_3d) : new THREE.Vector3(a.p2[0], a.p2[1], a.z2 ?? a.z ?? z);
       const pts = [p1, p2];
-      if (a.axis !== 'z') {
+      if (a.axis !== 'z' && !a.p1_3d) {
         const horiz = Math.abs(a.p1[1] - a.p2[1]) < 1e-9;
         if (horiz && (a.p1[1] < by0 || a.p1[1] > by1)) {
           const edge = a.p1[1] < by0 ? by0 : by1;
@@ -369,12 +371,12 @@ export class Viewer {
     this.clearGroup(this.printGroup);
     const v = this.buildVolume;
     if (!v || !this.solution) return;
-    const [x0, y0] = this.solution.bbox;
+    const [x0, y0] = this.solution.bbox3 || this.solution.bbox;
     this.printGroup.add(this._volumeBox(v.x, v.y, v.z, [x0 - v.margin, y0 - v.margin, this.zRange[0]], v.fits ? 0x3fb950 : 0xf85149));
   }
 
   /** Exploded view of split pieces, each on its own build plate. */
-  showPieces(pieces, vol) {
+  showPieces(pieces, vol, connectors = [], seams = []) {
     this.invalidate();
     this.piecesShown = !!pieces?.length;
     this.clearGroup(this.printGroup);
@@ -385,6 +387,7 @@ export class Viewer {
     const gap = this.size * 0.08;
     const xs = [...new Set(pieces.map((p) => p.rect[0]))].sort((a, b) => a - b);
     const ys = [...new Set(pieces.map((p) => p.rect[1]))].sort((a, b) => a - b);
+    const offsets = {};
     pieces.forEach((p, i) => {
       const color = new THREE.Color(PIECE_COLORS[i % PIECE_COLORS.length]);
       const geo = this.buildGeometry(p.mesh, (tag) => (tag ? color.clone().offsetHSL(0, 0, -0.2) : color));
@@ -405,7 +408,24 @@ export class Viewer {
       lbl.position.set(cx, cy, this.zRange[1] + this.size * 0.02);
       g.add(lbl);
       this.printGroup.add(g);
+      offsets[p.index] = [ox, oy];
     });
+
+    // connector parts: between the two pieces they join; keys/plates lifted off their face
+    const connColor = new THREE.Color(0xf2cc60);
+    for (const grp of connectors || []) {
+      for (const inst of grp.instances) {
+        const seam = seams?.[inst.seam];
+        const [a, b] = (seam?.pieces || []).map((idx) => offsets[idx] || [0, 0]);
+        const geo = this.buildGeometry(inst.mesh, () => connColor);
+        const m = new THREE.Group();
+        m.add(new THREE.Mesh(geo, this.material));
+        m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), this.edgeMaterial));
+        m.position.set(((a?.[0] ?? 0) + (b?.[0] ?? 0)) / 2, ((a?.[1] ?? 0) + (b?.[1] ?? 0)) / 2,
+          inst.lift * this.size * 0.06);
+        this.printGroup.add(m);
+      }
+    }
   }
 
   exportGLB(toMetres = 1) {

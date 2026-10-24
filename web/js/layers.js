@@ -5,10 +5,18 @@ const OPS = [
 ];
 const MASKS = [['face', 'Whole face'], ['rect', 'Rectangle'], ['ellipse', 'Ellipse'], ['image', 'Image / logo']];
 const PATTERNS = [
-  ['solid', 'Solid'], ['square', 'Square grid'], ['rect', 'Rectangular grid'], ['diamond', 'Diagonal / diamond'],
-  ['triangle', 'Triangular (isometric)'], ['hex', 'Hexagonal (honeycomb)'], ['dots', 'Dots'], ['columns', 'Columns / slats'],
-  ['radial', 'Radial (rings + rays)'],
+  ['solid', 'Solid'],
+  ['square', 'Grid — square'], ['rect', 'Grid — rectangular'], ['diamond', 'Grid — diagonal / diamond'],
+  ['triangle', 'Grid — triangular (isometric)'], ['hex', 'Hexagonal (honeycomb)'], ['brick', 'Brick / running bond'],
+  ['columns', 'Columns / slats'], ['waves', 'Waves'], ['zigzag', 'Zigzag'], ['chevron', 'Chevron / herringbone'],
+  ['scales', 'Fish scales'], ['voronoi', 'Voronoi (organic cells)'], ['contour', 'Contour (follows the outline)'],
+  ['spiral', 'Spiral'], ['radial', 'Radial (rings + rays)'],
+  ['dots', 'Shapes — dots'], ['circles', 'Shapes — circles'], ['checker', 'Shapes — checkerboard'],
+  ['stars', 'Shapes — stars'], ['crosses', 'Shapes — crosses'],
 ];
+// patterns made of shapes (vs. lines): “cells” = filled shapes, “lines” = their outlines
+const MOTIFS = new Set(['dots', 'circles', 'checker', 'stars', 'crosses']);
+const TWO_SPACINGS = new Set(['rect', 'dots', 'brick', 'waves', 'zigzag', 'chevron', 'voronoi', 'checker', 'stars', 'crosses']);
 
 export function nice(v) {
   if (!(v > 0)) return 1;
@@ -27,7 +35,7 @@ export function newLayer(kind, solution, extra = {}) {
   const base = {
     id: newId(), visible: true, face: 'top', op: 'emboss', depth: nice(t * 0.15), margin: 0,
     mask: { kind: 'face', x: (x0 + x1) / 2, y: (y0 + y1) / 2, w: h * 0.6, h: h * 0.4, rot: 0, invert: false },
-    fill: { pattern: 'solid', sx: s, sy: s, angle: 0, origin: 'center', ox: 0, oy: 0, width: nice(s / 8), use: 'lines' },
+    fill: { pattern: 'solid', sx: s, sy: s, angle: 0, origin: 'center', ox: 0, oy: 0, width: nice(s / 8), use: 'lines', size: 0.6, amp: 0.25, jitter: 0.8, seed: 1, points: 5, rays: 24 },
   };
   if (kind === 'grid') {
     Object.assign(base, { name: 'Grid', margin: nice(h / 20) });
@@ -150,15 +158,26 @@ export class LayersPanel {
       [`Edge margin (${u})`, num(L, 'margin', 0.1)],
       ['Invert mask', check(m, 'invert')],
       ['section', 'Fill'],
-      ['Fill', select(L.fill, 'pattern', PATTERNS, () => this.render())],
-      ...(isPattern ? [
-        ['Use', select(L.fill, 'use', [['lines', 'Pattern lines (ribs)'], ['cells', 'Cells between lines']])],
-        [`Spacing (${u})`, L.fill.pattern === 'rect' || L.fill.pattern === 'dots' ? pair(num(L.fill, 'sx', 0.1), num(L.fill, 'sy', 0.1)) : num(L.fill, 'sx', 0.1)],
-        [`Line width (${u})`, num(L.fill, 'width', 0.01)],
-        ['Angle °', num(L.fill, 'angle', 5)],
-        ['Origin', select(L.fill, 'origin', [['center', 'Centre'], ['corner', 'Bottom-left corner']])],
-        [`Offset (${u})`, pair(num(L.fill, 'ox', 0.1), num(L.fill, 'oy', 0.1))],
-      ] : []),
+      ['Fill', select(L.fill, 'pattern', PATTERNS, () => { if (MOTIFS.has(L.fill.pattern)) L.fill.use = 'cells'; this.render(); })],
+      ...(isPattern ? (() => {
+        const f = L.fill, pat = f.pattern, motif = MOTIFS.has(pat);
+        return [
+          ['Use', select(f, 'use', motif ? [['cells', 'Filled shapes'], ['lines', 'Shape outlines (ribs)']]
+            : [['lines', 'Pattern lines (ribs)'], ['cells', 'Cells between lines']])],
+          [`Spacing (${u})`, TWO_SPACINGS.has(pat) ? pair(num(f, 'sx', 0.1), num(f, 'sy', 0.1)) : num(f, 'sx', 0.1)],
+          ...(motif ? [['Shape size ×', num(f, 'size', 0.05)]] : []),
+          ...(!motif || f.use === 'lines' ? [[`Line width (${u})`, num(f, 'width', 0.01)]] : []),
+          ...(['waves', 'zigzag', 'chevron'].includes(pat) ? [['Amplitude ×', num(f, 'amp', 0.05)]] : []),
+          ...(pat === 'voronoi' ? [['Randomness', num(f, 'jitter', 0.1)], ['Seed', num(f, 'seed', 1)]] : []),
+          ...(pat === 'stars' ? [['Star points', num(f, 'points', 1)]] : []),
+          ...(pat === 'radial' ? [['Rays', num(f, 'rays', 1)]] : []),
+          ...(pat !== 'contour' ? [
+            ['Angle °', num(f, 'angle', 5)],
+            ['Origin', select(f, 'origin', [['center', 'Centre'], ['corner', 'Bottom-left corner']])],
+            [`Offset (${u})`, pair(num(f, 'ox', 0.1), num(f, 'oy', 0.1))],
+          ] : []),
+        ];
+      })() : []),
     ];
     for (const [label, ctl] of rows) {
       if (label === 'section') {

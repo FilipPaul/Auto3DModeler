@@ -41,6 +41,10 @@
       </nav>
       <section class="tab-body active" id="tab-params">
         <div class="empty" id="paramsEmpty">Open a PDF drawing to start.</div>
+        <div class="params-toolbar" id="paramsToolbar" hidden>
+          <span id="changeCount"></span>
+          <button class="btn small" id="resetAll" title="Undo every change: values, added dimensions and promoted references">↺ Restore drawing defaults</button>
+        </div>
         <div id="paramList"></div>
         <p class="hint" id="paramHint" hidden>
           Click a value in the 3D view to type it, drag it left/right to scrub, or scroll over it.
@@ -70,6 +74,7 @@
         <button class="chip toggle" id="wireToggle">Edges only</button>
         <span class="sep"></span>
         <button class="chip tool" id="dimToolBtn" title="Add a dimension between two edges or corners (D)">＋ Dimension</button>
+        <button class="chip toggle" id="flatToggle" hidden title="Show the part unbent (to edit masks and dimensions)">Flat view</button>
       </div>
       <div class="tool-hint" id="toolHint" hidden></div>
       <div class="busy" id="busy" hidden>Building 3D…</div>
@@ -93,6 +98,13 @@
         <div id="layerList"></div>
         <label class="check snap"><input type="checkbox" id="snapToggle" checked> Snap dragged masks to</label>
         <input type="number" id="snapStep" class="snap-step" step="0.1" min="0" title="Snap step">
+        <h3>Bend the part</h3>
+        <p class="hint">Applied last, to the finished part (design and joints bend with it). Edit masks and dimensions in <b>Flat view</b>.</p>
+        <div class="row-actions add-layer">
+          <button class="btn small" id="addFold" title="Click on the part to place a fold line">＋ Fold line</button>
+          <button class="btn small" id="addRoll" title="Bend the whole length into an arc or tube">＋ Roll</button>
+        </div>
+        <div id="bendList"></div>
         <h3>Colours</h3>
         <div class="field two"><label>Part / design</label><input type="color" id="baseColor" value="#d9dee6"><input type="color" id="featureColor" value="#4f8cff"></div>
       </section>

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from shapely.geometry import LineString, box
 
+from .joints import Seam, apply_joints, pocket_faces, protrusion_mm
 from .solid import Solid
 
 UNIT_IN_MM = {"mm": 1.0, "cm": 10.0, "m": 1000.0, "in": 25.4}
@@ -67,36 +68,75 @@ class PrinterStore:
 
 
 # --------------------------------------------------------------------------- planning
-def _cut_positions(lo, hi, n, max_len, quality, min_gap):
-    """Choose n-1 cut positions in (lo, hi) so that every piece is <= max_len.
+def _cut_positions(lo, hi, n, max_lens, quality, min_gap):
+    """Choose n-1 cut positions in (lo, hi) so that piece k is <= max_lens[k] long.
 
-    Candidates are scored by closeness to a uniform split and by `quality(pos)`
-    (e.g. how much material the cut goes through -> glue area).
+    Candidates are scored by closeness to a split proportional to each piece's allowance and by
+    `quality(pos)` (e.g. how much material the cut goes through -> glue area).
     """
     cuts, prev = [], lo
     step = max((hi - lo) / 2000, 1e-4)
     for k in range(1, n):
-        remaining = n - k
-        a = max(prev + min_gap, hi - remaining * max_len)
-        b = min(prev + max_len, hi - min_gap)
+        a = max(prev + min_gap, hi - sum(max_lens[k:]))
+        b = min(prev + max_lens[k - 1], hi - min_gap)
         if a > b:
             return None
-        target = prev + (hi - prev) / (remaining + 1)
+        target = prev + (hi - prev) * max_lens[k - 1] / sum(max_lens[k - 1:])
         best, best_score = None, -math.inf
         steps = max(1, int((b - a) / step))
         for i in range(steps + 1):
             x = a + (b - a) * i / steps
-            score = quality(x) - abs(x - target) / max_len
+            score = quality(x) - abs(x - target) / max_lens[k - 1]
             if score > best_score:
                 best, best_score = x, score
         cuts.append(best)
         prev = best
-    if hi - prev > max_len + 1e-9:
+    if hi - prev > max_lens[-1] + 1e-9:
         return None
     return cuts
 
 
-def plan(solid: Solid, unit: str, printer: dict, margin_mm: float = 5.0, split: bool = False) -> dict:
+def _piece_limits(n, bed_len, joint, single_row):
+    """Allowed length (mm) of each of n pieces in a row, given how far the joint reaches into it.
+
+    Through dovetails / one-way knobs grow a piece on its right side only; hidden dovetails grow
+    male pieces (every other one) on both sides and leave female pieces as they are; alternating
+    knobs may grow any piece on both sides.
+    """
+    kind = (joint or {}).get("type", "none")
+    sides = lambda k: (k > 0) + (k < n - 1)
+    reach = protrusion_mm(joint)
+    if kind == "hidden_dovetail":
+        d = reach / 2
+        if single_row:
+            return [bed_len - sides(k) * d if k % 2 == 0 else bed_len for k in range(n)]
+        return [bed_len - sides(k) * d for k in range(n)]
+    if kind == "dovetail" or (kind == "puzzle" and not (joint or {}).get("alternate", True)):
+        return [bed_len - (reach if k < n - 1 else 0) for k in range(n)]
+    if kind == "puzzle":
+        return [bed_len - sides(k) * reach / 2 for k in range(n)]
+    return [bed_len] * n
+
+
+def _pieces_needed(length, bed_len, joint, single_row):
+    """Fewest pieces whose allowances add up to the part length (None if the joint is too big)."""
+    n = max(1, math.ceil(length / bed_len - 1e-9))
+    while n < 200:
+        limits = _piece_limits(n, bed_len, joint, single_row) if n > 1 else [bed_len]
+        if min(limits) <= 0:
+            return None, None
+        if sum(limits) >= length - 1e-9:
+            return n, limits
+        n += 1
+    return None, None
+
+
+def plan(solid: Solid, unit: str, printer: dict, margin_mm: float = 5.0, split: bool = False,
+         joint: dict | None = None, avoid=()) -> dict:
+    """Fit check and (optionally) split into printable pieces.
+
+    avoid: [(axis, from, to), ...] ranges where cuts should not go (e.g. bend zones).
+    """
     s = UNIT_IN_MM[unit]
     x0, y0, x1, y1 = solid.xy_bounds()
     z0, z1 = solid.z_range()
@@ -123,19 +163,26 @@ def plan(solid: Solid, unit: str, printer: dict, margin_mm: float = 5.0, split: 
     if not split:
         return result
 
-    # pick the orientation needing the fewest pieces
+    # pick the orientation needing the fewest pieces; integral joints reach into the neighbour
     W, H = size[0], size[1]
     options = []
     for rot, (bx, by) in (("flat", (bed[0], bed[1])), ("rotated", (bed[1], bed[0]))):
-        nx, ny = max(1, math.ceil(W / bx - 1e-9)), max(1, math.ceil(H / by - 1e-9))
-        options.append((nx * ny, nx, ny, bx, by, rot))
-    _, nx, ny, bx, by, rot = min(options)
+        ny0 = max(1, math.ceil(H / by - 1e-9))
+        nx0 = max(1, math.ceil(W / bx - 1e-9))
+        nx, lx = _pieces_needed(W, bx, joint, single_row=ny0 == 1)
+        ny, ly = _pieces_needed(H, by, joint, single_row=nx0 == 1)
+        if nx is None or ny is None:
+            continue
+        options.append((nx * ny, nx, ny, lx, ly, rot))
+    if not options:
+        issues.append({"severity": "error", "message": "The joint is larger than the build plate."})
+        return result
+    _, nx, ny, lx, ly, rot = min(options, key=lambda o: o[:3])
 
-    base = None
-    for a, b, sec in solid.slabs:
-        if a >= -1e-9 and b <= solid.t + 1e-9:
-            base = sec if base is None else base.intersection(sec)
-    base = base if base is not None else solid.profile
+    # cut quality looks at the mid-thickness core: surface engraving does not weaken a joint,
+    # while cutouts and cut-through design do (and it keeps the search fast on dense patterns)
+    base = solid.material_between(0.25 * solid.t, 0.75 * solid.t)
+    base = base if not base.is_empty else solid.profile
     edges_x = sorted({c[0] for p in base.geoms for r in (p.exterior, *p.interiors) for c in r.coords})
     edges_y = sorted({c[1] for p in base.geoms for r in (p.exterior, *p.interiors) for c in r.coords})
     span = max(x1 - x0, y1 - y0)
@@ -149,31 +196,146 @@ def plan(solid: Solid, unit: str, printer: dict, margin_mm: float = 5.0, split: 
             material = base.intersection(line).length / full
             near = min((abs(v - c) for c in coords), default=span)
             sliver = 1.0 if near < 0.01 * span else 0.0  # avoid hairline slivers next to an edge
-            return material - sliver
+            in_bend = 2.0 if any(ax == axis and a - 0.01 * span <= v <= b + 0.01 * span for ax, a, b in avoid) else 0.0
+            return material - sliver - in_bend
         return q
 
     min_gap = 0.02 * span
-    cx = _cut_positions(x0, x1, nx, bx / s, quality("x"), min_gap) if nx > 1 else []
-    cy = _cut_positions(y0, y1, ny, by / s, quality("y"), min_gap) if ny > 1 else []
+    cx = _cut_positions(x0, x1, nx, [v / s for v in lx], quality("x"), min_gap) if nx > 1 else []
+    cy = _cut_positions(y0, y1, ny, [v / s for v in ly], quality("y"), min_gap) if ny > 1 else []
     if cx is None or cy is None:
         issues.append({"severity": "error", "message": "Could not find cut positions that fit the build plate."})
         return result
     xs, ys = [x0] + cx + [x1], [y0] + cy + [y1]
-    n = 0
+
+    # cells (grid of pieces) and the seams between neighbours;
+    # outer cells extend past the part so nothing is lost at the border
+    big = span
+
+    def ext(v, arr, k):
+        return v - big if k == 0 else v + big if k == len(arr) - 1 else v
+
+    cells = {}
     for j in range(len(ys) - 1):
         for i in range(len(xs) - 1):
-            rect = box(xs[i], ys[j], xs[i + 1], ys[j + 1])
-            piece = solid.clipped(rect)
-            if not piece.slabs:
-                continue
-            n += 1
-            px0, py0, px1, py1 = piece.xy_bounds()
-            w, h = (px1 - px0) * s, (py1 - py0) * s
-            result["pieces"].append({"index": n, "rect": [xs[i], ys[j], xs[i + 1], ys[j + 1]],
-                                     "size_mm": (w, h, size[2]), "orientation": fits(w, h) or "too big",
-                                     "solid": piece})
+            cells[(i, j)] = box(ext(xs[i], xs, i), ext(ys[j], ys, j), ext(xs[i + 1], xs, i + 1), ext(ys[j + 1], ys, j + 1))
+    seams = []
+    for j in range(len(ys) - 1):
+        for i in range(1, len(xs) - 1):
+            seams.append(Seam("x", xs[i], (ys[j], ys[j + 1]), (i - 1, j), (i, j)))
+    for j in range(1, len(ys) - 1):
+        for i in range(len(xs) - 1):
+            seams.append(Seam("y", ys[j], (xs[i], xs[i + 1]), (i, j - 1), (i, j)))
+
+    regions, voids, parts, j_issues, notes, flips = apply_joints(solid, cells, seams, joint, s)
+    issues += j_issues
+
+    # print orientation: pockets must open upwards (no unsupported ceilings)
+    flip_all = pocket_faces(joint) == "bottom"
+    if (flip_all or any(flips.values())) and z1 > solid.t + 1e-9:
+        issues.append({"severity": "warning", "message": "Some pieces must print front-face down for the joint, but the "
+                       "front has embossed design, so they would need supports. Move the design or print with supports."})
+        flip_all, flips = False, {}
+
+    n = 0
+    index_of = {}
+    for key in cells:
+        region = regions[key]
+        piece = (solid.clipped_layers(region) if isinstance(region, list) else solid.clipped(region)).carved(voids[key])
+        if not piece.slabs:
+            continue
+        n += 1
+        index_of[key] = n
+        px0, py0, px1, py1 = piece.xy_bounds()
+        w, h = (px1 - px0) * s, (py1 - py0) * s
+        i, j = key
+        result["pieces"].append({"index": n, "rect": [xs[i], ys[j], xs[i + 1], ys[j + 1]], "cell": [i, j],
+                                 "size_mm": (w, h, size[2]), "orientation": fits(w, h) or "too big",
+                                 "flip": flip_all or flips.get(key, False), "solid": piece})
+
+    # connector parts, grouped into identical printable parts
+    groups = {}
+    for part in parts:
+        key = (part["kind"], tuple(round(v, 2) for v in sorted(part["size_mm"][:2])), round(part["size_mm"][2], 2))
+        g = groups.setdefault(key, {"kind": part["kind"], "name": part["name"], "size_mm": part["size_mm"],
+                                    "qty": 0, "instances": []})
+        g["qty"] += 1
+        g["instances"].append({"solid": Solid.prism(part["shape"], part["z0"], part["z1"], like=solid),
+                               "seam": part["seam"], "lift": part["lift"]})
+    result["connectors"] = list(groups.values())
+    result["seams"] = [{"axis": sm.axis, "pos": sm.pos, "span": sm.span,
+                        "pieces": [index_of.get(sm.a), index_of.get(sm.b)]} for sm in seams]
+    result["notes"] = sorted(set(notes))
+    if flip_all:
+        result["notes"].append("Print the pieces back-face up (they are exported that way) so the joint pockets open "
+                               "upwards and need no supports.")
+
     if len(result["pieces"]) > 1:
-        issues.append({"severity": "info", "message": f"Split into {len(result['pieces'])} pieces "
-                       f"({nx} × {ny}) to fit the {printer['name']} with a {margin_mm:g} mm bed margin. "
-                       "Glue or join the pieces after printing."})
+        kind = (joint or {}).get("type", "none")
+        how = {"none": "Glue the pieces together.",
+               "dovetail": "Slide the dovetails together (add glue for a permanent joint).",
+               "hidden_dovetail": "Slide each male piece's dovetails into the female neighbours (from the back), "
+                                  "front faces flush.",
+               "puzzle": "Press the puzzle knobs together (add glue for a permanent joint).",
+               "butterfly": "Press the butterfly keys into their pockets across each seam.",
+               "dowel": "Insert the dowel pins into one piece, then push the next piece on.",
+               "plate": "Fit the splice plates into the recesses across each seam (screw or glue)."}.get(kind, "")
+        extra = sum(g["qty"] for g in result["connectors"])
+        plus = f", plus {extra} connector part(s)" if extra else ""
+        issues.append({"severity": "info", "message": f"Split into {len(result['pieces'])} pieces ({nx} × {ny}) to fit "
+                       f"the {printer['name']} with a {margin_mm:g} mm bed margin{plus}. {how}"})
+    for pc in result["pieces"]:
+        if pc["orientation"] == "too big":
+            issues.append({"severity": "error", "message": f"Piece {pc['index']} ({pc['size_mm'][0]:.0f} × "
+                           f"{pc['size_mm'][1]:.0f} mm) does not fit — reduce the joint size or the bed margin."})
     return result
+
+
+def assembly_text(result, name):
+    """Plain-text assembly sheet included in the export ZIP."""
+    lines = [f"{name} — {result['printer']['name']}", "=" * 60, "", "Pieces (print flat):"]
+    for p in result["pieces"]:
+        w, h, z = p["size_mm"]
+        rot = "  (rotate 90 deg on the plate)" if p["orientation"] == "rotated" else ""
+        flip = "  (back face up)" if p["flip"] else ""
+        lines.append(f"  part{p['index']}: {w:.1f} x {h:.1f} x {z:.1f} mm{rot}{flip}")
+    if result.get("connectors"):
+        lines += ["", "Connector parts:"]
+        for g in result["connectors"]:
+            a, b, c = g["size_mm"]
+            lines.append(f"  {g['qty']} x {g['name']}: {a:.1f} x {b:.1f} x {c:.1f} mm")
+    lines += ["", "Seams:"]
+    for k, sm in enumerate(result.get("seams", [])):
+        lines.append(f"  cut {k + 1}: part{sm['pieces'][0]} + part{sm['pieces'][1]}")
+    lines += [""] + [f"- {n}" for n in result.get("notes", [])]
+    lines += [f"- {i['message']}" for i in result["issues"]]
+    return "\n".join(lines) + "\n"
+
+
+def bend_pieces(result, bender, unit, margin_mm):
+    """Bend the split pieces like the whole part and re-check them against the printer."""
+    from .bend import BentSolid
+
+    s = UNIT_IN_MM[unit]
+    ux, uy, uz = result["usable_mm"]
+    in_zone = 0
+    for sm in result.get("seams", []):
+        if sm["axis"] == bender.axis and any(op["s"] < sm["pos"] < op["e"] for op in bender.ops):
+            in_zone += 1
+    for p in result["pieces"]:
+        bent = BentSolid.of(p["solid"], bender)
+        x0, y0, x1, y1 = bent.xy_bounds()
+        z0, z1 = bent.z_range()
+        w, h, z = (x1 - x0) * s, (y1 - y0) * s, (z1 - z0) * s
+        p["solid"], p["flip"], p["size_mm"] = bent, False, (w, h, z)
+        fits = z <= uz + 1e-9 and ((w <= ux + 1e-9 and h <= uy + 1e-9) or (h <= ux + 1e-9 and w <= uy + 1e-9))
+        p["orientation"] = ("flat" if w <= ux + 1e-9 and h <= uy + 1e-9 else "rotated") if fits else "too big"
+        if not fits:
+            result["issues"].append({"severity": "error", "message": f"Bent piece {p['index']} "
+                                     f"({w:.0f} × {h:.0f} × {z:.0f} mm) does not fit the printer."})
+    if in_zone:
+        result["issues"].append({"severity": "warning", "message": f"{in_zone} cut(s) fall inside a bend — joints on a "
+                                 "curved seam fit less precisely; move the bend or use a bigger printer."})
+    result["notes"].append("Bent pieces are exported in their bent shape, levelled at their middle. Curved parts "
+                           "usually need supports — or print the flat version (hide the bends) and heat-bend it.")
+    result["fits"] = result.get("fits", False)
