@@ -8,7 +8,8 @@
 //   tangent  — a round face touching a flat face (the cylinder's side on the plane)
 // A part's joints are applied in order: the first one places it freely; the later ones only turn it about the
 // direction fixed before, and only move it along their own direction — so "pin in hole" + "touch" = the pin in
-// the hole, down to the face.
+// the hole, down to the face. A flat face put onto another one is centred on it once (when the joint is made); then
+// it may slide on it.
 import * as THREE from 'three';
 
 export const JOINT_TYPES = {
@@ -107,7 +108,7 @@ export function axialGap(fB, fA) {
 /** One joint: the moving part's matrix M (THREE.Matrix4) and its face fB (world, as placed by M) against the other
  *  part's face fA. faceAt(M) gives fB again for a new M. fixed: what an earlier joint fixed ({dir, flippable}).
  *  -> {M, fixed} (what this joint fixes). */
-export function applyJoint(M, j, faceAt, fA, first, fixed) {
+export function applyJoint(M, j, faceAt, fA, first, fixed, centre = first) {
   let fB = faceAt(M);
   const type = j.type || 'touch';
   if (type === 'axis') {
@@ -160,8 +161,8 @@ export function applyJoint(M, j, faceAt, fA, first, fixed) {
   if (type === 'parallel') return { M, fixed: { dir: nA } };
   fB = faceAt(M);
   const cB = V(fB.centroid), goal = cA.clone().addScaledVector(nA, +j.gap || 0);
-  // the first touch centres the faces on each other; otherwise only the distance along the normal is set
-  const d = first && (type === 'touch' || type === 'gap') ? goal.sub(cB) : nA.clone().multiplyScalar(goal.sub(cB).dot(nA));
+  // a new first touch centres the faces on each other; otherwise only the distance along the normal is set
+  const d = centre && (type === 'touch' || type === 'gap') ? goal.sub(cB) : nA.clone().multiplyScalar(goal.sub(cB).dot(nA));
   M = shift(M, d);
   if (Number.isFinite(j.angle)) M = spinTo(M, faceAt, fA, faceAt(M).centroid, nA, j.angle); // turned on the face
   return { M, fixed: { dir: nA } };

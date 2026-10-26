@@ -57,6 +57,13 @@ def select(inst):
     time.sleep(0.3)
 
 
+
+def free_x():
+    """A joined part's X: under "Place it by hand (breaks its joints)" (its sliders come first)."""
+    js("const f = document.querySelector('#asmRight .as-free'); if (f) f.open = true")
+    return d.find_element(By.CSS_SELECTOR, "#asmRight input[data-k=x]")
+
+
 try:
     d.get(URL)
     wait("return !!window.__app")
@@ -88,7 +95,7 @@ try:
     print("locked:", [j.get("locked", False) for j in json.loads(json.dumps(js(f"return {A}.doc.mates")))])
     before = pin_pos()
     select("I2")
-    inp = d.find_element(By.CSS_SELECTOR, "#asmRight input[data-k=x]")
+    inp = free_x()
     inp.send_keys(Keys.CONTROL, "a")
     inp.send_keys("99", Keys.ENTER)
     time.sleep(0.5)
@@ -101,14 +108,14 @@ try:
     time.sleep(0.4)
     js("window.__asked = []; window.confirm = (q) => { window.__asked.push(q); return false; }")
     select("I2")
-    inp = d.find_element(By.CSS_SELECTOR, "#asmRight input[data-k=x]")
+    inp = free_x()
     inp.send_keys(Keys.CONTROL, "a")
     inp.send_keys("99", Keys.ENTER)
     time.sleep(0.5)
     print("asked:", js("return window.__asked"), "| 'no' -> still", pin_pos() == before, len(joints()), "joints")
     js("window.confirm = () => true")
     select("I2")
-    inp = d.find_element(By.CSS_SELECTOR, "#asmRight input[data-k=x]")
+    inp = free_x()
     inp.send_keys(Keys.CONTROL, "a")
     inp.send_keys("99", Keys.ENTER)
     time.sleep(0.5)

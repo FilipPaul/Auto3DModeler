@@ -16,6 +16,7 @@ import { paintedFaces, repaint } from '../modeler/paint.js';
 import { sectionBar, sectionMiddle } from '../modeler/sectionbar.js';
 import { ModelView } from '../modeler/view.js';
 import { JOINT_TYPES, applyJoint, spinOf, axialGap } from './joints.js';
+import { freeMotions, motionMatrix } from './dof.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
 
@@ -317,7 +318,7 @@ export class Assembly {
     for (const it of this.doc.instances) {
       const b = this.bodies[it.part];
       const row = document.createElement('div');
-      row.className = `mt-item${it.id === this.sel ? ' on' : ''}${b?.error ? ' bad' : ''}`;
+      row.className = `mt-item${it.id === this.sel || it.id === this.sel2 ? ' on' : ''}${b?.error ? ' bad' : ''}`;
       row.innerHTML = `<span class="mt-icon">${this.kindOf(it.part) === 'assembly' ? '◇' : this.kindOf(it.part) === 'classic' ? '▤' : '◆'}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>
         ${b?.error ? '<span class="mt-warn">⚠</span>' : ''}
         <span class="mt-acts"><button class="mini" data-a="rename" title="Rename its part (its tab too)">🏷</button><button class="mini" data-a="dup" title="One more of this part">⧉</button><button class="mini danger" data-a="del" title="Take it out of the assembly">✕</button></span>
@@ -334,9 +335,7 @@ export class Assembly {
         }
         if (a === 'del') return this.removeInst(it.id);
         if (a === 'boom') return this.toggleStay(it.id, e.ctrlKey || e.metaKey);
-        this.sel = it.id;
-        this.render();
-        this.draw();
+        this.choose(it.id, e.ctrlKey || e.metaKey);
         return null;
       });
       list.appendChild(row);
@@ -371,9 +370,41 @@ export class Assembly {
     return Object.values(rows);
   }
 
+  /** The joints shown now (listed, marked, their symbols in the view): between the two chosen parts, of the one
+   *  chosen, or all of them. */
+  shownJoints() {
+    const all = (this.doc.mates || []).filter((m) => this.inst(m.move) && this.inst(m.onto));
+    if (this.sel && this.sel2) return all.filter((m) => (m.move === this.sel && m.onto === this.sel2) || (m.move === this.sel2 && m.onto === this.sel));
+    if (this.sel) return all.filter((m) => m.move === this.sel || m.onto === this.sel);
+    return all;
+  }
+
+  /** A part clicked: chosen alone, or (Ctrl) as the second one — the joints between the two are shown. */
+  choose(id, more = false) {
+    if (more && this.sel && id && id !== this.sel) this.sel2 = this.sel2 === id ? null : id;
+    else { this.sel = id || null; this.sel2 = null; }
+    this.render();
+    this.draw();
+  }
+
+  renderPair(box) {
+    const a = this.inst(this.sel), b = this.inst(this.sel2), js = this.shownJoints();
+    box.innerHTML = `<h2><span data-no-i18n>${esc(this.partName(a.part))}</span> ↔ <span data-no-i18n>${esc(this.partName(b.part))}</span></h2>
+      <p class="hint">${a.id} and ${b.id} — the joints between them${js.length ? '' : ': none yet'}.</p>
+      ${js.length ? this.jointsHtml(null, js) : ''}
+      <div class="row-actions wrap"><button class="btn small primary" data-a="joinPair">🔗 Join them</button><button class="btn small" data-a="onlyA">${esc(this.partName(a.part))} ${a.id}</button><button class="btn small" data-a="onlyB">${esc(this.partName(b.part))} ${b.id}</button></div>
+      <p class="hint">Ctrl+click another part to compare it instead, a click alone shows one part.</p>`;
+    this.bindJointRows(box);
+    box.querySelector('[data-a=joinPair]').addEventListener('click', () => this.startJoint('touch', a.id));
+    box.querySelector('[data-a=onlyA]').addEventListener('click', () => this.choose(a.id));
+    box.querySelector('[data-a=onlyB]').addEventListener('click', () => this.choose(b.id));
+  }
+
   renderProps() {
     const box = this.$('.mp-body'), it = this.inst(this.sel);
+    this.drawJointTags();
     if (this.painting) { this.renderPaint(box); return; }
+    if (this.sel2 && it && this.inst(this.sel2) && !this.bolt && this.mode === 'idle') { this.renderPair(box); return; }
     if (this.bolt) { this.renderBolt(box); return; }
     this.view.setGhost([]);
     if (this.fastenerPanel && !it) { this.renderFasteners(box); return; }
@@ -384,11 +415,22 @@ export class Assembly {
       const rot = (k) => `<div class="as-rot"><label>${k.toUpperCase()}</label>
         <input type="range" min="-180" max="180" step="1" list="as-ticks" data-rot="${k}" value="${deg(e[k])}">
         <input type="number" step="any" data-rotn="${k}" value="${fmt(deg(e[k]))}"><span class="unit">°</span></div>`;
-      box.innerHTML = `<h2 data-no-i18n>${esc(this.partName(it.part))}</h2><p class="hint">${it.id} — where its own origin is, and how it is turned.</p>
-        ${row('x', p.x)}${row('y', p.y)}${row('z', p.z)}
+      const freePlace = `${row('x', p.x)}${row('y', p.y)}${row('z', p.z)}
         <h3>Turn</h3><datalist id="as-ticks"><option value="-180"></option><option value="-90"></option><option value="0"></option><option value="90"></option><option value="180"></option></datalist>
         ${rot('x')}${rot('y')}${rot('z')}
-        <p class="hint">Slide to any angle — it catches at 0, ±90 and ±180°. Type an exact one in the box.</p>
+        <p class="hint">Slide to any angle — it catches at 0, ±90 and ±180°. Type an exact one in the box.</p>`;
+      const dof = this.motionsOf(it.id);
+      this.dof = dof;
+      const place = dof ? `<h3>Moves</h3>${dof.count === 0 ? '<p class="mp-count">🔒 Fully held — its joints fix it, it cannot move.</p>'
+        : `<p class="hint">${t2('It can still move {n} way(s) — the ways its joints leave free. Slide, then let go: it stays there.', { n: dof.count })}</p>
+        ${dof.motions.map((mo, i) => `<div class="as-dof"><label>${mo.kind === 'turn' ? '↻' : '↔'} ${esc(mo.label)}</label>
+          <div class="as-dofrow"><input type="range" data-dof="${i}" min="${mo.kind === 'turn' ? -180 : -Math.round(dof.size)}" max="${mo.kind === 'turn' ? 180 : Math.round(dof.size)}" step="${mo.kind === 'turn' ? 1 : 0.5}" value="0">
+          <input type="number" step="any" data-dofn="${i}" value="0"><span class="unit">${mo.kind === 'turn' ? '°' : 'mm'}</span></div></div>`).join('')}
+        ${dof.unexplained > 0 ? `<p class="hint">${t2('…and {n} more way(s) that are not a plain move or turn.', { n: dof.unexplained })}</p>` : ''}`}
+        <details class="as-free"><summary>Place it by hand (breaks its joints)</summary>${freePlace}</details>`
+        : freePlace;
+      box.innerHTML = `<h2 data-no-i18n>${esc(this.partName(it.part))}</h2><p class="hint">${it.id} — ${dof ? 'held by its joints.' : 'where its own origin is, and how it is turned.'}</p>
+        ${place}
         ${this.editHtml(it)}
         <h3>Look</h3>${this.lookHtml(it)}
         ${this.jointsHtml(it.id)}
@@ -411,6 +453,15 @@ export class Assembly {
         sl.addEventListener('change', () => this.setRot(k, +num.value, true));
         num.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') num.blur(); });
         num.addEventListener('change', () => { const v = parseFloat(String(num.value).replace(',', '.')); if (Number.isFinite(v)) this.setRot(k, v, true); });
+      }
+      for (const sl of box.querySelectorAll('[data-dof]')) {
+        const mo = dof.motions[+sl.dataset.dof], num = box.querySelector(`[data-dofn="${sl.dataset.dof}"]`);
+        let from = null;
+        const go = (v, final) => { from = from || [...it.matrix]; this.moveFree(it.id, mo, v, from, final); if (final) from = null; };
+        sl.addEventListener('input', () => { num.value = fmt(+sl.value); go(+sl.value, false); });
+        sl.addEventListener('change', () => go(+sl.value, true));
+        num.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') num.blur(); });
+        num.addEventListener('change', () => { const v = parseFloat(String(num.value).replace(',', '.')); if (Number.isFinite(v)) go(v, true); });
       }
       this.bindJointRows(box);
       this.bindLook(box, it);
@@ -858,8 +909,8 @@ export class Assembly {
   }
 
   /** The joints of a part (or all, id null) as rows: what holds what, its gap / flip, ✕. */
-  jointsHtml(id) {
-    const js = (this.doc.mates || []).filter((m) => id === null || m.move === id || m.onto === id);
+  jointsHtml(id, list = null) {
+    const js = list || (this.doc.mates || []).filter((m) => id === null || m.move === id || m.onto === id);
     if (!js.length) return id === null ? '' : '<p class="hint">Not joined to anything — it stays where you put it.</p>';
     return `<h3>Joints</h3><datalist id="as-ticks"><option value="-180"></option><option value="-90"></option><option value="0"></option><option value="90"></option><option value="180"></option></datalist><div class="as-joints">${js.map((m) => {
       const t = JOINT_TYPES[m.type || 'touch'] || JOINT_TYPES.touch, a = this.inst(m.move), b = this.inst(m.onto);
@@ -978,8 +1029,9 @@ export class Assembly {
       const b = this.bodies[this.inst(instId)?.part]?.body;
       return b ? b.faces.filter((f) => f.name === name || (f.names || []).includes(name)).map((f) => f.id) : [];
     };
+    const shown = new Set(this.sel ? this.shownJoints().map((m) => m.id) : []);
     for (const m of this.doc.mates || []) {
-      const on = this.hoverJoint === m.id || (!this.hoverJoint && this.sel && (m.move === this.sel || m.onto === this.sel));
+      const on = this.hoverJoint === m.id || (!this.hoverJoint && shown.has(m.id));
       if (!on) continue;
       marks.push({ inst: m.move, faces: faceIds(m.move, m.face), color: 0x3fb950 }, { inst: m.onto, faces: faceIds(m.onto, m.ontoFace), color: 0x58a6ff });
     }
@@ -988,6 +1040,29 @@ export class Assembly {
     for (const [inst, set] of this.painting?.sel || []) marks.push({ inst, faces: [...set], color: 0xff9e64 });
     if (this.hoverFace) marks.push({ inst: this.hoverFace.inst, faces: [this.hoverFace.face.id], color: this.hoverFace.ok ? 0xf2cc60 : 0x8b95a3 });
     this.view.setMarks(marks);
+  }
+
+  /** Each shown joint's symbol in the view, between its two faces: hover = its faces lit, click = its two parts. */
+  drawJointTags() {
+    if (!this.view?.setTags) return;
+    const tags = [];
+    if (this.mode === 'idle' && !this.painting && !this.measuring) {
+      for (const m of this.shownJoints()) {
+        let a, b;
+        try { a = this.worldFace(m.move, m.face).centroid; b = this.worldFace(m.onto, m.ontoFace).centroid; } catch { continue; }
+        const jt = JOINT_TYPES[m.type || 'touch'] || JOINT_TYPES.touch, el = document.createElement('div');
+        el.className = `as-jtag${m.broken ? ' bad' : ''}${m.locked ? ' locked' : ''}`;
+        el.textContent = jt.icon;
+        el.title = `${t(jt.name)}: ${this.partName(this.inst(m.move)?.part)} ${m.move} → ${this.partName(this.inst(m.onto)?.part)} ${m.onto}`;
+        el.dataset.joint = m.id;
+        for (const ev of ['pointerdown', 'pointerup']) el.addEventListener(ev, (x) => x.stopPropagation());
+        el.addEventListener('mouseenter', () => { this.hoverJoint = m.id; this.drawMarks(); });
+        el.addEventListener('mouseleave', () => { this.hoverJoint = null; this.drawMarks(); });
+        el.addEventListener('click', (x) => { x.stopPropagation(); this.sel = m.move; this.sel2 = m.onto; this.render(); this.draw(); });
+        tags.push({ p: a.clone().add(b).multiplyScalar(0.5).toArray(), el });
+      }
+    }
+    this.view.setTags(tags);
   }
 
   renderStatus() {
@@ -1095,10 +1170,11 @@ export class Assembly {
       const c = it.stay ? null : centres[k];
       const look = this.lookOf(it);
       return { id: it.id, body: this.bodies[it.part]?.body, matrix: it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part), ...look,
-        selected: it.id === this.sel || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst,
+        selected: it.id === this.sel || it.id === this.sel2 || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst,
         explode: this.explode && c ? away(c).multiplyScalar(this.explode * 1.2).toArray() : null };
     }));
     this.drawMarks();
+    this.drawJointTags();
   }
 
   commit() { this.history.commit(); this.render(); this.draw(); this.hooks.onChange?.(); }
@@ -1172,6 +1248,7 @@ export class Assembly {
     this.doc.instances = this.doc.instances.filter((i) => i.id !== id);
     this.doc.mates = (this.doc.mates || []).filter((m) => m.move !== id && m.onto !== id);
     if (this.sel === id) this.sel = null;
+    if (this.sel2 === id) this.sel2 = null;
     this.commit();
   }
 
@@ -1231,7 +1308,24 @@ export class Assembly {
   /** A part moved or turned by hand (after mayMove): the parts joined onto it follow it. */
   movedByHand() { this.applyMates(); }
 
-  /** Place every joined part again: each part's joints in order, a part after the parts it hangs on. */
+  /** A part (by id) at M held by its joints, the parts it hangs on staying where they are -> M. probe: only trying
+   *  (nothing is noted on the joints). */
+  holdPart(id, M, probe = false) {
+    let fixed = null;
+    (this.doc.mates || []).filter((m) => m.move === id && this.inst(m.onto)).forEach((m, k) => {
+      try {
+        const r = applyJoint(M, m, (MM) => this.worldFace(id, m.face, MM), this.worldFace(m.onto, m.ontoFace), k === 0, fixed, k === 0 && !m.centred);
+        M = r.M;
+        fixed = fixed || r.fixed;
+        if (!probe) { delete m.broken; if (k === 0) m.centred = true; }
+      } catch { if (!probe) m.broken = true; }
+    });
+    return M;
+  }
+
+  /** Place every joined part again: each part's joints in order, a part after the parts it hangs on. A part goes
+   *  along with the part it hangs on (its first joint's) as that one moved, then its joints set what they fix —
+   *  so where it slid or turned freely stays. */
   applyMates() {
     const mates = (this.doc.mates || []).filter((m) => this.inst(m.move) && this.inst(m.onto));
     this.doc.mates = mates;
@@ -1244,18 +1338,64 @@ export class Assembly {
         done.add(id);
         const it = this.inst(id);
         if (!this.bodies[it.part]?.body || mine.some((m) => !this.bodies[this.inst(m.onto).part]?.body)) continue; // not built yet
-        let M = new THREE.Matrix4().fromArray(it.matrix), fixed = null;
-        mine.forEach((m, k) => {
-          try {
-            const r = applyJoint(M, m, (MM) => this.worldFace(id, m.face, MM), this.worldFace(m.onto, m.ontoFace), k === 0, fixed);
-            M = r.M;
-            fixed = fixed || r.fixed;
-            delete m.broken;
-          } catch { m.broken = true; }
-        });
+        let M = new THREE.Matrix4().fromArray(it.matrix);
+        const parent = this.inst(mine[0].onto), P = new THREE.Matrix4().fromArray(parent.matrix);
+        if (it.hang?.on === parent.id && it.hang.m.some((v, i) => Math.abs(v - parent.matrix[i]) > 1e-9)) {
+          M = P.clone().multiply(new THREE.Matrix4().fromArray(it.hang.m).invert()).multiply(M); // it goes along
+        }
+        M = this.holdPart(id, M);
         it.matrix = M.toArray().map((v) => (Math.abs(v - Math.round(v)) < 1e-9 ? Math.round(v) : +v.toFixed(9)));
+        it.hang = { on: parent.id, m: [...parent.matrix] };
       }
     }
+  }
+
+  /** How a joined part can still move: {count, motions: [{kind, dir, point, label}], centre, size}. */
+  motionsOf(id) {
+    const it = this.inst(id), b = this.bodies[it?.part]?.body, mine = (this.doc.mates || []).filter((m) => m.move === id && this.inst(m.onto));
+    if (!it || !b || !mine.length) return null;
+    const M = new THREE.Matrix4().fromArray(it.matrix);
+    const c = new THREE.Vector3((b.bbox[0] + b.bbox[3]) / 2, (b.bbox[1] + b.bbox[4]) / 2, (b.bbox[2] + b.bbox[5]) / 2).applyMatrix4(M);
+    const L = Math.max(1, Math.hypot(b.bbox[3] - b.bbox[0], b.bbox[4] - b.bbox[1], b.bbox[5] - b.bbox[2]));
+    const cands = [], axisName = (v) => {
+      const k = ['X', 'Y', 'Z'].find((_, i) => Math.abs(Math.abs(v.getComponent(i)) - 1) < 1e-6);
+      return k || null;
+    };
+    for (const m of mine) { // first what the joints suggest: along / about their axis, along / about their face
+      let fA;
+      try { fA = this.worldFace(m.onto, m.ontoFace); } catch { continue; }
+      const what = this.faceText(m.onto, m.ontoFace), part = this.partName(this.inst(m.onto)?.part);
+      if (fA.axis) {
+        cands.push({ kind: 'move', dir: fA.axis.d.clone(), label: t2('Along the axis of {face} ({part})', { face: what, part }) });
+        cands.push({ kind: 'turn', dir: fA.axis.d.clone(), point: fA.axis.o.clone(), label: t2('Turn about the axis of {face} ({part})', { face: what, part }) });
+      }
+      if (fA.normal) {
+        const n = fA.normal.clone(), u = new THREE.Vector3(1, 0, 0).projectOnPlane(n);
+        if (u.length() < 1e-6) u.set(0, 1, 0).projectOnPlane(n);
+        u.normalize();
+        const v = new THREE.Vector3().crossVectors(n, u).normalize();
+        for (const dir of [u, v]) cands.push({ kind: 'move', dir, label: axisName(dir) ? t2('Along {axis} (on {face})', { axis: axisName(dir), face: what }) : t2('Along {face}', { face: what }) });
+        cands.push({ kind: 'turn', dir: n, point: c.clone(), label: t2('Turn on {face} ({part})', { face: what, part }) });
+        cands.push({ kind: 'move', dir: n.clone(), label: t2('Away from {face}', { face: what }) });
+      }
+    }
+    for (const [k, dir] of [['X', [1, 0, 0]], ['Y', [0, 1, 0]], ['Z', [0, 0, 1]]]) {
+      cands.push({ kind: 'move', dir: new THREE.Vector3(...dir), label: t2('Along {axis}', { axis: k }) });
+      cands.push({ kind: 'turn', dir: new THREE.Vector3(...dir), point: c.clone(), label: t2('Turn about {axis}', { axis: k }) });
+    }
+    const r = freeMotions(M, (MM) => this.holdPart(id, MM, true), c, L, cands);
+    return { ...r, centre: c, size: L };
+  }
+
+  /** Move a joined part by one of its free motions (mm or degrees) from where it was (from: its matrix then);
+   *  its joints hold it, the parts on it follow. final: an undo step (else a live preview). */
+  moveFree(id, mo, amount, from, final) {
+    const it = this.inst(id);
+    if (!it) return;
+    const M = motionMatrix(mo, mo.kind === 'turn' ? (amount * Math.PI) / 180 : amount).multiply(new THREE.Matrix4().fromArray(from));
+    it.matrix = this.holdPart(id, M).toArray();
+    this.applyMates();
+    if (final) this.commit(); else this.draw();
   }
 
   /** The selected part turned to an angle (degrees) about X / Y / Z, about its own centre (the other two angles
@@ -1297,6 +1437,7 @@ export class Assembly {
   // ------------------------------------------------------------------ a new joint: pick the two faces
   startJoint(type = 'touch', from = null) {
     if (this.doc.instances.length < 2) return;
+    this.sel2 = null;
     this.jointType = type;
     this.mode = 'joint-from';
     this.jointFrom = from ? { inst: from, face: null } : null;
@@ -1428,9 +1569,7 @@ export class Assembly {
       if (this.painting) { this.clickPaint(h, e.ctrlKey || e.metaKey); return; }
       if (this.mode !== 'idle') { this.clickJoint(h); return; }
       if (this.bolt) { if (h?.face?.type === 'plane') this.startBolt(h); return; } // another point for the bolt
-      this.sel = h?.inst || null;
-      this.render();
-      this.draw();
+      this.choose(h?.inst || null, e.ctrlKey || e.metaKey);
     });
     window.addEventListener('keydown', (e) => this.key(e));
   }

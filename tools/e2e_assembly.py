@@ -106,6 +106,8 @@ try:
 
     # the panel: nudge x, turn 90° about X, then back (the pin is joined: moving it asks — yes, break the joint)
     js("window.confirm = () => true")
+    print("joined: it moves the ways its joints leave:", [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmRight .as-dof label")])
+    d.find_element(By.CSS_SELECTOR, "#asmRight .as-free summary").click()  # placing it by hand (breaks the joint)
     inp = d.find_element(By.CSS_SELECTOR, "#asmRight input[data-k=x]")
     inp.clear()
     inp.send_keys("25\n")

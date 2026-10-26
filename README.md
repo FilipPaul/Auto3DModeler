@@ -284,6 +284,15 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   type, ⇅ to turn it round, **↻ a slider to turn the part about the joint** (a pin about its hole's axis, a part on
   its face; it catches at 90°), **🔒 lock** and ✕. A locked joint cannot be broken: the part cannot be moved by hand
   while it holds; moving a part held by unlocked joints asks first.
+- **Seeing the joints**: choose a part — its joints are listed and their symbols (⧉ ◎ ∥ …) shown in the view between
+  the two faces; **Ctrl+click** a second part — the joints between those two. Hover a symbol: its faces light up;
+  click it: its two parts. With nothing chosen, every joint is shown.
+- **Moving a joined part — only the ways its joints leave free**: its panel shows **Moves**, a slider for each way it
+  can still move (e.g. a pin in a hole: *along the axis* and *turn about the axis*; a part on a face: *along X*,
+  *along Y*, *turn on the face*). Slide and let go — it stays there, held by its joints, and the parts on it follow.
+  A part with nothing left free says **🔒 Fully held**. *Place it by hand (breaks its joints)* is still there, folded.
+  A part on a face is centred on it once, when the joint is made; after that it keeps where it slid, and goes along
+  with the part it hangs on.
 - **✎ Edit it here** (a placed part's panel, or double-click it): its part opens in the full 3D modeler with the rest
   of the assembly see-through around it, in place; *◇ Back to the assembly* returns. It is **🔒 Locked** per part
   until you unlock it (🔓 Editable from here), so nothing is changed by accident.

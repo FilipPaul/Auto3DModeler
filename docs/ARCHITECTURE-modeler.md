@@ -60,6 +60,11 @@ Date: 2026-10-25. Written by the architect agent.
   raised / engraved on a flat face, follows it; the AI's decal. tools/e2e_model_decal.py.
 - **Assembly links done:** snaps hold (doc.mates {move, face, onto, ontoFace}, re-applied after refresh and moves;
   moving the snapped part by hand unlinks; no cycles; saved, undoable). tools/e2e_assembly_links.py.
+- **Assembly DOF done:** assembly/dof.js (freeMotions: the part nudged 6 ways, its joints applied — the kept nudges'
+  rank = how many ways it moves; candidate motions from its joints' axes / faces and X / Y / Z picked to span them);
+  Assembly.holdPart / applyMates (a part goes along with its first joint's part via instance.hang; a first touch
+  centres once: mate.centred), motionsOf / moveFree (the Moves sliders), shownJoints / choose (sel + Ctrl sel2),
+  drawJointTags (joint symbols via view.setTags). tools/e2e_assembly_dof.py.
 - **🕘 AI history done:** auto3d/ai_history.py (data/history/<id>.json + .meta.json; the same state as the newest is
   not saved again; MAX_STATES 300), /api/history routes; web/js/aihistory.js saves the project file after a chat turn
   that ran tools in this page (agent.js bridgeStats), lists and loads back (keeping the current one first).

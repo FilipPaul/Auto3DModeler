@@ -105,6 +105,10 @@ Never report "works" without having run it; report failures with their output.
    the holes, the AI's bolt_parts with an insert) and the Tangent, Angle (30°, typed 60°) and Perpendicular joints.
    `tools/e2e_assembly_edit.py <url> <dir>` covers ✎ Edit it here (locked by default, a double-click refused; unlocked:
    the modeler with the rest see-through, a hole added, back: the assembly has it, the pin still in place; locked again).
+   `tools/e2e_assembly_dof.py <url> <dir>` covers joints you can see and moving by the free ways only (a pin in a hole:
+   2 ways, slid 5 along the axis stays on it, distance locked: 1, turn locked: fully held; a lid on a face: 3 ways,
+   10 along X stays on the face, the base moved: the lid goes along; a part's joints listed + symbols, Ctrl+click: the
+   joints between two, a symbol clicked).
    `tools/e2e_assembly_paint.py <url> <dir>` covers 🎨 Paint and ✂ Section in an assembly (real clicks: two faces of
    two parts painted in the assembly only, undo, a whole part's colour; every part cut, the slider, Z, ✕).
    `tools/e2e_assembly_explode.py <url> <dir>` covers 💥 explode only the chosen parts (all move -> the base held: the
