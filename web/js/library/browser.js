@@ -121,7 +121,7 @@ export class LibraryBrowser {
         ${lib.pn ? `<span>${esc(t('Part number'))}</span><b data-no-i18n>${esc(lib.pn)}</b>` : ''}
         ${lib.standard ? `<span>${esc(t('Standard'))}</span><b data-no-i18n>${esc(lib.standard)}</b>` : ''}
         ${order.map(([k, v]) => `<span>${esc(k.toUpperCase())}</span><b data-no-i18n>${esc(v)}</b>`).join('')}</div>
-      ${lib.pn ? `<div class="lib-shops">${esc(t('Find it at'))} ${shopLinks(lib.pn).map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.shop)}</a>`).join(' · ')}</div>` : ''}
+      ${lib.pn ? `<div class="lib-shops">${esc(t('Find it at'))} ${shopLinks(lib.pn, lib).map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.shop)}</a>`).join(' · ')}</div>` : ''}
       <div class="lib-real">${lib.real ? `<span class="lib-realon">✓ ${esc(t('The maker\'s model'))}: <b data-no-i18n>${esc(lib.real)}</b></span>
           <button class="btn small" data-a="unreal" title="${esc(t('Use the drawn model again for this size'))}">✕</button>`
         : `<label class="btn small" title="${esc(t('Download the maker\'s 3D model (STEP) for this part number, then choose it here — the library uses it (its own colours) for this size from now on'))}">📎 ${esc(t('Use the maker\'s model (STEP)…'))}<input type="file" data-a="real" accept=".step,.stp,.STEP,.STP" hidden></label>`}</div>
@@ -233,7 +233,7 @@ export function libraryFactsHtml(lib) {
   return `<div class="lib-part"><b>📚 ${esc(t('Library part'))}</b>${lib.approx ? ` <span class="lib-approx">≈ ${esc(t('outline'))}</span>` : ''}
     <div class="lib-facts">${lib.maker ? `<span>${esc(t('Maker'))}</span><b data-no-i18n>${esc(lib.maker)}</b>` : ''}${lib.pn ? `<span>${esc(t('Part number'))}</span><b data-no-i18n>${esc(lib.pn)}</b>` : ''}
     ${order.map(([k, v]) => `<span>${esc(k.toUpperCase())}</span><b data-no-i18n>${esc(v)}</b>`).join('')}</div>
-    ${lib.pn ? `<div class="lib-shops">${esc(t('Find it at'))} ${shopLinks(lib.pn).map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.shop)}</a>`).join(' · ')}</div>` : ''}</div>`;
+    ${lib.pn ? `<div class="lib-shops">${esc(t('Find it at'))} ${shopLinks(lib.pn, lib).map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.shop)}</a>`).join(' · ')}</div>` : ''}</div>`;
 }
 
 /** A part (name, data) as a library item of the user's own: a fixed 3D model with its maker and part number. */

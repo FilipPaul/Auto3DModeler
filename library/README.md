@@ -3,7 +3,8 @@
 Real parts you put into 3D models and assemblies: standard screws, nuts and washers, heat-set inserts, bearings,
 standoffs, panel parts, SMC pneumatics, SICK sensors, stepper motors. Each part knows its **maker**, its **part
 number** and its **order numbers**. The assembly's **⬇ BOM (CSV)** lists them, and the shop links search the part
-number at Mouser, Farnell, TME and GM Electronic.
+number at the maker's shop (SMC, SICK, SKF) and at shops that fit the part (MISUMI, RS Components, Conrad, TME, Mouser,
+Farnell, GM Electronic).
 
 - `library/*.json` is the app's own library (this folder).
 - `data/library/*.json` (next to `server.py`) holds **your own parts**: one file each. *📚 Save to the library* in a

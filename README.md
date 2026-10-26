@@ -281,7 +281,8 @@ Parts marked **≈ outline** are drawn from their catalogue sizes as an envelope
 the details. The parts are drawn by the app, coloured part by part (a cylinder's rod lighter than its body). **📎 Use
 the maker's model (STEP)…** attaches the real model you downloaded from the maker (SMC, SICK… — after a log-in there,
 and theirs to use, not to share) to the chosen size: from then on the library puts in that exact model, in its own
-colours, still with its part number in the BOM; ✕ goes back to the drawn one. *Find it at* searches the part number at Mouser, Farnell, TME and GM Electronic. A library part's panel
+colours, still with its part number in the BOM; ✕ goes back to the drawn one. *Find it at* searches the part number at the maker's own shop (SMC, SICK, SKF) and at shops that fit the part: MISUMI,
+RS Components, Conrad and TME for mechanical parts; Mouser, Farnell, TME, GM Electronic, RS and Conrad for electronic ones. A library part's panel
 shows its facts. **📚 Save to the library** (a 3D model's panel) keeps your own part, with its maker and part number
 if bought, in `data/library/` on the server. The format for writing parts by hand is in
 [library/README.md](library/README.md). An assembly's **⬇ BOM (CSV)** lists every part (inside sub-assemblies too)

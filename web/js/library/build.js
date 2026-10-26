@@ -150,21 +150,36 @@ export function buildPart(item, sizeKey = sizesOf(item)[0]?.key, length) {
       ...(item.color && !real ? { color: item.color } : {}),
       ...(!real && (paint.length || item.paint?.length) ? { paint: [...paint, ...structuredClone(item.paint || [])] } : {}),
       material: item.material || undefined,
-      library: { id: item.id, item: item.name, size: sizeKey, ...(vars.L !== undefined && lengthsOf(item, sizeKey) ? { length: vars.L } : {}),
+      library: { id: item.id, item: item.name, category: item.category, size: sizeKey, ...(vars.L !== undefined && lengthsOf(item, sizeKey) ? { length: vars.L } : {}),
         maker: item.maker || '', pn, description: fill(item.description || item.name, vars), order, approx: !!item.approx && !real, standard: item.standard || '',
         ...(real ? { real: real.file } : {}) },
     },
   };
 }
 
-/** The shops where a maker part number is looked up (search pages — they always work, no guessed order codes). */
-export function shopLinks(pn) {
+// The shops a part is looked up at — their search pages (always there, no guessed order codes), each checked to find
+// a part number. Mechanical parts go to the mechanical shops first, electronic ones to the electronic; the maker's
+// own shop (SMC, SICK, SKF) first of all.
+const SHOPS = {
+  smc: { shop: 'SMC', url: 'https://www.smc.eu/cs-cz/search?searchTerm={q}' },
+  sick: { shop: 'SICK', url: 'https://www.sick.com/cz/cs/search?text={q}' },
+  skf: { shop: 'SKF', url: 'https://www.skf.com/group/search-results?q={q}' },
+  misumi: { shop: 'MISUMI', url: 'https://cz.misumi-ec.com/vona2/result/?Keyword={q}' },
+  rs: { shop: 'RS Components', url: 'https://cz.rs-online.com/web/c/?searchTerm={q}' },
+  conrad: { shop: 'Conrad', url: 'https://www.conrad.cz/cs/search.html?search={q}' },
+  tme: { shop: 'TME', url: 'https://www.tme.eu/cz/katalog/?search={q}' },
+  mouser: { shop: 'Mouser', url: 'https://cz.mouser.com/c/?q={q}' },
+  farnell: { shop: 'Farnell', url: 'https://cz.farnell.com/search?st={q}' },
+  gme: { shop: 'GM Electronic', url: 'https://www.gme.cz/hledani?search={q}' },
+};
+const MAKER_SHOP = { SMC: 'smc', SICK: 'sick', SKF: 'skf' };
+const MECHANICAL = ['misumi', 'rs', 'conrad', 'tme'], ELECTRONIC = ['mouser', 'farnell', 'tme', 'gme', 'rs', 'conrad'];
+
+/** The shops where a part number is looked up: [{shop, url}] — lib: the part's library facts (its category, maker). */
+export function shopLinks(pn, lib = {}) {
   if (!pn) return [];
-  const q = encodeURIComponent(pn);
-  return [
-    { shop: 'Mouser', url: `https://cz.mouser.com/c/?q=${q}` },
-    { shop: 'Farnell', url: `https://cz.farnell.com/search?st=${q}` },
-    { shop: 'TME', url: `https://www.tme.eu/cz/katalog/?search=${q}` },
-    { shop: 'GM Electronic', url: `https://www.gme.cz/hledani?search=${q}` },
-  ];
+  const q = encodeURIComponent(pn), top = String(lib.category || '').split(' / ')[0];
+  const electronic = ['Panel', 'Sensors'].includes(top) && lib.maker !== 'SMC';
+  const keys = [...new Set([MAKER_SHOP[lib.maker], ...(electronic ? ELECTRONIC : MECHANICAL)].filter(Boolean))];
+  return keys.map((k) => ({ shop: SHOPS[k].shop, url: SHOPS[k].url.replace('{q}', q) }));
 }
