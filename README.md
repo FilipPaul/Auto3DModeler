@@ -204,12 +204,15 @@ Coming next ([plan](docs/ARCHITECTURE-modeler.md)):
 A DXF / DWG opens as it is in the **📐 Drawing** workspace: every line, circle, arc, polyline and text on its
 layers, in their colours, in real mm.
 - **Layers** (left): 👁 show / hide (All / None), the colour, a click makes it the layer new lines go on, ＋ Layer.
+  **Ctrl+click** picks more layers, **Shift+click** all between: 👁 or a colour on one of them changes them all, and
+  their bar can show / hide them, select their shapes or make them a filter (*Layer is any of …*).
 - **⬚ Select** (Ctrl+click: more; Delete removes; a shape's panel moves it to another layer), **／ Line** (L) and
   **◯ Circle** (C) — ends, middles and centres snap — **📏 Measure** (M: two spots, or a circle's Ø), ↶ ↷, ⤢ Fit (F).
   Drag the paper to move it, the wheel zooms.
 - **🔍 Select by filter**: ＋ Filter adds a condition — Shape, Layer, Ø, Radius, Length, Colour or Text with is / is not,
   = ≠ < > ≤ ≥ or contains — as many as you like, all must hold; the matching shapes are outlined and counted, *Select
-  them* or *Add to the selection*. **≡ All like this** fills the filters from a selected shape (its shape, layer and
+  them* or *Add to the selection*. **💧 From a shape** (the eyedropper): click a shape in the drawing and the filters become what it is — remove one
+  to find more (without *Layer*: on any layer). **≡ All like this** fills the filters from a selected shape (its shape, layer and
   size). Selected circles get one **Ø** box (centres stay), circles and arcs an **R**, lines a **Length** — type it and
   all of them change.
 - **File units**: a file may not say its units (PCB tools often draw in inches) or say them wrong — choose mm / cm /

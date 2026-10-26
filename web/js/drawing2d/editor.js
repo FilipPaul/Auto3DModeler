@@ -32,7 +32,7 @@ const FIELDS = {
   color: { label: 'Colour', kind: 'enum', get: null }, // (the colour it is drawn in: set by the editor)
   text: { label: 'Text', kind: 'str', get: (e) => (e.t === 'text' ? String(e.text) : null) },
 };
-const OPS = { enum: ['is', 'is not'], num: ['=', '≠', '<', '>', '≤', '≥'], str: ['contains', 'is'] };
+const OPS = { enum: ['is', 'is not', 'is any of'], num: ['=', '≠', '<', '>', '≤', '≥'], str: ['contains', 'is'] };
 const sameNum = (a, b) => Math.abs(a - b) <= 0.0005 + Math.abs(b) * 1e-9;
 const passes = (v, op, want, kind) => {
   if (v === null || v === undefined) return false;
@@ -42,6 +42,7 @@ const passes = (v, op, want, kind) => {
     return { '=': sameNum(v, w), '≠': !sameNum(v, w), '<': v < w && !sameNum(v, w), '>': v > w && !sameNum(v, w), '≤': v <= w || sameNum(v, w), '≥': v >= w || sameNum(v, w) }[op];
   }
   if (kind === 'str') return op === 'is' ? v === want : v.toLowerCase().includes(String(want || '').toLowerCase());
+  if (op === 'is any of') return [].concat(want ?? []).includes(v);
   return op === 'is not' ? v !== want : v === want;
 };
 
@@ -62,6 +63,7 @@ export class DrawingEditor {
     this.tool = 'select';
     this.sel = new Set();
     this.filters = []; // 🔍 [{field, op, value}] — all of them must hold
+    this.layerSel = new Set(); // layers picked in the list (Ctrl / Shift + click: several)
     this.view = { cx: 0, cy: 0, k: 4 };
     this.history = new History({
       capture: () => ({ entities: this.d.entities, layers: this.d.layers, units: this.d.file_units }),
@@ -321,6 +323,7 @@ export class DrawingEditor {
     if (!this.active || e.target.closest?.('input,select,textarea,[contenteditable]')) return;
     const k = e.key.toLowerCase();
     if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y')) { e.preventDefault(); this.history.go(k === 'y' || e.shiftKey ? 1 : -1); return; }
+    if (e.key === 'Escape' && this.picking) { this.picking = false; this.hint(''); this.renderProps(); return; }
     if (e.key === 'Escape') { if (this.pending || this.measure) { this.pending = null; this.measure = null; this.$('.dw-measure').hidden = true; this.draw(); } else this.setTool('select'); return; }
     if ((e.key === 'Delete' || e.key === 'Backspace') && this.sel.size) { this.removeSel(); return; }
     if (e.ctrlKey || e.metaKey) return;
@@ -344,6 +347,15 @@ export class DrawingEditor {
   hint(text) { const h = this.$('.m-hint'); h.hidden = !text; h.textContent = t(text); }
 
   click(sx, sy, e) {
+    if (this.picking) { // 💧 the filters from the shape clicked
+      const id = this.hitAt(sx, sy), hit = id && this.d.entities.find((x) => x.id === id);
+      if (!hit) { this.hooks.toast?.(t('Click right on a shape.'), 'info', 2500); return; }
+      this.picking = false;
+      this.hint('');
+      this.likeThis(hit, false);
+      this.hooks.toast?.(tv('{n} shapes like it — Select them, or remove a filter to find more.', { n: this.matchSet.size }), 'ok', 4000);
+      return;
+    }
     if (this.tool === 'select') {
       const id = this.hitAt(sx, sy);
       if (e.ctrlKey || e.shiftKey) { if (id) (this.sel.has(id) ? this.sel.delete(id) : this.sel.add(id)); } else this.sel = new Set(id ? [id] : []);
@@ -426,8 +438,9 @@ export class DrawingEditor {
   filterHtml() {
     const rows = this.filters.map((f, i) => {
       const F = FIELDS[f.field], ops = OPS[F.kind];
+      const many = f.op === 'is any of', vals = [].concat(f.value ?? []);
       const val = F.kind === 'enum'
-        ? `<select data-fv="${i}">${this.choices(f.field).map(([v, label]) => `<option value="${esc(v)}" ${v === f.value ? 'selected' : ''} data-no-i18n>${esc(label)}</option>`).join('')}</select>`
+        ? `<select data-fv="${i}" ${many ? `multiple size="${Math.min(5, Math.max(2, this.choices(f.field).length))}"` : ''}>${this.choices(f.field).map(([v, label]) => `<option value="${esc(v)}" ${(many ? vals.includes(v) : v === f.value) ? 'selected' : ''} data-no-i18n>${esc(label)}</option>`).join('')}</select>`
         : `<input data-fv="${i}" type="${F.kind === 'num' ? 'text' : 'text'}" inputmode="${F.kind === 'num' ? 'decimal' : 'text'}" value="${esc(f.value ?? '')}" placeholder="${F.kind === 'num' ? 'mm' : ''}">`;
       return `<div class="dw-filter"><select data-ff="${i}">${Object.entries(FIELDS).map(([k, x]) => `<option value="${k}" ${k === f.field ? 'selected' : ''}>${esc(t(x.label))}</option>`).join('')}</select>
         <select data-fo="${i}">${ops.map((o) => `<option ${o === f.op ? 'selected' : ''}>${esc(t(o))}</option>`).join('')}</select>${val}
@@ -436,6 +449,7 @@ export class DrawingEditor {
     const n = this.filters.length ? this.matches().length : null;
     return `<h3>🔍 ${esc(t('Select by filter'))}</h3>${rows}
       <div class="row-actions wrap"><button class="btn small" data-a="addFilter" title="${esc(t('Add a filter: all of them must hold'))}">＋ ${esc(t('Filter'))}</button>
+        <button class="btn small ${this.picking ? 'on' : ''}" data-a="dropper" title="${esc(t('Eyedropper: click a shape in the drawing — the filters become what it is (shape, layer, size); remove one to find more'))}">💧 ${esc(t('From a shape'))}</button>
         ${n !== null ? `<span class="mp-count dw-fcount">${esc(tv('{n} match', { n }))}</span>` : ''}</div>
       ${n ? `<div class="row-actions wrap"><button class="btn small primary" data-a="selMatches">${esc(t('Select them'))}</button><button class="btn small" data-a="addMatches">＋ ${esc(t('Add to the selection'))}</button></div>` : ''}`;
   }
@@ -452,11 +466,16 @@ export class DrawingEditor {
         set(+el.dataset.ff, { field, op: OPS[F.kind][0], value: F.kind === 'enum' ? this.choices(field)[0]?.[0] : '' });
       });
     }
-    for (const el of box.querySelectorAll('[data-fo]')) el.addEventListener('change', () => set(+el.dataset.fo, { op: OPS[FIELDS[this.filters[+el.dataset.fo].field].kind][el.selectedIndex] }));
+    for (const el of box.querySelectorAll('[data-fo]')) {
+      el.addEventListener('change', () => {
+        const i = +el.dataset.fo, f = this.filters[i], op = OPS[FIELDS[f.field].kind][el.selectedIndex];
+        set(i, { op, value: op === 'is any of' ? [].concat(f.value ?? []) : Array.isArray(f.value) ? f.value[0] : f.value });
+      });
+    }
     for (const el of box.querySelectorAll('[data-fv]')) {
       const i = +el.dataset.fv;
       el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') el.blur(); });
-      if (el.tagName === 'SELECT') el.addEventListener('change', () => set(i, { value: el.value }));
+      if (el.tagName === 'SELECT') el.addEventListener('change', () => set(i, { value: el.multiple ? [...el.selectedOptions].map((o) => o.value) : el.value }));
       else {
         el.addEventListener('input', () => { this.filters[i].value = el.value; this.updateMatches(); const c = box.querySelector('.dw-fcount'); if (c) c.textContent = tv('{n} match', { n: this.matchSet.size }); });
         el.addEventListener('change', () => set(i, { value: el.value }));
@@ -470,6 +489,12 @@ export class DrawingEditor {
       this.updateMatches();
       this.renderProps();
     });
+    box.querySelector('[data-a=dropper]').addEventListener('click', () => {
+      this.picking = !this.picking;
+      if (this.picking && this.tool !== 'select') this.setTool('select');
+      this.hint(this.picking ? 'Eyedropper: click a shape — the filters become what it is. Esc = stop.' : '');
+      this.renderProps();
+    });
     box.querySelector('[data-a=selMatches]')?.addEventListener('click', () => { this.sel = new Set(this.matches().map((e) => e.id)); this.renderProps(); this.draw(); });
     box.querySelector('[data-a=addMatches]')?.addEventListener('click', () => { for (const e of this.matches()) this.sel.add(e.id); this.renderProps(); this.draw(); });
   }
@@ -477,11 +502,11 @@ export class DrawingEditor {
   updateMatches() { this.matchSet = new Set(this.matches().map((e) => e.id)); this.draw(); }
 
   /** Filters that pick shapes like this one (its shape, layer and size), and those selected. */
-  likeThis(e) {
+  likeThis(e, select = true) {
     this.filters = [{ field: 'shape', op: 'is', value: e.t }, { field: 'layer', op: 'is', value: e.layer }];
     if (e.t === 'circle' || e.t === 'arc') this.filters.push({ field: 'dia', op: '=', value: fmt(2 * e.r) });
     else if (e.t === 'line' || e.t === 'poly') this.filters.push({ field: 'len', op: '=', value: fmt(lengthOf(e)) });
-    this.sel = new Set(this.matches().map((x) => x.id));
+    if (select) this.sel = new Set(this.matches().map((x) => x.id));
     this.updateMatches();
     this.renderProps();
   }
@@ -557,19 +582,57 @@ export class DrawingEditor {
   renderLayers() {
     const box = this.$('.dw-layers'), count = {};
     for (const e of this.d.entities) count[e.layer] = (count[e.layer] || 0) + 1;
-    box.innerHTML = `${this.d.layers.map((l, i) => `<div class="dw-layer ${l.name === this.d.active ? 'on' : ''} ${l.visible === false ? 'off' : ''}" data-i="${i}">
+    this.layerSel = new Set([...this.layerSel].filter((n) => this.layer(n)));
+    const many = this.layerSel.size > 1;
+    box.innerHTML = `${this.d.layers.map((l, i) => `<div class="dw-layer ${l.name === this.d.active ? 'on' : ''} ${this.layerSel.has(l.name) ? 'picked' : ''} ${l.visible === false ? 'off' : ''}" data-i="${i}">
         <button class="mini" data-a="eye" title="${l.visible === false ? 'Show this layer' : 'Hide this layer'}">${l.visible === false ? '◌' : '👁'}</button>
         <input type="color" data-a="col" value="${/^#[0-9a-f]{6}$/i.test(l.color) ? l.color : '#ffffff'}" title="The layer's colour">
         <span class="dw-lname" data-no-i18n title="${esc(t('Click: new lines go on this layer'))}">${esc(l.name)}</span><span class="mt-what">${count[l.name] || 0}</span></div>`).join('')}
+      ${many ? `<div class="dw-lsel"><b>${esc(tv('{n} layers', { n: this.layerSel.size }))}</b>
+        <div class="row-actions wrap"><button class="btn small" data-a="selOn">👁 ${esc(t('Show'))}</button><button class="btn small" data-a="selOff">◌ ${esc(t('Hide'))}</button>
+        <button class="btn small" data-a="selShapes">⬚ ${esc(t('Select their shapes'))}</button><button class="btn small" data-a="selFilter">🔍 ${esc(t('As a filter'))}</button></div></div>` : ''}
       <div class="row-actions wrap"><button class="btn small" data-a="allOn">👁 ${esc(t('All'))}</button><button class="btn small" data-a="allOff">◌ ${esc(t('None'))}</button><button class="btn small" data-a="newLayer">＋ ${esc(t('Layer'))}</button></div>`;
+    // a row of the picked layers changes them all
+    const group = (l) => (this.layerSel.has(l.name) && this.layerSel.size > 1 ? this.layerSel : new Set([l.name]));
     for (const row of box.querySelectorAll('.dw-layer')) {
-      const l = this.d.layers[+row.dataset.i];
-      row.querySelector('[data-a=eye]').addEventListener('click', () => { this.d.layers = this.d.layers.map((x) => (x === l ? { ...x, visible: x.visible === false } : x)); this.commit(); });
+      const i = +row.dataset.i, l = this.d.layers[i];
+      row.querySelector('[data-a=eye]').addEventListener('click', () => {
+        const g = group(l), vis = l.visible === false;
+        this.d.layers = this.d.layers.map((x) => (g.has(x.name) ? { ...x, visible: vis } : x));
+        this.commit();
+      });
       const col = row.querySelector('[data-a=col]');
-      col.addEventListener('input', () => { l.color = col.value; this.draw(); });
-      col.addEventListener('change', () => { this.d.layers = this.d.layers.map((x) => (x === l ? { ...x, color: col.value } : x)); this.commit(); });
-      row.querySelector('.dw-lname').addEventListener('click', () => { this.d.active = l.name; this.renderLayers(); });
+      col.addEventListener('input', () => { for (const x of this.d.layers) if (group(l).has(x.name)) x.color = col.value; this.draw(); });
+      col.addEventListener('change', () => { const g = group(l); this.d.layers = this.d.layers.map((x) => (g.has(x.name) ? { ...x, color: col.value } : x)); this.commit(); });
+      row.querySelector('.dw-lname').addEventListener('click', (e) => {
+        if (e.shiftKey && this.layerAnchor !== undefined) { // all from the last one clicked to this one
+          const [a, b] = [Math.min(this.layerAnchor, i), Math.max(this.layerAnchor, i)];
+          if (!(e.ctrlKey || e.metaKey)) this.layerSel.clear();
+          for (let k = a; k <= b; k++) this.layerSel.add(this.d.layers[k].name);
+        } else if (e.ctrlKey || e.metaKey) {
+          if (this.layerSel.has(l.name)) this.layerSel.delete(l.name); else this.layerSel.add(l.name);
+          this.layerAnchor = i;
+        } else {
+          this.layerSel = new Set([l.name]);
+          this.layerAnchor = i;
+          this.d.active = l.name; // new lines go here
+        }
+        this.renderLayers();
+      });
     }
+    const setVis = (v) => { this.d.layers = this.d.layers.map((x) => (this.layerSel.has(x.name) ? { ...x, visible: v } : x)); this.commit(); };
+    box.querySelector('[data-a=selOn]')?.addEventListener('click', () => setVis(true));
+    box.querySelector('[data-a=selOff]')?.addEventListener('click', () => setVis(false));
+    box.querySelector('[data-a=selShapes]')?.addEventListener('click', () => {
+      this.sel = new Set(this.d.entities.filter((e) => this.layerSel.has(e.layer) && this.shown(e)).map((e) => e.id));
+      this.renderProps();
+      this.draw();
+    });
+    box.querySelector('[data-a=selFilter]')?.addEventListener('click', () => {
+      this.filters = [...this.filters.filter((f) => f.field !== 'layer'), { field: 'layer', op: 'is any of', value: [...this.layerSel] }];
+      this.updateMatches();
+      this.renderProps();
+    });
     box.querySelector('[data-a=allOn]').addEventListener('click', () => { this.d.layers = this.d.layers.map((x) => ({ ...x, visible: true })); this.commit(); });
     box.querySelector('[data-a=allOff]').addEventListener('click', () => { this.d.layers = this.d.layers.map((x) => ({ ...x, visible: false })); this.commit(); });
     box.querySelector('[data-a=newLayer]').addEventListener('click', () => {
