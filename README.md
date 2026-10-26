@@ -188,7 +188,9 @@ and a title block (name, size, material, mass, scale). The AI's `export {format:
 ## Assemblies
 
 **＋ New assembly** (in the ＋ menu next to the part tabs) opens an assembly tab (◇), where the parts of the project
-are placed together — 3D models ◆ and quick parts ▤ (drawings, pictures, imports: they go in as their solid):
+are placed together — 3D models ◆, quick parts ▤ (drawings, pictures, imports: they go in as their solid) and other
+**assemblies ◇ as one unit** (a sub-assembly: its parts as placed there, joined and fastened like a part; its mass is
+its parts'; STEP lists every part; an assembly cannot go into itself):
 - **＋ Insert part ▾** adds a model part, as often as you like (⧉ in the list adds one more). A new one is put
   beside the others.
 - **🔗 Joint ▾**: choose how the part is held — **Touch** (S: a flat face onto a flat face, centred), **Gap** (facing,

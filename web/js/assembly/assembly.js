@@ -142,7 +142,21 @@ export class Assembly {
   render() { this.renderBar(); this.renderList(); this.renderProps(); this.renderStatus(); }
 
   /** The parts that can go in: 3D models, and quick parts (drawings, pictures, imports) with a shape. */
-  modelParts() { return this.hooks.parts().filter((p) => p.kind === 'model' || (p.kind === 'classic' && this.hooks.partData(p.id)?.model)); }
+  modelParts() {
+    const self = this.hooks.selfId?.();
+    return this.hooks.parts().filter((p) => p.kind === 'model' || (p.kind === 'classic' && this.hooks.partData(p.id)?.model)
+      || (p.kind === 'assembly' && p.id !== self && !this.contains(p.id, self)));
+  }
+
+  /** Does assembly `pid` hold `target` (directly or in its own sub-assemblies)? */
+  contains(pid, target, seen = new Set()) {
+    if (!target || seen.has(pid)) return false;
+    seen.add(pid);
+    const data = this.hooks.partData(pid);
+    return (data?.instances || []).some((i) => i.part === target || (this.kindOf(i.part) === 'assembly' && this.contains(i.part, target, seen)));
+  }
+
+  kindOf(pid) { return this.hooks.parts().find((p) => p.id === pid)?.kind; }
 
   /** A part's steps for the CAD kernel: a 3D model's own; a quick part as one solid (its STEP export). */
   async partFeatures(pid, data) {
@@ -164,8 +178,8 @@ export class Assembly {
     const btn = (a, label, title, cls = '') => `<button class="chip ${cls}" data-a="${a}" title="${esc(title)}">${label}</button>`;
     const parts = this.modelParts();
     bar.innerHTML = `
-      <div class="menu as-insert">${btn('insert', '＋ Insert part ▾', parts.length ? 'Add a part of this project: a 3D model ◆ or a quick part ▤ (drawing, picture, import)' : 'Make a part first (＋ New 3D model, or open a drawing / picture)', 'tool')}
-        <div class="menu-list">${parts.map((p) => `<button data-part="${p.id}" data-no-i18n>${p.kind === 'classic' ? '▤' : '◆'} ${esc(p.name)}</button>`).join('') || '<div class="hint">No parts yet</div>'}</div></div>
+      <div class="menu as-insert">${btn('insert', '＋ Insert part ▾', parts.length ? 'Add a part of this project: a 3D model ◆, a quick part ▤ (drawing, picture, import) or another assembly ◇ (as one unit)' : 'Make a part first (＋ New 3D model, or open a drawing / picture)', 'tool')}
+        <div class="menu-list">${parts.map((p) => `<button data-part="${p.id}" data-no-i18n>${p.kind === 'classic' ? '▤' : p.kind === 'assembly' ? '◇' : '◆'} ${esc(p.name)}</button>`).join('') || '<div class="hint">No parts yet</div>'}</div></div>
       <div class="menu as-joint">${btn('joint', `🔗 Joint ▾`, 'Hold a part against another one: choose how, then click a face of the part to move and the face it goes to (S = touch)', `tool ${this.mode !== 'idle' ? 'on' : ''}`)}
         <div class="menu-list">${Object.entries(JOINT_TYPES).map(([k, j]) => `<button data-joint="${k}" title="${esc(j.hint)}">${j.icon} ${esc(j.name)}</button>`).join('')}</div></div>
       ${btn('fasteners', '🔩 Fasteners', 'Screws, heat-set inserts and pins where holes line up across parts — suggested, added with one click', `tool ${this.fastenerPanel ? 'on' : ''}`)}
@@ -216,7 +230,7 @@ export class Assembly {
       const b = this.bodies[it.part];
       const row = document.createElement('div');
       row.className = `mt-item${it.id === this.sel ? ' on' : ''}${b?.error ? ' bad' : ''}`;
-      row.innerHTML = `<span class="mt-icon">◆</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>
+      row.innerHTML = `<span class="mt-icon">${this.kindOf(it.part) === 'assembly' ? '◇' : this.kindOf(it.part) === 'classic' ? '▤' : '◆'}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>
         ${b?.error ? '<span class="mt-warn">⚠</span>' : ''}
         <span class="mt-acts"><button class="mini" data-a="dup" title="One more of this part">⧉</button><button class="mini danger" data-a="del" title="Take it out of the assembly">✕</button></span>`;
       row.querySelector('.mt-name').textContent = this.partName(it.part);
@@ -243,8 +257,9 @@ export class Assembly {
       r.qty++;
       const data = this.hooks.partData(it.part);
       r.material = data?.material || 'PLA';
-      const v = this.bodies[it.part]?.body?.volume;
-      r.mass = v ? (v / 1000) * MATERIALS[r.material] : null;
+      const b = this.bodies[it.part]?.body, v = b?.volume;
+      if (b?.sub) r.material = '—';
+      r.mass = b?.mass_g ?? (v ? (v / 1000) * MATERIALS[r.material] : null);
     }
     return Object.values(rows);
   }
@@ -389,7 +404,12 @@ export class Assembly {
 
   /** "the top of Extrude 1" for a face of a placed part. */
   faceText(instId, name) {
-    const it = this.inst(instId), feats = this.hooks.partData(it?.part)?.features || [];
+    const it = this.inst(instId);
+    if (String(name).includes('/')) { // a face of a part inside a sub-assembly
+      const [sub, rest] = String(name).split(/\/(.*)/s), si = (this.hooks.partData(it?.part)?.instances || []).find((x) => x.id === sub);
+      return `${this.partName(si?.part)} ${sub}: ${rest}`;
+    }
+    const feats = this.hooks.partData(it?.part)?.features || [];
     const [fid, role, sub] = String(name).split(':'), g = feats.find((f) => f.id === fid);
     if (fid === 'Q1') return `face ${String(role).slice(1)}`;
     const what = { end: 'the top of', start: 'the bottom of', side: 'a wall of', hole: 'hole of', round: 'a rounding of', bottom: 'a hole bottom of' }[role] || 'a face of';
@@ -489,6 +509,66 @@ export class Assembly {
   // ------------------------------------------------------------------ bodies of the parts
   async refresh() {
     const need = [...new Set(this.doc.instances.map((i) => i.part))];
+    // sub-assemblies: their own parts first, then them as one body each
+    const subs = need.filter((pid) => this.kindOf(pid) === 'assembly');
+    const inner = new Set();
+    const walk = (pid, seen = new Set()) => {
+      if (seen.has(pid)) return;
+      seen.add(pid);
+      for (const i of this.hooks.partData(pid)?.instances || []) (this.kindOf(i.part) === 'assembly' ? walk(i.part, seen) : inner.add(i.part));
+    };
+    subs.forEach((pid) => walk(pid));
+    await this.buildBodies([...new Set([...need.filter((pid) => !subs.includes(pid)), ...inner])]);
+    for (const pid of subs) this.mergeAssembly(pid);
+    this.applyMates();
+    this.draw();
+    this.renderList();
+    this.renderProps();
+  }
+
+  /** A sub-assembly as one body: its parts' meshes placed by their matrices, face names "<its instance>/<name>". */
+  mergeAssembly(pid, seen = new Set()) {
+    const data = this.hooks.partData(pid);
+    if (!data || seen.has(pid)) return this.bodies[pid];
+    seen.add(pid);
+    const key = JSON.stringify(data) + (data.instances || []).map((i) => this.bodies[i.part]?.key || '').join('|');
+    if (this.bodies[pid]?.key === key) return this.bodies[pid];
+    const pos = [], ids = [], faces = [], edges = [];
+    let vol = 0, mass = 0, box = null, off = 0;
+    for (const it of data.instances || []) {
+      const sub = this.kindOf(it.part) === 'assembly' ? this.mergeAssembly(it.part, seen) : this.bodies[it.part];
+      const b = sub?.body;
+      if (!b) continue;
+      const M = new THREE.Matrix4().fromArray(it.matrix), N = new THREE.Matrix3().getNormalMatrix(M), v = new THREE.Vector3();
+      const P = b64(b.positions, Float32Array), F = b64(b.face_ids, Uint32Array);
+      for (let k = 0; k < P.length; k += 3) { v.set(P[k], P[k + 1], P[k + 2]).applyMatrix4(M); pos.push(v.x, v.y, v.z); }
+      for (const id of F) ids.push(id + off);
+      const at = (a) => new THREE.Vector3(...a).applyMatrix4(M).toArray().map((x) => +x.toFixed(6));
+      const dir = (a) => new THREE.Vector3(...a).applyMatrix3(N).normalize().toArray().map((x) => +x.toFixed(9));
+      for (const f of b.faces) {
+        faces.push({ ...f, id: f.id + off, name: `${it.id}/${f.name}`, names: (f.names || []).map((n) => `${it.id}/${n}`), centroid: at(f.centroid),
+          ...(f.normal ? { normal: dir(f.normal) } : {}), ...(f.axis ? { axis: { o: at(f.axis.o), d: dir(f.axis.d) } } : {}),
+          ...(f.frame ? { frame: { o: at(f.frame.o), x: dir(f.frame.x), n: dir(f.frame.n) } } : {}) });
+      }
+      for (const e of b.edges) {
+        const q = [];
+        for (let k = 0; k < e.pts.length; k += 3) q.push(...at([e.pts[k], e.pts[k + 1], e.pts[k + 2]]));
+        edges.push({ ...e, pts: q, faces: e.faces.map((x) => x + off), mid: at(e.mid) });
+      }
+      off += Math.max(0, ...b.faces.map((f) => f.id)) + 1;
+      vol += b.volume;
+      mass += b.mass_g ?? (b.volume / 1000) * (MATERIALS[this.hooks.partData(it.part)?.material || 'PLA'] || 1.24);
+      const bb = new THREE.Box3(new THREE.Vector3(...b.bbox.slice(0, 3)), new THREE.Vector3(...b.bbox.slice(3))).applyMatrix4(M);
+      box = box ? box.union(bb) : bb;
+    }
+    const enc = (arr, T) => { const u = new Uint8Array(new T(arr).buffer); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s); };
+    this.bodies[pid] = box ? { key, body: { positions: enc(pos, Float32Array), face_ids: enc(ids, Uint32Array), faces, edges, volume: vol, mass_g: mass,
+      bbox: [...box.min.toArray(), ...box.max.toArray()], sub: true } } : { key, error: 'This assembly has no parts with a solid yet.' };
+    return this.bodies[pid];
+  }
+
+  /** The 3D model / quick parts' bodies, from the kernel (unchanged ones are kept). */
+  async buildBodies(need) {
     await Promise.all(need.map(async (pid) => {
       const data = this.hooks.partData(pid);
       if (!data) { this.bodies[pid] = { error: 'This part is no longer in the project.' }; return; }
@@ -503,10 +583,6 @@ export class Assembly {
         this.bodies[pid] = r.body ? { key, body: r.body, features } : { key, error: 'This part has no solid yet.' };
       } catch (e) { this.bodies[pid] = { key, error: e.message }; }
     }));
-    this.applyMates();
-    this.draw();
-    this.renderList();
-    this.renderProps();
   }
 
   draw() {
@@ -936,7 +1012,16 @@ export class Assembly {
       if (await this.hooks.download(new Blob([buf], { type: 'model/stl' }), `${name}.stl`)) this.hooks.toast('Exported STL (in mm).', 'ok');
       return;
     }
-    const instances = this.doc.instances.map((it) => ({ part: { features: this.bodies[it.part]?.features || this.hooks.partData(it.part)?.features || [] }, matrix: it.matrix }));
+    const flat = [];
+    const expand = (list, parent) => {
+      for (const it of list) {
+        const M = parent.clone().multiply(new THREE.Matrix4().fromArray(it.matrix));
+        if (this.kindOf(it.part) === 'assembly') expand(this.hooks.partData(it.part)?.instances || [], M);
+        else flat.push({ part: { features: this.bodies[it.part]?.features || this.hooks.partData(it.part)?.features || [] }, matrix: M.toArray() });
+      }
+    };
+    expand(this.doc.instances, new THREE.Matrix4());
+    const instances = flat;
     const res = await fetch('/api/assembly/export/step', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instances, name }) });
     if (!res.ok) { this.hooks.toast(`Export failed: ${(await res.json().catch(() => ({ error: res.statusText }))).error}`, 'error'); return; }
     if (await this.hooks.download(await res.blob(), `${name}.step`)) this.hooks.toast('Exported STEP (in mm).', 'ok');

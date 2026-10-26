@@ -86,6 +86,8 @@ Never report "works" without having run it; report failures with their output.
    undo) and ↻ turning about a joint (caught at 90°, 30° typed).
    `tools/e2e_model_limits.py <url> <dir>` covers the value ranges (fillet R 0.01–9.99, 15 held at 9.99 and building;
    hole depth to the part's thickness; pattern count to what still reaches the part; the 3D size editor's range).
+   `tools/e2e_assembly_sub.py <url> <dir>` covers assemblies in assemblies (one body, joined, mass, STEP with every
+   part, no assembly in itself).
    `tools/e2e_assembly_ai.py <url> <dir>` covers the AI's assembly tools (insert_part, snap_faces by face name, place_part,
    screenshot, undo, the error messages for wrong faces / tools).
    `tools/e2e_model_features.py <url> <dir>` covers ◜ Fillet (click an edge, exact volume, the rounding follows when
