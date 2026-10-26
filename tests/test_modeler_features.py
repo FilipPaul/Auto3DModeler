@@ -290,6 +290,17 @@ class TestFeatures(unittest.TestCase):
         r, _ = vol({**solid, "step": "not base64!"})
         self.assertFalse(r["ok"])
 
+    def test_offset_sketch_plane(self):
+        f = box()
+        f[0] = {**f[0], "plane": {"datum": "XY", "offset": 30}}
+        r, v = vol(*f)
+        self.assertAlmostEqual(v, 8000, delta=1e-6)
+        self.assertEqual(r["body"]["bbox"][2], 30)
+        self.assertEqual(r["frames"]["S1"]["o"], [0, 0, 30])
+        f[0] = {**f[0], "plane": {"datum": "XZ", "offset": 5}}  # the front plane, 5 mm towards the viewer (−y)
+        r, _ = vol(*f)
+        self.assertEqual(r["frames"]["S1"]["o"], [0, -5, 0])
+
 
 if __name__ == "__main__":
     unittest.main()

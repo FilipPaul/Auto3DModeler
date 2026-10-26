@@ -47,6 +47,7 @@ Date: 2026-10-25. Written by the architect agent.
   face, from another step's hole (its centre) or another hole of the same step (from: {hole: j}). tools/e2e_model_custom.py.
 - **Quick parts in assemblies done:** a quick part goes in as its STEP export, read back by a "solid" step
   (faces named <id>:f<k>; snap, mass, STEP export as for model parts). tools/e2e_assembly_quick.py.
+- **Offset sketch planes done:** plane {datum, offset} (the sketch bar's Offset field; the AI's {datum, offset}).
 - **Next (later list):** classic parts in assemblies; decorate faces of model parts; loft / sweep.
 
 ## 0. Summary

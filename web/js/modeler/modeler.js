@@ -5,7 +5,7 @@
 // The server's CAD kernel builds the body (/api/model/rebuild); this module edits the part JSON.
 import { History } from '../history.js';
 import { t } from '../i18n.js';
-import { ModelView, DATUMS } from './view.js';
+import { ModelView, DATUMS, datumFrame } from './view.js';
 import { Sketcher, upgradeSketch, arcPts } from './sketcher.js';
 
 const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂' };
@@ -81,7 +81,10 @@ export class Modeler {
       // a new, empty sketch on a base plane can still move to another base plane
       const dat = this.sk.isNew && !this.sk.f.entities.length && this.sk.f.plane?.datum;
       const planes = dat ? `<span class="m-say">on</span>${['XY', 'XZ', 'YZ'].map((k) => btn(`plane-${k}`, DATUM_NAME[k], `Sketch on the ${DATUM_NAME[k]} plane`, k === dat ? 'on' : '')).join('')}<span class="sep"></span>` : '';
-      bar.innerHTML = `<span class="m-mode">Sketch</span>${planes}
+      const onDatum = this.sk.f.plane?.datum;
+      const offset = onDatum ? `<label class="m-offset" title="Move the sketch plane along its normal (e.g. 30 mm above the bed — for a loft's second profile)">Offset
+        <input type="number" step="any" data-k="planeOffset" value="${fmt(this.sk.f.plane.offset || 0)}"> mm</label><span class="sep"></span>` : '';
+      bar.innerHTML = `<span class="m-mode">Sketch</span>${planes}${offset}
         ${btn('rect', '▭ Rectangle', 'Draw a rectangle: click two corners (R)', t === 'rect' ? 'on' : '')}
         ${btn('line', '⟋ Line', 'Draw lines: click point after point; click the first point to close the shape (L)', t === 'line' ? 'on' : '')}
         ${btn('circle', '◯ Circle', 'Draw a circle: click the centre, then the edge (C)', t === 'circle' ? 'on' : '')}
@@ -122,6 +125,18 @@ export class Modeler {
       for (const a of ['measure', 'section']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body;
     }
     for (const b of bar.querySelectorAll('[data-a]')) b.addEventListener('click', () => this.action(b.dataset.a));
+    const off = bar.querySelector('[data-k=planeOffset]');
+    if (off) {
+      off.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') off.blur(); });
+      off.addEventListener('change', () => {
+        const v = parseFloat(String(off.value).replace(',', '.'));
+        if (!Number.isFinite(v) || !this.sk) return;
+        this.sk.f.plane = { ...this.sk.f.plane, offset: v };
+        if (!v) delete this.sk.f.plane.offset;
+        this.view.lookAt(this.frame(), this.sketchSpan());
+        this.sk.draw();
+      });
+    }
     this.updateUndo();
   }
 
@@ -219,7 +234,7 @@ export class Modeler {
   faceOwner(ref) { return ref?.feature || String(ref?.name || '').split(':')[0] || null; }
 
   planeText(f) {
-    if (f.plane?.datum) return `on ${DATUM_NAME[f.plane.datum]}`;
+    if (f.plane?.datum) return `on ${DATUM_NAME[f.plane.datum]}${f.plane.offset ? ` ${f.plane.offset > 0 ? '+' : ''}${fmt(f.plane.offset)} mm` : ''}`;
     const src = this.part.features.find((g) => g.id === this.faceOwner(f.plane?.face));
     return src ? `on a face of ${src.name}` : 'on a face';
   }
@@ -440,7 +455,7 @@ export class Modeler {
     const list = [];
     for (const f of this.part.features) {
       if (f.type !== 'sketch') continue;
-      const fr = f.plane?.datum ? DATUMS[f.plane.datum] : this.frames?.[f.id] || f.plane?.frame;
+      const fr = f.plane?.datum ? datumFrame(f.plane) : this.frames?.[f.id] || f.plane?.frame;
       if (!fr) continue;
       const sk = upgradeSketch(f), P = (id) => (id === 'O' ? [0, 0] : sk.points[id]);
       const lines = sk.entities.filter((e) => e.t === 'line' && P(e.a) && P(e.b)).map((e) => [P(e.a), P(e.b)]);
@@ -516,7 +531,7 @@ export class Modeler {
   /** A new, empty sketch: put it on another base plane. */
   movePlane(datum) {
     if (!this.sk || this.sk.f.entities.length) return;
-    this.sk.f.plane = { datum };
+    this.sk.f.plane = { datum, ...(this.sk.f.plane?.offset ? { offset: this.sk.f.plane.offset } : {}) };
     this.view.lookAt(this.frame(), this.sketchSpan());
     this.renderCmdBar();
     this.sk.draw();
@@ -535,7 +550,7 @@ export class Modeler {
   /** The frame of the open sketch (from the last rebuild when the kernel moved it with its face). */
   frame() {
     const f = this.sk.f;
-    if (f.plane?.datum) return DATUMS[f.plane.datum];
+    if (f.plane?.datum) return datumFrame(f.plane);
     return this.frames?.[f.id] || f.plane.frame;
   }
 

@@ -13,6 +13,12 @@ export const DATUMS = {
   YZ: { o: [0, 0, 0], x: [0, 1, 0], n: [1, 0, 0] },
 };
 
+/** A base plane {datum, offset} -> its frame (moved offset mm along its normal). */
+export function datumFrame(plane) {
+  const fr = DATUMS[plane?.datum] || DATUMS.XY, off = +plane?.offset || 0;
+  return { ...fr, o: fr.o.map((v, i) => v + off * fr.n[i]) };
+}
+
 const b64 = (s, T) => {
   const bin = atob(s), bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);

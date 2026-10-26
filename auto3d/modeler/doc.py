@@ -32,7 +32,7 @@ DATUMS = {
     "XZ": {"o": [0, 0, 0], "x": [1, 0, 0], "n": [0, -1, 0]},  # Front
     "YZ": {"o": [0, 0, 0], "x": [0, 1, 0], "n": [1, 0, 0]},   # Right
 }
-FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell")
+FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell", "pattern", "solid", "loft", "sweep")
 
 _cache: OrderedDict = OrderedDict()  # prefix hash -> state after that feature (only in the worker process)
 CACHE_SIZE = 48
@@ -82,7 +82,10 @@ def plane_frame(plane, st: State):
         fr = DATUMS.get((plane or {}).get("datum", "XY"))
         if not fr:
             raise K.KernelError("Unknown sketch plane.")
-        return {k: list(v) for k, v in fr.items()}
+        fr = {k: list(v) for k, v in fr.items()}
+        off = float((plane or {}).get("offset") or 0)  # a base plane moved along its normal (e.g. 30 mm above the bed)
+        fr["o"] = [o + off * n for o, n in zip(fr["o"], fr["n"])]
+        return fr
     fr = plane.get("frame")
     if not fr:
         raise K.KernelError("The sketch has no plane.")

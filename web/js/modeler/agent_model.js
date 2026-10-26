@@ -105,6 +105,11 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
     return fs.sort((a, c) => c.area - a.area)[0];
   };
   const planeOf = (plane) => {
+    if (plane && typeof plane === 'object' && plane.datum) {
+      const d = DATUM[String(plane.datum).toUpperCase()];
+      if (!d) throw new Error('plane.datum: "XY", "XZ" or "YZ".');
+      return { datum: d, ...(plane.offset ? { offset: +plane.offset } : {}) };
+    }
     if (!plane || typeof plane === 'string') {
       const d = DATUM[String(plane || 'XY').toUpperCase()];
       if (!d) throw new Error('plane is "XY" (top), "XZ" (front), "YZ" (right) or {face: "<face name>"}.');

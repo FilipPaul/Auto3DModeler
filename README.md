@@ -105,7 +105,8 @@ SolidWorks. It has only the tools that need almost no input.
    part wider in an earlier step and the hole or the sketch moves with its edge, keeping its distance.
 5. **⟳ Revolve** spins a sketch around an axis: the sketch's vertical axis (the default), its horizontal axis or one
    of its lines, a full turn or any angle. Draw half the shape beside the axis, e.g. half a vase on the **Front**
-   plane. A new, empty sketch can be moved to Front / Right with the buttons in the bar. **▢ Shell** hollows the
+   plane. A new, empty sketch can be moved to Front / Right with the buttons in the bar, and a sketch on a base plane
+   can be moved along it with **Offset** (e.g. 30 mm above the bed). **▢ Shell** hollows the
    part out: click the face(s) to leave open (the top of a cup) and type the wall thickness.
 6. **⁂ Pattern** repeats a step (a hole, a boss, a cut — or another pattern): **▦ In a row** — how many and how far
    apart, along X / Y / Z or a straight edge you click; **◌ Around** — how many, evenly around Z (or X / Y), or around

@@ -153,7 +153,8 @@ TOOLS = [
                           "of_face": STR, "circular": {"type": "boolean"}, "limit": {"type": "integer"}})},
     {"name": "add_feature", "where": "browser",
      "description": "Add a step to the 3D model (it rebuilds; the result says ok / issues). type:\n"
-                    "- sketch: plane \"XY\" (top, the bed) / \"XZ\" (front) / \"YZ\" (right) / {face: <name>} (origin = the face's "
+                    "- sketch: plane \"XY\" (top, the bed) / \"XZ\" (front) / \"YZ\" (right) / {datum: \"XY\", offset: 30} (moved along its "
+                    "normal) / {face: <name>} (origin = the face's "
                     "centre); shapes: [{rect: {x, y, w, h, r}} (lower-left corner; r = rounded corners) | {circle: {x, y, d}} | {slot: {x1, y1, x2, y2, w}} (round ends "
                     "centred at x1,y1 and x2,y2) | {polyline: {points: [[u, v], …]}} "
                     "(closed)] — a shape inside another is a hole; sizes are locked.\n"
