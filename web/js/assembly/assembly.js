@@ -40,8 +40,10 @@ class AsmView extends ModelView {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
       geo.computeVertexNormals();
-      const mat = new THREE.MeshStandardMaterial({ color: it.selected ? 0x6cb6ff : COLORS[it.color % COLORS.length], roughness: 0.55, metalness: 0.05,
-        side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, emissive: it.hover ? 0x1b2a44 : 0x000000 });
+      const o = Number.isFinite(it.opacity) ? it.opacity : 1;
+      const mat = new THREE.MeshStandardMaterial({ color: it.selected ? 0x6cb6ff : it.colour || COLORS[it.color % COLORS.length], roughness: 0.55, metalness: 0.05,
+        side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, emissive: it.hover ? 0x1b2a44 : 0x000000,
+        transparent: o < 1, opacity: o, depthWrite: o >= 1 });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.matrixAutoUpdate = false;
       mesh.matrix.fromArray(it.matrix);
@@ -306,6 +308,7 @@ export class Assembly {
         <h3>Turn</h3><datalist id="as-ticks"><option value="-180"></option><option value="-90"></option><option value="0"></option><option value="90"></option><option value="180"></option></datalist>
         ${rot('x')}${rot('y')}${rot('z')}
         <p class="hint">Slide to any angle — it catches at 0, ±90 and ±180°. Type an exact one in the box.</p>
+        <h3>Look</h3>${this.lookHtml(it)}
         ${this.jointsHtml(it.id)}
         <div class="row-actions wrap"><button class="btn small" data-a="joinThis">🔗 Join it to another part</button></div>
         <div class="row-actions"><button class="btn small" data-a="reset" title="Back to its place in its own model">Reset its place</button><button class="btn small danger" data-a="del">Take it out</button></div>`;
@@ -327,6 +330,7 @@ export class Assembly {
         num.addEventListener('change', () => { const v = parseFloat(String(num.value).replace(',', '.')); if (Number.isFinite(v)) this.setRot(k, v, true); });
       }
       this.bindJointRows(box);
+      this.bindLook(box, it);
       box.querySelector('[data-a=joinThis]').addEventListener('click', () => this.startJoint('touch', it.id));
       box.querySelector('[data-a=reset]').addEventListener('click', () => { if (!this.mayMove(it.id)) return; it.matrix = ID(); this.applyMates(); this.commit(); });
       box.querySelector('[data-a=del]').addEventListener('click', () => this.removeInst(it.id));
@@ -566,6 +570,26 @@ export class Assembly {
     this.commit();
     if (!quiet) this.hooks.toast(`Added ${n} fastener(s) — they follow the parts (each a part of the project you can open).`, 'ok', 4000);
     return n;
+  }
+
+  /** Colour and see-through of a placed part: its own here (↺ back to its part's). */
+  lookHtml(it) {
+    const data = this.hooks.partData(it.part) || {}, l = this.lookOf(it), own = !!it.colour || Number.isFinite(it.opacity);
+    const hex = `#${(l.colour ?? COLORS[Math.max(0, this.modelParts().findIndex((p) => p.id === it.part)) % COLORS.length]).toString(16).padStart(6, '0')}`;
+    const pc = Math.round((1 - l.opacity) * 100);
+    return `<div class="field"><label>Colour</label><input type="color" data-look="colour" value="${hex}"></div>
+      <div class="field mp-look"><label>See-through</label><input type="range" min="0" max="90" step="5" data-look="clear" value="${pc}"><span class="unit">${pc} %</span></div>
+      <p class="hint">${own ? 'Its own look in this assembly.' : data.color || Number.isFinite(data.opacity) ? "As its part (set in the part's panel)." : 'The assembly colours.'}</p>
+      ${own ? '<div class="row-actions"><button class="btn small" data-look="reset">↺ As its part</button></div>' : ''}`;
+  }
+
+  bindLook(box, it) {
+    const col = box.querySelector('[data-look=colour]'), clr = box.querySelector('[data-look=clear]');
+    col?.addEventListener('input', () => { it.colour = col.value; this.draw(); });
+    col?.addEventListener('change', () => this.commit());
+    clr?.addEventListener('input', () => { it.opacity = +(1 - clr.value / 100).toFixed(2); clr.nextElementSibling.textContent = `${clr.value} %`; this.draw(); });
+    clr?.addEventListener('change', () => this.commit());
+    box.querySelector('[data-look=reset]')?.addEventListener('click', () => { delete it.colour; delete it.opacity; this.commit(); });
   }
 
   /** "the top of Extrude 1" for a face of a placed part. */
@@ -809,7 +833,8 @@ export class Assembly {
     const ok = centres.filter(Boolean), mid = ok.reduce((s, c) => s.add(c), new THREE.Vector3()).multiplyScalar(1 / (ok.length || 1));
     this.view.setBodies(this.doc.instances.map((it, k) => {
       const c = centres[k];
-      return { id: it.id, body: this.bodies[it.part]?.body, matrix: it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part),
+      const look = this.lookOf(it);
+      return { id: it.id, body: this.bodies[it.part]?.body, matrix: it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part), ...look,
         selected: it.id === this.sel || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst,
         explode: this.explode && c ? c.clone().sub(mid).multiplyScalar(this.explode * 1.2).toArray() : null };
     }));
@@ -817,6 +842,13 @@ export class Assembly {
   }
 
   commit() { this.history.commit(); this.render(); this.draw(); this.hooks.onChange?.(); }
+
+  /** How a placed part looks: its own colour / see-through in this assembly, else its part's -> {colour, opacity}. */
+  lookOf(it) {
+    const data = this.hooks.partData(it.part) || {};
+    const colour = it.colour || data.color, opacity = Number.isFinite(it.opacity) ? it.opacity : data.opacity;
+    return { colour: colour ? new THREE.Color(colour).getHex() : null, opacity: Number.isFinite(opacity) ? opacity : 1 };
+  }
 
   // ------------------------------------------------------------------ editing
   newId() {

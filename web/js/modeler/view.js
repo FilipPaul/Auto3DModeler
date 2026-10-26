@@ -182,12 +182,21 @@ export class ModelView {
     return s[0] === Infinity ? null : s;
   }
 
+  /** The part's look: its colour ("#rrggbb", none = the usual grey) and opacity (1 = solid, less = see-through). */
+  setLook({ color, opacity } = {}) {
+    this.bodyColor = color ? new THREE.Color(color) : null;
+    const o = Number.isFinite(+opacity) ? Math.min(1, Math.max(0.1, +opacity)) : 1;
+    Object.assign(this.material, { transparent: o < 1, opacity: o, depthWrite: o >= 1 });
+    this.material.needsUpdate = true;
+    this.paint();
+  }
+
   paint() {
     if (!this.mesh) return;
     const col = this.mesh.geometry.attributes.color;
     for (let t = 0; t < this.faceIds.length; t++) {
       const f = this.faceIds[t];
-      const c = f === this.hover ? HOVER : this.picked.has(f) ? PICKED : this.hoverSet?.has(f) ? FEATURE : this.selSet?.has(f) ? SELECTED : BODY;
+      const c = f === this.hover ? HOVER : this.picked.has(f) ? PICKED : this.hoverSet?.has(f) ? FEATURE : this.selSet?.has(f) ? SELECTED : this.bodyColor || BODY;
       for (let k = 0; k < 3; k++) col.setXYZ(t * 3 + k, c.r, c.g, c.b);
     }
     col.needsUpdate = true;

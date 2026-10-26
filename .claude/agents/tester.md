@@ -91,6 +91,8 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_assembly_bolt.py <url> <dir>` covers a screw through parts with no holes (the click, the suggestion and
    preview, the Ø3.4 holes drilled in both parts — exact volumes —, head on top and nut below, Ctrl+Z / Ctrl+Y with
    the holes, the AI's bolt_parts with an insert) and the Tangent, Angle (30°, typed 60°) and Perpendicular joints.
+   `tools/e2e_look.py <url> <dir>` covers colour and see-through (the Part panel -> the model view and assemblies;
+   a placed part's own look, ↺ As its part, Ctrl+Z).
    `tools/e2e_assembly_concentric.py <url> <dir>` covers ◎ Concentric with a distance (two plates' holes: filled in
    touching, typed 30 -> 30 apart, still 30 when the lower plate thickens, cleared -> free), ↻🔒 the rotation lock
    (45° typed) and the AI's snap_faces axis with gap + lock_rotation.

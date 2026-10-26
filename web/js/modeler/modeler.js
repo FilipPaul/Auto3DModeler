@@ -652,7 +652,9 @@ export class Modeler {
         ${b ? `<div class="mp-facts"><span>Size</span><b>${fmt(b.bbox[3] - b.bbox[0])} × ${fmt(b.bbox[4] - b.bbox[1])} × ${fmt(b.bbox[5] - b.bbox[2])} mm</b>
           <span>Volume</span><b>${fmt(b.volume / 1000)} cm³</b>
           <span>Mass</span><b>${fmt(+(b.volume / 1000 * (MATERIALS[this.part.material || 'PLA'])).toFixed(1))} g <span class="mp-sub">(solid)</span></b></div>
-          <div class="field"><label>Material</label><select data-k="material">${Object.keys(MATERIALS).map((k) => `<option ${k === (this.part.material || 'PLA') ? 'selected' : ''}>${k}</option>`).join('')}</select></div>`
+          <div class="field"><label>Material</label><select data-k="material">${Object.keys(MATERIALS).map((k) => `<option ${k === (this.part.material || 'PLA') ? 'selected' : ''}>${k}</option>`).join('')}</select></div>
+          <div class="field"><label>Colour</label><input type="color" data-k="color" value="${this.part.color || '#d9dee6'}" title="Its colour here and in assemblies"></div>
+          <div class="field mp-look"><label>See-through</label><input type="range" min="0" max="90" step="5" data-k="clear" value="${Math.round((1 - (this.part.opacity ?? 1)) * 100)}"><span class="unit">${Math.round((1 - (this.part.opacity ?? 1)) * 100)} %</span></div>`
       : '<p class="hint">No solid yet — extrude a sketch.</p>'}
         ${bad.length ? `<p class="mp-bad">⚠ ${bad.length} step(s) could not be built — point at ⚠ in the list to see why.</p>` : ''}
         <h3>Next</h3><p class="hint">${esc(this.nextHint())}</p>
@@ -667,6 +669,16 @@ export class Modeler {
     for (const el of box.querySelectorAll('[data-a]')) el.addEventListener('click', () => this.action(el.dataset.a));
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
     box.querySelector('[data-k=material]')?.addEventListener('change', (e) => { this.part.material = e.target.value; this.history.commit(); this.renderProps(); });
+    const col = box.querySelector('[data-k=color]'), clr = box.querySelector('[data-k=clear]');
+    col?.addEventListener('input', () => { this.part.color = col.value; this.view.setLook(this.part); });
+    col?.addEventListener('change', () => { this.history.commit(); this.hooks.onChange?.(); });
+    clr?.addEventListener('input', () => {
+      this.part.opacity = +(1 - clr.value / 100).toFixed(2);
+      if (this.part.opacity >= 1) delete this.part.opacity;
+      clr.nextElementSibling.textContent = `${clr.value} %`;
+      this.view.setLook(this.part);
+    });
+    clr?.addEventListener('change', () => { this.history.commit(); this.hooks.onChange?.(); });
     return null;
   }
 
@@ -720,6 +732,7 @@ export class Modeler {
         this.frames = { ...this.frames, ...r.frames }; // also while rolled back before an open sketch
         const first = !this.view.body && r.body;
         this.view.setBody(r.body);
+        this.view.setLook(this.part);
         this.view.setRefs(r.refs || []);
         if (first && this.mode === 'part') this.view.setView('iso');
         const gone = (r.features || []).flatMap((s) => s.issues || []).find((x) => /^BLOB_MISSING/.test(x));
