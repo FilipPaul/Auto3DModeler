@@ -20,5 +20,8 @@ Only 3D model parts go into an assembly (quick parts do not). Build each part fi
    or changes size (`get_assembly` lists the `joints`); `place_part` on a joined part removes its joints.
 4. Fine-tune with `place_part {part, x, y, z}` (its origin in mm) and `turn: "x" | "y" | "z"` (90° about its
    centre). Check the bounding boxes from `get_assembly` and look with `get_screenshot`.
-5. `get_assembly` gives the parts list (quantity, material, mass). To change a part, `open_part` it — every
+5. **Fasteners**: make matching holes in both parts (M3: Ø3.4 clearance in the top part, Ø4.0 insert hole about 6 deep
+   below; M2…M5 alike; equal holes for a dowel pin), join the parts, then `suggest_fasteners` and `add_fasteners`
+   (all, or the ids) — screws, inserts and pins are put in as standard parts, held by joints.
+6. `get_assembly` gives the parts list (quantity, material, mass). To change a part, `open_part` it — every
    assembly that uses it follows. The user exports the assembly (STL or STEP) from its Export buttons.

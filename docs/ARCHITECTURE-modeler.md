@@ -69,6 +69,9 @@ Date: 2026-10-25. Written by the architect agent.
 - **Assembly joints done:** joints.js (touch / gap / flush / axis / parallel, applied in order per part, later ones
   restricted to the fixed direction; an axis allows an end-to-end flip); faces picked and marked in 3D (setMarks), the
   joint list with gap / flip / ✕; turning sliders with 90° catches. tools/e2e_assembly_joints.py.
+- **Fasteners done:** fasteners.js (holes on one axis across parts -> screw + insert / screw / pin by the hole Ø,
+  standard lengths; standard parts as project model parts, held by axis + touch / flush joints); the AI's
+  suggest_fasteners / add_fasteners. tools/e2e_assembly_fasteners.py.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): hole / sketch distances from
   round faces (a shaft's axis); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

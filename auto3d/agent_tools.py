@@ -221,6 +221,15 @@ TOOLS = [
     {"name": "place_part", "where": "browser",
      "description": "Position a placed part (id I…): x, y, z of its own origin in mm, and / or turn: \"x\" | \"y\" | \"z\" (or a list) — 90° each about its centre.",
      "inputSchema": _obj({"part": STR, "x": NUM, "y": NUM, "z": NUM, "turn": {}}, ["part"])},
+    {"name": "suggest_fasteners", "where": "browser",
+     "description": "Where fasteners fit in the assembly on screen: holes on one axis through two parts -> suggestions (id C…, e.g. "
+                    "\"M3×10 screw + M3 insert\": a clearance hole in the top part, an insert hole below; a screw alone; a pin where the "
+                    "holes are the same Ø). Hole sizes as printed: M3 clearance Ø3.2–3.7, M3 insert Ø3.9–4.4 (M2…M5 alike).",
+     "inputSchema": _obj({})},
+    {"name": "add_fasteners", "where": "browser",
+     "description": "Put suggested fasteners in (ids from suggest_fasteners; none = all): each a standard part of the project, held by "
+                    "joints (pin in hole + touch / flush), so it follows the parts.",
+     "inputSchema": _obj({"ids": {"type": "array", "items": STR}})},
     {"name": "remove_from_assembly", "where": "browser", "description": "Take a placed part (id I…) out of the assembly.",
      "inputSchema": _obj({"part": STR}, ["part"])},
     {"name": "get_guide", "where": "local",

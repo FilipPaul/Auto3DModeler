@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { History } from '../history.js';
 import { ModelView } from '../modeler/view.js';
 import { JOINT_TYPES, applyJoint } from './joints.js';
+import { fastenerModel, findCandidates } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -165,6 +166,7 @@ export class Assembly {
         <div class="menu-list">${parts.map((p) => `<button data-part="${p.id}" data-no-i18n>${p.kind === 'classic' ? '▤' : '◆'} ${esc(p.name)}</button>`).join('') || '<div class="hint">No parts yet</div>'}</div></div>
       <div class="menu as-joint">${btn('joint', `🔗 Joint ▾`, 'Hold a part against another one: choose how, then click a face of the part to move and the face it goes to (S = touch)', `tool ${this.mode !== 'idle' ? 'on' : ''}`)}
         <div class="menu-list">${Object.entries(JOINT_TYPES).map(([k, j]) => `<button data-joint="${k}" title="${esc(j.hint)}">${j.icon} ${esc(j.name)}</button>`).join('')}</div></div>
+      ${btn('fasteners', '🔩 Fasteners', 'Screws, heat-set inserts and pins where holes line up across parts — suggested, added with one click', `tool ${this.fastenerPanel ? 'on' : ''}`)}
       <span class="sep"></span>
       <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
       <span class="sep"></span>
@@ -195,6 +197,7 @@ export class Assembly {
 
   action(a) {
     if (a === 'snap') return this.startJoint('touch');
+    if (a === 'fasteners') { this.fastenerPanel = !this.fastenerPanel; this.sel = null; this.render(); this.draw(); return null; }
     if (a === 'undo') return this.history.go(-1);
     if (a === 'redo') return this.history.go(1);
     if (a.startsWith('view-')) return this.view.setView(a.slice(5));
@@ -246,6 +249,7 @@ export class Assembly {
 
   renderProps() {
     const box = this.$('.mp-body'), it = this.inst(this.sel);
+    if (this.fastenerPanel && !it) { this.renderFasteners(box); return; }
     if (it) {
       const m = new THREE.Matrix4().fromArray(it.matrix), p = new THREE.Vector3().setFromMatrixPosition(m);
       const e = new THREE.Euler().setFromRotationMatrix(m, 'XYZ'), deg = (r) => Math.round((r * 180) / Math.PI * 10) / 10;
@@ -295,6 +299,69 @@ export class Assembly {
         : `<p class="hint">Insert parts of this project (3D models and quick parts) with ＋ Insert part, then join them with 🔗 Joint.</p>`}`;
     this.bindJointRows(box);
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
+  }
+
+  // ------------------------------------------------------------------ fasteners
+  renderFasteners(box) {
+    const cs = this.candidates = findCandidates(this);
+    box.innerHTML = `<h2>🔩 Fasteners</h2>
+      <p class="hint">Where holes line up through two parts, a screw (with a heat-set insert in the part below), a screw
+      alone or a pin fits. Hover a suggestion to see its holes; Add puts it in, held by joints (it follows the parts).</p>
+      ${cs.length ? `<div class="as-joints">${cs.map((c) => `<div class="as-jrow" data-cand="${c.id}"><span class="as-jt">${c.kind === 'pin' ? '📍' : '🔩'}</span>
+        <span class="as-jw"><b>${esc(c.text)}</b> · ${esc(this.partName(this.inst(c.entry.inst)?.part))}${c.insert ? ` → ${esc(this.partName(this.inst(c.insert.inst)?.part))}` : ''}</span>
+        <span></span><button class="btn small" data-add="${c.id}">Add</button></div>`).join('')}</div>
+        <div class="row-actions"><button class="btn small primary" data-a="addAll">Add all (${cs.length})</button></div>`
+        : cs.filled ? `<p class="mp-count">✓ Every hole that lines up has its fastener (${cs.filled}).</p>`
+        : `<p class="mp-count">No holes line up between parts yet.</p><p class="hint">Put a hole in each part where they are to be fastened —
+          e.g. Ø3.4 for an M3 screw in the top part and Ø4.0 for an M3 insert in the part below — join the parts, then look here again.</p>`}
+      <div class="row-actions"><button class="btn small" data-a="closeF">Close</button></div>`;
+    for (const row of box.querySelectorAll('[data-cand]')) {
+      row.addEventListener('mouseenter', () => { this.hoverCand = cs.find((c) => c.id === row.dataset.cand); this.drawMarks(); });
+      row.addEventListener('mouseleave', () => { this.hoverCand = null; this.drawMarks(); });
+    }
+    for (const b of box.querySelectorAll('[data-add]')) b.addEventListener('click', () => this.addFasteners([cs.find((c) => c.id === b.dataset.add)]));
+    box.querySelector('[data-a=addAll]')?.addEventListener('click', () => this.addFasteners(cs));
+    box.querySelector('[data-a=closeF]').addEventListener('click', () => { this.fastenerPanel = false; this.hoverCand = null; this.render(); this.draw(); });
+  }
+
+  /** A standard part in the project: the one already there with that name, or a new 3D model part. */
+  ensurePart(mdl) {
+    const have = this.hooks.parts().find((p) => p.kind === 'model' && p.name === mdl.name);
+    return have ? have.id : this.hooks.addModelPart(mdl.name, { features: mdl.features, material: mdl.material });
+  }
+
+  /** Put fasteners in: each a standard part held by joints (pin in hole + touch / flush). */
+  async addFasteners(list) {
+    let n = 0;
+    for (const c of list.filter(Boolean)) {
+      const place = (kind, size, length) => {
+        const mdl = fastenerModel(kind, size, length), it = { id: this.newId(), part: this.ensurePart(mdl), matrix: ID() };
+        this.doc.instances.push(it);
+        return { it, faces: mdl.faces };
+      };
+      const join = (a, aFace, b, bFace, type) => this.addJoint({ inst: a.id, face: { name: aFace } }, { inst: b, face: { name: bFace } }, type);
+      if (c.kind === 'pin') {
+        const p = place('pin', c.size, c.length);
+        join(p.it, p.faces.shaft, c.entry.inst, c.entry.hole, 'axis');
+        join(p.it, p.faces.top, c.entry.inst, c.entry.plane, 'flush');
+      } else {
+        const s = place('screw', c.size, c.length);
+        join(s.it, s.faces.shaft, c.entry.inst, c.entry.hole, 'axis');
+        join(s.it, s.faces.seat, c.entry.inst, c.entry.plane, 'touch');
+        if (c.insert) {
+          const i = place('insert', c.size, c.insert.length);
+          join(i.it, i.faces.shaft, c.insert.inst, c.insert.hole, 'axis');
+          join(i.it, i.faces.top, c.insert.inst, c.insert.plane, 'flush');
+        }
+      }
+      n++;
+    }
+    if (!n) return 0;
+    this.hoverCand = null;
+    await this.refresh(); // builds the new parts and puts them in place by their joints
+    this.commit();
+    this.hooks.toast(`Added ${n} fastener(s) — they follow the parts (each a part of the project you can open).`, 'ok', 4000);
+    return n;
   }
 
   /** "the top of Extrude 1" for a face of a placed part. */
@@ -357,6 +424,7 @@ export class Assembly {
       if (!on) continue;
       marks.push({ inst: m.move, faces: faceIds(m.move, m.face), color: 0x3fb950 }, { inst: m.onto, faces: faceIds(m.onto, m.ontoFace), color: 0x58a6ff });
     }
+    for (const h of this.hoverCand?.holes || []) marks.push({ inst: h.inst, faces: faceIds(h.inst, h.name), color: 0xf2cc60 });
     if (this.jointFrom?.face) marks.push({ inst: this.jointFrom.inst, faces: [this.jointFrom.face.id], color: 0x3fb950 });
     if (this.hoverFace) marks.push({ inst: this.hoverFace.inst, faces: [this.hoverFace.face.id], color: this.hoverFace.ok ? 0xf2cc60 : 0x8b95a3 });
     this.view.setMarks(marks);
@@ -735,6 +803,21 @@ export class Assembly {
         for (const [k, v] of Object.entries({ x, y, z })) if (v !== undefined) this.setPos(k, v);
         for (const ax of [].concat(turn || [])) this.turn(ax);
         return { text: JSON.stringify(this.summary()) };
+      },
+      suggest_fasteners: async () => {
+        need();
+        await settle();
+        const cs = findCandidates(this);
+        return { text: JSON.stringify(cs.map((c) => ({ id: c.id, fastener: c.text, kind: c.kind, size: c.size, length: c.length,
+          into: c.entry.inst, insert_in: c.insert?.inst || null }))) || '[]' };
+      },
+      add_fasteners: async ({ ids }) => {
+        need();
+        await settle();
+        const cs = findCandidates(this), pick = ids?.length ? cs.filter((c) => ids.includes(c.id)) : cs;
+        if (!pick.length) throw new Error(cs.length ? `No suggestion ${ids} — see suggest_fasteners.` : 'No holes line up between parts — put matching holes in both parts first.');
+        const n = await this.addFasteners(pick);
+        return { text: `Added ${n}. ${JSON.stringify(this.summary())}` };
       },
       remove_from_assembly: async ({ part }) => { need(); this.removeInst(part); return { text: JSON.stringify(this.summary()) }; },
     };

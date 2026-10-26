@@ -73,7 +73,7 @@ const TOOL_LABEL = {
   add_dimension: 'adding a dimension', check_print: 'checking the printer fit', export: 'exporting', undo: 'undoing',
   list_parts: 'looking at the parts', open_part: 'opening a part', new_model: 'starting a 3D model', get_model: 'reading the 3D model',
   find_refs: 'finding faces and edges', add_feature: 'adding a step', edit_feature: 'changing a step', delete_feature: 'deleting a step',
-  turn_off_feature: 'turning a step off / on', prepare_print: 'preparing the print', set_material: 'setting the material', new_assembly: 'starting an assembly',
+  turn_off_feature: 'turning a step off / on', prepare_print: 'preparing the print', set_material: 'setting the material', new_assembly: 'starting an assembly', suggest_fasteners: 'finding where fasteners fit', add_fasteners: 'adding fasteners',
   get_assembly: 'reading the assembly', insert_part: 'inserting a part', snap_faces: 'snapping parts together', place_part: 'placing a part', remove_from_assembly: 'taking a part out', get_guide: 'reading a guide', Skill: 'reading a guide',
 };
 

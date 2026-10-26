@@ -1740,6 +1740,7 @@ const assembly = new Assembly({ left: $('asmLeft'), viewport: $('asmViewport'), 
   toast, download, safeName: () => tabName(),
   parts: () => project.parts,
   partData: (id) => { const p = project.parts.find((q) => q.id === id); return p && typeof p.data === 'object' ? p.data : null; },
+  addModelPart: (name, data) => project.addBackground(name, data),
   onChange: () => updateTopButtons(),
 });
 state.workspace = 'quick';

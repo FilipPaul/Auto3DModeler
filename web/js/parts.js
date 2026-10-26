@@ -50,6 +50,14 @@ export class Project {
   }
 
   /** A new 3D model part (its own tab) — empty, or with first steps (data) and a command to open (then). */
+  /** A 3D model part added to the project without opening it (a standard part for an assembly). -> its id */
+  addBackground(name, data) {
+    const p = { id: `P${this.next++}`, name, kind: 'model', data, history: null };
+    this.parts.push(p);
+    this.render();
+    return p.id;
+  }
+
   async newModel(data = null, name = null, then = null) {
     if (this.busy) return;
     await this.hooks.settle();

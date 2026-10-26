@@ -191,6 +191,12 @@ are placed together — 3D models ◆ and quick parts ▤ (drawings, pictures, i
 - The panel of a selected part has its x / y / z position, **Turn** sliders for X / Y / Z (any angle; they catch at
   0, ±90 and ±180°, or type an exact angle), its joints, *Join it to another part*, *Reset its place* and *Take it
   out*. Moving or turning a joined part by hand removes its joints.
+- **🔩 Fasteners** finds where holes line up through two parts and suggests what fits, from the hole sizes (as
+  printed): an **M2–M5 screw with a heat-set insert** (a clearance hole in the top part, an insert hole below), a
+  screw alone, or a **dowel pin** (equal holes) — with a standard length that fits. Hover a suggestion to see its
+  holes; *Add* or *Add all* puts them in as standard parts of the project (a socket-head screw, an insert, a pin),
+  held by joints: the screw on the hole's axis, its head on the part; the insert flush with the face. They follow
+  when the parts change.
 - **Explode** pulls the parts apart to look at them; their placement does not change.
 - The **parts list** shows each part, how many, its material and mass, and the total. **Export** gives STL (all
   parts as placed, in one file) or STEP (each part as its own body).

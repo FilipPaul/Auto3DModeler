@@ -468,7 +468,7 @@ const CS = {
   'Snapped — nudge it in the panel if needed.': 'Přichyceno — případně ho dolaďte v panelu.', 'This part has no solid yet.': 'Tento díl zatím nemá těleso.',
   'This part is no longer in the project.': 'Tento díl už v projektu není.', 'The assembly is empty — insert parts first.': 'Sestava je prázdná — nejprve vložte díly.',
   'starting an assembly': 'zakládá sestavu', 'reading the assembly': 'čte sestavu', 'inserting a part': 'vkládá díl', 'snapping parts together': 'přichycuje díly',
-  'placing a part': 'umisťuje díl', 'taking a part out': 'vyjímá díl',
+  'placing a part': 'umisťuje díl', 'finding where fasteners fit': 'hledá místa pro spojovací prvky', 'adding fasteners': 'přidává spojovací prvky', 'taking a part out': 'vyjímá díl',
   '⁂ Pattern': '⁂ Pole', 'Pattern': 'Pole', '▦ In a row': '▦ V řadě', '◌ Around': '◌ Dokola', 'Repeat': 'Opakovat', 'How many': 'Kolik',
   'The copies changed nothing — they may land outside the part or on top of each other. Check the direction and the spacing.': 'Kopie nic nezměnily – možná leží mimo díl nebo na sobě. Zkontrolujte směr a rozestup.',
   'Apart': 'Rozestup', 'Direction': 'Směr', 'Around': 'Kolem', 'The other way': 'Opačným směrem',
@@ -567,6 +567,10 @@ const CS = {
   'Now a face of the other part.': 'Teď plochu druhého dílu.', 'Click a round face (a hole, a pin).': 'Klikněte na válcovou plochu (díru, čep).', 'Click a flat face.': 'Klikněte na rovnou plochu.',
   'Insert parts of this project (3D models and quick parts) with ＋ Insert part, then join them with 🔗 Joint.': 'Vložte díly projektu (3D modely i rychlé díly) přes ＋ Vložit díl a spojte je přes 🔗 Vazba.',
   offset: 'odsazení', gap: 'mezera', 'Esc cancels.': 'Esc ruší.',
+  '🔩 Fasteners': '🔩 Spojovací prvky', 'Screws, heat-set inserts and pins where holes line up across parts — suggested, added with one click': 'Šrouby, zalisovací matice a kolíky tam, kde díry lícují přes díly — navržené, přidané jedním klikem',
+  'Where holes line up through two parts, a screw (with a heat-set insert in the part below), a screw alone or a pin fits. Hover a suggestion to see its holes; Add puts it in, held by joints (it follows the parts).': 'Kde díry lícují přes dva díly, hodí se šroub (se zalisovací maticí ve spodním dílu), samotný šroub nebo kolík. Najetím na návrh uvidíte jeho díry; Přidat ho vloží, drží ho vazby (sleduje díly).',
+  'No holes line up between parts yet.': 'Mezi díly zatím žádné díry nelícují.', Add: 'Přidat', Close: 'Zavřít',
+  'Put a hole in each part where they are to be fastened — e.g. Ø3.4 for an M3 screw in the top part and Ø4.0 for an M3 insert in the part below — join the parts, then look here again.': 'Udělejte díru v každém dílu, kde se mají spojit — např. Ø3,4 pro šroub M3 v horním dílu a Ø4,0 pro matici M3 ve spodním — spojte díly a podívejte se sem znovu.',
   // language switch
   'Čeština / English': 'Čeština / English',
 };
@@ -664,6 +668,8 @@ const CS_PATTERNS = [
   ['{}: click a flat face of the part to move (the selected one)', '{1}: klikněte na rovnou plochu dílu, který se posune (vybraného)'],
   ['{}: click a round face of the part to move (the selected one)', '{1}: klikněte na válcovou plochu dílu, který se posune (vybraného)'],
   ['{}: now click a flat face of the other part.', '{1}: teď klikněte na rovnou plochu druhého dílu.'], ['{}: now click a round face of the other part.', '{1}: teď klikněte na válcovou plochu druhého dílu.'],
+  ['Add all ({})', 'Přidat vše ({1})'], ['Added {} fastener(s) — they follow the parts (each a part of the project you can open).', 'Přidáno {1} spojovacích prvků — sledují díly (každý je díl projektu, který lze otevřít).'],
+  ['✓ Every hole that lines up has its fastener ({}).', '✓ Každá lícující díra má svůj spojovací prvek ({1}).'],
   ['{}× around', '{1}× dokola'], ['{}× · {} mm apart', '{1}× · {2} mm od sebe'], ['Line {} of the sketch', 'Čára {1} skici'], ['wall {} mm · {} open', 'stěna {1} mm · {2} otevřeno'], ['Open face {}', 'Otevřená plocha {1}'], ['{}° cut', '{1}° řez'],
   ['Height {} mm (follows the width).', 'Výška {1} mm (přizpůsobí se šířce).'], ['{} — 3D', '{1} — 3D'],
   ['{} hidden — the drawing still sets this size. Show it again in Dimensions (Hidden).', '{1} skryta — výkres tento rozměr stále určuje. Znovu ji zobrazíte v Rozměrech (Skryté).'],
