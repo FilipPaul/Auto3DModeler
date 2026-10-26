@@ -159,7 +159,7 @@ class TestModelServer(unittest.TestCase):
         n = len(base64.b64decode(r["body"]["face_ids"])) // 4
         self.assertEqual(len(base64.b64decode(r["body"]["positions"])), n * 36)
         stl = c.post("/api/model/export/stl", json={"part": self.PART, "name": "Box"})
-        self.assertEqual(stl.headers["Content-Disposition"], 'attachment; filename="Box.stl"')
+        self.assertEqual(stl.headers["Content-Disposition"], "attachment; filename=\"Box.stl\"; filename*=UTF-8''Box.stl")  # (the name also UTF-8: Czech letters)
         self.assertEqual(c.post("/api/model/export/step", json={"part": self.PART}).data[:13], b"ISO-10303-21;")
         e = c.post("/api/model/export/stl", json={"part": {"features": []}})
         self.assertEqual(e.status_code, 500)
