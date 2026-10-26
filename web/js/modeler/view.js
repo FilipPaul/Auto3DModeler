@@ -291,6 +291,13 @@ export class ModelView {
     const { o, x, y, n } = axes(fr);
     const lift = this.size * 0.0005;
     const P = (u, v) => o.clone().addScaledVector(x, u).addScaledVector(y, v).addScaledVector(n, lift);
+    const add = (o3) => { o3.renderOrder = 6; this.sketchGroup.add(o3); };
+    if (!grid) grid = this.size / 60 || 1; // only lines and labels (no grid, no plane): dimensions on the part
+    else this.drawSketchPlane(P, grid, x, y, n, lift);
+    this.drawSketchItems(P, add, grid, { lines, circles, dots, labels });
+  }
+
+  drawSketchPlane(P, grid, x, y, n, lift) {
     const span = Math.max(this.size * 1.4, grid * 60);
     const half = Math.ceil(span / 2 / grid) * grid;
     const pts = [];
@@ -304,7 +311,9 @@ export class ModelView {
     const axesLines = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([P(-half, 0), P(half, 0), P(0, -half), P(0, half)]),
       new THREE.LineBasicMaterial({ color: 0x8b95a3, transparent: true, opacity: 0.45, depthTest: false }));
     this.sketchGroup.add(plane, gridLines, axesLines);
-    const add = (o3) => { o3.renderOrder = 6; this.sketchGroup.add(o3); };
+  }
+
+  drawSketchItems(P, add, grid, { lines, circles, dots, labels }) {
     for (const [a, b, color, dashed] of lines) {
       const geo = new THREE.BufferGeometry().setFromPoints([P(a[0], a[1]), P(b[0], b[1])]);
       const mat = dashed ? new THREE.LineDashedMaterial({ color, dashSize: grid * 0.6, gapSize: grid * 0.4, depthTest: false, transparent: true, opacity: 0.7 })

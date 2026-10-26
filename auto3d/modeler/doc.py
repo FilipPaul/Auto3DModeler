@@ -115,6 +115,7 @@ def _apply(f, st: State, s):
     if t == "sketch":
         fr = plane_frame(f.get("plane"), st)
         st.frames[fid] = fr
+        f = _follow_refs(f, fr, st, s)
         st.sketches[fid] = (fr, K.sketch_faces(fr, f))
         return
     if t == "extrude":
@@ -167,6 +168,7 @@ def _apply(f, st: State, s):
         pts = f.get("points") or []
         if not pts:
             raise K.KernelError("Click on a face where the hole goes.")
+        pts = _hole_from_edges(f, fr, st, s)
         dia = _num(f, "d", 5, what="diameter")
         depth = _through_depth(st) if f.get("through", True) else _num(f, "depth", 10, what="depth")
         n = np.asarray(fr["n"], float)
@@ -183,6 +185,98 @@ def _apply(f, st: State, s):
             s["warnings"].append("The copies changed nothing — they may land outside the part or on top of each other. Check the direction and the spacing.")
         return
     raise K.KernelError(f"Unknown feature type “{t}”.")
+
+
+def _uv(fr, p):
+    o, x, y = np.asarray(fr["o"], float), np.asarray(fr["x"], float), K.frame_y(fr)
+    d = np.asarray(p, float) - o
+    return [round(float(d @ x), 9), round(float(d @ y), 9)]
+
+
+def _ref_uv(end, fr, st):
+    """A dimension end that points at the part -> where that point is now, in sketch coordinates (or None).
+    {ref: [u, v], vertex: {faces, fp}} = a corner, {ref, edge: {a, b, fp}} = a straight edge (its middle)."""
+    if not isinstance(end, dict) or st.body is None:
+        return None, False
+    if end.get("vertex"):
+        p, guessed = K.find_vertex(st.body, end["vertex"].get("faces"), end["vertex"].get("fp"))
+        return _uv(fr, p), guessed
+    if end.get("edge"):
+        edges, guessed = K.find_edges(st.body, [end["edge"]])
+        a, b = K.edge_ends(edges[0])
+        return _uv(fr, (a + b) / 2), bool(guessed)
+    return None, False
+
+
+def _follow_refs(f, fr, st, s):
+    """Dimensions from the part's corners and edges follow them when earlier steps change: the reference points
+    are found again (by the names of their faces), the sketch is solved again with them, and the new positions
+    are handed back to the browser (s["update"])."""
+    dims = f.get("dims") or []
+    moved, guessed, new_dims = False, 0, []
+    for d in dims:
+        d2 = dict(d)
+        for k in ("a", "b"):
+            try:
+                uv, g = _ref_uv(d.get(k), fr, st)
+            except K.KernelError:
+                s["warnings"].append("A dimension's edge of the part is gone — its distance is kept from where the edge was.")
+                uv, g = None, False
+            if uv is None:
+                continue
+            guessed += g
+            if any(abs(p - q) > 1e-7 for p, q in zip(uv, d[k]["ref"])):
+                d2[k] = {**d[k], "ref": uv}
+                moved = True
+        new_dims.append(d2)
+    if guessed:
+        s["warnings"].append(f"{guessed} reference(s) to the part were found again by their position only — check the sketch's dimensions.")
+    if not moved:
+        return f
+    f = {**f, "dims": new_dims}
+    from . import available
+    if available("planegcs"):
+        from .constraints import solve
+        r = solve(f)
+        if r["ok"]:
+            f["points"] = {**(f.get("points") or {}), **r["points"]}
+            ents = [{**e, "r": r["radii"][e["id"]]} if e.get("id") in r["radii"] else e for e in f.get("entities") or []]
+            f["entities"] = ents
+        else:
+            s["warnings"].append("The sketch's sizes no longer fit the part's new shape — open the sketch and unlock one.")
+    s["update"] = {"dims": f["dims"], "points": f.get("points"), "entities": f.get("entities")}
+    return f
+
+
+def _hole_from_edges(f, fr, st, s):
+    """Hole centres placed from the face's edges ({x: {edge, d}, y: {edge, d}} per hole): x = the edge's place
+    along the face's x + d (the edge runs along y), likewise y. The edges are found again by their faces' names,
+    so the holes keep their distance when the part changes. Without an edge: the stored [u, v] (from the centre)."""
+    pts = [list(map(float, p)) for p in f.get("points") or []]
+    froms = f.get("from") or []
+    changed = False
+    for i, p in enumerate(pts):
+        spec = froms[i] if i < len(froms) and isinstance(froms[i], dict) else {}
+        for axis, k in (("x", 0), ("y", 1)):
+            ref = spec.get(axis)
+            if not ref or not ref.get("edge"):
+                continue
+            try:
+                edges, _ = K.find_edges(st.body, [ref["edge"]])
+            except K.KernelError:
+                s["warnings"].append(f"Hole {i + 1}: its edge is gone — it stays where it was.")
+                continue
+            a, b = (_uv(fr, q) for q in K.edge_ends(edges[0]))
+            if abs(a[k] - b[k]) > 1e-6 * (1 + abs(a[k])):
+                s["warnings"].append(f"Hole {i + 1}: its edge is not straight across any more — it stays where it was.")
+                continue
+            v = (a[k] + b[k]) / 2 + float(ref.get("d", 0))
+            if abs(v - p[k]) > 1e-9:
+                p[k] = round(v, 9)
+                changed = True
+    if changed:
+        s["update"] = {"points": pts}
+    return pts
 
 
 def _use(st, fid, tool, op):

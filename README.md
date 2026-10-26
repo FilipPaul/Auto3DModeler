@@ -89,8 +89,14 @@ SolidWorks. It has only the tools that need almost no input.
 4. **◜ Fillet** (F) rounds edges and **◸ Chamfer** bevels them. Click the edges (a click on a face takes all of its
    edges; a picked edge is dropped by clicking it again), then type the radius or size. **◎ Hole** (H): click on a
    flat face where a hole goes (near the centre it snaps to it; click again for more holes on the same face), and
-   type the diameter. It goes through all by default, or untick *Through all* and give a depth. The panel lists
-   the holes with their x / y from the face's centre. Every tool shows a live preview.
+   type the diameter. It goes through all by default, or untick *Through all* and give a depth. Each hole is
+   placed from the face's nearest edges — *↔ 10 mm from the right edge*, *↕ 5 mm from the lower edge*, drawn on
+   the face. Type a distance to move it, ⇄ measures from the edge on the other side. Every tool shows a live
+   preview.
+
+   **Dimensions follow the part.** A hole's distances and a sketch's dimensions to the part's edges or corners
+   (↔ Dimension on a dashed edge) remember *which* edge or corner it is (by the faces that meet there). Make the
+   part wider in an earlier step and the hole or the sketch moves with its edge, keeping its distance.
 5. **⟳ Revolve** spins a sketch around an axis: the sketch's vertical axis (the default), its horizontal axis or one
    of its lines, a full turn or any angle. Draw half the shape beside the axis, e.g. half a vase on the **Front**
    plane. A new, empty sketch can be moved to Front / Right with the buttons in the bar. **▢ Shell** hollows the

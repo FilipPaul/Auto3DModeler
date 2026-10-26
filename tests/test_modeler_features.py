@@ -205,6 +205,37 @@ class TestFeatures(unittest.TestCase):
             self.assertFalse(r["features"][-1]["ok"])
             self.assertIn(msg, r["features"][-1]["issues"][0])
 
+    def test_dimensions_follow_the_part_edges(self):
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        right = {"a": "E1:end", "b": "E1:side:l2", "fp": [40, 10, 10]}
+        corner = {"faces": ["E1:end", "E1:side:l1", "E1:side:l2"], "fp": [40, 0, 10]}
+        # a sketch circle 10 from the right edge and 5 from the front-right corner
+        sk = {"id": "S2", "type": "sketch", "plane": top, "points": {"c": [10, -5]}, "entities": [{"id": "k", "t": "circle", "c": "c", "r": 3}],
+              "dims": [{"id": "d1", "t": "dx", "a": {"ref": [20, 0], "edge": right}, "b": "c", "v": -10},
+                       {"id": "d2", "t": "dy", "a": {"ref": [20, -10], "vertex": corner}, "b": "c", "v": 5}, {"id": "d3", "t": "dia", "e": "k", "v": 6}]}
+        cut = {"id": "E2", "type": "extrude", "sketch": "S2", "op": "cut", "through": True}
+        hole = lambda r: next(f for f in r["body"]["faces"] if f["type"] == "cylinder")["centroid"]  # noqa: E731
+        r, _ = vol(*box(), sk, cut)
+        self.assertEqual(hole(r)[:2], [30, 5])
+        self.assertNotIn("update", r["features"][2])  # nothing moved
+        r, _ = vol(*box(w=60, h=30), sk, cut)  # wider and deeper: still 10 from the right, 5 from the front
+        self.assertEqual(hole(r)[:2], [50, 5])
+        up = r["features"][2]["update"]
+        self.assertEqual(up["points"]["c"], [30, -5])
+        self.assertEqual(up["dims"][0]["a"]["ref"], [40, 5])  # the edge's middle, now
+        self.assertEqual(r["features"][2]["warnings"], [])
+        # a hole step placed from the face's edges
+        hf = {"id": "H1", "type": "hole", "plane": top, "points": [[10, -5]], "d": 4, "through": True,
+              "from": [{"x": {"edge": right, "d": -10}, "y": {"edge": {"a": "E1:end", "b": "E1:side:l1", "fp": [20, 0, 10]}, "d": 5}}]}
+        r, v = vol(*box(w=60, h=30), hf)
+        self.assertEqual(hole(r)[:2], [50, 5])
+        self.assertEqual(r["features"][-1]["update"], {"points": [[30, -5]]})
+        self.assertAlmostEqual(v, 60 * 30 * 10 - math.pi * 4 * 10, delta=1e-3)
+        # the edge is gone (a different first sketch): the hole stays and says so
+        r, _ = vol(*box(), {**hf, "from": [{"x": {"edge": {"a": "X:end", "b": "X:side", "fp": [999, 0, 0]}, "d": 3}}]})
+        self.assertTrue(r["ok"])
+        self.assertIn("edge is gone", r["features"][-1]["warnings"][0])
+
 
 if __name__ == "__main__":
     unittest.main()

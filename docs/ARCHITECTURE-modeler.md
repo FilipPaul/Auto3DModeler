@@ -37,6 +37,9 @@ Date: 2026-10-25. Written by the architect agent.
   solids, names "<id>:<k>:<name>"); AI `add_feature {type: "pattern"}`; tools/e2e_model_pattern.py.
 - **Arcs done:** ◠ Arc (3 clicks: start, end, bend), R dimension (planegcs arcs), true circular edges in the kernel,
   AI shape {slot}; tools/e2e_model_arc.py.
+- **Dimensions follow the part done:** sketch dimension ends to the part store {vertex: {faces, fp}} or
+  {edge: {a, b, fp}}; the rebuild finds them again (kernel find_vertex / find_edges), re-solves the sketch and
+  hands the new places back (status.update). Holes are placed from the face's edges (hole.from). tools/e2e_model_refs.py.
 - **Next (later list):** classic parts in assemblies; decorate faces of model parts; loft / sweep.
 
 ## 0. Summary

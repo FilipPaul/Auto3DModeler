@@ -366,6 +366,7 @@ export class Modeler {
         if (!res.ok) throw new Error(r.error || res.statusText);
         if (r.cancelled) { this.hooks.toast('Cancelled — the model is shown as it was.', 'info'); continue; }
         this.result = r;
+        this.applyUpdates(r);
         this.frames = { ...this.frames, ...r.frames }; // also while rolled back before an open sketch
         const first = !this.view.body && r.body;
         this.view.setBody(r.body);
@@ -383,10 +384,27 @@ export class Modeler {
     this.showOutlines();
     if (this.section) this.renderSection();
     if (this.cmd && (this.cmd.feature.type === 'fillet' || this.cmd.feature.type === 'chamfer')) this.view.setEdgeHighlight(-1, this.refEdges(this.cmd.feature.edges));
+    if (this.cmd?.feature.type === 'hole') {
+      this.drawHoleDims();
+      // the panel shows this rebuild's state (issues, moved holes) — unless a value is being typed in it
+      if (this.$('.mp-body').contains(document.activeElement)) this.syncHoleInputs(); else this.renderProps();
+    }
     this.renderTree();
     this.renderStatus();
+    if (this.mode === 'part') this.renderCmdBar(); // the tools that need a solid wake up when the first one arrives
     if (!this.cmd && this.mode === 'part') this.renderProps();
     this.hooks.onChange?.();
+  }
+
+  /** Steps whose dimensions come from the part's edges and corners: the rebuild found those again and moved the
+   *  sketch points / hole centres with them — keep the new places (not an undo step: the same model, followed). */
+  applyUpdates(r) {
+    for (const s of r.features || []) {
+      if (!s.update) continue;
+      if (this.sk?.f.id === s.id) continue; // being edited: the sketcher has it
+      const f = this.cmd?.feature.id === s.id ? this.cmd.feature : this.part.features.find((g) => g.id === s.id);
+      if (f) Object.assign(f, structuredClone(s.update));
+    }
   }
 
   showInstall(msg) {
@@ -625,6 +643,7 @@ export class Modeler {
     this.cmd = null;
     this.view.setEdgeHighlight();
     this.view.setHover(-1);
+    this.view.setSketch(null);
     this.hint('');
     this.commit();
   }
@@ -633,6 +652,7 @@ export class Modeler {
 
   cancelCommand() {
     this.cmd = null;
+    this.view.setSketch(null);
     this.view.setEdgeHighlight();
     this.view.setHover(-1);
     this.hint('');
@@ -745,8 +765,101 @@ export class Modeler {
     const mpp = this.view.mmPerPixel(fr);
     if (Math.hypot(u, v) < mpp * 10) { u = 0; v = 0; } else { u = Math.round(u * 2) / 2; v = Math.round(v * 2) / 2; }
     f.points.push([u, v]);
+    // placed from the nearest edges of the face (left / right and below / above): it keeps that distance
+    // when the part changes
+    f.from = f.from || [];
+    f.from[f.points.length - 1] = this.nearestEdges(f, [u, v]);
     this.renderProps();
     this.rebuild();
+  }
+
+  /** The hole's face as it is now (the rebuild follows it when it moves), else where it was clicked. */
+  holeFrame(f) { return this.result?.frames?.[f.id] || f.plane?.frame || null; }
+
+  /** The straight edges of the part in the hole's face plane, in its coordinates: [{a: [u, v], b, ref: {a, b, fp}}]. */
+  planeEdges(f) {
+    const b = this.result?.body, fr = this.holeFrame(f);
+    if (!b || !fr) return [];
+    const o = fr.o, x = fr.x, n = fr.n, y = [n[1] * x[2] - n[2] * x[1], n[2] * x[0] - n[0] * x[2], n[0] * x[1] - n[1] * x[0]];
+    const dot = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
+    const tol = Math.max(this.view.size * 1e-5, 1e-4), out = [];
+    for (const e of b.edges) {
+      if (e.pts.length !== 6 || e.faces.length !== 2) continue;
+      const names = e.faces.map((k) => b.faces[k]?.name);
+      if (names.some((nm) => !nm || nm.startsWith(`${f.id}:`))) continue; // the holes of this very step
+      const P = [e.pts.slice(0, 3), e.pts.slice(3)].map((p) => [p[0] - o[0], p[1] - o[1], p[2] - o[2]]);
+      if (P.some((d) => Math.abs(dot(d, n)) > tol)) continue;
+      out.push({ a: [dot(P[0], x), dot(P[0], y)], b: [dot(P[1], x), dot(P[1], y)], ref: { a: names[0], b: names[1], fp: e.mid } });
+    }
+    return out;
+  }
+
+  /** Edges running across an axis (k = 0: along y, so they give an x; k = 1: along x) -> [{c: their x (or y), ref}]. */
+  axisEdges(f, k) {
+    const j = 1 - k;
+    return this.planeEdges(f).filter((e) => Math.abs(e.a[k] - e.b[k]) < 1e-6 && Math.abs(e.a[j] - e.b[j]) > 1e-6)
+      .map((e) => ({ c: (e.a[k] + e.b[k]) / 2, lo: Math.min(e.a[j], e.b[j]), hi: Math.max(e.a[j], e.b[j]), ref: e.ref }));
+  }
+
+  /** The nearest edge on each axis for a hole at p (an edge beside it is preferred over one beyond its ends). */
+  nearestEdges(f, p, side = 0) {
+    const out = {};
+    for (const [axis, k] of [['x', 0], ['y', 1]]) {
+      const es = this.axisEdges(f, k).filter((e) => !side || Math.sign(p[k] - e.c) === side || Math.abs(p[k] - e.c) < 1e-9);
+      const score = (e) => Math.abs(p[k] - e.c) + (p[1 - k] < e.lo - 1e-6 || p[1 - k] > e.hi + 1e-6 ? 1e6 : 0);
+      const best = es.sort((a, b) => score(a) - score(b))[0];
+      if (best) out[axis] = { edge: best.ref, d: +(p[k] - best.c).toFixed(6) };
+    }
+    return out;
+  }
+
+  /** Where a hole's reference edge is now (its x or y in the face), or null. */
+  edgeCoord(f, ref, k) {
+    let best = null, bd = Infinity;
+    for (const e of this.axisEdges(f, k)) {
+      const same = (e.ref.a === ref.a && e.ref.b === ref.b) || (e.ref.a === ref.b && e.ref.b === ref.a);
+      const d = Math.hypot(...e.ref.fp.map((v, i) => v - ref.fp[i])) + (same ? 0 : 1e6);
+      if (d < bd) { bd = d; best = e; }
+    }
+    return best && bd < 1e6 ? best.c : best?.c ?? null;
+  }
+
+  /** The hole's distances to its edges, drawn on the face: a dimension line from the edge to the centre. */
+  drawHoleDims() {
+    const f = this.cmd?.feature;
+    if (!f || f.type !== 'hole' || !f.plane?.frame) { this.view.setSketch(null); return; }
+    const fr = this.holeFrame(f), lines = [], labels = [], C = 0xd2a8ff, mpp = this.view.mmPerPixel(fr);
+    f.points.forEach((p, i) => {
+      for (const [axis, k] of [['x', 0], ['y', 1]]) {
+        const r = f.from?.[i]?.[axis];
+        if (!r) continue;
+        const c = this.edgeCoord(f, r.edge, k);
+        if (c === null) continue;
+        const a = k === 0 ? [c, p[1]] : [p[0], c];
+        lines.push([a, p, C]);
+        const el = document.createElement('div');
+        el.className = 'sk-label hole-dim';
+        el.textContent = fmt(Math.abs(r.d));
+        labels.push({ el, u: (a[0] + p[0]) / 2 + (k === 1 ? mpp * 12 : 0), v: (a[1] + p[1]) / 2 + (k === 0 ? mpp * 10 : 0) });
+      }
+    });
+    this.view.setSketch(fr, { lines, labels, grid: 0 });
+  }
+
+  /** After a rebuild moved holes (their edges moved), show the new numbers without retyping. */
+  syncHoleInputs() {
+    const f = this.cmd.feature, box = this.$('.mp-body');
+    for (const el of box.querySelectorAll('[data-u]')) if (document.activeElement !== el) el.value = fmt(f.points[+el.dataset.u][0]);
+    for (const el of box.querySelectorAll('[data-v]')) if (document.activeElement !== el) el.value = fmt(f.points[+el.dataset.v][1]);
+  }
+
+  /** One row of a hole's position: "↔ 12 mm from the left edge ⇄", or x / y from the face's centre (no edge there). */
+  holeDimRow(f, i, axis, k) {
+    const r = f.from?.[i]?.[axis], p = f.points[i];
+    if (!r) return `<label class="mp-hd">${axis} <input type="number" step="any" data-${k ? 'v' : 'u'}="${i}" value="${fmt(p[k])}"> <span class="hint">from the face's centre</span></label>`;
+    const side = k === 0 ? (r.d >= 0 ? 'the left edge' : 'the right edge') : (r.d >= 0 ? 'the lower edge' : 'the upper edge');
+    return `<label class="mp-hd">${k ? '↕' : '↔'} <input type="number" step="any" min="0" data-hd="${i}:${axis}" value="${fmt(Math.abs(r.d))}"> <span>mm from ${side}</span>
+      <button type="button" class="mini" data-flip="${i}:${axis}" title="Measure from the edge on the other side">⇄</button></label>`;
   }
 
   renderRound(box) {
@@ -774,9 +887,11 @@ export class Modeler {
       <div class="field"><label>Diameter</label><input type="number" step="any" min="0" data-k="d" value="${fmt(f.d)}"><span class="unit">mm</span></div>
       <label class="check"><input type="checkbox" data-k="through" ${f.through !== false ? 'checked' : ''}> Through all</label>
       ${f.through === false ? `<div class="field"><label>Depth</label><input type="number" step="any" min="0" data-k="depth" value="${fmt(f.depth)}"><span class="unit">mm</span></div>` : ''}
-      ${f.points.length ? `<h3>Holes (from the face's centre)</h3><div class="mp-holes">${f.points.map(([u, v], i) => `<div class="mp-hole">
-        <span>${i + 1}</span><label>x <input type="number" step="any" data-u="${i}" value="${fmt(u)}"></label><label>y <input type="number" step="any" data-v="${i}" value="${fmt(v)}"></label>
-        <button class="mini danger" data-del="${i}" title="Remove this hole">✕</button></div>`).join('')}</div>` : '<p class="mp-count">No holes yet — click on a face.</p>'}
+      ${f.points.length ? `<h3>Holes</h3><div class="mp-holes">${f.points.map((p, i) => `<div class="mp-hole">
+        <span>${i + 1}</span><div class="mp-hole-dims">${['x', 'y'].map((axis, k) => this.holeDimRow(f, i, axis, k)).join('')}</div>
+        <button class="mini danger" data-del="${i}" title="Remove this hole">✕</button></div>`).join('')}</div>
+        <p class="hint">Each hole keeps its distance from the edge it is measured from, also when the part changes. ⇄ measures from the other side.</p>`
+        : '<p class="mp-count">No holes yet — click on a face.</p>'}
       ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
     const num = (el, set) => {
@@ -789,7 +904,36 @@ export class Modeler {
     box.querySelector('[data-k=through]').addEventListener('change', (e) => { f.through = e.target.checked; this.renderProps(); this.rebuild(); });
     for (const el of box.querySelectorAll('[data-u]')) num(el, (v) => { f.points[+el.dataset.u][0] = v; });
     for (const el of box.querySelectorAll('[data-v]')) num(el, (v) => { f.points[+el.dataset.v][1] = v; });
-    for (const el of box.querySelectorAll('[data-del]')) el.addEventListener('click', () => { f.points.splice(+el.dataset.del, 1); if (!f.points.length) f.plane = null; this.renderProps(); this.rebuild(); });
+    // a distance from an edge: typed as a positive number, the hole stays on its side of the edge
+    for (const el of box.querySelectorAll('[data-hd]')) {
+      const [i, axis] = el.dataset.hd.split(':'), k = axis === 'x' ? 0 : 1;
+      num(el, (v) => {
+        const r = f.from[+i][axis], c = this.edgeCoord(f, r.edge, k);
+        if (v < 0 || c === null) return;
+        r.d = (Math.sign(r.d) || 1) * v;
+        f.points[+i][k] = +(c + r.d).toFixed(6);
+        this.drawHoleDims();
+      });
+    }
+    for (const el of box.querySelectorAll('[data-flip]')) {
+      el.addEventListener('click', () => {
+        const [i, axis] = el.dataset.flip.split(':'), r = f.from[+i][axis];
+        const other = this.nearestEdges(f, f.points[+i], -(Math.sign(r.d) || 1))[axis];
+        if (!other) { this.hooks.toast('There is no edge on the other side to measure from.', 'info'); return; }
+        f.from[+i][axis] = other;
+        this.renderProps();
+        this.drawHoleDims();
+      });
+    }
+    for (const el of box.querySelectorAll('[data-del]')) {
+      el.addEventListener('click', () => {
+        f.points.splice(+el.dataset.del, 1);
+        f.from?.splice(+el.dataset.del, 1);
+        if (!f.points.length) f.plane = null;
+        this.renderProps();
+        this.rebuild();
+      });
+    }
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
   }

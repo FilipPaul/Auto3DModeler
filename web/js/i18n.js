@@ -487,6 +487,12 @@ const CS = {
   'Move the mouse to one side to bend the arc.': 'Posuňte myš stranou, aby se oblouk ohnul.',
   'Open the AI chat — Claude works on the part or assembly on screen': 'Otevřít AI chat – Claude pracuje s dílem nebo sestavou na obrazovce',
   'Close the chat (it keeps the conversation)': 'Zavřít chat (konverzace zůstane)',
+  'Each hole keeps its distance from the edge it is measured from, also when the part changes. ⇄ measures from the other side.': 'Každá díra drží vzdálenost od hrany, od které je kótovaná, i když se díl změní. ⇄ kótuje od druhé strany.',
+  'mm from the left edge': 'mm od levé hrany', 'mm from the right edge': 'mm od pravé hrany', 'mm from the lower edge': 'mm od spodní hrany', 'mm from the upper edge': 'mm od horní hrany',
+  "from the face's centre": 'od středu plochy', 'Measure from the edge on the other side': 'Kótovat od hrany na druhé straně',
+  'There is no edge on the other side to measure from.': 'Na druhé straně není hrana, od které kótovat.', Holes: 'Díry',
+  "A dimension's edge of the part is gone — its distance is kept from where the edge was.": 'Hrana dílu, od které vede kóta, zmizela – vzdálenost zůstává od místa, kde hrana byla.',
+  "The sketch's sizes no longer fit the part's new shape — open the sketch and unlock one.": 'Rozměry skici už nesedí na nový tvar dílu – otevřete skicu a jeden odemkněte.',
   // language switch
   'Čeština / English': 'Čeština / English',
 };

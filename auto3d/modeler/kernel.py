@@ -39,7 +39,7 @@ from OCP.gp import gp_Ax1, gp_Ax2, gp_Circ, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec
 from OCP.IFSelect import IFSelect_RetDone
 from OCP.Interface import Interface_Static
 from OCP.STEPControl import STEPControl_AsIs, STEPControl_Reader, STEPControl_Writer
-from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE, TopAbs_REVERSED, TopAbs_SOLID
+from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE, TopAbs_REVERSED, TopAbs_SOLID, TopAbs_VERTEX
 from OCP.TopExp import TopExp, TopExp_Explorer
 from OCP.TopLoc import TopLoc_Location
 from OCP.TopoDS import TopoDS
@@ -504,6 +504,37 @@ def find_edges(body, refs):
         if not any(e.IsSame(u) for u in out):  # two references to one edge count once
             out.append(e)
     return out, guessed
+
+
+def edge_ends(e):
+    """The two end points of an edge (numpy, mm)."""
+    c = BRepAdaptor_Curve(e)
+    p, q = c.Value(c.FirstParameter()), c.Value(c.LastParameter())
+    return np.array([p.X(), p.Y(), p.Z()]), np.array([q.X(), q.Y(), q.Z()])
+
+
+def find_vertex(body, faces, fp):
+    """A corner of the part named by the faces that meet there (e.g. the top and two walls of a box) and where it
+    was -> its position now. -> (point, guessed): guessed when no corner has all those faces any more."""
+    vm = _C.IndexedDataMap_TopoDS_Shape_List_TopoDS_Shape_TopTools_ShapeMapHasher()
+    TopExp.MapShapesAndAncestors_s(body.shape, TopAbs_VERTEX, TopAbs_FACE, vm)
+    fm = _face_map(body.shape)
+    names = _face_names(body, fm)
+    want, fp = set(faces or []), np.asarray(fp or [0, 0, 0], float)
+    scored = []
+    for i in range(1, vm.Extent() + 1):
+        v = TopoDS.Vertex(vm.FindKey(i))
+        p = BRep_Tool.Pnt_s(v)
+        pt = np.array([p.X(), p.Y(), p.Z()])
+        have = set()
+        for f in vm.FindFromIndex(i):
+            have.update(names.get(fm.FindIndex(f) - 1, []))
+        scored.append((len(want & have), -np.linalg.norm(pt - fp), pt))
+    if not scored:
+        raise KernelError("The part has no corners to measure from.")
+    full = [s for s in scored if s[0] == len(want) and want]
+    best = max(full or scored, key=lambda s: (s[0], s[1]))
+    return best[2], not full
 
 
 def round_edges(body, edges, r, fid, chamfer=False):

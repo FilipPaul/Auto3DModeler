@@ -140,7 +140,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
     if (type === 'hole') {
       if (!spec.face) throw new Error('face: the name of the flat face the holes go into (find_refs).');
       return { ...base, plane: planeOf({ face: spec.face }), points: spec.points || [[0, 0]], d: spec.d ?? 5,
-        through: spec.through !== false, depth: spec.depth ?? 10 };
+        through: spec.through !== false, depth: spec.depth ?? 10, ...(spec.from ? { from: spec.from } : {}) };
     }
     if (type === 'shell') {
       const faces = (spec.faces || []).map((n) => { const f = faceOf(typeof n === 'string' ? n : n.name); return { name: f.name, fp: f.centroid }; });

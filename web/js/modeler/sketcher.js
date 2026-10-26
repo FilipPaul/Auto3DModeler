@@ -636,12 +636,25 @@ export class Sketcher {
     const body = this.m.result?.body, fr = this.frame();
     const key = `${body?.volume}|${JSON.stringify(fr)}`;
     if (this._refsKey === key) return this._refs;
-    const out = { lines: [], curves: [], points: [] };
+    // lines / points: [u, v] in the sketch; lineIds / pointIds: which edge / corner of the part they are (by the
+    // names of its faces), so a dimension from them follows the part when earlier steps change
+    const out = { lines: [], curves: [], points: [], lineIds: [], pointIds: [] };
     if (body) {
       const o = fr.o, x = fr.x, n = fr.n, y = [n[1] * x[2] - n[2] * x[1], n[2] * x[0] - n[0] * x[2], n[0] * x[1] - n[1] * x[0]];
       const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
       const tol = Math.max(this.view.size * 1e-5, 1e-4), seen = new Set();
-      for (const { pts: pl } of body.edges) {
+      const fname = (i) => body.faces[i]?.name;
+      const k3 = (p) => p.map((v) => v.toFixed(4)).join(',');
+      const corner = new Map(); // a corner (3D) -> the names of the faces meeting there
+      for (const e of body.edges) {
+        const pl = e.pts;
+        for (const p of [[pl[0], pl[1], pl[2]], [pl[pl.length - 3], pl[pl.length - 2], pl[pl.length - 1]]]) {
+          const s = corner.get(k3(p)) || new Set();
+          for (const fi of e.faces) if (fname(fi)) s.add(fname(fi));
+          corner.set(k3(p), s);
+        }
+      }
+      for (const { pts: pl, faces: efs, mid } of body.edges) {
         const uv = [];
         let on = true;
         for (let i = 0; i < pl.length; i += 3) {
@@ -650,12 +663,19 @@ export class Sketcher {
           uv.push([+dot(d, x).toFixed(5), +dot(d, y).toFixed(5)]);
         }
         if (!on || uv.length < 2) continue;
-        if (uv.length === 2) out.lines.push(uv);
-        else out.curves.push(uv);
-        for (const p of [uv[0], uv[uv.length - 1]]) {
+        if (uv.length === 2) {
+          out.lines.push(uv);
+          out.lineIds.push(efs.length === 2 && fname(efs[0]) && fname(efs[1]) ? { a: fname(efs[0]), b: fname(efs[1]), fp: mid } : null);
+        } else out.curves.push(uv);
+        const ends = [[pl[0], pl[1], pl[2]], [pl[pl.length - 3], pl[pl.length - 2], pl[pl.length - 1]]];
+        [uv[0], uv[uv.length - 1]].forEach((p, j) => {
           const k = p.join(',');
-          if (!seen.has(k)) { seen.add(k); out.points.push(p); }
-        }
+          if (seen.has(k)) return;
+          seen.add(k);
+          out.points.push(p);
+          const faces = [...(corner.get(k3(ends[j])) || [])];
+          out.pointIds.push(faces.length ? { faces, fp: ends[j].map((v) => +v.toFixed(6)) } : null);
+        });
       }
     }
     this._refsKey = key;
@@ -681,7 +701,8 @@ export class Sketcher {
     const dirOf = (a, b) => (Math.abs(a[1] - b[1]) < 1e-7 ? 'h' : Math.abs(a[0] - b[0]) < 1e-7 ? 'v' : 's');
     near(Math.hypot(uv[0], uv[1]), { kind: 'point', end: ORIGIN, uv: [0, 0] });
     for (const [id, p] of Object.entries(this.f.points)) near(Math.hypot(p[0] - uv[0], p[1] - uv[1]), { kind: 'point', end: id, uv: p });
-    for (const r of this.refs().points) near(Math.hypot(r[0] - uv[0], r[1] - uv[1]), { kind: 'point', end: { ref: r }, uv: r });
+    const R = this.refs();
+    R.points.forEach((r, i) => near(Math.hypot(r[0] - uv[0], r[1] - uv[1]), { kind: 'point', end: R.pointIds[i] ? { ref: r, vertex: R.pointIds[i] } : { ref: r }, uv: r }));
     for (const e of this.f.entities) {
       if (e.t === 'circle') {
         const c = this.P(e.c), d = Math.hypot(c[0] - uv[0], c[1] - uv[1]);
@@ -693,7 +714,10 @@ export class Sketcher {
         near(this.arcDist(e, uv), { kind: 'point', end: e.c, uv: this.P(e.c), arc: e.id });
       }
     }
-    for (const [a, b] of this.refs().lines) near(segD(a, b), { kind: 'line', a: { ref: a }, b: { ref: b }, uvA: a, uvB: b, dir: dirOf(a, b) });
+    R.lines.forEach(([a, b], i) => {
+      const id = R.lineIds[i] ? { edge: R.lineIds[i] } : {};
+      near(segD(a, b), { kind: 'line', a: { ref: a, ...id }, b: { ref: b, ...id }, uvA: a, uvB: b, dir: dirOf(a, b) });
+    });
     return bestPoint || best;
   }
 
