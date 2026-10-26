@@ -351,7 +351,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 | Assembly document; insert a part from the project library or from a file | part id, placement | M7 |
 | Ground (fix) an instance | instance | M7 |
 | Mates: coincident (plane–plane, with flip), concentric (axis–axis), distance (plane–plane offset) | 2 references + value | M7 |
-| Exploded view: per-instance offset steps, with a slider | instance, vector | M7 |
+| Exploded view: per-instance offset steps, with a slider | instance, vector | M7 — slider done; 💥 per part (`instance.stay`: held parts stay, the others move away from their middle) |
 | BOM (parts list): part, quantity, material, mass | — | M7 |
 | Export: assembly STEP (several bodies), or "print all parts" (each to the print tab) | — | M7 |
 | Angle / parallel / tangent mates, interference check, motion | — | Later |

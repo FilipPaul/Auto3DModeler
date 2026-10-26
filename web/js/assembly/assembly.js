@@ -249,7 +249,7 @@ export class Assembly {
       <span class="sep"></span>
       <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
       <span class="sep"></span>
-      <label class="chip as-explode" title="Pull the parts apart to see them (the placement does not change)">Explode <input type="range" min="0" max="1" step="0.01" value="${this.explode}"></label>
+      <label class="chip as-explode" title="Pull the parts apart to see them (the placement does not change) — 💥 in the list chooses which parts move">Explode <input type="range" min="0" max="1" step="0.01" value="${this.explode}"></label>
       <span class="sep"></span>
       ${btn('view-iso', 'Iso', 'View from the front-right, above')}${btn('view-top', 'Top', 'View from above')}${btn('view-front', 'Front', 'View from the front')}${btn('view-right', 'Right', 'View from the right')}`;
     bar.querySelector('[data-a=insert]').disabled = !parts.length && !this.hooks.importSolid;
@@ -265,7 +265,7 @@ export class Assembly {
     bar.querySelector('[data-a=fromFile]')?.addEventListener('click', () => { bar.querySelector('.as-insert').classList.remove('open'); this.insertFile(); });
     for (const b of bar.querySelectorAll('[data-a]:not([data-a=insert]):not([data-a=joint]):not([data-a=fromFile])')) b.addEventListener('click', () => this.action(b.dataset.a));
     const r = bar.querySelector('.as-explode input');
-    r.addEventListener('input', () => { this.explode = +r.value; this.draw(); });
+    r.addEventListener('input', () => { this.explode = +r.value; this.$('.as-list')?.classList.toggle('exploding', this.explode > 0); this.draw(); });
     this.updateUndo();
   }
 
@@ -291,13 +291,15 @@ export class Assembly {
     const list = this.$('.as-list');
     this.$('.as-start').hidden = this.doc.instances.length > 0;
     list.innerHTML = '';
+    list.classList.toggle('exploding', this.explode > 0);
     for (const it of this.doc.instances) {
       const b = this.bodies[it.part];
       const row = document.createElement('div');
       row.className = `mt-item${it.id === this.sel ? ' on' : ''}${b?.error ? ' bad' : ''}`;
       row.innerHTML = `<span class="mt-icon">${this.kindOf(it.part) === 'assembly' ? '◇' : this.kindOf(it.part) === 'classic' ? '▤' : '◆'}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>
         ${b?.error ? '<span class="mt-warn">⚠</span>' : ''}
-        <span class="mt-acts"><button class="mini" data-a="rename" title="Rename its part (its tab too)">🏷</button><button class="mini" data-a="dup" title="One more of this part">⧉</button><button class="mini danger" data-a="del" title="Take it out of the assembly">✕</button></span>`;
+        <span class="mt-acts"><button class="mini" data-a="rename" title="Rename its part (its tab too)">🏷</button><button class="mini" data-a="dup" title="One more of this part">⧉</button><button class="mini danger" data-a="del" title="Take it out of the assembly">✕</button></span>
+        <button class="mini as-boom${it.stay ? ' off' : ''}" data-a="boom" title="${it.stay ? 'Stays in place when exploded — click to let it move' : 'Moves when exploded — click to keep it in place (Ctrl+click: only this one moves)'}">💥</button>`;
       row.querySelector('.mt-name').textContent = this.partName(it.part);
       row.querySelector('.mt-what').textContent = it.id;
       if (b?.error) row.title = b.error;
@@ -309,6 +311,7 @@ export class Assembly {
           return null;
         }
         if (a === 'del') return this.removeInst(it.id);
+        if (a === 'boom') return this.toggleStay(it.id, e.ctrlKey || e.metaKey);
         this.sel = it.id;
         this.render();
         this.draw();
@@ -316,6 +319,19 @@ export class Assembly {
       });
       list.appendChild(row);
     }
+  }
+
+  /** 💥 Which parts move in Explode: one on / off, or (only) just this one moves — and again: all of them. */
+  toggleStay(id, only = false) {
+    const all = this.doc.instances, it = this.inst(id);
+    if (!it) return;
+    if (only) {
+      const already = all.every((x) => !!x.stay === (x.id !== id));
+      for (const x of all) { if (already || x.id === id) delete x.stay; else x.stay = true; }
+    } else if (it.stay) delete it.stay;
+    else it.stay = true;
+    if (!all.some((x) => !x.stay)) for (const x of all) delete x.stay; // none would move: all of them do
+    this.commit();
   }
 
   /** The parts list: part, how many, material, mass each and in all. */
@@ -954,20 +970,28 @@ export class Assembly {
   }
 
   draw() {
-    // exploded: each part pushed away from the middle of the assembly
+    // exploded: each part that moves (💥) pushed away from the middle of the ones that stay (of all, when all move)
     const centres = this.doc.instances.map((it) => {
       const b = this.bodies[it.part]?.body;
       if (!b) return null;
       const c = new THREE.Vector3((b.bbox[0] + b.bbox[3]) / 2, (b.bbox[1] + b.bbox[4]) / 2, (b.bbox[2] + b.bbox[5]) / 2);
       return c.applyMatrix4(new THREE.Matrix4().fromArray(it.matrix));
     });
-    const ok = centres.filter(Boolean), mid = ok.reduce((s, c) => s.add(c), new THREE.Vector3()).multiplyScalar(1 / (ok.length || 1));
+    const stay = centres.filter((c, k) => c && this.doc.instances[k].stay), ok = stay.length ? stay : centres.filter(Boolean);
+    const mid = ok.reduce((s, c) => s.add(c), new THREE.Vector3()).multiplyScalar(1 / (ok.length || 1));
+    const box = new THREE.Box3();
+    for (const c of centres) if (c) box.expandByPoint(c);
+    const size = box.isEmpty() ? 0 : box.getSize(new THREE.Vector3()).length() || 0;
+    const away = (c) => { // a part right at the middle goes up
+      const v = c.clone().sub(mid);
+      return v.length() > 1e-6 * (1 + size) ? v : new THREE.Vector3(0, 0, Math.max(size, 10) * 0.5);
+    };
     this.view.setBodies(this.doc.instances.map((it, k) => {
-      const c = centres[k];
+      const c = it.stay ? null : centres[k];
       const look = this.lookOf(it);
       return { id: it.id, body: this.bodies[it.part]?.body, matrix: it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part), ...look,
         selected: it.id === this.sel || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst,
-        explode: this.explode && c ? c.clone().sub(mid).multiplyScalar(this.explode * 1.2).toArray() : null };
+        explode: this.explode && c ? away(c).multiplyScalar(this.explode * 1.2).toArray() : null };
     }));
     this.drawMarks();
   }

@@ -548,6 +548,9 @@ body.ws-model #exportMenu [data-fmt=glb] { display: none; }
 .mt-warn { color: var(--err); }
 .mt-acts { display: none; gap: 3px; }
 .mt-item:hover .mt-acts { display: flex; }
+.as-boom { display: none; }
+.as-list.exploding .as-boom, .as-boom.off, .mt-item:hover .as-boom { display: inline-block; }
+.as-boom.off { filter: grayscale(1); opacity: .45; }
 .mt-start { color: var(--muted); padding: 14px 6px; line-height: 1.6; }
 .mt-start ol { padding-left: 20px; margin: 6px 0; }
 

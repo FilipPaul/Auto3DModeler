@@ -309,7 +309,10 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   holes; *Add* or *Add all* puts them in as standard parts of the project (a socket-head screw, an insert, a pin),
   held by joints: the screw on the hole's axis, its head on the part; the insert flush with the face. They follow
   when the parts change.
-- **Explode** pulls the parts apart to look at them; their placement does not change.
+- **Explode** pulls the parts apart to look at them; their placement does not change. **💥** on a part in the list
+  (shown while exploded) chooses whether it moves: off, it stays in place and the others move away from the parts
+  that stay (a lid lifts off its box); **Ctrl+click** — only this one moves (again: all of them). Saved with the
+  assembly, undoable.
 - The **parts list** shows each part, how many, its material and mass, and the total. **Export** gives STL (all
   parts as placed, in one file) or STEP (each part as its own body).
 - Changing a part in its own tab updates the assembly. The assembly is saved in the project. Undo / redo work as
