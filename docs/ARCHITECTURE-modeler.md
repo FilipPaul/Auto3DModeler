@@ -40,6 +40,9 @@ Date: 2026-10-25. Written by the architect agent.
 - **Dimensions follow the part done:** sketch dimension ends to the part store {vertex: {faces, fp}} or
   {edge: {a, b, fp}}; the rebuild finds them again (kernel find_vertex / find_edges), re-solves the sketch and
   hands the new places back (status.update). Holes are placed from the face's edges (hole.from). tools/e2e_model_refs.py.
+- **Round corner done:** ◜ Round corner in sketches (roundCorner: tangent arc, constraints tan + corner — the sharp
+  corner stays a point on both lines); the AI's rect {r}; typed sizes keep the other axis (solve keep=u|v).
+  tools/e2e_model_round.py.
 - **Next (later list):** classic parts in assemblies; decorate faces of model parts; loft / sweep.
 
 ## 0. Summary

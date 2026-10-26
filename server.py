@@ -435,7 +435,7 @@ def api_model_sketch_solve():
     from auto3d.modeler.constraints import SketchError, solve as solve_sketch
     body = request.get_json(force=True)
     try:
-        return jsonify(solve_sketch(body.get("sketch") or {}, body.get("drag")))
+        return jsonify(solve_sketch(body.get("sketch") or {}, body.get("drag"), body.get("keep")))
     except SketchError as exc:
         return jsonify({"error": str(exc)}), 400
 

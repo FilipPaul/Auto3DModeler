@@ -38,6 +38,51 @@ export function arcThrough(s, e, m) {
   return ccw ? { c, a: s, b: e, swap: false } : { c, a: e, b: s, swap: true };
 }
 
+/** The two lines meeting at a sketch point (a corner that can be rounded), or null. */
+export function cornerLines(f, pid) {
+  const ls = f.entities.filter((e) => e.t === 'line' && (e.a === pid || e.b === pid));
+  if (ls.length !== 2 || f.entities.some((e) => e.t !== 'line' && (e.a === pid || e.b === pid || e.c === pid))) return null;
+  const P = (id) => (id === 'O' ? [0, 0] : f.points[id]);
+  const [u1, u2] = ls.map((l) => { const q = P(l.a === pid ? l.b : l.a), p = P(pid), L = Math.hypot(q[0] - p[0], q[1] - p[1]); return L ? [(q[0] - p[0]) / L, (q[1] - p[1]) / L, L] : null; });
+  if (!u1 || !u2 || Math.abs(u1[0] * u2[1] - u1[1] * u2[0]) < 1e-6) return null; // in a straight line: no corner
+  return { lines: ls, u1, u2 };
+}
+
+/** Round the corner at point pid with radius r: the two lines get shorter and an arc joins them, tangent to both.
+ *  The sharp corner stays as a point on both lines (sizes measured to it still hold — a rectangle keeps its width;
+ *  dimensions can still start from it). newId(prefix) gives free ids. -> the arc's id, or throws. */
+export function roundCorner(f, pid, r, newId) {
+  const c = cornerLines(f, pid);
+  if (!c) throw new Error('Round a corner where exactly two lines meet.');
+  const { lines: [l1, l2], u1, u2 } = c;
+  const p = pid === 'O' ? [0, 0] : f.points[pid];
+  const half = Math.acos(Math.max(-1, Math.min(1, u1[0] * u2[0] + u1[1] * u2[1]))) / 2;
+  const t = r / Math.tan(half);
+  if (!(r > 0) || t >= u1[2] - 1e-9 || t >= u2[2] - 1e-9) throw new Error('That radius is too big for these lines.');
+  const T1 = [p[0] + u1[0] * t, p[1] + u1[1] * t], T2 = [p[0] + u2[0] * t, p[1] + u2[1] * t];
+  const bx = u1[0] + u2[0], by = u1[1] + u2[1], bl = Math.hypot(bx, by), k = r / Math.sin(half);
+  const C = [p[0] + (bx / bl) * k, p[1] + (by / bl) * k], mid = [C[0] - (bx / bl) * r, C[1] - (by / bl) * r];
+  const geo = arcThrough(T1, T2, mid);
+  const r6 = (q) => q.map((v) => +v.toFixed(9));
+  const t1 = newId('p'); f.points[t1] = r6(T1);
+  const t2 = newId('p'); f.points[t2] = r6(T2);
+  const cc = newId('p'); f.points[cc] = r6(C);
+  for (const [l, tp] of [[l1, t1], [l2, t2]]) {
+    // a locked length of a line now runs to the sharp corner (not to the shortened end)
+    // (the line's own size label goes — it is shorter now; a rectangle shows its size on the opposite side)
+    const len = f.dims.find((d) => d.t === 'len' && d.e === l.id);
+    if (len) Object.assign(len, { t: 'dist', a: pid, b: l.a === pid ? l.b : l.a, e: undefined });
+    if (l.a === pid) l.a = tp; else l.b = tp;
+    f.hidden = [...new Set([...(f.hidden || []), `len:${l.id}`])];
+  }
+  f.dims.forEach((d) => { if (d.e === undefined) delete d.e; });
+  const id = newId('a');
+  f.entities.push({ id, t: 'arc', c: cc, a: geo.swap ? t2 : t1, b: geo.swap ? t1 : t2 });
+  f.constraints.push({ id: newId('k'), t: 'tan', e: l1.id, arc: id, p: t1 }, { id: newId('k'), t: 'tan', e: l2.id, arc: id, p: t2 },
+    { id: newId('k'), t: 'corner', p: pid, lines: [l1.id, l2.id] });
+  return id;
+}
+
 const segDist = (p, a, b) => {
   const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy || 1;
   const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L));
@@ -126,6 +171,7 @@ export class Sketcher {
   hint() {
     if (this.tool === 'rect') return this.start ? 'Click the second corner (Esc = stop drawing).' : 'Click the first corner of a rectangle.';
     if (this.tool === 'circle') return this.start ? 'Click to set the size (Esc = stop drawing).' : 'Click the centre of a circle.';
+    if (this.tool === 'round') return 'Round corner: click a corner where two lines meet, then type the radius.';
     if (this.tool === 'arc') return !this.start ? 'Click where the arc starts.' : !this.arcEnd ? 'Click where the arc ends.' : 'Move the mouse to bend the arc, click to place it (Esc = stop drawing).';
     if (this.tool === 'line') return this.chain ? 'Click the next point — click the first point to close the shape, double-click or Esc to stop.' : 'Click where the line starts.';
     if (this.tool === 'dim') return this.dimA ? 'Now click the second one — the same line or circle again for its own size (Esc = start again).' : 'Dimension: click a point, a circle (its centre), a line or an edge of the part — then a second one.';
@@ -249,10 +295,10 @@ export class Sketcher {
   }
 
   // ------------------------------------------------------------------ solving
-  async solve(drag = null) {
+  async solve(drag = null, keep = null) {
     if (!this.solver) return { ok: true };
     const res = await fetch('/api/model/sketch/solve', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sketch: this.f, drag }) });
+      body: JSON.stringify({ sketch: this.f, drag, keep }) });
     let r;
     try { r = await res.json(); } catch { return { ok: false, error: `The sketch could not be solved (server error ${res.status}).` }; }
     if (res.status === 501) { this.solver = false; this.m.toast(r.error, 'warning', 8000); return { ok: true }; }
@@ -268,11 +314,11 @@ export class Sketcher {
   }
 
   /** Change the locks (dims) and solve; when the result contradicts other locks, go back and say which. */
-  async relock(mutate, hold = null) {
+  async relock(mutate, hold = null, keep = null) {
     const before = structuredClone(this.f);
     this.step();
     mutate();
-    const r = await this.solve(hold);
+    const r = await this.solve(hold, keep);
     if (!r.ok) {
       Object.assign(this.f, before);
       this.undo.pop();
@@ -327,13 +373,29 @@ export class Sketcher {
     // a distance is measured from a (it stays) to b (it moves): hold a when it is a sketch point
     if (['dx', 'dy', 'dist'].includes(spec.t) && typeof spec.a === 'string' && spec.a !== ORIGIN && this.f.points[spec.a]) hold = { [spec.a]: this.P(spec.a) };
     if (spec.t === 'len') { const e = this.ent(spec.e); if (e.a !== ORIGIN) hold = { [e.a]: this.P(e.a) }; }
-    if (spec.t === 'dia' || spec.t === 'rad') { const e = this.ent(spec.e); if (e.c !== ORIGIN) hold = { [e.c]: this.P(e.c) }; }
+    if (spec.t === 'dia' || spec.t === 'rad') {
+      // a rounded corner keeps its sharp corner (the rounding slides along the lines), a circle / arc its centre
+      const e = this.ent(spec.e), k = this.f.constraints.find((c) => c.t === 'corner' && this.f.constraints.some((t) => t.t === 'tan' && t.arc === e.id && c.lines.includes(t.e)));
+      const keep = k ? k.p : e.c;
+      if (keep !== ORIGIN) hold = { [keep]: this.P(keep) };
+    }
     if (!this.solver) { this.setDirect(spec, v); return; }
     await this.relock(() => {
       const d = this.findDim(spec);
       if (d) { d.v = v; delete d.free; } else this.f.dims.push({ id: this.newId('d'), ...spec, v });
       this.unhide(spec);
-    }, hold);
+    }, hold, this.keepFor(spec));
+  }
+
+  /** A typed size along x keeps every point's y (and the other way round), when the sketch allows it. */
+  keepFor(spec) {
+    if (spec.t === 'dx') return 'v';
+    if (spec.t === 'dy') return 'u';
+    const a = spec.t === 'len' ? this.ent(spec.e) : spec.t === 'dist' ? spec : null;
+    if (!a) return null;
+    const p = this.endUV(a.a), q = this.endUV(a.b);
+    if (!p || !q) return null;
+    return Math.abs(p[1] - q[1]) < 1e-7 ? 'v' : Math.abs(p[0] - q[0]) < 1e-7 ? 'u' : null;
   }
 
   /** Without the solver: set the size directly (no locks). */
@@ -378,7 +440,13 @@ export class Sketcher {
     });
   }
 
-  async showAllSizes() { await this.relock(() => { this.f.hidden = []; }); }
+  /** The sizes ✕ hid (not the lengths of lines shortened by a rounded corner — those stay hidden). */
+  userHidden() {
+    const rounded = new Set(this.f.constraints.filter((c) => c.t === 'corner').flatMap((c) => c.lines.map((l) => `len:${l}`)));
+    return (this.f.hidden || []).filter((k) => !rounded.has(k));
+  }
+
+  async showAllSizes() { const keep = new Set(this.userHidden()); await this.relock(() => { this.f.hidden = this.f.hidden.filter((k) => !keep.has(k)); }); }
 
   deleteSel() {
     if (!this.sel) return;
@@ -388,8 +456,9 @@ export class Sketcher {
     if (s.kind === 'point') gone = new Set(this.f.entities.filter((e) => e.a === s.id || e.b === s.id || e.c === s.id).map((e) => e.id));
     else gone = new Set(s.kind === 'group' ? this.f.entities.filter((e) => e.g === s.id).map((e) => e.id) : [s.id]);
     this.f.entities = this.f.entities.filter((e) => !gone.has(e.id));
-    this.f.constraints = this.f.constraints.filter((c) => !gone.has(c.e));
-    const used = new Set(this.f.entities.flatMap((e) => [e.a, e.b, e.c]));
+    this.f.constraints = this.f.constraints.filter((c) => !gone.has(c.e) && !gone.has(c.arc) && !(c.lines || []).some((l) => gone.has(l))
+      && !(s.kind === 'point' && c.p === s.id && c.t === 'corner'));
+    const used = new Set([...this.f.entities.flatMap((e) => [e.a, e.b, e.c]), ...this.f.constraints.filter((c) => c.t === 'corner').map((c) => c.p)]);
     for (const p of Object.keys(this.f.points)) if (!used.has(p)) delete this.f.points[p];
     this.f.dims = this.f.dims.filter((d) => !gone.has(d.e) && (!d.a || d.a === ORIGIN || this.f.points[d.a]) && (!d.b || this.f.points[d.b]));
     this.sel = null;
@@ -448,7 +517,8 @@ export class Sketcher {
       return;
     }
     this.cursor = this.snap(uv, e.altKey);
-    const hv = this.tool === 'dim' ? this.pickTarget(uv)
+    const hv = this.tool === 'round' ? this.cornerAt(uv)
+      : this.tool === 'dim' ? this.pickTarget(uv)
       : this.tool === 'select' ? ((h) => (h?.kind === 'point' ? { kind: 'point', end: h.id, uv: this.P(h.id) } : h))(this.hit(uv))
       : this.cursor.id || this.cursor.ref ? { kind: 'point', end: this.cursor.ref ? { ref: this.cursor.uv } : this.cursor.id, uv: this.cursor.uv } : null;
     const key = JSON.stringify(hv && { ...hv, d: undefined });
@@ -474,6 +544,7 @@ export class Sketcher {
     const s = this.snap(uv0, e.altKey);
     if (this.tool === 'line') { this.linePoint(s, e.detail >= 2); return; }
     if (this.tool === 'arc') { this.arcPoint(s); return; }
+    if (this.tool === 'round') { this.roundAt(uv0); return; }
     if (!this.start) { this.start = s; this.m.hint(this.hint()); this.draw(); return; }
     const a = this.start;
     this.start = null;
@@ -509,6 +580,37 @@ export class Sketcher {
     this.f.entities.push({ id, t: 'circle', c, r: +r.toFixed(6) });
     this.sel = { kind: 'entity', id };
     this.changed();
+  }
+
+  /** A corner under the mouse that can be rounded (two lines meet there) -> a hover target, or null. */
+  cornerAt(uv) {
+    const tol = this.mpp() * 10;
+    let best = null;
+    for (const [id, p] of Object.entries(this.f.points)) {
+      const d = Math.hypot(p[0] - uv[0], p[1] - uv[1]);
+      if (d < tol && (!best || d < best.d) && cornerLines(this.f, id)) best = { d, kind: 'point', end: id, uv: p, corner: true };
+    }
+    return best;
+  }
+
+  /** ◜ Round corner: the corner gets an arc (radius: a fifth of the shorter line, locked), then type the radius. */
+  async roundAt(uv) {
+    const h = this.cornerAt(uv);
+    if (!h) { this.m.toast('Click a corner where two lines meet.', 'info', 3000); return; }
+    const { u1, u2 } = cornerLines(this.f, h.end), r0 = Math.min(u1[2], u2[2]) / 5;
+    const r = r0 >= 1 ? Math.round(r0) : +r0.toFixed(1);
+    let arc = null;
+    await this.relock(() => {
+      arc = roundCorner(this.f, h.end, r, (pre) => this.newId(pre));
+      this.f.dims.push({ id: this.newId('d'), t: 'rad', e: arc, v: r });
+    });
+    if (!arc || !this.ent(arc)) return;
+    this.sel = { kind: 'entity', id: arc };
+    this.changed();
+    await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+    const d = this.findDim({ t: 'rad', e: arc });
+    const el = d && this.m.els.viewport.querySelector(`.sk-label[data-dim="${d.id}"]`);
+    if (el) this.editLabel(el, { t: 'rad', e: arc });
   }
 
   /** Arc tool: start, end, then a point it goes through (the bend). */
@@ -579,6 +681,7 @@ export class Sketcher {
     if (k === 'l') this.setTool('line');
     if (k === 'c') this.setTool('circle');
     if (k === 'a') this.setTool('arc');
+    if (k === 'f') this.setTool('round');
     if (k === 'd') this.setTool('dim');
     return false;
   }
@@ -877,9 +980,9 @@ export class Sketcher {
         lines.push([a, b, isSel(e) ? SEL : NORM]);
         // a rectangle shows its width and height once; a free line its length
         if (e.g) {
-          const k = f.constraints.find((c) => c.e === e.id)?.t;
+          const k = f.constraints.find((c) => c.e === e.id && (c.t === 'h' || c.t === 'v'))?.t;
           const key = `${e.g}:${k}`;
-          if (shownGroups.has(key)) continue;
+          if (shownGroups.has(key) || this.isHidden({ t: 'len', e: e.id })) continue; // a hidden side: the opposite one shows it
           shownGroups.add(key);
         }
         const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -912,6 +1015,13 @@ export class Sketcher {
         const c = this.P(e.c);
         circles.push([c, e.r, isSel(e) ? SEL : NORM]);
         if (!this.isHidden({ t: 'dia', e: e.id })) labels.push(this.label({ t: 'dia', e: e.id }, c[0] + e.r * 0.72 + mpp * 18, c[1] + e.r * 0.72 + mpp * 8, `Ø${fmt(2 * e.r)}`, 'Diameter'));
+      }
+    }
+    for (const k of f.constraints.filter((c) => c.t === 'corner')) {
+      const p = this.P(k.p);
+      for (const l of k.lines.map((id) => this.ent(id)).filter(Boolean)) {
+        const near = [l.a, l.b].map((q) => this.P(q)).sort((x, y) => Math.hypot(x[0] - p[0], x[1] - p[1]) - Math.hypot(y[0] - p[0], y[1] - p[1]))[0];
+        if (p && near) lines.push([near, p, 0x8b95a3, true]);
       }
     }
     for (const [id, p] of Object.entries(f.points)) {
@@ -953,7 +1063,7 @@ export class Sketcher {
         dots.push([hv.uv, HL]);
         if (hv.circle) { const c = this.ent(hv.circle); circles.push([this.P(c.c), c.r, HL]); name = 'circle (its centre)'; }
         else if (hv.arc) { const ps = this.arcOf(this.ent(hv.arc)); for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], HL]); name = 'arc (its centre)'; }
-        else name = hv.end === ORIGIN ? 'origin' : typeof hv.end === 'object' ? 'corner of the part' : 'point';
+        else name = hv.corner ? 'corner' : hv.end === ORIGIN ? 'origin' : typeof hv.end === 'object' ? 'corner of the part' : 'point';
         at = hv.uv;
       } else if (hv.kind === 'line') {
         lines.push([hv.uvA, hv.uvB, HL], [hv.uvA, hv.uvB, HL]);
@@ -1043,7 +1153,7 @@ export class Sketcher {
       if ((d.a === ORIGIN || d.b === ORIGIN) && Math.abs(d.v) < 1e-9) return `${d.t === 'dx' ? '↔' : '↕'} 0 (on the origin)`;
       return `${{ dx: '↔', dy: '↕', dist: '⤢' }[d.t]} ${v} (from the ${at(d.a)})`;
     };
-    const hidden = (this.f.hidden || []).length;
+    const hidden = this.userHidden().length;
     const list = (this.f.dims.length ? `<h3>Dimensions</h3><div class="sk-dims">${this.f.dims.map((d) =>
       `<div class="sk-dim"><span>${d.free ? '🔓' : '🔒'} ${name(d.free ? { ...d, v: this.measure(d) } : d)}</span>
         <span class="sk-dim-acts">${['len', 'dia', 'rad'].includes(d.t) ? '' : `<button class="mini" data-lock="${d.id}" title="${d.free ? 'Lock it at this value' : 'Free it (it then only measures)'}">${d.free ? '🔒' : '🔓'}</button>`}

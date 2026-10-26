@@ -6,6 +6,8 @@ A sketch (in the feature JSON):
                   {"id": "c1", "t": "circle", "c": "p5", "r": 3},
                   {"id": "a1", "t": "arc", "c": "p6", "a": "p2", "b": "p7"}]   centre, from a counter-clockwise to b
   "constraints": [{"id": "k1", "t": "h", "e": "l1"}, {"t": "v", "e": "l2"}]       horizontal / vertical
+                 {"t": "tan", "e": "l1", "arc": "a1", "p": "p7"}   line l1 tangent to arc a1 at their common point p7
+                 {"t": "corner", "p": "p2", "lines": ["l1", "l2"]} a rounded corner's sharp point (on both lines)
   "dims":        [{"id": "d1", "t": "len", "e": "l1", "v": 40},                  locked sizes 🔒
                   {"t": "dia", "e": "c1", "v": 6}, {"t": "rad", "e": "a1", "v": 5},   an arc's radius
                   {"t": "dx", "a": "O", "b": "p5", "v": 10}, {"t": "dy", ...},   distance along x / y
@@ -37,8 +39,10 @@ def _num(v, what):
     return v
 
 
-def solve(sketch, drag=None):
+def solve(sketch, drag=None, keep=None):
     """Solve the sketch. drag = {point id: [u, v]}: move these points there (as far as the locks allow).
+    keep = "u" | "v": try to keep that coordinate of every other point (a typed width moves nothing up or down);
+    dropped when the sketch cannot do it.
     -> {"ok", "points", "radii", "dof", "conflicts": [dim ids], "status"}"""
     import planegcs as g
 
@@ -47,7 +51,7 @@ def solve(sketch, drag=None):
         if k in pts:
             pts[k] = [float(x) for x in v]
 
-    def build(with_drag):
+    def build(with_drag, with_keep=False):
         s = g.Sketch()
         ids = {ORIGIN: s.add_fixed_point(0.0, 0.0)}
         for k, (u, v) in pts.items():
@@ -82,7 +86,17 @@ def solve(sketch, drag=None):
         tags = {}
         for k in sketch.get("constraints") or []:
             ent = ents.get(k.get("e"))
+            if k.get("t") == "corner":  # a rounded corner's sharp point stays where its two lines would meet
+                for ln in k.get("lines") or []:
+                    if ln in ents and k.get("p") in ids:
+                        s.point_on_line(ids[k["p"]], ents[ln][1])
+                continue
             if not ent or ent[0]["t"] != "line":
+                continue
+            if k.get("t") == "tan":  # line tangent to an arc where they meet: the radius to that point is square to the line
+                arc = ents.get(k.get("arc"))
+                if arc and k.get("p") in ids:
+                    s.perpendicular(ent[1], s.add_line(ids[arc[0]["c"]], ids[k["p"]]))
                 continue
             (s.horizontal if k["t"] == "h" else s.vertical)(ent[1])
         for d in sketch.get("dims") or []:
@@ -130,8 +144,23 @@ def solve(sketch, drag=None):
             for k in drag or {}:
                 if k in ids and k != ORIGIN:
                     s.fix_point(ids[k], *pts[k])
+        if with_keep:
+            i = 0 if keep == "u" else 1
+            for k, p in pts.items():
+                if k not in (drag or {}):
+                    s.difference(s.add_fixed_param(0.0), s.get_point_param_ids(ids[k])[i], s.add_fixed_param(p[i]))
         return s, ids, ents, radius, tags
 
+    good = (g.SolveStatus.Success, g.SolveStatus.Converged)
+    if keep in ("u", "v"):
+        # first where the points go when the other coordinate stays; then the plain solve from there (it only
+        # checks: the free sizes and the conflicts are those of the sketch itself, not of this extra hold)
+        s, ids, ents, radius, tags = build(bool(drag), True)
+        if s.solve() in good and not s.diagnose().conflicting:
+            for k in pts:
+                pts[k] = list(s.get_point(ids[k]))
+            for k, r in radius.items():
+                next(e for e in sketch.get("entities") or [] if e.get("id") == k)["r"] = s.get_param(r)
     s, ids, ents, radius, tags = build(bool(drag))
     status = s.solve()
     if status not in (g.SolveStatus.Success, g.SolveStatus.Converged) and drag:

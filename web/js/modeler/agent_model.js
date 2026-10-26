@@ -2,18 +2,20 @@
 // list / open / start parts, read the model, find faces and edges, add / change / delete / turn off steps,
 // a screenshot, a printing copy. Every change goes through the modeler like a user edit (visible, undoable).
 
+import { roundCorner } from './sketcher.js';
+
 const r3 = (v) => +(+v).toFixed(3);
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const len = (a) => Math.hypot(a[0], a[1], a[2]);
 const DATUM = { XY: 'XY', TOP: 'XY', XZ: 'XZ', FRONT: 'XZ', YZ: 'YZ', RIGHT: 'YZ' };
 
-/** A sketch from simple shapes: rect {x, y, w, h} (lower-left corner), circle {x, y, d} (centre), polyline {points}
+/** A sketch from simple shapes: rect {x, y, w, h, r} (lower-left corner, r = rounded corners), circle {x, y, d} (centre), polyline {points}
  *  (closed). lock: every size and position is locked (the sketch is fully defined). */
 export function sketchFromShapes(shapes, lock = true) {
   const f = { points: {}, entities: [], constraints: [], dims: [] };
   let n = { p: 0, l: 0, c: 0, r: 0, k: 0, d: 0 };
-  const id = (k) => `${k}${++n[k]}`;
+  const id = (k) => `${k}${(n[k] = (n[k] || 0) + 1)}`;
   const dim = (spec) => { if (lock) f.dims.push({ id: id('d'), ...spec }); };
   const point = (u, v, locked) => {
     const p = id('p');
@@ -23,8 +25,9 @@ export function sketchFromShapes(shapes, lock = true) {
   };
   for (const s of shapes || []) {
     if (s.rect) {
-      const { x = 0, y = 0, w, h } = s.rect;
+      const { x = 0, y = 0, w, h, r = 0 } = s.rect;
       if (!(w > 0 && h > 0)) throw new Error('A rectangle needs w and h greater than zero.');
+      if (r < 0 || 2 * r >= Math.min(w, h)) throw new Error('A rectangle\'s corner radius r must be less than half its shorter side.');
       const g = id('r');
       const ps = [point(x, y, true), point(x + w, y), point(x + w, y + h), point(x, y + h)];
       ps.forEach((a, i) => {
@@ -34,6 +37,12 @@ export function sketchFromShapes(shapes, lock = true) {
         if (i === 0) dim({ t: 'len', e: l, v: r3(w) });
         if (i === 1) dim({ t: 'len', e: l, v: r3(h) });
       });
+      if (r > 0) {
+        for (const p of ps) {
+          const arc = roundCorner(f, p, r, id);
+          dim({ t: 'rad', e: arc, v: r3(r) });
+        }
+      }
     } else if (s.circle) {
       const { x = 0, y = 0, d } = s.circle;
       if (!(d > 0)) throw new Error('A circle needs a diameter d greater than zero.');

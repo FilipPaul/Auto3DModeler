@@ -39,6 +39,21 @@ def slot(r=5, L=30):
             "constraints": [{"id": "k1", "t": "h", "e": "l1"}, {"id": "k2", "t": "h", "e": "l2"}], "dims": []}
 
 
+def rounded(w=40, r=5):
+    """A 40 x 20 rectangle from the origin whose top-right corner p3 is rounded (as the ◜ Round corner tool leaves
+    it): the lines end at the tangent points t1 / t2, an arc joins them, p3 stays as the sharp corner on both lines."""
+    return {"points": {"p1": [0, 0], "p2": [w, 0], "p3": [w, 20], "p4": [0, 20], "t1": [w, 20 - r], "t2": [w - r, 20], "c": [w - r, 20 - r]},
+            "entities": [{"id": "l1", "t": "line", "a": "p1", "b": "p2"}, {"id": "l2", "t": "line", "a": "p2", "b": "t1"},
+                         {"id": "a1", "t": "arc", "c": "c", "a": "t1", "b": "t2"},
+                         {"id": "l3", "t": "line", "a": "t2", "b": "p4"}, {"id": "l4", "t": "line", "a": "p4", "b": "p1"}],
+            "constraints": [{"id": "k1", "t": "h", "e": "l1"}, {"id": "k2", "t": "v", "e": "l2"}, {"id": "k3", "t": "h", "e": "l3"},
+                            {"id": "k4", "t": "v", "e": "l4"}, {"id": "k5", "t": "tan", "e": "l2", "arc": "a1", "p": "t1"},
+                            {"id": "k6", "t": "tan", "e": "l3", "arc": "a1", "p": "t2"}, {"id": "k7", "t": "corner", "p": "p3", "lines": ["l2", "l3"]}],
+            "dims": [{"id": "d1", "t": "dx", "a": "O", "b": "p1", "v": 0}, {"id": "d2", "t": "dy", "a": "O", "b": "p1", "v": 0},
+                     {"id": "d3", "t": "len", "e": "l1", "v": w}, {"id": "d4", "t": "dist", "a": "p3", "b": "p2", "v": 20},
+                     {"id": "d6", "t": "rad", "e": "a1", "v": r}]}
+
+
 @unittest.skipUnless(GCS, "planegcs not installed")
 class TestSketchSolve(unittest.TestCase):
     def test_lock_holds_when_the_plate_grows(self):
@@ -123,6 +138,31 @@ class TestSketchSolve(unittest.TestCase):
         with self.assertRaises(SketchError):
             solve(sk)
 
+    def test_rounded_corner_stays_tangent(self):
+        sk = rounded()
+        for d in sk["dims"]:
+            if d["id"] == "d3":
+                d["v"] = 60  # wider: the rounding moves with the corner, still R5 and tangent
+        r = solve(sk)
+        self.assertTrue(r["ok"], r)
+        P = r["points"]
+        for k, want in {"p3": [60, 20], "t1": [60, 15], "t2": [55, 20], "c": [55, 15]}.items():
+            self.assertAlmostEqual(P[k][0], want[0], places=6)
+            self.assertAlmostEqual(P[k][1], want[1], places=6)
+        self.assertEqual(r["dof"], 0)
+        # without the height locked: a typed width keeps every height (keep="v"); without keep the solver may drift
+        free = rounded()
+        free["dims"] = [x for x in free["dims"] if x["id"] != "d4"]
+        free["dims"][2]["v"] = 60
+        r2 = solve(free, {"p1": [0, 0]}, keep="v")
+        self.assertTrue(r2["ok"], r2)
+        self.assertTrue(all(abs(r2["points"][k][1] - free["points"][k][1]) < 1e-9 for k in free["points"]))
+        self.assertAlmostEqual(r2["points"]["p3"][0], 60, places=6)
+        sk["dims"][-1]["v"] = 8  # a bigger radius: the tangent points slide along the lines
+        r = solve(sk)
+        self.assertAlmostEqual(r["points"]["t1"][1], 12, places=6)
+        self.assertAlmostEqual(r["points"]["t2"][0], 52, places=6)
+
     def test_endpoint(self):
         import server
         c = server.app.test_client()
@@ -157,6 +197,13 @@ class TestLineSketchFaces(unittest.TestCase):
         f[0] = {"id": "S1", "type": "sketch", "plane": {"datum": "XY"}, **sk}
         r = doc.rebuild({"features": f})
         self.assertAlmostEqual(r["body"]["volume"], 2 * (70 * 40 - 300 - math.pi * 25), delta=1e-6)
+
+    def test_rounded_corner_solid(self):
+        f = [{"id": "S1", "type": "sketch", "plane": {"datum": "XY"}, **rounded()}, {"id": "E1", "type": "extrude", "sketch": "S1", "op": "add", "d": 2}]
+        r = doc.rebuild({"features": f})
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(r["body"]["volume"], 2 * (800 - (4 - math.pi) / 4 * 25), delta=1e-6)
+        self.assertIn("E1:side:a1", {x["name"] for x in r["body"]["faces"]})
 
     def test_l_shape_polyline(self):
         pts = {"a": [0, 0], "b": [30, 0], "c": [30, 10], "d": [10, 10], "e": [10, 25], "f": [0, 25]}

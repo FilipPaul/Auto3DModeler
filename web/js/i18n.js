@@ -493,6 +493,10 @@ const CS = {
   'There is no edge on the other side to measure from.': 'Na druhé straně není hrana, od které kótovat.', Holes: 'Díry',
   "A dimension's edge of the part is gone — its distance is kept from where the edge was.": 'Hrana dílu, od které vede kóta, zmizela – vzdálenost zůstává od místa, kde hrana byla.',
   "The sketch's sizes no longer fit the part's new shape — open the sketch and unlock one.": 'Rozměry skici už nesedí na nový tvar dílu – otevřete skicu a jeden odemkněte.',
+  '◜ Round corner': '◜ Zaoblit roh', 'Round a corner of lines: click the corner, type the radius (F)': 'Zaoblit roh čar: klikněte na roh, zadejte poloměr (F)',
+  'Round corner: click a corner where two lines meet, then type the radius.': 'Zaoblení rohu: klikněte na roh, kde se setkávají dvě čáry, a zadejte poloměr.',
+  'Click a corner where two lines meet.': 'Klikněte na roh, kde se setkávají dvě čáry.', 'Round a corner where exactly two lines meet.': 'Zaoblit lze roh, kde se setkávají právě dvě čáry.',
+  'That radius is too big for these lines.': 'Tento poloměr je na tyto čáry příliš velký.', 'corner': 'roh',
   // language switch
   'Čeština / English': 'Čeština / English',
 };
