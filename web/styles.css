@@ -470,6 +470,13 @@ body:not(.ws-model):not(.ws-assembly):not(.ws-drawing) .not-quick { display: non
   background: #1f2a3a; border: 1px solid #58a6ff; border-radius: 8px; padding: 6px 10px; font-size: 12px; color: var(--text); max-width: 52%; }
 .m-ctx .btn { white-space: nowrap; }
 .mt-name.renaming { outline: 1px solid var(--accent, #58a6ff); background: var(--bg); padding: 0 3px; border-radius: 3px; cursor: text; }
+.choose-back { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, .45); display: flex; align-items: center; justify-content: center; }
+.choose { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px 16px; max-width: 520px; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+.choose p { margin: 0 24px 14px 0; line-height: 1.45; }
+.choose-opts { display: flex; flex-direction: column; gap: 8px; }
+.choose-opts .btn { text-align: left; display: flex; flex-direction: column; gap: 2px; }
+.choose-hint { font-size: 11px; opacity: .75; font-weight: 400; }
+.choose-x { position: absolute; top: 10px; right: 10px; }
 .mp-range { font-size: 10.5px; color: var(--muted); margin: -6px 0 8px; text-align: right; }
 .m-dimedit .mp-range { margin: -4px 0 0; }
 .mp-slider { display: block; width: 100%; margin: -2px 0 8px; accent-color: #6e40c9; }

@@ -6,6 +6,7 @@
 import { History } from '../history.js';
 import { t } from '../i18n.js';
 import { renameInPlace } from '../rename.js';
+import { choose } from '../choose.js';
 import { paintedFaces, repaint } from './paint.js';
 import { ModelView, DATUMS, datumFrame } from './view.js';
 import { Sketcher, upgradeSketch, arcPts, RELATIONS } from './sketcher.js';
@@ -614,18 +615,67 @@ export class Modeler {
   }
 
   /** Delete a step and the steps that need it (an extrude of a deleted sketch, a sketch on its faces). */
-  remove(id) {
-    if (this.mode !== 'part' || this.cmd) return;
-    const gone = new Set([id]);
+  /** What deleting step `id` takes with it. hard: steps that cannot be without it (they round its edges, extrude
+   *  its sketch …); soft: steps that only stand on it — a sketch or hole on its face, a size measured from its edges,
+   *  "up to" its face — and can stay where they are now instead. keep = true: soft ones stay (not deleted). */
+  dependents(id, keep) {
+    const gone = new Set([id]), soft = new Set();
+    const owns = (name) => gone.has(this.faceOwner({ name }));
     for (const f of this.part.features) {
-      const onFace = gone.has(this.faceOwner(f.plane?.face));
-      const onEdge = (f.edges || []).some((e) => gone.has(this.faceOwner({ name: e.a })) || gone.has(this.faceOwner({ name: e.b })));
+      if (f.id === id) continue;
+      const onEdge = (f.edges || []).some((e) => owns(e.a) || owns(e.b));
       const onFaces = (f.faces || []).some((r) => gone.has(this.faceOwner(r)));
-      const repeats = (f.type === 'pattern' && (f.features || []).some((x) => gone.has(x))) || gone.has(this.faceOwner(f.upto)) || (f.type === 'mirror' && gone.has(f.of));
-      if (sketchesOf(f).some((x) => gone.has(x)) || onFace || onEdge || onFaces || repeats) gone.add(f.id);
+      const needs = sketchesOf(f).some((x) => gone.has(x)) || onEdge || onFaces || (f.type === 'pattern' && (f.features || []).some((x) => gone.has(x)))
+        || (f.type === 'mirror' && gone.has(f.of)) || (f.type === 'loft' && (f.sketches || []).some((x) => gone.has(x)));
+      const stands = gone.has(this.faceOwner(f.plane?.face)) || gone.has(this.faceOwner(f.upto)) || this.refsTo(f, owns);
+      if (needs || (stands && !keep)) gone.add(f.id);
+      else if (stands) soft.add(f.id);
     }
-    const names = this.part.features.filter((f) => gone.has(f.id)).map((f) => f.name);
-    if (gone.size > 1 && !confirm(`Delete “${names[0]}”? These steps need it and are deleted too: ${names.slice(1).join(', ')}.`)) return;
+    return { gone, soft };
+  }
+
+  /** Does step f measure from (or place holes from) an edge / corner of a face that `owns` says goes? */
+  refsTo(f, owns) {
+    const endRefs = (x) => x && typeof x === 'object' && ((x.edge && (owns(x.edge.a) || owns(x.edge.b))) || (x.vertex?.faces || []).some(owns));
+    if ((f.dims || []).some((d) => endRefs(d.a) || endRefs(d.b))) return true;
+    return (f.from || []).some((s) => s && ['x', 'y'].some((k) => s[k]?.edge && (owns(s[k].edge.a) || owns(s[k].edge.b))));
+  }
+
+  /** Keep step f where it is now, no longer on step `gone`: its plane fixed where the face is now, its sizes from
+   *  that step's edges fixed at their place, "up to" its face -> the distance it has. */
+  detach(f, owns) {
+    const g = structuredClone(f);
+    if (g.plane?.face && owns(this.faceOwner(g.plane.face) + ':')) g.plane = { frame: structuredClone(this.frames?.[g.id] || g.plane.frame) };
+    for (const d of g.dims || []) {
+      for (const k of ['a', 'b']) {
+        const x = d[k];
+        if (x && typeof x === 'object' && ((x.edge && (owns(x.edge.a) || owns(x.edge.b))) || (x.vertex?.faces || []).some(owns))) d[k] = { ref: x.ref };
+      }
+    }
+    (g.from || []).forEach((s) => { for (const k of ['x', 'y']) if (s?.[k]?.edge && (owns(s[k].edge.a) || owns(s[k].edge.b))) delete s[k]; });
+    if (g.upto && owns(this.faceOwner(g.upto) + ':')) { delete g.upto; g.d = g.d || 10; }
+    return g;
+  }
+
+  /** Delete a step; steps that stand on it are asked about (how: 'keep' / 'all' answers it already — the AI). */
+  async remove(id, how = null) {
+    if (this.mode !== 'part' || this.cmd) return;
+    const all = this.dependents(id, false), kept = this.dependents(id, true);
+    const name = (x) => this.part.features.find((f) => f.id === x)?.name;
+    const names = [...all.gone].filter((x) => x !== id).map(name);
+    let gone = all.gone;
+    if (kept.soft.size) { // some can stay where they are: ask
+      const pick = how || await choose(`${t('Delete')} “${name(id)}”? ${t('These steps use it')}: ${names.join(', ')}.`, [
+        { value: 'keep', primary: true, label: 'Keep them where they are', hint: kept.gone.size > 1 ? `${t('Deleted too (they cannot be without it)')}: ${[...kept.gone].filter((x) => x !== id).map(name).join(', ')}` : 'A sketch keeps its place and its sizes; it no longer follows the deleted step.' },
+        { value: 'all', danger: true, label: 'Delete them too' },
+        { value: null, label: 'Cancel' }]);
+      if (!pick) return;
+      if (pick === 'keep') {
+        gone = kept.gone;
+        const owns = (n) => gone.has(this.faceOwner({ name: n }));
+        this.part.features = this.part.features.map((f) => (kept.soft.has(f.id) ? this.detach(f, owns) : f));
+      }
+    } else if (gone.size > 1 && !how && !confirm(`Delete “${name(id)}”? These steps need it and are deleted too: ${names.join(', ')}.`)) return;
     this.part.features = this.part.features.filter((f) => !gone.has(f.id));
     this.selected = null;
     this.commit();

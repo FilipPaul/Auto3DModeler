@@ -355,14 +355,13 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       return commitAnd(id);
     },
 
-    delete_feature: async ({ id }) => {
+    delete_feature: async ({ id, keep_dependents = true }) => {
       needModel();
       ready();
       if (!m.part.features.some((x) => x.id === id)) throw new Error(`No step ${id}.`);
       const before = m.part.features.length;
-      const keep = window.confirm;
-      window.confirm = () => true; // the AI was asked to; the steps that need it go too (listed in the result)
-      try { m.remove(id); } finally { window.confirm = keep; }
+      // the AI was asked to: steps that only stand on it stay where they are (or go too), steps that need it go
+      await m.remove(id, keep_dependents === false ? 'all' : 'keep');
       await settle();
       return { text: `Deleted ${before - m.part.features.length} step(s). ${JSON.stringify({ steps: m.part.features.map((x) => x.id), body: summary() })}` };
     },

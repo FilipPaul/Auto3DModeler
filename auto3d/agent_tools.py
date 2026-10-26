@@ -197,8 +197,10 @@ TOOLS = [
                     "sketch's {shapes: […]}). Later steps follow their faces.",
      "inputSchema": _obj({"id": STR, "fields": _obj({}, extra=True)}, ["id", "fields"])},
     {"name": "delete_feature", "where": "browser",
-     "description": "Delete a step of the 3D model (the steps that need it are deleted too).",
-     "inputSchema": _obj({"id": STR}, ["id"])},
+     "description": "Delete a step of the 3D model. Steps that only stand on it (a sketch on its face, sizes from its edges, "
+                    "an extrude up to its face) stay where they are now (keep_dependents, default true; false deletes them "
+                    "too); steps that cannot be without it (its sketch's extrude, roundings of its edges) are deleted.",
+     "inputSchema": _obj({"id": STR, "keep_dependents": {"type": "boolean"}}, ["id"])},
     {"name": "turn_off_feature", "where": "browser", "description": "Turn a step off (off true) or on again (off false); it is kept.",
      "inputSchema": _obj({"id": STR, "off": {"type": "boolean"}}, ["id"])},
     {"name": "set_material", "where": "browser",

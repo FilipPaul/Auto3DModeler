@@ -250,6 +250,9 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   `duplicate_part`.
 - **A STEP file's colours** (of its components, bodies and faces) come with it — in the modeler and in assemblies;
   your own 🎨 paint goes over them, and *Keep the file's colours* (in its solid step) turns them off.
+- **Deleting a step others stand on** (e.g. an imported model you sketched on): *Keep them where they are* leaves a
+  sketch on a fixed plane with its sizes (sizes from the deleted step's edges become fixed), an extrude up to its face
+  keeps its distance; only steps that cannot be without it (roundings of its edges …) go. *Delete them too* removes all.
 - **🎨 Paint** (3D model): click faces — or, with ▣ Bodies, whole bodies of an imported file — Ctrl+click for more,
   then pick a colour; ↺ takes a face's own colour off. A painted face keeps its colour when the part changes (its name
   and place) and shows in assemblies; Ctrl+Z undoes it. **🏷** in a row renames a step (3D model list) or a part

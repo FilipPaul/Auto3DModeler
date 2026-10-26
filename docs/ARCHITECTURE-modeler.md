@@ -60,6 +60,8 @@ Date: 2026-10-25. Written by the architect agent.
   raised / engraved on a flat face, follows it; the AI's decal. tools/e2e_model_decal.py.
 - **Assembly links done:** snaps hold (doc.mates {move, face, onto, ontoFace}, re-applied after refresh and moves;
   moving the snapped part by hand unlinks; no cycles; saved, undoable). tools/e2e_assembly_links.py.
+- **Keep dependents done:** modeler.dependents (hard: needs it; soft: stands on it) + detach (plane -> its frame now,
+  edge refs -> fixed points, up-to -> distance); choose.js dialog; delete_feature keep_dependents. tools/e2e_delete_keep.py.
 - **2D drawings done:** drawing.py (A4 PDF: front / top / right by kernel.project_edges = OCCT HLR, iso, overall
   dimensions, hole labels and positions, title block; PyMuPDF); /api/model/export/pdf, the AI's export pdf.
   tools/e2e_model_drawing.py.
