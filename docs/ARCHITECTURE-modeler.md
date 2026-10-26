@@ -60,6 +60,10 @@ Date: 2026-10-25. Written by the architect agent.
   raised / engraved on a flat face, follows it; the AI's decal. tools/e2e_model_decal.py.
 - **Assembly links done:** snaps hold (doc.mates {move, face, onto, ontoFace}, re-applied after refresh and moves;
   moving the snapped part by hand unlinks; no cycles; saved, undoable). tools/e2e_assembly_links.py.
+- **🕘 AI history done:** auto3d/ai_history.py (data/history/<id>.json + .meta.json; the same state as the newest is
+  not saved again; MAX_STATES 300), /api/history routes; web/js/aihistory.js saves the project file after a chat turn
+  that ran tools in this page (agent.js bridgeStats), lists and loads back (keeping the current one first).
+  tests/test_ai_history.py, tools/e2e_ai_history.py.
 - **🏷 Sizes done:** Modeler.sizeMode (all | locked | none, localStorage `a3d.sizes`), sizeShown(locked, sketch)
   used by Sketcher.draw and Modeler.sketchTags / showStepDims; BIG_SKETCH = 200 shapes labels only locked sizes
   (bigAll per sketch to show them anyway). tools/e2e_sizes.py.

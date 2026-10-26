@@ -20,6 +20,9 @@ Never report "works" without having run it; report failures with their output.
    (placing objects, picking heights, snapping) and adds a picture outline as a design layer. Restart the
    server after backend changes (Flask does not reload). `tools/e2e_unified.py` covers the common Part tab
    (PDF / DXF / STL), point-to-point dimensions (scaling), the 3D and 2D measure tools and CAD / 3D imports.
+   `tools/e2e_ai_history.py <url> <dir>` covers 🕘 AI history (two AI turns through /api/agent/call -> a state each
+   with its message and tool count, a replayed turn keeps nothing, the list, Load the first -> the plate without the
+   hole, the hand-renamed project kept "before loading"; it deletes the states it made).
    `tools/e2e_agent.py` drives every AI tool through the real MCP server process (no model needed), incl. the 3D model
    tools (the plate from the model-a-part guide: exact volume, find_refs, edit / off / delete / undo, STEP, prepare_print);
    `tools/e2e_chat.py <url> <dir> "message"` sends a real chat message through the installed Claude Code —

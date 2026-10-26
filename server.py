@@ -24,6 +24,7 @@ from flask import Flask, Response, jsonify, request, send_file, send_from_direct
 
 from auto3d import progress
 from auto3d.agent import ChatSession, Relay, find_claude
+from auto3d.ai_history import HistoryError, delete_state, list_states, load_state, save_state
 from auto3d.agent_tools import BROWSER_TOOLS, TOOL_NAMES
 from auto3d.bend import bend_info, bend_solid
 from auto3d.design import profile_polygon, trace_image
@@ -155,6 +156,41 @@ def api_project_migrate():
         return jsonify(migrate_project(request.get_json(force=True, silent=True)))
     except ProjectError as e:
         return jsonify({"error": str(e)}), 400
+
+
+AI_HISTORY = ROOT / "data" / "history"  # the project after each AI turn (auto3d/ai_history.py)
+
+
+@app.get("/api/history")
+def api_history_list():
+    return jsonify({"states": list_states(AI_HISTORY)})
+
+
+@app.post("/api/history")
+def api_history_save():
+    """{project, prompt, tools, kind} -> the saved state's meta (same: true when it equals the newest one)."""
+    body = request.get_json(force=True, silent=True) or {}
+    try:
+        return jsonify(save_state(AI_HISTORY, body.get("project"), body.get("prompt", ""), body.get("tools", 0), body.get("kind", "ai")))
+    except HistoryError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.get("/api/history/<sid>")
+def api_history_get(sid):
+    try:
+        return jsonify(load_state(AI_HISTORY, sid))
+    except HistoryError as e:
+        return jsonify({"error": str(e)}), 404
+
+
+@app.delete("/api/history/<sid>")
+def api_history_delete(sid):
+    try:
+        delete_state(AI_HISTORY, sid)
+    except HistoryError as e:
+        return jsonify({"error": str(e)}), 404
+    return jsonify({"ok": True})
 
 
 @app.get("/api/kernel")

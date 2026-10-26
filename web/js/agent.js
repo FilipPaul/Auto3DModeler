@@ -23,6 +23,9 @@ function md(text) {
   return out.map((x) => (Array.isArray(x) ? `<ul>${x.map((li) => `<li>${li}</li>`).join('')}</ul>` : x)).join('');
 }
 
+/** How many of the AI's tool calls this page has run (a turn that ran none here changed nothing here). */
+export const bridgeStats = { calls: 0 };
+
 /** Run tool calls from the server: handlers = {tool: async (args) => ({text, image?, error?, body?})}. */
 export function startBridge(handlers) {
   let alive = true;
@@ -51,6 +54,7 @@ export function startBridge(handlers) {
       if (!result) try {
         const fn = handlers[cmd.cmd];
         result = fn ? await fn(cmd.args || {}) : { text: `The page does not know '${cmd.cmd}'.`, error: true };
+        bridgeStats.calls++;
       } catch (e) {
         result = { text: `${cmd.cmd} failed: ${e.message || e}`, error: true };
       }
@@ -94,9 +98,11 @@ async function photoData(file) {
 }
 
 export class ChatPanel {
-  constructor(root, { toast, onUndo, canUndo }) {
+  constructor(root, { toast, onUndo, canUndo, onTurnDone, onHistory }) {
     this.root = root;
     this.toast = toast;
+    this.onTurnDone = onTurnDone; // ({prompt}) after each AI turn
+    this.turnPrompt = '';
     this.onUndo = onUndo;
     this.canUndo = canUndo;
     this.lastSeq = 0;
@@ -106,6 +112,7 @@ export class ChatPanel {
         <span class="ai-status">Checking for Claude Code…</span>
         <span class="ai-acts">
           <button class="mini ai-undo" title="Undo the last change (Ctrl+Z) — the AI's changes are steps in the app's undo history">↶ Undo</button>
+          <button class="mini ai-hist" title="The project after each change Claude made — browse it and load one back">🕘 History</button>
           <button class="mini ai-new" title="Start a new conversation">New chat</button>
         </span>
       </div>
@@ -152,6 +159,7 @@ export class ChatPanel {
     this.$('.ai-stop').addEventListener('click', () => fetch('/api/chat/stop', { method: 'POST' }));
     this.$('.ai-new').addEventListener('click', () => fetch('/api/chat/reset', { method: 'POST' }));
     this.$('.ai-undo').addEventListener('click', () => this.onUndo());
+    this.$('.ai-hist').addEventListener('click', () => onHistory?.());
     this.updateUndo();
     this.checkStatus();
     this.connect();
@@ -274,6 +282,7 @@ export class ChatPanel {
         break;
       case 'user':
         this.current = null;
+        this.turnPrompt = ev.text || '';
         this.bubble('user', `${(ev.photos || []).map((ph) => `<a href="${escapeHtml(ph.url)}" target="_blank" title="${escapeHtml(ph.name)}"><img class="ai-msg-photo" src="${escapeHtml(ph.url)}" alt=""></a>`).join('')}${escapeHtml(ev.text).replace(/\n/g, '<br>')}`);
         this.setBusy(true);
         break;
@@ -321,6 +330,7 @@ export class ChatPanel {
         this.setStatus('Claude Code connected', 'ok');
         if (ev.error) this.note(ev.text || 'Claude stopped with an error.', 'err');
         this.updateUndo();
+        this.onTurnDone?.({ prompt: this.turnPrompt });
         break;
       case 'exit':
         this.current = null;

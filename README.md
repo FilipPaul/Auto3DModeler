@@ -325,6 +325,11 @@ the app: every change appears in the 3D view at once and **↶ Undo AI change** 
 On a quick part the chat is the **✨ AI** tab of the left panel; in a 3D model or an assembly the **✨ AI** button in
 the top bar opens the same chat (the same conversation) at the right side — ✕ closes it.
 
+**🕘 History** (in the chat's top bar): after each AI turn that changed something, the server keeps the whole project
+(every part — 3D models, assemblies, drawings) in `data/history/` next to `server.py`, with the message that made
+it. The list shows them newest first; **Load** opens the project as it was then — the project on screen is kept in
+the history first ("before loading"), so nothing is lost. ✕ deletes a state; the oldest go after 300.
+
 **Photos**: attach photos to a message with **📎 Photo**, by pasting (Ctrl+V) or by dropping them on the chat.
 Thumbnails show before you send, and ✕ removes one. You can attach up to 5 photos of up to 10 MB each; very
 large ones are scaled down to 2400 px. Claude sees the photos and can trace one into a part (for example

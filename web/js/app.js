@@ -8,7 +8,8 @@ import { BendsPanel } from './bends.js';
 import { OutlineWizard } from './outline.js';
 import { OutlinePanel, shapeRings, hitShape } from './outlinepanel.js';
 import { openLightbox } from './lightbox.js';
-import { ChatPanel, startBridge } from './agent.js';
+import { ChatPanel, startBridge, bridgeStats } from './agent.js';
+import { AiHistory } from './aihistory.js';
 import { Project } from './parts.js';
 import { Modeler } from './modeler/modeler.js';
 import { modelHandlers } from './modeler/agent_model.js';
@@ -1870,11 +1871,13 @@ function updateTopButtons() {
 }
 $('newModelBtn').addEventListener('click', () => project.newModel());
 
+/** The project file (every part; the imported files it uses are added on Save). */
+function projectFile() {
+  return { app: 'Auto3DModeler', version: 3, project_name: state.projectName, unit: state.model?.unit || 'mm', ...project.toJSON(), assets: {}, assemblies: [] };
+}
+
 $('saveBtn').addEventListener('click', async () => {
-  const proj = {
-    app: 'Auto3DModeler', version: 3, project_name: state.projectName, unit: state.model?.unit || 'mm',
-    ...project.toJSON(), assets: {}, assemblies: [],
-  };
+  const proj = projectFile();
   proj.blobs = await projectBlobs(proj);
   const saved = await download(new Blob([JSON.stringify(proj)], { type: 'application/json' }), `${safeName()}.a3d.json`, { id: 'auto3d-project' });
   if (!saved) return;
@@ -2245,10 +2248,30 @@ Object.assign(agentHandlers, assembly.handlers(), {
 });
 
 
+// 🕘 the project after each AI turn that ran tools here, kept by the server; loaded back like a project file
+const aiHistory = new AiHistory({
+  toast,
+  project: () => (project.parts.length ? projectFile() : null),
+  async restore(raw) {
+    const proj = await (await api('/api/project/migrate', raw)).json();
+    if (proj.error) throw new Error(proj.error);
+    state.projectName = proj.project_name;
+    await project.loadAll(proj);
+    showProjectName();
+  },
+});
+let savedCalls = 0;
 const chat = new ChatPanel($('tab-ai'), { toast,
+  onTurnDone: ({ prompt }) => {
+    const n = bridgeStats.calls - savedCalls;
+    if (n <= 0) return; // nothing ran here (e.g. the chat's past replayed on a reload)
+    savedCalls = bridgeStats.calls;
+    aiHistory.save(prompt, n);
+  },
+  onHistory: () => aiHistory.open(),
   onUndo: () => ({ model: modeler, assembly }[state.workspace]?.history || history).go(-1),
   canUndo: () => ({ model: modeler, assembly }[state.workspace]?.history || history).canUndo() });
 window.__chat = chat;
 startBridge(agentHandlers);
 
-window.__app = { state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d };
+window.__app = { state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d };

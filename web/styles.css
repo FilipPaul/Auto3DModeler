@@ -486,6 +486,15 @@ body:not(.ws-model):not(.ws-assembly):not(.ws-drawing) .not-quick { display: non
 .choose-opts .btn { text-align: left; display: flex; flex-direction: column; gap: 2px; }
 .choose-hint { font-size: 11px; opacity: .75; font-weight: 400; }
 .choose-x { position: absolute; top: 10px; right: 10px; }
+.aih { width: min(640px, calc(100vw - 32px)); max-width: none; }
+.aih h3 { margin: 0 24px 6px 0; }
+.aih-list { max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.aih-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.aih-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.aih-when { font-size: 11px; color: var(--muted); }
+.aih-prompt { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.aih-parts { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aih-acts { display: flex; gap: 6px; align-items: center; }
 .mp-range { font-size: 10.5px; color: var(--muted); margin: -6px 0 8px; text-align: right; }
 .m-dimedit .mp-range { margin: -4px 0 0; }
 .mp-slider { display: block; width: 100%; margin: -2px 0 8px; accent-color: #6e40c9; }
