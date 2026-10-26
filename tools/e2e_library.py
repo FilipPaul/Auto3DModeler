@@ -2,7 +2,7 @@
 preview, shop links -> ◆ Open as a new 3D model: a part with its library facts in its panel -> a new assembly: an M3×10
 socket head screw put in twice (one part, two placed) and a SICK sensor -> the parts list with part numbers -> ⬇ BOM
 (CSV): quantities, makers, part numbers -> 📚 Save to the library (a 3D model of the user's): found in the library
-(★), then deleted.
+(★), then deleted -> the window opened 18 times: the 3D model's own view keeps its WebGL context.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
   PYTHONIOENCODING=utf-8 py tools/e2e_library.py http://127.0.0.1:5199 <out dir>
@@ -121,6 +121,16 @@ try:
     for mid, _, _ in mine:
         if mid.startswith("my-my-bracket"):
             js("return fetch('/api/library/' + arguments[0], { method: 'DELETE' })", mid)
+    # the window opened again and again: its preview keeps one WebGL context (too many and the browser drops the
+    # oldest — the 3D model's own view went blank)
+    for _ in range(18):
+        js("window.__app.library.open('608')")
+        wait("return !!document.querySelector('.lib [data-item=bearing]')")
+        js("document.querySelector('.lib [data-item=bearing]').click()")
+        time.sleep(0.3)
+        js("window.__app.library.close()")
+    print("18 times opened: the 3D model's view still has its WebGL context:", not js("return window.__app.modeler.view.renderer.getContext().isContextLost()"),
+          "| 'too many contexts' warnings:", sum('Too many active WebGL' in e['message'] for e in d.get_log('browser')))
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()

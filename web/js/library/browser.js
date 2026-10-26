@@ -48,7 +48,8 @@ export class LibraryBrowser {
     document.addEventListener('keydown', this.onKey, true);
     document.body.appendChild(back);
     const q = back.querySelector('.lib-q');
-    q.value = query || this.state.q;
+    if (query) this.state.q = query; // a search asked for, else the last one
+    q.value = this.state.q;
     q.addEventListener('input', () => { this.state.q = q.value; this.renderList(); });
     q.addEventListener('keydown', (e) => e.stopPropagation());
     q.focus();
@@ -61,8 +62,8 @@ export class LibraryBrowser {
   close() {
     if (!this.back) return;
     document.removeEventListener('keydown', this.onKey, true);
-    this.view?.renderer.dispose?.();
-    this.view = null;
+    this.view?.container.remove(); // kept for the next time: one WebGL context for the window, ever (too many and
+    // the browser drops the oldest — the 3D model's own view goes blank)
     this.back.remove();
     this.back = null;
   }
@@ -145,12 +146,12 @@ export class LibraryBrowser {
   async preview(data) {
     const holder = this.back?.querySelector('.lib-view');
     if (!holder) return;
-    if (!this.view || !holder.contains(this.view.container)) {
+    if (!this.view) { // made once, then moved into each window
       const c = document.createElement('div');
       c.className = 'lib-canvas';
       holder.appendChild(c);
       this.view = new ModelView(c);
-    }
+    } else if (!holder.contains(this.view.container)) holder.appendChild(this.view.container);
     const run = (this.run = (this.run || 0) + 1);
     holder.classList.add('busy');
     try {
