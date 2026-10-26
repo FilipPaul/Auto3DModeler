@@ -83,6 +83,16 @@ export function roundCorner(f, pid, r, newId) {
   return id;
 }
 
+/** The arc that leaves s along direction d (unit) and ends at e (tangent to d at s) -> {c, a, b, swap}, or null when
+ *  e is straight ahead / behind (no arc). */
+export function tangentArc(s, d, e) {
+  const n = [-d[1], d[0]], w = [e[0] - s[0], e[1] - s[1]], nw = n[0] * w[0] + n[1] * w[1];
+  if (Math.abs(nw) < 1e-9 * (1 + Math.hypot(...w))) return null;
+  const t = (w[0] * w[0] + w[1] * w[1]) / (2 * nw), c = [s[0] + n[0] * t, s[1] + n[1] * t];
+  // the centre on the left of the way it goes: counter-clockwise from s to e
+  return t > 0 ? { c, a: s, b: e, swap: false } : { c, a: e, b: s, swap: true };
+}
+
 const segDist = (p, a, b) => {
   const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy || 1;
   const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L));
@@ -172,7 +182,8 @@ export class Sketcher {
     if (this.tool === 'rect') return this.start ? 'Click the second corner (Esc = stop drawing).' : 'Click the first corner of a rectangle.';
     if (this.tool === 'circle') return this.start ? 'Click to set the size (Esc = stop drawing).' : 'Click the centre of a circle.';
     if (this.tool === 'round') return 'Round corner: click a corner where two lines meet, then type the radius.';
-    if (this.tool === 'arc') return !this.start ? 'Click where the arc starts.' : !this.arcEnd ? 'Click where the arc ends.' : 'Move the mouse to bend the arc, click to place it (Esc = stop drawing).';
+    if (this.tool === 'arc' && this.tan) return 'Tangent arc: it continues the line — click where it ends (Shift-click: a free arc; Esc = stop drawing).';
+    if (this.tool === 'arc') return !this.start ? 'Click where the arc starts (at the end of a line: it continues the line smoothly).' : !this.arcEnd ? 'Click where the arc ends.' : 'Move the mouse to bend the arc, click to place it (Esc = stop drawing).';
     if (this.tool === 'line') return this.chain ? 'Click the next point — click the first point to close the shape, double-click or Esc to stop.' : 'Click where the line starts.';
     if (this.tool === 'dim') return this.dimA ? 'Now click the second one — the same line or circle again for its own size (Esc = start again).' : 'Dimension: click a point, a circle (its centre), a line or an edge of the part — then a second one.';
     return this.sel ? 'Drag to move it · click a size to type it and lock it 🔒 · Delete removes it.' : 'Click a shape or a corner to select it — or pick a drawing tool.';
@@ -182,6 +193,7 @@ export class Sketcher {
     this.tool = t;
     this.start = null;
     this.arcEnd = null;
+    this.tan = null;
     this.chain = null;
     this.dimA = null;
     this.closeChooser();
@@ -543,7 +555,7 @@ export class Sketcher {
     if (this.tool === 'dim') { this.dimClick(uv0, e); return; }
     const s = this.snap(uv0, e.altKey);
     if (this.tool === 'line') { this.linePoint(s, e.detail >= 2); return; }
-    if (this.tool === 'arc') { this.arcPoint(s); return; }
+    if (this.tool === 'arc') { this.arcPoint(s, e.shiftKey); return; }
     if (this.tool === 'round') { this.roundAt(uv0); return; }
     if (!this.start) { this.start = s; this.m.hint(this.hint()); this.draw(); return; }
     const a = this.start;
@@ -614,8 +626,20 @@ export class Sketcher {
   }
 
   /** Arc tool: start, end, then a point it goes through (the bend). */
-  arcPoint(s) {
-    if (!this.start) { this.start = s; this.m.hint(this.hint()); this.draw(); return; }
+  /** An arc started at the loose end of a line continues it: that line and its direction (pointing out of the end). */
+  tangentStart(s) {
+    if (!s?.id || s.id === ORIGIN) return null;
+    const ents = this.f.entities.filter((e) => [e.a, e.b, e.c].includes(s.id));
+    if (ents.length !== 1 || ents[0].t !== 'line') return null;
+    const l = ents[0], o = this.P(l.a === s.id ? l.b : l.a), p = this.P(s.id), L = Math.hypot(p[0] - o[0], p[1] - o[1]);
+    return L > 1e-9 ? { line: l.id, d: [(p[0] - o[0]) / L, (p[1] - o[1]) / L] } : null;
+  }
+
+  arcPoint(s, free = false) {
+    if (!this.start) { this.start = s; this.tan = free ? null : this.tangentStart(s); this.m.hint(this.hint()); this.draw(); return; }
+    // tangent: unless Shift, or the end is straight along the line (then it is a free arc: end, then bend)
+    if (this.tan && !free && tangentArc(this.start.uv, this.tan.d, s.uv)) { this.tangentArcTo(s); return; }
+    this.tan = null;
     if (!this.arcEnd) {
       if (Math.hypot(s.uv[0] - this.start.uv[0], s.uv[1] - this.start.uv[1]) < 1e-9) return;
       this.arcEnd = s;
@@ -633,6 +657,22 @@ export class Sketcher {
     this.f.entities.push({ id, t: 'arc', c, a, b });
     this.start = null;
     this.arcEnd = null;
+    this.sel = { kind: 'entity', id };
+    this.changed();
+  }
+
+  /** The second click of a tangent arc: where it ends. */
+  tangentArcTo(s) {
+    const geo = tangentArc(this.start.uv, this.tan.d, s.uv);
+    if (!geo) { this.m.toast('Click beside the line\'s direction to bend the arc.', 'info', 3000); return; }
+    this.step();
+    const a0 = this.start.id, b0 = this.pointAt(s), c = this.newId('p');
+    this.f.points[c] = geo.c.map((x) => +x.toFixed(6));
+    const id = this.newId('a');
+    this.f.entities.push({ id, t: 'arc', c, a: geo.swap ? b0 : a0, b: geo.swap ? a0 : b0 });
+    this.f.constraints.push({ id: this.newId('k'), t: 'tan', e: this.tan.line, arc: id, p: a0 });
+    this.start = null;
+    this.tan = null;
     this.sel = { kind: 'entity', id };
     this.changed();
   }
@@ -673,7 +713,7 @@ export class Sketcher {
     if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); this.back(); return true; }
     if (e.key === 'Escape') {
       if (this.chooser) this.closeChooser();
-      else if (this.start || this.chain || this.dimA) { this.start = null; this.arcEnd = null; this.chain = null; this.dimA = null; this.changed(); } else this.setTool('select');
+      else if (this.start || this.chain || this.dimA) { this.start = null; this.tan = null; this.arcEnd = null; this.chain = null; this.dimA = null; this.changed(); } else this.setTool('select');
       return true;
     }
     if (e.key === 'Delete' || e.key === 'Backspace') { this.deleteSel(); return true; }
@@ -1097,7 +1137,7 @@ export class Sketcher {
       circles.push([this.start.uv, r, SEL]);
       live = { text: `Ø${fmt(2 * r)}`, u: this.start.uv[0], v: this.start.uv[1] };
     } else if (cur && this.start && this.tool === 'arc') {
-      const geo = this.arcEnd && arcThrough(this.start.uv, this.arcEnd.uv, cur);
+      const geo = this.tan ? tangentArc(this.start.uv, this.tan.d, cur) : this.arcEnd && arcThrough(this.start.uv, this.arcEnd.uv, cur);
       if (geo) {
         const ps = arcPts(geo.c, geo.a, geo.b);
         for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], SEL]);

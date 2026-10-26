@@ -50,7 +50,9 @@ SolidWorks. It has only the tools that need almost no input.
 1. It starts sketching on the **Top** plane. Draw with **▭ Rectangle** (two clicks: the corners),
    **⟋ Line** (click point after point; click the first point again to close the shape) or **◯ Circle**
    (the centre, then the edge), or **◠ Arc** (click where it starts and ends, bend it with the mouse, click; its
-   radius shows as R and can be typed and locked like any size). **◜ Round corner** (F): click a corner where two
+   radius shows as R and can be typed and locked like any size). Started at the loose end of a line, the arc
+   **continues the line smoothly** (tangent) — two clicks: the line's end, then where the arc ends; Shift-click
+   for a free arc. **◜ Round corner** (F): click a corner where two
    lines meet and type the radius — an arc tangent to both lines replaces the corner. The sharp corner stays as a
    point (dashed), so the rectangle keeps its width and you can still dimension from the corner; changing the
    width or the radius keeps the rounding tangent.

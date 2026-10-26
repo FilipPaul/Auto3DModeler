@@ -50,6 +50,7 @@ Date: 2026-10-25. Written by the architect agent.
 - **Offset sketch planes done:** plane {datum, offset} (the sketch bar's Offset field; the AI's {datum, offset}).
 - **Loft / sweep done:** loft (ThruSections through sketches in order), sweep (PipeShell, mitred corners, profiles
   with holes); open sketches are paths. tools/e2e_model_loft.py.
+- **Tangent arcs done:** an arc started at a line's loose end is tangent to it (constraint tan; Shift = free).
 - **Next (later list):** classic parts in assemblies; decorate faces of model parts; loft / sweep.
 
 ## 0. Summary

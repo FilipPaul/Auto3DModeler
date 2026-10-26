@@ -521,6 +521,9 @@ const CS = {
   "Each sketch: one closed outline. Put them one above the other (a sketch's Offset moves its plane up).": 'Každá skica: jeden uzavřený obrys. Dejte je nad sebe (Odsazení skici posune její rovinu nahoru).',
   "The profile: a closed outline at the start of the path, across it. The path: lines and arcs joined end to end.": 'Profil: uzavřený obrys na začátku dráhy, napříč k ní. Dráha: čáry a oblouky navazující na sebe.',
   'Draw two sketches first.': 'Nejdřív nakreslete dvě skici.',
+  'Tangent arc: it continues the line — click where it ends (Shift-click: a free arc; Esc = stop drawing).': 'Tečný oblouk: navazuje na čáru — klikněte, kde končí (Shift+klik: volný oblouk; Esc = konec kreslení).',
+  'Click where the arc starts (at the end of a line: it continues the line smoothly).': 'Klikněte, kde oblouk začíná (na konci čáry: plynule na ni naváže).',
+  "Click beside the line's direction to bend the arc.": 'Klikněte stranou od směru čáry, aby se oblouk ohnul.',
   // language switch
   'Čeština / English': 'Čeština / English',
 };
