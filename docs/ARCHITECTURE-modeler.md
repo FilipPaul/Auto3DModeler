@@ -5,7 +5,7 @@ Date: 2026-10-25. Written by the architect agent.
 
 ---
 
-## Progress (2026-10-26)
+## Progress (2026-10-27)
 
 - **M0 done:** several parts in one project (tabs), project file v3, optional packages, `/api/kernel`.
 - **M1 done:** the 3D model workspace; sketch → extrude (add / cut, through all, both sides); worker process; STL / STEP.
@@ -64,6 +64,13 @@ Date: 2026-10-25. Written by the architect agent.
   /api/projects routes; web/js/autosave.js (History.commit / go and the quick part's history fire `a3d:changed`; saved
   3 s later if the project file changed, a beacon on pagehide; 🕘 Recent projects; the last one offered). A3D_DATA
   points a server at another data folder (test servers). tests/test_autosave.py, tools/e2e_autosave.py.
+- **Joints that say when they do not hold done:** joints.js jointMiss (per type: angle and distance off, a locked
+  turn too); Assembly.checkJoints after every applyMates (this.health), whyNot names the joint that holds the part
+  elsewhere (the one that, left out, lets it hold — holdPart(…, skip)); red rows / ⚠ tags / status count, a warning
+  when a new joint fights one; get_assembly `not_held`. addJoint on the same two faces changes that joint (returns
+  the mate). Fasteners tagged on their instances (`fastener: {id: K1, text, bolt}`): one row, ✕ / removeInst takes
+  the whole fastener and its drilled holes (doc.bolts + syncDrills); get_assembly `fasteners`; 🔩 in Joint ▾ opens the
+  Fasteners panel (and the click goes on). tools/e2e_assembly_health.py.
 - **The whole app for the AI done:** web/js/agent_more.js (drawing tools, edit_joint / remove_joint, measure,
   set_view, rename_part / delete_part, export_data for the server's files), auto3d/export3mf.py (an object per
   colour, base materials), server bom_csv and export 3mf / bom / dxf (POST /api/export/3mf for the menu), the skill

@@ -34,6 +34,9 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
 6. Check it: `get_assembly` tells for each joined part how it can still move (`free`: e.g. "Along the axis of …",
    "Turn about …") or that it is `fully_held` — a hinge or slide keeps its one way free, the rest is held.
    `check_collisions` lists parts that go into each other (fix the made part: a hole, a pocket).
+   A joint with `not_held` is overridden by another joint of that part (it names it): change or `remove_joint` one
+   of the two — never leave a joint that does not hold. Joining the same two faces again changes that joint.
+   `remove_from_assembly` on a fastener's screw or nut takes out the whole fastener and the holes drilled for it.
    Change a joint with `edit_joint {id, gap | distance | lock_rotation | angle | flip | locked}` (ids from
    get_assembly), take one away with `remove_joint {id}`; `measure {a: {part, face}, b: {part, face}}` gives gaps and
    axis distances; `set_view {view, section, explode}` before `get_screenshot` to look inside or pull it apart.

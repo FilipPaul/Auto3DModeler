@@ -9,7 +9,7 @@
 // A part's joints are applied in order: the first one places it freely; the later ones only turn it about the
 // direction fixed before, and only move it along their own direction — so "pin in hole" + "touch" = the pin in
 // the hole, down to the face. A flat face put onto another one is centred on it once (when the joint is made); then
-// it may slide on it.
+// it may slide on it. jointMiss tells how far a joint is from holding (another joint of the part may hold it elsewhere).
 import * as THREE from 'three';
 
 export const JOINT_TYPES = {
@@ -103,6 +103,43 @@ export function axialGap(fB, fA) {
   // one inside the other (e.g. both still on the bed): the moving part goes on top (up the axis, else its + way)
   const side = overlap ? (dz < -1e-9 ? -1 : 1) : e.b[0] + e.b[1] >= e.a[0] + e.a[1] ? 1 : -1;
   return { side, dist: side > 0 ? e.b[0] - e.a[1] : e.a[0] - e.b[1] };
+}
+
+/** How far a joint is from holding, its faces as they are placed (fB: the moving part's, fA: the other one's)
+ *  -> {mm, deg, ok} (ok: it holds), or null when the faces are not of its kind. */
+export function jointMiss(j, fB, fA) {
+  const type = j.type || 'touch', ang = (a, b) => (V(a).normalize().angleTo(V(b).normalize()) * 180) / Math.PI;
+  const wrap = (d) => Math.abs(((((d + 180) % 360) + 360) % 360) - 180);
+  let mm = 0, deg = 0, dir = null;
+  if (type === 'axis') {
+    if (!fA.axis || !fB.axis) return null;
+    const dA = V(fA.axis.d).normalize(), a = ang(fB.axis.d, dA);
+    deg = Math.min(a, 180 - a);
+    mm = V(fB.axis.o).sub(V(fA.axis.o)).projectOnPlane(dA).length();
+    const e = Number.isFinite(j.dist) ? axialEnds(fB, fA) : null;
+    if (e) {
+      const side = j.side || (e.b[0] + e.b[1] >= e.a[0] + e.a[1] ? 1 : -1), now = side > 0 ? e.b[0] - e.a[1] : e.a[0] - e.b[1];
+      mm = Math.max(mm, Math.abs(now - j.dist));
+    }
+    dir = dA;
+  } else if (type === 'tangent') {
+    const cyl = fB.type === 'cylinder' ? fB : fA, pl = cyl === fB ? fA : fB;
+    if (!cyl.axis || !pl.normal || !cyl.radius) return null;
+    const n = V(pl.normal).normalize();
+    deg = Math.abs(90 - ang(cyl.axis.d, n));
+    mm = Math.abs(Math.abs(V(cyl.axis.o).sub(V(pl.centroid)).dot(n)) - cyl.radius);
+  } else {
+    if (!fA.normal || !fB.normal) return null;
+    const nA = V(fA.normal).normalize(), a = ang(fB.normal, nA);
+    if (type === 'perp') deg = Math.abs(a - 90);
+    else if (type === 'angle') deg = Math.abs(a - (j.flip ? 180 - (+j.value || 0) : +j.value || 0));
+    else if (type === 'touch' || type === 'gap') deg = 180 - a;
+    else deg = j.flip ? 180 - a : a; // flush, parallel
+    if (type === 'touch' || type === 'gap' || type === 'flush') mm = Math.abs(V(fB.centroid).sub(V(fA.centroid)).dot(nA) - (+j.gap || 0));
+    dir = nA;
+  }
+  if (Number.isFinite(j.angle) && dir && deg < 0.1) deg = Math.max(deg, wrap(spinOf(fB, fA, dir) - j.angle)); // its turn locked
+  return { mm, deg, ok: mm < 0.05 && deg < 0.1 };
 }
 
 /** One joint: the moving part's matrix M (THREE.Matrix4) and its face fB (world, as placed by M) against the other

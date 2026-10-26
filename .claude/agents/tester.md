@@ -125,6 +125,10 @@ Never report "works" without having run it; report failures with their output.
    M3 socket / inductive M12 / cylinder 16 with the asked size; library_add a 608 into an assembly with its faces and
    bottom face; axis + touch: in its seat, free to turn only, its part number in the parts list; check_collisions: none,
    then a screw inside the block reported; wrong size / length answered with the ones there are).
+   `tools/e2e_assembly_health.py <url> <dir>` covers joints that do not hold (the same faces joined again as a Gap:
+   one joint changed; a Flush fighting it: the Gap red with "9 mm off: J2 (Flush) holds Lid elsewhere", ⚠ tag, status
+   count, get_assembly not_held; one removed: all hold), a screw + nut as one 🔩 row whose ✕ takes the screw, nut and
+   both drilled holes, and 🔩 in Joint ▾ opening the Fasteners panel, ready for the click.
    `tools/e2e_assembly_edgepick.py <url> <dir>` covers a concentric joint picked by circles (REAL clicks: the pin's
    circle, then a valve port's circle -> the joint on the port's round face, the pin on its axis).
    `tools/e2e_library_real.py <url> <dir>` covers the maker's real model (a STEP attached to CDQ2B Ø25 stroke 15: shown,

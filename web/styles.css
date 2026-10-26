@@ -478,6 +478,12 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .as-jrow:hover { border-color: #3fb950; }
 .as-jrow.bad { border-color: var(--warn); }
 .as-jrow.locked { border-color: #d29922; }
+.as-jrow.bad { border-color: #f85149; background: #f851491a; }
+.as-jwhy { grid-column: 1 / -1; color: #f85149; font-size: 11px; }
+.as-jrow[data-jrow] > .as-jwhy { grid-row: 5; }
+.as-frow { grid-template-columns: auto 1fr auto; }
+.as-jbad { color: #f85149; }
+.m-status.bad { color: #f85149; }
 .as-jrow i { font-style: normal; color: var(--muted); font-size: 10.5px; }
 .as-jbtn { display: flex; gap: 3px; }
 .as-jspin { grid-column: 1 / -1; display: grid; grid-template-columns: auto 1fr 52px auto; gap: 6px; align-items: center; color: var(--muted); }

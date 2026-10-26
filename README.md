@@ -316,6 +316,11 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   type, ⇅ to turn it round, **↕ a slider for the gap** (a flat joint's gap; a concentric joint's distance once it is set; it catches at 0), **↻ a slider to turn the part about the joint** (a pin about its hole's axis, a part on
   its face; it catches at 90°), **🔒 lock** and ✕. A locked joint cannot be broken: the part cannot be moved by hand
   while it holds; moving a part held by unlocked joints asks first.
+- **Joints that do not hold say so**: after every change each joint is checked where its part ended up. One that
+  another joint overrides (e.g. a *Gap* of 5 mm and a *Flush* on the same lid) turns **red** with the reason —
+  *"Not held — 9 mm off: J2 (Flush) holds Lid elsewhere. Change one of them, or ✕ one."* — its symbol in the view
+  shows ⚠, the status bar counts them (*⚠ 1 not held*), and making a joint that fights another one warns at once.
+  Joining the **same two faces again** changes that joint (e.g. Touch → Gap 5 mm) instead of adding a second one.
 - **Seeing the joints**: choose a part — its joints are listed and their symbols (⧉ ◎ ∥ …) shown in the view between
   the two faces; **Ctrl+click** a second part — the joints between those two. Hover a symbol: its faces light up;
   click it: its two parts. With nothing chosen, every joint is shown.
@@ -347,7 +352,8 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
 - The panel of a selected part has its x / y / z position, **Turn** sliders for X / Y / Z (any angle; they catch at
   0, ±90 and ±180°, or type an exact angle), its joints, *Join it to another part*, *Reset its place* and *Take it
   out*. Moving or turning a joined part by hand asks before it breaks its joints (locked ones never break).
-- **🔩 Screw / pin through parts** (in 🔗 Joint ▾, or 🔩 Fasteners → *Screw / pin through parts…*): click a point on
+- **🔩 Screw / pin through parts** (🔩 Fasteners → *Screw / pin through parts…*; 🔩 in 🔗 Joint ▾ opens the same
+  panel, ready for the click): click a point on
   a flat face where it goes in — the parts touching one after another under it are found, and the panel suggests
   what fits, with a see-through preview: **screw + nut** (a hex nut on the far side), **screw + heat-set insert**
   (in the last part, when it is thick enough) or a **pin**, M2–M5, its length chosen from the thickness. X / Y move
@@ -359,7 +365,9 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   screw alone, or a **dowel pin** (equal holes) — with a standard length that fits. Hover a suggestion to see its
   holes; *Add* or *Add all* puts them in as standard parts of the project (a socket-head screw, an insert, a pin),
   held by joints: the screw on the hole's axis, its head on the part; the insert flush with the face. They follow
-  when the parts change.
+  when the parts change. In the joints list a fastener is **one row** — *🔩 M3×16 screw + M3 nut · through Lid, Base*
+  — not its four joints; its **✕** (or *Take it out* on the screw or the nut) takes out the screw, the nut / insert
+  and the holes that were drilled for it.
 - **⚠ Collisions** finds where parts go into each other (touching faces are fine): each pair and how much (mm³),
   the parts glowing red and the overlap boxed in red; hover a row for just that pair, ↗ chooses the two parts (their
   joints and moves). While it is open it checks again after every change — slide a part and see it clear.

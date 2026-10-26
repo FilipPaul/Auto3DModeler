@@ -114,8 +114,9 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, t2 
       if (!m) throw new Error(`No joint ${id} — get_assembly lists the joints.`);
       if (m.locked) throw new Error(`Joint ${id} is locked 🔒 — edit_joint {id, locked: false} first (only when the user wants it).`);
       a.doc.mates = a.doc.mates.filter((x) => x !== m);
+      a.applyMates(); // (its other joints hold it again)
       a.commit();
-      return ok(`Joint ${id} removed — ${m.move} stays where it is.`);
+      return ok(`Joint ${id} removed — ${m.move} stays where it is (held by its other joints, if any).`);
     },
     measure: async ({ a: A, b: B }) => {
       need('assembly', 'Measuring between parts is in an assembly (in a 3D model: get_model / find_refs give the sizes)');
