@@ -216,13 +216,13 @@ TOOLS = [
     {"name": "snap_faces", "where": "browser",
      "description": "Join a placed part to another one with a joint that holds: move = {part: <placed id I…>, face: <face name>}, "
                     "onto = {part, face}. type: \"touch\" (flat faces meet, centred — the default), \"gap\" (flat faces facing, gap mm "
-                    "apart), \"flush\" (flat faces in one plane, gap = offset), \"axis\" (concentric: two round faces on one axis, a pin in a hole), "
+                    "apart), \"flush\" (flat faces in one plane, gap = offset), \"axis\" (concentric: two round faces on one axis, a pin in a hole; gap = the distance along the axis between the facing ends of the two round faces — two plates with holes 30 mm apart: gap 30; lock_rotation: true keeps its turn), "
                     "\"parallel\", \"perp\" (perpendicular), \"angle\" (value = degrees between the faces' directions), \"tangent\" "
                     "(a round face touching a flat one). A part's joints apply in order: e.g. axis (pin shaft → hole) then touch (head → plate top) seats a "
                     "pin. Face names come from find_refs in the part's own model (\"F2:end\" = the top of the first extrude).",
      "inputSchema": _obj({"move": _obj({"part": STR, "face": STR}, ["part", "face"]), "onto": _obj({"part": STR, "face": STR}, ["part", "face"]),
                           "type": {"type": "string", "enum": ["touch", "gap", "flush", "axis", "parallel", "perp", "angle", "tangent"]}, "gap": NUM,
-                          "value": NUM}, ["move", "onto"])},
+                          "value": NUM, "lock_rotation": {"type": "boolean"}}, ["move", "onto"])},
     {"name": "bolt_parts", "where": "browser",
      "description": "Fasten parts that have no holes yet: a screw goes in at a point of a flat face of a placed part (part = I…, face = its "
                     "name, x / y mm from the face's middle) and straight through the parts touching under it; the holes are drilled "

@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import { History } from '../history.js';
 import { t } from '../i18n.js';
 import { ModelView } from '../modeler/view.js';
-import { JOINT_TYPES, applyJoint, spinOf } from './joints.js';
+import { JOINT_TYPES, applyJoint, spinOf, axialGap } from './joints.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
 
@@ -590,6 +590,8 @@ export class Assembly {
       const t = JOINT_TYPES[m.type || 'touch'] || JOINT_TYPES.touch, a = this.inst(m.move), b = this.inst(m.onto);
       const val = m.type === 'touch' || m.type === 'gap' || m.type === 'flush' || !m.type
         ? `<label class="as-jv">${m.type === 'flush' ? 'offset' : 'gap'} <input type="number" step="any" data-jgap="${m.id}" value="${fmt(m.gap || 0)}"> mm</label>`
+        : m.type === 'axis' ? `<label class="as-jv" title="Distance along the axis between the facing ends of the two round faces (e.g. two plates 30 mm apart). Empty: it slides freely.">↕ <input type="number" step="any" data-jdist="${m.id}" value="${Number.isFinite(m.dist) ? fmt(m.dist) : ''}" placeholder="free"> mm</label>
+          <button class="mini ${Number.isFinite(m.angle) ? 'on' : ''}" data-jrot="${m.id}" title="${Number.isFinite(m.angle) ? 'Its turn about the axis is locked — click to let it turn freely' : 'Lock its turn about the axis (where it is now)'}">${Number.isFinite(m.angle) ? '↻🔒' : '↻🔓'}</button><button class="mini" data-jflip="${m.id}" title="Turn it the other way round">⇅</button>`
         : m.type === 'perp' ? '<span></span>'
         : `${m.type === 'angle' ? `<label class="as-jv">∠ <input type="number" step="any" data-jval="${m.id}" value="${fmt(m.value || 0)}"> °</label>` : ''}<button class="mini" data-jflip="${m.id}" title="Turn it the other way round">⇅</button>`;
       const spin = Math.round(Number.isFinite(m.angle) ? m.angle : this.spinNow(m));
@@ -599,6 +601,18 @@ export class Assembly {
         <label class="as-jspin" title="Turn the part about this joint (about the axis, or on the face)">↻ <input type="range" min="-180" max="180" step="1" list="as-ticks" data-jspin="${m.id}" value="${spin}">
         <input type="number" step="any" data-jspinn="${m.id}" value="${spin}">°</label></div>`;
     }).join('')}</div>`;
+  }
+
+  /** Two holes made concentric: the distance between them along the axis is set (as it is once on the axis,
+   *  rounded to 0.5 mm, not below 0 — overlapping parts end up touching), so it can be typed. */
+  autoDistance(m) {
+    try {
+      this.applyMates();
+      const g = axialGap(this.worldFace(m.move, m.face), this.worldFace(m.onto, m.ontoFace));
+      if (!g) return;
+      m.side = g.side;
+      m.dist = Math.max(0, Math.round(g.dist * 2) / 2);
+    } catch { /* faces not built: it stays free */ }
   }
 
   /** How far a joined part is turned about its joint now (degrees). */
@@ -621,6 +635,28 @@ export class Assembly {
         if (!m || !Number.isFinite(v)) return;
         m.gap = v;
         if (m.type === 'touch' && v) m.type = 'gap';
+        this.applyMates();
+        this.commit();
+      });
+    }
+    for (const el of box.querySelectorAll('[data-jdist]')) {
+      el.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') el.blur(); });
+      el.addEventListener('change', () => {
+        const m = this.doc.mates.find((x) => x.id === el.dataset.jdist), raw = String(el.value).trim(), v = parseFloat(raw.replace(',', '.'));
+        if (!m) return;
+        if (!raw) { delete m.dist; delete m.side; } else if (Number.isFinite(v)) {
+          if (!m.side) { try { m.side = axialGap(this.worldFace(m.move, m.face), this.worldFace(m.onto, m.ontoFace))?.side || 1; } catch { m.side = 1; } }
+          m.dist = v;
+        } else return;
+        this.applyMates();
+        this.commit();
+      });
+    }
+    for (const el of box.querySelectorAll('[data-jrot]')) {
+      el.addEventListener('click', () => {
+        const m = this.doc.mates.find((x) => x.id === el.dataset.jrot);
+        if (Number.isFinite(m.angle)) delete m.angle;
+        else m.angle = Math.round(this.spinNow(m));
         this.applyMates();
         this.commit();
       });
@@ -1020,6 +1056,7 @@ export class Assembly {
     const type = this.jointType;
     if (type === 'fastener') { this.fastenerAt(this.jointFrom, h); return; }
     if (this.addJoint(this.jointFrom, h, type, type === 'gap' ? 5 : 0)) {
+      if (type === 'axis' && /:hole:/.test(this.jointFrom.face.name) && /:hole:/.test(h.face.name)) this.autoDistance(this.doc.mates[this.doc.mates.length - 1]);
       if (type === 'angle') { // it starts at the angle the faces make now (rounded), then it holds
         const m = this.doc.mates[this.doc.mates.length - 1], a = this.jointFrom.face.normal, b = h.face.normal;
         m.value = a && b ? Math.round((a.angleTo(b) * 180) / Math.PI) : 45;
@@ -1111,8 +1148,32 @@ export class Assembly {
     const out = { ...f, centroid: new THREE.Vector3(...f.centroid).applyMatrix4(m),
       xdir: new THREE.Vector3(1, 0, 0).applyMatrix3(nm).normalize(), ydir: new THREE.Vector3(0, 1, 0).applyMatrix3(nm).normalize() };
     if (f.type === 'plane') out.normal = new THREE.Vector3(...f.normal).applyMatrix3(nm).normalize();
-    if (f.type === 'cylinder' && f.axis) out.axis = { o: new THREE.Vector3(...f.axis.o).applyMatrix4(m), d: new THREE.Vector3(...f.axis.d).applyMatrix3(nm).normalize() };
+    if (f.type === 'cylinder' && f.axis) {
+      out.axis = { o: new THREE.Vector3(...f.axis.o).applyMatrix4(m), d: new THREE.Vector3(...f.axis.d).applyMatrix3(nm).normalize() };
+      out.span = this.cylSpan(b, name, f.axis);
+    }
     return out;
+  }
+
+  /** How far a round face (all its pieces of that name) reaches along its axis: [from, to] mm from the axis' origin
+   *  (from the mesh: a cylinder split in two halves has half the area, so its area does not tell the length). */
+  cylSpan(body, name, axis) {
+    body._spans = body._spans || {};
+    if (body._spans[name]) return body._spans[name];
+    body._P = body._P || b64(body.positions, Float32Array);
+    body._F = body._F || b64(body.face_ids, Uint32Array);
+    const ids = new Set(body.faces.filter((x) => x.name === name || (x.names || []).includes(name)).map((x) => x.id));
+    const [o, d] = [axis.o, axis.d], L = Math.hypot(...d) || 1;
+    let lo = Infinity, hi = -Infinity;
+    for (let tr = 0; tr < body._F.length; tr++) {
+      if (!ids.has(body._F[tr])) continue;
+      for (let k = tr * 9; k < tr * 9 + 9; k += 3) {
+        const s = ((body._P[k] - o[0]) * d[0] + (body._P[k + 1] - o[1]) * d[1] + (body._P[k + 2] - o[2]) * d[2]) / L;
+        lo = Math.min(lo, s);
+        hi = Math.max(hi, s);
+      }
+    }
+    return (body._spans[name] = lo <= hi ? [lo, hi] : null);
   }
 
   summary() {
@@ -1123,7 +1184,8 @@ export class Assembly {
         return { id: it.id, part: it.part, name: this.partName(it.part), position: new THREE.Vector3().setFromMatrixPosition(m).toArray().map((v) => +v.toFixed(3)),
           bbox: bb ? [...bb.min.toArray(), ...bb.max.toArray()].map((v) => +v.toFixed(3)) : null, error: this.bodies[it.part]?.error };
       }),
-      joints: (this.doc.mates || []).map((m) => ({ id: m.id, type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace, gap: m.gap || 0, ...(m.broken ? { broken: true } : {}) })),
+      joints: (this.doc.mates || []).map((m) => ({ id: m.id, type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
+        ...(m.type === 'axis' ? { distance: Number.isFinite(m.dist) ? m.dist : null, rotation_locked: Number.isFinite(m.angle) } : { gap: m.gap || 0 }), ...(m.broken ? { broken: true } : {}) })),
       parts_list: this.bom().map((r) => ({ name: r.name, qty: r.qty, material: r.material, mass_g_each: r.mass === null ? null : +r.mass.toFixed(2) })),
     };
   }
@@ -1140,7 +1202,7 @@ export class Assembly {
         await this.insert(p.id);
         return { text: JSON.stringify(this.summary()) };
       },
-      snap_faces: async ({ move, onto, type = 'touch', gap = 0, value }) => {
+      snap_faces: async ({ move, onto, type = 'touch', gap, value, lock_rotation }) => {
         need();
         await settle();
         if (!JOINT_TYPES[type] || JOINT_TYPES[type].pick) throw new Error(`type is ${Object.keys(JOINT_TYPES).filter((k) => !JOINT_TYPES[k].pick).join(', ')} (screws and pins: suggest_fasteners / add_fasteners).`);
@@ -1151,7 +1213,14 @@ export class Assembly {
         if (want === 'mixed') {
           if (new Set([from.face.type, to.face.type, 'plane', 'cylinder']).size !== 2 || from.face.type === to.face.type) throw new Error('Tangent joins a round face and a flat face.');
         } else if (from.face.type !== want || to.face.type !== want) throw new Error(`${JOINT_TYPES[type].name} joins two ${want === 'cylinder' ? 'round' : 'flat'} faces.`);
-        if (!this.addJoint(from, to, type, gap)) throw new Error('Not joined: the other part already hangs on this one.');
+        if (!this.addJoint(from, to, type, type === 'axis' ? 0 : gap || 0)) throw new Error('Not joined: the other part already hangs on this one.');
+        const nj = this.doc.mates[this.doc.mates.length - 1];
+        if (type === 'axis' && Number.isFinite(+gap) && gap !== undefined && gap !== null) {
+          this.applyMates();
+          nj.side = axialGap(this.worldFace(nj.move, nj.face), this.worldFace(nj.onto, nj.ontoFace))?.side || 1;
+          nj.dist = +gap;
+        }
+        if (type === 'axis' && lock_rotation) { this.applyMates(); nj.angle = Math.round(this.spinNow(nj)); }
         if (type === 'angle') this.doc.mates[this.doc.mates.length - 1].value = Number.isFinite(+value) ? +value : Math.round((from.face.normal.angleTo(to.face.normal) * 180) / Math.PI);
         this.applyMates();
         this.sel = from.inst;

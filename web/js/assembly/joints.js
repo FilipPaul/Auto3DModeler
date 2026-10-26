@@ -84,6 +84,26 @@ function spinTo(M, faceAt, fA, point, dir, deg) {
   return turnAbout(M, V(point), new THREE.Quaternion().setFromAxisAngle(V(dir).normalize(), ((deg - now) * Math.PI) / 180));
 }
 
+/** Two round faces on one axis: where each reaches along the other one's axis (fA's: from its origin, along its
+ *  direction) -> {a: [lo, hi], b: [lo, hi]}, or null when a face's length is not known (its `span`). */
+export function axialEnds(fB, fA) {
+  if (!fA.span || !fB.span) return null;
+  const oA = V(fA.axis.o), dA = V(fA.axis.d).normalize(), oB = V(fB.axis.o), dB = V(fB.axis.d).normalize();
+  const t = (s) => oB.clone().addScaledVector(dB, s).sub(oA).dot(dA);
+  const b = [t(fB.span[0]), t(fB.span[1])].sort((p, q) => p - q);
+  return { a: [...fA.span].sort((p, q) => p - q), b };
+}
+
+/** The distance along the axis between two concentric round faces now: {dist, side} (side +1: B beyond A's far end). */
+export function axialGap(fB, fA) {
+  const e = axialEnds(fB, fA);
+  if (!e) return null;
+  const dz = V(fA.axis.d).normalize().z, overlap = e.b[0] < e.a[1] - 1e-6 && e.b[1] > e.a[0] + 1e-6;
+  // one inside the other (e.g. both still on the bed): the moving part goes on top (up the axis, else its + way)
+  const side = overlap ? (dz < -1e-9 ? -1 : 1) : e.b[0] + e.b[1] >= e.a[0] + e.a[1] ? 1 : -1;
+  return { side, dist: side > 0 ? e.b[0] - e.a[1] : e.a[0] - e.b[1] };
+}
+
 /** One joint: the moving part's matrix M (THREE.Matrix4) and its face fB (world, as placed by M) against the other
  *  part's face fA. faceAt(M) gives fB again for a new M. fixed: what an earlier joint fixed ({dir, flippable}).
  *  -> {M, fixed} (what this joint fixes). */
@@ -98,6 +118,11 @@ export function applyJoint(M, j, faceAt, fA, first, fixed) {
     fB = faceAt(M);
     const v = V(fB.axis.o).sub(V(fA.axis.o)), perp = v.clone().sub(dA.clone().multiplyScalar(v.dot(dA)));
     M = shift(M, perp.negate());
+    const ends = axialEnds(faceAt(M), fA);
+    if (Number.isFinite(j.dist) && ends) { // a distance along the axis: between the round faces' facing ends
+      const { a, b } = ends, side = j.side || (b[0] + b[1] >= a[0] + a[1] ? 1 : -1);
+      M = shift(M, dA.clone().multiplyScalar(side > 0 ? a[1] + j.dist - b[0] : a[0] - j.dist - b[1]));
+    }
     if (Number.isFinite(j.angle)) M = spinTo(M, faceAt, fA, fA.axis.o, dA, j.angle); // turned about the axis
     return { M, fixed: { dir: dA, flippable: true } };
   }

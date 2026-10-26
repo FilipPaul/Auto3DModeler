@@ -86,6 +86,9 @@ Date: 2026-10-25. Written by the architect agent.
   `solid` step takes `blob` and `op` add / cut / ref (refs tessellated apart, drawn see-through). Big shapes
   (> 3000 faces): a quick bbox, a coarser mesh, face areas from the mesh, tiny edges skipped; an unchanged body is
   not meshed again. The project file carries the blobs. tools/e2e_model_solid.py.
+- **Concentric distance done:** an axis joint's `dist` / `side` (joints.js axialEnds / axialGap: the round faces'
+  lengths along the axis from the mesh, assembly.cylSpan); two holes joined get it filled in; ↻🔒 sets `angle`.
+  tools/e2e_assembly_concentric.py.
 - **Value ranges done:** doc.limits (each ranged number of a step found by building it at trial values; patterns and
   depths from the geometry), /api/model/limits; failures explained with the most that fits (doc._sized).
 - **Sketch relations done:** par / perp / eq / conc / coin / tang / fix (+ h / v) set by the user (constraints.py

@@ -207,7 +207,9 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
 - **＋ Insert part ▾** adds a model part, as often as you like (⧉ in the list adds one more). A new one is put
   beside the others.
 - **🔗 Joint ▾**: choose how the part is held — **Touch** (S: a flat face onto a flat face, centred), **Gap** (facing,
-  a distance apart), **Flush** (in one plane), **Concentric** (two round faces on one axis: a pin in a hole),
+  a distance apart), **Flush** (in one plane), **Concentric** (two round faces on one axis: a pin in a hole; its
+  **↕ distance** is the gap along the axis between the facing ends of the two round faces — two plates with holes
+  joined this way get it filled in (touching) and you type e.g. 30; empty = it slides; **↻🔒** locks its turn),
   **Parallel**, **Perpendicular**, **Angle** (two flat faces at the angle you type), **Tangent** (a round face on a
   flat one), or **🔩 Screw / pin** — then
   click a face of the part to move and the face it goes to (the face under the mouse is marked). A part can have
