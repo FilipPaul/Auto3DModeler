@@ -665,6 +665,18 @@ def api_assembly_clashes():
     return jsonify({"clashes": data})
 
 
+@app.post("/api/assembly/sweep")
+def api_assembly_sweep():
+    """{instances: [...as for clashes, at the start], steps: [{at, matrices: {id: [16]}}]} -> {steps: [{at, clashes}]}
+    — the collisions of the moving parts at each step of a motion."""
+    body = request.get_json(force=True)
+    steps = (body.get("steps") or [])[:200]
+    data, err = _model_call("assembly_sweep", {"instances": body.get("instances") or [], "steps": steps})
+    if err:
+        return err
+    return jsonify({"steps": data})
+
+
 @app.post("/api/assembly/export/step")
 def api_assembly_step():
     """{instances: [{part: {features}, matrix: [16]}], name} -> one STEP file with every placed part."""

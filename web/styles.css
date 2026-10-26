@@ -625,6 +625,11 @@ body.ws-model #exportMenu [data-fmt=glb] { display: none; }
 .as-dofrow { display: flex; align-items: center; gap: 6px; }
 .as-dofrow input[type=range] { flex: 1; }
 .as-dofrow input[type=number] { width: 64px; }
+.as-doflim { display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.as-dof .as-doflim label { display: inline-flex; align-items: center; gap: 4px; margin: 0; }
+.as-doflim input[type=number] { width: 58px; }
+.as-dofnote { margin: 4px 0 0; font-size: 11.5px; }
+.as-dofnote.bad { color: #f85149; }
 .as-list.exploding .as-boom, .as-boom.off, .mt-item:hover .as-boom { display: inline-block; }
 .as-boom.off { filter: grayscale(1); opacity: .45; }
 .mt-start { color: var(--muted); padding: 14px 6px; line-height: 1.6; }

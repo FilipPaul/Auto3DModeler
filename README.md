@@ -328,6 +328,13 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   can still move (e.g. a pin in a hole: *along the axis* and *turn about the axis*; a part on a face: *along X*,
   *along Y*, *turn on the face*). Slide and let go — it stays there, held by its joints, and the parts on it follow.
   A part with nothing left free says **🔒 Fully held**. *Place it by hand (breaks its joints)* is still there, folded.
+  Each slider shows **where the part is** along that way (from the face or axis it is joined to — e.g. how far a pin
+  sticks out of its hole), so a typed number puts it there.
+- **Motion with limits**: **⇤⇥** next to a way gives it a **min** and **max** — a cylinder's stroke, a slide's ends,
+  a door's swing (±180° for a turn). Then the slider goes only between them (it is the drive: slide it and the parts
+  on it go along), **▶** plays it from min to max and back, and **⚠ Check the travel** moves it from min to max in
+  small steps and checks for collisions on the way: *"✓ Free all the way"* or *"⚠ It hits Stop (I3) from 1.25 to 20
+  mm"*. It ends where it was. The AI does the same with `set_travel`, `check_travel` and `move_free {to}`.
   A part on a face is centred on it once, when the joint is made; after that it keeps where it slid, and goes along
   with the part it hangs on.
 - **✎ Edit it here** (a placed part's panel, or double-click it): its part opens in the full 3D modeler with the rest

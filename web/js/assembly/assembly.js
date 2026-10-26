@@ -8,6 +8,7 @@
 //    "mates": [{"id": "J1", "type": "touch" | "gap" | "flush" | "axis" | "parallel" | "perp" | "angle" | "tangent",
 //               "move": "I2", "face": "F2:start", "onto": "I1", "ontoFace": "F2:end", "gap": 0, "value": 30, "flip": false}],
 //    "bolts": [{"id": "B1", "text": "M3×20 screw + M3 nut", "holes": [{"part": "P2", "feature": {the hole step drilled}}]}]}
+//   an instance's "travel": {"J2:along": {"min": 0, "max": 25}} — the limits of a free motion (motionsOf keys)
 import * as THREE from 'three';
 import { History } from '../history.js';
 import { t } from '../i18n.js';
@@ -519,9 +520,7 @@ export class Assembly {
       this.dof = dof;
       const place = dof ? `<h3>Moves</h3>${dof.count === 0 ? '<p class="mp-count">🔒 Fully held — its joints fix it, it cannot move.</p>'
         : `<p class="hint">${t2('It can still move {n} way(s) — the ways its joints leave free. Slide, then let go: it stays there.', { n: dof.count })}</p>
-        ${dof.motions.map((mo, i) => `<div class="as-dof"><label>${mo.kind === 'turn' ? '↻' : '↔'} ${esc(mo.label)}</label>
-          <div class="as-dofrow"><input type="range" data-dof="${i}" min="${mo.kind === 'turn' ? -180 : -Math.round(dof.size)}" max="${mo.kind === 'turn' ? 180 : Math.round(dof.size)}" step="${mo.kind === 'turn' ? 1 : 0.5}" value="0">
-          <input type="number" step="any" data-dofn="${i}" value="0"><span class="unit">${mo.kind === 'turn' ? '°' : 'mm'}</span></div></div>`).join('')}
+        ${dof.motions.map((mo, i) => this.motionHtml(it, mo, i, dof.size)).join('')}
         ${dof.unexplained > 0 ? `<p class="hint">${t2('…and {n} more way(s) that are not a plain move or turn.', { n: dof.unexplained })}</p>` : ''}`}
         <details class="as-free"><summary>Place it by hand (breaks its joints)</summary>${freePlace}</details>`
         : freePlace;
@@ -550,15 +549,7 @@ export class Assembly {
         num.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') num.blur(); });
         num.addEventListener('change', () => { const v = parseFloat(String(num.value).replace(',', '.')); if (Number.isFinite(v)) this.setRot(k, v, true); });
       }
-      for (const sl of box.querySelectorAll('[data-dof]')) {
-        const mo = dof.motions[+sl.dataset.dof], num = box.querySelector(`[data-dofn="${sl.dataset.dof}"]`);
-        let from = null;
-        const go = (v, final) => { from = from || [...it.matrix]; this.moveFree(it.id, mo, v, from, final); if (final) from = null; };
-        sl.addEventListener('input', () => { num.value = fmt(+sl.value); go(+sl.value, false); });
-        sl.addEventListener('change', () => go(+sl.value, true));
-        num.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') num.blur(); });
-        num.addEventListener('change', () => { const v = parseFloat(String(num.value).replace(',', '.')); if (Number.isFinite(v)) go(v, true); });
-      }
+      if (dof) this.bindMotions(box, it, dof);
       this.bindJointRows(box);
       this.bindLook(box, it);
       box.querySelector('[data-a=editHere]')?.addEventListener('click', () => this.editInPlace(it.id));
@@ -1672,25 +1663,209 @@ export class Assembly {
       try { fA = this.worldFace(m.onto, m.ontoFace); } catch { continue; }
       const what = this.faceText(m.onto, m.ontoFace), part = this.partName(this.inst(m.onto)?.part);
       if (fA.axis) {
-        cands.push({ kind: 'move', dir: fA.axis.d.clone(), label: t2('Along the axis of {face} ({part})', { face: what, part }) });
-        cands.push({ kind: 'turn', dir: fA.axis.d.clone(), point: fA.axis.o.clone(), label: t2('Turn about the axis of {face} ({part})', { face: what, part }) });
+        cands.push({ kind: 'move', dir: fA.axis.d.clone(), key: `${m.id}:along`, ref: m.id, label: t2('Along the axis of {face} ({part})', { face: what, part }) });
+        cands.push({ kind: 'turn', dir: fA.axis.d.clone(), point: fA.axis.o.clone(), key: `${m.id}:turn`, ref: m.id, label: t2('Turn about the axis of {face} ({part})', { face: what, part }) });
       }
       if (fA.normal) {
         const n = fA.normal.clone(), u = new THREE.Vector3(1, 0, 0).projectOnPlane(n);
         if (u.length() < 1e-6) u.set(0, 1, 0).projectOnPlane(n);
         u.normalize();
         const v = new THREE.Vector3().crossVectors(n, u).normalize();
-        for (const dir of [u, v]) cands.push({ kind: 'move', dir, label: axisName(dir) ? t2('Along {axis} (on {face})', { axis: axisName(dir), face: what }) : t2('Along {face}', { face: what }) });
-        cands.push({ kind: 'turn', dir: n, point: c.clone(), label: t2('Turn on {face} ({part})', { face: what, part }) });
-        cands.push({ kind: 'move', dir: n.clone(), label: t2('Away from {face}', { face: what }) });
+        [u, v].forEach((dir, k) => cands.push({ kind: 'move', dir, key: `${m.id}:${'uv'[k]}`, ref: m.id, label: axisName(dir) ? t2('Along {axis} (on {face})', { axis: axisName(dir), face: what }) : t2('Along {face}', { face: what }) }));
+        cands.push({ kind: 'turn', dir: n, point: c.clone(), key: `${m.id}:spin`, ref: m.id, label: t2('Turn on {face} ({part})', { face: what, part }) });
+        cands.push({ kind: 'move', dir: n.clone(), key: `${m.id}:away`, ref: m.id, label: t2('Away from {face}', { face: what }) });
       }
     }
     for (const [k, dir] of [['X', [1, 0, 0]], ['Y', [0, 1, 0]], ['Z', [0, 0, 1]]]) {
-      cands.push({ kind: 'move', dir: new THREE.Vector3(...dir), label: t2('Along {axis}', { axis: k }) });
-      cands.push({ kind: 'turn', dir: new THREE.Vector3(...dir), point: c.clone(), label: t2('Turn about {axis}', { axis: k }) });
+      cands.push({ kind: 'move', dir: new THREE.Vector3(...dir), key: k, label: t2('Along {axis}', { axis: k }) });
+      cands.push({ kind: 'turn', dir: new THREE.Vector3(...dir), point: c.clone(), key: `turn${k}`, label: t2('Turn about {axis}', { axis: k }) });
     }
     const r = freeMotions(M, (MM) => this.holdPart(id, MM, true), c, L, cands);
     return { ...r, centre: c, size: L };
+  }
+
+  /** Where a part is along one of its free motions (mm, or degrees for a turn), measured from the face or axis of the
+   *  joint that gives it (the world's origin and X / Y for plain X / Y / Z) — so it stays true when the parts move. */
+  motionPos(id, mo) {
+    const it = this.inst(id), M = new THREE.Matrix4().fromArray(it.matrix), m = mo.ref && (this.doc.mates || []).find((x) => x.id === mo.ref);
+    let fA = null;
+    if (m) { try { fA = this.worldFace(m.onto, m.ontoFace); } catch { fA = null; } }
+    const d = mo.dir.clone().normalize();
+    if (mo.kind === 'move') {
+      const o = fA ? (fA.axis && /:along$/.test(mo.key) ? fA.axis.o : fA.centroid) : new THREE.Vector3();
+      return new THREE.Vector3().setFromMatrixPosition(M).sub(o).dot(d);
+    }
+    const nm = new THREE.Matrix3().getNormalMatrix(M);
+    const own = { xdir: new THREE.Vector3(1, 0, 0).applyMatrix3(nm).normalize(), ydir: new THREE.Vector3(0, 1, 0).applyMatrix3(nm).normalize() };
+    return spinOf(own, fA || { xdir: new THREE.Vector3(1, 0, 0), ydir: new THREE.Vector3(0, 1, 0) }, d);
+  }
+
+  /** A motion's limits on its part ({min, max}) or null. */
+  limitsOf(it, mo) { return (mo.key && it.travel?.[mo.key]) || null; }
+
+  /** The amount to go from position p0 to v (a turn the short way round). */
+  stepTo(mo, p0, v) { const a = v - p0; return mo.kind === 'turn' ? ((((a + 180) % 360) + 360) % 360) - 180 : a; }
+
+  /** A free motion's row: a slider of where it is (between its limits when it has them), its limits ⇤⇥, ▶ and the
+   *  travel check. */
+  motionHtml(it, mo, i, size) {
+    const turn = mo.kind === 'turn', u = turn ? '°' : 'mm', lim = this.limitsOf(it, mo);
+    let pos = 0;
+    try { pos = +this.motionPos(it.id, mo).toFixed(2); } catch { /* not built */ }
+    const span = Math.max(10, Math.round(size));
+    const lo = lim ? lim.min : turn ? -180 : Math.floor(pos - span), hi = lim ? lim.max : turn ? 180 : Math.ceil(pos + span);
+    const note = this.travelNote?.inst === it.id && this.travelNote.key === mo.key ? this.travelNote : null;
+    return `<div class="as-dof" data-dofrow="${i}"><label>${turn ? '↻' : '↔'} ${esc(mo.label)}</label>
+      <div class="as-dofrow"><input type="range" data-dof="${i}" min="${lo}" max="${hi}" step="${turn ? 1 : 0.5}" value="${pos}">
+      <input type="number" step="any" data-dofn="${i}" value="${fmt(pos)}"><span class="unit">${u}</span>
+      <button class="mini ${lim ? 'on' : ''}" data-dlim="${i}" title="${esc(lim ? 'Its limits — click to take them off (it moves freely again)' : 'Limits: how far it may go each way (a cylinder\'s stroke, a slide\'s ends, a door\'s swing)')}">⇤⇥</button></div>
+      ${lim ? `<div class="as-doflim"><label>min <input type="number" step="any" data-dmin="${i}" value="${fmt(lim.min)}"></label>
+        <label>max <input type="number" step="any" data-dmax="${i}" value="${fmt(lim.max)}"></label><span class="unit">${u}</span>
+        <button class="mini ${this.playing?.key === mo.key ? 'on' : ''}" data-dplay="${i}" title="Play: from min to max and back">${this.playing?.key === mo.key ? '■' : '▶'}</button>
+        <button class="btn small" data-dcheck="${i}" title="Move it from min to max in small steps and check for collisions on the way">⚠ Check the travel</button></div>` : ''}
+      ${note ? `<p class="mp-count as-dofnote ${note.bad ? 'bad' : ''}" data-no-i18n>${esc(note.text)}</p>` : ''}</div>`;
+  }
+
+  bindMotions(box, it, dof) {
+    for (const sl of box.querySelectorAll('[data-dof]')) {
+      const i = +sl.dataset.dof, mo = dof.motions[i], num = box.querySelector(`[data-dofn="${i}"]`);
+      let from = null, p0 = 0;
+      const go = (v, final) => {
+        const lim = this.limitsOf(it, mo);
+        if (lim) v = Math.max(lim.min, Math.min(lim.max, v));
+        if (!from) { from = [...it.matrix]; p0 = this.motionPos(it.id, mo); }
+        this.moveFree(it.id, mo, this.stepTo(mo, p0, v), from, final);
+        if (final) from = null;
+      };
+      sl.addEventListener('input', () => { num.value = fmt(+sl.value); go(+sl.value, false); });
+      sl.addEventListener('change', () => go(+sl.value, true));
+      num.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') num.blur(); });
+      num.addEventListener('change', () => { const v = parseFloat(String(num.value).replace(',', '.')); if (Number.isFinite(v)) go(v, true); });
+    }
+    for (const b of box.querySelectorAll('[data-dlim]')) {
+      b.addEventListener('click', () => {
+        const mo = dof.motions[+b.dataset.dlim], turn = mo.kind === 'turn', p = Math.round(this.motionPos(it.id, mo));
+        if (this.limitsOf(it, mo)) this.setTravel(it.id, mo, null);
+        else this.setTravel(it.id, mo, turn ? { min: Math.max(-180, p - 90), max: Math.min(180, p + 90) } : { min: p - 10, max: p + 10 });
+      });
+    }
+    for (const el of box.querySelectorAll('[data-dmin], [data-dmax]')) {
+      el.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') el.blur(); });
+      el.addEventListener('change', () => {
+        const mo = dof.motions[+(el.dataset.dmin ?? el.dataset.dmax)], lim = { ...this.limitsOf(it, mo) }, v = parseFloat(String(el.value).replace(',', '.'));
+        if (!Number.isFinite(v)) return;
+        lim[el.dataset.dmin !== undefined ? 'min' : 'max'] = v;
+        this.setTravel(it.id, mo, lim);
+      });
+    }
+    for (const b of box.querySelectorAll('[data-dplay]')) b.addEventListener('click', () => this.playTravel(it.id, dof.motions[+b.dataset.dplay]));
+    for (const b of box.querySelectorAll('[data-dcheck]')) b.addEventListener('click', () => this.checkTravel(it.id, dof.motions[+b.dataset.dcheck]));
+  }
+
+  /** A motion's limits set ({min, max}; a turn within ±180°) or taken off (null); a part outside them is put back
+   *  inside. -> the limits. */
+  setTravel(id, mo, lim) {
+    const it = this.inst(id);
+    if (!mo.key) throw new Error('This motion cannot have limits.');
+    this.travelNote = null;
+    if (!lim) {
+      if (it.travel) delete it.travel[mo.key];
+      if (it.travel && !Object.keys(it.travel).length) delete it.travel;
+      this.commit();
+      return null;
+    }
+    let { min, max } = lim;
+    if (mo.kind === 'turn') { min = Math.max(-180, min); max = Math.min(180, max); }
+    if (min > max) [min, max] = [max, min];
+    it.travel = { ...(it.travel || {}), [mo.key]: { min: +min, max: +max } };
+    const p = this.motionPos(id, mo), into = Math.max(min, Math.min(max, p));
+    if (Math.abs(into - p) > 1e-6) { this.moveFree(id, mo, this.stepTo(mo, p, into), [...it.matrix], true); } else this.commit();
+    return it.travel[mo.key];
+  }
+
+  /** ▶ From min to max and back (about 3 s), then where it was; again: stop. */
+  playTravel(id, mo) {
+    if (this.playing) { this.playing.stop = true; return; }
+    const it = this.inst(id), lim = this.limitsOf(it, mo);
+    if (!lim) return;
+    const snap = this.doc.instances.map((x) => [x.id, [...x.matrix], structuredClone(x.hang)]), from = [...it.matrix], p0 = this.motionPos(id, mo);
+    const T = 3000, t0 = performance.now(), play = (this.playing = { key: mo.key, stop: false });
+    this.renderProps();
+    const frame = (now) => {
+      const k = (now - t0) / T;
+      if (play.stop || k >= 1) {
+        for (const [iid, m, hang] of snap) { const x = this.inst(iid); if (x) { x.matrix = m; x.hang = hang; } }
+        this.checkJoints();
+        this.playing = null;
+        this.draw();
+        this.renderProps();
+        return;
+      }
+      const v = lim.min + (lim.max - lim.min) * (0.5 - 0.5 * Math.cos(2 * Math.PI * k)); // min -> max -> min
+      it.matrix = this.holdPart(id, motionMatrix(mo, ((mo.kind === 'turn' ? Math.PI / 180 : 1) * this.stepTo(mo, p0, v))).multiply(new THREE.Matrix4().fromArray(from)), true).toArray();
+      this.applyMates();
+      this.draw();
+      requestAnimationFrame(frame);
+    };
+    it.matrix = this.holdPart(id, motionMatrix(mo, ((mo.kind === 'turn' ? Math.PI / 180 : 1) * this.stepTo(mo, p0, lim.min))).multiply(new THREE.Matrix4().fromArray(from)), true).toArray();
+    requestAnimationFrame(frame);
+  }
+
+  /** ⚠ The travel checked: the part moved from min to max in `n` steps (the parts on it go along), the kernel tells the
+   *  collisions at each step (/api/assembly/sweep) -> {free: true} or {hits: [{with, from, to, volume}]}; it ends where
+   *  it was. Two parts that both move are not checked against each other (they go along together). */
+  async checkTravel(id, mo, n = 24) {
+    const it = this.inst(id), lim = this.limitsOf(it, mo);
+    if (!lim) throw new Error('Set its limits first (⇤⇥).');
+    const u = mo.kind === 'turn' ? '°' : 'mm';
+    this.travelNote = { inst: id, key: mo.key, text: t('Checking the travel…') };
+    this.renderProps();
+    const snap = this.doc.instances.map((x) => [x.id, [...x.matrix], structuredClone(x.hang)]), from = new THREE.Matrix4().fromArray(it.matrix), p0 = this.motionPos(id, mo);
+    const base = this.flatParts(), steps = [];
+    try {
+      for (let k = 0; k <= n; k++) {
+        const v = lim.min + ((lim.max - lim.min) * k) / n;
+        it.matrix = this.holdPart(id, motionMatrix(mo, (mo.kind === 'turn' ? Math.PI / 180 : 1) * this.stepTo(mo, p0, v)).multiply(from.clone()), true).toArray();
+        this.applyMates();
+        steps.push({ at: +v.toFixed(3), matrices: Object.fromEntries(this.flatParts().map((f) => [f.id, f.matrix])) });
+      }
+      // the parts that move at some step, at every step (also where one is where it started)
+      const moving = new Set(steps.flatMap((s) => base.filter((f) => s.matrices[f.id].some((x, q) => Math.abs(x - f.matrix[q]) > 1e-7)).map((f) => f.id)));
+      for (const s of steps) s.matrices = Object.fromEntries([...moving].map((k) => [k, s.matrices[k]]));
+    } finally {
+      for (const [iid, m, hang] of snap) { const x = this.inst(iid); if (x) { x.matrix = m; x.hang = hang; } }
+      this.checkJoints();
+      this.draw();
+    }
+    let r;
+    try {
+      const res = await fetch('/api/assembly/sweep', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instances: base, steps }) });
+      r = await res.json();
+      if (!res.ok) throw new Error(r.error || res.statusText);
+    } catch (e) {
+      this.travelNote = { inst: id, key: mo.key, text: e.message, bad: true };
+      this.renderProps();
+      throw e;
+    }
+    const hits = new Map(); // the other part -> {from, to, volume}
+    r.steps.forEach((s, k) => {
+      const moving = new Set(Object.keys(steps[k].matrices));
+      for (const c of s.clashes) {
+        if (moving.has(c.a) && moving.has(c.b)) continue;
+        const other = this.topOf(moving.has(c.a) ? c.b : c.a), h = hits.get(other) || { with: other, from: s.at, to: s.at, volume: 0 };
+        h.from = Math.min(h.from, s.at);
+        h.to = Math.max(h.to, s.at);
+        h.volume = Math.max(h.volume, c.volume);
+        hits.set(other, h);
+      }
+    });
+    const list = [...hits.values()];
+    const text = list.length
+      ? list.map((h) => t2('⚠ It hits {part} ({id}) from {a} to {b} {u} — up to {v} mm³.', { part: this.partName(this.inst(h.with)?.part), id: h.with, a: fmt(h.from), b: fmt(h.to), u, v: fmt(+h.volume.toFixed(1)) })).join(' ')
+      : t2('✓ Free all the way, {a} to {b} {u} — nothing in its way.', { a: fmt(lim.min), b: fmt(lim.max), u });
+    this.travelNote = { inst: id, key: mo.key, text, bad: !!list.length };
+    this.renderProps();
+    return list.length ? { hits: list } : { free: true };
   }
 
   /** Move a joined part by one of its free motions (mm or degrees) from where it was (from: its matrix then);
@@ -1954,7 +2129,9 @@ export class Assembly {
     try {
       const d = this.motionsOf(id);
       if (!d) return {};
-      return d.count ? { free: d.motions.map((m) => m.label) } : { fully_held: true };
+      if (!d.count) return { fully_held: true };
+      const it = this.inst(id);
+      return { free: d.motions.map((m) => m.label), at: d.motions.map((m) => { const l = this.limitsOf(it, m); return { motion: m.label, [m.kind === 'turn' ? 'deg' : 'mm']: +this.motionPos(id, m).toFixed(2), ...(l ? { min: l.min, max: l.max } : {}) }; }) };
     } catch { return {}; }
   }
 
@@ -2057,7 +2234,32 @@ export class Assembly {
         return { text: `Added ${plan.text}; holes drilled: ${plan.holes.map((h) => `Ø${h.d} ${h.through ? 'through' : `${h.depth} mm deep`} in ${this.partName(h.part)} (${h.inst})`).join(', ')}. ${JSON.stringify(this.summary())}` };
       },
       remove_from_assembly: async ({ part }) => { need(); this.removeInst(part); return { text: JSON.stringify(this.summary()) }; },
+      set_travel: async ({ part, motion = 0, min, max }) => {
+        need();
+        await settle();
+        const { it, mo } = this.motionFor(part, motion);
+        const l = min === null || max === null || (min === undefined && max === undefined) ? this.setTravel(it.id, mo, null)
+          : this.setTravel(it.id, mo, { min: +(min ?? this.limitsOf(it, mo)?.min ?? 0), max: +(max ?? this.limitsOf(it, mo)?.max ?? 0) });
+        return { text: `${it.id} — ${mo.label}: ${l ? `limits ${l.min} … ${l.max} ${mo.kind === 'turn' ? '°' : 'mm'}` : 'no limits'}; now at ${+this.motionPos(it.id, mo).toFixed(2)}.` };
+      },
+      check_travel: async ({ part, motion = 0 }) => {
+        need();
+        await settle();
+        const { it, mo } = this.motionFor(part, motion), r = await this.checkTravel(it.id, mo);
+        return { text: `${it.id} — ${mo.label} over ${JSON.stringify(this.limitsOf(it, mo))}: ${r.free ? 'free all the way.' : `hits ${r.hits.map((h) => `${h.with} (${this.partName(this.inst(h.with)?.part)}) from ${h.from} to ${h.to}, up to ${+h.volume.toFixed(1)} mm³`).join('; ')}.`}` };
+      },
     };
+  }
+
+  /** A placed part and one of its free motions (its number or words of its name) — for the AI. */
+  motionFor(part, motion) {
+    const it = this.inst(part), d = it && this.motionsOf(it.id);
+    if (!it) throw new Error('part is a placed id I… (get_assembly).');
+    if (!d) throw new Error(`${it.id} is not joined — it has no free motions.`);
+    if (!d.count) throw new Error(`${it.id} is fully held by its joints — it cannot move.`);
+    const mo = Number.isInteger(+motion) && d.motions[+motion] ? d.motions[+motion] : d.motions.find((x) => x.label.toLowerCase().includes(String(motion).toLowerCase()));
+    if (!mo) throw new Error(`motion is one of: ${d.motions.map((x, i) => `${i}: ${x.label}`).join('; ')}.`);
+    return { it, mo };
   }
 
   // ------------------------------------------------------------------ the assembly as a project tab

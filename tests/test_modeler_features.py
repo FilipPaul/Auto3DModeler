@@ -460,6 +460,22 @@ class TestAssemblyClashes(unittest.TestCase):
         self.assertAlmostEqual(cs[0]["volume"], 5 * 15 * 10, places=3)
         self.assertEqual(cs[0]["bbox"], [15, 5, 0, 20, 20, 10])
 
+    def test_sweep(self):
+        """A block slid along X past a still one: it hits it only on the way; a clash of two still parts is not told."""
+        part = {"features": box(20, 20, 10)}
+        at = lambda x, y=0, z=0: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1]  # noqa: E731
+        inst = [{"id": "I1", "part": part, "matrix": at(0)}, {"id": "I2", "part": part, "matrix": at(-40)},
+                {"id": "I3", "part": part, "matrix": at(0, 100)}, {"id": "I4", "part": part, "matrix": at(5, 100)}]  # I3 / I4: still, overlapping
+        steps = [{"at": x, "matrices": {"I2": at(-40 + x)}} for x in (0, 10, 30, 50, 80)]
+        r = doc.assembly_sweep(inst, steps)
+        self.assertEqual([s["at"] for s in r], [0, 10, 30, 50, 80])
+        hits = {s["at"]: [(c["a"], c["b"], c["volume"]) for c in s["clashes"]] for s in r}
+        self.assertEqual(hits[0], [])
+        self.assertEqual(hits[10], [])  # touching
+        self.assertEqual(hits[30], [("I1", "I2", 10 * 20 * 10)])
+        self.assertEqual(hits[50], [("I1", "I2", 10 * 20 * 10)])
+        self.assertEqual(hits[80], [])
+
 
 @unittest.skipUnless(OCC, "OCP not installed")
 class TestRevolvedFaces(unittest.TestCase):

@@ -64,6 +64,12 @@ Date: 2026-10-25. Written by the architect agent.
   /api/projects routes; web/js/autosave.js (History.commit / go and the quick part's history fire `a3d:changed`; saved
   3 s later if the project file changed, a beacon on pagehide; 🕘 Recent projects; the last one offered). A3D_DATA
   points a server at another data folder (test servers). tests/test_autosave.py, tools/e2e_autosave.py.
+- **Motion with limits done:** motionsOf's motions carry a key (`J2:along`, `J1:u`, `X`, …) and a ref joint;
+  motionPos measures where the part is along one from that joint's face / axis (spinOf for turns); an instance's
+  `travel: {key: {min, max}}` bounds its slider (absolute now), setTravel puts it inside; ▶ playTravel (3 s, then back);
+  checkTravel: 24 steps, the matrices of the parts that move -> /api/assembly/sweep (doc.assembly_sweep: each solid
+  built once, kernel.interference(only=the moving)) -> the parts it hits and from where to where. AI: set_travel,
+  check_travel, move_free `to`, get_assembly `at`. TestAssemblyClashes.test_sweep, tools/e2e_assembly_travel.py.
 - **Joints that say when they do not hold done:** joints.js jointMiss (per type: angle and distance off, a locked
   turn too); Assembly.checkJoints after every applyMates (this.health), whyNot names the joint that holds the part
   elsewhere (the one that, left out, lets it hold — holdPart(…, skip)); red rows / ⚠ tags / status count, a warning

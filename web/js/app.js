@@ -2437,17 +2437,15 @@ Object.assign(agentHandlers, {
     m.history.commit();
     return { text: `${ids.length} face(s) ${color ? `painted ${color}` : 'back to the part\'s colour'}.` };
   },
-  move_free: async ({ part, motion = 0, amount }) => {
+  move_free: async ({ part, motion = 0, amount, to }) => {
     if (state.workspace !== 'assembly') throw new Error('No assembly on screen.');
-    const it = assembly.inst(part), d = it && assembly.motionsOf(it.id);
-    if (!it) throw new Error('part is a placed id I… (get_assembly).');
-    if (!d) throw new Error(`${it.id} is not joined — place_part moves it freely.`);
-    if (!d.count) throw new Error(`${it.id} is fully held by its joints — it cannot move (remove or free a joint first).`);
-    const mo = Number.isInteger(+motion) && d.motions[+motion] ? d.motions[+motion] : d.motions.find((x) => x.label.toLowerCase().includes(String(motion).toLowerCase()));
-    if (!mo) throw new Error(`motion is one of: ${d.motions.map((x, i) => `${i}: ${x.label}`).join('; ')}.`);
-    if (!Number.isFinite(+amount)) throw new Error('amount: mm for a move, degrees for a turn.');
-    assembly.moveFree(it.id, mo, +amount, [...it.matrix], true);
-    return { text: `${it.id} moved: ${mo.label} by ${+amount} ${mo.kind === 'turn' ? '°' : 'mm'}. ${JSON.stringify(assembly.summary().parts.find((x) => x.id === it.id))}` };
+    const { it, mo } = assembly.motionFor(part, motion), p = assembly.motionPos(it.id, mo), lim = assembly.limitsOf(it, mo);
+    if (!Number.isFinite(+amount) && !Number.isFinite(+to)) throw new Error('amount (mm for a move, degrees for a turn) or to (where along it).');
+    let goal = Number.isFinite(+to) && to !== null && to !== undefined ? +to : p + +amount;
+    const stopped = lim && (goal < lim.min || goal > lim.max);
+    if (lim) goal = Math.max(lim.min, Math.min(lim.max, goal));
+    assembly.moveFree(it.id, mo, assembly.stepTo(mo, p, goal), [...it.matrix], true);
+    return { text: `${it.id} moved: ${mo.label}, now at ${+assembly.motionPos(it.id, mo).toFixed(2)} ${mo.kind === 'turn' ? '°' : 'mm'}${stopped ? ` (stopped at its limit ${lim.min} … ${lim.max})` : ''}. ${JSON.stringify(assembly.summary().parts.find((x) => x.id === it.id))}` };
   },
   save_to_library: async ({ name, category = 'My parts', maker = '', pn = '' }) => {
     if (state.workspace !== 'model' || !modeler.part.features.length) throw new Error('Open the 3D model to keep (it needs steps).');

@@ -54,9 +54,10 @@ def held():
     return d.find_element(By.CSS_SELECTOR, "#asmRight").text.count("Fully held")
 
 
-def slide(i, value):
-    js("""const s = document.querySelectorAll('#asmRight [data-dof]')[arguments[0]]; s.value = arguments[1];
-      s.dispatchEvent(new Event('input')); s.dispatchEvent(new Event('change'))""", i, value)
+def slide(i, by):
+    """A slider moved `by` from where it is (the sliders show where the part is along each way)."""
+    js("""const s = document.querySelectorAll('#asmRight [data-dof]')[arguments[0]]; s.value = +s.value + arguments[1];
+      s.dispatchEvent(new Event('input')); s.dispatchEvent(new Event('change'))""", i, by)
     time.sleep(0.5)
 
 

@@ -140,7 +140,7 @@ class TestMcpServer(unittest.TestCase):
             self.assertEqual(t["inputSchema"]["type"], "object", t["name"])
             self.assertTrue(t["description"])
         self.assertIn("get_part", BROWSER_TOOLS)
-        for name in ("set_look", "paint_faces", "move_free", "save_to_library", "library_search", "library_add", "check_collisions"):
+        for name in ("set_look", "paint_faces", "move_free", "set_travel", "check_travel", "save_to_library", "library_search", "library_add", "check_collisions"):
             self.assertIn(name, BROWSER_TOOLS)
         self.assertNotIn("report_problem", BROWSER_TOOLS)  # the server writes it
         self.assertNotIn("trace_picture", BROWSER_TOOLS)

@@ -286,9 +286,19 @@ TOOLS = [
      "inputSchema": _obj({"faces": {"type": "array", "items": STR}, "color": {"type": ["string", "null"]}, "part": STR}, ["faces"])},
     {"name": "move_free", "where": "browser",
      "description": "Move a joined part of the assembly on screen along one of the ways its joints leave free (get_assembly lists them "
-                    "as `free`): part = I…, motion = its number (0, 1 …) or words of its name, amount = mm (a move) or degrees (a turn). "
-                    "Its joints keep holding it; the parts on it go along. A fully held part cannot move.",
-     "inputSchema": _obj({"part": STR, "motion": {}, "amount": NUM}, ["part", "amount"])},
+                    "as `free`, and in `at` where it is along each): part = I…, motion = its number (0, 1 …) or words of its name, "
+                    "amount = by how much (mm for a move, degrees for a turn) or to = where along it. Its joints keep holding it; the "
+                    "parts on it go along; it stops at its limits (set_travel). A fully held part cannot move.",
+     "inputSchema": _obj({"part": STR, "motion": {}, "amount": NUM, "to": NUM}, ["part"])},
+    {"name": "set_travel", "where": "browser",
+     "description": "Limits of a free motion of a joined part (a cylinder's stroke, a slide's ends, a door's swing): part = I…, motion "
+                    "= its number or words of its name (as for move_free), min and max = where along it (mm, or degrees within ±180 "
+                    "for a turn; get_assembly `at` says where it is now). min / max null: no limits. The part is put inside them.",
+     "inputSchema": _obj({"part": STR, "motion": {}, "min": {"type": ["number", "null"]}, "max": {"type": ["number", "null"]}}, ["part"])},
+    {"name": "check_travel", "where": "browser",
+     "description": "Move a part with limits (set_travel) from min to max in small steps and check for collisions on the way (the parts "
+                    "on it go along): free all the way, or which part it hits and between which positions. It ends where it was.",
+     "inputSchema": _obj({"part": STR, "motion": {}}, ["part"])},
     {"name": "save_to_library", "where": "browser",
      "description": "Keep the 3D model on screen in the user's parts library (to use again in any project): name, category (e.g. "
                     "\"My parts / Brackets\"), and for a bought part its maker and part number.",
@@ -374,7 +384,7 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 - **3D models** are built like in SolidWorks: sketches (rectangles, circles, polylines with locked sizes) turned into a solid by extrude / revolve, then holes, fillets, chamfers, shells — for mechanical parts. Tools: new_model, get_model, find_refs, add_feature, edit_feature, delete_feature, turn_off_feature, set_material, prepare_print. mm; the bed is the XY plane.
 - **Assemblies** place 3D model parts together: new_assembly, get_assembly, insert_part, snap_faces (joints: touch, gap, axis = concentric…), place_part, remove_from_assembly, check_collisions. get_assembly says for each joined part how it can still move (free) or that it is fully held.
 - **2D drawings** (a DXF / DWG, or a PCB's Gerber / ODB++ opened as a 📐 drawing): get_drawing, drawing_find (shapes by filters), drawing_layers, drawing_set_size, drawing_use (as the sketch of a 3D model, or a quick part).
-- Assemblies also: edit_joint / remove_joint, measure (between faces), move_free; the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, delete_part (only when asked). Files: export stl / step / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf.
+- Assemblies also: edit_joint / remove_joint, measure (between faces), move_free; set_travel (a free motion's limits: a cylinder's stroke) and check_travel (collisions along it); the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, delete_part (only when asked). Files: export stl / step / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf.
 - **The parts library** holds real, bought parts with their maker and part number (screws, nuts, washers, inserts, bearings, standoffs, panel parts, SMC pneumatics, SICK sensors, stepper motors, the user's own): library_search, library_add.
 - Both: get_screenshot, check_print, export, undo. Opening a file or tracing a picture adds a new quick part tab.
 

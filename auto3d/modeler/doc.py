@@ -862,6 +862,26 @@ def assembly_clashes(instances):
     return K.interference(shapes)
 
 
+def assembly_sweep(instances, steps):
+    """Collisions along a motion: instances as for assembly_clashes (where they are at the start), steps [{at,
+    matrices: {id: [16]}}] (the parts that moved, where they are at that step) -> [{at, clashes}] — only the
+    clashes of a part that moved. Each solid is built once."""
+    base = {}
+    for inst in instances or []:
+        try:
+            base[inst.get("id")] = body_of(inst.get("part")).body.shape
+        except K.KernelError:
+            continue
+    start = {inst.get("id"): inst.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] for inst in instances or []}
+    still = {k: K.placed(s, start[k]) for k, s in base.items()}
+    out = []
+    for step in steps or []:
+        moved = {k: m for k, m in (step.get("matrices") or {}).items() if k in base}
+        shapes = [(k, K.placed(base[k], moved[k]) if k in moved else s) for k, s in still.items()]
+        out.append({"at": step.get("at"), "clashes": K.interference(shapes, only=set(moved))})
+    return out
+
+
 def assembly_step(instances):
     """An assembly -> one STEP file with every placed part: instances [{part: {features}, matrix: [16]}]."""
     shapes = []

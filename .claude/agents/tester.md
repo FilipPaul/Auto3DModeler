@@ -125,6 +125,10 @@ Never report "works" without having run it; report failures with their output.
    M3 socket / inductive M12 / cylinder 16 with the asked size; library_add a 608 into an assembly with its faces and
    bottom face; axis + touch: in its seat, free to turn only, its part number in the parts list; check_collisions: none,
    then a screw inside the block reported; wrong size / length answered with the ones there are).
+   `tools/e2e_assembly_travel.py <url> <dir>` covers motion with limits (a pin in a hole: where it is along the axis,
+   ⇤⇥ min / max typed, a typed position past max stops there, ⚠ Check the travel free, then a block in its way: "hits
+   Stop (I3) from 1.25 to 20 mm", ▶ plays and ends where it was; the AI's get_assembly `at`, move_free `to` stopped
+   at the limit, check_travel, set_travel and off). Needs a server restarted after backend changes (/api/assembly/sweep).
    `tools/e2e_assembly_health.py <url> <dir>` covers joints that do not hold (the same faces joined again as a Gap:
    one joint changed; a Flush fighting it: the Gap red with "9 mm off: J2 (Flush) holds Lid elsewhere", ⚠ tag, status
    count, get_assembly not_held; one removed: all hold), a screw + nut as one 🔩 row whose ✕ takes the screw, nut and
