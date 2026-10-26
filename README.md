@@ -219,7 +219,8 @@ layers, in their colours, in real mm.
   all of them change.
 - **File units**: a file may not say its units (PCB tools often draw in inches) or say them wrong — choose mm / cm /
   m / inch and the drawing is rescaled; a tiny drawing with no units says so when it opens.
-- **Use ▾** makes something of the shown layers: **✏ As a sketch of a new 3D model** (lines, circles and arcs, their
+- **Use ▾** asks, when shapes are selected or a filter finds some, whether it takes the selection, the filter's
+  shapes or all the shown layers — then makes something of them: **✏ As a sketch of a new 3D model** (lines, circles and arcs, their
   ends joined — then ⬆ Extrude), or **▤ As a quick part** (its closed outlines: a cutter, a solid shape …).
 
 ## PCB boards (Gerber, ODB++)

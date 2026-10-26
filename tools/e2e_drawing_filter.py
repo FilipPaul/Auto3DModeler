@@ -167,6 +167,20 @@ try:
     time.sleep(0.3)
     print("their shapes selected:", js(f"return {D}.sel.size"))
     d.save_screenshot(f"{OUT}/filter2.png")
+
+    # Use ▾ as a sketch: it asks — the selection, the filter's shapes or all shown
+    js(f"{D}.filters = [{{ field: 'shape', op: 'is', value: 'circle' }}, {{ field: 'layer', op: 'is', value: 'HOLES' }}, {{ field: 'dia', op: '=', value: '8' }}];"
+       f"{D}.sel = new Set({D}.matches().slice(0, 2).map(e => e.id)); {D}.updateMatches(); {D}.renderProps()")
+    time.sleep(0.3)
+    d.find_element(By.CSS_SELECTOR, "#dwgViewport .dw-bar [data-a=use]").click()
+    time.sleep(0.2)
+    d.find_element(By.CSS_SELECTOR, "#dwgViewport .dw-bar [data-use=sketch]").click()
+    wait("return !!document.querySelector('.choose')", 10)
+    print("Use as a sketch asks:", d.find_element(By.CSS_SELECTOR, ".choose p").text, "|", [b.text for b in d.find_elements(By.CSS_SELECTOR, ".choose-opts .btn")])
+    d.find_elements(By.CSS_SELECTOR, ".choose-opts .btn")[1].click()  # the shapes the filter finds
+    wait("return window.__app.state.workspace === 'model'", 30)
+    time.sleep(0.5)
+    print("the sketch:", js("return window.__app.modeler.part.features[0].entities.map(e => e.t)"))
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()

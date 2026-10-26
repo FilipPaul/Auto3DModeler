@@ -4,6 +4,7 @@
 // model, or as a quick part (its closed outlines). Drawing JSON: see auto3d/drawing2d.py.
 import { History } from '../history.js';
 import { t } from '../i18n.js';
+import { choose } from '../choose.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -637,6 +638,25 @@ export class DrawingEditor {
     this.commit();
   }
 
+  /** Use ▾ (kind: 'sketch' | 'quick'): of the selected shapes, the ones the filter finds, or all the shown ones —
+   *  asked when there is a selection or a filter; the selection first. */
+  async use(kind) {
+    const shown = this.d.entities.filter((x) => this.shown(x)), sel = shown.filter((x) => this.sel.has(x.id)), found = this.filters.length ? this.matches() : [];
+    let pick = shown;
+    if (sel.length || found.length) {
+      const opts = [];
+      if (sel.length) opts.push({ value: 'sel', primary: true, label: tv('The {n} selected shapes', { n: sel.length }) });
+      if (found.length && !(sel.length === found.length && found.every((x) => this.sel.has(x.id)))) opts.push({ value: 'found', primary: !sel.length, label: tv('The {n} shapes the filter finds', { n: found.length }) });
+      opts.push({ value: 'all', label: tv('All the shown layers ({n} shapes)', { n: shown.length }) }, { value: null, label: 'Cancel' });
+      const what = opts.length > 2 ? await choose(t(kind === 'sketch' ? 'What goes into the sketch?' : 'What goes into the quick part?'), opts) : 'all';
+      if (!what) return;
+      pick = what === 'sel' ? sel : what === 'found' ? found : shown;
+    }
+    const d = { ...this.payload(), entities: structuredClone(pick) };
+    if (kind === 'sketch') this.hooks.useAsSketch?.(d);
+    else this.hooks.useAsQuick?.(d);
+  }
+
   /** ⬇ the shown layers as a DXF. */
   async exportDxf() {
     const shown = { ...this.d, layers: this.d.layers, entities: this.d.entities.filter((e) => this.shown(e)) };
@@ -683,12 +703,7 @@ export class DrawingEditor {
       });
     }
     for (const b of bar.querySelectorAll('[data-use]')) {
-      b.addEventListener('click', () => {
-        bar.querySelector('.dw-use').classList.remove('open');
-        const shown = { ...this.d, entities: this.d.entities.filter((x) => this.shown(x)) };
-        if (b.dataset.use === 'sketch') this.hooks.useAsSketch?.(shown);
-        else this.hooks.useAsQuick?.(this.payload());
-      });
+      b.addEventListener('click', () => { bar.querySelector('.dw-use').classList.remove('open'); this.use(b.dataset.use); });
     }
     this.updateUndo();
   }
@@ -807,11 +822,7 @@ export class DrawingEditor {
     box.querySelector('[data-k=units]').addEventListener('change', (ev) => this.setUnits(ev.target.value));
     this.bindFilter(box.querySelector('.dw-fbox'));
     for (const el of box.querySelectorAll('[data-use]')) {
-      el.addEventListener('click', () => {
-        const shownD = { ...this.d, entities: this.d.entities.filter((x) => this.shown(x)) };
-        if (el.dataset.use === 'sketch') this.hooks.useAsSketch?.(shownD);
-        else this.hooks.useAsQuick?.(this.payload());
-      });
+      el.addEventListener('click', () => this.use(el.dataset.use));
     }
   }
 }

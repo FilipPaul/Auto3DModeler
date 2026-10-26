@@ -116,7 +116,7 @@ Never report "works" without having run it; report failures with their output.
    github.com/nam20485/OdbDesignTestData (TEST_DATA/sample_design.tgz, designodb_rigidflex.tgz).
    `tools/e2e_drawing_filter.py <url> <dir>` covers 🔍 Select by filter (shape -> layer -> Ø: 7 -> 5 -> 3, Select them,
    Ø 10 for all three, Ctrl+Z, ≡ All like this, lines' Length 25, a filter removed, 💧 the eyedropper, layers picked
-   with Shift / Ctrl+click: hidden, as a filter, their shapes selected).
+   with Shift / Ctrl+click: hidden, as a filter, their shapes selected; Use ▾ asks: the filter's 3 circles -> the sketch).
    `tools/e2e_delete_keep.py <url> <dir> <a .step>` covers deleting a step others stand on (Keep them where they are:
    the sketch on a fixed plane, its extrude 400 mm³, the rounding gone; Ctrl+Z; Delete them too; the AI's default).
    `tools/e2e_drawing2d.py <url> <dir> [<a .dxf>]` covers the 📐 Drawing workspace (a DXF opens as a drawing; layers,
