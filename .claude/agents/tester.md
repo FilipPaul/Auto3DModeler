@@ -105,6 +105,9 @@ Never report "works" without having run it; report failures with their output.
    the holes, the AI's bolt_parts with an insert) and the Tangent, Angle (30°, typed 60°) and Perpendicular joints.
    `tools/e2e_assembly_edit.py <url> <dir>` covers ✎ Edit it here (locked by default, a double-click refused; unlocked:
    the modeler with the rest see-through, a hole added, back: the assembly has it, the pin still in place; locked again).
+   `tools/e2e_reported.py <url> <dir>` covers the AI's reports in RealSWReports (a sketch's new plane keeps its shapes, a
+   mirror's new `of` keeps its plane, a chosen part keeps its colours) and the joint's ↕ gap slider (17 -> the part up 17,
+   0 catches, typed, undo).
    `tools/e2e_sketch_spline.py <url> <dir>` covers 〰 Spline with REAL clicks (from a line's end through two points to its
    other end: closed, one curve of 4 points; a deleted shape leaves its points; extruded: one smooth side face).
    `tools/e2e_ai_more.py <url> <dir>` covers the AI's drawing tools (get_drawing, drawing_find Ø8 on a layer, set Ø10,

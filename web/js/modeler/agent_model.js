@@ -215,7 +215,8 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
     if (type === 'mirror') {
       const of = spec.of || 'body';
       if (of !== 'body' && !m.part.features.some((g) => g.id === of)) throw new Error('of: "body" (the whole part) or the id of a step to mirror.');
-      const plane = spec.face ? planeOf({ face: spec.face }) : { datum: ['XY', 'XZ', 'YZ'].includes(spec.plane) ? spec.plane : 'YZ' };
+      const pd = typeof spec.plane === 'object' && spec.plane ? spec.plane.datum : spec.plane; // a name, or the step's own plane (an edit)
+      const plane = spec.face ? planeOf({ face: spec.face }) : { datum: ['XY', 'XZ', 'YZ'].includes(pd) ? pd : 'YZ' };
       return { ...base, of, plane, copy: of !== 'body' || spec.copy !== false };
     }
     if (type === 'loft') {
@@ -380,7 +381,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       const f = m.part.features.find((x) => x.id === id);
       if (!f) throw new Error(`No step ${id} — see get_model.`);
       if (f.type === 'sketch' && (fields.shapes || fields.plane)) {
-        Object.assign(f, sketchFromShapes(fields.shapes || [], fields.lock !== false));
+        if (fields.shapes) Object.assign(f, sketchFromShapes(fields.shapes, fields.lock !== false)); // (a new plane alone keeps the shapes)
         if (fields.plane) f.plane = planeOf(fields.plane);
       } else {
         const next = build({ ...f, ...fields, type: f.type, of: fields.of || f.features, name: fields.name || f.name, face: fields.face || f.plane?.face?.name, faces: fields.faces || f.faces?.map((x) => x.name), sketch: fields.sketch || f.sketch });

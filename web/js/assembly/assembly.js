@@ -45,11 +45,12 @@ class AsmView extends ModelView {
       geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
       geo.computeVertexNormals();
       const o = Number.isFinite(it.opacity) ? it.opacity : 1;
-      const mat = new THREE.MeshStandardMaterial({ color: it.selected ? 0x6cb6ff : it.colour || COLORS[it.color % COLORS.length], roughness: 0.55, metalness: 0.05,
-        side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, emissive: it.clash ? 0x6a0d0d : it.hover ? 0x1b2a44 : 0x000000,
+      // a chosen part keeps its own colours and painted faces: it glows blue (it was drawn all blue — its look hidden)
+      const mat = new THREE.MeshStandardMaterial({ color: it.colour || COLORS[it.color % COLORS.length], roughness: 0.55, metalness: 0.05,
+        side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, emissive: it.clash ? 0x6a0d0d : it.selected ? 0x1e4f86 : it.hover ? 0x1b2a44 : 0x000000,
         transparent: o < 1, opacity: o, depthWrite: o >= 1, clippingPlanes: this.clip || [] });
-      const painted = !it.selected ? paintedFaces(it.body.faces, it.paint || []) : null;
-      const fromFile = !it.selected && !it.ownColour ? it.body.faces.filter((f) => f.color) : [];
+      const painted = paintedFaces(it.body.faces, it.paint || []);
+      const fromFile = !it.ownColour ? it.body.faces.filter((f) => f.color) : [];
       if (painted?.size || fromFile.length) { // faces painted in their part, or coloured in its STEP file
         const base = new THREE.Color(it.colour || COLORS[it.color % COLORS.length]), col = new Float32Array(pos.length);
         const byId = new Map(fromFile.map((f) => [f.id, new THREE.Color(f.color)]));
@@ -1094,9 +1095,20 @@ export class Assembly {
       return `<div class="as-jrow ${m.broken ? 'bad' : ''} ${m.locked ? 'locked' : ''}" data-jrow="${m.id}"><span class="as-jt">${t.icon} ${esc(t.name)}</span>
         <span class="as-jw"><b data-no-i18n>${esc(this.partName(a?.part))}</b> <i>${m.move}</i> · ${esc(this.faceText(m.move, m.face))} → <b data-no-i18n>${esc(this.partName(b?.part))}</b> <i>${m.onto}</i> · ${esc(this.faceText(m.onto, m.ontoFace))}${m.broken ? ' — ⚠ a face is gone' : ''}</span>
         ${val}<span class="as-jbtn"><button class="mini ${m.locked ? 'on' : ''}" data-jlock="${m.id}" title="${m.locked ? 'Locked: moving the part by hand cannot break it — click to unlock' : 'Lock it: then it cannot be broken by moving the part'}">${m.locked ? '🔒' : '🔓'}</button><button class="mini danger" data-jdel="${m.id}" title="Remove this joint (the part stays where it is)" ${m.locked ? 'disabled' : ''}>✕</button></span>
+        ${this.gapSlider(m)}
         <label class="as-jspin" title="Turn the part about this joint (about the axis, or on the face)">↻ <input type="range" min="-180" max="180" step="1" list="as-ticks" data-jspin="${m.id}" value="${spin}">
         <input type="number" step="any" data-jspinn="${m.id}" value="${spin}">°</label></div>`;
     }).join('')}</div>`;
+  }
+
+  /** The slider of a joint's gap (flat faces) or distance along the axis (concentric; only when it is set): ±50 mm, wider
+   *  round a bigger value. */
+  gapSlider(m) {
+    const flat = !m.type || ['touch', 'gap', 'flush'].includes(m.type), axis = m.type === 'axis' && Number.isFinite(m.dist);
+    if (!flat && !axis) return '';
+    const v = flat ? +(m.gap || 0) : m.dist, span = Math.max(50, Math.ceil((Math.abs(v) * 2) / 10) * 10);
+    return `<label class="as-jspin as-jgap" title="${flat ? 'The gap between the two faces (mm) — 0: touching' : 'The distance along the axis (mm)'}">↕ <input type="range" min="${-span}" max="${span}" step="0.5" data-jgaps="${m.id}" value="${v}">
+      <input type="number" step="any" data-jgapn="${m.id}" value="${+v.toFixed(3)}">mm</label>`;
   }
 
   /** Two holes made concentric: the distance between them along the axis is set (as it is once on the axis,
@@ -1172,6 +1184,26 @@ export class Assembly {
     }
     for (const el of box.querySelectorAll('[data-jlock]')) {
       el.addEventListener('click', () => { const m = this.doc.mates.find((x) => x.id === el.dataset.jlock); m.locked = !m.locked; this.commit(); });
+    }
+    for (const sl of box.querySelectorAll('[data-jgaps]')) {
+      const m = this.doc.mates.find((x) => x.id === sl.dataset.jgaps), num = box.querySelector(`[data-jgapn="${m.id}"]`);
+      const flat = m.type !== 'axis';
+      const set = (v, final) => {
+        if (flat) { m.gap = v; if ((m.type || 'touch') === 'touch' && v) m.type = 'gap'; } else m.dist = v;
+        const typed = box.querySelector(flat ? `[data-jgap="${m.id}"]` : `[data-jdist="${m.id}"]`);
+        if (typed) typed.value = +(+v).toFixed(3);
+        this.applyMates();
+        if (final) this.commit(); else this.draw();
+      };
+      sl.addEventListener('input', () => {
+        let v = +sl.value;
+        if (Math.abs(v) <= 0.75) { v = 0; sl.value = 0; } // the 0 catches
+        num.value = v;
+        set(v, false);
+      });
+      sl.addEventListener('change', () => set(+num.value, true));
+      num.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') num.blur(); });
+      num.addEventListener('change', () => { const v = parseFloat(String(num.value).replace(',', '.')); if (Number.isFinite(v)) set(v, true); });
     }
     for (const sl of box.querySelectorAll('[data-jspin]')) {
       const m = this.doc.mates.find((x) => x.id === sl.dataset.jspin), num = box.querySelector(`[data-jspinn="${m.id}"]`);

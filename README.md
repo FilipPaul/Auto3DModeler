@@ -308,7 +308,7 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   several joints, applied in order: *Concentric* + *Touch* seats a pin in its hole, head on the face. Joints
   **hold**: when the other part moves or a part changes size in its own tab, the joined part follows. The panel
   lists the joints (hovering one marks its two faces, the copies are told apart: I1, I2…), with the gap / offset to
-  type, ⇅ to turn it round, **↻ a slider to turn the part about the joint** (a pin about its hole's axis, a part on
+  type, ⇅ to turn it round, **↕ a slider for the gap** (a flat joint's gap; a concentric joint's distance once it is set; it catches at 0), **↻ a slider to turn the part about the joint** (a pin about its hole's axis, a part on
   its face; it catches at 90°), **🔒 lock** and ✕. A locked joint cannot be broken: the part cannot be moved by hand
   while it holds; moving a part held by unlocked joints asks first.
 - **Seeing the joints**: choose a part — its joints are listed and their symbols (⧉ ◎ ∥ …) shown in the view between
