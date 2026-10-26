@@ -95,6 +95,11 @@ SolidWorks. It has only the tools that need almost no input.
      frees it (it only measures and shows the live value). A shape's own sizes (lengths, Ø) can be hidden with ✕ too:
      ↔ Dimension on the same line or circle twice adds it back, and *Show hidden sizes* brings back all of them.
      There are no automatic position labels: a shape shows only its own sizes and the dimensions you added.
+   - **🏷 Sizes** (at the top of the step list and in the sketch panel; remembered): **All**, **🔒 Locked** (only
+     the sizes you locked — and on the part a step's own numbers, like an extrude's height) or **None** (a clean
+     view). It works both in a sketch and on the 3D part. A big sketch (over 200 shapes, e.g. made from a PCB)
+     labels only its locked sizes even under All — *Show them all anyway* gives it every label. A long Dimensions
+     list in the panel is folded.
    - Whatever the mouse is on that a dimension or a new point would attach to lights up green and is named
      (point, corner of the part, edge of the part, line, circle, origin). The origin is always shown (orange, with
      its x / y arrows).

@@ -60,6 +60,9 @@ Date: 2026-10-25. Written by the architect agent.
   raised / engraved on a flat face, follows it; the AI's decal. tools/e2e_model_decal.py.
 - **Assembly links done:** snaps hold (doc.mates {move, face, onto, ontoFace}, re-applied after refresh and moves;
   moving the snapped part by hand unlinks; no cycles; saved, undoable). tools/e2e_assembly_links.py.
+- **🏷 Sizes done:** Modeler.sizeMode (all | locked | none, localStorage `a3d.sizes`), sizeShown(locked, sketch)
+  used by Sketcher.draw and Modeler.sketchTags / showStepDims; BIG_SKETCH = 200 shapes labels only locked sizes
+  (bigAll per sketch to show them anyway). tools/e2e_sizes.py.
 - **PCB boards done:** auto3d/pcb.py (own readers: Gerber RS-274X / X2 with apertures, macros, arcs, regions,
   polarity, step & repeat; Excellon with formats fitted onto the board; ODB++ matrix / features / profile / own
   symbols / .Z via unlzw; layer kinds by X2 attribute, extension or name), drawing2d.to_dxf (⬇ DXF), the editor

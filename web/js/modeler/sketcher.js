@@ -215,6 +215,7 @@ function circleOf(a, b, c) {
 }
 
 /** A translated text with {name} values filled in. */
+export const BIG_SKETCH = 200; // a sketch of more shapes (e.g. from a PCB) labels only its locked sizes
 const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 
 export class Sketcher {
@@ -1658,6 +1659,10 @@ export class Sketcher {
     const selPts = new Set(this.pointsOfSel());
     const isSel = (e) => this.sel && ((this.sel.kind === 'entity' && this.sel.id === e.id) || (this.sel.kind === 'group' && this.sel.id === e.g));
     const shownGroups = new Set();
+    // 🏷 Sizes (the modeler's All / Locked / None; a big sketch labels only its locked sizes)
+    const shows = (locked) => this.m.sizeShown?.(locked, f) ?? true;
+    const freeShown = shows(false), anyShown = shows(true);
+    const showSize = (spec) => anyShown && !this.isHidden(spec) && (freeShown || !!this.findDim(spec));
     for (const e of f.entities) {
       if (e.t === 'line') {
         const a = this.P(e.a), b = this.P(e.b);
@@ -1670,13 +1675,13 @@ export class Sketcher {
           shownGroups.add(key);
         }
         const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-        if (L < 1e-9) continue;
+        if (L < 1e-9 || !showSize({ t: 'len', e: e.id })) continue;
         const nx = -(b[1] - a[1]) / L, ny = (b[0] - a[0]) / L;
         // the label goes on the outside of a closed shape (away from its centre)
         const c = this.centreOf(e) || [a[0] + nx, a[1] + ny];
         const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
         const side = (mid[0] - c[0]) * nx + (mid[1] - c[1]) * ny >= 0 ? 1 : -1;
-        if (!this.isHidden({ t: 'len', e: e.id })) labels.push(this.label({ t: 'len', e: e.id }, mid[0] + side * nx * mpp * 16, mid[1] + side * ny * mpp * 16, fmt(L), 'Length'));
+        labels.push(this.label({ t: 'len', e: e.id }, mid[0] + side * nx * mpp * 16, mid[1] + side * ny * mpp * 16, fmt(L), 'Length'));
       } else if (e.t === 'block') {
         for (const r of this.blockRings(e)) for (let i = 0; i < r.length; i++) lines.push([r[i], r[(i + 1) % r.length], isSel(e) ? SEL : NORM]);
         const k = e.scale || 1, [au, av] = e.at;
@@ -1687,18 +1692,18 @@ export class Sketcher {
         el.querySelector('.sk-val').title = 'Width of the outline — click to type it (the height follows)';
         el.querySelector('.sk-val').addEventListener('click', (ev) => { ev.stopPropagation(); this.editLabel(el, { t: 'bw', e: e.id }); });
         for (const t of ['pointerdown', 'pointerup']) el.addEventListener(t, (ev) => ev.stopPropagation());
-        labels.push({ el, u: au + (e.w0 * k) / 2, v: av - mpp * 14 });
+        if (anyShown) labels.push({ el, u: au + (e.w0 * k) / 2, v: av - mpp * 14 });
       } else if (e.t === 'arc') {
         const ps = this.arcOf(e), col = isSel(e) ? SEL : NORM;
         for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], col]);
         const m = ps[Math.floor(ps.length / 2)], c = this.P(e.c), r = this.arcR(e) || 1;
-        if (!this.isHidden({ t: 'rad', e: e.id })) {
+        if (showSize({ t: 'rad', e: e.id })) {
           labels.push(this.label({ t: 'rad', e: e.id }, m[0] + ((m[0] - c[0]) / r) * mpp * 16, m[1] + ((m[1] - c[1]) / r) * mpp * 16, `R${fmt(r)}`, 'Radius'));
         }
       } else if (e.t === 'circle') {
         const c = this.P(e.c);
         circles.push([c, e.r, isSel(e) ? SEL : NORM]);
-        if (!this.isHidden({ t: 'dia', e: e.id })) labels.push(this.label({ t: 'dia', e: e.id }, c[0] + e.r * 0.72 + mpp * 18, c[1] + e.r * 0.72 + mpp * 8, `Ø${fmt(2 * e.r)}`, 'Diameter'));
+        if (showSize({ t: 'dia', e: e.id })) labels.push(this.label({ t: 'dia', e: e.id }, c[0] + e.r * 0.72 + mpp * 18, c[1] + e.r * 0.72 + mpp * 8, `Ø${fmt(2 * e.r)}`, 'Diameter'));
       }
     }
     for (const k of f.constraints.filter((c) => c.t === 'corner')) {
@@ -1726,7 +1731,7 @@ export class Sketcher {
     }
     // distances (dimension tool): a dimension line from the moving end, an extension line to the other end
     for (const d of f.dims) {
-      if (!['dx', 'dy', 'dist'].includes(d.t)) continue;
+      if (!['dx', 'dy', 'dist'].includes(d.t) || !shows(!d.free)) continue;
       const A = this.endUV(d.a), B = this.endUV(d.b);
       if (!A || !B) continue;
       if ((d.a === ORIGIN || d.b === ORIGIN) && Math.abs(d.v) < 1e-9) continue; // "locked at the origin": the purple point says it
@@ -1874,12 +1879,17 @@ export class Sketcher {
     const rels = this.userRelations();
     const relList = rels.length ? `<h3>Relations</h3><div class="sk-dims">${rels.map((k) => `<div class="sk-dim"><span>${RELATIONS[k.t]?.icon || ''} ${RELATIONS[k.t]?.name || k.t}</span>
       <span class="sk-dim-acts"><button class="mini danger" data-delrel="${k.id}" title="Remove this relation">✕</button></span></div>`).join('')}</div>` : '';
-    const list = (this.f.dims.length ? `<h3>Dimensions</h3><div class="sk-dims">${this.f.dims.map((d) =>
+    const fold = this.f.dims.length > 12; // a long list is folded
+    const list = (this.f.dims.length ? `${fold ? `<details class="sk-fold"><summary>${tv('Dimensions ({n})', { n: this.f.dims.length })}</summary>` : '<h3>Dimensions</h3>'}<div class="sk-dims">${this.f.dims.map((d) =>
       `<div class="sk-dim"><span>${d.free ? '🔓' : '🔒'} ${name(d.free ? { ...d, v: this.measure(d) } : d)}</span>
         <span class="sk-dim-acts">${['len', 'dia', 'rad'].includes(d.t) ? '' : `<button class="mini" data-lock="${d.id}" title="${d.free ? 'Lock it at this value' : 'Free it (it then only measures)'}">${d.free ? '🔒' : '🔓'}</button>`}
-        <button class="mini danger" data-del="${d.id}" title="Delete this dimension">✕</button></span></div>`).join('')}</div>` : '')
+        <button class="mini danger" data-del="${d.id}" title="Delete this dimension">✕</button></span></div>`).join('')}</div>${fold ? '</details>' : ''}` : '')
       + (hidden ? `<div class="row-actions"><button class="btn small" data-a="showSizes">Show ${hidden} hidden size(s)</button></div>` : '');
-    return `<h2>Sketch</h2><p class="hint">${this.hint()}</p>${st}${what}${list}${relList}
+    const n = this.f.entities.length, big = n > BIG_SKETCH && this.m.sizeMode === 'all';
+    const bigNote = big ? `<p class="hint sk-big">${this.m.bigAll?.has(this.f.id)
+      ? `${tv('Every size of the {n} shapes is shown.', { n })} <button class="btn small" data-a="bigAll">Show only the locked ones</button>`
+      : `${tv('A big sketch ({n} shapes): only the locked sizes are shown.', { n })} <button class="btn small" data-a="bigAll">Show them all anyway</button>`}</p>` : '';
+    return `<h2>Sketch</h2><p class="hint">${this.hint()}</p>${st}${this.m.sizesHtml?.() || ''}${bigNote}${what}${list}${relList}
       <h3>Tips</h3><p class="hint">A shape inside another one becomes a hole. Lines that meet at a point are joined; click the
       first point again to close a shape. 🔒 = locked size (it stays when other sizes change). ↔ Dimension adds a distance
       between two points, circles or edges (also the part's edges, dashed). Right mouse button pans, wheel zooms, Ctrl+Z undoes.</p>`;

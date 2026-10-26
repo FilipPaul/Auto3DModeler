@@ -124,6 +124,9 @@ Never report "works" without having run it; report failures with their output.
    sketch / as a quick part, saved and reopened).
    `tools/e2e_sketch_auto.py <url> <dir>` covers snapping to the part's hole (centre and rim -> the same Ø8) and 🪄
    Auto-dimension (7 free -> 0, the circle and the rectangle placed from the part's nearest edges).
+   `tools/e2e_sizes.py <url> <dir>` covers 🏷 Sizes (an extrude's sizes on the part: All 6 / 🔒 Locked = the height /
+   None 0, remembered after a reload; a 250-circle sketch labels only its locked sizes, with a note, Show them all
+   anyway -> every one, Locked / None from the sketch panel, the left panel following; the long list folded).
    `tools/e2e_model_mirror.py <url> <dir>` covers ⇋ Mirror in a sketch (across the Y axis: a rectangle and a circle,
    the copy following a 30 mm lock, Move over the X axis, across a sketch line) and in 3D (YZ / XZ copy = twice the
    volume, Mirror only, the AI mirroring one hole).

@@ -9,7 +9,7 @@ import { renameInPlace } from '../rename.js';
 import { choose } from '../choose.js';
 import { paintedFaces, repaint } from './paint.js';
 import { ModelView, DATUMS, datumFrame } from './view.js';
-import { Sketcher, upgradeSketch, arcPts, RELATIONS } from './sketcher.js';
+import { Sketcher, upgradeSketch, arcPts, RELATIONS, BIG_SKETCH } from './sketcher.js';
 import { textOutline } from '../outlinepanel.js';
 
 const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa', mirror: '⇋' };
@@ -27,6 +27,7 @@ const sketchesOf = (f) => (f.type === 'loft' ? f.sketches || [] : f.type === 'sw
 export const MATERIALS = { PLA: 1.24, PETG: 1.27, ABS: 1.04, ASA: 1.07, TPU: 1.21, PA: 1.14 };
 const DATUM_NAME = { XY: 'Top', XZ: 'Front', YZ: 'Right' };
 const fmt = (v) => (+(+v).toFixed(3)).toString();
+const SIZES_KEY = 'a3d.sizes', SIZE_MODES = ['all', 'locked', 'none'];
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -53,7 +54,11 @@ export class Modeler {
       },
       onChange: () => this.updateUndo(),
     });
+    try { this.sizeMode = localStorage.getItem(SIZES_KEY); } catch { /* private mode */ }
+    if (!SIZE_MODES.includes(this.sizeMode)) this.sizeMode = 'all';
+    this.bigAll = new Set(); // big sketches whose every size is shown anyway
     this.build();
+    this.bindSizes(this.els.left);
     this.view = new ModelView(this.els.view);
     this.view.onCamera = () => this.sk?.draw();
     this.bindPointer();
@@ -65,6 +70,7 @@ export class Modeler {
     const { left, viewport, right } = this.els;
     left.innerHTML = `
       <div class="mt-head"><b>Model</b><span class="mt-sub">steps, from the first to the last</span></div>
+      ${this.sizesHtml()}
       <div class="mt-tree"></div>
       <div class="mt-start" hidden>
         <p><b>Make a part in 3 steps</b></p>
@@ -370,12 +376,45 @@ export class Modeler {
 
   closeCtx() { this.ctx?.remove(); this.ctx = null; }
 
+  // ------------------------------------------------------------------ 🏷 which sizes are shown
+  /** 🏷 Sizes: All / 🔒 Locked / None — the size labels on the sketch and on the part (remembered). */
+  sizesHtml() {
+    const b = (k, label, title) => `<button data-sz="${k}" class="${this.sizeMode === k ? 'on' : ''}" title="${title}">${label}</button>`;
+    return `<div class="m-sizes"><span title="Which sizes are shown on the sketch and on the part">🏷 Sizes</span><div class="seg">${b('all', 'All', 'Every size')}${b('locked', '🔒 Locked', 'Only the sizes you locked (and a step\'s own, like an extrude\'s height)')}${b('none', 'None', 'No sizes — a clean view')}</div></div>`;
+  }
+
+  bindSizes(box) {
+    for (const b of box.querySelectorAll('[data-sz]')) b.addEventListener('click', () => this.setSizeMode(b.dataset.sz));
+    box.querySelector('[data-a=bigAll]')?.addEventListener('click', () => {
+      const id = this.sk?.f?.id;
+      if (this.bigAll.has(id)) this.bigAll.delete(id); else this.bigAll.add(id);
+      this.setSizeMode(this.sizeMode);
+    });
+  }
+
+  setSizeMode(m) {
+    this.sizeMode = SIZE_MODES.includes(m) ? m : 'all';
+    try { localStorage.setItem(SIZES_KEY, this.sizeMode); } catch { /* ignore */ }
+    for (const b of document.querySelectorAll('.m-sizes [data-sz]')) b.classList.toggle('on', b.dataset.sz === this.sizeMode);
+    if (this.mode === 'sketch' && this.sk) { this.sk.draw(); if (!this.cmd) this.renderProps(); }
+    else if (this.mode === 'part' && !this.cmd) this.showStepDims(this.part.features.find((f) => f.id === this.dimStep) || null);
+  }
+
+  /** A sketch so big its shapes' own sizes are not labelled (unless asked). */
+  isBigSketch(sk) { return (sk?.entities?.length || 0) > BIG_SKETCH && !this.bigAll.has(sk.id); }
+
+  /** Is a size label shown: a locked one unless None; a free one under All, not on a big sketch. */
+  sizeShown(locked, sk) {
+    if (this.sizeMode === 'none') return false;
+    return locked || (this.sizeMode === 'all' && !this.isBigSketch(sk));
+  }
+
   // ------------------------------------------------------------------ the chosen step's sizes, on the part
   /** Show (or with null hide) the sizes of a step as labels on the part — click one to change it (number + slider). */
   showStepDims(step, { keepEdit = false } = {}) {
     this.dimStep = step ? step.id : null;
     if (!keepEdit) this.closeDimEdit();
-    if (!step || this.mode !== 'part') { this.view.setTags([]); return; }
+    if (!step || this.mode !== 'part' || this.sizeMode === 'none') { this.view.setTags([]); return; }
     const tags = [], lines = [];
     const add = (p, text, edit, title = '') => {
       const el = document.createElement('div');
@@ -468,13 +507,16 @@ export class Modeler {
       const key = JSON.stringify([spec.t, spec.e, spec.a, spec.b]);
       if (shown.has(key)) return;
       shown.add(key);
-      const v = S.measure(spec), d = S.findDim(spec);
+      const d = S.findDim(spec);
+      if (!this.sizeShown(!!d && !d.free, sk0)) return;
+      const v = S.measure(spec);
       if ((spec.a === 'O' || spec.b === 'O') && Math.abs(v) < 1e-9) return; // "on the origin"
       const [u, w] = at(spec);
       add(P3(fr, u, w), `${d && !d.free ? '🔒 ' : ''}${label(spec, v)}`, { label: { len: 'Length', dia: 'Diameter', rad: 'Radius' }[spec.t] || 'Distance', min: spec.t === 'dx' || spec.t === 'dy' ? -1e6 : 0.1,
         get: () => Math.abs(v), sketch: { id: sk0.id, spec } }, `${sk0.name}: ${d && !d.free ? 'locked' : 'click to type it (it is then locked)'}`);
     };
     for (const d of sk.dims) if (d.t !== 'bw') tag({ t: d.t, e: d.e, a: d.a, b: d.b });
+    if (!this.sizeShown(false, sk0)) return; // the shapes' own (free) sizes
     const groups = new Set();
     for (const e of sk.entities) {
       if (e.t === 'line') {
@@ -695,6 +737,7 @@ export class Modeler {
     }
     if (this.mode === 'sketch') {
       box.innerHTML = this.sk.propsHtml();
+      this.bindSizes(box);
       box.querySelector('[data-a=delSel]')?.addEventListener('click', () => this.sk.deleteSel());
       for (const b of box.querySelectorAll('[data-del]')) b.addEventListener('click', () => this.sk.delDim(b.dataset.del));
       for (const b of box.querySelectorAll('[data-lock]')) b.addEventListener('click', () => this.sk.toggleLock(this.sk.f.dims.find((d) => d.id === b.dataset.lock)));
