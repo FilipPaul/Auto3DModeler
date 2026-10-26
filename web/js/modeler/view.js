@@ -149,6 +149,22 @@ export class ModelView {
     this.paint();
   }
 
+  /** Reference solids: shown see-through (not part of the part, not picked): [{positions (base64)}]. */
+  setRefs(list = []) {
+    if (!this.refGroup) { this.refGroup = new THREE.Group(); this.scene.add(this.refGroup); }
+    this.clear(this.refGroup);
+    for (const r of list) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(b64(r.positions, Float32Array), 3));
+      geo.computeVertexNormals();
+      // drawn through the part (a cover built around it hides it otherwise)
+      const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x58a6ff, transparent: true, opacity: 0.35, depthWrite: false, depthTest: false, side: THREE.DoubleSide }));
+      mesh.renderOrder = 4;
+      this.refGroup.add(mesh);
+    }
+    this.invalidate();
+  }
+
   /** How far a face reaches along a frame's x and y, from the frame's origin: [u0, u1, v0, v1] (null: no such face). */
   faceSpan(name, fr) {
     if (!this.mesh || !this.body || !name) return null;

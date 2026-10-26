@@ -13,7 +13,9 @@ Use **📂 Open ▾** to open a file. It offers:
 - a PDF drawing (try **Sample drawing**, which loads `initial draft.pdf`);
 - a **picture**, to trace the outline of an object in a photo (e.g. `pernicek.png`) and make a cookie cutter
   or a solid shape from it — see [Outline from a picture](#outline-from-a-picture);
-- a **CAD / 3D file**: DXF / DWG drawings and STL / OBJ / STEP files;
+- a **CAD / 3D file**: DXF / DWG drawings and STL / OBJ / STEP files — a **STEP opens as a 3D model** with its exact
+  solid as the first step (sketch on its faces, drill it, build a cover around it; a 40 MB STEP in under a minute);
+  STL / OBJ open as a quick part (sliced, for printing; Shift+drop a STEP for that too);
 - a saved project.
 
 You can also drop a file on the view. To model a part from scratch, click **＋ New 3D model** (see
@@ -320,7 +322,11 @@ turns it into one. In 2D: 📏 in the outline editor (picture pixels and mm) and
   ignored. Needs `ezdxf`.
 - **DWG** is a closed format: it is converted to DXF with the free **ODA File Converter** or LibreDWG's `dwg2dxf`
   when one is installed; otherwise the import says so (or save the drawing as DXF).
-- **STL / OBJ / STEP** (STEP is tessellated with `cascadio` / OpenCASCADE): the part is cut into flat slices at every
+- **▣ Solid from a file** (3D model) adds a STEP / STL / OBJ as a step: **▣ Joined** to the part, **⬚ Cut out** of it
+  (a cavity it fits in exactly) or **👁 Reference** (drawn see-through, not part of the part — build a cover or a holder
+  around it, then cut a copy of it out). An STL / OBJ is made an exact solid (up to 60 000 triangles). Assemblies
+  insert one with *＋ Insert part ▾ → From a file*. The files are kept by the server and carried in the project file.
+- **STL / OBJ / STEP as a quick part** (STEP is tessellated with `cascadio` / OpenCASCADE): the part is cut into flat slices at every
   flat face — exact for parts whose walls are vertical between flat faces (plates, brackets, cutters), slanted /
   curved walls become steps of the *slice height*. The file is kept on the server (`data/imports/`) and inside the
   project file, so projects reopen anywhere. Design layers need a flat part; on 3D files use 3D objects (e.g.

@@ -81,6 +81,11 @@ Date: 2026-10-25. Written by the architect agent.
   in sketches the ⇋ Mirror tool (sketcher.mirror) with a `mir` constraint (planegcs symmetric_line per point pair,
   equal radii; its redundant parts are not conflicts). Decorations get X / Y / Turn (doc.py turns the outline).
   tools/e2e_model_mirror.py, tests test_mirror / TestSketchMirror.
+- **Imported solids done:** blobs.py (files by SHA-256 on disk, /api/blob), /api/model/import -> worker
+  doc.import_solid (a STEP as it is; an STL / OBJ sewn into a solid, kernel.mesh_solid, <= 60 000 triangles); the
+  `solid` step takes `blob` and `op` add / cut / ref (refs tessellated apart, drawn see-through). Big shapes
+  (> 3000 faces): a quick bbox, a coarser mesh, face areas from the mesh, tiny edges skipped; an unchanged body is
+  not meshed again. The project file carries the blobs. tools/e2e_model_solid.py.
 - **Value ranges done:** doc.limits (each ranged number of a step found by building it at trial values; patterns and
   depths from the geometry), /api/model/limits; failures explained with the most that fits (doc._sized).
 - **Sketch relations done:** par / perp / eq / conc / coin / tang / fix (+ h / v) set by the user (constraints.py

@@ -65,11 +65,12 @@ class State:
         self.frames = {}    # id -> frame (also for the browser)
         self.tools = {}     # id -> [(tool Body, "add" | "cut")]: what the feature added / cut, for patterns
         self.sketch_src = {}  # id -> the sketch feature as built (its lines, for a sweep's path)
+        self.refs = {}      # id -> Body: solids shown for reference only (not in the part)
 
     def copy(self):
         s = State()
         s.body, s.sketches, s.frames, s.tools = self.body, dict(self.sketches), dict(self.frames), dict(self.tools)
-        s.sketch_src = dict(self.sketch_src)
+        s.sketch_src, s.refs = dict(self.sketch_src), dict(self.refs)
         return s
 
 
@@ -259,13 +260,20 @@ def _apply(f, st: State, s):
             _use(st, fid, K.prism_body(face, names, n * depth * (-1 if op == "cut" else 1), fid), op)
         return
     if t == "solid":
-        # a ready solid (STEP, base64): a quick part placed in an assembly, or an imported body
-        import base64
-        try:
-            shape = K.from_step(base64.b64decode(f.get("step") or ""))
-        except (ValueError, TypeError):
-            raise K.KernelError("The solid's data is damaged.") from None
-        _use(st, fid, K.solid_body(shape, fid), "add")
+        # a ready solid: a quick part placed in an assembly ("step", base64), or an imported STEP / STL ("blob": its
+        # file kept by the server). op: add (joined to the part), cut (cut out of it: a cavity it fits in), ref (shown
+        # only, for sizing what is made around it)
+        body = K.solid_body(_solid_shape(f), fid)
+        bb = K.bbox(body.shape)
+        if bb:
+            s["bbox"] = [round(v, 3) for v in bb]
+        op = f.get("op") or "add"
+        if op == "ref":
+            st.refs[fid] = body
+            return
+        if op == "cut" and st.body is None:
+            raise K.KernelError("There is nothing to cut it out of yet — make the part first (or show it as a reference).")
+        _use(st, fid, body, "cut" if op == "cut" else "add")
         return
     if t == "mirror":
         if st.body is None:
@@ -467,6 +475,60 @@ def _use(st, fid, tool, op):
 
 
 MAX_COPIES = 200
+
+
+_shapes: OrderedDict = OrderedDict()  # an imported file read once (a big STEP takes seconds)
+
+
+def _solid_shape(f):
+    import base64
+    from . import blobs
+    if f.get("blob"):
+        sha = f["blob"]
+        if sha not in _shapes:
+            try:
+                data = blobs.get(sha)
+            except blobs.Missing:
+                raise K.KernelError(f"BLOB_MISSING {sha} — the file of this step is not here; open the project file again.") from None
+            _shapes[sha] = K.from_step(data)
+            while len(_shapes) > 8:
+                _shapes.popitem(last=False)
+        _shapes.move_to_end(sha)
+        return _shapes[sha]
+    try:
+        return K.from_step(base64.b64decode(f.get("step") or ""))
+    except (ValueError, TypeError):
+        raise K.KernelError("The solid's data is damaged.") from None
+
+
+MESH_LIMIT = 60000  # triangles: a bigger STL / OBJ takes too long to become a solid
+
+
+def import_solid(a):
+    """A STEP / STL / OBJ file (kept as a blob) -> a solid for a `solid` step: {blob, faces, bbox, volume, triangles?}.
+    A STEP is used as it is; a mesh is made a solid (its triangles sewn) and kept as a STEP."""
+    from . import blobs
+    from .. import importers
+    sha, name = a["blob"], a.get("name") or "part"
+    data = blobs.get(sha)
+    ext = name.lower().rsplit(".", 1)[-1]
+    if ext in ("step", "stp"):
+        shape = K.from_step(data)
+        _shapes[sha] = shape
+        out = {"blob": sha}
+    elif ext in ("stl", "obj"):
+        tris = importers.read_stl(data) if ext == "stl" else importers.read_obj(data.decode("utf-8", "ignore"))
+        if len(tris) > MESH_LIMIT:
+            raise K.KernelError(f"MESH_TOO_BIG This mesh has {len(tris)} triangles — more than {MESH_LIMIT} take too long to become an exact solid.")
+        shape = K.mesh_solid(tris)
+        out = {"blob": blobs.put(K.to_step(shape, name)), "triangles": len(tris)}
+        _shapes[out["blob"]] = shape
+    else:
+        raise K.KernelError("A solid comes from a STEP, STL or OBJ file.")
+    if K.face_count(shape) == 0:
+        raise K.KernelError("The file has no solid in it.")
+    bb = K.bbox(shape)
+    return {**out, "faces": K.face_count(shape), "bbox": [round(v, 3) for v in bb] if bb else None, "volume": round(K.volume(shape), 3)}
 
 
 def _pattern(f, st):
@@ -715,6 +777,19 @@ def _pattern_limits(f, st0):
     return out
 
 
+_tess: list = []  # [(body, mesh)]: a body that did not change (a sketch was added) is not meshed again
+
+
+def _tessellated(body):
+    for b, mesh in _tess:
+        if b is body:
+            return dict(mesh)
+    mesh = K.tessellate(body)
+    _tess.insert(0, (body, mesh))
+    del _tess[6:]
+    return dict(mesh)
+
+
 def rebuild(part):
     """The part -> what the browser shows: the body's mesh, faces (with names) and edges, every feature's
     status, the sketch frames."""
@@ -722,7 +797,9 @@ def rebuild(part):
     st, status = evaluate(features)
     out = {"ok": all(s["ok"] for s in status), "features": status, "frames": st.frames, "body": None}
     if st.body is not None:
-        out["body"] = K.tessellate(st.body)
+        out["body"] = _tessellated(st.body)
+    # reference solids: shown see-through, not part of the part
+    out["refs"] = [{"id": fid, **_tessellated(b)} for fid, b in st.refs.items()]
     return out
 
 

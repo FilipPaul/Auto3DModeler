@@ -202,7 +202,8 @@ export class Assembly {
     const parts = this.modelParts();
     bar.innerHTML = `
       <div class="menu as-insert">${btn('insert', '＋ Insert part ▾', parts.length ? 'Add a part of this project: a 3D model ◆, a quick part ▤ (drawing, picture, import) or another assembly ◇ (as one unit)' : 'Make a part first (＋ New 3D model, or open a drawing / picture)', 'tool')}
-        <div class="menu-list">${parts.map((p) => `<button data-part="${p.id}" data-no-i18n>${p.kind === 'classic' ? '▤' : p.kind === 'assembly' ? '◇' : '◆'} ${esc(p.name)}</button>`).join('') || '<div class="hint">No parts yet</div>'}</div></div>
+        <div class="menu-list">${parts.map((p) => `<button data-part="${p.id}" data-no-i18n>${p.kind === 'classic' ? '▤' : p.kind === 'assembly' ? '◇' : '◆'} ${esc(p.name)}</button>`).join('') || '<div class="hint">No parts yet</div>'}
+          ${this.hooks.importSolid ? '<div class="menu-sep"></div><button data-a="fromFile">📂 From a file (STEP / STL / OBJ)…</button>' : ''}</div></div>
       <div class="menu as-joint">${btn('joint', `🔗 Joint ▾`, 'Hold a part against another one: choose how, then click a face of the part to move and the face it goes to (S = touch)', `tool ${this.mode !== 'idle' ? 'on' : ''}`)}
         <div class="menu-list">${Object.entries(JOINT_TYPES).map(([k, j]) => `<button data-joint="${k}" title="${esc(j.hint)}">${j.icon} ${esc(j.name)}</button>`).join('')}</div></div>
       ${btn('fasteners', '🔩 Fasteners', 'Screws, heat-set inserts and pins where holes line up across parts — suggested, added with one click', `tool ${this.fastenerPanel ? 'on' : ''}`)}
@@ -212,7 +213,7 @@ export class Assembly {
       <label class="chip as-explode" title="Pull the parts apart to see them (the placement does not change)">Explode <input type="range" min="0" max="1" step="0.01" value="${this.explode}"></label>
       <span class="sep"></span>
       ${btn('view-iso', 'Iso', 'View from the front-right, above')}${btn('view-top', 'Top', 'View from above')}${btn('view-front', 'Front', 'View from the front')}${btn('view-right', 'Right', 'View from the right')}`;
-    bar.querySelector('[data-a=insert]').disabled = !parts.length;
+    bar.querySelector('[data-a=insert]').disabled = !parts.length && !this.hooks.importSolid;
     bar.querySelector('[data-a=joint]').disabled = this.doc.instances.length < 2;
     bar.querySelector('[data-a=joint]').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -222,7 +223,8 @@ export class Assembly {
     for (const b of bar.querySelectorAll('[data-joint]')) b.addEventListener('click', () => { bar.querySelector('.as-joint').classList.remove('open'); this.startJoint(b.dataset.joint); });
     bar.querySelector('[data-a=insert]').addEventListener('click', (e) => { e.stopPropagation(); bar.querySelector('.as-insert').classList.toggle('open'); });
     for (const b of bar.querySelectorAll('[data-part]')) b.addEventListener('click', () => { bar.querySelector('.as-insert').classList.remove('open'); this.insert(b.dataset.part); });
-    for (const b of bar.querySelectorAll('[data-a]:not([data-a=insert]):not([data-a=joint])')) b.addEventListener('click', () => this.action(b.dataset.a));
+    bar.querySelector('[data-a=fromFile]')?.addEventListener('click', () => { bar.querySelector('.as-insert').classList.remove('open'); this.insertFile(); });
+    for (const b of bar.querySelectorAll('[data-a]:not([data-a=insert]):not([data-a=joint]):not([data-a=fromFile])')) b.addEventListener('click', () => this.action(b.dataset.a));
     const r = bar.querySelector('.as-explode input');
     r.addEventListener('input', () => { this.explode = +r.value; this.draw(); });
     this.updateUndo();
@@ -808,6 +810,20 @@ export class Assembly {
     this.sel = it.id;
     this.commit();
     if (this.doc.instances.length === 1 || !like) this.view.setView('iso');
+  }
+
+  /** ＋ Insert part ▾ From a file: a STEP / STL / OBJ becomes a 3D model part of the project, and goes in. */
+  insertFile() {
+    const inp = document.createElement('input');
+    Object.assign(inp, { type: 'file', accept: '.step,.stp,.stl,.obj' });
+    inp.addEventListener('change', async () => {
+      const file = inp.files[0];
+      if (!file) return;
+      let step;
+      try { step = await this.hooks.importSolid(file); } catch (e) { this.hooks.toast(e.message.replace(/^MESH_TOO_BIG /, ''), 'error', 9000); return; }
+      await this.insert(this.hooks.addModelPart(step.name, { features: [step] }));
+    });
+    inp.click();
   }
 
   removeInst(id) {

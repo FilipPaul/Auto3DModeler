@@ -711,9 +711,23 @@ def volume(shape):
     return p.Mass()
 
 
+HEAVY_FACES = 3000  # an imported model with more faces than this is handled more roughly (else minutes per step)
+
+
+def face_count(shape):
+    ex, n = TopExp_Explorer(shape, TopAbs_FACE), 0
+    while ex.More():
+        n += 1
+        ex.Next()
+    return n
+
+
 def bbox(shape):
     b = Bnd_Box()
-    BRepBndLib.AddOptimal_s(shape, b, False, False)  # exact: no tolerance padding
+    if face_count(shape) > HEAVY_FACES:  # a big imported model: the quick box (a hair bigger); exact takes a minute
+        BRepBndLib.Add_s(shape, b, False)
+    else:
+        BRepBndLib.AddOptimal_s(shape, b, False, False)  # exact: no tolerance padding
     if b.IsVoid():
         return None
     lo, hi = b.CornerMin(), b.CornerMax()
@@ -738,8 +752,11 @@ def tessellate(body):
     shape = body.shape
     bb = bbox(shape) or [0, 0, 0, 1, 1, 1]
     size = max(bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2], 1e-6)
-    BRepMesh_IncrementalMesh(shape, max(size * 0.0008, 0.002), False, 0.25, True)
     fm, em, adj = _adjacency(shape)
+    # a big imported model (thousands of faces): a coarser mesh, and only the edges that show at this size —
+    # millions of triangles would freeze the browser (and take minutes here)
+    heavy = fm.Extent() > HEAVY_FACES
+    BRepMesh_IncrementalMesh(shape, max(size * (0.004 if heavy else 0.0008), 0.002), False, 0.6 if heavy else 0.25, True)
     names = _face_names(body, fm)
     pos, ids, faces = [], [], []
     for fi in range(fm.Extent()):
@@ -759,7 +776,13 @@ def tessellate(body):
                     b, c = c, b
                 pos.extend(nodes[a - 1] + nodes[b - 1] + nodes[c - 1])
                 ids.append(fi)
-        info = _face_info(f, fi, rev)
+        if heavy:  # the face's area and middle from its triangles (the exact ones take long on 100 000 faces)
+            t = np.asarray(pos[len(pos) - 9 * tri.NbTriangles():] if tri is not None else [], float).reshape(-1, 3, 3)
+            ar = np.linalg.norm(np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0]), axis=1) / 2 if len(t) else np.zeros(0)
+            cm = (ar[:, None] * t.mean(axis=1)).sum(axis=0) / ar.sum() if ar.sum() > 0 else (t.reshape(-1, 3).mean(axis=0) if len(t) else np.zeros(3))
+            info = _face_info(f, fi, rev, (float(ar.sum()), cm))
+        else:
+            info = _face_info(f, fi, rev)
         nm = names.get(fi, [])
         if nm:
             info["name"] = nm[-1]  # the latest name (e.g. the hole wall rather than the plate it was cut from)
@@ -771,7 +794,9 @@ def tessellate(body):
         e = TopoDS.Edge(em.FindKey(ei))
         try:
             c = BRepAdaptor_Curve(e)
-            d = GCPnts_TangentialDeflection(c, 0.2, max(size * 0.001, 0.002))
+            if heavy and _edge_len(c) < size * 0.01:
+                continue
+            d = GCPnts_TangentialDeflection(c, 0.5 if heavy else 0.2, max(size * (0.004 if heavy else 0.001), 0.002))
             pts = [d.Value(i) for i in range(1, d.NbPoints() + 1)]
         except Exception:  # noqa: BLE001 — a degenerate edge: nothing to draw
             continue
@@ -783,12 +808,21 @@ def tessellate(body):
             "faces": faces, "edges": edges, "bbox": bb, "volume": volume(shape), "solids": solids(shape)}
 
 
-def _face_info(f, fi, rev):
+def _edge_len(c):
+    """About how long an edge is (its ends and middle; enough to skip tiny ones)."""
+    a, m, b = (c.Value(t) for t in (c.FirstParameter(), (c.FirstParameter() + c.LastParameter()) / 2, c.LastParameter()))
+    return a.Distance(m) + m.Distance(b)
+
+
+def _face_info(f, fi, rev, rough=None):
     s = BRepAdaptor_Surface(f, True)
-    p = GProp_GProps()
-    BRepGProp.SurfaceProperties_s(f, p)
-    c = p.CentreOfMass()
-    info = {"id": fi, "area": p.Mass(), "centroid": _round((c.X(), c.Y(), c.Z()))}
+    if rough:  # (area, centre) from the mesh
+        info = {"id": fi, "area": rough[0], "centroid": _round(tuple(rough[1]))}
+    else:
+        p = GProp_GProps()
+        BRepGProp.SurfaceProperties_s(f, p)
+        c = p.CentreOfMass()
+        info = {"id": fi, "area": p.Mass(), "centroid": _round((c.X(), c.Y(), c.Z()))}
     kind = s.GetType()
     if kind == GeomAbs_Plane:
         d = s.Plane().Axis().Direction()
@@ -877,6 +911,37 @@ def compound(shapes):
 
 
 # ------------------------------------------------------------------ files
+def mesh_solid(tris, tol=1e-4):
+    """Triangles (n, 3, 3) of a closed mesh (STL / OBJ) -> a solid: the triangles sewn, flat neighbours merged
+    into one face."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeSolid, BRepBuilderAPI_Sewing
+    from OCP.ShapeFix import ShapeFix_Solid
+    from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
+    from OCP.TopAbs import TopAbs_SHELL
+    sew = BRepBuilderAPI_Sewing(tol)
+    for a, b, c in np.asarray(tris, float):
+        if np.linalg.norm(np.cross(b - a, c - a)) < 1e-12:
+            continue  # no area
+        poly = BRepBuilderAPI_MakePolygon(gp_Pnt(*a), gp_Pnt(*b), gp_Pnt(*c), True)
+        sew.Add(BRepBuilderAPI_MakeFace(poly.Wire(), True).Face())
+    sew.Perform()
+    mk, ex, n = BRepBuilderAPI_MakeSolid(), TopExp_Explorer(sew.SewedShape(), TopAbs_SHELL), 0
+    while ex.More():
+        mk.Add(TopoDS.Shell(ex.Current()))
+        n += 1
+        ex.Next()
+    if not n:
+        raise KernelError("The mesh has no closed surface — it cannot become a solid.")
+    fix = ShapeFix_Solid(mk.Solid())
+    fix.Perform()
+    shape = fix.Solid()
+    if volume(shape) <= 0:
+        raise KernelError("The mesh is not closed (it has holes) — it cannot become a solid.")
+    u = ShapeUpgrade_UnifySameDomain(shape, True, True, False)
+    u.Build()
+    return u.Shape()
+
+
 def to_step(shape, name="part"):
     w = STEPControl_Writer()
     Interface_Static.SetCVal_s("write.step.schema", "AP214")

@@ -91,6 +91,9 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_assembly_bolt.py <url> <dir>` covers a screw through parts with no holes (the click, the suggestion and
    preview, the Ø3.4 holes drilled in both parts — exact volumes —, head on top and nut below, Ctrl+Z / Ctrl+Y with
    the holes, the AI's bolt_parts with an insert) and the Tangent, Angle (30°, typed 60°) and Perpendicular joints.
+   `tools/e2e_model_solid.py <url> <dir> <a .step> [<a bigger .step>]` covers STEP files as exact solids (Open → a 3D
+   model in ~1 s, timed with the page's answer time; a cover: a box with the STEP as a 👁 Reference, then ⬚ Cut out —
+   exact volumes; the AI sees its bbox; an assembly inserts one From a file; the project file carries it and reopens).
    `tools/e2e_model_mirror.py <url> <dir>` covers ⇋ Mirror in a sketch (across the Y axis: a rectangle and a circle,
    the copy following a 30 mm lock, Move over the X axis, across a sketch line) and in 3D (YZ / XZ copy = twice the
    volume, Mirror only, the AI mirroring one hole).

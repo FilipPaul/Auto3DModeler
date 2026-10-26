@@ -510,7 +510,37 @@ async function openImport(file) {
   stop();
   try { await loadParsed(data); } catch (e) { toast(e.message, 'error', 9000); }
 }
-$('cadInput').addEventListener('change', (e) => { if (e.target.files[0]) openImport(e.target.files[0]); e.target.value = ''; });
+const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+// CAD data (STEP) opens as a 3D model with its exact solid; a mesh (STL / OBJ, mostly for printing) as a quick part
+const OPEN_SOLID_RE = /\.(step|stp)$/i;
+/** A STEP / STL / OBJ file made a solid by the kernel (kept on the server by its hash) -> {blob, name, faces, bbox, volume}. */
+async function importSolid(file) {
+  const fd = new FormData(), rid = newRid();
+  fd.append('rid', rid);
+  fd.append('file', file);
+  const stop = trackProgress(rid, `Reading ${file.name}…`);
+  try { return await (await api('/api/model/import', fd)).json(); } finally { stop(); }
+}
+/** The step of a 3D model that is that solid: joined (add), cut out of the part (cut), or a reference (ref). */
+const solidStep = (r, id = 'F1', op = 'add') => ({ id, type: 'solid', name: r.name.replace(/\.[^.]+$/, ''), blob: r.blob, file: r.name, op });
+/** Open a 3D file as a 3D model part: the exact solid, then sketches, holes … on it (a big mesh: a sliced quick part). */
+async function openSolid(file) {
+  let r;
+  try { r = await importSolid(file); } catch (e) {
+    if (/MESH_TOO_BIG/.test(e.message)) {
+      toast(t('This mesh is too big to become an exact solid — it opens as a quick part (sliced), as before.'), 'info', 7000);
+      await openImport(file);
+    } else toast(e.message.replace(/^MESH_TOO_BIG /, ''), /cancel/i.test(e.message) ? 'info' : 'error', 9000);
+    return;
+  }
+  await project.newModel({ features: [solidStep(r)] }, file.name.replace(/\.[^.]+$/, ''));
+  toast(t2('{name} is open as a 3D model ({faces} faces) — sketch on its faces, add holes, or ask the AI to build on it.', { name: file.name, faces: r.faces }), 'ok', 7000);
+}
+$('cadInput').addEventListener('change', (e) => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (f) (OPEN_SOLID_RE.test(f.name) ? openSolid : openImport)(f);
+});
 $('pdfInput').addEventListener('change', (e) => { if (e.target.files[0]) openPdf(e.target.files[0]); e.target.value = ''; });
 $('sampleBtn').addEventListener('click', async () => {
   try { await loadParsed(await (await api('/api/sample')).json()); } catch (e) { toast(e.message, 'error'); }
@@ -526,6 +556,7 @@ vp.addEventListener('drop', (e) => {
   if (!f) return;
   if (/\.json$/i.test(f.name)) openProject(f);
   else if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') openPdf(f);
+  else if (OPEN_SOLID_RE.test(f.name) && !e.shiftKey) openSolid(f); // Shift: a sliced quick part, as before
   else if (IMPORT_RE.test(f.name)) openImport(f);
   else if (f.type.startsWith('image/')) {
     // with a part loaded a picture becomes a design layer; Shift+drop (or no part) traces its outline
@@ -1670,6 +1701,7 @@ const modeler = new Modeler({ left: $('modelLeft'), viewport: $('modelViewport')
   toast, download, safeName: () => tabName(),
   onChange: () => updateTopButtons(),
   pickOutline: () => pickOutlineFile(),
+  importSolid: (file) => importSolid(file),
   // a printing copy of a model part: its STL as a Quick part, on the 3D print tab
   async toPrint(blob) {
     const name = `${project.current?.name || safeName()} (print).stl`;
@@ -1741,6 +1773,7 @@ const assembly = new Assembly({ left: $('asmLeft'), viewport: $('asmViewport'), 
   parts: () => project.parts,
   partData: (id) => { const p = project.parts.find((q) => q.id === id); return p && typeof p.data === 'object' ? p.data : null; },
   addModelPart: (name, data) => project.addBackground(name, data),
+  importSolid: async (file) => solidStep(await importSolid(file)),
   selfId: () => project.active, // the assembly on screen (it may not go into itself)
   onChange: () => updateTopButtons(),
 });
@@ -1796,6 +1829,7 @@ $('saveBtn').addEventListener('click', async () => {
     app: 'Auto3DModeler', version: 3, project_name: state.projectName, unit: state.model?.unit || 'mm',
     ...project.toJSON(), assets: {}, assemblies: [],
   };
+  proj.blobs = await projectBlobs(proj);
   const saved = await download(new Blob([JSON.stringify(proj)], { type: 'application/json' }), `${safeName()}.a3d.json`, { id: 'auto3d-project' });
   if (!saved) return;
   // a name changed in the Save dialog becomes the project's name
@@ -1804,9 +1838,33 @@ $('saveBtn').addEventListener('click', async () => {
   toast(`Project saved as ${saved}.`, 'ok');
 });
 
+/** The imported files (by hash) the project's 3D models use, base64 — so the project opens on another computer. */
+async function projectBlobs(proj) {
+  const shas = new Set(proj.parts.flatMap((p) => (p.model?.features || []).filter((f) => f.type === 'solid' && f.blob).map((f) => f.blob)));
+  const out = {};
+  for (const sha of shas) {
+    const res = await fetch(`/api/blob/${sha}`);
+    if (!res.ok) continue;
+    const u = new Uint8Array(await res.arrayBuffer());
+    let s = '';
+    for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000));
+    out[sha] = btoa(s);
+  }
+  return out;
+}
+
 async function openProject(file) {
   try {
-    const res = await api('/api/project/migrate', JSON.parse(await file.text()));
+    const raw = JSON.parse(await file.text());
+    // its imported files back to the server first (by their hash)
+    for (const [sha, b] of Object.entries(raw.blobs || {})) {
+      const bin = atob(b), u = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+      await fetch('/api/blob', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: u });
+      void sha;
+    }
+    delete raw.blobs;
+    const res = await api('/api/project/migrate', raw);
     const proj = await res.json();
     if (proj.error) throw new Error(proj.error);
     state.projectName = proj.project_name;

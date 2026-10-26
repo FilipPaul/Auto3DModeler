@@ -127,6 +127,7 @@ export class Modeler {
         ${btn('hole', '◎ Hole', 'Drill holes: click on a flat face where they go, give the diameter (H)', 'tool')}
         ${btn('shell', '▢ Shell', 'Hollow the part out: click the face(s) to leave open, give the wall thickness', 'tool')}
         ${btn('decal', 'Aa Text / picture', 'Decorate a flat face: text or a picture outline, raised or engraved', 'tool')}
+        ${btn('solidFile', '▣ Solid from a file', 'Add a STEP / STL / OBJ solid: joined to the part, cut out of it (a cavity it fits in), or as a see-through reference to build around', 'tool')}
         ${btn('mirror', '⇋ Mirror', 'Mirror the part (or one step) across a base plane or a flat face — as a copy, or moved', 'tool')}
         ${btn('pattern', '⁂ Pattern', 'Repeat a step (holes, a boss, a cut) in a row or around a circle: give how many and how far apart', 'tool')}
         <span class="sep"></span>
@@ -182,6 +183,7 @@ export class Modeler {
     if (a === 'section') return this.toggleSection();
     if (a === 'shell') return this.startShell();
     if (a === 'pattern') return this.startPattern();
+    if (a === 'solidFile') return this.pickSolid();
     if (a === 'mirror') return this.mode === 'sketch' ? this.sk.setTool('mirror') : this.startMirror();
     if (a === 'loft' || a === 'sweep') return this.startProfiles(a);
     if (a === 'decal') return this.startDecal();
@@ -257,6 +259,7 @@ export class Modeler {
     if (f.type === 'decal') return `${f.source === 'text' ? `“${f.text}”` : 'picture'} · ${fmt(f.h)} mm${f.op === 'cut' ? ' · engraved' : ' · raised'}`;
     if (f.type === 'loft') return `${(f.sketches || []).length} sketches${f.op === 'cut' ? ' · cut' : ''}`;
     if (f.type === 'sweep') return `along ${this.part.features.find((g) => g.id === f.path)?.name || '?'}${f.op === 'cut' ? ' · cut' : ''}`;
+    if (f.type === 'solid') return `${f.file || 'solid'} · ${{ add: 'joined', cut: 'cut out', ref: 'reference' }[f.op || 'add']}`;
     if (f.type === 'mirror') {
       const of = f.of === 'body' || !f.of ? 'the part' : this.part.features.find((g) => g.id === f.of)?.name || '?';
       return `${of} · ${f.plane?.datum ? f.plane.datum : 'a face'}${f.copy === false ? ' · moved' : ' · copy'}`;
@@ -618,7 +621,7 @@ export class Modeler {
       const ty = this.cmd.feature.type;
       const r = ty === 'extrude' ? this.renderExtrude(box) : ty === 'hole' ? this.renderHole(box) : ty === 'revolve' ? this.renderRevolve(box)
         : ty === 'shell' ? this.renderShell(box) : ty === 'pattern' ? this.renderPattern(box)
-        : ty === 'loft' || ty === 'sweep' ? this.renderProfiles(box) : ty === 'decal' ? this.renderDecal(box) : ty === 'mirror' ? this.renderMirror(box) : this.renderRound(box);
+        : ty === 'loft' || ty === 'sweep' ? this.renderProfiles(box) : ty === 'decal' ? this.renderDecal(box) : ty === 'mirror' ? this.renderMirror(box) : ty === 'solid' ? this.renderSolid(box) : this.renderRound(box);
       this.addSliders(box);
       return r;
     }
@@ -717,7 +720,10 @@ export class Modeler {
         this.frames = { ...this.frames, ...r.frames }; // also while rolled back before an open sketch
         const first = !this.view.body && r.body;
         this.view.setBody(r.body);
+        this.view.setRefs(r.refs || []);
         if (first && this.mode === 'part') this.view.setView('iso');
+        const gone = (r.features || []).flatMap((s) => s.issues || []).find((x) => /^BLOB_MISSING/.test(x));
+        if (gone) this.hooks.toast(t('The file of an imported solid is not on this computer — open the project file (it carries the file) again.'), 'error', 9000);
         this.view.showDatums(!r.body || this.mode === 'plane');
         this.sk?.draw();
       } catch (e) {
@@ -1162,6 +1168,7 @@ export class Modeler {
       : feature.type === 'decal' ? 'Text / picture — click on a flat face where it goes (click again to move it). Enter = OK, Esc = Cancel.'
       : feature.type === 'loft' ? 'Loft — choose the sketch it starts from and the one it goes to. Enter = OK, Esc = Cancel.'
       : feature.type === 'sweep' ? 'Sweep — choose the outline (profile) and the path it moves along. Enter = OK, Esc = Cancel.'
+      : feature.type === 'solid' ? 'Solid from a file — joined to the part, cut out of it, or a see-through reference. Enter = OK, Esc = Cancel.'
       : feature.type === 'mirror' ? 'Mirror — choose the plane, or click a flat face to mirror across it. Enter = OK, Esc = Cancel.'
       : feature.type === 'pattern' ? 'Pattern — how many and how far apart. Click an edge for the direction (or a round face for the axis). Enter = OK, Esc = Cancel.'
       : feature.type === 'hole' ? 'Hole — click on a flat face where it goes (click again for more holes). Enter = OK, Esc = Cancel.'
@@ -1734,6 +1741,38 @@ export class Modeler {
         changed();
       });
     }
+    box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
+    box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
+  }
+
+  // ------------------------------------------------------------------ a solid from a file (STEP / STL / OBJ)
+  pickSolid() {
+    if (this.mode !== 'part' || this.cmd || !this.hooks.importSolid) return;
+    const inp = document.createElement('input');
+    Object.assign(inp, { type: 'file', accept: '.step,.stp,.stl,.obj' });
+    inp.addEventListener('change', async () => {
+      const file = inp.files[0];
+      if (!file) return;
+      let r;
+      try { r = await this.hooks.importSolid(file); } catch (e) { this.hooks.toast(e.message.replace(/^MESH_TOO_BIG /, ''), 'error', 9000); return; }
+      if (this.mode !== 'part' || this.cmd) return;
+      // with a part there: a reference to build around (a cover, a holder); else the part itself
+      this.openCommand({ id: this.newId(), type: 'solid', name: r.name.replace(/\.[^.]+$/, ''), blob: r.blob, file: r.file || r.name, op: this.result?.body ? 'ref' : 'add' }, true);
+    });
+    inp.click();
+  }
+
+  renderSolid(box) {
+    const f = this.cmd.feature, st = this.status(f.id), bb = st?.bbox, op = f.op || 'add';
+    const size = bb ? `${fmt(bb[3] - bb[0])} × ${fmt(bb[4] - bb[1])} × ${fmt(bb[5] - bb[2])} mm` : '';
+    box.innerHTML = `<h2 data-no-i18n>${esc(f.name)}</h2><p class="hint" data-no-i18n>${esc(f.file || '')}${size ? ` · ${size}` : ''}</p>
+      <div class="seg big"><button data-op="add" class="${op === 'add' ? 'on' : ''}">▣ Joined</button><button data-op="cut" class="${op === 'cut' ? 'on' : ''}">⬚ Cut out</button><button data-op="ref" class="${op === 'ref' ? 'on' : ''}">👁 Reference</button></div>
+      <p class="hint">${op === 'add' ? 'Part of the part: sketch on its faces, drill it, round its edges.'
+        : op === 'cut' ? 'Cut out of the part: a cavity it fits in exactly (e.g. inside a cover you built around it).'
+        : 'Shown see-through, not part of the part: build around it — a cover, a holder — then Cut out a copy of it to make it fit.'}</p>
+      ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
+      <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
+    for (const b of box.querySelectorAll('[data-op]')) b.addEventListener('click', () => { f.op = b.dataset.op; this.renderProps(); this.rebuild(); });
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
   }

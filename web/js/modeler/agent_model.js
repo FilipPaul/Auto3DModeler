@@ -276,6 +276,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         if (f.type === 'shell') Object.assign(out, { t: f.t, open_faces: f.faces.map((x) => x.name) });
         if (f.type === 'loft') Object.assign(out, { sketches: f.sketches, op: f.op });
         if (f.type === 'sweep') Object.assign(out, { profile: f.profile, path: f.path, op: f.op });
+        if (f.type === 'solid') Object.assign(out, { file: f.file, op: f.op || 'add', bbox: st.bbox });
         if (f.type === 'pattern') Object.assign(out, { of: f.features, kind: f.kind, count: f.count, ...(f.kind === 'circular' ? { axis: f.axis } : { dir: f.dir, spacing: f.spacing }) });
         return out;
       });

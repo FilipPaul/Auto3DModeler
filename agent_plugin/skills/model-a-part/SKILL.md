@@ -38,6 +38,10 @@ Everything is in mm. x right, y up, z up from the printer bed. The 3D printer be
    **Repeats**: make ONE hole / boss / cut, then `{type: "pattern", of: ["<its id>"], dir: "x", count: 4, spacing: 15}`
    (a row) or `{type: "pattern", of: [...], kind: "circular", axis: "z", count: 6}` (a bolt circle; `axis` may be
    a round face's name). A warning "changed nothing" means the copies left the part — fix dir / spacing.
+   **Around an imported model** (a `solid` step from a STEP / STL the user opened — get_model gives its `bbox`):
+   a cover / holder is a box sketched a wall bigger than the bbox, extruded, `shell`ed open on one side; then the user
+   switches the solid to ⬚ Cut out (or you `edit_feature` it with `fields: {op: "cut"}`, after it in the steps —
+   `op: "ref"` shows it only). Ask the user to add the file with ▣ Solid from a file if it is not there.
    **Mirror**: `{type: "mirror", plane: "YZ"}` adds the mirror image of the whole part (left ↔ right; "XZ" front ↔
    back, "XY" top ↔ bottom, or `face: "<flat face>"`); `of: "<step id>"` mirrors one step only; `copy: false` turns the
    part over instead. Model half of a symmetric part, then mirror it.

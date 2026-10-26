@@ -20,7 +20,7 @@ import queue
 
 import cv2
 import numpy as np
-from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
+from flask import Flask, Response, jsonify, request, send_file, send_from_directory, stream_with_context
 
 from auto3d import progress
 from auto3d.agent import ChatSession, Relay, find_claude
@@ -46,7 +46,7 @@ SAMPLE = ROOT / "initial draft.pdf"
 printers = PrinterStore(ROOT / "data" / "printers.json")
 
 app = Flask(__name__, static_folder=None)
-app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024  # big STEP files
 
 
 @app.get("/")
@@ -368,11 +368,51 @@ def api_model_rebuild():
         return jsonify({"cancelled": True})
     if err:
         return err
-    b = res.get("body")
-    if b:
-        b["positions"] = base64.b64encode(b["positions"]).decode("ascii")
-        b["face_ids"] = base64.b64encode(b["face_ids"]).decode("ascii")
+    for b in [res.get("body"), *(res.get("refs") or [])]:
+        if b:
+            b["positions"] = base64.b64encode(b["positions"]).decode("ascii")
+            b["face_ids"] = base64.b64encode(b["face_ids"]).decode("ascii")
     return jsonify(res)
+
+
+@app.post("/api/blob")
+def api_blob_put():
+    """A file a 3D model step uses (an imported STEP): kept by its SHA-256 -> {sha}. Raw body or a form file."""
+    from auto3d.modeler import blobs
+    f = request.files.get("file")
+    data = f.read() if f else request.get_data()
+    if not data:
+        return jsonify({"error": "No file uploaded."}), 400
+    return jsonify({"sha": blobs.put(data), "size": len(data)})
+
+
+@app.get("/api/blob/<sha>")
+def api_blob_get(sha):
+    from auto3d.modeler import blobs
+    try:
+        return send_file(blobs.path(sha), mimetype="application/octet-stream")
+    except blobs.Missing:
+        return jsonify({"error": "No such file here."}), 404
+
+
+@app.post("/api/model/import")
+def api_model_import():
+    """A STEP / STL / OBJ file -> a solid step for a 3D model: {blob, faces, bbox, volume} (form: file, rid)."""
+    from auto3d.modeler import blobs
+    f = request.files.get("file")
+    if f is None:
+        return jsonify({"error": "No file uploaded."}), 400
+    name = f.filename or "part.step"
+    try:
+        with progress.operation(request.form.get("rid")):
+            progress.report(f"Reading {name}")
+            sha = blobs.put(f.read())
+            res, err = _model_call("import_solid", {"blob": sha, "name": name})
+    except progress.Cancelled:
+        return jsonify({"error": "Import cancelled.", "cancelled": True}), 409
+    if err:
+        return err
+    return jsonify({**res, "name": name})
 
 
 @app.post("/api/model/sketch/offset")
