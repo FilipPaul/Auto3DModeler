@@ -31,7 +31,8 @@ def _main(conn):
     from . import doc
     from .kernel import KernelError
     ops = {"rebuild": doc.rebuild, "export": lambda a: doc.export(a["part"], a["fmt"], a.get("name") or "part"),
-           "assembly_step": lambda a: doc.assembly_step(a["instances"])}
+           "assembly_step": lambda a: doc.assembly_step(a["instances"]),
+           "limits": lambda a: doc.limits(a["features"], a["id"])}
     while True:
         try:
             op, arg = conn.recv()

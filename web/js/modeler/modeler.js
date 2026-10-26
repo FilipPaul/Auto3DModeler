@@ -12,6 +12,8 @@ import { textOutline } from '../outlinepanel.js';
 const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa' };
 const TYPE_NAME = { sketch: 'Sketch', extrude: 'Extrude', revolve: 'Revolve', fillet: 'Fillet', chamfer: 'Chamfer', hole: 'Hole', shell: 'Shell', pattern: 'Pattern',
   loft: 'Loft', sweep: 'Sweep', solid: 'Solid', decal: 'Decoration' };
+const LIMIT_FIELDS = { extrude: ['d', 'offset'], revolve: ['angle'], fillet: ['r'], chamfer: ['d'], hole: ['d', 'depth'], shell: ['t'],
+  pattern: ['count', 'spacing'], decal: ['h', 'depth'] }; // the numbers the kernel finds ranges for (doc.LIMIT_FIELDS)
 const REPEATABLE = new Set(['extrude', 'revolve', 'hole', 'pattern', 'loft', 'sweep', 'decal']);
 const AXES = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
 const USES_SKETCH = new Set(['extrude', 'revolve', 'loft', 'sweep']);
@@ -21,6 +23,7 @@ const sketchesOf = (f) => (f.type === 'loft' ? f.sketches || [] : f.type === 'sw
 export const MATERIALS = { PLA: 1.24, PETG: 1.27, ABS: 1.04, ASA: 1.07, TPU: 1.21, PA: 1.14 };
 const DATUM_NAME = { XY: 'Top', XZ: 'Front', YZ: 'Right' };
 const fmt = (v) => (+(+v).toFixed(3)).toString();
+const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -348,7 +351,7 @@ export class Modeler {
       tags.push({ p, el });
     };
     const P3 = (fr, u, v) => { const y = cross(fr.n, fr.x); return [0, 1, 2].map((i) => fr.o[i] + u * fr.x[i] + v * y[i]); };
-    const f = step, num = (k, label, o = {}) => ({ get: () => f[k], set: (v) => { f[k] = v; }, label, ...o });
+    const f = step, num = (k, label, o = {}) => ({ get: () => f[k], set: (v) => { f[k] = v; }, label, field: k, stepId: f.id, ...o });
     const skOf = (id) => this.part.features.find((g) => g.id === id);
     const frameOf = (sk) => (sk?.plane?.datum ? datumFrame(sk.plane) : this.frames?.[sk?.id] || sk?.plane?.frame);
     if (f.type === 'extrude' || f.type === 'revolve') {
@@ -456,7 +459,7 @@ export class Modeler {
     this.closeDimEdit();
     const before = structuredClone(this.part.features);
     const v0 = edit.get(), step = edit.step || (Math.abs(v0) >= 20 ? 0.5 : 0.1);
-    const lo = edit.min ?? 0.1, hi = edit.max ?? Math.max(10, Math.abs(v0) * 3);
+    let lo = edit.min ?? 0.1, hi = edit.max ?? Math.max(10, Math.abs(v0) * 3);
     const box = document.createElement('div');
     box.className = 'm-dimedit';
     box.innerHTML = `<div class="m-dimedit-t">${esc(t(edit.label || 'Size'))}</div>
@@ -469,6 +472,19 @@ export class Modeler {
     this.els.viewport.appendChild(box);
     this.dimEdit = box;
     const num = box.querySelector('input[type=number]'), slider = box.querySelector('input[type=range]');
+    if (edit.field && edit.stepId) { // the real range of this number of the step
+      this.limitsFor(this.part.features, edit.stepId).then((lim) => {
+        const r = lim[edit.field];
+        if (!r || this.dimEdit !== box) return;
+        [lo, hi] = r;
+        Object.assign(slider, { min: String(lo), max: String(hi) });
+        Object.assign(num, { min: String(lo), max: String(hi) });
+        const tag = document.createElement('div');
+        tag.className = 'mp-range';
+        tag.textContent = `${fmt(lo)} – ${fmt(hi)}${edit.unit || (edit.int ? '' : ' mm')}`;
+        slider.after(tag);
+      });
+    }
     let pending = null, busy = false;
     const preview = async (v) => {
       pending = v;
@@ -481,7 +497,7 @@ export class Modeler {
       }
       busy = false;
     };
-    const valid = (v) => Number.isFinite(v) && (edit.int ? Number.isInteger(v) && v >= (edit.min ?? 1) : (edit.min ?? 0) <= v || edit.min < 0);
+    const valid = (v) => Number.isFinite(v) && v <= hi && (edit.int ? Number.isInteger(v) && v >= lo : lo <= v || lo < 0);
     num.addEventListener('input', () => { const v = parseFloat(num.value); if (valid(v)) { slider.value = v; preview(v); } });
     slider.addEventListener('input', () => { const v = Math.max(parseFloat(slider.value), edit.min > 0 ? edit.min : 0); num.value = fmt(v); preview(v); });
     const ok = async () => {
@@ -700,6 +716,7 @@ export class Modeler {
     if (this.section) this.renderSection();
     if (this.cmd && (this.cmd.feature.type === 'fillet' || this.cmd.feature.type === 'chamfer')) this.view.setEdgeHighlight(-1, this.refEdges(this.cmd.feature.edges));
     if (this.dimStep && !this.dimEdit && !this.cmd && this.mode === 'part') this.reshowDims();
+    if (this.cmd) this.refreshLimits();
     if (this.cmd?.feature.type === 'hole') {
       this.drawHoleDims();
       // the panel shows this rebuild's state (issues, moved holes) — unless a value is being typed in it
@@ -970,6 +987,8 @@ export class Modeler {
   /** A slider under every number of a tool's panel: sliding types into the number (the part previews), typing
    *  moves the slider. Its range: from the number's min (or below 0 when it may be negative) to about 3× the value. */
   addSliders(box) {
+    // the ranges known for these very settings (not the ones from before e.g. a pattern went round)
+    if (this.cmd?.limits && this.cmd.limitsKey === this.limitsKey(this.shown(), this.cmd.feature.id)) setTimeout(() => this.applyLimits(box, this.cmd.limits), 0);
     for (const num of box.querySelectorAll('input[type=number]')) {
       if (num.dataset.slider || num.disabled) continue;
       num.dataset.slider = '1';
@@ -981,10 +1000,17 @@ export class Modeler {
       sl.className = 'mp-slider';
       sl.title = 'Slide to change it — the part follows';
       sl.addEventListener('input', () => {
-        num.value = fmt(+sl.value);
+        num.value = fmt(Math.max(+sl.value, num.min !== '' ? +num.min : -Infinity));
         num.dispatchEvent(new Event('input', { bubbles: true }));
       });
       sl.addEventListener('change', () => num.dispatchEvent(new Event('change', { bubbles: true })));
+      num.addEventListener('input', () => {
+        const v = parseFloat(num.value), lo = num.min !== '' ? +num.min : -Infinity, hi = num.max !== '' ? +num.max : Infinity;
+        if (Number.isFinite(v) && (v > hi || v < lo)) {
+          num.value = fmt(Math.min(hi, Math.max(lo, v)));
+          this.hooks.toast(t2('{v} is the most that works here (with what is around it).', { v: num.value }), 'info', 2500);
+        }
+      }, true);
       num.addEventListener('input', () => {
         const v = parseFloat(num.value);
         if (!Number.isFinite(v)) return;
@@ -993,6 +1019,66 @@ export class Modeler {
       });
       const row = num.closest('.field, .mp-hd, label') || num.parentElement;
       row.after(sl);
+    }
+  }
+
+  // ------------------------------------------------------------------ the range each number can take
+  /** {field: [min, max]} for step `id` (with the steps before it as they are): asked from the kernel, remembered. */
+  /** What a step's ranges depend on: the steps before it, and the step without its own ranged numbers. */
+  limitsKey(features, id) {
+    const i = features.findIndex((f) => f.id === id);
+    if (i < 0) return null;
+    const strip = { ...features[i] };
+    for (const k of LIMIT_FIELDS[strip.type] || []) delete strip[k];
+    return JSON.stringify([features.slice(0, i), strip]);
+  }
+
+  async limitsFor(features, id) {
+    const i = features.findIndex((f) => f.id === id);
+    if (i < 0) return {};
+    const key = this.limitsKey(features, id);
+    this.limitCache = this.limitCache || new Map();
+    if (this.limitCache.has(key)) return this.limitCache.get(key);
+    try {
+      const res = await fetch('/api/model/limits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: { features: features.slice(0, i + 1) }, id }) });
+      const r = res.ok ? await res.json() : {};
+      this.limitCache.set(key, r);
+      return r;
+    } catch { return {}; }
+  }
+
+  /** The open tool's ranges, asked again when what they depend on changes; put on its numbers and sliders. */
+  async refreshLimits() {
+    const f = this.cmd?.feature;
+    if (!f || !LIMIT_FIELDS[f.type]) return;
+    const key = this.limitsKey(this.shown(), f.id), lim = await this.limitsFor(this.shown(), f.id);
+    if (this.cmd?.feature !== f || this.limitsKey(this.shown(), f.id) !== key) return; // changed meanwhile: asked again
+    this.cmd.limits = lim;
+    this.cmd.limitsKey = key;
+    this.applyLimits(this.$('.mp-body'), lim);
+  }
+
+  /** Numbers and sliders held to their ranges; the range shown under the slider; a value outside is pulled in. */
+  applyLimits(box, lim) {
+    for (const [k, [lo, hi]] of Object.entries(lim || {})) {
+      for (const num of box.querySelectorAll(`input[type=number][data-k="${k}"]`)) {
+        num.min = String(lo);
+        num.max = String(hi);
+        const sl = num.closest('.field, label, .mp-hd')?.nextElementSibling;
+        if (sl?.classList.contains('mp-slider')) {
+          const st = +sl.step || 0.1;
+          sl.min = String(Math.floor(lo / st) * st); // on the step grid (0.01 would make 8 into 7.99); the number holds the min
+          sl.max = String(hi);
+          let tag = sl.nextElementSibling;
+          if (!tag?.classList.contains('mp-range')) { tag = document.createElement('div'); tag.className = 'mp-range'; sl.after(tag); }
+          tag.textContent = `${fmt(lo)} – ${fmt(hi)}${k === 'count' ? '' : k === 'angle' ? '°' : ' mm'}`;
+        }
+        const v = parseFloat(num.value);
+        if (Number.isFinite(v) && (v > hi || v < lo)) {
+          num.value = fmt(Math.min(hi, Math.max(lo, v)));
+          num.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
     }
   }
 

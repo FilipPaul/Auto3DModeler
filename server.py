@@ -461,6 +461,16 @@ def api_model_sketch_solve():
         return jsonify({"error": str(exc)}), 400
 
 
+@app.post("/api/model/limits")
+def api_model_limits():
+    """{part: {features}, id} -> {field: [min, max]}: the values each number of that step can take."""
+    body = request.get_json(force=True)
+    data, err = _model_call("limits", {"features": (body.get("part") or {}).get("features") or [], "id": body.get("id")})
+    if err:
+        return err
+    return jsonify(data)
+
+
 @app.post("/api/model/export/<fmt>")
 def api_model_export(fmt):
     if fmt not in ("stl", "step", "pdf"):

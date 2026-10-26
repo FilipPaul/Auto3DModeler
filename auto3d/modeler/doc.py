@@ -20,6 +20,7 @@ Features are evaluated in order; one that fails gets an issue and is skipped, th
 from __future__ import annotations
 
 import hashlib
+import math
 import json
 from collections import OrderedDict
 
@@ -191,14 +192,25 @@ def _apply(f, st: State, s):
     if t == "shell":
         if st.body is None:
             raise K.KernelError("There is no solid yet to hollow out.")
-        st.body = K.shell(st.body, K.find_faces(st.body, f.get("faces") or []), _num(f, "t", 2, what="wall thickness"), fid)
+        faces, t_ = K.find_faces(st.body, f.get("faces") or []), _num(f, "t", 2, what="wall thickness")
+        if not faces:
+            raise K.KernelError("Click the face(s) to leave open (e.g. the top of a cup).")
+        body = st.body
+        st.body = _sized(lambda v: K.shell(body, faces, v, fid), t_, "wall", "mm",
+                         "This part cannot be hollowed out with that face open (a rounding or bevel next to it?) — open another face, "
+                         "or hollow it out before rounding the edges.")
         return
     if t in ("fillet", "chamfer"):
         if st.body is None:
             raise K.KernelError("There is no solid yet to round.")
         edges, guessed = K.find_edges(st.body, f.get("edges") or [])
         size = _num(f, "r" if t == "fillet" else "d", 1, what="radius" if t == "fillet" else "size")
-        st.body = K.round_edges(st.body, edges, size, fid, chamfer=t == "chamfer")
+        if not edges:
+            raise K.KernelError("Pick at least one edge.")
+        body = st.body
+        st.body = _sized(lambda v: K.round_edges(body, edges, v, fid, chamfer=t == "chamfer"), size, "radius" if t == "fillet" else "size", "mm",
+                         f"These edges cannot be {'rounded' if t == 'fillet' else 'bevelled'} here (whatever the size) — pick other edges, "
+                         "or do it before the steps that changed them.")
         if guessed:
             s["warnings"].append(f"{guessed} edge(s) were found again by their position only — check that the right edges are {'rounded' if t == 'fillet' else 'bevelled'}.")
         return
@@ -394,6 +406,35 @@ def _hole_from_edges(f, fr, st, s):
     return pts
 
 
+def _sized(make, v, what, unit, impossible):
+    """make(v) -> a body; when it fails, say why: no size works at all, or this one is too big (and the most that
+    works, found by trying)."""
+    try:
+        return make(v)
+    except K.KernelError:
+        pass
+
+    def ok(x):
+        try:
+            make(x)
+            return True
+        except K.KernelError:
+            return False
+        except Exception:  # noqa: BLE001
+            return False
+    small = min(v, 0.05)
+    if not ok(small):
+        raise K.KernelError(impossible) from None
+    lo, hi = small, v
+    for _ in range(18):
+        mid = (lo + hi) / 2
+        if ok(mid):
+            lo = mid
+        else:
+            hi = mid
+    raise K.KernelError(f"The {what} {v:g} {unit} does not fit here — at most {math.floor(lo * 100) / 100:g} {unit}.") from None
+
+
 def _use(st, fid, tool, op):
     st.body = K.combine(st.body, tool, op)
     st.tools.setdefault(fid, []).append((tool, op))
@@ -513,6 +554,139 @@ def evaluate(features):
         while len(_cache) > CACHE_SIZE:
             _cache.popitem(last=False)
     return st, status
+
+
+# ------------------------------------------------------------------ the sizes a step can take
+LIMIT_FIELDS = {"extrude": ("d", "offset"), "revolve": ("angle",), "fillet": ("r",), "chamfer": ("d",), "hole": ("d", "depth"),
+                "shell": ("t",), "pattern": ("count", "spacing"), "decal": ("h", "depth")}
+_limit_cache: OrderedDict = OrderedDict()
+
+
+def limits(features, fid):
+    """The range each number of step `fid` can take with the steps before it as they are: {field: [min, max]}.
+    Found by building the step at trial values (it fails, or — a pattern — changes nothing, outside the range).
+    A field with no limit up to a generous size gets that size as its max."""
+    i = next((k for k, f in enumerate(features) if f.get("id") == fid), None)
+    if i is None:
+        raise K.KernelError("No such step.")
+    f = features[i]
+    key = _key(features[: i + 1])
+    if key in _limit_cache:
+        return _limit_cache[key]
+    st0, _ = evaluate(features[:i])
+    if f.get("type") == "revolve":
+        f = {**f, "_sketch": next((g for g in features if g.get("id") == f.get("sketch")), None)}
+    bb = K.bbox(st0.body.shape) if st0.body is not None else None
+    size = max((bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2])) if bb else 100.0
+    base_vol = K.volume(st0.body.shape) if st0.body is not None else 0.0
+
+    def works(field, v):
+        st, s = st0.copy(), {"warnings": [], "issues": []}
+        try:
+            _apply({**f, field: v}, st, s)
+        except Exception:  # noqa: BLE001 — any failure: this value does not work
+            return False
+        if st.body is None:
+            return False
+        if f.get("type") == "pattern" and abs(K.volume(st.body.shape) - base_vol) < 1e-9:
+            return False
+        if any("changed nothing" in w for w in s["warnings"]):
+            return False
+        return True
+
+    out = {}
+    if f.get("type") == "pattern":  # from where the copies still overlap the part (building 200 copies to find out is slow)
+        out = _pattern_limits(f, st0)
+        _limit_cache[key] = out
+        return out
+    for field in LIMIT_FIELDS.get(f.get("type"), ()):
+        if field not in f or not isinstance(f.get(field), (int, float)) or isinstance(f.get(field), bool):
+            continue
+        if field == "depth" and f.get("type") == "hole" and f.get("through", True):
+            continue
+        integer = field == "count"
+        lo_cap = 2 if integer else (-size * 2 if field == "offset" else 0.01)
+        hi_cap = 360 if field == "angle" else 200 if integer else max(10.0, size * 4)
+        v0 = f[field]
+        good = v0 if works(field, v0) else None
+        if good is None:  # look for any value that works, from small up
+            for v in ([lo_cap + k for k in range(0, 40)] if integer else [lo_cap + (hi_cap - lo_cap) * q for q in (0.001, 0.01, 0.05, 0.1, 0.25, 0.5)]):
+                if works(field, v):
+                    good = v
+                    break
+        if good is None:
+            continue
+
+        def edge(bad, ok):  # the last value that works between ok (works) and bad (does not)
+            for _ in range(16 if not integer else 12):
+                if integer and abs(bad - ok) <= 1:
+                    break
+                mid = (ok + bad) // 2 if integer else (ok + bad) / 2
+                if works(field, mid):
+                    ok = mid
+                else:
+                    bad = mid
+            return ok
+
+        hi = hi_cap if works(field, hi_cap) else edge(hi_cap, good)
+        lo = lo_cap if works(field, lo_cap) else edge(lo_cap, good)
+        if integer:
+            out[field] = [int(lo), int(hi)]
+        else:
+            out[field] = [round(math.ceil(lo * 100) / 100, 2), round(math.floor(hi * 100) / 100, 2)]
+    _cap_by_thickness(f, st0, out)
+    _limit_cache[key] = out
+    while len(_limit_cache) > CACHE_SIZE:
+        _limit_cache.popitem(last=False)
+    return out
+
+
+def _cap_by_thickness(f, st0, out):
+    """A blind hole or a cut goes at most through the part (deeper is the same as through); a hole at most as wide
+    as the part across its face."""
+    if st0.body is None:
+        return
+    if f.get("type") == "hole" and (f.get("plane") or {}).get("frame"):
+        fr = plane_frame(f["plane"], st0)
+    elif f.get("type") == "extrude" and f.get("op") == "cut" and not f.get("upto") and st0.sketches.get(f.get("sketch")):
+        fr = st0.sketches[f["sketch"]][0]
+    else:
+        return
+    o, n = np.asarray(fr["o"], float), np.asarray(fr["n"], float)
+    bb = K.bbox(st0.body.shape)
+    corners = [np.array([x, y, z]) for x in (bb[0], bb[3]) for y in (bb[1], bb[4]) for z in (bb[2], bb[5])]
+    sign = -1 if f.get("type") == "hole" or not f.get("flip") else 1
+    thick = max(((c - o) @ n) * sign for c in corners)
+    for k in ("depth", "d") if f.get("type") == "extrude" else ("depth",):
+        if k in out and thick > 0:
+            out[k][1] = round(min(out[k][1], math.ceil(thick * 100) / 100), 2)
+    if f.get("type") == "hole" and "d" in out:
+        x = np.asarray(fr["x"], float)
+        y = K.frame_y(fr)
+        across = min(max(c @ x for c in corners) - min(c @ x for c in corners), max(c @ y for c in corners) - min(c @ y for c in corners))
+        out["d"][1] = round(min(out["d"][1], math.floor(across * 100) / 100), 2)
+
+
+def _pattern_limits(f, st0):
+    """A row: how many copies (at this spacing) and how far apart (with this count) they still reach the part."""
+    if f.get("kind") == "circular":
+        return {"count": [2, 72]}
+    tools = [t for x in f.get("features") or [] for t, _ in st0.tools.get(x, [])]
+    if not tools or st0.body is None:
+        return {}
+    d = np.asarray(f.get("dir") or [1, 0, 0], float)
+    d = d / (np.linalg.norm(d) or 1)
+    corners = lambda bb: [np.array([x, y, z]) for x in (bb[0], bb[3]) for y in (bb[1], bb[4]) for z in (bb[2], bb[5])]  # noqa: E731
+    tb = [c @ d for t in tools for c in corners(K.bbox(t.shape))]
+    pb = [c @ d for c in corners(K.bbox(st0.body.shape))]
+    reach = max(pb) - min(tb)  # how far along the row a copy can still start and touch the part
+    spacing, count = float(f.get("spacing") or 10), int(f.get("count") or 2)
+    out = {}
+    if spacing > 0:
+        out["count"] = [2, max(2, min(200, int(math.floor(reach / spacing + 1e-9)) + 1))]
+    if count > 1:
+        out["spacing"] = [0.01, round(math.floor(reach / (count - 1) * 100) / 100, 2)]
+    return out
 
 
 def rebuild(part):

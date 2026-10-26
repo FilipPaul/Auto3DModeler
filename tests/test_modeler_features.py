@@ -76,7 +76,7 @@ class TestFeatures(unittest.TestCase):
         fil = {"id": "F1", "type": "fillet", "edges": [{"a": "E1:side:l1", "b": "E1:side:l2", "fp": [40, 0, 5]}], "r": 50}
         r, v = vol(*box(), fil)
         self.assertFalse(r["features"][-1]["ok"])
-        self.assertIn("does not fit", r["features"][-1]["issues"][0])
+        self.assertIn("does not fit here — at most 19.99 mm", r["features"][-1]["issues"][0])  # says how much does
         self.assertAlmostEqual(v, 8000, delta=1e-6)  # the rest still builds
         gone = {"id": "F1", "type": "fillet", "edges": [{"a": "X:1", "b": "X:2", "fp": [500, 500, 500]}], "r": 1}
         r, _ = vol(*box(), gone)
@@ -396,6 +396,23 @@ class TestFeatures(unittest.TestCase):
         for want in ("Front", "Top", "Right", "Bracket", "40", "20", "10", "Ø4 ×2", "PETG", "(10, 5)", "(30, 15)", "Scale 2:1"):
             self.assertIn(want, text)
         self.assertGreater(len(page.get_drawings()), 20)  # the views' lines, dimensions, the title block
+
+    def test_limits(self):
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        fil = {"id": "F1", "type": "fillet", "edges": [{"a": "E1:end", "b": "E1:side:l1", "fp": [20, 0, 10]}], "r": 2}
+        self.assertEqual(doc.limits(box() + [fil], "F1"), {"r": [0.01, 9.99]})  # a 10 mm high edge
+        sh = {"id": "F1", "type": "shell", "faces": [{"name": "E1:end", "fp": [20, 10, 10]}], "t": 2}
+        self.assertEqual(doc.limits(box() + [sh], "F1"), {"t": [0.01, 4.99]})
+        hole = {"id": "F1", "type": "hole", "plane": top, "points": [[0, 0]], "d": 5, "through": False, "depth": 4}
+        self.assertEqual(doc.limits(box() + [hole], "F1"), {"d": [0.01, 20], "depth": [0.01, 10]})  # through the 10 mm part
+        h = {"id": "H1", "type": "hole", "plane": top, "points": [[-15, 0]], "d": 4, "through": True}
+        pat = {"id": "F1", "type": "pattern", "features": ["H1"], "kind": "linear", "dir": [1, 0, 0], "count": 3, "spacing": 10}
+        self.assertEqual(doc.limits(box() + [h, pat], "F1"), {"count": [2, 4], "spacing": [0.01, 18.5]})
+        # no wall works at all (a rounding next to the open face): said so, not "thinner"
+        r, _ = vol(*box(), {**fil, "id": "R1"}, {**sh, "id": "S9"})
+        self.assertIn("cannot be hollowed out", r["features"][-1]["issues"][0])
+        r, _ = vol(*box(), {**sh, "t": 7})
+        self.assertIn("at most 4.99 mm", r["features"][-1]["issues"][0])
 
 
 if __name__ == "__main__":

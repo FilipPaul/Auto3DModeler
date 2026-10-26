@@ -576,6 +576,7 @@ const CS = {
   'Moving it by hand breaks its {n} joint(s). Break them and move it?': 'Posunutí rukou zruší jeho vazby ({n}). Zrušit je a posunout?',
   'Locked: moving the part by hand cannot break it — click to unlock': 'Zamčeno: posunutí dílu rukou ji nezruší — kliknutím odemknete',
   'Lock it: then it cannot be broken by moving the part': 'Zamknout: pak ji posunutí dílu nezruší', 'Turn the part about this joint (about the axis, or on the face)': 'Natočit díl kolem této vazby (kolem osy nebo na ploše)',
+  '{v} is the most that works here (with what is around it).': '{v} je nejvíc, co tu jde (podle toho, co je kolem).',
   // language switch
   'Čeština / English': 'Čeština / English',
 };

@@ -437,6 +437,8 @@ body:not(.ws-model):not(.ws-assembly) .not-quick { display: none !important; }
 .as-jw { color: var(--muted); min-width: 0; }
 .as-jv { display: flex; align-items: center; gap: 3px; color: var(--muted); white-space: nowrap; }
 .as-jv input { width: 48px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; color: inherit; padding: 1px 3px; }
+.mp-range { font-size: 10.5px; color: var(--muted); margin: -6px 0 8px; text-align: right; }
+.m-dimedit .mp-range { margin: -4px 0 0; }
 .mp-slider { display: block; width: 100%; margin: -2px 0 8px; accent-color: #6e40c9; }
 .mp-hole .mp-slider { margin: 0 0 4px; }
 .m-ctx-sep { height: 1px; background: var(--line); margin: 3px 4px; }

@@ -132,6 +132,11 @@ hollow it out with it open, edit / turn off / delete its step — and shows that
 sketch's sizes on its plane, the height, Ø, R, the wall…). Click a size: a number and a **slider** — the part
 follows while you slide; Enter / OK keeps it (one undo step), Esc goes back. Every number in a tool's panel
 (Extrude, Revolve, Fillet, Chamfer, Hole, Shell, Pattern, Text) has a **slider** under it too — slide and watch.
+The sliders run only over the values that **work**: the kernel tries the step with the part as it is and finds the
+range (the biggest rounding the edges allow, a wall up to what the part can take, a blind hole up to the part's
+thickness, a pattern only as far as its copies still reach the part); the range shows under the slider, a typed
+value beyond it is held at the limit. When a step fails anyway, it says how much does fit (*at most 9.99 mm*) — or
+that no size works there and what to change.
 A click on a step in the **list** does the same as a click on the part: it is marked in 3D (a sketch's lines in
 gold, with the faces made from it) and its sizes show on the finished part — change a sketch's sizes there,
 looking at the result.
