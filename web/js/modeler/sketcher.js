@@ -93,6 +93,69 @@ export function tangentArc(s, d, e) {
   return t > 0 ? { c, a: s, b: e, swap: false } : { c, a: e, b: s, swap: true };
 }
 
+// ------------------------------------------------------------------ trimming: where shapes cross
+const TAU = 2 * Math.PI;
+const angNorm = (x) => ((x % TAU) + TAU) % TAU;
+
+/** A line / circle / arc of a sketch as plain geometry (P: point id -> [u, v]). */
+function geomOf(e, P) {
+  if (e.t === 'line') return { kind: 'line', a: P(e.a), b: P(e.b) };
+  if (e.t === 'circle') return { kind: 'circle', c: P(e.c), r: e.r };
+  if (e.t === 'arc') {
+    const c = P(e.c), a = P(e.a), b = P(e.b), t0 = Math.atan2(a[1] - c[1], a[0] - c[0]);
+    return { kind: 'arc', c, r: Math.hypot(a[0] - c[0], a[1] - c[1]), t0, sweep: angNorm(Math.atan2(b[1] - c[1], b[0] - c[0]) - t0) || TAU };
+  }
+  return null;
+}
+
+/** Where along a shape a point is: a line 0..1 from a to b, a circle 0..2π, an arc 0..its sweep from a. */
+function paramOf(g, p) {
+  if (g.kind === 'line') {
+    const dx = g.b[0] - g.a[0], dy = g.b[1] - g.a[1];
+    return ((p[0] - g.a[0]) * dx + (p[1] - g.a[1]) * dy) / (dx * dx + dy * dy || 1);
+  }
+  const t = angNorm(Math.atan2(p[1] - g.c[1], p[0] - g.c[0]) - (g.kind === 'arc' ? g.t0 : 0));
+  return t;
+}
+
+function onShape(g, p, eps = 1e-7) {
+  const t = paramOf(g, p);
+  if (g.kind === 'line') return t > -eps && t < 1 + eps;
+  if (g.kind === 'arc') return t < g.sweep + eps || t > TAU - eps;
+  return true;
+}
+
+/** The points where two shapes cross. */
+function crossings(g, h) {
+  const out = [];
+  const lineCircle = (L, C) => {
+    const dx = L.b[0] - L.a[0], dy = L.b[1] - L.a[1], fx = L.a[0] - C.c[0], fy = L.a[1] - C.c[1];
+    const A = dx * dx + dy * dy, B = 2 * (fx * dx + fy * dy), D = B * B - 4 * A * (fx * fx + fy * fy - C.r * C.r);
+    if (A < 1e-18 || D < 0) return [];
+    return [(-B - Math.sqrt(D)) / (2 * A), (-B + Math.sqrt(D)) / (2 * A)].filter((t, i, arr) => i === 0 || Math.abs(t - arr[0]) > 1e-12)
+      .map((t) => [L.a[0] + t * dx, L.a[1] + t * dy]);
+  };
+  if (g.kind === 'line' && h.kind === 'line') {
+    const r = [g.b[0] - g.a[0], g.b[1] - g.a[1]], s = [h.b[0] - h.a[0], h.b[1] - h.a[1]], den = r[0] * s[1] - r[1] * s[0];
+    if (Math.abs(den) > 1e-12) {
+      const q = [h.a[0] - g.a[0], h.a[1] - g.a[1]], t = (q[0] * s[1] - q[1] * s[0]) / den;
+      out.push([g.a[0] + t * r[0], g.a[1] + t * r[1]]);
+    }
+  } else if (g.kind === 'line' || h.kind === 'line') {
+    out.push(...(g.kind === 'line' ? lineCircle(g, h) : lineCircle(h, g)));
+  } else {
+    const d = Math.hypot(h.c[0] - g.c[0], h.c[1] - g.c[1]);
+    if (d > 1e-12 && d <= g.r + h.r + 1e-12 && d >= Math.abs(g.r - h.r) - 1e-12) {
+      const a = (g.r * g.r - h.r * h.r + d * d) / (2 * d), hh = Math.sqrt(Math.max(0, g.r * g.r - a * a));
+      const m = [g.c[0] + (a * (h.c[0] - g.c[0])) / d, g.c[1] + (a * (h.c[1] - g.c[1])) / d];
+      const ox = (-(h.c[1] - g.c[1]) * hh) / d, oy = ((h.c[0] - g.c[0]) * hh) / d;
+      out.push([m[0] + ox, m[1] + oy]);
+      if (hh > 1e-12) out.push([m[0] - ox, m[1] - oy]);
+    }
+  }
+  return out.filter((p) => onShape(g, p) && onShape(h, p));
+}
+
 const segDist = (p, a, b) => {
   const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy || 1;
   const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L));
@@ -182,6 +245,7 @@ export class Sketcher {
     if (this.tool === 'rect') return this.start ? 'Click the second corner (Esc = stop drawing).' : 'Click the first corner of a rectangle.';
     if (this.tool === 'circle') return this.start ? 'Click to set the size (Esc = stop drawing).' : 'Click the centre of a circle.';
     if (this.tool === 'round') return 'Round corner: click a corner where two lines meet, then type the radius.';
+    if (this.tool === 'trim') return 'Trim: click the piece of a line, circle or arc to cut away — up to where other shapes cross it.';
     if (this.tool === 'arc' && this.tan) return 'Tangent arc: it continues the line — click where it ends (Shift-click: a free arc; Esc = stop drawing).';
     if (this.tool === 'arc') return !this.start ? 'Click where the arc starts (at the end of a line: it continues the line smoothly).' : !this.arcEnd ? 'Click where the arc ends.' : 'Move the mouse to bend the arc, click to place it (Esc = stop drawing).';
     if (this.tool === 'line') return this.chain ? 'Click the next point — click the first point to close the shape, double-click or Esc to stop.' : 'Click where the line starts.';
@@ -529,11 +593,12 @@ export class Sketcher {
       return;
     }
     this.cursor = this.snap(uv, e.altKey);
-    const hv = this.tool === 'round' ? this.cornerAt(uv)
+    const hv = this.tool === 'trim' ? ((p) => p && { kind: 'piece', pts: p.pts, key: `${p.e.id}:${p.lo}:${p.hi}` })(this.pieceAt(uv))
+      : this.tool === 'round' ? this.cornerAt(uv)
       : this.tool === 'dim' ? this.pickTarget(uv)
       : this.tool === 'select' ? ((h) => (h?.kind === 'point' ? { kind: 'point', end: h.id, uv: this.P(h.id) } : h))(this.hit(uv))
       : this.cursor.id || this.cursor.ref ? { kind: 'point', end: this.cursor.ref ? { ref: this.cursor.uv } : this.cursor.id, uv: this.cursor.uv } : null;
-    const key = JSON.stringify(hv && { ...hv, d: undefined });
+    const key = hv?.kind === 'piece' ? hv.key : JSON.stringify(hv && { ...hv, d: undefined });
     const changed = key !== this.hoverKey;
     this.hover = hv;
     this.hoverKey = key;
@@ -557,6 +622,7 @@ export class Sketcher {
     if (this.tool === 'line') { this.linePoint(s, e.detail >= 2); return; }
     if (this.tool === 'arc') { this.arcPoint(s, e.shiftKey); return; }
     if (this.tool === 'round') { this.roundAt(uv0); return; }
+    if (this.tool === 'trim') { this.trimAt(uv0); return; }
     if (!this.start) { this.start = s; this.m.hint(this.hint()); this.draw(); return; }
     const a = this.start;
     this.start = null;
@@ -591,6 +657,110 @@ export class Sketcher {
     const id = this.newId('c');
     this.f.entities.push({ id, t: 'circle', c, r: +r.toFixed(6) });
     this.sel = { kind: 'entity', id };
+    this.changed();
+  }
+
+  /** Trim: the piece of the shape under the mouse between the crossings next to it -> {e, g, lo, hi, cuts, pts}. */
+  pieceAt(uv) {
+    const tol = this.mpp() * 8, P = (id) => this.P(id);
+    let best = null;
+    for (const e of this.f.entities) {
+      if (!['line', 'circle', 'arc'].includes(e.t)) continue;
+      const g = geomOf(e, P);
+      const d = g.kind === 'line' ? segDist(uv, g.a, g.b) : g.kind === 'circle' ? Math.abs(Math.hypot(uv[0] - g.c[0], uv[1] - g.c[1]) - g.r) : this.arcDist(e, uv);
+      if (d < tol && (!best || d < best.d)) best = { d, e, g };
+    }
+    if (!best) return null;
+    const { e, g } = best, closed = g.kind === 'circle', end = g.kind === 'line' ? 1 : g.kind === 'arc' ? g.sweep : TAU;
+    const cuts = [];
+    for (const o of this.f.entities) {
+      if (o === e || !['line', 'circle', 'arc'].includes(o.t)) continue;
+      for (const p of crossings(g, geomOf(o, P))) {
+        let t = paramOf(g, p);
+        if (g.kind === 'arc' && t > g.sweep + 1e-9) t = 0;
+        if (!closed && (t < 1e-7 * end || t > end * (1 - 1e-7))) continue; // at its own ends: not a cut
+        if (!cuts.some((c) => Math.abs(c.t - t) < 1e-7 * end)) cuts.push({ t, p, by: o.id });
+      }
+    }
+    cuts.sort((x, y) => x.t - y.t);
+    const at = paramOf(g, uv);
+    let lo, hi;
+    if (closed) {
+      if (cuts.length < 2) { lo = { t: 0 }; hi = { t: TAU }; } else {
+        const i = cuts.findIndex((c) => c.t > at);
+        lo = i <= 0 ? cuts[cuts.length - 1] : cuts[i - 1];
+        hi = i < 0 ? cuts[0] : cuts[i];
+      }
+    } else {
+      const t = Math.max(0, Math.min(end, g.kind === 'arc' && at > g.sweep ? (at - g.sweep < TAU - at ? g.sweep : 0) : at));
+      lo = [...cuts].reverse().find((c) => c.t < t) || { t: 0 };
+      hi = cuts.find((c) => c.t > t) || { t: end };
+    }
+    // the piece as points, for the highlight
+    const pts = [];
+    if (g.kind === 'line') pts.push([g.a[0] + lo.t * (g.b[0] - g.a[0]), g.a[1] + lo.t * (g.b[1] - g.a[1])], [g.a[0] + hi.t * (g.b[0] - g.a[0]), g.a[1] + hi.t * (g.b[1] - g.a[1])]);
+    else {
+      const t0 = (g.kind === 'arc' ? g.t0 : 0) + lo.t, span = angNorm(hi.t - lo.t) || (closed && cuts.length < 2 ? TAU : hi.t - lo.t);
+      const n = Math.max(2, Math.ceil(span / (Math.PI / 36)));
+      for (let k = 0; k <= n; k++) pts.push([g.c[0] + g.r * Math.cos(t0 + (span * k) / n), g.c[1] + g.r * Math.sin(t0 + (span * k) / n)]);
+    }
+    return { e, g, lo, hi, cuts, pts, whole: lo.t === 0 && (hi.t === end) && !(closed && cuts.length >= 2) };
+  }
+
+  /** ✂ Trim: cut the piece away. A line keeps its other part(s), a circle becomes the arc that is left, an arc is split.
+   *  The new ends stay on the shape that cut them ("on" constraints) when sizes change later. */
+  async trimAt(uv) {
+    const pc = this.pieceAt(uv);
+    if (!pc) { this.m.toast('Click a line, circle or arc to trim.', 'info', 3000); return; }
+    const { e, lo, hi } = pc;
+    await this.relock(() => {
+      const f = this.f;
+      const newPt = (c) => {
+        // on an end of the shape that cuts it: join there; else a new end that stays on that shape
+        const by = f.entities.find((x) => x.id === c.by), tol = 1e-6 * (1 + Math.hypot(...c.p));
+        const join = by && [by.a, by.b].find((q) => q && this.P(q) && Math.hypot(this.P(q)[0] - c.p[0], this.P(q)[1] - c.p[1]) < tol);
+        if (join) return join;
+        const id = this.newId('p');
+        f.points[id] = c.p.map((v) => +v.toFixed(9));
+        f.constraints.push({ id: this.newId('k'), t: 'on', p: id, e: c.by });
+        return id;
+      };
+      const forget = (id) => {
+        f.constraints = f.constraints.filter((k) => !((k.e === id || k.arc === id || (k.lines || []).includes(id)) && k.t !== 'h' && k.t !== 'v'));
+        f.dims = f.dims.filter((d) => !(d.e === id && d.t === 'len'));
+      };
+      if (pc.whole) {
+        f.entities = f.entities.filter((x) => x !== e);
+        f.constraints = f.constraints.filter((k) => k.e !== e.id && k.arc !== e.id && !(k.lines || []).includes(e.id));
+        f.dims = f.dims.filter((d) => d.e !== e.id);
+      } else if (e.t === 'circle') {
+        // what is left: the arc from the piece's far end round to its near end
+        const a = newPt(hi), b = newPt(lo);
+        const dia = f.dims.find((d) => d.e === e.id && d.t === 'dia');
+        if (dia) Object.assign(dia, { t: 'rad', v: dia.v / 2 });
+        Object.assign(e, { t: 'arc', a, b });
+        delete e.r;
+      } else {
+        forget(e.id);
+        const keepA = lo.t > 0, keepB = !(hi.t >= (e.t === 'line' ? 1 : pc.g.sweep) - 1e-12);
+        const oldB = e.b;
+        if (keepA && keepB) {
+          // the middle goes: two pieces
+          const p1 = newPt(lo), p2 = newPt(hi);
+          e.b = p1;
+          const id = this.newId(e.t === 'line' ? 'l' : 'a');
+          f.entities.push({ ...e, id, a: p2, b: oldB, g: undefined });
+          for (const k of f.constraints.filter((k) => k.e === e.id && (k.t === 'h' || k.t === 'v'))) f.constraints.push({ ...k, id: this.newId('k'), e: id });
+        } else if (keepA) e.b = newPt(lo);
+        else e.a = newPt(hi);
+        delete e.g;
+      }
+      const used = new Set([...f.entities.flatMap((x) => [x.a, x.b, x.c]), ...f.constraints.filter((k) => k.t === 'corner').map((k) => k.p)]);
+      for (const p of Object.keys(f.points)) if (!used.has(p)) delete f.points[p];
+      f.constraints = f.constraints.filter((k) => !k.p || f.points[k.p] || k.p === ORIGIN);
+      f.dims = f.dims.filter((d) => (!d.a || typeof d.a !== 'string' || d.a === ORIGIN || f.points[d.a]) && (!d.b || typeof d.b !== 'string' || d.b === ORIGIN || f.points[d.b]));
+    });
+    this.sel = null;
     this.changed();
   }
 
@@ -722,6 +892,7 @@ export class Sketcher {
     if (k === 'c') this.setTool('circle');
     if (k === 'a') this.setTool('arc');
     if (k === 'f') this.setTool('round');
+    if (k === 't') this.setTool('trim');
     if (k === 'd') this.setTool('dim');
     return false;
   }
@@ -1105,6 +1276,10 @@ export class Sketcher {
         else if (hv.arc) { const ps = this.arcOf(this.ent(hv.arc)); for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], HL]); name = 'arc (its centre)'; }
         else name = hv.corner ? 'corner' : hv.end === ORIGIN ? 'origin' : typeof hv.end === 'object' ? 'corner of the part' : 'point';
         at = hv.uv;
+      } else if (hv.kind === 'piece') {
+        for (let i = 0; i + 1 < hv.pts.length; i++) lines.push([hv.pts[i], hv.pts[i + 1], 0xff7b72]);
+        name = 'cut away';
+        at = hv.pts[Math.floor(hv.pts.length / 2)];
       } else if (hv.kind === 'line') {
         lines.push([hv.uvA, hv.uvB, HL], [hv.uvA, hv.uvB, HL]);
         name = hv.line ? 'line' : 'edge of the part';

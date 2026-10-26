@@ -163,6 +163,16 @@ class TestSketchSolve(unittest.TestCase):
         self.assertAlmostEqual(r["points"]["t1"][1], 12, places=6)
         self.assertAlmostEqual(r["points"]["t2"][0], 52, places=6)
 
+    def test_trimmed_end_stays_on_its_cutter(self):
+        # a line from the origin, its end trimmed back to a circle (Ø10 at (30, 0)): "on" keeps it on the circle
+        sk = {"points": {"c": [30, 0], "e": [25, 0]}, "entities": [{"id": "l1", "t": "line", "a": "O", "b": "e"}, {"id": "k", "t": "circle", "c": "c", "r": 5}],
+              "constraints": [{"id": "k1", "t": "h", "e": "l1"}, {"id": "k2", "t": "on", "p": "e", "e": "k"}],
+              "dims": [{"id": "d1", "t": "dx", "a": "O", "b": "c", "v": 30}, {"id": "d2", "t": "dy", "a": "O", "b": "c", "v": 0}, {"id": "d3", "t": "dia", "e": "k", "v": 16}]}
+        r = solve(sk)
+        self.assertTrue(r["ok"], r)
+        self.assertAlmostEqual(r["points"]["e"][0], 22, places=6)  # 30 - 8: still on the (bigger) circle
+        self.assertAlmostEqual(r["points"]["e"][1], 0, places=6)
+
     def test_endpoint(self):
         import server
         c = server.app.test_client()

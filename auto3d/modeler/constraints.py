@@ -8,6 +8,7 @@ A sketch (in the feature JSON):
   "constraints": [{"id": "k1", "t": "h", "e": "l1"}, {"t": "v", "e": "l2"}]       horizontal / vertical
                  {"t": "tan", "e": "l1", "arc": "a1", "p": "p7"}   line l1 tangent to arc a1 at their common point p7
                  {"t": "corner", "p": "p2", "lines": ["l1", "l2"]} a rounded corner's sharp point (on both lines)
+                 {"t": "on", "p": "p9", "e": "c1"}                  point p9 stays on line / circle / arc c1 (a trimmed end)
   "dims":        [{"id": "d1", "t": "len", "e": "l1", "v": 40},                  locked sizes 🔒
                   {"t": "dia", "e": "c1", "v": 6}, {"t": "rad", "e": "a1", "v": 5},   an arc's radius
                   {"t": "dx", "a": "O", "b": "p5", "v": 10}, {"t": "dy", ...},   distance along x / y
@@ -86,6 +87,11 @@ def solve(sketch, drag=None, keep=None):
         tags = {}
         for k in sketch.get("constraints") or []:
             ent = ents.get(k.get("e"))
+            if k.get("t") == "on":  # a trimmed end stays on the line / circle / arc that cut it
+                other = ents.get(k.get("e"))
+                if other and k.get("p") in ids:
+                    {"line": s.point_on_line, "circle": s.point_on_circle, "arc": s.point_on_arc}[other[0]["t"]](ids[k["p"]], other[1])
+                continue
             if k.get("t") == "corner":  # a rounded corner's sharp point stays where its two lines would meet
                 for ln in k.get("lines") or []:
                     if ln in ents and k.get("p") in ids:

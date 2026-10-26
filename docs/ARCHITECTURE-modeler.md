@@ -51,6 +51,8 @@ Date: 2026-10-25. Written by the architect agent.
 - **Loft / sweep done:** loft (ThruSections through sketches in order), sweep (PipeShell, mitred corners, profiles
   with holes); open sketches are paths. tools/e2e_model_loft.py.
 - **Tangent arcs done:** an arc started at a line's loose end is tangent to it (constraint tan; Shift = free).
+- **Trim done:** ✂ Trim (crossings line / circle / arc; constraint on: a cut end stays on its cutter, or joins its
+  end). tools/e2e_model_trim.py.
 - **Next (later list):** classic parts in assemblies; decorate faces of model parts; loft / sweep.
 
 ## 0. Summary

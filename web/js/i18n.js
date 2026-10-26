@@ -524,6 +524,9 @@ const CS = {
   'Tangent arc: it continues the line — click where it ends (Shift-click: a free arc; Esc = stop drawing).': 'Tečný oblouk: navazuje na čáru — klikněte, kde končí (Shift+klik: volný oblouk; Esc = konec kreslení).',
   'Click where the arc starts (at the end of a line: it continues the line smoothly).': 'Klikněte, kde oblouk začíná (na konci čáry: plynule na ni naváže).',
   "Click beside the line's direction to bend the arc.": 'Klikněte stranou od směru čáry, aby se oblouk ohnul.',
+  '✂ Trim': '✂ Oříznout', 'Cut away a piece of a line, circle or arc — up to where other shapes cross it (T)': 'Odříznout kus čáry, kružnice nebo oblouku — až k místu, kde ho kříží jiný tvar (T)',
+  'Trim: click the piece of a line, circle or arc to cut away — up to where other shapes cross it.': 'Oříznout: klikněte na kus čáry, kružnice nebo oblouku, který má zmizet — až k místům, kde ho kříží jiné tvary.',
+  'Click a line, circle or arc to trim.': 'Klikněte na čáru, kružnici nebo oblouk, který chcete oříznout.', 'cut away': 'odříznout',
   // language switch
   'Čeština / English': 'Čeština / English',
 };

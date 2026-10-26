@@ -55,7 +55,9 @@ SolidWorks. It has only the tools that need almost no input.
    for a free arc. **◜ Round corner** (F): click a corner where two
    lines meet and type the radius — an arc tangent to both lines replaces the corner. The sharp corner stays as a
    point (dashed), so the rectangle keeps its width and you can still dimension from the corner; changing the
-   width or the radius keeps the rounding tangent.
+   width or the radius keeps the rounding tangent. **✂ Trim** (T): click the piece of a line, circle or arc to cut
+   away — up to where other shapes cross it (shown in red first). A circle becomes the arc that is left, a line or
+   an arc keeps its other part(s), and the new ends stay on the shape that cut them.
    - Points snap to the grid (it follows the zoom), to the origin, and to existing points. Snapping onto a point
      joins the shapes there. Hold Alt to draw without snapping. A line drawn almost horizontal or vertical
      becomes exactly that.
