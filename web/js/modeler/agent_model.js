@@ -248,6 +248,16 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       return { text: `On screen: ${p.name} (${KIND[p.kind] || 'quick part'}).` };
     },
 
+    duplicate_part: async ({ id, name }) => {
+      const p = project.parts.find((q) => q.id === (id || project.active) || q.name === id);
+      if (!p) throw new Error(`No part “${id}” — see list_parts.`);
+      const nid = await project.duplicate(p.id, true);
+      if (name) project.parts.find((q) => q.id === nid).name = name;
+      project.render();
+      await settle();
+      return { text: `New part “${project.current?.name}” (${nid}), a copy of ${p.name}, on screen.` };
+    },
+
     new_model: async ({ name }) => {
       await project.newModel(null, name || null, 'none');
       await settle();

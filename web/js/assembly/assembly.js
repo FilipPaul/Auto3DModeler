@@ -310,7 +310,8 @@ export class Assembly {
         <p class="hint">Slide to any angle — it catches at 0, ±90 and ±180°. Type an exact one in the box.</p>
         <h3>Look</h3>${this.lookHtml(it)}
         ${this.jointsHtml(it.id)}
-        <div class="row-actions wrap"><button class="btn small" data-a="joinThis">🔗 Join it to another part</button></div>
+        <div class="row-actions wrap"><button class="btn small" data-a="joinThis">🔗 Join it to another part</button>
+          ${this.hooks.duplicatePart ? '<button class="btn small" data-a="ownPart" title="Copy its part as a new part of the project and use the copy here — then it can be changed alone (the other copies stay as they are)">⧉ Make it its own part</button>' : ''}</div>
         <div class="row-actions"><button class="btn small" data-a="reset" title="Back to its place in its own model">Reset its place</button><button class="btn small danger" data-a="del">Take it out</button></div>`;
       for (const inp of box.querySelectorAll('input[data-k]')) {
         inp.addEventListener('change', () => this.setPos(inp.dataset.k, inp.value));
@@ -332,6 +333,7 @@ export class Assembly {
       this.bindJointRows(box);
       this.bindLook(box, it);
       box.querySelector('[data-a=joinThis]').addEventListener('click', () => this.startJoint('touch', it.id));
+      box.querySelector('[data-a=ownPart]')?.addEventListener('click', () => this.ownPart(it.id));
       box.querySelector('[data-a=reset]').addEventListener('click', () => { if (!this.mayMove(it.id)) return; it.matrix = ID(); this.applyMates(); this.commit(); });
       box.querySelector('[data-a=del]').addEventListener('click', () => this.removeInst(it.id));
       return;
@@ -878,6 +880,19 @@ export class Assembly {
     this.sel = it.id;
     this.commit();
     if (this.doc.instances.length === 1 || !like) this.view.setView('iso');
+  }
+
+  /** A placed part gets a part of its own: its part copied as a new part, this one uses the copy (joints stay). */
+  async ownPart(instId) {
+    const it = this.inst(instId);
+    if (!it || !this.hooks.duplicatePart) return null;
+    const id = await this.hooks.duplicatePart(it.part);
+    if (!id) return null;
+    it.part = id;
+    await this.refresh();
+    this.commit();
+    this.hooks.toast(t2('{inst} now has a part of its own: {name} — change it without changing the others.', { inst: instId, name: this.partName(id) }), 'ok', 5000);
+    return id;
   }
 
   /** ＋ Insert part ▾ From a file: a STEP / STL / OBJ becomes a 3D model part of the project, and goes in. */

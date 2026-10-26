@@ -136,6 +136,10 @@ TOOLS = [
      "inputSchema": _obj({})},
     {"name": "open_part", "where": "browser", "description": "Put a part (id or name from list_parts) on screen.",
      "inputSchema": _obj({"id": STR}, ["id"])},
+    {"name": "duplicate_part", "where": "browser",
+     "description": "Copy a part (id or name from list_parts; none = the one on screen) as a new, independent part of the "
+                    "project (its own tab, put on screen); name optional. Change the copy without changing the original.",
+     "inputSchema": _obj({"id": STR, "name": STR})},
     {"name": "new_model", "where": "browser",
      "description": "Start a new, empty 3D model part (its own tab) — for mechanical parts built from sketches and "
                     "features. Then add_feature.",

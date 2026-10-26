@@ -1702,6 +1702,7 @@ const modeler = new Modeler({ left: $('modelLeft'), viewport: $('modelViewport')
   onChange: () => updateTopButtons(),
   pickOutline: () => pickOutlineFile(),
   importSolid: (file) => importSolid(file),
+  duplicatePart: async () => { await project.duplicate(); toast(t2('{name} — a copy of its own (change it without changing the original).', { name: project.current?.name }), 'ok', 5000); },
   // a printing copy of a model part: its STL as a Quick part, on the 3D print tab
   async toPrint(blob) {
     const name = `${project.current?.name || safeName()} (print).stl`;
@@ -1774,6 +1775,7 @@ const assembly = new Assembly({ left: $('asmLeft'), viewport: $('asmViewport'), 
   partData: (id) => { const p = project.parts.find((q) => q.id === id); return p && typeof p.data === 'object' ? p.data : null; },
   addModelPart: (name, data) => project.addBackground(name, data),
   importSolid: async (file) => solidStep(await importSolid(file)),
+  duplicatePart: (id) => project.duplicate(id, false),
   selfId: () => project.active, // the assembly on screen (it may not go into itself)
   onChange: () => updateTopButtons(),
 });
@@ -2161,7 +2163,7 @@ async function assemblyScreenshot({ view } = {}) {
 // 3D model parts: their own tools; the shared ones (screenshot, export, undo, get_part) follow the part on screen
 const MODEL = modelHandlers({ modeler, project, getWorkspace: () => state.workspace });
 const SHARED = { get_screenshot: 'model_screenshot', get_body: 'model_body', undo: 'model_undo' };
-const ANYWHERE = new Set(['load', 'list_parts', 'open_part', 'new_model', 'new_assembly']);
+const ANYWHERE = new Set(['load', 'list_parts', 'open_part', 'duplicate_part', 'new_model', 'new_assembly']);
 for (const [name, fn] of Object.entries(agentHandlers)) {
   if (ANYWHERE.has(name)) continue;
   agentHandlers[name] = async (...args) => {

@@ -105,6 +105,24 @@ export class Project {
     p.data = 'live';
   }
 
+  /** A copy of a part as a new, independent part (its own tab, after it) -> its id. open: put it on screen. */
+  async duplicate(id = this.active, open = true) {
+    const src = this.parts.find((p) => p.id === id);
+    if (!src || this.busy) return null;
+    const live = src.id === this.active;
+    if (live) this.stash();
+    const data = structuredClone(src.data);
+    if (live) src.data = 'live';
+    const base = `${src.name} (${t('copy')})`;
+    let name = base;
+    for (let n = 2; this.parts.some((p) => p.name === name); n++) name = `${base.slice(0, -1)} ${n})`;
+    const p = { id: `P${this.next++}`, name, kind: src.kind, data, history: null };
+    this.parts.splice(this.parts.indexOf(src) + 1, 0, p);
+    if (open) await this.switchTo(p.id);
+    else this.render();
+    return p.id;
+  }
+
   async switchTo(id) {
     if (id === this.active || this.busy) return;
     const p = this.parts.find((q) => q.id === id);

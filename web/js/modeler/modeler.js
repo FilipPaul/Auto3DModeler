@@ -184,6 +184,7 @@ export class Modeler {
     if (a === 'shell') return this.startShell();
     if (a === 'pattern') return this.startPattern();
     if (a === 'solidFile') return this.pickSolid();
+    if (a === 'duplicatePart') return this.hooks.duplicatePart?.();
     if (a === 'mirror') return this.mode === 'sketch' ? this.sk.setTool('mirror') : this.startMirror();
     if (a === 'loft' || a === 'sweep') return this.startProfiles(a);
     if (a === 'decal') return this.startDecal();
@@ -660,6 +661,7 @@ export class Modeler {
         <h3>Next</h3><p class="hint">${esc(this.nextHint())}</p>
         <div class="row-actions wrap"><button class="btn small" data-a="sketch">✏ Sketch</button>
         ${this.sketches().length ? '<button class="btn small" data-a="extrude">⬆ Extrude</button>' : ''}</div>
+        ${this.hooks.duplicatePart ? '<div class="row-actions"><button class="btn small" data-a="duplicatePart" title="A copy of this 3D model as a new part of its own (its own tab) — change it without changing this one">⧉ Duplicate as a new part</button></div>' : ''}
         ${b && this.hooks.toPrint ? `<h3>3D print</h3><p class="hint">Check it fits your printer, split it into pieces with joints — in a printing copy of this part.</p>
           <div class="row-actions"><button class="btn small primary" data-a="toPrint">🖨 Prepare for 3D print</button></div>` : ''}
         ${b ? `<h3>Export</h3><div class="row-actions"><button class="btn small" data-x="stl" title="For 3D printing">STL</button>
