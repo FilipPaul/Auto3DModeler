@@ -1,5 +1,7 @@
 # Auto3DModeler
 
+*Created by [Rafiontech s.r.o.](https://www.rafiontech.cz/).*
+
 Turns a dimensioned 2D PDF drawing into a parametric 3D model you can edit, add dimensions to,
 decorate with real 3D design (embossed / engraved / cut-through grids, shapes and logos), check against
 your 3D printer and split into printable pieces — exported as STL or STEP.
