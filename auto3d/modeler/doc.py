@@ -151,8 +151,10 @@ def _apply(f, st: State, s):
             start = -vec / 2 if f.get("symmetric") else None
         if not faces:
             raise K.KernelError("Its sketch has no closed shape to extrude.")
+        before = K.volume(st.body.shape) if op == "cut" and st.body is not None else None
         for face, names in faces:
             _use(st, fid, K.prism_body(face, names, vec, fid, start), op)
+        _cut_check(s, st, before)
         return
     if t == "revolve":
         sk = st.sketches.get(f.get("sketch"))
@@ -164,8 +166,10 @@ def _apply(f, st: State, s):
         angle = _num(f, "angle", 360, what="angle")
         if not faces:
             raise K.KernelError("Its sketch has no closed shape to revolve.")
+        before = K.volume(st.body.shape) if f.get("op") == "cut" and st.body is not None else None
         for face, names in faces:
             _use(st, fid, K.revolve_body(face, names, origin, direction, angle, fid), f.get("op", "add"))
+        _cut_check(s, st, before)
         return
     if t == "loft":
         ids = [x for x in f.get("sketches") or [] if x]
@@ -471,6 +475,12 @@ def _sized(make, v, what, unit, impossible):
         else:
             hi = mid
     raise K.KernelError(f"The {what} {v:g} {unit} does not fit here — at most {math.floor(lo * 100) / 100:g} {unit}.") from None
+
+
+def _cut_check(s, st, before):
+    """A cut that took nothing away says so (it goes away from the part, or misses it)."""
+    if before is not None and st.body is not None and abs(K.volume(st.body.shape) - before) < 1e-6 * (1 + before):
+        s["warnings"].append("The cut removes nothing — it goes away from the part (⇅ flip its direction) or misses it.")
 
 
 def _use(st, fid, tool, op):

@@ -133,7 +133,9 @@ export function buildPart(item, sizeKey = sizesOf(item)[0]?.key, length) {
       const at = step.at || [[0, 0]], shapes = [...shapesOf(step.extrude, vars, at), ...(step.holes || []).flatMap((hs) => shapesOf(hs, vars, at))];
       const h = num(step.h, vars), z = num(step.z ?? 0, vars), sk = id();
       features.push({ id: sk, type: 'sketch', name: `Sketch ${n}`, plane: { datum: step.plane || 'XY', ...(z ? { offset: z } : {}) }, ...sketchFromShapes(shapes, true) });
-      features.push({ id: id(), type: 'extrude', name: `Extrude ${n}`, sketch: sk, op: step.op === 'cut' ? 'cut' : 'add', d: Math.abs(h), through: false, symmetric: false, flip: h < 0 });
+      features.push({ id: id(), type: 'extrude', name: `Extrude ${n}`, sketch: sk, op: step.op === 'cut' ? 'cut' : 'add', d: Math.abs(h), through: false, symmetric: false,
+        // h goes along the plane's normal (+z) when above 0, a cut too (the kernel cuts against the normal unless flipped)
+        flip: step.op === 'cut' ? h > 0 : h < 0 });
       if (step.color) paint.push({ feature: `F${n}`, color: step.color });
       continue;
     }

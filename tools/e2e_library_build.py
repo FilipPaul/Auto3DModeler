@@ -1,5 +1,6 @@
 """📚 Every part of the library builds, in headless Edge: each item, each size, its shortest and longest length, made into
-3D model steps (web/js/library/build.js) and built by the kernel -> a solid, its volume and size; a few checked against
+3D model steps (web/js/library/build.js) and built by the kernel -> a solid, its volume and size, every cut taking
+material away (no "removes nothing" warning); a few checked against
 their catalogue sizes (an M3×10 socket head screw 13 mm tall, a 608 bearing Ø22 × 7, SMC CDJ2B16-50 75 + 50 long, a SICK
 IME12 46 long, a NEMA 17 42.3 wide, SMC CDQ2B25 52 square and 37.5 + stroke long).
 
@@ -50,6 +51,8 @@ try:
               else { row.volume = +r.body.volume.toFixed(2); const b = r.body.bbox; row.size3 = [b[3] - b[0], b[4] - b[1], b[5] - b[2]].map((v) => +v.toFixed(2)); }
               const bad = (r.features || []).filter((f) => f.issues?.length);
               if (bad.length) row.issues = bad.map((f) => `${f.id}: ${f.issues.join(' ')}`).join(' | ');
+              const warn = (r.features || []).filter((f) => f.warnings?.length);
+              if (warn.length) row.warnings = warn.map((f) => `${f.id}: ${f.warnings.join(' ')}`).join(' | ');
             } catch (e) { row.error = e.message; }
             out.push(row);
           }
@@ -57,10 +60,11 @@ try:
         done(out);
       })().catch((e) => done([{ error: e.message }]));""")
     ok = [r for r in res if not r.get("error") and r.get("volume", 0) > 0]
-    bad = [r for r in res if r.get("error") or not r.get("volume")]
+    bad = [r for r in res if r.get("error") or not r.get("volume") or "removes nothing" in (r.get("warnings") or "")]
     print("built:", len(ok), "of", len(res))
     for r in bad:
         print("  FAILED:", r)
+    print("every cut takes material away:", not any("removes nothing" in (r.get("warnings") or "") for r in res))
     for r in res:
         if r.get("issues"):
             print("  issues:", r["id"], r["size"], r["L"], r["issues"][:200])

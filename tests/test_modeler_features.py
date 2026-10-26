@@ -475,3 +475,18 @@ class TestRevolvedFaces(unittest.TestCase):
             self.assertEqual([round(z) for z, _ in flat], [0, 7])
             self.assertEqual([round(n) for _, n in flat], [-1, 1], prof)
             self.assertEqual(flat[0][1], next(f["frame"]["n"][2] for f in r["body"]["faces"] if f["type"] == "plane" and f["centroid"][2] < 1))
+
+
+@unittest.skipUnless(OCC, "OCP not installed")
+class TestCutWarning(unittest.TestCase):
+    """A cut that takes nothing away (it goes away from the part) says so; one into the part does not."""
+
+    def test_cut_away_from_the_part(self):
+        hole = lambda flip: [{"id": "S2", "type": "sketch", "plane": {"datum": "XY"}, "points": {"c": [20, 10]},  # noqa: E731
+                              "entities": [{"id": "c1", "t": "circle", "c": "c", "r": 2}]},
+                             {"id": "E2", "type": "extrude", "sketch": "S2", "op": "cut", "d": 5, "flip": flip}]
+        r, _ = vol(*box(), *hole(False))  # from the bed down: away from the part
+        self.assertTrue(any("removes nothing" in w for w in r["features"][-1]["warnings"]))
+        r, v = vol(*box(), *hole(True))   # up into it
+        self.assertFalse(r["features"][-1]["warnings"])
+        self.assertAlmostEqual(v, 40 * 20 * 10 - math.pi * 4 * 5, places=3)

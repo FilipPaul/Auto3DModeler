@@ -44,7 +44,8 @@ A file holds `{"items": [ … ]}` (or one item on its own). An item:
   - `{"revolve": [[r, z], …]}`: a half-section, r out from the Z axis and z up, turned all the way round. Add
     `"op": "cut"` to cut it away instead.
   - `{"extrude": {shape}, "holes": [{shape}…], "z": z0, "h": height, "op": "add" | "cut", "at": [[x, y]…], "plane": "XY" | "XZ" | "YZ"}`:
-    the shape (with its holes) drawn on a plane `z0` up, pushed `h` (a negative h goes down). `at` repeats it at
+    the shape (with its holes) drawn on a plane `z0` up, pushed `h` along the plane's normal (+z for XY; a negative h
+    goes the other way) — for a cut too: a cut from the top face down is `"z": top, "h": -depth`. `at` repeats it at
     those points.
   - Shapes: `{"circle": {"d", "x", "y"}}`, `{"rect": {"w", "h", "x", "y", "r"}}` (x, y its middle),
     `{"hex": {"s", "x", "y"}}` (s across the flats), `{"polygon": {"n", "d", "x", "y", "turn"}}`,
