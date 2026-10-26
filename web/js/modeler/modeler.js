@@ -1797,12 +1797,14 @@ export class Modeler {
     const size = bb ? `${fmt(bb[3] - bb[0])} × ${fmt(bb[4] - bb[1])} × ${fmt(bb[5] - bb[2])} mm` : '';
     box.innerHTML = `<h2 data-no-i18n>${esc(f.name)}</h2><p class="hint" data-no-i18n>${esc(f.file || '')}${size ? ` · ${size}` : ''}</p>
       <div class="seg big"><button data-op="add" class="${op === 'add' ? 'on' : ''}">▣ Joined</button><button data-op="cut" class="${op === 'cut' ? 'on' : ''}">⬚ Cut out</button><button data-op="ref" class="${op === 'ref' ? 'on' : ''}">👁 Reference</button></div>
+      <label class="mp-check"><input type="checkbox" data-k="colours" ${f.colours === false ? '' : 'checked'}> ${esc(t("Keep the file's colours"))}</label>
       <p class="hint">${op === 'add' ? 'Part of the part: sketch on its faces, drill it, round its edges.'
         : op === 'cut' ? 'Cut out of the part: a cavity it fits in exactly (e.g. inside a cover you built around it).'
         : 'Shown see-through, not part of the part: build around it — a cover, a holder — then Cut out a copy of it to make it fit.'}</p>
       ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
     for (const b of box.querySelectorAll('[data-op]')) b.addEventListener('click', () => { f.op = b.dataset.op; this.renderProps(); this.rebuild(); });
+    box.querySelector('[data-k=colours]').addEventListener('change', (e) => { if (e.target.checked) delete f.colours; else f.colours = false; this.rebuild(); });
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
   }

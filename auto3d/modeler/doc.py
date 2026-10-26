@@ -66,11 +66,12 @@ class State:
         self.tools = {}     # id -> [(tool Body, "add" | "cut")]: what the feature added / cut, for patterns
         self.sketch_src = {}  # id -> the sketch feature as built (its lines, for a sweep's path)
         self.refs = {}      # id -> Body: solids shown for reference only (not in the part)
+        self.colours = {}   # face name -> "#rrggbb": the colours of imported STEP files
 
     def copy(self):
         s = State()
         s.body, s.sketches, s.frames, s.tools = self.body, dict(self.sketches), dict(self.frames), dict(self.tools)
-        s.sketch_src, s.refs = dict(self.sketch_src), dict(self.refs)
+        s.sketch_src, s.refs, s.colours = dict(self.sketch_src), dict(self.refs), dict(self.colours)
         return s
 
 
@@ -263,7 +264,10 @@ def _apply(f, st: State, s):
         # a ready solid: a quick part placed in an assembly ("step", base64), or an imported STEP / STL ("blob": its
         # file kept by the server). op: add (joined to the part), cut (cut out of it: a cavity it fits in), ref (shown
         # only, for sizing what is made around it)
-        body = K.solid_body(_solid_shape(f), fid)
+        shape, cols = _solid_shape(f)
+        body = K.solid_body(shape, fid)
+        if f.get("colours", True):  # the file's own colours (off: the part's colour)
+            st.colours.update({f"{fid}:f{k}": c for k, c in cols.items()})
         bb = K.bbox(body.shape)
         if bb:
             s["bbox"] = [round(v, 3) for v in bb]
@@ -490,13 +494,13 @@ def _solid_shape(f):
                 data = blobs.get(sha)
             except blobs.Missing:
                 raise K.KernelError(f"BLOB_MISSING {sha} — the file of this step is not here; open the project file again.") from None
-            _shapes[sha] = K.from_step(data)
+            _shapes[sha] = K.read_step_colours(data)
             while len(_shapes) > 8:
                 _shapes.popitem(last=False)
         _shapes.move_to_end(sha)
         return _shapes[sha]
     try:
-        return K.from_step(base64.b64decode(f.get("step") or ""))
+        return K.from_step(base64.b64decode(f.get("step") or "")), {}
     except (ValueError, TypeError):
         raise K.KernelError("The solid's data is damaged.") from None
 
@@ -513,16 +517,16 @@ def import_solid(a):
     data = blobs.get(sha)
     ext = name.lower().rsplit(".", 1)[-1]
     if ext in ("step", "stp"):
-        shape = K.from_step(data)
-        _shapes[sha] = shape
-        out = {"blob": sha}
+        shape, cols = K.read_step_colours(data)
+        _shapes[sha] = (shape, cols)
+        out = {"blob": sha, "coloured": len(cols)}
     elif ext in ("stl", "obj"):
         tris = importers.read_stl(data) if ext == "stl" else importers.read_obj(data.decode("utf-8", "ignore"))
         if len(tris) > MESH_LIMIT:
             raise K.KernelError(f"MESH_TOO_BIG This mesh has {len(tris)} triangles — more than {MESH_LIMIT} take too long to become an exact solid.")
         shape = K.mesh_solid(tris)
         out = {"blob": blobs.put(K.to_step(shape, name)), "triangles": len(tris)}
-        _shapes[out["blob"]] = shape
+        _shapes[out["blob"]] = (shape, {})
     else:
         raise K.KernelError("A solid comes from a STEP, STL or OBJ file.")
     if K.face_count(shape) == 0:
@@ -790,6 +794,17 @@ def _tessellated(body):
     return dict(mesh)
 
 
+def _with_colours(mesh, colours):
+    """The faces that came from a coloured STEP file get their colour ("color")."""
+    if not colours:
+        return mesh
+    faces = []
+    for f in mesh["faces"]:
+        c = next((colours[n] for n in [f.get("name"), *(f.get("names") or [])][::-1] if n in colours), None)
+        faces.append({**f, "color": c} if c else f)
+    return {**mesh, "faces": faces}
+
+
 def rebuild(part):
     """The part -> what the browser shows: the body's mesh, faces (with names) and edges, every feature's
     status, the sketch frames."""
@@ -797,7 +812,7 @@ def rebuild(part):
     st, status = evaluate(features)
     out = {"ok": all(s["ok"] for s in status), "features": status, "frames": st.frames, "body": None}
     if st.body is not None:
-        out["body"] = _tessellated(st.body)
+        out["body"] = _with_colours(_tessellated(st.body), st.colours)
     # reference solids: shown see-through, not part of the part
     out["refs"] = [{"id": fid, **_tessellated(b)} for fid, b in st.refs.items()]
     return out

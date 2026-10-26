@@ -229,6 +229,8 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
 - **⧉ Duplicate as a new part** (a 3D model's *Part* panel) copies it into a new, independent part (its own tab);
   in an assembly **⧉ Make it its own part** gives a placed part a copy of its own, to change it alone. The AI:
   `duplicate_part`.
+- **A STEP file's colours** (of its components, bodies and faces) come with it — in the modeler and in assemblies;
+  your own 🎨 paint goes over them, and *Keep the file's colours* (in its solid step) turns them off.
 - **🎨 Paint** (3D model): click faces — or, with ▣ Bodies, whole bodies of an imported file — Ctrl+click for more,
   then pick a colour; ↺ takes a face's own colour off. A painted face keeps its colour when the part changes (its name
   and place) and shows in assemblies; Ctrl+Z undoes it. **🏷** in a row renames a step (3D model list) or a part

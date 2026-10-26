@@ -91,6 +91,9 @@ Date: 2026-10-25. Written by the architect agent.
 - **Assembly measure done:** AsmView.measurePoint (corners of every placed part), assembly.clickMeasure (faces /
   axes apart). tools/e2e_assembly_measure.py.
 - **Duplicate done:** parts.js duplicate (a new tab after it, "(copy)" names); assembly.ownPart. tools/e2e_duplicate.py.
+- **STEP colours done:** kernel.read_step_colours (STEPCAFControl + XCAF: colours followed down the assembly tree to the
+  faces of the shape the solid step uses), State.colours by face name -> faces' `color` in the rebuild; the view /
+  assembly show them under the paint. tools/e2e_step_colours.py.
 - **Paint done:** part `paint` [{name, fp, color}] (paint.js: the same-named face nearest fp), faces' `solid` index from
   the kernel, 🎨 Paint mode (faces / bodies, Ctrl+click), the look in the modeler's undo; rename.js for 🏷. tools/e2e_paint.py.
 - **Look done:** part data `color` / `opacity` (view.setLook), a placed part's `colour` / `opacity` override

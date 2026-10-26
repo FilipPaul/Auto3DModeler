@@ -989,6 +989,90 @@ def from_step(data: bytes):
         os.unlink(path)
 
 
+def read_step_colours(data: bytes):
+    """A STEP with its colours: (shape, {face index (0-based, in _face_map(shape)): "#rrggbb"}). The colours of
+    components, bodies and faces are followed down the file's assembly tree (a face's own colour wins)."""
+    from OCP.collections import Sequence_TDF_Label
+    from OCP.Quantity import Quantity_Color
+    from OCP.STEPCAFControl import STEPCAFControl_Reader
+    from OCP.TCollection import TCollection_ExtendedString
+    from OCP.TDF import TDF_Label
+    from OCP.TDocStd import TDocStd_Document
+    from OCP.TopoDS import TopoDS_Compound
+    from OCP.BRep import BRep_Builder
+    from OCP.XCAFDoc import XCAFDoc_ColorTool, XCAFDoc_ColorType, XCAFDoc_DocumentTool
+    fd, path = tempfile.mkstemp(suffix=".step")
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(data)
+    try:
+        doc = TDocStd_Document(TCollection_ExtendedString("step"))
+        r = STEPCAFControl_Reader()
+        r.SetColorMode(True)
+        if r.ReadFile(path) != IFSelect_RetDone:
+            raise KernelError("The STEP file could not be read.")
+        r.Transfer(doc)
+    finally:
+        os.unlink(path)
+    st, ct = XCAFDoc_DocumentTool.ShapeTool_s(doc.Main()), XCAFDoc_DocumentTool.ColorTool_s(doc.Main())
+    free = Sequence_TDF_Label()
+    st.GetFreeShapes(free)
+    shapes = [st.GetShape_s(free.Value(i)) for i in range(1, free.Length() + 1)]
+    if len(shapes) == 1:
+        shape = shapes[0]
+    else:
+        shape, b = TopoDS_Compound(), BRep_Builder()
+        b.MakeCompound(shape)
+        for s in shapes:
+            b.Add(shape, s)
+    col = Quantity_Color()
+
+    def own(label):
+        for kind in (XCAFDoc_ColorType.XCAFDoc_ColorSurf, XCAFDoc_ColorType.XCAFDoc_ColorGen):
+            if XCAFDoc_ColorTool.GetColor_s(label, kind, col):
+                return "#%02x%02x%02x" % tuple(round(max(0.0, min(1.0, v)) * 255) for v in (col.Red(), col.Green(), col.Blue()))
+        return None
+
+    found = []  # (located shape, colour): later (deeper) ones win
+
+    def walk(label, inherited, loc):
+        c = own(label) or inherited
+        if st.IsReference_s(label):  # a component: placed, its own colour over its part's
+            ref = TDF_Label()
+            st.GetReferredShape_s(label, ref)
+            walk_part(ref, c if own(label) else (own(ref) or inherited), loc.Multiplied(st.GetLocation_s(label)))
+        else:
+            walk_part(label, c, loc)
+
+    def walk_part(label, c, loc):
+        if st.IsAssembly_s(label):
+            comps = Sequence_TDF_Label()
+            st.GetComponents_s(label, comps, False)
+            for i in range(1, comps.Length() + 1):
+                walk(comps.Value(i), c, loc)
+            return
+        if c:
+            found.append((st.GetShape_s(label).Moved(loc), c))
+        subs = Sequence_TDF_Label()
+        st.GetSubShapes_s(label, subs)
+        for i in range(1, subs.Length() + 1):
+            sc = own(subs.Value(i))
+            if sc:
+                found.append((st.GetShape_s(subs.Value(i)).Moved(loc), sc))
+
+    from OCP.TopLoc import TopLoc_Location
+    for i in range(1, free.Length() + 1):
+        walk(free.Value(i), None, TopLoc_Location())
+    fm, colours = _face_map(shape), {}
+    for s, c in found:
+        ex = TopExp_Explorer(s, TopAbs_FACE)
+        while ex.More():
+            k = fm.FindIndex(ex.Current())
+            if k:
+                colours[k - 1] = c
+            ex.Next()
+    return shape, colours
+
+
 def to_stl(tess) -> bytes:
     """Binary STL from tessellate() output."""
     tri = np.frombuffer(tess["positions"], np.float32).reshape(-1, 3, 3)

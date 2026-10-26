@@ -100,7 +100,7 @@ export class ModelView {
   }
 
   sizeOrigin() {
-    const k = Math.max(this.size * 0.12, 6);
+    const k = Math.max(this.size * 0.12, 0.2); // small parts (an SMD part of 1.6 mm) too
     this.origin.scale.set(k, k, k);
     this.invalidate();
   }
@@ -205,6 +205,8 @@ export class ModelView {
     this.bodyColor = color ? new THREE.Color(color) : null;
     // faces painted on their own (paint.js)
     this.faceColor = new Map([...paintedFaces(this.body?.faces || [], paint)].map(([id, p]) => [id, new THREE.Color(p.color)]));
+    // the colours an imported STEP file brought (under the faces painted here)
+    this.fileColor = new Map((this.body?.faces || []).filter((f) => f.color).map((f) => [f.id, new THREE.Color(f.color)]));
     const o = Number.isFinite(+opacity) ? Math.min(1, Math.max(0.1, +opacity)) : 1;
     Object.assign(this.material, { transparent: o < 1, opacity: o, depthWrite: o >= 1 });
     this.material.needsUpdate = true;
@@ -216,7 +218,8 @@ export class ModelView {
     const col = this.mesh.geometry.attributes.color;
     for (let t = 0; t < this.faceIds.length; t++) {
       const f = this.faceIds[t];
-      const c = f === this.hover ? HOVER : this.picked.has(f) ? PICKED : this.hoverSet?.has(f) ? FEATURE : this.selSet?.has(f) ? SELECTED : this.faceColor?.get(f) || this.bodyColor || BODY;
+      const c = f === this.hover ? HOVER : this.picked.has(f) ? PICKED : this.hoverSet?.has(f) ? FEATURE : this.selSet?.has(f) ? SELECTED
+        : this.faceColor?.get(f) || this.fileColor?.get(f) || this.bodyColor || BODY;
       for (let k = 0; k < 3; k++) col.setXYZ(t * 3 + k, c.r, c.g, c.b);
     }
     col.needsUpdate = true;
@@ -356,7 +359,7 @@ export class ModelView {
   }
 
   setView(name) {
-    const box = this.fitBox(), c = box.getCenter(new THREE.Vector3()), s = Math.max(box.getSize(new THREE.Vector3()).length(), 20);
+    const box = this.fitBox(), c = box.getCenter(new THREE.Vector3()), s = Math.max(box.getSize(new THREE.Vector3()).length(), 1);
     const dirs = { iso: [0.55, -0.9, 0.7], top: [0, -0.0001, 1], front: [0, -1, 0.0001], right: [1, 0, 0.0001] };
     const dir = V(dirs[name] || dirs.iso).normalize();
     this.camera.up.set(0, 0, 1);

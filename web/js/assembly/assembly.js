@@ -46,10 +46,12 @@ class AsmView extends ModelView {
       const mat = new THREE.MeshStandardMaterial({ color: it.selected ? 0x6cb6ff : it.colour || COLORS[it.color % COLORS.length], roughness: 0.55, metalness: 0.05,
         side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, emissive: it.hover ? 0x1b2a44 : 0x000000,
         transparent: o < 1, opacity: o, depthWrite: o >= 1 });
-      const painted = it.paint?.length && !it.selected ? paintedFaces(it.body.faces, it.paint) : null;
-      if (painted?.size) { // faces painted in their part
+      const painted = !it.selected && !it.ownColour ? paintedFaces(it.body.faces, it.paint || []) : null;
+      const fromFile = !it.selected && !it.ownColour ? it.body.faces.filter((f) => f.color) : [];
+      if (painted?.size || fromFile.length) { // faces painted in their part, or coloured in its STEP file
         const base = new THREE.Color(it.colour || COLORS[it.color % COLORS.length]), col = new Float32Array(pos.length);
-        const byId = new Map([...painted].map(([id, p]) => [id, new THREE.Color(p.color)]));
+        const byId = new Map(fromFile.map((f) => [f.id, new THREE.Color(f.color)]));
+        for (const [id, p] of painted) byId.set(id, new THREE.Color(p.color));
         for (let tr = 0; tr < ids.length; tr++) {
           const c = byId.get(ids[tr]) || base;
           for (let k = 0; k < 3; k++) col.set([c.r, c.g, c.b], tr * 9 + k * 3);
@@ -976,7 +978,7 @@ export class Assembly {
   lookOf(it) {
     const data = this.hooks.partData(it.part) || {};
     const colour = it.colour || data.color, opacity = Number.isFinite(it.opacity) ? it.opacity : data.opacity;
-    return { colour: colour ? new THREE.Color(colour).getHex() : null, opacity: Number.isFinite(opacity) ? opacity : 1, paint: it.colour ? null : data.paint || null };
+    return { colour: colour ? new THREE.Color(colour).getHex() : null, opacity: Number.isFinite(opacity) ? opacity : 1, paint: it.colour ? null : data.paint || null, ownColour: !!it.colour };
   }
 
   // ------------------------------------------------------------------ editing

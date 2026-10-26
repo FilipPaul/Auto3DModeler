@@ -97,6 +97,8 @@ Never report "works" without having run it; report failures with their output.
    two holes' axes apart, Esc).
    `tools/e2e_duplicate.py <url> <dir>` covers ⧉ Duplicate as a new part (the copy changes alone), ⧉ Make it its own
    part in an assembly (only that placed part changes) and the AI's duplicate_part.
+   `tools/e2e_step_colours.py <url> <dir> <a coloured .step>` covers a STEP file's colours (on its faces in the
+   modeler and an assembly, Keep the file's colours off).
    `tools/e2e_paint.py <url> <dir>` covers 🎨 Paint (a face, Ctrl+click a second, ▣ a whole body of two, one extrude's
    two tops told apart, Ctrl+Z / Ctrl+Y, shown in an assembly) and 🏷 renaming a step and a part.
    `tools/e2e_look.py <url> <dir>` covers colour and see-through (the Part panel -> the model view and assemblies;
