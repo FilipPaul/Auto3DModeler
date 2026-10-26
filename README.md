@@ -315,6 +315,9 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   holes; *Add* or *Add all* puts them in as standard parts of the project (a socket-head screw, an insert, a pin),
   held by joints: the screw on the hole's axis, its head on the part; the insert flush with the face. They follow
   when the parts change.
+- **🎨 Paint** colours faces of the placed parts (▢ Faces) or whole parts (◆ Whole parts) in this assembly: click
+  them, Ctrl+click for more, pick a colour. The parts keep their own colours in their tabs and other assemblies.
+- **✂ Section** cuts every part along X, Y or Z (a slider moves the cut, ⇄ shows the other side).
 - **Explode** pulls the parts apart to look at them; their placement does not change. **💥** on a part in the list
   (shown while exploded) chooses whether it moves: off, it stays in place and the others move away from the parts
   that stay (a lid lifts off its box); **Ctrl+click** — only this one moves (again: all of them). Saved with the

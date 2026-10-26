@@ -11,6 +11,7 @@ import { paintedFaces, repaint } from './paint.js';
 import { ModelView, DATUMS, datumFrame } from './view.js';
 import { Sketcher, upgradeSketch, arcPts, RELATIONS, BIG_SKETCH } from './sketcher.js';
 import { textOutline } from '../outlinepanel.js';
+import { sectionBar, sectionMiddle } from './sectionbar.js';
 
 const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa', mirror: '⇋' };
 const TYPE_NAME = { sketch: 'Sketch', extrude: 'Extrude', revolve: 'Revolve', fillet: 'Fillet', chamfer: 'Chamfer', hole: 'Hole', shell: 'Shell', pattern: 'Pattern',
@@ -2158,7 +2159,7 @@ export class Modeler {
       this.$('.m-section')?.remove();
     } else {
       const bb = this.result.body.bbox;
-      this.section = { axis: 'y', offset: +((bb[1] + bb[4]) / 2).toFixed(3), flip: false };
+      this.section = { axis: 'y', offset: sectionMiddle(bb, 'y'), flip: false };
       this.view.setSection(this.section);
       this.renderSection();
     }
@@ -2168,23 +2169,7 @@ export class Modeler {
   renderSection() {
     const s = this.section, bb = this.result?.body?.bbox;
     if (!s || !bb) return;
-    const i = { x: 0, y: 1, z: 2 }[s.axis], lo = bb[i], hi = bb[i + 3];
-    let box = this.$('.m-section');
-    if (!box) { box = document.createElement('div'); box.className = 'm-section'; this.els.viewport.appendChild(box); }
-    box.innerHTML = `<span>✂</span><div class="seg">${['x', 'y', 'z'].map((a) => `<button data-ax="${a}" class="${a === s.axis ? 'on' : ''}">${a.toUpperCase()}</button>`).join('')}</div>
-      <input type="range" min="${lo}" max="${hi}" step="${(hi - lo) / 200 || 0.1}" value="${s.offset}"><b>${fmt(s.offset)} mm</b>
-      <button class="mini" data-flip title="Show the other side">⇄</button><button class="mini" data-x title="No section">✕</button>`;
-    for (const b of box.querySelectorAll('[data-ax]')) b.addEventListener('click', () => {
-      s.axis = b.dataset.ax;
-      const k = { x: 0, y: 1, z: 2 }[s.axis];
-      s.offset = +((bb[k] + bb[k + 3]) / 2).toFixed(3);
-      this.view.setSection(s);
-      this.renderSection();
-    });
-    const r = box.querySelector('input');
-    r.addEventListener('input', () => { s.offset = +r.value; box.querySelector('b').textContent = `${fmt(s.offset)} mm`; this.view.setSection(s); });
-    box.querySelector('[data-flip]').addEventListener('click', () => { s.flip = !s.flip; this.view.setSection(s); });
-    box.querySelector('[data-x]').addEventListener('click', () => this.toggleSection());
+    sectionBar(this.els.viewport, s, bb, { onChange: (x) => this.view.setSection(x), onClose: () => this.toggleSection() });
   }
 
   // ------------------------------------------------------------------ mouse and keys

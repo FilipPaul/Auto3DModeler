@@ -12,7 +12,8 @@ import * as THREE from 'three';
 import { History } from '../history.js';
 import { t } from '../i18n.js';
 import { renameInPlace } from '../rename.js';
-import { paintedFaces } from '../modeler/paint.js';
+import { paintedFaces, repaint } from '../modeler/paint.js';
+import { sectionBar, sectionMiddle } from '../modeler/sectionbar.js';
 import { ModelView } from '../modeler/view.js';
 import { JOINT_TYPES, applyJoint, spinOf, axialGap } from './joints.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
@@ -45,8 +46,8 @@ class AsmView extends ModelView {
       const o = Number.isFinite(it.opacity) ? it.opacity : 1;
       const mat = new THREE.MeshStandardMaterial({ color: it.selected ? 0x6cb6ff : it.colour || COLORS[it.color % COLORS.length], roughness: 0.55, metalness: 0.05,
         side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, emissive: it.hover ? 0x1b2a44 : 0x000000,
-        transparent: o < 1, opacity: o, depthWrite: o >= 1 });
-      const painted = !it.selected && !it.ownColour ? paintedFaces(it.body.faces, it.paint || []) : null;
+        transparent: o < 1, opacity: o, depthWrite: o >= 1, clippingPlanes: this.clip || [] });
+      const painted = !it.selected ? paintedFaces(it.body.faces, it.paint || []) : null;
       const fromFile = !it.selected && !it.ownColour ? it.body.faces.filter((f) => f.color) : [];
       if (painted?.size || fromFile.length) { // faces painted in their part, or coloured in its STEP file
         const base = new THREE.Color(it.colour || COLORS[it.color % COLORS.length]), col = new Float32Array(pos.length);
@@ -85,6 +86,22 @@ class AsmView extends ModelView {
     this.invalidate();
   }
 
+  /** ✂ The section: the same cut on every part (and on the marks over them). */
+  setSection(sec) {
+    super.setSection(sec);
+    this.clip = this.material.clippingPlanes;
+    for (const g of [this.bodyGroup, this.markGroup]) g?.traverse((o) => { if (o.material && o.material !== this.edgeMaterial) { o.material.clippingPlanes = this.clip; o.material.needsUpdate = true; } });
+    this.invalidate();
+  }
+
+  /** The box round every placed part as shown (exploded too) -> [x0, y0, z0, x1, y1, z1] or null. */
+  shownBox() {
+    if (!this.meshes?.length) return null;
+    const b = new THREE.Box3();
+    for (const m of this.meshes) b.union(new THREE.Box3().setFromObject(m));
+    return [b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z].map((v) => +v.toFixed(3));
+  }
+
   /** Faces drawn over in a colour: [{inst, faces: [face ids], color}] (the face under the mouse, a part's joints). */
   setMarks(marks = []) {
     if (!this.markGroup) { this.markGroup = new THREE.Group(); this.scene.add(this.markGroup); }
@@ -98,7 +115,7 @@ class AsmView extends ModelView {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute(out, 3));
       const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: mk.color, transparent: true, opacity: 0.75, side: THREE.DoubleSide,
-        polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, depthWrite: false }));
+        polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, depthWrite: false, clippingPlanes: this.clip || [] }));
       m.matrixAutoUpdate = false;
       m.matrix.copy(mesh.matrix);
       this.markGroup.add(m);
@@ -245,6 +262,8 @@ export class Assembly {
       <div class="menu as-joint">${btn('joint', `🔗 Joint ▾`, 'Hold a part against another one: choose how, then click a face of the part to move and the face it goes to (S = touch)', `tool ${this.mode !== 'idle' ? 'on' : ''}`)}
         <div class="menu-list">${Object.entries(JOINT_TYPES).map(([k, j]) => `<button data-joint="${k}" title="${esc(j.hint)}">${j.icon} ${esc(j.name)}</button>`).join('')}</div></div>
       ${btn('measure', '📏 Measure', 'Measure: click a spot (a face, a corner), then another one — the distance; two parallel flat faces: the gap between them; two round faces: how far apart their axes are', `tool ${this.measuring ? 'on' : ''}`)}
+      ${btn('paint', '🎨 Paint', 'Colour faces of the placed parts, or whole parts — in this assembly: click them (Ctrl+click: more), then pick a colour', `tool ${this.painting ? 'on' : ''}`)}
+      ${btn('section', '✂ Section', 'Look inside: cut the view along X, Y or Z', `tool ${this.section ? 'on' : ''}`)}
       ${btn('fasteners', '🔩 Fasteners', 'Screws, heat-set inserts and pins where holes line up across parts — suggested, added with one click', `tool ${this.fastenerPanel ? 'on' : ''}`)}
       <span class="sep"></span>
       <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
@@ -254,6 +273,7 @@ export class Assembly {
       ${btn('view-iso', 'Iso', 'View from the front-right, above')}${btn('view-top', 'Top', 'View from above')}${btn('view-front', 'Front', 'View from the front')}${btn('view-right', 'Right', 'View from the right')}`;
     bar.querySelector('[data-a=insert]').disabled = !parts.length && !this.hooks.importSolid;
     bar.querySelector('[data-a=joint]').disabled = this.doc.instances.length < 2;
+    for (const a of ['paint', 'section']) bar.querySelector(`[data-a=${a}]`).disabled = !this.doc.instances.length;
     bar.querySelector('[data-a=joint]').addEventListener('click', (e) => {
       e.stopPropagation();
       if (this.mode !== 'idle') { this.cancelJoint(); return; }
@@ -278,6 +298,8 @@ export class Assembly {
   action(a) {
     if (a === 'snap') return this.startJoint('touch');
     if (a === 'measure') return this.toggleMeasure();
+    if (a === 'paint') return this.togglePaint();
+    if (a === 'section') return this.toggleSection();
     if (a === 'fasteners') { this.fastenerPanel = !this.fastenerPanel; this.sel = null; this.render(); this.draw(); return null; }
     if (a === 'undo') return this.history.go(-1);
     if (a === 'redo') return this.history.go(1);
@@ -351,6 +373,7 @@ export class Assembly {
 
   renderProps() {
     const box = this.$('.mp-body'), it = this.inst(this.sel);
+    if (this.painting) { this.renderPaint(box); return; }
     if (this.bolt) { this.renderBolt(box); return; }
     this.view.setGhost([]);
     if (this.fastenerPanel && !it) { this.renderFasteners(box); return; }
@@ -465,10 +488,91 @@ export class Assembly {
     return have ? have.id : this.hooks.addModelPart(mdl.name, { features: mdl.features, material: mdl.material, standard: true });
   }
 
+  // ------------------------------------------------------------------ 🎨 paint (this assembly's colours), ✂ section
+  togglePaint() {
+    this.painting = this.painting ? null : { by: 'face', sel: new Map() }; // sel: inst id -> Set(face ids)
+    if (this.painting) { if (this.measuring) this.toggleMeasure(); this.cancelJoint(); if (this.bolt) this.cancelBolt(); this.fastenerPanel = false; this.sel = null; }
+    this.hint(this.painting ? 'Paint — click a face of a part (or a whole part), Ctrl+click for more, then pick a colour. Esc ends.' : '');
+    this.render();
+    this.draw();
+  }
+
+  clickPaint(h, more) {
+    const ps = this.painting;
+    if (!h?.inst) { if (!more) ps.sel.clear(); this.drawMarks(); this.renderProps(); return; }
+    const body = this.bodies[this.inst(h.inst)?.part]?.body;
+    const ids = ps.by === 'part' ? (body?.faces || []).map((f) => f.id) : h.face ? [h.face.id] : [];
+    if (!ids.length) return;
+    if (!more) ps.sel.clear();
+    const set = ps.sel.get(h.inst) || new Set();
+    const all = more && ids.every((x) => set.has(x));
+    for (const x of ids) (all ? set.delete(x) : set.add(x));
+    if (set.size) ps.sel.set(h.inst, set); else ps.sel.delete(h.inst);
+    this.drawMarks();
+    this.renderProps();
+  }
+
+  renderPaint(box) {
+    const ps = this.painting, n = [...ps.sel.values()].reduce((s, x) => s + x.size, 0), parts = ps.sel.size;
+    const painted = (id) => paintedFaces(this.bodies[this.inst(id)?.part]?.body?.faces || [], this.inst(id)?.paint || []);
+    const own = [...ps.sel.keys()].map((id) => this.inst(id)).filter(Boolean);
+    let first = null;
+    for (const [id, set] of ps.sel) { const now = painted(id), f = [...set].find((x) => now.has(x)); if (f !== undefined) { first = now.get(f).color; break; } }
+    const colour = ps.by === 'part' ? own.find((x) => x.colour)?.colour : first;
+    const anyFaces = this.doc.instances.some((x) => x.paint?.length);
+    box.innerHTML = `<h2>🎨 Paint</h2>
+      <div class="seg"><button data-by="face" class="${ps.by === 'face' ? 'on' : ''}">▢ Faces</button><button data-by="part" class="${ps.by === 'part' ? 'on' : ''}">◆ Whole parts</button></div>
+      <p class="hint">${ps.by === 'part' ? 'Click a part' : 'Click a face'} — Ctrl+click adds more (or takes one away).</p>
+      <p class="mp-count">${ps.by === 'part' ? (parts ? t2('{n} part(s) chosen', { n: parts }) : t('Nothing chosen yet')) : n ? t2('{n} face(s) chosen', { n }) : t('Nothing chosen yet')}</p>
+      <div class="field"><label>Colour</label><input type="color" data-k="paint" value="${colour || '#d9dee6'}" ${parts ? '' : 'disabled'}></div>
+      <div class="row-actions wrap"><button class="btn small" data-a="unpaint" ${parts ? '' : 'disabled'}>↺ Their own colour off</button>
+        <button class="btn small" data-a="unpaintAll" ${anyFaces ? '' : 'disabled'}>Clear the painted faces</button></div>
+      <p class="hint">The colours belong to this assembly — the parts keep their own (in their tabs and in other assemblies).</p>
+      <div class="mp-actions"><button class="btn primary" data-a="donePaint">Done</button></div>`;
+    for (const el of box.querySelectorAll('[data-by]')) el.addEventListener('click', () => { ps.by = el.dataset.by; ps.sel.clear(); this.drawMarks(); this.renderProps(); });
+    const col = box.querySelector('[data-k=paint]');
+    const apply = (color) => {
+      for (const [id, set] of ps.sel) {
+        const it = this.inst(id), faces = this.bodies[it?.part]?.body?.faces;
+        if (!it || !faces) continue;
+        if (ps.by === 'part') { if (color) it.colour = color; else delete it.colour; continue; }
+        const p = repaint(faces, it.paint || [], set, color);
+        if (p.length) it.paint = p; else delete it.paint;
+      }
+      this.draw();
+    };
+    col.addEventListener('input', () => apply(col.value));
+    col.addEventListener('change', () => this.commit());
+    box.querySelector('[data-a=unpaint]').addEventListener('click', () => { apply(null); this.commit(); });
+    box.querySelector('[data-a=unpaintAll]').addEventListener('click', () => { for (const it of this.doc.instances) delete it.paint; this.commit(); });
+    box.querySelector('[data-a=donePaint]').addEventListener('click', () => this.togglePaint());
+  }
+
+  toggleSection() {
+    if (this.section) {
+      this.section = null;
+      this.view.setSection(null);
+      this.$('.m-section')?.remove();
+    } else {
+      const bb = this.view.shownBox();
+      if (!bb) return;
+      this.section = { axis: 'y', offset: sectionMiddle(bb, 'y'), flip: false };
+      this.view.setSection(this.section);
+      this.renderSection();
+    }
+    this.renderBar();
+  }
+
+  renderSection() {
+    const bb = this.view.shownBox();
+    if (!this.section || !bb) return;
+    sectionBar(this.els.viewport, this.section, bb, { onChange: (s) => this.view.setSection(s), onClose: () => this.toggleSection() });
+  }
+
   // ------------------------------------------------------------------ 📏 measure
   toggleMeasure() {
     this.measuring = this.measuring ? null : { a: null };
-    if (this.measuring) { this.cancelJoint(); if (this.bolt) this.cancelBolt(); }
+    if (this.measuring) { this.cancelJoint(); if (this.bolt) this.cancelBolt(); if (this.painting) this.togglePaint(); }
     this.view.setMeasure();
     this.hint(this.measuring ? 'Measure — click a spot, then another one (corners snap). Esc ends.' : '');
     if (!this.measuring) this.$('.m-measure')?.remove();
@@ -881,6 +985,7 @@ export class Assembly {
     }
     for (const h of this.hoverCand?.holes || []) marks.push({ inst: h.inst, faces: faceIds(h.inst, h.name), color: 0xf2cc60 });
     if (this.jointFrom?.face) marks.push({ inst: this.jointFrom.inst, faces: [this.jointFrom.face.id], color: 0x3fb950 });
+    for (const [inst, set] of this.painting?.sel || []) marks.push({ inst, faces: [...set], color: 0xff9e64 });
     if (this.hoverFace) marks.push({ inst: this.hoverFace.inst, faces: [this.hoverFace.face.id], color: this.hoverFace.ok ? 0xf2cc60 : 0x8b95a3 });
     this.view.setMarks(marks);
   }
@@ -1002,7 +1107,8 @@ export class Assembly {
   lookOf(it) {
     const data = this.hooks.partData(it.part) || {};
     const colour = it.colour || data.color, opacity = Number.isFinite(it.opacity) ? it.opacity : data.opacity;
-    return { colour: colour ? new THREE.Color(colour).getHex() : null, opacity: Number.isFinite(opacity) ? opacity : 1, paint: it.colour ? null : data.paint || null, ownColour: !!it.colour };
+    const paint = [...(it.colour ? [] : data.paint || []), ...(it.paint || [])];
+    return { colour: colour ? new THREE.Color(colour).getHex() : null, opacity: Number.isFinite(opacity) ? opacity : 1, paint: paint.length ? paint : null, ownColour: !!it.colour };
   }
 
   // ------------------------------------------------------------------ editing
@@ -1319,6 +1425,7 @@ export class Assembly {
       if (moved) return;
       const h = this.view.pickInst(e.clientX, e.clientY);
       if (this.measuring) { this.clickMeasure(e); return; }
+      if (this.painting) { this.clickPaint(h, e.ctrlKey || e.metaKey); return; }
       if (this.mode !== 'idle') { this.clickJoint(h); return; }
       if (this.bolt) { if (h?.face?.type === 'plane') this.startBolt(h); return; } // another point for the bolt
       this.sel = h?.inst || null;
@@ -1332,6 +1439,7 @@ export class Assembly {
     if (!this.active || e.target.closest?.('input,select,textarea,[contenteditable]')) return;
     const k = e.key.toLowerCase();
     if (e.key === 'Escape' && this.measuring) { this.toggleMeasure(); return; }
+    if (e.key === 'Escape' && this.painting) { this.togglePaint(); return; }
     if (e.key === 'Escape' && this.mode !== 'idle') { this.cancelJoint(); return; }
     if (e.key === 'Escape' && this.bolt) { this.cancelBolt(); return; }
     if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y')) { e.preventDefault(); this.history.go(k === 'y' || e.shiftKey ? 1 : -1); return; }
