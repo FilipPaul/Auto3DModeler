@@ -409,6 +409,20 @@ body:not(.ws-model):not(.ws-assembly) .not-quick { display: none !important; }
 .ai-drawer { position: fixed; top: 48px; right: 0; bottom: 0; width: min(440px, 100vw); z-index: 40; display: flex; flex-direction: column;
   background: var(--panel); border-left: 1px solid var(--line); box-shadow: -8px 0 24px rgba(0, 0, 0, 0.35); }
 .ai-drawer[hidden] { display: none; }
+.m-tip { position: absolute; z-index: 5; pointer-events: none; background: #161a20e8; border: 1px solid var(--line); border-radius: 5px; padding: 2px 7px; font-size: 11px; color: var(--text); white-space: nowrap; }
+.m-ctx { position: absolute; z-index: 6; display: flex; flex-direction: column; min-width: 210px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px #0009; padding: 4px; }
+.m-ctx-t { font-size: 11px; color: var(--muted); padding: 4px 8px 6px; border-bottom: 1px solid var(--line); margin-bottom: 3px; }
+.m-ctx button { text-align: left; background: none; border: 0; color: var(--text); padding: 5px 8px; border-radius: 5px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.m-ctx button:hover { background: #2b3440; }
+.m-dimtag { background: #2a1f45; color: #e3d4ff; border: 1px solid #6e40c9; border-radius: 5px; padding: 1px 6px; font-size: 11.5px; cursor: pointer; white-space: nowrap; }
+.m-dimtag:hover { background: #6e40c9; color: #fff; }
+.m-dimedit { position: absolute; z-index: 7; width: 200px; background: var(--panel-2); border: 1px solid #6e40c9; border-radius: 8px; padding: 8px; box-shadow: 0 8px 24px #0009; display: flex; flex-direction: column; gap: 6px; }
+.m-dimedit-t { font-size: 11px; color: var(--muted); }
+.m-dimedit-row { display: flex; align-items: center; gap: 6px; }
+.m-dimedit-row input { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; color: inherit; padding: 3px 6px; }
+.m-dimedit input[type=range] { width: 100%; }
+.m-dimedit-acts { display: flex; gap: 6px; }
+.m-ctx-sep { height: 1px; background: var(--line); margin: 3px 4px; }
 .as-link { display: flex; align-items: center; gap: 8px; justify-content: space-between; margin: 8px 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; }
 .as-link.bad { border-color: var(--warn); }
 .sk-choose .sk-off { display: flex; align-items: center; gap: 6px; }

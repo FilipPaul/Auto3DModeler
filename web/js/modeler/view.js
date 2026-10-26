@@ -6,6 +6,7 @@ import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/CSS2DRenderer.js';
 
 const BODY = new THREE.Color(0xd9dee6), HOVER = new THREE.Color(0x6cb6ff), PICKED = new THREE.Color(0x4f8cff);
+const FEATURE = new THREE.Color(0xa9cdf5), SELECTED = new THREE.Color(0xf2cc60); // the step under the mouse / the chosen step
 const DATUM_COLORS = { XY: 0x4f8cff, XZ: 0x7ee787, YZ: 0xffa657 };
 export const DATUMS = {
   XY: { o: [0, 0, 0], x: [1, 0, 0], n: [0, 0, 1] },
@@ -65,7 +66,8 @@ export class ModelView {
     this.sketchGroup = new THREE.Group();
     this.outlineGroup = new THREE.Group(); // sketches shown as lines outside sketch mode
     this.edgeGroup = new THREE.Group();    // highlighted edges (Fillet / Chamfer)
-    this.scene.add(this.bodyGroup, this.datumGroup, this.sketchGroup, this.outlineGroup, this.edgeGroup);
+    this.tagGroup = new THREE.Group();     // the chosen step's sizes, as labels on the part
+    this.scene.add(this.bodyGroup, this.datumGroup, this.sketchGroup, this.outlineGroup, this.edgeGroup, this.tagGroup);
     this.material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.05, side: THREE.DoubleSide,
       polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
     this.edgeMaterial = new THREE.LineBasicMaterial({ color: 0x1b2430 });
@@ -152,7 +154,7 @@ export class ModelView {
     const col = this.mesh.geometry.attributes.color;
     for (let t = 0; t < this.faceIds.length; t++) {
       const f = this.faceIds[t];
-      const c = f === this.hover ? HOVER : this.picked.has(f) ? PICKED : BODY;
+      const c = f === this.hover ? HOVER : this.picked.has(f) ? PICKED : this.hoverSet?.has(f) ? FEATURE : this.selSet?.has(f) ? SELECTED : BODY;
       for (let k = 0; k < 3; k++) col.setXYZ(t * 3 + k, c.r, c.g, c.b);
     }
     col.needsUpdate = true;
@@ -169,9 +171,37 @@ export class ModelView {
     this.invalidate();
   }
 
-  setHover(faceId) {
-    if (faceId === this.hover) return;
+  /** faceId: the face under the mouse; also: the faces of its whole step (lighter). */
+  setHover(faceId, also = null) {
+    const key = also ? also.join(',') : '';
+    if (faceId === this.hover && key === (this.hoverKey || '')) return;
     this.hover = faceId;
+    this.hoverKey = key;
+    this.hoverSet = also ? new Set(also) : null;
+    this.paint();
+  }
+
+  /** Labels on the part: [{p: [x, y, z], el}] and thin lines [[a, b]] (from the label to what it measures). */
+  setTags(tags = [], lines = []) {
+    this.clear(this.tagGroup);
+    for (const t of tags) {
+      t.el.style.pointerEvents = 'auto';
+      const o = new CSS2DObject(t.el);
+      o.position.set(...t.p);
+      this.tagGroup.add(o);
+    }
+    if (lines.length) {
+      const pts = lines.flatMap(([a, b]) => [new THREE.Vector3(...a), new THREE.Vector3(...b)]);
+      const l = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xd2a8ff, depthTest: false, transparent: true }));
+      l.renderOrder = 7;
+      this.tagGroup.add(l);
+    }
+    this.invalidate();
+  }
+
+  /** The faces of the chosen step, tinted (until something else is chosen). */
+  setSelectedFaces(ids) {
+    this.selSet = ids?.length ? new Set(ids) : null;
     this.paint();
   }
 

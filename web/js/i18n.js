@@ -548,6 +548,11 @@ const CS = {
   'Keep it where it is, but no longer follow': 'Nechat ho na místě, ale už nenásledovat',
   '📐 Drawing (PDF)': '📐 Výkres (PDF)', 'A 2D drawing: front, top and right views, sizes, holes, title block': '2D výkres: pohled zepředu, shora a zprava, rozměry, díry, rohové razítko',
   'PDF — 2D drawing (views, sizes)': 'PDF — 2D výkres (pohledy, rozměry)', 'Exported the drawing (PDF).': 'Výkres exportován (PDF).',
+  '✏ Sketch on this face': '✏ Skica na této ploše', '◎ Hole here': '◎ Díra sem', 'Aa Text / picture here': 'Aa Text / obrázek sem',
+  '◜ Round its edges': '◜ Zaoblit její hrany', '◸ Bevel its edges': '◸ Zkosit její hrany', '▢ Hollow out, open here': '▢ Vydutit, otevřít zde',
+  '● Turn it on': '● Zapnout', '◌ Turn it off': '◌ Vypnout',
+  'Click to change it': 'Kliknutím změníte', 'That size does not fit here.': 'Tato velikost sem nepasuje.', Size: 'Velikost', Wall: 'Stěna',
+  "That does not fit the sketch's other locked sizes — open the sketch and unlock one.": 'To nesedí na ostatní zamčené rozměry skici — otevřete skicu a jeden odemkněte.',
   // language switch
   'Čeština / English': 'Čeština / English',
 };
@@ -639,6 +644,7 @@ const CS_PATTERNS = [
   ['on Top {} mm', 'na horní rovině {1} mm'], ['on Front {} mm', 'na přední rovině {1} mm'], ['on Right {} mm', 'na pravé rovině {1} mm'],
   ['{} sketches · cut', '{1} skici · řez'], ['{} sketches', '{1} skici'], ['along {} · cut', 'po {1} · řez'], ['along {}', 'po {1}'],
   ['🔗 Snapped onto {} ({}) — it follows that part.', '🔗 Přichyceno na {1} ({2}) — tento díl následuje.'], ['{} part(s) are snapped onto this one and follow it.', '{1} díl(y) jsou přichyceny na tento a následují ho.'],
+  ['✎ Edit {}', '✎ Upravit {1}'], ['✕ Delete {}', '✕ Smazat {1}'], ['{} — {}', '{1} — {2}'], ['{} · {}', '{1} · {2}'],
   ['{}× around', '{1}× dokola'], ['{}× · {} mm apart', '{1}× · {2} mm od sebe'], ['Line {} of the sketch', 'Čára {1} skici'], ['wall {} mm · {} open', 'stěna {1} mm · {2} otevřeno'], ['Open face {}', 'Otevřená plocha {1}'], ['{}° cut', '{1}° řez'],
   ['Height {} mm (follows the width).', 'Výška {1} mm (přizpůsobí se šířce).'], ['{} — 3D', '{1} — 3D'],
   ['{} hidden — the drawing still sets this size. Show it again in Dimensions (Hidden).', '{1} skryta — výkres tento rozměr stále určuje. Znovu ji zobrazíte v Rozměrech (Skryté).'],

@@ -21,6 +21,7 @@ const sketchesOf = (f) => (f.type === 'loft' ? f.sketches || [] : f.type === 'sw
 export const MATERIALS = { PLA: 1.24, PETG: 1.27, ABS: 1.04, ASA: 1.07, TPU: 1.21, PA: 1.14 };
 const DATUM_NAME = { XY: 'Top', XZ: 'Front', YZ: 'Right' };
 const fmt = (v) => (+(+v).toFixed(3)).toString();
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export class Modeler {
@@ -257,6 +258,265 @@ export class Modeler {
     return src ? `on a face of ${src.name}` : 'on a face';
   }
 
+  // ------------------------------------------------------------------ pointing at / clicking the part
+  /** The step a face was made by, and the ids of all faces it made now. */
+  stepFaces(face) {
+    const id = this.faceOwner({ name: face?.name }), step = this.part.features.find((f) => f.id === id);
+    if (!step) return null;
+    const ids = (this.result?.body?.faces || []).filter((f) => [f.name, ...(f.names || [])].some((n) => String(n).split(':')[0] === id)).map((f) => f.id);
+    return { step, ids };
+  }
+
+  /** The little name label at the mouse. */
+  tip(t) {
+    let el = this.$('.m-tip');
+    if (!t) { if (el) el.hidden = true; return; }
+    if (!el) { el = document.createElement('div'); el.className = 'm-tip'; this.els.viewport.appendChild(el); }
+    const vr = this.els.viewport.getBoundingClientRect();
+    el.hidden = false;
+    el.textContent = t.text;
+    Object.assign(el.style, { left: `${t.x - vr.left + 14}px`, top: `${t.y - vr.top + 14}px` });
+  }
+
+  /** A click on the part: its step is chosen (its sizes show), and the tools for that face pop up there. */
+  clickFace(e) {
+    this.closeCtx();
+    const h = this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
+    if (!fs) { this.selected = null; this.view.setSelectedFaces(null); this.renderTree(); this.showStepDims?.(null); return; }
+    this.selected = fs.step.id;
+    this.view.setSelectedFaces(fs.ids);
+    this.renderTree();
+    this.showStepDims?.(fs.step);
+    const flat = h.face.type === 'plane', at = { clientX: e.clientX, clientY: e.clientY };
+    const items = [
+      flat && ['sketch', '✏ Sketch on this face', () => this.enterSketch({ frame: h.face.frame, ...(h.face.ref ? { face: h.face.ref } : {}) })],
+      flat && ['hole', '◎ Hole here', () => { this.startHole(); if (this.cmd) this.clickHole(at); }],
+      flat && ['decal', 'Aa Text / picture here', () => { this.startDecal(); if (this.cmd) this.clickDecal(at); }],
+      ['fillet', '◜ Round its edges', () => { this.startRound('fillet'); if (this.cmd) this.clickCommand(at); }],
+      ['chamfer', '◸ Bevel its edges', () => { this.startRound('chamfer'); if (this.cmd) this.clickCommand(at); }],
+      flat && ['shell', '▢ Hollow out, open here', () => { this.startShell(); if (this.cmd) this.clickShell(at); }],
+      null,
+      ['edit', `✎ Edit ${fs.step.name}`, () => this.edit(fs.step.id)],
+      ['off', fs.step.suppressed ? '● Turn it on' : '◌ Turn it off', () => this.toggleOff(fs.step.id)],
+      ['del', `✕ Delete ${fs.step.name}`, () => this.remove(fs.step.id)],
+    ];
+    const box = document.createElement('div');
+    box.className = 'm-ctx';
+    const vr = this.els.viewport.getBoundingClientRect();
+    box.innerHTML = `<div class="m-ctx-t">${esc(fs.step.name)} · ${esc(this.faceLabel(h.face.name).replace(/ of .*$/, '').replace(/^the /, ''))}</div>`
+      + items.map((it) => (it === null ? '<div class="m-ctx-sep"></div>' : it ? `<button data-ctx="${it[0]}">${esc(it[1])}</button>` : '')).join('');
+    Object.assign(box.style, { left: `${Math.min(e.clientX - vr.left + 10, vr.width - 230)}px`, top: `${Math.min(e.clientY - vr.top + 10, vr.height - 330)}px` });
+    for (const t of ['pointerdown', 'pointerup']) box.addEventListener(t, (ev) => ev.stopPropagation());
+    const acts = Object.fromEntries(items.filter(Boolean).map((it) => [it[0], it[2]]));
+    for (const b of box.querySelectorAll('[data-ctx]')) b.addEventListener('click', () => { this.closeCtx(); this.tip(null); acts[b.dataset.ctx](); });
+    this.els.viewport.appendChild(box);
+    this.ctx = box;
+  }
+
+  closeCtx() { this.ctx?.remove(); this.ctx = null; }
+
+  // ------------------------------------------------------------------ the chosen step's sizes, on the part
+  /** Show (or with null hide) the sizes of a step as labels on the part — click one to change it (number + slider). */
+  showStepDims(step, { keepEdit = false } = {}) {
+    this.dimStep = step ? step.id : null;
+    if (!keepEdit) this.closeDimEdit();
+    if (!step || this.mode !== 'part') { this.view.setTags([]); return; }
+    const tags = [], lines = [];
+    const add = (p, text, edit, title = '') => {
+      const el = document.createElement('div');
+      el.className = 'm-dimtag';
+      el.textContent = text;
+      el.title = title || 'Click to change it';
+      for (const t of ['pointerdown', 'pointerup']) el.addEventListener(t, (ev) => ev.stopPropagation());
+      el.addEventListener('click', (ev) => { ev.stopPropagation(); this.openDimEdit(el, edit); });
+      tags.push({ p, el });
+    };
+    const P3 = (fr, u, v) => { const y = cross(fr.n, fr.x); return [0, 1, 2].map((i) => fr.o[i] + u * fr.x[i] + v * y[i]); };
+    const f = step, num = (k, label, o = {}) => ({ get: () => f[k], set: (v) => { f[k] = v; }, label, ...o });
+    const skOf = (id) => this.part.features.find((g) => g.id === id);
+    const frameOf = (sk) => (sk?.plane?.datum ? datumFrame(sk.plane) : this.frames?.[sk?.id] || sk?.plane?.frame);
+    if (f.type === 'extrude' || f.type === 'revolve') {
+      const sk = skOf(f.sketch), fr = frameOf(sk);
+      if (sk && fr) {
+        this.sketchTags(sk, fr, add, P3);
+        if (f.type === 'extrude' && !f.upto && !f.through) {
+          const s = (f.op === 'cut' ? -1 : 1) * (f.flip ? -1 : 1), c = this.sketchCorner(sk);
+          const a = P3(fr, c[0], c[1]), b = a.map((v, i) => v + fr.n[i] * f.d * s * (f.symmetric ? 0.5 : 1));
+          lines.push([a, b]);
+          add(b.map((v, i) => v + fr.n[i] * this.view.size * 0.02), `↕ ${fmt(f.d)}`, num('d', 'Height', { min: 0.1 }), `${f.name}: the height`);
+        }
+        if (f.type === 'revolve') add(P3(fr, 0, 0), `${fmt(f.angle)}°`, num('angle', 'Angle', { min: 1, max: 360, unit: '°' }));
+      }
+    } else if (f.type === 'sketch') {
+      const fr = frameOf(f);
+      if (fr) this.sketchTags(f, fr, add, P3);
+    } else if (f.type === 'hole' && f.plane?.frame) {
+      const fr = this.holeFrame(f);
+      f.points.forEach((p, i) => {
+        const at = P3(fr, p[0], p[1]);
+        if (i === 0) add(at, `Ø${fmt(f.d)}`, num('d', 'Diameter', { min: 0.2 }), `${f.name}: the diameter`);
+        for (const [axis, k] of [['x', 0], ['y', 1]]) {
+          const r = f.from?.[i]?.[axis], c = r && this.refCoord(f, r, k);
+          if (r && c !== null && c !== undefined) {
+            const q = k === 0 ? [c, p[1]] : [p[0], c];
+            lines.push([P3(fr, ...q), at]);
+            add(P3(fr, (q[0] + p[0]) / 2, (q[1] + p[1]) / 2), `${k ? '↕' : '↔'} ${fmt(Math.abs(r.d))}`, {
+              label: 'Distance', min: 0, get: () => Math.abs(r.d),
+              set: (v) => { r.d = (Math.sign(r.d) || 1) * v; f.points[i][k] = +(c + r.d).toFixed(6); },
+            });
+          }
+        }
+      });
+      if (f.through === false) add(P3(fr, f.points[0][0], f.points[0][1]).map((v, i) => v - fr.n[i] * f.depth), `↓ ${fmt(f.depth)}`, num('depth', 'Depth', { min: 0.1 }));
+    } else if ((f.type === 'fillet' || f.type === 'chamfer') && f.edges?.length) {
+      const k = f.type === 'fillet' ? 'r' : 'd';
+      add(f.edges[0].fp, `${f.type === 'fillet' ? 'R' : '◸'} ${fmt(f[k])}`, num(k, f.type === 'fillet' ? 'Radius' : 'Size', { min: 0.1 }));
+    } else if (f.type === 'shell' && f.faces?.length) {
+      add(f.faces[0].fp, `wall ${fmt(f.t)}`, num('t', 'Wall', { min: 0.2 }));
+    } else if (f.type === 'decal' && f.plane?.frame) {
+      const fr = f.plane.frame;
+      add(P3(fr, f.at[0], f.at[1]), `${fmt(f.h)} high`, num('h', 'Height', { min: 0.5 }));
+    } else if (f.type === 'pattern') {
+      const b = this.result?.body?.bbox, c = b ? [(b[0] + b[3]) / 2, (b[1] + b[4]) / 2, b[5]] : [0, 0, 0];
+      add(c, `${f.count}×`, num('count', 'How many', { min: 2, max: Math.max(20, f.count * 2), step: 1, int: true }));
+      if (f.kind !== 'circular') add(c.map((v, i) => v + (i === 2 ? this.view.size * 0.05 : 0)), `${fmt(f.spacing)} apart`, num('spacing', 'Apart', { min: 0.1 }));
+    }
+    this.view.setTags(tags, lines);
+  }
+
+  /** The sketch's front-right corner (largest x, smallest y): where the height is shown, on a visible edge. */
+  sketchCorner(sk) {
+    const ps = Object.values(upgradeSketch(sk).points || {});
+    return ps.length ? [Math.max(...ps.map((p) => p[0])), Math.min(...ps.map((p) => p[1]))] : [0, 0];
+  }
+
+  sketchCentre(sk) {
+    const ps = Object.values(upgradeSketch(sk).points || {});
+    if (!ps.length) return [0, 0];
+    return [ps.reduce((s, p) => s + p[0], 0) / ps.length, ps.reduce((s, p) => s + p[1], 0) / ps.length];
+  }
+
+  /** A sketch's sizes as labels on its plane: its locked / measuring dimensions and its shapes' own sizes. */
+  sketchTags(sk0, fr, add, P3) {
+    const sk = upgradeSketch(sk0), P = (id) => (id === 'O' ? [0, 0] : sk.points[id]);
+    const S = new Sketcher(this, structuredClone(sk), false);
+    const shown = new Set();
+    const label = (spec, v) => ({ len: fmt(v), dia: `Ø${fmt(v)}`, rad: `R${fmt(v)}`, dx: `↔ ${fmt(Math.abs(v))}`, dy: `↕ ${fmt(Math.abs(v))}`, dist: `⤢ ${fmt(Math.abs(v))}` }[spec.t]);
+    const at = (spec) => {
+      if (spec.t === 'len') { const e = sk.entities.find((x) => x.id === spec.e), a = P(e.a), b = P(e.b); return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; }
+      if (spec.t === 'dia') { const e = sk.entities.find((x) => x.id === spec.e), c = P(e.c); return [c[0] + e.r * 0.7, c[1] + e.r * 0.7]; }
+      if (spec.t === 'rad') { const e = sk.entities.find((x) => x.id === spec.e), ps = S.arcOf(e); return ps[Math.floor(ps.length / 2)]; }
+      const a = S.endUV(spec.a), b = S.endUV(spec.b);
+      return spec.t === 'dx' ? [(a[0] + b[0]) / 2, b[1]] : spec.t === 'dy' ? [b[0], (a[1] + b[1]) / 2] : [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    };
+    const tag = (spec) => {
+      const key = JSON.stringify([spec.t, spec.e, spec.a, spec.b]);
+      if (shown.has(key)) return;
+      shown.add(key);
+      const v = S.measure(spec), d = S.findDim(spec);
+      if ((spec.a === 'O' || spec.b === 'O') && Math.abs(v) < 1e-9) return; // "on the origin"
+      const [u, w] = at(spec);
+      add(P3(fr, u, w), `${d && !d.free ? '🔒 ' : ''}${label(spec, v)}`, { label: { len: 'Length', dia: 'Diameter', rad: 'Radius' }[spec.t] || 'Distance', min: spec.t === 'dx' || spec.t === 'dy' ? -1e6 : 0.1,
+        get: () => Math.abs(v), sketch: { id: sk0.id, spec } }, `${sk0.name}: ${d && !d.free ? 'locked' : 'click to type it (it is then locked)'}`);
+    };
+    for (const d of sk.dims) if (d.t !== 'bw') tag({ t: d.t, e: d.e, a: d.a, b: d.b });
+    const groups = new Set();
+    for (const e of sk.entities) {
+      if (e.t === 'line') {
+        if (S.isHidden({ t: 'len', e: e.id })) continue;
+        if (e.g) {
+          const kk = sk.constraints.find((c) => c.e === e.id && (c.t === 'h' || c.t === 'v'))?.t;
+          if (groups.has(`${e.g}:${kk}`)) continue;
+          groups.add(`${e.g}:${kk}`);
+        }
+        tag({ t: 'len', e: e.id });
+      } else if (e.t === 'circle' && !S.isHidden({ t: 'dia', e: e.id })) tag({ t: 'dia', e: e.id });
+      else if (e.t === 'arc' && !S.isHidden({ t: 'rad', e: e.id })) tag({ t: 'rad', e: e.id });
+    }
+  }
+
+  /** The editor of one size: a number and a slider; the part follows while sliding; Enter / OK keeps it, Esc goes back. */
+  openDimEdit(el, edit) {
+    this.closeDimEdit();
+    const before = structuredClone(this.part.features);
+    const v0 = edit.get(), step = edit.step || (Math.abs(v0) >= 20 ? 0.5 : 0.1);
+    const lo = edit.min ?? 0.1, hi = edit.max ?? Math.max(10, Math.abs(v0) * 3);
+    const box = document.createElement('div');
+    box.className = 'm-dimedit';
+    box.innerHTML = `<div class="m-dimedit-t">${esc(t(edit.label || 'Size'))}</div>
+      <div class="m-dimedit-row"><input type="number" step="${step}" value="${fmt(v0)}"><span class="unit">${edit.unit || (edit.int ? '' : 'mm')}</span></div>
+      <input type="range" min="${edit.int ? lo : 0}" max="${hi}" step="${edit.int ? 1 : step}" value="${v0}">
+      <div class="m-dimedit-acts"><button class="btn small primary" data-a="ok">OK</button><button class="btn small" data-a="cancel">Cancel</button></div>`;
+    const vr = this.els.viewport.getBoundingClientRect(), r = el.getBoundingClientRect();
+    Object.assign(box.style, { left: `${Math.min(r.left - vr.left, vr.width - 220)}px`, top: `${Math.min(r.bottom - vr.top + 6, vr.height - 140)}px` });
+    for (const t2 of ['pointerdown', 'pointerup']) box.addEventListener(t2, (ev) => ev.stopPropagation());
+    this.els.viewport.appendChild(box);
+    this.dimEdit = box;
+    const num = box.querySelector('input[type=number]'), slider = box.querySelector('input[type=range]');
+    let pending = null, busy = false;
+    const preview = async (v) => {
+      pending = v;
+      if (busy) return;
+      busy = true;
+      while (pending !== null) {
+        const x = pending;
+        pending = null;
+        await this.applyDim(edit, x, false);
+      }
+      busy = false;
+    };
+    const valid = (v) => Number.isFinite(v) && (edit.int ? Number.isInteger(v) && v >= (edit.min ?? 1) : (edit.min ?? 0) <= v || edit.min < 0);
+    num.addEventListener('input', () => { const v = parseFloat(num.value); if (valid(v)) { slider.value = v; preview(v); } });
+    slider.addEventListener('input', () => { const v = Math.max(parseFloat(slider.value), edit.min > 0 ? edit.min : 0); num.value = fmt(v); preview(v); });
+    const ok = async () => {
+      const v = parseFloat(num.value);
+      if (!valid(v)) { this.hooks.toast('That size does not fit here.', 'warning'); return; }
+      while (busy) await new Promise((res) => setTimeout(res, 20));
+      this.closeDimEdit();
+      if (await this.applyDim(edit, v, true) === false) { this.part.features = before; this.rebuild(); }
+    };
+    const cancel = async () => { while (busy) await new Promise((res) => setTimeout(res, 20)); this.closeDimEdit(); this.part.features = before; await this.rebuild(); this.reshowDims(); };
+    num.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') ok(); if (e.key === 'Escape') cancel(); });
+    box.querySelector('[data-a=ok]').addEventListener('click', ok);
+    box.querySelector('[data-a=cancel]').addEventListener('click', cancel);
+    setTimeout(() => { num.focus(); num.select(); }, 0);
+  }
+
+  closeDimEdit() { this.dimEdit?.remove(); this.dimEdit = null; }
+
+  /** Put a size in: a step's own number, or a sketch's size (solved, with its locks). final = an undo step. */
+  async applyDim(edit, v, final) {
+    if (edit.sketch) {
+      const sk = this.part.features.find((g) => g.id === edit.sketch.id);
+      if (!sk) return false;
+      const S = new Sketcher(this, structuredClone(upgradeSketch(sk)), false), spec = edit.sketch.spec;
+      const f = S.f, cur = S.measure(spec);
+      let value = v;
+      if ((spec.t === 'dx' || spec.t === 'dy') && cur < 0) value = -Math.abs(v);
+      const d = S.findDim(spec);
+      if (d) { d.v = value; delete d.free; } else f.dims.push({ id: S.newId('d'), ...spec, v: value });
+      let hold = null;
+      if (spec.t === 'len') { const e = S.ent(spec.e); if (e.a !== 'O') hold = { [e.a]: S.P(e.a) }; }
+      else if (spec.t === 'dia' || spec.t === 'rad') { const e = S.ent(spec.e); if (e.c !== 'O') hold = { [e.c]: S.P(e.c) }; }
+      else if (typeof spec.a === 'string' && spec.a !== 'O' && f.points[spec.a]) hold = { [spec.a]: S.P(spec.a) };
+      const r = await S.solve(hold, S.keepFor(spec));
+      if (!r.ok) {
+        if (final) this.hooks.toast(r.error || 'That does not fit the sketch\'s other locked sizes — open the sketch and unlock one.', 'error', 6000);
+        return false;
+      }
+      S.apply(r);
+      Object.assign(sk, { points: f.points, entities: f.entities, dims: f.dims });
+    } else edit.set(edit.int ? Math.round(v) : v);
+    if (final) { this.commit(); await this.inflight; } else await this.rebuild();
+    this.reshowDims(!final);
+    return true;
+  }
+
+  reshowDims(keepEdit = false) {
+    const s = this.part.features.find((g) => g.id === this.dimStep);
+    if (s && !this.cmd && this.mode === 'part') this.showStepDims(s, { keepEdit }); else this.view.setTags([]);
+  }
+
   toggleOff(id) {
     if (this.mode !== 'part' || this.cmd) return;
     const f = this.part.features.find((g) => g.id === id);
@@ -421,6 +681,7 @@ export class Modeler {
     this.showOutlines();
     if (this.section) this.renderSection();
     if (this.cmd && (this.cmd.feature.type === 'fillet' || this.cmd.feature.type === 'chamfer')) this.view.setEdgeHighlight(-1, this.refEdges(this.cmd.feature.edges));
+    if (this.dimStep && !this.dimEdit && !this.cmd && this.mode === 'part') this.reshowDims();
     if (this.cmd?.feature.type === 'hole') {
       this.drawHoleDims();
       // the panel shows this rebuild's state (issues, moved holes) — unless a value is being typed in it
@@ -530,6 +791,13 @@ export class Modeler {
 
   // ------------------------------------------------------------------ sketch mode (sketcher.js does the drawing)
   enterSketch(plane, existing = null) {
+    this.closeCtx();
+    this.closeDimEdit();
+    this.dimStep = null;
+    this.view.setTags([]);
+    this.view.setSelectedFaces(null);
+    this.view.setHover(-1);
+    this.tip(null);
     const feature = existing ? structuredClone(existing)
       : { id: this.newId(), type: 'sketch', name: this.nextName('sketch'), plane, points: {}, entities: [], constraints: [], dims: [] };
     this.sk = new Sketcher(this, feature, !existing);
@@ -730,6 +998,11 @@ export class Modeler {
   }
 
   openCommand(feature, isNew) {
+    this.closeCtx();
+    this.view.setSelectedFaces(null);
+    this.dimStep = null;
+    this.closeDimEdit();
+    this.view.setTags([]);
     if (this.measuring) this.toggleMeasure();
     this.cmd = { feature, isNew };
     this.mode = 'part';
@@ -1544,8 +1817,14 @@ export class Modeler {
         }
       } else if (this.mode === 'part' && !this.cmd && !down) {
         const id = this.view.pickOutline(e.clientX, e.clientY);
-        cv.style.cursor = id ? 'pointer' : '';
-        cv.title = id ? 'Double-click to edit this sketch' : '';
+        if (id) { this.view.setHover(-1); this.tip(null); cv.style.cursor = 'pointer'; cv.title = 'Double-click to edit this sketch'; return; }
+        cv.title = '';
+        if (this.measuring) return;
+        // the step under the mouse: all its faces light up, its name at the mouse
+        const h = this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
+        this.view.setHover(h?.face ? h.face.id : -1, fs?.ids || null);
+        this.tip(fs ? { x: e.clientX, y: e.clientY, text: `${fs.step.name} — ${this.faceLabel(h.face.name).replace(/ of .*$/, '').replace(/^the /, '')}` } : null);
+        cv.style.cursor = h?.face ? 'pointer' : '';
       }
     });
     cv.addEventListener('pointerup', (e) => {
@@ -1559,8 +1838,10 @@ export class Modeler {
       if (this.mode === 'sketch') return this.sk.click(e);
       if (this.mode === 'part' && this.cmd && (!USES_SKETCH.has(this.cmd.feature.type) || this.cmd.feature.upto)) return this.clickCommand(e);
       if (this.mode === 'part' && this.measuring) return this.clickMeasure(e);
+      if (this.mode === 'part' && !this.cmd) return this.clickFace(e);
       return null;
     });
+    cv.addEventListener('pointerleave', () => { if (this.mode === 'part' && !this.cmd) { this.view.setHover(-1); this.tip(null); } });
     cv.addEventListener('dblclick', (e) => {
       if (this.mode !== 'part' || this.cmd) return;
       const id = this.view.pickOutline(e.clientX, e.clientY);
@@ -1583,6 +1864,7 @@ export class Modeler {
     if (!this.active || e.target.closest?.('input,select,textarea,[contenteditable]')) return;
     if (document.querySelector('.wizard, .lightbox')) return;
     const k = e.key.toLowerCase();
+    if (this.ctx && e.key === 'Escape') { this.closeCtx(); return; }
     if (this.mode === 'sketch') {
       if (e.key === 'Enter') { this.finishSketch(); return; }
       this.sk.key(e);
