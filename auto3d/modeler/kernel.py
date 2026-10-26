@@ -470,6 +470,15 @@ def moved_body(body, prefix, shift=None, axis=None, angle_deg=0.0):
     return Body(tr.Shape(), names)
 
 
+def mirrored_body(body, prefix, o, n):
+    """A copy of a body mirrored across the plane through o with normal n; its face names get prefix."""
+    t = gp_Trsf()
+    t.SetMirror(gp_Ax2(gp_Pnt(*map(float, o)), gp_Dir(*map(float, n))))
+    tr = BRepBuilderAPI_Transform(body.shape, t, True)
+    names = {f"{prefix}{n_}": [tr.ModifiedShape(f) for f in fs] for n_, fs in body.names.items()}
+    return Body(tr.Shape(), names)
+
+
 def find_faces(body, refs):
     """Face references {name, fp} -> the faces now (the nearest one of that name to where it was)."""
     out = []

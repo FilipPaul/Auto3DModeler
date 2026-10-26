@@ -168,6 +168,8 @@ export const RELATIONS = {
   coin: { icon: '•', name: 'Coincident', picks: ['point', 'any'], hint: 'a point, then another point, a line or a circle it lies on' },
   tang: { icon: '⌒', name: 'Tangent', picks: ['shape', 'round'], hint: 'a line or a circle / arc, then a circle / arc it touches' },
   fix: { icon: '📌', name: 'Fix', picks: ['point'], hint: 'a point that stays where it is' },
+  // made by the ⇋ Mirror tool (not in the Relations menu): the copy stays the mirror image of the original
+  mir: { icon: '⇋', name: 'Mirrored', picks: [], tool: true },
 };
 
 const segDist = (p, a, b) => {
@@ -222,7 +224,7 @@ export class Sketcher {
   P(id) { return id === ORIGIN ? [0, 0] : this.f.points[id]; }
   ent(id) { return this.f.entities.find((e) => e.id === id); }
   newId(pre) {
-    const used = new Set([...Object.keys(this.f.points), ...this.f.entities.map((e) => e.id), ...this.f.constraints.map((c) => c.id), ...this.f.dims.map((d) => d.id)]);
+    const used = new Set([...Object.keys(this.f.points), ...this.f.entities.flatMap((e) => [e.id, e.g]), ...this.f.constraints.map((c) => c.id), ...this.f.dims.map((d) => d.id)]);
     let n = 0;
     while (used.has(`${pre}${++n}`));
     return `${pre}${n}`;
@@ -265,6 +267,8 @@ export class Sketcher {
       const what = { line: 'a line', round: 'a circle or an arc', shape: 'a line, a circle or an arc', point: 'a point', any: 'a point, a line or a circle' }[want];
       return `${r.icon} ${r.name}: click ${what}${k ? ' (the second)' : ''}${r.hint && !k ? ` — ${r.hint}` : ''}. Esc = stop.`;
     }
+    if (this.tool === 'mirror') return this.mirLine ? 'Mirror: click the shapes to mirror (a rectangle or a joined outline goes whole). Esc = done.'
+      : 'Mirror: click the line to mirror across — or choose the X / Y axis in the box.';
     if (this.tool === 'trim') return 'Trim: click the piece of a line, circle or arc to cut away — up to where other shapes cross it.';
     if (this.tool === 'arc' && this.tan) return 'Tangent arc: it continues the line — click where it ends (Shift-click: a free arc; Esc = stop drawing).';
     if (this.tool === 'arc') return !this.start ? 'Click where the arc starts (at the end of a line: it continues the line smoothly).' : !this.arcEnd ? 'Click where the arc ends.' : 'Move the mouse to bend the arc, click to place it (Esc = stop drawing).';
@@ -282,6 +286,8 @@ export class Sketcher {
     this.chain = null;
     this.dimA = null;
     this.closeChooser();
+    this.mirLine = null;
+    if (t === 'mirror') { this.mirMove = false; this.mirrorChooser(); } // a copy unless asked (each time)
     if (t !== 'select') this.sel = null;
     this.m.renderCmdBar();
     this.changed();
@@ -661,6 +667,7 @@ export class Sketcher {
     if (this.tool === 'trim') { this.trimAt(uv0); return; }
     if (this.tool === 'relate') { this.relateClick(uv0); return; }
     if (this.tool === 'offset') { this.offsetAt(uv0, e); return; }
+    if (this.tool === 'mirror') { this.mirrorClick(uv0); return; }
     if (!this.start) { this.start = s; this.m.hint(this.hint()); this.draw(); return; }
     const a = this.start;
     this.start = null;
@@ -727,8 +734,117 @@ export class Sketcher {
     await this.relock(() => this.f.constraints.push(k));
   }
 
+  // ------------------------------------------------------------------ mirror
+  /** The little box of the ⇋ Mirror tool: across the X / Y axis (or a clicked line), move instead of copy, done. */
+  mirrorChooser() {
+    this.closeChooser();
+    const box = document.createElement('div');
+    box.className = 'sk-choose sk-mirror';
+    Object.assign(box.style, { left: '12px', top: '56px' });
+    const ax = this.mirLine?.axis;
+    box.innerHTML = `<div class="sk-choose-t">⇋ ${t('Mirror')}</div>
+      <p class="hint">${t(this.mirLine ? (ax ? (ax === 'y' ? 'Across the Y axis (left ↔ right).' : 'Across the X axis (up ↔ down).') : 'Across the line you clicked.') : 'Across:')}</p>
+      <div class="seg"><button data-ax="y" class="${ax === 'y' ? 'on' : ''}" title="${t('left ↔ right')}">${t('Y axis')}</button><button data-ax="x" class="${ax === 'x' ? 'on' : ''}" title="${t('up ↔ down')}">${t('X axis')}</button></div>
+      <p class="hint">${t('or click a line of the sketch.')}</p>
+      <label class="sk-off"><input type="checkbox" data-move ${this.mirMove ? 'checked' : ''}> ${t('Move (do not keep the original)')}</label>
+      <button class="btn small primary" data-done>${t('Done')}</button>`;
+    for (const ev of ['pointerdown', 'pointerup']) box.addEventListener(ev, (x) => x.stopPropagation());
+    for (const b of box.querySelectorAll('[data-ax]')) b.addEventListener('click', () => { this.mirLine = { axis: b.dataset.ax }; this.mirrorChooser(); this.changed(); });
+    box.querySelector('[data-move]').addEventListener('change', (x) => { this.mirMove = x.target.checked; });
+    box.querySelector('[data-done]').addEventListener('click', () => this.setTool('select'));
+    this.m.els.viewport.appendChild(box);
+    this.chooser = box;
+  }
+
+  async mirrorClick(uv) {
+    if (!this.mirLine) {
+      const p = this.relPick(uv, 'line');
+      if (!p) { this.m.toast('Click a line to mirror across — or choose the X / Y axis.', 'info', 3000); return; }
+      this.mirLine = { e: p.id };
+      this.mirrorChooser();
+      this.changed();
+      return;
+    }
+    const p = this.relPick(uv, 'shape');
+    if (!p || p.id === this.mirLine.e) { this.m.toast('Click a line, circle or arc to mirror.', 'info', 3000); return; }
+    // the whole shape it belongs to: its rectangle, or everything joined to it (not the mirror line)
+    const e0 = this.ent(p.id);
+    let ents;
+    if (e0.g) ents = this.f.entities.filter((e) => e.g === e0.g);
+    else {
+      const ends = (e) => (e.t === 'line' ? [e.a, e.b] : e.t === 'arc' ? [e.a, e.b] : []);
+      const seen = new Set([e0.id]), todo = [e0];
+      while (todo.length) {
+        const e = todo.pop();
+        for (const o of this.f.entities) {
+          if (seen.has(o.id) || o.id === this.mirLine.e || !['line', 'arc'].includes(o.t)) continue;
+          if (ends(o).some((q) => q !== ORIGIN && ends(e).includes(q))) { seen.add(o.id); todo.push(o); }
+        }
+      }
+      ents = this.f.entities.filter((e) => seen.has(e.id));
+    }
+    ents = ents.filter((e) => e.id !== this.mirLine.e);
+    if (ents.some((e) => e.t === 'block')) { this.m.toast('A picture outline cannot be mirrored yet.', 'warning'); return; }
+    await this.mirror(ents, this.mirLine, this.mirMove);
+  }
+
+  /** Mirror these shapes across `line` ({e} a sketch line, or {axis: 'x' | 'y'}): a copy held by a ⇋ Mirrored
+   *  relation (it follows the original), or (move) the shapes themselves turned over. Points on the line are shared. */
+  async mirror(ents, line, move = false) {
+    const ln = line.e ? this.ent(line.e) : null;
+    const A = ln ? this.P(ln.a) : [0, 0], B = ln ? this.P(ln.b) : line.axis === 'x' ? [1, 0] : [0, 1];
+    const L = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1, d = [(B[0] - A[0]) / L, (B[1] - A[1]) / L];
+    const refl = (p) => { const w = [p[0] - A[0], p[1] - A[1]], s = w[0] * d[0] + w[1] * d[1]; return [2 * (A[0] + s * d[0]) - p[0], 2 * (A[1] + s * d[1]) - p[1]].map((v) => +v.toFixed(6)); };
+    const onLine = (p) => Math.abs((p[0] - A[0]) * d[1] - (p[1] - A[1]) * d[0]) < 1e-6;
+    const square = Math.abs(d[0]) < 1e-9 || Math.abs(d[1]) < 1e-9; // across a horizontal / vertical line: H stays H, V stays V
+    const pts = [...new Set(ents.flatMap((e) => (e.t === 'line' ? [e.a, e.b] : e.t === 'arc' ? [e.a, e.b, e.c] : [e.c])))];
+    await this.relock(() => {
+      const f = this.f;
+      if (move) {
+        for (const id of pts) if (id !== ORIGIN && !onLine(this.P(id))) f.points[id] = refl(this.P(id));
+        for (const e of ents) if (e.t === 'arc') [e.a, e.b] = [e.b, e.a]; // turned over: it runs the other way round
+        const ids = new Set(ents.map((e) => e.id));
+        if (!square) f.constraints = f.constraints.filter((k) => !(ids.has(k.e) && (k.t === 'h' || k.t === 'v')));
+        // their mirror copies (⇋ Mirrored) go along, so the solver has nothing to pull back
+        for (const k of f.constraints.filter((x) => x.t === 'mir')) {
+          const kl = k.e ? this.ent(k.e) : null, a0 = kl ? this.P(kl.a) : [0, 0], b0 = kl ? this.P(kl.b) : k.axis === 'x' ? [1, 0] : [0, 1];
+          const n0 = Math.hypot(b0[0] - a0[0], b0[1] - a0[1]) || 1, u = [(b0[0] - a0[0]) / n0, (b0[1] - a0[1]) / n0];
+          const rk = (p) => { const w = [p[0] - a0[0], p[1] - a0[1]], s = w[0] * u[0] + w[1] * u[1]; return [2 * (a0[0] + s * u[0]) - p[0], 2 * (a0[1] + s * u[1]) - p[1]].map((v) => +v.toFixed(6)); };
+          for (const [p, q] of k.pairs || []) {
+            if (p === q) continue;
+            if (pts.includes(p) && !pts.includes(q)) f.points[q] = rk(this.P(p));
+            else if (pts.includes(q) && !pts.includes(p)) f.points[p] = rk(this.P(q));
+          }
+        }
+        for (const dm of f.dims) if (['dx', 'dy', 'dist'].includes(dm.t)) dm.v = +this.measure(dm).toFixed(6);
+        return;
+      }
+      const map = {};
+      for (const id of pts) {
+        const p = this.P(id);
+        if (id === ORIGIN || onLine(p)) { map[id] = id; continue; }
+        map[id] = this.newId('p');
+        f.points[map[id]] = refl(p);
+      }
+      const groups = {}, circles = [];
+      for (const e of ents) {
+        const id = this.newId(e.t === 'circle' ? 'c' : e.t === 'arc' ? 'a' : 'l'), g = e.g ? (groups[e.g] = groups[e.g] || this.newId('r')) : undefined;
+        if (e.t === 'line') f.entities.push({ id, t: 'line', a: map[e.a], b: map[e.b], ...(g ? { g } : {}) });
+        else if (e.t === 'arc') f.entities.push({ id, t: 'arc', c: map[e.c], a: map[e.b], b: map[e.a], ...(g ? { g } : {}) });
+        else { f.entities.push({ id, t: 'circle', c: map[e.c], r: e.r }); circles.push([e.id, id]); }
+      } // (no H / V of its own: the mirror keeps the copy's lines as the original's)
+      f.constraints.push({ id: this.newId('k'), t: 'mir', user: true, pairs: pts.filter((p) => p !== ORIGIN).map((p) => [p, map[p]]), circles,
+        ...(line.e ? { e: line.e } : { axis: line.axis }) });
+    });
+  }
+
   /** A relation's place in the sketch (for its symbol): the middle of its first shape, or its point. */
   relAt(k) {
+    if (k.t === 'mir') { // by the mirror line, or between the first pair across an axis
+      if (k.e && this.ent(k.e)) { const a = this.P(this.ent(k.e).a), b = this.P(this.ent(k.e).b); return [a[0] + (b[0] - a[0]) * 0.75, a[1] + (b[1] - a[1]) * 0.75]; }
+      const pr = (k.pairs || []).find(([p, q]) => p !== q && this.P(p) && this.P(q));
+      return pr ? [(this.P(pr[0])[0] + this.P(pr[1])[0]) / 2, (this.P(pr[0])[1] + this.P(pr[1])[1]) / 2] : null;
+    }
     if (k.p) return this.P(k.p);
     const e = this.ent(k.e);
     if (!e) return null;
@@ -1104,7 +1220,8 @@ export class Sketcher {
     const k = e.key.toLowerCase();
     if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); this.back(); return true; }
     if (e.key === 'Escape') {
-      if (this.chooser) this.closeChooser();
+      if (this.tool === 'mirror') this.setTool('select');
+      else if (this.chooser) this.closeChooser();
       else if (this.start || this.chain || this.dimA || this.relPicks?.length) { this.relPicks = []; this.start = null; this.tan = null; this.arcEnd = null; this.chain = null; this.dimA = null; this.changed(); } else this.setTool('select');
       return true;
     }
@@ -1497,6 +1614,7 @@ export class Sketcher {
       el.addEventListener('click', (x) => { x.stopPropagation(); this.delRelation(k.id); });
       labels.push({ el, u: at[0] + mpp * 8, v: at[1] - mpp * 10 });
     }
+    if (this.tool === 'mirror' && this.mirLine?.e && this.ent(this.mirLine.e)) { const e = this.ent(this.mirLine.e); lines.push([this.P(e.a), this.P(e.b), 0x7ee787]); }
     for (const q of this.tool === 'relate' ? this.relPicks || [] : []) {
       const e = q.kind === 'point' ? null : this.ent(q.id);
       if (q.kind === 'point') dots.push([this.P(q.id), 0x7ee787]);

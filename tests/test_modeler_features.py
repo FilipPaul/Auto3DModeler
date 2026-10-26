@@ -178,6 +178,33 @@ class TestFeatures(unittest.TestCase):
         r, _ = vol(*box(), {"id": "SH", "type": "shell", "faces": top, "t": 30})
         self.assertFalse(r["features"][-1]["ok"])
 
+    def test_mirror(self):
+        # the box (0..40 in x) mirrored across YZ: a copy at -40..0, joined -> twice the volume, 80 wide
+        r, v = vol(*box(), {"id": "M1", "type": "mirror", "of": "body", "plane": {"datum": "YZ"}, "copy": True})
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 16000, delta=1e-3)
+        self.assertAlmostEqual(r["body"]["bbox"][0], -40, delta=1e-6)
+        # mirror only: the same volume, on the other side, its faces keep their names
+        r, v = vol(*box(), {"id": "M1", "type": "mirror", "of": "body", "plane": {"datum": "YZ"}, "copy": False})
+        self.assertAlmostEqual(v, 8000, delta=1e-3)
+        self.assertAlmostEqual(r["body"]["bbox"][3], 0, delta=1e-6)
+        self.assertIn("E1:end", {f["name"] for f in r["body"]["faces"]})
+        # one step: a hole at x 10 mirrored across the box's middle (a face's plane at x = 20 → YZ offset) -> at x 30
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        hole = {"id": "H1", "type": "hole", "plane": top, "points": [[-10, 0]], "d": 4, "through": True}
+        mid = {"datum": "YZ", "offset": 20}
+        r, v = vol(*box(), hole, {"id": "M1", "type": "mirror", "of": "H1", "plane": mid})
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 - 2 * math.pi * 4 * 10, delta=1e-3)
+        self.assertIn("M1:H1:hole:0", {f["name"] for f in r["body"]["faces"]})
+        # across a face: the box's right wall (x = 40) -> the copy at 40..80
+        r, v = vol(*box(), {"id": "M1", "type": "mirror", "plane": {"face": {"name": "E1:side:l2"}, "frame": {"o": [40, 10, 5], "x": [0, 1, 0], "n": [1, 0, 0]}}})
+        self.assertAlmostEqual(v, 16000, delta=1e-3)
+        self.assertAlmostEqual(r["body"]["bbox"][3], 80, delta=1e-6)
+        # on itself: a warning
+        r, _ = vol(*box(), {"id": "M1", "type": "mirror", "plane": mid})
+        self.assertTrue(r["features"][-1]["warnings"])
+
     def test_patterns(self):
         top = {"face": {"name": "E1:end"}, "frame": {"o": [5, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
         hole = {"id": "H1", "type": "hole", "plane": top, "points": [[0, 0]], "d": 4, "through": True}

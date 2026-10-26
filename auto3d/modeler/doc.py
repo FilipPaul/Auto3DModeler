@@ -10,6 +10,8 @@ Part JSON (in the project file, `parts[].model`):
      {"id": "F5", "type": "chamfer", "edges": [...], "d": 1},
      {"id": "F7", "type": "revolve", "sketch": "F1", "axis": "y" | "x" | <a line of the sketch>, "angle": 360, "op": "add"},
      {"id": "F8", "type": "shell", "faces": [{"name": "F2:end", "fp": [x, y, z]}], "t": 2},
+     {"id": "F9", "type": "mirror", "of": "body" | <a step's id>, "plane": {"datum": "YZ"} | {"face": ..., "frame": ...},
+      "copy": true},   (copy: the part and its mirror image; false: the part moved to its mirror image)
      {"id": "F6", "type": "hole", "plane": {"face": {"name": "F2:end"}, "frame": ...}, "points": [[u, v]], "d": 5,
       "through": true, "depth": 10}]}
 
@@ -33,7 +35,7 @@ DATUMS = {
     "XZ": {"o": [0, 0, 0], "x": [1, 0, 0], "n": [0, -1, 0]},  # Front
     "YZ": {"o": [0, 0, 0], "x": [0, 1, 0], "n": [1, 0, 0]},   # Right
 }
-FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell", "pattern", "solid", "loft", "sweep", "decal")
+FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell", "pattern", "solid", "loft", "sweep", "decal", "mirror")
 
 _cache: OrderedDict = OrderedDict()  # prefix hash -> state after that feature (only in the worker process)
 CACHE_SIZE = 48
@@ -264,6 +266,28 @@ def _apply(f, st: State, s):
         except (ValueError, TypeError):
             raise K.KernelError("The solid's data is damaged.") from None
         _use(st, fid, K.solid_body(shape, fid), "add")
+        return
+    if t == "mirror":
+        if st.body is None:
+            raise K.KernelError("There is no solid yet to mirror.")
+        fr = plane_frame(f.get("plane"), st)
+        st.frames[fid] = fr
+        o, n = np.asarray(fr["o"], float), np.asarray(fr["n"], float)
+        of = f.get("of") or "body"
+        before = K.volume(st.body.shape)
+        if of == "body":
+            if f.get("copy", True):
+                _use(st, fid, K.mirrored_body(st.body, f"{fid}:", o, n), "add")
+            else:  # the part itself moves to its mirror image (its faces keep their names)
+                st.body = K.mirrored_body(st.body, "", o, n)
+                return
+        else:
+            if of not in st.tools:
+                raise K.KernelError(f"{of} cannot be mirrored (only extrudes, revolves, holes, patterns…) — or it comes later.")
+            for tool, op in list(st.tools[of]):
+                _use(st, fid, K.mirrored_body(tool, f"{fid}:", o, n), op)
+        if abs(K.volume(st.body.shape) - before) < 1e-6 * (1 + before):
+            s["warnings"].append("The mirror image changes nothing — it lands on the part itself (already symmetric there) or outside it. Choose another plane.")
         return
     if t == "pattern":
         before = K.volume(st.body.shape) if st.body is not None else 0

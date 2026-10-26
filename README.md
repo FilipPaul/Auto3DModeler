@@ -61,7 +61,11 @@ SolidWorks. It has only the tools that need almost no input.
    keep a relation: *Horizontal*, *Vertical*, *Parallel*, *Perpendicular*, *Equal* (two lines the same length, two
    circles / arcs the same size), *Concentric*, *Coincident* (a point on a point, a line or a circle), *Tangent* and
    *Fix* — choose it, click the shapes. Each shows a small symbol by its shape (click it to remove it) and is listed in
-   the panel; relations that contradict each other or the locked sizes are refused, naming the one in the way. **⧈ Offset** (O): click a
+   the panel; relations that contradict each other or the locked sizes are refused, naming the one in the way.
+   **⇋ Mirror**: choose the Y or X axis in its little box (or click a line of the sketch), then click shapes — a
+   rectangle or a joined outline goes whole. The mirror image is a copy that stays mirrored (⇋ *Mirrored*: change the
+   original and the copy follows; click the ⇋ symbol to let it go free); points on the mirror line are shared, so half
+   a profile becomes a closed one. *Move* turns the shapes over instead of copying them. **⧈ Offset** (O): click a
    closed shape and type the distance (negative = inside) — a parallel copy: a circle gets a concentric one, an
    outline of lines and arcs keeps its sharp corners sharp and its roundings concentric, a picture outline grows
    or shrinks (e.g. the wall of a cookie cutter).
@@ -129,6 +133,9 @@ SolidWorks. It has only the tools that need almost no input.
 8. **⁂ Pattern** repeats a step (a hole, a boss, a cut — or another pattern): **▦ In a row** — how many and how far
    apart, along X / Y / Z or a straight edge you click; **◌ Around** — how many, evenly around Z (or X / Y), or around
    the axis of a round face you click (a hole, a shaft). The copies follow when the original changes.
+   **⇋ Mirror** mirrors the whole part, or one step (a hole, a boss, a cut), across YZ (left ↔ right), XZ (front ↔
+   back) or XY (top ↔ bottom) — or a flat face you click (also *⇋ Mirror across this face* on a clicked face): **⇋
+   Mirror and copy** (the part and its mirror image) or **↦ Mirror only** (the part turned into its mirror image).
 
 **Pointing at and clicking the part.** The step under the mouse lights up (all its faces) and its name shows at
 the mouse. A click on a face pops up the tools for it — sketch on it, a hole or text there, round / bevel its edges,

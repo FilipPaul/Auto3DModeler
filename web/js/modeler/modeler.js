@@ -9,12 +9,13 @@ import { ModelView, DATUMS, datumFrame } from './view.js';
 import { Sketcher, upgradeSketch, arcPts, RELATIONS } from './sketcher.js';
 import { textOutline } from '../outlinepanel.js';
 
-const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa' };
+const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa', mirror: '⇋' };
 const TYPE_NAME = { sketch: 'Sketch', extrude: 'Extrude', revolve: 'Revolve', fillet: 'Fillet', chamfer: 'Chamfer', hole: 'Hole', shell: 'Shell', pattern: 'Pattern',
-  loft: 'Loft', sweep: 'Sweep', solid: 'Solid', decal: 'Decoration' };
+  loft: 'Loft', sweep: 'Sweep', solid: 'Solid', decal: 'Decoration', mirror: 'Mirror' };
 const LIMIT_FIELDS = { extrude: ['d', 'offset'], revolve: ['angle'], fillet: ['r'], chamfer: ['d'], hole: ['d', 'depth'], shell: ['t'],
   pattern: ['count', 'spacing'], decal: ['h', 'depth'] }; // the numbers the kernel finds ranges for (doc.LIMIT_FIELDS)
-const REPEATABLE = new Set(['extrude', 'revolve', 'hole', 'pattern', 'loft', 'sweep', 'decal']);
+const REPEATABLE = new Set(['extrude', 'revolve', 'hole', 'pattern', 'loft', 'sweep', 'decal', 'mirror']);
+const MIRROR_PLANES = { YZ: 'left ↔ right', XZ: 'front ↔ back', XY: 'top ↔ bottom' }; // the base planes to mirror across
 const AXES = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
 const USES_SKETCH = new Set(['extrude', 'revolve', 'loft', 'sweep']);
 /** The sketches a step is made from. */
@@ -98,11 +99,12 @@ export class Modeler {
         ${btn('circle', '◯ Circle', 'Draw a circle: click the centre, then the edge (C)', t === 'circle' ? 'on' : '')}
         ${btn('arc', '◠ Arc', 'Draw an arc: click where it starts and ends, then bend it with the mouse and click (A)', t === 'arc' ? 'on' : '')}
         ${btn('round', '◜ Round corner', 'Round a corner of lines: click the corner, type the radius (F)', t === 'round' ? 'on' : '')}
+        ${btn('mirror', '⇋ Mirror', 'Mirror shapes across a line or the X / Y axis — a copy that stays the mirror image, or moved', t === 'mirror' ? 'on' : '')}
         ${btn('offset', '⧈ Offset', 'A parallel copy of a closed shape, a distance outside or inside it (O)', t === 'offset' ? 'on' : '')}
         ${btn('trim', '✂ Trim', 'Cut away a piece of a line, circle or arc — up to where other shapes cross it (T)', t === 'trim' ? 'on' : '')}
         ${this.hooks.pickOutline ? btn('outline', '🖼 Outline', 'Insert an outline from a picture, a DXF / DWG drawing or a PDF drawing (as one shape you can move and size)') : ''}
         <div class="menu sk-relmenu">${btn('relate', `⟂ Relations ▾`, 'Make shapes keep a relation: horizontal, vertical, parallel, perpendicular, equal, concentric, coincident, tangent, fixed', t === 'relate' ? 'on' : '')}
-          <div class="menu-list">${Object.entries(RELATIONS).map(([k, r]) => `<button data-rel="${k}" title="${esc(r.hint || '')}">${r.icon} ${esc(r.name)}</button>`).join('')}</div></div>
+          <div class="menu-list">${Object.entries(RELATIONS).filter(([, r]) => !r.tool).map(([k, r]) => `<button data-rel="${k}" title="${esc(r.hint || '')}">${r.icon} ${esc(r.name)}</button>`).join('')}</div></div>
         ${btn('dim', '↔ Dimension', 'Add a distance: click two points, circles, lines or edges of the part, then type the value (D)', t === 'dim' ? 'on' : '')}
         ${btn('select', '⬚ Select', 'Select a shape or a corner to move it (drag) or delete it (Esc)', t === 'select' ? 'on' : '')}
         <span class="sep"></span>
@@ -125,6 +127,7 @@ export class Modeler {
         ${btn('hole', '◎ Hole', 'Drill holes: click on a flat face where they go, give the diameter (H)', 'tool')}
         ${btn('shell', '▢ Shell', 'Hollow the part out: click the face(s) to leave open, give the wall thickness', 'tool')}
         ${btn('decal', 'Aa Text / picture', 'Decorate a flat face: text or a picture outline, raised or engraved', 'tool')}
+        ${btn('mirror', '⇋ Mirror', 'Mirror the part (or one step) across a base plane or a flat face — as a copy, or moved', 'tool')}
         ${btn('pattern', '⁂ Pattern', 'Repeat a step (holes, a boss, a cut) in a row or around a circle: give how many and how far apart', 'tool')}
         <span class="sep"></span>
         <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
@@ -135,7 +138,7 @@ export class Modeler {
         ${btn('view-iso', 'Iso', 'View from the front-right, above')}${btn('view-top', 'Top', 'View from above')}${btn('view-front', 'Front', 'View from the front')}${btn('view-right', 'Right', 'View from the right')}`;
       bar.querySelector('[data-a=extrude]').disabled = !canExtrude || !!this.cmd;
       bar.querySelector('[data-a=sketch]').disabled = !!this.cmd;
-      for (const a of ['fillet', 'chamfer', 'hole', 'shell', 'pattern', 'decal']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body || !!this.cmd;
+      for (const a of ['fillet', 'chamfer', 'hole', 'shell', 'pattern', 'decal', 'mirror']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body || !!this.cmd;
       bar.querySelector('[data-a=revolve]').disabled = !canExtrude || !!this.cmd;
       for (const a of ['loft', 'sweep']) bar.querySelector(`[data-a=${a}]`).disabled = this.sketches().length < 2 || !!this.cmd;
       for (const a of ['measure', 'section']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body;
@@ -179,6 +182,7 @@ export class Modeler {
     if (a === 'section') return this.toggleSection();
     if (a === 'shell') return this.startShell();
     if (a === 'pattern') return this.startPattern();
+    if (a === 'mirror') return this.mode === 'sketch' ? this.sk.setTool('mirror') : this.startMirror();
     if (a === 'loft' || a === 'sweep') return this.startProfiles(a);
     if (a === 'decal') return this.startDecal();
     if (a === 'undo') return this.history.go(-1);
@@ -253,6 +257,10 @@ export class Modeler {
     if (f.type === 'decal') return `${f.source === 'text' ? `“${f.text}”` : 'picture'} · ${fmt(f.h)} mm${f.op === 'cut' ? ' · engraved' : ' · raised'}`;
     if (f.type === 'loft') return `${(f.sketches || []).length} sketches${f.op === 'cut' ? ' · cut' : ''}`;
     if (f.type === 'sweep') return `along ${this.part.features.find((g) => g.id === f.path)?.name || '?'}${f.op === 'cut' ? ' · cut' : ''}`;
+    if (f.type === 'mirror') {
+      const of = f.of === 'body' || !f.of ? 'the part' : this.part.features.find((g) => g.id === f.of)?.name || '?';
+      return `${of} · ${f.plane?.datum ? f.plane.datum : 'a face'}${f.copy === false ? ' · moved' : ' · copy'}`;
+    }
     if (f.type === 'pattern') return f.kind === 'circular' ? `${f.count}× around` : `${f.count}× · ${fmt(f.spacing)} mm apart`;
     return '';
   }
@@ -317,6 +325,7 @@ export class Modeler {
       flat && ['sketch', '✏ Sketch on this face', () => this.enterSketch({ frame: h.face.frame, ...(h.face.ref ? { face: h.face.ref } : {}) })],
       flat && ['hole', '◎ Hole here', () => { this.startHole(); if (this.cmd) this.clickHole(at); }],
       flat && ['decal', 'Aa Text / picture here', () => { this.startDecal(); if (this.cmd) this.clickDecal(at); }],
+      flat && ['mirror', '⇋ Mirror across this face', () => { this.startMirror(); if (this.cmd) this.clickMirror(at); }],
       ['fillet', '◜ Round its edges', () => { this.startRound('fillet'); if (this.cmd) this.clickCommand(at); }],
       ['chamfer', '◸ Bevel its edges', () => { this.startRound('chamfer'); if (this.cmd) this.clickCommand(at); }],
       flat && ['shell', '▢ Hollow out, open here', () => { this.startShell(); if (this.cmd) this.clickShell(at); }],
@@ -592,7 +601,7 @@ export class Modeler {
       const onFace = gone.has(this.faceOwner(f.plane?.face));
       const onEdge = (f.edges || []).some((e) => gone.has(this.faceOwner({ name: e.a })) || gone.has(this.faceOwner({ name: e.b })));
       const onFaces = (f.faces || []).some((r) => gone.has(this.faceOwner(r)));
-      const repeats = (f.type === 'pattern' && (f.features || []).some((x) => gone.has(x))) || gone.has(this.faceOwner(f.upto));
+      const repeats = (f.type === 'pattern' && (f.features || []).some((x) => gone.has(x))) || gone.has(this.faceOwner(f.upto)) || (f.type === 'mirror' && gone.has(f.of));
       if (sketchesOf(f).some((x) => gone.has(x)) || onFace || onEdge || onFaces || repeats) gone.add(f.id);
     }
     const names = this.part.features.filter((f) => gone.has(f.id)).map((f) => f.name);
@@ -609,7 +618,7 @@ export class Modeler {
       const ty = this.cmd.feature.type;
       const r = ty === 'extrude' ? this.renderExtrude(box) : ty === 'hole' ? this.renderHole(box) : ty === 'revolve' ? this.renderRevolve(box)
         : ty === 'shell' ? this.renderShell(box) : ty === 'pattern' ? this.renderPattern(box)
-        : ty === 'loft' || ty === 'sweep' ? this.renderProfiles(box) : ty === 'decal' ? this.renderDecal(box) : this.renderRound(box);
+        : ty === 'loft' || ty === 'sweep' ? this.renderProfiles(box) : ty === 'decal' ? this.renderDecal(box) : ty === 'mirror' ? this.renderMirror(box) : this.renderRound(box);
       this.addSliders(box);
       return r;
     }
@@ -1153,6 +1162,7 @@ export class Modeler {
       : feature.type === 'decal' ? 'Text / picture — click on a flat face where it goes (click again to move it). Enter = OK, Esc = Cancel.'
       : feature.type === 'loft' ? 'Loft — choose the sketch it starts from and the one it goes to. Enter = OK, Esc = Cancel.'
       : feature.type === 'sweep' ? 'Sweep — choose the outline (profile) and the path it moves along. Enter = OK, Esc = Cancel.'
+      : feature.type === 'mirror' ? 'Mirror — choose the plane, or click a flat face to mirror across it. Enter = OK, Esc = Cancel.'
       : feature.type === 'pattern' ? 'Pattern — how many and how far apart. Click an edge for the direction (or a round face for the axis). Enter = OK, Esc = Cancel.'
       : feature.type === 'hole' ? 'Hole — click on a flat face where it goes (click again for more holes). Enter = OK, Esc = Cancel.'
       : `${feature.type === 'fillet' ? 'Fillet' : 'Chamfer'} — click the edges (or a face: all its edges). Enter = OK, Esc = Cancel.`);
@@ -1198,6 +1208,7 @@ export class Modeler {
     if (f.type === 'shell') return this.clickShell(e);
     if (f.type === 'pattern') return this.clickPattern(e);
     if (f.type === 'decal') return this.clickDecal(e);
+    if (f.type === 'mirror') return this.clickMirror(e);
     if (f.type === 'revolve') return null;
     const i = this.view.pickEdge(e.clientX, e.clientY);
     if (i >= 0) {
@@ -1727,6 +1738,41 @@ export class Modeler {
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
   }
 
+  // ------------------------------------------------------------------ Mirror
+  startMirror() {
+    if (this.mode !== 'part' || this.cmd || !this.result?.body) return;
+    this.openCommand({ id: this.newId(), type: 'mirror', name: this.nextName('mirror'), of: 'body', plane: { datum: 'YZ' }, copy: true }, true);
+  }
+
+  clickMirror(e) {
+    const f = this.cmd.feature, h = this.view.pick(e.clientX, e.clientY);
+    if (!h?.face || h.face.type !== 'plane' || h.face.name?.startsWith(`${f.id}:`)) { this.hooks.toast('Click a flat face — it mirrors across it.', 'info', 3000); return; }
+    f.plane = { face: h.face.ref || { name: h.face.name }, frame: h.face.frame };
+    this.renderProps();
+    this.rebuild();
+  }
+
+  renderMirror(box) {
+    const f = this.cmd.feature, st = this.status(f.id), at = this.part.features.findIndex((x) => x.id === f.id);
+    const rs = this.repeatable().filter((g) => g.id !== f.id && (at < 0 || this.part.features.indexOf(g) < at));
+    const body = !f.of || f.of === 'body';
+    box.innerHTML = `<h2>${esc(f.name)}</h2>
+      <div class="field"><label>Mirror</label><select data-k="of"><option value="body" ${body ? 'selected' : ''}>The whole part</option>
+        ${rs.map((g) => `<option value="${g.id}" ${g.id === f.of ? 'selected' : ''} data-no-i18n>${esc(g.name)}</option>`).join('')}</select></div>
+      <div class="field"><label>Across</label><div class="seg">${Object.entries(MIRROR_PLANES).map(([k, v]) => `<button data-pl="${k}" class="${f.plane?.datum === k ? 'on' : ''}" title="${esc(t(v))}">${k}</button>`).join('')}</div></div>
+      <p class="hint">${f.plane?.datum ? `${esc(t(MIRROR_PLANES[f.plane.datum]))} — ${esc(t('or click a flat face to mirror across it.'))}` : esc(t('Across the face you clicked (click another one to change it).'))}</p>
+      ${body ? `<div class="seg big"><button data-copy="1" class="${f.copy !== false ? 'on' : ''}">⇋ Mirror and copy</button><button data-copy="0" class="${f.copy === false ? 'on' : ''}">↦ Mirror only</button></div>
+        <p class="hint">${f.copy !== false ? 'The part and its mirror image, joined.' : 'The part turned into its mirror image.'}</p>` : '<p class="hint">The step is copied to the other side (holes stay holes).</p>'}
+      ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}${st?.warnings?.length ? `<p class="mp-warn">${esc(st.warnings.join(' '))}</p>` : ''}
+      <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
+    const changed = () => { this.renderProps(); this.rebuild(); };
+    box.querySelector('[data-k=of]').addEventListener('change', (e) => { f.of = e.target.value; if (f.of !== 'body') f.copy = true; changed(); });
+    for (const b of box.querySelectorAll('[data-pl]')) b.addEventListener('click', () => { f.plane = { datum: b.dataset.pl }; changed(); });
+    for (const b of box.querySelectorAll('[data-copy]')) b.addEventListener('click', () => { f.copy = b.dataset.copy === '1'; changed(); });
+    box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
+    box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
+  }
+
   // ------------------------------------------------------------------ Pattern
   repeatable() { return this.part.features.filter((f) => REPEATABLE.has(f.type) && !f.suppressed); }
 
@@ -1946,7 +1992,7 @@ export class Modeler {
           const h = f.upto ? this.view.pick(e.clientX, e.clientY) : null, ok = h?.face?.type === 'plane' && !h.face.name?.startsWith(`${f.id}:`);
           this.view.setHover(ok ? h.face.id : -1);
           cv.style.cursor = ok ? 'pointer' : '';
-        } else if (f.type === 'decal') {
+        } else if (f.type === 'decal' || f.type === 'mirror') {
           const h = this.view.pick(e.clientX, e.clientY), ok = h?.face?.type === 'plane' && !h.face.name?.startsWith(`${f.id}:`);
           this.view.setHover(ok ? h.face.id : -1);
           cv.style.cursor = ok ? 'crosshair' : '';

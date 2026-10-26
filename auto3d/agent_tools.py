@@ -175,8 +175,11 @@ TOOLS = [
                     "- sweep: profile (a sketch id: a closed outline across the path's start), path (a sketch id: an open "
                     "line — shapes [{path: {points: [[u, v], …]}}]), op.\n"
                     "- decal: text on a flat face — face (name), text, h (letter height mm), op add (raised) / cut (engraved), "
-                    "depth (mm), at [u, v] from the face's centre, angle (degrees it is turned on the face).",
-     "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep", "decal"]},
+                    "depth (mm), at [u, v] from the face's centre, angle (degrees it is turned on the face).\n"
+                    "- mirror: of \"body\" (the whole part, default) or a step's id; plane \"YZ\" (left ↔ right, default) / \"XZ\" / "
+                    "\"XY\", or face (a flat face's name) to mirror across; copy true (the part + its mirror image, default) / false "
+                    "(the part moved to its mirror image; only for the body).",
+     "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep", "decal", "mirror"]},
                           "name": STR, "plane": {}, "shapes": {"type": "array"}, "lock": {"type": "boolean"},
                           "sketch": STR, "d": NUM, "op": {"type": "string", "enum": ["add", "cut"]}, "through": {"type": "boolean"},
                           "symmetric": {"type": "boolean"}, "flip": {"type": "boolean"}, "axis": {}, "angle": NUM,

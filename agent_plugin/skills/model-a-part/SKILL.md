@@ -38,6 +38,9 @@ Everything is in mm. x right, y up, z up from the printer bed. The 3D printer be
    **Repeats**: make ONE hole / boss / cut, then `{type: "pattern", of: ["<its id>"], dir: "x", count: 4, spacing: 15}`
    (a row) or `{type: "pattern", of: [...], kind: "circular", axis: "z", count: 6}` (a bolt circle; `axis` may be
    a round face's name). A warning "changed nothing" means the copies left the part — fix dir / spacing.
+   **Mirror**: `{type: "mirror", plane: "YZ"}` adds the mirror image of the whole part (left ↔ right; "XZ" front ↔
+   back, "XY" top ↔ bottom, or `face: "<flat face>"`); `of: "<step id>"` mirrors one step only; `copy: false` turns the
+   part over instead. Model half of a symmetric part, then mirror it.
 7. **Check**: `get_model` — every step `ok: true` (read `issues` / `warnings` and fix them),
    `get_screenshot {view: "iso"}` and another view. Report the size and the steps the user can change
    (double-click a step in the list, or ask you).

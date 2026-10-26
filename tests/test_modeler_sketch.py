@@ -55,6 +55,33 @@ def rounded(w=40, r=5):
 
 
 @unittest.skipUnless(GCS, "planegcs not installed")
+class TestSketchMirror(unittest.TestCase):
+    def test_copy_follows_the_original(self):
+        # the plate and a circle mirrored across the Y axis: the copy follows when the plate grows to 50
+        sk = plate(dims=LOCK_CORNER + [{"id": "d3", "t": "len", "e": "l1", "v": 50}, {"id": "d4", "t": "dia", "e": "c1", "v": 8}])
+        sk["points"].update({"q2": [-40, 0], "q3": [-40, 20], "q5": [-10, 10]})
+        sk["entities"] += [{"id": "m1", "t": "line", "a": "p1", "b": "q2"}, {"id": "m2", "t": "line", "a": "q2", "b": "q3"},
+                           {"id": "m3", "t": "line", "a": "q3", "b": "p4"}, {"id": "c2", "t": "circle", "c": "q5", "r": 3}]
+        sk["constraints"].append({"id": "k9", "t": "mir", "axis": "y", "pairs": [["p1", "p1"], ["p2", "q2"], ["p3", "q3"], ["p4", "p4"], ["p5", "q5"]],
+                                  "circles": [["c1", "c2"]], "user": True})
+        r = solve(sk)
+        self.assertTrue(r["ok"], r)
+        self.assertAlmostEqual(r["points"]["q2"][0], -50, places=6)
+        self.assertAlmostEqual(r["points"]["q3"][0], -r["points"]["p3"][0], places=6)
+        self.assertAlmostEqual(r["radii"]["c2"], 4, places=6)
+        # across a sketch line: a point mirrored over the line x = y
+        sk2 = {"points": {"a": [0, 0], "b": [10, 10], "p": [8, 2], "q": [0, 0]}, "entities": [{"id": "l", "t": "line", "a": "a", "b": "b"}],
+               "constraints": [{"id": "k", "t": "mir", "e": "l", "pairs": [["p", "q"]]}],
+               "dims": [{"id": "d1", "t": "dx", "a": "O", "b": "a", "v": 0}, {"id": "d2", "t": "dy", "a": "O", "b": "a", "v": 0},
+                        {"id": "d3", "t": "dx", "a": "O", "b": "p", "v": 8}, {"id": "d4", "t": "dy", "a": "O", "b": "p", "v": 2},
+                        {"id": "d5", "t": "dx", "a": "O", "b": "b", "v": 10}, {"id": "d6", "t": "dy", "a": "O", "b": "b", "v": 10}]}
+        r = solve(sk2)
+        self.assertTrue(r["ok"], r)
+        self.assertAlmostEqual(r["points"]["q"][0], 2, places=5)
+        self.assertAlmostEqual(r["points"]["q"][1], 8, places=5)
+
+
+@unittest.skipUnless(GCS, "planegcs not installed")
 class TestSketchSolve(unittest.TestCase):
     def test_lock_holds_when_the_plate_grows(self):
         dims = LOCK_CORNER + [{"id": "d3", "t": "len", "e": "l1", "v": 60}, {"id": "d4", "t": "dx", "a": "p1", "b": "p5", "v": 10}]

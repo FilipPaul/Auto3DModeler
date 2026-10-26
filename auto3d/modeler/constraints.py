@@ -9,6 +9,9 @@ A sketch (in the feature JSON):
                  {"t": "tan", "e": "l1", "arc": "a1", "p": "p7"}   line l1 tangent to arc a1 at their common point p7
                  {"t": "corner", "p": "p2", "lines": ["l1", "l2"]} a rounded corner's sharp point (on both lines)
                  {"t": "on", "p": "p9", "e": "c1"}                  point p9 stays on line / circle / arc c1 (a trimmed end)
+                 {"t": "mir", "pairs": [["p1", "p9"], ["p2", "p2"]], "circles": [["c1", "c2"]], "e": "l5" | "axis": "x" | "y"}
+                                                                    a mirrored copy: each pair symmetric about line l5 or a
+                                                                    sketch axis (a point paired with itself stays on it)
   "dims":        [{"id": "d1", "t": "len", "e": "l1", "v": 40},                  locked sizes 🔒
                   {"t": "dia", "e": "c1", "v": 6}, {"t": "rad", "e": "a1", "v": 5},   an arc's radius
                   {"t": "dx", "a": "O", "b": "p5", "v": 10}, {"t": "dy", ...},   distance along x / y
@@ -41,7 +44,7 @@ def _num(v, what):
 
 
 # relations the user sets: {t, e, e2} (two shapes) or {t, p, p2 / e} (a point and a point / shape)
-RELATIONS = ("par", "perp", "eq", "conc", "coin", "tang", "fix")
+RELATIONS = ("par", "perp", "eq", "conc", "coin", "tang", "fix", "mir")
 
 
 def _relation(s, k, ents, ids, pts):
@@ -85,6 +88,21 @@ def _relation(s, k, ents, ids, pts):
         if not fn and (ka, kb) == ("arc", "circle"):
             return s.tangent_circle_arc(b[1], a[1])
         return fn(a[1], b[1]) if fn else None
+    if t == "mir":  # always handled here (an empty tuple when its line is gone)
+        if k.get("axis") in ("x", "y"):
+            line = s.add_line(ids[ORIGIN], s.add_fixed_point(*((1.0, 0.0) if k["axis"] == "x" else (0.0, 1.0))))
+        elif kind(a) == "line":
+            line = a[1]
+        else:
+            return ()
+        tags = []
+        for p, q in k.get("pairs") or []:
+            if p in ids and q in ids:
+                tags.append(s.point_on_line(ids[p], line) if p == q else s.symmetric_line(ids[p], ids[q], line))
+        for c, c2 in k.get("circles") or []:
+            if c in ents and c2 in ents and kind(ents[c]) == kind(ents[c2]) == "circle":
+                tags.append(s.equal_radius_cc(ents[c][1], ents[c2][1]))
+        return tuple(tags)
     if t == "fix" and k.get("p") in ids:
         at = k.get("at") or pts.get(k["p"])
         return s.fix_point(ids[k["p"]], float(at[0]), float(at[1]))
@@ -136,11 +154,14 @@ def solve(sketch, drag=None, keep=None):
             return ids.get(x)
 
         tags = {}
+        soft.clear()  # a mirror's own parts may repeat what other rules hold (a point on the axis): not a conflict
         for k in sketch.get("constraints") or []:
             tag = _relation(s, k, ents, ids, pts)
             if tag is not None:
                 for tg in (tag if isinstance(tag, tuple) else (tag,)):
                     tags[tg] = k.get("id")
+                    if k.get("t") == "mir":
+                        soft.add(tg)
                 continue
             ent = ents.get(k.get("e"))
             if k.get("t") == "on":  # a trimmed end stays on the line / circle / arc that cut it
@@ -213,6 +234,7 @@ def solve(sketch, drag=None, keep=None):
                     s.difference(s.add_fixed_param(0.0), s.get_point_param_ids(ids[k])[i], s.add_fixed_param(p[i]))
         return s, ids, ents, radius, tags
 
+    soft = set()
     good = (g.SolveStatus.Success, g.SolveStatus.Converged)
     if keep in ("u", "v"):
         # first where the points go when the other coordinate stays; then the plain solve from there (it only
@@ -238,7 +260,7 @@ def solve(sketch, drag=None, keep=None):
         status = s.solve()
     ok = status in (g.SolveStatus.Success, g.SolveStatus.Converged)
     diag = s.diagnose()
-    conflicts = sorted({tags[t] for t in list(diag.conflicting) + list(diag.redundant) if t in tags and tags[t]})
+    conflicts = sorted({tags[t] for t in list(diag.conflicting) + [x for x in diag.redundant if x not in soft] if t in tags and tags[t]})
     out_pts = {k: [round(c, 9) for c in s.get_point(ids[k])] for k in pts}
     radii = {k: round(s.get_param(r), 9) for k, r in radius.items()}
     return {"ok": ok and not conflicts, "status": status.name, "points": out_pts, "radii": radii,

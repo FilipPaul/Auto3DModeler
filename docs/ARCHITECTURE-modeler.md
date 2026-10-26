@@ -77,6 +77,10 @@ Date: 2026-10-25. Written by the architect agent.
   addBolt drills a hole step into each part (tagged `bolt: <assembly>:B…`, kept in doc.bolts so undo / redo puts the
   part steps back — syncDrills) and adds the standard parts with joints. New joints: perp, angle (value °), tangent
   (joints.js turnToAngle). tools/e2e_assembly_bolt.py.
+- **Mirror done:** doc.py `mirror` step (of body / a step, a datum or face plane, copy or move; kernel.mirrored_body);
+  in sketches the ⇋ Mirror tool (sketcher.mirror) with a `mir` constraint (planegcs symmetric_line per point pair,
+  equal radii; its redundant parts are not conflicts). Decorations get X / Y / Turn (doc.py turns the outline).
+  tools/e2e_model_mirror.py, tests test_mirror / TestSketchMirror.
 - **Value ranges done:** doc.limits (each ranged number of a step found by building it at trial values; patterns and
   depths from the geometry), /api/model/limits; failures explained with the most that fits (doc._sized).
 - **Sketch relations done:** par / perp / eq / conc / coin / tang / fix (+ h / v) set by the user (constraints.py
