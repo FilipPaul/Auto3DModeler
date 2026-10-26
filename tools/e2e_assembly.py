@@ -104,7 +104,8 @@ try:
     print("snapped pin matrix:", m, "| upside down (z axis -1):", m[10] == -1, "| top face now at the plate's top centre:", m[12:15])
     d.save_screenshot(f"{OUT}/as2_snapped.png")
 
-    # the panel: nudge x, turn 90° about X, then back
+    # the panel: nudge x, turn 90° about X, then back (the pin is joined: moving it asks — yes, break the joint)
+    js("window.confirm = () => true")
     inp = d.find_element(By.CSS_SELECTOR, "#asmRight input[data-k=x]")
     inp.clear()
     inp.send_keys("25\n")

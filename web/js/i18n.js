@@ -572,6 +572,10 @@ const CS = {
   'No holes line up between parts yet.': 'Mezi díly zatím žádné díry nelícují.', Add: 'Přidat', Close: 'Zavřít',
   'Put a hole in each part where they are to be fastened — e.g. Ø3.4 for an M3 screw in the top part and Ø4.0 for an M3 insert in the part below — join the parts, then look here again.': 'Udělejte díru v každém dílu, kde se mají spojit — např. Ø3,4 pro šroub M3 v horním dílu a Ø4,0 pro matici M3 ve spodním — spojte díly a podívejte se sem znovu.',
   'Slide to change it — the part follows': 'Posuňte pro změnu — díl se přizpůsobí',
+  'A locked joint 🔒 holds this part — unlock it in the joints list to move the part by hand.': 'Díl drží zamčená vazba 🔒 — odemkněte ji v seznamu vazeb, chcete-li díl posunout rukou.',
+  'Moving it by hand breaks its {n} joint(s). Break them and move it?': 'Posunutí rukou zruší jeho vazby ({n}). Zrušit je a posunout?',
+  'Locked: moving the part by hand cannot break it — click to unlock': 'Zamčeno: posunutí dílu rukou ji nezruší — kliknutím odemknete',
+  'Lock it: then it cannot be broken by moving the part': 'Zamknout: pak ji posunutí dílu nezruší', 'Turn the part about this joint (about the axis, or on the face)': 'Natočit díl kolem této vazby (kolem osy nebo na ploše)',
   // language switch
   'Čeština / English': 'Čeština / English',
 };

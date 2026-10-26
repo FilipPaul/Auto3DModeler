@@ -191,10 +191,13 @@ are placed together — 3D models ◆ and quick parts ▤ (drawings, pictures, i
   click a face of the part to move and the face it goes to (the face under the mouse is marked). A part can have
   several joints, applied in order: *Pin in hole* + *Touch* seats a pin in its hole, head on the face. Joints
   **hold**: when the other part moves or a part changes size in its own tab, the joined part follows. The panel
-  lists the joints (hovering one marks its two faces), with the gap / offset to type, ⇅ to turn it round and ✕.
+  lists the joints (hovering one marks its two faces, the copies are told apart: I1, I2…), with the gap / offset to
+  type, ⇅ to turn it round, **↻ a slider to turn the part about the joint** (a pin about its hole's axis, a part on
+  its face; it catches at 90°), **🔒 lock** and ✕. A locked joint cannot be broken: the part cannot be moved by hand
+  while it holds; moving a part held by unlocked joints asks first.
 - The panel of a selected part has its x / y / z position, **Turn** sliders for X / Y / Z (any angle; they catch at
   0, ±90 and ±180°, or type an exact angle), its joints, *Join it to another part*, *Reset its place* and *Take it
-  out*. Moving or turning a joined part by hand removes its joints.
+  out*. Moving or turning a joined part by hand asks before it breaks its joints (locked ones never break).
 - **🔩 Fasteners** finds where holes line up through two parts and suggests what fits, from the hole sizes (as
   printed): an **M2–M5 screw with a heat-set insert** (a clearance hole in the top part, an insert hole below), a
   screw alone, or a **dowel pin** (equal holes) — with a standard length that fits. Hover a suggestion to see its

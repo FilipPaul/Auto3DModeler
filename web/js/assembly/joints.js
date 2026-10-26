@@ -44,6 +44,21 @@ function turnAbout(M, centre, q) {
 
 const shift = (M, d) => new THREE.Matrix4().makeTranslation(d.x, d.y, d.z).multiply(M);
 
+/** How far (degrees) the moving part is turned about a joint's direction, from the other part: the angle between
+ *  their own x directions (or y, when x runs along it) seen along `dir`. */
+export function spinOf(fB, fA, dir) {
+  const d = V(dir).normalize();
+  const pick = (f) => { const x = V(f.xdir).projectOnPlane(d); return x.length() > 1e-6 ? x.normalize() : V(f.ydir).projectOnPlane(d).normalize(); };
+  const a = pick(fA), b = pick(fB);
+  return (Math.atan2(new THREE.Vector3().crossVectors(a, b).dot(d), a.dot(b)) * 180) / Math.PI;
+}
+
+/** Turn M about the line (point, dir) so that the spin is `deg`. */
+function spinTo(M, faceAt, fA, point, dir, deg) {
+  const now = spinOf(faceAt(M), fA, dir);
+  return turnAbout(M, V(point), new THREE.Quaternion().setFromAxisAngle(V(dir).normalize(), ((deg - now) * Math.PI) / 180));
+}
+
 /** One joint: the moving part's matrix M (THREE.Matrix4) and its face fB (world, as placed by M) against the other
  *  part's face fA. faceAt(M) gives fB again for a new M. fixed: what an earlier joint fixed ({dir, flippable}).
  *  -> {M, fixed} (what this joint fixes). */
@@ -57,7 +72,9 @@ export function applyJoint(M, j, faceAt, fA, first, fixed) {
     M = turnAbout(M, V(fB.axis.o), turnFor(dB, target, first ? null : fixed));
     fB = faceAt(M);
     const v = V(fB.axis.o).sub(V(fA.axis.o)), perp = v.clone().sub(dA.clone().multiplyScalar(v.dot(dA)));
-    return { M: shift(M, perp.negate()), fixed: { dir: dA, flippable: true } };
+    M = shift(M, perp.negate());
+    if (Number.isFinite(j.angle)) M = spinTo(M, faceAt, fA, fA.axis.o, dA, j.angle); // turned about the axis
+    return { M, fixed: { dir: dA, flippable: true } };
   }
   if (fA.type !== 'plane' || fB.type !== 'plane') throw new Error(`${JOINT_TYPES[type]?.name || type} joins two flat faces.`);
   const nA = V(fA.normal).normalize(), cA = V(fA.centroid);
@@ -68,5 +85,7 @@ export function applyJoint(M, j, faceAt, fA, first, fixed) {
   const cB = V(fB.centroid), goal = cA.clone().addScaledVector(nA, +j.gap || 0);
   // the first touch centres the faces on each other; otherwise only the distance along the normal is set
   const d = first && (type === 'touch' || type === 'gap') ? goal.sub(cB) : nA.clone().multiplyScalar(goal.sub(cB).dot(nA));
-  return { M: shift(M, d), fixed: { dir: nA } };
+  M = shift(M, d);
+  if (Number.isFinite(j.angle)) M = spinTo(M, faceAt, fA, faceAt(M).centroid, nA, j.angle); // turned on the face
+  return { M, fixed: { dir: nA } };
 }

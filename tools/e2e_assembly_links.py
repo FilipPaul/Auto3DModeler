@@ -80,7 +80,7 @@ try:
     print("plate moved to x 100 -> pin centre x:", round((b[0] + b[3]) / 2, 3), "(expected 130)")
 
     # the pin moved by hand: unlinked, with a notice; undo links it again
-    js(f"{A}.sel = 'I2'; {A}.setPos('y', 50)")
+    js(f"window.confirm = () => true; {A}.sel = 'I2'; {A}.setPos('y', 50)")  # yes, break its joints
     time.sleep(0.4)
     toast = js("return [...document.querySelectorAll('.toast')].map(t => t.textContent).slice(-1)[0]")
     print("moved by hand:", toast, "| links", json.loads(call("get_assembly"))["joints"])

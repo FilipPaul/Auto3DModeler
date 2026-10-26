@@ -8,13 +8,15 @@
 //               "onto": "I1", "ontoFace": "F2:end", "gap": 0, "flip": false}]}   joints that hold (joints.js)
 import * as THREE from 'three';
 import { History } from '../history.js';
+import { t } from '../i18n.js';
 import { ModelView } from '../modeler/view.js';
-import { JOINT_TYPES, applyJoint } from './joints.js';
+import { JOINT_TYPES, applyJoint, spinOf } from './joints.js';
 import { fastenerModel, findCandidates } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const ID = () => new THREE.Matrix4().identity().toArray();
 const COLORS = [0xd9dee6, 0x9ecbff, 0xffd8a8, 0xb5f5c5, 0xe2c6ff, 0xffc2c2, 0xfff3b0];
 
@@ -284,7 +286,7 @@ export class Assembly {
       }
       this.bindJointRows(box);
       box.querySelector('[data-a=joinThis]').addEventListener('click', () => this.startJoint('touch', it.id));
-      box.querySelector('[data-a=reset]').addEventListener('click', () => { it.matrix = ID(); this.unjoinMoving(it.id); this.commit(); });
+      box.querySelector('[data-a=reset]').addEventListener('click', () => { if (!this.mayMove(it.id)) return; it.matrix = ID(); this.applyMates(); this.commit(); });
       box.querySelector('[data-a=del]').addEventListener('click', () => this.removeInst(it.id));
       return;
     }
@@ -377,15 +379,26 @@ export class Assembly {
   jointsHtml(id) {
     const js = (this.doc.mates || []).filter((m) => id === null || m.move === id || m.onto === id);
     if (!js.length) return id === null ? '' : '<p class="hint">Not joined to anything — it stays where you put it.</p>';
-    return `<h3>Joints</h3><div class="as-joints">${js.map((m) => {
+    return `<h3>Joints</h3><datalist id="as-ticks"><option value="-180"></option><option value="-90"></option><option value="0"></option><option value="90"></option><option value="180"></option></datalist><div class="as-joints">${js.map((m) => {
       const t = JOINT_TYPES[m.type || 'touch'] || JOINT_TYPES.touch, a = this.inst(m.move), b = this.inst(m.onto);
       const val = m.type === 'touch' || m.type === 'gap' || m.type === 'flush' || !m.type
         ? `<label class="as-jv">${m.type === 'flush' ? 'offset' : 'gap'} <input type="number" step="any" data-jgap="${m.id}" value="${fmt(m.gap || 0)}"> mm</label>`
         : `<button class="mini" data-jflip="${m.id}" title="Turn it the other way round">⇅</button>`;
-      return `<div class="as-jrow ${m.broken ? 'bad' : ''}" data-jrow="${m.id}"><span class="as-jt">${t.icon} ${esc(t.name)}</span>
-        <span class="as-jw"><b data-no-i18n>${esc(this.partName(a?.part))}</b> · ${esc(this.faceText(m.move, m.face))} → <b data-no-i18n>${esc(this.partName(b?.part))}</b> · ${esc(this.faceText(m.onto, m.ontoFace))}${m.broken ? ' — ⚠ a face is gone' : ''}</span>
-        ${val}<button class="mini danger" data-jdel="${m.id}" title="Remove this joint (the part stays where it is)">✕</button></div>`;
+      const spin = Math.round(Number.isFinite(m.angle) ? m.angle : this.spinNow(m));
+      return `<div class="as-jrow ${m.broken ? 'bad' : ''} ${m.locked ? 'locked' : ''}" data-jrow="${m.id}"><span class="as-jt">${t.icon} ${esc(t.name)}</span>
+        <span class="as-jw"><b data-no-i18n>${esc(this.partName(a?.part))}</b> <i>${m.move}</i> · ${esc(this.faceText(m.move, m.face))} → <b data-no-i18n>${esc(this.partName(b?.part))}</b> <i>${m.onto}</i> · ${esc(this.faceText(m.onto, m.ontoFace))}${m.broken ? ' — ⚠ a face is gone' : ''}</span>
+        ${val}<span class="as-jbtn"><button class="mini ${m.locked ? 'on' : ''}" data-jlock="${m.id}" title="${m.locked ? 'Locked: moving the part by hand cannot break it — click to unlock' : 'Lock it: then it cannot be broken by moving the part'}">${m.locked ? '🔒' : '🔓'}</button><button class="mini danger" data-jdel="${m.id}" title="Remove this joint (the part stays where it is)" ${m.locked ? 'disabled' : ''}>✕</button></span>
+        <label class="as-jspin" title="Turn the part about this joint (about the axis, or on the face)">↻ <input type="range" min="-180" max="180" step="1" list="as-ticks" data-jspin="${m.id}" value="${spin}">
+        <input type="number" step="any" data-jspinn="${m.id}" value="${spin}">°</label></div>`;
     }).join('')}</div>`;
+  }
+
+  /** How far a joined part is turned about its joint now (degrees). */
+  spinNow(m) {
+    try {
+      const fB = this.worldFace(m.move, m.face), fA = this.worldFace(m.onto, m.ontoFace);
+      return spinOf(fB, fA, m.type === 'axis' ? fA.axis.d : fA.normal);
+    } catch { return 0; }
   }
 
   bindJointRows(box) {
@@ -406,6 +419,23 @@ export class Assembly {
     }
     for (const el of box.querySelectorAll('[data-jflip]')) {
       el.addEventListener('click', () => { const m = this.doc.mates.find((x) => x.id === el.dataset.jflip); m.flip = !m.flip; this.applyMates(); this.commit(); });
+    }
+    for (const el of box.querySelectorAll('[data-jlock]')) {
+      el.addEventListener('click', () => { const m = this.doc.mates.find((x) => x.id === el.dataset.jlock); m.locked = !m.locked; this.commit(); });
+    }
+    for (const sl of box.querySelectorAll('[data-jspin]')) {
+      const m = this.doc.mates.find((x) => x.id === sl.dataset.jspin), num = box.querySelector(`[data-jspinn="${m.id}"]`);
+      const set = (v, final) => { m.angle = v; this.applyMates(); if (final) this.commit(); else this.draw(); };
+      sl.addEventListener('input', () => {
+        let v = +sl.value;
+        const near = Math.round(v / 90) * 90;
+        if (Math.abs(v - near) <= 4) { v = near; sl.value = v; }
+        num.value = v;
+        set(v, false);
+      });
+      sl.addEventListener('change', () => set(+num.value, true));
+      num.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') num.blur(); });
+      num.addEventListener('change', () => { const v = parseFloat(String(num.value).replace(',', '.')); if (Number.isFinite(v)) set(v, true); });
     }
     for (const el of box.querySelectorAll('[data-jdel]')) {
       el.addEventListener('click', () => { this.doc.mates = this.doc.mates.filter((x) => x.id !== el.dataset.jdel); this.hoverJoint = null; this.commit(); });
@@ -518,12 +548,27 @@ export class Assembly {
   setPos(k, value) {
     const it = this.inst(this.sel), v = parseFloat(String(value).replace(',', '.'));
     if (!it || !Number.isFinite(v)) return;
+    if (!this.mayMove(it.id)) { this.renderProps(); return; }
     const m = new THREE.Matrix4().fromArray(it.matrix);
     const e = m.elements;
     e[{ x: 12, y: 13, z: 14 }[k]] = v;
     it.matrix = m.toArray();
-    this.movedByHand(it.id);
+    this.applyMates(); // the parts joined onto it follow
     this.commit();
+  }
+
+  /** May this part be moved by hand? Not when a locked joint holds it; when unlocked joints hold it, only if the
+   *  user agrees to break them (ask = false: break them without asking — the AI). */
+  mayMove(id, ask = true) {
+    const mine = (this.doc.mates || []).filter((m) => m.move === id);
+    if (!mine.length) return true;
+    if (mine.some((m) => m.locked)) {
+      this.hooks.toast('A locked joint 🔒 holds this part — unlock it in the joints list to move the part by hand.', 'warning', 5000);
+      return false;
+    }
+    if (ask && !window.confirm(t2('Moving it by hand breaks its {n} joint(s). Break them and move it?', { n: mine.length }))) return false;
+    this.unjoinMoving(id);
+    return true;
   }
 
   // ------------------------------------------------------------------ joints: they hold
@@ -553,11 +598,8 @@ export class Assembly {
   /** Kept for the first-version name of a snap. */
   link(from, to) { this.addJoint(from, to, 'touch'); }
 
-  /** A part moved or turned by hand is no longer held by its joints; the parts joined onto it follow it. */
-  movedByHand(id) {
-    if (this.mateOf(id)) { this.unjoinMoving(id); this.hooks.toast('Moved by hand — its joints are removed (the parts joined onto it still follow it).', 'info', 4000); }
-    this.applyMates();
-  }
+  /** A part moved or turned by hand (after mayMove): the parts joined onto it follow it. */
+  movedByHand() { this.applyMates(); }
 
   /** Place every joined part again: each part's joints in order, a part after the parts it hangs on. */
   applyMates() {
@@ -591,6 +633,11 @@ export class Assembly {
   setRot(axis, deg, final) {
     const it = this.inst(this.sel), b = this.bodies[it?.part]?.body;
     if (!it || !b || !Number.isFinite(deg)) return;
+    if (!this.rotAllowed) { // once per slide: may it move?
+      if (!this.mayMove(it.id)) { this.renderProps(); return; }
+      this.rotAllowed = true;
+    }
+    if (final) this.rotAllowed = false;
     const m = new THREE.Matrix4().fromArray(it.matrix);
     const c = new THREE.Vector3((b.bbox[0] + b.bbox[3]) / 2, (b.bbox[1] + b.bbox[4]) / 2, (b.bbox[2] + b.bbox[5]) / 2).applyMatrix4(m);
     const q = new THREE.Quaternion().setFromRotationMatrix(m), e = new THREE.Euler().setFromQuaternion(q, 'XYZ');
@@ -609,6 +656,7 @@ export class Assembly {
     const it = this.inst(this.sel), b = this.bodies[it?.part]?.body;
     if (!it || !b) return;
     const m = new THREE.Matrix4().fromArray(it.matrix);
+    if (!this.mayMove(it.id, false)) return;
     const c = new THREE.Vector3((b.bbox[0] + b.bbox[3]) / 2, (b.bbox[1] + b.bbox[4]) / 2, (b.bbox[2] + b.bbox[5]) / 2).applyMatrix4(m);
     const r = new THREE.Matrix4()[{ x: 'makeRotationX', y: 'makeRotationY', z: 'makeRotationZ' }[axis]](Math.PI / 2);
     it.matrix = new THREE.Matrix4().makeTranslation(c.x, c.y, c.z).multiply(r).multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z)).multiply(m).toArray();
@@ -749,7 +797,8 @@ export class Assembly {
       throw new Error(`${instId} has no face “${name}”. Its flat and round faces: ${flat.join(', ')} (find_refs in its part tells which is which).`);
     }
     const m = matrix || new THREE.Matrix4().fromArray(it.matrix), nm = new THREE.Matrix3().getNormalMatrix(m);
-    const out = { ...f, centroid: new THREE.Vector3(...f.centroid).applyMatrix4(m) };
+    const out = { ...f, centroid: new THREE.Vector3(...f.centroid).applyMatrix4(m),
+      xdir: new THREE.Vector3(1, 0, 0).applyMatrix3(nm).normalize(), ydir: new THREE.Vector3(0, 1, 0).applyMatrix3(nm).normalize() };
     if (f.type === 'plane') out.normal = new THREE.Vector3(...f.normal).applyMatrix3(nm).normalize();
     if (f.type === 'cylinder' && f.axis) out.axis = { o: new THREE.Vector3(...f.axis.o).applyMatrix4(m), d: new THREE.Vector3(...f.axis.d).applyMatrix3(nm).normalize() };
     return out;
@@ -800,6 +849,9 @@ export class Assembly {
         const it = this.inst(part);
         if (!it) throw new Error(`No part ${part} in the assembly.`);
         this.sel = it.id;
+        if ((x ?? y ?? z) !== undefined || turn) {
+          if (!this.mayMove(it.id, false)) throw new Error(`${part} is held by a locked joint — the user has to unlock it first.`);
+        }
         for (const [k, v] of Object.entries({ x, y, z })) if (v !== undefined) this.setPos(k, v);
         for (const ax of [].concat(turn || [])) this.turn(ax);
         return { text: JSON.stringify(this.summary()) };

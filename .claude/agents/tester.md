@@ -82,6 +82,8 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_model_sliders.py <url> <dir>` covers the sliders under every number of the 3D tools' panels.
    `tools/e2e_model_select.py <url> <dir>` covers choosing a step in the list (marked in 3D, sketch sizes changed on the
    finished part).
+   `tools/e2e_assembly_lock.py <url> <dir>` covers 🔒 locked joints (moving refused), asking before breaking (no / yes,
+   undo) and ↻ turning about a joint (caught at 90°, 30° typed).
    `tools/e2e_assembly_ai.py <url> <dir>` covers the AI's assembly tools (insert_part, snap_faces by face name, place_part,
    screenshot, undo, the error messages for wrong faces / tools).
    `tools/e2e_model_features.py <url> <dir>` covers ◜ Fillet (click an edge, exact volume, the rounding follows when
