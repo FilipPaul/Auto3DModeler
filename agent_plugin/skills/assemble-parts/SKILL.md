@@ -14,8 +14,10 @@ Only 3D model parts go into an assembly (quick parts do not). Build each part fi
 3. Join them with `snap_faces {move: {part: "I2", face}, onto: {part: "I1", face}}`: the moved part turns so
    the two flat faces touch, centred on each other. Face names are the part's own: `F2:end` is the top of the
    first extrude, `F2:start` its bottom; `find_refs` in the part (open_part it) tells the rest. A wrong name
-   answers with the list of flat faces. A snap holds: the moved part follows the other one when it moves or a part
-   changes size (`get_assembly` lists the `links`); `place_part` on the snapped part ends its link.
+   answers with the list of faces. `type` picks the joint: `touch` (default), `gap` (with `gap` mm), `flush`, `axis`
+   (round faces — a pin / screw / shaft in a hole), `parallel`. A part's joints apply in order: `axis` first, then
+   `touch` from the head to the face it sits on, seats a pin. Joints hold: the part follows when the other one moves
+   or changes size (`get_assembly` lists the `joints`); `place_part` on a joined part removes its joints.
 4. Fine-tune with `place_part {part, x, y, z}` (its origin in mm) and `turn: "x" | "y" | "z"` (90° about its
    centre). Check the bounding boxes from `get_assembly` and look with `get_screenshot`.
 5. `get_assembly` gives the parts list (quantity, material, mass). To change a part, `open_part` it — every

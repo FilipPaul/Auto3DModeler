@@ -211,10 +211,13 @@ TOOLS = [
      "description": "Add a part (id or name from list_parts: a 3D model, or a quick part — a drawing, picture or import — as its solid) to the assembly on screen; it is put beside the others. Returns the parts.",
      "inputSchema": _obj({"part": STR}, ["part"])},
     {"name": "snap_faces", "where": "browser",
-     "description": "Put a placed part against another one: move = {part: <placed id I…>, face: <face name>}, onto = {part, face}. The moved part "
-                    "turns and moves so the two flat faces meet, centred. Face names come from find_refs in the part's own model "
-                    "(e.g. \"F2:end\" = the top of the first extrude, \"F2:start\" = its bottom).",
-     "inputSchema": _obj({"move": _obj({"part": STR, "face": STR}, ["part", "face"]), "onto": _obj({"part": STR, "face": STR}, ["part", "face"])}, ["move", "onto"])},
+     "description": "Join a placed part to another one with a joint that holds: move = {part: <placed id I…>, face: <face name>}, "
+                    "onto = {part, face}. type: \"touch\" (flat faces meet, centred — the default), \"gap\" (flat faces facing, gap mm "
+                    "apart), \"flush\" (flat faces in one plane, gap = offset), \"axis\" (two round faces on one axis: a pin in a hole), "
+                    "\"parallel\". A part's joints apply in order: e.g. axis (pin shaft → hole) then touch (head → plate top) seats a "
+                    "pin. Face names come from find_refs in the part's own model (\"F2:end\" = the top of the first extrude).",
+     "inputSchema": _obj({"move": _obj({"part": STR, "face": STR}, ["part", "face"]), "onto": _obj({"part": STR, "face": STR}, ["part", "face"]),
+                          "type": {"type": "string", "enum": ["touch", "gap", "flush", "axis", "parallel"]}, "gap": NUM}, ["move", "onto"])},
     {"name": "place_part", "where": "browser",
      "description": "Position a placed part (id I…): x, y, z of its own origin in mm, and / or turn: \"x\" | \"y\" | \"z\" (or a list) — 90° each about its centre.",
      "inputSchema": _obj({"part": STR, "x": NUM, "y": NUM, "z": NUM, "turn": {}}, ["part"])},

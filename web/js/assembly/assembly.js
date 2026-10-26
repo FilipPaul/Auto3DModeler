@@ -1,12 +1,15 @@
 // The assembly workspace: 3D model parts of the project placed together — insert a part, snap it face to face onto
-// another one (it turns and moves so the faces meet, centred), nudge its position or turn it by 90°, an exploded view,
-// a parts list with masses, export the whole as STL or STEP. Light on purpose: no mate solving, no motion.
+// another one with joints that hold (touch, gap, flush, pin in hole, parallel — joints.js), move it and turn it to any
+// angle, an exploded view, a parts list with masses, export the whole as STL or STEP. No motion (parts do not move).
 //
 // Assembly JSON (in the project file, `parts[].assembly`):
-//   {"instances": [{"id": "I1", "part": "P2", "matrix": [16 numbers, three.js column-major]}]}
+//   {"instances": [{"id": "I1", "part": "P2", "matrix": [16 numbers, three.js column-major]}],
+//    "mates": [{"id": "J1", "type": "touch" | "gap" | "flush" | "axis" | "parallel", "move": "I2", "face": "F2:start",
+//               "onto": "I1", "ontoFace": "F2:end", "gap": 0, "flip": false}]}   joints that hold (joints.js)
 import * as THREE from 'three';
 import { History } from '../history.js';
 import { ModelView } from '../modeler/view.js';
+import { JOINT_TYPES, applyJoint } from './joints.js';
 import { MATERIALS } from '../modeler/modeler.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -59,6 +62,27 @@ class AsmView extends ModelView {
     this.invalidate();
   }
 
+  /** Faces drawn over in a colour: [{inst, faces: [face ids], color}] (the face under the mouse, a part's joints). */
+  setMarks(marks = []) {
+    if (!this.markGroup) { this.markGroup = new THREE.Group(); this.scene.add(this.markGroup); }
+    this.clear(this.markGroup);
+    for (const mk of marks) {
+      const mesh = (this.meshes || []).find((m) => m.userData.inst === mk.inst);
+      if (!mesh) continue;
+      const want = new Set(mk.faces), pos = mesh.geometry.attributes.position.array, ids = mesh.userData.faceIds, out = [];
+      for (let t = 0; t < ids.length; t++) if (want.has(ids[t])) for (let k = 0; k < 9; k++) out.push(pos[t * 9 + k]);
+      if (!out.length) continue;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(out, 3));
+      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: mk.color, transparent: true, opacity: 0.75, side: THREE.DoubleSide,
+        polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, depthWrite: false }));
+      m.matrixAutoUpdate = false;
+      m.matrix.copy(mesh.matrix);
+      this.markGroup.add(m);
+    }
+    this.invalidate();
+  }
+
   fitBox() {
     const box = new THREE.Box3();
     for (const m of this.meshes || []) box.expandByObject(m);
@@ -87,7 +111,8 @@ export class Assembly {
     this.doc = { instances: [], mates: [] }; // mates: snaps that hold — {move, face, onto, ontoFace}
     this.bodies = {}; // part id -> {key, body, error}
     this.sel = null;
-    this.mode = 'idle'; // 'idle' | 'snap-from' | 'snap-to'
+    this.mode = 'idle'; // 'idle' | 'joint-from' | 'joint-to' (picking the two faces of a new joint)
+    this.jointType = 'touch';
     this.explode = 0;
     this.history = new History({
       capture: () => ({ instances: this.doc.instances, mates: this.doc.mates }),
@@ -138,7 +163,8 @@ export class Assembly {
     bar.innerHTML = `
       <div class="menu as-insert">${btn('insert', '＋ Insert part ▾', parts.length ? 'Add a part of this project: a 3D model ◆ or a quick part ▤ (drawing, picture, import)' : 'Make a part first (＋ New 3D model, or open a drawing / picture)', 'tool')}
         <div class="menu-list">${parts.map((p) => `<button data-part="${p.id}" data-no-i18n>${p.kind === 'classic' ? '▤' : '◆'} ${esc(p.name)}</button>`).join('') || '<div class="hint">No parts yet</div>'}</div></div>
-      ${btn('snap', '🧲 Snap face to face', 'Click a face of the part to move, then the face it goes onto (S)', `tool ${this.mode !== 'idle' ? 'on' : ''}`)}
+      <div class="menu as-joint">${btn('joint', `🔗 Joint ▾`, 'Hold a part against another one: choose how, then click a face of the part to move and the face it goes to (S = touch)', `tool ${this.mode !== 'idle' ? 'on' : ''}`)}
+        <div class="menu-list">${Object.entries(JOINT_TYPES).map(([k, j]) => `<button data-joint="${k}" title="${esc(j.hint)}">${j.icon} ${esc(j.name)}</button>`).join('')}</div></div>
       <span class="sep"></span>
       <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
       <span class="sep"></span>
@@ -146,10 +172,16 @@ export class Assembly {
       <span class="sep"></span>
       ${btn('view-iso', 'Iso', 'View from the front-right, above')}${btn('view-top', 'Top', 'View from above')}${btn('view-front', 'Front', 'View from the front')}${btn('view-right', 'Right', 'View from the right')}`;
     bar.querySelector('[data-a=insert]').disabled = !parts.length;
-    bar.querySelector('[data-a=snap]').disabled = this.doc.instances.length < 2;
+    bar.querySelector('[data-a=joint]').disabled = this.doc.instances.length < 2;
+    bar.querySelector('[data-a=joint]').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this.mode !== 'idle') { this.cancelJoint(); return; }
+      bar.querySelector('.as-joint').classList.toggle('open');
+    });
+    for (const b of bar.querySelectorAll('[data-joint]')) b.addEventListener('click', () => { bar.querySelector('.as-joint').classList.remove('open'); this.startJoint(b.dataset.joint); });
     bar.querySelector('[data-a=insert]').addEventListener('click', (e) => { e.stopPropagation(); bar.querySelector('.as-insert').classList.toggle('open'); });
     for (const b of bar.querySelectorAll('[data-part]')) b.addEventListener('click', () => { bar.querySelector('.as-insert').classList.remove('open'); this.insert(b.dataset.part); });
-    for (const b of bar.querySelectorAll('[data-a]:not([data-a=insert])')) b.addEventListener('click', () => this.action(b.dataset.a));
+    for (const b of bar.querySelectorAll('[data-a]:not([data-a=insert]):not([data-a=joint])')) b.addEventListener('click', () => this.action(b.dataset.a));
     const r = bar.querySelector('.as-explode input');
     r.addEventListener('input', () => { this.explode = +r.value; this.draw(); });
     this.updateUndo();
@@ -162,7 +194,7 @@ export class Assembly {
   }
 
   action(a) {
-    if (a === 'snap') return this.startSnap();
+    if (a === 'snap') return this.startJoint('touch');
     if (a === 'undo') return this.history.go(-1);
     if (a === 'redo') return this.history.go(1);
     if (a.startsWith('view-')) return this.view.setView(a.slice(5));
@@ -216,47 +248,123 @@ export class Assembly {
     const box = this.$('.mp-body'), it = this.inst(this.sel);
     if (it) {
       const m = new THREE.Matrix4().fromArray(it.matrix), p = new THREE.Vector3().setFromMatrixPosition(m);
+      const e = new THREE.Euler().setFromRotationMatrix(m, 'XYZ'), deg = (r) => Math.round((r * 180) / Math.PI * 10) / 10;
       const row = (k, v) => `<div class="field"><label>${k.toUpperCase()}</label><input type="number" step="any" data-k="${k}" value="${fmt(v)}"><span class="unit">mm</span></div>`;
-      box.innerHTML = `<h2 data-no-i18n>${esc(this.partName(it.part))}</h2><p class="hint">${it.id} — its position (where its own origin is) and turns.</p>
+      const rot = (k) => `<div class="as-rot"><label>${k.toUpperCase()}</label>
+        <input type="range" min="-180" max="180" step="1" list="as-ticks" data-rot="${k}" value="${deg(e[k])}">
+        <input type="number" step="any" data-rotn="${k}" value="${fmt(deg(e[k]))}"><span class="unit">°</span></div>`;
+      box.innerHTML = `<h2 data-no-i18n>${esc(this.partName(it.part))}</h2><p class="hint">${it.id} — where its own origin is, and how it is turned.</p>
         ${row('x', p.x)}${row('y', p.y)}${row('z', p.z)}
-        <div class="row-actions wrap"><button class="btn small" data-rot="x">⟲ 90° X</button><button class="btn small" data-rot="y">⟲ 90° Y</button><button class="btn small" data-rot="z">⟲ 90° Z</button></div>
-        ${this.mateHtml(it)}
-        <div class="row-actions"><button class="btn small" data-a="snapThis">🧲 Snap it onto another face</button></div>
+        <h3>Turn</h3><datalist id="as-ticks"><option value="-180"></option><option value="-90"></option><option value="0"></option><option value="90"></option><option value="180"></option></datalist>
+        ${rot('x')}${rot('y')}${rot('z')}
+        <p class="hint">Slide to any angle — it catches at 0, ±90 and ±180°. Type an exact one in the box.</p>
+        ${this.jointsHtml(it.id)}
+        <div class="row-actions wrap"><button class="btn small" data-a="joinThis">🔗 Join it to another part</button></div>
         <div class="row-actions"><button class="btn small" data-a="reset" title="Back to its place in its own model">Reset its place</button><button class="btn small danger" data-a="del">Take it out</button></div>`;
       for (const inp of box.querySelectorAll('input[data-k]')) {
         inp.addEventListener('change', () => this.setPos(inp.dataset.k, inp.value));
-        inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') inp.blur(); });
+        inp.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') inp.blur(); });
       }
-      for (const b of box.querySelectorAll('[data-rot]')) b.addEventListener('click', () => this.turn(b.dataset.rot));
-      box.querySelector('[data-a=snapThis]').addEventListener('click', () => { this.mode = 'snap-to'; this.snapFrom = { inst: it.id, face: null }; this.snapHint(); });
-      box.querySelector('[data-a=reset]').addEventListener('click', () => { it.matrix = ID(); this.commit(); });
+      for (const sl of box.querySelectorAll('input[data-rot]')) {
+        const k = sl.dataset.rot, num = box.querySelector(`[data-rotn=${k}]`);
+        sl.addEventListener('input', () => {
+          let v = +sl.value;
+          const near = Math.round(v / 90) * 90;
+          if (Math.abs(v - near) <= 4) { v = near; sl.value = v; } // the 90° marks catch
+          num.value = fmt(v);
+          this.setRot(k, v, false);
+        });
+        sl.addEventListener('change', () => this.setRot(k, +num.value, true));
+        num.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') num.blur(); });
+        num.addEventListener('change', () => { const v = parseFloat(String(num.value).replace(',', '.')); if (Number.isFinite(v)) this.setRot(k, v, true); });
+      }
+      this.bindJointRows(box);
+      box.querySelector('[data-a=joinThis]').addEventListener('click', () => this.startJoint('touch', it.id));
+      box.querySelector('[data-a=reset]').addEventListener('click', () => { it.matrix = ID(); this.unjoinMoving(it.id); this.commit(); });
       box.querySelector('[data-a=del]').addEventListener('click', () => this.removeInst(it.id));
-      box.querySelector('[data-a=unlink]')?.addEventListener('click', () => { this.unlink(it.id); this.commit(); });
       return;
     }
     const rows = this.bom(), total = rows.reduce((s, r) => s + (r.mass || 0) * r.qty, 0);
     box.innerHTML = `<h2>Assembly</h2>
-      ${rows.length ? `<h3>Parts list</h3><table class="as-bom"><tr><th>Part</th><th>Qty</th><th>Material</th><th>Mass</th></tr>
+      ${rows.length ? `${this.jointsHtml(null)}<h3>Parts list</h3><table class="as-bom"><tr><th>Part</th><th>Qty</th><th>Material</th><th>Mass</th></tr>
         ${rows.map((r) => `<tr><td data-no-i18n>${esc(r.name)}</td><td>${r.qty}</td><td>${r.material}</td><td>${r.mass === null ? '—' : `${fmt(+(r.mass * r.qty).toFixed(1))} g`}</td></tr>`).join('')}
         <tr class="as-total"><td>Total</td><td>${rows.reduce((s, r) => s + r.qty, 0)}</td><td></td><td>${fmt(+total.toFixed(1))} g</td></tr></table>
         <h3>Export</h3><div class="row-actions"><button class="btn small" data-x="stl" title="All parts in one STL, as placed">STL</button>
         <button class="btn small" data-x="step" title="All parts as separate bodies in one STEP file">STEP</button></div>
         <p class="hint">To print, open each part's tab and use 🖨 Prepare for 3D print there.</p>`
-        : `<p class="hint">Insert parts of this project (3D models and quick parts) with ＋ Insert part, then snap them together face to face.</p>`}`;
+        : `<p class="hint">Insert parts of this project (3D models and quick parts) with ＋ Insert part, then join them with 🔗 Joint.</p>`}`;
+    this.bindJointRows(box);
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
   }
 
-  mateHtml(it) {
-    const m = this.mateOf(it.id), on = (this.doc.mates || []).filter((x) => x.onto === it.id).length;
-    const other = m && this.inst(m.onto);
-    return (m ? `<div class="as-link ${m.broken ? 'bad' : ''}"><span>${m.broken ? '⚠ Its face is gone — snap it again.' : `🔗 Snapped onto <b data-no-i18n>${esc(this.partName(other?.part))}</b> (${other?.id}) — it follows that part.`}</span>
-      <button class="btn small" data-a="unlink" title="Keep it where it is, but no longer follow">Unlink</button></div>` : '')
-      + (on ? `<p class="hint">${on} part(s) are snapped onto this one and follow it.</p>` : '');
+  /** "the top of Extrude 1" for a face of a placed part. */
+  faceText(instId, name) {
+    const it = this.inst(instId), feats = this.hooks.partData(it?.part)?.features || [];
+    const [fid, role, sub] = String(name).split(':'), g = feats.find((f) => f.id === fid);
+    if (fid === 'Q1') return `face ${String(role).slice(1)}`;
+    const what = { end: 'the top of', start: 'the bottom of', side: 'a wall of', hole: 'hole of', round: 'a rounding of', bottom: 'a hole bottom of' }[role] || 'a face of';
+    return g ? `${what} ${g.name}` : name;
+  }
+
+  /** The joints of a part (or all, id null) as rows: what holds what, its gap / flip, ✕. */
+  jointsHtml(id) {
+    const js = (this.doc.mates || []).filter((m) => id === null || m.move === id || m.onto === id);
+    if (!js.length) return id === null ? '' : '<p class="hint">Not joined to anything — it stays where you put it.</p>';
+    return `<h3>Joints</h3><div class="as-joints">${js.map((m) => {
+      const t = JOINT_TYPES[m.type || 'touch'] || JOINT_TYPES.touch, a = this.inst(m.move), b = this.inst(m.onto);
+      const val = m.type === 'touch' || m.type === 'gap' || m.type === 'flush' || !m.type
+        ? `<label class="as-jv">${m.type === 'flush' ? 'offset' : 'gap'} <input type="number" step="any" data-jgap="${m.id}" value="${fmt(m.gap || 0)}"> mm</label>`
+        : `<button class="mini" data-jflip="${m.id}" title="Turn it the other way round">⇅</button>`;
+      return `<div class="as-jrow ${m.broken ? 'bad' : ''}" data-jrow="${m.id}"><span class="as-jt">${t.icon} ${esc(t.name)}</span>
+        <span class="as-jw"><b data-no-i18n>${esc(this.partName(a?.part))}</b> · ${esc(this.faceText(m.move, m.face))} → <b data-no-i18n>${esc(this.partName(b?.part))}</b> · ${esc(this.faceText(m.onto, m.ontoFace))}${m.broken ? ' — ⚠ a face is gone' : ''}</span>
+        ${val}<button class="mini danger" data-jdel="${m.id}" title="Remove this joint (the part stays where it is)">✕</button></div>`;
+    }).join('')}</div>`;
+  }
+
+  bindJointRows(box) {
+    for (const row of box.querySelectorAll('[data-jrow]')) {
+      row.addEventListener('mouseenter', () => { this.hoverJoint = row.dataset.jrow; this.drawMarks(); });
+      row.addEventListener('mouseleave', () => { this.hoverJoint = null; this.drawMarks(); });
+    }
+    for (const el of box.querySelectorAll('[data-jgap]')) {
+      el.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') el.blur(); });
+      el.addEventListener('change', () => {
+        const m = this.doc.mates.find((x) => x.id === el.dataset.jgap), v = parseFloat(String(el.value).replace(',', '.'));
+        if (!m || !Number.isFinite(v)) return;
+        m.gap = v;
+        if (m.type === 'touch' && v) m.type = 'gap';
+        this.applyMates();
+        this.commit();
+      });
+    }
+    for (const el of box.querySelectorAll('[data-jflip]')) {
+      el.addEventListener('click', () => { const m = this.doc.mates.find((x) => x.id === el.dataset.jflip); m.flip = !m.flip; this.applyMates(); this.commit(); });
+    }
+    for (const el of box.querySelectorAll('[data-jdel]')) {
+      el.addEventListener('click', () => { this.doc.mates = this.doc.mates.filter((x) => x.id !== el.dataset.jdel); this.hoverJoint = null; this.commit(); });
+    }
+  }
+
+  /** The faces to colour: the face under the mouse while picking, the joint the mouse is on in the list, and the
+   *  chosen part's joints (its own faces green, the faces it is held to blue). */
+  drawMarks() {
+    const marks = [], faceIds = (instId, name) => {
+      const b = this.bodies[this.inst(instId)?.part]?.body;
+      return b ? b.faces.filter((f) => f.name === name || (f.names || []).includes(name)).map((f) => f.id) : [];
+    };
+    for (const m of this.doc.mates || []) {
+      const on = this.hoverJoint === m.id || (!this.hoverJoint && this.sel && (m.move === this.sel || m.onto === this.sel));
+      if (!on) continue;
+      marks.push({ inst: m.move, faces: faceIds(m.move, m.face), color: 0x3fb950 }, { inst: m.onto, faces: faceIds(m.onto, m.ontoFace), color: 0x58a6ff });
+    }
+    if (this.jointFrom?.face) marks.push({ inst: this.jointFrom.inst, faces: [this.jointFrom.face.id], color: 0x3fb950 });
+    if (this.hoverFace) marks.push({ inst: this.hoverFace.inst, faces: [this.hoverFace.face.id], color: this.hoverFace.ok ? 0xf2cc60 : 0x8b95a3 });
+    this.view.setMarks(marks);
   }
 
   renderStatus() {
-    const n = this.doc.instances.length;
-    this.$('.m-status').textContent = n ? `${n} part(s)` : '';
+    const n = this.doc.instances.length, j = (this.doc.mates || []).length;
+    this.$('.m-status').textContent = n ? `${n} part(s)${j ? ` · ${j} joint(s)` : ''}` : '';
   }
 
   // ------------------------------------------------------------------ bodies of the parts
@@ -294,9 +402,10 @@ export class Assembly {
     this.view.setBodies(this.doc.instances.map((it, k) => {
       const c = centres[k];
       return { id: it.id, body: this.bodies[it.part]?.body, matrix: it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part),
-        selected: it.id === this.sel || it.id === this.snapFrom?.inst, hover: it.id === this.hoverInst,
+        selected: it.id === this.sel || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst,
         explode: this.explode && c ? c.clone().sub(mid).multiplyScalar(this.explode * 1.2).toArray() : null };
     }));
+    this.drawMarks();
   }
 
   commit() { this.history.commit(); this.render(); this.draw(); this.hooks.onChange?.(); }
@@ -349,40 +458,82 @@ export class Assembly {
     this.commit();
   }
 
-  // ------------------------------------------------------------------ links: a snap holds
+  // ------------------------------------------------------------------ joints: they hold
+  unjoinMoving(id) { this.doc.mates = (this.doc.mates || []).filter((m) => m.move !== id); }
+  unlink(id) { this.unjoinMoving(id); }
   mateOf(id) { return (this.doc.mates || []).find((m) => m.move === id); }
 
-  /** Keep a snap: the moved part stays on that face of the other part when either changes or the other moves. */
-  link(from, to) {
+  /** Add a joint: part `from.inst` (face from.face) is held against `to.inst` (face to.face). */
+  addJoint(from, to, type = 'touch', gap = 0) {
     const fromName = from.face?.name, toName = to.face?.name;
-    if (!fromName || !toName) return;
+    if (!fromName || !toName) return false;
     // no circles: the other part may not (through others) hang on this one
-    for (let at = to.inst, n = 0; at && n < 100; n++) {
-      if (at === from.inst) { this.hooks.toast('Snapped — not linked (the other part already follows this one).', 'info', 4000); return; }
-      at = this.mateOf(at)?.onto;
+    const holdsOn = (x) => (this.doc.mates || []).filter((m) => m.move === x).map((m) => m.onto);
+    const seen = new Set(), stack = [to.inst];
+    while (stack.length) {
+      const x = stack.pop();
+      if (x === from.inst) { this.hooks.toast('Not joined: the other part already hangs on this one — join them the other way round.', 'warning', 5000); return false; }
+      if (seen.has(x)) continue;
+      seen.add(x);
+      stack.push(...holdsOn(x));
     }
-    this.doc.mates = [...(this.doc.mates || []).filter((m) => m.move !== from.inst), { move: from.inst, face: fromName, onto: to.inst, ontoFace: toName }];
+    const n = Math.max(0, ...(this.doc.mates || []).map((m) => parseInt(String(m.id || '').slice(1), 10) || 0)) + 1;
+    this.doc.mates = [...(this.doc.mates || []), { id: `J${n}`, type, move: from.inst, face: fromName, onto: to.inst, ontoFace: toName, gap: +gap || 0 }];
+    return true;
   }
 
-  unlink(id) { this.doc.mates = (this.doc.mates || []).filter((m) => m.move !== id); }
+  /** Kept for the first-version name of a snap. */
+  link(from, to) { this.addJoint(from, to, 'touch'); }
 
-  /** A part moved or turned by hand is no longer held by its snap; the parts snapped onto it follow it. */
+  /** A part moved or turned by hand is no longer held by its joints; the parts joined onto it follow it. */
   movedByHand(id) {
-    if (this.mateOf(id)) { this.unlink(id); this.hooks.toast('Moved by hand — it no longer follows the part it was snapped to.', 'info', 4000); }
+    if (this.mateOf(id)) { this.unjoinMoving(id); this.hooks.toast('Moved by hand — its joints are removed (the parts joined onto it still follow it).', 'info', 4000); }
     this.applyMates();
   }
 
-  /** Put every linked part back onto its face (in the order they were snapped). */
+  /** Place every joined part again: each part's joints in order, a part after the parts it hangs on. */
   applyMates() {
-    for (const m of this.doc.mates || []) {
-      if (!this.inst(m.move) || !this.inst(m.onto)) { m.broken = 'gone'; continue; }
-      if (!this.bodies[this.inst(m.move).part]?.body || !this.bodies[this.inst(m.onto).part]?.body) continue; // not built yet
-      try {
-        this.snap({ inst: m.move, face: this.worldFace(m.move, m.face) }, { inst: m.onto, face: this.worldFace(m.onto, m.ontoFace) });
-        delete m.broken;
-      } catch { m.broken = 'face'; }
+    const mates = (this.doc.mates || []).filter((m) => this.inst(m.move) && this.inst(m.onto));
+    this.doc.mates = mates;
+    const movers = [...new Set(mates.map((m) => m.move))], done = new Set();
+    for (let pass = 0; pass <= movers.length && done.size < movers.length; pass++) {
+      for (const id of movers) {
+        if (done.has(id)) continue;
+        const mine = mates.filter((m) => m.move === id);
+        if (mine.some((m) => movers.includes(m.onto) && !done.has(m.onto) && m.onto !== id)) continue; // its support first
+        done.add(id);
+        const it = this.inst(id);
+        if (!this.bodies[it.part]?.body || mine.some((m) => !this.bodies[this.inst(m.onto).part]?.body)) continue; // not built yet
+        let M = new THREE.Matrix4().fromArray(it.matrix), fixed = null;
+        mine.forEach((m, k) => {
+          try {
+            const r = applyJoint(M, m, (MM) => this.worldFace(id, m.face, MM), this.worldFace(m.onto, m.ontoFace), k === 0, fixed);
+            M = r.M;
+            fixed = fixed || r.fixed;
+            delete m.broken;
+          } catch { m.broken = true; }
+        });
+        it.matrix = M.toArray().map((v) => (Math.abs(v - Math.round(v)) < 1e-9 ? Math.round(v) : +v.toFixed(9)));
+      }
     }
-    this.doc.mates = (this.doc.mates || []).filter((m) => m.broken !== 'gone');
+  }
+
+  /** The selected part turned to an angle (degrees) about X / Y / Z, about its own centre (the other two angles
+   *  stay). final: an undo step (else a live preview while sliding). */
+  setRot(axis, deg, final) {
+    const it = this.inst(this.sel), b = this.bodies[it?.part]?.body;
+    if (!it || !b || !Number.isFinite(deg)) return;
+    const m = new THREE.Matrix4().fromArray(it.matrix);
+    const c = new THREE.Vector3((b.bbox[0] + b.bbox[3]) / 2, (b.bbox[1] + b.bbox[4]) / 2, (b.bbox[2] + b.bbox[5]) / 2).applyMatrix4(m);
+    const q = new THREE.Quaternion().setFromRotationMatrix(m), e = new THREE.Euler().setFromQuaternion(q, 'XYZ');
+    e[axis] = (deg * Math.PI) / 180;
+    const q2 = new THREE.Quaternion().setFromEuler(e), dq = q2.multiply(q.clone().invert());
+    it.matrix = new THREE.Matrix4().makeTranslation(c.x, c.y, c.z).multiply(new THREE.Matrix4().makeRotationFromQuaternion(dq))
+      .multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z)).multiply(m).toArray().map((v) => (Math.abs(v - Math.round(v)) < 1e-9 ? Math.round(v) : v));
+    if (final) {
+      this.movedByHand(it.id);
+      this.commit();
+    } else this.draw();
   }
 
   /** Turn the selected part by 90° about an axis through its own centre. */
@@ -397,20 +548,66 @@ export class Assembly {
     this.commit();
   }
 
-  // ------------------------------------------------------------------ snapping face to face
-  startSnap() {
+  // ------------------------------------------------------------------ a new joint: pick the two faces
+  startJoint(type = 'touch', from = null) {
     if (this.doc.instances.length < 2) return;
-    if (this.mode !== 'idle') { this.mode = 'idle'; this.snapFrom = null; this.hint(''); this.renderBar(); this.draw(); return; }
-    this.mode = 'snap-from';
-    this.snapFrom = null;
-    this.snapHint();
+    this.jointType = type;
+    this.mode = 'joint-from';
+    this.jointFrom = from ? { inst: from, face: null } : null;
+    this.jointHint();
   }
+  startSnap() { this.startJoint('touch'); }
 
-  snapHint() {
-    this.hint(this.mode === 'snap-from' ? '🧲 Click a face of the part to move (Esc cancels).'
-      : this.mode === 'snap-to' ? (this.snapFrom?.face ? '🧲 Now click the face it goes onto (on another part).' : '🧲 Click the face of this part that goes onto another one.') : '');
+  cancelJoint() {
+    this.mode = 'idle';
+    this.jointFrom = null;
+    this.hoverFace = null;
+    this.hint('');
     this.renderBar();
     this.draw();
+  }
+
+  jointHint() {
+    const t = JOINT_TYPES[this.jointType], what = t.faces === 'cylinder' ? 'a round face' : 'a flat face';
+    this.hint(this.mode === 'joint-from' ? `${t.icon} ${t.name}: click ${what} of the part to move${this.jointFrom ? ' (the selected one)' : ''} — Esc cancels.`
+      : `${t.icon} ${t.name}: now click ${what} of the other part.`);
+    this.renderBar();
+    this.draw();
+  }
+
+  /** The face under the mouse fits the joint being made? */
+  faceFits(h) {
+    if (!h?.face) return false;
+    const want = JOINT_TYPES[this.jointType].faces;
+    if (h.face.type !== want) return false;
+    if (this.mode === 'joint-from' && this.jointFrom?.inst && h.inst !== this.jointFrom.inst) return false;
+    if (this.mode === 'joint-to' && h.inst === this.jointFrom?.inst) return false;
+    return true;
+  }
+
+  clickJoint(h) {
+    if (!this.faceFits(h)) {
+      const want = JOINT_TYPES[this.jointType].faces === 'cylinder' ? 'a round face (a hole, a pin)' : 'a flat face';
+      if (h) this.hooks.toast(this.mode === 'joint-to' && h.inst === this.jointFrom?.inst ? 'Now a face of the other part.' : `Click ${want}.`, 'info', 2500);
+      return;
+    }
+    if (this.mode === 'joint-from') {
+      this.jointFrom = { inst: h.inst, face: h.face };
+      this.mode = 'joint-to';
+      this.jointHint();
+      return;
+    }
+    const type = this.jointType;
+    if (this.addJoint(this.jointFrom, h, type, type === 'gap' ? 5 : 0)) {
+      this.applyMates();
+      this.sel = this.jointFrom.inst;
+      this.hooks.toast(`${JOINT_TYPES[type].name} — it now holds (change it or ✕ it in the panel).`, 'ok', 3000);
+    }
+    this.mode = 'idle';
+    this.jointFrom = null;
+    this.hoverFace = null;
+    this.hint('');
+    this.commit();
   }
 
   /** Move instance B so its face meets face A: B's face normal turns to face A's normal (opposite), centres meet. */
@@ -434,6 +631,16 @@ export class Assembly {
     cv.addEventListener('pointermove', (e) => {
       if (down) return;
       const h = this.view.pickInst(e.clientX, e.clientY);
+      if (this.mode !== 'idle') {
+        const key = h?.face ? `${h.inst}:${h.face.id}` : '';
+        if (key !== this.hoverFaceKey) {
+          this.hoverFaceKey = key;
+          this.hoverFace = h?.face ? { inst: h.inst, face: h.face, ok: this.faceFits(h) } : null;
+          this.drawMarks();
+        }
+        cv.style.cursor = h?.face && this.faceFits(h) ? 'crosshair' : '';
+        return;
+      }
       const id = h?.inst || null;
       if (id !== this.hoverInst) { this.hoverInst = id; this.draw(); }
       cv.style.cursor = h ? 'pointer' : '';
@@ -444,29 +651,7 @@ export class Assembly {
       down = null;
       if (moved) return;
       const h = this.view.pickInst(e.clientX, e.clientY);
-      if (this.mode === 'snap-from' || (this.mode === 'snap-to' && !this.snapFrom?.face)) {
-        if (!h?.face || h.face.type !== 'plane') { if (h) this.hooks.toast('Click a flat face.', 'info', 2500); return; }
-        if (this.mode === 'snap-to' && h.inst !== this.snapFrom.inst) { this.hooks.toast('First a face of the selected part.', 'info', 2500); return; }
-        this.snapFrom = { inst: h.inst, face: h.face };
-        this.mode = 'snap-to';
-        this.snapHint();
-        return;
-      }
-      if (this.mode === 'snap-to') {
-        if (!h?.face || h.face.type !== 'plane') { if (h) this.hooks.toast('Click a flat face.', 'info', 2500); return; }
-        if (h.inst === this.snapFrom.inst) { this.hooks.toast('Click a face of another part.', 'info', 2500); return; }
-        if (this.snap(this.snapFrom, h)) {
-          this.link(this.snapFrom, h);
-          this.applyMates();
-          this.sel = this.snapFrom.inst;
-          this.hooks.toast('Snapped — it now follows that part (moving it by hand unlinks it).', 'ok', 3000);
-        }
-        this.mode = 'idle';
-        this.snapFrom = null;
-        this.hint('');
-        this.commit();
-        return;
-      }
+      if (this.mode !== 'idle') { this.clickJoint(h); return; }
       this.sel = h?.inst || null;
       this.render();
       this.draw();
@@ -477,27 +662,29 @@ export class Assembly {
   key(e) {
     if (!this.active || e.target.closest?.('input,select,textarea,[contenteditable]')) return;
     const k = e.key.toLowerCase();
-    if (e.key === 'Escape' && this.mode !== 'idle') { this.mode = 'idle'; this.snapFrom = null; this.hint(''); this.renderBar(); this.draw(); return; }
+    if (e.key === 'Escape' && this.mode !== 'idle') { this.cancelJoint(); return; }
     if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y')) { e.preventDefault(); this.history.go(k === 'y' || e.shiftKey ? 1 : -1); return; }
-    if (k === 's' && !e.ctrlKey) this.startSnap();
+    if (k === 's' && !e.ctrlKey) this.startJoint('touch', this.sel);
     if (e.key === 'Delete' && this.sel) this.removeInst(this.sel);
   }
 
   // ------------------------------------------------------------------ for the AI
   /** A face of a placed part by its name (as find_refs names it in the part's own model), in world coordinates. */
-  worldFace(instId, name) {
+  worldFace(instId, name, matrix = null) {
     const it = this.inst(instId);
     if (!it) throw new Error(`No part ${instId} in the assembly — see get_assembly.`);
     const b = this.bodies[it.part]?.body;
     if (!b) throw new Error(`${instId} has no solid.`);
     const f = b.faces.filter((x) => x.name === name || (x.names || []).includes(name)).sort((p, q) => q.area - p.area)[0];
     if (!f) {
-      const flat = [...new Set(b.faces.filter((x) => x.type === 'plane').map((x) => x.name))];
-      throw new Error(`${instId} has no face “${name}”. Its flat faces: ${flat.join(', ')} (find_refs in its part tells which is which).`);
+      const flat = [...new Set(b.faces.filter((x) => x.type === 'plane' || x.type === 'cylinder').map((x) => x.name))];
+      throw new Error(`${instId} has no face “${name}”. Its flat and round faces: ${flat.join(', ')} (find_refs in its part tells which is which).`);
     }
-    if (f.type !== 'plane') throw new Error(`The face “${name}” is not flat — snap works on flat faces.`);
-    const m = new THREE.Matrix4().fromArray(it.matrix), nm = new THREE.Matrix3().getNormalMatrix(m);
-    return { ...f, centroid: new THREE.Vector3(...f.centroid).applyMatrix4(m), normal: new THREE.Vector3(...f.normal).applyMatrix3(nm).normalize() };
+    const m = matrix || new THREE.Matrix4().fromArray(it.matrix), nm = new THREE.Matrix3().getNormalMatrix(m);
+    const out = { ...f, centroid: new THREE.Vector3(...f.centroid).applyMatrix4(m) };
+    if (f.type === 'plane') out.normal = new THREE.Vector3(...f.normal).applyMatrix3(nm).normalize();
+    if (f.type === 'cylinder' && f.axis) out.axis = { o: new THREE.Vector3(...f.axis.o).applyMatrix4(m), d: new THREE.Vector3(...f.axis.d).applyMatrix3(nm).normalize() };
+    return out;
   }
 
   summary() {
@@ -508,7 +695,7 @@ export class Assembly {
         return { id: it.id, part: it.part, name: this.partName(it.part), position: new THREE.Vector3().setFromMatrixPosition(m).toArray().map((v) => +v.toFixed(3)),
           bbox: bb ? [...bb.min.toArray(), ...bb.max.toArray()].map((v) => +v.toFixed(3)) : null, error: this.bodies[it.part]?.error };
       }),
-      links: (this.doc.mates || []).map((m) => ({ part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace, ...(m.broken ? { broken: true } : {}) })),
+      joints: (this.doc.mates || []).map((m) => ({ id: m.id, type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace, gap: m.gap || 0, ...(m.broken ? { broken: true } : {}) })),
       parts_list: this.bom().map((r) => ({ name: r.name, qty: r.qty, material: r.material, mass_g_each: r.mass === null ? null : +r.mass.toFixed(2) })),
     };
   }
@@ -525,14 +712,16 @@ export class Assembly {
         await this.insert(p.id);
         return { text: JSON.stringify(this.summary()) };
       },
-      snap_faces: async ({ move, onto }) => {
+      snap_faces: async ({ move, onto, type = 'touch', gap = 0 }) => {
         need();
         await settle();
+        if (!JOINT_TYPES[type]) throw new Error(`type is ${Object.keys(JOINT_TYPES).join(', ')}.`);
         const from = { inst: move.part, face: this.worldFace(move.part, move.face) };
         const to = { inst: onto.part, face: this.worldFace(onto.part, onto.face) };
-        if (from.inst === to.inst) throw new Error('Snap a face of one part onto a face of another part.');
-        this.snap(from, to);
-        this.link(from, to);
+        if (from.inst === to.inst) throw new Error('Join a face of one part to a face of another part.');
+        const want = JOINT_TYPES[type].faces;
+        if (from.face.type !== want || to.face.type !== want) throw new Error(`${JOINT_TYPES[type].name} joins two ${want === 'cylinder' ? 'round' : 'flat'} faces.`);
+        if (!this.addJoint(from, to, type, gap)) throw new Error('Not joined: the other part already hangs on this one.');
         this.applyMates();
         this.sel = from.inst;
         this.commit();
@@ -555,7 +744,7 @@ export class Assembly {
   async load(data) {
     this.doc = structuredClone(data || { instances: [] });
     this.doc.instances = this.doc.instances || [];
-    this.doc.mates = this.doc.mates || [];
+    this.doc.mates = (this.doc.mates || []).map((m, i) => ({ id: m.id || `J${i + 1}`, type: m.type || 'touch', gap: m.gap || 0, ...m }));
     this.sel = null;
     this.mode = 'idle';
     this.explode = 0;

@@ -56,10 +56,10 @@ try:
     call("insert_part", part="Plate")
     call("insert_part", part="Pin")
     r = json.loads(call("snap_faces", move={"part": "I2", "face": "F2:start"}, onto={"part": "I1", "face": "F2:end"}))
-    print("snapped: pin z", r["parts"][1]["bbox"][2], "| links", r["links"])
+    print("snapped: pin z", r["parts"][1]["bbox"][2], "| links", r["joints"])
     js(f"{A}.sel = 'I2'; {A}.render()")
     time.sleep(0.3)
-    print("panel:", d.find_element(By.CSS_SELECTOR, "#asmRight .as-link").text)
+    print("panel:", d.find_element(By.CSS_SELECTOR, "#asmRight .as-jrow").text.replace("\n", " "))
 
     # the plate gets thicker in its own tab; back in the assembly the pin follows the new top
     tabs = d.find_elements(By.CSS_SELECTOR, "#partTabs .part-tab")
@@ -83,10 +83,10 @@ try:
     js(f"{A}.sel = 'I2'; {A}.setPos('y', 50)")
     time.sleep(0.4)
     toast = js("return [...document.querySelectorAll('.toast')].map(t => t.textContent).slice(-1)[0]")
-    print("moved by hand:", toast, "| links", json.loads(call("get_assembly"))["links"])
+    print("moved by hand:", toast, "| links", json.loads(call("get_assembly"))["joints"])
     call("undo")
     time.sleep(0.8)
-    print("undo -> links", len(json.loads(call("get_assembly"))["links"]))
+    print("undo -> joints", len(json.loads(call("get_assembly"))["joints"]))
     d.save_screenshot(f"{OUT}/links1.png")
 
     # saved with the project

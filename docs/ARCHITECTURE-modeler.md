@@ -66,6 +66,9 @@ Date: 2026-10-25. Written by the architect agent.
 - **Pick & edit in 3D done:** hover lights the step (view.setHover with its faces), a click pops up face tools
   (m-ctx) and shows the step's sizes as labels (view.setTags) with a number + slider editor (live preview; sketch sizes
   solved with their locks). tools/e2e_model_pick.py.
+- **Assembly joints done:** joints.js (touch / gap / flush / axis / parallel, applied in order per part, later ones
+  restricted to the fixed direction; an axis allows an end-to-end flip); faces picked and marked in 3D (setMarks), the
+  joint list with gap / flip / ✕; turning sliders with 90° catches. tools/e2e_assembly_joints.py.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): hole / sketch distances from
   round faces (a shaft's axis); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

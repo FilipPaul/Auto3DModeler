@@ -75,6 +75,8 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_model_drawing.py <url> <dir>` covers 📐 Drawing (PDF): the panel button, the Export menu, the AI's export.
    `tools/e2e_model_pick.py <url> <dir>` covers pointing / clicking the part (the step lit, the face tools, sizes on the
    part with number + slider, exact volumes, "Hole here").
+   `tools/e2e_assembly_joints.py <url> <dir>` covers joints (pin in hole + touch seats a pin, the list, a gap, ✕, the
+   plate thicker -> it follows) and the turning sliders (catch at 90°, a typed angle).
    `tools/e2e_assembly_ai.py <url> <dir>` covers the AI's assembly tools (insert_part, snap_faces by face name, place_part,
    screenshot, undo, the error messages for wrong faces / tools).
    `tools/e2e_model_features.py <url> <dir>` covers ◜ Fillet (click an edge, exact volume, the rounding follows when
