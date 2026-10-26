@@ -112,6 +112,26 @@ class AsmView extends ModelView {
     return box.isEmpty() ? new THREE.Box3().setFromObject(this.datumGroup) : box;
   }
 
+  /** For 📏 Measure: the spot under the mouse — a corner of a part's edge when one is near (10 px), else the point on
+   *  the face — with that face (world) and the part: {point, corner, face, inst} or null. */
+  measurePoint(clientX, clientY) {
+    const h = this.pickInst(clientX, clientY), r = this.renderer.domElement.getBoundingClientRect();
+    let best = null, bd = 10;
+    for (const mesh of this.meshes || []) {
+      for (const e of mesh.userData.body.edges || []) {
+        const n = e.pts.length;
+        if (e.faces.length < 2 || Math.hypot(e.pts[0] - e.pts[n - 3], e.pts[1] - e.pts[n - 2], e.pts[2] - e.pts[n - 1]) < 1e-6) continue;
+        for (const k of [0, n - 3]) {
+          const p = new THREE.Vector3(e.pts[k], e.pts[k + 1], e.pts[k + 2]).applyMatrix4(mesh.matrix), q = p.clone().project(this.camera);
+          const dd = Math.hypot(r.left + (q.x + 1) / 2 * r.width - clientX, r.top + (1 - q.y) / 2 * r.height - clientY);
+          if (dd < bd) { bd = dd; best = { p, inst: mesh.userData.inst }; }
+        }
+      }
+    }
+    if (!best && !h?.point) return null;
+    return { point: best ? best.p : h.point.clone(), corner: !!best, face: h?.face || null, inst: best ? best.inst : h.inst };
+  }
+
   /** What is under the mouse: {inst, face (in world coordinates)} or null. */
   pickInst(clientX, clientY) {
     const h = this.ray(clientX, clientY).intersectObjects(this.meshes || [], false)[0];
@@ -208,6 +228,7 @@ export class Assembly {
           ${this.hooks.importSolid ? '<div class="menu-sep"></div><button data-a="fromFile">📂 From a file (STEP / STL / OBJ)…</button>' : ''}</div></div>
       <div class="menu as-joint">${btn('joint', `🔗 Joint ▾`, 'Hold a part against another one: choose how, then click a face of the part to move and the face it goes to (S = touch)', `tool ${this.mode !== 'idle' ? 'on' : ''}`)}
         <div class="menu-list">${Object.entries(JOINT_TYPES).map(([k, j]) => `<button data-joint="${k}" title="${esc(j.hint)}">${j.icon} ${esc(j.name)}</button>`).join('')}</div></div>
+      ${btn('measure', '📏 Measure', 'Measure: click a spot (a face, a corner), then another one — the distance; two parallel flat faces: the gap between them; two round faces: how far apart their axes are', `tool ${this.measuring ? 'on' : ''}`)}
       ${btn('fasteners', '🔩 Fasteners', 'Screws, heat-set inserts and pins where holes line up across parts — suggested, added with one click', `tool ${this.fastenerPanel ? 'on' : ''}`)}
       <span class="sep"></span>
       <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
@@ -240,6 +261,7 @@ export class Assembly {
 
   action(a) {
     if (a === 'snap') return this.startJoint('touch');
+    if (a === 'measure') return this.toggleMeasure();
     if (a === 'fasteners') { this.fastenerPanel = !this.fastenerPanel; this.sel = null; this.render(); this.draw(); return null; }
     if (a === 'undo') return this.history.go(-1);
     if (a === 'redo') return this.history.go(1);
@@ -402,6 +424,57 @@ export class Assembly {
   ensurePart(mdl) {
     const have = this.hooks.parts().find((p) => p.kind === 'model' && p.name === mdl.name);
     return have ? have.id : this.hooks.addModelPart(mdl.name, { features: mdl.features, material: mdl.material, standard: true });
+  }
+
+  // ------------------------------------------------------------------ 📏 measure
+  toggleMeasure() {
+    this.measuring = this.measuring ? null : { a: null };
+    if (this.measuring) { this.cancelJoint(); if (this.bolt) this.cancelBolt(); }
+    this.view.setMeasure();
+    this.hint(this.measuring ? 'Measure — click a spot, then another one (corners snap). Esc ends.' : '');
+    if (!this.measuring) this.$('.m-measure')?.remove();
+    this.renderBar();
+  }
+
+  measureBox(html) {
+    let box = this.$('.m-measure');
+    if (!box) {
+      box = document.createElement('div');
+      box.className = 'm-measure';
+      this.els.viewport.appendChild(box);
+    }
+    box.innerHTML = html;
+  }
+
+  clickMeasure(e) {
+    const ms = this.measuring, mp = this.view.measurePoint(e.clientX, e.clientY);
+    if (!mp) return;
+    const f3 = (p) => `${fmt(+p.x.toFixed(3))}, ${fmt(+p.y.toFixed(3))}, ${fmt(+p.z.toFixed(3))}`;
+    const face = mp.face && !mp.corner ? this.worldFace(mp.inst, mp.face.name) : null;
+    const who = esc(this.partName(this.inst(mp.inst)?.part));
+    if (!ms.a) {
+      ms.a = { point: mp.point, face, inst: mp.inst };
+      this.view.setMeasure([mp.point]);
+      const what = face ? `<b>${face.type === 'cylinder' ? 'Round face' : face.type === 'plane' ? 'Flat face' : 'Face'}</b><span>Of</span><b data-no-i18n>${who} ${mp.inst}</b>
+        <span>Area</span><b>${fmt(+face.area.toFixed(2))} mm²</b>${face.radius ? `<span>Ø</span><b>${fmt(+(2 * face.radius).toFixed(3))} mm</b>` : ''}`
+        : `<b>Corner</b><span>Of</span><b data-no-i18n>${who} ${mp.inst}</b>`;
+      this.measureBox(`<div class="mm-rows">${what}<span>Point</span><b>${f3(mp.point)}</b></div><p class="hint">Click a second spot for the distance.</p>`);
+      return;
+    }
+    const a = ms.a, p = mp.point, dist = a.point.distanceTo(p);
+    let extra = '';
+    const fa = a.face, fb = face;
+    if (fa?.normal && fb?.normal && Math.abs(fa.normal.dot(fb.normal)) > 0.9999) { // parallel flat faces: the gap between them
+      extra = `<span>Faces apart</span><b>${fmt(+Math.abs(fb.centroid.clone().sub(fa.centroid).dot(fa.normal)).toFixed(3))} mm</b>`;
+    } else if (fa?.axis && fb?.axis && Math.abs(fa.axis.d.dot(fb.axis.d)) > 0.9999) { // two round faces: their axes
+      const v = fb.axis.o.clone().sub(fa.axis.o), off = v.clone().sub(fa.axis.d.clone().multiplyScalar(v.dot(fa.axis.d))).length();
+      extra = `<span>Axes apart</span><b>${fmt(+off.toFixed(3))} mm</b>`;
+    }
+    this.view.setMeasure([a.point, p], `${fmt(+dist.toFixed(3))} mm`);
+    this.measureBox(`<div class="mm-rows"><b>Distance</b><span></span><b>${fmt(+dist.toFixed(3))} mm</b>${extra}
+      <span>Δx</span><b>${fmt(+Math.abs(p.x - a.point.x).toFixed(3))}</b><span>Δy</span><b>${fmt(+Math.abs(p.y - a.point.y).toFixed(3))}</b><span>Δz</span><b>${fmt(+Math.abs(p.z - a.point.z).toFixed(3))}</b></div>
+      <p class="hint">Click again to measure from a new spot.</p>`);
+    ms.a = null;
   }
 
   // ------------------------------------------------------------------ a new bolt: through the parts, holes drilled
@@ -1160,6 +1233,7 @@ export class Assembly {
       down = null;
       if (moved) return;
       const h = this.view.pickInst(e.clientX, e.clientY);
+      if (this.measuring) { this.clickMeasure(e); return; }
       if (this.mode !== 'idle') { this.clickJoint(h); return; }
       if (this.bolt) { if (h?.face?.type === 'plane') this.startBolt(h); return; } // another point for the bolt
       this.sel = h?.inst || null;
@@ -1172,6 +1246,7 @@ export class Assembly {
   key(e) {
     if (!this.active || e.target.closest?.('input,select,textarea,[contenteditable]')) return;
     const k = e.key.toLowerCase();
+    if (e.key === 'Escape' && this.measuring) { this.toggleMeasure(); return; }
     if (e.key === 'Escape' && this.mode !== 'idle') { this.cancelJoint(); return; }
     if (e.key === 'Escape' && this.bolt) { this.cancelBolt(); return; }
     if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y')) { e.preventDefault(); this.history.go(k === 'y' || e.shiftKey ? 1 : -1); return; }

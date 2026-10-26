@@ -91,6 +91,8 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_assembly_bolt.py <url> <dir>` covers a screw through parts with no holes (the click, the suggestion and
    preview, the Ø3.4 holes drilled in both parts — exact volumes —, head on top and nut below, Ctrl+Z / Ctrl+Y with
    the holes, the AI's bolt_parts with an insert) and the Tangent, Angle (30°, typed 60°) and Perpendicular joints.
+   `tools/e2e_assembly_measure.py <url> <dir>` covers 📏 Measure in an assembly (faces apart 10, a corner snapping,
+   two holes' axes apart, Esc).
    `tools/e2e_duplicate.py <url> <dir>` covers ⧉ Duplicate as a new part (the copy changes alone), ⧉ Make it its own
    part in an assembly (only that placed part changes) and the AI's duplicate_part.
    `tools/e2e_look.py <url> <dir>` covers colour and see-through (the Part panel -> the model view and assemblies;

@@ -219,6 +219,8 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   type, ⇅ to turn it round, **↻ a slider to turn the part about the joint** (a pin about its hole's axis, a part on
   its face; it catches at 90°), **🔒 lock** and ✕. A locked joint cannot be broken: the part cannot be moved by hand
   while it holds; moving a part held by unlocked joints asks first.
+- **📏 Measure** (assembly): click a spot, then another — the distance and Δx / Δy / Δz (corners snap); two parallel
+  flat faces also give the gap between them, two round faces how far apart their axes are.
 - **⧉ Duplicate as a new part** (a 3D model's *Part* panel) copies it into a new, independent part (its own tab);
   in an assembly **⧉ Make it its own part** gives a placed part a copy of its own, to change it alone. The AI:
   `duplicate_part`.
