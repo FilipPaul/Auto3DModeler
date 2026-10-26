@@ -1,7 +1,7 @@
 // Three.js scene: the solid (from the server mesh), dimension annotations, design guides,
 // picking helpers for the dimension tool, printer build volume and split pieces.
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/OrbitControls.js';
+import { FreeControls } from './freecontrols.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/CSS2DRenderer.js';
 import { GLTFExporter } from 'three/addons/GLTFExporter.js';
 
@@ -37,7 +37,7 @@ export class Viewer {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(35, 1, 0.01, 10000);
     this.camera.up.set(0, 0, 1);
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls = new FreeControls(this.camera, this.renderer.domElement); // turns without limits (over the top too)
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.12;
 

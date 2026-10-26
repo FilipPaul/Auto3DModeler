@@ -3,7 +3,7 @@
 // the sketch plane with a grid, the sketch shapes and their editable sizes.
 import { paintedFaces } from './paint.js';
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/OrbitControls.js';
+import { FreeControls } from '../freecontrols.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/CSS2DRenderer.js';
 
 const BODY = new THREE.Color(0xd9dee6), HOVER = new THREE.Color(0x6cb6ff), PICKED = new THREE.Color(0x4f8cff);
@@ -50,7 +50,7 @@ export class ModelView {
     this.camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100000);
     this.camera.up.set(0, 0, 1);
     this.camera.position.set(80, -160, 120);
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls = new FreeControls(this.camera, this.renderer.domElement); // turns without limits (over the top too)
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.12;
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x445566, 1.3));

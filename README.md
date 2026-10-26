@@ -51,6 +51,10 @@ next to the tabs offers the usual ways to open a file.
 
 **Panels**: drag the edge between a side panel and the view (or the AI chat's left edge) to make it wider or narrower;
 the widths are remembered, a double-click on an edge gives the usual width again.
+
+**Turning the view**: a left drag turns the 3D view freely, as far as you like (over the top too): across the screen
+about its upright, up and down about its level. A right drag pans, the wheel zooms; Iso / Top / Front / Right set the
+view again.
 *Save project* stores all the parts in one file (project version 3). Older project files still open, as a
 project with one part. The plan for the coming 3D model workspace (sketches → extrude / revolve / fillet …,
 light assemblies) is in [docs/ARCHITECTURE-modeler.md](docs/ARCHITECTURE-modeler.md). Its optional packages
