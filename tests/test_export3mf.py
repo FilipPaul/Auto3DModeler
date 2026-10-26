@@ -32,6 +32,19 @@ class Test3MF(unittest.TestCase):
             to_3mf([{"color": "#fff000", "positions": []}])
 
 
+class TestDownloadName(unittest.TestCase):
+    """A download's name may hold Czech letters or a dash: the header stays Latin-1 (it failed with —)."""
+
+    def test_header(self):
+        import server
+        from urllib.parse import unquote
+        h = server.attachment("Kačenka — 3D model.stl")
+        h.encode("latin-1")  # (raised before)
+        self.assertIn('filename="Kacenka - 3D model.stl"', h)
+        self.assertEqual(unquote(h.split("filename*=UTF-8''")[1]), "Kačenka — 3D model.stl")
+        self.assertNotIn('"', h.split("filename=")[1].split(";")[0].strip('"'))
+
+
 class TestBomCsv(unittest.TestCase):
     def test_rows(self):
         import server

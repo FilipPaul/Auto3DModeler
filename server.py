@@ -424,6 +424,16 @@ def api_joints():
 
 # --------------------------------------------------------------------------- export
 # ------------------------------------------------------------------ 3D model parts (sketch -> features -> B-rep)
+def attachment(filename: str) -> str:
+    """The Content-Disposition of a download named `filename`: HTTP headers are Latin-1, so an ASCII name for old
+    browsers and the real one (Czech letters, "—" …) UTF-8 encoded (RFC 6266 / 5987) for the others."""
+    import unicodedata
+    from urllib.parse import quote
+    plain = unicodedata.normalize("NFKD", filename.replace("—", "-").replace("–", "-"))
+    plain = plain.encode("ascii", "ignore").decode().replace('"', "").replace("\\", "_").strip() or "download"
+    return f"attachment; filename=\"{plain}\"; filename*=UTF-8''{quote(filename, safe='')}"
+
+
 def _model_call(op, arg):
     """Run a kernel op in the worker process -> (result, None) or (None, error response)."""
     try:
@@ -626,7 +636,7 @@ def api_assembly_step():
     if err:
         return err
     name = re.sub(r'[\/:*?"<>|]+', "_", body.get("name") or "assembly").strip() or "assembly"
-    return Response(data, mimetype="model/step", headers={"Content-Disposition": f'attachment; filename="{name}.step"'})
+    return Response(data, mimetype="model/step", headers={"Content-Disposition": attachment(f"{name}.step")})
 
 
 @app.post("/api/model/sketch/solve")
@@ -665,7 +675,7 @@ def api_model_export(fmt):
     if err:
         return err
     return Response(data, mimetype={"step": "model/step", "stl": "model/stl", "pdf": "application/pdf"}[fmt],
-                    headers={"Content-Disposition": f'attachment; filename="{name}.{fmt}"'})
+                    headers={"Content-Disposition": attachment(f"{name}.{fmt}")})
 
 
 @app.post("/api/export/<fmt>")
@@ -676,7 +686,7 @@ def api_export(fmt):
         data, filename, mime = _export_bytes(request.get_json(force=True), fmt)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
-    return Response(data, mimetype=mime, headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+    return Response(data, mimetype=mime, headers={"Content-Disposition": attachment(filename)})
 
 
 def _export_bytes(body: dict, fmt: str):
