@@ -326,6 +326,27 @@ export class Assembly {
     box.querySelector('[data-a=closeF]').addEventListener('click', () => { this.fastenerPanel = false; this.hoverCand = null; this.render(); this.draw(); });
   }
 
+  /** 🔩 Screw / pin by its two holes: the suggestion for that pair, in from the first one. */
+  async fastenerAt(from, to) {
+    const cs = findCandidates(this);
+    const has = (c, x) => c.holes.some((hh) => hh.inst === x.inst && hh.name === x.face.name);
+    const inPart = (c, inst) => c.holes.some((hh) => hh.inst === inst); // any hole of the other part on that axis
+    const c = cs.find((x) => x.entry.inst === from.inst && has(x, from) && inPart(x, to.inst)) || cs.find((x) => has(x, from) && inPart(x, to.inst));
+    this.mode = 'idle';
+    this.jointFrom = null;
+    this.hoverFace = null;
+    this.hint('');
+    if (!c) {
+      const d = (x) => `Ø${fmt(2 * (x.face.radius || 0))}`;
+      this.hooks.toast(t2('These holes ({a}, {b}) do not line up, or fit no standard screw / pin — a screw needs a clearance hole in the part it goes in from (M3: Ø3.2–3.7) and one that fits it or an insert (M3 insert: Ø3.9–4.4) below.',
+        { a: d(from), b: d(to) }), 'warning', 8000);
+      this.renderBar();
+      this.draw();
+      return;
+    }
+    await this.addFasteners([c]);
+  }
+
   /** A standard part in the project: the one already there with that name, or a new 3D model part. */
   ensurePart(mdl) {
     const have = this.hooks.parts().find((p) => p.kind === 'model' && p.name === mdl.name);
@@ -686,7 +707,7 @@ export class Assembly {
   jointHint() {
     const t = JOINT_TYPES[this.jointType], what = t.faces === 'cylinder' ? 'a round face' : 'a flat face';
     this.hint(this.mode === 'joint-from' ? `${t.icon} ${t.name}: click ${what} of the part to move${this.jointFrom ? ' (the selected one)' : ''} — Esc cancels.`
-      : `${t.icon} ${t.name}: now click ${what} of the other part.`);
+      : this.jointType === 'fastener' ? `${t.icon} ${t.name}: now click the other part (anywhere).` : `${t.icon} ${t.name}: now click ${what} of the other part.`);
     this.renderBar();
     this.draw();
   }
@@ -695,6 +716,8 @@ export class Assembly {
   faceFits(h) {
     if (!h?.face) return false;
     const want = JOINT_TYPES[this.jointType].faces;
+    // a screw / pin: the second part is clicked anywhere (its hole is often hidden under the first part)
+    if (this.jointType === 'fastener' && this.mode === 'joint-to') return h.inst !== this.jointFrom?.inst;
     if (h.face.type !== want) return false;
     if (this.mode === 'joint-from' && this.jointFrom?.inst && h.inst !== this.jointFrom.inst) return false;
     if (this.mode === 'joint-to' && h.inst === this.jointFrom?.inst) return false;
@@ -714,6 +737,7 @@ export class Assembly {
       return;
     }
     const type = this.jointType;
+    if (type === 'fastener') { this.fastenerAt(this.jointFrom, h); return; }
     if (this.addJoint(this.jointFrom, h, type, type === 'gap' ? 5 : 0)) {
       this.applyMates();
       this.sel = this.jointFrom.inst;
@@ -832,7 +856,7 @@ export class Assembly {
       snap_faces: async ({ move, onto, type = 'touch', gap = 0 }) => {
         need();
         await settle();
-        if (!JOINT_TYPES[type]) throw new Error(`type is ${Object.keys(JOINT_TYPES).join(', ')}.`);
+        if (!JOINT_TYPES[type] || JOINT_TYPES[type].pick) throw new Error(`type is ${Object.keys(JOINT_TYPES).filter((k) => !JOINT_TYPES[k].pick).join(', ')} (screws and pins: suggest_fasteners / add_fasteners).`);
         const from = { inst: move.part, face: this.worldFace(move.part, move.face) };
         const to = { inst: onto.part, face: this.worldFace(onto.part, onto.face) };
         if (from.inst === to.inst) throw new Error('Join a face of one part to a face of another part.');

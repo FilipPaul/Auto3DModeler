@@ -577,6 +577,8 @@ const CS = {
   'Locked: moving the part by hand cannot break it — click to unlock': 'Zamčeno: posunutí dílu rukou ji nezruší — kliknutím odemknete',
   'Lock it: then it cannot be broken by moving the part': 'Zamknout: pak ji posunutí dílu nezruší', 'Turn the part about this joint (about the axis, or on the face)': 'Natočit díl kolem této vazby (kolem osy nebo na ploše)',
   '{v} is the most that works here (with what is around it).': '{v} je nejvíc, co tu jde (podle toho, co je kolem).',
+  'Screw / pin': 'Šroub / kolík', 'click the hole it goes in from, then the hole in the other part — the fitting screw (and insert) or pin goes in': 'klikněte na díru, odkud se vkládá, pak na díru v druhém dílu — vloží se vhodný šroub (s maticí) nebo kolík',
+  'These holes ({a}, {b}) do not line up, or fit no standard screw / pin — a screw needs a clearance hole in the part it goes in from (M3: Ø3.2–3.7) and one that fits it or an insert (M3 insert: Ø3.9–4.4) below.': 'Tyto díry ({a}, {b}) nelícují nebo neodpovídají žádnému běžnému šroubu / kolíku — šroub potřebuje průchozí díru v dílu, odkud se vkládá (M3: Ø3,2–3,7), a pod ní díru pro něj nebo pro matici (matice M3: Ø3,9–4,4).',
   // language switch
   'Čeština / English': 'Čeština / English',
 };
@@ -676,6 +678,7 @@ const CS_PATTERNS = [
   ['{}: now click a flat face of the other part.', '{1}: teď klikněte na rovnou plochu druhého dílu.'], ['{}: now click a round face of the other part.', '{1}: teď klikněte na válcovou plochu druhého dílu.'],
   ['Add all ({})', 'Přidat vše ({1})'], ['Added {} fastener(s) — they follow the parts (each a part of the project you can open).', 'Přidáno {1} spojovacích prvků — sledují díly (každý je díl projektu, který lze otevřít).'],
   ['✓ Every hole that lines up has its fastener ({}).', '✓ Každá lícující díra má svůj spojovací prvek ({1}).'],
+  ['{}: now click the other part (anywhere).', '{1}: teď klikněte na druhý díl (kamkoli).'],
   ['{}× around', '{1}× dokola'], ['{}× · {} mm apart', '{1}× · {2} mm od sebe'], ['Line {} of the sketch', 'Čára {1} skici'], ['wall {} mm · {} open', 'stěna {1} mm · {2} otevřeno'], ['Open face {}', 'Otevřená plocha {1}'], ['{}° cut', '{1}° řez'],
   ['Height {} mm (follows the width).', 'Výška {1} mm (přizpůsobí se šířce).'], ['{} — 3D', '{1} — 3D'],
   ['{} hidden — the drawing still sets this size. Show it again in Dimensions (Hidden).', '{1} skryta — výkres tento rozměr stále určuje. Znovu ji zobrazíte v Rozměrech (Skryté).'],

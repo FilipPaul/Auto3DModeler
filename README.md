@@ -192,7 +192,9 @@ are placed together — 3D models ◆ and quick parts ▤ (drawings, pictures, i
 - **＋ Insert part ▾** adds a model part, as often as you like (⧉ in the list adds one more). A new one is put
   beside the others.
 - **🔗 Joint ▾**: choose how the part is held — **Touch** (S: a flat face onto a flat face, centred), **Gap** (facing,
-  a distance apart), **Flush** (in one plane), **Pin in hole** (two round faces on one axis) or **Parallel** — then
+  a distance apart), **Flush** (in one plane), **Pin in hole** (two round faces on one axis), **Parallel**, or
+  **🔩 Screw / pin** (click the hole it goes in from, then the other part anywhere: the fitting screw + insert or pin
+  goes in, held by its joints) — then
   click a face of the part to move and the face it goes to (the face under the mouse is marked). A part can have
   several joints, applied in order: *Pin in hole* + *Touch* seats a pin in its hole, head on the face. Joints
   **hold**: when the other part moves or a part changes size in its own tab, the joined part follows. The panel

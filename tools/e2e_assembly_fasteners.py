@@ -66,6 +66,29 @@ try:
     js(f"{A}.view.setView('iso')")
     time.sleep(0.5)
 
+    # 🔗 Joint ▾ 🔩 Screw / pin: the lid's hole wall (its far side, seen from the front-right), then the base anywhere
+    def screen_of(inst, local):
+        return js(f"""const a = {A}, it = a.inst(arguments[0]), v = a.view, V = v.camera.position.constructor;
+          const M = new (v.camera.matrix.constructor)().fromArray(it.matrix), p = new V(...arguments[1]).applyMatrix4(M);
+          const [sx, sy] = v.toScreen(p), r = v.renderer.domElement.getBoundingClientRect();
+          return [Math.round(sx - Math.floor(r.left + r.width / 2)), Math.round(sy - Math.floor(r.top + r.height / 2))];""", inst, local)
+
+    def click_on(inst, local):
+        ActionChains(d, duration=30).move_to_element_with_offset(d.find_element(By.CSS_SELECTOR, "#asmViewport canvas"), *screen_of(inst, local)).perform()
+        time.sleep(0.3)
+        ActionChains(d).click().perform()
+        time.sleep(0.6)
+    d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=joint]").click()
+    time.sleep(0.2)
+    d.find_element(By.CSS_SELECTOR, "#asmViewport [data-joint=fastener]").click()
+    time.sleep(0.3)
+    click_on("I2", [6 - 1.25, 34 + 1.15, 3.6])  # the lid's hole at (6, 34): its far wall, near the top
+    print("screw / pin, first click:", js(f"return {A}.jointFrom && [{A}.jointFrom.inst, {A}.jointFrom.face.type]"))
+    click_on("I1", [20, 0, 5])  # the base's front face
+    wait(f"return {A}.doc.instances.length === 4 && Object.values({A}.bodies).every(b => b.body)")
+    time.sleep(0.6)
+    print("one screw + insert by the joint menu:", sorted(p["name"] for p in parts() if p["id"] not in ("I1", "I2")))
+
     d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=fasteners]").click()
     time.sleep(0.6)
     rows = d.find_elements(By.CSS_SELECTOR, "#asmRight [data-cand]")
@@ -75,7 +98,7 @@ try:
     print("hovering marks its holes:", js(f"return {A}.view.markGroup.children.length"))
     d.save_screenshot(f"{OUT}/fast1.png")
     d.find_element(By.CSS_SELECTOR, "#asmRight [data-a=addAll]").click()
-    wait(f"return {A}.doc.instances.length === 10 && Object.values({A}.bodies).every(b => b.body)")
+    wait(f"return {A}.doc.instances.length === 10 && Object.values({A}.bodies).every(b => b.body)")  # 4 screws + 4 inserts in all
     time.sleep(0.8)
     ps = parts()
     screws = [p for p in ps if "screw" in p["name"]]

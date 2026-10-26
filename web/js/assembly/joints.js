@@ -14,6 +14,8 @@ export const JOINT_TYPES = {
   flush: { icon: '▭', name: 'Flush', faces: 'plane', hint: 'two flat faces in one plane, facing the same way' },
   axis: { icon: '◎', name: 'Pin in hole', faces: 'cylinder', hint: 'two round faces on one axis (a pin in a hole, a shaft in a bearing)' },
   parallel: { icon: '∥', name: 'Parallel', faces: 'plane', hint: 'two flat faces parallel (it only turns)' },
+  // not a joint of its own: picks two holes, puts the fitting screw (+ insert) or pin in them, held by joints
+  fastener: { icon: '🔩', name: 'Screw / pin', faces: 'cylinder', hint: 'click the hole it goes in from, then the other part — the fitting screw (and insert) or pin goes in', pick: true },
 };
 
 const V = (a) => (a instanceof THREE.Vector3 ? a.clone() : new THREE.Vector3(...a));
