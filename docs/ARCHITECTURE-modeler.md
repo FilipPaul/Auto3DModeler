@@ -56,6 +56,8 @@ Date: 2026-10-25. Written by the architect agent.
 - **Offset done:** ⧈ Offset (circles, loops of lines / arcs with mitred corners and tangent joins, blocks via
   /api/model/sketch/offset with shapely). A typed radius holds every other point; a drag / hold only places the
   points, the final solve and its check run without it. tools/e2e_model_offset.py.
+- **Decorating model faces done:** decal step (text traced in the browser via /api/trace, or a picture outline),
+  raised / engraved on a flat face, follows it; the AI's decal. tools/e2e_model_decal.py.
 - **Next (later list):** classic parts in assemblies; decorate faces of model parts; loft / sweep.
 
 ## 0. Summary

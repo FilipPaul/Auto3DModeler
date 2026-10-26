@@ -7,11 +7,12 @@ import { History } from '../history.js';
 import { t } from '../i18n.js';
 import { ModelView, DATUMS, datumFrame } from './view.js';
 import { Sketcher, upgradeSketch, arcPts } from './sketcher.js';
+import { textOutline } from '../outlinepanel.js';
 
-const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣' };
+const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa' };
 const TYPE_NAME = { sketch: 'Sketch', extrude: 'Extrude', revolve: 'Revolve', fillet: 'Fillet', chamfer: 'Chamfer', hole: 'Hole', shell: 'Shell', pattern: 'Pattern',
-  loft: 'Loft', sweep: 'Sweep', solid: 'Solid' };
-const REPEATABLE = new Set(['extrude', 'revolve', 'hole', 'pattern', 'loft', 'sweep']);
+  loft: 'Loft', sweep: 'Sweep', solid: 'Solid', decal: 'Decoration' };
+const REPEATABLE = new Set(['extrude', 'revolve', 'hole', 'pattern', 'loft', 'sweep', 'decal']);
 const AXES = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
 const USES_SKETCH = new Set(['extrude', 'revolve', 'loft', 'sweep']);
 /** The sketches a step is made from. */
@@ -117,6 +118,7 @@ export class Modeler {
         ${btn('chamfer', '◸ Chamfer', 'Bevel edges: click the edges, give the size', 'tool')}
         ${btn('hole', '◎ Hole', 'Drill holes: click on a flat face where they go, give the diameter (H)', 'tool')}
         ${btn('shell', '▢ Shell', 'Hollow the part out: click the face(s) to leave open, give the wall thickness', 'tool')}
+        ${btn('decal', 'Aa Text / picture', 'Decorate a flat face: text or a picture outline, raised or engraved', 'tool')}
         ${btn('pattern', '⁂ Pattern', 'Repeat a step (holes, a boss, a cut) in a row or around a circle: give how many and how far apart', 'tool')}
         <span class="sep"></span>
         <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
@@ -127,7 +129,7 @@ export class Modeler {
         ${btn('view-iso', 'Iso', 'View from the front-right, above')}${btn('view-top', 'Top', 'View from above')}${btn('view-front', 'Front', 'View from the front')}${btn('view-right', 'Right', 'View from the right')}`;
       bar.querySelector('[data-a=extrude]').disabled = !canExtrude || !!this.cmd;
       bar.querySelector('[data-a=sketch]').disabled = !!this.cmd;
-      for (const a of ['fillet', 'chamfer', 'hole', 'shell', 'pattern']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body || !!this.cmd;
+      for (const a of ['fillet', 'chamfer', 'hole', 'shell', 'pattern', 'decal']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body || !!this.cmd;
       bar.querySelector('[data-a=revolve]').disabled = !canExtrude || !!this.cmd;
       for (const a of ['loft', 'sweep']) bar.querySelector(`[data-a=${a}]`).disabled = this.sketches().length < 2 || !!this.cmd;
       for (const a of ['measure', 'section']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body;
@@ -146,6 +148,8 @@ export class Modeler {
       });
     }
     this.updateUndo();
+    const h = this.$('.m-hint');
+    if (h) h.style.top = `${bar.offsetTop + bar.offsetHeight + 8}px`;
   }
 
   updateUndo() {
@@ -166,6 +170,7 @@ export class Modeler {
     if (a === 'shell') return this.startShell();
     if (a === 'pattern') return this.startPattern();
     if (a === 'loft' || a === 'sweep') return this.startProfiles(a);
+    if (a === 'decal') return this.startDecal();
     if (a === 'undo') return this.history.go(-1);
     if (a === 'redo') return this.history.go(1);
     if (a.startsWith('view-')) return this.view.setView(a.slice(5));
@@ -182,9 +187,10 @@ export class Modeler {
   toast(...a) { this.hooks.toast(...a); }
 
   hint(text) {
-    const h = this.$('.m-hint');
+    const h = this.$('.m-hint'), bar = this.$('.m-cmdbar');
     h.hidden = !text;
     h.textContent = text || '';
+    if (bar) h.style.top = `${bar.offsetTop + bar.offsetHeight + 8}px`; // below the bar, also when it wraps to two rows
   }
 
   // ------------------------------------------------------------------ feature tree
@@ -235,6 +241,7 @@ export class Modeler {
     if (f.type === 'hole') return `Ø${fmt(f.d)} · ${n('points')} hole(s)${f.through === false ? ` · ${fmt(f.depth)} deep` : ''}`;
     if (f.type === 'revolve') return `${fmt(f.angle)}°${f.op === 'cut' ? ' cut' : ''}`;
     if (f.type === 'shell') return `wall ${fmt(f.t)} mm · ${n('faces')} open`;
+    if (f.type === 'decal') return `${f.source === 'text' ? `“${f.text}”` : 'picture'} · ${fmt(f.h)} mm${f.op === 'cut' ? ' · engraved' : ' · raised'}`;
     if (f.type === 'loft') return `${(f.sketches || []).length} sketches${f.op === 'cut' ? ' · cut' : ''}`;
     if (f.type === 'sweep') return `along ${this.part.features.find((g) => g.id === f.path)?.name || '?'}${f.op === 'cut' ? ' · cut' : ''}`;
     if (f.type === 'pattern') return f.kind === 'circular' ? `${f.count}× around` : `${f.count}× · ${fmt(f.spacing)} mm apart`;
@@ -304,7 +311,7 @@ export class Modeler {
       const ty = this.cmd.feature.type;
       return ty === 'extrude' ? this.renderExtrude(box) : ty === 'hole' ? this.renderHole(box) : ty === 'revolve' ? this.renderRevolve(box)
         : ty === 'shell' ? this.renderShell(box) : ty === 'pattern' ? this.renderPattern(box)
-        : ty === 'loft' || ty === 'sweep' ? this.renderProfiles(box) : this.renderRound(box);
+        : ty === 'loft' || ty === 'sweep' ? this.renderProfiles(box) : ty === 'decal' ? this.renderDecal(box) : this.renderRound(box);
     }
     if (this.mode === 'sketch') {
       box.innerHTML = this.sk.propsHtml();
@@ -680,6 +687,7 @@ export class Modeler {
     if (f.type === 'extrude' && !f.upto && !f.through && !(f.d > 0)) { this.hooks.toast('The distance must be greater than zero.', 'error'); return; }
     if ((f.type === 'fillet' || f.type === 'chamfer') && !f.edges.length) { this.hooks.toast('Click at least one edge first.', 'warning'); return; }
     if (f.type === 'shell' && !f.faces.length) { this.hooks.toast('Click the face(s) to leave open first.', 'warning'); return; }
+    if (f.type === 'decal' && (!f.plane || !f.polys)) { this.hooks.toast(f.plane ? 'Type some text, or choose a picture.' : 'Click on a flat face where it goes.', 'warning'); return; }
     if (f.type === 'hole' && !f.points.length) { this.hooks.toast('Click on a flat face where the hole goes.', 'warning'); return; }
     if (isNew) this.part.features.push(f);
     else this.part.features = this.part.features.map((g) => (g.id === f.id ? f : g));
@@ -727,6 +735,7 @@ export class Modeler {
     this.selected = feature.id;
     this.hint(feature.type === 'revolve' ? 'Revolve — choose the axis and the angle; the preview is in the view. Enter = OK, Esc = Cancel.'
       : feature.type === 'shell' ? 'Shell — click the face(s) to leave open, give the wall thickness. Enter = OK, Esc = Cancel.'
+      : feature.type === 'decal' ? 'Text / picture — click on a flat face where it goes (click again to move it). Enter = OK, Esc = Cancel.'
       : feature.type === 'loft' ? 'Loft — choose the sketch it starts from and the one it goes to. Enter = OK, Esc = Cancel.'
       : feature.type === 'sweep' ? 'Sweep — choose the outline (profile) and the path it moves along. Enter = OK, Esc = Cancel.'
       : feature.type === 'pattern' ? 'Pattern — how many and how far apart. Click an edge for the direction (or a round face for the axis). Enter = OK, Esc = Cancel.'
@@ -773,6 +782,7 @@ export class Modeler {
     if (f.type === 'hole') return this.clickHole(e);
     if (f.type === 'shell') return this.clickShell(e);
     if (f.type === 'pattern') return this.clickPattern(e);
+    if (f.type === 'decal') return this.clickDecal(e);
     if (f.type === 'revolve') return null;
     const i = this.view.pickEdge(e.clientX, e.clientY);
     if (i >= 0) {
@@ -1148,6 +1158,89 @@ export class Modeler {
   }
 
 
+  // ------------------------------------------------------------------ Text / picture on a face
+  startDecal() {
+    if (this.mode !== 'part' || this.cmd || !this.result?.body) return;
+    this.openCommand({ id: this.newId(), type: 'decal', name: this.nextName('decal'), source: 'text', text: 'Text', h: 8, depth: 1, op: 'add', plane: null, at: [0, 0] }, true);
+    this.traceDecal();
+  }
+
+  /** The text's outline (or keep the picture's). */
+  async traceDecal() {
+    const f = this.cmd?.feature;
+    if (!f || f.source !== 'text') return;
+    const want = f.text;
+    try {
+      const o = await textOutline(want, { bold: true });
+      if (this.cmd?.feature !== f || f.text !== want) return; // typed on meanwhile
+      if (!o) { f.polys = null; this.hooks.toast('Type some text first.', 'warning'); return; }
+      f.polys = o.polygons;
+      f.aspect = +o.aspect.toFixed(6);
+      this.rebuild();
+    } catch (e) { this.hooks.toast(e.message, 'error'); }
+  }
+
+  clickDecal(e) {
+    const f = this.cmd.feature, h = this.view.pick(e.clientX, e.clientY);
+    if (!h?.face || h.face.type !== 'plane' || h.face.name?.startsWith(`${f.id}:`)) { this.hooks.toast('Click a flat face of the part.', 'info', 3000); return; }
+    const same = f.plane && f.plane.face?.name === h.face.name;
+    if (!same) f.plane = { face: h.face.ref || { name: h.face.name }, frame: h.face.frame };
+    const fr = f.plane.frame, o = fr.o, x = fr.x, n = fr.n, y = [n[1] * x[2] - n[2] * x[1], n[2] * x[0] - n[0] * x[2], n[0] * x[1] - n[1] * x[0]];
+    const dd = [h.point.x - o[0], h.point.y - o[1], h.point.z - o[2]];
+    let u = dd[0] * x[0] + dd[1] * x[1] + dd[2] * x[2], v = dd[0] * y[0] + dd[1] * y[1] + dd[2] * y[2];
+    const mpp = this.view.mmPerPixel(fr);
+    if (Math.hypot(u, v) < mpp * 12) { u = 0; v = 0; } else { u = Math.round(u * 2) / 2; v = Math.round(v * 2) / 2; } // near the centre: on it
+    f.at = [u, v];
+    this.renderProps();
+    this.rebuild();
+  }
+
+  renderDecal(box) {
+    const f = this.cmd.feature, st = this.status(f.id);
+    box.innerHTML = `<h2>${esc(f.name)}</h2>
+      <div class="seg"><button data-src="text" class="${f.source === 'text' ? 'on' : ''}">Aa Text</button><button data-src="picture" class="${f.source !== 'text' ? 'on' : ''}">🖼 Picture</button></div>
+      ${f.source === 'text' ? `<div class="field"><label>Text</label><input type="text" data-k="text" value="${esc(f.text || '')}"></div>`
+        : `<div class="row-actions"><button class="btn small" data-a="pickPicture">${f.polys ? 'Another picture…' : 'Choose a picture…'}</button></div>`}
+      <div class="field"><label>Height</label><input type="number" step="any" min="0" data-k="h" value="${fmt(f.h)}"><span class="unit">mm</span></div>
+      <div class="seg"><button data-op="add" class="${f.op !== 'cut' ? 'on' : ''}">Raised</button><button data-op="cut" class="${f.op === 'cut' ? 'on' : ''}">Engraved</button></div>
+      <div class="field"><label>Depth</label><input type="number" step="any" min="0" data-k="depth" value="${fmt(f.depth)}"><span class="unit">mm</span></div>
+      <p class="hint">${f.plane ? 'Click on the face again to move it — near the face\'s centre it snaps to it.' : 'Click on a flat face of the part where it goes.'}</p>
+      ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
+      <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
+    const changed = () => { this.renderProps(); this.rebuild(); };
+    for (const b of box.querySelectorAll('[data-src]')) {
+      b.addEventListener('click', () => {
+        f.source = b.dataset.src;
+        f.polys = null;
+        changed();
+        if (f.source === 'text') this.traceDecal();
+      });
+    }
+    for (const b of box.querySelectorAll('[data-op]')) b.addEventListener('click', () => { f.op = b.dataset.op; changed(); });
+    const txt = box.querySelector('[data-k=text]');
+    if (txt) {
+      let timer = null;
+      txt.addEventListener('input', () => { f.text = txt.value; clearTimeout(timer); timer = setTimeout(() => this.traceDecal(), 350); });
+      txt.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+    }
+    for (const k of ['h', 'depth']) {
+      const inp = box.querySelector(`[data-k=${k}]`);
+      inp.addEventListener('input', () => { const v = parseFloat(inp.value); if (v > 0) { f[k] = v; this.rebuild(); } });
+      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+    }
+    box.querySelector('[data-a=pickPicture]')?.addEventListener('click', async () => {
+      const o = await this.hooks.pickOutline?.();
+      if (!o || this.cmd?.feature !== f) return;
+      // to a unit square centred on 0, like traced text
+      f.polys = o.polygons.map((poly) => poly.map((ring) => ring.map(([px, py]) => [+(px / o.width - 0.5).toFixed(6), +(py / o.height - 0.5).toFixed(6)])));
+      f.aspect = +(o.width / o.height).toFixed(6);
+      f.name = o.name ? `${t('Decoration')} ${o.name}` : f.name;
+      changed();
+    });
+    box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
+    box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
+  }
+
   // ------------------------------------------------------------------ Loft / Sweep
   /** A sketch that is an open line (a path): its lines / arcs have loose ends and no circles. */
   isPath(sk) {
@@ -1418,6 +1511,10 @@ export class Modeler {
           const h = f.upto ? this.view.pick(e.clientX, e.clientY) : null, ok = h?.face?.type === 'plane' && !h.face.name?.startsWith(`${f.id}:`);
           this.view.setHover(ok ? h.face.id : -1);
           cv.style.cursor = ok ? 'pointer' : '';
+        } else if (f.type === 'decal') {
+          const h = this.view.pick(e.clientX, e.clientY), ok = h?.face?.type === 'plane' && !h.face.name?.startsWith(`${f.id}:`);
+          this.view.setHover(ok ? h.face.id : -1);
+          cv.style.cursor = ok ? 'crosshair' : '';
         } else if (f.type === 'hole' && this.holePick) {
           const i = this.view.pickEdge(e.clientX, e.clientY), ok = i >= 0 && this.holeRefAt(i);
           this.view.setEdgeHighlight(ok ? i : -1, []);

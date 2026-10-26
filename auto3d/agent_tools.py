@@ -172,15 +172,18 @@ TOOLS = [
                     "- loft: sketches [ids, in order] — a solid from one closed outline to the next (put them on offset planes, "
                     "e.g. {datum: \"XY\", offset: 30}), op.\n"
                     "- sweep: profile (a sketch id: a closed outline across the path's start), path (a sketch id: an open "
-                    "line — shapes [{path: {points: [[u, v], …]}}]), op.",
-     "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep"]},
+                    "line — shapes [{path: {points: [[u, v], …]}}]), op.\n"
+                    "- decal: text on a flat face — face (name), text, h (letter height mm), op add (raised) / cut (engraved), "
+                    "depth (mm), at [u, v] from the face's centre.",
+     "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep", "decal"]},
                           "name": STR, "plane": {}, "shapes": {"type": "array"}, "lock": {"type": "boolean"},
                           "sketch": STR, "d": NUM, "op": {"type": "string", "enum": ["add", "cut"]}, "through": {"type": "boolean"},
                           "symmetric": {"type": "boolean"}, "flip": {"type": "boolean"}, "axis": {}, "angle": NUM,
                           "face": STR, "points": {"type": "array"}, "depth": NUM, "edges": {"type": "array"}, "r": NUM,
                           "faces": {"type": "array"}, "t": NUM, "of": {}, "kind": {"type": "string", "enum": ["linear", "circular"]},
                           "count": NUM, "spacing": NUM, "dir": {}, "up_to": STR, "offset": NUM,
-                          "sketches": {"type": "array"}, "profile": STR, "path": STR}, ["type"])},
+                          "sketches": {"type": "array"}, "profile": STR, "path": STR,
+                          "text": STR, "h": NUM, "at": {"type": "array"}}, ["type"])},
     {"name": "edit_feature", "where": "browser",
      "description": "Change a step of the 3D model: id and fields (as in add_feature, e.g. {d: 15}, {r: 3}, {points: …}, a "
                     "sketch's {shapes: […]}). Later steps follow their faces.",

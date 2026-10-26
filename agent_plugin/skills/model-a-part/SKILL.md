@@ -33,6 +33,8 @@ Everything is in mm. x right, y up, z up from the printer bed. The 3D printer be
 6. **Roundings and bevels last**: `{type: "fillet", edges: [<ref from find_refs>…], r: 2}`,
    `{type: "chamfer", edges: [...], d: 1}`. Prefer a chamfer on edges that touch the bed (no overhang).
    **Shell** (hollow out, e.g. a cup or a box): `{type: "shell", faces: ["<open face name>"], t: 2}`.
+   **Text on a face**: `{type: "decal", face: "<flat face name>", text: "AB-12", h: 6, op: "add" | "cut", depth: 0.8}`
+   (`at: [u, v]` from the face's centre). Strokes ≥ 0.6 mm wide print well — h ≥ 5 mm for bold text.
    **Repeats**: make ONE hole / boss / cut, then `{type: "pattern", of: ["<its id>"], dir: "x", count: 4, spacing: 15}`
    (a row) or `{type: "pattern", of: [...], kind: "circular", axis: "z", count: 6}` (a bolt circle; `axis` may be
    a round face's name). A warning "changed nothing" means the copies left the part — fix dir / spacing.

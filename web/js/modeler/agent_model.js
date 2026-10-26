@@ -3,6 +3,7 @@
 // a screenshot, a printing copy. Every change goes through the modeler like a user edit (visible, undoable).
 
 import { roundCorner } from './sketcher.js';
+import { textOutline } from '../outlinepanel.js';
 
 const r3 = (v) => +(+v).toFixed(3);
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -167,6 +168,16 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       const faces = (spec.faces || []).map((n) => { const f = faceOf(typeof n === 'string' ? n : n.name); return { name: f.name, fp: f.centroid }; });
       return { ...base, faces, t: spec.t ?? 2 };
     }
+    if (type === 'decal') {
+      if (!spec.face) throw new Error('face: the name of the flat face it goes on (find_refs).');
+      if (!spec.text) throw new Error('text: what to write (a picture is chosen by the user in the app).');
+      return (async () => {
+        const o = await textOutline(spec.text, { bold: spec.bold !== false });
+        if (!o) throw new Error('That text draws nothing.');
+        return { ...base, source: 'text', text: spec.text, polys: o.polygons, aspect: +o.aspect.toFixed(6), h: spec.h ?? 8, depth: spec.depth ?? 1,
+          op: spec.op === 'cut' ? 'cut' : 'add', plane: planeOf({ face: spec.face }), at: spec.at || [0, 0] };
+      })();
+    }
     if (type === 'loft') {
       const ids = [].concat(spec.sketches || []);
       if (ids.length < 2 || ids.some((x) => !m.part.features.some((g) => g.id === x && g.type === 'sketch'))) throw new Error('sketches: the ids of two (or more) sketch steps, in order.');
@@ -199,7 +210,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       }
       return { ...base, features: of, kind: 'linear', dir: vec(spec.dir || 'x', 'dir'), count: spec.count ?? 3, spacing: spec.spacing ?? 10 };
     }
-    throw new Error('type is sketch, extrude, revolve, fillet, chamfer, hole, shell, pattern, loft or sweep.');
+    throw new Error('type is sketch, extrude, revolve, fillet, chamfer, hole, shell, pattern, loft, sweep or decal.');
   };
 
   /** An edge polyline that is a circle or an arc (a hole's edge often comes as two half circles) -> its centre and radius. */
@@ -307,7 +318,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       needModel();
       ready();
       await settle();
-      const f = build(spec);
+      const f = await build(spec);
       m.part.features.push(f);
       return commitAnd(f.id);
     },

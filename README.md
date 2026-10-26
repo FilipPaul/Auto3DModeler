@@ -119,7 +119,10 @@ SolidWorks. It has only the tools that need almost no input.
    the other (give the second sketch an *Offset*), choose *From* and *To*. **〰 Sweep** moves an outline along a
    path — pipes, handles, rails: a closed profile across the path's start, and a path of lines and arcs (an open
    line); sharp corners of the path are mitred. Both can add or cut material.
-7. **⁂ Pattern** repeats a step (a hole, a boss, a cut — or another pattern): **▦ In a row** — how many and how far
+7. **Aa Text / picture** decorates a flat face: click where it goes (near the face's centre it snaps to it), type
+   the text (or choose a picture — it is traced to an outline), its height, *Raised* or *Engraved* and the depth.
+   It stays on its face when the part changes.
+8. **⁂ Pattern** repeats a step (a hole, a boss, a cut — or another pattern): **▦ In a row** — how many and how far
    apart, along X / Y / Z or a straight edge you click; **◌ Around** — how many, evenly around Z (or X / Y), or around
    the axis of a round face you click (a hole, a shaft). The copies follow when the original changes.
 

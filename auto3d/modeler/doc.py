@@ -32,7 +32,7 @@ DATUMS = {
     "XZ": {"o": [0, 0, 0], "x": [1, 0, 0], "n": [0, -1, 0]},  # Front
     "YZ": {"o": [0, 0, 0], "x": [0, 1, 0], "n": [1, 0, 0]},   # Right
 }
-FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell", "pattern", "solid", "loft", "sweep")
+FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell", "pattern", "solid", "loft", "sweep", "decal")
 
 _cache: OrderedDict = OrderedDict()  # prefix hash -> state after that feature (only in the worker process)
 CACHE_SIZE = 48
@@ -221,6 +221,26 @@ def _apply(f, st: State, s):
             tool = K.prism_body(face, names, -n * depth, fid)
             tool.names = {f"{fid}:hole:{k}": tool.names.get(f"{fid}:side:c", []), f"{fid}:bottom:{k}": tool.names.get(f"{fid}:end", [])}
             _use(st, fid, tool, "cut")
+        return
+    if t == "decal":
+        # text or a picture outline on a flat face: raised (add) or cut in, depth mm
+        if st.body is None:
+            raise K.KernelError("There is no solid yet to decorate.")
+        if not (f.get("plane") or {}).get("frame"):
+            raise K.KernelError("Click on a flat face where it goes.")
+        if not f.get("polys"):
+            raise K.KernelError("Type some text, or choose a picture.")
+        fr = plane_frame(f.get("plane"), st)
+        st.frames[fid] = fr
+        h = _num(f, "h", 10, what="height")
+        w = h * float(f.get("aspect") or 1)
+        polys = [[[[x * w, y * h] for x, y in ring] for ring in poly] for poly in f["polys"]]
+        faces = K.sketch_faces(fr, {"entities": [{"id": fid, "t": "block", "polys": polys, "at": f.get("at") or [0, 0], "scale": 1}]})
+        depth = _num(f, "depth", 1, what="depth")
+        n = np.asarray(fr["n"], float)
+        op = "cut" if f.get("op") == "cut" else "add"
+        for face, names in faces:
+            _use(st, fid, K.prism_body(face, names, n * depth * (-1 if op == "cut" else 1), fid), op)
         return
     if t == "solid":
         # a ready solid (STEP, base64): a quick part placed in an assembly, or an imported body

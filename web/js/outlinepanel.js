@@ -30,6 +30,35 @@ let uid = 0;
 const newId = (p) => `${p}${Date.now().toString(36)}${(uid++).toString(36)}`;
 
 /** Outline rings (model space) of a circle / rectangle / line, for selection and hit testing. */
+/** Text as an outline: drawn on a canvas, cropped to its ink, traced by the server.
+ *  -> {polygons (a unit square centred on 0, y up), aspect (width / height)}, or null when it draws nothing. */
+export async function textOutline(text, { font = FONTS[0][0], bold = false } = {}) {
+  const px = 160, f = `${bold ? 'bold ' : ''}${px}px ${font}`;
+  const lines = String(text || '').split('\n');
+  const c = document.createElement('canvas');
+  let ctx = c.getContext('2d');
+  ctx.font = f;
+  c.width = Math.ceil(Math.max(1, ...lines.map((l) => ctx.measureText(l).width)) + px);
+  c.height = Math.ceil(px * 1.3 * lines.length + px);
+  ctx = c.getContext('2d');
+  Object.assign(ctx, { font: f, textAlign: 'center', textBaseline: 'middle', fillStyle: '#000' });
+  lines.forEach((l, i) => ctx.fillText(l, c.width / 2, px / 2 + px * 1.3 * (i + 0.5)));
+  const d = ctx.getImageData(0, 0, c.width, c.height).data;
+  let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
+  for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
+    if (d[(y * c.width + x) * 4 + 3] > 40) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  }
+  if (x1 < 0) return null;
+  const crop = document.createElement('canvas');
+  crop.width = x1 - x0 + 3;
+  crop.height = y1 - y0 + 3;
+  crop.getContext('2d').drawImage(c, x0 - 1, y0 - 1, crop.width, crop.height, 0, 0, crop.width, crop.height);
+  const res = await fetch('/api/trace', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: crop.toDataURL('image/png'), max_px: 1024 }) });
+  const r = await res.json();
+  if (!res.ok) throw new Error(r.error || res.statusText);
+  return r.polygons?.length ? { polygons: r.polygons, aspect: r.aspect } : null;
+}
+
 export function shapeRings(s) {
   // 2D shapes name the primitive in `kind`, 3D objects in `source`
   const kind = s && (s.source && s.source !== 'outline' ? s.source : s.source ? null : s.kind);
@@ -312,30 +341,10 @@ export class OutlinePanel {
 
   /** Render text in the browser (any installed font) and trace it on the server into polygons. */
   async traceText(it) {
-    const px = 160, font = `${it.bold ? 'bold ' : ''}${px}px ${it.font || FONTS[0][0]}`;
-    const lines = String(it.text || '').split('\n');
-    const c = document.createElement('canvas');
-    let ctx = c.getContext('2d');
-    ctx.font = font;
-    c.width = Math.ceil(Math.max(1, ...lines.map((l) => ctx.measureText(l).width)) + px);
-    c.height = Math.ceil(px * 1.3 * lines.length + px);
-    ctx = c.getContext('2d');
-    Object.assign(ctx, { font, textAlign: 'center', textBaseline: 'middle', fillStyle: '#000' });
-    lines.forEach((l, i) => ctx.fillText(l, c.width / 2, px / 2 + px * 1.3 * (i + 0.5)));
-    // crop to the ink so the shape's size is the size of the letters
-    const d = ctx.getImageData(0, 0, c.width, c.height).data;
-    let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
-    for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
-      if (d[(y * c.width + x) * 4 + 3] > 40) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-    }
-    if (x1 < 0) { this.toast('Type some text first.', 'warning'); return false; }
-    const crop = document.createElement('canvas');
-    crop.width = x1 - x0 + 3;
-    crop.height = y1 - y0 + 3;
-    crop.getContext('2d').drawImage(c, x0 - 1, y0 - 1, crop.width, crop.height, 0, 0, crop.width, crop.height);
+    if (!String(it.text || '').trim()) { this.toast('Type some text first.', 'warning'); return false; }
     try {
-      const res = await (await this.api('/api/trace', { image: crop.toDataURL('image/png'), max_px: 1024 })).json();
-      if (!res.polygons?.length) { this.toast('This text produced no outline.', 'warning'); return false; }
+      const res = await textOutline(it.text, { font: it.font || FONTS[0][0], bold: it.bold });
+      if (!res) { this.toast('This text produced no outline.', 'warning'); return false; }
       it.polygons = res.polygons;
       it.aspect = res.aspect;
       it.w = +(it.h * res.aspect).toFixed(4);

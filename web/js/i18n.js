@@ -534,6 +534,13 @@ const CS = {
   'That distance is bigger than a rounding of the outline.': 'Vzdálenost je větší než zaoblení obrysu.', 'That distance is bigger than the circle.': 'Vzdálenost je větší než kružnice.',
   'This outline has a sharp corner next to an arc — round it (◜) or offset its pieces one by one.': 'Obrys má ostrý roh vedle oblouku — zaoblete ho (◜) nebo odsaďte jeho části jednotlivě.',
   'Nothing is left — the outline is thinner than that.': 'Nic nezbude — obrys je tenčí.', 'Give an outline and a distance.': 'Zadejte obrys a vzdálenost.',
+  'Aa Text / picture': 'Aa Text / obrázek', 'Decorate a flat face: text or a picture outline, raised or engraved': 'Ozdobit rovnou plochu: text nebo obrys obrázku, vystouplý nebo vyrytý',
+  Decoration: 'Ozdoba', 'Aa Text': 'Aa Text', '🖼 Picture': '🖼 Obrázek', Text: 'Text', Raised: 'Vystouplé', Engraved: 'Vyryté',
+  'Choose a picture…': 'Vybrat obrázek…', 'Another picture…': 'Jiný obrázek…', 'Type some text, or choose a picture.': 'Napište text nebo vyberte obrázek.',
+  'Click on a flat face where it goes.': 'Klikněte na rovnou plochu, kam patří.', 'Click on a flat face of the part where it goes.': 'Klikněte na rovnou plochu dílu, kam patří.',
+  "Click on the face again to move it — near the face's centre it snaps to it.": 'Dalším kliknutím na plochu ho posunete — u středu plochy se k němu přichytí.',
+  'Text / picture — click on a flat face where it goes (click again to move it). Enter = OK, Esc = Cancel.': 'Text / obrázek — klikněte na rovnou plochu, kam patří (dalším kliknutím ho posunete). Enter = OK, Esc = Zrušit.',
+  'There is no solid yet to decorate.': 'Zatím není co zdobit.',
   // language switch
   'Čeština / English': 'Čeština / English',
 };

@@ -364,6 +364,27 @@ class TestFeatures(unittest.TestCase):
         r, _ = vol(prof, branch, sweep)
         self.assertIn("branches", r["features"][-1]["issues"][0])
 
+    def test_decal(self):
+        # a picture outline (a unit square centred on 0) 20 x 10 mm on the box's top: raised 1 mm, then engraved
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        sq = [[[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]]
+        dec = {"id": "D1", "type": "decal", "plane": top, "polys": [sq], "aspect": 2, "h": 10, "depth": 1, "op": "add", "at": [0, 0]}
+        r, v = vol(*box(), dec)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 + 200, delta=1e-3)
+        self.assertEqual(r["body"]["bbox"][5], 11)
+        r, v = vol(*box(), {**dec, "op": "cut"})
+        self.assertAlmostEqual(v, 8000 - 200, delta=1e-3)
+        # a letter with a hole (an "O"): the hole stays open
+        ring = [sq[0], [[-0.25, -0.25], [-0.25, 0.25], [0.25, 0.25], [0.25, -0.25]]]
+        r, v = vol(*box(), {**dec, "polys": [ring]})
+        self.assertAlmostEqual(v, 8000 + 200 - 50, delta=1e-3)
+        # the box gets taller: the decoration stays on its top
+        r, _ = vol(*box(d=15), dec)
+        self.assertEqual(r["body"]["bbox"][5], 16)
+        r, _ = vol(*box(), {**dec, "polys": []})
+        self.assertIn("text", r["features"][-1]["issues"][0])
+
 
 if __name__ == "__main__":
     unittest.main()
