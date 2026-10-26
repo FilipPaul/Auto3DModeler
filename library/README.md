@@ -49,6 +49,10 @@ A file holds `{"items": [ … ]}` (or one item on its own). An item:
     `{"hex": {"s", "x", "y"}}` (s across the flats), `{"polygon": {"n", "d", "x", "y", "turn"}}`,
     `{"polyline": [[x, y]…]}`.
   - `"when": "formula"` makes a step only where the formula is above 0 (e.g. `"top - 10"`).
+  - `"color": "#rrggbb"` gives the faces that step makes their own colour (a rod, a connector); the item's `color`
+    is the rest.
+- The maker's real models (STEP files) attached in the library window are kept in `data/library/models.json`:
+  item id -> `"size|length"` -> the stored file. The library uses that model for that choice instead of `shape`.
 - Instead of `shape`, `features` may hold a 3D model's steps as they are (what *Save to the library* writes).
 
 After a change, `py -m unittest tests.test_library` checks every file. `tools/e2e_library_build.py` builds every

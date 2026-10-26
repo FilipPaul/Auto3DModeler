@@ -272,13 +272,16 @@ and a title block (name, size, material, mass, scale). The AI's `export {format:
 - **ruthex heat-set inserts** (with the hole size to print), **bearings** (608-2Z and others; LMxUU), **standoffs**
   (Würth WA-SSTII M3, brass M/F);
 - **panel parts** (APEM Q8 LEDs, Eaton M22 push buttons and E-stop, Neutrik D-size USB / RJ45 feed-throughs);
-- **automation**: SMC CJ2 cylinders (bore and stroke), KQ2 fittings, an SY3000 valve; SICK IME12 / IME18 inductive
-  sensors; NEMA 17 / 23 stepper motors.
+- **automation**: SMC CJ2 cylinders and CQ2 compact cylinders (CDQ2B ø12–ø50, bore and stroke), D-M9 auto switches for
+  them, KQ2 fittings, an SY3000 valve; SICK IME12 / IME18 inductive sensors; NEMA 17 / 23 stepper motors.
 
 Search (e.g. *M3*, *608*, *SMC*, *SICK*), choose the size (and length or stroke), and see it in 3D. Then **⤵ Put into
 the assembly** on screen (the same part is used again when you put it in twice) or **◆ Open as a new 3D model**.
 Parts marked **≈ outline** are drawn from their catalogue sizes as an envelope, so check the maker's drawing for
-the details. *Find it at* searches the part number at Mouser, Farnell, TME and GM Electronic. A library part's panel
+the details. The parts are drawn by the app, coloured part by part (a cylinder's rod lighter than its body). **📎 Use
+the maker's model (STEP)…** attaches the real model you downloaded from the maker (SMC, SICK… — after a log-in there,
+and theirs to use, not to share) to the chosen size: from then on the library puts in that exact model, in its own
+colours, still with its part number in the BOM; ✕ goes back to the drawn one. *Find it at* searches the part number at Mouser, Farnell, TME and GM Electronic. A library part's panel
 shows its facts. **📚 Save to the library** (a 3D model's panel) keeps your own part, with its maker and part number
 if bought, in `data/library/` on the server. The format for writing parts by hand is in
 [library/README.md](library/README.md). An assembly's **⬇ BOM (CSV)** lists every part (inside sub-assemblies too)

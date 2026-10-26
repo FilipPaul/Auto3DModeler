@@ -1,7 +1,7 @@
 """📚 Every part of the library builds, in headless Edge: each item, each size, its shortest and longest length, made into
 3D model steps (web/js/library/build.js) and built by the kernel -> a solid, its volume and size; a few checked against
 their catalogue sizes (an M3×10 socket head screw 13 mm tall, a 608 bearing Ø22 × 7, SMC CDJ2B16-50 75 + 50 long, a SICK
-IME12 46 long, a NEMA 17 42.3 wide).
+IME12 46 long, a NEMA 17 42.3 wide, SMC CDQ2B25 52 square and 37.5 + stroke long).
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
   PYTHONIOENCODING=utf-8 py tools/e2e_library_build.py http://127.0.0.1:5199 <out dir>
@@ -73,6 +73,10 @@ try:
     print("NEMA 17 48:", find("nema17", "48 mm (17HS19-2004S1)").get("size3"), "(42.3 × 42.3 × 48 + 26)")
     print("ruthex M3:", find("ruthex", "M3").get("size3"), find("ruthex", "M3").get("pn"))
     print("Würth 10 mm:", find("wurth-sstii-m3", "10").get("pn"), "(970100321)", find("wurth-sstii-m3", "10").get("size3"))
+    print("CDQ2B25 stroke 5:", find("smc-cdq2b", "Ø25", 5).get("size3"), "(52 × 52 × 37.5 + 5) | pn", find("smc-cdq2b", "Ø25", 5).get("pn"))
+    print("CDQ2B12 stroke 5:", find("smc-cdq2b", "Ø12", 5).get("size3"), "(32 × 32 × 31.5 + 5) | pn", find("smc-cdq2b", "Ø12", 5).get("pn"))
+    print("CDQ2B50 stroke 100:", find("smc-cdq2b", "Ø50", 100).get("size3"), "(64 × 64 × 48.5 + 100)")
+    print("D-M9BW:", find("smc-d-m9", "2-wire, 2-colour").get("pn"), find("smc-d-m9", "2-wire, 2-colour").get("size3"))
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()

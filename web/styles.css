@@ -530,6 +530,8 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .lib-facts { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 12px; margin-bottom: 6px; }
 .lib-facts span { color: var(--muted); }
 .lib-shops { font-size: 12px; margin-bottom: 8px; color: var(--muted); }
+.lib-real { display: flex; align-items: center; gap: 8px; margin: 2px 0 10px; font-size: 12px; }
+.lib-realon { color: #7ee787; }
 .lib-approx { display: inline-block; font-size: 11px; color: #f2cc60; border: 1px solid #6b5a1e; border-radius: 10px; padding: 1px 8px; margin: 0 0 6px; }
 .lib-part { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
 .lib-part > b { display: inline-block; margin-bottom: 4px; }

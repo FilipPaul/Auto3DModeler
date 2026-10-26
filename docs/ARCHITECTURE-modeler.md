@@ -60,6 +60,10 @@ Date: 2026-10-25. Written by the architect agent.
   raised / engraved on a flat face, follows it; the AI's decal. tools/e2e_model_decal.py.
 - **Assembly links done:** snaps hold (doc.mates {move, face, onto, ontoFace}, re-applied after refresh and moves;
   moving the snapped part by hand unlinks; no cycles; saved, undoable). tools/e2e_assembly_links.py.
+- **CQ2 cylinders, colours, real models done:** library smc-cdq2b (SMC CQ2 catalogue, with auto switch) and smc-d-m9;
+  a step's `color` -> part.paint {feature, color} (paint.js colours every face that step made); data/library/models.json
+  (library.set_model, POST /api/library/model) -> buildPart uses the attached STEP (a solid step) for that choice.
+  tools/e2e_library_real.py.
 - **AI library-first done:** tools library_search / library_add / check_collisions (agent_tools.py + app.js
   libraryTools), get_assembly with free / fully_held per joined part and maker / pn in parts_list, the system prompt's
   "use the parts library first" rule, skills mechanical-design and automation-design (assemble-parts updated).

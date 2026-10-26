@@ -4,6 +4,7 @@
 // chosen size's values:
 //   {"revolve": [[r, z], …]}                       a half-section (r from the axis, z up), turned round the Z axis
 //   {"extrude": {shape}, "z": z0, "h": height, "op": "add" | "cut", "holes": [{shape}…], "at": [[x, y]…], "plane": "XY" | "XZ" | "YZ"}
+//   "color": "#rrggbb" on a step: the faces it makes in that colour (a rod, a connector); the item's "color" is the rest
 //   shapes: {"circle": {"d", "x", "y"}}, {"rect": {"w", "h", "x", "y", "r"}} (x, y: its middle), {"hex": {"s", "x", "y"}}
 //   (s across the flats), {"polygon": {"n", "d", "x", "y"}} (n corners on Ø d), {"polyline": [[x, y]…]}
 // A step with "when": a formula is made only where that formula is above 0 (e.g. "top - 10").
@@ -105,20 +106,27 @@ function shapesOf(spec, vars, at = [[0, 0]]) {
   return out;
 }
 
-/** An item and the choice (size, length) -> {name, data (the 3D model part: its steps and the library facts)}. */
+/** The key of a choice among an item's real models (the maker's STEP files the user attached). */
+export const modelKey = (sizeKey, length) => `${sizeKey}|${length ?? ''}`;
+
+/** An item and the choice (size, length) -> {name, data (the 3D model part: its steps and the library facts)}.
+ *  A real model (the maker's STEP) attached to that choice is used instead of the drawn one. */
 export function buildPart(item, sizeKey = sizesOf(item)[0]?.key, length) {
-  const vars = varsOf(item, sizeKey, length), features = [];
+  const vars = varsOf(item, sizeKey, length), features = [], paint = [];
   let n = 0;
   const id = () => `F${++n}`;
+  const real = item.models?.[modelKey(sizeKey, lengthsOf(item, sizeKey) ? vars.L : undefined)];
+  if (real) features.push({ id: id(), type: 'solid', name: real.file.replace(/\.[^.]+$/, ''), blob: real.blob, file: real.file, op: 'add' });
   // a part saved from a 3D model: its own steps, as they are
-  if (item.features?.length) features.push(...structuredClone(item.features));
-  for (const step of item.shape || []) {
+  else if (item.features?.length) features.push(...structuredClone(item.features));
+  for (const step of real ? [] : item.shape || []) {
     if (step.when !== undefined && !(evaluate(step.when, vars) > 0)) continue; // a step only some sizes have (its formula > 0)
     if (step.revolve) {
       const pts = step.revolve.map(([r, z]) => [num(r, vars), num(z, vars)]);
       const sk = id();
       features.push({ id: sk, type: 'sketch', name: `Sketch ${n}`, plane: { datum: 'XZ' }, ...sketchFromShapes([{ polyline: { points: pts } }], true) });
       features.push({ id: id(), type: 'revolve', name: `Revolve ${n}`, sketch: sk, axis: 'y', angle: 360, op: step.op === 'cut' ? 'cut' : 'add' });
+      if (step.color) paint.push({ feature: `F${n}`, color: step.color });
       continue;
     }
     if (step.extrude) {
@@ -126,6 +134,7 @@ export function buildPart(item, sizeKey = sizesOf(item)[0]?.key, length) {
       const h = num(step.h, vars), z = num(step.z ?? 0, vars), sk = id();
       features.push({ id: sk, type: 'sketch', name: `Sketch ${n}`, plane: { datum: step.plane || 'XY', ...(z ? { offset: z } : {}) }, ...sketchFromShapes(shapes, true) });
       features.push({ id: id(), type: 'extrude', name: `Extrude ${n}`, sketch: sk, op: step.op === 'cut' ? 'cut' : 'add', d: Math.abs(h), through: false, symmetric: false, flip: h < 0 });
+      if (step.color) paint.push({ feature: `F${n}`, color: step.color });
       continue;
     }
     throw new Error(`A step is revolve or extrude: ${JSON.stringify(step).slice(0, 80)}`);
@@ -138,10 +147,12 @@ export function buildPart(item, sizeKey = sizesOf(item)[0]?.key, length) {
     name,
     data: {
       features,
-      ...(item.color ? { color: item.color } : {}),
+      ...(item.color && !real ? { color: item.color } : {}),
+      ...(!real && (paint.length || item.paint?.length) ? { paint: [...paint, ...structuredClone(item.paint || [])] } : {}),
       material: item.material || undefined,
       library: { id: item.id, item: item.name, size: sizeKey, ...(vars.L !== undefined && lengthsOf(item, sizeKey) ? { length: vars.L } : {}),
-        maker: item.maker || '', pn, description: fill(item.description || item.name, vars), order, approx: !!item.approx, standard: item.standard || '' },
+        maker: item.maker || '', pn, description: fill(item.description || item.name, vars), order, approx: !!item.approx && !real, standard: item.standard || '',
+        ...(real ? { real: real.file } : {}) },
     },
   };
 }

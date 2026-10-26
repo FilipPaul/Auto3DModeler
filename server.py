@@ -178,6 +178,17 @@ def api_library_save():
         return jsonify({"error": str(e)}), 400
 
 
+@app.post("/api/library/model")
+def api_library_model():
+    """{item, key ('size|length'), blob (from /api/model/import), file} -> the maker's real model used for that choice;
+    without blob: the drawn one again."""
+    body = request.get_json(force=True, silent=True) or {}
+    try:
+        return jsonify({"models": parts_library.set_model(LIBRARY_USER, body.get("item"), body.get("key"), body.get("blob"), body.get("file", ""))})
+    except parts_library.LibraryError as e:
+        return jsonify({"error": str(e)}), 400
+
+
 @app.delete("/api/library/<item_id>")
 def api_library_delete(item_id):
     try:

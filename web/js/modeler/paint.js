@@ -1,11 +1,17 @@
 // Faces painted on their own: a part's `paint` is [{name, fp: [x, y, z], color}] — the face's name and where it was.
 // Several faces can share a name (two blocks from one extrude): the one of that name nearest fp is painted, so the
-// colour stays on its face when the part changes.
+// colour stays on its face when the part changes. {feature: 'F9', color} colours every face that step made (a
+// library part's rod, its connector …); a later entry wins over an earlier one.
 
 /** faces of a body (tessellate output) -> Map(face id -> {color, i}) (i: the paint entry). */
 export function paintedFaces(faces, paint = []) {
   const out = new Map();
   (paint || []).forEach((e, i) => {
+    if (e.feature) {
+      const pre = `${e.feature}:`;
+      for (const f of faces) if (String(f.name || '').startsWith(pre) || (f.names || []).some((n) => String(n).startsWith(pre))) out.set(f.id, { color: e.color, i });
+      return;
+    }
     const c = faces.filter((f) => f.name === e.name || (f.names || []).includes(e.name));
     if (!c.length) return;
     const dist = (f) => Math.hypot(...f.centroid.map((v, k) => v - (e.fp?.[k] ?? 0)));

@@ -2284,6 +2284,7 @@ initSplitters(document.querySelector('main.layout'), $('aiDrawer'));
 const libKey = (d) => (d?.library ? JSON.stringify([d.library.id, d.library.size, d.library.length ?? null]) : null);
 const library = new LibraryBrowser({
   toast,
+  importSolid: (file) => importSolid(file),
   canInsert: () => state.workspace === 'assembly',
   async openAsModel(name, data) {
     await project.newModel(structuredClone(data), name);

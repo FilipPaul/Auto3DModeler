@@ -2,7 +2,7 @@
 // 3D with its maker, part number and shop links — then open it as a new 3D model or put it into the assembly on screen.
 import { t } from '../i18n.js';
 import { ModelView } from '../modeler/view.js';
-import { buildPart, sizesOf, lengthsOf, shopLinks, fill, varsOf } from './build.js';
+import { buildPart, sizesOf, lengthsOf, shopLinks, fill, varsOf, modelKey } from './build.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
@@ -30,7 +30,8 @@ export function matchScore(item, query) {
 }
 
 export class LibraryBrowser {
-  /** hooks: {toast, canInsert() (an assembly on screen), openAsModel(name, data), insertIntoAssembly(name, data)} */
+  /** hooks: {toast, canInsert() (an assembly on screen), openAsModel(name, data), insertIntoAssembly(name, data),
+   *  importSolid(file) -> {blob, name} (a STEP read and stored on the server)} */
   constructor(hooks) { this.hooks = hooks; this.state = { q: '', item: null, size: null, length: null }; }
 
   async open(query = '') {
@@ -121,6 +122,9 @@ export class LibraryBrowser {
         ${lib.standard ? `<span>${esc(t('Standard'))}</span><b data-no-i18n>${esc(lib.standard)}</b>` : ''}
         ${order.map(([k, v]) => `<span>${esc(k.toUpperCase())}</span><b data-no-i18n>${esc(v)}</b>`).join('')}</div>
       ${lib.pn ? `<div class="lib-shops">${esc(t('Find it at'))} ${shopLinks(lib.pn).map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.shop)}</a>`).join(' · ')}</div>` : ''}
+      <div class="lib-real">${lib.real ? `<span class="lib-realon">✓ ${esc(t('The maker\'s model'))}: <b data-no-i18n>${esc(lib.real)}</b></span>
+          <button class="btn small" data-a="unreal" title="${esc(t('Use the drawn model again for this size'))}">✕</button>`
+        : `<label class="btn small" title="${esc(t('Download the maker\'s 3D model (STEP) for this part number, then choose it here — the library uses it (its own colours) for this size from now on'))}">📎 ${esc(t('Use the maker\'s model (STEP)…'))}<input type="file" data-a="real" accept=".step,.stp,.STEP,.STP" hidden></label>`}</div>
       <div class="row-actions wrap lib-acts">
         <button class="btn primary" data-a="insert" ${asm ? '' : `disabled title="${esc(t('Open an assembly first (＋ New assembly)'))}"`}>⤵ Put into the assembly</button>
         <button class="btn" data-a="model">◆ Open as a new 3D model</button>
@@ -129,6 +133,24 @@ export class LibraryBrowser {
       if (sel.dataset.k === 'size') this.select(it.id, sel.value, this.state.length);
       else { this.state.length = +sel.value; this.renderDetail(); }
     });
+    const key = modelKey(this.state.size, ls ? this.state.length : undefined);
+    const setModel = async (blob, file) => {
+      const res = await fetch('/api/library/model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item: it.id, key, blob, file }) });
+      const r = await res.json();
+      if (!res.ok) throw new Error(r.error || res.statusText);
+      if (Object.keys(r.models).length) it.models = r.models; else delete it.models;
+      this.renderDetail();
+    };
+    box.querySelector('[data-a=real]')?.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const r = await this.hooks.importSolid(file);
+        await setModel(r.blob, file.name);
+        this.hooks.toast(tv('{file} is the model of {name} now (its own colours).', { file: file.name, name: built.name }), 'ok', 6000);
+      } catch (err) { this.hooks.toast(err.message, 'error', 8000); }
+    });
+    box.querySelector('[data-a=unreal]')?.addEventListener('click', () => setModel(null, '').catch((err) => this.hooks.toast(err.message, 'error')));
     box.querySelector('[data-a=insert]').addEventListener('click', async () => { const c = this.current(); this.close(); await this.hooks.insertIntoAssembly(c.built.name, c.built.data); });
     box.querySelector('[data-a=model]').addEventListener('click', async () => { const c = this.current(); this.close(); await this.hooks.openAsModel(c.built.name, c.built.data); });
     box.querySelector('[data-a=del]')?.addEventListener('click', async () => {
@@ -160,7 +182,7 @@ export class LibraryBrowser {
       if (run !== this.run || !this.view) return;
       if (!res.ok || !r.body) throw new Error(r.error || (r.features || []).flatMap((s) => s.issues || []).join(' ') || 'No solid.');
       this.view.setBody(r.body);
-      this.view.setLook({ color: data.color });
+      this.view.setLook({ color: data.color, paint: data.paint });
       this.view.showDatums?.(false); // the part alone, without the base planes
       this.view.setView('iso');
       this.lastBody = r.body;
@@ -217,7 +239,8 @@ export function libraryFactsHtml(lib) {
 /** A part (name, data) as a library item of the user's own: a fixed 3D model with its maker and part number. */
 export function itemFromModel(name, data, { category = 'My parts', maker = '', pn = '' } = {}) {
   const id = `my-${norm(name).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'part'}-${Date.now().toString(36).slice(-4)}`;
-  return { id, name, category, maker, pn, description: name, features: structuredClone(data.features || []), ...(data.color ? { color: data.color } : {}) };
+  return { id, name, category, maker, pn, description: name, features: structuredClone(data.features || []), ...(data.color ? { color: data.color } : {}),
+    ...(data.paint?.length ? { paint: structuredClone(data.paint) } : {}) };
 }
 
 export { fill, varsOf };

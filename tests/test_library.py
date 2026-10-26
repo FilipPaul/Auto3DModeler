@@ -55,6 +55,19 @@ class TestUserLibrary(unittest.TestCase):
         with self.assertRaises(L.LibraryError):
             L.delete_user_item(self.user, "bearing")  # the app's own: stays
 
+    def test_real_models(self):
+        sha = "a" * 64
+        self.assertEqual(L.set_model(self.user, "smc-cdq2b", "Ø25|15", sha, "CDQ2B25-15DZ.step"), {"Ø25|15": {"blob": sha, "file": "CDQ2B25-15DZ.step", "added": L.set_model(self.user, "smc-cdq2b", "Ø25|15", sha, "CDQ2B25-15DZ.step")["Ø25|15"]["added"]}})
+        items = {it["id"]: it for it in L.load(APP, self.user)["items"]}
+        self.assertEqual(items["smc-cdq2b"]["models"]["Ø25|15"]["file"], "CDQ2B25-15DZ.step")
+        self.assertNotIn("models", items["bearing"])
+        self.assertNotIn("models.json", [it.get("file") for it in items.values()])  # the store is not an item file
+        self.assertEqual(L.set_model(self.user, "smc-cdq2b", "Ø25|15"), {})  # taken away: the drawn one again
+        self.assertNotIn("models", {it["id"]: it for it in L.load(APP, self.user)["items"]}["smc-cdq2b"])
+        for bad in (("../x", "a|", sha), ("smc-cdq2b", "a|", "not-a-hash")):
+            with self.assertRaises(L.LibraryError):
+                L.set_model(self.user, *bad)
+
     def test_refused(self):
         for bad in ({"id": "../x", "name": "a", "category": "c", "features": [1]}, {"id": "a", "category": "c", "features": [1]},
                     {"id": "a", "name": "a", "category": "c"}, {"id": "a", "name": "a", "category": "c", "shape": [{"loft": 1}]}):

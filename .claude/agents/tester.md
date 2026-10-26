@@ -109,6 +109,9 @@ Never report "works" without having run it; report failures with their output.
    M3 socket / inductive M12 / cylinder 16 with the asked size; library_add a 608 into an assembly with its faces and
    bottom face; axis + touch: in its seat, free to turn only, its part number in the parts list; check_collisions: none,
    then a screw inside the block reported; wrong size / length answered with the ones there are).
+   `tools/e2e_library_real.py <url> <dir>` covers the maker's real model (a STEP attached to CDQ2B Ø25 stroke 15: shown,
+   put into an assembly as that solid with its part number; stroke 20 still drawn; ✕ -> drawn again) and a drawn
+   part's own colours per step (the rod).
    `tools/e2e_library_build.py <url> <dir>` builds EVERY library part in every size (shortest and longest length) in
    the kernel — run it after changing library/*.json (172 builds; catalogue sizes spot-checked).
    `tools/e2e_library.py <url> <dir>` covers the 📚 Library window (search 608 -> 608-2Z, preview, shop links, open as
