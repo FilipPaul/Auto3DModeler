@@ -105,11 +105,16 @@ Never report "works" without having run it; report failures with their output.
    the holes, the AI's bolt_parts with an insert) and the Tangent, Angle (30°, typed 60°) and Perpendicular joints.
    `tools/e2e_assembly_edit.py <url> <dir>` covers ✎ Edit it here (locked by default, a double-click refused; unlocked:
    the modeler with the rest see-through, a hole added, back: the assembly has it, the pin still in place; locked again).
+   `tools/e2e_library_ai.py <url> <dir>` covers the AI's library tools through /api/agent/call (library_search 608 /
+   M3 socket / inductive M12 / cylinder 16 with the asked size; library_add a 608 into an assembly with its faces and
+   bottom face; axis + touch: in its seat, free to turn only, its part number in the parts list; check_collisions: none,
+   then a screw inside the block reported; wrong size / length answered with the ones there are).
    `tools/e2e_library_build.py <url> <dir>` builds EVERY library part in every size (shortest and longest length) in
    the kernel — run it after changing library/*.json (172 builds; catalogue sizes spot-checked).
    `tools/e2e_library.py <url> <dir>` covers the 📚 Library window (search 608 -> 608-2Z, preview, shop links, open as
    a 3D model with its facts; an M3×10 put into an assembly twice = one part, a SICK sensor; part numbers in the parts
-   list; ⬇ BOM CSV with the UTF-8 mark; Save to the library -> found, then deleted).
+   list; ⬇ BOM CSV with the UTF-8 mark; Save to the library -> found, then deleted; opened 18 times: the 3D view keeps
+   its WebGL context).
    `tools/e2e_assembly_clash.py <url> <dir>` covers ⚠ Collisions (a plate 3 mm into a base: 3600 mm³, both red, the
    overlap boxed; moved to touching: checked again on its own, none; 2 mm in: 2400 mm³; ↗ picks the pair).
    `tools/e2e_assembly_dof.py <url> <dir>` covers joints you can see and moving by the free ways only (a pin in a hole:

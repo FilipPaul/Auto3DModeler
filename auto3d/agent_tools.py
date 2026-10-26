@@ -250,12 +250,31 @@ TOOLS = [
      "description": "Put suggested fasteners in (ids from suggest_fasteners; none = all): each a standard part of the project, held by "
                     "joints (pin in hole + touch / flush), so it follows the parts.",
      "inputSchema": _obj({"ids": {"type": "array", "items": STR}})},
+    {"name": "library_search", "where": "browser",
+     "description": "Search the parts library — real parts with their maker and part number: ISO / DIN screws M1–M6 (socket, button, "
+                    "countersunk, pan, cheese, hex heads), screws for plastics, nuts, washers, heat-set inserts (ruthex), bearings (608-2Z…, "
+                    "LMxUU), standoffs, panel parts (LEDs, push buttons, USB / RJ45), SMC cylinders / fittings / valves, SICK inductive "
+                    "sensors, NEMA 17 / 23 steppers, and the user's own parts. query: words like \"M3 socket\", \"608\", \"cylinder 16\", "
+                    "\"inductive M12\". -> items (item id, sizes, lengths / strokes, an example with its part number). Use it BEFORE "
+                    "drawing a bought part yourself.",
+     "inputSchema": _obj({"query": STR, "category": STR}, ["query"])},
+    {"name": "library_add", "where": "browser",
+     "description": "Put a library part in: item (its id from library_search), size (one of its sizes), length (or stroke, one of its "
+                    "values). to: \"assembly\" (into the assembly on screen — the same part again is used again: two screws = two "
+                    "placed, one part) or \"model\" (a new 3D model tab). In an assembly it returns the placed id (I…) and its flat / "
+                    "round faces for snap_faces.",
+     "inputSchema": _obj({"item": STR, "size": STR, "length": NUM, "to": {"type": "string", "enum": ["assembly", "model"]}}, ["item"])},
+    {"name": "check_collisions", "where": "browser",
+     "description": "Where parts of the assembly on screen go into each other (touching faces are fine): the pairs, the overlap volume "
+                    "(mm³) and its box. Check after joining parts; an overlap usually means a missing hole or a wrong joint.",
+     "inputSchema": _obj({})},
     {"name": "remove_from_assembly", "where": "browser", "description": "Take a placed part (id I…) out of the assembly.",
      "inputSchema": _obj({"part": STR}, ["part"])},
     {"name": "get_guide", "where": "local",
-     "description": "A step-by-step guide: model-a-part, from-picture, print-prep, change-a-model, assemble-parts. Read it before such a task "
-                    "when your skills are not available.",
-     "inputSchema": _obj({"topic": {"type": "string", "enum": ["model-a-part", "from-picture", "print-prep", "change-a-model", "assemble-parts"]}}, ["topic"])},
+     "description": "A step-by-step guide: model-a-part, from-picture, print-prep, change-a-model, assemble-parts, mechanical-design "
+                    "(how a good designer works: bought parts first, fits, fasteners, printable parts), automation-design (pneumatics, "
+                    "sensors, motors, panels). Read it before such a task when your skills are not available.",
+     "inputSchema": _obj({"topic": {"type": "string", "enum": ["model-a-part", "from-picture", "print-prep", "change-a-model", "assemble-parts", "mechanical-design", "automation-design"]}}, ["topic"])},
 ]
 
 TOOL_NAMES = {t["name"] for t in TOOLS}
@@ -273,10 +292,13 @@ SYSTEM_PROMPT = """You are the design assistant inside Auto3DModeler, a local ap
 The project holds parts, as tabs in the app's top bar (list_parts, open_part); the tools work on the part on screen.
 - **Quick parts** come from a PDF drawing (parametric: its dimensions drive it), an outline traced from a picture or read from a DXF (made into a cookie cutter, a solid shape or a custom stack of objects), or an imported STL / OBJ / STEP file. Tools: get_part, set_dimensions, set_make, set_part_options, add_object, add_shape, add_design_layer, add_dimension, update_item, remove_item. Coordinates: x right, y up, z up from the bed; the part's unit (PDF drawings may be cm).
 - **3D models** are built like in SolidWorks: sketches (rectangles, circles, polylines with locked sizes) turned into a solid by extrude / revolve, then holes, fillets, chamfers, shells — for mechanical parts. Tools: new_model, get_model, find_refs, add_feature, edit_feature, delete_feature, turn_off_feature, set_material, prepare_print. mm; the bed is the XY plane.
-- **Assemblies** place 3D model parts together: new_assembly, get_assembly, insert_part, snap_faces (a flat face onto another, centred), place_part, remove_from_assembly.
+- **Assemblies** place 3D model parts together: new_assembly, get_assembly, insert_part, snap_faces (joints: touch, gap, axis = concentric…), place_part, remove_from_assembly, check_collisions. get_assembly says for each joined part how it can still move (free) or that it is fully held.
+- **The parts library** holds real, bought parts with their maker and part number (screws, nuts, washers, inserts, bearings, standoffs, panel parts, SMC pneumatics, SICK sensors, stepper motors, the user's own): library_search, library_add.
 - Both: get_screenshot, check_print, export, undo. Opening a file or tracing a picture adds a new quick part tab.
 
-Before modelling, changing a 3D model, making a part from a picture, preparing a print or assembling parts, load the matching skill (auto3d:model-a-part, auto3d:change-a-model, auto3d:from-picture, auto3d:print-prep, auto3d:assemble-parts) — or call get_guide(topic) if skills are not available.
+Before modelling, changing a 3D model, making a part from a picture, preparing a print or assembling parts, load the matching skill (auto3d:model-a-part, auto3d:change-a-model, auto3d:from-picture, auto3d:print-prep, auto3d:assemble-parts) — or call get_guide(topic) if skills are not available. For any design of a device, a mechanism, a bracket for bought parts or a machine, load auto3d:mechanical-design first (and auto3d:automation-design for pneumatics, sensors, motors, control panels).
+
+Work like a good mechanical designer: **use the parts library first.** Anything that is bought — screws, nuts, washers, inserts, bearings, standoffs, connectors, LEDs, buttons, cylinders, valves, fittings, sensors, motors — comes from library_search / library_add, with its real part number (it lands in the BOM); draw only the parts that are made (printed). If a bought part is not in the library, say so and draw a simple stand-in of its real outside sizes. Design the made parts around the bought ones (their holes, fits and clearances).
 
 Rules: pick faces and edges with find_refs, never by guessing. Put fillets and chamfers last. After changes check get_part / get_model (every step ok) and get_screenshot before saying it is done. Use printable defaults (walls ≥ 1.2 mm, hole clearance +0.2 mm) unless told otherwise. Ask the user only when a decision is really theirs (key sizes, what to make).
 

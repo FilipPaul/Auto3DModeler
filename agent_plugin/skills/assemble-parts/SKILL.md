@@ -5,7 +5,9 @@ description: Use when the user wants several parts put together — an assembly,
 
 # Put 3D model parts together
 
-Only 3D model parts go into an assembly (quick parts do not). Build each part first (skill model-a-part).
+Only 3D model parts go into an assembly (quick parts do not). Build each made part first (skill model-a-part);
+**bought parts come from the library**: `library_add {item, size, length, to: "assembly"}` (find them with
+`library_search {query}`) — screws, nuts, inserts, bearings, standoffs, cylinders, sensors, motors, with their part numbers.
 
 1. `list_parts` — the 3D model parts there are. `new_assembly {name}` opens an empty assembly tab
    (or `open_part` an existing assembly).
@@ -29,5 +31,8 @@ Only 3D model parts go into an assembly (quick parts do not). Build each part fi
    **Fasteners in holes that are there**: make matching holes in both parts (M3: Ø3.4 clearance in the top part, Ø4.0 insert hole about 6 deep
    below; M2…M5 alike; equal holes for a dowel pin), join the parts, then `suggest_fasteners` and `add_fasteners`
    (all, or the ids) — screws, inserts and pins are put in as standard parts, held by joints.
-6. `get_assembly` gives the parts list (quantity, material, mass). To change a part, `open_part` it — every
+6. Check it: `get_assembly` tells for each joined part how it can still move (`free`: e.g. "Along the axis of …",
+   "Turn about …") or that it is `fully_held` — a hinge or slide keeps its one way free, the rest is held.
+   `check_collisions` lists parts that go into each other (fix the made part: a hole, a pocket).
+7. `get_assembly` gives the parts list (quantity, material, mass, maker and part number of bought parts). To change a part, `open_part` it — every
    assembly that uses it follows. The user exports the assembly (STL or STEP) from its Export buttons.

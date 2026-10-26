@@ -60,11 +60,15 @@ Date: 2026-10-25. Written by the architect agent.
   raised / engraved on a flat face, follows it; the AI's decal. tools/e2e_model_decal.py.
 - **Assembly links done:** snaps hold (doc.mates {move, face, onto, ontoFace}, re-applied after refresh and moves;
   moving the snapped part by hand unlinks; no cycles; saved, undoable). tools/e2e_assembly_links.py.
+- **AI library-first done:** tools library_search / library_add / check_collisions (agent_tools.py + app.js
+  libraryTools), get_assembly with free / fully_held per joined part and maker / pn in parts_list, the system prompt's
+  "use the parts library first" rule, skills mechanical-design and automation-design (assemble-parts updated).
+  tools/e2e_library_ai.py.
 - **Parts library done:** library/*.json (the app's: fasteners, mechanical, panel, automation) + data/library/*.json
   (the user's; auto3d/library.py: load / check / save / delete, GET / POST /api/library, DELETE /api/library/<id>);
   web/js/library/build.js (formulas, sizes × lengths -> sketch + extrude / revolve steps, part.library facts, shop
   search links), browser.js (📚 window with a 3D preview, Save to the library), the assembly's bomFlat / ⬇ BOM CSV.
-  tests/test_library.py, tools/e2e_library_build.py, tools/e2e_library.py. Next: the AI uses the library first.
+  tests/test_library.py, tools/e2e_library_build.py, tools/e2e_library.py.
 - **Collisions done:** kernel.interference (box test, then BRepAlgoAPI_Common volume per pair), doc.assembly_clashes,
   worker op, POST /api/assembly/clashes; the assembly's ⚠ panel (flatParts, checkClashes after each commit while
   open, red parts + overlap boxes via AsmView.setClashBoxes). tests: TestAssemblyClashes, tools/e2e_assembly_clash.py.

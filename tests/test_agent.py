@@ -94,7 +94,7 @@ class TestMcpServer(unittest.TestCase):
         self.assertIn("prompts", r[1]["result"]["capabilities"])
         self.assertIn("get_guide", r[1]["result"]["instructions"])
         self.assertIn("find_refs", r[2]["result"]["content"][0]["text"])
-        self.assertEqual(sorted(x["name"] for x in r[3]["result"]["prompts"]), ["assemble-parts", "change-a-model", "from-picture", "model-a-part", "print-prep"])
+        self.assertEqual(sorted(x["name"] for x in r[3]["result"]["prompts"]), ["assemble-parts", "automation-design", "change-a-model", "from-picture", "mechanical-design", "model-a-part", "print-prep"])
         self.assertIn("check_print", r[4]["result"]["messages"][0]["content"]["text"])
         self.assertTrue(r[5]["result"]["isError"])
 
@@ -106,7 +106,7 @@ class TestMcpServer(unittest.TestCase):
         self.assertIn("Skill", cmd[cmd.index("--allowedTools") + 1])
         self.assertEqual(cmd[cmd.index("--plugin-dir") + 1], str(PLUGIN_DIR))
         self.assertTrue((PLUGIN_DIR / ".claude-plugin" / "plugin.json").exists())
-        for name in ("model-a-part", "from-picture", "print-prep", "change-a-model", "assemble-parts"):
+        for name in ("model-a-part", "from-picture", "print-prep", "change-a-model", "assemble-parts", "mechanical-design", "automation-design"):
             text = (PLUGIN_DIR / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
             self.assertTrue(text.startswith("---\nname: " + name), name)
         # every tool a skill tells the AI to use exists

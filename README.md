@@ -400,8 +400,15 @@ can open them.
   chamfer and shell. It finds faces and edges by description (`find_refs`: "the top face", "the edges of that
   face", "the round edges"), changes, deletes or turns off steps, and prepares a printing copy. Example: *"make a
   50 × 30 × 4 mm plate with a 5 mm hole in the middle and 2 mm rounded corners"*.
-- **Skills**: the workflow guides in [agent_plugin/skills/](agent_plugin/skills/) — model-a-part,
-  change-a-model, from-picture, print-prep, assemble-parts. They are loaded as a Claude Code plugin for the chat
+- **Library first**: Claude designs like a mechanical engineer. Every bought part (screws, nuts, inserts, bearings,
+  standoffs, panel parts, SMC pneumatics, SICK sensors, motors) comes from the 📚 parts library (`library_search`,
+  `library_add`), with its real part number in the BOM. Only the parts to be printed are drawn, around the bought ones.
+  It joins the parts so they move as in reality (`get_assembly` says what can still move, or `fully_held`) and checks
+  `check_collisions`.
+- **Skills**: the workflow guides in [agent_plugin/skills/](agent_plugin/skills/). The workflows are model-a-part,
+  change-a-model, from-picture, print-prep and assemble-parts. Design know-how sits in **mechanical-design** (bought
+  parts first, fits for bearings / inserts / screws, printable walls, joints and collisions, the BOM) and
+  **automation-design** (cylinder force and stroke, sensor mounting and range, motor mounts, panel holes). They are loaded as a Claude Code plugin for the chat
   (`--plugin-dir`), and Claude reads the matching one before a task. The MCP server serves the same texts
   as the `get_guide` tool and as MCP prompts, for other clients like Claude Desktop.
 - Built-in file and shell tools are switched off (`--tools Skill` keeps only the skill loader), only this MCP

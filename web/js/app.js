@@ -10,7 +10,8 @@ import { OutlinePanel, shapeRings, hitShape } from './outlinepanel.js';
 import { openLightbox } from './lightbox.js';
 import { ChatPanel, startBridge, bridgeStats } from './agent.js';
 import { AiHistory } from './aihistory.js';
-import { LibraryBrowser, saveToLibrary } from './library/browser.js';
+import { LibraryBrowser, saveToLibrary, libraryItems, matchScore } from './library/browser.js';
+import { buildPart, sizesOf, lengthsOf } from './library/build.js';
 import { Project } from './parts.js';
 import { Modeler } from './modeler/modeler.js';
 import { modelHandlers } from './modeler/agent_model.js';
@@ -2296,5 +2297,58 @@ const library = new LibraryBrowser({
   },
 });
 $('libBtn').addEventListener('click', () => library.open());
+
+// the AI and the library: find real parts first, put them in (a 3D model or the assembly on screen)
+const libraryTools = {
+  library_search: async ({ query = '', category = '' }) => {
+    const items = (await libraryItems()).filter((it) => !category || it.category.toLowerCase().includes(String(category).toLowerCase()));
+    const found = items.map((it) => ({ it, s: matchScore(it, query) })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s).slice(0, 12);
+    if (!found.length) return { text: `Nothing in the library for “${query}”${category ? ` in ${category}` : ''}. Categories: ${[...new Set(items.map((i) => i.category))].join('; ')}. Draw the part yourself (new_model) if it is not a bought part.` };
+    return { text: JSON.stringify(found.map(({ it }) => {
+      // the example in the size the query names ("M3 socket" -> M3, "cylinder 16" -> Ø16), else the first
+      const sizes = sizesOf(it), words = String(query).toLowerCase().split(/\s+/), plain = (k) => String(k).toLowerCase().replace(/^ø/, '');
+      const first = (sizes.find((s) => words.includes(plain(s.key))) || sizes[0])?.key, ls = lengthsOf(it, first), sample = buildPart(it, first, ls?.values[0]);
+      return { item: it.id, name: it.name, category: it.category, maker: it.maker || undefined, standard: it.standard || undefined, outline_only: it.approx || undefined,
+        sizes: sizes.map((s) => s.key).slice(0, 40), [ls ? (ls.name === 'Stroke' ? 'strokes' : 'lengths') : 'no_length']: ls ? (Array.isArray(it.lengths.values) ? ls.values : `per size, e.g. ${first}: ${ls.values.join(', ')}`) : true,
+        example: { size: first, ...(ls ? { length: ls.values[0] } : {}), name: sample.name, pn: sample.data.library.pn, description: sample.data.library.description } };
+    })) };
+  },
+  library_add: async ({ item, size, length, to }) => {
+    const items = await libraryItems(), it = items.find((x) => x.id === item) || items.find((x) => x.name.toLowerCase() === String(item || '').toLowerCase());
+    if (!it) throw new Error(`No library item “${item}” — library_search first (item = its "item" id).`);
+    const sizes = sizesOf(it), key = size === undefined || size === null || size === '' ? sizes[0]?.key : String(size);
+    if (!sizes.some((s) => s.key === key)) throw new Error(`${it.name}: size is one of ${sizes.map((s) => s.key).join(', ')}.`);
+    const ls = lengthsOf(it, key);
+    if (ls && length !== undefined && !ls.values.includes(+length)) throw new Error(`${it.name} ${key}: ${ls.name.toLowerCase()} is one of ${ls.values.join(', ')} mm.`);
+    const built = buildPart(it, key, ls ? (length === undefined ? ls.values[0] : +length) : undefined), lib = built.data.library;
+    const where = to || (state.workspace === 'assembly' ? 'assembly' : 'model');
+    const facts = { name: built.name, pn: lib.pn || undefined, maker: lib.maker || undefined, outline_only: lib.approx || undefined };
+    if (where === 'assembly') {
+      if (state.workspace !== 'assembly') throw new Error('No assembly on screen — new_assembly or open_part an assembly first (or to: "model").');
+      const before = new Set(assembly.doc.instances.map((i) => i.id));
+      await library.hooks.insertIntoAssembly(built.name, built.data);
+      const placed = assembly.doc.instances.find((i) => !before.has(i.id)), body = assembly.bodies[placed?.part]?.body;
+      // its flat and round faces, the lowest first (the bottom it stands on is the first flat one facing down)
+      const faces = [...new Map((body?.faces || []).filter((f) => f.type === 'plane' || f.type === 'cylinder').sort((a, b) => a.centroid[2] - b.centroid[2] || b.area - a.area)
+        .map((f) => [f.name, { face: f.name, type: f.type === 'plane' ? 'flat' : 'round', ...(f.radius ? { d: +(2 * f.radius).toFixed(3) } : {}), ...(f.normal ? { normal: f.normal.map((v) => +v.toFixed(3)) } : {}), centre: f.centroid.map((v) => +v.toFixed(2)) }])).values()].slice(0, 14);
+      const bottom = faces.find((f) => f.type === 'flat' && f.normal?.[2] < -0.9)?.face;
+      return { text: JSON.stringify({ placed: placed?.id, part: placed?.part, ...facts, ...(bottom ? { bottom_face: bottom } : {}), faces,
+        hint: 'Join it with snap_faces (move = {part: the placed id, face}); its round faces take "axis", bottom_face is the face it stands on (as drawn).' }) };
+    }
+    await library.hooks.openAsModel(built.name, built.data);
+    return { text: JSON.stringify({ ...facts, part: project.current?.id, on_screen: true, hint: 'A 3D model of its own now: get_model / find_refs; insert_part it into an assembly.' }) };
+  },
+  check_collisions: async () => {
+    if (state.workspace !== 'assembly') throw new Error('No assembly on screen.');
+    await assembly.refresh();
+    const res = await fetch('/api/assembly/clashes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instances: assembly.flatParts() }) });
+    const r = await res.json();
+    if (!res.ok) throw new Error(r.error || res.statusText);
+    const name = (id) => `${assembly.partName(assembly.inst(assembly.topOf(id))?.part)} ${id}`;
+    return { text: r.clashes.length ? JSON.stringify(r.clashes.map((c) => ({ a: c.a, b: c.b, parts: `${name(c.a)} ↔ ${name(c.b)}`, overlap_mm3: c.volume, overlap_box: c.bbox })))
+      : 'No parts overlap (touching faces are fine).' };
+  },
+};
+Object.assign(agentHandlers, libraryTools);
 
 window.__app = { state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, library, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d };

@@ -1779,17 +1779,27 @@ export class Assembly {
     return (body._spans[name] = lo <= hi ? [lo, hi] : null);
   }
 
+  /** For the AI: how a joined part can still move -> {free: [the ways]} or {fully_held: true} ({} when not joined). */
+  freeOf(id) {
+    try {
+      const d = this.motionsOf(id);
+      if (!d) return {};
+      return d.count ? { free: d.motions.map((m) => m.label) } : { fully_held: true };
+    } catch { return {}; }
+  }
+
   summary() {
     return {
       parts: this.doc.instances.map((it) => {
         const b = this.bodies[it.part]?.body, m = new THREE.Matrix4().fromArray(it.matrix);
         const bb = b ? new THREE.Box3(new THREE.Vector3(...b.bbox.slice(0, 3)), new THREE.Vector3(...b.bbox.slice(3))).applyMatrix4(m) : null;
         return { id: it.id, part: it.part, name: this.partName(it.part), position: new THREE.Vector3().setFromMatrixPosition(m).toArray().map((v) => +v.toFixed(3)),
-          bbox: bb ? [...bb.min.toArray(), ...bb.max.toArray()].map((v) => +v.toFixed(3)) : null, error: this.bodies[it.part]?.error };
+          bbox: bb ? [...bb.min.toArray(), ...bb.max.toArray()].map((v) => +v.toFixed(3)) : null, error: this.bodies[it.part]?.error, ...this.freeOf(it.id) };
       }),
       joints: (this.doc.mates || []).map((m) => ({ id: m.id, type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
         ...(m.type === 'axis' ? { distance: Number.isFinite(m.dist) ? m.dist : null, rotation_locked: Number.isFinite(m.angle) } : { gap: m.gap || 0 }), ...(m.broken ? { broken: true } : {}) })),
-      parts_list: this.bom().map((r) => ({ name: r.name, qty: r.qty, material: r.material, mass_g_each: r.mass === null ? null : +r.mass.toFixed(2) })),
+      parts_list: this.bom().map((r) => ({ name: r.name, qty: r.qty, material: r.material, mass_g_each: r.mass === null || !Number.isFinite(r.mass) ? null : +r.mass.toFixed(2),
+        ...(r.lib ? { maker: r.lib.maker || undefined, pn: r.lib.pn || undefined, bought: true } : {}) })),
     };
   }
 

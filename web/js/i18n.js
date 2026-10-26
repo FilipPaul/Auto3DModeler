@@ -755,6 +755,7 @@ const CS = {
   '⬇ BOM (CSV)': '⬇ Kusovník (CSV)', 'The bill of materials as a CSV file (Excel): every part with its quantity, maker, part number, order numbers and mass — the parts inside sub-assemblies too': 'Kusovník jako soubor CSV (Excel): každý díl s množstvím, výrobcem, objednacím číslem a hmotností — i díly v podsestavách',
   'BOM saved: {n} line(s).': 'Kusovník uložen: {n} řádků.',
   'steel': 'ocel', 'brass': 'mosaz', 'aluminium': 'hliník',
+  'searching the parts library': 'hledá v knihovně dílů', 'adding a library part': 'přidává díl z knihovny', 'checking for collisions': 'kontroluje kolize',
   'Screw / pin': 'Šroub / kolík', 'click the hole it goes in from, then the hole in the other part — the fitting screw (and insert) or pin goes in': 'klikněte na díru, odkud se vkládá, pak na díru v druhém dílu — vloží se vhodný šroub (s maticí) nebo kolík',
   'These holes ({a}, {b}) do not line up, or fit no standard screw / pin — a screw needs a clearance hole in the part it goes in from (M3: Ø3.2–3.7) and one that fits it or an insert (M3 insert: Ø3.9–4.4) below.': 'Tyto díry ({a}, {b}) nelícují nebo neodpovídají žádnému běžnému šroubu / kolíku — šroub potřebuje průchozí díru v dílu, odkud se vkládá (M3: Ø3,2–3,7), a pod ní díru pro něj nebo pro matici (matice M3: Ø3,9–4,4).',
   '⟂ Relations ▾': '⟂ Vazby ▾', Relations: 'Vazby', Horizontal: 'Vodorovně', Vertical: 'Svisle', Perpendicular: 'Kolmo', Equal: 'Stejně',
