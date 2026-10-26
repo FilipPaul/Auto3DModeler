@@ -112,9 +112,51 @@ def arc_points(c, a, b, step_deg=5.0):
     return pts
 
 
-def _mixed_wire(fr, ring, owners, arcs):
-    """A closed ring of points whose sides belong to lines or arcs -> a wire of straight edges and true circular
-    arcs (a run of sides on the same arc becomes one arc edge)."""
+def spline_curve(pts3):
+    """A smooth curve (B-spline, C2) exactly through points (gp_Pnt) in their order."""
+    from OCP.GeomAPI import GeomAPI_Interpolate
+    from OCP.collections import HArray1_gp_Pnt
+    arr = HArray1_gp_Pnt(1, len(pts3))
+    for i, q in enumerate(pts3):
+        arr.SetValue(i + 1, q)
+    it = GeomAPI_Interpolate(arr, False, 1e-7)
+    it.Perform()
+    if not it.IsDone():
+        raise KernelError("A smooth curve could not go through its points (two of them in one place?).")
+    return it.Curve()
+
+
+def spline_points(pts, per=16):
+    """A smooth curve through 2D points -> points along it (for finding the loops), its ends exactly the given ones."""
+    c = spline_curve([gp_Pnt(float(x), float(y), 0.0) for x, y in pts])
+    u0, u1 = c.FirstParameter(), c.LastParameter()
+    n = max(2, per * (len(pts) - 1))
+    out = []
+    for i in range(n + 1):
+        q = c.Value(u0 + (u1 - u0) * i / n)
+        out.append((q.X(), q.Y()))
+    out[0], out[-1] = tuple(pts[0]), tuple(pts[-1])
+    return out
+
+
+def _spline_edge(fr, pts, a, b):
+    """The part of the smooth curve through `pts` (sketch points) between the sketch points a and b -> an edge."""
+    from OCP.GeomAPI import GeomAPI_ProjectPointOnCurve
+    c = spline_curve([to_3d(fr, *q) for q in pts])
+    u = []
+    for q in (a, b):
+        pj = GeomAPI_ProjectPointOnCurve(to_3d(fr, *q), c)
+        u.append(pj.LowerDistanceParameter() if pj.NbPoints() else c.FirstParameter())
+    u0, u1 = sorted(u)
+    if abs(u1 - u0) < 1e-12:
+        u0, u1 = c.FirstParameter(), c.LastParameter()
+    return BRepBuilderAPI_MakeEdge(c, u0, u1).Edge()
+
+
+def _mixed_wire(fr, ring, owners, arcs, splines=None):
+    """A closed ring of points whose sides belong to lines, arcs or smooth curves -> a wire of straight edges, true
+    circular arcs and B-spline edges (a run of sides on the same arc / curve becomes one edge)."""
+    splines = splines or {}
     n = len(ring)
     # start at a side whose owner differs from the one before it, so no run wraps around the end
     s0 = next((i for i in range(n) if owners[i] != owners[i - 1]), 0)
@@ -123,7 +165,13 @@ def _mixed_wire(fr, ring, owners, arcs):
     while i < n:
         k = order[i]
         o = owners[k]
-        if o in arcs:
+        if o in splines:
+            j = i
+            while j + 1 < n and owners[order[j + 1]] == o:
+                j += 1
+            edge = _spline_edge(fr, splines[o], ring[order[i]], ring[(order[j] + 1) % n])
+            i = j + 1
+        elif o in arcs:
             j = i
             while j + 1 < n and owners[order[j + 1]] == o:
                 j += 1
@@ -167,7 +215,7 @@ def _loops(sk):
 
     pts = sk.get("points") or {}
     end = lambda i: (0.0, 0.0) if i == "O" else pts.get(i)  # noqa: E731
-    loops, segs, lines, arcs = [], [], [], {}
+    loops, segs, lines, arcs, splines = [], [], [], {}, {}
     for e in sk.get("entities") or []:
         if e.get("construction"):
             continue
@@ -205,6 +253,18 @@ def _loops(sk):
             segs.append(seg)
             lines.append((seg, e.get("id")))
             arcs[e.get("id")] = (tuple(c), r)
+        elif t == "spline":
+            # a smooth curve through its points (in order): one B-spline edge in the solid
+            P = [end(i) for i in e.get("pts") or []]
+            if len(P) < 2 or any(q is None for q in P):
+                continue
+            P = [tuple(q) for k, q in enumerate(P) if k == 0 or q != P[k - 1]]
+            if len(P) < 2:
+                continue
+            seg = LineString(spline_points(P) if len(P) > 2 else P)
+            segs.append(seg)
+            lines.append((seg, e.get("id")))
+            splines[e.get("id")] = P
         elif t == "line":
             a, b = end(e.get("a")), end(e.get("b"))
             if a is not None and b is not None and (a[0] != b[0] or a[1] != b[1]):
@@ -223,8 +283,8 @@ def _loops(sk):
                 mid = Point((p[0] + q[0]) / 2, (p[1] + q[1]) / 2)
                 hit = next((n for seg, n in lines if seg.distance(mid) < 1e-6), None)
                 names.append(hit or f"edge{i}")
-            if any(nm in arcs for nm in names):
-                loops.append((Polygon(ring), lambda fr, ring=ring, names=names: _mixed_wire(fr, ring, names, arcs)))
+            if any(nm in arcs or nm in splines for nm in names):
+                loops.append((Polygon(ring), lambda fr, ring=ring, names=names: _mixed_wire(fr, ring, names, arcs, splines)))
             else:
                 loops.append((Polygon(ring), lambda fr, ring=ring, names=names: _poly_wire(fr, ring, names)))
     return loops

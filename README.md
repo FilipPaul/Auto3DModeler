@@ -406,6 +406,16 @@ can open them.
   chamfer and shell. It finds faces and edges by description (`find_refs`: "the top face", "the edges of that
   face", "the round edges"), changes, deletes or turns off steps, and prepares a printing copy. Example: *"make a
   50 × 30 × 4 mm plate with a 5 mm hole in the middle and 2 mm rounded corners"*.
+- **Smooth shapes**: a sketch can hold **smooth curves** (splines through points) besides lines and arcs. The AI draws
+  a whole outline as one `profile` — straight parts, arcs through a point and smooth parts through points — and
+  revolves or extrudes it. The curve becomes one true B-spline in the solid, so a vase, a knob or a duck's body is one
+  clean smooth surface, not many little faces. The sketch shows the curve and its points can be dragged.
+- **Everything the app does, the AI can do**: besides modelling, assemblies, the library and collisions, it colours
+  parts (`set_look`: colour, see-through) and single faces (`paint_faces`), in a model or per placed part in an
+  assembly; moves a joined part along its free ways (`move_free`); keeps a model in the library (`save_to_library`).
+- **Problem reports**: when something in the app does not behave as expected, the AI writes a dated report
+  (`report_problem`) into **RealSWReports/** next to `server.py`: what happened, what was expected, the steps, the
+  workaround. It cannot write files itself (no file tools), so the server writes them.
 - **Library first**: Claude designs like a mechanical engineer. Every bought part (screws, nuts, inserts, bearings,
   standoffs, panel parts, SMC pneumatics, SICK sensors, motors) comes from the 📚 parts library (`library_search`,
   `library_add`), with its real part number in the BOM. Only the parts to be printed are drawn, around the bought ones.

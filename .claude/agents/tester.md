@@ -105,6 +105,9 @@ Never report "works" without having run it; report failures with their output.
    the holes, the AI's bolt_parts with an insert) and the Tangent, Angle (30°, typed 60°) and Perpendicular joints.
    `tools/e2e_assembly_edit.py <url> <dir>` covers ✎ Edit it here (locked by default, a double-click refused; unlocked:
    the modeler with the rest see-through, a hole added, back: the assembly has it, the pin still in place; locked again).
+   `tools/e2e_ai_shapes.py <url> <dir>` covers the AI's smooth profile (a duck body: one smooth revolved face, the
+   spline in the sketch), set_look / paint_faces in a model and per placed part, a wrong colour refused, move_free
+   (12 mm along X; a wrong motion listed), save_to_library and report_problem (the report written, then removed).
    `tools/e2e_library_ai.py <url> <dir>` covers the AI's library tools through /api/agent/call (library_search 608 /
    M3 socket / inductive M12 / cylinder 16 with the asked size; library_add a 608 into an assembly with its faces and
    bottom face; axis + touch: in its seat, free to turn only, its part number in the parts list; check_collisions: none,

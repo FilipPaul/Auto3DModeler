@@ -94,6 +94,35 @@ export function tangentArc(s, d, e) {
   return t > 0 ? { c, a: s, b: e, swap: false } : { c, a: e, b: s, swap: true };
 }
 
+// ------------------------------------------------------------------ smooth curves
+/** A smooth curve (a spline) exactly through points in their order -> points along it (per = between two of them).
+ *  A cubic spline over the distance along the points, as the kernel makes it (B-spline through the points). */
+export function splinePts(P, per = 16) {
+  if (P.length < 3) return P.map((p) => [...p]);
+  const n = P.length, t = [0];
+  for (let i = 1; i < n; i++) t.push(t[i - 1] + (Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]) || 1e-9));
+  const coef = (k) => { // a natural cubic spline of coordinate k over t -> its second derivatives
+    const y = P.map((p) => p[k]), m = new Array(n).fill(0), u = new Array(n).fill(0);
+    for (let i = 1; i < n - 1; i++) {
+      const sig = (t[i] - t[i - 1]) / (t[i + 1] - t[i - 1]), q = sig * m[i - 1] + 2;
+      m[i] = (sig - 1) / q;
+      u[i] = ((6 * ((y[i + 1] - y[i]) / (t[i + 1] - t[i]) - (y[i] - y[i - 1]) / (t[i] - t[i - 1]))) / (t[i + 1] - t[i - 1]) - sig * u[i - 1]) / q;
+    }
+    for (let i = n - 2; i >= 0; i--) m[i] = m[i] * m[i + 1] + u[i];
+    return { y, m };
+  };
+  const cs = [coef(0), coef(1)], out = [];
+  for (let i = 0; i < n - 1; i++) {
+    const h = t[i + 1] - t[i];
+    for (let s = 0; s < per; s++) {
+      const a = 1 - s / per, b = s / per;
+      out.push(cs.map(({ y, m }) => a * y[i] + b * y[i + 1] + ((a ** 3 - a) * m[i] + (b ** 3 - b) * m[i + 1]) * (h * h) / 6));
+    }
+  }
+  out.push([...P[n - 1]]);
+  return out;
+}
+
 // ------------------------------------------------------------------ trimming: where shapes cross
 const TAU = 2 * Math.PI;
 const angNorm = (x) => ((x % TAU) + TAU) % TAU;
@@ -361,8 +390,11 @@ export class Sketcher {
     if (sel.kind === 'point') return [sel.id];
     if (sel.kind === 'entity' && this.ent(sel.id)?.t === 'block') return [];
     const es = sel.kind === 'group' ? this.f.entities.filter((e) => e.g === sel.id) : [this.ent(sel.id)].filter(Boolean);
-    return [...new Set(es.flatMap((e) => (e.t === 'line' ? [e.a, e.b] : e.t === 'arc' ? [e.a, e.b, e.c] : [e.c])))].filter((p) => p !== ORIGIN);
+    return [...new Set(es.flatMap((e) => (e.t === 'line' ? [e.a, e.b] : e.t === 'arc' ? [e.a, e.b, e.c] : e.t === 'spline' ? e.pts : [e.c])))].filter((p) => p !== ORIGIN);
   }
+
+  /** A smooth curve of the sketch -> points along it (sketch coordinates). */
+  splineOf(e) { return splinePts((e.pts || []).map((id) => this.P(id)).filter(Boolean)); }
 
   /** What is under the mouse: a point, a line, a circle (edge or inside) or a rectangle (inside). */
   hit(uv) {
@@ -382,6 +414,9 @@ export class Sketcher {
         if (d < e.r) consider(tol * 0.9, { kind: 'entity', id: e.id });
       } else if (e.t === 'arc') {
         consider(this.arcDist(e, uv), { kind: 'entity', id: e.id });
+      } else if (e.t === 'spline') {
+        const ps = this.splineOf(e);
+        for (let i = 0; i + 1 < ps.length; i++) consider(segDist(uv, ps[i], ps[i + 1]), { kind: 'entity', id: e.id });
       }
     }
     for (const e of this.f.entities) {
@@ -1762,6 +1797,9 @@ export class Sketcher {
         if (showSize({ t: 'rad', e: e.id })) {
           labels.push(this.label({ t: 'rad', e: e.id }, m[0] + ((m[0] - c[0]) / r) * mpp * 16, m[1] + ((m[1] - c[1]) / r) * mpp * 16, `R${fmt(r)}`, 'Radius'));
         }
+      } else if (e.t === 'spline') {
+        const ps = this.splineOf(e), col = isSel(e) ? SEL : NORM;
+        for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], col]);
       } else if (e.t === 'circle') {
         const c = this.P(e.c);
         circles.push([c, e.r, isSel(e) ? SEL : NORM]);

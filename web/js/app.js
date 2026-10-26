@@ -10,7 +10,8 @@ import { OutlinePanel, shapeRings, hitShape } from './outlinepanel.js';
 import { openLightbox } from './lightbox.js';
 import { ChatPanel, startBridge, bridgeStats } from './agent.js';
 import { AiHistory } from './aihistory.js';
-import { LibraryBrowser, saveToLibrary, libraryItems, matchScore } from './library/browser.js';
+import { LibraryBrowser, saveToLibrary, libraryItems, matchScore, itemFromModel } from './library/browser.js';
+import { repaint } from './modeler/paint.js';
 import { buildPart, sizesOf, lengthsOf } from './library/build.js';
 import { Project } from './parts.js';
 import { Modeler } from './modeler/modeler.js';
@@ -2351,5 +2352,77 @@ const libraryTools = {
   },
 };
 Object.assign(agentHandlers, libraryTools);
+
+// the AI and the look of parts: the whole part's colour / see-through, single faces; a joined part moved its free ways;
+// the model on screen kept in the library
+const faceIdsNamed = (faces, names) => {
+  const want = new Set(names.map(String));
+  return faces.filter((f) => want.has(f.name) || (f.names || []).some((n) => want.has(n) || want.has(String(n).split(':')[0])) || want.has(String(f.name || '').split(':')[0])).map((f) => f.id);
+};
+const okColor = (c) => { if (c !== null && c !== undefined && !/^#[0-9a-f]{6}$/i.test(String(c))) throw new Error('color is "#rrggbb" (or null).'); return c; };
+Object.assign(agentHandlers, {
+  set_look: async ({ part, color, opacity }) => {
+    okColor(color);
+    const op = opacity === undefined || opacity === null ? undefined : Math.min(1, Math.max(0.1, +opacity));
+    if (state.workspace === 'assembly') {
+      const it = assembly.inst(part);
+      if (!it) throw new Error(`part is a placed id (${assembly.doc.instances.map((i) => i.id).join(', ')}) — see get_assembly.`);
+      if (color !== undefined) { if (color) it.colour = color; else delete it.colour; }
+      if (op !== undefined) it.opacity = op;
+      assembly.commit();
+      return { text: `${assembly.partName(it.part)} ${it.id}: ${it.colour || 'its own colour'}, ${Math.round((it.opacity ?? 1) * 100)} % solid (in this assembly).` };
+    }
+    if (state.workspace !== 'model') throw new Error('Open a 3D model or an assembly first.');
+    const m = modeler;
+    if (color !== undefined) { if (color) m.part.color = color; else delete m.part.color; }
+    if (op !== undefined) m.part.opacity = op;
+    m.view.setLook(m.part);
+    m.history.commit();
+    m.renderProps();
+    return { text: `The model: ${m.part.color || 'the usual colour'}, ${Math.round((m.part.opacity ?? 1) * 100)} % solid.` };
+  },
+  paint_faces: async ({ faces = [], color, part }) => {
+    okColor(color);
+    if (!faces.length) throw new Error('faces: the names of the faces (find_refs / get_model), or a step id for all its faces.');
+    if (state.workspace === 'assembly') {
+      const it = assembly.inst(part), body = assembly.bodies[it?.part]?.body;
+      if (!it || !body) throw new Error('part is a placed id I… of the assembly (get_assembly).');
+      const ids = faceIdsNamed(body.faces, faces);
+      if (!ids.length) throw new Error(`No face named ${faces.join(', ')} in ${it.id}. Its faces: ${[...new Set(body.faces.map((f) => f.name))].join(', ')}.`);
+      const p = repaint(body.faces, it.paint || [], ids, color || null);
+      if (p.length) it.paint = p; else delete it.paint;
+      assembly.commit();
+      return { text: `${ids.length} face(s) of ${it.id} ${color ? `painted ${color}` : 'back to their own colour'} (in this assembly).` };
+    }
+    if (state.workspace !== 'model' || !modeler.result?.body) throw new Error('Open a 3D model (with a solid) or an assembly first.');
+    const m = modeler, body = m.result.body, ids = faceIdsNamed(body.faces, faces);
+    if (!ids.length) throw new Error(`No face named ${faces.join(', ')}. The faces: ${[...new Set(body.faces.map((f) => f.name))].join(', ')}.`);
+    const p = repaint(body.faces, m.part.paint || [], ids, color || null);
+    if (p.length) m.part.paint = p; else delete m.part.paint;
+    m.view.setLook(m.part);
+    m.history.commit();
+    return { text: `${ids.length} face(s) ${color ? `painted ${color}` : 'back to the part\'s colour'}.` };
+  },
+  move_free: async ({ part, motion = 0, amount }) => {
+    if (state.workspace !== 'assembly') throw new Error('No assembly on screen.');
+    const it = assembly.inst(part), d = it && assembly.motionsOf(it.id);
+    if (!it) throw new Error('part is a placed id I… (get_assembly).');
+    if (!d) throw new Error(`${it.id} is not joined — place_part moves it freely.`);
+    if (!d.count) throw new Error(`${it.id} is fully held by its joints — it cannot move (remove or free a joint first).`);
+    const mo = Number.isInteger(+motion) && d.motions[+motion] ? d.motions[+motion] : d.motions.find((x) => x.label.toLowerCase().includes(String(motion).toLowerCase()));
+    if (!mo) throw new Error(`motion is one of: ${d.motions.map((x, i) => `${i}: ${x.label}`).join('; ')}.`);
+    if (!Number.isFinite(+amount)) throw new Error('amount: mm for a move, degrees for a turn.');
+    assembly.moveFree(it.id, mo, +amount, [...it.matrix], true);
+    return { text: `${it.id} moved: ${mo.label} by ${+amount} ${mo.kind === 'turn' ? '°' : 'mm'}. ${JSON.stringify(assembly.summary().parts.find((x) => x.id === it.id))}` };
+  },
+  save_to_library: async ({ name, category = 'My parts', maker = '', pn = '' }) => {
+    if (state.workspace !== 'model' || !modeler.part.features.length) throw new Error('Open the 3D model to keep (it needs steps).');
+    const item = itemFromModel(name || project.current?.name || 'My part', modeler.payload(), { category, maker, pn });
+    const res = await fetch('/api/library', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item }) });
+    const r = await res.json();
+    if (!res.ok) throw new Error(r.error || res.statusText);
+    return { text: `“${r.name}” is in the library (item ${r.id}, ${r.category}) — library_add {item: "${r.id}"} puts it in.` };
+  },
+});
 
 window.__app = { state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, library, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d };

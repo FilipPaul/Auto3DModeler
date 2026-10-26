@@ -9,7 +9,7 @@ import { renameInPlace } from '../rename.js';
 import { choose } from '../choose.js';
 import { paintedFaces, repaint } from './paint.js';
 import { ModelView, DATUMS, datumFrame } from './view.js';
-import { Sketcher, upgradeSketch, arcPts, RELATIONS, BIG_SKETCH } from './sketcher.js';
+import { Sketcher, upgradeSketch, arcPts, splinePts, RELATIONS, BIG_SKETCH } from './sketcher.js';
 import { textOutline } from '../outlinepanel.js';
 import { sectionBar, sectionMiddle } from './sectionbar.js';
 import { libraryFactsHtml } from '../library/browser.js';
@@ -933,6 +933,10 @@ export class Modeler {
         const ps = arcPts(P(e.c), P(e.a), P(e.b));
         for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1]]);
       }
+      for (const e of sk.entities.filter((x) => x.t === 'spline' && (x.pts || []).every(P))) { // smooth curves
+        const ps = splinePts(e.pts.map(P));
+        for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1]]);
+      }
       for (const e of sk.entities.filter((x) => x.t === 'block')) {
         const k = e.scale || 1, [au, av] = e.at || [0, 0];
         for (const poly of e.polys || []) for (const r of poly) for (let i = 0; i < r.length; i++) {
@@ -1832,6 +1836,7 @@ export class Modeler {
     for (const e of f.entities) {
       if (e.t === 'circle' || e.t === 'block') return false;
       if (e.t === 'line' || e.t === 'arc') for (const p of [e.a, e.b]) n[p] = (n[p] || 0) + 1;
+      if (e.t === 'spline' && e.pts?.length > 1) for (const p of [e.pts[0], e.pts[e.pts.length - 1]]) n[p] = (n[p] || 0) + 1;
     }
     return Object.values(n).some((c) => c === 1);
   }

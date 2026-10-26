@@ -162,7 +162,11 @@ TOOLS = [
                     "normal) / {face: <name>} (origin = the face's "
                     "centre); shapes: [{rect: {x, y, w, h, r}} (lower-left corner; r = rounded corners) | {circle: {x, y, d}} | {slot: {x1, y1, x2, y2, w}} (round ends "
                     "centred at x1,y1 and x2,y2) | {polyline: {points: [[u, v], …]}} "
-                    "(closed)] — a shape inside another is a hole; sizes are locked.\n"
+                    "(closed) | {profile: {points: [[u, v], {smooth: [[u, v], …]}, [u, v], {arc: [u, v]}, [u, v], …]}} (closed: corners "
+                    "[u, v] joined by straight lines; {smooth: [...]} = a smooth curve through those points to the next corner — one "
+                    "clean B-spline, no facets; {arc: [u, v]} = an arc through that point to the next corner)] — a shape inside another "
+                    "is a hole; sizes are locked. For round, turned parts (a vase, a knob, a bottle, a duck's body): a profile on "
+                    "plane \"XZ\" — u = the radius (≥ 0, the axis at u = 0), v = the height — then revolve axis \"y\".\n"
                     "- extrude: sketch (id), d, op add / cut, through (cut through all), symmetric, flip; or up_to: a flat face's "
                     "name (as far as that face — it follows the face), offset (mm past it, negative = short of it).\n"
                     "- revolve: sketch, axis \"y\" (the sketch's vertical axis) / \"x\" / a line id, angle (360), op.\n"
@@ -268,6 +272,31 @@ TOOLS = [
      "description": "Where parts of the assembly on screen go into each other (touching faces are fine): the pairs, the overlap volume "
                     "(mm³) and its box. Check after joining parts; an overlap usually means a missing hole or a wrong joint.",
      "inputSchema": _obj({})},
+    {"name": "set_look", "where": "browser",
+     "description": "The colour and see-through of the 3D model on screen, or (part = a placed id I…) of a part in the assembly on "
+                    "screen (in that assembly only). color: \"#rrggbb\" (null: its own again); opacity 0.1 … 1 (1 = solid). It shows in "
+                    "the 3D view, in assemblies and in the GLB export.",
+     "inputSchema": _obj({"part": STR, "color": {"type": ["string", "null"]}, "opacity": NUM})},
+    {"name": "paint_faces", "where": "browser",
+     "description": "Colour single faces: faces = their names (from find_refs / get_model, e.g. \"F4:end\", or a library part's "
+                    "faces), color \"#rrggbb\" (null: their own colour off). In a 3D model: the model's faces; in an assembly with "
+                    "part = I…: that placed part's faces, in this assembly only. A whole step's faces: give the step id (\"F4\").",
+     "inputSchema": _obj({"faces": {"type": "array", "items": STR}, "color": {"type": ["string", "null"]}, "part": STR}, ["faces"])},
+    {"name": "move_free", "where": "browser",
+     "description": "Move a joined part of the assembly on screen along one of the ways its joints leave free (get_assembly lists them "
+                    "as `free`): part = I…, motion = its number (0, 1 …) or words of its name, amount = mm (a move) or degrees (a turn). "
+                    "Its joints keep holding it; the parts on it go along. A fully held part cannot move.",
+     "inputSchema": _obj({"part": STR, "motion": {}, "amount": NUM}, ["part", "amount"])},
+    {"name": "save_to_library", "where": "browser",
+     "description": "Keep the 3D model on screen in the user's parts library (to use again in any project): name, category (e.g. "
+                    "\"My parts / Brackets\"), and for a bought part its maker and part number.",
+     "inputSchema": _obj({"name": STR, "category": STR, "maker": STR, "pn": STR})},
+    {"name": "report_problem", "where": "server",
+     "description": "Report something in the app that does not behave as expected (a tool error that should not happen, a wrong "
+                    "result, a missing function you needed): it is written as a dated report into the RealSWReports folder for the "
+                    "app's developers. title (short), what (what happened), expected (what should have happened), steps (the tool "
+                    "calls / what you did), workaround (what you did instead, if anything).",
+     "inputSchema": _obj({"title": STR, "what": STR, "expected": STR, "steps": STR, "workaround": STR}, ["title", "what"])},
     {"name": "remove_from_assembly", "where": "browser", "description": "Take a placed part (id I…) out of the assembly.",
      "inputSchema": _obj({"part": STR}, ["part"])},
     {"name": "get_guide", "where": "local",
@@ -305,5 +334,9 @@ Rules: pick faces and edges with find_refs, never by guessing. Put fillets and c
 Photos: the user can attach photos to a message. You see them, and the message lists where each one was saved ("[Attached photo: <path>]") — to make a part from one, pass that path to trace_picture. Describing or measuring from a photo needs no tool.
 
 Never open a file or the sample on your own: work on the part that is open. If nothing is open, ask the user what to open or offer a new 3D model — do not open the sample unless they ask for it.
+
+Smooth, round shapes (vases, knobs, handles, toys, bottles): draw the outline as a sketch `profile` with `{smooth: [...]}` parts and revolve it (or extrude it) — one clean smooth surface instead of many small faces. Colours: set_look (the whole part) and paint_faces (single faces) — the model keeps them, also in assemblies.
+
+If something does not behave as expected — a tool fails although your call was right, a result is wrong (sizes, positions, a joint, a colour that does not show), or you miss a function you needed — call report_problem at once with what happened, what you expected and the steps, then tell the user and carry on (or work around it). Do not report your own mistakes that you could fix yourself.
 
 Answer in the user's language, briefly. You can only use the tools listed — no files or shell."""

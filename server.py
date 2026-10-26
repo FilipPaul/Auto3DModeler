@@ -43,6 +43,7 @@ from auto3d.sketch import build_model
 from auto3d.solver import solve
 
 ROOT = Path(__file__).parent
+LF = "\n"
 WEB = ROOT / "web"
 SAMPLE = ROOT / "initial draft.pdf"
 printers = PrinterStore(ROOT / "data" / "printers.json")
@@ -842,7 +843,29 @@ def tool_export(args):
     return {"text": f"Exported {len(data) // 1024} kB to {target}"}
 
 
-SERVER_TOOLS = {"open_file": tool_open_file, "open_sample": tool_open_sample, "trace_picture": tool_trace_picture,
+REPORTS = ROOT / "RealSWReports"  # the AI's reports of things that did not behave as expected
+
+
+def tool_report_problem(args):
+    """A dated report (Markdown) of something that did not behave as expected -> RealSWReports/<date>-<title>.md."""
+    title = str(args.get("title") or "").strip()[:120]
+    what = str(args.get("what") or "").strip()
+    if not title or not what:
+        raise ValueError("A report needs a title and what happened.")
+    now = time.localtime()
+    slug = re.sub(r"[^a-z0-9]+", "-", title.lower().encode("ascii", "ignore").decode()).strip("-")[:60] or "report"
+    REPORTS.mkdir(parents=True, exist_ok=True)
+    path = REPORTS / f"{time.strftime('%Y-%m-%d-%H%M%S', now)}-{slug}.md"
+    parts = [f"# {title}", "", f"- **Date:** {time.strftime('%Y-%m-%d %H:%M:%S', now)}", "- **Reported by:** the AI agent (MCP report_problem)", "",
+             "## What happened", "", what]
+    for key, head in (("expected", "What was expected"), ("steps", "Steps"), ("workaround", "Workaround")):
+        if str(args.get(key) or "").strip():
+            parts += ["", f"## {head}", "", str(args[key]).strip()]
+    path.write_text(LF.join(parts) + LF, encoding="utf-8")
+    return {"text": f"Reported: {path.relative_to(ROOT).as_posix()} — thank you. Tell the user, then carry on."}
+
+
+SERVER_TOOLS = {"open_file": tool_open_file, "report_problem": tool_report_problem, "open_sample": tool_open_sample, "trace_picture": tool_trace_picture,
                 "use_outline": tool_use_outline, "export": tool_export}
 
 

@@ -490,3 +490,29 @@ class TestCutWarning(unittest.TestCase):
         r, v = vol(*box(), *hole(True))   # up into it
         self.assertFalse(r["features"][-1]["warnings"])
         self.assertAlmostEqual(v, 40 * 20 * 10 - math.pi * 4 * 5, places=3)
+
+
+@unittest.skipUnless(OCC, "OCP not installed")
+class TestSmoothCurves(unittest.TestCase):
+    """A sketch's smooth curve (spline through points) is one B-spline edge: a revolved profile gets one smooth face."""
+
+    def test_revolved_vase(self):
+        pts = {"o": [0, 0], "b": [20, 0], "s1": [26, 15], "s2": [18, 35], "s3": [24, 55], "t": [22, 60], "a": [0, 60]}
+        ents = [{"id": "l1", "t": "line", "a": "o", "b": "b"}, {"id": "s1", "t": "spline", "pts": ["b", "s1", "s2", "s3", "t"]},
+                {"id": "l2", "t": "line", "a": "t", "b": "a"}, {"id": "l3", "t": "line", "a": "a", "b": "o"}]
+        r = doc.rebuild({"features": [{"id": "F1", "type": "sketch", "plane": {"datum": "XZ"}, "points": pts, "entities": ents},
+                                      {"id": "F2", "type": "revolve", "sketch": "F1", "axis": "y", "angle": 360, "op": "add"}]})
+        self.assertTrue(all(f["ok"] for f in r["features"]), r["features"])
+        faces = r["body"]["faces"]
+        self.assertEqual(sorted(f["name"] for f in faces), ["F2:side:l1", "F2:side:l2", "F2:side:s1"])  # bottom, top, ONE side
+        self.assertGreater(r["body"]["volume"], math.pi * 18 ** 2 * 60)
+        # it goes through its points: Ø36 at z 35, Ø52 at z 15 (the bounding box reaches a little past the widest point)
+        self.assertGreaterEqual(r["body"]["bbox"][3], 26 - 1e-6)
+
+    def test_extruded_smooth_outline(self):
+        pts = {"p1": [0, 0], "p2": [40, 0], "m1": [45, 15], "m2": [20, 30], "m3": [-5, 15]}
+        ents = [{"id": "l1", "t": "line", "a": "p1", "b": "p2"}, {"id": "s1", "t": "spline", "pts": ["p2", "m1", "m2", "m3", "p1"]}]
+        r, v = vol({"id": "S1", "type": "sketch", "plane": {"datum": "XY"}, "points": pts, "entities": ents},
+                   {"id": "E1", "type": "extrude", "sketch": "S1", "op": "add", "d": 5})
+        self.assertTrue(v and v > 40 * 25 * 5 * 0.7, v)
+        self.assertEqual(sorted({f["name"] for f in r["body"]["faces"]}), ["E1:end", "E1:side:l1", "E1:side:s1", "E1:start"])

@@ -60,6 +60,11 @@ Date: 2026-10-25. Written by the architect agent.
   raised / engraved on a flat face, follows it; the AI's decal. tools/e2e_model_decal.py.
 - **Assembly links done:** snaps hold (doc.mates {move, face, onto, ontoFace}, re-applied after refresh and moves;
   moving the snapped part by hand unlinks; no cycles; saved, undoable). tools/e2e_assembly_links.py.
+- **Smooth curves and more AI tools done:** sketch entity `spline` {pts: [point ids]} (kernel.spline_curve:
+  GeomAPI_Interpolate; sampled for the loops, one B-spline edge in _mixed_wire; Sketcher.splineOf / splinePts draw and
+  pick it); the AI's sketch shape `profile` (corners, {smooth}, {arc}); tools set_look, paint_faces, move_free,
+  save_to_library (browser) and report_problem (server: RealSWReports/<date>-<title>.md); the system prompt asks for
+  reports and smooth profiles. tests: TestSmoothCurves, test_report_problem, tools/e2e_ai_shapes.py.
 - **CQ2 cylinders, colours, real models done:** library smc-cdq2b (SMC CQ2 catalogue, with auto switch) and smc-d-m9;
   a step's `color` -> part.paint {feature, color} (paint.js colours every face that step made); data/library/models.json
   (library.set_model, POST /api/library/model) -> buildPart uses the attached STEP (a solid step) for that choice.

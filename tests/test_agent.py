@@ -116,11 +116,33 @@ class TestMcpServer(unittest.TestCase):
             for used in set(re.findall(r"`([a-z_]+) \{", f.read_text(encoding="utf-8"))):
                 self.assertIn(used, names, f"{f.parent.name} uses {used}")
 
+    def test_report_problem(self):
+        """The AI's report of something that did not behave as expected: a dated Markdown file in RealSWReports."""
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+        import server
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(server, "REPORTS", Path(tmp) / "RealSWReports"), mock.patch.object(server, "ROOT", Path(tmp)):
+            r = server.tool_report_problem({"title": "Paint does not show in the assembly", "what": "paint_faces said ok, the face stayed grey",
+                                            "expected": "an orange beak", "steps": "paint_faces {faces: [\"F6\"], color: \"#FF8800\"}"})
+            files = list((Path(tmp) / "RealSWReports").glob("*.md"))
+            self.assertEqual(len(files), 1)
+            self.assertRegex(files[0].name, r"^\d{4}-\d{2}-\d{2}-\d{6}-paint-does-not-show-in-the-assembly\.md$")
+            text = files[0].read_text(encoding="utf-8")
+            for part in ("# Paint does not show in the assembly", "**Date:**", "## What happened", "## What was expected", "## Steps"):
+                self.assertIn(part, text)
+            self.assertIn("RealSWReports/", r["text"])
+            with self.assertRaises(ValueError):
+                server.tool_report_problem({"title": "", "what": "x"})
+
     def test_tool_schemas(self):
         for t in mcp_tool_list():
             self.assertEqual(t["inputSchema"]["type"], "object", t["name"])
             self.assertTrue(t["description"])
         self.assertIn("get_part", BROWSER_TOOLS)
+        for name in ("set_look", "paint_faces", "move_free", "save_to_library", "library_search", "library_add", "check_collisions"):
+            self.assertIn(name, BROWSER_TOOLS)
+        self.assertNotIn("report_problem", BROWSER_TOOLS)  # the server writes it
         self.assertNotIn("trace_picture", BROWSER_TOOLS)
 
 

@@ -69,6 +69,40 @@ export function sketchFromShapes(shapes, lock = true) {
       if (pts.length < 2) throw new Error('A path needs at least 2 points.');
       const ps = pts.map(([u, v], i) => point(u, v, i === 0));
       for (let i = 0; i + 1 < ps.length; i++) f.entities.push({ id: id('l'), t: 'line', a: ps[i], b: ps[i + 1] });
+    } else if (s.profile) {
+      // a closed outline: corners [x, y] joined by straight lines, {arc: [x, y]} an arc through that point to the
+      // next corner, {smooth: [[x, y], …]} a smooth curve through those points to the next corner
+      const items = s.profile.points || s.profile;
+      if (!Array.isArray(items) || items.length < 2) throw new Error('A profile needs its points: [[x, y], {smooth: [[x, y], …]}, {arc: [x, y]}, …] (closed).');
+      const corners = [];
+      items.forEach((it, i) => {
+        if (Array.isArray(it)) corners.push({ at: it, next: null });
+        else if (it && (it.smooth || it.arc)) {
+          if (!corners.length) throw new Error('A profile starts with a corner [x, y] (then smooth / arc parts may follow).');
+          corners[corners.length - 1].next = it;
+        } else throw new Error(`Profile item ${i + 1}: a corner [x, y], {smooth: [[x, y], …]} or {arc: [x, y]}.`);
+      });
+      if (corners.length < 2 && !corners[0]?.next) throw new Error('A profile needs at least 2 corners, or a smooth part.');
+      const ids = corners.map((c) => point(c.at[0], c.at[1], true));
+      corners.forEach((c, i) => {
+        const a = ids[i], b = ids[(i + 1) % ids.length], A = c.at, B = corners[(i + 1) % corners.length].at;
+        if (c.next?.smooth) {
+          const mids = c.next.smooth.map(([u, v]) => point(u, v, true));
+          f.entities.push({ id: id('s'), t: 'spline', pts: [a, ...mids, b] });
+        } else if (c.next?.arc) {
+          const M = c.next.arc, ax = B[0] - A[0], ay = B[1] - A[1], bx = M[0] - A[0], by = M[1] - A[1], dd = 2 * (ax * by - ay * bx);
+          if (Math.abs(dd) < 1e-12) throw new Error(`Profile: the arc through [${M}] is a straight line — move that point off the line.`);
+          const ux = (by * (ax * ax + ay * ay) - ay * (bx * bx + by * by)) / dd, uy = (ax * (bx * bx + by * by) - bx * (ax * ax + ay * ay)) / dd;
+          const cc = point(A[0] + ux, A[1] + uy, true), arc = id('a');
+          // the sketch's arcs run counter-clockwise from a to b: from A through M to B, or the other way round
+          f.entities.push(dd > 0 ? { id: arc, t: 'arc', c: cc, a: b, b: a } : { id: arc, t: 'arc', c: cc, a, b });
+        } else if (a !== b) {
+          const l = id('l');
+          f.entities.push({ id: l, t: 'line', a, b });
+          if (Math.abs(A[1] - B[1]) < 1e-9) f.constraints.push({ id: id('k'), t: 'h', e: l });
+          else if (Math.abs(A[0] - B[0]) < 1e-9) f.constraints.push({ id: id('k'), t: 'v', e: l });
+        }
+      });
     } else if (s.polyline) {
       const pts = s.polyline.points || [];
       if (pts.length < 3) throw new Error('A polyline needs at least 3 points (it is closed automatically).');
@@ -80,7 +114,7 @@ export function sketchFromShapes(shapes, lock = true) {
         if (Math.abs(p[1] - q[1]) < 1e-9) f.constraints.push({ id: id('k'), t: 'h', e: l });
         else if (Math.abs(p[0] - q[0]) < 1e-9) f.constraints.push({ id: id('k'), t: 'v', e: l });
       });
-    } else throw new Error('Each shape is {rect: {x, y, w, h}}, {circle: {x, y, d}} or {polyline: {points: [[u, v], …]}}.');
+    } else throw new Error('Each shape is {rect: {x, y, w, h}}, {circle: {x, y, d}}, {polyline: {points: [[u, v], …]}} or {profile: {points: [[u, v], {smooth: [[u, v], …]}, {arc: [u, v]}, …]}}.');
   }
   // a locked polyline / rectangle corner already fixes its points: the H / V rules there are redundant locks
   if (lock) {

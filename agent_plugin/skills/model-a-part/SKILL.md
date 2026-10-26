@@ -18,6 +18,12 @@ Everything is in mm. x right, y up, z up from the printer bed. The 3D printer be
    - `{rect: {x, y, w, h}}` — x, y = the lower-left corner
    - `{circle: {x, y, d}}` — centre and diameter (a circle inside a rectangle becomes a hole)
    - `{polyline: {points: [[u, v], ...]}}` — closed automatically (an L-shape, a triangle, a profile)
+   - `{profile: {points: [[u, v], {smooth: [[u, v], ...]}, [u, v], {arc: [u, v]}, [u, v], ...]}}` — closed: corners
+     `[u, v]` joined by straight lines, `{smooth: [...]}` a smooth curve through those points to the next corner (one
+     clean B-spline surface after revolve / extrude, no facets), `{arc: [u, v]}` an arc through that point.
+     **Round, organic parts** (a vase, a bottle, a knob, a duck's body): plane `"XZ"`, u = the radius (≥ 0) and
+     v = the height, e.g. `[[0, 0], [20, 0], {smooth: [[26, 15], [18, 35], [24, 55]]}, [22, 60], [0, 60]]`, then
+     a revolve (`add_feature {type: "revolve", sketch, axis: "y"}`). Put a few more points where the shape bends; keep the axis side straight (u = 0).
    All sizes and positions are locked (the sketch is fully defined), so the user can change them later.
 4. **Base solid**: `add_feature {type: "extrude", sketch: "<id>", d: 10}` (op "add"); or
    `{type: "revolve", sketch, axis: "y", angle: 360}`.
@@ -74,3 +80,9 @@ get_model, get_screenshot
 - Sketch on a face: the face's centre is (0, 0) of the sketch.
 - A rounding that is too big for its edge fails — try a smaller r.
 - Do not open files or the sample on your own.
+
+## Colours
+
+`set_look {color: "#FFD400"}` colours the whole model (`opacity` for see-through), `paint_faces {faces: [names], color}`
+single faces (names from `find_refs`; a step id such as `"F6"` colours every face that step made — e.g. a beak that is
+its own revolve). The model keeps them, also in assemblies.
