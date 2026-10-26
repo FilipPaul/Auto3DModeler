@@ -29,6 +29,7 @@ const FIELDS = {
   dia: { label: 'Ø', kind: 'num', get: (e) => (e.t === 'circle' || e.t === 'arc' ? 2 * e.r : null) },
   r: { label: 'Radius', kind: 'num', get: (e) => (e.t === 'circle' || e.t === 'arc' ? e.r : null) },
   len: { label: 'Length', kind: 'num', get: lengthOf },
+  w: { label: 'Width', kind: 'num', get: (e) => (e.w ? e.w : null) }, // a trace's width (Gerber / ODB++)
   color: { label: 'Colour', kind: 'enum', get: null }, // (the colour it is drawn in: set by the editor)
   text: { label: 'Text', kind: 'str', get: (e) => (e.t === 'text' ? String(e.text) : null) },
 };
@@ -48,6 +49,14 @@ const passes = (v, op, want, kind) => {
 
 /** An arc's sweep from a0 to a1 (degrees, counter-clockwise) in radians, > 0. */
 const sweepOf = (e) => { let s = rad(e.a1 - e.a0) % TAU; if (s <= 1e-12) s += TAU; return s; };
+/** Is point p inside polygon pts (even-odd)? */
+const inside = (p, pts) => {
+  let c = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    if ((pts[i][1] > p[1]) !== (pts[j][1] > p[1]) && p[0] < ((pts[j][0] - pts[i][0]) * (p[1] - pts[i][1])) / (pts[j][1] - pts[i][1]) + pts[i][0]) c = !c;
+  }
+  return c;
+};
 const segDist = (p, a, b) => {
   const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy || 1;
   const k = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L));
@@ -62,6 +71,7 @@ export class DrawingEditor {
     this.d = { entities: [], layers: [] };
     this.tool = 'select';
     this.sel = new Set();
+    this.rev = 0; // the drawing's revision: the caches (batches, the grid) are kept for one
     this.filters = []; // 🔍 [{field, op, value}] — all of them must hold
     this.layerSel = new Set(); // layers picked in the list (Ctrl / Shift + click: several)
     this.view = { cx: 0, cy: 0, k: 4 };
@@ -70,6 +80,7 @@ export class DrawingEditor {
       restore: (s) => {
         const rescaled = (this.d.file_units || 'mm') !== (s.units || 'mm');
         Object.assign(this.d, { entities: s.entities, layers: s.layers, file_units: s.units });
+        this.rev = (this.rev || 0) + 1;
         this.sel.clear();
         this.renderPanels();
         if (rescaled) this.fit(); else this.draw();
@@ -95,6 +106,7 @@ export class DrawingEditor {
   // ------------------------------------------------------------------ the drawing as a project part
   load(data) {
     this.d = structuredClone(data || { entities: [], layers: [] });
+    this.rev = (this.rev || 0) + 1;
     this.d.entities = this.d.entities || [];
     this.d.layers = this.d.layers || [];
     if (!this.d.layers.length) this.d.layers.push({ name: '0', color: '#ffffff', visible: true });
@@ -118,7 +130,7 @@ export class DrawingEditor {
   payload() { return structuredClone(this.d); }
   layer(name) { return this.d.layers.find((l) => l.name === name); }
   shown(e) { return this.layer(e.layer)?.visible !== false; }
-  commit() { this.history.commit(); this.renderPanels(); this.draw(); this.hooks.onChange?.(); }
+  commit() { this.rev = (this.rev || 0) + 1; this.history.commit(); this.renderPanels(); this.draw(); this.hooks.onChange?.(); }
   newId() {
     let n = this.d.entities.length;
     const used = new Set(this.d.entities.map((e) => e.id));
@@ -193,12 +205,27 @@ export class DrawingEditor {
         if (e.closed) c.closePath();
       }
     };
-    for (const e of this.d.entities) {
+    // everything, batched: one path per layer and look, drawn in mm (half a million shapes stay quick)
+    const dpr = window.devicePixelRatio || 1;
+    c.save();
+    c.setTransform(dpr * k, 0, 0, -dpr * k, dpr * (this.w / 2 - this.view.cx * k), dpr * (this.h / 2 + this.view.cy * k));
+    c.lineCap = c.lineJoin = 'round';
+    for (const g of this.batches()) {
+      if (this.layer(g.layer)?.visible === false) continue;
+      const col = g.clear ? '#0e1115' : this.colourOf({ layer: g.layer, color: g.color });
+      if (g.fill) { c.fillStyle = col; c.fill(g.path); } else { c.strokeStyle = col; c.lineWidth = g.w || 1 / k; c.stroke(g.path); }
+    }
+    c.restore();
+    const special = [...this.sel, ...(this.matchSet || []), ...(this.hover ? [this.hover] : [])];
+    const byId = this.byId(), texts = this.texts();
+    for (const e of [...texts, ...special.map((id) => byId.get(id)).filter(Boolean)]) {
       if (!this.shown(e)) continue;
       const on = this.sel.has(e.id), hov = this.hover === e.id, hit = !on && this.matchSet?.has(e.id);
-      c.strokeStyle = on ? '#f2cc60' : hov ? '#6cb6ff' : hit ? '#39d0d8' : this.colourOf(e);
+      if (e.t !== 'text' && !on && !hov && !hit) continue;
+      c.strokeStyle = on ? '#f2cc60' : hov ? '#6cb6ff' : hit ? '#39d0d8' : e.clear ? '#0e1115' : this.colourOf(e);
       c.fillStyle = c.strokeStyle;
-      c.lineWidth = on || hov || hit ? 2 : 1;
+      c.lineWidth = e.w ? Math.max(1, e.w * k) : on || hov || hit ? 2 : 1; // a trace: as wide as it is
+      c.lineCap = c.lineJoin = 'round';
       if (e.t === 'text') {
         c.save();
         const [sx, sy] = this.toScreen(e.at);
@@ -210,7 +237,7 @@ export class DrawingEditor {
         continue;
       }
       path(e);
-      c.stroke();
+      if (e.fill) { c.fill(); if (on || hov || hit) { c.lineWidth = 2; c.stroke(); } } else c.stroke();
     }
     // the shape being drawn, the measure, the snap point
     const live = this.pending && this.cursor ? this.pendingShape() : null;
@@ -231,16 +258,95 @@ export class DrawingEditor {
     }
   }
 
+  /** The shapes as batches: [{layer, fill, clear, w, color, path (Path2D in mm)}], the list's top layer last; kept for
+   *  this revision of the drawing. */
+  batches() {
+    if (this._bat && this._bat.rev === this.rev && this._bat.n === this.d.entities.length) return this._bat.list;
+    const rank = new Map(this.d.layers.map((l, i) => [l.name, i])), groups = new Map();
+    for (const e of this.d.entities) {
+      if (e.t === 'text') continue;
+      const fill = !!e.fill, key = `${e.layer}\u0001${fill}\u0001${e.clear ? 1 : 0}\u0001${fill ? 0 : e.w || 0}\u0001${e.color || ''}`;
+      let g = groups.get(key);
+      if (!g) groups.set(key, (g = { layer: e.layer, rank: rank.get(e.layer) ?? 0, fill, clear: !!e.clear, w: fill ? 0 : e.w || 0, color: e.color || null, path: new Path2D() }));
+      const P = g.path;
+      if (e.t === 'line') { P.moveTo(e.a[0], e.a[1]); P.lineTo(e.b[0], e.b[1]); } else if (e.t === 'circle') { P.moveTo(e.c[0] + e.r, e.c[1]); P.arc(e.c[0], e.c[1], e.r, 0, TAU); } else if (e.t === 'arc') {
+        const a0 = rad(e.a0), sw = sweepOf(e);
+        P.moveTo(e.c[0] + e.r * Math.cos(a0), e.c[1] + e.r * Math.sin(a0));
+        P.arc(e.c[0], e.c[1], e.r, a0, a0 + sw, false);
+      } else if (e.t === 'poly' && e.pts.length) {
+        P.moveTo(e.pts[0][0], e.pts[0][1]);
+        for (let i = 1; i < e.pts.length; i++) P.lineTo(e.pts[i][0], e.pts[i][1]);
+        if (e.closed) P.closePath();
+      }
+    }
+    // a layer's clear (cut-out) parts after its others
+    const list = [...groups.values()].sort((a, b) => a.rank - b.rank || a.clear - b.clear);
+    this._bat = { rev: this.rev, n: this.d.entities.length, list };
+    return list;
+  }
+
+  byId() {
+    if (!this._ids || this._ids.rev !== this.rev || this._ids.n !== this.d.entities.length) this._ids = { rev: this.rev, n: this.d.entities.length, map: new Map(this.d.entities.map((e) => [e.id, e])) };
+    return this._ids.map;
+  }
+
+  texts() {
+    if (!this._txt || this._txt.rev !== this.rev || this._txt.n !== this.d.entities.length) this._txt = { rev: this.rev, n: this.d.entities.length, list: this.d.entities.filter((e) => e.t === 'text') };
+    return this._txt.list;
+  }
+
+  /** A grid over the drawing: which shapes are near a point (picking and snapping look only there). */
+  near(p, reach) {
+    if (!this._grid || this._grid.rev !== this.rev || this._grid.n !== this.d.entities.length) {
+      const b = this.bbox(this.d.entities) || [0, 0, 1, 1], size = Math.max(b[2] - b[0], b[3] - b[1], 1e-3);
+      const cell = size / 256, cells = new Map(), big = [];
+      const boxOf = (e) => {
+        const h = (e.w || 0) / 2;
+        if (e.t === 'line') return [Math.min(e.a[0], e.b[0]) - h, Math.min(e.a[1], e.b[1]) - h, Math.max(e.a[0], e.b[0]) + h, Math.max(e.a[1], e.b[1]) + h];
+        if (e.t === 'circle' || e.t === 'arc') return [e.c[0] - e.r - h, e.c[1] - e.r - h, e.c[0] + e.r + h, e.c[1] + e.r + h];
+        if (e.t === 'text') return [e.at[0], e.at[1], e.at[0] + e.h * 0.6 * String(e.text).length, e.at[1] + e.h];
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (const q of e.pts || []) { x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]); }
+        return [x0 - h, y0 - h, x1 + h, y1 + h];
+      };
+      for (const e of this.d.entities) {
+        const q = boxOf(e), i0 = Math.floor((q[0] - b[0]) / cell), i1 = Math.floor((q[2] - b[0]) / cell), j0 = Math.floor((q[1] - b[1]) / cell), j1 = Math.floor((q[3] - b[1]) / cell);
+        if ((i1 - i0 + 1) * (j1 - j0 + 1) > 256) { big.push(e); continue; } // a long one (an outline): always looked at
+        for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const kk = i * 100003 + j; (cells.get(kk) || cells.set(kk, []).get(kk)).push(e); }
+      }
+      this._grid = { rev: this.rev, n: this.d.entities.length, b, cell, cells, big };
+    }
+    const g = this._grid, out = new Set(g.big);
+    const i0 = Math.floor((p[0] - reach - g.b[0]) / g.cell), i1 = Math.floor((p[0] + reach - g.b[0]) / g.cell);
+    const j0 = Math.floor((p[1] - reach - g.b[1]) / g.cell), j1 = Math.floor((p[1] + reach - g.b[1]) / g.cell);
+    if ((i1 - i0 + 1) * (j1 - j0 + 1) > 40000) return this.d.entities; // zoomed far out: all of them
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) for (const e of g.cells.get(i * 100003 + j) || []) out.add(e);
+    return out;
+  }
+
+  /** The entities in the order of their layers (the list's top drawn last, on top), kept until the entities change. */
+  ordered() {
+    const key = this.d.entities, lk = this.d.layers.map((l) => l.name).join('\u0001');
+    if (this._ord?.key === key && this._ord.lk === lk) return this._ord.list;
+    const rank = new Map(this.d.layers.map((l, i) => [l.name, i]));
+    const list = [...this.d.entities].sort((a, b) => (rank.get(a.layer) ?? 0) - (rank.get(b.layer) ?? 0));
+    this._ord = { key, lk, list };
+    return list;
+  }
+
   // ------------------------------------------------------------------ picking, snapping
   /** The spot under the mouse: an end, a middle or a centre within reach, else the plain point. */
   snapAt(sx, sy) {
     const p = this.toWorld(sx, sy), tol = SNAP_PX / this.view.k;
     let best = null;
     const near = (q, kind) => { const d = Math.hypot(q[0] - p[0], q[1] - p[1]); if (d < tol && (!best || d < best.d)) best = { d, p: q, snap: kind }; };
-    for (const e of this.d.entities) {
+    for (const e of this.near(p, tol)) {
       if (!this.shown(e)) continue;
       if (e.t === 'line') { near(e.a, 'end'); near(e.b, 'end'); near([(e.a[0] + e.b[0]) / 2, (e.a[1] + e.b[1]) / 2], 'middle'); } else if (e.t === 'circle') near(e.c, 'centre');
-      else if (e.t === 'arc') { near(e.c, 'centre'); for (const a of [rad(e.a0), rad(e.a0) + sweepOf(e)]) near([e.c[0] + e.r * Math.cos(a), e.c[1] + e.r * Math.sin(a)], 'end'); } else if (e.t === 'poly') for (const q of e.pts) near(q, 'end');
+      else if (e.t === 'arc') { near(e.c, 'centre'); for (const a of [rad(e.a0), rad(e.a0) + sweepOf(e)]) near([e.c[0] + e.r * Math.cos(a), e.c[1] + e.r * Math.sin(a)], 'end'); } else if (e.t === 'poly') {
+        if (e.fill && e.pts.length <= 64) near([e.pts.reduce((s, q) => s + q[0], 0) / e.pts.length, e.pts.reduce((s, q) => s + q[1], 0) / e.pts.length], 'centre'); // a pad
+        else for (const q of e.pts) near(q, 'end');
+      }
     }
     return best ? { p: [...best.p], snap: best.snap } : { p };
   }
@@ -250,16 +356,18 @@ export class DrawingEditor {
     const p = this.toWorld(sx, sy), tol = HIT_PX / this.view.k;
     let best = null;
     const consider = (e, d) => { if (d < tol && (!best || d < best.d)) best = { d, id: e.id }; };
-    for (const e of this.d.entities) {
+    for (const e of this.near(p, tol)) {
       if (!this.shown(e)) continue;
-      if (e.t === 'line') consider(e, segDist(p, e.a, e.b));
-      else if (e.t === 'circle') consider(e, Math.abs(Math.hypot(p[0] - e.c[0], p[1] - e.c[1]) - e.r));
+      const half = (e.w || 0) / 2;
+      if (e.t === 'line') consider(e, Math.max(0, segDist(p, e.a, e.b) - half));
+      else if (e.t === 'circle') { const dc = Math.hypot(p[0] - e.c[0], p[1] - e.c[1]); consider(e, e.fill && dc <= e.r ? 0 : Math.max(0, Math.abs(dc - e.r) - half)); }
       else if (e.t === 'arc') {
         const a = (Math.atan2(p[1] - e.c[1], p[0] - e.c[0]) - rad(e.a0) + 2 * TAU) % TAU;
         if (a <= sweepOf(e)) consider(e, Math.abs(Math.hypot(p[0] - e.c[0], p[1] - e.c[1]) - e.r));
       } else if (e.t === 'poly') {
         const q = e.closed ? [...e.pts, e.pts[0]] : e.pts;
-        for (let i = 0; i + 1 < q.length; i++) consider(e, segDist(p, q[i], q[i + 1]));
+        if (e.fill && inside(p, e.pts)) consider(e, 0);
+        for (let i = 0; i + 1 < q.length; i++) consider(e, Math.max(0, segDist(p, q[i], q[i + 1]) - half));
       } else if (e.t === 'text') {
         const w = e.h * 0.6 * String(e.text).length;
         if (p[0] >= e.at[0] && p[0] <= e.at[0] + w && p[1] >= e.at[1] && p[1] <= e.at[1] + e.h) consider(e, 0);
@@ -368,7 +476,7 @@ export class DrawingEditor {
     if (!this.pending) { this.pending = { a: s.p }; this.draw(); return; }
     const sh = this.pendingShape(s);
     if (sh && (sh.t !== 'circle' || sh.r > 1e-9) && (sh.t !== 'line' || Math.hypot(sh.b[0] - sh.a[0], sh.b[1] - sh.a[1]) > 1e-9)) {
-      this.d.entities.push({ id: this.newId(), layer: this.d.active, ...sh });
+      this.d.entities = [...this.d.entities, { id: this.newId(), layer: this.d.active, ...sh }];
       this.commit();
     }
     this.pending = this.tool === 'line' ? { a: s.p } : null; // a line goes on from its end
@@ -529,6 +637,16 @@ export class DrawingEditor {
     this.commit();
   }
 
+  /** ⬇ the shown layers as a DXF. */
+  async exportDxf() {
+    const shown = { ...this.d, layers: this.d.layers, entities: this.d.entities.filter((e) => this.shown(e)) };
+    if (!shown.entities.length) { this.hooks.toast?.(t('Nothing to export on the shown layers.'), 'warning'); return; }
+    const res = await fetch('/api/drawing/dxf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(shown) });
+    if (!res.ok) { this.hooks.toast?.((await res.json().catch(() => ({}))).error || res.statusText, 'error'); return; }
+    const name = `${(this.hooks.safeName?.() || this.d.source || 'drawing').replace(/\.[^.]+$/, '')}.dxf`;
+    if (await this.hooks.download?.(await res.blob(), name)) this.hooks.toast?.(tv('Saved {name} ({n} shapes on {k} layers).', { name, n: shown.entities.length, k: this.d.layers.filter((l) => l.visible !== false).length }), 'ok', 5000);
+  }
+
   removeSel() {
     this.d.entities = this.d.entities.filter((e) => !this.sel.has(e.id));
     this.sel.clear();
@@ -549,6 +667,7 @@ export class DrawingEditor {
       ${btn('measure', '📏 Measure', 'Measure: two spots, or a circle for its Ø (M)')}
       <span class="sep"></span><button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
       <button class="chip" data-a="fit" title="Show all of it (F)">⤢ Fit</button>
+      <button class="chip" data-a="dxf" title="Save the shown layers as a DXF (in mm, its layers and colours; traces keep their width, pads and areas filled)">⬇ DXF</button>
       <span class="sep"></span>
       <div class="menu dw-use"><button class="chip tool" data-a="use" title="What to make of the drawing (its shown layers)">Use ▾</button>
         <div class="menu-list"><button data-use="sketch">✏ As a sketch of a new 3D model</button><button data-use="quick">▤ As a quick part (its closed outlines)</button></div></div>`;
@@ -558,6 +677,7 @@ export class DrawingEditor {
         if (a === 'undo') return this.history.go(-1);
         if (a === 'redo') return this.history.go(1);
         if (a === 'fit') return this.fit();
+        if (a === 'dxf') return this.exportDxf();
         if (a === 'use') { e.stopPropagation(); bar.querySelector('.dw-use').classList.toggle('open'); return null; }
         return this.setTool(a);
       });

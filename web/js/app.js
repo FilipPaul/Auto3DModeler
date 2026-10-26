@@ -537,21 +537,26 @@ async function openSolid(file) {
   await project.newModel({ features: [solidStep(r)] }, file.name.replace(/\.[^.]+$/, ''));
   toast(t2('{name} is open as a 3D model ({faces} faces) — sketch on its faces, add holes, or ask the AI to build on it.', { name: file.name, faces: r.faces }), 'ok', 7000);
 }
-const DRAWING_RE = /\.(dxf|dwg)$/i;
+// drawings: DXF / DWG, and PCB data — a Gerber set or an ODB++ job (a .zip / .tgz, or the Gerber / drill files)
+const DRAWING_RE = /\.(dxf|dwg|zip|tgz|tar|gbr|ger|gtl|gbl|gto|gbo|gts|gbs|gtp|gbp|gko|gm\d*|gml|g\d+|cmp|sol|plc|pls|stc|sts|art|pho|drl|xln|drd|exc|ncd)$|\.tar\.gz$/i;
 /** A DXF / DWG opens as it is (layers, lines, circles …) in the 2D drawing workspace — what to make of it comes later. */
-async function openDrawing(file) {
+async function openDrawing(file, more = []) {
   const fd = new FormData();
-  fd.append('file', file);
+  for (const f of [file, ...more]) fd.append('file', f);
   try {
     const d = await (await api('/api/drawing/import', fd)).json();
-    await project.newDrawing(d, file.name.replace(/\.[^.]+$/, ''));
-    toast(t2('{name}: {n} shapes on {k} layers — look, measure, tidy it up; Use ▾ makes a sketch or a quick part of it.', { name: file.name, n: d.entities.length, k: d.layers.length }), 'ok', 7000);
+    await project.newDrawing(d, file.name.replace(/\.(tar\.gz|[^.]+)$/i, ''));
+    toast(d.pcb ? t2('{name}: a board of {k} layers ({n} shapes) — the copper on top, its outline and holes are shown; 👁 shows the others. ⬇ DXF saves the shown layers.', { name: file.name, n: d.entities.length, k: d.layers.length })
+      : t2('{name}: {n} shapes on {k} layers — look, measure, tidy it up; Use ▾ makes a sketch or a quick part of it.', { name: file.name, n: d.entities.length, k: d.layers.length }), 'ok', 8000);
+    for (const msg of d.issues || []) toast(msg, 'info', 8000);
   } catch (e) { toast(e.message, 'error', 9000); }
 }
 $('cadInput').addEventListener('change', (e) => {
-  const f = e.target.files[0];
+  const all = [...e.target.files], f = all[0];
   e.target.value = '';
-  if (f) (DRAWING_RE.test(f.name) ? openDrawing : OPEN_SOLID_RE.test(f.name) ? openSolid : openImport)(f);
+  // several Gerber / drill files picked together: one board (a drill file may be a .txt)
+  if (all.length > 1 && all.every((x) => DRAWING_RE.test(x.name) || /\.txt$/i.test(x.name))) openDrawing(f, all.slice(1));
+  else if (f) (DRAWING_RE.test(f.name) ? openDrawing : OPEN_SOLID_RE.test(f.name) ? openSolid : openImport)(f);
 });
 $('pdfInput').addEventListener('change', (e) => { if (e.target.files[0]) openPdf(e.target.files[0]); e.target.value = ''; });
 $('sampleBtn').addEventListener('click', async () => {
@@ -1786,7 +1791,7 @@ $('toModelBtn').addEventListener('click', async () => {
 });
 // 2D drawings (DXF / DWG): a viewer and editor; Use ▾ makes a 3D model sketch or a quick part of one
 const drawing2d = new DrawingEditor({ left: $('dwgLeft'), viewport: $('dwgViewport'), right: $('dwgRight') }, {
-  toast, onChange: () => updateTopButtons(),
+  toast, download, safeName: () => tabName(), onChange: () => updateTopButtons(),
   async useAsSketch(d) {
     if (!d.entities.some((e) => e.t !== 'text')) { toast(t('Nothing to sketch on the shown layers.'), 'warning'); return; }
     if (d.entities.length > 3000) toast(t('A big sketch — hide the layers you do not need first, it is quicker to work with.'), 'info', 7000);

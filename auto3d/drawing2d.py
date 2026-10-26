@@ -23,8 +23,19 @@ def _hex(rgb):
     return "#%02x%02x%02x" % tuple(int(v) for v in rgb)
 
 
+PCB_EXT = (".zip", ".tgz", ".tar.gz", ".tar", ".gbr", ".ger", ".gtl", ".gbl", ".gto", ".gbo", ".gts", ".gbs", ".gtp", ".gbp",
+           ".gko", ".gm1", ".gml", ".gm", ".g1", ".g2", ".g3", ".g4", ".cmp", ".sol", ".plc", ".pls", ".stc", ".sts", ".art",
+           ".pho", ".drl", ".xln", ".drd", ".exc", ".ncd")
+
+
 def read_drawing(data: bytes, name: str) -> dict:
-    """A DXF (or DWG, converted) -> the drawing JSON above."""
+    """A DXF (or DWG, converted), a Gerber set / ODB++ job (pcb.py) -> the drawing JSON above."""
+    if name.lower().endswith(PCB_EXT):
+        from .pcb import read_pcb
+        d = read_pcb(data, name)
+        if d is None:
+            raise ImportError_("there are no Gerber, drill or ODB++ files in it")
+        return {**d, "source": name}
     try:
         import ezdxf
         from ezdxf import colors as dxfcolors
@@ -108,6 +119,89 @@ def read_drawing(data: bytes, name: str) -> dict:
     used = {e["layer"] for e in out}
     return {"source": name, "unit": "mm", "file_units": declared or "mm", "units_declared": bool(declared),
             "layers": [ly for ly in layers.values() if ly["name"] in used], "entities": out}
+
+
+def _layer_name(name, used):
+    """A DXF layer name (no < > / \\ " : ; ? * | = `), unique."""
+    import re
+    base = re.sub(r'[<>/\\":;?*|=`]+', "_", name).strip() or "0"
+    out, k = base, 2
+    while out.lower() in used:
+        out, k = f"{base}_{k}", k + 1
+    used.add(out.lower())
+    return out
+
+
+def to_dxf(drawing: dict, fills: bool = True) -> bytes:
+    """The drawing's shown layers -> a DXF (R2010, mm): its layers with their colours; a trace with a width -> a
+    polyline of that width; pads and areas -> closed outlines (+ a solid hatch: fills); clear ones on "<layer>_CLEAR"."""
+    import io
+    import ezdxf
+    from ezdxf import colors as dxfcolors
+    doc = ezdxf.new("R2010")
+    doc.header["$INSUNITS"] = 4
+    doc.header["$MEASUREMENT"] = 1
+    msp = doc.modelspace()
+    used, names = {"0"}, {}
+    rgb = lambda h: tuple(int(h[i:i + 2], 16) for i in (1, 3, 5)) if isinstance(h, str) and len(h) == 7 else (255, 255, 255)  # noqa: E731
+    for ly in drawing.get("layers") or []:
+        if ly.get("visible") is False:
+            continue
+        for clear in (False, True):
+            nm = _layer_name(ly["name"] + ("_CLEAR" if clear else ""), used)
+            doc.layers.add(nm).rgb = rgb(ly.get("color")) if not clear else (60, 60, 60)
+            names[(ly["name"], clear)] = nm
+    n = 0
+    for e in drawing.get("entities") or []:
+        nm = names.get((e.get("layer"), bool(e.get("clear"))))
+        if nm is None:
+            continue
+        at = {"layer": nm}
+        if e.get("color"):
+            at["true_color"] = dxfcolors.rgb2int(rgb(e["color"]))
+        w = float(e.get("w") or 0)
+        t = e.get("t")
+        if t == "line":
+            if w:
+                msp.add_lwpolyline([e["a"], e["b"]], dxfattribs={**at, "const_width": w})
+            else:
+                msp.add_line(e["a"], e["b"], dxfattribs=at)
+        elif t == "circle":
+            c, r = e["c"], e["r"]
+            if w and not e.get("fill"):  # a ring of that width: two half arcs
+                msp.add_lwpolyline([(c[0] + r, c[1], 0, 0, 1), (c[0] - r, c[1], 0, 0, 1)], format="xyseb", close=True, dxfattribs={**at, "const_width": w})
+            else:
+                msp.add_circle(c, r, dxfattribs=at)
+                if e.get("fill") and fills:
+                    h = msp.add_hatch(dxfattribs=at)
+                    h.set_solid_fill(rgb=rgb(e.get("color")) if e.get("color") else None)
+                    h.paths.add_edge_path().add_arc(c, r, 0, 360)
+        elif t == "arc":
+            if w:
+                sw = (e["a1"] - e["a0"]) % 360 or 360
+                a0, a1 = math.radians(e["a0"]), math.radians(e["a0"] + sw)
+                p0 = (e["c"][0] + e["r"] * math.cos(a0), e["c"][1] + e["r"] * math.sin(a0))
+                p1 = (e["c"][0] + e["r"] * math.cos(a1), e["c"][1] + e["r"] * math.sin(a1))
+                msp.add_lwpolyline([(p0[0], p0[1], 0, 0, math.tan(math.radians(sw) / 4)), (p1[0], p1[1], 0, 0, 0)], format="xyseb", dxfattribs={**at, "const_width": w})
+            else:
+                msp.add_arc(e["c"], e["r"], e["a0"], e["a1"], dxfattribs=at)
+        elif t == "poly" and len(e.get("pts") or []) >= 2:
+            closed = bool(e.get("closed"))
+            msp.add_lwpolyline(e["pts"], close=closed, dxfattribs={**at, **({"const_width": w} if w else {})})
+            if closed and e.get("fill") and fills and len(e["pts"]) >= 3:
+                h = msp.add_hatch(dxfattribs=at)
+                h.set_solid_fill()
+                h.paths.add_polyline_path(e["pts"], is_closed=True)
+        elif t == "text":
+            msp.add_text(str(e.get("text", "")), height=float(e.get("h") or 2.5), rotation=float(e.get("rot") or 0), dxfattribs={**at, "insert": e["at"]})
+        else:
+            continue
+        n += 1
+    if not n:
+        raise ImportError_("nothing to export on the shown layers")
+    buf = io.StringIO()
+    doc.write(buf)
+    return buf.getvalue().encode("utf-8")
 
 
 def outline_of(drawing: dict, flatten: float = 0.01):

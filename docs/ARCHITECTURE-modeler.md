@@ -60,6 +60,10 @@ Date: 2026-10-25. Written by the architect agent.
   raised / engraved on a flat face, follows it; the AI's decal. tools/e2e_model_decal.py.
 - **Assembly links done:** snaps hold (doc.mates {move, face, onto, ontoFace}, re-applied after refresh and moves;
   moving the snapped part by hand unlinks; no cycles; saved, undoable). tools/e2e_assembly_links.py.
+- **PCB boards done:** auto3d/pcb.py (own readers: Gerber RS-274X / X2 with apertures, macros, arcs, regions,
+  polarity, step & repeat; Excellon with formats fitted onto the board; ODB++ matrix / features / profile / own
+  symbols / .Z via unlzw; layer kinds by X2 attribute, extension or name), drawing2d.to_dxf (⬇ DXF), the editor
+  draws batches (Path2D per layer and look) and picks through a grid. tests/test_pcb.py, tools/e2e_pcb.py.
 - **Drawing filters done:** editor.js FIELDS / OPS (dynamic filter rows, all must hold), matches outlined, likeThis,
   setSize (Ø / R / length for the whole selection). tools/e2e_drawing_filter.py.
 - **Keep dependents done:** modeler.dependents (hard: needs it; soft: stands on it) + detach (plane -> its frame now,

@@ -109,6 +109,11 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_model_solid.py <url> <dir> <a .step> [<a bigger .step>]` covers STEP files as exact solids (Open → a 3D
    model in ~1 s, timed with the page's answer time; a cover: a box with the STEP as a 👁 Reference, then ⬚ Cut out —
    exact volumes; the AI sees its bbox; an assembly inserts one From a file; the project file carries it and reopens).
+   `tools/e2e_pcb.py <url> <dir> [<a board .zip / .tgz>]` covers Gerber / ODB++ boards (a Gerber zip made by the
+   test: layers and colours, which are shown, traces' widths, filled pads; a click in a pad, measuring between pad
+   middles, a Width filter, ⬇ DXF and opening it again, loose files picked together; optionally a big board timed).
+   Public boards to try: gerbv's examples (github.com/gerbv/gerbv, example/) and ODB++ jobs in
+   github.com/nam20485/OdbDesignTestData (TEST_DATA/sample_design.tgz, designodb_rigidflex.tgz).
    `tools/e2e_drawing_filter.py <url> <dir>` covers 🔍 Select by filter (shape -> layer -> Ø: 7 -> 5 -> 3, Select them,
    Ø 10 for all three, Ctrl+Z, ≡ All like this, lines' Length 25, a filter removed, 💧 the eyedropper, layers picked
    with Shift / Ctrl+click: hidden, as a filter, their shapes selected).

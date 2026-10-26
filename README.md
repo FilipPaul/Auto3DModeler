@@ -15,6 +15,8 @@ Use **📂 Open ▾** to open a file. It offers:
 - a PDF drawing (try **Sample drawing**, which loads `initial draft.pdf`);
 - a **picture**, to trace the outline of an object in a photo (e.g. `pernicek.png`) and make a cookie cutter
   or a solid shape from it — see [Outline from a picture](#outline-from-a-picture);
+- **PCB data** — a Gerber set or an ODB++ job (a .zip / .tgz, or several Gerber / drill files picked together) —
+  opens as a **📐 Drawing** too, a layer per Gerber file / ODB++ layer (see [PCB boards](#pcb-boards-gerber-odb));
 - a **DXF / DWG drawing** opens as a **📐 Drawing** — see [DXF / DWG drawings](#dxf--dwg-drawings); nothing is made of it until you
   choose (Shift+drop: straight to a quick part, as before);
 - a **CAD / 3D file**: STL / OBJ / STEP files — a **STEP opens as a 3D model** with its exact
@@ -219,6 +221,23 @@ layers, in their colours, in real mm.
   m / inch and the drawing is rescaled; a tiny drawing with no units says so when it opens.
 - **Use ▾** makes something of the shown layers: **✏ As a sketch of a new 3D model** (lines, circles and arcs, their
   ends joined — then ⬆ Extrude), or **▤ As a quick part** (its closed outlines: a cutter, a solid shape …).
+
+## PCB boards (Gerber, ODB++)
+
+*Open → CAD / PCB / 3D file* takes a **Gerber set** (RS-274X / X2 and Excellon drill files: a .zip, or the files
+picked together) or an **ODB++ job** (.tgz / .zip, also packed inside a zip; compressed .Z files too). The board opens
+as a 📐 Drawing — everything in the DXF / DWG section above works on it (layers, measuring, 🔍 filters with a
+**Width** filter for traces, ≡ / 💧, Use ▾):
+- a **layer per file** (Gerber X2 names its own; else the extension or the name — KiCad, Altium, Eagle, OrCAD, gEDA,
+  fab short names like `tl` / `bs`), in PCB colours; the top copper, outline, holes and top silkscreen are shown,
+  the rest is a click on 👁 away. Several boards in one zip (folders) are told apart by their folder.
+- traces are drawn **at their width**, pads and copper areas **filled**, clear (negative) parts cut out; pads snap at
+  their middle. Aperture macros, arcs, regions and step & repeat are read; ODB++ standard symbols and the job's own.
+- **drill files** often do not say their number format: their holes are scaled onto the board drawn by the Gerber
+  files of their folder (it says so when it does).
+- **⬇ DXF** saves the shown layers (of any drawing): in mm, its layers and colours; a trace -> a polyline of its
+  width, pads and areas -> closed outlines + a solid hatch, clear parts on `<layer>_CLEAR`.
+- A board of half a million shapes opens in a few seconds and stays quick to pan, zoom and pick.
 
 ## 2D drawings
 

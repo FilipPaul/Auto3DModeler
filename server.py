@@ -379,13 +379,29 @@ def api_model_rebuild():
 def api_drawing_import():
     """A DXF / DWG -> the drawing as it is (layers, entities in mm) for the 2D drawing editor."""
     from auto3d.drawing2d import read_drawing
-    f = request.files.get("file")
-    if f is None:
+    fs = request.files.getlist("file")
+    if not fs:
         return jsonify({"error": "No file uploaded."}), 400
     try:
+        if len(fs) > 1:  # loose Gerber / drill files picked together: one board
+            from auto3d.pcb import read_gerber_set
+            return jsonify({**read_gerber_set([(f.filename or f"file{i}", f.read()) for i, f in enumerate(fs)]), "source": fs[0].filename or "board"})
+        f = fs[0]
         return jsonify(read_drawing(f.read(), f.filename or "drawing.dxf"))
     except (ImportError_, ValueError) as exc:
         return jsonify({"error": str(exc)}), 400
+
+
+@app.post("/api/drawing/dxf")
+def api_drawing_dxf():
+    """A drawing (its shown layers) -> a DXF file."""
+    from auto3d.drawing2d import to_dxf
+    d = request.get_json(force=True) or {}
+    try:
+        data = to_dxf(d, fills=d.get("fills", True))
+    except (ImportError_, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    return Response(data, mimetype="application/dxf")
 
 
 @app.post("/api/drawing/outline")
