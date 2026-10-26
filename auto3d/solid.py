@@ -113,6 +113,22 @@ class Solid:
         return s
 
     @classmethod
+    def from_slabs(cls, slabs, unit: str = "mm") -> "Solid":
+        """A solid from ready z-slabs [(z0, z1, region)] (e.g. a sliced imported mesh); the base faces
+        are the bottom and top of the whole stack, the footprint is the union of all sections."""
+        s = cls.__new__(cls)
+        foot = unary_union([sec for _, _, sec in slabs])
+        x0, y0, x1, y1 = foot.bounds
+        s.t = slabs[-1][1]
+        s.size = max(x1 - x0, y1 - y0, s.t - slabs[0][0])
+        s.grid = precision_grid(s.size)
+        s.eps = s.size * 1e-7
+        s.profile = MultiPolygon(polygons_of(foot))
+        s.issues, s.guides = [], []
+        s.slabs = []
+        return s._derived(slabs)
+
+    @classmethod
     def prism(cls, poly, z0: float, z1: float, like: "Solid") -> "Solid":
         """A plain extruded part (e.g. a connector), sharing tolerances with `like`."""
         s = like._derived([(z0, z1, poly)], profile=poly)
@@ -139,6 +155,32 @@ class Solid:
                 continue
             cut = _union([g for g, a, b in voids if a <= zm < b])
             slabs.append((z0, z1, sec.difference(cut) if not cut.is_empty else sec))
+        return self._derived(slabs)
+
+    def csg(self, ops) -> "Solid":
+        """Boolean combination with extruded regions, applied in order:
+        ops = [(op, region, z_from, z_to), ...] with op 'union' / 'subtract' / 'intersect'."""
+        ops = [o for o in ops if o[1] is not None and o[3] > o[2]]
+        if not ops:
+            return self
+        zs = set(self.levels) | {z for _, _, a, b in ops for z in (a, b)}
+        zs = sorted(zs)
+        slabs = []
+        for z0, z1 in zip(zs, zs[1:]):
+            if z1 - z0 < 1e-9:
+                continue
+            zm = (z0 + z1) / 2
+            sec = next((s for a, b, s in self.slabs if a <= zm < b), None)
+            sec = MultiPolygon() if sec is None else sec
+            for op, g, a, b in ops:
+                inside = a <= zm < b
+                if op == "union" and inside:
+                    sec = sec.union(g)
+                elif op == "subtract" and inside:
+                    sec = sec.difference(g)
+                elif op == "intersect":
+                    sec = sec.intersection(g) if inside else MultiPolygon()
+            slabs.append((z0, z1, sec))
         return self._derived(slabs)
 
     def flipped(self) -> "Solid":
@@ -333,6 +375,44 @@ class Solid:
                     tags.append(tag)
         return tris, tags
 
+    def features(self, max_points: int = 20000):
+        """What the measure tool recognises: round holes / bosses (circles fitted to the slab sections,
+        merged over height) and flat faces (height, area, perimeter, outline for hit testing)."""
+        circles = []
+        for z0, z1, sec in self.slabs:
+            for p in sec.geoms:
+                for ring, hole in [(p.exterior, False)] + [(r, True) for r in p.interiors]:
+                    c = _fit_circle(ring)
+                    if c:
+                        circles.append({"x": c[0], "y": c[1], "r": c[2], "z0": z0, "z1": z1, "hole": hole})
+        merged = []
+        tol = self.size * 1e-5
+        for c in sorted(circles, key=lambda c: (c["hole"], round(c["x"] / tol), round(c["y"] / tol), round(c["r"] / tol), c["z0"])):
+            m = merged[-1] if merged else None
+            if (m and m["hole"] == c["hole"] and abs(m["x"] - c["x"]) < tol * 10 and abs(m["y"] - c["y"]) < tol * 10
+                    and abs(m["r"] - c["r"]) < tol * 10 and abs(m["z1"] - c["z0"]) < 1e-9):
+                m["z1"] = c["z1"]
+            else:
+                merged.append(dict(c))
+        faces, budget = [], max_points
+        simp = self.size * 0.001
+        for z in self.levels:
+            below, above = self.section_at(z, False), self.section_at(z, True)
+            for geom, up in ((below.difference(above), True), (above.difference(below), False)):
+                for p in polygons_of(geom):
+                    if p.area < (self.size * 1e-3) ** 2:
+                        continue
+                    s = p.simplify(simp)
+                    rings = [[[round(x, 5), round(y, 5)] for x, y in r.coords[:-1]] for r in (s.exterior, *s.interiors)]
+                    n = sum(len(r) for r in rings)
+                    if n > budget:
+                        continue
+                    budget -= n
+                    faces.append({"z": z, "up": up, "area": p.area, "perimeter": p.length, "rings": rings})
+        r6 = lambda v: round(v, 6)
+        return {"circles": [{k: (r6(v) if isinstance(v, float) else v) for k, v in c.items()} for c in merged],
+                "faces": faces}
+
     def volume(self):
         return sum((z1 - z0) * sec.area for z0, z1, sec in self.slabs)
 
@@ -344,6 +424,33 @@ class Solid:
                 for ring in (p.exterior, *p.interiors):
                     out.append({"layer": g["id"], "z": z, "points": [list(c) for c in ring.coords]})
         return out
+
+
+def _fit_circle(ring, min_points: int = 12, max_dev: float = 0.01):
+    """(cx, cy, r) when a closed ring is a circle (least-squares fit, every vertex within
+    max_dev * r of it, the vertices spread all round), else None."""
+    import numpy as np
+    pts = np.asarray(ring.coords[:-1], float)
+    if len(pts) < min_points:
+        return None
+    x, y = pts[:, 0], pts[:, 1]
+    A = np.column_stack([x, y, np.ones_like(x)])
+    try:
+        (d, e, f), *_ = np.linalg.lstsq(A, -(x * x + y * y), rcond=None)
+    except np.linalg.LinAlgError:
+        return None
+    cx, cy = -d / 2, -e / 2
+    r2 = cx * cx + cy * cy - f
+    if r2 <= 0:
+        return None
+    r = r2 ** 0.5
+    if np.abs(np.hypot(x - cx, y - cy) - r).max() > max_dev * r:
+        return None
+    ang = np.sort(np.arctan2(y - cy, x - cx))
+    gaps = np.diff(np.concatenate([ang, ang[:1] + 2 * np.pi]))
+    if gaps.max() > np.pi / 3:  # an arc, not a full circle
+        return None
+    return float(cx), float(cy), float(r)
 
 
 def _triangulate(poly):

@@ -1,0 +1,4 @@
+# Optional: the 3D model workspace (sketches -> extrude / revolve / fillet …), see docs/ARCHITECTURE-modeler.md.
+# The app works without these; install them with:  py -m pip install -r requirements-modeler.txt
+cadquery-ocp-novtk==8.0.1.1.0   # OpenCASCADE CAD kernel (about 48 MB download)
+planegcs==0.9.6                 # sketch constraint solver (FreeCAD's), LGPL-2.1+

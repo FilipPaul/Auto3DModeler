@@ -9,7 +9,311 @@ pip install -r requirements.txt
 python server.py            # opens http://127.0.0.1:5173
 ```
 
-Click **Sample drawing** to load `initial draft.pdf`, or open/drop your own PDF.
+Use **📂 Open ▾** to open a file. It offers:
+- a PDF drawing (try **Sample drawing**, which loads `initial draft.pdf`);
+- a **picture**, to trace the outline of an object in a photo (e.g. `pernicek.png`) and make a cookie cutter
+  or a solid shape from it — see [Outline from a picture](#outline-from-a-picture);
+- a **CAD / 3D file**: DXF / DWG drawings and STL / OBJ / STEP files;
+- a saved project.
+
+You can also drop a file on the view. To model a part from scratch, click **＋ New 3D model** (see
+[3D model workspace](#3d-model-workspace)).
+
+**Čeština / English**: the **CZ / EN** button at the right of the top bar switches the language live. The choice
+is remembered; the first time, the app uses the browser's language. Your own text (the project name, chat
+messages, the names you type) is never translated. Dimension names that come from a drawing are only shown
+translated; the project file keeps the originals. Translations live in `web/js/i18n.js`. Exact texts go in
+`CS`. Texts with values go in `CS_PATTERNS`, where `{}` is a value; values that are known texts are translated
+too. Text with markup goes in `CS_HTML`.
+
+**Long work shows progress**: importing or rebuilding a large 3D file shows a progress bar with **Cancel**.
+Cancelling puts the part back the way it was. Curved or slanted 3D imports get a slice height chosen
+automatically so they build in a few seconds; the Part tab lets you set a finer one.
+
+**Project name and saving**: click the project name in the top bar to rename it. *Save project* and the exports
+open the browser's Save dialog (Edge / Chrome), so you can pick the folder and the name. Other browsers download
+the file instead.
+
+**Several parts in one project**: every file you open becomes its own **part tab** in the top bar, next to the
+project name (📁). Click a tab to switch parts; each keeps its edits and its own undo history. Double-click a
+tab to rename it, and use **✕** to close it. The **＋** next to the tabs offers the usual ways to open a file.
+*Save project* stores all the parts in one file (project version 3). Older project files still open, as a
+project with one part. The plan for the coming 3D model workspace (sketches → extrude / revolve / fillet …,
+light assemblies) is in [docs/ARCHITECTURE-modeler.md](docs/ARCHITECTURE-modeler.md). Its optional packages
+are listed in `requirements-modeler.txt`; the app works without them.
+
+## 3D model workspace
+
+**＋ New 3D model** opens a new part tab (marked ◆) where you build a part step by step, as in Solid Edge or
+SolidWorks. It has only the tools that need almost no input.
+
+1. It starts sketching on the **Top** plane. Draw with **▭ Rectangle** (two clicks: the corners),
+   **⟋ Line** (click point after point; click the first point again to close the shape) or **◯ Circle**
+   (the centre, then the edge), or **◠ Arc** (click where it starts and ends, bend it with the mouse, click; its
+   radius shows as R and can be typed and locked like any size).
+   - Points snap to the grid (it follows the zoom), to the origin, and to existing points. Snapping onto a point
+     joins the shapes there. Hold Alt to draw without snapping. A line drawn almost horizontal or vertical
+     becomes exactly that.
+   - **Every size has a label. Type a number on it to lock it 🔒.** A locked size stays when you drag or change
+     other sizes. For example, lock a hole at x 10 and it stays 10 mm from the edge when the plate gets wider.
+     Click 🔒 to free a size again, or 🔓 to lock it as it is.
+   - **↔ Dimension** (D) adds a distance. Click two things: points, a circle (its centre), lines, the origin, or
+     the **edges of the part**. When you sketch on a face, its edges show dashed and can be dimensioned from.
+     Choose along x, along y or straight if more than one fits, then type the value; it is locked. For example:
+     circle → the plate's top edge, type 6; circle → the right edge, type 8; the hole now sits 6 / 8 mm from those
+     edges. ✕ on a dimension (or in the panel's list) deletes it. 🔒 / 🔓 on a dimension you added locks it (it holds) or
+     frees it (it only measures and shows the live value). A shape's own sizes (lengths, Ø) can be hidden with ✕ too:
+     ↔ Dimension on the same line or circle twice adds it back, and *Show hidden sizes* brings back all of them.
+     There are no automatic position labels: a shape shows only its own sizes and the dimensions you added.
+   - Whatever the mouse is on that a dimension or a new point would attach to lights up green and is named
+     (point, corner of the part, edge of the part, line, circle, origin). The origin is always shown (orange, with
+     its x / y arrows).
+   - **🖼 Outline** inserts an outline from a picture (traced in the outline editor), a DXF / DWG or a PDF
+     drawing as one shape. On a face it is centred on the face. Drag it to move it; type its width (on its label
+     or in the panel) to size it.
+   - Drag a shape (⬚ Select) to move it: only what is free follows the mouse. A point drawn on the origin is
+     locked there.
+   - While you sketch, the part is see-through, so the sketch, the grid and the dimensions show even behind it.
+   - The panel says how many sizes are still free, or "✓ Fully locked". A size that contradicts other locks is
+     refused, and the message says which locks are in the way.
+   - Delete removes the selection; Ctrl+Z undoes the last change in the sketch. A shape inside another one
+     becomes a hole.
+2. **✓ Finish sketch** opens **Extrude** straight away, with a live preview.
+   - Choose **⬆ Add material** or **⬇ Cut**, and type the distance.
+   - Optionally tick *Both sides* or *Through all* (for a cut), or click *⇅ Flip direction*.
+   - OK, or Enter, adds the step.
+3. **✏ Sketch** again and **click a flat face** of the part to sketch on it. On a face, Extrude starts as
+   **Cut**, ready for holes and pockets.
+   - A sketch on the top or bottom face of an extrude follows that face when the extrude changes.
+
+4. **◜ Fillet** (F) rounds edges and **◸ Chamfer** bevels them. Click the edges (a click on a face takes all of its
+   edges; a picked edge is dropped by clicking it again), then type the radius or size. **◎ Hole** (H): click on a
+   flat face where a hole goes (near the centre it snaps to it; click again for more holes on the same face), and
+   type the diameter. It goes through all by default, or untick *Through all* and give a depth. The panel lists
+   the holes with their x / y from the face's centre. Every tool shows a live preview.
+5. **⟳ Revolve** spins a sketch around an axis: the sketch's vertical axis (the default), its horizontal axis or one
+   of its lines, a full turn or any angle. Draw half the shape beside the axis, e.g. half a vase on the **Front**
+   plane. A new, empty sketch can be moved to Front / Right with the buttons in the bar. **▢ Shell** hollows the
+   part out: click the face(s) to leave open (the top of a cup) and type the wall thickness.
+6. **⁂ Pattern** repeats a step (a hole, a boss, a cut — or another pattern): **▦ In a row** — how many and how far
+   apart, along X / Y / Z or a straight edge you click; **◌ Around** — how many, evenly around Z (or X / Y), or around
+   the axis of a round face you click (a hole, a shaft). The copies follow when the original changes.
+
+Every face of the model has a name ("the top of Extrude 1", "the wall made by line 3"). Roundings, holes and
+sketches keep pointing at the same faces and edges when earlier sizes change. For example, make the box taller and
+the rounded edge is still the same edge. If an edge can only be found again by its position, the step shows a
+yellow ⚠.
+
+**Looking at it:**
+- **📏 Measure** (M): click a face for its type and area (and Ø when it is round), or an edge for its length (or
+  Ø). Then click a second spot for the distance with Δx / Δy / Δz. It snaps to the part's corners, and edges hidden
+  behind the part are not picked.
+- **✂ Section** cuts the view along X, Y or Z with a slider, to look inside (⇄ shows the other side).
+- The Part panel shows the size, volume and **mass** for the chosen **material** (PLA, PETG, ABS, ASA, TPU, PA;
+  solid, no infill).
+
+**From the other parts of the app:**
+- **◆ To 3D model** (in the Quick part's 3D toolbar) makes a new model tab from the part's outline: a picture
+  traced into a cookie cutter, a DXF, a PDF drawing (its profile with the cutouts, in mm) or a 3D file's
+  footprint. The outline becomes the first sketch, and Extrude is ready.
+- **🖨 Prepare for 3D print** (in a model's Part panel) makes a printing copy of the model as a Quick part, on the
+  3D print tab: printer fit, splitting into pieces with joints. Make it again after changing the model.
+
+Sketches show as lines in the 3D view: bright while not extruded yet, faint once used. Double-click a sketch's lines to
+change it. The steps are listed on the left. Double-click a step (or ✎) to change it; ● / ◌ turns a step off and on (it is kept); ✕ deletes it, together with the
+steps that need it. A step that cannot be built shows ⚠ with the reason, and the others still build. Ctrl+Z /
+Ctrl+Y undo and redo whole steps, and each model tab keeps its own history.
+
+**Export ▾** (or the buttons in the panel) gives STL for printing and STEP with exact circles and faces for
+other CAD programs.
+
+The model is built by a real CAD kernel, OpenCASCADE. It runs in its own process, so a failure cannot stop the
+app, and Cancel works on long rebuilds. It needs the optional packages in `requirements-modeler.txt`
+(`py -m pip install -r requirements-modeler.txt`, about 175 MB installed). Without them the rest of the app
+works, and the workspace says what to install.
+
+Coming next ([plan](docs/ARCHITECTURE-modeler.md)):
+- arcs, sizes between any two points, and equal / parallel / perpendicular rules;
+- AI tools for models;
+
+## Assemblies
+
+**＋ New assembly** (in the ＋ menu next to the part tabs) opens an assembly tab (◇), where the 3D model parts of
+the project are placed together:
+- **＋ Insert part ▾** adds a model part, as often as you like (⧉ in the list adds one more). A new one is put
+  beside the others.
+- **🧲 Snap face to face** (S): click a flat face of the part to move, then the flat face it goes onto. The part
+  turns and moves so that the two faces meet, centred on each other.
+- The panel of a selected part has its x / y / z position, **⟲ 90°** turns about X / Y / Z, *Snap it onto
+  another face*, *Reset its place* and *Take it out*.
+- **Explode** pulls the parts apart to look at them; their placement does not change.
+- The **parts list** shows each part, how many, its material and mass, and the total. **Export** gives STL (all
+  parts as placed, in one file) or STEP (each part as its own body).
+- Changing a part in its own tab updates the assembly. The assembly is saved in the project. Undo / redo work as
+  everywhere.
+- The AI chat can build assemblies too: *“put the pin into the plate”* — it inserts the parts and snaps their
+  faces together (tools new_assembly, insert_part, snap_faces, place_part, get_assembly; skill assemble-parts).
+
+## AI assistant (✨ AI tab)
+
+Tell Claude what you want — *"make a 90 mm cookie cutter from C:\pics\star.png with a hanging hole"*, *"cut a
+5 mm hole 8 mm from the top"*, *"engrave my name on the flange and export an STL"* — and it works on the part in
+the app: every change appears in the 3D view at once and **↶ Undo AI change** takes it back.
+On a quick part the chat is the **✨ AI** tab of the left panel; in a 3D model or an assembly the **✨ AI** button in
+the top bar opens the same chat (the same conversation) at the right side — ✕ closes it.
+
+**Photos**: attach photos to a message with **📎 Photo**, by pasting (Ctrl+V) or by dropping them on the chat.
+Thumbnails show before you send, and ✕ removes one. You can attach up to 5 photos of up to 10 MB each; very
+large ones are scaled down to 2400 px. Claude sees the photos and can trace one into a part (for example
+*"make a cookie cutter from this, 90 mm wide"*). Photos are saved in `data/agent/photos/` so the tracing tools
+can open them.
+
+- It runs on **your own Claude Code** installation and sign-in (a Claude Pro / Max subscription or an API key):
+  the app starts `claude -p` in the background — found on the PATH, in `~/.local/bin`, or the newest copy
+  bundled with the VS Code / Cursor extension; set `AUTO3D_CLAUDE` to point elsewhere and
+  `AUTO3D_CLAUDE_MODEL` to choose a model. The app never sees your credentials (Claude Code signs in through
+  Anthropic's own flow); usage counts against your own plan. If you give the app to others, each of them signs in
+  with their own account.
+- Claude gets **only the app's tools** ([auto3d/agent_tools.py](auto3d/agent_tools.py)), through the app's own MCP
+  server ([auto3d/mcp_server.py](auto3d/mcp_server.py)): read the part, look at the 3D view, open files / the
+  sample, trace a picture and use an outline, set dimensions, choose what to make, add / change / remove 3D
+  objects, 2D shapes, design layers and point dimensions, check the printer, export, undo.
+- **3D models too**: it can list and open the parts of the project and start a new 3D model. It builds a model
+  step by step: sketches from rectangles, circles and polylines (sizes locked), extrude, revolve, hole, fillet,
+  chamfer and shell. It finds faces and edges by description (`find_refs`: "the top face", "the edges of that
+  face", "the round edges"), changes, deletes or turns off steps, and prepares a printing copy. Example: *"make a
+  50 × 30 × 4 mm plate with a 5 mm hole in the middle and 2 mm rounded corners"*.
+- **Skills**: the workflow guides in [agent_plugin/skills/](agent_plugin/skills/) — model-a-part,
+  change-a-model, from-picture, print-prep, assemble-parts. They are loaded as a Claude Code plugin for the chat
+  (`--plugin-dir`), and Claude reads the matching one before a task. The MCP server serves the same texts
+  as the `get_guide` tool and as MCP prompts, for other clients like Claude Desktop.
+- Built-in file and shell tools are switched off (`--tools Skill` keeps only the skill loader), only this MCP
+  server is loaded (`--strict-mcp-config`), your global hooks and settings are not (`--setting-sources local`),
+  and the session runs in the empty folder `data/agent/`.
+- How it fits together: the chat panel → `POST /api/chat/send` → one Claude Code process per chat (stream-json in
+  and out, streamed to the page as Server-Sent Events) → the MCP server → `POST /api/agent/call` → tools that change
+  the part are relayed to the open page (long-poll), applied there like a user edit and answered; reading files,
+  tracing pictures and writing exports run on the server.
+
+The same MCP server works from **Claude Desktop or Claude Code** directly (the app must be running and open in a
+browser) — e.g. in a Claude Code / Desktop MCP configuration:
+
+```json
+{ "mcpServers": { "auto3d": { "command": "py", "args": ["C:/path/to/Auto3DModeler/auto3d/mcp_server.py", "--url", "http://127.0.0.1:5173"] } } }
+```
+
+## Every part works the same way
+
+Whatever it comes from, a part has the same tabs and tools; only the top of the **Part** tab (its source)
+differs:
+
+| Source | Part tab source section | Scales with |
+| --- | --- | --- |
+| PDF drawing | the drawing (its dimensions drive the part) | the drawing's dimensions |
+| Picture | the traced outline, clean-up, *Make*: cookie cutter / solid shape / custom | width / height |
+| DXF / DWG | the drawing's closed regions in real size (mm), clean-up, *Make* … | width / height |
+| STL / OBJ / STEP | up axis, 90° turns, mirror, slice height | scale % |
+
+Below it, for every part: **3D objects added to the part** (booleaned on: profile / profile band offsets,
+cylinders, boxes, bars, text — placed and sized by clicking on the part, see *Pick on the part*) and **2D shapes on
+the profile** (added to / cut from the profile before it is built; not for 3D files).
+
+**Dimensions** — **＋ Dimension** (`D`): on PDF drawings the parametric dimension tool (edges / corners); on every
+other part a dimension between **two picked points** (corners and faces snap), as many as you like, as the
+distance or along X / Y / Z. Typing a value **scales the part** so the dimension fits — pictures / DXF in X and Y
+(heights stay), 3D files uniformly; together with everything placed on it (shapes, objects, other dimensions).
+On PDF drawings added point dimensions are reference values.
+
+**Measure** — **📏 Measure** (`M`): two clicks on the part give the distance, Δx, Δy and Δz; *Keep as dimension*
+turns it into one. In 2D: 📏 in the outline editor (picture pixels and mm) and in the enlarged Drawing view
+(mm, for pictures and DXF drawings).
+
+### Imports
+
+- **DXF**: lines, arcs, circles, polylines, splines and ellipses (also in blocks) are joined into closed regions
+  (even-odd: holes, islands in holes), in real size from `$INSUNITS` (unitless = mm). Open lines are reported and
+  ignored. Needs `ezdxf`.
+- **DWG** is a closed format: it is converted to DXF with the free **ODA File Converter** or LibreDWG's `dwg2dxf`
+  when one is installed; otherwise the import says so (or save the drawing as DXF).
+- **STL / OBJ / STEP** (STEP is tessellated with `cascadio` / OpenCASCADE): the part is cut into flat slices at every
+  flat face — exact for parts whose walls are vertical between flat faces (plates, brackets, cutters), slanted /
+  curved walls become steps of the *slice height*. The file is kept on the server (`data/imports/`) and inside the
+  project file, so projects reopen anywhere. Design layers need a flat part; on 3D files use 3D objects (e.g.
+  subtract a text object to engrave it).
+
+## Outline from a picture
+
+**Open picture** (or drop a picture with no part loaded / with `Shift`) opens the outline wizard
+([auto3d/outline.py](auto3d/outline.py), [web/js/outline.js](web/js/outline.js)):
+
+1. **Candidates** — several independent segmentations run on the picture: a background colour model learned
+   from the picture border (lightness weighted less, so shading and shadows matter less), GrabCut, colour
+   clustering, brightness / saturation thresholds and edges. Thin uniform frames around photos are removed
+   first. Each connected region is a candidate; the strongest outer regions are refined with GrabCut seeded
+   from them (separates drop shadows from the object edge). Candidates are ranked by edge contrast along the
+   boundary, how many method families agree, size and solidity; regions inside a bigger candidate (inner
+   decoration) and regions touching the picture edge rank lower. 3–10 candidates are shown with a confidence.
+2. **Help the detection** — *✚ inside object* (only outlines containing the point are kept), *✖ not this*
+   (click a shadow, the background or a neighbour: outlines containing it are dropped and GrabCut treats it as
+   background), *▭ box around object* (only that area is searched — handy for one object among several, or one part
+   of an object), *object / background colours* with the eyedropper (nearest-colour classification, refined by
+   GrabCut); colour tolerance, smoothing, inner holes. Clicking an outline on the picture selects it.
+3. **✎ Edit outline** — take the selected candidate (or **Empty** to draw from scratch) and change it by hand.
+   Pick a **tool** — **polygon** (click corners; double-click, `Enter` or a click on the first point closes it,
+   right-click / `Backspace` removes the last point, `Esc` cancels), freehand **lasso** (drag a loop) or **brush**
+   (adjustable size) — and a **mode**: **＋ Add**, **− Remove** or **✂ Cut out** (keep only what is inside the
+   polygon / loop — draw around the part you want). Keys: `P` `L` `B` for the tools, `1` `2` `3` for the modes,
+   `Ctrl+Z` undo. Every candidate has **＋ / −** to add it to or cut it from your edit (e.g. body ＋ wheels − shadow).
+   The edit is traced into the same smooth outline (server-side, [`outline_from_mask`](auto3d/outline.py)) and
+   listed as **✎ Your edit**.
+   **Zoom** with the mouse wheel (around the cursor, up to 20×) or − / + / Fit (keys `+` `−` `0`); **pan** by dragging
+   with no tool active, with the middle mouse button or with `Space` + drag.
+4. **Real size** — width or height in mm (aspect kept; editable later in Dimensions like any dimension, with an
+   optional aspect lock).
+
+**Back to the outline** — **✎ Edit outline** (3D view toolbar, Outline → 3D panel, Drawing tab or the enlarged
+drawing) reopens the editor on the outline the part is made from: it is listed first as **● In use** (or
+**✎ In use — your edit**, with the painted mask restored so you can keep editing), selected, with your detection
+hints; fresh detections appear below it. **Apply to the part** keeps the part's scale (mm per picture pixel), so
+what you did not change keeps its real size — type a size to rescale; dimensions, shapes and objects stay. The
+editor state is saved in the project file (`outline_editor`: mask + hints, next to the picture), so it survives
+**Save project** / **Open project**.
+
+**Drawing tab** — **⤢ Enlarge** (or a click on the drawing) shows the PDF page or the picture with its outline
+full-window, with wheel zoom (around the cursor), drag to pan, double-click / `0` to fit.
+
+**Outline → 3D** (right panel) — what is built from the outline:
+
+| Make | Result |
+| --- | --- |
+| Cookie cutter | wall (thickness, total height) with a thinner cutting edge on top, and a flange on the bed. The inside of the wall is exactly on the outline (+ clearance), so cookies come out at the size you set. *Mirror outline* if the cookie must match the picture after turning the cutter over |
+| Solid shape | the whole shape extruded (the cookie itself, a plaque, a base), grown/shrunk by an offset; design layers (emboss / engrave patterns, logos) apply to its top |
+| Custom | a list of **3D objects** built top-down with booleans: each adds (∪ union), removes (− subtract) or keeps only the overlap (∩ intersect) with everything above it |
+
+3D objects are extruded regions between a bottom and a top height: the outline filled (with an offset), a
+**band** between two offsets of the outline (walls, rims, flanges), a circle / cylinder, rectangle / box or
+line / bar (filled or as a ring). **Edit as 3D objects →** turns a preset into its objects to modify it
+(e.g. cut a hanging hole through the flange, add a handle bar across the cutter).
+
+**Outline clean-up** (Outline → 3D, in mm, applied to the traced outline only): *fill holes*, *close gaps*
+(bridges slots and notches narrower than 2 × the value — a cookie cutter cannot cut those anyway), *round
+corners* (also removes spikes / necks thinner than 2 × the value), *simplify*, keep *all pieces* or the *largest
+only*, *convex hull*. Changing the outline afterwards (**Change outline…**) keeps size, shapes and objects.
+
+**Pick on the part instead of typing** — every 3D object and 2D shape has **⌖** buttons next to its heights
+(*bottom / top z* = extrude from / to), its centre and line ends: click ⌖, then click the part. A flat face gives
+its exact height, a click near a corner snaps to it (10 px, also across edges between faces), on walls the
+height snaps to the nearest face edge; a label shows what is under the cursor (`corner · x … y … z …`). Orbiting
+still works while picking (only a click picks); `Esc` cancels. New cylinders / boxes / bars / text (and 2D
+shapes) are **placed by clicking** where they go: a 3D object then stands on the clicked top face (3 mm high,
+text 1 mm) or hangs from a bottom face; `Esc` keeps the default place.
+
+**2D shapes on the outline** (circles, rectangles, lines, **text**, **＋ Hole** for hanging) are added to or cut
+from the outline itself before anything is built, so a cookie-cutter wall follows them too. **Text** is rendered
+in the browser in the chosen font (any installed font; bold, several lines) and traced, so it can also be a
+**3D object** — e.g. a name raised on the cutter's flange or cut into a plaque. Shapes and primitive objects can be
+dragged on the part; `Delete` removes the selected one. Export, printer fit / splitting and projects work as
+for drawings.
 
 ## How it works
 
@@ -52,8 +356,22 @@ A thickness can be given in the drawing as a note like `t=18mm`; otherwise set i
 - Inputs accept arithmetic (`78.7/2`). Parameter names can be renamed by clicking them.
 - Dimensions are chained the way they are drawn: e.g. a cutout dimensioned from the right edge follows it
   when the overall length changes.
+- **Undo / redo**: `Ctrl+Z` / `Ctrl+Y` (or `Ctrl+Shift+Z`), or ↶ / ↷ in the 3D toolbar — for every change:
+  dimensions, objects, shapes, design layers, bends, outline edits and the AI's changes (each AI change is its own
+  step). A drag or a scrub is one step (a step is recorded when the rebuild has settled). Opening another part
+  starts a new history.
+- **Select and delete**: click any object in the 3D view — a hole, post, bar, text, profile offset or band, a
+  design layer's mask — to select it (it is highlighted and opened in the Part tab); `Delete` removes it, `Esc`
+  deselects. Objects of a cookie-cutter / solid preset belong to the preset (use *Edit as 3D objects →* to change
+  them). Dimensions you added and point dimensions show a **✕** on their 3D label (or press `Delete` while pointing
+  at the label); the drawing's own dimensions drive the part and cannot be deleted.
 
 ### Adding dimensions
+
+A drawing's own dimensions drive the part, so they cannot be deleted, but they can be **hidden**: ✕ on the
+label (or *Hide* in Dimensions) removes it from the view. The size still applies, and *Show* in the Dimensions
+tab (group *Hidden*) brings it back. Dimensions you added are deleted with ✕.
+
 
 Click **＋ Dimension** (or press `D`), pick two edges or corners on the part, type the value. The click
 position sets where the dimension is drawn. Dimensions form a tree, so a new one must replace a
@@ -71,7 +389,17 @@ Each layer = **mask × fill → operation**:
 | Fill | solid, or one of 20 patterns. **Line patterns** — square, rectangular, diagonal, triangular, hexagonal, brick, columns, waves, zigzag, chevron, fish scales, Voronoi (seeded, adjustable randomness), contour (follows the mask outline), spiral, radial — use the *lines* (ribs) or the *cells* between them. **Shape patterns** — dots, circles, checkerboard, stars, crosses — use the *filled shapes* or their *outlines*. Spacing, line width, shape size, amplitude, angle, origin, offset |
 | Operation | **emboss** (raise by height), **engrave** (cut in by depth), **cut through** (lattice / perforation), **guide** (outline only) |
 
-Layers are real geometry and are included in STL/STEP. Masks can be dragged on the part (with snapping).
+Layers are real geometry and are included in STL/STEP. Masks can be dragged on the part (with snapping); new
+shape / image / outline layers are placed by clicking where they go.
+
+**＋ Outline** traces an object in a picture with the outline editor (detection, hints, hand edits — see
+[Outline from a picture](#outline-from-a-picture)) and uses that outline as the mask, e.g. to engrave a cookie's
+silhouette into a plaque or a PDF part. **✎ Edit outline…** in the layer reopens the editor on it (edit and hints
+kept, scale kept); the picture and editor state are saved in the project (`layer_pictures`).
+
+On parts made from a picture, layers go on the **first object** of Outline → 3D (for a cookie cutter: the
+flange — *front* = its top, *back* = its bottom); the 3D design tab says which one. Reorder the custom objects to
+decorate another one.
 Checks warn about depths ≥ thickness, layers outside the face, and features thinner than 0.4 mm.
 
 ### Bending
@@ -152,7 +480,10 @@ The suite covers the sample drawing (all 12 dimensions, geometry, propagation, e
 drawings for each failure mode (invalid/missing/zero labels, missing dimensions, conflicts, redundancy,
 open outline, no dimensions, thickness note), every design operation and pattern (watertight mesh,
 volumes, STEP bodies), image tracing, printer profiles, splitting and every joint type (fit, watertight
-pieces and connectors, material conservation, wall checks, joints through engraved patterns).
+pieces and connectors, material conservation, wall checks, joints through engraved patterns), and outlines from
+pictures (detection on synthetic photos with frames, shading and icing-like texture, colour hints and seed
+points, the `pernicek.png` sample; cookie-cutter / solid / boolean object volumes, watertight meshes, mirroring,
+2D shapes, invalid input, the HTTP endpoints).
 
 ## Current limitations
 

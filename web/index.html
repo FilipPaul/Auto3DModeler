@@ -13,13 +13,25 @@
 <body>
   <header class="topbar">
     <div class="brand">Auto3D<span>Modeler</span></div>
-    <div class="file-name" id="fileName">No drawing loaded</div>
+    <div class="project-bar">
+      <div class="file-name" id="fileName">No drawing loaded</div>
+      <div class="part-tabs" id="partTabs" hidden></div>
+    </div>
     <div class="actions">
-      <label class="btn primary">Open PDF<input type="file" id="pdfInput" accept="application/pdf,.pdf" hidden></label>
-      <button class="btn" id="sampleBtn" title="Load initial draft.pdf">Sample drawing</button>
+      <button class="btn accent2" id="newModelBtn" title="Start a 3D model from scratch: sketch a rectangle or a circle, then extrude it">＋ New 3D model</button>
+      <div class="menu" id="openMenuWrap">
+        <button class="btn primary" id="openBtn" title="Open a drawing, a picture, a CAD / 3D file or a saved project — each file becomes its own part tab">📂 Open ▾</button>
+        <div class="menu-list" id="openMenu">
+          <label class="menu-item" title="A dimensioned PDF drawing: its dimensions drive the part">PDF drawing…<input type="file" id="pdfInput" accept="application/pdf,.pdf" hidden></label>
+          <label class="menu-item" title="Trace the outline of an object in a picture (cookie cutters, shapes…)">Picture — trace an outline…<input type="file" id="imgInput" accept="image/*" hidden></label>
+          <label class="menu-item" title="DXF / DWG drawings (an outline in real size) and STL / OBJ / STEP 3D files">CAD / 3D file (DXF, DWG, STL, OBJ, STEP)…<input type="file" id="cadInput" accept=".dxf,.dwg,.stl,.obj,.step,.stp" hidden></label>
+          <button id="sampleBtn" title="Load initial draft.pdf">Sample drawing</button>
+          <div class="menu-sep"></div>
+          <label class="menu-item" title="A project saved with Save project (.a3d.json) — all its parts">Project…<input type="file" id="projectInput" accept=".json,application/json" hidden></label>
+        </div>
+      </div>
       <span class="sep"></span>
-      <label class="btn">Open project<input type="file" id="projectInput" accept=".json,application/json" hidden></label>
-      <button class="btn" id="saveBtn" disabled>Save project</button>
+      <button class="btn" id="saveBtn" disabled title="Save all parts of the project in one file (.a3d.json)">Save project</button>
       <span class="sep"></span>
       <div class="menu">
         <button class="btn accent" id="exportBtn" disabled>Export ▾</button>
@@ -29,18 +41,22 @@
           <button data-fmt="glb">GLB — 3D preview (colours)</button>
         </div>
       </div>
+      <span class="sep"></span>
+      <button class="btn ai-btn not-quick" id="aiBtn" title="Open the AI chat — Claude works on the part or assembly on screen">✨ AI</button>
+      <button class="btn lang-btn" id="langBtn" data-no-i18n title="Čeština / English">CZ</button>
     </div>
   </header>
 
   <main class="layout">
-    <aside class="panel left">
+    <aside class="panel left quick-only">
       <nav class="tabs">
         <button class="tab active" data-tab="params">Dimensions</button>
         <button class="tab" data-tab="issues">Checks <span class="count" id="issueCount"></span></button>
         <button class="tab" data-tab="drawing">Drawing</button>
+        <button class="tab" data-tab="ai" title="Tell Claude what to make — it works on the part in the app">✨ AI</button>
       </nav>
       <section class="tab-body active" id="tab-params">
-        <div class="empty" id="paramsEmpty">Open a PDF drawing to start.</div>
+        <div class="empty" id="paramsEmpty">Open a PDF drawing — or a picture to trace its outline — to start.</div>
         <div class="params-toolbar" id="paramsToolbar" hidden>
           <span id="changeCount"></span>
           <button class="btn small" id="resetAll" title="Undo every change: values, added dimensions and promoted references">↺ Restore drawing defaults</button>
@@ -52,7 +68,12 @@
         </p>
       </section>
       <section class="tab-body" id="tab-issues"><div id="issueList"></div></section>
+      <section class="tab-body ai-panel" id="tab-ai"></section>
       <section class="tab-body" id="tab-drawing">
+        <div class="drawing-tools" id="drawingTools" hidden>
+          <button class="btn small" id="drawingEnlarge" title="Show the drawing large, with zoom and pan">⤢ Enlarge</button>
+          <button class="btn small primary" id="drawingEdit" hidden title="Open the outline editor with the outline the part is made from">✎ Edit outline</button>
+        </div>
         <div class="drawing-wrap" id="drawingWrap"><div class="empty">No drawing.</div></div>
         <div class="legend">
           <span><i style="--c:var(--ok)"></i>outline</span>
@@ -63,8 +84,11 @@
       </section>
     </aside>
 
-    <section class="viewport" id="viewport">
+    <section class="viewport quick-only" id="viewport">
       <div class="view-tools">
+        <button class="chip" id="undoBtn" title="Undo (Ctrl+Z)" disabled>↶</button>
+        <button class="chip" id="redoBtn" title="Redo (Ctrl+Y / Ctrl+Shift+Z)" disabled>↷</button>
+        <span class="sep"></span>
         <button class="chip" data-view="iso">Iso</button>
         <button class="chip" data-view="front">Front</button>
         <button class="chip" data-view="back">Back</button>
@@ -73,28 +97,35 @@
         <button class="chip toggle on" id="dimsToggle">Dimensions</button>
         <button class="chip toggle" id="wireToggle">Edges only</button>
         <span class="sep"></span>
-        <button class="chip tool" id="dimToolBtn" title="Add a dimension between two edges or corners (D)">＋ Dimension</button>
+        <button class="chip tool" id="dimToolBtn" title="Add a dimension between two edges / corners / points (D) — as many as you like">＋ Dimension</button>
+        <button class="chip tool" id="measureBtn" title="Measure between two points on the part (M)">📏 Measure</button>
+        <button class="chip tool accent2" id="toModelBtn" hidden title="Make a 3D model from this part's outline: a new model tab with the outline as its first sketch (then extrude it, add holes, roundings…)">◆ To 3D model</button>
+        <button class="chip tool" id="editOutlineBtn" hidden title="Open the outline editor with the outline this part is made from">✎ Edit outline</button>
         <button class="chip toggle" id="flatToggle" hidden title="Show the part unbent (to edit masks and dimensions)">Flat view</button>
       </div>
       <div class="tool-hint" id="toolHint" hidden></div>
-      <div class="busy" id="busy" hidden>Building 3D…</div>
+      <div class="busy" id="busy" hidden><span class="busy-text">Building 3D…</span><span class="busy-bar"><i></i></span><button class="mini busy-cancel" id="busyCancel" title="Stop this (the part stays as it was)">Cancel</button></div>
+      <div class="measure-box" id="measureBox" hidden></div>
       <div class="status-bar" id="statusBar"></div>
-      <div class="drop-hint" id="dropHint">Drop a PDF drawing here</div>
+      <div class="drop-hint" id="dropHint">Drop a PDF, DXF / DWG, STL / OBJ / STEP or a picture here (Shift = trace a picture's outline)</div>
     </section>
 
-    <aside class="panel right">
+    <aside class="panel right quick-only">
       <nav class="tabs">
+        <button class="rtab" data-rtab="outline" hidden title="The part: where it comes from, 2D shapes on its profile and 3D objects added to it">Part</button>
         <button class="rtab active" data-rtab="design">3D design</button>
         <button class="rtab" data-rtab="print">3D print</button>
       </nav>
       <section class="rtab-body active" id="rtab-design">
         <p class="hint">Layers are real geometry: a <b>mask</b> (face, rectangle, ellipse or traced image) filled
           solid or with a grid pattern, then <b>embossed</b>, <b>engraved</b> or <b>cut through</b>. Included in STL/STEP.</p>
-        <div class="row-actions add-layer">
+        <div class="row-actions add-layer wrap">
           <button class="btn small" id="addGrid">＋ Grid</button>
           <button class="btn small" id="addShape">＋ Shape</button>
           <label class="btn small">＋ Image<input type="file" id="imageInput" accept="image/png,image/jpeg,image/svg+xml,image/webp,.svg" hidden></label>
+          <label class="btn small" title="Trace an object in a picture with the outline editor and use its outline as the mask (emboss / engrave / cut it into the part)">＋ Outline<input type="file" id="outlineLayerInput" accept="image/*" hidden></label>
         </div>
+        <p class="hint" id="designTarget" hidden></p>
         <div id="layerList"></div>
         <label class="check snap"><input type="checkbox" id="snapToggle" checked> Snap dragged masks to</label>
         <input type="number" id="snapStep" class="snap-step" step="0.1" min="0" title="Snap step">
@@ -109,7 +140,17 @@
         <div class="field two"><label>Part / design</label><input type="color" id="baseColor" value="#d9dee6"><input type="color" id="featureColor" value="#4f8cff"></div>
       </section>
       <section class="rtab-body" id="rtab-print"></section>
+      <section class="rtab-body" id="rtab-outline"></section>
     </aside>
+    <aside class="ai-drawer" id="aiDrawer" hidden>
+      <div class="ai-drawer-head"><b>✨ AI</b><button class="mini" id="aiClose" title="Close the chat (it keeps the conversation)">✕</button></div>
+    </aside>
+    <aside class="panel left model-only" id="modelLeft"></aside>
+    <section class="viewport model-only" id="modelViewport"></section>
+    <aside class="panel right model-only" id="modelRight"></aside>
+    <aside class="panel left asm-only" id="asmLeft"></aside>
+    <section class="viewport asm-only" id="asmViewport"></section>
+    <aside class="panel right asm-only" id="asmRight"></aside>
   </main>
 
   <div class="toast-stack" id="toasts"></div>

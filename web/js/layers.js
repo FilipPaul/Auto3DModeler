@@ -74,8 +74,11 @@ export function hitMask(layer, x, y) {
 }
 
 export class LayersPanel {
-  constructor(root, { onChange, onSelect, unit }) {
+  constructor(root, { onChange, onSelect, unit, canEditOutline, onEditOutline }) {
     this.root = root;
+    // masks traced with the outline editor can be reopened in it
+    this.canEditOutline = canEditOutline;
+    this.onEditOutline = onEditOutline;
     this.onChange = onChange;
     this.onSelect = onSelect;
     this.layers = [];
@@ -149,6 +152,14 @@ export class LayersPanel {
       ...(L.op === 'emboss' || L.op === 'engrave' ? [[L.op === 'emboss' ? `Height (${u})` : `Depth (${u})`, num(L, 'depth', 0.01)]] : []),
       ['section', 'Mask — where it applies'],
       ['Mask', select(m, 'kind', MASKS.filter(([k]) => k !== 'image' || m.polygons), () => this.render())],
+      ...(m.kind === 'image' && this.canEditOutline?.(L) ? [['Outline', (() => {
+        const b = document.createElement('button');
+        b.className = 'btn small primary';
+        b.textContent = '✎ Edit outline…';
+        b.title = 'Reopen the outline editor with this mask (your edit and hints are kept)';
+        b.addEventListener('click', () => this.onEditOutline(L));
+        return b;
+      })()]] : []),
       ...(m.kind !== 'face' ? [
         [`Centre (${u})`, pair(num(m, 'x', 0.1), num(m, 'y', 0.1))],
         [`Size (${u})`, pair(num(m, 'w', 0.1, m.kind === 'image' ? (v) => { m.h = v / (m.aspect || 1); } : null),

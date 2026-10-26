@@ -1,0 +1,210 @@
+"""Fillet, chamfer and hole on a model part, and named faces: exact volumes, and a rounding that stays on
+the same edge when an earlier size changes. Skipped without the CAD kernel.
+
+Run:  python -m unittest discover -s tests -v
+"""
+import math
+import unittest
+
+from auto3d.modeler import available
+
+OCC = available("occ")
+if OCC:
+    from auto3d.modeler import doc
+
+
+def box(w=40, h=20, d=10):
+    pts = {"p1": [0, 0], "p2": [w, 0], "p3": [w, h], "p4": [0, h]}
+    lines = [{"id": f"l{i + 1}", "t": "line", "a": f"p{i + 1}", "b": f"p{(i + 1) % 4 + 1}"} for i in range(4)]
+    return [{"id": "S1", "type": "sketch", "plane": {"datum": "XY"}, "points": pts, "entities": lines},
+            {"id": "E1", "type": "extrude", "sketch": "S1", "op": "add", "d": d}]
+
+
+def vol(*features):
+    r = doc.rebuild({"features": list(features)})
+    return r, (r["body"] or {}).get("volume")
+
+
+@unittest.skipUnless(OCC, "OCP not installed")
+class TestFeatures(unittest.TestCase):
+    def test_faces_are_named(self):
+        r, _ = vol(*box())
+        names = sorted(f.get("name") for f in r["body"]["faces"])
+        self.assertEqual(names, ["E1:end", "E1:side:l1", "E1:side:l2", "E1:side:l3", "E1:side:l4", "E1:start"])
+        edge = next(e for e in r["body"]["edges"] if {r["body"]["faces"][i]["name"] for i in e["faces"]} == {"E1:side:l1", "E1:side:l2"})
+        self.assertEqual(edge["mid"], [40, 0, 5])
+
+    def test_fillet_follows_its_edge(self):
+        # the vertical edge where the front (l1) and right (l2) walls meet, r 2
+        fil = {"id": "F1", "type": "fillet", "edges": [{"a": "E1:side:l1", "b": "E1:side:l2", "fp": [40, 0, 5]}], "r": 2}
+        r, v = vol(*box(), fil)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 - (4 - math.pi) * 10, delta=1e-4)
+        self.assertTrue(any(f.get("name") == "F1:round:0" for f in r["body"]["faces"]))
+        # the box gets wider: the same edge (now at x 60) is rounded, found by its faces' names
+        r, v = vol(*box(w=60), fil)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 12000 - (4 - math.pi) * 10, delta=1e-4)
+        self.assertEqual(r["features"][-1]["warnings"], [])
+        # a top edge (between the top and the front wall, 40 long)
+        top = {"id": "F1", "type": "fillet", "edges": [{"a": "E1:end", "b": "E1:side:l1", "fp": [20, 0, 10]}], "r": 2}
+        _, v = vol(*box(), top)
+        self.assertAlmostEqual(v, 8000 - (4 - math.pi) * 40, delta=1e-4)
+
+    def test_chamfer(self):
+        ch = {"id": "C1", "type": "chamfer", "edges": [{"a": "E1:side:l1", "b": "E1:side:l2", "fp": [40, 0, 5]}], "d": 1}
+        r, v = vol(*box(), ch)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 - 0.5 * 10, delta=1e-4)
+
+    def test_holes(self):
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        hole = {"id": "H1", "type": "hole", "plane": top, "points": [[0, 0], [12, 0]], "d": 6, "through": True}
+        r, v = vol(*box(), hole)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 - 2 * math.pi * 9 * 10, delta=1e-3)
+        self.assertEqual(sorted(f["name"] for f in r["body"]["faces"] if f["name"].startswith("H1")), ["H1:hole:0", "H1:hole:1"])
+        blind = {**hole, "points": [[0, 0]], "through": False, "depth": 4}
+        r, v = vol(*box(), blind)
+        self.assertAlmostEqual(v, 8000 - math.pi * 9 * 4, delta=1e-3)
+        # a taller box: the hole goes from the (moved) top face
+        r, v = vol(*box(d=15), blind)
+        self.assertAlmostEqual(v, 12000 - math.pi * 9 * 4, delta=1e-3)
+        self.assertAlmostEqual(r["frames"]["H1"]["o"][2], 15)
+
+    def test_round_then_hole_and_errors(self):
+        fil = {"id": "F1", "type": "fillet", "edges": [{"a": "E1:side:l1", "b": "E1:side:l2", "fp": [40, 0, 5]}], "r": 50}
+        r, v = vol(*box(), fil)
+        self.assertFalse(r["features"][-1]["ok"])
+        self.assertIn("does not fit", r["features"][-1]["issues"][0])
+        self.assertAlmostEqual(v, 8000, delta=1e-6)  # the rest still builds
+        gone = {"id": "F1", "type": "fillet", "edges": [{"a": "X:1", "b": "X:2", "fp": [500, 500, 500]}], "r": 1}
+        r, _ = vol(*box(), gone)
+        self.assertIn("no longer there", r["features"][-1]["issues"][0])
+        empty = {"id": "F1", "type": "fillet", "edges": [], "r": 1}
+        r, _ = vol(*box(), empty)
+        self.assertIn("at least one edge", r["features"][-1]["issues"][0])
+        # rounding, then a sketch on a wall of the rounded body still finds its face
+        ok = {**fil, "r": 2}
+        side = {"face": {"name": "E1:side:l1"}, "frame": {"o": [20, 0, 5], "x": [1, 0, 0], "n": [0, -1, 0]}}
+        sk = {"id": "S2", "type": "sketch", "plane": side, "points": {"c": [0, 0]}, "entities": [{"id": "k", "t": "circle", "c": "c", "r": 2}]}
+        cut = {"id": "E2", "type": "extrude", "sketch": "S2", "op": "cut", "d": 3}
+        r, v = vol(*box(), ok, sk, cut)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 - (4 - math.pi) * 10 - math.pi * 4 * 3, delta=1e-3)
+
+
+    def test_revolve(self):
+        # a 10 x 20 rectangle beside the vertical axis (x 5..15) spun a full turn: a tube
+        pts = {"a": [5, 0], "b": [15, 0], "c": [15, 20], "d": [5, 20]}
+        lines = [{"id": f"l{i}", "t": "line", "a": k, "b": "bcda"[i]} for i, k in enumerate("abcd")]
+        sk = {"id": "S1", "type": "sketch", "plane": {"datum": "XZ"}, "points": pts, "entities": lines}
+        rev = {"id": "R1", "type": "revolve", "sketch": "S1", "axis": "y", "angle": 360, "op": "add"}
+        r, v = vol(sk, rev)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, math.pi * (15 ** 2 - 5 ** 2) * 20, delta=1e-3)
+        self.assertEqual([round(c, 6) for c in r["body"]["bbox"]], [-15, -15, 0, 15, 15, 20])  # around the world z axis
+        _, v = vol(sk, {**rev, "angle": 90})
+        self.assertAlmostEqual(v, math.pi * (15 ** 2 - 5 ** 2) * 20 / 4, delta=1e-3)
+        # around one of its own lines (the left side, x 5): a solid cylinder r 10
+        _, v = vol(sk, {**rev, "axis": "l3"})
+        self.assertAlmostEqual(v, math.pi * 100 * 20, delta=1e-3)
+        # crossing the axis is refused
+        bad = {**sk, "points": {"a": [-5, 0], "b": [15, 0], "c": [15, 20], "d": [-5, 20]}}
+        r, _ = vol(bad, rev)
+        self.assertIn("crosses the axis", r["features"][-1]["issues"][0])
+
+    def test_block_from_an_outline(self):
+        # an L-shaped outline with a square hole, placed at (10, 5) and drawn twice as big
+        L = [[[0, 0], [30, 0], [30, 10], [10, 10], [10, 25], [0, 25]], [[2, 2], [6, 2], [6, 6], [2, 6]]]
+        sk = {"id": "S1", "type": "sketch", "plane": {"datum": "XY"}, "points": {},
+              "entities": [{"id": "b1", "t": "block", "polys": [L], "at": [10, 5], "scale": 2}]}
+        r, v = vol(sk, {"id": "E1", "type": "extrude", "sketch": "S1", "op": "add", "d": 3})
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, (30 * 10 + 10 * 15 - 16) * 4 * 3, delta=1e-6)
+        self.assertEqual([round(c, 6) for c in r["body"]["bbox"]], [10, 5, 0, 70, 55, 3])
+
+    def test_profile_endpoint(self):
+        import server
+        from auto3d.outline import outline_model
+        c = server.app.test_client()
+        # the sample PDF: 78.7 cm long -> 787 mm, with its cutouts as holes or notches
+        data = c.get("/api/sample").get_json()
+        vals = {p["id"]: p["value"] for p in data["model"]["params"]}
+        r = c.post("/api/model/profile", json={"model": data["model"], "values": vals}).get_json()
+        self.assertAlmostEqual(r["width"], 787, delta=1e-6)
+        self.assertEqual(r["name"], "initial draft")
+        pts = [p for poly in r["polygons"] for p in poly[0]]
+        self.assertEqual(min(p[0] for p in pts), 0)
+        # a picture outline: a 100 x 50 px rectangle at 40 mm wide -> 40 x 20 mm
+        m = outline_model([[[[0, 0], [100, 0], [100, 50], [0, 50]]]], 200, 100, width=40)
+        m["preset"] = "solid"
+        r = c.post("/api/model/profile", json={"model": m, "values": {p["id"]: p["value"] for p in m["params"]}}).get_json()
+        self.assertAlmostEqual(r["width"], 40, delta=1e-6)
+        self.assertAlmostEqual(r["height"], 20, delta=1e-6)
+        bad = c.post("/api/model/profile", json={"model": {"kind": "outline"}})
+        self.assertEqual(bad.status_code, 400)
+
+    def test_assembly_step(self):
+        from auto3d.modeler import kernel
+        part = {"features": box()}
+        # the box, and the same box turned 90° about z and moved 100 along x
+        turned = [0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1, 0, 100, 0, 0, 1]
+        step = doc.assembly_step([{"part": part, "matrix": None}, {"part": part, "matrix": turned}])
+        shape = kernel.from_step(step)
+        self.assertEqual(kernel.solids(shape), 2)
+        self.assertAlmostEqual(kernel.volume(shape), 16000, delta=1e-3)
+        bb = kernel.bbox(shape)
+        self.assertAlmostEqual(bb[3], 100, delta=1e-6)   # turned: x from 80 to 100
+        self.assertAlmostEqual(bb[4], 40, delta=1e-6)    # and y up to 40
+
+    def test_shell(self):
+        top = [{"name": "E1:end", "fp": [20, 10, 10]}]
+        r, v = vol(*box(), {"id": "SH", "type": "shell", "faces": top, "t": 2})
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 - 36 * 16 * 8, delta=1e-3)  # an open box: inside 36 x 16 x 8
+        r, _ = vol(*box(), {"id": "SH", "type": "shell", "faces": [], "t": 2})
+        self.assertIn("leave open", r["features"][-1]["issues"][0])
+        r, _ = vol(*box(), {"id": "SH", "type": "shell", "faces": top, "t": 30})
+        self.assertFalse(r["features"][-1]["ok"])
+
+    def test_patterns(self):
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [5, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        hole = {"id": "H1", "type": "hole", "plane": top, "points": [[0, 0]], "d": 4, "through": True}
+        row = {"id": "P1", "type": "pattern", "features": ["H1"], "kind": "linear", "dir": [1, 0, 0], "count": 4, "spacing": 10}
+        r, v = vol(*box(), hole, row)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 - 4 * math.pi * 4 * 10, delta=1e-3)
+        self.assertIn("P1:3:H1:hole:0", {f["name"] for f in r["body"]["faces"]})
+        # the pattern follows when the hole moves; a row of bosses (add)
+        boss = {"id": "S2", "type": "sketch", "plane": top, "points": {"c": [0, 0]}, "entities": [{"id": "c1", "t": "circle", "c": "c", "r": 2}]}
+        bump = {"id": "E2", "type": "extrude", "sketch": "S2", "op": "add", "d": 3}
+        r, v = vol(*box(), boss, bump, {**row, "features": ["E2"], "count": 3})
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 + 3 * math.pi * 4 * 3, delta=1e-3)
+        # around the centre of a disc: 6 holes on a circle, evenly
+        disc = [{"id": "S1", "type": "sketch", "plane": {"datum": "XY"}, "points": {"c": [0, 0]}, "entities": [{"id": "c1", "t": "circle", "c": "c", "r": 30}]},
+                {"id": "E1", "type": "extrude", "sketch": "S1", "op": "add", "d": 5}]
+        dtop = {"face": {"name": "E1:end"}, "frame": {"o": [0, 0, 5], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        h = {"id": "H1", "type": "hole", "plane": dtop, "points": [[20, 0]], "d": 6, "through": True}
+        ring = {"id": "P1", "type": "pattern", "features": ["H1"], "kind": "circular", "axis": {"o": [0, 0, 0], "d": [0, 0, 1]}, "count": 6}
+        r, v = vol(*disc, h, ring)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, math.pi * 900 * 5 - 6 * math.pi * 9 * 5, delta=1e-2)
+        # a pattern of a pattern: the row repeated 2 times along y
+        r, v = vol(*box(), hole, row, {"id": "P2", "type": "pattern", "features": ["H1", "P1"], "dir": [0, 1, 0], "count": 2, "spacing": 5})
+        self.assertAlmostEqual(v, 8000 - 8 * math.pi * 4 * 10, delta=1e-3)
+        # copies that land outside the part: a warning
+        r, v = vol(*box(), hole, {**row, "dir": [0, 1, 0], "spacing": 50, "count": 2})
+        self.assertTrue(r["ok"])
+        self.assertIn("changed nothing", r["features"][-1]["warnings"][0])
+        # refusals
+        for bad, msg in [({**row, "features": []}, "Choose what"), ({**row, "features": ["S1"]}, "cannot be repeated"),
+                         ({**row, "count": 1}, "at least 2"), ({**row, "count": 500}, "too many")]:
+            r, _ = vol(*box(), hole, bad)
+            self.assertFalse(r["features"][-1]["ok"])
+            self.assertIn(msg, r["features"][-1]["issues"][0])
+
+
+if __name__ == "__main__":
+    unittest.main()

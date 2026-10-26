@@ -9,18 +9,34 @@ import base64
 import io
 import re
 import threading
+import time
+import uuid
 import webbrowser
 import zipfile
 from pathlib import Path
 
-from flask import Flask, Response, jsonify, request, send_from_directory
+import json
+import queue
 
+import cv2
+import numpy as np
+from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
+
+from auto3d import progress
+from auto3d.agent import ChatSession, Relay, find_claude
+from auto3d.agent_tools import BROWSER_TOOLS, TOOL_NAMES
 from auto3d.bend import bend_info, bend_solid
-from auto3d.design import trace_image
+from auto3d.design import profile_polygon, trace_image
 from auto3d.export import build_solid, mesh_payload, to_step, to_stl
 from auto3d.extract import render_page_png
 from auto3d.joints import joint_catalog
+from auto3d.importers import DRAWING_FORMATS, MESH_FORMATS, ImportError_, dwg_to_dxf, read_dxf
+from auto3d.meshpart import mesh_model, register, solve_mesh
+from auto3d.outline import add_objects, apply_shapes, detect_outlines, outline_from_mask, outline_model, preset_objects, solve_outline
+from auto3d.modeler import status as modeler_status
+from auto3d.modeler.worker import WORKER as MODEL_WORKER, KernelFailed, KernelUnavailable
 from auto3d.printing import PrinterStore, assembly_text, bend_pieces, plan
+from auto3d.project import ProjectError, migrate as migrate_project
 from auto3d.sketch import build_model
 from auto3d.solver import solve
 
@@ -50,10 +66,35 @@ def _solve_full(body):
     apply; joints / splitting work on the flat solid and are bent afterwards.
     """
     model = body["model"]
-    solution = solve(model, body.get("values"))
     solid = final = bender = None
-    if solution["ok"]:
-        solid = build_solid(solution, model["unit"], body.get("layers"))
+    if model.get("kind") == "outline":
+        solution, solid = solve_outline(model, body.get("values"), body.get("layers"))
+    elif model.get("kind") == "mesh":
+        solution, solid = solve_mesh(model, body.get("values"), body.get("layers"))
+    else:
+        solution = solve(model, body.get("values"))
+        if solution["ok"]:
+            # 2D shapes change the drawn profile; extra 3D objects are booleaned onto the part —
+            # their problems are reported like design-layer problems
+            extra = []
+            issue = lambda sev, msg, code="design", params=(): extra.append(
+                {"severity": sev, "code": code, "message": msg, "params": list(params)})
+            profile = profile_polygon(solution)
+            if model.get("shapes"):
+                profile = apply_shapes(profile, model["shapes"], issue)
+                solution["_profile"] = profile
+            if profile.is_empty:
+                solution["issues"].append({"severity": "error", "code": "invalid_geometry", "params": [],
+                                           "message": "The profile is empty after the 2D shapes were applied."})
+                solution["ok"] = False
+            else:
+                solid = build_solid(solution, model["unit"], body.get("layers"))
+                solution["object_regions"] = []
+                solid = add_objects(solid, model.get("extras"), profile, issue, solution["object_regions"])
+                solid.issues = solid.issues + extra
+                solution["z_levels"] = list(solid.levels)
+            solution.pop("_profile", None)
+    if solid is not None:
         final, bender, bend_issues = bend_solid(solid, body.get("bends"), model["unit"])
         solution["design_issues"] = solid.issues + bend_issues
         solution["volume"] = final.volume()
@@ -74,15 +115,22 @@ def _solve_full(body):
     return model, solution, final, solid, bender
 
 
-def _parse(pdf: bytes, page: int, filename: str):
+def _pdf_data(pdf: bytes, page: int, filename: str) -> dict:
     try:
         model, pg, _doc = build_model(pdf, page)
     except Exception as exc:  # corrupt / encrypted / not a PDF
-        return jsonify({"error": f"Could not read the PDF: {exc}"}), 400
+        raise ValueError(f"Could not read the PDF: {exc}") from exc
     model["source"] = filename
     preview = {"png": base64.b64encode(render_page_png(pg)).decode(), "width": pg.rect.width,
                "height": pg.rect.height}
-    return jsonify({"model": model, "preview": preview})
+    return {"model": model, "preview": preview}
+
+
+def _parse(pdf: bytes, page: int, filename: str):
+    try:
+        return jsonify(_pdf_data(pdf, page, filename))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @app.post("/api/parse")
@@ -100,22 +148,137 @@ def api_sample():
     return _parse(SAMPLE.read_bytes(), 0, SAMPLE.name)
 
 
+@app.post("/api/project/migrate")
+def api_project_migrate():
+    """Any project file -> version 3 (several parts); the browser opens what comes back."""
+    try:
+        return jsonify(migrate_project(request.get_json(force=True, silent=True)))
+    except ProjectError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.get("/api/kernel")
+def api_kernel():
+    """Whether the optional 3D model workspace packages (CAD kernel, sketch solver) are installed."""
+    return jsonify(modeler_status())
+
+
 @app.post("/api/solve")
 def api_solve():
     body = request.get_json(force=True)
-    _model, solution, final, _flat, _bender = _solve_full(body)
-    if final is not None and body.get("mesh", True):
-        solution["mesh"] = mesh_payload(final)
+    with progress.operation(body.get("rid")):
+        try:
+            progress.report("Building the part")
+            _model, solution, final, _flat, bender = _solve_full(body)
+            if final is not None and body.get("mesh", True):
+                progress.report("Building the 3D view")
+                solution["mesh"] = mesh_payload(final)
+                if bender is None:  # holes, bosses and faces for the measure tool (flat parts)
+                    solution["features"] = final.features()
+        except progress.Cancelled:
+            return jsonify({"cancelled": True, "ok": False, "issues": []})
     return jsonify(solution)
+
+
+@app.get("/api/progress/<rid>")
+def api_progress(rid):
+    return jsonify(progress.status(rid))
+
+
+@app.post("/api/progress/<rid>/cancel")
+def api_progress_cancel(rid):
+    progress.cancel(rid)
+    return jsonify({"ok": True})
 
 
 @app.post("/api/trace")
 def api_trace():
     body = request.get_json(force=True)
     try:
-        return jsonify(trace_image(body["image"], int(body.get("threshold", 128)), bool(body.get("invert"))))
+        return jsonify(trace_image(body["image"], int(body.get("threshold", 128)), bool(body.get("invert")),
+                                   min(int(body.get("max_px", 256)), 1024)))
     except Exception as exc:
         return jsonify({"error": f"Could not trace the image: {exc}"}), 400
+
+
+# --------------------------------------------------------------------------- image outlines
+@app.post("/api/outline/detect")
+def api_outline_detect():
+    body = request.get_json(force=True)
+    try:
+        return jsonify(detect_outlines(body["image"], body.get("hints")))
+    except Exception as exc:
+        return jsonify({"error": f"Could not analyse the image: {exc}"}), 400
+
+
+@app.post("/api/outline/mask")
+def api_outline_mask():
+    body = request.get_json(force=True)
+    try:
+        return jsonify(outline_from_mask(body["mask"], float(body.get("smoothing", 1)), bool(body.get("holes"))))
+    except Exception as exc:
+        return jsonify({"error": f"Could not read the edited outline: {exc}"}), 400
+
+
+@app.post("/api/outline/model")
+def api_outline_model():
+    body = request.get_json(force=True)
+    try:
+        model = outline_model(body["polygons"], body["img_w"], body["img_h"], body.get("width"), body.get("height"),
+                              body.get("preset", "cutter"), body.get("source") or "image.png")
+    except (KeyError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"model": model, "preview": {"image": body.get("image"), "width": body["img_w"],
+                                                "height": body["img_h"]}})
+
+
+@app.post("/api/import")
+def api_import():
+    """DXF / DWG -> outline model (real size); STL / OBJ / STEP -> mesh model (sliced)."""
+    f = request.files.get("file")
+    if f is None:
+        return jsonify({"error": "No file uploaded."}), 400
+    name, data = f.filename or "part", f.read()
+    try:
+        with progress.operation(request.form.get("rid")):
+            return jsonify(_import_data(data, name))
+    except progress.Cancelled:
+        return jsonify({"error": "Import cancelled.", "cancelled": True}), 409
+    except (ImportError_, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:  # broken / unexpected files
+        return jsonify({"error": f"Could not read {name}: {exc}"}), 400
+
+
+def _import_data(data: bytes, name: str) -> dict:
+    ext = Path(name).suffix.lower()
+    if ext in DRAWING_FORMATS:
+        polys, issues = read_dxf(dwg_to_dxf(data) if ext == ".dwg" else data)
+        xs = [p[0] for poly in polys for p in poly[0]]
+        ys = [p[1] for poly in polys for p in poly[0]]
+        model = outline_model(polys, max(xs) - min(xs), max(ys) - min(ys), preset="solid", source=name, space="mm")
+        model["issues"] = issues
+        return {"model": model, "preview": {"vector": True}}
+    if ext in MESH_FORMATS:
+        return {"model": mesh_model(data, name), "preview": {"mesh": True},
+                "import_file": {"name": name, "data": base64.b64encode(data).decode()}}
+    raise ValueError(f"Unsupported file type {ext} (PDF, DXF, DWG, STL, OBJ, STEP).")
+
+
+@app.post("/api/import/register")
+def api_import_register():
+    """A project with an imported 3D file: give the server the file again (same id)."""
+    body = request.get_json(force=True)
+    try:
+        return jsonify({"mesh_id": register(base64.b64decode(body["data"]), body["name"])})
+    except (KeyError, ImportError_) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.post("/api/outline/preset")
+def api_outline_preset():
+    body = request.get_json(force=True)
+    return jsonify(preset_objects(body.get("preset"), body.get("opts")))
 
 
 # --------------------------------------------------------------------------- printers
@@ -183,28 +346,141 @@ def api_joints():
 
 
 # --------------------------------------------------------------------------- export
-@app.post("/api/export/<fmt>")
-def api_export(fmt):
+# ------------------------------------------------------------------ 3D model parts (sketch -> features -> B-rep)
+def _model_call(op, arg):
+    """Run a kernel op in the worker process -> (result, None) or (None, error response)."""
+    try:
+        return MODEL_WORKER.run(op, arg), None
+    except KernelUnavailable as exc:
+        return None, (jsonify({"error": str(exc), "install": "py -m pip install -r requirements-modeler.txt"}), 501)
+    except KernelFailed as exc:
+        return None, (jsonify({"error": str(exc)}), 500)
+
+
+@app.post("/api/model/rebuild")
+def api_model_rebuild():
+    """{part, rid} -> the body (mesh with one face id per triangle, faces, edges), each feature's status."""
     body = request.get_json(force=True)
-    model, solution, final, solid, bender = _solve_full(body)
-    if solid is None:
-        return jsonify({"error": "The model is invalid and cannot be exported.", "issues": solution["issues"]}), 400
-    if not solution.get("design_ok", True):
-        msgs = " ".join(i["message"] for i in solution["design_issues"] if i["severity"] == "error")
-        return jsonify({"error": f"Fix the design layers first: {msgs}"}), 400
+    try:
+        with progress.operation(body.get("rid")):
+            res, err = _model_call("rebuild", body.get("part") or {})
+    except progress.Cancelled:
+        return jsonify({"cancelled": True})
+    if err:
+        return err
+    b = res.get("body")
+    if b:
+        b["positions"] = base64.b64encode(b["positions"]).decode("ascii")
+        b["face_ids"] = base64.b64encode(b["face_ids"]).decode("ascii")
+    return jsonify(res)
+
+
+@app.post("/api/model/profile")
+def api_model_profile():
+    """A classic part (picture outline, DXF, PDF drawing, 3D file's footprint) -> its outline in mm, lower-left
+    corner at (0, 0), for a sketch block in the 3D model workspace."""
+    from shapely.affinity import scale as sh_scale, translate as sh_translate
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+    from auto3d.design import polygons_of
+    from auto3d.export import UNIT_IN_MM
+    body = request.get_json(force=True)
+    model = body.get("model") or {}
+    try:
+        if model.get("kind") in ("outline", "mesh"):
+            _, solution, *_ = _solve_full(body)
+            polys = [Polygon(p[0], p[1:]) for p in solution.get("outline_2d") or [] if len(p[0]) >= 3]
+            k = 1.0
+        else:
+            solution = solve(model, body.get("values"))
+            if not solution["ok"]:
+                raise ValueError("The drawing has errors — fix them in Checks first.")
+            prof = profile_polygon(solution)
+            if model.get("shapes"):
+                prof = apply_shapes(prof, model["shapes"], lambda *a, **kw: None)
+            polys, k = polygons_of(prof), UNIT_IN_MM.get(model.get("unit"), 1.0)
+    except (KeyError, ValueError, TypeError) as exc:
+        return jsonify({"error": str(exc) or "This part has no outline to use."}), 400
+    g = unary_union([p.buffer(0) for p in polys if not p.is_empty])
+    if g.is_empty:
+        return jsonify({"error": "This part has no outline to use."}), 400
+    g = sh_scale(g, k, k, origin=(0, 0))
+    x0, y0, x1, y1 = g.bounds
+    g = sh_translate(g, -x0, -y0).simplify(max(x1 - x0, y1 - y0) * 2e-4)  # fewer points, no visible change
+    ring = lambda r: [[round(x, 5), round(y, 5)] for x, y in list(r.coords)[:-1]]  # noqa: E731
+    out = [[ring(p.exterior)] + [ring(h) for h in p.interiors] for p in polygons_of(g)]
+    name = re.sub(r"\.[A-Za-z0-9]+$", "", model.get("source") or "outline")
+    return jsonify({"polygons": out, "width": x1 - x0, "height": y1 - y0, "name": name})
+
+
+@app.post("/api/assembly/export/step")
+def api_assembly_step():
+    """{instances: [{part: {features}, matrix: [16]}], name} -> one STEP file with every placed part."""
+    body = request.get_json(force=True)
+    data, err = _model_call("assembly_step", {"instances": body.get("instances") or []})
+    if err:
+        return err
+    name = re.sub(r'[\/:*?"<>|]+', "_", body.get("name") or "assembly").strip() or "assembly"
+    return Response(data, mimetype="model/step", headers={"Content-Disposition": f'attachment; filename="{name}.step"'})
+
+
+@app.post("/api/model/sketch/solve")
+def api_model_sketch_solve():
+    """{sketch, drag?: {point: [u, v]}} -> solved points and radii, free degrees, conflicting locks.
+    planegcs is quick and safe in-process (no CAD kernel involved)."""
+    from auto3d.modeler import available
+    if not available("planegcs"):
+        return jsonify({"error": "Locked sketch sizes need the sketch solver: py -m pip install -r requirements-modeler.txt",
+                        "install": "py -m pip install -r requirements-modeler.txt"}), 501
+    from auto3d.modeler.constraints import SketchError, solve as solve_sketch
+    body = request.get_json(force=True)
+    try:
+        return jsonify(solve_sketch(body.get("sketch") or {}, body.get("drag")))
+    except SketchError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.post("/api/model/export/<fmt>")
+def api_model_export(fmt):
     if fmt not in ("stl", "step"):
         return jsonify({"error": f"Unknown format {fmt}"}), 404
+    body = request.get_json(force=True)
+    data, err = _model_call("export", {"part": body.get("part") or {}, "fmt": fmt})
+    if err:
+        return err
+    name = re.sub(r'[\\/:*?"<>|]+', "_", body.get("name") or "part").strip() or "part"
+    return Response(data, mimetype="model/step" if fmt == "step" else "model/stl",
+                    headers={"Content-Disposition": f'attachment; filename="{name}.{fmt}"'})
+
+
+@app.post("/api/export/<fmt>")
+def api_export(fmt):
+    if fmt not in ("stl", "step"):
+        return jsonify({"error": f"Unknown format {fmt}"}), 404
+    try:
+        data, filename, mime = _export_bytes(request.get_json(force=True), fmt)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return Response(data, mimetype=mime, headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+def _export_bytes(body: dict, fmt: str):
+    """(bytes, file name, mime type) of the part — whole, or split for the printer as a ZIP."""
+    model, solution, final, solid, bender = _solve_full(body)
+    if solid is None:
+        raise ValueError("The model is invalid and cannot be exported: "
+                         + " ".join(i["message"] for i in solution["issues"] if i["severity"] == "error"))
+    if not solution.get("design_ok", True):
+        msgs = " ".join(i["message"] for i in solution["design_issues"] if i["severity"] == "error")
+        raise ValueError(f"Fix the design layers first: {msgs}")
     name = re.sub(r"[^A-Za-z0-9_-]+", "_", Path(model.get("source", "part")).stem).strip("_") or "part"
     writer = to_stl if fmt == "stl" else to_step
     mime = "model/stl" if fmt == "stl" else "model/step"
 
     if body.get("split") and body.get("printer"):
-        try:
-            result = _plan(body, solid, model, bender, final)
-        except ValueError as exc:
-            return jsonify({"error": str(exc)}), 400
+        result = _plan(body, solid, model, bender, final)
         if not result["pieces"]:
-            return jsonify({"error": " ".join(i["message"] for i in result["issues"]) or "Nothing to export."}), 400
+            raise ValueError(" ".join(i["message"] for i in result["issues"]) or "Nothing to export.")
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
             for p in result["pieces"]:
@@ -215,11 +491,266 @@ def api_export(fmt):
                 cname = f"{name}_{g['kind']}{k}_x{g['qty']}"
                 z.writestr(f"{cname}.{fmt}", writer(g["instances"][0]["solid"].at_origin(), model["unit"], cname))
             z.writestr("ASSEMBLY.txt", assembly_text(result, name))
-        return Response(buf.getvalue(), mimetype="application/zip",
-                        headers={"Content-Disposition": f'attachment; filename="{name}_{fmt}_pieces.zip"'})
+        return buf.getvalue(), f"{name}_{fmt}_pieces.zip", "application/zip"
+    return writer(final, model["unit"], name), f"{name}.{fmt}", mime
 
-    return Response(writer(final, model["unit"], name), mimetype=mime,
-                    headers={"Content-Disposition": f'attachment; filename="{name}.{fmt}"'})
+
+# --------------------------------------------------------------------------- AI agent (MCP tools + chat)
+RELAY = Relay()
+CHAT: ChatSession | None = None
+APP_URL = "http://127.0.0.1:5173"
+LAST_TRACE: dict = {}
+PICTURE_FORMATS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff"}
+
+
+def _chat() -> ChatSession:
+    global CHAT
+    if CHAT is None:
+        CHAT = ChatSession(APP_URL)
+    return CHAT
+
+
+def _mcp_result(text: str, image: str | None = None, error: bool = False) -> dict:
+    content = [{"type": "text", "text": text}]
+    if image:
+        content.append({"type": "image", "data": image, "mimeType": "image/png"})
+    return {"content": content, "isError": error}
+
+
+def _file(path: str) -> Path:
+    p = Path(path).expanduser()
+    if not p.is_file():
+        raise ValueError(f"No such file: {p}")
+    return p
+
+
+def _load_in_page(data: dict, extra: dict | None = None) -> str:
+    res = RELAY.call("load", {"data": data, **(extra or {})})
+    if res.get("error"):
+        raise ValueError(res.get("text") or "The page could not open it.")
+    return res.get("text", "Opened.")
+
+
+def _png_b64(img_bgr, max_px=900) -> str:
+    h, w = img_bgr.shape[:2]
+    s = min(1.0, max_px / max(h, w))
+    if s < 1:
+        img_bgr = cv2.resize(img_bgr, (round(w * s), round(h * s)), interpolation=cv2.INTER_AREA)
+    ok, buf = cv2.imencode(".png", img_bgr)
+    return base64.b64encode(buf.tobytes()).decode()
+
+
+def tool_open_file(args):
+    p = _file(args["path"])
+    ext = p.suffix.lower()
+    if ext in PICTURE_FORMATS:
+        raise ValueError("That is a picture: use trace_picture to find its outline, then use_outline.")
+    data = _pdf_data(p.read_bytes(), int(args.get("page") or 0), p.name) if ext == ".pdf" else _import_data(p.read_bytes(), p.name)
+    return {"text": _load_in_page(data)}
+
+
+def tool_open_sample(args):
+    return {"text": _load_in_page(_pdf_data(SAMPLE.read_bytes(), 0, SAMPLE.name))}
+
+
+def tool_trace_picture(args):
+    p = _file(args["path"])
+    img = cv2.imdecode(np.frombuffer(p.read_bytes(), np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        raise ValueError("Not a readable picture.")
+    # the same picture the outline editor works on: at most 1600 px
+    s = min(1.0, 1600 / max(img.shape[:2]))
+    if s < 1:
+        img = cv2.resize(img, (round(img.shape[1] * s), round(img.shape[0] * s)), interpolation=cv2.INTER_AREA)
+    url = "data:image/png;base64," + base64.b64encode(cv2.imencode(".png", img)[1].tobytes()).decode()
+    hints = {**(args.get("hints") or {}), "count": int(args.get("count") or 6)}
+    res = detect_outlines(url, hints)
+    cands = res["candidates"]
+    LAST_TRACE.clear()
+    LAST_TRACE.update({"url": url, "w": res["width"], "h": res["height"], "cands": cands, "name": p.name, "hints": hints})
+    # one tile per candidate (overlapping outlines would hide each other), numbered, in a grid
+    tiles, lines = [], []
+    lw = max(2, img.shape[1] // 250)
+    for i, c in enumerate(cands, 1):
+        tile = img.copy()
+        pts = np.concatenate([np.array(poly[0]) for poly in c["polygons"]])
+        for poly in c["polygons"]:
+            for ring in poly:
+                cv2.polylines(tile, [np.round(np.array(ring)).astype(np.int32)], True, (149, 45, 255), lw)
+        scale = max(1.0, tile.shape[1] / 400)
+        cv2.rectangle(tile, (0, 0), (int(90 * scale), int(40 * scale)), (0, 0, 0), -1)
+        cv2.putText(tile, f"#{i}", (int(8 * scale), int(30 * scale)), cv2.FONT_HERSHEY_SIMPLEX, 0.9 * scale, (255, 255, 255), max(2, int(2 * scale)))
+        tiles.append(tile)
+        x0, y0 = pts.min(0)
+        x1, y1 = pts.max(0)
+        lines.append(f"{i}. confidence {c['confidence']}%, {round(c['area'] * 100)}% of the picture, "
+                     f"box x {x0:.0f}..{x1:.0f} y {y0:.0f}..{y1:.0f} px (aspect {(x1 - x0) / max(y1 - y0, 1):.3f}), "
+                     f"{len(c['polygons'])} piece(s), found by {', '.join(c['methods'])}")
+    over = img.copy()
+    if tiles:
+        cols = 1 if len(tiles) == 1 else 2 if len(tiles) <= 4 else 3
+        while len(tiles) % cols:
+            tiles.append(np.zeros_like(img))
+        gap = np.full((img.shape[0], 6, 3), 40, np.uint8)
+        rows = [np.hstack(sum(([t, gap] for t in tiles[r:r + cols]), [])[:-1]) for r in range(0, len(tiles), cols)]
+        hgap = np.full((6, rows[0].shape[1], 3), 40, np.uint8)
+        over = np.vstack(sum(([r, hgap] for r in rows), [])[:-1])
+    text = (f"{p.name}: {res['width']} x {res['height']} px, {len(cands)} candidate(s):\n" + "\n".join(lines)
+            if cands else "No outline found — give hints (seeds / bg_seeds / rect / colours).")
+    return {"text": text, "image": _png_b64(over, 1200)}
+
+
+def tool_use_outline(args):
+    if not LAST_TRACE.get("cands"):
+        raise ValueError("Call trace_picture first.")
+    n = int(args["candidate"])
+    if not 1 <= n <= len(LAST_TRACE["cands"]):
+        raise ValueError(f"Candidate {n} does not exist (1..{len(LAST_TRACE['cands'])}).")
+    c = LAST_TRACE["cands"][n - 1]
+    model = outline_model(c["polygons"], LAST_TRACE["w"], LAST_TRACE["h"], args.get("width"), args.get("height"),
+                          args.get("make") or "cutter", LAST_TRACE["name"])
+    data = {"model": model, "preview": {"image": LAST_TRACE["url"], "width": LAST_TRACE["w"], "height": LAST_TRACE["h"]}}
+    return {"text": _load_in_page(data, {"editor": {"mask": None, "hints": LAST_TRACE["hints"]}})}
+
+
+def tool_export(args):
+    fmt = args.get("format", "stl")
+    if fmt not in ("stl", "step"):
+        raise ValueError("format must be stl or step")
+    res = RELAY.call("get_body", {})
+    if res.get("error"):
+        raise ValueError(res.get("text") or "No part is open.")
+    if res["body"].get("assembly"):
+        raise ValueError("Export an assembly with the Export menu in the app (STL or STEP).")
+    if res["body"].get("model_part") is not None:  # a 3D model part: the CAD kernel writes it
+        data, err = _model_call("export", {"part": res["body"]["model_part"], "fmt": fmt})
+        if err:
+            raise ValueError(err[0].get_json().get("error"))
+        filename = re.sub(r'[\\/:*?"<>|]+', "_", res["body"].get("name") or "part").strip() + f".{fmt}"
+    else:
+        data, filename, _ = _export_bytes(res["body"], fmt)
+    target = Path(args["path"]).expanduser() if args.get("path") else Path.home() / "Downloads"
+    if target.is_dir() or not target.suffix:
+        target.mkdir(parents=True, exist_ok=True)
+        target = target / filename
+    target.write_bytes(data)
+    return {"text": f"Exported {len(data) // 1024} kB to {target}"}
+
+
+SERVER_TOOLS = {"open_file": tool_open_file, "open_sample": tool_open_sample, "trace_picture": tool_trace_picture,
+                "use_outline": tool_use_outline, "export": tool_export}
+
+
+@app.post("/api/agent/call")
+def api_agent_call():
+    """An MCP tool call (from auto3d/mcp_server.py)."""
+    body = request.get_json(force=True)
+    tool, args = body.get("tool", ""), body.get("args") or {}
+    if tool not in TOOL_NAMES:
+        return jsonify(_mcp_result(f"Unknown tool {tool}.", error=True))
+    try:
+        res = RELAY.call(tool, args) if tool in BROWSER_TOOLS else SERVER_TOOLS[tool](args)
+    except Exception as exc:  # report to the agent instead of failing the call
+        return jsonify(_mcp_result(f"{tool} failed: {exc}", error=True))
+    return jsonify(_mcp_result(res.get("text", ""), res.get("image"), bool(res.get("error"))))
+
+
+@app.get("/api/agent/poll")
+def api_agent_poll():
+    """The page long-polls for tool calls to apply."""
+    cmd = RELAY.poll(20.0, request.args.get("client") or None, request.args.get("active", "1") == "1")
+    return jsonify(cmd) if cmd else ("", 204)
+
+
+@app.post("/api/agent/result")
+def api_agent_result():
+    body = request.get_json(force=True)
+    RELAY.resolve(body.get("id", ""), body.get("result") or {})
+    return jsonify({"ok": True})
+
+
+@app.get("/api/chat/status")
+def api_chat_status():
+    chat = _chat()
+    return jsonify({"claude": find_claude(), "running": chat.running(), "busy": chat.busy})
+
+
+CHAT_PHOTOS = Path(__file__).resolve().parent / "data" / "agent" / "photos"
+CHAT_PHOTO_TYPES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif"}
+MAX_CHAT_PHOTOS, MAX_CHAT_PHOTO_BYTES = 5, 10 * 1024 * 1024
+
+
+def _save_chat_photo(p):
+    """A photo attached to a chat message ({name, data: data URL}) -> saved under data/agent/photos, so Claude
+    can also trace it; returns what ChatSession.send needs."""
+    m = re.match(r"^data:(image/[\w.+-]+);base64,(.+)$", p.get("data") or "", re.S)
+    if not m or m.group(1) not in CHAT_PHOTO_TYPES:
+        raise ValueError(f"{p.get('name') or 'The file'} is not a photo (PNG, JPG, WEBP or GIF).")
+    raw = base64.b64decode(m.group(2))
+    if len(raw) > MAX_CHAT_PHOTO_BYTES:
+        raise ValueError(f"{p.get('name') or 'The photo'} is larger than 10 MB.")
+    stem = re.sub(r"[^\w.-]+", "_", Path(p.get("name") or "photo").stem)[:40] or "photo"
+    name = f"{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}-{stem}{CHAT_PHOTO_TYPES[m.group(1)]}"
+    CHAT_PHOTOS.mkdir(parents=True, exist_ok=True)
+    (CHAT_PHOTOS / name).write_bytes(raw)
+    return {"name": p.get("name") or name, "media_type": m.group(1), "data": base64.b64encode(raw).decode("ascii"),
+            "path": str(CHAT_PHOTOS / name), "url": f"/api/chat/photo/{name}"}
+
+
+@app.get("/api/chat/photo/<name>")
+def api_chat_photo(name):
+    return send_from_directory(CHAT_PHOTOS, name)
+
+
+@app.post("/api/chat/send")
+def api_chat_send():
+    body = request.get_json(force=True)
+    text = (body.get("text") or "").strip()
+    try:
+        photos = [_save_chat_photo(p) for p in (body.get("photos") or [])[:MAX_CHAT_PHOTOS]]
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    if not text and not photos:
+        return jsonify({"error": "Empty message."}), 400
+    try:
+        _chat().send(text, photos)
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"ok": True})
+
+
+@app.post("/api/chat/stop")
+def api_chat_stop():
+    _chat().stop()
+    return jsonify({"ok": True})
+
+
+@app.post("/api/chat/reset")
+def api_chat_reset():
+    _chat().reset()
+    return jsonify({"ok": True})
+
+
+@app.get("/api/chat/events")
+def api_chat_events():
+    """Server-Sent Events: the chat (history first, then live)."""
+    chat = _chat()
+    q = chat.subscribe()
+
+    def gen():
+        try:
+            yield "retry: 2000\n\n"
+            while True:
+                try:
+                    ev = q.get(timeout=15)
+                    yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
+                except queue.Empty:
+                    yield ": keep-alive\n\n"
+        finally:
+            chat.unsubscribe(q)
+
+    return Response(stream_with_context(gen()), mimetype="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 def main():
@@ -228,6 +759,8 @@ def main():
     ap.add_argument("--no-browser", action="store_true")
     args = ap.parse_args()
     url = f"http://127.0.0.1:{args.port}"
+    global APP_URL
+    APP_URL = url  # the MCP server started by the chat calls back here
     if not args.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     print(f"Auto3DModeler running at {url}")

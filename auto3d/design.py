@@ -37,6 +37,8 @@ def precision_grid(size: float) -> float:
 
 
 def profile_polygon(solution: dict) -> Polygon:
+    if solution.get("_profile") is not None:  # free-form outline (image models): any (multi)polygon
+        return solution["_profile"]
     loops = solution["loops"]
     return Polygon(loops[0]["points"], [l["points"] for l in loops[1:]])
 

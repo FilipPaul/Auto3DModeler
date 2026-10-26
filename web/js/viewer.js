@@ -142,6 +142,15 @@ export class Viewer {
 
   faceZ(face) { return face === 'bottom' ? 0 : this.solution.thickness; }
 
+  /** Height of a face plane: 'top' / 'bottom' = the faces design layers go on (the first object of
+   *  an outline part, else the part), 'over' = above everything (2D outline shapes). */
+  planeZ(face) {
+    const lf = this.solution?.layer_faces;
+    if (face === 'over') return this.zRange[1];
+    if (face === 'bottom') return lf ? lf.bottom : this.zRange[0];
+    return lf ? lf.top : this.zRange[1];
+  }
+
   setGuides(guides) {
     this.invalidate();
     this.clearGroup(this.overlay);
@@ -167,7 +176,7 @@ export class Viewer {
       o.geometry.dispose();
     }
     if (!rings || !this.solution || this.solution.bent) return;
-    const z = face === 'bottom' ? this.zRange[0] - this.size * 0.001 : this.zRange[1] + this.size * 0.001;
+    const z = this.planeZ(face) + (face === 'bottom' ? -1 : 1) * this.size * 0.001;
     const mat = new THREE.LineBasicMaterial({ color: 0xff2d95, depthTest: false });
     for (const r of rings) {
       const line = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(r.map((p) => new THREE.Vector3(p[0], p[1], z))), mat);
@@ -196,6 +205,8 @@ export class Viewer {
       const p1 = a.p1_3d ? new THREE.Vector3(...a.p1_3d) : new THREE.Vector3(a.p1[0], a.p1[1], a.z ?? z);
       const p2 = a.p2_3d ? new THREE.Vector3(...a.p2_3d) : new THREE.Vector3(a.p2[0], a.p2[1], a.z2 ?? a.z ?? z);
       const pts = [p1, p2];
+      // extension lines (point-to-point dimensions along an axis): pairs of 3D points
+      for (const [u, w] of a.ext || []) pts.push(new THREE.Vector3(...u), new THREE.Vector3(...w));
       if (a.axis !== 'z' && !a.p1_3d) {
         const horiz = Math.abs(a.p1[1] - a.p2[1]) < 1e-9;
         if (horiz && (a.p1[1] < by0 || a.p1[1] > by1)) {
@@ -302,11 +313,111 @@ export class Viewer {
   /** Ray-cast a screen point onto a face plane; returns model {x, y} or null. */
   pickFace(clientX, clientY, face) {
     if (!this.solution) return null;
-    const z = face === 'bottom' ? this.zRange[0] : this.zRange[1];
-    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -z);
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -this.planeZ(face));
     const hit = new THREE.Vector3();
     if (!this.ray(clientX, clientY).ray.intersectPlane(plane, hit)) return null;
     return { x: hit.x, y: hit.y };
+  }
+
+  /** Ray-cast a screen point onto the part itself: {x, y, z, normal, snap} or null.
+   *  Snaps to a corner of the part within 10 px, and on walls to the height of a face edge
+   *  (z_levels) within 8 px; on a flat face z is that face's height. */
+  pickSurface(clientX, clientY) {
+    if (!this.mesh || !this.solution || this.solution.bent || this.piecesShown) return null;
+    const hits = this.ray(clientX, clientY).intersectObject(this.mesh, false);
+    if (!hits.length) return null;
+    const h = hits[0], n = h.face.normal;
+    const pos = this.mesh.geometry.attributes.position;
+    const v = new THREE.Vector3(), q = new THREE.Vector3();
+    let p = h.point.clone(), snap = 'surface', best = 10;
+    // the nearest corner of the part on screen (any triangle, so edges between faces snap too),
+    // unless it is hidden behind the surface under the cursor
+    const box = this.renderer.domElement.getBoundingClientRect();
+    const mx = ((clientX - box.left) / box.width) * 2 - 1, my = -((clientY - box.top) / box.height) * 2 + 1;
+    const kx = box.width / 2, ky = box.height / 2;
+    const cam = this.camera.position, reach = h.distance + this.size * 0.01;
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i);
+      q.copy(v).project(this.camera);
+      const d = Math.hypot((q.x - mx) * kx, (q.y - my) * ky);
+      if (d < best && v.distanceTo(cam) <= reach) { best = d; p = v.clone(); snap = 'corner'; }
+    }
+    const levels = this.solution.z_levels || [this.zRange[0], this.zRange[1]];
+    if (snap !== 'corner') {
+      if (Math.abs(n.z) > 0.9) {
+        // a flat face: exactly its height
+        const z = levels.reduce((a, b) => (Math.abs(b - p.z) < Math.abs(a - p.z) ? b : a), p.z);
+        if (Math.abs(z - p.z) < this.size * 1e-3) p.z = z;
+        snap = n.z > 0 ? 'top face' : 'bottom face';
+      } else {
+        let bestD = 8;
+        for (const z of levels) {
+          const s = this.toScreen(p.x, p.y, z);
+          const d = Math.hypot(s.x - clientX, s.y - clientY);
+          if (d < bestD) { bestD = d; p.z = z; snap = 'edge'; }
+        }
+        if (snap !== 'edge') snap = 'wall';
+      }
+    }
+    const r = (x) => Math.round(x * 1e6) / 1e6;
+    return { x: r(p.x), y: r(p.y), z: r(p.z), normal: [n.x, n.y, n.z], snap };
+  }
+
+  /** The measure tool: points (1 or 2) and, with two, the line between them with a label. */
+  setMeasure(points, text) {
+    this.invalidate();
+    if (!this.measureGroup) { this.measureGroup = new THREE.Group(); this.scene.add(this.measureGroup); }
+    this.clearGroup(this.measureGroup);
+    if (!points?.length) return;
+    const v = points.map((p) => new THREE.Vector3(p.x, p.y, p.z));
+    for (const p of v) {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(this.size * 0.006, 12, 8), new THREE.MeshBasicMaterial({ color: 0x39d0d8, depthTest: false }));
+      m.position.copy(p);
+      m.renderOrder = 10;
+      this.measureGroup.add(m);
+    }
+    if (v.length === 2) {
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(v), new THREE.LineBasicMaterial({ color: 0x39d0d8, depthTest: false }));
+      line.renderOrder = 10;
+      this.measureGroup.add(line);
+      // the axis-aligned legs (dx, dy, dz) as a dashed path
+      const [a, b] = v;
+      const legs = [a, new THREE.Vector3(b.x, a.y, a.z), new THREE.Vector3(b.x, b.y, a.z), b];
+      const dash = new THREE.Line(new THREE.BufferGeometry().setFromPoints(legs),
+        new THREE.LineDashedMaterial({ color: 0x39d0d8, dashSize: this.size / 120, gapSize: this.size / 200, depthTest: false, transparent: true, opacity: 0.6 }));
+      dash.computeLineDistances();
+      dash.renderOrder = 9;
+      this.measureGroup.add(dash);
+      if (text) {
+        const el = document.createElement('div');
+        el.className = 'measure-label';
+        el.textContent = text;
+        const lab = new CSS2DObject(el);
+        lab.position.copy(a).add(b).multiplyScalar(0.5);
+        this.measureGroup.add(lab);
+      }
+    }
+  }
+
+  /** Picking feedback: a dot at `p` with a small label (or nothing). */
+  setMarker(p, text) {
+    this.invalidate();
+    if (!this.markers) { this.markers = new THREE.Group(); this.scene.add(this.markers); }
+    this.clearGroup(this.markers);
+    if (!p) return;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(this.size * 0.007, 14, 10), new THREE.MeshBasicMaterial({ color: 0xf2cc60, depthTest: false }));
+    m.position.set(p.x, p.y, p.z);
+    m.renderOrder = 10;
+    this.markers.add(m);
+    if (text) {
+      const el = document.createElement('div');
+      el.className = 'pick-label';
+      el.textContent = text;
+      const lab = new CSS2DObject(el);
+      lab.position.set(p.x, p.y, p.z);
+      lab.center.set(-0.08, 1.2);
+      this.markers.add(lab);
+    }
   }
 
   /** Model point (x, y, z) -> client pixel coordinates. */
