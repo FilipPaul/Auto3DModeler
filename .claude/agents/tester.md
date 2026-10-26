@@ -109,6 +109,8 @@ Never report "works" without having run it; report failures with their output.
    M3 socket / inductive M12 / cylinder 16 with the asked size; library_add a 608 into an assembly with its faces and
    bottom face; axis + touch: in its seat, free to turn only, its part number in the parts list; check_collisions: none,
    then a screw inside the block reported; wrong size / length answered with the ones there are).
+   `tools/e2e_assembly_edgepick.py <url> <dir>` covers a concentric joint picked by circles (REAL clicks: the pin's
+   circle, then a valve port's circle -> the joint on the port's round face, the pin on its axis).
    `tools/e2e_library_real.py <url> <dir>` covers the maker's real model (a STEP attached to CDQ2B Ø25 stroke 15: shown,
    put into an assembly as that solid with its part number; stroke 20 still drawn; ✕ -> drawn again) and a drawn
    part's own colours per step (the rod).

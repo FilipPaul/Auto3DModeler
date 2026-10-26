@@ -187,6 +187,36 @@ class AsmView extends ModelView {
     return { point: best ? best.p : h.point.clone(), corner: !!best, face: h?.face || null, inst: best ? best.inst : h.inst };
   }
 
+  /** A round edge near the mouse (within px): the edge of a hole or of a pin, seen as a circle — -> {inst, face: the
+   *  round face it bounds (world coordinates), px} or null. Joints that want a round face take it (as in CAD: click
+   *  the circle). */
+  roundEdgeAt(clientX, clientY, px = 12) {
+    const r = this.renderer.domElement.getBoundingClientRect(), v = new THREE.Vector3();
+    const screen = (x, y, z, m) => { v.set(x, y, z).applyMatrix4(m).project(this.camera); return [(v.x + 1) / 2 * r.width + r.left, (1 - v.y) / 2 * r.height + r.top, v.z]; };
+    let best = null;
+    for (const mesh of this.meshes || []) {
+      const { inst, body } = mesh.userData, m = mesh.matrix;
+      for (const e of body.edges || []) {
+        const cyl = (e.faces || []).map((i) => body.faces[i]).find((f) => f?.type === 'cylinder');
+        if (!cyl) continue;
+        const p = e.pts;
+        let prev = screen(p[0], p[1], p[2], m);
+        for (let k = 3; k + 2 < p.length; k += 3) {
+          const cur = screen(p[k], p[k + 1], p[k + 2], m);
+          const dx = cur[0] - prev[0], dy = cur[1] - prev[1], L = dx * dx + dy * dy || 1;
+          const tt = Math.max(0, Math.min(1, ((clientX - prev[0]) * dx + (clientY - prev[1]) * dy) / L));
+          const d = Math.hypot(prev[0] + tt * dx - clientX, prev[1] + tt * dy - clientY);
+          if (d < px && cur[2] < 1 && (!best || d < best.px)) best = { inst, body, cyl, m, px: d };
+          prev = cur;
+        }
+      }
+    }
+    if (!best) return null;
+    const nm = new THREE.Matrix3().getNormalMatrix(best.m);
+    return { inst: best.inst, px: best.px, face: { ...best.cyl, centroid: new THREE.Vector3(...best.cyl.centroid).applyMatrix4(best.m),
+      normal: best.cyl.normal ? new THREE.Vector3(...best.cyl.normal).applyMatrix3(nm).normalize() : null }, edge: true };
+  }
+
   /** What is under the mouse: {inst, face (in world coordinates)} or null. */
   pickInst(clientX, clientY) {
     const h = this.ray(clientX, clientY).intersectObjects(this.meshes || [], false)[0];
@@ -1634,6 +1664,16 @@ export class Assembly {
     return true;
   }
 
+  /** For a joint: the face under the mouse, or — when that is not the kind it wants and it wants a round one — the
+   *  round face of a circular edge near the mouse (a hole seen from the front: click its circle). */
+  jointPick(e, h) {
+    if (this.faceFits(h) || this.mode === 'idle') return h;
+    const want = JOINT_TYPES[this.jointType]?.faces;
+    if (want !== 'cylinder' && want !== 'mixed' && want !== 'any') return h;
+    const r = this.view.roundEdgeAt(e.clientX, e.clientY);
+    return r && this.faceFits(r) ? r : h;
+  }
+
   clickJoint(h) {
     if (!this.faceFits(h)) {
       const kind = JOINT_TYPES[this.jointType].faces;
@@ -1688,7 +1728,7 @@ export class Assembly {
     cv.addEventListener('pointerdown', (e) => { if (e.button === 0) down = { x: e.clientX, y: e.clientY }; });
     cv.addEventListener('pointermove', (e) => {
       if (down) return;
-      const h = this.view.pickInst(e.clientX, e.clientY);
+      const h0 = this.view.pickInst(e.clientX, e.clientY), h = this.jointPick(e, h0);
       if (this.mode !== 'idle') {
         const key = h?.face ? `${h.inst}:${h.face.id}` : '';
         if (key !== this.hoverFaceKey) {
@@ -1716,7 +1756,7 @@ export class Assembly {
       const h = this.view.pickInst(e.clientX, e.clientY);
       if (this.measuring) { this.clickMeasure(e); return; }
       if (this.painting) { this.clickPaint(h, e.ctrlKey || e.metaKey); return; }
-      if (this.mode !== 'idle') { this.clickJoint(h); return; }
+      if (this.mode !== 'idle') { this.clickJoint(this.jointPick(e, h)); return; }
       if (this.bolt) { if (h?.face?.type === 'plane') this.startBolt(h); return; } // another point for the bolt
       this.choose(h?.inst || null, e.ctrlKey || e.metaKey);
     });

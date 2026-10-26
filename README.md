@@ -302,7 +302,9 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   joined this way get it filled in (touching) and you type e.g. 30; empty = it slides; **↻🔒** locks its turn),
   **Parallel**, **Perpendicular**, **Angle** (two flat faces at the angle you type), **Tangent** (a round face on a
   flat one), or **🔩 Screw / pin** — then
-  click a face of the part to move and the face it goes to (the face under the mouse is marked). A part can have
+  click a face of the part to move and the face it goes to (the face under the mouse is marked). For round faces a
+  click on (or near) a **circle** — a hole's or a pin's edge — is enough: its round face is taken (a hole seen from the
+  front, whose wall is hard to hit). A part can have
   several joints, applied in order: *Concentric* + *Touch* seats a pin in its hole, head on the face. Joints
   **hold**: when the other part moves or a part changes size in its own tab, the joined part follows. The panel
   lists the joints (hovering one marks its two faces, the copies are told apart: I1, I2…), with the gap / offset to
