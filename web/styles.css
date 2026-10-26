@@ -353,6 +353,9 @@ details.ol-clean[open] summary { margin-bottom: 6px; }
 .ai-status.ok { color: var(--ok); } .ai-status.warn { color: var(--warn); } .ai-status.err { color: var(--err); }
 .ai-acts { display: flex; gap: 4px; flex: none; }
 .ai-log { flex: 1; overflow-y: auto; padding: 8px 0; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+/* always-visible scrollbars (Windows' overlay scrollbars hide until hovered and are easy to miss on dark panels) */
+.ai-log, .panel, .mp-body, .tab-body { scrollbar-width: thin; scrollbar-color: #4a5563 transparent; }
+.ai-log { scrollbar-gutter: stable; padding-right: 4px; }
 .ai-empty { color: var(--muted); font-size: 12px; line-height: 1.5; padding: 6px 2px; }
 .ai-empty b { color: var(--text); }
 .ai-msg { border-radius: 9px; padding: 7px 10px; font-size: 12.5px; line-height: 1.45; max-width: 100%; overflow-wrap: anywhere; }
