@@ -463,14 +463,14 @@ def api_model_sketch_solve():
 
 @app.post("/api/model/export/<fmt>")
 def api_model_export(fmt):
-    if fmt not in ("stl", "step"):
+    if fmt not in ("stl", "step", "pdf"):
         return jsonify({"error": f"Unknown format {fmt}"}), 404
     body = request.get_json(force=True)
-    data, err = _model_call("export", {"part": body.get("part") or {}, "fmt": fmt})
+    name = re.sub(r'[\\/:*?"<>|]+', "_", body.get("name") or "part").strip() or "part"
+    data, err = _model_call("export", {"part": body.get("part") or {}, "fmt": fmt, "name": name})
     if err:
         return err
-    name = re.sub(r'[\\/:*?"<>|]+', "_", body.get("name") or "part").strip() or "part"
-    return Response(data, mimetype="model/step" if fmt == "step" else "model/stl",
+    return Response(data, mimetype={"step": "model/step", "stl": "model/stl", "pdf": "application/pdf"}[fmt],
                     headers={"Content-Disposition": f'attachment; filename="{name}.{fmt}"'})
 
 
@@ -636,18 +636,21 @@ def tool_use_outline(args):
 
 def tool_export(args):
     fmt = args.get("format", "stl")
-    if fmt not in ("stl", "step"):
-        raise ValueError("format must be stl or step")
+    if fmt not in ("stl", "step", "pdf"):
+        raise ValueError("format must be stl, step or pdf (a 2D drawing of a 3D model part)")
     res = RELAY.call("get_body", {})
     if res.get("error"):
         raise ValueError(res.get("text") or "No part is open.")
     if res["body"].get("assembly"):
         raise ValueError("Export an assembly with the Export menu in the app (STL or STEP).")
     if res["body"].get("model_part") is not None:  # a 3D model part: the CAD kernel writes it
-        data, err = _model_call("export", {"part": res["body"]["model_part"], "fmt": fmt})
+        name = re.sub(r'[\\/:*?"<>|]+', "_", res["body"].get("name") or "part").strip()
+        data, err = _model_call("export", {"part": res["body"]["model_part"], "fmt": fmt, "name": name})
         if err:
             raise ValueError(err[0].get_json().get("error"))
-        filename = re.sub(r'[\\/:*?"<>|]+', "_", res["body"].get("name") or "part").strip() + f".{fmt}"
+        filename = f"{name}.{fmt}"
+    elif fmt == "pdf":
+        raise ValueError("A 2D drawing is made from a 3D model part — open one (or ◆ To 3D model) first.")
     else:
         data, filename, _ = _export_bytes(res["body"], fmt)
     target = Path(args["path"]).expanduser() if args.get("path") else Path.home() / "Downloads"

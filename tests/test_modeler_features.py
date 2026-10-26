@@ -385,6 +385,18 @@ class TestFeatures(unittest.TestCase):
         r, _ = vol(*box(), {**dec, "polys": []})
         self.assertIn("text", r["features"][-1]["issues"][0])
 
+    def test_drawing_pdf(self):
+        import fitz
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        part = {"features": box() + [{"id": "H1", "type": "hole", "plane": top, "points": [[-10, -5], [10, 5]], "d": 4, "through": True}], "material": "PETG"}
+        data = doc.export(part, "pdf", "Bracket")
+        self.assertTrue(data.startswith(b"%PDF"))
+        page = fitz.open(stream=data, filetype="pdf")[0]
+        text = page.get_text()
+        for want in ("Front", "Top", "Right", "Bracket", "40", "20", "10", "Ø4 ×2", "PETG", "(10, 5)", "(30, 15)", "Scale 2:1"):
+            self.assertIn(want, text)
+        self.assertGreater(len(page.get_drawings()), 20)  # the views' lines, dimensions, the title block
+
 
 if __name__ == "__main__":
     unittest.main()

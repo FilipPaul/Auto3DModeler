@@ -60,6 +60,9 @@ Date: 2026-10-25. Written by the architect agent.
   raised / engraved on a flat face, follows it; the AI's decal. tools/e2e_model_decal.py.
 - **Assembly links done:** snaps hold (doc.mates {move, face, onto, ontoFace}, re-applied after refresh and moves;
   moving the snapped part by hand unlinks; no cycles; saved, undoable). tools/e2e_assembly_links.py.
+- **2D drawings done:** drawing.py (A4 PDF: front / top / right by kernel.project_edges = OCCT HLR, iso, overall
+  dimensions, hole labels and positions, title block; PyMuPDF); /api/model/export/pdf, the AI's export pdf.
+  tools/e2e_model_drawing.py.
 - **Next (later list):** classic parts in assemblies; decorate faces of model parts; loft / sweep.
 
 ## 0. Summary

@@ -805,6 +805,50 @@ def _face_info(f, fi, rev):
     return info
 
 
+def project_edges(shape, look, right, up):
+    """The visible and hidden edges of the shape seen along `look` (hidden-line removal) -> ([[(x, y)…]…], [[…]…])
+    in mm, in the view's axes: x along `right`, y along `up`."""
+    from OCP.BRepLib import BRepLib
+    from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt
+    from OCP.HLRAlgo import HLRAlgo_Projector
+    from OCP.HLRBRep import HLRBRep_Algo, HLRBRep_HLRToShape
+    from OCP.GeomAbs import GeomAbs_Line
+
+    algo = HLRBRep_Algo()
+    algo.Add(shape)
+    # the projector looks against its axis' direction: the axis points at the viewer
+    ax = gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(*[-c for c in look]), gp_Dir(*right))
+    algo.Projector(HLRAlgo_Projector(ax))
+    algo.Update()
+    algo.Hide()
+    hl = HLRBRep_HLRToShape(algo)
+    up_v = np.cross(np.asarray([-c for c in look], float), np.asarray(right, float))
+    flip = float(up_v @ np.asarray(up, float)) < 0  # keep "up" up
+
+    def lines(comp):
+        out = []
+        if comp is None or comp.IsNull():
+            return out
+        BRepLib.BuildCurves3d_s(comp)
+        ex = TopExp_Explorer(comp, TopAbs_EDGE)
+        while ex.More():
+            e = TopoDS.Edge(ex.Current())
+            c = BRepAdaptor_Curve(e)
+            t0, t1 = c.FirstParameter(), c.LastParameter()
+            n = 2 if c.GetType() == GeomAbs_Line else 48
+            pts = []
+            for i in range(n + 1):
+                p = c.Value(t0 + (t1 - t0) * i / n)
+                pts.append((p.X(), -p.Y() if flip else p.Y()))
+            out.append(pts)
+            ex.Next()
+        return out
+
+    visible = lines(hl.VCompound()) + lines(hl.OutLineVCompound()) + lines(hl.Rg1LineVCompound())
+    hidden = lines(hl.HCompound()) + lines(hl.OutLineHCompound())
+    return visible, hidden
+
+
 def placed(shape, m16):
     """A shape moved by a 4 x 4 placement matrix (column-major, as three.js stores it; only rotation + move)."""
     m = list(map(float, m16))

@@ -30,7 +30,7 @@ def _main(conn):
         pass
     from . import doc
     from .kernel import KernelError
-    ops = {"rebuild": doc.rebuild, "export": lambda a: doc.export(a["part"], a["fmt"]),
+    ops = {"rebuild": doc.rebuild, "export": lambda a: doc.export(a["part"], a["fmt"], a.get("name") or "part"),
            "assembly_step": lambda a: doc.assembly_step(a["instances"])}
     while True:
         try:

@@ -348,7 +348,8 @@ export class Modeler {
         ${b && this.hooks.toPrint ? `<h3>3D print</h3><p class="hint">Check it fits your printer, split it into pieces with joints — in a printing copy of this part.</p>
           <div class="row-actions"><button class="btn small primary" data-a="toPrint">🖨 Prepare for 3D print</button></div>` : ''}
         ${b ? `<h3>Export</h3><div class="row-actions"><button class="btn small" data-x="stl" title="For 3D printing">STL</button>
-          <button class="btn small" data-x="step" title="For other CAD programs (exact circles and faces)">STEP</button></div>` : ''}`;
+          <button class="btn small" data-x="step" title="For other CAD programs (exact circles and faces)">STEP</button>
+          <button class="btn small" data-x="pdf" title="A 2D drawing: front, top and right views, sizes, holes, title block">📐 Drawing (PDF)</button></div>` : ''}`;
     }
     for (const el of box.querySelectorAll('[data-a]')) el.addEventListener('click', () => this.action(el.dataset.a));
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
@@ -1631,7 +1632,9 @@ export class Modeler {
     const res = await fetch(`/api/model/export/${fmtName}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ part: this.part, name: this.hooks.safeName() }) });
     if (!res.ok) { this.hooks.toast(`Export failed: ${(await res.json()).error}`, 'error'); return; }
-    if (await this.hooks.download(await res.blob(), `${this.hooks.safeName()}.${fmtName}`)) this.hooks.toast(`Exported ${fmtName.toUpperCase()} (in mm).`, 'ok');
+    if (await this.hooks.download(await res.blob(), `${this.hooks.safeName()}.${fmtName}`)) {
+      this.hooks.toast(fmtName === 'pdf' ? 'Exported the drawing (PDF).' : `Exported ${fmtName.toUpperCase()} (in mm).`, 'ok');
+    }
   }
 
   hasBody() { return !!this.result?.body; }

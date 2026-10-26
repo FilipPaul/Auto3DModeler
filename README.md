@@ -163,6 +163,13 @@ Coming next ([plan](docs/ARCHITECTURE-modeler.md)):
 - arcs, sizes between any two points, and equal / parallel / perpendicular rules;
 - AI tools for models;
 
+## 2D drawings
+
+**📐 Drawing (PDF)** in a 3D model's panel (or *PDF — 2D drawing* in the Export menu) makes an A4 drawing sheet:
+the **Front**, **Top** and **Right** views with visible edges (solid) and hidden ones (dashed), an iso view, the
+overall sizes dimensioned, every hole labelled (Ø) and listed with its position from the part's lower-left corner,
+and a title block (name, size, material, mass, scale). The AI's `export {format: "pdf"}` writes the same file.
+
 ## Assemblies
 
 **＋ New assembly** (in the ＋ menu next to the part tabs) opens an assembly tab (◇), where the parts of the project

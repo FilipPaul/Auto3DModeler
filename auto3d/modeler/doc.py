@@ -533,8 +533,13 @@ def body_of(part):
     return st
 
 
-def export(part, fmt):
+def export(part, fmt, name="part"):
     st = body_of(part)
+    if fmt == "pdf":  # a 2D drawing: three views, sizes, title block
+        from . import drawing
+        mats = {"PLA": 1.24, "PETG": 1.27, "ABS": 1.04, "ASA": 1.07, "TPU": 1.21, "PA": 1.14}  # g / cm³, as in the browser
+        mat = (part or {}).get("material") or "PLA"
+        return drawing.pdf(st.body, name=name, material=mat, mass_g=K.volume(st.body.shape) / 1000 * mats.get(mat, 1.24))
     if fmt == "step":
         return K.to_step(st.body.shape)
     if fmt == "stl":

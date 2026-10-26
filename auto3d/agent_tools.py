@@ -122,9 +122,10 @@ TOOLS = [
                     "many pieces when split. printer: id from the result's printer list.",
      "inputSchema": _obj({"printer": STR, "split": {"type": "boolean"}})},
     {"name": "export", "where": "server",
-     "description": "Export the part as STL or STEP (mm) to a file. path: file or folder (default: the user's "
-                    "Downloads folder). Returns the written path.",
-     "inputSchema": _obj({"format": {"type": "string", "enum": ["stl", "step"]}, "path": STR}, ["format"])},
+     "description": "Export the part as STL or STEP (mm) to a file — or, for a 3D model part, pdf: a 2D drawing (front / "
+                    "top / right views, sizes, holes, title block). path: file or folder (default: the user's Downloads "
+                    "folder). Returns the written path.",
+     "inputSchema": _obj({"format": {"type": "string", "enum": ["stl", "step", "pdf"]}, "path": STR}, ["format"])},
     {"name": "undo", "where": "browser", "description": "Undo the last change made through these tools.",
      "inputSchema": _obj({})},
 

@@ -546,6 +546,8 @@ const CS = {
   'Moved by hand — it no longer follows the part it was snapped to.': 'Posunuto rukou — už nenásleduje díl, ke kterému byl přichycen.',
   '⚠ Its face is gone — snap it again.': '⚠ Jeho plocha zmizela — přichyťte ho znovu.', Unlink: 'Zrušit vazbu',
   'Keep it where it is, but no longer follow': 'Nechat ho na místě, ale už nenásledovat',
+  '📐 Drawing (PDF)': '📐 Výkres (PDF)', 'A 2D drawing: front, top and right views, sizes, holes, title block': '2D výkres: pohled zepředu, shora a zprava, rozměry, díry, rohové razítko',
+  'PDF — 2D drawing (views, sizes)': 'PDF — 2D výkres (pohledy, rozměry)', 'Exported the drawing (PDF).': 'Výkres exportován (PDF).',
   // language switch
   'Čeština / English': 'Čeština / English',
 };
