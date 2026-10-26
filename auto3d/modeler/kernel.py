@@ -785,6 +785,10 @@ def tessellate(body):
                     b, c = c, b
                 pos.extend(nodes[a - 1] + nodes[b - 1] + nodes[c - 1])
                 ids.append(fi)
+        on_face = None  # a point on the face (a triangle's middle — a ring's centre is not on it)
+        if tri is not None and tri.NbTriangles():
+            a, b, c = tri.Triangle(1).Get()
+            on_face = np.mean([nodes[a - 1], nodes[b - 1], nodes[c - 1]], axis=0)
         if heavy:  # the face's area and middle from its triangles (the exact ones take long on 100 000 faces)
             t = np.asarray(pos[len(pos) - 9 * tri.NbTriangles():] if tri is not None else [], float).reshape(-1, 3, 3)
             ar = np.linalg.norm(np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0]), axis=1) / 2 if len(t) else np.zeros(0)
@@ -792,6 +796,8 @@ def tessellate(body):
             info = _face_info(f, fi, rev, (float(ar.sum()), cm))
         else:
             info = _face_info(f, fi, rev)
+        if info.get("type") == "plane" and on_face is not None and not heavy:
+            _outward(shape, info, on_face, size)
         if fi in solid_of:
             info["solid"] = solid_of[fi]
         nm = names.get(fi, [])
@@ -817,6 +823,24 @@ def tessellate(body):
                       "mid": _round(_edge_mid(e), 5)})
     return {"positions": np.asarray(pos, np.float32).tobytes(), "face_ids": np.asarray(ids, np.uint32).tobytes(),
             "faces": faces, "edges": edges, "bbox": bb, "volume": volume(shape), "solids": solids(shape)}
+
+
+def _outward(shape, info, point, size):
+    """A flat face's normal made to point out of the solid: a point a hair along it, from a point on the face, must
+    be outside (a revolved solid can come with its faces' orientation the other way round)."""
+    from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+    from OCP.TopAbs import TopAbs_IN
+    n = np.asarray(info["normal"], float)
+    eps = max(size * 1e-4, 1e-4)
+    q = np.asarray(point, float) + n * eps
+    try:
+        inside = BRepClass3d_SolidClassifier(shape, gp_Pnt(*map(float, q)), eps * 0.1).State() == TopAbs_IN
+    except Exception:  # noqa: BLE001 — not a closed solid: keep what the face says
+        return
+    if inside:
+        info["normal"] = _round(-n)
+        if "frame" in info:
+            info["frame"]["n"] = _round(-np.asarray(info["frame"]["n"], float))
 
 
 def _edge_len(c):

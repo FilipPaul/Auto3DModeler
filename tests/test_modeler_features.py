@@ -459,3 +459,19 @@ class TestAssemblyClashes(unittest.TestCase):
         self.assertEqual([(c["a"], c["b"]) for c in cs], [("I1", "I2")])
         self.assertAlmostEqual(cs[0]["volume"], 5 * 15 * 10, places=3)
         self.assertEqual(cs[0]["bbox"], [15, 5, 0, 20, 20, 10])
+
+
+@unittest.skipUnless(OCC, "OCP not installed")
+class TestRevolvedFaces(unittest.TestCase):
+    """A revolved solid's flat faces point out of it, whichever way its profile runs (a ring's bottom down, its top up)."""
+
+    def test_normals_point_out(self):
+        for prof in ([(4, 0), (11, 0), (11, 7), (4, 7)], [(4, 0), (4, 7), (11, 7), (11, 0)]):
+            pts = {f"p{i + 1}": list(p) for i, p in enumerate(prof)}
+            lines = [{"id": f"l{i + 1}", "t": "line", "a": f"p{i + 1}", "b": f"p{(i + 1) % 4 + 1}"} for i in range(4)]
+            r = doc.rebuild({"features": [{"id": "F1", "type": "sketch", "plane": {"datum": "XZ"}, "points": pts, "entities": lines},
+                                          {"id": "F2", "type": "revolve", "sketch": "F1", "axis": "y", "angle": 360, "op": "add"}]})
+            flat = sorted((f["centroid"][2], f["normal"][2]) for f in r["body"]["faces"] if f["type"] == "plane")
+            self.assertEqual([round(z) for z, _ in flat], [0, 7])
+            self.assertEqual([round(n) for _, n in flat], [-1, 1], prof)
+            self.assertEqual(flat[0][1], next(f["frame"]["n"][2] for f in r["body"]["faces"] if f["type"] == "plane" and f["centroid"][2] < 1))
