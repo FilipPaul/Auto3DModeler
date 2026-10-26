@@ -508,6 +508,10 @@ const CS = {
   'Click a straight edge running up / down on this face, or another hole.': 'Klikněte na rovnou svislou hranu této plochy nebo na jinou díru.',
   'Click a straight edge running left / right on this face, or another hole.': 'Klikněte na rovnou vodorovnou hranu této plochy nebo na jinou díru.',
   'Hole — click on a flat face where it goes (click again for more holes). Enter = OK, Esc = Cancel.': 'Díra — klikněte na rovnou plochu, kam patří (dalším kliknutím přidáte další díry). Enter = OK, Esc = Zrušit.',
+  'Add a part of this project: a 3D model ◆ or a quick part ▤ (drawing, picture, import)': 'Přidat díl projektu: 3D model ◆ nebo rychlý díl ▤ (výkres, obrázek, import)',
+  'Make a part first (＋ New 3D model, or open a drawing / picture)': 'Nejdřív vytvořte díl (＋ Nový 3D model, nebo otevřete výkres / obrázek)', 'No parts yet': 'Zatím žádné díly',
+  'Insert parts of this project (3D models and quick parts) with ＋ Insert part, then snap them together face to face.': 'Vložte díly projektu (3D modely i rychlé díly) přes ＋ Vložit díl a pak je přichyťte plochou k ploše.',
+  'The quick part could not be made solid.': 'Z rychlého dílu se nepodařilo udělat těleso.', "The solid's data is damaged.": 'Data tělesa jsou poškozená.',
   // language switch
   'Čeština / English': 'Čeština / English',
 };

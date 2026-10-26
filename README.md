@@ -150,8 +150,8 @@ Coming next ([plan](docs/ARCHITECTURE-modeler.md)):
 
 ## Assemblies
 
-**＋ New assembly** (in the ＋ menu next to the part tabs) opens an assembly tab (◇), where the 3D model parts of
-the project are placed together:
+**＋ New assembly** (in the ＋ menu next to the part tabs) opens an assembly tab (◇), where the parts of the project
+are placed together — 3D models ◆ and quick parts ▤ (drawings, pictures, imports: they go in as their solid):
 - **＋ Insert part ▾** adds a model part, as often as you like (⧉ in the list adds one more). A new one is put
   beside the others.
 - **🧲 Snap face to face** (S): click a flat face of the part to move, then the flat face it goes onto. The part

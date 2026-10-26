@@ -735,6 +735,12 @@ def to_step(shape, name="part"):
         os.unlink(path)
 
 
+def solid_body(shape, fid):
+    """A solid made elsewhere (a STEP file, a quick part) as a body; its faces are named <fid>:f<k>."""
+    fm = _face_map(shape)
+    return Body(shape, {f"{fid}:f{k}": [fm.FindKey(k + 1)] for k in range(fm.Extent())})
+
+
 def from_step(data: bytes):
     fd, path = tempfile.mkstemp(suffix=".step")
     with os.fdopen(fd, "wb") as fh:

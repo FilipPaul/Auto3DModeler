@@ -113,7 +113,21 @@ export class Assembly {
 
   render() { this.renderBar(); this.renderList(); this.renderProps(); this.renderStatus(); }
 
-  modelParts() { return this.hooks.parts().filter((p) => p.kind === 'model'); }
+  /** The parts that can go in: 3D models, and quick parts (drawings, pictures, imports) with a shape. */
+  modelParts() { return this.hooks.parts().filter((p) => p.kind === 'model' || (p.kind === 'classic' && this.hooks.partData(p.id)?.model)); }
+
+  /** A part's steps for the CAD kernel: a 3D model's own; a quick part as one solid (its STEP export). */
+  async partFeatures(pid, data) {
+    const p = this.hooks.parts().find((q) => q.id === pid);
+    if (p?.kind !== 'classic') return data.features || [];
+    const res = await fetch('/api/export/step', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: data.model, values: data.values, layers: data.layers, bends: data.bends }) });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'The quick part could not be made solid.');
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return [{ id: 'Q1', type: 'solid', name: p.name, step: btoa(bin) }];
+  }
   partName(id) { return this.hooks.parts().find((p) => p.id === id)?.name || id; }
   inst(id) { return this.doc.instances.find((i) => i.id === id); }
 
@@ -122,8 +136,8 @@ export class Assembly {
     const btn = (a, label, title, cls = '') => `<button class="chip ${cls}" data-a="${a}" title="${esc(title)}">${label}</button>`;
     const parts = this.modelParts();
     bar.innerHTML = `
-      <div class="menu as-insert">${btn('insert', '＋ Insert part ▾', parts.length ? 'Add a 3D model part of this project' : 'Make a 3D model part first (＋ New 3D model)', 'tool')}
-        <div class="menu-list">${parts.map((p) => `<button data-part="${p.id}" data-no-i18n>${esc(p.name)}</button>`).join('') || '<div class="hint">No 3D model parts yet</div>'}</div></div>
+      <div class="menu as-insert">${btn('insert', '＋ Insert part ▾', parts.length ? 'Add a part of this project: a 3D model ◆ or a quick part ▤ (drawing, picture, import)' : 'Make a part first (＋ New 3D model, or open a drawing / picture)', 'tool')}
+        <div class="menu-list">${parts.map((p) => `<button data-part="${p.id}" data-no-i18n>${p.kind === 'classic' ? '▤' : '◆'} ${esc(p.name)}</button>`).join('') || '<div class="hint">No parts yet</div>'}</div></div>
       ${btn('snap', '🧲 Snap face to face', 'Click a face of the part to move, then the face it goes onto (S)', `tool ${this.mode !== 'idle' ? 'on' : ''}`)}
       <span class="sep"></span>
       <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
@@ -226,7 +240,7 @@ export class Assembly {
         <h3>Export</h3><div class="row-actions"><button class="btn small" data-x="stl" title="All parts in one STL, as placed">STL</button>
         <button class="btn small" data-x="step" title="All parts as separate bodies in one STEP file">STEP</button></div>
         <p class="hint">To print, open each part's tab and use 🖨 Prepare for 3D print there.</p>`
-        : `<p class="hint">Insert 3D model parts of this project with ＋ Insert part, then snap them together face to face.</p>`}`;
+        : `<p class="hint">Insert parts of this project (3D models and quick parts) with ＋ Insert part, then snap them together face to face.</p>`}`;
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
   }
 
@@ -241,13 +255,15 @@ export class Assembly {
     await Promise.all(need.map(async (pid) => {
       const data = this.hooks.partData(pid);
       if (!data) { this.bodies[pid] = { error: 'This part is no longer in the project.' }; return; }
-      const key = JSON.stringify(data.features || []);
+      const key = JSON.stringify(data.features || { model: data.model, values: data.values, layers: data.layers, bends: data.bends });
       if (this.bodies[pid]?.key === key) return;
       try {
-        const res = await fetch('/api/model/rebuild', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: { features: data.features || [] } }) });
+        const features = await this.partFeatures(pid, data);
+        const res = await fetch('/api/model/rebuild', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: { features } }) });
         const r = await res.json();
         if (!res.ok) throw new Error(r.error || res.statusText);
-        this.bodies[pid] = r.body ? { key, body: r.body } : { key, error: 'This part has no solid yet.' };
+        if (!r.ok && !r.body) throw new Error(r.features.flatMap((s) => s.issues).join(' ') || 'This part has no solid.');
+        this.bodies[pid] = r.body ? { key, body: r.body, features } : { key, error: 'This part has no solid yet.' };
       } catch (e) { this.bodies[pid] = { key, error: e.message }; }
     }));
     this.draw();
@@ -449,7 +465,7 @@ export class Assembly {
       insert_part: async ({ part }) => {
         need();
         const p = this.modelParts().find((q) => q.id === part || q.name === part);
-        if (!p) throw new Error(`No 3D model part “${part}” — see list_parts.`);
+        if (!p) throw new Error(`No part “${part}” that can go in (a 3D model or a quick part with a shape) — see list_parts.`);
         await this.insert(p.id);
         return { text: JSON.stringify(this.summary()) };
       },
@@ -513,7 +529,7 @@ export class Assembly {
       if (await this.hooks.download(new Blob([buf], { type: 'model/stl' }), `${name}.stl`)) this.hooks.toast('Exported STL (in mm).', 'ok');
       return;
     }
-    const instances = this.doc.instances.map((it) => ({ part: { features: this.hooks.partData(it.part)?.features || [] }, matrix: it.matrix }));
+    const instances = this.doc.instances.map((it) => ({ part: { features: this.bodies[it.part]?.features || this.hooks.partData(it.part)?.features || [] }, matrix: it.matrix }));
     const res = await fetch('/api/assembly/export/step', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instances, name }) });
     if (!res.ok) { this.hooks.toast(`Export failed: ${(await res.json().catch(() => ({ error: res.statusText }))).error}`, 'error'); return; }
     if (await this.hooks.download(await res.blob(), `${name}.step`)) this.hooks.toast('Exported STEP (in mm).', 'ok');

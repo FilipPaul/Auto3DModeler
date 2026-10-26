@@ -273,6 +273,23 @@ class TestFeatures(unittest.TestCase):
         r, _ = vol(*box(), two)
         self.assertEqual(r["features"][-1]["update"], {"points": [[-10, 0], [2, 0]]})
 
+    def test_solid_from_step(self):
+        # a ready solid (a quick part's STEP export, base64) as a step: its faces get names, it can be built on
+        import base64
+        step = doc.export({"features": box()}, "step")
+        solid = {"id": "Q1", "type": "solid", "step": base64.b64encode(step).decode()}
+        r, v = vol(solid)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000, delta=1e-3)
+        self.assertEqual(len({f["name"] for f in r["body"]["faces"]}), 6)
+        self.assertTrue(all(f["name"].startswith("Q1:f") for f in r["body"]["faces"]))
+        top = next(f for f in r["body"]["faces"] if f["type"] == "plane" and f["normal"] == [0, 0, 1])
+        hole = {"id": "H1", "type": "hole", "plane": {"face": {"name": top["name"]}, "frame": top["frame"]}, "points": [[0, 0]], "d": 4, "through": True}
+        r, v = vol(solid, hole)
+        self.assertAlmostEqual(v, 8000 - math.pi * 4 * 10, delta=1e-3)
+        r, _ = vol({**solid, "step": "not base64!"})
+        self.assertFalse(r["ok"])
+
 
 if __name__ == "__main__":
     unittest.main()

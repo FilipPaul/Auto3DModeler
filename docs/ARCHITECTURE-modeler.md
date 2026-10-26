@@ -45,6 +45,8 @@ Date: 2026-10-25. Written by the architect agent.
   tools/e2e_model_round.py.
 - **Custom references done:** Extrude up to a face (+ offset, extrude.upto); 🎯 hole distances from any edge of the
   face, from another step's hole (its centre) or another hole of the same step (from: {hole: j}). tools/e2e_model_custom.py.
+- **Quick parts in assemblies done:** a quick part goes in as its STEP export, read back by a "solid" step
+  (faces named <id>:f<k>; snap, mass, STEP export as for model parts). tools/e2e_assembly_quick.py.
 - **Next (later list):** classic parts in assemblies; decorate faces of model parts; loft / sweep.
 
 ## 0. Summary

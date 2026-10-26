@@ -181,6 +181,15 @@ def _apply(f, st: State, s):
             tool.names = {f"{fid}:hole:{k}": tool.names.get(f"{fid}:side:c", []), f"{fid}:bottom:{k}": tool.names.get(f"{fid}:end", [])}
             _use(st, fid, tool, "cut")
         return
+    if t == "solid":
+        # a ready solid (STEP, base64): a quick part placed in an assembly, or an imported body
+        import base64
+        try:
+            shape = K.from_step(base64.b64decode(f.get("step") or ""))
+        except (ValueError, TypeError):
+            raise K.KernelError("The solid's data is damaged.") from None
+        _use(st, fid, K.solid_body(shape, fid), "add")
+        return
     if t == "pattern":
         before = K.volume(st.body.shape) if st.body is not None else 0
         _pattern(f, st)

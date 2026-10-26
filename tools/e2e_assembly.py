@@ -84,7 +84,7 @@ try:
     for name in ("Plate", "Pin"):
         d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=insert]").click()
         time.sleep(0.2)
-        next(b for b in d.find_elements(By.CSS_SELECTOR, "#asmViewport .as-insert [data-part]") if b.text == name).click()
+        next(b for b in d.find_elements(By.CSS_SELECTOR, "#asmViewport .as-insert [data-part]") if b.text.split(" ", 1)[-1] == name).click()
         wait(f"return {A}.doc.instances.length >= {1 if name == 'Plate' else 2} && Object.values({A}.bodies).every(b => b.body)")
         time.sleep(0.6)
     print("inserted:", js(f"return {A}.doc.instances.map(i => [i.id, i.part])"), "| pin placed beside:", matrix("I2")[12:15])

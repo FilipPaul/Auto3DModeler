@@ -198,7 +198,7 @@ TOOLS = [
      "description": "The assembly on screen: its placed parts (id I1…, part, position, bounding box in mm) and the parts list (qty, material, mass).",
      "inputSchema": _obj({})},
     {"name": "insert_part", "where": "browser",
-     "description": "Add a 3D model part (id or name from list_parts) to the assembly on screen; it is put beside the others. Returns the parts.",
+     "description": "Add a part (id or name from list_parts: a 3D model, or a quick part — a drawing, picture or import — as its solid) to the assembly on screen; it is put beside the others. Returns the parts.",
      "inputSchema": _obj({"part": STR}, ["part"])},
     {"name": "snap_faces", "where": "browser",
      "description": "Put a placed part against another one: move = {part: <placed id I…>, face: <face name>}, onto = {part, face}. The moved part "
