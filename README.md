@@ -328,6 +328,9 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   holes; *Add* or *Add all* puts them in as standard parts of the project (a socket-head screw, an insert, a pin),
   held by joints: the screw on the hole's axis, its head on the part; the insert flush with the face. They follow
   when the parts change.
+- **⚠ Collisions** finds where parts go into each other (touching faces are fine): each pair and how much (mm³),
+  the parts glowing red and the overlap boxed in red; hover a row for just that pair, ↗ chooses the two parts (their
+  joints and moves). While it is open it checks again after every change — slide a part and see it clear.
 - **🎨 Paint** colours faces of the placed parts (▢ Faces) or whole parts (◆ Whole parts) in this assembly: click
   them, Ctrl+click for more, pick a colour. The parts keep their own colours in their tabs and other assemblies.
 - **✂ Section** cuts every part along X, Y or Z (a slider moves the cut, ⇄ shows the other side).

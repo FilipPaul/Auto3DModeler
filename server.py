@@ -555,6 +555,16 @@ def api_model_profile():
     return jsonify({"polygons": out, "width": x1 - x0, "height": y1 - y0, "name": name})
 
 
+@app.post("/api/assembly/clashes")
+def api_assembly_clashes():
+    """{instances: [{id, part: {features}, matrix: [16]}]} -> {clashes: [{a, b, volume, bbox}]} — parts that overlap."""
+    body = request.get_json(force=True)
+    data, err = _model_call("assembly_clashes", {"instances": body.get("instances") or []})
+    if err:
+        return err
+    return jsonify({"clashes": data})
+
+
 @app.post("/api/assembly/export/step")
 def api_assembly_step():
     """{instances: [{part: {features}, matrix: [16]}], name} -> one STEP file with every placed part."""

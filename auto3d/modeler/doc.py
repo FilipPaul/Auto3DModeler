@@ -839,6 +839,19 @@ def export(part, fmt, name="part"):
     raise K.KernelError(f"Unknown export format “{fmt}”.")
 
 
+def assembly_clashes(instances):
+    """Where the placed parts of an assembly overlap: instances [{id, part: {features}, matrix: [16]}] ->
+    [{a, b (their ids), volume, bbox}]. A part without a solid is left out."""
+    shapes = []
+    for inst in instances or []:
+        try:
+            st = body_of(inst.get("part"))
+        except K.KernelError:
+            continue
+        shapes.append((inst.get("id"), K.placed(st.body.shape, inst.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])))
+    return K.interference(shapes)
+
+
 def assembly_step(instances):
     """An assembly -> one STEP file with every placed part: instances [{part: {features}, matrix: [16]}]."""
     shapes = []

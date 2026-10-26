@@ -105,6 +105,8 @@ Never report "works" without having run it; report failures with their output.
    the holes, the AI's bolt_parts with an insert) and the Tangent, Angle (30°, typed 60°) and Perpendicular joints.
    `tools/e2e_assembly_edit.py <url> <dir>` covers ✎ Edit it here (locked by default, a double-click refused; unlocked:
    the modeler with the rest see-through, a hole added, back: the assembly has it, the pin still in place; locked again).
+   `tools/e2e_assembly_clash.py <url> <dir>` covers ⚠ Collisions (a plate 3 mm into a base: 3600 mm³, both red, the
+   overlap boxed; moved to touching: checked again on its own, none; 2 mm in: 2400 mm³; ↗ picks the pair).
    `tools/e2e_assembly_dof.py <url> <dir>` covers joints you can see and moving by the free ways only (a pin in a hole:
    2 ways, slid 5 along the axis stays on it, distance locked: 1, turn locked: fully held; a lid on a face: 3 ways,
    10 along X stays on the face, the base moved: the lid goes along; a part's joints listed + symbols, Ctrl+click: the

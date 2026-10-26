@@ -911,6 +911,27 @@ def placed(shape, m16):
     return BRepBuilderAPI_Transform(shape, t, True).Shape()
 
 
+def interference(shapes, min_volume=1e-3):
+    """Where placed solids overlap: shapes [(key, shape)] -> [{a, b, volume (mm³), bbox (of the overlap)}], the
+    biggest first. Parts whose boxes do not meet are not computed; touching faces (no volume) are not a clash."""
+    from OCP.BRepAlgoAPI import BRepAlgoAPI_Common
+    boxes = [(k, s, bbox(s)) for k, s in shapes]
+    out = []
+    for i in range(len(boxes)):
+        for j in range(i + 1, len(boxes)):
+            (ka, sa, ba), (kb, sb, bb) = boxes[i], boxes[j]
+            if not ba or not bb or any(ba[k] >= bb[k + 3] - 1e-6 or bb[k] >= ba[k + 3] - 1e-6 for k in range(3)):
+                continue
+            mk = BRepAlgoAPI_Common(sa, sb)
+            if not mk.IsDone():
+                continue
+            common = mk.Shape()
+            v = volume(common)
+            if v > min_volume:
+                out.append({"a": ka, "b": kb, "volume": round(v, 3), "bbox": _round(bbox(common) or [], 3)})
+    return sorted(out, key=lambda c: -c["volume"])
+
+
 def compound(shapes):
     from OCP.BRep import BRep_Builder
     from OCP.TopoDS import TopoDS_Compound

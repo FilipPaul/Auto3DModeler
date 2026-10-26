@@ -444,3 +444,18 @@ class TestFeatures(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(OCC, "OCP not installed")
+class TestAssemblyClashes(unittest.TestCase):
+    """Parts of an assembly that overlap: the common volume, only for parts whose boxes meet."""
+
+    def test_overlap_touch_and_apart(self):
+        part = {"features": box(20, 20, 10)}
+        at = lambda x, y=0, z=0: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1]  # noqa: E731
+        cs = doc.assembly_clashes([{"id": "I1", "part": part, "matrix": at(0)}, {"id": "I2", "part": part, "matrix": at(15, 5)},  # 5 × 15 × 10 overlap
+                                   {"id": "I3", "part": part, "matrix": at(0, 0, 10)},   # on top of I1: touching only
+                                   {"id": "I4", "part": part, "matrix": at(100)}])       # far away
+        self.assertEqual([(c["a"], c["b"]) for c in cs], [("I1", "I2")])
+        self.assertAlmostEqual(cs[0]["volume"], 5 * 15 * 10, places=3)
+        self.assertEqual(cs[0]["bbox"], [15, 5, 0, 20, 20, 10])

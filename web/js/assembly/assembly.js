@@ -46,7 +46,7 @@ class AsmView extends ModelView {
       geo.computeVertexNormals();
       const o = Number.isFinite(it.opacity) ? it.opacity : 1;
       const mat = new THREE.MeshStandardMaterial({ color: it.selected ? 0x6cb6ff : it.colour || COLORS[it.color % COLORS.length], roughness: 0.55, metalness: 0.05,
-        side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, emissive: it.hover ? 0x1b2a44 : 0x000000,
+        side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, emissive: it.clash ? 0x6a0d0d : it.hover ? 0x1b2a44 : 0x000000,
         transparent: o < 1, opacity: o, depthWrite: o >= 1, clippingPlanes: this.clip || [] });
       const painted = !it.selected ? paintedFaces(it.body.faces, it.paint || []) : null;
       const fromFile = !it.selected && !it.ownColour ? it.body.faces.filter((f) => f.color) : [];
@@ -92,6 +92,27 @@ class AsmView extends ModelView {
     super.setSection(sec);
     this.clip = this.material.clippingPlanes;
     for (const g of [this.bodyGroup, this.markGroup]) g?.traverse((o) => { if (o.material && o.material !== this.edgeMaterial) { o.material.clippingPlanes = this.clip; o.material.needsUpdate = true; } });
+    this.invalidate();
+  }
+
+  /** ⚠ Where parts overlap: red boxes ([x0, y0, z0, x1, y1, z1] each). */
+  setClashBoxes(boxes = []) {
+    if (!this.clashGroup) { this.clashGroup = new THREE.Group(); this.scene.add(this.clashGroup); }
+    this.clear(this.clashGroup);
+    for (const b of boxes) {
+      if (b?.length !== 6) continue;
+      const box = new THREE.Box3(new THREE.Vector3(b[0], b[1], b[2]), new THREE.Vector3(b[3], b[4], b[5]));
+      if (box.getSize(new THREE.Vector3()).length() < 1e-6) continue;
+      const h = new THREE.Box3Helper(box, 0xff4d4d);
+      h.material.depthTest = false;
+      h.renderOrder = 9;
+      this.clashGroup.add(h);
+      const fill = new THREE.Mesh(new THREE.BoxGeometry(...box.getSize(new THREE.Vector3()).toArray().map((v) => Math.max(v, 0.05))),
+        new THREE.MeshBasicMaterial({ color: 0xff4d4d, transparent: true, opacity: 0.35, depthTest: false }));
+      fill.position.copy(box.getCenter(new THREE.Vector3()));
+      fill.renderOrder = 8;
+      this.clashGroup.add(fill);
+    }
     this.invalidate();
   }
 
@@ -265,6 +286,7 @@ export class Assembly {
       ${btn('measure', '📏 Measure', 'Measure: click a spot (a face, a corner), then another one — the distance; two parallel flat faces: the gap between them; two round faces: how far apart their axes are', `tool ${this.measuring ? 'on' : ''}`)}
       ${btn('paint', '🎨 Paint', 'Colour faces of the placed parts, or whole parts — in this assembly: click them (Ctrl+click: more), then pick a colour', `tool ${this.painting ? 'on' : ''}`)}
       ${btn('section', '✂ Section', 'Look inside: cut the view along X, Y or Z', `tool ${this.section ? 'on' : ''}`)}
+      ${btn('clashes', '⚠ Collisions', 'Check where parts overlap (go into each other) — the pairs, how much, marked in red; checked again after every change while it is open', `tool ${this.clashPanel ? 'on' : ''}`)}
       ${btn('fasteners', '🔩 Fasteners', 'Screws, heat-set inserts and pins where holes line up across parts — suggested, added with one click', `tool ${this.fastenerPanel ? 'on' : ''}`)}
       <span class="sep"></span>
       <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
@@ -275,6 +297,7 @@ export class Assembly {
     bar.querySelector('[data-a=insert]').disabled = !parts.length && !this.hooks.importSolid;
     bar.querySelector('[data-a=joint]').disabled = this.doc.instances.length < 2;
     for (const a of ['paint', 'section']) bar.querySelector(`[data-a=${a}]`).disabled = !this.doc.instances.length;
+    bar.querySelector('[data-a=clashes]').disabled = this.doc.instances.length < 2;
     bar.querySelector('[data-a=joint]').addEventListener('click', (e) => {
       e.stopPropagation();
       if (this.mode !== 'idle') { this.cancelJoint(); return; }
@@ -300,6 +323,7 @@ export class Assembly {
     if (a === 'snap') return this.startJoint('touch');
     if (a === 'measure') return this.toggleMeasure();
     if (a === 'paint') return this.togglePaint();
+    if (a === 'clashes') return this.toggleClashes();
     if (a === 'section') return this.toggleSection();
     if (a === 'fasteners') { this.fastenerPanel = !this.fastenerPanel; this.sel = null; this.render(); this.draw(); return null; }
     if (a === 'undo') return this.history.go(-1);
@@ -404,6 +428,7 @@ export class Assembly {
     const box = this.$('.mp-body'), it = this.inst(this.sel);
     this.drawJointTags();
     if (this.painting) { this.renderPaint(box); return; }
+    if (this.clashPanel && !it) { this.renderClashes(box); return; }
     if (this.sel2 && it && this.inst(this.sel2) && !this.bolt && this.mode === 'idle') { this.renderPair(box); return; }
     if (this.bolt) { this.renderBolt(box); return; }
     this.view.setGhost([]);
@@ -537,6 +562,85 @@ export class Assembly {
   ensurePart(mdl) {
     const have = this.hooks.parts().find((p) => p.kind === 'model' && p.name === mdl.name);
     return have ? have.id : this.hooks.addModelPart(mdl.name, { features: mdl.features, material: mdl.material, standard: true });
+  }
+
+  // ------------------------------------------------------------------ ⚠ collisions
+  toggleClashes() {
+    this.clashPanel = !this.clashPanel;
+    this.clashes = null;
+    this.hoverClash = null;
+    if (this.clashPanel) { this.sel = null; this.sel2 = null; this.fastenerPanel = false; this.checkClashes(); }
+    this.render();
+    this.draw();
+  }
+
+  /** Every placed part (inside sub-assemblies too) for the kernel: [{id ('I3' or 'I3/I1'), part: {features}, matrix}]. */
+  flatParts() {
+    const flat = [];
+    const expand = (list, parent, pre) => {
+      for (const it of list) {
+        const M = parent.clone().multiply(new THREE.Matrix4().fromArray(it.matrix)), id = pre ? `${pre}/${it.id}` : it.id;
+        if (this.kindOf(it.part) === 'assembly') expand(this.hooks.partData(it.part)?.instances || [], M, id);
+        else flat.push({ id, part: { features: this.bodies[it.part]?.features || this.hooks.partData(it.part)?.features || [] }, matrix: M.toArray() });
+      }
+    };
+    expand(this.doc.instances, new THREE.Matrix4(), '');
+    return flat;
+  }
+
+  async checkClashes() {
+    const run = (this.clashRun = (this.clashRun || 0) + 1);
+    this.clashBusy = true;
+    this.renderProps();
+    try {
+      const res = await fetch('/api/assembly/clashes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instances: this.flatParts() }) });
+      const r = await res.json();
+      if (run !== this.clashRun) return; // a newer check is on its way
+      if (!res.ok) throw new Error(r.error || res.statusText);
+      this.clashes = r.clashes;
+    } catch (e) {
+      if (run !== this.clashRun) return;
+      this.clashes = [];
+      this.hooks.toast(e.message, 'error', 6000);
+    }
+    this.clashBusy = false;
+    if (!this.clashPanel) return;
+    this.renderProps();
+    this.draw();
+  }
+
+  /** The placed part (top level) a clash's id is in: 'I3/I1' -> 'I3'. */
+  topOf(id) { return String(id).split('/')[0]; }
+
+  renderClashes(box) {
+    this.hoverClash = null; // the rows are drawn anew (a row under the mouse goes without a mouseleave)
+    const cs = this.clashes, name = (id) => {
+      const top = this.inst(this.topOf(id));
+      return `${this.partName(top?.part)} ${id}`;
+    };
+    box.innerHTML = `<h2>⚠ Collisions</h2>
+      <p class="hint">Where parts go into each other (touching faces are fine). Checked again after every change while this is open.</p>
+      ${this.clashBusy && !cs ? '<p class="mp-count">Checking…</p>' : !cs ? '' : !cs.length ? '<p class="mp-count ok">✓ No parts overlap.</p>'
+        : `<p class="mp-count">${t2('{n} overlap(s)', { n: cs.length })}${this.clashBusy ? ' …' : ''}</p><div class="as-joints">${cs.map((c, i) => `<div class="as-jrow as-clash" data-clash="${i}">
+          <span class="as-jt">⚠</span><span class="as-jw"><b data-no-i18n>${esc(name(c.a))}</b> ↔ <b data-no-i18n>${esc(name(c.b))}</b></span>
+          <span class="as-jv">${fmt(+c.volume.toFixed(c.volume < 10 ? 2 : 0))} mm³</span>
+          <span class="as-jbtn"><button class="mini" data-cpick="${i}" title="Choose these two parts (their joints, their moves)">↗</button></span></div>`).join('')}</div>`}
+      <div class="row-actions"><button class="btn small" data-a="recheck" ${this.clashBusy ? 'disabled' : ''}>↻ Check again</button><button class="btn small" data-a="closeC">Close</button></div>`;
+    for (const row of box.querySelectorAll('[data-clash]')) {
+      row.addEventListener('mouseenter', () => { this.hoverClash = cs[+row.dataset.clash]; this.draw(); });
+      row.addEventListener('mouseleave', () => { this.hoverClash = null; this.draw(); });
+    }
+    for (const b of box.querySelectorAll('[data-cpick]')) b.addEventListener('click', () => {
+      const c = cs[+b.dataset.cpick];
+      this.clashPanel = false;
+      this.view.setClashBoxes([]);
+      this.sel = this.topOf(c.a);
+      this.sel2 = this.topOf(c.b) !== this.sel ? this.topOf(c.b) : null;
+      this.render();
+      this.draw();
+    });
+    box.querySelector('[data-a=recheck]').addEventListener('click', () => this.checkClashes());
+    box.querySelector('[data-a=closeC]').addEventListener('click', () => this.toggleClashes());
   }
 
   // ------------------------------------------------------------------ 🎨 paint (this assembly's colours), ✂ section
@@ -1166,18 +1270,27 @@ export class Assembly {
       const v = c.clone().sub(mid);
       return v.length() > 1e-6 * (1 + size) ? v : new THREE.Vector3(0, 0, Math.max(size, 10) * 0.5);
     };
+    const shownClashes = this.clashPanel ? (this.hoverClash ? [this.hoverClash] : this.clashes || []) : [];
+    const clashing = new Set(shownClashes.flatMap((c) => [this.topOf(c.a), this.topOf(c.b)]));
+    this.view.setClashBoxes(shownClashes.map((c) => c.bbox));
     this.view.setBodies(this.doc.instances.map((it, k) => {
       const c = it.stay ? null : centres[k];
       const look = this.lookOf(it);
       return { id: it.id, body: this.bodies[it.part]?.body, matrix: it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part), ...look,
-        selected: it.id === this.sel || it.id === this.sel2 || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst,
+        selected: it.id === this.sel || it.id === this.sel2 || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst, clash: clashing.has(it.id),
         explode: this.explode && c ? away(c).multiplyScalar(this.explode * 1.2).toArray() : null };
     }));
     this.drawMarks();
     this.drawJointTags();
   }
 
-  commit() { this.history.commit(); this.render(); this.draw(); this.hooks.onChange?.(); }
+  commit() {
+    this.history.commit();
+    this.render();
+    this.draw();
+    this.hooks.onChange?.();
+    if (this.clashPanel) { clearTimeout(this.clashTimer); this.clashTimer = setTimeout(() => this.checkClashes(), 250); }
+  }
 
   /** How a placed part looks: its own colour / see-through in this assembly, else its part's -> {colour, opacity}. */
   lookOf(it) {

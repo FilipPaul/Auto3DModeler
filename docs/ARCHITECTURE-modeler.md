@@ -60,6 +60,9 @@ Date: 2026-10-25. Written by the architect agent.
   raised / engraved on a flat face, follows it; the AI's decal. tools/e2e_model_decal.py.
 - **Assembly links done:** snaps hold (doc.mates {move, face, onto, ontoFace}, re-applied after refresh and moves;
   moving the snapped part by hand unlinks; no cycles; saved, undoable). tools/e2e_assembly_links.py.
+- **Collisions done:** kernel.interference (box test, then BRepAlgoAPI_Common volume per pair), doc.assembly_clashes,
+  worker op, POST /api/assembly/clashes; the assembly's ⚠ panel (flatParts, checkClashes after each commit while
+  open, red parts + overlap boxes via AsmView.setClashBoxes). tests: TestAssemblyClashes, tools/e2e_assembly_clash.py.
 - **Assembly DOF done:** assembly/dof.js (freeMotions: the part nudged 6 ways, its joints applied — the kept nudges'
   rank = how many ways it moves; candidate motions from its joints' axes / faces and X / Y / Z picked to span them);
   Assembly.holdPart / applyMates (a part goes along with its first joint's part via instance.hang; a first touch
