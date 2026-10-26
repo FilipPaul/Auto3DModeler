@@ -57,7 +57,10 @@ SolidWorks. It has only the tools that need almost no input.
    point (dashed), so the rectangle keeps its width and you can still dimension from the corner; changing the
    width or the radius keeps the rounding tangent. **✂ Trim** (T): click the piece of a line, circle or arc to cut
    away — up to where other shapes cross it (shown in red first). A circle becomes the arc that is left, a line or
-   an arc keeps its other part(s), and the new ends stay on the shape that cut them.
+   an arc keeps its other part(s), and the new ends stay on the shape that cut them. **⧈ Offset** (O): click a
+   closed shape and type the distance (negative = inside) — a parallel copy: a circle gets a concentric one, an
+   outline of lines and arcs keeps its sharp corners sharp and its roundings concentric, a picture outline grows
+   or shrinks (e.g. the wall of a cookie cutter).
    - Points snap to the grid (it follows the zoom), to the origin, and to existing points. Snapping onto a point
      joins the shapes there. Hold Alt to draw without snapping. A line drawn almost horizontal or vertical
      becomes exactly that.

@@ -93,6 +93,7 @@ export class Modeler {
         ${btn('circle', '◯ Circle', 'Draw a circle: click the centre, then the edge (C)', t === 'circle' ? 'on' : '')}
         ${btn('arc', '◠ Arc', 'Draw an arc: click where it starts and ends, then bend it with the mouse and click (A)', t === 'arc' ? 'on' : '')}
         ${btn('round', '◜ Round corner', 'Round a corner of lines: click the corner, type the radius (F)', t === 'round' ? 'on' : '')}
+        ${btn('offset', '⧈ Offset', 'A parallel copy of a closed shape, a distance outside or inside it (O)', t === 'offset' ? 'on' : '')}
         ${btn('trim', '✂ Trim', 'Cut away a piece of a line, circle or arc — up to where other shapes cross it (T)', t === 'trim' ? 'on' : '')}
         ${this.hooks.pickOutline ? btn('outline', '🖼 Outline', 'Insert an outline from a picture, a DXF / DWG drawing or a PDF drawing (as one shape you can move and size)') : ''}
         ${btn('dim', '↔ Dimension', 'Add a distance: click two points, circles, lines or edges of the part, then type the value (D)', t === 'dim' ? 'on' : '')}
@@ -171,7 +172,7 @@ export class Modeler {
     if (a.startsWith('datum-')) return this.enterSketch({ datum: a.slice(6) });
     if (a.startsWith('plane-')) return this.movePlane(a.slice(6));
     if (a === 'cancelPlane') return this.cancelPlane();
-    if (['rect', 'line', 'circle', 'arc', 'round', 'trim', 'select', 'dim'].includes(a)) return this.sk.setTool(a);
+    if (['rect', 'line', 'circle', 'arc', 'round', 'trim', 'offset', 'select', 'dim'].includes(a)) return this.sk.setTool(a);
     if (a === 'outline') return this.insertOutline();
     if (a === 'finish') return this.finishSketch();
     if (a === 'cancelSketch') return this.cancelSketch();

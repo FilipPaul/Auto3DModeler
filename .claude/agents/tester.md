@@ -66,6 +66,8 @@ Never report "works" without having run it; report failures with their output.
    profile / path refused), the AI's loft.
    `tools/e2e_model_trim.py <url> <dir>` covers ✂ Trim (a circle on a rectangle's edge: trimmed to a tab, the radius
    typed -> the ends follow, exact volume; a lone line goes whole).
+   `tools/e2e_model_offset.py <url> <dir>` covers ⧈ Offset (a rectangle -> a frame, a circle inwards -> a ring, a rounded
+   rectangle -> concentric arcs, a picture outline via the server; exact volumes).
    `tools/e2e_assembly_ai.py <url> <dir>` covers the AI's assembly tools (insert_part, snap_faces by face name, place_part,
    screenshot, undo, the error messages for wrong faces / tools).
    `tools/e2e_model_features.py <url> <dir>` covers ◜ Fillet (click an edge, exact volume, the rounding follows when

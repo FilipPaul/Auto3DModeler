@@ -169,8 +169,15 @@ def solve(sketch, drag=None, keep=None):
                 next(e for e in sketch.get("entities") or [] if e.get("id") == k)["r"] = s.get_param(r)
     s, ids, ents, radius, tags = build(bool(drag))
     status = s.solve()
-    if status not in (g.SolveStatus.Success, g.SolveStatus.Converged) and drag:
-        # the drag fights a lock: keep the locks, the dragged points go as close as they can
+    if drag:
+        if status in good:
+            # where the held points let it go; the final solve (and its check) is without the hold, which itself
+            # can make locks look redundant (a held corner on a held line)
+            for k in pts:
+                pts[k] = list(s.get_point(ids[k]))
+            for k, r in radius.items():
+                next(e for e in sketch.get("entities") or [] if e.get("id") == k)["r"] = s.get_param(r)
+        # (else the drag fights a lock: keep the locks, the dragged points go as close as they can)
         s, ids, ents, radius, tags = build(False)
         status = s.solve()
     ok = status in (g.SolveStatus.Success, g.SolveStatus.Converged)

@@ -53,6 +53,9 @@ Date: 2026-10-25. Written by the architect agent.
 - **Tangent arcs done:** an arc started at a line's loose end is tangent to it (constraint tan; Shift = free).
 - **Trim done:** ✂ Trim (crossings line / circle / arc; constraint on: a cut end stays on its cutter, or joins its
   end). tools/e2e_model_trim.py.
+- **Offset done:** ⧈ Offset (circles, loops of lines / arcs with mitred corners and tangent joins, blocks via
+  /api/model/sketch/offset with shapely). A typed radius holds every other point; a drag / hold only places the
+  points, the final solve and its check run without it. tools/e2e_model_offset.py.
 - **Next (later list):** classic parts in assemblies; decorate faces of model parts; loft / sweep.
 
 ## 0. Summary

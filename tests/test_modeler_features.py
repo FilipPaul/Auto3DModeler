@@ -124,6 +124,16 @@ class TestFeatures(unittest.TestCase):
         self.assertAlmostEqual(v, (30 * 10 + 10 * 15 - 16) * 4 * 3, delta=1e-6)
         self.assertEqual([round(c, 6) for c in r["body"]["bbox"]], [10, 5, 0, 70, 55, 3])
 
+    def test_offset_endpoint(self):
+        import server
+        c = server.app.test_client()
+        sq = [[[0, 0], [10, 0], [10, 10], [0, 10]]]
+        r = c.post("/api/model/sketch/offset", json={"polys": [sq], "d": 2}).get_json()
+        xs = [p[0] for p in r["polys"][0][0]]
+        self.assertEqual((min(xs), max(xs), len(r["polys"][0][0])), (-2, 12, 4))  # sharp corners stay sharp
+        r = c.post("/api/model/sketch/offset", json={"polys": [sq], "d": -6})
+        self.assertEqual(r.status_code, 400)
+
     def test_profile_endpoint(self):
         import server
         from auto3d.outline import outline_model

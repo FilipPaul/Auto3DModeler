@@ -245,6 +245,7 @@ export class Sketcher {
     if (this.tool === 'rect') return this.start ? 'Click the second corner (Esc = stop drawing).' : 'Click the first corner of a rectangle.';
     if (this.tool === 'circle') return this.start ? 'Click to set the size (Esc = stop drawing).' : 'Click the centre of a circle.';
     if (this.tool === 'round') return 'Round corner: click a corner where two lines meet, then type the radius.';
+    if (this.tool === 'offset') return 'Offset: click a closed shape — a circle, an outline of lines / arcs, or a picture outline — then type the distance (negative = inside).';
     if (this.tool === 'trim') return 'Trim: click the piece of a line, circle or arc to cut away — up to where other shapes cross it.';
     if (this.tool === 'arc' && this.tan) return 'Tangent arc: it continues the line — click where it ends (Shift-click: a free arc; Esc = stop drawing).';
     if (this.tool === 'arc') return !this.start ? 'Click where the arc starts (at the end of a line: it continues the line smoothly).' : !this.arcEnd ? 'Click where the arc ends.' : 'Move the mouse to bend the arc, click to place it (Esc = stop drawing).';
@@ -450,10 +451,11 @@ export class Sketcher {
     if (['dx', 'dy', 'dist'].includes(spec.t) && typeof spec.a === 'string' && spec.a !== ORIGIN && this.f.points[spec.a]) hold = { [spec.a]: this.P(spec.a) };
     if (spec.t === 'len') { const e = this.ent(spec.e); if (e.a !== ORIGIN) hold = { [e.a]: this.P(e.a) }; }
     if (spec.t === 'dia' || spec.t === 'rad') {
-      // a rounded corner keeps its sharp corner (the rounding slides along the lines), a circle / arc its centre
-      const e = this.ent(spec.e), k = this.f.constraints.find((c) => c.t === 'corner' && this.f.constraints.some((t) => t.t === 'tan' && t.arc === e.id && c.lines.includes(t.e)));
-      const keep = k ? k.p : e.c;
-      if (keep !== ORIGIN) hold = { [keep]: this.P(keep) };
+      // a radius changes only its own circle / arc: everything else stays (a rounded corner's sharp corner too, so
+      // the rounding slides along its lines); a circle keeps its centre
+      const e = this.ent(spec.e), tangent = this.f.constraints.some((k) => k.t === 'tan' && k.arc === e.id);
+      const own = new Set(e.t === 'circle' ? [] : tangent ? [e.a, e.b, e.c] : [e.a, e.b]); // a tangent arc's centre moves
+      hold = Object.fromEntries(Object.keys(this.f.points).filter((k) => !own.has(k)).map((k) => [k, this.P(k)]));
     }
     if (!this.solver) { this.setDirect(spec, v); return; }
     await this.relock(() => {
@@ -593,12 +595,13 @@ export class Sketcher {
       return;
     }
     this.cursor = this.snap(uv, e.altKey);
-    const hv = this.tool === 'trim' ? ((p) => p && { kind: 'piece', pts: p.pts, key: `${p.e.id}:${p.lo}:${p.hi}` })(this.pieceAt(uv))
+    const hv = this.tool === 'offset' ? ((l) => l && { kind: 'entity', id: l.ids[0], loop: l.ids, key: `off:${l.ids.join(',')}` })(this.loopAt(uv))
+      : this.tool === 'trim' ? ((p) => p && { kind: 'piece', pts: p.pts, key: `${p.e.id}:${p.lo}:${p.hi}` })(this.pieceAt(uv))
       : this.tool === 'round' ? this.cornerAt(uv)
       : this.tool === 'dim' ? this.pickTarget(uv)
       : this.tool === 'select' ? ((h) => (h?.kind === 'point' ? { kind: 'point', end: h.id, uv: this.P(h.id) } : h))(this.hit(uv))
       : this.cursor.id || this.cursor.ref ? { kind: 'point', end: this.cursor.ref ? { ref: this.cursor.uv } : this.cursor.id, uv: this.cursor.uv } : null;
-    const key = hv?.kind === 'piece' ? hv.key : JSON.stringify(hv && { ...hv, d: undefined });
+    const key = hv?.key || JSON.stringify(hv && { ...hv, d: undefined });
     const changed = key !== this.hoverKey;
     this.hover = hv;
     this.hoverKey = key;
@@ -623,6 +626,7 @@ export class Sketcher {
     if (this.tool === 'arc') { this.arcPoint(s, e.shiftKey); return; }
     if (this.tool === 'round') { this.roundAt(uv0); return; }
     if (this.tool === 'trim') { this.trimAt(uv0); return; }
+    if (this.tool === 'offset') { this.offsetAt(uv0, e); return; }
     if (!this.start) { this.start = s; this.m.hint(this.hint()); this.draw(); return; }
     const a = this.start;
     this.start = null;
@@ -764,6 +768,145 @@ export class Sketcher {
     this.changed();
   }
 
+  /** ⧈ Offset: the closed shape under the mouse -> {kind: 'circle' | 'block' | 'loop', ids, …}, or null. A loop is
+   *  lines / arcs joined end to end all the way round (each corner joins exactly two). */
+  loopAt(uv) {
+    const tol = this.mpp() * 8;
+    let best = null;
+    for (const e of this.f.entities) {
+      let d = Infinity;
+      if (e.t === 'line') d = segDist(uv, this.P(e.a), this.P(e.b));
+      else if (e.t === 'arc') d = this.arcDist(e, uv);
+      else if (e.t === 'circle') d = Math.abs(Math.hypot(uv[0] - this.P(e.c)[0], uv[1] - this.P(e.c)[1]) - e.r);
+      else if (e.t === 'block') d = this.inBlock(e, uv) ? tol * 0.9 : Infinity;
+      if (d < tol && (!best || d < best.d)) best = { d, e };
+    }
+    if (!best) return null;
+    const e = best.e;
+    if (e.t === 'circle' || e.t === 'block') return { kind: e.t, ids: [e.id], e };
+    // walk round from e
+    const segs = this.f.entities.filter((x) => x.t === 'line' || x.t === 'arc');
+    const order = [{ e, from: e.a, to: e.b }];
+    let at = e.b;
+    while (at !== e.a) {
+      const next = segs.filter((x) => x !== order[order.length - 1].e && (x.a === at || x.b === at));
+      if (next.length !== 1 || order.some((o) => o.e === next[0])) return null; // open, or branching
+      const x = next[0];
+      order.push({ e: x, from: at, to: x.a === at ? x.b : x.a });
+      at = order[order.length - 1].to;
+      if (order.length > 500) return null;
+    }
+    return { kind: 'loop', ids: order.map((o) => o.e.id), order };
+  }
+
+  /** The offset copy of a loop of lines / arcs: each line moved d outwards, each arc concentric; corners where two
+   *  moved lines meet; joins with arcs must be smooth (tangent). -> {pts: [[u, v]], segs: [{t, …}]} or throws. */
+  offsetLoop(order, d) {
+    // which way round: the signed area of the outline (arcs by their points)
+    const ring = [];
+    for (const o of order) {
+      if (o.e.t === 'line') ring.push(this.P(o.from));
+      else {
+        const ps = this.arcOf(o.e);
+        ring.push(...(o.from === o.e.a ? ps : [...ps].reverse()).slice(0, -1));
+      }
+    }
+    let area = 0;
+    for (let i = 0; i < ring.length; i++) { const p = ring[i], q = ring[(i + 1) % ring.length]; area += p[0] * q[1] - q[0] * p[1]; }
+    const side = area > 0 ? 1 : -1; // outwards = to the right of the way round (counter-clockwise outline)
+    const pieces = order.map((o) => {
+      const a = this.P(o.from), b = this.P(o.to);
+      if (o.e.t === 'line') {
+        const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, n = [side * (b[1] - a[1]) / L, -side * (b[0] - a[0]) / L];
+        return { t: 'line', a: [a[0] + n[0] * d, a[1] + n[1] * d], b: [b[0] + n[0] * d, b[1] + n[1] * d], src: o.e };
+      }
+      const c = this.P(o.e.c), r = this.arcR(o.e), ccw = o.from === o.e.a, r2 = r + d * side * (ccw ? 1 : -1);
+      if (!(r2 > 1e-9)) throw new Error('That distance is bigger than a rounding of the outline.');
+      const at = (p) => [c[0] + ((p[0] - c[0]) / r) * r2, c[1] + ((p[1] - c[1]) / r) * r2];
+      return { t: 'arc', a: at(a), b: at(b), c: o.e.c, ccw, r: r2, src: o.e };
+    });
+    // the corners: where piece k ends and k + 1 starts
+    const corners = pieces.map((p, k) => {
+      const q = pieces[(k + 1) % pieces.length], tol = 1e-6 * (1 + Math.abs(d));
+      if (Math.hypot(p.b[0] - q.a[0], p.b[1] - q.a[1]) < tol) return p.b;
+      if (p.t === 'line' && q.t === 'line') {
+        const g = crossings({ kind: 'line', a: p.a, b: p.b }, { kind: 'line', a: q.a, b: q.b });
+        // the full lines (not just the pieces) meet at the mitre corner
+        const r1 = [p.b[0] - p.a[0], p.b[1] - p.a[1]], r2 = [q.b[0] - q.a[0], q.b[1] - q.a[1]], den = r1[0] * r2[1] - r1[1] * r2[0];
+        if (Math.abs(den) < 1e-12) return p.b;
+        const w = [q.a[0] - p.a[0], q.a[1] - p.a[1]], t = (w[0] * r2[1] - w[1] * r2[0]) / den;
+        return g.length ? g[0] : [p.a[0] + t * r1[0], p.a[1] + t * r1[1]];
+      }
+      throw new Error('This outline has a sharp corner next to an arc — round it (◜) or offset its pieces one by one.');
+    });
+    return { pieces, corners };
+  }
+
+  /** ⧈ Offset: pick the shape, then type the distance in a small box by the mouse. */
+  offsetAt(uv, ev) {
+    const l = this.loopAt(uv);
+    if (!l) { this.m.toast('Click a closed shape: a circle, an outline of lines / arcs joined all round, or a picture outline.', 'info', 4000); return; }
+    this.closeChooser();
+    const box = document.createElement('div');
+    box.className = 'sk-choose';
+    const vr = this.m.els.viewport.getBoundingClientRect();
+    Object.assign(box.style, { left: `${ev.clientX - vr.left + 12}px`, top: `${ev.clientY - vr.top + 12}px` });
+    box.innerHTML = `<div class="sk-choose-t">Offset by</div><label class="sk-off"><input type="number" step="any" value="${fmt(this.lastOffset || 2)}"> mm</label>
+      <p class="hint">Negative = inside.</p><button class="btn small primary">OK</button>`;
+    for (const t of ['pointerdown', 'pointerup']) box.addEventListener(t, (x) => x.stopPropagation());
+    this.m.els.viewport.appendChild(box);
+    this.chooser = box;
+    const inp = box.querySelector('input');
+    const go = () => {
+      const d = parseFloat(String(inp.value).replace(',', '.'));
+      if (!Number.isFinite(d) || !d) { this.m.toast('Type a distance (not 0).', 'warning'); return; }
+      this.lastOffset = d;
+      this.closeChooser();
+      this.makeOffset(l, d);
+    };
+    inp.addEventListener('keydown', (x) => { x.stopPropagation(); if (x.key === 'Enter') go(); if (x.key === 'Escape') this.closeChooser(); });
+    box.querySelector('button').addEventListener('click', go);
+    setTimeout(() => { inp.focus(); inp.select(); }, 0);
+  }
+
+  async makeOffset(l, d) {
+    const f = this.f;
+    if (l.kind === 'block') {
+      const e = l.e, k = e.scale || 1;
+      const res = await fetch('/api/model/sketch/offset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ polys: e.polys, d: d / k }) });
+      const r = await res.json();
+      if (!res.ok) { this.m.toast(r.error, 'error'); return; }
+      const xs = r.polys.flatMap((p) => p[0].map((q) => q[0])), ys = r.polys.flatMap((p) => p[0].map((q) => q[1]));
+      this.step();
+      const id = this.newId('b');
+      f.entities.push({ ...e, id, name: `${e.name || 'outline'} (offset ${fmt(d)})`, polys: r.polys, w0: Math.max(...xs) - Math.min(...xs), h0: Math.max(...ys) - Math.min(...ys) });
+      this.sel = { kind: 'entity', id };
+      this.changed();
+      return;
+    }
+    if (l.kind === 'circle') {
+      const r = l.e.r + d;
+      if (!(r > 0)) { this.m.toast('That distance is bigger than the circle.', 'error'); return; }
+      await this.relock(() => { f.entities.push({ id: this.newId('c'), t: 'circle', c: l.e.c, r: +r.toFixed(6) }); });
+      this.changed();
+      return;
+    }
+    let geo;
+    try { geo = this.offsetLoop(l.order, d); } catch (err) { this.m.toast(err.message, 'error', 6000); return; }
+    await this.relock(() => {
+      const ids = geo.corners.map((p) => { const id = this.newId('p'); f.points[id] = p.map((v) => +v.toFixed(9)); return id; });
+      geo.pieces.forEach((pc, k) => {
+        const a = ids[(k - 1 + ids.length) % ids.length], b = ids[k];
+        if (pc.t === 'line') {
+          const id = this.newId('l');
+          f.entities.push({ id, t: 'line', a, b });
+          for (const c of f.constraints.filter((x) => x.e === pc.src.id && (x.t === 'h' || x.t === 'v'))) f.constraints.push({ id: this.newId('k'), t: c.t, e: id });
+        } else f.entities.push({ id: this.newId('a'), t: 'arc', c: pc.c, a: pc.ccw ? a : b, b: pc.ccw ? b : a });
+      });
+    });
+    this.changed();
+  }
+
   /** A corner under the mouse that can be rounded (two lines meet there) -> a hover target, or null. */
   cornerAt(uv) {
     const tol = this.mpp() * 10;
@@ -893,6 +1036,7 @@ export class Sketcher {
     if (k === 'a') this.setTool('arc');
     if (k === 'f') this.setTool('round');
     if (k === 't') this.setTool('trim');
+    if (k === 'o') this.setTool('offset');
     if (k === 'd') this.setTool('dim');
     return false;
   }
@@ -1285,7 +1429,7 @@ export class Sketcher {
         name = hv.line ? 'line' : 'edge of the part';
         at = [(hv.uvA[0] + hv.uvB[0]) / 2, (hv.uvA[1] + hv.uvB[1]) / 2];
       } else if (hv.kind === 'entity' || hv.kind === 'group') {
-        const ents = hv.kind === 'group' ? this.f.entities.filter((x) => x.g === hv.id) : [this.ent(hv.id)].filter(Boolean);
+        const ents = hv.loop ? hv.loop.map((id) => this.ent(id)).filter(Boolean) : hv.kind === 'group' ? this.f.entities.filter((x) => x.g === hv.id) : [this.ent(hv.id)].filter(Boolean);
         for (const x of ents) {
           if (x.t === 'line') lines.push([this.P(x.a), this.P(x.b), HL]);
           else if (x.t === 'circle') circles.push([this.P(x.c), x.r, HL]);

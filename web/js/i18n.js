@@ -527,6 +527,13 @@ const CS = {
   '✂ Trim': '✂ Oříznout', 'Cut away a piece of a line, circle or arc — up to where other shapes cross it (T)': 'Odříznout kus čáry, kružnice nebo oblouku — až k místu, kde ho kříží jiný tvar (T)',
   'Trim: click the piece of a line, circle or arc to cut away — up to where other shapes cross it.': 'Oříznout: klikněte na kus čáry, kružnice nebo oblouku, který má zmizet — až k místům, kde ho kříží jiné tvary.',
   'Click a line, circle or arc to trim.': 'Klikněte na čáru, kružnici nebo oblouk, který chcete oříznout.', 'cut away': 'odříznout',
+  '⧈ Offset': '⧈ Odsadit', 'A parallel copy of a closed shape, a distance outside or inside it (O)': 'Rovnoběžná kopie uzavřeného tvaru ve vzdálenosti vně nebo uvnitř (O)',
+  'Offset: click a closed shape — a circle, an outline of lines / arcs, or a picture outline — then type the distance (negative = inside).': 'Odsadit: klikněte na uzavřený tvar — kružnici, obrys z čar / oblouků nebo obrys z obrázku — a zadejte vzdálenost (záporná = dovnitř).',
+  'Offset by': 'Odsadit o', 'Negative = inside.': 'Záporně = dovnitř.', 'Type a distance (not 0).': 'Zadejte vzdálenost (ne 0).',
+  'Click a closed shape: a circle, an outline of lines / arcs joined all round, or a picture outline.': 'Klikněte na uzavřený tvar: kružnici, obrys z čar / oblouků spojených dokola nebo obrys z obrázku.',
+  'That distance is bigger than a rounding of the outline.': 'Vzdálenost je větší než zaoblení obrysu.', 'That distance is bigger than the circle.': 'Vzdálenost je větší než kružnice.',
+  'This outline has a sharp corner next to an arc — round it (◜) or offset its pieces one by one.': 'Obrys má ostrý roh vedle oblouku — zaoblete ho (◜) nebo odsaďte jeho části jednotlivě.',
+  'Nothing is left — the outline is thinner than that.': 'Nic nezbude — obrys je tenčí.', 'Give an outline and a distance.': 'Zadejte obrys a vzdálenost.',
   // language switch
   'Čeština / English': 'Čeština / English',
 };

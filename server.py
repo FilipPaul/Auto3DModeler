@@ -375,6 +375,27 @@ def api_model_rebuild():
     return jsonify(res)
 
 
+@app.post("/api/model/sketch/offset")
+def api_model_sketch_offset():
+    """{polys: [[outer ring, hole rings…]…] (a sketch outline), d} -> the outline grown by d mm (shrunk when d < 0),
+    sharp corners kept sharp."""
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+
+    from auto3d.design import polygons_of
+    body = request.get_json(force=True)
+    try:
+        d = float(body.get("d"))
+        g = unary_union([Polygon(p[0], p[1:]) for p in body.get("polys") or [] if p and len(p[0]) >= 3]).buffer(0)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Give an outline and a distance."}), 400
+    g = g.buffer(d, join_style=2, mitre_limit=4)
+    if g.is_empty:
+        return jsonify({"error": "Nothing is left — the outline is thinner than that."}), 400
+    ring = lambda r: [[round(x, 5), round(y, 5)] for x, y in list(r.coords)[:-1]]  # noqa: E731
+    return jsonify({"polys": [[ring(p.exterior)] + [ring(h) for h in p.interiors] for p in polygons_of(g)]})
+
+
 @app.post("/api/model/profile")
 def api_model_profile():
     """A classic part (picture outline, DXF, PDF drawing, 3D file's footprint) -> its outline in mm, lower-left
