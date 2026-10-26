@@ -175,7 +175,7 @@ TOOLS = [
                     "- sweep: profile (a sketch id: a closed outline across the path's start), path (a sketch id: an open "
                     "line — shapes [{path: {points: [[u, v], …]}}]), op.\n"
                     "- decal: text on a flat face — face (name), text, h (letter height mm), op add (raised) / cut (engraved), "
-                    "depth (mm), at [u, v] from the face's centre.",
+                    "depth (mm), at [u, v] from the face's centre, angle (degrees it is turned on the face).",
      "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep", "decal"]},
                           "name": STR, "plane": {}, "shapes": {"type": "array"}, "lock": {"type": "boolean"},
                           "sketch": STR, "d": NUM, "op": {"type": "string", "enum": ["add", "cut"]}, "through": {"type": "boolean"},

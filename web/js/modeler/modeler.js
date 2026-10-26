@@ -1000,10 +1000,10 @@ export class Modeler {
       if (num.dataset.slider || num.disabled) continue;
       num.dataset.slider = '1';
       const v0 = parseFloat(num.value) || 0, int = num.step === '1', deg = /°/.test(num.parentElement?.textContent || '') || num.dataset.k === 'angle';
-      const lo = num.min !== '' ? parseFloat(num.min) : -Math.max(10, Math.abs(v0) * 3);
-      const hi = deg ? 360 : int ? Math.max(20, v0 * 2) : Math.max(10, Math.abs(v0) * 3, lo + 1);
+      const lo = num.dataset.lo !== undefined ? +num.dataset.lo : num.min !== '' ? parseFloat(num.min) : -Math.max(10, Math.abs(v0) * 3);
+      const hi = num.dataset.hi !== undefined ? +num.dataset.hi : deg ? 360 : int ? Math.max(20, v0 * 2) : Math.max(10, Math.abs(v0) * 3, lo + 1);
       const sl = document.createElement('input');
-      Object.assign(sl, { type: 'range', min: String(Math.max(lo, int ? 2 : lo)), max: String(hi), step: int ? '1' : hi > 50 ? '0.5' : '0.1', value: String(v0) });
+      Object.assign(sl, { type: 'range', min: String(Math.max(lo, int ? 2 : lo)), max: String(hi), step: num.dataset.step || (int ? '1' : hi > 50 ? '0.5' : '0.1'), value: String(v0) });
       sl.className = 'mp-slider';
       sl.title = 'Slide to change it — the part follows';
       sl.addEventListener('input', () => {
@@ -1610,6 +1610,16 @@ export class Modeler {
     this.rebuild();
   }
 
+  /** The text / picture's place on its face: X, Y from the face's middle (sliders across the face) and its turn. */
+  decalPlace(f) {
+    if (!f.plane?.frame) return '';
+    const sp = this.view.faceSpan(f.plane.face?.name, f.plane.frame) || [-50, 50, -50, 50], at = f.at || [0, 0];
+    const r = (v) => Math.round(v * 2) / 2; // the slider on whole half mm
+    const row = (k, i, lo, hi) => `<div class="field"><label>${k}</label><input type="number" step="0.5" data-at="${i}" data-lo="${r(Math.min(lo, at[i]))}" data-hi="${r(Math.max(hi, at[i]))}" data-step="0.5" value="${fmt(at[i])}"><span class="unit">mm</span></div>`;
+    return `${row('X', 0, sp[0], sp[1])}${row('Y', 1, sp[2], sp[3])}
+      <div class="field"><label>Turn</label><input type="number" step="any" data-k="angle" data-lo="-180" data-hi="180" data-step="1" value="${fmt(f.angle || 0)}"><span class="unit">°</span></div>`;
+  }
+
   renderDecal(box) {
     const f = this.cmd.feature, st = this.status(f.id);
     box.innerHTML = `<h2>${esc(f.name)}</h2>
@@ -1617,6 +1627,7 @@ export class Modeler {
       ${f.source === 'text' ? `<div class="field"><label>Text</label><input type="text" data-k="text" value="${esc(f.text || '')}"></div>`
         : `<div class="row-actions"><button class="btn small" data-a="pickPicture">${f.polys ? 'Another picture…' : 'Choose a picture…'}</button></div>`}
       <div class="field"><label>Height</label><input type="number" step="any" min="0" data-k="h" value="${fmt(f.h)}"><span class="unit">mm</span></div>
+      ${this.decalPlace(f)}
       <div class="seg"><button data-op="add" class="${f.op !== 'cut' ? 'on' : ''}">Raised</button><button data-op="cut" class="${f.op === 'cut' ? 'on' : ''}">Engraved</button></div>
       <div class="field"><label>Depth</label><input type="number" step="any" min="0" data-k="depth" value="${fmt(f.depth)}"><span class="unit">mm</span></div>
       <p class="hint">${f.plane ? 'Click on the face again to move it — near the face\'s centre it snaps to it.' : 'Click on a flat face of the part where it goes.'}</p>
@@ -1637,6 +1648,15 @@ export class Modeler {
       let timer = null;
       txt.addEventListener('input', () => { f.text = txt.value; clearTimeout(timer); timer = setTimeout(() => this.traceDecal(), 350); });
       txt.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+    }
+    for (const inp of box.querySelectorAll('[data-at], [data-k=angle]')) { // where on the face, and turned
+      inp.addEventListener('input', () => {
+        const v = parseFloat(String(inp.value).replace(',', '.'));
+        if (!Number.isFinite(v)) return;
+        if (inp.dataset.at !== undefined) { f.at = [...(f.at || [0, 0])]; f.at[+inp.dataset.at] = v; } else f.angle = v;
+        this.rebuild();
+      });
+      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
     }
     for (const k of ['h', 'depth']) {
       const inp = box.querySelector(`[data-k=${k}]`);

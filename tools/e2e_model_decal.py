@@ -99,7 +99,31 @@ try:
     btn("#modelRight [data-op=cut]")
     settled()
     print("engraved: volume -", round(plate - body()["volume"], 2), "| top z", body()["bbox"][5])
+    # its place by sliders: X, Y across the face, and the turn
+    fields = {e.get_attribute("data-at") or e.get_attribute("data-k"): (e.get_attribute("data-lo"), e.get_attribute("data-hi"))
+              for e in d.find_elements(By.CSS_SELECTOR, "#modelRight [data-at], #modelRight [data-k=angle]")}
+    print("place fields (slider ranges):", fields, "| sliders", len(d.find_elements(By.CSS_SELECTOR, "#modelRight .mp-slider")))
+
+    def slide(sel, v):
+        sl = js("return document.querySelector('#modelRight ' + arguments[0]).closest('.field').nextElementSibling", sel)
+        js("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('input', {bubbles: true})); arguments[0].dispatchEvent(new Event('change', {bubbles: true}))", sl, v)
+        time.sleep(0.3)
+        settled()
+
+    def mid():  # the middle of the letters' faces (x, y)
+        return js(f"""const id = {M}.cmd.feature.id, fs = {M}.result.body.faces.filter(f => f.name.startsWith(id + ':'));
+          return [fs.reduce((s, f) => s + f.centroid[0], 0) / fs.length, fs.reduce((s, f) => s + f.centroid[1], 0) / fs.length].map(v => +v.toFixed(2))""")
+    m0 = mid()
+    slide("[data-at='0']", 12)
+    m1 = mid()
+    print("X slider 12: at", js(f"return {M}.cmd.feature.at"), "| letters moved in x by", round(m1[0] - m0[0], 2), "y by", round(m1[1] - m0[1], 2))
+    slide("[data-k=angle]", 90)
+    bb = js(f"""const id = {M}.cmd.feature.id, fs = {M}.result.body.faces.filter(f => f.name.startsWith(id + ':')).map(f => f.centroid);
+      return [Math.max(...fs.map(c => c[0])) - Math.min(...fs.map(c => c[0])), Math.max(...fs.map(c => c[1])) - Math.min(...fs.map(c => c[1]))].map(v => +v.toFixed(2))""")
+    print("turned 90°: angle", js(f"return {M}.cmd.feature.angle"), "| letters' spread x, y", bb, "(taller than wide now) | ok", js(f"return {M}.result.features.at(-1).ok"))
     d.save_screenshot(f"{OUT}/decal1.png")
+    slide("[data-k=angle]", 0)
+    slide("[data-at='0']", 0)
     btn("#modelRight [data-a=ok]")
     settled()
     print("tree:", js("return [...document.querySelectorAll('#modelLeft .mt-item')].map(e => e.textContent.trim().split(/\\s{2,}/)[0])")[-1])

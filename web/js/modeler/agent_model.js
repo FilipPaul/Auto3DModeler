@@ -175,7 +175,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         const o = await textOutline(spec.text, { bold: spec.bold !== false });
         if (!o) throw new Error('That text draws nothing.');
         return { ...base, source: 'text', text: spec.text, polys: o.polygons, aspect: +o.aspect.toFixed(6), h: spec.h ?? 8, depth: spec.depth ?? 1,
-          op: spec.op === 'cut' ? 'cut' : 'add', plane: planeOf({ face: spec.face }), at: spec.at || [0, 0] };
+          op: spec.op === 'cut' ? 'cut' : 'add', plane: planeOf({ face: spec.face }), at: spec.at || [0, 0], ...(spec.angle ? { angle: +spec.angle } : {}) };
       })();
     }
     if (type === 'loft') {

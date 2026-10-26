@@ -246,7 +246,9 @@ def _apply(f, st: State, s):
         st.frames[fid] = fr
         h = _num(f, "h", 10, what="height")
         w = h * float(f.get("aspect") or 1)
-        polys = [[[[x * w, y * h] for x, y in ring] for ring in poly] for poly in f["polys"]]
+        a = math.radians(float(f.get("angle") or 0))  # turned on the face, about its own middle
+        ca, sa = math.cos(a), math.sin(a)
+        polys = [[[[x * w * ca - y * h * sa, x * w * sa + y * h * ca] for x, y in ring] for ring in poly] for poly in f["polys"]]
         faces = K.sketch_faces(fr, {"entities": [{"id": fid, "t": "block", "polys": polys, "at": f.get("at") or [0, 0], "scale": 1}]})
         depth = _num(f, "depth", 1, what="depth")
         n = np.asarray(fr["n"], float)

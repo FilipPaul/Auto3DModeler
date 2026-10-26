@@ -149,6 +149,23 @@ export class ModelView {
     this.paint();
   }
 
+  /** How far a face reaches along a frame's x and y, from the frame's origin: [u0, u1, v0, v1] (null: no such face). */
+  faceSpan(name, fr) {
+    if (!this.mesh || !this.body || !name) return null;
+    const ids = new Set(this.body.faces.filter((f) => f.name === name || (f.names || []).includes(name)).map((f) => f.id));
+    const pos = this.mesh.geometry.attributes.position.array, [o, x, n] = [fr.o, fr.x, fr.n];
+    const y = [n[1] * x[2] - n[2] * x[1], n[2] * x[0] - n[0] * x[2], n[0] * x[1] - n[1] * x[0]], s = [Infinity, -Infinity, Infinity, -Infinity];
+    for (let t = 0; t < this.faceIds.length; t++) {
+      if (!ids.has(this.faceIds[t])) continue;
+      for (let k = t * 9; k < t * 9 + 9; k += 3) {
+        const d = [pos[k] - o[0], pos[k + 1] - o[1], pos[k + 2] - o[2]];
+        const u = d[0] * x[0] + d[1] * x[1] + d[2] * x[2], v = d[0] * y[0] + d[1] * y[1] + d[2] * y[2];
+        s[0] = Math.min(s[0], u); s[1] = Math.max(s[1], u); s[2] = Math.min(s[2], v); s[3] = Math.max(s[3], v);
+      }
+    }
+    return s[0] === Infinity ? null : s;
+  }
+
   paint() {
     if (!this.mesh) return;
     const col = this.mesh.geometry.attributes.color;
