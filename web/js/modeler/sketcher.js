@@ -203,6 +203,20 @@ export function upgradeSketch(f) {
   return out;
 }
 
+/** The circle through three points in 3D -> {c, r, n (unit normal)} or null (in a line). */
+function circleOf(a, b, c) {
+  const sub = (p, q) => [p[0] - q[0], p[1] - q[1], p[2] - q[2]], dot = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
+  const cross = (p, q) => [p[1] * q[2] - p[2] * q[1], p[2] * q[0] - p[0] * q[2], p[0] * q[1] - p[1] * q[0]];
+  const ab = sub(b, a), ac = sub(c, a), n = cross(ab, ac), den = 2 * dot(n, n);
+  if (den < 1e-18) return null;
+  const t1 = cross(n, ab), t2 = cross(ac, n), kac = dot(ac, ac), kab = dot(ab, ab);
+  const u = [0, 1, 2].map((i) => (kac * t1[i] + kab * t2[i]) / den), L = Math.sqrt(dot(n, n));
+  return { c: [a[0] + u[0], a[1] + u[1], a[2] + u[2]], r: Math.sqrt(dot(u, u)), n: n.map((v) => v / L) };
+}
+
+/** A translated text with {name} values filled in. */
+const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
 export class Sketcher {
   /** m: the Modeler (view, frame(), toast, hint …) */
   constructor(m, feature, isNew) {
@@ -308,9 +322,17 @@ export class Sketcher {
       if (d < tol && (!best || d < best.d)) best = { id, d, uv: [...p] };
     }
     if (best) return best;
-    for (const r of this.refs().points) {
+    const R = this.refs();
+    for (const r of [...R.points, ...R.circles.map((q) => q.c)]) {
       const d = Math.hypot(r[0] - uv[0], r[1] - uv[1]);
       if (d < tol && (!best || d < best.d)) best = { d, uv: [...r], ref: true };
+    }
+    if (best) return best;
+    for (const q of R.circles) { // on a round edge of the part: the nearest point of it
+      const d = Math.hypot(uv[0] - q.c[0], uv[1] - q.c[1]);
+      if (d > 1e-9 && Math.abs(d - q.r) < tol && (!best || Math.abs(d - q.r) < best.d)) {
+        best = { d: Math.abs(d - q.r), uv: [q.c[0] + ((uv[0] - q.c[0]) * q.r) / d, q.c[1] + ((uv[1] - q.c[1]) * q.r) / d].map((v) => +v.toFixed(6)), ref: true, onCircle: q };
+      }
     }
     if (best) return best;
     const g = this.gridStep();
@@ -467,6 +489,96 @@ export class Sketcher {
 
   /** An end of a distance: a sketch point id, the origin, or a fixed reference {ref: [u, v]}. */
   endUV(x) { return x && typeof x === 'object' ? x.ref : this.P(x); }
+
+  // ------------------------------------------------------------------ 🪄 auto-dimension
+  /** The sizes worth locking, best first: each shape's own sizes, then where it is — from the nearest edges of the
+   *  part (a hole from the outer edges closest to it), else from the origin — then anything left from the origin. */
+  autoDimCandidates() {
+    const f = this.f, R = this.refs(), P = (id) => this.P(id), out = [];
+    const hv = (e, t) => f.constraints.some((k) => k.e === e.id && k.t === t);
+    // shapes joined by their points (a rectangle, an outline) are placed once
+    const ends = (e) => (e.t === 'line' ? [e.a, e.b] : e.t === 'arc' ? [e.a, e.b, e.c] : e.t === 'circle' ? [e.c] : []);
+    const left = new Set(f.entities.filter((e) => e.t !== 'block').map((e) => e.id)), clusters = [];
+    while (left.size) {
+      const first = f.entities.find((e) => left.has(e.id)), group = [first], pts = new Set(ends(first));
+      left.delete(first.id);
+      for (let grew = true; grew;) {
+        grew = false;
+        for (const e of f.entities) {
+          if (!left.has(e.id) || !ends(e).some((p) => pts.has(p) && p !== ORIGIN)) continue;
+          group.push(e);
+          ends(e).forEach((p) => pts.add(p));
+          left.delete(e.id);
+          grew = true;
+        }
+      }
+      clusters.push({ ents: group, pts: [...pts].filter((p) => p !== ORIGIN) });
+    }
+    // of a shape's points and the part's vertical / horizontal edges, the closest pair (else that point from the origin)
+    const nearest = (pts, dir) => {
+      let best = null;
+      R.lines.forEach(([a, b], i) => {
+        const isV = Math.abs(a[0] - b[0]) < 1e-7, isH = Math.abs(a[1] - b[1]) < 1e-7;
+        if (dir === 'x' ? !isV : !isH) return;
+        for (const p of pts) {
+          const d = dir === 'x' ? Math.abs(a[0] - P(p)[0]) : Math.abs(a[1] - P(p)[1]);
+          if (!best || d < best.d - 1e-9) best = { d, p, end: { ref: a, ...(R.lineIds[i] ? { edge: R.lineIds[i] } : {}) } };
+        }
+      });
+      return best ? { t: dir === 'x' ? 'dx' : 'dy', a: best.end, b: best.p } : { t: dir === 'x' ? 'dx' : 'dy', a: ORIGIN, b: pts[0] };
+    };
+    for (const c of clusters) {
+      // its sizes
+      for (const e of c.ents) {
+        if (e.t === 'circle') out.push({ t: 'dia', e: e.id });
+        else if (e.t === 'arc') out.push({ t: 'rad', e: e.id });
+      }
+      const lines = c.ents.filter((e) => e.t === 'line'), mid = (e, k) => (P(e.a)[k] + P(e.b)[k]) / 2;
+      const hs = lines.filter((e) => hv(e, 'h')).sort((p, q) => mid(p, 1) - mid(q, 1)), vs = lines.filter((e) => hv(e, 'v')).sort((p, q) => mid(p, 0) - mid(q, 0));
+      for (const e of [...hs, ...vs]) out.push({ t: 'len', e: e.id }); // the bottom and left first: a rectangle's width and height
+      for (const e of lines.filter((x) => !hv(x, 'h') && !hv(x, 'v'))) out.push({ t: 'dx', a: e.a, b: e.b }, { t: 'dy', a: e.a, b: e.b }, { t: 'len', e: e.id });
+      // where it is: a circle / arc by its centre, other shapes by their corner nearest each edge of the part
+      const circle = c.ents.find((e) => e.t === 'circle' || e.t === 'arc');
+      const pts = circle && c.ents.length === 1 ? [circle.c] : [...c.pts].sort((p, q) => P(p)[0] + P(p)[1] - P(q)[0] - P(q)[1]);
+      if (pts.length) out.push(nearest(pts, 'x'), nearest(pts, 'y'));
+    }
+    // anything still free: its points from the origin
+    for (const c of clusters) for (const p of c.pts) out.push({ t: 'dx', a: ORIGIN, b: p }, { t: 'dy', a: ORIGIN, b: p });
+    return out;
+  }
+
+  /** 🪄 Lock the sizes the sketch still needs to be fully defined (each tried: kept only when it fixes something and
+   *  fits the others). The values are the sizes as they are now: nothing moves. */
+  async autoDimension() {
+    if (!this.solver) { this.m.toast('Auto-dimension needs the sketch solver.', 'warning'); return; }
+    let r = await this.solve();
+    if (!r.ok) { this.m.toast(r.error || 'The sketch does not solve as it is — fix it first.', 'error'); return; }
+    let dof = r.dof ?? 0;
+    if (dof <= 0) { this.m.toast(t('The sketch is fully defined already.'), 'info', 3000); return; }
+    this.step();
+    let added = 0;
+    for (const c of this.autoDimCandidates()) {
+      if (dof <= 0) break;
+      const had = this.findDim(c);
+      if (had && !had.free) continue;
+      const v = +this.measure(c).toFixed(6);
+      if (['len', 'dia', 'rad', 'dist'].includes(c.t) && !(v > 1e-9)) continue;
+      if (had) { had.free = false; delete had.free; had.v = v; } else this.f.dims.push({ id: this.newId('d'), ...c, v });
+      r = await this.solve();
+      if (!r.ok || (r.dof ?? dof) >= dof) { // it fixes nothing, or does not fit: back out
+        if (had) had.free = true; else this.f.dims.pop();
+        continue;
+      }
+      dof = r.dof;
+      added++;
+    }
+    if (!added) this.undo.pop();
+    r = await this.solve();
+    if (r.ok) this.apply(r);
+    this.changed();
+    this.m.toast(dof <= 0 ? tv('{n} size(s) locked — the sketch is fully defined.', { n: added })
+      : tv('{n} size(s) locked — {k} still free (lock them by hand, or add relations).', { n: added, k: dof }), dof <= 0 ? 'ok' : 'warning', 6000);
+  }
 
   findDim(spec) {
     const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
@@ -1292,7 +1404,7 @@ export class Sketcher {
     if (this._refsKey === key) return this._refs;
     // lines / points: [u, v] in the sketch; lineIds / pointIds: which edge / corner of the part they are (by the
     // names of its faces), so a dimension from them follows the part when earlier steps change
-    const out = { lines: [], curves: [], points: [], lineIds: [], pointIds: [] };
+    const out = { lines: [], curves: [], points: [], lineIds: [], pointIds: [], circles: [] };
     if (body) {
       const o = fr.o, x = fr.x, n = fr.n, y = [n[1] * x[2] - n[2] * x[1], n[2] * x[0] - n[0] * x[2], n[0] * x[1] - n[1] * x[0]];
       const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -1332,6 +1444,23 @@ export class Sketcher {
         });
       }
     }
+    // the part's round edges (hole rims, bosses — on any level) seen square onto the sketch: their circles and centres
+    if (body) {
+      const o = fr.o, x = fr.x, n = fr.n, y = [n[1] * x[2] - n[2] * x[1], n[2] * x[0] - n[0] * x[2], n[0] * x[1] - n[1] * x[0]];
+      const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+      for (const { pts: pl } of body.edges) {
+        const m = pl.length / 3;
+        if (m < 8 || Math.hypot(pl[0] - pl[pl.length - 3], pl[1] - pl[pl.length - 2], pl[2] - pl[pl.length - 1]) > 1e-6) continue; // closed only
+        const P = (i) => [pl[3 * i], pl[3 * i + 1], pl[3 * i + 2]];
+        const c3 = circleOf(P(0), P(Math.floor(m / 3)), P(Math.floor((2 * m) / 3)));
+        if (!c3 || Math.abs(dot(c3.n, n)) < 0.999) continue;
+        let round = true;
+        for (let i = 0; i < m && round; i++) round = Math.abs(Math.hypot(...P(i).map((v, k) => v - c3.c[k])) - c3.r) < c3.r * 0.01 + 1e-6;
+        if (!round) continue;
+        const d = [c3.c[0] - o[0], c3.c[1] - o[1], c3.c[2] - o[2]], c = [+dot(d, x).toFixed(5), +dot(d, y).toFixed(5)], r = +c3.r.toFixed(5);
+        if (!out.circles.some((q) => Math.hypot(q.c[0] - c[0], q.c[1] - c[1]) < 1e-4 && Math.abs(q.r - r) < 1e-4)) out.circles.push({ c, r });
+      }
+    }
     this._refsKey = key;
     this._refs = out;
     return out;
@@ -1357,6 +1486,10 @@ export class Sketcher {
     for (const [id, p] of Object.entries(this.f.points)) near(Math.hypot(p[0] - uv[0], p[1] - uv[1]), { kind: 'point', end: id, uv: p });
     const R = this.refs();
     R.points.forEach((r, i) => near(Math.hypot(r[0] - uv[0], r[1] - uv[1]), { kind: 'point', end: R.pointIds[i] ? { ref: r, vertex: R.pointIds[i] } : { ref: r }, uv: r }));
+    for (const q of R.circles) { // a round edge of the part: its centre (on the rim or inside it)
+      const d = Math.hypot(q.c[0] - uv[0], q.c[1] - uv[1]);
+      near(Math.min(d, Math.abs(d - q.r) < tol ? tol * 0.9 : Infinity), { kind: 'point', end: { ref: q.c }, uv: q.c });
+    }
     for (const e of this.f.entities) {
       if (e.t === 'circle') {
         const c = this.P(e.c), d = Math.hypot(c[0] - uv[0], c[1] - uv[1]);
@@ -1583,6 +1716,14 @@ export class Sketcher {
     const refs = this.refs();
     for (const [a, b] of refs.lines) lines.push([a, b, 0x8b95a3, true]);
     for (const c of refs.curves) for (let i = 0; i + 1 < c.length; i++) lines.push([c[i], c[i + 1], 0x8b95a3, true]);
+    for (const q of refs.circles) { // round edges of the part seen on the sketch: dashed, a ✛ at the centre
+      for (let i = 0; i < 48; i++) {
+        const a = (i / 48) * Math.PI * 2, b = ((i + 1) / 48) * Math.PI * 2;
+        lines.push([[q.c[0] + q.r * Math.cos(a), q.c[1] + q.r * Math.sin(a)], [q.c[0] + q.r * Math.cos(b), q.c[1] + q.r * Math.sin(b)], 0x8b95a3, true]);
+      }
+      const k = mpp * 6;
+      lines.push([[q.c[0] - k, q.c[1]], [q.c[0] + k, q.c[1]], 0x8b95a3], [[q.c[0], q.c[1] - k], [q.c[0], q.c[1] + k], 0x8b95a3]);
+    }
     // distances (dimension tool): a dimension line from the moving end, an extension line to the other end
     for (const d of f.dims) {
       if (!['dx', 'dy', 'dist'].includes(d.t)) continue;

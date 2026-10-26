@@ -66,6 +66,10 @@ SolidWorks. It has only the tools that need almost no input.
    circles / arcs the same size), *Concentric*, *Coincident* (a point on a point, a line or a circle), *Tangent* and
    *Fix* — choose it, click the shapes. Each shows a small symbol by its shape (click it to remove it) and is listed in
    the panel; relations that contradict each other or the locked sizes are refused, naming the one in the way.
+   **The part under the sketch**: its round edges (hole rims, bosses — on any level) show dashed with a ✛ centre; a
+   click snaps to a centre and to the circle itself (draw a circle on a hole: the same place and Ø), and ↔ Dimension
+   measures from them. **🪄 Auto-dimension** locks what the sketch still needs to be fully defined: each shape's
+   sizes, then its place from the nearest edges of the part (a hole from the outer edges closest to it), else the origin.
    **⇋ Mirror**: choose the Y or X axis in its little box (or click a line of the sketch), then click shapes — a
    rectangle or a joined outline goes whole. The mirror image is a copy that stays mirrored (⇋ *Mirrored*: change the
    original and the copy follows; click the ⇋ symbol to let it go free); points on the mirror line are shared, so half

@@ -114,6 +114,7 @@ export class Modeler {
         <div class="menu sk-relmenu">${btn('relate', `⟂ Relations ▾`, 'Make shapes keep a relation: horizontal, vertical, parallel, perpendicular, equal, concentric, coincident, tangent, fixed', t === 'relate' ? 'on' : '')}
           <div class="menu-list">${Object.entries(RELATIONS).filter(([, r]) => !r.tool).map(([k, r]) => `<button data-rel="${k}" title="${esc(r.hint || '')}">${r.icon} ${esc(r.name)}</button>`).join('')}</div></div>
         ${btn('dim', '↔ Dimension', 'Add a distance: click two points, circles, lines or edges of the part, then type the value (D)', t === 'dim' ? 'on' : '')}
+        ${btn('autodim', '🪄 Auto-dimension', 'Lock the sizes the sketch still needs to be fully defined: each shape sized, and placed from the nearest edges of the part (or the origin)')}
         ${btn('select', '⬚ Select', 'Select a shape or a corner to move it (drag) or delete it (Esc)', t === 'select' ? 'on' : '')}
         <span class="sep"></span>
         ${btn('finish', '✓ Finish sketch', 'Done drawing — next: Extrude (Enter)', 'primary')}
@@ -204,6 +205,7 @@ export class Modeler {
     if (a.startsWith('datum-')) return this.enterSketch({ datum: a.slice(6) });
     if (a.startsWith('plane-')) return this.movePlane(a.slice(6));
     if (a === 'cancelPlane') return this.cancelPlane();
+    if (a === 'autodim' && this.sk) return this.sk.autoDimension();
     if (['rect', 'line', 'circle', 'arc', 'round', 'trim', 'offset', 'select', 'dim'].includes(a)) return this.sk.setTool(a);
     if (a === 'outline') return this.insertOutline();
     if (a === 'finish') return this.finishSketch();
