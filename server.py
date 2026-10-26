@@ -26,6 +26,7 @@ from auto3d import progress
 from auto3d.agent import ChatSession, Relay, find_claude
 from auto3d.ai_history import HistoryError, delete_state, list_states, load_state, save_state
 from auto3d import library as parts_library
+from auto3d import autosave
 from auto3d.agent_tools import BROWSER_TOOLS, TOOL_NAMES
 from auto3d.bend import bend_info, bend_solid
 from auto3d.design import profile_polygon, trace_image
@@ -43,10 +44,11 @@ from auto3d.sketch import build_model
 from auto3d.solver import solve
 
 ROOT = Path(__file__).parent
+DATA = Path(__import__("os").environ.get("A3D_DATA") or ROOT / "data")  # the server's own data (A3D_DATA: e.g. a test server's)
 LF = "\n"
 WEB = ROOT / "web"
 SAMPLE = ROOT / "initial draft.pdf"
-printers = PrinterStore(ROOT / "data" / "printers.json")
+printers = PrinterStore(DATA / "printers.json")
 
 app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024  # big STEP files
@@ -161,7 +163,7 @@ def api_project_migrate():
 
 
 LIBRARY_APP = ROOT / "library"            # 📚 the app's parts library (auto3d/library.py)
-LIBRARY_USER = ROOT / "data" / "library"   # the user's own parts
+LIBRARY_USER = DATA / "library"   # the user's own parts
 
 
 @app.get("/api/library")
@@ -199,7 +201,42 @@ def api_library_delete(item_id):
     return jsonify({"ok": True})
 
 
-AI_HISTORY = ROOT / "data" / "history"  # the project after each AI turn (auto3d/ai_history.py)
+PROJECTS = DATA / "projects"  # autosave: the projects kept on the server (auto3d/autosave.py)
+
+
+@app.post("/api/projects/<pid>")
+def api_project_autosave(pid):
+    """{project} -> kept as the project's latest state -> its meta."""
+    body = request.get_json(force=True, silent=True) or {}
+    try:
+        return jsonify(autosave.save(PROJECTS, pid, body.get("project")))
+    except autosave.AutosaveError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.get("/api/projects")
+def api_projects_recent():
+    return jsonify({"projects": autosave.recent(PROJECTS)})
+
+
+@app.get("/api/projects/<pid>")
+def api_project_load(pid):
+    try:
+        return jsonify(autosave.load(PROJECTS, pid))
+    except autosave.AutosaveError as e:
+        return jsonify({"error": str(e)}), 404
+
+
+@app.delete("/api/projects/<pid>")
+def api_project_forget(pid):
+    try:
+        autosave.delete(PROJECTS, pid)
+    except autosave.AutosaveError as e:
+        return jsonify({"error": str(e)}), 404
+    return jsonify({"ok": True})
+
+
+AI_HISTORY = DATA / "history"  # the project after each AI turn (auto3d/ai_history.py)
 
 
 @app.get("/api/history")
@@ -963,7 +1000,7 @@ def api_chat_status():
     return jsonify({"claude": find_claude(), "running": chat.running(), "busy": chat.busy})
 
 
-CHAT_PHOTOS = Path(__file__).resolve().parent / "data" / "agent" / "photos"
+CHAT_PHOTOS = DATA / "agent" / "photos"
 CHAT_PHOTO_TYPES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif"}
 MAX_CHAT_PHOTOS, MAX_CHAT_PHOTO_BYTES = 5, 10 * 1024 * 1024
 

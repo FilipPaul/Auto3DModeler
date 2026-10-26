@@ -2,6 +2,8 @@
 // Used by the 3D model workspace (one instance per model part); the Quick part keeps its own in app.js.
 
 const clone = (x) => (x === undefined || x === null ? x : structuredClone(x));
+/** Something changed (a step, an undo): autosave listens. */
+export const changed = () => window.dispatchEvent(new Event('a3d:changed'));
 
 export class History {
   /** capture(): the state to record; restore(snapshot): put it back; onChange(): update the buttons. */
@@ -31,6 +33,7 @@ export class History {
     this.base = cur;
     this.baseKey = k;
     this.onChange();
+    changed();
     return true;
   }
 
@@ -46,6 +49,7 @@ export class History {
     this.baseKey = JSON.stringify(snap);
     await this.restore(clone(snap));
     this.onChange();
+    changed();
     return true;
   }
 

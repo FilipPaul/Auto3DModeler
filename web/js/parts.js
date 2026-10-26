@@ -228,6 +228,7 @@ export class Project {
   }
 
   render() {
+    window.dispatchEvent(new Event('a3d:changed')); // (a part added, renamed, closed …: autosave)
     const el = this.el;
     el.hidden = !this.parts.length;
     el.innerHTML = '';

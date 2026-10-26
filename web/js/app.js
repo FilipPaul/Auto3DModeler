@@ -20,6 +20,8 @@ import { modelHandlers } from './modeler/agent_model.js';
 import { Assembly } from './assembly/assembly.js';
 import { DrawingEditor, drawingToSketch } from './drawing2d/editor.js';
 import { initSplitters } from './splitters.js';
+import { Autosave } from './autosave.js';
+import { changed as projectChanged } from './history.js';
 
 initI18n();  // Czech / English: translates the page as it is built
 
@@ -70,6 +72,7 @@ const history = {
     this.base = cur;
     this.baseKey = k;
     this.updateUI();
+    projectChanged();
     return true;
   },
   schedule() { clearTimeout(this.timer); this.timer = setTimeout(() => this.commit(), 600); },
@@ -1934,7 +1937,9 @@ async function openProject(file) {
     const proj = await res.json();
     if (proj.error) throw new Error(proj.error);
     state.projectName = proj.project_name;
+    await autosave?.saveNow(); // (the one on screen kept first)
     await project.loadAll(proj);
+    autosave?.fresh();
     showProjectName();
     toast(proj.parts.length > 1 ? `Project loaded — ${proj.parts.length} parts (tabs in the top bar).` : 'Project loaded.', 'ok');
   } catch (e) { toast(e.message, 'error'); }
@@ -2265,6 +2270,22 @@ Object.assign(agentHandlers, assembly.handlers(), {
 });
 
 
+// autosave: the project kept on the server a few seconds after each change; 🕘 Recent projects; the last one offered
+var autosave = new Autosave({
+  toast,
+  project: () => (project.parts.length ? projectFile() : null),
+  status: () => $('autosaveState'),
+  async restore(raw) {
+    const proj = await (await api('/api/project/migrate', raw)).json();
+    if (proj.error) throw new Error(proj.error);
+    state.projectName = proj.project_name;
+    await project.loadAll(proj);
+    showProjectName();
+  },
+});
+$('recentBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); autosave.showRecent(); });
+if (!new URLSearchParams(location.search).has('sample')) setTimeout(() => autosave.offerLast(), 600);
+
 // 🕘 the project after each AI turn that ran tools here, kept by the server; loaded back like a project file
 const aiHistory = new AiHistory({
   toast,
@@ -2438,4 +2459,4 @@ Object.assign(agentHandlers, {
   },
 });
 
-window.__app = { state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, library, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d };
+window.__app = { state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, library, autosave, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d };

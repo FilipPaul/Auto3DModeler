@@ -60,6 +60,10 @@ Date: 2026-10-25. Written by the architect agent.
   raised / engraved on a flat face, follows it; the AI's decal. tools/e2e_model_decal.py.
 - **Assembly links done:** snaps hold (doc.mates {move, face, onto, ontoFace}, re-applied after refresh and moves;
   moving the snapped part by hand unlinks; no cycles; saved, undoable). tools/e2e_assembly_links.py.
+- **Autosave done:** auto3d/autosave.py (data/projects/<id>.json + .meta.json, written whole via a temp file, MAX 40),
+  /api/projects routes; web/js/autosave.js (History.commit / go and the quick part's history fire `a3d:changed`; saved
+  3 s later if the project file changed, a beacon on pagehide; 🕘 Recent projects; the last one offered). A3D_DATA
+  points a server at another data folder (test servers). tests/test_autosave.py, tools/e2e_autosave.py.
 - **The whole app for the AI done:** web/js/agent_more.js (drawing tools, edit_joint / remove_joint, measure,
   set_view, rename_part / delete_part, export_data for the server's files), auto3d/export3mf.py (an object per
   colour, base materials), server bom_csv and export 3mf / bom / dxf (POST /api/export/3mf for the menu), the skill

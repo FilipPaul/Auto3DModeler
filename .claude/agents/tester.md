@@ -105,6 +105,10 @@ Never report "works" without having run it; report failures with their output.
    the holes, the AI's bolt_parts with an insert) and the Tangent, Angle (30°, typed 60°) and Perpendicular joints.
    `tools/e2e_assembly_edit.py <url> <dir>` covers ✎ Edit it here (locked by default, a double-click refused; unlocked:
    the modeler with the rest see-through, a hole added, back: the assembly has it, the pin still in place; locked again).
+   **Run the test server with its own data folder** — `A3D_DATA=<scratch dir> py server.py --port 5199 --no-browser` — so
+   autosave, the AI history and library tests do not land in the user's data/ (recent projects, own parts).
+   `tools/e2e_autosave.py <url> <dir>` covers autosave (kept a few seconds after a change, "✓ Saved"; a reload offers it,
+   Open brings the parts and steps back under the same project; a change keeps one project; 🕘 Recent projects; ✕ forgets).
    `tools/e2e_reported.py <url> <dir>` covers the AI's reports in RealSWReports (a sketch's new plane keeps its shapes, a
    mirror's new `of` keeps its plane, a chosen part keeps its colours) and the joint's ↕ gap slider (17 -> the part up 17,
    0 catches, typed, undo).

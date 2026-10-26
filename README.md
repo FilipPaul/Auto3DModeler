@@ -49,6 +49,11 @@ part of the project, open or not: click one to open it in a tab again, ✕ there
 asking; it says which assemblies use it). Parts made for an assembly (fasteners) are added without a tab. The **＋**
 next to the tabs offers the usual ways to open a file.
 
+**Autosave**: the project is kept on the server (`data/projects/`) a few seconds after each change — "✓ Saved 22:31" by
+the project's name says so — so a closed tab or a browser crash loses nothing. **Open ▾ → 🕘 Recent projects…** lists
+the kept projects to open again (✕ forgets one); when the app starts empty, the last one is offered at the bottom left.
+*Save project* still writes a file to keep or send.
+
 **Panels**: drag the edge between a side panel and the view (or the AI chat's left edge) to make it wider or narrower;
 the widths are remembered, a double-click on an edge gives the usual width again.
 
