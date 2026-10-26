@@ -65,7 +65,8 @@ SolidWorks. It has only the tools that need almost no input.
    point (dashed), so the rectangle keeps its width and you can still dimension from the corner; changing the
    width or the radius keeps the rounding tangent. **✂ Trim** (T): click the piece of a line, circle or arc to cut
    away — up to where other shapes cross it (shown in red first). A circle becomes the arc that is left, a line or
-   an arc keeps its other part(s), and the new ends stay on the shape that cut them. **⟂ Relations ▾** makes shapes
+   an arc keeps its other part(s), and the new ends stay on the shape that cut them. **⟷ Extend** (E): click a line near an end — it
+   lengthens up to the next shape it meets (shown in green first) and that end stays on it. **⟂ Relations ▾** makes shapes
    keep a relation: *Horizontal*, *Vertical*, *Parallel*, *Perpendicular*, *Equal* (two lines the same length, two
    circles / arcs the same size), *Concentric*, *Coincident* (a point on a point, a line or a circle), *Tangent* and
    *Fix* — choose it, click the shapes. Each shows a small symbol by its shape (click it to remove it) and is listed in

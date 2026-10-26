@@ -273,7 +273,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 | Construction toggle and centreline | Helper geometry, revolve axis, mirror line | entity | MVP (M2) |
 | 2D fillet / chamfer | Round or cut a sketch corner (adds arc + tangency) | corner, r / d | MVP (M2) |
 | Trim | Cut a segment back to the nearest crossings | click on segment | MVP (M2) |
-| Extend | Extend a line up to the next entity | click | Later |
+| Extend | Extend a line up to the next entity | click | Done (lines; the end gets an "on" constraint) |
 | Offset | Copy a loop at a distance (one-off copy) | loop, distance, side | MVP (M2), linked offset later |
 | Mirror | Mirror entities about a line, adding symmetric constraints | entities, line | MVP (M2) |
 | Sketch pattern | Linear / circular copies inside the sketch | entities, count, step | Later (use the feature pattern) |

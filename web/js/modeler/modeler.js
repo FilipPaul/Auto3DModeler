@@ -117,6 +117,7 @@ export class Modeler {
         ${btn('mirror', '⇋ Mirror', 'Mirror shapes across a line or the X / Y axis — a copy that stays the mirror image, or moved', t === 'mirror' ? 'on' : '')}
         ${btn('offset', '⧈ Offset', 'A parallel copy of a closed shape, a distance outside or inside it (O)', t === 'offset' ? 'on' : '')}
         ${btn('trim', '✂ Trim', 'Cut away a piece of a line, circle or arc — up to where other shapes cross it (T)', t === 'trim' ? 'on' : '')}
+        ${btn('extend', '⟷ Extend', 'Lengthen a line up to the next shape it meets: click near its end (E)', t === 'extend' ? 'on' : '')}
         ${this.hooks.pickOutline ? btn('outline', '🖼 Outline', 'Insert an outline from a picture, a DXF / DWG drawing or a PDF drawing (as one shape you can move and size)') : ''}
         <div class="menu sk-relmenu">${btn('relate', `⟂ Relations ▾`, 'Make shapes keep a relation: horizontal, vertical, parallel, perpendicular, equal, concentric, coincident, tangent, fixed', t === 'relate' ? 'on' : '')}
           <div class="menu-list">${Object.entries(RELATIONS).filter(([, r]) => !r.tool).map(([k, r]) => `<button data-rel="${k}" title="${esc(r.hint || '')}">${r.icon} ${esc(r.name)}</button>`).join('')}</div></div>
@@ -213,7 +214,7 @@ export class Modeler {
     if (a.startsWith('plane-')) return this.movePlane(a.slice(6));
     if (a === 'cancelPlane') return this.cancelPlane();
     if (a === 'autodim' && this.sk) return this.sk.autoDimension();
-    if (['rect', 'line', 'circle', 'arc', 'round', 'trim', 'offset', 'select', 'dim'].includes(a)) return this.sk.setTool(a);
+    if (['rect', 'line', 'circle', 'arc', 'round', 'trim', 'extend', 'offset', 'select', 'dim'].includes(a)) return this.sk.setTool(a);
     if (a === 'outline') return this.insertOutline();
     if (a === 'finish') return this.finishSketch();
     if (a === 'cancelSketch') return this.cancelSketch();

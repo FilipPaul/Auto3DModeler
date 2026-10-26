@@ -66,6 +66,8 @@ Never report "works" without having run it; report failures with their output.
    profile / path refused), the AI's loft.
    `tools/e2e_model_trim.py <url> <dir>` covers ✂ Trim (a circle on a rectangle's edge: trimmed to a tab, the radius
    typed -> the ends follow, exact volume; a lone line goes whole).
+   `tools/e2e_sketch_extend.py <url> <dir>` covers ⟷ Extend (real clicks: a line's end to a wall and staying on it when
+   the wall moves, a line up to a circle, nothing beyond -> a hint, Ctrl+Z).
    `tools/e2e_model_offset.py <url> <dir>` covers ⧈ Offset (a rectangle -> a frame, a circle inwards -> a ring, a rounded
    rectangle -> concentric arcs, a picture outline via the server; exact volumes).
    `tools/e2e_model_decal.py <url> <dir>` covers Aa Text / picture on a face (raised, retyped, engraved, follows the face,

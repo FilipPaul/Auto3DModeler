@@ -284,6 +284,7 @@ export class Sketcher {
     }
     if (this.tool === 'mirror') return this.mirLine ? 'Mirror: click the shapes to mirror (a rectangle or a joined outline goes whole). Esc = done.'
       : 'Mirror: click the line to mirror across — or choose the X / Y axis in the box.';
+    if (this.tool === 'extend') return 'Extend: click a line near the end to lengthen — up to the next shape it meets.';
     if (this.tool === 'trim') return 'Trim: click the piece of a line, circle or arc to cut away — up to where other shapes cross it.';
     if (this.tool === 'arc' && this.tan) return 'Tangent arc: it continues the line — click where it ends (Shift-click: a free arc; Esc = stop drawing).';
     if (this.tool === 'arc') return !this.start ? 'Click where the arc starts (at the end of a line: it continues the line smoothly).' : !this.arcEnd ? 'Click where the arc ends.' : 'Move the mouse to bend the arc, click to place it (Esc = stop drawing).';
@@ -749,6 +750,7 @@ export class Sketcher {
     this.cursor = this.snap(uv, e.altKey);
     const hv = this.tool === 'offset' ? ((l) => l && { kind: 'entity', id: l.ids[0], loop: l.ids, key: `off:${l.ids.join(',')}` })(this.loopAt(uv))
       : this.tool === 'trim' ? ((p) => p && { kind: 'piece', pts: p.pts, key: `${p.e.id}:${p.lo}:${p.hi}` })(this.pieceAt(uv))
+      : this.tool === 'extend' ? ((x) => x && { kind: 'piece', grow: true, pts: [x.from, x.to], key: `ext:${x.e.id}:${x.end}` })(this.extensionAt(uv))
       : this.tool === 'round' ? this.cornerAt(uv)
       : this.tool === 'dim' || this.tool === 'relate' ? this.pickTarget(uv)
       : this.tool === 'select' ? ((h) => (h?.kind === 'point' ? { kind: 'point', end: h.id, uv: this.P(h.id) } : h))(this.hit(uv))
@@ -778,6 +780,7 @@ export class Sketcher {
     if (this.tool === 'arc') { this.arcPoint(s, e.shiftKey); return; }
     if (this.tool === 'round') { this.roundAt(uv0); return; }
     if (this.tool === 'trim') { this.trimAt(uv0); return; }
+    if (this.tool === 'extend') { this.extendAt(uv0); return; }
     if (this.tool === 'relate') { this.relateClick(uv0); return; }
     if (this.tool === 'offset') { this.offsetAt(uv0, e); return; }
     if (this.tool === 'mirror') { this.mirrorClick(uv0); return; }
@@ -1076,6 +1079,64 @@ export class Sketcher {
     this.changed();
   }
 
+  /** ⟷ Extend: the line under the mouse, its end nearer the mouse and where that end would go — the first shape the
+   *  line meets beyond it -> {e, end ('a' | 'b'), from, to, by (the shape met)} or null. */
+  extensionAt(uv) {
+    const tol = this.mpp() * 8;
+    let best = null;
+    for (const e of this.f.entities) {
+      if (e.t !== 'line') continue;
+      const d = segDist(uv, this.P(e.a), this.P(e.b));
+      if (d < tol && (!best || d < best.d)) best = { d, e };
+    }
+    if (!best) return null;
+    const e = best.e, A = this.P(e.a), B = this.P(e.b), L = Math.hypot(B[0] - A[0], B[1] - A[1]);
+    if (L < 1e-9) return null;
+    const end = paramOf({ kind: 'line', a: A, b: B }, uv) < 0.5 ? 'a' : 'b';
+    const from = end === 'a' ? A : B, other = end === 'a' ? B : A, dir = [(from[0] - other[0]) / L, (from[1] - other[1]) / L];
+    const far = 1e6 * (1 + Math.hypot(...from));
+    const ray = { kind: 'line', a: from, b: [from[0] + dir[0] * far, from[1] + dir[1] * far] };
+    let hit = null;
+    for (const x of this.f.entities) {
+      if (x === e) continue;
+      const g = geomOf(x, (id) => this.P(id));
+      if (!g) continue;
+      for (const p of crossings(ray, g)) {
+        const s = (p[0] - from[0]) * dir[0] + (p[1] - from[1]) * dir[1];
+        if (s > 1e-6 * (1 + L) && (!hit || s < hit.s)) hit = { s, p, by: x.id };
+      }
+    }
+    return hit && { e, end, from, to: hit.p, by: hit.by };
+  }
+
+  /** ⟷ Extend: the end moves out to the shape it meets and stays on it (joined if it lands on that shape's end). */
+  async extendAt(uv) {
+    const x = this.extensionAt(uv);
+    if (!x) { this.m.toast('Click a line near the end to lengthen — it needs a shape further along to reach.', 'info', 4000); return; }
+    const f = this.f, pid = x.e[x.end];
+    if (pid === ORIGIN || f.entities.some((o) => o !== x.e && [o.a, o.b, o.c].includes(pid))) {
+      this.m.toast('That end is joined to another shape — it cannot move on its own.', 'info', 4000);
+      return;
+    }
+    await this.relock(() => {
+      const by = f.entities.find((o) => o.id === x.by), tol = 1e-6 * (1 + Math.hypot(...x.to));
+      const join = [by.a, by.b].find((q) => q && q !== ORIGIN && this.P(q) && Math.hypot(this.P(q)[0] - x.to[0], this.P(q)[1] - x.to[1]) < tol);
+      // its length and the end's place now follow the shape it meets
+      f.dims = f.dims.filter((d) => !(d.e === x.e.id && d.t === 'len') && d.a !== pid && d.b !== pid);
+      if (join) {
+        x.e[x.end] = join;
+        delete f.points[pid];
+        f.constraints = f.constraints.filter((k) => k.p !== pid);
+      } else {
+        f.points[pid] = x.to.map((v) => +v.toFixed(9));
+        f.constraints = f.constraints.filter((k) => !((k.t === 'on' || k.t === 'fix') && k.p === pid));
+        f.constraints.push({ id: this.newId('k'), t: 'on', p: pid, e: by.id });
+      }
+    });
+    this.sel = null;
+    this.changed();
+  }
+
   /** ⧈ Offset: the closed shape under the mouse -> {kind: 'circle' | 'block' | 'loop', ids, …}, or null. A loop is
    *  lines / arcs joined end to end all the way round (each corner joins exactly two). */
   loopAt(uv) {
@@ -1345,6 +1406,7 @@ export class Sketcher {
     if (k === 'a') this.setTool('arc');
     if (k === 'f') this.setTool('round');
     if (k === 't') this.setTool('trim');
+    if (k === 'e') this.setTool('extend');
     if (k === 'o') this.setTool('offset');
     if (k === 'd') this.setTool('dim');
     return false;
@@ -1784,8 +1846,8 @@ export class Sketcher {
         else name = hv.corner ? 'corner' : hv.end === ORIGIN ? 'origin' : typeof hv.end === 'object' ? 'corner of the part' : 'point';
         at = hv.uv;
       } else if (hv.kind === 'piece') {
-        for (let i = 0; i + 1 < hv.pts.length; i++) lines.push([hv.pts[i], hv.pts[i + 1], 0xff7b72]);
-        name = 'cut away';
+        for (let i = 0; i + 1 < hv.pts.length; i++) lines.push([hv.pts[i], hv.pts[i + 1], hv.grow ? 0x7ee787 : 0xff7b72]);
+        name = hv.grow ? 'extend to here' : 'cut away';
         at = hv.pts[Math.floor(hv.pts.length / 2)];
       } else if (hv.kind === 'line') {
         lines.push([hv.uvA, hv.uvB, HL], [hv.uvA, hv.uvB, HL]);
