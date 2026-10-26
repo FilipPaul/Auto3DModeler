@@ -317,6 +317,7 @@ export class Sketcher {
     if (this.tool === 'trim') return 'Trim: click the piece of a line, circle or arc to cut away — up to where other shapes cross it.';
     if (this.tool === 'arc' && this.tan) return 'Tangent arc: it continues the line — click where it ends (Shift-click: a free arc; Esc = stop drawing).';
     if (this.tool === 'arc') return !this.start ? 'Click where the arc starts (at the end of a line: it continues the line smoothly).' : !this.arcEnd ? 'Click where the arc ends.' : 'Move the mouse to bend the arc, click to place it (Esc = stop drawing).';
+    if (this.tool === 'spline') return this.spl ? 'Click the next point the curve goes through — click its first point to close it, double-click or Enter to finish, Esc to stop.' : 'Click where the smooth curve starts (a point or a line end joins it there).';
     if (this.tool === 'line') return this.chain ? 'Click the next point — click the first point to close the shape, double-click or Esc to stop.' : 'Click where the line starts.';
     if (this.tool === 'dim') return this.dimA ? 'Now click the second one — the same line or circle again for its own size (Esc = start again).' : 'Dimension: click a point, a circle (its centre), a line or an edge of the part — then a second one.';
     return this.sel ? 'Drag to move it · click a size to type it and lock it 🔒 · Delete removes it.' : 'Click a shape or a corner to select it — or pick a drawing tool.';
@@ -329,6 +330,7 @@ export class Sketcher {
     this.arcEnd = null;
     this.tan = null;
     this.chain = null;
+    this.spl = null;
     this.dimA = null;
     this.closeChooser();
     this.mirLine = null;
@@ -719,12 +721,15 @@ export class Sketcher {
     this.step();
     const s = this.sel;
     let gone;
-    if (s.kind === 'point') gone = new Set(this.f.entities.filter((e) => e.a === s.id || e.b === s.id || e.c === s.id).map((e) => e.id));
+    if (s.kind === 'point') {
+      gone = new Set(this.f.entities.filter((e) => e.a === s.id || e.b === s.id || e.c === s.id).map((e) => e.id));
+      for (const e of this.f.entities) if (e.t === 'spline' && e.pts.includes(s.id)) { e.pts = e.pts.filter((p) => p !== s.id); if (e.pts.length < 2) gone.add(e.id); }
+    }
     else gone = new Set(s.kind === 'group' ? this.f.entities.filter((e) => e.g === s.id).map((e) => e.id) : [s.id]);
     this.f.entities = this.f.entities.filter((e) => !gone.has(e.id));
     this.f.constraints = this.f.constraints.filter((c) => !gone.has(c.e) && !gone.has(c.arc) && !(c.lines || []).some((l) => gone.has(l))
       && !(s.kind === 'point' && c.p === s.id && c.t === 'corner'));
-    const used = new Set([...this.f.entities.flatMap((e) => [e.a, e.b, e.c]), ...this.f.constraints.filter((c) => c.t === 'corner').map((c) => c.p)]);
+    const used = new Set([...this.f.entities.flatMap((e) => [e.a, e.b, e.c, ...(e.pts || [])]), ...this.f.constraints.filter((c) => c.t === 'corner').map((c) => c.p)]);
     for (const p of Object.keys(this.f.points)) if (!used.has(p)) delete this.f.points[p];
     this.f.dims = this.f.dims.filter((d) => !gone.has(d.e) && (!d.a || d.a === ORIGIN || this.f.points[d.a]) && (!d.b || this.f.points[d.b]));
     this.sel = null;
@@ -812,6 +817,7 @@ export class Sketcher {
     if (this.tool === 'dim') { this.dimClick(uv0, e); return; }
     const s = this.snap(uv0, e.altKey);
     if (this.tool === 'line') { this.linePoint(s, e.detail >= 2); return; }
+    if (this.tool === 'spline') { this.splinePoint(s, e.detail >= 2); return; }
     if (this.tool === 'arc') { this.arcPoint(s, e.shiftKey); return; }
     if (this.tool === 'round') { this.roundAt(uv0); return; }
     if (this.tool === 'trim') { this.trimAt(uv0); return; }
@@ -1105,7 +1111,7 @@ export class Sketcher {
         else e.a = newPt(hi);
         delete e.g;
       }
-      const used = new Set([...f.entities.flatMap((x) => [x.a, x.b, x.c]), ...f.constraints.filter((k) => k.t === 'corner').map((k) => k.p)]);
+      const used = new Set([...f.entities.flatMap((x) => [x.a, x.b, x.c, ...(x.pts || [])]), ...f.constraints.filter((k) => k.t === 'corner').map((k) => k.p)]);
       for (const p of Object.keys(f.points)) if (!used.has(p)) delete f.points[p];
       f.constraints = f.constraints.filter((k) => !k.p || f.points[k.p] || k.p === ORIGIN);
       f.dims = f.dims.filter((d) => (!d.a || typeof d.a !== 'string' || d.a === ORIGIN || f.points[d.a]) && (!d.b || typeof d.b !== 'string' || d.b === ORIGIN || f.points[d.b]));
@@ -1394,6 +1400,46 @@ export class Sketcher {
     this.changed();
   }
 
+  /** 〰 Spline: click points — one smooth curve through them (each click an undo step). Its first point again closes
+   *  it; a point that is the end of another shape joins it there and ends the curve; double-click / Enter ends it. */
+  splinePoint(s, dbl) {
+    if (dbl) { this.finishSpline(); return; }
+    if (!this.spl) {
+      this.step();
+      this.spl = { id: null, pts: [this.pointAt(s)] };
+      this.m.hint(this.hint());
+      this.draw();
+      return;
+    }
+    const pts = this.spl.pts, last = pts[pts.length - 1];
+    if (s.id && s.id === last) return;
+    const a = this.P(last), b0 = s.id ? this.P(s.id) : s.uv;
+    if (Math.hypot(b0[0] - a[0], b0[1] - a[1]) < 1e-9) return;
+    this.step();
+    const closing = s.id && s.id === pts[0] && pts.length > 2;
+    const p = closing ? pts[0] : this.pointAt(s);
+    pts.push(p);
+    if (!this.spl.id) {
+      this.spl.id = this.newId('s');
+      this.f.entities.push({ id: this.spl.id, t: 'spline', pts });
+    } else this.ent(this.spl.id).pts = [...pts];
+    const joins = s.id && s.id !== ORIGIN && this.f.entities.some((e) => e.id !== this.spl.id && (e.a === s.id || e.b === s.id || (e.pts || []).includes(s.id)));
+    if (closing || joins) this.finishSpline();
+    else this.changed();
+  }
+
+  finishSpline() {
+    const sp = this.spl;
+    this.spl = null;
+    if (sp?.id) this.sel = { kind: 'entity', id: sp.id };
+    else if (sp) { // one point only: no curve
+      const used = new Set(this.f.entities.flatMap((e) => [e.a, e.b, e.c, ...(e.pts || [])]));
+      for (const p of sp.pts) if (!used.has(p)) delete this.f.points[p];
+    }
+    this.m.hint(this.hint());
+    this.changed();
+  }
+
   linePoint(s, dbl) {
     if (dbl) { this.chain = null; this.changed(); return; }
     if (!this.chain) {
@@ -1431,12 +1477,15 @@ export class Sketcher {
     if (e.key === 'Escape') {
       if (this.tool === 'mirror') this.setTool('select');
       else if (this.chooser) this.closeChooser();
+      else if (this.spl) this.finishSpline();
       else if (this.start || this.chain || this.dimA || this.relPicks?.length) { this.relPicks = []; this.start = null; this.tan = null; this.arcEnd = null; this.chain = null; this.dimA = null; this.changed(); } else this.setTool('select');
       return true;
     }
+    if (e.key === 'Enter' && this.spl) { this.finishSpline(); return true; }
     if (e.key === 'Delete' || e.key === 'Backspace') { this.deleteSel(); return true; }
     if (k === 'r') this.setTool('rect');
     if (k === 'l') this.setTool('line');
+    if (k === 's') this.setTool('spline');
     if (k === 'c') this.setTool('circle');
     if (k === 'a') this.setTool('arc');
     if (k === 'f') this.setTool('round');
@@ -1925,6 +1974,9 @@ export class Sketcher {
         for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], SEL]);
         live = { text: `R${fmt(Math.hypot(geo.a[0] - geo.c[0], geo.a[1] - geo.c[1]))}`, u: cur[0], v: cur[1] + mpp * 14 };
       } else lines.push([this.start.uv, this.arcEnd ? this.arcEnd.uv : cur, SEL, true]);
+    } else if (cur && this.spl && this.tool === 'spline') { // the curve with the point under the mouse added
+      const ps = splinePts([...this.spl.pts.map((id) => this.P(id)), cur]);
+      for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], SEL]);
     } else if (cur && this.chain && this.tool === 'line') {
       const a = this.P(this.chain.last);
       lines.push([a, cur, SEL]);
