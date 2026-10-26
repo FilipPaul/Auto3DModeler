@@ -61,10 +61,12 @@ class State:
         self.sketches = {}  # id -> (frame, [(face, edge names)])
         self.frames = {}    # id -> frame (also for the browser)
         self.tools = {}     # id -> [(tool Body, "add" | "cut")]: what the feature added / cut, for patterns
+        self.sketch_src = {}  # id -> the sketch feature as built (its lines, for a sweep's path)
 
     def copy(self):
         s = State()
         s.body, s.sketches, s.frames, s.tools = self.body, dict(self.sketches), dict(self.frames), dict(self.tools)
+        s.sketch_src = dict(self.sketch_src)
         return s
 
 
@@ -119,7 +121,13 @@ def _apply(f, st: State, s):
         fr = plane_frame(f.get("plane"), st)
         st.frames[fid] = fr
         f = _follow_refs(f, fr, st, s)
-        st.sketches[fid] = (fr, K.sketch_faces(fr, f))
+        st.sketch_src[fid] = f
+        try:
+            st.sketches[fid] = (fr, K.sketch_faces(fr, f))
+        except K.KernelError as e:
+            if "no closed shape" not in str(e) or not any(x.get("t") in ("line", "arc") for x in f.get("entities") or []):
+                raise
+            st.sketches[fid] = (fr, [])  # open lines: a path for a sweep (a step that needs a closed shape says so)
         return
     if t == "extrude":
         sk = st.sketches.get(f.get("sketch"))
@@ -136,6 +144,8 @@ def _apply(f, st: State, s):
             sign = (-1 if op == "cut" else 1) * (-1 if f.get("flip") else 1)
             vec = n * d * sign
             start = -vec / 2 if f.get("symmetric") else None
+        if not faces:
+            raise K.KernelError("Its sketch has no closed shape to extrude.")
         for face, names in faces:
             _use(st, fid, K.prism_body(face, names, vec, fid, start), op)
         return
@@ -147,8 +157,36 @@ def _apply(f, st: State, s):
         origin, direction = _revolve_axis(f, fr)
         _check_one_side(f, fr, origin, direction)
         angle = _num(f, "angle", 360, what="angle")
+        if not faces:
+            raise K.KernelError("Its sketch has no closed shape to revolve.")
         for face, names in faces:
             _use(st, fid, K.revolve_body(face, names, origin, direction, angle, fid), f.get("op", "add"))
+        return
+    if t == "loft":
+        ids = [x for x in f.get("sketches") or [] if x]
+        if len(ids) < 2:
+            raise K.KernelError("A loft goes through at least two sketches — choose them.")
+        sections = []
+        for x in ids:
+            sk = st.sketches.get(x)
+            if not sk:
+                raise K.KernelError("A sketch of the loft is missing or has a problem.")
+            if len(sk[1]) != 1 or K.outline_count(sk[1][0][0]) != 1:
+                raise K.KernelError("Each sketch of a loft needs exactly one closed outline (no holes in it).")
+            sections.append(sk[1][0])
+        _use(st, fid, K.loft_body(sections, fid), f.get("op", "add"))
+        return
+    if t == "sweep":
+        prof, path = st.sketches.get(f.get("profile")), st.sketch_src.get(f.get("path"))
+        if not prof or not prof[1]:
+            raise K.KernelError("Choose the profile: a sketch with a closed shape.")
+        if path is None:
+            raise K.KernelError("Choose the path: a sketch of connected lines / arcs.")
+        if f.get("path") == f.get("profile"):
+            raise K.KernelError("The profile and the path are two different sketches.")
+        wire = K.path_wire(st.frames[f["path"]], path)
+        for face, names in prof[1]:
+            _use(st, fid, K.sweep_body(face, names, wire, fid), f.get("op", "add"))
         return
     if t == "shell":
         if st.body is None:

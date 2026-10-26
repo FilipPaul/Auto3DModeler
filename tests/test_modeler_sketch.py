@@ -212,10 +212,11 @@ class TestLineSketchFaces(unittest.TestCase):
         sk = {"id": "S1", "type": "sketch", "plane": {"datum": "XY"}, "points": pts, "entities": lines}
         r = doc.rebuild({"features": [sk, {"id": "E1", "type": "extrude", "sketch": "S1", "op": "add", "d": 2}]})
         self.assertAlmostEqual(r["body"]["volume"], (30 * 10 + 10 * 15) * 2, delta=1e-6)
-        # an open chain makes no face
+        # an open chain makes no face: fine as a sketch (a sweep's path), the extrude says why it cannot
         sk["entities"] = lines[:4]
-        r = doc.rebuild({"features": [sk]})
-        self.assertIn("no closed shape", r["features"][0]["issues"][0])
+        r = doc.rebuild({"features": [sk, {"id": "E1", "type": "extrude", "sketch": "S1", "op": "add", "d": 2}]})
+        self.assertTrue(r["features"][0]["ok"])
+        self.assertIn("no closed shape", r["features"][1]["issues"][0])
 
 
 if __name__ == "__main__":

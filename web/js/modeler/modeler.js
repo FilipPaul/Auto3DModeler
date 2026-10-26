@@ -8,11 +8,14 @@ import { t } from '../i18n.js';
 import { ModelView, DATUMS, datumFrame } from './view.js';
 import { Sketcher, upgradeSketch, arcPts } from './sketcher.js';
 
-const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂' };
-const TYPE_NAME = { sketch: 'Sketch', extrude: 'Extrude', revolve: 'Revolve', fillet: 'Fillet', chamfer: 'Chamfer', hole: 'Hole', shell: 'Shell', pattern: 'Pattern' };
-const REPEATABLE = new Set(['extrude', 'revolve', 'hole', 'pattern']);
+const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣' };
+const TYPE_NAME = { sketch: 'Sketch', extrude: 'Extrude', revolve: 'Revolve', fillet: 'Fillet', chamfer: 'Chamfer', hole: 'Hole', shell: 'Shell', pattern: 'Pattern',
+  loft: 'Loft', sweep: 'Sweep', solid: 'Solid' };
+const REPEATABLE = new Set(['extrude', 'revolve', 'hole', 'pattern', 'loft', 'sweep']);
 const AXES = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
-const USES_SKETCH = new Set(['extrude', 'revolve']);
+const USES_SKETCH = new Set(['extrude', 'revolve', 'loft', 'sweep']);
+/** The sketches a step is made from. */
+const sketchesOf = (f) => (f.type === 'loft' ? f.sketches || [] : f.type === 'sweep' ? [f.profile, f.path] : USES_SKETCH.has(f.type) ? [f.sketch] : []).filter(Boolean);
 // densities for the mass (g/cm³), common 3D-printing materials
 export const MATERIALS = { PLA: 1.24, PETG: 1.27, ABS: 1.04, ASA: 1.07, TPU: 1.21, PA: 1.14 };
 const DATUM_NAME = { XY: 'Top', XZ: 'Front', YZ: 'Right' };
@@ -106,6 +109,8 @@ export class Modeler {
         ${btn('sketch', '✏ Sketch', 'Start a sketch: on a plane, or on a flat face of the part (S)', 'tool')}
         ${btn('extrude', '⬆ Extrude', canExtrude ? 'Give a sketch a height: add material or cut (E)' : 'Draw a sketch first', 'tool')}
         ${btn('revolve', '⟳ Revolve', canExtrude ? 'Spin a sketch around an axis (vases, knobs, wheels)' : 'Draw a sketch first', 'tool')}
+        ${btn('loft', '⧫ Loft', 'A shape from one outline to another (e.g. a square base to a round top): two sketches, one above the other', 'tool')}
+        ${btn('sweep', '〰 Sweep', 'Move an outline along a path (pipes, handles, rails): a profile sketch and a path sketch', 'tool')}
         ${btn('fillet', '◜ Fillet', 'Round edges: click the edges, give the radius (F)', 'tool')}
         ${btn('chamfer', '◸ Chamfer', 'Bevel edges: click the edges, give the size', 'tool')}
         ${btn('hole', '◎ Hole', 'Drill holes: click on a flat face where they go, give the diameter (H)', 'tool')}
@@ -122,6 +127,7 @@ export class Modeler {
       bar.querySelector('[data-a=sketch]').disabled = !!this.cmd;
       for (const a of ['fillet', 'chamfer', 'hole', 'shell', 'pattern']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body || !!this.cmd;
       bar.querySelector('[data-a=revolve]').disabled = !canExtrude || !!this.cmd;
+      for (const a of ['loft', 'sweep']) bar.querySelector(`[data-a=${a}]`).disabled = this.sketches().length < 2 || !!this.cmd;
       for (const a of ['measure', 'section']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body;
     }
     for (const b of bar.querySelectorAll('[data-a]')) b.addEventListener('click', () => this.action(b.dataset.a));
@@ -157,6 +163,7 @@ export class Modeler {
     if (a === 'section') return this.toggleSection();
     if (a === 'shell') return this.startShell();
     if (a === 'pattern') return this.startPattern();
+    if (a === 'loft' || a === 'sweep') return this.startProfiles(a);
     if (a === 'undo') return this.history.go(-1);
     if (a === 'redo') return this.history.go(1);
     if (a.startsWith('view-')) return this.view.setView(a.slice(5));
@@ -226,6 +233,8 @@ export class Modeler {
     if (f.type === 'hole') return `Ø${fmt(f.d)} · ${n('points')} hole(s)${f.through === false ? ` · ${fmt(f.depth)} deep` : ''}`;
     if (f.type === 'revolve') return `${fmt(f.angle)}°${f.op === 'cut' ? ' cut' : ''}`;
     if (f.type === 'shell') return `wall ${fmt(f.t)} mm · ${n('faces')} open`;
+    if (f.type === 'loft') return `${(f.sketches || []).length} sketches${f.op === 'cut' ? ' · cut' : ''}`;
+    if (f.type === 'sweep') return `along ${this.part.features.find((g) => g.id === f.path)?.name || '?'}${f.op === 'cut' ? ' · cut' : ''}`;
     if (f.type === 'pattern') return f.kind === 'circular' ? `${f.count}× around` : `${f.count}× · ${fmt(f.spacing)} mm apart`;
     return '';
   }
@@ -277,7 +286,7 @@ export class Modeler {
       const onEdge = (f.edges || []).some((e) => gone.has(this.faceOwner({ name: e.a })) || gone.has(this.faceOwner({ name: e.b })));
       const onFaces = (f.faces || []).some((r) => gone.has(this.faceOwner(r)));
       const repeats = (f.type === 'pattern' && (f.features || []).some((x) => gone.has(x))) || gone.has(this.faceOwner(f.upto));
-      if ((USES_SKETCH.has(f.type) && gone.has(f.sketch)) || onFace || onEdge || onFaces || repeats) gone.add(f.id);
+      if (sketchesOf(f).some((x) => gone.has(x)) || onFace || onEdge || onFaces || repeats) gone.add(f.id);
     }
     const names = this.part.features.filter((f) => gone.has(f.id)).map((f) => f.name);
     if (gone.size > 1 && !confirm(`Delete “${names[0]}”? These steps need it and are deleted too: ${names.slice(1).join(', ')}.`)) return;
@@ -292,7 +301,8 @@ export class Modeler {
     if (this.cmd) {
       const ty = this.cmd.feature.type;
       return ty === 'extrude' ? this.renderExtrude(box) : ty === 'hole' ? this.renderHole(box) : ty === 'revolve' ? this.renderRevolve(box)
-        : ty === 'shell' ? this.renderShell(box) : ty === 'pattern' ? this.renderPattern(box) : this.renderRound(box);
+        : ty === 'shell' ? this.renderShell(box) : ty === 'pattern' ? this.renderPattern(box)
+        : ty === 'loft' || ty === 'sweep' ? this.renderProfiles(box) : this.renderRound(box);
     }
     if (this.mode === 'sketch') {
       box.innerHTML = this.sk.propsHtml();
@@ -338,7 +348,7 @@ export class Modeler {
   }
 
   nextHint() {
-    const used = new Set(this.part.features.filter((f) => USES_SKETCH.has(f.type)).map((f) => f.sketch));
+    const used = new Set(this.part.features.flatMap(sketchesOf));
     if (this.sketches().some((s) => !used.has(s.id))) return 'A sketch is not used yet (bright lines in the view) — Extrude it, or double-click its lines to change it.';
     if (!this.result?.body) return 'Extrude a sketch to make the solid.';
     return 'Click ✏ Sketch, then a flat face of the part, to add a pocket or a boss — or ◎ Hole, ◜ Fillet, ◸ Chamfer. Double-click a step to change it.';
@@ -450,8 +460,8 @@ export class Modeler {
    *  sketching (the open sketch is drawn by the sketcher) and for sketches after an open one. */
   showOutlines() {
     if (this.mode === 'sketch') { this.view.setOutlines([]); return; }
-    const used = new Set(this.part.features.filter((f) => USES_SKETCH.has(f.type) && !f.suppressed).map((f) => f.sketch));
-    if (this.cmd?.feature) used.add(this.cmd.feature.sketch);
+    const used = new Set(this.part.features.filter((f) => !f.suppressed).flatMap(sketchesOf));
+    if (this.cmd?.feature) for (const x of sketchesOf(this.cmd.feature)) used.add(x);
     const list = [];
     for (const f of this.part.features) {
       if (f.type !== 'sketch') continue;
@@ -603,7 +613,7 @@ export class Modeler {
 
   startExtrude() {
     if (this.mode !== 'part' || this.cmd) return;
-    const used = new Set(this.part.features.filter((f) => USES_SKETCH.has(f.type)).map((f) => f.sketch));
+    const used = new Set(this.part.features.flatMap(sketchesOf));
     const sks = this.sketches();
     if (!sks.length) { this.hooks.toast('Draw a sketch first (✏ Sketch).', 'warning'); return; }
     const sk = [...sks].reverse().find((s) => !used.has(s.id)) || sks[sks.length - 1];
@@ -715,6 +725,8 @@ export class Modeler {
     this.selected = feature.id;
     this.hint(feature.type === 'revolve' ? 'Revolve — choose the axis and the angle; the preview is in the view. Enter = OK, Esc = Cancel.'
       : feature.type === 'shell' ? 'Shell — click the face(s) to leave open, give the wall thickness. Enter = OK, Esc = Cancel.'
+      : feature.type === 'loft' ? 'Loft — choose the sketch it starts from and the one it goes to. Enter = OK, Esc = Cancel.'
+      : feature.type === 'sweep' ? 'Sweep — choose the outline (profile) and the path it moves along. Enter = OK, Esc = Cancel.'
       : feature.type === 'pattern' ? 'Pattern — how many and how far apart. Click an edge for the direction (or a round face for the axis). Enter = OK, Esc = Cancel.'
       : feature.type === 'hole' ? 'Hole — click on a flat face where it goes (click again for more holes). Enter = OK, Esc = Cancel.'
       : `${feature.type === 'fillet' ? 'Fillet' : 'Chamfer'} — click the edges (or a face: all its edges). Enter = OK, Esc = Cancel.`);
@@ -1069,7 +1081,7 @@ export class Modeler {
   // ------------------------------------------------------------------ Revolve / Shell
   startRevolve() {
     if (this.mode !== 'part' || this.cmd) return;
-    const used = new Set(this.part.features.filter((f) => USES_SKETCH.has(f.type)).map((f) => f.sketch));
+    const used = new Set(this.part.features.flatMap(sketchesOf));
     const sks = this.sketches();
     if (!sks.length) { this.hooks.toast('Draw a sketch first (✏ Sketch).', 'warning'); return; }
     const sk = [...sks].reverse().find((x) => !used.has(x.id)) || sks[sks.length - 1];
@@ -1133,6 +1145,57 @@ export class Modeler {
     this.rebuild();
   }
 
+
+  // ------------------------------------------------------------------ Loft / Sweep
+  /** A sketch that is an open line (a path): its lines / arcs have loose ends and no circles. */
+  isPath(sk) {
+    const f = upgradeSketch(sk), n = {};
+    for (const e of f.entities) {
+      if (e.t === 'circle' || e.t === 'block') return false;
+      if (e.t === 'line' || e.t === 'arc') for (const p of [e.a, e.b]) n[p] = (n[p] || 0) + 1;
+    }
+    return Object.values(n).some((c) => c === 1);
+  }
+
+  startProfiles(type) {
+    if (this.mode !== 'part' || this.cmd) return;
+    const sks = this.sketches(), used = new Set(this.part.features.flatMap(sketchesOf));
+    if (sks.length < 2) { this.hooks.toast('Draw two sketches first.', 'warning'); return; }
+    const fresh = [...sks].reverse().filter((x) => !used.has(x.id)), pick = [...fresh, ...[...sks].reverse()];
+    const f = { id: this.newId(), type, name: this.nextName(type), op: 'add' };
+    if (type === 'loft') {
+      const two = [...new Set(pick.filter((x) => !this.isPath(x)).map((x) => x.id))].slice(0, 2).reverse();
+      f.sketches = two.length === 2 ? two : [sks[sks.length - 2].id, sks[sks.length - 1].id];
+    } else {
+      f.path = (pick.find((x) => this.isPath(x)) || pick[0]).id;
+      f.profile = (pick.find((x) => x.id !== f.path && !this.isPath(x)) || pick.find((x) => x.id !== f.path)).id;
+    }
+    this.openCommand(f, true);
+  }
+
+  renderProfiles(box) {
+    const f = this.cmd.feature, st = this.status(f.id), sks = this.sketches();
+    const sel = (k, v, label) => `<div class="field"><label>${label}</label><select data-k="${k}">${sks.map((x) => `<option value="${x.id}" ${x.id === v ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>`;
+    box.innerHTML = `<h2>${esc(f.name)}</h2>
+      <div class="seg big"><button data-op="add" class="${f.op !== 'cut' ? 'on' : ''}">⬆ Add material</button><button data-op="cut" class="${f.op === 'cut' ? 'on' : ''}">⬇ Cut</button></div>
+      ${f.type === 'loft' ? `${sel('s0', f.sketches[0], 'From')}${sel('s1', f.sketches[1], 'To')}
+        <p class="hint">Each sketch: one closed outline. Put them one above the other (a sketch's Offset moves its plane up).</p>`
+        : `${sel('profile', f.profile, 'Profile')}${sel('path', f.path, 'Path')}
+        <p class="hint">The profile: a closed outline at the start of the path, across it. The path: lines and arcs joined end to end.</p>`}
+      ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
+      <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
+    const changed = () => { this.renderProps(); this.rebuild(); };
+    for (const b of box.querySelectorAll('[data-op]')) b.addEventListener('click', () => { f.op = b.dataset.op; changed(); });
+    for (const el of box.querySelectorAll('select')) {
+      el.addEventListener('change', () => {
+        if (el.dataset.k === 's0' || el.dataset.k === 's1') f.sketches[+el.dataset.k.slice(1)] = el.value;
+        else f[el.dataset.k] = el.value;
+        changed();
+      });
+    }
+    box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
+    box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
+  }
 
   // ------------------------------------------------------------------ Pattern
   repeatable() { return this.part.features.filter((f) => REPEATABLE.has(f.type) && !f.suppressed); }

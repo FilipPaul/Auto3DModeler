@@ -168,14 +168,19 @@ TOOLS = [
                     "- shell: faces [names of the faces left open], t (wall).\n"
                     "- pattern: repeat steps — of [ids of extrude / revolve / hole / pattern steps], count (with the original). "
                     "kind \"linear\": dir \"x\" / \"y\" / \"z\" / [dx, dy, dz], spacing (mm). kind \"circular\": evenly around "
-                    "axis \"x\" / \"y\" / \"z\" (through the origin) / {o, d} / a round face's name (its axis), angle (360).",
-     "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern"]},
+                    "axis \"x\" / \"y\" / \"z\" (through the origin) / {o, d} / a round face's name (its axis), angle (360).\n"
+                    "- loft: sketches [ids, in order] — a solid from one closed outline to the next (put them on offset planes, "
+                    "e.g. {datum: \"XY\", offset: 30}), op.\n"
+                    "- sweep: profile (a sketch id: a closed outline across the path's start), path (a sketch id: an open "
+                    "line — shapes [{path: {points: [[u, v], …]}}]), op.",
+     "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep"]},
                           "name": STR, "plane": {}, "shapes": {"type": "array"}, "lock": {"type": "boolean"},
                           "sketch": STR, "d": NUM, "op": {"type": "string", "enum": ["add", "cut"]}, "through": {"type": "boolean"},
                           "symmetric": {"type": "boolean"}, "flip": {"type": "boolean"}, "axis": {}, "angle": NUM,
                           "face": STR, "points": {"type": "array"}, "depth": NUM, "edges": {"type": "array"}, "r": NUM,
                           "faces": {"type": "array"}, "t": NUM, "of": {}, "kind": {"type": "string", "enum": ["linear", "circular"]},
-                          "count": NUM, "spacing": NUM, "dir": {}, "up_to": STR, "offset": NUM}, ["type"])},
+                          "count": NUM, "spacing": NUM, "dir": {}, "up_to": STR, "offset": NUM,
+                          "sketches": {"type": "array"}, "profile": STR, "path": STR}, ["type"])},
     {"name": "edit_feature", "where": "browser",
      "description": "Change a step of the 3D model: id and fields (as in add_feature, e.g. {d: 15}, {r: 3}, {points: …}, a "
                     "sketch's {shapes: […]}). Later steps follow their faces.",

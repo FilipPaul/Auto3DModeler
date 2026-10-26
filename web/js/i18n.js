@@ -513,6 +513,14 @@ const CS = {
   'Insert parts of this project (3D models and quick parts) with ＋ Insert part, then snap them together face to face.': 'Vložte díly projektu (3D modely i rychlé díly) přes ＋ Vložit díl a pak je přichyťte plochou k ploše.',
   'The quick part could not be made solid.': 'Z rychlého dílu se nepodařilo udělat těleso.', "The solid's data is damaged.": 'Data tělesa jsou poškozená.',
   'Move the sketch plane along its normal (e.g. 30 mm above the bed — for a loft\'s second profile)': 'Posunout rovinu skici podél její normály (např. 30 mm nad podložku — pro druhý profil šablonování)',
+  '⧫ Loft': '⧫ Šablonování', Loft: 'Šablonování', '〰 Sweep': '〰 Tažení', Sweep: 'Tažení', Solid: 'Těleso', From: 'Od', To: 'Do', Profile: 'Profil', Path: 'Dráha',
+  'A shape from one outline to another (e.g. a square base to a round top): two sketches, one above the other': 'Tvar z jednoho obrysu do druhého (např. ze čtvercové základny do kulatého vršku): dvě skici nad sebou',
+  'Move an outline along a path (pipes, handles, rails): a profile sketch and a path sketch': 'Posunout obrys po dráze (trubky, madla, lišty): skica profilu a skica dráhy',
+  'Loft — choose the sketch it starts from and the one it goes to. Enter = OK, Esc = Cancel.': 'Šablonování — vyberte skicu, ze které začíná, a skicu, do které vede. Enter = OK, Esc = Zrušit.',
+  'Sweep — choose the outline (profile) and the path it moves along. Enter = OK, Esc = Cancel.': 'Tažení — vyberte obrys (profil) a dráhu, po které se posune. Enter = OK, Esc = Zrušit.',
+  "Each sketch: one closed outline. Put them one above the other (a sketch's Offset moves its plane up).": 'Každá skica: jeden uzavřený obrys. Dejte je nad sebe (Odsazení skici posune její rovinu nahoru).',
+  "The profile: a closed outline at the start of the path, across it. The path: lines and arcs joined end to end.": 'Profil: uzavřený obrys na začátku dráhy, napříč k ní. Dráha: čáry a oblouky navazující na sebe.',
+  'Draw two sketches first.': 'Nejdřív nakreslete dvě skici.',
   // language switch
   'Čeština / English': 'Čeština / English',
 };
@@ -602,6 +610,7 @@ const CS_PATTERNS = [
   ['{} edge(s) were found again by their position only — check that the right edges are bevelled.', '{1} hran(y) bylo nalezeno znovu jen podle polohy — zkontrolujte, že jsou zkoseny správné hrany.'],
   ['up to a face {} mm', 'k ploše {1} mm'], ['cut up to a face {} mm', 'řez k ploše {1} mm'], ['Up to the face {}', 'K ploše {1}'],
   ['on Top {} mm', 'na horní rovině {1} mm'], ['on Front {} mm', 'na přední rovině {1} mm'], ['on Right {} mm', 'na pravé rovině {1} mm'],
+  ['{} sketches · cut', '{1} skici · řez'], ['{} sketches', '{1} skici'], ['along {} · cut', 'po {1} · řez'], ['along {}', 'po {1}'],
   ['{}× around', '{1}× dokola'], ['{}× · {} mm apart', '{1}× · {2} mm od sebe'], ['Line {} of the sketch', 'Čára {1} skici'], ['wall {} mm · {} open', 'stěna {1} mm · {2} otevřeno'], ['Open face {}', 'Otevřená plocha {1}'], ['{}° cut', '{1}° řez'],
   ['Height {} mm (follows the width).', 'Výška {1} mm (přizpůsobí se šířce).'], ['{} — 3D', '{1} — 3D'],
   ['{} hidden — the drawing still sets this size. Show it again in Dimensions (Hidden).', '{1} skryta — výkres tento rozměr stále určuje. Znovu ji zobrazíte v Rozměrech (Skryté).'],

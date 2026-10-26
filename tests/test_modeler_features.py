@@ -301,6 +301,59 @@ class TestFeatures(unittest.TestCase):
         r, _ = vol(*f)
         self.assertEqual(r["frames"]["S1"]["o"], [0, -5, 0])
 
+    def test_loft(self):
+        def square(fid, a, plane):
+            h = a / 2
+            pts = {"p1": [-h, -h], "p2": [h, -h], "p3": [h, h], "p4": [-h, h]}
+            return {"id": fid, "type": "sketch", "plane": plane, "points": pts,
+                    "entities": [{"id": f"l{i + 1}", "t": "line", "a": f"p{i + 1}", "b": f"p{(i + 1) % 4 + 1}"} for i in range(4)]}
+        s1, s2 = square("S1", 20, {"datum": "XY"}), square("S2", 10, {"datum": "XY", "offset": 30})
+        loft = {"id": "L1", "type": "loft", "sketches": ["S1", "S2"], "op": "add"}
+        r, v = vol(s1, s2, loft)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 30 / 3 * (400 + 100 + 200), delta=1e-3)  # a frustum
+        names = {f["name"] for f in r["body"]["faces"]}
+        self.assertTrue({"L1:start", "L1:end", "L1:side:l1"} <= names, names)
+        # a circle up to a square works too; one sketch is not enough; a sketch with a hole is refused
+        circ = {"id": "S2", "type": "sketch", "plane": {"datum": "XY", "offset": 20}, "points": {"c": [0, 0]}, "entities": [{"id": "k", "t": "circle", "c": "c", "r": 6}]}
+        r, v = vol(s1, circ, loft)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertGreater(v, 20 * math.pi * 36)
+        r, _ = vol(s1, {**loft, "sketches": ["S1"]})
+        self.assertIn("at least two", r["features"][-1]["issues"][0])
+        holed = {**s1, "points": {**s1["points"], "c": [0, 0]}, "entities": s1["entities"] + [{"id": "k", "t": "circle", "c": "c", "r": 3}]}
+        r, _ = vol(holed, s2, loft)
+        self.assertIn("exactly one closed outline", r["features"][-1]["issues"][0])
+
+    def test_sweep(self):
+        prof = {"id": "S1", "type": "sketch", "plane": {"datum": "XZ"}, "points": {"c": [0, 0]}, "entities": [{"id": "k", "t": "circle", "c": "c", "r": 2}]}
+        # a path on the bed: up y 30, a quarter turn R10 to the right, then 30 along x
+        path = {"id": "S2", "type": "sketch", "plane": {"datum": "XY"},
+                "points": {"p1": [0, 30], "c": [10, 30], "p2": [10, 40], "p3": [40, 40]},
+                "entities": [{"id": "l1", "t": "line", "a": "O", "b": "p1"}, {"id": "a1", "t": "arc", "c": "c", "a": "p2", "b": "p1"},
+                             {"id": "l2", "t": "line", "a": "p2", "b": "p3"}]}
+        sweep = {"id": "W1", "type": "sweep", "profile": "S1", "path": "S2", "op": "add"}
+        r, v = vol(prof, path, sweep)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertEqual(r["features"][1]["issues"], [])  # an open path sketch is fine by itself
+        self.assertAlmostEqual(v, math.pi * 4 * (30 + math.pi * 10 / 2 + 30), delta=1e-2)
+        self.assertIn("W1:side:k", {f["name"] for f in r["body"]["faces"]})
+        # a sharp corner (no arc): mitred, the whole length
+        sharp = {**path, "points": {"p1": [0, 30], "p3": [30, 30]}, "entities": [{"id": "l1", "t": "line", "a": "O", "b": "p1"}, {"id": "l2", "t": "line", "a": "p1", "b": "p3"}]}
+        r, v = vol(prof, sharp, sweep)
+        self.assertAlmostEqual(v, math.pi * 4 * 60, delta=1e-3)
+        # a tube: a profile with a hole
+        tube = {**prof, "points": {"c": [0, 0]}, "entities": [{"id": "k", "t": "circle", "c": "c", "r": 2}, {"id": "k2", "t": "circle", "c": "c", "r": 1}]}
+        r, v = vol(tube, sharp, sweep)
+        self.assertAlmostEqual(v, math.pi * 3 * 60, delta=1e-2)
+        # an extrude of the open path says why it cannot
+        r, _ = vol(prof, path, {"id": "E1", "type": "extrude", "sketch": "S2", "op": "add", "d": 5})
+        self.assertIn("no closed shape", r["features"][-1]["issues"][0])
+        # a branching path
+        branch = {**path, "points": {**path["points"], "p4": [5, 5]}, "entities": path["entities"] + [{"id": "l3", "t": "line", "a": "p1", "b": "p4"}]}
+        r, _ = vol(prof, branch, sweep)
+        self.assertIn("branches", r["features"][-1]["issues"][0])
+
 
 if __name__ == "__main__":
     unittest.main()

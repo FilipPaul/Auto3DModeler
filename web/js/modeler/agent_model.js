@@ -62,6 +62,12 @@ export function sketchFromShapes(shapes, lock = true) {
         { id: id('l'), t: 'line', a: C, b: D }, { id: a2, t: 'arc', c: c1, a: D, b: A });
       dim({ t: 'rad', e: a1, v: r3(r) });
       dim({ t: 'rad', e: a2, v: r3(r) });
+    } else if (s.path) {
+      // an open line (a sweep's path): points joined in order, not closed
+      const pts = s.path.points || [];
+      if (pts.length < 2) throw new Error('A path needs at least 2 points.');
+      const ps = pts.map(([u, v], i) => point(u, v, i === 0));
+      for (let i = 0; i + 1 < ps.length; i++) f.entities.push({ id: id('l'), t: 'line', a: ps[i], b: ps[i + 1] });
     } else if (s.polyline) {
       const pts = s.polyline.points || [];
       if (pts.length < 3) throw new Error('A polyline needs at least 3 points (it is closed automatically).');
@@ -161,6 +167,15 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       const faces = (spec.faces || []).map((n) => { const f = faceOf(typeof n === 'string' ? n : n.name); return { name: f.name, fp: f.centroid }; });
       return { ...base, faces, t: spec.t ?? 2 };
     }
+    if (type === 'loft') {
+      const ids = [].concat(spec.sketches || []);
+      if (ids.length < 2 || ids.some((x) => !m.part.features.some((g) => g.id === x && g.type === 'sketch'))) throw new Error('sketches: the ids of two (or more) sketch steps, in order.');
+      return { ...base, sketches: ids, op: spec.op === 'cut' ? 'cut' : 'add' };
+    }
+    if (type === 'sweep') {
+      for (const k of ['profile', 'path']) if (!m.part.features.some((g) => g.id === spec[k] && g.type === 'sketch')) throw new Error(`${k}: the id of a sketch step.`);
+      return { ...base, profile: spec.profile, path: spec.path, op: spec.op === 'cut' ? 'cut' : 'add' };
+    }
     if (type === 'pattern') {
       const of = [].concat(spec.of || spec.features || []);
       if (!of.length || of.some((id) => !m.part.features.some((f) => f.id === id && ['extrude', 'revolve', 'hole', 'pattern'].includes(f.type)))) {
@@ -184,7 +199,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       }
       return { ...base, features: of, kind: 'linear', dir: vec(spec.dir || 'x', 'dir'), count: spec.count ?? 3, spacing: spec.spacing ?? 10 };
     }
-    throw new Error('type is sketch, extrude, revolve, fillet, chamfer, hole, shell or pattern.');
+    throw new Error('type is sketch, extrude, revolve, fillet, chamfer, hole, shell, pattern, loft or sweep.');
   };
 
   /** An edge polyline that is a circle or an arc (a hole's edge often comes as two half circles) -> its centre and radius. */
@@ -242,6 +257,8 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         if (f.type === 'chamfer') Object.assign(out, { d: f.d, edges: f.edges.length });
         if (f.type === 'hole') Object.assign(out, { face: f.plane?.face?.name, d: f.d, points: f.points, through: f.through !== false, depth: f.depth });
         if (f.type === 'shell') Object.assign(out, { t: f.t, open_faces: f.faces.map((x) => x.name) });
+        if (f.type === 'loft') Object.assign(out, { sketches: f.sketches, op: f.op });
+        if (f.type === 'sweep') Object.assign(out, { profile: f.profile, path: f.path, op: f.op });
         if (f.type === 'pattern') Object.assign(out, { of: f.features, kind: f.kind, count: f.count, ...(f.kind === 'circular' ? { axis: f.axis } : { dir: f.dir, spacing: f.spacing }) });
         return out;
       });

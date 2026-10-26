@@ -48,6 +48,8 @@ Date: 2026-10-25. Written by the architect agent.
 - **Quick parts in assemblies done:** a quick part goes in as its STEP export, read back by a "solid" step
   (faces named <id>:f<k>; snap, mass, STEP export as for model parts). tools/e2e_assembly_quick.py.
 - **Offset sketch planes done:** plane {datum, offset} (the sketch bar's Offset field; the AI's {datum, offset}).
+- **Loft / sweep done:** loft (ThruSections through sketches in order), sweep (PipeShell, mitred corners, profiles
+  with holes); open sketches are paths. tools/e2e_model_loft.py.
 - **Next (later list):** classic parts in assemblies; decorate faces of model parts; loft / sweep.
 
 ## 0. Summary

@@ -108,7 +108,11 @@ SolidWorks. It has only the tools that need almost no input.
    plane. A new, empty sketch can be moved to Front / Right with the buttons in the bar, and a sketch on a base plane
    can be moved along it with **Offset** (e.g. 30 mm above the bed). **▢ Shell** hollows the
    part out: click the face(s) to leave open (the top of a cup) and type the wall thickness.
-6. **⁂ Pattern** repeats a step (a hole, a boss, a cut — or another pattern): **▦ In a row** — how many and how far
+6. **⧫ Loft** makes a shape from one outline to another — e.g. a square base to a round top: two sketches one above
+   the other (give the second sketch an *Offset*), choose *From* and *To*. **〰 Sweep** moves an outline along a
+   path — pipes, handles, rails: a closed profile across the path's start, and a path of lines and arcs (an open
+   line); sharp corners of the path are mitred. Both can add or cut material.
+7. **⁂ Pattern** repeats a step (a hole, a boss, a cut — or another pattern): **▦ In a row** — how many and how far
    apart, along X / Y / Z or a straight edge you click; **◌ Around** — how many, evenly around Z (or X / Y), or around
    the axis of a round face you click (a hole, a shaft). The copies follow when the original changes.
 

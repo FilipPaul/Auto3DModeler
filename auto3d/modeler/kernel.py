@@ -332,6 +332,111 @@ def prism_body(face, edge_names, vec, fid, start=None):
     return Body(shape, names)
 
 
+def outline_count(face):
+    """How many outlines a face has (1 = no holes)."""
+    from OCP.TopAbs import TopAbs_WIRE
+    ex, n = TopExp_Explorer(face, TopAbs_WIRE), 0
+    while ex.More():
+        n += 1
+        ex.Next()
+    return n
+
+
+def loft_body(sections, fid):
+    """A solid through closed profiles, in order: sections [(face, [(edge, name)])] (each one outline, no holes).
+    Faces: start (the first profile), end (the last), side:<name of the first profile's edge>."""
+    from OCP.BRepOffsetAPI import BRepOffsetAPI_ThruSections
+    from OCP.BRepTools import BRepTools
+    mk = BRepOffsetAPI_ThruSections(True, False)
+    for face, _ in sections:
+        mk.AddWire(BRepTools.OuterWire_s(face))
+    mk.Build()
+    if not mk.IsDone():
+        raise KernelError("The loft could not be made — are the profiles one closed outline each, and not crossing?")
+    names = {f"{fid}:start": [mk.FirstShape()], f"{fid}:end": [mk.LastShape()]}
+    for e, n in sections[0][1]:
+        try:
+            g = mk.GeneratedFace(e)
+        except Exception:  # noqa: BLE001 — an edge with no side of its own (merged): no name for it
+            continue
+        if not g.IsNull():
+            names.setdefault(f"{fid}:side:{n}", []).append(g)
+    return Body(mk.Shape(), names)
+
+
+def sweep_body(face, edge_names, path, fid):
+    """A profile (face) swept along a path (a wire); sharp corners of the path are mitred. A profile with holes is
+    swept outline by outline and the holes cut out. Faces: start, end, side:<name of the profile's edge>."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_TransitionMode
+    from OCP.BRepOffsetAPI import BRepOffsetAPI_MakePipeShell
+    from OCP.BRepTools import BRepTools
+    from OCP.TopAbs import TopAbs_WIRE
+
+    def pipe(wire, names):
+        mk = BRepOffsetAPI_MakePipeShell(path)
+        mk.SetTransitionMode(BRepBuilderAPI_TransitionMode.BRepBuilderAPI_RightCorner)
+        mk.Add(wire)
+        mk.Build()
+        if not mk.IsDone() or not mk.MakeSolid():
+            raise KernelError("The sweep could not be made — is the profile small enough for the path's bends, and across its start?")
+        out = {f"{fid}:start": [mk.FirstShape()], f"{fid}:end": [mk.LastShape()]}
+        edges = _wire_edges(wire)
+        for e, n in names:
+            if any(e.IsSame(x) for x in edges):
+                gen = [g for g in mk.Generated(e) if g.ShapeType() == TopAbs_FACE]
+                if gen:
+                    out.setdefault(f"{fid}:side:{n}", []).extend(gen)
+        return Body(mk.Shape(), out)
+
+    outer = BRepTools.OuterWire_s(face)
+    body = pipe(outer, edge_names)
+    ex = TopExp_Explorer(face, TopAbs_WIRE)
+    while ex.More():
+        w = TopoDS.Wire(ex.Current())
+        if not w.IsSame(outer):
+            body = combine(body, pipe(w, edge_names), "cut")
+        ex.Next()
+    return body
+
+
+def path_wire(fr, sk):
+    """The lines and arcs of a sketch as one connected path (open or closed), in the order they join."""
+    pts = sk.get("points") or {}
+    P = lambda i: (0.0, 0.0) if i == "O" else pts.get(i)  # noqa: E731
+    segs = [e for e in sk.get("entities") or [] if e.get("t") in ("line", "arc") and not e.get("construction")]
+    if not segs:
+        raise KernelError("The path sketch has no lines or arcs — draw the path with ⟋ Line / ◠ Arc.")
+    ends = lambda e: (e["a"], e["b"])  # noqa: E731
+    count = {}
+    for e in segs:
+        for p in ends(e):
+            count[p] = count.get(p, 0) + 1
+    if any(c > 2 for c in count.values()):
+        raise KernelError("The path branches — a path is one line of connected lines and arcs.")
+    start = next((p for p, c in count.items() if c == 1), segs[0]["a"])
+    left, at, mk = list(segs), start, BRepBuilderAPI_MakeWire()
+    while left:
+        e = next((x for x in left if at in ends(x)), None)
+        if e is None:
+            raise KernelError("The path is not connected — its lines and arcs must join end to end.")
+        left.remove(e)
+        nxt = e["b"] if e["a"] == at else e["a"]
+        if e["t"] == "line":
+            edge = BRepBuilderAPI_MakeEdge(to_3d(fr, *P(at)), to_3d(fr, *P(nxt))).Edge()
+        else:
+            c, a, b = P(e["c"]), P(e["a"]), P(e["b"])
+            r = math.hypot(a[0] - c[0], a[1] - c[1])
+            t0 = math.atan2(a[1] - c[1], a[0] - c[0])
+            sweep = (math.atan2(b[1] - c[1], b[0] - c[0]) - t0) % (2 * math.pi) or 2 * math.pi
+            m = (c[0] + r * math.cos(t0 + sweep / 2), c[1] + r * math.sin(t0 + sweep / 2))
+            edge = BRepBuilderAPI_MakeEdge(GC_MakeArcOfCircle(to_3d(fr, *a), to_3d(fr, *m), to_3d(fr, *b)).Value()).Edge()
+        mk.Add(edge)
+        if not mk.IsDone():
+            raise KernelError("The path's lines and arcs do not join.")
+        at = nxt
+    return mk.Wire()
+
+
 def revolve_body(face, edge_names, origin, direction, angle_deg, fid):
     """Spin a face around an axis: faces named side:<sketch name> (and start / end when not a full turn)."""
     full = abs(angle_deg) >= 360 - 1e-9
