@@ -63,7 +63,9 @@ Date: 2026-10-25. Written by the architect agent.
 - **2D drawings done:** drawing.py (A4 PDF: front / top / right by kernel.project_edges = OCCT HLR, iso, overall
   dimensions, hole labels and positions, title block; PyMuPDF); /api/model/export/pdf, the AI's export pdf.
   tools/e2e_model_drawing.py.
-- **Next (later list):** classic parts in assemblies; decorate faces of model parts; loft / sweep.
+- **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): hole / sketch distances from
+  round faces (a shaft's axis); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
+  assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.
 
 ## 0. Summary
 
