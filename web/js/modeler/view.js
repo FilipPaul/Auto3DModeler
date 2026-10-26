@@ -394,7 +394,7 @@ export class ModelView {
       }
       if (!pts.length) continue;
       const seg = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({
-        color: sk.dim ? 0x5a8f9a : 0x39d0d8, transparent: true, opacity: sk.dim ? 0.55 : 1, depthTest: !!sk.dim }));
+        color: sk.sel ? 0xf2cc60 : sk.dim ? 0x5a8f9a : 0x39d0d8, transparent: true, opacity: sk.dim ? 0.55 : 1, depthTest: !!sk.dim && !sk.sel }));
       seg.renderOrder = 4;
       seg.userData.sketch = sk.id;
       this.outlineGroup.add(seg);

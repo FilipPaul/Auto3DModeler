@@ -223,8 +223,7 @@ export class Modeler {
         if (a === 'edit') return this.edit(f.id);
         if (a === 'del') return this.remove(f.id);
         if (a === 'off') return this.toggleOff(f.id);
-        this.selected = f.id;
-        this.renderTree();
+        this.selectStep(f.id);
         return null;
       });
       row.addEventListener('dblclick', () => this.edit(f.id));
@@ -267,6 +266,26 @@ export class Modeler {
     return { step, ids };
   }
 
+  /** The faces a step made; for a sketch, the faces of the steps made from it. */
+  stepFaceIds(id) {
+    const f = this.part.features.find((g) => g.id === id);
+    const ids = f?.type === 'sketch' ? this.part.features.filter((g) => sketchesOf(g).includes(id)).map((g) => g.id) : [id];
+    return (this.result?.body?.faces || []).filter((x) => [x.name, ...(x.names || [])].some((n) => ids.includes(String(n).split(':')[0]))).map((x) => x.id);
+  }
+
+  /** A step chosen (in the list, or by a click on the part): it is marked in the 3D view and its sizes show on the
+   *  finished part, to change them there (a sketch's sizes on its plane). */
+  selectStep(id) {
+    if (this.mode !== 'part' || this.cmd) { this.selected = id; this.renderTree(); return; }
+    this.closeCtx();
+    this.selected = id;
+    const f = this.part.features.find((g) => g.id === id);
+    this.view.setSelectedFaces(f ? this.stepFaceIds(id) : null);
+    this.renderTree();
+    this.showOutlines();
+    this.showStepDims(f || null);
+  }
+
   /** The little name label at the mouse. */
   tip(t) {
     let el = this.$('.m-tip');
@@ -282,11 +301,8 @@ export class Modeler {
   clickFace(e) {
     this.closeCtx();
     const h = this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
-    if (!fs) { this.selected = null; this.view.setSelectedFaces(null); this.renderTree(); this.showStepDims?.(null); return; }
-    this.selected = fs.step.id;
-    this.view.setSelectedFaces(fs.ids);
-    this.renderTree();
-    this.showStepDims?.(fs.step);
+    if (!fs) { this.selectStep(null); return; }
+    this.selectStep(fs.step.id);
     const flat = h.face.type === 'plane', at = { clientX: e.clientX, clientY: e.clientY };
     const items = [
       flat && ['sketch', '✏ Sketch on this face', () => this.enterSketch({ frame: h.face.frame, ...(h.face.ref ? { face: h.face.ref } : {}) })],
@@ -754,7 +770,7 @@ export class Modeler {
           lines.push([[au + k * a[0], av + k * a[1]], [au + k * b[0], av + k * b[1]]]);
         }
       }
-      list.push({ id: f.id, frame: fr, lines, circles, dim: used.has(f.id) });
+      list.push({ id: f.id, frame: fr, lines, circles, dim: used.has(f.id) && f.id !== this.selected, sel: f.id === this.selected && this.mode === 'part' });
     }
     this.view.setOutlines(list);
   }
