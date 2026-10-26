@@ -130,7 +130,8 @@ SolidWorks. It has only the tools that need almost no input.
 the mouse. A click on a face pops up the tools for it — sketch on it, a hole or text there, round / bevel its edges,
 hollow it out with it open, edit / turn off / delete its step — and shows that step's **sizes on the part** (the
 sketch's sizes on its plane, the height, Ø, R, the wall…). Click a size: a number and a **slider** — the part
-follows while you slide; Enter / OK keeps it (one undo step), Esc goes back.
+follows while you slide; Enter / OK keeps it (one undo step), Esc goes back. Every number in a tool's panel
+(Extrude, Revolve, Fillet, Chamfer, Hole, Shell, Pattern, Text) has a **slider** under it too — slide and watch.
 
 Every face of the model has a name ("the top of Extrude 1", "the wall made by line 3"). Roundings, holes and
 sketches keep pointing at the same faces and edges when earlier sizes change. For example, make the box taller and

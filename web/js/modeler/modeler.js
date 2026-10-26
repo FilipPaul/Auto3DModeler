@@ -569,9 +569,11 @@ export class Modeler {
     const box = this.$('.mp-body');
     if (this.cmd) {
       const ty = this.cmd.feature.type;
-      return ty === 'extrude' ? this.renderExtrude(box) : ty === 'hole' ? this.renderHole(box) : ty === 'revolve' ? this.renderRevolve(box)
+      const r = ty === 'extrude' ? this.renderExtrude(box) : ty === 'hole' ? this.renderHole(box) : ty === 'revolve' ? this.renderRevolve(box)
         : ty === 'shell' ? this.renderShell(box) : ty === 'pattern' ? this.renderPattern(box)
         : ty === 'loft' || ty === 'sweep' ? this.renderProfiles(box) : ty === 'decal' ? this.renderDecal(box) : this.renderRound(box);
+      this.addSliders(box);
+      return r;
     }
     if (this.mode === 'sketch') {
       box.innerHTML = this.sk.propsHtml();
@@ -946,6 +948,36 @@ export class Modeler {
     box.querySelector('[data-k=sketch]')?.addEventListener('change', (e) => { f.sketch = e.target.value; changed(); });
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okExtrude());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelExtrude());
+    this.addSliders(box);
+  }
+
+  /** A slider under every number of a tool's panel: sliding types into the number (the part previews), typing
+   *  moves the slider. Its range: from the number's min (or below 0 when it may be negative) to about 3× the value. */
+  addSliders(box) {
+    for (const num of box.querySelectorAll('input[type=number]')) {
+      if (num.dataset.slider || num.disabled) continue;
+      num.dataset.slider = '1';
+      const v0 = parseFloat(num.value) || 0, int = num.step === '1', deg = /°/.test(num.parentElement?.textContent || '') || num.dataset.k === 'angle';
+      const lo = num.min !== '' ? parseFloat(num.min) : -Math.max(10, Math.abs(v0) * 3);
+      const hi = deg ? 360 : int ? Math.max(20, v0 * 2) : Math.max(10, Math.abs(v0) * 3, lo + 1);
+      const sl = document.createElement('input');
+      Object.assign(sl, { type: 'range', min: String(Math.max(lo, int ? 2 : lo)), max: String(hi), step: int ? '1' : hi > 50 ? '0.5' : '0.1', value: String(v0) });
+      sl.className = 'mp-slider';
+      sl.title = 'Slide to change it — the part follows';
+      sl.addEventListener('input', () => {
+        num.value = fmt(+sl.value);
+        num.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      sl.addEventListener('change', () => num.dispatchEvent(new Event('change', { bubbles: true })));
+      num.addEventListener('input', () => {
+        const v = parseFloat(num.value);
+        if (!Number.isFinite(v)) return;
+        if (v > +sl.max) sl.max = String(v * 1.5);
+        sl.value = String(v);
+      });
+      const row = num.closest('.field, .mp-hd, label') || num.parentElement;
+      row.after(sl);
+    }
   }
 
   okExtrude() { this.okCommand(); }

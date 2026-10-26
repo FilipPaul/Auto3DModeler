@@ -571,6 +571,7 @@ const CS = {
   'Where holes line up through two parts, a screw (with a heat-set insert in the part below), a screw alone or a pin fits. Hover a suggestion to see its holes; Add puts it in, held by joints (it follows the parts).': 'Kde díry lícují přes dva díly, hodí se šroub (se zalisovací maticí ve spodním dílu), samotný šroub nebo kolík. Najetím na návrh uvidíte jeho díry; Přidat ho vloží, drží ho vazby (sleduje díly).',
   'No holes line up between parts yet.': 'Mezi díly zatím žádné díry nelícují.', Add: 'Přidat', Close: 'Zavřít',
   'Put a hole in each part where they are to be fastened — e.g. Ø3.4 for an M3 screw in the top part and Ø4.0 for an M3 insert in the part below — join the parts, then look here again.': 'Udělejte díru v každém dílu, kde se mají spojit — např. Ø3,4 pro šroub M3 v horním dílu a Ø4,0 pro matici M3 ve spodním — spojte díly a podívejte se sem znovu.',
+  'Slide to change it — the part follows': 'Posuňte pro změnu — díl se přizpůsobí',
   // language switch
   'Čeština / English': 'Čeština / English',
 };
