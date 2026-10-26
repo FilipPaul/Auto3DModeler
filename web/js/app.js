@@ -12,6 +12,7 @@ import { ChatPanel, startBridge, bridgeStats } from './agent.js';
 import { AiHistory } from './aihistory.js';
 import { LibraryBrowser, saveToLibrary, libraryItems, matchScore, itemFromModel } from './library/browser.js';
 import { repaint } from './modeler/paint.js';
+import { moreHandlers, colouredGroups } from './agent_more.js';
 import { buildPart, sizesOf, lengthsOf } from './library/build.js';
 import { Project } from './parts.js';
 import { Modeler } from './modeler/modeler.js';
@@ -1634,6 +1635,7 @@ document.addEventListener('click', (e) => { if (!e.target.closest('#openMenuWrap
 document.addEventListener('click', () => $('exportBtn').parentElement.classList.remove('open'));
 $('exportMenu').addEventListener('click', async (e) => {
   const fmtName = e.target.dataset.fmt;
+  if (fmtName === '3mf' && (state.workspace === 'model' || state.workspace === 'assembly')) { $('exportBtn').parentElement.classList.remove('open'); export3mf(); return; }
   if (fmtName && state.workspace === 'model') { $('exportBtn').parentElement.classList.remove('open'); modeler.export(fmtName); return; }
   if (fmtName && state.workspace === 'assembly') { $('exportBtn').parentElement.classList.remove('open'); assembly.export(fmtName); return; }
   if (!fmtName || !state.solution) return;
@@ -1651,6 +1653,16 @@ $('exportMenu').addEventListener('click', async (e) => {
       : `Exported ${fmtName.toUpperCase()} (in mm).`, open.length ? 'warning' : 'ok', 6000);
   } catch (err) { toast(`Export failed: ${err.message}`, 'error'); }
 });
+
+/** ⬇ 3MF in colours: the model, or the whole assembly — an object per colour (each gets its filament in the slicer). */
+async function export3mf() {
+  try {
+    const r = await agentHandlers.export_data({ format: '3mf' });
+    const res = await fetch('/api/export/3mf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(r.data) });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
+    if (await download(await res.blob(), `${safeName()}.3mf`)) toast(t2('Exported 3MF: {n} coloured object(s) — give each its filament in the slicer.', { n: r.data.groups.length }), 'ok', 6000);
+  } catch (e) { toast(`Export failed: ${e.message}`, 'error'); }
+}
 
 function showProjectName() {
   const el = $('fileName');
@@ -2352,6 +2364,7 @@ const libraryTools = {
   },
 };
 Object.assign(agentHandlers, libraryTools);
+Object.assign(agentHandlers, moreHandlers({ state, project, modeler, assembly, drawing2d, t2 }));
 
 // the AI and the look of parts: the whole part's colour / see-through, single faces; a joined part moved its free ways;
 // the model on screen kept in the library

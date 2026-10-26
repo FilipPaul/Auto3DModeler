@@ -596,6 +596,18 @@ def api_model_profile():
     return jsonify({"polygons": out, "width": x1 - x0, "height": y1 - y0, "name": name})
 
 
+@app.post("/api/export/3mf")
+def api_export_3mf():
+    """{groups: [{name, color, positions}], title} -> a 3MF with a coloured object per colour (multi-material printing)."""
+    from auto3d.export3mf import to_3mf
+    body = request.get_json(force=True, silent=True) or {}
+    try:
+        data = to_3mf(body.get("groups") or [], body.get("title") or "Auto3DModeler")
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return Response(data, mimetype="model/3mf")
+
+
 @app.post("/api/assembly/clashes")
 def api_assembly_clashes():
     """{instances: [{id, part: {features}, matrix: [16]}]} -> {clashes: [{a, b, volume, bbox}]} — parts that overlap."""
@@ -816,10 +828,48 @@ def tool_use_outline(args):
     return {"text": _load_in_page(data, {"editor": {"mask": None, "hints": LAST_TRACE["hints"]}})}
 
 
+def bom_csv(rows, shops) -> bytes:
+    """The BOM rows of an assembly -> a CSV for Excel (; separated, UTF-8 with its mark)."""
+    def q(v):
+        s = "" if v is None else str(v)
+        return f'"{s.replace(chr(34), chr(34) * 2)}"' if any(c in s for c in ';"' + LF) else s
+    head = ["Pos", "Qty", "Name", "Maker", "Part number", *[f"Order ({s})" for s in shops], "Description", "Material", "Mass each (g)", "Bought / made"]
+    lines = [";".join(map(q, head))]
+    for i, r in enumerate(rows, start=1):
+        mass = "" if r.get("mass_g") is None else str(r["mass_g"]).replace(".", ",")
+        lines.append(";".join(map(q, [i, r.get("qty"), r.get("name"), r.get("maker"), r.get("pn"), *[(r.get("order") or {}).get(s, "") for s in shops],
+                                       r.get("description"), r.get("material"), mass, "bought" if r.get("library") else "made (3D print)"])))
+    return ("\ufeff" + "\r\n".join(lines)).encode("utf-8")
+
+
+def _from_page(fmt):
+    """What the page gives for a file the server writes: (bytes, file name)."""
+    res = RELAY.call("export_data", {"format": fmt})
+    if res.get("error"):
+        raise ValueError(res.get("text") or "Nothing to export.")
+    d = res.get("data") or {}
+    name = re.sub(r'[\\/:*?"<>|]+', "_", d.get("name") or d.get("title") or "export").strip() or "export"
+    if fmt == "3mf":
+        from auto3d.export3mf import to_3mf
+        return to_3mf(d.get("groups") or [], d.get("title") or name), f"{name}.3mf"
+    if fmt == "bom":
+        return bom_csv(d.get("rows") or [], d.get("shops") or []), f"{name} BOM.csv"
+    from auto3d.drawing2d import to_dxf
+    return to_dxf(d.get("drawing") or {}), f"{name}.dxf"
+
+
 def tool_export(args):
     fmt = args.get("format", "stl")
-    if fmt not in ("stl", "step", "pdf"):
-        raise ValueError("format must be stl, step or pdf (a 2D drawing of a 3D model part)")
+    if fmt not in ("stl", "step", "pdf", "3mf", "bom", "dxf"):
+        raise ValueError("format: stl, step, pdf (a 2D drawing of a 3D model), 3mf (with colours), bom (an assembly's CSV) or dxf (a 2D drawing)")
+    if fmt in ("3mf", "bom", "dxf"):
+        data, filename = _from_page(fmt)
+        target = Path(args["path"]).expanduser() if args.get("path") else Path.home() / "Downloads"
+        if target.is_dir() or not target.suffix:
+            target.mkdir(parents=True, exist_ok=True)
+            target = target / filename
+        target.write_bytes(data)
+        return {"text": f"Exported {max(1, len(data) // 1024)} kB to {target}"}
     res = RELAY.call("get_body", {})
     if res.get("error"):
         raise ValueError(res.get("text") or "No part is open.")

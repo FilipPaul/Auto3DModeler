@@ -181,12 +181,12 @@ export class Project {
   }
 
   /** Delete a part from the project (☰ Parts ✕), after asking. */
-  async remove(id) {
+  async remove(id, ask = true) {
     const p = this.parts.find((q) => q.id === id);
     if (!p || this.parts.length < 2 || this.busy) return;
     const used = this.usedBy(id);
     const msg = `${t('Delete the part “{name}” from the project?').replace('{name}', p.name)}${used.length ? `\n\n${t('It is used in: {list} — it would be missing there.').replace('{list}', used.join(', '))}` : ''}`;
-    if (!confirm(msg)) return;
+    if (ask && !confirm(msg)) return;
     if (id === this.active) {
       const others = this.parts.filter((q) => q !== p), to = others.find((q) => !q.closed) || others[0];
       await this.switchTo(to.id);

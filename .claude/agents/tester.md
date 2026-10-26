@@ -105,6 +105,10 @@ Never report "works" without having run it; report failures with their output.
    the holes, the AI's bolt_parts with an insert) and the Tangent, Angle (30°, typed 60°) and Perpendicular joints.
    `tools/e2e_assembly_edit.py <url> <dir>` covers ✎ Edit it here (locked by default, a double-click refused; unlocked:
    the modeler with the rest see-through, a hole added, back: the assembly has it, the pin still in place; locked again).
+   `tools/e2e_ai_more.py <url> <dir>` covers the AI's drawing tools (get_drawing, drawing_find Ø8 on a layer, set Ø10,
+   only one layer, export dxf, use as a sketch -> extruded with its holes), set_view (section, explode), export 3mf (two
+   colours = two objects) and bom, edit_joint (gap 5 measured as 5, locked: no removing), remove_joint, rename_part,
+   delete_part (a used part refused), and the Export menu's 3MF.
    `tools/e2e_ai_shapes.py <url> <dir>` covers the AI's smooth profile (a duck body: one smooth revolved face, the
    spline in the sketch), set_look / paint_faces in a model and per placed part, a wrong colour refused, move_free
    (12 mm along X; a wrong motion listed), save_to_library and report_problem (the report written, then removed).

@@ -60,6 +60,10 @@ Date: 2026-10-25. Written by the architect agent.
   raised / engraved on a flat face, follows it; the AI's decal. tools/e2e_model_decal.py.
 - **Assembly links done:** snaps hold (doc.mates {move, face, onto, ontoFace}, re-applied after refresh and moves;
   moving the snapped part by hand unlinks; no cycles; saved, undoable). tools/e2e_assembly_links.py.
+- **The whole app for the AI done:** web/js/agent_more.js (drawing tools, edit_joint / remove_joint, measure,
+  set_view, rename_part / delete_part, export_data for the server's files), auto3d/export3mf.py (an object per
+  colour, base materials), server bom_csv and export 3mf / bom / dxf (POST /api/export/3mf for the menu), the skill
+  use-a-drawing. tests/test_export3mf.py, tools/e2e_ai_more.py.
 - **Smooth curves and more AI tools done:** sketch entity `spline` {pts: [point ids]} (kernel.spline_curve:
   GeomAPI_Interpolate; sampled for the loops, one B-spline edge in _mixed_wire; Sketcher.splineOf / splinePts draw and
   pick it); the AI's sketch shape `profile` (corners, {smooth}, {arc}); tools set_look, paint_faces, move_free,

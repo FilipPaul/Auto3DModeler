@@ -61,7 +61,7 @@ class TestMcpServer(unittest.TestCase):
         self.assertEqual(resps[1]["result"]["protocolVersion"], "2025-06-18")
         self.assertIn("tools", resps[1]["result"]["capabilities"])
         names = [t["name"] for t in resps[2]["result"]["tools"]]
-        self.assertEqual(names, [t["name"] for t in TOOLS])
+        self.assertEqual(names, [t["name"] for t in TOOLS if not t.get("hidden")])  # (the server's own ones are not offered)
         self.assertTrue(all("inputSchema" in t and "where" not in t for t in resps[2]["result"]["tools"]))
         self.assertEqual(resps[3]["result"]["content"][0]["text"], 'ran add_object {"kind": "cylinder", "x": 5}')
         self.assertEqual(resps[4]["result"], {})
@@ -94,7 +94,7 @@ class TestMcpServer(unittest.TestCase):
         self.assertIn("prompts", r[1]["result"]["capabilities"])
         self.assertIn("get_guide", r[1]["result"]["instructions"])
         self.assertIn("find_refs", r[2]["result"]["content"][0]["text"])
-        self.assertEqual(sorted(x["name"] for x in r[3]["result"]["prompts"]), ["assemble-parts", "automation-design", "change-a-model", "from-picture", "mechanical-design", "model-a-part", "print-prep"])
+        self.assertEqual(sorted(x["name"] for x in r[3]["result"]["prompts"]), ["assemble-parts", "automation-design", "change-a-model", "from-picture", "mechanical-design", "model-a-part", "print-prep", "use-a-drawing"])
         self.assertIn("check_print", r[4]["result"]["messages"][0]["content"]["text"])
         self.assertTrue(r[5]["result"]["isError"])
 
@@ -106,7 +106,7 @@ class TestMcpServer(unittest.TestCase):
         self.assertIn("Skill", cmd[cmd.index("--allowedTools") + 1])
         self.assertEqual(cmd[cmd.index("--plugin-dir") + 1], str(PLUGIN_DIR))
         self.assertTrue((PLUGIN_DIR / ".claude-plugin" / "plugin.json").exists())
-        for name in ("model-a-part", "from-picture", "print-prep", "change-a-model", "assemble-parts", "mechanical-design", "automation-design"):
+        for name in ("model-a-part", "from-picture", "print-prep", "change-a-model", "assemble-parts", "mechanical-design", "automation-design", "use-a-drawing"):
             text = (PLUGIN_DIR / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
             self.assertTrue(text.startswith("---\nname: " + name), name)
         # every tool a skill tells the AI to use exists

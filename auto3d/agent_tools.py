@@ -122,10 +122,12 @@ TOOLS = [
                     "many pieces when split. printer: id from the result's printer list.",
      "inputSchema": _obj({"printer": STR, "split": {"type": "boolean"}})},
     {"name": "export", "where": "server",
-     "description": "Export the part as STL or STEP (mm) to a file — or, for a 3D model part, pdf: a 2D drawing (front / "
-                    "top / right views, sizes, holes, title block). path: file or folder (default: the user's Downloads "
+     "description": "Export to a file: stl / step (mm) — the part, or for a 3D model pdf: a 2D drawing (front / top / right "
+                    "views, sizes, holes, title block); 3mf: the 3D model or the whole assembly in its colours, an object per colour "
+                    "(for multi-material printing: AMS / MMU); bom: the assembly's bill of materials as CSV (qty, maker, part "
+                    "number, mass); dxf: the shown layers of a 2D drawing. path: file or folder (default: the user's Downloads "
                     "folder). Returns the written path.",
-     "inputSchema": _obj({"format": {"type": "string", "enum": ["stl", "step", "pdf"]}, "path": STR}, ["format"])},
+     "inputSchema": _obj({"format": {"type": "string", "enum": ["stl", "step", "pdf", "3mf", "bom", "dxf"]}, "path": STR}, ["format"])},
     {"name": "undo", "where": "browser", "description": "Undo the last change made through these tools.",
      "inputSchema": _obj({})},
 
@@ -297,13 +299,62 @@ TOOLS = [
                     "app's developers. title (short), what (what happened), expected (what should have happened), steps (the tool "
                     "calls / what you did), workaround (what you did instead, if anything).",
      "inputSchema": _obj({"title": STR, "what": STR, "expected": STR, "steps": STR, "workaround": STR}, ["title", "what"])},
+    {"name": "get_drawing", "where": "browser",
+     "description": "The 2D drawing on screen (a DXF / DWG, or a PCB: Gerber / ODB++ opened as a 📐 drawing): its layers (shown, "
+                    "how many shapes, PCB kind), the kinds of shapes, its size in mm, the selection and the filters.",
+     "inputSchema": _obj({})},
+    {"name": "drawing_find", "where": "browser",
+     "description": "Find shapes of the 2D drawing by filters (all must hold) and select them: [{field, op, value}] — field shape "
+                    "(circle / arc / line / poly / text), layer, dia, r, len, w (a trace's width), color, text; op: is / is not / "
+                    "is any of (value a list) for shape, layer, color; = ≠ < > ≤ ≥ for numbers (mm); contains / is for text. "
+                    "-> how many, the first ones.",
+     "inputSchema": _obj({"filters": {"type": "array", "items": _obj({"field": STR, "op": STR, "value": {}})}, "select": {"type": "boolean"}}, ["filters"])},
+    {"name": "drawing_layers", "where": "browser",
+     "description": "Show / hide layers of the 2D drawing: show [names], hide [names], or only [names] (the rest hidden).",
+     "inputSchema": _obj({"show": {"type": "array", "items": STR}, "hide": {"type": "array", "items": STR}, "only": {"type": "array", "items": STR}})},
+    {"name": "drawing_set_size", "where": "browser",
+     "description": "Give the selected shapes of the 2D drawing one size: kind dia (circles / arcs Ø, centres stay), r, or len "
+                    "(lines, from their start), value mm.",
+     "inputSchema": _obj({"kind": {"type": "string", "enum": ["dia", "r", "len"]}, "value": NUM}, ["kind", "value"])},
+    {"name": "drawing_use", "where": "browser",
+     "description": "Make something of the 2D drawing: as \"sketch\" (the sketch of a new 3D model — then extrude it) or \"quick\" "
+                    "(a quick part); what: \"selection\", \"found\" (the filters' shapes) or \"all\" (the shown layers).",
+     "inputSchema": _obj({"as": {"type": "string", "enum": ["sketch", "quick"]}, "what": {"type": "string", "enum": ["selection", "found", "all"]}})},
+    {"name": "edit_joint", "where": "browser",
+     "description": "Change a joint of the assembly on screen (id J… from get_assembly): gap (mm, flat joints), distance (mm along "
+                    "the axis for a concentric joint, null = it slides freely), lock_rotation (true / false), angle (degrees: the "
+                    "turn about the joint, or for an angle joint the angle), flip (true: the other way round), locked (true: "
+                    "moving by hand cannot break it).",
+     "inputSchema": _obj({"id": STR, "gap": NUM, "distance": {"type": ["number", "null"]}, "lock_rotation": {"type": "boolean"}, "angle": NUM,
+                          "flip": {"type": "boolean"}, "locked": {"type": "boolean"}}, ["id"])},
+    {"name": "remove_joint", "where": "browser", "description": "Remove a joint (id J…) of the assembly on screen; the part stays where it is.",
+     "inputSchema": _obj({"id": STR}, ["id"])},
+    {"name": "measure", "where": "browser",
+     "description": "Measure between two faces of placed parts of the assembly: a = {part: I…, face}, b = {part, face} -> how far "
+                    "apart their centres are, the gap between two parallel flat faces, the angle between them, how far apart two "
+                    "round faces' axes are (and their Ø).",
+     "inputSchema": _obj({"a": _obj({"part": STR, "face": STR}, ["part", "face"]), "b": _obj({"part": STR, "face": STR}, ["part", "face"])}, ["a", "b"])},
+    {"name": "set_view", "where": "browser",
+     "description": "Set the 3D view (model or assembly) before get_screenshot: view iso / top / front / right; section {axis x / y / "
+                    "z, offset mm, flip} to look inside (null: no cut); explode 0 … 1 (an assembly pulled apart); sizes all / "
+                    "locked / none (the size labels).",
+     "inputSchema": _obj({"view": {"type": "string", "enum": ["iso", "top", "front", "right"]}, "section": {}, "explode": NUM,
+                          "sizes": {"type": "string", "enum": ["all", "locked", "none"]}})},
+    {"name": "rename_part", "where": "browser", "description": "Rename a part of the project (id or name from list_parts).",
+     "inputSchema": _obj({"id": STR, "name": STR}, ["id", "name"])},
+    {"name": "delete_part", "where": "browser",
+     "description": "Delete a part from the project (id or name from list_parts) — only when the user asked for it; a part an "
+                    "assembly uses is refused.",
+     "inputSchema": _obj({"id": STR}, ["id"])},
+    {"name": "export_data", "where": "browser", "hidden": True,
+     "description": "(The server's: the data of a 3mf / bom / dxf export.)", "inputSchema": _obj({"format": STR}, ["format"])},
     {"name": "remove_from_assembly", "where": "browser", "description": "Take a placed part (id I…) out of the assembly.",
      "inputSchema": _obj({"part": STR}, ["part"])},
     {"name": "get_guide", "where": "local",
      "description": "A step-by-step guide: model-a-part, from-picture, print-prep, change-a-model, assemble-parts, mechanical-design "
                     "(how a good designer works: bought parts first, fits, fasteners, printable parts), automation-design (pneumatics, "
-                    "sensors, motors, panels). Read it before such a task when your skills are not available.",
-     "inputSchema": _obj({"topic": {"type": "string", "enum": ["model-a-part", "from-picture", "print-prep", "change-a-model", "assemble-parts", "mechanical-design", "automation-design"]}}, ["topic"])},
+                    "sensors, motors, panels), use-a-drawing (a DXF / Gerber: find shapes, sizes, make a part of it). Read it before such a task when your skills are not available.",
+     "inputSchema": _obj({"topic": {"type": "string", "enum": ["model-a-part", "from-picture", "print-prep", "change-a-model", "assemble-parts", "mechanical-design", "automation-design", "use-a-drawing"]}}, ["topic"])},
 ]
 
 TOOL_NAMES = {t["name"] for t in TOOLS}
@@ -312,8 +363,8 @@ LOCAL_TOOLS = {t["name"] for t in TOOLS if t["where"] == "local"}  # answered by
 
 
 def mcp_tool_list():
-    """The tools as MCP describes them (without our routing field)."""
-    return [{k: v for k, v in t.items() if k != "where"} for t in TOOLS]
+    """The tools as MCP describes them (without our routing fields; the server's own, hidden ones left out)."""
+    return [{k: v for k, v in t.items() if k not in ("where", "hidden")} for t in TOOLS if not t.get("hidden")]
 
 
 SYSTEM_PROMPT = """You are the design assistant inside Auto3DModeler, a local app for quick 3D-printable parts. The user sees the app next to this chat; every change you make through the tools shows up there at once and can be undone (tool `undo`, or the app's Undo button).
@@ -322,10 +373,12 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 - **Quick parts** come from a PDF drawing (parametric: its dimensions drive it), an outline traced from a picture or read from a DXF (made into a cookie cutter, a solid shape or a custom stack of objects), or an imported STL / OBJ / STEP file. Tools: get_part, set_dimensions, set_make, set_part_options, add_object, add_shape, add_design_layer, add_dimension, update_item, remove_item. Coordinates: x right, y up, z up from the bed; the part's unit (PDF drawings may be cm).
 - **3D models** are built like in SolidWorks: sketches (rectangles, circles, polylines with locked sizes) turned into a solid by extrude / revolve, then holes, fillets, chamfers, shells — for mechanical parts. Tools: new_model, get_model, find_refs, add_feature, edit_feature, delete_feature, turn_off_feature, set_material, prepare_print. mm; the bed is the XY plane.
 - **Assemblies** place 3D model parts together: new_assembly, get_assembly, insert_part, snap_faces (joints: touch, gap, axis = concentric…), place_part, remove_from_assembly, check_collisions. get_assembly says for each joined part how it can still move (free) or that it is fully held.
+- **2D drawings** (a DXF / DWG, or a PCB's Gerber / ODB++ opened as a 📐 drawing): get_drawing, drawing_find (shapes by filters), drawing_layers, drawing_set_size, drawing_use (as the sketch of a 3D model, or a quick part).
+- Assemblies also: edit_joint / remove_joint, measure (between faces), move_free; the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, delete_part (only when asked). Files: export stl / step / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf.
 - **The parts library** holds real, bought parts with their maker and part number (screws, nuts, washers, inserts, bearings, standoffs, panel parts, SMC pneumatics, SICK sensors, stepper motors, the user's own): library_search, library_add.
 - Both: get_screenshot, check_print, export, undo. Opening a file or tracing a picture adds a new quick part tab.
 
-Before modelling, changing a 3D model, making a part from a picture, preparing a print or assembling parts, load the matching skill (auto3d:model-a-part, auto3d:change-a-model, auto3d:from-picture, auto3d:print-prep, auto3d:assemble-parts) — or call get_guide(topic) if skills are not available. For any design of a device, a mechanism, a bracket for bought parts or a machine, load auto3d:mechanical-design first (and auto3d:automation-design for pneumatics, sensors, motors, control panels).
+Before modelling, changing a 3D model, making a part from a picture, preparing a print or assembling parts, load the matching skill (auto3d:model-a-part, auto3d:change-a-model, auto3d:from-picture, auto3d:print-prep, auto3d:assemble-parts, auto3d:use-a-drawing) — or call get_guide(topic) if skills are not available. For any design of a device, a mechanism, a bracket for bought parts or a machine, load auto3d:mechanical-design first (and auto3d:automation-design for pneumatics, sensors, motors, control panels).
 
 Work like a good mechanical designer: **use the parts library first.** Anything that is bought — screws, nuts, washers, inserts, bearings, standoffs, connectors, LEDs, buttons, cylinders, valves, fittings, sensors, motors — comes from library_search / library_add, with its real part number (it lands in the BOM); draw only the parts that are made (printed). If a bought part is not in the library, say so and draw a simple stand-in of its real outside sizes. Design the made parts around the bought ones (their holes, fits and clearances).
 

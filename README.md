@@ -413,6 +413,10 @@ can open them.
 - **Everything the app does, the AI can do**: besides modelling, assemblies, the library and collisions, it colours
   parts (`set_look`: colour, see-through) and single faces (`paint_faces`), in a model or per placed part in an
   assembly; moves a joined part along its free ways (`move_free`); keeps a model in the library (`save_to_library`).
+- **The rest of the app** is there too: 2D drawings (`get_drawing`, `drawing_find` by filters, `drawing_layers`,
+  `drawing_set_size`, `drawing_use` as a sketch or a quick part), joints changed or removed (`edit_joint`,
+  `remove_joint`), `measure` between faces, the view for its screenshots (`set_view`: a section, explode, size labels),
+  parts renamed or deleted, and files: `export` stl / step / pdf / **3mf** / **bom** / **dxf**.
 - **Problem reports**: when something in the app does not behave as expected, the AI writes a dated report
   (`report_problem`) into **RealSWReports/** next to `server.py`: what happened, what was expected, the steps, the
   workaround. It cannot write files itself (no file tools), so the server writes them.
