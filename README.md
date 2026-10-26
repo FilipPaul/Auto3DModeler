@@ -48,6 +48,9 @@ tab to rename it, and use **✕** to close the tab — the part stays in the pro
 part of the project, open or not: click one to open it in a tab again, ✕ there deletes it from the project (after
 asking; it says which assemblies use it). Parts made for an assembly (fasteners) are added without a tab. The **＋**
 next to the tabs offers the usual ways to open a file.
+
+**Panels**: drag the edge between a side panel and the view (or the AI chat's left edge) to make it wider or narrower;
+the widths are remembered, a double-click on an edge gives the usual width again.
 *Save project* stores all the parts in one file (project version 3). Older project files still open, as a
 project with one part. The plan for the coming 3D model workspace (sketches → extrude / revolve / fillet …,
 light assemblies) is in [docs/ARCHITECTURE-modeler.md](docs/ARCHITECTURE-modeler.md). Its optional packages

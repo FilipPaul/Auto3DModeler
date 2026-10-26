@@ -15,6 +15,7 @@ import { Modeler } from './modeler/modeler.js';
 import { modelHandlers } from './modeler/agent_model.js';
 import { Assembly } from './assembly/assembly.js';
 import { DrawingEditor, drawingToSketch } from './drawing2d/editor.js';
+import { initSplitters } from './splitters.js';
 
 initI18n();  // Czech / English: translates the page as it is built
 
@@ -2273,5 +2274,6 @@ const chat = new ChatPanel($('tab-ai'), { toast,
   canUndo: () => ({ model: modeler, assembly }[state.workspace]?.history || history).canUndo() });
 window.__chat = chat;
 startBridge(agentHandlers);
+initSplitters(document.querySelector('main.layout'), $('aiDrawer'));
 
 window.__app = { state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d };

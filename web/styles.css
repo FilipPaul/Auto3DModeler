@@ -74,7 +74,7 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 3px; }
 .menu-list button { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 8px 10px; border-radius: 5px; cursor: pointer; }
 .menu-list button:hover { background: #2b3340; }
 
-.layout { display: grid; grid-template-columns: 340px 1fr 290px; height: calc(100% - 48px); }
+.layout { display: grid; grid-template-columns: var(--left-w, 340px) minmax(0, 1fr) var(--right-w, 310px); height: calc(100% - 48px); position: relative; }
 .panel { background: var(--panel); overflow-y: auto; }
 .panel.left { border-right: 1px solid var(--line); display: flex; flex-direction: column; }
 .panel.right { border-left: 1px solid var(--line); padding: 12px 14px; }
@@ -248,8 +248,7 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 3px; }
 .mini.danger:hover { color: var(--err); border-color: var(--err); }
 .badge.added { color: var(--user); }
 .dim-label.added { border-color: var(--user); color: #e2d4ff; }
-.layout { grid-template-columns: 340px 1fr 310px; }
-.toast-stack { right: 330px; }
+.toast-stack { right: calc(var(--right-w, 310px) + 20px); }
 .promote-box { grid-column: 1 / -1; padding: 8px; border: 1px solid var(--line); border-radius: 6px; margin-top: 6px; }
 .promote-box select { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 4px; margin-bottom: 6px; }
 .piece.connector { border-left-color: #f2cc60; }
@@ -448,7 +447,17 @@ body:not(.ws-model):not(.ws-assembly):not(.ws-drawing) .not-quick { display: non
 .ai-btn.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 .ai-drawer { position: fixed; top: 48px; right: 0; bottom: 0; width: min(440px, 100vw); z-index: 40; display: flex; flex-direction: column;
   background: var(--panel); border-left: 1px solid var(--line); box-shadow: -8px 0 24px rgba(0, 0, 0, 0.35); }
+.ai-drawer { width: min(var(--chat-w, 440px), 100vw); }
 .ai-drawer[hidden] { display: none; }
+/* the edges you drag to make a panel wider or narrower (splitters.js) */
+.splitter { position: absolute; top: 0; bottom: 0; width: 7px; z-index: 30; cursor: col-resize; touch-action: none; }
+.splitter::after { content: ''; position: absolute; top: 0; bottom: 0; left: 3px; width: 1px; background: transparent; transition: background .15s; }
+.splitter:hover::after, .splitter.on::after { background: var(--accent); width: 2px; left: 2px; }
+.split-left { left: calc(var(--left-w, 340px) - 4px); }
+.split-right { right: calc(var(--right-w, 310px) - 4px); }
+.split-chat { left: -3px; }
+body.resizing { cursor: col-resize; user-select: none; }
+body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .m-tip { position: absolute; z-index: 5; pointer-events: none; background: #161a20e8; border: 1px solid var(--line); border-radius: 5px; padding: 2px 7px; font-size: 11px; color: var(--text); white-space: nowrap; }
 .m-ctx { position: absolute; z-index: 6; display: flex; flex-direction: column; min-width: 210px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px #0009; padding: 4px; }
 .m-ctx-t { font-size: 11px; color: var(--muted); padding: 4px 8px 6px; border-bottom: 1px solid var(--line); margin-bottom: 3px; }
@@ -519,8 +528,8 @@ body:not(.ws-model):not(.ws-assembly):not(.ws-drawing) .not-quick { display: non
 .mp-hole .mp-hd input { width: 58px; flex: none; }
 .mp-hole .mp-hd span { color: var(--muted); }
 .sk-label.hole-dim { color: #d2a8ff; border-color: #6e40c9; pointer-events: none; }
-body.chat-open .layout { margin-right: min(440px, 100vw); }
-body.chat-open .toast-stack { right: calc(min(440px, 100vw) + 310px); }
+body.chat-open .layout { margin-right: min(var(--chat-w, 440px), 100vw); }
+body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var(--right-w, 310px)); }
 .ai-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--line); }
 .ai-drawer .ai-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 8px 10px 10px; }
 #asmLeft { padding: 10px 10px 14px; }
