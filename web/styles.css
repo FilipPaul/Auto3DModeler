@@ -409,6 +409,8 @@ body:not(.ws-model):not(.ws-assembly) .not-quick { display: none !important; }
 .ai-drawer { position: fixed; top: 48px; right: 0; bottom: 0; width: min(440px, 100vw); z-index: 40; display: flex; flex-direction: column;
   background: var(--panel); border-left: 1px solid var(--line); box-shadow: -8px 0 24px rgba(0, 0, 0, 0.35); }
 .ai-drawer[hidden] { display: none; }
+.as-link { display: flex; align-items: center; gap: 8px; justify-content: space-between; margin: 8px 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; }
+.as-link.bad { border-color: var(--warn); }
 .sk-choose .sk-off { display: flex; align-items: center; gap: 6px; }
 .sk-choose .sk-off input { width: 70px; }
 .mp-hole-dims { display: flex; flex-direction: column; gap: 4px; flex: 1; }

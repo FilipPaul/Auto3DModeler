@@ -58,6 +58,8 @@ Date: 2026-10-25. Written by the architect agent.
   points, the final solve and its check run without it. tools/e2e_model_offset.py.
 - **Decorating model faces done:** decal step (text traced in the browser via /api/trace, or a picture outline),
   raised / engraved on a flat face, follows it; the AI's decal. tools/e2e_model_decal.py.
+- **Assembly links done:** snaps hold (doc.mates {move, face, onto, ontoFace}, re-applied after refresh and moves;
+  moving the snapped part by hand unlinks; no cycles; saved, undoable). tools/e2e_assembly_links.py.
 - **Next (later list):** classic parts in assemblies; decorate faces of model parts; loft / sweep.
 
 ## 0. Summary

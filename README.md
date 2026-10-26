@@ -170,7 +170,9 @@ are placed together — 3D models ◆ and quick parts ▤ (drawings, pictures, i
 - **＋ Insert part ▾** adds a model part, as often as you like (⧉ in the list adds one more). A new one is put
   beside the others.
 - **🧲 Snap face to face** (S): click a flat face of the part to move, then the flat face it goes onto. The part
-  turns and moves so that the two faces meet, centred on each other.
+  turns and moves so that the two faces meet, centred on each other. The snap **holds**: when the other part moves,
+  or either part changes size in its own tab, the snapped part follows (🔗 in its panel; *Unlink* or moving it by
+  hand ends that).
 - The panel of a selected part has its x / y / z position, **⟲ 90°** turns about X / Y / Z, *Snap it onto
   another face*, *Reset its place* and *Take it out*.
 - **Explode** pulls the parts apart to look at them; their placement does not change.

@@ -70,6 +70,8 @@ Never report "works" without having run it; report failures with their output.
    rectangle -> concentric arcs, a picture outline via the server; exact volumes).
    `tools/e2e_model_decal.py <url> <dir>` covers Aa Text / picture on a face (raised, retyped, engraved, follows the face,
    the AI's text, a picture outline).
+   `tools/e2e_assembly_links.py <url> <dir>` covers snaps that hold (the plate thicker / moved -> the pin follows; moved
+   by hand -> unlinked; undo; saved).
    `tools/e2e_assembly_ai.py <url> <dir>` covers the AI's assembly tools (insert_part, snap_faces by face name, place_part,
    screenshot, undo, the error messages for wrong faces / tools).
    `tools/e2e_model_features.py <url> <dir>` covers ◜ Fillet (click an edge, exact volume, the rounding follows when

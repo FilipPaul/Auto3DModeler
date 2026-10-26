@@ -84,14 +84,14 @@ export class Assembly {
   constructor(els, hooks) {
     this.els = els;
     this.hooks = hooks;
-    this.doc = { instances: [] };
+    this.doc = { instances: [], mates: [] }; // mates: snaps that hold — {move, face, onto, ontoFace}
     this.bodies = {}; // part id -> {key, body, error}
     this.sel = null;
     this.mode = 'idle'; // 'idle' | 'snap-from' | 'snap-to'
     this.explode = 0;
     this.history = new History({
-      capture: () => ({ instances: this.doc.instances }),
-      restore: async (s) => { this.doc.instances = s.instances; this.mode = 'idle'; this.render(); await this.refresh(); },
+      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates }),
+      restore: async (s) => { this.doc.instances = s.instances; this.doc.mates = s.mates || []; this.mode = 'idle'; this.render(); await this.refresh(); },
       onChange: () => this.updateUndo(),
     });
     this.build();
@@ -220,6 +220,7 @@ export class Assembly {
       box.innerHTML = `<h2 data-no-i18n>${esc(this.partName(it.part))}</h2><p class="hint">${it.id} — its position (where its own origin is) and turns.</p>
         ${row('x', p.x)}${row('y', p.y)}${row('z', p.z)}
         <div class="row-actions wrap"><button class="btn small" data-rot="x">⟲ 90° X</button><button class="btn small" data-rot="y">⟲ 90° Y</button><button class="btn small" data-rot="z">⟲ 90° Z</button></div>
+        ${this.mateHtml(it)}
         <div class="row-actions"><button class="btn small" data-a="snapThis">🧲 Snap it onto another face</button></div>
         <div class="row-actions"><button class="btn small" data-a="reset" title="Back to its place in its own model">Reset its place</button><button class="btn small danger" data-a="del">Take it out</button></div>`;
       for (const inp of box.querySelectorAll('input[data-k]')) {
@@ -230,6 +231,7 @@ export class Assembly {
       box.querySelector('[data-a=snapThis]').addEventListener('click', () => { this.mode = 'snap-to'; this.snapFrom = { inst: it.id, face: null }; this.snapHint(); });
       box.querySelector('[data-a=reset]').addEventListener('click', () => { it.matrix = ID(); this.commit(); });
       box.querySelector('[data-a=del]').addEventListener('click', () => this.removeInst(it.id));
+      box.querySelector('[data-a=unlink]')?.addEventListener('click', () => { this.unlink(it.id); this.commit(); });
       return;
     }
     const rows = this.bom(), total = rows.reduce((s, r) => s + (r.mass || 0) * r.qty, 0);
@@ -242,6 +244,14 @@ export class Assembly {
         <p class="hint">To print, open each part's tab and use 🖨 Prepare for 3D print there.</p>`
         : `<p class="hint">Insert parts of this project (3D models and quick parts) with ＋ Insert part, then snap them together face to face.</p>`}`;
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
+  }
+
+  mateHtml(it) {
+    const m = this.mateOf(it.id), on = (this.doc.mates || []).filter((x) => x.onto === it.id).length;
+    const other = m && this.inst(m.onto);
+    return (m ? `<div class="as-link ${m.broken ? 'bad' : ''}"><span>${m.broken ? '⚠ Its face is gone — snap it again.' : `🔗 Snapped onto <b data-no-i18n>${esc(this.partName(other?.part))}</b> (${other?.id}) — it follows that part.`}</span>
+      <button class="btn small" data-a="unlink" title="Keep it where it is, but no longer follow">Unlink</button></div>` : '')
+      + (on ? `<p class="hint">${on} part(s) are snapped onto this one and follow it.</p>` : '');
   }
 
   renderStatus() {
@@ -266,6 +276,7 @@ export class Assembly {
         this.bodies[pid] = r.body ? { key, body: r.body, features } : { key, error: 'This part has no solid yet.' };
       } catch (e) { this.bodies[pid] = { key, error: e.message }; }
     }));
+    this.applyMates();
     this.draw();
     this.renderList();
     this.renderProps();
@@ -322,6 +333,7 @@ export class Assembly {
 
   removeInst(id) {
     this.doc.instances = this.doc.instances.filter((i) => i.id !== id);
+    this.doc.mates = (this.doc.mates || []).filter((m) => m.move !== id && m.onto !== id);
     if (this.sel === id) this.sel = null;
     this.commit();
   }
@@ -333,7 +345,44 @@ export class Assembly {
     const e = m.elements;
     e[{ x: 12, y: 13, z: 14 }[k]] = v;
     it.matrix = m.toArray();
+    this.movedByHand(it.id);
     this.commit();
+  }
+
+  // ------------------------------------------------------------------ links: a snap holds
+  mateOf(id) { return (this.doc.mates || []).find((m) => m.move === id); }
+
+  /** Keep a snap: the moved part stays on that face of the other part when either changes or the other moves. */
+  link(from, to) {
+    const fromName = from.face?.name, toName = to.face?.name;
+    if (!fromName || !toName) return;
+    // no circles: the other part may not (through others) hang on this one
+    for (let at = to.inst, n = 0; at && n < 100; n++) {
+      if (at === from.inst) { this.hooks.toast('Snapped — not linked (the other part already follows this one).', 'info', 4000); return; }
+      at = this.mateOf(at)?.onto;
+    }
+    this.doc.mates = [...(this.doc.mates || []).filter((m) => m.move !== from.inst), { move: from.inst, face: fromName, onto: to.inst, ontoFace: toName }];
+  }
+
+  unlink(id) { this.doc.mates = (this.doc.mates || []).filter((m) => m.move !== id); }
+
+  /** A part moved or turned by hand is no longer held by its snap; the parts snapped onto it follow it. */
+  movedByHand(id) {
+    if (this.mateOf(id)) { this.unlink(id); this.hooks.toast('Moved by hand — it no longer follows the part it was snapped to.', 'info', 4000); }
+    this.applyMates();
+  }
+
+  /** Put every linked part back onto its face (in the order they were snapped). */
+  applyMates() {
+    for (const m of this.doc.mates || []) {
+      if (!this.inst(m.move) || !this.inst(m.onto)) { m.broken = 'gone'; continue; }
+      if (!this.bodies[this.inst(m.move).part]?.body || !this.bodies[this.inst(m.onto).part]?.body) continue; // not built yet
+      try {
+        this.snap({ inst: m.move, face: this.worldFace(m.move, m.face) }, { inst: m.onto, face: this.worldFace(m.onto, m.ontoFace) });
+        delete m.broken;
+      } catch { m.broken = 'face'; }
+    }
+    this.doc.mates = (this.doc.mates || []).filter((m) => m.broken !== 'gone');
   }
 
   /** Turn the selected part by 90° about an axis through its own centre. */
@@ -344,6 +393,7 @@ export class Assembly {
     const c = new THREE.Vector3((b.bbox[0] + b.bbox[3]) / 2, (b.bbox[1] + b.bbox[4]) / 2, (b.bbox[2] + b.bbox[5]) / 2).applyMatrix4(m);
     const r = new THREE.Matrix4()[{ x: 'makeRotationX', y: 'makeRotationY', z: 'makeRotationZ' }[axis]](Math.PI / 2);
     it.matrix = new THREE.Matrix4().makeTranslation(c.x, c.y, c.z).multiply(r).multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z)).multiply(m).toArray();
+    this.movedByHand(it.id);
     this.commit();
   }
 
@@ -405,7 +455,12 @@ export class Assembly {
       if (this.mode === 'snap-to') {
         if (!h?.face || h.face.type !== 'plane') { if (h) this.hooks.toast('Click a flat face.', 'info', 2500); return; }
         if (h.inst === this.snapFrom.inst) { this.hooks.toast('Click a face of another part.', 'info', 2500); return; }
-        if (this.snap(this.snapFrom, h)) { this.sel = this.snapFrom.inst; this.hooks.toast('Snapped — nudge it in the panel if needed.', 'ok', 2500); }
+        if (this.snap(this.snapFrom, h)) {
+          this.link(this.snapFrom, h);
+          this.applyMates();
+          this.sel = this.snapFrom.inst;
+          this.hooks.toast('Snapped — it now follows that part (moving it by hand unlinks it).', 'ok', 3000);
+        }
         this.mode = 'idle';
         this.snapFrom = null;
         this.hint('');
@@ -453,6 +508,7 @@ export class Assembly {
         return { id: it.id, part: it.part, name: this.partName(it.part), position: new THREE.Vector3().setFromMatrixPosition(m).toArray().map((v) => +v.toFixed(3)),
           bbox: bb ? [...bb.min.toArray(), ...bb.max.toArray()].map((v) => +v.toFixed(3)) : null, error: this.bodies[it.part]?.error };
       }),
+      links: (this.doc.mates || []).map((m) => ({ part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace, ...(m.broken ? { broken: true } : {}) })),
       parts_list: this.bom().map((r) => ({ name: r.name, qty: r.qty, material: r.material, mass_g_each: r.mass === null ? null : +r.mass.toFixed(2) })),
     };
   }
@@ -476,6 +532,8 @@ export class Assembly {
         const to = { inst: onto.part, face: this.worldFace(onto.part, onto.face) };
         if (from.inst === to.inst) throw new Error('Snap a face of one part onto a face of another part.');
         this.snap(from, to);
+        this.link(from, to);
+        this.applyMates();
         this.sel = from.inst;
         this.commit();
         return { text: JSON.stringify(this.summary()) };
@@ -497,6 +555,7 @@ export class Assembly {
   async load(data) {
     this.doc = structuredClone(data || { instances: [] });
     this.doc.instances = this.doc.instances || [];
+    this.doc.mates = this.doc.mates || [];
     this.sel = null;
     this.mode = 'idle';
     this.explode = 0;
