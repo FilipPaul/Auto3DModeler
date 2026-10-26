@@ -54,9 +54,16 @@ class TestMigrate(unittest.TestCase):
         out = migrate(json.loads(json.dumps(p)))
         self.assertEqual(out["parts"][3]["assembly"]["instances"][0]["part"], "P2")
         bad = migrate(V2)
-        bad["parts"].append({"id": "P2", "kind": "drawing"})
+        bad["parts"].append({"id": "P2", "kind": "hologram"})
         with self.assertRaises(ProjectError):
             migrate(bad)
+        # a 2D drawing (a DXF as it is) is a part kind of its own
+        dw = migrate(V2)
+        dw["parts"].append({"id": "P2", "kind": "drawing", "name": "plate", "drawing": {"entities": [{"id": "e1", "t": "line", "a": [0, 0], "b": [1, 0], "layer": "0"}]}})
+        self.assertEqual(migrate(dw)["parts"][1]["drawing"]["entities"][0]["t"], "line")
+        dw["parts"][1]["drawing"] = "nothing"
+        with self.assertRaises(ProjectError):
+            migrate(dw)
 
     def test_active_part_fixed_up(self):
         p = migrate(V2)

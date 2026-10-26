@@ -13,6 +13,7 @@ import { Project } from './parts.js';
 import { Modeler } from './modeler/modeler.js';
 import { modelHandlers } from './modeler/agent_model.js';
 import { Assembly } from './assembly/assembly.js';
+import { DrawingEditor, drawingToSketch } from './drawing2d/editor.js';
 
 initI18n();  // Czech / English: translates the page as it is built
 
@@ -536,10 +537,21 @@ async function openSolid(file) {
   await project.newModel({ features: [solidStep(r)] }, file.name.replace(/\.[^.]+$/, ''));
   toast(t2('{name} is open as a 3D model ({faces} faces) — sketch on its faces, add holes, or ask the AI to build on it.', { name: file.name, faces: r.faces }), 'ok', 7000);
 }
+const DRAWING_RE = /\.(dxf|dwg)$/i;
+/** A DXF / DWG opens as it is (layers, lines, circles …) in the 2D drawing workspace — what to make of it comes later. */
+async function openDrawing(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const d = await (await api('/api/drawing/import', fd)).json();
+    await project.newDrawing(d, file.name.replace(/\.[^.]+$/, ''));
+    toast(t2('{name}: {n} shapes on {k} layers — look, measure, tidy it up; Use ▾ makes a sketch or a quick part of it.', { name: file.name, n: d.entities.length, k: d.layers.length }), 'ok', 7000);
+  } catch (e) { toast(e.message, 'error', 9000); }
+}
 $('cadInput').addEventListener('change', (e) => {
   const f = e.target.files[0];
   e.target.value = '';
-  if (f) (OPEN_SOLID_RE.test(f.name) ? openSolid : openImport)(f);
+  if (f) (DRAWING_RE.test(f.name) ? openDrawing : OPEN_SOLID_RE.test(f.name) ? openSolid : openImport)(f);
 });
 $('pdfInput').addEventListener('change', (e) => { if (e.target.files[0]) openPdf(e.target.files[0]); e.target.value = ''; });
 $('sampleBtn').addEventListener('click', async () => {
@@ -557,6 +569,7 @@ vp.addEventListener('drop', (e) => {
   if (/\.json$/i.test(f.name)) openProject(f);
   else if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') openPdf(f);
   else if (OPEN_SOLID_RE.test(f.name) && !e.shiftKey) openSolid(f); // Shift: a sliced quick part, as before
+  else if (DRAWING_RE.test(f.name) && !e.shiftKey) openDrawing(f); // Shift: straight to a quick part, as before
   else if (IMPORT_RE.test(f.name)) openImport(f);
   else if (f.type.startsWith('image/')) {
     // with a part loaded a picture becomes a design layer; Shift+drop (or no part) traces its outline
@@ -1670,11 +1683,12 @@ function partPayload() {
 
 // the parts of the project: tabs in the top bar
 const project = new Project($('partTabs'), {
-  payload: (kind) => (kind === 'model' ? modeler.payload() : kind === 'assembly' ? assembly.payload() : structuredClone(partPayload())),
+  payload: (kind) => (kind === 'model' ? modeler.payload() : kind === 'assembly' ? assembly.payload() : kind === 'drawing' ? drawing2d.payload() : structuredClone(partPayload())),
   async load(data, opts) {
-    setWorkspace(opts.kind === 'model' ? 'model' : opts.kind === 'assembly' ? 'assembly' : 'quick');
+    setWorkspace(['model', 'assembly', 'drawing'].includes(opts.kind) ? opts.kind : 'quick');
     if (opts.kind === 'model') modeler.load(data, { then: opts.then });
     else if (opts.kind === 'assembly') await assembly.load(data);
+    else if (opts.kind === 'drawing') drawing2d.load(data);
     else await loadPart(data, opts);
     if (!state.projectName) { state.projectName = project.current?.name || 'Project'; showProjectName(); }
   },
@@ -1684,11 +1698,12 @@ const project = new Project($('partTabs'), {
     while (modeler.inflight) await modeler.inflight;
     history.flush();
   },
-  getHistory: (kind) => (kind === 'model' ? modeler.history.state : kind === 'assembly' ? assembly.history.state
+  getHistory: (kind) => (kind === 'model' ? modeler.history.state : kind === 'assembly' ? assembly.history.state : kind === 'drawing' ? drawing2d.history.state
     : { undo: history.undo, redo: history.redo, base: history.base, baseKey: history.baseKey }),
   setHistory(h, kind) {
     if (kind === 'model') modeler.history.state = h;
     else if (kind === 'assembly') assembly.history.state = h;
+    else if (kind === 'drawing') drawing2d.history.state = h;
     else { Object.assign(history, h); history.updateUI(); }
   },
   toast,
@@ -1769,6 +1784,21 @@ $('toModelBtn').addEventListener('click', async () => {
     toast('A 3D model was made from the outline — give it a height (Extrude), then add holes, roundings…', 'ok', 6000);
   } catch (e) { toast(e.message, 'error', 7000); }
 });
+// 2D drawings (DXF / DWG): a viewer and editor; Use ▾ makes a 3D model sketch or a quick part of one
+const drawing2d = new DrawingEditor({ left: $('dwgLeft'), viewport: $('dwgViewport'), right: $('dwgRight') }, {
+  toast, onChange: () => updateTopButtons(),
+  async useAsSketch(d) {
+    if (!d.entities.some((e) => e.t !== 'text')) { toast(t('Nothing to sketch on the shown layers.'), 'warning'); return; }
+    if (d.entities.length > 3000) toast(t('A big sketch — hide the layers you do not need first, it is quicker to work with.'), 'info', 7000);
+    const name = `${project.current?.name || t('Drawing')} (${t('3D model')})`;
+    await project.newModel({ features: [drawingToSketch(d)] }, name, 'none');
+    toast(t('The drawing is the sketch of a new 3D model — edit it, or ⬆ Extrude it.'), 'ok', 6000);
+  },
+  async useAsQuick(d) {
+    try { await loadParsed(await (await api('/api/drawing/outline', d)).json()); } catch (e) { toast(e.message, 'error', 8000); }
+  },
+});
+
 // assemblies: 3D model parts of the project placed together
 const assembly = new Assembly({ left: $('asmLeft'), viewport: $('asmViewport'), right: $('asmRight') }, {
   toast, download, safeName: () => tabName(),
@@ -1787,8 +1817,11 @@ function setWorkspace(ws) {
   state.workspace = ws;
   document.body.classList.toggle('ws-model', ws === 'model');
   document.body.classList.toggle('ws-assembly', ws === 'assembly');
+  document.body.classList.toggle('ws-drawing', ws === 'drawing');
   modeler.active = ws === 'model';
   assembly.active = ws === 'assembly';
+  drawing2d.active = ws === 'drawing';
+  if (ws === 'drawing') { dimTool.stop(); requestAnimationFrame(() => drawing2d.resize()); }
   if (ws === 'model') { modeler.view.resize(); dimTool.stop(); }
   if (ws === 'assembly') { assembly.view.resize(); dimTool.stop(); }
   placeChat();
@@ -1797,7 +1830,7 @@ function setWorkspace(ws) {
 
 // the AI chat: a tab of the quick-part panel; in the 3D model and assembly workspaces the ✨ AI button opens it in a drawer
 function placeChat() {
-  const el = $('tab-ai'), drawer = $('aiDrawer'), quick = state.workspace !== 'model' && state.workspace !== 'assembly';
+  const el = $('tab-ai'), drawer = $('aiDrawer'), quick = state.workspace === 'quick';
   if (quick && el.parentElement === drawer) document.querySelector('.panel.left.quick-only').insertBefore(el, $('tab-drawing'));
   if (!quick && el.parentElement !== drawer) drawer.appendChild(el);
   drawer.hidden = quick || !state.chatOpen;
@@ -1816,7 +1849,10 @@ function toggleChat(open = !state.chatOpen) {
 $('aiBtn').addEventListener('click', () => toggleChat());
 $('aiClose').addEventListener('click', () => toggleChat(false));
 function updateTopButtons() {
-  if (state.workspace === 'assembly') {
+  if (state.workspace === 'drawing') {
+    $('saveBtn').disabled = false;
+    $('exportBtn').disabled = true;
+  } else if (state.workspace === 'assembly') {
     $('saveBtn').disabled = false;
     $('exportBtn').disabled = !assembly.hasBody();
   } else if (state.workspace === 'model') {
@@ -2210,4 +2246,4 @@ const chat = new ChatPanel($('tab-ai'), { toast,
 window.__chat = chat;
 startBridge(agentHandlers);
 
-window.__app = { state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, agentHandlers, featureAt, history, modeler, project, assembly };
+window.__app = { state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d };

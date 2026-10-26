@@ -375,6 +375,35 @@ def api_model_rebuild():
     return jsonify(res)
 
 
+@app.post("/api/drawing/import")
+def api_drawing_import():
+    """A DXF / DWG -> the drawing as it is (layers, entities in mm) for the 2D drawing editor."""
+    from auto3d.drawing2d import read_drawing
+    f = request.files.get("file")
+    if f is None:
+        return jsonify({"error": "No file uploaded."}), 400
+    try:
+        return jsonify(read_drawing(f.read(), f.filename or "drawing.dxf"))
+    except (ImportError_, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.post("/api/drawing/outline")
+def api_drawing_outline():
+    """A drawing (its shown layers) -> a quick part from its closed outlines, as a DXF import gives."""
+    from auto3d.drawing2d import outline_of
+    d = request.get_json(force=True) or {}
+    try:
+        polys, issues = outline_of(d)
+    except (ImportError_, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    xs = [q[0] for poly in polys for q in poly[0]]
+    ys = [q[1] for poly in polys for q in poly[0]]
+    model = outline_model(polys, max(xs) - min(xs), max(ys) - min(ys), preset="solid", source=d.get("source") or "drawing", space="mm")
+    model["issues"] = issues
+    return jsonify({"model": model, "preview": {"vector": True}})
+
+
 @app.post("/api/blob")
 def api_blob_put():
     """A file a 3D model step uses (an imported STEP): kept by its SHA-256 -> {sha}. Raw body or a form file."""

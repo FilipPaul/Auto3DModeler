@@ -67,6 +67,10 @@ def migrate(proj):
             a = p.setdefault("assembly", {})
             if not isinstance(a, dict) or not isinstance(a.setdefault("instances", []), list):
                 raise ProjectError(f"Assembly “{p.get('name') or p['id']}” has no parts list in it.")
+        elif p["kind"] == "drawing":
+            dr = p.setdefault("drawing", {})
+            if not isinstance(dr, dict) or not isinstance(dr.setdefault("entities", []), list):
+                raise ProjectError(f"Drawing “{p.get('name') or p['id']}” has nothing in it.")
         elif p["kind"] != "classic":
             raise ProjectError(f"Part “{p.get('name') or p['id']}” is of an unknown kind “{p['kind']}”.")
         p.setdefault("name", _part_name(p.get("classic"), p["id"]))

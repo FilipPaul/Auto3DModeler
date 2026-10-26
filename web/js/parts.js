@@ -49,6 +49,19 @@ export class Project {
     this.render();
   }
 
+  /** A 2D drawing (a DXF / DWG as it is) as a new part, on screen. */
+  async newDrawing(data, name) {
+    if (this.busy) return;
+    await this.hooks.settle();
+    if (this.current) this.stash();
+    const p = { id: `P${this.next++}`, name: name || t('Drawing'), kind: 'drawing', data, history: null };
+    this.parts.push(p);
+    this.active = p.id;
+    this.render();
+    await this.show(p);
+    this.render();
+  }
+
   /** A new 3D model part (its own tab) — empty, or with first steps (data) and a command to open (then). */
   /** A 3D model part added to the project without opening it (a standard part for an assembly). -> its id */
   addBackground(name, data) {

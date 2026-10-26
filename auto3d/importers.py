@@ -304,6 +304,16 @@ def read_dxf(data: bytes, flatten: float = 0.01):
             lines.append(LineString(pts))
     if not lines:
         raise ImportError_("no lines, arcs or polylines found in the drawing")
+    polys, issues = outline_polys(lines)
+    if skipped:
+        issues.append({"severity": "info", "code": "skipped", "params": [], "message": f"{skipped} entities could not be read."})
+    return polys, issues
+
+
+def outline_polys(lines):
+    """Lines (shapely LineStrings, mm) -> the closed regions they form ([[shell, *holes], ...], even-odd nested) and
+    issues (open lines that close nothing)."""
+    issues = []
     size = max(max(l.bounds[2] for l in lines) - min(l.bounds[0] for l in lines),
                max(l.bounds[3] for l in lines) - min(l.bounds[1] for l in lines))
     grid = 10.0 ** math.floor(math.log10(max(size, 1e-6) * 1e-5))
@@ -316,7 +326,5 @@ def read_dxf(data: bytes, flatten: float = 0.01):
     if dangles:
         issues.append({"severity": "warning", "code": "open_contour", "params": [],
                        "message": f"{dangles} open line(s) in the drawing do not form a closed outline and were ignored."})
-    if skipped:
-        issues.append({"severity": "info", "code": "skipped", "params": [], "message": f"{skipped} entities could not be read."})
     ring = lambda r: [[round(x, 6), round(y, 6)] for x, y in r.coords[:-1]]
     return [[ring(p.exterior)] + [ring(h) for h in p.interiors] for p in polys], issues

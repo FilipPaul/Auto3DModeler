@@ -94,6 +94,10 @@ Date: 2026-10-25. Written by the architect agent.
 - **STEP colours done:** kernel.read_step_colours (STEPCAFControl + XCAF: colours followed down the assembly tree to the
   faces of the shape the solid step uses), State.colours by face name -> faces' `color` in the rebuild; the view /
   assembly show them under the paint. tools/e2e_step_colours.py.
+- **2D drawings done:** a part kind `drawing` (auto3d/drawing2d.py read_drawing: entities + layers + colours in mm,
+  file units; outline_of -> importers.outline_polys for a quick part), web/js/drawing2d/editor.js (canvas viewer, layers,
+  select / line / circle / measure, snapping, units, Use ▾ -> drawingToSketch or /api/drawing/outline). DXF / DWG open
+  there. tools/e2e_drawing2d.py.
 - **Sketch snapping & auto-dimension done:** sketcher.refs().circles (the part's closed round edges square to the
   plane), snap / pickTarget use them; autoDimension tries autoDimCandidates (sizes, then nearest part edges, then the
   origin) one by one, keeping a size only when the solver's free count drops. tools/e2e_sketch_auto.py.

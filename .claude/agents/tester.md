@@ -109,6 +109,9 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_model_solid.py <url> <dir> <a .step> [<a bigger .step>]` covers STEP files as exact solids (Open → a 3D
    model in ~1 s, timed with the page's answer time; a cover: a box with the STEP as a 👁 Reference, then ⬚ Cut out —
    exact volumes; the AI sees its bbox; an assembly inserts one From a file; the project file carries it and reopens).
+   `tools/e2e_drawing2d.py <url> <dir> [<a .dxf>]` covers the 📐 Drawing workspace (a DXF opens as a drawing; layers,
+   File units, a layer hidden, a line snapped corner to corner, measuring 100 mm and Ø8, delete + Ctrl+Z, Use as a
+   sketch / as a quick part, saved and reopened).
    `tools/e2e_sketch_auto.py <url> <dir>` covers snapping to the part's hole (centre and rim -> the same Ø8) and 🪄
    Auto-dimension (7 free -> 0, the circle and the rectangle placed from the part's nearest edges).
    `tools/e2e_model_mirror.py <url> <dir>` covers ⇋ Mirror in a sketch (across the Y axis: a rectangle and a circle,

@@ -15,7 +15,9 @@ Use **📂 Open ▾** to open a file. It offers:
 - a PDF drawing (try **Sample drawing**, which loads `initial draft.pdf`);
 - a **picture**, to trace the outline of an object in a photo (e.g. `pernicek.png`) and make a cookie cutter
   or a solid shape from it — see [Outline from a picture](#outline-from-a-picture);
-- a **CAD / 3D file**: DXF / DWG drawings and STL / OBJ / STEP files — a **STEP opens as a 3D model** with its exact
+- a **DXF / DWG drawing** opens as a **📐 Drawing** — see [DXF / DWG drawings](#dxf--dwg-drawings); nothing is made of it until you
+  choose (Shift+drop: straight to a quick part, as before);
+- a **CAD / 3D file**: STL / OBJ / STEP files — a **STEP opens as a 3D model** with its exact
   solid as the first step (sketch on its faces, drill it, build a cover around it; a 40 MB STEP in under a minute);
   STL / OBJ open as a quick part (sliced, for printing; Shift+drop a STEP for that too);
 - a saved project.
@@ -196,6 +198,19 @@ works, and the workspace says what to install.
 Coming next ([plan](docs/ARCHITECTURE-modeler.md)):
 - arcs, sizes between any two points, and equal / parallel / perpendicular rules;
 - AI tools for models;
+
+## DXF / DWG drawings
+
+A DXF / DWG opens as it is in the **📐 Drawing** workspace: every line, circle, arc, polyline and text on its
+layers, in their colours, in real mm.
+- **Layers** (left): 👁 show / hide (All / None), the colour, a click makes it the layer new lines go on, ＋ Layer.
+- **⬚ Select** (Ctrl+click: more; Delete removes; a shape's panel moves it to another layer), **／ Line** (L) and
+  **◯ Circle** (C) — ends, middles and centres snap — **📏 Measure** (M: two spots, or a circle's Ø), ↶ ↷, ⤢ Fit (F).
+  Drag the paper to move it, the wheel zooms.
+- **File units**: a file may not say its units (PCB tools often draw in inches) or say them wrong — choose mm / cm /
+  m / inch and the drawing is rescaled; a tiny drawing with no units says so when it opens.
+- **Use ▾** makes something of the shown layers: **✏ As a sketch of a new 3D model** (lines, circles and arcs, their
+  ends joined — then ⬆ Extrude), or **▤ As a quick part** (its closed outlines: a cutter, a solid shape …).
 
 ## 2D drawings
 

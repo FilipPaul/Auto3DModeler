@@ -1,0 +1,507 @@
+// The 2D drawing workspace: a DXF / DWG as it is — its layers (show / hide, colour, the one new lines go on), every
+// line, circle, arc, polyline and text in real mm — to look at, measure and touch up (select, delete, draw lines and
+// circles, snapping to ends, middles and centres). What to make of it is chosen later: Use ▾ as a sketch of a new 3D
+// model, or as a quick part (its closed outlines). Drawing JSON: see auto3d/drawing2d.py.
+import { History } from '../history.js';
+import { t } from '../i18n.js';
+
+const fmt = (v) => (+(+v).toFixed(3)).toString();
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+const TAU = Math.PI * 2, rad = (d) => (d * Math.PI) / 180;
+const SNAP_PX = 10, HIT_PX = 6;
+const UNIT_MM = { mm: 1, cm: 10, m: 1000, in: 25.4 }; // what one unit of the file is, in mm
+
+/** An arc's sweep from a0 to a1 (degrees, counter-clockwise) in radians, > 0. */
+const sweepOf = (e) => { let s = rad(e.a1 - e.a0) % TAU; if (s <= 1e-12) s += TAU; return s; };
+const segDist = (p, a, b) => {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy || 1;
+  const k = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L));
+  return Math.hypot(a[0] + k * dx - p[0], a[1] + k * dy - p[1]);
+};
+
+export class DrawingEditor {
+  /** els: {left, viewport, right}; hooks: {toast, onChange, useAsSketch(drawing), useAsQuick(drawing)} */
+  constructor(els, hooks) {
+    this.els = els;
+    this.hooks = hooks;
+    this.d = { entities: [], layers: [] };
+    this.tool = 'select';
+    this.sel = new Set();
+    this.view = { cx: 0, cy: 0, k: 4 };
+    this.history = new History({
+      capture: () => ({ entities: this.d.entities, layers: this.d.layers, units: this.d.file_units }),
+      restore: (s) => {
+        const rescaled = (this.d.file_units || 'mm') !== (s.units || 'mm');
+        Object.assign(this.d, { entities: s.entities, layers: s.layers, file_units: s.units });
+        this.sel.clear();
+        this.renderPanels();
+        if (rescaled) this.fit(); else this.draw();
+      },
+      onChange: () => this.updateUndo(),
+    });
+    this.build();
+    this.bind();
+  }
+
+  build() {
+    const { left, viewport, right } = this.els;
+    left.innerHTML = '<div class="mt-head"><b>Layers</b><span class="mt-sub">click 👁 to show / hide</span></div><div class="dw-layers"></div>';
+    viewport.innerHTML = `<div class="m-cmdbar dw-bar"></div><div class="m-hint" hidden></div><canvas class="dw-canvas"></canvas>
+      <div class="dw-measure" hidden></div><div class="m-status dw-status"></div>`;
+    right.innerHTML = '<div class="mp-body"></div>';
+    this.cv = viewport.querySelector('canvas');
+    this.ctx = this.cv.getContext('2d');
+    this.$ = (s) => viewport.querySelector(s) || left.querySelector(s) || right.querySelector(s);
+    new ResizeObserver(() => this.resize()).observe(viewport);
+  }
+
+  // ------------------------------------------------------------------ the drawing as a project part
+  load(data) {
+    this.d = structuredClone(data || { entities: [], layers: [] });
+    this.d.entities = this.d.entities || [];
+    this.d.layers = this.d.layers || [];
+    if (!this.d.layers.length) this.d.layers.push({ name: '0', color: '#ffffff', visible: true });
+    this.d.active = this.d.layers.some((l) => l.name === this.d.active) ? this.d.active : this.d.layers[0].name;
+    this.tool = 'select';
+    this.sel.clear();
+    this.pending = null;
+    this.measure = null;
+    this.history.reset();
+    this.resize();
+    this.fit();
+    this.renderPanels();
+    // a file that does not say its units and comes out tiny is most likely in inches (PCB tools)
+    const b = this.bbox();
+    if (b && !this.d.units_declared && !this.d.units_checked && Math.max(b[2] - b[0], b[3] - b[1]) < 5) {
+      this.hooks.toast(t('The file does not say its units and is only a few mm big — if it is in inches, set File units to inch (in the panel).'), 'info', 9000);
+    }
+    this.d.units_checked = true;
+  }
+
+  payload() { return structuredClone(this.d); }
+  layer(name) { return this.d.layers.find((l) => l.name === name); }
+  shown(e) { return this.layer(e.layer)?.visible !== false; }
+  commit() { this.history.commit(); this.renderPanels(); this.draw(); this.hooks.onChange?.(); }
+  newId() {
+    let n = this.d.entities.length;
+    const used = new Set(this.d.entities.map((e) => e.id));
+    while (used.has(`e${++n}`));
+    return `e${n}`;
+  }
+
+  // ------------------------------------------------------------------ view: mm <-> screen
+  resize() {
+    const r = this.cv.parentElement.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    this.w = Math.max(1, r.width);
+    this.h = Math.max(1, r.height);
+    this.cv.width = this.w * dpr;
+    this.cv.height = this.h * dpr;
+    Object.assign(this.cv.style, { width: `${this.w}px`, height: `${this.h}px` });
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.draw();
+  }
+
+  toScreen([x, y]) { return [(x - this.view.cx) * this.view.k + this.w / 2, this.h / 2 - (y - this.view.cy) * this.view.k]; }
+  toWorld(sx, sy) { return [(sx - this.w / 2) / this.view.k + this.view.cx, (this.h / 2 - sy) / this.view.k + this.view.cy]; }
+
+  /** The box of the shown entities (mm): [x0, y0, x1, y1] or null. */
+  bbox(list = this.d.entities.filter((e) => this.shown(e))) {
+    let b = null;
+    const add = (x, y) => { b = b ? [Math.min(b[0], x), Math.min(b[1], y), Math.max(b[2], x), Math.max(b[3], y)] : [x, y, x, y]; };
+    for (const e of list) {
+      if (e.t === 'line') { add(...e.a); add(...e.b); } else if (e.t === 'circle') { add(e.c[0] - e.r, e.c[1] - e.r); add(e.c[0] + e.r, e.c[1] + e.r); }
+      else if (e.t === 'arc') { const a0 = rad(e.a0), sw = sweepOf(e); for (let i = 0; i <= 32; i++) { const a = a0 + (sw * i) / 32; add(e.c[0] + e.r * Math.cos(a), e.c[1] + e.r * Math.sin(a)); } } else if (e.t === 'poly') for (const p of e.pts) add(...p);
+      else if (e.t === 'text') { add(...e.at); add(e.at[0] + e.h * 0.6 * String(e.text).length, e.at[1] + e.h); }
+    }
+    return b;
+  }
+
+  fit() {
+    const b = this.bbox();
+    if (!b) { this.view = { cx: 0, cy: 0, k: 4 }; this.draw(); return; }
+    const w = Math.max(b[2] - b[0], 1e-3), h = Math.max(b[3] - b[1], 1e-3);
+    this.view = { cx: (b[0] + b[2]) / 2, cy: (b[1] + b[3]) / 2, k: Math.min((this.w - 60) / w, (this.h - 90) / h) };
+    this.draw();
+  }
+
+  // ------------------------------------------------------------------ drawing
+  colourOf(e) {
+    const c = e.color || this.layer(e.layer)?.color || '#ffffff';
+    return /^#0{6}$/i.test(c) ? '#c9d1d9' : c; // black lines would vanish on the dark sheet
+  }
+
+  draw() {
+    if (this.raf) return;
+    this.raf = requestAnimationFrame(() => { this.raf = null; this.paint(); });
+  }
+
+  paint() {
+    const c = this.ctx, k = this.view.k;
+    c.clearRect(0, 0, this.w, this.h);
+    c.fillStyle = '#0e1115';
+    c.fillRect(0, 0, this.w, this.h);
+    // a light grid: 1, 10, 100 … mm, whatever is ~ 20 px or more
+    const step = 10 ** Math.ceil(Math.log10(20 / k));
+    const [x0, y1] = this.toWorld(0, 0), [x1, y0] = this.toWorld(this.w, this.h);
+    c.strokeStyle = '#1b222c';
+    c.lineWidth = 1;
+    c.beginPath();
+    for (let x = Math.floor(x0 / step) * step; x <= x1; x += step) { const [sx] = this.toScreen([x, 0]); c.moveTo(sx, 0); c.lineTo(sx, this.h); }
+    for (let y = Math.floor(y0 / step) * step; y <= y1; y += step) { const [, sy] = this.toScreen([0, y]); c.moveTo(0, sy); c.lineTo(this.w, sy); }
+    c.stroke();
+    const path = (e) => {
+      c.beginPath();
+      if (e.t === 'line') { c.moveTo(...this.toScreen(e.a)); c.lineTo(...this.toScreen(e.b)); } else if (e.t === 'circle') { const [sx, sy] = this.toScreen(e.c); c.arc(sx, sy, e.r * k, 0, TAU); } else if (e.t === 'arc') { const [sx, sy] = this.toScreen(e.c); c.arc(sx, sy, e.r * k, -rad(e.a0), -rad(e.a0) - sweepOf(e), true); } else if (e.t === 'poly') {
+        e.pts.forEach((p, i) => (i ? c.lineTo(...this.toScreen(p)) : c.moveTo(...this.toScreen(p))));
+        if (e.closed) c.closePath();
+      }
+    };
+    for (const e of this.d.entities) {
+      if (!this.shown(e)) continue;
+      const on = this.sel.has(e.id), hov = this.hover === e.id;
+      c.strokeStyle = on ? '#f2cc60' : hov ? '#6cb6ff' : this.colourOf(e);
+      c.fillStyle = c.strokeStyle;
+      c.lineWidth = on || hov ? 2 : 1;
+      if (e.t === 'text') {
+        c.save();
+        const [sx, sy] = this.toScreen(e.at);
+        c.translate(sx, sy);
+        c.rotate(-rad(e.rot || 0));
+        c.font = `${Math.max(1, e.h * k)}px sans-serif`;
+        c.fillText(e.text, 0, 0);
+        c.restore();
+        continue;
+      }
+      path(e);
+      c.stroke();
+    }
+    // the shape being drawn, the measure, the snap point
+    const live = this.pending && this.cursor ? this.pendingShape() : null;
+    if (live) { c.strokeStyle = '#7ee787'; c.lineWidth = 1.5; c.setLineDash([5, 4]); path(live); c.stroke(); c.setLineDash([]); }
+    if (this.measure?.a) {
+      const b = this.measure.b || this.cursor?.p;
+      if (b) {
+        c.strokeStyle = '#f2cc60';
+        c.lineWidth = 1.5;
+        c.beginPath(); c.moveTo(...this.toScreen(this.measure.a)); c.lineTo(...this.toScreen(b)); c.stroke();
+      }
+    }
+    if (this.cursor?.snap) {
+      const [sx, sy] = this.toScreen(this.cursor.p);
+      c.strokeStyle = '#7ee787';
+      c.lineWidth = 2;
+      c.strokeRect(sx - 5, sy - 5, 10, 10);
+    }
+  }
+
+  // ------------------------------------------------------------------ picking, snapping
+  /** The spot under the mouse: an end, a middle or a centre within reach, else the plain point. */
+  snapAt(sx, sy) {
+    const p = this.toWorld(sx, sy), tol = SNAP_PX / this.view.k;
+    let best = null;
+    const near = (q, kind) => { const d = Math.hypot(q[0] - p[0], q[1] - p[1]); if (d < tol && (!best || d < best.d)) best = { d, p: q, snap: kind }; };
+    for (const e of this.d.entities) {
+      if (!this.shown(e)) continue;
+      if (e.t === 'line') { near(e.a, 'end'); near(e.b, 'end'); near([(e.a[0] + e.b[0]) / 2, (e.a[1] + e.b[1]) / 2], 'middle'); } else if (e.t === 'circle') near(e.c, 'centre');
+      else if (e.t === 'arc') { near(e.c, 'centre'); for (const a of [rad(e.a0), rad(e.a0) + sweepOf(e)]) near([e.c[0] + e.r * Math.cos(a), e.c[1] + e.r * Math.sin(a)], 'end'); } else if (e.t === 'poly') for (const q of e.pts) near(q, 'end');
+    }
+    return best ? { p: [...best.p], snap: best.snap } : { p };
+  }
+
+  /** The entity under the mouse (its id) or null. */
+  hitAt(sx, sy) {
+    const p = this.toWorld(sx, sy), tol = HIT_PX / this.view.k;
+    let best = null;
+    const consider = (e, d) => { if (d < tol && (!best || d < best.d)) best = { d, id: e.id }; };
+    for (const e of this.d.entities) {
+      if (!this.shown(e)) continue;
+      if (e.t === 'line') consider(e, segDist(p, e.a, e.b));
+      else if (e.t === 'circle') consider(e, Math.abs(Math.hypot(p[0] - e.c[0], p[1] - e.c[1]) - e.r));
+      else if (e.t === 'arc') {
+        const a = (Math.atan2(p[1] - e.c[1], p[0] - e.c[0]) - rad(e.a0) + 2 * TAU) % TAU;
+        if (a <= sweepOf(e)) consider(e, Math.abs(Math.hypot(p[0] - e.c[0], p[1] - e.c[1]) - e.r));
+      } else if (e.t === 'poly') {
+        const q = e.closed ? [...e.pts, e.pts[0]] : e.pts;
+        for (let i = 0; i + 1 < q.length; i++) consider(e, segDist(p, q[i], q[i + 1]));
+      } else if (e.t === 'text') {
+        const w = e.h * 0.6 * String(e.text).length;
+        if (p[0] >= e.at[0] && p[0] <= e.at[0] + w && p[1] >= e.at[1] && p[1] <= e.at[1] + e.h) consider(e, 0);
+      }
+    }
+    return best?.id || null;
+  }
+
+  // ------------------------------------------------------------------ the mouse and the keys
+  bind() {
+    const cv = this.cv;
+    let pan = null;
+    cv.addEventListener('contextmenu', (e) => e.preventDefault());
+    cv.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const r = cv.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top, before = this.toWorld(sx, sy);
+      this.view.k *= Math.exp(-e.deltaY * 0.0015);
+      const after = this.toWorld(sx, sy);
+      this.view.cx += before[0] - after[0];
+      this.view.cy += before[1] - after[1];
+      this.draw();
+    }, { passive: false });
+    cv.addEventListener('pointerdown', (e) => {
+      const r = cv.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top;
+      // pan: the right / middle button, or the left one on empty paper with Select
+      if (e.button !== 0 || (this.tool === 'select' && !this.hitAt(sx, sy))) { pan = { x: e.clientX, y: e.clientY, cx: this.view.cx, cy: this.view.cy, moved: false, button: e.button, sx, sy, add: e.ctrlKey || e.shiftKey }; cv.setPointerCapture(e.pointerId); }
+    });
+    cv.addEventListener('pointermove', (e) => {
+      const r = cv.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top;
+      if (pan) {
+        const dx = e.clientX - pan.x, dy = e.clientY - pan.y;
+        if (Math.hypot(dx, dy) > 3) pan.moved = true;
+        this.view.cx = pan.cx - dx / this.view.k;
+        this.view.cy = pan.cy + dy / this.view.k;
+        this.draw();
+        return;
+      }
+      this.cursor = this.tool === 'select' ? null : this.snapAt(sx, sy);
+      const hv = this.tool === 'select' ? this.hitAt(sx, sy) : null;
+      if (hv !== this.hover) this.hover = hv;
+      cv.style.cursor = this.tool === 'select' ? (hv ? 'pointer' : 'grab') : 'crosshair';
+      const p = this.cursor?.p || this.toWorld(sx, sy);
+      this.$('.dw-status').textContent = `x ${fmt(p[0])}  y ${fmt(p[1])} mm${this.cursor?.snap ? `  · ${t(this.cursor.snap)}` : ''}`;
+      this.draw();
+    });
+    cv.addEventListener('pointerup', (e) => {
+      const r = cv.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top;
+      if (pan) {
+        const was = pan;
+        pan = null;
+        if (!was.moved && was.button === 0) { if (!was.add) this.sel.clear(); this.renderPanels(); this.draw(); } // a click on empty paper
+        return;
+      }
+      if (e.button !== 0) return;
+      this.click(sx, sy, e);
+    });
+    window.addEventListener('keydown', (e) => this.key(e));
+  }
+
+  key(e) {
+    if (!this.active || e.target.closest?.('input,select,textarea,[contenteditable]')) return;
+    const k = e.key.toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y')) { e.preventDefault(); this.history.go(k === 'y' || e.shiftKey ? 1 : -1); return; }
+    if (e.key === 'Escape') { if (this.pending || this.measure) { this.pending = null; this.measure = null; this.$('.dw-measure').hidden = true; this.draw(); } else this.setTool('select'); return; }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && this.sel.size) { this.removeSel(); return; }
+    if (e.ctrlKey || e.metaKey) return;
+    if (k === 'l') this.setTool('line');
+    if (k === 'c') this.setTool('circle');
+    if (k === 'm') this.setTool('measure');
+    if (k === 'f') this.fit();
+  }
+
+  setTool(tool) {
+    this.tool = tool;
+    this.pending = null;
+    this.measure = null;
+    this.$('.dw-measure').hidden = true;
+    this.hint({ line: 'Line: click where it starts, then where it ends (it goes on from there; Esc = stop).', circle: 'Circle: click the centre, then a point on it.',
+      measure: 'Measure: click two spots (ends, middles and centres snap) — or a circle for its Ø.', select: '' }[tool] || '');
+    this.renderBar();
+    this.draw();
+  }
+
+  hint(text) { const h = this.$('.m-hint'); h.hidden = !text; h.textContent = t(text); }
+
+  click(sx, sy, e) {
+    if (this.tool === 'select') {
+      const id = this.hitAt(sx, sy);
+      if (e.ctrlKey || e.shiftKey) { if (id) (this.sel.has(id) ? this.sel.delete(id) : this.sel.add(id)); } else this.sel = new Set(id ? [id] : []);
+      this.renderPanels();
+      this.draw();
+      return;
+    }
+    const s = this.snapAt(sx, sy);
+    if (this.tool === 'measure') return this.measureClick(s, sx, sy);
+    if (!this.pending) { this.pending = { a: s.p }; this.draw(); return; }
+    const sh = this.pendingShape(s);
+    if (sh && (sh.t !== 'circle' || sh.r > 1e-9) && (sh.t !== 'line' || Math.hypot(sh.b[0] - sh.a[0], sh.b[1] - sh.a[1]) > 1e-9)) {
+      this.d.entities.push({ id: this.newId(), layer: this.d.active, ...sh });
+      this.commit();
+    }
+    this.pending = this.tool === 'line' ? { a: s.p } : null; // a line goes on from its end
+  }
+
+  pendingShape(s = this.cursor) {
+    if (!this.pending || !s) return null;
+    const a = this.pending.a, b = s.p;
+    if (this.tool === 'line') return { t: 'line', a: a.map((v) => +v.toFixed(6)), b: b.map((v) => +v.toFixed(6)) };
+    if (this.tool === 'circle') return { t: 'circle', c: a.map((v) => +v.toFixed(6)), r: +Math.hypot(b[0] - a[0], b[1] - a[1]).toFixed(6) };
+    return null;
+  }
+
+  measureClick(s, sx, sy) {
+    const box = this.$('.dw-measure');
+    if (!this.measure?.a || this.measure.b) {
+      // a click right on a circle / arc (no point to snap to): its size
+      const id = !s.snap ? this.hitAt(sx, sy) : null, e = id ? this.d.entities.find((x) => x.id === id) : null;
+      if (e && (e.t === 'circle' || e.t === 'arc')) {
+        box.hidden = false;
+        box.innerHTML = `<b>${e.t === 'circle' ? t('Circle') : t('Arc')}</b> Ø ${fmt(2 * e.r)} mm · R ${fmt(e.r)} · ${t('centre')} ${fmt(e.c[0])}, ${fmt(e.c[1])}`;
+        this.measure = null;
+        return;
+      }
+      this.measure = { a: s.p };
+      box.hidden = false;
+      box.innerHTML = `${t('From')} ${fmt(s.p[0])}, ${fmt(s.p[1])} — ${t('click the second spot.')}`;
+      this.draw();
+      return;
+    }
+    this.measure.b = s.p;
+    const [a, b] = [this.measure.a, s.p];
+    box.innerHTML = `<b>${fmt(Math.hypot(b[0] - a[0], b[1] - a[1]))} mm</b> · Δx ${fmt(Math.abs(b[0] - a[0]))} · Δy ${fmt(Math.abs(b[1] - a[1]))} · ${fmt((Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI)}°`;
+    this.draw();
+  }
+
+  /** The file's units were not what it was read as: rescale everything (one file unit = UNIT_MM[u] mm). */
+  setUnits(u) {
+    const f = UNIT_MM[u] / UNIT_MM[this.d.file_units || 'mm'];
+    if (!f || f === 1) return;
+    const P = (p) => p.map((v) => +(v * f).toFixed(6));
+    this.d.entities = this.d.entities.map((e) => ({ ...e, ...(e.a ? { a: P(e.a) } : {}), ...(e.b ? { b: P(e.b) } : {}), ...(e.c ? { c: P(e.c) } : {}),
+      ...(e.r ? { r: +(e.r * f).toFixed(6) } : {}), ...(e.pts ? { pts: e.pts.map(P) } : {}), ...(e.at ? { at: P(e.at) } : {}), ...(e.h ? { h: +(e.h * f).toFixed(4) } : {}) }));
+    this.d.file_units = u;
+    this.commit();
+    this.fit();
+  }
+
+  removeSel() {
+    this.d.entities = this.d.entities.filter((e) => !this.sel.has(e.id));
+    this.sel.clear();
+    this.commit();
+  }
+
+  // ------------------------------------------------------------------ panels
+  updateUndo() {
+    const u = this.$('.dw-bar [data-a=undo]'), r = this.$('.dw-bar [data-a=redo]');
+    if (u) u.disabled = !this.history.canUndo();
+    if (r) r.disabled = !this.history.canRedo();
+  }
+
+  renderBar() {
+    const bar = this.$('.dw-bar'), btn = (a, label, title) => `<button class="chip ${this.tool === a ? 'on' : ''}" data-a="${a}" title="${esc(title)}">${label}</button>`;
+    bar.innerHTML = `${btn('select', '⬚ Select', 'Click a shape (Ctrl+click: more), Delete removes it; drag the paper to move it, the wheel zooms')}
+      ${btn('line', '／ Line', 'Draw lines (L) — ends, middles and centres snap')}${btn('circle', '◯ Circle', 'Draw a circle: its centre, then a point on it (C)')}
+      ${btn('measure', '📏 Measure', 'Measure: two spots, or a circle for its Ø (M)')}
+      <span class="sep"></span><button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
+      <button class="chip" data-a="fit" title="Show all of it (F)">⤢ Fit</button>
+      <span class="sep"></span>
+      <div class="menu dw-use"><button class="chip tool" data-a="use" title="What to make of the drawing (its shown layers)">Use ▾</button>
+        <div class="menu-list"><button data-use="sketch">✏ As a sketch of a new 3D model</button><button data-use="quick">▤ As a quick part (its closed outlines)</button></div></div>`;
+    for (const b of bar.querySelectorAll('[data-a]')) {
+      b.addEventListener('click', (e) => {
+        const a = b.dataset.a;
+        if (a === 'undo') return this.history.go(-1);
+        if (a === 'redo') return this.history.go(1);
+        if (a === 'fit') return this.fit();
+        if (a === 'use') { e.stopPropagation(); bar.querySelector('.dw-use').classList.toggle('open'); return null; }
+        return this.setTool(a);
+      });
+    }
+    for (const b of bar.querySelectorAll('[data-use]')) {
+      b.addEventListener('click', () => {
+        bar.querySelector('.dw-use').classList.remove('open');
+        const shown = { ...this.d, entities: this.d.entities.filter((x) => this.shown(x)) };
+        if (b.dataset.use === 'sketch') this.hooks.useAsSketch?.(shown);
+        else this.hooks.useAsQuick?.(this.payload());
+      });
+    }
+    this.updateUndo();
+  }
+
+  renderPanels() {
+    this.renderBar();
+    this.renderLayers();
+    this.renderProps();
+  }
+
+  renderLayers() {
+    const box = this.$('.dw-layers'), count = {};
+    for (const e of this.d.entities) count[e.layer] = (count[e.layer] || 0) + 1;
+    box.innerHTML = `${this.d.layers.map((l, i) => `<div class="dw-layer ${l.name === this.d.active ? 'on' : ''} ${l.visible === false ? 'off' : ''}" data-i="${i}">
+        <button class="mini" data-a="eye" title="${l.visible === false ? 'Show this layer' : 'Hide this layer'}">${l.visible === false ? '◌' : '👁'}</button>
+        <input type="color" data-a="col" value="${/^#[0-9a-f]{6}$/i.test(l.color) ? l.color : '#ffffff'}" title="The layer's colour">
+        <span class="dw-lname" data-no-i18n title="${esc(t('Click: new lines go on this layer'))}">${esc(l.name)}</span><span class="mt-what">${count[l.name] || 0}</span></div>`).join('')}
+      <div class="row-actions wrap"><button class="btn small" data-a="allOn">👁 ${esc(t('All'))}</button><button class="btn small" data-a="allOff">◌ ${esc(t('None'))}</button><button class="btn small" data-a="newLayer">＋ ${esc(t('Layer'))}</button></div>`;
+    for (const row of box.querySelectorAll('.dw-layer')) {
+      const l = this.d.layers[+row.dataset.i];
+      row.querySelector('[data-a=eye]').addEventListener('click', () => { this.d.layers = this.d.layers.map((x) => (x === l ? { ...x, visible: x.visible === false } : x)); this.commit(); });
+      const col = row.querySelector('[data-a=col]');
+      col.addEventListener('input', () => { l.color = col.value; this.draw(); });
+      col.addEventListener('change', () => { this.d.layers = this.d.layers.map((x) => (x === l ? { ...x, color: col.value } : x)); this.commit(); });
+      row.querySelector('.dw-lname').addEventListener('click', () => { this.d.active = l.name; this.renderLayers(); });
+    }
+    box.querySelector('[data-a=allOn]').addEventListener('click', () => { this.d.layers = this.d.layers.map((x) => ({ ...x, visible: true })); this.commit(); });
+    box.querySelector('[data-a=allOff]').addEventListener('click', () => { this.d.layers = this.d.layers.map((x) => ({ ...x, visible: false })); this.commit(); });
+    box.querySelector('[data-a=newLayer]').addEventListener('click', () => {
+      let n = 1;
+      while (this.layer(`${t('Layer')} ${n}`)) n++;
+      const name = `${t('Layer')} ${n}`;
+      this.d.layers = [...this.d.layers, { name, color: '#7ee787', visible: true }];
+      this.d.active = name;
+      this.commit();
+    });
+  }
+
+  renderProps() {
+    const box = this.$('.mp-body'), sel = this.d.entities.filter((e) => this.sel.has(e.id));
+    if (sel.length) {
+      const e = sel[0], one = sel.length === 1;
+      const size = !one ? '' : e.t === 'line' ? `${t('Length')} ${fmt(Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]))} mm` : e.t === 'circle' ? `Ø ${fmt(2 * e.r)} mm · ${t('centre')} ${fmt(e.c[0])}, ${fmt(e.c[1])}`
+        : e.t === 'arc' ? `R ${fmt(e.r)} mm · ${fmt(sweepOf(e) * 180 / Math.PI)}°` : e.t === 'poly' ? tv('{n} points', { n: e.pts.length }) + (e.closed ? ` · ${t('closed')}` : '') : e.t === 'text' ? `“${esc(e.text)}”` : '';
+      box.innerHTML = `<h2>${one ? esc(t({ line: 'Line', circle: 'Circle', arc: 'Arc', poly: 'Polyline', text: 'Text' }[e.t] || e.t)) : tv('{n} shapes', { n: sel.length })}</h2>
+        ${size ? `<p class="hint" data-no-i18n>${size}</p>` : ''}
+        <div class="field"><label>Layer</label><select data-k="layer">${this.d.layers.map((l) => `<option ${l.name === e.layer ? 'selected' : ''} data-no-i18n>${esc(l.name)}</option>`).join('')}</select></div>
+        <div class="row-actions"><button class="btn small danger" data-a="del">✕ ${esc(t('Delete'))} (Del)</button></div>`;
+      box.querySelector('[data-k=layer]').addEventListener('change', (ev) => { for (const x of sel) x.layer = ev.target.value; this.d.entities = [...this.d.entities]; this.commit(); });
+      box.querySelector('[data-a=del]').addEventListener('click', () => this.removeSel());
+      return;
+    }
+    const b = this.bbox(), n = this.d.entities.length, shown = this.d.entities.filter((e) => this.shown(e)).length;
+    box.innerHTML = `<h2>${esc(t('Drawing'))}</h2><p class="hint" data-no-i18n>${esc(this.d.source || '')}</p>
+      <div class="field"><label>${esc(t('File units'))}</label><select data-k="units" title="${esc(t('What one unit of the file is — the file may not say (or say it wrong): change it and the drawing is rescaled'))}">
+        ${Object.keys(UNIT_MM).map((u) => `<option value="${u}" ${u === (this.d.file_units || 'mm') ? 'selected' : ''}>${u === 'in' ? 'inch' : u}</option>`).join('')}</select></div>
+      <div class="mp-facts">${b ? `<span>${esc(t('Size'))}</span><b>${fmt(b[2] - b[0])} × ${fmt(b[3] - b[1])} mm</b>` : ''}
+        <span>${esc(t('Shapes'))}</span><b>${shown} / ${n}</b><span>${esc(t('Layers'))}</span><b>${this.d.layers.filter((l) => l.visible !== false).length} / ${this.d.layers.length}</b></div>
+      <h3>${esc(t('What next'))}</h3><p class="hint">${esc(t('Look, measure, tidy it up — then Use ▾ makes something of the shown layers:'))}</p>
+      <div class="row-actions"><button class="btn small primary" data-use="sketch">✏ ${esc(t('As a sketch of a new 3D model'))}</button></div>
+      <div class="row-actions"><button class="btn small" data-use="quick">▤ ${esc(t('As a quick part (its closed outlines)'))}</button></div>`;
+    box.querySelector('[data-k=units]').addEventListener('change', (ev) => this.setUnits(ev.target.value));
+    for (const el of box.querySelectorAll('[data-use]')) {
+      el.addEventListener('click', () => {
+        const shownD = { ...this.d, entities: this.d.entities.filter((x) => this.shown(x)) };
+        if (el.dataset.use === 'sketch') this.hooks.useAsSketch?.(shownD);
+        else this.hooks.useAsQuick?.(this.payload());
+      });
+    }
+  }
+}
+
+/** A drawing's shapes as a sketch (on the XY plane) of a 3D model: lines, circles, arcs and polylines become sketch
+ *  lines, circles and arcs (ends that meet are joined); texts are left out. -> the sketch feature */
+export function drawingToSketch(drawing) {
+  const points = {}, entities = [], key = new Map();
+  let np = 0, ne = 0;
+  const pt = (p) => {
+    const k = `${p[0].toFixed(5)},${p[1].toFixed(5)}`;
+    if (!key.has(k)) { const id = `p${++np}`; points[id] = [+p[0].toFixed(6), +p[1].toFixed(6)]; key.set(k, id); }
+    return key.get(k);
+  };
+  for (const e of drawing.entities || []) {
+    if (e.t === 'line') { const a = pt(e.a), b = pt(e.b); if (a !== b) entities.push({ id: `l${++ne}`, t: 'line', a, b }); } else if (e.t === 'circle') entities.push({ id: `c${++ne}`, t: 'circle', c: pt(e.c), r: e.r });
+    else if (e.t === 'arc') {
+      const a0 = rad(e.a0), a1 = a0 + sweepOf(e);
+      entities.push({ id: `a${++ne}`, t: 'arc', c: pt(e.c), a: pt([e.c[0] + e.r * Math.cos(a0), e.c[1] + e.r * Math.sin(a0)]), b: pt([e.c[0] + e.r * Math.cos(a1), e.c[1] + e.r * Math.sin(a1)]) });
+    } else if (e.t === 'poly') {
+      const q = e.closed ? [...e.pts, e.pts[0]] : e.pts;
+      for (let i = 0; i + 1 < q.length; i++) { const a = pt(q[i]), b = pt(q[i + 1]); if (a !== b) entities.push({ id: `l${++ne}`, t: 'line', a, b }); }
+    }
+  }
+  return { id: 'F1', type: 'sketch', name: `${t('Sketch')} 1`, plane: { datum: 'XY' }, points, entities, constraints: [], dims: [] };
+}

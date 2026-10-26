@@ -408,9 +408,24 @@ details.ol-clean[open] summary { margin-bottom: 6px; }
 .viewport > .busy { top: 46px; }
 
 /* ------------------------------------------------------------------ workspaces: Quick part | 3D model */
-body:not(.ws-model) .model-only, body.ws-model .quick-only, body.ws-assembly .quick-only, body:not(.ws-assembly) .asm-only { display: none !important; }
+body:not(.ws-model) .model-only, body.ws-model .quick-only, body.ws-assembly .quick-only, body:not(.ws-assembly) .asm-only,
+body.ws-drawing .quick-only, body:not(.ws-drawing) .dwg-only { display: none !important; }
 body.ws-assembly #exportMenu [data-fmt=glb] { display: none; }
-body:not(.ws-model):not(.ws-assembly) .not-quick { display: none !important; }
+body:not(.ws-model):not(.ws-assembly):not(.ws-drawing) .not-quick { display: none !important; }
+/* the 2D drawing workspace */
+#dwgLeft { padding: 10px 10px 14px; overflow: auto; }
+#dwgRight { padding: 12px 14px; }
+#dwgViewport { position: relative; overflow: hidden; background: #0e1115; }
+.dw-canvas { position: absolute; inset: 0; display: block; }
+.dw-layers { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.dw-layer { display: grid; grid-template-columns: auto 22px 1fr auto; gap: 6px; align-items: center; padding: 2px 4px; border-radius: 5px; font-size: 12px; }
+.dw-layer.on { background: #1f2a3a; outline: 1px solid #58a6ff; }
+.dw-layer.off .dw-lname { opacity: .45; }
+.dw-layer input[type=color] { width: 22px; height: 18px; padding: 0; border: 0; background: none; cursor: pointer; }
+.dw-lname { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dw-measure { position: absolute; right: 12px; bottom: 34px; z-index: 5; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 12px; }
+.dw-status { pointer-events: none; }
+.part-tab.drawing .pt-name::before { content: "📐 "; }
 .ai-btn.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 .ai-drawer { position: fixed; top: 48px; right: 0; bottom: 0; width: min(440px, 100vw); z-index: 40; display: flex; flex-direction: column;
   background: var(--panel); border-left: 1px solid var(--line); box-shadow: -8px 0 24px rgba(0, 0, 0, 0.35); }
