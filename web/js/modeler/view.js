@@ -1,6 +1,7 @@
 // The 3D view of the model workspace: the body from the CAD kernel (one face id per triangle, so faces can
 // be highlighted and picked), its edges, the three base planes (Top / Front / Right) and, in sketch mode,
 // the sketch plane with a grid, the sketch shapes and their editable sizes.
+import { paintedFaces } from './paint.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/CSS2DRenderer.js';
@@ -200,8 +201,10 @@ export class ModelView {
   }
 
   /** The part's look: its colour ("#rrggbb", none = the usual grey) and opacity (1 = solid, less = see-through). */
-  setLook({ color, opacity } = {}) {
+  setLook({ color, opacity, paint } = {}) {
     this.bodyColor = color ? new THREE.Color(color) : null;
+    // faces painted on their own (paint.js)
+    this.faceColor = new Map([...paintedFaces(this.body?.faces || [], paint)].map(([id, p]) => [id, new THREE.Color(p.color)]));
     const o = Number.isFinite(+opacity) ? Math.min(1, Math.max(0.1, +opacity)) : 1;
     Object.assign(this.material, { transparent: o < 1, opacity: o, depthWrite: o >= 1 });
     this.material.needsUpdate = true;
@@ -213,7 +216,7 @@ export class ModelView {
     const col = this.mesh.geometry.attributes.color;
     for (let t = 0; t < this.faceIds.length; t++) {
       const f = this.faceIds[t];
-      const c = f === this.hover ? HOVER : this.picked.has(f) ? PICKED : this.hoverSet?.has(f) ? FEATURE : this.selSet?.has(f) ? SELECTED : this.bodyColor || BODY;
+      const c = f === this.hover ? HOVER : this.picked.has(f) ? PICKED : this.hoverSet?.has(f) ? FEATURE : this.selSet?.has(f) ? SELECTED : this.faceColor?.get(f) || this.bodyColor || BODY;
       for (let k = 0; k < 3; k++) col.setXYZ(t * 3 + k, c.r, c.g, c.b);
     }
     col.needsUpdate = true;

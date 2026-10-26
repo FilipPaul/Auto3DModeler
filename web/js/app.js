@@ -1777,6 +1777,7 @@ const assembly = new Assembly({ left: $('asmLeft'), viewport: $('asmViewport'), 
   addModelPart: (name, data) => project.addBackground(name, data),
   importSolid: async (file) => solidStep(await importSolid(file)),
   duplicatePart: (id) => project.duplicate(id, false),
+  renamePart: (id, name) => project.rename(id, name),
   editInPlace: async (id, ctx) => { await project.switchTo(id); if (project.active === id) modeler.setContext(ctx); },
   selfId: () => project.active, // the assembly on screen (it may not go into itself)
   onChange: () => updateTopButtons(),

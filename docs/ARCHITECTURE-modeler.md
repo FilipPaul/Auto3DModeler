@@ -91,6 +91,8 @@ Date: 2026-10-25. Written by the architect agent.
 - **Assembly measure done:** AsmView.measurePoint (corners of every placed part), assembly.clickMeasure (faces /
   axes apart). tools/e2e_assembly_measure.py.
 - **Duplicate done:** parts.js duplicate (a new tab after it, "(copy)" names); assembly.ownPart. tools/e2e_duplicate.py.
+- **Paint done:** part `paint` [{name, fp, color}] (paint.js: the same-named face nearest fp), faces' `solid` index from
+  the kernel, 🎨 Paint mode (faces / bodies, Ctrl+click), the look in the modeler's undo; rename.js for 🏷. tools/e2e_paint.py.
 - **Look done:** part data `color` / `opacity` (view.setLook), a placed part's `colour` / `opacity` override
   (assembly.lookOf). tools/e2e_look.py.
 - **Concentric distance done:** an axis joint's `dist` / `side` (joints.js axialEnds / axialGap: the round faces'

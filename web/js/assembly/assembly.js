@@ -11,6 +11,8 @@
 import * as THREE from 'three';
 import { History } from '../history.js';
 import { t } from '../i18n.js';
+import { renameInPlace } from '../rename.js';
+import { paintedFaces } from '../modeler/paint.js';
 import { ModelView } from '../modeler/view.js';
 import { JOINT_TYPES, applyJoint, spinOf, axialGap } from './joints.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
@@ -44,6 +46,18 @@ class AsmView extends ModelView {
       const mat = new THREE.MeshStandardMaterial({ color: it.selected ? 0x6cb6ff : it.colour || COLORS[it.color % COLORS.length], roughness: 0.55, metalness: 0.05,
         side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, emissive: it.hover ? 0x1b2a44 : 0x000000,
         transparent: o < 1, opacity: o, depthWrite: o >= 1 });
+      const painted = it.paint?.length && !it.selected ? paintedFaces(it.body.faces, it.paint) : null;
+      if (painted?.size) { // faces painted in their part
+        const base = new THREE.Color(it.colour || COLORS[it.color % COLORS.length]), col = new Float32Array(pos.length);
+        const byId = new Map([...painted].map(([id, p]) => [id, new THREE.Color(p.color)]));
+        for (let tr = 0; tr < ids.length; tr++) {
+          const c = byId.get(ids[tr]) || base;
+          for (let k = 0; k < 3; k++) col.set([c.r, c.g, c.b], tr * 9 + k * 3);
+        }
+        geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+        mat.vertexColors = true;
+        mat.color.set(0xffffff);
+      }
       const mesh = new THREE.Mesh(geo, mat);
       mesh.matrixAutoUpdate = false;
       mesh.matrix.fromArray(it.matrix);
@@ -281,13 +295,17 @@ export class Assembly {
       row.className = `mt-item${it.id === this.sel ? ' on' : ''}${b?.error ? ' bad' : ''}`;
       row.innerHTML = `<span class="mt-icon">${this.kindOf(it.part) === 'assembly' ? '◇' : this.kindOf(it.part) === 'classic' ? '▤' : '◆'}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>
         ${b?.error ? '<span class="mt-warn">⚠</span>' : ''}
-        <span class="mt-acts"><button class="mini" data-a="dup" title="One more of this part">⧉</button><button class="mini danger" data-a="del" title="Take it out of the assembly">✕</button></span>`;
+        <span class="mt-acts"><button class="mini" data-a="rename" title="Rename its part (its tab too)">🏷</button><button class="mini" data-a="dup" title="One more of this part">⧉</button><button class="mini danger" data-a="del" title="Take it out of the assembly">✕</button></span>`;
       row.querySelector('.mt-name').textContent = this.partName(it.part);
       row.querySelector('.mt-what').textContent = it.id;
       if (b?.error) row.title = b.error;
       row.addEventListener('click', (e) => {
         const a = e.target.closest('[data-a]')?.dataset.a;
         if (a === 'dup') return this.insert(it.part, it);
+        if (a === 'rename') {
+          renameInPlace(row.querySelector('.mt-name'), (n) => { this.hooks.renamePart?.(it.part, n); this.render(); this.hooks.onChange?.(); });
+          return null;
+        }
         if (a === 'del') return this.removeInst(it.id);
         this.sel = it.id;
         this.render();
@@ -333,8 +351,8 @@ export class Assembly {
         ${this.editHtml(it)}
         <h3>Look</h3>${this.lookHtml(it)}
         ${this.jointsHtml(it.id)}
-        <div class="row-actions wrap"><button class="btn small" data-a="joinThis">🔗 Join it to another part</button>
-          ${this.hooks.duplicatePart ? '<button class="btn small" data-a="ownPart" title="Copy its part as a new part of the project and use the copy here — then it can be changed alone (the other copies stay as they are)">⧉ Make it its own part</button>' : ''}</div>
+        <div class="row-actions wrap"><button class="btn small" data-a="joinThis">🔗 Join it to another part</button></div>
+        ${this.hooks.duplicatePart ? '<div class="row-actions"><button class="btn small" data-a="ownPart" title="Copy its part as a new part of the project and use the copy here — then it can be changed alone (the other copies stay as they are)">⧉ Make it its own part</button></div>' : ''}
         <div class="row-actions"><button class="btn small" data-a="reset" title="Back to its place in its own model">Reset its place</button><button class="btn small danger" data-a="del">Take it out</button></div>`;
       for (const inp of box.querySelectorAll('input[data-k]')) {
         inp.addEventListener('change', () => this.setPos(inp.dataset.k, inp.value));
@@ -958,7 +976,7 @@ export class Assembly {
   lookOf(it) {
     const data = this.hooks.partData(it.part) || {};
     const colour = it.colour || data.color, opacity = Number.isFinite(it.opacity) ? it.opacity : data.opacity;
-    return { colour: colour ? new THREE.Color(colour).getHex() : null, opacity: Number.isFinite(opacity) ? opacity : 1 };
+    return { colour: colour ? new THREE.Color(colour).getHex() : null, opacity: Number.isFinite(opacity) ? opacity : 1, paint: it.colour ? null : data.paint || null };
   }
 
   // ------------------------------------------------------------------ editing

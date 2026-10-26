@@ -227,6 +227,10 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
 - **⧉ Duplicate as a new part** (a 3D model's *Part* panel) copies it into a new, independent part (its own tab);
   in an assembly **⧉ Make it its own part** gives a placed part a copy of its own, to change it alone. The AI:
   `duplicate_part`.
+- **🎨 Paint** (3D model): click faces — or, with ▣ Bodies, whole bodies of an imported file — Ctrl+click for more,
+  then pick a colour; ↺ takes a face's own colour off. A painted face keeps its colour when the part changes (its name
+  and place) and shows in assemblies; Ctrl+Z undoes it. **🏷** in a row renames a step (3D model list) or a part
+  (assembly list, its tab too).
 - **Colour and see-through**: a 3D model's *Part* panel sets its colour and how see-through it is (also in every
   assembly); in an assembly a placed part can have its own (*Look*, ↺ back to its part's).
 - The panel of a selected part has its x / y / z position, **Turn** sliders for X / Y / Z (any angle; they catch at

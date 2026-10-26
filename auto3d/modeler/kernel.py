@@ -753,6 +753,15 @@ def tessellate(body):
     bb = bbox(shape) or [0, 0, 0, 1, 1, 1]
     size = max(bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2], 1e-6)
     fm, em, adj = _adjacency(shape)
+    # which solid each face belongs to (an imported file can hold several bodies: they can be coloured apart)
+    solid_of, ex, k = {}, TopExp_Explorer(shape, TopAbs_SOLID), 0
+    while ex.More():
+        fx = TopExp_Explorer(ex.Current(), TopAbs_FACE)
+        while fx.More():
+            solid_of.setdefault(fm.FindIndex(fx.Current()) - 1, k)
+            fx.Next()
+        k += 1
+        ex.Next()
     # a big imported model (thousands of faces): a coarser mesh, and only the edges that show at this size —
     # millions of triangles would freeze the browser (and take minutes here)
     heavy = fm.Extent() > HEAVY_FACES
@@ -783,6 +792,8 @@ def tessellate(body):
             info = _face_info(f, fi, rev, (float(ar.sum()), cm))
         else:
             info = _face_info(f, fi, rev)
+        if fi in solid_of:
+            info["solid"] = solid_of[fi]
         nm = names.get(fi, [])
         if nm:
             info["name"] = nm[-1]  # the latest name (e.g. the hole wall rather than the plate it was cut from)

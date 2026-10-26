@@ -448,6 +448,7 @@ body:not(.ws-model):not(.ws-assembly) .not-quick { display: none !important; }
 .m-ctx { position: absolute; left: 12px; bottom: 34px; z-index: 6; display: flex; gap: 12px; align-items: center;
   background: #1f2a3a; border: 1px solid #58a6ff; border-radius: 8px; padding: 6px 10px; font-size: 12px; color: var(--text); max-width: 52%; }
 .m-ctx .btn { white-space: nowrap; }
+.mt-name.renaming { outline: 1px solid var(--accent, #58a6ff); background: var(--bg); padding: 0 3px; border-radius: 3px; cursor: text; }
 .mp-range { font-size: 10.5px; color: var(--muted); margin: -6px 0 8px; text-align: right; }
 .m-dimedit .mp-range { margin: -4px 0 0; }
 .mp-slider { display: block; width: 100%; margin: -2px 0 8px; accent-color: #6e40c9; }

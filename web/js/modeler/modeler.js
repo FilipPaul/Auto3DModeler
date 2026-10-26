@@ -5,6 +5,8 @@
 // The server's CAD kernel builds the body (/api/model/rebuild); this module edits the part JSON.
 import { History } from '../history.js';
 import { t } from '../i18n.js';
+import { renameInPlace } from '../rename.js';
+import { paintedFaces, repaint } from './paint.js';
 import { ModelView, DATUMS, datumFrame } from './view.js';
 import { Sketcher, upgradeSketch, arcPts, RELATIONS } from './sketcher.js';
 import { textOutline } from '../outlinepanel.js';
@@ -40,8 +42,14 @@ export class Modeler {
     this.sk = null;     // the open sketch (a Sketcher)
     this.selected = null; // feature id selected in the tree
     this.history = new History({
-      capture: () => ({ features: this.part.features }),
-      restore: async (s) => { this.part.features = s.features; this.closeAll(); this.render(); await this.rebuild(); },
+      capture: () => ({ features: this.part.features, look: { color: this.part.color, opacity: this.part.opacity, paint: this.part.paint } }),
+      restore: async (s) => {
+        this.part.features = s.features;
+        for (const k of ['color', 'opacity', 'paint']) { if (s.look?.[k] === undefined) delete this.part[k]; else this.part[k] = s.look[k]; }
+        this.closeAll();
+        this.render();
+        await this.rebuild();
+      },
       onChange: () => this.updateUndo(),
     });
     this.build();
@@ -133,6 +141,7 @@ export class Modeler {
         <span class="sep"></span>
         <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
         <span class="sep"></span>
+        ${btn('paint', '🎨 Paint', 'Colour faces, or whole bodies of an imported file: click them (Ctrl+click: more), then pick a colour', this.painting ? 'on' : '')}
         ${btn('measure', '📏 Measure', 'Measure: click a face or an edge (its size), or two spots (the distance between them) (M)', this.measuring ? 'on' : '')}
         ${btn('section', '✂ Section', 'Look inside: cut the view along X, Y or Z', this.section ? 'on' : '')}
         <span class="sep"></span>
@@ -142,7 +151,7 @@ export class Modeler {
       for (const a of ['fillet', 'chamfer', 'hole', 'shell', 'pattern', 'decal', 'mirror']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body || !!this.cmd;
       bar.querySelector('[data-a=revolve]').disabled = !canExtrude || !!this.cmd;
       for (const a of ['loft', 'sweep']) bar.querySelector(`[data-a=${a}]`).disabled = this.sketches().length < 2 || !!this.cmd;
-      for (const a of ['measure', 'section']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body;
+      for (const a of ['measure', 'section', 'paint']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body;
     }
     for (const b of bar.querySelectorAll('[data-a]:not([data-a=relate])')) b.addEventListener('click', () => this.action(b.dataset.a));
     bar.querySelector('[data-a=relate]')?.addEventListener('click', (e) => { e.stopPropagation(); bar.querySelector('.sk-relmenu').classList.toggle('open'); });
@@ -180,6 +189,7 @@ export class Modeler {
     if (a === 'revolve') return this.startRevolve();
     if (a === 'toPrint') return this.toPrint();
     if (a === 'measure') return this.toggleMeasure();
+    if (a === 'paint') return this.togglePaint();
     if (a === 'section') return this.toggleSection();
     if (a === 'shell') return this.startShell();
     if (a === 'pattern') return this.startPattern();
@@ -229,7 +239,7 @@ export class Modeler {
       const icon = f.type === 'extrude' ? ICON[f.op === 'cut' ? 'cut' : 'extrude'] : ICON[f.type] || '•';
       row.innerHTML = `<span class="mt-icon">${icon}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>
         ${st && !st.ok ? '<span class="mt-warn">⚠</span>' : warn ? '<span class="mt-warn soft">⚠</span>' : ''}
-        <span class="mt-acts"><button class="mini" data-a="off" title="${f.suppressed ? 'Turn this step on again' : 'Turn this step off for now (it is kept)'}">${f.suppressed ? '◌' : '●'}</button><button class="mini" data-a="edit" title="Change this step (or double-click it)">✎</button><button class="mini danger" data-a="del" title="Delete this step">✕</button></span>`;
+        <span class="mt-acts"><button class="mini" data-a="off" title="${f.suppressed ? 'Turn this step on again' : 'Turn this step off for now (it is kept)'}">${f.suppressed ? '◌' : '●'}</button><button class="mini" data-a="rename" title="Rename this step">🏷</button><button class="mini" data-a="edit" title="Change this step (or double-click it)">✎</button><button class="mini danger" data-a="del" title="Delete this step">✕</button></span>`;
       row.querySelector('.mt-name').textContent = f.name;
       row.querySelector('.mt-what').textContent = f.suppressed ? 'off' : this.whatText(f);
       if (st && !st.ok) row.title = st.issues.join(' ');
@@ -239,6 +249,10 @@ export class Modeler {
         if (a === 'edit') return this.edit(f.id);
         if (a === 'del') return this.remove(f.id);
         if (a === 'off') return this.toggleOff(f.id);
+        if (a === 'rename') {
+          renameInPlace(row.querySelector('.mt-name'), (n) => { f.name = n; this.history.commit(); this.render(); this.hooks.onChange?.(); });
+          return null;
+        }
         this.selectStep(f.id);
         return null;
       });
@@ -618,6 +632,7 @@ export class Modeler {
   // ------------------------------------------------------------------ property panel
   renderProps() {
     const box = this.$('.mp-body');
+    if (this.painting && !this.cmd) { this.renderPaint(box); return null; }
     if (this.cmd) {
       const ty = this.cmd.feature.type;
       const r = ty === 'extrude' ? this.renderExtrude(box) : ty === 'hole' ? this.renderHole(box) : ty === 'revolve' ? this.renderRevolve(box)
@@ -1923,6 +1938,61 @@ export class Modeler {
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
   }
 
+  // ------------------------------------------------------------------ 🎨 paint faces / bodies
+  togglePaint() {
+    if (this.mode !== 'part' || this.cmd || (!this.painting && !this.result?.body)) return;
+    if (this.measuring) this.toggleMeasure();
+    this.painting = this.painting ? null : { by: 'face', sel: new Set() };
+    this.view.picked.clear();
+    this.view.paint();
+    this.hint(this.painting ? 'Paint — click a face (or a body), Ctrl+click for more, then pick a colour. Esc ends.' : '');
+    this.renderCmdBar();
+    this.renderProps();
+  }
+
+  /** The faces chosen for painting, marked. */
+  paintMarks() {
+    this.view.picked = new Set(this.painting?.sel || []);
+    this.view.paint();
+  }
+
+  clickPaint(e) {
+    const ps = this.painting, b = this.result?.body, h = this.view.pick(e.clientX, e.clientY), more = e.ctrlKey || e.metaKey;
+    if (!h?.face) { if (!more) ps.sel.clear(); this.paintMarks(); this.renderProps(); return; }
+    // a whole body: every face of its solid
+    const ids = ps.by === 'solid' && Number.isInteger(h.face.solid) ? b.faces.filter((f) => f.solid === h.face.solid).map((f) => f.id) : [h.face.id];
+    if (more) {
+      const all = ids.every((n) => ps.sel.has(n));
+      for (const n of ids) (all ? ps.sel.delete(n) : ps.sel.add(n));
+    } else ps.sel = new Set(ids);
+    this.paintMarks();
+    this.renderProps();
+  }
+
+  renderPaint(box) {
+    const ps = this.painting, b = this.result?.body, n = ps.sel.size, now = paintedFaces(b?.faces || [], this.part.paint);
+    const solids = new Set((b?.faces || []).map((f) => f.solid).filter(Number.isInteger)).size;
+    const first = [...ps.sel].find((x) => now.has(x));
+    box.innerHTML = `<h2>🎨 Paint</h2>
+      <div class="seg"><button data-by="face" class="${ps.by === 'face' ? 'on' : ''}">▢ Faces</button><button data-by="solid" class="${ps.by === 'solid' ? 'on' : ''}" ${solids > 1 ? '' : 'disabled title="This part is one body"'}>▣ Bodies${solids > 1 ? ` (${solids})` : ''}</button></div>
+      <p class="hint">Click ${ps.by === 'solid' ? 'a body' : 'a face'} — Ctrl+click adds more (or takes one away).</p>
+      <p class="mp-count">${n ? t2('{n} face(s) chosen', { n }) : t('Nothing chosen yet')}</p>
+      <div class="field"><label>Colour</label><input type="color" data-k="paint" value="${(first !== undefined && now.get(first).color) || this.part.color || '#d9dee6'}" ${n ? '' : 'disabled'}></div>
+      <div class="row-actions wrap"><button class="btn small" data-a="unpaint" ${n && [...ps.sel].some((x) => now.has(x)) ? '' : 'disabled'}>↺ Their own colour off</button>
+        <button class="btn small" data-a="unpaintAll" ${now.size ? '' : 'disabled'}>Clear all colours</button></div>
+      <p class="hint">${t2('{n} face(s) of this part have their own colour (shown in assemblies too).', { n: now.size })}</p>
+      <div class="mp-actions"><button class="btn primary" data-a="donePaint">Done</button></div>`;
+    for (const el of box.querySelectorAll('[data-by]')) el.addEventListener('click', () => { ps.by = el.dataset.by; ps.sel.clear(); this.paintMarks(); this.renderProps(); });
+    const col = box.querySelector('[data-k=paint]');
+    const commit = () => { this.history.commit(); this.hooks.onChange?.(); };
+    const setPaint = (p) => { if (p.length) this.part.paint = p; else delete this.part.paint; this.view.setLook(this.part); };
+    col.addEventListener('input', () => setPaint(repaint(b.faces, this.part.paint, ps.sel, col.value)));
+    col.addEventListener('change', () => { commit(); this.renderProps(); });
+    box.querySelector('[data-a=unpaint]').addEventListener('click', () => { setPaint(repaint(b.faces, this.part.paint, ps.sel, null)); commit(); this.renderProps(); });
+    box.querySelector('[data-a=unpaintAll]').addEventListener('click', () => { setPaint([]); commit(); this.renderProps(); });
+    box.querySelector('[data-a=donePaint]').addEventListener('click', () => this.togglePaint());
+  }
+
   // ------------------------------------------------------------------ measure, section
   toggleMeasure() {
     if (this.mode !== 'part' || this.cmd) return;
@@ -2099,6 +2169,7 @@ export class Modeler {
       if (this.mode === 'sketch') return this.sk.click(e);
       if (this.mode === 'part' && this.cmd && (!USES_SKETCH.has(this.cmd.feature.type) || this.cmd.feature.upto)) return this.clickCommand(e);
       if (this.mode === 'part' && this.measuring) return this.clickMeasure(e);
+      if (this.mode === 'part' && this.painting) return this.clickPaint(e);
       if (this.mode === 'part' && !this.cmd) return this.clickFace(e);
       return null;
     });
@@ -2138,6 +2209,7 @@ export class Modeler {
       return;
     }
     if (this.measuring && e.key === 'Escape') { this.toggleMeasure(); return; }
+    if (this.painting && e.key === 'Escape') { this.togglePaint(); return; }
     if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y')) { e.preventDefault(); this.history.go(k === 'y' || e.shiftKey ? 1 : -1); return; }
     if (k === 'm') this.toggleMeasure();
     if (k === 's' && !e.ctrlKey) this.startSketch();
