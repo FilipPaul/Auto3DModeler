@@ -60,6 +60,11 @@ Date: 2026-10-25. Written by the architect agent.
   raised / engraved on a flat face, follows it; the AI's decal. tools/e2e_model_decal.py.
 - **Assembly links done:** snaps hold (doc.mates {move, face, onto, ontoFace}, re-applied after refresh and moves;
   moving the snapped part by hand unlinks; no cycles; saved, undoable). tools/e2e_assembly_links.py.
+- **Parts library done:** library/*.json (the app's: fasteners, mechanical, panel, automation) + data/library/*.json
+  (the user's; auto3d/library.py: load / check / save / delete, GET / POST /api/library, DELETE /api/library/<id>);
+  web/js/library/build.js (formulas, sizes × lengths -> sketch + extrude / revolve steps, part.library facts, shop
+  search links), browser.js (📚 window with a 3D preview, Save to the library), the assembly's bomFlat / ⬇ BOM CSV.
+  tests/test_library.py, tools/e2e_library_build.py, tools/e2e_library.py. Next: the AI uses the library first.
 - **Collisions done:** kernel.interference (box test, then BRepAlgoAPI_Common volume per pair), doc.assembly_clashes,
   worker op, POST /api/assembly/clashes; the assembly's ⚠ panel (flatParts, checkClashes after each commit while
   open, red parts + overlap boxes via AsmView.setClashBoxes). tests: TestAssemblyClashes, tools/e2e_assembly_clash.py.

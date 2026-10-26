@@ -10,6 +10,7 @@ import { OutlinePanel, shapeRings, hitShape } from './outlinepanel.js';
 import { openLightbox } from './lightbox.js';
 import { ChatPanel, startBridge, bridgeStats } from './agent.js';
 import { AiHistory } from './aihistory.js';
+import { LibraryBrowser, saveToLibrary } from './library/browser.js';
 import { Project } from './parts.js';
 import { Modeler } from './modeler/modeler.js';
 import { modelHandlers } from './modeler/agent_model.js';
@@ -1725,6 +1726,7 @@ const modeler = new Modeler({ left: $('modelLeft'), viewport: $('modelViewport')
   pickOutline: () => pickOutlineFile(),
   importSolid: (file) => importSolid(file),
   backTo: (id) => id && project.switchTo(id),
+  saveToLibrary: () => saveToLibrary(project.current?.name || safeName(), modeler.payload(), toast),
   duplicatePart: async () => { await project.duplicate(); toast(t2('{name} — a copy of its own (change it without changing the original).', { name: project.current?.name }), 'ok', 5000); },
   // a printing copy of a model part: its STL as a Quick part, on the 3D print tab
   async toPrint(blob) {
@@ -2276,4 +2278,23 @@ window.__chat = chat;
 startBridge(agentHandlers);
 initSplitters(document.querySelector('main.layout'), $('aiDrawer'));
 
-window.__app = { state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d };
+// 📚 the parts library: a part opens as a new 3D model, or goes into the assembly on screen (the same library part
+// once in the project, placed as often as wanted)
+const libKey = (d) => (d?.library ? JSON.stringify([d.library.id, d.library.size, d.library.length ?? null]) : null);
+const library = new LibraryBrowser({
+  toast,
+  canInsert: () => state.workspace === 'assembly',
+  async openAsModel(name, data) {
+    await project.newModel(structuredClone(data), name);
+    toast(t2('{name} — a 3D model of its own now (change it, or put it into an assembly).', { name }), 'ok', 5000);
+  },
+  async insertIntoAssembly(name, data) {
+    const same = project.parts.find((p) => p.kind === 'model' && typeof p.data === 'object' && libKey(p.data) === libKey(data));
+    const id = same?.id || project.addBackground(name, structuredClone(data));
+    await assembly.insert(id);
+    toast(t2('{name} is in the assembly — join it with 🔗 Joint.', { name }), 'ok', 5000);
+  },
+});
+$('libBtn').addEventListener('click', () => library.open());
+
+window.__app = { state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, library, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d };

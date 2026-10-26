@@ -263,6 +263,27 @@ the **Front**, **Top** and **Right** views with visible edges (solid) and hidden
 overall sizes dimensioned, every hole labelled (Ø) and listed with its position from the part's lower-left corner,
 and a title block (name, size, material, mass, scale). The AI's `export {format: "pdf"}` writes the same file.
 
+## 📚 Parts library
+
+**📚 Library** (top bar) holds real parts to build with, each with its maker, part number and order numbers:
+- **Fasteners**: screws M1–M6 with several heads (socket ISO 4762, button ISO 7380, countersunk ISO 10642, pan head
+  ISO 7045, slotted cheese DIN 84 from M1, hex ISO 4017), screws for plastics, nuts (ISO 4032, lock DIN 985, square
+  DIN 562), washers ISO 7089;
+- **ruthex heat-set inserts** (with the hole size to print), **bearings** (608-2Z and others; LMxUU), **standoffs**
+  (Würth WA-SSTII M3, brass M/F);
+- **panel parts** (APEM Q8 LEDs, Eaton M22 push buttons and E-stop, Neutrik D-size USB / RJ45 feed-throughs);
+- **automation**: SMC CJ2 cylinders (bore and stroke), KQ2 fittings, an SY3000 valve; SICK IME12 / IME18 inductive
+  sensors; NEMA 17 / 23 stepper motors.
+
+Search (e.g. *M3*, *608*, *SMC*, *SICK*), choose the size (and length or stroke), and see it in 3D. Then **⤵ Put into
+the assembly** on screen (the same part is used again when you put it in twice) or **◆ Open as a new 3D model**.
+Parts marked **≈ outline** are drawn from their catalogue sizes as an envelope, so check the maker's drawing for
+the details. *Find it at* searches the part number at Mouser, Farnell, TME and GM Electronic. A library part's panel
+shows its facts. **📚 Save to the library** (a 3D model's panel) keeps your own part, with its maker and part number
+if bought, in `data/library/` on the server. The format for writing parts by hand is in
+[library/README.md](library/README.md). An assembly's **⬇ BOM (CSV)** lists every part (inside sub-assemblies too)
+with quantity, maker, part number, order numbers and mass, as a CSV that Excel opens.
+
 ## Assemblies
 
 **＋ New assembly** (in the ＋ menu next to the part tabs) opens an assembly tab (◇), where the parts of the project

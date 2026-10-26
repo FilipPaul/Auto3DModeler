@@ -379,6 +379,38 @@ export class Assembly {
     this.commit();
   }
 
+  /** The bill of materials of every part (those inside sub-assemblies counted in) -> rows
+   *  [{name, qty, maker, pn, description, order: {…}, material, mass_g (each), library (bool)}]. */
+  bomFlat() {
+    const rows = new Map();
+    const walk = (list, times) => {
+      for (const it of list) {
+        const data = this.hooks.partData(it.part) || {};
+        if (this.kindOf(it.part) === 'assembly') { walk(data.instances || [], times); continue; }
+        const lib = data.library || null, key = it.part;
+        const r = rows.get(key) || { name: this.partName(it.part), qty: 0, maker: lib?.maker || '', pn: lib?.pn || '', description: lib?.description || '',
+          order: lib?.order || {}, material: data.material || (lib ? '' : 'PLA'), library: !!lib, approx: !!lib?.approx };
+        r.qty += times;
+        const b = this.bodies[it.part]?.body;
+        r.mass_g = b?.mass_g ?? (b?.volume && MATERIALS[r.material] ? +((b.volume / 1000) * MATERIALS[r.material]).toFixed(2) : null);
+        rows.set(key, r);
+      }
+    };
+    walk(this.doc.instances, 1);
+    return [...rows.values()];
+  }
+
+  /** ⬇ BOM (CSV): ; separated (Excel in Czech / German reads it), UTF-8 with a BOM mark. */
+  async exportBom() {
+    const rows = this.bomFlat(), shops = [...new Set(rows.flatMap((r) => Object.keys(r.order || {})))];
+    const q = (v) => { const s = String(v ?? ''); return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const head = ['Pos', 'Qty', 'Name', 'Maker', 'Part number', ...shops.map((s) => `Order (${s})`), 'Description', 'Material', 'Mass each (g)', 'Bought / made'];
+    const lines = [head.map(q).join(';'), ...rows.map((r, i) => [i + 1, r.qty, r.name, r.maker, r.pn, ...shops.map((s) => r.order?.[s] || ''), r.description, r.material,
+      r.mass_g === null || r.mass_g === undefined ? '' : String(r.mass_g).replace('.', ','), r.library ? 'bought' : 'made (3D print)'].map(q).join(';'))];
+    const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv' });
+    if (await this.hooks.download(blob, `${this.hooks.safeName()} BOM.csv`)) this.hooks.toast(t2('BOM saved: {n} line(s).', { n: rows.length }), 'ok');
+  }
+
   /** The parts list: part, how many, material, mass each and in all. */
   bom() {
     const rows = {};
@@ -386,6 +418,7 @@ export class Assembly {
       const r = (rows[it.part] = rows[it.part] || { part: it.part, name: this.partName(it.part), qty: 0 });
       r.qty++;
       const data = this.hooks.partData(it.part);
+      r.lib = data?.library || null;
       r.material = data?.material || 'PLA';
       const b = this.bodies[it.part]?.body, v = b?.volume;
       if (b?.sub) r.material = '—';
@@ -503,12 +536,15 @@ export class Assembly {
       ${rows.length ? `${this.jointsHtml(null)}<h3>Parts list</h3><table class="as-bom"><tr><th>Part</th><th>Qty</th><th>Material</th><th>Mass</th></tr>
         ${rows.map((r) => `<tr><td data-no-i18n>${esc(r.name)}</td><td>${r.qty}</td><td>${r.material}</td><td>${r.mass === null ? '—' : `${fmt(+(r.mass * r.qty).toFixed(1))} g`}</td></tr>`).join('')}
         <tr class="as-total"><td>Total</td><td>${rows.reduce((s, r) => s + r.qty, 0)}</td><td></td><td>${fmt(+total.toFixed(1))} g</td></tr></table>
+        ${rows.some((r) => r.lib?.pn) ? `<div class="as-pns">${rows.filter((r) => r.lib?.pn).map((r) => `<div><span data-no-i18n>${r.qty}× ${esc(r.lib.pn)}</span> <i data-no-i18n>${esc(r.lib.maker || '')}</i></div>`).join('')}</div>` : ''}
+        <div class="row-actions"><button class="btn small" data-a="bomCsv" title="The bill of materials as a CSV file (Excel): every part with its quantity, maker, part number, order numbers and mass — the parts inside sub-assemblies too">⬇ BOM (CSV)</button></div>
         <h3>Export</h3><div class="row-actions"><button class="btn small" data-x="stl" title="All parts in one STL, as placed">STL</button>
         <button class="btn small" data-x="step" title="All parts as separate bodies in one STEP file">STEP</button></div>
         <p class="hint">To print, open each part's tab and use 🖨 Prepare for 3D print there.</p>`
         : `<p class="hint">Insert parts of this project (3D models and quick parts) with ＋ Insert part, then join them with 🔗 Joint.</p>`}`;
     this.bindJointRows(box);
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
+    box.querySelector('[data-a=bomCsv]')?.addEventListener('click', () => this.exportBom());
   }
 
   // ------------------------------------------------------------------ fasteners

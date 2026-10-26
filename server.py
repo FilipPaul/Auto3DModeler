@@ -25,6 +25,7 @@ from flask import Flask, Response, jsonify, request, send_file, send_from_direct
 from auto3d import progress
 from auto3d.agent import ChatSession, Relay, find_claude
 from auto3d.ai_history import HistoryError, delete_state, list_states, load_state, save_state
+from auto3d import library as parts_library
 from auto3d.agent_tools import BROWSER_TOOLS, TOOL_NAMES
 from auto3d.bend import bend_info, bend_solid
 from auto3d.design import profile_polygon, trace_image
@@ -156,6 +157,34 @@ def api_project_migrate():
         return jsonify(migrate_project(request.get_json(force=True, silent=True)))
     except ProjectError as e:
         return jsonify({"error": str(e)}), 400
+
+
+LIBRARY_APP = ROOT / "library"            # 📚 the app's parts library (auto3d/library.py)
+LIBRARY_USER = ROOT / "data" / "library"   # the user's own parts
+
+
+@app.get("/api/library")
+def api_library():
+    return jsonify(parts_library.load(LIBRARY_APP, LIBRARY_USER))
+
+
+@app.post("/api/library")
+def api_library_save():
+    """{item} -> the user's own part kept in data/library/."""
+    body = request.get_json(force=True, silent=True) or {}
+    try:
+        return jsonify(parts_library.save_user_item(LIBRARY_USER, body.get("item")))
+    except parts_library.LibraryError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.delete("/api/library/<item_id>")
+def api_library_delete(item_id):
+    try:
+        parts_library.delete_user_item(LIBRARY_USER, item_id)
+    except parts_library.LibraryError as e:
+        return jsonify({"error": str(e)}), 404
+    return jsonify({"ok": True})
 
 
 AI_HISTORY = ROOT / "data" / "history"  # the project after each AI turn (auto3d/ai_history.py)

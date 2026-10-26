@@ -1,0 +1,159 @@
+// 📚 Library parts -> 3D model steps. A library item (library/*.json, or the user's in data/library/) describes a real
+// part (a standard screw, a bearing, a SMC cylinder, a SICK sensor…): its sizes as a table, an optional second choice
+// (a length), the names it is ordered by, and its shape as a few simple steps whose numbers may be formulas of the
+// chosen size's values:
+//   {"revolve": [[r, z], …]}                       a half-section (r from the axis, z up), turned round the Z axis
+//   {"extrude": {shape}, "z": z0, "h": height, "op": "add" | "cut", "holes": [{shape}…], "at": [[x, y]…], "plane": "XY" | "XZ" | "YZ"}
+//   shapes: {"circle": {"d", "x", "y"}}, {"rect": {"w", "h", "x", "y", "r"}} (x, y: its middle), {"hex": {"s", "x", "y"}}
+//   (s across the flats), {"polygon": {"n", "d", "x", "y"}} (n corners on Ø d), {"polyline": [[x, y]…]}
+// A step with "when": a formula is made only where that formula is above 0 (e.g. "top - 10").
+// A number may be a formula such as "L + k" or "dk / 2" (+ - * / ^, ( ), min, max, sqrt, sin, cos, tan, pi), of the
+// size's values, `L` (the second choice) and the item's `vars`.
+import { sketchFromShapes } from '../modeler/agent_model.js';
+
+// ------------------------------------------------------------------ formulas
+const FN = { min: Math.min, max: Math.max, sqrt: Math.sqrt, sin: Math.sin, cos: Math.cos, tan: Math.tan, abs: Math.abs, round: Math.round, floor: Math.floor, ceil: Math.ceil };
+
+/** A formula of the values in `vars` -> a number (a number stays itself). Throws on anything else. */
+export function evaluate(expr, vars = {}) {
+  if (typeof expr === 'number') return expr;
+  if (typeof expr !== 'string') throw new Error(`Not a number: ${JSON.stringify(expr)}`);
+  const src = expr, toks = src.match(/\d+\.?\d*(?:e[+-]?\d+)?|\.\d+|[A-Za-z_]\w*|[-+*/^(),]/g) || [];
+  if (toks.join('') !== src.replace(/\s+/g, '')) throw new Error(`Cannot read the formula “${src}”.`);
+  let i = 0;
+  const peek = () => toks[i], next = () => toks[i++];
+  const primary = () => {
+    const tk = next();
+    if (tk === undefined) throw new Error(`The formula “${src}” ends too soon.`);
+    if (tk === '(') { const v = sum(); if (next() !== ')') throw new Error(`A “)” is missing in “${src}”.`); return v; }
+    if (tk === '-') return -power();
+    if (tk === '+') return power();
+    if (/^[\d.]/.test(tk)) return parseFloat(tk);
+    if (tk === 'pi') return Math.PI;
+    if (FN[tk] && peek() === '(') {
+      next();
+      const args = [sum()];
+      while (peek() === ',') { next(); args.push(sum()); }
+      if (next() !== ')') throw new Error(`A “)” is missing in “${src}”.`);
+      return FN[tk](...args);
+    }
+    if (tk in vars) return evaluate(vars[tk], vars);
+    throw new Error(`“${tk}” is not known in “${src}”.`);
+  };
+  const power = () => { const b = primary(); if (peek() === '^') { next(); return b ** power(); } return b; };
+  const product = () => {
+    let v = power();
+    while (peek() === '*' || peek() === '/') v = next() === '*' ? v * power() : v / power();
+    return v;
+  };
+  const sum = () => {
+    let v = product();
+    while (peek() === '+' || peek() === '-') v = next() === '+' ? v + product() : v - product();
+    return v;
+  };
+  const v = sum();
+  if (i !== toks.length) throw new Error(`Cannot read the formula “${src}”.`);
+  if (!Number.isFinite(v)) throw new Error(`The formula “${src}” gives no number.`);
+  return v;
+}
+
+/** `text` with {name} replaced by the values (numbers rounded). */
+export const fill = (text, vars) => String(text || '').replace(/\{(\w+)\}/g, (_, k) => {
+  const v = vars[k];
+  if (v === undefined) return '';
+  return typeof v === 'number' ? String(+v.toFixed(3)) : String(v);
+});
+
+// ------------------------------------------------------------------ choices
+/** The sizes of an item: [{key, …values}] in their order. */
+export const sizesOf = (item) => Object.entries(item.sizes || { '': {} }).map(([key, v]) => ({ key, ...v }));
+
+/** The second choice (a length) for a size: {name, values, unit} or null. */
+export function lengthsOf(item, sizeKey) {
+  const l = item.lengths;
+  if (!l) return null;
+  const values = Array.isArray(l.values) ? l.values : (l.values || {})[sizeKey] || l.default || [];
+  return values.length ? { name: l.name || 'Length', values, unit: l.unit || 'mm', param: l.param || 'L' } : null;
+}
+
+/** All the values for a choice: the item's vars, the size's values, the length. */
+export function varsOf(item, sizeKey, length) {
+  const size = (item.sizes || {})[sizeKey] || {};
+  const vars = { ...(item.vars || {}), ...size, size: sizeKey };
+  const l = lengthsOf(item, sizeKey);
+  if (l) vars[l.param] = length ?? l.values[0];
+  return vars;
+}
+
+// ------------------------------------------------------------------ the steps
+const num = (v, vars) => +evaluate(v, vars).toFixed(4);
+
+function shapesOf(spec, vars, at = [[0, 0]]) {
+  const out = [];
+  for (const [ax, ay] of at.map((p) => p.map((v) => num(v, vars)))) {
+    if (spec.circle) out.push({ circle: { x: ax + num(spec.circle.x ?? 0, vars), y: ay + num(spec.circle.y ?? 0, vars), d: num(spec.circle.d, vars) } });
+    else if (spec.rect) {
+      const w = num(spec.rect.w, vars), h = num(spec.rect.h, vars), r = num(spec.rect.r ?? 0, vars);
+      out.push({ rect: { x: ax + num(spec.rect.x ?? 0, vars) - w / 2, y: ay + num(spec.rect.y ?? 0, vars) - h / 2, w, h, r } });
+    } else if (spec.hex || spec.polygon) {
+      const n = spec.hex ? 6 : Math.round(num(spec.polygon.n, vars)), R = spec.hex ? num(spec.hex.s, vars) / Math.sqrt(3) : num(spec.polygon.d, vars) / 2;
+      const p = spec.hex || spec.polygon, cx = ax + num(p.x ?? 0, vars), cy = ay + num(p.y ?? 0, vars), a0 = num(p.turn ?? 0, vars) * Math.PI / 180;
+      out.push({ polyline: { points: Array.from({ length: n }, (_, i) => [+(cx + R * Math.cos(a0 + (2 * Math.PI * i) / n)).toFixed(4), +(cy + R * Math.sin(a0 + (2 * Math.PI * i) / n)).toFixed(4)]) } });
+    } else if (spec.polyline) out.push({ polyline: { points: spec.polyline.map(([x, y]) => [ax + num(x, vars), ay + num(y, vars)]) } });
+    else throw new Error(`A shape is circle, rect, hex, polygon or polyline: ${JSON.stringify(spec)}`);
+  }
+  return out;
+}
+
+/** An item and the choice (size, length) -> {name, data (the 3D model part: its steps and the library facts)}. */
+export function buildPart(item, sizeKey = sizesOf(item)[0]?.key, length) {
+  const vars = varsOf(item, sizeKey, length), features = [];
+  let n = 0;
+  const id = () => `F${++n}`;
+  // a part saved from a 3D model: its own steps, as they are
+  if (item.features?.length) features.push(...structuredClone(item.features));
+  for (const step of item.shape || []) {
+    if (step.when !== undefined && !(evaluate(step.when, vars) > 0)) continue; // a step only some sizes have (its formula > 0)
+    if (step.revolve) {
+      const pts = step.revolve.map(([r, z]) => [num(r, vars), num(z, vars)]);
+      const sk = id();
+      features.push({ id: sk, type: 'sketch', name: `Sketch ${n}`, plane: { datum: 'XZ' }, ...sketchFromShapes([{ polyline: { points: pts } }], true) });
+      features.push({ id: id(), type: 'revolve', name: `Revolve ${n}`, sketch: sk, axis: 'y', angle: 360, op: step.op === 'cut' ? 'cut' : 'add' });
+      continue;
+    }
+    if (step.extrude) {
+      const at = step.at || [[0, 0]], shapes = [...shapesOf(step.extrude, vars, at), ...(step.holes || []).flatMap((hs) => shapesOf(hs, vars, at))];
+      const h = num(step.h, vars), z = num(step.z ?? 0, vars), sk = id();
+      features.push({ id: sk, type: 'sketch', name: `Sketch ${n}`, plane: { datum: step.plane || 'XY', ...(z ? { offset: z } : {}) }, ...sketchFromShapes(shapes, true) });
+      features.push({ id: id(), type: 'extrude', name: `Extrude ${n}`, sketch: sk, op: step.op === 'cut' ? 'cut' : 'add', d: Math.abs(h), through: false, symmetric: false, flip: h < 0 });
+      continue;
+    }
+    throw new Error(`A step is revolve or extrude: ${JSON.stringify(step).slice(0, 80)}`);
+  }
+  const order = {};
+  for (const [k, v] of Object.entries({ ...(item.order || {}), ...(vars.order || {}) })) order[k] = fill(v, vars);
+  const name = fill(item.title || item.name, vars);
+  const pn = fill(vars.pn ?? item.pn ?? '', vars);
+  return {
+    name,
+    data: {
+      features,
+      ...(item.color ? { color: item.color } : {}),
+      material: item.material || undefined,
+      library: { id: item.id, item: item.name, size: sizeKey, ...(vars.L !== undefined && lengthsOf(item, sizeKey) ? { length: vars.L } : {}),
+        maker: item.maker || '', pn, description: fill(item.description || item.name, vars), order, approx: !!item.approx, standard: item.standard || '' },
+    },
+  };
+}
+
+/** The shops where a maker part number is looked up (search pages — they always work, no guessed order codes). */
+export function shopLinks(pn) {
+  if (!pn) return [];
+  const q = encodeURIComponent(pn);
+  return [
+    { shop: 'Mouser', url: `https://cz.mouser.com/c/?q=${q}` },
+    { shop: 'Farnell', url: `https://cz.farnell.com/search?st=${q}` },
+    { shop: 'TME', url: `https://www.tme.eu/cz/katalog/?search=${q}` },
+    { shop: 'GM Electronic', url: `https://www.gme.cz/hledani?search=${q}` },
+  ];
+}

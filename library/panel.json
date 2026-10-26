@@ -1,0 +1,49 @@
+{
+  "library": "Panel parts",
+  "about": "Indicators, push buttons and connectors for a front panel, by their maker's part number. Drawn as their outline (front, the panel hole, the depth behind) — the panel is the plane z = 0, the front up.",
+  "items": [
+    {
+      "id": "apem-q8", "category": "Panel / Indicators", "name": "LED indicator Ø8 mm (APEM Q8)", "maker": "APEM", "approx": true,
+      "title": "APEM {pn}", "pn": "{pn}", "description": "APEM Q8 LED panel indicator, {colour}, {volt}, IP67, panel hole Ø8 mm — drawn as its outline (≈ 28.75 mm long), check the APEM sheet",
+      "color": "#c8ccd2",
+      "sizes": {
+        "red 12 V": { "pn": "Q8F1CXXR12E", "colour": "red", "volt": "12 V DC" },
+        "green 12 V": { "pn": "Q8F1CXXG12E", "colour": "green", "volt": "12 V DC" }
+      },
+      "shape": [
+        { "revolve": [[0, -24.5], [3, -24.5], [3, -22.5], [4, -22.5], [4, 0], [5, 0], [5, 2.6], [4.3, 4.25], [0, 4.25]] }
+      ]
+    },
+    {
+      "id": "eaton-m22", "category": "Panel / Push buttons", "name": "Push button 22 mm (Eaton M22)", "maker": "Eaton", "approx": true,
+      "title": "Eaton {pn}", "pn": "{pn}", "description": "Eaton RMQ-Titan M22 {what}, front ring + fixing adapter + contact block {contacts}; panel hole Ø22.3 mm — drawn as its outline, check the Eaton sheet",
+      "color": "#d0d4da",
+      "sizes": {
+        "green, flush, 1 NO": { "pn": "M22-D-G-K10", "what": "push button, green, flush, momentary", "contacts": "1 NO", "cap": "#2ea043", "top": 3 },
+        "red, flush, 1 NC": { "pn": "M22-D-R-K01", "what": "push button, red, flush, momentary", "contacts": "1 NC", "cap": "#e5534b", "top": 3 },
+        "emergency stop": { "pn": "M22-PV/K11", "what": "emergency stop, pull to release, red mushroom Ø38", "contacts": "1 NO + 1 NC", "cap": "#e5534b", "top": 22 }
+      },
+      "shape": [
+        { "revolve": [[0, -8], [11, -8], [11, 0], [14.85, 0], [14.85, 4], [12, 5], [0, 5]] },
+        { "extrude": { "rect": { "w": 30, "h": 30, "r": 2 } }, "z": -8, "h": -12 },
+        { "extrude": { "rect": { "w": 30, "h": 10 } }, "at": [[0, -9], [0, 3]], "z": -20, "h": -23 },
+        { "revolve": [[0, 5], [19, 5], [19, 14], [15, 21], [0, 22]], "when": "top - 10" },
+        { "revolve": [[0, 5], [11.5, 5], [11.5, 6.5], [0, 6.5]], "when": "10 - top" }
+      ]
+    },
+    {
+      "id": "neutrik-d", "category": "Panel / Connectors", "name": "D-size feed-through connector (Neutrik)", "maker": "Neutrik", "approx": true,
+      "title": "Neutrik {pn}", "pn": "{pn}", "description": "Neutrik {what}, D-size housing: flange 26 × 31 mm, 2 × M3 screws, panel hole Ø24 mm — drawn as its outline, check the Neutrik sheet",
+      "color": "#3b4048",
+      "sizes": {
+        "USB A ↔ B": { "pn": "NAUSB-W", "what": "USB 2.0 feed-through (A to B), black" },
+        "RJ45 (Ethernet)": { "pn": "NE8FDP", "what": "etherCON RJ45 feed-through, Cat5e, black" }
+      },
+      "shape": [
+        { "extrude": { "rect": { "w": 26, "h": 31, "r": 2 } }, "holes": [{ "circle": { "d": 3.2, "x": 9.5, "y": 12 } }, { "circle": { "d": 3.2, "x": -9.5, "y": -12 } }], "z": 0, "h": 3 },
+        { "extrude": { "circle": { "d": 23.5 } }, "z": 0, "h": -22 },
+        { "extrude": { "rect": { "w": 13, "h": 8 } }, "z": 3, "h": -6, "op": "cut" }
+      ]
+    }
+  ]
+}

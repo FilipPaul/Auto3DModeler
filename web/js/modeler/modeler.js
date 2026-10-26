@@ -12,6 +12,7 @@ import { ModelView, DATUMS, datumFrame } from './view.js';
 import { Sketcher, upgradeSketch, arcPts, RELATIONS, BIG_SKETCH } from './sketcher.js';
 import { textOutline } from '../outlinepanel.js';
 import { sectionBar, sectionMiddle } from './sectionbar.js';
+import { libraryFactsHtml } from '../library/browser.js';
 
 const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa', mirror: '⇋' };
 const TYPE_NAME = { sketch: 'Sketch', extrude: 'Extrude', revolve: 'Revolve', fillet: 'Fillet', chamfer: 'Chamfer', hole: 'Hole', shell: 'Shell', pattern: 'Pattern',
@@ -25,7 +26,7 @@ const USES_SKETCH = new Set(['extrude', 'revolve', 'loft', 'sweep']);
 /** The sketches a step is made from. */
 const sketchesOf = (f) => (f.type === 'loft' ? f.sketches || [] : f.type === 'sweep' ? [f.profile, f.path] : USES_SKETCH.has(f.type) ? [f.sketch] : []).filter(Boolean);
 // densities for the mass (g/cm³), common 3D-printing materials
-export const MATERIALS = { PLA: 1.24, PETG: 1.27, ABS: 1.04, ASA: 1.07, TPU: 1.21, PA: 1.14 };
+export const MATERIALS = { PLA: 1.24, PETG: 1.27, ABS: 1.04, ASA: 1.07, TPU: 1.21, PA: 1.14, steel: 7.85, brass: 8.5, aluminium: 2.7 }; // g/cm³ (the metals: bought parts)
 const DATUM_NAME = { XY: 'Top', XZ: 'Front', YZ: 'Right' };
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const SIZES_KEY = 'a3d.sizes', SIZE_MODES = ['all', 'locked', 'none'];
@@ -205,6 +206,7 @@ export class Modeler {
     if (a === 'pattern') return this.startPattern();
     if (a === 'solidFile') return this.pickSolid();
     if (a === 'duplicatePart') return this.hooks.duplicatePart?.();
+    if (a === 'saveToLibrary') return this.hooks.saveToLibrary?.();
     if (a === 'mirror') return this.mode === 'sketch' ? this.sk.setTool('mirror') : this.startMirror();
     if (a === 'loft' || a === 'sweep') return this.startProfiles(a);
     if (a === 'decal') return this.startDecal();
@@ -765,7 +767,7 @@ export class Modeler {
         ${b ? `<div class="mp-facts"><span>Size</span><b>${fmt(b.bbox[3] - b.bbox[0])} × ${fmt(b.bbox[4] - b.bbox[1])} × ${fmt(b.bbox[5] - b.bbox[2])} mm</b>
           <span>Volume</span><b>${fmt(b.volume / 1000)} cm³</b>
           <span>Mass</span><b>${fmt(+(b.volume / 1000 * (MATERIALS[this.part.material || 'PLA'])).toFixed(1))} g <span class="mp-sub">(solid)</span></b></div>
-          <div class="field"><label>Material</label><select data-k="material">${Object.keys(MATERIALS).map((k) => `<option ${k === (this.part.material || 'PLA') ? 'selected' : ''}>${k}</option>`).join('')}</select></div>
+          <div class="field"><label>Material</label><select data-k="material">${Object.keys(MATERIALS).map((k) => `<option value="${k}" ${k === (this.part.material || 'PLA') ? 'selected' : ''}>${k}</option>`).join('')}</select></div>
           <div class="field"><label>Colour</label><input type="color" data-k="color" value="${this.part.color || '#d9dee6'}" title="Its colour here and in assemblies"></div>
           <div class="field mp-look"><label>See-through</label><input type="range" min="0" max="90" step="5" data-k="clear" value="${Math.round((1 - (this.part.opacity ?? 1)) * 100)}"><span class="unit">${Math.round((1 - (this.part.opacity ?? 1)) * 100)} %</span></div>`
       : '<p class="hint">No solid yet — extrude a sketch.</p>'}
@@ -773,6 +775,8 @@ export class Modeler {
         <h3>Next</h3><p class="hint">${esc(this.nextHint())}</p>
         <div class="row-actions wrap"><button class="btn small" data-a="sketch">✏ Sketch</button>
         ${this.sketches().length ? '<button class="btn small" data-a="extrude">⬆ Extrude</button>' : ''}</div>
+        ${libraryFactsHtml(this.part.library)}
+        ${this.hooks.saveToLibrary && this.part.features.length ? '<div class="row-actions"><button class="btn small" data-a="saveToLibrary" title="Keep this 3D model in your parts library (on the server) — to use it again in any project">📚 Save to the library</button></div>' : ''}
         ${this.hooks.duplicatePart ? '<div class="row-actions"><button class="btn small" data-a="duplicatePart" title="A copy of this 3D model as a new part of its own (its own tab) — change it without changing this one">⧉ Duplicate as a new part</button></div>' : ''}
         ${b && this.hooks.toPrint ? `<h3>3D print</h3><p class="hint">Check it fits your printer, split it into pieces with joints — in a printing copy of this part.</p>
           <div class="row-actions"><button class="btn small primary" data-a="toPrint">🖨 Prepare for 3D print</button></div>` : ''}

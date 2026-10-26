@@ -1,0 +1,153 @@
+{
+  "library": "Fasteners",
+  "about": "Standard metric screws, nuts and washers (sizes from the ISO / DIN tables). Ordered by their designation at any shop (TME, GM Electronic, Würth, Bossard…). Threads are not drawn.",
+  "items": [
+    {
+      "id": "iso4762", "category": "Fasteners / Screws", "name": "Socket head cap screw", "standard": "ISO 4762 (DIN 912)",
+      "title": "ISO 4762 {size}×{L}", "pn": "ISO 4762 {size}x{L}", "description": "Socket head cap screw ISO 4762 (DIN 912) {size}×{L} mm, steel 8.8 or A2",
+      "color": "#9aa3ad", "material": "steel",
+      "sizes": {
+        "M1.6": { "d": 1.6, "dk": 3.0, "k": 1.6, "s": 1.5 }, "M2": { "d": 2, "dk": 3.8, "k": 2, "s": 1.5 }, "M2.5": { "d": 2.5, "dk": 4.5, "k": 2.5, "s": 2 },
+        "M3": { "d": 3, "dk": 5.5, "k": 3, "s": 2.5 }, "M4": { "d": 4, "dk": 7, "k": 4, "s": 3 }, "M5": { "d": 5, "dk": 8.5, "k": 5, "s": 4 }, "M6": { "d": 6, "dk": 10, "k": 6, "s": 5 }
+      },
+      "lengths": { "name": "Length", "values": {
+        "M1.6": [3, 4, 5, 6, 8, 10, 12, 16], "M2": [3, 4, 5, 6, 8, 10, 12, 16, 20], "M2.5": [4, 5, 6, 8, 10, 12, 16, 20, 25],
+        "M3": [4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40], "M4": [5, 6, 8, 10, 12, 16, 20, 25, 30, 35, 40, 50],
+        "M5": [6, 8, 10, 12, 16, 20, 25, 30, 35, 40, 50, 60], "M6": [8, 10, 12, 16, 20, 25, 30, 35, 40, 50, 60, 70, 80] } },
+      "shape": [
+        { "revolve": [[0, 0], ["d/2", 0], ["d/2", "L"], ["dk/2", "L"], ["dk/2", "L+k"], [0, "L+k"]] },
+        { "extrude": { "hex": { "s": "s" } }, "z": "L+k", "h": "-k*0.55", "op": "cut" }
+      ]
+    },
+    {
+      "id": "iso7380", "category": "Fasteners / Screws", "name": "Button head screw", "standard": "ISO 7380-1",
+      "title": "ISO 7380 {size}×{L}", "pn": "ISO 7380 {size}x{L}", "description": "Hexagon socket button head screw ISO 7380-1 {size}×{L} mm, steel 10.9 or A2",
+      "color": "#9aa3ad", "material": "steel",
+      "sizes": {
+        "M3": { "d": 3, "dk": 5.7, "k": 1.65, "s": 2 }, "M4": { "d": 4, "dk": 7.6, "k": 2.2, "s": 2.5 }, "M5": { "d": 5, "dk": 9.5, "k": 2.75, "s": 3 }, "M6": { "d": 6, "dk": 10.5, "k": 3.3, "s": 4 }
+      },
+      "lengths": { "name": "Length", "values": {
+        "M3": [4, 5, 6, 8, 10, 12, 16, 20, 25, 30], "M4": [6, 8, 10, 12, 16, 20, 25, 30, 35, 40], "M5": [8, 10, 12, 16, 20, 25, 30, 35, 40, 50], "M6": [10, 12, 16, 20, 25, 30, 35, 40, 50, 60] } },
+      "shape": [
+        { "revolve": [[0, 0], ["d/2", 0], ["d/2", "L"], ["dk/2", "L"], ["dk/2", "L+k*0.4"], ["dk*0.3", "L+k"], [0, "L+k"]] },
+        { "extrude": { "hex": { "s": "s" } }, "z": "L+k", "h": "-k*0.6", "op": "cut" }
+      ]
+    },
+    {
+      "id": "iso10642", "category": "Fasteners / Screws", "name": "Countersunk screw", "standard": "ISO 10642 (DIN 7991)",
+      "title": "ISO 10642 {size}×{L}", "pn": "ISO 10642 {size}x{L}", "description": "Hexagon socket countersunk screw ISO 10642 (DIN 7991) {size}×{L} mm (length with the head), 90° head, steel 8.8 or A2",
+      "color": "#9aa3ad", "material": "steel",
+      "sizes": {
+        "M3": { "d": 3, "dk": 6.72, "k": 1.86, "s": 2 }, "M4": { "d": 4, "dk": 8.96, "k": 2.48, "s": 2.5 }, "M5": { "d": 5, "dk": 11.2, "k": 3.1, "s": 3 }, "M6": { "d": 6, "dk": 13.44, "k": 3.72, "s": 4 }
+      },
+      "lengths": { "name": "Length", "values": {
+        "M3": [6, 8, 10, 12, 16, 20, 25, 30], "M4": [8, 10, 12, 16, 20, 25, 30, 35, 40], "M5": [8, 10, 12, 16, 20, 25, 30, 35, 40, 50], "M6": [10, 12, 16, 20, 25, 30, 35, 40, 50, 60] } },
+      "shape": [
+        { "revolve": [[0, 0], ["d/2", 0], ["d/2", "L-k"], ["dk/2", "L"], [0, "L"]] },
+        { "extrude": { "hex": { "s": "s" } }, "z": "L", "h": "-k*0.7", "op": "cut" }
+      ]
+    },
+    {
+      "id": "iso7045", "category": "Fasteners / Screws", "name": "Pan head screw, cross (PH)", "standard": "ISO 7045 (DIN 7985)",
+      "title": "ISO 7045 {size}×{L}", "pn": "ISO 7045 {size}x{L} H", "description": "Cross recessed pan head screw ISO 7045 (DIN 7985) {size}×{L} mm, PH, steel 4.8 or A2",
+      "color": "#9aa3ad", "material": "steel",
+      "sizes": {
+        "M1.6": { "d": 1.6, "dk": 3.2, "k": 1.3 }, "M2": { "d": 2, "dk": 4, "k": 1.6 }, "M2.5": { "d": 2.5, "dk": 5, "k": 2.1 }, "M3": { "d": 3, "dk": 5.6, "k": 2.4 },
+        "M4": { "d": 4, "dk": 8, "k": 3.1 }, "M5": { "d": 5, "dk": 9.5, "k": 3.7 }, "M6": { "d": 6, "dk": 12, "k": 4.6 }
+      },
+      "lengths": { "name": "Length", "values": {
+        "M1.6": [3, 4, 5, 6, 8, 10, 12, 16], "M2": [3, 4, 5, 6, 8, 10, 12, 16, 20], "M2.5": [3, 4, 5, 6, 8, 10, 12, 16, 20, 25], "M3": [4, 5, 6, 8, 10, 12, 16, 20, 25, 30],
+        "M4": [5, 6, 8, 10, 12, 16, 20, 25, 30, 35, 40], "M5": [6, 8, 10, 12, 16, 20, 25, 30, 35, 40, 50], "M6": [8, 10, 12, 16, 20, 25, 30, 35, 40, 50, 60] } },
+      "shape": [
+        { "revolve": [[0, 0], ["d/2", 0], ["d/2", "L"], ["dk/2", "L"], ["dk/2", "L+k*0.65"], ["dk*0.36", "L+k"], [0, "L+k"]] },
+        { "extrude": { "rect": { "w": "dk*0.55", "h": "max(d*0.22, 0.3)" } }, "z": "L+k", "h": "-k*0.55", "op": "cut" },
+        { "extrude": { "rect": { "w": "max(d*0.22, 0.3)", "h": "dk*0.55" } }, "z": "L+k", "h": "-k*0.55", "op": "cut" }
+      ]
+    },
+    {
+      "id": "din84", "category": "Fasteners / Screws", "name": "Slotted cheese head screw (from M1)", "standard": "ISO 1207 (DIN 84)",
+      "title": "DIN 84 {size}×{L}", "pn": "DIN 84 {size}x{L}", "description": "Slotted cheese head screw ISO 1207 (DIN 84) {size}×{L} mm, steel 4.8 or A2 — the small sizes M1 to M1.4 too",
+      "color": "#9aa3ad", "material": "steel",
+      "sizes": {
+        "M1": { "d": 1, "dk": 2, "k": 0.7, "n": 0.25 }, "M1.2": { "d": 1.2, "dk": 2.3, "k": 0.8, "n": 0.3 }, "M1.4": { "d": 1.4, "dk": 2.6, "k": 0.9, "n": 0.3 },
+        "M1.6": { "d": 1.6, "dk": 3, "k": 1, "n": 0.4 }, "M2": { "d": 2, "dk": 3.8, "k": 1.3, "n": 0.5 }, "M2.5": { "d": 2.5, "dk": 4.5, "k": 1.6, "n": 0.6 },
+        "M3": { "d": 3, "dk": 5.5, "k": 2, "n": 0.8 }, "M4": { "d": 4, "dk": 7, "k": 2.6, "n": 1.2 }, "M5": { "d": 5, "dk": 8.5, "k": 3.3, "n": 1.2 }, "M6": { "d": 6, "dk": 10, "k": 3.9, "n": 1.6 }
+      },
+      "lengths": { "name": "Length", "values": {
+        "M1": [2, 3, 4, 5], "M1.2": [2, 3, 4, 5, 6], "M1.4": [2, 3, 4, 5, 6, 8], "M1.6": [2, 3, 4, 5, 6, 8, 10, 12], "M2": [3, 4, 5, 6, 8, 10, 12, 16],
+        "M2.5": [3, 4, 5, 6, 8, 10, 12, 16, 20], "M3": [4, 5, 6, 8, 10, 12, 16, 20, 25, 30], "M4": [5, 6, 8, 10, 12, 16, 20, 25, 30, 40],
+        "M5": [6, 8, 10, 12, 16, 20, 25, 30, 40, 50], "M6": [8, 10, 12, 16, 20, 25, 30, 40, 50, 60] } },
+      "shape": [
+        { "revolve": [[0, 0], ["d/2", 0], ["d/2", "L"], ["dk/2", "L"], ["dk/2", "L+k"], [0, "L+k"]] },
+        { "extrude": { "rect": { "w": "dk*1.2", "h": "n" } }, "z": "L+k", "h": "-k*0.5", "op": "cut" }
+      ]
+    },
+    {
+      "id": "iso4017", "category": "Fasteners / Screws", "name": "Hex head screw", "standard": "ISO 4017 (DIN 933)",
+      "title": "ISO 4017 {size}×{L}", "pn": "ISO 4017 {size}x{L}", "description": "Hexagon head screw ISO 4017 (DIN 933) {size}×{L} mm, fully threaded, steel 8.8 or A2",
+      "color": "#9aa3ad", "material": "steel",
+      "sizes": {
+        "M1.6": { "d": 1.6, "s": 3.2, "k": 1.1 }, "M2": { "d": 2, "s": 4, "k": 1.4 }, "M2.5": { "d": 2.5, "s": 5, "k": 1.7 }, "M3": { "d": 3, "s": 5.5, "k": 2 },
+        "M4": { "d": 4, "s": 7, "k": 2.8 }, "M5": { "d": 5, "s": 8, "k": 3.5 }, "M6": { "d": 6, "s": 10, "k": 4 }
+      },
+      "lengths": { "name": "Length", "values": {
+        "M1.6": [4, 5, 6, 8, 10, 12, 16], "M2": [4, 5, 6, 8, 10, 12, 16, 20], "M2.5": [5, 6, 8, 10, 12, 16, 20, 25], "M3": [6, 8, 10, 12, 16, 20, 25, 30],
+        "M4": [8, 10, 12, 16, 20, 25, 30, 35, 40], "M5": [8, 10, 12, 16, 20, 25, 30, 35, 40, 50], "M6": [10, 12, 16, 20, 25, 30, 35, 40, 50, 60] } },
+      "shape": [
+        { "extrude": { "circle": { "d": "d" } }, "z": 0, "h": "L" },
+        { "extrude": { "hex": { "s": "s" } }, "z": "L", "h": "k" }
+      ]
+    },
+    {
+      "id": "plastite", "category": "Fasteners / Screws", "name": "Screw for plastics (thread-forming, pan head)", "approx": true,
+      "title": "Plastic screw Ø{size}×{L}", "pn": "", "description": "Thread-forming screw for plastics Ø{size}×{L} mm, pan head, Torx (as EJOT PT® / Würth Plastifast®). Core hole in the plastic ≈ Ø{core} mm. Head ≈ drawn — check the maker's sheet.",
+      "color": "#5f6670", "material": "steel",
+      "sizes": {
+        "2.2": { "d": 2.2, "core": 1.8 }, "2.5": { "d": 2.5, "core": 2.0 }, "3": { "d": 3, "core": 2.4 }, "3.5": { "d": 3.5, "core": 2.8 }, "4": { "d": 4, "core": 3.2 }, "5": { "d": 5, "core": 4.0 }
+      },
+      "lengths": { "name": "Length", "values": [6, 8, 10, 12, 14, 16, 20, 25] },
+      "shape": [
+        { "revolve": [[0, 0.3], ["d*0.25", 0], ["d/2", "d*0.6"], ["d/2", "L"], ["d", "L"], ["d", "L+d*0.45"], ["d*0.7", "L+d*0.75"], [0, "L+d*0.75"]] },
+        { "extrude": { "polygon": { "n": 6, "d": "d*0.8", "turn": 30 } }, "z": "L+d*0.75", "h": "-d*0.4", "op": "cut" }
+      ]
+    },
+    {
+      "id": "iso4032", "category": "Fasteners / Nuts", "name": "Hex nut", "standard": "ISO 4032 (DIN 934)",
+      "title": "ISO 4032 {size} nut", "pn": "ISO 4032 {size}", "description": "Hexagon nut ISO 4032 (DIN 934 for M1–M1.4) {size}, steel 8 or A2",
+      "color": "#9aa3ad", "material": "steel",
+      "sizes": {
+        "M1": { "d": 1, "s": 2.5, "m": 0.8 }, "M1.2": { "d": 1.2, "s": 3, "m": 1 }, "M1.4": { "d": 1.4, "s": 3, "m": 1.2 }, "M1.6": { "d": 1.6, "s": 3.2, "m": 1.3 },
+        "M2": { "d": 2, "s": 4, "m": 1.6 }, "M2.5": { "d": 2.5, "s": 5, "m": 2 }, "M3": { "d": 3, "s": 5.5, "m": 2.4 }, "M4": { "d": 4, "s": 7, "m": 3.2 },
+        "M5": { "d": 5, "s": 8, "m": 4.7 }, "M6": { "d": 6, "s": 10, "m": 5.2 }
+      },
+      "shape": [{ "extrude": { "hex": { "s": "s" } }, "holes": [{ "circle": { "d": "d" } }], "z": 0, "h": "m" }]
+    },
+    {
+      "id": "din985", "category": "Fasteners / Nuts", "name": "Lock nut (nylon insert)", "standard": "DIN 985 (ISO 10511)",
+      "title": "DIN 985 {size} lock nut", "pn": "DIN 985 {size}", "description": "Hexagon lock nut with nylon insert DIN 985 {size}, steel or A2",
+      "color": "#9aa3ad", "material": "steel",
+      "sizes": { "M3": { "d": 3, "s": 5.5, "h": 4 }, "M4": { "d": 4, "s": 7, "h": 5 }, "M5": { "d": 5, "s": 8, "h": 5 }, "M6": { "d": 6, "s": 10, "h": 6 } },
+      "shape": [
+        { "extrude": { "hex": { "s": "s" } }, "holes": [{ "circle": { "d": "d" } }], "z": 0, "h": "h*0.7" },
+        { "extrude": { "circle": { "d": "s*0.92" } }, "holes": [{ "circle": { "d": "d" } }], "z": "h*0.7", "h": "h*0.3" }
+      ]
+    },
+    {
+      "id": "din562", "category": "Fasteners / Nuts", "name": "Square nut (thin)", "standard": "DIN 562",
+      "title": "DIN 562 {size} square nut", "pn": "DIN 562 {size}", "description": "Square nut, thin, DIN 562 {size} — slides into a slot of a printed part",
+      "color": "#9aa3ad", "material": "steel",
+      "sizes": { "M3": { "d": 3, "s": 5.5, "m": 1.8 }, "M4": { "d": 4, "s": 7, "m": 2.2 }, "M5": { "d": 5, "s": 8, "m": 2.7 }, "M6": { "d": 6, "s": 10, "m": 3.2 } },
+      "shape": [{ "extrude": { "rect": { "w": "s", "h": "s" } }, "holes": [{ "circle": { "d": "d" } }], "z": 0, "h": "m" }]
+    },
+    {
+      "id": "iso7089", "category": "Fasteners / Washers", "name": "Flat washer", "standard": "ISO 7089 (DIN 125-A)",
+      "title": "ISO 7089 {size} washer", "pn": "ISO 7089 {size}", "description": "Flat washer ISO 7089 (DIN 125-A) for {size}: Ø{d1} / Ø{d2} × {h} mm",
+      "color": "#b3bac2", "material": "steel",
+      "sizes": {
+        "M1.6": { "d1": 1.7, "d2": 4, "h": 0.3 }, "M2": { "d1": 2.2, "d2": 5, "h": 0.3 }, "M2.5": { "d1": 2.7, "d2": 6, "h": 0.5 }, "M3": { "d1": 3.2, "d2": 7, "h": 0.5 },
+        "M4": { "d1": 4.3, "d2": 9, "h": 0.8 }, "M5": { "d1": 5.3, "d2": 10, "h": 1 }, "M6": { "d1": 6.4, "d2": 12, "h": 1.6 }
+      },
+      "shape": [{ "extrude": { "circle": { "d": "d2" } }, "holes": [{ "circle": { "d": "d1" } }], "z": 0, "h": "h" }]
+    }
+  ]
+}

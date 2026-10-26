@@ -1,0 +1,89 @@
+{
+  "library": "Industrial automation",
+  "about": "Pneumatics (SMC), sensors (SICK), stepper motors — by their maker's part number. Sizes from the makers' catalogues where they were checked; parts marked ≈ are drawn as their outline.",
+  "items": [
+    {
+      "id": "smc-cdj2b", "category": "Pneumatics / Cylinders", "name": "Air cylinder, double acting (SMC CJ2, basic)", "maker": "SMC",
+      "title": "SMC CDJ2B{bore}-{L}Z-B", "pn": "CDJ2B{bore}-{L}Z-B", "description": "SMC CJ2 series air cylinder, double acting, single rod, basic style, bore Ø{bore}, stroke {L} mm, with magnet (for auto switches) and switch band; rod Ø{D} ({MM}), mounting thread {NN}, ports M5 × 0.8. Sizes from the SMC CJ2 catalogue (basic style): overall {Z} + stroke. Drawn with the rod in.",
+      "color": "#c4cad1", "material": "aluminium",
+      "sizes": {
+        "Ø10": { "bore": 10, "D": 4, "MM": "M4 × 0.7", "NN": "M8 × 1.0", "C": 14, "B": 12, "ND": 8, "F": 8, "H": 28, "S": 46, "Z": 74 },
+        "Ø16": { "bore": 16, "D": 5, "MM": "M5 × 0.8", "NN": "M10 × 1.0", "C": 20, "B": 18.3, "ND": 10, "F": 8, "H": 28, "S": 47, "Z": 75 }
+      },
+      "lengths": { "name": "Stroke", "values": [15, 30, 45, 60, 75, 100, 125, 150] },
+      "shape": [
+        { "revolve": [[0, 0], ["C/2", 0], ["C/2", 5], ["B/2", 5], ["B/2", "S+L-5"], ["C/2", "S+L-5"], ["C/2", "S+L"], ["ND/2", "S+L"], ["ND/2", "S+L+F"], ["D/2", "S+L+F"], ["D/2", "S+L+H"], [0, "S+L+H"]] },
+        { "extrude": { "circle": { "d": 3.5, "y": "S+L-8" } }, "plane": "YZ", "h": "C", "op": "cut" },
+        { "extrude": { "circle": { "d": 3.5, "y": 2.5 } }, "plane": "YZ", "h": "C", "op": "cut" }
+      ]
+    },
+    {
+      "id": "smc-kq2h", "category": "Pneumatics / Fittings", "name": "One-touch fitting, male connector (SMC KQ2H)", "maker": "SMC", "approx": true,
+      "title": "SMC {pn}", "pn": "{pn}", "description": "SMC KQ2 one-touch fitting, male connector: tube Ø{tube} mm, thread {thread} — drawn as its outline, check the SMC sheet",
+      "color": "#d7dbe0",
+      "sizes": {
+        "Ø4 tube, M5": { "pn": "KQ2H04-M5A", "tube": 4, "thread": "M5 × 0.8", "t": 5, "s": 8, "Db": 9.3, "Lb": 13 },
+        "Ø6 tube, M5": { "pn": "KQ2H06-M5A", "tube": 6, "thread": "M5 × 0.8", "t": 5, "s": 8, "Db": 11.6, "Lb": 15 }
+      },
+      "shape": [
+        { "extrude": { "circle": { "d": 5 } }, "z": 0, "h": "-4" },
+        { "extrude": { "hex": { "s": "s" } }, "z": 0, "h": 3.5 },
+        { "revolve": [["tube/2", 3.5], ["Db/2", 3.5], ["Db/2", "Lb"], ["Db/2-0.8", "Lb+1.5"], ["tube/2", "Lb+1.5"]] }
+      ]
+    },
+    {
+      "id": "smc-sy3120", "category": "Pneumatics / Valves", "name": "Solenoid valve 5/2, 10 mm (SMC SY3000)", "maker": "SMC", "approx": true,
+      "title": "SMC {pn}", "pn": "{pn}", "description": "SMC SY3000 5-port solenoid valve, {what}, 24 V DC, L-plug connector with light, body ported M5 — drawn as its outline (≈ 10.5 × 67 × 31 mm), check the SMC sheet",
+      "color": "#3b4048",
+      "sizes": { "single solenoid, M5": { "pn": "SY3120-5LZD-M5", "what": "2-position single solenoid" } },
+      "shape": [
+        { "extrude": { "rect": { "w": 10.5, "h": 50, "y": 25 } }, "z": 0, "h": 18 },
+        { "extrude": { "rect": { "w": 10.5, "h": 17, "y": 58.5 } }, "z": 0, "h": 31 },
+        { "extrude": { "circle": { "d": 3.5 } }, "at": [[0, 10], [0, 18], [0, 26], [0, 34], [0, 42]], "z": 0, "h": 6, "op": "cut" }
+      ]
+    },
+    {
+      "id": "sick-ime", "category": "Sensors / Inductive", "name": "Inductive proximity sensor (SICK IME)", "maker": "SICK",
+      "title": "SICK {pn}", "pn": "{pn}", "description": "SICK {pn} (SICK no. {art}): inductive sensor {thread}, flush, sensing range {sn} mm, PNP NO, 10–30 V DC, M12 4-pin connector; housing {Lh} mm, thread {Lt} mm long (SICK data sheet). The sensing face is at z = 0.",
+      "color": "#b8bec6", "material": "brass",
+      "sizes": {
+        "M12, 4 mm": { "pn": "IME12-04BPSZC0K", "art": "1040763", "thread": "M12 × 1", "sn": 4, "Dt": 12, "Lt": 29, "Lh": 46 },
+        "M18, 8 mm": { "pn": "IME18-08BPSZC0K", "art": "1040965", "thread": "M18 × 1", "sn": 8, "Dt": 18, "Lt": 33, "Lh": 50 }
+      },
+      "order": { "sick": "{art}" },
+      "shape": [
+        { "revolve": [[0, 0], ["Dt/2", 0], ["Dt/2", "Lt"], ["Dt/2-1", "Lt"], ["Dt/2-1", "Lt+4"], [6, "Lt+4"], [6, "Lh"], [0, "Lh"]] },
+        { "extrude": { "hex": { "s": "Dt+5" } }, "z": "Lt*0.25", "h": 4 }
+      ]
+    },
+    {
+      "id": "nema17", "category": "Motors / Stepper", "name": "Stepper motor NEMA 17 (42 mm)",
+      "title": "{name17}", "pn": "{pn}", "description": "Stepper motor NEMA 17: 42.3 × 42.3 mm, body {Lb} mm, shaft Ø5 × 24 mm (D-cut), centring boss Ø22 × 2, 4 × M3 at 31 mm. {note}",
+      "color": "#3a3f46",
+      "sizes": {
+        "48 mm (17HS19-2004S1)": { "Lb": 48, "pn": "17HS19-2004S1", "name17": "STEPPERONLINE 17HS19-2004S1", "note": "STEPPERONLINE 17HS19-2004S1: 59 Ncm, 2 A per phase." },
+        "40 mm": { "Lb": 40, "pn": "", "name17": "NEMA 17 stepper, 40 mm", "note": "A common size (e.g. 45 Ncm)." },
+        "34 mm": { "Lb": 34, "pn": "", "name17": "NEMA 17 stepper, 34 mm", "note": "A common size (e.g. 26–40 Ncm)." }
+      },
+      "shape": [
+        { "extrude": { "rect": { "w": 42.3, "h": 42.3, "r": 4 } }, "z": 0, "h": "Lb" },
+        { "extrude": { "circle": { "d": 22 } }, "z": "Lb", "h": 2 },
+        { "extrude": { "circle": { "d": 5 } }, "z": "Lb+2", "h": 24 },
+        { "extrude": { "rect": { "w": 3, "h": 6, "x": 3.5 } }, "z": "Lb+26", "h": -15, "op": "cut" },
+        { "extrude": { "circle": { "d": 2.5 } }, "at": [[15.5, 15.5], [-15.5, 15.5], [-15.5, -15.5], [15.5, -15.5]], "z": "Lb", "h": -4.5, "op": "cut" }
+      ]
+    },
+    {
+      "id": "nema23", "category": "Motors / Stepper", "name": "Stepper motor NEMA 23 (57 mm)", "approx": true,
+      "title": "NEMA 23 stepper, {Lb} mm", "pn": "", "description": "Stepper motor NEMA 23: 56.4 × 56.4 mm, body {Lb} mm, shaft Ø{ds} × 21 mm, centring boss Ø38.1, 4 holes Ø5.1 at 47.14 mm — the NEMA 23 size; search the shops for a motor of this length",
+      "color": "#3a3f46",
+      "sizes": { "56 mm, Ø6.35 shaft": { "Lb": 56, "ds": 6.35 }, "76 mm, Ø8 shaft": { "Lb": 76, "ds": 8 } },
+      "shape": [
+        { "extrude": { "rect": { "w": 56.4, "h": 56.4, "r": 5 } }, "z": 0, "h": "Lb" },
+        { "extrude": { "circle": { "d": 38.1 } }, "z": "Lb", "h": 1.6 },
+        { "extrude": { "circle": { "d": "ds" } }, "z": "Lb+1.6", "h": 21 },
+        { "extrude": { "circle": { "d": 5.1 } }, "at": [[23.57, 23.57], [-23.57, 23.57], [-23.57, -23.57], [23.57, -23.57]], "z": "Lb", "h": -6, "op": "cut" }
+      ]
+    }
+  ]
+}
