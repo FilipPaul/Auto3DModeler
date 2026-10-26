@@ -2148,7 +2148,22 @@ export class Modeler {
   }
 
   // ------------------------------------------------------------------ the part as a project tab
+  /** Editing this part in place, from an assembly: the other parts around it, a bar with ◇ Back to the assembly. */
+  setContext(ctx) {
+    this.context = ctx || null;
+    this.view.setContext(ctx?.context || []);
+    this.$('.m-ctx')?.remove();
+    if (!ctx) return;
+    const bar = document.createElement('div');
+    bar.className = 'm-ctx';
+    bar.innerHTML = `<span>✎ ${esc(t('Editing it in'))} <b data-no-i18n>${esc(ctx.assembly || '')}</b> — ${esc(t('the other parts are see-through; changes show in the assembly.'))}</span>
+      <button class="btn small primary" data-a="ctxBack">◇ ${esc(t('Back to the assembly'))}</button>`;
+    bar.querySelector('[data-a=ctxBack]').addEventListener('click', () => this.hooks.backTo?.(ctx.back));
+    this.els.viewport.appendChild(bar);
+  }
+
   load(data, { then } = {}) {
+    this.setContext(null);
     if (this.section) this.toggleSection();
     this.closeAll();
     this.part = structuredClone(data || { features: [] });

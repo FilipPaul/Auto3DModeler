@@ -330,6 +330,7 @@ export class Assembly {
         <h3>Turn</h3><datalist id="as-ticks"><option value="-180"></option><option value="-90"></option><option value="0"></option><option value="90"></option><option value="180"></option></datalist>
         ${rot('x')}${rot('y')}${rot('z')}
         <p class="hint">Slide to any angle — it catches at 0, ±90 and ±180°. Type an exact one in the box.</p>
+        ${this.editHtml(it)}
         <h3>Look</h3>${this.lookHtml(it)}
         ${this.jointsHtml(it.id)}
         <div class="row-actions wrap"><button class="btn small" data-a="joinThis">🔗 Join it to another part</button>
@@ -354,6 +355,8 @@ export class Assembly {
       }
       this.bindJointRows(box);
       this.bindLook(box, it);
+      box.querySelector('[data-a=editHere]')?.addEventListener('click', () => this.editInPlace(it.id));
+      box.querySelector('[data-a=editLock]')?.addEventListener('click', () => this.toggleEditable(it.part));
       box.querySelector('[data-a=joinThis]').addEventListener('click', () => this.startJoint('touch', it.id));
       box.querySelector('[data-a=ownPart]')?.addEventListener('click', () => this.ownPart(it.id));
       box.querySelector('[data-a=reset]').addEventListener('click', () => { if (!this.mayMove(it.id)) return; it.matrix = ID(); this.applyMates(); this.commit(); });
@@ -645,6 +648,39 @@ export class Assembly {
     this.commit();
     if (!quiet) this.hooks.toast(`Added ${n} fastener(s) — they follow the parts (each a part of the project you can open).`, 'ok', 4000);
     return n;
+  }
+
+  // ------------------------------------------------------------------ editing a part from the assembly
+  /** May this part be changed from this assembly? Locked unless the user unlocks it (no accidental changes). */
+  editable(pid) { return !!this.doc.editable?.[pid]; }
+
+  toggleEditable(pid) {
+    const ed = { ...(this.doc.editable || {}) };
+    if (ed[pid]) delete ed[pid];
+    else ed[pid] = true;
+    this.doc.editable = ed;
+    this.render();
+    this.hooks.onChange?.();
+  }
+
+  editHtml(it) {
+    if (!this.hooks.editInPlace || this.kindOf(it.part) !== 'model') return '';
+    const ed = this.editable(it.part);
+    return `<h3>Edit</h3><div class="row-actions wrap"><button class="btn small ${ed ? 'primary' : ''}" data-a="editHere" ${ed ? '' : 'disabled'} title="Change its part in the 3D modeler, the rest of the assembly see-through around it (or double-click it)">✎ Edit it here</button>
+      <button class="btn small ${ed ? 'on' : ''}" data-a="editLock" title="${ed ? 'Lock it: its part cannot be changed from this assembly' : 'Unlock it to change its part from this assembly'}">${ed ? '🔓 Editable from here' : '🔒 Locked'}</button></div>
+      <p class="hint">${ed ? 'Every copy of its part changes (here and in other assemblies).' : 'Unlock it to change its part from here — locked, it cannot be changed by accident.'}</p>`;
+  }
+
+  /** Open a placed part's model in the 3D modeler, in place: the other parts shown see-through around it. */
+  async editInPlace(instId) {
+    const it = this.inst(instId);
+    if (!it || !this.hooks.editInPlace) return;
+    if (this.kindOf(it.part) !== 'model') { this.hooks.toast('Only 3D model parts can be changed here — open a quick part in its own tab.', 'info', 4000); return; }
+    if (!this.editable(it.part)) { this.hooks.toast('Editing this part from the assembly is locked — 🔓 unlock it in its panel first.', 'warning', 5000); return; }
+    const Mi = new THREE.Matrix4().fromArray(it.matrix).invert();
+    const context = this.doc.instances.filter((o) => o.id !== instId && this.bodies[o.part]?.body).map((o) => ({
+      positions: this.bodies[o.part].body.positions, matrix: Mi.clone().multiply(new THREE.Matrix4().fromArray(o.matrix)).toArray() }));
+    await this.hooks.editInPlace(it.part, { context, back: this.hooks.selfId?.(), assembly: this.hooks.parts().find((p) => p.id === this.hooks.selfId?.())?.name, inst: instId });
   }
 
   /** Colour and see-through of a placed part: its own here (↺ back to its part's). */
@@ -1226,6 +1262,11 @@ export class Assembly {
       const id = h?.inst || null;
       if (id !== this.hoverInst) { this.hoverInst = id; this.draw(); }
       cv.style.cursor = h ? 'pointer' : '';
+    });
+    cv.addEventListener('dblclick', (e) => { // a part double-clicked: edit it here (when unlocked)
+      if (this.mode !== 'idle' || this.measuring || this.bolt) return;
+      const h = this.view.pickInst(e.clientX, e.clientY);
+      if (h?.inst) this.editInPlace(h.inst);
     });
     cv.addEventListener('pointerup', (e) => {
       if (e.button !== 0 || !down) return;

@@ -149,6 +149,23 @@ export class ModelView {
     this.paint();
   }
 
+  /** The rest of an assembly around a part edited in place: [{positions (base64), matrix (16, in the part's frame)}],
+   *  grey and see-through, not picked. */
+  setContext(list = []) {
+    if (!this.ctxGroup) { this.ctxGroup = new THREE.Group(); this.scene.add(this.ctxGroup); }
+    this.clear(this.ctxGroup);
+    for (const c of list) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(b64(c.positions, Float32Array), 3));
+      geo.computeVertexNormals();
+      const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x8b95a3, transparent: true, opacity: 0.25, depthWrite: false, side: THREE.DoubleSide }));
+      mesh.matrixAutoUpdate = false;
+      mesh.matrix.fromArray(c.matrix);
+      this.ctxGroup.add(mesh);
+    }
+    this.invalidate();
+  }
+
   /** Reference solids: shown see-through (not part of the part, not picked): [{positions (base64)}]. */
   setRefs(list = []) {
     if (!this.refGroup) { this.refGroup = new THREE.Group(); this.scene.add(this.refGroup); }

@@ -1702,6 +1702,7 @@ const modeler = new Modeler({ left: $('modelLeft'), viewport: $('modelViewport')
   onChange: () => updateTopButtons(),
   pickOutline: () => pickOutlineFile(),
   importSolid: (file) => importSolid(file),
+  backTo: (id) => id && project.switchTo(id),
   duplicatePart: async () => { await project.duplicate(); toast(t2('{name} — a copy of its own (change it without changing the original).', { name: project.current?.name }), 'ok', 5000); },
   // a printing copy of a model part: its STL as a Quick part, on the 3D print tab
   async toPrint(blob) {
@@ -1776,6 +1777,7 @@ const assembly = new Assembly({ left: $('asmLeft'), viewport: $('asmViewport'), 
   addModelPart: (name, data) => project.addBackground(name, data),
   importSolid: async (file) => solidStep(await importSolid(file)),
   duplicatePart: (id) => project.duplicate(id, false),
+  editInPlace: async (id, ctx) => { await project.switchTo(id); if (project.active === id) modeler.setContext(ctx); },
   selfId: () => project.active, // the assembly on screen (it may not go into itself)
   onChange: () => updateTopButtons(),
 });

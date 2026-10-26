@@ -86,6 +86,8 @@ Date: 2026-10-25. Written by the architect agent.
   `solid` step takes `blob` and `op` add / cut / ref (refs tessellated apart, drawn see-through). Big shapes
   (> 3000 faces): a quick bbox, a coarser mesh, face areas from the mesh, tiny edges skipped; an unchanged body is
   not meshed again. The project file carries the blobs. tools/e2e_model_solid.py.
+- **Edit in place done:** assembly doc.editable {part: true} (locked by default), editInPlace -> app switches to the
+  part, modeler.setContext (the other placed parts in its frame, view.setContext; a bar back). tools/e2e_assembly_edit.py.
 - **Assembly measure done:** AsmView.measurePoint (corners of every placed part), assembly.clickMeasure (faces /
   axes apart). tools/e2e_assembly_measure.py.
 - **Duplicate done:** parts.js duplicate (a new tab after it, "(copy)" names); assembly.ownPart. tools/e2e_duplicate.py.
