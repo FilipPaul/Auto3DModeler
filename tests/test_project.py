@@ -40,8 +40,10 @@ class TestMigrate(unittest.TestCase):
         p = migrate(V2)
         p["parts"].append({"id": "P2", "kind": "classic", "name": "Cookie", "classic": {"model": {"source": "pernicek.png"}}})
         p["active"] = {"part": "P2"}
+        p["parts"][0]["closed"] = True  # a part without a tab (☰ Parts opens it) stays so
         again = migrate(json.loads(json.dumps(p)))
         self.assertEqual(again, p)
+        self.assertTrue(again["parts"][0]["closed"])
 
     def test_model_parts(self):
         p = migrate(V2)

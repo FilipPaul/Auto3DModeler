@@ -143,8 +143,27 @@ try:
     settled()
     tab(0).find_element(By.CSS_SELECTOR, ".pt-x").click()
     wait("return document.querySelectorAll('#partTabs .part-tab').length === 1")
-    print("after closing:", tabs(), "| ✕ hidden on the last part:", not tab(0).find_elements(By.CSS_SELECTOR, ".pt-x"))
+    print("after closing the tab:", tabs(), "| ✕ hidden on the last tab:", not tab(0).find_elements(By.CSS_SELECTOR, ".pt-x"),
+          "| still in the project:", js("return window.__app.project.parts.map(p => p.name + (p.closed ? ' (closed)' : ''))"))
     d.save_screenshot(f"{OUT}/p2_after_close.png")
+    # ☰ Parts: every part — the closed one opens again (a tab), the state is saved with the project
+    d.find_element(By.CSS_SELECTOR, "#partTabs .pt-all").click()
+    time.sleep(0.2)
+    print("☰ Parts:", [r.text for r in d.find_elements(By.CSS_SELECTOR, "#partTabs .pt-row")],
+          "| closed ones:", len(d.find_elements(By.CSS_SELECTOR, "#partTabs .pt-row.closed")))
+    d.find_element(By.CSS_SELECTOR, "#partTabs .pt-row.closed .pt-open").click()
+    wait("return document.querySelectorAll('#partTabs .part-tab').length === 2")
+    settled()
+    print("opened again:", tabs())
+    tab(1).find_element(By.CSS_SELECTOR, ".pt-x").click()
+    wait("return document.querySelectorAll('#partTabs .part-tab').length === 1")
+    print("saved with a closed part:", js("return window.__app.project.toJSON().parts.map(p => [p.name, !!p.closed])"))
+    # ✕ in ☰ Parts deletes (after asking)
+    d.find_element(By.CSS_SELECTOR, "#partTabs .pt-all").click()
+    time.sleep(0.2)
+    d.find_element(By.CSS_SELECTOR, "#partTabs .pt-row.closed .pt-del").click()
+    time.sleep(0.4)
+    print("deleted from ☰ Parts:", js("return window.__app.project.parts.map(p => p.name)"), "|", tabs())
 finally:
     print("console errors:", [e["message"] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()

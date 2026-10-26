@@ -38,6 +38,16 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 3px; }
 .part-tab { display: flex; align-items: center; gap: 4px; padding: 4px 6px 4px 10px; border: 1px solid var(--line); border-radius: 6px 6px 0 0;
   background: var(--bg); color: var(--muted); cursor: pointer; white-space: nowrap; max-width: 180px; min-width: 48px; flex: 0 1 auto; }
 .part-tab:hover { color: var(--text); }
+.part-all { position: relative; flex: none; }
+.part-all .menu-list { left: 0; right: auto; }
+.pt-row .pt-del { width: auto; flex: none; padding: 3px 7px; }
+.pt-all { background: transparent; border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 12px; }
+.part-all .menu-list { min-width: 240px; max-height: 70vh; overflow-y: auto; }
+.pt-row { display: flex; align-items: center; gap: 4px; }
+.pt-row .pt-open { flex: 1; display: flex; gap: 6px; align-items: center; text-align: left; }
+.pt-row.closed .pt-rname { color: var(--muted); }
+.pt-row.on .pt-rname { font-weight: 600; }
+.pt-kind { width: 16px; text-align: center; opacity: .8; }
 .part-tab.on { background: var(--panel-2); color: var(--text); border-color: var(--accent); border-bottom-color: var(--panel-2); }
 .part-tab .pt-name { overflow: hidden; text-overflow: ellipsis; }
 .part-tab .pt-name[contenteditable=true] { outline: 1px solid var(--accent); background: var(--bg); padding: 0 3px; text-overflow: clip; }

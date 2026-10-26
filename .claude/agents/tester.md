@@ -34,7 +34,8 @@ Never report "works" without having run it; report failures with their output.
    the feature-aware measure (holes / cylinders / faces) and rename + the Save dialog. `tools/e2e_i18n.py <url> <dir>`
    switches to Czech, walks every panel and the outline wizard, lists texts still in English (add them to
    `web/js/i18n.js`), and checks that switching back leaves no Czech behind. `tools/e2e_project.py <url> <dir>` covers
-   several parts in one project (tabs, switching keeps edits + undo, rename, ✕, Save v3 → reopen, old v2 files).
+   several parts in one project (tabs, switching keeps edits + undo, rename, Save v3 → reopen, old v2 files; ✕ closes
+   the tab only, ☰ Parts reopens it, the closed state is saved, ✕ in ☰ deletes).
    `tools/e2e_chat_photos.py <url> <dir>` covers photos in the AI chat (📎, drop, thumbnails, ✕, the sent request).
    `tools/e2e_model_basic.py <url> <dir>` covers the 3D model workspace with real clicks: New 3D model -> draw a
    rectangle -> type its width -> Finish -> Extrude preview -> OK -> sketch on the top face -> circle -> Cut through

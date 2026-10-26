@@ -44,7 +44,10 @@ the file instead.
 
 **Several parts in one project**: every file you open becomes its own **part tab** in the top bar, next to the
 project name (📁). Click a tab to switch parts; each keeps its edits and its own undo history. Double-click a
-tab to rename it, and use **✕** to close it. The **＋** next to the tabs offers the usual ways to open a file.
+tab to rename it, and use **✕** to close the tab — the part stays in the project. **☰** (before the tabs) lists every
+part of the project, open or not: click one to open it in a tab again, ✕ there deletes it from the project (after
+asking; it says which assemblies use it). Parts made for an assembly (fasteners) are added without a tab. The **＋**
+next to the tabs offers the usual ways to open a file.
 *Save project* stores all the parts in one file (project version 3). Older project files still open, as a
 project with one part. The plan for the coming 3D model workspace (sketches → extrude / revolve / fillet …,
 light assemblies) is in [docs/ARCHITECTURE-modeler.md](docs/ARCHITECTURE-modeler.md). Its optional packages

@@ -1,13 +1,15 @@
 import { t } from './i18n.js';
 
-// A project holds several parts, shown as tabs in the top bar (like browser tabs). Every file you open
-// becomes a part; click a tab to switch, double-click to rename, ✕ to close. Only the active part lives
+// A project holds several parts; the open ones are tabs in the top bar (like browser tabs). Every file you open
+// becomes a part; click a tab to switch, double-click to rename, ✕ to close the tab (the part stays in the project:
+// ☰ Parts lists them all, opens one again or deletes it). Only the active part lives
 // in the app state — the others are kept as their saved payload (the same JSON a part is saved with)
 // together with their undo history, so switching back restores them exactly. A part is either "classic"
 // (a drawing, picture outline or imported file — the Quick part workspace) or a "model" (sketches and
 // features — the 3D model workspace).
 
-const CLOSE_TIP = 'Close this part (it is removed from the project)';
+const CLOSE_TIP = 'Close this tab (the part stays in the project — ☰ Parts opens it again)';
+const KIND_ICON = { model: '◆', assembly: '◇', drawing: '📐', classic: '▤' };
 
 export class Project {
   /** hooks: {payload(kind), load(payload, {switching, kind}), settle(), getHistory(kind), setHistory(h, kind),
@@ -15,11 +17,11 @@ export class Project {
   constructor(el, hooks) {
     this.el = el;
     this.hooks = hooks;
-    this.parts = []; // {id, name, kind: 'classic' | 'model', data, history}
+    this.parts = []; // {id, name, kind: 'classic' | 'model' | 'assembly' | 'drawing', data, history, closed (no tab)}
     this.active = null;
     this.next = 1;
     this.busy = false;
-    document.addEventListener('click', () => this.el.querySelector('.part-add')?.classList.remove('open'));
+    document.addEventListener('click', () => { for (const m of this.el.querySelectorAll('.part-add, .part-all')) m.classList.remove('open'); });
   }
 
   get current() { return this.parts.find((p) => p.id === this.active) || null; }
@@ -63,9 +65,9 @@ export class Project {
   }
 
   /** A new 3D model part (its own tab) — empty, or with first steps (data) and a command to open (then). */
-  /** A 3D model part added to the project without opening it (a standard part for an assembly). -> its id */
+  /** A 3D model part added to the project without opening it (a standard part for an assembly; no tab). -> its id */
   addBackground(name, data) {
-    const p = { id: `P${this.next++}`, name, kind: 'model', data, history: null };
+    const p = { id: `P${this.next++}`, name, kind: 'model', data, history: null, closed: true };
     this.parts.push(p);
     this.render();
     return p.id;
@@ -129,7 +131,7 @@ export class Project {
     const base = `${src.name} (${t('copy')})`;
     let name = base;
     for (let n = 2; this.parts.some((p) => p.name === name); n++) name = `${base.slice(0, -1)} ${n})`;
-    const p = { id: `P${this.next++}`, name, kind: src.kind, data, history: null };
+    const p = { id: `P${this.next++}`, name, kind: src.kind, data, history: null, closed: !open || undefined };
     this.parts.splice(this.parts.indexOf(src) + 1, 0, p);
     if (open) await this.switchTo(p.id);
     else this.render();
@@ -137,8 +139,9 @@ export class Project {
   }
 
   async switchTo(id) {
-    if (id === this.active || this.busy) return;
     const p = this.parts.find((q) => q.id === id);
+    if (p?.closed) { delete p.closed; this.render(); } // opened again: its tab comes back
+    if (id === this.active || this.busy) return;
     if (!p) return;
     this.busy = true;
     try {
@@ -153,16 +156,44 @@ export class Project {
     }
   }
 
+  get openParts() { return this.parts.filter((p) => !p.closed); }
+
+  /** ✕ on a tab: the tab goes, the part stays in the project (☰ Parts opens it again). */
   async close(id) {
-    if (this.parts.length < 2 || this.busy) return;
-    const p = this.parts.find((q) => q.id === id);
-    if (!p || !confirm(`Close the part “${p.name}”? It is removed from the project (Save project keeps the rest).`)) return;
-    const i = this.parts.indexOf(p);
+    const open = this.openParts, p = open.find((q) => q.id === id);
+    if (!p || open.length < 2 || this.busy) return;
     if (id === this.active) {
-      const to = this.parts[i + 1] || this.parts[i - 1];
+      const i = open.indexOf(p);
+      await this.switchTo((open[i + 1] || open[i - 1]).id);
+      if (this.active === id) return;
+    }
+    p.closed = true;
+    this.render();
+    if (!this.toldClosed) { this.toldClosed = true; this.hooks.toast(t('The tab is closed — the part stays in the project (☰ Parts opens it again).'), 'info', 5000); }
+  }
+
+  /** The assemblies that use a part -> their names. */
+  usedBy(id) {
+    return this.parts.filter((a) => a.kind === 'assembly' && a.id !== id).filter((a) => {
+      const data = a.id === this.active ? this.hooks.payload('assembly') : a.data;
+      return (data?.instances || []).some((it) => it.part === id);
+    }).map((a) => a.name);
+  }
+
+  /** Delete a part from the project (☰ Parts ✕), after asking. */
+  async remove(id) {
+    const p = this.parts.find((q) => q.id === id);
+    if (!p || this.parts.length < 2 || this.busy) return;
+    const used = this.usedBy(id);
+    const msg = `${t('Delete the part “{name}” from the project?').replace('{name}', p.name)}${used.length ? `\n\n${t('It is used in: {list} — it would be missing there.').replace('{list}', used.join(', '))}` : ''}`;
+    if (!confirm(msg)) return;
+    if (id === this.active) {
+      const others = this.parts.filter((q) => q !== p), to = others.find((q) => !q.closed) || others[0];
       await this.switchTo(to.id);
+      if (this.active === id) return;
     }
     this.parts = this.parts.filter((q) => q !== p);
+    if (!this.openParts.length && this.parts.length) delete this.parts[0].closed;
     this.render();
   }
 
@@ -178,7 +209,7 @@ export class Project {
     const out = {
       active: { part: this.active },
       parts: this.parts.filter((p) => p.data && p.data !== 'live')
-        .map((p) => ({ id: p.id, kind: p.kind, name: p.name, [p.kind === 'classic' ? 'classic' : p.kind]: p.data })),
+        .map((p) => ({ id: p.id, kind: p.kind, name: p.name, [p.kind === 'classic' ? 'classic' : p.kind]: p.data, ...(p.closed ? { closed: true } : {}) })),
     };
     if (this.current) this.current.data = 'live';
     return out;
@@ -186,9 +217,10 @@ export class Project {
 
   /** Open a version-3 project: every part as a tab, the active one on screen. */
   async loadAll(proj) {
-    this.parts = proj.parts.map((p) => ({ id: p.id, name: p.name, kind: p.kind, data: p.kind === 'classic' ? p.classic : p[p.kind], history: null }));
+    this.parts = proj.parts.map((p) => ({ id: p.id, name: p.name, kind: p.kind, data: p.kind === 'classic' ? p.classic : p[p.kind], history: null, ...(p.closed ? { closed: true } : {}) }));
     this.next = 1 + Math.max(0, ...this.parts.map((p) => parseInt(String(p.id).replace(/\D/g, ''), 10) || 0));
-    const act = this.parts.find((p) => p.id === proj.active?.part) || this.parts[0];
+    const act = this.parts.find((p) => p.id === proj.active?.part) || this.parts.find((p) => !p.closed) || this.parts[0];
+    delete act.closed;
     this.active = act.id;
     this.render();
     await this.show(act);
@@ -199,7 +231,26 @@ export class Project {
     const el = this.el;
     el.hidden = !this.parts.length;
     el.innerHTML = '';
+    // ☰ Parts: every part of the project (open or not) — click to open, ✕ to delete
+    const all = document.createElement('div');
+    all.className = 'menu part-all';
+    all.innerHTML = `<button class="pt-all" title="All the parts of the project — open one, or delete it">☰ <span data-no-i18n>${this.parts.length}</span></button>
+      <div class="menu-list"></div>`;
+    const list = all.querySelector('.menu-list');
     for (const p of this.parts) {
+      const row = document.createElement('div');
+      row.className = `pt-row${p.id === this.active ? ' on' : ''}${p.closed ? ' closed' : ''}`;
+      row.dataset.part = p.id;
+      row.innerHTML = `<button class="pt-open" title="${p.closed ? 'Open it (a tab)' : 'Show it'}"><span class="pt-kind">${KIND_ICON[p.kind] || '▤'}</span><span class="pt-rname" data-no-i18n></span></button>${this.parts.length > 1 ? '<button class="mini danger pt-del" title="Delete it from the project">✕</button>' : ''}`;
+      row.querySelector('.pt-rname').textContent = p.name || '…';
+      row.querySelector('.pt-open').addEventListener('click', () => { all.classList.remove('open'); this.switchTo(p.id); });
+      row.querySelector('.pt-del')?.addEventListener('click', (e) => { e.stopPropagation(); all.classList.remove('open'); this.remove(p.id); });
+      list.appendChild(row);
+    }
+    all.querySelector('.pt-all').addEventListener('click', (e) => { e.stopPropagation(); el.querySelector('.part-add')?.classList.remove('open'); all.classList.toggle('open'); });
+    el.appendChild(all);
+    const open = this.openParts;
+    for (const p of open) {
       const tab = document.createElement('div');
       tab.className = `part-tab ${p.kind}${p.id === this.active ? ' on' : ''}`;
       tab.dataset.part = p.id;
@@ -209,7 +260,7 @@ export class Project {
       name.dataset.noI18n = '';
       name.textContent = p.name || '…';
       tab.appendChild(name);
-      if (this.parts.length > 1) {
+      if (open.length > 1) {
         const x = document.createElement('button');
         x.className = 'pt-x';
         x.textContent = '✕';
@@ -232,7 +283,7 @@ export class Project {
         <button data-open="cadInput">Open CAD / 3D</button>
         <button data-open="sampleBtn">Sample drawing</button>
       </div>`;
-    add.querySelector('.pt-add').addEventListener('click', (e) => { e.stopPropagation(); add.classList.toggle('open'); });
+    add.querySelector('.pt-add').addEventListener('click', (e) => { e.stopPropagation(); all.classList.remove('open'); add.classList.toggle('open'); });
     for (const b of add.querySelectorAll('[data-new]')) {
       b.addEventListener('click', () => { add.classList.remove('open'); if (b.dataset.new === 'assembly') this.newAssembly(); else this.newModel(); });
     }
