@@ -387,7 +387,7 @@ details.ol-clean[open] summary { margin-bottom: 6px; }
 .ai-thumb-x { position: absolute; top: 2px; right: 2px; border: 0; border-radius: 4px; background: #000a; color: #fff; font-size: 11px; padding: 1px 4px; cursor: pointer; }
 .ai-msg-photo { display: block; max-width: 160px; max-height: 120px; border-radius: 5px; margin-bottom: 4px; }
 #tab-ai.drop .ai-form { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 8px; }
-.ai-panel.busy .ai-status::before { content: '● '; color: var(--accent); animation: pulse 1s infinite; }
+.ai-panel.ai-busy .ai-status::before { content: '● '; color: var(--accent); animation: pulse 1s infinite; }
 .chip:disabled { opacity: .4; cursor: default; }
 .dim-x { display: none; margin-left: 5px; padding: 0 3px; border-radius: 3px; color: #ffb3ad; cursor: pointer; font-weight: 700; }
 .dim-label:hover .dim-x { display: inline-block; }

@@ -185,7 +185,7 @@ export class ChatPanel {
     this.busy = on;
     this.$('.ai-stop').hidden = !on;
     this.$('.ai-form button[type=submit]').disabled = on;
-    this.root.classList.toggle('busy', on);
+    this.root.classList.toggle('ai-busy', on); // (not 'busy': that is the floating badge's style)
   }
 
   updateUndo() { this.$('.ai-undo').disabled = !this.canUndo(); }
@@ -258,10 +258,16 @@ export class ChatPanel {
     const d = document.createElement('div');
     d.className = `ai-msg ${cls}`;
     d.innerHTML = html;
+    const follow = this.atBottom();
     this.log.appendChild(d);
-    this.log.scrollTop = this.log.scrollHeight;
+    if (follow || cls === 'user') this.toBottom();
     return d;
   }
+
+  /** Whether the log shows its end — new text then keeps it there; scrolled up to read, it stays put. */
+  atBottom() { return this.log.scrollHeight - this.log.scrollTop - this.log.clientHeight < 40; }
+
+  toBottom() { this.log.scrollTop = this.log.scrollHeight; }
 
   note(text, cls = '') { this.bubble(`note ${cls}`, escapeHtml(text)); }
 
@@ -296,9 +302,10 @@ export class ChatPanel {
         break;
       case 'delta': {
         const b = this.assistant();
+        const follow = this.atBottom();
         b.raw += ev.text;
         b.innerHTML = md(b.raw);
-        this.log.scrollTop = this.log.scrollHeight;
+        if (follow) this.toBottom();
         break;
       }
       case 'text': {

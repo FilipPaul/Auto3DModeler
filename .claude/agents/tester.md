@@ -20,6 +20,8 @@ Never report "works" without having run it; report failures with their output.
    (placing objects, picking heights, snapping) and adds a picture outline as a design layer. Restart the
    server after backend changes (Flask does not reload). `tools/e2e_unified.py` covers the common Part tab
    (PDF / DXF / STL), point-to-point dimensions (scaling), the 3D and 2D measure tools and CAD / 3D imports.
+   `tools/e2e_chat_scroll.py <url> <dir>` covers the AI chat while Claude works (the panel keeps its place and size,
+   the wheel scrolls the log up, new text leaves it there; at the bottom it follows).
    `tools/e2e_ai_history.py <url> <dir>` covers 🕘 AI history (two AI turns through /api/agent/call -> a state each
    with its message and tool count, a replayed turn keeps nothing, the list, Load the first -> the plate without the
    hole, the hand-renamed project kept "before loading"; it deletes the states it made).
