@@ -84,6 +84,8 @@ SolidWorks. It has only the tools that need almost no input.
 2. **✓ Finish sketch** opens **Extrude** straight away, with a live preview.
    - Choose **⬆ Add material** or **⬇ Cut**, and type the distance.
    - Optionally tick *Both sides* or *Through all* (for a cut), or click *⇅ Flip direction*.
+   - Or **Up to a face**: click a flat face of the part — the extrude goes as far as that face (with an *Offset*:
+     more = past it, negative = short of it) and follows the face when the part changes.
    - OK, or Enter, adds the step.
 3. **✏ Sketch** again and **click a flat face** of the part to sketch on it. On a face, Extrude starts as
    **Cut**, ready for holes and pockets.
@@ -94,7 +96,8 @@ SolidWorks. It has only the tools that need almost no input.
    flat face where a hole goes (near the centre it snaps to it; click again for more holes on the same face), and
    type the diameter. It goes through all by default, or untick *Through all* and give a depth. Each hole is
    placed from the face's nearest edges — *↔ 10 mm from the right edge*, *↕ 5 mm from the lower edge*, drawn on
-   the face. Type a distance to move it, ⇄ measures from the edge on the other side. Every tool shows a live
+   the face. Type a distance to move it, ⇄ measures from the edge on the other side, and 🎯 lets you click *any*
+   edge of the face — or another hole (then it is measured from that hole's centre and follows it). Every tool shows a live
    preview.
 
    **Dimensions follow the part.** A hole's distances and a sketch's dimensions to the part's edges or corners

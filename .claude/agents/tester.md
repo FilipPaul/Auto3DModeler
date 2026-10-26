@@ -59,6 +59,8 @@ Never report "works" without having run it; report failures with their output.
    (typed, ⇄), a sketch circle dimensioned from the part's edge; the part gets wider -> both keep their distance.
    `tools/e2e_model_round.py <url> <dir>` covers ◜ Round corner (default R, typed R5, width typed -> still tangent and
    no height drift, undo, exact extrude volume, the AI's rect with r).
+   `tools/e2e_model_custom.py <url> <dir>` covers custom references: 🎯 a hole from a picked edge and from another hole
+   (it follows), Extrude up to a face + offset (it follows the face).
    `tools/e2e_assembly_ai.py <url> <dir>` covers the AI's assembly tools (insert_part, snap_faces by face name, place_part,
    screenshot, undo, the error messages for wrong faces / tools).
    `tools/e2e_model_features.py <url> <dir>` covers ◜ Fillet (click an edge, exact volume, the rounding follows when

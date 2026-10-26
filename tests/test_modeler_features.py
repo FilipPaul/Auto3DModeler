@@ -236,6 +236,43 @@ class TestFeatures(unittest.TestCase):
         self.assertTrue(r["ok"])
         self.assertIn("edge is gone", r["features"][-1]["warnings"][0])
 
+    def test_extrude_up_to_a_face(self):
+        # a pin from the bed (XY) up to the box's top + 5 mm: it follows the top when the box gets taller
+        sk = {"id": "S2", "type": "sketch", "plane": {"datum": "XY"}, "points": {"c": [10, 10]}, "entities": [{"id": "k", "t": "circle", "c": "c", "r": 3}]}
+        pin = {"id": "E2", "type": "extrude", "sketch": "S2", "op": "add", "upto": {"name": "E1:end", "fp": [20, 10, 10]}, "offset": 5}
+        r, v = vol(*box(), sk, pin)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 + math.pi * 9 * 5, delta=1e-3)
+        r, v = vol(*box(d=20), sk, pin)
+        self.assertAlmostEqual(v, 16000 + math.pi * 9 * 5, delta=1e-3)
+        self.assertAlmostEqual(r["body"]["bbox"][5], 25)
+        # a pocket cut from the top down to 2 mm above the bottom (offset -2 = short of the bottom face)
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        sk3 = {"id": "S3", "type": "sketch", "plane": top, "points": {"c": [0, 0]}, "entities": [{"id": "k", "t": "circle", "c": "c", "r": 4}]}
+        pocket = {"id": "E3", "type": "extrude", "sketch": "S3", "op": "cut", "upto": {"name": "E1:start", "fp": [20, 10, 0]}, "offset": -2}
+        r, v = vol(*box(), sk3, pocket)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 - math.pi * 16 * 8, delta=1e-3)
+        # a wall is not parallel to the sketch: refused
+        r, _ = vol(*box(), sk, {**pin, "upto": {"name": "E1:side:l1", "fp": [20, 0, 5]}})
+        self.assertIn("parallel", r["features"][-1]["issues"][0])
+
+    def test_hole_measured_from_another_hole(self):
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        h1 = {"id": "H1", "type": "hole", "plane": top, "points": [[-10, 0]], "d": 4, "through": True}
+        rim = {"a": "H1:hole:0", "b": "E1:end", "fp": [8, 10, 10]}
+        h2 = {"id": "H2", "type": "hole", "plane": top, "points": [[5, 0]], "d": 3, "through": True, "from": [{"x": {"edge": rim, "d": 15, "round": True}}]}
+        r, _ = vol(*box(), h1, h2)
+        self.assertNotIn("update", r["features"][-1])  # already 15 from H1's centre
+        r, _ = vol(*box(), {**h1, "points": [[-5, 0]]}, h2)  # H1 moves 5 to the right: H2 goes along
+        self.assertEqual(r["features"][-1]["update"], {"points": [[10, 0]]})
+        xs = sorted(round(f["centroid"][0], 3) for f in r["body"]["faces"] if f["type"] == "cylinder")
+        self.assertEqual(xs, [15, 30])
+        # a hole measured from another hole of the same step: placed after it, follows it
+        two = {"id": "H1", "type": "hole", "plane": top, "points": [[-10, 0], [0, 0]], "d": 3, "through": True, "from": [{}, {"x": {"hole": 0, "d": 12}}]}
+        r, _ = vol(*box(), two)
+        self.assertEqual(r["features"][-1]["update"], {"points": [[-10, 0], [2, 0]]})
+
 
 if __name__ == "__main__":
     unittest.main()

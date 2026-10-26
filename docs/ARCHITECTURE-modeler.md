@@ -43,6 +43,8 @@ Date: 2026-10-25. Written by the architect agent.
 - **Round corner done:** ◜ Round corner in sketches (roundCorner: tangent arc, constraints tan + corner — the sharp
   corner stays a point on both lines); the AI's rect {r}; typed sizes keep the other axis (solve keep=u|v).
   tools/e2e_model_round.py.
+- **Custom references done:** Extrude up to a face (+ offset, extrude.upto); 🎯 hole distances from any edge of the
+  face, from another step's hole (its centre) or another hole of the same step (from: {hole: j}). tools/e2e_model_custom.py.
 - **Next (later list):** classic parts in assemblies; decorate faces of model parts; loft / sweep.
 
 ## 0. Summary

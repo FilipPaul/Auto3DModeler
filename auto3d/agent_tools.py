@@ -157,7 +157,8 @@ TOOLS = [
                     "centre); shapes: [{rect: {x, y, w, h, r}} (lower-left corner; r = rounded corners) | {circle: {x, y, d}} | {slot: {x1, y1, x2, y2, w}} (round ends "
                     "centred at x1,y1 and x2,y2) | {polyline: {points: [[u, v], …]}} "
                     "(closed)] — a shape inside another is a hole; sizes are locked.\n"
-                    "- extrude: sketch (id), d, op add / cut, through (cut through all), symmetric, flip.\n"
+                    "- extrude: sketch (id), d, op add / cut, through (cut through all), symmetric, flip; or up_to: a flat face's "
+                    "name (as far as that face — it follows the face), offset (mm past it, negative = short of it).\n"
                     "- revolve: sketch, axis \"y\" (the sketch's vertical axis) / \"x\" / a line id, angle (360), op.\n"
                     "- hole: face (name), points [[u, v]] from the face's centre, d, through (default) or depth; "
                     "from: [{x: {edge: <ref from find_refs>, d}, y: {edge, d}}] per hole = its distance from a straight edge "
@@ -173,7 +174,7 @@ TOOLS = [
                           "symmetric": {"type": "boolean"}, "flip": {"type": "boolean"}, "axis": {}, "angle": NUM,
                           "face": STR, "points": {"type": "array"}, "depth": NUM, "edges": {"type": "array"}, "r": NUM,
                           "faces": {"type": "array"}, "t": NUM, "of": {}, "kind": {"type": "string", "enum": ["linear", "circular"]},
-                          "count": NUM, "spacing": NUM, "dir": {}}, ["type"])},
+                          "count": NUM, "spacing": NUM, "dir": {}, "up_to": STR, "offset": NUM}, ["type"])},
     {"name": "edit_feature", "where": "browser",
      "description": "Change a step of the 3D model: id and fields (as in add_feature, e.g. {d: 15}, {r: 3}, {points: …}, a "
                     "sketch's {shapes: […]}). Later steps follow their faces.",

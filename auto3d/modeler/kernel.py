@@ -513,6 +513,16 @@ def edge_ends(e):
     return np.array([p.X(), p.Y(), p.Z()]), np.array([q.X(), q.Y(), q.Z()])
 
 
+def edge_centre(e):
+    """The centre of a round edge (a circle or an arc), or None for any other edge."""
+    from OCP.GeomAbs import GeomAbs_Circle
+    c = BRepAdaptor_Curve(e)
+    if c.GetType() != GeomAbs_Circle:
+        return None
+    p = c.Circle().Location()
+    return np.array([p.X(), p.Y(), p.Z()])
+
+
 def find_vertex(body, faces, fp):
     """A corner of the part named by the faces that meet there (e.g. the top and two walls of a box) and where it
     was -> its position now. -> (point, guessed): guessed when no corner has all those faces any more."""

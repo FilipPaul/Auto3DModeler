@@ -204,6 +204,7 @@ export class Modeler {
   whatText(f) {
     const n = (k) => (f[k] || []).length;
     if (f.type === 'sketch') return this.planeText(f);
+    if (f.type === 'extrude' && f.upto) return `${f.op === 'cut' ? 'cut ' : ''}up to a face${f.offset ? ` ${f.offset > 0 ? '+' : ''}${fmt(f.offset)} mm` : ''}`;
     if (f.type === 'extrude') return f.op === 'cut' ? (f.through ? 'cut through all' : `cut ${fmt(f.d)} mm`) : `${fmt(f.d)} mm`;
     if (f.type === 'fillet') return `R ${fmt(f.r)} · ${n('edges')} edge(s)`;
     if (f.type === 'chamfer') return `${fmt(f.d)} mm · ${n('edges')} edge(s)`;
@@ -260,7 +261,7 @@ export class Modeler {
       const onFace = gone.has(this.faceOwner(f.plane?.face));
       const onEdge = (f.edges || []).some((e) => gone.has(this.faceOwner({ name: e.a })) || gone.has(this.faceOwner({ name: e.b })));
       const onFaces = (f.faces || []).some((r) => gone.has(this.faceOwner(r)));
-      const repeats = f.type === 'pattern' && (f.features || []).some((x) => gone.has(x));
+      const repeats = (f.type === 'pattern' && (f.features || []).some((x) => gone.has(x))) || gone.has(this.faceOwner(f.upto));
       if ((USES_SKETCH.has(f.type) && gone.has(f.sketch)) || onFace || onEdge || onFaces || repeats) gone.add(f.id);
     }
     const names = this.part.features.filter((f) => gone.has(f.id)).map((f) => f.name);
@@ -610,22 +611,35 @@ export class Modeler {
     const f = this.cmd.feature, sks = this.sketches(), st = this.status(f.id);
     box.innerHTML = `<h2>${esc(f.name)}</h2>
       <div class="seg big"><button data-op="add" class="${f.op !== 'cut' ? 'on' : ''}" title="Add material">⬆ Add material</button><button data-op="cut" class="${f.op === 'cut' ? 'on' : ''}" title="Remove material (holes, pockets)">⬇ Cut</button></div>
-      <div class="field"><label>Distance</label><input type="number" step="any" min="0" data-k="d" value="${fmt(f.d)}" ${f.through ? 'disabled' : ''}><span class="unit">mm</span></div>
+      ${this.result?.body || f.upto ? `<div class="seg"><button data-upto="0" class="${!f.upto ? 'on' : ''}" title="A height you type">Distance</button><button data-upto="1" class="${f.upto ? 'on' : ''}" title="As far as a face of the part — it follows the face when the part changes">Up to a face</button></div>` : ''}
+      ${f.upto ? `<p class="mp-count">${f.upto.name ? `Up to the face <b>${esc(this.faceLabel(f.upto.name))}</b>` : 'Click a flat face of the part (parallel to the sketch).'}</p>
+        <div class="field"><label>Offset</label><input type="number" step="any" data-k="offset" value="${fmt(f.offset || 0)}"><span class="unit">mm</span></div>
+        <p class="hint">Offset: more = past the face, less (negative) = short of it. Click another face to change it.</p>`
+      : `<div class="field"><label>Distance</label><input type="number" step="any" min="0" data-k="d" value="${fmt(f.d)}" ${f.through ? 'disabled' : ''}><span class="unit">mm</span></div>
       ${f.op === 'cut' ? `<label class="check"><input type="checkbox" data-k="through" ${f.through ? 'checked' : ''}> Through all</label>` : ''}
       <label class="check"><input type="checkbox" data-k="symmetric" ${f.symmetric ? 'checked' : ''}> Both sides (symmetric)</label>
-      <div class="row-actions"><button class="btn small" data-k="flip" title="Extrude to the other side of the sketch">⇅ Flip direction</button></div>
+      <div class="row-actions"><button class="btn small" data-k="flip" title="Extrude to the other side of the sketch">⇅ Flip direction</button></div>`}
       ${sks.length > 1 ? `<div class="field"><label>Sketch</label><select data-k="sketch">${sks.map((s) => `<option value="${s.id}" ${s.id === f.sketch ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></div>` : ''}
       ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>
       <p class="hint">The preview is in the 3D view. Enter = OK, Esc = Cancel.</p>`;
     const changed = () => { this.renderExtrude(box); this.rebuild(); };
     for (const b of box.querySelectorAll('[data-op]')) b.addEventListener('click', () => { f.op = b.dataset.op; if (f.op === 'add') f.through = false; changed(); });
-    const d = box.querySelector('[data-k=d]');
-    d.addEventListener('input', () => { const v = parseFloat(d.value); if (v > 0) { f.d = v; this.rebuild(); } });
+    for (const b of box.querySelectorAll('[data-upto]')) {
+      b.addEventListener('click', () => {
+        if (b.dataset.upto === '1') { f.upto = f.upto || { name: null }; f.through = false; this.hint('Up to a face — click a flat face of the part. Enter = OK, Esc = Cancel.'); } else delete f.upto;
+        changed();
+      });
+    }
+    const d = box.querySelector('[data-k=d]') || box.querySelector('[data-k=offset]');
+    d.addEventListener('input', () => {
+      const v = parseFloat(d.value);
+      if (d.dataset.k === 'offset' ? Number.isFinite(v) : v > 0) { f[d.dataset.k] = v; this.rebuild(); }
+    });
     d.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okExtrude(); if (e.key === 'Escape') this.cancelExtrude(); });
     box.querySelector('[data-k=through]')?.addEventListener('change', (e) => { f.through = e.target.checked; changed(); });
-    box.querySelector('[data-k=symmetric]').addEventListener('change', (e) => { f.symmetric = e.target.checked; changed(); });
-    box.querySelector('[data-k=flip]').addEventListener('click', () => { f.flip = !f.flip; changed(); });
+    box.querySelector('[data-k=symmetric]')?.addEventListener('change', (e) => { f.symmetric = e.target.checked; changed(); });
+    box.querySelector('[data-k=flip]')?.addEventListener('click', () => { f.flip = !f.flip; changed(); });
     box.querySelector('[data-k=sketch]')?.addEventListener('change', (e) => { f.sketch = e.target.value; changed(); });
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okExtrude());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelExtrude());
@@ -635,13 +649,15 @@ export class Modeler {
 
   okCommand() {
     const { feature: f, isNew } = this.cmd;
-    if (f.type === 'extrude' && !f.through && !(f.d > 0)) { this.hooks.toast('The distance must be greater than zero.', 'error'); return; }
+    if (f.type === 'extrude' && f.upto && !f.upto.name) { this.hooks.toast('Click the face to go up to first.', 'warning'); return; }
+    if (f.type === 'extrude' && !f.upto && !f.through && !(f.d > 0)) { this.hooks.toast('The distance must be greater than zero.', 'error'); return; }
     if ((f.type === 'fillet' || f.type === 'chamfer') && !f.edges.length) { this.hooks.toast('Click at least one edge first.', 'warning'); return; }
     if (f.type === 'shell' && !f.faces.length) { this.hooks.toast('Click the face(s) to leave open first.', 'warning'); return; }
     if (f.type === 'hole' && !f.points.length) { this.hooks.toast('Click on a flat face where the hole goes.', 'warning'); return; }
     if (isNew) this.part.features.push(f);
     else this.part.features = this.part.features.map((g) => (g.id === f.id ? f : g));
     this.cmd = null;
+    this.holePick = null;
     this.view.setEdgeHighlight();
     this.view.setHover(-1);
     this.view.setSketch(null);
@@ -653,6 +669,7 @@ export class Modeler {
 
   cancelCommand() {
     this.cmd = null;
+    this.holePick = null;
     this.view.setSketch(null);
     this.view.setEdgeHighlight();
     this.view.setHover(-1);
@@ -723,6 +740,7 @@ export class Modeler {
 
   clickCommand(e) {
     const f = this.cmd.feature;
+    if (f.type === 'extrude') return this.clickUpTo(e);
     if (f.type === 'hole') return this.clickHole(e);
     if (f.type === 'shell') return this.clickShell(e);
     if (f.type === 'pattern') return this.clickPattern(e);
@@ -749,8 +767,26 @@ export class Modeler {
     return null;
   }
 
+  /** Extrude, up to a face: the clicked flat face (not one this extrude makes). */
+  clickUpTo(e) {
+    const f = this.cmd.feature, h = this.view.pick(e.clientX, e.clientY);
+    if (!f.upto) return;
+    if (!h?.face || h.face.type !== 'plane' || h.face.name?.startsWith(`${f.id}:`)) { this.hooks.toast('Click a flat face of the part.', 'info', 3000); return; }
+    f.upto = { name: h.face.name, fp: h.face.centroid };
+    this.renderProps();
+    this.rebuild();
+  }
+
+  /** "the top of Extrude 1" for a face name. */
+  faceLabel(name) {
+    const [id, role, sub] = String(name).split(':'), g = this.part.features.find((x) => x.id === id);
+    const what = { end: 'the top of', start: 'the bottom of', side: 'a wall of', hole: 'a hole of', round: 'a rounding of' }[role] || 'a face of';
+    return g ? `${what} ${g.name}` : name;
+  }
+
   clickHole(e) {
     const f = this.cmd.feature, h = this.view.pick(e.clientX, e.clientY);
+    if (this.holePick) { this.pickHoleRef(e); return; }
     if (!h?.face) return;
     if (h.face.type !== 'plane') { this.hooks.toast('Holes go on flat faces — click a flat face.', 'warning'); return; }
     if (f.plane && (f.plane.face?.name !== h.face.name || h.face.normal.some((v, k) => Math.abs(v - f.plane.frame.n[k]) > 1e-6))) {
@@ -795,11 +831,64 @@ export class Modeler {
     return out;
   }
 
-  /** Edges running across an axis (k = 0: along y, so they give an x; k = 1: along x) -> [{c: their x (or y), ref}]. */
-  axisEdges(f, k) {
+  /** Edges running across an axis (k = 0: along y, so they give an x; k = 1: along x) -> [{c: their x (or y), ref}].
+   *  round: also the round edges of the face (other holes) — their centre. */
+  axisEdges(f, k, round = false) {
     const j = 1 - k;
-    return this.planeEdges(f).filter((e) => Math.abs(e.a[k] - e.b[k]) < 1e-6 && Math.abs(e.a[j] - e.b[j]) > 1e-6)
+    const straight = this.planeEdges(f).filter((e) => Math.abs(e.a[k] - e.b[k]) < 1e-6 && Math.abs(e.a[j] - e.b[j]) > 1e-6)
       .map((e) => ({ c: (e.a[k] + e.b[k]) / 2, lo: Math.min(e.a[j], e.b[j]), hi: Math.max(e.a[j], e.b[j]), ref: e.ref }));
+    return round ? [...straight, ...this.roundEdges(f).map((e) => ({ c: e.c[k], lo: -Infinity, hi: Infinity, ref: e.ref, round: true }))] : straight;
+  }
+
+  /** Round edges (circles, arcs) lying in the hole's face, with their centre in its coordinates. */
+  roundEdges(f) {
+    const b = this.result?.body, fr = this.holeFrame(f);
+    if (!b || !fr) return [];
+    const o = fr.o, x = fr.x, n = fr.n, y = [n[1] * x[2] - n[2] * x[1], n[2] * x[0] - n[0] * x[2], n[0] * x[1] - n[1] * x[0]];
+    const dot = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
+    const tol = Math.max(this.view.size * 1e-5, 1e-4), out = [];
+    for (const e of b.edges) {
+      if (e.pts.length < 15 || e.faces.length !== 2) continue;
+      const names = e.faces.map((k) => b.faces[k]?.name);
+      if (names.some((nm) => !nm || nm.startsWith(`${f.id}:`))) continue;
+      const P = [];
+      for (let i = 0; i < e.pts.length; i += 3) P.push([e.pts[i] - o[0], e.pts[i + 1] - o[1], e.pts[i + 2] - o[2]]);
+      if (P.some((d) => Math.abs(dot(d, n)) > tol)) continue;
+      const uv = P.map((d) => [dot(d, x), dot(d, y)]);
+      // the centre: of the circle through three of its points
+      const [a, m, c] = [uv[0], uv[Math.floor(uv.length / 3)], uv[Math.floor((2 * uv.length) / 3)]];
+      const D = 2 * (a[0] * (m[1] - c[1]) + m[0] * (c[1] - a[1]) + c[0] * (a[1] - m[1]));
+      if (Math.abs(D) < 1e-9) continue;
+      const q = (p) => p[0] * p[0] + p[1] * p[1];
+      const cc = [(q(a) * (m[1] - c[1]) + q(m) * (c[1] - a[1]) + q(c) * (a[1] - m[1])) / D, (q(a) * (c[0] - m[0]) + q(m) * (a[0] - c[0]) + q(c) * (m[0] - a[0])) / D];
+      const r = Math.hypot(a[0] - cc[0], a[1] - cc[1]);
+      if (uv.some((p) => Math.abs(Math.hypot(p[0] - cc[0], p[1] - cc[1]) - r) > r * 0.01 + 1e-6)) continue; // not round
+      out.push({ c: cc, r, ref: { a: names[0], b: names[1], fp: e.mid } });
+    }
+    return out;
+  }
+
+  /** 🎯 the edge under the mouse as a hole reference for the axis being picked -> {edge, c, round}, or null. */
+  holeRefAt(i) {
+    const f = this.cmd.feature, { axis, i: me } = this.holePick, k = axis === 'x' ? 0 : 1, e = this.result?.body?.edges[i];
+    if (!e) return null;
+    // another hole of this very step: by its number (it is placed first, this one from it)
+    const own = e.faces.map((q) => this.result.body.faces[q]?.name || '').map((nm) => nm.match(new RegExp(`^${f.id}:hole:(\\d+)$`))).find(Boolean);
+    if (own) return +own[1] === me ? null : { c: f.points[+own[1]][k], ref: { hole: +own[1] }, round: true };
+    return this.axisEdges(f, k, true).find((x) => Math.hypot(...x.ref.fp.map((v, j) => v - e.mid[j])) < 1e-6) || null;
+  }
+
+  pickHoleRef(e) {
+    const f = this.cmd.feature, { i, axis } = this.holePick, k = axis === 'x' ? 0 : 1;
+    const idx = this.view.pickEdge(e.clientX, e.clientY), r = idx >= 0 && this.holeRefAt(idx);
+    if (!r) { this.hooks.toast(axis === 'x' ? 'Click a straight edge running up / down on this face, or another hole.' : 'Click a straight edge running left / right on this face, or another hole.', 'info', 4000); return; }
+    f.from = f.from || [];
+    f.from[i] = { ...(f.from[i] || {}), [axis]: { ...(r.ref.hole !== undefined ? { hole: r.ref.hole } : { edge: r.ref }), d: +(f.points[i][k] - r.c).toFixed(6), ...(r.round ? { round: true } : {}) } };
+    this.holePick = null;
+    this.view.setEdgeHighlight();
+    this.hint('Hole — click on a flat face where it goes (click again for more holes). Enter = OK, Esc = Cancel.');
+    this.renderProps();
+    this.drawHoleDims();
   }
 
   /** The nearest edge on each axis for a hole at p (an edge beside it is preferred over one beyond its ends). */
@@ -814,10 +903,13 @@ export class Modeler {
     return out;
   }
 
+  /** Where a hole's reference is now along axis k: another hole of this step, or an edge. */
+  refCoord(f, r, k) { return r.hole !== undefined ? f.points[r.hole]?.[k] ?? null : this.edgeCoord(f, r.edge, k); }
+
   /** Where a hole's reference edge is now (its x or y in the face), or null. */
   edgeCoord(f, ref, k) {
     let best = null, bd = Infinity;
-    for (const e of this.axisEdges(f, k)) {
+    for (const e of this.axisEdges(f, k, true)) {
       const same = (e.ref.a === ref.a && e.ref.b === ref.b) || (e.ref.a === ref.b && e.ref.b === ref.a);
       const d = Math.hypot(...e.ref.fp.map((v, i) => v - ref.fp[i])) + (same ? 0 : 1e6);
       if (d < bd) { bd = d; best = e; }
@@ -834,7 +926,7 @@ export class Modeler {
       for (const [axis, k] of [['x', 0], ['y', 1]]) {
         const r = f.from?.[i]?.[axis];
         if (!r) continue;
-        const c = this.edgeCoord(f, r.edge, k);
+        const c = this.refCoord(f, r, k);
         if (c === null) continue;
         const a = k === 0 ? [c, p[1]] : [p[0], c];
         lines.push([a, p, C]);
@@ -858,9 +950,12 @@ export class Modeler {
   holeDimRow(f, i, axis, k) {
     const r = f.from?.[i]?.[axis], p = f.points[i];
     if (!r) return `<label class="mp-hd">${axis} <input type="number" step="any" data-${k ? 'v' : 'u'}="${i}" value="${fmt(p[k])}"> <span class="hint">from the face's centre</span></label>`;
-    const side = k === 0 ? (r.d >= 0 ? 'the left edge' : 'the right edge') : (r.d >= 0 ? 'the lower edge' : 'the upper edge');
-    return `<label class="mp-hd">${k ? '↕' : '↔'} <input type="number" step="any" min="0" data-hd="${i}:${axis}" value="${fmt(Math.abs(r.d))}"> <span>mm from ${side}</span>
-      <button type="button" class="mini" data-flip="${i}:${axis}" title="Measure from the edge on the other side">⇄</button></label>`;
+    const side = r.round ? (k === 0 ? (r.d >= 0 ? 'right of the hole' : 'left of the hole') : (r.d >= 0 ? 'above the hole' : 'below the hole'))
+      : k === 0 ? (r.d >= 0 ? 'from the left edge' : 'from the right edge') : (r.d >= 0 ? 'from the lower edge' : 'from the upper edge');
+    const picking = this.holePick?.i === i && this.holePick?.axis === axis;
+    return `<label class="mp-hd">${k ? '↕' : '↔'} <input type="number" step="any" min="0" data-hd="${i}:${axis}" value="${fmt(Math.abs(r.d))}"> <span>mm ${side}</span>
+      <button type="button" class="mini" data-flip="${i}:${axis}" title="Measure from the edge on the other side">⇄</button>
+      <button type="button" class="mini ${picking ? 'on' : ''}" data-pickref="${i}:${axis}" title="Measure from another edge or hole: click it in the view">🎯</button></label>`;
   }
 
   renderRound(box) {
@@ -909,11 +1004,19 @@ export class Modeler {
     for (const el of box.querySelectorAll('[data-hd]')) {
       const [i, axis] = el.dataset.hd.split(':'), k = axis === 'x' ? 0 : 1;
       num(el, (v) => {
-        const r = f.from[+i][axis], c = this.edgeCoord(f, r.edge, k);
+        const r = f.from[+i][axis], c = this.refCoord(f, r, k);
         if (v < 0 || c === null) return;
         r.d = (Math.sign(r.d) || 1) * v;
         f.points[+i][k] = +(c + r.d).toFixed(6);
         this.drawHoleDims();
+      });
+    }
+    for (const el of box.querySelectorAll('[data-pickref]')) {
+      el.addEventListener('click', () => {
+        const [i, axis] = el.dataset.pickref.split(':');
+        this.holePick = this.holePick?.i === +i && this.holePick?.axis === axis ? null : { i: +i, axis };
+        this.hint(this.holePick ? `Click the edge (or another hole) to measure the ${axis === 'x' ? '↔' : '↕'} distance from. Esc = stop.` : '');
+        this.renderProps();
       });
     }
     for (const el of box.querySelectorAll('[data-flip]')) {
@@ -928,8 +1031,16 @@ export class Modeler {
     }
     for (const el of box.querySelectorAll('[data-del]')) {
       el.addEventListener('click', () => {
-        f.points.splice(+el.dataset.del, 1);
-        f.from?.splice(+el.dataset.del, 1);
+        const gone = +el.dataset.del;
+        f.points.splice(gone, 1);
+        f.from?.splice(gone, 1);
+        for (const spec of f.from || []) {
+          for (const axis of ['x', 'y']) {
+            const r = spec?.[axis];
+            if (r?.hole === gone) delete spec[axis];
+            else if (r?.hole > gone) r.hole -= 1;
+          }
+        }
         if (!f.points.length) f.plane = null;
         this.renderProps();
         this.rebuild();
@@ -1221,9 +1332,17 @@ export class Modeler {
         return;
       }
       if (this.mode === 'sketch') this.sk.move(e, down?.drag || null);
-      else if (this.mode === 'part' && this.cmd && !down && !USES_SKETCH.has(this.cmd.feature.type)) {
+      else if (this.mode === 'part' && this.cmd && !down && (!USES_SKETCH.has(this.cmd.feature.type) || this.cmd.feature.upto)) {
         const f = this.cmd.feature;
-        if (f.type === 'pattern') {
+        if (f.type === 'extrude') {
+          const h = f.upto ? this.view.pick(e.clientX, e.clientY) : null, ok = h?.face?.type === 'plane' && !h.face.name?.startsWith(`${f.id}:`);
+          this.view.setHover(ok ? h.face.id : -1);
+          cv.style.cursor = ok ? 'pointer' : '';
+        } else if (f.type === 'hole' && this.holePick) {
+          const i = this.view.pickEdge(e.clientX, e.clientY), ok = i >= 0 && this.holeRefAt(i);
+          this.view.setEdgeHighlight(ok ? i : -1, []);
+          cv.style.cursor = ok ? 'pointer' : '';
+        } else if (f.type === 'pattern') {
           const i = f.kind === 'circular' ? -1 : this.view.pickEdge(e.clientX, e.clientY);
           const straight = i >= 0 && this.edgeDir(i);
           this.view.setEdgeHighlight(straight ? i : -1, []);
@@ -1260,7 +1379,7 @@ export class Modeler {
       if (moved) return; // the camera was moved
       if (this.mode === 'plane') return this.clickPlane(e);
       if (this.mode === 'sketch') return this.sk.click(e);
-      if (this.mode === 'part' && this.cmd && !USES_SKETCH.has(this.cmd.feature.type)) return this.clickCommand(e);
+      if (this.mode === 'part' && this.cmd && (!USES_SKETCH.has(this.cmd.feature.type) || this.cmd.feature.upto)) return this.clickCommand(e);
       if (this.mode === 'part' && this.measuring) return this.clickMeasure(e);
       return null;
     });

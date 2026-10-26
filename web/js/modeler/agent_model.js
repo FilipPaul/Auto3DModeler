@@ -138,7 +138,8 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       const sk = spec.sketch || [...m.sketches()].pop()?.id;
       if (!m.part.features.some((f) => f.id === sk && f.type === 'sketch')) throw new Error('sketch: the id of a sketch step (from get_model).');
       return type === 'extrude'
-        ? { ...base, sketch: sk, op: spec.op === 'cut' ? 'cut' : 'add', d: spec.d ?? 10, through: !!spec.through, symmetric: !!spec.symmetric, flip: !!spec.flip }
+        ? { ...base, sketch: sk, op: spec.op === 'cut' ? 'cut' : 'add', d: spec.d ?? 10, through: !!spec.through, symmetric: !!spec.symmetric, flip: !!spec.flip,
+          ...(spec.up_to ? { upto: { name: faceOf(spec.up_to).name, fp: faceOf(spec.up_to).centroid }, offset: spec.offset || 0 } : {}) }
         : { ...base, sketch: sk, op: spec.op === 'cut' ? 'cut' : 'add', axis: spec.axis || 'y', angle: spec.angle ?? 360 };
     }
     if (type === 'fillet' || type === 'chamfer') {

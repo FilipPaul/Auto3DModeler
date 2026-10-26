@@ -126,10 +126,13 @@ def _apply(f, st: State, s):
         n = np.asarray(fr["n"], float)
         op = f.get("op", "add")
         through = op == "cut" and f.get("through")
-        d = _through_depth(st) if through else _num(f, "d", 10)
-        sign = (-1 if op == "cut" else 1) * (-1 if f.get("flip") else 1)
-        vec = n * d * sign
-        start = -vec / 2 if (f.get("symmetric") and not through) else (-vec / 2 if (through and f.get("symmetric")) else None)
+        if f.get("upto") and not through:
+            vec, start = _up_to_face(f, fr, st), None
+        else:
+            d = _through_depth(st) if through else _num(f, "d", 10)
+            sign = (-1 if op == "cut" else 1) * (-1 if f.get("flip") else 1)
+            vec = n * d * sign
+            start = -vec / 2 if f.get("symmetric") else None
         for face, names in faces:
             _use(st, fid, K.prism_body(face, names, vec, fid, start), op)
         return
@@ -248,6 +251,24 @@ def _follow_refs(f, fr, st, s):
     return f
 
 
+def _up_to_face(f, fr, st):
+    """Extrude up to a face: as far as the flat face {upto: {name, fp}} is from the sketch (it follows that face when
+    earlier steps move it), plus offset (mm; more = past the face, less = short of it)."""
+    if st.body is None:
+        raise K.KernelError("There is no face to go up to yet.")
+    face = K.find_faces(st.body, [f["upto"]])[0]
+    pl = K.plane_of(face)
+    n = np.asarray(fr["n"], float)
+    if pl is None or abs(abs(float(pl[1] @ n)) - 1) > 1e-6:
+        raise K.KernelError("Up to a face: pick a flat face parallel to the sketch.")
+    dist = float((pl[0] - np.asarray(fr["o"], float)) @ n)
+    off = float(f.get("offset") or 0)
+    total = dist + (off if dist >= 0 else -off)
+    if abs(total) < 1e-6:
+        raise K.KernelError("Up to a face: the face is in the sketch's plane — pick another face or give an offset.")
+    return n * total
+
+
 def _hole_from_edges(f, fr, st, s):
     """Hole centres placed from the face's edges ({x: {edge, d}, y: {edge, d}} per hole): x = the edge's place
     along the face's x + d (the edge runs along y), likewise y. The edges are found again by their faces' names,
@@ -260,11 +281,19 @@ def _hole_from_edges(f, fr, st, s):
         for axis, k in (("x", 0), ("y", 1)):
             ref = spec.get(axis)
             if not ref or not ref.get("edge"):
-                continue
+                continue  # (a hole of this step: placed below, once the edges have placed the others)
             try:
                 edges, _ = K.find_edges(st.body, [ref["edge"]])
             except K.KernelError:
                 s["warnings"].append(f"Hole {i + 1}: its edge is gone — it stays where it was.")
+                continue
+            centre = K.edge_centre(edges[0])
+            if centre is not None:  # measured from another hole (a round edge): from its centre
+                c = _uv(fr, centre)[k]
+                v = c + float(ref.get("d", 0))
+                if abs(v - p[k]) > 1e-9:
+                    p[k] = round(v, 9)
+                    changed = True
                 continue
             a, b = (_uv(fr, q) for q in K.edge_ends(edges[0]))
             if abs(a[k] - b[k]) > 1e-6 * (1 + abs(a[k])):
@@ -274,6 +303,22 @@ def _hole_from_edges(f, fr, st, s):
             if abs(v - p[k]) > 1e-9:
                 p[k] = round(v, 9)
                 changed = True
+    # measured from another hole of this step ({hole: j, d}): after that one is placed (chains settle in a few rounds)
+    for _ in range(len(pts)):
+        moved = False
+        for i, p in enumerate(pts):
+            spec = froms[i] if i < len(froms) and isinstance(froms[i], dict) else {}
+            for axis, k in (("x", 0), ("y", 1)):
+                ref = spec.get(axis)
+                j = ref.get("hole") if isinstance(ref, dict) else None
+                if not isinstance(j, int) or j == i or not 0 <= j < len(pts):
+                    continue
+                v = pts[j][k] + float(ref.get("d", 0))
+                if abs(v - p[k]) > 1e-9:
+                    p[k] = round(v, 9)
+                    moved = changed = True
+        if not moved:
+            break
     if changed:
         s["update"] = {"points": pts}
     return pts
