@@ -198,11 +198,11 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
 - **＋ Insert part ▾** adds a model part, as often as you like (⧉ in the list adds one more). A new one is put
   beside the others.
 - **🔗 Joint ▾**: choose how the part is held — **Touch** (S: a flat face onto a flat face, centred), **Gap** (facing,
-  a distance apart), **Flush** (in one plane), **Pin in hole** (two round faces on one axis), **Parallel**, or
-  **🔩 Screw / pin** (click the hole it goes in from, then the other part anywhere: the fitting screw + insert or pin
-  goes in, held by its joints) — then
+  a distance apart), **Flush** (in one plane), **Concentric** (two round faces on one axis: a pin in a hole),
+  **Parallel**, **Perpendicular**, **Angle** (two flat faces at the angle you type), **Tangent** (a round face on a
+  flat one), or **🔩 Screw / pin** — then
   click a face of the part to move and the face it goes to (the face under the mouse is marked). A part can have
-  several joints, applied in order: *Pin in hole* + *Touch* seats a pin in its hole, head on the face. Joints
+  several joints, applied in order: *Concentric* + *Touch* seats a pin in its hole, head on the face. Joints
   **hold**: when the other part moves or a part changes size in its own tab, the joined part follows. The panel
   lists the joints (hovering one marks its two faces, the copies are told apart: I1, I2…), with the gap / offset to
   type, ⇅ to turn it round, **↻ a slider to turn the part about the joint** (a pin about its hole's axis, a part on
@@ -211,6 +211,13 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
 - The panel of a selected part has its x / y / z position, **Turn** sliders for X / Y / Z (any angle; they catch at
   0, ±90 and ±180°, or type an exact angle), its joints, *Join it to another part*, *Reset its place* and *Take it
   out*. Moving or turning a joined part by hand asks before it breaks its joints (locked ones never break).
+- **🔩 Screw / pin through parts** (in 🔗 Joint ▾, or 🔩 Fasteners → *Screw / pin through parts…*): click a point on
+  a flat face where it goes in — the parts touching one after another under it are found, and the panel suggests
+  what fits, with a see-through preview: **screw + nut** (a hex nut on the far side), **screw + heat-set insert**
+  (in the last part, when it is thick enough) or a **pin**, M2–M5, its length chosen from the thickness. X / Y move
+  the point (from the face's middle); the checkboxes end it earlier. **Add drills the holes into the parts** (a
+  *Hole* step in each part's own model — clearance Ø d+0.4, the insert's hole, or the pin's) and puts the standard
+  parts in, held by joints. Ctrl+Z takes back the parts and the holes. The AI does the same with `bolt_parts`.
 - **🔩 Fasteners** finds where holes line up through two parts and suggests what fits, from the hole sizes (as
   printed): an **M2–M5 screw with a heat-set insert** (a clearance hole in the top part, an insert hole below), a
   screw alone, or a **dowel pin** (equal holes) — with a standard length that fits. Hover a suggestion to see its

@@ -435,6 +435,11 @@ body:not(.ws-model):not(.ws-assembly) .not-quick { display: none !important; }
 .as-jspin input[type=number] { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; color: inherit; padding: 1px 3px; }
 .as-jt { white-space: nowrap; color: var(--text); }
 .as-jw { color: var(--muted); min-width: 0; }
+/* a joint: its kind, value and buttons on top; what holds what on a full line under them; the turn slider last */
+.as-jrow[data-jrow] { grid-template-columns: 1fr auto auto; }
+.as-jrow[data-jrow] > .as-jw { grid-column: 1 / -1; grid-row: 2; }
+.as-jrow[data-jrow] > .as-jspin { grid-row: 3; }
+.as-bolt-msg.bad { color: var(--warn); }
 .as-jv { display: flex; align-items: center; gap: 3px; color: var(--muted); white-space: nowrap; }
 .as-jv input { width: 48px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; color: inherit; padding: 1px 3px; }
 .m-cmdbar .menu-list { left: 0; right: auto; z-index: 8; } /* bar menus open to the right of their button, over the view */

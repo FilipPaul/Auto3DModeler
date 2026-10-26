@@ -1,17 +1,19 @@
 // The assembly workspace: 3D model parts of the project placed together — insert a part, snap it face to face onto
-// another one with joints that hold (touch, gap, flush, pin in hole, parallel — joints.js), move it and turn it to any
+// another one with joints that hold (touch, gap, flush, concentric, parallel, perpendicular, angle, tangent —
+// joints.js), put a screw (+ nut / insert) or a pin through parts, drilling their holes, move it and turn it to any
 // angle, an exploded view, a parts list with masses, export the whole as STL or STEP. No motion (parts do not move).
 //
 // Assembly JSON (in the project file, `parts[].assembly`):
 //   {"instances": [{"id": "I1", "part": "P2", "matrix": [16 numbers, three.js column-major]}],
-//    "mates": [{"id": "J1", "type": "touch" | "gap" | "flush" | "axis" | "parallel", "move": "I2", "face": "F2:start",
-//               "onto": "I1", "ontoFace": "F2:end", "gap": 0, "flip": false}]}   joints that hold (joints.js)
+//    "mates": [{"id": "J1", "type": "touch" | "gap" | "flush" | "axis" | "parallel" | "perp" | "angle" | "tangent",
+//               "move": "I2", "face": "F2:start", "onto": "I1", "ontoFace": "F2:end", "gap": 0, "value": 30, "flip": false}],
+//    "bolts": [{"id": "B1", "text": "M3×20 screw + M3 nut", "holes": [{"part": "P2", "feature": {the hole step drilled}}]}]}
 import * as THREE from 'three';
 import { History } from '../history.js';
 import { t } from '../i18n.js';
 import { ModelView } from '../modeler/view.js';
 import { JOINT_TYPES, applyJoint, spinOf } from './joints.js';
-import { fastenerModel, findCandidates } from './fasteners.js';
+import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -86,6 +88,22 @@ class AsmView extends ModelView {
     this.invalidate();
   }
 
+  /** See-through standard parts before they go in: [{o, d, len, r, sides, color}] (a cylinder from o along d). */
+  setGhost(list = []) {
+    if (!this.ghostGroup) { this.ghostGroup = new THREE.Group(); this.scene.add(this.ghostGroup); }
+    this.clear(this.ghostGroup);
+    for (const g of list) {
+      const d = new THREE.Vector3(...g.d).normalize();
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(g.r, g.r, g.len, g.sides || 24),
+        new THREE.MeshBasicMaterial({ color: g.color || 0xf2cc60, transparent: true, opacity: 0.6, depthTest: false }));
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
+      m.position.set(...g.o).addScaledVector(d, g.len / 2);
+      m.renderOrder = 5;
+      this.ghostGroup.add(m);
+    }
+    this.invalidate();
+  }
+
   fitBox() {
     const box = new THREE.Box3();
     for (const m of this.meshes || []) box.expandByObject(m);
@@ -118,8 +136,13 @@ export class Assembly {
     this.jointType = 'touch';
     this.explode = 0;
     this.history = new History({
-      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates }),
-      restore: async (s) => { this.doc.instances = s.instances; this.doc.mates = s.mates || []; this.mode = 'idle'; this.render(); await this.refresh(); },
+      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [] }),
+      restore: async (s) => {
+        this.doc.instances = s.instances; this.doc.mates = s.mates || []; this.doc.bolts = s.bolts || []; this.mode = 'idle'; this.bolt = null;
+        this.syncDrills(); // the holes drilled for bolts: back as they were
+        this.render();
+        await this.refresh();
+      },
       onChange: () => this.updateUndo(),
     });
     this.build();
@@ -266,6 +289,8 @@ export class Assembly {
 
   renderProps() {
     const box = this.$('.mp-body'), it = this.inst(this.sel);
+    if (this.bolt) { this.renderBolt(box); return; }
+    this.view.setGhost([]);
     if (this.fastenerPanel && !it) { this.renderFasteners(box); return; }
     if (it) {
       const m = new THREE.Matrix4().fromArray(it.matrix), p = new THREE.Vector3().setFromMatrixPosition(m);
@@ -331,7 +356,10 @@ export class Assembly {
         : cs.filled ? `<p class="mp-count">✓ Every hole that lines up has its fastener (${cs.filled}).</p>`
         : `<p class="mp-count">No holes line up between parts yet.</p><p class="hint">Put a hole in each part where they are to be fastened —
           e.g. Ø3.4 for an M3 screw in the top part and Ø4.0 for an M3 insert in the part below — join the parts, then look here again.</p>`}
+      <h3>A new one</h3><p class="hint">Put a screw (with a nut or an insert) or a pin through parts that have no holes yet: click where it goes in — the holes are drilled for it.</p>
+      <div class="row-actions"><button class="btn small primary" data-a="newBolt">🔩 Screw / pin through parts…</button></div>
       <div class="row-actions"><button class="btn small" data-a="closeF">Close</button></div>`;
+    box.querySelector('[data-a=newBolt]').addEventListener('click', () => { this.fastenerPanel = false; this.startJoint('fastener'); this.renderProps(); });
     for (const row of box.querySelectorAll('[data-cand]')) {
       row.addEventListener('mouseenter', () => { this.hoverCand = cs.find((c) => c.id === row.dataset.cand); this.drawMarks(); });
       row.addEventListener('mouseleave', () => { this.hoverCand = null; this.drawMarks(); });
@@ -365,11 +393,142 @@ export class Assembly {
   /** A standard part in the project: the one already there with that name, or a new 3D model part. */
   ensurePart(mdl) {
     const have = this.hooks.parts().find((p) => p.kind === 'model' && p.name === mdl.name);
-    return have ? have.id : this.hooks.addModelPart(mdl.name, { features: mdl.features, material: mdl.material });
+    return have ? have.id : this.hooks.addModelPart(mdl.name, { features: mdl.features, material: mdl.material, standard: true });
+  }
+
+  // ------------------------------------------------------------------ a new bolt: through the parts, holes drilled
+  /** 🔩 Screw / pin clicked on a flat face: the point on it (x, y from the face's middle, on a 0.5 mm grid). */
+  startBolt(h) {
+    const f = h.face, it = this.inst(h.inst), M = new THREE.Matrix4().fromArray(it.matrix), N = new THREE.Matrix3().getNormalMatrix(M);
+    if (!f.frame || !f.normal) { this.hooks.toast('A screw goes in at a flat face.', 'warning'); return; }
+    const o = new THREE.Vector3(...f.frame.o).applyMatrix4(M), x = new THREE.Vector3(...f.frame.x).applyMatrix3(N).normalize(), n = f.normal.clone().normalize();
+    const y = new THREE.Vector3().crossVectors(n, x), q = h.point.clone().sub(o), snap = (v) => Math.round(v * 2) / 2 || 0;
+    this.bolt = { inst: h.inst, face: f.name, frame: { o: o.toArray(), x: x.toArray(), y: y.toArray(), n: n.toArray() },
+      x: snap(q.dot(x)), y: snap(q.dot(y)), kind: this.bolt?.kind || 'nut', size: this.bolt?.size || 'M3', upto: null };
+    this.mode = 'idle';
+    this.jointFrom = null;
+    this.hoverFace = null;
+    this.hint('');
+    this.sel = null;
+    this.fastenerPanel = false;
+    this.render();
+    this.draw();
+  }
+
+  cancelBolt() { this.bolt = null; this.view.setGhost([]); this.render(); this.draw(); }
+
+  /** What fits through the parts at the bolt's point (fasteners.js planBolt). */
+  boltPlan() {
+    const b = this.bolt, fr = b.frame, V = (a) => new THREE.Vector3(...a);
+    const o = V(fr.o).addScaledVector(V(fr.x), b.x).addScaledVector(V(fr.y), b.y);
+    const plan = planBolt(this, { o, d: V(fr.n).negate(), kind: b.kind, size: b.size, upto: b.upto, drillable: (pid) => this.kindOf(pid) === 'model' });
+    const off = 'This point is off the face — move it back onto it.';
+    if (!plan.error && plan.holes[0].inst !== b.inst) return { error: off, errorKey: off, errorVars: {}, stack: plan.stack };
+    return plan;
+  }
+
+  renderBolt(box) {
+    const b = this.bolt, plan = this.boltPlan(), parts = plan.stack || [], upto = b.upto || parts.length;
+    this.view.setGhost(plan.error ? [] : plan.ghost);
+    const opt = (cur, v, label) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${esc(label)}</option>`;
+    const holeText = (h) => `Ø${fmt(h.d)} ${h.through ? t('through') : t2('{d} mm deep', { d: fmt(h.depth) })} — ${esc(this.partName(h.part))}`;
+    box.innerHTML = `<h2>🔩 Screw / pin through parts</h2>
+      <p class="hint">${esc(t2('It goes in at the point on {part} and straight through the parts under it. Adding it drills the holes into those parts.', { part: this.partName(this.inst(b.inst)?.part) }))}</p>
+      <div class="field"><label>What</label><select data-b="kind">${Object.entries(BOLT_KINDS).map(([k, v]) => opt(b.kind, k, t(v))).join('')}</select></div>
+      <div class="field"><label>Size</label><select data-b="size">${Object.keys(SIZES).map((k) => opt(b.size, k, b.kind === 'pin' ? `Ø${SIZES[k].d}` : k)).join('')}</select></div>
+      <div class="field"><label>X</label><input type="number" step="0.5" data-b="x" value="${fmt(b.x)}"><span class="unit">mm</span></div>
+      <div class="field"><label>Y</label><input type="number" step="0.5" data-b="y" value="${fmt(b.y)}"><span class="unit">mm</span></div>
+      <p class="hint">X, Y from the middle of the face — or click another point.</p>
+      ${parts.length ? `<h3>Through</h3><div class="as-joints as-bolt-parts">${parts.map((p, k) => `<label class="as-jrow"><input type="checkbox" data-upto="${k + 1}" ${k < upto ? 'checked' : ''} ${k < 2 ? 'disabled' : ''}>
+        <span class="as-jw"><b data-no-i18n>${esc(this.partName(p.part))}</b> <i>${p.inst}</i> · ${fmt(p.tout - p.tin)} mm</span></label>`).join('')}</div>` : ''}
+      ${plan.error ? `<p class="mp-count as-bolt-msg bad">⚠ ${esc(t2(plan.errorKey, plan.errorVars))}</p>`
+        : `<p class="mp-count as-bolt-msg">✓ <b data-no-i18n>${esc(plan.text)}</b></p><p class="hint as-bolt-holes" data-no-i18n>${esc(t('Holes'))}: ${plan.holes.map(holeText).join('; ')}</p>`}
+      <div class="row-actions"><button class="btn small primary" data-a="addBolt" ${plan.error ? 'disabled' : ''}>Add</button><button class="btn small" data-a="cancelBolt">Cancel</button></div>`;
+    for (const el of box.querySelectorAll('[data-b]')) {
+      el.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') el.blur(); });
+      el.addEventListener('change', () => {
+        const k = el.dataset.b, v = k === 'x' || k === 'y' ? parseFloat(String(el.value).replace(',', '.')) : el.value;
+        if ((k === 'x' || k === 'y') && !Number.isFinite(v)) return;
+        b[k] = v;
+        this.renderProps();
+      });
+    }
+    for (const el of box.querySelectorAll('[data-upto]')) {
+      el.addEventListener('change', () => { const k = +el.dataset.upto; b.upto = el.checked ? k : k - 1; this.renderProps(); });
+    }
+    box.querySelector('[data-a=addBolt]').addEventListener('click', () => this.addBolt(plan));
+    box.querySelector('[data-a=cancelBolt]').addEventListener('click', () => this.cancelBolt());
+  }
+
+  /** Drill the plan's holes into the parts (a hole step in each part's own model, marked as this assembly's bolt),
+   *  then put the screw + nut / insert, or the pin, in them, held by joints. */
+  async addBolt(plan, quiet = false) {
+    if (!plan || plan.error) return 0;
+    const tag = `${this.hooks.selfId?.() || 'A'}:`;
+    const id = `B${Math.max(0, ...(this.doc.bolts || []).map((x) => parseInt(String(x.id).slice(1), 10) || 0)) + 1}`;
+    const o = new THREE.Vector3(...plan.o), D = new THREE.Vector3(...plan.d), holes = [], names = [];
+    for (const h of plan.holes) {
+      const it = this.inst(h.inst), data = this.hooks.partData(it.part), body = this.bodies[it.part]?.body;
+      const Mi = new THREE.Matrix4().fromArray(it.matrix).invert();
+      const pL = o.clone().addScaledVector(D, h.tin).applyMatrix4(Mi), nL = D.clone().negate().transformDirection(Mi);
+      // on the part's own face where it goes in (the hole then follows that face), else on a plane of its own there
+      const f = (body?.faces || []).find((x) => x.name === h.inFace && x.type === 'plane' && x.frame
+        && new THREE.Vector3(...x.frame.n).dot(nL) > 0.9999 && Math.abs(pL.clone().sub(new THREE.Vector3(...x.frame.o)).dot(nL)) < 0.05);
+      let plane, u = 0, v = 0;
+      if (f) {
+        const fo = new THREE.Vector3(...f.frame.o), fx = new THREE.Vector3(...f.frame.x), fy = new THREE.Vector3().crossVectors(new THREE.Vector3(...f.frame.n), fx);
+        plane = { face: { name: f.name }, frame: f.frame };
+        u = pL.clone().sub(fo).dot(fx);
+        v = pL.clone().sub(fo).dot(fy);
+      } else {
+        const x = new THREE.Vector3(Math.abs(nL.x) < 0.9 ? 1 : 0, Math.abs(nL.x) < 0.9 ? 0 : 1, 0).projectOnPlane(nL).normalize();
+        plane = { frame: { o: pL.toArray().map((q) => +q.toFixed(6)), x: x.toArray().map((q) => +q.toFixed(9)), n: nL.toArray().map((q) => +q.toFixed(9)) } };
+      }
+      const pt = [+u.toFixed(4), +v.toFixed(4)];
+      // two of the same part in the stack, lying alike: one hole serves both
+      const same = holes.find((x) => x.part === it.part && JSON.stringify(x.feature.points[0]) === JSON.stringify(pt) && JSON.stringify(x.feature.plane) === JSON.stringify(plane) && x.feature.d === h.d);
+      if (same) { names.push(`${same.feature.id}:hole:0`); continue; }
+      const fid = `F${Math.max(0, ...data.features.map((x) => parseInt(String(x.id).slice(1), 10) || 0)) + 1}`;
+      const feature = { id: fid, type: 'hole', name: t2('Hole for {what}', { what: plan.text }), plane, points: [pt], d: h.d, through: h.through,
+        ...(h.through ? {} : { depth: h.depth }), bolt: tag + id };
+      data.features.push(feature);
+      holes.push({ part: it.part, feature: structuredClone(feature) });
+      names.push(`${fid}:hole:0`);
+    }
+    this.doc.bolts = [...(this.doc.bolts || []), { id, text: plan.text, holes }];
+    await this.refresh(); // the parts with their new holes
+    const first = plan.holes[0], last = plan.holes[plan.holes.length - 1];
+    const c = plan.kind === 'pin'
+      ? { kind: 'pin', size: plan.pin, length: plan.length, entry: { inst: first.inst, hole: names[0], plane: first.inFace } }
+      : { kind: 'screw', size: plan.size, length: plan.length, entry: { inst: first.inst, hole: names[0], plane: first.inFace },
+        insert: plan.kind === 'insert' ? { inst: last.inst, hole: names[names.length - 1], plane: last.inFace, length: plan.insert.length } : null,
+        nut: plan.kind === 'nut' ? { inst: last.inst, hole: names[names.length - 1], plane: last.outFace } : null };
+    this.bolt = null;
+    this.view.setGhost([]);
+    const n = await this.addFasteners([c], true);
+    if (!quiet) {
+      const where = [...new Set(plan.holes.map((h) => this.partName(h.part)))].join(', ');
+      this.hooks.toast(t2('Added {what} — its holes are drilled into {parts} (a hole step in each part; Ctrl+Z takes it all back).', { what: plan.text, parts: where }), 'ok', 6000);
+    }
+    return n;
+  }
+
+  /** The hole steps this assembly drilled into parts, as its bolts say (after an undo / redo). */
+  syncDrills() {
+    const tag = `${this.hooks.selfId?.() || 'A'}:`, want = new Map();
+    for (const b of this.doc.bolts || []) for (const h of b.holes) want.set(h.part, [...(want.get(h.part) || []), h.feature]);
+    for (const p of this.hooks.parts()) {
+      const data = this.hooks.partData(p.id);
+      if (!Array.isArray(data?.features)) continue;
+      const mine = want.get(p.id) || [];
+      const keep = data.features.filter((f) => !String(f.bolt || '').startsWith(tag) || mine.some((w) => w.id === f.id && w.bolt === f.bolt));
+      const add = mine.filter((w) => !keep.some((f) => f.id === w.id));
+      if (keep.length !== data.features.length || add.length) data.features = [...keep, ...structuredClone(add)];
+    }
   }
 
   /** Put fasteners in: each a standard part held by joints (pin in hole + touch / flush). */
-  async addFasteners(list) {
+  async addFasteners(list, quiet = false) {
     let n = 0;
     for (const c of list.filter(Boolean)) {
       const place = (kind, size, length) => {
@@ -391,6 +550,11 @@ export class Assembly {
           join(i.it, i.faces.shaft, c.insert.inst, c.insert.hole, 'axis');
           join(i.it, i.faces.top, c.insert.inst, c.insert.plane, 'flush');
         }
+        if (c.nut) { // on the far side: the nut on the last part's face
+          const nt = place('nut', c.size);
+          join(nt.it, nt.faces.shaft, c.nut.inst, c.nut.hole, 'axis');
+          join(nt.it, nt.faces.seat, c.nut.inst, c.nut.plane, 'touch');
+        }
       }
       n++;
     }
@@ -398,7 +562,7 @@ export class Assembly {
     this.hoverCand = null;
     await this.refresh(); // builds the new parts and puts them in place by their joints
     this.commit();
-    this.hooks.toast(`Added ${n} fastener(s) — they follow the parts (each a part of the project you can open).`, 'ok', 4000);
+    if (!quiet) this.hooks.toast(`Added ${n} fastener(s) — they follow the parts (each a part of the project you can open).`, 'ok', 4000);
     return n;
   }
 
@@ -424,7 +588,8 @@ export class Assembly {
       const t = JOINT_TYPES[m.type || 'touch'] || JOINT_TYPES.touch, a = this.inst(m.move), b = this.inst(m.onto);
       const val = m.type === 'touch' || m.type === 'gap' || m.type === 'flush' || !m.type
         ? `<label class="as-jv">${m.type === 'flush' ? 'offset' : 'gap'} <input type="number" step="any" data-jgap="${m.id}" value="${fmt(m.gap || 0)}"> mm</label>`
-        : `<button class="mini" data-jflip="${m.id}" title="Turn it the other way round">⇅</button>`;
+        : m.type === 'perp' ? '<span></span>'
+        : `${m.type === 'angle' ? `<label class="as-jv">∠ <input type="number" step="any" data-jval="${m.id}" value="${fmt(m.value || 0)}"> °</label>` : ''}<button class="mini" data-jflip="${m.id}" title="Turn it the other way round">⇅</button>`;
       const spin = Math.round(Number.isFinite(m.angle) ? m.angle : this.spinNow(m));
       return `<div class="as-jrow ${m.broken ? 'bad' : ''} ${m.locked ? 'locked' : ''}" data-jrow="${m.id}"><span class="as-jt">${t.icon} ${esc(t.name)}</span>
         <span class="as-jw"><b data-no-i18n>${esc(this.partName(a?.part))}</b> <i>${m.move}</i> · ${esc(this.faceText(m.move, m.face))} → <b data-no-i18n>${esc(this.partName(b?.part))}</b> <i>${m.onto}</i> · ${esc(this.faceText(m.onto, m.ontoFace))}${m.broken ? ' — ⚠ a face is gone' : ''}</span>
@@ -438,7 +603,7 @@ export class Assembly {
   spinNow(m) {
     try {
       const fB = this.worldFace(m.move, m.face), fA = this.worldFace(m.onto, m.ontoFace);
-      return spinOf(fB, fA, m.type === 'axis' ? fA.axis.d : fA.normal);
+      return spinOf(fB, fA, m.type === 'axis' || !fA.normal ? fA.axis.d : fA.normal);
     } catch { return 0; }
   }
 
@@ -454,6 +619,16 @@ export class Assembly {
         if (!m || !Number.isFinite(v)) return;
         m.gap = v;
         if (m.type === 'touch' && v) m.type = 'gap';
+        this.applyMates();
+        this.commit();
+      });
+    }
+    for (const el of box.querySelectorAll('[data-jval]')) {
+      el.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') el.blur(); });
+      el.addEventListener('change', () => {
+        const m = this.doc.mates.find((x) => x.id === el.dataset.jval), v = parseFloat(String(el.value).replace(',', '.'));
+        if (!m || !Number.isFinite(v)) return;
+        m.value = Math.max(0, Math.min(180, v));
         this.applyMates();
         this.commit();
       });
@@ -781,7 +956,15 @@ export class Assembly {
   }
 
   jointHint() {
-    const t = JOINT_TYPES[this.jointType], what = t.faces === 'cylinder' ? 'a round face' : 'a flat face';
+    const t = JOINT_TYPES[this.jointType], f0 = this.jointFrom?.face;
+    const what = t.faces === 'cylinder' ? 'a round face' : t.faces === 'mixed' ? (this.mode === 'joint-to' ? (f0?.type === 'cylinder' ? 'a flat face' : 'a round face') : 'a round or a flat face')
+      : 'a flat face';
+    if (t.faces === 'any' && this.mode === 'joint-from') {
+      this.hint(`${t.icon} ${t.name}: click where it goes in — a point on a flat face (the holes are drilled for it), or a hole that is there. Esc cancels.`);
+      this.renderBar();
+      this.draw();
+      return;
+    }
     this.hint(this.mode === 'joint-from' ? `${t.icon} ${t.name}: click ${what} of the part to move${this.jointFrom ? ' (the selected one)' : ''} — Esc cancels.`
       : this.jointType === 'fastener' ? `${t.icon} ${t.name}: now click the other part (anywhere).` : `${t.icon} ${t.name}: now click ${what} of the other part.`);
     this.renderBar();
@@ -794,7 +977,10 @@ export class Assembly {
     const want = JOINT_TYPES[this.jointType].faces;
     // a screw / pin: the second part is clicked anywhere (its hole is often hidden under the first part)
     if (this.jointType === 'fastener' && this.mode === 'joint-to') return h.inst !== this.jointFrom?.inst;
-    if (h.face.type !== want) return false;
+    if (want === 'any' || want === 'mixed') {
+      if (h.face.type !== 'plane' && h.face.type !== 'cylinder') return false;
+      if (want === 'mixed' && this.mode === 'joint-to' && h.face.type === this.jointFrom?.face?.type) return false; // the other kind
+    } else if (h.face.type !== want) return false;
     if (this.mode === 'joint-from' && this.jointFrom?.inst && h.inst !== this.jointFrom.inst) return false;
     if (this.mode === 'joint-to' && h.inst === this.jointFrom?.inst) return false;
     return true;
@@ -802,10 +988,13 @@ export class Assembly {
 
   clickJoint(h) {
     if (!this.faceFits(h)) {
-      const want = JOINT_TYPES[this.jointType].faces === 'cylinder' ? 'a round face (a hole, a pin)' : 'a flat face';
+      const kind = JOINT_TYPES[this.jointType].faces;
+      const want = kind === 'cylinder' ? 'a round face (a hole, a pin)' : kind === 'mixed' ? (this.mode === 'joint-to' ? 'the other kind of face (round ↔ flat)' : 'a round or a flat face')
+        : kind === 'any' ? 'a flat face or a hole' : 'a flat face';
       if (h) this.hooks.toast(this.mode === 'joint-to' && h.inst === this.jointFrom?.inst ? 'Now a face of the other part.' : `Click ${want}.`, 'info', 2500);
       return;
     }
+    if (this.mode === 'joint-from' && this.jointType === 'fastener' && h.face.type === 'plane') { this.startBolt(h); return; } // a new bolt, drilled
     if (this.mode === 'joint-from') {
       this.jointFrom = { inst: h.inst, face: h.face };
       this.mode = 'joint-to';
@@ -815,6 +1004,10 @@ export class Assembly {
     const type = this.jointType;
     if (type === 'fastener') { this.fastenerAt(this.jointFrom, h); return; }
     if (this.addJoint(this.jointFrom, h, type, type === 'gap' ? 5 : 0)) {
+      if (type === 'angle') { // it starts at the angle the faces make now (rounded), then it holds
+        const m = this.doc.mates[this.doc.mates.length - 1], a = this.jointFrom.face.normal, b = h.face.normal;
+        m.value = a && b ? Math.round((a.angleTo(b) * 180) / Math.PI) : 45;
+      }
       this.applyMates();
       this.sel = this.jointFrom.inst;
       this.hooks.toast(`${JOINT_TYPES[type].name} — it now holds (change it or ✕ it in the panel).`, 'ok', 3000);
@@ -868,6 +1061,7 @@ export class Assembly {
       if (moved) return;
       const h = this.view.pickInst(e.clientX, e.clientY);
       if (this.mode !== 'idle') { this.clickJoint(h); return; }
+      if (this.bolt) { if (h?.face?.type === 'plane') this.startBolt(h); return; } // another point for the bolt
       this.sel = h?.inst || null;
       this.render();
       this.draw();
@@ -879,6 +1073,7 @@ export class Assembly {
     if (!this.active || e.target.closest?.('input,select,textarea,[contenteditable]')) return;
     const k = e.key.toLowerCase();
     if (e.key === 'Escape' && this.mode !== 'idle') { this.cancelJoint(); return; }
+    if (e.key === 'Escape' && this.bolt) { this.cancelBolt(); return; }
     if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y')) { e.preventDefault(); this.history.go(k === 'y' || e.shiftKey ? 1 : -1); return; }
     if (k === 's' && !e.ctrlKey) this.startJoint('touch', this.sel);
     if (e.key === 'Delete' && this.sel) this.removeInst(this.sel);
@@ -929,7 +1124,7 @@ export class Assembly {
         await this.insert(p.id);
         return { text: JSON.stringify(this.summary()) };
       },
-      snap_faces: async ({ move, onto, type = 'touch', gap = 0 }) => {
+      snap_faces: async ({ move, onto, type = 'touch', gap = 0, value }) => {
         need();
         await settle();
         if (!JOINT_TYPES[type] || JOINT_TYPES[type].pick) throw new Error(`type is ${Object.keys(JOINT_TYPES).filter((k) => !JOINT_TYPES[k].pick).join(', ')} (screws and pins: suggest_fasteners / add_fasteners).`);
@@ -937,8 +1132,11 @@ export class Assembly {
         const to = { inst: onto.part, face: this.worldFace(onto.part, onto.face) };
         if (from.inst === to.inst) throw new Error('Join a face of one part to a face of another part.');
         const want = JOINT_TYPES[type].faces;
-        if (from.face.type !== want || to.face.type !== want) throw new Error(`${JOINT_TYPES[type].name} joins two ${want === 'cylinder' ? 'round' : 'flat'} faces.`);
+        if (want === 'mixed') {
+          if (new Set([from.face.type, to.face.type, 'plane', 'cylinder']).size !== 2 || from.face.type === to.face.type) throw new Error('Tangent joins a round face and a flat face.');
+        } else if (from.face.type !== want || to.face.type !== want) throw new Error(`${JOINT_TYPES[type].name} joins two ${want === 'cylinder' ? 'round' : 'flat'} faces.`);
         if (!this.addJoint(from, to, type, gap)) throw new Error('Not joined: the other part already hangs on this one.');
+        if (type === 'angle') this.doc.mates[this.doc.mates.length - 1].value = Number.isFinite(+value) ? +value : Math.round((from.face.normal.angleTo(to.face.normal) * 180) / Math.PI);
         this.applyMates();
         this.sel = from.inst;
         this.commit();
@@ -970,6 +1168,22 @@ export class Assembly {
         if (!pick.length) throw new Error(cs.length ? `No suggestion ${ids} — see suggest_fasteners.` : 'No holes line up between parts — put matching holes in both parts first.');
         const n = await this.addFasteners(pick);
         return { text: `Added ${n}. ${JSON.stringify(this.summary())}` };
+      },
+      bolt_parts: async ({ part, face, x = 0, y = 0, kind = 'nut', size = 'M3', through }) => {
+        need();
+        await settle();
+        const f = this.worldFace(part, face), it = this.inst(part);
+        if (f.type !== 'plane') throw new Error(`${face} is not flat — a screw goes in at a flat face.`);
+        if (!BOLT_KINDS[kind]) throw new Error(`kind is ${Object.keys(BOLT_KINDS).join(', ')}.`);
+        const M = new THREE.Matrix4().fromArray(it.matrix), N = new THREE.Matrix3().getNormalMatrix(M);
+        const o = new THREE.Vector3(...f.frame.o).applyMatrix4(M), ax = new THREE.Vector3(...f.frame.x).applyMatrix3(N).normalize(), ay = new THREE.Vector3().crossVectors(f.normal, ax);
+        const point = o.clone().addScaledVector(ax, +x || 0).addScaledVector(ay, +y || 0);
+        this.startBolt({ inst: part, face: f, point });
+        Object.assign(this.bolt, { kind, size, upto: through || null });
+        const plan = this.boltPlan();
+        if (plan.error) { this.cancelBolt(); throw new Error(plan.error); }
+        await this.addBolt(plan, true);
+        return { text: `Added ${plan.text}; holes drilled: ${plan.holes.map((h) => `Ø${h.d} ${h.through ? 'through' : `${h.depth} mm deep`} in ${this.partName(h.part)} (${h.inst})`).join(', ')}. ${JSON.stringify(this.summary())}` };
       },
       remove_from_assembly: async ({ part }) => { need(); this.removeInst(part); return { text: JSON.stringify(this.summary()) }; },
     };

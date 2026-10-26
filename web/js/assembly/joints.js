@@ -1,8 +1,11 @@
 // Assembly joints: how a placed part is held against another one. Plain geometry (three.js maths), no UI.
 //   touch    — a flat face on a flat face, facing each other (gap: mm apart; the first joint also centres them)
 //   flush    — two flat faces in one plane, facing the same way (gap: offset along the normal)
-//   axis     — a round face on a round face, on one axis (a pin in a hole); it can still slide along the axis
+//   axis     — concentric: a round face on a round face, on one axis (a pin in a hole); it can still slide along it
 //   parallel — two flat faces parallel (turns only)
+//   perp     — two flat faces at right angles (turns only)
+//   angle    — two flat faces at an angle (`value` degrees between their directions; turns only)
+//   tangent  — a round face touching a flat face (the cylinder's side on the plane)
 // A part's joints are applied in order: the first one places it freely; the later ones only turn it about the
 // direction fixed before, and only move it along their own direction — so "pin in hole" + "touch" = the pin in
 // the hole, down to the face.
@@ -12,10 +15,13 @@ export const JOINT_TYPES = {
   touch: { icon: '⧉', name: 'Touch', faces: 'plane', hint: 'a flat face onto a flat face (facing each other)' },
   gap: { icon: '↔', name: 'Gap', faces: 'plane', hint: 'a flat face facing another one, a distance apart' },
   flush: { icon: '▭', name: 'Flush', faces: 'plane', hint: 'two flat faces in one plane, facing the same way' },
-  axis: { icon: '◎', name: 'Pin in hole', faces: 'cylinder', hint: 'two round faces on one axis (a pin in a hole, a shaft in a bearing)' },
+  axis: { icon: '◎', name: 'Concentric', faces: 'cylinder', hint: 'two round faces on one axis (a pin in a hole, a shaft in a bearing)' },
   parallel: { icon: '∥', name: 'Parallel', faces: 'plane', hint: 'two flat faces parallel (it only turns)' },
-  // not a joint of its own: picks two holes, puts the fitting screw (+ insert) or pin in them, held by joints
-  fastener: { icon: '🔩', name: 'Screw / pin', faces: 'cylinder', hint: 'click the hole it goes in from, then the other part — the fitting screw (and insert) or pin goes in', pick: true },
+  perp: { icon: '⟂', name: 'Perpendicular', faces: 'plane', hint: 'two flat faces at right angles (it only turns)' },
+  angle: { icon: '∠', name: 'Angle', faces: 'plane', hint: 'two flat faces at an angle you set (it only turns)' },
+  tangent: { icon: '⌒', name: 'Tangent', faces: 'mixed', hint: 'a round face touching a flat face (a roller on a plate)' },
+  // not a joint of its own: a screw (+ nut / insert) or pin through the parts — the holes drilled for it, or ones there
+  fastener: { icon: '🔩', name: 'Screw / pin', faces: 'any', hint: 'click where it goes in: a flat face (the holes are drilled for it, through the parts below) or a hole that is there', pick: true },
 };
 
 const V = (a) => (a instanceof THREE.Vector3 ? a.clone() : new THREE.Vector3(...a));
@@ -37,6 +43,23 @@ function turnFor(from, to, fixed) {
   r.normalize();
   const ang = Math.atan2(new THREE.Vector3().crossVectors(p, r).dot(a), p.dot(r));
   return q.setFromAxisAngle(a, ang);
+}
+
+/** Turn direction `from` (about `fixed.dir`, else about the axis across both) so it makes `deg` degrees with `to`
+ *  — the smallest turn that does it. */
+function turnToAngle(from, to, deg, fixed) {
+  const q = new THREE.Quaternion(), f = from.clone().normalize(), t = to.clone().normalize();
+  let a = fixed ? fixed.dir.clone() : new THREE.Vector3().crossVectors(f, t);
+  if (a.length() < 1e-9) a = Math.abs(t.x) < 0.9 ? new THREE.Vector3(1, 0, 0).cross(t) : new THREE.Vector3(0, 1, 0).cross(t);
+  a.normalize();
+  // f turned by φ about a: p·cosφ + (a×p)·sinφ + a(a·f), p = f across a
+  const p = f.clone().addScaledVector(a, -a.dot(f)), ap = new THREE.Vector3().crossVectors(a, p);
+  const A = p.dot(t), B = ap.dot(t), C = a.dot(f) * a.dot(t), R = Math.hypot(A, B);
+  if (R < 1e-9) return q;
+  const x = Math.max(-1, Math.min(1, (Math.cos((deg * Math.PI) / 180) - C) / R)), base = Math.atan2(B, A), w = Math.acos(x);
+  const wrap = (v) => Math.atan2(Math.sin(v), Math.cos(v));
+  const phi = [wrap(base + w), wrap(base - w)].sort((u, v) => Math.abs(u) - Math.abs(v))[0];
+  return q.setFromAxisAngle(a, phi);
 }
 
 function turnAbout(M, centre, q) {
@@ -78,7 +101,34 @@ export function applyJoint(M, j, faceAt, fA, first, fixed) {
     if (Number.isFinite(j.angle)) M = spinTo(M, faceAt, fA, fA.axis.o, dA, j.angle); // turned about the axis
     return { M, fixed: { dir: dA, flippable: true } };
   }
+  if (type === 'tangent') {
+    const cyl = fB.type === 'cylinder' ? fB : fA, pl = fB.type === 'cylinder' ? fA : fB;
+    if (cyl.type !== 'cylinder' || pl.type !== 'plane' || !cyl.radius) throw new Error('Tangent joins a round face and a flat face.');
+    const side = j.flip ? -1 : 1;
+    if (fB.type === 'cylinder') { // a roller onto a plate: its axis along the plate, r out from it
+      const nA = V(fA.normal).normalize();
+      M = turnAbout(M, V(fB.axis.o), turnToAngle(V(fB.axis.d), nA, 90, first ? null : fixed));
+      fB = faceAt(M);
+      const s = V(fB.axis.o).sub(V(fA.centroid)).dot(nA);
+      M = shift(M, nA.clone().multiplyScalar(side * fB.radius - s));
+      if (Number.isFinite(j.angle)) M = spinTo(M, faceAt, fA, faceAt(M).centroid, nA, j.angle);
+      return { M, fixed: { dir: nA } };
+    }
+    // a plate onto a roller: the plate along the axis, the axis r out from its face
+    const dA = V(fA.axis.d).normalize();
+    M = turnAbout(M, V(fB.centroid), turnToAngle(V(fB.normal), dA, 90, first ? null : fixed));
+    fB = faceAt(M);
+    const nB = V(fB.normal).normalize(), s = V(fA.axis.o).sub(V(fB.centroid)).dot(nB);
+    M = shift(M, nB.clone().multiplyScalar(s - side * fA.radius));
+    return { M, fixed: { dir: dA, flippable: true } };
+  }
   if (fA.type !== 'plane' || fB.type !== 'plane') throw new Error(`${JOINT_TYPES[type]?.name || type} joins two flat faces.`);
+  if (type === 'perp' || type === 'angle') { // turns only: the faces' directions at the angle
+    const nA = V(fA.normal).normalize(), deg = type === 'perp' ? 90 : j.flip ? 180 - (+j.value || 0) : +j.value || 0;
+    M = turnAbout(M, V(fB.centroid), turnToAngle(V(fB.normal), nA, deg, first ? null : fixed));
+    if (Number.isFinite(j.angle)) M = spinTo(M, faceAt, fA, faceAt(M).centroid, nA, j.angle);
+    return { M, fixed: { dir: nA } };
+  }
   const nA = V(fA.normal).normalize(), cA = V(fA.centroid);
   const target = type === 'touch' || type === 'gap' ? nA.clone().negate() : j.flip ? nA.clone().negate() : nA.clone();
   M = turnAbout(M, V(fB.centroid), turnFor(V(fB.normal), target, first ? null : fixed));

@@ -72,6 +72,11 @@ Date: 2026-10-25. Written by the architect agent.
 - **Fasteners done:** fasteners.js (holes on one axis across parts -> screw + insert / screw / pin by the hole Ø,
   standard lengths; standard parts as project model parts, held by axis + touch / flush joints); the AI's
   suggest_fasteners / add_fasteners. tools/e2e_assembly_fasteners.py.
+- **Bolts through parts done:** fasteners.js partsAlong (a ray through the placed parts' meshes -> the pieces of
+  each part along it) and planBolt (the touching stack, screw + nut / insert / pin, its length, the holes); assembly.js
+  addBolt drills a hole step into each part (tagged `bolt: <assembly>:B…`, kept in doc.bolts so undo / redo puts the
+  part steps back — syncDrills) and adds the standard parts with joints. New joints: perp, angle (value °), tangent
+  (joints.js turnToAngle). tools/e2e_assembly_bolt.py.
 - **Value ranges done:** doc.limits (each ranged number of a step found by building it at trial values; patterns and
   depths from the geometry), /api/model/limits; failures explained with the most that fits (doc._sized).
 - **Sketch relations done:** par / perp / eq / conc / coin / tang / fix (+ h / v) set by the user (constraints.py
