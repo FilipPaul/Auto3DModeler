@@ -11,6 +11,39 @@ const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const TAU = Math.PI * 2, rad = (d) => (d * Math.PI) / 180;
 const SNAP_PX = 10, HIT_PX = 6;
 const UNIT_MM = { mm: 1, cm: 10, m: 1000, in: 25.4 }; // what one unit of the file is, in mm
+const SHAPES = { line: 'Line', circle: 'Circle', arc: 'Arc', poly: 'Polyline', text: 'Text' };
+
+/** A shape's length: a line's, a polyline's all along, an arc's along its curve, a circle's round (mm). */
+const lengthOf = (e) => {
+  if (e.t === 'line') return Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]);
+  if (e.t === 'circle') return TAU * e.r;
+  if (e.t === 'arc') return sweepOf(e) * e.r;
+  if (e.t === 'poly') { const q = e.closed ? [...e.pts, e.pts[0]] : e.pts; let L = 0; for (let i = 0; i + 1 < q.length; i++) L += Math.hypot(q[i + 1][0] - q[i][0], q[i + 1][1] - q[i][1]); return L; }
+  return null;
+};
+
+/** What a filter can look at: enum (a choice), num (mm), str (text). */
+const FIELDS = {
+  shape: { label: 'Shape', kind: 'enum', get: (e) => e.t },
+  layer: { label: 'Layer', kind: 'enum', get: (e) => e.layer },
+  dia: { label: 'Ø', kind: 'num', get: (e) => (e.t === 'circle' || e.t === 'arc' ? 2 * e.r : null) },
+  r: { label: 'Radius', kind: 'num', get: (e) => (e.t === 'circle' || e.t === 'arc' ? e.r : null) },
+  len: { label: 'Length', kind: 'num', get: lengthOf },
+  color: { label: 'Colour', kind: 'enum', get: null }, // (the colour it is drawn in: set by the editor)
+  text: { label: 'Text', kind: 'str', get: (e) => (e.t === 'text' ? String(e.text) : null) },
+};
+const OPS = { enum: ['is', 'is not'], num: ['=', '≠', '<', '>', '≤', '≥'], str: ['contains', 'is'] };
+const sameNum = (a, b) => Math.abs(a - b) <= 0.0005 + Math.abs(b) * 1e-9;
+const passes = (v, op, want, kind) => {
+  if (v === null || v === undefined) return false;
+  if (kind === 'num') {
+    const w = parseFloat(String(want).replace(',', '.'));
+    if (!Number.isFinite(w)) return true; // no value typed yet: it does not narrow
+    return { '=': sameNum(v, w), '≠': !sameNum(v, w), '<': v < w && !sameNum(v, w), '>': v > w && !sameNum(v, w), '≤': v <= w || sameNum(v, w), '≥': v >= w || sameNum(v, w) }[op];
+  }
+  if (kind === 'str') return op === 'is' ? v === want : v.toLowerCase().includes(String(want || '').toLowerCase());
+  return op === 'is not' ? v !== want : v === want;
+};
 
 /** An arc's sweep from a0 to a1 (degrees, counter-clockwise) in radians, > 0. */
 const sweepOf = (e) => { let s = rad(e.a1 - e.a0) % TAU; if (s <= 1e-12) s += TAU; return s; };
@@ -28,6 +61,7 @@ export class DrawingEditor {
     this.d = { entities: [], layers: [] };
     this.tool = 'select';
     this.sel = new Set();
+    this.filters = []; // 🔍 [{field, op, value}] — all of them must hold
     this.view = { cx: 0, cy: 0, k: 4 };
     this.history = new History({
       capture: () => ({ entities: this.d.entities, layers: this.d.layers, units: this.d.file_units }),
@@ -159,10 +193,10 @@ export class DrawingEditor {
     };
     for (const e of this.d.entities) {
       if (!this.shown(e)) continue;
-      const on = this.sel.has(e.id), hov = this.hover === e.id;
-      c.strokeStyle = on ? '#f2cc60' : hov ? '#6cb6ff' : this.colourOf(e);
+      const on = this.sel.has(e.id), hov = this.hover === e.id, hit = !on && this.matchSet?.has(e.id);
+      c.strokeStyle = on ? '#f2cc60' : hov ? '#6cb6ff' : hit ? '#39d0d8' : this.colourOf(e);
       c.fillStyle = c.strokeStyle;
-      c.lineWidth = on || hov ? 2 : 1;
+      c.lineWidth = on || hov || hit ? 2 : 1;
       if (e.t === 'text') {
         c.save();
         const [sx, sy] = this.toScreen(e.at);
@@ -371,6 +405,105 @@ export class DrawingEditor {
     this.fit();
   }
 
+  // ------------------------------------------------------------------ 🔍 select by filter
+  fieldValue(field, e) { return field === 'color' ? this.colourOf(e) : FIELDS[field].get(e); }
+
+  /** The shapes (shown) every filter holds for. */
+  matches() {
+    const fs = this.filters.filter((f) => FIELDS[f.field]);
+    if (!fs.length) return [];
+    return this.d.entities.filter((e) => this.shown(e) && fs.every((f) => passes(this.fieldValue(f.field, e), f.op, f.value, FIELDS[f.field].kind)));
+  }
+
+  /** The choices for an enum field (the drawing's layers, the shapes and colours it has). */
+  choices(field) {
+    if (field === 'layer') return this.d.layers.map((l) => [l.name, l.name]);
+    if (field === 'shape') return Object.entries(SHAPES).filter(([k]) => this.d.entities.some((e) => e.t === k)).map(([k, v]) => [k, t(v)]);
+    if (field === 'color') return [...new Set(this.d.entities.map((e) => this.colourOf(e)))].map((c) => [c, c]);
+    return [];
+  }
+
+  filterHtml() {
+    const rows = this.filters.map((f, i) => {
+      const F = FIELDS[f.field], ops = OPS[F.kind];
+      const val = F.kind === 'enum'
+        ? `<select data-fv="${i}">${this.choices(f.field).map(([v, label]) => `<option value="${esc(v)}" ${v === f.value ? 'selected' : ''} data-no-i18n>${esc(label)}</option>`).join('')}</select>`
+        : `<input data-fv="${i}" type="${F.kind === 'num' ? 'text' : 'text'}" inputmode="${F.kind === 'num' ? 'decimal' : 'text'}" value="${esc(f.value ?? '')}" placeholder="${F.kind === 'num' ? 'mm' : ''}">`;
+      return `<div class="dw-filter"><select data-ff="${i}">${Object.entries(FIELDS).map(([k, x]) => `<option value="${k}" ${k === f.field ? 'selected' : ''}>${esc(t(x.label))}</option>`).join('')}</select>
+        <select data-fo="${i}">${ops.map((o) => `<option ${o === f.op ? 'selected' : ''}>${esc(t(o))}</option>`).join('')}</select>${val}
+        <button class="mini danger" data-fx="${i}" title="${esc(t('Remove this filter'))}">✕</button></div>`;
+    }).join('');
+    const n = this.filters.length ? this.matches().length : null;
+    return `<h3>🔍 ${esc(t('Select by filter'))}</h3>${rows}
+      <div class="row-actions wrap"><button class="btn small" data-a="addFilter" title="${esc(t('Add a filter: all of them must hold'))}">＋ ${esc(t('Filter'))}</button>
+        ${n !== null ? `<span class="mp-count dw-fcount">${esc(tv('{n} match', { n }))}</span>` : ''}</div>
+      ${n ? `<div class="row-actions wrap"><button class="btn small primary" data-a="selMatches">${esc(t('Select them'))}</button><button class="btn small" data-a="addMatches">＋ ${esc(t('Add to the selection'))}</button></div>` : ''}`;
+  }
+
+  bindFilter(box) {
+    const set = (i, patch) => {
+      this.filters[i] = { ...this.filters[i], ...patch };
+      this.updateMatches();
+      this.renderProps();
+    };
+    for (const el of box.querySelectorAll('[data-ff]')) {
+      el.addEventListener('change', () => {
+        const field = el.value, F = FIELDS[field];
+        set(+el.dataset.ff, { field, op: OPS[F.kind][0], value: F.kind === 'enum' ? this.choices(field)[0]?.[0] : '' });
+      });
+    }
+    for (const el of box.querySelectorAll('[data-fo]')) el.addEventListener('change', () => set(+el.dataset.fo, { op: OPS[FIELDS[this.filters[+el.dataset.fo].field].kind][el.selectedIndex] }));
+    for (const el of box.querySelectorAll('[data-fv]')) {
+      const i = +el.dataset.fv;
+      el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') el.blur(); });
+      if (el.tagName === 'SELECT') el.addEventListener('change', () => set(i, { value: el.value }));
+      else {
+        el.addEventListener('input', () => { this.filters[i].value = el.value; this.updateMatches(); const c = box.querySelector('.dw-fcount'); if (c) c.textContent = tv('{n} match', { n: this.matchSet.size }); });
+        el.addEventListener('change', () => set(i, { value: el.value }));
+      }
+    }
+    for (const el of box.querySelectorAll('[data-fx]')) el.addEventListener('click', () => { this.filters.splice(+el.dataset.fx, 1); this.updateMatches(); this.renderProps(); });
+    box.querySelector('[data-a=addFilter]').addEventListener('click', () => {
+      // the next filter: the shape first, then the layer, then a size
+      const used = new Set(this.filters.map((f) => f.field)), field = ['shape', 'layer', 'dia', 'len', 'color', 'text', 'r'].find((k) => !used.has(k)) || 'shape';
+      this.filters.push({ field, op: OPS[FIELDS[field].kind][0], value: FIELDS[field].kind === 'enum' ? this.choices(field)[0]?.[0] : '' });
+      this.updateMatches();
+      this.renderProps();
+    });
+    box.querySelector('[data-a=selMatches]')?.addEventListener('click', () => { this.sel = new Set(this.matches().map((e) => e.id)); this.renderProps(); this.draw(); });
+    box.querySelector('[data-a=addMatches]')?.addEventListener('click', () => { for (const e of this.matches()) this.sel.add(e.id); this.renderProps(); this.draw(); });
+  }
+
+  updateMatches() { this.matchSet = new Set(this.matches().map((e) => e.id)); this.draw(); }
+
+  /** Filters that pick shapes like this one (its shape, layer and size), and those selected. */
+  likeThis(e) {
+    this.filters = [{ field: 'shape', op: 'is', value: e.t }, { field: 'layer', op: 'is', value: e.layer }];
+    if (e.t === 'circle' || e.t === 'arc') this.filters.push({ field: 'dia', op: '=', value: fmt(2 * e.r) });
+    else if (e.t === 'line' || e.t === 'poly') this.filters.push({ field: 'len', op: '=', value: fmt(lengthOf(e)) });
+    this.sel = new Set(this.matches().map((x) => x.id));
+    this.updateMatches();
+    this.renderProps();
+  }
+
+  /** The selected shapes' size set at once: circles' Ø (centres stay), arcs' / circles' radius, lines' length (from
+   *  their start, along them). */
+  setSize(kind, value) {
+    const v = parseFloat(String(value).replace(',', '.'));
+    if (!(v > 0)) { this.hooks.toast?.(t('The size must be greater than zero.'), 'warning'); return; }
+    this.d.entities = this.d.entities.map((e) => {
+      if (!this.sel.has(e.id)) return e;
+      if (kind === 'dia' && (e.t === 'circle' || e.t === 'arc')) return { ...e, r: +(v / 2).toFixed(6) };
+      if (kind === 'r' && (e.t === 'circle' || e.t === 'arc')) return { ...e, r: +v.toFixed(6) };
+      if (kind === 'len' && e.t === 'line') {
+        const L = Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]) || 1;
+        return { ...e, b: [e.a[0] + ((e.b[0] - e.a[0]) * v) / L, e.a[1] + ((e.b[1] - e.a[1]) * v) / L].map((x) => +x.toFixed(6)) };
+      }
+      return e;
+    });
+    this.commit();
+  }
+
   removeSel() {
     this.d.entities = this.d.entities.filter((e) => !this.sel.has(e.id));
     this.sel.clear();
@@ -451,14 +584,29 @@ export class DrawingEditor {
 
   renderProps() {
     const box = this.$('.mp-body'), sel = this.d.entities.filter((e) => this.sel.has(e.id));
+    this.matchSet = new Set(this.matches().map((e) => e.id));
     if (sel.length) {
       const e = sel[0], one = sel.length === 1;
+      const all = (...ts) => sel.every((x) => ts.includes(x.t)), same = (f) => sel.every((x) => sameNum(f(x), f(e)));
+      // one size for all of them (circles: Ø; circles and arcs: R; lines: length) — the value shown when they agree
+      const sizeField = all('circle') ? ['dia', 'Ø', same((x) => x.r) ? fmt(2 * e.r) : '']
+        : all('circle', 'arc') ? ['r', 'R', same((x) => x.r) ? fmt(e.r) : '']
+        : all('line') ? ['len', t('Length'), same(lengthOf) ? fmt(lengthOf(e)) : ''] : null;
       const size = !one ? '' : e.t === 'line' ? `${t('Length')} ${fmt(Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]))} mm` : e.t === 'circle' ? `Ø ${fmt(2 * e.r)} mm · ${t('centre')} ${fmt(e.c[0])}, ${fmt(e.c[1])}`
         : e.t === 'arc' ? `R ${fmt(e.r)} mm · ${fmt(sweepOf(e) * 180 / Math.PI)}°` : e.t === 'poly' ? tv('{n} points', { n: e.pts.length }) + (e.closed ? ` · ${t('closed')}` : '') : e.t === 'text' ? `“${esc(e.text)}”` : '';
       box.innerHTML = `<h2>${one ? esc(t({ line: 'Line', circle: 'Circle', arc: 'Arc', poly: 'Polyline', text: 'Text' }[e.t] || e.t)) : tv('{n} shapes', { n: sel.length })}</h2>
         ${size ? `<p class="hint" data-no-i18n>${size}</p>` : ''}
+        ${sizeField ? `<div class="field"><label data-no-i18n>${esc(sizeField[1])}</label><input data-k="size" inputmode="decimal" value="${sizeField[2]}" placeholder="${esc(t('different'))}"><span class="unit">mm</span></div>
+          <p class="hint">${esc(sel.length > 1 ? tv('Type it: all {n} change.', { n: sel.length }) : t('Type it: it changes.'))}</p>` : ''}
         <div class="field"><label>Layer</label><select data-k="layer">${this.d.layers.map((l) => `<option ${l.name === e.layer ? 'selected' : ''} data-no-i18n>${esc(l.name)}</option>`).join('')}</select></div>
-        <div class="row-actions"><button class="btn small danger" data-a="del">✕ ${esc(t('Delete'))} (Del)</button></div>`;
+        <div class="row-actions wrap">${one ? `<button class="btn small" data-a="like" title="${esc(t('Filters for shapes like this one (its shape, layer and size) — and select them all'))}">≡ ${esc(t('All like this'))}</button>` : ''}
+          <button class="btn small danger" data-a="del">✕ ${esc(t('Delete'))} (Del)</button></div>
+        <div class="dw-fbox">${this.filterHtml()}</div>`;
+      this.bindFilter(box.querySelector('.dw-fbox'));
+      const sz = box.querySelector('[data-k=size]');
+      sz?.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') sz.blur(); });
+      sz?.addEventListener('change', () => { if (sz.value.trim()) this.setSize(sizeField[0], sz.value); });
+      box.querySelector('[data-a=like]')?.addEventListener('click', () => this.likeThis(e));
       box.querySelector('[data-k=layer]').addEventListener('change', (ev) => { for (const x of sel) x.layer = ev.target.value; this.d.entities = [...this.d.entities]; this.commit(); });
       box.querySelector('[data-a=del]').addEventListener('click', () => this.removeSel());
       return;
@@ -469,10 +617,12 @@ export class DrawingEditor {
         ${Object.keys(UNIT_MM).map((u) => `<option value="${u}" ${u === (this.d.file_units || 'mm') ? 'selected' : ''}>${u === 'in' ? 'inch' : u}</option>`).join('')}</select></div>
       <div class="mp-facts">${b ? `<span>${esc(t('Size'))}</span><b>${fmt(b[2] - b[0])} × ${fmt(b[3] - b[1])} mm</b>` : ''}
         <span>${esc(t('Shapes'))}</span><b>${shown} / ${n}</b><span>${esc(t('Layers'))}</span><b>${this.d.layers.filter((l) => l.visible !== false).length} / ${this.d.layers.length}</b></div>
+      <div class="dw-fbox">${this.filterHtml()}</div>
       <h3>${esc(t('What next'))}</h3><p class="hint">${esc(t('Look, measure, tidy it up — then Use ▾ makes something of the shown layers:'))}</p>
       <div class="row-actions"><button class="btn small primary" data-use="sketch">✏ ${esc(t('As a sketch of a new 3D model'))}</button></div>
       <div class="row-actions"><button class="btn small" data-use="quick">▤ ${esc(t('As a quick part (its closed outlines)'))}</button></div>`;
     box.querySelector('[data-k=units]').addEventListener('change', (ev) => this.setUnits(ev.target.value));
+    this.bindFilter(box.querySelector('.dw-fbox'));
     for (const el of box.querySelectorAll('[data-use]')) {
       el.addEventListener('click', () => {
         const shownD = { ...this.d, entities: this.d.entities.filter((x) => this.shown(x)) };

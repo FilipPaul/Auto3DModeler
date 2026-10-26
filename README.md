@@ -207,6 +207,11 @@ layers, in their colours, in real mm.
 - **⬚ Select** (Ctrl+click: more; Delete removes; a shape's panel moves it to another layer), **／ Line** (L) and
   **◯ Circle** (C) — ends, middles and centres snap — **📏 Measure** (M: two spots, or a circle's Ø), ↶ ↷, ⤢ Fit (F).
   Drag the paper to move it, the wheel zooms.
+- **🔍 Select by filter**: ＋ Filter adds a condition — Shape, Layer, Ø, Radius, Length, Colour or Text with is / is not,
+  = ≠ < > ≤ ≥ or contains — as many as you like, all must hold; the matching shapes are outlined and counted, *Select
+  them* or *Add to the selection*. **≡ All like this** fills the filters from a selected shape (its shape, layer and
+  size). Selected circles get one **Ø** box (centres stay), circles and arcs an **R**, lines a **Length** — type it and
+  all of them change.
 - **File units**: a file may not say its units (PCB tools often draw in inches) or say them wrong — choose mm / cm /
   m / inch and the drawing is rescaled; a tiny drawing with no units says so when it opens.
 - **Use ▾** makes something of the shown layers: **✏ As a sketch of a new 3D model** (lines, circles and arcs, their
