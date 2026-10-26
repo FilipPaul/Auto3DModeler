@@ -6,7 +6,7 @@
 import { History } from '../history.js';
 import { t } from '../i18n.js';
 import { ModelView, DATUMS, datumFrame } from './view.js';
-import { Sketcher, upgradeSketch, arcPts } from './sketcher.js';
+import { Sketcher, upgradeSketch, arcPts, RELATIONS } from './sketcher.js';
 import { textOutline } from '../outlinepanel.js';
 
 const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa' };
@@ -101,6 +101,8 @@ export class Modeler {
         ${btn('offset', '⧈ Offset', 'A parallel copy of a closed shape, a distance outside or inside it (O)', t === 'offset' ? 'on' : '')}
         ${btn('trim', '✂ Trim', 'Cut away a piece of a line, circle or arc — up to where other shapes cross it (T)', t === 'trim' ? 'on' : '')}
         ${this.hooks.pickOutline ? btn('outline', '🖼 Outline', 'Insert an outline from a picture, a DXF / DWG drawing or a PDF drawing (as one shape you can move and size)') : ''}
+        <div class="menu sk-relmenu">${btn('relate', `⟂ Relations ▾`, 'Make shapes keep a relation: horizontal, vertical, parallel, perpendicular, equal, concentric, coincident, tangent, fixed', t === 'relate' ? 'on' : '')}
+          <div class="menu-list">${Object.entries(RELATIONS).map(([k, r]) => `<button data-rel="${k}" title="${esc(r.hint || '')}">${r.icon} ${esc(r.name)}</button>`).join('')}</div></div>
         ${btn('dim', '↔ Dimension', 'Add a distance: click two points, circles, lines or edges of the part, then type the value (D)', t === 'dim' ? 'on' : '')}
         ${btn('select', '⬚ Select', 'Select a shape or a corner to move it (drag) or delete it (Esc)', t === 'select' ? 'on' : '')}
         <span class="sep"></span>
@@ -138,7 +140,11 @@ export class Modeler {
       for (const a of ['loft', 'sweep']) bar.querySelector(`[data-a=${a}]`).disabled = this.sketches().length < 2 || !!this.cmd;
       for (const a of ['measure', 'section']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body;
     }
-    for (const b of bar.querySelectorAll('[data-a]')) b.addEventListener('click', () => this.action(b.dataset.a));
+    for (const b of bar.querySelectorAll('[data-a]:not([data-a=relate])')) b.addEventListener('click', () => this.action(b.dataset.a));
+    bar.querySelector('[data-a=relate]')?.addEventListener('click', (e) => { e.stopPropagation(); bar.querySelector('.sk-relmenu').classList.toggle('open'); });
+    for (const b of bar.querySelectorAll('[data-rel]')) {
+      b.addEventListener('click', () => { bar.querySelector('.sk-relmenu').classList.remove('open'); this.sk.relType = b.dataset.rel; this.sk.setTool('relate'); });
+    }
     const off = bar.querySelector('[data-k=planeOffset]');
     if (off) {
       off.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') off.blur(); });
@@ -613,6 +619,7 @@ export class Modeler {
       for (const b of box.querySelectorAll('[data-del]')) b.addEventListener('click', () => this.sk.delDim(b.dataset.del));
       for (const b of box.querySelectorAll('[data-lock]')) b.addEventListener('click', () => this.sk.toggleLock(this.sk.f.dims.find((d) => d.id === b.dataset.lock)));
       box.querySelector('[data-a=showSizes]')?.addEventListener('click', () => this.sk.showAllSizes());
+      for (const b of box.querySelectorAll('[data-delrel]')) b.addEventListener('click', () => this.sk.delRelation(b.dataset.delrel));
       for (const inp of box.querySelectorAll('input[data-bk]')) {
         inp.addEventListener('change', () => this.sk.setBlock(inp.dataset.bk, inp.value));
         inp.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') inp.blur(); });

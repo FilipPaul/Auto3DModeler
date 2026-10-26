@@ -173,6 +173,48 @@ class TestSketchSolve(unittest.TestCase):
         self.assertAlmostEqual(r["points"]["e"][0], 22, places=6)  # 30 - 8: still on the (bigger) circle
         self.assertAlmostEqual(r["points"]["e"][1], 0, places=6)
 
+    def test_relations(self):
+        import math as m
+        # two free lines: parallel, then equal in length to the first (which is locked at 30)
+        sk = {"points": {"a": [0, 0], "b": [30, 0], "c": [0, 10], "d": [20, 17]},
+              "entities": [{"id": "l1", "t": "line", "a": "a", "b": "b"}, {"id": "l2", "t": "line", "a": "c", "b": "d"}],
+              "constraints": [{"id": "k1", "t": "par", "e": "l1", "e2": "l2"}, {"id": "k2", "t": "eq", "e": "l1", "e2": "l2"},
+                              {"id": "k3", "t": "fix", "p": "a", "at": [0, 0]}, {"id": "k4", "t": "fix", "p": "c", "at": [0, 10]}],
+              "dims": [{"id": "d1", "t": "len", "e": "l1", "v": 30}]}
+        r = solve(sk)
+        self.assertTrue(r["ok"], r)
+        a, b, c, d = (r["points"][k] for k in "abcd")
+        u, v = [b[0] - a[0], b[1] - a[1]], [d[0] - c[0], d[1] - c[1]]
+        self.assertAlmostEqual(u[0] * v[1] - u[1] * v[0], 0, places=6)  # parallel
+        self.assertAlmostEqual(m.hypot(*v), 30, places=6)  # equal
+        self.assertEqual(r["points"]["a"], [0, 0])  # fixed
+        # perpendicular
+        sk["constraints"][0]["t"] = "perp"
+        r = solve(sk)
+        a, b, c, d = (r["points"][k] for k in "abcd")
+        self.assertAlmostEqual((b[0] - a[0]) * (d[0] - c[0]) + (b[1] - a[1]) * (d[1] - c[1]), 0, places=6)
+        # concentric circles, equal circles, a line tangent to a circle
+        sk2 = {"points": {"o1": [0, 0], "o2": [3, 2], "p": [-10, 9], "q": [10, 9]},
+               "entities": [{"id": "c1", "t": "circle", "c": "o1", "r": 5}, {"id": "c2", "t": "circle", "c": "o2", "r": 2},
+                            {"id": "l1", "t": "line", "a": "p", "b": "q"}],
+               "constraints": [{"id": "k1", "t": "conc", "e": "c1", "e2": "c2"}, {"id": "k2", "t": "tang", "e": "l1", "e2": "c1"},
+                               {"id": "k3", "t": "fix", "p": "o1", "at": [0, 0]}, {"id": "h", "t": "h", "e": "l1"}],
+               "dims": [{"id": "d1", "t": "dia", "e": "c1", "v": 10}]}
+        r = solve(sk2)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual([round(x, 6) for x in r["points"]["o2"]], [0, 0])  # on the same centre
+        self.assertAlmostEqual(abs(r["points"]["p"][1]), 5, places=5)  # the horizontal line touches the Ø10 circle
+        # a point on a line (coincident)
+        sk3 = {"points": {"a": [0, 0], "b": [20, 0], "x": [5, 4]}, "entities": [{"id": "l1", "t": "line", "a": "a", "b": "b"}],
+               "constraints": [{"id": "k1", "t": "coin", "p": "x", "e": "l1"}, {"id": "h", "t": "h", "e": "l1"}, {"id": "f", "t": "fix", "p": "a", "at": [0, 0]}], "dims": []}
+        r = solve(sk3)
+        self.assertAlmostEqual(r["points"]["x"][1], 0, places=6)
+        # a relation that contradicts a lock is named in the conflicts
+        bad = {**sk, "constraints": sk["constraints"] + [{"id": "k9", "t": "perp", "e": "l1", "e2": "l2"}]}
+        r = solve(bad)
+        self.assertFalse(r["ok"])
+        self.assertTrue({"k1", "k9"} & set(r["conflicts"]), r["conflicts"])
+
     def test_endpoint(self):
         import server
         c = server.app.test_client()

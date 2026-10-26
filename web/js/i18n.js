@@ -580,6 +580,14 @@ const CS = {
   '{v} is the most that works here (with what is around it).': '{v} je nejvíc, co tu jde (podle toho, co je kolem).',
   'Screw / pin': 'Šroub / kolík', 'click the hole it goes in from, then the hole in the other part — the fitting screw (and insert) or pin goes in': 'klikněte na díru, odkud se vkládá, pak na díru v druhém dílu — vloží se vhodný šroub (s maticí) nebo kolík',
   'These holes ({a}, {b}) do not line up, or fit no standard screw / pin — a screw needs a clearance hole in the part it goes in from (M3: Ø3.2–3.7) and one that fits it or an insert (M3 insert: Ø3.9–4.4) below.': 'Tyto díry ({a}, {b}) nelícují nebo neodpovídají žádnému běžnému šroubu / kolíku — šroub potřebuje průchozí díru v dílu, odkud se vkládá (M3: Ø3,2–3,7), a pod ní díru pro něj nebo pro matici (matice M3: Ø3,9–4,4).',
+  '⟂ Relations ▾': '⟂ Vazby ▾', Relations: 'Vazby', Horizontal: 'Vodorovně', Vertical: 'Svisle', Perpendicular: 'Kolmo', Equal: 'Stejně',
+  Concentric: 'Soustředně', Coincident: 'Totožně', Tangent: 'Tečně', Fix: 'Ukotvit', 'click to remove it': 'kliknutím odeberete', 'Remove this relation': 'Odebrat tuto vazbu',
+  'Make shapes keep a relation: horizontal, vertical, parallel, perpendicular, equal, concentric, coincident, tangent, fixed': 'Tvary drží vazbu: vodorovně, svisle, rovnoběžně, kolmo, stejně, soustředně, totožně, tečně, ukotveně',
+  'two lines (same length) or two circles / arcs (same size)': 'dvě čáry (stejná délka) nebo dvě kružnice / oblouky (stejná velikost)',
+  'a point, then another point, a line or a circle it lies on': 'bod, pak jiný bod, čára nebo kružnice, na které leží',
+  'a line or a circle / arc, then a circle / arc it touches': 'čára nebo kružnice / oblouk, pak kružnice / oblouk, kterého se dotýká',
+  'a point that stays where it is': 'bod, který zůstane, kde je', 'Equal: two lines, or two circles / arcs.': 'Stejně: dvě čáry, nebo dvě kružnice / oblouky.',
+  'These relations contradict each other (a line or circle would shrink to nothing) — remove one of them first.': 'Tyto vazby si odporují (čára nebo kružnice by se zmenšila na nic) — nejdřív jednu odeberte.',
   // language switch
   'Čeština / English': 'Čeština / English',
 };

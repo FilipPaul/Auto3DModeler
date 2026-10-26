@@ -40,6 +40,57 @@ def _num(v, what):
     return v
 
 
+# relations the user sets: {t, e, e2} (two shapes) or {t, p, p2 / e} (a point and a point / shape)
+RELATIONS = ("par", "perp", "eq", "conc", "coin", "tang", "fix")
+
+
+def _relation(s, k, ents, ids, pts):
+    """Add a relation to the planegcs sketch -> its tag(s), or None when k is not one of these (or is broken)."""
+    t = k.get("t")
+    if t not in RELATIONS:
+        return None
+    E = lambda key: ents.get(k.get(key))  # noqa: E731
+    a, b = E("e"), E("e2")
+    kind = lambda x: x[0]["t"] if x else None  # noqa: E731
+    if t in ("par", "perp") and kind(a) == "line" and kind(b) == "line":
+        return (s.parallel if t == "par" else s.perpendicular)(a[1], b[1])
+    if t == "eq" and a and b:
+        ka, kb = kind(a), kind(b)
+        if ka == kb == "line":
+            return s.equal_length(a[1], b[1])
+        if ka == kb == "circle":
+            return s.equal_radius_cc(a[1], b[1])
+        if ka == kb == "arc":
+            return s.equal_radius_aa(a[1], b[1])
+        if {ka, kb} == {"circle", "arc"}:
+            c, r = (a, b) if ka == "circle" else (b, a)
+            return s.equal_radius_ca(c[1], r[1])
+        return None
+    if t == "conc" and a and b and kind(a) in ("circle", "arc") and kind(b) in ("circle", "arc"):
+        return s.coincident(ids[a[0]["c"]], ids[b[0]["c"]])
+    if t == "coin" and k.get("p") in ids:
+        if k.get("p2") in ids:
+            return s.coincident(ids[k["p"]], ids[k["p2"]])
+        if a:
+            return {"line": s.point_on_line, "circle": s.point_on_circle, "arc": s.point_on_arc}[kind(a)](ids[k["p"]], a[1])
+        return None
+    if t == "tang" and a and b:
+        ka, kb = kind(a), kind(b)
+        if ka == "line" and kb == "line":
+            return None
+        if kb == "line":
+            a, b, ka, kb = b, a, kb, ka
+        fn = {("line", "circle"): s.tangent_line_circle, ("line", "arc"): s.tangent_line_arc, ("circle", "circle"): s.tangent_circle_circle,
+              ("circle", "arc"): s.tangent_circle_arc, ("arc", "arc"): s.tangent_arc_arc}.get((ka, kb))
+        if not fn and (ka, kb) == ("arc", "circle"):
+            return s.tangent_circle_arc(b[1], a[1])
+        return fn(a[1], b[1]) if fn else None
+    if t == "fix" and k.get("p") in ids:
+        at = k.get("at") or pts.get(k["p"])
+        return s.fix_point(ids[k["p"]], float(at[0]), float(at[1]))
+    return None
+
+
 def solve(sketch, drag=None, keep=None):
     """Solve the sketch. drag = {point id: [u, v]}: move these points there (as far as the locks allow).
     keep = "u" | "v": try to keep that coordinate of every other point (a typed width moves nothing up or down);
@@ -86,6 +137,11 @@ def solve(sketch, drag=None, keep=None):
 
         tags = {}
         for k in sketch.get("constraints") or []:
+            tag = _relation(s, k, ents, ids, pts)
+            if tag is not None:
+                for tg in (tag if isinstance(tag, tuple) else (tag,)):
+                    tags[tg] = k.get("id")
+                continue
             ent = ents.get(k.get("e"))
             if k.get("t") == "on":  # a trimmed end stays on the line / circle / arc that cut it
                 other = ents.get(k.get("e"))

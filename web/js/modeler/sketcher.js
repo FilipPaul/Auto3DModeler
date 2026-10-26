@@ -8,6 +8,7 @@
 // distance can be a fixed reference {ref: [u, v]} on an edge of the part the sketch is on). A block is an
 // outline taken from a picture / DXF / PDF part {t: 'block', polys, w0, h0, at, scale}: rigid, moved by
 // dragging, sized by its width.
+import { t } from '../i18n.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const nice = (x) => { const p = 10 ** Math.floor(Math.log10(x)); return [1, 2, 5, 10].map((k) => k * p).find((s) => s >= x); };
@@ -156,6 +157,19 @@ function crossings(g, h) {
   return out.filter((p) => onShape(g, p) && onShape(h, p));
 }
 
+/** Relations the user sets between shapes: what each one needs picked (in order), its symbol and name. */
+export const RELATIONS = {
+  h: { icon: '─', name: 'Horizontal', picks: ['line'] },
+  v: { icon: '│', name: 'Vertical', picks: ['line'] },
+  par: { icon: '∥', name: 'Parallel', picks: ['line', 'line'] },
+  perp: { icon: '⟂', name: 'Perpendicular', picks: ['line', 'line'] },
+  eq: { icon: '=', name: 'Equal', picks: ['shape', 'shape'], hint: 'two lines (same length) or two circles / arcs (same size)' },
+  conc: { icon: '◎', name: 'Concentric', picks: ['round', 'round'] },
+  coin: { icon: '•', name: 'Coincident', picks: ['point', 'any'], hint: 'a point, then another point, a line or a circle it lies on' },
+  tang: { icon: '⌒', name: 'Tangent', picks: ['shape', 'round'], hint: 'a line or a circle / arc, then a circle / arc it touches' },
+  fix: { icon: '📌', name: 'Fix', picks: ['point'], hint: 'a point that stays where it is' },
+};
+
 const segDist = (p, a, b) => {
   const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy || 1;
   const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L));
@@ -246,6 +260,11 @@ export class Sketcher {
     if (this.tool === 'circle') return this.start ? 'Click to set the size (Esc = stop drawing).' : 'Click the centre of a circle.';
     if (this.tool === 'round') return 'Round corner: click a corner where two lines meet, then type the radius.';
     if (this.tool === 'offset') return 'Offset: click a closed shape — a circle, an outline of lines / arcs, or a picture outline — then type the distance (negative = inside).';
+    if (this.tool === 'relate') {
+      const r = RELATIONS[this.relType] || RELATIONS.par, k = (this.relPicks || []).length, want = r.picks[k];
+      const what = { line: 'a line', round: 'a circle or an arc', shape: 'a line, a circle or an arc', point: 'a point', any: 'a point, a line or a circle' }[want];
+      return `${r.icon} ${r.name}: click ${what}${k ? ' (the second)' : ''}${r.hint && !k ? ` — ${r.hint}` : ''}. Esc = stop.`;
+    }
     if (this.tool === 'trim') return 'Trim: click the piece of a line, circle or arc to cut away — up to where other shapes cross it.';
     if (this.tool === 'arc' && this.tan) return 'Tangent arc: it continues the line — click where it ends (Shift-click: a free arc; Esc = stop drawing).';
     if (this.tool === 'arc') return !this.start ? 'Click where the arc starts (at the end of a line: it continues the line smoothly).' : !this.arcEnd ? 'Click where the arc ends.' : 'Move the mouse to bend the arc, click to place it (Esc = stop drawing).';
@@ -256,6 +275,7 @@ export class Sketcher {
 
   setTool(t) {
     this.tool = t;
+    this.relPicks = [];
     this.start = null;
     this.arcEnd = null;
     this.tan = null;
@@ -396,10 +416,23 @@ export class Sketcher {
     this.step();
     mutate();
     const r = await this.solve(hold, keep);
+    // a "solution" that shrinks a line or a circle to nothing means the rules contradict each other
+    if (r.ok && r.points) {
+      const P = (id) => (id === ORIGIN ? [0, 0] : r.points[id] || this.f.points[id]);
+      const gone = this.f.entities.some((e) => (e.t === 'line' && Math.hypot(P(e.a)[0] - P(e.b)[0], P(e.a)[1] - P(e.b)[1]) < 0.01)
+        || (e.t === 'circle' && (r.radii?.[e.id] ?? e.r) < 0.005));
+      if (gone) {
+        r.ok = false;
+        const rel = this.f.constraints.filter((k) => k.user && !before.constraints.some((x) => x.id === k.id));
+        r.error = t('These relations contradict each other (a line or circle would shrink to nothing) — remove one of them first.')
+          + (rel.length ? ` (${rel.map((k) => `${RELATIONS[k.t]?.icon} ${t(RELATIONS[k.t]?.name || k.t)}`).join(', ')})` : '');
+      }
+    }
     if (!r.ok) {
       Object.assign(this.f, before);
       this.undo.pop();
-      const names = (r.conflicts || []).map((id) => this.dimName(this.f.dims.find((d) => d.id === id))).filter(Boolean);
+      const names = (r.conflicts || []).map((id) => this.dimName(this.f.dims.find((d) => d.id === id))
+        || ((k) => k && RELATIONS[k.t] ? `${RELATIONS[k.t].icon} ${t(RELATIONS[k.t].name)}` : '')(before.constraints.find((k) => k.id === id))).filter(Boolean);
       this.m.toast(r.error || (names.length ? `That does not fit the other locked sizes (${names.join(', ')}) — unlock one of them first.`
         : 'That does not fit the other locked sizes — unlock one of them first.'), 'error', 7000);
     } else this.apply(r);
@@ -598,7 +631,7 @@ export class Sketcher {
     const hv = this.tool === 'offset' ? ((l) => l && { kind: 'entity', id: l.ids[0], loop: l.ids, key: `off:${l.ids.join(',')}` })(this.loopAt(uv))
       : this.tool === 'trim' ? ((p) => p && { kind: 'piece', pts: p.pts, key: `${p.e.id}:${p.lo}:${p.hi}` })(this.pieceAt(uv))
       : this.tool === 'round' ? this.cornerAt(uv)
-      : this.tool === 'dim' ? this.pickTarget(uv)
+      : this.tool === 'dim' || this.tool === 'relate' ? this.pickTarget(uv)
       : this.tool === 'select' ? ((h) => (h?.kind === 'point' ? { kind: 'point', end: h.id, uv: this.P(h.id) } : h))(this.hit(uv))
       : this.cursor.id || this.cursor.ref ? { kind: 'point', end: this.cursor.ref ? { ref: this.cursor.uv } : this.cursor.id, uv: this.cursor.uv } : null;
     const key = hv?.key || JSON.stringify(hv && { ...hv, d: undefined });
@@ -626,6 +659,7 @@ export class Sketcher {
     if (this.tool === 'arc') { this.arcPoint(s, e.shiftKey); return; }
     if (this.tool === 'round') { this.roundAt(uv0); return; }
     if (this.tool === 'trim') { this.trimAt(uv0); return; }
+    if (this.tool === 'relate') { this.relateClick(uv0); return; }
     if (this.tool === 'offset') { this.offsetAt(uv0, e); return; }
     if (!this.start) { this.start = s; this.m.hint(this.hint()); this.draw(); return; }
     const a = this.start;
@@ -663,6 +697,51 @@ export class Sketcher {
     this.sel = { kind: 'entity', id };
     this.changed();
   }
+
+  // ------------------------------------------------------------------ relations
+  /** What a click picks for a relation: {kind: 'line' | 'circle' | 'arc' | 'point', id}, fitting `want`, or null. */
+  relPick(uv, want) {
+    const t = this.pickTarget(uv);
+    if (!t) return null;
+    if (t.kind === 'point' && (want === 'point' || want === 'any') && !t.circle && !t.arc && typeof t.end === 'string') return { kind: 'point', id: t.end };
+    if (t.circle) return want !== 'point' && want !== 'line' ? { kind: 'circle', id: t.circle } : want === 'point' ? { kind: 'point', id: t.end } : null;
+    if (t.arc) return want !== 'point' && want !== 'line' ? { kind: 'arc', id: t.arc } : want === 'point' ? { kind: 'point', id: t.end } : null;
+    if (t.kind === 'line' && t.line && ['line', 'shape', 'any'].includes(want)) return { kind: 'line', id: t.line };
+    return null;
+  }
+
+  async relateClick(uv) {
+    const type = this.relType || 'par', r = RELATIONS[type], picks = this.relPicks || (this.relPicks = []);
+    const p = this.relPick(uv, r.picks[picks.length]);
+    if (!p) { this.m.toast(this.hint(), 'info', 3000); return; }
+    if (picks.some((q) => q.id === p.id)) return;
+    picks.push(p);
+    if (picks.length < r.picks.length) { this.m.hint(this.hint()); this.draw(); return; }
+    this.relPicks = [];
+    const [a, b] = picks, k = { id: this.newId('k'), t: type, user: true };
+    if (type === 'h' || type === 'v') k.e = a.id;
+    else if (type === 'fix') Object.assign(k, { p: a.id, at: [...this.P(a.id)] });
+    else if (type === 'coin') Object.assign(k, b.kind === 'point' ? { p: a.id, p2: b.id } : { p: a.id, e: b.id });
+    else Object.assign(k, { e: a.id, e2: b.id });
+    if (type === 'eq' && (a.kind === 'line') !== (b.kind === 'line')) { this.m.toast('Equal: two lines, or two circles / arcs.', 'warning'); this.changed(); return; }
+    await this.relock(() => this.f.constraints.push(k));
+  }
+
+  /** A relation's place in the sketch (for its symbol): the middle of its first shape, or its point. */
+  relAt(k) {
+    if (k.p) return this.P(k.p);
+    const e = this.ent(k.e);
+    if (!e) return null;
+    // a quarter along the line (its middle has the length label), a little beside it
+    if (e.t === 'line') { const a = this.P(e.a), b = this.P(e.b); return [a[0] + (b[0] - a[0]) * 0.25, a[1] + (b[1] - a[1]) * 0.25]; }
+    if (e.t === 'circle') { const c = this.P(e.c); return [c[0] - e.r * 0.7, c[1] + e.r * 0.7]; }
+    if (e.t === 'arc') { const ps = this.arcOf(e); return ps[Math.floor(ps.length / 2)]; }
+    return null;
+  }
+
+  userRelations() { return this.f.constraints.filter((k) => k.user || (RELATIONS[k.t] && !['h', 'v'].includes(k.t))); }
+
+  async delRelation(id) { await this.relock(() => { this.f.constraints = this.f.constraints.filter((k) => k.id !== id); }); }
 
   /** Trim: the piece of the shape under the mouse between the crossings next to it -> {e, g, lo, hi, cuts, pts}. */
   pieceAt(uv) {
@@ -1026,7 +1105,7 @@ export class Sketcher {
     if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); this.back(); return true; }
     if (e.key === 'Escape') {
       if (this.chooser) this.closeChooser();
-      else if (this.start || this.chain || this.dimA) { this.start = null; this.tan = null; this.arcEnd = null; this.chain = null; this.dimA = null; this.changed(); } else this.setTool('select');
+      else if (this.start || this.chain || this.dimA || this.relPicks?.length) { this.relPicks = []; this.start = null; this.tan = null; this.arcEnd = null; this.chain = null; this.dimA = null; this.changed(); } else this.setTool('select');
       return true;
     }
     if (e.key === 'Delete' || e.key === 'Backspace') { this.deleteSel(); return true; }
@@ -1405,6 +1484,26 @@ export class Sketcher {
       if (this.dimA.kind === 'point') dots.push([this.dimA.uv, 0x7ee787]);
       else lines.push([this.dimA.uvA, this.dimA.uvB, 0x7ee787]);
     }
+    // the relations the user set: a small symbol by their shape (click it to remove the relation)
+    for (const k of this.userRelations()) {
+      const at = this.relAt(k);
+      if (!at) continue;
+      const el = document.createElement('div');
+      el.className = 'sk-label sk-rel';
+      el.style.pointerEvents = 'auto'; // it takes clicks (the label layer lets them through to the view)
+      el.textContent = RELATIONS[k.t]?.icon || '?';
+      el.title = `${t(RELATIONS[k.t]?.name || k.t)} — ${t('click to remove it')}`;
+      for (const ev of ['pointerdown', 'pointerup']) el.addEventListener(ev, (x) => x.stopPropagation());
+      el.addEventListener('click', (x) => { x.stopPropagation(); this.delRelation(k.id); });
+      labels.push({ el, u: at[0] + mpp * 8, v: at[1] - mpp * 10 });
+    }
+    for (const q of this.tool === 'relate' ? this.relPicks || [] : []) {
+      const e = q.kind === 'point' ? null : this.ent(q.id);
+      if (q.kind === 'point') dots.push([this.P(q.id), 0x7ee787]);
+      else if (e?.t === 'line') lines.push([this.P(e.a), this.P(e.b), 0x7ee787]);
+      else if (e?.t === 'circle') circles.push([this.P(e.c), e.r, 0x7ee787]);
+      else if (e?.t === 'arc') { const ps = this.arcOf(e); for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], 0x7ee787]); }
+    }
     // the origin, always: an orange point with short x / y arrows
     const ax = mpp * 26;
     lines.push([[0, 0], [ax, 0], 0xff7b72], [[0, 0], [0, ax], 0x7ee787]);
@@ -1513,12 +1612,15 @@ export class Sketcher {
       return `${{ dx: '↔', dy: '↕', dist: '⤢' }[d.t]} ${v} (from the ${at(d.a)})`;
     };
     const hidden = this.userHidden().length;
+    const rels = this.userRelations();
+    const relList = rels.length ? `<h3>Relations</h3><div class="sk-dims">${rels.map((k) => `<div class="sk-dim"><span>${RELATIONS[k.t]?.icon || ''} ${RELATIONS[k.t]?.name || k.t}</span>
+      <span class="sk-dim-acts"><button class="mini danger" data-delrel="${k.id}" title="Remove this relation">✕</button></span></div>`).join('')}</div>` : '';
     const list = (this.f.dims.length ? `<h3>Dimensions</h3><div class="sk-dims">${this.f.dims.map((d) =>
       `<div class="sk-dim"><span>${d.free ? '🔓' : '🔒'} ${name(d.free ? { ...d, v: this.measure(d) } : d)}</span>
         <span class="sk-dim-acts">${['len', 'dia', 'rad'].includes(d.t) ? '' : `<button class="mini" data-lock="${d.id}" title="${d.free ? 'Lock it at this value' : 'Free it (it then only measures)'}">${d.free ? '🔒' : '🔓'}</button>`}
         <button class="mini danger" data-del="${d.id}" title="Delete this dimension">✕</button></span></div>`).join('')}</div>` : '')
       + (hidden ? `<div class="row-actions"><button class="btn small" data-a="showSizes">Show ${hidden} hidden size(s)</button></div>` : '');
-    return `<h2>Sketch</h2><p class="hint">${this.hint()}</p>${st}${what}${list}
+    return `<h2>Sketch</h2><p class="hint">${this.hint()}</p>${st}${what}${list}${relList}
       <h3>Tips</h3><p class="hint">A shape inside another one becomes a hole. Lines that meet at a point are joined; click the
       first point again to close a shape. 🔒 = locked size (it stays when other sizes change). ↔ Dimension adds a distance
       between two points, circles or edges (also the part's edges, dashed). Right mouse button pans, wheel zooms, Ctrl+Z undoes.</p>`;

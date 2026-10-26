@@ -74,6 +74,8 @@ Date: 2026-10-25. Written by the architect agent.
   suggest_fasteners / add_fasteners. tools/e2e_assembly_fasteners.py.
 - **Value ranges done:** doc.limits (each ranged number of a step found by building it at trial values; patterns and
   depths from the geometry), /api/model/limits; failures explained with the most that fits (doc._sized).
+- **Sketch relations done:** par / perp / eq / conc / coin / tang / fix (+ h / v) set by the user (constraints.py
+  _relation; sketcher RELATIONS, symbols, list; collapsing solutions refused). tools/e2e_model_relations.py.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): hole / sketch distances from
   round faces (a shaft's axis); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

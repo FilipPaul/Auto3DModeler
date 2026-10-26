@@ -88,6 +88,8 @@ Never report "works" without having run it; report failures with their output.
    hole depth to the part's thickness; pattern count to what still reaches the part; the 3D size editor's range).
    `tools/e2e_assembly_sub.py <url> <dir>` covers assemblies in assemblies (one body, joined, mass, STEP with every
    part, no assembly in itself).
+   `tools/e2e_model_relations.py <url> <dir>` covers ⟂ Relations (parallel, equal, a contradiction refused, a symbol
+   clicked away, concentric, tangent).
    `tools/e2e_assembly_ai.py <url> <dir>` covers the AI's assembly tools (insert_part, snap_faces by face name, place_part,
    screenshot, undo, the error messages for wrong faces / tools).
    `tools/e2e_model_features.py <url> <dir>` covers ◜ Fillet (click an edge, exact volume, the rounding follows when
