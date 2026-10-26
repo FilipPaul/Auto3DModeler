@@ -112,8 +112,11 @@ export class ChatPanel {
       <div class="ai-log"><div class="ai-empty">
         <p><b>Describe what you want</b> — Claude works on the part in the app: opens drawings, traces pictures, sets
         sizes, adds holes, text and objects, checks the printer and exports.</p>
+        <p><b>3D models and assemblies</b> too — it sketches, extrudes, drills, rounds and puts parts together.</p>
         <p class="hint">e.g. “Make a 90 mm cookie cutter from C:\\pics\\star.png with a hanging hole” · “Add a 5 mm hole 8 mm from the top”
         · “Engrave my name on the flange”.</p>
+        <p class="hint">“Make a 60 × 40 × 5 mm plate with four Ø4 holes 6 mm from the corners and rounded edges” · “Put the pin into
+        the hole of the plate”.</p>
         <p class="hint">📎 Attach a photo (or paste / drop it here) — “Make a cookie cutter from this, 90 mm wide”.</p>
         <p class="hint">Runs on your own Claude Code sign-in (Claude subscription or API key) — the app only gives Claude its part tools.</p>
       </div></div>

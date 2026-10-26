@@ -616,6 +616,10 @@ const CS_HTML = {
     'Použije se nakonec, na hotový díl (design i spoje se ohnou s ním). Masky a kóty upravujte v <b>rovném pohledu</b>.',
   'Click a value in the 3D view to type it, drag it left/right to scrub, or scroll over it. Shift = ×10, Alt = ×0.1. Values accept math, e.g. 78.7/2.':
     'Klikněte na hodnotu ve 3D pohledu a napište ji, táhněte doleva/doprava nebo použijte kolečko. <kbd>Shift</kbd> = ×10, <kbd>Alt</kbd> = ×0,1. Hodnoty přijímají výpočty, např. <code>78.7/2</code>.',
+  '3D models and assemblies too — it sketches, extrudes, drills, rounds and puts parts together.':
+    '<b>Také 3D modely a sestavy</b> — kreslí skici, vysunuje, vrtá, zaobluje a skládá díly dohromady.',
+  '“Make a 60 × 40 × 5 mm plate with four Ø4 holes 6 mm from the corners and rounded edges” · “Put the pin into the hole of the plate”.':
+    '„Udělej desku 60 × 40 × 5 mm se čtyřmi dírami Ø4 6 mm od rohů a zaoblenými hranami“ · „Zasuň čep do díry v desce“.',
   'Describe what you want — Claude works on the part in the app: opens drawings, traces pictures, sets sizes, adds holes, text and objects, checks the printer and exports.':
     '<b>Popište, co chcete</b> — Claude pracuje na dílu v aplikaci: otevírá výkresy, obkresluje obrázky, nastavuje velikosti, přidává díry, text a objekty, kontroluje tiskárnu a exportuje.',
   'Made from the drawing {}: its dimensions drive the part (Dimensions tab). Below, cut or add 2D shapes on its profile and add 3D objects — holes, posts, bars, text, offsets of the profile.':
