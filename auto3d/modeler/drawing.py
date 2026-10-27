@@ -1,6 +1,6 @@
 """A 2D drawing of a model part (PDF, A4 landscape): three views — front, top and right — with the visible edges
-(solid) and the hidden ones (dashed), an iso view, the overall sizes dimensioned, the round faces listed (Ø), and a
-title block. The views come from the kernel's hidden-line removal (kernel.project_edges, in the worker); drawn with
+(solid) and the hidden ones (dashed), an iso view, the overall sizes dimensioned, the round faces listed (Ø; a hole
+with a fit as "Ø8 H7", its deviations in the title block), the general tolerance (ISO 2768) and a title block. The views come from the kernel's hidden-line removal (kernel.project_edges, in the worker); drawn with
 PyMuPDF.
 """
 from __future__ import annotations
@@ -10,6 +10,7 @@ import math
 
 import numpy as np
 
+from . import fits as FITS
 from . import kernel as K
 
 MM = 72 / 25.4  # PDF points per mm
@@ -57,7 +58,8 @@ def _round_faces(body):
     return dict(sorted(out.items())), sorted(upright, key=lambda q: (q[2], q[1]))
 
 
-def pdf(body, name="part", material="PLA", mass_g=None):
+def pdf(body, name="part", material="PLA", mass_g=None, fits=None, tolerance=None):
+    """fits: {diameter: "H7"} (the holes with a fit), tolerance: "f" | "m" | "c" (ISO 2768) or None."""
     import fitz
 
     shape = body.shape
@@ -69,7 +71,9 @@ def pdf(body, name="part", material="PLA", mass_g=None):
     page_w, page_h = 297 * MM, 210 * MM
     doc = fitz.open()
     page = doc.new_page(width=page_w, height=page_h)
-    margin, title_h = 10 * MM, 22 * MM
+    margin, title_h = 10 * MM, 27 * MM
+    fits = {round(float(d), 3): f for d, f in (fits or {}).items() if f}
+    fit_of = lambda d: fits.get(round(d, 3))  # noqa: E731
     # the sheet: front top-left, right beside it, top below the front (labelled), iso bottom-right
     cell_w, cell_h = (page_w - 2 * margin) / 2, (page_h - 2 * margin - title_h) / 2
     need_w = max(size[0] + size[1], 1)
@@ -104,7 +108,7 @@ def pdf(body, name="part", material="PLA", mass_g=None):
     tv, th = views["Top"]
     tx0, ty0, tx1, ty1 = _extent(tv + th)
     draw_view(tv, th, fx, margin + cell_h * 1.5, "Top", [((tx1, ty0), (tx1, ty1), size[1], "right")],
-              [((x, y), d / 2, f"Ø{d:g}") for d, x, y in upright[:20]])
+              [((x, y), d / 2, f"Ø{d:g} {fit_of(d)}" if fit_of(d) else f"Ø{d:g}") for d, x, y in upright[:20]])
     if iso:
         ix0, iy0, ix1, iy1 = _extent(iso)
         ki = min(cell_w * 0.6 / max(ix1 - ix0, 1e-6), cell_h * 0.6 / max(iy1 - iy0, 1e-6))
@@ -116,12 +120,16 @@ def pdf(body, name="part", material="PLA", mass_g=None):
     tx, ty = margin, page_h - margin - title_h
     page.draw_rect(fitz.Rect(tx, ty, page_w - margin, page_h - margin), color=(0, 0, 0), width=0.8)
     lines = [f"{name}", f"Size {size[0]:.6g} × {size[1]:.6g} × {size[2]:.6g} mm   Material {material}" + (f"   Mass {mass_g:.1f} g" if mass_g else ""),
-             "Round: " + (", ".join(f"Ø{d:g}" + (f" ×{n}" if n > 1 else "") for d, n in rounds.items()) if rounds else "—")
+             "Round: " + (", ".join(f"Ø{d:g}" + (f" {fit_of(d)}" if fit_of(d) else "") + (f" ×{n}" if n > 1 else "") for d, n in rounds.items()) if rounds else "—")
              + ("   Holes from the lower-left (x, y): " + ", ".join(f"({x - bb[0]:.4g}, {y - bb[1]:.4g})" for _, x, y in upright[:8])
                 + (" …" if len(upright) > 8 else "") if upright else "")]
     page.insert_text(fitz.Point(tx + 4 * MM, ty + 7 * MM), lines[0], fontsize=13)
     page.insert_text(fitz.Point(tx + 4 * MM, ty + 13 * MM), lines[1], fontsize=9)
     page.insert_text(fitz.Point(tx + 4 * MM, ty + 18 * MM), lines[2], fontsize=9)
+    fitted = [FITS.label(d, f) for d, f in sorted(fits.items()) if d in rounds]
+    tol = f"General tolerances ISO 2768-{tolerance} ({FITS.GENERAL[tolerance]})" if tolerance in FITS.GENERAL else ""
+    if fitted or tol:
+        page.insert_text(fitz.Point(tx + 4 * MM, ty + 23 * MM), "   ".join(x for x in (("Fits: " + ", ".join(fitted)) if fitted else "", tol) if x), fontsize=9)
     page.insert_text(fitz.Point(page_w - margin - 70 * MM, ty + 7 * MM), f"Scale {scale[0]}:{scale[1]}   Units mm", fontsize=9)
     page.insert_text(fitz.Point(page_w - margin - 70 * MM, ty + 13 * MM), f"{_dt.date.today().isoformat()}   Auto3DModeler", fontsize=9)
     page.insert_text(fitz.Point(page_w - margin - 70 * MM, ty + 18 * MM), "Hidden edges dashed", fontsize=8, color=(0.4, 0.4, 0.4))

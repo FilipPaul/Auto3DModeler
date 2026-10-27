@@ -125,6 +125,10 @@ Never report "works" without having run it; report failures with their output.
    M3 socket / inductive M12 / cylinder 16 with the asked size; library_add a 608 into an assembly with its faces and
    bottom face; axis + touch: in its seat, free to turn only, its part number in the parts list; check_collisions: none,
    then a screw inside the block reported; wrong size / length answered with the ones there are).
+   `tools/e2e_model_fits.py <url> <dir>` covers fits and tolerances (the AI's hole with fit "h7" -> H7 in the step list and
+   the hole's Fit; set to H8 by hand; set_material aluminium + tolerance m in the part panel; the PDF drawing: Ø8 H8,
+   "Fits: Ø8 H8 (+0.022 / 0)", ISO 2768-m; fit null takes it off; a wrong fit refused). Restart the server after
+   changes to drawing.py / doc.py (the kernel worker keeps old code).
    `tools/e2e_ai_ask.py <url> <dir>` covers the AI's ask_user (two questions -> the chat in sight, cards of buttons with
    the recommended option first ★; one answered: nothing sent; both: one message "<question> → <option>"; ✎ Other…
    puts the question in the box; no options refused). The message is caught in the page (no Claude needed).

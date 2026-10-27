@@ -424,6 +424,22 @@ class TestFeatures(unittest.TestCase):
             self.assertIn(want, text)
         self.assertGreater(len(page.get_drawings()), 20)  # the views' lines, dimensions, the title block
 
+    def test_drawing_fits_and_tolerances(self):
+        """A hole with a fit: "Ø8 H7" at the hole and with its deviations in the title block; ISO 2768-m below."""
+        import fitz
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        part = {"features": box() + [{"id": "H1", "type": "hole", "plane": top, "points": [[-10, -5], [10, 5]], "d": 8, "through": True, "fit": "H7"},
+                                     {"id": "H2", "type": "hole", "plane": top, "points": [[0, 0]], "d": 3.4, "through": True}],
+                "material": "aluminium", "tolerance": "m"}
+        text = fitz.open(stream=doc.export(part, "pdf", "Plate"), filetype="pdf")[0].get_text()
+        for want in ("Ø8 H7", "Fits: Ø8 H7 (+0.015 / 0)", "General tolerances ISO 2768-m (medium)", "aluminium", "Ø3.4"):
+            self.assertIn(want, text)
+        self.assertNotIn("Ø3.4 H", text)  # a hole without a fit stays plain
+        plain = fitz.open(stream=doc.export({**part, "tolerance": None, "features": box()}, "pdf", "P"), filetype="pdf")[0].get_text()
+        self.assertNotIn("ISO 2768", plain)
+        self.assertNotIn("Fits:", plain)
+
+
     def test_limits(self):
         top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
         fil = {"id": "F1", "type": "fillet", "edges": [{"a": "E1:end", "b": "E1:side:l1", "fp": [20, 0, 10]}], "r": 2}
@@ -440,6 +456,24 @@ class TestFeatures(unittest.TestCase):
         self.assertIn("cannot be hollowed out", r["features"][-1]["issues"][0])
         r, _ = vol(*box(), {**sh, "t": 7})
         self.assertIn("at most 4.99 mm", r["features"][-1]["issues"][0])
+
+
+class TestFits(unittest.TestCase):
+    """ISO 286 deviations by size range, and the labels on the drawing."""
+
+    def test_deviations(self):
+        from auto3d.modeler import fits
+        self.assertEqual(fits.deviation("H7", 8), (0.015, 0))
+        self.assertEqual(fits.deviation("H7", 10), (0.015, 0))   # 10 is still "over 6 to 10"
+        self.assertEqual(fits.deviation("H7", 10.01), (0.018, 0))
+        self.assertEqual(fits.deviation("g6", 22), (-0.007, -0.02))
+        self.assertEqual(fits.deviation("k6", 8), (0.01, 0.001))
+        self.assertEqual(fits.deviation("p6", 100), (0.059, 0.037))
+        self.assertIsNone(fits.deviation("H7", 200))
+        self.assertIsNone(fits.deviation("X9", 8))
+        self.assertEqual(fits.label(22, "H7"), "Ø22 H7 (+0.021 / 0)")
+        self.assertEqual(fits.label(8, "g6"), "Ø8 g6 (-0.005 / -0.014)")
+        self.assertEqual(fits.label(300, "H7"), "Ø300 H7")
 
 
 if __name__ == "__main__":

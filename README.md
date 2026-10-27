@@ -267,6 +267,10 @@ as a 📐 Drawing — everything in the DXF / DWG section above works on it (lay
 the **Front**, **Top** and **Right** views with visible edges (solid) and hidden ones (dashed), an iso view, the
 overall sizes dimensioned, every hole labelled (Ø) and listed with its position from the part's lower-left corner,
 and a title block (name, size, material, mass, scale). The AI's `export {format: "pdf"}` writes the same file.
+**Fits and tolerances**: a Hole step has a **Fit** (H6 / H7 / H8 / H9, ISO 286) — the drawing labels it *Ø8 H7* and
+lists it with its deviations (*Ø8 H7 (+0.015 / 0)*); the part's **Tolerances** (ISO 2768-f / m / c) go into the
+title block. The model keeps the nominal size. Materials for machined parts too: POM, aluminium, steel, stainless
+steel, brass.
 
 ## 📚 Parts library
 

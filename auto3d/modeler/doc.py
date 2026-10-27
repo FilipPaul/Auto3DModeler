@@ -839,9 +839,12 @@ def export(part, fmt, name="part"):
     st = body_of(part)
     if fmt == "pdf":  # a 2D drawing: three views, sizes, title block
         from . import drawing
-        mats = {"PLA": 1.24, "PETG": 1.27, "ABS": 1.04, "ASA": 1.07, "TPU": 1.21, "PA": 1.14}  # g / cm³, as in the browser
+        mats = {"PLA": 1.24, "PETG": 1.27, "ABS": 1.04, "ASA": 1.07, "TPU": 1.21, "PA": 1.14, "POM": 1.41,  # g / cm³, as in the browser
+                "aluminium": 2.70, "steel": 7.85, "stainless steel": 7.93, "brass": 8.5}
         mat = (part or {}).get("material") or "PLA"
-        return drawing.pdf(st.body, name=name, material=mat, mass_g=K.volume(st.body.shape) / 1000 * mats.get(mat, 1.24))
+        fits = {f["d"]: f["fit"] for f in (part or {}).get("features") or [] if f.get("type") == "hole" and f.get("fit") and not f.get("off")}
+        return drawing.pdf(st.body, name=name, material=mat, mass_g=K.volume(st.body.shape) / 1000 * mats.get(mat, 1.24), fits=fits,
+                           tolerance=(part or {}).get("tolerance"))
     if fmt == "step":
         return K.to_step(st.body.shape)
     if fmt == "stl":

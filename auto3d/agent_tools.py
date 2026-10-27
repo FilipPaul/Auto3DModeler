@@ -175,7 +175,7 @@ TOOLS = [
                     "- extrude: sketch (id), d, op add / cut, through (cut through all), symmetric, flip; or up_to: a flat face's "
                     "name (as far as that face — it follows the face), offset (mm past it, negative = short of it).\n"
                     "- revolve: sketch, axis \"y\" (the sketch's vertical axis) / \"x\" / a line id, angle (360), op.\n"
-                    "- hole: face (name), points [[u, v]] from the face's centre, d, through (default) or depth; "
+                    "- hole: face (name), points [[u, v]] from the face's centre, d, through (default) or depth, fit (ISO 286 H6 / H7 / H8 / H9: shown on the 2D drawing as Ø8 H7; model the nominal d); "
                     "from: [{x: {edge: <ref from find_refs>, d}, y: {edge, d}}] per hole = its distance from a straight edge "
                     "of that face (d signed along the face's x / y; the hole keeps it when the part changes).\n"
                     "- fillet: edges [refs from find_refs], r. chamfer: edges, d.\n"
@@ -200,7 +200,7 @@ TOOLS = [
                           "faces": {"type": "array"}, "t": NUM, "of": {}, "kind": {"type": "string", "enum": ["linear", "circular"]},
                           "count": NUM, "spacing": NUM, "dir": {}, "up_to": STR, "offset": NUM,
                           "sketches": {"type": "array"}, "profile": STR, "path": STR,
-                          "text": STR, "h": NUM, "at": {"type": "array"}}, ["type"])},
+                          "text": STR, "h": NUM, "at": {"type": "array"}, "fit": {"type": "string", "enum": ["H6", "H7", "H8", "H9"]}}, ["type"])},
     {"name": "edit_feature", "where": "browser",
      "description": "Change a step of the 3D model: id and fields (as in add_feature, e.g. {d: 15}, {r: 3}, {points: …}, a "
                     "sketch's {shapes: […]}). Later steps follow their faces.",
@@ -213,8 +213,11 @@ TOOLS = [
     {"name": "turn_off_feature", "where": "browser", "description": "Turn a step off (off true) or on again (off false); it is kept.",
      "inputSchema": _obj({"id": STR, "off": {"type": "boolean"}}, ["id"])},
     {"name": "set_material", "where": "browser",
-     "description": "The 3D model's material (for its mass in get_model): PLA, PETG, ABS, ASA, TPU or PA.",
-     "inputSchema": _obj({"material": {"type": "string", "enum": ["PLA", "PETG", "ABS", "ASA", "TPU", "PA"]}}, ["material"])},
+     "description": "The 3D model's material (its mass in get_model, the 2D drawing's title block): printed PLA, PETG, ABS, ASA, TPU, "
+                    "PA; machined POM, aluminium, steel, stainless steel, brass. tolerance: the general tolerances on its drawing, ISO "
+                    "2768 \"f\" (fine), \"m\" (medium — the usual for machined parts) or \"c\" (coarse); null: none.",
+     "inputSchema": _obj({"material": {"type": "string", "enum": ["PLA", "PETG", "ABS", "ASA", "TPU", "PA", "POM", "aluminium", "steel", "stainless steel", "brass"]},
+                          "tolerance": {"type": ["string", "null"], "enum": ["f", "m", "c", None]}})},
     {"name": "prepare_print", "where": "browser",
      "description": "A printing copy of the 3D model on screen, opened as a quick part on the 3D print tab — then check_print "
                     "and export work on it.",

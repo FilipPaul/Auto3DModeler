@@ -64,6 +64,11 @@ Date: 2026-10-25. Written by the architect agent.
   /api/projects routes; web/js/autosave.js (History.commit / go and the quick part's history fire `a3d:changed`; saved
   3 s later if the project file changed, a beacon on pagehide; 🕘 Recent projects; the last one offered). A3D_DATA
   points a server at another data folder (test servers). tests/test_autosave.py, tools/e2e_autosave.py.
+- **Fits and tolerances on the drawing done:** auto3d/modeler/fits.py (ISO 286: holes H6–H9, shafts f7–p6, to 120 mm;
+  label "Ø8 H7 (+0.015 / 0)"); a hole step's `fit` (its Fit choice; add_feature / edit_feature fit), a part's
+  `tolerance` f / m / c (the part panel's Tolerances; set_material tolerance) -> drawing.pdf: "Ø8 H7" at the hole, the
+  fits with deviations and ISO 2768 in the title block; materials POM, aluminium, steel, stainless steel, brass.
+  tests: test_drawing_fits_and_tolerances, TestFits; tools/e2e_model_fits.py.
 - **The design brief with buttons, skills per design kind done:** browser tool ask_user (ChatPanel.ask: a card of
   options, the recommended first ★, the answers sent as one message once all open ones are answered; ✎ Other… types);
   the system prompt asks the brief before a new design and asks with options when unsure; skills start-a-design,

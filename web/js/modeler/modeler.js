@@ -26,7 +26,7 @@ const USES_SKETCH = new Set(['extrude', 'revolve', 'loft', 'sweep']);
 /** The sketches a step is made from. */
 const sketchesOf = (f) => (f.type === 'loft' ? f.sketches || [] : f.type === 'sweep' ? [f.profile, f.path] : USES_SKETCH.has(f.type) ? [f.sketch] : []).filter(Boolean);
 // densities for the mass (g/cm³), common 3D-printing materials
-export const MATERIALS = { PLA: 1.24, PETG: 1.27, ABS: 1.04, ASA: 1.07, TPU: 1.21, PA: 1.14, steel: 7.85, brass: 8.5, aluminium: 2.7 }; // g/cm³ (the metals: bought parts)
+export const MATERIALS = { PLA: 1.24, PETG: 1.27, ABS: 1.04, ASA: 1.07, TPU: 1.21, PA: 1.14, POM: 1.41, aluminium: 2.7, steel: 7.85, 'stainless steel': 7.93, brass: 8.5 }; // g/cm³ (printed, then machined / bought)
 const DATUM_NAME = { XY: 'Top', XZ: 'Front', YZ: 'Right' };
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const SIZES_KEY = 'a3d.sizes', SIZE_MODES = ['all', 'locked', 'none'];
@@ -282,7 +282,7 @@ export class Modeler {
     if (f.type === 'extrude') return f.op === 'cut' ? (f.through ? 'cut through all' : `cut ${fmt(f.d)} mm`) : `${fmt(f.d)} mm`;
     if (f.type === 'fillet') return `R ${fmt(f.r)} · ${n('edges')} edge(s)`;
     if (f.type === 'chamfer') return `${fmt(f.d)} mm · ${n('edges')} edge(s)`;
-    if (f.type === 'hole') return `Ø${fmt(f.d)} · ${n('points')} hole(s)${f.through === false ? ` · ${fmt(f.depth)} deep` : ''}`;
+    if (f.type === 'hole') return `Ø${fmt(f.d)}${f.fit ? ` ${f.fit}` : ''} · ${n('points')} hole(s)${f.through === false ? ` · ${fmt(f.depth)} deep` : ''}`;
     if (f.type === 'revolve') return `${fmt(f.angle)}°${f.op === 'cut' ? ' cut' : ''}`;
     if (f.type === 'shell') return `wall ${fmt(f.t)} mm · ${n('faces')} open`;
     if (f.type === 'decal') return `${f.source === 'text' ? `“${f.text}”` : 'picture'} · ${fmt(f.h)} mm${f.op === 'cut' ? ' · engraved' : ' · raised'}`;
@@ -769,6 +769,8 @@ export class Modeler {
           <span>Volume</span><b>${fmt(b.volume / 1000)} cm³</b>
           <span>Mass</span><b>${fmt(+(b.volume / 1000 * (MATERIALS[this.part.material || 'PLA'])).toFixed(1))} g <span class="mp-sub">(solid)</span></b></div>
           <div class="field"><label>Material</label><select data-k="material">${Object.keys(MATERIALS).map((k) => `<option value="${k}" ${k === (this.part.material || 'PLA') ? 'selected' : ''}>${k}</option>`).join('')}</select></div>
+          <div class="field"><label>Tolerances</label><select data-k="tolerance" title="The general tolerances (ISO 2768) for sizes without their own — on the 2D drawing">
+            ${[['', '—'], ['f', 'ISO 2768-f (fine)'], ['m', 'ISO 2768-m (medium)'], ['c', 'ISO 2768-c (coarse)']].map(([v, l]) => `<option value="${v}" ${v === (this.part.tolerance || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
           <div class="field"><label>Colour</label><input type="color" data-k="color" value="${this.part.color || '#d9dee6'}" title="Its colour here and in assemblies"></div>
           <div class="field mp-look"><label>See-through</label><input type="range" min="0" max="90" step="5" data-k="clear" value="${Math.round((1 - (this.part.opacity ?? 1)) * 100)}"><span class="unit">${Math.round((1 - (this.part.opacity ?? 1)) * 100)} %</span></div>`
       : '<p class="hint">No solid yet — extrude a sketch.</p>'}
@@ -788,6 +790,7 @@ export class Modeler {
     for (const el of box.querySelectorAll('[data-a]')) el.addEventListener('click', () => this.action(el.dataset.a));
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
     box.querySelector('[data-k=material]')?.addEventListener('change', (e) => { this.part.material = e.target.value; this.history.commit(); this.renderProps(); });
+    box.querySelector('[data-k=tolerance]')?.addEventListener('change', (e) => { if (e.target.value) this.part.tolerance = e.target.value; else delete this.part.tolerance; this.history.commit(); });
     const col = box.querySelector('[data-k=color]'), clr = box.querySelector('[data-k=clear]');
     col?.addEventListener('input', () => { this.part.color = col.value; this.view.setLook(this.part); });
     col?.addEventListener('change', () => { this.history.commit(); this.hooks.onChange?.(); });
@@ -1591,6 +1594,8 @@ export class Modeler {
       <div class="field"><label>Diameter</label><input type="number" step="any" min="0" data-k="d" value="${fmt(f.d)}"><span class="unit">mm</span></div>
       <label class="check"><input type="checkbox" data-k="through" ${f.through !== false ? 'checked' : ''}> Through all</label>
       ${f.through === false ? `<div class="field"><label>Depth</label><input type="number" step="any" min="0" data-k="depth" value="${fmt(f.depth)}"><span class="unit">mm</span></div>` : ''}
+      <div class="field"><label>Fit</label><select data-k="fit" title="An ISO 286 fit for the hole — shown on the 2D drawing (Ø8 H7 and its deviations); the model keeps the nominal size">
+        ${['', 'H6', 'H7', 'H8', 'H9'].map((v) => `<option value="${v}" ${v === (f.fit || '') ? 'selected' : ''}>${v || '—'}</option>`).join('')}</select></div>
       ${f.points.length ? `<h3>Holes</h3><div class="mp-holes">${f.points.map((p, i) => `<div class="mp-hole">
         <span>${i + 1}</span><div class="mp-hole-dims">${['x', 'y'].map((axis, k) => this.holeDimRow(f, i, axis, k)).join('')}</div>
         <button class="mini danger" data-del="${i}" title="Remove this hole">✕</button></div>`).join('')}</div>
@@ -1606,6 +1611,7 @@ export class Modeler {
     const dep = box.querySelector('[data-k=depth]');
     if (dep) num(dep, (v) => { if (v > 0) f.depth = v; });
     box.querySelector('[data-k=through]').addEventListener('change', (e) => { f.through = e.target.checked; this.renderProps(); this.rebuild(); });
+    box.querySelector('[data-k=fit]').addEventListener('change', (e) => { if (e.target.value) f.fit = e.target.value; else delete f.fit; });
     for (const el of box.querySelectorAll('[data-u]')) num(el, (v) => { f.points[+el.dataset.u][0] = v; });
     for (const el of box.querySelectorAll('[data-v]')) num(el, (v) => { f.points[+el.dataset.v][1] = v; });
     // a distance from an edge: typed as a positive number, the hole stays on its side of the edge

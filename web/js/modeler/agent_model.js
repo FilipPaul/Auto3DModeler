@@ -129,6 +129,10 @@ export function sketchFromShapes(shapes, lock = true) {
 }
 
 const KIND = { model: '3D model', assembly: 'assembly', drawing: '2D drawing' };
+const FITS = ['H6', 'H7', 'H8', 'H9'];
+/** A hole's fit as written ("h7", "H7") -> "H7", or null (none / unknown: refused by the caller's check). */
+const fitOf = (v) => { if (!v) return null; const f = String(v).toUpperCase(); if (!FITS.includes(f)) throw new Error(`fit: one of ${FITS.join(', ')} (ISO 286 holes), not ${v}.`); return f; };
+const MATERIAL_NAME = Object.fromEntries(['PLA', 'PETG', 'ABS', 'ASA', 'TPU', 'PA', 'POM', 'aluminium', 'steel', 'stainless steel', 'brass'].map((k) => [k.toLowerCase(), k])); // (as in MATERIALS)
 
 export function modelHandlers({ modeler: m, project, getWorkspace }) {
   const needModel = () => {
@@ -196,7 +200,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
     if (type === 'hole') {
       if (!spec.face) throw new Error('face: the name of the flat face the holes go into (find_refs).');
       return { ...base, plane: planeOf({ face: spec.face }), points: spec.points || [[0, 0]], d: spec.d ?? 5,
-        through: spec.through !== false, depth: spec.depth ?? 10, ...(spec.from ? { from: spec.from } : {}) };
+        through: spec.through !== false, depth: spec.depth ?? 10, ...(spec.from ? { from: spec.from } : {}), ...(fitOf(spec.fit) ? { fit: fitOf(spec.fit) } : {}) };
     }
     if (type === 'shell') {
       const faces = (spec.faces || []).map((n) => { const f = faceOf(typeof n === 'string' ? n : n.name); return { name: f.name, fp: f.centroid }; });
@@ -317,7 +321,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         if (f.type === 'revolve') Object.assign(out, { sketch: f.sketch, op: f.op, axis: f.axis, angle: f.angle });
         if (f.type === 'fillet') Object.assign(out, { r: f.r, edges: f.edges.length });
         if (f.type === 'chamfer') Object.assign(out, { d: f.d, edges: f.edges.length });
-        if (f.type === 'hole') Object.assign(out, { face: f.plane?.face?.name, d: f.d, points: f.points, through: f.through !== false, depth: f.depth });
+        if (f.type === 'hole') Object.assign(out, { face: f.plane?.face?.name, d: f.d, points: f.points, through: f.through !== false, depth: f.depth, ...(f.fit ? { fit: f.fit } : {}) });
         if (f.type === 'shell') Object.assign(out, { t: f.t, open_faces: f.faces.map((x) => x.name) });
         if (f.type === 'loft') Object.assign(out, { sketches: f.sketches, op: f.op });
         if (f.type === 'sweep') Object.assign(out, { profile: f.profile, path: f.path, op: f.op });
@@ -386,6 +390,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       } else {
         const next = build({ ...f, ...fields, type: f.type, of: fields.of || f.features, name: fields.name || f.name, face: fields.face || f.plane?.face?.name, faces: fields.faces || f.faces?.map((x) => x.name), sketch: fields.sketch || f.sketch });
         Object.assign(f, { ...next, id: f.id, name: fields.name || f.name });
+        if ('fit' in fields && !fields.fit) delete f.fit; // (a hole's fit taken off)
       }
       return commitAnd(id);
     },
@@ -411,9 +416,14 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       return { text: JSON.stringify(stepResult(id)) };
     },
 
-    set_material: async ({ material }) => {
+    set_material: async ({ material, tolerance }) => {
       needModel();
-      m.setMaterial(String(material || '').toUpperCase());
+      if (material) m.setMaterial(MATERIAL_NAME[String(material).toLowerCase()] || String(material));
+      if (tolerance !== undefined) {
+        if (tolerance && !['f', 'm', 'c'].includes(tolerance)) throw new Error('tolerance: "f", "m" or "c" (ISO 2768), or null for none.');
+        if (tolerance) m.part.tolerance = tolerance; else delete m.part.tolerance;
+        m.history.commit();
+      }
       return { text: JSON.stringify(summary()) };
     },
 
