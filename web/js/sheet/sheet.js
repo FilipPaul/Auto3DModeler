@@ -192,6 +192,10 @@ export class SheetEditor {
     for (const d of this.allDims()) out.push(this.dimSvg(d, forPrint));
     if (this.d.asm) out.push(this.asmSvg(pw, ph, m, th));
     if (!forPrint && this.tool === 'dim') out.push(this.snapMarks());
+    if (!forPrint && this.checked) for (const m of this.checked.missing) { // what is missing: an orange ?
+      const q = this.P(m.view, m.at);
+      out.push(`<g class="sh-miss"><circle cx="${q[0]}" cy="${q[1]}" r="2" fill="#f59e0b" opacity="0.85"/><text x="${q[0]}" y="${q[1] + 1.1}" font-size="2.8" text-anchor="middle" fill="#fff">?</text></g>`);
+    }
     out.push(this.titleSvg(pw, ph, m, th, s));
     out.push('</svg>');
     return out.join('').replace(/<text /g, '<text font-family="Helvetica" '); // (the PDF's converter does not inherit a font)
@@ -366,6 +370,7 @@ export class SheetEditor {
 
   // ------------------------------------------------------------------ the screen
   render() {
+    this.checked = this.d && this.geo ? this.check() : null; // (the panels show it)
     this.renderBar();
     this.renderLeft();
     this.renderProps();
@@ -406,12 +411,18 @@ export class SheetEditor {
   renderLeft() {
     const box = this.$('.sh-left');
     if (!box || !this.d) return;
-    const all = this.allDims(), hid = this.d.hidden.length;
-    const vp = this.d.vpreset || {};
-    box.innerHTML = `<h3>Views</h3><div class="sh-views">${[...VIEWS, 'Iso'].map((v) => `<div class="sh-vrow"><label class="check"><input type="checkbox" data-v="${v}" ${this.d.off[v] ? '' : 'checked'}> ${esc(t(v))}</label>
+    const all = this.allDims(), hid = this.d.hidden.length, ck = this.checked || { missing: [], dup: new Set(), over: new Set(), ok: true };
+    const vp = this.d.vpreset || {}, per = (v) => ck.missing.filter((m) => m.view === v).length;
+    box.innerHTML = `<h3>Views</h3><div class="sh-views">${[...VIEWS, 'Iso'].map((v) => `<div class="sh-vrow"><label class="check"><input type="checkbox" data-v="${v}" ${this.d.off[v] ? '' : 'checked'}> ${esc(t(v))}${v === 'Iso' || this.d.off[v] ? '' : per(v) ? ` <b class="sh-vbad" title="${esc(t('Sizes missing in this view'))}">⚠ ${per(v)}</b>` : ' <b class="sh-vok">✓</b>'}</label>
         ${v === 'Iso' ? '' : `<select data-vp="${v}" title="${esc(t('How many dimensions in this view — as the sheet, or its own'))}"><option value="">${esc(t('as the sheet'))}</option>${PRESETS.map(([k, l]) => `<option value="${k}" ${vp[v] === k ? 'selected' : ''}>${esc(t(l))}</option>`).join('')}</select>`}</div>`).join('')}</div>
-      <h3>Dimensions</h3><div class="sh-dlist">${all.map((d) => { const v = this.value(d); return `<div class="sh-drow ${this.sel === d.id ? 'on' : ''} ${v === null ? 'bad' : ''}" data-d="${d.id}">
-        <span data-no-i18n>${d.kind === 'linear' ? (d.dir === 'h' ? '↔ ' : '↕ ') : ''}${esc(v === null ? '⚠ ?' : this.dimText(d, v))}</span><i>${esc(t(d.view))}${d.auto ? '' : ' · ✎'}</i><button class="mini danger" data-x="${d.id}" title="Delete it">✕</button></div>`; }).join('') || '<p class="hint">None.</p>'}</div>
+      <h3>Check</h3>${ck.ok && !ck.over.size ? `<p class="mp-count sh-ok">✓ ${esc(t('Fully dimensioned — every place and size is given once.'))}</p>` : ''}
+      ${ck.missing.length ? `<p class="hint">${esc(tv('{n} size(s) missing (orange ? on the drawing):', { n: ck.missing.length }))}</p><div class="sh-miss-list">${ck.missing.slice(0, 40).map((m, i) => `<div class="sh-mrow">
+        <span data-no-i18n>${esc(t(m.view))}: ${esc(m.what)}${m.ax ? ` <i>${m.ax}</i>` : ''}</span><button class="mini" data-miss="${i}" title="${esc(t('Add it (from the part\'s edge)'))}">＋</button></div>`).join('')}</div>
+        <div class="row-actions"><button class="btn small" data-a="allMissing">＋ ${esc(t('Add all missing'))}</button></div>` : ''}
+      ${ck.dup.size || ck.over.size ? `<p class="hint">${esc(tv('{n} dimension(s) give a size twice (marked ⧉ below).', { n: ck.dup.size + ck.over.size }))}</p>
+        <div class="row-actions"><button class="btn small" data-a="dropTwice">✕ ${esc(t('Remove them'))}</button></div>` : ''}
+      <h3>Dimensions</h3><div class="sh-dlist">${all.map((d) => { const v = this.value(d), twice = ck.dup.has(d.id) || ck.over.has(d.id); return `<div class="sh-drow ${this.sel === d.id ? 'on' : ''} ${v === null || twice ? 'bad' : ''}" data-d="${d.id}">
+        <span data-no-i18n>${twice ? '⧉ ' : ''}${d.kind === 'linear' ? (d.dir === 'h' ? '↔ ' : '↕ ') : ''}${esc(v === null ? '⚠ ?' : this.dimText(d, v))}</span><i>${esc(t(d.view))}${d.auto ? '' : ' · ✎'}</i><button class="mini danger" data-x="${d.id}" title="Delete it">✕</button></div>`; }).join('') || '<p class="hint">None.</p>'}</div>
       ${hid ? `<div class="row-actions"><button class="btn small" data-a="unhide">↺ ${esc(tv('Bring back deleted ones ({n})', { n: hid }))}</button></div>` : ''}`;
     for (const el of box.querySelectorAll('[data-v]')) {
       el.addEventListener('change', () => { if (el.checked) delete this.d.off[el.dataset.v]; else this.d.off[el.dataset.v] = true; this.commit(); });
@@ -422,6 +433,16 @@ export class SheetEditor {
     for (const row of box.querySelectorAll('[data-d]')) row.addEventListener('click', (e) => { if (!e.target.closest('[data-x]')) { this.sel = row.dataset.d; this.render(); } });
     for (const b of box.querySelectorAll('[data-x]')) b.addEventListener('click', () => this.remove(b.dataset.x));
     box.querySelector('[data-a=unhide]')?.addEventListener('click', () => { this.d.hidden = []; this.commit(); });
+    for (const b of box.querySelectorAll('[data-miss]')) b.addEventListener('click', () => this.addMissing(ck.missing[+b.dataset.miss]));
+    box.querySelector('[data-a=allMissing]')?.addEventListener('click', () => this.addAllMissing());
+    box.querySelector('[data-a=dropTwice]')?.addEventListener('click', () => { for (const id of [...ck.dup, ...ck.over]) this.remove(id); });
+  }
+
+  /** ＋ every missing size (one by one: each new one may give others, e.g. a row's pitch). */
+  addAllMissing(limit = 60) {
+    let n = 0;
+    for (let ck = this.check(); ck?.missing.length && n < limit; ck = this.check(), n++) this.addMissing(ck.missing[0]);
+    return n;
   }
 
   renderProps() {
@@ -446,6 +467,75 @@ export class SheetEditor {
     box.querySelector('[data-k=paper]').addEventListener('change', (e) => { this.d.paper = e.target.value || null; this.d.views = {}; this.history.commit(); this.ensure(true); });
     box.querySelector('[data-a=del]')?.addEventListener('click', () => this.remove(this.sel));
     box.querySelector('[data-a=part]')?.addEventListener('click', () => this.hooks.openPart?.(this.d.source));
+  }
+
+  // ------------------------------------------------------------------ is it fully dimensioned?
+  /** The part's sizes as a reader of the drawing finds them. On each axis of the part (x: across in the front and top;
+   *  y: up in the top, across in the right; z: up in the front and right) every place that needs one — a circle's
+   *  centre, a straight edge, the far end — must be linked by dimensions to the part's lowest place there (a pitch
+   *  "4× 10" links its whole row); every circle needs its Ø, every arc its R. -> {missing: [{view, dir, at, key, what}],
+   *  dup: Set (the same distance twice), over: Set (a distance the others give already), ok}. */
+  check() {
+    const G = this.geo;
+    if (!G) return null;
+    const AX = { Front: ['x', 'z'], Top: ['x', 'y'], Right: ['y', 'z'] }, r2 = (v) => Math.round(v * 100) / 100;
+    const uf = { x: new Map(), y: new Map(), z: new Map() };
+    const find = (ax, v) => { const m = uf[ax]; let k = String(r2(v)); while (m.has(k) && m.get(k) !== k) k = m.get(k); if (!m.has(k)) m.set(k, k); return k; };
+    const join = (ax, a, b) => { const p = find(ax, a), q = find(ax, b); if (p === q) return false; uf[ax].set(p, q); return true; };
+    const shown = VIEWS.filter((v) => !this.d.off[v]), dims = this.allDims(), seen = new Map(), dup = new Set(), over = new Set();
+    for (const d of dims) {
+      if (d.kind !== 'linear' || this.value(d) === null || !shown.includes(d.view)) continue;
+      const g = G.views[d.view], k = d.dir === 'h' ? 0 : 1, ax = AX[d.view][k], a = r2(g.points[d.a][k]), b = r2(g.points[d.b][k]);
+      const sig = `${ax}:${Math.min(a, b)}:${Math.max(a, b)}`;
+      if (seen.has(sig)) { dup.add(d.id); continue; }
+      seen.set(sig, d.id);
+      if (!join(ax, a, b)) over.add(d.id);
+      const n = parseInt(d.pre, 10);
+      if (n > 1) for (let i = 1; i < n; i++) join(ax, r2(a + i * (b - a)), r2(a + (i + 1) * (b - a))); // the rest of the row
+    }
+    const fullR = new Set(dims.filter((d) => d.kind === 'dia' && this.value(d) !== null).map((d) => r2(this.value(d) / 2)));
+    const arcR = new Set(dims.filter((d) => d.kind === 'rad' && this.value(d) !== null).map((d) => r2(this.value(d))));
+    // a circle of a known size: its edges are where its centre is ± its radius (a tangent edge, a boss's side)
+    for (const v of shown) {
+      for (const c of G.views[v].circles) {
+        if (!(c.full ? fullR : arcR).has(r2(c.r))) continue;
+        for (const k of [0, 1]) { join(AX[v][k], c.c[k], c.c[k] + c.r); join(AX[v][k], c.c[k], c.c[k] - c.r); }
+      }
+    }
+    const lowest = { x: G.views.Front.box[0], y: G.views.Top.box[1], z: G.views.Front.box[1] };
+    const missing = [], told = new Set();
+    const need = (v, k, value, key, at, what) => {
+      const ax = AX[v][k], id = `${ax}:${r2(value)}`;
+      if (told.has(id) || find(ax, value) === find(ax, lowest[ax])) return;
+      told.add(id);
+      missing.push({ view: v, dir: k ? 'v' : 'h', at, key, what, ax });
+    };
+
+    const diaTold = new Set();
+    for (const v of shown) {
+      const g = G.views[v];
+      for (const c of g.circles) {
+        if (c.full) {
+          for (const k of [0, 1]) need(v, k, c.c[k], `${c.key}#c`, c.c, `Ø${fmt(2 * c.r)}`);
+          if (!fullR.has(r2(c.r)) && !diaTold.has(`d${r2(c.r)}`)) { diaTold.add(`d${r2(c.r)}`); missing.push({ view: v, kind: 'dia', key: c.key, at: c.pm, what: `Ø${fmt(2 * c.r)}` }); }
+        } else if (!arcR.has(r2(c.r)) && !diaTold.has(`r${r2(c.r)}`)) { diaTold.add(`r${r2(c.r)}`); missing.push({ view: v, kind: 'rad', key: c.key, at: c.pm, what: `R${fmt(c.r)}` }); }
+      }
+      for (const ln of g.lines) {
+        if (ln.key.includes(':round:')) continue; // where a rounding begins: its R gives it
+        if (Math.abs(ln.a[0] - ln.b[0]) < 1e-3) need(v, 0, ln.a[0], `${ln.key}#0`, [(ln.a[0] + ln.b[0]) / 2, (ln.a[1] + ln.b[1]) / 2], t('an edge'));
+        if (Math.abs(ln.a[1] - ln.b[1]) < 1e-3) need(v, 1, ln.a[1], `${ln.key}#0`, [(ln.a[0] + ln.b[0]) / 2, (ln.a[1] + ln.b[1]) / 2], t('an edge'));
+      }
+      need(v, 0, g.box[2], 'box#x1', [g.box[2], g.box[1]], t('the far end'));
+      need(v, 1, g.box[3], 'box#y1', [g.box[2], g.box[3]], t('the top'));
+    }
+    return { missing, dup, over, ok: !missing.length && !dup.size };
+  }
+
+  /** ＋ a missing size: from the part's lowest place in that view to it (a Ø / R on its circle). */
+  addMissing(m) {
+    if (m.kind === 'dia' || m.kind === 'rad') { this.addUser({ view: m.view, kind: m.kind, a: m.key, count: 1, ang: m.kind === 'dia' ? 45 : 0, len: 6 }); return; }
+    const n = this.d.user.filter((d) => d.view === m.view && d.dir === m.dir).length;
+    this.addUser({ view: m.view, kind: 'linear', a: m.dir === 'h' ? 'box#x0' : 'box#y0', b: m.key, dir: m.dir, side: m.dir === 'h' ? 'b' : 'l', off: 20 + 7 * n });
   }
 
   // ------------------------------------------------------------------ editing
@@ -656,7 +746,9 @@ export class SheetEditor {
 
   /** For the AI: the sheet's dimensions with their values. */
   summary() {
-    return { part: this.hooks.partName(this.d.source), ...(Object.keys(this.d.texts || {}).length ? { texts: this.d.texts } : {}), preset: this.d.preset, ...(Object.keys(this.d.vpreset || {}).length ? { view_presets: this.d.vpreset } : {}), paper: this.lay?.paper, rev: this.d.rev, changed: this.d.changed,
+    const ck = this.check();
+    return { check: ck ? { fully_dimensioned: ck.ok && !ck.over.size, missing: ck.missing.map((m) => `${m.view}: ${m.what}${m.ax ? ` (${m.ax})` : ''}`).slice(0, 30), twice: [...ck.dup, ...ck.over] } : null,
+      part: this.hooks.partName(this.d.source), ...(Object.keys(this.d.texts || {}).length ? { texts: this.d.texts } : {}), preset: this.d.preset, ...(Object.keys(this.d.vpreset || {}).length ? { view_presets: this.d.vpreset } : {}), paper: this.lay?.paper, rev: this.d.rev, changed: this.d.changed,
       views: [...VIEWS, 'Iso'].filter((v) => !this.d.off[v]),
       dims: this.allDims().map((d) => ({ id: d.id, view: d.view, kind: d.kind, text: this.value(d) === null ? null : this.dimText(d, this.value(d)), auto: !!d.auto, ...(this.value(d) === null ? { lost: true } : {}) })),
       deleted_auto: this.d.hidden.length };

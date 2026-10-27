@@ -362,7 +362,9 @@ TOOLS = [
      "description": "The drawing sheet on screen: its part, preset, paper, revision, views and dimensions [{id, view, kind (linear / dia / rad), "
                     "text (as drawn, e.g. \"8× Ø3 H7\"), auto (made by the preset) or the user's, lost (its points are gone)}]. "
                     "points: a view's name (Front / Top / Right) — also its points (keys: a hole's centre \"H1:hole:0#c\", a line's ends "
-                    "\"<faces>#0\" / \"#1\", the view box \"box#x0\" / \"box#x1\" / \"box#y0\" / \"box#y1\") and circles, to add dimensions.",
+                    "\"<faces>#0\" / \"#1\", the view box \"box#x0\" / \"box#x1\" / \"box#y0\" / \"box#y1\") and circles, to add dimensions. "
+                    "check: is it fully dimensioned — the sizes missing (each place linked by dimensions to the part's edge, every Ø / R) and the "
+                    "dimensions that give a size twice.",
      "inputSchema": _obj({"points": {"type": "string", "enum": ["Front", "Top", "Right"]}})},
     {"name": "sheet_edit", "where": "browser",
      "description": "Change the drawing sheet on screen: preset light / medium / full (the automatic dimensions), view_presets {Front | Top | "
@@ -370,10 +372,10 @@ TOOLS = [
                     "views {Front | Top | Right | Iso: true / false}, remove [dimension ids], restore true (the deleted automatic ones "
                     "back), move {id: {side (h: t / b; v: l / r), off (mm from the view on the paper), ang, len (a Ø / R leader)}}, "
                     "add [{view, a, b, dir (h / v; else by the points), pre (text before, e.g. \"4×\")} | {view, circle (its key), "
-                    "count, post (e.g. \"H7\")}], texts {title, number (drawing no.), drawn (drawn by), note} (the title block's own; \"\" clears) — values are always measured from the part. Do what the user cannot do in a click.",
+                    "count, post (e.g. \"H7\")}], complete true (every size the check finds missing added), drop_twice true (dimensions giving a size twice removed), texts {title, number (drawing no.), drawn (drawn by), note} (the title block's own; \"\" clears) — values are always measured from the part. Do what the user cannot do in a click.",
      "inputSchema": _obj({"preset": {"type": "string", "enum": ["light", "medium", "full"]}, "view_presets": {"type": "object"}, "paper": {"type": ["string", "null"]}, "views": {"type": "object"},
                           "remove": {"type": "array", "items": STR}, "restore": {"type": "boolean"}, "move": {"type": "object"},
-                          "add": {"type": "array", "items": {"type": "object"}}, "texts": {"type": "object"}})},
+                          "add": {"type": "array", "items": {"type": "object"}}, "texts": {"type": "object"}, "complete": {"type": "boolean"}, "drop_twice": {"type": "boolean"}})},
     {"name": "edit_joint", "where": "browser",
      "description": "Change a joint of the assembly on screen (id J… from get_assembly): gap (mm, flat joints), distance (mm along "
                     "the axis for a concentric joint, null = it slides freely), lock_rotation (true / false), angle (degrees: the "

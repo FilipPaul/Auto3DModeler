@@ -57,6 +57,8 @@ def geometry(body):
         t0, t1 = c.FirstParameter(), c.LastParameter()
         P = lambda t: np.array([c.Value(t).X(), c.Value(t).Y(), c.Value(t).Z()])  # noqa: E731
         if c.GetType() == GeomAbs_Line:
+            if len(fs) == 1 and fs[0] in cyl:  # a round face's seam: not an edge anyone dimensions
+                continue
             edges.append(("line", (P(t0), P(t1)), key, None))
         elif c.GetType() == GeomAbs_Circle:
             ci = c.Circle()

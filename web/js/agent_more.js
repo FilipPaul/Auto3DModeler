@@ -197,7 +197,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       await sheet.ensure();
       return ok({ ...sheet.summary(), ...(points ? { [points]: sheet.pointsOf(points) } : {}) });
     },
-    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, texts } = {}) => {
+    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, texts, complete, drop_twice } = {}) => {
       need('sheet', 'This is for a drawing sheet (📄) — sheet_open opens one');
       const ed = sheet, done = [];
       if (preset !== undefined) {
@@ -249,6 +249,8 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       if (Object.keys(move || {}).length) done.push(`${Object.keys(move).length} moved`);
       const added = [].concat(add).map((spec) => ed.addFor(spec));
       if (added.length) done.push(`added ${added.join(', ')}`);
+      if (drop_twice) { const ck = ed.check(); const ids = [...ck.dup, ...ck.over]; for (const id of ids) ed.remove(id); done.push(`${ids.length} given twice removed`); }
+      if (complete) done.push(`${ed.addAllMissing()} missing size(s) added`);
       ed.commit();
       return ok({ done: done.join('; ') || 'nothing', ...ed.summary() });
     },

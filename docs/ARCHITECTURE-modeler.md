@@ -80,6 +80,12 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Sheet check done:** SheetEditor.check — per world axis (x: front / top across; y: top up / right across; z:
+  front / right up) a union-find of the places the linear dimensions link (a pitch "n×" links its row; a circle of a
+  known Ø / R links its centre ± r); every circle centre, straight edge (not a rounding's) and far end must reach the
+  part's lowest place; every circle a Ø, every arc an R; the same distance twice = dup, a distance already linked =
+  over. ⚠ per view, ＋ / ＋ all (addMissing: from box#x0 / box#y0), ? marks (screen only), ✕ the twice ones; the AI:
+  get_sheet check, sheet_edit complete / drop_twice. Seams of round faces are no edges any more. tools/e2e_sheet_check.py.
 - **Drawing sheets — step 4 (an assembly's drawing set) done:** sheet.build_assembly (the placed parts as one
   compound: views, overall sizes, a mark per placed part for its balloon; /api/sheet/assembly), sheet.pdf of several
   SVGs (a page each); SheetEditor.drawingSet: depth-first — the assembly's page (front, top, iso where the right view
