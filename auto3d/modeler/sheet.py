@@ -158,9 +158,18 @@ def auto_dims(geo, preset="medium", fits=None):
     """The automatic dimensions of a preset (see the module's docstring). fits: {diameter: "H7"} (holes with a fit)."""
     preset = preset if preset in PRESETS else "medium"
     fits = {round(float(d), 3): f for d, f in (fits or {}).items() if f}
-    dims, stack = [], {}
+    dims, stack, measured = [], {}, set()
 
     def lin(view, a, b, d, side, pre="", tag=""):
+        # one dimension per distance: the same direction between the same places only once (concentric circles,
+        # holes in a row share their places)
+        pts = geo["views"][view]["points"]
+        if a in pts and b in pts:
+            k = 0 if d == "h" else 1
+            sig = (view, d, *sorted((round(pts[a][k], 2), round(pts[b][k], 2))))
+            if sig in measured or sig[2] == sig[3]:
+                return
+            measured.add(sig)
         n = stack.get((view, side), 0)
         stack[(view, side)] = n + 1
         dims.append({"id": _id(view, a, b, d, tag), "view": view, "kind": "linear", "a": a, "b": b, "dir": d, "side": side,

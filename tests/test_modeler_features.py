@@ -496,6 +496,23 @@ class TestSheet(unittest.TestCase):
         self.assertEqual(len(ids), len(set(ids)))
         self.assertEqual(ids, [d["id"] for d in doc.sheet(self.part, "medium")["dims"]])  # the same ids again (the user's moves stay)
 
+    def test_no_distance_twice(self):
+        """Concentric circles (a boss with a hole) and holes on one line: each distance is dimensioned once."""
+        from auto3d.modeler import sheet
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        part = {"features": box() + [{"id": "H1", "type": "hole", "plane": top, "points": [[-10, 0]], "d": 6, "through": False, "depth": 3},
+                                     {"id": "H2", "type": "hole", "plane": top, "points": [[-10, 0]], "d": 3, "through": True},
+                                     {"id": "H3", "type": "hole", "plane": top, "points": [[10, 0]], "d": 4, "through": True}]}
+        r = doc.sheet(part, "medium")
+        g, lin = r["geometry"], [d for d in r["dims"] if d["kind"] == "linear"]
+        sigs = [(d["view"], d["dir"], round(sheet.value(g, d), 2), d["a"]) for d in lin]
+        top_h = sorted(sheet.value(g, d) for d in lin if d["view"] == "Top" and d["dir"] == "h")
+        top_v = sorted(sheet.value(g, d) for d in lin if d["view"] == "Top" and d["dir"] == "v")
+        self.assertEqual(top_h, [10, 30])          # the two places from the left — not 10 twice for the Ø6 / Ø3 pair
+        self.assertEqual(top_v, [10, 20])          # their height once (both holes on one line) + the depth
+        self.assertEqual(len(sigs), len(set(sigs)))
+        self.assertEqual(sorted(d["kind"] for d in r["dims"] if d["kind"] == "dia"), ["dia"] * 3)
+
     def test_presets(self):
         n = {p: len(doc.sheet(self.part, p)["dims"]) for p in ("light", "medium", "full")}
         self.assertLess(n["light"], n["medium"])
