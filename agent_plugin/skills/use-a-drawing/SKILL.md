@@ -18,7 +18,7 @@ description: Use when the user has a 2D drawing (a DXF / DWG, or a PCB's Gerber 
    Tidy it: `drawing_delete {what: "selection" | "found"}`; add lines / circles: `drawing_add {shapes: [{line: {a, b}} |
    {circle: {c, d}}], layer}` (mm).
 4. Layers: `drawing_layers {only: [names]}` keeps just those (e.g. the outline and the holes of a board); also
-   `color {name: "#rrggbb"}`, `new: "<name>"` (new shapes go on it), `active`.
+   `drawing_layers {color: {<name>: "#rrggbb"}, new: "<name>" (new shapes go on it), active: "<name>"}`.
 5. A part from it: `drawing_use {as: "sketch", what: "all" | "found" | "selection"}` makes the sketch of a new 3D
    model (on screen then): `add_feature {type: "extrude", sketch: "F1", d: 3}` — the closed outline becomes the plate,
    the circles in it its holes. For a PCB case: the board outline + the mounting holes, then design the case around
