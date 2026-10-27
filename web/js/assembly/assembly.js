@@ -1855,14 +1855,18 @@ export class Assembly {
     }
     const nm = new THREE.Matrix3().getNormalMatrix(M);
     const own = { xdir: new THREE.Vector3(1, 0, 0).applyMatrix3(nm).normalize(), ydir: new THREE.Vector3(0, 1, 0).applyMatrix3(nm).normalize() };
-    return spinOf(own, fA || { xdir: new THREE.Vector3(1, 0, 0), ydir: new THREE.Vector3(0, 1, 0) }, d);
+    const deg = spinOf(own, fA || { xdir: new THREE.Vector3(1, 0, 0), ydir: new THREE.Vector3(0, 1, 0) }, d), lim = this.limitsOf(it, mo);
+    if (!lim) return deg;
+    // within its limits (they may span up to a full turn, e.g. 0 … 270°): the turn round that lies in them
+    const c = [deg - 360, deg, deg + 360];
+    return c.find((x) => x >= lim.min - 1e-6 && x <= lim.max + 1e-6) ?? c.sort((p, q) => Math.abs(p - (lim.min + lim.max) / 2) - Math.abs(q - (lim.min + lim.max) / 2))[0];
   }
 
   /** A motion's limits on its part ({min, max}) or null. */
   limitsOf(it, mo) { const x = mo.via ? this.inst(mo.via) : it; return (mo.key && x?.travel?.[mo.key]) || null; }
 
   /** The amount to go from position p0 to v (a turn the short way round). */
-  stepTo(mo, p0, v) { const a = v - p0; return mo.kind === 'turn' ? ((((a + 180) % 360) + 360) % 360) - 180 : a; }
+  stepTo(mo, p0, v, lim = null) { const a = v - p0; return mo.kind === 'turn' && !lim ? ((((a + 180) % 360) + 360) % 360) - 180 : a; } // (within limits: as it is)
 
   /** A free motion's row: a slider of where it is (between its limits when it has them), its limits ⇤⇥, ▶ and the
    *  travel check. */
@@ -1892,7 +1896,7 @@ export class Assembly {
         const lim = this.limitsOf(it, mo);
         if (lim) v = Math.max(lim.min, Math.min(lim.max, v));
         if (!from) { from = [...this.inst(mo.via || it.id).matrix]; p0 = this.motionPos(it.id, mo); }
-        this.moveFree(it.id, mo, this.stepTo(mo, p0, v), from, final);
+        this.moveFree(it.id, mo, this.stepTo(mo, p0, v, lim), from, final);
         if (final) from = null;
       };
       sl.addEventListener('input', () => { num.value = fmt(+sl.value); go(+sl.value, false); });
@@ -1934,11 +1938,12 @@ export class Assembly {
       return null;
     }
     let { min, max } = lim;
-    if (mo.kind === 'turn') { min = Math.max(-180, min); max = Math.min(180, max); }
+    if (mo.kind === 'turn') { min = Math.max(-360, min); max = Math.min(360, max); } // (up to a full turn)
     if (min > max) [min, max] = [max, min];
+    if (mo.kind === 'turn' && max - min > 360) max = min + 360; // (one turn at most: past it a turn's place is the same again)
     it.travel = { ...(it.travel || {}), [mo.key]: { min: +min, max: +max } };
     const p = this.motionPos(id, mo), into = Math.max(min, Math.min(max, p));
-    if (Math.abs(into - p) > 1e-6) { this.moveFree(id, mo, this.stepTo(mo, p, into), [...it.matrix], true); } else this.commit();
+    if (Math.abs(into - p) > 1e-6) { this.moveFree(id, mo, this.stepTo(mo, p, into, it.travel[mo.key]), [...it.matrix], true); } else this.commit();
     return it.travel[mo.key];
   }
 
@@ -1962,12 +1967,12 @@ export class Assembly {
         return;
       }
       const v = lim.min + (lim.max - lim.min) * (0.5 - 0.5 * Math.cos(2 * Math.PI * k)); // min -> max -> min
-      it.matrix = this.holdPart(id, motionMatrix(mo, ((mo.kind === 'turn' ? Math.PI / 180 : 1) * this.stepTo(mo, p0, v))).multiply(new THREE.Matrix4().fromArray(from)), true).toArray();
+      it.matrix = this.holdPart(id, motionMatrix(mo, ((mo.kind === 'turn' ? Math.PI / 180 : 1) * this.stepTo(mo, p0, v, lim))).multiply(new THREE.Matrix4().fromArray(from)), true).toArray();
       this.applyMates();
       this.draw();
       requestAnimationFrame(frame);
     };
-    it.matrix = this.holdPart(id, motionMatrix(mo, ((mo.kind === 'turn' ? Math.PI / 180 : 1) * this.stepTo(mo, p0, lim.min))).multiply(new THREE.Matrix4().fromArray(from)), true).toArray();
+    it.matrix = this.holdPart(id, motionMatrix(mo, ((mo.kind === 'turn' ? Math.PI / 180 : 1) * this.stepTo(mo, p0, lim.min, lim))).multiply(new THREE.Matrix4().fromArray(from)), true).toArray();
     requestAnimationFrame(frame);
   }
 
@@ -1986,7 +1991,7 @@ export class Assembly {
     try {
       for (let k = 0; k <= n; k++) {
         const v = lim.min + ((lim.max - lim.min) * k) / n;
-        it.matrix = this.holdPart(id, motionMatrix(mo, (mo.kind === 'turn' ? Math.PI / 180 : 1) * this.stepTo(mo, p0, v)).multiply(from.clone()), true).toArray();
+        it.matrix = this.holdPart(id, motionMatrix(mo, (mo.kind === 'turn' ? Math.PI / 180 : 1) * this.stepTo(mo, p0, v, lim)).multiply(from.clone()), true).toArray();
         this.applyMates();
         steps.push({ at: +v.toFixed(3), matrices: Object.fromEntries(this.flatParts().map((f) => [f.id, f.matrix])) });
       }

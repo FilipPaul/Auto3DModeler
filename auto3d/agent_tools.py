@@ -298,7 +298,7 @@ TOOLS = [
      "inputSchema": _obj({"part": STR, "motion": {}, "amount": NUM, "to": NUM}, ["part"])},
     {"name": "set_travel", "where": "browser",
      "description": "Limits of a free motion of a joined part (a cylinder's stroke, a slide's ends, a door's swing): part = I…, motion "
-                    "= its number or words of its name (as for move_free), min and max = where along it (mm, or degrees within ±180 "
+                    "= its number or words of its name (as for move_free), min and max = where along it (mm, or degrees: −360 … 360, up to a full turn "
                     "for a turn; get_assembly `at` says where it is now). min / max null: no limits. The part is put inside them.",
      "inputSchema": _obj({"part": STR, "motion": {}, "min": {"type": ["number", "null"]}, "max": {"type": ["number", "null"]}}, ["part"])},
     {"name": "check_travel", "where": "browser",

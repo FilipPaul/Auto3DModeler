@@ -3,7 +3,7 @@
 held": it moves with the bearing ("Turn about … — with Bearing"), its slider / move_free turn the bearing and the arm
 goes along -> 🔓 free / 🔒 locked on a flat joint: locked, the bearing is fully held; free again -> the ↻ slider of a free turn
 turns the bearing and it stays free (also on a locked joint) -> ⇅ on a concentric joint turns it over once (its two
-ways stay; it was turned over at every hold before) -> gui_state lists the parts -> a joint named by
+ways stay; it was turned over at every hold before) -> gui_state lists the parts -> turn limits up to a full turn (0 … 270°, to 250 and back; more than a turn is cut to one) -> a joint named by
 a double-click ("ložisko na tyč"), shown in get_assembly; edit_joint name -> Explode with Respect joints: the bearing
 and the arm go along with the base; without the touch the bearing comes off the shaft only along its axis -> a locked
 joint: its row greyed, edit_joint refuses changes, get_assembly says locked -> the AI's gui_state (the toolbar, the
@@ -84,6 +84,11 @@ try:
     print("move_free the arm 30°:", call("move_free", part="I3", motion=0, amount=30)[:70])
     print("  bearing turned", b0, "->", turned("I2"), "| arm", a0, "->", turned("I3"))
 
+    # a turn's limits up to a full turn (0 … 270°): the arm goes to 250 and back to 10
+    print("set_travel 0 … 270:", call("set_travel", part="I3", motion=0, min=0, max=270)[-40:])
+    print("  move_free to 250:", call("move_free", part="I3", motion=0, to=250)[:110].split(", now at ")[1][:12], "| to 10:", call("move_free", part="I3", motion=0, to=10).split(", now at ")[1][:8])
+    print("  0 … 400 (more than a turn):", call("set_travel", part="I3", motion=0, min=0, max=400)[-40:])
+    call("set_travel", part="I3", motion=0, min=None, max=None)
     pick("I3")
     print("the arm's panel:", d.find_element(By.CSS_SELECTOR, "#asmRight .as-dof label").text, "|", d.find_elements(By.CSS_SELECTOR, "#asmRight h3 + .hint")[0].text[:70])
     js("""const s = document.querySelector('#asmRight [data-dof]'); s.value = +s.value + 45; s.dispatchEvent(new Event('input')); s.dispatchEvent(new Event('change'))""")
