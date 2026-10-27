@@ -131,7 +131,8 @@ Never report "works" without having run it; report failures with their output.
    Restart the server after changes to sheet.py (the kernel worker keeps old code).
    `tools/e2e_assembly_sheet.py <url> <dir>` covers an assembly's own drawing sheet (📄 Drawing in its toolbar, greyed
    when empty; the parts list and 2 balloons apart, balloon 1 dragged and kept; Pages Machine / Base / Lid, the Lid's
-   page opens its sheet and its "In" goes back; no presets / check; a dimension and a note of the user's; the Lid moved:
+   page opens its sheet and shows the same Pages (Lid marked); 📚 All pages: 3 pages, scrolled to the end marks Lid,
+   Pages → Machine scrolls to the top, a double-click on page 3 opens it to edit; no presets / check; a dimension and a note of the user's; the Lid moved:
    Rev 2, the height 34, the note kept; the drawing set's first page has the note; the AI's sheet_open of an assembly).
    `tools/e2e_sheet_edges.py <url> <dir>` covers ＋ Dimension by edges with real clicks (an edge lit under the mouse;
    twice: its length 40; left + right edges: 40 across; an edge + a hole's centre: 10 up; an edge + Enter: 20; two

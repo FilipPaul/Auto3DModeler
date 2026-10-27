@@ -387,7 +387,7 @@ export class SheetEditor {
     const pages = [], drawn = new Set([rootId]), name = (id) => this.hooks.partName(id) || id, now = new Date().toISOString();
     const visit = async (aid, parent) => {
       if (!(this.hooks.partData(aid)?.instances || []).length) return;
-      const { built, rows } = await this.assemblyPage(aid, ctx), own = ctx.sheetOf(aid); // its own sheet: the user's moves, dimensions, texts
+      const { built, rows } = await this.cached(`a|${aid}|${this.sourceHash(aid)}`, () => this.assemblyPage(aid, ctx)), own = ctx.sheetOf(aid); // its own sheet: the user's moves, dimensions, texts
       const base = own ? structuredClone(own) : { created: now, changed: now, off: { Right: true }, views: { Iso: built.layout.views.Right } };
       pages.push({ name: name(aid), d: { ...base, source: aid, built, asm: { rows },
         title: { kind: parent ? t('Sub-assembly') : t('Assembly'), part: name(aid), material: '—', of: parent || '' } } });
@@ -404,12 +404,25 @@ export class SheetEditor {
       if (!pg.part) continue;
       const src = this.hooks.partData(pg.part), own = ctx.sheetOf(pg.part);
       const d = own ? structuredClone(own) : { source: pg.part, preset: 'medium', rev: 1, created: now, changed: now };
-      if (!d.built || d.built.stale || d.hash !== partHash(src)) d.built = { ...(await post('/api/sheet/build', { part: src, preset: d.preset || 'medium', paper: d.paper })), preset: d.preset || 'medium', paper: d.paper ?? null };
+      if (!d.built || d.built.stale || d.hash !== partHash(src)) {
+        const key = `p|${pg.part}|${partHash(src)}|${d.preset || 'medium'}|${d.paper || ''}|${JSON.stringify(d.vpreset || {})}`;
+        d.built = { ...(await this.cached(key, () => post('/api/sheet/build', { part: src, preset: d.preset || 'medium', paper: d.paper, per_view: d.vpreset || {} }))), preset: d.preset || 'medium', paper: d.paper ?? null };
+      }
       pg.d = { ...d, title: { part: pg.name, of: pg.parent, pos: pg.pos } };
     }
     const n = pages.length;
     const svgs = pages.map((pg, i) => this.svgOf({ ...pg.d, title: { ...pg.d.title, sheet: `${i + 1} / ${n}` } }));
-    return { svgs, pages: pages.map((pg) => (pg.part ? pg.name : `◇ ${pg.name}`)) };
+    return { svgs, ids: pages.map((pg) => pg.part || pg.d.source), pages: pages.map((pg) => (pg.part ? pg.name : `◇ ${pg.name}`)) };
+  }
+
+  /** A server build kept by its key (what it was made from), the last 40. */
+  async cached(key, make) {
+    this.cache = this.cache || new Map();
+    if (!this.cache.has(key)) {
+      this.cache.set(key, await make());
+      if (this.cache.size > 40) this.cache.delete(this.cache.keys().next().value);
+    }
+    return structuredClone(this.cache.get(key));
   }
 
   // ------------------------------------------------------------------ the screen
@@ -419,6 +432,8 @@ export class SheetEditor {
     this.renderLeft();
     this.renderProps();
     if (!this.d) return;
+    if (this.setMode) { this.renderSet(); return; }
+    this.stage.classList.remove('sh-set');
     if (!this.geo) {
       this.stage.innerHTML = `<p class="hint sh-empty">${esc(this.error ? tv('The drawing could not be made: {e}', { e: this.error }) : this.hooks.partData(this.d.source) ? t('Making the drawing…') : t('Its part is not in the project any more.'))}</p>`;
       return;
@@ -445,6 +460,7 @@ export class SheetEditor {
     if (!bar || !this.d) return;
     bar.innerHTML = `${this.d.asm ? `<span class="sh-asm">◇ ${esc(t('Assembly drawing'))}</span>` : `<div class="seg sh-presets" title="How many dimensions it makes by itself">${PRESETS.map(([k, l]) => `<button class="chip ${this.d.preset === k ? 'on' : ''}" data-preset="${k}">${t(l)}</button>`).join('')}</div>`}
       <button class="chip tool ${this.tool === 'dim' ? 'on' : ''}" data-a="dim" title="Add a dimension: an edge (twice: its length), two edges (their distance), two points, or a circle / arc (Ø / R) — its value is measured from the part">＋ Dimension</button>
+      ${this.rootOf(this.d.source) ? `<button class="chip ${this.setMode ? 'on' : ''}" data-a="setview" title="${esc(t('All the pages of the drawing set, one below the other — scroll through them; double-click a page to edit it'))}">📚 ${esc(t('All pages'))}</button>` : ''}
       <span class="sep"></span><button class="chip" data-a="undo" title="Undo (Ctrl+Z)" ${this.history.canUndo() ? '' : 'disabled'}>↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)" ${this.history.canRedo?.() ? '' : 'disabled'}>↷</button>
       <span class="sep"></span><button class="chip" data-a="fit" title="The whole sheet">⤢ Fit</button>
       <button class="chip primary" data-a="pdf" title="The sheet as a PDF — as you see it">⬇ PDF</button>${this.busy ? `<span class="sh-busy">${t('Making the drawing…')}</span>` : ''}`;
@@ -479,7 +495,12 @@ export class SheetEditor {
     for (const row of box.querySelectorAll('[data-d]')) row.addEventListener('click', (e) => { if (!e.target.closest('[data-x]')) { this.sel = row.dataset.d; this.render(); } });
     for (const b of box.querySelectorAll('[data-x]')) b.addEventListener('click', () => this.remove(b.dataset.x));
     box.querySelector('[data-a=unhide]')?.addEventListener('click', () => { this.d.hidden = []; this.commit(); });
-    for (const b of box.querySelectorAll('[data-page]')) b.addEventListener('click', () => { if (b.dataset.page !== this.d.source) this.hooks.openSheet?.(b.dataset.page); });
+    for (const b of box.querySelectorAll('[data-page]')) {
+      b.addEventListener('click', () => {
+        if (this.setMode) { this.stage.querySelector(`[data-pageid="${b.dataset.page}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+        if (b.dataset.page !== this.d.source) this.hooks.openSheet?.(b.dataset.page);
+      });
+    }
     for (const b of box.querySelectorAll('[data-miss]')) b.addEventListener('click', () => this.addMissing(ck.missing[+b.dataset.miss]));
     box.querySelector('[data-a=allMissing]')?.addEventListener('click', () => this.addAllMissing());
     box.querySelector('[data-a=dropTwice]')?.addEventListener('click', () => { for (const id of [...ck.dup, ...ck.over]) this.remove(id); });
@@ -601,15 +622,51 @@ export class SheetEditor {
 
   /** The left panel's Pages: an assembly's whole set (a click opens that page's sheet — made when it has none); a part's
    *  sheet: the assemblies it is in. */
+  /** The top assembly a part / assembly is in (through its sub-assemblies) — the drawing set it is a page of — or null. */
+  rootOf(id) {
+    const parts = this.hooks.parts?.() || [], seen = new Set([id]);
+    const parentOf = (x) => parts.find((q) => q.kind === 'assembly' && !seen.has(q.id) && (this.hooks.partData(q.id)?.instances || []).some((it) => it.part === x));
+    let cur = id, p;
+    while ((p = parentOf(cur))) { seen.add(p.id); cur = p.id; }
+    return this.hooks.kindOf?.(cur) === 'assembly' ? cur : null;
+  }
+
+  /** The left panel's Pages: the whole set this sheet is a page of (on every page of it), this page marked; a click
+   *  opens that page's sheet — or, in 📚 All pages, goes to it. */
   pagesHtml() {
-    if (!this.hooks.drawingCtx) return '';
-    if (this.d.asm) {
-      const pages = this.pagesOf(this.d.source);
-      return `<h3>${esc(t('Pages'))}</h3><div class="sh-pages">${pages.map((p, i) => `<button class="sh-page ${p.id === this.d.source ? 'on' : ''}" data-page="${p.id}" style="padding-left:${6 + 12 * p.depth}px" title="${esc(t('Open its drawing sheet'))}">
-        <i>${i + 1}</i> ${p.kind === 'assembly' ? '◇' : '◆'} <span data-no-i18n>${esc(p.name)}</span></button>`).join('')}</div>`;
-    }
-    const ins = this.hooks.parts?.().filter((q) => q.kind === 'assembly' && (this.hooks.partData(q.id)?.instances || []).some((it) => it.part === this.d.source)) || [];
-    return ins.length ? `<h3>${esc(t('In'))}</h3><div class="sh-pages">${ins.map((q) => `<button class="sh-page" data-page="${q.id}" title="${esc(t('Open its drawing sheet'))}">◇ <span data-no-i18n>${esc(q.name)}</span></button>`).join('')}</div>` : '';
+    const root = this.hooks.drawingCtx ? this.rootOf(this.d.source) : null;
+    if (!root) return '';
+    const pages = this.pagesOf(root);
+    return `<h3>${esc(t('Pages'))}</h3><div class="sh-pages">${pages.map((p, i) => `<button class="sh-page ${p.id === (this.setMode ? this.seen || this.d.source : this.d.source) ? 'on' : ''}" data-page="${p.id}" style="padding-left:${6 + 12 * p.depth}px" title="${esc(this.setMode ? t('Go to this page') : t('Open its drawing sheet'))}">
+      <i>${i + 1}</i> ${p.kind === 'assembly' ? '◇' : '◆'} <span data-no-i18n>${esc(p.name)}</span></button>`).join('')}</div>`;
+  }
+
+  /** 📚 All pages: the drawing set one page below the other, to scroll through (double-click a page: edit it). */
+  async renderSet() {
+    const root = this.rootOf(this.d.source);
+    if (!root) { this.setMode = false; this.render(); return; }
+    const run = (this.setRun = (this.setRun || 0) + 1);
+    this.svgEl = null;
+    this.stage.classList.add('sh-set');
+    if (!this.stage.querySelector('.sh-sheetpage')) this.stage.innerHTML = `<p class="hint sh-empty">${esc(t('Making the pages…'))}</p>`;
+    let set;
+    try { set = await this.drawingSet(root, this.hooks.drawingCtx()); } catch (e) { this.stage.innerHTML = `<p class="hint sh-empty">${esc(e.message)}</p>`; return; }
+    if (run !== this.setRun || !this.setMode) return;
+    const top = this.stage.scrollTop;
+    this.stage.innerHTML = set.svgs.map((svg, i) => `<div class="sh-sheetpage" data-pageid="${set.ids[i]}" title="${esc(t('Double-click: edit this page'))}" data-no-i18n>${svg}</div>`).join('');
+    if (this.setScrolled) this.stage.scrollTop = top;
+    else { this.stage.querySelector(`[data-pageid="${this.d.source}"]`)?.scrollIntoView({ block: 'start' }); this.setScrolled = true; }
+    this.$('.sh-status').textContent = tv('{n} pages — scroll; double-click one to edit it', { n: set.svgs.length });
+  }
+
+  /** In 📚 All pages: the page in sight marked in Pages. */
+  markSeen() {
+    const st = this.stage, pages = [...st.querySelectorAll('.sh-sheetpage')], r = st.getBoundingClientRect(), at = r.top + r.height / 3;
+    const end = st.scrollTop + st.clientHeight >= st.scrollHeight - 4; // (the last page cannot come up to the top)
+    const seen = (end ? pages[pages.length - 1] : pages.find((p) => p.getBoundingClientRect().bottom > at))?.dataset.pageid;
+    if (!seen || seen === this.seen) return;
+    this.seen = seen;
+    for (const b of this.$('.sh-left').querySelectorAll('.sh-page')) b.classList.toggle('on', b.dataset.page === seen);
   }
 
   /** ＋ a missing size: from the part's lowest place in that view to it (a Ø / R on its circle). */
@@ -625,6 +682,7 @@ export class SheetEditor {
     if (a === 'undo') this.history.go(-1);
     if (a === 'redo') this.history.go(1);
     if (a === 'fit') { this.zoom = { k: 1, x: 0, y: 0 }; this.applyZoom(); }
+    if (a === 'setview') { this.setMode = !this.setMode; this.setScrolled = false; this.seen = null; this.tool = 'select'; this.pick = null; this.render(); }
     if (a === 'pdf') this.exportPdf();
   }
 
@@ -815,7 +873,15 @@ export class SheetEditor {
       if (drag?.moved && drag.kind !== 'pan') this.commit();
       drag = null;
     });
+    this.stage.addEventListener('scroll', () => { if (this.setMode) this.markSeen(); });
+    this.stage.addEventListener('dblclick', (e) => { // 📚 All pages: a page to edit
+      const pg = this.setMode && e.target.closest('[data-pageid]');
+      if (!pg) return;
+      this.setMode = false;
+      if (pg.dataset.pageid === this.d.source) this.render(); else this.hooks.openSheet?.(pg.dataset.pageid, { setMode: false });
+    });
     this.stage.addEventListener('wheel', (e) => {
+      if (this.setMode) return; // (it scrolls)
       e.preventDefault();
       const r = this.stage.getBoundingClientRect(), f = e.deltaY < 0 ? 1.15 : 1 / 1.15, k = Math.min(12, Math.max(0.3, this.zoom.k * f));
       const mx = e.clientX - r.left - r.width / 2, my = e.clientY - r.top - r.height / 2; // the SVG scales about the stage's middle

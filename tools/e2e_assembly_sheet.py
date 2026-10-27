@@ -1,7 +1,8 @@
 """An assembly's drawing sheet (📄 Drawing in the assembly's toolbar), in headless Edge: Machine = Base + Lid -> the button
 -> a sheet tab: the assembly's views (front, top, iso), its parts list (Base, Lid) and balloons, no presets / size check
--> the balloons apart, one dragged (kept) -> Pages: Machine, Base, Lid; the Lid's page opens its sheet, its "In:
-Machine" goes back -> a dimension of the user's and a note typed -> back in the assembly the Lid moved -> the sheet again: Rev 2 -> the
+-> the balloons apart, one dragged (kept) -> Pages: Machine, Base, Lid; the Lid's page opens its sheet and shows the
+same Pages (Lid marked) -> 📚 All pages: 3 pages one below the other, scrolling marks the page in sight, a click in
+Pages goes to it, a double-click opens a page to edit -> a dimension of the user's and a note typed -> back in the assembly the Lid moved -> the sheet again: Rev 2 -> the
 drawing set (📄 Drawings (PDF)): its first page is this sheet, with the note -> the AI's sheet_open of an assembly.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_assembly_sheet.py http://127.0.0.1:5199 <out dir>
@@ -79,14 +80,34 @@ try:
     time.sleep(0.4)
     print("  balloon 1 dragged:", js(f"return {S}.d.balloons?.['1']"), "(was", [round(v, 1) for v in b0], ")")
 
-    # Pages: the set from here; a part's page opens its sheet, its "In" goes back
+    # Pages: the set from here; a part's page opens its sheet, and shows the same set
     print("  pages:", [b.text.replace("\n", " ") for b in d.find_elements(By.CSS_SELECTOR, "#shLeft .sh-page")])
     next(b for b in d.find_elements(By.CSS_SELECTOR, "#shLeft .sh-page") if "Lid" in b.text).click()
     wait(f"return !!{S}.svgEl && !{S}.busy && !{S}.d.asm", 60)
-    print("  Lid's page:", js("return window.__app.project.current.name"), "| its In:", [b.text for b in d.find_elements(By.CSS_SELECTOR, "#shLeft .sh-page")])
+    print("  Lid's page:", js("return window.__app.project.current.name"), "| its Pages:", [b.text.replace("\n", " ") for b in d.find_elements(By.CSS_SELECTOR, "#shLeft .sh-page")],
+          "| marked:", [b.text.replace("\n", " ") for b in d.find_elements(By.CSS_SELECTOR, "#shLeft .sh-page.on")])
     d.find_element(By.CSS_SELECTOR, "#shLeft .sh-page").click()
     wait(f"return !!{S}.svgEl && !{S}.busy && !!{S}.d.asm", 60)
     print("  back:", js("return window.__app.project.current.name"), "| the balloon kept:", js(f"return {S}.d.balloons?.['1']"))
+
+    # 📚 All pages: the set one below the other; scrolling marks the page in sight; a click in Pages goes there
+    d.find_element(By.CSS_SELECTOR, "#shViewport [data-a=setview]").click()
+    wait("return document.querySelectorAll('#shViewport .sh-sheetpage').length === 3", 60)
+    time.sleep(0.4)
+    print("📚 All pages:", len(d.find_elements(By.CSS_SELECTOR, "#shViewport .sh-sheetpage")), "pages | the status:", d.find_element(By.CSS_SELECTOR, "#shViewport .sh-status").text)
+    print("  the balloon on page 1 too:", js("return !!document.querySelector('#shViewport .sh-sheetpage [data-balloon=\"1\"]')"))
+    js(f"{S}.stage.scrollTop = {S}.stage.scrollHeight")
+    time.sleep(0.5)
+    print("  scrolled to the end: marked", [b.text.replace("\n", " ") for b in d.find_elements(By.CSS_SELECTOR, "#shLeft .sh-page.on")])
+    next(b for b in d.find_elements(By.CSS_SELECTOR, "#shLeft .sh-page") if "Machine" in b.text).click()
+    time.sleep(1.2)
+    print("  Pages → Machine: at the top", js(f"return {S}.stage.scrollTop") < 50)
+    from selenium.webdriver.common.action_chains import ActionChains as AC
+    AC(d).double_click(d.find_elements(By.CSS_SELECTOR, "#shViewport .sh-sheetpage")[2]).perform()
+    wait(f"return !!{S}.svgEl && !{S}.busy && !{S}.setMode", 60)
+    print("  double-click page 3:", js("return window.__app.project.current.name"), "| editing:", js(f"return !{S}.setMode && !!{S}.svgEl"))
+    next(b for b in d.find_elements(By.CSS_SELECTOR, "#shLeft .sh-page") if "Machine" in b.text).click()
+    wait(f"return !!{S}.svgEl && !{S}.busy && !!{S}.d.asm", 60)
     js(f"{S}.addFor({{view: 'Front', a: 'box#y0', b: 'box#y1', dir: 'v'}})")
     js(f"{S}.sel = null; {S}.render()")
     el = d.find_element(By.CSS_SELECTOR, "#shRight [data-text=note]")

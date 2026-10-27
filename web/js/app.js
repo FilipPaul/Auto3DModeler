@@ -1854,7 +1854,10 @@ const sheet = new SheetEditor({ left: $('shLeft'), viewport: $('shViewport'), ri
 function drawingCtx() {
   return {
     kindOf: (id) => project.parts.find((q) => q.id === id)?.kind,
-    sheetOf: (id) => { const p = project.parts.find((q) => q.kind === 'sheet' && typeof q.data === 'object' && q.data?.source === id); return p ? p.data : null; },
+    sheetOf: (id) => { // (the sheet on screen as it is now)
+      const p = project.parts.find((q) => q.kind === 'sheet' && (q.data === 'live' ? q.id === project.active && sheet.d?.source === id : q.data?.source === id));
+      return !p ? null : p.data === 'live' ? sheet.payload() : p.data;
+    },
     bought: (data, name) => isStandard(data, name),
   };
 }
