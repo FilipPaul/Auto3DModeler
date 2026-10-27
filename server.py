@@ -669,7 +669,8 @@ def api_assembly_clashes():
 def api_sheet_build():
     """{part, preset: light | medium | full, paper} -> {geometry (views, points), layout, dims} — a drawing sheet."""
     body = request.get_json(force=True)
-    data, err = _model_call("sheet", {"part": body.get("part") or {}, "preset": body.get("preset") or "medium", "paper": body.get("paper")})
+    data, err = _model_call("sheet", {"part": body.get("part") or {}, "preset": body.get("preset") or "medium", "paper": body.get("paper"),
+                                      "per_view": body.get("per_view") or {}})
     if err:
         return err
     return jsonify(data)

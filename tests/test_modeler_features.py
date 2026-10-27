@@ -513,6 +513,13 @@ class TestSheet(unittest.TestCase):
         self.assertEqual(len(sigs), len(set(sigs)))
         self.assertEqual(sorted(d["kind"] for d in r["dims"] if d["kind"] == "dia"), ["dia"] * 3)
 
+    def test_view_presets(self):
+        """A view's own preset: the top medium while the sheet is light (the rest of the sheet stays light)."""
+        light = doc.sheet(self.part, "light")["dims"]
+        mixed = doc.sheet(self.part, "light", per_view={"Top": "medium"})["dims"]
+        self.assertGreater(sum(1 for d in mixed if d["view"] == "Top"), sum(1 for d in light if d["view"] == "Top"))
+        self.assertEqual([d["id"] for d in mixed if d["view"] == "Front"], [d["id"] for d in light if d["view"] == "Front"])
+
     def test_presets(self):
         n = {p: len(doc.sheet(self.part, p)["dims"]) for p in ("light", "medium", "full")}
         self.assertLess(n["light"], n["medium"])

@@ -154,9 +154,12 @@ def _grid(cs):
     return len(xs), len(ys), (xs[1] - xs[0]) if len(xs) > 1 else 0, (ys[1] - ys[0]) if len(ys) > 1 else 0
 
 
-def auto_dims(geo, preset="medium", fits=None):
-    """The automatic dimensions of a preset (see the module's docstring). fits: {diameter: "H7"} (holes with a fit)."""
+def auto_dims(geo, preset="medium", fits=None, per_view=None):
+    """The automatic dimensions of a preset (see the module's docstring). fits: {diameter: "H7"} (holes with a fit).
+    per_view: {view: preset} — a view's own preset instead of the sheet's."""
     preset = preset if preset in PRESETS else "medium"
+    per_view = {k: v for k, v in (per_view or {}).items() if v in PRESETS}
+    pv = lambda view: per_view.get(view, preset)  # noqa: E731
     fits = {round(float(d), 3): f for d, f in (fits or {}).items() if f}
     dims, stack, measured = [], {}, set()
 
@@ -199,7 +202,7 @@ def auto_dims(geo, preset="medium", fits=None):
             k = centres[at] = centres.get(at, -1) + 1
             dims.append({"id": _id(vname, "dia", d), "view": vname, "kind": "dia", "a": first["key"], "count": len(cs),
                          "ang": [45, 135, 315, 225, 20, 160, 340, 200][k % 8], "len": 6 + 5 * (k // 4), **({"post": f" {fits[d]}"} if d in fits else {})})
-            if preset == "light":
+            if pv(vname) == "light":
                 continue
             # where they are: the first from the left / bottom of the view, then the pitch of a row / grid
             g = _grid(cs) if len(cs) > 1 else None
@@ -214,7 +217,7 @@ def auto_dims(geo, preset="medium", fits=None):
                     up = next(c for c in row if round(c["c"][1], 2) > round(row[0]["c"][1], 2))
                     lin(vname, f"{row[0]['key']}#c", f"{up['key']}#c", "v", "l", pre=f"{ny - 1}× " if ny > 2 else "", tag=f"py{d}")
             elif len(cs) > 1:
-                limit = 6 if preset == "medium" else 30
+                limit = 6 if pv(vname) == "medium" else 30
                 for c in sorted(cs, key=lambda c: (c["c"][1], c["c"][0]))[1:limit]:
                     lin(vname, "box#x0", f"{c['key']}#c", "h", "t" if vname == "Top" else "b", tag=f"x{d}{c['key']}")
                     lin(vname, "box#y0", f"{c['key']}#c", "v", "l", tag=f"y{d}{c['key']}")
@@ -222,12 +225,12 @@ def auto_dims(geo, preset="medium", fits=None):
         rg = {}
         for c in arcs:
             rg.setdefault(round(c["r"], 3), []).append(c)
-        for r, cs in sorted(rg.items(), key=lambda q: -q[0])[: (1 if preset == "light" else 5 if preset == "medium" else 20)]:
+        for r, cs in sorted(rg.items(), key=lambda q: -q[0])[: (1 if pv(vname) == "light" else 5 if pv(vname) == "medium" else 20)]:
             if ("r", r) in done_r:
                 continue
             done_r.add(("r", r))
             dims.append({"id": _id(vname, "rad", r), "view": vname, "kind": "rad", "a": cs[0]["key"], "count": len(cs), "ang": 0, "len": 6})
-    if preset != "light":
+    if pv("Front") != "light":
         # heights in the front: the levels of its horizontal edges, from the bottom
         f = v["Front"]
         y0, y1 = f["box"][1], f["box"][3]
@@ -235,9 +238,9 @@ def auto_dims(geo, preset="medium", fits=None):
         for ln in f["lines"]:  # (not where a rounding begins)
             if abs(ln["a"][1] - ln["b"][1]) < TOL and TOL < ln["a"][1] - y0 < (y1 - y0) - TOL and ":round:" not in ln["key"]:
                 levels.setdefault(round(ln["a"][1], 2), ln["key"])
-        for y, key in sorted(levels.items())[: (3 if preset == "medium" else 10)]:
+        for y, key in sorted(levels.items())[: (3 if pv("Front") == "medium" else 10)]:
             lin("Front", "box#y0", f"{key}#0", "v", "l", tag=f"lv{y}")
-    if preset == "full":
+    if pv("Top") == "full":
         # widths in the top: the vertical edges' places, from the left
         t = v["Top"]
         x0, x1 = t["box"][0], t["box"][2]
@@ -250,10 +253,10 @@ def auto_dims(geo, preset="medium", fits=None):
     return dims
 
 
-def build(body, preset="medium", fits=None, paper=None):
+def build(body, preset="medium", fits=None, paper=None, per_view=None):
     """Everything a new / changed sheet needs: {geometry, layout, dims (automatic)}."""
     geo = geometry(body)
-    return {"geometry": geo, "layout": layout(geo, paper), "dims": auto_dims(geo, preset, fits)}
+    return {"geometry": geo, "layout": layout(geo, paper), "dims": auto_dims(geo, preset, fits, per_view)}
 
 
 ISO_VIEW = ((-1, 1, -1), (1 / math.sqrt(2), 1 / math.sqrt(2), 0), (-1 / math.sqrt(6), 1 / math.sqrt(6), 2 / math.sqrt(6)))  # as _iso projects

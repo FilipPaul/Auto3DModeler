@@ -365,12 +365,13 @@ TOOLS = [
                     "\"<faces>#0\" / \"#1\", the view box \"box#x0\" / \"box#x1\" / \"box#y0\" / \"box#y1\") and circles, to add dimensions.",
      "inputSchema": _obj({"points": {"type": "string", "enum": ["Front", "Top", "Right"]}})},
     {"name": "sheet_edit", "where": "browser",
-     "description": "Change the drawing sheet on screen: preset light / medium / full (the automatic dimensions), paper A4 / A3 / null, "
+     "description": "Change the drawing sheet on screen: preset light / medium / full (the automatic dimensions), view_presets {Front | Top | "
+                    "Right: light / medium / full / null} (a view's own, null: as the sheet), paper A4 / A3 / null, "
                     "views {Front | Top | Right | Iso: true / false}, remove [dimension ids], restore true (the deleted automatic ones "
                     "back), move {id: {side (h: t / b; v: l / r), off (mm from the view on the paper), ang, len (a Ø / R leader)}}, "
                     "add [{view, a, b, dir (h / v; else by the points), pre (text before, e.g. \"4×\")} | {view, circle (its key), "
                     "count, post (e.g. \"H7\")}] — values are always measured from the part. Do what the user cannot do in a click.",
-     "inputSchema": _obj({"preset": {"type": "string", "enum": ["light", "medium", "full"]}, "paper": {"type": ["string", "null"]}, "views": {"type": "object"},
+     "inputSchema": _obj({"preset": {"type": "string", "enum": ["light", "medium", "full"]}, "view_presets": {"type": "object"}, "paper": {"type": ["string", "null"]}, "views": {"type": "object"},
                           "remove": {"type": "array", "items": STR}, "restore": {"type": "boolean"}, "move": {"type": "object"},
                           "add": {"type": "array", "items": {"type": "object"}}})},
     {"name": "edit_joint", "where": "browser",

@@ -807,6 +807,7 @@ const CS = {
   'Sub-assembly': 'Podsestava', in: 'v', 'Pos.': 'Poz.', Sheet: 'List', 'Part number': 'Objednací číslo', bought: 'nakupovaný', more: 'další',
   '📄 Drawings (PDF)': '📄 Výkresy (PDF)',
   'One PDF: this assembly (its views, parts list and balloons), then each sub-assembly with its parts, then its own made parts — their drawing sheets when they have one': 'Jedno PDF: tato sestava (pohledy, kusovník a pozice), pak každá podsestava s jejími díly, pak její vlastní vyráběné díly — podle jejich výkresů, pokud je mají',
+  'as the sheet': 'jako list', 'How many dimensions in this view — as the sheet, or its own': 'Kolik kót v tomto pohledu — jako celý list, nebo vlastní',
   'opening a drawing': 'otevírá výkres', 'reading the drawing': 'čte výkres', 'editing the drawing': 'upravuje výkres',
   'looking at the screen': 'dívá se na obrazovku', 'clicking in the app': 'kliká v aplikaci',
   'Locked 🔒 — unlock the joint to change it': 'Zamčeno 🔒 — vazbu odemkněte, chcete-li ji změnit',

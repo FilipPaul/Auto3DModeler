@@ -1,5 +1,5 @@
 """Drawing sheets (📄), in headless Edge: a plate 40 × 20 × 10 with 8 holes Ø3 H7 in a grid and a rounding -> 📄 Drawing
-sheet: its views and the medium dimensions ("8× Ø3 H7" once, the pitch "3× 10") -> Light: fewer; Full: more -> a
+sheet: its views and the medium dimensions ("8× Ø3 H7" once, the pitch "3× 10") -> Light: fewer; Full: more; light with the top view medium -> a
 dimension chosen and deleted (Del); ↺ brings it back -> dragged lower: its offset changes -> ＋ Dimension: two points
 clicked -> a new one with the measured value; a circle clicked -> its Ø -> the part made 15 thick -> the sheet again:
 Rev 2, "changed" now, the height reads 15 -> ⬇ PDF: the same texts in the PDF.
@@ -82,6 +82,18 @@ try:
         wait(f"return !{S}.busy && {S}.d.built?.preset === '{p}'", 60)
         time.sleep(0.3)
         print(f"{p}:", len(texts()))
+    # light for the sheet, medium for the top view only
+    d.find_element(By.CSS_SELECTOR, "#shViewport [data-preset=light]").click()
+    wait(f"return !{S}.busy && {S}.d.built?.preset === 'light'", 60)
+    n_top = js(f"return {S}.allDims().filter(x => x.view === 'Top').length")
+    from selenium.webdriver.support.ui import Select
+    Select(d.find_element(By.CSS_SELECTOR, "#shLeft [data-vp=Top]")).select_by_value("medium")
+    wait(f"return !{S}.busy && {S}.d.built?.vp === JSON.stringify({{Top: 'medium'}})", 60)
+    time.sleep(0.3)
+    print("light, the top medium: top dims", n_top, "->", js(f"return {S}.allDims().filter(x => x.view === 'Top').length"),
+          "| front stays:", js(f"return {S}.allDims().filter(x => x.view === 'Front').length"))
+    Select(d.find_element(By.CSS_SELECTOR, "#shLeft [data-vp=Top]")).select_by_value("")
+    wait(f"return !{S}.busy && {S}.d.built?.vp === '{{}}'", 60)
     d.find_element(By.CSS_SELECTOR, "#shViewport [data-preset=medium]").click()
     wait(f"return !{S}.busy && {S}.d.built?.preset === 'medium'", 60)
     time.sleep(0.3)

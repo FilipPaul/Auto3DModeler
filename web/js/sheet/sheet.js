@@ -6,7 +6,7 @@
 // The PDF is the same SVG the editor shows (/api/sheet/pdf).
 //
 // Sheet JSON (a project part of kind "sheet"):
-//   {source: "<part id>", preset: "light" | "medium" | "full", paper: null | "A4" | "A3", views: {Front: [x, y]} (moved),
+//   {source: "<part id>", preset: "light" | "medium" | "full", vpreset: {Top: "full"} (a view's own), paper: null | "A4" | "A3", views: {Front: [x, y]} (moved),
 //    off: {Iso: true} (views not shown), dims: {<id>: {side, off, ang, len}} (automatic ones moved), hidden: [<ids>],
 //    user: [<dimension>], built: {geometry, layout, dims} (from the server), hash (of the part it was built from),
 //    rev, created, changed}
@@ -46,8 +46,8 @@ export class SheetEditor {
     this.pick = null;    // the first point of a new dimension {view, key}
     this.zoom = { k: 1, x: 0, y: 0 };
     this.history = new History({
-      capture: () => ({ views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, paper: this.d?.paper }),
-      restore: (s) => { Object.assign(this.d, structuredClone(s)); if (this.d.built?.preset !== this.d.preset) this.ensure(true); else this.render(); },
+      capture: () => ({ views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper }),
+      restore: (s) => { Object.assign(this.d, structuredClone(s)); if (this.d.built?.preset !== this.d.preset || this.d.built?.vp !== JSON.stringify(this.d.vpreset || {})) this.ensure(true); else this.render(); },
       onChange: () => this.renderBar(),
     });
     this.build();
@@ -94,15 +94,16 @@ export class SheetEditor {
     const src = this.hooks.partData(this.d.source);
     if (!src) { this.render(); return; }
     const h = partHash(src);
-    if (!force && this.d.built && !this.d.built.stale && this.d.hash === h && this.d.built.preset === this.d.preset && (this.d.built.paper ?? null) === (this.d.paper ?? null)) return;
+    const vp = JSON.stringify(this.d.vpreset || {});
+    if (!force && this.d.built && !this.d.built.stale && this.d.hash === h && this.d.built.preset === this.d.preset && this.d.built.vp === vp && (this.d.built.paper ?? null) === (this.d.paper ?? null)) return;
     this.busy = true;
     this.renderBar();
     try {
-      const res = await fetch('/api/sheet/build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: src, preset: this.d.preset, paper: this.d.paper }) });
+      const res = await fetch('/api/sheet/build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: src, preset: this.d.preset, paper: this.d.paper, per_view: this.d.vpreset || {} }) });
       const r = await res.json();
       if (!res.ok) throw new Error(r.error || res.statusText);
       if (this.d.hash && this.d.hash !== h) { this.d.rev += 1; this.d.changed = new Date().toISOString(); } // the part changed
-      Object.assign(this.d, { built: { ...r, preset: this.d.preset, paper: this.d.paper ?? null }, hash: h });
+      Object.assign(this.d, { built: { ...r, preset: this.d.preset, vp, paper: this.d.paper ?? null }, hash: h });
       this.error = null;
     } catch (e) { this.error = e.message; }
     this.busy = false;
@@ -401,12 +402,17 @@ export class SheetEditor {
     const box = this.$('.sh-left');
     if (!box || !this.d) return;
     const all = this.allDims(), hid = this.d.hidden.length;
-    box.innerHTML = `<h3>Views</h3><div class="sh-views">${[...VIEWS, 'Iso'].map((v) => `<label class="check"><input type="checkbox" data-v="${v}" ${this.d.off[v] ? '' : 'checked'}> ${esc(t(v))}</label>`).join('')}</div>
+    const vp = this.d.vpreset || {};
+    box.innerHTML = `<h3>Views</h3><div class="sh-views">${[...VIEWS, 'Iso'].map((v) => `<div class="sh-vrow"><label class="check"><input type="checkbox" data-v="${v}" ${this.d.off[v] ? '' : 'checked'}> ${esc(t(v))}</label>
+        ${v === 'Iso' ? '' : `<select data-vp="${v}" title="${esc(t('How many dimensions in this view — as the sheet, or its own'))}"><option value="">${esc(t('as the sheet'))}</option>${PRESETS.map(([k, l]) => `<option value="${k}" ${vp[v] === k ? 'selected' : ''}>${esc(t(l))}</option>`).join('')}</select>`}</div>`).join('')}</div>
       <h3>Dimensions</h3><div class="sh-dlist">${all.map((d) => { const v = this.value(d); return `<div class="sh-drow ${this.sel === d.id ? 'on' : ''} ${v === null ? 'bad' : ''}" data-d="${d.id}">
         <span data-no-i18n>${d.kind === 'linear' ? (d.dir === 'h' ? '↔ ' : '↕ ') : ''}${esc(v === null ? '⚠ ?' : this.dimText(d, v))}</span><i>${esc(t(d.view))}${d.auto ? '' : ' · ✎'}</i><button class="mini danger" data-x="${d.id}" title="Delete it">✕</button></div>`; }).join('') || '<p class="hint">None.</p>'}</div>
       ${hid ? `<div class="row-actions"><button class="btn small" data-a="unhide">↺ ${esc(tv('Bring back deleted ones ({n})', { n: hid }))}</button></div>` : ''}`;
     for (const el of box.querySelectorAll('[data-v]')) {
       el.addEventListener('change', () => { if (el.checked) delete this.d.off[el.dataset.v]; else this.d.off[el.dataset.v] = true; this.commit(); });
+    }
+    for (const el of box.querySelectorAll('[data-vp]')) {
+      el.addEventListener('change', () => { const vpr = { ...(this.d.vpreset || {}) }; if (el.value) vpr[el.dataset.vp] = el.value; else delete vpr[el.dataset.vp]; this.d.vpreset = vpr; this.history.commit(); this.ensure(true); });
     }
     for (const row of box.querySelectorAll('[data-d]')) row.addEventListener('click', (e) => { if (!e.target.closest('[data-x]')) { this.sel = row.dataset.d; this.render(); } });
     for (const b of box.querySelectorAll('[data-x]')) b.addEventListener('click', () => this.remove(b.dataset.x));
@@ -630,7 +636,7 @@ export class SheetEditor {
 
   /** For the AI: the sheet's dimensions with their values. */
   summary() {
-    return { part: this.hooks.partName(this.d.source), preset: this.d.preset, paper: this.lay?.paper, rev: this.d.rev, changed: this.d.changed,
+    return { part: this.hooks.partName(this.d.source), preset: this.d.preset, ...(Object.keys(this.d.vpreset || {}).length ? { view_presets: this.d.vpreset } : {}), paper: this.lay?.paper, rev: this.d.rev, changed: this.d.changed,
       views: [...VIEWS, 'Iso'].filter((v) => !this.d.off[v]),
       dims: this.allDims().map((d) => ({ id: d.id, view: d.view, kind: d.kind, text: this.value(d) === null ? null : this.dimText(d, this.value(d)), auto: !!d.auto, ...(this.value(d) === null ? { lost: true } : {}) })),
       deleted_auto: this.d.hidden.length };

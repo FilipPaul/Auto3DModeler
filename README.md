@@ -265,7 +265,7 @@ as a 📐 Drawing — everything in the DXF / DWG section above works on it (lay
 
 **📄 Drawing sheet** (a 3D model's panel) opens the part's drawing as a tab of its own, to edit: the front, top,
 right and iso views on an A4 / A3 page with a title block (part, material, scale, paper, tolerances, created,
-**changed + revision**). Its dimensions are made by a preset — **Light** (the overall sizes, a Ø for each hole size,
+**changed + revision**). Its dimensions are made by a preset (for the whole sheet, and each view may have its own in the Views list) — **Light** (the overall sizes, a Ø for each hole size,
 the biggest R), **Medium** (+ where the holes are, the radii, the heights) or **Full** (+ every level) — and holes
 alike are dimensioned **once**: *8× Ø3 H7*, the first hole's place and the row's pitch *3× 10* (200 holes in a grid
 are one Ø and two pitches, not 400 dimensions). **Drag** a dimension or a view to move it, **Del** removes a

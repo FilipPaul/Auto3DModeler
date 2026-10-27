@@ -197,7 +197,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       await sheet.ensure();
       return ok({ ...sheet.summary(), ...(points ? { [points]: sheet.pointsOf(points) } : {}) });
     },
-    sheet_edit: async ({ preset, paper, views, remove = [], restore, add = [], move = {} } = {}) => {
+    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {} } = {}) => {
       need('sheet', 'This is for a drawing sheet (📄) — sheet_open opens one');
       const ed = sheet, done = [];
       if (preset !== undefined) {
@@ -211,7 +211,13 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         ed.d.views = {};
         done.push(`paper ${paper || 'auto'}`);
       }
-      if (preset !== undefined || paper !== undefined) await ed.ensure(true);
+      for (const [v, p] of Object.entries(view_presets || {})) {
+        if (!['Front', 'Top', 'Right'].includes(v) || (p && !['light', 'medium', 'full'].includes(p))) throw new Error('view_presets: {Front | Top | Right: "light" | "medium" | "full" | null (as the sheet)}.');
+        ed.d.vpreset = { ...(ed.d.vpreset || {}) };
+        if (p) ed.d.vpreset[v] = p; else delete ed.d.vpreset[v];
+        done.push(`${v} ${p || 'as the sheet'}`);
+      }
+      if (preset !== undefined || paper !== undefined || view_presets) await ed.ensure(true);
       for (const [v, on] of Object.entries(views || {})) {
         if (!['Front', 'Top', 'Right', 'Iso'].includes(v)) throw new Error('views: {Front | Top | Right | Iso: true / false}.');
         if (on) delete ed.d.off[v]; else ed.d.off[v] = true;
