@@ -644,6 +644,11 @@ body.ws-model #exportMenu [data-fmt=glb] { display: none; }
 .m-cmdbar .chip.on { background: #6e40c9; border-color: #8957e5; color: white; }
 .m-cmdbar .chip.primary { background: var(--accent); border-color: var(--accent); color: white; font-weight: 600; }
 .m-cmdbar .chip:disabled { opacity: .45; cursor: default; }
+.m-cmdbar .chip.tool.bad { border-color: #f85149; color: #ffb3ae; background: #f8514926; }
+.m-cmdbar .chip.tool.bad.on { background: #b62324; color: white; }
+.m-cmdbar .chip.tool.good { border-color: #2ea043; color: #7ee787; }
+.as-clash { cursor: pointer; }
+.as-clash.on { border-color: #f85149; background: #f8514926; }
 .m-mode { font-weight: 700; color: #f2cc60; margin-right: 6px; }
 .m-say { color: var(--muted); font-size: 12px; margin-right: 4px; }
 .m-hint { position: absolute; top: 50px; left: 50%; transform: translateX(-50%); z-index: 3; background: #161a20e8; border: 1px solid var(--line);

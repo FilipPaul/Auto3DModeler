@@ -64,6 +64,10 @@ Date: 2026-10-25. Written by the architect agent.
   /api/projects routes; web/js/autosave.js (History.commit / go and the quick part's history fire `a3d:changed`; saved
   3 s later if the project file changed, a beacon on pagehide; 🕘 Recent projects; the last one offered). A3D_DATA
   points a server at another data folder (test servers). tests/test_autosave.py, tools/e2e_autosave.py.
+- **Collisions always told done:** scheduleClashes after every commit / refresh (700 ms; 250 with the panel open),
+  the ⚠ button's text and colour from the last check (clashLabel / updateClashButton); a row's click: showClash ->
+  AsmView.focusBox (the camera onto the overlap's box), the parts not in it at opacity 0.12; ⤢ Show all.
+  tools/e2e_assembly_clash.py.
 - **Drawings and boards for the AI done:** server open_file -> read_drawing / read_gerber_set (a folder) -> the
   page's `load_drawing` (a 📐 drawing tab); DXF / DWG open as drawings like in the app (`as: "part"`: the outline as
   before). Browser tools drawing_delete, drawing_add, drawing_units; drawing_layers color / new / active; list_parts

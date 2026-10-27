@@ -118,6 +118,17 @@ class AsmView extends ModelView {
     this.invalidate();
   }
 
+  /** The camera onto a box ([x0, y0, z0, x1, y1, z1]), looking from where it looks now — close, with room round it. */
+  focusBox(b) {
+    const box = new THREE.Box3(new THREE.Vector3(b[0], b[1], b[2]), new THREE.Vector3(b[3], b[4], b[5]));
+    const c = box.getCenter(new THREE.Vector3()), s = Math.max(box.getSize(new THREE.Vector3()).length() * 3, 30);
+    const dir = this.camera.position.clone().sub(this.controls.target).normalize();
+    this.controls.target.copy(c);
+    this.camera.position.copy(c).addScaledVector(dir.lengthSq() ? dir : new THREE.Vector3(0.55, -0.9, 0.7).normalize(), s);
+    this.controls.update();
+    this.invalidate();
+  }
+
   /** The box round every placed part as shown (exploded too) -> [x0, y0, z0, x1, y1, z1] or null. */
   shownBox() {
     if (!this.meshes?.length) return null;
@@ -318,7 +329,7 @@ export class Assembly {
       ${btn('measure', '📏 Measure', 'Measure: click a spot (a face, a corner), then another one — the distance; two parallel flat faces: the gap between them; two round faces: how far apart their axes are', `tool ${this.measuring ? 'on' : ''}`)}
       ${btn('paint', '🎨 Paint', 'Colour faces of the placed parts, or whole parts — in this assembly: click them (Ctrl+click: more), then pick a colour', `tool ${this.painting ? 'on' : ''}`)}
       ${btn('section', '✂ Section', 'Look inside: cut the view along X, Y or Z', `tool ${this.section ? 'on' : ''}`)}
-      ${btn('clashes', '⚠ Collisions', 'Check where parts overlap (go into each other) — the pairs, how much, marked in red; checked again after every change while it is open', `tool ${this.clashPanel ? 'on' : ''}`)}
+      ${btn('clashes', this.clashLabel(), 'Where parts overlap (go into each other) — checked after every change; click: the list, each one shown in the view', `tool ${this.clashPanel ? 'on' : ''} ${this.clashes?.length ? 'bad' : this.clashes ? 'good' : ''}`)}
       ${btn('fasteners', '🔩 Fasteners', 'Screws, heat-set inserts and pins where holes line up across parts — suggested, added with one click', `tool ${this.fastenerPanel ? 'on' : ''}`)}
       <span class="sep"></span>
       <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
@@ -631,10 +642,32 @@ export class Assembly {
   }
 
   // ------------------------------------------------------------------ ⚠ collisions
+  /** The ⚠ button's text: what the last check found. */
+  clashLabel() {
+    const n = this.clashes?.length;
+    return this.doc.instances.length < 2 || !this.clashes ? '⚠ Collisions' : n ? `⚠ ${n} collision(s)` : '✓ No collisions';
+  }
+
+  /** The ⚠ button as the last check found (without drawing the bar again). */
+  updateClashButton() {
+    const b = this.$('.m-cmdbar [data-a=clashes]');
+    if (!b) return;
+    b.textContent = this.clashLabel();
+    b.classList.toggle('bad', !!this.clashes?.length);
+    b.classList.toggle('good', !!this.clashes && !this.clashes.length);
+  }
+
+  /** Checked again a moment after a change (the ⚠ button counts them, the list when it is open). */
+  scheduleClashes(ms = 700) {
+    clearTimeout(this.clashTimer);
+    if (this.doc.instances.length < 2) { this.clashes = null; this.updateClashButton(); return; }
+    this.clashTimer = setTimeout(() => this.checkClashes(), ms);
+  }
+
   toggleClashes() {
     this.clashPanel = !this.clashPanel;
-    this.clashes = null;
     this.hoverClash = null;
+    this.focusClash = null;
     if (this.clashPanel) { this.sel = null; this.sel2 = null; this.fastenerPanel = false; this.checkClashes(); }
     this.render();
     this.draw();
@@ -666,10 +699,12 @@ export class Assembly {
       this.clashes = r.clashes;
     } catch (e) {
       if (run !== this.clashRun) return;
-      this.clashes = [];
-      this.hooks.toast(e.message, 'error', 6000);
+      this.clashes = null;
+      if (this.clashPanel) this.hooks.toast(e.message, 'error', 6000);
     }
     this.clashBusy = false;
+    if (this.focusClash) this.focusClash = (this.clashes || []).find((c) => c.a === this.focusClash.a && c.b === this.focusClash.b) || null; // (moved: the new box)
+    this.updateClashButton();
     if (!this.clashPanel) return;
     this.renderProps();
     this.draw();
@@ -685,20 +720,23 @@ export class Assembly {
       return `${this.partName(top?.part)} ${id}`;
     };
     box.innerHTML = `<h2>⚠ Collisions</h2>
-      <p class="hint">Where parts go into each other (touching faces are fine). Checked again after every change while this is open.</p>
+      <p class="hint">Where parts go into each other (touching faces are fine) — checked again after every change. Click one: the view goes to it, the other parts see-through.</p>
       ${this.clashBusy && !cs ? '<p class="mp-count">Checking…</p>' : !cs ? '' : !cs.length ? '<p class="mp-count ok">✓ No parts overlap.</p>'
-        : `<p class="mp-count">${t2('{n} overlap(s)', { n: cs.length })}${this.clashBusy ? ' …' : ''}</p><div class="as-joints">${cs.map((c, i) => `<div class="as-jrow as-clash" data-clash="${i}">
+        : `<p class="mp-count">${t2('{n} overlap(s)', { n: cs.length })}${this.clashBusy ? ' …' : ''}</p><div class="as-joints">${cs.map((c, i) => `<div class="as-jrow as-clash ${this.focusClash === c ? 'on' : ''}" data-clash="${i}" title="${esc(t('Show it in the view (again: all of them)'))}">
           <span class="as-jt">⚠</span><span class="as-jw"><b data-no-i18n>${esc(name(c.a))}</b> ↔ <b data-no-i18n>${esc(name(c.b))}</b></span>
           <span class="as-jv">${fmt(+c.volume.toFixed(c.volume < 10 ? 2 : 0))} mm³</span>
           <span class="as-jbtn"><button class="mini" data-cpick="${i}" title="Choose these two parts (their joints, their moves)">↗</button></span></div>`).join('')}</div>`}
-      <div class="row-actions"><button class="btn small" data-a="recheck" ${this.clashBusy ? 'disabled' : ''}>↻ Check again</button><button class="btn small" data-a="closeC">Close</button></div>`;
+      <div class="row-actions">${this.focusClash ? '<button class="btn small" data-a="allC">⤢ Show all</button>' : ''}<button class="btn small" data-a="recheck" ${this.clashBusy ? 'disabled' : ''}>↻ Check again</button><button class="btn small" data-a="closeC">Close</button></div>`;
     for (const row of box.querySelectorAll('[data-clash]')) {
       row.addEventListener('mouseenter', () => { this.hoverClash = cs[+row.dataset.clash]; this.draw(); });
       row.addEventListener('mouseleave', () => { this.hoverClash = null; this.draw(); });
+      row.addEventListener('click', (e) => { if (!e.target.closest('[data-cpick]')) this.showClash(cs[+row.dataset.clash]); });
     }
+    box.querySelector('[data-a=allC]')?.addEventListener('click', () => this.showClash(null));
     for (const b of box.querySelectorAll('[data-cpick]')) b.addEventListener('click', () => {
       const c = cs[+b.dataset.cpick];
       this.clashPanel = false;
+      this.focusClash = null;
       this.view.setClashBoxes([]);
       this.sel = this.topOf(c.a);
       this.sel2 = this.topOf(c.b) !== this.sel ? this.topOf(c.b) : null;
@@ -707,6 +745,17 @@ export class Assembly {
     });
     box.querySelector('[data-a=recheck]').addEventListener('click', () => this.checkClashes());
     box.querySelector('[data-a=closeC]').addEventListener('click', () => this.toggleClashes());
+  }
+
+  /** One collision shown: the view goes to it (its red box), the parts not in it see-through; the same again, or null:
+   *  all of them, the whole assembly in view. */
+  showClash(c) {
+    this.focusClash = c && this.focusClash !== c ? c : null;
+    this.hoverClash = null;
+    if (this.focusClash) this.view.focusBox(this.focusClash.bbox);
+    else this.view.setView('iso');
+    this.renderProps();
+    this.draw();
   }
 
   // ------------------------------------------------------------------ 🎨 paint (this assembly's colours), ✂ section
@@ -1362,6 +1411,7 @@ export class Assembly {
     this.draw();
     this.renderList();
     this.renderProps();
+    this.scheduleClashes(); // (the ⚠ button tells)
   }
 
   /** A sub-assembly as one body: its parts' meshes placed by their matrices, face names "<its instance>/<name>". */
@@ -1440,12 +1490,14 @@ export class Assembly {
       const v = c.clone().sub(mid);
       return v.length() > 1e-6 * (1 + size) ? v : new THREE.Vector3(0, 0, Math.max(size, 10) * 0.5);
     };
-    const shownClashes = this.clashPanel ? (this.hoverClash ? [this.hoverClash] : this.clashes || []) : [];
+    const focus = this.clashPanel ? this.focusClash : null;
+    const shownClashes = this.clashPanel ? (focus ? [focus] : this.hoverClash ? [this.hoverClash] : this.clashes || []) : [];
     const clashing = new Set(shownClashes.flatMap((c) => [this.topOf(c.a), this.topOf(c.b)]));
     this.view.setClashBoxes(shownClashes.map((c) => c.bbox));
     this.view.setBodies(this.doc.instances.map((it, k) => {
       const c = it.stay ? null : centres[k];
       const look = this.lookOf(it);
+      if (focus && !clashing.has(it.id)) look.opacity = Math.min(look.opacity ?? 1, 0.12); // the rest see-through
       return { id: it.id, body: this.bodies[it.part]?.body, matrix: it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part), ...look,
         selected: it.id === this.sel || it.id === this.sel2 || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst, clash: clashing.has(it.id),
         explode: this.explode && c ? away(c).multiplyScalar(this.explode * 1.2).toArray() : null };
@@ -1459,7 +1511,7 @@ export class Assembly {
     this.render();
     this.draw();
     this.hooks.onChange?.();
-    if (this.clashPanel) { clearTimeout(this.clashTimer); this.clashTimer = setTimeout(() => this.checkClashes(), 250); }
+    this.scheduleClashes(this.clashPanel ? 250 : 700);
   }
 
   /** How a placed part looks: its own colour / see-through in this assembly, else its part's -> {colour, opacity}. */
