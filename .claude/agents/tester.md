@@ -162,6 +162,10 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_ai_ask.py <url> <dir>` covers the AI's ask_user (two questions -> the chat in sight, cards of buttons with
    the recommended option first ★; one answered: nothing sent; both: one message "<question> → <option>"; ✎ Other…
    puts the question in the box; no options refused). The message is caught in the page (no Claude needed).
+   `tools/e2e_ai_gui.py <url> <dir>` covers the AI's GUI testing: gui_action at a point of the 3D view (the lid
+   picked, an empty corner: none), Delete / ctrl+z keys, gui_state on a sheet (dims, views, cells), a dimension
+   clicked + Delete + ctrl+z, a view dragged 20 mm by at_mm / drag_to, a double-click on the title cell (its field
+   focused), nothing given / a wrong point refused.
    `tools/e2e_assembly_lever.py <url> <dir>` covers a lever fixed on a bearing on a shaft (the arm moves "— with
    Bearing": move_free and its slider turn the bearing, the arm goes along), 🔓 free / 🔒 locked on a touch joint
    (locked: the bearing fully held), a joint named by double-click and by edit_joint, and Explode with Respect joints

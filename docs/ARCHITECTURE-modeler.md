@@ -80,6 +80,11 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **The AI tests the GUI by the mouse and keys done:** gui_state lists a sheet's dims / views / title cells (kind dim /
+  view / cell, where: view); gui_action at = [x, y] (0 … 1 of the view), at_mm (a sheet's paper), drag_to, double,
+  key (Delete, Enter, Escape, ctrl+z — alone, on a control or after a click): pointer + mouse events at the point
+  (agent_more.js gesture: a pointer capture gets the rest, as the sheet draws its SVG anew on a press), -> what was
+  under the mouse and what is selected. tools/e2e_ai_gui.py.
 - **🔒 Lock a motion done:** 🔒 in each free motion's row (assembly.lockMotion): its own joint's angle (a turn about
   an axis / on a face) or dist + side (along an axis) where it is now, else a new flush / gap / touch joint of
   parallel flat faces across the move or a parallel joint of flat faces along the turn's axis (nearest / biggest

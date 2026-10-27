@@ -397,16 +397,24 @@ TOOLS = [
                     "TURN: the answer comes as the user's next message. For several questions, call it once per question, then end the turn.",
      "inputSchema": _obj({"question": STR, "options": {"type": "array", "items": {"type": "object"}}, "recommended": {"type": "integer"}}, ["question", "options"])},
     {"name": "gui_state", "where": "browser",
-     "description": "What the user sees on screen now: every visible control (buttons, sliders, boxes, choices, joint names — not the "
-                    "AI chat) with its number n, label, tooltip, state (on / a value / checked) and whether it is greyed out; where: "
-                    "bar (top bar), tools (the workspace's toolbar), panel (side panels) or all. Use it to tell the user exactly "
+     "description": "What the user sees on screen now: every visible control (buttons, sliders, boxes, choices, joint names, list "
+                    "rows — not the AI chat) with its number n, label, tooltip, state (on / a value / checked) and whether it is greyed "
+                    "out; on a drawing sheet also its dimensions (kind dim), views (view) and title-block cells (cell), where: view; "
+                    "where: bar (top bar), tools (the workspace's toolbar), panel (side panels), view or all. Use it to tell the user exactly "
                     "where something is, and with gui_action to check the GUI does what the tools do.",
-     "inputSchema": _obj({"where": {"type": "string", "enum": ["all", "bar", "tools", "panel"]}})},
+     "inputSchema": _obj({"where": {"type": "string", "enum": ["all", "bar", "tools", "panel", "view"]}})},
     {"name": "gui_action", "where": "browser",
-     "description": "Do what the user's mouse does on a control from gui_state (its n, or its label / part of it): a click on a "
-                    "button / checkbox, or a slider / box / choice set to `value` (as dragged or typed, then let go). -> what was "
-                    "done and the messages shown. Then get_assembly / gui_state / get_screenshot tell what changed.",
-     "inputSchema": _obj({"control": {}, "value": {}, "click": {"type": "boolean"}}, ["control"])},
+     "description": "Do what the user's mouse and keys do. On a control from gui_state (its n, or its label / part of it): a "
+                    "click on a button / checkbox / a sheet's dim, view or cell, or a slider / box / choice set to `value` (as dragged "
+                    "or typed, then let go). At a point: at = [x, y], 0 … 1 across and down the view (the 3D view, the drawing, the "
+                    "sheet; get_screenshot shows it), or at_mm = [x, y] on a drawing sheet's paper (mm from its top left) — a click "
+                    "there (picks a face, a part, a dimension…), double = true a double-click, drag_to = [x, y] (same kind of point) a "
+                    "drag. key = a key pressed after it, or alone on what has the focus: Delete, Enter, Escape, ctrl+z … -> what was "
+                    "done, what was under the mouse, what is selected and the messages shown. Then get_assembly / gui_state / "
+                    "get_screenshot tell what changed.",
+     "inputSchema": _obj({"control": {}, "value": {}, "click": {"type": "boolean"}, "at": {"type": "array", "items": NUM},
+                          "at_mm": {"type": "array", "items": NUM}, "drag_to": {"type": "array", "items": NUM},
+                          "double": {"type": "boolean"}, "key": STR})},
     {"name": "remove_joint", "where": "browser", "description": "Remove a joint (id J…) of the assembly on screen; the part stays where it is.",
      "inputSchema": _obj({"id": STR}, ["id"])},
     {"name": "measure", "where": "browser",
@@ -459,7 +467,7 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 - **Assemblies** place 3D model parts together: new_assembly, get_assembly, insert_part, snap_faces (joints: touch, gap, axis = concentric…), place_part, remove_from_assembly, check_collisions. get_assembly says for each joined part how it can still move (free) or that it is fully held.
 - **Drawing sheets** (📄, of a 3D model part — its views and dimensions, made by a preset, edited by the user, following the part): sheet_open, get_sheet, sheet_edit; export {format: "pdf"} on a sheet writes it as drawn. Prefer a sheet over export pdf of the model when the user wants a drawing.
 - **2D drawings** (a DXF / DWG, or a PCB's Gerber / ODB++ opened as a 📐 drawing — open_file opens them, also a folder of loose Gerber files): get_drawing, drawing_find (shapes by filters), drawing_delete, drawing_add (lines, circles), drawing_units, drawing_layers (show / hide, colour, a new layer), drawing_set_size, drawing_use (as the sketch of a 3D model, or a quick part).
-- The GUI: gui_state lists what the user sees (buttons, sliders, their state); gui_action clicks / slides one as the user would — use them to tell the user where something is and to check the GUI behaves like the tools.
+- The GUI: gui_state lists what the user sees (buttons, sliders, their state; a sheet's dimensions / views / cells); gui_action clicks / slides one as the user would, clicks / drags at a point of the view (at, at_mm on a sheet) and presses keys (Delete, Enter, Escape, ctrl+z) — use them to tell the user where something is and to check the GUI behaves like the tools.
 - Assemblies also: edit_joint / remove_joint, measure (between faces), move_free, lock_motion (fix one free motion where it is); set_travel (a free motion's limits: a cylinder's stroke) and check_travel (collisions along it); the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, delete_part (only when asked). Files: export stl / step / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf.
 - **The parts library** holds real, bought parts with their maker and part number (screws, nuts, washers, inserts, bearings, standoffs, panel parts, SMC pneumatics, SICK sensors, stepper motors, the user's own): library_search, library_add.
 - Both: get_screenshot, check_print, export, undo. Opening a file or tracing a picture adds a new quick part tab.

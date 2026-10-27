@@ -526,7 +526,9 @@ can open them.
   holds ISO 286 fits (H7/g6, k6, p6 …), ISO 2768 general tolerances, clearance / tap-drill holes and counterbores.
 - **The GUI for the AI**: `gui_state` lists what you see (every button, slider, box, joint name, its state, greyed
   out or not) so the AI can tell you exactly where something is; `gui_action` clicks or slides one the way the mouse
-  does — so it can check the app behaves like its tools. A **locked 🔒 joint** is greyed out in the panel (only 🔒
+  does — so it can check the app behaves like its tools. It also clicks, double-clicks or drags **at a point** of the
+  view (picking a part or a face in 3D, a dimension, view or title cell on a drawing sheet — `at_mm` on the paper) and
+  presses **keys** (Delete, Enter, Escape, ctrl+z); a sheet's dimensions, views and title cells are listed too. A **locked 🔒 joint** is greyed out in the panel (only 🔒
   unlocks it) and the AI cannot change it either.
 - **Library first**: Claude designs like a mechanical engineer. Every bought part (screws, nuts, inserts, bearings,
   standoffs, panel parts, SMC pneumatics, SICK sensors, motors) comes from the 📚 parts library (`library_search`,

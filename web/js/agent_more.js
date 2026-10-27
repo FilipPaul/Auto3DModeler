@@ -53,7 +53,84 @@ export function guiControls(where = 'all') {
       state: kind === 'checkbox' ? (el.checked ? 'on' : 'off') : ['button', 'name', 'part'].includes(kind) ? (el.classList.contains('on') ? 'on' : undefined) : String(el.value),
       ...(kind === 'slider' ? { min: +el.min, max: +el.max } : {}), disabled: !!el.disabled || undefined, where: a, el });
   }
+  // on a drawing sheet: its dimensions, views and title-block cells (drawn, not controls — clicked where they are)
+  for (const el of document.querySelectorAll('#shViewport [data-dim], #shViewport [data-view], #shViewport [data-tcell]')) {
+    if (seen.has(el) || !el.getBoundingClientRect().width) continue;
+    seen.add(el);
+    const kind = el.dataset.dim ? 'dim' : el.dataset.tcell ? 'cell' : 'view';
+    const label = kind === 'dim' ? `${el.dataset.dim}: ${el.textContent.replace(/\s+/g, ' ').trim()}` : kind === 'cell' ? `title ${el.dataset.tcell}` : `view ${el.dataset.view}`;
+    out.push({ n: out.length + 1, kind, label: label.slice(0, 90), state: el.classList.contains('on') ? 'on' : undefined, where: 'view', el });
+  }
   return where === 'all' ? out : out.filter((c) => c.where === where); // (n: one numbering for all)
+}
+
+/** The workspace's view on screen (the 3D view, the drawing, the sheet). */
+function viewEl() { return [...document.querySelectorAll('section.viewport')].find((v) => v.offsetParent && v.getBoundingClientRect().width > 0); }
+
+/** What is at a point of the screen, in words (for the AI). */
+function underAt(x, y) {
+  const el = document.elementFromPoint(x, y);
+  if (!el) return 'nothing';
+  const d = el.closest('[data-dim]'), c = el.closest('[data-tcell]'), v = el.closest('[data-view]'), b = el.closest('button');
+  if (d) return `dimension ${d.dataset.dim}`;
+  if (c) return `title cell ${c.dataset.tcell}`;
+  if (v) return `view ${v.dataset.view}`;
+  if (b) return `button ${b.textContent.replace(/\s+/g, ' ').trim().slice(0, 40)}`;
+  return el.tagName === 'CANVAS' ? 'the 3D view' : el.tagName.toLowerCase();
+}
+
+/** A mouse press / drag / double-click as the user's, at screen points: pointer + mouse events on what is there. A
+ *  pointer capture asked for (a drag) gets the rest, as in the browser (what was pressed may be drawn anew). */
+async function gesture(path, { double = false } = {}) {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const [x0, y0] = path[0], end = path[path.length - 1];
+  if (!document.elementFromPoint(x0, y0)) throw new Error('That point is off the screen.');
+  let captured = null;
+  const ev = (el, type, [x, y], buttons) => {
+    const o = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, button: 0, buttons, pointerId: 1, pointerType: 'mouse', isPrimary: true, detail: 1 };
+    el.dispatchEvent(type.startsWith('pointer') ? new PointerEvent(type, o) : new MouseEvent(type, o));
+  };
+  const to = (p) => captured || document.elementFromPoint(...p) || document.body;
+  const cap = Element.prototype.setPointerCapture, rel = Element.prototype.releasePointerCapture;
+  Element.prototype.setPointerCapture = function () { captured = this; }; // (a made-up pointer cannot be captured)
+  Element.prototype.releasePointerCapture = function () { captured = null; };
+  try {
+    for (let k = 0; k < (double ? 2 : 1); k++) {
+      captured = null;
+      const down = document.elementFromPoint(x0, y0);
+      ev(down, 'pointerdown', path[0], 1);
+      ev(down.isConnected ? down : to(path[0]), 'mousedown', path[0], 1);
+      if (path.length > 1) {
+        for (let s = 1; s <= 10; s++) { // the drag in steps
+          const p = [x0 + ((end[0] - x0) * s) / 10, y0 + ((end[1] - y0) * s) / 10];
+          ev(to(p), 'pointermove', p, 1);
+          ev(to(p), 'mousemove', p, 1);
+          await sleep(16);
+        }
+      }
+      const up = to(end);
+      ev(up, 'pointerup', end, 0);
+      ev(up, 'mouseup', end, 0);
+      ev(up, 'click', end, 0);
+      await sleep(80);
+    }
+    if (double) ev(to(path[0]), 'dblclick', path[0], 0);
+  } finally {
+    Element.prototype.setPointerCapture = cap;
+    Element.prototype.releasePointerCapture = rel;
+  }
+}
+
+/** A key press (e.g. "Delete", "Enter", "Escape", "ctrl+z") on what has the focus. */
+function press(spec) {
+  const parts = String(spec).split('+').map((s) => s.trim()), key0 = parts.pop(), mods = parts.map((m) => m.toLowerCase());
+  const named = { del: 'Delete', delete: 'Delete', enter: 'Enter', esc: 'Escape', escape: 'Escape', tab: 'Tab', backspace: 'Backspace', space: ' ', up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
+  const key = named[key0.toLowerCase()] || (key0.length === 1 ? (mods.includes('shift') ? key0.toUpperCase() : key0.toLowerCase()) : key0);
+  const o = { key, code: key.length === 1 ? `Key${key.toUpperCase()}` : key, bubbles: true, cancelable: true,
+    ctrlKey: mods.includes('ctrl') || mods.includes('control'), shiftKey: mods.includes('shift'), altKey: mods.includes('alt'), metaKey: mods.includes('meta') };
+  const el = document.activeElement && document.activeElement !== document.body ? document.activeElement : document.body;
+  el.dispatchEvent(new KeyboardEvent('keydown', o));
+  el.dispatchEvent(new KeyboardEvent('keyup', o));
 }
 
 export function moreHandlers({ state, project, modeler, assembly, drawing2d, sheet, drawingSet, t2 }) {
@@ -162,12 +239,55 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       return ok({ workspace: state.workspace, controls: list.map(({ el, ...c }) => c),
         toasts: [...document.querySelectorAll('.toast')].map((x) => x.textContent.trim()).slice(-3) });
     },
-    gui_action: async ({ control, click, value }) => {
-      const list = guiControls('all'), key = String(control ?? '').trim().toLowerCase();
-      const c = list.find((x) => String(x.n) === key) || list.find((x) => x.label.toLowerCase() === key) || list.find((x) => x.label.toLowerCase().includes(key));
-      if (!c) throw new Error(`No control “${control}” on screen — gui_state lists them (n or label).`);
-      if (c.disabled) throw new Error(`“${c.label}” is greyed out (disabled)${c.title ? `: ${c.title}` : ''}.`);
+    gui_action: async ({ control, click, value, key: keys, at, at_mm, drag_to, double } = {}) => {
+      const shown = () => ({ workspace: state.workspace, selected: state.workspace === 'assembly' ? assembly.sel || null : state.workspace === 'sheet' ? sheet.sel || null : undefined,
+        toasts: [...document.querySelectorAll('.toast')].map((x) => x.textContent.trim()).slice(-3) });
+      const settle = () => new Promise((r) => setTimeout(r, 400));
+      let c = null;
+      if (control !== undefined && control !== null && control !== '') {
+        const list = guiControls('all'), want = String(control).trim().toLowerCase();
+        c = list.find((x) => String(x.n) === want) || list.find((x) => x.label.toLowerCase() === want) || list.find((x) => x.label.toLowerCase().includes(want));
+        if (!c) throw new Error(`No control “${control}” on screen — gui_state lists them (n or label).`);
+        if (c.disabled) throw new Error(`“${c.label}” is greyed out (disabled)${c.title ? `: ${c.title}` : ''}.`);
+      }
+      // a point: of the view (at: [x, y] 0 … 1 across / down it), of the sheet's paper (at_mm), or a drawn thing's middle
+      const view = viewEl(), vr = view?.getBoundingClientRect();
+      const ofView = (p, what) => {
+        if (!vr) throw new Error('No view on screen.');
+        if (!Array.isArray(p) || p.length !== 2 || !p.every((v) => Number.isFinite(+v))) throw new Error(`${what}: [x, y], 0 … 1 across and down the view.`);
+        return [vr.left + +p[0] * vr.width, vr.top + +p[1] * vr.height];
+      };
+      const ofPaper = (p) => {
+        if (state.workspace !== 'sheet' || !sheet.svgEl) throw new Error('at_mm is a point on a drawing sheet\'s paper (mm from its top left) — open the sheet first.');
+        const q = sheet.svgEl.createSVGPoint();
+        [q.x, q.y] = [+p[0], +p[1]];
+        const s = q.matrixTransform(sheet.svgEl.getScreenCTM());
+        return [s.x, s.y];
+      };
+      let from = null;
+      if (at_mm) from = ofPaper(at_mm);
+      else if (at) from = ofView(at, 'at');
+      else if (c && (['dim', 'cell', 'view'].includes(c.kind) || drag_to || double)) { const r = c.el.getBoundingClientRect(); from = [r.left + r.width / 2, r.top + r.height / 2]; }
+      if (from) {
+        const under = underAt(...from), to = drag_to ? (at_mm ? ofPaper(drag_to) : ofView(drag_to, 'drag_to')) : null;
+        await gesture(to ? [from, to] : [from], { double: !!double });
+        if (keys) press(keys);
+        await settle();
+        return ok({ done: `${double ? 'double-clicked' : to ? 'dragged' : 'clicked'} ${under}${to ? ` to ${underAt(...to)}` : ''}${keys ? `, then ${keys}` : ''}`, ...shown() });
+      }
+      if (!c) {
+        if (!keys) throw new Error('control (from gui_state), a point (at / at_mm) or a key.');
+        press(keys);
+        await settle();
+        return ok({ done: `pressed ${keys}`, ...shown() });
+      }
       const el = c.el;
+      if (keys) {
+        el.focus();
+        press(keys);
+        await settle();
+        return ok({ done: `pressed ${keys} on ${c.kind} “${c.label}”`, ...shown() });
+      }
       if (value !== undefined && value !== null && /^(range|number|text|color)$/.test(el.type || '') || el.tagName === 'SELECT') {
         el.value = value;
         el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -176,9 +296,8 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         el.dispatchEvent(new MouseEvent('mouseenter'));
         el.click();
       }
-      await new Promise((r) => setTimeout(r, 400));
-      return ok({ done: `${c.kind} “${c.label}”${value !== undefined ? ` = ${value}` : ' clicked'}`, workspace: state.workspace,
-        toasts: [...document.querySelectorAll('.toast')].map((x) => x.textContent.trim()).slice(-3) });
+      await settle();
+      return ok({ done: `${c.kind} “${c.label}”${value !== undefined ? ` = ${value}` : ' clicked'}`, ...shown() });
     },
 
     // ---------------------------------------------------------------- drawing sheets (📄)
