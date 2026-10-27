@@ -125,7 +125,7 @@ TOOLS = [
                     "many pieces when split. printer: id from the result's printer list.",
      "inputSchema": _obj({"printer": STR, "split": {"type": "boolean"}})},
     {"name": "export", "where": "server",
-     "description": "Export to a file: stl / step (mm) — the part; pdf: the drawing sheet (📄) on screen as drawn, or for a 3D model a 2D drawing (front / top / right "
+     "description": "Export to a file: stl / step (mm) — the part; pdf: the drawing sheet (📄) on screen as drawn, for an assembly its drawing set (one PDF: the assembly with its parts list and balloons, each sub-assembly, then the made parts — every part once, by its own sheet when it has one), or for a 3D model a 2D drawing (front / top / right "
                     "views, sizes, holes, title block); 3mf: the 3D model or the whole assembly in its colours, an object per colour "
                     "(for multi-material printing: AMS / MMU); bom: the assembly's bill of materials as CSV (qty, maker, part "
                     "number, mass); dxf: the shown layers of a 2D drawing. path: file or folder (default: the user's Downloads "

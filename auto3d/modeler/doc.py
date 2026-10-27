@@ -861,6 +861,19 @@ def sheet(part, preset="medium", paper=None):
     return S.build(st.body, preset, fits, paper)
 
 
+def assembly_sheet(instances, paper=None):
+    """An assembly's drawing sheet: instances as for assembly_clashes (placed) -> sheet.build_assembly."""
+    from . import sheet as S
+    placed = []
+    for inst in instances or []:
+        try:
+            st = body_of(inst.get("part"))
+        except K.KernelError:
+            continue
+        placed.append((inst.get("id"), K.placed(st.body.shape, inst.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])))
+    return S.build_assembly(placed, paper)
+
+
 def assembly_clashes(instances):
     """Where the placed parts of an assembly overlap: instances [{id, part: {features}, matrix: [16]}] ->
     [{a, b (their ids), volume, bbox}]. A part without a solid is left out."""

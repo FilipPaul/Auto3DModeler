@@ -79,8 +79,15 @@ Date: 2026-10-25. Written by the architect agent.
 - **Drawing sheets — step 3 (the AI) done:** browser tools sheet_open (the part's sheet, made once), get_sheet (dims
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
-  the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py. **Next: step 4, an assembly's
-  drawing set (one PDF: the assembly, its sub-assemblies, their parts).**
+  the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Drawing sheets — step 4 (an assembly's drawing set) done:** sheet.build_assembly (the placed parts as one
+  compound: views, overall sizes, a mark per placed part for its balloon; /api/sheet/assembly), sheet.pdf of several
+  SVGs (a page each); SheetEditor.drawingSet: depth-first — the assembly's page (front, top, iso where the right view
+  was; the parts list over the title block; balloons), its sub-assemblies, then its made parts, each once, by their
+  own sheet (built again when stale) or made medium; bought / standard parts only listed; title blocks: kind, in, pos,
+  sheet n / N; 📄 Drawings (PDF) in the assembly panel, export pdf of an assembly for the AI. Also: no hit rectangles
+  in the PDF (MuPDF filled `transparent` black) and a font on every text (it does not inherit one).
+  tests: TestAssemblySheet; tools/e2e_drawing_set.py.
 - **Fits and tolerances on the drawing done:** auto3d/modeler/fits.py (ISO 286: holes H6–H9, shafts f7–p6, to 120 mm;
   label "Ø8 H7 (+0.015 / 0)"); a hole step's `fit` (its Fit choice; add_feature / edit_feature fit), a part's
   `tolerance` f / m / c (the part panel's Tolerances; set_material tolerance) -> drawing.pdf: "Ø8 H7" at the hole, the

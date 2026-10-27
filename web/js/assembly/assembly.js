@@ -584,12 +584,14 @@ export class Assembly {
         ${rows.some((r) => r.lib?.pn) ? `<div class="as-pns">${rows.filter((r) => r.lib?.pn).map((r) => `<div><span data-no-i18n>${r.qty}× ${esc(r.lib.pn)}</span> <i data-no-i18n>${esc(r.lib.maker || '')}</i></div>`).join('')}</div>` : ''}
         <div class="row-actions"><button class="btn small" data-a="bomCsv" title="The bill of materials as a CSV file (Excel): every part with its quantity, maker, part number, order numbers and mass — the parts inside sub-assemblies too">⬇ BOM (CSV)</button></div>
         <h3>Export</h3><div class="row-actions"><button class="btn small" data-x="stl" title="All parts in one STL, as placed">STL</button>
-        <button class="btn small" data-x="step" title="All parts as separate bodies in one STEP file">STEP</button></div>
+        <button class="btn small" data-x="step" title="All parts as separate bodies in one STEP file">STEP</button>
+        ${this.hooks.drawingSet ? '<button class="btn small primary" data-a="drawingSet" title="One PDF: this assembly (its views, parts list and balloons), then each sub-assembly with its parts, then its own made parts — their drawing sheets when they have one">📄 Drawings (PDF)</button>' : ''}</div>
         <p class="hint">To print, open each part's tab and use 🖨 Prepare for 3D print there.</p>`
         : `<p class="hint">Insert parts of this project (3D models and quick parts) with ＋ Insert part, then join them with 🔗 Joint.</p>`}`;
     this.bindJointRows(box);
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
     box.querySelector('[data-a=bomCsv]')?.addEventListener('click', () => this.exportBom());
+    box.querySelector('[data-a=drawingSet]')?.addEventListener('click', () => this.hooks.drawingSet());
   }
 
   // ------------------------------------------------------------------ fasteners

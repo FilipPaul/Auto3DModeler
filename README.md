@@ -276,6 +276,14 @@ own dimensions stay on their edges and holes). **⬇ PDF** gives the sheet as yo
 (`sheet_open`, `get_sheet`, `sheet_edit`: a preset, the paper, views, dimensions added between points or on a
 circle, removed or moved; `export {format: "pdf"}` on a sheet) — for what the editor does not offer in a click.
 
+**📄 Drawings (PDF)** in an assembly's panel makes its whole drawing set as one PDF, in the order of the assembly:
+the **assembly** (its views, overall sizes, the **parts list** — position, name, quantity, material, part number —
+and a **balloon** with the position on each part in the iso view), then each **sub-assembly** the same way followed by
+its parts, then the assembly's own **made parts**. Every part is drawn once — by its own 📄 drawing sheet when it has
+one (with your dimensions), otherwise made with the medium preset; bought and standard parts (library, screws, nuts)
+are only in the parts lists. Each page's title block names the part or assembly, what it is in (*in Machine · Pos.
+1*) and its page (*Sheet 2 / 5*). The AI's `export {format: "pdf"}` in an assembly writes the same set.
+
 **📐 Drawing (PDF)** in a 3D model's panel (or *PDF — 2D drawing* in the Export menu) makes an A4 drawing sheet:
 the **Front**, **Top** and **Right** views with visible edges (solid) and hidden ones (dashed), an iso view, the
 overall sizes dimensioned, every hole labelled (Ø) and listed with its position from the part's lower-left corner,

@@ -675,14 +675,24 @@ def api_sheet_build():
     return jsonify(data)
 
 
+@app.post("/api/sheet/assembly")
+def api_sheet_assembly():
+    """{instances (placed, as for clashes), paper} -> {geometry, layout, dims, marks} — an assembly's drawing sheet."""
+    body = request.get_json(force=True)
+    data, err = _model_call("assembly_sheet", {"instances": body.get("instances") or [], "paper": body.get("paper")})
+    if err:
+        return err
+    return jsonify(data)
+
+
 @app.post("/api/sheet/pdf")
 def api_sheet_pdf():
-    """{svg, name} -> the sheet as a PDF (drawn as the editor shows it)."""
+    """{svg | svgs: [...], name} -> the sheet (or a drawing set, a page each) as a PDF, drawn as the editor shows it."""
     from auto3d.modeler.sheet import pdf
     body = request.get_json(force=True)
     name = re.sub(r'[\\/:*?"<>|]+', "_", body.get("name") or "drawing").strip() or "drawing"
     try:
-        data = pdf(str(body.get("svg") or ""))
+        data = pdf(body["svgs"] if isinstance(body.get("svgs"), list) and body["svgs"] else str(body.get("svg") or ""))
     except Exception as exc:  # noqa: BLE001 — a broken SVG
         return jsonify({"error": f"The sheet could not be made a PDF: {exc}"}), 400
     return Response(data, mimetype="application/pdf", headers={"Content-Disposition": attachment(f"{name}.pdf")})
@@ -962,7 +972,7 @@ def tool_export(args):
         raise ValueError("format: stl, step, pdf (a 2D drawing of a 3D model), 3mf (with colours), bom (an assembly's CSV) or dxf (a 2D drawing)")
     if fmt == "pdf":  # a drawing sheet on screen: the sheet as it is drawn
         res = RELAY.call("export_data", {"format": "pdf"})
-        if not res.get("error") and (res.get("data") or {}).get("svg"):
+        if not res.get("error") and ((res.get("data") or {}).get("svg") or (res.get("data") or {}).get("svgs")):
             from auto3d.modeler.sheet import pdf as sheet_pdf
             d = res["data"]
             name = re.sub(r'[\\/:*?"<>|]+', "_", d.get("name") or "drawing").strip() or "drawing"
@@ -970,9 +980,10 @@ def tool_export(args):
             if target.is_dir() or not target.suffix:
                 target.mkdir(parents=True, exist_ok=True)
                 target = target / f"{name}.pdf"
-            data = sheet_pdf(d["svg"])
+            data = sheet_pdf(d.get("svgs") or d["svg"])
             target.write_bytes(data)
-            return {"text": f"Exported the drawing sheet ({max(1, len(data) // 1024)} kB) to {target}"}
+            what = f"the drawing set, {len(d['svgs'])} pages ({', '.join(d.get('pages') or [])})" if d.get("svgs") else "the drawing sheet"
+            return {"text": f"Exported {what} ({max(1, len(data) // 1024)} kB) to {target}"}
     if fmt in ("3mf", "bom", "dxf"):
         data, filename = _from_page(fmt)
         target = Path(args["path"]).expanduser() if args.get("path") else Path.home() / "Downloads"

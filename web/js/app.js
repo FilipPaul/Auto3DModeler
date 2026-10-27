@@ -20,6 +20,7 @@ import { modelHandlers } from './modeler/agent_model.js';
 import { Assembly } from './assembly/assembly.js';
 import { DrawingEditor, drawingToSketch } from './drawing2d/editor.js';
 import { SheetEditor, partHash } from './sheet/sheet.js';
+import { isStandard } from './assembly/fasteners.js';
 import { initSplitters } from './splitters.js';
 import { Autosave } from './autosave.js';
 import { changed as projectChanged } from './history.js';
@@ -148,6 +149,7 @@ function toast(msg, kind = 'info', ms = 4500) {
   t.textContent = msg;
   $('toasts').appendChild(t);
   setTimeout(() => t.remove(), ms);
+  return t;
 }
 
 async function api(path, body, method) {
@@ -1834,7 +1836,7 @@ const drawing2d = new DrawingEditor({ left: $('dwgLeft'), viewport: $('dwgViewpo
 function partDataNow(id) {
   const p = project.parts.find((q) => q.id === id);
   if (!p) return null;
-  if (p.id === project.active && p.data === 'live') return p.kind === 'model' ? modeler.payload() : null;
+  if (p.id === project.active && p.data === 'live') return p.kind === 'model' ? modeler.payload() : p.kind === 'assembly' ? assembly.payload() : null;
   return typeof p.data === 'object' ? p.data : null;
 }
 const sheet = new SheetEditor({ left: $('shLeft'), viewport: $('shViewport'), right: $('shRight') }, {
@@ -1843,6 +1845,30 @@ const sheet = new SheetEditor({ left: $('shLeft'), viewport: $('shViewport'), ri
   partName: (id) => project.parts.find((q) => q.id === id)?.name || null,
   openPart: (id) => project.switchTo(id),
 });
+/** The drawing set of an assembly as one PDF -> the downloaded file's name (pages: the assembly, its sub-assemblies, the parts). */
+/** What a drawing set needs to know of the project. */
+function drawingCtx() {
+  return {
+    kindOf: (id) => project.parts.find((q) => q.id === id)?.kind,
+    sheetOf: (id) => { const p = project.parts.find((q) => q.kind === 'sheet' && typeof q.data === 'object' && q.data?.source === id); return p ? p.data : null; },
+    bought: (data, name) => isStandard(data, name),
+  };
+}
+async function drawingSetPdf(aid, { quiet = false } = {}) {
+  const ctx = drawingCtx();
+  const busy = quiet ? null : toast(t('Making the drawings…'), 'info', 60000);
+  try {
+    const set = await sheet.drawingSet(aid, ctx);
+    const res = await fetch('/api/sheet/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ svgs: set.svgs, name: tabName() }) });
+    if (!res.ok) throw new Error((await res.json()).error || res.statusText);
+    const blob = await res.blob();
+    if (quiet) return { blob, set };
+    await download(blob, `${tabName()} — drawings.pdf`);
+    toast(t2('{n} pages: {pages}', { n: set.svgs.length, pages: set.pages.join(', ') }), 'ok', 7000);
+    return { blob, set };
+  } catch (e) { if (quiet) throw e; toast(e.message, 'error', 8000); return null; } finally { busy?.remove?.(); }
+}
+
 // a part changed: its sheets (closed ones too) get a new revision and the date — made again when opened
 let sheetTimer = null;
 window.addEventListener('a3d:changed', () => {
@@ -1871,6 +1897,7 @@ const assembly = new Assembly({ left: $('asmLeft'), viewport: $('asmViewport'), 
   renamePart: (id, name) => project.rename(id, name),
   editInPlace: async (id, ctx) => { await project.switchTo(id); if (project.active === id) modeler.setContext(ctx); },
   openPart: (id) => project.switchTo(id),
+  drawingSet: () => drawingSetPdf(project.active),
   selfId: () => project.active, // the assembly on screen (it may not go into itself)
   onChange: () => updateTopButtons(),
 });
@@ -2439,7 +2466,7 @@ const libraryTools = {
   },
 };
 Object.assign(agentHandlers, libraryTools);
-Object.assign(agentHandlers, moreHandlers({ state, project, modeler, assembly, drawing2d, sheet, t2 }));
+Object.assign(agentHandlers, moreHandlers({ state, project, modeler, assembly, drawing2d, sheet, drawingSet: (aid) => sheet.drawingSet(aid, drawingCtx()), t2 }));
 
 // the AI and the look of parts: the whole part's colour / see-through, single faces; a joined part moved its free ways;
 // the model on screen kept in the library

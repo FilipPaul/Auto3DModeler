@@ -129,6 +129,10 @@ Never report "works" without having run it; report failures with their output.
    and "3× 10"; light fewer, full more; Del + ↺; a dimension dragged 8 -> 16; ＋ Dimension by two hole centres (30)
    and a circle (Ø3); the part 15 thick -> Rev 2, Changed later, the height 15, the moves kept; the PDF has the texts).
    Restart the server after changes to sheet.py (the kernel worker keeps old code).
+   `tools/e2e_drawing_set.py <url> <dir>` covers an assembly's drawing set (Machine = Base + sub-assembly Lid unit (Lid +
+   2 Pins) + a bought ISO 4762 screw; the Base's own sheet with a dimension "MY"): 5 pages in order Machine, Lid unit,
+   Lid, Pin, Base; the parts list with ◇ Lid unit and the screw; "Sheet n / N" on each; MY on the Base's page; the AI's
+   export pdf writes the same set.
    `tools/e2e_assembly_openpart.py <url> <dir>` covers ◆ Open its part in a placed part's panel (it opens that part's
    tab; back in the assembly, the other one).
    `tools/e2e_ai_sheet.py <url> <dir>` covers the AI's sheet tools (export pdf of a model still the plain drawing;

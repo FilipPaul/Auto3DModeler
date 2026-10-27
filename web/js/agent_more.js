@@ -56,7 +56,7 @@ export function guiControls(where = 'all') {
   return where === 'all' ? out : out.filter((c) => c.where === where); // (n: one numbering for all)
 }
 
-export function moreHandlers({ state, project, modeler, assembly, drawing2d, sheet, t2 }) {
+export function moreHandlers({ state, project, modeler, assembly, drawing2d, sheet, drawingSet, t2 }) {
   const need = (ws, what) => { if (state.workspace !== ws) throw new Error(`${what} — the part on screen is not one (open_part one).`); };
   const D = () => { need('drawing', 'This is for a 2D drawing (a DXF / DWG / Gerber / ODB++ opened as a 📐 drawing)'); return drawing2d; };
   const FIELDS = ['shape', 'layer', 'dia', 'r', 'len', 'w', 'color', 'text'];
@@ -366,6 +366,10 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         const ed = D(), shown = { ...ed.d, entities: ed.d.entities.filter((e) => ed.shown(e)) };
         if (!shown.entities.length) throw new Error('Nothing on the shown layers.');
         return { text: 'ok', data: { name: (ed.d.source || project.current?.name || 'drawing').replace(/\.[^.]+$/, ''), drawing: shown } };
+      }
+      if (format === 'pdf' && state.workspace === 'assembly') { // an assembly: its drawing set, one PDF
+        const set = await drawingSet(project.active);
+        return { text: 'ok', data: { name: `${project.current?.name || 'assembly'} — drawings`, svgs: set.svgs, pages: set.pages } };
       }
       if (format === 'pdf') { // a drawing sheet: as it is drawn
         need('sheet', 'A drawing sheet');

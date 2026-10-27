@@ -247,6 +247,35 @@ def build(body, preset="medium", fits=None, paper=None):
     return {"geometry": geo, "layout": layout(geo, paper), "dims": auto_dims(geo, preset, fits)}
 
 
+ISO_VIEW = ((-1, 1, -1), (1 / math.sqrt(2), 1 / math.sqrt(2), 0), (-1 / math.sqrt(6), 1 / math.sqrt(6), 2 / math.sqrt(6)))  # as _iso projects
+
+
+class _Placed:
+    """An assembly's placed parts as one body for geometry(): its shape (a compound), no face names."""
+    def __init__(self, shape):
+        self.shape, self.names = shape, {}
+
+
+def build_assembly(placed, paper=None):
+    """An assembly's sheet: placed [(id, shape placed)] -> {geometry, layout, dims (its overall sizes), marks: {id:
+    {Front, Top, Right, Iso: [x, y]} (the middle of each placed part, for its balloon)}}."""
+    shapes = [s for _, s in placed]
+    if not shapes:
+        raise K.KernelError("The assembly has no solids to draw.")
+    geo = geometry(_Placed(K.compound(shapes)))
+    dims = [d for d in auto_dims(geo, "light") if d["kind"] == "linear" and d["a"].startswith("box#")]
+    marks = {}
+    for key, s in placed:
+        bb = K.bbox(s)
+        if not bb:
+            continue
+        c = np.array([(bb[0] + bb[3]) / 2, (bb[1] + bb[4]) / 2, (bb[2] + bb[5]) / 2])
+        m = {v: [_r(c @ np.asarray(R, float)), _r(c @ np.asarray(U, float))] for v, (_, R, U) in VIEWS.items()}
+        m["Iso"] = [_r(c @ np.asarray(ISO_VIEW[1], float)), _r(c @ np.asarray(ISO_VIEW[2], float))]
+        marks[key] = m
+    return {"geometry": geo, "layout": layout(geo, paper), "dims": dims, "marks": marks}
+
+
 def value(geo, dim):
     """A dimension's value (mm) from the geometry, or None (its points are gone)."""
     view = geo["views"].get(dim.get("view"))
@@ -261,8 +290,10 @@ def value(geo, dim):
     return abs(b[0] - a[0]) if dim.get("dir") == "h" else abs(b[1] - a[1]) if dim.get("dir") == "v" else math.dist(a, b)
 
 
-def pdf(svg: str) -> bytes:
-    """The sheet as the browser drew it (SVG, mm) -> a PDF."""
+def pdf(svg) -> bytes:
+    """The sheet as the browser drew it (SVG, mm) -> a PDF; several SVGs (a drawing set) -> one PDF, a page each."""
     import fitz
-    doc = fitz.open(stream=svg.encode("utf-8"), filetype="svg")
-    return doc.convert_to_pdf()
+    out = fitz.open()
+    for one in [svg] if isinstance(svg, str) else list(svg):
+        out.insert_pdf(fitz.open("pdf", fitz.open(stream=str(one).encode("utf-8"), filetype="svg").convert_to_pdf()))
+    return out.tobytes()

@@ -514,6 +514,29 @@ class TestSheet(unittest.TestCase):
         self.assertIn("8× Ø3 H7", page.get_text())
 
 
+@unittest.skipUnless(OCC, "OCP not installed")
+class TestAssemblySheet(unittest.TestCase):
+    """An assembly's sheet: the views of the placed parts together, their overall sizes, a mark for each part."""
+
+    def test_assembly_sheet(self):
+        part = {"features": box(20, 20, 10)}
+        at = lambda x, y=0, z=0: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1]  # noqa: E731
+        r = doc.assembly_sheet([{"id": "I1", "part": part, "matrix": at(0)}, {"id": "I2", "part": part, "matrix": at(0, 0, 10)}])
+        self.assertEqual(r["geometry"]["views"]["Front"]["box"], [0, 0, 20, 20])  # two blocks stacked
+        self.assertEqual(sorted(r["marks"]), ["I1", "I2"])
+        self.assertEqual(r["marks"]["I2"]["Front"], [10, 15])
+        self.assertEqual(len(r["dims"]), 3)  # its overall sizes
+        self.assertIn("Iso", r["marks"]["I1"])
+
+    def test_drawing_set_pdf(self):
+        import fitz
+        from auto3d.modeler import sheet
+        page = lambda t: f'<svg xmlns="http://www.w3.org/2000/svg" width="297mm" height="210mm" viewBox="0 0 297 210"><text x="20" y="20" font-size="5">{t}</text></svg>'  # noqa: E731
+        d = fitz.open("pdf", sheet.pdf([page("ASSEMBLY"), page("Sub"), page("Part A")]))
+        self.assertEqual(d.page_count, 3)
+        self.assertEqual([p.get_text().strip() for p in d], ["ASSEMBLY", "Sub", "Part A"])
+
+
 class TestFits(unittest.TestCase):
     """ISO 286 deviations by size range, and the labels on the drawing."""
 

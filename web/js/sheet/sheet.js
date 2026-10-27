@@ -21,6 +21,11 @@ const VIEWS = ['Front', 'Top', 'Right'];
 const PRESETS = [['light', 'Light'], ['medium', 'Medium'], ['full', 'Full']];
 const when = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 
+/** 4 × 4 placement matrices (column-major, as three.js keeps them): a · b. */
+const mul4 = (a, b) => { const o = new Array(16).fill(0); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) o[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k]; return o; };
+const ID4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+const post = async (url, body) => { const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const r = await res.json(); if (!res.ok) throw new Error(r.error || res.statusText); return r; };
+
 /** A short hash of what a sheet is made from: the part's steps, material and tolerances. */
 export function partHash(data) {
   const s = JSON.stringify({ f: data?.features || [], m: data?.material || '', t: data?.tolerance || '' });
@@ -156,7 +161,7 @@ export class SheetEditor {
     const L = this.lay, G = this.geo;
     if (!L || !G) return '';
     const [pw, ph] = L.size, m = L.margin, th = L.title, s = this.scale();
-    const out = [`<svg xmlns="${NS}" width="${pw}mm" height="${ph}mm" viewBox="0 0 ${pw} ${ph}" font-family="Helvetica, Arial, sans-serif">`,
+    const out = [`<svg xmlns="${NS}" width="${pw}mm" height="${ph}mm" viewBox="0 0 ${pw} ${ph}" font-family="Helvetica">`,
       `<rect x="0" y="0" width="${pw}" height="${ph}" fill="#fff"/>`,
       `<rect x="${m}" y="${m}" width="${pw - 2 * m}" height="${ph - 2 * m}" fill="none" stroke="#000" stroke-width="0.5"/>`];
     const pl = (v, pts) => pts.map((p) => this.P(v, p).map((q) => q.toFixed(3)).join(',')).join(' ');
@@ -164,7 +169,7 @@ export class SheetEditor {
       if (this.d.off[v]) continue;
       const g = G.views[v], pb = this.paperBox(v);
       out.push(`<g data-view="${v}" class="sh-view">`);
-      out.push(`<rect x="${pb[0] - 2}" y="${pb[1] - 2}" width="${pb[2] - pb[0] + 4}" height="${pb[3] - pb[1] + 4}" fill="transparent" stroke="none" class="sh-vhit"/>`);
+      if (!forPrint) out.push(`<rect x="${pb[0] - 2}" y="${pb[1] - 2}" width="${pb[2] - pb[0] + 4}" height="${pb[3] - pb[1] + 4}" fill="#fff" fill-opacity="0" stroke="none" class="sh-vhit"/>`);
       for (const p of g.hidden) out.push(`<polyline points="${pl(v, p)}" fill="none" stroke="#666" stroke-width="0.25" stroke-dasharray="1.5 1"/>`);
       for (const p of g.visible) out.push(`<polyline points="${pl(v, p)}" fill="none" stroke="#000" stroke-width="0.5" stroke-linejoin="round"/>`);
       // its name below the dimensions under it
@@ -175,16 +180,18 @@ export class SheetEditor {
       const pts = G.iso.flat(), xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
       const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
       const [cx, cy, size] = this.d.views.Iso ? [...this.d.views.Iso, L.iso[2]] : L.iso, k = size / Math.max(x1 - x0, y1 - y0, 1e-6);
+      this.isoMap = { at: (q) => [cx + (q[0] - (x0 + x1) / 2) * k, cy - (q[1] - (y0 + y1) / 2) * k], c: [cx, cy] };
       out.push('<g data-view="Iso" class="sh-view">');
-      out.push(`<rect x="${cx - (x1 - x0) * k / 2 - 2}" y="${cy - (y1 - y0) * k / 2 - 2}" width="${(x1 - x0) * k + 4}" height="${(y1 - y0) * k + 4}" fill="transparent" class="sh-vhit"/>`);
+      if (!forPrint) out.push(`<rect x="${cx - (x1 - x0) * k / 2 - 2}" y="${cy - (y1 - y0) * k / 2 - 2}" width="${(x1 - x0) * k + 4}" height="${(y1 - y0) * k + 4}" fill="#fff" fill-opacity="0" class="sh-vhit"/>`);
       for (const p of G.iso) out.push(`<polyline points="${p.map((q) => `${(cx + (q[0] - (x0 + x1) / 2) * k).toFixed(3)},${(cy - (q[1] - (y0 + y1) / 2) * k).toFixed(3)}`).join(' ')}" fill="none" stroke="#333" stroke-width="0.3"/>`);
       out.push('</g>');
     }
     for (const d of this.allDims()) out.push(this.dimSvg(d, forPrint));
+    if (this.d.asm) out.push(this.asmSvg(pw, ph, m, th));
     if (!forPrint && this.tool === 'dim') out.push(this.snapMarks());
     out.push(this.titleSvg(pw, ph, m, th, s));
     out.push('</svg>');
-    return out.join('');
+    return out.join('').replace(/<text /g, '<text font-family="Helvetica" '); // (the PDF's converter does not inherit a font)
   }
 
   /** One dimension: extension lines, the dimension line with arrows and its text (linear); a leader (Ø, R). */
@@ -205,7 +212,7 @@ export class SheetEditor {
       const txt = esc(this.dimText(d, v)), right = u[0] >= 0, shelf = [end[0] + (right ? 1 : -1) * (txt.length * fs * 0.52 + 1), end[1]];
       g.push(`<polyline points="${on1.join(',')} ${end.join(',')} ${shelf.join(',')}" fill="none" stroke="${col}" stroke-width="${sw}"/>`, arrow(on1, [-u[0], -u[1]]));
       g.push(`<text x="${(end[0] + shelf[0]) / 2}" y="${end[1] - 0.8}" font-size="${fs}" text-anchor="middle" fill="${col}">${txt}</text>`);
-      g.push(`<rect x="${Math.min(end[0], shelf[0])}" y="${end[1] - fs - 1}" width="${Math.abs(shelf[0] - end[0])}" height="${fs + 2}" fill="transparent" class="sh-grab"/>`);
+      if (!forPrint) g.push(`<rect x="${Math.min(end[0], shelf[0])}" y="${end[1] - fs - 1}" width="${Math.abs(shelf[0] - end[0])}" height="${fs + 2}" fill="#fff" fill-opacity="0" class="sh-grab"/>`);
     } else {
       const gv = this.geo.views[d.view];
       const A = gv.points[d.a] ? this.P(d.view, gv.points[d.a]) : null, B = gv.points[d.b] ? this.P(d.view, gv.points[d.b]) : null;
@@ -217,14 +224,14 @@ export class SheetEditor {
         const out = x1 - x0 < 8; // a short one: the arrows from outside
         g.push(`<line x1="${out ? x0 - 5 : x0}" y1="${y}" x2="${out ? x1 + 5 : x1}" y2="${y}" stroke="${col}" stroke-width="${sw}"/>`, arrow([x0, y], out ? [1, 0] : [-1, 0]), arrow([x1, y], out ? [-1, 0] : [1, 0]));
         g.push(`<text x="${(x0 + x1) / 2}" y="${y - 0.9}" font-size="${fs}" text-anchor="middle" fill="${col}">${txt}</text>`);
-        g.push(`<rect x="${x0 - 2}" y="${y - fs - 1.5}" width="${x1 - x0 + 4}" height="${fs + 3}" fill="transparent" class="sh-grab"/>`);
+        if (!forPrint) g.push(`<rect x="${x0 - 2}" y="${y - fs - 1.5}" width="${x1 - x0 + 4}" height="${fs + 3}" fill="#fff" fill-opacity="0" class="sh-grab"/>`);
       } else {
         const x = d.side === 'l' ? pb[0] - off : pb[2] + off, sgn = d.side === 'l' ? -1 : 1, y0 = Math.min(A[1], B[1]), y1 = Math.max(A[1], B[1]);
         for (const p of [A, B]) g.push(`<line x1="${p[0] + sgn * 1}" y1="${p[1]}" x2="${x + sgn * 1.5}" y2="${p[1]}" stroke="${col}" stroke-width="0.15"/>`);
         const out = y1 - y0 < 8;
         g.push(`<line x1="${x}" y1="${out ? y0 - 5 : y0}" x2="${x}" y2="${out ? y1 + 5 : y1}" stroke="${col}" stroke-width="${sw}"/>`, arrow([x, y0], out ? [0, 1] : [0, -1]), arrow([x, y1], out ? [0, -1] : [0, 1]));
         g.push(`<text x="${x - 0.9}" y="${(y0 + y1) / 2}" font-size="${fs}" text-anchor="middle" fill="${col}" transform="rotate(-90 ${x - 0.9} ${(y0 + y1) / 2})">${txt}</text>`);
-        g.push(`<rect x="${x - fs - 1.5}" y="${y0 - 2}" width="${fs + 3}" height="${y1 - y0 + 4}" fill="transparent" class="sh-grab"/>`);
+        if (!forPrint) g.push(`<rect x="${x - fs - 1.5}" y="${y0 - 2}" width="${fs + 3}" height="${y1 - y0 + 4}" fill="#fff" fill-opacity="0" class="sh-grab"/>`);
       }
     }
     g.push('</g>');
@@ -246,16 +253,17 @@ export class SheetEditor {
   }
 
   titleSvg(pw, ph, m, th, s) {
-    const x0 = pw - m - 150, y0 = ph - m - th, src = this.hooks.partData(this.d.source) || {}, sc = this.lay.scale;
+    const x0 = pw - m - 150, y0 = ph - m - th, src = this.hooks.partData(this.d.source) || {}, sc = this.lay.scale, T = this.d.title || {};
+    const what = [T.kind || t('Part'), T.of ? `${t('in')} ${T.of}` : '', T.pos ? `${t('Pos.')} ${T.pos}` : ''].filter(Boolean).join(' · ');
     const cells = [
-      [t('Part'), this.hooks.partName(this.d.source) || '—', 0, 0, 90, 12, 5],
-      [t('Material'), src.material || 'PLA', 90, 0, 60, 12, 3.6],
+      [what, T.part || this.hooks.partName(this.d.source) || '—', 0, 0, 90, 12, 5],
+      [t('Material'), T.material ?? (src.material || 'PLA'), 90, 0, 60, 12, 3.6],
       [t('Scale'), `${sc[0]}:${sc[1]}`, 0, 12, 30, 9, 3.4],
       [t('Paper'), this.lay.paper, 30, 12, 30, 9, 3.4],
       [t('Tolerances'), src.tolerance ? `ISO 2768-${src.tolerance}` : '—', 60, 12, 90, 9, 3.4],
       [t('Created'), when(this.d.created), 0, 21, 50, 9, 3],
       [`${t('Changed')} · Rev`, `${when(this.d.changed)} · ${this.d.rev}`, 50, 21, 60, 9, 3],
-      ['', 'Auto3DModeler · mm', 110, 21, 40, 9, 2.8],
+      T.sheet ? [t('Sheet'), T.sheet, 110, 21, 40, 9, 3.4] : ['', 'Auto3DModeler · mm', 110, 21, 40, 9, 2.8],
     ];
     const g = [`<g class="sh-title"><rect x="${x0}" y="${y0}" width="150" height="${th}" fill="#fff" stroke="#000" stroke-width="0.5"/>`];
     for (const [k, v, x, y, w, h, fs] of cells) {
@@ -265,6 +273,89 @@ export class SheetEditor {
     }
     g.push('</g>');
     return g.join('');
+  }
+
+  /** An assembly's page: the parts list (pos, name, qty, material, part number) above the title block, and a balloon
+   *  with its position for each in the iso view. */
+  asmSvg(pw, ph, m, th) {
+    const rows = this.d.asm.rows, max = Math.max(1, Math.floor((ph - 2 * m - th - 40) / 5) - 1), shown = rows.slice(0, max);
+    const x0 = pw - m - 150, cols = [[t('Pos.'), 12], [t('Name'), 63], [t('Qty'), 12], [t('Material'), 25], [t('Part number'), 38]];
+    const top = ph - m - th - (shown.length + 1 + (rows.length > max ? 1 : 0)) * 5, g = ['<g class="sh-bom">'];
+    const row = (y, cells, head) => {
+      let x = x0;
+      cells.forEach((v, i) => {
+        g.push(`<rect x="${x}" y="${y}" width="${cols[i][1]}" height="5" fill="${head ? '#eef1f6' : '#fff'}" stroke="#000" stroke-width="0.25"/>`);
+        g.push(`<text x="${x + 1.2}" y="${y + 3.6}" font-size="${head ? 2.6 : 2.9}" fill="#000">${esc(String(v).slice(0, cols[i][1] > 30 ? 34 : 12))}</text>`);
+        x += cols[i][1];
+      });
+    };
+    row(top, cols.map((c) => c[0]), true);
+    shown.forEach((r, i) => row(top + 5 * (i + 1), [r.pos, `${r.kind === 'assembly' ? '◇ ' : ''}${r.name}`, r.qty, r.material, r.pn || (r.bought ? t('bought') : '')], false));
+    if (rows.length > max) g.push(`<text x="${x0 + 1.2}" y="${top + 5 * (shown.length + 1) + 3.6}" font-size="2.6">… ${rows.length - max} ${t('more')}</text>`);
+    if (this.isoMap && !this.d.off.Iso) { // the balloons
+      for (const r of rows) {
+        if (!r.iso) continue;
+        const p = this.isoMap.at(r.iso), c = this.isoMap.c, L = Math.hypot(p[0] - c[0], p[1] - c[1]) || 1;
+        const u = L > 1 ? [(p[0] - c[0]) / L, (p[1] - c[1]) / L] : [0.7, -0.7], b = [p[0] + u[0] * 16, p[1] + u[1] * 16];
+        g.push(`<line x1="${p[0]}" y1="${p[1]}" x2="${b[0] - u[0] * 3.4}" y2="${b[1] - u[1] * 3.4}" stroke="#1b3a8a" stroke-width="0.2"/><circle cx="${p[0]}" cy="${p[1]}" r="0.5" fill="#1b3a8a"/>`);
+        g.push(`<circle cx="${b[0]}" cy="${b[1]}" r="3.4" fill="#fff" stroke="#1b3a8a" stroke-width="0.3"/><text x="${b[0]}" y="${b[1] + 1.2}" font-size="3.4" text-anchor="middle" fill="#1b3a8a">${r.pos}</text>`);
+      }
+    }
+    g.push('</g>');
+    return g.join('');
+  }
+
+  /** A sheet that is not on screen drawn (a page of a drawing set): its data with `built`. */
+  svgOf(d) {
+    const keep = this.d;
+    this.d = { views: {}, off: {}, dims: {}, hidden: [], user: [], rev: 1, ...d };
+    try { return this.svg(true); } finally { this.d = keep; this.isoMap = null; }
+  }
+
+  /** The drawing set of an assembly — its page (views, overall sizes, parts list, balloons), then each sub-assembly
+   *  with its parts the same way, then its own made parts (their own sheet when they have one, with the user's
+   *  dimensions; else made now) — every part once; bought and standard parts only in the lists.
+   *  ctx: {kindOf(id), sheetOf(part id) -> a sheet's data or null, bought(data, name)} -> {svgs, pages: [names]}. */
+  async drawingSet(rootId, ctx) {
+    const pages = [], drawn = new Set([rootId]), name = (id) => this.hooks.partName(id) || id, now = new Date().toISOString();
+    const flatten = (aid, M = ID4, pre = '') => (this.hooks.partData(aid)?.instances || []).flatMap((it) => {
+      const W = mul4(M, it.matrix || ID4), id = pre ? `${pre}/${it.id}` : it.id;
+      if (ctx.kindOf(it.part) === 'assembly') return flatten(it.part, W, id);
+      return [{ id, part: { features: this.hooks.partData(it.part)?.features || [] }, matrix: W }];
+    });
+    const visit = async (aid, parent) => {
+      const insts = this.hooks.partData(aid)?.instances || [];
+      if (!insts.length) return;
+      const r = await post('/api/sheet/assembly', { instances: flatten(aid) });
+      const groups = new Map();
+      for (const it of insts) { if (!groups.has(it.part)) groups.set(it.part, []); groups.get(it.part).push(it.id); }
+      const rows = [...groups].map(([part, ids], i) => {
+        const pd = this.hooks.partData(part) || {}, kind = ctx.kindOf(part), nm = name(part);
+        const iso = Object.entries(r.marks).filter(([k]) => k === ids[0] || k.startsWith(`${ids[0]}/`)).map(([, m]) => m.Iso);
+        return { pos: i + 1, part, name: nm, qty: ids.length, kind, material: kind === 'assembly' ? '—' : pd.material || 'PLA', pn: pd.library?.pn || '',
+          bought: kind !== 'assembly' && (!!pd.library || ctx.bought(pd, nm)), iso: iso.length ? [iso.reduce((s, q) => s + q[0], 0) / iso.length, iso.reduce((s, q) => s + q[1], 0) / iso.length] : null };
+      });
+      pages.push({ name: name(aid), d: { source: aid, built: { ...r, preset: 'light' }, asm: { rows }, created: now, changed: now, off: { Right: true }, views: { Iso: r.layout.views.Right },
+        title: { kind: parent ? t('Sub-assembly') : t('Assembly'), part: name(aid), material: '—', of: parent || '' } } });
+      for (const row of rows) if (row.kind === 'assembly' && !drawn.has(row.part)) { drawn.add(row.part); await visit(row.part, name(aid)); }
+      for (const row of rows) {
+        if (row.kind !== 'model' || row.bought || drawn.has(row.part)) continue;
+        drawn.add(row.part);
+        pages.push({ name: row.name, part: row.part, parent: name(aid), pos: row.pos });
+      }
+    };
+    await visit(rootId, null);
+    if (!pages.length) throw new Error(t('The assembly has no parts to draw.'));
+    for (const pg of pages) {
+      if (!pg.part) continue;
+      const src = this.hooks.partData(pg.part), own = ctx.sheetOf(pg.part);
+      const d = own ? structuredClone(own) : { source: pg.part, preset: 'medium', rev: 1, created: now, changed: now };
+      if (!d.built || d.built.stale || d.hash !== partHash(src)) d.built = { ...(await post('/api/sheet/build', { part: src, preset: d.preset || 'medium', paper: d.paper })), preset: d.preset || 'medium', paper: d.paper ?? null };
+      pg.d = { ...d, title: { part: pg.name, of: pg.parent, pos: pg.pos } };
+    }
+    const n = pages.length;
+    const svgs = pages.map((pg, i) => this.svgOf({ ...pg.d, title: { ...pg.d.title, sheet: `${i + 1} / ${n}` } }));
+    return { svgs, pages: pages.map((pg) => (pg.part ? pg.name : `◇ ${pg.name}`)) };
   }
 
   // ------------------------------------------------------------------ the screen

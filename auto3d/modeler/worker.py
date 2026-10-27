@@ -35,6 +35,7 @@ def _main(conn):
            "assembly_clashes": lambda a: doc.assembly_clashes(a["instances"]),
            "assembly_sweep": lambda a: doc.assembly_sweep(a["instances"], a["steps"]),
            "sheet": lambda a: doc.sheet(a["part"], a.get("preset") or "medium", a.get("paper")),
+           "assembly_sheet": lambda a: doc.assembly_sheet(a["instances"], a.get("paper")),
            "limits": lambda a: doc.limits(a["features"], a["id"]), "import_solid": doc.import_solid}
     while True:
         try:
