@@ -94,7 +94,7 @@ class TestMcpServer(unittest.TestCase):
         self.assertIn("prompts", r[1]["result"]["capabilities"])
         self.assertIn("get_guide", r[1]["result"]["instructions"])
         self.assertIn("find_refs", r[2]["result"]["content"][0]["text"])
-        self.assertEqual(sorted(x["name"] for x in r[3]["result"]["prompts"]), ["assemble-parts", "automation-design", "change-a-model", "from-picture", "mechanical-design", "model-a-part", "print-prep", "use-a-drawing"])
+        self.assertEqual(sorted(x["name"] for x in r[3]["result"]["prompts"]), ["assemble-parts", "automation-design", "change-a-model", "fits-and-tolerances", "from-picture", "mechanical-design", "model-a-part", "print-functional", "print-graphics", "print-prep", "start-a-design", "use-a-drawing"])
         self.assertIn("check_print", r[4]["result"]["messages"][0]["content"]["text"])
         self.assertTrue(r[5]["result"]["isError"])
 
@@ -106,7 +106,8 @@ class TestMcpServer(unittest.TestCase):
         self.assertIn("Skill", cmd[cmd.index("--allowedTools") + 1])
         self.assertEqual(cmd[cmd.index("--plugin-dir") + 1], str(PLUGIN_DIR))
         self.assertTrue((PLUGIN_DIR / ".claude-plugin" / "plugin.json").exists())
-        for name in ("model-a-part", "from-picture", "print-prep", "change-a-model", "assemble-parts", "mechanical-design", "automation-design", "use-a-drawing"):
+        for name in ("start-a-design", "model-a-part", "from-picture", "print-prep", "change-a-model", "assemble-parts", "mechanical-design", "automation-design",
+                     "fits-and-tolerances", "print-functional", "print-graphics", "use-a-drawing"):
             text = (PLUGIN_DIR / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
             self.assertTrue(text.startswith("---\nname: " + name), name)
         # every tool a skill tells the AI to use exists
@@ -155,7 +156,7 @@ class TestMcpServer(unittest.TestCase):
             self.assertEqual(t["inputSchema"]["type"], "object", t["name"])
             self.assertTrue(t["description"])
         self.assertIn("get_part", BROWSER_TOOLS)
-        for name in ("set_look", "paint_faces", "move_free", "set_travel", "check_travel", "gui_state", "gui_action", "save_to_library", "library_search", "library_add", "check_collisions"):
+        for name in ("set_look", "paint_faces", "move_free", "set_travel", "check_travel", "gui_state", "gui_action", "ask_user", "save_to_library", "library_search", "library_add", "check_collisions"):
             self.assertIn(name, BROWSER_TOOLS)
         self.assertNotIn("report_problem", BROWSER_TOOLS)  # the server writes it
         self.assertNotIn("trace_picture", BROWSER_TOOLS)

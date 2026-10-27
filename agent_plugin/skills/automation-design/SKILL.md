@@ -1,12 +1,35 @@
 ---
 name: automation-design
-description: Use for industrial automation designs — pneumatic cylinders and valves (SMC), sensors (SICK inductive), stepper motors, control panels with LEDs, buttons and connectors; grippers, pushers, stops, sensor brackets, motor mounts, panel layouts.
+description: Use for industrial automation and machine designs — parts made to be manufactured (machined, laser-cut, bent, or printed as machine parts) to standards; pneumatic cylinders and valves (SMC), sensors (SICK inductive), stepper motors, control panels; grippers, pushers, stops, sensor brackets, motor mounts, panel layouts — as a working assembly with its BOM and drawings.
 ---
 
 # Industrial automation parts (with mechanical-design)
 
-Load mechanical-design too; this adds what automation parts need. All bought parts come from the library
-(`library_search {query}`, `library_add {item, size, length}`), so the BOM has their SMC / SICK / maker numbers.
+Load mechanical-design and fits-and-tolerances too; this adds what automation parts need. All bought parts come
+from the library (`library_search {query}`, `library_add {item, size, length}`), so the BOM has their SMC / SICK /
+maker numbers.
+
+## Made to be manufactured — and easy to edit
+- **Simple, editable parts** (the default here): each part from plain sketches (a rectangle, a circle, a slot) with
+  few sizes, the rest as features (holes, pockets, patterns, chamfers). A designer opens it and changes the plate
+  width or the hole pitch in one place.
+- **Machined plates and blocks (2.5D)**: standard stock — aluminium plate 3 · 4 · 5 · 6 · 8 · 10 · 12 · 15 · 20 mm,
+  steel 2 · 3 · 4 · 5 · 6 · 8 · 10 mm; pockets and slots with inner corner radii ≥ the cutter (r ≥ 2–3 mm, a
+  slot as wide as a standard cutter: 6 · 8 · 10 mm); depth ≤ 3 × the cutter Ø; no sharp inner corners, no undercuts.
+  Edges chamfered 0.5 × 45° (or "break edges" on the drawing).
+- **Laser-cut sheet / bent sheet metal**: holes ≥ the sheet thickness, a hole ≥ 2 × t from a bend, inner bend radius
+  ≈ t; tabs and slots to locate parts before welding / screwing.
+- **Standard holes and fasteners only**: ISO 273 clearance holes, tap drills, counterbores for ISO 4762 — from
+  fits-and-tolerances; screws, nuts, washers, dowel pins (ISO 8734) from the library. Fits on bearings, shafts and
+  dowels (H7/k6, H7/g6, H7 dowel holes); everything else ISO 2768-m.
+- **Locate, then fasten**: two dowel pins (or a shoulder / a slot) position a part, the screws only clamp it.
+  Adjustable parts (sensors, stops) get slots.
+- **A working assembly**: every part joined as in the machine (`snap_faces {…}`); moving parts keep exactly their
+  way free with real limits (`set_travel {…}` — a cylinder's stroke) and `check_travel {…}` shows nothing is hit;
+  `check_collisions {}` at rest.
+- **Drawings**: each made part as a 2D drawing PDF (`export {format: "pdf"}`: three views, sizes, title block) —
+  say which sizes carry a fit or need a tolerance, the material and the finish (e.g. "AlMg3, anodised"). The
+  drawings do not show tolerances yet: list them in your summary.
 
 ## Pneumatic cylinders (SMC CJ2 in the library)
 - **Force** = pressure × area: at 6 bar a Ø10 pushes ≈ 47 N, a Ø16 ≈ 120 N (pull less: the rod area is lost). Take

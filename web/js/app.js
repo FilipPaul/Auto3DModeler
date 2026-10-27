@@ -2049,6 +2049,14 @@ const agentHandlers = {
     return { text: `3D view (${view || 'current'}). ${partLine()}`, image: c.toDataURL('image/png').split(',')[1] };
   },
 
+  ask_user: async ({ question, options, recommended = 0 }) => {
+    if (!String(question || '').trim() || !Array.isArray(options) || options.length < 2) throw new Error('question, and 2–5 options [{label, description}] (recommended: the number of yours, 0 = the first).');
+    const opts = options.slice(0, 5).map((o) => (typeof o === 'string' ? { label: o } : { label: String(o.label || ''), description: o.description ? String(o.description) : undefined }));
+    if (opts.some((o) => !o.label)) throw new Error('Each option needs a label.');
+    if (state.workspace === 'quick') document.querySelector('.tab[data-tab=ai]')?.click(); else if ($('aiDrawer').hidden) toggleChat(true); // (the chat in sight)
+    window.__chat?.ask({ question: String(question), options: opts, recommended: Math.max(0, Math.min(opts.length - 1, Number.parseInt(recommended, 10) || 0)) });
+    return { text: 'Shown in the app\'s chat as buttons (your recommended one first, marked ★). End your turn now and wait: the user\'s choice comes as their next message ("<question> → <option>"). Several questions: one ask_user each in this turn, then end it — the answers come together.' };
+  },
   load_drawing: async ({ data, name }) => {
     await project.newDrawing(data, name);
     for (const msg of data.issues || []) toast(msg, 'info', 8000);
@@ -2237,7 +2245,7 @@ async function assemblyScreenshot({ view } = {}) {
 // 3D model parts: their own tools; the shared ones (screenshot, export, undo, get_part) follow the part on screen
 const MODEL = modelHandlers({ modeler, project, getWorkspace: () => state.workspace });
 const SHARED = { get_screenshot: 'model_screenshot', get_body: 'model_body', undo: 'model_undo' };
-const ANYWHERE = new Set(['load', 'load_drawing', 'list_parts', 'open_part', 'duplicate_part', 'new_model', 'new_assembly']);
+const ANYWHERE = new Set(['load', 'load_drawing', 'ask_user', 'list_parts', 'open_part', 'duplicate_part', 'new_model', 'new_assembly']);
 for (const [name, fn] of Object.entries(agentHandlers)) {
   if (ANYWHERE.has(name)) continue;
   agentHandlers[name] = async (...args) => {

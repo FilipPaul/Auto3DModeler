@@ -7,10 +7,25 @@ description: Use when the user wants a new mechanical or functional part built i
 
 Everything is in mm. x right, y up, z up from the printer bed. The 3D printer bed is the XY plane (z = 0).
 
+## Simple shapes, easy to edit (the default)
+
+A person must be able to read the steps and change the part. Unless the user said it may be built any way:
+- **One idea per sketch**: a rectangle, a circle, a slot, an L — not a whole outline with every detail in it.
+  As few sizes in a sketch as possible (a rectangle: its width and height; place it by the origin / its centre).
+- **The rest by features**: holes with `hole` (not circles in the base sketch when they are holes of their own),
+  repeats with `pattern`, symmetry with `mirror`, roundings and bevels with `fillet` / `chamfer` (not arcs in the
+  sketch), pockets and bosses as their own sketch + extrude.
+- **Sizes that mean something**: the plate's width, the hole's Ø, the distance between holes — round numbers, from
+  the part's centre or edge, the way a drawing would give them. Name steps by what they are when you can.
+- Fewer, bigger steps that each do one thing beat many tiny ones; complex profiles only where the shape needs them
+  (a smooth vase, a cam).
+If the brief says "any way that reaches the goal", you may use one detailed profile — still keep its key sizes.
+
 ## Steps
 
-1. **Clarify only what is really the user's decision**: what the part is for and its key sizes. Otherwise
-   pick printable defaults (walls ≥ 1.2 mm, hole clearance +0.2 mm, roundings 1–2 mm).
+1. **The brief** (auto3d:start-a-design): what it is for, printed or not, easy to edit or not — ask with `ask_user {…}`
+   what the user has not said. Its key sizes are the user's decision; otherwise pick defaults (printed: walls ≥ 1.2 mm,
+   hole clearance +0.2 mm, roundings 1–2 mm).
 2. `new_model {name}` — a new 3D model tab (or work on the model on screen: `get_model`).
 3. **Base sketch** on the plane the part lies on: usually `"XY"` (on the bed). For round parts (a vase, a knob,
    a wheel) sketch half the profile on `"XZ"` (front) beside the vertical axis and revolve it.

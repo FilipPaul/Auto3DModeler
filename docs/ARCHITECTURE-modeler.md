@@ -64,6 +64,12 @@ Date: 2026-10-25. Written by the architect agent.
   /api/projects routes; web/js/autosave.js (History.commit / go and the quick part's history fire `a3d:changed`; saved
   3 s later if the project file changed, a beacon on pagehide; 🕘 Recent projects; the last one offered). A3D_DATA
   points a server at another data folder (test servers). tests/test_autosave.py, tools/e2e_autosave.py.
+- **The design brief with buttons, skills per design kind done:** browser tool ask_user (ChatPanel.ask: a card of
+  options, the recommended first ★, the answers sent as one message once all open ones are answered; ✎ Other… types);
+  the system prompt asks the brief before a new design and asks with options when unsure; skills start-a-design,
+  fits-and-tolerances (ISO 286 table, ISO 2768, ISO 273 holes, tap drills, counterbores, printed fits),
+  print-functional, print-graphics; automation-design: made to be manufactured; model-a-part: simple, editable steps.
+  tools/e2e_ai_ask.py. Not yet: tolerances on the PDF drawings.
 - **Reports of three kinds, a steady concentric flip, a free ↻ done:** report_problem `kind` (bug / tool request /
   ui; the file named request-… / ui-…; the system prompt asks for requests when it works around a missing tool or the
   UI is not intuitive); applyJoint axis keeps the way round the part is (a stored flip turned it over at every hold),

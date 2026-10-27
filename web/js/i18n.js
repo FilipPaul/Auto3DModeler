@@ -783,6 +783,7 @@ const CS = {
   '✓ No collisions': '✓ Bez kolizí', '⤢ Show all': '⤢ Ukázat vše', 'Show it in the view (again: all of them)': 'Ukázat ji v pohledu (znovu: všechny)',
   'Where parts overlap (go into each other) — checked after every change; click: the list, each one shown in the view': 'Kde se díly překrývají (jdou do sebe) — kontroluje se po každé změně; klik: seznam, každá ukázaná v pohledu',
   'Where parts go into each other (touching faces are fine) — checked again after every change. Click one: the view goes to it, the other parts see-through.': 'Kde díly jdou do sebe (dotýkající se plochy nevadí) — kontroluje se po každé změně. Klikněte na jednu: pohled na ni najede, ostatní díly průhledné.',
+  '★ recommended': '★ doporučeno', '✎ Other…': '✎ Jiné…', 'asking you': 'ptá se vás',
   'looking at the screen': 'dívá se na obrazovku', 'clicking in the app': 'kliká v aplikaci',
   'Locked 🔒 — unlock the joint to change it': 'Zamčeno 🔒 — vazbu odemkněte, chcete-li ji změnit',
   'The angle its turn is locked at, against the other part — to turn both, use Moves of the part they are on': 'Úhel, na kterém je otočení zamčené vůči druhému dílu — oba otočíte v Pohybech dílu, na kterém jsou',

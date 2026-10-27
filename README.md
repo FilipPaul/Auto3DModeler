@@ -459,6 +459,15 @@ can open them.
   tools), so the server writes them — with the **app version** it
   came from (`auto3d/version.py`: VERSION and the git commit, e.g. *0.9.0 (main @ 2900fde, 2026-10-27)*; also
   `/api/version`).
+- **The AI asks with buttons**: before a new design it asks (unless you said it) what it is for — *automation / a
+  machine*, a *functional 3D print* or a *graphic / decorative* model —, whether it is 3D printed, and whether it must
+  be *easy for a person to edit* (simple sketches with few sizes each) or may be built any way. The question shows in
+  the chat as buttons, its **★ recommended** option first; a click answers (*✎ Other…* to type). It asks the same way
+  whenever a choice is really yours. Then it works by the skill for that kind of design: **automation** (made to be
+  manufactured — standard stock and cutters, standard holes and fasteners, fits, library parts, a working assembly
+  with travel checks, a PDF drawing per part), **functional print** (orientation for strength, walls, overhangs,
+  inserts, material) or **graphic print** (details that print, few supports, colours / 3MF); **fits-and-tolerances**
+  holds ISO 286 fits (H7/g6, k6, p6 …), ISO 2768 general tolerances, clearance / tap-drill holes and counterbores.
 - **The GUI for the AI**: `gui_state` lists what you see (every button, slider, box, joint name, its state, greyed
   out or not) so the AI can tell you exactly where something is; `gui_action` clicks or slides one the way the mouse
   does — so it can check the app behaves like its tools. A **locked 🔒 joint** is greyed out in the panel (only 🔒

@@ -78,7 +78,7 @@ const TOOL_LABEL = {
   list_parts: 'looking at the parts', open_part: 'opening a part', duplicate_part: 'copying a part', new_model: 'starting a 3D model', get_model: 'reading the 3D model',
   find_refs: 'finding faces and edges', add_feature: 'adding a step', edit_feature: 'changing a step', delete_feature: 'deleting a step',
   turn_off_feature: 'turning a step off / on', prepare_print: 'preparing the print', set_material: 'setting the material', new_assembly: 'starting an assembly', suggest_fasteners: 'finding where fasteners fit', add_fasteners: 'adding fasteners',
-  get_assembly: 'reading the assembly', insert_part: 'inserting a part', library_search: 'searching the parts library', set_look: 'colouring a part', paint_faces: 'painting faces', move_free: 'moving a part', gui_state: 'looking at the screen', gui_action: 'clicking in the app', drawing_delete: 'deleting shapes', drawing_add: 'drawing shapes', drawing_units: 'setting the drawing units', set_travel: 'setting a motion\'s limits', check_travel: 'checking a motion for collisions', save_to_library: 'saving to the library', report_problem: 'writing a problem report', library_add: 'adding a library part', check_collisions: 'checking for collisions', snap_faces: 'snapping parts together', place_part: 'placing a part', remove_from_assembly: 'taking a part out', get_guide: 'reading a guide', Skill: 'reading a guide',
+  get_assembly: 'reading the assembly', insert_part: 'inserting a part', library_search: 'searching the parts library', set_look: 'colouring a part', paint_faces: 'painting faces', move_free: 'moving a part', ask_user: 'asking you', gui_state: 'looking at the screen', gui_action: 'clicking in the app', drawing_delete: 'deleting shapes', drawing_add: 'drawing shapes', drawing_units: 'setting the drawing units', set_travel: 'setting a motion\'s limits', check_travel: 'checking a motion for collisions', save_to_library: 'saving to the library', report_problem: 'writing a problem report', library_add: 'adding a library part', check_collisions: 'checking for collisions', snap_faces: 'snapping parts together', place_part: 'placing a part', remove_from_assembly: 'taking a part out', get_guide: 'reading a guide', Skill: 'reading a guide',
 };
 
 const MAX_PHOTOS = 5, PHOTO_EDGE = 2400; // a longer side than this is scaled down (Claude sees ~1600 px anyway)
@@ -189,6 +189,43 @@ export class ChatPanel {
   }
 
   updateUndo() { this.$('.ai-undo').disabled = !this.canUndo(); }
+
+  /** The AI asks (its tool ask_user): the question with its options as buttons — its recommended one first (★); a
+   *  click answers. The answers go as the next message once every open question has one ("✎ Other…": typed). */
+  ask({ question, options = [], recommended = 0 }) {
+    const opts = options.map((o, i) => ({ ...(typeof o === 'string' ? { label: o } : o), rec: i === recommended }));
+    opts.sort((a, b) => b.rec - a.rec);
+    const card = this.bubble('ask', `<div class="ai-q" data-no-i18n>${escapeHtml(question)}</div><div class="ai-opts">${opts.map((o, i) => `<button type="button" class="ai-opt ${o.rec ? 'rec' : ''}" data-i="${i}">
+        <b data-no-i18n>${escapeHtml(o.label)}</b>${o.rec ? ' <span class="ai-rec">★ recommended</span>' : ''}${o.description ? `<span class="ai-opt-d" data-no-i18n>${escapeHtml(o.description)}</span>` : ''}</button>`).join('')}
+      <button type="button" class="ai-opt other" data-i="other">✎ Other…</button></div>`);
+    card.question = question;
+    this.pendingAsks = [...(this.pendingAsks || []), card];
+    for (const b of card.querySelectorAll('.ai-opt')) {
+      b.addEventListener('click', () => {
+        if (card.answered) return;
+        card.classList.add('done');
+        b.classList.add('on');
+        if (b.dataset.i === 'other') { // typed in the box: the open questions go with it
+          card.answered = '…';
+          const ta = this.$('textarea');
+          ta.value = `${this.askText()}${ta.value ? '\n' : ''}${question} → `;
+          this.pendingAsks = [];
+          ta.focus();
+          return;
+        }
+        card.answered = opts[+b.dataset.i].label;
+        if (this.pendingAsks.some((c) => !c.answered)) return; // more to answer
+        const text = this.askText();
+        this.pendingAsks = [];
+        const go = () => { if (this.busy) { setTimeout(go, 300); return; } this.$('textarea').value = text; this.send(); }; // (after its turn)
+        go();
+      });
+    }
+    this.toBottom();
+  }
+
+  /** The answered questions as the message. */
+  askText() { return (this.pendingAsks || []).filter((c) => c.answered && c.answered !== '…').map((c) => `${c.question} → ${c.answered}`).join('\n'); }
 
   async addPhotos(files) {
     for (const f of [...files]) {

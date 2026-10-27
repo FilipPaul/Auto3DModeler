@@ -358,6 +358,12 @@ TOOLS = [
                     "empty: none).",
      "inputSchema": _obj({"id": STR, "gap": NUM, "distance": {"type": ["number", "null"]}, "lock_rotation": {"type": "boolean"}, "angle": NUM,
                           "flip": {"type": "boolean"}, "locked": {"type": "boolean"}, "name": STR}, ["id"])},
+    {"name": "ask_user", "where": "browser",
+     "description": "Ask the user a question with options shown as buttons in the app's chat: question, options [{label, description}] "
+                    "(2–5, short labels; the user can also type something else), recommended = the number of the option you "
+                    "recommend (it is shown first, marked ★ — always recommend one and say why in its description). Then END YOUR "
+                    "TURN: the answer comes as the user's next message. For several questions, call it once per question, then end the turn.",
+     "inputSchema": _obj({"question": STR, "options": {"type": "array", "items": {"type": "object"}}, "recommended": {"type": "integer"}}, ["question", "options"])},
     {"name": "gui_state", "where": "browser",
      "description": "What the user sees on screen now: every visible control (buttons, sliders, boxes, choices, joint names — not the "
                     "AI chat) with its number n, label, tooltip, state (on / a value / checked) and whether it is greyed out; where: "
@@ -393,10 +399,14 @@ TOOLS = [
     {"name": "remove_from_assembly", "where": "browser", "description": "Take a placed part (id I…) out of the assembly.",
      "inputSchema": _obj({"part": STR}, ["part"])},
     {"name": "get_guide", "where": "local",
-     "description": "A step-by-step guide: model-a-part, from-picture, print-prep, change-a-model, assemble-parts, mechanical-design "
-                    "(how a good designer works: bought parts first, fits, fasteners, printable parts), automation-design (pneumatics, "
-                    "sensors, motors, panels), use-a-drawing (a DXF / Gerber: find shapes, sizes, make a part of it). Read it before such a task when your skills are not available.",
-     "inputSchema": _obj({"topic": {"type": "string", "enum": ["model-a-part", "from-picture", "print-prep", "change-a-model", "assemble-parts", "mechanical-design", "automation-design", "use-a-drawing"]}}, ["topic"])},
+     "description": "A step-by-step guide: start-a-design (the questions before a new design), model-a-part, from-picture, print-prep, "
+                    "change-a-model, assemble-parts, mechanical-design (how a good designer works: bought parts first, fits, fasteners, "
+                    "printable parts), automation-design (made to be manufactured; pneumatics, sensors, motors, panels), fits-and-tolerances "
+                    "(ISO 286 fits, ISO 2768, holes, threads), print-functional (strong printed parts), print-graphics (decorative prints), "
+                    "use-a-drawing (a DXF / Gerber: find shapes, sizes, make a part of it). Read it before such a task when your skills are not available.",
+     "inputSchema": _obj({"topic": {"type": "string", "enum": ["start-a-design", "model-a-part", "from-picture", "print-prep", "change-a-model", "assemble-parts",
+                                                              "mechanical-design", "automation-design", "fits-and-tolerances", "print-functional", "print-graphics",
+                                                              "use-a-drawing"]}}, ["topic"])},
 ]
 
 TOOL_NAMES = {t["name"] for t in TOOLS}
@@ -421,11 +431,15 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 - **The parts library** holds real, bought parts with their maker and part number (screws, nuts, washers, inserts, bearings, standoffs, panel parts, SMC pneumatics, SICK sensors, stepper motors, the user's own): library_search, library_add.
 - Both: get_screenshot, check_print, export, undo. Opening a file or tracing a picture adds a new quick part tab.
 
-Before modelling, changing a 3D model, making a part from a picture, preparing a print or assembling parts, load the matching skill (auto3d:model-a-part, auto3d:change-a-model, auto3d:from-picture, auto3d:print-prep, auto3d:assemble-parts, auto3d:use-a-drawing) — or call get_guide(topic) if skills are not available. For any design of a device, a mechanism, a bracket for bought parts or a machine, load auto3d:mechanical-design first (and auto3d:automation-design for pneumatics, sensors, motors, control panels).
+**Before a new design** (a new part, device or assembly) load auto3d:start-a-design and, for what the user has not said yet, ask with ask_user (buttons in the chat, your recommendation first): what it is for — automation / a machine (made to be manufactured, standard, library parts), a functional 3D-printed part, or a graphic / decorative 3D model; whether it is 3D printed; and whether it must be easy for a person to edit (simple sketches, few sizes each) or may be built any way that reaches the goal. Then load the skills that brief asks for.
+
+Before modelling, changing a 3D model, making a part from a picture, preparing a print or assembling parts, load the matching skill (auto3d:model-a-part, auto3d:change-a-model, auto3d:from-picture, auto3d:print-prep, auto3d:assemble-parts, auto3d:use-a-drawing) — or call get_guide(topic) if skills are not available. For any design of a device, a mechanism, a bracket for bought parts or a machine, load auto3d:mechanical-design first; for automation also auto3d:automation-design and auto3d:fits-and-tolerances; for a functional printed part auto3d:print-functional; for a graphic / decorative print auto3d:print-graphics.
+
+**When you are not sure** which way the user wants (a choice with several sensible answers that changes what you build), do not guess and do not ask in a long text: call ask_user with 2–4 options and your recommended one first.
 
 Work like a good mechanical designer: **use the parts library first.** Anything that is bought — screws, nuts, washers, inserts, bearings, standoffs, connectors, LEDs, buttons, cylinders, valves, fittings, sensors, motors — comes from library_search / library_add, with its real part number (it lands in the BOM); draw only the parts that are made (printed). If a bought part is not in the library, say so and draw a simple stand-in of its real outside sizes. Design the made parts around the bought ones (their holes, fits and clearances).
 
-Rules: pick faces and edges with find_refs, never by guessing. Put fillets and chamfers last. After changes check get_part / get_model (every step ok) and get_screenshot before saying it is done. Use printable defaults (walls ≥ 1.2 mm, hole clearance +0.2 mm) unless told otherwise. Ask the user only when a decision is really theirs (key sizes, what to make).
+Rules: pick faces and edges with find_refs, never by guessing. Put fillets and chamfers last. **Model from simple shapes**: one idea per sketch (a rectangle, a circle, a slot), as few sizes in it as possible, the rest made by features (extrude, hole, pattern, mirror, fillet) — a part a person can read and change step by step; only when the user said it may be built any way, a complex sketch is fine. After changes check get_part / get_model (every step ok) and get_screenshot before saying it is done. Use printable defaults (walls ≥ 1.2 mm, hole clearance +0.2 mm) unless told otherwise. Ask the user only when a decision is really theirs (key sizes, what to make) — then with ask_user.
 
 Photos: the user can attach photos to a message. You see them, and the message lists where each one was saved ("[Attached photo: <path>]") — to make a part from one, pass that path to trace_picture. Describing or measuring from a photo needs no tool.
 
