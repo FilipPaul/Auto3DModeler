@@ -22,7 +22,7 @@ export class Autosave {
   }
 
   /** A project opened from a file is a project of its own (its own id); one opened from the recent ones keeps its id. */
-  fresh(id = null) { this.id = id || newId(); this.last = ''; }
+  fresh(id = null) { this.id = id || newId(); this.last = ''; this.hooks.onId?.(this.id); }
 
   schedule() { clearTimeout(this.timer); this.timer = setTimeout(() => this.saveNow(), this.delay); }
 

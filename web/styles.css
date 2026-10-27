@@ -53,6 +53,9 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 3px; }
 .part-tab .pt-name[contenteditable=true] { outline: 1px solid var(--accent); background: var(--bg); padding: 0 3px; text-overflow: clip; }
 .part-tab .pt-x { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 3px; font-size: 11px; border-radius: 3px; }
 .part-tab .pt-x:hover { color: var(--text); background: var(--line); }
+.part-tab .pt-win { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 2px; font-size: 11px; border-radius: 3px; opacity: 0; }
+.part-tab:hover .pt-win, .part-tab.on .pt-win { opacity: 1; }
+.part-tab .pt-win:hover { color: var(--text); background: var(--line); }
 .part-add { position: relative; flex: none; }
 .part-add .menu-list { left: 0; right: auto; }
 .part-add .pt-add { background: none; border: 1px dashed var(--line); color: var(--muted); border-radius: 6px; padding: 3px 9px; cursor: pointer; }

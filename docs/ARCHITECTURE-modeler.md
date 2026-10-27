@@ -80,6 +80,12 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **⧉ Windows done:** windows.js — every window holds the whole project; on a3d:changed each part whose (name, kind,
+  data) changed is posted on a BroadcastChannel per project (autosave id); a window takes it in (its part on screen
+  shown again with its undo kept, an assembly refreshed / a sheet ensured for changed parts, a new part closed, a
+  deleted one gone), and remembers what it took so nothing goes back. ⧉ on a tab / in ☰ Parts saves the project and
+  opens `?project=…&part=…`, which loads it from the server. a3d:project-loading / Autosave onId reconnect when
+  another project is opened. tools/e2e_windows.py.
 - **The AI tests the GUI by the mouse and keys done:** gui_state lists a sheet's dims / views / title cells (kind dim /
   view / cell, where: view); gui_action at = [x, y] (0 … 1 of the view), at_mm (a sheet's paper), drag_to, double,
   key (Delete, Enter, Escape, ctrl+z — alone, on a control or after a click): pointer + mouse events at the point

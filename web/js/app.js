@@ -23,6 +23,7 @@ import { SheetEditor, partHash } from './sheet/sheet.js';
 import { isStandard } from './assembly/fasteners.js';
 import { initSplitters } from './splitters.js';
 import { Autosave } from './autosave.js';
+import { Windows } from './windows.js';
 import { changed as projectChanged } from './history.js';
 
 initI18n();  // Czech / English: translates the page as it is built
@@ -1736,6 +1737,7 @@ const project = new Project($('partTabs'), {
     else if (kind === 'sheet') sheet.history.state = h;
     else { Object.assign(history, h); history.updateUI(); }
   },
+  openWindow: (id) => windows.open(id).catch((e) => toast(e.message, 'warning', 7000)),
   toast,
 });
 
@@ -2371,9 +2373,35 @@ var autosave = new Autosave({
     await project.loadAll(proj);
     showProjectName();
   },
+  onId: (id) => windows?.connect(id),
 });
+
+// ⧉ a part in a window of its own (another monitor): every window has the project, a change in one goes to the others
+var windows = new Windows({
+  project, toast,
+  live: () => project.hooks.payload(project.current.kind),
+  async reloadLive(p) { // changed in another window: shown again here (its undo kept)
+    const h = project.hooks.getHistory(p.kind);
+    await project.show(p);
+    project.hooks.setHistory(h, p.kind);
+  },
+  async rebuild() { // parts it uses changed in another window
+    if (state.workspace === 'assembly') await assembly.refresh();
+    else if (state.workspace === 'sheet') await sheet.ensure();
+  },
+  saveNow: () => autosave.saveNow(),
+});
+windows.connect(autosave.id);
+const opened = new URLSearchParams(location.search);
+if (opened.has('project')) { // a window opened by ⧉: its project, its part on screen
+  autosave.open(opened.get('project')).then(async () => {
+    const id = opened.get('part');
+    if (id && project.parts.some((p) => p.id === id)) await project.switchTo(id);
+    document.title = `${project.current?.name || ''} — Auto3DModeler`;
+  }).catch((e) => toast(e.message, 'error', 8000));
+}
 $('recentBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); autosave.showRecent(); });
-if (!new URLSearchParams(location.search).has('sample')) setTimeout(() => autosave.offerLast(), 600);
+if (!opened.has('sample') && !opened.has('project')) setTimeout(() => autosave.offerLast(), 600);
 
 // 🕘 the project after each AI turn that ran tools here, kept by the server; loaded back like a project file
 const aiHistory = new AiHistory({
@@ -2384,6 +2412,8 @@ const aiHistory = new AiHistory({
     if (proj.error) throw new Error(proj.error);
     state.projectName = proj.project_name;
     await project.loadAll(proj);
+    windows.connect(autosave.id, true); // (the same project, as it was: to its other windows too)
+    windows.send();
     showProjectName();
   },
 });

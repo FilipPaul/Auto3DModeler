@@ -49,6 +49,11 @@ part of the project, open or not: click one to open it in a tab again, ✕ there
 asking; it says which assemblies use it). Parts made for an assembly (fasteners) are added without a tab. The **＋**
 next to the tabs offers the usual ways to open a file.
 
+**⧉ Windows (several monitors)**: the **⧉** on a tab (or in ☰ Parts) opens that part — a 3D model, an assembly, a
+drawing sheet, a 2D drawing — in a new browser window. The windows stay linked: a change in one is in the others at
+once (an assembly using a changed part is built again, a drawing sheet of it gets a new revision, the same part on
+screen in two windows shows the change in both), and the project is saved the same from any of them.
+
 **Autosave**: the project is kept on the server (`data/projects/`) a few seconds after each change — "✓ Saved 22:31" by
 the project's name says so — so a closed tab or a browser crash loses nothing. **Open ▾ → 🕘 Recent projects…** lists
 the kept projects to open again (✕ forgets one); when the app starts empty, the last one is offered at the bottom left.

@@ -9,6 +9,7 @@ import { t } from './i18n.js';
 // features — the 3D model workspace).
 
 const CLOSE_TIP = 'Close this tab (the part stays in the project — ☰ Parts opens it again)';
+const WIN_TIP = 'Open it in a new window (e.g. on another monitor) — the windows stay linked: a change in one is in the others';
 const KIND_ICON = { model: '◆', assembly: '◇', drawing: '📐', sheet: '📄', classic: '▤' };
 
 export class Project {
@@ -233,6 +234,7 @@ export class Project {
 
   /** Open a version-3 project: every part as a tab, the active one on screen. */
   async loadAll(proj) {
+    window.dispatchEvent(new Event('a3d:project-loading'));
     this.parts = proj.parts.map((p) => ({ id: p.id, name: p.name, kind: p.kind, data: p.kind === 'classic' ? p.classic : p[p.kind], history: null, ...(p.closed ? { closed: true } : {}) }));
     this.next = 1 + Math.max(0, ...this.parts.map((p) => parseInt(String(p.id).replace(/\D/g, ''), 10) || 0));
     const act = this.parts.find((p) => p.id === proj.active?.part) || this.parts.find((p) => !p.closed) || this.parts[0];
@@ -258,9 +260,10 @@ export class Project {
       const row = document.createElement('div');
       row.className = `pt-row${p.id === this.active ? ' on' : ''}${p.closed ? ' closed' : ''}`;
       row.dataset.part = p.id;
-      row.innerHTML = `<button class="pt-open" title="${p.closed ? 'Open it (a tab)' : 'Show it'}"><span class="pt-kind">${KIND_ICON[p.kind] || '▤'}</span><span class="pt-rname" data-no-i18n></span></button>${this.parts.length > 1 ? '<button class="mini danger pt-del" title="Delete it from the project">✕</button>' : ''}`;
+      row.innerHTML = `<button class="pt-open" title="${p.closed ? 'Open it (a tab)' : 'Show it'}"><span class="pt-kind">${KIND_ICON[p.kind] || '▤'}</span><span class="pt-rname" data-no-i18n></span></button>${this.hooks.openWindow ? `<button class="mini pt-win" title="${WIN_TIP}">⧉</button>` : ''}${this.parts.length > 1 ? '<button class="mini danger pt-del" title="Delete it from the project">✕</button>' : ''}`;
       row.querySelector('.pt-rname').textContent = p.name || '…';
       row.querySelector('.pt-open').addEventListener('click', () => { all.classList.remove('open'); this.switchTo(p.id); });
+      row.querySelector('.pt-win')?.addEventListener('click', (e) => { e.stopPropagation(); all.classList.remove('open'); this.hooks.openWindow(p.id); });
       row.querySelector('.pt-del')?.addEventListener('click', (e) => { e.stopPropagation(); all.classList.remove('open'); this.remove(p.id); });
       list.appendChild(row);
     }
@@ -277,6 +280,14 @@ export class Project {
       name.dataset.noI18n = '';
       name.textContent = p.name || '…';
       tab.appendChild(name);
+      if (this.hooks.openWindow) {
+        const w = document.createElement('button');
+        w.className = 'pt-win';
+        w.textContent = '⧉';
+        w.title = WIN_TIP;
+        w.addEventListener('click', (e) => { e.stopPropagation(); this.hooks.openWindow(p.id); });
+        tab.appendChild(w);
+      }
       if (open.length > 1) {
         const x = document.createElement('button');
         x.className = 'pt-x';
