@@ -1749,6 +1749,7 @@ const modeler = new Modeler({ left: $('modelLeft'), viewport: $('modelViewport')
   importSolid: (file) => importSolid(file),
   backTo: (id) => id && project.switchTo(id),
   saveToLibrary: () => saveToLibrary(project.current?.name || safeName(), modeler.payload(), toast),
+  saveBackToLibrary: () => saveBackToLibrary().catch((e) => toast(e.message, 'error', 7000)),
   duplicatePart: async () => { await project.duplicate(); toast(t2('{name} — a copy of its own (change it without changing the original).', { name: project.current?.name }), 'ok', 5000); },
   newSheet: () => { const p = project.current; if (p) project.newSheet(p.id, `${p.name} — ${t('drawing')}`); },
   // a printing copy of a model part: its STL as a Quick part, on the 3D print tab
@@ -2412,6 +2413,13 @@ const library = new LibraryBrowser({
     await project.newModel(structuredClone(data), name);
     toast(t2('{name} — a 3D model of its own now (change it, or put it into an assembly).', { name }), 'ok', 5000);
   },
+  /** ✎ Edit in the library: the own library part as a 3D model marked as its library edit (📚 Save back keeps it). */
+  async editInLibrary(item) {
+    const built = buildPart(item);
+    const data = { ...structuredClone(built.data), libEdit: { id: item.id, name: item.name } };
+    await project.newModel(data, `${item.name} (📚)`);
+    toast(t2('{name} — your library part, to change. 📚 Save back to the library keeps the change.', { name: item.name }), 'ok', 6000);
+  },
   async insertIntoAssembly(name, data) {
     const same = project.parts.find((p) => p.kind === 'model' && typeof p.data === 'object' && libKey(p.data) === libKey(data));
     const id = same?.id || project.addBackground(name, structuredClone(data));
@@ -2420,6 +2428,23 @@ const library = new LibraryBrowser({
   },
 });
 $('libBtn').addEventListener('click', () => library.open());
+
+/** 📚 Save back to the library: the 3D model on screen (a library part being changed) becomes that library part again —
+ *  its steps, colour, paint; its name, category, maker and part number as they were. -> the saved item. */
+async function saveBackToLibrary() {
+  const data = modeler.payload(), edit = data.libEdit;
+  if (!edit) throw new Error(t('This 3D model is not a library part being changed.'));
+  const was = (await libraryItems()).find((it) => it.id === edit.id && it.source === 'user');
+  if (!was) throw new Error(t2('“{name}” is not in your library any more — 📚 Save to the library keeps it as a new part.', { name: edit.name }));
+  const item = { ...was, features: structuredClone(data.features || []) };
+  if (data.color) item.color = data.color; else delete item.color;
+  if (data.paint?.length) item.paint = structuredClone(data.paint); else delete item.paint;
+  const res = await fetch('/api/library', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item }) });
+  const r = await res.json();
+  if (!res.ok) throw new Error(r.error || res.statusText);
+  toast(t2('“{name}” is saved in your library — new uses take it; parts already in projects stay as they were.', { name: r.name }), 'ok', 6000);
+  return r;
+}
 
 // the AI and the library: find real parts first, put them in (a 3D model or the assembly on screen)
 const libraryTools = {
@@ -2537,6 +2562,7 @@ Object.assign(agentHandlers, {
   },
   save_to_library: async ({ name, category = 'My parts', maker = '', pn = '' }) => {
     if (state.workspace !== 'model' || !modeler.part.features.length) throw new Error('Open the 3D model to keep (it needs steps).');
+    if (modeler.part.libEdit && !name) { const r = await saveBackToLibrary(); return { text: `“${r.name}” saved back to the library (item ${r.id}) — the library part being changed; new uses take it.` }; }
     const item = itemFromModel(name || project.current?.name || 'My part', modeler.payload(), { category, maker, pn });
     const res = await fetch('/api/library', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item }) });
     const r = await res.json();

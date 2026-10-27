@@ -308,6 +308,13 @@ steel, brass.
 
 ## 📚 Parts library
 
+**A part from the library is always a copy in your project** — change it there and the library stays as it is. To
+change the library itself: **✎ Edit in the library** (your own parts) opens the part as a 3D model marked *📚 Library
+part*; **📚 Save back to the library** keeps the change in that library part (parts already in projects stay as they
+were, new uses take it). The library's own catalogue parts stay as they are: **✎ Make my own copy** makes the chosen
+size a part of your own library, opened to change. The AI's `save_to_library` without a name saves a library part being
+changed back.
+
 **📚 Library** (top bar) holds real parts to build with, each with its maker, part number and order numbers:
 - **Fasteners**: screws M1–M6 with several heads (socket ISO 4762, button ISO 7380, countersunk ISO 10642, pan head
   ISO 7045, slotted cheese DIN 84 from M1, hex ISO 4017), screws for plastics, nuts (ISO 4032, lock DIN 985, square

@@ -208,6 +208,7 @@ export class Modeler {
     if (a === 'solidFile') return this.pickSolid();
     if (a === 'duplicatePart') return this.hooks.duplicatePart?.();
     if (a === 'saveToLibrary') return this.hooks.saveToLibrary?.();
+    if (a === 'saveBack') return this.hooks.saveBackToLibrary?.();
     if (a === 'mirror') return this.mode === 'sketch' ? this.sk.setTool('mirror') : this.startMirror();
     if (a === 'loft' || a === 'sweep') return this.startProfiles(a);
     if (a === 'decal') return this.startDecal();
@@ -779,6 +780,9 @@ export class Modeler {
         <div class="row-actions wrap"><button class="btn small" data-a="sketch">✏ Sketch</button>
         ${this.sketches().length ? '<button class="btn small" data-a="extrude">⬆ Extrude</button>' : ''}</div>
         ${libraryFactsHtml(this.part.library)}
+        ${this.part.libEdit && this.hooks.saveBackToLibrary ? `<div class="mp-libedit"><b>📚 ${esc(t('Library part'))}</b> <span data-no-i18n>${esc(this.part.libEdit.name || '')}</span>
+          <p class="hint">${esc(t('You are changing a part of your library. Save it back to keep the change there — parts already in projects stay as they were.'))}</p>
+          <div class="row-actions"><button class="btn small primary" data-a="saveBack">📚 ${esc(t('Save back to the library'))}</button></div></div>` : ''}
         ${this.hooks.saveToLibrary && this.part.features.length ? '<div class="row-actions"><button class="btn small" data-a="saveToLibrary" title="Keep this 3D model in your parts library (on the server) — to use it again in any project">📚 Save to the library</button></div>' : ''}
         ${this.hooks.duplicatePart ? '<div class="row-actions"><button class="btn small" data-a="duplicatePart" title="A copy of this 3D model as a new part of its own (its own tab) — change it without changing this one">⧉ Duplicate as a new part</button></div>' : ''}
         ${b && this.hooks.toPrint ? `<h3>3D print</h3><p class="hint">Check it fits your printer, split it into pieces with joints — in a printing copy of this part.</p>

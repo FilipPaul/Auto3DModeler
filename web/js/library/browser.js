@@ -128,6 +128,9 @@ export class LibraryBrowser {
       <div class="row-actions wrap lib-acts">
         <button class="btn primary" data-a="insert" ${asm ? '' : `disabled title="${esc(t('Open an assembly first (＋ New assembly)'))}"`}>⤵ Put into the assembly</button>
         <button class="btn" data-a="model">◆ Open as a new 3D model</button>
+        ${this.hooks.editInLibrary ? (it.source === 'user'
+    ? '<button class="btn small" data-a="libEdit" title="Change this part of your library: it opens as a 3D model; 📚 Save back to the library keeps the change (parts already in projects stay as they were)">✎ Edit in the library</button>'
+    : '<button class="btn small" data-a="libEdit" title="The library\'s own parts stay as they are: this size becomes a part of your own library, opened to change">✎ Make my own copy</button>') : ''}
         ${it.source === 'user' ? '<button class="btn small danger" data-a="del" title="Delete your own part from the library">✕</button>' : ''}</div>`;
     for (const sel of box.querySelectorAll('select[data-k]')) sel.addEventListener('change', () => {
       if (sel.dataset.k === 'size') this.select(it.id, sel.value, this.state.length);
@@ -153,6 +156,22 @@ export class LibraryBrowser {
     box.querySelector('[data-a=unreal]')?.addEventListener('click', () => setModel(null, '').catch((err) => this.hooks.toast(err.message, 'error')));
     box.querySelector('[data-a=insert]').addEventListener('click', async () => { const c = this.current(); this.close(); await this.hooks.insertIntoAssembly(c.built.name, c.built.data); });
     box.querySelector('[data-a=model]').addEventListener('click', async () => { const c = this.current(); this.close(); await this.hooks.openAsModel(c.built.name, c.built.data); });
+    box.querySelector('[data-a=libEdit]')?.addEventListener('click', async () => {
+      const c = this.current();
+      try {
+        let item = it;
+        if (it.source !== 'user') { // a catalogue part: its size as an own part first
+          const lib = c.built.data.library || {};
+          const own = itemFromModel(c.built.name, c.built.data, { category: 'My parts', maker: lib.maker || '', pn: lib.pn || '' });
+          const res = await fetch('/api/library', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item: own }) });
+          item = await res.json();
+          if (!res.ok) throw new Error(item.error || res.statusText);
+          this.items = await libraryItems();
+        }
+        this.close();
+        await this.hooks.editInLibrary(item);
+      } catch (e) { this.hooks.toast(e.message, 'error', 7000); }
+    });
     box.querySelector('[data-a=del]')?.addEventListener('click', async () => {
       if (!confirm(tv('Delete “{name}” from your library?', { name: it.name }))) return;
       await fetch(`/api/library/${encodeURIComponent(it.id)}`, { method: 'DELETE' });

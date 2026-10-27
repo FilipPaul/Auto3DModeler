@@ -306,7 +306,8 @@ TOOLS = [
                     "on it go along): free all the way, or which part it hits and between which positions. It ends where it was.",
      "inputSchema": _obj({"part": STR, "motion": {}}, ["part"])},
     {"name": "save_to_library", "where": "browser",
-     "description": "Keep the 3D model on screen in the user's parts library (to use again in any project): name, category (e.g. "
+     "description": "Keep the 3D model on screen in the user's parts library (to use again in any project); a library part being "
+                    "changed (opened with ✎ Edit in the library) is saved back over itself when no name is given: name, category (e.g. "
                     "\"My parts / Brackets\"), and for a bought part its maker and part number.",
      "inputSchema": _obj({"name": STR, "category": STR, "maker": STR, "pn": STR})},
     {"name": "report_problem", "where": "server",
