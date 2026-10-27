@@ -80,6 +80,9 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **One item numbering per drawing set done:** SheetEditor.itemNumbers(root) — the top assembly's parts 1…n, then each
+  sub-assembly's new ones in page order; assemblyPage numbers its rows (and balloons) by the set's root (rootOf), so a
+  part has one number on every page (the cache key carries the numbering). e2e_drawing_set checks Machine 1–3, Lid unit 4, 5.
 - **⧉ Windows done:** windows.js — every window holds the whole project; on a3d:changed each part whose (name, kind,
   data) changed is posted on a BroadcastChannel per project (autosave id); a window takes it in (its part on screen
   shown again with its undo kept, an assembly refreshed / a sheet ensured for changed parts, a new part closed, a

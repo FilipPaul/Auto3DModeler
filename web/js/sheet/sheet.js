@@ -363,6 +363,21 @@ export class SheetEditor {
    *  ctx: {kindOf(id), sheetOf(part id) -> a sheet's data or null, bought(data, name)} -> {svgs, pages: [names]}. */
   /** An assembly's page: its placed parts drawn together (views, overall sizes), its parts list (pos, name, qty,
    *  material, part number, bought) and where each one's balloon points -> {built, rows}. */
+  /** One numbering of the parts for the whole drawing set from `root` (a part keeps its number on every page): the
+   *  top assembly's parts first, then each sub-assembly's new ones, in the order of the pages -> Map(part id -> n). */
+  itemNumbers(root) {
+    const nums = new Map(), seen = new Set();
+    const visit = (aid) => {
+      if (seen.has(aid)) return;
+      seen.add(aid);
+      const parts = [...new Set((this.hooks.partData(aid)?.instances || []).map((it) => it.part))];
+      for (const p of parts) if (!nums.has(p)) nums.set(p, nums.size + 1);
+      for (const p of parts) if (this.hooks.kindOf?.(p) === 'assembly') visit(p);
+    };
+    visit(root);
+    return nums;
+  }
+
   async assemblyPage(aid, ctx) {
     const flatten = (id, M = ID4, pre = '') => (this.hooks.partData(id)?.instances || []).flatMap((it) => {
       const W = mul4(M, it.matrix || ID4), key = pre ? `${pre}/${it.id}` : it.id;
@@ -374,12 +389,13 @@ export class SheetEditor {
     const r = await post('/api/sheet/assembly', { instances: flatten(aid) });
     const groups = new Map();
     for (const it of insts) { if (!groups.has(it.part)) groups.set(it.part, []); groups.get(it.part).push(it.id); }
+    const nums = this.itemNumbers(this.rootOf(aid) || aid); // (the set's numbers: the same part, the same number)
     const rows = [...groups].map(([part, ids], i) => {
       const pd = this.hooks.partData(part) || {}, kind = ctx.kindOf(part), nm = this.hooks.partName(part) || part;
       const iso = Object.entries(r.marks).filter(([k]) => k === ids[0] || k.startsWith(`${ids[0]}/`)).map(([, m]) => m.Iso);
-      return { pos: i + 1, part, name: nm, qty: ids.length, kind, material: kind === 'assembly' ? '—' : pd.material || 'PLA', pn: pd.library?.pn || '',
+      return { pos: nums.get(part) ?? i + 1, part, name: nm, qty: ids.length, kind, material: kind === 'assembly' ? '—' : pd.material || 'PLA', pn: pd.library?.pn || '',
         bought: kind !== 'assembly' && (!!pd.library || ctx.bought(pd, nm)), iso: iso.length ? [iso.reduce((s, q) => s + q[0], 0) / iso.length, iso.reduce((s, q) => s + q[1], 0) / iso.length] : null };
-    });
+    }).sort((a, b) => a.pos - b.pos);
     return { built: { ...r, preset: 'light' }, rows };
   }
 
@@ -387,7 +403,7 @@ export class SheetEditor {
     const pages = [], drawn = new Set([rootId]), name = (id) => this.hooks.partName(id) || id, now = new Date().toISOString();
     const visit = async (aid, parent) => {
       if (!(this.hooks.partData(aid)?.instances || []).length) return;
-      const { built, rows } = await this.cached(`a|${aid}|${this.sourceHash(aid)}`, () => this.assemblyPage(aid, ctx)), own = ctx.sheetOf(aid); // its own sheet: the user's moves, dimensions, texts
+      const { built, rows } = await this.cached(`a|${aid}|${this.sourceHash(aid)}|${[...this.itemNumbers(this.rootOf(aid) || aid)].join()}`, () => this.assemblyPage(aid, ctx)), own = ctx.sheetOf(aid); // its own sheet: the user's moves, dimensions, texts
       const base = own ? structuredClone(own) : { created: now, changed: now, off: { Right: true }, views: { Iso: built.layout.views.Right } };
       pages.push({ name: name(aid), d: { ...base, source: aid, built, asm: { rows },
         title: { kind: parent ? t('Sub-assembly') : t('Assembly'), part: name(aid), material: '—', of: parent || '' } } });

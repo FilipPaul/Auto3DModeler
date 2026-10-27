@@ -2,7 +2,7 @@
 the final assembly "Machine" (Base + Lid unit + a bought screw from the library). The Base has its own drawing sheet
 with a dimension of the user's. -> 📄 Drawings (PDF) in the Machine's panel -> pages in order: Machine (its views, the
 parts list with Base, ◇ Lid unit, the screw as bought, balloons), Lid unit (Lid, Pin ×2), Lid, Pin, Base (with the
-user's dimension); every page names itself, what it is in and "Sheet n / N" -> the AI's export pdf: the same set.
+user's dimension); the parts numbered once for the whole set (Machine 1–3, the Lid unit's go on: 4, 5); every page names itself, what it is in and "Sheet n / N" -> the AI's export pdf: the same set.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_drawing_set.py http://127.0.0.1:5199 <out dir>
 """
@@ -74,6 +74,10 @@ try:
         sheetOf: (id) => { const p = window.__app.project.parts.find(q => q.kind === 'sheet' && typeof q.data === 'object' && q.data?.source === id); return p ? p.data : null; },
         bought: (data, name) => !!data?.standard || /screw|nut|insert/.test(name) }).then(s => s.pages)""")
     print("pages (the button's way):", res)
+    nums = js("""const S = window.__app.sheet, P = window.__app.project, ctx = { kindOf: (id) => P.parts.find(q => q.id === id)?.kind, sheetOf: () => null, bought: (d, n) => /screw|ISO/.test(n) };
+        const id = (n) => P.parts.find(q => q.name === n).id;
+        return Promise.all(['Machine', 'Lid unit'].map(n => S.assemblyPage(id(n), ctx).then(r => r.rows.map(x => [x.pos, x.name]))))""")
+    print("one numbering for the set: Machine", nums[0], "| Lid unit", nums[1])
     out = ai("export", format="pdf", path=OUT)
     print("the AI's export:", out[:160])
     path = os.path.join(OUT, "Machine — drawings.pdf")

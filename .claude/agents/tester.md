@@ -162,6 +162,7 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_ai_ask.py <url> <dir>` covers the AI's ask_user (two questions -> the chat in sight, cards of buttons with
    the recommended option first ★; one answered: nothing sent; both: one message "<question> → <option>"; ✎ Other…
    puts the question in the box; no options refused). The message is caught in the page (no Claude needed).
+   (e2e_drawing_set also checks one item numbering for the whole set: Machine 1–3, the Lid unit's parts 4 and 5.)
    `tools/e2e_windows.py <url> <dir>` covers ⧉ a part in a new window (a Base and an assembly using it: a hole added
    in the new window rebuilds the assembly in the first; a part inserted in the first is in the other's project; the
    Base on screen in both: a step in one shown in the other; no messages in 3 quiet seconds, the same in both; a

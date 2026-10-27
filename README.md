@@ -297,7 +297,8 @@ the page in sight, a click in Pages goes to it, a double-click on a page opens i
 **📄 Drawings (PDF)** in an assembly's panel makes its whole drawing set as one PDF, in the order of the assembly:
 the **assembly** (its views, overall sizes, the **parts list** — position, name, quantity, material, part number —
 and a **balloon** with the position on each part in the iso view), then each **sub-assembly** the same way followed by
-its parts, then the assembly's own **made parts**. Every part is drawn once — by its own 📄 drawing sheet when it has
+its parts, then the assembly's own **made parts**. The positions are numbered **once for the whole set** (the top
+assembly's parts 1, 2 …, a sub-assembly's new ones go on from there; a part used twice keeps its number). Every part is drawn once — by its own 📄 drawing sheet when it has
 one (with your dimensions), otherwise made with the medium preset; bought and standard parts (library, screws, nuts)
 are only in the parts lists. Each page's title block names the part or assembly, what it is in (*in Machine · Pos.
 1*) and its page (*Sheet 2 / 5*). The AI's `export {format: "pdf"}` in an assembly writes the same set.
