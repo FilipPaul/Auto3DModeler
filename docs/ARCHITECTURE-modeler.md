@@ -75,7 +75,12 @@ Date: 2026-10-25. Written by the architect agent.
   circle, presets, paper, views on / off; the user's moves in `dims`, deleted autos in `hidden`, own ones in `user`),
   Project.newSheet (one per part), 📄 Drawing sheet in the model panel; partHash of the part's steps / material /
   tolerances: an `a3d:changed` listener gives closed sheets a new revision + date (built.stale), ensure() builds again.
-  tools/e2e_sheet.py. **Next: step 3, the AI's tools for sheets; step 4, an assembly's drawing set.**
+  tools/e2e_sheet.py.
+- **Drawing sheets — step 3 (the AI) done:** browser tools sheet_open (the part's sheet, made once), get_sheet (dims
+  with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
+  move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
+  the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py. **Next: step 4, an assembly's
+  drawing set (one PDF: the assembly, its sub-assemblies, their parts).**
 - **Fits and tolerances on the drawing done:** auto3d/modeler/fits.py (ISO 286: holes H6–H9, shafts f7–p6, to 120 mm;
   label "Ø8 H7 (+0.015 / 0)"); a hole step's `fit` (its Fit choice; add_feature / edit_feature fit), a part's
   `tolerance` f / m / c (the part panel's Tolerances; set_material tolerance) -> drawing.pdf: "Ø8 H7" at the hole, the

@@ -27,9 +27,11 @@ maker numbers.
 - **A working assembly**: every part joined as in the machine (`snap_faces {…}`); moving parts keep exactly their
   way free with real limits (`set_travel {…}` — a cylinder's stroke) and `check_travel {…}` shows nothing is hit;
   `check_collisions {}` at rest.
-- **Drawings**: each made part as a 2D drawing PDF (`export {format: "pdf"}`: three views, sizes, title block) —
-  say which sizes carry a fit or need a tolerance, the material and the finish (e.g. "AlMg3, anodised"). The
-  drawings do not show tolerances yet: list them in your summary.
+- **Drawings**: each made part gets a drawing sheet — `sheet_open {part}` (preset medium: overall sizes, holes once
+  with their pitch, radii, heights), set the hole fits (`edit_feature` fit) and `set_material {material, tolerance: "m"}`
+  first so the sheet shows "Ø8 H7" and ISO 2768-m; `get_sheet {points: "Top"}` and `sheet_edit {add: [...]}` for a
+  dimension the preset left out, `sheet_edit {remove: [...]}` for clutter; then `export {format: "pdf"}` on the sheet.
+  Say the material and the finish (e.g. "AlMg3, anodised").
 
 ## Pneumatic cylinders (SMC CJ2 in the library)
 - **Force** = pressure × area: at 6 bar a Ø10 pushes ≈ 47 N, a Ø16 ≈ 120 N (pull less: the rod area is lost). Take

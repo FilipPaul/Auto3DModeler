@@ -56,7 +56,7 @@ export function guiControls(where = 'all') {
   return where === 'all' ? out : out.filter((c) => c.where === where); // (n: one numbering for all)
 }
 
-export function moreHandlers({ state, project, modeler, assembly, drawing2d, t2 }) {
+export function moreHandlers({ state, project, modeler, assembly, drawing2d, sheet, t2 }) {
   const need = (ws, what) => { if (state.workspace !== ws) throw new Error(`${what} — the part on screen is not one (open_part one).`); };
   const D = () => { need('drawing', 'This is for a 2D drawing (a DXF / DWG / Gerber / ODB++ opened as a 📐 drawing)'); return drawing2d; };
   const FIELDS = ['shape', 'layer', 'dia', 'r', 'len', 'w', 'color', 'text'];
@@ -179,6 +179,66 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, t2 
       await new Promise((r) => setTimeout(r, 400));
       return ok({ done: `${c.kind} “${c.label}”${value !== undefined ? ` = ${value}` : ' clicked'}`, workspace: state.workspace,
         toasts: [...document.querySelectorAll('.toast')].map((x) => x.textContent.trim()).slice(-3) });
+    },
+
+    // ---------------------------------------------------------------- drawing sheets (📄)
+    sheet_open: async ({ part } = {}) => {
+      const p = part ? project.parts.find((q) => q.id === part || q.name === part) : project.current;
+      if (!p) throw new Error(`No part ${part} — see list_parts.`);
+      if (p.kind === 'sheet') { await project.switchTo(p.id); } else {
+        if (p.kind !== 'model') throw new Error(`${p.name} is not a 3D model — a drawing sheet is of a 3D model part.`);
+        await project.newSheet(p.id, `${p.name} — ${t2('drawing', {})}`);
+      }
+      await sheet.ensure();
+      return ok(sheet.summary());
+    },
+    get_sheet: async ({ points } = {}) => {
+      need('sheet', 'This is for a drawing sheet (📄) — sheet_open opens one');
+      await sheet.ensure();
+      return ok({ ...sheet.summary(), ...(points ? { [points]: sheet.pointsOf(points) } : {}) });
+    },
+    sheet_edit: async ({ preset, paper, views, remove = [], restore, add = [], move = {} } = {}) => {
+      need('sheet', 'This is for a drawing sheet (📄) — sheet_open opens one');
+      const ed = sheet, done = [];
+      if (preset !== undefined) {
+        if (!['light', 'medium', 'full'].includes(preset)) throw new Error('preset: light, medium or full.');
+        ed.d.preset = preset;
+        done.push(`preset ${preset}`);
+      }
+      if (paper !== undefined) {
+        if (paper && !['A4', 'A3'].includes(paper)) throw new Error('paper: "A4", "A3" or null (chosen by the size).');
+        ed.d.paper = paper || null;
+        ed.d.views = {};
+        done.push(`paper ${paper || 'auto'}`);
+      }
+      if (preset !== undefined || paper !== undefined) await ed.ensure(true);
+      for (const [v, on] of Object.entries(views || {})) {
+        if (!['Front', 'Top', 'Right', 'Iso'].includes(v)) throw new Error('views: {Front | Top | Right | Iso: true / false}.');
+        if (on) delete ed.d.off[v]; else ed.d.off[v] = true;
+        done.push(`${v} ${on ? 'shown' : 'hidden'}`);
+      }
+      if (restore) { ed.d.hidden = []; done.push('the deleted ones back'); }
+      const ids = new Set(ed.allDims().map((d) => d.id).concat(ed.d.hidden, ed.d.user.map((d) => d.id)));
+      for (const id of [].concat(remove)) {
+        if (!ids.has(id)) throw new Error(`No dimension ${id} — get_sheet lists them.`);
+        ed.remove(id);
+      }
+      if ([].concat(remove).length) done.push(`${[].concat(remove).length} removed`);
+      for (const [id, o] of Object.entries(move || {})) {
+        const d = ed.allDims().find((x) => x.id === id);
+        if (!d) throw new Error(`No dimension ${id} — get_sheet lists them.`);
+        const keep = {};
+        if (o.side !== undefined) { if (!(d.dir === 'h' ? ['t', 'b'] : ['l', 'r']).includes(o.side)) throw new Error(`side of ${id}: ${d.dir === 'h' ? '"t" (above) or "b" (below)' : '"l" (left) or "r" (right)'}.`); keep.side = o.side; }
+        if (o.off !== undefined) keep.off = Math.max(3, +o.off);
+        if (o.ang !== undefined) keep.ang = +o.ang;
+        if (o.len !== undefined) keep.len = Math.max(2, +o.len);
+        ed.setDim(d, { ...(ed.d.dims[id] || {}), ...keep });
+      }
+      if (Object.keys(move || {}).length) done.push(`${Object.keys(move).length} moved`);
+      const added = [].concat(add).map((spec) => ed.addFor(spec));
+      if (added.length) done.push(`added ${added.join(', ')}`);
+      ed.commit();
+      return ok({ done: done.join('; ') || 'nothing', ...ed.summary() });
     },
 
     // ---------------------------------------------------------------- joints and measuring (assembly)
@@ -307,7 +367,12 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, t2 
         if (!shown.entities.length) throw new Error('Nothing on the shown layers.');
         return { text: 'ok', data: { name: (ed.d.source || project.current?.name || 'drawing').replace(/\.[^.]+$/, ''), drawing: shown } };
       }
-      throw new Error('format: 3mf, bom or dxf.');
+      if (format === 'pdf') { // a drawing sheet: as it is drawn
+        need('sheet', 'A drawing sheet');
+        await sheet.ensure();
+        return { text: 'ok', data: { name: project.current?.name || 'drawing', svg: sheet.svg(true) } };
+      }
+      throw new Error('format: 3mf, bom, dxf or pdf (a drawing sheet).');
     },
   };
 }

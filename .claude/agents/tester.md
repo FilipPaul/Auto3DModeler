@@ -129,6 +129,10 @@ Never report "works" without having run it; report failures with their output.
    and "3× 10"; light fewer, full more; Del + ↺; a dimension dragged 8 -> 16; ＋ Dimension by two hole centres (30)
    and a circle (Ø3); the part 15 thick -> Rev 2, Changed later, the height 15, the moves kept; the PDF has the texts).
    Restart the server after changes to sheet.py (the kernel worker keeps old code).
+   `tools/e2e_ai_sheet.py <url> <dir>` covers the AI's sheet tools (export pdf of a model still the plain drawing;
+   sheet_open makes the sheet; get_sheet {points: "Top"}: 6 hole centres; sheet_edit add between two centres (40) and a
+   circle's Ø with H7; remove + move + Iso hidden; preset light; a wrong id refused; export pdf on the sheet: its texts;
+   sheet_open again: the same sheet, its own dims kept).
    `tools/e2e_model_fits.py <url> <dir>` covers fits and tolerances (the AI's hole with fit "h7" -> H7 in the step list and
    the hole's Fit; set to H8 by hand; set_material aluminium + tolerance m in the part panel; the PDF drawing: Ø8 H8,
    "Fits: Ø8 H8 (+0.022 / 0)", ISO 2768-m; fit null takes it off; a wrong fit refused). Restart the server after

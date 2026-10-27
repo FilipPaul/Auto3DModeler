@@ -125,7 +125,7 @@ TOOLS = [
                     "many pieces when split. printer: id from the result's printer list.",
      "inputSchema": _obj({"printer": STR, "split": {"type": "boolean"}})},
     {"name": "export", "where": "server",
-     "description": "Export to a file: stl / step (mm) — the part, or for a 3D model pdf: a 2D drawing (front / top / right "
+     "description": "Export to a file: stl / step (mm) — the part; pdf: the drawing sheet (📄) on screen as drawn, or for a 3D model a 2D drawing (front / top / right "
                     "views, sizes, holes, title block); 3mf: the 3D model or the whole assembly in its colours, an object per colour "
                     "(for multi-material printing: AMS / MMU); bom: the assembly's bill of materials as CSV (qty, maker, part "
                     "number, mass); dxf: the shown layers of a 2D drawing. path: file or folder (default: the user's Downloads "
@@ -353,6 +353,26 @@ TOOLS = [
      "description": "Make something of the 2D drawing: as \"sketch\" (the sketch of a new 3D model — then extrude it) or \"quick\" "
                     "(a quick part); what: \"selection\", \"found\" (the filters' shapes) or \"all\" (the shown layers).",
      "inputSchema": _obj({"as": {"type": "string", "enum": ["sketch", "quick"]}, "what": {"type": "string", "enum": ["selection", "found", "all"]}})},
+    {"name": "sheet_open", "where": "browser",
+     "description": "Open the drawing sheet (📄) of a 3D model part — part: its id or name (none: the model on screen); made when it has "
+                    "none (preset medium). A sheet holds the part's views and dimensions, follows the part when it changes (a new "
+                    "revision) and the user edits it. -> get_sheet's answer. export {format: \"pdf\"} on a sheet writes it as drawn.",
+     "inputSchema": _obj({"part": STR})},
+    {"name": "get_sheet", "where": "browser",
+     "description": "The drawing sheet on screen: its part, preset, paper, revision, views and dimensions [{id, view, kind (linear / dia / rad), "
+                    "text (as drawn, e.g. \"8× Ø3 H7\"), auto (made by the preset) or the user's, lost (its points are gone)}]. "
+                    "points: a view's name (Front / Top / Right) — also its points (keys: a hole's centre \"H1:hole:0#c\", a line's ends "
+                    "\"<faces>#0\" / \"#1\", the view box \"box#x0\" / \"box#x1\" / \"box#y0\" / \"box#y1\") and circles, to add dimensions.",
+     "inputSchema": _obj({"points": {"type": "string", "enum": ["Front", "Top", "Right"]}})},
+    {"name": "sheet_edit", "where": "browser",
+     "description": "Change the drawing sheet on screen: preset light / medium / full (the automatic dimensions), paper A4 / A3 / null, "
+                    "views {Front | Top | Right | Iso: true / false}, remove [dimension ids], restore true (the deleted automatic ones "
+                    "back), move {id: {side (h: t / b; v: l / r), off (mm from the view on the paper), ang, len (a Ø / R leader)}}, "
+                    "add [{view, a, b, dir (h / v; else by the points), pre (text before, e.g. \"4×\")} | {view, circle (its key), "
+                    "count, post (e.g. \"H7\")}] — values are always measured from the part. Do what the user cannot do in a click.",
+     "inputSchema": _obj({"preset": {"type": "string", "enum": ["light", "medium", "full"]}, "paper": {"type": ["string", "null"]}, "views": {"type": "object"},
+                          "remove": {"type": "array", "items": STR}, "restore": {"type": "boolean"}, "move": {"type": "object"},
+                          "add": {"type": "array", "items": {"type": "object"}}})},
     {"name": "edit_joint", "where": "browser",
      "description": "Change a joint of the assembly on screen (id J… from get_assembly): gap (mm, flat joints), distance (mm along "
                     "the axis for a concentric joint, null = it slides freely), lock_rotation (true / false), angle (degrees: the "
@@ -428,6 +448,7 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 - **Quick parts** come from a PDF drawing (parametric: its dimensions drive it), an outline traced from a picture or read from a DXF (made into a cookie cutter, a solid shape or a custom stack of objects), or an imported STL / OBJ / STEP file. Tools: get_part, set_dimensions, set_make, set_part_options, add_object, add_shape, add_design_layer, add_dimension, update_item, remove_item. Coordinates: x right, y up, z up from the bed; the part's unit (PDF drawings may be cm).
 - **3D models** are built like in SolidWorks: sketches (rectangles, circles, polylines with locked sizes) turned into a solid by extrude / revolve, then holes, fillets, chamfers, shells — for mechanical parts. Tools: new_model, get_model, find_refs, add_feature, edit_feature, delete_feature, turn_off_feature, set_material, prepare_print. mm; the bed is the XY plane.
 - **Assemblies** place 3D model parts together: new_assembly, get_assembly, insert_part, snap_faces (joints: touch, gap, axis = concentric…), place_part, remove_from_assembly, check_collisions. get_assembly says for each joined part how it can still move (free) or that it is fully held.
+- **Drawing sheets** (📄, of a 3D model part — its views and dimensions, made by a preset, edited by the user, following the part): sheet_open, get_sheet, sheet_edit; export {format: "pdf"} on a sheet writes it as drawn. Prefer a sheet over export pdf of the model when the user wants a drawing.
 - **2D drawings** (a DXF / DWG, or a PCB's Gerber / ODB++ opened as a 📐 drawing — open_file opens them, also a folder of loose Gerber files): get_drawing, drawing_find (shapes by filters), drawing_delete, drawing_add (lines, circles), drawing_units, drawing_layers (show / hide, colour, a new layer), drawing_set_size, drawing_use (as the sketch of a 3D model, or a quick part).
 - The GUI: gui_state lists what the user sees (buttons, sliders, their state); gui_action clicks / slides one as the user would — use them to tell the user where something is and to check the GUI behaves like the tools.
 - Assemblies also: edit_joint / remove_joint, measure (between faces), move_free; set_travel (a free motion's limits: a cylinder's stroke) and check_travel (collisions along it); the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, delete_part (only when asked). Files: export stl / step / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf.

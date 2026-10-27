@@ -960,6 +960,19 @@ def tool_export(args):
     fmt = args.get("format", "stl")
     if fmt not in ("stl", "step", "pdf", "3mf", "bom", "dxf"):
         raise ValueError("format: stl, step, pdf (a 2D drawing of a 3D model), 3mf (with colours), bom (an assembly's CSV) or dxf (a 2D drawing)")
+    if fmt == "pdf":  # a drawing sheet on screen: the sheet as it is drawn
+        res = RELAY.call("export_data", {"format": "pdf"})
+        if not res.get("error") and (res.get("data") or {}).get("svg"):
+            from auto3d.modeler.sheet import pdf as sheet_pdf
+            d = res["data"]
+            name = re.sub(r'[\\/:*?"<>|]+', "_", d.get("name") or "drawing").strip() or "drawing"
+            target = Path(args["path"]).expanduser() if args.get("path") else Path.home() / "Downloads"
+            if target.is_dir() or not target.suffix:
+                target.mkdir(parents=True, exist_ok=True)
+                target = target / f"{name}.pdf"
+            data = sheet_pdf(d["svg"])
+            target.write_bytes(data)
+            return {"text": f"Exported the drawing sheet ({max(1, len(data) // 1024)} kB) to {target}"}
     if fmt in ("3mf", "bom", "dxf"):
         data, filename = _from_page(fmt)
         target = Path(args["path"]).expanduser() if args.get("path") else Path.home() / "Downloads"

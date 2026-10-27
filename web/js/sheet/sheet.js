@@ -509,6 +509,34 @@ export class SheetEditor {
     await this.hooks.download(await res.blob(), `${this.hooks.safeName()}.pdf`);
   }
 
+  /** For the AI: the points and circles of a view a dimension can hang on (near the view's lower-left first). */
+  pointsOf(v) {
+    const g = this.geo?.views[v];
+    if (!g) throw new Error(`view is one of ${VIEWS.join(', ')}.`);
+    const r = (p) => p.map((x) => +x.toFixed(2));
+    return { box: g.box.map((x) => +x.toFixed(2)),
+      points: Object.entries(g.points).filter(([k]) => !k.endsWith('#m')).map(([k, p]) => ({ key: k, at: r(p) })).sort((a, b) => a.at[1] - b.at[1] || a.at[0] - b.at[0]).slice(0, 120),
+      circles: g.circles.map((c) => ({ key: c.key, centre: r(c.c), d: +(2 * c.r).toFixed(3), full: c.full })).slice(0, 80) };
+  }
+
+  /** For the AI: a dimension added — {view, a, b, dir?} (two point keys; dir "h" / "v", else by the points) or
+   *  {view, circle: key} (its Ø, or R of an arc) -> its id. */
+  addFor(spec) {
+    const g = this.geo?.views[spec.view];
+    if (!g) throw new Error(`view is one of ${VIEWS.join(', ')}.`);
+    if (spec.circle) {
+      const c = g.circles.find((x) => x.key === spec.circle);
+      if (!c) throw new Error(`No circle ${spec.circle} in ${spec.view} — get_sheet {points: "${spec.view}"} lists them.`);
+      this.addUser({ view: spec.view, kind: c.full ? 'dia' : 'rad', a: c.key, count: Math.max(1, +spec.count || 1), ang: c.full ? 45 : 0, len: 6, ...(spec.post ? { post: ` ${spec.post}` } : {}) });
+      return this.sel;
+    }
+    const a = g.points[spec.a], b = g.points[spec.b];
+    if (!a || !b) throw new Error(`No point ${!a ? spec.a : spec.b} in ${spec.view} — get_sheet {points: "${spec.view}"} lists them.`);
+    const dir = spec.dir === 'h' || spec.dir === 'v' ? spec.dir : Math.abs(b[0] - a[0]) >= Math.abs(b[1] - a[1]) ? 'h' : 'v';
+    this.addUser({ view: spec.view, kind: 'linear', a: spec.a, b: spec.b, dir, side: dir === 'h' ? 'b' : 'r', off: 14, ...(spec.pre ? { pre: `${spec.pre} ` } : {}) });
+    return this.sel;
+  }
+
   /** For the AI: the sheet's dimensions with their values. */
   summary() {
     return { part: this.hooks.partName(this.d.source), preset: this.d.preset, paper: this.lay?.paper, rev: this.d.rev, changed: this.d.changed,

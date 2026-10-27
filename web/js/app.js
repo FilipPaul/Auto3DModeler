@@ -2285,7 +2285,7 @@ async function assemblyScreenshot({ view } = {}) {
 // 3D model parts: their own tools; the shared ones (screenshot, export, undo, get_part) follow the part on screen
 const MODEL = modelHandlers({ modeler, project, getWorkspace: () => state.workspace });
 const SHARED = { get_screenshot: 'model_screenshot', get_body: 'model_body', undo: 'model_undo' };
-const ANYWHERE = new Set(['load', 'load_drawing', 'ask_user', 'list_parts', 'open_part', 'duplicate_part', 'new_model', 'new_assembly']);
+const ANYWHERE = new Set(['load', 'load_drawing', 'ask_user', 'sheet_open', 'get_sheet', 'sheet_edit', 'export_data', 'list_parts', 'open_part', 'duplicate_part', 'new_model', 'new_assembly']);
 for (const [name, fn] of Object.entries(agentHandlers)) {
   if (ANYWHERE.has(name)) continue;
   agentHandlers[name] = async (...args) => {
@@ -2438,7 +2438,7 @@ const libraryTools = {
   },
 };
 Object.assign(agentHandlers, libraryTools);
-Object.assign(agentHandlers, moreHandlers({ state, project, modeler, assembly, drawing2d, t2 }));
+Object.assign(agentHandlers, moreHandlers({ state, project, modeler, assembly, drawing2d, sheet, t2 }));
 
 // the AI and the look of parts: the whole part's colour / see-through, single faces; a joined part moved its free ways;
 // the model on screen kept in the library
