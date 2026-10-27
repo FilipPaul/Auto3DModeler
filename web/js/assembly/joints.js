@@ -151,7 +151,7 @@ export function applyJoint(M, j, faceAt, fA, first, fixed, centre = first) {
   if (type === 'axis') {
     if (fA.type !== 'cylinder' || fB.type !== 'cylinder') throw new Error('Pin in hole joins two round faces.');
     const dA = V(fA.axis.d).normalize(), dB = V(fB.axis.d).normalize();
-    const target = (j.flip ? -1 : 1) * Math.sign(dB.dot(dA) || 1) > 0 ? dA : dA.clone().negate();
+    const target = Math.sign(dB.dot(dA) || 1) > 0 ? dA : dA.clone().negate(); // the way round it is (⇅ turns it over once)
     M = turnAbout(M, V(fB.axis.o), turnFor(dB, target, first ? null : fixed));
     fB = faceAt(M);
     const v = V(fB.axis.o).sub(V(fA.axis.o)), perp = v.clone().sub(dA.clone().multiplyScalar(v.dot(dA)));

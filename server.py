@@ -978,11 +978,13 @@ def tool_report_problem(args):
     if not title or not what:
         raise ValueError("A report needs a title and what happened.")
     now = time.localtime()
+    kind = str(args.get("kind") or "bug").strip().lower()
+    kind = kind if kind in ("bug", "tool request", "ui") else "bug"
     slug = re.sub(r"[^a-z0-9]+", "-", title.lower().encode("ascii", "ignore").decode()).strip("-")[:60] or "report"
     REPORTS.mkdir(parents=True, exist_ok=True)
-    path = REPORTS / f"{time.strftime('%Y-%m-%d-%H%M%S', now)}-{slug}.md"
+    path = REPORTS / f"{time.strftime('%Y-%m-%d-%H%M%S', now)}-{'request-' if kind == 'tool request' else 'ui-' if kind == 'ui' else ''}{slug}.md"
     from auto3d import version
-    parts = [f"# {title}", "", f"- **Date:** {time.strftime('%Y-%m-%d %H:%M:%S', now)}", f"- **App version:** {version.text()}",
+    parts = [f"# {title}", "", f"- **Kind:** {kind}", f"- **Date:** {time.strftime('%Y-%m-%d %H:%M:%S', now)}", f"- **App version:** {version.text()}",
              "- **Reported by:** the AI agent (MCP report_problem)", "",
              "## What happened", "", what]
     for key, head in (("expected", "What was expected"), ("steps", "Steps"), ("workaround", "Workaround")):

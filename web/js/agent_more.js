@@ -37,18 +37,20 @@ export function guiControls(where = 'all') {
   const out = [], seen = new Set();
   const shown = (el) => { if (!el.offsetParent && getComputedStyle(el).position !== 'fixed') return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const area = (el) => (el.closest('.topbar, header') ? 'bar' : el.closest('.m-cmdbar, .cmdbar, [class*=toolbar]') ? 'tools' : 'panel');
-  for (const el of document.querySelectorAll('button, input, select, [data-jname], .chip')) {
+  for (const el of document.querySelectorAll('button, input, select, [data-jname], .chip, .as-list .mt-item')) {
     if (seen.has(el) || el.closest('#aiDrawer, #tab-ai, .ai-drawer') || !shown(el)) continue;
     if (el.tagName === 'INPUT' && el.type === 'hidden') continue;
     seen.add(el);
     const lab = el.closest('label'), row = el.closest('[data-jrow], .as-dof, .field');
-    let label = (el.tagName === 'INPUT' || el.tagName === 'SELECT' ? (lab?.textContent || el.placeholder || el.dataset.k || '') : el.textContent || el.title || '').replace(/\s+/g, ' ').trim();
+    const isPart = el.matches('.mt-item');
+    let label = (isPart ? `${el.querySelector('.mt-name')?.textContent || ''} ${el.querySelector('.mt-what')?.textContent || ''}`
+      : el.tagName === 'INPUT' || el.tagName === 'SELECT' ? (lab?.textContent || el.placeholder || el.dataset.k || '') : el.textContent || el.title || '').replace(/\s+/g, ' ').trim();
     if ((el.tagName === 'INPUT' || el.tagName === 'SELECT') && row && row !== lab) label = `${(row.querySelector('label, .as-jt')?.textContent || '').replace(/\s+/g, ' ').trim()} › ${label}`.trim();
     if (!label) label = el.getAttribute('aria-label') || el.title || el.className || el.tagName.toLowerCase();
-    const kind = el.tagName === 'SELECT' ? 'choice' : el.tagName === 'INPUT' ? (el.type === 'range' ? 'slider' : el.type === 'checkbox' ? 'checkbox' : 'box') : el.dataset.jname ? 'name' : 'button';
+    const kind = isPart ? 'part' : el.tagName === 'SELECT' ? 'choice' : el.tagName === 'INPUT' ? (el.type === 'range' ? 'slider' : el.type === 'checkbox' ? 'checkbox' : 'box') : el.dataset.jname ? 'name' : 'button';
     const a = area(el);
     out.push({ n: out.length + 1, kind, label: label.slice(0, 90), title: (el.title || '').slice(0, 120) || undefined,
-      state: kind === 'checkbox' ? (el.checked ? 'on' : 'off') : kind === 'button' || kind === 'name' ? (el.classList.contains('on') ? 'on' : undefined) : String(el.value),
+      state: kind === 'checkbox' ? (el.checked ? 'on' : 'off') : ['button', 'name', 'part'].includes(kind) ? (el.classList.contains('on') ? 'on' : undefined) : String(el.value),
       ...(kind === 'slider' ? { min: +el.min, max: +el.max } : {}), disabled: !!el.disabled || undefined, where: a, el });
   }
   return where === 'all' ? out : out.filter((c) => c.where === where); // (n: one numbering for all)
@@ -194,7 +196,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, t2 
       }
       if (lock_rotation !== undefined) { if (lock_rotation) m.angle = Math.round(a.spinNow(m)); else delete m.angle; }
       if (angle !== undefined) { if (m.type === 'angle') m.value = Math.max(0, Math.min(180, +angle)); else m.angle = +angle; }
-      if (flip) m.flip = !m.flip;
+      if (flip) a.flipJoint(m);
       if (locked !== undefined) m.locked = !!locked;
       if (name !== undefined) { if (String(name || '').trim()) m.name = String(name).trim(); else delete m.name; }
       a.applyMates();

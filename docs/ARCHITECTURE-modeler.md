@@ -64,6 +64,11 @@ Date: 2026-10-25. Written by the architect agent.
   /api/projects routes; web/js/autosave.js (History.commit / go and the quick part's history fire `a3d:changed`; saved
   3 s later if the project file changed, a beacon on pagehide; 🕘 Recent projects; the last one offered). A3D_DATA
   points a server at another data folder (test servers). tests/test_autosave.py, tools/e2e_autosave.py.
+- **Reports of three kinds, a steady concentric flip, a free ↻ done:** report_problem `kind` (bug / tool request /
+  ui; the file named request-… / ui-…; the system prompt asks for requests when it works around a missing tool or the
+  UI is not intuitive); applyJoint axis keeps the way round the part is (a stored flip turned it over at every hold),
+  flipJoint turns it over once; the ↻ slider of a free turn: turnAbout (the turn stays free, usable on a locked
+  joint); guiControls lists the parts of the list. e2e_assembly_lever.
 - **Reports with the version, the GUI for the AI, locked joints done:** auto3d/version.py (VERSION 0.9.0 + git
   commit / date / local changes) in every report and /api/version; agent_more guiControls / gui_state / gui_action
   (one numbering of the visible controls, the chat left out; a greyed one refused); a locked joint's row greyed,

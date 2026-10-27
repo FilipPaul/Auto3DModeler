@@ -307,11 +307,15 @@ TOOLS = [
                     "\"My parts / Brackets\"), and for a bought part its maker and part number.",
      "inputSchema": _obj({"name": STR, "category": STR, "maker": STR, "pn": STR})},
     {"name": "report_problem", "where": "server",
-     "description": "Report something in the app that does not behave as expected (a tool error that should not happen, a wrong "
-                    "result, a missing function you needed): it is written as a dated report into the RealSWReports folder for the "
-                    "app's developers. title (short), what (what happened), expected (what should have happened), steps (the tool "
-                    "calls / what you did), workaround (what you did instead, if anything).",
-     "inputSchema": _obj({"title": STR, "what": STR, "expected": STR, "steps": STR, "workaround": STR}, ["title", "what"])},
+     "description": "Report to the app's developers (a dated report in RealSWReports, with the app's version): kind \"bug\" — "
+                    "something does not behave as expected (a tool error that should not happen, a wrong result); \"tool request\" — "
+                    "no tool fits what you or the user needed, or you had to work around one (say the tool you would want: its "
+                    "name, inputs, what it returns); \"ui\" — something in the app is not intuitive for the user (they could not "
+                    "find it, or it did what they did not expect). title (short), what (what happened / what is missing), "
+                    "expected (what should have happened / how it should work), steps (the tool calls / what you did), "
+                    "workaround (what you did instead, if anything).",
+     "inputSchema": _obj({"title": STR, "what": STR, "kind": {"type": "string", "enum": ["bug", "tool request", "ui"]}, "expected": STR, "steps": STR,
+                          "workaround": STR}, ["title", "what"])},
     {"name": "get_drawing", "where": "browser",
      "description": "The 2D drawing on screen (a DXF / DWG, or a PCB: Gerber / ODB++ opened as a 📐 drawing): its layers (shown, "
                     "how many shapes, PCB kind), the kinds of shapes, its size in mm, the selection and the filters.",
@@ -429,6 +433,6 @@ Never open a file or the sample on your own: work on the part that is open. If n
 
 Smooth, round shapes (vases, knobs, handles, toys, bottles): draw the outline as a sketch `profile` with `{smooth: [...]}` parts and revolve it (or extrude it) — one clean smooth surface instead of many small faces. Colours: set_look (the whole part) and paint_faces (single faces) — the model keeps them, also in assemblies.
 
-If something does not behave as expected — a tool fails although your call was right, a result is wrong (sizes, positions, a joint, a colour that does not show), or you miss a function you needed — call report_problem at once with what happened, what you expected and the steps, then tell the user and carry on (or work around it). Do not report your own mistakes that you could fix yourself.
+If something does not behave as expected — a tool fails although your call was right, a result is wrong (sizes, positions, a joint, a colour that does not show) — call report_problem {kind: "bug"} at once with what happened, what you expected and the steps, then tell the user and carry on (or work around it). When no tool fits your work and you have to find a workaround (several calls for one thing, guessing, asking the user to click for you), write report_problem {kind: "tool request"}: the tool you would want — its name, inputs and what it returns — and the workaround you used. When the user cannot find something in the app, or a control did what they did not expect, write report_problem {kind: "ui"}: what they tried and how it should work. Do not report your own mistakes that you could fix yourself.
 
 Answer in the user's language, briefly. You can only use the tools listed — no files or shell."""

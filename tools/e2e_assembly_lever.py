@@ -1,7 +1,9 @@
 """A lever on a bearing on a shaft, in headless Edge (the AI's reports of 2026-10-27): the bearing turns on the shaft
 (concentric + touch), the arm is fixed on the bearing (concentric, turn locked + flush) -> the arm is not "fully
 held": it moves with the bearing ("Turn about … — with Bearing"), its slider / move_free turn the bearing and the arm
-goes along -> 🔓 free / 🔒 locked on a flat joint: locked, the bearing is fully held; free again -> a joint named by
+goes along -> 🔓 free / 🔒 locked on a flat joint: locked, the bearing is fully held; free again -> the ↻ slider of a free turn
+turns the bearing and it stays free (also on a locked joint) -> ⇅ on a concentric joint turns it over once (its two
+ways stay; it was turned over at every hold before) -> gui_state lists the parts -> a joint named by
 a double-click ("ložisko na tyč"), shown in get_assembly; edit_joint name -> Explode with Respect joints: the bearing
 and the arm go along with the base; without the touch the bearing comes off the shaft only along its axis -> a locked
 joint: its row greyed, edit_joint refuses changes, get_assembly says locked -> the AI's gui_state (the toolbar, the
@@ -102,6 +104,19 @@ try:
     txt = row("J2").find_element(By.CSS_SELECTOR, "[data-jrot]").text
     print("again:", txt, "| bearing:", part("I2").get("free"))
 
+    # the ↻ slider of a free turn drives it (it stays free), also on a locked joint; ⇅ on a concentric joint once
+    pick("I2")
+    b1 = turned("I2")
+    js("const s = document.querySelector('#asmRight [data-jspin=J1]'); s.value = +s.value + 20; s.dispatchEvent(new Event('input')); s.dispatchEvent(new Event('change'))")
+    time.sleep(0.6)
+    print("J1's ↻ +20: the bearing", b1, "->", turned("I2"), "| still free:", part("I2").get("free") is not None, "| angle stored:", js(f"return {A}.doc.mates.find(m => m.id === 'J1').angle ?? null"))
+    call("edit_joint", id="J1", locked=True)
+    pick("I2")
+    print("J1 locked 🔒: its free ↻ usable", row("J1").find_element(By.CSS_SELECTOR, "[data-jspin]").is_enabled(),
+          "| ⇅ greyed", not row("J1").find_element(By.CSS_SELECTOR, "[data-jflip]").is_enabled())
+    call("edit_joint", id="J1", locked=False)
+    print("gui_state parts:", [c["label"] for c in json.loads(call("gui_state", where="panel"))["controls"] if c["kind"] == "part"])
+
     pick("I2")
     nm = row("J1").find_element(By.CSS_SELECTOR, "[data-jname]")
     ActionChains(d).double_click(nm).perform()
@@ -120,6 +135,15 @@ try:
     print("explode, respect joints: offsets", o, "| all the same (they go along):", o["I1"] == o["I2"] == o["I3"])
     print("  the checkbox:", d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=exRespect]").is_selected())
     call("remove_joint", id="J2")  # the bearing can slide along the shaft now
+    z0 = js(f"return {A}.inst('I2').matrix[10]")
+    pick("I2")
+    row("J1").find_element(By.CSS_SELECTOR, "[data-jflip]").click()
+    time.sleep(0.6)
+    print("⇅ on J1: turned over once (z axis", z0, "->", js(f"return {A}.inst('I2').matrix[10]"), ") | flip stored:", js(f"return !!{A}.doc.mates.find(m => m.id === 'J1').flip"),
+          "| its ways:", js(f"const d = {A}.motionsOf('I2'); return [d.count, d.unexplained]"))
+    row("J1").find_element(By.CSS_SELECTOR, "[data-jflip]").click()
+    time.sleep(0.6)
+    print("  ⇅ again: back", js(f"return {A}.inst('I2').matrix[10]"))
     js(f"{A}.exDirs = null; {A}.draw()")
     o = {r[0]: [round(r[k + 1] - pos0[r[0]][k], 2) for k in range(3)] for r in off()}
     rel = [round(o["I2"][k] - o["I1"][k], 2) for k in range(3)]

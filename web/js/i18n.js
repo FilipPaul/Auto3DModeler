@@ -776,7 +776,7 @@ const CS = {
   "Download the maker's 3D model (STEP) for this part number, then choose it here — the library uses it (its own colours) for this size from now on": 'Stáhněte 3D model výrobce (STEP) pro toto objednací číslo a vyberte ho zde — knihovna ho pro tuto velikost odteď použije (s jeho barvami)',
   "Use the maker's model (STEP)…": 'Použít model výrobce (STEP)…', '{file} is the model of {name} now (its own colours).': '{file} je teď modelem {name} (s jeho barvami).',
   'Double-click: give it your own name': 'Dvojklik: dát jí vlastní název', '🔒 locked': '🔒 zamčeno', '🔓 free': '🔓 volné',
-  'Turn the part about this joint (about the axis, or on the face) — sliding it locks the turn there': 'Otočit díl kolem této vazby (kolem osy, nebo na ploše) — posuvník tam otočení zamkne',
+  'Turn the part about this joint (about the axis, or on the face) — it stays free to turn': 'Otočit díl kolem této vazby (kolem osy, nebo na ploše) — otáčení zůstane volné',
   'Its turn is locked here — click to let it turn freely': 'Otočení je tu zamčené — kliknutím ho uvolníte', 'It may turn freely — click to lock its turn where it is now': 'Může se volně otáčet — kliknutím zamknete otočení tam, kde je teď',
   '{way} — with {part}': '{way} — s dílem {part}', 'It is fixed on {part} — it moves with it: drive it here, {part} goes along.': 'Je pevně na {part} — pohybuje se s ním: ovládejte ho tady, {part} jde s ním.',
   'Respect joints': 'Podle vazeb', 'Explode along the joints: a joined part moves only the ways its joints leave free (a pin out of its hole along the axis), and goes along with the part it is on': 'Rozložit podle vazeb: spojený díl se pohne jen tam, kam ho vazby pustí (kolík z díry po ose), a jde s dílem, na kterém je',

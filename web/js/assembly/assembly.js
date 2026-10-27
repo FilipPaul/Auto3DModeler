@@ -1178,9 +1178,37 @@ export class Assembly {
         ${why ? `<span class="as-jwhy" data-no-i18n>⚠ ${esc(why)}</span>` : ''}
         ${val}<span class="as-jbtn"><button class="mini ${m.locked ? 'on' : ''}" data-jlock="${m.id}" title="${m.locked ? 'Locked: moving the part by hand cannot break it — click to unlock' : 'Lock it: then it cannot be broken by moving the part'}">${m.locked ? '🔒' : '🔓'}</button><button class="mini danger" data-jdel="${m.id}" title="Remove this joint (the part stays where it is)" ${m.locked ? 'disabled' : ''}>✕</button></span>
         ${this.gapSlider(m)}
-        ${turns ? `<label class="as-jspin" title="${rot ? 'The angle its turn is locked at, against the other part — to turn both, use Moves of the part they are on' : 'Turn the part about this joint (about the axis, or on the face) — sliding it locks the turn there'}">↻ <input type="range" min="-180" max="180" step="1" list="as-ticks" data-jspin="${m.id}" value="${spin}">
+        ${turns ? `<label class="as-jspin" title="${rot ? 'The angle its turn is locked at, against the other part — to turn both, use Moves of the part they are on' : 'Turn the part about this joint (about the axis, or on the face) — it stays free to turn'}">↻ <input type="range" min="-180" max="180" step="1" list="as-ticks" data-jspin="${m.id}" value="${spin}">
         <input type="number" step="any" data-jspinn="${m.id}" value="${spin}">°<button class="mini as-jrot ${rot ? 'on' : ''}" data-jrot="${m.id}" title="${rot ? 'Its turn is locked here — click to let it turn freely' : 'It may turn freely — click to lock its turn where it is now'}">${rot ? '🔒 locked' : '🔓 free'}</button></label>` : ''}</div>`;
     }).join('')}</div>`;
+  }
+
+  /** ⇅ A joint the other way round: a concentric one turns its part over end to end once (on its axis, about the
+   *  middle of its round face — it then keeps that way); the others swap their direction (flip). */
+  flipJoint(m) {
+    if ((m.type || 'touch') === 'axis') {
+      delete m.flip;
+      const it = this.inst(m.move), f = this.worldFace(m.move, m.face), d = f.axis.d.clone().normalize();
+      const mid = f.axis.o.clone().addScaledVector(d, f.span ? (f.span[0] + f.span[1]) / 2 : 0);
+      const side = new THREE.Vector3(Math.abs(d.x) < 0.9 ? 1 : 0, Math.abs(d.x) < 0.9 ? 0 : 1, 0).projectOnPlane(d).normalize();
+      const R = new THREE.Matrix4().makeTranslation(mid.x, mid.y, mid.z).multiply(new THREE.Matrix4().makeRotationAxis(side, Math.PI))
+        .multiply(new THREE.Matrix4().makeTranslation(-mid.x, -mid.y, -mid.z));
+      it.matrix = R.multiply(new THREE.Matrix4().fromArray(it.matrix)).toArray();
+    } else m.flip = !m.flip;
+    this.applyMates();
+  }
+
+  /** Turn a joined part about one of its joints by `deg` (about the axis, or on the face), its joints holding it —
+   *  the turn stays free (not locked). */
+  turnAbout(m, deg) {
+    const fA = this.worldFace(m.onto, m.ontoFace), fB = this.worldFace(m.move, m.face);
+    const dir = (m.type === 'axis' || !fA.normal ? fA.axis.d : fA.normal).clone().normalize();
+    const p = m.type === 'axis' || !fA.normal ? fA.axis.o : fB.centroid;
+    const R = new THREE.Matrix4().makeTranslation(p.x, p.y, p.z).multiply(new THREE.Matrix4().makeRotationAxis(dir, (deg * Math.PI) / 180))
+      .multiply(new THREE.Matrix4().makeTranslation(-p.x, -p.y, -p.z));
+    const it = this.inst(m.move);
+    it.matrix = this.holdPart(m.move, R.multiply(new THREE.Matrix4().fromArray(it.matrix))).toArray();
+    this.applyMates();
   }
 
   /** Each joint: does it hold where its part is now (jointMiss)? -> this.health: id -> {mm, deg, ok}. */
@@ -1251,7 +1279,12 @@ export class Assembly {
 
   bindJointRows(box) {
     for (const row of box.querySelectorAll('.as-jrow.locked[data-jrow]')) { // locked 🔒: only unlocking changes it
-      for (const el of row.querySelectorAll('input, button:not([data-jlock])')) { el.disabled = true; el.title = 'Locked 🔒 — unlock the joint to change it'; }
+      const free = !row.querySelector('[data-jrot]')?.classList.contains('on'); // (a free turn can still be driven)
+      for (const el of row.querySelectorAll('input, button:not([data-jlock])')) {
+        if (free && (el.matches('[data-jspin], [data-jspinn]'))) continue;
+        el.disabled = true;
+        el.title = 'Locked 🔒 — unlock the joint to change it';
+      }
     }
     for (const row of box.querySelectorAll('[data-frow]')) {
       const ids = (this.doc.mates || []).filter((m) => this.inst(m.move)?.fastener?.id === row.dataset.frow).map((m) => m.id);
@@ -1315,7 +1348,7 @@ export class Assembly {
       });
     }
     for (const el of box.querySelectorAll('[data-jflip]')) {
-      el.addEventListener('click', () => { const m = this.doc.mates.find((x) => x.id === el.dataset.jflip); m.flip = !m.flip; this.applyMates(); this.commit(); });
+      el.addEventListener('click', () => { this.flipJoint(this.doc.mates.find((x) => x.id === el.dataset.jflip)); this.commit(); });
     }
     for (const el of box.querySelectorAll('[data-jlock]')) {
       el.addEventListener('click', () => { const m = this.doc.mates.find((x) => x.id === el.dataset.jlock); m.locked = !m.locked; this.commit(); });
@@ -1342,7 +1375,11 @@ export class Assembly {
     }
     for (const sl of box.querySelectorAll('[data-jspin]')) {
       const m = this.doc.mates.find((x) => x.id === sl.dataset.jspin), num = box.querySelector(`[data-jspinn="${m.id}"]`);
-      const set = (v, final) => { m.angle = v; this.applyMates(); if (final) this.commit(); else this.draw(); };
+      const set = (v, final) => {
+        if (Number.isFinite(m.angle)) { m.angle = v; this.applyMates(); } // locked: where it is locked
+        else { try { this.turnAbout(m, v - this.spinNow(m)); } catch { return; } } // free: turned, it stays free
+        if (final) this.commit(); else this.draw();
+      };
       sl.addEventListener('input', () => {
         let v = +sl.value;
         const near = Math.round(v / 90) * 90;

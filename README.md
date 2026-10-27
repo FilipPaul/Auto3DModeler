@@ -315,7 +315,8 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   lists the joints (hovering one marks its two faces, the copies are told apart: I1, I2…), with the gap / offset to
   type, ⇅ to turn it round, **↕ a slider for the gap** (a flat joint's gap; a concentric joint's distance once it is set; it catches at 0), **↻ a slider to turn the part about the joint** (a pin about its hole's axis, a part on
   its face; it catches at 90°) with **🔓 free / 🔒 locked** next to it — whether the part may still turn about the
-  joint (sliding ↻ locks it there; click to let it turn freely again), **🔒 lock** and ✕. A locked joint cannot be
+  joint (free: ↻ turns the part and it stays free, also on a locked 🔒 joint; locked: ↻ sets the angle it is locked
+  at). **⇅** on a concentric joint turns the part over end to end once, **🔒 lock** and ✕. A locked joint cannot be
   broken: the part cannot be moved by hand while it holds; moving a part held by unlocked joints asks first.
   **Double-click a joint's name** to give it your own (e.g. *ložisko na tyč*); it is shown in the list, over its
   symbol in the view and to the AI.
@@ -453,7 +454,9 @@ can open them.
   parts renamed or deleted, and files: `export` stl / step / pdf / **3mf** / **bom** / **dxf**.
 - **Problem reports**: when something in the app does not behave as expected, the AI writes a dated report
   (`report_problem`) into **RealSWReports/** next to `server.py`: what happened, what was expected, the steps, the
-  workaround. It cannot write files itself (no file tools), so the server writes them — with the **app version** it
+  workaround — a **bug**, a **tool request** (no tool fitted, so it worked around it: the tool it would want) or a
+  **ui** note (you could not find something, or a control surprised you). It cannot write files itself (no file
+  tools), so the server writes them — with the **app version** it
   came from (`auto3d/version.py`: VERSION and the git commit, e.g. *0.9.0 (main @ 2900fde, 2026-10-27)*; also
   `/api/version`).
 - **The GUI for the AI**: `gui_state` lists what you see (every button, slider, box, joint name, its state, greyed

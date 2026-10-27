@@ -133,6 +133,11 @@ class TestMcpServer(unittest.TestCase):
                 self.assertIn(part, text)
             from auto3d import version
             self.assertIn(f"- **App version:** {version.text()}", text)  # the build it came from, written by the server
+            self.assertIn("- **Kind:** bug", text)
+            server.tool_report_problem({"title": "A tool to drive a mechanism", "what": "no tool turns a crank", "kind": "tool request"})
+            req = [f for f in (Path(tmp) / "RealSWReports").glob("*request-a-tool-to-drive*.md")]
+            self.assertEqual(len(req), 1)
+            self.assertIn("- **Kind:** tool request", req[0].read_text(encoding="utf-8"))
             self.assertTrue(version.text().startswith(version.VERSION))
             self.assertIn("RealSWReports/", r["text"])
             with self.assertRaises(ValueError):

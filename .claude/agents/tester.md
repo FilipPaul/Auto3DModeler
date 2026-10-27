@@ -129,7 +129,8 @@ Never report "works" without having run it; report failures with their output.
    Bearing": move_free and its slider turn the bearing, the arm goes along), 🔓 free / 🔒 locked on a touch joint
    (locked: the bearing fully held), a joint named by double-click and by edit_joint, and Explode with Respect joints
    (all go along with the base; without the touch the bearing only along the shaft's axis), a locked joint (row
-   greyed, edit_joint refused, `locked` reported) and the AI's gui_state / gui_action (⚠ Collisions opened by its
+   greyed, edit_joint refused, `locked` reported; its free ↻ still usable), the ↻ slider of a free turn (turns, stays
+   free), ⇅ on a lone concentric joint (over once, its 2 ways stay), gui_state listing the parts, and the AI's gui_state / gui_action (⚠ Collisions opened by its
    label, a greyed slider refused, the drive slider moves the bearing).
    `tools/e2e_ai_drawing.py <url> <dir>` covers the AI's open_file of a Gerber .zip (a 📐 drawing, its PCB layers), a
    folder of loose Gerber files (one board), a DXF (a drawing; as "part": a quick part, 60 × 40 mm), drawing_find +
