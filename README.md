@@ -46,9 +46,11 @@ the file instead.
 top bar — more rows when they do not fit, so every name stays readable (the tab on screen, or one being renamed, shows
 its whole name). Click a tab to switch parts; each keeps its edits and its own undo history. Double-click a
 tab to rename it, **drag** it to move it (dropped outside the window: it opens in a ⧉ new window), and use **✕** to
-close the tab — the part stays in the project; closing the last one leaves *No part open* until ☰ opens one. **☰** (before the tabs) lists every
-part of the project, open or not: click one to open it in a tab again, ✕ there deletes it from the project (after
-asking; it says which assemblies use it). Parts made for an assembly (fasteners) are added without a tab. The **＋**
+close the tab — the part stays in the project; closing the last one leaves *No part open* until ☰ opens one. **☰** (before the tabs) opens the **project tree**
+in the left panel: every part of the project, open or not, as they go together — each assembly with what is in it
+(sub-assemblies inside, *Pin ×2*), each part's 📄 drawing sheets under it, then the parts in no assembly. Click one to
+open it (the tree stays), ⧉ opens it in a new window, ✕ deletes it from the project (after asking; it says which
+assemblies use it). Parts made for an assembly (fasteners) are added without a tab. The **＋**
 next to the tabs offers the usual ways to open a file.
 
 **⧉ Windows (several monitors)**: the **⧉** on a tab (or in ☰ Parts) opens that part — a 3D model, an assembly, a

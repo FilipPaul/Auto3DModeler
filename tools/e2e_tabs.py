@@ -68,7 +68,7 @@ try:
     d.save_screenshot(f"{OUT}/tabs_none.png")
     d.find_element(By.CSS_SELECTOR, ".pt-all").click()
     time.sleep(0.3)
-    d.find_element(By.CSS_SELECTOR, ".part-all .pt-row .pt-open").click()
+    d.find_element(By.CSS_SELECTOR, "#projTree .pt-row .pt-open").click()
     time.sleep(1)
     print("☰ opens one again:", len(tabs()), "tab | none-open:", js("return document.body.classList.contains('none-open')"), "| on screen:", js(f"return {P}.current.name"))
 finally:

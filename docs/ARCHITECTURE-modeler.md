@@ -80,6 +80,10 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **☰ Project tree done:** Project.renderTree — #projTree over the left panel (in main.layout): assemblies with their
+  parts grouped (×n, sub-assemblies nested, no loops), sheets under their source, then the rest; the live part's
+  data from its workspace (dataOf); re-drawn on a3d:changed while open; open / closed remembered (localStorage
+  a3d.tree). tools/e2e_project_tree.py.
 - **Part tabs in their own row done:** #partTabs is a strip under the top bar (body a flex column, .layout flex 1),
   wrapping into rows; a tab ≥ 5 letters + its buttons, up to 200 px (on screen / renaming: 420 px); tabs draggable
   (Project.move; dropped outside the window: hooks.openWindow); ✕ on the last tab too — Project.setNone: the part

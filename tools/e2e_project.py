@@ -149,19 +149,19 @@ try:
     # ☰ Parts: every part — the closed one opens again (a tab), the state is saved with the project
     d.find_element(By.CSS_SELECTOR, "#partTabs .pt-all").click()
     time.sleep(0.2)
-    print("☰ Parts:", [r.text for r in d.find_elements(By.CSS_SELECTOR, "#partTabs .pt-row")],
-          "| closed ones:", len(d.find_elements(By.CSS_SELECTOR, "#partTabs .pt-row.closed")))
-    d.find_element(By.CSS_SELECTOR, "#partTabs .pt-row.closed .pt-open").click()
+    print("☰ Parts:", [r.text for r in d.find_elements(By.CSS_SELECTOR, "#projTree .pt-row")],
+          "| closed ones:", len(d.find_elements(By.CSS_SELECTOR, "#projTree .pt-row.closed")))
+    d.find_element(By.CSS_SELECTOR, "#projTree .pt-row.closed .pt-open").click()
     wait("return document.querySelectorAll('#partTabs .part-tab').length === 2")
     settled()
     print("opened again:", tabs())
     tab(1).find_element(By.CSS_SELECTOR, ".pt-x").click()
     wait("return document.querySelectorAll('#partTabs .part-tab').length === 1")
     print("saved with a closed part:", js("return window.__app.project.toJSON().parts.map(p => [p.name, !!p.closed])"))
-    # ✕ in ☰ Parts deletes (after asking)
-    d.find_element(By.CSS_SELECTOR, "#partTabs .pt-all").click()
+    # ✕ in the ☰ tree deletes (after asking) — the tree is still open
+    print("  the tree stays open:", "open" in d.find_element(By.CSS_SELECTOR, "#projTree").get_attribute("class"))
     time.sleep(0.2)
-    d.find_element(By.CSS_SELECTOR, "#partTabs .pt-row.closed .pt-del").click()
+    d.find_element(By.CSS_SELECTOR, "#projTree .pt-row.closed .pt-del").click()
     time.sleep(0.4)
     print("deleted from ☰ Parts:", js("return window.__app.project.parts.map(p => p.name)"), "|", tabs())
 finally:

@@ -274,25 +274,14 @@ export class Project {
     const el = this.el;
     el.hidden = !this.parts.length;
     el.innerHTML = '';
-    // ☰ Parts: every part of the project (open or not) — click to open, ✕ to delete
-    const all = document.createElement('div');
-    all.className = 'menu part-all';
-    all.innerHTML = `<button class="pt-all" title="All the parts of the project — open one, or delete it">☰ <span data-no-i18n>${this.parts.length}</span></button>
-      <div class="menu-list"></div>`;
-    const list = all.querySelector('.menu-list');
-    for (const p of this.parts) {
-      const row = document.createElement('div');
-      row.className = `pt-row${p.id === this.active ? ' on' : ''}${p.closed ? ' closed' : ''}`;
-      row.dataset.part = p.id;
-      row.innerHTML = `<button class="pt-open" title="${p.closed ? 'Open it (a tab)' : 'Show it'}"><span class="pt-kind">${KIND_ICON[p.kind] || '▤'}</span><span class="pt-rname" data-no-i18n></span></button>${this.hooks.openWindow ? `<button class="mini pt-win" title="${WIN_TIP}">⧉</button>` : ''}${this.parts.length > 1 ? '<button class="mini danger pt-del" title="Delete it from the project">✕</button>' : ''}`;
-      row.querySelector('.pt-rname').textContent = p.name || '…';
-      row.querySelector('.pt-open').addEventListener('click', () => { all.classList.remove('open'); this.switchTo(p.id); });
-      row.querySelector('.pt-win')?.addEventListener('click', (e) => { e.stopPropagation(); all.classList.remove('open'); this.hooks.openWindow(p.id); });
-      row.querySelector('.pt-del')?.addEventListener('click', (e) => { e.stopPropagation(); all.classList.remove('open'); this.remove(p.id); });
-      list.appendChild(row);
-    }
-    all.querySelector('.pt-all').addEventListener('click', (e) => { e.stopPropagation(); el.querySelector('.part-add')?.classList.remove('open'); all.classList.toggle('open'); });
+    // ☰: the project's tree in the left panel (every part, open or not) — click to open, ⧉ a window, ✕ to delete
+    const all = document.createElement('button');
+    all.className = `pt-all${this.treeOpen ? ' on' : ''}`;
+    all.title = 'The project: all its parts, as they go together — open one, open it in a new window, or delete it';
+    all.innerHTML = `☰ <span data-no-i18n>${this.parts.length}</span>`;
+    all.addEventListener('click', (e) => { e.stopPropagation(); el.querySelector('.part-add')?.classList.remove('open'); this.toggleTree(); });
     el.appendChild(all);
+    this.renderTree();
     const open = this.openParts;
     for (const p of open) {
       const tab = document.createElement('div');
@@ -363,6 +352,75 @@ export class Project {
       b.addEventListener('click', () => { add.classList.remove('open'); document.getElementById(b.dataset.open).click(); });
     }
     el.appendChild(add);
+  }
+
+  /** ☰ The project's tree on / off (remembered). */
+  toggleTree(on = !this.treeOpen) {
+    this.treeOpen = on;
+    try { localStorage.setItem('a3d.tree', on ? '1' : ''); } catch { /* private window */ }
+    this.render();
+  }
+
+  /** A part's data now (the one on screen: as it is on screen). */
+  dataOf(p) { return p.id === this.active && p.data === 'live' ? this.hooks.payload(p.kind) : p.data; }
+
+  /** The project's tree over the left panel: the assemblies with what is in them (sub-assemblies inside), each part's
+   *  drawing sheets under it, then the parts in no assembly. */
+  renderTree() {
+    if (!this.tree) {
+      this.tree = document.createElement('aside');
+      this.tree.className = 'proj-tree';
+      this.tree.id = 'projTree';
+      document.querySelector('main.layout')?.appendChild(this.tree);
+      try { this.treeOpen = this.treeOpen ?? localStorage.getItem('a3d.tree') === '1'; } catch { this.treeOpen = false; }
+      window.addEventListener('a3d:changed', () => { // (what is in an assembly changes as it is edited)
+        if (!this.treeOpen) return;
+        clearTimeout(this.treeTimer);
+        this.treeTimer = setTimeout(() => this.renderTree(), 400);
+      });
+    }
+    const box = this.tree;
+    box.classList.toggle('open', !!this.treeOpen && this.parts.length > 0);
+    if (!box.classList.contains('open')) { box.innerHTML = ''; return; }
+    const data = new Map(this.parts.map((p) => { try { return [p.id, this.dataOf(p)]; } catch { return [p.id, null]; } }));
+    const byId = new Map(this.parts.map((p) => [p.id, p])), used = new Set(), sheets = new Map(), kids = new Map();
+    for (const p of this.parts) {
+      const d = data.get(p.id);
+      if (p.kind === 'assembly') {
+        const n = new Map();
+        for (const it of d?.instances || []) if (byId.has(it.part)) n.set(it.part, (n.get(it.part) || 0) + 1);
+        kids.set(p.id, [...n]);
+        for (const id of n.keys()) used.add(id);
+      } else if (p.kind === 'sheet' && byId.has(d?.source)) {
+        if (!sheets.has(d.source)) sheets.set(d.source, []);
+        sheets.get(d.source).push(p);
+      }
+    }
+    const rows = [];
+    const add = (p, depth, qty, path) => {
+      rows.push({ p, depth, qty });
+      for (const s of sheets.get(p.id) || []) rows.push({ p: s, depth: depth + 1 });
+      if (path.has(p.id)) return;
+      for (const [id, n] of kids.get(p.id) || []) add(byId.get(id), depth + 1, n, new Set([...path, p.id]));
+    };
+    const top = this.parts.filter((p) => !used.has(p.id) && !(p.kind === 'sheet' && byId.has(data.get(p.id)?.source)));
+    for (const p of [...top.filter((q) => q.kind === 'assembly'), ...top.filter((q) => q.kind !== 'assembly')]) add(p, 0, 1, new Set());
+    box.innerHTML = `<div class="tr-head"><b>☰ ${t('Project')}</b><button class="mini tr-x" title="${t('Close the project tree')}">✕</button></div>
+      <p class="hint">${t('Click a part to open it — ⧉ in a new window, ✕ deletes it from the project.')}</p><div class="tr-list"></div>`;
+    box.querySelector('.tr-x').addEventListener('click', () => this.toggleTree(false));
+    const list = box.querySelector('.tr-list');
+    for (const { p, depth, qty } of rows) {
+      const row = document.createElement('div');
+      row.className = `pt-row tr-row ${p.kind}${p.id === this.active && !this.none ? ' on' : ''}${p.closed ? ' closed' : ''}`;
+      row.dataset.part = p.id;
+      row.style.paddingLeft = `${4 + 14 * depth}px`;
+      row.innerHTML = `<button class="pt-open" title="${t(p.closed ? 'Open it (a tab)' : 'Show it')}"><span class="pt-kind">${KIND_ICON[p.kind] || '▤'}</span><span class="pt-rname" data-no-i18n></span>${qty > 1 ? `<i class="tr-qty" data-no-i18n>×${qty}</i>` : ''}</button>${this.hooks.openWindow ? `<button class="mini pt-win" title="${t(WIN_TIP)}">⧉</button>` : ''}${this.parts.length > 1 ? `<button class="mini danger pt-del" title="${t('Delete it from the project')}">✕</button>` : ''}`;
+      row.querySelector('.pt-rname').textContent = p.name || '…';
+      row.querySelector('.pt-open').addEventListener('click', () => this.switchTo(p.id));
+      row.querySelector('.pt-win')?.addEventListener('click', (e) => { e.stopPropagation(); this.hooks.openWindow(p.id); });
+      row.querySelector('.pt-del')?.addEventListener('click', (e) => { e.stopPropagation(); this.remove(p.id); });
+      list.appendChild(row);
+    }
   }
 
   editName(p, el) {
