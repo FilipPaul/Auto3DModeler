@@ -2449,7 +2449,7 @@ Object.assign(agentHandlers, {
     let goal = Number.isFinite(+to) && to !== null && to !== undefined ? +to : p + +amount;
     const stopped = lim && (goal < lim.min || goal > lim.max);
     if (lim) goal = Math.max(lim.min, Math.min(lim.max, goal));
-    assembly.moveFree(it.id, mo, assembly.stepTo(mo, p, goal), [...it.matrix], true);
+    assembly.moveFree(it.id, mo, assembly.stepTo(mo, p, goal), null, true);
     return { text: `${it.id} moved: ${mo.label}, now at ${+assembly.motionPos(it.id, mo).toFixed(2)} ${mo.kind === 'turn' ? '°' : 'mm'}${stopped ? ` (stopped at its limit ${lim.min} … ${lim.max})` : ''}. ${JSON.stringify(assembly.summary().parts.find((x) => x.id === it.id))}` };
   },
   save_to_library: async ({ name, category = 'My parts', maker = '', pn = '' }) => {

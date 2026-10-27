@@ -64,6 +64,11 @@ Date: 2026-10-25. Written by the architect agent.
   /api/projects routes; web/js/autosave.js (History.commit / go and the quick part's history fire `a3d:changed`; saved
   3 s later if the project file changed, a beacon on pagehide; 🕘 Recent projects; the last one offered). A3D_DATA
   points a server at another data folder (test servers). tests/test_autosave.py, tools/e2e_autosave.py.
+- **Joints named, the turn lock shown, explode along the joints, driving through a fixed part done:** a joint's
+  `name` (double-click, edit_joint / snap_faces name); 🔓 free / 🔒 locked by every ↻ slider (m.angle; parallel has
+  none); motionsOf: a part fully held on one part that can move gets that part's motions (`via`; moveFree, motionPos,
+  limits, ▶ and the travel check act on it); explodeAlong: a joined part's pull projected onto its free move
+  directions (orthonormal, cached in exDirs until a change) plus its parent's offset. tools/e2e_assembly_lever.py.
 - **Collisions always told done:** scheduleClashes after every commit / refresh (700 ms; 250 with the panel open),
   the ⚠ button's text and colour from the last check (clashLabel / updateClashButton); a row's click: showClash ->
   AsmView.focusBox (the camera onto the overlap's box), the parts not in it at opacity 0.12; ⤢ Show all.

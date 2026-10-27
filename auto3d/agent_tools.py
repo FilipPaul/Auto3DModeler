@@ -234,10 +234,10 @@ TOOLS = [
                     "apart), \"flush\" (flat faces in one plane, gap = offset), \"axis\" (concentric: two round faces on one axis, a pin in a hole; gap = the distance along the axis between the facing ends of the two round faces — two plates with holes 30 mm apart: gap 30; lock_rotation: true keeps its turn), "
                     "\"parallel\", \"perp\" (perpendicular), \"angle\" (value = degrees between the faces' directions), \"tangent\" "
                     "(a round face touching a flat one). A part's joints apply in order: e.g. axis (pin shaft → hole) then touch (head → plate top) seats a "
-                    "pin. Face names come from find_refs in the part's own model (\"F2:end\" = the top of the first extrude).",
+                    "pin. Face names come from find_refs in the part's own model (\"F2:end\" = the top of the first extrude). name: the user's own name of the joint (e.g. \"bearing on the shaft\"); lock_rotation also on flat joints (its turn on the face).",
      "inputSchema": _obj({"move": _obj({"part": STR, "face": STR}, ["part", "face"]), "onto": _obj({"part": STR, "face": STR}, ["part", "face"]),
                           "type": {"type": "string", "enum": ["touch", "gap", "flush", "axis", "parallel", "perp", "angle", "tangent"]}, "gap": NUM,
-                          "value": NUM, "lock_rotation": {"type": "boolean"}}, ["move", "onto"])},
+                          "value": NUM, "lock_rotation": {"type": "boolean"}, "name": STR}, ["move", "onto"])},
     {"name": "bolt_parts", "where": "browser",
      "description": "Fasten parts that have no holes yet: a screw goes in at a point of a flat face of a placed part (part = I…, face = its "
                     "name, x / y mm from the face's middle) and straight through the parts touching under it; the holes are drilled "
@@ -350,9 +350,10 @@ TOOLS = [
      "description": "Change a joint of the assembly on screen (id J… from get_assembly): gap (mm, flat joints), distance (mm along "
                     "the axis for a concentric joint, null = it slides freely), lock_rotation (true / false), angle (degrees: the "
                     "turn about the joint, or for an angle joint the angle), flip (true: the other way round), locked (true: "
-                    "moving by hand cannot break it).",
+                    "moving by hand cannot break it), name (the user's own name of the joint, e.g. \"bearing on the shaft\"; "
+                    "empty: none).",
      "inputSchema": _obj({"id": STR, "gap": NUM, "distance": {"type": ["number", "null"]}, "lock_rotation": {"type": "boolean"}, "angle": NUM,
-                          "flip": {"type": "boolean"}, "locked": {"type": "boolean"}}, ["id"])},
+                          "flip": {"type": "boolean"}, "locked": {"type": "boolean"}, "name": STR}, ["id"])},
     {"name": "remove_joint", "where": "browser", "description": "Remove a joint (id J…) of the assembly on screen; the part stays where it is.",
      "inputSchema": _obj({"id": STR}, ["id"])},
     {"name": "measure", "where": "browser",

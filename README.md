@@ -304,7 +304,7 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
 - **🔗 Joint ▾**: choose how the part is held — **Touch** (S: a flat face onto a flat face, centred), **Gap** (facing,
   a distance apart), **Flush** (in one plane), **Concentric** (two round faces on one axis: a pin in a hole; its
   **↕ distance** is the gap along the axis between the facing ends of the two round faces — two plates with holes
-  joined this way get it filled in (touching) and you type e.g. 30; empty = it slides; **↻🔒** locks its turn),
+  joined this way get it filled in (touching) and you type e.g. 30; empty = it slides),
   **Parallel**, **Perpendicular**, **Angle** (two flat faces at the angle you type), **Tangent** (a round face on a
   flat one), or **🔩 Screw / pin** — then
   click a face of the part to move and the face it goes to (the face under the mouse is marked). For round faces a
@@ -314,8 +314,14 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   **hold**: when the other part moves or a part changes size in its own tab, the joined part follows. The panel
   lists the joints (hovering one marks its two faces, the copies are told apart: I1, I2…), with the gap / offset to
   type, ⇅ to turn it round, **↕ a slider for the gap** (a flat joint's gap; a concentric joint's distance once it is set; it catches at 0), **↻ a slider to turn the part about the joint** (a pin about its hole's axis, a part on
-  its face; it catches at 90°), **🔒 lock** and ✕. A locked joint cannot be broken: the part cannot be moved by hand
-  while it holds; moving a part held by unlocked joints asks first.
+  its face; it catches at 90°) with **🔓 free / 🔒 locked** next to it — whether the part may still turn about the
+  joint (sliding ↻ locks it there; click to let it turn freely again), **🔒 lock** and ✕. A locked joint cannot be
+  broken: the part cannot be moved by hand while it holds; moving a part held by unlocked joints asks first.
+  **Double-click a joint's name** to give it your own (e.g. *ložisko na tyč*); it is shown in the list, over its
+  symbol in the view and to the AI.
+- **A part fixed on a moving part moves with it**: a lever fixed on a bearing (its turn locked) that turns on a
+  shaft is not "fully held" — its Moves are the bearing's (*Turn about … — with Bearing*): drive the lever, the
+  bearing turns and the lever goes along.
 - **Joints that do not hold say so**: after every change each joint is checked where its part ended up. One that
   another joint overrides (e.g. a *Gap* of 5 mm and a *Flush* on the same lid) turns **red** with the reason —
   *"Not held — 9 mm off: J2 (Flush) holds Lid elsewhere. Change one of them, or ✕ one."* — its symbol in the view
@@ -386,7 +392,9 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
 - **Explode** pulls the parts apart to look at them; their placement does not change. **💥** on a part in the list
   (shown while exploded) chooses whether it moves: off, it stays in place and the others move away from the parts
   that stay (a lid lifts off its box); **Ctrl+click** — only this one moves (again: all of them). Saved with the
-  assembly, undoable.
+  assembly, undoable. **Respect joints** (next to the slider): a joined part moves only the ways its joints leave
+  free — a pin comes out of its hole along the axis, a bearing slides off its shaft — and goes along with the part it
+  is on; a part held fast stays on it.
 - The **parts list** shows each part, how many, its material and mass, and the total. **Export** gives STL (all
   parts as placed, in one file) or STEP (each part as its own body).
 - Changing a part in its own tab updates the assembly. The assembly is saved in the project. Undo / redo work as

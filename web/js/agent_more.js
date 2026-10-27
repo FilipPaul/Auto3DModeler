@@ -132,7 +132,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, t2 
     },
 
     // ---------------------------------------------------------------- joints and measuring (assembly)
-    edit_joint: async ({ id, gap, distance, lock_rotation, angle, flip, locked }) => {
+    edit_joint: async ({ id, gap, distance, lock_rotation, angle, flip, locked, name }) => {
       need('assembly', 'Joints are in an assembly');
       const a = assembly, m = (a.doc.mates || []).find((x) => x.id === id);
       if (!m) throw new Error(`No joint ${id} — get_assembly lists the joints.`);
@@ -145,6 +145,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, t2 
       if (angle !== undefined) { if (m.type === 'angle') m.value = Math.max(0, Math.min(180, +angle)); else m.angle = +angle; }
       if (flip) m.flip = !m.flip;
       if (locked !== undefined) m.locked = !!locked;
+      if (name !== undefined) { if (String(name || '').trim()) m.name = String(name).trim(); else delete m.name; }
       a.applyMates();
       a.commit();
       return ok(a.summary().joints.find((j) => j.id === id));

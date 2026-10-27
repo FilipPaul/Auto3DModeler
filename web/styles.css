@@ -486,7 +486,7 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .m-status.bad { color: #f85149; }
 .as-jrow i { font-style: normal; color: var(--muted); font-size: 10.5px; }
 .as-jbtn { display: flex; gap: 3px; }
-.as-jspin { grid-column: 1 / -1; display: grid; grid-template-columns: auto 1fr 52px auto; gap: 6px; align-items: center; color: var(--muted); }
+.as-jspin { grid-column: 1 / -1; display: grid; grid-template-columns: auto 1fr 52px auto auto; gap: 6px; align-items: center; color: var(--muted); }
 .as-jspin input[type=number] { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; color: inherit; padding: 1px 3px; }
 .as-jt { white-space: nowrap; color: var(--text); }
 .as-jw { color: var(--muted); min-width: 0; }
@@ -648,6 +648,11 @@ body.ws-model #exportMenu [data-fmt=glb] { display: none; }
 .m-cmdbar .chip.tool.bad.on { background: #b62324; color: white; }
 .m-cmdbar .chip.tool.good { border-color: #2ea043; color: #7ee787; }
 .as-clash { cursor: pointer; }
+.as-jname { cursor: text; }
+.as-jname.own { color: var(--text); font-weight: 600; }
+.as-jspin .as-jrot { margin-left: 4px; white-space: nowrap; }
+.as-jspin .as-jrot.on { border-color: #d29922; color: #f2cc60; }
+.m-cmdbar .as-exrespect { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
 .as-clash.on { border-color: #f85149; background: #f8514926; }
 .m-mode { font-weight: 700; color: #f2cc60; margin-right: 6px; }
 .m-say { color: var(--muted); font-size: 12px; margin-right: 4px; }

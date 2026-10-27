@@ -1,7 +1,7 @@
 """Concentric with a distance and a rotation lock, with REAL mouse input in headless Edge: two plates with a Ø8 hole
 each -> 🔗 Joint ▾ Concentric: the upper plate's hole, then the lower plate's hole -> the holes on one axis and the
 distance filled in (the plates touching) -> typed 30: the plates 30 mm apart -> the lower plate thicker: the upper one
-follows (still 30 above) -> ↻🔓 locks its turn (↻🔒), the turn slider sets it -> the AI does the same with
+follows (still 30 above) -> 🔓 free locks its turn (🔒 locked), the turn slider sets it -> the AI does the same with
 snap_faces {type: "axis", gap, lock_rotation}.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
