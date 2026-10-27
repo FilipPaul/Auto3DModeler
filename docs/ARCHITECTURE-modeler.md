@@ -64,6 +64,10 @@ Date: 2026-10-25. Written by the architect agent.
   /api/projects routes; web/js/autosave.js (History.commit / go and the quick part's history fire `a3d:changed`; saved
   3 s later if the project file changed, a beacon on pagehide; 🕘 Recent projects; the last one offered). A3D_DATA
   points a server at another data folder (test servers). tests/test_autosave.py, tools/e2e_autosave.py.
+- **Drawings and boards for the AI done:** server open_file -> read_drawing / read_gerber_set (a folder) -> the
+  page's `load_drawing` (a 📐 drawing tab); DXF / DWG open as drawings like in the app (`as: "part"`: the outline as
+  before). Browser tools drawing_delete, drawing_add, drawing_units; drawing_layers color / new / active; list_parts
+  says "2D drawing". tools/e2e_ai_drawing.py.
 - **Motion with limits done:** motionsOf's motions carry a key (`J2:along`, `J1:u`, `X`, …) and a ref joint;
   motionPos measures where the part is along one from that joint's face / axis (spinOf for turns); an instance's
   `travel: {key: {min, max}}` bounds its slider (absolute now), setTravel puts it inside; ▶ playTravel (3 s, then back);

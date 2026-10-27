@@ -45,10 +45,13 @@ TOOLS = [
                     "front face), back, side.",
      "inputSchema": _obj({"view": {"type": "string", "enum": ["iso", "front", "back", "side"]}})},
     {"name": "open_file", "where": "server",
-     "description": "Open a file from disk as the new part: PDF drawing, DXF / DWG drawing, or STL / OBJ / STEP 3D "
-                    "file. For a photo or picture use trace_picture instead. It opens as a new part (its own tab); "
-                    "the parts already open stay in the project.",
-     "inputSchema": _obj({"path": STR, "page": {"type": "integer", "description": "PDF page (0-based)"}}, ["path"])},
+     "description": "Open a file from disk as a new part (its own tab; the parts already open stay): a PDF drawing, an STL / "
+                    "OBJ / STEP 3D file, or as a 📐 2D drawing (then get_drawing, drawing_find …): a DXF / DWG, a PCB's Gerber / "
+                    "Excellon drill file, a .zip / .tgz with a Gerber set or an ODB++ job, or a folder of loose Gerber / drill "
+                    "files (one board). as: \"part\" opens a DXF / DWG as a quick part's outline instead. For a photo use "
+                    "trace_picture.",
+     "inputSchema": _obj({"path": STR, "page": {"type": "integer", "description": "PDF page (0-based)"},
+                          "as": {"type": "string", "enum": ["drawing", "part"]}}, ["path"])},
     {"name": "open_sample", "where": "server",
      "description": "Open the app's built-in sample PDF drawing (initial draft.pdf) — ONLY when the user asks for "
                     "the sample (it opens as a new part tab).",
@@ -320,8 +323,21 @@ TOOLS = [
                     "-> how many, the first ones.",
      "inputSchema": _obj({"filters": {"type": "array", "items": _obj({"field": STR, "op": STR, "value": {}})}, "select": {"type": "boolean"}}, ["filters"])},
     {"name": "drawing_layers", "where": "browser",
-     "description": "Show / hide layers of the 2D drawing: show [names], hide [names], or only [names] (the rest hidden).",
-     "inputSchema": _obj({"show": {"type": "array", "items": STR}, "hide": {"type": "array", "items": STR}, "only": {"type": "array", "items": STR}})},
+     "description": "Layers of the 2D drawing: show [names], hide [names], or only [names] (the rest hidden); color {name: "
+                    "\"#rrggbb\"}; new: a new layer's name (new shapes go on it); active: the layer new shapes go on.",
+     "inputSchema": _obj({"show": {"type": "array", "items": STR}, "hide": {"type": "array", "items": STR}, "only": {"type": "array", "items": STR},
+                          "color": {"type": "object"}, "new": STR, "active": STR})},
+    {"name": "drawing_delete", "where": "browser",
+     "description": "Delete shapes of the 2D drawing: what \"selection\" (default) or \"found\" (the filters' shapes, drawing_find).",
+     "inputSchema": _obj({"what": {"type": "string", "enum": ["selection", "found"]}})},
+    {"name": "drawing_add", "where": "browser",
+     "description": "Draw shapes into the 2D drawing (mm), on `layer` (default: the active one): shapes [{line: {a: [x, y], b: [x, y]}} | "
+                    "{circle: {c: [x, y], d}}].",
+     "inputSchema": _obj({"shapes": {"type": "array", "items": {"type": "object"}}, "layer": STR}, ["shapes"])},
+    {"name": "drawing_units", "where": "browser",
+     "description": "What one unit of the drawing's file is when it is wrong (the file may not say): mm, cm, m or in — the shapes are "
+                    "scaled to match.",
+     "inputSchema": _obj({"units": {"type": "string", "enum": ["mm", "cm", "m", "in"]}}, ["units"])},
     {"name": "drawing_set_size", "where": "browser",
      "description": "Give the selected shapes of the 2D drawing one size: kind dia (circles / arcs Ø, centres stay), r, or len "
                     "(lines, from their start), value mm.",
@@ -383,7 +399,7 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 - **Quick parts** come from a PDF drawing (parametric: its dimensions drive it), an outline traced from a picture or read from a DXF (made into a cookie cutter, a solid shape or a custom stack of objects), or an imported STL / OBJ / STEP file. Tools: get_part, set_dimensions, set_make, set_part_options, add_object, add_shape, add_design_layer, add_dimension, update_item, remove_item. Coordinates: x right, y up, z up from the bed; the part's unit (PDF drawings may be cm).
 - **3D models** are built like in SolidWorks: sketches (rectangles, circles, polylines with locked sizes) turned into a solid by extrude / revolve, then holes, fillets, chamfers, shells — for mechanical parts. Tools: new_model, get_model, find_refs, add_feature, edit_feature, delete_feature, turn_off_feature, set_material, prepare_print. mm; the bed is the XY plane.
 - **Assemblies** place 3D model parts together: new_assembly, get_assembly, insert_part, snap_faces (joints: touch, gap, axis = concentric…), place_part, remove_from_assembly, check_collisions. get_assembly says for each joined part how it can still move (free) or that it is fully held.
-- **2D drawings** (a DXF / DWG, or a PCB's Gerber / ODB++ opened as a 📐 drawing): get_drawing, drawing_find (shapes by filters), drawing_layers, drawing_set_size, drawing_use (as the sketch of a 3D model, or a quick part).
+- **2D drawings** (a DXF / DWG, or a PCB's Gerber / ODB++ opened as a 📐 drawing — open_file opens them, also a folder of loose Gerber files): get_drawing, drawing_find (shapes by filters), drawing_delete, drawing_add (lines, circles), drawing_units, drawing_layers (show / hide, colour, a new layer), drawing_set_size, drawing_use (as the sketch of a 3D model, or a quick part).
 - Assemblies also: edit_joint / remove_joint, measure (between faces), move_free; set_travel (a free motion's limits: a cylinder's stroke) and check_travel (collisions along it); the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, delete_part (only when asked). Files: export stl / step / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf.
 - **The parts library** holds real, bought parts with their maker and part number (screws, nuts, washers, inserts, bearings, standoffs, panel parts, SMC pneumatics, SICK sensors, stepper motors, the user's own): library_search, library_add.
 - Both: get_screenshot, check_print, export, undo. Opening a file or tracing a picture adds a new quick part tab.

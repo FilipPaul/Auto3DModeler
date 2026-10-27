@@ -62,17 +62,58 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, t2 
       ed.renderProps();
       return ok({ found: found.length, selected: ed.sel.size, first: found.slice(0, 15).map(shapeOf) });
     },
-    drawing_layers: async ({ show = [], hide = [], only = null }) => {
+    drawing_layers: async ({ show = [], hide = [], only = null, color = {}, new: add = null, active = null }) => {
       const ed = D();
-      const names = new Set(ed.d.layers.map((l) => l.name)), bad = [...show, ...hide, ...(only || [])].filter((n) => !names.has(n));
-      if (bad.length) throw new Error(`No layer ${bad.join(', ')}. Layers: ${[...names].join(', ')}.`);
-      for (const l of ed.d.layers) {
-        if (only) l.visible = only.includes(l.name);
-        if (show.includes(l.name)) l.visible = true;
-        if (hide.includes(l.name)) l.visible = false;
+      if (add) {
+        if (ed.d.layers.some((l) => l.name === add)) throw new Error(`There is a layer ${add} already.`);
+        ed.d.layers = [...ed.d.layers, { name: String(add), color: '#7ee787', visible: true }];
+        ed.d.active = String(add);
       }
+      const names = new Set(ed.d.layers.map((l) => l.name));
+      const bad = [...show, ...hide, ...(only || []), ...Object.keys(color || {}), ...(active ? [active] : [])].filter((n) => !names.has(n));
+      if (bad.length) throw new Error(`No layer ${bad.join(', ')}. Layers: ${[...names].join(', ')}.`);
+      for (const [n, c] of Object.entries(color || {})) if (!/^#[0-9a-f]{6}$/i.test(c)) throw new Error(`color of ${n}: "#rrggbb", not ${c}.`);
+      ed.d.layers = ed.d.layers.map((l) => {
+        const x = { ...l };
+        if (only) x.visible = only.includes(l.name);
+        if (show.includes(l.name)) x.visible = true;
+        if (hide.includes(l.name)) x.visible = false;
+        if (color?.[l.name]) x.color = color[l.name];
+        return x;
+      });
+      if (active) ed.d.active = active;
       ed.commit();
-      return ok(`Shown: ${ed.d.layers.filter((l) => l.visible !== false).map((l) => l.name).join(', ') || 'none'}.`);
+      return ok(`Shown: ${ed.d.layers.filter((l) => l.visible !== false).map((l) => l.name).join(', ') || 'none'}; new shapes go on ${ed.d.active}.`);
+    },
+    drawing_delete: async ({ what = 'selection' }) => {
+      const ed = D(), ids = what === 'found' ? new Set(ed.matches().map((e) => e.id)) : new Set(ed.sel);
+      if (!ids.size) throw new Error(what === 'found' ? 'The filters find nothing (drawing_find).' : 'Nothing is selected — drawing_find the shapes first.');
+      const n = ids.size;
+      ed.sel = ids;
+      ed.removeSel();
+      return ok(`${n} shape(s) deleted; ${ed.d.entities.length} left.`);
+    },
+    drawing_add: async ({ shapes = [], layer = null }) => {
+      const ed = D(), on = layer || ed.d.active;
+      if (!ed.d.layers.some((l) => l.name === on)) throw new Error(`No layer ${on} — drawing_layers {new: "${on}"} makes it.`);
+      const P = (p, what) => { if (!Array.isArray(p) || p.length !== 2 || !p.every((v) => Number.isFinite(+v))) throw new Error(`${what}: [x, y] in mm.`); return p.map((v) => +v); };
+      const add = shapes.map((s) => {
+        if (s.line) return { t: 'line', a: P(s.line.a, 'line.a'), b: P(s.line.b, 'line.b') };
+        if (s.circle) { const d = +(s.circle.d ?? 2 * +s.circle.r); if (!(d > 0)) throw new Error('circle.d: its diameter (mm).'); return { t: 'circle', c: P(s.circle.c, 'circle.c'), r: d / 2 }; }
+        throw new Error('A shape is {line: {a, b}} or {circle: {c, d}}.');
+      });
+      if (!add.length) throw new Error('shapes: [{line: {a, b}} | {circle: {c, d}}].');
+      for (const sh of add) ed.d.entities = [...ed.d.entities, { id: ed.newId(), layer: on, ...sh }];
+      ed.commit();
+      return ok(`${add.length} shape(s) drawn on ${on}.`);
+    },
+    drawing_units: async ({ units }) => {
+      const ed = D();
+      if (!['mm', 'cm', 'm', 'in'].includes(units)) throw new Error('units: mm, cm, m or in.');
+      const was = ed.d.file_units || 'mm';
+      ed.setUnits(units);
+      const bb = ed.bbox(ed.d.entities);
+      return ok(`One unit of the file is ${units} now (was ${was}); its size: ${bb ? `${r3(bb[2] - bb[0])} × ${r3(bb[3] - bb[1])} mm` : '—'}.`);
     },
     drawing_set_size: async ({ kind, value }) => {
       const ed = D();

@@ -2049,6 +2049,11 @@ const agentHandlers = {
     return { text: `3D view (${view || 'current'}). ${partLine()}`, image: c.toDataURL('image/png').split(',')[1] };
   },
 
+  load_drawing: async ({ data, name }) => {
+    await project.newDrawing(data, name);
+    for (const msg of data.issues || []) toast(msg, 'info', 8000);
+    return { text: `Opened ${name} as a 📐 drawing: ${data.entities.length} shapes on ${data.layers.length} layers${data.pcb ? ' (a board: the top copper, outline, holes and silkscreen shown)' : ''}${data.issues?.length ? `; notes: ${data.issues.join(' ')}` : ''}. get_drawing tells its layers and size.` };
+  },
   load: async ({ data, editor }) => {
     await loadParsed(data);
     if (editor) state.outlineEditor = editor;
@@ -2232,7 +2237,7 @@ async function assemblyScreenshot({ view } = {}) {
 // 3D model parts: their own tools; the shared ones (screenshot, export, undo, get_part) follow the part on screen
 const MODEL = modelHandlers({ modeler, project, getWorkspace: () => state.workspace });
 const SHARED = { get_screenshot: 'model_screenshot', get_body: 'model_body', undo: 'model_undo' };
-const ANYWHERE = new Set(['load', 'list_parts', 'open_part', 'duplicate_part', 'new_model', 'new_assembly']);
+const ANYWHERE = new Set(['load', 'load_drawing', 'list_parts', 'open_part', 'duplicate_part', 'new_model', 'new_assembly']);
 for (const [name, fn] of Object.entries(agentHandlers)) {
   if (ANYWHERE.has(name)) continue;
   agentHandlers[name] = async (...args) => {

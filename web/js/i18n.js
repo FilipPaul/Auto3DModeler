@@ -775,6 +775,7 @@ const CS = {
   "The maker's model": 'Model výrobce', 'Use the drawn model again for this size': 'Pro tuto velikost znovu použít kreslený model',
   "Download the maker's 3D model (STEP) for this part number, then choose it here — the library uses it (its own colours) for this size from now on": 'Stáhněte 3D model výrobce (STEP) pro toto objednací číslo a vyberte ho zde — knihovna ho pro tuto velikost odteď použije (s jeho barvami)',
   "Use the maker's model (STEP)…": 'Použít model výrobce (STEP)…', '{file} is the model of {name} now (its own colours).': '{file} je teď modelem {name} (s jeho barvami).',
+  'deleting shapes': 'maže tvary', 'drawing shapes': 'kreslí tvary', 'setting the drawing units': 'nastavuje jednotky výkresu',
   "setting a motion's limits": 'nastavuje meze pohybu', 'checking a motion for collisions': 'kontroluje kolize po dráze pohybu',
   'colouring a part': 'barví díl', 'painting faces': 'barví plochy', 'moving a part': 'posouvá díl', 'saving to the library': 'ukládá do knihovny', 'writing a problem report': 'píše hlášení o problému',
   '3MF — in colours, for multi-material printing': '3MF — v barvách, pro vícebarevný tisk',

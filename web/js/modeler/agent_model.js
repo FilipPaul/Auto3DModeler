@@ -128,7 +128,7 @@ export function sketchFromShapes(shapes, lock = true) {
   return f;
 }
 
-const KIND = { model: '3D model', assembly: 'assembly' };
+const KIND = { model: '3D model', assembly: 'assembly', drawing: '2D drawing' };
 
 export function modelHandlers({ modeler: m, project, getWorkspace }) {
   const needModel = () => {

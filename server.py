@@ -814,11 +814,27 @@ def _png_b64(img_bgr, max_px=900) -> str:
     return base64.b64encode(buf.tobytes()).decode()
 
 
+def _load_drawing(d: dict, name: str) -> str:
+    """A drawing JSON (auto3d/drawing2d.py) opened in the page as a 📐 2D drawing (its own tab)."""
+    res = RELAY.call("load_drawing", {"data": d, "name": name})
+    if res.get("error"):
+        raise ValueError(res.get("text") or "The page could not open it.")
+    return res.get("text", "Opened.")
+
+
 def tool_open_file(args):
+    from auto3d.drawing2d import PCB_EXT, read_drawing
+    raw = Path(str(args["path"])).expanduser()
+    if raw.is_dir():  # loose Gerber / drill files in a folder: one board
+        from auto3d.pcb import read_gerber_set
+        files = [(f.name, f.read_bytes()) for f in sorted(raw.iterdir()) if f.is_file() and f.stat().st_size < 50_000_000]
+        return {"text": _load_drawing({**read_gerber_set(files), "source": raw.name}, raw.name)}
     p = _file(args["path"])
     ext = p.suffix.lower()
     if ext in PICTURE_FORMATS:
         raise ValueError("That is a picture: use trace_picture to find its outline, then use_outline.")
+    if p.name.lower().endswith(PCB_EXT) or (ext in DRAWING_FORMATS and (args.get("as") or "drawing") == "drawing"):
+        return {"text": _load_drawing(read_drawing(p.read_bytes(), p.name), re.sub(r"\.(tar\.gz|[^.]+)$", "", p.name, flags=re.I))}
     data = _pdf_data(p.read_bytes(), int(args.get("page") or 0), p.name) if ext == ".pdf" else _import_data(p.read_bytes(), p.name)
     return {"text": _load_in_page(data)}
 

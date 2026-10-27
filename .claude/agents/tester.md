@@ -125,6 +125,10 @@ Never report "works" without having run it; report failures with their output.
    M3 socket / inductive M12 / cylinder 16 with the asked size; library_add a 608 into an assembly with its faces and
    bottom face; axis + touch: in its seat, free to turn only, its part number in the parts list; check_collisions: none,
    then a screw inside the block reported; wrong size / length answered with the ones there are).
+   `tools/e2e_ai_drawing.py <url> <dir>` covers the AI's open_file of a Gerber .zip (a 📐 drawing, its PCB layers), a
+   folder of loose Gerber files (one board), a DXF (a drawing; as "part": a quick part, 60 × 40 mm), drawing_find +
+   drawing_delete of the drill holes, drawing_layers new + colour, drawing_add (and a wrong layer refused),
+   drawing_units in, and list_parts naming drawings "2D drawing". Needs a server restarted after server changes.
    `tools/e2e_assembly_travel.py <url> <dir>` covers motion with limits (a pin in a hole: where it is along the axis,
    ⇤⇥ min / max typed, a typed position past max stops there, ⚠ Check the travel free, then a block in its way: "hits
    Stop (I3) from 1.25 to 20 mm", ▶ plays and ends where it was; the AI's get_assembly `at`, move_free `to` stopped
