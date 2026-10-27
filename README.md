@@ -53,6 +53,10 @@ open it (the tree stays), ⧉ opens it in a new window, ✕ deletes it from the 
 assemblies use it). Parts made for an assembly (fasteners) are added without a tab. The **＋**
 next to the tabs offers the usual ways to open a file.
 
+**The sketch tells its state**: **✓ Finish sketch** turns green when every size is fixed, and **🪄 Auto-dimension**
+shows only while sizes are still free. **↔ Dimension** on a line, circle or arc gives its size at once (a box beside
+it: type and Enter); a click on a second shape instead gives the distance between them.
+
 **Actions in the corner**: the buttons that finish or leave a step — **✓ Finish sketch**, **OK** / **Cancel** of a
 feature, **Done** — float in the bottom-right corner of the view in every workspace; the toolbars hold only the tools.
 

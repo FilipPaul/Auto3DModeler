@@ -165,6 +165,7 @@ export class Modeler {
       for (const a of ['measure', 'section', 'paint']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body;
     }
     for (const b of bar.querySelectorAll('[data-a]:not([data-a=relate])')) b.addEventListener('click', () => this.action(b.dataset.a));
+    this.sketchState();
     bar.querySelector('[data-a=relate]')?.addEventListener('click', (e) => { e.stopPropagation(); bar.querySelector('.sk-relmenu').classList.toggle('open'); });
     for (const b of bar.querySelectorAll('[data-rel]')) {
       b.addEventListener('click', () => { bar.querySelector('.sk-relmenu').classList.remove('open'); this.sk.relType = b.dataset.rel; this.sk.setTool('relate'); });
@@ -735,7 +736,22 @@ export class Modeler {
   }
 
   // ------------------------------------------------------------------ property panel
+  /** The sketch's state on its buttons: ✓ Finish sketch green when every size is fixed; 🪄 Auto-dimension only while
+   *  sizes are still free. */
+  sketchState() {
+    if (this.mode !== 'sketch' || !this.sk) return;
+    const dof = this.sk.dof, any = this.sk.f.entities.length > 0;
+    const fin = this.els.viewport.querySelector('[data-a=finish]'), auto = this.els.viewport.querySelector('.m-cmdbar [data-a=autodim]');
+    if (fin) {
+      fin.classList.toggle('done', any && dof === 0);
+      fin.title = t(any && dof === 0 ? 'Every size is fixed — done drawing, next: Extrude (Enter)'
+        : any && dof > 0 ? 'Some sizes are still free (they follow when you drag) — it can be finished anyway; 🪄 Auto-dimension fixes them (Enter)' : 'Done drawing — next: Extrude (Enter)');
+    }
+    if (auto) auto.hidden = !(any && dof > 0);
+  }
+
   renderProps() {
+    this.sketchState();
     const box = this.$('.mp-body');
     if (this.painting && !this.cmd) { this.renderPaint(box); return null; }
     if (this.cmd) {

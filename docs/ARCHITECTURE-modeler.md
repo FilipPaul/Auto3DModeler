@@ -80,6 +80,11 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Sketch state and the instant size done:** Modeler.sketchState (on renderProps / the bar): ✓ Finish sketch `.done`
+  (green) at dof 0, 🪄 hidden unless dof > 0; Sketcher.quickSize — the first ↔ Dimension click on a line / circle /
+  arc opens its len / Ø / R beside it (view.uvToScreen), Enter locks it (addDim {edit: false} + setSize), a second
+  click gives a distance as before. The sheet's Light / Medium / Full as one segmented chip as high as the others;
+  part tabs and the project tree drawn icons per kind (parts.js kindIcon). tools/e2e_sketch_smart.py.
 - **The face menu redone done:** clickFace's menu is `.m-fmenu` (it shared `.m-ctx` with the "editing in the
   assembly" bar, now `.m-editctx`, whose styles broke it): a header (step, face), sections On this face / Its edges /
   The part / Step (delete in red), an icon column, kept inside the view; only the left button alone opens it, a right

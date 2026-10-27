@@ -344,6 +344,12 @@ export class ModelView {
     return h / this.renderer.domElement.clientHeight;
   }
 
+  /** A point of a sketch (u, v on its frame) on the screen -> [x, y] (client pixels). */
+  uvToScreen(fr, [u, v]) {
+    const o = V(fr.o), x = V(fr.x), n = V(fr.n), y = new THREE.Vector3().crossVectors(n, x);
+    return this.toScreen(o.addScaledVector(x, u).addScaledVector(y, v));
+  }
+
   toScreen(p) {
     const v = p.clone().project(this.camera), r = this.renderer.domElement.getBoundingClientRect();
     return [r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height];

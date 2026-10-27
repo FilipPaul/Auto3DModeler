@@ -10,7 +10,15 @@ import { t } from './i18n.js';
 
 const CLOSE_TIP = 'Close this tab (the part stays in the project — ☰ Parts opens it again)';
 const WIN_TIP = 'Open it in a new window (e.g. on another monitor) — the windows stay linked: a change in one is in the others';
-const KIND_ICON = { model: '◆', assembly: '◇', drawing: '📐', sheet: '📄', classic: '▤' };
+// one small drawn icon per kind of part (tabs, the project tree): its colour from the kind (CSS .ico-<kind>)
+const ICON_PATH = {
+  model: '<path d="M8 1.6 14 5v6L8 14.4 2 11V5z"/><path d="M2 5l6 3.4L14 5M8 8.4v6"/>', // a block
+  assembly: '<path d="M5.5 1.8 9.5 4v4.4L5.5 10.6 1.5 8.4V4z"/><path d="M1.5 4l4 2.2 4-2.2M5.5 6.2v4.4"/><path d="M10.5 6.6 14.5 8.8v4.4l-4 2.2-4-2.2" opacity=".85"/>', // two blocks
+  drawing: '<path d="M2 14.2V2.2l12 12z"/><path d="M5 11.2V8.4l2.8 2.8z"/><path d="M2 5h1.6M2 8h1.6" opacity=".8"/>', // a set square (DXF / DWG / PCB)
+  sheet: '<path d="M3 1.6h7l3 3v9.8H3z"/><path d="M10 1.6v3h3"/><rect x="5" y="7.6" width="6" height="3.6" rx=".3"/><path d="M5 13h6" opacity=".7"/>', // a drawing sheet
+  classic: '<path d="M8 2 14 5 8 8 2 5z"/><path d="M2 8l6 3 6-3M2 11l6 3 6-3"/>', // layers (a quick part)
+};
+export const kindIcon = (kind) => `<svg class="ico ico-${ICON_PATH[kind] ? kind : 'classic'}" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${ICON_PATH[kind] || ICON_PATH.classic}</svg>`;
 
 export class Project {
   /** hooks: {payload(kind), load(payload, {switching, kind}), settle(), getHistory(kind), setHistory(h, kind),
@@ -308,6 +316,7 @@ export class Project {
         const out = e.clientX <= 0 || e.clientY <= 0 || e.clientX >= innerWidth || e.clientY >= innerHeight;
         if (out && e.dataTransfer.dropEffect === 'none' && this.hooks.openWindow) this.hooks.openWindow(p.id); // dropped outside: its own window
       });
+      tab.insertAdjacentHTML('beforeend', kindIcon(p.kind));
       const name = document.createElement('span');
       name.className = 'pt-name';
       name.dataset.noI18n = '';
@@ -414,7 +423,7 @@ export class Project {
       row.className = `pt-row tr-row ${p.kind}${p.id === this.active && !this.none ? ' on' : ''}${p.closed ? ' closed' : ''}`;
       row.dataset.part = p.id;
       row.style.paddingLeft = `${4 + 14 * depth}px`;
-      row.innerHTML = `<button class="pt-open" title="${t(p.closed ? 'Open it (a tab)' : 'Show it')}"><span class="pt-kind">${KIND_ICON[p.kind] || '▤'}</span><span class="pt-rname" data-no-i18n></span>${qty > 1 ? `<i class="tr-qty" data-no-i18n>×${qty}</i>` : ''}</button>${this.hooks.openWindow ? `<button class="mini pt-win" title="${t(WIN_TIP)}">⧉</button>` : ''}${this.parts.length > 1 ? `<button class="mini danger pt-del" title="${t('Delete it from the project')}">✕</button>` : ''}`;
+      row.innerHTML = `<button class="pt-open" title="${t(p.closed ? 'Open it (a tab)' : 'Show it')}"><span class="pt-kind">${kindIcon(p.kind)}</span><span class="pt-rname" data-no-i18n></span>${qty > 1 ? `<i class="tr-qty" data-no-i18n>×${qty}</i>` : ''}</button>${this.hooks.openWindow ? `<button class="mini pt-win" title="${t(WIN_TIP)}">⧉</button>` : ''}${this.parts.length > 1 ? `<button class="mini danger pt-del" title="${t('Delete it from the project')}">✕</button>` : ''}`;
       row.querySelector('.pt-rname').textContent = p.name || '…';
       row.querySelector('.pt-open').addEventListener('click', () => this.switchTo(p.id));
       row.querySelector('.pt-win')?.addEventListener('click', (e) => { e.stopPropagation(); this.hooks.openWindow(p.id); });

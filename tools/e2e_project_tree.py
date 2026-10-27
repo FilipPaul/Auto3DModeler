@@ -29,7 +29,7 @@ def call(tool_name, **args):
 
 def tree():
     return js("""return [...document.querySelectorAll('#projTree .pt-row')].map(r =>
-      `${'  '.repeat((parseFloat(r.style.paddingLeft) - 4) / 14)}${r.querySelector('.pt-kind').textContent} ${r.querySelector('.pt-rname').textContent}${r.querySelector('.tr-qty')?.textContent ? ' ' + r.querySelector('.tr-qty').textContent : ''}${r.classList.contains('on') ? ' ←' : ''}`)""")
+      `${'  '.repeat((parseFloat(r.style.paddingLeft) - 4) / 14)}${({model: '◆', assembly: '◇', sheet: '📄', drawing: '📐', classic: '▤'})[r.querySelector('.ico').classList[1].slice(4)]} ${r.querySelector('.pt-rname').textContent}${r.querySelector('.tr-qty')?.textContent ? ' ' + r.querySelector('.tr-qty').textContent : ''}${r.classList.contains('on') ? ' ←' : ''}`)""")
 
 
 try:

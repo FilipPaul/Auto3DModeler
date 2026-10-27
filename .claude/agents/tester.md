@@ -163,6 +163,9 @@ Never report "works" without having run it; report failures with their output.
    the recommended option first ★; one answered: nothing sent; both: one message "<question> → <option>"; ✎ Other…
    puts the question in the box; no options refused). The message is caught in the page (no Claude needed).
    (e2e_drawing_set also checks one item numbering for the whole set: Machine 1–3, the Lid unit's parts 4 and 5.)
+   `tools/e2e_sketch_smart.py <url> <dir>` covers the sketch's state and the instant size (a rectangle: Finish not
+   green, 🪄 shown; one click on a line: its length box, 50 + Enter; a click on a line then another: a distance, not a
+   length; 🪄: dof 0, Finish green, 🪄 gone).
    `tools/e2e_project_tree.py <url> <dir>` covers ☰ the project tree (over the left panel: Machine › Base › its sheet,
    Lid unit › Lid, Pin ×2, then Spare; a click opens a part, marked, the tree stays; a part put in the Machine shows at
    once; ✕ closes, ☰ opens, remembered).

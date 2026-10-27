@@ -1,0 +1,116 @@
+"""The sketch tells its state and dimensions smartly, with REAL mouse input: a new model's rectangle -> ✓ Finish sketch
+not green, 🪄 Auto-dimension shown -> ↔ Dimension, one click on the top line: its length in a box at once, 50 typed +
+Enter -> the line is 50 -> one click on a line, then a click on another: the distance chooser / a distance instead of
+its length -> 🪄 -> every size fixed: ✓ Finish sketch green, 🪄 gone.
+
+  PYTHONIOENCODING=utf-8 py tools/e2e_sketch_smart.py http://127.0.0.1:5199 <out dir>
+"""
+import sys
+import time
+
+from selenium import webdriver
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+
+URL, OUT = sys.argv[1], sys.argv[2]
+opts = webdriver.EdgeOptions()
+opts.add_argument("--headless=new")
+opts.add_argument("--window-size=1600,1000")
+opts.set_capability("ms:loggingPrefs", {"browser": "ALL"})
+d = webdriver.Edge(options=opts)
+js = d.execute_script
+M = "window.__app.modeler"
+SK = f"{M}.sk"
+
+
+def wait(script, t=30):
+    end = time.time() + t
+    while time.time() < end:
+        v = js(script)
+        if v:
+            return v
+        time.sleep(0.1)
+    raise TimeoutError(script)
+
+
+def canvas():
+    return d.find_element(By.CSS_SELECTOR, "#modelViewport canvas")
+
+
+def off(uv):
+    return js(f"""const m = {M}, v = m.view, f = m.frame(), [u, w] = arguments[0];
+      const y = [f.n[1]*f.x[2]-f.n[2]*f.x[1], f.n[2]*f.x[0]-f.n[0]*f.x[2], f.n[0]*f.x[1]-f.n[1]*f.x[0]];
+      const p = new (v.camera.position.constructor)(f.o[0] + u*f.x[0] + w*y[0], f.o[1] + u*f.x[1] + w*y[1], f.o[2] + u*f.x[2] + w*y[2]);
+      const [sx, sy] = v.toScreen(p), r = v.renderer.domElement.getBoundingClientRect();
+      return [Math.round(sx - Math.floor(r.left + r.width / 2)), Math.round(sy - Math.floor(r.top + r.height / 2))];""", list(uv))
+
+
+def click_uv(uv):
+    ActionChains(d, duration=30).move_to_element_with_offset(canvas(), *off(uv)).perform()
+    time.sleep(0.12)
+    ActionChains(d).click().perform()
+    time.sleep(0.35)
+
+
+def tool(t):
+    d.find_element(By.CSS_SELECTOR, f".m-cmdbar [data-a={t}], #modelViewport .view-actions [data-a={t}]").click()
+    time.sleep(0.25)
+
+
+def state():
+    fin = d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=finish]")
+    auto = d.find_elements(By.CSS_SELECTOR, ".m-cmdbar [data-a=autodim]")
+    return {"dof": js(f"return {SK}.dof"), "finish green": "done" in fin.get_attribute("class"),
+            "🪄 shown": bool(auto) and auto[0].is_displayed()}
+
+
+def mid(which):
+    """A point on the rectangle's left / right line (away from its size label in the middle), as it is now."""
+    return js(f"""const s = {SK}, ls = s.f.entities.filter(e => e.t === 'line').map(e => [s.P(e.a), s.P(e.b)]).filter(([a, b]) => Math.abs(a[0] - b[0]) < 1e-6);
+      ls.sort((p, q) => p[0][0] - q[0][0]); const [a, b] = ls[arguments[0] === 'left' ? 0 : ls.length - 1]; return [(a[0] + b[0]) / 2, a[1] + (b[1] - a[1]) * 0.2];""", which)
+
+
+def lens():
+    return js(f"return {SK}.f.entities.filter(e => e.t === 'line').map(e => +{SK}.measure({{t: 'len', e: e.id}}).toFixed(3))")
+
+
+try:
+    d.get(URL)
+    wait("return !!window.__app")
+    d.find_element(By.ID, "newModelBtn").click()
+    wait(f"return {M}.mode === 'sketch'")
+    time.sleep(0.6)
+    click_uv((0, 0))
+    click_uv((40, 20))
+    wait(f"return {SK}.dof > 0", 10)
+    time.sleep(0.6)
+    print("a rectangle:", state())
+    tool("dim")
+    click_uv((20, 20))  # the top line
+    box = wait("return document.querySelector('.sk-quick input')", 5)
+    print("one click on a line — its size at once:", d.find_element(By.CSS_SELECTOR, ".sk-quick").text.replace("\n", " | "))
+    inp = d.find_element(By.CSS_SELECTOR, ".sk-quick input")
+    inp.send_keys(Keys.CONTROL, "a")
+    inp.send_keys("50", Keys.ENTER)
+    time.sleep(1.2)
+    print("  50 typed:", lens(), "| locked:", js(f"return {SK}.f.dims.map(x => [x.t, +x.v.toFixed(2)])"))
+    click_uv(mid("left"))  # the left line …
+    print("  a click on the left line: its box", bool(js("return document.querySelector('.sk-quick')")))
+    click_uv(mid("right"))  # … then the right line: a distance, not a length
+    time.sleep(1.0)
+    print("  then the right line: box gone", not js("return document.querySelector('.sk-quick')"),
+          "| dims:", js(f"return {SK}.f.dims.map(x => [x.t, +x.v.toFixed(2)])"), "| a typing box:", bool(js("return document.querySelector('.sk-input')")))
+    js("document.querySelector('.sk-input')?.blur()")
+    time.sleep(0.6)
+    d.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
+    print("  before 🪄:", state())
+    if state()["🪄 shown"]:
+        tool("autodim")
+    wait(f"return {SK}.dof === 0", 15)
+    time.sleep(0.6)
+    print("🪄 then:", state())
+    d.save_screenshot(f"{OUT}/sketch_smart.png")
+finally:
+    print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
+    d.quit()

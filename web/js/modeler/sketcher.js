@@ -319,7 +319,7 @@ export class Sketcher {
     if (this.tool === 'arc') return !this.start ? 'Click where the arc starts (at the end of a line: it continues the line smoothly).' : !this.arcEnd ? 'Click where the arc ends.' : 'Move the mouse to bend the arc, click to place it (Esc = stop drawing).';
     if (this.tool === 'spline') return this.spl ? 'Click the next point the curve goes through — click its first point to close it, double-click or Enter to finish, Esc to stop.' : 'Click where the smooth curve starts (a point or a line end joins it there).';
     if (this.tool === 'line') return this.chain ? 'Click the next point — click the first point to close the shape, double-click or Esc to stop.' : 'Click where the line starts.';
-    if (this.tool === 'dim') return this.dimA ? 'Now click the second one — the same line or circle again for its own size (Esc = start again).' : 'Dimension: click a point, a circle (its centre), a line or an edge of the part — then a second one.';
+    if (this.tool === 'dim') return this.dimA ? 'Type its size and Enter — or click a second one for the distance between them (Esc = start again).' : 'Dimension: click a line or a circle for its size — or a point, a line or an edge of the part, then a second one for a distance.';
     return this.sel ? 'Drag to move it · click a size to type it and lock it 🔒 · Delete removes it.' : 'Click a shape or a corner to select it — or pick a drawing tool.';
   }
 
@@ -1681,7 +1681,7 @@ export class Sketcher {
     this.closeChooser();
     const t = this.pickTarget(uv);
     if (!t) { this.m.toast('Click a point, a circle, a line or an edge of the part.', 'info', 3000); return; }
-    if (!this.dimA) { this.dimA = t; this.m.hint(this.hint()); this.draw(); return; }
+    if (!this.dimA) { this.dimA = t; this.m.hint(this.hint()); this.draw(); this.quickSize(t, e); return; }
     const A = this.dimA;
     let opts;
     if (A.line && t.line === A.line) opts = [{ spec: { t: 'len', e: A.line }, v: this.measure({ t: 'len', e: A.line }) }];
@@ -1693,6 +1693,53 @@ export class Sketcher {
     if (!opts.length) { this.m.toast('Those two cannot be dimensioned — pick points, or a point and a straight horizontal / vertical edge.', 'warning', 5000); this.draw(); return; }
     if (opts.length === 1) { this.addDim(opts[0]); return; }
     this.showChooser(opts, e);
+  }
+
+  /** The first click of ↔ Dimension on a line, circle or arc: its own size in a box at the mouse, ready to type
+   *  (Enter locks it); a click on a second shape instead gives the distance between them. */
+  quickSize(A, e) {
+    const ent = this.f.entities.find((x) => x.id === (A.line || A.circle || A.arc) && typeof (A.line || A.circle || A.arc) === 'string');
+    if (!ent) return;
+    const spec = ent.t === 'line' ? { t: 'len', e: ent.id } : ent.t === 'circle' ? { t: 'dia', e: ent.id } : ent.t === 'arc' ? { t: 'rad', e: ent.id } : null;
+    if (!spec) return;
+    let v;
+    try { v = this.measure(spec); } catch { return; }
+    const box = document.createElement('div');
+    box.className = 'sk-choose sk-quick';
+    // beside the shape, where its size label goes (not over the shape: a second click on it stays free)
+    const mpp = this.mpp();
+    let at;
+    if (ent.t === 'line') {
+      const a = this.P(ent.a), b = this.P(ent.b), L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, nx = -(b[1] - a[1]) / L, ny = (b[0] - a[0]) / L;
+      const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], c = this.centreOf(ent) || [mid[0] - nx, mid[1] - ny];
+      const side = (mid[0] - c[0]) * nx + (mid[1] - c[1]) * ny >= 0 ? 1 : -1;
+      at = [mid[0] + side * nx * mpp * 34, mid[1] + side * ny * mpp * 34];
+    } else {
+      const c = this.P(ent.c), r = ent.t === 'circle' ? ent.r : this.arcR(ent) || 1;
+      at = [c[0] + r * 0.72 + mpp * 30, c[1] + r * 0.72 + mpp * 30];
+    }
+    const vr = this.m.els.viewport.getBoundingClientRect();
+    let sx = e.clientX + 12, sy = e.clientY + 12;
+    try { [sx, sy] = this.m.view.uvToScreen(this.frame(), at); } catch { /* (no view: at the mouse) */ }
+    Object.assign(box.style, { left: `${Math.min(sx - vr.left, vr.width - 230)}px`, top: `${Math.min(Math.max(4, sy - vr.top - 20), vr.height - 90)}px` });
+    box.innerHTML = `<label>${spec.t === 'len' ? t('Length') : spec.t === 'dia' ? 'Ø' : 'R'} <input type="text" value="${fmt(Math.abs(v))}"> mm</label>
+      <p class="hint">${t('Enter: this size — or click a second shape for a distance')}</p>`;
+    const inp = box.querySelector('input');
+    inp.addEventListener('keydown', async (ev) => {
+      ev.stopPropagation();
+      if (ev.key === 'Escape') { this.closeChooser(); this.dimA = null; this.m.hint(this.hint()); this.draw(); }
+      if (ev.key !== 'Enter') return;
+      const typed = inp.value.trim();
+      this.closeChooser();
+      this.dimA = null;
+      this.m.hint(this.hint());
+      await this.addDim({ spec, v }, { edit: false });
+      if (typed && Math.abs(parseFloat(typed.replace(',', '.')) - Math.abs(v)) > 1e-9) this.setSize(spec, typed);
+    });
+    for (const ev of ['pointerdown', 'pointerup']) box.addEventListener(ev, (x) => x.stopPropagation());
+    this.m.els.viewport.appendChild(box);
+    this.chooser = box;
+    setTimeout(() => { inp.focus(); inp.select(); }, 0);
   }
 
   showChooser(opts, e) {
@@ -1717,14 +1764,14 @@ export class Sketcher {
   closeChooser() { this.chooser?.remove(); this.chooser = null; }
 
   /** Add a dimension (locked at the distance it has now), then let the user type the value right away. */
-  async addDim(o) {
+  async addDim(o, { edit = true } = {}) {
     const v = +o.v.toFixed(6);
     await this.relock(() => {
       if (!this.findDim(o.spec)) this.f.dims.push({ id: this.newId('d'), ...o.spec, v });
       this.unhide(o.spec);
     });
     const d = this.findDim(o.spec);
-    if (!d) return;
+    if (!d || !edit) return;
     // labels reach the page with the next frame of the 3D view
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const el = this.m.els.viewport.querySelector(`.sk-label[data-dim="${d.id}"]`);
