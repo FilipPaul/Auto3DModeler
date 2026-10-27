@@ -597,6 +597,28 @@ class TestAssemblyClashes(unittest.TestCase):
         self.assertAlmostEqual(cs[0]["volume"], 5 * 15 * 10, places=3)
         self.assertEqual(cs[0]["bbox"], [15, 5, 0, 20, 20, 10])
 
+    def test_quick_check_estimates_big_overlaps(self):
+        """A part of many solids (a board with its components) over another one: quick: estimated from the boxes, at once;
+        else computed (solid by solid)."""
+        from auto3d.modeler import kernel as K
+        part = {"features": box(20, 20, 10)}
+        at = lambda x, y=0, z=0: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1]  # noqa: E731
+        st = doc.body_of(part)
+        many = K.compound([K.placed(st.body.shape, at(25 * i)) for i in range(7)])  # 7 blocks in a row: one "board"
+        a, b = ("A", many), ("B", K.placed(many, at(5)))
+        exact = K.interference([a, b])
+        old = K.QUICK_PAIRS
+        try:
+            K.QUICK_PAIRS = 3
+            quick = K.interference([a, b], quick=True)
+        finally:
+            K.QUICK_PAIRS = old
+        self.assertEqual(len(exact), 1)
+        self.assertAlmostEqual(exact[0]["volume"], 7 * 15 * 20 * 10, places=1)  # each block 15 × 20 × 10 into the next copy
+        self.assertTrue(quick[0]["approx"])
+        self.assertGreaterEqual(quick[0]["volume"], exact[0]["volume"] - 1e-6)  # an upper bound
+        self.assertNotIn("approx", K.interference([a, b], quick=True)[0])  # (few enough: computed)
+
     def test_sweep(self):
         """A block slid along X past a still one: it hits it only on the way; a clash of two still parts is not told."""
         part = {"features": box(20, 20, 10)}

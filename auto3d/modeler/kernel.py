@@ -988,34 +988,84 @@ def project_edges(shape, look, right, up):
 
 
 def placed(shape, m16):
-    """A shape moved by a 4 x 4 placement matrix (column-major, as three.js stores it; only rotation + move)."""
+    """A shape moved by a 4 x 4 placement matrix (column-major, as three.js stores it; only rotation + move) — given a
+    location, not copied (a big imported model took a second a copy)."""
     m = list(map(float, m16))
     t = gp_Trsf()
     t.SetValues(m[0], m[4], m[8], m[12], m[1], m[5], m[9], m[13], m[2], m[6], m[10], m[14])
-    return BRepBuilderAPI_Transform(shape, t, True).Shape()
+    return shape.Moved(TopLoc_Location(t))
 
 
-def interference(shapes, min_volume=1e-3, only=None):
-    """Where placed solids overlap: shapes [(key, shape)] -> [{a, b, volume (mm³), bbox (of the overlap)}], the
+def _solid_boxes(shape):
+    """The solids of a shape with their quick boxes: [(solid, [x0 … z1])] (an assembled board holds a thousand)."""
+    out, ex = [], TopExp_Explorer(shape, TopAbs_SOLID)
+    while ex.More():
+        b = Bnd_Box()
+        BRepBndLib.Add_s(ex.Current(), b, False)
+        if not b.IsVoid():
+            lo, hi = b.CornerMin(), b.CornerMax()
+            out.append((ex.Current(), [lo.X(), lo.Y(), lo.Z(), hi.X(), hi.Y(), hi.Z()]))
+        ex.Next()
+    return out
+
+
+def _apart(a, b):
+    return any(a[k] >= b[k + 3] - 1e-6 or b[k] >= a[k + 3] - 1e-6 for k in range(3))
+
+
+QUICK_PAIRS = 40  # a quick check: more solids than this meeting in one pair of parts -> an estimate (big boards)
+
+
+def interference(shapes, min_volume=1e-3, only=None, quick=False):
+    """Where placed solids overlap: shapes [(key, shape)] -> [{a, b, volume (mm³), bbox (of the overlap), approx?}], the
     biggest first. Parts whose boxes do not meet are not computed; touching faces (no volume) are not a clash.
-    only: a set of keys — just the pairs with one of them."""
+    only: a set of keys — just the pairs with one of them. quick: a pair whose solids meet in more than QUICK_PAIRS
+    places (two big imported boards) is told by their boxes (`approx`), not computed (that takes half a minute)."""
     from OCP.BRepAlgoAPI import BRepAlgoAPI_Common
     boxes = [(k, s, bbox(s)) for k, s in shapes]
+    parts = {}  # key -> its solids with their boxes (made when a pair needs them)
     out = []
     for i in range(len(boxes)):
         for j in range(i + 1, len(boxes)):
             (ka, sa, ba), (kb, sb, bb) = boxes[i], boxes[j]
             if only is not None and ka not in only and kb not in only:
                 continue
-            if not ba or not bb or any(ba[k] >= bb[k + 3] - 1e-6 or bb[k] >= ba[k + 3] - 1e-6 for k in range(3)):
+            if not ba or not bb or _apart(ba, bb):
                 continue
-            mk = BRepAlgoAPI_Common(sa, sb)
-            if not mk.IsDone():
-                continue
-            common = mk.Shape()
-            v = volume(common)
+            # solid by solid, only those whose boxes meet (a part of many solids: a board with its components)
+            for k, s in ((ka, sa), (kb, sb)):
+                if k not in parts:
+                    parts[k] = _solid_boxes(s) or [(s, bbox(s) or [0] * 6)]
+            v, lo, hi = 0.0, [float("inf")] * 3, [float("-inf")] * 3
+            if quick:
+                meet = [(bx, by) for _, bx in parts[ka] if not _apart(bx, bb) for _, by in parts[kb] if not _apart(bx, by)]
+                if len(meet) > QUICK_PAIRS:
+                    for bx, by in meet:  # the boxes' overlaps: an upper bound
+                        o = [max(bx[q], by[q]) for q in range(3)] + [min(bx[q + 3], by[q + 3]) for q in range(3)]
+                        v += max(0.0, o[3] - o[0]) * max(0.0, o[4] - o[1]) * max(0.0, o[5] - o[2])
+                        lo, hi = [min(lo[q], o[q]) for q in range(3)], [max(hi[q], o[q + 3]) for q in range(3)]
+                    if v > min_volume:
+                        out.append({"a": ka, "b": kb, "volume": round(v, 3), "bbox": _round(lo + hi, 3), "approx": True})
+                    continue
+            for x, bx in parts[ka]:
+                if _apart(bx, bb):
+                    continue
+                for y, by in parts[kb]:
+                    if _apart(bx, by):
+                        continue
+                    mk = BRepAlgoAPI_Common(x, y)
+                    if not mk.IsDone():
+                        continue
+                    common = mk.Shape()
+                    cv = volume(common)
+                    if cv <= min_volume / 100:
+                        continue
+                    v += cv
+                    cb = bbox(common)
+                    if cb:
+                        lo, hi = [min(lo[q], cb[q]) for q in range(3)], [max(hi[q], cb[q + 3]) for q in range(3)]
             if v > min_volume:
-                out.append({"a": ka, "b": kb, "volume": round(v, 3), "bbox": _round(bbox(common) or [], 3)})
+                out.append({"a": ka, "b": kb, "volume": round(v, 3), "bbox": _round(lo + hi, 3)})
     return sorted(out, key=lambda c: -c["volume"])
 
 

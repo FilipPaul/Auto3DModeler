@@ -80,6 +80,11 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Quick collisions with big imported parts done:** kernel.placed gives a location (shape.Moved), no copy — a 42 MB
+  board (24 290 faces, 1170 solids) cost 1.3 s a placed copy, now 0.09 s (10 copies apart 8.9 -> 0.9 s); interference
+  goes solid by solid (only solids whose boxes meet); quick (the background check after a change): a pair meeting in
+  more than QUICK_PAIRS solids is estimated from the boxes (`approx`, ≈ in the list; 36 s -> 0.4 s), ↻ Check again
+  computes it. tests: test_quick_check_estimates_big_overlaps.
 - **An assembly's own sheet done:** a sheet's source may be an assembly — SheetEditor.assemblyPage (its placed parts,
   parts list, balloons; shared with drawingSet), sourceHash (the placed parts and theirs, sub-assemblies too) for the
   revisions; no presets / size check on it; 📄 Drawing in the assembly toolbar and its panel; the drawing set takes

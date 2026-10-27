@@ -659,7 +659,7 @@ def api_export_3mf():
 def api_assembly_clashes():
     """{instances: [{id, part: {features}, matrix: [16]}]} -> {clashes: [{a, b, volume, bbox}]} — parts that overlap."""
     body = request.get_json(force=True)
-    data, err = _model_call("assembly_clashes", {"instances": body.get("instances") or []})
+    data, err = _model_call("assembly_clashes", {"instances": body.get("instances") or [], "quick": bool(body.get("quick"))})
     if err:
         return err
     return jsonify({"clashes": data})

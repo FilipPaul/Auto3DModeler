@@ -674,7 +674,7 @@ export class Assembly {
   scheduleClashes(ms = 700) {
     clearTimeout(this.clashTimer);
     if (this.doc.instances.length < 2) { this.clashes = null; this.updateClashButton(); return; }
-    this.clashTimer = setTimeout(() => this.checkClashes(), ms);
+    this.clashTimer = setTimeout(() => this.checkClashes(true), ms);
   }
 
   toggleClashes() {
@@ -700,12 +700,13 @@ export class Assembly {
     return flat;
   }
 
-  async checkClashes() {
+  /** quick: (after a change, in the background) big parts that overlap in many places are estimated, not computed. */
+  async checkClashes(quick = false) {
     const run = (this.clashRun = (this.clashRun || 0) + 1);
     this.clashBusy = true;
     if (this.clashPanel) this.renderProps(); // (in the background: the panel on screen stays as it is)
     try {
-      const res = await fetch('/api/assembly/clashes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instances: this.flatParts() }) });
+      const res = await fetch('/api/assembly/clashes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instances: this.flatParts(), quick }) });
       const r = await res.json();
       if (run !== this.clashRun) return; // a newer check is on its way
       if (!res.ok) throw new Error(r.error || res.statusText);
@@ -737,7 +738,7 @@ export class Assembly {
       ${this.clashBusy && !cs ? '<p class="mp-count">Checking…</p>' : !cs ? '' : !cs.length ? '<p class="mp-count ok">✓ No parts overlap.</p>'
         : `<p class="mp-count">${t2('{n} overlap(s)', { n: cs.length })}${this.clashBusy ? ' …' : ''}</p><div class="as-joints">${cs.map((c, i) => `<div class="as-jrow as-clash ${this.focusClash === c ? 'on' : ''}" data-clash="${i}" title="${esc(t('Show it in the view (again: all of them)'))}">
           <span class="as-jt">⚠</span><span class="as-jw"><b data-no-i18n>${esc(name(c.a))}</b> ↔ <b data-no-i18n>${esc(name(c.b))}</b></span>
-          <span class="as-jv">${fmt(+c.volume.toFixed(c.volume < 10 ? 2 : 0))} mm³</span>
+          <span class="as-jv" ${c.approx ? `title="${esc(t('Big parts that overlap in many places: estimated from their boxes — ↻ Check again computes it'))}"` : ''}>${c.approx ? '≈ ' : ''}${fmt(+c.volume.toFixed(c.volume < 10 ? 2 : 0))} mm³</span>
           <span class="as-jbtn"><button class="mini" data-cpick="${i}" title="Choose these two parts (their joints, their moves)">↗</button></span></div>`).join('')}</div>`}
       <div class="row-actions">${this.focusClash ? '<button class="btn small" data-a="allC">⤢ Show all</button>' : ''}<button class="btn small" data-a="recheck" ${this.clashBusy ? 'disabled' : ''}>↻ Check again</button><button class="btn small" data-a="closeC">Close</button></div>`;
     for (const row of box.querySelectorAll('[data-clash]')) {

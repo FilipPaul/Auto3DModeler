@@ -874,7 +874,7 @@ def assembly_sheet(instances, paper=None):
     return S.build_assembly(placed, paper)
 
 
-def assembly_clashes(instances):
+def assembly_clashes(instances, quick=False):
     """Where the placed parts of an assembly overlap: instances [{id, part: {features}, matrix: [16]}] ->
     [{a, b (their ids), volume, bbox}]. A part without a solid is left out."""
     shapes = []
@@ -884,7 +884,7 @@ def assembly_clashes(instances):
         except K.KernelError:
             continue
         shapes.append((inst.get("id"), K.placed(st.body.shape, inst.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])))
-    return K.interference(shapes)
+    return K.interference(shapes, quick=quick)
 
 
 def assembly_sweep(instances, steps):

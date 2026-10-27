@@ -821,6 +821,7 @@ const CS = {
   '{name} — your library part, to change. 📚 Save back to the library keeps the change.': '{name} — díl vaší knihovny k úpravě. 📚 Uložit zpět do knihovny změnu uloží.',
   'Change this part of your library: it opens as a 3D model; 📚 Save back to the library keeps the change (parts already in projects stay as they were)': 'Upravit tento díl knihovny: otevře se jako 3D model; 📚 Uložit zpět do knihovny změnu uloží (díly už v projektech zůstanou, jak byly)',
   "The library's own parts stay as they are: this size becomes a part of your own library, opened to change": 'Díly katalogu zůstávají, jak jsou: tato velikost se stane dílem vaší vlastní knihovny a otevře se k úpravě',
+  'Big parts that overlap in many places: estimated from their boxes — ↻ Check again computes it': 'Velké díly, které se překrývají na mnoha místech: odhad z jejich obálek — ↻ Zkontrolovat znovu to spočítá přesně',
   'How fast ▶ plays': 'Jak rychle ▶ přehrává', 'It plays again and again (■ stops it) — click: once': 'Přehrává se znovu a znovu (■ zastaví) — klik: jednou',
   'Play once — click: again and again, until ■': 'Přehrát jednou — klik: znovu a znovu, dokud ■',
   'All pages': 'Všechny listy', 'Go to this page': 'Přejít na tento list', 'Making the pages…': 'Dělám listy…', 'Double-click: edit this page': 'Dvojklik: upravit tento list',
