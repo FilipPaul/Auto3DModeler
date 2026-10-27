@@ -248,11 +248,16 @@ export class SheetEditor {
   /** ＋ Dimension: the points it can hang on (and the first one picked). */
   snapMarks() {
     const out = ['<g class="sh-snaps">'];
+    for (const [e, col, w] of [[this.hoverEdge, '#f59e0b', 0.9], [this.pick?.edge ? this.pick : null, '#1f6feb', 1.1]]) {
+      if (!e) continue;
+      const a = this.P(e.view, e.edge.a), b = this.P(e.view, e.edge.b);
+      out.push(`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${col}" stroke-width="${w}" stroke-linecap="round" opacity="0.8"/>`);
+    }
     for (const v of VIEWS) {
       if (this.d.off[v]) continue;
       for (const [k, p] of Object.entries(this.geo.views[v].points)) {
         if (k.startsWith('box#')) continue;
-        const q = this.P(v, p), first = this.pick?.view === v && this.pick.key === k;
+        const q = this.P(v, p), first = !this.pick?.edge && this.pick?.view === v && this.pick.key === k;
         out.push(`<circle cx="${q[0]}" cy="${q[1]}" r="${first ? 1.2 : 0.6}" fill="${first ? '#1f6feb' : '#f59e0b'}" opacity="${first ? 1 : 0.7}"/>`);
       }
     }
@@ -400,7 +405,7 @@ export class SheetEditor {
     const bar = this.$('.sh-bar');
     if (!bar || !this.d) return;
     bar.innerHTML = `<div class="seg sh-presets" title="How many dimensions it makes by itself">${PRESETS.map(([k, l]) => `<button class="chip ${this.d.preset === k ? 'on' : ''}" data-preset="${k}">${t(l)}</button>`).join('')}</div>
-      <button class="chip tool ${this.tool === 'dim' ? 'on' : ''}" data-a="dim" title="Add a dimension: click two points (a corner, a hole's centre), or a circle / arc (Ø / R) — its value is measured from the part">＋ Dimension</button>
+      <button class="chip tool ${this.tool === 'dim' ? 'on' : ''}" data-a="dim" title="Add a dimension: an edge (twice: its length), two edges (their distance), two points, or a circle / arc (Ø / R) — its value is measured from the part">＋ Dimension</button>
       <span class="sep"></span><button class="chip" data-a="undo" title="Undo (Ctrl+Z)" ${this.history.canUndo() ? '' : 'disabled'}>↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)" ${this.history.canRedo?.() ? '' : 'disabled'}>↷</button>
       <span class="sep"></span><button class="chip" data-a="fit" title="The whole sheet">⤢ Fit</button>
       <button class="chip primary" data-a="pdf" title="The sheet as a PDF — as you see it">⬇ PDF</button>${this.busy ? `<span class="sh-busy">${t('Making the drawing…')}</span>` : ''}`;
@@ -540,7 +545,7 @@ export class SheetEditor {
 
   // ------------------------------------------------------------------ editing
   action(a) {
-    if (a === 'dim') { this.tool = this.tool === 'dim' ? 'select' : 'dim'; this.pick = null; this.hint(this.tool === 'dim' ? t('Click a point (a corner, a hole\'s centre) and another one — or a circle / arc for its Ø / R. Esc: done.') : ''); this.render(); }
+    if (a === 'dim') { this.tool = this.tool === 'dim' ? 'select' : 'dim'; this.pick = null; this.hoverEdge = null; this.hint(this.tool === 'dim' ? t('Click a point, an edge or a circle — an edge alone twice gives its length. Esc: done.') : ''); this.render(); }
     if (a === 'undo') this.history.go(-1);
     if (a === 'redo') this.history.go(1);
     if (a === 'fit') { this.zoom = { k: 1, x: 0, y: 0 }; this.applyZoom(); }
@@ -600,19 +605,59 @@ export class SheetEditor {
     return null;
   }
 
+  /** A straight edge of a view under the mouse (its line within reach) -> {view, edge} or null. */
+  edgeAt(p, reach = 1.2) {
+    let best = null;
+    for (const v of VIEWS) {
+      if (this.d.off[v]) continue;
+      for (const ln of this.geo.views[v].lines) {
+        const a = this.P(v, ln.a), b = this.P(v, ln.b), dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy;
+        if (L2 < 1e-6) continue;
+        const k = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2)), dist = Math.hypot(a[0] + k * dx - p[0], a[1] + k * dy - p[1]);
+        if (dist < reach && (!best || dist < best.dist)) best = { view: v, edge: ln, dist };
+      }
+    }
+    return best;
+  }
+
+  /** An edge runs across (h), up (v) or slanted (s). */
+  edgeDir(ln) { return Math.abs(ln.a[1] - ln.b[1]) < 1e-3 ? 'h' : Math.abs(ln.a[0] - ln.b[0]) < 1e-3 ? 'v' : 's'; }
+
+  /** An edge's length as a dimension (a slanted one: its longer side). */
+  edgeLength(view, ln) {
+    const dir = this.edgeDir(ln) === 's' ? (Math.abs(ln.b[0] - ln.a[0]) >= Math.abs(ln.b[1] - ln.a[1]) ? 'h' : 'v') : this.edgeDir(ln);
+    this.pick = null;
+    this.addUser({ view, kind: 'linear', a: `${ln.key}#0`, b: `${ln.key}#1`, dir, side: dir === 'h' ? 'b' : 'r', off: 14 });
+  }
+
+  /** ＋ Dimension: a point and another (their distance), an edge (again: its length) and another edge (the distance
+   *  between them) or a point, or a circle (its Ø / R). */
   clickDim(p) {
-    const s = this.snapAt(p);
-    if (!this.pick) {
+    const s = this.snapAt(p, 1.6), e = s ? null : this.edgeAt(p), ci = s || e ? null : this.circleAt(p), pk = this.pick;
+    const lin = (view, a, b, dir) => {
+      this.pick = null;
+      this.addUser({ view, kind: 'linear', a, b, dir, side: dir === 'h' ? 'b' : 'r', off: 14 });
+    };
+    if (!pk) {
       if (s) { this.pick = s; this.render(); return; }
-      const ci = this.circleAt(p);
+      if (e) { this.pick = { view: e.view, edge: e.edge }; this.hint(t('An edge: click it again for its length, or another edge / a point for the distance.')); this.render(); return; }
       if (ci) { this.addUser({ view: ci.view, kind: ci.c.full ? 'dia' : 'rad', a: ci.c.key, count: 1, ang: ci.c.full ? 45 : 0, len: 6 }); return; }
-      this.hooks.toast(t('Click a point (an orange dot) or the line of a circle.'), 'info', 2500);
+      this.hooks.toast(t('Click a point (an orange dot), an edge or the line of a circle.'), 'info', 2500);
       return;
     }
-    if (!s || s.view !== this.pick.view || s.key === this.pick.key) { this.hooks.toast(t('Now another point of the same view.'), 'info', 2500); return; }
-    const a = this.pick.at, b = s.at, dir = Math.abs(b[0] - a[0]) >= Math.abs(b[1] - a[1]) ? 'h' : 'v';
-    this.addUser({ view: s.view, kind: 'linear', a: this.pick.key, b: s.key, dir, side: dir === 'h' ? 'b' : 'r', off: 14 });
-    this.pick = null;
+    const other = s || e;
+    if (!other || other.view !== pk.view) { this.hooks.toast(t('Now another point or edge of the same view.'), 'info', 2500); return; }
+    if (pk.edge && e && e.edge === pk.edge) { this.edgeLength(pk.view, pk.edge); return; } // the same edge again: its length
+    if (pk.edge || e) { // an edge and another edge or a point: the distance across the edge
+      const E = pk.edge ? pk.edge : e.edge, O = pk.edge ? other : pk;
+      const ed = this.edgeDir(E), od = O.edge ? this.edgeDir(O.edge) : null;
+      if (ed === 's' || (od && od !== ed)) { this.hooks.toast(t('Two edges that are not parallel (or slanted) have no distance here — click points instead.'), 'warning', 4000); return; }
+      lin(pk.view, `${E.key}#0`, O.edge ? `${O.edge.key}#0` : O.key, ed === 'v' ? 'h' : 'v'); // up-going edges are apart across, flat ones up
+      return;
+    }
+    if (s.key === pk.key) return;
+    const a = pk.at, b = s.at;
+    lin(s.view, pk.key, s.key, Math.abs(b[0] - a[0]) >= Math.abs(b[1] - a[1]) ? 'h' : 'v');
   }
 
   addUser(d) {
@@ -653,6 +698,11 @@ export class SheetEditor {
       this.render();
     });
     this.stage.addEventListener('pointermove', (e) => {
+      if (!drag && this.tool === 'dim' && this.svgEl) { // the edge a click would take lights up
+        const p = this.paperAt(e), h = this.snapAt(p, 1.6) ? null : this.edgeAt(p);
+        if ((h?.edge || null) !== (this.hoverEdge?.edge || null)) { this.hoverEdge = h; cancelAnimationFrame(this.hoverRaf); this.hoverRaf = requestAnimationFrame(() => this.render()); }
+        return;
+      }
       if (!drag || !this.svgEl) return;
       if (drag.kind === 'pan') {
         this.zoom.x = drag.from.x + e.clientX - drag.start[0];
@@ -704,7 +754,8 @@ export class SheetEditor {
 
   key(e) {
     if (!this.active || e.target.closest?.('input,select,textarea,[contenteditable]')) return;
-    if (e.key === 'Escape' && this.tool === 'dim') { this.action('dim'); e.preventDefault(); }
+    if (e.key === 'Enter' && this.tool === 'dim' && this.pick?.edge) { this.edgeLength(this.pick.view, this.pick.edge); e.preventDefault(); return; } // its length
+    if (e.key === 'Escape' && this.tool === 'dim') { if (this.pick) { this.pick = null; this.render(); } else this.action('dim'); e.preventDefault(); }
     if ((e.key === 'Delete' || e.key === 'Backspace') && this.sel) { this.remove(this.sel); e.preventDefault(); }
     if (e.ctrlKey && e.key.toLowerCase() === 'z') { this.history.go(-1); e.preventDefault(); }
     if (e.ctrlKey && e.key.toLowerCase() === 'y') { this.history.go(1); e.preventDefault(); }

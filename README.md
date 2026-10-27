@@ -269,8 +269,9 @@ right and iso views on an A4 / A3 page with a title block (part, material, scale
 the biggest R), **Medium** (+ where the holes are, the radii, the heights) or **Full** (+ every level) — and holes
 alike are dimensioned **once**: *8× Ø3 H7*, the first hole's place and the row's pitch *3× 10* (200 holes in a grid
 are one Ø and two pitches, not 400 dimensions). **Drag** a dimension or a view to move it, **Del** removes a
-dimension (↺ brings deleted ones back), **＋ Dimension**: click two points (a corner, a hole's centre) or a circle
-(its Ø / R). A value is always measured from the part — it cannot be typed. The sheet **follows its part**: change
+dimension (↺ brings deleted ones back), **＋ Dimension**: click an **edge** (it lights up under the mouse) — click it
+again (or Enter) for its **length**, another edge for the **distance between them**, or a point for the distance from
+the edge —, two points (a corner, a hole's centre), or a circle (its Ø / R). A value is always measured from the part — it cannot be typed. The sheet **follows its part**: change
 the part and the views and dimensions are made again, the revision goes up and *Changed* says when (your moved and
 own dimensions stay on their edges and holes). **Check** (the left panel) tells whether the part is fully dimensioned: each view shows ✓ or ⚠ with how many sizes it
 misses — a hole's place, an edge, a Ø or R — listed with **＋** (add that one, from the part's edge) and **＋ Add all
