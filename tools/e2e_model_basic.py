@@ -120,7 +120,7 @@ try:
     settled()
     print("preview at 12 mm:", body())
     d.save_screenshot(f"{OUT}/m3_extrude.png")
-    btn("#modelRight [data-a=ok]")
+    btn("#modelViewport .view-actions [data-a=ok]")
     settled()
     print("after OK:", body(), "| tree", js("return [...document.querySelectorAll('.mt-item')].map(r => r.textContent.replace(/\\s+/g, ' ').trim())"))
 
@@ -154,7 +154,7 @@ try:
     print("extrude default on a face:", js(f"return {M}.cmd.feature.op"), "| preview", body())
     d.find_element(By.CSS_SELECTOR, "#modelRight input[data-k=through]").click()
     settled()
-    btn("#modelRight [data-a=ok]")
+    btn("#modelViewport .view-actions [data-a=ok]")
     settled()
     b = body()
     print("hole through:", b, "| expected", round(50 * 20 * 12 - math.pi * dia * dia / 4 * 12, 3))

@@ -69,7 +69,7 @@ def click(uv):
 
 
 def tool(t):
-    d.find_element(By.CSS_SELECTOR, f".m-cmdbar [data-a={t}]").click()
+    d.find_element(By.CSS_SELECTOR, f".m-cmdbar [data-a={t}], #modelViewport .view-actions [data-a={t}]").click()
     time.sleep(0.3)
 
 
@@ -181,7 +181,7 @@ try:
     print("XZ mirror only: volume", round(b["volume"], 3), "| bbox y", b["bbox"][1], b["bbox"][4])
     d.find_element(By.CSS_SELECTOR, "#modelRight [data-copy='1']").click()
     settled()
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=ok]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=ok]").click()
     settled()
     print("tree:", js("return [...document.querySelectorAll('#modelLeft .mt-item')].map(e => e.textContent.trim().replace(/\\s+/g, ' '))")[-1])
     js(f"{M}.view.setView('iso')")

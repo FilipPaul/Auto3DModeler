@@ -124,7 +124,7 @@ try:
     d.save_screenshot(f"{OUT}/decal1.png")
     slide("[data-k=angle]", 0)
     slide("[data-at='0']", 0)
-    btn("#modelRight [data-a=ok]")
+    btn("#modelViewport .view-actions [data-a=ok]")
     settled()
     print("tree:", js("return [...document.querySelectorAll('#modelLeft .mt-item')].map(e => e.textContent.trim().split(/\\s{2,}/)[0])")[-1])
     call("edit_feature", id="F2", fields={"d": 8})
@@ -149,7 +149,7 @@ try:
     v0 = body()["volume"]
     f3 = js(f"return {M}.cmd.feature")
     print("picture:", f3["name"], "| aspect", f3["aspect"], "| at", f3["at"], "| ok", js(f"return {M}.result.features.at(-1).ok"))
-    btn("#modelRight [data-a=ok]")
+    btn("#modelViewport .view-actions [data-a=ok]")
     settled()
     print("steps:", [s["type"] for s in json.loads(call("get_model"))["steps"]])
 finally:

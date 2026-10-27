@@ -108,7 +108,7 @@ export class Modeler {
       const dat = this.sk.isNew && !this.sk.f.entities.length && this.sk.f.plane?.datum;
       const planes = dat ? `<span class="m-say">on</span>${['XY', 'XZ', 'YZ'].map((k) => btn(`plane-${k}`, DATUM_NAME[k], `Sketch on the ${DATUM_NAME[k]} plane`, k === dat ? 'on' : '')).join('')}<span class="sep"></span>` : '';
       const onDatum = this.sk.f.plane?.datum;
-      const offset = onDatum ? `<label class="m-offset" title="Move the sketch plane along its normal (e.g. 30 mm above the bed — for a loft's second profile)">Offset
+      const offset = onDatum ? `<label class="chip m-offset" title="Move the sketch plane along its normal (e.g. 30 mm above the bed — for a loft's second profile)">↕ Plane at
         <input type="number" step="any" data-k="planeOffset" value="${fmt(this.sk.f.plane.offset || 0)}"> mm</label><span class="sep"></span>` : '';
       bar.innerHTML = `<span class="m-mode">Sketch</span>${planes}${offset}
         ${btn('rect', '▭ Rectangle', 'Draw a rectangle: click two corners (R)', t === 'rect' ? 'on' : '')}
@@ -127,13 +127,12 @@ export class Modeler {
         ${btn('dim', '↔ Dimension', 'Add a distance: click two points, circles, lines or edges of the part, then type the value (D)', t === 'dim' ? 'on' : '')}
         ${btn('autodim', '🪄 Auto-dimension', 'Lock the sizes the sketch still needs to be fully defined: each shape sized, and placed from the nearest edges of the part (or the origin)')}
         ${btn('select', '⬚ Select', 'Select a shape or a corner to move it (drag) or delete it (Esc)', t === 'select' ? 'on' : '')}
-        <span class="sep"></span>
-        ${btn('finish', '✓ Finish sketch', 'Done drawing — next: Extrude (Enter)', 'primary')}
-        ${btn('cancelSketch', '✕ Cancel', 'Leave the sketch without changing the part')}`;
+        <div class="mp-actions">${btn('finish', '✓ Finish sketch', 'Done drawing — next: Extrude (Enter)', 'primary')}
+        ${btn('cancelSketch', '✕ Cancel', 'Leave the sketch without changing the part')}</div>`;
     } else if (this.mode === 'plane') {
       bar.innerHTML = `<span class="m-mode">Sketch on…</span><span class="m-say">click a flat face of the part — or a plane:</span>
         ${btn('datum-XY', 'Top', 'Sketch on the Top plane (XY)')}${btn('datum-XZ', 'Front', 'Sketch on the Front plane (XZ)')}${btn('datum-YZ', 'Right', 'Sketch on the Right plane (YZ)')}
-        <span class="sep"></span>${btn('cancelPlane', '✕ Cancel', 'Do not start a sketch (Esc)')}`;
+        <div class="mp-actions">${btn('cancelPlane', '✕ Cancel', 'Do not start a sketch (Esc)')}</div>`;
     } else {
       const canExtrude = this.sketches().length > 0;
       bar.innerHTML = `

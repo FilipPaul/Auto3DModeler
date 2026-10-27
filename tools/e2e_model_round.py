@@ -72,7 +72,7 @@ def click(uv):
 
 
 def tool(t):
-    d.find_element(By.CSS_SELECTOR, f".m-cmdbar [data-a={t}]").click()
+    d.find_element(By.CSS_SELECTOR, f".m-cmdbar [data-a={t}], #modelViewport .view-actions [data-a={t}]").click()
     time.sleep(0.2)
 
 
@@ -128,7 +128,7 @@ try:
 
     tool("finish")
     settled()
-    btns = d.find_elements(By.CSS_SELECTOR, "#modelRight [data-a=ok]")
+    btns = d.find_elements(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=ok]")
     if btns:
         btns[0].click()
     settled()

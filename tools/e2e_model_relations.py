@@ -56,7 +56,7 @@ def click(uv):
 
 
 def tool(t):
-    d.find_element(By.CSS_SELECTOR, f".m-cmdbar [data-a={t}]").click()
+    d.find_element(By.CSS_SELECTOR, f".m-cmdbar [data-a={t}], #modelViewport .view-actions [data-a={t}]").click()
     time.sleep(0.2)
 
 

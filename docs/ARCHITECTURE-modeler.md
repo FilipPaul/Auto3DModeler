@@ -80,6 +80,10 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Actions in the view's corner done:** actiondock.js — a `.mp-actions` row drawn by a panel or a toolbar (OK /
+  Cancel, ✓ Finish sketch, ✕ Cancel of a plane pick, Done) is moved to `.view-actions` in the bottom-right of its
+  viewport (MutationObserver; a hidden placeholder keeps its place, a panel drawn again replaces it); toasts go up
+  while one shows. The sketch's plane offset is a styled chip (↕ Plane at). Rule for new tools: their actions go there.
 - **☰ Project tree done:** Project.renderTree — #projTree over the left panel (in main.layout): assemblies with their
   parts grouped (×n, sub-assemblies nested, no loops), sheets under their source, then the rest; the live part's
   data from its workspace (dataOf); re-drawn on a3d:changed while open; open / closed remembered (localStorage

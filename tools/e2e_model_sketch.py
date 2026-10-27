@@ -98,7 +98,7 @@ def labels():
 
 
 def tool(t):
-    d.find_element(By.CSS_SELECTOR, f".m-cmdbar [data-a={t}]").click()
+    d.find_element(By.CSS_SELECTOR, f".m-cmdbar [data-a={t}], #modelViewport .view-actions [data-a={t}]").click()
     time.sleep(0.2)
 
 
@@ -181,7 +181,7 @@ try:
     click_uv((-35, 5))
 
     # finish -> extrude 5 mm: plate (60 x h) minus the hole, plus the triangle
-    d.find_element(By.CSS_SELECTOR, ".m-cmdbar [data-a=finish]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=finish]").click()
     wait(f"return {M}.cmd && {M}.result?.body && !{M}.inflight")
     time.sleep(0.6)
     dist = d.find_element(By.CSS_SELECTOR, "#modelRight input[data-k=d]")
@@ -204,7 +204,7 @@ try:
     print("reopened sketch: locks", js(f"return {SK}.f.dims.length"), "| dof", js(f"return {SK}.dof"))
 
     # sketches are lines in the 3D view: a used one faint, one not extruded yet bright; double-click opens it
-    d.find_element(By.CSS_SELECTOR, ".m-cmdbar [data-a=cancelSketch]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=cancelSketch]").click()
     wait(f"return {M}.mode === 'part' && !{M}.inflight")
     time.sleep(0.4)
     outl = f"return {M}.view.outlineGroup.children.map(c => [c.userData.sketch, +c.material.opacity.toFixed(2)])"
@@ -217,9 +217,9 @@ try:
     tool("circle")
     click_uv((-60, 20))
     click_uv((-50, 20))
-    d.find_element(By.CSS_SELECTOR, ".m-cmdbar [data-a=finish]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=finish]").click()
     wait(f"return {M}.cmd && !{M}.inflight")
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=cancel]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=cancel]").click()
     wait(f"return !{M}.cmd && !{M}.inflight")
     time.sleep(0.5)
     print("outlines (+ a sketch not extruded):", js(outl), "| steps", js(f"return {M}.part.features.map(f => f.name)"))

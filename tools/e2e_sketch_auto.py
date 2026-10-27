@@ -55,7 +55,7 @@ def click(uv):
 
 
 def tool(t):
-    d.find_element(By.CSS_SELECTOR, f".m-cmdbar [data-a={t}]").click()
+    d.find_element(By.CSS_SELECTOR, f".m-cmdbar [data-a={t}], #modelViewport .view-actions [data-a={t}]").click()
     time.sleep(0.3)
 
 
@@ -95,7 +95,7 @@ try:
     dims = js(f"return {SK}.f.dims.map(x => [x.t, typeof x.a === 'object' ? (x.a.edge ? 'part edge' : 'ref') : x.a, x.b || x.e, +(+x.v).toFixed(3)])")
     print("locked:", dims)
     d.save_screenshot(f"{OUT}/auto2.png")
-    d.find_element(By.CSS_SELECTOR, ".m-cmdbar [data-a=finish]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=finish]").click()
     wait(f"return {M}.mode === 'part' && !{M}.inflight")
     print("the model builds:", js(f"return {M}.result.ok"), "| sketch steps", js(f"return {M}.part.features.length"))
 finally:

@@ -74,7 +74,7 @@ try:
     st = js(f"return {M}.result.features.find(s => s.id === 'F3')")
     print("builds at the most:", st["ok"], st["issues"], "| R", js(f"return {M}.cmd.feature.r"))
     d.save_screenshot(f"{OUT}/limits1.png")
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=cancel]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=cancel]").click()
     settled()
 
     js(f"{M}.startShell()")
@@ -83,7 +83,7 @@ try:
     js(f"{M}.cmd.feature.faces.push({{name: 'F2:end', fp: [20, 10, 10]}}); {M}.renderProps(); {M}.rebuild()")  # the top: open
     settled()
     print("shell wall range:", ranges(), "| why:", [e.text for e in d.find_elements(By.CSS_SELECTOR, "#modelRight .mp-bad")])
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=cancel]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=cancel]").click()
     settled()
 
     call("add_feature", type="hole", face="F2:end", points=[[-10, 0]], d=4, through=False, depth=3)
@@ -92,13 +92,13 @@ try:
     js(f"{M}.edit(arguments[0])", holes[-1])
     settled()
     print("hole ranges (Ø, depth):", ranges())
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=cancel]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=cancel]").click()
     settled()
 
     js(f"{M}.startPattern()")
     settled()
     print("pattern ranges (count, spacing):", ranges())
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=cancel]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=cancel]").click()
     settled()
 
     # the size on the part: the fillet's R label

@@ -102,7 +102,7 @@ try:
     d.find_element(By.CSS_SELECTOR, "#modelRight [data-op=cut]").click()
     settled()
     print("cut out: volume", round(js(f"return {M}.result.body.volume"), 3), "= box − block", round(box - 8000, 3))
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=ok]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=ok]").click()
     settled()
     steps = json.loads(call("get_model"))["steps"]
     print("AI sees:", [(s["type"], s.get("op"), s.get("bbox")) for s in steps if s["type"] == "solid"])

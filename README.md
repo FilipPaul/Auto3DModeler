@@ -53,6 +53,9 @@ open it (the tree stays), ⧉ opens it in a new window, ✕ deletes it from the 
 assemblies use it). Parts made for an assembly (fasteners) are added without a tab. The **＋**
 next to the tabs offers the usual ways to open a file.
 
+**Actions in the corner**: the buttons that finish or leave a step — **✓ Finish sketch**, **OK** / **Cancel** of a
+feature, **Done** — float in the bottom-right corner of the view in every workspace; the toolbars hold only the tools.
+
 **⧉ Windows (several monitors)**: the **⧉** on a tab (or in ☰ Parts) opens that part — a 3D model, an assembly, a
 drawing sheet, a 2D drawing — in a new browser window. The windows stay linked: a change in one is in the others at
 once (an assembly using a changed part is built again, a drawing sheet of it gets a new revision, the same part on

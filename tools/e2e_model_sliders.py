@@ -84,7 +84,7 @@ try:
     time.sleep(0.2)
     print("typed 12 -> slider", sliders()[0].get_attribute("value"))
     settled()
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=ok]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=ok]").click()
     settled()
     print("kept: height", js(f"return {M}.result.body.bbox[5]"))
 
@@ -94,7 +94,7 @@ try:
     v1 = vol()
     slide(sliders()[0], 8)
     print("hole Ø slider 8 -> volume", round(vol(), 2), "| expected", round(v1 - math.pi * (16 - 6.25) * 12, 2))
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=ok]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=ok]").click()
     settled()
 
     # Fillet: R
@@ -103,7 +103,7 @@ try:
     a = vol()
     slide(sliders()[0], 4)
     print("fillet R slider 4 -> volume smaller:", vol() < a)
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=cancel]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=cancel]").click()
     settled()
 
     # Pattern (count, spacing) and Shell (wall), new
@@ -113,18 +113,18 @@ try:
     b = vol()
     slide(sliders()[0], 2)  # 3 -> 2 copies (a 4th would land outside the 40 mm part)
     print("count slider 2 -> count", js(f"return {M}.cmd.feature.count"), "| volume bigger (one hole less):", vol() > b)
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=cancel]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=cancel]").click()
     settled()
     js(f"{M}.startShell()")
     settled()
     print("shell sliders:", len(sliders()))
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=cancel]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=cancel]").click()
     settled()
     js(f"{M}.startDecal()")
     settled()
     print("text sliders:", len(sliders()))
     d.save_screenshot(f"{OUT}/sliders.png")
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=cancel]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=cancel]").click()
 finally:
     print("console errors:", [e["message"] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()

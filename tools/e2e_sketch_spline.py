@@ -86,7 +86,7 @@ try:
     # a circle added and deleted: the curve keeps its points
     js(f"""const S = {SK}; S.step(); S.f.points.q1 = [20, 12]; S.f.entities.push({{ id: 'c9', t: 'circle', c: 'q1', r: 3 }}); S.sel = {{ kind: 'entity', id: 'c9' }}; S.deleteSel()""")
     print("after deleting a circle — the curve's points kept:", js(f"const e = {SK}.f.entities.find(e => e.t === 'spline'); return e.pts.every(p => !!{SK}.f.points[p])"))
-    d.find_element(By.CSS_SELECTOR, ".m-cmdbar [data-a=finish]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=finish]").click()
     wait(f"return {M}.mode === 'part'")
     print("extrude:", js(f"return {H}.add_feature({{ type: 'extrude', sketch: 'F1', d: 5 }}).then(r => r.text.slice(0, 60))"))
     wait(f"return !!{M}.result?.body && !{M}.inflight")

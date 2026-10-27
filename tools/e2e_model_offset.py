@@ -67,7 +67,7 @@ def click(uv):
 
 
 def tool(t):
-    d.find_element(By.CSS_SELECTOR, f".m-cmdbar [data-a={t}]").click()
+    d.find_element(By.CSS_SELECTOR, f".m-cmdbar [data-a={t}], #modelViewport .view-actions [data-a={t}]").click()
     time.sleep(0.2)
 
 
@@ -90,7 +90,7 @@ def new_sketch():
 def extrude_volume():
     tool("finish")
     settled()
-    b = d.find_elements(By.CSS_SELECTOR, "#modelRight [data-a=ok]")
+    b = d.find_elements(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=ok]")
     if b:
         b[0].click()
     settled()

@@ -91,7 +91,7 @@ try:
     print("▣ Bodies, a click on the second block:", count())
     set_colour("#34c759")
     print("painted faces:", len(js(f"return {M}.part.paint")))
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=donePaint]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=donePaint]").click()
     time.sleep(0.3)
     d.save_screenshot(f"{OUT}/paint1.png")
     ActionChains(d).key_down(Keys.CONTROL).send_keys("z").key_up(Keys.CONTROL).perform()

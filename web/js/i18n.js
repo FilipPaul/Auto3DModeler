@@ -735,6 +735,7 @@ const CS = {
   'The part on screen — double-click to rename, drag to move the tab (out of the window: a new window)': 'Díl na obrazovce — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'Click to show it — double-click to rename, drag to move the tab (out of the window: a new window)': 'Kliknutím zobrazíte — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'No part open': 'Žádný díl není otevřený',
+  '↕ Plane at': '↕ Rovina ve',
   'The project: all its parts, as they go together — open one, open it in a new window, or delete it': 'Projekt: všechny jeho díly, jak do sebe patří — otevřít, otevřít v novém okně, nebo smazat',
   'Close the project tree': 'Zavřít strom projektu',
   'Click a part to open it — ⧉ in a new window, ✕ deletes it from the project.': 'Kliknutím díl otevřete — ⧉ v novém okně, ✕ ho smaže z projektu.',

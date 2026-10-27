@@ -104,7 +104,7 @@ try:
     print("direction from the edge:", js(f"return {M}.cmd.feature.dir"), "| Y button on:", js("return !!document.querySelector('#modelRight [data-ax=y].on')"))
     btn("#modelRight [data-ax=x]")
     settled()
-    btn("#modelRight [data-a=ok]")
+    btn("#modelViewport .view-actions [data-a=ok]")
     settled()
     print("tree:", js(f"return [...document.querySelectorAll('#modelLeft .mt-item')].map(e => e.innerText.replace(/\\n/g, ' '))"))
     print("volume:", round(vol(), 3), "| ok:", js(f"return {M}.result.ok"))
@@ -137,7 +137,7 @@ try:
     settled()
     print("axis from the boss:", js(f"return {M}.cmd.feature.axis"), "| 4 around:", round(vol(), 3), "| expected", round(base - 4 * math.pi * 9 * 5, 3))
     d.save_screenshot(f"{OUT}/pat2_around.png")
-    btn("#modelRight [data-a=ok]")
+    btn("#modelViewport .view-actions [data-a=ok]")
     settled()
 
     # the AI's way

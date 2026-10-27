@@ -99,7 +99,7 @@ try:
     print("whole parts:", d.find_element(By.CSS_SELECTOR, "#asmRight .mp-count").text)
     colour("#00aa00")
     print("the base's colour here:", js(f"return {A}.doc.instances.map(i => [i.id, i.colour || null])"))
-    d.find_element(By.CSS_SELECTOR, "#asmRight [data-a=donePaint]").click()
+    d.find_element(By.CSS_SELECTOR, "#asmViewport .view-actions [data-a=donePaint]").click()
     time.sleep(0.3)
 
     d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=section]").click()

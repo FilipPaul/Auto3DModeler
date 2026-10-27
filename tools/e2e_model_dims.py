@@ -56,7 +56,7 @@ def click_uv(uv):
 
 
 def tool(t):
-    d.find_element(By.CSS_SELECTOR, f".m-cmdbar [data-a={t}]").click()
+    d.find_element(By.CSS_SELECTOR, f".m-cmdbar [data-a={t}], #modelViewport .view-actions [data-a={t}]").click()
     time.sleep(0.2)
 
 
@@ -84,9 +84,9 @@ try:
     time.sleep(0.6)
     click_uv((0, 0))
     click_uv((40, 20))
-    d.find_element(By.CSS_SELECTOR, ".m-cmdbar [data-a=finish]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=finish]").click()
     wait(f"return {M}.cmd && {M}.result?.body && !{M}.inflight")
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=ok]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=ok]").click()
     wait(f"return !{M}.cmd && !{M}.inflight")
     time.sleep(0.5)
 
@@ -182,11 +182,11 @@ try:
     r = js(f"return {SK}.f.entities.find(e => e.t === 'circle').r")
 
     # finish and cut through: the hole is where the dimensions put it
-    d.find_element(By.CSS_SELECTOR, ".m-cmdbar [data-a=finish]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=finish]").click()
     wait(f"return {M}.cmd && !{M}.inflight")
     d.find_element(By.CSS_SELECTOR, "#modelRight input[data-k=through]").click()
     time.sleep(0.4)
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=ok]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=ok]").click()
     wait(f"return !{M}.cmd && !{M}.inflight")
     time.sleep(0.5)
     vol = js(f"return {M}.result.body.volume")

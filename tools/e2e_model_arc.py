@@ -72,7 +72,7 @@ def click_uv(uv):
 
 
 def tool(t):
-    d.find_element(By.CSS_SELECTOR, f".m-cmdbar [data-a={t}]").click()
+    d.find_element(By.CSS_SELECTOR, f".m-cmdbar [data-a={t}], #modelViewport .view-actions [data-a={t}]").click()
     time.sleep(0.2)
 
 
@@ -139,7 +139,7 @@ try:
     # finish and extrude
     tool("finish")
     settled()
-    btn = d.find_elements(By.CSS_SELECTOR, "#modelRight [data-a=ok]")
+    btn = d.find_elements(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=ok]")
     if btn:
         btn[0].click()
     settled()
@@ -174,7 +174,7 @@ try:
     time.sleep(0.8)
     a = arc_info()
     print("line 25:", a, "| tangent (centre straight above the line's end):", abs(a["c"][0] - 25) < 1e-3)
-    d.find_element(By.CSS_SELECTOR, ".m-cmdbar [data-a=cancelSketch]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=cancelSketch]").click()
     time.sleep(0.5)
 
     # a new sketch with an arc, not extruded: shown as lines in 3D

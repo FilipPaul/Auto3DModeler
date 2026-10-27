@@ -24,6 +24,7 @@ import { isStandard } from './assembly/fasteners.js';
 import { initSplitters } from './splitters.js';
 import { Autosave } from './autosave.js';
 import { Windows } from './windows.js';
+import { actionDock } from './actiondock.js';
 import { changed as projectChanged } from './history.js';
 
 initI18n();  // Czech / English: translates the page as it is built
@@ -2376,6 +2377,9 @@ var autosave = new Autosave({
   },
   onId: (id) => windows?.connect(id),
 });
+
+// OK / Cancel, ✓ Finish sketch, Done: in the bottom-right corner of each view
+for (const [vp, right] of [['modelViewport', 'modelRight'], ['asmViewport', 'asmRight'], ['shViewport', 'shRight'], ['dwgViewport', 'dwgRight']]) actionDock($(vp), [$(vp), $(right)]);
 
 // ⧉ a part in a window of its own (another monitor): every window has the project, a change in one goes to the others
 var windows = new Windows({
