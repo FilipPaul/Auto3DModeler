@@ -19,7 +19,6 @@
     </a>
     <div class="project-bar">
       <div class="file-name" id="fileName">No drawing loaded</div>
-      <div class="part-tabs" id="partTabs" hidden></div>
       <span class="autosave-state" id="autosaveState" hidden></span>
     </div>
     <div class="actions">
@@ -55,8 +54,10 @@
       <button class="btn lang-btn" id="langBtn" data-no-i18n title="Čeština / English">CZ</button>
     </div>
   </header>
+  <nav class="part-tabs" id="partTabs" hidden></nav>
 
   <main class="layout">
+    <div class="no-part"><b>No part open</b><span>☰ lists the parts of the project — click one to open it; ＋ adds a new one.</span></div>
     <aside class="panel left quick-only">
       <nav class="tabs">
         <button class="tab active" data-tab="params">Dimensions</button>

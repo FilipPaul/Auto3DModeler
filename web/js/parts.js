@@ -131,7 +131,15 @@ export class Project {
     cur.history = this.hooks.getHistory(cur.kind);
   }
 
+  /** The last tab closed: nothing on screen (the part stays live underneath, so nothing is lost); a part opened again
+   *  shows it. */
+  setNone(on) {
+    this.none = on;
+    this.hooks.showNone?.(on);
+  }
+
   async show(p, extra = {}) {
+    if (this.none) this.setNone(false);
     await this.hooks.load(p.data, { switching: true, kind: p.kind, ...extra });
     if (p.history) this.hooks.setHistory(p.history, p.kind);
     p.data = 'live';
@@ -158,6 +166,7 @@ export class Project {
   async switchTo(id) {
     const p = this.parts.find((q) => q.id === id);
     if (p?.closed) { delete p.closed; this.render(); } // opened again: its tab comes back
+    if (id === this.active && this.none) { this.setNone(false); this.render(); return; }
     if (id === this.active || this.busy) return;
     if (!p) return;
     this.busy = true;
@@ -178,7 +187,13 @@ export class Project {
   /** ✕ on a tab: the tab goes, the part stays in the project (☰ Parts opens it again). */
   async close(id) {
     const open = this.openParts, p = open.find((q) => q.id === id);
-    if (!p || open.length < 2 || this.busy) return;
+    if (!p || this.busy) return;
+    if (open.length < 2) { // the last tab: nothing on screen (☰ opens a part again)
+      if (id === this.active) this.setNone(true);
+      p.closed = true;
+      this.render();
+      return;
+    }
     if (id === this.active) {
       const i = open.indexOf(p);
       await this.switchTo((open[i + 1] || open[i - 1]).id);
@@ -211,6 +226,15 @@ export class Project {
     }
     this.parts = this.parts.filter((q) => q !== p);
     if (!this.openParts.length && this.parts.length) delete this.parts[0].closed;
+    this.render();
+  }
+
+  /** A tab dragged onto another: the part goes before it (after it: `after`). */
+  move(id, to, after = false) {
+    const p = this.parts.find((q) => q.id === id), q = this.parts.find((x) => x.id === to);
+    if (!p || !q || p === q) return;
+    this.parts.splice(this.parts.indexOf(p), 1);
+    this.parts.splice(this.parts.indexOf(q) + (after ? 1 : 0), 0, p);
     this.render();
   }
 
@@ -272,9 +296,29 @@ export class Project {
     const open = this.openParts;
     for (const p of open) {
       const tab = document.createElement('div');
-      tab.className = `part-tab ${p.kind}${p.id === this.active ? ' on' : ''}`;
+      tab.className = `part-tab ${p.kind}${p.id === this.active && !this.none ? ' on' : ''}`;
       tab.dataset.part = p.id;
-      tab.title = p.id === this.active ? 'The part on screen — double-click to rename' : 'Click to show this part — double-click to rename';
+      tab.title = p.id === this.active ? 'The part on screen — double-click to rename, drag to move the tab (out of the window: a new window)' : 'Click to show it — double-click to rename, drag to move the tab (out of the window: a new window)';
+      tab.draggable = true;
+      tab.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/a3d-part', p.id); e.dataTransfer.effectAllowed = 'move'; tab.classList.add('dragging'); });
+      tab.addEventListener('dragover', (e) => {
+        if (!e.dataTransfer.types.includes('text/a3d-part')) return;
+        e.preventDefault();
+        const r = tab.getBoundingClientRect(), after = e.clientX > r.left + r.width / 2;
+        tab.classList.toggle('drop-before', !after);
+        tab.classList.toggle('drop-after', after);
+      });
+      tab.addEventListener('dragleave', () => tab.classList.remove('drop-before', 'drop-after'));
+      tab.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const id = e.dataTransfer.getData('text/a3d-part'), r = tab.getBoundingClientRect();
+        this.move(id, p.id, e.clientX > r.left + r.width / 2);
+      });
+      tab.addEventListener('dragend', (e) => {
+        tab.classList.remove('dragging');
+        const out = e.clientX <= 0 || e.clientY <= 0 || e.clientX >= innerWidth || e.clientY >= innerHeight;
+        if (out && e.dataTransfer.dropEffect === 'none' && this.hooks.openWindow) this.hooks.openWindow(p.id); // dropped outside: its own window
+      });
       const name = document.createElement('span');
       name.className = 'pt-name';
       name.dataset.noI18n = '';
@@ -288,7 +332,7 @@ export class Project {
         w.addEventListener('click', (e) => { e.stopPropagation(); this.hooks.openWindow(p.id); });
         tab.appendChild(w);
       }
-      if (open.length > 1) {
+      {
         const x = document.createElement('button');
         x.className = 'pt-x';
         x.textContent = '✕';
@@ -322,6 +366,7 @@ export class Project {
   }
 
   editName(p, el) {
+    el.closest('.part-tab')?.classList.add('editing');
     el.contentEditable = 'true';
     el.focus();
     document.getSelection().selectAllChildren(el);

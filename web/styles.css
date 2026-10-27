@@ -19,6 +19,8 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; } /* .btn / .chip set display; hidden must still hide */
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden; }
+body { display: flex; flex-direction: column; }
+body > .topbar { flex: none; }
 button, input, select { font: inherit; color: inherit; }
 kbd { background: var(--panel-2); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; font-size: 11px; }
 code { background: var(--panel-2); padding: 0 4px; border-radius: 3px; }
@@ -34,9 +36,24 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 3px; }
 .brand:hover .brand-by { color: var(--text); }
 .project-bar { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; }
 .file-name { color: var(--muted); flex: 0 1 auto; max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.part-tabs { display: flex; align-items: center; gap: 4px; min-width: 0; }  /* tabs shrink rather than scroll: the ＋ menu must not be clipped */
-.part-tab { display: flex; align-items: center; gap: 4px; padding: 4px 6px 4px 10px; border: 1px solid var(--line); border-radius: 6px 6px 0 0;
-  background: var(--bg); color: var(--muted); cursor: pointer; white-space: nowrap; max-width: 180px; min-width: 48px; flex: 0 1 auto; }
+/* the part tabs: a row of their own under the top bar, more rows when they do not fit (every name readable) */
+.part-tabs { flex: none; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 3px; padding: 4px 10px 0; background: var(--panel);
+  border-bottom: 1px solid var(--line); }
+.part-tabs[hidden] { display: none; }
+.part-tab { display: flex; align-items: center; gap: 2px; padding: 3px 4px 3px 9px; border: 1px solid var(--line); border-bottom: 0;
+  border-radius: 6px 6px 0 0; font-size: 12.5px; background: var(--bg); color: var(--muted); cursor: pointer; white-space: nowrap;
+  max-width: 200px; min-width: calc(5ch + 42px); flex: 0 1 auto; }
+.part-tab.on, .part-tab.editing { max-width: 420px; }
+.part-tab.dragging { opacity: .45; }
+.part-tab.drop-before { box-shadow: inset 3px 0 0 var(--accent); }
+.part-tab.drop-after { box-shadow: inset -3px 0 0 var(--accent); }
+.part-tab .pt-x { opacity: .35; }
+.part-tab:hover .pt-x, .part-tab.on .pt-x { opacity: 1; }
+.no-part { display: none; }
+body.none-open .layout > :not(.no-part) { visibility: hidden; }
+body.none-open .no-part { display: flex; position: absolute; inset: 0; z-index: 5; align-items: center; justify-content: center; flex-direction: column;
+  gap: 6px; color: var(--muted); text-align: center; }
+body.none-open .no-part b { color: var(--text); font-size: 16px; }
 .part-tab:hover { color: var(--text); }
 .part-all { position: relative; flex: none; }
 .part-all .menu-list { left: 0; right: auto; }
@@ -53,8 +70,8 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 3px; }
 .part-tab .pt-name[contenteditable=true] { outline: 1px solid var(--accent); background: var(--bg); padding: 0 3px; text-overflow: clip; }
 .part-tab .pt-x { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 3px; font-size: 11px; border-radius: 3px; }
 .part-tab .pt-x:hover { color: var(--text); background: var(--line); }
-.part-tab .pt-win { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 2px; font-size: 11px; border-radius: 3px; opacity: 0; }
-.part-tab:hover .pt-win, .part-tab.on .pt-win { opacity: 1; }
+.part-tab .pt-win { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 2px; font-size: 11px; border-radius: 3px; visibility: hidden; }
+.part-tab:hover .pt-win, .part-tab.on .pt-win { visibility: visible; }
 .part-tab .pt-win:hover { color: var(--text); background: var(--line); }
 .part-add { position: relative; flex: none; }
 .part-add .menu-list { left: 0; right: auto; }
@@ -77,7 +94,7 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 3px; }
 .menu-list button { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 8px 10px; border-radius: 5px; cursor: pointer; }
 .menu-list button:hover { background: #2b3340; }
 
-.layout { display: grid; grid-template-columns: var(--left-w, 340px) minmax(0, 1fr) var(--right-w, 310px); height: calc(100% - 48px); position: relative; }
+.layout { display: grid; grid-template-columns: var(--left-w, 340px) minmax(0, 1fr) var(--right-w, 310px); flex: 1; min-height: 0; position: relative; }
 .panel { background: var(--panel); overflow-y: auto; }
 .panel.left { border-right: 1px solid var(--line); display: flex; flex-direction: column; }
 .panel.right { border-left: 1px solid var(--line); padding: 12px 14px; }

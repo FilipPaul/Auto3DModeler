@@ -143,7 +143,7 @@ try:
     settled()
     tab(0).find_element(By.CSS_SELECTOR, ".pt-x").click()
     wait("return document.querySelectorAll('#partTabs .part-tab').length === 1")
-    print("after closing the tab:", tabs(), "| ✕ hidden on the last tab:", not tab(0).find_elements(By.CSS_SELECTOR, ".pt-x"),
+    print("after closing the tab:", tabs(), "| ✕ on the last tab too (closes it: nothing on screen):", bool(tab(0).find_elements(By.CSS_SELECTOR, ".pt-x")),
           "| still in the project:", js("return window.__app.project.parts.map(p => p.name + (p.closed ? ' (closed)' : ''))"))
     d.save_screenshot(f"{OUT}/p2_after_close.png")
     # ☰ Parts: every part — the closed one opens again (a tab), the state is saved with the project

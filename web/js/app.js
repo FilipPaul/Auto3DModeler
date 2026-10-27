@@ -1738,6 +1738,7 @@ const project = new Project($('partTabs'), {
     else { Object.assign(history, h); history.updateUI(); }
   },
   openWindow: (id) => windows.open(id).catch((e) => toast(e.message, 'warning', 7000)),
+  showNone: (on) => document.body.classList.toggle('none-open', on), // the last tab closed
   toast,
 });
 

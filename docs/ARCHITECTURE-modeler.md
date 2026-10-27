@@ -80,6 +80,10 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Part tabs in their own row done:** #partTabs is a strip under the top bar (body a flex column, .layout flex 1),
+  wrapping into rows; a tab ≥ 5 letters + its buttons, up to 200 px (on screen / renaming: 420 px); tabs draggable
+  (Project.move; dropped outside the window: hooks.openWindow); ✕ on the last tab too — Project.setNone: the part
+  stays live underneath, body.none-open shows "No part open", switchTo / show bring it back. tools/e2e_tabs.py.
 - **One item numbering per drawing set done:** SheetEditor.itemNumbers(root) — the top assembly's parts 1…n, then each
   sub-assembly's new ones in page order; assemblyPage numbers its rows (and balloons) by the set's root (rootOf), so a
   part has one number on every page (the cache key carries the numbering). e2e_drawing_set checks Machine 1–3, Lid unit 4, 5.
