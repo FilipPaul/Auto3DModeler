@@ -131,16 +131,26 @@ class TestMcpServer(unittest.TestCase):
             text = files[0].read_text(encoding="utf-8")
             for part in ("# Paint does not show in the assembly", "**Date:**", "## What happened", "## What was expected", "## Steps"):
                 self.assertIn(part, text)
+            from auto3d import version
+            self.assertIn(f"- **App version:** {version.text()}", text)  # the build it came from, written by the server
+            self.assertTrue(version.text().startswith(version.VERSION))
             self.assertIn("RealSWReports/", r["text"])
             with self.assertRaises(ValueError):
                 server.tool_report_problem({"title": "", "what": "x"})
+
+    def test_version_route(self):
+        import server
+        from auto3d import version
+        r = server.app.test_client().get("/api/version").get_json()
+        self.assertEqual(r["version"], version.VERSION)
+        self.assertEqual(r["text"], version.text())
 
     def test_tool_schemas(self):
         for t in mcp_tool_list():
             self.assertEqual(t["inputSchema"]["type"], "object", t["name"])
             self.assertTrue(t["description"])
         self.assertIn("get_part", BROWSER_TOOLS)
-        for name in ("set_look", "paint_faces", "move_free", "set_travel", "check_travel", "save_to_library", "library_search", "library_add", "check_collisions"):
+        for name in ("set_look", "paint_faces", "move_free", "set_travel", "check_travel", "gui_state", "gui_action", "save_to_library", "library_search", "library_add", "check_collisions"):
             self.assertIn(name, BROWSER_TOOLS)
         self.assertNotIn("report_problem", BROWSER_TOOLS)  # the server writes it
         self.assertNotIn("trace_picture", BROWSER_TOOLS)

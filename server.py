@@ -981,7 +981,9 @@ def tool_report_problem(args):
     slug = re.sub(r"[^a-z0-9]+", "-", title.lower().encode("ascii", "ignore").decode()).strip("-")[:60] or "report"
     REPORTS.mkdir(parents=True, exist_ok=True)
     path = REPORTS / f"{time.strftime('%Y-%m-%d-%H%M%S', now)}-{slug}.md"
-    parts = [f"# {title}", "", f"- **Date:** {time.strftime('%Y-%m-%d %H:%M:%S', now)}", "- **Reported by:** the AI agent (MCP report_problem)", "",
+    from auto3d import version
+    parts = [f"# {title}", "", f"- **Date:** {time.strftime('%Y-%m-%d %H:%M:%S', now)}", f"- **App version:** {version.text()}",
+             "- **Reported by:** the AI agent (MCP report_problem)", "",
              "## What happened", "", what]
     for key, head in (("expected", "What was expected"), ("steps", "Steps"), ("workaround", "Workaround")):
         if str(args.get(key) or "").strip():
@@ -992,6 +994,13 @@ def tool_report_problem(args):
 
 SERVER_TOOLS = {"open_file": tool_open_file, "report_problem": tool_report_problem, "open_sample": tool_open_sample, "trace_picture": tool_trace_picture,
                 "use_outline": tool_use_outline, "export": tool_export}
+
+
+@app.get("/api/version")
+def api_version():
+    """The app's version and the git commit it runs from."""
+    from auto3d import version
+    return jsonify({**version.build(), "text": version.text()})
 
 
 @app.post("/api/agent/call")

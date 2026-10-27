@@ -453,7 +453,13 @@ can open them.
   parts renamed or deleted, and files: `export` stl / step / pdf / **3mf** / **bom** / **dxf**.
 - **Problem reports**: when something in the app does not behave as expected, the AI writes a dated report
   (`report_problem`) into **RealSWReports/** next to `server.py`: what happened, what was expected, the steps, the
-  workaround. It cannot write files itself (no file tools), so the server writes them.
+  workaround. It cannot write files itself (no file tools), so the server writes them — with the **app version** it
+  came from (`auto3d/version.py`: VERSION and the git commit, e.g. *0.9.0 (main @ 2900fde, 2026-10-27)*; also
+  `/api/version`).
+- **The GUI for the AI**: `gui_state` lists what you see (every button, slider, box, joint name, its state, greyed
+  out or not) so the AI can tell you exactly where something is; `gui_action` clicks or slides one the way the mouse
+  does — so it can check the app behaves like its tools. A **locked 🔒 joint** is greyed out in the panel (only 🔒
+  unlocks it) and the AI cannot change it either.
 - **Library first**: Claude designs like a mechanical engineer. Every bought part (screws, nuts, inserts, bearings,
   standoffs, panel parts, SMC pneumatics, SICK sensors, motors) comes from the 📚 parts library (`library_search`,
   `library_add`), with its real part number in the BOM. Only the parts to be printed are drawn, around the bought ones.

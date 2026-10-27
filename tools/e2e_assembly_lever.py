@@ -3,7 +3,9 @@
 held": it moves with the bearing ("Turn about … — with Bearing"), its slider / move_free turn the bearing and the arm
 goes along -> 🔓 free / 🔒 locked on a flat joint: locked, the bearing is fully held; free again -> a joint named by
 a double-click ("ložisko na tyč"), shown in get_assembly; edit_joint name -> Explode with Respect joints: the bearing
-and the arm go along with the base; without the touch the bearing comes off the shaft only along its axis.
+and the arm go along with the base; without the touch the bearing comes off the shaft only along its axis -> a locked
+joint: its row greyed, edit_joint refuses changes, get_assembly says locked -> the AI's gui_state (the toolbar, the
+panel) and gui_action (⚠ Collisions opens its panel; a greyed slider refused; the drive slider turns the bearing).
 
   PYTHONIOENCODING=utf-8 py tools/e2e_assembly_lever.py http://127.0.0.1:5199 <out dir>
 """
@@ -126,6 +128,28 @@ try:
     js(f"{A}.explodeRespect = false; {A}.exDirs = null; {A}.draw()")
     o = {r[0]: [round(r[k + 1] - pos0[r[0]][k], 2) for k in range(3)] for r in off()}
     print("  not respecting: the bearing's own pull", [round(o["I2"][k] - o["I1"][k], 2) for k in range(3)])
+
+    # a locked joint: nothing in its row changes it; the AI gets `locked`, and its changes are refused
+    js(f"{A}.explode = 0; {A}.render(); {A}.draw()")
+    print("edit_joint locked:", json.loads(call("edit_joint", id="J3", locked=True)).get("locked"))
+    print("  then an angle:", call("edit_joint", id="J3", angle=10)[:70])
+    pick("I3")
+    print("  its row: inputs greyed", all(not e.is_enabled() for e in row("J3").find_elements(By.CSS_SELECTOR, "input, [data-jrot], [data-jflip]")),
+          "| 🔒 still clickable:", row("J3").find_element(By.CSS_SELECTOR, "[data-jlock]").is_enabled())
+
+    # what the user sees, for the AI: gui_state / gui_action
+    g = json.loads(call("gui_state", where="tools"))
+    print("gui_state tools:", [c["label"] for c in g["controls"]][:12])
+    print("gui_action Collisions:", json.loads(call("gui_action", control="Collisions"))["done"], "| panel:", d.find_element(By.CSS_SELECTOR, "#asmRight h2").text)
+    print("  gui_state panel:", [c["label"] for c in json.loads(call("gui_state", where="panel"))["controls"]][:6])
+    call("gui_action", control="Close")
+    pick("I3")
+    sp = next(c for c in json.loads(call("gui_state", where="panel"))["controls"] if c["kind"] == "slider" and "J3" in c["label"] or c["kind"] == "slider" and "↻" in c["label"] and c.get("disabled"))
+    print("  a greyed slider:", sp["label"][:50], "->", call("gui_action", control=sp["n"], value=20)[:60])
+    drive = next(c for c in json.loads(call("gui_state", where="panel"))["controls"] if c["kind"] == "slider" and "with Bearing" in c["label"])
+    m1 = js(f"return {A}.inst('I2').matrix.map(v => +v.toFixed(2))")
+    print("  the drive slider:", drive["label"][:60], "|", json.loads(call("gui_action", control=drive["n"], value=float(drive["state"]) + 5))["done"][:60],
+          "| the bearing moved:", js(f"return {A}.inst('I2').matrix.map(v => +v.toFixed(2))") != m1)
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()

@@ -64,6 +64,10 @@ Date: 2026-10-25. Written by the architect agent.
   /api/projects routes; web/js/autosave.js (History.commit / go and the quick part's history fire `a3d:changed`; saved
   3 s later if the project file changed, a beacon on pagehide; 🕘 Recent projects; the last one offered). A3D_DATA
   points a server at another data folder (test servers). tests/test_autosave.py, tools/e2e_autosave.py.
+- **Reports with the version, the GUI for the AI, locked joints done:** auto3d/version.py (VERSION 0.9.0 + git
+  commit / date / local changes) in every report and /api/version; agent_more guiControls / gui_state / gui_action
+  (one numbering of the visible controls, the chat left out; a greyed one refused); a locked joint's row greyed,
+  edit_joint refuses it, `locked` in get_assembly. tests: test_report_problem, test_version_route; e2e_assembly_lever.
 - **Joints named, the turn lock shown, explode along the joints, driving through a fixed part done:** a joint's
   `name` (double-click, edit_joint / snap_faces name); 🔓 free / 🔒 locked by every ↻ slider (m.angle; parallel has
   none); motionsOf: a part fully held on one part that can move gets that part's motions (`via`; moveFree, motionPos,

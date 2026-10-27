@@ -1178,7 +1178,7 @@ export class Assembly {
         ${why ? `<span class="as-jwhy" data-no-i18n>⚠ ${esc(why)}</span>` : ''}
         ${val}<span class="as-jbtn"><button class="mini ${m.locked ? 'on' : ''}" data-jlock="${m.id}" title="${m.locked ? 'Locked: moving the part by hand cannot break it — click to unlock' : 'Lock it: then it cannot be broken by moving the part'}">${m.locked ? '🔒' : '🔓'}</button><button class="mini danger" data-jdel="${m.id}" title="Remove this joint (the part stays where it is)" ${m.locked ? 'disabled' : ''}>✕</button></span>
         ${this.gapSlider(m)}
-        ${turns ? `<label class="as-jspin" title="Turn the part about this joint (about the axis, or on the face) — sliding it locks the turn there">↻ <input type="range" min="-180" max="180" step="1" list="as-ticks" data-jspin="${m.id}" value="${spin}">
+        ${turns ? `<label class="as-jspin" title="${rot ? 'The angle its turn is locked at, against the other part — to turn both, use Moves of the part they are on' : 'Turn the part about this joint (about the axis, or on the face) — sliding it locks the turn there'}">↻ <input type="range" min="-180" max="180" step="1" list="as-ticks" data-jspin="${m.id}" value="${spin}">
         <input type="number" step="any" data-jspinn="${m.id}" value="${spin}">°<button class="mini as-jrot ${rot ? 'on' : ''}" data-jrot="${m.id}" title="${rot ? 'Its turn is locked here — click to let it turn freely' : 'It may turn freely — click to lock its turn where it is now'}">${rot ? '🔒 locked' : '🔓 free'}</button></label>` : ''}</div>`;
     }).join('')}</div>`;
   }
@@ -1250,6 +1250,9 @@ export class Assembly {
   }
 
   bindJointRows(box) {
+    for (const row of box.querySelectorAll('.as-jrow.locked[data-jrow]')) { // locked 🔒: only unlocking changes it
+      for (const el of row.querySelectorAll('input, button:not([data-jlock])')) { el.disabled = true; el.title = 'Locked 🔒 — unlock the joint to change it'; }
+    }
     for (const row of box.querySelectorAll('[data-frow]')) {
       const ids = (this.doc.mates || []).filter((m) => this.inst(m.move)?.fastener?.id === row.dataset.frow).map((m) => m.id);
       row.addEventListener('mouseenter', () => { this.hoverJoint = ids; this.drawMarks(); });
@@ -2268,7 +2271,7 @@ export class Assembly {
       }),
       joints: (this.doc.mates || []).map((m) => ({ id: m.id, ...(m.name ? { name: m.name } : {}), type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
         ...(m.type === 'axis' ? { distance: Number.isFinite(m.dist) ? m.dist : null } : { gap: m.gap || 0 }), ...(m.type !== 'parallel' ? { rotation_locked: Number.isFinite(m.angle) } : {}), ...(m.broken ? { broken: true } : {}),
-        ...(this.inst(m.move)?.fastener ? { fastener: this.inst(m.move).fastener.id } : {}), ...(this.whyNot(m) ? { not_held: this.whyNot(m) } : {}) })),
+        ...(m.locked ? { locked: true } : {}), ...(this.inst(m.move)?.fastener ? { fastener: this.inst(m.move).fastener.id } : {}), ...(this.whyNot(m) ? { not_held: this.whyNot(m) } : {}) })),
       fasteners: [...new Map(this.doc.instances.filter((i) => i.fastener).map((i) => [i.fastener.id, i.fastener])).values()].map((f) => ({ id: f.id, text: f.text,
         parts: this.doc.instances.filter((i) => i.fastener?.id === f.id).map((i) => i.id), ...(f.bolt ? { drilled_holes: true } : {}) })),
       parts_list: this.bom().map((r) => ({ name: r.name, qty: r.qty, material: r.material, mass_g_each: r.mass === null || !Number.isFinite(r.mass) ? null : +r.mass.toFixed(2),

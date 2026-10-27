@@ -31,6 +31,29 @@ export function colouredGroups(body, { base = '#d9dee6', paint = [], matrix = nu
   return [...groups].map(([color, positions]) => ({ name: many ? `${name} (${color})` : name, color, positions }));
 }
 
+/** The controls the user sees now (buttons, sliders, boxes, choices; not the AI chat): [{n, kind, label, title,
+ *  state, disabled, where, el}] — where: bar (the top bar), tools (the workspace's toolbar), panel (its side panels). */
+export function guiControls(where = 'all') {
+  const out = [], seen = new Set();
+  const shown = (el) => { if (!el.offsetParent && getComputedStyle(el).position !== 'fixed') return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+  const area = (el) => (el.closest('.topbar, header') ? 'bar' : el.closest('.m-cmdbar, .cmdbar, [class*=toolbar]') ? 'tools' : 'panel');
+  for (const el of document.querySelectorAll('button, input, select, [data-jname], .chip')) {
+    if (seen.has(el) || el.closest('#aiDrawer, #tab-ai, .ai-drawer') || !shown(el)) continue;
+    if (el.tagName === 'INPUT' && el.type === 'hidden') continue;
+    seen.add(el);
+    const lab = el.closest('label'), row = el.closest('[data-jrow], .as-dof, .field');
+    let label = (el.tagName === 'INPUT' || el.tagName === 'SELECT' ? (lab?.textContent || el.placeholder || el.dataset.k || '') : el.textContent || el.title || '').replace(/\s+/g, ' ').trim();
+    if ((el.tagName === 'INPUT' || el.tagName === 'SELECT') && row && row !== lab) label = `${(row.querySelector('label, .as-jt')?.textContent || '').replace(/\s+/g, ' ').trim()} › ${label}`.trim();
+    if (!label) label = el.getAttribute('aria-label') || el.title || el.className || el.tagName.toLowerCase();
+    const kind = el.tagName === 'SELECT' ? 'choice' : el.tagName === 'INPUT' ? (el.type === 'range' ? 'slider' : el.type === 'checkbox' ? 'checkbox' : 'box') : el.dataset.jname ? 'name' : 'button';
+    const a = area(el);
+    out.push({ n: out.length + 1, kind, label: label.slice(0, 90), title: (el.title || '').slice(0, 120) || undefined,
+      state: kind === 'checkbox' ? (el.checked ? 'on' : 'off') : kind === 'button' || kind === 'name' ? (el.classList.contains('on') ? 'on' : undefined) : String(el.value),
+      ...(kind === 'slider' ? { min: +el.min, max: +el.max } : {}), disabled: !!el.disabled || undefined, where: a, el });
+  }
+  return where === 'all' ? out : out.filter((c) => c.where === where); // (n: one numbering for all)
+}
+
 export function moreHandlers({ state, project, modeler, assembly, drawing2d, t2 }) {
   const need = (ws, what) => { if (state.workspace !== ws) throw new Error(`${what} — the part on screen is not one (open_part one).`); };
   const D = () => { need('drawing', 'This is for a 2D drawing (a DXF / DWG / Gerber / ODB++ opened as a 📐 drawing)'); return drawing2d; };
@@ -131,11 +154,39 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, t2 
       return ok(`${pick.length} shape(s) used as ${as === 'sketch' ? 'the sketch of a new 3D model (on screen now: get_model)' : 'a quick part (on screen now: get_part)'}.`);
     },
 
+    // ---------------------------------------------------------------- the GUI as the user sees it
+    gui_state: async ({ where = 'all' } = {}) => {
+      const list = guiControls(where);
+      return ok({ workspace: state.workspace, controls: list.map(({ el, ...c }) => c),
+        toasts: [...document.querySelectorAll('.toast')].map((x) => x.textContent.trim()).slice(-3) });
+    },
+    gui_action: async ({ control, click, value }) => {
+      const list = guiControls('all'), key = String(control ?? '').trim().toLowerCase();
+      const c = list.find((x) => String(x.n) === key) || list.find((x) => x.label.toLowerCase() === key) || list.find((x) => x.label.toLowerCase().includes(key));
+      if (!c) throw new Error(`No control “${control}” on screen — gui_state lists them (n or label).`);
+      if (c.disabled) throw new Error(`“${c.label}” is greyed out (disabled)${c.title ? `: ${c.title}` : ''}.`);
+      const el = c.el;
+      if (value !== undefined && value !== null && /^(range|number|text|color)$/.test(el.type || '') || el.tagName === 'SELECT') {
+        el.value = value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      } else if (click !== false) {
+        el.dispatchEvent(new MouseEvent('mouseenter'));
+        el.click();
+      }
+      await new Promise((r) => setTimeout(r, 400));
+      return ok({ done: `${c.kind} “${c.label}”${value !== undefined ? ` = ${value}` : ' clicked'}`, workspace: state.workspace,
+        toasts: [...document.querySelectorAll('.toast')].map((x) => x.textContent.trim()).slice(-3) });
+    },
+
     // ---------------------------------------------------------------- joints and measuring (assembly)
     edit_joint: async ({ id, gap, distance, lock_rotation, angle, flip, locked, name }) => {
       need('assembly', 'Joints are in an assembly');
       const a = assembly, m = (a.doc.mates || []).find((x) => x.id === id);
       if (!m) throw new Error(`No joint ${id} — get_assembly lists the joints.`);
+      if (m.locked && locked !== false && [gap, distance, lock_rotation, angle, flip].some((v) => v !== undefined && v !== false)) {
+        throw new Error(`Joint ${id} is locked 🔒 — edit_joint {id, locked: false} first (only when the user wants it).`);
+      }
       if (gap !== undefined) { m.gap = +gap; if (m.type === 'touch' && +gap) m.type = 'gap'; }
       if (distance !== undefined) {
         if (m.type !== 'axis') throw new Error('distance is for a concentric (axis) joint; flat joints take gap.');

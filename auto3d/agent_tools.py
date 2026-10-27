@@ -354,6 +354,17 @@ TOOLS = [
                     "empty: none).",
      "inputSchema": _obj({"id": STR, "gap": NUM, "distance": {"type": ["number", "null"]}, "lock_rotation": {"type": "boolean"}, "angle": NUM,
                           "flip": {"type": "boolean"}, "locked": {"type": "boolean"}, "name": STR}, ["id"])},
+    {"name": "gui_state", "where": "browser",
+     "description": "What the user sees on screen now: every visible control (buttons, sliders, boxes, choices, joint names — not the "
+                    "AI chat) with its number n, label, tooltip, state (on / a value / checked) and whether it is greyed out; where: "
+                    "bar (top bar), tools (the workspace's toolbar), panel (side panels) or all. Use it to tell the user exactly "
+                    "where something is, and with gui_action to check the GUI does what the tools do.",
+     "inputSchema": _obj({"where": {"type": "string", "enum": ["all", "bar", "tools", "panel"]}})},
+    {"name": "gui_action", "where": "browser",
+     "description": "Do what the user's mouse does on a control from gui_state (its n, or its label / part of it): a click on a "
+                    "button / checkbox, or a slider / box / choice set to `value` (as dragged or typed, then let go). -> what was "
+                    "done and the messages shown. Then get_assembly / gui_state / get_screenshot tell what changed.",
+     "inputSchema": _obj({"control": {}, "value": {}, "click": {"type": "boolean"}}, ["control"])},
     {"name": "remove_joint", "where": "browser", "description": "Remove a joint (id J…) of the assembly on screen; the part stays where it is.",
      "inputSchema": _obj({"id": STR}, ["id"])},
     {"name": "measure", "where": "browser",
@@ -401,6 +412,7 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 - **3D models** are built like in SolidWorks: sketches (rectangles, circles, polylines with locked sizes) turned into a solid by extrude / revolve, then holes, fillets, chamfers, shells — for mechanical parts. Tools: new_model, get_model, find_refs, add_feature, edit_feature, delete_feature, turn_off_feature, set_material, prepare_print. mm; the bed is the XY plane.
 - **Assemblies** place 3D model parts together: new_assembly, get_assembly, insert_part, snap_faces (joints: touch, gap, axis = concentric…), place_part, remove_from_assembly, check_collisions. get_assembly says for each joined part how it can still move (free) or that it is fully held.
 - **2D drawings** (a DXF / DWG, or a PCB's Gerber / ODB++ opened as a 📐 drawing — open_file opens them, also a folder of loose Gerber files): get_drawing, drawing_find (shapes by filters), drawing_delete, drawing_add (lines, circles), drawing_units, drawing_layers (show / hide, colour, a new layer), drawing_set_size, drawing_use (as the sketch of a 3D model, or a quick part).
+- The GUI: gui_state lists what the user sees (buttons, sliders, their state); gui_action clicks / slides one as the user would — use them to tell the user where something is and to check the GUI behaves like the tools.
 - Assemblies also: edit_joint / remove_joint, measure (between faces), move_free; set_travel (a free motion's limits: a cylinder's stroke) and check_travel (collisions along it); the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, delete_part (only when asked). Files: export stl / step / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf.
 - **The parts library** holds real, bought parts with their maker and part number (screws, nuts, washers, inserts, bearings, standoffs, panel parts, SMC pneumatics, SICK sensors, stepper motors, the user's own): library_search, library_add.
 - Both: get_screenshot, check_print, export, undo. Opening a file or tracing a picture adds a new quick part tab.

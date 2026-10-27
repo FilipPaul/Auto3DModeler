@@ -128,7 +128,9 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_assembly_lever.py <url> <dir>` covers a lever fixed on a bearing on a shaft (the arm moves "— with
    Bearing": move_free and its slider turn the bearing, the arm goes along), 🔓 free / 🔒 locked on a touch joint
    (locked: the bearing fully held), a joint named by double-click and by edit_joint, and Explode with Respect joints
-   (all go along with the base; without the touch the bearing only along the shaft's axis).
+   (all go along with the base; without the touch the bearing only along the shaft's axis), a locked joint (row
+   greyed, edit_joint refused, `locked` reported) and the AI's gui_state / gui_action (⚠ Collisions opened by its
+   label, a greyed slider refused, the drive slider moves the bearing).
    `tools/e2e_ai_drawing.py <url> <dir>` covers the AI's open_file of a Gerber .zip (a 📐 drawing, its PCB layers), a
    folder of loose Gerber files (one board), a DXF (a drawing; as "part": a quick part, 60 × 40 mm), drawing_find +
    drawing_delete of the drill holes, drawing_layers new + colour, drawing_add (and a wrong layer refused),
