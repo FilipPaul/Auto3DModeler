@@ -80,6 +80,9 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Drawings of big imported parts done:** project_edges of a shape over HEAVY_FACES: HLRBRep_PolyAlgo on its mesh
+  (kept, not meshed again), the pieces chained, no hidden lines (a grey wash on a board) — the 42 MB board's sheet
+  296 s -> 19 s, 17 -> 8 MB; dimensions still from the exact edges.
 - **Quick collisions with big imported parts done:** kernel.placed gives a location (shape.Moved), no copy — a 42 MB
   board (24 290 faces, 1170 solids) cost 1.3 s a placed copy, now 0.09 s (10 copies apart 8.9 -> 0.9 s); interference
   goes solid by solid (only solids whose boxes meet); quick (the background check after a change): a pair meeting in

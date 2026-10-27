@@ -943,19 +943,67 @@ def _face_info(f, fi, rev, rough=None):
     return info
 
 
+def _chain(segs, tol=1e-6):
+    """Line pieces [[p, q]] -> polylines joining the ones that meet end to start (a mesh's outline is many pieces)."""
+    out, cur = [], None
+    for a, b in segs:
+        if cur and abs(cur[-1][0] - a[0]) < tol and abs(cur[-1][1] - a[1]) < tol:
+            cur.append(b)
+        else:
+            cur = [a, b]
+            out.append(cur)
+    return out
+
+
+def _project_poly(shape, ax, flip, size):
+    """Hidden-line removal on the shape's mesh (a big imported model: the exact one takes minutes) -> (visible, no hidden)."""
+    from OCP.HLRAlgo import HLRAlgo_Projector
+    from OCP.HLRBRep import HLRBRep_PolyAlgo, HLRBRep_PolyHLRToShape
+    ex = TopExp_Explorer(shape, TopAbs_FACE)
+    if ex.More() and BRep_Tool.Triangulation_s(TopoDS.Face(ex.Current()), TopLoc_Location()) is None:  # (meshed for the view already: kept)
+        BRepMesh_IncrementalMesh(shape, max(size * 0.004, 0.002), False, 0.6, True)
+    algo = HLRBRep_PolyAlgo()
+    algo.Load(shape)
+    algo.Projector(HLRAlgo_Projector(ax))
+    algo.Update()
+    hl = HLRBRep_PolyHLRToShape()
+    hl.Update(algo)
+
+    def pieces(comp):
+        segs = []
+        if comp is None or comp.IsNull():
+            return segs
+        ex = TopExp_Explorer(comp, TopAbs_EDGE)
+        while ex.More():
+            e = TopoDS.Edge(ex.Current())
+            c = BRepAdaptor_Curve(e)
+            p, q = c.Value(c.FirstParameter()), c.Value(c.LastParameter())
+            segs.append([(p.X(), -p.Y() if flip else p.Y()), (q.X(), -q.Y() if flip else q.Y())])
+            ex.Next()
+        return _chain(segs)
+
+    # no hidden lines: on a model this big they are a dense grey wash (and hundreds of thousands of pieces)
+    return pieces(hl.VCompound()) + pieces(hl.OutLineVCompound()), []
+
+
 def project_edges(shape, look, right, up):
     """The visible and hidden edges of the shape seen along `look` (hidden-line removal) -> ([[(x, y)…]…], [[…]…])
-    in mm, in the view's axes: x along `right`, y along `up`."""
+    in mm, in the view's axes: x along `right`, y along `up`. A big imported model (more than HEAVY_FACES faces) is
+    projected from its mesh (seconds, not minutes; its lines a hair less smooth)."""
     from OCP.BRepLib import BRepLib
     from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt
     from OCP.HLRAlgo import HLRAlgo_Projector
     from OCP.HLRBRep import HLRBRep_Algo, HLRBRep_HLRToShape
     from OCP.GeomAbs import GeomAbs_Line
 
-    algo = HLRBRep_Algo()
-    algo.Add(shape)
     # the projector looks against its axis' direction: the axis points at the viewer
     ax = gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(*[-c for c in look]), gp_Dir(*right))
+    up_v0 = np.cross(np.asarray([-c for c in look], float), np.asarray(right, float))
+    if face_count(shape) > HEAVY_FACES:
+        bb = bbox(shape) or [0, 0, 0, 1, 1, 1]
+        return _project_poly(shape, ax, float(up_v0 @ np.asarray(up, float)) < 0, max(bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2], 1e-6))
+    algo = HLRBRep_Algo()
+    algo.Add(shape)
     algo.Projector(HLRAlgo_Projector(ax))
     algo.Update()
     algo.Hide()
