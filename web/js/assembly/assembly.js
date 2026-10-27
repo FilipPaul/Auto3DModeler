@@ -10,6 +10,8 @@
 //               "angle": 0 (its turn locked there), "name": "bearing on the shaft" (the user's own)}],
 //    "bolts": [{"id": "B1", "text": "M3×20 screw + M3 nut", "holes": [{"part": "P2", "feature": {the hole step drilled}}]}]}
 //   an instance's "travel": {"J2:along": {"min": 0, "max": 25}} — the limits of a free motion (motionsOf keys)
+//   "light": {"P3": true | false} — 🪶 a part shown simplified (true) or with full data (false); not said: a big
+//   imported part (thousands of faces) is simplified
 import * as THREE from 'three';
 import { History } from '../history.js';
 import { t } from '../i18n.js';
@@ -1133,10 +1135,17 @@ export class Assembly {
     return `<div class="field"><label>Colour</label><input type="color" data-look="colour" value="${hex}"></div>
       <div class="field mp-look"><label>See-through</label><input type="range" min="0" max="90" step="5" data-look="clear" value="${pc}"><span class="unit">${pc} %</span></div>
       <p class="hint">${own ? 'Its own look in this assembly.' : data.color || Number.isFinite(data.opacity) ? "As its part (set in the part's panel)." : 'The assembly colours.'}</p>
-      ${own ? '<div class="row-actions"><button class="btn small" data-look="reset">↺ As its part</button></div>' : ''}`;
+      ${own ? '<div class="row-actions"><button class="btn small" data-look="reset">↺ As its part</button></div>' : ''}
+      ${this.kindOf(it.part) === 'model' ? `<label class="check as-light" title="${esc(t('Simplified: a coarser mesh and less data — quicker to load and show; its joints still work, its edges cannot be picked. Collisions and drawings use the full part.'))}">
+        <input type="checkbox" data-look="light" ${this.bodies[it.part]?.body?.light ? 'checked' : ''}> 🪶 ${esc(t('Simplified'))}${this.doc.light?.[it.part] === undefined && this.bodies[it.part]?.body?.light ? ` <i>${esc(t('(a big part: by itself)'))}</i>` : ''}</label>` : ''}`;
   }
 
   bindLook(box, it) {
+    box.querySelector('[data-look=light]')?.addEventListener('change', async (e) => { // 🪶 simplified / full data, for every copy of the part
+      this.doc.light = { ...(this.doc.light || {}), [it.part]: e.target.checked };
+      await this.refresh();
+      this.commit();
+    });
     const col = box.querySelector('[data-look=colour]'), clr = box.querySelector('[data-look=clear]');
     col?.addEventListener('input', () => { it.colour = col.value; this.draw(); });
     col?.addEventListener('change', () => this.commit());
@@ -1523,11 +1532,12 @@ export class Assembly {
     await Promise.all(need.map(async (pid) => {
       const data = this.hooks.partData(pid);
       if (!data) { this.bodies[pid] = { error: 'This part is no longer in the project.' }; return; }
-      const key = JSON.stringify(data.features || { model: data.model, values: data.values, layers: data.layers, bends: data.bends });
+      const lod = this.doc.light?.[pid] === true ? 'light' : this.doc.light?.[pid] === false ? 'full' : 'auto'; // 🪶
+      const key = JSON.stringify([data.features || { model: data.model, values: data.values, layers: data.layers, bends: data.bends }, lod]);
       if (this.bodies[pid]?.key === key) return;
       try {
         const features = await this.partFeatures(pid, data);
-        const res = await fetch('/api/model/rebuild', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: { features } }) });
+        const res = await fetch('/api/model/rebuild', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: { features, lod } }) });
         const r = await res.json();
         if (!res.ok) throw new Error(r.error || res.statusText);
         if (!r.ok && !r.body) throw new Error(r.features.flatMap((s) => s.issues).join(' ') || 'This part has no solid.');

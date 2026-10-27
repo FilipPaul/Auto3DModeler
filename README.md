@@ -392,6 +392,10 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   mm"*. It ends where it was. The AI does the same with `set_travel`, `check_travel` and `move_free {to}`.
   A part on a face is centred on it once, when the joint is made; after that it keeps where it slid, and goes along
   with the part it hangs on.
+- **🪶 Simplified** (a placed part's *Look*): the part is shown with a coarser mesh and less data — quicker to load
+  and to show; its joints still work, its edges cannot be picked; collisions and drawings use the full part. A big
+  imported part (thousands of faces: an assembled PCB, a maker's STEP) is simplified by itself; untick it for its
+  full data. It counts for every copy of the part in the assembly.
 - **✎ Edit it here** (a placed part's panel, or double-click it): its part opens in the full 3D modeler with the rest
   of the assembly see-through around it, in place; *◇ Back to the assembly* returns. It is **🔒 Locked** per part
   until you unlock it (🔓 Editable from here), so nothing is changed by accident.

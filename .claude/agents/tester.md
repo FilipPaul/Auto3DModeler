@@ -129,6 +129,8 @@ Never report "works" without having run it; report failures with their output.
    and "3× 10"; light fewer, full more; Del + ↺; a dimension dragged 8 -> 16; ＋ Dimension by two hole centres (30)
    and a circle (Ø3); the part 15 thick -> Rev 2, Changed later, the height 15, the moves kept; the PDF has the texts).
    Restart the server after changes to sheet.py (the kernel worker keeps old code).
+   `tools/e2e_assembly_light.py <url> <dir>` covers 🪶 Simplified (the Lid ticked: light, no edges, fewer triangles,
+   kept in doc.light; a joint onto it still made; unticked: full again, as before).
    `tools/e2e_library_edit.py <url> <dir>` covers changing library parts (an own Holder: ✎ Edit in the library -> 12
    thick, 📚 Save back: the library's 12, still one item, the project's copy still 5, a new use 12; a catalogue ISO 4762
    M3: ✎ Make my own copy -> a new own part in My parts, the catalogue unchanged; the AI's save_to_library saves back).

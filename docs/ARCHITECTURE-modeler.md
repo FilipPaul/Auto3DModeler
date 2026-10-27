@@ -80,6 +80,11 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **🪶 Simplified parts in assemblies done:** rebuild `lod` light / full / auto (light when over HEAVY_FACES):
+  kernel.tessellate(light) — the mesh cleared and made coarse, no edges, faces without sketch frames / refs, rounded
+  (the 42 MB board: 14.6 -> 8.4 MB to the browser); _tess keeps the light and full meshes apart; doc.light {pid:
+  bool} per part in the assembly, 🪶 Simplified in a placed part's Look. Collisions / drawings use the full part.
+  TestLightMesh, tools/e2e_assembly_light.py.
 - **Drawings of big imported parts done:** project_edges of a shape over HEAVY_FACES: HLRBRep_PolyAlgo on its mesh
   (kept, not meshed again), the pieces chained, no hidden lines (a grey wash on a board) — the 42 MB board's sheet
   296 s -> 19 s, 17 -> 8 MB; dimensions still from the exact edges.

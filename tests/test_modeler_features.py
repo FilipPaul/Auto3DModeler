@@ -561,6 +561,31 @@ class TestAssemblySheet(unittest.TestCase):
         self.assertEqual([p.get_text().strip() for p in d], ["ASSEMBLY", "Sub", "Part A"])
 
 
+@unittest.skipUnless(OCC, "OCP not installed")
+class TestLightMesh(unittest.TestCase):
+    """🪶 simplified: a coarser mesh, no edges, a lean face list (no sketch frames); auto only for big parts."""
+
+    def test_light(self):
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        part = {"features": box() + [{"id": "H1", "type": "hole", "plane": top, "points": [[0, 0]], "d": 6, "through": True}]}
+        full = doc.rebuild({**part, "lod": "full"})["body"]
+        light = doc.rebuild({**part, "lod": "light"})["body"]
+        auto = doc.rebuild({**part, "lod": "auto"})["body"]
+        self.assertTrue(light["light"])
+        self.assertNotIn("light", auto)                       # a small part stays full by itself
+        self.assertEqual(light["edges"], [])
+        self.assertTrue(full["edges"])
+        self.assertLessEqual(len(light["face_ids"]), len(full["face_ids"]))
+        self.assertEqual(len(light["faces"]), len(full["faces"]))  # every face still there (joints find them)
+        plane = next(f for f in light["faces"] if f["type"] == "plane")
+        self.assertNotIn("frame", plane)
+        self.assertIn("normal", plane)
+        hole = next(f for f in light["faces"] if f["type"] == "cylinder")
+        self.assertEqual(hole["radius"], 3)
+        self.assertEqual(hole["name"], "H1:hole:0")
+        self.assertIn("frame", next(f for f in doc.rebuild({**part, "lod": "full"})["body"]["faces"] if f["type"] == "plane"))  # (the full one kept apart)
+
+
 class TestFits(unittest.TestCase):
     """ISO 286 deviations by size range, and the labels on the drawing."""
 

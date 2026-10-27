@@ -806,9 +806,10 @@ def _round(a, k=6):
     return [round(float(x), k) for x in a]
 
 
-def tessellate(body):
+def tessellate(body, light=False):
     """Triangles for the viewer with one face id per triangle, every face (name, plane frame for sketching),
-    and every edge (polyline, the two faces it joins, its middle)."""
+    and every edge (polyline, the two faces it joins, its middle). light: 🪶 simplified — a coarse mesh, the faces'
+    sizes from it, no edges (a big imported part in an assembly: quick to send and to show)."""
     shape = body.shape
     bb = bbox(shape) or [0, 0, 0, 1, 1, 1]
     size = max(bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2], 1e-6)
@@ -824,8 +825,13 @@ def tessellate(body):
         ex.Next()
     # a big imported model (thousands of faces): a coarser mesh, and only the edges that show at this size —
     # millions of triangles would freeze the browser (and take minutes here)
-    heavy = fm.Extent() > HEAVY_FACES
-    BRepMesh_IncrementalMesh(shape, max(size * (0.004 if heavy else 0.0008), 0.002), False, 0.6 if heavy else 0.25, True)
+    heavy = light or fm.Extent() > HEAVY_FACES
+    if light:  # a mesh finer than wanted is kept by OCCT: cleared first
+        from OCP.BRepTools import BRepTools
+        BRepTools.Clean_s(shape)
+        BRepMesh_IncrementalMesh(shape, max(size * 0.015, 0.01), False, 1.0, True)
+    else:
+        BRepMesh_IncrementalMesh(shape, max(size * (0.004 if heavy else 0.0008), 0.002), False, 0.6 if heavy else 0.25, True)
     names = _face_names(body, fm)
     pos, ids, faces = [], [], []
     for fi in range(fm.Extent()):
@@ -866,8 +872,17 @@ def tessellate(body):
             info["names"] = nm
             info["ref"] = {"name": nm[-1]}
         faces.append(info)
+    if light:  # 🪶 what an assembly needs of a face: its kind, name, size, place; no sketch frame (half the data)
+        r3 = lambda v: [round(x, 3) for x in v]  # noqa: E731
+        for f in faces:
+            f.pop("frame", None)
+            f.pop("ref", None)
+            if f.get("names") == [f.get("name")]:
+                f.pop("names", None)
+            f["area"] = round(f.get("area", 0), 3)
+            f["centroid"] = r3(f["centroid"])
     edges = []
-    for ei in range(1, em.Extent() + 1):
+    for ei in range(1, 0 if light else em.Extent() + 1):  # (🪶: no edges)
         e = TopoDS.Edge(em.FindKey(ei))
         try:
             c = BRepAdaptor_Curve(e)
@@ -882,7 +897,7 @@ def tessellate(body):
         edges.append({"pts": [round(v, 5) for p in pts for v in (p.X(), p.Y(), p.Z())], "faces": sorted(adj.get(ei, ())),
                       "mid": _round(_edge_mid(e), 5)})
     return {"positions": np.asarray(pos, np.float32).tobytes(), "face_ids": np.asarray(ids, np.uint32).tobytes(),
-            "faces": faces, "edges": edges, "bbox": bb, "volume": volume(shape), "solids": solids(shape)}
+            "faces": faces, "edges": edges, "bbox": bb, "volume": volume(shape), "solids": solids(shape), **({"light": True} if light else {})}
 
 
 def _outward(shape, info, point, size):

@@ -791,15 +791,15 @@ def _pattern_limits(f, st0):
     return out
 
 
-_tess: list = []  # [(body, mesh)]: a body that did not change (a sketch was added) is not meshed again
+_tess: list = []  # [((body, light), mesh)]: a body that did not change (a sketch was added) is not meshed again
 
 
-def _tessellated(body):
-    for b, mesh in _tess:
-        if b is body:
+def _tessellated(body, light=False):
+    for (b, lt), mesh in _tess:
+        if b is body and lt == light:
             return dict(mesh)
-    mesh = K.tessellate(body)
-    _tess.insert(0, (body, mesh))
+    mesh = K.tessellate(body, light)
+    _tess.insert(0, ((body, light), mesh))
     del _tess[6:]
     return dict(mesh)
 
@@ -822,7 +822,10 @@ def rebuild(part):
     st, status = evaluate(features)
     out = {"ok": all(s["ok"] for s in status), "features": status, "frames": st.frames, "body": None}
     if st.body is not None:
-        out["body"] = _with_colours(_tessellated(st.body), st.colours)
+        # 🪶 lod: "light" (simplified), "full", "auto" (light when it is a big imported model)
+        lod = (part or {}).get("lod")
+        light = lod == "light" or (lod == "auto" and K.face_count(st.body.shape) > K.HEAVY_FACES)
+        out["body"] = _with_colours(_tessellated(st.body, light), st.colours)
     # reference solids: shown see-through, not part of the part
     out["refs"] = [{"id": fid, **_tessellated(b)} for fid, b in st.refs.items()]
     return out
