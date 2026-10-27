@@ -9,7 +9,7 @@ import { t } from './i18n.js';
 // features — the 3D model workspace).
 
 const CLOSE_TIP = 'Close this tab (the part stays in the project — ☰ Parts opens it again)';
-const KIND_ICON = { model: '◆', assembly: '◇', drawing: '📐', classic: '▤' };
+const KIND_ICON = { model: '◆', assembly: '◇', drawing: '📐', sheet: '📄', classic: '▤' };
 
 export class Project {
   /** hooks: {payload(kind), load(payload, {switching, kind}), settle(), getHistory(kind), setHistory(h, kind),
@@ -57,6 +57,22 @@ export class Project {
     await this.hooks.settle();
     if (this.current) this.stash();
     const p = { id: `P${this.next++}`, name: name || t('Drawing'), kind: 'drawing', data, history: null };
+    this.parts.push(p);
+    this.active = p.id;
+    this.render();
+    await this.show(p);
+    this.render();
+  }
+
+  /** The drawing sheet of a part (📄, its own tab): the one there is, or a new one. */
+  async newSheet(source, name) {
+    if (this.busy) return;
+    const have = this.parts.find((q) => q.kind === 'sheet' && (q.data === 'live' ? null : q.data?.source) === source);
+    if (have) { await this.switchTo(have.id); return; }
+    await this.hooks.settle();
+    if (this.current) this.stash();
+    const now = new Date().toISOString();
+    const p = { id: `P${this.next++}`, name: name || t('Drawing'), kind: 'sheet', data: { source, preset: 'medium', created: now, changed: now, rev: 1 }, history: null };
     this.parts.push(p);
     this.active = p.id;
     this.render();

@@ -128,7 +128,7 @@ export function sketchFromShapes(shapes, lock = true) {
   return f;
 }
 
-const KIND = { model: '3D model', assembly: 'assembly', drawing: '2D drawing' };
+const KIND = { model: '3D model', assembly: 'assembly', drawing: '2D drawing', sheet: 'drawing sheet' };
 const FITS = ['H6', 'H7', 'H8', 'H9'];
 /** A hole's fit as written ("h7", "H7") -> "H7", or null (none / unknown: refused by the caller's check). */
 const fitOf = (v) => { if (!v) return null; const f = String(v).toUpperCase(); if (!FITS.includes(f)) throw new Error(`fit: one of ${FITS.join(', ')} (ISO 286 holes), not ${v}.`); return f; };

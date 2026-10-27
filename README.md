@@ -263,6 +263,17 @@ as a 📐 Drawing — everything in the DXF / DWG section above works on it (lay
 
 ## 2D drawings
 
+**📄 Drawing sheet** (a 3D model's panel) opens the part's drawing as a tab of its own, to edit: the front, top,
+right and iso views on an A4 / A3 page with a title block (part, material, scale, paper, tolerances, created,
+**changed + revision**). Its dimensions are made by a preset — **Light** (the overall sizes, a Ø for each hole size,
+the biggest R), **Medium** (+ where the holes are, the radii, the heights) or **Full** (+ every level) — and holes
+alike are dimensioned **once**: *8× Ø3 H7*, the first hole's place and the row's pitch *3× 10* (200 holes in a grid
+are one Ø and two pitches, not 400 dimensions). **Drag** a dimension or a view to move it, **Del** removes a
+dimension (↺ brings deleted ones back), **＋ Dimension**: click two points (a corner, a hole's centre) or a circle
+(its Ø / R). A value is always measured from the part — it cannot be typed. The sheet **follows its part**: change
+the part and the views and dimensions are made again, the revision goes up and *Changed* says when (your moved and
+own dimensions stay on their edges and holes). **⬇ PDF** gives the sheet as you see it.
+
 **📐 Drawing (PDF)** in a 3D model's panel (or *PDF — 2D drawing* in the Export menu) makes an A4 drawing sheet:
 the **Front**, **Top** and **Right** views with visible edges (solid) and hidden ones (dashed), an iso view, the
 overall sizes dimensioned, every hole labelled (Ø) and listed with its position from the part's lower-left corner,

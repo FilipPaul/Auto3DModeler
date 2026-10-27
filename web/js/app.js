@@ -19,6 +19,7 @@ import { Modeler } from './modeler/modeler.js';
 import { modelHandlers } from './modeler/agent_model.js';
 import { Assembly } from './assembly/assembly.js';
 import { DrawingEditor, drawingToSketch } from './drawing2d/editor.js';
+import { SheetEditor, partHash } from './sheet/sheet.js';
 import { initSplitters } from './splitters.js';
 import { Autosave } from './autosave.js';
 import { changed as projectChanged } from './history.js';
@@ -1708,12 +1709,13 @@ function partPayload() {
 
 // the parts of the project: tabs in the top bar
 const project = new Project($('partTabs'), {
-  payload: (kind) => (kind === 'model' ? modeler.payload() : kind === 'assembly' ? assembly.payload() : kind === 'drawing' ? drawing2d.payload() : structuredClone(partPayload())),
+  payload: (kind) => (kind === 'model' ? modeler.payload() : kind === 'assembly' ? assembly.payload() : kind === 'drawing' ? drawing2d.payload() : kind === 'sheet' ? sheet.payload() : structuredClone(partPayload())),
   async load(data, opts) {
-    setWorkspace(['model', 'assembly', 'drawing'].includes(opts.kind) ? opts.kind : 'quick');
+    setWorkspace(['model', 'assembly', 'drawing', 'sheet'].includes(opts.kind) ? opts.kind : 'quick');
     if (opts.kind === 'model') modeler.load(data, { then: opts.then });
     else if (opts.kind === 'assembly') await assembly.load(data);
     else if (opts.kind === 'drawing') drawing2d.load(data);
+    else if (opts.kind === 'sheet') await sheet.load(data);
     else await loadPart(data, opts);
     if (!state.projectName) { state.projectName = project.current?.name || 'Project'; showProjectName(); }
   },
@@ -1723,12 +1725,13 @@ const project = new Project($('partTabs'), {
     while (modeler.inflight) await modeler.inflight;
     history.flush();
   },
-  getHistory: (kind) => (kind === 'model' ? modeler.history.state : kind === 'assembly' ? assembly.history.state : kind === 'drawing' ? drawing2d.history.state
+  getHistory: (kind) => (kind === 'model' ? modeler.history.state : kind === 'assembly' ? assembly.history.state : kind === 'drawing' ? drawing2d.history.state : kind === 'sheet' ? sheet.history.state
     : { undo: history.undo, redo: history.redo, base: history.base, baseKey: history.baseKey }),
   setHistory(h, kind) {
     if (kind === 'model') modeler.history.state = h;
     else if (kind === 'assembly') assembly.history.state = h;
     else if (kind === 'drawing') drawing2d.history.state = h;
+    else if (kind === 'sheet') sheet.history.state = h;
     else { Object.assign(history, h); history.updateUI(); }
   },
   toast,
@@ -1745,6 +1748,7 @@ const modeler = new Modeler({ left: $('modelLeft'), viewport: $('modelViewport')
   backTo: (id) => id && project.switchTo(id),
   saveToLibrary: () => saveToLibrary(project.current?.name || safeName(), modeler.payload(), toast),
   duplicatePart: async () => { await project.duplicate(); toast(t2('{name} — a copy of its own (change it without changing the original).', { name: project.current?.name }), 'ok', 5000); },
+  newSheet: () => { const p = project.current; if (p) project.newSheet(p.id, `${p.name} — ${t('drawing')}`); },
   // a printing copy of a model part: its STL as a Quick part, on the 3D print tab
   async toPrint(blob) {
     const name = `${project.current?.name || safeName()} (print).stl`;
@@ -1825,6 +1829,37 @@ const drawing2d = new DrawingEditor({ left: $('dwgLeft'), viewport: $('dwgViewpo
   },
 });
 
+// drawing sheets (📄) of 3D model parts: views and dimensions, made again when the part changes
+/** A part's data as it is now (the one on screen from its workspace). */
+function partDataNow(id) {
+  const p = project.parts.find((q) => q.id === id);
+  if (!p) return null;
+  if (p.id === project.active && p.data === 'live') return p.kind === 'model' ? modeler.payload() : null;
+  return typeof p.data === 'object' ? p.data : null;
+}
+const sheet = new SheetEditor({ left: $('shLeft'), viewport: $('shViewport'), right: $('shRight') }, {
+  toast, download, safeName: () => tabName(), onChange: () => updateTopButtons(),
+  partData: (id) => partDataNow(id),
+  partName: (id) => project.parts.find((q) => q.id === id)?.name || null,
+  openPart: (id) => project.switchTo(id),
+});
+// a part changed: its sheets (closed ones too) get a new revision and the date — made again when opened
+let sheetTimer = null;
+window.addEventListener('a3d:changed', () => {
+  clearTimeout(sheetTimer);
+  sheetTimer = setTimeout(() => {
+    for (const p of project.parts) {
+      if (p.kind !== 'sheet' || typeof p.data !== 'object' || !p.data?.hash) continue;
+      const src = partDataNow(p.data.source);
+      if (!src) continue;
+      const h = partHash(src);
+      if (h === p.data.hash) continue;
+      Object.assign(p.data, { hash: h, rev: (p.data.rev || 1) + 1, changed: new Date().toISOString() });
+      if (p.data.built) p.data.built.stale = true;
+    }
+  }, 800);
+});
+
 // assemblies: 3D model parts of the project placed together
 const assembly = new Assembly({ left: $('asmLeft'), viewport: $('asmViewport'), right: $('asmRight') }, {
   toast, download, safeName: () => tabName(),
@@ -1844,6 +1879,8 @@ function setWorkspace(ws) {
   document.body.classList.toggle('ws-model', ws === 'model');
   document.body.classList.toggle('ws-assembly', ws === 'assembly');
   document.body.classList.toggle('ws-drawing', ws === 'drawing');
+  document.body.classList.toggle('ws-sheet', ws === 'sheet');
+  sheet.active = ws === 'sheet';
   modeler.active = ws === 'model';
   assembly.active = ws === 'assembly';
   drawing2d.active = ws === 'drawing';
@@ -1875,7 +1912,10 @@ function toggleChat(open = !state.chatOpen) {
 $('aiBtn').addEventListener('click', () => toggleChat());
 $('aiClose').addEventListener('click', () => toggleChat(false));
 function updateTopButtons() {
-  if (state.workspace === 'drawing') {
+  if (state.workspace === 'sheet') {
+    $('saveBtn').disabled = false;
+    $('exportBtn').disabled = true;
+  } else if (state.workspace === 'drawing') {
     $('saveBtn').disabled = false;
     $('exportBtn').disabled = true;
   } else if (state.workspace === 'assembly') {
@@ -2457,7 +2497,7 @@ Object.assign(agentHandlers, {
     let goal = Number.isFinite(+to) && to !== null && to !== undefined ? +to : p + +amount;
     const stopped = lim && (goal < lim.min || goal > lim.max);
     if (lim) goal = Math.max(lim.min, Math.min(lim.max, goal));
-    assembly.moveFree(it.id, mo, assembly.stepTo(mo, p, goal), null, true);
+    assembly.moveFree(it.id, mo, assembly.stepTo(mo, p, goal, lim), null, true);
     return { text: `${it.id} moved: ${mo.label}, now at ${+assembly.motionPos(it.id, mo).toFixed(2)} ${mo.kind === 'turn' ? '°' : 'mm'}${stopped ? ` (stopped at its limit ${lim.min} … ${lim.max})` : ''}. ${JSON.stringify(assembly.summary().parts.find((x) => x.id === it.id))}` };
   },
   save_to_library: async ({ name, category = 'My parts', maker = '', pn = '' }) => {
@@ -2470,4 +2510,4 @@ Object.assign(agentHandlers, {
   },
 });
 
-window.__app = { state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, library, autosave, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d };
+window.__app = { state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, library, autosave, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d, sheet };

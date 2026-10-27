@@ -189,7 +189,7 @@ def auto_dims(geo, preset="medium", fits=None):
             at = (round(first["c"][0], 1), round(first["c"][1], 1))
             k = centres[at] = centres.get(at, -1) + 1
             dims.append({"id": _id(vname, "dia", d), "view": vname, "kind": "dia", "a": first["key"], "count": len(cs),
-                         "ang": [45, 135, 315, 225, 60, 120][k % 6], "len": 6 + 4 * (k // 2), **({"post": f" {fits[d]}"} if d in fits else {})})
+                         "ang": [45, 135, 315, 225, 20, 160, 340, 200][k % 8], "len": 6 + 5 * (k // 4), **({"post": f" {fits[d]}"} if d in fits else {})})
             if preset == "light":
                 continue
             # where they are: the first from the left / bottom of the view, then the pitch of a row / grid

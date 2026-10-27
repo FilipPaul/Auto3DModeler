@@ -69,7 +69,13 @@ Date: 2026-10-25. Written by the architect agent.
   `<faces>#0/#1`; the view box `box#x0…`), the automatic dimensions of a preset (light: overall sizes, Ø per size
   "8× Ø3 H7", the biggest R; medium: + the holes' places — a row / grid once with its pitch "3× 10" —, radii, heights;
   full: + every level and column), stable ids (the user's moves stay), the layout (A4 / A3, scale, views), the PDF
-  from the editor's SVG. /api/sheet/build, /api/sheet/pdf. TestSheet. **Next: step 2, the editor in the app.**
+  from the editor's SVG. /api/sheet/build, /api/sheet/pdf. TestSheet.
+- **Drawing sheets — step 2 (the editor) done:** part kind `sheet` (auto3d/project.py), web/js/sheet/sheet.js
+  SheetEditor (one SVG for the screen and the PDF; views and dimensions dragged, Del, ＋ Dimension by two points / a
+  circle, presets, paper, views on / off; the user's moves in `dims`, deleted autos in `hidden`, own ones in `user`),
+  Project.newSheet (one per part), 📄 Drawing sheet in the model panel; partHash of the part's steps / material /
+  tolerances: an `a3d:changed` listener gives closed sheets a new revision + date (built.stale), ensure() builds again.
+  tools/e2e_sheet.py. **Next: step 3, the AI's tools for sheets; step 4, an assembly's drawing set.**
 - **Fits and tolerances on the drawing done:** auto3d/modeler/fits.py (ISO 286: holes H6–H9, shafts f7–p6, to 120 mm;
   label "Ø8 H7 (+0.015 / 0)"); a hole step's `fit` (its Fit choice; add_feature / edit_feature fit), a part's
   `tolerance` f / m / c (the part panel's Tolerances; set_material tolerance) -> drawing.pdf: "Ø8 H7" at the hole, the

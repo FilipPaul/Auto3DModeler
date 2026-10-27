@@ -71,6 +71,10 @@ def migrate(proj):
             dr = p.setdefault("drawing", {})
             if not isinstance(dr, dict) or not isinstance(dr.setdefault("entities", []), list):
                 raise ProjectError(f"Drawing “{p.get('name') or p['id']}” has nothing in it.")
+        elif p["kind"] == "sheet":
+            sh = p.setdefault("sheet", {})
+            if not isinstance(sh, dict) or not sh.get("source"):
+                raise ProjectError(f"Drawing sheet “{p.get('name') or p['id']}” does not say its part.")
         elif p["kind"] != "classic":
             raise ProjectError(f"Part “{p.get('name') or p['id']}” is of an unknown kind “{p['kind']}”.")
         p.setdefault("name", _part_name(p.get("classic"), p["id"]))

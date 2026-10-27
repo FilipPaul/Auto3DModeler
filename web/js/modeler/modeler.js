@@ -785,9 +785,10 @@ export class Modeler {
           <div class="row-actions"><button class="btn small primary" data-a="toPrint">🖨 Prepare for 3D print</button></div>` : ''}
         ${b ? `<h3>Export</h3><div class="row-actions"><button class="btn small" data-x="stl" title="For 3D printing">STL</button>
           <button class="btn small" data-x="step" title="For other CAD programs (exact circles and faces)">STEP</button>
-          <button class="btn small" data-x="pdf" title="A 2D drawing: front, top and right views, sizes, holes, title block">📐 Drawing (PDF)</button></div>` : ''}`;
+          <button class="btn small" data-x="pdf" title="A 2D drawing: front, top and right views, sizes, holes, title block">📐 Drawing (PDF)</button></div>
+          ${this.hooks.newSheet ? '<div class="row-actions"><button class="btn small primary" data-a="newSheet" title="A drawing sheet of this part to edit: its views and dimensions (light / medium / full), moved, deleted, added — it follows the part when it changes">📄 Drawing sheet</button></div>' : ''}` : ''}`;
     }
-    for (const el of box.querySelectorAll('[data-a]')) el.addEventListener('click', () => this.action(el.dataset.a));
+    for (const el of box.querySelectorAll('[data-a]')) el.addEventListener('click', () => (el.dataset.a === 'newSheet' ? this.hooks.newSheet() : this.action(el.dataset.a)));
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
     box.querySelector('[data-k=material]')?.addEventListener('change', (e) => { this.part.material = e.target.value; this.history.commit(); this.renderProps(); });
     box.querySelector('[data-k=tolerance]')?.addEventListener('change', (e) => { if (e.target.value) this.part.tolerance = e.target.value; else delete this.part.tolerance; this.history.commit(); });
