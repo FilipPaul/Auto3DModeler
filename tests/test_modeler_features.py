@@ -458,6 +458,62 @@ class TestFeatures(unittest.TestCase):
         self.assertIn("at most 4.99 mm", r["features"][-1]["issues"][0])
 
 
+@unittest.skipUnless(OCC, "OCP not installed")
+class TestSheet(unittest.TestCase):
+    """A drawing sheet: exact circles with their face names, the holes alike dimensioned once, the presets."""
+
+    def setUp(self):
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        self.part = {"features": box() + [
+            {"id": "H1", "type": "hole", "plane": top, "points": [[x, y] for x in (-15, -5, 5, 15) for y in (-5, 5)], "d": 3, "through": True, "fit": "H7"},
+            {"id": "R1", "type": "fillet", "edges": [{"a": "E1:end", "b": "E1:side:l1", "fp": [20, 0, 10]}], "r": 2}]}
+
+    def test_views_and_points(self):
+        from auto3d.modeler import sheet
+        r = doc.sheet(self.part, "medium")
+        top = r["geometry"]["views"]["Top"]
+        self.assertEqual(top["box"], [0, 0, 40, 20])
+        holes = [c for c in top["circles"] if c["full"]]
+        self.assertEqual(len(holes), 8)                       # a hole's two circles: one
+        self.assertTrue(all(c["key"].startswith("H1:hole:") and c["r"] == 1.5 for c in holes))
+        self.assertIn("H1:hole:0#c", top["points"])
+        self.assertEqual(r["layout"]["paper"], "A4")
+        self.assertEqual(sheet.value(r["geometry"], {"view": "Front", "kind": "linear", "a": "box#x0", "b": "box#x1", "dir": "h"}), 40)
+
+    def test_holes_alike_once(self):
+        from auto3d.modeler import sheet
+        r = doc.sheet(self.part, "medium")
+        g, dims = r["geometry"], r["dims"]
+        dia = [d for d in dims if d["kind"] == "dia"]
+        self.assertEqual([(d["count"], d.get("post")) for d in dia], [(8, " H7")])  # "8× Ø3 H7", once
+        vals = sorted((d.get("pre", ""), sheet.value(g, d)) for d in dims if d["kind"] == "linear" and d["view"] == "Top")
+        self.assertIn(("3× ", 10), vals)                     # the row's pitch, 4 holes
+        self.assertIn(("", 5), vals)                         # the first hole from the left / bottom
+        self.assertEqual(sum(1 for d in dims if "H1:hole" in d.get("b", "")), 4)  # not 8 × 2 positions
+        self.assertTrue(any(d["kind"] == "rad" and sheet.value(g, d) == 2 for d in dims))
+        self.assertFalse(any(":round:" in d.get("b", "") for d in dims if d["kind"] == "linear"))  # no "level" where a rounding begins
+        ids = [d["id"] for d in dims]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertEqual(ids, [d["id"] for d in doc.sheet(self.part, "medium")["dims"]])  # the same ids again (the user's moves stay)
+
+    def test_presets(self):
+        n = {p: len(doc.sheet(self.part, p)["dims"]) for p in ("light", "medium", "full")}
+        self.assertLess(n["light"], n["medium"])
+        self.assertLessEqual(n["medium"], n["full"])
+        light = doc.sheet(self.part, "light")["dims"]
+        self.assertEqual({d["kind"] for d in light}, {"linear", "dia", "rad"})
+        self.assertEqual(sum(1 for d in light if d["kind"] == "linear"), 3)  # the overall sizes only
+
+    def test_pdf_from_svg(self):
+        import fitz
+        from auto3d.modeler import sheet
+        svg = ('<svg xmlns="http://www.w3.org/2000/svg" width="297mm" height="210mm" viewBox="0 0 297 210"><line x1="10" y1="10" x2="100" y2="50" '
+               'stroke="black" stroke-width="0.35"/><text x="60" y="60" font-size="3.5">8× Ø3 H7 — Rev 2</text></svg>')
+        page = fitz.open("pdf", sheet.pdf(svg))[0]
+        self.assertAlmostEqual(page.rect.width, 297 * 72 / 25.4, places=0)
+        self.assertIn("8× Ø3 H7", page.get_text())
+
+
 class TestFits(unittest.TestCase):
     """ISO 286 deviations by size range, and the labels on the drawing."""
 

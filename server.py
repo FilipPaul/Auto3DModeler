@@ -665,6 +665,29 @@ def api_assembly_clashes():
     return jsonify({"clashes": data})
 
 
+@app.post("/api/sheet/build")
+def api_sheet_build():
+    """{part, preset: light | medium | full, paper} -> {geometry (views, points), layout, dims} — a drawing sheet."""
+    body = request.get_json(force=True)
+    data, err = _model_call("sheet", {"part": body.get("part") or {}, "preset": body.get("preset") or "medium", "paper": body.get("paper")})
+    if err:
+        return err
+    return jsonify(data)
+
+
+@app.post("/api/sheet/pdf")
+def api_sheet_pdf():
+    """{svg, name} -> the sheet as a PDF (drawn as the editor shows it)."""
+    from auto3d.modeler.sheet import pdf
+    body = request.get_json(force=True)
+    name = re.sub(r'[\\/:*?"<>|]+', "_", body.get("name") or "drawing").strip() or "drawing"
+    try:
+        data = pdf(str(body.get("svg") or ""))
+    except Exception as exc:  # noqa: BLE001 — a broken SVG
+        return jsonify({"error": f"The sheet could not be made a PDF: {exc}"}), 400
+    return Response(data, mimetype="application/pdf", headers={"Content-Disposition": attachment(f"{name}.pdf")})
+
+
 @app.post("/api/assembly/sweep")
 def api_assembly_sweep():
     """{instances: [...as for clashes, at the start], steps: [{at, matrices: {id: [16]}}]} -> {steps: [{at, clashes}]}

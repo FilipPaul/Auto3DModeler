@@ -852,6 +852,15 @@ def export(part, fmt, name="part"):
     raise K.KernelError(f"Unknown export format “{fmt}”.")
 
 
+def sheet(part, preset="medium", paper=None):
+    """A drawing sheet of the part: its views, the points to dimension, the automatic dimensions of the preset, the
+    layout (sheet.py)."""
+    from . import sheet as S
+    st = body_of(part)
+    fits = {f["d"]: f["fit"] for f in (part or {}).get("features") or [] if f.get("type") == "hole" and f.get("fit") and not f.get("off")}
+    return S.build(st.body, preset, fits, paper)
+
+
 def assembly_clashes(instances):
     """Where the placed parts of an assembly overlap: instances [{id, part: {features}, matrix: [16]}] ->
     [{a, b (their ids), volume, bbox}]. A part without a solid is left out."""
