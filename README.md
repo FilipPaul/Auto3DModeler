@@ -281,6 +281,10 @@ The title block takes your own texts — *Title*, *Drawing no.*, *Drawn by*, *No
 (`sheet_open`, `get_sheet`, `sheet_edit`: a preset, the paper, views, dimensions added between points or on a
 circle, removed or moved; `export {format: "pdf"}` on a sheet) — for what the editor does not offer in a click.
 
+**📄 Drawing** in an assembly's toolbar (or *📄 Drawing sheet* in its panel) opens the **assembly's own drawing sheet**
+to edit: its front, top and iso views, overall sizes, parts list and balloons — move them, add your dimensions and
+texts; it follows the assembly (a moved part: a new revision). The drawing set below uses it as the assembly's page.
+
 **📄 Drawings (PDF)** in an assembly's panel makes its whole drawing set as one PDF, in the order of the assembly:
 the **assembly** (its views, overall sizes, the **parts list** — position, name, quantity, material, part number —
 and a **balloon** with the position on each part in the iso view), then each **sub-assembly** the same way followed by

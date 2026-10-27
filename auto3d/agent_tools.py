@@ -354,7 +354,7 @@ TOOLS = [
                     "(a quick part); what: \"selection\", \"found\" (the filters' shapes) or \"all\" (the shown layers).",
      "inputSchema": _obj({"as": {"type": "string", "enum": ["sketch", "quick"]}, "what": {"type": "string", "enum": ["selection", "found", "all"]}})},
     {"name": "sheet_open", "where": "browser",
-     "description": "Open the drawing sheet (📄) of a 3D model part — part: its id or name (none: the model on screen); made when it has "
+     "description": "Open the drawing sheet (📄) of a 3D model part or an assembly (its views, overall sizes, parts list, balloons) — part: its id or name (none: the one on screen); made when it has "
                     "none (preset medium). A sheet holds the part's views and dimensions, follows the part when it changes (a new "
                     "revision) and the user edits it. -> get_sheet's answer. export {format: \"pdf\"} on a sheet writes it as drawn.",
      "inputSchema": _obj({"part": STR})},

@@ -1843,6 +1843,8 @@ const sheet = new SheetEditor({ left: $('shLeft'), viewport: $('shViewport'), ri
   toast, download, safeName: () => tabName(), onChange: () => updateTopButtons(),
   partData: (id) => partDataNow(id),
   partName: (id) => project.parts.find((q) => q.id === id)?.name || null,
+  kindOf: (id) => project.parts.find((q) => q.id === id)?.kind,
+  drawingCtx: () => drawingCtx(),
   openPart: (id) => project.switchTo(id),
 });
 /** The drawing set of an assembly as one PDF -> the downloaded file's name (pages: the assembly, its sub-assemblies, the parts). */
@@ -1876,9 +1878,8 @@ window.addEventListener('a3d:changed', () => {
   sheetTimer = setTimeout(() => {
     for (const p of project.parts) {
       if (p.kind !== 'sheet' || typeof p.data !== 'object' || !p.data?.hash) continue;
-      const src = partDataNow(p.data.source);
-      if (!src) continue;
-      const h = partHash(src);
+      const h = sheet.sourceHash(p.data.source); // (an assembly's: its parts too)
+      if (!h) continue;
       if (h === p.data.hash) continue;
       Object.assign(p.data, { hash: h, rev: (p.data.rev || 1) + 1, changed: new Date().toISOString() });
       if (p.data.built) p.data.built.stale = true;
@@ -1898,6 +1899,7 @@ const assembly = new Assembly({ left: $('asmLeft'), viewport: $('asmViewport'), 
   editInPlace: async (id, ctx) => { await project.switchTo(id); if (project.active === id) modeler.setContext(ctx); },
   openPart: (id) => project.switchTo(id),
   drawingSet: () => drawingSetPdf(project.active),
+  newSheet: () => { const p = project.current; if (p) project.newSheet(p.id, `${p.name} — ${t('drawing')}`); },
   selfId: () => project.active, // the assembly on screen (it may not go into itself)
   onChange: () => updateTopButtons(),
 });

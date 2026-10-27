@@ -186,7 +186,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       const p = part ? project.parts.find((q) => q.id === part || q.name === part) : project.current;
       if (!p) throw new Error(`No part ${part} — see list_parts.`);
       if (p.kind === 'sheet') { await project.switchTo(p.id); } else {
-        if (p.kind !== 'model') throw new Error(`${p.name} is not a 3D model — a drawing sheet is of a 3D model part.`);
+        if (p.kind !== 'model' && p.kind !== 'assembly') throw new Error(`${p.name} is not a 3D model or an assembly — a drawing sheet is of one.`);
         await project.newSheet(p.id, `${p.name} — ${t2('drawing', {})}`);
       }
       await sheet.ensure();

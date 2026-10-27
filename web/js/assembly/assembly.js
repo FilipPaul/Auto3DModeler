@@ -332,6 +332,7 @@ export class Assembly {
       ${btn('section', '✂ Section', 'Look inside: cut the view along X, Y or Z', `tool ${this.section ? 'on' : ''}`)}
       ${btn('clashes', this.clashLabel(), 'Where parts overlap (go into each other) — checked after every change; click: the list, each one shown in the view', `tool ${this.clashPanel ? 'on' : ''} ${this.clashes?.length ? 'bad' : this.clashes ? 'good' : ''}`)}
       ${btn('fasteners', '🔩 Fasteners', 'Screws, heat-set inserts and pins where holes line up across parts — suggested, added with one click', `tool ${this.fastenerPanel ? 'on' : ''}`)}
+      ${this.hooks.newSheet ? btn('sheet', '📄 Drawing', 'The assembly\'s drawing sheet to edit: its views, overall sizes, parts list and balloons — it follows the assembly; 📄 Drawings (PDF) in the panel makes the whole set', 'tool') : ''}
       <span class="sep"></span>
       <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
       <span class="sep"></span>
@@ -343,6 +344,8 @@ export class Assembly {
     bar.querySelector('[data-a=joint]').disabled = this.doc.instances.length < 2;
     for (const a of ['paint', 'section']) bar.querySelector(`[data-a=${a}]`).disabled = !this.doc.instances.length;
     bar.querySelector('[data-a=clashes]').disabled = this.doc.instances.length < 2;
+    const shb = bar.querySelector('[data-a=sheet]');
+    if (shb) shb.disabled = !this.doc.instances.length;
     bar.querySelector('[data-a=joint]').addEventListener('click', (e) => {
       e.stopPropagation();
       if (this.mode !== 'idle') { this.cancelJoint(); return; }
@@ -378,6 +381,7 @@ export class Assembly {
     if (a === 'paint') return this.togglePaint();
     if (a === 'clashes') return this.toggleClashes();
     if (a === 'section') return this.toggleSection();
+    if (a === 'sheet') { this.hooks.newSheet?.(); return null; }
     if (a === 'fasteners') { this.fastenerPanel = !this.fastenerPanel; this.sel = null; this.render(); this.draw(); return null; }
     if (a === 'undo') return this.history.go(-1);
     if (a === 'redo') return this.history.go(1);
@@ -585,6 +589,7 @@ export class Assembly {
         <div class="row-actions"><button class="btn small" data-a="bomCsv" title="The bill of materials as a CSV file (Excel): every part with its quantity, maker, part number, order numbers and mass — the parts inside sub-assemblies too">⬇ BOM (CSV)</button></div>
         <h3>Export</h3><div class="row-actions"><button class="btn small" data-x="stl" title="All parts in one STL, as placed">STL</button>
         <button class="btn small" data-x="step" title="All parts as separate bodies in one STEP file">STEP</button>
+        ${this.hooks.newSheet ? '<button class="btn small" data-a="sheetHere" title="The assembly\'s drawing sheet to edit (views, parts list, balloons, your dimensions and texts)">📄 Drawing sheet</button>' : ''}
         ${this.hooks.drawingSet ? '<button class="btn small primary" data-a="drawingSet" title="One PDF: this assembly (its views, parts list and balloons), then each sub-assembly with its parts, then its own made parts — their drawing sheets when they have one">📄 Drawings (PDF)</button>' : ''}</div>
         <p class="hint">To print, open each part's tab and use 🖨 Prepare for 3D print there.</p>`
         : `<p class="hint">Insert parts of this project (3D models and quick parts) with ＋ Insert part, then join them with 🔗 Joint.</p>`}`;
@@ -592,6 +597,7 @@ export class Assembly {
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
     box.querySelector('[data-a=bomCsv]')?.addEventListener('click', () => this.exportBom());
     box.querySelector('[data-a=drawingSet]')?.addEventListener('click', () => this.hooks.drawingSet());
+    box.querySelector('[data-a=sheetHere]')?.addEventListener('click', () => this.hooks.newSheet());
   }
 
   // ------------------------------------------------------------------ fasteners

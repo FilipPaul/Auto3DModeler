@@ -1,0 +1,96 @@
+"""An assembly's drawing sheet (📄 Drawing in the assembly's toolbar), in headless Edge: Machine = Base + Lid -> the button
+-> a sheet tab: the assembly's views (front, top, iso), its parts list (Base, Lid) and balloons, no presets / size check
+-> a dimension of the user's and a note typed -> back in the assembly the Lid moved -> the sheet again: Rev 2 -> the
+drawing set (📄 Drawings (PDF)): its first page is this sheet, with the note -> the AI's sheet_open of an assembly.
+
+  PYTHONIOENCODING=utf-8 py tools/e2e_assembly_sheet.py http://127.0.0.1:5199 <out dir>
+"""
+import json
+import os
+import sys
+import time
+import urllib.request
+
+import fitz
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+
+URL, OUT = sys.argv[1], sys.argv[2]
+opts = webdriver.EdgeOptions()
+opts.add_argument("--headless=new")
+opts.add_argument("--window-size=1600,1000")
+opts.set_capability("ms:loggingPrefs", {"browser": "ALL"})
+d = webdriver.Edge(options=opts)
+js = d.execute_script
+S = "window.__app.sheet"
+
+
+def ai(tool, **args):
+    req = urllib.request.Request(f"{URL}/api/agent/call", data=json.dumps({"tool": tool, "args": args}).encode(), headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=300) as r:
+        res = json.loads(r.read())
+    return ("ERROR " if res.get("isError") else "") + "".join(c.get("text", "") for c in res.get("content", []))
+
+
+def wait(script, t=60):
+    end = time.time() + t
+    while time.time() < end:
+        v = js(script)
+        if v:
+            return v
+        time.sleep(0.15)
+    raise TimeoutError(script)
+
+
+try:
+    d.get(URL)
+    time.sleep(2)
+    for name, w, h, th in (("Base", 80, 50, 10), ("Lid", 60, 40, 4)):
+        ai("new_model", name=name)
+        ai("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": w, "h": h}}])
+        ai("add_feature", type="extrude", sketch="F1", d=th)
+    ai("new_assembly", name="Machine")
+    print("empty: the button greyed", not d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=sheet]").is_enabled())
+    ai("insert_part", part="Base")
+    ai("insert_part", part="Lid")
+    time.sleep(1)
+    asm = js("return window.__app.project.active")
+    d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=sheet]").click()
+    wait(f"return !!{S}.svgEl && !{S}.busy && !!{S}.d.asm", 60)
+    time.sleep(0.5)
+    print("the sheet:", js("return [window.__app.state.workspace, window.__app.project.current.name]"))
+    print("  parts list:", js(f"return {S}.d.asm.rows.map(r => [r.pos, r.name, r.qty])"), "| balloons:", len(d.find_elements(By.CSS_SELECTOR, "#shViewport .sh-bom circle[r='3.4']")))
+    print("  views:", js(f"return ['Front', 'Top', 'Right', 'Iso'].filter(v => !{S}.d.off[v])"), "| presets shown:", len(d.find_elements(By.CSS_SELECTOR, "#shViewport [data-preset]")),
+          "| check shown:", len(d.find_elements(By.CSS_SELECTOR, "#shLeft [data-a=allMissing], #shLeft .sh-ok")))
+    js(f"{S}.addFor({{view: 'Front', a: 'box#y0', b: 'box#y1', dir: 'v'}})")
+    js(f"{S}.sel = null; {S}.render()")
+    el = d.find_element(By.CSS_SELECTOR, "#shRight [data-text=note]")
+    el.send_keys("Assemble dry")
+    el.send_keys(Keys.ENTER)
+    time.sleep(0.4)
+    d.save_screenshot(f"{OUT}/assembly_sheet.png")
+    rev = js(f"return {S}.d.rev")
+
+    ai("open_part", id=asm)
+    time.sleep(1)
+    ai("place_part", part="I2", z=30)
+    time.sleep(1.5)
+    sheet_id = next(p["id"] for p in json.loads(ai("list_parts")) if p["kind"] == "drawing sheet")
+    ai("open_part", id=sheet_id)
+    wait(f"return !!{S}.svgEl && !{S}.busy && !{S}.d.built.stale", 60)
+    time.sleep(0.4)
+    print("the Lid moved: rev", rev, "->", js(f"return {S}.d.rev"), "| the user's height:", js(f"return {S}.value({S}.d.user[0])"), "| note kept:", js(f"return {S}.d.texts?.note"))
+
+    ai("open_part", id=asm)
+    time.sleep(1)
+    out = ai("export", format="pdf", path=OUT)
+    print("the set:", out[:110])
+    pdf = os.path.join(OUT, "Machine — drawings.pdf")
+    p1 = fitz.open(pdf)[0].get_text()
+    print("  page 1 has the note:", "Assemble dry" in p1, "| parts list:", "Part number" in p1)
+    s = json.loads(ai("sheet_open", part=asm))
+    print("the AI's sheet_open of the assembly:", s["part"], "| dims:", [x["text"] for x in s["dims"]])
+finally:
+    print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
+    d.quit()

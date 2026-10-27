@@ -92,18 +92,37 @@ export class SheetEditor {
   commit() { this.history.commit(); this.render(); this.hooks.onChange?.(); }
 
   /** Made from the part as it is now: built again when the part (or the preset) changed — then a new revision. */
+  /** What a sheet is made from, as a hash: a part's steps; an assembly's placed parts and theirs (sub-assemblies too). */
+  sourceHash(id, seen = new Set()) {
+    const data = this.hooks.partData(id);
+    if (!data) return null;
+    if (this.hooks.kindOf?.(id) !== 'assembly') return partHash(data);
+    seen.add(id);
+    const inside = (data.instances || []).map((it) => [it.part, it.matrix, seen.has(it.part) ? '' : this.sourceHash(it.part, seen)]);
+    return partHash({ features: inside });
+  }
+
   async ensure(force = false) {
     const src = this.hooks.partData(this.d.source);
     if (!src) { this.render(); return; }
-    const h = partHash(src);
+    const asm = this.hooks.kindOf?.(this.d.source) === 'assembly';
+    const h = this.sourceHash(this.d.source);
     const vp = JSON.stringify(this.d.vpreset || {});
     if (!force && this.d.built && !this.d.built.stale && this.d.hash === h && this.d.built.preset === this.d.preset && this.d.built.vp === vp && (this.d.built.paper ?? null) === (this.d.paper ?? null)) return;
     this.busy = true;
     this.renderBar();
     try {
-      const res = await fetch('/api/sheet/build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: src, preset: this.d.preset, paper: this.d.paper, per_view: this.d.vpreset || {} }) });
-      const r = await res.json();
-      if (!res.ok) throw new Error(r.error || res.statusText);
+      let r;
+      if (asm) { // an assembly: its views, overall sizes, parts list and balloons
+        const pg = await this.assemblyPage(this.d.source, this.hooks.drawingCtx());
+        r = pg.built;
+        this.d.asm = { rows: pg.rows };
+        if (!this.d.asmLaid) { this.d.off = { ...this.d.off, Right: true }; this.d.views = { ...this.d.views, Iso: r.layout.views.Right }; this.d.asmLaid = true; }
+      } else {
+        const res = await fetch('/api/sheet/build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: src, preset: this.d.preset, paper: this.d.paper, per_view: this.d.vpreset || {} }) });
+        r = await res.json();
+        if (!res.ok) throw new Error(r.error || res.statusText);
+      }
       if (this.d.hash && this.d.hash !== h) { this.d.rev += 1; this.d.changed = new Date().toISOString(); } // the part changed
       Object.assign(this.d, { built: { ...r, preset: this.d.preset, vp, paper: this.d.paper ?? null }, hash: h });
       this.error = null;
@@ -331,26 +350,35 @@ export class SheetEditor {
    *  with its parts the same way, then its own made parts (their own sheet when they have one, with the user's
    *  dimensions; else made now) — every part once; bought and standard parts only in the lists.
    *  ctx: {kindOf(id), sheetOf(part id) -> a sheet's data or null, bought(data, name)} -> {svgs, pages: [names]}. */
+  /** An assembly's page: its placed parts drawn together (views, overall sizes), its parts list (pos, name, qty,
+   *  material, part number, bought) and where each one's balloon points -> {built, rows}. */
+  async assemblyPage(aid, ctx) {
+    const flatten = (id, M = ID4, pre = '') => (this.hooks.partData(id)?.instances || []).flatMap((it) => {
+      const W = mul4(M, it.matrix || ID4), key = pre ? `${pre}/${it.id}` : it.id;
+      if (ctx.kindOf(it.part) === 'assembly') return flatten(it.part, W, key);
+      return [{ id: key, part: { features: this.hooks.partData(it.part)?.features || [] }, matrix: W }];
+    });
+    const insts = this.hooks.partData(aid)?.instances || [];
+    if (!insts.length) throw new Error(t('The assembly has no parts to draw.'));
+    const r = await post('/api/sheet/assembly', { instances: flatten(aid) });
+    const groups = new Map();
+    for (const it of insts) { if (!groups.has(it.part)) groups.set(it.part, []); groups.get(it.part).push(it.id); }
+    const rows = [...groups].map(([part, ids], i) => {
+      const pd = this.hooks.partData(part) || {}, kind = ctx.kindOf(part), nm = this.hooks.partName(part) || part;
+      const iso = Object.entries(r.marks).filter(([k]) => k === ids[0] || k.startsWith(`${ids[0]}/`)).map(([, m]) => m.Iso);
+      return { pos: i + 1, part, name: nm, qty: ids.length, kind, material: kind === 'assembly' ? '—' : pd.material || 'PLA', pn: pd.library?.pn || '',
+        bought: kind !== 'assembly' && (!!pd.library || ctx.bought(pd, nm)), iso: iso.length ? [iso.reduce((s, q) => s + q[0], 0) / iso.length, iso.reduce((s, q) => s + q[1], 0) / iso.length] : null };
+    });
+    return { built: { ...r, preset: 'light' }, rows };
+  }
+
   async drawingSet(rootId, ctx) {
     const pages = [], drawn = new Set([rootId]), name = (id) => this.hooks.partName(id) || id, now = new Date().toISOString();
-    const flatten = (aid, M = ID4, pre = '') => (this.hooks.partData(aid)?.instances || []).flatMap((it) => {
-      const W = mul4(M, it.matrix || ID4), id = pre ? `${pre}/${it.id}` : it.id;
-      if (ctx.kindOf(it.part) === 'assembly') return flatten(it.part, W, id);
-      return [{ id, part: { features: this.hooks.partData(it.part)?.features || [] }, matrix: W }];
-    });
     const visit = async (aid, parent) => {
-      const insts = this.hooks.partData(aid)?.instances || [];
-      if (!insts.length) return;
-      const r = await post('/api/sheet/assembly', { instances: flatten(aid) });
-      const groups = new Map();
-      for (const it of insts) { if (!groups.has(it.part)) groups.set(it.part, []); groups.get(it.part).push(it.id); }
-      const rows = [...groups].map(([part, ids], i) => {
-        const pd = this.hooks.partData(part) || {}, kind = ctx.kindOf(part), nm = name(part);
-        const iso = Object.entries(r.marks).filter(([k]) => k === ids[0] || k.startsWith(`${ids[0]}/`)).map(([, m]) => m.Iso);
-        return { pos: i + 1, part, name: nm, qty: ids.length, kind, material: kind === 'assembly' ? '—' : pd.material || 'PLA', pn: pd.library?.pn || '',
-          bought: kind !== 'assembly' && (!!pd.library || ctx.bought(pd, nm)), iso: iso.length ? [iso.reduce((s, q) => s + q[0], 0) / iso.length, iso.reduce((s, q) => s + q[1], 0) / iso.length] : null };
-      });
-      pages.push({ name: name(aid), d: { source: aid, built: { ...r, preset: 'light' }, asm: { rows }, created: now, changed: now, off: { Right: true }, views: { Iso: r.layout.views.Right },
+      if (!(this.hooks.partData(aid)?.instances || []).length) return;
+      const { built, rows } = await this.assemblyPage(aid, ctx), own = ctx.sheetOf(aid); // its own sheet: the user's moves, dimensions, texts
+      const base = own ? structuredClone(own) : { created: now, changed: now, off: { Right: true }, views: { Iso: built.layout.views.Right } };
+      pages.push({ name: name(aid), d: { ...base, source: aid, built, asm: { rows },
         title: { kind: parent ? t('Sub-assembly') : t('Assembly'), part: name(aid), material: '—', of: parent || '' } } });
       for (const row of rows) if (row.kind === 'assembly' && !drawn.has(row.part)) { drawn.add(row.part); await visit(row.part, name(aid)); }
       for (const row of rows) {
@@ -375,7 +403,7 @@ export class SheetEditor {
 
   // ------------------------------------------------------------------ the screen
   render() {
-    this.checked = this.d && this.geo ? this.check() : null; // (the panels show it)
+    this.checked = this.d && this.geo && !this.d.asm ? this.check() : null; // (the panels show it; an assembly's sheet has no size check)
     this.renderBar();
     this.renderLeft();
     this.renderProps();
@@ -404,7 +432,7 @@ export class SheetEditor {
   renderBar() {
     const bar = this.$('.sh-bar');
     if (!bar || !this.d) return;
-    bar.innerHTML = `<div class="seg sh-presets" title="How many dimensions it makes by itself">${PRESETS.map(([k, l]) => `<button class="chip ${this.d.preset === k ? 'on' : ''}" data-preset="${k}">${t(l)}</button>`).join('')}</div>
+    bar.innerHTML = `${this.d.asm ? `<span class="sh-asm">◇ ${esc(t('Assembly drawing'))}</span>` : `<div class="seg sh-presets" title="How many dimensions it makes by itself">${PRESETS.map(([k, l]) => `<button class="chip ${this.d.preset === k ? 'on' : ''}" data-preset="${k}">${t(l)}</button>`).join('')}</div>`}
       <button class="chip tool ${this.tool === 'dim' ? 'on' : ''}" data-a="dim" title="Add a dimension: an edge (twice: its length), two edges (their distance), two points, or a circle / arc (Ø / R) — its value is measured from the part">＋ Dimension</button>
       <span class="sep"></span><button class="chip" data-a="undo" title="Undo (Ctrl+Z)" ${this.history.canUndo() ? '' : 'disabled'}>↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)" ${this.history.canRedo?.() ? '' : 'disabled'}>↷</button>
       <span class="sep"></span><button class="chip" data-a="fit" title="The whole sheet">⤢ Fit</button>
@@ -419,8 +447,9 @@ export class SheetEditor {
     const all = this.allDims(), hid = this.d.hidden.length, ck = this.checked || { missing: [], dup: new Set(), over: new Set(), ok: true };
     const vp = this.d.vpreset || {}, per = (v) => ck.missing.filter((m) => m.view === v).length;
     box.innerHTML = `<h3>Views</h3><div class="sh-views">${[...VIEWS, 'Iso'].map((v) => `<div class="sh-vrow"><label class="check"><input type="checkbox" data-v="${v}" ${this.d.off[v] ? '' : 'checked'}> ${esc(t(v))}${v === 'Iso' || this.d.off[v] ? '' : per(v) ? ` <b class="sh-vbad" title="${esc(t('Sizes missing in this view'))}">⚠ ${per(v)}</b>` : ' <b class="sh-vok">✓</b>'}</label>
-        ${v === 'Iso' ? '' : `<select data-vp="${v}" title="${esc(t('How many dimensions in this view — as the sheet, or its own'))}"><option value="">${esc(t('as the sheet'))}</option>${PRESETS.map(([k, l]) => `<option value="${k}" ${vp[v] === k ? 'selected' : ''}>${esc(t(l))}</option>`).join('')}</select>`}</div>`).join('')}</div>
-      <h3>Check</h3>${ck.ok && !ck.over.size ? `<p class="mp-count sh-ok">✓ ${esc(t('Fully dimensioned — every place and size is given once.'))}</p>` : ''}
+        ${v === 'Iso' || this.d.asm ? '' : `<select data-vp="${v}" title="${esc(t('How many dimensions in this view — as the sheet, or its own'))}"><option value="">${esc(t('as the sheet'))}</option>${PRESETS.map(([k, l]) => `<option value="${k}" ${vp[v] === k ? 'selected' : ''}>${esc(t(l))}</option>`).join('')}</select>`}</div>`).join('')}</div>
+      ${this.d.asm ? `<p class="hint">${esc(t('An assembly drawing: its views, overall sizes and parts list — each part has its own drawing for its sizes.'))}</p>` : ''}
+      <h3 ${this.d.asm ? 'hidden' : ''}>Check</h3>${this.d.asm ? '' : ck.ok && !ck.over.size ? `<p class="mp-count sh-ok">✓ ${esc(t('Fully dimensioned — every place and size is given once.'))}</p>` : ''}
       ${ck.missing.length ? `<p class="hint">${esc(tv('{n} size(s) missing (orange ? on the drawing):', { n: ck.missing.length }))}</p><div class="sh-miss-list">${ck.missing.slice(0, 40).map((m, i) => `<div class="sh-mrow">
         <span data-no-i18n>${esc(t(m.view))}: ${esc(m.what)}${m.ax ? ` <i>${m.ax}</i>` : ''}</span><button class="mini" data-miss="${i}" title="${esc(t('Add it (from the part\'s edge)'))}">＋</button></div>`).join('')}</div>
         <div class="row-actions"><button class="btn small" data-a="allMissing">＋ ${esc(t('Add all missing'))}</button></div>` : ''}

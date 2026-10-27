@@ -129,6 +129,9 @@ Never report "works" without having run it; report failures with their output.
    and "3× 10"; light fewer, full more; Del + ↺; a dimension dragged 8 -> 16; ＋ Dimension by two hole centres (30)
    and a circle (Ø3); the part 15 thick -> Rev 2, Changed later, the height 15, the moves kept; the PDF has the texts).
    Restart the server after changes to sheet.py (the kernel worker keeps old code).
+   `tools/e2e_assembly_sheet.py <url> <dir>` covers an assembly's own drawing sheet (📄 Drawing in its toolbar, greyed
+   when empty; the parts list and 2 balloons, no presets / check; a dimension and a note of the user's; the Lid moved:
+   Rev 2, the height 34, the note kept; the drawing set's first page has the note; the AI's sheet_open of an assembly).
    `tools/e2e_sheet_edges.py <url> <dir>` covers ＋ Dimension by edges with real clicks (an edge lit under the mouse;
    twice: its length 40; left + right edges: 40 across; an edge + a hole's centre: 10 up; an edge + Enter: 20; two
    crossing edges refused).

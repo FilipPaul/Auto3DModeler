@@ -80,6 +80,10 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **An assembly's own sheet done:** a sheet's source may be an assembly — SheetEditor.assemblyPage (its placed parts,
+  parts list, balloons; shared with drawingSet), sourceHash (the placed parts and theirs, sub-assemblies too) for the
+  revisions; no presets / size check on it; 📄 Drawing in the assembly toolbar and its panel; the drawing set takes
+  the assembly's own sheet (moves, dimensions, texts). tools/e2e_assembly_sheet.py.
 - **Sheet check done:** SheetEditor.check — per world axis (x: front / top across; y: top up / right across; z:
   front / right up) a union-find of the places the linear dimensions link (a pitch "n×" links its row; a circle of a
   known Ø / R links its centre ± r); every circle centre, straight edge (not a rounding's) and far end must reach the
