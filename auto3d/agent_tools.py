@@ -301,6 +301,11 @@ TOOLS = [
                     "= its number or words of its name (as for move_free), min and max = where along it (mm, or degrees: −360 … 360, up to a full turn "
                     "for a turn; get_assembly `at` says where it is now). min / max null: no limits. The part is put inside them. speed (0.25 … 4, 1 = about 3 s there and back) and loop (true: again and again) set how the app's ▶ plays it.",
      "inputSchema": _obj({"part": STR, "motion": {}, "min": {"type": ["number", "null"]}, "max": {"type": ["number", "null"]}, "speed": NUM, "loop": {"type": "boolean"}}, ["part"])},
+    {"name": "lock_motion", "where": "browser",
+     "description": "Lock one free motion of a joined part where it is now (the app's 🔒 by a motion): part = I…, motion = its "
+                    "number or words of its name (as for move_free). Its joint's turn or distance along the axis is fixed, else a "
+                    "new joint is added (flush / gap faces across a move, parallel faces for a turn). It says which joint did it.",
+     "inputSchema": _obj({"part": STR, "motion": {}}, ["part"])},
     {"name": "check_travel", "where": "browser",
      "description": "Move a part with limits (set_travel) from min to max in small steps and check for collisions on the way (the parts "
                     "on it go along): free all the way, or which part it hits and between which positions. It ends where it was.",
@@ -455,7 +460,7 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 - **Drawing sheets** (📄, of a 3D model part — its views and dimensions, made by a preset, edited by the user, following the part): sheet_open, get_sheet, sheet_edit; export {format: "pdf"} on a sheet writes it as drawn. Prefer a sheet over export pdf of the model when the user wants a drawing.
 - **2D drawings** (a DXF / DWG, or a PCB's Gerber / ODB++ opened as a 📐 drawing — open_file opens them, also a folder of loose Gerber files): get_drawing, drawing_find (shapes by filters), drawing_delete, drawing_add (lines, circles), drawing_units, drawing_layers (show / hide, colour, a new layer), drawing_set_size, drawing_use (as the sketch of a 3D model, or a quick part).
 - The GUI: gui_state lists what the user sees (buttons, sliders, their state); gui_action clicks / slides one as the user would — use them to tell the user where something is and to check the GUI behaves like the tools.
-- Assemblies also: edit_joint / remove_joint, measure (between faces), move_free; set_travel (a free motion's limits: a cylinder's stroke) and check_travel (collisions along it); the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, delete_part (only when asked). Files: export stl / step / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf.
+- Assemblies also: edit_joint / remove_joint, measure (between faces), move_free, lock_motion (fix one free motion where it is); set_travel (a free motion's limits: a cylinder's stroke) and check_travel (collisions along it); the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, delete_part (only when asked). Files: export stl / step / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf.
 - **The parts library** holds real, bought parts with their maker and part number (screws, nuts, washers, inserts, bearings, standoffs, panel parts, SMC pneumatics, SICK sensors, stepper motors, the user's own): library_search, library_add.
 - Both: get_screenshot, check_print, export, undo. Opening a file or tracing a picture adds a new quick part tab.
 

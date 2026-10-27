@@ -177,6 +177,9 @@ Never report "works" without having run it; report failures with their output.
    ⇤⇥ min / max typed, a typed position past max stops there, ⚠ Check the travel free, then a block in its way: "hits
    Stop (I3) from 1.25 to 20 mm", ▶ plays and ends where it was; the AI's get_assembly `at`, move_free `to` stopped
    at the limit, check_travel, set_travel and off). Needs a server restarted after backend changes (/api/assembly/sweep).
+   `tools/e2e_assembly_lockmotion.py <url> <dir>` covers 🔒 lock a motion (a pin in a hole: its turn -> the joint's
+   angle, its slide -> the joint's distance, fully held and not moved; a lid on a base: Along X -> a new Flush joint
+   of side faces, not moved; the AI's lock_motion, and on a held part refused).
    `tools/e2e_assembly_health.py <url> <dir>` covers joints that do not hold (the same faces joined again as a Gap:
    one joint changed; a Flush fighting it: the Gap red with "9 mm off: J2 (Flush) holds Lid elsewhere", ⚠ tag, status
    count, get_assembly not_held; one removed: all hold), a screw + nut as one 🔩 row whose ✕ takes the screw, nut and

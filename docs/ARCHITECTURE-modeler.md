@@ -80,6 +80,11 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **🔒 Lock a motion done:** 🔒 in each free motion's row (assembly.lockMotion): its own joint's angle (a turn about
+  an axis / on a face) or dist + side (along an axis) where it is now, else a new flush / gap / touch joint of
+  parallel flat faces across the move or a parallel joint of flat faces along the turn's axis (nearest / biggest
+  first, onto the parts it is joined to) — kept only when the free ways drop, else undone; via: the part it is fixed
+  on. AI lock_motion. tools/e2e_assembly_lockmotion.py.
 - **🪶 Simplified parts in assemblies done:** rebuild `lod` light / full / auto (light when over HEAVY_FACES):
   kernel.tessellate(light) — the mesh cleared and made coarse, no edges, faces without sketch frames / refs, rounded
   (the 42 MB board: 14.6 -> 8.4 MB to the browser); _tess keeps the light and full meshes apart; doc.light {pid:

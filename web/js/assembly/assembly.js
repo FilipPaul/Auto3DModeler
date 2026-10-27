@@ -1900,7 +1900,8 @@ export class Assembly {
     return `<div class="as-dof" data-dofrow="${i}"><label>${turn ? '↻' : '↔'} ${esc(mo.label)}</label>
       <div class="as-dofrow"><input type="range" data-dof="${i}" min="${lo}" max="${hi}" step="${turn ? 1 : 0.5}" value="${pos}">
       <input type="number" step="any" data-dofn="${i}" value="${fmt(pos)}"><span class="unit">${u}</span>
-      <button class="mini ${lim ? 'on' : ''}" data-dlim="${i}" title="${esc(lim ? 'Its limits — click to take them off (it moves freely again)' : 'Limits: how far it may go each way (a cylinder\'s stroke, a slide\'s ends, a door\'s swing)')}">⇤⇥</button></div>
+      <button class="mini ${lim ? 'on' : ''}" data-dlim="${i}" title="${esc(lim ? 'Its limits — click to take them off (it moves freely again)' : 'Limits: how far it may go each way (a cylinder\'s stroke, a slide\'s ends, a door\'s swing)')}">⇤⇥</button>
+      <button class="mini" data-dlock="${i}" title="Lock it where it is: a joint holds this motion (its joint's turn or distance, or a new flush / gap / parallel joint)">🔒</button></div>
       ${lim ? `<div class="as-doflim"><label>min <input type="number" step="any" data-dmin="${i}" value="${fmt(lim.min)}"></label>
         <label>max <input type="number" step="any" data-dmax="${i}" value="${fmt(lim.max)}"></label><span class="unit">${u}</span>
         <button class="mini ${this.playing?.key === mo.key ? 'on' : ''}" data-dplay="${i}" title="Play: from min to max and back">${this.playing?.key === mo.key ? '■' : '▶'}</button>
@@ -1942,6 +1943,11 @@ export class Assembly {
         this.setTravel(it.id, mo, lim);
       });
     }
+    for (const b of box.querySelectorAll('[data-dlock]')) {
+      b.addEventListener('click', () => {
+        try { this.hooks.toast(this.lockMotion(it.id, dof.motions[+b.dataset.dlock]), 'success', 4000); } catch (e) { this.hooks.toast(e.message, 'warning', 6000); }
+      });
+    }
     for (const b of box.querySelectorAll('[data-dplay]')) b.addEventListener('click', () => this.playTravel(it.id, dof.motions[+b.dataset.dplay]));
     for (const el of box.querySelectorAll('[data-dspeed]')) el.addEventListener('change', () => this.setPlay(it.id, dof.motions[+el.dataset.dspeed], { speed: +el.value }));
     for (const b of box.querySelectorAll('[data-dloop]')) b.addEventListener('click', () => { const mo = dof.motions[+b.dataset.dloop]; this.setPlay(it.id, mo, { loop: !this.limitsOf(it, mo)?.loop }); });
@@ -1969,6 +1975,74 @@ export class Assembly {
     const p = this.motionPos(id, mo), into = Math.max(min, Math.min(max, p));
     if (Math.abs(into - p) > 1e-6) { this.moveFree(id, mo, this.stepTo(mo, p, into, it.travel[mo.key]), [...it.matrix], true); } else this.commit();
     return it.travel[mo.key];
+  }
+
+  /** 🔒 One free motion locked where the part is now: its joint's turn (angle) or distance along the axis (dist) set,
+   *  else a new joint between faces of the parts it is joined to — flat faces across a move (flush / gap / touch, at
+   *  the distance they are), or flat faces along a turn (parallel). -> what was done (a text); throws when none
+   *  holds it. */
+  lockMotion(id, mo) {
+    if (mo.via) id = mo.via; // (fixed on another part: that one is locked)
+    const count = () => { try { return this.motionsOf(id, true)?.count ?? 0; } catch { return 0; } };
+    const before = count(), keep = structuredClone(this.doc.mates || []), dir = mo.dir.clone().normalize();
+    const tried = (what) => {
+      this.applyMates();
+      if (count() < before) { this.commit(); return what; }
+      this.doc.mates = structuredClone(keep);
+      this.applyMates();
+      return null;
+    };
+    const m = mo.ref && (this.doc.mates || []).find((x) => x.id === mo.ref);
+    if (m && !m.locked) { // its own joint first
+      if (mo.kind === 'turn' && /:(turn|spin)$/.test(mo.key) && !Number.isFinite(m.angle)) {
+        m.angle = +this.spinNow(m).toFixed(3); // (where it is: not rounded to a whole degree)
+        const r = tried(t2('{id}: its turn locked at {deg}°', { id: m.id, deg: m.angle }));
+        if (r) return r;
+      }
+      if (mo.kind === 'move' && /:along$/.test(mo.key) && m.type === 'axis' && !Number.isFinite(m.dist)) {
+        let g = null;
+        try { g = axialGap(this.worldFace(m.move, m.face), this.worldFace(m.onto, m.ontoFace)); } catch { g = null; }
+        if (g) {
+          Object.assign(m, { side: g.side, dist: +g.dist.toFixed(4) });
+          const r = tried(t2('{id}: its distance along the axis locked at {mm} mm', { id: m.id, mm: m.dist }));
+          if (r) return r;
+        }
+      }
+    }
+    // a new joint onto a part it is joined to: faces that hold this motion, the nearest / biggest first
+    const it = this.inst(id), mine = (this.doc.mates || []).filter((x) => x.move === id);
+    const planes = (inst) => {
+      const b = this.bodies[this.inst(inst)?.part]?.body;
+      const names = [...new Set((b?.faces || []).filter((f) => f.type === 'plane').map((f) => f.name))];
+      return names.map((n) => { try { return { name: n, f: this.worldFace(inst, n) }; } catch { return null; } }).filter(Boolean);
+    };
+    const own = planes(it.id), pairs = [];
+    for (const onto of [...new Set(mine.map((x) => x.onto))]) {
+      for (const a of planes(onto)) {
+        for (const b of own) {
+          if ((this.doc.mates || []).some((x) => (x.move === id && x.face === b.name && x.onto === onto && x.ontoFace === a.name))) continue;
+          const nA = a.f.normal, nB = b.f.normal, along = nA.dot(nB);
+          if (Math.abs(Math.abs(along) - 1) > 1e-4) continue; // parallel faces only
+          if (mo.kind === 'move') {
+            if (Math.abs(Math.abs(nA.dot(dir)) - 1) > 1e-4) continue; // across the move
+            const gap = b.f.centroid.clone().sub(a.f.centroid).dot(nA);
+            pairs.push({ onto, a, b, type: along < 0 ? (Math.abs(gap) < 0.005 ? 'touch' : 'gap') : 'flush', gap: +gap.toFixed(4), score: Math.abs(gap) - 1e-3 * Math.sqrt(a.f.area * b.f.area) });
+          } else {
+            if (Math.abs(nA.dot(dir)) > 1e-4) continue; // along the turn's axis
+            pairs.push({ onto, a, b, type: 'parallel', flip: along < 0, score: -Math.sqrt(a.f.area * b.f.area) });
+          }
+        }
+      }
+    }
+    pairs.sort((p, q) => p.score - q.score);
+    for (const p of pairs.slice(0, 12)) {
+      const n = Math.max(0, ...(this.doc.mates || []).map((x) => parseInt(String(x.id || '').slice(1), 10) || 0)) + 1;
+      const j = { id: `J${n}`, type: p.type, move: id, face: p.b.name, onto: p.onto, ontoFace: p.a.name, gap: p.type === 'flush' || p.type === 'gap' ? p.gap : 0, ...(p.flip ? { flip: true } : {}) };
+      this.doc.mates = [...(this.doc.mates || []), j];
+      const r = tried(t2('{id} added: {type} {face} – {other}', { id: j.id, type: t(JOINT_TYPES[j.type].name), face: this.faceText(id, j.face), other: this.faceText(p.onto, j.ontoFace) }));
+      if (r) return r;
+    }
+    throw new Error(t('No joint found that locks this motion — join it by hand (🔗 Join it to another part).'));
   }
 
   /** How ▶ plays a motion with limits: {speed (¼ … 4, 1: about 3 s there and back), loop (again and again)} — kept with
@@ -2452,6 +2526,12 @@ export class Assembly {
           : this.setTravel(it.id, mo, { min: +(min ?? this.limitsOf(it, mo)?.min ?? 0), max: +(max ?? this.limitsOf(it, mo)?.max ?? 0) });
         if (l && (speed !== undefined || loop !== undefined)) l = this.setPlay(it.id, mo, { speed, loop });
         return { text: `${it.id} — ${mo.label}: ${l ? `limits ${l.min} … ${l.max} ${mo.kind === 'turn' ? '°' : 'mm'}${l.speed ? `, ▶ ${l.speed}×` : ''}${l.loop ? ', ▶ again and again' : ''}` : 'no limits'}; now at ${+this.motionPos(it.id, mo).toFixed(2)}.` };
+      },
+      lock_motion: async ({ part, motion = 0 }) => {
+        need();
+        await settle();
+        const { it, mo } = this.motionFor(part, motion), text = this.lockMotion(it.id, mo);
+        return { text: `${text}. ${JSON.stringify(this.summary().parts.find((x) => x.id === (mo.via || it.id)))}` };
       },
       check_travel: async ({ part, motion = 0 }) => {
         need();

@@ -392,6 +392,10 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   mm"*. It ends where it was. The AI does the same with `set_travel`, `check_travel` and `move_free {to}`.
   A part on a face is centred on it once, when the joint is made; after that it keeps where it slid, and goes along
   with the part it hangs on.
+- **🔒 Lock a motion**: the 🔒 next to a free way fixes it where the part is — its joint's turn or distance along the
+  axis is set, or else a new joint is added onto the part it is joined to (flat faces across a move: *Flush* / *Gap*
+  at the distance they are; flat faces along a turn: *Parallel*). A toast says which joint did it; a flat-face joint
+  may hold its turn too. The AI: `lock_motion`.
 - **🪶 Simplified** (a placed part's *Look*): the part is shown with a coarser mesh and less data — quicker to load
   and to show; its joints still work, its edges cannot be picked; collisions and drawings use the full part. A big
   imported part (thousands of faces: an assembled PCB, a maker's STEP) is simplified by itself; untick it for its
