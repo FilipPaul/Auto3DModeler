@@ -80,6 +80,11 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Smart sketch dimensions done:** dims `ang` {e, e2, r1, r2, sg, v°} (planegcs set_l2l_angle on the lines as rays
+  from their crossing toward the clicked arms; a reversed ray is an extra line b→a) and `pl` {a, e, v} (set_p2l_distance);
+  dimOptions picks them for two crossing lines / a point and a slanted line; drawn as an arc / a perpendicular; the quick
+  size box sits in the view's bottom-left (over no shape). tests: test_angle_between_two_lines,
+  test_point_from_a_slanted_line; e2e_sketch_smart (a triangle: 36.87° -> 45, the corner from the slanted side).
 - **Sketch state and the instant size done:** Modeler.sketchState (on renderProps / the bar): ✓ Finish sketch `.done`
   (green) at dof 0, 🪄 hidden unless dof > 0; Sketcher.quickSize — the first ↔ Dimension click on a line / circle /
   arc opens its len / Ø / R beside it (view.uvToScreen), Enter locks it (addDim {edit: false} + setSize), a second

@@ -55,7 +55,9 @@ next to the tabs offers the usual ways to open a file.
 
 **The sketch tells its state**: **✓ Finish sketch** turns green when every size is fixed, and **🪄 Auto-dimension**
 shows only while sizes are still free. **↔ Dimension** on a line, circle or arc gives its size at once (a box beside
-it: type and Enter); a click on a second shape instead gives the distance between them.
+it: type and Enter); a click on a second shape instead gives what fits the two: two points — the distance (along x,
+along y or straight), two crossing lines — the **angle** between the arms you clicked, a point and a slanted line —
+its distance from the line, two parallel lines — the distance between them.
 
 **Actions in the corner**: the buttons that finish or leave a step — **✓ Finish sketch**, **OK** / **Cancel** of a
 feature, **Done** — float in the bottom-right corner of the view in every workspace; the toolbars hold only the tools.

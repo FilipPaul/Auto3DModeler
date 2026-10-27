@@ -94,6 +94,34 @@ class TestSketchSolve(unittest.TestCase):
         self.assertEqual(r["points"]["p3"][0], 90)
         self.assertEqual(r["points"]["p5"][0], 10)
 
+    def test_angle_between_two_lines(self):
+        """∠: two lines from a fixed corner, 60° apart (each ray from the corner); the second turns to it."""
+        sk = {"points": {"p1": [0, 0], "p2": [10, 0], "p3": [6, 6]},
+              "entities": [{"id": "l1", "t": "line", "a": "p1", "b": "p2"}, {"id": "l2", "t": "line", "a": "p1", "b": "p3"}],
+              "constraints": [{"id": "k1", "t": "h", "e": "l1"}],
+              "dims": [{"id": "d1", "t": "dx", "a": "O", "b": "p1", "v": 0}, {"id": "d2", "t": "dy", "a": "O", "b": "p1", "v": 0},
+                       {"id": "d3", "t": "ang", "e": "l1", "e2": "l2", "r1": 0, "r2": 0, "sg": 1, "v": 60}]}
+        r = solve(sk)
+        self.assertTrue(r["ok"], r)
+        u, v = r["points"]["p3"]
+        self.assertAlmostEqual(math.degrees(math.atan2(v, u)), 60, places=5)
+        sk["dims"][2].update(r2=1, v=30)  # the second line taken from its far end: 30° from the reversed ray
+        r = solve(sk)
+        u, v = r["points"]["p3"]
+        self.assertAlmostEqual(abs(math.degrees(math.atan2(-v, -u))), 30, places=4)
+        with self.assertRaises(SketchError):
+            sk["dims"][2]["v"] = 180
+            solve(sk)
+
+    def test_point_from_a_slanted_line(self):
+        sk = {"points": {"p1": [0, 0], "p2": [10, 10], "p3": [0, 8]},
+              "entities": [{"id": "l1", "t": "line", "a": "p1", "b": "p2"}, {"id": "c1", "t": "circle", "c": "p3", "r": 1}],
+              "constraints": [], "dims": [{"id": "d1", "t": "pl", "a": "p3", "e": "l1", "v": 4}]}
+        r = solve(sk)
+        self.assertTrue(r["ok"], r)
+        (x1, y1), (x2, y2), (px, py) = r["points"]["p1"], r["points"]["p2"], r["points"]["p3"]
+        self.assertAlmostEqual(abs((x2 - x1) * (py - y1) - (y2 - y1) * (px - x1)) / math.hypot(x2 - x1, y2 - y1), 4, places=5)
+
     def test_diameter_lock_and_free_radius(self):
         r = solve(plate(dims=[{"id": "d1", "t": "dia", "e": "c1", "v": 8}]))
         self.assertAlmostEqual(r["radii"]["c1"], 4)

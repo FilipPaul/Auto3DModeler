@@ -795,6 +795,7 @@ body.ws-model #exportMenu [data-fmt=glb] { display: none; }
 .view-actions .chip.primary.done { background: #238636; border-color: #2ea043; }
 .m-cmdbar .chip[hidden] { display: none; }
 body.view-acts .toast-stack { bottom: 84px; }
+.sk-choose.sk-quick { left: 12px; bottom: 34px; top: auto; border-color: var(--accent); }
 .sk-quick label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
 .sk-quick input { width: 74px; background: var(--bg); border: 1px solid var(--accent); border-radius: 5px; color: inherit; padding: 3px 6px; font: inherit; }
 .sk-quick .hint { margin: 6px 0 0; max-width: 200px; }

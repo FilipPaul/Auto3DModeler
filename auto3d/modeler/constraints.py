@@ -15,7 +15,10 @@ A sketch (in the feature JSON):
   "dims":        [{"id": "d1", "t": "len", "e": "l1", "v": 40},                  locked sizes 🔒
                   {"t": "dia", "e": "c1", "v": 6}, {"t": "rad", "e": "a1", "v": 5},   an arc's radius
                   {"t": "dx", "a": "O", "b": "p5", "v": 10}, {"t": "dy", ...},   distance along x / y
-                  {"t": "dist", "a": "p1", "b": "p5", "v": 12}]                   straight distance
+                  {"t": "dist", "a": "p1", "b": "p5", "v": 12},                   straight distance
+                  {"t": "ang", "e": "l1", "e2": "l2", "r1": 0, "r2": 1, "sg": 1, "v": 60},   the angle between two lines
+                      (degrees, 0 … 180) — from line e to e2, each taken from a to b (r = 1: from b to a), sg its turn
+                  {"t": "pl", "a": "p5", "e": "l3", "v": 8}]                      a point's distance from a line
   A dimension with "free": true only measures (shown with its live value, not held).
   An end of a distance may be a fixed reference instead of a sketch point: {"ref": [u, v]} — a point of an
   edge of the part the sketch is on (so a hole can be dimensioned from the part's edge).
@@ -208,6 +211,21 @@ def solve(sketch, drag=None, keep=None):
                 if v <= 0:
                     raise SketchError("A radius must be greater than zero.")
                 tag = s.set_arc_radius(ent[1], v)
+            elif t == "ang":
+                e1, e2 = ents.get(d.get("e")), ents.get(d.get("e2"))
+                if not e1 or not e2 or e1[0]["t"] != "line" or e2[0]["t"] != "line":
+                    continue
+                if not 0 < v < 180:
+                    raise SketchError("An angle is between 0 and 180°.")
+                ray = lambda en, rev: s.add_line(ids[en[0]["b"]], ids[en[0]["a"]]) if rev else en[1]  # noqa: E731
+                tag = s.set_l2l_angle(ray(e1, d.get("r1")), ray(e2, d.get("r2")), math.radians(v) * (-1 if (d.get("sg") or 1) < 0 else 1))
+            elif t == "pl":
+                ln, a = ents.get(d.get("e")), end(d.get("a"))
+                if not ln or ln[0]["t"] != "line" or a is None:
+                    continue
+                if v <= 0:
+                    raise SketchError("A distance must be greater than zero.")
+                tag = s.set_p2l_distance(a, ln[1], v)
             elif t in ("dx", "dy", "dist"):
                 a, b = end(d.get("a")), end(d.get("b"))
                 if a is None or b is None:

@@ -512,6 +512,7 @@ export class Sketcher {
     if (d.t === 'rad') return `R${fmt(d.v)}`;
     if (d.t === 'dx') return `x ${fmt(d.v)}`;
     if (d.t === 'dy') return `y ${fmt(d.v)}`;
+    if (d.t === 'ang') return `${fmt(d.v)}°`;
     return fmt(d.v);
   }
 
@@ -521,9 +522,50 @@ export class Sketcher {
     if (spec.t === 'len') { const e = this.ent(spec.e), a = this.P(e.a), b = this.P(e.b); return Math.hypot(b[0] - a[0], b[1] - a[1]); }
     if (spec.t === 'dia') return 2 * this.ent(spec.e).r;
     if (spec.t === 'rad') return this.arcR(this.ent(spec.e));
+    if (spec.t === 'ang') return Math.abs(this.signedAngle(spec));
+    if (spec.t === 'pl') {
+      const e = this.ent(spec.e), p = this.endUV(spec.a), a = this.P(e.a), b = this.P(e.b), L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+      return Math.abs((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])) / L;
+    }
     const a = this.endUV(spec.a), b = this.endUV(spec.b);
     if (spec.t === 'dist') return Math.hypot(b[0] - a[0], b[1] - a[1]);
     return spec.t === 'dx' ? b[0] - a[0] : b[1] - a[1];
+  }
+
+  /** A line as a ray (rev: from b to a) -> its direction [du, dv]. */
+  rayDir(id, rev) { const e = this.ent(id), a = this.P(e.a), b = this.P(e.b); return rev ? [a[0] - b[0], a[1] - b[1]] : [b[0] - a[0], b[1] - a[1]]; }
+
+  /** The turn from an angle's first ray to its second (degrees, −180 … 180). */
+  signedAngle(spec) {
+    const p = this.rayDir(spec.e, spec.r1), q = this.rayDir(spec.e2, spec.r2);
+    return (Math.atan2(p[0] * q[1] - p[1] * q[0], p[0] * q[0] + p[1] * q[1]) * 180) / Math.PI;
+  }
+
+  /** Where two lines (as infinite lines) cross -> [u, v], or null when they are parallel. */
+  crossing(l1, l2) {
+    const A = this.ent(l1), B = this.ent(l2), a = this.P(A.a), b = this.P(A.b), c = this.P(B.a), d = this.P(B.b);
+    const r = [b[0] - a[0], b[1] - a[1]], s = [d[0] - c[0], d[1] - c[1]], den = r[0] * s[1] - r[1] * s[0];
+    if (Math.abs(den) < 1e-9 * Math.hypot(...r) * Math.hypot(...s)) return null;
+    const k = ((c[0] - a[0]) * s[1] - (c[1] - a[1]) * s[0]) / den;
+    return [a[0] + k * r[0], a[1] + k * r[1]];
+  }
+
+  /** The angle between two clicked lines: each taken from their crossing toward where it was clicked. */
+  angleSpec(A, B) {
+    const X = this.crossing(A.line, B.line);
+    if (!X) return null;
+    const rev = (id, at) => {
+      const e = this.ent(id), a = this.P(e.a), b = this.P(e.b), d = [b[0] - a[0], b[1] - a[1]];
+      let toward = at ? [at[0] - X[0], at[1] - X[1]] : null;
+      if (!toward || Math.hypot(...toward) < 1e-6) { // (clicked at the crossing: its far end)
+        const far = Math.hypot(a[0] - X[0], a[1] - X[1]) > Math.hypot(b[0] - X[0], b[1] - X[1]) ? a : b;
+        toward = [far[0] - X[0], far[1] - X[1]];
+      }
+      return toward[0] * d[0] + toward[1] * d[1] < 0 ? 1 : 0;
+    };
+    const spec = { t: 'ang', e: A.line, e2: B.line, r1: rev(A.line, A.at), r2: rev(B.line, B.at) };
+    spec.sg = this.signedAngle(spec) < 0 ? -1 : 1;
+    return spec;
   }
 
   /** An end of a distance: a sketch point id, the origin, or a fixed reference {ref: [u, v]}. */
@@ -621,17 +663,19 @@ export class Sketcher {
 
   findDim(spec) {
     const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
-    return this.f.dims.find((d) => d.t === spec.t && (spec.e ? d.e === spec.e : same(d.a, spec.a) && same(d.b, spec.b)));
+    return this.f.dims.find((d) => d.t === spec.t && (spec.e ? d.e === spec.e && (d.e2 ?? null) === (spec.e2 ?? null) && (spec.a === undefined || same(d.a, spec.a))
+      : same(d.a, spec.a) && same(d.b, spec.b)));
   }
 
   /** Type a value: the size is locked at it. Holds the point it is measured from, so it grows from there. */
   async setSize(spec, value) {
     if (spec.t === 'bw') { this.sel = { kind: 'entity', id: spec.e }; this.setBlock('w', value); return; }
     let v = parseFloat(String(value).replace(',', '.'));
-    if (!Number.isFinite(v) || (['len', 'dia', 'rad', 'dist'].includes(spec.t) && v <= 0)) {
+    if (!Number.isFinite(v) || (['len', 'dia', 'rad', 'dist', 'pl', 'ang'].includes(spec.t) && v <= 0)) {
       this.m.toast('A size must be greater than zero.', 'error');
       return;
     }
+    if (spec.t === 'ang' && v >= 180) { this.m.toast('An angle is between 0 and 180°.', 'error'); return; }
     let hold = null;
     if (spec.t === 'dx' || spec.t === 'dy') {
       const cur = this.measure(spec);
@@ -640,6 +684,7 @@ export class Sketcher {
     // a distance is measured from a (it stays) to b (it moves): hold a when it is a sketch point
     if (['dx', 'dy', 'dist'].includes(spec.t) && typeof spec.a === 'string' && spec.a !== ORIGIN && this.f.points[spec.a]) hold = { [spec.a]: this.P(spec.a) };
     if (spec.t === 'len') { const e = this.ent(spec.e); if (e.a !== ORIGIN) hold = { [e.a]: this.P(e.a) }; }
+    if (spec.t === 'ang' || spec.t === 'pl') { const e = this.ent(spec.e); hold = { [e.a]: this.P(e.a), [e.b]: this.P(e.b) }; } // its (first) line stays
     if (spec.t === 'dia' || spec.t === 'rad') {
       // a radius changes only its own circle / arc: everything else stays (a rounded corner's sharp corner too, so
       // the rounding slides along its lines); a circle keeps its centre
@@ -1673,6 +1718,13 @@ export class Sketcher {
       const [P, L] = A.kind === 'point' ? [A, B] : [B, A];
       if (L.dir === 'h') add('dy', P.end, L.a);
       else if (L.dir === 'v') add('dx', P.end, L.a);
+      else if (sketchy(L.line)) { // a slanted line of the sketch: the point's distance from it
+        const spec = { t: 'pl', a: P.end, e: L.line }, v = this.measure(spec);
+        if (v > 1e-7) opts.push({ spec, v });
+      }
+    } else if (A.line && B.line && sketchy(A.line) && sketchy(B.line) && A.line !== B.line && this.crossing(A.line, B.line)) { // two lines that cross: their angle
+      const spec = this.angleSpec(A, B);
+      if (spec) opts.push({ spec, v: this.measure(spec) });
     } else if (A.dir === B.dir && A.dir !== 's' && (A.line || A.a) !== (B.line || B.a)) add(A.dir === 'h' ? 'dy' : 'dx', A.a, B.a);
     return opts;
   }
@@ -1681,8 +1733,9 @@ export class Sketcher {
     this.closeChooser();
     const t = this.pickTarget(uv);
     if (!t) { this.m.toast('Click a point, a circle, a line or an edge of the part.', 'info', 3000); return; }
-    if (!this.dimA) { this.dimA = t; this.m.hint(this.hint()); this.draw(); this.quickSize(t, e); return; }
+    if (!this.dimA) { this.dimA = { ...t, at: uv }; this.m.hint(this.hint()); this.draw(); this.quickSize(t, e); return; }
     const A = this.dimA;
+    t.at = uv;
     let opts;
     if (A.line && t.line === A.line) opts = [{ spec: { t: 'len', e: A.line }, v: this.measure({ t: 'len', e: A.line }) }];
     else if (A.circle && t.circle === A.circle) opts = [{ spec: { t: 'dia', e: A.circle }, v: this.measure({ t: 'dia', e: A.circle }) }];
@@ -1695,7 +1748,7 @@ export class Sketcher {
     this.showChooser(opts, e);
   }
 
-  /** The first click of ↔ Dimension on a line, circle or arc: its own size in a box at the mouse, ready to type
+  /** The first click of ↔ Dimension on a line, circle or arc: its own size in a box (bottom left), ready to type
    *  (Enter locks it); a click on a second shape instead gives the distance between them. */
   quickSize(A, e) {
     const ent = this.f.entities.find((x) => x.id === (A.line || A.circle || A.arc) && typeof (A.line || A.circle || A.arc) === 'string');
@@ -1706,22 +1759,7 @@ export class Sketcher {
     try { v = this.measure(spec); } catch { return; }
     const box = document.createElement('div');
     box.className = 'sk-choose sk-quick';
-    // beside the shape, where its size label goes (not over the shape: a second click on it stays free)
-    const mpp = this.mpp();
-    let at;
-    if (ent.t === 'line') {
-      const a = this.P(ent.a), b = this.P(ent.b), L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, nx = -(b[1] - a[1]) / L, ny = (b[0] - a[0]) / L;
-      const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], c = this.centreOf(ent) || [mid[0] - nx, mid[1] - ny];
-      const side = (mid[0] - c[0]) * nx + (mid[1] - c[1]) * ny >= 0 ? 1 : -1;
-      at = [mid[0] + side * nx * mpp * 34, mid[1] + side * ny * mpp * 34];
-    } else {
-      const c = this.P(ent.c), r = ent.t === 'circle' ? ent.r : this.arcR(ent) || 1;
-      at = [c[0] + r * 0.72 + mpp * 30, c[1] + r * 0.72 + mpp * 30];
-    }
-    const vr = this.m.els.viewport.getBoundingClientRect();
-    let sx = e.clientX + 12, sy = e.clientY + 12;
-    try { [sx, sy] = this.m.view.uvToScreen(this.frame(), at); } catch { /* (no view: at the mouse) */ }
-    Object.assign(box.style, { left: `${Math.min(sx - vr.left, vr.width - 230)}px`, top: `${Math.min(Math.max(4, sy - vr.top - 20), vr.height - 90)}px` });
+    // in the view's bottom-left corner: over no shape (a second click on any of them stays free)
     box.innerHTML = `<label>${spec.t === 'len' ? t('Length') : spec.t === 'dia' ? 'Ø' : 'R'} <input type="text" value="${fmt(Math.abs(v))}"> mm</label>
       <p class="hint">${t('Enter: this size — or click a second shape for a distance')}</p>`;
     const inp = box.querySelector('input');
@@ -1747,7 +1785,7 @@ export class Sketcher {
     box.className = 'sk-choose';
     const vr = this.m.els.viewport.getBoundingClientRect();
     Object.assign(box.style, { left: `${e.clientX - vr.left + 12}px`, top: `${e.clientY - vr.top + 12}px` });
-    const name = { dx: '↔ along x', dy: '↕ along y', dist: '⤢ straight' };
+    const name = { dx: '↔ along x', dy: '↕ along y', dist: '⤢ straight', ang: '∠ angle', pl: '⊥ from the line' };
     box.innerHTML = '<div class="sk-choose-t">Which distance?</div>';
     for (const o of opts) {
       const b = document.createElement('button');
@@ -1814,7 +1852,7 @@ export class Sketcher {
     el.className = `sk-label edit dist${d.free ? '' : ' locked'}`;
     el.dataset.dim = d.id;
     el.innerHTML = '<span class="sk-val"></span><button class="sk-lock"></button><button class="sk-del" title="Delete this dimension">✕</button>';
-    el.querySelector('.sk-val').textContent = `${{ dx: '↔', dy: '↕', dist: '⤢' }[d.t]} ${fmt(Math.abs(d.free ? this.measure(d) : d.v))}`;
+    el.querySelector('.sk-val').textContent = `${{ dx: '↔', dy: '↕', dist: '⤢', ang: '∠', pl: '⊥' }[d.t]} ${fmt(Math.abs(d.free ? this.measure(d) : d.v))}${d.t === 'ang' ? '°' : ''}`;
     el.querySelector('.sk-val').title = d.free ? 'Measured distance (free) — click to type a value and lock it' : 'Locked distance — click to type a new value';
     const lock = el.querySelector('.sk-lock');
     lock.textContent = d.free ? '🔓' : '🔒';
@@ -1927,12 +1965,31 @@ export class Sketcher {
     }
     // distances (dimension tool): a dimension line from the moving end, an extension line to the other end
     for (const d of f.dims) {
-      if (!['dx', 'dy', 'dist'].includes(d.t) || !shows(!d.free)) continue;
+      if (!shows(!d.free)) continue;
+      const DC = d.free ? 0x8b95a3 : LOCKED;
+      if (d.t === 'ang' && this.ent(d.e) && this.ent(d.e2)) {
+        const X = this.crossing(d.e, d.e2);
+        if (!X) continue;
+        const p = this.rayDir(d.e, d.r1), q = this.rayDir(d.e2, d.r2), a0 = Math.atan2(p[1], p[0]), sweep = (this.signedAngle(d) * Math.PI) / 180, R = mpp * 34;
+        const arc = Array.from({ length: 25 }, (_, i) => { const a = a0 + (sweep * i) / 24; return [X[0] + R * Math.cos(a), X[1] + R * Math.sin(a)]; });
+        for (let i = 0; i + 1 < arc.length; i++) lines.push([arc[i], arc[i + 1], DC]);
+        const am = a0 + sweep / 2;
+        labels.push(this.distLabel(d, X[0] + (R + mpp * 16) * Math.cos(am), X[1] + (R + mpp * 16) * Math.sin(am)));
+        continue;
+      }
+      if (d.t === 'pl' && this.ent(d.e)) {
+        const e = this.ent(d.e), P = this.endUV(d.a), a = this.P(e.a), b = this.P(e.b), u = [b[0] - a[0], b[1] - a[1]], L2 = u[0] * u[0] + u[1] * u[1] || 1;
+        const k = ((P[0] - a[0]) * u[0] + (P[1] - a[1]) * u[1]) / L2, foot = [a[0] + k * u[0], a[1] + k * u[1]];
+        lines.push([P, foot, DC]);
+        if (k < 0 || k > 1) lines.push([foot, k < 0 ? a : b, DC, true]); // (beyond the line's ends: dashed on to it)
+        labels.push(this.distLabel(d, (P[0] + foot[0]) / 2 + mpp * 10, (P[1] + foot[1]) / 2 + mpp * 10));
+        continue;
+      }
+      if (!['dx', 'dy', 'dist'].includes(d.t)) continue;
       const A = this.endUV(d.a), B = this.endUV(d.b);
       if (!A || !B) continue;
       if ((d.a === ORIGIN || d.b === ORIGIN) && Math.abs(d.v) < 1e-9) continue; // "locked at the origin": the purple point says it
       let mid, end;
-      const DC = d.free ? 0x8b95a3 : LOCKED;
       if (d.t === 'dx') { end = [A[0], B[1]]; lines.push([B, end, DC], [A, end, DC, true]); mid = [(A[0] + B[0]) / 2, B[1] + mpp * 10]; }
       else if (d.t === 'dy') { end = [B[0], A[1]]; lines.push([B, end, DC], [A, end, DC, true]); mid = [B[0] + mpp * 22, (A[1] + B[1]) / 2]; }
       else { lines.push([A, B, DC]); mid = [(A[0] + B[0]) / 2 + mpp * 8, (A[1] + B[1]) / 2 + mpp * 8]; }
@@ -2070,6 +2127,8 @@ export class Sketcher {
       if (d.t === 'len') return `Length ${v}`;  // (a free distance shows its measured value)
       if (d.t === 'dia') return `Ø${v}`;
       if (d.t === 'rad') return `R${v}`;
+      if (d.t === 'ang') return `∠ ${v}° (${t('angle')})`;
+      if (d.t === 'pl') return `⊥ ${v} (${t('from a line')})`;
       const at = (x) => (x === ORIGIN ? 'origin' : typeof x === 'object' ? 'part edge' : 'point');
       if ((d.a === ORIGIN || d.b === ORIGIN) && Math.abs(d.v) < 1e-9) return `${d.t === 'dx' ? '↔' : '↕'} 0 (on the origin)`;
       return `${{ dx: '↔', dy: '↕', dist: '⤢' }[d.t]} ${v} (from the ${at(d.a)})`;

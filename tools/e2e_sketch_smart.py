@@ -111,6 +111,38 @@ try:
     time.sleep(0.6)
     print("🪄 then:", state())
     d.save_screenshot(f"{OUT}/sketch_smart.png")
+
+    # a triangle: two crossing lines -> their angle; a corner and the slanted side -> its distance from it
+    d.find_element(By.ID, "newModelBtn").click()
+    wait(f"return {M}.mode === 'sketch' && !{SK}.f.entities.length")
+    time.sleep(0.6)
+    tool("line")
+    for uv in ((0, 0), (40, 0), (0, 30), (0, 0)):
+        click_uv(uv)
+    d.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
+    time.sleep(0.4)
+    print("the triangle:", js(f"return {SK}.f.entities.map(e => e.t + ':' + [e.a, e.b].map(p => {SK}.P(p).map(v => +v.toFixed(1))).join('>'))"))
+    tool("dim")
+    click_uv((30, 0))     # the bottom line, left of the right corner
+    click_uv((30, 7.5))   # the slanted side, up from it
+    time.sleep(0.8)
+    ang = js(f"const x = {SK}.f.dims.find(x => x.t === 'ang'); return x ? [+x.v.toFixed(2), +{SK}.measure(x).toFixed(2)] : null")
+    print("two crossing lines -> an angle:", ang, "(atan 30/40 = 36.87)", "| a typing box:", bool(js("return document.querySelector('.sk-input')")))
+    inp = d.find_element(By.CSS_SELECTOR, ".sk-input")
+    inp.send_keys(Keys.CONTROL, "a")
+    inp.send_keys("45", Keys.ENTER)
+    time.sleep(1.2)
+    print("  45 typed:", js(f"const x = {SK}.f.dims.find(x => x.t === 'ang'); return +{SK}.measure(x).toFixed(3)"), "| its label:",
+          js("return [...document.querySelectorAll('.sk-label.dist')].map(l => l.querySelector('.sk-val').textContent).find(t => t.startsWith('∠'))"))
+    tip = js(f"const l = {SK}.f.entities.filter(e => e.t === 'line').map(e => [{SK}.P(e.a), {SK}.P(e.b)]); const sl = l.find(([a, b]) => Math.abs(a[0] - b[0]) > 1e-6 && Math.abs(a[1] - b[1]) > 1e-6); return [sl[0][0] + (sl[1][0] - sl[0][0]) * 0.75, sl[0][1] + (sl[1][1] - sl[0][1]) * 0.75]")
+    click_uv((0, 0))      # the corner at the origin …
+    click_uv(tip)         # … and the slanted side: the corner's distance from it
+    time.sleep(0.8)
+    js("document.querySelector('.sk-input')?.blur()")
+    time.sleep(0.8)
+    pl = js(f"const x = {SK}.f.dims.find(x => x.t === 'pl'); return x ? +{SK}.measure(x).toFixed(3) : null")
+    print("a corner and a slanted line -> its distance:", pl, "| the dims:", js(f"return {SK}.f.dims.map(x => x.t)"))
+    d.save_screenshot(f"{OUT}/sketch_angle.png")
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()
