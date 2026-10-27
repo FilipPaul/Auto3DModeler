@@ -129,6 +129,8 @@ Never report "works" without having run it; report failures with their output.
    and "3× 10"; light fewer, full more; Del + ↺; a dimension dragged 8 -> 16; ＋ Dimension by two hole centres (30)
    and a circle (Ø3); the part 15 thick -> Rev 2, Changed later, the height 15, the moves kept; the PDF has the texts).
    Restart the server after changes to sheet.py (the kernel worker keeps old code).
+   `tools/e2e_assembly_openpart.py <url> <dir>` covers ◆ Open its part in a placed part's panel (it opens that part's
+   tab; back in the assembly, the other one).
    `tools/e2e_ai_sheet.py <url> <dir>` covers the AI's sheet tools (export pdf of a model still the plain drawing;
    sheet_open makes the sheet; get_sheet {points: "Top"}: 6 hole centres; sheet_edit add between two centres (40) and a
    circle's Ø with H7; remove + move + Iso hidden; preset light; a wrong id refused; export pdf on the sheet: its texts;

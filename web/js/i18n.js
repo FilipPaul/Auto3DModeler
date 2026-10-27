@@ -802,6 +802,7 @@ const CS = {
   'Open {part}': 'Otevřít {part}', "Click a point (a corner, a hole's centre) and another one — or a circle / arc for its Ø / R. Esc: done.": 'Klikněte na bod (roh, střed díry) a na další — nebo na kružnici / oblouk pro Ø / R. Esc: hotovo.',
   'Click a point (an orange dot) or the line of a circle.': 'Klikněte na bod (oranžová tečka) nebo na čáru kružnice.', 'Now another point of the same view.': 'Teď další bod ve stejném pohledu.',
   'A drawing sheet of this part to edit: its views and dimensions (light / medium / full), moved, deleted, added — it follows the part when it changes': 'Výkres tohoto dílu k úpravám: pohledy a kóty (lehká / střední / plná), posouvat, mazat, přidávat — sleduje díl, když se změní',
+  'Open its part': 'Otevřít jeho díl', 'Open its part in its own tab (to change it — the assembly follows)': 'Otevřít jeho díl ve vlastní záložce (k úpravě — sestava ho bude sledovat)',
   'opening a drawing': 'otevírá výkres', 'reading the drawing': 'čte výkres', 'editing the drawing': 'upravuje výkres',
   'looking at the screen': 'dívá se na obrazovku', 'clicking in the app': 'kliká v aplikaci',
   'Locked 🔒 — unlock the joint to change it': 'Zamčeno 🔒 — vazbu odemkněte, chcete-li ji změnit',
