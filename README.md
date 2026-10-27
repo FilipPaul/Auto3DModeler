@@ -431,7 +431,7 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   every change, so the button itself says it: **⚠ 2 collision(s)** in red, or **✓ No collisions** in green. Click it
   for the list — each pair and how much (mm³), the parts glowing red and the overlap boxed in red; hover a row for
   just that pair, **click a row: the view goes to that collision**, the other parts see-through (click again or
-  *⤢ Show all* to go back); ↗ chooses the two parts (their joints and moves). Slide a part and see it clear.
+  *⤢ Show all* to go back); ↗ chooses the two parts (their joints and moves). Slide a part and see it clear. Big imported parts (a whole assembled PCB) are checked quickly: two of them overlapping in many places show an estimate (**≈**) after a change — *↻ Check again* computes it exactly.
 - **🎨 Paint** colours faces of the placed parts (▢ Faces) or whole parts (◆ Whole parts) in this assembly: click
   them, Ctrl+click for more, pick a colour. The parts keep their own colours in their tabs and other assemblies.
 - **✂ Section** cuts every part along X, Y or Z (a slider moves the cut, ⇄ shows the other side).
