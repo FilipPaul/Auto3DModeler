@@ -197,7 +197,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       await sheet.ensure();
       return ok({ ...sheet.summary(), ...(points ? { [points]: sheet.pointsOf(points) } : {}) });
     },
-    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {} } = {}) => {
+    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, texts } = {}) => {
       need('sheet', 'This is for a drawing sheet (📄) — sheet_open opens one');
       const ed = sheet, done = [];
       if (preset !== undefined) {
@@ -224,6 +224,12 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         done.push(`${v} ${on ? 'shown' : 'hidden'}`);
       }
       if (restore) { ed.d.hidden = []; done.push('the deleted ones back'); }
+      for (const [k, v] of Object.entries(texts || {})) {
+        if (!['title', 'number', 'drawn', 'note'].includes(k)) throw new Error('texts: {title, number, drawn, note} — the title block\'s own texts.');
+        ed.d.texts = { ...(ed.d.texts || {}) };
+        if (String(v ?? '').trim()) ed.d.texts[k] = String(v).trim(); else delete ed.d.texts[k];
+        done.push(`${k}: ${v || '—'}`);
+      }
       const ids = new Set(ed.allDims().map((d) => d.id).concat(ed.d.hidden, ed.d.user.map((d) => d.id)));
       for (const id of [].concat(remove)) {
         if (!ids.has(id)) throw new Error(`No dimension ${id} — get_sheet lists them.`);

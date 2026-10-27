@@ -441,6 +441,8 @@ body:not(.ws-model):not(.ws-assembly):not(.ws-drawing):not(.ws-sheet) .not-quick
 .sh-stage svg { width: 96%; height: 96%; transform-origin: 50% 50%; box-shadow: 0 6px 30px #0008; background: #fff; }
 .sh-stage .sh-empty { color: var(--muted); }
 .sh-dim { cursor: move; }
+.sh-tcell { cursor: text; }
+.sh-tcell:hover { fill: #1f6feb; fill-opacity: 0.08; }
 .sh-dim:hover line, .sh-dim:hover polyline { stroke: #1f6feb; }
 .sh-view { cursor: grab; }
 .sh-busy { font-size: 11px; color: var(--muted); margin-left: 8px; }

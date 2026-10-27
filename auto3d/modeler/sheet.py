@@ -127,7 +127,7 @@ def layout(geo, paper=None):
     need_w, need_h = max(size[0] + size[1], 1), max(size[2] + size[1], 1)
     for pname in ([paper] if paper in PAPERS else ["A4", "A3"]):
         pw, ph = PAPERS[pname]
-        title, margin = 30, 10
+        title, margin = 38, 10
         fit = [(a, b) for a, b in SCALES if a / b * need_w <= (pw - 2 * margin) * 0.62 and a / b * need_h <= (ph - 2 * margin - title) * 0.62]
         if fit or pname == "A3" or paper:
             break

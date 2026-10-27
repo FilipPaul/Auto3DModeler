@@ -8,7 +8,8 @@
 // Sheet JSON (a project part of kind "sheet"):
 //   {source: "<part id>", preset: "light" | "medium" | "full", vpreset: {Top: "full"} (a view's own), paper: null | "A4" | "A3", views: {Front: [x, y]} (moved),
 //    off: {Iso: true} (views not shown), dims: {<id>: {side, off, ang, len}} (automatic ones moved), hidden: [<ids>],
-//    user: [<dimension>], built: {geometry, layout, dims} (from the server), hash (of the part it was built from),
+//    user: [<dimension>], texts: {title, number, drawn, note} (typed into the title block),
+//    built: {geometry, layout, dims} (from the server), hash (of the part it was built from),
 //    rev, created, changed}
 import { History } from '../history.js';
 import { t } from '../i18n.js';
@@ -19,6 +20,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const VIEWS = ['Front', 'Top', 'Right'];
 const PRESETS = [['light', 'Light'], ['medium', 'Medium'], ['full', 'Full']];
+const TEXTS = [['title', 'Title'], ['number', 'Drawing no.'], ['drawn', 'Drawn by'], ['note', 'Note']];
 const when = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 
 /** 4 × 4 placement matrices (column-major, as three.js keeps them): a · b. */
@@ -46,7 +48,7 @@ export class SheetEditor {
     this.pick = null;    // the first point of a new dimension {view, key}
     this.zoom = { k: 1, x: 0, y: 0 };
     this.history = new History({
-      capture: () => ({ views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper }),
+      capture: () => ({ views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper, texts: this.d?.texts }),
       restore: (s) => { Object.assign(this.d, structuredClone(s)); if (this.d.built?.preset !== this.d.preset || this.d.built?.vp !== JSON.stringify(this.d.vpreset || {})) this.ensure(true); else this.render(); },
       onChange: () => this.renderBar(),
     });
@@ -254,10 +256,10 @@ export class SheetEditor {
   }
 
   titleSvg(pw, ph, m, th, s) {
-    const x0 = pw - m - 150, y0 = ph - m - th, src = this.hooks.partData(this.d.source) || {}, sc = this.lay.scale, T = this.d.title || {};
+    const x0 = pw - m - 150, y0 = ph - m - th, src = this.hooks.partData(this.d.source) || {}, sc = this.lay.scale, T = this.d.title || {}, X = this.d.texts || {};
     const what = [T.kind || t('Part'), T.of ? `${t('in')} ${T.of}` : '', T.pos ? `${t('Pos.')} ${T.pos}` : ''].filter(Boolean).join(' · ');
     const cells = [
-      [what, T.part || this.hooks.partName(this.d.source) || '—', 0, 0, 90, 12, 5],
+      [what, X.title || T.part || this.hooks.partName(this.d.source) || '—', 0, 0, 90, 12, 5, 'title'],
       [t('Material'), T.material ?? (src.material || 'PLA'), 90, 0, 60, 12, 3.6],
       [t('Scale'), `${sc[0]}:${sc[1]}`, 0, 12, 30, 9, 3.4],
       [t('Paper'), this.lay.paper, 30, 12, 30, 9, 3.4],
@@ -265,10 +267,13 @@ export class SheetEditor {
       [t('Created'), when(this.d.created), 0, 21, 50, 9, 3],
       [`${t('Changed')} · Rev`, `${when(this.d.changed)} · ${this.d.rev}`, 50, 21, 60, 9, 3],
       T.sheet ? [t('Sheet'), T.sheet, 110, 21, 40, 9, 3.4] : ['', 'Auto3DModeler · mm', 110, 21, 40, 9, 2.8],
+      [t('Drawing no.'), X.number || '', 0, 30, 40, 8, 3.2, 'number'],
+      [t('Drawn by'), X.drawn || '', 40, 30, 40, 8, 3.2, 'drawn'],
+      [t('Note'), X.note || '', 80, 30, 70, 8, 2.9, 'note'],
     ];
     const g = [`<g class="sh-title"><rect x="${x0}" y="${y0}" width="150" height="${th}" fill="#fff" stroke="#000" stroke-width="0.5"/>`];
-    for (const [k, v, x, y, w, h, fs] of cells) {
-      g.push(`<rect x="${x0 + x}" y="${y0 + y}" width="${w}" height="${h}" fill="none" stroke="#000" stroke-width="0.25"/>`);
+    for (const [k, v, x, y, w, h, fs, key] of cells) {
+      g.push(`<rect x="${x0 + x}" y="${y0 + y}" width="${w}" height="${h}" fill="${key ? '#fff' : 'none'}" ${key ? 'fill-opacity="0"' : ''} stroke="#000" stroke-width="0.25"${key ? ` data-tcell="${key}" class="sh-tcell"` : ''}/>`);
       if (k) g.push(`<text x="${x0 + x + 1.2}" y="${y0 + y + 2.6}" font-size="2" fill="#555">${esc(k)}</text>`);
       g.push(`<text x="${x0 + x + 1.2}" y="${y0 + y + h - 1.8}" font-size="${fs}" fill="#000">${esc(v)}</text>`);
     }
@@ -426,6 +431,7 @@ export class SheetEditor {
     box.innerHTML = `<h2>📄 ${esc(t('Drawing'))}</h2>
       <p class="hint">${esc(tv('Of {part} — it follows the part: change the part, the drawing is made again (a new revision).', { part: name || '?' }))}</p>
       <div class="mp-facts"><span>Rev</span><b data-no-i18n>${this.d.rev}</b><span>${esc(t('Changed'))}</span><b data-no-i18n>${esc(when(this.d.changed))}</b><span>${esc(t('Created'))}</span><b data-no-i18n>${esc(when(this.d.created))}</b></div>
+      ${d ? '' : `<h3>${esc(t('Title block'))}</h3>${TEXTS.map(([k, l]) => `<div class="field"><label>${esc(t(l))}</label><input type="text" data-text="${k}" value="${esc(this.d.texts?.[k] || '')}" placeholder="${esc(k === 'title' ? this.hooks.partName(this.d.source) || '' : '')}"></div>`).join('')}`}
       <div class="field"><label>Paper</label><select data-k="paper">${[['', 'Auto'], ['A4', 'A4'], ['A3', 'A3']].map(([v, l]) => `<option value="${v}" ${(this.d.paper || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       ${d ? `<h3>${esc(t('Dimension'))}</h3><p class="mp-count" data-no-i18n>${esc(this.value(d) === null ? '⚠ ?' : this.dimText(d, this.value(d)))}</p>
         <p class="hint">${esc(d.auto ? t('Made by the preset. Drag it to move it; Delete removes it (↺ brings it back).') : t('Your own. Drag it to move it; Delete removes it.'))}</p>
@@ -433,6 +439,10 @@ export class SheetEditor {
         <div class="row-actions"><button class="btn small danger" data-a="del">✕ ${esc(t('Delete'))}</button></div>`
         : `<p class="hint">${esc(t('Drag a dimension or a view to move it. ＋ Dimension: click two points, or a circle. The values come from the part.'))}</p>`}
       ${name ? `<div class="row-actions"><button class="btn small" data-a="part">◆ ${esc(tv('Open {part}', { part: name }))}</button></div>` : ''}`;
+    for (const el of box.querySelectorAll('[data-text]')) {
+      el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') el.blur(); });
+      el.addEventListener('change', () => { const x = { ...(this.d.texts || {}) }; if (el.value.trim()) x[el.dataset.text] = el.value.trim(); else delete x[el.dataset.text]; this.d.texts = x; this.commit(); });
+    }
     box.querySelector('[data-k=paper]').addEventListener('change', (e) => { this.d.paper = e.target.value || null; this.d.views = {}; this.history.commit(); this.ensure(true); });
     box.querySelector('[data-a=del]')?.addEventListener('click', () => this.remove(this.sel));
     box.querySelector('[data-a=part]')?.addEventListener('click', () => this.hooks.openPart?.(this.d.source));
@@ -528,7 +538,17 @@ export class SheetEditor {
       if (!this.svgEl || e.button !== 0) return;
       const p = this.paperAt(e);
       if (this.tool === 'dim') { this.clickDim(p); return; }
-      const dimEl = e.target.closest('[data-dim]'), viewEl = e.target.closest('[data-view]');
+      const dimEl = e.target.closest('[data-dim]'), viewEl = e.target.closest('[data-view]'), cell = e.target.closest('[data-tcell]');
+      const twice = cell && this.lastCell?.key === cell.dataset.tcell && performance.now() - this.lastCell.at < 400; // (a pointerdown has no click count)
+      this.lastCell = cell ? { key: cell.dataset.tcell, at: performance.now() } : null;
+      if (twice) { // a double-click on a title-block cell: its field in the panel
+        e.preventDefault(); // (the mouse's own focus change would take it away again)
+        this.sel = null;
+        this.renderProps();
+        const inp = this.$(`.sh-props [data-text=${cell.dataset.tcell}]`);
+        setTimeout(() => { inp?.focus(); inp?.select(); }, 0);
+        return;
+      }
       if (dimEl) {
         this.sel = dimEl.dataset.dim;
         drag = { kind: 'dim', id: this.sel, d: this.allDims().find((x) => x.id === this.sel), moved: false };
@@ -636,7 +656,7 @@ export class SheetEditor {
 
   /** For the AI: the sheet's dimensions with their values. */
   summary() {
-    return { part: this.hooks.partName(this.d.source), preset: this.d.preset, ...(Object.keys(this.d.vpreset || {}).length ? { view_presets: this.d.vpreset } : {}), paper: this.lay?.paper, rev: this.d.rev, changed: this.d.changed,
+    return { part: this.hooks.partName(this.d.source), ...(Object.keys(this.d.texts || {}).length ? { texts: this.d.texts } : {}), preset: this.d.preset, ...(Object.keys(this.d.vpreset || {}).length ? { view_presets: this.d.vpreset } : {}), paper: this.lay?.paper, rev: this.d.rev, changed: this.d.changed,
       views: [...VIEWS, 'Iso'].filter((v) => !this.d.off[v]),
       dims: this.allDims().map((d) => ({ id: d.id, view: d.view, kind: d.kind, text: this.value(d) === null ? null : this.dimText(d, this.value(d)), auto: !!d.auto, ...(this.value(d) === null ? { lost: true } : {}) })),
       deleted_auto: this.d.hidden.length };

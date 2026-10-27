@@ -54,11 +54,12 @@ try:
     print("edited:", r["done"], "| preset", r["preset"], "| views", r["views"], "| dims", len(r["dims"]), "| deleted autos", r["deleted_auto"])
     print("moved:", js("const s = window.__app.sheet; return Object.values(s.d.dims).map(o => o.off)"))
     print("a wrong id:", ai("sheet_edit", remove=["nope"])[:60])
+    print("texts:", json.loads(ai("sheet_edit", texts={"number": "BR-7", "drawn": "AI"}))["texts"])
     out = ai("export", format="pdf", path=OUT)
     print("export:", out[:80])
     pdf = os.path.join(OUT, "Bracket — drawing.pdf")
     text = fitz.open(pdf)[0].get_text() if os.path.exists(pdf) else ""
-    print("the PDF:", [w for w in ("Ø4.5", "H7", "Front", "Top", "Bracket") if w in text], "| no Iso view:", js("return !!window.__app.sheet.d.off.Iso"))
+    print("the PDF:", [w for w in ("Ø4.5", "H7", "Front", "Top", "Bracket", "BR-7") if w in text], "| no Iso view:", js("return !!window.__app.sheet.d.off.Iso"))
     n = len(json.loads(ai("list_parts")))
     ai("open_part", id=json.loads(ai("list_parts"))[0]["id"])
     s2 = json.loads(ai("sheet_open", part="Bracket"))

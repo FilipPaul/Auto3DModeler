@@ -272,7 +272,7 @@ are one Ø and two pitches, not 400 dimensions). **Drag** a dimension or a view 
 dimension (↺ brings deleted ones back), **＋ Dimension**: click two points (a corner, a hole's centre) or a circle
 (its Ø / R). A value is always measured from the part — it cannot be typed. The sheet **follows its part**: change
 the part and the views and dimensions are made again, the revision goes up and *Changed* says when (your moved and
-own dimensions stay on their edges and holes). **⬇ PDF** gives the sheet as you see it. The AI works on sheets too
+own dimensions stay on their edges and holes). The title block takes your own texts — *Title*, *Drawing no.*, *Drawn by*, *Note* — in the panel (a double-click on a cell goes to its field). **⬇ PDF** gives the sheet as you see it. The AI works on sheets too
 (`sheet_open`, `get_sheet`, `sheet_edit`: a preset, the paper, views, dimensions added between points or on a
 circle, removed or moved; `export {format: "pdf"}` on a sheet) — for what the editor does not offer in a click.
 

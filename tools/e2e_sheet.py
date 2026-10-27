@@ -2,7 +2,8 @@
 sheet: its views and the medium dimensions ("8× Ø3 H7" once, the pitch "3× 10") -> Light: fewer; Full: more; light with the top view medium -> a
 dimension chosen and deleted (Del); ↺ brings it back -> dragged lower: its offset changes -> ＋ Dimension: two points
 clicked -> a new one with the measured value; a circle clicked -> its Ø -> the part made 15 thick -> the sheet again:
-Rev 2, "changed" now, the height reads 15 -> ⬇ PDF: the same texts in the PDF.
+Rev 2, "changed" now, the height reads 15 -> own texts typed into the title block (drawing no., drawn by, note; a
+double-click on a cell goes to its field) -> ⬇ PDF: the same texts in the PDF.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_sheet.py http://127.0.0.1:5199 <out dir>
 """
@@ -153,12 +154,27 @@ try:
     title = js("return [...document.querySelectorAll('#shViewport .sh-title text')].map(t => t.textContent)")
     print("title block:", [t for t in title if "Rev" in t or "ISO" in t or "aluminium" in t or "Plate" in t])
 
+    # own texts in the title block: typed in the panel; a double-click on a cell goes to its field
+    js(f"{S}.sel = null; {S}.render()")
+    for k, v in (("number", "D-0042"), ("drawn", "F. Paul"), ("note", "Break edges 0.5")):
+        el = d.find_element(By.CSS_SELECTOR, f"#shRight [data-text={k}]")
+        el.clear()
+        el.send_keys(v)
+        el.send_keys(Keys.ENTER)
+        time.sleep(0.3)
+    cells = js("return [...document.querySelectorAll('#shViewport .sh-title text')].map(t => t.textContent)")
+    print("typed texts in the title block:", [c for c in cells if c in ("D-0042", "F. Paul", "Break edges 0.5")])
+    cell = js("const r = document.querySelector('#shViewport [data-tcell=note]').getBBox(); return [r.x + r.width / 2, r.y + r.height / 2]")
+    x, y = screen(cell)
+    ActionChains(d).move_to_element_with_offset(d.find_element(By.CSS_SELECTOR, "#shViewport .sh-stage"), x, y).double_click().perform()
+    time.sleep(0.4)
+    print("a double-click on Note: its field", js("return document.activeElement?.dataset?.text"))
     svg = js(f"return {S}.svg(true)")
     pdf = js("""return fetch('/api/sheet/pdf', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({svg: arguments[0], name: 'x'})})
       .then(r => r.arrayBuffer()).then(b => btoa(String.fromCharCode(...new Uint8Array(b))))""", svg)
     import base64
     text = fitz.open("pdf", base64.b64decode(pdf))[0].get_text()
-    print("PDF:", [w for w in ("8× Ø3 H7", "3× 10", "Front", "Top", "ISO 2768-m", "aluminium") if w in text])
+    print("PDF:", [w for w in ("8× Ø3 H7", "3× 10", "Front", "Top", "ISO 2768-m", "aluminium", "D-0042", "F. Paul") if w in text])
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()

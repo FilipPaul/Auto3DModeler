@@ -370,10 +370,10 @@ TOOLS = [
                     "views {Front | Top | Right | Iso: true / false}, remove [dimension ids], restore true (the deleted automatic ones "
                     "back), move {id: {side (h: t / b; v: l / r), off (mm from the view on the paper), ang, len (a Ø / R leader)}}, "
                     "add [{view, a, b, dir (h / v; else by the points), pre (text before, e.g. \"4×\")} | {view, circle (its key), "
-                    "count, post (e.g. \"H7\")}] — values are always measured from the part. Do what the user cannot do in a click.",
+                    "count, post (e.g. \"H7\")}], texts {title, number (drawing no.), drawn (drawn by), note} (the title block's own; \"\" clears) — values are always measured from the part. Do what the user cannot do in a click.",
      "inputSchema": _obj({"preset": {"type": "string", "enum": ["light", "medium", "full"]}, "view_presets": {"type": "object"}, "paper": {"type": ["string", "null"]}, "views": {"type": "object"},
                           "remove": {"type": "array", "items": STR}, "restore": {"type": "boolean"}, "move": {"type": "object"},
-                          "add": {"type": "array", "items": {"type": "object"}}})},
+                          "add": {"type": "array", "items": {"type": "object"}}, "texts": {"type": "object"}})},
     {"name": "edit_joint", "where": "browser",
      "description": "Change a joint of the assembly on screen (id J… from get_assembly): gap (mm, flat joints), distance (mm along "
                     "the axis for a concentric joint, null = it slides freely), lock_rotation (true / false), angle (degrees: the "
