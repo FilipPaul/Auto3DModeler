@@ -1,7 +1,7 @@
 """Motion with limits, in headless Edge: a Ø6 pin concentric in a base's hole (free to slide and turn) -> its slider shows
 where it is along the axis -> ⇤⇥ limits: min / max typed -> the slider stops at max -> ⚠ Check the travel: free -> a
 block put in its way -> checked again: it hits the block, from where to where -> ▶ plays min -> max -> min and ends
-where it was -> the AI: get_assembly `at`, move_free `to` past the limit (stopped there), check_travel, set_travel off.
+where it was -> 4× and ↻: still playing after 2 s, ■ stops it where it was -> the AI: get_assembly `at`, move_free `to` past the limit (stopped there), check_travel, set_travel off.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_assembly_travel.py http://127.0.0.1:5199 <out dir>
 """
@@ -123,6 +123,21 @@ try:
     time.sleep(0.2)
     print("▶ plays: z", z0, "-> on the way", z_mid, "-> back", z_of("I2"))
 
+    # ▶ faster and again and again: the speed and ↻ next to it, kept with the limits
+    from selenium.webdriver.support.ui import Select
+    Select(along().find_element(By.CSS_SELECTOR, "[data-dspeed]")).select_by_value("4")
+    time.sleep(0.3)
+    along().find_element(By.CSS_SELECTOR, "[data-dloop]").click()
+    time.sleep(0.3)
+    print("speed / repeat kept:", js(f"const t = {A}.inst('I2').travel['J1:along']; return [t.speed, t.loop]"))
+    along().find_element(By.CSS_SELECTOR, "[data-dplay]").click()
+    time.sleep(2.2)  # 4×: about 0.75 s a round — still going (again and again)
+    print("  after 2.2 s it still plays:", js(f"return !!{A}.playing"))
+    along().find_element(By.CSS_SELECTOR, "[data-dplay]").click()  # ■
+    wait(f"return !{A}.playing", 5)
+    time.sleep(0.2)
+    print("  ■: stopped, back where it was:", z_of("I2") == z0)
+    print("  the AI: set_travel speed / loop:", call("set_travel", part="I2", motion="axis", speed=0.5, loop=False)[-60:])
     s = call("get_assembly")
     import json
     pin_s = next(p for p in json.loads(s)["parts"] if p["id"] == "I2")

@@ -675,6 +675,7 @@ body.ws-model #exportMenu [data-fmt=glb] { display: none; }
 .as-doflim { display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
 .as-dof .as-doflim label { display: inline-flex; align-items: center; gap: 4px; margin: 0; }
 .as-doflim input[type=number] { width: 58px; }
+.as-doflim .as-dspeed { font-size: 11px; padding: 1px 2px; width: auto; }
 .as-dofnote { margin: 4px 0 0; font-size: 11.5px; }
 .as-dofnote.bad { color: #f85149; }
 .as-list.exploding .as-boom, .as-boom.off, .mt-item:hover .as-boom { display: inline-block; }

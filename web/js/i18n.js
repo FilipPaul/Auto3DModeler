@@ -813,6 +813,8 @@ const CS = {
   'Now another point or edge of the same view.': 'Teď další bod nebo hranu ve stejném pohledu.',
   'Two edges that are not parallel (or slanted) have no distance here — click points instead.': 'Dvě nerovnoběžné (nebo šikmé) hrany tu vzdálenost nemají — klikněte raději na body.',
   'Add a dimension: an edge (twice: its length), two edges (their distance), two points, or a circle / arc (Ø / R) — its value is measured from the part': 'Přidat kótu: hrana (dvakrát: její délka), dvě hrany (jejich vzdálenost), dva body, nebo kružnice / oblouk (Ø / R) — hodnota se změří z dílu',
+  'How fast ▶ plays': 'Jak rychle ▶ přehrává', 'It plays again and again (■ stops it) — click: once': 'Přehrává se znovu a znovu (■ zastaví) — klik: jednou',
+  'Play once — click: again and again, until ■': 'Přehrát jednou — klik: znovu a znovu, dokud ■',
   Pages: 'Listy', 'Open its drawing sheet': 'Otevřít jeho výkres', In: 'Je v',
   'Assembly drawing': 'Výkres sestavy', '📄 Drawing': '📄 Výkres',
   'An assembly drawing: its views, overall sizes and parts list — each part has its own drawing for its sizes.': 'Výkres sestavy: pohledy, celkové rozměry a kusovník — každý díl má pro své rozměry vlastní výkres.',

@@ -376,7 +376,7 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   sticks out of its hole), so a typed number puts it there.
 - **Motion with limits**: **⇤⇥** next to a way gives it a **min** and **max** — a cylinder's stroke, a slide's ends,
   a door's swing (a turn: −360 … 360°, up to a full turn — e.g. 0 … 270°). Then the slider goes only between them (it is the drive: slide it and the parts
-  on it go along), **▶** plays it from min to max and back, and **⚠ Check the travel** moves it from min to max in
+  on it go along), **▶** plays it from min to max and back — its **speed** (¼× … 4×) and **↻ repeat** next to it —, and **⚠ Check the travel** moves it from min to max in
   small steps and checks for collisions on the way: *"✓ Free all the way"* or *"⚠ It hits Stop (I3) from 1.25 to 20
   mm"*. It ends where it was. The AI does the same with `set_travel`, `check_travel` and `move_free {to}`.
   A part on a face is centred on it once, when the joint is made; after that it keeps where it slid, and goes along

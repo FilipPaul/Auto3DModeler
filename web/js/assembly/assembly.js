@@ -1893,6 +1893,8 @@ export class Assembly {
       ${lim ? `<div class="as-doflim"><label>min <input type="number" step="any" data-dmin="${i}" value="${fmt(lim.min)}"></label>
         <label>max <input type="number" step="any" data-dmax="${i}" value="${fmt(lim.max)}"></label><span class="unit">${u}</span>
         <button class="mini ${this.playing?.key === mo.key ? 'on' : ''}" data-dplay="${i}" title="Play: from min to max and back">${this.playing?.key === mo.key ? '■' : '▶'}</button>
+        <select class="as-dspeed" data-dspeed="${i}" title="How fast ▶ plays">${[[0.25, '¼×'], [0.5, '½×'], [1, '1×'], [2, '2×'], [4, '4×']].map(([v, l]) => `<option value="${v}" ${(lim.speed || 1) === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <button class="mini ${lim.loop ? 'on' : ''}" data-dloop="${i}" title="${lim.loop ? 'It plays again and again (■ stops it) — click: once' : 'Play once — click: again and again, until ■'}">↻</button>
         <button class="btn small" data-dcheck="${i}" title="Move it from min to max in small steps and check for collisions on the way">⚠ Check the travel</button></div>` : ''}
       ${note ? `<p class="mp-count as-dofnote ${note.bad ? 'bad' : ''}" data-no-i18n>${esc(note.text)}</p>` : ''}</div>`;
   }
@@ -1930,6 +1932,8 @@ export class Assembly {
       });
     }
     for (const b of box.querySelectorAll('[data-dplay]')) b.addEventListener('click', () => this.playTravel(it.id, dof.motions[+b.dataset.dplay]));
+    for (const el of box.querySelectorAll('[data-dspeed]')) el.addEventListener('change', () => this.setPlay(it.id, dof.motions[+el.dataset.dspeed], { speed: +el.value }));
+    for (const b of box.querySelectorAll('[data-dloop]')) b.addEventListener('click', () => { const mo = dof.motions[+b.dataset.dloop]; this.setPlay(it.id, mo, { loop: !this.limitsOf(it, mo)?.loop }); });
     for (const b of box.querySelectorAll('[data-dcheck]')) b.addEventListener('click', () => this.checkTravel(it.id, dof.motions[+b.dataset.dcheck]));
   }
 
@@ -1950,23 +1954,40 @@ export class Assembly {
     if (mo.kind === 'turn') { min = Math.max(-360, min); max = Math.min(360, max); } // (up to a full turn)
     if (min > max) [min, max] = [max, min];
     if (mo.kind === 'turn' && max - min > 360) max = min + 360; // (one turn at most: past it a turn's place is the same again)
-    it.travel = { ...(it.travel || {}), [mo.key]: { min: +min, max: +max } };
+    it.travel = { ...(it.travel || {}), [mo.key]: { ...(it.travel?.[mo.key] || {}), min: +min, max: +max } }; // (its speed / repeat kept)
     const p = this.motionPos(id, mo), into = Math.max(min, Math.min(max, p));
     if (Math.abs(into - p) > 1e-6) { this.moveFree(id, mo, this.stepTo(mo, p, into, it.travel[mo.key]), [...it.matrix], true); } else this.commit();
     return it.travel[mo.key];
   }
 
-  /** ▶ From min to max and back (about 3 s), then where it was; again: stop. */
+  /** How ▶ plays a motion with limits: {speed (¼ … 4, 1: about 3 s there and back), loop (again and again)} — kept with
+   *  its limits; a change works while it plays. */
+  setPlay(id, mo, o) {
+    if (mo.via) id = mo.via;
+    const it = this.inst(id), lim = it?.travel?.[mo.key];
+    if (!lim) throw new Error('Set its limits first (⇤⇥).');
+    if (o.speed !== undefined) { const v = Math.max(0.25, Math.min(4, +o.speed || 1)); if (v === 1) delete lim.speed; else lim.speed = v; }
+    if (o.loop !== undefined) { if (o.loop) lim.loop = true; else delete lim.loop; }
+    this.history.commit();
+    this.renderProps();
+    return lim;
+  }
+
+  /** ▶ From min to max and back (about 3 s at 1×; ↻: again and again), then where it was; again: stop. */
   playTravel(id, mo) {
     if (this.playing) { this.playing.stop = true; return; }
     if (mo.via) id = mo.via;
     const it = this.inst(id), lim = this.limitsOf(it, mo);
     if (!lim) return;
     const snap = this.doc.instances.map((x) => [x.id, [...x.matrix], structuredClone(x.hang)]), from = [...it.matrix], p0 = this.motionPos(id, mo);
-    const T = 3000, t0 = performance.now(), play = (this.playing = { key: mo.key, stop: false });
+    const play = (this.playing = { key: mo.key, stop: false });
+    let k = 0, last = performance.now();
     this.renderProps();
     const frame = (now) => {
-      const k = (now - t0) / T;
+      const L = this.limitsOf(it, mo) || lim; // (its speed / repeat as they are now)
+      k += (now - last) / (3000 / (L.speed || 1));
+      last = now;
+      if (k >= 1 && L.loop && !play.stop) k -= Math.floor(k);
       if (play.stop || k >= 1) {
         for (const [iid, m, hang] of snap) { const x = this.inst(iid); if (x) { x.matrix = m; x.hang = hang; } }
         this.checkJoints();
@@ -2412,13 +2433,14 @@ export class Assembly {
         return { text: `Added ${plan.text}; holes drilled: ${plan.holes.map((h) => `Ø${h.d} ${h.through ? 'through' : `${h.depth} mm deep`} in ${this.partName(h.part)} (${h.inst})`).join(', ')}. ${JSON.stringify(this.summary())}` };
       },
       remove_from_assembly: async ({ part }) => { need(); this.removeInst(part); return { text: JSON.stringify(this.summary()) }; },
-      set_travel: async ({ part, motion = 0, min, max }) => {
+      set_travel: async ({ part, motion = 0, min, max, speed, loop }) => {
         need();
         await settle();
-        const { it, mo } = this.motionFor(part, motion);
-        const l = min === null || max === null || (min === undefined && max === undefined) ? this.setTravel(it.id, mo, null)
+        const { it, mo } = this.motionFor(part, motion), only = min === undefined && max === undefined && (speed !== undefined || loop !== undefined);
+        let l = only ? this.limitsOf(it, mo) : min === null || max === null || (min === undefined && max === undefined) ? this.setTravel(it.id, mo, null)
           : this.setTravel(it.id, mo, { min: +(min ?? this.limitsOf(it, mo)?.min ?? 0), max: +(max ?? this.limitsOf(it, mo)?.max ?? 0) });
-        return { text: `${it.id} — ${mo.label}: ${l ? `limits ${l.min} … ${l.max} ${mo.kind === 'turn' ? '°' : 'mm'}` : 'no limits'}; now at ${+this.motionPos(it.id, mo).toFixed(2)}.` };
+        if (l && (speed !== undefined || loop !== undefined)) l = this.setPlay(it.id, mo, { speed, loop });
+        return { text: `${it.id} — ${mo.label}: ${l ? `limits ${l.min} … ${l.max} ${mo.kind === 'turn' ? '°' : 'mm'}${l.speed ? `, ▶ ${l.speed}×` : ''}${l.loop ? ', ▶ again and again' : ''}` : 'no limits'}; now at ${+this.motionPos(it.id, mo).toFixed(2)}.` };
       },
       check_travel: async ({ part, motion = 0 }) => {
         need();
