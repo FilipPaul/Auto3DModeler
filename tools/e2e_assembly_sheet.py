@@ -1,6 +1,7 @@
 """An assembly's drawing sheet (📄 Drawing in the assembly's toolbar), in headless Edge: Machine = Base + Lid -> the button
 -> a sheet tab: the assembly's views (front, top, iso), its parts list (Base, Lid) and balloons, no presets / size check
--> a dimension of the user's and a note typed -> back in the assembly the Lid moved -> the sheet again: Rev 2 -> the
+-> the balloons apart, one dragged (kept) -> Pages: Machine, Base, Lid; the Lid's page opens its sheet, its "In:
+Machine" goes back -> a dimension of the user's and a note typed -> back in the assembly the Lid moved -> the sheet again: Rev 2 -> the
 drawing set (📄 Drawings (PDF)): its first page is this sheet, with the note -> the AI's sheet_open of an assembly.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_assembly_sheet.py http://127.0.0.1:5199 <out dir>
@@ -13,6 +14,7 @@ import urllib.request
 
 import fitz
 from selenium import webdriver
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
@@ -63,6 +65,28 @@ try:
     print("  parts list:", js(f"return {S}.d.asm.rows.map(r => [r.pos, r.name, r.qty])"), "| balloons:", len(d.find_elements(By.CSS_SELECTOR, "#shViewport .sh-bom circle[r='3.4']")))
     print("  views:", js(f"return ['Front', 'Top', 'Right', 'Iso'].filter(v => !{S}.d.off[v])"), "| presets shown:", len(d.find_elements(By.CSS_SELECTOR, "#shViewport [data-preset]")),
           "| check shown:", len(d.find_elements(By.CSS_SELECTOR, "#shLeft [data-a=allMissing], #shLeft .sh-ok")))
+    # the balloons apart; one dragged
+    cs = js("return [...document.querySelectorAll('#shViewport [data-balloon] circle')].map(c => [+c.getAttribute('cx'), +c.getAttribute('cy')])")
+    print("  balloons apart:", all(((x1 - x2) ** 2 + (y1 - y2) ** 2) ** 0.5 > 8 for i, (x1, y1) in enumerate(cs) for (x2, y2) in cs[i + 1:]))
+    b0 = cs[0]
+    def scr(pt):
+        return js(f"""const s = {S}.svgEl, p = s.createSVGPoint(); p.x = arguments[0][0]; p.y = arguments[0][1];
+          const q = p.matrixTransform(s.getScreenCTM()), r = {S}.stage.getBoundingClientRect(); return [Math.round(q.x - (r.left + r.width / 2)), Math.round(q.y - (r.top + r.height / 2))]""", pt)
+    x0, y0 = scr(b0)
+    x1, y1 = scr([b0[0] - 20, b0[1] + 10])
+    stage = d.find_element(By.CSS_SELECTOR, "#shViewport .sh-stage")
+    ActionChains(d).move_to_element_with_offset(stage, x0, y0).click_and_hold().move_by_offset((x1 - x0) // 2, (y1 - y0) // 2).move_by_offset((x1 - x0) - (x1 - x0) // 2, (y1 - y0) - (y1 - y0) // 2).release().perform()
+    time.sleep(0.4)
+    print("  balloon 1 dragged:", js(f"return {S}.d.balloons?.['1']"), "(was", [round(v, 1) for v in b0], ")")
+
+    # Pages: the set from here; a part's page opens its sheet, its "In" goes back
+    print("  pages:", [b.text.replace("\n", " ") for b in d.find_elements(By.CSS_SELECTOR, "#shLeft .sh-page")])
+    next(b for b in d.find_elements(By.CSS_SELECTOR, "#shLeft .sh-page") if "Lid" in b.text).click()
+    wait(f"return !!{S}.svgEl && !{S}.busy && !{S}.d.asm", 60)
+    print("  Lid's page:", js("return window.__app.project.current.name"), "| its In:", [b.text for b in d.find_elements(By.CSS_SELECTOR, "#shLeft .sh-page")])
+    d.find_element(By.CSS_SELECTOR, "#shLeft .sh-page").click()
+    wait(f"return !!{S}.svgEl && !{S}.busy && !!{S}.d.asm", 60)
+    print("  back:", js("return window.__app.project.current.name"), "| the balloon kept:", js(f"return {S}.d.balloons?.['1']"))
     js(f"{S}.addFor({{view: 'Front', a: 'box#y0', b: 'box#y1', dir: 'v'}})")
     js(f"{S}.sel = null; {S}.render()")
     el = d.find_element(By.CSS_SELECTOR, "#shRight [data-text=note]")

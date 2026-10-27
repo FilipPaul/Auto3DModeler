@@ -48,7 +48,7 @@ export class SheetEditor {
     this.pick = null;    // the first point of a new dimension {view, key}
     this.zoom = { k: 1, x: 0, y: 0 };
     this.history = new History({
-      capture: () => ({ views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper, texts: this.d?.texts }),
+      capture: () => ({ balloons: this.d?.balloons, views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper, texts: this.d?.texts }),
       restore: (s) => { Object.assign(this.d, structuredClone(s)); if (this.d.built?.preset !== this.d.preset || this.d.built?.vp !== JSON.stringify(this.d.vpreset || {})) this.ensure(true); else this.render(); },
       onChange: () => this.renderBar(),
     });
@@ -326,13 +326,24 @@ export class SheetEditor {
     row(top, cols.map((c) => c[0]), true);
     shown.forEach((r, i) => row(top + 5 * (i + 1), [r.pos, `${r.kind === 'assembly' ? '◇ ' : ''}${r.name}`, r.qty, r.material, r.pn || (r.bought ? t('bought') : '')], false));
     if (rows.length > max) g.push(`<text x="${x0 + 1.2}" y="${top + 5 * (shown.length + 1) + 3.6}" font-size="2.6">… ${rows.length - max} ${t('more')}</text>`);
-    if (this.isoMap && !this.d.off.Iso) { // the balloons
+    if (this.isoMap && !this.d.off.Iso) { // the balloons: out from the view, apart from each other, where the user put them
+      const placed = [];
       for (const r of rows) {
         if (!r.iso) continue;
         const p = this.isoMap.at(r.iso), c = this.isoMap.c, L = Math.hypot(p[0] - c[0], p[1] - c[1]) || 1;
-        const u = L > 1 ? [(p[0] - c[0]) / L, (p[1] - c[1]) / L] : [0.7, -0.7], b = [p[0] + u[0] * 16, p[1] + u[1] * 16];
+        let b = this.d.balloons?.[r.pos];
+        if (!b) {
+          let a = L > 1 ? Math.atan2(p[1] - c[1], p[0] - c[0]) : -Math.PI / 4;
+          for (let k = 0; k < 14; k++) { // turned on until it is clear of the others
+            b = [p[0] + Math.cos(a) * 18, p[1] + Math.sin(a) * 18];
+            if (placed.every((q) => Math.hypot(q[0] - b[0], q[1] - b[1]) > 8.5)) break;
+            a += (k % 2 ? -1 : 1) * 0.45 * (k + 1);
+          }
+        }
+        placed.push(b);
+        const D = Math.hypot(b[0] - p[0], b[1] - p[1]) || 1, u = [(b[0] - p[0]) / D, (b[1] - p[1]) / D];
         g.push(`<line x1="${p[0]}" y1="${p[1]}" x2="${b[0] - u[0] * 3.4}" y2="${b[1] - u[1] * 3.4}" stroke="#1b3a8a" stroke-width="0.2"/><circle cx="${p[0]}" cy="${p[1]}" r="0.5" fill="#1b3a8a"/>`);
-        g.push(`<circle cx="${b[0]}" cy="${b[1]}" r="3.4" fill="#fff" stroke="#1b3a8a" stroke-width="0.3"/><text x="${b[0]}" y="${b[1] + 1.2}" font-size="3.4" text-anchor="middle" fill="#1b3a8a">${r.pos}</text>`);
+        g.push(`<g data-balloon="${r.pos}" class="sh-balloon"><circle cx="${b[0]}" cy="${b[1]}" r="3.4" fill="#fff" stroke="#1b3a8a" stroke-width="0.3"/><text x="${b[0]}" y="${b[1] + 1.2}" font-size="3.4" text-anchor="middle" fill="#1b3a8a">${r.pos}</text></g>`);
       }
     }
     g.push('</g>');
@@ -455,6 +466,7 @@ export class SheetEditor {
         <div class="row-actions"><button class="btn small" data-a="allMissing">＋ ${esc(t('Add all missing'))}</button></div>` : ''}
       ${ck.dup.size || ck.over.size ? `<p class="hint">${esc(tv('{n} dimension(s) give a size twice (marked ⧉ below).', { n: ck.dup.size + ck.over.size }))}</p>
         <div class="row-actions"><button class="btn small" data-a="dropTwice">✕ ${esc(t('Remove them'))}</button></div>` : ''}
+      ${this.pagesHtml()}
       <h3>Dimensions</h3><div class="sh-dlist">${all.map((d) => { const v = this.value(d), twice = ck.dup.has(d.id) || ck.over.has(d.id); return `<div class="sh-drow ${this.sel === d.id ? 'on' : ''} ${v === null || twice ? 'bad' : ''}" data-d="${d.id}">
         <span data-no-i18n>${twice ? '⧉ ' : ''}${d.kind === 'linear' ? (d.dir === 'h' ? '↔ ' : '↕ ') : ''}${esc(v === null ? '⚠ ?' : this.dimText(d, v))}</span><i>${esc(t(d.view))}${d.auto ? '' : ' · ✎'}</i><button class="mini danger" data-x="${d.id}" title="Delete it">✕</button></div>`; }).join('') || '<p class="hint">None.</p>'}</div>
       ${hid ? `<div class="row-actions"><button class="btn small" data-a="unhide">↺ ${esc(tv('Bring back deleted ones ({n})', { n: hid }))}</button></div>` : ''}`;
@@ -467,6 +479,7 @@ export class SheetEditor {
     for (const row of box.querySelectorAll('[data-d]')) row.addEventListener('click', (e) => { if (!e.target.closest('[data-x]')) { this.sel = row.dataset.d; this.render(); } });
     for (const b of box.querySelectorAll('[data-x]')) b.addEventListener('click', () => this.remove(b.dataset.x));
     box.querySelector('[data-a=unhide]')?.addEventListener('click', () => { this.d.hidden = []; this.commit(); });
+    for (const b of box.querySelectorAll('[data-page]')) b.addEventListener('click', () => { if (b.dataset.page !== this.d.source) this.hooks.openSheet?.(b.dataset.page); });
     for (const b of box.querySelectorAll('[data-miss]')) b.addEventListener('click', () => this.addMissing(ck.missing[+b.dataset.miss]));
     box.querySelector('[data-a=allMissing]')?.addEventListener('click', () => this.addAllMissing());
     box.querySelector('[data-a=dropTwice]')?.addEventListener('click', () => { for (const id of [...ck.dup, ...ck.over]) this.remove(id); });
@@ -563,6 +576,40 @@ export class SheetEditor {
       need(v, 1, g.box[3], 'box#y1', [g.box[2], g.box[3]], t('the top'));
     }
     return { missing, dup, over, ok: !missing.length && !dup.size };
+  }
+
+  /** The pages of a drawing set from an assembly down (the assembly, each sub-assembly then its parts, its own made
+   *  parts; each once; bought ones not) -> [{id, name, kind, depth}]. */
+  pagesOf(rootId) {
+    const ctx = this.hooks.drawingCtx?.();
+    if (!ctx) return [];
+    const out = [], seen = new Set([rootId]);
+    const visit = (aid, depth) => {
+      out.push({ id: aid, name: this.hooks.partName(aid) || aid, kind: 'assembly', depth });
+      const ids = [...new Set((this.hooks.partData(aid)?.instances || []).map((it) => it.part))];
+      for (const id of ids) if (ctx.kindOf(id) === 'assembly' && !seen.has(id)) { seen.add(id); visit(id, depth + 1); }
+      for (const id of ids) {
+        const pd = this.hooks.partData(id) || {}, nm = this.hooks.partName(id) || id;
+        if (ctx.kindOf(id) !== 'model' || pd.library || ctx.bought(pd, nm) || seen.has(id)) continue;
+        seen.add(id);
+        out.push({ id, name: nm, kind: 'model', depth: depth + 1 });
+      }
+    };
+    visit(rootId, 0);
+    return out;
+  }
+
+  /** The left panel's Pages: an assembly's whole set (a click opens that page's sheet — made when it has none); a part's
+   *  sheet: the assemblies it is in. */
+  pagesHtml() {
+    if (!this.hooks.drawingCtx) return '';
+    if (this.d.asm) {
+      const pages = this.pagesOf(this.d.source);
+      return `<h3>${esc(t('Pages'))}</h3><div class="sh-pages">${pages.map((p, i) => `<button class="sh-page ${p.id === this.d.source ? 'on' : ''}" data-page="${p.id}" style="padding-left:${6 + 12 * p.depth}px" title="${esc(t('Open its drawing sheet'))}">
+        <i>${i + 1}</i> ${p.kind === 'assembly' ? '◇' : '◆'} <span data-no-i18n>${esc(p.name)}</span></button>`).join('')}</div>`;
+    }
+    const ins = this.hooks.parts?.().filter((q) => q.kind === 'assembly' && (this.hooks.partData(q.id)?.instances || []).some((it) => it.part === this.d.source)) || [];
+    return ins.length ? `<h3>${esc(t('In'))}</h3><div class="sh-pages">${ins.map((q) => `<button class="sh-page" data-page="${q.id}" title="${esc(t('Open its drawing sheet'))}">◇ <span data-no-i18n>${esc(q.name)}</span></button>`).join('')}</div>` : '';
   }
 
   /** ＋ a missing size: from the part's lowest place in that view to it (a Ø / R on its circle). */
@@ -713,6 +760,8 @@ export class SheetEditor {
         setTimeout(() => { inp?.focus(); inp?.select(); }, 0);
         return;
       }
+      const balloon = e.target.closest('[data-balloon]');
+      if (balloon) { drag = { kind: 'balloon', pos: balloon.dataset.balloon, moved: false }; this.stage.setPointerCapture(e.pointerId); return; }
       if (dimEl) {
         this.sel = dimEl.dataset.dim;
         drag = { kind: 'dim', id: this.sel, d: this.allDims().find((x) => x.id === this.sel), moved: false };
@@ -741,7 +790,9 @@ export class SheetEditor {
       }
       const p = this.paperAt(e);
       drag.moved = true;
-      if (drag.kind === 'view') {
+      if (drag.kind === 'balloon') {
+        this.d.balloons = { ...(this.d.balloons || {}), [drag.pos]: [+p[0].toFixed(2), +p[1].toFixed(2)] };
+      } else if (drag.kind === 'view') {
         this.d.views[drag.v] = [drag.from[0] + p[0] - drag.start[0], drag.from[1] + p[1] - drag.start[1]];
       } else {
         const d = drag.d, o = { ...(this.d.dims[d.id] || {}) };

@@ -283,7 +283,10 @@ circle, removed or moved; `export {format: "pdf"}` on a sheet) — for what the 
 
 **📄 Drawing** in an assembly's toolbar (or *📄 Drawing sheet* in its panel) opens the **assembly's own drawing sheet**
 to edit: its front, top and iso views, overall sizes, parts list and balloons — move them, add your dimensions and
-texts; it follows the assembly (a moved part: a new revision). The drawing set below uses it as the assembly's page.
+texts, **drag the balloons** where you want them (they start spread round the view); it follows the assembly (a moved
+part: a new revision). Its **Pages** list shows the whole set — the assembly, its sub-assemblies, their parts — and a
+click opens that page's drawing sheet (made when it has none); a part's sheet lists the assemblies it is **in**, to go
+back. The drawing set below uses these sheets.
 
 **📄 Drawings (PDF)** in an assembly's panel makes its whole drawing set as one PDF, in the order of the assembly:
 the **assembly** (its views, overall sizes, the **parts list** — position, name, quantity, material, part number —

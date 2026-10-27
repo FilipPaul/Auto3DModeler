@@ -1845,6 +1845,8 @@ const sheet = new SheetEditor({ left: $('shLeft'), viewport: $('shViewport'), ri
   partName: (id) => project.parts.find((q) => q.id === id)?.name || null,
   kindOf: (id) => project.parts.find((q) => q.id === id)?.kind,
   drawingCtx: () => drawingCtx(),
+  parts: () => project.parts,
+  openSheet: (id) => { const p = project.parts.find((q) => q.id === id); if (p) project.newSheet(id, `${p.name} — ${t('drawing')}`); },
   openPart: (id) => project.switchTo(id),
 });
 /** The drawing set of an assembly as one PDF -> the downloaded file's name (pages: the assembly, its sub-assemblies, the parts). */
