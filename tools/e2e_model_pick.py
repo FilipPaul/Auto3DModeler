@@ -94,7 +94,7 @@ try:
     move([20, 20, 5])
     print("hover: faces lit", js(f"return {M}.view.hoverSet?.size"), "| tip:", js("return document.querySelector('.m-tip')?.textContent"))
     click([20, 20, 5])
-    print("pop-up:", [b.text for b in d.find_elements(By.CSS_SELECTOR, ".m-ctx button")])
+    print("pop-up:", [b.text for b in d.find_elements(By.CSS_SELECTOR, ".m-fmenu button")])
     print("sizes on the part:", tags())
     d.save_screenshot(f"{OUT}/pick1.png")
 
@@ -131,7 +131,7 @@ try:
     # "◎ Hole here" from the pop-up
     js(f"{M}.closeCtx()")
     click([15, 10, 5])
-    next(b for b in d.find_elements(By.CSS_SELECTOR, ".m-ctx button") if b.text.startswith("◎")).click()
+    next(b for b in d.find_elements(By.CSS_SELECTOR, ".m-fmenu button") if b.text.startswith("◎")).click()
     time.sleep(0.6)
     settled()
     f = js(f"return {M}.cmd?.feature")

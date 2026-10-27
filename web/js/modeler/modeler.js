@@ -353,29 +353,35 @@ export class Modeler {
     if (!fs) { this.selectStep(null); return; }
     this.selectStep(fs.step.id);
     const flat = h.face.type === 'plane', at = { clientX: e.clientX, clientY: e.clientY };
-    const items = [
-      flat && ['sketch', '✏ Sketch on this face', () => this.enterSketch({ frame: h.face.frame, ...(h.face.ref ? { face: h.face.ref } : {}) })],
-      flat && ['hole', '◎ Hole here', () => { this.startHole(); if (this.cmd) this.clickHole(at); }],
-      flat && ['decal', 'Aa Text / picture here', () => { this.startDecal(); if (this.cmd) this.clickDecal(at); }],
-      flat && ['mirror', '⇋ Mirror across this face', () => { this.startMirror(); if (this.cmd) this.clickMirror(at); }],
-      ['fillet', '◜ Round its edges', () => { this.startRound('fillet'); if (this.cmd) this.clickCommand(at); }],
-      ['chamfer', '◸ Bevel its edges', () => { this.startRound('chamfer'); if (this.cmd) this.clickCommand(at); }],
-      flat && ['shell', '▢ Hollow out, open here', () => { this.startShell(); if (this.cmd) this.clickShell(at); }],
-      null,
-      ['edit', `✎ Edit ${fs.step.name}`, () => this.edit(fs.step.id)],
-      ['off', fs.step.suppressed ? '● Turn it on' : '◌ Turn it off', () => this.toggleOff(fs.step.id)],
-      ['del', `✕ Delete ${fs.step.name}`, () => this.remove(fs.step.id)],
-    ];
+    // [key, icon, label, do it] by section: this face, its edges, the whole part, the step it belongs to
+    const sections = [
+      [t('On this face'), [
+        flat && ['sketch', '✏', t('Sketch on this face'), () => this.enterSketch({ frame: h.face.frame, ...(h.face.ref ? { face: h.face.ref } : {}) })],
+        flat && ['hole', '◎', t('Hole here'), () => { this.startHole(); if (this.cmd) this.clickHole(at); }],
+        flat && ['decal', 'Aa', t('Text / picture here'), () => { this.startDecal(); if (this.cmd) this.clickDecal(at); }],
+        flat && ['shell', '▢', t('Hollow out, open here'), () => { this.startShell(); if (this.cmd) this.clickShell(at); }]]],
+      [t('Its edges'), [
+        ['fillet', '◜', t('Round its edges'), () => { this.startRound('fillet'); if (this.cmd) this.clickCommand(at); }],
+        ['chamfer', '◸', t('Bevel its edges'), () => { this.startRound('chamfer'); if (this.cmd) this.clickCommand(at); }]]],
+      [t('The part'), [
+        flat && ['mirror', '⇋', t('Mirror across this face'), () => { this.startMirror(); if (this.cmd) this.clickMirror(at); }]]],
+      [`${t('Step')} · ${fs.step.name}`, [
+        ['edit', '✎', t('Edit the step'), () => this.edit(fs.step.id)],
+        ['off', fs.step.suppressed ? '●' : '◌', t(fs.step.suppressed ? 'Turn it on' : 'Turn it off'), () => this.toggleOff(fs.step.id)],
+        ['del', '✕', t('Delete the step'), () => this.remove(fs.step.id), 'danger']]],
+    ].map(([title, items]) => [title, items.filter(Boolean)]).filter(([, items]) => items.length);
     const box = document.createElement('div');
-    box.className = 'm-ctx';
+    box.className = 'm-fmenu';
+    box.dataset.noI18n = '';
     const vr = this.els.viewport.getBoundingClientRect();
-    box.innerHTML = `<div class="m-ctx-t">${esc(fs.step.name)} · ${esc(this.faceLabel(h.face.name).replace(/ of .*$/, '').replace(/^the /, ''))}</div>`
-      + items.map((it) => (it === null ? '<div class="m-ctx-sep"></div>' : it ? `<button data-ctx="${it[0]}">${esc(it[1])}</button>` : '')).join('');
-    Object.assign(box.style, { left: `${Math.min(e.clientX - vr.left + 10, vr.width - 230)}px`, top: `${Math.min(e.clientY - vr.top + 10, vr.height - 330)}px` });
-    for (const t of ['pointerdown', 'pointerup']) box.addEventListener(t, (ev) => ev.stopPropagation());
-    const acts = Object.fromEntries(items.filter(Boolean).map((it) => [it[0], it[2]]));
+    box.innerHTML = `<div class="fm-head"><b>${esc(fs.step.name)}</b><span>${esc(t(this.faceLabel(h.face.name).replace(/ of .*$/, '').replace(/^the /, '')))}</span></div>`
+      + sections.map(([title, items]) => `<div class="fm-sec"><div class="fm-h">${esc(title)}</div>${items.map((it) => `<button data-ctx="${it[0]}" class="${it[4] || ''}"><span class="fm-i">${it[1]}</span> <span class="fm-l">${esc(it[2])}</span></button>`).join('')}</div>`).join('');
+    for (const ev of ['pointerdown', 'pointerup', 'contextmenu']) box.addEventListener(ev, (x) => x.stopPropagation());
+    const acts = Object.fromEntries(sections.flatMap(([, items]) => items).map((it) => [it[0], it[3]]));
     for (const b of box.querySelectorAll('[data-ctx]')) b.addEventListener('click', () => { this.closeCtx(); this.tip(null); acts[b.dataset.ctx](); });
     this.els.viewport.appendChild(box);
+    const w = box.offsetWidth, hgt = box.offsetHeight; // (inside the view)
+    Object.assign(box.style, { left: `${Math.max(6, Math.min(e.clientX - vr.left + 10, vr.width - w - 6))}px`, top: `${Math.max(6, Math.min(e.clientY - vr.top + 10, vr.height - hgt - 6))}px` });
     this.ctx = box;
   }
 
@@ -2196,8 +2202,9 @@ export class Modeler {
   bindPointer() {
     const cv = this.view.renderer.domElement;
     let down = null;
+    cv.addEventListener('contextmenu', () => this.closeCtx()); // (the right button pans: no menu)
     cv.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0) return;
+      if (e.button !== 0 || (e.buttons & ~1)) { down = null; return; } // the left button alone
       down = { x: e.clientX, y: e.clientY, drag: null };
       if (this.mode === 'sketch') {
         down.drag = this.sk.down(e);
@@ -2327,10 +2334,10 @@ export class Modeler {
   setContext(ctx) {
     this.context = ctx || null;
     this.view.setContext(ctx?.context || []);
-    this.$('.m-ctx')?.remove();
+    this.$('.m-editctx')?.remove();
     if (!ctx) return;
     const bar = document.createElement('div');
-    bar.className = 'm-ctx';
+    bar.className = 'm-editctx';
     bar.innerHTML = `<span>✎ ${esc(t('Editing it in'))} <b data-no-i18n>${esc(ctx.assembly || '')}</b> — ${esc(t('the other parts are see-through; changes show in the assembly.'))}</span>
       <button class="btn small primary" data-a="ctxBack">◇ ${esc(t('Back to the assembly'))}</button>`;
     bar.querySelector('[data-a=ctxBack]').addEventListener('click', () => this.hooks.backTo?.(ctx.back));

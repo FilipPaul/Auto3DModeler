@@ -545,10 +545,22 @@ body:not(.ws-model):not(.ws-assembly):not(.ws-drawing):not(.ws-sheet) .not-quick
 body.resizing { cursor: col-resize; user-select: none; }
 body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .m-tip { position: absolute; z-index: 5; pointer-events: none; background: #161a20e8; border: 1px solid var(--line); border-radius: 5px; padding: 2px 7px; font-size: 11px; color: var(--text); white-space: nowrap; }
-.m-ctx { position: absolute; z-index: 6; display: flex; flex-direction: column; min-width: 210px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px #0009; padding: 4px; }
-.m-ctx-t { font-size: 11px; color: var(--muted); padding: 4px 8px 6px; border-bottom: 1px solid var(--line); margin-bottom: 3px; }
-.m-ctx button { text-align: left; background: none; border: 0; color: var(--text); padding: 5px 8px; border-radius: 5px; font: inherit; font-size: 12.5px; cursor: pointer; }
-.m-ctx button:hover { background: #2b3440; }
+/* the tools for a clicked face: a header (its step, which face), then sections */
+.m-fmenu { position: absolute; z-index: 6; display: flex; flex-direction: column; width: 232px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: 0 10px 28px #000a; padding: 0 0 4px; overflow: hidden; }
+.fm-head { display: flex; flex-direction: column; gap: 1px; padding: 8px 12px 7px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
+.fm-head b { font-size: 13px; }
+.fm-head span { font-size: 11px; color: var(--muted); }
+.fm-sec { display: flex; flex-direction: column; padding: 4px 4px 2px; }
+.fm-sec + .fm-sec { border-top: 1px solid var(--line); }
+.fm-h { font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); padding: 3px 8px 2px; }
+.m-fmenu button { display: flex; align-items: center; gap: 8px; text-align: left; background: none; border: 0; color: var(--text); padding: 5px 8px;
+  border-radius: 6px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.m-fmenu button:hover { background: #2b3440; }
+.m-fmenu .fm-i { width: 18px; flex: none; text-align: center; color: var(--accent); font-size: 13px; }
+.m-fmenu button.danger { color: #ff8c84; }
+.m-fmenu button.danger .fm-i { color: #ff8c84; }
+.m-fmenu button.danger:hover { background: #f8514926; }
 .m-dimtag { background: #2a1f45; color: #e3d4ff; border: 1px solid #6e40c9; border-radius: 5px; padding: 1px 6px; font-size: 11.5px; cursor: pointer; white-space: nowrap; }
 .m-dimtag:hover { background: #6e40c9; color: #fff; }
 .m-dimedit { position: absolute; z-index: 7; width: 200px; background: var(--panel-2); border: 1px solid #6e40c9; border-radius: 8px; padding: 8px; box-shadow: 0 8px 24px #0009; display: flex; flex-direction: column; gap: 6px; }
@@ -587,9 +599,9 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .m-cmdbar .menu-list { left: 0; right: auto; z-index: 8; } /* bar menus open to the right of their button, over the view */
 .sk-label.sk-rel { background: #1f3b2a; color: #b5f5c5; border-color: #2ea043; cursor: pointer; font-size: 11px; padding: 0 4px; }
 .sk-label.sk-rel:hover { background: #da3633; border-color: #da3633; color: #fff; }
-.m-ctx { position: absolute; left: 12px; bottom: 34px; z-index: 6; display: flex; gap: 12px; align-items: center;
+.m-editctx { position: absolute; left: 12px; bottom: 34px; z-index: 6; display: flex; gap: 12px; align-items: center;
   background: #1f2a3a; border: 1px solid #58a6ff; border-radius: 8px; padding: 6px 10px; font-size: 12px; color: var(--text); max-width: 52%; }
-.m-ctx .btn { white-space: nowrap; }
+.m-editctx .btn { white-space: nowrap; }
 .mt-name.renaming { outline: 1px solid var(--accent, #58a6ff); background: var(--bg); padding: 0 3px; border-radius: 3px; cursor: text; }
 .choose-back { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, .45); display: flex; align-items: center; justify-content: center; }
 .choose { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px 16px; max-width: 520px; box-shadow: 0 10px 40px rgba(0,0,0,.5); }

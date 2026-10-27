@@ -97,7 +97,7 @@ try:
     wait(f"return window.__app.state.workspace === 'model' && !!{M}.result?.body && !{M}.inflight")
     time.sleep(0.4)
     print("editing:", js("return window.__app.project.current.name"), "| the rest see-through:", js(f"return {M}.view.ctxGroup?.children.length"),
-          "| bar:", d.find_element(By.CSS_SELECTOR, "#modelViewport .m-ctx").text.replace("\n", " "))
+          "| bar:", d.find_element(By.CSS_SELECTOR, "#modelViewport .m-editctx").text.replace("\n", " "))
     js(f"{M}.view.setView('iso')")
     time.sleep(0.4)
     d.save_screenshot(f"{OUT}/edit1.png")

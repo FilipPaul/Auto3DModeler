@@ -80,6 +80,10 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **The face menu redone done:** clickFace's menu is `.m-fmenu` (it shared `.m-ctx` with the "editing in the
+  assembly" bar, now `.m-editctx`, whose styles broke it): a header (step, face), sections On this face / Its edges /
+  The part / Step (delete in red), an icon column, kept inside the view; only the left button alone opens it, a right
+  click closes it. tools/e2e_model_pick.py.
 - **Actions in the view's corner done:** actiondock.js — a `.mp-actions` row drawn by a panel or a toolbar (OK /
   Cancel, ✓ Finish sketch, ✕ Cancel of a plane pick, Done) is moved to `.view-actions` in the bottom-right of its
   viewport (MutationObserver; a hidden placeholder keeps its place, a panel drawn again replaces it); toasts go up
