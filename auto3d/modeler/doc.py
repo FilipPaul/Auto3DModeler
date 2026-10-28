@@ -60,8 +60,9 @@ THREADS = {"M2": 1.6, "M2.5": 2.05, "M3": 2.5, "M4": 3.3, "M5": 4.2, "M6": 5.0, 
 PITCH = {"M2": 0.4, "M2.5": 0.45, "M3": 0.5, "M4": 0.7, "M5": 0.8, "M6": 1.0, "M8": 1.25, "M10": 1.5, "M12": 1.75,
          "M16": 2.0, "M20": 2.5}  # (ISO 261, coarse)
 # 🔩 part.threads: how its threaded holes show — "hidden" (the tap drill only), "cosmetic" (helix lines in the view,
-# the solid unchanged)
-THREAD_MODES = ("hidden", "cosmetic")
+# the solid unchanged), "real" (the thread cut into the solid: in exports and the print split too)
+THREAD_MODES = ("hidden", "cosmetic", "real")
+MANY_THREADS = 8  # more real threads than this: the part may rebuild slowly (warned)
 
 
 def _threads(part):
@@ -1218,7 +1219,7 @@ def _packed_mesh(body, light=False, colours=None, rid=None):
 
 
 _HOLE_FACE = re.compile(r"(?:^|:)([^:]+):hole:(\d+)$")
-_threads_cache: OrderedDict = OrderedDict()  # features' key -> {"holes": [...]}
+_threads_cache: OrderedDict = OrderedDict()  # features' key -> {"holes": [...], "real": (Body, info) once cut}
 
 
 def thread_mode(part):
@@ -1261,15 +1262,55 @@ def thread_holes(features, st):
     return out
 
 
+def _real_threads(features, st):
+    """The part with its threads cut (🔩 real), cached per features: (Body, {holes, cut, seconds, warning?, issue?}).
+    Each groove runs a pitch past an open end, stops short of a blind hole's bottom; its faces are named like the hole's
+    wall with thread for hole ("F3:thread:0"). A thread that cannot be cut: the part without threads and an issue."""
+    import time
+    entry = _thread_entry(features, st)
+    if "real" in entry:
+        return entry["real"]
+    holes, t0 = entry["holes"], time.time()
+    info = {"holes": len(holes), "cut": 0}
+    body = st.body
+    if holes:
+        try:
+            tools = []
+            for h in holes:
+                p, reach = h["pitch"], K.thread_reach(h["major"], h["minor"], h["pitch"])
+                s0, s1 = -p, h["depth"] + (p if h["through"] else -reach)
+                if s1 - s0 < 2 * p:
+                    continue  # (a hole too shallow for a turn)
+                at = np.asarray(h["at"]) + s0 * np.asarray(h["axis"])
+                name = re.sub(r":hole:(\d+)$", r":thread:\1", h["name"])
+                tools.append((K.along(K.thread_tool(h["major"], h["minor"], p, s1 - s0), at, h["axis"]), name))
+            if tools:
+                before = K.volume(body.shape)
+                cut = K.cut_threads(body, tools)
+                if not K.volume(cut.shape) < before - 1e-9:
+                    raise K.KernelError("nothing was cut")
+                body, info["cut"] = cut, len(tools)
+        except Exception as e:  # noqa: BLE001 — an OCCT failure: the part without threads, said so
+            info["issue"] = f"The threads could not be cut ({e}) — the holes stay plain tap drills."
+        if info["cut"] > MANY_THREADS:
+            info["warning"] = f"{info['cut']} real threads — the part may rebuild slowly."
+    info["seconds"] = round(time.time() - t0, 3)
+    entry["real"] = (body, info)
+    return entry["real"]
+
+
 def rebuild(part, binary=False):
     """The part -> what the browser shows: the body's mesh, faces (with names) and edges, every feature's
-    status, the sketch frames, its threaded holes {mode, holes (thread_holes)}. binary: the
+    status, the sketch frames, its threaded holes {mode, holes (thread_holes), real?: what the cut took}. binary: the
     meshes as packed.Mesh (for packed.pack, the browser's binary answer)."""
     features = (part or {}).get("features") or []
     st, status = evaluate(features)
     out = {"ok": all(s["ok"] for s in status), "features": status, "frames": st.frames, "body": None}
     mode = thread_mode(part)
     out["threads"] = {"mode": mode, "holes": _thread_entry(features, st)["holes"] if st.body is not None else []}
+    if mode == "real" and out["threads"]["holes"]:
+        st = st.copy()
+        st.body, out["threads"]["real"] = _real_threads(features, st)
     if st.body is not None:
         # 🪶 lod: "light" (simplified), "full", "auto" (light when it is a big imported model)
         lod = (part or {}).get("lod")
@@ -1281,15 +1322,22 @@ def rebuild(part, binary=False):
     return out
 
 
-def body_of(part):
-    st, _ = evaluate((part or {}).get("features") or [])
+def body_of(part, threads=True):
+    """The built part; threads: with its 🔩 real threads cut when it has them (exports, the print split, assemblies) —
+    False: drawings (a thread is drawn as its callout, not as a helix). Threads that cannot be cut: without them (the
+    model's view says why)."""
+    features = (part or {}).get("features") or []
+    st, _ = evaluate(features)
     if st.body is None:
         raise K.KernelError("The model has no solid yet — sketch a shape and extrude it.")
+    if threads and thread_mode(part) == "real" and _thread_entry(features, st)["holes"]:
+        st = st.copy()
+        st.body, _ = _real_threads(features, st)
     return st
 
 
 def export(part, fmt, name="part"):
-    st = body_of(part)
+    st = body_of(part, threads=fmt != "pdf")
     if fmt == "pdf":  # a 2D drawing: three views, sizes, title block
         from . import drawing
         from .materials import DENSITY as mats  # g / cm³, as in the browser
@@ -1317,7 +1365,7 @@ def sheet(part, preset="medium", paper=None, per_view=None, section=False):
     """A drawing sheet of the part: its views, the points to dimension, the automatic dimensions of the preset, the
     layout (sheet.py)."""
     from . import sheet as S
-    st = body_of(part)
+    st = body_of(part, threads=False)
     fits = {f["d"]: f["fit"] for f in (part or {}).get("features") or [] if f.get("type") == "hole" and f.get("fit") and not (f.get("off") or f.get("suppressed"))}
     return S.build(st.body, preset, fits, paper, per_view, _threads(part), section, key=_key((part or {}).get("features") or []), holes=_holes(part))
 
@@ -1354,7 +1402,7 @@ def assembly_sheet(instances, paper=None, explode=0):
     placed = []
     for inst in instances or []:
         try:
-            st = body_of(inst.get("part"))
+            st = body_of(inst.get("part"), threads=False)
         except K.KernelError:
             continue
         placed.append((inst.get("id"), K.placed(st.body.shape, inst.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])))

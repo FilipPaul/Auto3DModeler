@@ -265,9 +265,13 @@ Never report "works" without having run it; report failures with their output.
    hole / tear; the step says ▲ teardrop; on the top face greyed with its tooltip; the sheet says Ø6, no R; Ctrl+Z).
    Exits 1 on a failed check. Needs a server restarted after kernel changes.
    `tools/e2e_model_threads.py <url> <dir>` covers 🔩 threads shown on the part with real clicks (a block with two M6
-   holes: a click on the part -> 🔩 Show all threads -> Cosmetic: the view's helix pieces counted, the volume unchanged,
-   the Part panel's Threads; Hide all threads, Ctrl+Z; the AI's set_look threads; the sheet still says M6; a close-up
-   screenshot). Exits 1 on a failed check. Needs a server restarted after kernel changes.
+   holes: a click on the part -> 🔩 Show all threads -> the choose dialog -> Cosmetic: the view's helix pieces counted,
+   the volume unchanged, the Part panel's Threads; Hide all threads, Ctrl+Z; Show -> Real geometry: the volume less the
+   grooves' analytic volume, faces F3:thread:k beside F3:hole:k, the time and triangles printed, STEP / STL exports
+   carry them, the Part panel's Hidden, Ctrl+Z; the AI's set_look threads real / hidden / a wrong value; the sheet: M6,
+   a ¾ circle per hole, the same lines with real threads; a placed part in an assembly shows its lines; close-up
+   screenshots cosmetic / real / real in section). Exits 1 on a failed check. Needs a server restarted after kernel
+   changes.
    `tools/e2e_tool_groups.py <url> <dir>` covers the tools coloured by group (the 3D model's, the sketch's and the
    assembly's bars: each group in one run, one colour per group, the groups' colours differ; screenshots of the bars).
    `tools/e2e_ai_reports.py <url> <dir>` covers the fixes from the AI's reports (a zoomed-out view: get_screenshot

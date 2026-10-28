@@ -1161,31 +1161,50 @@ export class Modeler {
   /** The part's threaded holes as built (the kernel's thread_holes: where each starts, its axis, depth, Ø, pitch). */
   threadHoles() { return (this.result?.threads?.holes || []); }
 
-  /** The Part panel's Threads choice (only for a part with threaded holes): Hidden / Cosmetic. */
+  /** The Part panel's Threads choice (only for a part with threaded holes): Hidden / Cosmetic / Real, and what the
+   *  real ones took (or why they could not be cut). */
   threadsHtml() {
-    const n = this.threadHoles().length, mode = this.part.threads || 'hidden';
+    const n = this.threadHoles().length, mode = this.part.threads || 'hidden', real = this.result?.threads?.real;
     if (!n) return '';
     const b = (k, label, title) => `<button data-thr="${k}" class="${mode === k ? 'on' : ''}" title="${esc(t(title))}">${esc(t(label))}</button>`;
-    return `<div class="field mp-threads"><label title="${esc(t('How the threads of its threaded holes show'))}">🔩 ${esc(t('Threads'))}</label><div class="seg">${b('hidden', 'Hidden', 'Plain holes at the tap drill (the threads are on the drawing)')}${b('cosmetic', 'Cosmetic', 'Thin helix lines on the holes — view only, quick')}</div></div>`;
+    const note = mode === 'real' && real ? (real.issue ? `<p class="mp-bad">⚠ ${esc(real.issue)}</p>`
+      : `<p class="hint mp-thr-real">${esc(t2('{n} real threads, cut in {s} s', { n: real.cut, s: fmt(real.seconds) }))}${real.warning ? ` — ${esc(t('the part may rebuild slowly'))}` : ''}</p>`) : '';
+    return `<div class="field mp-threads"><label title="${esc(t('How the threads of its threaded holes show'))}">🔩 ${esc(t('Threads'))}</label><div class="seg">${b('hidden', 'Hidden', 'Plain holes at the tap drill (the threads are on the drawing)')}${b('cosmetic', 'Cosmetic', 'Thin helix lines on the holes — view only, quick')}${b('real', 'Real', 'The threads cut into the solid (ISO metric, 60°) — in STEP / STL / 3MF exports and the print split; slower')}</div></div>${note}`;
   }
 
-  /** 🔩 Show all threads (the suggestions table): shown as thin lines. */
-  askThreads() { return this.setThreads('cosmetic'); }
+  /** 🔩 Show all threads (the suggestions table): asked once — cosmetic lines or real geometry. */
+  async askThreads() {
+    const mode = await choose(t('Show the threads as'), [
+      { value: 'cosmetic', label: 'Cosmetic (light)', hint: 'Thin helix lines — view only, quick', primary: true },
+      { value: 'real', label: 'Real geometry (slower)', hint: 'Cut into the solid: exports and 3D print' }]);
+    return mode ? this.setThreads(mode) : null;
+  }
 
-  /** 🔩 How the part's threaded holes show: 'hidden' (as the tap drill) | 'cosmetic' (helix lines, view only). */
-  setThreads(mode) {
-    if (!['hidden', 'cosmetic'].includes(mode)) throw new Error('threads is "hidden" or "cosmetic".');
+  /** What the rebuild asks for: real threads only with no tool and no sketch open (else cosmetic lines — each preview
+   *  would cut them again). */
+  threadsShown() { return this.part.threads === 'real' && (this.cmd || this.mode !== 'part') ? 'cosmetic' : this.part.threads; }
+
+  /** 🔩 How the part's threaded holes show: 'hidden' (as the tap drill) | 'cosmetic' (helix lines, view only) | 'real'
+   *  (cut into the solid: exports, the print split). */
+  async setThreads(mode) {
+    if (!['hidden', 'cosmetic', 'real'].includes(mode)) throw new Error('threads is "hidden", "cosmetic" or "real".');
     if ((this.part.threads || 'hidden') === mode) return null;
     if (mode === 'hidden') delete this.part.threads; else this.part.threads = mode;
     this.history.commit();
     this.hooks.onChange?.();
     this.showThreads();
     this.renderProps();
-    return this.rebuild();
+    await this.rebuild();
+    const real = this.result?.threads?.real;
+    if (mode === 'real' && real) {
+      if (real.issue) this.hooks.toast(real.issue, 'error', 8000);
+      else this.hooks.toast(`${t2('{n} real threads, cut in {s} s', { n: real.cut, s: fmt(real.seconds) })}${real.warning ? ` — ${t('the part may rebuild slowly')}` : ''}`, real.warning ? 'warning' : 'info', 5000);
+    }
+    return this.result;
   }
 
-  /** Cosmetic threads drawn on the part (not while sketching). */
-  showThreads() { this.view.setThreads(this.mode === 'part' && this.part.threads === 'cosmetic' ? this.threadHoles() : null); }
+  /** Cosmetic threads drawn on the part (not while sketching; real ones while a tool is open). */
+  showThreads() { this.view.setThreads(this.mode === 'part' && (this.result?.threads?.mode ?? this.part.threads) === 'cosmetic' && this.part.threads ? this.threadHoles() : null); }
 
   nextHint() {
     const used = new Set(this.part.features.flatMap(sketchesOf));
@@ -1227,7 +1246,7 @@ export class Modeler {
       this.rid = `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
       const timer = setTimeout(() => { this.$('.m-busy').hidden = false; }, 350);
       try {
-        const { res, r } = await fetchRebuild({ features, threads: this.part.threads }, this.rid);
+        const { res, r } = await fetchRebuild({ features, threads: this.threadsShown() }, this.rid);
         if (res.status === 501) { this.showInstall(r.error); continue; }
         if (!res.ok) throw new Error(r.error || res.statusText);
         if (r.cancelled) { this.hooks.toast('Cancelled — the model is shown as it was.', 'info'); continue; }

@@ -1228,6 +1228,52 @@ class TestThreads(unittest.TestCase):
         self.assertEqual(doc.rebuild({"features": box(40, 20, 12) + [self.hole(thread=None, d=5)]})["threads"]["holes"], [])
         self.assertEqual(doc.rebuild({"features": box(40, 20, 12) + [self.hole(suppressed=True)]})["threads"]["holes"], [])
 
+    @staticmethod
+    def groove(major, minor, pitch, length):
+        """The volume an ISO thread's groove takes out of a tap-drilled hole, `length` long: its profile outside the tap
+        drill (width P/8 at the major Ø, growing by 2 tan 30° per mm inwards) turned about the axis, once per pitch."""
+        R, r0, a, b = major / 2, minor / 2, pitch / 8, 2 * math.tan(math.radians(30))
+        return 2 * math.pi * (a * (R * R - r0 * r0) / 2 + b * (R * (R * R - r0 * r0) / 2 - (R ** 3 - r0 ** 3) / 3)) * length / pitch
+
+    def test_real_thread(self):
+        """🔩 real: an M6 thread cut along both 12 mm holes — watertight, the volume between the tap-drilled and the
+        major-Ø holes and the groove's analytic volume; faces H1:thread:k beside the hole's own names; the STEP round
+        trip; drawings without it; a blind one stops short of its bottom; a pattern's copies threaded too."""
+        from auto3d.modeler import kernel as K
+        part = {"features": box(40, 20, 12) + [self.hole()], "threads": "real"}
+        plain, major = 40 * 20 * 12 - 2 * math.pi * 2.5 ** 2 * 12, 40 * 20 * 12 - 2 * math.pi * 3 ** 2 * 12
+        r = doc.rebuild(part)
+        v = r["body"]["volume"]
+        self.assertTrue(r["ok"], r["features"])
+        self.assertEqual(r["threads"]["mode"], "real")
+        self.assertEqual({k: r["threads"]["real"][k] for k in ("holes", "cut")}, {"holes": 2, "cut": 2})
+        self.assertNotIn("issue", r["threads"]["real"])
+        self.assertTrue(major < v < plain, (major, v, plain))
+        self.assertAlmostEqual(v, plain - 2 * self.groove(6, 5, 1, 12), delta=0.01)  # (the sweep: 2e-5 of the groove)
+        self.assertTrue(watertight(r["body"]))
+        self.assertGreater(len(r["body"]["face_ids"]), 20 * len(doc.rebuild({**part, "threads": "hidden"})["body"]["face_ids"]))
+        names = {n for f in r["body"]["faces"] for n in f.get("names", [])}
+        self.assertTrue({"H1:hole:0", "H1:hole:1", "H1:thread:0", "H1:thread:1", "E1:end", "E1:start"} <= names, names)
+        st = doc.body_of(part)
+        self.assertTrue(st.body.faces_of("H1:hole:0") and st.body.faces_of("H1:thread:1"))  # the hole's own name still finds its wall
+        self.assertAlmostEqual(K.volume(K.from_step(doc.export(part, "step"))), v, delta=1e-3)
+        self.assertAlmostEqual(K.volume(doc.body_of(part, threads=False).body.shape), plain, delta=1e-3)
+        again = doc.rebuild(part)["threads"]["real"]  # cut once per features (cached)
+        self.assertEqual(again["seconds"], r["threads"]["real"]["seconds"])
+        # the sheet: the same lines as without threads (the callout says M6)
+        geo = lambda p: doc.sheet(p, "medium")["geometry"]["views"]["Top"]  # noqa: E731
+        self.assertEqual(geo(part)["visible"], geo({**part, "threads": "hidden"})["visible"])
+        # a blind hole 8 deep: the groove stops before its bottom; a pattern's copies are threaded too
+        blind = doc.rebuild({**part, "features": box(40, 20, 12) + [self.hole(through=False, depth=8)]})
+        vb, pb = blind["body"]["volume"], 40 * 20 * 12 - 2 * math.pi * 2.5 ** 2 * 8
+        self.assertTrue(pb - 2 * self.groove(6, 5, 1, 8) < vb < pb - 2 * self.groove(6, 5, 1, 6), (vb, pb))
+        self.assertTrue(watertight(blind["body"]))
+        row = {"id": "P1", "type": "pattern", "features": ["H1"], "kind": "linear", "dir": [1, 0, 0], "count": 2, "spacing": 8}  # (x 12, 20, 28, 36)
+        rp = doc.rebuild({**part, "features": box(40, 20, 12) + [self.hole(), row]})
+        self.assertEqual(rp["threads"]["real"]["cut"], 4)
+        self.assertAlmostEqual(rp["body"]["volume"], 40 * 20 * 12 - 4 * (math.pi * 2.5 ** 2 * 12 + self.groove(6, 5, 1, 12)), delta=0.02)
+        self.assertIn("P1:1:H1:thread:0", {n for f in rp["body"]["faces"] for n in f.get("names", [])})
+
 
 class TestFits(unittest.TestCase):
     """ISO 286 deviations by size range, and the labels on the drawing."""

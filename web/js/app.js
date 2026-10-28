@@ -2661,6 +2661,7 @@ Object.assign(agentHandlers, {
     okColor(color);
     const op = opacity === undefined || opacity === null ? undefined : Math.min(1, Math.max(0.1, +opacity));
     if (threads !== undefined && state.workspace !== 'model') throw new Error('threads is a 3D model\'s own setting — open_part the model first (its placed parts show it too).');
+    if (threads !== undefined && !['hidden', 'cosmetic', 'real', null].includes(threads)) throw new Error('threads is "hidden", "cosmetic" or "real".');
     if (state.workspace === 'assembly') {
       const it = assembly.inst(part);
       if (!it) throw new Error(`part is a placed id (${assembly.doc.instances.map((i) => i.id).join(', ')}) — see get_assembly.`);
@@ -2677,7 +2678,8 @@ Object.assign(agentHandlers, {
     m.history.commit();
     m.renderProps();
     if (threads !== undefined) await m.setThreads(threads || 'hidden');
-    const thr = m.threadHoles().length ? `, ${m.threadHoles().length} threaded hole(s): threads ${m.part.threads || 'hidden'}` : '';
+    const real = m.part.threads === 'real' && m.result?.threads?.real;
+    const thr = m.threadHoles().length ? `, ${m.threadHoles().length} threaded hole(s): threads ${m.part.threads || 'hidden'}${real ? (real.issue ? ` — ${real.issue}` : ` (${real.cut} cut in ${real.seconds} s, volume ${+m.result.body.volume.toFixed(3)} mm³${real.warning ? `; ${real.warning}` : ''})`) : ''}` : '';
     return { text: `The model: ${m.part.color || 'the usual colour'}, ${Math.round((m.part.opacity ?? 1) * 100)} % solid${thr}.` };
   },
   paint_faces: async ({ faces = [], color, part }) => {

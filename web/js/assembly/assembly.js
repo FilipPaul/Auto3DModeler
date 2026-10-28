@@ -817,7 +817,7 @@ export class Assembly {
       for (const it of list) {
         const M = parent.clone().multiply(new THREE.Matrix4().fromArray(it.matrix)), id = pre ? `${pre}/${it.id}` : it.id;
         if (this.kindOf(it.part) === 'assembly') expand(this.innerList(it), M, id);
-        else flat.push({ id, part: { features: this.bodies[it.part]?.features || this.hooks.partData(it.part)?.features || [] }, matrix: M.toArray() });
+        else flat.push({ id, part: { features: this.bodies[it.part]?.features || this.hooks.partData(it.part)?.features || [], threads: this.hooks.partData(it.part)?.threads }, matrix: M.toArray() });
       }
     };
     expand(this.doc.instances, new THREE.Matrix4(), '');

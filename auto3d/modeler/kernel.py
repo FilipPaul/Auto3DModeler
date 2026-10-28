@@ -903,7 +903,69 @@ def split(body, o, n, fid, keep="both"):
     return Body(compound(shapes), names)
 
 
-# ------------------------------------------------------------------ 🔩 threaded holes
+# ------------------------------------------------------------------ 🔩 real threads in threaded holes
+_thread_tools: dict = {}  # (major, minor, pitch, length) -> the groove's solid (built once: 8 holes of one size share it)
+TAN30 = math.tan(math.radians(30))
+
+
+def thread_reach(major, minor, pitch):
+    """How far the groove's profile reaches along the axis either side of its helix: half its width at its inner end (a
+    hair inside the tap drill: 0.1 × pitch, so the cut leaves no sliver)."""
+    return (pitch / 8 + 2 * (major / 2 - (minor / 2 - 0.1 * pitch)) * TAN30) / 2
+
+
+def thread_tool(major, minor, pitch, length):
+    """An internal ISO metric thread's groove (the basic profile of ISO 68-1: 60° flanks, P/8 flat at the major Ø) as a
+    solid along +z: its trapezoid (from a hair inside the tap drill Ø minor out to Ø major) swept along a right-hand
+    helix of `pitch` from z = 0 to `length`, the profile kept in the axis's plane (a fixed binormal). The helix is one
+    edge a turn — a cut of one long helical face with the hole's cylinder fails (OCCT finds no intersection)."""
+    from OCP.BRepLib import BRepLib
+    from OCP.BRepOffsetAPI import BRepOffsetAPI_MakePipeShell
+    from OCP.Geom import Geom_CylindricalSurface
+    from OCP.Geom2d import Geom2d_Line
+    from OCP.GeomAbs import GeomAbs_C2
+    from OCP.gp import gp_Ax3, gp_Dir2d, gp_Pnt2d
+    key = tuple(round(float(v), 4) for v in (major, minor, pitch, length))
+    if key in _thread_tools:
+        return _thread_tools[key]
+    R, r0 = major / 2, minor / 2 - 0.1 * pitch
+    if not 0 < r0 < R or length <= 0:
+        raise KernelError("This thread does not fit its hole.")
+    half = thread_reach(major, minor, pitch)
+    surf = Geom_CylindricalSurface(gp_Ax3(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), R)
+    line = Geom2d_Line(gp_Pnt2d(0, 0), gp_Dir2d(2 * math.pi, pitch))  # (u: the angle, v: the height)
+    per_turn, turns = math.hypot(2 * math.pi, pitch), length / pitch
+    spine = BRepBuilderAPI_MakeWire()
+    for k in range(math.ceil(turns - 1e-9)):
+        e = BRepBuilderAPI_MakeEdge(line, surf, k * per_turn, min(k + 1, turns) * per_turn).Edge()
+        BRepLib.BuildCurves3d_s(e, 1e-6, GeomAbs_C2, 9, 200)
+        spine.Add(e)
+    poly = BRepBuilderAPI_MakePolygon()
+    for r, z in ((r0, -half), (R, -pitch / 16), (R, pitch / 16), (r0, half)):
+        poly.Add(gp_Pnt(r, 0, z))
+    poly.Close()
+    mk = BRepOffsetAPI_MakePipeShell(spine.Wire())
+    mk.SetMode(gp_Dir(0, 0, 1))
+    mk.Add(poly.Wire(), False, False)
+    mk.Build()
+    if not mk.IsDone() or not mk.MakeSolid():
+        raise KernelError("The thread could not be built.")
+    shape = mk.Shape()
+    if len(_thread_tools) > 32:
+        _thread_tools.clear()
+    _thread_tools[key] = shape
+    return shape
+
+
+def along(shape, at, axis):
+    """A shape built along +z from the origin, put at `at` along `axis` (a location, not a copy)."""
+    from OCP.gp import gp_Ax3
+    a = _v(axis) / np.linalg.norm(_v(axis))
+    t = gp_Trsf()
+    t.SetDisplacement(gp_Ax3(), gp_Ax3(gp_Pnt(*map(float, at)), gp_Dir(*map(float, a))))
+    return shape.Moved(TopLoc_Location(t))
+
+
 def round_span(shape, faces, n=None):
     """A hole's wall (round faces of one axis, maybe in pieces) -> {at, axis, depth, r, open: [entry, far end]}: where
     it starts (on the axis, at its entry: an open end — of two, the one n points to), its unit direction into the part,
@@ -931,6 +993,29 @@ def round_span(shape, faces, n=None):
     if opened[1] and (not opened[0] or (n is not None and d @ _v(n) > 0)):  # (the entry at w1: going in along −d)
         return {"at": p + w1 * d, "axis": -d, "depth": w1 - w0, "r": s.Cylinder().Radius(), "open": opened[::-1]}
     return {"at": p + w0 * d, "axis": d, "depth": w1 - w0, "r": s.Cylinder().Radius(), "open": opened}
+
+
+def cut_threads(body, tools):
+    """body − thread solids [(shape, name)] in one cut: the body's names carried (a hole's wall, cut into strips, keeps
+    its name: a rounding on its rim still finds it), each thread's faces named `name`."""
+    mk = BRepAlgoAPI_Cut()
+    a, b = _C.List_TopoDS_Shape(), _C.List_TopoDS_Shape()
+    a.Append(body.shape)
+    for s, _ in tools:
+        b.Append(s)
+    mk.SetArguments(a)
+    mk.SetTools(b)
+    mk.SetRunParallel(True)  # (8 holes M6 × 12: 4.6 -> 1.5 s)
+    mk.Build()
+    if not mk.IsDone():
+        raise KernelError("The threads could not be cut.")
+    res = mk.Shape()
+    names = _carry(mk, body.names, res)
+    for s, name in tools:
+        fm = _face_map(s)
+        for n, fs in _carry(mk, {name: [fm.FindKey(i) for i in range(1, fm.Extent() + 1)]}, res).items():
+            names.setdefault(n, []).extend(fs)
+    return Body(res, names)
 
 
 # ------------------------------------------------------------------ printing: exact pieces (printsplit.py)

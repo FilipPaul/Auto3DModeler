@@ -335,9 +335,11 @@ TOOLS = [
      "description": "The colour and see-through of the 3D model on screen, or (part = a placed id I…) of a part in the assembly on "
                     "screen (in that assembly only). color: \"#rrggbb\" (null: its own again); opacity 0.1 … 1 (1 = solid). It shows in "
                     "the 3D view, in assemblies and in the GLB export. threads (the 3D model on screen, its threaded holes): "
-                    "\"hidden\" (plain tap drills, the default), \"cosmetic\" (thin helix lines, view only).",
+                    "\"hidden\" (plain tap drills, the default), \"cosmetic\" (thin helix lines, view only), \"real\" (ISO metric "
+                    "threads cut into the solid — in STEP / STL / 3MF exports and the print split; slower: ~0.2 s and 6000 "
+                    "triangles a hole).",
      "inputSchema": _obj({"part": STR, "color": {"type": ["string", "null"]}, "opacity": NUM,
-                          "threads": {"type": "string", "enum": ["hidden", "cosmetic"]}})},
+                          "threads": {"type": "string", "enum": ["hidden", "cosmetic", "real"]}})},
     {"name": "paint_faces", "where": "browser",
      "description": "Colour single faces: faces = their names (from find_refs / get_model, e.g. \"F4:end\", or a library part's "
                     "faces), color \"#rrggbb\" (null: their own colour off). In a 3D model: the model's faces; in an assembly with "
