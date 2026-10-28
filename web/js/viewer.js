@@ -329,18 +329,32 @@ export class Viewer {
     const h = hits[0], n = h.face.normal;
     const pos = this.mesh.geometry.attributes.position;
     const v = new THREE.Vector3(), q = new THREE.Vector3();
-    let p = h.point.clone(), snap = 'surface', best = 10;
+    let p = h.point.clone(), snap = 'surface';
     // the nearest corner of the part on screen (any triangle, so edges between faces snap too),
-    // unless it is hidden behind the surface under the cursor
+    // unless it is hidden: a ray from the camera to it must not meet the part more than ~1.5 px before it
+    // (a fixed share of the part's size let a corner under a thin box win over the box's top)
     const box = this.renderer.domElement.getBoundingClientRect();
     const mx = ((clientX - box.left) / box.width) * 2 - 1, my = -((clientY - box.top) / box.height) * 2 + 1;
     const kx = box.width / 2, ky = box.height / 2;
-    const cam = this.camera.position, reach = h.distance + this.size * 0.01;
+    const cam = this.camera.position, near = [];
     for (let i = 0; i < pos.count; i++) {
       v.fromBufferAttribute(pos, i);
       q.copy(v).project(this.camera);
       const d = Math.hypot((q.x - mx) * kx, (q.y - my) * ky);
-      if (d < best && v.distanceTo(cam) <= reach) { best = d; p = v.clone(); snap = 'corner'; }
+      if (d < 10 && q.z < 1) near.push({ d, v: v.clone() });
+    }
+    const pxAt = 2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) / box.height; // world size of 1 px per unit of depth
+    const rc = new THREE.Raycaster(), tried = new Set();
+    for (const c of near.sort((a, b) => a.d - b.d)) {
+      const key = `${c.v.x},${c.v.y},${c.v.z}`; // a corner is shared by several triangles: one ray each
+      if (tried.has(key)) continue;
+      tried.add(key);
+      const dist = c.v.distanceTo(cam);
+      rc.set(cam, c.v.clone().sub(cam).normalize());
+      const first = rc.intersectObject(this.mesh, false)[0];
+      if (first && first.distance < dist - 1.5 * pxAt * dist - this.size * 1e-6) continue;
+      p = c.v; snap = 'corner';
+      break;
     }
     const levels = this.solution.z_levels || [this.zRange[0], this.zRange[1]];
     if (snap !== 'corner') {

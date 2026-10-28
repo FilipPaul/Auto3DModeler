@@ -89,6 +89,10 @@ Date: 2026-10-25. Written by the architect agent.
   drawn on white); set_view section "off" / "none" takes the cut off; gui_state lists the 3D model's steps (kind step,
   name, what, [id]) and a choice's text with its value; the 3D Snap row hidden while a feature is made.
   tools/e2e_ai_reports.py.
+- **Quick part: a click on a thin object picks it (full test pass, job 15):** viewer.pickSurface takes a corner only
+  when a ray from the camera to it meets nothing more than ~1.5 px before it (was: the hit distance + 1 % of the part,
+  so a corner 3 mm under a box won); clicking / dragging an object matches its heights within 0.1 % of the part (was
+  0.6 %, so a band on a 3 mm box picked the box). tools/e2e_history.py.
 - **Steps named after their sketch done:** nextName(type, sketch): an extrude / revolve of a sketch the user named
   is "Extrude – Slot" (a "Sketch 2" keeps "Extrude 3"), in the panel and for the AI. tools/e2e_ai_reports.py.
 - **The assembly's joints as buttons done:** the bar's 🔗 Joint ▾ menu is a row (.as-jbar): each joint type a
