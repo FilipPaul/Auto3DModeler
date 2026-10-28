@@ -620,8 +620,10 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .aih { width: min(640px, calc(100vw - 32px)); max-width: none; }
 .autosave-state { font-size: 11px; color: var(--muted); white-space: nowrap; margin-left: 6px; }
 .autosave-state.bad { color: #f85149; }
-.restore-bar { position: fixed; bottom: 16px; left: 16px; z-index: 60; display: flex; align-items: center; gap: 10px;
-  background: var(--panel-2); border: 1px solid var(--accent); border-radius: 10px; padding: 8px 12px; box-shadow: 0 8px 24px #0008; max-width: calc(100vw - 32px); }
+/* "Continue where you left off": a strip under the top bar, in the page's flow (it covers nothing) */
+.restore-bar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 6px 14px;
+  background: var(--panel-2); border-bottom: 1px solid var(--accent); }
+.restore-bar [data-a=x] { margin-left: auto; }
 .restore-bar i { color: var(--muted); font-style: normal; font-size: 12px; margin-left: 6px; }
 /* 📚 the parts library */
 .lib { width: min(1020px, calc(100vw - 32px)); max-width: none; height: min(720px, calc(100vh - 60px)); display: flex; flex-direction: column; }

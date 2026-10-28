@@ -71,6 +71,26 @@ try:
     rec = recent()
     print("a change: still one project:", len(rec), "| kept the change:", json.loads(urllib.request.urlopen(f"{URL}/api/projects/{pid}").read())["parts"][0]["model"].get("color"))
 
+    # the bar is a strip under the top bar (it covers no button); ✕ closes it; making a part closes it too
+    d.refresh()
+    wait("return !!window.__app")
+    wait("return document.querySelector('.restore-bar')", 10)
+    print("the bar under the top bar:", js("return document.querySelector('.restore-bar').previousElementSibling.classList.contains('topbar')"),
+          "| fixed:", js("return getComputedStyle(document.querySelector('.restore-bar')).position === 'fixed'"))
+    d.find_element(By.CSS_SELECTOR, ".restore-bar [data-a=x]").click()
+    print("✕ closes it:", not d.find_elements(By.CSS_SELECTOR, ".restore-bar"))
+    d.refresh()
+    wait("return !!window.__app")
+    wait("return document.querySelector('.restore-bar')", 10)
+    js("document.getElementById('sampleBtn').click()")
+    wait("return !!window.__app.state.solution?.mesh", 60)
+    time.sleep(0.5)
+    print("gone once a part is open:", not d.find_elements(By.CSS_SELECTOR, ".restore-bar"))
+    js("return window.__app.autosave.saveNow()")
+    for p in recent():  # (only the Bracket kept, for the list below)
+        if p["id"] != pid:
+            urllib.request.urlopen(urllib.request.Request(f"{URL}/api/projects/{p['id']}", method="DELETE"))
+
     js("document.getElementById('recentBtn').click()")
     wait("return document.querySelectorAll('.aih-row').length >= 1")
     print("🕘 Recent projects:", [r.text.replace("\n", " | ")[:80] for r in d.find_elements(By.CSS_SELECTOR, ".aih-row")])

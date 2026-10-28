@@ -1535,7 +1535,7 @@ canvas.addEventListener('pointerdown', (e) => {
   // dragging then moves the primitive on a plane above the part
   const pt0 = viewer.pickFace(e.clientX, e.clientY, 'over');
   const surf = viewer.pickSurface(e.clientX, e.clientY);
-  const tolZ = (viewer.size || 1) * 0.006;
+  const tolZ = (viewer.size || 1) * 1e-3; // pickSurface puts a flat face at its exact height: a box 3 mm under it is not it
   const shapes = outlinePanel.draggables().sort((a, b) => (b.id === outlinePanel.selected) - (a.id === outlinePanel.selected));
   const at = surf || pt0;
   const hitS = at && shapes.find((s) => hitShape(s, at.x, at.y)
@@ -1626,8 +1626,8 @@ function nearRings(rings, x, y, tol) {
 function selectAt(clientX, clientY) {
   const h = viewer.pickSurface(clientX, clientY);
   const regions = state.solution?.object_regions || [];
-  const tol = (viewer.size || 1) * 0.006;
-  const hit = h && [...regions].reverse().find((r) => h.z >= r.z0 - tol && h.z <= r.z1 + tol
+  const tol = (viewer.size || 1) * 0.006, tolZ = (viewer.size || 1) * 1e-3;
+  const hit = h && [...regions].reverse().find((r) => h.z >= r.z0 - tolZ && h.z <= r.z1 + tolZ
     && (inRings(r.rings, h.x, h.y) || nearRings(r.rings, h.x, h.y, tol)));
   if (!hit) {
     if (outlinePanel.selected) { outlinePanel.selected = null; outlinePanel.render(); viewer.setSelection(null); }

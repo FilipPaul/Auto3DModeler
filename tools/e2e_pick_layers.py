@@ -146,7 +146,8 @@ try:
     proj = json.loads(saved)
     path = Path(OUT) / "picklayers.a3d.json"
     path.write_text(saved, encoding="utf-8")
-    print("saved: layer_pictures", list(proj.get("layer_pictures", {}).keys()), "| objects", [o["name"] for o in proj["model"]["objects"]])
+    part = proj["parts"][0]["classic"] if "parts" in proj else proj  # a v3 file keeps the quick part under parts[].classic
+    print("saved: layer_pictures", list(part.get("layer_pictures", {}).keys()), "| objects", [o["name"] for o in part["model"]["objects"]])
     d.get(URL)
     wait("return !!window.__app")
     d.find_element(By.ID, "projectInput").send_keys(str(path.resolve()))
