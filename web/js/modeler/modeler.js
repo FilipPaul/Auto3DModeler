@@ -1112,7 +1112,7 @@ export class Modeler {
           <div class="row-actions"><button class="btn small primary" data-a="saveBack">📚 ${esc(t('Save back to the library'))}</button></div></div>` : ''}
         ${this.hooks.saveToLibrary && this.part.features.length ? '<div class="row-actions"><button class="btn small" data-a="saveToLibrary" title="Keep this 3D model in your parts library (on the server) — to use it again in any project">📚 Save to the library</button></div>' : ''}
         ${this.hooks.duplicatePart ? '<div class="row-actions"><button class="btn small" data-a="duplicatePart" title="A copy of this 3D model as a new part of its own (its own tab) — change it without changing this one">⧉ Duplicate as a new part</button></div>' : ''}
-        ${b && this.hooks.toPrint ? `<h3>3D print</h3><p class="hint">Check it fits your printer, split it into pieces with joints — in a printing copy of this part.</p>
+        ${b && this.hooks.toPrint ? `<h3>3D print</h3><p class="hint">Check it fits your printer, split it into exact pieces with joints — in a printing copy of this part.</p>
           <div class="row-actions"><button class="btn small primary" data-a="toPrint">🖨 Prepare for 3D print</button></div>` : ''}
         ${b ? `<h3>Export</h3><div class="row-actions"><button class="btn small" data-x="stl" title="For 3D printing">STL</button>
           <button class="btn small" data-x="step" title="For other CAD programs (exact circles and faces)">STEP</button>
@@ -3081,9 +3081,10 @@ export class Modeler {
     this.hooks.onChange?.();
   }
 
-  /** A printing copy of this part: its STL opened as a Quick part (printer fit, splitting, joints). */
+  /** A printing copy of this part: its STEP opened as a Quick part (printer fit, splitting, joints) — the pieces of a
+   * split are cut from the exact solid, so curved walls stay smooth. */
   async toPrint() {
-    const res = await fetch('/api/model/export/stl', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    const res = await fetch('/api/model/export/step', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ part: this.part, name: this.hooks.safeName() }) });
     if (!res.ok) { this.hooks.toast(`Export failed: ${(await res.json()).error}`, 'error'); return; }
     await this.hooks.toPrint(await res.blob());

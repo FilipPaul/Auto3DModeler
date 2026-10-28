@@ -207,6 +207,7 @@ const CS = {
   'The back face has embossed design, so the part will not lie flat on the bed — print face-up with supports, or move the design to the front.': 'Zadní plocha má vytlačený design, díl tedy nebude ležet rovně na podložce — tiskněte lícem nahoru s podporami, nebo design přesuňte dopředu.',
   'Load a drawing to check printability.': 'Načtěte výkres pro kontrolu tisknutelnosti.', '✓ Fits on the build plate': '✓ Vejde se na tiskovou podložku',
   '✕ Does not fit in one piece': '✕ Nevejde se v jednom kuse', 'rotate 90° on plate': 'otočit o 90° na podložce', 'too big!': 'příliš velký!', 'back face up': 'zadní stranou nahoru',
+  'The pieces are cut from the exact 3D model — curved walls stay smooth.': 'Díly se vyříznou z přesného 3D modelu — zakřivené stěny zůstanou hladké.', exact: 'přesný',
   'Splitting…': 'Rozděluji…', 'Split anyway': 'Přesto rozdělit', 'Split to fit this printer': 'Rozdělit pro tuto tiskárnu',
   // AI chat
   'Checking for Claude Code…': 'Hledám Claude Code…', 'Claude Code connected': 'Claude Code připojen', 'Claude Code ready — send a message to start': 'Claude Code připraven — pošlete zprávu',
@@ -427,7 +428,7 @@ const CS = {
   '🖼 Outline': '🖼 Obrys', 'Insert an outline from a picture, a DXF / DWG drawing or a PDF drawing (as one shape you can move and size)': 'Vložit obrys z obrázku, výkresu DXF / DWG nebo PDF (jako jeden tvar, který lze posouvat a měnit jeho velikost)',
   Outline: 'Obrys', 'Corner x': 'Roh x', 'Corner y': 'Roh y', 'Width of the outline — click to type it (the height follows)': 'Šířka obrysu — klikněte a napište (výška se přizpůsobí)',
   "Drag it in the view to move it. The corner is its lower-left corner, from the sketch's origin.": 'Tažením v pohledu ho posunete. Roh je jeho levý dolní roh, měřený od počátku skici.',
-  '3D print': '3D tisk', 'Check it fits your printer, split it into pieces with joints — in a printing copy of this part.': 'Zkontrolujte, že se vejde na tiskárnu, rozdělte ho na díly se spoji — v tiskové kopii tohoto dílu.',
+  '3D print': '3D tisk', 'Check it fits your printer, split it into exact pieces with joints — in a printing copy of this part.': 'Zkontrolujte, že se vejde na tiskárnu, rozdělte ho na přesné díly se spoji — v tiskové kopii tohoto dílu.',
   '🖨 Prepare for 3D print': '🖨 Připravit pro 3D tisk',
   'A 3D model was made from the outline — give it a height (Extrude), then add holes, roundings…': 'Z obrysu vznikl 3D model — dejte mu výšku (Vysunutí) a pak přidejte díry, zaoblení…',
   'This part has no outline to use.': 'Tento díl nemá obrys k použití.', 'The drawing has errors — fix them in Checks first.': 'Výkres má chyby — nejprve je opravte v Kontrolách.',
@@ -1200,6 +1201,8 @@ const CS_PATTERNS = [
   ['Click where the fold line goes · fold line vertical (press R to rotate, Esc to cancel)', 'Klikněte, kam patří linie ohybu · linie svislá (R = otočit, Esc = zrušit)'],
   ['Click where the fold line goes · fold line horizontal (press R to rotate, Esc to cancel)', 'Klikněte, kam patří linie ohybu · linie vodorovná (R = otočit, Esc = zrušit)'],
   ['The part is {} mm tall but the {} can only print {} mm high.', 'Díl je vysoký {1} mm, ale {2} tiskne jen do výšky {3} mm.'],
+  ['Exact split: the pieces are cut from the exact model, so curved walls stay smooth (meshed within {} mm).', 'Přesné rozdělení: díly jsou vyříznuty z přesného modelu, takže zakřivené stěny zůstanou hladké (síť s odchylkou do {1} mm).'],
+  ['The exact split did not work ({}) — the pieces are built from slices, so curved walls are steps.', 'Přesné rozdělení se nepovedlo ({1}) — díly jsou složené z vrstev, takže zakřivené stěny mají schody.'],
   ['Exported {} pieces as {} (mm) with an assembly sheet.', 'Exportováno {1} dílů jako {2} (mm) s montážním listem.'],
   ['Exported {} pieces + connector parts ({} to print) as {} (mm) with an assembly sheet.', 'Exportováno {1} dílů + spojovací díly ({2} k tisku) jako {3} (mm) s montážním listem.'],
   // detection methods (outline wizard)

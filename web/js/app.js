@@ -1809,10 +1809,10 @@ const modeler = new Modeler({ left: $('modelLeft'), viewport: $('modelViewport')
     toast(t('Each piece is a part of its own now — the part you split keeps both.'), 'ok', 5000);
   },
   newSheet: () => { const p = project.current; if (p) project.newSheet(p.id, `${p.name} — ${t('drawing')}`); },
-  // a printing copy of a model part: its STL as a Quick part, on the 3D print tab
+  // a printing copy of a model part: its STEP as a Quick part, on the 3D print tab (split exactly: printexact.py)
   async toPrint(blob) {
-    const name = `${project.current?.name || safeName()} (print).stl`;
-    await openImport(new File([blob], name, { type: 'model/stl' }));
+    const name = `${project.current?.name || safeName()} (print).step`;
+    await openImport(new File([blob], name, { type: 'model/step' }));
     if (state.workspace === 'quick' && isMesh()) switchRTab('print');
   },
 });
@@ -2440,12 +2440,15 @@ for (const [name, fn] of Object.entries(agentHandlers)) {
     return fn(...args);
   };
 }
+const BOTH = new Set(['check_print']); // a tool of both kinds: on a quick part (a printing copy) the quick part's
 for (const [name, fn] of Object.entries(MODEL)) {
   if (SHARED[name] || Object.values(SHARED).includes(name)) continue;
+  const quick = BOTH.has(name) ? agentHandlers[name] : null;
   agentHandlers[name] = async (...args) => {
     if (state.workspace === 'assembly' && !ANYWHERE.has(name)) {
       throw new Error(`${name}: an assembly is on screen — open_part the part to change it, or use get_assembly / insert_part / snap_faces / place_part.`);
     }
+    if (quick && state.workspace !== 'model') return quick(...args);
     return fn(...args);
   };
 }

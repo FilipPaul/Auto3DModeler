@@ -69,6 +69,12 @@ export class PrintPanel {
 
   printer() { return this.printers.find((p) => p.id === this.selected); }
 
+  /** A part with an exact model (a 3D model part's printing copy, a STEP file): its pieces are cut from it. */
+  exactModel() {
+    const m = this.getBody()?.model;
+    return m?.kind === 'mesh' && /\.(step|stp)$/i.test(m.mesh_id || '') && !(m.extras || []).length;
+  }
+
   /** Called after every model rebuild. */
   async refresh() {
     if (this.pieces) this.exitSplit(false);
@@ -193,7 +199,7 @@ export class PrintPanel {
       <div class="pieces">
         ${this.pieces.map((q) => `<div class="piece ${q.orientation === 'too big' ? 'bad' : ''}"><b>#${q.index}</b>
           ${q.size_mm[0].toFixed(1)} × ${q.size_mm[1].toFixed(1)} × ${q.size_mm[2].toFixed(1)} mm
-          <span>${[q.orientation === 'rotated' ? 'rotate 90° on plate' : q.orientation === 'flat' ? '' : 'too big!', q.flip ? 'back face up' : ''].filter(Boolean).join(' · ')}</span></div>`).join('')}
+          <span>${[q.orientation === 'rotated' ? 'rotate 90° on plate' : q.orientation === 'flat' ? '' : 'too big!', q.flip ? 'back face up' : '', q.exact ? 'exact' : ''].filter(Boolean).join(' · ')}</span></div>`).join('')}
         ${(this.connectors || []).map((g) => `<div class="piece connector"><b>${g.qty} ×</b> ${esc(g.name)}
           ${g.size_mm[0].toFixed(1)} × ${g.size_mm[1].toFixed(1)} × ${g.size_mm[2].toFixed(1)} mm<span>extra part</span></div>`).join('')}
       </div>
@@ -239,6 +245,7 @@ export class PrintPanel {
         if (k === 'face') return `<div class="field"><label>${label}</label><select data-jp="${k}"><option value="top" ${v === 'top' ? 'selected' : ''}>Front (top)</option><option value="bottom" ${v === 'bottom' ? 'selected' : ''}>Back (bottom)</option></select></div>`;
         return `<div class="field"><label>${label}</label><input type="number" step="${k === 'clearance' ? 0.05 : k === 'count' ? 1 : 0.5}" min="0" data-jp="${k}" value="${v}"></div>`;
       }).join('')}</div>
+      ${plan && !plan.error && !this.pieces && this.exactModel() ? '<p class="hint exact-hint">The pieces are cut from the exact 3D model — curved walls stay smooth.</p>' : ''}
       ${plan && !plan.error && !this.pieces ? `<button class="btn ${plan.fits ? '' : 'primary'} split-btn" data-a="split" ${this.busy ? 'disabled' : ''}>${this.busy ? 'Splitting…' : plan.fits ? 'Split anyway' : 'Split to fit this printer'}</button>` : ''}
       ${piecesHtml}`;
 

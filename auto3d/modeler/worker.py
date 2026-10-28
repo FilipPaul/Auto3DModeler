@@ -28,7 +28,7 @@ def _main(conn):
         os.dup2(devnull, 1)
     except OSError:
         pass
-    from . import doc, packed
+    from . import doc, packed, printsplit
     from .kernel import KernelError
     ops = {"rebuild": doc.rebuild, "rebuild_bin": lambda a: packed.pack(doc.rebuild(a, True)),  # (the browser's: packed.py)
            "export": lambda a: doc.export(a["part"], a["fmt"], a.get("name") or "part"),
@@ -38,7 +38,7 @@ def _main(conn):
            "sheet": lambda a: doc.sheet(a["part"], a.get("preset") or "medium", a.get("paper"), a.get("per_view"), bool(a.get("section"))),
            "assembly_sheet": lambda a: doc.assembly_sheet(a["instances"], a.get("paper"), a.get("explode") or 0),
            "limits": lambda a: doc.limits(a["features"], a["id"]), "import_solid": doc.import_solid,
-           "import_assembly": doc.import_assembly}
+           "import_assembly": doc.import_assembly, "print_pieces": printsplit.pieces}
     while True:
         try:
             op, arg = conn.recv()

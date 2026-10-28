@@ -374,7 +374,10 @@ yellow ⚠.
   traced into a cookie cutter, a DXF, a PDF drawing (its profile with the cutouts, in mm) or a 3D file's
   footprint. The outline becomes the first sketch, and Extrude is ready.
 - **🖨 Prepare for 3D print** (in a model's Part panel) makes a printing copy of the model as a Quick part, on the
-  3D print tab: printer fit, splitting into pieces with joints. Make it again after changing the model.
+  3D print tab: printer fit, splitting into pieces with joints. The copy is the model's STEP, so **Split to fit**
+  cuts the pieces from the exact solid — curved walls stay smooth (no steps), each piece has a handful of faces and
+  its STL is meshed within 0.01 mm; the joints' pockets and tabs are cut exactly too. Make it again after changing
+  the model.
 
 Sketches show as lines in the 3D view: bright while not extruded yet, faint once used. Double-click a sketch's lines to
 change it. The steps are listed on the left. Double-click a step (or ✎) to change it; ● / ◌ turns a step off and on (it is kept); ✕ deletes it, together with the
@@ -799,7 +802,9 @@ turns it into one. In 2D: 📏 in the outline editor (picture pixels and mm) and
   flat face — exact for parts whose walls are vertical between flat faces (plates, brackets, cutters), slanted /
   curved walls become steps of the *slice height*. The file is kept on the server (`data/imports/`) and inside the
   project file, so projects reopen anywhere. Design layers need a flat part; on 3D files use 3D objects (e.g.
-  subtract a text object to engrave it).
+  subtract a text object to engrave it). A STEP quick part (also a model's printing copy) is split for printing
+  exactly: the cuts and joints are planned on the slices, the pieces cut from the STEP's solid (needs the CAD
+  kernel; with 3D objects added, or without the kernel, the pieces are made of slices).
 
 ## Outline from a picture
 
@@ -895,7 +900,9 @@ for drawings.
    regions, the part is built as a stack of z-slabs and meshed without T-junctions (watertight).
 5. **Export** ([auto3d/export.py](auto3d/export.py)) – binary STL and AP214 STEP (one solid per connected body), in **mm**.
 6. **Printing** ([auto3d/printing.py](auto3d/printing.py), [auto3d/joints.py](auto3d/joints.py)) – printer profiles,
-   fit check, split planning and joints between pieces.
+   fit check, split planning and joints between pieces; exact pieces of a STEP part
+   ([auto3d/printexact.py](auto3d/printexact.py), cut in the kernel worker by
+   [auto3d/modeler/printsplit.py](auto3d/modeler/printsplit.py)).
 7. **Bending** ([auto3d/bend.py](auto3d/bend.py)) – folds and rolls applied to the final mesh (split across the
    bend zones, then mapped onto the bent shape).
 
@@ -996,7 +1003,10 @@ Built-in printers: **Creality Ender-3 Pro** (220 × 220 × 250 mm) and **Bambu L
 add your own with **＋ New printer** (stored in `data/printers.json`). The build volume is shown in 3D and
 the part is checked against it (with a configurable bed margin, 90° rotation allowed). **Split to fit**
 cuts the part into the fewest pieces that fit, preferring even pieces and cuts through solid material
-(more glue area); pieces are exported as a ZIP of STL or STEP files with an `ASSEMBLY.txt` sheet.
+(more glue area); pieces are exported as a ZIP of STL or STEP files with an `ASSEMBLY.txt` sheet. A part with an
+exact model (a 3D model's printing copy, a STEP file) is split exactly: the pieces (marked *exact*) are cut from
+its solid with the same cells and joint shapes as B-rep prisms, so curved walls stay smooth; their STL is meshed
+within 0.01 mm, their STEP is the exact solid.
 
 ### Joining split pieces
 
