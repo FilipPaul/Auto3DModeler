@@ -68,6 +68,13 @@ def click(p):
     time.sleep(0.5)
 
 
+def rclick(p):
+    """A right click there (the face menu)."""
+    move(p)
+    ActionChains(d).context_click().perform()
+    time.sleep(0.5)
+
+
 def tags():
     return [e.text for e in d.find_elements(By.CSS_SELECTOR, ".m-dimtag")]
 
@@ -94,7 +101,9 @@ try:
     move([20, 20, 5])
     print("hover: faces lit", js(f"return {M}.view.hoverSet?.size"), "| tip:", js("return document.querySelector('.m-tip')?.textContent"))
     click([20, 20, 5])
-    print("pop-up:", [b.text for b in d.find_elements(By.CSS_SELECTOR, ".m-fmenu button")])
+    print("a left click: its step chosen, no menu:", js(f"return {M}.selected"), not d.find_elements(By.CSS_SELECTOR, ".m-fmenu"))
+    rclick([20, 20, 5])
+    print("pop-up (right click):", [b.text for b in d.find_elements(By.CSS_SELECTOR, ".m-fmenu button")])
     print("sizes on the part:", tags())
     d.save_screenshot(f"{OUT}/pick1.png")
 
@@ -130,7 +139,7 @@ try:
 
     # "◎ Hole here" from the pop-up
     js(f"{M}.closeCtx()")
-    click([15, 10, 5])
+    rclick([15, 10, 5])
     next(b for b in d.find_elements(By.CSS_SELECTOR, ".m-fmenu button") if b.text.startswith("◎")).click()
     time.sleep(0.6)
     settled()

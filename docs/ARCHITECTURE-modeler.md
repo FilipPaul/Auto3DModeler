@@ -80,6 +80,14 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Sketch picks, filters, midpoints, R / Ø, the face menu on a right click done:** Sketcher.pickable (points, mid,
+  origin, lines, round, edges; localStorage a3d.skpick) gates pickTarget, shown as .sk-filters (bottom middle,
+  renderFilters from renderCmdBar); a line's middle is a pick ({mid: line} end — constraints.end adds a point held by
+  symmetric_point; endUV; relPick takes the line); the origin / midpoints are ⬚ picks (kind origin / mid, distance
+  suggestions); dimHits (each dimension's line / leader / arc, from movable) — a press on one drags the dimension
+  (down / move / up); f.rd per circle / arc (roundAs, shownFactor, flipRound: the label, its box, the quick box and the
+  suggestions show R or Ø, the lock stays dia / rad). The face menu: contextmenu without a drag (rdown); a left click
+  only chooses the step. test_distance_from_a_lines_middle; tools/e2e_sketch_pick.py; e2e_model_pick (right click).
 - **Reference dimensions, quieter dimension lines done:** relock returns whether it held ({quiet}); addDim of a size
   the others fix (redundant at its own value) keeps it as `free: true` (a reference: only measures, "(90°)"; a
   shape's own size: a note); dimension / extension lines dashed (DIM_ON soft violet, DIM_FREE faint), drawn for free

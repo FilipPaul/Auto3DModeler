@@ -168,6 +168,7 @@ export class Modeler {
     }
     for (const b of bar.querySelectorAll('[data-a]:not([data-a=relate])')) b.addEventListener('click', () => this.action(b.dataset.a));
     this.sketchState();
+    if (this.mode === 'sketch') this.sk.renderFilters(); else this.els.viewport.querySelector(':scope > .sk-filters')?.remove();
     bar.querySelector('[data-a=relate]')?.addEventListener('click', (e) => { e.stopPropagation(); bar.querySelector('.sk-relmenu').classList.toggle('open'); });
     for (const b of bar.querySelectorAll('[data-rel]')) {
       b.addEventListener('click', () => { bar.querySelector('.sk-relmenu').classList.remove('open'); this.sk.relType = b.dataset.rel; this.sk.setTool('relate'); });
@@ -350,12 +351,13 @@ export class Modeler {
     Object.assign(el.style, { left: `${t.x - vr.left + 14}px`, top: `${t.y - vr.top + 14}px` });
   }
 
-  /** A click on the part: its step is chosen (its sizes show), and the tools for that face pop up there. */
-  clickFace(e) {
+  /** A click on the part: its step is chosen (its sizes show); a right click also pops up the tools for that face. */
+  clickFace(e, menu = false) {
     this.closeCtx();
     const h = this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
     if (!fs) { this.selectStep(null); return; }
     this.selectStep(fs.step.id);
+    if (!menu) return;
     const flat = h.face.type === 'plane', at = { clientX: e.clientX, clientY: e.clientY };
     // [key, icon, label, do it] by section: this face, its edges, the whole part, the step it belongs to
     const sections = [
@@ -2224,8 +2226,15 @@ export class Modeler {
   bindPointer() {
     const cv = this.view.renderer.domElement;
     let down = null;
-    cv.addEventListener('contextmenu', () => this.closeCtx()); // (the right button pans: no menu)
+    // a right click (not a pan with it) on the part: the tools for that face
+    cv.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const r = this.rdown, still = r && Math.hypot(e.clientX - r.x, e.clientY - r.y) <= 4;
+      this.rdown = null;
+      if (still && this.mode === 'part' && !this.cmd && !this.measuring && !this.painting) this.clickFace(e, true); else this.closeCtx();
+    });
     cv.addEventListener('pointerdown', (e) => {
+      if (e.button === 2) this.rdown = { x: e.clientX, y: e.clientY };
       if (e.button !== 0 || (e.buttons & ~1)) { down = null; return; } // the left button alone
       down = { x: e.clientX, y: e.clientY, drag: null };
       if (this.mode === 'sketch') {
@@ -2241,7 +2250,10 @@ export class Modeler {
         cv.style.cursor = (h?.face?.type === 'plane' || h?.datum) ? 'pointer' : '';
         return;
       }
-      if (this.mode === 'sketch') this.sk.move(e, down?.drag || null);
+      if (this.mode === 'sketch') {
+        if (!down?.drag) { const uv = this.view.planePoint(e.clientX, e.clientY, this.frame()); cv.style.cursor = uv && this.sk.dimHitAt(uv) ? 'grab' : cv.style.cursor === 'grab' ? '' : cv.style.cursor; }
+        this.sk.move(e, down?.drag || null);
+      }
       else if (this.mode === 'part' && this.cmd && !down && (!USES_SKETCH.has(this.cmd.feature.type) || this.cmd.feature.upto)) {
         const f = this.cmd.feature;
         if (f.type === 'extrude') {

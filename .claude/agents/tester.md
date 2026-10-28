@@ -166,6 +166,10 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_cleanup.py <url> <dir>` covers 🧹 Clean up empty projects (three empty default-named projects asked about
    by name and deleted; an empty one named by the user and one with a step stay; again: nothing to clean up). Needs a
    server restarted after server / autosave changes.
+   `tools/e2e_sketch_pick.py <url> <dir>` covers what a sketch click takes (the filters bottom middle; Lines off: a line
+   not picked; the origin's suggestions; a midpoint + the circle: a distance from the middle held at 40; a dimension
+   dragged by its line, the shapes not moved; the circle as R: its box shows 5, 5 typed -> Ø 10). Needs a server
+   restarted after constraints.py changes.
    `tools/e2e_suggest.py <url> <dir>` covers the suggestions table (a sketch line: its length, h, v, construction —
    bottom left; + a crossing line: angle, parallel, perpendicular, equal (Equal made); a line + a circle: tangent, from
    its centre; Esc: gone; an assembly part: open, join, simplified, own part, take out; + a second: join them (picking

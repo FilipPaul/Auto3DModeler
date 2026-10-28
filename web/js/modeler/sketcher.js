@@ -278,7 +278,8 @@ export class Sketcher {
 
   /** A size label the mouse can drag (as on a drawing sheet): its place is f.place[key] = at(uv) — an offset from the
    *  shape (mm) or an angle round a circle; `what` (lines, circles, points) lights up while the mouse is on it. */
-  movable(lab, key, at, what) {
+  movable(lab, key, at, what, segs = []) {
+    for (const [a, b] of segs) (this.dimHits || (this.dimHits = [])).push({ a, b, key, at, what }); // (its lines can be dragged too)
     const el = lab.el;
     el.classList.add('movable');
     el.addEventListener('mouseenter', () => { this.hoverSize = { key, what }; this.drawHighlight(); });
@@ -614,7 +615,60 @@ export class Sketcher {
   }
 
   /** An end of a distance: a sketch point id, the origin, or a fixed reference {ref: [u, v]}. */
-  endUV(x) { return x && typeof x === 'object' ? x.ref : this.P(x); }
+  endUV(x) {
+    if (x && typeof x === 'object' && x.mid) { const e = this.ent(x.mid); if (!e) return null; const a = this.P(e.a), b = this.P(e.b); return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; }
+    return x && typeof x === 'object' ? x.ref : this.P(x);
+  }
+
+  /** A circle / arc's size shown as its radius ('r') or diameter ('d') — f.rd, by default Ø for a circle, R for an arc. */
+  roundAs(id) { const e = this.ent(id); return this.f.rd?.[id] || (e?.t === 'arc' ? 'r' : 'd'); }
+
+  /** What a typed value of `spec` is times the size it locks (a circle shown as R: ½; an arc shown as Ø: 2). */
+  shownFactor(spec) {
+    if (spec?.t === 'dia' && this.roundAs(spec.e) === 'r') return 0.5;
+    if (spec?.t === 'rad' && this.roundAs(spec.e) === 'd') return 2;
+    return 1;
+  }
+
+  /** Show a circle / arc's size the other way (R ⇄ Ø). */
+  flipRound(id) {
+    this.f.rd = { ...(this.f.rd || {}), [id]: this.roundAs(id) === 'r' ? 'd' : 'r' };
+    this.changed();
+  }
+
+  /** What a click may take (the filters at the bottom of the view; remembered). */
+  get pickable() {
+    if (!this._pickable) {
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem('a3d.skpick') || 'null'); } catch { saved = null; }
+      this._pickable = { points: true, mid: true, origin: true, lines: true, round: true, edges: true, ...(saved || {}) };
+    }
+    return this._pickable;
+  }
+
+  /** The selection filters: a row of toggles at the bottom of the view — points, midpoints, the origin, lines,
+   *  circles / arcs, the part's edges. */
+  renderFilters() {
+    const vp = this.m.els.viewport;
+    let bar = vp.querySelector(':scope > .sk-filters');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.className = 'sk-filters';
+      for (const ev of ['pointerdown', 'pointerup', 'click']) bar.addEventListener(ev, (x) => x.stopPropagation());
+      vp.appendChild(bar);
+    }
+    const F = [['points', '•', 'Points'], ['mid', '⊹', 'Midpoints'], ['origin', '⊕', 'Origin'], ['lines', '╱', 'Lines'], ['round', '◯', 'Circles / arcs'], ['edges', '┅', 'Part edges']];
+    bar.innerHTML = `<span class="skf-t">${t('Select')}:</span>${F.map(([k, i, l]) => `<button class="${this.pickable[k] ? 'on' : ''}" data-f="${k}" title="${t('Click to pick these — or not')}">${i} ${t(l)}</button>`).join('')}`;
+    for (const b of bar.querySelectorAll('[data-f]')) {
+      b.addEventListener('click', () => {
+        this.pickable[b.dataset.f] = !this.pickable[b.dataset.f];
+        try { localStorage.setItem('a3d.skpick', JSON.stringify(this.pickable)); } catch { /* private window */ }
+        this.hover = null;
+        this.renderFilters();
+        this.draw();
+      });
+    }
+  }
 
   // ------------------------------------------------------------------ 🪄 auto-dimension
   /** The sizes worth locking, best first: each shape's own sizes, then where it is — from the nearest edges of the
@@ -828,8 +882,11 @@ export class Sketcher {
 
   // ------------------------------------------------------------------ mouse
   down(e) {
-    if (this.tool !== 'select') return null;
+    if (this.tool !== 'select' && this.tool !== 'dim') return null;
     const uv = this.view.planePoint(e.clientX, e.clientY, this.frame());
+    const grab = uv && this.dimHitAt(uv);
+    if (grab) return { size: grab, x0: e.clientX, y0: e.clientY, moved: false }; // a dimension by its line
+    if (this.tool !== 'select') return null;
     const h = uv && this.hit(uv);
     if (!h) return null;
     this.sel = h;
@@ -843,6 +900,13 @@ export class Sketcher {
   async move(e, drag) {
     const uv = this.view.planePoint(e.clientX, e.clientY, this.frame());
     if (!uv) return;
+    if (drag?.size) { // a dimension dragged by its line: its place, as when its label is dragged
+      if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 3) return;
+      if (!drag.moved) { drag.moved = true; this.step(); this.sizeDrag = drag.size.key; this.hoverSize = { key: drag.size.key, what: drag.size.what }; }
+      this.f.place = { ...(this.f.place || {}), [drag.size.key]: +drag.size.at(uv).toFixed(4) };
+      this.draw();
+      return;
+    }
     if (drag?.block) {
       const g = e.altKey ? 0 : this.gridStep();
       let du = uv[0] - drag.uv0[0], dv = uv[1] - drag.uv0[1];
@@ -893,7 +957,19 @@ export class Sketcher {
     this.view.renderer.domElement.style.cursor = this.tool === 'select' ? (this.hit(uv) ? 'move' : '') : 'crosshair';
   }
 
+  /** The dimension whose line is under the mouse (its dimension line, leader or arc) -> {key, at, what} or null. */
+  dimHitAt(uv) {
+    const tol = this.mpp() * 5;
+    let best = null;
+    for (const h of this.dimHits || []) {
+      const d = segDist(uv, h.a, h.b);
+      if (d < tol && (!best || d < best.d)) best = { d, ...h };
+    }
+    return best;
+  }
+
   async up(drag) {
+    if (drag?.size) { this.sizeDrag = null; if (drag.moved) { this.hoverSize = null; this.changed(); } return; }
     if (!drag) return;
     while (drag.busy) await new Promise((r) => setTimeout(r, 15));
     if (!drag.moved) return;
@@ -965,6 +1041,7 @@ export class Sketcher {
   relPick(uv, want) {
     const t = this.pickTarget(uv);
     if (!t) return null;
+    if (t.mid && want !== 'point') return ['line', 'shape', 'any'].includes(want) ? { kind: 'line', id: t.mid } : null; // (a line's middle: that line)
     if (t.kind === 'point' && (want === 'point' || want === 'any') && !t.circle && !t.arc && typeof t.end === 'string') return { kind: 'point', id: t.end };
     if (t.circle) return want !== 'point' && want !== 'line' ? { kind: 'circle', id: t.circle } : want === 'point' ? { kind: 'point', id: t.end } : null;
     if (t.arc) return want !== 'point' && want !== 'line' ? { kind: 'arc', id: t.arc } : want === 'point' ? { kind: 'point', id: t.end } : null;
@@ -988,7 +1065,7 @@ export class Sketcher {
     const [a, b] = picks, k = { id: this.newId('k'), t: type, user: true };
     if (type === 'h' || type === 'v') k.e = a.id;
     else if (type === 'fix') Object.assign(k, { p: a.id, at: [...this.P(a.id)] });
-    else if (type === 'coin') Object.assign(k, b.kind === 'point' ? { p: a.id, p2: b.id } : { p: a.id, e: b.id });
+    else if (type === 'coin') Object.assign(k, b.kind === 'point' || b.kind === 'origin' ? { p: a.id, p2: b.id } : { p: a.id, e: b.id });
     else Object.assign(k, { e: a.id, e2: b.id });
     if (type === 'eq' && (a.kind === 'line') !== (b.kind === 'line')) { this.m.toast('Equal: two lines, or two circles / arcs.', 'warning'); this.changed(); return; }
     await this.relock(() => this.f.constraints.push(k));
@@ -1732,15 +1809,25 @@ export class Sketcher {
       return Math.hypot(a[0] + t * dx - uv[0], a[1] + t * dy - uv[1]);
     };
     const dirOf = (a, b) => (Math.abs(a[1] - b[1]) < 1e-7 ? 'h' : Math.abs(a[0] - b[0]) < 1e-7 ? 'v' : 's');
-    near(Math.hypot(uv[0], uv[1]), { kind: 'point', end: ORIGIN, uv: [0, 0] });
-    for (const [id, p] of Object.entries(this.f.points)) near(Math.hypot(p[0] - uv[0], p[1] - uv[1]), { kind: 'point', end: id, uv: p });
-    const R = this.refs();
+    const F = this.pickable;
+    if (F.origin) near(Math.hypot(uv[0], uv[1]), { kind: 'point', end: ORIGIN, uv: [0, 0] });
+    if (F.points) for (const [id, p] of Object.entries(this.f.points)) near(Math.hypot(p[0] - uv[0], p[1] - uv[1]), { kind: 'point', end: id, uv: p });
+    if (F.mid) { // a line's middle (a little less near than a real point)
+      for (const e of this.f.entities) {
+        if (e.t !== 'line') continue;
+        const a = this.P(e.a), b = this.P(e.b), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        near(Math.hypot(m[0] - uv[0], m[1] - uv[1]) * 1.15, { kind: 'point', end: { mid: e.id }, uv: m, mid: e.id });
+      }
+    }
+    const R = F.edges ? this.refs() : { points: [], pointIds: [], circles: [], lines: [], lineIds: [] };
     R.points.forEach((r, i) => near(Math.hypot(r[0] - uv[0], r[1] - uv[1]), { kind: 'point', end: R.pointIds[i] ? { ref: r, vertex: R.pointIds[i] } : { ref: r }, uv: r }));
     for (const q of R.circles) { // a round edge of the part: its centre (on the rim or inside it)
       const d = Math.hypot(q.c[0] - uv[0], q.c[1] - uv[1]);
       near(Math.min(d, Math.abs(d - q.r) < tol ? tol * 0.9 : Infinity), { kind: 'point', end: { ref: q.c }, uv: q.c });
     }
     for (const e of this.f.entities) {
+      if ((e.t === 'circle' || e.t === 'arc') && !F.round) continue;
+      if (e.t === 'line' && !F.lines) continue;
       if (e.t === 'circle') {
         const c = this.P(e.c), d = Math.hypot(c[0] - uv[0], c[1] - uv[1]);
         near(Math.min(Math.abs(d - e.r), d < e.r ? tol * 0.8 : Infinity), { kind: 'point', end: e.c, uv: c, circle: e.id });
@@ -1823,9 +1910,12 @@ export class Sketcher {
     const box = document.createElement('div');
     box.className = 'sk-choose sk-quick';
     // in the view's bottom-left corner: over no shape (a second click on any of them stays free)
-    box.innerHTML = `<label>${spec.t === 'len' ? t('Length') : spec.t === 'dia' ? 'Ø' : 'R'} <input type="text" value="${fmt(Math.abs(v))}"> mm</label>
+    const k = this.shownFactor(spec), round = spec.t !== 'len';
+    box.innerHTML = `<label>${spec.t === 'len' ? t('Length') : (spec.t === 'dia') === (k === 1) ? 'Ø' : 'R'} <input type="text" value="${fmt(Math.abs(v) * k)}"> mm
+      ${round ? `<button class="mini" data-rd title="${t('Radius or diameter')}">R ⇄ Ø</button>` : ''}</label>
       <p class="hint">${t('Enter: this size — or click a second shape for a distance')}</p>`;
     const inp = box.querySelector('input');
+    box.querySelector('[data-rd]')?.addEventListener('click', () => { this.flipRound(ent.id); this.quickSize(A, e); });
     inp.addEventListener('keydown', async (ev) => {
       ev.stopPropagation();
       if (ev.key === 'Escape') { this.closeChooser(); this.dimA = null; this.m.hint(this.hint()); this.draw(); }
@@ -1835,7 +1925,8 @@ export class Sketcher {
       this.dimA = null;
       this.m.hint(this.hint());
       await this.addDim({ spec, v }, { edit: false });
-      if (typed && Math.abs(parseFloat(typed.replace(',', '.')) - Math.abs(v)) > 1e-9) this.setSize(spec, typed);
+      const typedV = parseFloat(typed.replace(',', '.')) / k;
+      if (typed && Number.isFinite(typedV) && Math.abs(typedV - Math.abs(v)) > 1e-9) this.setSize(spec, String(typedV));
     });
     for (const ev of ['pointerdown', 'pointerup']) box.addEventListener(ev, (x) => x.stopPropagation());
     this.m.els.viewport.appendChild(box);
@@ -1942,7 +2033,8 @@ export class Sketcher {
   editLabel(el, spec) {
     const inp = document.createElement('input');
     inp.className = 'sk-input';
-    inp.value = fmt(Math.abs(this.measure(spec)));
+    const k = this.shownFactor(spec);
+    inp.value = fmt(Math.abs(this.measure(spec)) * k);
     const r = el.getBoundingClientRect(), vr = this.m.els.viewport.getBoundingClientRect();
     Object.assign(inp.style, { left: `${r.left - vr.left}px`, top: `${r.top - vr.top - 2}px` });
     this.m.els.viewport.appendChild(inp);
@@ -1953,7 +2045,8 @@ export class Sketcher {
       if (done) return;
       done = true;
       inp.remove();
-      if (ok && inp.value.trim() !== '') this.setSize(spec, inp.value);
+      const v = parseFloat(String(inp.value).replace(',', '.'));
+      if (ok && inp.value.trim() !== '') this.setSize(spec, Number.isFinite(v) && k !== 1 ? String(v / k) : inp.value);
     };
     inp.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') finish(true); if (ev.key === 'Escape') finish(false); });
     inp.addEventListener('blur', () => finish(true));
@@ -1967,6 +2060,8 @@ export class Sketcher {
     if (t.circle && own(t.circle)) return { kind: 'circle', id: t.circle, t: at };
     if (t.arc && own(t.arc)) return { kind: 'arc', id: t.arc, t: at };
     if (t.kind === 'line' && own(t.line)) return { kind: 'line', id: t.line, t: at };
+    if (t.kind === 'point' && t.mid) return { kind: 'mid', id: t.mid, t: at };
+    if (t.kind === 'point' && t.end === ORIGIN) return { kind: 'origin', id: ORIGIN, t: at };
     if (t.kind === 'point' && own(t.end)) return { kind: 'point', id: t.end, t: at };
     return null;
   }
@@ -1990,13 +2085,17 @@ export class Sketcher {
     const at = () => { const b = this.m.els.viewport.querySelector('.view-suggest')?.getBoundingClientRect(); return { clientX: (b?.right || 300) + 8, clientY: b?.top || 300 }; };
     const between = (a, b, label) => ({ icon: '↔', label, run: () => this.dimBetween(a.t, b.t, at()) });
     const cons = (ps) => {
-      const ids = ps.filter((p) => p.kind !== 'point').map((p) => p.id);
+      const ids = ps.filter((p) => ['line', 'circle', 'arc'].includes(p.kind)).map((p) => p.id);
       return ids.length ? [{ icon: '┄', label: t(ids.every((id) => this.ent(id)?.construction) ? 'Part of the outline again' : 'Make it construction'), title: t('Construction shapes guide (an axis, a mirror line) but are not part of the outline'), run: () => this.setConstruction(ids) }] : [];
     };
     const items = [];
     if (n === 1) {
       const p = P[0], spec = p.kind === 'line' ? { t: 'len', e: p.id } : p.kind === 'circle' ? { t: 'dia', e: p.id } : p.kind === 'arc' ? { t: 'rad', e: p.id } : null;
-      if (spec) items.push({ icon: { len: '↔', dia: 'Ø', rad: 'R' }[spec.t], label: t({ len: 'Its length', dia: 'Its diameter', rad: 'Its radius' }[spec.t]), run: () => this.addDim({ spec, v: this.measure(spec) }) });
+      if (spec) {
+        const asR = spec.t === 'len' ? null : this.shownFactor(spec) === 1 ? spec.t === 'rad' : spec.t === 'dia';
+        items.push({ icon: spec.t === 'len' ? '↔' : asR ? 'R' : 'Ø', label: t(spec.t === 'len' ? 'Its length' : asR ? 'Its radius' : 'Its diameter'), run: () => this.addDim({ spec, v: this.measure(spec) }) });
+        if (spec.t !== 'len') items.push({ icon: '⇄', label: t(asR ? 'Show it as a diameter' : 'Show it as a radius'), run: () => this.flipRound(p.id) });
+      }
       if (p.kind === 'line') items.push(rel('h', p), rel('v', p));
       if (p.kind === 'point') items.push(rel('fix', p));
       items.push(...cons(P));
@@ -2009,7 +2108,11 @@ export class Sketcher {
       } else if (round(a) || round(b)) {
         const [c, o] = round(a) ? [a, b] : [b, a];
         if (o.kind === 'line') items.push(rel('tang', o, c), between(c, o, t('From its centre to the line')));
-        else items.push(rel('coin', o, c), between(c, o, t('The distance between them')));
+        else items.push(...(o.kind === 'point' ? [rel('coin', o, c)] : []), between(c, o, t('The distance between them'))); // (a midpoint / the origin: a distance)
+      } else if (['mid', 'origin'].includes(a.kind) || ['mid', 'origin'].includes(b.kind)) { // (a line's middle, the origin)
+        const [x, y] = a.kind === 'point' ? [a, b] : [b, a];
+        if (x.kind === 'point' && y.kind === 'origin') items.push({ ...rel('coin', x, y), label: t('Onto the origin') });
+        items.push(between(a, b, t('The distance between them')));
       } else if (a.kind === 'point' && b.kind === 'point') {
         items.push(rel('coin', a, b), between(a, b, t('The distance between them')));
       } else {
@@ -2029,7 +2132,7 @@ export class Sketcher {
   /** The suggestions table (bottom left) for what is picked. */
   renderSuggest() {
     const items = this.suggestions(), n = (this.picks || []).length;
-    const kind = { line: 'A line', circle: 'A circle', arc: 'An arc', point: 'A point' }[this.picks?.[0]?.kind];
+    const kind = { line: 'A line', circle: 'A circle', arc: 'An arc', point: 'A point', mid: "A line's midpoint", origin: 'The origin' }[this.picks?.[0]?.kind];
     showSuggest(this.m.els.viewport, n === 1 ? t(kind || 'Selected') : t('{n} selected').replace('{n}', n), items,
       n === 1 ? t('Ctrl+click another shape: what fits the two') : '');
   }
@@ -2084,6 +2187,7 @@ export class Sketcher {
     // blue: can still move, green: fully defined, red: a lock that does not fit (cyan: not known)
     const CONS = 0xd29922; // construction shapes: dashed amber
     const DIM_ON = 0x8e7cc3, DIM_FREE = 0x4f5966; // dimension lines: a locked size (soft violet), a free one / a reference (faint)
+    this.dimHits = []; // (filled by movable: the dimensions' lines, to drag them by)
     const STATE = { free: 0x58a6ff, done: 0x3fb950, bad: 0xff7b72 }, colourOf = (e) => STATE[this.stateOf(e)] ?? 0x39d0d8, NORM = 0x39d0d8;
     const place = f.place || {};
     // a dimension as on a drawing: extension lines, the dimension line with arrows at its ends
@@ -2131,7 +2235,7 @@ export class Sketcher {
         const a2 = [a[0] + nx * off, a[1] + ny * off], b2 = [b[0] + nx * off, b[1] + ny * off];
         dimLine(a, b, a2, b2, this.findDim(spec) ? DIM_ON : DIM_FREE); // (a locked size stronger, a free one faint)
         labels.push(this.movable(this.label(spec, (a2[0] + b2[0]) / 2, (a2[1] + b2[1]) / 2, fmt(L), 'Length'), key,
-          (uv) => (uv[0] - a[0]) * nx + (uv[1] - a[1]) * ny, { lines: [[a, b]] }));
+          (uv) => (uv[0] - a[0]) * nx + (uv[1] - a[1]) * ny, { lines: [[a, b]] }, [[a2, b2]]));
       } else if (e.t === 'block') {
         for (const r of this.blockRings(e)) for (let i = 0; i < r.length; i++) lines.push([r[i], r[(i + 1) % r.length], isSel(e) ? SEL : NORM]);
         const k = e.scale || 1, [au, av] = e.at;
@@ -2151,8 +2255,8 @@ export class Sketcher {
           const key = `rad:${e.id}`, th = place[key] ?? Math.atan2(m[1] - c[1], m[0] - c[0]), rim = [c[0] + r * Math.cos(th), c[1] + r * Math.sin(th)];
           const at = [rim[0] + Math.cos(th) * mpp * 16, rim[1] + Math.sin(th) * mpp * 16];
           { const col = this.findDim({ t: 'rad', e: e.id }) ? DIM_ON : DIM_FREE; lines.push([c, at, col, true]); arrow(rim, [rim[0] - c[0], rim[1] - c[1]], col); }
-          labels.push(this.movable(this.label({ t: 'rad', e: e.id }, at[0], at[1], `R${fmt(r)}`, 'Radius'), key,
-            (uv) => Math.atan2(uv[1] - c[1], uv[0] - c[0]), { lines: ps.slice(1).map((p, i) => [ps[i], p]), pts: [c] }));
+          labels.push(this.movable(this.label({ t: 'rad', e: e.id }, at[0], at[1], this.roundAs(e.id) === 'd' ? `Ø${fmt(2 * r)}` : `R${fmt(r)}`, 'Radius'), key,
+            (uv) => Math.atan2(uv[1] - c[1], uv[0] - c[0]), { lines: ps.slice(1).map((p, i) => [ps[i], p]), pts: [c] }, [[rim, at]]));
         }
       } else if (e.t === 'spline') {
         const ps = this.splineOf(e), col = isSel(e) ? SEL : colourOf(e);
@@ -2174,8 +2278,8 @@ export class Sketcher {
             arrow(rim, [rim[0] - c[0], rim[1] - c[1]], col);
             arrow(far, [far[0] - c[0], far[1] - c[1]], col);
           }
-          labels.push(this.movable(this.label({ t: 'dia', e: e.id }, at[0], at[1], `Ø${fmt(2 * e.r)}`, 'Diameter'), key,
-            (uv) => Math.atan2(uv[1] - c[1], uv[0] - c[0]), { circles: [[c, e.r]] }));
+          labels.push(this.movable(this.label({ t: 'dia', e: e.id }, at[0], at[1], this.roundAs(e.id) === 'r' ? `R${fmt(e.r)}` : `Ø${fmt(2 * e.r)}`, 'Diameter'), key,
+            (uv) => Math.atan2(uv[1] - c[1], uv[0] - c[0]), { circles: [[c, e.r]] }, [[rim, at]]));
         }
       }
     }
@@ -2216,7 +2320,8 @@ export class Sketcher {
         arrow(arc[0], [arc[0][0] - arc[1][0], arc[0][1] - arc[1][1]], DC);
         arrow(arc[24], [arc[24][0] - arc[23][0], arc[24][1] - arc[23][1]], DC);
         labels.push(this.movable(this.distLabel(d, X[0] + (R + mpp * 14) * Math.cos(am), X[1] + (R + mpp * 14) * Math.sin(am)), d.id,
-          (uv) => Math.max(mpp * 8, Math.hypot(uv[0] - X[0], uv[1] - X[1]) - mpp * 14), { lines: [[this.P(A1.a), this.P(A1.b)], [this.P(A2.a), this.P(A2.b)]] }));
+          (uv) => Math.max(mpp * 8, Math.hypot(uv[0] - X[0], uv[1] - X[1]) - mpp * 14), { lines: [[this.P(A1.a), this.P(A1.b)], [this.P(A2.a), this.P(A2.b)]] },
+          arc.slice(1).map((q, i) => [arc[i], q])));
         continue;
       }
       if (d.t === 'pl' && this.ent(d.e)) {
@@ -2233,30 +2338,38 @@ export class Sketcher {
       if ((d.a === ORIGIN || d.b === ORIGIN) && Math.abs(d.v) < 1e-9) continue; // "locked at the origin": the purple point says it
       // the dimension line where it was dragged (off: from the moving end, across the distance)
       const off = place[d.id] ?? 0;
-      let mid, at;
+      let mid, at, line, lineAt; // (lineAt: the place from the mouse on its dimension line)
       if (d.t === 'dx') {
         const y = B[1] + off, a2 = [A[0], y], b2 = [B[0], y];
         dimLine(A, B, a2, b2, DC);
         mid = [(A[0] + B[0]) / 2, y + mpp * 10];
         at = (uv) => uv[1] - B[1] - mpp * 10;
+        line = [a2, b2];
+        lineAt = (uv) => uv[1] - B[1];
       } else if (d.t === 'dy') {
         const x = B[0] + off, a2 = [x, A[1]], b2 = [x, B[1]];
         dimLine(A, B, a2, b2, DC);
         mid = [x + mpp * 22, (A[1] + B[1]) / 2];
         at = (uv) => uv[0] - B[0] - mpp * 22;
+        line = [a2, b2];
+        lineAt = (uv) => uv[0] - B[0];
       } else {
         const L = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1, nx = -(B[1] - A[1]) / L, ny = (B[0] - A[0]) / L;
         const a2 = [A[0] + nx * off, A[1] + ny * off], b2 = [B[0] + nx * off, B[1] + ny * off];
         dimLine(A, B, a2, b2, DC);
         mid = [(a2[0] + b2[0]) / 2 + nx * mpp * 10, (a2[1] + b2[1]) / 2 + ny * mpp * 10];
         at = (uv) => (uv[0] - A[0]) * nx + (uv[1] - A[1]) * ny - mpp * 10;
+        line = [a2, b2];
+        lineAt = (uv) => (uv[0] - A[0]) * nx + (uv[1] - A[1]) * ny;
       }
       labels.push(this.movable(this.distLabel(d, mid[0], mid[1]), d.id, at, { pts: [A, B] }));
+      if (Math.hypot(line[1][0] - line[0][0], line[1][1] - line[0][1]) > 1e-9) this.dimHits.push({ a: line[0], b: line[1], key: d.id, at: lineAt, what: { pts: [A, B] } });
     }
     this.drawHighlight();
     for (const q of this.picks || []) { // (what the suggestions are for)
       const e = this.ent(q.id);
-      if (q.kind === 'point' && this.P(q.id)) { dots.push([this.P(q.id), SEL]); circles.push([this.P(q.id), mpp * 5, SEL]); }
+      const qp = q.kind === 'mid' ? this.endUV({ mid: q.id }) : q.kind === 'point' || q.kind === 'origin' ? this.P(q.id) : null;
+      if (qp) { dots.push([qp, SEL]); circles.push([qp, mpp * 5, SEL]); }
       else if (e?.t === 'line') lines.push([this.P(e.a), this.P(e.b), SEL]);
       else if (e?.t === 'circle') circles.push([this.P(e.c), e.r, SEL]);
       else if (e?.t === 'arc') { const ps = this.arcOf(e); for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], SEL]); }
@@ -2300,7 +2413,7 @@ export class Sketcher {
         dots.push([hv.uv, HL]);
         if (hv.circle) { const c = this.ent(hv.circle); circles.push([this.P(c.c), c.r, HL]); name = 'circle (its centre)'; }
         else if (hv.arc) { const ps = this.arcOf(this.ent(hv.arc)); for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], HL]); name = 'arc (its centre)'; }
-        else name = hv.corner ? 'corner' : hv.end === ORIGIN ? 'origin' : typeof hv.end === 'object' ? 'corner of the part' : 'point';
+        else name = hv.mid ? 'midpoint' : hv.corner ? 'corner' : hv.end === ORIGIN ? 'origin' : typeof hv.end === 'object' ? 'corner of the part' : 'point';
         at = hv.uv;
       } else if (hv.kind === 'piece') {
         for (let i = 0; i + 1 < hv.pts.length; i++) lines.push([hv.pts[i], hv.pts[i + 1], hv.grow ? 0x7ee787 : 0xff7b72]);
@@ -2391,8 +2504,8 @@ export class Sketcher {
     const name = (d) => {
       const v = fmt(Math.abs(d.v));
       if (d.t === 'len') return `Length ${v}`;  // (a free distance shows its measured value)
-      if (d.t === 'dia') return `Ø${v}`;
-      if (d.t === 'rad') return `R${v}`;
+      if (d.t === 'dia') return this.roundAs(d.e) === 'r' ? `R${fmt(Math.abs(d.v) / 2)}` : `Ø${v}`;
+      if (d.t === 'rad') return this.roundAs(d.e) === 'd' ? `Ø${fmt(Math.abs(d.v) * 2)}` : `R${v}`;
       if (d.t === 'ang') return `∠ ${v}° (${t('angle')})`;
       if (d.t === 'pl') return `⊥ ${v} (${t('from a line')})`;
       const at = (x) => (x === ORIGIN ? 'origin' : typeof x === 'object' ? 'part edge' : 'point');

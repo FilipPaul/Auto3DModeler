@@ -53,6 +53,15 @@ open it (the tree stays), ⧉ opens it in a new window, ✕ deletes it from the 
 assemblies use it). Parts made for an assembly (fasteners) are added without a tab. The **＋**
 next to the tabs offers the usual ways to open a file.
 
+**What a sketch click takes**: the row of filters at the bottom of the sketch — *Points, Midpoints, Origin, Lines,
+Circles / arcs, Part edges* — says what a click may pick (remembered). The origin and a line's **midpoint** can be
+picked and dimensioned from (the distance is held from the middle as the line changes). A dimension can be dragged by
+its label or **by its dimension line**. A circle or arc shows its size as **R or Ø** — *⇄ Show it as a radius /
+diameter* (or R ⇄ Ø in its size box); a typed value is taken that way.
+
+**The tools for a face of a 3D model** open with a **right click** on it (a left click chooses its step and shows its
+sizes; the right button dragged still pans).
+
 **Suggestions for what is selected**: choose a shape in a sketch (⬚ Select) or a part in an assembly, and a small
 table in the bottom-left corner of the view says what can be done with it — a line: its length, horizontal,
 vertical, construction; a part: open it, join it, simplified, its own part, take it out. **Ctrl+click** more and it

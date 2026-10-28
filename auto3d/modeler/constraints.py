@@ -19,6 +19,7 @@ A sketch (in the feature JSON):
                   {"t": "ang", "e": "l1", "e2": "l2", "r1": 0, "r2": 1, "sg": 1, "v": 60},   the angle between two lines
                       (degrees, 0 … 180) — from line e to e2, each taken from a to b (r = 1: from b to a), sg its turn
                   {"t": "pl", "a": "p5", "e": "l3", "v": 8}]                      a point's distance from a line
+  An end of a distance may also be a line's middle: {"mid": "l2"}.
   A dimension with "free": true only measures (shown with its live value, not held).
   An end of a distance may be a fixed reference instead of a sketch point: {"ref": [u, v]} — a point of an
   edge of the part the sketch is on (so a hole can be dimensioned from the part's edge).
@@ -154,10 +155,19 @@ def solve(sketch, drag=None, keep=None, detail=False):
                 sweep = (math.atan2(b[1] - c[1], b[0] - c[0]) - t0) % (2 * math.pi) or 2 * math.pi
                 ents[e["id"]] = (e, s.add_arc_cse(ids[e["c"]], ids[e["a"]], ids[e["b"]], r0, t0, t0 + sweep))
         def end(x):
-            """A sketch point id, or a fixed reference point {"ref": [u, v]} (an edge of the part)."""
+            """A sketch point id, a fixed reference point {"ref": [u, v]} (an edge of the part), or a line's middle
+            {"mid": line id} (a point held halfway between its ends)."""
             if isinstance(x, dict) and "ref" in x:
                 u, v = (_num(c, "A reference point") for c in x["ref"])
                 return s.add_fixed_point(u, v)
+            if isinstance(x, dict) and "mid" in x:
+                ln = ents.get(x["mid"])
+                if not ln or ln[0]["t"] != "line":
+                    return None
+                a, b = pts.get(ln[0]["a"], [0.0, 0.0]), pts.get(ln[0]["b"], [0.0, 0.0])
+                m = s.add_point((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+                s.symmetric_point(ids[ln[0]["a"]], ids[ln[0]["b"]], m)
+                return m
             return ids.get(x)
 
         tags = {}

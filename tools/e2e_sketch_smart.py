@@ -90,7 +90,7 @@ try:
     wait(f"return !!{SK}.free", 10)
     print("  its lines:", colours(), "(blue: free)")
     tool("dim")
-    click_uv((20, 20))  # the top line
+    click_uv((10, 20))  # the top line (not its middle: that is a point of its own)
     box = wait("return document.querySelector('.sk-quick input')", 5)
     print("one click on a line — its size at once:", d.find_element(By.CSS_SELECTOR, ".sk-quick").text.replace("\n", " | "))
     inp = d.find_element(By.CSS_SELECTOR, ".sk-quick input")

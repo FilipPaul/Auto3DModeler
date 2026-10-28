@@ -124,6 +124,16 @@ class TestSketchSolve(unittest.TestCase):
         self.assertIn("c1", r["free"]["radii"])
         self.assertNotIn("free", solve(plate(dims=dims)))  # (only when asked)
 
+    def test_distance_from_a_lines_middle(self):
+        """An end {"mid": line}: the distance is held from the line's middle (wherever its ends go)."""
+        sk = {"points": {"p1": [0, 0], "p2": [10, 4], "p3": [3, 9]},
+              "entities": [{"id": "l1", "t": "line", "a": "p1", "b": "p2"}, {"id": "c1", "t": "circle", "c": "p3", "r": 1}],
+              "constraints": [], "dims": [{"id": "d1", "t": "dist", "a": {"mid": "l1"}, "b": "p3", "v": 6}]}
+        r = solve(sk)
+        self.assertTrue(r["ok"], r)
+        a, b, c = r["points"]["p1"], r["points"]["p2"], r["points"]["p3"]
+        self.assertAlmostEqual(math.dist([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], c), 6, places=5)
+
     def test_point_from_a_slanted_line(self):
         sk = {"points": {"p1": [0, 0], "p2": [10, 10], "p3": [0, 8]},
               "entities": [{"id": "l1", "t": "line", "a": "p1", "b": "p2"}, {"id": "c1", "t": "circle", "c": "p3", "r": 1}],

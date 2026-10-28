@@ -800,6 +800,13 @@ body.view-acts .toast-stack { bottom: 84px; }
 .sk-quick input { width: 74px; background: var(--bg); border: 1px solid var(--accent); border-radius: 5px; color: inherit; padding: 3px 6px; font: inherit; }
 .sk-quick .hint { margin: 6px 0 0; max-width: 200px; }
 /* the suggestions for what is selected, bottom left of the view (suggest.js) */
+/* the sketch's selection filters, bottom middle of the view */
+.sk-filters { position: absolute; left: 50%; transform: translateX(-50%); bottom: 26px; z-index: 5; display: flex; align-items: center; gap: 3px;
+  background: #161a20e0; border: 1px solid var(--line); border-radius: 16px; padding: 3px 6px; font-size: 11.5px; white-space: nowrap; }
+.sk-filters .skf-t { color: var(--muted); padding: 0 4px; }
+.sk-filters button { background: none; border: 1px solid transparent; color: var(--muted); border-radius: 12px; padding: 2px 8px; cursor: pointer; font: inherit; }
+.sk-filters button.on { color: var(--text); background: #2b3440; border-color: var(--line); }
+.sk-filters button:hover { border-color: var(--accent); }
 .view-suggest { position: absolute; left: 12px; bottom: 34px; z-index: 6; width: 236px; background: var(--panel); border: 1px solid var(--line);
   border-radius: 10px; box-shadow: 0 8px 24px #0008; overflow: hidden; }
 .vs-head { display: flex; align-items: baseline; justify-content: space-between; padding: 7px 11px 6px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
