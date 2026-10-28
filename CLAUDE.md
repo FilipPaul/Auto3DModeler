@@ -47,6 +47,8 @@ owner can keep talking to it. Several may work in this one working tree at the s
   `git update-index --add --cacheinfo 100644,$(git hash-object -w <temp file>),<file>`), read
   `git diff --cached` (same GIT_INDEX_FILE), `git commit`, then `unset GIT_INDEX_FILE` and
   `git reset -q -- <your paths>` so the shared index matches the new HEAD for your files. Never `git commit -a`.
+- **Your own file names in the shared scratchpad:** prefix every file you write there (commit messages, patch
+  scripts, data folders) with your job, e.g. `j13-msg.txt` — a commit once took another job's `msg.txt`.
 - **HEAD must pass the unit tests** after your commit: check in a clean worktree of HEAD
   (`git worktree add <scratchpad>/wt HEAD`), not only in the shared tree with others' half-done work.
 - **Small goals, committed at once**, so others build on them; `git pull` is not needed (one local clone).
