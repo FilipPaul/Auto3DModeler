@@ -453,8 +453,10 @@ export class Modeler {
   stepFaces(face) {
     const id = this.faceOwner({ name: face?.name }), step = this.part.features.find((f) => f.id === id);
     if (!step) return null;
-    const ids = (this.result?.body?.faces || []).filter((f) => [f.name, ...(f.names || [])].some((n) => String(n).split(':')[0] === id)).map((f) => f.id);
-    return { step, ids };
+    const body = this.result?.body; // (each step's faces looked up once per body: the mouse asks again and again)
+    if (this.stepIds?.body !== body) this.stepIds = { body, of: new Map() };
+    if (!this.stepIds.of.has(id)) this.stepIds.of.set(id, (body?.faces || []).filter((f) => [f.name, ...(f.names || [])].some((n) => String(n).split(':')[0] === id)).map((f) => f.id));
+    return { step, ids: this.stepIds.of.get(id) }; // (the same list while the body stays: not changed by its users)
   }
 
   /** With no tool on: the edge under the mouse lit (a line or a circle), and the snap points of the hovered step
@@ -463,9 +465,9 @@ export class Modeler {
     const body = this.view.body, hk = hoverKinds(), i = body && hk.edges ? this.view.pickEdge(e.clientX, e.clientY, 7) : -1;
     this.view.setHoverEdges(i >= 0 ? [{ pts: body.edges[i].pts }] : [], i >= 0 ? `e${i}` : '');
     if (!fs || !body || !hk.points) { this.view.setHoverSnaps([]); return; }
-    const ids = new Set(fs.ids), idx = new Set(body.faces.map((f, k) => (ids.has(f.id) ? k : -1)).filter((k) => k >= 0));
     const kinds = snapKinds(), key = `${fs.step.id}|${Object.entries(kinds).map(([k, v]) => (v ? k : '')).join('')}`;
     if (key === this.view.hoverSnapKey) return;
+    const ids = new Set(fs.ids), idx = new Set(body.faces.map((f, k) => (ids.has(f.id) ? k : -1)).filter((k) => k >= 0));
     this.view.setHoverSnaps(snapPoints(body.edges.filter((ed) => ed.faces.some((k) => idx.has(k))), null, kinds), key);
   }
 
@@ -3042,7 +3044,25 @@ export class Modeler {
     const cv = this.view.renderer.domElement;
     let down = null;
     cv.addEventListener('contextmenu', (e) => e.preventDefault()); // (the right button pans; a left click suggests everything)
+    // with no tool on, the mouse over the part: the work once a frame (the mouse sends more moves than the screen shows)
+    const hoverNow = () => {
+      const e = this.hoverEv;
+      this.hoverEv = null;
+      if (!e || this.mode !== 'part' || this.cmd || down) return;
+      const id = this.view.pickOutline(e.clientX, e.clientY);
+      if (id) { this.view.clearHoverMarks(); this.view.setHover(-1); this.tip(null); cv.style.cursor = 'pointer'; cv.title = 'Double-click to edit this sketch'; return; }
+      cv.title = '';
+      if (this.measuring) { this.view.clearHoverMarks(); this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); return; } // (where a click measures from)
+      this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); // (a corner, an edge's middle, a centre: it can be picked)
+      // the step under the mouse: all its faces light up, its name at the mouse
+      const h = this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
+      this.view.setHover(h?.face ? h.face.id : -1, fs?.ids || null);
+      this.hoverMarks(e, fs);
+      this.tip(fs ? { x: e.clientX, y: e.clientY, text: `${fs.step.name} — ${this.faceLabel(h.face.name).replace(/ of .*$/, '').replace(/^the /, '')}` } : null);
+      cv.style.cursor = h?.face ? 'pointer' : '';
+    };
     cv.addEventListener('pointerdown', (e) => {
+      if (this.hoverEv) hoverNow(); // (a move not shown yet: as it came, before the press)
       if (e.button !== 0 || (e.buttons & ~1)) { down = null; return; } // the left button alone
       down = { x: e.clientX, y: e.clientY, drag: null };
       if (this.mode === 'sketch') {
@@ -3099,17 +3119,8 @@ export class Modeler {
           cv.style.cursor = ok || h?.face ? 'pointer' : '';
         }
       } else if (this.mode === 'part' && !this.cmd && !down) {
-        const id = this.view.pickOutline(e.clientX, e.clientY);
-        if (id) { this.view.clearHoverMarks(); this.view.setHover(-1); this.tip(null); cv.style.cursor = 'pointer'; cv.title = 'Double-click to edit this sketch'; return; }
-        cv.title = '';
-        if (this.measuring) { this.view.clearHoverMarks(); this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); return; } // (where a click measures from)
-        this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); // (a corner, an edge's middle, a centre: it can be picked)
-        // the step under the mouse: all its faces light up, its name at the mouse
-        const h = this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
-        this.view.setHover(h?.face ? h.face.id : -1, fs?.ids || null);
-        this.hoverMarks(e, fs);
-        this.tip(fs ? { x: e.clientX, y: e.clientY, text: `${fs.step.name} — ${this.faceLabel(h.face.name).replace(/ of .*$/, '').replace(/^the /, '')}` } : null);
-        cv.style.cursor = h?.face ? 'pointer' : '';
+        this.hoverEv = e;
+        if (!this.hoverRaf) this.hoverRaf = requestAnimationFrame(() => { this.hoverRaf = 0; hoverNow(); });
       }
     });
     cv.addEventListener('pointerup', (e) => {
@@ -3127,7 +3138,7 @@ export class Modeler {
       if (this.mode === 'part' && !this.cmd) return this.clickFace(e);
       return null;
     });
-    cv.addEventListener('pointerleave', () => { this.view.clearHoverMarks(); if (['hole', 'decal'].includes(this.cmd?.feature.type) && !this.holePick) this.showSpot(null); if (this.mode === 'part' && !this.cmd) { this.view.setHover(-1); this.tip(null); } });
+    cv.addEventListener('pointerleave', () => { this.hoverEv = null; this.view.clearHoverMarks(); if (['hole', 'decal'].includes(this.cmd?.feature.type) && !this.holePick) this.showSpot(null); if (this.mode === 'part' && !this.cmd) { this.view.setHover(-1); this.tip(null); } });
     cv.addEventListener('dblclick', (e) => {
       if (this.mode !== 'part' || this.cmd) return;
       const id = this.view.pickOutline(e.clientX, e.clientY);

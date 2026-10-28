@@ -7,6 +7,30 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **A threaded part's volume integrated once done:** kernel.volume keeps the last 4 shapes' volumes — the part with
+  🔩 real threads was integrated after its cut (the check that something was cut) and again when meshed (the adaptive
+  rule on helical faces: ~3 s). The 29-step model with 9 real threads (tools/e2e_perf.py model): its rebuild after a
+  dimension edit 22.9 -> 18.6 s on the server, switching to real 21.1 -> 16.8 s; still the cut (~9.5 s) and the
+  mesh of the grooves (~10 s) each edit. test_real_thread_volume_once.
+- **Quick hover and picking on big parts and assemblies done:** the owner found the app slow, at times frozen.
+  tools/e2e_perf.py measured it (real CDP mouse input; per action the main-thread ms, long tasks, /api times): with no
+  tool on, every mouse move cast up to 600 rays through all the part's triangles for the hover's snap dots
+  (setHoverSnaps) — a 29-step model with 9 real threads (236 000 triangles) froze up to 6 s a move, the 44 MB board
+  (943 000) up to 23 s. Now modeler/bvh.js: a tree over a mesh's triangles (Mesh.raycast through it, the same hits
+  as three.js' own — 3000 rays checked — about 70 × quicker; built when the browser is idle after the part shows);
+  the hover worked once a frame (modeler / assembly: a press runs a waiting one first); snap points and edges on the
+  screen kept while the camera stays (snapPoints, snapNear, edgesOnScreen: an edge whose screen box is farther than
+  the reach skipped); a hover repaints only the faces whose colour changes, sent to the GPU as ranges (repaint); a
+  step's faces looked up once per body; the assembly keeps each body's triangles, normals, edges and colours across
+  draws (a hover over another part, the explode slider, a choice drew everything anew); a sketch's lines and circles
+  drawn as one object per colour with kept materials (the Drive Gear's 732 shapes: 700 objects and materials a
+  hover). Main-thread ms before -> after: model hover (80 moves) 68 757 -> 327, a click 6 968 -> 45; board hover
+  (40) 92 217 -> 599, turning 21 901 -> 218, a click 20 525 -> 60, measuring 1 217 -> 47 (opening 913 -> 1 225: the
+  tree); MIT E-Vent hover 3 278 -> 313, explode slider 850 -> 77, choosing 287 -> 71; Festo hover 1 321 -> 249;
+  gear sketch hover 2 749 -> 307, box select 614 -> 62. The sheet (dragging a dimension ~25 ms a move: SVG layout)
+  and the idle app (6–10 ms a second with three tabs: the render loops only draw when something changed, autosave
+  and the window sync wait for a change, no polling but the AI's long poll) needed nothing.
+  Left: real threads are cut and meshed again on each edit (9 holes: ~23 s on the server, the view stays usable).
 - **⚙ What is working now done:** the owner could not see what ran in the background or stop it. worker.Pool keeps
   its jobs waiting or running (Pool.jobs: kind in plain words — worker.KINDS —, the part's name, its process, waiting /
   running, since) -> list_jobs(); cancel("k<n>") stops one as a Cancel does (leaves the queue, else only its process
@@ -17,7 +41,8 @@ Date: 2026-10-25. Written by the architect agent.
   ended); _model_call answers a stopped job 409 cancelled. web/js/jobs.js: a fetch wrapper marks the page's slow
   requests (an upload is listed before the server has a job); ⚙ N in the top bar (#jobsBtn) only while something
   runs, polled every 1 s then (4 s idle, so other windows' and the AI's jobs show); the list: kind · part · time (live,
-  only the times redrawn) · ✕ Stop; it pulses when a job runs over 3 s with no progress box on screen.
+  only the times redrawn — just after each whole second of the first job, from a start time on the page's clock that
+  polls never set back: redrawn once a second at a random moment, a number could stay for almost 2 s) · ✕ Stop; it pulses when a job runs over 3 s with no progress box on screen.
   tests/test_kernel_pool.py (test_jobs_listed_and_stopped_while_waiting, test_stop_from_the_jobs_list_kills_only_that_worker,
   test_jobs_route); tools/e2e_cancel.py 1b (the board's import: ⚙ 1, the list names the file, ✕ Stop: gone in 0.13 s).
 - **Cancel stops the job once, nothing restarts it done:** the owner saw Cancel not stopping the kernel and the
