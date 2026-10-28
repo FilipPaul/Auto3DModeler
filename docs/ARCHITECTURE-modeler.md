@@ -806,6 +806,12 @@ Date: 2026-10-25. Written by the architect agent.
   that is) and kernel.material_along (the part's depth under the hole, a blind hole's own depth) — a head wider than
   the face or as deep as the part is an issue with the most that fits ("at most Ø6.4"), never cut through.
   test_hole_head_fits; tools/e2e_sheet_hole_callouts.py (the AI's M3 ⌵ on a 2 mm plate).
+- **A face's centre does not drift with its holes (fix):** a flat face's frame `o` (kernel._box_centre) is the middle of
+  its box in its own u / v, not the centre of its area — that moved with every hole cut into the face, so the AI's
+  second hole landed 0.32 off (40.32 for 40) and any edit_feature of a hole (it picked the face's frame again) moved
+  the hole (8.25 / 6.5 -> 8.14 / 6.56). edit_feature keeps the step's stored frame while its face, mid and origin
+  stay; a key beside `fields` is refused ("put the changes in fields: {…}"). Saved frames are used as stored.
+  test_face_centre_ignores_holes; tools/e2e_agent.py.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.
