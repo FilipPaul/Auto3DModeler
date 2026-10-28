@@ -165,14 +165,22 @@ parallel flat faces), turning all their steps off, deleting them together.
 
 **Box selection** in a sketch (⬚ Select, drag on empty space): **right to left** takes every shape the box touches
 (green, dashed), **left to right** only the shapes wholly inside it (blue); hold **Ctrl** to add to what is picked —
-by click or by box. Delete removes them all.
+by click or by box. Delete removes them all. **Drag one of the picked shapes and they all move together** (the
+grabbed point snaps as the Snap row allows, the others follow by the same offset; one undo step); dragging a shape
+that is not picked moves just that one.
 
 **Suggestions for what is selected**: choose a shape in a sketch (⬚ Select) or a part in an assembly, and a small
-table in the bottom-left corner of the view says what can be done with it — a line: its length, horizontal,
-vertical, construction; a part: open it, join it, simplified, its own part, take it out. **Ctrl+click** more and it
-offers what fits them together: two crossing lines — their angle, parallel, perpendicular, equal; a line and a circle —
-tangent, the distance from its centre; two circles — concentric, equal, tangent; two parts — join them, measure,
-check for collisions. Esc (or another tool) closes it.
+table in the bottom-left corner of the view says what can be done with it — a part: open it, join it, simplified, its
+own part, take it out. In a sketch the list is short, the likeliest first, and **⋯ More…** opens the rest (in Edit /
+Relations / Kind sections): a line — its length, horizontal or vertical (whichever it nearly is), delete; two lines —
+the angle (or distance) between them, then ∥ / ⟂ / = whichever is nearly true already; a line and a circle — the
+distance from its centre, tangent; two circles — the distance between centres, concentric / equal; a closed outline
+(a box round a rectangle) — ⧈ offset, ⁂ pattern, ✥ move; several mixed shapes — ✥ Move…, ⧉ Copy, ⇋ Mirror,
+✕ Delete all. **✥ Move…** (dx, dy), **⟳ Rotate…** (an angle about their centre, or about a picked point) and **⤢ Scale…**
+(a factor) open a small box that shows the result at once and as you type (Enter = done, Esc = back, one undo step);
+the shapes keep their relations, and a locked size that would have to change refuses it with a message naming the
+lock. **⧉ Copy** puts a copy beside them, picked, ready to drag. Two parts — join them, measure, check for collisions.
+Esc (or another tool) closes it.
 
 **Construction lines**: **┄ Construction** in the sketch toolbar draws helper lines, circles and arcs (dashed
 amber) while it is on; with ⬚ Select it turns the selected shape into one (or back). They guide — a ⟳ Revolve takes
@@ -488,6 +496,23 @@ misses — a hole's place, an edge, a Ø or R, and without a hole's callout its 
 blind depth (*the countersink's angle (H1)*) — listed with **＋** (add that one, from the part's edge) and **＋ Add all
 missing**, and marked with an orange **?** on the drawing (not in the PDF); dimensions that give a size twice are
 marked ⧉ (*✕ Remove them*). A known circle gives its own edges (a tangent side, a boss), a pitch *4× 10* its row.
+**Views**: double-click a view's name (on the sheet or in the Views list) to **rename** it (*Side A*); drag a view to
+move it — it **snaps in line** with the front view (Top under it, Right beside it; a dashed guide shows it), Shift
+moves it freely. **Scale**: the sheet's *Scale* is *Auto* (fitted to the paper) or one you choose — 10:1 … 1:100 or
+*Custom…* (any, e.g. *1:2522* or *3:1*); each view may have its own in the Views list, and then says it under its name
+(*Detail B (2:1)*). The title block shows the sheet's scale; dimensions always show the part's real sizes; a view that
+no longer fits inside the frame is flagged (⚠), not refused. The **title block** is clean and light (ISO 7200
+fields): the part's name large, small grey labels over the values, thin rules, a company / logo column on the left —
+it prints well in black and white; an assembly's parts list matches it. **Title-block templates**: in the sheet's
+panel choose *Template* (Modern, Compact, ISO 5457 or your own); type your *Company*, *Address*, *Drawn by*, a
+default *Note*, the *Tolerance standard*, pick a *Logo*, the *Layout* (Block / a low Strip) and the fields shown
+(under *Company, logo and fields*), then **💾 Save as template…** — kept on the server for all your projects. On a
+drawing of an assembly, **⇶ Use for all drawings of this assembly** puts it on the assembly's, its sub-assemblies'
+and its parts' drawings, and new drawings of that set take it too; the PDF and DXF use it. **Frame**: *Simple*
+(10 mm all round, the default), *Standard ISO 5457* (20 mm on the left for filing, 10 mm elsewhere, a 0.7 mm line,
+zones A… / 1… and centring marks), *Narrow* (5 mm), *None*, or *Custom…* (each margin, the line, zones, centring
+marks). The views and the automatic scale fit inside the margins; the frame is kept in the title-block template, so a
+whole drawing set follows it (a drawing may choose its own).
 The title block takes your own texts — *Title*, *Drawing no.*, *Drawn by*, *Note* — in the panel (a double-click on a cell goes to its field). **⬇ PDF** gives the sheet as you see it — the page is the paper (A4 / A3) and
 1 mm on the sheet is 1 mm on the page, so printed at 100 % ("actual size", not "fit to page") the sheet's scale holds.
 **⬇ DXF** gives it for drafting programs (AutoCAD, SolidWorks / Solid Edge drafting): the paper 1:1 in mm, the views

@@ -256,6 +256,16 @@ Never report "works" without having run it; report failures with their output.
    one "M3 ⌵ Ø5 × 90°", ✓; deleted: the countersink's angle missing with its key; the AI's restore ✓; ＋ on the row:
    the callout back; a counterbore / blind thread "Ø3.4 ⌴ Ø6 ↧ 3.2", "2× M4 ↧ 6", their depths missing when deleted,
    complete; the PDF's and the DXF's texts; the AI's M3 ⌵ on a 2 mm plate: Ø6, Ø10 refused). Needs a server restarted after sheet.py / doc.py changes.
+   `tools/e2e_sheet_views_templates.py <url> <dir> [cs]` covers the modern title block (inside the frame, black / grey
+   only, the name large) and sheet views renamed, moved and scaled with the mouse
+   (a double-click on the Front label -> "Side A", Ctrl+Z / Ctrl+Y; the Top view dragged snaps under Front, Shift: free;
+   the Right view's Custom… 1:2522 in its label; the sheet's 1:2522 in the title block, real dimension values; 5:1
+   warns past the frame; get_sheet, the DXF (the name, 60 measured at 5:1) and the PDF) and title-block templates
+   (company / address / drawn by typed, 💾 Save as template… "ACME" kept on the server; an AI-built Machine → Lid unit
+   → Lid, Pin, Base: ⇶ Use for all drawings, all five pages and their PDF carry the company, a new sheet of the set
+   takes it, get_sheet / the DXF, the AI back to Modern) and the frame (Standard ISO 5457: the PDF's frame rect 20 mm
+   from the left, zones A / 6; None: no frame line; Custom… 25 mm typed, Ctrl+Z; the template's ISO frame on all five
+   pages of the set). Needs a server restarted after server.py changes. Run it in cs too.
    `tools/e2e_sheet_fits.py <url> <dir>` covers fits on the sheet (a Ø8 pin's dimension: Fit h6 drawn "Ø8 h6" with
    0 / −0.009 told, — plain again, the AI's sheet_edit fits k6, a wrong class refused, Ctrl+Z).
    `tools/e2e_model_rib.py <url> <dir>` covers ⊿ Rib (an L bracket and a line from the wall to the plate on the Right
@@ -314,6 +324,14 @@ Never report "works" without having run it; report failures with their output.
    line, no mid rule; Grid on: on the grid, off: off it; Guides off: no dashed guide; kept after a reload; the row
    clear of the suggestions table, the quick size box and Finish / Cancel, no scrollbar, at 1600×1000 and 1280×800,
    English and Czech — tooltips too). Exits 1 on a failed check.
+   `tools/e2e_sketch_multiselect.py <url> <dir>` covers several sketch shapes at once with real mouse input (a
+   rectangle and a circle box-selected: the short table ✥ Move…, ⧉ Copy, ⇋ Mirror, ✕ Delete all, ⋯ More… with Edit /
+   Relations / Kind; the rectangle's edge dragged: all go by one vector, one undo step, still picked; an unpicked circle dragged: only it,
+   the picks gone; ✥ Move dx 10: all exactly 10; the rectangle alone: ⧈ Offset, ⁂ Pattern first; ⟳ Rotate 90:
+   corners turned about the centre, H / V swapped, one undo step, Ctrl+Z back; ⤢ Scale 2: sizes doubled, with a
+   locked width refused — the toast names it; ┄ construction for all and back; ✕ Delete all, Ctrl+Z; the short lists
+   of two lines nearly parallel (the angle, ∥ first), at 45°, a line + a circle, two circles — at most 5 rows). Exits 1
+   on a failed check.
    `tools/e2e_sketch_pick.py <url> <dir>` covers what a sketch click takes (the filters bottom middle; Lines off: a line
    not picked; the origin's suggestions; a midpoint + the circle: a distance from the middle held at 40; a dimension
    dragged by its line, the shapes not moved; the circle as R: its box shows 5, 5 typed -> Ø 10; an off-grid line: the

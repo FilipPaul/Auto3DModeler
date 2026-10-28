@@ -373,6 +373,20 @@ class TestSketchSolve(unittest.TestCase):
         r = solve(plate(), drag={"p3": [55, 30]})
         self.assertEqual([round(v, 6) for v in r["points"]["p3"]], [55, 30])
 
+    def test_held_says_whether_a_group_got_there(self):
+        # the whole rectangle moved / turned: free, it gets there (held ok); scaled with a locked width: refused, the lock named
+        r = solve(plate(), drag={"p1": [10, 5], "p2": [50, 5], "p3": [50, 25], "p4": [10, 25]})
+        self.assertTrue(r["ok"] and r["held"]["ok"], r)
+        self.assertEqual([round(v, 6) for v in r["points"]["p3"]], [50, 25])
+        dims = [{"id": "d3", "t": "len", "e": "l1", "v": 40}]
+        r = solve(plate(dims=dims), drag={"p1": [0, 0], "p2": [80, 0], "p3": [80, 40], "p4": [0, 40]})
+        self.assertTrue(r["ok"])  # (the sketch itself is fine: the lock pulls it back)
+        self.assertFalse(r["held"]["ok"])
+        self.assertEqual(r["held"]["conflicts"], ["d3"])
+        r = solve(plate(dims=dims), drag={"p1": [10, 0], "p2": [50, 0], "p3": [50, 20], "p4": [10, 20]})
+        self.assertTrue(r["held"]["ok"], r)  # moved: the width is kept
+        self.assertNotIn("held", solve(plate()))  # (no drag: nothing to say)
+
     def test_degrees_of_freedom(self):
         self.assertEqual(solve(plate())["dof"], 4 + 3)  # rectangle: position 2 + size 2; circle: centre 2 + radius 1
         dims = LOCK_CORNER + [{"id": "d3", "t": "len", "e": "l1", "v": 40}, {"id": "d4", "t": "len", "e": "l2", "v": 20},

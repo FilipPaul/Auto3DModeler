@@ -26,6 +26,7 @@ from auto3d import progress
 from auto3d.agent import ChatSession, Relay, find_claude
 from auto3d.ai_history import HistoryError, delete_state, list_states, load_state, save_state
 from auto3d import library as parts_library
+from auto3d import title_templates
 from auto3d import autosave
 from auto3d.agent_tools import BROWSER_TOOLS, TOOL_NAMES
 from auto3d.bend import bend_info, bend_solid
@@ -200,6 +201,32 @@ def api_library_delete(item_id):
     except parts_library.LibraryError as e:
         return jsonify({"error": str(e)}), 404
     return jsonify({"ok": True})
+
+
+@app.get("/api/title-templates")
+def api_title_templates():
+    """The title-block templates of drawing sheets: the app's, then the user's (data/title_templates.json)."""
+    return jsonify({"templates": title_templates.load(DATA)})
+
+
+@app.post("/api/title-templates")
+def api_title_template_save():
+    """{template: {name, layout, hide, texts, logo, frame}} -> it kept (one of the same name replaced) + the list."""
+    body = request.get_json(force=True, silent=True) or {}
+    try:
+        kept = title_templates.save(DATA, body.get("template"))
+    except title_templates.TemplateError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"template": kept, "templates": title_templates.load(DATA)})
+
+
+@app.delete("/api/title-templates/<path:name>")
+def api_title_template_delete(name):
+    try:
+        title_templates.delete(DATA, name)
+    except title_templates.TemplateError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"templates": title_templates.load(DATA)})
 
 
 PROJECTS = DATA / "projects"  # autosave: the projects kept on the server (auto3d/autosave.py)
@@ -706,23 +733,35 @@ def api_assembly_clashes():
 
 @app.post("/api/sheet/build")
 def api_sheet_build():
-    """{part, preset: light | medium | full, paper} -> {geometry (views, points), layout, dims} — a drawing sheet."""
+    """{part, preset: light | medium | full, paper, scale ("1:2522", else the fit's), frame} -> {geometry (views,
+    points), layout, dims} — a drawing sheet."""
     body = request.get_json(force=True)
     data, err = _model_call("sheet", {"part": body.get("part") or {}, "preset": body.get("preset") or "medium", "paper": body.get("paper"),
                                       "per_view": body.get("per_view") or {}, "section": bool(body.get("section"))})
     if err:
         return err
+    return _sheet_layout(data, body)
+
+
+def _sheet_layout(data, body):
+    """A sheet's layout made for its own scale ("1:2522") and frame ({m: [l, t, r, b], title}) when it has them."""
+    if body.get("scale") or body.get("frame"):
+        from auto3d.modeler.sheet import layout
+        try:
+            data["layout"] = layout(data["geometry"], body.get("paper"), body.get("scale") or None, body.get("frame") or None)
+        except (ValueError, TypeError) as exc:
+            return jsonify({"error": str(exc)}), 400
     return jsonify(data)
 
 
 @app.post("/api/sheet/assembly")
 def api_sheet_assembly():
-    """{instances (placed, as for clashes), paper} -> {geometry, layout, dims, marks} — an assembly's drawing sheet."""
+    """{instances (placed, as for clashes), paper, scale, frame} -> {geometry, layout, dims, marks} — an assembly's drawing sheet."""
     body = request.get_json(force=True)
     data, err = _model_call("assembly_sheet", {"instances": body.get("instances") or [], "paper": body.get("paper"), "explode": body.get("explode") or 0})
     if err:
         return err
-    return jsonify(data)
+    return _sheet_layout(data, body)
 
 
 @app.post("/api/sheet/pdf")

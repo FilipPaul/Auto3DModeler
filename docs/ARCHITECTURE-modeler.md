@@ -806,6 +806,67 @@ Date: 2026-10-25. Written by the architect agent.
   that is) and kernel.material_along (the part's depth under the hole, a blind hole's own depth) — a head wider than
   the face or as deep as the part is an issue with the most that fits ("at most Ø6.4"), never cut through.
   test_hole_head_fits; tools/e2e_sheet_hole_callouts.py (the AI's M3 ⌵ on a 2 mm plate).
+- **Sheet views renamed, moved and scaled done:** d.viewNames (a double-click on a view's label on the sheet: a field
+  over it; or on its name in the Views panel; in undo, the PDF, the DXF), d.scale (the sheet's own, an override of the
+  fit: sheet.parse_scale "1:2522" / "3:1" / "1/5" / "0.5"; layout(geo, paper, scale, frame) — server.py _sheet_layout
+  makes the layout for it; Auto chooses A3 when it does not fit A4) and d.vscale (a view's own, its label "Top
+  (2:1)"; SheetEditor.vs(v) everywhere a view is drawn / picked; the DXF's dimensions of it get their own DIMLFAC).
+  Scale choices: 10:1 … 1:100 and Custom… (choose.js ask(): a small text dialog). The title block's Scale is the
+  sheet's; dimensions stay the part's sizes. Views past the frame: a warning (panel, status, get_sheet past_the_frame),
+  never refused. Dragging a view snaps it in line (Top under / over Front, Right and Section beside it, within 4 mm, a
+  dashed guide); Shift: free. sheet_edit scale / view_scales / view_names for the AI. tests/test_sheet_views.py;
+  tools/e2e_sheet_views_templates.py.
+- **A modern title block done:** SheetEditor.titleSvg redrawn (the same SVG on screen, in the PDF and the DXF) with
+  every field kept (ISO 7200): a company / logo column on the left (Auto3DModeler · Dimensions in mm until a company is
+  given), the kind line (Part · in … · Pos. n) small and muted over the part's name large and bold, the drawing no. on
+  its right; then Material | Scale | Paper | Tolerances | Sheet n / N and Drawn by | Created | Changed · Rev | Note —
+  labels 1.75 mm grey over 2.9 mm values; one 0.35 mm outline, 0.13 mm rules between rows and short ones between
+  cells; dates as ISO 8601. 150 mm wide on A4, 180 mm on A3, inside the frame's right / bottom margins. The parts list
+  of an assembly's page in the same style (one outline, muted header over a rule, light rows, the position bold).
+  tools/e2e_sheet_views_templates.py (inside the frame, black / grey / white only, the name ≥ 5 mm).
+- **Title-block templates for a whole drawing set done:** auto3d/title_templates.py — {name, layout block | strip,
+  hide [fields], texts {company, address, drawn, note, tolstd}, logo (a data URL ≤ 400 kB), frame} kept in
+  data/title_templates.json (server-side, like the parts library: every project uses them); the app's Modern (the
+  default), Compact (a strip) and ISO 5457 cannot be changed. GET / POST / DELETE /api/title-templates. A sheet names
+  its template (d.template); without one it takes its drawing set's (the top assembly's sheet's — new sheets of the set
+  too), else Modern; d.tb {layout, hide, logo} are this sheet's own changes. The right panel: Template ▾, 💾 Save as
+  template… (ask: a name; the title block as shown, the sheet's company / address / drawn / note / tolerance standard
+  go into it), ⇶ Use for all drawings of this assembly (hooks.applyTemplate: every sheet of SheetEditor.pagesOf(root),
+  the top assembly's made when it has none), and folded: Company, Address, Tolerance standard, Logo (scaled to ≤ 600 ×
+  300 px), Layout Block | Strip (14 mm: layout(frame.title) gives the views the room), the fields shown. svgOf takes
+  the set's template, so the PDF, the DXF and 📚 All pages show it. AI: sheet_edit template / template_all /
+  save_template, texts company / address / tolstd; get_sheet template + templates. tests/test_title_templates.py;
+  tools/e2e_sheet_views_templates.py (typed, saved, kept on the server; Machine → Lid unit → Lid / Pin, Base: all five
+  pages and their PDF carry the company; a new sheet of the set takes it; the DXF; back to Modern).
+- **The sheet's frame and margins done:** frame {preset simple (10 mm, 0.5 line: the default, as before) | iso (ISO
+  5457: 20 mm left for filing, 10 elsewhere, 0.7 line, zones, centring marks) | narrow (5 mm) | none (no line, 10 mm
+  kept) | custom {m [left, top, right, bottom] ≤ 40 mm, line ≤ 2 mm, zones, marks}} — held by the title-block template
+  (so a drawing set follows it), a sheet's own d.frame overrides it (in undo). SheetEditor.frameSvg: the line; zones
+  (about 50 mm each, an even count: A4 6 × 4, A3 8 × 6; numbers across, letters down, in the margins with ticks);
+  centring marks from the paper's edge 5 mm into the frame. layKey / layReq pass the margins to layout(frame) — the
+  views' cells and the auto-fit scale use them; the title block, parts list and the fit warning sit inside them; the
+  PDF and DXF draw it from the same SVG. The right panel's Frame: Simple | Standard ISO 5457 | Narrow | None |
+  Custom… (its five numbers and two ticks). AI: sheet_edit frame; get_sheet frame. tests/test_sheet_views.py
+  (margins, a strip's room, the fit); tools/e2e_sheet_views_templates.py (ISO: the PDF's frame rect at 20 mm, zones A
+  / 6; None: no frame; Custom… 25 mm typed, Ctrl+Z; the template's ISO frame on all five pages of a set).
+- **Short sketch suggestions done:** Sketcher.suggestions — at most 4 rows + ✕ Delete, ranked: a dimension first,
+  then the relations nearly true already (two lines: ∥ under 10°, ⟂ over 80°, = within 10 % of length; two circles:
+  ◎ / = / ⌒ by how near; of the nearly true ones = after ∥ / ⟂ / ◎; none: the nearest one), not those held already
+  (hasRule: ∥ / ⟂ by both lines' H / V); a loop (loopOfPicks -> loopFrom, split out of loopAt): ⧈ Offset, ⁂ Pattern,
+  ✥ Move; mixed: ✥ Move…, ⧉ Copy, ⇋ Mirror. ⋯ More… (sgMore, reset by a new pick) lists the rest in Edit / Relations /
+  Kind sections (showSuggest {section}). The title counts "N shapes, M points". The picks as a whole: pickShapes /
+  pickPoints / pickCentre (a picked point is the pivot); transformPicks (move / rotate / scale: their points held
+  where they go — solve(drag) — the relations kept; turnRules: a quarter turn swaps H / V and dx / dy locks, any other
+  angle puts ∥ / ⟂ for them); relock {exact}: constraints.solve's new `held` {ok, conflicts} refuses a hold the locks
+  do not let through, the toast naming them; xformBox (✥ dx / dy, ⟳ 90°, ⤢ 2×: shown at once, retyped from where they
+  were, one undo step, Esc back); copyPicks (beside them, H / V, tangents, locked sizes along; the copy picked);
+  mirrorPicks (the ⇋ box: an axis or a line and done); addRelations (chains as one undo step, a held one left out).
+  test_held_says_whether_a_group_got_there; tools/e2e_sketch_multiselect.py.
+- **Dragging several picked sketch shapes done:** Sketcher.down — a press on one of several picks (inPicks: a picked
+  shape, a point of one, a picked side's rectangle) drags pickPoints together; the grabbed point (the nearest of the
+  shape's own) snaps (snap's skip takes a Set: the moving points are not snapped to, nor guide from), its guides drawn
+  (dragGuides); the others by the same offset, the solver keeps the relations; one undo step; picks kept (refreshPicks).
+  An unpicked shape dragged moves alone and drops the picks. tools/e2e_sketch_multiselect.py.
 - **🔩 Cosmetic threads done:** part `threads` "hidden" (default) | "cosmetic" (doc.THREAD_MODES). Every rebuild says
   where the threaded holes are: out.threads {mode, holes} — doc.thread_holes (cached per features key) finds them by
   their walls' names ("<step>:hole:k", a pattern's / mirror's copies "P1:2:<step>:hole:k") in the built body;

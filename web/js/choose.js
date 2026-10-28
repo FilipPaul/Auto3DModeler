@@ -20,3 +20,35 @@ export function choose(text, options) {
     back.querySelector('.btn.primary, .btn')?.focus();
   });
 }
+
+/** A short text to type (a name, a scale): text: the question; value: what it starts with; check(v) -> an error
+ *  message or '' (shown under the field, OK waits) -> the text (trimmed), or null (Esc / Cancel). */
+export function ask(text, value = '', { hint = '', placeholder = '', ok = 'OK', check = null } = {}) {
+  return new Promise((resolve) => {
+    const back = document.createElement('div');
+    back.className = 'choose-back';
+    back.innerHTML = `<div class="choose ask" role="dialog" aria-modal="true"><p>${esc(text)}</p>
+      <input type="text" class="ask-in" value="${esc(value)}" placeholder="${esc(placeholder)}">
+      ${hint ? `<p class="hint ask-hint">${esc(hint)}</p>` : ''}<p class="mp-bad ask-bad" hidden></p>
+      <div class="row-actions"><button class="btn primary" data-a="ok">${esc(t(ok))}</button><button class="btn" data-a="no">${esc(t('Cancel'))}</button></div>
+      <button class="mini choose-x" data-a="no" title="${esc(t('Cancel'))}">✕</button></div>`;
+    const inp = back.querySelector('.ask-in'), bad = back.querySelector('.ask-bad');
+    const done = (v) => { document.removeEventListener('keydown', onKey, true); back.remove(); resolve(v); };
+    const okNow = () => {
+      const v = inp.value.trim(), err = !v ? t('Type something first.') : check ? check(v) : '';
+      bad.hidden = !err;
+      bad.textContent = err || '';
+      if (!err) done(v);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); done(null); }
+      if (e.key === 'Enter') { e.stopPropagation(); e.preventDefault(); okNow(); }
+    };
+    for (const b of back.querySelectorAll('[data-a=no]')) b.addEventListener('click', () => done(null));
+    back.querySelector('[data-a=ok]').addEventListener('click', okNow);
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(back);
+    inp.focus();
+    inp.select();
+  });
+}
