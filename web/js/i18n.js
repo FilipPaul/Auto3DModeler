@@ -1123,6 +1123,7 @@ const CS = {
   'Scale (paper : part), e.g. 1:2522 or 3:1': 'Měřítko (papír : díl), např. 1:2522 nebo 3:1',
   'Write it as two numbers, e.g. 1:2 or 3:1.': 'Zapište ho jako dvě čísla, např. 1:2 nebo 3:1.', 'Type something first.': 'Nejdřív něco napište.',
   "The view's name — Enter keeps it, Esc goes back; empty: its standard name": 'Název pohledu — Enter ho ponechá, Esc vrátí; prázdný: standardní název',
+  'Dimensions in mm': 'Rozměry v mm',
   // language switch
   'Čeština / English': 'Čeština / English',
 };

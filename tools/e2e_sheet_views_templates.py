@@ -115,6 +115,16 @@ try:
     time.sleep(0.5)
     front = "Zepředu" if LANG == "cs" else "Front"
 
+    print("0. the modern title block: inside the frame, black on white, the part's name large")
+    box = js("""const b = document.querySelector('#shViewport .sh-title').getBBox(), L = window.__app.sheet.lay, m = L.margins || [L.margin, L.margin, L.margin, L.margin];
+      return {b: [b.x, b.y, b.x + b.width, b.y + b.height], in: [m[0], m[1], L.size[0] - m[2], L.size[1] - m[3]]}""")
+    b, inner = box["b"], box["in"]
+    check(b[0] >= inner[0] - 0.01 and b[1] >= inner[1] - 0.01 and b[2] <= inner[2] + 0.01 and b[3] <= inner[3] + 0.01, f"the title block {[round(v, 1) for v in b]} inside the frame {inner}")
+    cols = js("return [...new Set([...document.querySelectorAll('#shViewport .sh-title [stroke], #shViewport .sh-title text')].map(e => e.getAttribute('stroke') || e.getAttribute('fill')).filter(c => c && c !== 'none'))]")
+    check(set(cols) <= {"#000", "#555", "#fff"}, f"black, grey and white only: {cols}")
+    big = js("const t = [...document.querySelectorAll('#shViewport .sh-title text[font-weight=bold]')].find(t => t.textContent === 'Bracket'); return t ? +t.getAttribute('font-size') : 0")
+    check(big >= 5, f"the part's name in bold, {big} mm high")
+
     print("1. rename the Front view by a double-click on its name")
     x, y = screen(label_at("Front"))
     ActionChains(d).move_to_element_with_offset(stage(), x, y).click().pause(0.1).click().perform()

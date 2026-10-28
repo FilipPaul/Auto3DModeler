@@ -816,6 +816,14 @@ Date: 2026-10-25. Written by the architect agent.
   never refused. Dragging a view snaps it in line (Top under / over Front, Right and Section beside it, within 4 mm, a
   dashed guide); Shift: free. sheet_edit scale / view_scales / view_names for the AI. tests/test_sheet_views.py;
   tools/e2e_sheet_views_templates.py.
+- **A modern title block done:** SheetEditor.titleSvg redrawn (the same SVG on screen, in the PDF and the DXF) with
+  every field kept (ISO 7200): a company / logo column on the left (Auto3DModeler · Dimensions in mm until a company is
+  given), the kind line (Part · in … · Pos. n) small and muted over the part's name large and bold, the drawing no. on
+  its right; then Material | Scale | Paper | Tolerances | Sheet n / N and Drawn by | Created | Changed · Rev | Note —
+  labels 1.75 mm grey over 2.9 mm values; one 0.35 mm outline, 0.13 mm rules between rows and short ones between
+  cells; dates as ISO 8601. 150 mm wide on A4, 180 mm on A3, inside the frame's right / bottom margins. The parts list
+  of an assembly's page in the same style (one outline, muted header over a rule, light rows, the position bold).
+  tools/e2e_sheet_views_templates.py (inside the frame, black / grey / white only, the name ≥ 5 mm).
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

@@ -479,7 +479,9 @@ move it — it **snaps in line** with the front view (Top under it, Right beside
 moves it freely. **Scale**: the sheet's *Scale* is *Auto* (fitted to the paper) or one you choose — 10:1 … 1:100 or
 *Custom…* (any, e.g. *1:2522* or *3:1*); each view may have its own in the Views list, and then says it under its name
 (*Detail B (2:1)*). The title block shows the sheet's scale; dimensions always show the part's real sizes; a view that
-no longer fits inside the frame is flagged (⚠), not refused.
+no longer fits inside the frame is flagged (⚠), not refused. The **title block** is clean and light (ISO 7200
+fields): the part's name large, small grey labels over the values, thin rules, a company / logo column on the left —
+it prints well in black and white; an assembly's parts list matches it.
 The title block takes your own texts — *Title*, *Drawing no.*, *Drawn by*, *Note* — in the panel (a double-click on a cell goes to its field). **⬇ PDF** gives the sheet as you see it — the page is the paper (A4 / A3) and
 1 mm on the sheet is 1 mm on the page, so printed at 100 % ("actual size", not "fit to page") the sheet's scale holds.
 **⬇ DXF** gives it for drafting programs (AutoCAD, SolidWorks / Solid Edge drafting): the paper 1:1 in mm, the views

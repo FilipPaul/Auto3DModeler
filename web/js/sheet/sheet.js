@@ -489,28 +489,80 @@ export class SheetEditor {
     return `${out.join('')}</g>`;
   }
 
-  titleSvg(pw, ph, m, th, s) {
-    const x0 = pw - m - 150, y0 = ph - m - th, src = this.hooks.partData(this.d.source) || {}, sc = this.scaleArr(), T = this.d.title || {}, X = this.d.texts || {};
+  /** The title block's width (mm): 150 on A4, 180 (ISO 7200's) on A3. */
+  titleW() { return (this.lay?.size?.[0] || 297) >= 400 ? 180 : 150; }
+
+  /** How the title block looks: {layout: 'block' | 'strip', hide: Set of fields, texts (fixed: company, address, drawn,
+   *  note, tolstd), logo (a data URL) or null}. */
+  tb() { return { layout: 'block', hide: new Set(), texts: {}, logo: null }; }
+
+  /** The title block (ISO 7200 fields), clean and light: the part's name large, small muted labels over readable
+   *  values, thin rules only between rows and short ones between cells; a company / logo column on the left; one
+   *  outline. Black on white (prints in black and white), inside the frame at its bottom right. */
+  titleSvg(pw, ph, m, th) {
+    const L = this.lay, [, , mr, mb] = L.margins || [m, m, m, m], W = this.titleW(), x0 = pw - mr - W, y0 = ph - mb - th;
+    const src = this.hooks.partData(this.d.source) || {}, T = this.d.title || {}, X = this.d.texts || {}, tb = this.tb(), F = { ...tb.texts, ...X };
+    const on = (f) => !tb.hide.has(f), INK = '#000', MUTED = '#555', THIN = 0.13;
+    const fit = (s, w, fs) => { s = String(s ?? ''); const n = Math.max(1, Math.floor(w / (fs * 0.53))); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
+    const tol = src.tolerance ? `${(F.tolstd || 'ISO 2768').replace(/-[a-z]+$/i, '')}-${src.tolerance}` : F.tolstd || '—';
+    const day = (iso) => (iso ? new Date(iso).toISOString().slice(0, 10) : '—');
+    const name = X.title || T.part || this.hooks.partName(this.d.source) || '—';
     const what = [T.kind || t('Part'), T.of ? `${t('in')} ${T.of}` : '', T.pos ? `${t('Pos.')} ${T.pos}` : ''].filter(Boolean).join(' · ');
-    const cells = [
-      [what, X.title || T.part || this.hooks.partName(this.d.source) || '—', 0, 0, 90, 12, 5, 'title'],
-      [t('Material'), T.material ?? (src.material || 'PLA'), 90, 0, 60, 12, 3.6],
-      [t('Scale'), scaleText(sc), 0, 12, 30, 9, 3.4],
-      [t('Paper'), this.lay.paper, 30, 12, 30, 9, 3.4],
-      [t('Tolerances'), src.tolerance ? `ISO 2768-${src.tolerance}` : '—', 60, 12, 90, 9, 3.4],
-      [t('Created'), when(this.d.created), 0, 21, 50, 9, 3],
-      [`${t('Changed')} · Rev`, `${when(this.d.changed)} · ${this.d.rev}`, 50, 21, 60, 9, 3],
-      T.sheet ? [t('Sheet'), T.sheet, 110, 21, 40, 9, 3.4] : ['', 'Auto3DModeler · mm', 110, 21, 40, 9, 2.8],
-      [t('Drawing no.'), X.number || '', 0, 30, 40, 8, 3.2, 'number'],
-      [t('Drawn by'), X.drawn || '', 40, 30, 40, 8, 3.2, 'drawn'],
-      [t('Note'), X.note || '', 80, 30, 70, 8, 2.9, 'note'],
-    ];
-    const g = [`<g class="sh-title"><rect x="${x0}" y="${y0}" width="150" height="${th}" fill="#fff" stroke="#000" stroke-width="0.5"/>`];
-    for (const [k, v, x, y, w, h, fs, key] of cells) {
-      g.push(`<rect x="${x0 + x}" y="${y0 + y}" width="${w}" height="${h}" fill="${key ? '#fff' : 'none'}" ${key ? 'fill-opacity="0"' : ''} stroke="#000" stroke-width="0.25"${key ? ` data-tcell="${key}" class="sh-tcell"` : ''}/>`);
-      if (k) g.push(`<text x="${x0 + x + 1.2}" y="${y0 + y + 2.6}" font-size="2" fill="#555">${esc(k)}</text>`);
-      g.push(`<text x="${x0 + x + 1.2}" y="${y0 + y + h - 1.8}" font-size="${fs}" fill="#000">${esc(v)}</text>`);
+    const g = [`<g class="sh-title"><rect x="${x0}" y="${y0}" width="${W}" height="${th}" fill="#fff" stroke="${INK}" stroke-width="0.35"/>`];
+    const hit = (key, x, y, w, h) => g.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fff" fill-opacity="0" stroke="none" data-tcell="${key}" class="sh-tcell"/>`);
+    const cell = (label, value, x, y, w, h, fs = 2.9, key = null, bold = false) => {
+      g.push(`<text x="${x + 1.6}" y="${y + 3.4}" font-size="1.75" fill="${MUTED}">${esc(label)}</text>`);
+      g.push(`<text x="${x + 1.6}" y="${y + h - 2.2}" font-size="${fs}" fill="${INK}"${bold ? ' font-weight="bold"' : ''}>${esc(fit(value, w - 3, fs))}</text>`);
+      if (key) hit(key, x, y, w, h);
+    };
+    const row = (y, h, x, w, items) => { // cells by their weights, short rules between them
+      const sum = items.reduce((a, it) => a + it[2], 0);
+      let cx = x;
+      items.forEach(([label, value, wt, key, fs], i) => {
+        const cw = (w * wt) / sum;
+        if (i) g.push(`<line x1="${cx}" y1="${y + 1.6}" x2="${cx}" y2="${y + h - 1.6}" stroke="${INK}" stroke-width="${THIN}"/>`);
+        cell(label, value, cx, y, cw, h, fs || 2.9, key);
+        cx += cw;
+      });
+    };
+    const appLine = 'Auto3DModeler · mm';
+    if (tb.layout === 'strip') { // one row: name, material, scale, paper, drawing no., rev, sheet
+      row(y0, th, x0, W, [[what, name, 2.6, 'title', 3.6], ...(on('material') ? [[t('Material'), T.material ?? (src.material || 'PLA'), 1.3]] : []),
+        [t('Scale'), scaleText(this.scaleArr()), 0.8], ...(on('paper') ? [[t('Paper'), L.paper, 0.6]] : []),
+        ...(on('number') ? [[t('Drawing no.'), F.number || '', 1.3, 'number']] : []), ['Rev', `${this.d.rev}`, 0.5], ...(T.sheet ? [[t('Sheet'), T.sheet, 0.8]] : [])]);
+      g.push(`<text x="${x0 + W - 1.2}" y="${y0 - 1.2}" font-size="1.6" fill="${MUTED}" text-anchor="end">${esc(appLine)}</text>`);
+      g.push('</g>');
+      return g.join('');
     }
+    // the company / logo column
+    const C = on('company') ? Math.round(W * 0.23) : 0, xm = x0 + C, M = W - C;
+    if (C) {
+      let y = y0 + 3;
+      if (tb.logo) { g.push(`<image x="${x0 + 2}" y="${y}" width="${C - 4}" height="${th * 0.42}" preserveAspectRatio="xMidYMid meet" href="${esc(tb.logo)}"/>`); y += th * 0.42 + 1; }
+      if (F.company) { g.push(`<text x="${x0 + 2}" y="${y + 3.4}" font-size="3" font-weight="bold" fill="${INK}">${esc(fit(F.company, C - 4, 3))}</text>`); y += 4.6; }
+      if (!F.company && !tb.logo) g.push(`<text x="${x0 + 2}" y="${y + 3.4}" font-size="2.6" font-weight="bold" fill="${MUTED}">Auto3DModeler</text><text x="${x0 + 2}" y="${y + 6.6}" font-size="1.9" fill="${MUTED}">${esc(t('Dimensions in mm'))}</text>`);
+      for (const ln of String(F.address || '').split(/\s*[\n;]\s*|,\s+(?=\d)/).filter(Boolean).slice(0, tb.logo ? 2 : 4)) { g.push(`<text x="${x0 + 2}" y="${y + 2.4}" font-size="1.9" fill="${MUTED}">${esc(fit(ln, C - 4, 1.9))}</text>`); y += 2.8; }
+      if (F.company || tb.logo) g.push(`<text x="${x0 + 2}" y="${y0 + th - 2.2}" font-size="1.7" fill="${MUTED}">${esc(appLine)}</text>`);
+      g.push(`<line x1="${xm}" y1="${y0}" x2="${xm}" y2="${y0 + th}" stroke="${INK}" stroke-width="${THIN}"/>`);
+      if (on('company')) hit('company', x0, y0, C, th);
+    }
+    // the part: its name large; the drawing number on its right
+    const hA = th * 0.44, hB = (th - hA) / 2, dn = on('number') ? M * 0.3 : 0;
+    const nfs = Math.max(3.4, Math.min(6.2, (M - dn - 4) / (Math.max(name.length, 6) * 0.56)));
+    g.push(`<text x="${xm + 1.6}" y="${y0 + 4.2}" font-size="2.1" fill="${MUTED}">${esc(fit(what, M - dn - 3, 2.1))}</text>`);
+    g.push(`<text x="${xm + 1.6}" y="${y0 + hA - 3}" font-size="${nfs.toFixed(2)}" font-weight="bold" fill="${INK}">${esc(fit(name, M - dn - 3, nfs))}</text>`);
+    hit('title', xm, y0, M - dn, hA);
+    if (dn) {
+      g.push(`<line x1="${xm + M - dn}" y1="${y0 + 1.6}" x2="${xm + M - dn}" y2="${y0 + hA - 1.6}" stroke="${INK}" stroke-width="${THIN}"/>`);
+      cell(t('Drawing no.'), F.number || '', xm + M - dn, y0, dn, hA, 3.6, 'number', true);
+      if (!C) g.push(`<text x="${x0 + W - 1.2}" y="${y0 - 1.2}" font-size="1.6" fill="${MUTED}" text-anchor="end">${esc(appLine)}</text>`);
+    }
+    g.push(`<line x1="${xm}" y1="${y0 + hA}" x2="${x0 + W}" y2="${y0 + hA}" stroke="${INK}" stroke-width="${THIN}"/>`);
+    row(y0 + hA, hB, xm, M, [...(on('material') ? [[t('Material'), T.material ?? (src.material || 'PLA'), 1.35]] : []), [t('Scale'), scaleText(this.scaleArr()), 0.8],
+      ...(on('paper') ? [[t('Paper'), L.paper, 0.65]] : []), ...(on('tolerances') ? [[t('Tolerances'), tol, 1.3]] : []), ...(T.sheet ? [[t('Sheet'), T.sheet, 0.85]] : [])]);
+    g.push(`<line x1="${xm}" y1="${y0 + hA + hB}" x2="${x0 + W}" y2="${y0 + hA + hB}" stroke="${INK}" stroke-width="${THIN}"/>`);
+    row(y0 + hA + hB, hB, xm, M, [...(on('drawn') ? [[t('Drawn by'), F.drawn || '', 1.1, 'drawn']] : []), ...(on('created') ? [[t('Created'), day(this.d.created), 0.95]] : []),
+      ...(on('changed') ? [[`${t('Changed')} · Rev`, `${day(this.d.changed)} · ${this.d.rev}`, 1.25]] : []), ...(on('note') ? [[t('Note'), F.note || '', 1.7, 'note', 2.6]] : [])]);
     g.push('</g>');
     return g.join('');
   }
@@ -518,20 +570,26 @@ export class SheetEditor {
   /** An assembly's page: the parts list (pos, name, qty, material, part number) above the title block, and a balloon
    *  with its position for each in the iso view. */
   asmSvg(pw, ph, m, th) {
-    const rows = this.d.asm.rows, max = Math.max(1, Math.floor((ph - 2 * m - th - 40) / 5) - 1), shown = rows.slice(0, max);
-    const x0 = pw - m - 150, cols = [[t('Pos.'), 12], [t('Name'), 63], [t('Qty'), 12], [t('Material'), 25], [t('Part number'), 38]];
-    const top = ph - m - th - (shown.length + 1 + (rows.length > max ? 1 : 0)) * 5, g = ['<g class="sh-bom">'];
+    const [, mt, mr, mb] = this.lay.margins || [m, m, m, m], W = this.titleW();
+    const rows = this.d.asm.rows, max = Math.max(1, Math.floor((ph - mt - mb - th - 40) / 5) - 1), shown = rows.slice(0, max);
+    const x0 = pw - mr - W, cols = [[t('Pos.'), 0.08], [t('Name'), 0.42], [t('Qty'), 0.08], [t('Material'), 0.17], [t('Part number'), 0.25]].map(([l, k]) => [l, W * k]);
+    const n = shown.length + (rows.length > max ? 1 : 0), top = ph - mb - th - (n + 1) * 5 - 1, g = ['<g class="sh-bom">'];
+    // the parts list as the title block: one outline, the header's labels small and muted over a rule, thin rules between rows
+    g.push(`<rect x="${x0}" y="${top}" width="${W}" height="${(n + 1) * 5 + 1}" fill="#fff" stroke="#000" stroke-width="0.35"/>`);
     const row = (y, cells, head) => {
       let x = x0;
       cells.forEach((v, i) => {
-        g.push(`<rect x="${x}" y="${y}" width="${cols[i][1]}" height="5" fill="${head ? '#eef1f6' : '#fff'}" stroke="#000" stroke-width="0.25"/>`);
-        g.push(`<text x="${x + 1.2}" y="${y + 3.6}" font-size="${head ? 2.6 : 2.9}" fill="#000">${esc(String(v).slice(0, cols[i][1] > 30 ? 34 : 12))}</text>`);
-        x += cols[i][1];
+        const w = cols[i][1], num = i === 0 || i === 2, fs = head ? 1.9 : 2.8, n = Math.max(1, Math.floor((w - 2.4) / (fs * 0.53)));
+        const s = String(v ?? ''), txt = s.length > n ? `${s.slice(0, n - 1)}…` : s;
+        if (i && !head) g.push(`<line x1="${x}" y1="${y + 1}" x2="${x}" y2="${y + 4}" stroke="#000" stroke-width="0.13"/>`);
+        g.push(`<text x="${num ? x + w / 2 : x + 1.6}" y="${y + (head ? 3.9 : 3.7)}" font-size="${fs}" fill="${head ? '#555' : '#000'}"${num ? ' text-anchor="middle"' : ''}${!head && i === 0 ? ' font-weight="bold"' : ''}>${esc(txt)}</text>`);
+        x += w;
       });
+      g.push(`<line x1="${x0}" y1="${y + (head ? 6 : 5)}" x2="${x0 + W}" y2="${y + (head ? 6 : 5)}" stroke="#000" stroke-width="${head ? 0.25 : 0.13}"/>`);
     };
     row(top, cols.map((c) => c[0]), true);
-    shown.forEach((r, i) => row(top + 5 * (i + 1), [r.pos, `${r.kind === 'assembly' ? '◇ ' : ''}${r.name}`, r.qty, r.material, r.pn || (r.bought ? t('bought') : '')], false));
-    if (rows.length > max) g.push(`<text x="${x0 + 1.2}" y="${top + 5 * (shown.length + 1) + 3.6}" font-size="2.6">… ${rows.length - max} ${t('more')}</text>`);
+    shown.forEach((r, i) => row(top + 1 + 5 * (i + 1), [r.pos, `${r.kind === 'assembly' ? '◇ ' : ''}${r.name}`, r.qty, r.material, r.pn || (r.bought ? t('bought') : '')], false));
+    if (rows.length > max) g.push(`<text x="${x0 + 1.6}" y="${top + 1 + 5 * (shown.length + 1) + 3.6}" font-size="2.6">… ${rows.length - max} ${t('more')}</text>`);
     this.balloonAt = {};
     if (this.isoMap && !this.d.off.Iso) { // the balloons: out from the view, apart from each other, where the user put them
       const placed = [];
