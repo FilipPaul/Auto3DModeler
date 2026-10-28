@@ -269,6 +269,7 @@ export class Assembly {
     this.view = new AsmView(this.els.view);
     this.bindPointer();
     this.render();
+    window.addEventListener('a3d:lang', () => this.render()); // (texts built with t(): in the new language)
   }
 
   build() {

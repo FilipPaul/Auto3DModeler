@@ -54,6 +54,7 @@ export class SheetEditor {
       onChange: () => this.renderBar(),
     });
     this.build();
+    window.addEventListener('a3d:lang', () => { if (this.d) this.render(); }); // (texts built with t(): in the new language)
   }
 
   build() {

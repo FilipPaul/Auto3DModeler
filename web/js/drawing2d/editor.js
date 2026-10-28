@@ -90,6 +90,7 @@ export class DrawingEditor {
     });
     this.build();
     this.bind();
+    window.addEventListener('a3d:lang', () => this.renderPanels()); // (texts built with t(): in the new language)
   }
 
   build() {

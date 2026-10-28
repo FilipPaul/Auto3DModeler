@@ -1354,4 +1354,5 @@ export function setLang(l) {
   document.documentElement.lang = l;
   if (l === 'en') restore(document.body);
   else translateNode(document.body);
+  window.dispatchEvent(new Event('a3d:lang')); // (the workspaces draw again what they built with t())
 }
