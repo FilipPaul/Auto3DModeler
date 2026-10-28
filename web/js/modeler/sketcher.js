@@ -95,6 +95,73 @@ export function tangentArc(s, d, e) {
   return t > 0 ? { c, a: s, b: e, swap: false } : { c, a: e, b: s, swap: true };
 }
 
+// ------------------------------------------------------------------ pattern
+export const PATTERN_MAX = 100; // copies in one ⁂ pattern
+const entPts = (e) => (e.t === 'line' ? [e.a, e.b] : e.t === 'arc' ? [e.a, e.b, e.c] : e.t === 'spline' ? [...e.pts] : e.t === 'circle' ? [e.c] : []);
+
+/** ⁂ Pattern: copies of the shapes `src` (entity ids: lines, circles, arcs, curves) in a row — {kind: 'row', n, d, e?}
+ *  d apart along line e (else the sketch's X) — or around a point — {kind: 'around', n, c (a point id, 'O' the
+ *  origin)}, spread evenly over 360°. A ⁂ Pattern relation (constraints.py `pat`) holds them: the same size and step,
+ *  they follow the original. newId(prefix) gives free ids (kid: the relation's own). -> the relation; throws. */
+export function makePattern(f, src, o, newId, kid = newId) {
+  const P = (id) => (id === 'O' ? [0, 0] : f.points[id]);
+  const ents = src.map((id) => f.entities.find((e) => e.id === id)).filter((e) => e && ['line', 'arc', 'circle', 'spline'].includes(e.t));
+  if (!ents.length) throw new Error('Pick the shapes to repeat: lines, circles or arcs.');
+  const n = Math.round(+o.n), around = o.kind === 'around';
+  if (!(n >= 2 && n <= PATTERN_MAX)) throw new Error(`The count is 2 … ${PATTERN_MAX}.`);
+  const pts = [...new Set(ents.flatMap(entPts))];
+  let move, extra;
+  if (around) {
+    const c = o.c && P(o.c) ? o.c : 'O', C = P(c);
+    if (pts.every((p) => Math.hypot(P(p)[0] - C[0], P(p)[1] - C[1]) < 1e-9)) throw new Error('Those shapes sit on the centre — choose another centre.');
+    move = (q, i) => { const a = (2 * Math.PI * i) / n, x = q[0] - C[0], y = q[1] - C[1]; return [C[0] + x * Math.cos(a) - y * Math.sin(a), C[1] + x * Math.sin(a) + y * Math.cos(a)]; };
+    extra = { c };
+  } else {
+    const d = +o.d, ln = o.e && f.entities.find((x) => x.id === o.e && x.t === 'line');
+    if (!Number.isFinite(d) || !d) throw new Error('The spacing must not be zero.');
+    let u = [1, 0];
+    if (ln) { const a = P(ln.a), b = P(ln.b), L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L > 1e-9) u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L]; }
+    move = (q, i) => [q[0] + u[0] * d * i, q[1] + u[1] * d * i];
+    extra = { d, ...(ln ? { e: ln.id } : {}) };
+  }
+  const pairs = pts.map((p) => [p, []]), circles = ents.filter((e) => e.t === 'circle').map((e) => [e.id, []]), copies = [];
+  for (let i = 1; i < n; i++) {
+    const map = {};
+    for (const [p, qs] of pairs) {
+      if (around && p === extra.c) { map[p] = p; qs.push(p); continue; } // (the centre itself stays)
+      map[p] = newId('p');
+      f.points[map[p]] = move(P(p), i).map((v) => +v.toFixed(6));
+      qs.push(map[p]);
+    }
+    const groups = {};
+    for (const e of ents) {
+      const id = newId(e.t === 'circle' ? 'c' : e.t === 'arc' ? 'a' : e.t === 'spline' ? 's' : 'l');
+      const c = { ...e, id };
+      if (e.g) c.g = groups[e.g] || (groups[e.g] = newId('r'));
+      for (const k of ['a', 'b', 'c']) if (typeof e[k] === 'string') c[k] = map[e[k]];
+      if (e.pts) c.pts = e.pts.map((q) => map[q]);
+      f.entities.push(c);
+      copies.push(id);
+      if (e.t === 'circle') circles.find(([x]) => x === e.id)[1].push(id);
+    }
+  }
+  const k = { id: kid('k'), t: 'pat', user: true, kind: around ? 'around' : 'row', n, ...extra, src: ents.map((e) => e.id), pairs, circles, copies };
+  f.constraints.push(k);
+  return k;
+}
+
+/** Take a ⁂ pattern's copies away (and its relation): their shapes, the points only they used, what held them. */
+export function unmakePattern(f, k) {
+  const gone = new Set(k.copies || []);
+  f.entities = f.entities.filter((e) => !gone.has(e.id));
+  const mine = new Set((k.pairs || []).flatMap(([p, qs]) => qs.filter((q) => q !== p)));
+  const used = new Set(f.entities.flatMap(entPts));
+  const lost = new Set([...mine].filter((q) => !used.has(q)));
+  for (const q of lost) delete f.points[q];
+  f.constraints = f.constraints.filter((c) => c.id !== k.id && ![c.e, c.e2, c.arc, ...(c.lines || [])].some((x) => gone.has(x)) && ![c.p, c.p2].some((x) => lost.has(x)));
+  f.dims = f.dims.filter((d) => !gone.has(d.e) && !gone.has(d.e2) && !lost.has(d.a) && !lost.has(d.b));
+}
+
 // ------------------------------------------------------------------ smooth curves
 /** A smooth curve (a spline) exactly through points in their order -> points along it (per = between two of them).
  *  A cubic spline over the distance along the points, as the kernel makes it (B-spline through the points). */
@@ -200,6 +267,8 @@ export const RELATIONS = {
   fix: { icon: '📌', name: 'Fix', picks: ['point'], hint: 'a point that stays where it is' },
   // made by the ⇋ Mirror tool (not in the Relations menu): the copy stays the mirror image of the original
   mir: { icon: '⇋', name: 'Mirrored', picks: [], tool: true },
+  // made by the ⁂ Pattern tool: the copies keep the original's size and step (its symbol opens the count / spacing)
+  pat: { icon: '⁂', name: 'Pattern', picks: [], tool: true },
 };
 
 const segDist = (p, a, b) => {
@@ -360,6 +429,7 @@ export class Sketcher {
     }
     if (this.tool === 'mirror') return this.mirLine ? 'Mirror: click the shapes to mirror (a rectangle or a joined outline goes whole). Esc = done.'
       : 'Mirror: click the line to mirror across — or choose the X / Y axis in the box.';
+    if (this.tool === 'pattern') return 'Pattern: type the count and the spacing (Enter = done) — click a line to go along it, or a point / circle to go around it.';
     if (this.tool === 'extend') return 'Extend: click a line near the end to lengthen — up to the next shape it meets.';
     if (this.tool === 'trim') return 'Trim: click the piece of a line, circle or arc to cut away — up to where other shapes cross it.';
     if (this.tool === 'arc' && this.tan) return 'Tangent arc: it continues the line — click where it ends (Shift-click: a free arc; Esc = stop drawing).';
@@ -383,6 +453,7 @@ export class Sketcher {
     this.dimA = null;
     this.closeChooser();
     this.mirLine = null;
+    this.pat = null;
     if (t === 'mirror') { this.mirMove = false; this.mirrorChooser(); } // a copy unless asked (each time)
     if (t !== 'select') this.sel = null;
     this.m.renderCmdBar();
@@ -1145,6 +1216,7 @@ export class Sketcher {
     if (this.tool === 'relate') { this.relateClick(uv0); return; }
     if (this.tool === 'offset') { this.offsetAt(uv0, e); return; }
     if (this.tool === 'mirror') { this.mirrorClick(uv0); return; }
+    if (this.tool === 'pattern') { this.patternClick(uv0); return; }
     if (this.tool === 'slot') { this.slotPoint(s); return; }
     if (!this.start) { this.start = s; this.m.hint(this.hint()); this.draw(); return; }
     const a = this.start;
@@ -1295,25 +1367,26 @@ export class Sketcher {
     }
     const p = this.relPick(uv, 'shape');
     if (!p || p.id === this.mirLine.e) { this.m.toast('Click a line, circle or arc to mirror.', 'info', 3000); return; }
-    // the whole shape it belongs to: its rectangle, or everything joined to it (not the mirror line)
-    const e0 = this.ent(p.id);
-    let ents;
-    if (e0.g) ents = this.f.entities.filter((e) => e.g === e0.g);
-    else {
-      const ends = (e) => (e.t === 'line' ? [e.a, e.b] : e.t === 'arc' ? [e.a, e.b] : []);
-      const seen = new Set([e0.id]), todo = [e0];
-      while (todo.length) {
-        const e = todo.pop();
-        for (const o of this.f.entities) {
-          if (seen.has(o.id) || o.id === this.mirLine.e || !['line', 'arc'].includes(o.t)) continue;
-          if (ends(o).some((q) => q !== ORIGIN && ends(e).includes(q))) { seen.add(o.id); todo.push(o); }
-        }
-      }
-      ents = this.f.entities.filter((e) => seen.has(e.id));
-    }
-    ents = ents.filter((e) => e.id !== this.mirLine.e);
+    const ents = this.wholeShape(this.ent(p.id), this.mirLine.e);
     if (ents.some((e) => e.t === 'block')) { this.m.toast('A picture outline cannot be mirrored yet.', 'warning'); return; }
     await this.mirror(ents, this.mirLine, this.mirMove);
+  }
+
+  /** The whole shape a line / circle / arc belongs to: its rectangle (slot …), or everything joined to it — not
+   *  `skip` (a mirror line, a pattern's direction). */
+  wholeShape(e0, skip = null) {
+    if (!e0) return [];
+    if (e0.g) return this.f.entities.filter((e) => e.g === e0.g && e.id !== skip);
+    const ends = (e) => (e.t === 'line' ? [e.a, e.b] : e.t === 'arc' ? [e.a, e.b] : []);
+    const seen = new Set([e0.id]), todo = [e0];
+    while (todo.length) {
+      const e = todo.pop();
+      for (const o of this.f.entities) {
+        if (seen.has(o.id) || o.id === skip || !['line', 'arc'].includes(o.t)) continue;
+        if (ends(o).some((q) => q !== ORIGIN && ends(e).includes(q))) { seen.add(o.id); todo.push(o); }
+      }
+    }
+    return this.f.entities.filter((e) => seen.has(e.id) && e.id !== skip);
   }
 
   /** Mirror these shapes across `line` ({e} a sketch line, or {axis: 'x' | 'y'}): a copy held by a ⇋ Mirrored
@@ -1366,8 +1439,122 @@ export class Sketcher {
     });
   }
 
+  // ------------------------------------------------------------------ pattern
+  /** ⁂ Pattern (the bar): the picked shapes (⬚ Select: a click, Ctrl+click, a box) repeated at once — 3 in a row along
+   *  the sketch's X (a picked construction line: along it), or 6 around a picked point — then the quick box (count,
+   *  spacing) re-makes them live; a click on a line / a point or circle chooses the direction / the centre. */
+  async startPattern() {
+    const P = this.picks?.length ? this.picks : this.sel?.kind === 'group' ? this.f.entities.filter((e) => e.g === this.sel.id).map((e) => ({ kind: e.t, id: e.id }))
+      : this.sel?.kind === 'entity' ? [{ kind: this.ent(this.sel.id)?.t, id: this.sel.id }] : [];
+    const shapes = P.filter((q) => ['line', 'circle', 'arc', 'spline', 'block'].includes(q.kind)).map((q) => this.ent(q.id)).filter(Boolean);
+    const along = shapes.some((e) => !e.construction) ? shapes.find((e) => e.t === 'line' && e.construction)?.id : undefined;
+    const src = [...new Set(shapes.filter((e) => e.id !== along).flatMap((e) => this.wholeShape(e, along)).map((e) => e.id))];
+    if (!src.length) { this.m.toast('Select the shapes to repeat first (⬚ Select: click, Ctrl+click or drag a box), then ⁂ Pattern.', 'info', 5000); this.setTool('select'); return; }
+    if (src.some((id) => this.ent(id)?.t === 'block')) { this.m.toast('A picture outline cannot be repeated yet.', 'warning'); return; }
+    const centre = P.find((q) => q.kind === 'point' || q.kind === 'origin')?.id;
+    const o = centre ? { kind: 'around', n: 6, c: centre } : { kind: 'row', n: 3, d: this.patGap(src, along), ...(along ? { e: along } : {}) };
+    try { makePattern(structuredClone(this.f), src, o, (x) => `${x}?`); } catch (err) { this.m.toast(t(err.message), 'warning'); return; }
+    let k;
+    if (!(await this.relock(() => { k = makePattern(this.f, src, o, (x) => this.newId(x)); }))) return;
+    this.picks = [];
+    this.sel = null;
+    this.editPattern(k.id, this.undo.length);
+  }
+
+  /** A row's first spacing: the shapes' length along the way they go and half again (rounded), so the copies do not touch. */
+  patGap(src, along) {
+    const ln = along && this.ent(along), a = ln ? this.P(ln.a) : [0, 0], b = ln ? this.P(ln.b) : [1, 0], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L], at = [];
+    for (const e of src.map((id) => this.ent(id)).filter(Boolean)) {
+      if (e.t === 'circle') { const c = this.P(e.c), s = c[0] * u[0] + c[1] * u[1]; at.push(s - e.r, s + e.r); }
+      else if (e.t === 'arc') { const c = this.P(e.c), s = c[0] * u[0] + c[1] * u[1], r = this.arcR(e); at.push(s - r, s + r); }
+      else for (const q of entPts(e)) at.push(this.P(q)[0] * u[0] + this.P(q)[1] * u[1]);
+    }
+    const w = at.length ? Math.max(...at) - Math.min(...at) : 0;
+    return w > 1e-6 ? +(w * 1.5).toPrecision(2) : 10;
+  }
+
+  /** The ⁂ pattern's quick box (bottom left): in a row / around, the count and the spacing; typing re-makes the copies
+   *  (one undo step for all of it — `base`: the undo depth it keeps), Enter = done. */
+  editPattern(id, base = null) {
+    const k = this.f.constraints.find((x) => x.id === id && x.t === 'pat');
+    if (!k) return;
+    this.closeChooser();
+    if (this.tool !== 'pattern') { this.tool = 'pattern'; this.m.renderCmdBar(); }
+    this.pat = { k: id, base };
+    const row = k.kind !== 'around', box = document.createElement('div');
+    box.className = 'sk-choose sk-quick sk-pattern';
+    box.innerHTML = `<div class="sk-choose-t">⁂ ${t('Pattern')}</div>
+      <div class="seg"><button data-kind="row" class="${row ? 'on' : ''}">${t('In a row')}</button><button data-kind="around" class="${row ? '' : 'on'}">${t('Around')}</button></div>
+      <label>${t('Count')} <input type="text" data-pk="n" value="${k.n}"></label>
+      ${row ? `<label>${t('Spacing')} <input type="text" data-pk="d" value="${fmt(k.d)}"> mm</label>` : ''}
+      <p class="hint">${t(row ? (k.e ? 'Along the line you clicked — or click another line.' : 'Along X — or click a line to go along it.')
+        : (k.c && k.c !== ORIGIN ? 'Around the point you clicked — or click another point or circle.' : 'Around the origin — or click a point or a circle for the centre.'))}
+        ${t('Enter = done')}</p>
+      <button class="btn small primary" data-done>${t('Done')}</button>`;
+    for (const ev of ['pointerdown', 'pointerup']) box.addEventListener(ev, (x) => x.stopPropagation());
+    const typed = () => Object.fromEntries([...box.querySelectorAll('[data-pk]')].map((i) => [i.dataset.pk, parseFloat(i.value.replace(',', '.'))]));
+    for (const inp of box.querySelectorAll('[data-pk]')) {
+      inp.addEventListener('input', () => { clearTimeout(this.patTimer); this.patTimer = setTimeout(() => this.repattern(typed(), true), 350); });
+      inp.addEventListener('keydown', async (ev) => {
+        ev.stopPropagation();
+        if (ev.key === 'Escape') this.setTool('select');
+        if (ev.key !== 'Enter') return;
+        clearTimeout(this.patTimer);
+        if (await this.repattern(typed())) this.setTool('select');
+      });
+    }
+    for (const b of box.querySelectorAll('[data-kind]')) b.addEventListener('click', () => this.repattern({ kind: b.dataset.kind }));
+    box.querySelector('[data-done]').addEventListener('click', async () => { clearTimeout(this.patTimer); if (await this.repattern(typed())) this.setTool('select'); });
+    this.m.els.viewport.appendChild(box);
+    this.chooser = box;
+    this.m.hint(this.hint());
+    setTimeout(() => { const i = box.querySelector('[data-pk=n]'); if (i && this.chooser === box) { i.focus(); i.select(); } }, 0);
+  }
+
+  /** The pattern re-made with these changes ({n, d, kind, e, c}; the same: nothing done). quiet: a half-typed value
+   *  says nothing. -> true when it is (now) as asked. One at a time (typing and Enter may overlap). */
+  repattern(ch, quiet = false) {
+    const run = async () => {
+      const k = this.f.constraints.find((x) => x.id === this.pat?.k);
+      if (!k) return false;
+      const o = { ...k, ...Object.fromEntries(Object.entries(ch).filter(([, v]) => v !== undefined && !Number.isNaN(v))) };
+      if (o.kind === 'around') delete o.e; else delete o.c;
+      if (o.kind === 'row' && !Number.isFinite(o.d)) o.d = this.patGap(k.src, o.e);
+      if (['kind', 'n', 'd', 'e', 'c'].every((x) => o[x] === k[x])) return true;
+      try { const g = structuredClone(this.f); unmakePattern(g, g.constraints.find((x) => x.id === k.id)); makePattern(g, k.src, o, (x) => `${x}?`); } catch (err) {
+        if (!quiet) this.m.toast(t(err.message), 'warning');
+        return false;
+      }
+      const ok = await this.relock(() => { unmakePattern(this.f, k); makePattern(this.f, k.src, o, (x) => this.newId(x), () => k.id); });
+      if (ok && this.pat) {
+        if (this.pat.base === null) this.pat.base = this.undo.length; // (the first change of this edit: its own undo step)
+        else this.undo.length = this.pat.base; // (later ones: the same step)
+      }
+      if (this.pat && this.tool === 'pattern' && !quiet) this.editPattern(k.id, this.pat.base); // (in a row / around: its fields)
+      return ok;
+    };
+    this.patBusy = (this.patBusy || Promise.resolve()).then(run, run);
+    return this.patBusy;
+  }
+
+  /** A click while the pattern's box is open: a line -> along it (in a row); a point, a circle or an arc -> around
+   *  its centre. */
+  patternClick(uv) {
+    if (!this.f.constraints.some((x) => x.id === this.pat?.k)) { this.setTool('select'); return; }
+    const p = this.pickTarget(uv);
+    if (!p) return;
+    if (p.kind === 'line' && typeof p.line === 'string' && !p.mid) { this.repattern({ kind: 'row', e: p.line }); return; }
+    const c = p.circle || p.arc ? this.ent(p.circle || p.arc)?.c : p.kind === 'point' && typeof p.end === 'string' ? p.end : null;
+    if (c) this.repattern({ kind: 'around', c });
+  }
+
   /** A relation's place in the sketch (for its symbol): the middle of its first shape, or its point. */
   relAt(k) {
+    if (k.t === 'pat') { // between the original and its first copy
+      const pr = (k.pairs || []).find(([p, qs]) => qs[0] && qs[0] !== p && this.P(p) && this.P(qs[0]));
+      return pr ? [(this.P(pr[0])[0] + this.P(pr[1][0])[0]) / 2, (this.P(pr[0])[1] + this.P(pr[1][0])[1]) / 2] : null;
+    }
     if (k.t === 'mir') { // by the mirror line, or between the first pair across an axis
       if (k.e && this.ent(k.e)) { const a = this.P(this.ent(k.e).a), b = this.P(this.ent(k.e).b); return [a[0] + (b[0] - a[0]) * 0.75, a[1] + (b[1] - a[1]) * 0.75]; }
       const pr = (k.pairs || []).find(([p, q]) => p !== q && this.P(p) && this.P(q));
@@ -1847,7 +2034,7 @@ export class Sketcher {
     if ((e.ctrlKey || e.metaKey) && (k === 'y' || (k === 'z' && e.shiftKey))) { e.preventDefault(); this.forward(); return true; } // redo
     if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); this.back(); return true; }
     if (e.key === 'Escape') {
-      if (this.tool === 'mirror') this.setTool('select');
+      if (this.tool === 'mirror' || this.tool === 'pattern') this.setTool('select');
       else if (this.chooser) this.closeChooser();
       else if (this.spl) this.finishSpline();
       else if (this.start || this.chain || this.dimA || this.relPicks?.length) { this.relPicks = []; this.start = null; this.tan = null; this.arcEnd = null; this.chain = null; this.dimA = null; this.changed(); } else this.setTool('select');
@@ -2611,12 +2798,15 @@ export class Sketcher {
       el.className = 'sk-label sk-rel';
       el.style.pointerEvents = 'auto'; // it takes clicks (the label layer lets them through to the view)
       el.textContent = RELATIONS[k.t]?.icon || '?';
-      el.title = `${t(RELATIONS[k.t]?.name || k.t)} — ${t('click to remove it')}`;
+      el.title = `${t(RELATIONS[k.t]?.name || k.t)} — ${t(k.t === 'pat' ? 'click to change the count / spacing' : 'click to remove it')}`;
       for (const ev of ['pointerdown', 'pointerup']) el.addEventListener(ev, (x) => x.stopPropagation());
-      el.addEventListener('click', (x) => { x.stopPropagation(); this.delRelation(k.id); });
+      el.addEventListener('click', (x) => { x.stopPropagation(); if (k.t === 'pat') this.editPattern(k.id); else this.delRelation(k.id); });
       labels.push({ el, u: at[0] + mpp * 8, v: at[1] - mpp * 10 });
     }
     if (this.tool === 'mirror' && this.mirLine?.e && this.ent(this.mirLine.e)) { const e = this.ent(this.mirLine.e); lines.push([this.P(e.a), this.P(e.b), 0x7ee787]); }
+    const pk = this.tool === 'pattern' && this.f.constraints.find((x) => x.id === this.pat?.k);
+    if (pk?.e && this.ent(pk.e)) { const e = this.ent(pk.e); lines.push([this.P(e.a), this.P(e.b), 0x7ee787]); }
+    if (pk?.kind === 'around' && this.P(pk.c || ORIGIN)) dots.push([this.P(pk.c || ORIGIN), 0x7ee787]);
     for (const q of this.tool === 'relate' ? this.relPicks || [] : []) {
       const e = q.kind === 'point' ? null : this.ent(q.id);
       if (q.kind === 'point') dots.push([this.P(q.id), 0x7ee787]);

@@ -81,6 +81,87 @@ class TestSketchMirror(unittest.TestCase):
         self.assertAlmostEqual(r["points"]["q"][1], 8, places=5)
 
 
+def holes(n, kind, d=15, at=(10, 0), dia=8):
+    """A circle at `at` (placed and sized by locks) and its n - 1 ⁂ pattern copies, drawn a little off (the solver
+    puts them right): in a row d apart along the sketch's X, or around the origin."""
+    sk = {"points": {"p1": list(at)}, "entities": [{"id": "c1", "t": "circle", "c": "p1", "r": 3}], "constraints": [],
+          "dims": [{"id": "d1", "t": "dx", "a": "O", "b": "p1", "v": at[0]}, {"id": "d2", "t": "dy", "a": "O", "b": "p1", "v": at[1]},
+                   {"id": "d3", "t": "dia", "e": "c1", "v": dia}]}
+    qs, cs = [], []
+    for i in range(1, n):
+        a = 2 * math.pi * i / n
+        q = [at[0] + d * i, at[1]] if kind == "row" else [at[0] * math.cos(a) - at[1] * math.sin(a), at[0] * math.sin(a) + at[1] * math.cos(a)]
+        sk["points"][f"q{i}"] = [q[0] + 0.3, q[1] - 0.2]
+        sk["entities"].append({"id": f"c{i + 1}", "t": "circle", "c": f"q{i}", "r": 2})
+        qs.append(f"q{i}")
+        cs.append(f"c{i + 1}")
+    sk["constraints"].append({"id": "k1", "t": "pat", "kind": kind, "n": n, "d": d, "c": "O", "user": True, "pairs": [["p1", qs]], "circles": [["c1", cs]]})
+    return sk
+
+
+@unittest.skipUnless(GCS, "planegcs not installed")
+class TestSketchPattern(unittest.TestCase):
+    def test_row_follows_the_original(self):
+        # 4 holes 15 apart along X: the copies sit 15, 30, 45 further and keep the original's size
+        r = solve(holes(4, "row"), detail=True)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["dof"], 0)
+        for i in (1, 2, 3):
+            self.assertAlmostEqual(r["points"][f"q{i}"][0], 10 + 15 * i, places=6)
+            self.assertAlmostEqual(r["points"][f"q{i}"][1], 0, places=6)
+            self.assertAlmostEqual(r["radii"][f"c{i + 1}"], 4, places=6)
+        # the original moved and grown: the copies go along
+        r = solve(holes(4, "row", at=(20, 5), dia=10))
+        self.assertAlmostEqual(r["points"]["q3"][0], 65, places=6)
+        self.assertAlmostEqual(r["points"]["q3"][1], 5, places=6)
+        self.assertAlmostEqual(r["radii"]["c4"], 5, places=6)
+
+    def test_around_the_origin(self):
+        # 6 around: every 60°, as far from the centre; 4 around: a half turn among them (180°)
+        for n in (6, 4):
+            r = solve(holes(n, "around"))
+            self.assertTrue(r["ok"], r)
+            self.assertEqual(r["dof"], 0)
+            for i in range(1, n):
+                a = 2 * math.pi * i / n
+                self.assertAlmostEqual(r["points"][f"q{i}"][0], 10 * math.cos(a), places=6)
+                self.assertAlmostEqual(r["points"][f"q{i}"][1], 10 * math.sin(a), places=6)
+
+    def test_row_along_a_slanted_line(self):
+        # a 10 x 4 rectangle and 3 copies 20 apart along a construction line going (3, 4) / 5: each 12, 16 further
+        pts = {"p1": [0, 0], "p2": [10, 0], "p3": [10, 4], "p4": [0, 4], "a": [0, -10], "b": [30, 30]}
+        ents = [{"id": f"l{i + 1}", "t": "line", "a": f"p{i + 1}", "b": f"p{(i + 1) % 4 + 1}"} for i in range(4)]
+        ents.append({"id": "ax", "t": "line", "a": "a", "b": "b", "construction": True})
+        pairs = []
+        for p in ("p1", "p2", "p3", "p4"):
+            for i in (1, 2, 3):
+                pts[f"{p}_{i}"] = [pts[p][0] + 12 * i + 0.5, pts[p][1] + 16 * i - 0.4]
+            pairs.append([p, [f"{p}_{i}" for i in (1, 2, 3)]])
+            ents += [{"id": f"m{p}{i}", "t": "line", "a": f"{p}_{i}", "b": f"p{int(p[1]) % 4 + 1}_{i}"} for i in (1, 2, 3)]
+        sk = {"points": pts, "entities": ents,
+              "constraints": [{"id": f"k{i}", "t": "hv"[i % 2], "e": f"l{i + 1}"} for i in range(4)]
+              + [{"id": "k9", "t": "pat", "kind": "row", "n": 4, "d": 20, "e": "ax", "pairs": pairs}],
+              "dims": LOCK_CORNER + [{"id": "d3", "t": "len", "e": "l1", "v": 10}, {"id": "d4", "t": "len", "e": "l2", "v": 4},
+                                     {"id": "d5", "t": "dx", "a": "O", "b": "a", "v": 0}, {"id": "d6", "t": "dy", "a": "O", "b": "a", "v": -10},
+                                     {"id": "d7", "t": "dx", "a": "O", "b": "b", "v": 30}, {"id": "d8", "t": "dy", "a": "O", "b": "b", "v": 30}]}
+        r = solve(sk)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["dof"], 0)
+        for p in ("p1", "p2", "p3", "p4"):
+            for i in (1, 2, 3):
+                self.assertAlmostEqual(r["points"][f"{p}_{i}"][0], r["points"][p][0] + 12 * i, places=5)
+                self.assertAlmostEqual(r["points"][f"{p}_{i}"][1], r["points"][p][1] + 16 * i, places=5)
+
+    def test_a_deleted_copy_or_line_breaks_nothing(self):
+        sk = holes(4, "row")
+        del sk["points"]["q2"]
+        sk["entities"] = [e for e in sk["entities"] if e["id"] != "c3"]
+        self.assertTrue(solve(sk)["ok"])
+        sk = holes(3, "row")
+        sk["constraints"][0]["e"] = "gone"  # (its line deleted: along X again)
+        self.assertTrue(solve(sk)["ok"])
+
+
 @unittest.skipUnless(GCS, "planegcs not installed")
 class TestSketchSolve(unittest.TestCase):
     def test_lock_holds_when_the_plate_grows(self):

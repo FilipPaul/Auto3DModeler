@@ -204,6 +204,10 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_sketch_slot.py <url> <dir>` covers the sketch plane's offset direction (+ = +Z and an arrow; on Front
    −Y; gone after ✓ Finish) and ⊂⊃ Slot with real mouse clicks (centres (0, 0) and (30, 0), the
    width at 5: the preview "40 × 10"; two lines, two arcs, tan ×4 / eq / h; extruded 5: (30 · 10 + π 25) · 5).
+   `tools/e2e_sketch_pattern.py <url> <dir>` covers ⁂ Pattern in a sketch (a circle picked -> 3 at once, the box;
+   Count 4, Spacing 15: x 0 / 15 / 30 / 45, a `pat` relation; the ⁂ symbol -> Count 5 re-made; Ctrl+Z -> 4, Ctrl+Z
+   -> 1, Ctrl+Y -> 4; extruded 5: 4 π r² · 5; around: a disc R 30, a hole R 5 at x 20, a click on the disc = its
+   centre, Count 6: six at 60°, extruded: π (30² − 6 · 5²) · 5).
    `tools/e2e_sheet_angle.py <url> <dir>` covers angle dimensions on the sheet (a plate with a slanted edge: ＋ Dimension
    on the slanted and the upright edge -> 123.7° drawn as an arc; the AI's sheet_edit add edges the same; parallel
    edges refused; a picture of the sheet).

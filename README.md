@@ -213,7 +213,12 @@ SolidWorks. It has only the tools that need almost no input.
    **⇋ Mirror**: choose the Y or X axis in its little box (or click a line of the sketch), then click shapes — a
    rectangle or a joined outline goes whole. The mirror image is a copy that stays mirrored (⇋ *Mirrored*: change the
    original and the copy follows; click the ⇋ symbol to let it go free); points on the mirror line are shared, so half
-   a profile becomes a closed one. *Move* turns the shapes over instead of copying them. **⧈ Offset** (O): click a
+   a profile becomes a closed one. *Move* turns the shapes over instead of copying them. **⁂ Pattern**: select shapes
+   (⬚ Select: click, Ctrl+click or a box), then ⁂ Pattern — 3 copies in a row along X appear at once; in the box
+   (bottom left) type the Count and the Spacing (Enter = done), click a line to go along it, or switch to *Around*
+   and click a point or a circle for the centre (default: the origin; the copies spread over 360°). The copies keep
+   the original's size and follow it; click the ⁂ symbol to change the count later; Ctrl+Z takes the whole pattern
+   back. **⧈ Offset** (O): click a
    closed shape and type the distance (negative = inside) — a parallel copy: a circle gets a concentric one, an
    outline of lines and arcs keeps its sharp corners sharp and its roundings concentric, a picture outline grows
    or shrinks (e.g. the wall of a cookie cutter).

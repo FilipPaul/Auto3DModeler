@@ -181,6 +181,18 @@ Date: 2026-10-25. Written by the architect agent.
 - **⊂⊃ Slot sketch tool done:** Sketcher.slotPoint (centre, centre, width from the mouse's distance to the middle
   line: slotHalf), addSlot (two lines and two arcs in a group, tan ×4, eq on the ends, h / v when drawn level /
   upright), a live preview "40 × 10"; the toolbar's ⊂⊃ Slot (make group). tools/e2e_sketch_slot.py.
+- **⁂ Pattern in sketches done:** the sketch bar's ⁂ Pattern (copy group) repeats the picked shapes (⬚ Select, Ctrl,
+  a box; a rectangle / joined outline goes whole — Sketcher.wholeShape, shared with ⇋ Mirror): at once 3 in a row
+  along X (spacing: the shapes' length × 1.5; a picked construction line: along it) or 6 around a picked point;
+  makePattern / unmakePattern (pure, sketcher.js) put the copies and a `pat` relation {kind row | around, n, d, e |
+  c, src, pairs, circles, copies}. Full constraints (constraints._pattern): a row along X holds each first copy
+  d further by `difference`, along a line by parallel + distance (the other points: a parallelogram through a helper
+  midpoint), the next copies by symmetric_point (each one halfway); around: equal distance from the centre and
+  set_l2l_angle i·360°/n; circles equal_radius — the copies keep the original's size and follow it, dof unchanged.
+  The quick box (bottom left, editPattern: In a row / Around, Count, Spacing) re-makes them live as you type
+  (repattern: unmake + make in one relock), a click on a line = along it, on a point / circle = around it; Enter =
+  done; the whole edit is one undo step; the ⁂ symbol reopens it. test_modeler_sketch TestSketchPattern;
+  tools/e2e_sketch_pattern.py.
 - **Angle dimensions on sheets done:** kind "ang" {a, b: edge keys, r}: SheetEditor.angleOf (where the two lines cross,
   each toward its far end, the angle between), drawn as an arc with arrows and extension lines to edges short of it,
   the text clear of the arc; dragged: its radius; ＋ Dimension on two non-parallel edges makes one; sheet_edit add
@@ -694,7 +706,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 | Extend | Extend a line up to the next entity | click | Done (lines; the end gets an "on" constraint) |
 | Offset | Copy a loop at a distance (one-off copy) | loop, distance, side | MVP (M2), linked offset later |
 | Mirror | Mirror entities about a line, adding symmetric constraints | entities, line | MVP (M2) |
-| Sketch pattern | Linear / circular copies inside the sketch | entities, count, step | Later (use the feature pattern) |
+| Sketch pattern | Linear / circular copies inside the sketch | entities, count, step | Done (⁂ Pattern: a `pat` relation, the copies follow) |
 | Project edges ("Include" / "Convert entities") | Bring part edges into the sketch | picked edges | MVP (M3) |
 | Outline / DXF / PDF block | A traced outline, DXF region or PDF profile as one rigid block (position, angle, scale dimension) | asset + width | MVP (M4) |
 | Text | Text traced into a block (reuses today's browser text tracing) | text, height | Done (𝐓 Text) |

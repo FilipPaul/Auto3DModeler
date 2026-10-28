@@ -13,6 +13,11 @@ A sketch (in the feature JSON):
                  {"t": "mir", "pairs": [["p1", "p9"], ["p2", "p2"]], "circles": [["c1", "c2"]], "e": "l5" | "axis": "x" | "y"}
                                                                     a mirrored copy: each pair symmetric about line l5 or a
                                                                     sketch axis (a point paired with itself stays on it)
+                 {"t": "pat", "kind": "row", "n": 4, "d": 15, "e": "l5"?, "pairs": [["p1", ["p7", "p8", "p9"]]],
+                  "circles": [["c1", ["c2", "c3", "c4"]]], "src": [...], "copies": [...]}
+                                                                    a ⁂ pattern: each point's copies d apart along line l5
+                                                                    (else the sketch's X); "kind": "around", "c": centre
+                                                                    point id ("O"): turned evenly over 360°
   "dims":        [{"id": "d1", "t": "len", "e": "l1", "v": 40},                  locked sizes 🔒
                   {"t": "dia", "e": "c1", "v": 6}, {"t": "rad", "e": "a1", "v": 5},   an arc's radius
                   {"t": "dx", "a": "O", "b": "p5", "v": 10}, {"t": "dy", ...},   distance along x / y
@@ -49,7 +54,7 @@ def _num(v, what):
 
 
 # relations the user sets: {t, e, e2} (two shapes) or {t, p, p2 / e} (a point and a point / shape)
-RELATIONS = ("par", "perp", "eq", "conc", "coin", "tang", "fix", "mir")
+RELATIONS = ("par", "perp", "eq", "conc", "coin", "tang", "fix", "mir", "pat")
 
 
 def _relation(s, k, ents, ids, pts):
@@ -108,10 +113,56 @@ def _relation(s, k, ents, ids, pts):
             if c in ents and c2 in ents and kind(ents[c]) == kind(ents[c2]) == "circle":
                 tags.append(s.equal_radius_cc(ents[c][1], ents[c2][1]))
         return tuple(tags)
+    if t == "pat":  # always handled here (an empty tuple when its line / centre is gone)
+        return _pattern(s, k, ents, ids, pts, a[1] if kind(a) == "line" else None)
     if t == "fix" and k.get("p") in ids:
         at = k.get("at") or pts.get(k["p"])
         return s.fix_point(ids[k["p"]], float(at[0]), float(at[1]))
     return None
+
+
+def _pattern(s, k, ents, ids, pts, line):
+    """A ⁂ pattern's copies (see the module doc): the same step between each copy and the next, so they keep the
+    original's size and follow it -> the tags."""
+    n, tags = int(k.get("n") or 0), []
+    pairs = [(p, list(qs or [])) for p, qs in k.get("pairs") or [] if p in ids]
+    if k.get("kind") == "around":
+        c = k.get("c") or ORIGIN
+        if c not in ids or n < 2:
+            return ()
+        for p, qs in pairs:
+            if p == c:
+                continue
+            lp = s.add_line(ids[c], ids[p])
+            for i, q in enumerate(qs, 1):
+                if q in ids and q != p:  # the same distance from the centre, turned i / n of a full turn
+                    lq = s.add_line(ids[c], ids[q])
+                    tags += [s.equal_length(lp, lq), s.set_l2l_angle(lp, lq, math.remainder(2 * math.pi * i / n, 2 * math.pi))]
+    else:
+        d, first = _num(k.get("d"), "A pattern's spacing"), None
+        for p, qs in pairs:
+            chain = [p] + qs
+            if len(chain) < 2 or chain[1] not in ids:
+                continue
+            q1 = chain[1]
+            if line is None:  # along the sketch's X: the first copy d further in x, level
+                (px, py), (qx, qy) = s.get_point_param_ids(ids[p]), s.get_point_param_ids(ids[q1])
+                tags += [s.difference(px, qx, s.add_fixed_param(d)), s.difference(py, qy, s.add_fixed_param(0.0))]
+            elif first is None:  # along a line: the first point's first copy d away, parallel to it
+                tags += [s.parallel(s.add_line(ids[p], ids[q1]), line), s.set_p2p_distance(ids[p], ids[q1], abs(d))]
+                first = (p, q1)
+            else:  # every other point moved as that one (p, q1 and the first pair make a parallelogram)
+                a, b = pts.get(first[0], [0.0, 0.0]) if first[0] != ORIGIN else [0.0, 0.0], pts.get(q1, [0.0, 0.0])
+                m = s.add_point((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+                tags += [s.symmetric_point(ids[first[0]], ids[q1], m), s.symmetric_point(ids[first[1]], ids[p], m)]
+            for i in range(2, len(chain)):  # each next copy as far again: the one before is halfway
+                if all(x in ids for x in chain[i - 2:i + 1]):
+                    tags.append(s.symmetric_point(ids[chain[i - 2]], ids[chain[i]], ids[chain[i - 1]]))
+    for c, cs in k.get("circles") or []:
+        for c2 in cs or []:
+            if c in ents and c2 in ents and ents[c][0]["t"] == ents[c2][0]["t"] == "circle":
+                tags.append(s.equal_radius_cc(ents[c][1], ents[c2][1]))
+    return tuple(tags)
 
 
 FREE_CHECK_MAX = 150  # points: more and which ones are free is not worked out (each costs a solver set-up)
@@ -178,7 +229,7 @@ def solve(sketch, drag=None, keep=None, detail=False):
             if tag is not None:
                 for tg in (tag if isinstance(tag, tuple) else (tag,)):
                     tags[tg] = k.get("id")
-                    if k.get("t") == "mir":
+                    if k.get("t") in ("mir", "pat"):
                         soft.add(tg)
                 continue
             ent = ents.get(k.get("e"))
