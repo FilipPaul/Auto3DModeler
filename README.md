@@ -676,12 +676,14 @@ the app exchanges with them — and with Inventor, Fusion, Creo, NX, FreeCAD, On
 |---|---|---|---|
 | **STEP** (.step / .stp, AP214) | a part (exact solid, colours); an assembly (parts, placements, sub-assemblies, names, colours) | a part; an assembly as an assembly tree | The best choice: all three read and write it (*Save As → STEP AP214 / AP242*). |
 | **DXF** (drawing sheet) | — (a DXF / DWG opens as a 📐 2D drawing) | a part's or an assembly's 📄 drawing sheet: the paper 1:1 in mm, views, real dimensions, title block, a layer per kind | ⬇ DXF on the sheet. Opens in AutoCAD, DraftSight, SolidWorks (*Open → DXF*, as a drawing) and Solid Edge Draft. |
+| **glTF** (.glb) | — | a 3D model part (its colour, the material's metal / plastic look) or an assembly (a node per placed part with its name, sub-assemblies nested, colours, PBR materials); metres, Y up | For viewers, rendering (Blender, KeyShot), web pages, SolidWorks Visualize / CATIA Composer-like tools. A quick part's GLB is its preview mesh. |
+| **OBJ** (.obj) | a mesh made a solid (up to 60 000 triangles), or a sliced quick part | a 3D model part as a mesh (mm, shared corners, normals) | For renderers and 3D programs that take OBJ. |
 | **IGES** (.igs / .iges, 5.3) | a part: its solids, or its surfaces sewn into a solid (a warning says so); surfaces that do not close come in as a 👁 reference body | a part (exact B-rep solid, mm); an assembly as one file (every part placed, names and colours — IGES has no assembly tree) | For programs and suppliers that still ask for IGES. Prefer STEP. |
 
 - **In**: *📂 Open ▾ → CAD / PCB / 3D file*, a file dropped on the view, *▣ Solid from a file* in a 3D model, or
   *＋ Insert part ▾ → From a file* in an assembly. The AI's `open_file` opens them too.
 - **Out**: the *Export ▾* menu (or the Export buttons in the 3D model's / assembly's panel); the AI's `export
-  {format: "step" | "iges"}`; on a drawing sheet `export {format: "dxf" | "pdf"}`.
+  {format: "step" | "iges" | "glb" | "obj"}`; on a drawing sheet `export {format: "dxf" | "pdf"}`.
 - In SolidWorks: *File → Open*, file type STEP / IGES (an assembly STEP opens as an assembly with its parts). CATIA:
   *File → Open* (STEP AP214 / IGES). Solid Edge: *Open*, file type STEP / IGES (the import wizard keeps the assembly).
 

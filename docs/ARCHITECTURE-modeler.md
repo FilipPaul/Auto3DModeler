@@ -704,6 +704,17 @@ Date: 2026-10-25. Written by the architect agent.
   (export_data dxf -> {sheet: dxfData()}). The PDF is in true scale: MuPDF makes the page the SVG's mm size, 1 mm =
   1 mm (TestSheetDxf.test_sheet_pdf_prints_in_true_scale). tests/test_exchange_formats.py TestSheetDxf,
   tools/e2e_exchange_formats.py.
+- **glTF / GLB and OBJ out (18e) done:** kernel.write_gltf_tree — the parts meshed (as finely as the viewer's), the
+  STEP tree's XCAF document (_xcaf_tree finish=True: each part also an XCAFDoc_VisMaterial PBR — its colour, metalness,
+  roughness) through OCCT's RWGltf_CafWriter (binary; mm -> m, Z up -> glTF's Y up; node names InstanceOrProduct:
+  "Plate-1", sub-assemblies nested; Compact transforms); chosen over writing GLB from our meshes because the XCAF tree,
+  names, instance colours and materials come with it. materials.py COLOR / FINISH / finish_of / look_colour mirror
+  materials.js (stepTree sends each part's material). doc.export "glb" (one part in its colour and finish, an imported
+  file's face colours) and "obj" (kernel.to_obj: shared corners, a normal per triangle, mm); assembly_step fmt "glb"
+  (/api/assembly/export/glb; the flat form refused). The Export menu: GLB now for 3D models and assemblies too (the
+  quick part's stays viewer.exportGLB), OBJ for 3D models; the panels' GLB / OBJ buttons; the AI's export glb / obj.
+  The part's paint (faces painted in the browser) is not in the GLB / STEP (only the part's, instances' and the file's
+  colours). tests/test_exchange_formats.py TestGltfObj, tools/e2e_exchange_formats.py.
 - **STEP colours done:** kernel.read_step_colours (STEPCAFControl + XCAF: colours followed down the assembly tree to the
   faces of the shape the solid step uses), State.colours by face name -> faces' `color` in the rebuild; the view /
   assembly show them under the paint. tools/e2e_step_colours.py.

@@ -1117,6 +1117,8 @@ export class Modeler {
         ${b ? `<h3>Export</h3><div class="row-actions"><button class="btn small" data-x="stl" title="For 3D printing">STL</button>
           <button class="btn small" data-x="step" title="For other CAD programs (exact circles and faces)">STEP</button>
           <button class="btn small" data-x="iges" title="For CAD programs that ask for IGES (exact solid, mm) — STEP is better where it is read">IGES</button>
+          <button class="btn small" data-x="glb" title="glTF for viewers and rendering: its colour and material (metal / plastic)">GLB</button>
+          <button class="btn small" data-x="obj" title="A mesh for 3D programs and renderers that take OBJ (mm)">OBJ</button>
           <button class="btn small" data-x="pdf" title="A 2D drawing: front, top and right views, sizes, holes, title block">📐 Drawing (PDF)</button></div>
           ${this.hooks.newSheet ? '<div class="row-actions"><button class="btn small primary" data-a="newSheet" title="A drawing sheet of this part to edit: its views and dimensions (light / medium / full), moved, deleted, added — it follows the part when it changes">📄 Drawing sheet</button></div>' : ''}` : ''}`;
     }
@@ -3065,7 +3067,7 @@ export class Modeler {
       body: JSON.stringify({ part: this.part, name: this.hooks.safeName() }) });
     if (!res.ok) { this.hooks.toast(`Export failed: ${(await res.json()).error}`, 'error'); return; }
     if (await this.hooks.download(await res.blob(), `${this.hooks.safeName()}.${{ iges: 'igs' }[fmtName] || fmtName}`)) {
-      this.hooks.toast(fmtName === 'pdf' ? 'Exported the drawing (PDF).' : `Exported ${fmtName.toUpperCase()} (in mm).`, 'ok');
+      this.hooks.toast(fmtName === 'pdf' ? 'Exported the drawing (PDF).' : fmtName === 'glb' ? 'Exported GLB (glTF: metres, Y up, its colours and material).' : `Exported ${fmtName.toUpperCase()} (in mm).`, 'ok');
     }
   }
 

@@ -173,7 +173,7 @@ async function api(path, body, method) {
 const SAVE_TYPES = {
   json: ['Auto3DModeler project', 'application/json'], stl: ['STL 3D model', 'model/stl'], step: ['STEP CAD model', 'model/step'],
   glb: ['GLB 3D preview', 'model/gltf-binary'], zip: ['ZIP of pieces', 'application/zip'], pdf: ['PDF drawing', 'application/pdf'],
-  igs: ['IGES CAD model', 'model/iges'], dxf: ['DXF drawing', 'image/vnd.dxf'],
+  igs: ['IGES CAD model', 'model/iges'], dxf: ['DXF drawing', 'image/vnd.dxf'], obj: ['OBJ 3D mesh', 'model/obj'],
 };
 /** Save a file where the user chooses (name + folder: the browser's Save dialog, Edge / Chrome), else as a
  *  download. Resolves to the chosen file name, or null when the dialog was cancelled. */

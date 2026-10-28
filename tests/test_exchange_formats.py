@@ -1,10 +1,13 @@
 """Exchange formats for other CAD programs (SolidWorks, CATIA, Solid Edge …) beside STEP: IGES in and out (a part, an
 assembly as one file; surfaces-only files sewn into a solid, or a reference body when they do not close); a drawing
-sheet as a DXF (the paper 1:1, a layer per kind, real dimensions) and its PDF in true scale.
-The IGES tests are skipped without the CAD kernel.
+sheet as a DXF (the paper 1:1, a layer per kind, real dimensions) and its PDF in true scale; glTF (.glb: a node per
+placed part, names, PBR materials) and OBJ for viewers and rendering.
+The IGES / glTF / OBJ tests are skipped without the CAD kernel.
 """
 import io
+import json
 import math
+import struct
 import tempfile
 import unittest
 from collections import Counter
@@ -115,6 +118,90 @@ class TestIges(unittest.TestCase):
             doc.assembly_step(tree=machine(), fmt="x_t")
         with self.assertRaises(K.KernelError):
             doc.assembly_step(tree={"root": "A1", "parts": {}, "assemblies": {"A1": {"name": "Empty", "instances": []}}}, fmt="iges")
+
+
+def glb(data):
+    """A binary glTF -> (its JSON, its binary chunk), checking the header: magic, version 2, the whole length."""
+    magic, version, length = struct.unpack("<4sII", data[:12])
+    assert (magic, version, length) == (b"glTF", 2, len(data)), (magic, version, length, len(data))
+    n, kind = struct.unpack("<I4s", data[12:20])
+    assert kind == b"JSON"
+    m, kind2 = struct.unpack("<I4s", data[20 + n:28 + n])
+    assert kind2 == b"BIN\x00"
+    return json.loads(data[20:20 + n]), data[28 + n:28 + n + m]
+
+
+def obj_triangles(data):
+    """An OBJ's triangles (n, 3, 3) and its faces' corner indices (0-based)."""
+    import numpy as np
+    v, f = [], []
+    for line in data.decode("utf-8").splitlines():
+        if line.startswith("v "):
+            v.append([float(x) for x in line.split()[1:4]])
+        elif line.startswith("f "):
+            f.append([int(c.split("/")[0]) - 1 for c in line.split()[1:4]])
+    return np.asarray(v)[np.asarray(f)], f
+
+
+@unittest.skipUnless(OCC, "OCP not installed")
+class TestGltfObj(unittest.TestCase):
+    def test_part_glb_in_its_colour_and_finish(self):
+        part = {"features": plate_with_hole(), "material": "aluminium"}
+        js, binary = glb(doc.export(part, "glb", "Plate"))
+        self.assertEqual(js["asset"]["version"], "2.0")
+        self.assertEqual([n.get("name") for n in js["nodes"]], ["Plate"])
+        mat = js["materials"][0]["pbrMetallicRoughness"]
+        self.assertAlmostEqual(mat["metallicFactor"], 0.9, places=5)  # aluminium: metal, a little rough
+        self.assertAlmostEqual(mat["roughnessFactor"], 0.38, places=5)
+        self.assertEqual([round(c * 255) for c in mat["baseColorFactor"][:3]], [0xc3, 0xc8, 0xcd])  # (its colour)
+        # metres, Y up: 40 × 20 × 10 mm -> x 0.04, height (y) 0.01, depth (z) 0.02
+        pos = [js["accessors"][p["attributes"]["POSITION"]] for p in js["meshes"][0]["primitives"]]
+        lo = [min(a["min"][k] for a in pos) for k in range(3)]
+        hi = [max(a["max"][k] for a in pos) for k in range(3)]
+        self.assertEqual([round(h - l, 6) for l, h in zip(lo, hi)], [0.04, 0.01, 0.02])
+        self.assertEqual(len(binary), js["buffers"][0]["byteLength"])
+
+    def test_assembly_glb_a_node_per_placed_part(self):
+        tree = machine()
+        tree["parts"]["P2"]["material"] = "brass"
+        js, _ = glb(doc.assembly_step(tree=tree, name="Machine", fmt="glb"))
+        nodes = js["nodes"]
+        root = nodes[js["scenes"][js.get("scene", 0)]["nodes"][0]]
+        self.assertEqual(root["name"], "Machine")
+        self.assertEqual([nodes[k]["name"] for k in root["children"]], ["Plate-1", "Post-1", "Sub-1"])
+        sub = nodes[root["children"][2]]
+        self.assertEqual([nodes[k]["name"] for k in sub["children"]], ["Post-1", "Plate-1"])  # (nested, as in the file)
+        self.assertEqual(sum(1 for n in nodes if "mesh" in n), 4)  # every placement
+        post = nodes[root["children"][1]]
+        self.assertEqual([round(v, 6) for v in post["translation"]], [0.1, 0, 0])  # 100 mm along x, in metres
+        metals = sorted(round(m["pbrMetallicRoughness"]["metallicFactor"], 2) for m in js["materials"])
+        self.assertIn(0.95, metals)  # brass shines
+        self.assertIn(0.05, metals)  # a plastic does not
+        colours = {tuple(round(c * 255) for c in m["pbrMetallicRoughness"]["baseColorFactor"][:3]) for m in js["materials"]}
+        self.assertIn((255, 0, 0), colours)  # Plate's own red
+        self.assertIn((0, 255, 0), colours)  # the turned Post's instance colour
+
+    def test_obj_mesh(self):
+        data = doc.export({"features": plate_with_hole()}, "obj", "Plate with hole")
+        text = data.decode("utf-8")
+        self.assertIn("o Plate_with_hole", text)
+        tri, faces = obj_triangles(data)
+        import numpy as np
+        vol = float(np.einsum("ij,ij->i", tri[:, 0], np.cross(tri[:, 1], tri[:, 2])).sum() / 6)
+        self.assertAlmostEqual(vol, PLATE_HOLE, delta=PLATE_HOLE * 2e-3)  # (the hole's wall: facets)
+        edges = Counter(tuple(sorted((f[a], f[b]))) for f in faces for a, b in ((0, 1), (1, 2), (2, 0)))
+        self.assertTrue(all(c == 2 for c in edges.values()))  # watertight: corners shared, every edge twice
+        self.assertEqual(text.count("\nvn "), len(faces))
+
+    def test_errors(self):
+        with self.assertRaises(K.KernelError):  # a glTF of an assembly needs its tree
+            doc.assembly_step([{"part": {"features": box(10, 10, 10)}, "matrix": None}], fmt="glb")
+        with self.assertRaises(K.KernelError):
+            doc.assembly_step(tree={"root": "A1", "parts": {}, "assemblies": {"A1": {"name": "Empty", "instances": []}}}, fmt="glb")
+        with self.assertRaises(K.KernelError):
+            doc.export({"features": []}, "glb")
+        with self.assertRaises(K.KernelError):
+            doc.export({"features": box(10, 10, 10)}, "x_b")
 
 
 # a sheet as the editor draws it (sheet.js svg(true)): A4 landscape, a 1:2 front view of a 40 × 20 plate with a Ø8 hole

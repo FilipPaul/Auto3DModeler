@@ -52,7 +52,7 @@ export function addTree(tree, hooks, fallbackName) {
 export const treeSize = (tree) => ({ parts: Object.keys(tree.parts).length, subs: Object.keys(tree.assemblies).length - 1,
   placements: Object.values(tree.assemblies).reduce((n, a) => n + a.instances.filter((i) => tree.parts[i.ref]).length, 0) });
 
-/** An assembly as a STEP tree for the kernel: {root, parts: {id: {name, features, colour}}, assemblies: {id: {name,
+/** An assembly as a STEP tree for the kernel: {root, parts: {id: {name, features, colour, material}}, assemblies: {id: {name,
  *  instances: [{ref, matrix, colour?}]}}}. asm: the Assembly (hooks.partData, kindOf, partName, innerList, bodies);
  *  a placed sub-assembly moved inside (its `inner`) is a product of its own ("Lever (I2)"). */
 export function stepTree(asm, rootId, rootName, rootInstances) {
@@ -66,7 +66,8 @@ export function stepTree(asm, rootId, rootName, rootInstances) {
         if (!assemblies[ref]) add(ref, it.inner ? `${asm.partName(it.part)} (${it.id})` : asm.partName(it.part), asm.innerList(it));
       } else if (!parts[ref]) {
         const data = asm.hooks.partData(ref) || {};
-        parts[ref] = { name: asm.partName(ref), features: asm.bodies[ref]?.features || data.features || [], colour: lookColor(data) || undefined };
+        parts[ref] = { name: asm.partName(ref), features: asm.bodies[ref]?.features || data.features || [], colour: lookColor(data) || undefined,
+          material: data.material || undefined }; // (the material: a GLB's metal / plastic look)
       }
       assemblies[key].instances.push({ ref, matrix: it.matrix, ...(it.colour ? { colour: it.colour } : {}) });
     }

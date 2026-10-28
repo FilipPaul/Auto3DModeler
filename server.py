@@ -764,7 +764,7 @@ def api_assembly_sweep():
     return jsonify({"steps": data})
 
 
-ASSEMBLY_FILES = {"step": ("model/step", "step"), "iges": ("model/iges", "igs")}  # format -> (mime, extension)
+ASSEMBLY_FILES = {"step": ("model/step", "step"), "iges": ("model/iges", "igs"), "glb": ("model/gltf-binary", "glb")}  # format -> (mime, extension)
 
 
 @app.post("/api/assembly/export/<fmt>")
@@ -772,7 +772,8 @@ def api_assembly_step(fmt):
     """{tree: {root, parts: {id: {name, features, colour?}}, assemblies: {id: {name, instances: [{ref, matrix,
     colour?}]}}}, name} -> a structured STEP (AP214: a product per part, placed instances, sub-assemblies nested), as
     SolidWorks / CATIA / Solid Edge open an assembly; iges: every part placed in one IGES (names, colours; IGES has no
-    tree). {instances: [{part: {features}, matrix: [16]}]} (no tree): every placed body in one compound."""
+    tree); glb: a binary glTF for viewers / rendering (a node per placed part, names, PBR materials). {instances:
+    [{part: {features}, matrix: [16]}]} (no tree): every placed body in one compound (STEP / IGES)."""
     if fmt not in ASSEMBLY_FILES:
         return jsonify({"error": f"Unknown format {fmt}"}), 404
     body = request.get_json(force=True)
@@ -810,7 +811,8 @@ def api_model_limits():
     return jsonify(data)
 
 
-MODEL_FILES = {"stl": ("model/stl", "stl"), "step": ("model/step", "step"), "iges": ("model/iges", "igs"), "pdf": ("application/pdf", "pdf")}
+MODEL_FILES = {"stl": ("model/stl", "stl"), "step": ("model/step", "step"), "iges": ("model/iges", "igs"), "pdf": ("application/pdf", "pdf"),
+               "glb": ("model/gltf-binary", "glb"), "obj": ("model/obj", "obj")}
 
 
 @app.post("/api/model/export/<fmt>")
@@ -1058,8 +1060,8 @@ def _from_page(fmt):
 
 def tool_export(args):
     fmt = args.get("format", "stl")
-    if fmt not in ("stl", "step", "iges", "pdf", "3mf", "bom", "dxf"):
-        raise ValueError("format: stl, step, iges, pdf (a 2D drawing of a 3D model), 3mf (with colours), bom (an assembly's CSV) or dxf (a 2D drawing)")
+    if fmt not in ("stl", "step", "iges", "glb", "obj", "pdf", "3mf", "bom", "dxf"):
+        raise ValueError("format: stl, step, iges, glb (glTF with colours), obj, pdf (a 2D drawing of a 3D model), 3mf (with colours), bom (an assembly's CSV) or dxf (a 2D drawing or a sheet)")
     if fmt == "pdf":  # a drawing sheet on screen: the sheet as it is drawn
         res = RELAY.call("export_data", {"format": "pdf"})
         if not res.get("error") and ((res.get("data") or {}).get("svg") or (res.get("data") or {}).get("svgs")):
@@ -1087,7 +1089,7 @@ def tool_export(args):
         raise ValueError(res.get("text") or "No part is open.")
     if res["body"].get("assembly"):  # a structured STEP: its parts, placed, sub-assemblies nested
         if fmt not in ASSEMBLY_FILES or not res["body"].get("step_tree"):
-            raise ValueError("An assembly exports as step (its parts as an assembly tree), iges (its parts placed, one file), 3mf or bom — STL from the Export menu in the app.")
+            raise ValueError("An assembly exports as step (its parts as an assembly tree), iges (its parts placed, one file), glb (glTF: a node per part, colours), 3mf or bom — STL from the Export menu in the app.")
         name = re.sub(r'[\\/:*?"<>|]+', "_", res["body"].get("name") or "assembly").strip() or "assembly"
         data, err = _model_call("assembly_step", {"tree": res["body"]["step_tree"], "name": name, "fmt": fmt}, timeout=600)
         if err:
@@ -1098,7 +1100,8 @@ def tool_export(args):
             target = target / f"{name}.{ASSEMBLY_FILES[fmt][1]}"
         target.write_bytes(data)
         what = {"step": "a STEP assembly (AP214: a product per part, sub-assemblies nested)",
-                "iges": "one IGES file (every part placed, with names and colours; IGES has no assembly tree)"}[fmt]
+                "iges": "one IGES file (every part placed, with names and colours; IGES has no assembly tree)",
+                "glb": "a binary glTF (a node per placed part with its name, sub-assemblies nested, colours and materials; metres, Y up)"}[fmt]
         return {"text": f"Exported the assembly as {what} — {max(1, len(data) // 1024)} kB to {target}"}
     if res["body"].get("model_part") is not None:  # a 3D model part: the CAD kernel writes it
         name = re.sub(r'[\\/:*?"<>|]+', "_", res["body"].get("name") or "part").strip()
@@ -1108,8 +1111,8 @@ def tool_export(args):
         filename = f"{name}.{MODEL_FILES[fmt][1]}"
     elif fmt == "pdf":
         raise ValueError("A 2D drawing is made from a 3D model part — open one (or ◆ To 3D model) first.")
-    elif fmt == "iges":
-        raise ValueError("IGES is written from a 3D model part or an assembly — for a quick part use step.")
+    elif fmt in ("iges", "glb", "obj"):
+        raise ValueError(f"{fmt.upper()} is written from a 3D model part or an assembly — for a quick part use step or stl (GLB: the Export menu).")
     else:
         data, filename, _ = _export_bytes(res["body"], fmt)
     target = Path(args["path"]).expanduser() if args.get("path") else Path.home() / "Downloads"

@@ -1158,6 +1158,13 @@ def export(part, fmt, name="part"):
         return K.to_iges(st.body.shape)
     if fmt == "stl":
         return K.to_stl(K.tessellate(st.body))
+    if fmt == "obj":
+        return K.to_obj(K.tessellate(st.body), name)
+    if fmt == "glb":  # the part in its colour and material's finish (and an imported file's face colours)
+        from .materials import finish_of, look_colour
+        colours = [(face, c) for n, c in st.colours.items() for face in st.body.faces_of(n)]
+        return K.write_gltf_tree({"p": {"name": name, "shape": st.body.shape, "colour": look_colour(part), "colours": colours,
+                                        "finish": finish_of((part or {}).get("material"))}}, {}, "p")
     raise K.KernelError(f"Unknown export format “{fmt}”.")
 
 
@@ -1244,12 +1251,15 @@ def assembly_sweep(instances, steps):
 
 
 def assembly_step(instances=None, tree=None, name="assembly", fmt="step"):
-    """An assembly -> a STEP file (fmt "iges": an IGES). tree {root, parts: {id: {name, features, colour?}},
-    assemblies: {id: {name, instances: [{ref, matrix: [16], colour?}]}}}: a structured one (a product per part, placed
-    instances, sub-assemblies nested, names and colours; kernel.write_step_tree / write_iges_tree). Else instances
-    [{part: {features}, matrix: [16]}]: the placed bodies in one compound."""
-    if fmt not in ("step", "iges"):
+    """An assembly -> a STEP file (fmt "iges": an IGES; "glb": a binary glTF, a node per placed part). tree {root,
+    parts: {id: {name, features, colour?, material?}}, assemblies: {id: {name, instances: [{ref, matrix: [16],
+    colour?}]}}}: a structured one (a product per part, placed instances, sub-assemblies nested, names and colours;
+    kernel.write_step_tree / write_iges_tree / write_gltf_tree). Else instances [{part: {features}, matrix: [16]}]: the
+    placed bodies in one compound (STEP / IGES)."""
+    if fmt not in ("step", "iges", "glb"):
         raise K.KernelError(f"Unknown export format “{fmt}”.")
+    if fmt == "glb" and not tree:
+        raise K.KernelError("A glTF of an assembly is made from its tree (its parts, placed).")
     if tree:
         return _tree_step(tree, name, fmt)
     shapes = []
@@ -1262,6 +1272,7 @@ def assembly_step(instances=None, tree=None, name="assembly", fmt="step"):
 
 
 def _tree_step(tree, name, fmt="step"):
+    from .materials import finish_of
     parts, asms = {}, {}
     for pid, p in (tree.get("parts") or {}).items():
         try:
@@ -1270,7 +1281,8 @@ def _tree_step(tree, name, fmt="step"):
             continue  # (a part without a solid yet is left out, as in the collisions)
         body = st.body
         colours = [(face, c) for n, c in st.colours.items() for face in body.faces_of(n)]
-        parts[pid] = {"name": p.get("name") or pid, "shape": body.shape, "colour": p.get("colour"), "colours": colours}
+        parts[pid] = {"name": p.get("name") or pid, "shape": body.shape, "colour": p.get("colour"), "colours": colours,
+                      "finish": finish_of(p.get("material"))}
     for aid, a in (tree.get("assemblies") or {}).items():
         seen, insts = {}, []
         for inst in a.get("instances") or []:
@@ -1285,4 +1297,6 @@ def _tree_step(tree, name, fmt="step"):
         raise K.KernelError("The assembly is empty — insert parts first.")
     if fmt == "iges":
         return K.write_iges_tree(parts, asms, tree.get("root"))
+    if fmt == "glb":
+        return K.write_gltf_tree(parts, asms, tree.get("root"))
     return K.write_step_tree(parts, asms, tree.get("root"), name)

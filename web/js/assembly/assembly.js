@@ -702,6 +702,7 @@ export class Assembly {
         <h3>Export</h3><div class="row-actions"><button class="btn small" data-x="stl" title="All parts in one STL, as placed">STL</button>
         <button class="btn small" data-x="step" title="All parts as separate bodies in one STEP file">STEP</button>
         <button class="btn small" data-x="iges" title="Every part placed in one IGES file (names, colours) — for CAD programs that ask for IGES; it has no assembly tree">IGES</button>
+        <button class="btn small" data-x="glb" title="glTF for viewers and rendering: a node per placed part with its name, the colours and materials">GLB</button>
         ${this.hooks.newSheet ? '<button class="btn small" data-a="sheetHere" title="The assembly\'s drawing sheet to edit (views, parts list, balloons, your dimensions and texts)">📄 Drawing sheet</button>' : ''}
         ${this.hooks.drawingSet ? '<button class="btn small primary" data-a="drawingSet" title="One PDF: this assembly (its views, parts list and balloons), then each sub-assembly with its parts, then its own made parts — their drawing sheets when they have one">📄 Drawings (PDF)</button>' : ''}</div>
         <p class="hint">To print, open each part's tab and use 🖨 Prepare for 3D print there.</p>`
@@ -2906,13 +2907,14 @@ export class Assembly {
       return;
     }
     // a structured STEP (AP214): a product per part, placed instances, sub-assemblies nested — an assembly tree in
-    // SolidWorks, CATIA, Solid Edge; IGES: every part placed in one file (it has no tree)
-    const iges = fmtName === 'iges';
-    const res = await fetch(`/api/assembly/export/${iges ? 'iges' : 'step'}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tree: this.stepTree(), name }) });
+    // SolidWorks, CATIA, Solid Edge; IGES: every part placed in one file (it has no tree); GLB: glTF, a node per part
+    const fmt = ['iges', 'glb'].includes(fmtName) ? fmtName : 'step', ext = { iges: 'igs' }[fmt] || fmt;
+    const res = await fetch(`/api/assembly/export/${fmt}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tree: this.stepTree(), name }) });
     if (!res.ok) { this.hooks.toast(`Export failed: ${(await res.json().catch(() => ({ error: res.statusText }))).error}`, 'error'); return; }
-    if (await this.hooks.download(await res.blob(), `${name}.${iges ? 'igs' : 'step'}`)) {
-      this.hooks.toast(iges ? 'Exported IGES (in mm) — every part placed in one file, with its name and colour.'
-        : 'Exported STEP (in mm) — an assembly with its parts, as SolidWorks, CATIA and Solid Edge open it.', 'ok', 6000);
+    if (await this.hooks.download(await res.blob(), `${name}.${ext}`)) {
+      this.hooks.toast({ iges: 'Exported IGES (in mm) — every part placed in one file, with its name and colour.',
+        glb: 'Exported GLB (glTF: a node per placed part with its name, colours and materials; metres, Y up).' }[fmt]
+        || 'Exported STEP (in mm) — an assembly with its parts, as SolidWorks, CATIA and Solid Edge open it.', 'ok', 6000);
     }
   }
 }

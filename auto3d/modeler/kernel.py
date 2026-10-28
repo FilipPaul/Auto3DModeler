@@ -1904,17 +1904,19 @@ def _fold(tree):
     return tree
 
 
-def _xcaf_tree(parts, assemblies, root):
-    """An assembly as an XCAF document (what the STEP / IGES writers take) -> the document. parts {key: {name, shape,
-    colour?, colours?: [(face, "#rrggbb")]}} (one product each), assemblies {key: {name, instances: [{ref, name?,
-    matrix: [16], colour?}]}} (sub-assemblies stay nested), root: the top assembly's key."""
-    from OCP.Quantity import Quantity_Color, Quantity_TOC_RGB
-    from OCP.TCollection import TCollection_ExtendedString
+def _xcaf_tree(parts, assemblies, root, finish=False):
+    """An assembly as an XCAF document (what the STEP / IGES / glTF writers take) -> the document. parts {key: {name,
+    shape, colour?, colours?: [(face, "#rrggbb")], finish?: (metalness, roughness)}} (one product each), assemblies
+    {key: {name, instances: [{ref, name?, matrix: [16], colour?}]}} (sub-assemblies stay nested), root: the top
+    assembly's key. finish: each part also gets a PBR material (its colour, metalness, roughness: for glTF)."""
+    from OCP.Quantity import Quantity_Color, Quantity_ColorRGBA, Quantity_TOC_RGB
+    from OCP.TCollection import TCollection_AsciiString, TCollection_ExtendedString
     from OCP.TDataStd import TDataStd_Name
     from OCP.TDocStd import TDocStd_Document
-    from OCP.XCAFDoc import XCAFDoc_ColorType, XCAFDoc_DocumentTool
+    from OCP.XCAFDoc import XCAFDoc_ColorType, XCAFDoc_DocumentTool, XCAFDoc_VisMaterial, XCAFDoc_VisMaterialPBR
     doc = TDocStd_Document(TCollection_ExtendedString("XmlXCAF"))
     st, ct = XCAFDoc_DocumentTool.ShapeTool_s(doc.Main()), XCAFDoc_DocumentTool.ColorTool_s(doc.Main())
+    mt = XCAFDoc_DocumentTool.VisMaterialTool_s(doc.Main()) if finish else None
 
     def colour(hexa):
         h = str(hexa or "").lstrip("#")
@@ -1938,6 +1940,14 @@ def _xcaf_tree(parts, assemblies, root):
             c = colour(p.get("colour"))
             if c:
                 ct.SetColor(lb, c, XCAFDoc_ColorType.XCAFDoc_ColorGen)
+            if mt is not None:  # glTF: the part's look as a PBR material (a metal shines, a plastic does not)
+                pbr = XCAFDoc_VisMaterialPBR()
+                pbr.BaseColor = Quantity_ColorRGBA(c or Quantity_Color(0.85, 0.87, 0.9, Quantity_TOC_RGB), 1.0)
+                pbr.Metallic, pbr.Roughness = map(float, p.get("finish") or (0.05, 0.55))
+                pbr.IsDefined = True
+                vm = XCAFDoc_VisMaterial()
+                vm.SetPbrMaterial(pbr)
+                mt.SetShapeMaterial(lb, mt.AddMaterial(vm, TCollection_AsciiString(str(p.get("name") or k))))
             for face, fc in p.get("colours") or []:
                 c = colour(fc)
                 sub = st.AddSubShape(lb, face) if c else None
@@ -2012,6 +2022,33 @@ def write_iges_tree(parts, assemblies, root):
     return _written(lambda path: w.Write(path), ".igs")
 
 
+def write_gltf_tree(parts, assemblies, root):
+    """An assembly (or one part) as a binary glTF (.glb) for viewers and rendering: a node per placed part with its
+    name, sub-assemblies nested, a PBR material per part (its colour, metalness, roughness: parts {…, finish}), the
+    face colours of an imported file; metres, Y up (glTF's own). Parts, assemblies and root as for _xcaf_tree."""
+    from OCP.collections import IndexedDataMap_TCollection_AsciiString_TCollection_AsciiString as FileInfo
+    from OCP.Message import Message_ProgressRange
+    from OCP.RWGltf import RWGltf_CafWriter, RWGltf_WriterTrsfFormat_Compact
+    from OCP.RWMesh import RWMesh_CoordinateSystem_Zup, RWMesh_NameFormat_InstanceOrProduct, RWMesh_NameFormat_Product
+    from OCP.TCollection import TCollection_AsciiString
+    for p in parts.values():  # each part meshed once, as finely as the viewer's
+        bb = bbox(p["shape"]) or [0, 0, 0, 1, 1, 1]
+        size = max(bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2], 1e-6)
+        BRepMesh_IncrementalMesh(p["shape"], max(size * 0.0008, 0.002), False, 0.25, True)
+    doc = _xcaf_tree(parts, assemblies, root, finish=True)
+
+    def write(path):
+        w = RWGltf_CafWriter(TCollection_AsciiString(path), True)
+        conv = w.ChangeCoordinateSystemConverter()
+        conv.SetInputLengthUnit(0.001)  # mm -> m
+        conv.SetInputCoordinateSystem(RWMesh_CoordinateSystem_Zup)
+        w.SetTransformationFormat(RWGltf_WriterTrsfFormat_Compact)
+        w.SetNodeNameFormat(RWMesh_NameFormat_InstanceOrProduct)
+        w.SetMeshNameFormat(RWMesh_NameFormat_Product)
+        return w.Perform(doc, FileInfo(), Message_ProgressRange())
+    return _written(write, ".glb")
+
+
 def to_step_coloured(shape, colours, name="part"):
     """One part as a STEP file with its face colours ({face index: "#rrggbb"}, as read_step_colours gives them)."""
     fm = _face_map(shape)
@@ -2080,6 +2117,23 @@ def read_step_colours(data: bytes, summary=False, kind="step"):
     if summary:
         return shape, colours, step_structure(st, [free.Value(i) for i in range(1, free.Length() + 1)])
     return shape, colours
+
+
+def to_obj(tess, name="part") -> bytes:
+    """Wavefront OBJ (mm) from tessellate() output: one object, its corners shared between triangles, normals per
+    corner of each face — for 3D programs, renderers and slicers that take OBJ."""
+    tri = np.frombuffer(tess["positions"], np.float32).reshape(-1, 3, 3).astype(float)
+    pts, idx = np.unique(np.round(tri.reshape(-1, 3), 6), axis=0, return_inverse=True)
+    idx = idx.reshape(-1, 3) + 1
+    n = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+    ln = np.linalg.norm(n, axis=1, keepdims=True)
+    n = np.divide(n, ln, out=np.zeros_like(n), where=ln > 0)
+    safe = re.sub(r"\s+", "_", str(name or "part")) or "part"
+    out = [f"# Auto3DModeler — {len(tri)} triangles, mm", f"o {safe}"]
+    out += [f"v {x:.6g} {y:.6g} {z:.6g}" for x, y, z in pts]
+    out += [f"vn {x:.5f} {y:.5f} {z:.5f}" for x, y, z in n]
+    out += [f"f {a}//{k} {b}//{k} {c}//{k}" for k, (a, b, c) in enumerate(idx.tolist(), 1)]
+    return ("\n".join(out) + "\n").encode("utf-8")
 
 
 def to_stl(tess) -> bytes:

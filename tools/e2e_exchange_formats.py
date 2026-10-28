@@ -5,7 +5,10 @@ from its panel and by the AI (export iges: every part placed); the AI's open_fil
 reference body with the warning.
 Sheet DXF — the plate's drawing sheet: ⬇ DXF next to ⬇ PDF -> read back with ezdxf: mm, the layers (visible, hidden,
 dims, text, frame), as many real dimensions as the sheet shows, the 40 mm width measured as 40 (the paper × DIMLFAC),
-the title block's text; the AI's export dxf on the sheet the same. No console errors.
+the title block's text; the AI's export dxf on the sheet the same.
+GLB / OBJ — the plate (aluminium) from the Export menu as GLB (one node "Plate", metallic, 40 mm = 0.04 m) and OBJ (the
+volume from its triangles); the assembly as GLB from the Export menu (a node per placed part, "Plate-1", "Post-1",
+placed as on screen) and by the AI; the AI's export obj of the plate. No console errors.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
   PYTHONIOENCODING=utf-8 py tools/e2e_exchange_formats.py http://127.0.0.1:5199 <out dir>
@@ -15,6 +18,7 @@ import io
 import json
 import math
 import os
+import struct
 import sys
 import time
 import urllib.request
@@ -95,9 +99,33 @@ def world_box():
     return [min(p[k] for p in pts) for k in range(3)] + [max(p[k] for p in pts) for k in range(3)]
 
 
+def glb_json(data):
+    """A binary glTF's JSON (its header checked: glTF 2, the whole length)."""
+    magic, version, length = struct.unpack("<4sII", data[:12])
+    check(magic == b"glTF" and version == 2 and length == len(data), f"a GLB file: {magic} v{version}, {length} of {len(data)} bytes")
+    n = struct.unpack("<I", data[12:16])[0]
+    return json.loads(data[20:20 + n])
+
+
+def obj_volume(data):
+    v, vol = [], 0.0
+    for line in data.decode("utf-8").splitlines():
+        if line.startswith("v "):
+            v.append([float(x) for x in line.split()[1:4]])
+        elif line.startswith("f "):
+            a, b, c = (v[int(q.split("/")[0]) - 1] for q in line.split()[1:4])
+            vol += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6
+    return vol
+
+
 def menu(fmt):
-    d.find_element(By.ID, "exportBtn").click()
-    d.find_element(By.CSS_SELECTOR, f"#exportMenu [data-fmt={fmt}]").click()
+    try:
+        d.find_element(By.ID, "exportBtn").click()
+        d.find_element(By.CSS_SELECTOR, f"#exportMenu [data-fmt={fmt}]").click()
+    except Exception:
+        d.save_screenshot(os.path.join(OUT, f"menu_{fmt}.png"))
+        print("   menu:", js("const b = document.getElementById('exportBtn'); return [b.disabled, getComputedStyle(b).display, b.parentElement.className, document.body.className, getComputedStyle(document.querySelector('#exportMenu [data-fmt=" + fmt + "]')).display]"))
+        raise
 
 
 try:
@@ -191,6 +219,41 @@ try:
     if Path(path).exists():
         _, dims2, vals2, _, _ = dxf_facts(Path(path).read_bytes())
         check(len(dims2) == n_dims and 40 in vals2, "the AI's DXF: the same dimensions")
+
+    # ------------------------------------------------------------------ GLB / OBJ
+    call("open_part", id="Plate")
+    wait(f"return window.__app.state.workspace === 'model' && window.__app.project.current?.name === 'Plate' && !!{M}.result?.body", 60)
+    call("set_material", material="aluminium")
+    n_saved = js("return window.__saved.length")
+    menu("glb")
+    _, data = saved(n_saved + 1, "Plate.glb")
+    g = glb_json(data)
+    pbr = g["materials"][0]["pbrMetallicRoughness"]
+    pos = [g["accessors"][p["attributes"]["POSITION"]] for p in g["meshes"][0]["primitives"]]
+    span = [round(max(a["max"][k] for a in pos) - min(a["min"][k] for a in pos), 6) for k in range(3)]
+    check([n.get("name") for n in g["nodes"]] == ["Plate"] and abs(pbr["metallicFactor"] - 0.9) < 1e-4 and span == [0.04, 0.01, 0.02],
+          f"the plate's GLB: one node, aluminium (metallic {pbr['metallicFactor']:.2f}), metres Y up {span}")
+    menu("obj")
+    _, data = saved(n_saved + 2, "Plate.obj")
+    check(abs(obj_volume(data) - PLATE_HOLE) < PLATE_HOLE * 2e-3, f"the plate's OBJ: its volume {obj_volume(data):.1f} mm³")
+    r = ai("export", format="obj", path=OUT)
+    check(r.startswith("Exported") and r.strip().endswith("Plate.obj"), f"the AI exports OBJ: {r[:80]}")
+
+    call("open_part", id="Pair")
+    wait(f"return window.__app.state.workspace === 'assembly' && {A}.doc.instances.every(i => {A}.bodyOf(i)?.body)", 60)
+    check(js("return getComputedStyle(document.querySelector('#exportMenu [data-fmt=glb]')).display") != "none", "GLB in the Export menu of an assembly")
+    menu("glb")
+    _, data = saved(n_saved + 3, "Pair.glb")
+    g = glb_json(data)
+    root = g["nodes"][g["scenes"][g.get("scene", 0)]["nodes"][0]]
+    kids = [g["nodes"][k] for k in root.get("children", [])]
+    want = js(f"return {A}.doc.instances.map(i => i.matrix.slice(12, 15))")  # where each part is placed (mm, Z up)
+    got = [[round(v * 1000, 3) for v in (k.get("translation") or [0, 0, 0])] for k in kids]
+    check(root.get("name") == "Pair" and [k.get("name") for k in kids] == ["Plate-1", "Post-1"], f"the assembly's GLB: {root.get('name')} -> {[k.get('name') for k in kids]}")
+    check(all(abs(a - b) < 1e-3 for w, gt in zip(want, got) for a, b in zip([w[0], w[2], -w[1]], gt)), f"placed as on screen (glTF Y up) {got} ~ {want}")
+    r = ai("export", format="glb", path=OUT)
+    print("   AI:", r[:120])
+    check(r.startswith("Exported the assembly as a binary glTF") and Path(OUT, "Pair.glb").exists(), "the AI exports the assembly as GLB")
 
     errs = [m["message"] for m in d.get_log("browser") if m["level"] == "SEVERE" and "favicon" not in m["message"]]
     check(not errs, f"no console errors {errs[:3]}")
