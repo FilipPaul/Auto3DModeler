@@ -244,11 +244,27 @@ def _apply(f, st: State, s):
         dia = _num(f, "d", 5, what="diameter")
         depth = _through_depth(st) if f.get("through", True) else _num(f, "depth", 10, what="depth")
         n = np.asarray(fr["n"], float)
+        head = f.get("head")  # ⌴ a counterbore (a screw head sunk in) / ⌵ a countersink (a flat head flush)
+        if head == "cbore":
+            hd, hdep = _num(f, "head_d", round(dia * 1.8, 1), what="counterbore diameter"), _num(f, "head_depth", round(dia, 1), what="counterbore depth")
+            if hd <= dia:
+                raise K.KernelError("The counterbore has to be wider than the hole.")
+            if not f.get("through", True) and hdep >= depth:
+                raise K.KernelError("The counterbore has to be less deep than the hole.")
+        elif head == "csk":
+            hd = _num(f, "head_d", round(dia * 2, 1), what="countersink diameter")
         for k, (u, v) in enumerate(pts):
             face, names = K.circle_face(fr, float(u), float(v), dia)
             tool = K.prism_body(face, names, -n * depth, fid)
             tool.names = {f"{fid}:hole:{k}": tool.names.get(f"{fid}:side:c", []), f"{fid}:bottom:{k}": tool.names.get(f"{fid}:end", [])}
             _use(st, fid, tool, "cut")
+            if head == "cbore":
+                face, names = K.circle_face(fr, float(u), float(v), hd)
+                tool = K.prism_body(face, names, -n * hdep, fid)
+                tool.names = {f"{fid}:cbore:{k}": tool.names.get(f"{fid}:side:c", []), f"{fid}:cbore_floor:{k}": tool.names.get(f"{fid}:end", [])}
+                _use(st, fid, tool, "cut")
+            elif head == "csk":
+                _use(st, fid, K.countersink(fr, float(u), float(v), hd, dia, float(f.get("head_angle") or 90), f"{fid}:csk:{k}"), "cut")
         return
     if t == "decal":
         # text or a picture outline on a flat face: raised (add) or cut in, depth mm

@@ -218,7 +218,9 @@ SolidWorks. It has only the tools that need almost no input.
 4. **◜ Fillet** (F) rounds edges and **◸ Chamfer** bevels them. Click the edges (a click on a face takes all of its
    edges; a picked edge is dropped by clicking it again), then type the radius or size. **◎ Hole** (H): click on a
    flat face where a hole goes (near the centre it snaps to it; click again for more holes on the same face), and
-   type the diameter. It goes through all by default, or untick *Through all* and give a depth. Each hole is
+   type the diameter. It goes through all by default, or untick *Through all* and give a depth. *Head* adds room
+   for a screw's head: ⌴ a counterbore (Ø 1.8 × the hole, as deep as the hole is wide) or ⌵ a countersink (Ø 2 × the
+   hole, 90°) — change the head's Ø / depth if needed. Each hole is
    placed from the face's nearest edges — *↔ 10 mm from the right edge*, *↕ 5 mm from the lower edge*, drawn on
    the face. Type a distance to move it, ⇄ measures from the edge on the other side, and 🎯 lets you click *any*
    edge of the face — or another hole (then it is measured from that hole's centre and follows it). Every tool shows a live

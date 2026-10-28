@@ -172,6 +172,9 @@ Never report "works" without having run it; report failures with their output.
    refused; a joint from it moves the other part; the Lid's suggestions: unlock and edit here, fix; freed: it moves).
    `tools/e2e_planes.py <url> <dir>` covers the planes (faint on an empty model; ◫ Planes off: hidden, remembered;
    choosing a sketch plane: shown anyway; back: hidden; on again).
+   `tools/e2e_model_hole_head.py <url> <dir>` covers ⌴ / ⌵ hole heads (a Ø6 hole: ⌴ Counterbore by default Ø10.8 × 6,
+   then Ø10 × 4, ⌵ Countersink Ø12 at 90° — exact volumes; the step's text; the AI's head "cbore", get_model shows it,
+   edit_feature head null takes it off; a wrong head refused). Needs a server restarted after kernel changes.
    `tools/e2e_tool_groups.py <url> <dir>` covers the tools coloured by group (the 3D model's, the sketch's and the
    assembly's bars: each group in one run, one colour per group, the groups' colours differ; screenshots of the bars).
    `tools/e2e_ai_reports.py <url> <dir>` covers the fixes from the AI's reports (a zoomed-out view: get_screenshot

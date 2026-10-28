@@ -72,6 +72,25 @@ class TestFeatures(unittest.TestCase):
         self.assertAlmostEqual(v, 12000 - math.pi * 9 * 4, delta=1e-3)
         self.assertAlmostEqual(r["frames"]["H1"]["o"][2], 15)
 
+    def test_hole_heads(self):
+        """⌴ A counterbore (Ø10 × 4 over a Ø6 through hole) and ⌵ a countersink (Ø12 at 90° over Ø6: a cone 3 deep):
+        exact volumes, the head's faces named; a head narrower than the hole refused."""
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        hole = {"id": "H1", "type": "hole", "plane": top, "points": [[0, 0]], "d": 6, "through": True}
+        r, v = vol(*box(), {**hole, "head": "cbore", "head_d": 10, "head_depth": 4})
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 - math.pi * 9 * 10 - math.pi * (25 - 9) * 4, delta=1e-3)
+        names = {n for f in r["body"]["faces"] for n in f.get("names") or [f.get("name")] if n and n.startswith("H1")}
+        self.assertTrue({"H1:hole:0", "H1:cbore:0", "H1:cbore_floor:0"} <= names, names)
+        r, v = vol(*box(), {**hole, "head": "csk", "head_d": 12})
+        self.assertTrue(r["ok"], r["features"])
+        cone = math.pi * 3 / 3 * (36 + 9 + 18) - math.pi * 9 * 3  # the frustum Ø12 -> Ø6 over 3, less the hole in it
+        self.assertAlmostEqual(v, 8000 - math.pi * 9 * 10 - cone, delta=0.05)
+        self.assertIn("H1:csk:0", {f.get("name") for f in r["body"]["faces"]})
+        r, _ = vol(*box(), {**hole, "head": "cbore", "head_d": 5})
+        self.assertFalse(r["ok"])
+        self.assertIn("wider", r["features"][-1]["issues"][0])
+
     def test_round_then_hole_and_errors(self):
         fil = {"id": "F1", "type": "fillet", "edges": [{"a": "E1:side:l1", "b": "E1:side:l2", "fp": [40, 0, 5]}], "r": 50}
         r, v = vol(*box(), fil)

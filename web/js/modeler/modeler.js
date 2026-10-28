@@ -329,7 +329,7 @@ export class Modeler {
     if (f.type === 'extrude') return f.op === 'cut' ? (f.through ? 'cut through all' : `cut ${fmt(f.d)} mm`) : `${fmt(f.d)} mm`;
     if (f.type === 'fillet') return `R ${fmt(f.r)} · ${n('edges')} edge(s)`;
     if (f.type === 'chamfer') return `${fmt(f.d)} mm · ${n('edges')} edge(s)`;
-    if (f.type === 'hole') return `Ø${fmt(f.d)}${f.fit ? ` ${f.fit}` : ''} · ${n('points')} hole(s)${f.through === false ? ` · ${fmt(f.depth)} deep` : ''}`;
+    if (f.type === 'hole') return `Ø${fmt(f.d)}${f.fit ? ` ${f.fit}` : ''}${f.head === 'cbore' ? ` ⌴Ø${fmt(f.head_d)}×${fmt(f.head_depth)}` : f.head === 'csk' ? ` ⌵Ø${fmt(f.head_d)}` : ''} · ${n('points')} hole(s)${f.through === false ? ` · ${fmt(f.depth)} deep` : ''}`;
     if (f.type === 'revolve') return `${fmt(f.angle)}°${f.op === 'cut' ? ' cut' : ''}`;
     if (f.type === 'shell') return `wall ${fmt(f.t)} mm · ${n('faces')} open`;
     if (f.type === 'decal') return `${f.source === 'text' ? `“${f.text}”` : 'picture'} · ${fmt(f.h)} mm${f.op === 'cut' ? ' · engraved' : ' · raised'}`;
@@ -1734,6 +1734,10 @@ export class Modeler {
       <div class="field"><label>Diameter</label><input type="number" step="any" min="0" data-k="d" value="${fmt(f.d)}"><span class="unit">mm</span></div>
       <label class="check"><input type="checkbox" data-k="through" ${f.through !== false ? 'checked' : ''}> Through all</label>
       ${f.through === false ? `<div class="field"><label>Depth</label><input type="number" step="any" min="0" data-k="depth" value="${fmt(f.depth)}"><span class="unit">mm</span></div>` : ''}
+      <div class="field"><label>Head</label><select data-k="head" title="Room for a screw's head: ⌴ a counterbore (a socket head sunk in), ⌵ a countersink (a flat head flush with the face)">
+        ${[['', '—'], ['cbore', '⌴ Counterbore'], ['csk', '⌵ Countersink']].map(([v, l]) => `<option value="${v}" ${v === (f.head || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      ${f.head ? `<div class="field"><label>Head Ø</label><input type="number" step="any" min="0" data-k="head_d" value="${fmt(f.head_d)}"><span class="unit">mm</span></div>` : ''}
+      ${f.head === 'cbore' ? `<div class="field"><label>Head depth</label><input type="number" step="any" min="0" data-k="head_depth" value="${fmt(f.head_depth)}"><span class="unit">mm</span></div>` : ''}
       <div class="field"><label>Fit</label><select data-k="fit" title="An ISO 286 fit for the hole — shown on the 2D drawing (Ø8 H7 and its deviations); the model keeps the nominal size">
         ${['', 'H6', 'H7', 'H8', 'H9'].map((v) => `<option value="${v}" ${v === (f.fit || '') ? 'selected' : ''}>${v || '—'}</option>`).join('')}</select></div>
       ${f.points.length ? `<h3>Holes</h3><div class="mp-holes">${f.points.map((p, i) => `<div class="mp-hole">
@@ -1752,6 +1756,14 @@ export class Modeler {
     if (dep) num(dep, (v) => { if (v > 0) f.depth = v; });
     box.querySelector('[data-k=through]').addEventListener('change', (e) => { f.through = e.target.checked; this.renderProps(); this.rebuild(); });
     box.querySelector('[data-k=fit]').addEventListener('change', (e) => { if (e.target.value) f.fit = e.target.value; else delete f.fit; });
+    box.querySelector('[data-k=head]').addEventListener('change', (e) => { // (a screw head's room, sized from the hole: ISO 4762 / 10642-like)
+      const h = e.target.value;
+      delete f.head; delete f.head_d; delete f.head_depth;
+      if (h) Object.assign(f, { head: h, head_d: +(f.d * (h === 'cbore' ? 1.8 : 2)).toFixed(1) }, h === 'cbore' ? { head_depth: +(+f.d).toFixed(1) } : {});
+      this.renderProps();
+      this.rebuild();
+    });
+    for (const k of ['head_d', 'head_depth']) { const el = box.querySelector(`[data-k=${k}]`); if (el) num(el, (v) => { if (v > 0) f[k] = v; }); }
     for (const el of box.querySelectorAll('[data-u]')) num(el, (v) => { f.points[+el.dataset.u][0] = v; });
     for (const el of box.querySelectorAll('[data-v]')) num(el, (v) => { f.points[+el.dataset.v][1] = v; });
     // a distance from an edge: typed as a positive number, the hole stays on its side of the edge

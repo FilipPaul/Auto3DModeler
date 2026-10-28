@@ -339,6 +339,27 @@ def circle_face(fr, u, v, d):
     return BRepBuilderAPI_MakeFace(w, True).Face(), names
 
 
+def countersink(fr, u, v, top_d, d, angle, name):
+    """A countersink's cone at (u, v) of a plane frame: Ø top_d at the face narrowing at `angle` (90°: a flat-head
+    screw's) into the face, down to Ø d; its cone named `name` (a hair above the face, so it cuts clean)."""
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeCone
+    from OCP.GeomAbs import GeomAbs_Cone
+    half = math.radians(float(angle)) / 2
+    if not 0 < half < math.pi / 2:
+        raise KernelError("A countersink's angle is between 0 and 180° (90° for most screws).")
+    if top_d <= d:
+        raise KernelError("The countersink has to be wider than the hole.")
+    h, eps = (top_d - d) / 2 / math.tan(half), 0.01
+    n = -np.asarray(fr["n"], float)
+    p = to_3d(fr, u, v)
+    p0 = gp_Pnt(p.X() - n[0] * eps, p.Y() - n[1] * eps, p.Z() - n[2] * eps)
+    mk = BRepPrimAPI_MakeCone(gp_Ax2(p0, gp_Dir(*n)), top_d / 2 + eps * math.tan(half), d / 2, h + eps)
+    shape = mk.Shape()
+    fm = _face_map(shape)
+    cone = [fm.FindKey(i) for i in range(1, fm.Extent() + 1) if BRepAdaptor_Surface(TopoDS.Face(fm.FindKey(i))).GetType() == GeomAbs_Cone]
+    return Body(shape, {name: cone})
+
+
 # ------------------------------------------------------------------ bodies with named faces
 class Body:
     """A solid and the names of its faces {name: [faces]}."""

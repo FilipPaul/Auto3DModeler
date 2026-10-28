@@ -738,6 +738,8 @@ const CS = {
   'The part on screen — double-click to rename, drag to move the tab (out of the window: a new window)': 'Díl na obrazovce — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'Click to show it — double-click to rename, drag to move the tab (out of the window: a new window)': 'Kliknutím zobrazíte — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'No part open': 'Žádný díl není otevřený',
+  Head: 'Hlava', '⌴ Counterbore': '⌴ Válcové zahloubení', '⌵ Countersink': '⌵ Kuželové zahloubení', 'Head Ø': 'Ø hlavy', 'Head depth': 'Hloubka hlavy',
+  "Room for a screw's head: ⌴ a counterbore (a socket head sunk in), ⌵ a countersink (a flat head flush with the face)": 'Místo pro hlavu šroubu: ⌴ válcové zahloubení (zapuštěná válcová hlava), ⌵ kuželové zahloubení (zápustná hlava v rovině plochy)',
   Draft: 'Úkos', '⟋ Draft': '⟋ Úkos', 'Walls of': 'Stěny', 'Draft tilts the walls of an extrude — make one first.': 'Úkos naklání stěny vysunutí — nejdřív nějaké udělejte.',
   'Click a wall of an extrude.': 'Klikněte na stěnu vysunutí.',
   'Tilt the side walls of an extrude by a few degrees (so a moulded or cast part comes out of its mould)': 'Naklonit boční stěny vysunutí o pár stupňů (aby odlitek nebo výlisek šel z formy)',
