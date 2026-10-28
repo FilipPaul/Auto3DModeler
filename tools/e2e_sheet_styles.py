@@ -134,7 +134,9 @@ try:
         texts = js("return [...document.querySelectorAll('#shViewport .sh-title text, #shViewport .sh-bom text')].map(t => t.textContent)")
         fam = js("return getComputedStyle(document.querySelector('#shViewport .sh-title text[data-ff]')).fontFamily")
         check(LABEL[k] in texts and "A3D-0042" in texts and FONT[k] in fam, f"{k}: {LABEL[k]}, A3D-0042, in {fam.split(',')[0]}")
-        check(("Kolík Ø4×12" if CS else "Pin Ø4×12") in texts and "ISO 4762 M3×10" in texts, f"{k}: the parts list has the pin and the screw")
+        mats = [x for x in texts if x in ("hliník", "aluminium", "ocel", "steel")]
+        check(("Kolík Ø4×12" if CS else "Pin Ø4×12") in texts and "ISO 4762 M3×10" in texts and set(mats) == ({"hliník", "ocel"} if CS else {"aluminium", "steel"}),
+              f"{k}: the parts list has the pin and the screw, materials in the UI's language: {sorted(set(mats))}")
         d.save_screenshot(f"{OUT}/styles_{LANG}_{k}{k}.png")
         pdf = pdf_of(f"{{svg: {S}.svg(true)}}")
         fonts = {f[3] for f in pdf[0].get_fonts()}

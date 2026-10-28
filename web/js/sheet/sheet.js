@@ -705,7 +705,7 @@ export class SheetEditor {
   tbFields() {
     const src = this.hooks.partData(this.d.source) || {}, T = this.d.title || {}, X = this.d.texts || {}, tb = this.tb(), F = { ...tb.texts, ...X };
     const cs = getLang() === 'cs', d0 = this.d.changed ? new Date(this.d.changed) : null, p2 = (v) => String(v).padStart(2, '0');
-    const asm = !!this.d.asm, bom = !!this.d.bom, mat = T.material ?? (asm ? src.material || '—' : src.material || 'PLA');
+    const asm = !!this.d.asm, bom = !!this.d.bom, mat = T.material ?? (asm ? (src.material ? t(src.material) : '—') : t(src.material || 'PLA'));
     const what = [T.kind || (asm ? t('Assembly') : t('Part')), T.of ? `${t('in')} ${T.of}` : '', T.pos ? `${t('Pos.')} ${T.pos}` : ''].filter(Boolean);
     if (!bom) what.push(t(asm ? 'assembly drawing' : 'production drawing'));
     let mass = null;
@@ -832,7 +832,7 @@ export class SheetEditor {
   styledRow(r, page = false) {
     const pd = this.hooks.partData(r.part) || {}, asm = r.kind === 'assembly', ctx = this.hooks.drawingCtx?.();
     const how = asm ? 'assembly' : r.how || makeBuy(pd, r.name).how, mass = r.mass_g !== undefined ? r.mass_g : asm ? null : ctx?.massOf?.(r.part) ?? null;
-    return { pos: r.pos ?? '', name: `${asm ? '◇ ' : ''}${r.name}`, qty: `${r.qty}`, total: `${r.total ?? ''}`, mat: asm ? '' : r.material || '', bold: asm, depth: r.depth || 0,
+    return { pos: r.pos ?? '', name: `${asm ? '◇ ' : ''}${r.name}`, qty: `${r.qty}`, total: `${r.total ?? ''}`, mat: asm || !r.material ? '' : t(r.material), bold: asm, depth: r.depth || 0,
       mass: asm ? '' : grams(mass), mass_total: asm ? '' : grams(r.mass_total_g), maker: r.maker || '', make: t({ bought: 'buy', 'made (3D print)': 'print 3D', made: 'make', assembly: 'assembly' }[how] || how),
       pn: r.pn || (page ? '' : ctx?.sheetOf?.(r.part)?.texts?.number || ''), mass_g: asm ? 0 : mass };
   }
