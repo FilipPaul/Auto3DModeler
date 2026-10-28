@@ -442,7 +442,8 @@ def build(body, preset="medium", fits=None, paper=None, per_view=None, threads=N
         geo["holes"] = holes
     if section:
         geo["views"]["Section"] = _cached((key, "section"), lambda: section_view(body))
-    return {"geometry": geo, "layout": layout(geo, paper), "dims": auto_dims(geo, preset, fits, per_view, threads, holes)}
+    vol = _cached((key, "volume"), lambda: K.volume(getattr(body, "shape", body)))  # (mm³: the title block's mass, with the part's material)
+    return {"geometry": geo, "layout": layout(geo, paper), "dims": auto_dims(geo, preset, fits, per_view, threads, holes), "volume": round(vol, 3)}
 
 
 def _wire_points(w, n=24):
@@ -574,9 +575,7 @@ def value(geo, dim):
 
 
 def pdf(svg) -> bytes:
-    """The sheet as the browser drew it (SVG, mm) -> a PDF; several SVGs (a drawing set) -> one PDF, a page each."""
-    import fitz
-    out = fitz.open()
-    for one in [svg] if isinstance(svg, str) else list(svg):
-        out.insert_pdf(fitz.open("pdf", fitz.open(stream=str(one).encode("utf-8"), filetype="svg").convert_to_pdf()))
-    return out.tobytes()
+    """The sheet as the browser drew it (SVG, mm) -> a PDF; several SVGs (a drawing set) -> one PDF, a page each (the
+    title-block styles' texts in their own fonts: sheetpdf.py)."""
+    from .sheetpdf import pdf as make
+    return make(svg)

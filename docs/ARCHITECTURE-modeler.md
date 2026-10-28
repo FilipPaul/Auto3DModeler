@@ -992,6 +992,21 @@ Date: 2026-10-25. Written by the architect agent.
   (one imports the 44 MB board and draws the 171-hole plate, the other edits a small part): the small part's
   rebuild 28.4 s (behind the import) -> 7–19 ms, the plate's sheet 25.0 -> 1.4 s; two heavy parts from two
   threads 3.49 -> 2.14 s. tests/test_kernel_pool.py; tools/e2e_kernel_pool.py.
+- **Title-block styles A–E done (the owner's five designs):** web/js/sheet/tbstyles.js titleBlock draws them as SVG in
+  mm, from the 5 px = 1 mm mockups: A "Strip" 180 × 21 (IBM Plex Sans Condensed, one row), B "ISO 7200" 180 × 40 (IBM
+  Plex Sans; drawn / checked / approved, roughness, the first-angle projection symbol), C "Dark band" 180 × 34
+  (Barlow), D "Minimal" 170 × 28 (Inter, no grid), E "Column" 90 × 56 (Plex Condensed). Their fields (SheetEditor
+  tbFields): the name, what it is ("Part · production drawing"), drawing no., rev, material, mass (a part's volume —
+  /api/sheet/build now gives it — × its material's density; an assembly's from its BOM), scale, paper, sheet n / N,
+  tolerances, roughness (a new text `surface`), drawn by, the date (28. 10. 2026 in Czech, 2026-10-28 in English),
+  checked / approved (new texts, — when empty), the company (its first word as the mark, or the logo) and address.
+  Labels small and in capitals as in the designs, Czech through i18n. The fonts (SIL OFL, the licences beside them)
+  are in web/fonts (tools/make_sheet_fonts.py: static weights cut from the variable Plex Sans / Inter, all subset to
+  Latin + Czech + the drawing symbols, ~58 kB a file; fonts.css); texts are measured in the loaded font (a canvas) to
+  fit and to right-align. The PDF: MuPDF's SVG reader only has its base fonts, so auto3d/modeler/sheetpdf.py takes a
+  style's texts (they carry data-ff) out of the SVG and writes them on the page with the same font files (PyMuPDF
+  TextWriter, baseline / anchor / letter spacing kept; a letter a font lacks in Helvetica or Droid Sans Fallback),
+  then subsets the fonts. The DXF keeps its Arial text style. New sheets still start with Modern.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

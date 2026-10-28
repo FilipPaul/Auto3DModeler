@@ -15,11 +15,13 @@
 //    built: {geometry, layout, dims} (from the server), hash (of the part it was built from),
 //    rev, created, changed}
 import { History } from '../history.js';
-import { t } from '../i18n.js';
+import { t, getLang } from '../i18n.js';
 import { ask } from '../choose.js';
 import { renameInPlace } from '../rename.js';
 import { HOLE_FITS, SHAFT_FITS, deviationText } from './fits.js';
-import { itemNumbers as numbersOf, bomOf } from '../assembly/bom.js';
+import { itemNumbers as numbersOf, bomOf, makeBuy } from '../assembly/bom.js';
+import { MATERIALS } from '../modeler/materials.js';
+import { TITLE_STYLES, BOM_STYLES, STYLE_TIPS, isStyle, isBomStyle, titleSize, titleBlock, partsList, bomWidth, bomRowsIn, grams, fontsReady } from './tbstyles.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const fmt = (v) => (+(+v).toFixed(2)).toString();
@@ -30,8 +32,8 @@ const BOM_ROW = 5.5; // a BOM page's row (mm)
 const PRESETS = [['light', 'Light'], ['medium', 'Medium'], ['full', 'Full']];
 const TEXTS = [['title', 'Title'], ['number', 'Drawing no.'], ['drawn', 'Drawn by'], ['note', 'Note']];
 /** The fixed texts a title-block template holds (a sheet's own text of these overrides it). */
-const TPL_TEXTS = ['company', 'address', 'drawn', 'note', 'tolstd'];
-const MORE_TEXTS = [['company', 'Company'], ['address', 'Address'], ['tolstd', 'Tolerance standard']];
+const TPL_TEXTS = ['company', 'address', 'drawn', 'note', 'tolstd', 'surface'];
+const MORE_TEXTS = [['company', 'Company'], ['address', 'Address'], ['tolstd', 'Tolerance standard'], ['surface', 'Roughness (Ra)'], ['checked', 'Checked by'], ['approved', 'Approved by']];
 /** The title block's fields that a template may leave out. */
 const TB_FIELDS = [['company', 'Company / logo'], ['number', 'Drawing no.'], ['material', 'Material'], ['paper', 'Paper'], ['tolerances', 'Tolerances'], ['drawn', 'Drawn by'], ['created', 'Created'], ['changed', 'Changed'], ['note', 'Note']];
 const DEFAULT_TPL = { name: 'Modern', builtin: true, layout: 'block', hide: [], texts: {}, logo: null, frame: null };
@@ -109,6 +111,7 @@ export class SheetEditor {
     window.addEventListener('a3d:lang', () => { if (this.d) this.render(); }); // (texts built with t(): in the new language)
     this.tpls = [DEFAULT_TPL];
     this.loadTemplates();
+    fontsReady.then(() => { if (this.d) this.render(); }); // (the title-block styles' texts measured in their own fonts)
   }
 
   // ------------------------------------------------------------------ title-block templates (auto3d/title_templates.py)
@@ -130,14 +133,18 @@ export class SheetEditor {
 
   tplOf(d = this.d) { const n = this.tplName(d); return this.tpls.find((x) => x.name === n) || this.tpls[0] || DEFAULT_TPL; }
 
-  /** How a sheet's title block looks: its template, changed on this sheet by d.tb {layout, hide, logo}. */
+  /** How a sheet's title block looks: its template, changed on this sheet by d.tb {titleStyle, bomStyle, hide, logo}.
+   *  style: the title block's — block / strip (the app's Modern) or A … E (tbstyles.js); bomStyle: the parts list's —
+   *  modern or A … E. (layout: block / strip as before, from older sheets and templates.) */
   tbOf(d = this.d) {
     const tp = this.tplOf(d), own = d?.tb || {};
-    return { layout: own.layout || tp.layout || 'block', hide: new Set(own.hide || tp.hide || []), texts: tp.texts || {}, logo: own.logo !== undefined ? own.logo : tp.logo || null };
+    const style = [own.titleStyle, own.layout, tp.titleStyle, tp.layout].find((s) => s && (s === 'block' || s === 'strip' || isStyle(s))) || 'block';
+    const bomStyle = [own.bomStyle, tp.bomStyle].find((s) => s === 'modern' || isBomStyle(s)) || 'modern';
+    return { style, bomStyle, layout: style === 'strip' ? 'strip' : 'block', hide: new Set(own.hide || tp.hide || []), texts: tp.texts || {}, logo: own.logo !== undefined ? own.logo : tp.logo || null };
   }
 
-  /** The title block's height (mm): a block 38, a strip 14. */
-  titleH(d = this.d) { return this.tbOf(d).layout === 'strip' ? 14 : 38; }
+  /** The title block's height (mm): a block 38, a strip 14, a style's own (A 21, B 40, C 34, D 28, E 56). */
+  titleH(d = this.d) { const s = this.tbOf(d).style; return titleSize(s)?.[1] ?? (s === 'strip' ? 14 : 38); }
 
   /** 💾 Save as template…: the title block as this sheet shows it (layout, fields, fixed texts, logo, frame) under a
    *  name, kept on the server for every project; this sheet then uses it. */
@@ -601,7 +608,7 @@ export class SheetEditor {
     }
     out.push(this.titleSvg(pw, ph, m, th));
     out.push('</svg>');
-    return out.join('').replace(/<text /g, '<text font-family="Helvetica" '); // (the PDF's converter does not inherit a font)
+    return out.join('').replace(/<text (?!data-ff)/g, '<text font-family="Helvetica" '); // (the PDF's converter does not inherit a font; a style's texts say theirs)
   }
 
   /** One dimension: extension lines, the dimension line with arrows and its text (linear); a leader (Ø, R). */
@@ -689,8 +696,31 @@ export class SheetEditor {
     return `${out.join('')}</g>`;
   }
 
-  /** The title block's width (mm): 150 on A4, 180 (ISO 7200's) on A3. */
-  titleW() { return (this.lay?.size?.[0] || 297) >= 400 ? 180 : 150; }
+  /** The title block's width (mm): 150 on A4, 180 (ISO 7200's) on A3; a style's own (A, B, C 180, D 170, E 90). */
+  titleW() { return titleSize(this.tb().style)?.[0] ?? ((this.lay?.size?.[0] || 297) >= 400 ? 180 : 150); }
+
+  /** The title block's fields as text, for the styles A … E (tbstyles.js titleBlock): what the sheet and its part
+   *  say, its own texts over its template's; — where nothing is known. */
+  tbFields() {
+    const src = this.hooks.partData(this.d.source) || {}, T = this.d.title || {}, X = this.d.texts || {}, tb = this.tb(), F = { ...tb.texts, ...X };
+    const cs = getLang() === 'cs', d0 = this.d.changed ? new Date(this.d.changed) : null, p2 = (v) => String(v).padStart(2, '0');
+    const asm = !!this.d.asm, bom = !!this.d.bom, mat = T.material ?? (asm ? src.material || '—' : src.material || 'PLA');
+    const what = [T.kind || (asm ? t('Assembly') : t('Part')), T.of ? `${t('in')} ${T.of}` : '', T.pos ? `${t('Pos.')} ${T.pos}` : ''].filter(Boolean);
+    if (!bom) what.push(t(asm ? 'assembly drawing' : 'production drawing'));
+    let mass = null;
+    if (bom) mass = this.d.bom.mass_g || null;
+    else if (asm) { try { const b = bomOf(this.bomCtx(), this.d.source, {}); mass = b.mass_unknown ? null : b.mass_g || null; } catch { mass = null; } }
+    else if (this.d.built?.volume && MATERIALS[src.material || 'PLA']) mass = (this.d.built.volume / 1000) * MATERIALS[src.material || 'PLA'];
+    return {
+      name: X.title || T.part || this.hooks.partName(this.d.source) || '—', kind: what.join(' · '), number: F.number || '', rev: `${this.d.rev}`,
+      material: mat, mass: mass ? grams(mass) : '', scale: bom ? '' : scaleText(this.scaleArr()), paper: this.lay?.paper || '', sheet: T.sheet || '1 / 1',
+      tol: src.tolerance ? `${(F.tolstd || 'ISO 2768').replace(/-[a-z]+$/i, '')}-${src.tolerance}` : F.tolstd || '', surface: F.surface || '',
+      drawn: F.drawn || '', checked: F.checked || '', approved: F.approved || '', company: F.company || '',
+      address: String(F.address || '').split(/\s*[\n;]\s*|,\s+(?=\d)/).filter(Boolean), logo: tb.logo,
+      date: d0 ? (cs ? `${d0.getDate()}. ${d0.getMonth() + 1}. ${d0.getFullYear()}` : `${d0.getFullYear()}-${p2(d0.getMonth() + 1)}-${p2(d0.getDate())}`) : '',
+      dateShort: d0 ? (cs ? `${d0.getDate()}.${d0.getMonth() + 1}.${String(d0.getFullYear()).slice(2)}` : `${d0.getFullYear()}-${p2(d0.getMonth() + 1)}-${p2(d0.getDate())}`) : '',
+    };
+  }
 
   /** How the title block looks: {layout: 'block' | 'strip', hide: Set of fields, texts (fixed: company, address, drawn,
    *  note, tolstd), logo (a data URL) or null}. */
@@ -702,6 +732,7 @@ export class SheetEditor {
   titleSvg(pw, ph, m, th) {
     const L = this.lay, [, , mr, mb] = this.frameOf().m, W = this.titleW(), x0 = pw - mr - W, y0 = ph - mb - th;
     const src = this.hooks.partData(this.d.source) || {}, T = this.d.title || {}, X = this.d.texts || {}, tb = this.tb(), F = { ...tb.texts, ...X };
+    if (isStyle(this.tb().style)) return titleBlock(this.tb().style, x0, y0, this.tbFields()); // (A … E: as the owner's designs)
     const on = (f) => !tb.hide.has(f), INK = '#000', MUTED = '#555', THIN = 0.13;
     const fit = (s, w, fs) => { s = String(s ?? ''); const n = Math.max(1, Math.floor(w / (fs * 0.53))); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
     const tol = src.tolerance ? `${(F.tolstd || 'ISO 2768').replace(/-[a-z]+$/i, '')}-${src.tolerance}` : F.tolstd || '—';
