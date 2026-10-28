@@ -133,6 +133,28 @@ try:
     time.sleep(1.2)
     print("  5 typed: its Ø", js(f"return 2 * {SK}.f.entities.find(e => e.t === 'circle').r"), "| locked as", js(f"return {SK}.f.dims.filter(x => x.t === 'dia').map(x => x.v)"))
     d.save_screenshot(f"{OUT}/sketch_pick.png")
+    # drawing onto a line that is off the grid: its middle, then a place along it (the points stay there)
+    d.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
+    js(f"const s = {SK}; s.f.points.q1 = [52.13, -20.37]; s.f.points.q2 = [75.5, -2.72]; s.f.entities.push({{ id: 'lq', t: 'line', a: 'q1', b: 'q2' }}); s.changed()")
+    time.sleep(0.6)
+    tool("line")
+    sl = js(f"const e = {SK}.ent('lq'); return [e.id, {SK}.P(e.a), {SK}.P(e.b)]")
+    lid, a0, b0 = sl
+    mid = [(a0[0] + b0[0]) / 2, (a0[1] + b0[1]) / 2]
+    along = [a0[0] + (b0[0] - a0[0]) * 0.8, a0[1] + (b0[1] - a0[1]) * 0.8]
+    print("an off-grid line:", [round(v, 2) for v in a0 + b0])
+    ActionChains(d, duration=30).move_to_element_with_offset(canvas(), *off([mid[0] + 0.3, mid[1] - 0.4])).perform()
+    time.sleep(0.4)
+    print("  the mouse near its middle:", js(f"return [{SK}.hover?.mid || null, JSON.stringify({SK}.cursor?.uv)]"), "| shown:",
+          js("return [...document.querySelectorAll('.sk-label')].map(l => l.textContent).find(t => t.includes('midpoint') || t.includes('střed'))"))
+    click_uv([mid[0] + 0.3, mid[1] - 0.4])
+    click_uv([along[0] - 0.3, along[1] + 0.4])
+    d.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
+    time.sleep(1)
+    new = js(f"const e = {SK}.f.entities.filter(x => x.t === 'line').slice(-1)[0]; return [{SK}.P(e.a), {SK}.P(e.b), {SK}.f.constraints.filter(k => k.p === e.a || k.p === e.b).map(k => k.t + ':' + k.e)]")
+    pa, pb, ks = new
+    cross = lambda p: abs((b0[0] - a0[0]) * (p[1] - a0[1]) - (b0[1] - a0[1]) * (p[0] - a0[0])) / math.dist(a0, b0)
+    print("  a line from its middle to a place on it: rules", ks, "| at the middle:", round(math.dist(pa, mid), 4), "| on the line:", round(cross(pb), 4))
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()

@@ -80,6 +80,10 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Snapping onto shapes done:** Sketcher.snap (by the filters): points / origin, line midpoints (a `mid` rule:
+  constraints symmetric_point), the part's corners / centres, a place on a sketch line / circle / arc (an `on` rule) or
+  on the part's straight / round edges, then the grid; the snap named at the mouse (midpoint, on the line …).
+  test_point_held_at_a_lines_middle; e2e_sketch_pick (an off-grid line: from its middle to a place on it).
 - **Tree pictures, drag into an assembly, library icon, middle-click close done:** thumbs.js (bodyOf: a light rebuild
   kept by its steps; picture: one offscreen renderer, iso; svgPicture for sheets) via hooks.thumb (sub-assemblies
   placed); Project.showPreview / hidePreview (.tr-preview beside the row); tree rows draggable (text/a3d-insert) —

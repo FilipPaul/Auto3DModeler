@@ -59,7 +59,9 @@ next to the tabs offers the usual ways to open a file.
 Circles / arcs, Part edges* — says what a click may pick (remembered). The origin and a line's **midpoint** can be
 picked and dimensioned from (the distance is held from the middle as the line changes). A dimension can be dragged by
 its label or **by its dimension line**. A circle or arc shows its size as **R or Ø** — *⇄ Show it as a radius /
-diameter* (or R ⇄ Ø in its size box); a typed value is taken that way.
+diameter* (or R ⇄ Ø in its size box); a typed value is taken that way. **Drawing snaps** to points, a line's
+**midpoint** (the new point stays at the middle), anywhere **on a line, circle or arc** (it stays on it) and the
+part's edges — off the grid too — the place named at the mouse; the same filters say what it snaps to.
 
 **The tools for a face of a 3D model** open with a **right click** on it (a left click chooses its step and shows its
 sizes; the right button dragged still pans).

@@ -385,22 +385,58 @@ export class Sketcher {
   // ------------------------------------------------------------------ geometry helpers
   mpp() { return this.view.mmPerPixel(this.frame()); }
 
-  /** Snap to existing points (they get connected), the origin, then the grid. Alt = no snapping. */
+  /** Snap (what the filters at the bottom allow): existing points (they get connected) and the origin, a line's
+   *  middle, the part's corners and centres, then a place on a sketch line / circle / arc (the new point stays on it)
+   *  or on an edge of the part, then the grid. Alt = no snapping. */
   snap(uv, free = false, skip = null) {
     if (free) return { uv };
-    const tol = this.mpp() * 9;
+    const tol = this.mpp() * 9, F = this.pickable;
     let best = null;
     // a sketch point on the origin wins over the origin itself (so the new line joins it)
-    for (const [id, p] of [...Object.entries(this.f.points), [ORIGIN, [0, 0]]]) {
+    for (const [id, p] of [...(F.points ? Object.entries(this.f.points) : []), ...(F.origin ? [[ORIGIN, [0, 0]]] : [])]) {
       if (id === skip) continue;
       const d = Math.hypot(p[0] - uv[0], p[1] - uv[1]);
       if (d < tol && (!best || d < best.d)) best = { id, d, uv: [...p] };
     }
     if (best) return best;
-    const R = this.refs();
+    const lines = this.f.entities.filter((e) => e.t === 'line' && e.a !== skip && e.b !== skip); // (not the line being drawn from)
+    if (F.mid) {
+      for (const e of lines) {
+        const a = this.P(e.a), b = this.P(e.b), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], d = Math.hypot(m[0] - uv[0], m[1] - uv[1]);
+        if (d < tol && (!best || d < best.d)) best = { d, uv: m.map((v) => +v.toFixed(6)), on: e.id, mid: e.id };
+      }
+    }
+    if (best) return best;
+    const R = F.edges ? this.refs() : { points: [], circles: [], lines: [] };
     for (const r of [...R.points, ...R.circles.map((q) => q.c)]) {
       const d = Math.hypot(r[0] - uv[0], r[1] - uv[1]);
       if (d < tol && (!best || d < best.d)) best = { d, uv: [...r], ref: true };
+    }
+    if (best) return best;
+    const foot = (a, b) => { // the nearest place on a segment
+      const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy || 1, k = Math.max(0, Math.min(1, ((uv[0] - a[0]) * dx + (uv[1] - a[1]) * dy) / L));
+      return [a[0] + k * dx, a[1] + k * dy];
+    };
+    if (F.lines) {
+      for (const e of lines) { // on a line of the sketch: the point stays on it
+        const p = foot(this.P(e.a), this.P(e.b)), d = Math.hypot(p[0] - uv[0], p[1] - uv[1]);
+        if (d < tol * 0.8 && (!best || d < best.d)) best = { d, uv: p.map((v) => +v.toFixed(6)), on: e.id };
+      }
+    }
+    if (F.round) {
+      for (const e of this.f.entities) { // on a circle / arc of the sketch
+        if (e.t !== 'circle' && e.t !== 'arc') continue;
+        const c = this.P(e.c), r = e.t === 'circle' ? e.r : this.arcR(e), d0 = Math.hypot(uv[0] - c[0], uv[1] - c[1]);
+        if (d0 < 1e-9 || Math.abs(d0 - r) >= tol * 0.8 || (best && Math.abs(d0 - r) >= best.d)) continue;
+        const p = [c[0] + ((uv[0] - c[0]) * r) / d0, c[1] + ((uv[1] - c[1]) * r) / d0];
+        if (e.t === 'arc' && this.arcDist(e, p) > tol * 0.5) continue; // (off the arc's own piece)
+        best = { d: Math.abs(d0 - r), uv: p.map((v) => +v.toFixed(6)), on: e.id };
+      }
+    }
+    if (best) return best;
+    for (const [a, b] of R.lines) { // on a straight edge of the part
+      const p = foot(a, b), d = Math.hypot(p[0] - uv[0], p[1] - uv[1]);
+      if (d < tol * 0.8 && (!best || d < best.d)) best = { d, uv: p.map((v) => +v.toFixed(6)), ref: true, edge: true };
     }
     if (best) return best;
     for (const q of R.circles) { // on a round edge of the part: the nearest point of it
@@ -421,6 +457,7 @@ export class Sketcher {
     if (s.id && s.id !== ORIGIN) return s.id;
     const id = this.newId('p');
     this.f.points[id] = [...s.uv];
+    if (s.on && this.ent(s.on)) this.f.constraints.push({ id: this.newId('k'), t: s.mid ? 'mid' : 'on', p: id, e: s.on }); // (snapped onto a line / circle, or a line's middle: it stays there)
     if (s.id === ORIGIN) {
       this.f.dims.push({ id: this.newId('d'), t: 'dx', a: ORIGIN, b: id, v: 0 }, { id: this.newId('d'), t: 'dy', a: ORIGIN, b: id, v: 0 });
     }
@@ -948,7 +985,8 @@ export class Sketcher {
       : this.tool === 'round' ? this.cornerAt(uv)
       : this.tool === 'dim' || this.tool === 'relate' ? this.pickTarget(uv)
       : this.tool === 'select' ? ((h) => (h?.kind === 'point' ? { kind: 'point', end: h.id, uv: this.P(h.id) } : h))(this.hit(uv))
-      : this.cursor.id || this.cursor.ref ? { kind: 'point', end: this.cursor.ref ? { ref: this.cursor.uv } : this.cursor.id, uv: this.cursor.uv } : null;
+      : this.cursor.id || this.cursor.ref || this.cursor.on ? { kind: 'point', end: this.cursor.ref ? { ref: this.cursor.uv } : this.cursor.id || null, uv: this.cursor.uv,
+        ...(this.cursor.mid ? { mid: this.cursor.mid } : this.cursor.on ? { onShape: this.ent(this.cursor.on)?.t } : this.cursor.edge ? { onShape: 'edge' } : {}) } : null;
     const key = hv?.key || JSON.stringify(hv && { ...hv, d: undefined });
     const changed = key !== this.hoverKey;
     this.hover = hv;
@@ -2413,7 +2451,8 @@ export class Sketcher {
         dots.push([hv.uv, HL]);
         if (hv.circle) { const c = this.ent(hv.circle); circles.push([this.P(c.c), c.r, HL]); name = 'circle (its centre)'; }
         else if (hv.arc) { const ps = this.arcOf(this.ent(hv.arc)); for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], HL]); name = 'arc (its centre)'; }
-        else name = hv.mid ? 'midpoint' : hv.corner ? 'corner' : hv.end === ORIGIN ? 'origin' : typeof hv.end === 'object' ? 'corner of the part' : 'point';
+        else name = hv.mid ? 'midpoint' : hv.onShape ? { line: 'on the line', circle: 'on the circle', arc: 'on the arc', edge: 'on the edge of the part' }[hv.onShape] || 'on it'
+          : hv.corner ? 'corner' : hv.end === ORIGIN ? 'origin' : hv.end && typeof hv.end === 'object' ? 'corner of the part' : 'point';
         at = hv.uv;
       } else if (hv.kind === 'piece') {
         for (let i = 0; i + 1 < hv.pts.length; i++) lines.push([hv.pts[i], hv.pts[i + 1], hv.grow ? 0x7ee787 : 0xff7b72]);

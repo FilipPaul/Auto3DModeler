@@ -9,6 +9,7 @@ A sketch (in the feature JSON):
                  {"t": "tan", "e": "l1", "arc": "a1", "p": "p7"}   line l1 tangent to arc a1 at their common point p7
                  {"t": "corner", "p": "p2", "lines": ["l1", "l2"]} a rounded corner's sharp point (on both lines)
                  {"t": "on", "p": "p9", "e": "c1"}                  point p9 stays on line / circle / arc c1 (a trimmed end)
+                 {"t": "mid", "p": "p9", "e": "l1"}                 point p9 stays at line l1's middle (snapped there)
                  {"t": "mir", "pairs": [["p1", "p9"], ["p2", "p2"]], "circles": [["c1", "c2"]], "e": "l5" | "axis": "x" | "y"}
                                                                     a mirrored copy: each pair symmetric about line l5 or a
                                                                     sketch axis (a point paired with itself stays on it)
@@ -185,6 +186,11 @@ def solve(sketch, drag=None, keep=None, detail=False):
                 other = ents.get(k.get("e"))
                 if other and k.get("p") in ids:
                     {"line": s.point_on_line, "circle": s.point_on_circle, "arc": s.point_on_arc}[other[0]["t"]](ids[k["p"]], other[1])
+                continue
+            if k.get("t") == "mid":  # a point snapped to a line's middle stays there
+                ln = ents.get(k.get("e"))
+                if ln and ln[0]["t"] == "line" and k.get("p") in ids:
+                    s.symmetric_point(ids[ln[0]["a"]], ids[ln[0]["b"]], ids[k["p"]])
                 continue
             if k.get("t") == "corner":  # a rounded corner's sharp point stays where its two lines would meet
                 for ln in k.get("lines") or []:

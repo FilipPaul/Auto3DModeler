@@ -134,6 +134,17 @@ class TestSketchSolve(unittest.TestCase):
         a, b, c = r["points"]["p1"], r["points"]["p2"], r["points"]["p3"]
         self.assertAlmostEqual(math.dist([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], c), 6, places=5)
 
+    def test_point_held_at_a_lines_middle(self):
+        """mid: a point snapped to a line's middle stays there when the line's end moves."""
+        sk = {"points": {"p1": [0, 0], "p2": [10, 4], "p3": [5, 2]},
+              "entities": [{"id": "l1", "t": "line", "a": "p1", "b": "p2"}],
+              "constraints": [{"id": "k1", "t": "mid", "p": "p3", "e": "l1"}],
+              "dims": [{"id": "d1", "t": "dx", "a": "O", "b": "p1", "v": 0}, {"id": "d2", "t": "dy", "a": "O", "b": "p1", "v": 0},
+                       {"id": "d3", "t": "dx", "a": "O", "b": "p2", "v": 30}, {"id": "d4", "t": "dy", "a": "O", "b": "p2", "v": 12}]}
+        r = solve(sk)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual([round(v, 6) for v in r["points"]["p3"]], [15, 6])
+
     def test_point_from_a_slanted_line(self):
         sk = {"points": {"p1": [0, 0], "p2": [10, 10], "p3": [0, 8]},
               "entities": [{"id": "l1", "t": "line", "a": "p1", "b": "p2"}, {"id": "c1", "t": "circle", "c": "p3", "r": 1}],
