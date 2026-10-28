@@ -739,7 +739,7 @@ export class SheetEditor {
     const tol = src.tolerance ? `${(F.tolstd || 'ISO 2768').replace(/-[a-z]+$/i, '')}-${src.tolerance}` : F.tolstd || '—';
     const day = (iso) => (iso ? new Date(iso).toISOString().slice(0, 10) : '—');
     const name = X.title || T.part || this.hooks.partName(this.d.source) || '—';
-    const mat = T.material ?? (this.d.asm ? src.material || '—' : src.material || 'PLA'); // (an assembly: its parts' are in its parts list)
+    const mat = T.material ?? (this.d.asm ? (src.material ? t(src.material) : '—') : t(src.material || 'PLA')); // (an assembly: its parts' are in its parts list)
     const what = [T.kind || (this.d.asm ? t('Assembly') : t('Part')), T.of ? `${t('in')} ${T.of}` : '', T.pos ? `${t('Pos.')} ${T.pos}` : ''].filter(Boolean).join(' · ');
     const g = [`<g class="sh-title"><rect x="${x0}" y="${y0}" width="${W}" height="${th}" fill="#fff" stroke="${INK}" stroke-width="0.35"/>`];
     const hit = (key, x, y, w, h) => g.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fff" fill-opacity="0" stroke="none" data-tcell="${key}" class="sh-tcell"/>`);
@@ -822,7 +822,7 @@ export class SheetEditor {
       g.push(`<line x1="${x0}" y1="${y + (head ? 6 : 5)}" x2="${x0 + W}" y2="${y + (head ? 6 : 5)}" stroke="#000" stroke-width="${head ? 0.25 : 0.13}"/>`);
     };
     row(top, cols.map((c) => c[0]), true);
-    shown.forEach((r, i) => row(top + 1 + 5 * (i + 1), [r.pos, `${r.kind === 'assembly' ? '◇ ' : ''}${r.name}`, r.qty, r.material, r.pn || (r.bought ? t('bought') : '')], false));
+    shown.forEach((r, i) => row(top + 1 + 5 * (i + 1), [r.pos, `${r.kind === 'assembly' ? '◇ ' : ''}${r.name}`, r.qty, t(r.material), r.pn || (r.bought ? t('bought') : '')], false));
     if (rows.length > max) g.push(`<text x="${x0 + 1.6}" y="${top + 1 + 5 * (shown.length + 1) + 3.6}" font-size="2.6">… ${rows.length - max} ${t('more')}</text>`);
     return this.balloonsSvg(g, rows);
   }
@@ -944,8 +944,8 @@ export class SheetEditor {
     row(top, cols.map((c) => c[0]), true);
     B.lines.forEach((r, i) => {
       const asm = r.kind === 'assembly', how = asm ? t('assembly') : t(r.how);
-      const cells = structured ? [r.pos ?? '', `${asm ? '◇ ' : ''}${r.name}`, r.qty, r.total, r.material || '', asm ? '' : kg(r.mass_g), r.maker || '', r.pn || '', how]
-        : [r.pos ?? '', r.name, r.qty, r.material || '', kg(r.mass_g), kg(r.mass_total_g), r.maker || '', r.pn || '', how];
+      const cells = structured ? [r.pos ?? '', `${asm ? '◇ ' : ''}${r.name}`, r.qty, r.total, r.material ? t(r.material) : '', asm ? '' : kg(r.mass_g), r.maker || '', r.pn || '', how]
+        : [r.pos ?? '', r.name, r.qty, r.material ? t(r.material) : '', kg(r.mass_g), kg(r.mass_total_g), r.maker || '', r.pn || '', how];
       row(top + 6.5 + BOM_ROW * i, cells, false, { depth: r.depth || 0, asm });
     });
     if (B.more) g.push(`<text x="${x0 + 1.6}" y="${top + 6.5 + BOM_ROW * B.lines.length + 3.9}" font-size="2.6" fill="#555">${esc(tv('… continued on the next page ({n} / {m})', { n: B.page + 1, m: B.pages }))}</text>`);

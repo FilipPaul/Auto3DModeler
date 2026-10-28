@@ -109,6 +109,7 @@ export function bomTable(bom, tr = (s) => s) {
   const cell = (r, k) => {
     if (k === 'level') return r.depth + 1;
     if (k === 'how') return r.kind === 'assembly' ? tr('assembly') : tr(r.how);
+    if (k === 'material') return r.material ? tr(r.material) : ''; // (by the names the material select shows: ocel, hliník …)
     if (k.startsWith('order:')) return r.order?.[k.slice(6)] || '';
     if (k === 'qty' || k === 'total' || k === 'pos') return r[k] ?? '';
     if (k === 'mass_g' || k === 'mass_total_g') return r[k] ?? '';
