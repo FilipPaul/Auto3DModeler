@@ -91,6 +91,9 @@ Date: 2026-10-25. Written by the architect agent.
   tools/e2e_ai_reports.py.
 - **Steps named after their sketch done:** nextName(type, sketch): an extrude / revolve of a sketch the user named
   is "Extrude – Slot" (a "Sketch 2" keeps "Extrude 3"), in the panel and for the AI. tools/e2e_ai_reports.py.
+- **No right-click menu in the 3D model done:** clickFace shows the face's tools in the suggestions table in its
+  sections (On this face / Its edges / The part / Step · name, showSuggest {section}); the .m-fmenu pop-up and its
+  styles are gone, a right click only pans. e2e_model_pick.
 - **The assembly's suggestions in sections done:** showSuggest items {section} are headings (.vs-sec); a picked
   face's table: the part first (◆ Select the whole part — the face pick dropped, its moves in the panel —, then
   Assembly.partItems: open, join, simplified, edit here, fix, its own part, take out), then This face (its joints,

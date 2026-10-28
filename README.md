@@ -120,8 +120,8 @@ Its **✨** puts what is selected into the AI chat — as the AI's tools name it
 assembly parts) — so you can ask about it. The **Snap** row under it (3D model, assembly) says what 📏 Measure catches:
 corners, edge midpoints, centres. With **no tool on**, the snap point under the mouse shows too and a click picks it
 (in an assembly: with its part) — *📏 Measure from here*, *Copy its coordinates*, ✨.
-The same tools open with a **right click** on it (a left click chooses its step and shows its
-sizes; the right button dragged still pans).
+Everything for the clicked face is in that table, in sections — *On this face*, *Its edges*, *The part*, *Step* — so
+there is no right-click menu: the right button only pans.
 
 **Box selection** in a sketch (⬚ Select, drag on empty space): **right to left** takes every shape the box touches
 (green, dashed), **left to right** only the shapes wholly inside it (blue); hold **Ctrl** to add to what is picked —

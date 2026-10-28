@@ -456,7 +456,7 @@ export class Modeler {
 
   /** A snap point picked (no tool on): marked, and what to do with it suggested — measure from it, copy it, ask the AI. */
   pickSnap(sp) {
-    const p = sp.point, xyz = [p.x, p.y, p.z].map((v) => fmt(+v.toFixed(3))).join(', '), kind = t({ corner: 'A corner', midpoint: 'An edge midpoint', centre: 'A centre' }[sp.snap]);
+    const p = sp.point, xyz = [p.x, p.y, p.z].map((v) => fmt(+v.toFixed(3))).join(', '), kind = t({ corner: 'A corner', midpoint: 'An edge midpoint', centre: 'A centre', quadrant: 'A quadrant' }[sp.snap]);
     this.view.setMeasure([p]);
     const sg = showSuggest(this.els.viewport, `${kind} · ${xyz}`, [
       { icon: '📏', label: t('Measure from here'), run: () => {
@@ -474,11 +474,11 @@ export class Modeler {
   /** The suggestions table of the 3D model (a face's tools) gone. */
   dropSuggest() { const b = this.els.viewport.querySelector(':scope > .view-suggest[data-from=face]'); b?.remove(); if (!this.measuring) this.view.setMeasure([]); }
 
-  /** A click on the part: its step is chosen (its sizes show) and the tools for that face are suggested (bottom left);
-   *  a right click pops them up at the mouse. */
-  clickFace(e, menu = false) {
+  /** A click on the part: its step is chosen (its sizes show) and everything for that face is suggested (bottom left),
+   *  in sections: on this face, its edges, the part, the step. */
+  clickFace(e) {
     this.closeCtx();
-    const sp = !menu && this.view.measurePoint(e.clientX, e.clientY);
+    const sp = this.view.measurePoint(e.clientX, e.clientY);
     if (sp?.snap) { this.pickSnap(sp); return; } // a corner, an edge's middle, a centre
     if (!this.measuring) this.view.setMeasure([]);
     const h = this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
@@ -502,28 +502,11 @@ export class Modeler {
         ['off', fs.step.suppressed ? '●' : '◌', t(fs.step.suppressed ? 'Turn it on' : 'Turn it off'), () => this.toggleOff(fs.step.id)],
         ['del', '✕', t('Delete the step'), () => this.remove(fs.step.id), 'danger']]],
     ].map(([title, items]) => [title, items.filter(Boolean)]).filter(([, items]) => items.length);
-    if (!menu) { // the suggestions table: the same tools
-      const face = t(this.faceLabel(h.face.name).replace(/ of .*$/, '').replace(/^the /, ''));
-      const sg = showSuggest(this.els.viewport, `${fs.step.name} · ${face}`, sections.flatMap(([, items]) => items)
-        .map(([, icon, label, run, cls]) => ({ icon, label, danger: cls === 'danger', run: () => { this.dropSuggest(); run(); } })), t('Right click: the same at the mouse'),
-        `${t('in the 3D model')}: ${t('step')} ${fs.step.id} “${fs.step.name}”, ${t('face')} ${h.face.name}${h.face.type === 'plane' ? ` (${t('flat')})` : h.face.type === 'cylinder' ? ` (${t('round')}, Ø${fmt(2 * (h.face.radius || 0))})` : ''}`);
-      if (sg) sg.dataset.from = 'face';
-      return;
-    }
-    this.dropSuggest();
-    const box = document.createElement('div');
-    box.className = 'm-fmenu';
-    box.dataset.noI18n = '';
-    const vr = this.els.viewport.getBoundingClientRect();
-    box.innerHTML = `<div class="fm-head"><b>${esc(fs.step.name)}</b><span>${esc(t(this.faceLabel(h.face.name).replace(/ of .*$/, '').replace(/^the /, '')))}</span></div>`
-      + sections.map(([title, items]) => `<div class="fm-sec"><div class="fm-h">${esc(title)}</div>${items.map((it) => `<button data-ctx="${it[0]}" class="${it[4] || ''}"><span class="fm-i">${it[1]}</span> <span class="fm-l">${esc(it[2])}</span></button>`).join('')}</div>`).join('');
-    for (const ev of ['pointerdown', 'pointerup', 'contextmenu']) box.addEventListener(ev, (x) => x.stopPropagation());
-    const acts = Object.fromEntries(sections.flatMap(([, items]) => items).map((it) => [it[0], it[3]]));
-    for (const b of box.querySelectorAll('[data-ctx]')) b.addEventListener('click', () => { this.closeCtx(); this.tip(null); acts[b.dataset.ctx](); });
-    this.els.viewport.appendChild(box);
-    const w = box.offsetWidth, hgt = box.offsetHeight; // (inside the view)
-    Object.assign(box.style, { left: `${Math.max(6, Math.min(e.clientX - vr.left + 10, vr.width - w - 6))}px`, top: `${Math.max(6, Math.min(e.clientY - vr.top + 10, vr.height - hgt - 6))}px` });
-    this.ctx = box;
+    const face = t(this.faceLabel(h.face.name).replace(/ of .*$/, '').replace(/^the /, ''));
+    const sg = showSuggest(this.els.viewport, `${fs.step.name} · ${face}`, sections.flatMap(([title, items]) => [{ section: title },
+      ...items.map(([, icon, label, run, cls]) => ({ icon, label, danger: cls === 'danger', run: () => { this.dropSuggest(); run(); } }))]), '',
+      `${t('in the 3D model')}: ${t('step')} ${fs.step.id} “${fs.step.name}”, ${t('face')} ${h.face.name}${h.face.type === 'plane' ? ` (${t('flat')})` : h.face.type === 'cylinder' ? ` (${t('round')}, Ø${fmt(2 * (h.face.radius || 0))})` : ''}`);
+    if (sg) sg.dataset.from = 'face';
   }
 
   closeCtx() { this.ctx?.remove(); this.ctx = null; }
@@ -2536,15 +2519,8 @@ export class Modeler {
   bindPointer() {
     const cv = this.view.renderer.domElement;
     let down = null;
-    // a right click (not a pan with it) on the part: the tools for that face
-    cv.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      const r = this.rdown, still = r && Math.hypot(e.clientX - r.x, e.clientY - r.y) <= 4;
-      this.rdown = null;
-      if (still && this.mode === 'part' && !this.cmd && !this.measuring && !this.painting) this.clickFace(e, true); else this.closeCtx();
-    });
+    cv.addEventListener('contextmenu', (e) => e.preventDefault()); // (the right button pans; a left click suggests everything)
     cv.addEventListener('pointerdown', (e) => {
-      if (e.button === 2) this.rdown = { x: e.clientX, y: e.clientY };
       if (e.button !== 0 || (e.buttons & ~1)) { down = null; return; } // the left button alone
       down = { x: e.clientX, y: e.clientY, drag: null };
       if (this.mode === 'sketch') {

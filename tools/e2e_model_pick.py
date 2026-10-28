@@ -1,8 +1,8 @@
 """Pointing at and clicking the part, with REAL mouse input in headless Edge: a 60 x 40 x 5 plate with a Ø6 hole ->
 the mouse over the plate lights up its whole step and names it -> a click on the top face: the tools for that face
 pop up, and the step's sizes show on the part (60, 40, ↕ 5) -> click "60": a number and a slider; sliding previews,
-typing 80 + Enter keeps it (exact volume) -> the hole's Ø edited the same way -> "◎ Hole here" from the pop-up starts
-a hole where it was clicked.
+typing 80 + Enter keeps it (exact volume) -> the hole's Ø edited the same way -> "◎ Hole here" from the suggestions starts
+a hole where it was clicked; a right click opens no menu (the left click's table has it all, in sections).
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
   PYTHONIOENCODING=utf-8 py tools/e2e_model_pick.py http://127.0.0.1:5199 <out dir>
@@ -116,7 +116,9 @@ try:
     print("  dragged by its header:", round(d.find_element(By.CSS_SELECTOR, "#modelViewport .view-suggest").rect["x"] - x0), "px | remembered:", bool(js("return localStorage.getItem('a3d.suggestAt')")))
     js("localStorage.removeItem('a3d.suggestAt'); document.querySelector('#modelViewport .view-suggest')?.remove()")
     rclick([20, 20, 5])
-    print("pop-up (right click):", [b.text for b in d.find_elements(By.CSS_SELECTOR, ".m-fmenu button")])
+    print("a right click: no menu (it only pans):", not d.find_elements(By.CSS_SELECTOR, ".m-fmenu"))
+    click([20, 20, 5])
+    print("  the left click's sections:", js("return [...document.querySelectorAll('#modelViewport .view-suggest .vs-sec')].map(e => e.textContent)"))
     print("sizes on the part:", tags())
     d.save_screenshot(f"{OUT}/pick1.png")
 
@@ -157,10 +159,10 @@ try:
     settled()
     print("Ø8:", round(vol(), 3), "| expected", round(80 * 40 * 5 - math.pi * 16 * 5, 3))
 
-    # "◎ Hole here" from the pop-up
+    # "◎ Hole here" from the suggestions table
     js(f"{M}.closeCtx()")
-    rclick([15, 10, 5])
-    next(b for b in d.find_elements(By.CSS_SELECTOR, ".m-fmenu button") if b.text.startswith("◎")).click()
+    click([15, 10, 5])
+    next(b for b in d.find_elements(By.CSS_SELECTOR, "#modelViewport .view-suggest .vs-list button") if b.text.startswith("◎")).click()
     time.sleep(0.6)
     settled()
     f = js(f"return {M}.cmd?.feature")
