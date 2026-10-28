@@ -1,4 +1,4 @@
-"""The measure tool's snap points, with REAL mouse input: a 40 × 20 × 10 block with a Ø6 hole in the middle of its top ->
+"""The snap points (no tool on: shown and picked — measure from one; 📏 Measure), with REAL mouse input: a 40 × 20 × 10 block with a Ø6 hole in the middle of its top ->
 📏 Measure: the mouse near the middle of the top front edge: "midpoint" shown there; near a top corner: "corner"; near
 the hole's centre: "centre" -> the snap filters: Corners off, a corner not caught -> a click on the corner, then on the hole's centre: their distance (the corner to the
 middle of the top: √(20² + 10²)) -> the same in an assembly with the block.
@@ -71,9 +71,20 @@ try:
     x0, y0, z0, x1, y1, z1 = js(f"return {M}.result.body.bbox")
     mx, my = (x0 + x1) / 2, (y0 + y1) / 2
     print("the block:", [x0, y0, z0, x1, y1, z1])
+    cv = "#modelViewport canvas"
+    # no tool on: the snap points show and can be picked — measure from one
+    print("no tool — near a top corner:", hover(M, cv, [x0, y0, z1]))
+    click(M, cv, [x0, y0, z1])
+    sg = d.find_elements(By.CSS_SELECTOR, "#modelViewport .view-suggest")
+    print("  a corner picked:", [sg[0].find_element(By.CSS_SELECTOR, ".vs-head b").text] + [" ".join(b.text.split()) for b in sg[0].find_elements(By.CSS_SELECTOR, ".vs-list button")] if sg else None)
+    next(b for b in d.find_elements(By.CSS_SELECTOR, "#modelViewport .view-suggest .vs-list button") if "Measure" in b.text).click()
+    time.sleep(0.4)
+    click(M, cv, [mx, my, z1], (3, 2))
+    print("  measured from it to the hole's centre:", " ".join(d.find_element(By.CSS_SELECTOR, "#modelViewport .m-measure").text.split())[:40])
     js(f"{M}.action('measure')")
     time.sleep(0.3)
-    cv = "#modelViewport canvas"
+    js(f"{M}.action('measure')")
+    time.sleep(0.3)
     print("near the top front edge's middle:", hover(M, cv, [mx, y0, z1]))
     print("near a top corner:", hover(M, cv, [x0, y0, z1]))
     print("near the hole's centre:", hover(M, cv, [mx, my, z1], (3, 2)))
@@ -96,9 +107,12 @@ try:
     wait(f"return Object.values({A}.bodies).every(b => b.body)")
     js(f"{A}.view.setView('iso')")
     time.sleep(0.8)
+    cv = "#asmViewport canvas"
+    print("assembly, no tool — near a corner:", hover(A, cv, [x1, y0, z1]))
+    click(A, cv, [x1, y0, z1])
+    print("  picked: its part chosen", js(f"return {A}.sel"), "| the table:", [" ".join(b.text.split()) for b in d.find_elements(By.CSS_SELECTOR, "#asmViewport .view-suggest .vs-list button")][:2])
     js(f"{A}.toggleMeasure()")
     time.sleep(0.3)
-    cv = "#asmViewport canvas"
     print("assembly — near the edge's middle:", hover(A, cv, [mx, y0, z1]), "| the hole's centre:", hover(A, cv, [mx, my, z1], (3, 2)))
     click(A, cv, [x1, y0, z1])
     click(A, cv, [mx, my, z1], (3, 2))

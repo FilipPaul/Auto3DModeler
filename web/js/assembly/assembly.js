@@ -298,7 +298,18 @@ export class Assembly {
     }
     const joined = (this.doc.mates || []).some((m) => m.move === a.id), model = this.kindOf(a.part) === 'model';
     const light = this.bodies[a.part]?.body?.light;
-    show(name(a), [
+    const sp = this.snapPick?.inst === a.id ? this.snapPick : null, p = sp?.point;
+    const xyz = p ? [p.x, p.y, p.z].map((v) => fmt(+v.toFixed(3))).join(', ') : '', kind = sp ? t({ corner: 'A corner', midpoint: 'An edge midpoint', centre: 'A centre' }[sp.snap]) : '';
+    show(sp ? `${name(a)} · ${kind}` : name(a), [
+      ...(sp ? [
+        { icon: '📏', label: t('Measure from here'), title: xyz, run: () => {
+          this.snapPick = null;
+          if (!this.measuring) this.toggleMeasure();
+          this.measuring.a = { point: p, face: null, inst: a.id };
+          this.view.setMeasure([p]);
+          this.measureBox(`<div class="mm-rows"><b>${esc(kind)}</b><span>Of</span><b data-no-i18n>${esc(this.partName(a.part))} ${a.id}</b><span>${esc(t('Point'))}</span><b>${xyz}</b></div><p class="hint">${esc(t('Click a second spot for the distance.'))}</p>`);
+        } },
+        { icon: '⧉', label: t('Copy its coordinates'), title: xyz, run: () => { navigator.clipboard?.writeText(xyz).catch(() => {}); this.hooks.toast(`${t('Copied')}: ${xyz}`, 'info', 2500); } }] : []),
       ...(this.hooks.openPart ? [{ icon: this.kindOf(a.part) === 'assembly' ? '◇' : '◆', label: t('Open its part'), title: t('Change it in its own tab (the assembly follows)'), run: () => this.hooks.openPart(a.part) }] : []),
       { icon: '🔗', label: t(joined ? 'Join it to one more part' : 'Join it to another part'), run: () => this.startJoint('touch', a.id) },
       ...(model ? [{ icon: '🪶', label: t(light ? 'Show it in full' : 'Show it simplified'), title: t('Simplified: a coarser mesh and less data — quicker to load and show'), run: async () => { this.doc.light = { ...(this.doc.light || {}), [a.part]: !light }; await this.refresh(); this.commit(); } }] : []),
@@ -2388,6 +2399,7 @@ export class Assembly {
       }
       const id = h?.inst || null;
       if (id !== this.hoverInst) { this.hoverInst = id; this.draw(); }
+      this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); // (a corner, an edge's middle, a centre: it can be picked)
       cv.style.cursor = h ? 'pointer' : '';
     });
     cv.addEventListener('dblclick', (e) => { // a part double-clicked: edit it here (when unlocked)
@@ -2405,7 +2417,10 @@ export class Assembly {
       if (this.painting) { this.clickPaint(h, e.ctrlKey || e.metaKey); return; }
       if (this.mode !== 'idle') { this.clickJoint(this.jointPick(e, h)); return; }
       if (this.bolt) { if (h?.face?.type === 'plane') this.startBolt(h); return; } // another point for the bolt
-      this.choose(h?.inst || null, e.ctrlKey || e.metaKey);
+      const sp = this.view.measurePoint(e.clientX, e.clientY);
+      this.snapPick = sp?.snap ? sp : null; // (a corner, an edge's middle, a centre: picked with its part)
+      this.view.setMeasure(this.snapPick ? [sp.point] : []);
+      this.choose(this.snapPick ? sp.inst : h?.inst || null, e.ctrlKey || e.metaKey);
     });
     window.addEventListener('keydown', (e) => this.key(e));
   }

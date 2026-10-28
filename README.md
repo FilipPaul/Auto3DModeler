@@ -76,7 +76,8 @@ anyway while a sketch plane is being chosen.
 table can be **dragged by its header** anywhere in the view, and stays there (a double-click on the header: back).
 Its **✨** puts what is selected into the AI chat — as the AI's tools name it (a step and a face, sketch shapes,
 assembly parts) — so you can ask about it. The **Snap** row under it (3D model, assembly) says what 📏 Measure catches:
-corners, edge midpoints, centres.
+corners, edge midpoints, centres. With **no tool on**, the snap point under the mouse shows too and a click picks it
+(in an assembly: with its part) — *📏 Measure from here*, *Copy its coordinates*, ✨.
 The same tools open with a **right click** on it (a left click chooses its step and shows its
 sizes; the right button dragged still pans).
 

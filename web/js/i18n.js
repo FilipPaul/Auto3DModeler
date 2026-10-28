@@ -738,6 +738,8 @@ const CS = {
   'The part on screen — double-click to rename, drag to move the tab (out of the window: a new window)': 'Díl na obrazovce — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'Click to show it — double-click to rename, drag to move the tab (out of the window: a new window)': 'Kliknutím zobrazíte — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'No part open': 'Žádný díl není otevřený',
+  'A corner': 'Roh', 'An edge midpoint': 'Střed hrany', 'A centre': 'Střed', 'Measure from here': 'Měřit odtud', 'Copy its coordinates': 'Kopírovat souřadnice', Copied: 'Zkopírováno',
+  "No tool on: a click on a corner, an edge's middle or a centre picks it": 'Bez nástroje: klik na roh, střed hrany nebo střed ho vybere', 'the point': 'bod', 'of the part': 'dílu',
   Snap: 'Přichytit', Corners: 'Rohy', 'Edge midpoints': 'Středy hran', Centres: 'Středy', 'What 📏 Measure catches — click to switch': 'Co 📏 Měření zachytí — kliknutím přepnete',
   'Ask the AI about it — what is selected goes into the chat': 'Zeptat se AI — vybrané se vloží do chatu', 'in the assembly': 've skladbě', 'in the 3D model': 've 3D modelu',
   'in the sketch': 've skice', 'the middle of line': 'střed úsečky', 'the origin': 'počátek', flat: 'rovná', round: 'válcová', step: 'krok', face: 'plocha', part: 'díl',

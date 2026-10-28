@@ -80,6 +80,9 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Snap points with no tool on done:** the 3D model's and the assembly's hover show setSnapMark; a click on one
+  picks it (Modeler.pickSnap / Assembly.snapPick with its part): Measure from here (measuring.a set), Copy its
+  coordinates, ✨. e2e_measure_snap.
 - **✨ Ask the AI about the selection, 3D snap filters done:** showSuggest(…, refs) shows ✨ (setAskAI from app.js: the
   chat opens with "[Selected …]" in its message — the step / face ids, sketch shapes, assembly parts); suggest.js
   showSnapFilters / snapKinds (localStorage a3d.snap3d) — a row bottom left in the 3D model and the assembly, the

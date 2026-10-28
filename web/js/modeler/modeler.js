@@ -390,13 +390,33 @@ export class Modeler {
     Object.assign(el.style, { left: `${t.x - vr.left + 14}px`, top: `${t.y - vr.top + 14}px` });
   }
 
+  /** A snap point picked (no tool on): marked, and what to do with it suggested — measure from it, copy it, ask the AI. */
+  pickSnap(sp) {
+    const p = sp.point, xyz = [p.x, p.y, p.z].map((v) => fmt(+v.toFixed(3))).join(', '), kind = t({ corner: 'A corner', midpoint: 'An edge midpoint', centre: 'A centre' }[sp.snap]);
+    this.view.setMeasure([p]);
+    const sg = showSuggest(this.els.viewport, `${kind} · ${xyz}`, [
+      { icon: '📏', label: t('Measure from here'), run: () => {
+        this.dropSuggest();
+        if (!this.measuring) this.toggleMeasure();
+        this.measuring.a = p;
+        this.view.setMeasure([p]);
+        this.measureBox(`<div class="mm-rows"><b>${esc(kind)}</b><span>${esc(t('Point'))}</span><b>${xyz}</b></div><p class="hint">${esc(t('Click a second spot for the distance.'))}</p>`);
+      } },
+      { icon: '⧉', label: t('Copy its coordinates'), run: () => { navigator.clipboard?.writeText(xyz).catch(() => {}); this.hooks.toast(`${t('Copied')}: ${xyz}`, 'info', 2500); } },
+    ], t('No tool on: a click on a corner, an edge\'s middle or a centre picks it'), `${t('in the 3D model')}: ${t('the point')} (${xyz}) — ${kind.toLowerCase()} ${t('of the part')}`);
+    if (sg) sg.dataset.from = 'face';
+  }
+
   /** The suggestions table of the 3D model (a face's tools) gone. */
-  dropSuggest() { const b = this.els.viewport.querySelector(':scope > .view-suggest[data-from=face]'); b?.remove(); }
+  dropSuggest() { const b = this.els.viewport.querySelector(':scope > .view-suggest[data-from=face]'); b?.remove(); if (!this.measuring) this.view.setMeasure([]); }
 
   /** A click on the part: its step is chosen (its sizes show) and the tools for that face are suggested (bottom left);
    *  a right click pops them up at the mouse. */
   clickFace(e, menu = false) {
     this.closeCtx();
+    const sp = !menu && this.view.measurePoint(e.clientX, e.clientY);
+    if (sp?.snap) { this.pickSnap(sp); return; } // a corner, an edge's middle, a centre
+    if (!this.measuring) this.view.setMeasure([]);
     const h = this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
     if (!fs) { this.selectStep(null); this.dropSuggest(); return; }
     this.selectStep(fs.step.id);
@@ -2379,6 +2399,7 @@ export class Modeler {
         if (id) { this.view.setHover(-1); this.tip(null); cv.style.cursor = 'pointer'; cv.title = 'Double-click to edit this sketch'; return; }
         cv.title = '';
         if (this.measuring) { this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); return; } // (where a click measures from)
+        this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); // (a corner, an edge's middle, a centre: it can be picked)
         // the step under the mouse: all its faces light up, its name at the mouse
         const h = this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
         this.view.setHover(h?.face ? h.face.id : -1, fs?.ids || null);
