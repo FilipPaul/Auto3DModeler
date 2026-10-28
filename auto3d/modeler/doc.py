@@ -5,6 +5,7 @@ Part JSON (in the project file, `parts[].model`):
   {"features": [
      {"id": "F1", "type": "sketch", "name": "Sketch 1", "plane": {"datum": "XY"}, "points": {...}, "entities": [...]},
      {"id": "F2", "type": "extrude", "sketch": "F1", "op": "add" | "cut", "d": 10, "symmetric": false, "flip": false, "through": false},
+      (or "upto": {name, fp} + "offset": up to a face; "upto_next": true: up to the next face its whole sketch meets)
      {"id": "F3", "type": "sketch", "plane": {"face": {"name": "F2:end"}, "frame": {"o", "x", "n"}}, ...},
      {"id": "F4", "type": "fillet", "edges": [{"a": "F2:end", "b": "F2:side:l1", "fp": [x, y, z]}], "r": 2},
      {"id": "F5", "type": "chamfer", "edges": [...], "d": 1},
@@ -204,18 +205,22 @@ def _apply(f, st: State, s):
         n = np.asarray(fr["n"], float)
         op = f.get("op", "add")
         through = op == "cut" and f.get("through")
-        if f.get("upto") and not through:
+        sign = (-1 if op == "cut" else 1) * (-1 if f.get("flip") else 1)
+        nxt = f.get("upto_next") and not through
+        if nxt:
+            vec, start = n * sign, None  # (only its direction: it goes as far as the next face)
+        elif f.get("upto") and not through:
             vec, start = _up_to_face(f, fr, st), None
         else:
             d = _through_depth(st) if through else _num(f, "d", 10)
-            sign = (-1 if op == "cut" else 1) * (-1 if f.get("flip") else 1)
             vec = n * d * sign
             start = -vec / 2 if f.get("symmetric") else None
         if not faces:
             raise K.KernelError("Its sketch has no closed shape to extrude.")
         before = K.volume(st.body.shape) if op == "cut" and st.body is not None else None
+        body0 = st.body
         for face, names in faces:
-            _use(st, fid, K.prism_body(face, names, vec, fid, start), op)
+            _use(st, fid, K.prism_up_to_next(face, names, vec, body0, fid, op) if nxt else K.prism_body(face, names, vec, fid, start), op)
         _cut_check(s, st, before)
         s["went"] = _went(vec, [t for t, _ in st.tools.get(fid, [])])
         return

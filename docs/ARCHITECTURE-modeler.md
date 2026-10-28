@@ -277,6 +277,12 @@ Date: 2026-10-25. Written by the architect agent.
   the extrude's vector and its tools' box); add_feature / edit_feature also return volume_change_mm3 — the AI sees a
   wrong-way extrude at once (the wishlist's datum-direction item). test_extrude_says_where_it_went;
   tools/e2e_ai_reports.py.
+- **Extrude up to next done:** extrude.upto_next (the panel's third extent, "Up to next"): kernel.prism_up_to_next
+  extrudes the profile far, an add keeps the pieces of it outside the part that touch the sketch (up to the first face
+  across the whole profile — a face across only part of it is filled round), a cut the pieces inside it (a sketch off
+  the part: the nearest); faces named through _carry (start / side:<entity>; end = the part's faces it stops at).
+  Nothing in the way -> an issue (the panel shows it once built). The AI's upto_next: true.
+  test_extrude_up_to_next; tools/e2e_model_extrude_more.py.
 - **Faces picked with no tool on, joints suggested done:** the assembly's idle click also picks a face / a round edge
   (facePicks: one, or Ctrl: one of each of two parts; lit by drawMarks); suggestFaces — one face: the joints it can
   start (then the other face), two: the joint types fitting both (JOINT_TYPES by face kind), made through clickJoint.
@@ -730,7 +736,8 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 >
 > So, for now:
 > - **Extrude**: only distance plus add / cut (cut is picked automatically when the sketch is on the part).
->   "Symmetric" is a single checkbox. The second direction, "up to face" and "up to next" are deferred.
+>   "Symmetric" is a single checkbox. (Since done, each one control: "Up to a face" and "Up to next"; the second
+>   direction is deferred.)
 > - **Hole**: click a point on a face and give a diameter. It goes through by default. Counterbore,
 >   countersink, size tables and teardrop are deferred.
 > - **Chamfer**: one distance only. **Fillet**: pick edges and give a radius.
@@ -779,7 +786,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 
 | Feature | Purpose | Inputs | When |
 |---|---|---|---|
-| Extrude | Push a sketch region out | sketch, regions (default: all closed), op = new / add / cut / intersect, extent = blind / symmetric / through all / up to face / up to next, flip, 2nd direction | MVP: blind, symmetric, through (M1); to face / next (M3) |
+| Extrude | Push a sketch region out | sketch, regions (default: all closed), op = new / add / cut / intersect, extent = blind / symmetric / through all / up to face / up to next, flip, 2nd direction | Done: blind, symmetric, through, up to face (+ offset), up to next; 2nd direction later |
 | Revolve | Spin a sketch around an axis | sketch, axis (centreline or datum axis), angle, op | MVP (M3) |
 | Hole | Proper holes on a face | face, sketch points, type = simple / counterbore / countersink, size from a table (M2–M12, with print clearance), depth or through, **teardrop** option for horizontal holes (printable without support) | MVP (M3) |
 | Fillet | Round edges | edges (named references), radius | MVP (M3) |
@@ -1061,6 +1068,7 @@ A **workspace switch** sits in the top bar, left of the file name:
 | Through all | Skrz vše |
 | Symmetric | Symetricky |
 | Up to face | K ploše |
+| Up to next | K další ploše |
 
 ---
 

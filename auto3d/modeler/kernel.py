@@ -413,6 +413,47 @@ def prism_body(face, edge_names, vec, fid, start=None):
     return Body(shape, names)
 
 
+def prism_up_to_next(face, edge_names, u, body, fid, op):
+    """Extrude a face along the unit vector u up to the next face of the body its whole profile meets ("up to next"):
+    the profile extruded far, then an add keeps what of it is outside the body from the sketch to there (a boss up to
+    an overhang), a cut what is inside it (through the first wall only; a sketch off the part: the nearest piece).
+    Faces named as prism_body's; its end: the faces of the part it stops at."""
+    from OCP.BRepAlgoAPI import BRepAlgoAPI_Common
+    from OCP.BRepExtrema import BRepExtrema_DistShapeShape
+    if body is None:
+        raise KernelError("Up to next: there is no part to go up to yet.")
+    bb, fb = bbox(body.shape), bbox(face)
+    far = 2 * math.dist([min(a, b) for a, b in zip(bb[:3], fb[:3])], [max(a, b) for a, b in zip(bb[3:], fb[3:])]) + 10
+    tool = prism_body(face, edge_names, np.asarray(u, float) * far, fid)
+    mk = (BRepAlgoAPI_Common if op == "cut" else BRepAlgoAPI_Cut)(tool.shape, body.shape)
+    if not mk.IsDone():
+        raise KernelError("The solid operation failed.")
+    res = mk.Shape()
+    names = _carry(mk, tool.names, res)
+    pieces, ex = [], TopExp_Explorer(res, TopAbs_SOLID)
+    while ex.More():
+        sol = ex.Current()
+        dist = BRepExtrema_DistShapeShape(sol, face)
+        pieces.append((dist.Value() if dist.IsDone() else math.inf, sol))
+        ex.Next()
+    near = min((d for d, _ in pieces), default=math.inf)
+    keep = [sol for d, sol in pieces if d < 1e-6 or (op == "cut" and d < near + 1e-6)]
+    if op != "cut" and not keep:
+        raise KernelError("Up to next: that way it goes straight into the part — nothing to fill (⇅ flip its direction).")
+    fm = _face_map(compound(keep)) if keep else None
+    if not keep or (op != "cut" and any(fm.Contains(f) for f in names.get(f"{fid}:end", []))):
+        raise KernelError(f"Up to next: {'the cut meets no part of the part' if op == 'cut' else 'no face of the part is across the whole sketch'} "
+                          "that way — ⇅ flip its direction, or extrude a distance.")
+    own = {k: [f for f in fs if fm.Contains(f)] for k, fs in names.items() if k != f"{fid}:end"}
+    named = ShapeMap()
+    for fs in own.values():
+        for f in fs:
+            named.Add(f)
+    shape = keep[0] if len(keep) == 1 else compound(keep)
+    ends = [f for f in (fm.FindKey(i) for i in range(1, fm.Extent() + 1)) if not named.Contains(f)]
+    return Body(shape, {**{k: fs for k, fs in own.items() if fs}, **({f"{fid}:end": ends} if ends else {})})
+
+
 def outline_count(face):
     """How many outlines a face has (1 = no holes)."""
     from OCP.TopAbs import TopAbs_WIRE
