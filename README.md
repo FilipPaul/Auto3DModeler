@@ -69,6 +69,9 @@ line shows what it lines up with (two at once: where they cross).
 **◫ Planes** in the 3D model's toolbar shows or hides the (faint) Top / Front / Right planes — remembered; they show
 anyway while a sketch plane is being chosen.
 
+**⟋ Draft**: tilts an extrude's side walls by a few degrees (they lean in going up from its base; negative: out) so a
+moulded or cast part comes out of its mould — choose the extrude (or click one of its walls) and the angle.
+
 **Reorder steps**: drag a step up or down the step list. A move that would put a step before one it uses is refused
 (it says which), and one after which the model no longer builds is taken back; Ctrl+Z undoes a move.
 

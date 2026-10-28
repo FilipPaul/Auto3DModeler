@@ -80,6 +80,10 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **⟋ Draft done:** kernel.draft (BRepOffsetAPI_DraftAngle on the step's `of:side…` faces, the neutral plane its start
+  face, the pull from its start to its end, names carried); a `draft` step {of, angle} (doc, LIMIT_FIELDS angle: the
+  most that fits is told); the modeler's ⟋ Draft (renderDraft: the extrude, the angle; a click on a wall picks its
+  extrude); add_feature draft for the AI. test_draft; tools/e2e_model_draft.py.
 - **Faces picked with no tool on, joints suggested done:** the assembly's idle click also picks a face / a round edge
   (facePicks: one, or Ctrl: one of each of two parts; lit by drawMarks); suggestFaces — one face: the joints it can
   start (then the other face), two: the joint types fitting both (JOINT_TYPES by face kind), made through clickJoint.

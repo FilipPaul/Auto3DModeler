@@ -35,7 +35,7 @@ DATUMS = {
     "XZ": {"o": [0, 0, 0], "x": [1, 0, 0], "n": [0, -1, 0]},  # Front
     "YZ": {"o": [0, 0, 0], "x": [0, 1, 0], "n": [1, 0, 0]},   # Right
 }
-FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell", "pattern", "solid", "loft", "sweep", "decal", "mirror")
+FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell", "pattern", "solid", "loft", "sweep", "decal", "mirror", "draft")
 
 _cache: OrderedDict = OrderedDict()  # prefix hash -> state after that feature (only in the worker process)
 CACHE_SIZE = 48
@@ -196,6 +196,13 @@ def _apply(f, st: State, s):
         wire = K.path_wire(st.frames[f["path"]], path)
         for face, names in prof[1]:
             _use(st, fid, K.sweep_body(face, names, wire, fid), f.get("op", "add"))
+        return
+    if t == "draft":  # the side walls of an extrude tilted (moulding, casting)
+        if st.body is None:
+            raise K.KernelError("There is no solid yet to draft.")
+        body = st.body
+        st.body = _sized(lambda v: K.draft(body, f.get("of"), v, fid), _num(f, "angle", 3, what="draft angle"), "angle", "°",
+                         "The walls could not be tilted by that angle here — try a smaller angle, or draft before rounding the edges.")
         return
     if t == "shell":
         if st.body is None:
@@ -661,7 +668,7 @@ def evaluate(features):
 
 # ------------------------------------------------------------------ the sizes a step can take
 LIMIT_FIELDS = {"extrude": ("d", "offset"), "revolve": ("angle",), "fillet": ("r",), "chamfer": ("d",), "hole": ("d", "depth"),
-                "shell": ("t",), "pattern": ("count", "spacing"), "decal": ("h", "depth")}
+                "shell": ("t",), "pattern": ("count", "spacing"), "decal": ("h", "depth"), "draft": ("angle",)}
 _limit_cache: OrderedDict = OrderedDict()
 
 

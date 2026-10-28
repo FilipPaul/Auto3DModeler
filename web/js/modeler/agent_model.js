@@ -224,6 +224,12 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       const plane = spec.face ? planeOf({ face: spec.face }) : { datum: ['XY', 'XZ', 'YZ'].includes(pd) ? pd : 'YZ' };
       return { ...base, of, plane, copy: of !== 'body' || spec.copy !== false };
     }
+    if (type === 'draft') {
+      if (!m.part.features.some((g) => g.id === spec.of && g.type === 'extrude')) throw new Error('of: the id of an extrude step (its side walls are tilted).');
+      const a = +spec.angle;
+      if (!Number.isFinite(a) || !a || Math.abs(a) >= 45) throw new Error('angle: degrees, 0 … 45 (negative: the walls lean out).');
+      return { ...base, of: spec.of, angle: a };
+    }
     if (type === 'loft') {
       const ids = [].concat(spec.sketches || []);
       if (ids.length < 2 || ids.some((x) => !m.part.features.some((g) => g.id === x && g.type === 'sketch'))) throw new Error('sketches: the ids of two (or more) sketch steps, in order.');
@@ -256,7 +262,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       }
       return { ...base, features: of, kind: 'linear', dir: vec(spec.dir || 'x', 'dir'), count: spec.count ?? 3, spacing: spec.spacing ?? 10 };
     }
-    throw new Error('type is sketch, extrude, revolve, fillet, chamfer, hole, shell, pattern, loft, sweep, decal or mirror.');
+    throw new Error('type is sketch, extrude, revolve, fillet, chamfer, hole, shell, pattern, loft, sweep, decal, mirror or draft.');
   };
 
   /** An edge polyline that is a circle or an arc (a hole's edge often comes as two half circles) -> its centre and radius. */

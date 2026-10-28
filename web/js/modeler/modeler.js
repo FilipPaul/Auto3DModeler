@@ -14,8 +14,8 @@ import { textOutline } from '../outlinepanel.js';
 import { sectionBar, sectionMiddle } from './sectionbar.js';
 import { libraryFactsHtml } from '../library/browser.js';
 
-const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa', mirror: '⇋' };
-const TYPE_NAME = { sketch: 'Sketch', extrude: 'Extrude', revolve: 'Revolve', fillet: 'Fillet', chamfer: 'Chamfer', hole: 'Hole', shell: 'Shell', pattern: 'Pattern',
+const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa', mirror: '⇋', draft: '⟋' };
+const TYPE_NAME = { draft: 'Draft', sketch: 'Sketch', extrude: 'Extrude', revolve: 'Revolve', fillet: 'Fillet', chamfer: 'Chamfer', hole: 'Hole', shell: 'Shell', pattern: 'Pattern',
   loft: 'Loft', sweep: 'Sweep', solid: 'Solid', decal: 'Decoration', mirror: 'Mirror' };
 const LIMIT_FIELDS = { extrude: ['d', 'offset'], revolve: ['angle'], fillet: ['r'], chamfer: ['d'], hole: ['d', 'depth'], shell: ['t'],
   pattern: ['count', 'spacing'], decal: ['h', 'depth'] }; // the numbers the kernel finds ranges for (doc.LIMIT_FIELDS)
@@ -168,6 +168,7 @@ export class Modeler {
         ${btn('decal', 'Aa Text / picture', 'Decorate a flat face: text or a picture outline, raised or engraved', 'tool')}
         ${btn('solidFile', '▣ Solid from a file', 'Add a STEP / STL / OBJ solid: joined to the part, cut out of it (a cavity it fits in), or as a see-through reference to build around', 'tool')}
         ${btn('mirror', '⇋ Mirror', 'Mirror the part (or one step) across a base plane or a flat face — as a copy, or moved', 'tool')}
+        ${btn('draft', '⟋ Draft', 'Tilt the side walls of an extrude by a few degrees (so a moulded or cast part comes out of its mould)', 'tool')}
         ${btn('pattern', '⁂ Pattern', 'Repeat a step (holes, a boss, a cut) in a row or around a circle: give how many and how far apart', 'tool')}
         <span class="sep"></span>
         <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
@@ -180,7 +181,7 @@ export class Modeler {
         ${btn('view-iso', 'Iso', 'View from the front-right, above')}${btn('view-top', 'Top', 'View from above')}${btn('view-front', 'Front', 'View from the front')}${btn('view-right', 'Right', 'View from the right')}`;
       bar.querySelector('[data-a=extrude]').disabled = !canExtrude || !!this.cmd;
       bar.querySelector('[data-a=sketch]').disabled = !!this.cmd;
-      for (const a of ['fillet', 'chamfer', 'hole', 'shell', 'pattern', 'decal', 'mirror']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body || !!this.cmd;
+      for (const a of ['fillet', 'chamfer', 'hole', 'shell', 'pattern', 'decal', 'mirror', 'draft']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body || !!this.cmd;
       bar.querySelector('[data-a=revolve]').disabled = !canExtrude || !!this.cmd;
       for (const a of ['loft', 'sweep']) bar.querySelector(`[data-a=${a}]`).disabled = this.sketches().length < 2 || !!this.cmd;
       for (const a of ['measure', 'section', 'paint']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body;
@@ -228,6 +229,7 @@ export class Modeler {
     if (a === 'planes') return this.togglePlanes();
     if (a === 'shell') return this.startShell();
     if (a === 'pattern') return this.startPattern();
+    if (a === 'draft') return this.startDraft();
     if (a === 'solidFile') return this.pickSolid();
     if (a === 'duplicatePart') return this.hooks.duplicatePart?.();
     if (a === 'saveToLibrary') return this.hooks.saveToLibrary?.();
@@ -332,6 +334,7 @@ export class Modeler {
     if (f.type === 'decal') return `${f.source === 'text' ? `“${f.text}”` : 'picture'} · ${fmt(f.h)} mm${f.op === 'cut' ? ' · engraved' : ' · raised'}`;
     if (f.type === 'loft') return `${(f.sketches || []).length} sketches${f.op === 'cut' ? ' · cut' : ''}`;
     if (f.type === 'sweep') return `along ${this.part.features.find((g) => g.id === f.path)?.name || '?'}${f.op === 'cut' ? ' · cut' : ''}`;
+    if (f.type === 'draft') return `${fmt(f.angle)}° · ${this.part.features.find((g) => g.id === f.of)?.name || '?'}`;
     if (f.type === 'solid') return `${f.file || 'solid'} · ${{ add: 'joined', cut: 'cut out', ref: 'reference' }[f.op || 'add']}`;
     if (f.type === 'mirror') {
       const of = f.of === 'body' || !f.of ? 'the part' : this.part.features.find((g) => g.id === f.of)?.name || '?';
@@ -756,7 +759,7 @@ export class Modeler {
       const onEdge = (f.edges || []).some((e) => owns(e.a) || owns(e.b));
       const onFaces = (f.faces || []).some((r) => gone.has(this.faceOwner(r)));
       const needs = sketchesOf(f).some((x) => gone.has(x)) || onEdge || onFaces || (f.type === 'pattern' && (f.features || []).some((x) => gone.has(x)))
-        || (f.type === 'mirror' && gone.has(f.of)) || (f.type === 'loft' && (f.sketches || []).some((x) => gone.has(x)));
+        || ((f.type === 'mirror' || f.type === 'draft') && gone.has(f.of)) || (f.type === 'loft' && (f.sketches || []).some((x) => gone.has(x)));
       const stands = gone.has(this.faceOwner(f.plane?.face)) || gone.has(this.faceOwner(f.upto)) || this.refsTo(f, owns);
       if (needs || (stands && !keep)) gone.add(f.id);
       else if (stands) soft.add(f.id);
@@ -867,7 +870,7 @@ export class Modeler {
       const ty = this.cmd.feature.type;
       const r = ty === 'extrude' ? this.renderExtrude(box) : ty === 'hole' ? this.renderHole(box) : ty === 'revolve' ? this.renderRevolve(box)
         : ty === 'shell' ? this.renderShell(box) : ty === 'pattern' ? this.renderPattern(box)
-        : ty === 'loft' || ty === 'sweep' ? this.renderProfiles(box) : ty === 'decal' ? this.renderDecal(box) : ty === 'mirror' ? this.renderMirror(box) : ty === 'solid' ? this.renderSolid(box) : this.renderRound(box);
+        : ty === 'loft' || ty === 'sweep' ? this.renderProfiles(box) : ty === 'decal' ? this.renderDecal(box) : ty === 'mirror' ? this.renderMirror(box) : ty === 'draft' ? this.renderDraft(box) : ty === 'solid' ? this.renderSolid(box) : this.renderRound(box);
       this.addSliders(box);
       return r;
     }
@@ -1490,6 +1493,7 @@ export class Modeler {
     if (f.type === 'pattern') return this.clickPattern(e);
     if (f.type === 'decal') return this.clickDecal(e);
     if (f.type === 'mirror') return this.clickMirror(e);
+    if (f.type === 'draft') return this.clickDraft(e);
     if (f.type === 'revolve') return null;
     const i = this.view.pickEdge(e.clientX, e.clientY);
     if (i >= 0) {
@@ -2091,6 +2095,47 @@ export class Modeler {
     box.querySelector('[data-k=of]').addEventListener('change', (e) => { f.of = e.target.value; if (f.of !== 'body') f.copy = true; changed(); });
     for (const b of box.querySelectorAll('[data-pl]')) b.addEventListener('click', () => { f.plane = { datum: b.dataset.pl }; changed(); });
     for (const b of box.querySelectorAll('[data-copy]')) b.addEventListener('click', () => { f.copy = b.dataset.copy === '1'; changed(); });
+    box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
+    box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
+  }
+
+  // ------------------------------------------------------------------ Draft
+  /** The extrudes whose side walls a draft can tilt (before step `before`). */
+  draftable(before = null) {
+    const at = before ? this.part.features.findIndex((x) => x.id === before) : -1;
+    return this.part.features.filter((g) => g.type === 'extrude' && !g.suppressed && (at < 0 || this.part.features.indexOf(g) < at));
+  }
+
+  startDraft() {
+    if (this.mode !== 'part' || this.cmd || !this.result?.body) return;
+    const es = this.draftable();
+    if (!es.length) { this.hooks.toast('Draft tilts the walls of an extrude — make one first.', 'warning'); return; }
+    const sel = es.find((g) => g.id === this.selected) || es[es.length - 1]; // (the chosen one, else the newest)
+    this.openCommand({ id: this.newId(), type: 'draft', name: this.nextName('draft'), of: sel.id, angle: 3 }, true);
+  }
+
+  /** A click on a wall: the extrude it belongs to is the one drafted. */
+  clickDraft(e) {
+    const f = this.cmd.feature, h = this.view.pick(e.clientX, e.clientY), owner = h?.face && this.faceOwner({ name: h.face.name });
+    if (!owner || !this.draftable(f.id).some((g) => g.id === owner)) { this.hooks.toast('Click a wall of an extrude.', 'info', 3000); return; }
+    f.of = owner;
+    this.renderProps();
+    this.rebuild();
+  }
+
+  renderDraft(box) {
+    const f = this.cmd.feature, st = this.status(f.id), es = this.draftable(f.id);
+    box.innerHTML = `<h2>${esc(f.name)}</h2>
+      <div class="field"><label>Walls of</label><select data-k="of">${es.map((g) => `<option value="${g.id}" ${g.id === f.of ? 'selected' : ''} data-no-i18n>${esc(g.name)}</option>`).join('')}</select></div>
+      <div class="field"><label>Angle</label><input type="number" step="0.5" data-k="angle" value="${fmt(f.angle)}"><span class="unit">°</span></div>
+      <p class="hint">${esc(t('Its side walls lean in going up from its base (negative: out) — or click a wall of another extrude.'))}</p>
+      ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
+      <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
+    const changed = () => { this.renderProps(); this.rebuild()?.then?.(() => { if (this.cmd?.feature === f) this.renderProps(); }); }; // (its result shown when built)
+    box.querySelector('[data-k=of]').addEventListener('change', (e) => { f.of = e.target.value; changed(); });
+    const ang = box.querySelector('[data-k=angle]');
+    ang.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') ang.blur(); });
+    ang.addEventListener('change', () => { const v = parseFloat(String(ang.value).replace(',', '.')); if (Number.isFinite(v)) { f.angle = v; changed(); } });
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
   }

@@ -94,6 +94,18 @@ class TestFeatures(unittest.TestCase):
         self.assertAlmostEqual(v, 8000 - (4 - math.pi) * 10 - math.pi * 4 * 3, delta=1e-3)
 
 
+    def test_draft(self):
+        """⟋ Draft: a 40 × 20 × 10 block's walls leaning in 5° — a frustum (top 2 × 10·tan 5° smaller each way)."""
+        r, v = vol(*box(), {"id": "D1", "type": "draft", "of": "E1", "angle": 5})
+        self.assertTrue(r["ok"], r["features"])
+        k = 10 * math.tan(math.radians(5))
+        a0, a1 = 40 * 20, (40 - 2 * k) * (20 - 2 * k)
+        self.assertAlmostEqual(v, 10 / 3 * (a0 + a1 + math.sqrt(a0 * a1)), delta=1)
+        r, _ = vol(*box(), {"id": "D1", "type": "draft", "of": "E1", "angle": 50})
+        self.assertFalse(r["ok"])
+        r, _ = vol(*box(), {"id": "D1", "type": "draft", "of": "NOPE", "angle": 5})
+        self.assertIn("walls", r["features"][-1]["issues"][0])
+
     def test_revolve(self):
         # a 10 x 20 rectangle beside the vertical axis (x 5..15) spun a full turn: a tube
         pts = {"a": [5, 0], "b": [15, 0], "c": [15, 20], "d": [5, 20]}

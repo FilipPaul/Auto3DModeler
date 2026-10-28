@@ -596,6 +596,51 @@ def shell(body, faces, t, fid):
     return Body(res, names)
 
 
+def _centroid(face):
+    """A face's centre (of its area) -> (x, y, z)."""
+    p = GProp_GProps()
+    BRepGProp.SurfaceProperties_s(TopoDS.Face(face), p)
+    c = p.CentreOfMass()
+    return c.X(), c.Y(), c.Z()
+
+
+def draft(body, of, angle, fid):
+    """Tilt the side walls of step `of` (its faces named of:side…) by `angle` degrees about the plane of its start face:
+    they lean in going away from it (a mould's draft; negative: out). The walls keep their names."""
+    from OCP.BRepOffsetAPI import BRepOffsetAPI_DraftAngle
+    a = float(angle)
+    if not 0 < abs(a) < 45:
+        raise KernelError("A draft angle is between 0 and 45°.")
+    sides = [f for n, fs in body.names.items() if n.startswith(f"{of}:side") for f in fs]
+    start, end = (body.names.get(f"{of}:start") or [None])[0], (body.names.get(f"{of}:end") or [None])[0]
+    if not sides or start is None:
+        raise KernelError("Draft tilts the side walls of an extrude — that extrude's walls are not on the part (any more).")
+    s = BRepAdaptor_Surface(TopoDS.Face(start))
+    if s.GetType() != GeomAbs_Plane:
+        raise KernelError("Draft needs the extrude's start face flat.")
+    pln = s.Plane()
+    c0 = np.asarray(_centroid(start), float)
+    c1 = np.asarray(_centroid(end), float) if end is not None else c0 + np.asarray([pln.Axis().Direction().X(), pln.Axis().Direction().Y(), pln.Axis().Direction().Z()])
+    pull = c1 - c0
+    if np.linalg.norm(pull) < 1e-9:
+        raise KernelError("Draft: the extrude has no height.")
+    pull /= np.linalg.norm(pull)
+    mk = BRepOffsetAPI_DraftAngle(body.shape)
+    for f in sides:
+        mk.Add(TopoDS.Face(f), gp_Dir(*pull), math.radians(a), pln, True)
+        if not mk.AddDone():
+            raise KernelError("This wall cannot be tilted (it is not straight along the extrude, or is rounded already) — draft before rounding the edges.")
+    try:
+        mk.Build()
+        ok = mk.IsDone()
+    except Exception:  # noqa: BLE001 — OpenCASCADE throws when the walls cannot be tilted
+        ok = False
+    if not ok:
+        raise KernelError("The walls could not be tilted by that angle here — try a smaller angle, or draft before rounding the edges.")
+    res = mk.Shape()
+    return Body(res, _carry(mk, body.names, res))
+
+
 def combine(body, tool, op):
     """body ∪ tool or body − tool, names of both carried over."""
     if body is None:
