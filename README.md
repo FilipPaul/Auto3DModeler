@@ -82,6 +82,11 @@ where it goes, then ⬆ Extrude it (raised letters, or cut in on the part). The 
 from it — the sketch goes halfway between them (a rib or a hole centred in a part) and stays in the middle when the
 part changes.
 
+**Measured from a corner or the part's origin**: a sketch or holes on a face are measured from the face's centre
+unless told otherwise — the AI can give `origin: "corner"` (the face's lower-left corner; it follows that corner when
+the part changes), `origin: "world"` (places in the part's own X / Y / Z: a hole at (30, 10) stays at (30, 10) when
+the block grows the other way) or a • reference point.
+
 **Hover marks** (3D model and assembly, no tool on): the edge under the mouse lights up (a line or a circle), and the
 snap points of the step (in an assembly: the face) under it show as small green dots — corners, edge middles,
 centres (and ◔ quadrants of circles, once switched on — off by default, so a click on a rim takes the rim). The row bottom left switches them: Snap (what Measure and a click catch) and

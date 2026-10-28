@@ -928,6 +928,20 @@ def plane_of(face):
     return np.array([c.X(), c.Y(), c.Z()]), n
 
 
+def face_span(faces, fr):
+    """How far faces reach along a frame's x and y, from its origin: [u0, u1, v0, v1] (exact; None: no faces) — a
+    sketch's ⌜ corner origin is (u0, v0)."""
+    o, x, y, n = _v(fr["o"]), _v(fr["x"]), frame_y(fr), _v(fr["n"])
+    t, b = gp_Trsf(), Bnd_Box()
+    t.SetValues(*x, -float(x @ o), *y, -float(y @ o), *n, -float(n @ o))  # world -> the frame's (u, v, w)
+    for face in faces:
+        BRepBndLib.AddOptimal_s(face.Moved(TopLoc_Location(t)), b, False, False)
+    if b.IsVoid():
+        return None
+    lo, hi = b.CornerMin(), b.CornerMax()
+    return [lo.X(), hi.X(), lo.Y(), hi.Y()]
+
+
 # ------------------------------------------------------------------ queries
 def volume(shape):
     p = GProp_GProps()

@@ -5,6 +5,7 @@
 import { MATERIALS } from './materials.js';
 import { makePattern, roundCorner } from './sketcher.js';
 import { textOutline } from '../outlinepanel.js';
+import { originAt, worldToUV } from './origin.js';
 
 const r3 = (v) => +(+v).toFixed(3);
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -176,9 +177,26 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       const g = faceOf(plane.mid), n = f.frame.n, dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
       const gap = g.type === 'plane' ? dot(g.frame.o.map((v, i) => v - f.frame.o[i]), n) : 0;
       if (g.type !== 'plane' || Math.abs(Math.abs(dot(n, g.frame.n)) - 1) > 1e-6 || Math.abs(gap) < 1e-6) throw new Error(`mid: “${plane.mid}” must be a flat face parallel to “${plane.face}”, across from it.`);
-      return { face: f.ref || { name: f.name }, mid: g.ref || { name: g.name }, frame: { ...f.frame, o: f.frame.o.map((v, i) => v + (gap / 2) * n[i]) } };
+      return withOrigin({ face: f.ref || { name: f.name }, mid: g.ref || { name: g.name }, frame: { ...f.frame, o: f.frame.o.map((v, i) => v + (gap / 2) * n[i]) } }, plane.origin);
     }
-    return { face: f.ref || { name: f.name }, frame: f.frame };
+    return withOrigin({ face: f.ref || { name: f.name }, frame: f.frame }, plane.origin);
+  };
+  /** A face plane measured from origin "corner" / "world" / {point} (none, "centre": the face's centre). */
+  const withOrigin = (pl, how) => {
+    if (how == null || how === 'centre' || how === 'center') return pl;
+    const o = how === 'corner' || how === 'world' ? how : typeof how === 'object' && how.point ? { point: how.point } : null;
+    if (!o) throw new Error(`origin: "corner" (the face's corner with the smallest u and v), "world" (the part's origin: world coordinates) or {point: "<a point step's id>"}.`);
+    if (o.point && !m.part.features.some((g) => g.id === o.point && g.type === 'point')) throw new Error(`origin.point: ${o.point} is not a point step — add_feature point first.`);
+    const p = originAt(o, pl.frame, { span: (fr) => m.view.faceSpan(pl.face?.name, fr), points: m.result?.points });
+    return { ...pl, origin: o, frame: p ? { ...pl.frame, o: p } : pl.frame };
+  };
+  /** A sketch drawn in world coordinates: where the face's v runs against the world axis, turned over to it. */
+  const fromWorld = (sk, fr) => {
+    if (!worldToUV(fr).flip) return sk;
+    for (const [k, p] of Object.entries(sk.points)) sk.points[k] = [p[0], r3(-p[1])];
+    for (const d of sk.dims) if (d.t === 'dy') d.v = r3(-d.v);
+    for (const e of sk.entities) if (e.t === 'arc') [e.a, e.b] = [e.b, e.a]; // (counter-clockwise again)
+    return sk;
   };
   const summary = () => {
     const b = body();
@@ -205,7 +223,9 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
     const type = spec.type;
     const base = { id: m.newId(), type, name: spec.name || m.nextName(type, spec.sketch || (['extrude', 'revolve'].includes(type) ? [...m.sketches()].pop()?.id : null)) };
     if (type === 'sketch') {
-      return { ...base, plane: planeOf(spec.plane), ...sketchFromShapes(spec.shapes, spec.lock !== false) };
+      const plane = planeOf(spec.origin && spec.plane && typeof spec.plane === 'object' ? { ...spec.plane, origin: spec.origin } : spec.plane);
+      const sk = sketchFromShapes(spec.shapes, spec.lock !== false);
+      return { ...base, plane, ...(plane.origin === 'world' ? fromWorld(sk, plane.frame) : sk) };
     }
     if (type === 'extrude' || type === 'revolve') {
       const sk = spec.sketch || [...m.sketches()].pop()?.id;
@@ -228,7 +248,10 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       };
       if (!spec.face) throw new Error('face: the name of the flat face the holes go into (find_refs).');
       if (spec.thread && !/^M(2|2\.5|3|4|5|6|8|10|12|16|20)$/.test(spec.thread)) throw new Error('thread: M2, M2.5, M3, M4, M5, M6, M8, M10, M12, M16 or M20.');
-      return { ...base, plane: planeOf({ face: spec.face }), points: spec.points || [[0, 0]], d: spec.d ?? 5, ...(spec.thread ? { thread: spec.thread } : {}),
+      const plane = planeOf({ face: spec.face, origin: spec.origin });
+      const W = plane.origin === 'world' && !spec.uv ? worldToUV(plane.frame) : null; // (spec.uv: the stored places, an edit)
+      const points = (spec.points || [[0, 0]]).map((p) => (W ? W.uv(p) : p));
+      return { ...base, plane, points, d: spec.d ?? 5, ...(spec.thread ? { thread: spec.thread } : {}),
         through: spec.through !== false, depth: spec.depth ?? 10, ...(spec.from ? { from: spec.from } : {}), ...(fitOf(spec.fit) ? { fit: fitOf(spec.fit) } : {}),
         ...headOf(spec, spec.d ?? 5) };
     }
@@ -394,7 +417,9 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         if (f.type === 'revolve') Object.assign(out, { sketch: f.sketch, op: f.op, axis: f.axis, angle: f.angle });
         if (f.type === 'fillet') Object.assign(out, { r: f.r, edges: f.edges.length });
         if (f.type === 'chamfer') Object.assign(out, { d: f.d, edges: f.edges.length });
-        if (f.type === 'hole') Object.assign(out, { face: f.plane?.face?.name, d: f.d, ...(f.thread ? { thread: f.thread } : {}), points: f.points, through: f.through !== false, depth: f.depth, ...(f.fit ? { fit: f.fit } : {}),
+        if (f.plane?.origin) out.origin = f.plane.origin;
+        const W = f.type === 'hole' && f.plane?.origin === 'world' ? worldToUV(f.plane.frame) : null; // (as given: world X / Y)
+        if (f.type === 'hole') Object.assign(out, { face: f.plane?.face?.name, d: f.d, ...(f.thread ? { thread: f.thread } : {}), points: W ? f.points.map(([u, v]) => [u, W.flip ? -v : v]) : f.points, through: f.through !== false, depth: f.depth, ...(f.fit ? { fit: f.fit } : {}),
           ...(f.head ? { head: f.head, head_d: f.head_d, ...(f.head_depth ? { head_depth: f.head_depth } : {}), ...(f.head_angle ? { head_angle: f.head_angle } : {}) } : {}) });
         if (f.type === 'shell') Object.assign(out, { t: f.t, open_faces: f.faces.map((x) => x.name) });
         if (f.type === 'loft') Object.assign(out, { sketches: f.sketches, op: f.op });
@@ -486,9 +511,12 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       if (!f) throw new Error(`No step ${id} — see get_model.`);
       if (f.type === 'sketch' && (fields.shapes || fields.plane)) {
         if (fields.shapes) Object.assign(f, sketchFromShapes(fields.shapes, fields.lock !== false)); // (a new plane alone keeps the shapes)
-        if (fields.plane) f.plane = planeOf(fields.plane);
+        if (fields.plane || fields.origin) { // (a new origin alone: the shapes keep their numbers, from the new 0, 0)
+          const pl = typeof fields.plane === 'string' ? { datum: fields.plane } : fields.plane || (f.plane?.face ? { face: f.plane.face.name, ...(f.plane.mid ? { mid: f.plane.mid.name } : {}) } : { ...f.plane });
+          f.plane = planeOf(fields.origin && !pl.datum ? { ...pl, origin: fields.origin } : pl);
+        }
       } else {
-        const next = build({ ...f, ...fields, type: f.type, of: fields.of || f.features, name: fields.name || f.name, face: fields.face || f.plane?.face?.name, faces: fields.faces || f.faces?.map((x) => x.name), sketch: fields.sketch || f.sketch });
+        const next = build({ ...f, ...fields, type: f.type, origin: 'origin' in fields ? fields.origin : f.plane?.origin, uv: !fields.points, of: fields.of || f.features, name: fields.name || f.name, face: fields.face || f.plane?.face?.name, faces: fields.faces || f.faces?.map((x) => x.name), sketch: fields.sketch || f.sketch });
         Object.assign(f, { ...next, id: f.id, name: fields.name || f.name });
         if ('fit' in fields && !fields.fit) delete f.fit; // (a hole's fit taken off)
         if ('thread' in fields && !fields.thread) delete f.thread; // (its thread taken off)

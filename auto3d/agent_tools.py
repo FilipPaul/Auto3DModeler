@@ -180,7 +180,10 @@ TOOLS = [
                     "meant, else flip: true). type:\n"
                     "- sketch: plane \"XY\" (top, the bed) / \"XZ\" (front) / \"YZ\" (right) / {datum: \"XY\", offset: 30} (moved along its "
                     "normal) / {face: <name>} (origin = the face's "
-                    "centre) / {face: <name>, mid: <the parallel face across>} (midway between them, e.g. a centred rib; follows both); shapes: [{rect: {x, y, w, h, r}} (lower-left corner; r = rounded corners) | {circle: {x, y, d}} | {slot: {x1, y1, x2, y2, w}} (round ends "
+                    "centre; {face, origin: \"corner\"} = the face's corner with the smallest u and v (u along the world axis "
+                    "closest to the face, v = n × u: on a top face its min-X min-Y corner; it follows that corner), {face, origin: "
+                    "\"world\"} = shapes in world coordinates (the two world axes in the face: top X, Y; front X, Z; side Y, Z), "
+                    "{face, origin: {point: <a point step>}} = from a • reference point — all kept when the part changes) / {face: <name>, mid: <the parallel face across>} (midway between them, e.g. a centred rib; follows both); shapes: [{rect: {x, y, w, h, r}} (lower-left corner; r = rounded corners) | {circle: {x, y, d}} | {slot: {x1, y1, x2, y2, w}} (round ends "
                     "centred at x1,y1 and x2,y2) | {polyline: {points: [[u, v], …]}} "
                     "(closed) | {profile: {points: [[u, v], {smooth: [[u, v], …]}, [u, v], {arc: [u, v]}, [u, v], …]}} (closed: corners "
                     "[u, v] joined by straight lines; {smooth: [...]} = a smooth curve through those points to the next corner — one "
@@ -190,7 +193,8 @@ TOOLS = [
                     "- extrude: sketch (id), d, op add / cut, through (cut through all), symmetric, flip; or up_to: a flat face's "
                     "name (as far as that face — it follows the face), offset (mm past it, negative = short of it).\n"
                     "- revolve: sketch, axis \"y\" (the sketch's vertical axis) / \"x\" / a line id, angle (360), op.\n"
-                    "- hole: face (name), points [[u, v]] from the face's centre, d, through (default) or depth, fit (ISO 286 H6 / H7 / H8 / H9: shown on the 2D drawing as Ø8 H7; model the nominal d); "
+                    "- hole: face (name), points [[u, v]] from the face's centre — or origin \"corner\" / \"world\" (points in world "
+                    "coordinates: [x, y] on a top face, or [x, y, z]) / {point: <id>} as for a sketch —, d, through (default) or depth, fit (ISO 286 H6 / H7 / H8 / H9: shown on the 2D drawing as Ø8 H7; model the nominal d); "
                     "head: \"cbore\" (a counterbore: head_d, head_depth — default 1.8 × d, d) or \"csk\" (a countersink: head_d, "
                     "head_angle — default 2 × d, 90°) for a screw's head; "
                     "thread: \"M5\" (ISO metric M2 … M20: drilled with its tap drill, labelled M5 on the drawing — no d needed); "
@@ -225,7 +229,7 @@ TOOLS = [
                           "faces": {"type": "array"}, "t": NUM, "of": {}, "kind": {"type": "string", "enum": ["linear", "circular"]},
                           "count": NUM, "spacing": NUM, "dir": {}, "up_to": STR, "offset": NUM,
                           "sketches": {"type": "array"}, "profile": STR, "path": STR,
-                          "text": STR, "h": NUM, "at": {}, "fit": {"type": "string", "enum": ["H6", "H7", "H8", "H9"]}}, ["type"])},
+                          "text": STR, "h": NUM, "at": {}, "origin": {}, "fit": {"type": "string", "enum": ["H6", "H7", "H8", "H9"]}}, ["type"])},
     {"name": "edit_feature", "where": "browser",
      "description": "Change a step of the 3D model: id and fields (as in add_feature, e.g. {d: 15}, {r: 3}, {points: …}, a "
                     "sketch's {shapes: […]}). Later steps follow their faces.",

@@ -114,6 +114,14 @@ Date: 2026-10-25. Written by the architect agent.
   {ref, point: id} follows it (doc._ref_uv); deleting what it stands on keeps it at {xyz}. AI: add_feature point
   (at {corner: [x, y, z]} / {centre} / {mid} / a ref), find_refs kind "point", get_model's xyz. test_reference_point;
   tools/e2e_model_point.py.
+- **Sketches and holes from a corner or the part's origin — step 1 (kernel, AI) done:** plane.origin on a face plane
+  (sketch, hole, decal): "corner" (doc._origin: kernel.face_span — the exact box of the faces of that name in the
+  frame's u / v — its (u0, v0), found again each rebuild, so it follows the corner), "world" (the world origin seen
+  square onto the plane, fixed), {point: <id>} (a • point step); the frame's o moved there in the plane and the answer
+  tagged `origin`. web/js/modeler/origin.js (originAt, shiftSketch, worldToUV). AI: add_feature sketch plane {face,
+  origin} / hole {face, origin, points} — "world" places in world X / Y / Z (a face whose v runs against its world
+  axis — the bottom, the back — turned over: v, dy and arcs), get_model gives origin and the world places back.
+  test_face_origin; tools/e2e_sketch_origin.py.
 - **No right-click menu in the 3D model done:** clickFace shows the face's tools in the suggestions table in its
   sections (On this face / Its edges / The part / Step · name, showSuggest {section}); the .m-fmenu pop-up and its
   styles are gone, a right click only pans. e2e_model_pick.

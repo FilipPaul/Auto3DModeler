@@ -72,6 +72,66 @@ class TestFeatures(unittest.TestCase):
         self.assertAlmostEqual(v, 12000 - math.pi * 9 * 4, delta=1e-3)
         self.assertAlmostEqual(r["frames"]["H1"]["o"][2], 15)
 
+    def test_face_origin(self):
+        """A hole / sketch on a face measured from the part's origin (world), the face's corner or a • point: at world
+        (30, 10) it lands there and stays when the block grows the other way (−x); a corner origin follows the corner."""
+        def block(x0=0, w=40, d=10):
+            f = box(w, 20, d)
+            f[0] = {**f[0], "points": {k: [u + x0, v] for k, (u, v) in f[0]["points"].items()}}
+            return f
+
+        def at(r, name):  # where a hole's wall is (its axis), x / y
+            c = next(f["centroid"] for f in r["body"]["faces"] if f["name"] == name)
+            return [round(c[0], 6), round(c[1], 6)]
+
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        hole = {"id": "H1", "type": "hole", "plane": {**top, "origin": "world"}, "points": [[30, 10]], "d": 4, "through": True}
+        r, v = vol(*block(), hole)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 - math.pi * 4 * 10, delta=1e-3)
+        self.assertEqual(at(r, "H1:hole:0"), [30, 10])
+        self.assertEqual(r["frames"]["H1"]["o"], [0, 0, 10])
+        self.assertEqual(r["frames"]["H1"]["origin"], "world")
+        r, v = vol(*block(x0=-20, w=60, d=25), hole)  # longer to −x, taller: the hole stays at (30, 10)
+        self.assertEqual(at(r, "H1:hole:0"), [30, 10])
+        self.assertAlmostEqual(v, 60 * 20 * 25 - math.pi * 4 * 25, delta=1e-3)
+        # from the corner (the face's smallest u and v): (10, 5) from it — the corner moves to x −20, the hole with it
+        hc = {**hole, "plane": {**top, "origin": "corner"}, "points": [[10, 5]]}
+        r, _ = vol(*block(), hc)
+        self.assertEqual(at(r, "H1:hole:0"), [10, 5])
+        self.assertEqual(r["frames"]["H1"]["o"], [0, 0, 10])
+        r, _ = vol(*block(x0=-20, w=60), hc)
+        self.assertEqual(at(r, "H1:hole:0"), [-10, 5])
+        # a sketch from the corner: a circle cut there
+        sk = {"id": "S2", "type": "sketch", "plane": {**top, "origin": "corner"}, "points": {"c": [10, 10]},
+              "entities": [{"id": "k", "t": "circle", "c": "c", "r": 3}]}
+        cut = {"id": "E2", "type": "extrude", "sketch": "S2", "op": "cut", "through": True}
+        r, v = vol(*block(x0=5), sk, cut)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 - math.pi * 9 * 10, delta=1e-3)
+        self.assertEqual(at(r, "E2:side:k"), [15, 10])
+        # from a • reference point (the top's corner at x 40, y 0)
+        pt = {"id": "P1", "type": "point", "at": {"vertex": {"faces": ["E1:end", "E1:side:l1", "E1:side:l2"], "fp": [40, 0, 10]}}}
+        hp = {**hole, "plane": {**top, "origin": {"point": "P1"}}, "points": [[-5, 5]]}
+        r, _ = vol(*block(), pt, hp)
+        self.assertEqual(at(r, "H1:hole:0"), [35, 5])
+        r, _ = vol(*block(w=60), pt, hp)
+        self.assertEqual(at(r, "H1:hole:0"), [55, 5])
+        # a STEP write -> read keeps the drilled solid
+        from auto3d.modeler import kernel as K
+        step = doc.export({"features": [*block(), hole]}, "step")
+        self.assertAlmostEqual(K.volume(K.from_step(step)), 8000 - math.pi * 4 * 10, delta=1e-3)
+        r, _ = vol(*block(), hc, {"id": "H2", "type": "hole", "plane": {**top, "origin": "corner"}, "points": [[5, 5]], "d": 2})
+        self.assertEqual(r["frames"]["H2"]["o"], [0, 0, 10])  # (the top split by H1 still has the block's corner)
+        self.assertTrue(r["ok"], r["features"])
+        # error paths: an unknown point, an unknown kind, a corner of a face that is not there
+        for origin, says in (({"point": "P9"}, "is not there"), ("middle", "origin:")):
+            r, _ = vol(*block(), {**hole, "plane": {**top, "origin": origin}})
+            self.assertFalse(r["features"][-1]["ok"])
+            self.assertIn(says, r["features"][-1]["issues"][0])
+        r, _ = vol(*block(), {**hole, "plane": {**top, "face": {"name": "E9:end"}, "origin": "corner"}})
+        self.assertIn("corner", r["features"][-1]["issues"][0])
+
     def test_mid_plane(self):
         """A sketch midway between the front (y 0) and back (y 20) walls: at y 10; the box 30 deep: at y 15 — it follows
         both faces. A face that is gone keeps the place it had."""

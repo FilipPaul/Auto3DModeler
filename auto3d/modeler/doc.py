@@ -18,7 +18,9 @@ Part JSON (in the project file, `parts[].model`):
       {"mid": <edge ref>} | {"xyz": [x, y, z]}}]}   (a reference point: a corner, a round edge's centre, an edge's middle)
 
 A sketch or a hole on a face stores the face's frame and its name: when the face moves (the extrude gets
-longer), the sketch moves with it. An edge is stored as the two faces it joins (+ where it was).
+longer), the sketch moves with it. Its 0, 0 is the face's centre (when it was picked), or plane.origin: "corner" (the
+face's lower-left corner in its u / v, following it), "world" (the part's origin) or {point: <a point step>}.
+An edge is stored as the two faces it joins (+ where it was).
 Features are evaluated in order; one that fails gets an issue and is skipped, the rest still build.
 """
 from __future__ import annotations
@@ -121,14 +123,14 @@ def plane_frame(plane, st: State):
     fr = plane.get("frame")
     if not fr:
         raise K.KernelError("The sketch has no plane.")
-    fr = {k: [float(x) for x in v] for k, v in fr.items()}
+    fr = {k: [float(x) for x in fr[k]] for k in ("o", "x", "n")}
     name = _face_name(plane)
     if plane.get("mid"):  # midway between two parallel faces: wherever both are now
         n0, o0 = np.asarray(fr["n"], float), np.asarray(fr["o"], float)
         offs = [_plane_offset(nm, n0, o0, st) for nm in (name, _face_name({"face": plane["mid"]}))]
         if None not in offs:
             fr["o"] = [round(float(x), 9) for x in o0 + (sum(offs) / 2) * n0]
-        return fr
+        return _origin(plane, fr, name, st)
     if name and st.body is not None:
         # follow the face: wherever it is now (its plane), the sketch keeps its place on it
         for face in st.body.faces_of(name):
@@ -142,6 +144,35 @@ def plane_frame(plane, st: State):
             o0 = np.asarray(fr["o"], float)
             fr["o"] = [round(float(x), 9) for x in o0 + ((c - o0) @ n0) * n0]
             break
+    return _origin(plane, fr, name, st)
+
+
+def _origin(plane, fr, name, st: State):
+    """The sketch's (or holes') 0, 0 on a face: plane.origin "corner" = the face's corner with the smallest u and v
+    (its box in its own u / v — found again each rebuild, so it follows that corner), "world" = the part's origin seen
+    square onto the plane (fixed), {point: <id>} = a • reference point seen square onto it; none = where the frame says
+    (the face's centre when it was picked). The answer carries `origin` (the browser tells its frames apart by it)."""
+    how = plane.get("origin")
+    if not how or how == "centre":
+        return fr
+    o, x, n = (np.asarray(fr[k], float) for k in ("o", "x", "n"))
+    if how == "world":
+        p = np.zeros(3)
+    elif how == "corner":
+        faces = [f for f in (st.body.faces_of(name) if name and st.body is not None else [])
+                 if (pl := K.plane_of(f)) is not None and abs(abs(pl[1] @ n) - 1) <= 1e-6]
+        span = K.face_span(faces, fr) if faces else None
+        if span is None:
+            raise K.KernelError("The face whose corner is the sketch's origin is gone — choose another origin.")
+        p = o + span[0] * x + span[2] * K.frame_y(fr)
+    elif isinstance(how, dict) and how.get("point"):
+        if how["point"] not in st.points:
+            raise K.KernelError(f"The origin's reference point {how['point']} is not there (it has to come before this step).")
+        p = np.asarray(st.points[how["point"]], float)
+    else:
+        raise K.KernelError("origin: \"centre\", \"corner\", \"world\" or {point: <a point step>}.")
+    fr["o"] = [round(float(v), 9) for v in p + ((o - p) @ n) * n]  # (in the plane: only along it)
+    fr["origin"] = how
     return fr
 
 
