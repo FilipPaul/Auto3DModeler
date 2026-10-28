@@ -172,6 +172,9 @@ Never report "works" without having run it; report failures with their output.
    refused; a joint from it moves the other part; the Lid's suggestions: unlock and edit here, fix; freed: it moves).
    `tools/e2e_planes.py <url> <dir>` covers the planes (faint on an empty model; ◫ Planes off: hidden, remembered;
    choosing a sketch plane: shown anyway; back: hidden; on again).
+   `tools/e2e_sheet_section.py <url> <dir>` covers Section A–A (a block with a hole: ☐ Section A–A — the Right view
+   replaced, hatch lines, its name, the two A marks on the front; a dimension on the section's height; Ctrl+Z back;
+   a picture of the sheet). Needs a server restarted after kernel changes.
    `tools/e2e_assembly_sheet_explode.py <url> <dir>` covers an assembly sheet's exploded iso (Base + Lid on top: ☐ Iso
    view exploded ticked — the iso taller, the front the same, the balloons moved; Ctrl+Z back; a picture of the
    sheet). Needs a server restarted after kernel changes.

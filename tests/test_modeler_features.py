@@ -655,6 +655,21 @@ class TestSheet(unittest.TestCase):
 class TestAssemblySheet(unittest.TestCase):
     """An assembly's sheet: the views of the placed parts together, their overall sizes, a mark for each part."""
 
+    def test_section_view(self):
+        """Section A–A of a 40 × 20 × 10 block with a Ø6 hole through it at x 20 (the middle): the cut face is the block's
+        20 × 10 cross-section split by the hole (two rectangles 7 wide); the section view's box is the Right view's; its
+        cut line on the Front view at x 20."""
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        part = {"features": box() + [{"id": "H1", "type": "hole", "plane": top, "points": [[0, 0]], "d": 6, "through": True}]}
+        r = doc.sheet(part, "medium", section=True)
+        sec = r["geometry"]["views"]["Section"]
+        self.assertEqual(sec["box"], r["geometry"]["views"]["Right"]["box"])
+        area = lambda pl: abs(sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(pl, pl[1:] + pl[:1]))) / 2  # noqa: E731
+        self.assertEqual(len(sec["hatch"]), 2)
+        self.assertAlmostEqual(sum(area(pl) for pl in sec["hatch"]), (20 - 6) * 10, delta=0.01)
+        self.assertEqual([p[0] for p in sec["cut"]], [20, 20])
+        self.assertNotIn("Section", doc.sheet(part, "medium")["geometry"]["views"])
+
     def test_assembly_sheet(self):
         part = {"features": box(20, 20, 10)}
         at = lambda x, y=0, z=0: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1]  # noqa: E731

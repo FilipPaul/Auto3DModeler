@@ -75,6 +75,10 @@ define / join (green), look and check (grey).
 **⊂⊃ Slot** (sketch): click the centres of its two round ends, move out to its width and click — two straight
 sides and two half circles that stay a slot (sides tangent, ends equal) when you size it.
 
+**Section A–A**: on a part's sheet tick *Section A–A* — the part cut through its middle and seen from the right, the
+cut faces hatched, in the right view's place; the cut is marked A–A on the front view. Its edges can be dimensioned
+like any view's.
+
 **Exploded assembly drawings**: on an assembly's sheet tick *Iso view exploded* — the iso view shows the parts pulled
 apart (a sub-assembly moves as one), with the balloons on them; the front and top views stay assembled.
 

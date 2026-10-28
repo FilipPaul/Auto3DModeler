@@ -915,13 +915,13 @@ def export(part, fmt, name="part"):
     raise K.KernelError(f"Unknown export format “{fmt}”.")
 
 
-def sheet(part, preset="medium", paper=None, per_view=None):
+def sheet(part, preset="medium", paper=None, per_view=None, section=False):
     """A drawing sheet of the part: its views, the points to dimension, the automatic dimensions of the preset, the
     layout (sheet.py)."""
     from . import sheet as S
     st = body_of(part)
     fits = {f["d"]: f["fit"] for f in (part or {}).get("features") or [] if f.get("type") == "hole" and f.get("fit") and not f.get("off")}
-    return S.build(st.body, preset, fits, paper, per_view, _threads(part))
+    return S.build(st.body, preset, fits, paper, per_view, _threads(part), section)
 
 
 def _exploded(placed, k):

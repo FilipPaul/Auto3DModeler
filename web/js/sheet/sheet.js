@@ -49,8 +49,8 @@ export class SheetEditor {
     this.pick = null;    // the first point of a new dimension {view, key}
     this.zoom = { k: 1, x: 0, y: 0 };
     this.history = new History({
-      capture: () => ({ balloons: this.d?.balloons, views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper, texts: this.d?.texts, exploded: !!this.d?.exploded }),
-      restore: (s) => { const ex = !!this.d.exploded; Object.assign(this.d, structuredClone(s)); if (!this.d.exploded) delete this.d.exploded; if (ex !== !!this.d.exploded || this.d.built?.preset !== this.d.preset || this.d.built?.vp !== JSON.stringify(this.d.vpreset || {})) this.ensure(true); else this.render(); },
+      capture: () => ({ section: !!this.d?.section, balloons: this.d?.balloons, views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper, texts: this.d?.texts, exploded: !!this.d?.exploded }),
+      restore: (s) => { const ex = !!this.d.exploded, sec = !!this.d.section; Object.assign(this.d, structuredClone(s)); if (!this.d.exploded) delete this.d.exploded; if (!this.d.section) delete this.d.section; if (ex !== !!this.d.exploded || sec !== !!this.d.section || this.d.built?.preset !== this.d.preset || this.d.built?.vp !== JSON.stringify(this.d.vpreset || {})) this.ensure(true); else this.render(); },
       onChange: () => this.renderBar(),
     });
     this.build();
@@ -109,7 +109,7 @@ export class SheetEditor {
     const asm = this.hooks.kindOf?.(this.d.source) === 'assembly';
     const h = this.sourceHash(this.d.source);
     const vp = JSON.stringify(this.d.vpreset || {});
-    if (!force && this.d.built && !this.d.built.stale && this.d.hash === h && this.d.built.preset === this.d.preset && this.d.built.vp === vp && (this.d.built.paper ?? null) === (this.d.paper ?? null)) return;
+    if (!force && this.d.built && !this.d.built.stale && this.d.hash === h && !!this.d.built.section === !!this.d.section && this.d.built.preset === this.d.preset && this.d.built.vp === vp && (this.d.built.paper ?? null) === (this.d.paper ?? null)) return;
     this.busy = true;
     this.renderBar();
     try {
@@ -120,12 +120,12 @@ export class SheetEditor {
         this.d.asm = { rows: pg.rows };
         if (!this.d.asmLaid) { this.d.off = { ...this.d.off, Right: true }; this.d.views = { ...this.d.views, Iso: r.layout.views.Right }; this.d.asmLaid = true; }
       } else {
-        const res = await fetch('/api/sheet/build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: src, preset: this.d.preset, paper: this.d.paper, per_view: this.d.vpreset || {} }) });
+        const res = await fetch('/api/sheet/build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: src, preset: this.d.preset, paper: this.d.paper, per_view: this.d.vpreset || {}, section: !!this.d.section }) });
         r = await res.json();
         if (!res.ok) throw new Error(r.error || res.statusText);
       }
       if (this.d.hash && this.d.hash !== h) { this.d.rev += 1; this.d.changed = new Date().toISOString(); } // the part changed
-      Object.assign(this.d, { built: { ...r, preset: this.d.preset, vp, paper: this.d.paper ?? null }, hash: h });
+      Object.assign(this.d, { built: { ...r, preset: this.d.preset, vp, paper: this.d.paper ?? null, section: !!this.d.section && !asm }, hash: h });
       this.error = null;
     } catch (e) { this.error = e.message; }
     this.busy = false;
@@ -139,7 +139,31 @@ export class SheetEditor {
   scale() { const s = this.lay?.scale || [1, 1]; return s[0] / s[1]; }
 
   /** A view's centre on the paper (moved by the user, else the layout's). */
-  centre(v) { return this.d.views[v] || this.lay.views[v]; }
+  centre(v) { return this.d.views[v] || this.lay.views[v] || (v === 'Section' ? this.lay.views.Right : null); }
+
+  /** The 2D views on the sheet: the shown ones of Front / Top / Right, and Section A–A when it is on. */
+  drawn() { return [...VIEWS.filter((v) => !this.d.off[v]), ...(this.d.section && this.geo?.views.Section ? ['Section'] : [])]; }
+
+  /** The hatching of a section's cut faces: 45° lines 2 mm apart (on the paper) inside the outlines (even-odd: holes
+   *  left out) -> SVG lines. */
+  hatchSvg(v, polys) {
+    const P = polys.map((pl) => pl.map((q) => this.P(v, q))), rot = (q) => [(q[0] + q[1]) / Math.SQRT2, (q[1] - q[0]) / Math.SQRT2];
+    const back = (u, w) => [(u - w) / Math.SQRT2, (u + w) / Math.SQRT2], R = P.map((pl) => pl.map(rot)), ws = R.flat().map((q) => q[1]);
+    const out = [];
+    for (let w = Math.ceil(Math.min(...ws) / 2) * 2; w <= Math.max(...ws); w += 2) {
+      const xs = [];
+      for (const pl of R) for (let i = 0; i < pl.length; i++) {
+        const a = pl[i], b = pl[(i + 1) % pl.length];
+        if ((a[1] <= w) !== (b[1] <= w)) xs.push(a[0] + (w - a[1]) / (b[1] - a[1]) * (b[0] - a[0]));
+      }
+      xs.sort((x, y) => x - y);
+      for (let i = 0; i + 1 < xs.length; i += 2) {
+        const A = back(xs[i], w), B = back(xs[i + 1], w);
+        out.push(`<line x1="${A[0].toFixed(3)}" y1="${A[1].toFixed(3)}" x2="${B[0].toFixed(3)}" y2="${B[1].toFixed(3)}" stroke="#000" stroke-width="0.18"/>`);
+      }
+    }
+    return out.join('');
+  }
 
   /** A point of view v (part mm) -> the paper (mm). */
   P(v, p) {
@@ -206,16 +230,25 @@ export class SheetEditor {
       `<rect x="0" y="0" width="${pw}" height="${ph}" fill="#fff"/>`,
       `<rect x="${m}" y="${m}" width="${pw - 2 * m}" height="${ph - 2 * m}" fill="none" stroke="#000" stroke-width="0.5"/>`];
     const pl = (v, pts) => pts.map((p) => this.P(v, p).map((q) => q.toFixed(3)).join(',')).join(' ');
-    for (const v of VIEWS) {
-      if (this.d.off[v]) continue;
+    for (const v of this.drawn()) {
       const g = G.views[v], pb = this.paperBox(v);
       out.push(`<g data-view="${v}" class="sh-view">`);
       if (!forPrint) out.push(`<rect x="${pb[0] - 2}" y="${pb[1] - 2}" width="${pb[2] - pb[0] + 4}" height="${pb[3] - pb[1] + 4}" fill="#fff" fill-opacity="0" stroke="none" class="sh-vhit"/>`);
+      if (g.hatch) out.push(this.hatchSvg(v, g.hatch)); // (a section: its cut faces hatched)
       for (const p of g.hidden) out.push(`<polyline points="${pl(v, p)}" fill="none" stroke="#666" stroke-width="0.25" stroke-dasharray="1.5 1"/>`);
       for (const p of g.visible) out.push(`<polyline points="${pl(v, p)}" fill="none" stroke="#000" stroke-width="0.5" stroke-linejoin="round"/>`);
       // its name below the dimensions under it
       const below = Math.max(0, ...this.allDims().filter((d) => d.view === v && d.kind === 'linear' && d.dir === 'h' && d.side !== 't').map((d) => d.off ?? 8));
-      out.push(`<text x="${(pb[0] + pb[2]) / 2}" y="${pb[3] + below + 8}" font-size="3.5" text-anchor="middle" fill="#334">${esc(t(v))}</text></g>`);
+      out.push(`<text x="${(pb[0] + pb[2]) / 2}" y="${pb[3] + below + 8}" font-size="3.5" text-anchor="middle" fill="#334">${esc(v === 'Section' ? t('Section A–A') : t(v))}</text></g>`);
+    }
+    const cut = this.drawn().includes('Section') && this.drawn().includes('Front') && G.views.Section.cut;
+    if (cut) { // where Section A–A is cut, on the front view: a dash-dot line, A at each end, arrows the way it is seen
+      const [a, b] = cut.map((q) => this.P('Front', q)), top = a[1] < b[1] ? a : b, bot = a[1] < b[1] ? b : a;
+      out.push(`<line x1="${top[0]}" y1="${top[1]}" x2="${bot[0]}" y2="${bot[1]}" stroke="#000" stroke-width="0.25" stroke-dasharray="6 1.2 1 1.2"/>`);
+      for (const e of [top, bot]) {
+        out.push(`<line x1="${e[0]}" y1="${e[1]}" x2="${e[0] - 4}" y2="${e[1]}" stroke="#000" stroke-width="0.35"/><path d="M${e[0] - 5},${e[1]} L${e[0] - 3},${e[1] - 0.8} L${e[0] - 3},${e[1] + 0.8} Z" fill="#000"/>`);
+        out.push(`<text x="${e[0] + 1.5}" y="${e[1] + (e === top ? -1 : 3.5)}" font-size="3.5" fill="#000">A</text>`);
+      }
     }
     if (!this.d.off.Iso && G.iso?.length) { // the iso view: fitted into its cell
       const pts = G.iso.flat(), xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
@@ -314,8 +347,7 @@ export class SheetEditor {
       const a = this.P(e.view, e.edge.a), b = this.P(e.view, e.edge.b);
       out.push(`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${col}" stroke-width="${w}" stroke-linecap="round" opacity="0.8"/>`);
     }
-    for (const v of VIEWS) {
-      if (this.d.off[v]) continue;
+    for (const v of this.drawn()) {
       for (const [k, p] of Object.entries(this.geo.views[v].points)) {
         if (k.startsWith('box#')) continue;
         const q = this.P(v, p), first = !this.pick?.edge && this.pick?.view === v && this.pick.key === k;
@@ -568,6 +600,7 @@ export class SheetEditor {
     const vp = this.d.vpreset || {}, per = (v) => ck.missing.filter((m) => m.view === v).length;
     box.innerHTML = `<h3>Views</h3><div class="sh-views">${[...VIEWS, 'Iso'].map((v) => `<div class="sh-vrow"><label class="check"><input type="checkbox" data-v="${v}" ${this.d.off[v] ? '' : 'checked'}> ${esc(t(v))}${v === 'Iso' || this.d.off[v] ? '' : per(v) ? ` <b class="sh-vbad" title="${esc(t('Sizes missing in this view'))}">⚠ ${per(v)}</b>` : ' <b class="sh-vok">✓</b>'}</label>
         ${v === 'Iso' || this.d.asm ? '' : `<select data-vp="${v}" title="${esc(t('How many dimensions in this view — as the sheet, or its own'))}"><option value="">${esc(t('as the sheet'))}</option>${PRESETS.map(([k, l]) => `<option value="${k}" ${vp[v] === k ? 'selected' : ''}>${esc(t(l))}</option>`).join('')}<option value="all" ${vp[v] === 'all' ? 'selected' : ''} title="${esc(t('Every size this view shows, also the ones given in another view'))}">${esc(t('All its sizes'))}</option></select>`}</div>`).join('')}</div>
+      ${this.d.asm ? '' : `<label class="check sh-secrow" title="${esc(t('The part cut through its middle (across X) and seen from the right, the cut hatched — in the right view\'s place; the cut marked A–A on the front view'))}"><input type="checkbox" data-sec ${this.d.section ? 'checked' : ''}> ${esc(t('Section A–A'))}</label>`}
       ${this.d.asm ? `<p class="hint">${esc(t('An assembly drawing: its views, overall sizes and parts list — each part has its own drawing for its sizes.'))}</p>` : ''}
       <h3 ${this.d.asm ? 'hidden' : ''}>Check</h3>${this.d.asm ? '' : ck.ok && !ck.over.size ? `<p class="mp-count sh-ok">✓ ${esc(t('Fully dimensioned — every place and size is given once.'))}</p>` : ''}
       ${ck.missing.length ? `<p class="hint">${esc(tv('{n} size(s) missing (orange ? on the drawing):', { n: ck.missing.length }))}</p><div class="sh-miss-list">${ck.missing.slice(0, 40).map((m, i) => `<div class="sh-mrow">
@@ -579,6 +612,11 @@ export class SheetEditor {
       <h3>Dimensions</h3><div class="sh-dlist">${all.map((d) => { const v = this.value(d), twice = ck.dup.has(d.id) || ck.over.has(d.id); return `<div class="sh-drow ${this.sel === d.id ? 'on' : ''} ${v === null || twice ? 'bad' : ''}" data-d="${d.id}">
         <span data-no-i18n>${twice ? '⧉ ' : ''}${d.kind === 'linear' ? (d.dir === 'h' ? '↔ ' : '↕ ') : d.kind === 'ang' ? '∠ ' : ''}${esc(v === null ? '⚠ ?' : this.dimText(d, v))}</span><i>${esc(t(d.view))}${d.auto ? '' : ' · ✎'}</i><button class="mini danger" data-x="${d.id}" title="Delete it">✕</button></div>`; }).join('') || '<p class="hint">None.</p>'}</div>
       ${hid ? `<div class="row-actions"><button class="btn small" data-a="unhide">↺ ${esc(tv('Bring back deleted ones ({n})', { n: hid }))}</button></div>` : ''}`;
+    box.querySelector('[data-sec]')?.addEventListener('change', (e) => { // Section A–A: in the Right view's place (the Right view hidden)
+      if (e.target.checked) { this.d.section = true; this.d.off = { ...this.d.off, Right: true }; } else delete this.d.section;
+      this.history.commit();
+      this.ensure(true);
+    });
     for (const el of box.querySelectorAll('[data-v]')) {
       el.addEventListener('change', () => { if (el.checked) delete this.d.off[el.dataset.v]; else this.d.off[el.dataset.v] = true; this.commit(); });
     }
@@ -839,8 +877,7 @@ export class SheetEditor {
   /** The point a dimension can hang on nearest the mouse (within reach) -> {view, key, at} or null. */
   snapAt(p, reach = 2.5) {
     let best = null;
-    for (const v of VIEWS) {
-      if (this.d.off[v]) continue;
+    for (const v of this.drawn()) {
       for (const [k, q] of Object.entries(this.geo.views[v].points)) {
         if (k.startsWith('box#') || k.endsWith('#m')) continue;
         const a = this.P(v, q), dist = Math.hypot(a[0] - p[0], a[1] - p[1]);
@@ -852,8 +889,7 @@ export class SheetEditor {
 
   /** A circle / arc of a view whose line is under the mouse -> {view, c} or null. */
   circleAt(p, reach = 1.5) {
-    for (const v of VIEWS) {
-      if (this.d.off[v]) continue;
+    for (const v of this.drawn()) {
       for (const c of this.geo.views[v].circles) {
         const C = this.P(v, c.c), R = c.r * this.scale();
         if (Math.abs(Math.hypot(p[0] - C[0], p[1] - C[1]) - R) < reach) return { view: v, c };
@@ -865,8 +901,7 @@ export class SheetEditor {
   /** A straight edge of a view under the mouse (its line within reach) -> {view, edge} or null. */
   edgeAt(p, reach = 1.2) {
     let best = null;
-    for (const v of VIEWS) {
-      if (this.d.off[v]) continue;
+    for (const v of this.drawn()) {
       for (const ln of this.geo.views[v].lines) {
         const a = this.P(v, ln.a), b = this.P(v, ln.b), dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy;
         if (L2 < 1e-6) continue;

@@ -277,10 +277,69 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None, threads=None):
     return dims
 
 
-def build(body, preset="medium", fits=None, paper=None, per_view=None, threads=None):
-    """Everything a new / changed sheet needs: {geometry, layout, dims (automatic)}."""
+def build(body, preset="medium", fits=None, paper=None, per_view=None, threads=None, section=False):
+    """Everything a new / changed sheet needs: {geometry, layout, dims (automatic)}. section: also the section A–A
+    (geometry.views.Section)."""
     geo = geometry(body)
+    if section:
+        geo["views"]["Section"] = section_view(body)
     return {"geometry": geo, "layout": layout(geo, paper), "dims": auto_dims(geo, preset, fits, per_view, threads)}
+
+
+def _wire_points(w, n=24):
+    """A wire's points in order (its lines by their ends, its curves n points each)."""
+    from OCP.BRepTools import BRepTools_WireExplorer
+    from OCP.TopAbs import TopAbs_REVERSED
+    out, ex = [], BRepTools_WireExplorer(w)
+    while ex.More():
+        e = ex.Current()
+        c = BRepAdaptor_Curve(e)
+        t0, t1 = c.FirstParameter(), c.LastParameter()
+        k = 1 if c.GetType() == GeomAbs_Line else n
+        ts = [t0 + (t1 - t0) * i / k for i in range(k + 1)]
+        if e.Orientation() == TopAbs_REVERSED:
+            ts.reverse()
+        pts = [np.array([c.Value(t).X(), c.Value(t).Y(), c.Value(t).Z()]) for t in ts]
+        out.extend(pts if not out else pts[1:])
+        ex.Next()
+    return out
+
+
+def section_view(body):
+    """Section A–A: the part cut across x at its middle, the far half seen as the Right view sees it (looking along
+    -x) -> that view's geometry (lines, circles, points to dimension) with hatch (the cut faces' outlines [[x, y]…])
+    and cut (where the cut is, on the Front view: two points)."""
+    from OCP.BRepAlgoAPI import BRepAlgoAPI_Common
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
+    from OCP.gp import gp_Pnt
+    from OCP.TopAbs import TopAbs_FACE, TopAbs_WIRE
+    from OCP.TopExp import TopExp_Explorer
+    from OCP.GeomAbs import GeomAbs_Plane
+    bb = K.bbox(body.shape)
+    xm = (bb[0] + bb[3]) / 2
+    keep = BRepPrimAPI_MakeBox(gp_Pnt(bb[0] - 1, bb[1] - 1, bb[2] - 1), gp_Pnt(xm, bb[4] + 1, bb[5] + 1)).Shape()
+    mk = BRepAlgoAPI_Common(body.shape, keep)
+    if not mk.IsDone():
+        raise K.KernelError("The part could not be cut for its section.")
+    half = mk.Shape()
+    view = geometry(_Placed(half))["views"]["Right"]
+    _, R, U = VIEWS["Right"]
+    R, U = np.asarray(R, float), np.asarray(U, float)
+    hatch, fx = [], TopExp_Explorer(half, TopAbs_FACE)
+    while fx.More():
+        f = TopoDS.Face(fx.Current())
+        s = BRepAdaptor_Surface(f)
+        if s.GetType() == GeomAbs_Plane and abs(abs(s.Plane().Axis().Direction().X()) - 1) < 1e-9 and abs(s.Plane().Location().X() - xm) < 1e-6:
+            wx = TopExp_Explorer(f, TopAbs_WIRE)
+            while wx.More():
+                hatch.append([[_r(float(p @ R), 3), _r(float(p @ U), 3)] for p in _wire_points(TopoDS.Wire(wx.Current()))])
+                wx.Next()
+        fx.Next()
+    _, RF, UF = VIEWS["Front"]
+    a, b = np.array([xm, bb[1], bb[2]]), np.array([xm, bb[1], bb[5]])
+    view["hatch"] = hatch
+    view["cut"] = [[_r(float(a @ np.asarray(RF, float))), _r(float(a @ np.asarray(UF, float)))], [_r(float(b @ np.asarray(RF, float))), _r(float(b @ np.asarray(UF, float)))]]
+    return view
 
 
 ISO_VIEW = ((-1, 1, -1), (1 / math.sqrt(2), 1 / math.sqrt(2), 0), (-1 / math.sqrt(6), 1 / math.sqrt(6), 2 / math.sqrt(6)))  # as _iso projects

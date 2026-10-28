@@ -91,6 +91,12 @@ Date: 2026-10-25. Written by the architect agent.
   tools/e2e_ai_reports.py.
 - **Steps named after their sketch done:** nextName(type, sketch): an extrude / revolve of a sketch the user named
   is "Extrude – Slot" (a "Sketch 2" keeps "Extrude 3"), in the panel and for the AI. tools/e2e_ai_reports.py.
+- **Section A–A on part sheets done:** sheet.section_view (the part ∩ the box x ≤ its middle, projected as the Right
+  view sees it; the cut faces' wires -> hatch outlines; the cut's two ends on the Front view) -> geometry.views.Section
+  when build(…, section) (doc.sheet / worker / /api/sheet/build section); the sheet: d.section (☐ Section A–A, in the
+  undo history, the Right view hidden and its place taken), drawn() (the views drawn and picked, Section included),
+  hatchSvg (45° lines clipped even-odd — plain lines, so the PDF has them), the A–A cut line with arrows on the Front.
+  test_section_view; tools/e2e_sheet_section.py.
 - **Exploded iso on assembly sheets done:** doc._exploded (each top-level part, a sub-assembly's parts together, moved
   from the middle of all by 1.2 × k × its distance); assembly_sheet(…, explode) -> sheet.build_assembly(…, iso_placed):
   the iso drawn from the pulled-apart parts and their Iso marks (the balloons) there, the other views assembled; the
