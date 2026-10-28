@@ -218,6 +218,10 @@ Never report "works" without having run it; report failures with their output.
    Count 4, Spacing 15: x 0 / 15 / 30 / 45, a `pat` relation; the ⁂ symbol -> Count 5 re-made; Ctrl+Z -> 4, Ctrl+Z
    -> 1, Ctrl+Y -> 4; extruded 5: 4 π r² · 5; around: a disc R 30, a hole R 5 at x 20, a click on the disc = its
    centre, Count 6: six at 60°, extruded: π (30² − 6 · 5²) · 5).
+   `tools/e2e_sketch_offset_linked.py <url> <dir>` covers the linked ⧈ Offset (a 40 × 20 rectangle offset 3: an `off`
+   relation, dof unchanged; the width label typed 60 -> the copy −3 … 63; the ⧈ 3 label typed 5 -> −5 … 65, the
+   rectangle stays; Ctrl+Z / Ctrl+Y; the copy picked -> ⛓ Unlink the offset -> h / v, Ctrl+Z linked again; extruded
+   5: 4500; a circle offset −2, its Ø typed 30 -> radii 13 / 15, extruded π (15² − 13²) · 5).
    `tools/e2e_sheet_angle.py <url> <dir>` covers angle dimensions on the sheet (a plate with a slanted edge: ＋ Dimension
    on the slanted and the upright edge -> 123.7° drawn as an arc; the AI's sheet_edit add edges the same; parallel
    edges refused; a picture of the sheet).

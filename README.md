@@ -231,8 +231,10 @@ SolidWorks. It has only the tools that need almost no input.
    the original's size and follow it; click the ⁂ symbol to change the count later; Ctrl+Z takes the whole pattern
    back. **⧈ Offset** (O): click a
    closed shape and type the distance (negative = inside) — a parallel copy: a circle gets a concentric one, an
-   outline of lines and arcs keeps its sharp corners sharp and its roundings concentric, a picture outline grows
-   or shrinks (e.g. the wall of a cookie cutter).
+   outline of lines and arcs keeps its sharp corners sharp and its roundings concentric. The copy stays linked:
+   type a bigger width or drag the original and the copy follows at the same distance; click its ⧈ label to type
+   a new distance; pick the copy and choose ⛓ *Unlink the offset* for a one-off copy. A picture outline grows or
+   shrinks as a one-off copy (e.g. the wall of a cookie cutter).
    - Points snap to the grid (it follows the zoom), to the origin, and to existing points. Snapping onto a point
      joins the shapes there. Hold Alt to draw without snapping. A line drawn almost horizontal or vertical
      becomes exactly that.

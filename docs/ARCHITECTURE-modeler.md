@@ -218,6 +218,20 @@ Date: 2026-10-25. Written by the architect agent.
   done; the whole edit is one undo step; the ⁂ symbol reopens it. The AI: any sketch shape + pattern {count, spacing}
   or {count, around: [u, v]} (agent_model sketchFromShapes -> makePattern). test_modeler_sketch TestSketchPattern;
   tools/e2e_sketch_pattern.py; e2e_agent (a flange: 6 around, 3 in a row).
+- **⧈ Linked offset done:** ⧈ Offset's copy of a circle or a loop of lines / arcs is held by an `off` relation
+  {d, pairs: [[original, copy, w]], src, copies} (w: the side of a positive d — a line's copy left of a -> b, an arc's
+  bigger; the copy's ends named as its original's). constraints._offset: a copy line parallel + set_p2l_distance |d|
+  (an end on a copy arc: parallel only; both: nothing — the arcs hold it), a copy arc concentric (it shares the
+  centre), its radius the original's + w·d (difference of two radius parameters, signed) and its ends on the rays
+  through the original's ends (not a touching line / circle crossing); a circle the same radius rule — no new free
+  sizes. A distance has no side, so after the solve _offset_wrong checks each copy's side and _offset_place puts a
+  copy that jumped across (a width typed 20 bigger than d) back beside its solved original, then solves again. The
+  sketcher: makeOffset makes the relation (blocks stay one-off, said in the box and the hint), a ⧈ size label
+  (offLabel: a short dimension a fifth along the first line / across the rims) types the distance (setOffset: the
+  original's points held; negative = the other side), ⛓ Unlink the offset in a picked copy's suggestions and the
+  Relations panel's ✕ (unlinkOffset: the copy stays, its lines get their original's h / v), deleting all its shapes
+  drops it; an offset circle's Ø label starts at 135° (not on its original's). TestSketchOffset;
+  tools/e2e_sketch_offset_linked.py.
 - **Angle dimensions on sheets done:** kind "ang" {a, b: edge keys, r}: SheetEditor.angleOf (where the two lines cross,
   each toward its far end, the angle between), drawn as an arc with arrows and extension lines to edges short of it,
   the text clear of the arc; dragged: its radius; ＋ Dimension on two non-parallel edges makes one; sheet_edit add
@@ -729,7 +743,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 | 2D fillet / chamfer | Round or cut a sketch corner (adds arc + tangency) | corner, r / d | MVP (M2) |
 | Trim | Cut a segment back to the nearest crossings | click on segment | MVP (M2) |
 | Extend | Extend a line up to the next entity | click | Done (lines; the end gets an "on" constraint) |
-| Offset | Copy a loop at a distance (one-off copy) | loop, distance, side | MVP (M2), linked offset later |
+| Offset | Copy a loop at a distance (linked: it follows its original; ⛓ Unlink = one-off) | loop, distance, side | MVP (M2); linked offset done |
 | Mirror | Mirror entities about a line, adding symmetric constraints | entities, line | MVP (M2) |
 | Sketch pattern | Linear / circular copies inside the sketch | entities, count, step | Done (⁂ Pattern: a `pat` relation, the copies follow) |
 | Project edges ("Include" / "Convert entities") | Bring part edges into the sketch | picked edges | MVP (M3) |

@@ -162,6 +162,126 @@ class TestSketchPattern(unittest.TestCase):
         self.assertTrue(solve(sk)["ok"])
 
 
+def offset(sk, ids, d=3):
+    """A ⧈ linked offset of the loop `ids` (a counter-clockwise outline, each shape drawn along it; a circle alone)
+    d outside: copy points q<p> / shapes o<id> (as ⧈ Offset makes them: the arcs keep their centre), drawn a little
+    off (the solver puts them right)."""
+    from auto3d.modeler.constraints import _offset_place
+    ents = {e["id"]: e for e in sk["entities"]}
+    k = {"id": "k99", "t": "off", "user": True, "d": d, "pairs": [], "src": list(ids), "copies": []}
+    for i in ids:
+        e, c = ents[i], {**ents[i], "id": f"o{i}"}
+        for end in ("a", "b"):
+            if end in e:
+                c[end] = f"q{e[end]}"
+                sk["points"][c[end]] = list(sk["points"][e[end]])
+        if e["t"] == "circle":
+            c["r"] = e["r"] + d + 0.4
+        sk["entities"].append(c)
+        k["pairs"].append([i, c["id"], -1 if e["t"] == "line" else 1])  # (outside: right of a line, a bigger radius)
+        k["copies"].append(c["id"])
+    sk["constraints"].append(k)
+    _offset_place(sk, [k], sk["points"])
+    for p in sk["points"]:
+        if p.startswith("q"):
+            sk["points"][p] = [sk["points"][p][0] + 0.3, sk["points"][p][1] - 0.2]
+    return sk
+
+
+@unittest.skipUnless(GCS, "planegcs not installed")
+class TestSketchOffset(unittest.TestCase):
+    def rect(self, w=40):
+        sk = plate(w, dims=LOCK_CORNER + [{"id": "d3", "t": "len", "e": "l1", "v": w}, {"id": "d4", "t": "len", "e": "l2", "v": 20}])
+        sk["entities"] = sk["entities"][:4]
+        del sk["points"]["p5"]
+        return sk
+
+    def test_rectangle_follows_its_width(self):
+        self.assertEqual(solve(self.rect())["dof"], 0)
+        r = solve(offset(self.rect(), ["l1", "l2", "l3", "l4"]), detail=True)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["dof"], 0)  # (the copy adds no free sizes)
+        for p, at in (("qp1", (-3, -3)), ("qp2", (43, -3)), ("qp3", (43, 23)), ("qp4", (-3, 23))):
+            self.assertAlmostEqual(r["points"][p][0], at[0], places=6)
+            self.assertAlmostEqual(r["points"][p][1], at[1], places=6)
+        # the width typed 60 (the copy left 17 inside the moved side: it comes back out, 3 beyond it)
+        sk = offset(self.rect(), ["l1", "l2", "l3", "l4"])
+        sk["dims"][2]["v"] = 60
+        r = solve(sk)
+        self.assertTrue(r["ok"], r)
+        self.assertAlmostEqual(r["points"]["qp2"][0], 63, places=6)
+        self.assertAlmostEqual(r["points"]["qp3"][0], 63, places=6)
+        self.assertAlmostEqual(r["points"]["qp3"][1], 23, places=6)
+        self.assertAlmostEqual(r["points"]["qp1"][0], -3, places=6)
+        # the distance typed 5: the copy moves out
+        sk = offset(self.rect(), ["l1", "l2", "l3", "l4"])
+        sk["constraints"][-1]["d"] = 5
+        r = solve(sk)
+        self.assertAlmostEqual(r["points"]["qp1"][0], -5, places=6)
+        self.assertAlmostEqual(r["points"]["qp3"][1], 25, places=6)
+
+    def test_circle(self):
+        sk = plate(dims=LOCK_CORNER + [{"id": "d3", "t": "dx", "a": "O", "b": "p5", "v": 10}, {"id": "d4", "t": "dy", "a": "O", "b": "p5", "v": 10},
+                                       {"id": "d5", "t": "dia", "e": "c1", "v": 6}])
+        sk["entities"], sk["constraints"] = sk["entities"][4:], []
+        sk["points"] = {"p1": [0, 0], "p5": [10, 10]}
+        before = solve(sk)["dof"]
+        r = solve(offset(sk, ["c1"], d=-2))  # (inside: radius 3 - 2)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["dof"], before)
+        self.assertAlmostEqual(r["radii"]["oc1"], 1, places=6)
+        sk["dims"][-1]["v"] = 20
+        r = solve(sk)
+        self.assertAlmostEqual(r["radii"]["oc1"], 8, places=6)
+
+    def test_arcs_stay_concentric(self):
+        # the rounded rectangle (a line corner, a tangent arc) offset 2: the arc R5 -> R7 round the same centre
+        loop = ["l1", "l2", "a1", "l3", "l4"]
+        before = solve(rounded())["dof"]
+        r = solve(offset(rounded(), loop, d=2), detail=True)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["dof"], before)
+        for p, at in (("qp1", (-2, -2)), ("qp2", (42, -2)), ("qt1", (42, 15)), ("qt2", (35, 22)), ("qp4", (-2, 22))):
+            self.assertAlmostEqual(r["points"][p][0], at[0], places=6)
+            self.assertAlmostEqual(r["points"][p][1], at[1], places=6)
+        # the rounding typed R8 and the width 50: the copy's arc R10 round the moved centre, its lines 2 out
+        sk = offset(rounded(), loop, d=2)
+        sk["dims"][2]["v"], sk["dims"][4]["v"] = 50, 8
+        r = solve(sk)
+        self.assertTrue(r["ok"], r)
+        c = r["points"]["c"]
+        self.assertAlmostEqual(c[0], 42, places=6)
+        self.assertAlmostEqual(c[1], 12, places=6)
+        self.assertAlmostEqual(r["points"]["qt1"][0], 52, places=6)
+        self.assertAlmostEqual(r["points"]["qt1"][1], 12, places=6)
+        self.assertAlmostEqual(r["points"]["qt2"][0], 42, places=6)
+        self.assertAlmostEqual(r["points"]["qt2"][1], 22, places=6)
+        self.assertAlmostEqual(r["points"]["qp2"][0], 52, places=6)
+
+    def test_slot(self):
+        # two lines and two half circles (only arcs at the corners) offset 2: R5 -> R7, the lines 2 out
+        sk = slot()
+        sk["constraints"] += [{"id": f"k{i}", "t": "tan", "e": e, "arc": a, "p": p} for i, (e, a, p) in
+                              enumerate((("l1", "a1", "p2"), ("l2", "a1", "p3"), ("l2", "a2", "p4"), ("l1", "a2", "p1")), 3)]
+        sk["dims"] = [{"id": "d1", "t": "dx", "a": "O", "b": "c2", "v": 0}, {"id": "d2", "t": "dy", "a": "O", "b": "c2", "v": 0},
+                      {"id": "d3", "t": "dx", "a": "c2", "b": "c1", "v": 30}, {"id": "d4", "t": "rad", "e": "a1", "v": 5}]
+        before = solve(sk)["dof"]
+        r = solve(offset(sk, ["l1", "a1", "l2", "a2"], d=2))
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["dof"], before)
+        for p, at in (("qp1", (0, -7)), ("qp2", (30, -7)), ("qp3", (30, 7)), ("qp4", (0, 7))):
+            self.assertAlmostEqual(r["points"][p][0], at[0], places=6)
+            self.assertAlmostEqual(r["points"][p][1], at[1], places=6)
+
+    def test_gone_shapes_break_nothing(self):
+        sk = offset(self.rect(), ["l1", "l2", "l3", "l4"])
+        sk["entities"] = [e for e in sk["entities"] if e["id"] != "ol2"]
+        self.assertTrue(solve(sk)["ok"])
+        sk["constraints"][-1]["d"] = "x"
+        with self.assertRaises(SketchError):
+            solve(sk)
+
+
 @unittest.skipUnless(GCS, "planegcs not installed")
 class TestSketchSolve(unittest.TestCase):
     def test_lock_holds_when_the_plate_grows(self):

@@ -269,6 +269,8 @@ export const RELATIONS = {
   mir: { icon: '⇋', name: 'Mirrored', picks: [], tool: true },
   // made by the ⁂ Pattern tool: the copies keep the original's size and step (its symbol opens the count / spacing)
   pat: { icon: '⁂', name: 'Pattern', picks: [], tool: true },
+  // made by the ⧈ Offset tool: the copy stays the distance away from its original (its ⧈ size label types it)
+  off: { icon: '⧈', name: 'Offset', picks: [], tool: true },
 };
 
 const segDist = (p, a, b) => {
@@ -421,7 +423,7 @@ export class Sketcher {
     if (this.tool === 'circle') return this.start ? 'Click to set the size (Esc = stop drawing).' : 'Click the centre of a circle.';
     if (this.tool === 'slot') return !this.start ? 'Click the centre of one round end of the slot.' : !this.slotEnd ? 'Click the centre of the other end.' : 'Move out to its width and click (Esc = stop drawing).';
     if (this.tool === 'round') return 'Round corner: click a corner where two lines meet, then type the radius.';
-    if (this.tool === 'offset') return 'Offset: click a closed shape — a circle, an outline of lines / arcs, or a picture outline — then type the distance (negative = inside).';
+    if (this.tool === 'offset') return 'Offset: click a closed shape — a circle, an outline of lines / arcs, or a picture outline — then type the distance (negative = inside). The copy follows its original (a picture outline: a one-off copy).';
     if (this.tool === 'relate') {
       const r = RELATIONS[this.relType] || RELATIONS.par, k = (this.relPicks || []).length, want = r.picks[k];
       const what = { line: 'a line', round: 'a circle or an arc', shape: 'a line, a circle or an arc', point: 'a point', any: 'a point, a line or a circle' }[want];
@@ -1033,7 +1035,7 @@ export class Sketcher {
     else gone = new Set(s.kind === 'group' ? this.f.entities.filter((e) => e.g === s.id).map((e) => e.id) : [s.id]);
     this.f.entities = this.f.entities.filter((e) => !gone.has(e.id));
     this.f.constraints = this.f.constraints.filter((c) => !gone.has(c.e) && !gone.has(c.arc) && !(c.lines || []).some((l) => gone.has(l))
-      && !(s.kind === 'point' && c.p === s.id && c.t === 'corner'));
+      && !(s.kind === 'point' && c.p === s.id && c.t === 'corner') && !(c.t === 'off' && !c.pairs.some(([o, q]) => !gone.has(o) && !gone.has(q))));
     const used = new Set([...this.f.entities.flatMap((e) => [e.a, e.b, e.c, ...(e.pts || [])]), ...this.f.constraints.filter((c) => c.t === 'corner').map((c) => c.p)]);
     for (const p of Object.keys(this.f.points)) if (!used.has(p)) delete this.f.points[p];
     this.f.dims = this.f.dims.filter((d) => !gone.has(d.e) && (!d.a || d.a === ORIGIN || this.f.points[d.a]) && (!d.b || this.f.points[d.b]));
@@ -1551,6 +1553,7 @@ export class Sketcher {
 
   /** A relation's place in the sketch (for its symbol): the middle of its first shape, or its point. */
   relAt(k) {
+    if (k.t === 'off') return null; // (its ⧈ size label shows it)
     if (k.t === 'pat') { // between the original and its first copy
       const pr = (k.pairs || []).find(([p, qs]) => qs[0] && qs[0] !== p && this.P(p) && this.P(qs[0]));
       return pr ? [(this.P(pr[0])[0] + this.P(pr[1][0])[0]) / 2, (this.P(pr[0])[1] + this.P(pr[1][0])[1]) / 2] : null;
@@ -1572,7 +1575,10 @@ export class Sketcher {
 
   userRelations() { return this.f.constraints.filter((k) => k.user || (RELATIONS[k.t] && !['h', 'v'].includes(k.t))); }
 
-  async delRelation(id) { await this.relock(() => { this.f.constraints = this.f.constraints.filter((k) => k.id !== id); }); }
+  async delRelation(id) {
+    if (this.f.constraints.find((k) => k.id === id)?.t === 'off') { await this.unlinkOffset(id); return; } // (a one-off copy again)
+    await this.relock(() => { this.f.constraints = this.f.constraints.filter((k) => k.id !== id); });
+  }
 
   /** Trim: the piece of the shape under the mouse between the crossings next to it -> {e, g, lo, hi, cuts, pts}. */
   pieceAt(uv) {
@@ -1786,12 +1792,12 @@ export class Sketcher {
       const a = this.P(o.from), b = this.P(o.to);
       if (o.e.t === 'line') {
         const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, n = [side * (b[1] - a[1]) / L, -side * (b[0] - a[0]) / L];
-        return { t: 'line', a: [a[0] + n[0] * d, a[1] + n[1] * d], b: [b[0] + n[0] * d, b[1] + n[1] * d], src: o.e };
+        return { t: 'line', a: [a[0] + n[0] * d, a[1] + n[1] * d], b: [b[0] + n[0] * d, b[1] + n[1] * d], src: o.e, w: o.from === o.e.a ? -side : side };
       }
       const c = this.P(o.e.c), r = this.arcR(o.e), ccw = o.from === o.e.a, r2 = r + d * side * (ccw ? 1 : -1);
       if (!(r2 > 1e-9)) throw new Error('That distance is bigger than a rounding of the outline.');
       const at = (p) => [c[0] + ((p[0] - c[0]) / r) * r2, c[1] + ((p[1] - c[1]) / r) * r2];
-      return { t: 'arc', a: at(a), b: at(b), c: o.e.c, ccw, r: r2, src: o.e };
+      return { t: 'arc', a: at(a), b: at(b), c: o.e.c, ccw, r: r2, src: o.e, w: ccw ? side : -side };
     });
     // the corners: where piece k ends and k + 1 starts
     const corners = pieces.map((p, k) => {
@@ -1820,7 +1826,7 @@ export class Sketcher {
     const vr = this.m.els.viewport.getBoundingClientRect();
     Object.assign(box.style, { left: `${ev.clientX - vr.left + 12}px`, top: `${ev.clientY - vr.top + 12}px` });
     box.innerHTML = `<div class="sk-choose-t">Offset by</div><label class="sk-off"><input type="number" step="any" value="${fmt(this.lastOffset || 2)}"> mm</label>
-      <p class="hint">Negative = inside.</p><button class="btn small primary">OK</button>`;
+      <p class="hint">Negative = inside.</p>${l.kind === 'block' ? '<p class="hint">A picture outline: a one-off copy (it does not follow).</p>' : ''}<button class="btn small primary">OK</button>`;
     for (const t of ['pointerdown', 'pointerup']) box.addEventListener(t, (x) => x.stopPropagation());
     this.m.els.viewport.appendChild(box);
     this.chooser = box;
@@ -1852,10 +1858,15 @@ export class Sketcher {
       this.changed();
       return;
     }
+    // a circle / a loop: the copy is held by a ⧈ Offset relation (constraints.py `off`) — it follows its original
     if (l.kind === 'circle') {
       const r = l.e.r + d;
       if (!(r > 0)) { this.m.toast('That distance is bigger than the circle.', 'error'); return; }
-      await this.relock(() => { f.entities.push({ id: this.newId('c'), t: 'circle', c: l.e.c, r: +r.toFixed(6) }); });
+      await this.relock(() => {
+        const id = this.newId('c');
+        f.entities.push({ id, t: 'circle', c: l.e.c, r: +r.toFixed(6) });
+        f.constraints.push({ id: this.newId('k'), t: 'off', user: true, d, pairs: [[l.e.id, id, 1]], src: [l.e.id], copies: [id] });
+      });
       this.changed();
       return;
     }
@@ -1863,16 +1874,70 @@ export class Sketcher {
     try { geo = this.offsetLoop(l.order, d); } catch (err) { this.m.toast(err.message, 'error', 6000); return; }
     await this.relock(() => {
       const ids = geo.corners.map((p) => { const id = this.newId('p'); f.points[id] = p.map((v) => +v.toFixed(9)); return id; });
+      const pairs = [];
       geo.pieces.forEach((pc, k) => {
-        const a = ids[(k - 1 + ids.length) % ids.length], b = ids[k];
-        if (pc.t === 'line') {
-          const id = this.newId('l');
-          f.entities.push({ id, t: 'line', a, b });
-          for (const c of f.constraints.filter((x) => x.e === pc.src.id && (x.t === 'h' || x.t === 'v'))) f.constraints.push({ id: this.newId('k'), t: c.t, e: id });
-        } else f.entities.push({ id: this.newId('a'), t: 'arc', c: pc.c, a: pc.ccw ? a : b, b: pc.ccw ? b : a });
+        const a = ids[(k - 1 + ids.length) % ids.length], b = ids[k], fwd = pc.t === 'line' ? l.order[k].from === pc.src.a : pc.ccw;
+        const id = this.newId(pc.t === 'line' ? 'l' : 'a'); // (its ends as its original's: a <-> a)
+        f.entities.push(pc.t === 'line' ? { id, t: 'line', a: fwd ? a : b, b: fwd ? b : a } : { id, t: 'arc', c: pc.c, a: fwd ? a : b, b: fwd ? b : a });
+        pairs.push([pc.src.id, id, pc.w]);
       });
+      f.constraints.push({ id: this.newId('k'), t: 'off', user: true, d, pairs, src: pairs.map((x) => x[0]), copies: pairs.map((x) => x[1]) });
     });
     this.changed();
+  }
+
+  /** The ⧈ linked offset a shape is the copy (or the original) of -> its relation, or null. */
+  offsetOf(id, copy = true) { return this.f.constraints.find((k) => k.t === 'off' && (copy ? k.copies : k.src)?.includes(id)) || null; }
+
+  /** ⧈ The offset's distance typed: the copy moves (its original stays); a negative number puts it on the other side. */
+  async setOffset(id, value) {
+    const k = this.f.constraints.find((x) => x.id === id && x.t === 'off'), v = parseFloat(String(value).replace(',', '.'));
+    if (!k) return;
+    if (!Number.isFinite(v) || !v) { this.m.toast('Type a distance (not 0).', 'warning'); return; }
+    const orig = new Set(k.src.flatMap((c) => entPts(this.ent(c) || {}))); // (a copy arc shares its original's centre)
+    const own = new Set(k.copies.flatMap((c) => entPts(this.ent(c) || {})).filter((p) => !orig.has(p)));
+    const hold = Object.fromEntries(Object.keys(this.f.points).filter((p) => !own.has(p)).map((p) => [p, this.P(p)]));
+    await this.relock(() => { k.d = Math.sign(k.d || 1) * v; }, hold);
+  }
+
+  /** ⛓ Unlink: the copy stays where it is as a one-off copy (its lines keep their original's horizontal / vertical). */
+  async unlinkOffset(id) {
+    await this.relock(() => {
+      const k = this.f.constraints.find((x) => x.id === id);
+      if (!k) return;
+      this.f.constraints = this.f.constraints.filter((x) => x !== k);
+      for (const [o, c] of k.pairs || []) {
+        if (!this.ent(c)) continue;
+        for (const x of this.f.constraints.filter((x) => x.e === o && (x.t === 'h' || x.t === 'v'))) this.f.constraints.push({ id: this.newId('k'), t: x.t, e: c });
+      }
+    });
+  }
+
+  /** A ⧈ offset's distance label: ⧈ and the value (click = type a new one). */
+  offLabel(k, u, v) {
+    const el = document.createElement('div');
+    el.className = 'sk-label edit dist locked';
+    el.dataset.off = k.id;
+    el.innerHTML = '<span class="sk-val"></span>';
+    el.querySelector('.sk-val').textContent = `⧈ ${fmt(Math.abs(k.d))}`;
+    el.querySelector('.sk-val').title = t('Offset distance — click to type a new one (the copy follows its original)');
+    el.querySelector('.sk-val').addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const inp = document.createElement('input');
+      inp.className = 'sk-input';
+      inp.value = fmt(Math.abs(k.d));
+      const r = el.getBoundingClientRect(), vr = this.m.els.viewport.getBoundingClientRect();
+      Object.assign(inp.style, { left: `${r.left - vr.left}px`, top: `${r.top - vr.top - 2}px` });
+      this.m.els.viewport.appendChild(inp);
+      inp.focus();
+      inp.select();
+      let done = false;
+      const finish = (ok) => { if (done) return; done = true; inp.remove(); if (ok && inp.value.trim() !== '') this.setOffset(k.id, inp.value); };
+      inp.addEventListener('keydown', (x) => { x.stopPropagation(); if (x.key === 'Enter') finish(true); if (x.key === 'Escape') finish(false); });
+      inp.addEventListener('blur', () => finish(true));
+    });
+    for (const ev of ['pointerdown', 'pointerup']) el.addEventListener(ev, (x) => x.stopPropagation());
+    return { el, u, v };
   }
 
   /** A corner under the mouse that can be rounded (two lines meet there) -> a hover target, or null. */
@@ -2488,6 +2553,8 @@ export class Sketcher {
       }
       if (p.kind === 'line') items.push(rel('h', p), rel('v', p));
       if (p.kind === 'point') items.push(rel('fix', p));
+      const off = ['line', 'circle', 'arc'].includes(p.kind) && this.offsetOf(p.id);
+      if (off) items.push({ icon: '⛓', label: t('Unlink the offset'), title: t('The copy stays where it is, but no longer follows its original'), run: () => this.unlinkOffset(off.id) });
       items.push(...cons(P));
     } else if (n === 2) {
       const [a, b] = P;
@@ -2684,7 +2751,8 @@ export class Sketcher {
         } else circles.push([c, e.r, isSel(e) ? SEL : colourOf(e)]);
         if (showSize({ t: 'dia', e: e.id })) {
           const key = `dia:${e.id}`, pl = place[key], col = this.findDim({ t: 'dia', e: e.id }) ? DIM_ON : DIM_FREE;
-          const { at, grab } = roundDim(c, e.r, Array.isArray(pl) ? pl[0] : pl ?? Math.PI / 4, Array.isArray(pl) ? pl[1] : e.r + mpp * 22, this.roundAs(e.id) !== 'r', col);
+          const { at, grab } = roundDim(c, e.r, Array.isArray(pl) ? pl[0] : pl ?? (this.offsetOf(e.id) ? (3 * Math.PI) / 4 : Math.PI / 4), // (an offset copy: not on its original's)
+            Array.isArray(pl) ? pl[1] : e.r + mpp * 22, this.roundAs(e.id) !== 'r', col);
           labels.push(this.movable(this.label({ t: 'dia', e: e.id }, at[0], at[1], this.roundAs(e.id) === 'r' ? `R${fmt(e.r)}` : `Ø${fmt(2 * e.r)}`, 'Diameter'), key,
             roundAt(e.id, c, e.r), { circles: [[c, e.r]] }, [grab]));
         }
@@ -2771,6 +2839,30 @@ export class Sketcher {
       }
       labels.push(this.movable(this.distLabel(d, mid[0], mid[1]), d.id, at, { pts: [A, B] }));
       if (Math.hypot(line[1][0] - line[0][0], line[1][1] - line[0][1]) > 1e-9) this.dimHits.push({ a: line[0], b: line[1], key: d.id, at: lineAt, what: { pts: [A, B] } });
+    }
+    // ⧈ linked offsets: the distance from the original to its copy (a third along a line, or across the rims)
+    for (const k of shows(true) ? f.constraints.filter((c) => c.t === 'off') : []) {
+      const [o, q] = (k.pairs || []).map(([a, b]) => [this.ent(a), this.ent(b)]).find(([a, b]) => a && b) || [];
+      if (!o) continue;
+      let A, B;
+      if (o.t === 'line') {
+        const a = this.P(o.a), b = this.P(o.b), qa = this.P(q.a), qb = this.P(q.b), u = [qb[0] - qa[0], qb[1] - qa[1]], L2 = u[0] * u[0] + u[1] * u[1] || 1;
+        A = [a[0] + (b[0] - a[0]) / 5, a[1] + (b[1] - a[1]) / 5];
+        const s = ((A[0] - qa[0]) * u[0] + (A[1] - qa[1]) * u[1]) / L2;
+        B = [qa[0] + s * u[0], qa[1] + s * u[1]];
+      } else {
+        const c = this.P(o.c), ps = o.t === 'arc' ? this.arcOf(o) : null, m = ps ? ps[Math.floor(ps.length / 3)] : null;
+        const th = m ? Math.atan2(m[1] - c[1], m[0] - c[0]) : (-3 * Math.PI) / 4, r = o.t === 'arc' ? this.arcR(o) : o.r, r2 = q.t === 'arc' ? this.arcR(q) : q.r;
+        A = [c[0] + r * Math.cos(th), c[1] + r * Math.sin(th)];
+        B = [c[0] + r2 * Math.cos(th), c[1] + r2 * Math.sin(th)];
+      }
+      if (Math.hypot(B[0] - A[0], B[1] - A[1]) < 1e-9) continue;
+      lines.push([A, B, DIM_ON, true]);
+      arrow(A, [A[0] - B[0], A[1] - B[1]], DIM_ON);
+      arrow(B, [B[0] - A[0], B[1] - A[1]], DIM_ON);
+      const L = Math.hypot(B[0] - A[0], B[1] - A[1]), u = [(B[0] - A[0]) / L, (B[1] - A[1]) / L], m = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2];
+      const side = o.t === 'line' ? (((a, b) => ((a[0] - b[0]) * u[1] - (a[1] - b[1]) * u[0] < 0 ? 1 : -1))(this.P(o.a), this.P(o.b))) : 1;
+      labels.push(this.offLabel(k, m[0] - side * u[1] * mpp * 26, m[1] + side * u[0] * mpp * 26)); // (beside it, toward the line's start)
     }
     this.drawHighlight();
     for (const q of this.picks || []) { // (what the suggestions are for)
@@ -2949,7 +3041,7 @@ export class Sketcher {
     const hidden = this.userHidden().length;
     const rels = this.userRelations();
     const relList = rels.length ? `<h3>Relations</h3><div class="sk-dims">${rels.map((k) => `<div class="sk-dim"><span>${RELATIONS[k.t]?.icon || ''} ${RELATIONS[k.t]?.name || k.t}</span>
-      <span class="sk-dim-acts"><button class="mini danger" data-delrel="${k.id}" title="Remove this relation">✕</button></span></div>`).join('')}</div>` : '';
+      <span class="sk-dim-acts"><button class="mini danger" data-delrel="${k.id}" title="${k.t === 'off' ? 'Unlink: the copy stays, but no longer follows its original' : 'Remove this relation'}">✕</button></span></div>`).join('')}</div>` : '';
     const fold = this.f.dims.length > 12; // a long list is folded
     const list = (this.f.dims.length ? `${fold ? `<details class="sk-fold"><summary>${tv('Dimensions ({n})', { n: this.f.dims.length })}</summary>` : '<h3>Dimensions</h3>'}<div class="sk-dims">${this.f.dims.map((d) =>
       `<div class="sk-dim"><span>${d.free ? '🔓' : '🔒'} ${d.free ? `(${name({ ...d, v: this.measure(d) })})` : name(d)}</span>

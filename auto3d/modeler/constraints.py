@@ -18,6 +18,10 @@ A sketch (in the feature JSON):
                                                                     a ⁂ pattern: each point's copies d apart along line l5
                                                                     (else the sketch's X); "kind": "around", "c": centre
                                                                     point id ("O"): turned evenly over 360°
+                 {"t": "off", "d": 3, "pairs": [["l1", "l9", 1], ["a1", "a9", -1], ["c1", "c2", 1]], "src": [...], "copies": [...]}
+                                                                    a ⧈ linked offset: each copy (line, arc, circle) d from its
+                                                                    original on side w (a line: w = 1 left of a -> b; an arc /
+                                                                    circle: w = 1 a bigger radius), d < 0 the other side
   "dims":        [{"id": "d1", "t": "len", "e": "l1", "v": 40},                  locked sizes 🔒
                   {"t": "dia", "e": "c1", "v": 6}, {"t": "rad", "e": "a1", "v": 5},   an arc's radius
                   {"t": "dx", "a": "O", "b": "p5", "v": 10}, {"t": "dy", ...},   distance along x / y
@@ -54,7 +58,7 @@ def _num(v, what):
 
 
 # relations the user sets: {t, e, e2} (two shapes) or {t, p, p2 / e} (a point and a point / shape)
-RELATIONS = ("par", "perp", "eq", "conc", "coin", "tang", "fix", "mir", "pat")
+RELATIONS = ("par", "perp", "eq", "conc", "coin", "tang", "fix", "mir", "pat", "off")
 
 
 def _relation(s, k, ents, ids, pts):
@@ -115,6 +119,8 @@ def _relation(s, k, ents, ids, pts):
         return tuple(tags)
     if t == "pat":  # always handled here (an empty tuple when its line / centre is gone)
         return _pattern(s, k, ents, ids, pts, a[1] if kind(a) == "line" else None)
+    if t == "off":  # always handled here (an empty tuple when its shapes are gone)
+        return _offset(s, k, ents, ids, pts)
     if t == "fix" and k.get("p") in ids:
         at = k.get("at") or pts.get(k["p"])
         return s.fix_point(ids[k["p"]], float(at[0]), float(at[1]))
@@ -163,6 +169,122 @@ def _pattern(s, k, ents, ids, pts, line):
             if c in ents and c2 in ents and ents[c][0]["t"] == ents[c2][0]["t"] == "circle":
                 tags.append(s.equal_radius_cc(ents[c][1], ents[c2][1]))
     return tuple(tags)
+
+
+def _offset_pairs(k, ents):
+    """A ⧈ linked offset's pairs that still exist -> [(original, copy, w)] (entity JSON; w = ±1: the side of a positive d)."""
+    out = []
+    for o, c, *w in k.get("pairs") or []:
+        a, b = ents.get(o), ents.get(c)
+        a, b = (a[0] if isinstance(a, tuple) else a), (b[0] if isinstance(b, tuple) else b)
+        if a and b and a["t"] == b["t"] and a["t"] in ("line", "arc", "circle"):
+            out.append((a, b, -1 if (w[0] if w else 1) < 0 else 1))
+    return out
+
+
+def _offset(s, k, ents, ids, pts):
+    """A ⧈ linked offset (see the module doc): each copy line parallel to its original, d away (where it meets an arc
+    the arc's end holds it); each copy arc concentric, its radius the original's ± d and its ends on the rays through
+    the original's ends (so a tangent join is not left to a touching crossing); a circle's radius ± d -> the tags.
+    Adds no free sizes: the copy follows its original."""
+    d = _num(k.get("d"), "An offset distance")
+    pairs = _offset_pairs(k, ents)
+    if not d or not pairs:
+        return ()
+    tags, rayed = [], set()
+    arc_ends = {p for _, c, _ in pairs if c["t"] == "arc" for p in (c["a"], c["b"])}
+
+    def radius(e, gid):  # a parameter held equal to this arc / circle's radius
+        if e["t"] == "circle":
+            r = s.add_param(float(e.get("r") or 1))
+            tags.append(s.circle_radius(gid, r))
+        else:
+            c, a = pts.get(e["c"], [0.0, 0.0]), pts.get(e["a"], [0.0, 0.0])
+            r = s.add_param(max(math.hypot(a[0] - c[0], a[1] - c[1]), 1e-6))
+            tags.append(s.arc_radius(gid, r))
+        return r
+    for o, c, w in pairs:
+        go, gc = ents[o["id"]][1], ents[c["id"]][1]
+        if o["t"] == "line":
+            held = (c["a"] in arc_ends) + (c["b"] in arc_ends)
+            if held < 2:
+                tags.append(s.parallel(go, gc))
+            if not held:
+                tags.append(s.set_p2l_distance(ids[c["a"]], go, abs(d)))
+            continue
+        if c["c"] != o["c"]:
+            tags.append(s.coincident(ids[o["c"]], ids[c["c"]]))
+        tags.append(s.difference(radius(o, go), radius(c, gc), s.add_fixed_param(w * d)))
+        if o["t"] == "arc":
+            for end in ("a", "b"):  # (an end two copy arcs share: one ray)
+                if c[end] not in rayed:
+                    rayed.add(c[end])
+                    tags.append(s.point_on_line(ids[c[end]], s.add_line(ids[o["c"]], ids[o[end]])))
+    return tuple(tags)
+
+
+def _offset_wrong(sketch, P):
+    """The ⧈ linked offsets whose copy ended on the wrong side of its original (a jump bigger than the distance, solved
+    the short way: a distance alone does not say which side) -> those relations."""
+    ents, out = {e.get("id"): e for e in sketch.get("entities") or []}, []
+    at = lambda p: [0.0, 0.0] if p == ORIGIN else P.get(p, [0.0, 0.0])  # noqa: E731
+    for k in sketch.get("constraints") or []:
+        if k.get("t") != "off":
+            continue
+        try:
+            d = float(k.get("d") or 0)
+        except (TypeError, ValueError):
+            continue
+        for o, c, w in _offset_pairs(k, ents):
+            if o["t"] == "line":
+                a, b, q = at(o["a"]), at(o["b"]), at(c["a"])
+                side = (b[0] - a[0]) * (q[1] - a[1]) - (b[1] - a[1]) * (q[0] - a[0])
+            elif o["t"] == "arc":
+                m, a, q = at(o["c"]), at(o["a"]), at(c["a"])
+                side = math.hypot(q[0] - m[0], q[1] - m[1]) - math.hypot(a[0] - m[0], a[1] - m[1])
+            else:
+                continue  # (a circle's radius is held with its sign)
+            if side * w * d < 0:
+                out.append(k)
+                break
+    return out
+
+
+def _offset_place(sketch, ks, P):
+    """Put the copies of these ⧈ offsets where they belong beside their originals as solved (points P, changed in
+    place): a corner of two lines where the moved lines cross, an end of an arc on its ray at the new radius."""
+    ents = {e.get("id"): e for e in sketch.get("entities") or []}
+    at = lambda p: [0.0, 0.0] if p == ORIGIN else P.get(p, [0.0, 0.0])  # noqa: E731
+    for k in ks:
+        d, by = float(k["d"]), {}
+        for o, c, w in _offset_pairs(k, ents):
+            if o["t"] != "circle":
+                for end in ("a", "b"):
+                    by.setdefault(c[end], []).append((o, w, o[end]))
+        for q, uses in by.items():
+            if q not in P:
+                continue
+            arc = next((x for x in uses if x[0]["t"] == "arc"), None)
+            if arc:
+                o, w, p = arc
+                m, a = at(o["c"]), at(p)
+                r = math.hypot(a[0] - m[0], a[1] - m[1]) or 1.0
+                P[q] = [m[0] + (a[0] - m[0]) * (r + w * d) / r, m[1] + (a[1] - m[1]) * (r + w * d) / r]
+                continue
+            moved = []  # each original line moved d to its side: a point on it, its direction, the corner, the shift
+            for o, w, p in uses:
+                a, b = at(o["a"]), at(o["b"])
+                L = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+                n = (-(b[1] - a[1]) / L * w * d, (b[0] - a[0]) / L * w * d)
+                moved.append(((a[0] + n[0], a[1] + n[1]), (b[0] - a[0], b[1] - a[1]), at(p), n))
+            (a1, r1, p, n), cross = moved[0], None
+            if len(moved) > 1:
+                a2, r2 = moved[1][0], moved[1][1]
+                den = r1[0] * r2[1] - r1[1] * r2[0]
+                if abs(den) > 1e-12:
+                    t = ((a2[0] - a1[0]) * r2[1] - (a2[1] - a1[1]) * r2[0]) / den
+                    cross = [a1[0] + t * r1[0], a1[1] + t * r1[1]]
+            P[q] = cross or [p[0] + n[0], p[1] + n[1]]
 
 
 FREE_CHECK_MAX = 150  # points: more and which ones are free is not worked out (each costs a solver set-up)
@@ -229,7 +351,7 @@ def solve(sketch, drag=None, keep=None, detail=False):
             if tag is not None:
                 for tg in (tag if isinstance(tag, tuple) else (tag,)):
                     tags[tg] = k.get("id")
-                    if k.get("t") in ("mir", "pat"):
+                    if k.get("t") in ("mir", "pat", "off"):
                         soft.add(tg)
                 continue
             ent = ents.get(k.get("e"))
@@ -351,6 +473,14 @@ def solve(sketch, drag=None, keep=None, detail=False):
         # (else the drag fights a lock: keep the locks, the dragged points go as close as they can)
         s, ids, ents, radius, tags = build(False)
         status = s.solve()
+    if status in good:
+        wrong = _offset_wrong(sketch, {k: list(s.get_point(ids[k])) for k in pts})
+        if wrong:  # a ⧈ offset's copy went to the other side: put it back beside its original and solve again
+            for k in pts:
+                pts[k] = list(s.get_point(ids[k]))
+            _offset_place(sketch, wrong, pts)
+            s, ids, ents, radius, tags = build(False)
+            status = s.solve()
     ok = status in (g.SolveStatus.Success, g.SolveStatus.Converged)
     diag = s.diagnose()
     conflicts = sorted({tags[t] for t in list(diag.conflicting) + [x for x in diag.redundant if x not in soft] if t in tags and tags[t]})
