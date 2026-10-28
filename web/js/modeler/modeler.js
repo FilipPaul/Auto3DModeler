@@ -119,6 +119,7 @@ export class Modeler {
         ${btn('round', '◜ Round corner', 'Round a corner of lines: click the corner, type the radius (F)', t === 'round' ? 'on' : '')}
         ${btn('mirror', '⇋ Mirror', 'Mirror shapes across a line or the X / Y axis — a copy that stays the mirror image, or moved', t === 'mirror' ? 'on' : '')}
         ${btn('offset', '⧈ Offset', 'A parallel copy of a closed shape, a distance outside or inside it (O)', t === 'offset' ? 'on' : '')}
+        ${btn('construction', '┄ Construction', 'Construction (helper) lines and circles: the selected shape becomes one (or back) — nothing selected: new shapes are drawn as construction while it is on. They guide (a revolve axis, a mirror line, dimensions) but are not part of the outline', this.sk.consMode ? 'on' : '')}
         ${btn('trim', '✂ Trim', 'Cut away a piece of a line, circle or arc — up to where other shapes cross it (T)', t === 'trim' ? 'on' : '')}
         ${btn('extend', '⟷ Extend', 'Lengthen a line up to the next shape it meets: click near its end (E)', t === 'extend' ? 'on' : '')}
         ${this.hooks.pickOutline ? btn('outline', '🖼 Outline', 'Insert an outline from a picture, a DXF / DWG drawing or a PDF drawing (as one shape you can move and size)') : ''}
@@ -210,6 +211,7 @@ export class Modeler {
     if (a === 'saveToLibrary') return this.hooks.saveToLibrary?.();
     if (a === 'saveBack') return this.hooks.saveBackToLibrary?.();
     if (a === 'mirror') return this.mode === 'sketch' ? this.sk.setTool('mirror') : this.startMirror();
+    if (a === 'construction' && this.mode === 'sketch') return this.sk.toggleConstruction();
     if (a === 'loft' || a === 'sweep') return this.startProfiles(a);
     if (a === 'decal') return this.startDecal();
     if (a === 'undo') return this.history.go(-1);
@@ -1698,7 +1700,8 @@ export class Modeler {
     const sks = this.sketches();
     if (!sks.length) { this.hooks.toast('Draw a sketch first (✏ Sketch).', 'warning'); return; }
     const sk = [...sks].reverse().find((x) => !used.has(x.id)) || sks[sks.length - 1];
-    this.openCommand({ id: this.newId(), type: 'revolve', name: this.nextName('revolve'), sketch: sk.id, axis: 'y', angle: 360, op: 'add' }, true);
+    const helper = (sk.entities || []).find((e) => e.t === 'line' && e.construction); // (a construction line drawn for it: the axis)
+    this.openCommand({ id: this.newId(), type: 'revolve', name: this.nextName('revolve'), sketch: sk.id, axis: helper ? helper.id : 'y', angle: 360, op: 'add' }, true);
   }
 
   startShell() {
@@ -1710,7 +1713,9 @@ export class Modeler {
     const f = this.cmd.feature, sks = this.sketches(), st = this.status(f.id);
     const sk = this.part.features.find((g) => g.id === f.sketch);
     const lines = upgradeSketch(sk || { entities: [] }).entities.filter((e) => e.t === 'line');
-    const axes = [['y', "The sketch's vertical axis"], ['x', "The sketch's horizontal axis"], ...lines.map((e, i) => [e.id, `Line ${i + 1} of the sketch`])];
+    const cons = lines.filter((e) => e.construction), plain = lines.filter((e) => !e.construction);
+    const axes = [['y', "The sketch's vertical axis"], ['x', "The sketch's horizontal axis"], ...cons.map((e, i) => [e.id, `┄ ${t('Construction line')} ${i + 1}`]),
+      ...plain.map((e) => [e.id, `Line ${lines.indexOf(e) + 1} of the sketch`])];
     box.innerHTML = `<h2>${esc(f.name)}</h2>
       <div class="seg big"><button data-op="add" class="${f.op !== 'cut' ? 'on' : ''}">⬆ Add material</button><button data-op="cut" class="${f.op === 'cut' ? 'on' : ''}">⬇ Cut</button></div>
       <div class="field"><label>Axis</label><select data-k="axis">${axes.map(([v, l]) => `<option value="${v}" ${v === f.axis ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>

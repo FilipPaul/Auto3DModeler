@@ -53,6 +53,11 @@ open it (the tree stays), ⧉ opens it in a new window, ✕ deletes it from the 
 assemblies use it). Parts made for an assembly (fasteners) are added without a tab. The **＋**
 next to the tabs offers the usual ways to open a file.
 
+**Construction lines**: **┄ Construction** in the sketch toolbar draws helper lines, circles and arcs (dashed
+amber) while it is on; with ⬚ Select it turns the selected shape into one (or back). They guide — a ⟳ Revolve takes
+a construction line as its axis by itself, ⇋ Mirror can mirror across one, dimensions and relations use them — but
+are not part of the outline that is extruded.
+
 **The sketch tells its state**: its shapes are **blue** while they can still move, **green** when fully defined and
 **red** in a lock that does not fit; **✓ Finish sketch** turns green when every size is fixed, and **🪄 Auto-dimension**
 shows only while sizes are still free. **↔ Dimension** on a line, circle or arc gives its size at once (a box beside

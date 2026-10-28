@@ -113,6 +113,13 @@ class TestFeatures(unittest.TestCase):
         bad = {**sk, "points": {"a": [-5, 0], "b": [15, 0], "c": [15, 20], "d": [-5, 20]}}
         r, _ = vol(bad, rev)
         self.assertIn("crosses the axis", r["features"][-1]["issues"][0])
+        # a construction line as the axis (x 25, away from the shape): not part of the outline, the shape spun round it
+        cons = {**sk, "points": {**pts, "e": [25, -5], "f": [25, 30]}, "entities": lines + [{"id": "ax", "t": "line", "a": "e", "b": "f", "construction": True}]}
+        r, v = vol(cons, {**rev, "axis": "ax"})
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, math.pi * (20 ** 2 - 10 ** 2) * 20, delta=1e-3)
+        r, v = vol(cons, rev)  # (the extra line does not change the outline itself)
+        self.assertAlmostEqual(v, math.pi * (15 ** 2 - 5 ** 2) * 20, delta=1e-3)
 
     def test_block_from_an_outline(self):
         # an L-shaped outline with a square hole, placed at (10, 5) and drawn twice as big

@@ -613,12 +613,13 @@ def _check_one_side(f, fr, origin, direction):
     nrm = np.array([-d2[1], d2[0]])
     sides = set()
     pts = sk.get("points") or {}
-    for p in pts.values():
+    used = {q for e in sk.get("entities") or [] if not e.get("construction") for k in ("a", "b", "c") if (q := e.get(k)) and q != "O"}
+    for p in (v for k, v in pts.items() if k in used or not used):
         side = (np.asarray(p, float) - a2) @ nrm
         if abs(side) > 1e-7:
             sides.add(bool(side > 0))
     for e in sk.get("entities") or []:
-        if e.get("t") == "circle" and "c" in e:
+        if e.get("t") == "circle" and "c" in e and not e.get("construction"):
             c = pts.get(e["c"]) if e["c"] != "O" else (0, 0)
             if c is not None and abs((np.asarray(c, float) - a2) @ nrm) < float(e.get("r", 0)) - 1e-9:
                 sides.update({True, False})

@@ -928,7 +928,7 @@ export class Sketcher {
     if (b.id && b.id !== ORIGIN) { delete this.f.points[ids[2]]; ids[2] = b.id; }
     ids.forEach((p, i) => {
       const id = this.newId('l');
-      this.f.entities.push({ id, t: 'line', a: p, b: ids[(i + 1) % 4], g });
+      this.f.entities.push({ id, t: 'line', a: p, b: ids[(i + 1) % 4], g, ...this.consFlag() });
       this.f.constraints.push({ id: this.newId('k'), t: i % 2 ? 'v' : 'h', e: id });
     });
     this.sel = { kind: 'group', id: g };
@@ -941,7 +941,7 @@ export class Sketcher {
     this.step();
     const c = this.pointAt(a);
     const id = this.newId('c');
-    this.f.entities.push({ id, t: 'circle', c, r: +r.toFixed(6) });
+    this.f.entities.push({ id, t: 'circle', c, r: +r.toFixed(6), ...this.consFlag() });
     this.sel = { kind: 'entity', id };
     this.changed();
   }
@@ -1461,7 +1461,7 @@ export class Sketcher {
     const a = this.pointAt(p), b = this.pointAt(q), c = this.newId('p');
     this.f.points[c] = geo.c.map((x) => +x.toFixed(6));
     const id = this.newId('a');
-    this.f.entities.push({ id, t: 'arc', c, a, b });
+    this.f.entities.push({ id, t: 'arc', c, a, b, ...this.consFlag() });
     this.start = null;
     this.arcEnd = null;
     this.sel = { kind: 'entity', id };
@@ -1476,7 +1476,7 @@ export class Sketcher {
     const a0 = this.start.id, b0 = this.pointAt(s), c = this.newId('p');
     this.f.points[c] = geo.c.map((x) => +x.toFixed(6));
     const id = this.newId('a');
-    this.f.entities.push({ id, t: 'arc', c, a: geo.swap ? b0 : a0, b: geo.swap ? a0 : b0 });
+    this.f.entities.push({ id, t: 'arc', c, a: geo.swap ? b0 : a0, b: geo.swap ? a0 : b0, ...this.consFlag() });
     this.f.constraints.push({ id: this.newId('k'), t: 'tan', e: this.tan.line, arc: id, p: a0 });
     this.start = null;
     this.tan = null;
@@ -1543,7 +1543,7 @@ export class Sketcher {
     const p = closing ? this.chain.first : this.pointAt(s);
     const b = this.P(p);
     const id = this.newId('l');
-    this.f.entities.push({ id, t: 'line', a: prev, b: p });
+    this.f.entities.push({ id, t: 'line', a: prev, b: p, ...this.consFlag() });
     // nearly horizontal / vertical -> exactly
     const ang = Math.abs((Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI);
     if (Math.min(ang, 180 - ang) < HV_DEG) { this.f.constraints.push({ id: this.newId('k'), t: 'h', e: id }); this.f.points[p] = [b[0], a[1]]; }
@@ -1923,6 +1923,29 @@ export class Sketcher {
     inp.addEventListener('blur', () => finish(true));
   }
 
+  /** {construction: true} while ┄ Construction is on (new shapes are helpers, not part of the outline). */
+  consFlag() { return this.consMode ? { construction: true } : {}; }
+
+  /** ┄ Construction: with ⬚ Select, the selected shape (or its rectangle) becomes a helper line / circle — or back;
+   *  else new shapes are drawn as construction while it is on. Construction shapes guide (a revolve's axis, a
+   *  mirror line, dimensions, relations) but are not part of the outline that is extruded. */
+  toggleConstruction() {
+    const pick = this.tool === 'select' ? this.sel : null; // (a shape just drawn is not what it means)
+    const ids = pick?.kind === 'entity' ? [pick.id] : pick?.kind === 'group' ? this.f.entities.filter((e) => e.g === pick.id).map((e) => e.id) : [];
+    const ents = ids.map((id) => this.ent(id)).filter((e) => e && ['line', 'circle', 'arc', 'spline'].includes(e.t));
+    if (ents.length) {
+      this.step();
+      const on = !ents.every((e) => e.construction);
+      for (const e of ents) { if (on) e.construction = true; else delete e.construction; }
+      this.m.toast(t(on ? 'A construction shape now: it guides, but is not part of the outline.' : 'Part of the outline again.'), 'info', 3500);
+      this.changed();
+      return;
+    }
+    this.consMode = !this.consMode;
+    this.m.renderCmdBar();
+    this.m.toast(t(this.consMode ? '┄ Construction on: new lines and circles are helpers (an axis, a mirror line) — not part of the outline.' : '┄ Construction off.'), 'info', 4000);
+  }
+
   /** What the size under the mouse measures, lit up (a layer of its own: the labels are not drawn again). */
   drawHighlight() {
     const hs = this.hoverSize?.what, mpp = this.mpp(), H = 0xf2cc60;
@@ -1948,6 +1971,7 @@ export class Sketcher {
     const f = this.f, mpp = this.mpp(), labels = [], lines = [], circles = [], dots = [];
     const SEL = 0xf2cc60, LOCKED = 0xd2a8ff;
     // blue: can still move, green: fully defined, red: a lock that does not fit (cyan: not known)
+    const CONS = 0xd29922; // construction shapes: dashed amber
     const STATE = { free: 0x58a6ff, done: 0x3fb950, bad: 0xff7b72 }, colourOf = (e) => STATE[this.stateOf(e)] ?? 0x39d0d8, NORM = 0x39d0d8;
     const place = f.place || {};
     // a dimension as on a drawing: extension lines, the dimension line with arrows at its ends
@@ -1978,7 +2002,7 @@ export class Sketcher {
     for (const e of f.entities) {
       if (e.t === 'line') {
         const a = this.P(e.a), b = this.P(e.b);
-        lines.push([a, b, isSel(e) ? SEL : colourOf(e)]);
+        lines.push([a, b, isSel(e) ? SEL : e.construction ? CONS : colourOf(e), !!e.construction]);
         // a rectangle shows its width and height once; a free line its length
         if (e.g) { // the side with the lock shows it (a hidden side: the opposite one)
           const k = f.constraints.find((c) => c.e === e.id && (c.t === 'h' || c.t === 'v'))?.t;
@@ -2008,8 +2032,8 @@ export class Sketcher {
         for (const t of ['pointerdown', 'pointerup']) el.addEventListener(t, (ev) => ev.stopPropagation());
         if (anyShown) labels.push({ el, u: au + (e.w0 * k) / 2, v: av - mpp * 14 });
       } else if (e.t === 'arc') {
-        const ps = this.arcOf(e), col = isSel(e) ? SEL : colourOf(e);
-        for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], col]);
+        const ps = this.arcOf(e), col = isSel(e) ? SEL : e.construction ? CONS : colourOf(e);
+        for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], col, !!e.construction]);
         const m = ps[Math.floor(ps.length / 2)], c = this.P(e.c), r = this.arcR(e) || 1;
         if (showSize({ t: 'rad', e: e.id })) {
           const key = `rad:${e.id}`, th = place[key] ?? Math.atan2(m[1] - c[1], m[0] - c[0]), rim = [c[0] + r * Math.cos(th), c[1] + r * Math.sin(th)];
@@ -2023,7 +2047,12 @@ export class Sketcher {
         for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], col]);
       } else if (e.t === 'circle') {
         const c = this.P(e.c);
-        circles.push([c, e.r, isSel(e) ? SEL : colourOf(e)]);
+        if (e.construction) { // dashed: as 48 pieces
+          for (let i = 0; i < 48; i++) {
+            const a0 = (i / 48) * Math.PI * 2, a1 = ((i + 1) / 48) * Math.PI * 2;
+            lines.push([[c[0] + e.r * Math.cos(a0), c[1] + e.r * Math.sin(a0)], [c[0] + e.r * Math.cos(a1), c[1] + e.r * Math.sin(a1)], isSel(e) ? SEL : CONS, true]);
+          }
+        } else circles.push([c, e.r, isSel(e) ? SEL : colourOf(e)]);
         if (showSize({ t: 'dia', e: e.id })) {
           const key = `dia:${e.id}`, th = place[key] ?? Math.PI / 4, rim = [c[0] + e.r * Math.cos(th), c[1] + e.r * Math.sin(th)];
           const at = [rim[0] + Math.cos(th) * mpp * 22, rim[1] + Math.sin(th) * mpp * 22];

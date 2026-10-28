@@ -80,6 +80,10 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Construction lines done:** sketch entities with `construction: true` (the kernel's _loops skip them; the revolve
+  side check counts only the outline's points); Sketcher.toggleConstruction / consMode / consFlag (┄ in the bar: with
+  ⬚ Select the selection, else new shapes); drawn dashed amber; Revolve offers construction lines first and takes the
+  first as its axis. test_revolve (round a construction line); tools/e2e_sketch_construction.py.
 - **A view with all its sizes, the same size lit up done:** per_view "all" (sheet.auto_dims: as full, its own outer
   sizes, Ø / R again, its edges' places; the check does not count it as twice); SheetEditor.sameAs(id) — the chosen
   dimension's size in the other views (the same direction of the part between the same places, or a Ø / R alike),

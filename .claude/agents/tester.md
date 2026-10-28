@@ -163,6 +163,9 @@ Never report "works" without having run it; report failures with their output.
    the recommended option first ★; one answered: nothing sent; both: one message "<question> → <option>"; ✎ Other…
    puts the question in the box; no options refused). The message is caught in the page (no Claude needed).
    (e2e_drawing_set also checks one item numbering for the whole set: Machine 1–3, the Lid unit's parts 4 and 5.)
+   `tools/e2e_sketch_construction.py <url> <dir>` covers construction lines (┄ on: a line drawn as construction; ⬚ the
+   rectangle + ┄: construction, again: back; Finish; ⟳ Revolve takes the construction line as its axis: the ring's
+   volume). Needs a server restarted after doc.py changes.
    `tools/e2e_sheet_same.py <url> <dir>` covers a view with all its sizes and the same size lit up (a block: the Right
    view has none by itself; "All its sizes": its 30 and 12, not counted as twice; the Front's 12 chosen: the Right's 12
    lit, the Top's 30: the Right's 30). Needs a server restarted after sheet.py changes.
