@@ -1,7 +1,8 @@
 """＋ Dimension by edges on a drawing sheet, in headless Edge with real clicks: a plate 40 × 20 × 10 with a Ø6 hole ->
 ＋ Dimension -> the mouse over the front's top edge: it lights up -> clicked twice: its length (40) -> the front's left and
 right edges: the distance between them (40, across) -> the top's lower edge and the hole's centre: the distance (up) ->
-an edge and Enter: its length -> an edge and a crossing edge: refused (not parallel).
+an edge and Enter: its length -> an edge and a crossing edge: their angle (90°; parallel edges are refused in
+e2e_sheet_angle.py).
 
   PYTHONIOENCODING=utf-8 py tools/e2e_sheet_edges.py http://127.0.0.1:5199 <out dir>
 """
@@ -87,7 +88,7 @@ try:
     n = len(js(f"return {S}.d.user"))
     click(edge("Front", "Math.abs(ln.a[1] - 10) < 1e-6 && Math.abs(ln.b[1] - 10) < 1e-6"))
     click(edge("Front", "Math.abs(ln.a[0]) < 1e-6 && Math.abs(ln.b[0]) < 1e-6"))
-    print("crossing edges: refused", len(js(f"return {S}.d.user")) == n, "|", [t.text for t in d.find_elements(By.CSS_SELECTOR, ".toast")][-1:])
+    print("crossing edges: one more dimension", len(js(f"return {S}.d.user")) == n + 1, "| their angle", last())
     d.save_screenshot(f"{OUT}/sheet_edges.png")
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
