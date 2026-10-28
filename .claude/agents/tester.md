@@ -172,6 +172,9 @@ Never report "works" without having run it; report failures with their output.
    refused; a joint from it moves the other part; the Lid's suggestions: unlock and edit here, fix; freed: it moves).
    `tools/e2e_planes.py <url> <dir>` covers the planes (faint on an empty model; ◫ Planes off: hidden, remembered;
    choosing a sketch plane: shown anyway; back: hidden; on again).
+   `tools/e2e_sheet_angle.py <url> <dir>` covers angle dimensions on the sheet (a plate with a slanted edge: ＋ Dimension
+   on the slanted and the upright edge -> 123.7° drawn as an arc; the AI's sheet_edit add edges the same; parallel
+   edges refused; a picture of the sheet).
    `tools/e2e_sheet_fits.py <url> <dir>` covers fits on the sheet (a Ø8 pin's dimension: Fit h6 drawn "Ø8 h6" with
    0 / −0.009 told, — plain again, the AI's sheet_edit fits k6, a wrong class refused, Ctrl+Z).
    `tools/e2e_model_rib.py <url> <dir>` covers ⊿ Rib (an L bracket and a line from the wall to the plate on the Right

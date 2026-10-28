@@ -91,6 +91,10 @@ Date: 2026-10-25. Written by the architect agent.
   tools/e2e_ai_reports.py.
 - **Steps named after their sketch done:** nextName(type, sketch): an extrude / revolve of a sketch the user named
   is "Extrude – Slot" (a "Sketch 2" keeps "Extrude 3"), in the panel and for the AI. tools/e2e_ai_reports.py.
+- **Angle dimensions on sheets done:** kind "ang" {a, b: edge keys, r}: SheetEditor.angleOf (where the two lines cross,
+  each toward its far end, the angle between), drawn as an arc with arrows and extension lines to edges short of it,
+  the text clear of the arc; dragged: its radius; ＋ Dimension on two non-parallel edges makes one; sheet_edit add
+  {view, edges} for the AI (parallel refused). tools/e2e_sheet_angle.py.
 - **Shaft fits on sheets done:** web/js/sheet/fits.js (the ISO 286 table of fits.py: H6 … H9, f7 … p6); a selected Ø
   dimension's Fit choice (fitField / setFit: the post of a user's dimension, or an override in d.dims for an
   automatic one), its deviations in the panel; sheet_edit fits {id: class | null} for the AI. tools/e2e_sheet_fits.py.

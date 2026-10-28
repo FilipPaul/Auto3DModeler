@@ -903,7 +903,7 @@ const CS = {
   'Click a point (an orange dot), an edge or the line of a circle.': 'Klikněte na bod (oranžová tečka), hranu nebo čáru kružnice.',
   'Now another point or edge of the same view.': 'Teď další bod nebo hranu ve stejném pohledu.',
   'Two edges that are not parallel (or slanted) have no distance here — click points instead.': 'Dvě nerovnoběžné (nebo šikmé) hrany tu vzdálenost nemají — klikněte raději na body.',
-  'Add a dimension: an edge (twice: its length), two edges (their distance), two points, or a circle / arc (Ø / R) — its value is measured from the part': 'Přidat kótu: hrana (dvakrát: její délka), dvě hrany (jejich vzdálenost), dva body, nebo kružnice / oblouk (Ø / R) — hodnota se změří z dílu',
+  'Add a dimension: an edge (twice: its length), two edges (their distance, or their angle), two points, or a circle / arc (Ø / R) — its value is measured from the part': 'Přidat kótu: hrana (dvakrát: její délka), dvě hrany (jejich vzdálenost, nebo úhel), dva body, nebo kružnice / oblouk (Ø / R) — hodnota se změří z dílu',
   '✎ Edit in the library': '✎ Upravit v knihovně', '✎ Make my own copy': '✎ Udělat vlastní kopii', 'Library part': 'Díl knihovny',
   'Save back to the library': 'Uložit zpět do knihovny', 'This 3D model is not a library part being changed.': 'Tento 3D model není upravovaný díl knihovny.',
   'You are changing a part of your library. Save it back to keep the change there — parts already in projects stay as they were.': 'Upravujete díl své knihovny. Uložte ho zpět, aby tam změna zůstala — díly už vložené v projektech zůstanou, jak byly.',

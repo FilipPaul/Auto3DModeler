@@ -163,9 +163,26 @@ export class SheetEditor {
   circleOf(v, key) { return this.geo.views[v]?.circles.find((c) => c.key === key) || null; }
 
   /** A dimension's value from the part, or null (its points are gone: the part changed). */
+  /** An angle dimension's two edges as they meet: {X (where their lines cross), u1, u2 (from X along each, toward its
+   *  far end), deg} in view coordinates, or null (an edge gone, or parallel). */
+  angleOf(d) {
+    const g = this.geo?.views[d.view], la = g?.lines.find((x) => x.key === d.a), lb = g?.lines.find((x) => x.key === d.b);
+    if (!la || !lb) return null;
+    const da = [la.b[0] - la.a[0], la.b[1] - la.a[1]], db = [lb.b[0] - lb.a[0], lb.b[1] - lb.a[1]], cr = da[0] * db[1] - da[1] * db[0];
+    if (Math.abs(cr) < 1e-9 * Math.hypot(...da) * Math.hypot(...db)) return null;
+    const s = ((lb.a[0] - la.a[0]) * db[1] - (lb.a[1] - la.a[1]) * db[0]) / cr, X = [la.a[0] + s * da[0], la.a[1] + s * da[1]];
+    const away = (ln) => { // (toward the end farther from the corner)
+      const far = Math.hypot(ln.a[0] - X[0], ln.a[1] - X[1]) > Math.hypot(ln.b[0] - X[0], ln.b[1] - X[1]) ? ln.a : ln.b, L = Math.hypot(far[0] - X[0], far[1] - X[1]) || 1;
+      return [(far[0] - X[0]) / L, (far[1] - X[1]) / L];
+    };
+    const u1 = away(la), u2 = away(lb), deg = Math.acos(Math.max(-1, Math.min(1, u1[0] * u2[0] + u1[1] * u2[1]))) * 180 / Math.PI;
+    return { X, u1, u2, deg, la, lb };
+  }
+
   value(d) {
     const g = this.geo?.views[d.view];
     if (!g) return null;
+    if (d.kind === 'ang') { const a = this.angleOf(d); return a ? +a.deg.toFixed(2) : null; }
     if (d.kind === 'dia' || d.kind === 'rad') { const c = this.circleOf(d.view, d.a); return c ? (d.kind === 'dia' ? 2 * c.r : c.r) : null; }
     const a = g.points[d.a], b = g.points[d.b];
     if (!a || !b) return null;
@@ -175,6 +192,7 @@ export class SheetEditor {
   dimText(d, v) {
     if (d.kind === 'dia') return `${d.count > 1 ? `${d.count}× ` : ''}${d.thread || `Ø${fmt(v)}`}${d.post || ''}`; // (a threaded hole: M5)
     if (d.kind === 'rad') return `${d.count > 1 ? `${d.count}× ` : ''}R${fmt(v)}`;
+    if (d.kind === 'ang') return `${fmt(+v.toFixed(1))}°`;
     return `${d.pre || ''}${fmt(v)}`;
   }
 
@@ -230,6 +248,29 @@ export class SheetEditor {
       return `<path d="M${p[0]},${p[1]} L${p[0] - ux * L - uy * W},${p[1] - uy * L + ux * W} L${p[0] - ux * L + uy * W},${p[1] - uy * L - ux * W} Z" fill="${col}"/>`;
     };
     const g = [`<g data-dim="${d.id}" class="sh-dim${on ? ' on' : ''}${same ? ' same' : ''}">`];
+    if (d.kind === 'ang') {
+      const a = this.angleOf(d);
+      if (!a) return '';
+      const X = this.P(d.view, a.X), r = d.r ?? 15, s = this.scale();
+      const pu = (u) => [u[0], -u[1]]; // (paper: y down)
+      const U1 = pu(a.u1), U2 = pu(a.u2), at = (u, k) => [X[0] + u[0] * k, X[1] + u[1] * k];
+      const sweep = U1[0] * U2[1] - U1[1] * U2[0] > 0 ? 1 : 0, A1 = at(U1, r), A2 = at(U2, r);
+      g.push(`<path d="M${A1[0]},${A1[1]} A${r},${r} 0 0 ${sweep} ${A2[0]},${A2[1]}" fill="none" stroke="${col}" stroke-width="${sw}"/>`);
+      const tan = (u, sgn) => [-u[1] * sgn, u[0] * sgn]; // (along the arc, out of it at that end)
+      g.push(arrow(A1, tan(U1, sweep ? -1 : 1)), arrow(A2, tan(U2, sweep ? 1 : -1)));
+      for (const [u, ln] of [[a.u1, a.la], [a.u2, a.lb]]) { // an edge that stops short of the arc (or starts past it): a line to it
+        const k = [ln.a, ln.b].map((p) => ((p[0] - a.X[0]) * u[0] + (p[1] - a.X[1]) * u[1]) * s).sort((x, y) => x - y);
+        const U = pu(u);
+        if (r > k[1] + 0.5) g.push(`<line x1="${at(U, k[1] + 1)[0]}" y1="${at(U, k[1] + 1)[1]}" x2="${at(U, r + 1.5)[0]}" y2="${at(U, r + 1.5)[1]}" stroke="${col}" stroke-width="0.15"/>`);
+        else if (r < k[0] - 0.5) g.push(`<line x1="${at(U, r - 1.5)[0]}" y1="${at(U, r - 1.5)[1]}" x2="${at(U, k[0] - 1)[0]}" y2="${at(U, k[0] - 1)[1]}" stroke="${col}" stroke-width="0.15"/>`);
+      }
+      const txt = esc(this.dimText(d, v)), mid = [U1[0] + U2[0], U1[1] + U2[1]], L = Math.hypot(...mid) || 1, m = [mid[0] / L, mid[1] / L];
+      const T = at(m, r + 1.5 + Math.abs(m[0]) * txt.length * fs * 0.3 + Math.abs(m[1]) * fs * 0.6); // (clear of the arc, whichever way it points)
+      g.push(`<text x="${T[0]}" y="${T[1] + 1.1}" font-size="${fs}" text-anchor="middle" fill="${col}">${txt}</text>`);
+      if (!forPrint) g.push(`<rect x="${T[0] - txt.length * fs * 0.3 - 1}" y="${T[1] - fs + 0.6}" width="${txt.length * fs * 0.6 + 2}" height="${fs + 2}" fill="#fff" fill-opacity="0" class="sh-grab"/>`);
+      g.push('</g>');
+      return g.join('');
+    }
     if (d.kind === 'dia' || d.kind === 'rad') {
       const c = this.circleOf(d.view, d.a);
       if (!c) return '';
@@ -510,7 +551,7 @@ export class SheetEditor {
     const bar = this.$('.sh-bar');
     if (!bar || !this.d) return;
     bar.innerHTML = `${this.d.asm ? `<span class="sh-asm">◇ ${esc(t('Assembly drawing'))}</span>` : `<div class="seg sh-presets" title="How many dimensions it makes by itself">${PRESETS.map(([k, l]) => `<button class="chip ${this.d.preset === k ? 'on' : ''}" data-preset="${k}">${t(l)}</button>`).join('')}</div>`}
-      <button class="chip tool ${this.tool === 'dim' ? 'on' : ''}" data-a="dim" title="Add a dimension: an edge (twice: its length), two edges (their distance), two points, or a circle / arc (Ø / R) — its value is measured from the part">＋ Dimension</button>
+      <button class="chip tool ${this.tool === 'dim' ? 'on' : ''}" data-a="dim" title="Add a dimension: an edge (twice: its length), two edges (their distance, or their angle), two points, or a circle / arc (Ø / R) — its value is measured from the part">＋ Dimension</button>
       ${this.rootOf(this.d.source) ? `<button class="chip ${this.setMode ? 'on' : ''}" data-a="setview" title="${esc(t('All the pages of the drawing set, one below the other — scroll through them; double-click a page to edit it'))}">📚 ${esc(t('All pages'))}</button>` : ''}
       <span class="sep"></span><button class="chip" data-a="undo" title="Undo (Ctrl+Z)" ${this.history.canUndo() ? '' : 'disabled'}>↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)" ${this.history.canRedo?.() ? '' : 'disabled'}>↷</button>
       <span class="sep"></span><button class="chip" data-a="fit" title="The whole sheet">⤢ Fit</button>
@@ -535,7 +576,7 @@ export class SheetEditor {
         <div class="row-actions"><button class="btn small" data-a="dropTwice">✕ ${esc(t('Remove them'))}</button></div>` : ''}
       ${this.pagesHtml()}
       <h3>Dimensions</h3><div class="sh-dlist">${all.map((d) => { const v = this.value(d), twice = ck.dup.has(d.id) || ck.over.has(d.id); return `<div class="sh-drow ${this.sel === d.id ? 'on' : ''} ${v === null || twice ? 'bad' : ''}" data-d="${d.id}">
-        <span data-no-i18n>${twice ? '⧉ ' : ''}${d.kind === 'linear' ? (d.dir === 'h' ? '↔ ' : '↕ ') : ''}${esc(v === null ? '⚠ ?' : this.dimText(d, v))}</span><i>${esc(t(d.view))}${d.auto ? '' : ' · ✎'}</i><button class="mini danger" data-x="${d.id}" title="Delete it">✕</button></div>`; }).join('') || '<p class="hint">None.</p>'}</div>
+        <span data-no-i18n>${twice ? '⧉ ' : ''}${d.kind === 'linear' ? (d.dir === 'h' ? '↔ ' : '↕ ') : d.kind === 'ang' ? '∠ ' : ''}${esc(v === null ? '⚠ ?' : this.dimText(d, v))}</span><i>${esc(t(d.view))}${d.auto ? '' : ' · ✎'}</i><button class="mini danger" data-x="${d.id}" title="Delete it">✕</button></div>`; }).join('') || '<p class="hint">None.</p>'}</div>
       ${hid ? `<div class="row-actions"><button class="btn small" data-a="unhide">↺ ${esc(tv('Bring back deleted ones ({n})', { n: hid }))}</button></div>` : ''}`;
     for (const el of box.querySelectorAll('[data-v]')) {
       el.addEventListener('change', () => { if (el.checked) delete this.d.off[el.dataset.v]; else this.d.off[el.dataset.v] = true; this.commit(); });
@@ -859,6 +900,11 @@ export class SheetEditor {
     if (pk.edge || e) { // an edge and another edge or a point: the distance across the edge
       const E = pk.edge ? pk.edge : e.edge, O = pk.edge ? other : pk;
       const ed = this.edgeDir(E), od = O.edge ? this.edgeDir(O.edge) : null;
+      if (O.edge && this.angleOf({ view: pk.view, a: E.key, b: O.edge.key })) { // two edges that meet at an angle: it
+        this.pick = null;
+        this.addUser({ view: pk.view, kind: 'ang', a: E.key, b: O.edge.key, r: 15 });
+        return;
+      }
       if (ed === 's' || (od && od !== ed)) { this.hooks.toast(t('Two edges that are not parallel (or slanted) have no distance here — click points instead.'), 'warning', 4000); return; }
       lin(pk.view, `${E.key}#0`, O.edge ? `${O.edge.key}#0` : O.key, ed === 'v' ? 'h' : 'v'); // up-going edges are apart across, flat ones up
       return;
@@ -932,6 +978,11 @@ export class SheetEditor {
           const pb = this.paperBox(d.view);
           if (d.dir === 'h') { o.side = p[1] < (pb[1] + pb[3]) / 2 ? 't' : 'b'; o.off = Math.max(3, o.side === 't' ? pb[1] - p[1] : p[1] - pb[3]); } else { o.side = p[0] < (pb[0] + pb[2]) / 2 ? 'l' : 'r'; o.off = Math.max(3, o.side === 'l' ? pb[0] - p[0] : p[0] - pb[2]); }
           o.off = Math.round(o.off * 2) / 2;
+        } else if (d.kind === 'ang') {
+          const a = this.angleOf(d);
+          if (!a) return;
+          const X = this.P(d.view, a.X);
+          o.r = Math.max(4, Math.round(Math.hypot(p[0] - X[0], p[1] - X[1]) * 2) / 2);
         } else {
           const c = this.circleOf(d.view, d.a);
           if (!c) return;
@@ -1006,6 +1057,13 @@ export class SheetEditor {
       const c = g.circles.find((x) => x.key === spec.circle);
       if (!c) throw new Error(`No circle ${spec.circle} in ${spec.view} — get_sheet {points: "${spec.view}"} lists them.`);
       this.addUser({ view: spec.view, kind: c.full ? 'dia' : 'rad', a: c.key, count: Math.max(1, +spec.count || 1), ang: c.full ? 45 : 0, len: 6, ...(spec.post ? { post: ` ${spec.post}` } : {}) });
+      return this.sel;
+    }
+    if (spec.edges) {
+      const [ka, kb] = [].concat(spec.edges).map((k) => String(k).replace(/#[01]$/, ''));
+      for (const k of [ka, kb]) if (!g.lines.some((x) => x.key === k)) throw new Error(`No edge ${k} in ${spec.view} — get_sheet {points: "${spec.view}"} lists them (a line's ends are <edge>#0 / #1).`);
+      if (!this.angleOf({ view: spec.view, a: ka, b: kb })) throw new Error('These two edges are parallel — no angle between them.');
+      this.addUser({ view: spec.view, kind: 'ang', a: ka, b: kb, r: 15 });
       return this.sel;
     }
     const a = g.points[spec.a], b = g.points[spec.b];
