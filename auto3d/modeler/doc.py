@@ -32,6 +32,7 @@ from __future__ import annotations
 import hashlib
 import math
 import json
+import re
 from collections import OrderedDict
 
 import numpy as np
@@ -56,6 +57,11 @@ def _key(features):
 # ISO metric coarse threads: the tap drill a threaded hole is drilled with (ISO 2306)
 THREADS = {"M2": 1.6, "M2.5": 2.05, "M3": 2.5, "M4": 3.3, "M5": 4.2, "M6": 5.0, "M8": 6.8, "M10": 8.5, "M12": 10.2,
            "M16": 14.0, "M20": 17.5}
+PITCH = {"M2": 0.4, "M2.5": 0.45, "M3": 0.5, "M4": 0.7, "M5": 0.8, "M6": 1.0, "M8": 1.25, "M10": 1.5, "M12": 1.75,
+         "M16": 2.0, "M20": 2.5}  # (ISO 261, coarse)
+# 🔩 part.threads: how its threaded holes show — "hidden" (the tap drill only), "cosmetic" (helix lines in the view,
+# the solid unchanged)
+THREAD_MODES = ("hidden", "cosmetic")
 
 
 def _threads(part):
@@ -1211,12 +1217,59 @@ def _packed_mesh(body, light=False, colours=None, rid=None):
     return m
 
 
+_HOLE_FACE = re.compile(r"(?:^|:)([^:]+):hole:(\d+)$")
+_threads_cache: OrderedDict = OrderedDict()  # features' key -> {"holes": [...]}
+
+
+def thread_mode(part):
+    m = (part or {}).get("threads")
+    return m if m in THREAD_MODES else "hidden"
+
+
+def _thread_entry(features, st):
+    """The cache entry of the built part's threaded holes ({"holes": thread_holes}), made once per features."""
+    key = _key(features)
+    hit = _threads_cache.get(key)
+    if hit is None:
+        hit = _threads_cache[key] = {"holes": thread_holes(features, st)}
+        while len(_threads_cache) > 8:
+            _threads_cache.popitem(last=False)
+    _threads_cache.move_to_end(key)
+    return hit
+
+
+def thread_holes(features, st):
+    """Each threaded hole of the built part — a pattern's / mirror's copies too (found by their walls' names
+    "<step>:hole:k", "P1:2:<step>:hole:k"): [{name (its wall), thread "M6", at [x, y, z] (on the axis where it starts,
+    on the face it goes in from), axis (unit, into the part), depth (mm), major (Ø), minor (the tap drill), pitch,
+    through}] — what 🔩 cosmetic threads draw and real ones cut."""
+    steps = {f["id"]: f["thread"] for f in features if f.get("type") == "hole" and f.get("thread") in THREADS and not (f.get("off") or f.get("suppressed"))}
+    if not steps or st.body is None:
+        return []
+    out = []
+    for name in sorted(st.body.names):
+        m = _HOLE_FACE.search(name)
+        if not m or m.group(1) not in steps:
+            continue
+        fr = st.frames.get(m.group(1))
+        span = K.round_span(st.body.shape, st.body.faces_of(name), fr["n"] if fr else None)
+        if span is None or span["depth"] < 1e-6:
+            continue
+        thr = steps[m.group(1)]
+        out.append({"name": name, "thread": thr, "at": [round(float(v), 6) + 0.0 for v in span["at"]], "axis": [round(float(v), 6) + 0.0 for v in span["axis"]], "depth": round(span["depth"], 6),
+                    "major": float(thr[1:]), "minor": THREADS[thr], "pitch": PITCH[thr], "through": all(span["open"])})
+    return out
+
+
 def rebuild(part, binary=False):
     """The part -> what the browser shows: the body's mesh, faces (with names) and edges, every feature's
-    status, the sketch frames. binary: the meshes as packed.Mesh (for packed.pack, the browser's binary answer)."""
+    status, the sketch frames, its threaded holes {mode, holes (thread_holes)}. binary: the
+    meshes as packed.Mesh (for packed.pack, the browser's binary answer)."""
     features = (part or {}).get("features") or []
     st, status = evaluate(features)
     out = {"ok": all(s["ok"] for s in status), "features": status, "frames": st.frames, "body": None}
+    mode = thread_mode(part)
+    out["threads"] = {"mode": mode, "holes": _thread_entry(features, st)["holes"] if st.body is not None else []}
     if st.body is not None:
         # 🪶 lod: "light" (simplified), "full", "auto" (light when it is a big imported model)
         lod = (part or {}).get("lod")

@@ -1191,6 +1191,44 @@ class TestLightMesh(unittest.TestCase):
         self.assertIn("frame", next(f for f in doc.rebuild({**part, "lod": "full"})["body"]["faces"] if f["type"] == "plane"))  # (the full one kept apart)
 
 
+@unittest.skipUnless(OCC, "OCP not installed")
+class TestThreads(unittest.TestCase):
+    """🔩 part.threads: how threaded holes show. The rebuild says where each threaded hole is (thread_holes) — a
+    pattern's copies too; hidden / cosmetic leave the solid as it is."""
+    TOP = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 12], "x": [1, 0, 0], "n": [0, 0, 1]}}
+
+    def hole(self, **kw):
+        return {"id": "H1", "type": "hole", "plane": self.TOP, "points": [[-8, 0], [8, 0]], "through": True, "thread": "M6", **kw}
+
+    def test_cosmetic_thread_data(self):
+        plain = 40 * 20 * 12 - 2 * math.pi * 2.5 ** 2 * 12
+        r = doc.rebuild({"features": box(40, 20, 12) + [self.hole()]})
+        self.assertEqual(r["threads"]["mode"], "hidden")
+        self.assertAlmostEqual(r["body"]["volume"], plain, delta=1e-3)
+        holes = r["threads"]["holes"]
+        self.assertEqual([h["name"] for h in holes], ["H1:hole:0", "H1:hole:1"])
+        for h, x in zip(holes, (12, 28)):
+            self.assertEqual((h["thread"], h["major"], h["minor"], h["pitch"], h["through"]), ("M6", 6.0, 5.0, 1.0, True))
+            self.assertEqual(h["at"], [x, 10, 12])  # on the top face it is drilled from, going down
+            self.assertEqual(h["axis"], [0, 0, -1])
+            self.assertAlmostEqual(h["depth"], 12, places=6)
+        c = doc.rebuild({"features": box(40, 20, 12) + [self.hole()], "threads": "cosmetic"})
+        self.assertEqual(c["threads"]["mode"], "cosmetic")
+        self.assertEqual(c["threads"]["holes"], holes)
+        self.assertAlmostEqual(c["body"]["volume"], plain, delta=1e-3)  # view only: the solid as it was
+        self.assertEqual(doc.rebuild({"features": box(40, 20, 12) + [self.hole()], "threads": "odd"})["threads"]["mode"], "hidden")
+        # a blind one: its entry on top, 8 deep, not through; a pattern's copies are threaded holes too
+        b = doc.rebuild({"features": box(40, 20, 12) + [self.hole(through=False, depth=8)]})["threads"]["holes"]
+        self.assertEqual([(h["at"], h["axis"], round(h["depth"], 6), h["through"]) for h in b], [([12, 10, 12], [0, 0, -1], 8, False), ([28, 10, 12], [0, 0, -1], 8, False)])
+        row = {"id": "P1", "type": "pattern", "features": ["H1"], "kind": "linear", "dir": [0, 1, 0], "count": 2, "spacing": 5}
+        p = doc.rebuild({"features": box(40, 20, 12) + [self.hole(), row]})["threads"]["holes"]
+        self.assertEqual(sorted(h["name"] for h in p), ["H1:hole:0", "H1:hole:1", "P1:1:H1:hole:0", "P1:1:H1:hole:1"])
+        self.assertEqual(sorted(h["at"][1] for h in p), [10, 10, 15, 15])
+        # plain holes, a hole turned off: none
+        self.assertEqual(doc.rebuild({"features": box(40, 20, 12) + [self.hole(thread=None, d=5)]})["threads"]["holes"], [])
+        self.assertEqual(doc.rebuild({"features": box(40, 20, 12) + [self.hole(suppressed=True)]})["threads"]["holes"], [])
+
+
 class TestFits(unittest.TestCase):
     """ISO 286 deviations by size range, and the labels on the drawing."""
 

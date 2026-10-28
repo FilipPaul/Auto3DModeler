@@ -2657,9 +2657,10 @@ const faceIdsNamed = (faces, names) => {
 };
 const okColor = (c) => { if (c !== null && c !== undefined && !/^#[0-9a-f]{6}$/i.test(String(c))) throw new Error('color is "#rrggbb" (or null).'); return c; };
 Object.assign(agentHandlers, {
-  set_look: async ({ part, color, opacity }) => {
+  set_look: async ({ part, color, opacity, threads }) => {
     okColor(color);
     const op = opacity === undefined || opacity === null ? undefined : Math.min(1, Math.max(0.1, +opacity));
+    if (threads !== undefined && state.workspace !== 'model') throw new Error('threads is a 3D model\'s own setting — open_part the model first (its placed parts show it too).');
     if (state.workspace === 'assembly') {
       const it = assembly.inst(part);
       if (!it) throw new Error(`part is a placed id (${assembly.doc.instances.map((i) => i.id).join(', ')}) — see get_assembly.`);
@@ -2675,7 +2676,9 @@ Object.assign(agentHandlers, {
     m.view.setLook(m.part);
     m.history.commit();
     m.renderProps();
-    return { text: `The model: ${m.part.color || 'the usual colour'}, ${Math.round((m.part.opacity ?? 1) * 100)} % solid.` };
+    if (threads !== undefined) await m.setThreads(threads || 'hidden');
+    const thr = m.threadHoles().length ? `, ${m.threadHoles().length} threaded hole(s): threads ${m.part.threads || 'hidden'}` : '';
+    return { text: `The model: ${m.part.color || 'the usual colour'}, ${Math.round((m.part.opacity ?? 1) * 100)} % solid${thr}.` };
   },
   paint_faces: async ({ faces = [], color, part }) => {
     okColor(color);

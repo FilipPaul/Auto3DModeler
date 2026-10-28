@@ -806,6 +806,18 @@ Date: 2026-10-25. Written by the architect agent.
   that is) and kernel.material_along (the part's depth under the hole, a blind hole's own depth) — a head wider than
   the face or as deep as the part is an issue with the most that fits ("at most Ø6.4"), never cut through.
   test_hole_head_fits; tools/e2e_sheet_hole_callouts.py (the AI's M3 ⌵ on a 2 mm plate).
+- **🔩 Cosmetic threads done:** part `threads` "hidden" (default) | "cosmetic" (doc.THREAD_MODES). Every rebuild says
+  where the threaded holes are: out.threads {mode, holes} — doc.thread_holes (cached per features key) finds them by
+  their walls' names ("<step>:hole:k", a pattern's / mirror's copies "P1:2:<step>:hole:k") in the built body;
+  kernel.round_span gives the wall's axis, its extent along it and which ends are open (the classifier a hair past
+  each end: an open end is not inside the part; of two, the one the step's normal points to is the entry) -> {name,
+  thread, at (entry, on the axis), axis (into the part), depth, major, minor (tap drill), pitch (doc.PITCH, ISO 261
+  coarse), through}. ModelView.setThreads draws them (view.threadSegments: a right-hand helix on the wall, a hair
+  inside it, 24 pieces a turn, and a 48-piece ring at the major Ø a hair above the entry face; its own thin
+  material, clipped by ✂ Section); the solid is unchanged. The click's "The part" section: 🔩 Show all threads /
+  Hide all threads (only with threaded holes); the Part panel's 🔩 Threads Hidden / Cosmetic; the setting is in the
+  modeler's undo (the look snapshot) and the project file; an assembly's placed part shows its part's (AsmView, the
+  body's threads). The AI: set_look {threads}. test_cosmetic_thread_data; tools/e2e_model_threads.py.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

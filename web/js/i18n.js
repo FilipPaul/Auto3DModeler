@@ -829,6 +829,11 @@ const CS = {
   'Move out to its width and click (Esc = stop drawing).': 'Táhněte na šířku a klikněte (Esc = konec kreslení).',
   Shaft: 'Hřídel', 'An ISO 286 fit: H for a hole, a small letter for a shaft (h6 a sliding fit, k6 / m6 a push fit, p6 a press fit)': 'Uložení ISO 286: H pro díru, malé písmeno pro hřídel (h6 posuvné, k6 / m6 přechodné, p6 lisované)',
   Thread: 'Závit', 'A threaded hole: drilled with its tap drill (M5: Ø4.2), labelled M5 on the drawing': 'Závitová díra: vrtaná vrtákem pro závit (M5: Ø4,2), na výkresu označená M5',
+  // 🔩 threads shown on the part
+  'Show all threads': 'Zobrazit všechny závity', 'Hide all threads': 'Skrýt všechny závity', Threads: 'Závity', '🔩 Threads': '🔩 Závity',
+  'How the threads of its threaded holes show': 'Jak se zobrazují závity jeho závitových děr', Hidden: 'Skryté', Cosmetic: 'Kosmetické',
+  'Plain holes at the tap drill (the threads are on the drawing)': 'Hladké díry na průměr vrtáku pro závit (závity jsou na výkresu)',
+  'Thin helix lines on the holes — view only, quick': 'Tenké šroubovice na dírách — jen pro zobrazení, rychlé',
   Rib: 'Žebro', '⊿ Rib': '⊿ Žebro',
   'A rib (a gusset): draw a line from a wall to the plate in a sketch, give the thickness — it fills up to the part': 'Žebro (výztuha): v náčrtu nakreslete úsečku od stěny k desce, zadejte tloušťku — vyplní se až k dílu',
   "Draw the rib's line first: a sketch on a plane across the corner, one line from the wall to the plate.": 'Nejdřív nakreslete čáru žebra: náčrt v rovině napříč rohem, jedna úsečka od stěny k desce.',

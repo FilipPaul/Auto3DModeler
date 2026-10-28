@@ -903,6 +903,36 @@ def split(body, o, n, fid, keep="both"):
     return Body(compound(shapes), names)
 
 
+# ------------------------------------------------------------------ 🔩 threaded holes
+def round_span(shape, faces, n=None):
+    """A hole's wall (round faces of one axis, maybe in pieces) -> {at, axis, depth, r, open: [entry, far end]}: where
+    it starts (on the axis, at its entry: an open end — of two, the one n points to), its unit direction into the part,
+    how long it is and its radius; or None (not round). Open: on the axis just past that end is not inside the part."""
+    from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+    from OCP.TopAbs import TopAbs_IN
+    ax = face_axis(faces[0])
+    s = BRepAdaptor_Surface(TopoDS.Face(faces[0]), True)
+    if ax is None or s.GetType() != GeomAbs_Cylinder:
+        return None
+    p, d = ax
+    x = np.cross(d, [1, 0, 0] if abs(d[0]) < 0.9 else [0, 1, 0])
+    x /= np.linalg.norm(x)
+    y = np.cross(d, x)
+    t, b = gp_Trsf(), Bnd_Box()
+    t.SetValues(*x, -float(x @ p), *y, -float(y @ p), *d, -float(d @ p))  # world -> along the axis (w)
+    for face in faces:
+        BRepBndLib.AddOptimal_s(face.Moved(TopLoc_Location(t)), b, False, False)
+    w0, w1 = b.CornerMin().Z(), b.CornerMax().Z()
+    cl = BRepClass3d_SolidClassifier(shape)
+    opened = []
+    for w in (w0 - 0.05, w1 + 0.05):
+        cl.Perform(gp_Pnt(*map(float, p + w * d)), 1e-6)
+        opened.append(cl.State() != TopAbs_IN)
+    if opened[1] and (not opened[0] or (n is not None and d @ _v(n) > 0)):  # (the entry at w1: going in along −d)
+        return {"at": p + w1 * d, "axis": -d, "depth": w1 - w0, "r": s.Cylinder().Radius(), "open": opened[::-1]}
+    return {"at": p + w0 * d, "axis": d, "depth": w1 - w0, "r": s.Cylinder().Radius(), "open": opened}
+
+
 # ------------------------------------------------------------------ printing: exact pieces (printsplit.py)
 def transformed(shape, m, shift=(0, 0, 0)):
     """A copy of a shape mapped by x -> m x + shift: m a 3 x 3 rotation / mirror times a uniform scale (mm)."""

@@ -56,10 +56,10 @@ export class Modeler {
     this.sk = null;     // the open sketch (a Sketcher)
     this.selected = null; // feature id selected in the tree
     this.history = new History({
-      capture: () => ({ features: this.part.features, look: { color: this.part.color, opacity: this.part.opacity, paint: this.part.paint } }),
+      capture: () => ({ features: this.part.features, look: { color: this.part.color, opacity: this.part.opacity, paint: this.part.paint, threads: this.part.threads } }),
       restore: async (s) => {
         this.part.features = s.features;
-        for (const k of ['color', 'opacity', 'paint']) { if (s.look?.[k] === undefined) delete this.part[k]; else this.part[k] = s.look[k]; }
+        for (const k of ['color', 'opacity', 'paint', 'threads']) { if (s.look?.[k] === undefined) delete this.part[k]; else this.part[k] = s.look[k]; }
         this.closeAll();
         this.render();
         await this.rebuild();
@@ -579,7 +579,10 @@ export class Modeler {
         ['chamfer', '◸', t('Bevel its edges'), () => { this.startRound('chamfer'); if (this.cmd) this.clickCommand(at); }]]],
       [t('The part'), [
         flat && ['mirror', '⇋', t('Mirror across this face'), () => { this.startMirror(); if (this.cmd) this.clickMirror(at); }],
-        flat && ['split', '✂', t('Split here'), () => this.startSplit(this.splitPlane(h.face))]]],
+        flat && ['split', '✂', t('Split here'), () => this.startSplit(this.splitPlane(h.face))],
+        this.threadHoles().length && (this.part.threads && this.part.threads !== 'hidden'
+          ? ['threads', '🔩', t('Hide all threads'), () => this.setThreads('hidden')]
+          : ['threads', '🔩', t('Show all threads'), () => this.askThreads()])]],
       [`${t('Step')} · ${fs.step.name}`, [
         ['edit', '✎', t('Edit the step'), () => this.edit(fs.step.id)],
         ['off', fs.step.suppressed ? '●' : '◌', t(fs.step.suppressed ? 'Turn it on' : 'Turn it off'), () => this.toggleOff(fs.step.id)],
@@ -1113,7 +1116,8 @@ export class Modeler {
           <div class="field"><label>Tolerances</label><select data-k="tolerance" title="The general tolerances (ISO 2768) for sizes without their own — on the 2D drawing">
             ${[['', '—'], ['f', 'ISO 2768-f (fine)'], ['m', 'ISO 2768-m (medium)'], ['c', 'ISO 2768-c (coarse)']].map(([v, l]) => `<option value="${v}" ${v === (this.part.tolerance || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
           <div class="field"><label>Colour</label><input type="color" data-k="color" value="${lookColor(this.part) || '#d9dee6'}" title="Its colour here and in assemblies (without one: its material's)"></div>
-          <div class="field mp-look"><label>See-through</label><input type="range" min="0" max="90" step="5" data-k="clear" value="${Math.round((1 - (this.part.opacity ?? 1)) * 100)}"><span class="unit">${Math.round((1 - (this.part.opacity ?? 1)) * 100)} %</span></div>`
+          <div class="field mp-look"><label>See-through</label><input type="range" min="0" max="90" step="5" data-k="clear" value="${Math.round((1 - (this.part.opacity ?? 1)) * 100)}"><span class="unit">${Math.round((1 - (this.part.opacity ?? 1)) * 100)} %</span></div>
+          ${this.threadsHtml()}`
       : '<p class="hint">No solid yet — extrude a sketch.</p>'}
         ${bad.length ? `<p class="mp-bad">⚠ ${bad.length} step(s) could not be built — point at ⚠ in the list to see why.</p>` : ''}
         <h3>Next</h3><p class="hint">${esc(this.nextHint())}</p>
@@ -1149,8 +1153,39 @@ export class Modeler {
       this.view.setLook({ ...this.part, color: lookColor(this.part) });
     });
     clr?.addEventListener('change', () => { this.history.commit(); this.hooks.onChange?.(); });
+    for (const el of box.querySelectorAll('[data-thr]')) el.addEventListener('click', () => this.setThreads(el.dataset.thr));
     return null;
   }
+
+  // ------------------------------------------------------------------ 🔩 threads
+  /** The part's threaded holes as built (the kernel's thread_holes: where each starts, its axis, depth, Ø, pitch). */
+  threadHoles() { return (this.result?.threads?.holes || []); }
+
+  /** The Part panel's Threads choice (only for a part with threaded holes): Hidden / Cosmetic. */
+  threadsHtml() {
+    const n = this.threadHoles().length, mode = this.part.threads || 'hidden';
+    if (!n) return '';
+    const b = (k, label, title) => `<button data-thr="${k}" class="${mode === k ? 'on' : ''}" title="${esc(t(title))}">${esc(t(label))}</button>`;
+    return `<div class="field mp-threads"><label title="${esc(t('How the threads of its threaded holes show'))}">🔩 ${esc(t('Threads'))}</label><div class="seg">${b('hidden', 'Hidden', 'Plain holes at the tap drill (the threads are on the drawing)')}${b('cosmetic', 'Cosmetic', 'Thin helix lines on the holes — view only, quick')}</div></div>`;
+  }
+
+  /** 🔩 Show all threads (the suggestions table): shown as thin lines. */
+  askThreads() { return this.setThreads('cosmetic'); }
+
+  /** 🔩 How the part's threaded holes show: 'hidden' (as the tap drill) | 'cosmetic' (helix lines, view only). */
+  setThreads(mode) {
+    if (!['hidden', 'cosmetic'].includes(mode)) throw new Error('threads is "hidden" or "cosmetic".');
+    if ((this.part.threads || 'hidden') === mode) return null;
+    if (mode === 'hidden') delete this.part.threads; else this.part.threads = mode;
+    this.history.commit();
+    this.hooks.onChange?.();
+    this.showThreads();
+    this.renderProps();
+    return this.rebuild();
+  }
+
+  /** Cosmetic threads drawn on the part (not while sketching). */
+  showThreads() { this.view.setThreads(this.mode === 'part' && this.part.threads === 'cosmetic' ? this.threadHoles() : null); }
 
   nextHint() {
     const used = new Set(this.part.features.flatMap(sketchesOf));
@@ -1192,7 +1227,7 @@ export class Modeler {
       this.rid = `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
       const timer = setTimeout(() => { this.$('.m-busy').hidden = false; }, 350);
       try {
-        const { res, r } = await fetchRebuild({ features }, this.rid);
+        const { res, r } = await fetchRebuild({ features, threads: this.part.threads }, this.rid);
         if (res.status === 501) { this.showInstall(r.error); continue; }
         if (!res.ok) throw new Error(r.error || res.statusText);
         if (r.cancelled) { this.hooks.toast('Cancelled — the model is shown as it was.', 'info'); continue; }
@@ -1204,6 +1239,7 @@ export class Modeler {
         this.view.setLook({ ...this.part, color: lookColor(this.part) });
         this.view.setShades(this.cmd?.feature.type === 'split'); // (✂ Split's preview: the pieces in two shades)
         this.view.setRefs(r.refs || []);
+        this.showThreads();
         if (this.printChk) this.runPrintCheck(); // (it follows the part)
         if (first && this.mode === 'part') this.view.setView('iso');
         const gone = (r.features || []).flatMap((s) => s.issues || []).find((x) => /^BLOB_MISSING/.test(x));

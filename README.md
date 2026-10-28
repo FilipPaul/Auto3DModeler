@@ -321,7 +321,12 @@ SolidWorks. It has only the tools that need almost no input.
    hole, 90°; a threaded hole's from its size, M3: Ø6) — change the head's Ø / depth if needed. A head that would not
    fit — wider than the face around the hole, or as deep as the part there (it would cut through) — is refused,
    with the most that fits. *Thread* (M2 … M20) makes it a threaded hole: drilled with its
-   tap drill (M5: Ø4.2) and labelled M5 on the drawing. *Teardrop (print sideways)*, offered on a hole that goes
+   tap drill (M5: Ø4.2) and labelled M5 on the drawing. Its thread is not drawn on the part unless you ask: click the
+   part (no tool on) and choose **🔩 Show all threads** under *The part* — *Cosmetic* draws a thin helix at the
+   thread's pitch on each threaded hole's wall and a thin ring at its major Ø on the face (view only: the solid, its
+   volume and exports stay as they are; quick, it may stay on). *Hide all threads* takes them away; the Part panel's
+   *🔩 Threads* row (shown when the part has threaded holes) switches it too, and placed parts in an assembly show
+   their part's choice. *Teardrop (print sideways)*, offered on a hole that goes
    sideways (into a side face, across Z), gives the hole a 45° point on top so it prints lying on its side without
    support (the 🖨 Print check shows no overhang there); the drawing still says Ø d. A counterbore gets the point too; a
    countersink cannot. On a hole that goes up / down it is greyed. Each hole is
