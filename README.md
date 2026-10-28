@@ -687,6 +687,13 @@ the app exchanges with them — and with Inventor, Fusion, Creo, NX, FreeCAD, On
   {format: "step" | "iges" | "glb" | "obj"}`; on a drawing sheet `export {format: "dxf" | "pdf"}`.
 - In SolidWorks: *File → Open*, file type STEP / IGES (an assembly STEP opens as an assembly with its parts). CATIA:
   *File → Open* (STEP AP214 / IGES). Solid Edge: *Open*, file type STEP / IGES (the import wizard keeps the assembly).
+- **Tested with real files** (`samples/ToImportToOurApp` — its README says for each file which program made it, how to open
+  it and what you should see, with its source and licence; `solidedge/` is for your own Solid Edge exports): exchange tested with files
+  from CATIA V5, NX / Unigraphics, Creo / Pro/ENGINEER, SolidWorks, Inventor, Fusion 360, I-DEAS, CoCreate, AutoCAD and
+  others (STEP AP203 / AP214 / AP242, IGES) — parts and assemblies open with their parts, placements, sub-assemblies,
+  names and colours; they can be edited, drawn (sheet -> PDF / DXF) and exported back (STEP / IGES / GLB) and read again
+  the same. Known gaps: an assembly whose parts are separate files (external references) and tessellated (mesh-only)
+  STEP files are not opened as solids; an IGES of loose surfaces that do not close comes in as a reference body.
 
 ## AI assistant (✨ AI tab)
 

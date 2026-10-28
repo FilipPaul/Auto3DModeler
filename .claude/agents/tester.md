@@ -382,6 +382,18 @@ Never report "works" without having run it; report failures with their output.
    assembly built with the AI's tools, exported by the AI as a STEP assembly (a product per part, nested) -> Open ->
    "Open as an assembly" (parts once, a sub-assembly, the parts list and every placed part's box as built, colours),
    dropped on an assembly (a sub-assembly), the AI's open_file as "assembly", a plain STEP with no question.
+   `tools/e2e_cad_samples.py <url> <dir> [<parts of paths, comma separated>]` walks samples/ToImportToOurApp (real STEP / IGES files from CATIA V5, NX,
+   Creo / Pro/E, SolidWorks, Inventor / Fusion, I-DEAS, CoCreate, AutoCAD, ACIS, EUCLID; sources, licences and the
+   values measured in samples/ToImportToOurApp/samples.json and README.md): each opened as a user would (a part as one body, an
+   assembly "Open as an assembly", an IGES as it is: time, faces / volume / bbox, colours, parts / placements / names);
+   the part (or an assembly's biggest part) edited by the AI's tools (a sketch Ø3 cut on its biggest flat face, a Ø2
+   hole, a 0.3 fillet); sheet_open -> PDF + DXF (read back by ezdxf); export STEP / IGES / GLB, the STEP read again
+   (volume, an assembly's parts / placements) and re-opened by open_file as "assembly"; one part bigger than the bed
+   split exactly for the P1S; console errors; then the other formats (STL / OBJ meshes, 3MF, DXF / DWG, a PDF drawing,
+   pictures for the outline wizard, a KiCad Gerber + Excellon set) opened from their menus. A table at the end; ~45 min;
+   the manifest's "known" lists the app bugs / steps that do not apply per file. Unit tests: tests/test_cad_samples.py (each
+   file's counts and volumes, STEP / IGES round trips; files over 3 MB with A3D_SLOW_SAMPLES=1; the known app bugs as
+   expected failures — an unexpected success means one was fixed).
    `tools/e2e_paint.py <url> <dir>` covers 🎨 Paint (a face, Ctrl+click a second, ▣ a whole body of two, one extrude's
    two tops told apart, Ctrl+Z / Ctrl+Y, shown in an assembly) and 🏷 renaming a step and a part.
    `tools/e2e_look.py <url> <dir>` covers colour and see-through (the Part panel -> the model view and assemblies;

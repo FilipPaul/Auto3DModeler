@@ -740,6 +740,32 @@ Date: 2026-10-25. Written by the architect agent.
     and Creo all save STEP AP214 / AP242; the app tells the user so). If a JT / XT must be seen one day: a mesh-only
     👁 reference body through an external converter run as its own program (cadconvert, MIT), never as an exact solid —
     and only once an open reader has matured. Revisit in a year.
+- **Exchange tested with real files (18g):** samples/ToImportToOurApp (55 MB; README.md: for each file
+  the program that made it, how to open it, what to see, its source and licence; samples.json the same for the tests;
+  solidedge/ waits for the owner's own exports) — besides STL / OBJ meshes, 3MF, DXF / DWG, PDF drawings, pictures for the
+  outline wizard and a KiCad Gerber + Excellon board; STEP from CATIA V5 (R14, R19, R20 and NIST's CTC / FTC), NX (8.5; UG via Theorem), Creo / Pro/ENGINEER,
+  SolidWorks 2010 / 2017 / 2021, Inventor 2019, Fusion 360 / Inventor (Autodesk Translation Framework), I-DEAS,
+  CoCreate, AutoCAD 2000, ACIS, EUCLID, 3D_Evolution; AP203 / AP214 / AP242 e1–e3; IGES from SolidWorks, Inventor,
+  EUCLID and Open CASCADE. Public domain (NIST), CC-BY 3.0 (FreeCAD-library), LGPL (FreeCAD, OCCT, occt-import-js), BSD
+  (STEPcode). tests/test_cad_samples.py (every file under 3 MB: faces, volume, bbox, structure, the assembly tree's parts /
+  placements / volume, STEP / IGES round trips; ~40 s) and tools/e2e_cad_samples.py (each file through the browser:
+  import, an AI edit — sketch + cut, hole, fillet —, sheet -> PDF / DXF, STEP / IGES / GLB out and the STEP read back,
+  an exact print split). Worked: every B-rep part and assembly opened (parts, placements, sub-assemblies and names as in
+  the file; up to 41 placements, 7.8 MB in ~38 s), edits, sheets, exports and round trips. Found (listed as expected
+  failures in the unit test; for the main session): read_step_tree segfaults on a STEP whose assembly label has no name
+  (kernel._label_name: TDF_Label.FindAttribute on a missing TDataStd_Name — NIST CTC-02 AP242 "Open as an assembly"); a
+  part's volume counts loose faces (supplemental surfaces) in kernel.volume (CTC-02: 45.47 instead of 47.11 · 10⁶ mm³);
+  non-ASCII names written double-UTF-8 in the STEP export ("Držák" -> "DrÅ¾Ã¡k", _xcaf_tree) and 8-bit names read
+  wrongly ("ÖN" -> "Վ"); a model's STEP export drops the file's face colours (doc.export -> K.to_step); the "Open as an
+  assembly?" count includes empty products (Pro/E AS1: 10 / 36 for 5 / 18); a tessellated AP242 opens as a body with a
+  negative volume, and its sheet (like an IGES reference body's) never builds; an assembly with external references
+  (CATIA S1, 12 part files) says "no solid"; flat faces stored as B-splines (I-DEAS, Inventor's IGES) are not "plane"
+  faces, so no sketch / hole on them; a failed sheet build (/api/sheet/build or /api/sheet/assembly 500 — a reference
+  body, a tessellated one, the MIT E-Vent assembly over the worker's 120 s) shows no message, the sheet just stays empty;
+  a cut on the Reespirator's B-spline "balloon" raises its volume; autosave can answer 500 (os.replace while the same
+  project's previous save holds the file: WinError 32). Other formats: STL / OBJ open as quick parts, DXF and the
+  Gerber set as 2D drawings, pictures in the outline wizard; DWG needs ODA / LibreDWG (says so); 3MF is not read
+  ("Unsupported file type"); NIST's GD&T PDF sheets give no part (FTC-11) or a wrong 25 × 9 mm one (CTC-01).
 - **STEP colours done:** kernel.read_step_colours (STEPCAFControl + XCAF: colours followed down the assembly tree to the
   faces of the shape the solid step uses), State.colours by face name -> faces' `color` in the rebuild; the view /
   assembly show them under the paint. tools/e2e_step_colours.py.
