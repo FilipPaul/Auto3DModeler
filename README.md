@@ -453,9 +453,14 @@ own dimensions stay on their edges and holes). **Check** (the left panel) tells 
 misses — a hole's place, an edge, a Ø or R — listed with **＋** (add that one, from the part's edge) and **＋ Add all
 missing**, and marked with an orange **?** on the drawing (not in the PDF); dimensions that give a size twice are
 marked ⧉ (*✕ Remove them*). A known circle gives its own edges (a tangent side, a boss), a pitch *4× 10* its row.
-The title block takes your own texts — *Title*, *Drawing no.*, *Drawn by*, *Note* — in the panel (a double-click on a cell goes to its field). **⬇ PDF** gives the sheet as you see it. The AI works on sheets too
-(`sheet_open`, `get_sheet`, `sheet_edit`: a preset, the paper, views, dimensions added between points or on a
-circle, removed or moved; `export {format: "pdf"}` on a sheet) — for what the editor does not offer in a click.
+The title block takes your own texts — *Title*, *Drawing no.*, *Drawn by*, *Note* — in the panel (a double-click on a cell goes to its field). **⬇ PDF** gives the sheet as you see it — the page is the paper (A4 / A3) and
+1 mm on the sheet is 1 mm on the page, so printed at 100 % ("actual size", not "fit to page") the sheet's scale holds.
+**⬇ DXF** gives it for drafting programs (AutoCAD, SolidWorks / Solid Edge drafting): the paper 1:1 in mm, the views
+where they are at the sheet's scale, real dimensions that show the part's sizes (they measure the paper, DIMLFAC = 1 /
+scale), the title block and parts list as text; layers *visible*, *hidden*, *dims*, *hatch*, *text*, *frame*. The AI
+works on sheets too (`sheet_open`, `get_sheet`, `sheet_edit`: a preset, the paper, views, dimensions added between
+points or on a circle, removed or moved; `export {format: "pdf" | "dxf"}` on a sheet) — for what the editor does not
+offer in a click.
 
 **📄 Drawing** in an assembly's toolbar (or *📄 Drawing sheet* in its panel) opens the **assembly's own drawing sheet**
 to edit: its front, top and iso views, overall sizes, parts list and balloons — move them, add your dimensions and
@@ -670,12 +675,13 @@ the app exchanges with them — and with Inventor, Fusion, Creo, NX, FreeCAD, On
 | Format | In | Out | Notes |
 |---|---|---|---|
 | **STEP** (.step / .stp, AP214) | a part (exact solid, colours); an assembly (parts, placements, sub-assemblies, names, colours) | a part; an assembly as an assembly tree | The best choice: all three read and write it (*Save As → STEP AP214 / AP242*). |
+| **DXF** (drawing sheet) | — (a DXF / DWG opens as a 📐 2D drawing) | a part's or an assembly's 📄 drawing sheet: the paper 1:1 in mm, views, real dimensions, title block, a layer per kind | ⬇ DXF on the sheet. Opens in AutoCAD, DraftSight, SolidWorks (*Open → DXF*, as a drawing) and Solid Edge Draft. |
 | **IGES** (.igs / .iges, 5.3) | a part: its solids, or its surfaces sewn into a solid (a warning says so); surfaces that do not close come in as a 👁 reference body | a part (exact B-rep solid, mm); an assembly as one file (every part placed, names and colours — IGES has no assembly tree) | For programs and suppliers that still ask for IGES. Prefer STEP. |
 
 - **In**: *📂 Open ▾ → CAD / PCB / 3D file*, a file dropped on the view, *▣ Solid from a file* in a 3D model, or
   *＋ Insert part ▾ → From a file* in an assembly. The AI's `open_file` opens them too.
 - **Out**: the *Export ▾* menu (or the Export buttons in the 3D model's / assembly's panel); the AI's `export
-  {format: "step" | "iges"}`.
+  {format: "step" | "iges"}`; on a drawing sheet `export {format: "dxf" | "pdf"}`.
 - In SolidWorks: *File → Open*, file type STEP / IGES (an assembly STEP opens as an assembly with its parts). CATIA:
   *File → Open* (STEP AP214 / IGES). Solid Edge: *Open*, file type STEP / IGES (the import wizard keeps the assembly).
 

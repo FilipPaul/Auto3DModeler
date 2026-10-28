@@ -1,12 +1,17 @@
 """Exchange formats for other CAD programs (SolidWorks, CATIA, Solid Edge …) beside STEP: IGES in and out (a part, an
-assembly as one file; surfaces-only files sewn into a solid, or a reference body when they do not close).
-Skipped without the CAD kernel.
+assembly as one file; surfaces-only files sewn into a solid, or a reference body when they do not close); a drawing
+sheet as a DXF (the paper 1:1, a layer per kind, real dimensions) and its PDF in true scale.
+The IGES tests are skipped without the CAD kernel.
 """
+import io
 import math
 import tempfile
 import unittest
+from collections import Counter
 from pathlib import Path
 from unittest import mock
+
+import ezdxf
 
 from auto3d.modeler import available
 from test_modeler_kernel import watertight
@@ -110,6 +115,89 @@ class TestIges(unittest.TestCase):
             doc.assembly_step(tree=machine(), fmt="x_t")
         with self.assertRaises(K.KernelError):
             doc.assembly_step(tree={"root": "A1", "parts": {}, "assemblies": {"A1": {"name": "Empty", "instances": []}}}, fmt="iges")
+
+
+# a sheet as the editor draws it (sheet.js svg(true)): A4 landscape, a 1:2 front view of a 40 × 20 plate with a Ø8 hole
+# (hidden lines, a section's hatching), its name, a dimension drawn (left out: it comes from the list), the title block
+SHEET_SVG = """<svg xmlns="http://www.w3.org/2000/svg" width="297mm" height="210mm" viewBox="0 0 297 210" font-family="Helvetica">
+<rect x="0" y="0" width="297" height="210" fill="#fff"/>
+<rect x="10" y="10" width="277" height="190" fill="none" stroke="#000" stroke-width="0.5"/>
+<g data-view="Front" class="sh-view">
+<line x1="42" y1="98" x2="48" y2="92" stroke="#000" stroke-width="0.18"/><line x1="44" y1="98" x2="50" y2="92" stroke="#000" stroke-width="0.18"/>
+<polyline points="58,100 58,90" fill="none" stroke="#666" stroke-width="0.25" stroke-dasharray="1.5 1"/>
+<polyline points="62,100 62,90" fill="none" stroke="#666" stroke-width="0.25" stroke-dasharray="1.5 1"/>
+<polyline points="50,100 70,100 70,90 50,90 50,100" fill="none" stroke="#000" stroke-width="0.5" stroke-linejoin="round"/>
+<text font-family="Helvetica" x="60" y="118" font-size="3.5" text-anchor="middle" fill="#334">Front</text></g>
+<g data-dim="d1" class="sh-dim"><line x1="50" y1="101" x2="50" y2="109.5" stroke="#1b3a8a" stroke-width="0.15"/>
+<path d="M50,108 L52.2,107.3 L52.2,108.7 Z" fill="#1b3a8a"/><text font-family="Helvetica" x="60" y="107.1" font-size="3.2">40</text></g>
+<g class="sh-title"><rect x="137" y="155" width="150" height="38" fill="#fff" stroke="#000" stroke-width="0.5"/>
+<rect x="137" y="155" width="90" height="12" fill="#fff" fill-opacity="0" stroke="#000" stroke-width="0.25" data-tcell="title" class="sh-tcell"/>
+<text font-family="Helvetica" x="138.2" y="157.6" font-size="2" fill="#555">Part</text>
+<text font-family="Helvetica" x="138.2" y="165.2" font-size="5" fill="#000">Plate Ø8 × 2</text>
+<text font-family="Helvetica" x="138.2" y="178" font-size="3.4" fill="#000">1:2</text></g>
+</svg>"""
+SHEET_DIMS = [{"kind": "linear", "dir": "h", "a": [50, 100], "b": [70, 100], "at": 108, "text": "40", "value": 40},
+              {"kind": "linear", "dir": "v", "a": [70, 100], "b": [70, 90], "at": 78, "text": "20", "value": 20},
+              {"kind": "dia", "c": [60, 95], "r": 2, "u": [0.7071, -0.7071], "end": [65.66, 89.34], "text": "Ø8 H7", "value": 8},
+              {"kind": "ang", "X": [50, 100], "u1": [1, 0], "u2": [0, -1], "r": 12, "text": "90°", "value": 90}]
+
+
+class TestSheetDxf(unittest.TestCase):
+    def read(self, data):
+        return ezdxf.read(io.StringIO(data.decode("utf-8")))
+
+    def test_layers_entities_and_dimensions(self):
+        from auto3d.modeler.sheetdxf import to_dxf
+        doc = self.read(to_dxf(SHEET_SVG, SHEET_DIMS, 0.5))
+        self.assertEqual(doc.header["$INSUNITS"], 4)  # mm
+        self.assertTrue({"visible", "hidden", "dims", "hatch", "text", "frame"} <= {ly.dxf.name for ly in doc.layers})
+        self.assertEqual(doc.layers.get("hidden").dxf.linetype, "HIDDEN")
+        msp = doc.modelspace()
+        count = Counter(e.dxf.layer for e in msp)
+        self.assertEqual(count, {"visible": 1, "hidden": 2, "hatch": 2, "text": 4, "frame": 3, "dims": 4}, count)
+        # the paper 1:1, y up: the view's outline where it is on the sheet (210 − 100 = 110)
+        outline = msp.query("LWPOLYLINE[layer=='visible']")[0]
+        self.assertEqual([tuple(round(c, 6) for c in p[:2]) for p in outline.get_points()], [(50, 110), (70, 110), (70, 120), (50, 120), (50, 110)])
+        texts = {t.dxf.text: t for t in msp.query("TEXT")}
+        self.assertIn("Plate Ø8 × 2", texts)  # the title block, unicode kept
+        self.assertAlmostEqual(texts["Front"].dxf.align_point.y, 210 - 118)
+        # real dimensions: they measure the paper, DIMLFAC = 1 / scale gives the part's size
+        dims = list(msp.query("DIMENSION"))
+        self.assertEqual(len(dims), 4)
+        width = dims[0]
+        lfac = doc.dimstyles.get(width.dxf.dimstyle).dxf.dimlfac
+        self.assertAlmostEqual(lfac, 2.0)
+        self.assertEqual(width.dxf.text, "<>")  # (the measured value, so it follows when moved)
+        self.assertAlmostEqual(width.get_measurement() * lfac, 40, places=6)
+        shown = [e.text for e in doc.blocks.get(width.dxf.geometry) if e.dxftype() == "MTEXT"]
+        self.assertEqual(shown, ["40"])
+        self.assertEqual(dims[2].dxf.text, "Ø8 H7")  # a fit's text as written on the sheet
+        self.assertAlmostEqual(dims[3].get_measurement(), 90, places=6)
+
+    def test_prefix_kept_and_broken_ones_left_out(self):
+        from auto3d.modeler.sheetdxf import to_dxf
+        dims = [{"kind": "linear", "dir": "h", "a": [50, 100], "b": [70, 100], "at": 108, "text": "3× 40", "value": 40},
+                {"kind": "linear", "dir": "h", "a": [50, 100], "at": 108, "text": "lost", "value": 1},  # (no b)
+                {"kind": "nonsense"}]
+        doc = self.read(to_dxf(SHEET_SVG, dims, 0.5))
+        got = list(doc.modelspace().query("DIMENSION"))
+        self.assertEqual([d.dxf.text for d in got], ["3× <>"])
+        with self.assertRaises(Exception):
+            to_dxf("<svg broken", [], 1)
+
+    def test_sheet_pdf_prints_in_true_scale(self):
+        """The PDF's page is the paper (A4 landscape: 297 × 210 mm) and 100 mm on the sheet is 100 mm on paper — print it
+        at 100 % ("actual size") and the sheet's scale holds."""
+        import fitz
+        from auto3d.modeler.sheet import pdf
+        svg = SHEET_SVG.replace("</svg>", '<line x1="20" y1="30" x2="120" y2="30" stroke="#000" stroke-width="0.5"/></svg>')
+        page = fitz.open(stream=pdf(svg), filetype="pdf")[0]
+        mm = 72 / 25.4
+        self.assertAlmostEqual(page.rect.width / mm, 297, places=2)
+        self.assertAlmostEqual(page.rect.height / mm, 210, places=2)
+        line = next(d["rect"] for d in page.get_drawings() if abs(d["rect"].y0 - 30 * mm) < 0.1 and abs(d["rect"].y1 - 30 * mm) < 0.1)
+        self.assertAlmostEqual(line.width / mm, 100, places=2)
+        self.assertAlmostEqual(line.x0 / mm, 20, places=2)
 
 
 if __name__ == "__main__":

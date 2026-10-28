@@ -131,7 +131,9 @@ Never report "works" without having run it; report failures with their output.
    other end: closed, one curve of 4 points; a deleted shape leaves its points; extruded: one smooth side face).
    `tools/e2e_exchange_formats.py <url> <dir>` covers the exchange formats beside STEP: IGES (a plate with a hole out
    of the Export menu and back in by Open: the same volume; an assembly as one IGES from its panel and by the AI: both
-   parts where they are placed; the AI's open_file on an IGES of open surfaces: a reference body and its warning).
+   parts where they are placed; the AI's open_file on an IGES of open surfaces: a reference body and its warning) and
+   the drawing sheet's ⬇ DXF (read back with ezdxf: mm, its layers, every dimension a DXF dimension, 40 measured as 40;
+   the AI's export dxf on the sheet).
    `tools/e2e_ai_more.py <url> <dir>` covers the AI's drawing tools (get_drawing, drawing_find Ø8 on a layer, set Ø10,
    only one layer, export dxf, use as a sketch -> extruded with its holes), set_view (section, explode), export 3mf (two
    colours = two objects) and bom, edit_joint (gap 5 measured as 5, locked: no removing), remove_joint, rename_part,

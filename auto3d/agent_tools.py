@@ -137,7 +137,7 @@ TOOLS = [
      "description": "Export to a file: stl / step (mm) — the part (an assembly as step: a STEP assembly — a product per part, placed instances, sub-assemblies nested — that SolidWorks / CATIA / Solid Edge open as an assembly tree); iges: a 3D model part or an assembly as one IGES (B-rep solids, mm; for CAD programs that ask for IGES — STEP is better when they take it); pdf: the drawing sheet (📄) on screen as drawn, for an assembly its drawing set (one PDF: the assembly with its parts list and balloons, each sub-assembly, then the made parts — every part once, by its own sheet when it has one), or for a 3D model a 2D drawing (front / top / right "
                     "views, sizes, holes, title block); 3mf: the 3D model or the whole assembly in its colours, an object per colour "
                     "(for multi-material printing: AMS / MMU); bom: the assembly's bill of materials as CSV (qty, maker, part "
-                    "number, mass); dxf: the shown layers of a 2D drawing. path: file or folder (default: the user's Downloads "
+                    "number, mass); dxf: the shown layers of a 2D drawing, or a drawing sheet (📄) on screen — the paper 1:1 in mm, the views at the sheet's scale, real dimensions, the title block, a layer per kind (for AutoCAD, SolidWorks / Solid Edge drafting). path: file or folder (default: the user's Downloads "
                     "folder). Returns the written path.",
      "inputSchema": _obj({"format": {"type": "string", "enum": ["stl", "step", "iges", "pdf", "3mf", "bom", "dxf"]}, "path": STR}, ["format"])},
     {"name": "undo", "where": "browser", "description": "Undo the last change made through these tools.",

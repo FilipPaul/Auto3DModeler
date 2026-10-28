@@ -526,6 +526,10 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         const rows = assembly.bomFlat(), shops = [...new Set(rows.flatMap((r) => Object.keys(r.order || {})))];
         return { text: 'ok', data: { name: project.current?.name || 'assembly', rows, shops } };
       }
+      if (format === 'dxf' && ws === 'sheet') { // a drawing sheet: the paper 1:1, its views, real dimensions
+        await sheet.ensure();
+        return { text: 'ok', data: { name: project.current?.name || 'drawing', sheet: sheet.dxfData() } };
+      }
       if (format === 'dxf') {
         const ed = D(), shown = { ...ed.d, entities: ed.d.entities.filter((e) => ed.shown(e)) };
         if (!shown.entities.length) throw new Error('Nothing on the shown layers.');
@@ -540,7 +544,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         await sheet.ensure();
         return { text: 'ok', data: { name: project.current?.name || 'drawing', svg: sheet.svg(true) } };
       }
-      throw new Error('format: 3mf, bom, dxf or pdf (a drawing sheet).');
+      throw new Error('format: 3mf, bom, dxf (a 2D drawing or a drawing sheet) or pdf (a drawing sheet).');
     },
   };
 }

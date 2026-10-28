@@ -694,6 +694,16 @@ Date: 2026-10-25. Written by the architect agent.
   (/api/assembly/export/<step|iges>, /api/model/export/iges -> .igs). The browser: OPEN_SOLID_RE, the accept lists, the
   Export menu (model / assembly only), the panels' IGES buttons; the AI's export iges and open_file .igs (load_solid ->
   openSolid). tests/test_exchange_formats.py TestIges, tools/e2e_exchange_formats.py.
+- **Drawing sheet to DXF (18d) done:** auto3d/modeler/sheetdxf.py to_dxf(svg, dims, scale) — the sheet's printed SVG
+  (svg(true), the PDF's) walked with ElementTree: lines / polylines / rects / circles / simple paths / texts on a layer
+  per kind (sh-view: dashed -> hidden, 0.18 mm lines -> hatch, else visible; texts -> text; the rest -> frame; the
+  balloons -> dims), y flipped, the paper 1:1 in mm ($INSUNITS 4); the dimensions not from the SVG but from
+  SheetEditor.dxfDims (where dimSvg puts them: linear a / b / at, dia / rad c / r / u / end, ang X / u1 / u2 / r) as
+  real DXF dimensions (dimstyle A3D, DIMLFAC = 1 / scale, "<>" for the measured value with the sheet's prefix kept;
+  a fit / thread keeps its own text). POST /api/sheet/dxf; ⬇ DXF in the sheet's bar; the AI's export dxf on a sheet
+  (export_data dxf -> {sheet: dxfData()}). The PDF is in true scale: MuPDF makes the page the SVG's mm size, 1 mm =
+  1 mm (TestSheetDxf.test_sheet_pdf_prints_in_true_scale). tests/test_exchange_formats.py TestSheetDxf,
+  tools/e2e_exchange_formats.py.
 - **STEP colours done:** kernel.read_step_colours (STEPCAFControl + XCAF: colours followed down the assembly tree to the
   faces of the shape the solid step uses), State.colours by face name -> faces' `color` in the rebuild; the view /
   assembly show them under the paint. tools/e2e_step_colours.py.

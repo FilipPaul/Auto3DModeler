@@ -738,6 +738,20 @@ def api_sheet_pdf():
     return Response(data, mimetype="application/pdf", headers={"Content-Disposition": attachment(f"{name}.pdf")})
 
 
+@app.post("/api/sheet/dxf")
+def api_sheet_dxf():
+    """{svg, dims, scale, name} -> the sheet as a DXF: the paper 1:1 in mm, the views at the sheet's scale, real
+    dimensions (showing the part's sizes), the title block; layers visible / hidden / dims / hatch / text / frame."""
+    from auto3d.modeler.sheetdxf import to_dxf
+    body = request.get_json(force=True)
+    name = re.sub(r'[\\/:*?"<>|]+', "_", body.get("name") or "drawing").strip() or "drawing"
+    try:
+        data = to_dxf(str(body.get("svg") or ""), body.get("dims") or [], float(body.get("scale") or 1))
+    except Exception as exc:  # noqa: BLE001 — a broken SVG
+        return jsonify({"error": f"The sheet could not be made a DXF: {exc}"}), 400
+    return Response(data, mimetype="image/vnd.dxf", headers={"Content-Disposition": attachment(f"{name}.dxf")})
+
+
 @app.post("/api/assembly/sweep")
 def api_assembly_sweep():
     """{instances: [...as for clashes, at the start], steps: [{at, matrices: {id: [16]}}]} -> {steps: [{at, clashes}]}
@@ -1034,6 +1048,10 @@ def _from_page(fmt):
         return to_3mf(d.get("groups") or [], d.get("title") or name), f"{name}.3mf"
     if fmt == "bom":
         return bom_csv(d.get("rows") or [], d.get("shops") or []), f"{name} BOM.csv"
+    if d.get("sheet"):  # a drawing sheet: the paper 1:1, its views, real dimensions
+        from auto3d.modeler.sheetdxf import to_dxf as sheet_dxf
+        sh = d["sheet"]
+        return sheet_dxf(str(sh.get("svg") or ""), sh.get("dims") or [], float(sh.get("scale") or 1)), f"{name}.dxf"
     from auto3d.drawing2d import to_dxf
     return to_dxf(d.get("drawing") or {}), f"{name}.dxf"
 

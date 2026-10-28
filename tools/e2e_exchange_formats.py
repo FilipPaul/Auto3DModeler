@@ -2,12 +2,16 @@
 IGES — a plate with a hole exported from the model's Export menu as .igs (the exact volume read back), opened again from
 Open → CAD / 3D file as a 3D model (one solid step, the same volume); an assembly (Plate + Post) exported as one IGES
 from its panel and by the AI (export iges: every part placed); the AI's open_file on an IGES of open surfaces: a
-reference body with the warning; no console errors.
+reference body with the warning.
+Sheet DXF — the plate's drawing sheet: ⬇ DXF next to ⬇ PDF -> read back with ezdxf: mm, the layers (visible, hidden,
+dims, text, frame), as many real dimensions as the sheet shows, the 40 mm width measured as 40 (the paper × DIMLFAC),
+the title block's text; the AI's export dxf on the sheet the same. No console errors.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
   PYTHONIOENCODING=utf-8 py tools/e2e_exchange_formats.py http://127.0.0.1:5199 <out dir>
 """
 import base64
+import io
 import json
 import math
 import os
@@ -16,6 +20,7 @@ import time
 import urllib.request
 from pathlib import Path
 
+import ezdxf
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 
@@ -155,6 +160,37 @@ try:
     wait(f"return window.__app.state.workspace === 'model' && ({M}.result?.refs || []).length === 1", 60)
     check(js(f"return !{M}.result.body && {M}.part.features[0].op === 'ref'"), "shown as a reference, no solid")
     check(js("return [...document.querySelectorAll('.toast')].some(t => t.textContent.includes('reference body'))"), "the warning shown")
+
+    # ------------------------------------------------------------------ the drawing sheet as a DXF
+    r = json.loads(call("sheet_open", part="Plate"))
+    wait("return window.__app.state.workspace === 'sheet' && !!window.__app.sheet.d?.built", 60)
+    n_dims = js("return window.__app.sheet.dxfDims().length")
+    texts = [x["text"] for x in r["dims"]]
+    print("   sheet:", r["paper"], r.get("scale"), texts)
+    n_saved = js("return window.__saved.length")
+    d.find_element(By.CSS_SELECTOR, ".sh-bar [data-a=dxf]").click()
+    _, data = saved(n_saved + 1, ".dxf")
+
+    def dxf_facts(data):
+        dx = ezdxf.read(io.StringIO(data.decode("utf-8")))
+        msp = dx.modelspace()
+        dims = list(msp.query("DIMENSION"))
+        vals = [round(dm.get_measurement() * dx.dimstyles.get(dm.dxf.dimstyle).dxf.dimlfac, 4) for dm in dims if dm.dxf.dimtype & 7 == 0]
+        used = {e.dxf.layer for e in msp}
+        return dx, dims, vals, used, [t.dxf.text for t in msp.query("TEXT")]
+
+    dx, dims, vals, used, words = dxf_facts(data)
+    check(dx.header["$INSUNITS"] == 4 and {"visible", "hidden", "dims", "text", "frame"} <= used, f"DXF in mm, layers {sorted(used)}")
+    check(len(dims) == n_dims and n_dims == len(texts), f"every dimension of the sheet a DXF dimension ({len(dims)} of {n_dims})")
+    check(40 in vals and 20 in vals, f"the 40 × 20 plate measured in true size {vals}")
+    check(any("Plate" in w for w in words) and "Front" in words, "the title block and the view names")
+    r = ai("export", format="dxf", path=OUT)
+    print("   AI:", r[:120])
+    path = r.rsplit(" to ", 1)[-1].strip()
+    check(r.startswith("Exported") and path.endswith(".dxf") and Path(path).exists(), "the AI exports the sheet as DXF")
+    if Path(path).exists():
+        _, dims2, vals2, _, _ = dxf_facts(Path(path).read_bytes())
+        check(len(dims2) == n_dims and 40 in vals2, "the AI's DXF: the same dimensions")
 
     errs = [m["message"] for m in d.get_log("browser") if m["level"] == "SEVERE" and "favicon" not in m["message"]]
     check(not errs, f"no console errors {errs[:3]}")

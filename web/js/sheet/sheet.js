@@ -3,7 +3,8 @@
 // "8× Ø3 H7", a row by its pitch), moved by dragging, deleted (Del; an automatic one can be brought back), and added by
 // clicking two points or a circle. A value is always measured from the part, never typed. The sheet follows its part:
 // when the part changes the views and dimensions are made again, the revision goes up and the title block says when.
-// The PDF is the same SVG the editor shows (/api/sheet/pdf).
+// The PDF is the same SVG the editor shows (/api/sheet/pdf); so is the DXF (/api/sheet/dxf: the paper 1:1 in mm, a layer
+// per kind, the dimensions as real DXF dimensions from dxfDims).
 //
 // Sheet JSON (a project part of kind "sheet"):
 //   {source: "<part id>", preset: "light" | "medium" | "full", vpreset: {Top: "full"} (a view's own), paper: null | "A4" | "A3", views: {Front: [x, y]} (moved),
@@ -589,7 +590,8 @@ export class SheetEditor {
       ${this.rootOf(this.d.source) ? `<button class="chip ${this.setMode ? 'on' : ''}" data-a="setview" title="${esc(t('All the pages of the drawing set, one below the other — scroll through them; double-click a page to edit it'))}">📚 ${esc(t('All pages'))}</button>` : ''}
       <span class="sep"></span><button class="chip" data-a="undo" title="Undo (Ctrl+Z)" ${this.history.canUndo() ? '' : 'disabled'}>↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)" ${this.history.canRedo?.() ? '' : 'disabled'}>↷</button>
       <span class="sep"></span><button class="chip" data-a="fit" title="The whole sheet">⤢ Fit</button>
-      <button class="chip primary" data-a="pdf" title="The sheet as a PDF — as you see it">⬇ PDF</button>${this.busy ? `<span class="sh-busy">${t('Making the drawing…')}</span>` : ''}`;
+      <button class="chip primary" data-a="pdf" title="The sheet as a PDF — as you see it">⬇ PDF</button>
+      <button class="chip" data-a="dxf" title="The sheet as a DXF for AutoCAD, SolidWorks or Solid Edge drafting: the paper in true size (mm), the views where they are, real dimensions, the title block; a layer per kind">⬇ DXF</button>${this.busy ? `<span class="sh-busy">${t('Making the drawing…')}</span>` : ''}`;
     for (const b of bar.querySelectorAll('[data-preset]')) b.addEventListener('click', () => this.setPreset(b.dataset.preset));
     for (const b of bar.querySelectorAll('[data-a]')) b.addEventListener('click', () => this.action(b.dataset.a));
   }
@@ -850,6 +852,7 @@ export class SheetEditor {
     if (a === 'fit') { this.zoom = { k: 1, x: 0, y: 0 }; this.applyZoom(); }
     if (a === 'setview') { this.setMode = !this.setMode; this.setScrolled = false; this.seen = null; this.tool = 'select'; this.pick = null; this.render(); }
     if (a === 'pdf') this.exportPdf();
+    if (a === 'dxf') this.exportDxf();
   }
 
   hint(text) { const h = this.$('.sh-hint'); h.hidden = !text; h.textContent = text; }
@@ -1084,6 +1087,45 @@ export class SheetEditor {
     const res = await fetch('/api/sheet/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ svg: this.svg(true), name: this.hooks.safeName() }) });
     if (!res.ok) { this.hooks.toast((await res.json()).error || res.statusText, 'error'); return; }
     await this.hooks.download(await res.blob(), `${this.hooks.safeName()}.pdf`);
+  }
+
+  /** The sheet for /api/sheet/dxf: its SVG as printed, its dimensions (dxfDims) and its scale. */
+  dxfData() { return { svg: this.svg(true), dims: this.dxfDims(), scale: this.scale() }; }
+
+  async exportDxf() {
+    const res = await fetch('/api/sheet/dxf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...this.dxfData(), name: this.hooks.safeName() }) });
+    if (!res.ok) { this.hooks.toast((await res.json()).error || res.statusText, 'error'); return; }
+    if (await this.hooks.download(await res.blob(), `${this.hooks.safeName()}.dxf`)) this.hooks.toast(t('Exported the sheet as a DXF (mm, the paper 1:1, the views at the sheet\'s scale, real dimensions).'), 'ok', 6000);
+  }
+
+  /** The dimensions shown, where dimSvg draws them (paper mm, y down) — for the DXF's own dimensions: linear {dir, a, b,
+   *  at (the dimension line's y / x)}, dia / rad {c, r (on the paper), u (out from the centre), end (the leader's end)},
+   *  ang {X, u1, u2, r}; each with its text and value. */
+  dxfDims() {
+    const out = [];
+    for (const d of this.allDims()) {
+      const v = this.value(d);
+      if (v === null) continue;
+      const base = { id: d.id, kind: d.kind, text: this.dimText(d, v), value: v };
+      if (d.kind === 'ang') {
+        const a = this.angleOf(d);
+        if (a) out.push({ ...base, X: this.P(d.view, a.X), u1: [a.u1[0], -a.u1[1]], u2: [a.u2[0], -a.u2[1]], r: d.r ?? 15 });
+      } else if (d.kind === 'dia' || d.kind === 'rad') {
+        const c = this.circleOf(d.view, d.a);
+        if (!c) continue;
+        const C = this.P(d.view, c.c), R = c.r * this.scale();
+        const ang = (d.kind === 'rad' ? Math.atan2(-(c.pm[1] - c.c[1]), c.pm[0] - c.c[0]) * 180 / Math.PI + (d.ang || 0) : d.ang ?? 45) * Math.PI / 180;
+        const u = [Math.cos(ang), -Math.sin(ang)];
+        out.push({ ...base, c: C, r: R, u, end: [C[0] + u[0] * (R + (d.len ?? 6)), C[1] + u[1] * (R + (d.len ?? 6))] });
+      } else {
+        const gv = this.geo.views[d.view], pa = gv.points[d.a], pb = gv.points[d.b];
+        if (!pa || !pb) continue;
+        const box = this.paperBox(d.view), off = d.off ?? 8;
+        const at = d.dir === 'h' ? (d.side === 't' ? box[1] - off : box[3] + off) : (d.side === 'l' ? box[0] - off : box[2] + off);
+        out.push({ ...base, dir: d.dir, a: this.P(d.view, pa), b: this.P(d.view, pb), at });
+      }
+    }
+    return out;
   }
 
   /** For the AI: the points and circles of a view a dimension can hang on (near the view's lower-left first). */
