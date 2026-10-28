@@ -70,10 +70,12 @@ class AsmView extends ModelView {
         transparent: o < 1, opacity: o, depthWrite: o >= 1, clippingPlanes: this.clip || [] });
       const painted = paintedFaces(it.body.faces, it.paint || []);
       const fromFile = !it.ownColour ? it.body.faces.filter((f) => f.color) : [];
-      if (painted?.size || fromFile.length) { // faces painted in their part, or coloured in its STEP file
+      const lit = it.lit ? it.body.faces.filter((f) => f.name.startsWith(it.lit)) : []; // (a part inside a sub-assembly chosen in the list)
+      if (painted?.size || fromFile.length || lit.length) { // faces painted in their part, or coloured in its STEP file
         const base = new THREE.Color(it.colour || COLORS[it.color % COLORS.length]), col = new Float32Array(pos.length);
         const byId = new Map(fromFile.map((f) => [f.id, new THREE.Color(f.color)]));
-        for (const [id, p] of painted) byId.set(id, new THREE.Color(p.color));
+        for (const [id, p] of painted || []) byId.set(id, new THREE.Color(p.color));
+        for (const f of lit) byId.set(f.id, new THREE.Color(0x3b82f6));
         for (let tr = 0; tr < ids.length; tr++) {
           const c = byId.get(ids[tr]) || base;
           for (let k = 0; k < 3; k++) col.set([c.r, c.g, c.b], tr * 9 + k * 3);
@@ -512,7 +514,7 @@ export class Assembly {
   }
 
   renderList() {
-    const list = this.$('.as-list');
+    const list = this.$('.as-list'), open = this.openPaths();
     this.$('.as-start').hidden = this.doc.instances.length > 0;
     list.innerHTML = '';
     list.classList.toggle('exploding', this.explode > 0);
@@ -526,6 +528,9 @@ export class Assembly {
         <button class="mini as-boom${it.stay ? ' off' : ''}" data-a="boom" title="${it.stay ? 'Stays in place when exploded — click to let it move' : 'Moves when exploded — click to keep it in place (Ctrl+click: only this one moves)'}">💥</button>`;
       row.querySelector('.mt-name').textContent = this.partName(it.part);
       row.querySelector('.mt-what').textContent = `${it.id}${it.fixed ? ' 📌' : ''}`;
+      const kids = this.kindOf(it.part) === 'assembly' ? instanceTree(this.bomCtx(), it.part, it.id) : null;
+      if (kids) this.twist(row, it.id, kids, open);
+      if (it.id === this.sel && this.selInner?.top === it.id) row.classList.add('has-inner');
       if (it.fixed) row.title = t('Fixed in place 📌');
       if (b?.error) row.title = b.error;
       row.addEventListener('click', (e) => {
@@ -537,11 +542,79 @@ export class Assembly {
         }
         if (a === 'del') return this.removeInst(it.id);
         if (a === 'boom') return this.toggleStay(it.id, e.ctrlKey || e.metaKey);
+        if (a === 'twist') return this.toggleOpen(it.id);
         this.choose(it.id, e.ctrlKey || e.metaKey);
         return null;
       });
       list.appendChild(row);
+      if (kids && open.has(it.id)) this.innerRows(list, it, kids, 1, open);
     }
+  }
+
+  /** ▸ / ▾ on a sub-assembly's row; folded: how many parts are in it (all levels). */
+  twist(row, path, kids, open) {
+    const on = open.has(path), b = document.createElement('button');
+    b.className = 'mini as-twist';
+    b.dataset.a = 'twist';
+    b.textContent = on ? '▾' : '▸';
+    b.title = t(on ? 'Hide its parts' : 'Show its parts');
+    row.prepend(b);
+    row.classList.add('as-node');
+    if (!on) {
+      let n = 0;
+      const count = (nodes) => { for (const x of nodes) (x.children ? count(x.children) : n++); };
+      count(kids);
+      row.querySelector('.mt-what').textContent += ` · ${t2('{n} part(s)', { n })}`;
+    }
+  }
+
+  /** A placed sub-assembly's own parts under its row, indented with a guide line; a sub-assembly in it folds open too.
+   *  A click: that part lit in the view, what can be done with it in the panel (its top-level placement chosen). */
+  innerRows(list, top, nodes, depth, open) {
+    for (const n of nodes) {
+      const inner = n.path.slice(top.id.length + 1), row = document.createElement('div');
+      row.className = `mt-item as-inner-row${this.sel === top.id && this.selInner?.top === top.id && this.selInner.path === inner ? ' on' : ''}`;
+      row.style.setProperty('--depth', depth);
+      row.dataset.path = n.path;
+      row.innerHTML = `<span class="mt-icon">${n.kind === 'assembly' ? '◇' : n.kind === 'classic' ? '▤' : '◆'}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>`;
+      row.querySelector('.mt-name').textContent = this.partName(n.part);
+      row.querySelector('.mt-what').textContent = n.id;
+      row.title = t2('In {sub} — a click shows it in the view', { sub: this.partName(top.part) });
+      if (n.children) this.twist(row, n.path, n.children, open);
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('[data-a=twist]')) { this.toggleOpen(n.path); return; }
+        this.chooseInner(top.id, inner, e.ctrlKey || e.metaKey);
+      });
+      list.appendChild(row);
+      if (n.children && open.has(n.path)) this.innerRows(list, top, n.children, depth + 1, open);
+    }
+  }
+
+  /** The sub-assemblies folded open in this assembly's list (localStorage a3d.asmTree: {assembly id: [paths]}). */
+  openPaths() {
+    let all = {};
+    try { all = JSON.parse(localStorage.getItem('a3d.asmTree') || '{}') || {}; } catch { all = {}; }
+    return new Set(all[this.hooks.selfId?.() || ''] || []);
+  }
+
+  toggleOpen(path) {
+    const open = this.openPaths(), id = this.hooks.selfId?.() || '';
+    if (open.has(path)) open.delete(path); else open.add(path);
+    let all = {};
+    try { all = JSON.parse(localStorage.getItem('a3d.asmTree') || '{}') || {}; } catch { all = {}; }
+    all[id] = [...open];
+    try { localStorage.setItem('a3d.asmTree', JSON.stringify(all)); } catch { /* private window */ }
+    this.renderList();
+  }
+
+  /** A part inside a placed sub-assembly chosen in the list: its placement chosen, that part (path "I2" or "I2/I1"
+   *  inside it) lit in the view; Ctrl: its placement as the second part (the joints between the two). */
+  chooseInner(top, path, more = false) {
+    if (more) { this.choose(top, true); return; }
+    this.choose(top);
+    this.selInner = { top, path };
+    this.render();
+    this.draw();
   }
 
   /** 💥 Which parts move in Explode: one on / off, or (only) just this one moves — and again: all of them. */
@@ -623,6 +696,7 @@ export class Assembly {
 
   /** A part clicked: chosen alone, or (Ctrl) as the second one — the joints between the two are shown. */
   choose(id, more = false) {
+    this.selInner = null;
     if (more && this.sel && id && id !== this.sel) this.sel2 = this.sel2 === id ? null : id;
     else { this.sel = id || null; this.sel2 = null; }
     this.render();
@@ -651,6 +725,7 @@ export class Assembly {
     if (this.bolt) { this.renderBolt(box); return; }
     this.view.setGhost([]);
     if (this.fastenerPanel && !it) { this.renderFasteners(box); return; }
+    if (it && this.selInner?.top === it.id) { this.renderInner(box, it, this.selInner.path); return; }
     if (it) {
       const m = new THREE.Matrix4().fromArray(it.matrix), p = new THREE.Vector3().setFromMatrixPosition(m);
       const e = new THREE.Euler().setFromRotationMatrix(m, 'XYZ'), deg = (r) => Math.round((r * 180) / Math.PI * 10) / 10;
@@ -733,6 +808,27 @@ export class Assembly {
     box.querySelector('[data-a=bomWin]')?.addEventListener('click', () => this.openBom());
     box.querySelector('[data-a=drawingSet]')?.addEventListener('click', () => this.hooks.drawingSet());
     box.querySelector('[data-a=sheetHere]')?.addEventListener('click', () => this.hooks.newSheet());
+  }
+
+  /** A part inside a placed sub-assembly (chosen in the list): where it is, its moves inside the sub-assembly here
+   *  (when its own joints leave it free: only in this placement), open its part / the sub-assembly, or choose the whole. */
+  renderInner(box, it, path) {
+    const ids = path.split('/'), node = (() => { let list = this.innerList(it), x = null; for (const id of ids) { x = list.find((q) => q.id === id); list = x && this.kindOf(x.part) === 'assembly' ? this.hooks.partData(x.part)?.instances || [] : []; } return x; })();
+    if (!node) { this.selInner = null; this.renderProps(); return; }
+    const sub = this.partName(it.part), name = this.partName(node.part);
+    let inner = ids.length === 1 ? this.innerMotions(it) : null;
+    if (inner) inner = { ...inner, parts: inner.parts.filter((q) => q.id === ids[0]) };
+    if (inner && !inner.parts.length) inner = null;
+    box.innerHTML = `<h2>${this.kindOf(node.part) === 'assembly' ? '◇' : '◆'} <span data-no-i18n>${esc(name)}</span></h2>
+      <p class="hint">${esc(t2('{id} inside {sub} ({top}) — a part of {sub}: it moves with it, and it is changed in its own tab.', { id: path, sub, top: it.id }))}</p>
+      ${inner ? this.innerHtml(it, inner) : `<p class="hint">${esc(t2('{sub} holds it in place — only {sub} itself is moved here.', { sub }))}</p>`}
+      <div class="row-actions wrap">${this.hooks.openPart ? `<button class="btn small primary" data-a="openInner" title="${esc(t('Change it in its own tab (the assembly follows)'))}">${this.kindOf(node.part) === 'assembly' ? '◇' : '◆'} ${esc(t('Open its part'))}</button>
+        <button class="btn small" data-a="openSub">◇ ${esc(t2('Open {sub}', { sub }))}</button>` : ''}
+        <button class="btn small" data-a="wholeSub">${esc(t2('Choose the whole {sub}', { sub }))}</button></div>`;
+    if (inner) this.bindInner(box, it, inner);
+    box.querySelector('[data-a=openInner]')?.addEventListener('click', () => this.hooks.openPart(node.part));
+    box.querySelector('[data-a=openSub]')?.addEventListener('click', () => this.hooks.openPart(it.part));
+    box.querySelector('[data-a=wholeSub]').addEventListener('click', () => this.choose(it.id));
   }
 
   // ------------------------------------------------------------------ fasteners
@@ -1716,13 +1812,17 @@ export class Assembly {
       const c = it.stay ? null : centres[k];
       const look = this.lookOf(it);
       if (focus && !clashing.has(it.id)) look.opacity = Math.min(look.opacity ?? 1, 0.12); // the rest see-through
+      const lit = this.innerLit(it);
       return { id: it.id, body: this.bodyOf(it)?.body, matrix: it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part), ...look, threads: this.hooks.partData(it.part)?.threads,
-        selected: it.id === this.sel || it.id === this.sel2 || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst, clash: clashing.has(it.id),
+        ...(lit ? { lit } : {}), selected: (it.id === this.sel && !lit) || it.id === this.sel2 || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst, clash: clashing.has(it.id),
         explode: along ? along.get(it.id)?.toArray() || null : this.explode && c ? away(c).multiplyScalar(this.explode * 1.2).toArray() : null };
     }));
     this.drawMarks();
     this.drawJointTags();
   }
+
+  /** The faces' prefix of the inner part chosen in the list ("I2/") when `it` is its placement, else null. */
+  innerLit(it) { return this.selInner && this.selInner.top === it.id && it.id === this.sel ? `${this.selInner.path}/` : null; }
 
   /** Explode respecting the joints: each joined part goes along with the part it is on, and moves itself only along
    *  the ways its joints leave free (its pull projected onto them) -> id -> its offset (THREE.Vector3). */

@@ -498,6 +498,13 @@ Date: 2026-10-25. Written by the architect agent.
   wrapping into rows; a tab ≥ 5 letters + its buttons, up to 200 px (on screen / renaming: 420 px); tabs draggable
   (Project.move; dropped outside the window: hooks.openWindow); ✕ on the last tab too — Project.setNone: the part
   stays live underneath, body.none-open shows "No part open", switchTo / show bring it back. tools/e2e_tabs.py.
+- **The assembly's list as a tree done:** renderList — a placed sub-assembly's row gets ▸ / ▾ (twist; folded: "· n
+  part(s)", all levels), innerRows from bom.js instanceTree (the same walk as the BOM): its parts indented with a
+  guide line (--depth), nested sub-assemblies fold open too; open paths in localStorage a3d.asmTree {assembly id:
+  [paths]}. chooseInner(top, path): the placement chosen + selInner {top, path} — innerLit gives draw() the faces'
+  prefix ("I2/"), setBodies paints those faces blue (no whole-part glow); renderInner: the part's name, "I2 inside
+  Lever (I4)", its Moves inside (innerMotions of that part only) or "holds it in place", Open its part / Open <sub> /
+  Choose the whole <sub>; choose() clears it; Ctrl+click: the placement as the second part. tools/e2e_assembly_tree.py.
 - **📋 Bill of materials rolled up through the hierarchy done:** web/js/assembly/bom.js — one engine (the assembly's
   panel, the sheets, the AI): instanceTree (the placed parts instance by instance, sub-assemblies opened, loops not),
   itemNumbers (moved here from SheetEditor: the drawing set's positions), makeBuy (the one place make / buy is decided:

@@ -192,6 +192,10 @@ Never report "works" without having run it; report failures with their output.
    the recommended option first ★; one answered: nothing sent; both: one message "<question> → <option>"; ✎ Other…
    puts the question in the box; no options refused). The message is caught in the page (no Claude needed).
    (e2e_drawing_set also checks one item numbering for the whole set: Machine 1–3, the Lid unit's parts 4 and 5.)
+   `tools/e2e_assembly_tree.py <url> <dir>` covers the assembly's list as a tree with real clicks (Machine = Frame +
+   Lid unit ×2 + Lever: folded nodes "· 3 part(s)"; ▸ opens Lever, its Base / Arm indented; the Arm chosen: only it lit
+   blue, "I2 inside Lever (I4)", its slider turns it (inner); Choose the whole Lever; a pin in Lid unit "holds it in
+   place"; Ctrl+click an inner row; ▾ folds; Lever still open after saving and reopening the project).
    `tools/e2e_bom.py <url> <dir>` covers the 📋 BOM rolled up through the hierarchy (Machine = Base + Lid unit ×2 (Lid,
    Pin ×3, screw ×2) + Hinge (Bracket, Pin) + 4 screws directly): get_bom totals Base 1, Lid 2, Pin 7, Bracket 1, screw
    8, `from`, make / buy by material, the structured tree, Lid unit alone, parts_list `total`; the 📋 BOM window

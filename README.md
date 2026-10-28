@@ -618,6 +618,12 @@ on the next page*). The AI reads the same BOM with `get_bom {assembly, mode}`; `
 part's rolled-up `total`.
 
 ## Assemblies
+- The **parts list on the left is a tree**: a placed sub-assembly has **▸** — it opens to its own parts (indented,
+  with their ids; a sub-assembly in it opens too, at any depth); folded, it says how many parts are in it
+  (*Lid unit I2 · 3 parts*). Which ones are open is remembered per assembly. A click on a part inside a sub-assembly
+  lights it in the view and shows it in the panel: its **Moves inside** the sub-assembly when that one's own joints
+  leave it free (moved in this placement only), *Open its part*, *Open* the sub-assembly or *Choose the whole* one;
+  Ctrl+click takes its sub-assembly as the second part. The top rows work as before.
 
 **＋ New assembly** (in the ＋ menu next to the part tabs) opens an assembly tab (◇), where the parts of the project
 are placed together — 3D models ◆, quick parts ▤ (drawings, pictures, imports: they go in as their solid) and other
