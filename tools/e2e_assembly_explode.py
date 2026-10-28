@@ -45,7 +45,8 @@ def moves():
 
 
 def boom(inst, ctrl=False):
-    row = [r for r in d.find_elements(By.CSS_SELECTOR, "#asmLeft .as-list .mt-item") if r.find_element(By.CSS_SELECTOR, ".mt-what").text == inst][0]
+    # rows follow doc.instances; not by the row's text — a fixed part reads "I1 📌"
+    row = d.find_elements(By.CSS_SELECTOR, "#asmLeft .as-list .mt-item")[js(f"return {A}.doc.instances.findIndex(i => i.id === arguments[0])", inst)]
     b = row.find_element(By.CSS_SELECTOR, "[data-a=boom]")
     if ctrl:
         ActionChains(d).key_down(Keys.CONTROL).click(b).key_up(Keys.CONTROL).perform()
