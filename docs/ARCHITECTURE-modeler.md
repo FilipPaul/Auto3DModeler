@@ -5,7 +5,7 @@ Date: 2026-10-25. Written by the architect agent.
 
 ---
 
-## Progress (2026-10-27)
+## Progress (2026-10-28)
 
 - **M0 done:** several parts in one project (tabs), project file v3, optional packages, `/api/kernel`.
 - **M1 done:** the 3D model workspace; sketch → extrude (add / cut, through all, both sides); worker process; STL / STEP.
@@ -610,7 +610,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 | Circle | Centre + radius | 2 clicks | MVP (M1/M2) |
 | Arc | 3-point and centre-start-end; tangent arc from a line end | clicks | MVP (M2), tangent arc in M3 |
 | Polygon | Regular n-gon (hex nuts!) | centre, radius, n, inscribed/circumscribed | MVP (M2) |
-| Slot | Straight slot | 2 centres + width | MVP (M2) |
+| Slot | Straight slot | 2 centres + width | Done (⊂⊃ Slot: centres, then the width) |
 | Point | For holes and construction | click | MVP (M2) |
 | Construction toggle and centreline | Helper geometry, revolve axis, mirror line | entity | MVP (M2) |
 | 2D fillet / chamfer | Round or cut a sketch corner (adds arc + tangency) | corner, r / d | MVP (M2) |
@@ -622,7 +622,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 | Project edges ("Include" / "Convert entities") | Bring part edges into the sketch | picked edges | MVP (M3) |
 | Outline / DXF / PDF block | A traced outline, DXF region or PDF profile as one rigid block (position, angle, scale dimension) | asset + width | MVP (M4) |
 | Text | Text traced into a block (reuses today's browser text tracing) | text, font, height | Later (easy) |
-| Spline | Free curve | points | Later |
+| Spline | Free curve | points | Done (〰 Spline) |
 | **Constraints** | coincident, horizontal, vertical, parallel, perpendicular, tangent, equal, fixed, concentric, midpoint, symmetric, point-on-curve | picked entities | MVP (M2), all supported by planegcs |
 | **Dimensions** | distance (aligned / horizontal / vertical), radius / diameter, angle; driving or reference; value may be an expression using parameters (`w/2+3`) | picked entities, value | MVP (M2) |
 | Auto-constraints while drawing | H/V/coincident/tangent guessed from snapping. This is what makes sketching *quick*. | — | MVP (M2) |
@@ -644,11 +644,11 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 | Combine bodies | Add / subtract / intersect body B with body A | 2 bodies, op | MVP (M3) |
 | Move / rotate body | Place a body | body, translate, rotate | MVP (M3) |
 | Insert part / import | A classic part, STEP or STL as a body | source reference, placement, op | MVP (M4) |
-| Draft | Angle walls for moulds | faces, neutral plane, angle | Later |
-| Loft | Shape between 2+ sketches | sketches | Later (M8) |
-| Sweep | Profile along a path | sketch + path sketch | Later (M8) |
+| Draft | Angle walls for moulds | faces, neutral plane, angle | Done (⟋ Draft: an extrude's walls, the angle) |
+| Loft | Shape between 2+ sketches | sketches | Done (⧫ Loft) |
+| Sweep | Profile along a path | sketch + path sketch | Done (〰 Sweep) |
 | Decorate face | Today's design layers (patterns, logos) on any **planar face** of a model part, embossed or cut along the face normal | face, layer JSON | Later (M8). Easy, because `design.layer_regions` already makes shapely regions. |
-| Thread, rib, split body | — | — | Later |
+| Thread, rib, split body | — | — | Thread (hole M2 … M20, labelled on drawings) and ⊿ Rib done; split body later |
 
 ### 3.3 Reference geometry
 
@@ -670,7 +670,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 | Suppress / unsuppress | MVP (M3) |
 | Rollback bar (drag, or "Roll to here"); new features go in at the bar | MVP (M3) |
 | Parameters table (name, expression, value), shared by all sketches and features | MVP (M2) |
-| Reorder by drag | Later |
+| Reorder by drag | Done (refused when a step needs one after it; undone if it fails) |
 
 ### 3.5 Inspect
 
@@ -692,7 +692,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 | Exploded view: per-instance offset steps, with a slider | instance, vector | M7 — slider done; 💥 per part (`instance.stay`: held parts stay, the others move away from their middle) |
 | BOM (parts list): part, quantity, material, mass | — | M7 |
 | Export: assembly STEP (several bodies), or "print all parts" (each to the print tab) | — | M7 |
-| Angle / parallel / tangent mates, interference check, motion | — | Later |
+| Angle / parallel / tangent mates, interference check, motion | — | Done (joints by face kind, clashes, motion with limits) |
 
 **Cut, to stay "quick creation":**
 - no 2D drawing sheets
