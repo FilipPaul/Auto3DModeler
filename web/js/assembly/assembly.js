@@ -301,6 +301,10 @@ export class Assembly {
       ...(this.hooks.openPart ? [{ icon: this.kindOf(a.part) === 'assembly' ? '◇' : '◆', label: t('Open its part'), title: t('Change it in its own tab (the assembly follows)'), run: () => this.hooks.openPart(a.part) }] : []),
       { icon: '🔗', label: t(joined ? 'Join it to one more part' : 'Join it to another part'), run: () => this.startJoint('touch', a.id) },
       ...(model ? [{ icon: '🪶', label: t(light ? 'Show it in full' : 'Show it simplified'), title: t('Simplified: a coarser mesh and less data — quicker to load and show'), run: async () => { this.doc.light = { ...(this.doc.light || {}), [a.part]: !light }; await this.refresh(); this.commit(); } }] : []),
+      ...(this.hooks.editInPlace && model ? [this.editable(a.part)
+        ? { icon: '✎', label: t('Edit it here'), title: t('Change its part here, the rest of the assembly see-through around it'), run: () => this.editInPlace(a.id) }
+        : { icon: '🔓', label: t('Unlock and edit it here'), title: t('Its part can be changed from this assembly then'), run: () => { this.toggleEditable(a.part); this.editInPlace(a.id); } }] : []),
+      { icon: '📌', label: t(a.fixed ? 'Free it (not fixed)' : 'Fix in place'), run: () => this.toggleFixed(a.id) },
       ...(this.hooks.duplicatePart ? [{ icon: '⧉', label: t('Make it its own part'), title: t('A copy of its part for this place only'), run: () => this.ownPart(a.id) }] : []),
       { icon: '✕', label: t('Take it out'), danger: true, run: () => this.removeInst(a.id) },
     ], t('Ctrl+click another part: what fits the two'));
@@ -426,7 +430,8 @@ export class Assembly {
         <span class="mt-acts"><button class="mini" data-a="rename" title="Rename its part (its tab too)">🏷</button><button class="mini" data-a="dup" title="One more of this part">⧉</button><button class="mini danger" data-a="del" title="Take it out of the assembly">✕</button></span>
         <button class="mini as-boom${it.stay ? ' off' : ''}" data-a="boom" title="${it.stay ? 'Stays in place when exploded — click to let it move' : 'Moves when exploded — click to keep it in place (Ctrl+click: only this one moves)'}">💥</button>`;
       row.querySelector('.mt-name').textContent = this.partName(it.part);
-      row.querySelector('.mt-what').textContent = it.id;
+      row.querySelector('.mt-what').textContent = `${it.id}${it.fixed ? ' 📌' : ''}`;
+      if (it.fixed) row.title = t('Fixed in place 📌');
       if (b?.error) row.title = b.error;
       row.addEventListener('click', (e) => {
         const a = e.target.closest('[data-a]')?.dataset.a;
@@ -571,7 +576,7 @@ export class Assembly {
         ${this.jointsHtml(it.id)}
         <div class="row-actions wrap"><button class="btn small" data-a="joinThis">🔗 Join it to another part</button></div>
         ${this.hooks.duplicatePart ? '<div class="row-actions"><button class="btn small" data-a="ownPart" title="Copy its part as a new part of the project and use the copy here — then it can be changed alone (the other copies stay as they are)">⧉ Make it its own part</button></div>' : ''}
-        <div class="row-actions">${this.hooks.openPart ? `<button class="btn small primary" data-a="openPart" title="Open its part in its own tab (to change it — the assembly follows)">${this.kindOf(it.part) === 'assembly' ? '◇' : '◆'} Open its part</button>` : ''}<button class="btn small" data-a="reset" title="Back to its place in its own model">Reset its place</button><button class="btn small danger" data-a="del">Take it out</button></div>`;
+        <div class="row-actions">${this.hooks.openPart ? `<button class="btn small primary" data-a="openPart" title="Open its part in its own tab (to change it — the assembly follows)">${this.kindOf(it.part) === 'assembly' ? '◇' : '◆'} Open its part</button>` : ''}<button class="btn small ${it.fixed ? 'on' : ''}" data-a="fix" title="${it.fixed ? 'Fixed in place: it is not moved by hand, joints bring the other parts to it — click to free it' : 'Fix it in place: it is not moved by hand, joints bring the other parts to it'}">📌 ${it.fixed ? 'Fixed' : 'Fix in place'}</button><button class="btn small" data-a="reset" title="Back to its place in its own model">Reset its place</button><button class="btn small danger" data-a="del">Take it out</button></div>`;
       for (const inp of box.querySelectorAll('input[data-k]')) {
         inp.addEventListener('change', () => this.setPos(inp.dataset.k, inp.value));
         inp.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') inp.blur(); });
@@ -596,6 +601,7 @@ export class Assembly {
       box.querySelector('[data-a=editLock]')?.addEventListener('click', () => this.toggleEditable(it.part));
       box.querySelector('[data-a=joinThis]').addEventListener('click', () => this.startJoint('touch', it.id));
       box.querySelector('[data-a=ownPart]')?.addEventListener('click', () => this.ownPart(it.id));
+      box.querySelector('[data-a=fix]')?.addEventListener('click', () => this.toggleFixed(it.id));
       box.querySelector('[data-a=reset]').addEventListener('click', () => { if (!this.mayMove(it.id)) return; it.matrix = ID(); this.applyMates(); this.commit(); });
       box.querySelector('[data-a=del]').addEventListener('click', () => this.removeInst(it.id));
       box.querySelector('[data-a=openPart]')?.addEventListener('click', () => this.hooks.openPart(it.part));
@@ -1672,7 +1678,7 @@ export class Assembly {
       x = Math.max(x, bb.max.x + 10);
     }
     const m = like ? new THREE.Matrix4().fromArray(like.matrix) : new THREE.Matrix4().identity();
-    const it = { id: this.newId(), part: partId, matrix: m.toArray() };
+    const it = { id: this.newId(), part: partId, matrix: m.toArray(), ...(this.doc.instances.length ? {} : { fixed: true }) }; // (the first part: fixed in place)
     this.doc.instances.push(it);
     await this.refresh();
     const b = this.bodies[partId]?.body;
@@ -1737,6 +1743,7 @@ export class Assembly {
   /** May this part be moved by hand? Not when a locked joint holds it; when unlocked joints hold it, only if the
    *  user agrees to break them (ask = false: break them without asking — the AI). */
   mayMove(id, ask = true) {
+    if (this.inst(id)?.fixed) { this.hooks.toast(t('📌 It is fixed in place — free it (📌 in its panel) to move it.'), 'warning', 5000); return false; }
     const mine = (this.doc.mates || []).filter((m) => m.move === id);
     if (!mine.length) return true;
     if (mine.some((m) => m.locked)) {
@@ -1748,6 +1755,19 @@ export class Assembly {
     return true;
   }
 
+  /** 📌 Fix a part in place (it is not moved by hand, joints bring the others to it) — or free it. A part its own
+   *  joints move cannot be fixed: the part it hangs on is. */
+  toggleFixed(id) {
+    const it = this.inst(id);
+    if (!it) return;
+    if (!it.fixed && (this.doc.mates || []).some((m) => m.move === id)) {
+      this.hooks.toast(t('It hangs on its joints — fix the part it is joined to instead.'), 'warning', 5000);
+      return;
+    }
+    if (it.fixed) delete it.fixed; else it.fixed = true;
+    this.commit();
+  }
+
   // ------------------------------------------------------------------ joints: they hold
   unjoinMoving(id) { this.doc.mates = (this.doc.mates || []).filter((m) => m.move !== id); }
   unlink(id) { this.unjoinMoving(id); }
@@ -1755,6 +1775,10 @@ export class Assembly {
 
   /** Add a joint: part `from.inst` (face from.face) is held against `to.inst` (face to.face). */
   addJoint(from, to, type = 'touch', gap = 0) {
+    if (this.inst(from.inst)?.fixed) { // 📌 a fixed part stays: the other one goes to it
+      if (this.inst(to.inst)?.fixed) { this.hooks.toast(t('Both parts are fixed in place 📌 — free one of them to join them.'), 'warning', 5000); return false; }
+      [from, to] = [to, from];
+    }
     const fromName = from.face?.name, toName = to.face?.name;
     if (!fromName || !toName) return false;
     // no circles: the other part may not (through others) hang on this one
@@ -2457,7 +2481,7 @@ export class Assembly {
       parts: this.doc.instances.map((it) => {
         const b = this.bodies[it.part]?.body, m = new THREE.Matrix4().fromArray(it.matrix);
         const bb = b ? new THREE.Box3(new THREE.Vector3(...b.bbox.slice(0, 3)), new THREE.Vector3(...b.bbox.slice(3))).applyMatrix4(m) : null;
-        return { id: it.id, part: it.part, name: this.partName(it.part), position: new THREE.Vector3().setFromMatrixPosition(m).toArray().map((v) => +v.toFixed(3)),
+        return { id: it.id, part: it.part, name: this.partName(it.part), ...(it.fixed ? { fixed: true } : {}), position: new THREE.Vector3().setFromMatrixPosition(m).toArray().map((v) => +v.toFixed(3)),
           bbox: bb ? [...bb.min.toArray(), ...bb.max.toArray()].map((v) => +v.toFixed(3)) : null, error: this.bodies[it.part]?.error, ...this.freeOf(it.id) };
       }),
       joints: (this.doc.mates || []).map((m) => ({ id: m.id, ...(m.name ? { name: m.name } : {}), type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
@@ -2514,7 +2538,7 @@ export class Assembly {
         if (!it) throw new Error(`No part ${part} in the assembly.`);
         this.sel = it.id;
         if ((x ?? y ?? z) !== undefined || turn) {
-          if (!this.mayMove(it.id, false)) throw new Error(`${part} is held by a locked joint — the user has to unlock it first.`);
+          if (!this.mayMove(it.id, false)) throw new Error(it.fixed ? `${part} is fixed in place 📌 — joints bring other parts to it; the user frees it (📌 in its panel) to move it.` : `${part} is held by a locked joint — the user has to unlock it first.`);
         }
         for (const [k, v] of Object.entries({ x, y, z })) if (v !== undefined) this.setPos(k, v);
         for (const ax of [].concat(turn || [])) this.turn(ax);

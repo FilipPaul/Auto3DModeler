@@ -80,6 +80,10 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **📌 Fixed parts done:** an instance's `fixed` (the first one put in a new assembly; 📌 in its panel / the list /
+  the suggestions; toggleFixed refuses a part its own joints move): mayMove refuses it, addJoint from it swaps the
+  direction (the other part moves), both fixed: refused; get_assembly says `fixed`. The assembly's suggestions also
+  offer ✎ Edit it here / 🔓 Unlock and edit it here. tools/e2e_assembly_fixed.py.
 - **The face's tools as suggestions, a movable table done:** clickFace (left click) shows the face's tools with
   showSuggest (data-from face; dropped when a tool starts or nothing is clicked); suggest.js — the header drags the
   table (window listeners in the capture phase), its place kept as a part of the view (localStorage a3d.suggestAt;

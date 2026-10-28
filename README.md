@@ -476,6 +476,8 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
 - **✎ Edit it here** (a placed part's panel, or double-click it): its part opens in the full 3D modeler with the rest
   of the assembly see-through around it, in place; *◇ Back to the assembly* returns. It is **🔒 Locked** per part
   until you unlock it (🔓 Editable from here), so nothing is changed by accident.
+- **📌 Fixed in place**: the first part put in an assembly is fixed (📌 in the list): it is not moved by hand, and a
+  joint made from it moves the other part. 📌 in a part's panel (or the Suggested table) fixes or frees any part.
 - **📏 Measure** (assembly): click a spot, then another — the distance and Δx / Δy / Δz (corners snap); two parallel
   flat faces also give the gap between them, two round faces how far apart their axes are.
 - **⧉ Duplicate as a new part** (a 3D model's *Part* panel) copies it into a new, independent part (its own tab);
