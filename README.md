@@ -119,7 +119,11 @@ table can be **dragged by its header** anywhere in the view, and stays there (a 
 Its **✨** puts what is selected into the AI chat — as the AI's tools name it (a step and a face, sketch shapes,
 assembly parts) — so you can ask about it. The **Snap** row under it (3D model, assembly) says what 📏 Measure catches:
 corners, edge midpoints, centres. With **no tool on**, the snap point under the mouse shows too and a click picks it
-(in an assembly: with its part) — *📏 Measure from here*, *Copy its coordinates*, ✨.
+(in an assembly: with its part) — *📏 Measure from here*, *Copy its coordinates*, ✨. In the 3D model it also offers
+**• Reference point here**: a step "Point 1" (a small marker with its name) that stays on that corner, edge middle or
+round edge's centre when earlier steps change. Sketches snap to it and ↔ Dimension measures from it (seen square onto
+the sketch), 📏 Measure snaps to it; it can be turned off, renamed and deleted like any step. When its corner is gone
+the step says so and keeps its last place.
 Everything for the clicked face is in that table, in sections — *On this face*, *Its edges*, *The part*, *Step* — so
 there is no right-click menu: the right button only pans.
 

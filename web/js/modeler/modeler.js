@@ -15,8 +15,8 @@ import { textOutline } from '../outlinepanel.js';
 import { sectionBar, sectionMiddle } from './sectionbar.js';
 import { libraryFactsHtml } from '../library/browser.js';
 
-const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa', mirror: '⇋', draft: '⟋', rib: '⊿' };
-const TYPE_NAME = { rib: 'Rib', draft: 'Draft', sketch: 'Sketch', extrude: 'Extrude', revolve: 'Revolve', fillet: 'Fillet', chamfer: 'Chamfer', hole: 'Hole', shell: 'Shell', pattern: 'Pattern',
+const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa', mirror: '⇋', draft: '⟋', rib: '⊿', point: '•' };
+const TYPE_NAME = { point: 'Point', rib: 'Rib', draft: 'Draft', sketch: 'Sketch', extrude: 'Extrude', revolve: 'Revolve', fillet: 'Fillet', chamfer: 'Chamfer', hole: 'Hole', shell: 'Shell', pattern: 'Pattern',
   loft: 'Loft', sweep: 'Sweep', solid: 'Solid', decal: 'Decoration', mirror: 'Mirror' };
 const LIMIT_FIELDS = { extrude: ['d', 'offset'], revolve: ['angle'], fillet: ['r'], chamfer: ['d'], hole: ['d', 'depth'], shell: ['t'],
   pattern: ['count', 'spacing'], decal: ['h', 'depth'] }; // the numbers the kernel finds ranges for (doc.LIMIT_FIELDS)
@@ -367,6 +367,14 @@ export class Modeler {
       }
       tree.appendChild(row);
     }
+    this.showPoints();
+  }
+
+  /** The reference points (point steps) in the 3D view: a dot and its name each, the chosen one lit. */
+  showPoints() {
+    const at = this.result?.points || {};
+    this.view.setPoints(this.part.features.filter((f) => f.type === 'point' && !f.suppressed && at[f.id])
+      .map((f) => ({ id: f.id, name: f.name, xyz: at[f.id], on: f.id === this.selected, bad: this.status(f.id)?.ok === false })));
   }
 
   whatText(f) {
@@ -384,6 +392,11 @@ export class Modeler {
     if (f.type === 'sweep') return `along ${this.part.features.find((g) => g.id === f.path)?.name || '?'}${f.op === 'cut' ? ' · cut' : ''}`;
     if (f.type === 'draft') return `${fmt(f.angle)}° · ${this.part.features.find((g) => g.id === f.of)?.name || '?'}`;
     if (f.type === 'rib') return `${fmt(f.t)} mm · ${this.part.features.find((g) => g.id === f.sketch)?.name || '?'}`;
+    if (f.type === 'point') {
+      const p = this.result?.points?.[f.id], at = f.at || {};
+      const on = at.vertex ? 'a corner' : at.centre ? 'a centre' : at.mid ? 'an edge middle' : 'a fixed place';
+      return `${on}${p ? ` · ${p.map((v) => fmt(+v.toFixed(3))).join(', ')}` : ''}`;
+    }
     if (f.type === 'solid') return `${f.file || 'solid'} · ${{ add: 'joined', cut: 'cut out', ref: 'reference' }[f.op || 'add']}`;
     if (f.type === 'mirror') {
       const of = f.of === 'body' || !f.of ? 'the part' : this.part.features.find((g) => g.id === f.of)?.name || '?';
@@ -456,9 +469,13 @@ export class Modeler {
 
   /** A snap point picked (no tool on): marked, and what to do with it suggested — measure from it, copy it, ask the AI. */
   pickSnap(sp) {
-    const p = sp.point, xyz = [p.x, p.y, p.z].map((v) => fmt(+v.toFixed(3))).join(', '), kind = t({ corner: 'A corner', midpoint: 'An edge midpoint', centre: 'A centre', quadrant: 'A quadrant' }[sp.snap]);
+    const p = sp.point, xyz = [p.x, p.y, p.z].map((v) => fmt(+v.toFixed(3))).join(', ');
+    const kind = sp.snap === 'point' ? sp.name : t({ corner: 'A corner', midpoint: 'An edge midpoint', centre: 'A centre', quadrant: 'A quadrant' }[sp.snap]);
+    if (sp.snap === 'point') this.selectStep(sp.id); // a reference point: its step chosen
     this.view.setMeasure([p]);
     const sg = showSuggest(this.els.viewport, `${kind} · ${xyz}`, [
+      ...(['corner', 'midpoint', 'centre'].includes(sp.snap) ? [{ icon: '•', label: t('Reference point here'), title: t('A point that stays on this place of the part when it changes — sketches and 📏 Measure snap to it'),
+        run: () => { this.dropSuggest(); this.addPoint(sp); } }] : []),
       { icon: '📏', label: t('Measure from here'), run: () => {
         this.dropSuggest();
         if (!this.measuring) this.toggleMeasure();
@@ -469,6 +486,41 @@ export class Modeler {
       { icon: '⧉', label: t('Copy its coordinates'), run: () => { navigator.clipboard?.writeText(xyz).catch(() => {}); this.hooks.toast(`${t('Copied')}: ${xyz}`, 'info', 2500); } },
     ], t('No tool on: a click on a corner, an edge\'s middle or a centre picks it'), `${t('in the 3D model')}: ${t('the point')} (${xyz}) — ${kind.toLowerCase()} ${t('of the part')}`);
     if (sg) sg.dataset.from = 'face';
+  }
+
+  /** A snap point of the part -> what a point step keeps: the faces meeting at the corner, or the round / straight edge
+   *  it is the centre / middle of (named by its two faces), so it follows the part; null: none here. */
+  pointRef(p, snap) {
+    const b = this.result?.body;
+    if (!b) return null;
+    const name = (k) => b.faces[k]?.name, fp = [p.x, p.y, p.z].map((v) => +v.toFixed(6));
+    if (snap === 'corner') {
+      const faces = new Set();
+      for (const e of b.edges) {
+        for (const k of [0, e.pts.length - 3]) {
+          if (Math.hypot(e.pts[k] - p.x, e.pts[k + 1] - p.y, e.pts[k + 2] - p.z) < 1e-5) for (const fi of e.faces) if (name(fi)) faces.add(name(fi));
+        }
+      }
+      return faces.size ? { vertex: { faces: [...faces], fp } } : null;
+    }
+    if (snap !== 'centre' && snap !== 'midpoint') return null;
+    for (const e of b.edges) {
+      if (e.faces.length !== 2 || !name(e.faces[0]) || !name(e.faces[1])) continue;
+      if (snapPoints([e], null, { [snap]: true }).some((q) => q.point.distanceTo(p) < 1e-5)) return { [snap === 'centre' ? 'centre' : 'mid']: { a: name(e.faces[0]), b: name(e.faces[1]), fp: e.mid } };
+    }
+    return null;
+  }
+
+  /** • A reference point on a snap point of the part (a corner, an edge's middle, a centre): a step that follows it. */
+  addPoint(sp) {
+    if (this.mode !== 'part' || this.cmd) return null;
+    const at = this.pointRef(sp.point, sp.snap);
+    if (!at) { this.hooks.toast(t('No corner, edge middle or centre of the part here.'), 'warning', 4000); return null; }
+    const f = { id: this.newId(), type: 'point', name: this.nextName('point'), at };
+    this.part.features.push(f);
+    this.selected = f.id;
+    this.commit();
+    return f;
   }
 
   /** The suggestions table of the 3D model (a face's tools) gone. */
@@ -854,6 +906,7 @@ export class Modeler {
     const f = this.part.features.find((g) => g.id === id);
     if (!f) return;
     if (f.type === 'sketch') this.enterSketch(f.plane, f);
+    else if (f.type === 'point') this.selectStep(id); // (nothing to set: made again by a click on the part)
     else if (f.type === 'extrude') this.openExtrude(structuredClone(f), false);
     else this.openCommand(structuredClone(f), false);
   }
@@ -871,7 +924,7 @@ export class Modeler {
       const onFaces = (f.faces || []).some((r) => gone.has(this.faceOwner(r)));
       const needs = sketchesOf(f).some((x) => gone.has(x)) || onEdge || onFaces || (f.type === 'pattern' && (f.features || []).some((x) => gone.has(x)))
         || ((f.type === 'mirror' || f.type === 'draft') && gone.has(f.of)) || (f.type === 'loft' && (f.sketches || []).some((x) => gone.has(x)));
-      const stands = gone.has(this.faceOwner(f.plane?.face)) || gone.has(this.faceOwner(f.upto)) || this.refsTo(f, owns);
+      const stands = gone.has(this.faceOwner(f.plane?.face)) || gone.has(this.faceOwner(f.upto)) || this.refsTo(f, owns) || this.pointOn(f, owns);
       if (needs || (stands && !keep)) gone.add(f.id);
       else if (stands) soft.add(f.id);
     }
@@ -880,9 +933,15 @@ export class Modeler {
 
   /** Does step f measure from (or place holes from) an edge / corner of a face that `owns` says goes? */
   refsTo(f, owns) {
-    const endRefs = (x) => x && typeof x === 'object' && ((x.edge && (owns(x.edge.a) || owns(x.edge.b))) || (x.vertex?.faces || []).some(owns));
+    const endRefs = (x) => x && typeof x === 'object' && ((x.edge && (owns(x.edge.a) || owns(x.edge.b))) || (x.vertex?.faces || []).some(owns) || (x.point && owns(`${x.point}:`)));
     if ((f.dims || []).some((d) => endRefs(d.a) || endRefs(d.b))) return true;
     return (f.from || []).some((s) => s && ['x', 'y'].some((k) => s[k]?.edge && (owns(s[k].edge.a) || owns(s[k].edge.b))));
+  }
+
+  /** Is step f a reference point on a corner / edge of a face that `owns` says goes? */
+  pointOn(f, owns) {
+    const at = f.type === 'point' ? f.at || {} : {};
+    return (at.vertex?.faces || []).some(owns) || [at.centre, at.mid].some((e) => e && (owns(e.a) || owns(e.b)));
   }
 
   /** Keep step f where it is now, no longer on step `gone`: its plane fixed where the face is now, its sizes from
@@ -893,11 +952,12 @@ export class Modeler {
     for (const d of g.dims || []) {
       for (const k of ['a', 'b']) {
         const x = d[k];
-        if (x && typeof x === 'object' && ((x.edge && (owns(x.edge.a) || owns(x.edge.b))) || (x.vertex?.faces || []).some(owns))) d[k] = { ref: x.ref };
+        if (x && typeof x === 'object' && ((x.edge && (owns(x.edge.a) || owns(x.edge.b))) || (x.vertex?.faces || []).some(owns) || (x.point && owns(`${x.point}:`)))) d[k] = { ref: x.ref };
       }
     }
     (g.from || []).forEach((s) => { for (const k of ['x', 'y']) if (s?.[k]?.edge && (owns(s[k].edge.a) || owns(s[k].edge.b))) delete s[k]; });
     if (g.upto && owns(this.faceOwner(g.upto) + ':')) { delete g.upto; g.d = g.d || 10; }
+    if (this.pointOn(g, owns)) g.at = { xyz: [...(this.result?.points?.[g.id] || Object.values(g.at)[0]?.fp || [0, 0, 0])] }; // (a fixed place)
     return g;
   }
 

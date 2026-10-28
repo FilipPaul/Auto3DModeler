@@ -1921,7 +1921,7 @@ export class Sketcher {
    *  references: dashed lines to snap to and to dimension from. */
   refs() {
     const body = this.m.result?.body, fr = this.frame();
-    const key = `${body?.volume}|${JSON.stringify(fr)}`;
+    const marks = this.m.result?.points || {}, key = `${body?.volume}|${JSON.stringify(fr)}|${JSON.stringify(marks)}`;
     if (this._refsKey === key) return this._refs;
     // lines / points: [u, v] in the sketch; lineIds / pointIds: which edge / corner of the part they are (by the
     // names of its faces), so a dimension from them follows the part when earlier steps change
@@ -1982,6 +1982,15 @@ export class Sketcher {
         if (!out.circles.some((q) => Math.hypot(q.c[0] - c[0], q.c[1] - c[1]) < 1e-4 && Math.abs(q.r - r) < 1e-4)) out.circles.push({ c, r });
       }
     }
+    // the reference points (• point steps) seen square onto the sketch: snapped to, a size to one follows it
+    const y = [fr.n[1] * fr.x[2] - fr.n[2] * fr.x[1], fr.n[2] * fr.x[0] - fr.n[0] * fr.x[2], fr.n[0] * fr.x[1] - fr.n[1] * fr.x[0]];
+    for (const g of this.m.part.features) {
+      const p = g.type === 'point' && !g.suppressed && marks[g.id];
+      if (!p || g.id === this.f.id) continue;
+      const d = [p[0] - fr.o[0], p[1] - fr.o[1], p[2] - fr.o[2]];
+      out.points.push([+(d[0] * fr.x[0] + d[1] * fr.x[1] + d[2] * fr.x[2]).toFixed(5), +(d[0] * y[0] + d[1] * y[1] + d[2] * y[2]).toFixed(5)]);
+      out.pointIds.push({ point: g.id });
+    }
     this._refsKey = key;
     this._refs = out;
     return out;
@@ -2014,7 +2023,7 @@ export class Sketcher {
       }
     }
     const R = F.edges ? this.refs() : { points: [], pointIds: [], circles: [], lines: [], lineIds: [] };
-    R.points.forEach((r, i) => near(Math.hypot(r[0] - uv[0], r[1] - uv[1]), { kind: 'point', end: R.pointIds[i] ? { ref: r, vertex: R.pointIds[i] } : { ref: r }, uv: r }));
+    R.points.forEach((r, i) => near(Math.hypot(r[0] - uv[0], r[1] - uv[1]), { kind: 'point', end: R.pointIds[i]?.point ? { ref: r, point: R.pointIds[i].point } : R.pointIds[i] ? { ref: r, vertex: R.pointIds[i] } : { ref: r }, uv: r }));
     for (const q of R.circles) { // a round edge of the part: its centre (on the rim or inside it)
       const d = Math.hypot(q.c[0] - uv[0], q.c[1] - uv[1]);
       near(Math.min(d, Math.abs(d - q.r) < tol ? tol * 0.9 : Infinity), { kind: 'point', end: { ref: q.c }, uv: q.c });

@@ -192,6 +192,10 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_hover_marks.py <url> <dir>` covers the hover marks with real mouse moves (a block with a Ø8 hole: its
    rim lit; on the top face the step's snap points, fewer with ◔ Quadrants off; Hover • Snap points / ⟋ Edges off;
    the same in an assembly; gone when the mouse leaves).
+   `tools/e2e_model_point.py <url> <dir>` covers • Reference points with real clicks (a block's corner -> • Reference
+   point here: "Point 1", its marker; the extrude 25 tall: it follows; an edge middle's point; 📏 Measure snaps to it; a
+   sketch circle dimensioned 6 from it, cut; the front edge moved: the point and the hole follow; turned off: no
+   marker; the AI's add_feature point, find_refs kind "point", get_model). Exits 1 on a failed check.
    `tools/e2e_sketch_midplane.py <url> <dir>` covers ⇳ Midway with real clicks (a block's front face, the camera
    turned, its back face -> a sketch at y 10 with plane {face, mid}); the AI's plane {face, mid}; the block made
    deeper -> the sketch at y 15; a face not parallel refused. Needs a server restarted after kernel changes.

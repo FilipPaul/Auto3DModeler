@@ -255,6 +255,22 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       if (!Number.isFinite(a) || !a || Math.abs(a) >= 45) throw new Error('angle: degrees, 0 … 45 (negative: the walls lean out).');
       return { ...base, of: spec.of, angle: a };
     }
+    if (type === 'point') { // a reference point: a corner (the one nearest a place), a round edge's centre, an edge's middle
+      const at = spec.at && typeof spec.at === 'object' ? spec.at : {};
+      if (at.vertex?.faces?.length || (Array.isArray(at.xyz) && at.xyz.length === 3)) return { ...base, at: at.vertex ? { vertex: at.vertex } : { xyz: at.xyz.map(Number) } };
+      const e = at.centre || at.center || at.mid;
+      if (e) {
+        if (!e.a || !e.b || !e.fp) throw new Error('at: {centre: <a round edge ref {a, b, fp} from find_refs>} or {mid: <an edge ref>}.');
+        return { ...base, at: { [at.mid ? 'mid' : 'centre']: { a: e.a, b: e.b, fp: e.fp } } };
+      }
+      const near = Array.isArray(at.corner) ? at.corner : Array.isArray(spec.at) ? spec.at : null;
+      if (near) {
+        const c = corners().sort((p, q) => len(sub(p.corner, near)) - len(sub(q.corner, near)))[0];
+        if (!c) throw new Error('The model has no corners yet.');
+        return { ...base, at: c.ref };
+      }
+      throw new Error('at: {corner: [x, y, z]} (the corner nearest it), {centre: <a round edge ref from find_refs>}, {mid: <an edge ref>} or a ref from find_refs kind "point".');
+    }
     if (type === 'loft') {
       const ids = [].concat(spec.sketches || []);
       if (ids.length < 2 || ids.some((x) => !m.part.features.some((g) => g.id === x && g.type === 'sketch'))) throw new Error('sketches: the ids of two (or more) sketch steps, in order.');
@@ -287,7 +303,23 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       }
       return { ...base, features: of, kind: 'linear', dir: vec(spec.dir || 'x', 'dir'), count: spec.count ?? 3, spacing: spec.spacing ?? 10 };
     }
-    throw new Error('type is sketch, extrude, revolve, fillet, chamfer, hole, shell, pattern, loft, sweep, decal, mirror or draft.');
+    throw new Error('type is sketch, extrude, revolve, fillet, chamfer, hole, shell, pattern, loft, sweep, decal, mirror, draft, rib or point.');
+  };
+
+  /** The part's corners, each with a ready ref for a point step: [{corner: [x, y, z], ref: {vertex: {faces, fp}}}]. */
+  const corners = () => {
+    const out = [], seen = new Set();
+    for (const e of body()?.edges || []) {
+      if (e.faces.length < 2) continue;
+      for (const k of [0, e.pts.length - 3]) {
+        const p = [e.pts[k], e.pts[k + 1], e.pts[k + 2]], key = p.map((v) => v.toFixed(4)).join(',');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const ref = m.pointRef({ x: p[0], y: p[1], z: p[2] }, 'corner');
+        if (ref) out.push({ corner: p.map(r3), ref });
+      }
+    }
+    return out;
   };
 
   /** An edge polyline that is a circle or an arc (a hole's edge often comes as two half circles) -> its centre and radius. */
@@ -360,6 +392,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         if (f.type === 'sweep') Object.assign(out, { profile: f.profile, path: f.path, op: f.op });
         if (f.type === 'solid') Object.assign(out, { file: f.file, op: f.op || 'add', bbox: st.bbox });
         if (f.type === 'pattern') Object.assign(out, { of: f.features, kind: f.kind, count: f.count, ...(f.kind === 'circular' ? { axis: f.axis } : { dir: f.dir, spacing: f.spacing }) });
+        if (f.type === 'point') Object.assign(out, { on: Object.keys(f.at || {})[0], xyz: m.result?.points?.[f.id] || null });
         return out;
       });
       return { text: JSON.stringify({ name: project.current?.name, unit: 'mm', steps, body: summary() }) };
@@ -412,7 +445,20 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         if (near) info.sort((a, c) => len(sub(a.mid, near)) - len(sub(c.mid, near)));
         return { text: JSON.stringify(info.slice(0, limit)) };
       }
-      throw new Error('kind is "face" or "edge".');
+      if (kind === 'point') { // the reference points (point steps), then the part's corners with a ready ref for add_feature point
+        const at = m.result?.points || {};
+        const ps = m.part.features.filter((f) => f.type === 'point' && at[f.id]).map((f) => ({ point: f.id, name: f.name, xyz: at[f.id] }));
+        let cs = corners();
+        if (of_face) {
+          const want = b.faces.filter((f) => namesOf(f).includes(of_face)).map((f) => f.name);
+          cs = cs.filter((c) => c.ref.vertex.faces.some((n) => want.includes(n)));
+        }
+        if (of_step) cs = cs.filter((c) => c.ref.vertex.faces.some((n) => n.split(':')[0] === of_step));
+        const all = [...ps, ...cs];
+        if (near) all.sort((p, q) => len(sub(p.xyz || p.corner, near)) - len(sub(q.xyz || q.corner, near)));
+        return { text: JSON.stringify(all.slice(0, limit)) };
+      }
+      throw new Error('kind is "face", "edge" or "point".');
     },
 
     add_feature: async (spec) => {

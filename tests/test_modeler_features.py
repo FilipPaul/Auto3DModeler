@@ -424,6 +424,62 @@ class TestFeatures(unittest.TestCase):
         r, _ = vol(*box(), two)
         self.assertEqual(r["features"][-1]["update"], {"points": [[-10, 0], [2, 0]]})
 
+    def test_reference_point(self):
+        corner = {"vertex": {"faces": ["E1:end", "E1:side:l1", "E1:side:l2"], "fp": [40, 0, 10]}}
+        pt = {"id": "P1", "type": "point", "at": corner}
+        r, v = vol(*box(), pt)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertEqual(r["features"][-1]["point"], [40, 0, 10])
+        self.assertEqual(r["points"], {"P1": [40, 0, 10]})
+        self.assertNotIn("update", r["features"][-1])
+        self.assertAlmostEqual(v, 8000, delta=1e-6)  # a reference only: no geometry
+        # the extrude gets taller: the point follows its corner (and hands its new place back)
+        r, v = vol(*box(d=25), pt)
+        self.assertEqual(r["features"][-1]["point"], [40, 0, 25])
+        self.assertEqual(r["features"][-1]["update"], {"at": {"vertex": {**corner["vertex"], "fp": [40, 0, 25]}}})
+        self.assertAlmostEqual(v, 20000, delta=1e-6)
+        # a round edge's centre and an edge's middle
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        h1 = {"id": "H1", "type": "hole", "plane": top, "points": [[-10, 0]], "d": 4, "through": True}
+        c = {"id": "P2", "type": "point", "at": {"centre": {"a": "H1:hole:0", "b": "E1:end", "fp": [8, 10, 10]}}}
+        m = {"id": "P3", "type": "point", "at": {"mid": {"a": "E1:end", "b": "E1:side:l2", "fp": [40, 10, 10]}}}
+        r, _ = vol(*box(h=30), h1, c, m)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertEqual(r["points"]["P2"], [10, 10, 10])  # the hole rim's centre
+        self.assertEqual(r["points"]["P3"], [40, 15, 10])
+        # a sketch dimension to the point: follows it (seen square onto the sketch's plane)
+        sk = {"id": "S2", "type": "sketch", "plane": {"datum": "XY", "offset": 10}, "points": {"c": [30, 5]},
+              "entities": [{"id": "k", "t": "circle", "c": "c", "r": 2}],
+              "dims": [{"id": "d1", "t": "dx", "a": {"ref": [40, 0], "point": "P1"}, "b": "c", "v": -10}, {"id": "d2", "t": "dia", "e": "k", "v": 4}]}
+        r, _ = vol(*box(), pt, sk)
+        self.assertNotIn("update", r["features"][-1])  # already 10 from it
+        r, _ = vol(*box(w=60), pt, sk)  # wider: the corner goes to x 60, the circle with it
+        self.assertEqual(r["points"]["P1"], [60, 0, 10])
+        if available("planegcs"):
+            self.assertEqual(r["features"][-1]["update"]["points"]["c"], [50, 5])
+        # a fixed place, and the STEP round trip leaves the solid as it is
+        r, v = vol(*box(), {"id": "P4", "type": "point", "at": {"xyz": [1, 2, 3]}})
+        self.assertEqual(r["points"]["P4"], [1, 2, 3])
+        from auto3d.modeler import kernel as K
+        step = doc.export({"features": [*box(), pt]}, "step")
+        self.assertAlmostEqual(K.volume(K.from_step(step)), 8000, delta=1e-3)
+        # its corner is gone (the pocket it sat in is turned off): an issue, the last place kept
+        sk3 = {"id": "S3", "type": "sketch", "plane": top, "points": {"p1": [-5, -5], "p2": [5, -5], "p3": [5, 5], "p4": [-5, 5]},
+               "entities": [{"id": f"m{i + 1}", "t": "line", "a": f"p{i + 1}", "b": f"p{(i + 1) % 4 + 1}"} for i in range(4)]}
+        pocket = {"id": "E3", "type": "extrude", "sketch": "S3", "op": "cut", "d": 4}
+        pp = {"id": "P5", "type": "point", "at": {"vertex": {"faces": ["E3:end", "E3:side:m1", "E3:side:m2"], "fp": [25, 5, 6]}}}
+        r, _ = vol(*box(), sk3, pocket, pp)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertEqual(r["points"]["P5"], [25, 5, 6])
+        r, _ = vol(*box(), sk3, {**pocket, "suppressed": True}, pp)
+        s = r["features"][-1]
+        self.assertFalse(s["ok"])
+        self.assertIn("corner of the part is gone", s["issues"][0])
+        self.assertEqual(s["point"], [25, 5, 6])
+        self.assertEqual(r["points"]["P5"], [25, 5, 6])
+        r, _ = vol({"id": "P6", "type": "point", "at": {}})
+        self.assertIn("needs a place", r["features"][0]["issues"][0])
+
     def test_solid_from_step(self):
         # a ready solid (a quick part's STEP export, base64) as a step: its faces get names, it can be built on
         import base64

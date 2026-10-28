@@ -765,12 +765,41 @@ export class ModelView {
   }
 
   // ------------------------------------------------------------------ measuring
-  /** The point a measure click means: a corner of the part within 10 px, else the point on the surface. */
+  /** The point a measure click means: a reference point or a corner of the part within 10 px, else the point on the
+   *  surface. (A reference point: snap 'point', its step's id.) */
   measurePoint(clientX, clientY) {
-    const h = this.pick(clientX, clientY);
-    const s = snapNear([{ edges: this.body?.edges }], this.camera, this.renderer.domElement.getBoundingClientRect(), clientX, clientY, 10, snapKinds());
+    const h = this.pick(clientX, clientY), rect = this.renderer.domElement.getBoundingClientRect();
+    let s = snapNear([{ edges: this.body?.edges }], this.camera, rect, clientX, clientY, 10, snapKinds()), ref = null;
+    for (const p of this.refPoints || []) { // (a reference point beats a corner under it)
+      const q = p.point.clone().project(this.camera), d = Math.hypot(rect.left + (q.x + 1) / 2 * rect.width - clientX, rect.top + (1 - q.y) / 2 * rect.height - clientY);
+      if (q.z <= 1 && d < 10 && (!ref || d < ref.d)) ref = { d, ...p };
+    }
+    if (ref) s = { point: ref.point.clone(), kind: 'point', id: ref.id, name: ref.name };
     if (!s && !h) return null;
-    return { point: s ? s.point : h.point.clone(), corner: s?.kind === 'corner', snap: s?.kind || null, face: h?.face || null };
+    return { point: s ? s.point : h.point.clone(), corner: s?.kind === 'corner', snap: s?.kind || null, face: h?.face || null, ...(s?.id ? { id: s.id, name: s.name } : {}) };
+  }
+
+  /** The reference points (point steps): a small ✛ and its name each — [{id, name, xyz, on}] (on: the chosen one). */
+  setPoints(list = []) {
+    if (!this.pointGroup) { this.pointGroup = new THREE.Group(); this.scene.add(this.pointGroup); }
+    const key = JSON.stringify(list);
+    if (key === this.pointKey) return;
+    this.pointKey = key;
+    this.clear(this.pointGroup);
+    this.invalidate();
+    this.refPoints = list.map((p) => ({ id: p.id, name: p.name, point: new THREE.Vector3(...p.xyz) }));
+    for (const p of list) {
+      const at = new THREE.Vector3(...p.xyz);
+      const dot = new THREE.Points(new THREE.BufferGeometry().setFromPoints([at]), new THREE.PointsMaterial({ color: p.on ? 0xf2cc60 : 0xd2a8ff, size: 9, sizeAttenuation: false, depthTest: false }));
+      dot.renderOrder = 14;
+      const el = document.createElement('div');
+      el.className = `m-pt${p.on ? ' on' : ''}${p.bad ? ' bad' : ''}`;
+      el.dataset.id = p.id;
+      el.textContent = `• ${p.name}`;
+      const lab = new CSS2DObject(el);
+      lab.position.copy(at);
+      this.pointGroup.add(dot, lab);
+    }
   }
 
   /** The measure tool's snap under the mouse, shown: a green point and its name (corner, midpoint, centre). */
@@ -803,7 +832,7 @@ export class ModelView {
     dot.renderOrder = 14;
     const el = document.createElement('div');
     el.className = 'm-snap';
-    el.textContent = t({ corner: 'corner', midpoint: 'midpoint', centre: 'centre', quadrant: 'quadrant' }[mp.snap]);
+    el.textContent = mp.snap === 'point' ? mp.name : t({ corner: 'corner', midpoint: 'midpoint', centre: 'centre', quadrant: 'quadrant' }[mp.snap]);
     const lab = new CSS2DObject(el);
     lab.position.copy(mp.point);
     this.snapGroup.add(dot, lab);

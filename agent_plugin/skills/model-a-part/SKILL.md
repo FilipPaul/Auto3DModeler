@@ -66,6 +66,9 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
    **Mirror**: `{type: "mirror", plane: "YZ"}` adds the mirror image of the whole part (left ↔ right; "XZ" front ↔
    back, "XY" top ↔ bottom, or `face: "<flat face>"`); `of: "<step id>"` mirrors one step only; `copy: false` turns the
    part over instead. Model half of a symmetric part, then mirror it.
+   **Reference point** (a place to measure / sketch from that follows the part): `{type: "point", at: {corner: [x, y, z]}}`
+   (the nearest corner), `at: {centre: <round edge ref>}` or `at: {mid: <edge ref>}`; `find_refs {kind: "point"}` lists
+   them (and corners with ready refs). No geometry — it shows as "• Point 1".
 7. **Check**: `get_model` — every step `ok: true` (read `issues` / `warnings` and fix them),
    `get_screenshot {view: "iso"}` and another view. Report the size and the steps the user can change
    (double-click a step in the list, or ask you).

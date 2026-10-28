@@ -780,6 +780,8 @@ const CS = {
   'Then click a face of the other part': 'Pak klikněte na plochu druhého dílu', 'Ctrl+click a face of another part: the joints that fit the two': 'Ctrl+klik na plochu jiného dílu: vazby, které se hodí na obě',
   Undo: 'Zpět', 'Bring back the part deleted last': 'Vrátit naposledy smazaný díl', 'Delete it from the project (↶ Undo brings it back)': 'Smazat z projektu (↶ Zpět ho vrátí)',
   'A corner': 'Roh', 'An edge midpoint': 'Střed hrany', 'A centre': 'Střed', 'Measure from here': 'Měřit odtud', 'Copy its coordinates': 'Kopírovat souřadnice', Copied: 'Zkopírováno',
+  'Reference point here': 'Referenční bod sem', 'No corner, edge middle or centre of the part here.': 'Tady není roh, střed hrany ani střed dílu.',
+  'A point that stays on this place of the part when it changes — sketches and 📏 Measure snap to it': 'Bod, který zůstane na tomto místě dílu, i když se díl změní — skici a 📏 Měření se k němu přichytí',
   "No tool on: a click on a corner, an edge's middle or a centre picks it": 'Bez nástroje: klik na roh, střed hrany nebo střed ho vybere', 'the point': 'bod', 'of the part': 'dílu',
   Snap: 'Přichytit', Corners: 'Rohy', 'Edge midpoints': 'Středy hran', Centres: 'Středy', 'What 📏 Measure catches — click to switch': 'Co 📏 Měření zachytí — kliknutím přepnete',
   Quadrants: 'Kvadranty', quadrant: 'kvadrant', Hover: 'Najetí', Edges: 'Hrany', 'Snap points': 'Body přichycení',

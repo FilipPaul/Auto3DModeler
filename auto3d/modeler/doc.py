@@ -13,7 +13,9 @@ Part JSON (in the project file, `parts[].model`):
      {"id": "F9", "type": "mirror", "of": "body" | <a step's id>, "plane": {"datum": "YZ"} | {"face": ..., "frame": ...},
       "copy": true},   (copy: the part and its mirror image; false: the part moved to its mirror image)
      {"id": "F6", "type": "hole", "plane": {"face": {"name": "F2:end"}, "frame": ...}, "points": [[u, v]], "d": 5,
-      "through": true, "depth": 10}]}
+      "through": true, "depth": 10},
+     {"id": "F10", "type": "point", "at": {"vertex": {"faces": [...], "fp": [x, y, z]}} | {"centre": <edge ref>} |
+      {"mid": <edge ref>} | {"xyz": [x, y, z]}}]}   (a reference point: a corner, a round edge's centre, an edge's middle)
 
 A sketch or a hole on a face stores the face's frame and its name: when the face moves (the extrude gets
 longer), the sketch moves with it. An edge is stored as the two faces it joins (+ where it was).
@@ -35,7 +37,7 @@ DATUMS = {
     "XZ": {"o": [0, 0, 0], "x": [1, 0, 0], "n": [0, -1, 0]},  # Front
     "YZ": {"o": [0, 0, 0], "x": [0, 1, 0], "n": [1, 0, 0]},   # Right
 }
-FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell", "pattern", "solid", "loft", "sweep", "decal", "mirror", "draft", "rib")
+FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell", "pattern", "solid", "loft", "sweep", "decal", "mirror", "draft", "rib", "point")
 
 _cache: OrderedDict = OrderedDict()  # prefix hash -> state after that feature (only in the worker process)
 CACHE_SIZE = 48
@@ -78,11 +80,12 @@ class State:
         self.sketch_src = {}  # id -> the sketch feature as built (its lines, for a sweep's path)
         self.refs = {}      # id -> Body: solids shown for reference only (not in the part)
         self.colours = {}   # face name -> "#rrggbb": the colours of imported STEP files
+        self.points = {}    # id -> [x, y, z]: reference points (point steps), where they are now
 
     def copy(self):
         s = State()
         s.body, s.sketches, s.frames, s.tools = self.body, dict(self.sketches), dict(self.frames), dict(self.tools)
-        s.sketch_src, s.refs, s.colours = dict(self.sketch_src), dict(self.refs), dict(self.colours)
+        s.sketch_src, s.refs, s.colours, s.points = dict(self.sketch_src), dict(self.refs), dict(self.colours), dict(self.points)
         return s
 
 
@@ -372,7 +375,50 @@ def _apply(f, st: State, s):
         if st.body is not None and abs(K.volume(st.body.shape) - before) < 1e-6 * (1 + before):
             s["warnings"].append("The copies changed nothing — they may land outside the part or on top of each other. Check the direction and the spacing.")
         return
+    if t == "point":
+        _point(f, st, s)
+        return
     raise K.KernelError(f"Unknown feature type “{t}”.")
+
+
+def _point(f, st, s):
+    """A reference point (no geometry): a corner {vertex: {faces, fp}}, the centre of a round edge {centre: {a, b, fp}},
+    an edge's middle {mid: {a, b, fp}} or a fixed place {xyz}. Found again each rebuild by the names of its faces, so it
+    follows the part; the new place goes back to the browser (s["update"]: its fp). Gone: an issue, the last place kept."""
+    fid, at = f["id"], f.get("at") or {}
+    kind = next((k for k in ("vertex", "centre", "mid", "xyz") if at.get(k)), None)
+    if kind is None:
+        raise K.KernelError("A point needs a place: a corner, the centre of a round edge or an edge's middle.")
+    last = at["xyz"] if kind == "xyz" else at[kind].get("fp")
+    if last is not None:
+        st.points[fid] = s["point"] = [float(v) for v in last]  # (also when it is not found below: its last place)
+    if kind == "xyz":
+        return
+    gone = {"vertex": "Its corner of the part is gone", "centre": "Its round edge is gone", "mid": "Its edge is gone"}[kind]
+    gone += " — it stays where it was. Delete it, or make it again on the part as it is now."
+    if st.body is None:
+        raise K.KernelError(gone)
+    bb = K.bbox(st.body.shape) or [0, 0, 0, 1, 1, 1]
+    size = max(bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2], 1e-6)
+    if kind == "vertex":
+        p, guessed = K.find_vertex(st.body, at["vertex"].get("faces"), last)
+        if guessed and (last is None or np.linalg.norm(p - np.asarray(last, float)) > size * 0.05):
+            raise K.KernelError(gone)
+    else:
+        try:
+            edges, guessed = K.find_edges(st.body, [at[kind]])
+        except K.KernelError:
+            raise K.KernelError(gone) from None
+        p = K.edge_centre(edges[0]) if kind == "centre" else K._edge_mid(edges[0])
+        if p is None:
+            raise K.KernelError("Its edge is not round any more — it has no centre. Delete the point or make it again.")
+    if guessed:
+        s["warnings"].append("Its place on the part was found again by the position only — check that it is the right one.")
+    p = [round(float(v), 6) for v in p]
+    st.points[fid] = p
+    s["point"] = p
+    if last is None or any(abs(a - b) > 1e-7 for a, b in zip(p, last)):
+        s["update"] = {"at": {kind: {**at[kind], "fp": p}}}
 
 
 def _uv(fr, p):
@@ -383,7 +429,12 @@ def _uv(fr, p):
 
 def _ref_uv(end, fr, st):
     """A dimension end that points at the part -> where that point is now, in sketch coordinates (or None).
-    {ref: [u, v], vertex: {faces, fp}} = a corner, {ref, edge: {a, b, fp}} = a straight edge (its middle)."""
+    {ref: [u, v], vertex: {faces, fp}} = a corner, {ref, edge: {a, b, fp}} = a straight edge (its middle),
+    {ref, point: <id>} = a reference point (a point step; seen square onto the sketch)."""
+    if isinstance(end, dict) and end.get("point"):
+        if end["point"] not in st.points:
+            raise K.KernelError("Its reference point is gone.")
+        return _uv(fr, st.points[end["point"]]), False
     if not isinstance(end, dict) or st.body is None:
         return None, False
     if end.get("vertex"):
@@ -906,6 +957,7 @@ def rebuild(part):
         out["body"] = _with_colours(_tessellated(st.body, light), st.colours)
     # reference solids: shown see-through, not part of the part
     out["refs"] = [{"id": fid, **_tessellated(b)} for fid, b in st.refs.items()]
+    out["points"] = st.points  # reference points: id -> [x, y, z]
     return out
 
 

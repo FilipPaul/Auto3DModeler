@@ -167,8 +167,10 @@ TOOLS = [
                     "(part of a face name), near [x, y, z], of_step (a step's id: the faces it made). Edges: of_face (a face name), "
                     "of_step (all the edges of a step's faces — to round them at once), between_steps [id, id] (where two steps "
                     "meet, e.g. a rib and its plate), circular true / false, near. A face merged from two steps (flush) has names. "
-                    "Edges come with a ready ref {a, b, fp} for fillet / chamfer.",
-     "inputSchema": _obj({"kind": {"type": "string", "enum": ["face", "edge"]}, "normal": POINT,
+                    "Edges come with a ready ref {a, b, fp} for fillet / chamfer. Points (kind \"point\"): the reference points "
+                    "(point steps: {point: id, name, xyz}), then the part's corners {corner: [x, y, z], ref} (of_face, of_step, near) — "
+                    "a ref is the `at` of add_feature point.",
+     "inputSchema": _obj({"kind": {"type": "string", "enum": ["face", "edge", "point"]}, "normal": POINT,
                           "extreme": {"type": "string", "enum": ["max", "min"]}, "name": STR, "near": POINT,
                           "of_face": STR, "of_step": STR, "between_steps": {"type": "array", "items": STR},
                           "circular": {"type": "boolean"}, "limit": {"type": "integer"}})},
@@ -211,8 +213,11 @@ TOOLS = [
                     "depth (mm), at [u, v] from the face's centre, angle (degrees it is turned on the face).\n"
                     "- mirror: of \"body\" (the whole part, default) or a step's id; plane \"YZ\" (left ↔ right, default) / \"XZ\" / "
                     "\"XY\", or face (a flat face's name) to mirror across; copy true (the part + its mirror image, default) / false "
-                    "(the part moved to its mirror image; only for the body).",
-     "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep", "decal", "mirror", "draft", "rib"]},
+                    "(the part moved to its mirror image; only for the body).\n"
+                    "- point: a reference point (no geometry; it follows the part, sketches snap and dimension to it): at "
+                    "{corner: [x, y, z]} (the corner nearest that place) / {centre: <a round edge's ref from find_refs>} / {mid: "
+                    "<an edge's ref>: its middle} / a ref from find_refs kind \"point\".",
+     "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep", "decal", "mirror", "draft", "rib", "point"]},
                           "name": STR, "plane": {}, "shapes": {"type": "array"}, "lock": {"type": "boolean"},
                           "sketch": STR, "d": NUM, "op": {"type": "string", "enum": ["add", "cut"]}, "through": {"type": "boolean"},
                           "symmetric": {"type": "boolean"}, "flip": {"type": "boolean"}, "axis": {}, "angle": NUM,
@@ -220,7 +225,7 @@ TOOLS = [
                           "faces": {"type": "array"}, "t": NUM, "of": {}, "kind": {"type": "string", "enum": ["linear", "circular"]},
                           "count": NUM, "spacing": NUM, "dir": {}, "up_to": STR, "offset": NUM,
                           "sketches": {"type": "array"}, "profile": STR, "path": STR,
-                          "text": STR, "h": NUM, "at": {"type": "array"}, "fit": {"type": "string", "enum": ["H6", "H7", "H8", "H9"]}}, ["type"])},
+                          "text": STR, "h": NUM, "at": {}, "fit": {"type": "string", "enum": ["H6", "H7", "H8", "H9"]}}, ["type"])},
     {"name": "edit_feature", "where": "browser",
      "description": "Change a step of the 3D model: id and fields (as in add_feature, e.g. {d: 15}, {r: 3}, {points: …}, a "
                     "sketch's {shapes: […]}). Later steps follow their faces.",

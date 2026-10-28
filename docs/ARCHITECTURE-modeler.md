@@ -105,6 +105,15 @@ Date: 2026-10-25. Written by the architect agent.
   snap}); Ctrl adds or takes one away (addPick) -> showPicks: their steps' faces lit, the points marked, the table:
   Between them (the distance; two parallel flat faces: the gap), the steps (turn them off / on, ✕ Delete them —
   removeSteps, one question for steps that need them), ✨ with all of them. tools/e2e_model_multipick.py.
+- **• Reference points done:** a `point` step {at: {vertex: {faces, fp}} | {centre: <edge ref>} | {mid: <edge ref>} |
+  {xyz}} — no geometry; doc._point finds it again each rebuild (find_vertex / find_edges + edge_centre / the edge's
+  middle), status `point` [x, y, z] and `update` {at: its new fp}; gone: an issue, the last place kept (State.points,
+  rebuild's `points`). The browser: pickSnap's • Reference point here (Modeler.pointRef: the faces at a corner, the
+  edge a centre / middle belongs to), ModelView.setPoints (a dot + its name; the chosen one lit), measurePoint snaps to
+  them (snap 'point'); Sketcher.refs lists them seen square onto the sketch (pointIds {point}), a dimension end
+  {ref, point: id} follows it (doc._ref_uv); deleting what it stands on keeps it at {xyz}. AI: add_feature point
+  (at {corner: [x, y, z]} / {centre} / {mid} / a ref), find_refs kind "point", get_model's xyz. test_reference_point;
+  tools/e2e_model_point.py.
 - **No right-click menu in the 3D model done:** clickFace shows the face's tools in the suggestions table in its
   sections (On this face / Its edges / The part / Step · name, showSuggest {section}); the .m-fmenu pop-up and its
   styles are gone, a right click only pans. e2e_model_pick.
@@ -726,7 +735,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 | Angled plane | plane + edge / axis, angle | MVP (M3) |
 | Mid plane | two parallel faces | Done (⇳ Midway, a sketch's plane {face, mid}) |
 | Axis | cylinder face, or 2 points, or 2 planes | MVP (M3): cylinder and 2 points |
-| Point | vertex, centre of circle | Later |
+| Point | vertex, centre of circle | Done (• Point: a corner, a round edge's centre, an edge's middle) |
 
 ### 3.4 Feature tree
 
