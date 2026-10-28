@@ -174,6 +174,7 @@ export class ModelView {
       this.controls.update();
       if (!this.dirty) return;
       this.dirty = false;
+      this.updatePlaneArrow(); // (end-on or from the side: the camera may have turned)
       this.renderer.render(this.scene, this.camera);
       this.labels.render(this.scene, this.camera);
       this.cube?.update(this.camera);
@@ -826,6 +827,7 @@ export class ModelView {
   setPlaneArrow(fr, label = '', plus = true) {
     if (!this.arrowGroup) { this.arrowGroup = new THREE.Group(); this.scene.add(this.arrowGroup); }
     this.clear(this.arrowGroup);
+    this.planeArrow = null;
     this.invalidate();
     if (!fr) return;
     const o = new THREE.Vector3(...fr.o), n = new THREE.Vector3(...fr.n).normalize(), L = Math.max(10, (this.size || 40) * 0.35);
@@ -833,10 +835,29 @@ export class ModelView {
     arrow.traverse((x) => { if (x.material) { x.material.depthTest = false; x.material.transparent = true; } x.renderOrder = 13; });
     const el = document.createElement('div');
     el.className = 'm-snap m-plane-plus';
-    el.textContent = plus ? `+ ${label}` : label;
     const lab = new CSS2DObject(el);
-    lab.position.copy(o).addScaledVector(n, L * 1.15);
     this.arrowGroup.add(arrow, lab);
+    this.planeArrow = { arrow, lab, el, o, n, x: new THREE.Vector3(...fr.x).normalize(), L, text: plus ? label : '', bare: plus ? '' : label, seen: null };
+    this.updatePlaneArrow();
+  }
+
+  /** The offset arrow as it is seen: looked at end-on (e.g. the Top view down +Z) a cone tip is a blob, so it is the
+   *  CAD symbol instead — ⊙ toward you, ⊗ away — beside the origin; from the side, the arrow and "+ label" at its tip. */
+  updatePlaneArrow() {
+    const pa = this.planeArrow;
+    if (!pa) return;
+    const toCam = this.camera.position.clone().sub(pa.o).normalize(), d = toCam.dot(pa.n);
+    const seen = d > 0.9 ? 'toward' : d < -0.9 ? 'away' : 'side';
+    if (seen === pa.seen) return;
+    pa.seen = seen;
+    pa.arrow.visible = seen === 'side';
+    if (seen === 'side') {
+      pa.el.textContent = pa.bare || `+ ${pa.text}`;
+      pa.lab.position.copy(pa.o).addScaledVector(pa.n, pa.L * 1.15);
+    } else {
+      pa.el.textContent = pa.bare || `${seen === 'toward' ? '⊙' : '⊗'} ${pa.text}`;
+      pa.lab.position.copy(pa.o).addScaledVector(pa.x, -pa.L * 0.3); // (beside the origin, clear of its axes)
+    }
   }
 
   setSnapMark(mp) {

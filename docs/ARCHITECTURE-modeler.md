@@ -201,6 +201,9 @@ Date: 2026-10-25. Written by the architect agent.
   /api/trace, scaled to the letters' own box h high, its corner at 0) -> a block entity with `text` (the kernel's
   block loops, holes kept); its panel: Text (retext: traced again, the height and corner kept) and Height (setBlock
   h), the text field focused to type over. tools/e2e_sketch_text.py.
+- **The offset arrow seen end-on done:** ModelView.updatePlaneArrow (each frame drawn): looking along the plane's
+  normal (the Top view down +Z) the arrow's cone tip was a purple blob — then it is the CAD symbol ⊙ (toward you) /
+  ⊗ (away) with its label beside the origin, from the side the arrow and "+ +Z" at its tip.
 - **The sketch plane's offset direction shown done:** the ↕ Plane at chip says which way + goes (+ = +Z, on Front −Y)
   and ModelView.setPlaneArrow draws an arrow along the plane's normal labelled the same (gone off the sketch) — the
   GUI audit's offset-plane direction. tools/e2e_sketch_slot.py.
