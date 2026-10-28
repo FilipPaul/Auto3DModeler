@@ -23,7 +23,8 @@ TOP = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], 
 
 
 def parts():
-    """name -> features: holes, threads, a pattern, fillets, a shell, a split, a rib, the plate with 171 holes."""
+    """name -> features: holes, threaded holes, a pattern, fillets, a shell, a split, a rib, the plate with 171 holes;
+    a part with real (modelled) threads."""
     wall = [{"id": "S2", "type": "sketch", "plane": {"datum": "XY"}, "points": {"q1": [0, 15], "q2": [40, 15], "q3": [40, 20], "q4": [0, 20]},
              "entities": [{"id": f"m{i + 1}", "t": "line", "a": f"q{i + 1}", "b": f"q{(i + 1) % 4 + 1}"} for i in range(4)]},
             {"id": "E2", "type": "extrude", "sketch": "S2", "op": "add", "d": 30}]
@@ -46,14 +47,18 @@ def parts():
                   {"id": "X1", "type": "split", "plane": {"datum": "YZ", "offset": 20}, "keep": "both"}],
         "rib": [*box(d=5), *wall, *rib],
         "plate171": plate()["features"],
+        "real threads": {"features": [*box(40, 20, 12), {"id": "H1", "type": "hole", "points": [[-8, 0], [8, 0]], "through": True, "thread": "M6",
+                                                         "plane": {**TOP, "frame": {**TOP["frame"], "o": [20, 10, 12]}}}], "threads": "real"},
     }
 
 
 def built(features):
-    """A fresh build (no cached step) -> (volume, faces, sorted face names, every step's ok and issues)."""
+    """A fresh build (no cached step) of features (or a part) -> (volume, faces, sorted face names, every step's ok
+    and issues)."""
     doc._cache.clear()
+    doc._threads_cache.clear()
     del doc._tess[:]
-    r = doc.rebuild({"features": features})
+    r = doc.rebuild(features if isinstance(features, dict) else {"features": features})
     b = r["body"]
     names = sorted(tuple(sorted(f.get("names") or [f.get("name") or ""])) for f in b["faces"])  # ("": a face of no step)
     return b["volume"], len(b["faces"]), names, [(s["ok"], s["issues"]) for s in r["features"]]

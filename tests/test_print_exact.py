@@ -178,6 +178,24 @@ class ExactPrintSplitTest(unittest.TestCase):
             self.assertAlmostEqual(h, 75, delta=1e-6)
             self.assertAlmostEqual(z, 50, delta=1e-6)
 
+    def test_real_threads_split(self):
+        """🔩 A plate 300 × 40 × 12 with an M6 thread near each end (real): its printing copy's STEP carries the threads,
+        the two exact pieces add up to the threaded volume (less than with plain tap drills) and are watertight."""
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [150, 20, 12], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        feats = [{"id": "S1", "type": "sketch", "name": "S1", "plane": {"datum": "XY"}, "entities": [{"id": "r", "t": "rect", "cx": 150, "cy": 20, "w": 300, "h": 40}]},
+                 {"id": "E1", "type": "extrude", "name": "E1", "sketch": "S1", "op": "add", "d": 12},
+                 {"id": "H1", "type": "hole", "plane": top, "points": [[-130, 0], [130, 0]], "through": True, "thread": "M6"}]
+        part = {"features": feats, "threads": "real"}
+        real, plain = doc.rebuild(part)["body"]["volume"], 300 * 40 * 12 - 2 * math.pi * 2.5 ** 2 * 12
+        self.assertLess(real, plain - 50)
+        model = mesh_model(doc.export(part, "step"), "plate (print).step")
+        sol, solid = solve_mesh(model)
+        res = plan(solid, "mm", P200, 0, True, None)
+        got = printexact.cut(res, printexact.source(model, sol), Local(), "mesh")
+        self.assertEqual(len(got), 2)
+        self.assertAlmostEqual(sum(g["volume"] for g in got), real, delta=1e-2)
+        self.assertTrue(all(watertight(g) for g in got))
+
     def test_fallback(self):
         """No exact model -> None (the slab pieces stay): an STL, a STEP part with 3D objects added, a bent part, no
         kernel; a kernel that fails -> the slab pieces with a warning."""

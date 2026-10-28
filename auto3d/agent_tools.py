@@ -334,8 +334,12 @@ TOOLS = [
     {"name": "set_look", "where": "browser",
      "description": "The colour and see-through of the 3D model on screen, or (part = a placed id I…) of a part in the assembly on "
                     "screen (in that assembly only). color: \"#rrggbb\" (null: its own again); opacity 0.1 … 1 (1 = solid). It shows in "
-                    "the 3D view, in assemblies and in the GLB export.",
-     "inputSchema": _obj({"part": STR, "color": {"type": ["string", "null"]}, "opacity": NUM})},
+                    "the 3D view, in assemblies and in the GLB export. threads (the 3D model on screen, its threaded holes): "
+                    "\"hidden\" (plain tap drills, the default), \"cosmetic\" (thin helix lines, view only), \"real\" (ISO metric "
+                    "threads cut into the solid — in STEP / STL / 3MF exports and the print split; slower: ~0.2 s and 6000 "
+                    "triangles a hole).",
+     "inputSchema": _obj({"part": STR, "color": {"type": ["string", "null"]}, "opacity": NUM,
+                          "threads": {"type": "string", "enum": ["hidden", "cosmetic", "real"]}})},
     {"name": "paint_faces", "where": "browser",
      "description": "Colour single faces: faces = their names (from find_refs / get_model, e.g. \"F4:end\", or a library part's "
                     "faces), color \"#rrggbb\" (null: their own colour off). In a 3D model: the model's faces; in an assembly with "
@@ -416,7 +420,7 @@ TOOLS = [
                     "revision) and the user edits it. -> get_sheet's answer. export {format: \"pdf\"} on a sheet writes it as drawn.",
      "inputSchema": _obj({"part": STR})},
     {"name": "get_sheet", "where": "browser",
-     "description": "The drawing sheet on screen: its part, preset, paper, revision, views and dimensions [{id, view, kind (linear / dia / rad), "
+     "description": "The drawing sheet on screen: its part, preset, paper, scale, title-block template (and the templates there are), revision, views and dimensions [{id, view, kind (linear / dia / rad), "
                     "text (as drawn, e.g. \"8× Ø3 H7\"; a hole step's callout \"4× M3 ⌵ Ø5 × 90°\", \"Ø3.4 ⌴ Ø6 ↧ 3.2\", \"M5 ↧ 8\", \"Ø3.4 THRU\"), auto (made by the preset) or the user's, lost (its points are gone)}]. "
                     "points: a view's name (Front / Top / Right) — also its points (keys: a hole's centre \"H1:hole:0#c\", a line's ends "
                     "\"<faces>#0\" / \"#1\", the view box \"box#x0\" / \"box#x1\" / \"box#y0\" / \"box#y1\") and circles, to add dimensions. "
@@ -431,11 +435,17 @@ TOOLS = [
                     "views {Front | Top | Right | Iso: true / false}, remove [dimension ids], restore true (the deleted automatic ones "
                     "back), move {id: {side (h: t / b; v: l / r), off (mm from the view on the paper), ang, len (a Ø / R leader)}}, "
                     "add [{view, a, b, dir (h / v; else by the points), pre (text before, e.g. \"4×\")} | {view, circle (its key; a hole's: its whole callout), "
-                    "count, post (e.g. \"H7\")} or {view, edges: [<edge>, <edge>]} (two edges meeting at an angle: the angle)], complete true (every size the check finds missing added), drop_twice true (dimensions giving a size twice removed), texts {title, number (drawing no.), drawn (drawn by), note} (the title block's own; \"\" clears) — fits {<a Ø dimension's id>: \"H7\" (a hole: H6 … H9) / \"h6\" (a shaft: f7, g6, h6, k6, m6, p6) or null} — values are always measured from the part. Do what the user cannot do in a click.",
+                    "count, post (e.g. \"H7\")} or {view, edges: [<edge>, <edge>]} (two edges meeting at an angle: the angle)], complete true (every size the check finds missing added), drop_twice true (dimensions giving a size twice removed), texts {title, number (drawing no.), drawn (drawn by), note, company, address, tolstd (the tolerance standard)} (the title block's own; \"\" clears), "
+                    "template \"<name>\" (the title block's template — get_sheet lists them; Modern is the default), template_all true (that template on every drawing of the assembly's drawing set, new ones too), "
+                    "save_template \"<name>\" (this title block — layout, fields, company / address / drawn by / note / tolerance standard, logo, frame — kept as a template for all projects), "
+                    "frame \"simple\" (10 mm) / \"iso\" (ISO 5457: 20 mm left, zones, centring marks) / \"narrow\" (5 mm) / \"none\" / {m: [left, top, right, bottom] mm, line, zones, marks} / null (the template's — a template carries its frame to the whole set), scale \"1:2\" / \"2:1\" / \"1:2522\" / null (the sheet's own scale; null: fitted automatically), "
+                    "view_scales {Front | Top | Right | Iso | Section: \"2:1\" / null} (a view's own scale — its label says it, e.g. \"Top (2:1)\"), view_names {Front | …: \"name\" / null} (rename a view's label) — fits {<a Ø dimension's id>: \"H7\" (a hole: H6 … H9) / \"h6\" (a shaft: f7, g6, h6, k6, m6, p6) or null} — values are always measured from the part. Do what the user cannot do in a click.",
      "inputSchema": _obj({"preset": {"type": "string", "enum": ["light", "medium", "full"]}, "view_presets": {"type": "object"}, "paper": {"type": ["string", "null"]}, "views": {"type": "object"},
                           "remove": {"type": "array", "items": STR}, "restore": {"type": "boolean"}, "move": {"type": "object"},
                           "add": {"type": "array", "items": {"type": "object"}}, "texts": {"type": "object"}, "complete": {"type": "boolean"}, "drop_twice": {"type": "boolean"},
-                          "fits": {"type": "object"}})},
+                          "fits": {"type": "object"}, "scale": {"type": ["string", "null"]}, "view_scales": {"type": "object"}, "view_names": {"type": "object"},
+                          "template": {"type": ["string", "null"]}, "template_all": {"type": "boolean"}, "save_template": STR,
+                          "frame": {"type": ["string", "object", "null"]}})},
     {"name": "edit_joint", "where": "browser",
      "description": "Change a joint of the assembly on screen (id J… from get_assembly): gap (mm, flat joints), distance (mm along "
                     "the axis for a concentric joint, null = it slides freely), lock_rotation (true / false), angle (degrees: the "

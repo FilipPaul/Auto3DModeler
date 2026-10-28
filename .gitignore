@@ -5,6 +5,8 @@ __pycache__/
 *.step
 *.glb
 *.a3d.json
+# files the app exported, kept for the owner to open in other programs
+!samples/ExportFromOurApp/**
 data/
 
 # agents' own copies of the repository (git worktrees)

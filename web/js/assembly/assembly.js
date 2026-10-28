@@ -24,6 +24,7 @@ import { paintedFaces, repaint } from '../modeler/paint.js';
 import { sectionBar, sectionMiddle } from '../modeler/sectionbar.js';
 import { ModelView } from '../modeler/view.js';
 import { fetchRebuild } from '../modeler/packed.js';
+import { threadSegments } from '../modeler/view.js';
 import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss } from './joints.js';
 import { snapNear, snapPoints } from '../modeler/view.js';
 import { showSuggest, showSnapFilters, snapKinds, hoverKinds } from '../suggest.js';
@@ -31,7 +32,7 @@ import { floatBox } from '../floatbox.js';
 import { freeMotions, motionMatrix } from './dof.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
-import { lookColor, finishOf } from '../modeler/materials.js';
+import { lookColor, finishOf, printed } from '../modeler/materials.js';
 import { stepTree } from './stepfile.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -93,6 +94,15 @@ class AsmView extends ModelView {
       lines.matrixAutoUpdate = false;
       lines.matrix.copy(mesh.matrix);
       this.bodyGroup.add(lines);
+      const thr = it.threads === 'cosmetic' ? threadSegments(it.body.threads) : []; // 🔩 its part's cosmetic threads
+      if (thr.length) {
+        const tg = new THREE.BufferGeometry();
+        tg.setAttribute('position', new THREE.Float32BufferAttribute(thr, 3));
+        const tl = new THREE.LineSegments(tg, this.threadMaterial);
+        tl.matrixAutoUpdate = false;
+        tl.matrix.copy(mesh.matrix);
+        this.bodyGroup.add(tl);
+      }
       this.meshes.push(mesh);
       mesh.updateMatrixWorld(true);
       const bb = new THREE.Box3().setFromObject(mesh);
@@ -546,7 +556,8 @@ export class Assembly {
   }
 
   /** The bill of materials of every part (those inside sub-assemblies counted in) -> rows
-   *  [{name, qty, maker, pn, description, order: {…}, material, mass_g (each), library (bool)}]. */
+   *  [{name, qty, maker, pn, description, order: {…}, material, mass_g (each), library (bool), made: bought / made /
+   *  made (3D print) — by its material}]. */
   bomFlat() {
     const rows = new Map();
     const walk = (list, times) => {
@@ -557,6 +568,7 @@ export class Assembly {
         const r = rows.get(key) || { name: this.partName(it.part), qty: 0, maker: lib?.maker || '', pn: lib?.pn || '', description: lib?.description || '',
           order: lib?.order || {}, material: data.material || (lib ? '' : 'PLA'), library: !!lib, approx: !!lib?.approx };
         r.qty += times;
+        r.made = lib ? 'bought' : printed(r.material) ? 'made (3D print)' : 'made';
         const b = this.bodies[it.part]?.body;
         r.mass_g = b?.mass_g ?? (b?.volume && MATERIALS[r.material] ? +((b.volume / 1000) * MATERIALS[r.material]).toFixed(2) : null);
         rows.set(key, r);
@@ -572,7 +584,7 @@ export class Assembly {
     const q = (v) => { const s = String(v ?? ''); return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
     const head = ['Pos', 'Qty', 'Name', 'Maker', 'Part number', ...shops.map((s) => `Order (${s})`), 'Description', 'Material', 'Mass each (g)', 'Bought / made'];
     const lines = [head.map(q).join(';'), ...rows.map((r, i) => [i + 1, r.qty, r.name, r.maker, r.pn, ...shops.map((s) => r.order?.[s] || ''), r.description, r.material,
-      r.mass_g === null || r.mass_g === undefined ? '' : String(r.mass_g).replace('.', ','), r.library ? 'bought' : 'made (3D print)'].map(q).join(';'))];
+      r.mass_g === null || r.mass_g === undefined ? '' : String(r.mass_g).replace('.', ','), r.made].map(q).join(';'))];
     const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv' });
     if (await this.hooks.download(blob, `${this.hooks.safeName()} BOM.csv`)) this.hooks.toast(t2('BOM saved: {n} line(s).', { n: rows.length }), 'ok');
   }
@@ -808,7 +820,7 @@ export class Assembly {
       for (const it of list) {
         const M = parent.clone().multiply(new THREE.Matrix4().fromArray(it.matrix)), id = pre ? `${pre}/${it.id}` : it.id;
         if (this.kindOf(it.part) === 'assembly') expand(this.innerList(it), M, id);
-        else flat.push({ id, part: { features: this.bodies[it.part]?.features || this.hooks.partData(it.part)?.features || [] }, matrix: M.toArray() });
+        else flat.push({ id, part: { features: this.bodies[it.part]?.features || this.hooks.partData(it.part)?.features || [], threads: this.hooks.partData(it.part)?.threads }, matrix: M.toArray() });
       }
     };
     expand(this.doc.instances, new THREE.Matrix4(), '');
@@ -1657,17 +1669,18 @@ export class Assembly {
       const data = this.hooks.partData(pid);
       if (!data) { this.bodies[pid] = { error: 'This part is no longer in the project.' }; return; }
       const lod = this.doc.light?.[pid] === true ? 'light' : this.doc.light?.[pid] === false ? 'full' : 'auto'; // 🪶
-      const key = JSON.stringify([data.features || { model: data.model, values: data.values, layers: data.layers, bends: data.bends }, lod]);
+      const key = JSON.stringify([data.features || { model: data.model, values: data.values, layers: data.layers, bends: data.bends }, lod, data.threads]);
       if (this.bodies[pid]?.key === key) return;
       // the part's newest build wins: the kernel's processes may answer an older one later
       const want = (this.wanted ||= {});
       want[pid] = key;
       try {
         const features = await this.partFeatures(pid, data);
-        const { res, r } = await fetchRebuild({ features, lod });
+        const { res, r } = await fetchRebuild({ features, lod, threads: data.threads });
         if (want[pid] !== key) return;
         if (!res.ok) throw new Error(r.error || res.statusText);
         if (!r.ok && !r.body) throw new Error(r.features.flatMap((s) => s.issues).join(' ') || 'This part has no solid.');
+        if (r.body) r.body.threads = r.threads?.holes || []; // (🔩 its threaded holes: drawn when its part shows them)
         this.bodies[pid] = r.body ? { key, body: r.body, features } : { key, error: 'This part has no solid yet.' };
       } catch (e) { if (want[pid] === key) this.bodies[pid] = { key, error: e.message }; }
     }));
@@ -1699,7 +1712,7 @@ export class Assembly {
       const c = it.stay ? null : centres[k];
       const look = this.lookOf(it);
       if (focus && !clashing.has(it.id)) look.opacity = Math.min(look.opacity ?? 1, 0.12); // the rest see-through
-      return { id: it.id, body: this.bodyOf(it)?.body, matrix: it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part), ...look,
+      return { id: it.id, body: this.bodyOf(it)?.body, matrix: it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part), ...look, threads: this.hooks.partData(it.part)?.threads,
         selected: it.id === this.sel || it.id === this.sel2 || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst, clash: clashing.has(it.id),
         explode: along ? along.get(it.id)?.toArray() || null : this.explode && c ? away(c).multiplyScalar(this.explode * 1.2).toArray() : null };
     }));

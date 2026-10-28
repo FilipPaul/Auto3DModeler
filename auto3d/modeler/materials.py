@@ -71,3 +71,15 @@ def finish_of(material):
 def look_colour(part):
     """A part's colour as shown: its own, else its material's (when one was chosen), else None (materials.js lookColor)."""
     return (part or {}).get("color") or COLOR.get((part or {}).get("material") or "")
+
+
+# the 3D printing plastics (materials.js: its first group) — a part of one is "made (3D print)", of the rest "made"
+PRINTED = {"PLA", "PETG", "ABS", "ASA", "TPU", "PA", "PA-CF", "PC", "PP"}
+
+
+def made_how(row):
+    """A BOM row's "Bought / made": bought (a library part), made (3D print) (a printing plastic; none chosen: PLA) or
+    made (a metal, an engineering plastic …) — as the browser's bomFlat."""
+    if row.get("library"):
+        return "bought"
+    return "made (3D print)" if (row.get("material") or "PLA") in PRINTED else "made"

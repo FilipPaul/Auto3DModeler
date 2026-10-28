@@ -34,5 +34,9 @@ const FINISH = {
 /** {metalness, roughness} of a material's surface (not chosen: a plain plastic). */
 export const finishOf = (material) => { const f = FINISH[material]; return f ? { metalness: f[0], roughness: f[1] } : { metalness: 0.05, roughness: 0.55 }; };
 
+/** Whether a part of this material is 3D printed (a printing plastic; none chosen: PLA) — else it is machined / bought
+ *  as metal or plastic stock (the BOM: "made (3D print)" or "made"). */
+export const printed = (material) => MATERIAL_GROUPS[0][1].some(([n]) => n === (material || 'PLA'));
+
 /** A part's colour as shown: its own, else its material's (when one was chosen), else none (the default). */
 export const lookColor = (part) => part?.color || (part?.material && MATERIAL_COLOR[part.material]) || null;

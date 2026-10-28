@@ -165,14 +165,22 @@ parallel flat faces), turning all their steps off, deleting them together.
 
 **Box selection** in a sketch (⬚ Select, drag on empty space): **right to left** takes every shape the box touches
 (green, dashed), **left to right** only the shapes wholly inside it (blue); hold **Ctrl** to add to what is picked —
-by click or by box. Delete removes them all.
+by click or by box. Delete removes them all. **Drag one of the picked shapes and they all move together** (the
+grabbed point snaps as the Snap row allows, the others follow by the same offset; one undo step); dragging a shape
+that is not picked moves just that one.
 
 **Suggestions for what is selected**: choose a shape in a sketch (⬚ Select) or a part in an assembly, and a small
-table in the bottom-left corner of the view says what can be done with it — a line: its length, horizontal,
-vertical, construction; a part: open it, join it, simplified, its own part, take it out. **Ctrl+click** more and it
-offers what fits them together: two crossing lines — their angle, parallel, perpendicular, equal; a line and a circle —
-tangent, the distance from its centre; two circles — concentric, equal, tangent; two parts — join them, measure,
-check for collisions. Esc (or another tool) closes it.
+table in the bottom-left corner of the view says what can be done with it — a part: open it, join it, simplified, its
+own part, take it out. In a sketch the list is short, the likeliest first, and **⋯ More…** opens the rest (in Edit /
+Relations / Kind sections): a line — its length, horizontal or vertical (whichever it nearly is), delete; two lines —
+the angle (or distance) between them, then ∥ / ⟂ / = whichever is nearly true already; a line and a circle — the
+distance from its centre, tangent; two circles — the distance between centres, concentric / equal; a closed outline
+(a box round a rectangle) — ⧈ offset, ⁂ pattern, ✥ move; several mixed shapes — ✥ Move…, ⧉ Copy, ⇋ Mirror,
+✕ Delete all. **✥ Move…** (dx, dy), **⟳ Rotate…** (an angle about their centre, or about a picked point) and **⤢ Scale…**
+(a factor) open a small box that shows the result at once and as you type (Enter = done, Esc = back, one undo step);
+the shapes keep their relations, and a locked size that would have to change refuses it with a message naming the
+lock. **⧉ Copy** puts a copy beside them, picked, ready to drag. Two parts — join them, measure, check for collisions.
+Esc (or another tool) closes it.
 
 **Construction lines**: **┄ Construction** in the sketch toolbar draws helper lines, circles and arcs (dashed
 amber) while it is on; with ⬚ Select it turns the selected shape into one (or back). They guide — a ⟳ Revolve takes
@@ -324,7 +332,18 @@ SolidWorks. It has only the tools that need almost no input.
    hole, 90°; a threaded hole's from its size, M3: Ø6) — change the head's Ø / depth if needed. A head that would not
    fit — wider than the face around the hole, or as deep as the part there (it would cut through) — is refused,
    with the most that fits. *Thread* (M2 … M20) makes it a threaded hole: drilled with its
-   tap drill (M5: Ø4.2) and labelled M5 on the drawing. *Teardrop (print sideways)*, offered on a hole that goes
+   tap drill (M5: Ø4.2) and labelled M5 on the drawing. Its thread is not drawn on the part unless you ask: click the
+   part (no tool on) and choose **🔩 Show all threads** under *The part*, then how: *Cosmetic (light)* draws a thin
+   helix at the thread's pitch on each threaded hole's wall and a thin ring at its major Ø on the face (view only: the
+   solid, its volume and exports stay as they are; quick, it may stay on). *Real geometry (slower)* cuts a true ISO
+   metric thread (60°, the basic profile) along each threaded hole — through, or down to just short of a blind hole's
+   bottom — so it is in the volume and mass, the STEP / IGES / STL / 3MF exports and 🖨 the print split. It costs
+   time and triangles (an M5 × 10: about 0.45 s and 6 000 triangles; eight M6 × 12: about 3.7 s and 49 000); the
+   Part panel says how long the cut took and warns when there are many. While a tool or a sketch is open the real
+   threads show as cosmetic lines, so editing stays quick. Drawings keep showing the thread the standard way: the
+   hole's callout (*2× M6*) and a thin ¾ circle at the major Ø. *Hide all threads* takes them away; the Part panel's
+   *🔩 Threads* row (Hidden / Cosmetic / Real, shown when the part has threaded holes) switches it too, and placed
+   parts in an assembly show their part's choice. *Teardrop (print sideways)*, offered on a hole that goes
    sideways (into a side face, across Z), gives the hole a 45° point on top so it prints lying on its side without
    support (the 🖨 Print check shows no overhang there); the drawing still says Ø d. A counterbore gets the point too; a
    countersink cannot. On a hole that goes up / down it is greyed. Each hole is
@@ -486,6 +505,23 @@ misses — a hole's place, an edge, a Ø or R, and without a hole's callout its 
 blind depth (*the countersink's angle (H1)*) — listed with **＋** (add that one, from the part's edge) and **＋ Add all
 missing**, and marked with an orange **?** on the drawing (not in the PDF); dimensions that give a size twice are
 marked ⧉ (*✕ Remove them*). A known circle gives its own edges (a tangent side, a boss), a pitch *4× 10* its row.
+**Views**: double-click a view's name (on the sheet or in the Views list) to **rename** it (*Side A*); drag a view to
+move it — it **snaps in line** with the front view (Top under it, Right beside it; a dashed guide shows it), Shift
+moves it freely. **Scale**: the sheet's *Scale* is *Auto* (fitted to the paper) or one you choose — 10:1 … 1:100 or
+*Custom…* (any, e.g. *1:2522* or *3:1*); each view may have its own in the Views list, and then says it under its name
+(*Detail B (2:1)*). The title block shows the sheet's scale; dimensions always show the part's real sizes; a view that
+no longer fits inside the frame is flagged (⚠), not refused. The **title block** is clean and light (ISO 7200
+fields): the part's name large, small grey labels over the values, thin rules, a company / logo column on the left —
+it prints well in black and white; an assembly's parts list matches it. **Title-block templates**: in the sheet's
+panel choose *Template* (Modern, Compact, ISO 5457 or your own); type your *Company*, *Address*, *Drawn by*, a
+default *Note*, the *Tolerance standard*, pick a *Logo*, the *Layout* (Block / a low Strip) and the fields shown
+(under *Company, logo and fields*), then **💾 Save as template…** — kept on the server for all your projects. On a
+drawing of an assembly, **⇶ Use for all drawings of this assembly** puts it on the assembly's, its sub-assemblies'
+and its parts' drawings, and new drawings of that set take it too; the PDF and DXF use it. **Frame**: *Simple*
+(10 mm all round, the default), *Standard ISO 5457* (20 mm on the left for filing, 10 mm elsewhere, a 0.7 mm line,
+zones A… / 1… and centring marks), *Narrow* (5 mm), *None*, or *Custom…* (each margin, the line, zones, centring
+marks). The views and the automatic scale fit inside the margins; the frame is kept in the title-block template, so a
+whole drawing set follows it (a drawing may choose its own).
 The title block takes your own texts — *Title*, *Drawing no.*, *Drawn by*, *Note* — in the panel (a double-click on a cell goes to its field). **⬇ PDF** gives the sheet as you see it — the page is the paper (A4 / A3) and
 1 mm on the sheet is 1 mm on the page, so printed at 100 % ("actual size", not "fit to page") the sheet's scale holds.
 **⬇ DXF** gives it for drafting programs (AutoCAD, SolidWorks / Solid Edge drafting): the paper 1:1 in mm, the views
@@ -707,10 +743,10 @@ the app exchanges with them — and with Inventor, Fusion, Creo, NX, FreeCAD, On
 
 | Format | In | Out | Notes |
 |---|---|---|---|
-| **STEP** (.step / .stp, AP214) | a part (exact solid, colours); an assembly (parts, placements, sub-assemblies, names, colours) | a part; an assembly as an assembly tree | The best choice: all three read and write it (*Save As → STEP AP214 / AP242*). |
-| **IGES** (.igs / .iges, 5.3) | a part: its solids, or its surfaces sewn into a solid (a warning says so); surfaces that do not close come in as a 👁 reference body | a part (exact B-rep solid, mm); an assembly as one file (every part placed, names and colours — IGES has no assembly tree) | For programs and suppliers that still ask for IGES. Prefer STEP. |
+| **STEP** (.step / .stp, AP214) | a part (exact solid, colours); an assembly (parts, placements, sub-assemblies, names, colours) | a part (named, in its colour, 🎨 painted faces in theirs); an assembly as an assembly tree (the same for each part) | The best choice: all three read and write it (*Save As → STEP AP214 / AP242*). Names with ×, č … are written as STEP's own `\X2\` codes (an ASCII file every reader decodes). |
+| **IGES** (.igs / .iges, 5.3) | a part: its solids, or its surfaces sewn into a solid (a warning says so); surfaces that do not close come in as a 👁 reference body | a part (exact B-rep solid, mm, its name and colours); an assembly as one file (a body per placed part, named by its place, e.g. "Post pair-2/Post-1", with its colours — IGES has no assembly tree) | For programs and suppliers that still ask for IGES. Prefer STEP. IGES holds ASCII only: "M6×16" becomes "M6x16", accents are dropped. |
 | **DXF** (drawing sheet) | — (a DXF / DWG opens as a 📐 2D drawing) | a part's or an assembly's 📄 drawing sheet: the paper 1:1 in mm, views, real dimensions, title block, a layer per kind | ⬇ DXF on the sheet. Opens in AutoCAD, DraftSight, SolidWorks (*Open → DXF*, as a drawing) and Solid Edge Draft. |
-| **glTF** (.glb) | — | a 3D model part (its colour, the material's metal / plastic look) or an assembly (a node per placed part with its name, sub-assemblies nested, colours, PBR materials); metres, Y up | For viewers, rendering (Blender, KeyShot), web pages, SolidWorks Visualize / CATIA Composer-like tools. A quick part's GLB is its preview mesh. |
+| **glTF** (.glb) | — | a 3D model part (its colour, 🎨 painted faces, the material's metal / plastic look) or an assembly (a node per placed part with its name, sub-assemblies nested, colours, PBR materials); metres, Y up | For viewers, rendering (Blender, KeyShot), web pages, SolidWorks Visualize / CATIA Composer-like tools. A quick part's GLB is its preview mesh. |
 | **OBJ** (.obj) | a mesh made a solid (up to 60 000 triangles), or a sliced quick part | a 3D model part as a mesh (mm, shared corners, normals) | For renderers and 3D programs that take OBJ. |
 | **Parasolid** (.x_t / .x_b), **JT**, native SLDPRT / CATPart / PAR | not read | not written | Closed or licensed formats with no free reader that gives an exact solid — save as **STEP** in the program that made them (see *Parasolid and JT* in docs/ARCHITECTURE-modeler.md Progress). |
 
@@ -720,6 +756,10 @@ the app exchanges with them — and with Inventor, Fusion, Creo, NX, FreeCAD, On
   {format: "step" | "iges" | "glb" | "obj"}`; on a drawing sheet `export {format: "dxf" | "pdf"}`.
 - In SolidWorks: *File → Open*, file type STEP / IGES (an assembly STEP opens as an assembly with its parts). CATIA:
   *File → Open* (STEP AP214 / IGES). Solid Edge: *Open*, file type STEP / IGES (the import wizard keeps the assembly).
+- **Try them yourself**: `samples/ExportFromOurApp/` holds files the app exported (a part with threaded countersunk
+  holes, an assembly with a sub-assembly and repeated parts, drawing sheets: STEP, IGES, STL, OBJ, GLB, 3MF, BOM CSV,
+  PDF, DXF, the project file); its README.md says what to check in each program. `tools/make_export_samples.py`
+  makes them again.
 
 ## AI assistant (✨ AI tab)
 

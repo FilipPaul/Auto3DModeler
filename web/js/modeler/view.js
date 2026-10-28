@@ -119,6 +119,22 @@ export function axes(fr) {
   return { o, x, y: new THREE.Vector3().crossVectors(n, x), n };
 }
 
+/** 🔩 Cosmetic threads as line segments [x0, y0, z0, x1, …]: on each threaded hole's wall (a hair inside it, so the
+ *  wall does not hide it) a right-hand helix at the thread's pitch, 24 pieces a turn, and a ring at its major Ø a hair
+ *  above the face it goes in from. holes: the kernel's thread_holes [{at, axis, depth, major, minor, pitch}]. */
+export function threadSegments(holes) {
+  const out = [];
+  for (const h of holes || []) {
+    const a = V(h.axis).normalize(), o = V(h.at);
+    const u = new THREE.Vector3(Math.abs(a.x) < 0.9 ? 1 : 0, Math.abs(a.x) < 0.9 ? 0 : 1, 0).cross(a).normalize(), v = a.clone().cross(u);
+    const at = (r, ang, z) => o.clone().addScaledVector(u, r * Math.cos(ang)).addScaledVector(v, r * Math.sin(ang)).addScaledVector(a, z);
+    const line = (n, p) => { let q = p(0); for (let i = 1; i <= n; i++) { const w = p(i / n); out.push(q.x, q.y, q.z, w.x, w.y, w.z); q = w; } };
+    line(Math.max(1, Math.round((h.depth / h.pitch) * 24)), (k) => at((h.minor / 2) * 0.995, (2 * Math.PI * k * h.depth) / h.pitch, k * h.depth));
+    line(48, (k) => at(h.major / 2, 2 * Math.PI * k, -0.01));
+  }
+  return out;
+}
+
 export class ModelView {
   /** cube: the view cube in the top-right corner (the 3D model, the assembly). */
   constructor(container, { cube = false } = {}) {
@@ -160,6 +176,7 @@ export class ModelView {
     this.material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.05, side: THREE.DoubleSide,
       polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
     this.edgeMaterial = new THREE.LineBasicMaterial({ color: 0x1b2430 });
+    this.threadMaterial = new THREE.LineBasicMaterial({ color: 0x4a5566 }); // 🔩 cosmetic threads: thin, quieter than the edges
     this.body = null;
     this.size = 100;
     this.hover = -1;
@@ -302,6 +319,20 @@ export class ModelView {
       mesh.matrixAutoUpdate = false;
       mesh.matrix.fromArray(c.matrix);
       this.ctxGroup.add(mesh);
+    }
+    this.invalidate();
+  }
+
+  /** 🔩 Cosmetic threads (view only — the solid is not changed): thread_holes' helix and ring lines; null: none. */
+  setThreads(holes) {
+    if (!this.threadGroup) { this.threadGroup = new THREE.Group(); this.scene.add(this.threadGroup); }
+    this.clear(this.threadGroup);
+    const seg = threadSegments(holes);
+    this.threadCount = seg.length ? holes.length : 0; // (how many holes show a thread)
+    if (seg.length) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(seg, 3));
+      this.threadGroup.add(new THREE.LineSegments(g, this.threadMaterial));
     }
     this.invalidate();
   }
@@ -779,7 +810,8 @@ export class ModelView {
     }
     this.material.clippingPlanes = planes;
     this.edgeMaterial.clippingPlanes = planes;
-    this.material.needsUpdate = this.edgeMaterial.needsUpdate = true;
+    this.threadMaterial.clippingPlanes = planes;
+    this.material.needsUpdate = this.edgeMaterial.needsUpdate = this.threadMaterial.needsUpdate = true;
     this.invalidate();
   }
 

@@ -34,6 +34,10 @@ maker numbers.
   dimension the preset left out, `sheet_edit {remove: [...]}` for clutter; then `export {format: "pdf"}` on the sheet (and `"dxf"` when the
   user's drafting program — AutoCAD, SolidWorks, Solid Edge — should take it: the paper 1:1, real dimensions).
   Say the material and the finish (e.g. "AlMg3, anodised").
+  The title block: `get_sheet` reports its `template` and the ones there are; on the assembly's sheet
+  `sheet_edit {template: "<name>", template_all: true}` puts the user's template (company, logo, frame) on every drawing
+  of the set (new ones take it too); `sheet_edit {texts: {company, address}, save_template: "<name>"}` makes one. A
+  scale the user names: `sheet_edit {scale: "1:5"}` (a view's own: `sheet_edit {view_scales: {Top: "2:1"}}`).
 
 ## Pneumatic cylinders (SMC CJ2 in the library)
 - **Force** = pressure × area: at 6 bar a Ø10 pushes ≈ 47 N, a Ø16 ≈ 120 N (pull less: the rod area is lost). Take

@@ -806,6 +806,102 @@ Date: 2026-10-25. Written by the architect agent.
   that is) and kernel.material_along (the part's depth under the hole, a blind hole's own depth) — a head wider than
   the face or as deep as the part is an issue with the most that fits ("at most Ø6.4"), never cut through.
   test_hole_head_fits; tools/e2e_sheet_hole_callouts.py (the AI's M3 ⌵ on a 2 mm plate).
+- **Sheet views renamed, moved and scaled done:** d.viewNames (a double-click on a view's label on the sheet: a field
+  over it; or on its name in the Views panel; in undo, the PDF, the DXF), d.scale (the sheet's own, an override of the
+  fit: sheet.parse_scale "1:2522" / "3:1" / "1/5" / "0.5"; layout(geo, paper, scale, frame) — server.py _sheet_layout
+  makes the layout for it; Auto chooses A3 when it does not fit A4) and d.vscale (a view's own, its label "Top
+  (2:1)"; SheetEditor.vs(v) everywhere a view is drawn / picked; the DXF's dimensions of it get their own DIMLFAC).
+  Scale choices: 10:1 … 1:100 and Custom… (choose.js ask(): a small text dialog). The title block's Scale is the
+  sheet's; dimensions stay the part's sizes. Views past the frame: a warning (panel, status, get_sheet past_the_frame),
+  never refused. Dragging a view snaps it in line (Top under / over Front, Right and Section beside it, within 4 mm, a
+  dashed guide); Shift: free. sheet_edit scale / view_scales / view_names for the AI. tests/test_sheet_views.py;
+  tools/e2e_sheet_views_templates.py.
+- **A modern title block done:** SheetEditor.titleSvg redrawn (the same SVG on screen, in the PDF and the DXF) with
+  every field kept (ISO 7200): a company / logo column on the left (Auto3DModeler · Dimensions in mm until a company is
+  given), the kind line (Part · in … · Pos. n) small and muted over the part's name large and bold, the drawing no. on
+  its right; then Material | Scale | Paper | Tolerances | Sheet n / N and Drawn by | Created | Changed · Rev | Note —
+  labels 1.75 mm grey over 2.9 mm values; one 0.35 mm outline, 0.13 mm rules between rows and short ones between
+  cells; dates as ISO 8601. 150 mm wide on A4, 180 mm on A3, inside the frame's right / bottom margins. The parts list
+  of an assembly's page in the same style (one outline, muted header over a rule, light rows, the position bold).
+  tools/e2e_sheet_views_templates.py (inside the frame, black / grey / white only, the name ≥ 5 mm).
+- **Title-block templates for a whole drawing set done:** auto3d/title_templates.py — {name, layout block | strip,
+  hide [fields], texts {company, address, drawn, note, tolstd}, logo (a data URL ≤ 400 kB), frame} kept in
+  data/title_templates.json (server-side, like the parts library: every project uses them); the app's Modern (the
+  default), Compact (a strip) and ISO 5457 cannot be changed. GET / POST / DELETE /api/title-templates. A sheet names
+  its template (d.template); without one it takes its drawing set's (the top assembly's sheet's — new sheets of the set
+  too), else Modern; d.tb {layout, hide, logo} are this sheet's own changes. The right panel: Template ▾, 💾 Save as
+  template… (ask: a name; the title block as shown, the sheet's company / address / drawn / note / tolerance standard
+  go into it), ⇶ Use for all drawings of this assembly (hooks.applyTemplate: every sheet of SheetEditor.pagesOf(root),
+  the top assembly's made when it has none), and folded: Company, Address, Tolerance standard, Logo (scaled to ≤ 600 ×
+  300 px), Layout Block | Strip (14 mm: layout(frame.title) gives the views the room), the fields shown. svgOf takes
+  the set's template, so the PDF, the DXF and 📚 All pages show it. AI: sheet_edit template / template_all /
+  save_template, texts company / address / tolstd; get_sheet template + templates. tests/test_title_templates.py;
+  tools/e2e_sheet_views_templates.py (typed, saved, kept on the server; Machine → Lid unit → Lid / Pin, Base: all five
+  pages and their PDF carry the company; a new sheet of the set takes it; the DXF; back to Modern).
+- **The sheet's frame and margins done:** frame {preset simple (10 mm, 0.5 line: the default, as before) | iso (ISO
+  5457: 20 mm left for filing, 10 elsewhere, 0.7 line, zones, centring marks) | narrow (5 mm) | none (no line, 10 mm
+  kept) | custom {m [left, top, right, bottom] ≤ 40 mm, line ≤ 2 mm, zones, marks}} — held by the title-block template
+  (so a drawing set follows it), a sheet's own d.frame overrides it (in undo). SheetEditor.frameSvg: the line; zones
+  (about 50 mm each, an even count: A4 6 × 4, A3 8 × 6; numbers across, letters down, in the margins with ticks);
+  centring marks from the paper's edge 5 mm into the frame. layKey / layReq pass the margins to layout(frame) — the
+  views' cells and the auto-fit scale use them; the title block, parts list and the fit warning sit inside them; the
+  PDF and DXF draw it from the same SVG. The right panel's Frame: Simple | Standard ISO 5457 | Narrow | None |
+  Custom… (its five numbers and two ticks). AI: sheet_edit frame; get_sheet frame. tests/test_sheet_views.py
+  (margins, a strip's room, the fit); tools/e2e_sheet_views_templates.py (ISO: the PDF's frame rect at 20 mm, zones A
+  / 6; None: no frame; Custom… 25 mm typed, Ctrl+Z; the template's ISO frame on all five pages of a set).
+- **Short sketch suggestions done:** Sketcher.suggestions — at most 4 rows + ✕ Delete, ranked: a dimension first,
+  then the relations nearly true already (two lines: ∥ under 10°, ⟂ over 80°, = within 10 % of length; two circles:
+  ◎ / = / ⌒ by how near; of the nearly true ones = after ∥ / ⟂ / ◎; none: the nearest one), not those held already
+  (hasRule: ∥ / ⟂ by both lines' H / V); a loop (loopOfPicks -> loopFrom, split out of loopAt): ⧈ Offset, ⁂ Pattern,
+  ✥ Move; mixed: ✥ Move…, ⧉ Copy, ⇋ Mirror. ⋯ More… (sgMore, reset by a new pick) lists the rest in Edit / Relations /
+  Kind sections (showSuggest {section}). The title counts "N shapes, M points". The picks as a whole: pickShapes /
+  pickPoints / pickCentre (a picked point is the pivot); transformPicks (move / rotate / scale: their points held
+  where they go — solve(drag) — the relations kept; turnRules: a quarter turn swaps H / V and dx / dy locks, any other
+  angle puts ∥ / ⟂ for them); relock {exact}: constraints.solve's new `held` {ok, conflicts} refuses a hold the locks
+  do not let through, the toast naming them; xformBox (✥ dx / dy, ⟳ 90°, ⤢ 2×: shown at once, retyped from where they
+  were, one undo step, Esc back); copyPicks (beside them, H / V, tangents, locked sizes along; the copy picked);
+  mirrorPicks (the ⇋ box: an axis or a line and done); addRelations (chains as one undo step, a held one left out).
+  test_held_says_whether_a_group_got_there; tools/e2e_sketch_multiselect.py.
+- **Dragging several picked sketch shapes done:** Sketcher.down — a press on one of several picks (inPicks: a picked
+  shape, a point of one, a picked side's rectangle) drags pickPoints together; the grabbed point (the nearest of the
+  shape's own) snaps (snap's skip takes a Set: the moving points are not snapped to, nor guide from), its guides drawn
+  (dragGuides); the others by the same offset, the solver keeps the relations; one undo step; picks kept (refreshPicks).
+  An unpicked shape dragged moves alone and drops the picks. tools/e2e_sketch_multiselect.py.
+- **🔩 Cosmetic threads done:** part `threads` "hidden" (default) | "cosmetic" (doc.THREAD_MODES). Every rebuild says
+  where the threaded holes are: out.threads {mode, holes} — doc.thread_holes (cached per features key) finds them by
+  their walls' names ("<step>:hole:k", a pattern's / mirror's copies "P1:2:<step>:hole:k") in the built body;
+  kernel.round_span gives the wall's axis, its extent along it and which ends are open (the classifier a hair past
+  each end: an open end is not inside the part; of two, the one the step's normal points to is the entry) -> {name,
+  thread, at (entry, on the axis), axis (into the part), depth, major, minor (tap drill), pitch (doc.PITCH, ISO 261
+  coarse), through}. ModelView.setThreads draws them (view.threadSegments: a right-hand helix on the wall, a hair
+  inside it, 24 pieces a turn, and a 48-piece ring at the major Ø a hair above the entry face; its own thin
+  material, clipped by ✂ Section); the solid is unchanged. The click's "The part" section: 🔩 Show all threads /
+  Hide all threads (only with threaded holes); the Part panel's 🔩 Threads Hidden / Cosmetic; the setting is in the
+  modeler's undo (the look snapshot) and the project file; an assembly's placed part shows its part's (AsmView, the
+  body's threads). The AI: set_look {threads}. test_cosmetic_thread_data; tools/e2e_model_threads.py.
+- **🔩 Real threads done:** part threads "real": after all the steps doc._real_threads cuts an internal ISO metric
+  thread into each threaded hole (cached per features key, so a view change or an undo does not cut again; the
+  steps' own refs are untouched — they were built before it). kernel.thread_tool: the basic profile of ISO 68-1 (60°
+  flanks, P/8 flat at the major Ø; a trapezoid from 0.1 P inside the tap drill out to the major Ø, kernel.thread_reach)
+  swept with BRepOffsetAPI_MakePipeShell along a right-hand helix (2D lines on a Geom_CylindricalSurface, a fixed
+  binormal: the profile stays in the axis's plane), cached per (major, minor, pitch, length). The helix is one edge a
+  turn: one long helical face made the cut with the hole's cylinder fail silently (no intersection found: the volume
+  unchanged, or wrong); per turn it is right to 2e-5 of the groove's analytic volume. A groove runs a pitch past an
+  open end and stops thread_reach short of a blind bottom; kernel.along places it (a location, no copy);
+  kernel.cut_threads cuts them all at once (SetRunParallel: 8 holes 4.6 -> 1.5 s) carrying the names — the hole's
+  wall keeps "<step>:hole:k" on its strips, the thread's faces are "<step>:thread:k" (a copy's "P1:1:<step>:thread:k").
+  A cut that fails or removes nothing: the part without threads and threads.real.issue. rebuild's threads.real {holes,
+  cut, seconds, warning (more than MANY_THREADS = 8), issue}. body_of(part, threads=True) gives exports (STEP / IGES /
+  STL / OBJ / GLB), the print split (its STEP printing copy), assembly STEP / clashes the threaded body; the sheet, the
+  PDF drawing and the assembly sheet take threads=False (no helix edges: the callout and, in sheet.js, a thin ¾ circle
+  at the major Ø on each threaded hole seen round, class sh-thread). The browser: the choose dialog "Cosmetic (light) |
+  Real geometry (slower)", the Part panel's Real (+ "n real threads, cut in s" and the warning), a toast with the
+  time; while a tool / a sketch is open real is asked as cosmetic (threadsShown). Placed parts: flatParts / the STEP
+  tree carry their part's threads. Measured (tessellation included; the cut alone in brackets): M5 × 10 one hole 0.45 s
+  (0.23 s), 220 -> 6 238 triangles; 8 holes M6 × 12 3.7 s (1.8 s), 1 676 -> 48 574; 12 holes 5.1 s (2.5 s), 2 508 ->
+  77 308; again (cached) 0 s. The STEP of two M6 × 12: 1.7 MB (80 spline surfaces). Left out: external threads on
+  shafts (no thread feature for them yet), a print clearance on the profile, thread run-outs, left-hand / fine
+  pitches. test_real_thread, test_real_threads_split; tools/e2e_model_threads.py.
 - **Floating boxes moved and resized done:** web/js/floatbox.js floatBox(box, viewport, {kind, handle, remember,
   min, onDefault}) — called after a box is put in its view (again after its content is re-rendered): dragged by its
   header (or a slim ⠿ .fb-strip added on top / at a bar's left end), resized by the .fb-size grip in its bottom-right
@@ -825,12 +921,25 @@ Date: 2026-10-25. Written by the architect agent.
   the hole (8.25 / 6.5 -> 8.14 / 6.56). edit_feature keeps the step's stored frame while its face, mid and origin
   stay; a key beside `fields` is refused ("put the changes in fields: {…}"). Saved frames are used as stored.
   test_face_centre_ignores_holes; tools/e2e_agent.py.
+- **Export names and colours right (fix, found making samples/ExportFromOurApp):** names reach XCAF as UTF-8
+  (`TCollection_ExtendedString(text, True)`: "M6×16", not "M6Ã—16"); a STEP is written in ASCII, its other characters
+  as STEP's own `\X2\00D7\X0\` (kernel._step_ascii — OCCT wrote raw UTF-8); the writers' Interface_Static settings
+  (product name, schema, IGES B-rep mode — one set per worker process) are set for one export and put back
+  (kernel._settings), so a part's STEP no longer took the last assembly's product name. A part's STEP / IGES go
+  through XCAF as the assembly's do: its name, its colour (own or material's), its faces' colours — an imported file's
+  and the 🎨 paint (doc.face_colours resolves part.paint as paint.js paintedFaces: the face of that name nearest fp,
+  or every face of a step); the assembly tree carries each part's paint (stepfile.js) to STEP, IGES and glTF. An
+  assembly's IGES is a body per placement (kernel._flat: copied there, so a part placed twice keeps each placement's
+  colour), each named in ASCII by its placements' path ("Post pair-2/Post-1", "M6x16"). glTF: a part's colour lives in
+  its material only, so a placement's own colour (the green post) shows. The BOM's Bought / made by the material
+  (materials.printed / made_how: a printing plastic "made (3D print)", else "made"); an assembly sheet's title block
+  material "—" (not "PLA"). test_export_names, test_export_samples; the samples made again.
 - **Parallel booleans done:** every boolean of the kernel (BRepAlgoAPI Cut / Fuse / Common — combine, up to next,
-  rib, split, material_along, the print split's `boolean`, clashes, the sheet's section) goes through kernel.bop, which
-  sets SetRunParallel (kernel.PARALLEL; A3D_PARALLEL_BOOL=0: serial). No Splitter / BOPAlgo builder is used. Verified
-  the same: the whole unit suite passes both ways, and tests/test_parallel_bool.py builds holes, threads, patterns,
-  fillets / chamfer, shell, split, rib and the 171-hole plate both ways — volumes to 1e-9, face counts, face names;
-  clashes, print pieces and a section alike. Nothing had to stay serial. Times (best of 3, a loaded 16-core machine,
+  rib, split, material_along, the print split's `boolean`, clashes, the sheet's section, real threads' cut_threads)
+  goes through kernel.bop, which sets SetRunParallel (kernel.PARALLEL; A3D_PARALLEL_BOOL=0: serial). No Splitter /
+  BOPAlgo builder is used. Verified the same: the whole unit suite passes both ways, and tests/test_parallel_bool.py
+  builds holes, threaded holes, real threads, patterns, fillets / chamfer, shell, split, rib and the 171-hole plate
+  both ways — volumes to 1e-9, face counts, face names; clashes, print pieces and a section alike. Nothing had to stay serial. Times (best of 3, a loaded 16-core machine,
   serial -> parallel): the 171-hole plate rebuilt 5.29 -> 4.06 s, a split step 0.68 -> 0.61 s, the exact print split
   (the plate on an 80 mm bed, 6 pieces) 0.88 -> 0.82 s, a clash check of three such plates 0.78 -> 0.59 s — the
   booleans are small (one hole each): most of the time is outside the intersection stage.
