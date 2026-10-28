@@ -91,6 +91,9 @@ Date: 2026-10-25. Written by the architect agent.
   tools/e2e_ai_reports.py.
 - **Steps named after their sketch done:** nextName(type, sketch): an extrude / revolve of a sketch the user named
   is "Extrude – Slot" (a "Sketch 2" keeps "Extrude 3"), in the panel and for the AI. tools/e2e_ai_reports.py.
+- **The sheet check leaves decoration out done:** check() skips circles and edges of a decal step's faces (engraved /
+  raised text and pictures are not sized); get_sheet's missing items end with their point key / circle [...] for
+  sheet_edit add. tools/e2e_ai_reports.py.
 - **The AI's measure in 3D models done:** measure {a: {face}, b: {face}} on the model on screen (measureModel: centres
   apart, the angle, the gap between parallel flat faces — a wall's thickness —, round faces' axes apart and Ø), as in
   assemblies. tools/e2e_ai_reports.py.

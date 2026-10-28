@@ -740,17 +740,20 @@ export class SheetEditor {
       missing.push({ view: v, dir: k ? 'v' : 'h', at, key, what, ax });
     };
 
+    const decals = new Set((this.hooks.partData(this.d.source)?.features || []).filter((f) => f.type === 'decal').map((f) => f.id));
+    const deco = (key) => decals.size > 0 && key.split('+').some((n) => decals.has(n.split(':')[0])); // (an edge of a decal step's faces)
     const diaTold = new Set();
     for (const v of shown) {
       const g = G.views[v];
       for (const c of g.circles) {
+        if (deco(c.key)) continue; // (text / a picture on a face: not sized)
         if (c.full) {
           for (const k of [0, 1]) need(v, k, c.c[k], `${c.key}#c`, c.c, `Ø${fmt(2 * c.r)}`);
           if (!fullR.has(r2(c.r)) && !diaTold.has(`d${r2(c.r)}`)) { diaTold.add(`d${r2(c.r)}`); missing.push({ view: v, kind: 'dia', key: c.key, at: c.pm, what: `Ø${fmt(2 * c.r)}` }); }
         } else if (!arcR.has(r2(c.r)) && !diaTold.has(`r${r2(c.r)}`)) { diaTold.add(`r${r2(c.r)}`); missing.push({ view: v, kind: 'rad', key: c.key, at: c.pm, what: `R${fmt(c.r)}` }); }
       }
       for (const ln of g.lines) {
-        if (ln.key.includes(':round:')) continue; // where a rounding begins: its R gives it
+        if (ln.key.includes(':round:') || deco(ln.key)) continue; // where a rounding begins: its R gives it; text / a picture: decoration
         if (Math.abs(ln.a[0] - ln.b[0]) < 1e-3) need(v, 0, ln.a[0], `${ln.key}#0`, [(ln.a[0] + ln.b[0]) / 2, (ln.a[1] + ln.b[1]) / 2], t('an edge'));
         if (Math.abs(ln.a[1] - ln.b[1]) < 1e-3) need(v, 1, ln.a[1], `${ln.key}#0`, [(ln.a[0] + ln.b[0]) / 2, (ln.a[1] + ln.b[1]) / 2], t('an edge'));
       }
@@ -1119,7 +1122,7 @@ export class SheetEditor {
   /** For the AI: the sheet's dimensions with their values. */
   summary() {
     const ck = this.check();
-    return { check: ck ? { fully_dimensioned: ck.ok && !ck.over.size, missing: ck.missing.map((m) => `${m.view}: ${m.what}${m.ax ? ` (${m.ax})` : ''}`).slice(0, 30), twice: [...ck.dup, ...ck.over] } : null,
+    return { check: ck ? { fully_dimensioned: ck.ok && !ck.over.size, missing: ck.missing.map((m) => `${m.view}: ${m.what}${m.ax ? ` (${m.ax})` : ''} [${m.key}]`).slice(0, 30), twice: [...ck.dup, ...ck.over] } : null,
       part: this.hooks.partName(this.d.source), ...(Object.keys(this.d.texts || {}).length ? { texts: this.d.texts } : {}), preset: this.d.preset, ...(Object.keys(this.d.vpreset || {}).length ? { view_presets: this.d.vpreset } : {}), paper: this.lay?.paper, rev: this.d.rev, changed: this.d.changed,
       views: [...VIEWS, 'Iso'].filter((v) => !this.d.off[v]),
       dims: this.allDims().map((d) => ({ id: d.id, view: d.view, kind: d.kind, text: this.value(d) === null ? null : this.dimText(d, this.value(d)), auto: !!d.auto, ...(this.value(d) === null ? { lost: true } : {}) })),

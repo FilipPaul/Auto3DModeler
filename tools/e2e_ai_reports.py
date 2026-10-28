@@ -3,7 +3,8 @@ camera close to the part); fit: false keeps the view -> set_view section on, the
 model's steps (kind step, with their ids) and a choice with its text -> the Snap row hidden while a feature is
 made -> a wall flush on the plate (add_feature says where it went, the volume change; flipped: -z): its back one face with both names; find_refs of_step / between_steps -> measure in the model (the plate 8, the wall 5) -> an extrude of
 a sketch named Slot: "Extrude – Slot" ->
-a drawing sheet: get_screenshot is a picture of the sheet.
+engraved text AB -> a drawing sheet: get_screenshot is a picture of the sheet; the check's missing sizes leave the
+text out and give each its key.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_ai_reports.py http://127.0.0.1:5199 <out dir>
 """
@@ -92,8 +93,13 @@ try:
     print("⬆ Extrude of the sketch named Slot, in the panel:", js(f"return {M}.cmd?.feature?.name || null"))
     js(f"{M}.cmd && {M}.cancelCommand()")
     print("  the AI's:", json.loads(call("add_feature", type="extrude", op="cut", through=True))["name"])
+    dec = json.loads(call("add_feature", type="decal", face="F2:end", text="AB", h=8, op="cut", depth=0.5))
+    print("engraved AB:", dec["ok"], dec["id"])
     print("sheet_open:", json.loads(call("sheet_open", part="Plate"))["preset"])
     wait("return !!window.__app.sheet.svgEl")
+    ck = json.loads(call("get_sheet"))["check"]
+    print("the check's missing:", len(ck["missing"]), "| none of the text:", not any(f"{dec['id']}:" in m for m in ck["missing"]),
+          "| each with its key:", all(m.endswith("]") and "[" in m for m in ck["missing"]), "| e.g.", ck["missing"][:1])
     r = js(f"return {H}.get_screenshot({{}}).then(r => [r.text, r.image]).catch(e => ['ERROR ' + e.message, null])")
     print("sheet screenshot:", r[0], "| png", bool(r[1]) and base64.b64decode(r[1])[:4] == b"\x89PNG")
     if r[1]:

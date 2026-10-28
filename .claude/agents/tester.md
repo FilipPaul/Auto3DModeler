@@ -199,7 +199,7 @@ Never report "works" without having run it; report failures with their output.
    assembly's bars: each group in one run, one colour per group, the groups' colours differ; screenshots of the bars).
    `tools/e2e_ai_reports.py <url> <dir>` covers the fixes from the AI's reports (a zoomed-out view: get_screenshot
    fitted again, fit: false kept; set_view section "off": no cut; gui_state's step rows and a choice's text; the Snap
-   row gone while ▢ Shell is on; the wall's extrude says went +z 0 … 30 and its volume change, flipped -z; a wall flush on the plate: its back one face with both names; find_refs of_step: the
+   row gone while ▢ Shell is on; engraved text AB: the sheet check's missing sizes leave it out, each with its key; the wall's extrude says went +z 0 … 30 and its volume change, flipped -z; a wall flush on the plate: its back one face with both names; find_refs of_step: the
    wall's 6 faces, between_steps F2 / F4: the one joint edge; a wrong step refused; measure in the model: the plate 8,
    the wall 5, a wrong face refused; an extrude of a sketch named Slot
    is "Extrude – Slot" in the panel and for the AI; a drawing sheet's screenshot is a
