@@ -80,6 +80,9 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Box selection in sketches done:** Sketcher.down on empty space with ⬚ Select -> a box drag (.sk-box; crossing when
+  dragged right to left); boxPicks (each shape's points on the screen: touched / wholly inside); Ctrl adds to the
+  picks; deleteSel removes several picks. e2e_sketch_pick.
 - **Reorder steps by dragging done:** the step list's rows are draggable (text/a3d-step; drop-before / after);
   Modeler.moveStep — refused when a step would come before one it uses (dependents), committed and rebuilt, taken back
   (history.go(-1)) when a step no longer builds. tools/e2e_model_reorder.py.

@@ -816,6 +816,8 @@ body.view-acts .toast-stack { bottom: 84px; }
 .viewport.drop-in { outline: 2px dashed var(--accent); outline-offset: -6px; }
 /* the sketch's selection filters: bottom left of the view (the suggestions and the size box above them) */
 .viewport:has(> .sk-filters) .view-suggest, .viewport:has(> .sk-filters) .sk-choose.sk-quick { bottom: 62px; }
+.sk-box { position: absolute; z-index: 6; border: 1px solid #58a6ff; background: #58a6ff1a; pointer-events: none; }
+.sk-box.crossing { border: 1px dashed #7ee787; background: #7ee78714; }
 .m-snap { font-size: 10.5px; color: #0d1117; background: #7ee787; border-radius: 4px; padding: 0 5px; transform: translate(10px, -14px); pointer-events: none; }
 .sk-filters { position: absolute; left: 12px; bottom: 26px; z-index: 5; max-width: calc(100% - 300px); overflow-x: auto; display: flex; align-items: center; gap: 3px;
   background: #161a20e0; border: 1px solid var(--line); border-radius: 16px; padding: 3px 6px; font-size: 11.5px; white-space: nowrap; }

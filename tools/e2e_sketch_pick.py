@@ -2,7 +2,8 @@
 the view -> "Lines" off: a click on a line takes nothing, on again -> the origin picked: its suggestions -> a line's
 midpoint and the circle (Ctrl+click): the distance between them, kept by the solver at the middle -> a locked
 dimension dragged by its line (not its label) -> the circle's size shown as R (⇄), 5 typed: Ø 10 -> an off-grid line:
-its middle and a place on it snapped to -> guides: in line with a corner, on a side's extension.
+its middle and a place on it snapped to -> guides: in line with a corner, on a side's extension -> Ctrl+Z / Ctrl+Y -> a selection box: left to right only
+what is inside, right to left all it touches, Ctrl adds; Delete removes them.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_sketch_pick.py http://127.0.0.1:5199 <out dir>
 """
@@ -198,6 +199,27 @@ try:
     ActionChains(d).key_down(Keys.CONTROL).send_keys("y").key_up(Keys.CONTROL).perform()
     time.sleep(0.5)
     print("Ctrl+Z:", n, "->", n1, "shapes | Ctrl+Y:", js(f"return {SK}.f.entities.length"))
+    # a selection box: left to right — only what is wholly inside; right to left — all it touches; Ctrl adds
+    tool("select")
+    def box(p, q, ctrl=False):
+        a, b = off(p), off(q)
+        ch = ActionChains(d, duration=40)
+        if ctrl:
+            ch.key_down(Keys.CONTROL)
+        ch.move_to_element_with_offset(canvas(), *a).click_and_hold().move_by_offset((b[0] - a[0]) // 2, (b[1] - a[1]) // 2).move_to_element_with_offset(canvas(), *b).release()
+        if ctrl:
+            ch.key_up(Keys.CONTROL)
+        ch.perform()
+        time.sleep(0.6)
+        return sorted(js(f"return ({SK}.picks || []).map(q => q.kind)"))
+    print("box left to right round the circle:", box((62, 10), (82, 30)), "(only it)")
+    print("box right to left over the rectangle's bottom-right corner:", box((58, 4), (46, 14)), "(the two sides it touches)")
+    print("Ctrl + a box round the circle: added:", box((62, 10), (82, 30), ctrl=True))
+    shown = js("return document.querySelector('#modelViewport .view-suggest .vs-head b')?.textContent")
+    n = js(f"return {SK}.f.entities.length")
+    d.find_element(By.TAG_NAME, "body").send_keys(Keys.DELETE)
+    time.sleep(0.6)
+    print("  the table:", shown, "| Delete:", n, "->", js(f"return {SK}.f.entities.length"), "shapes")
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()

@@ -72,6 +72,10 @@ line shows what it lines up with (two at once: where they cross).
 **The tools for a face of a 3D model** open with a **right click** on it (a left click chooses its step and shows its
 sizes; the right button dragged still pans).
 
+**Box selection** in a sketch (⬚ Select, drag on empty space): **right to left** takes every shape the box touches
+(green, dashed), **left to right** only the shapes wholly inside it (blue); hold **Ctrl** to add to what is picked —
+by click or by box. Delete removes them all.
+
 **Suggestions for what is selected**: choose a shape in a sketch (⬚ Select) or a part in an assembly, and a small
 table in the bottom-left corner of the view says what can be done with it — a line: its length, horizontal,
 vertical, construction; a part: open it, join it, simplified, its own part, take it out. **Ctrl+click** more and it

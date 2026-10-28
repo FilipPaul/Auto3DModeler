@@ -947,11 +947,13 @@ export class Sketcher {
   async showAllSizes() { const keep = new Set(this.userHidden()); await this.relock(() => { this.f.hidden = this.f.hidden.filter((k) => !keep.has(k)); }); }
 
   deleteSel() {
-    if (!this.sel) return;
+    const many = (this.picks || []).filter((q) => ['line', 'circle', 'arc'].includes(q.kind));
+    if (!this.sel && !many.length) return;
     this.step();
-    const s = this.sel;
+    const s = many.length > 1 || !this.sel ? { kind: 'many' } : this.sel;
     let gone;
-    if (s.kind === 'point') {
+    if (s.kind === 'many') gone = new Set(many.map((q) => q.id)); // (picked by a box or Ctrl+click)
+    else if (s.kind === 'point') {
       gone = new Set(this.f.entities.filter((e) => e.a === s.id || e.b === s.id || e.c === s.id).map((e) => e.id));
       for (const e of this.f.entities) if (e.t === 'spline' && e.pts.includes(s.id)) { e.pts = e.pts.filter((p) => p !== s.id); if (e.pts.length < 2) gone.add(e.id); }
     }
@@ -963,7 +965,40 @@ export class Sketcher {
     for (const p of Object.keys(this.f.points)) if (!used.has(p)) delete this.f.points[p];
     this.f.dims = this.f.dims.filter((d) => !gone.has(d.e) && (!d.a || d.a === ORIGIN || this.f.points[d.a]) && (!d.b || this.f.points[d.b]));
     this.sel = null;
+    this.picks = [];
     this.changed();
+  }
+
+  /** A shape as a pick of the suggestions (what a click on it would give). */
+  pickOf(e) {
+    if (e.t === 'line') {
+      const a = this.P(e.a), b = this.P(e.b);
+      return { kind: 'line', id: e.id, t: { kind: 'line', line: e.id, a: e.a, b: e.b, uvA: a, uvB: b, dir: Math.abs(a[1] - b[1]) < 1e-7 ? 'h' : Math.abs(a[0] - b[0]) < 1e-7 ? 'v' : 's', at: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] } };
+    }
+    if (e.t === 'circle' || e.t === 'arc') return { kind: e.t, id: e.id, t: { kind: 'point', end: e.c, uv: this.P(e.c), [e.t]: e.id } };
+    return null;
+  }
+
+  /** The shapes a selection box takes (screen corners): dragged right to left — every shape it touches; left to
+   *  right — only the shapes wholly inside it. */
+  boxPicks(x0, y0, x1, y1) {
+    const L = Math.min(x0, x1), R = Math.max(x0, x1), T = Math.min(y0, y1), B = Math.max(y0, y1), crossing = x1 < x0;
+    const fr = this.frame(), scr = (p) => this.view.uvToScreen(fr, p), inside = ([x, y]) => x >= L && x <= R && y >= T && y <= B;
+    const pts = (e) => { // its points along it (dense enough to find a crossing)
+      const along = (ps) => ps.flatMap((p, i) => (i ? Array.from({ length: 8 }, (_, k) => [ps[i - 1][0] + (p[0] - ps[i - 1][0]) * (k + 1) / 8, ps[i - 1][1] + (p[1] - ps[i - 1][1]) * (k + 1) / 8]) : [p]));
+      if (e.t === 'line') return along([this.P(e.a), this.P(e.b)]);
+      if (e.t === 'circle') { const c = this.P(e.c); return Array.from({ length: 64 }, (_, k) => [c[0] + e.r * Math.cos((k / 64) * 2 * Math.PI), c[1] + e.r * Math.sin((k / 64) * 2 * Math.PI)]); }
+      if (e.t === 'arc') return along(this.arcOf(e));
+      if (e.t === 'spline') return this.splineOf(e);
+      return [];
+    };
+    const out = [];
+    for (const e of this.f.entities) {
+      const s = pts(e).map(scr);
+      if (!s.length) continue;
+      if (crossing ? s.some(inside) : s.every(inside)) { const q = this.pickOf(e); if (q) out.push(q); }
+    }
+    return out;
   }
 
   // ------------------------------------------------------------------ mouse
@@ -974,7 +1009,7 @@ export class Sketcher {
     if (grab) return { size: grab, x0: e.clientX, y0: e.clientY, moved: false }; // a dimension by its line
     if (this.tool !== 'select') return null;
     const h = uv && this.hit(uv);
-    if (!h) return null;
+    if (!h) return { box: true, x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY, add: e.ctrlKey || e.metaKey, moved: false }; // a selection box
     this.sel = h;
     this.changed();
     const blk = h.kind === 'entity' && this.ent(h.id)?.t === 'block' ? this.ent(h.id) : null;
@@ -984,6 +1019,18 @@ export class Sketcher {
   }
 
   async move(e, drag) {
+    if (drag?.box) { // the selection box follows the mouse: right to left touching (green, dashed), left to right inside (blue)
+      Object.assign(drag, { x1: e.clientX, y1: e.clientY });
+      if (!drag.moved && Math.hypot(drag.x1 - drag.x0, drag.y1 - drag.y0) < 4) return;
+      drag.moved = true;
+      const vp = this.m.els.viewport, vr = vp.getBoundingClientRect();
+      let el = vp.querySelector(':scope > .sk-box');
+      if (!el) { el = document.createElement('div'); el.className = 'sk-box'; vp.appendChild(el); }
+      el.classList.toggle('crossing', drag.x1 < drag.x0);
+      Object.assign(el.style, { left: `${Math.min(drag.x0, drag.x1) - vr.left}px`, top: `${Math.min(drag.y0, drag.y1) - vr.top}px`,
+        width: `${Math.abs(drag.x1 - drag.x0)}px`, height: `${Math.abs(drag.y1 - drag.y0)}px` });
+      return;
+    }
     const uv = this.view.planePoint(e.clientX, e.clientY, this.frame());
     if (!uv) return;
     if (drag?.size) { // a dimension dragged by its line: its place, as when its label is dragged
@@ -1057,6 +1104,15 @@ export class Sketcher {
   }
 
   async up(drag) {
+    if (drag?.box) {
+      this.m.els.viewport.querySelector(':scope > .sk-box')?.remove();
+      if (!drag.moved) return;
+      const got = this.boxPicks(drag.x0, drag.y0, drag.x1, drag.y1), had = drag.add ? this.picks || [] : [];
+      this.picks = [...had, ...got.filter((q) => !had.some((x) => x.kind === q.kind && x.id === q.id))]; // (Ctrl: added to what is picked)
+      this.sel = null;
+      this.changed();
+      return;
+    }
     if (drag?.size) { this.sizeDrag = null; if (drag.moved) { this.hoverSize = null; this.changed(); } return; }
     if (!drag) return;
     while (drag.busy) await new Promise((r) => setTimeout(r, 15));
