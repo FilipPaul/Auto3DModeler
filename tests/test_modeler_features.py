@@ -94,6 +94,22 @@ class TestFeatures(unittest.TestCase):
         self.assertAlmostEqual(v, 8000 - (4 - math.pi) * 10 - math.pi * 4 * 3, delta=1e-3)
 
 
+    def test_flush_faces_merge(self):
+        """A wall standing flush on a plate (front, left and right walls in the plate's planes): each of those planes
+        is one face after the add — no seam, no name on two faces (from the AI's report)."""
+        pts = {"q1": [0, 0], "q2": [40, 0], "q3": [40, 5], "q4": [0, 5]}
+        lines = [{"id": f"m{i + 1}", "t": "line", "a": f"q{i + 1}", "b": f"q{(i + 1) % 4 + 1}"} for i in range(4)]
+        wall = [{"id": "S2", "type": "sketch", "plane": {"datum": "XY"}, "points": pts, "entities": lines},
+                {"id": "E2", "type": "extrude", "sketch": "S2", "op": "add", "d": 30}]
+        r, v = vol(*box(), *wall)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 40 * 20 * 10 + 40 * 5 * 20, delta=0.01)
+        faces = r["body"]["faces"]
+        front = [f for f in faces if f["type"] == "plane" and f.get("normal") and [round(c, 6) for c in f["normal"]] == [0, -1, 0]]
+        self.assertEqual(len(front), 1, front)
+        named = [f.get("name") for f in faces if f.get("name")]
+        self.assertEqual(len(named), len(set(named)), named)
+
     def test_draft(self):
         """⟋ Draft: a 40 × 20 × 10 block's walls leaning in 5° — a frustum (top 2 × 10·tan 5° smaller each way)."""
         r, v = vol(*box(), {"id": "D1", "type": "draft", "of": "E1", "angle": 5})

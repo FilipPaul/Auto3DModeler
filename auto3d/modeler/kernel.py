@@ -654,7 +654,26 @@ def combine(body, tool, op):
     names = _carry(mk, body.names, res)
     for n, fs in _carry(mk, tool.names, res).items():
         names.setdefault(n, []).extend(fs)
-    return Body(res, names)
+    return _unify(Body(res, names))
+
+
+def _unify(body):
+    """Faces of one plane (or one cylinder) side by side merged into one — a wall flush with the plate it stands on is
+    one face, with the names of both (no seam, no two faces of one name)."""
+    from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
+    u = ShapeUpgrade_UnifySameDomain(body.shape, True, True, False)
+    u.Build()
+    res, h = u.Shape(), u.History()
+    rm, out = _face_map(res), {}
+    for n, faces in body.names.items():
+        idx = []
+        for f in faces:
+            mods = h.Modified(f)
+            got = list(mods) if mods.Size() else ([] if h.IsRemoved(f) else [f])
+            idx.extend(i for i in (rm.FindIndex(g) for g in got) if i and i not in idx)
+        if idx:
+            out[n] = [rm.FindKey(i) for i in idx]
+    return Body(res, out)
 
 
 def _edges_of(shape):

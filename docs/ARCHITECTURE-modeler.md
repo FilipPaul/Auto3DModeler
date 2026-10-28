@@ -96,6 +96,9 @@ Date: 2026-10-25. Written by the architect agent.
 - **get_sheet lists an assembly's balloons done:** parts_list [{pos, name, part, qty, instances, balloon {at_mm,
   points_to} or null}] (sheet.balloonAt, kept while other pages are drawn); one balloon per item on its first placed
   part. tools/e2e_assembly_sheet.py.
+- **Flush faces merged done:** kernel.combine ends with _unify (ShapeUpgrade_UnifySameDomain, names carried through
+  its history): a wall flush with the plate it stands on gives one face per plane, with both names — no seam, no name
+  on two faces (the AI's coplanar-faces report). test_flush_faces_merge.
 - **Faces picked with no tool on, joints suggested done:** the assembly's idle click also picks a face / a round edge
   (facePicks: one, or Ctrl: one of each of two parts; lit by drawMarks); suggestFaces — one face: the joints it can
   start (then the other face), two: the joint types fitting both (JOINT_TYPES by face kind), made through clickJoint.
