@@ -187,6 +187,18 @@ try:
           d.execute_script("return window.__app.modeler.part.features[0].constraints.filter((k) => k.t === 'pat').map((k) => [k.kind, k.n])"))
     tool("add_feature", type="sketch", plane="XY", shapes=[{"circle": {"x": 0, "y": 0, "d": 4}, "pattern": {"count": 3, "around": [0, 0]}}])  # (on its centre: refused)
     tool("list_parts")
+    # the BOM of an assembly with a sub-assembly placed twice (get_bom: every level rolled up)
+    tool("new_assembly", name="Pair")
+    tool("insert_part", part="Flange")
+    tool("insert_part", part="Two holes")
+    tool("new_assembly", name="Rack")
+    for p in ("Pair", "Pair", "Flange"):
+        tool("insert_part", part=p)
+    b = json.loads(tool("get_bom", mode="summary")[0])
+    print("    get_bom totals:", {r["name"]: r["total"] for r in b["rows"]}, "| Flange 3 (1 × 2 + 1):",
+          next(r["total"] for r in b["rows"] if r["name"] == "Flange") == 3)
+    tool("get_bom", assembly="Pair", mode="structured")
+    tool("open_part", id="Flange")
     tool("prepare_print")
     tool("check_print")
 finally:

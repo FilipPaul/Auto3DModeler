@@ -277,8 +277,16 @@ TOOLS = [
      "description": "Start a new, empty assembly (its own tab) to place 3D model parts of the project together. Then insert_part.",
      "inputSchema": _obj({"name": STR})},
     {"name": "get_assembly", "where": "browser",
-     "description": "The assembly on screen: its placed parts (id I1…, part, position, bounding box in mm), its joints (a joint that does not hold has `not_held`: how far off and which joint holds the part elsewhere — fix one of the two), its fasteners (one each: id K1…, text, its parts) and the parts list (qty, material, mass). A placed sub-assembly whose own joints leave its parts free has `inner`: those parts (\"I3/I2\") and how they can move inside it.",
+     "description": "The assembly on screen: its placed parts (id I1…, part, position, bounding box in mm), its joints (a joint that does not hold has `not_held`: how far off and which joint holds the part elsewhere — fix one of the two), its fasteners (one each: id K1…, text, its parts) and the parts list (qty placed here; `total`: how many in all, the ones inside its sub-assemblies counted in; material, mass). A placed sub-assembly whose own joints leave its parts free has `inner`: those parts (\"I3/I2\") and how they can move inside it.",
      "inputSchema": _obj({})},
+    {"name": "get_bom", "where": "browser",
+     "description": "The bill of materials of an assembly (the one on screen, or any by id / name: a sub-assembly too), its whole "
+                    "hierarchy rolled up — a part placed in the assembly and inside its sub-assemblies counted everywhere, a "
+                    "sub-assembly placed n times counting its parts n times. mode summary (default): a row per part with pos "
+                    "(the drawing set's balloon number), total, material, mass each / total, maker, pn, make_buy and `from` "
+                    "(where the count comes from: \"Lid unit: 3 × 2 + Machine: 1\"); structured: the tree, each row with level, "
+                    "qty_per_parent and total.",
+     "inputSchema": _obj({"assembly": STR, "mode": {"type": "string", "enum": ["summary", "structured"]}})},
     {"name": "insert_part", "where": "browser",
      "description": "Add a part (id or name from list_parts: a 3D model, or a quick part — a drawing, picture or import — as its solid) to the assembly on screen; it is put beside the others. Returns the parts.",
      "inputSchema": _obj({"part": STR}, ["part"])},
