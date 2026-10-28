@@ -15,7 +15,7 @@ Part JSON (in the project file, `parts[].model`):
      {"id": "F9", "type": "mirror", "of": "body" | <a step's id>, "plane": {"datum": "YZ"} | {"face": ..., "frame": ...},
       "copy": true},   (copy: the part and its mirror image; false: the part moved to its mirror image)
      {"id": "F6", "type": "hole", "plane": {"face": {"name": "F2:end"}, "frame": ...}, "points": [[u, v]], "d": 5,
-      "through": true, "depth": 10},
+      "through": true, "depth": 10},   (+ "teardrop": true: a sideways hole with a 45° point on top, printable)
      {"id": "F10", "type": "point", "at": {"vertex": {"faces": [...], "fp": [x, y, z]}} | {"centre": <edge ref>} |
       {"mid": <edge ref>} | {"xyz": [x, y, z]}}]}   (a reference point: a corner, a round edge's centre, an edge's middle)
 
@@ -343,15 +343,21 @@ def _apply(f, st: State, s):
                 raise K.KernelError("The counterbore has to be less deep than the hole.")
         elif head == "csk":
             hd = _num(f, "head_d", round(dia * 2, 1), what="countersink diameter")
+        tear = bool(f.get("teardrop"))  # ▲ printed sideways: the top of the round becomes a 45° point (a counterbore too)
+        if tear and head == "csk":
+            raise K.KernelError("A countersink cannot be a teardrop (its cone would hang over) — use a counterbore, or untick Teardrop.")
+        prof = K.teardrop_face if tear else K.circle_face
         for k, (u, v) in enumerate(pts):
-            face, names = K.circle_face(fr, float(u), float(v), dia)
+            face, names = prof(fr, float(u), float(v), dia)
             tool = K.prism_body(face, names, -n * depth, fid)
-            tool.names = {f"{fid}:hole:{k}": tool.names.get(f"{fid}:side:c", []), f"{fid}:bottom:{k}": tool.names.get(f"{fid}:end", [])}
+            tool.names = {f"{fid}:hole:{k}": tool.names.get(f"{fid}:side:c", []), f"{fid}:bottom:{k}": tool.names.get(f"{fid}:end", []),
+                          **({f"{fid}:tear:{k}": tool.names.get(f"{fid}:side:t", [])} if tear else {})}
             _use(st, fid, tool, "cut")
             if head == "cbore":
-                face, names = K.circle_face(fr, float(u), float(v), hd)
+                face, names = prof(fr, float(u), float(v), hd)
                 tool = K.prism_body(face, names, -n * hdep, fid)
-                tool.names = {f"{fid}:cbore:{k}": tool.names.get(f"{fid}:side:c", []), f"{fid}:cbore_floor:{k}": tool.names.get(f"{fid}:end", [])}
+                tool.names = {f"{fid}:cbore:{k}": tool.names.get(f"{fid}:side:c", []), f"{fid}:cbore_floor:{k}": tool.names.get(f"{fid}:end", []),
+                              **({f"{fid}:cbore_tear:{k}": tool.names.get(f"{fid}:side:t", [])} if tear else {})}
                 _use(st, fid, tool, "cut")
             elif head == "csk":
                 _use(st, fid, K.countersink(fr, float(u), float(v), hd, dia, float(f.get("head_angle") or 90), f"{fid}:csk:{k}"), "cut")

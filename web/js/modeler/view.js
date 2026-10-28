@@ -247,7 +247,7 @@ export class ModelView {
     if (this.printMarks) { this.scene.remove(this.printMarks); this.printMarks.geometry.dispose(); this.printMarks = null; }
     if (!opts || !this.mesh || !this.body) { this.invalidate(); return null; }
     const { minWall = 1.2, overhang = 45 } = opts, pos = this.mesh.geometry.attributes.position.array, n = pos.length / 9, z0 = this.body.bbox[2];
-    const lim = -Math.cos((90 - overhang) * Math.PI / 180) - 1e-9; // (a face's normal more downward than this: it hangs over)
+    const lim = -Math.cos((90 - overhang) * Math.PI / 180) - 1e-4; // (a face's normal more downward than this: it hangs over; a face at just 45°, a teardrop's side, does not)
     const side = new THREE.Mesh(this.mesh.geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })), ray = new THREE.Raycaster();
     const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3(), N = new THREE.Vector3(), M = new THREE.Vector3();
     const res = { overhang: { area: 0, box: null }, thin: { area: 0, box: null, min: null } }, out = [], col = [];

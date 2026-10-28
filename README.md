@@ -290,7 +290,10 @@ SolidWorks. It has only the tools that need almost no input.
    type the diameter. It goes through all by default, or untick *Through all* and give a depth. *Head* adds room
    for a screw's head: ⌴ a counterbore (Ø 1.8 × the hole, as deep as the hole is wide) or ⌵ a countersink (Ø 2 × the
    hole, 90°) — change the head's Ø / depth if needed. *Thread* (M2 … M20) makes it a threaded hole: drilled with its
-   tap drill (M5: Ø4.2) and labelled M5 on the drawing. Each hole is
+   tap drill (M5: Ø4.2) and labelled M5 on the drawing. *Teardrop (print sideways)*, offered on a hole that goes
+   sideways (into a side face, across Z), gives the hole a 45° point on top so it prints lying on its side without
+   support (the 🖨 Print check shows no overhang there); the drawing still says Ø d. A counterbore gets the point too; a
+   countersink cannot. On a hole that goes up / down it is greyed. Each hole is
    placed from the face's nearest edges — *↔ 10 mm from the right edge*, *↕ 5 mm from the lower edge*, drawn on
    the face. Type a distance to move it, ⇄ measures from the edge on the other side, and 🎯 lets you click *any*
    edge of the face — or another hole (then it is measured from that hole's centre and follows it). Every tool shows a live

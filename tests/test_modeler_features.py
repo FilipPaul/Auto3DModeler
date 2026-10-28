@@ -177,6 +177,51 @@ class TestFeatures(unittest.TestCase):
         r, _ = vol(*box(), {**hole, "thread": "M7"})
         self.assertFalse(r["ok"])
 
+    def test_teardrop_hole(self):
+        """▲ A teardrop (a sideways hole printed without support): Ø6 through the 20 deep block from its front face, its
+        top a 45° point — the circle and the kite beyond it, (¾π + 1) r² × 20; watertight, the faces named, the STEP
+        round trip; a thread keeps its tap drill; a counterbore gets the point too; a hole going down and a countersink
+        refused; the drawing still says Ø6 and sizes no edge of the point."""
+        front = {"face": {"name": "E1:side:l1"}, "frame": {"o": [20, 0, 5], "x": [1, 0, 0], "n": [0, -1, 0]}}
+        hole = {"id": "H1", "type": "hole", "plane": front, "points": [[0, 0]], "d": 6, "through": True, "teardrop": True}
+        tear = lambda r, depth: (0.75 * math.pi + 1) * r * r * depth  # noqa: E731
+        r, v = vol(*box(), hole)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 - tear(3, 20), delta=1e-3)
+        self.assertTrue(watertight(r["body"]))
+        faces = {f["name"]: f for f in r["body"]["faces"] if f["name"].startswith("H1")}
+        self.assertEqual(sorted(faces), ["H1:hole:0", "H1:tear:0"])
+        tops = [f["centroid"] for f in r["body"]["faces"] if f["name"] == "H1:tear:0"]
+        self.assertEqual(len(tops), 2)
+        self.assertTrue(all(c[2] > 5 + 3 / math.sqrt(2) for c in tops))  # the point is up (+z), above the round part
+        from auto3d.modeler import kernel as K
+        step = doc.export({"features": [*box(), hole]}, "step")
+        self.assertAlmostEqual(K.volume(K.from_step(step)), 8000 - tear(3, 20), delta=1e-3)
+        # a blind one, a thread (its tap drill round, the point added), a counterbore with its point
+        r, v = vol(*box(), {**hole, "through": False, "depth": 8})
+        self.assertAlmostEqual(v, 8000 - tear(3, 8), delta=1e-3)
+        r, v = vol(*box(), {**hole, "thread": "M5"})
+        self.assertAlmostEqual(v, 8000 - tear(2.1, 20), delta=1e-3)
+        r, v = vol(*box(), {**hole, "d": 4, "head": "cbore", "head_d": 7, "head_depth": 3})
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 - tear(2, 20) - (tear(3.5, 3) - tear(2, 3)), delta=1e-3)
+        names = {n for f in r["body"]["faces"] for n in f.get("names") or [f.get("name")] if n and n.startswith("H1")}
+        self.assertTrue({"H1:hole:0", "H1:tear:0", "H1:cbore:0", "H1:cbore_tear:0", "H1:cbore_floor:0"} <= names, names)
+        r, _ = vol(*box(), {**hole, "head": "csk", "head_d": 10})
+        self.assertFalse(r["ok"])
+        self.assertIn("countersink", r["features"][-1]["issues"][0])
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        r, v = vol(*box(), {**hole, "plane": top})
+        self.assertFalse(r["ok"])
+        self.assertIn("sideways", r["features"][-1]["issues"][0])
+        self.assertAlmostEqual(v, 8000, delta=1e-6)
+        # the drawing: Ø6 with its place, no R, no level / column at the point's edges (also in the full preset)
+        for preset in ("medium", "full"):
+            dims = doc.sheet({"features": box() + [hole]}, preset)["dims"]
+            self.assertEqual([(x["kind"], x["a"]) for x in dims if x["kind"] in ("dia", "rad")], [("dia", "H1:hole:0")])
+            self.assertTrue(any(x.get("b") == "H1:hole:0#c" for x in dims))
+            self.assertFalse(any("tear:" in (x.get("a", "") + x.get("b", "")) for x in dims), dims)
+
     def test_round_then_hole_and_errors(self):
         fil = {"id": "F1", "type": "fillet", "edges": [{"a": "E1:side:l1", "b": "E1:side:l2", "fp": [40, 0, 5]}], "r": 50}
         r, v = vol(*box(), fil)

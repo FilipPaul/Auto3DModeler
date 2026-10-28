@@ -33,7 +33,7 @@ from OCP.BRepTools import BRepTools_WireExplorer
 from OCP.GC import GC_MakeArcOfCircle
 from OCP.Bnd import Bnd_Box
 from OCP.GCPnts import GCPnts_TangentialDeflection
-from OCP.GeomAbs import GeomAbs_Cylinder, GeomAbs_Plane
+from OCP.GeomAbs import GeomAbs_Circle, GeomAbs_Cylinder, GeomAbs_Plane
 from OCP.GProp import GProp_GProps
 from OCP.gp import gp_Ax1, gp_Ax2, gp_Circ, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec
 from OCP.IFSelect import IFSelect_RetDone
@@ -336,6 +336,29 @@ def sketch_faces(fr, sk):
 def circle_face(fr, u, v, d):
     """A round face on a plane frame (for holes) with its edge."""
     w, names = _circle_wire(fr, {"cx": u, "cy": v, "d": d, "id": "c"})
+    return BRepBuilderAPI_MakeFace(w, True).Face(), names
+
+
+def teardrop_face(fr, u, v, d):
+    """A teardrop at (u, v) of a plane frame whose normal lies flat (a hole printed sideways): the circle Ø d with its
+    top (toward +Z, up on the bed) replaced by a point, its two sides tangent at 45°, so nothing overhangs more than
+    45°. Edges named "c" (the round part, 270°) and "t" (the two flat sides)."""
+    n = np.asarray(fr["n"], float)
+    if abs(n[2]) > 1e-4:
+        raise KernelError("A teardrop is for a hole that goes sideways (its axis level with the print bed) — "
+                          "this one goes up / down: untick Teardrop.")
+    x, y = _v(fr["x"]), frame_y(fr)
+    up = np.array([x[2], y[2]], float)
+    up /= np.linalg.norm(up)
+    side = np.array([up[1], -up[0]])  # (the up direction turned a quarter, in the face's u / v)
+    r, c = d / 2, np.array([u, v], float)
+    t1, t2 = c + r * (up + side) / math.sqrt(2), c + r * (up - side) / math.sqrt(2)  # where the sides touch the circle
+    tip, bottom = c + r * math.sqrt(2) * up, c - r * up
+    arc = BRepBuilderAPI_MakeEdge(GC_MakeArcOfCircle(to_3d(fr, *t1), to_3d(fr, *bottom), to_3d(fr, *t2)).Value()).Edge()
+    s2 = BRepBuilderAPI_MakeEdge(to_3d(fr, *t2), to_3d(fr, *tip)).Edge()
+    s1 = BRepBuilderAPI_MakeEdge(to_3d(fr, *tip), to_3d(fr, *t1)).Edge()
+    w = BRepBuilderAPI_MakeWire(arc, s2, s1).Wire()
+    names = [(e, "c" if BRepAdaptor_Curve(e).GetType() == GeomAbs_Circle else "t") for e in _wire_edges(w)]
     return BRepBuilderAPI_MakeFace(w, True).Face(), names
 
 

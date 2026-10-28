@@ -393,7 +393,7 @@ export class Modeler {
     if (f.type === 'extrude') return f.op === 'cut' ? (f.through ? 'cut through all' : `cut ${fmt(f.d)} mm`) : `${fmt(f.d)} mm`;
     if (f.type === 'fillet') return `R ${fmt(f.r)} · ${n('edges')} edge(s)`;
     if (f.type === 'chamfer') return `${fmt(f.d)} mm · ${n('edges')} edge(s)`;
-    if (f.type === 'hole') return `${f.thread || `Ø${fmt(f.d)}`}${f.fit ? ` ${f.fit}` : ''}${f.head === 'cbore' ? ` ⌴Ø${fmt(f.head_d)}×${fmt(f.head_depth)}` : f.head === 'csk' ? ` ⌵Ø${fmt(f.head_d)}` : ''} · ${n('points')} hole(s)${f.through === false ? ` · ${fmt(f.depth)} deep` : ''}`;
+    if (f.type === 'hole') return `${f.thread || `Ø${fmt(f.d)}`}${f.fit ? ` ${f.fit}` : ''}${f.head === 'cbore' ? ` ⌴Ø${fmt(f.head_d)}×${fmt(f.head_depth)}` : f.head === 'csk' ? ` ⌵Ø${fmt(f.head_d)}` : ''}${f.teardrop ? ' ▲ teardrop' : ''} · ${n('points')} hole(s)${f.through === false ? ` · ${fmt(f.depth)} deep` : ''}`;
     if (f.type === 'revolve') return `${fmt(f.angle)}°${f.op === 'cut' ? ' cut' : ''}`;
     if (f.type === 'shell') return `wall ${fmt(f.t)} mm · ${n('faces')} open`;
     if (f.type === 'decal') return `${f.source === 'text' ? `“${f.text}”` : 'picture'} · ${fmt(f.h)} mm${f.op === 'cut' ? ' · engraved' : ' · raised'}`;
@@ -1999,6 +1999,16 @@ export class Modeler {
       <button type="button" class="mini ${picking ? 'on' : ''}" data-pickref="${i}:${axis}" title="Measure from another edge, hole or round face (its axis): click it in the view">🎯</button></label>`;
   }
 
+  /** ▲ Teardrop: offered when the hole goes sideways (its axis level with the print bed, square to Z) — else greyed,
+   *  the tooltip says why (still on when it was ticked, so it can be taken off). */
+  teardropRow(f) {
+    const fr = this.holeFrame(f), side = !!fr && Math.abs(fr.n[2]) < 1e-4, on = !!f.teardrop;
+    const tip = side ? 'The top of the hole becomes a 45° point, so it prints lying on its side without support'
+      : fr ? 'Only for a hole that goes sideways (its axis level with the print bed) — this one goes up / down'
+        : 'Click a face on the side of the part first: a teardrop is for a hole that goes sideways';
+    return `<label class="check ${side || on ? '' : 'off'}" title="${tip}"><input type="checkbox" data-k="teardrop" ${on ? 'checked' : ''} ${side || on ? '' : 'disabled'}> Teardrop (print sideways)</label>`;
+  }
+
   renderRound(box) {
     const f = this.cmd.feature, st = this.status(f.id), fillet = f.type === 'fillet', k = fillet ? 'r' : 'd';
     box.innerHTML = `<h2>${esc(f.name)}</h2>
@@ -2031,6 +2041,7 @@ export class Modeler {
         ${[['', '—'], ['cbore', '⌴ Counterbore'], ['csk', '⌵ Countersink']].map(([v, l]) => `<option value="${v}" ${v === (f.head || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       ${f.head ? `<div class="field"><label>Head Ø</label><input type="number" step="any" min="0" data-k="head_d" value="${fmt(f.head_d)}"><span class="unit">mm</span></div>` : ''}
       ${f.head === 'cbore' ? `<div class="field"><label>Head depth</label><input type="number" step="any" min="0" data-k="head_depth" value="${fmt(f.head_depth)}"><span class="unit">mm</span></div>` : ''}
+      ${this.teardropRow(f)}
       <div class="field"><label>Fit</label><select data-k="fit" title="An ISO 286 fit for the hole — shown on the 2D drawing (Ø8 H7 and its deviations); the model keeps the nominal size">
         ${['', 'H6', 'H7', 'H8', 'H9'].map((v) => `<option value="${v}" ${v === (f.fit || '') ? 'selected' : ''}>${v || '—'}</option>`).join('')}</select></div>
       ${f.points.length ? `<h3>Holes</h3><div class="mp-holes">${f.points.map((p, i) => `<div class="mp-hole">
@@ -2051,6 +2062,7 @@ export class Modeler {
     if (dep) num(dep, (v) => { if (v > 0) f.depth = v; });
     box.querySelector('[data-k=through]').addEventListener('change', (e) => { f.through = e.target.checked; this.renderProps(); this.rebuild(); });
     box.querySelector('[data-k=fit]').addEventListener('change', (e) => { if (e.target.value) f.fit = e.target.value; else delete f.fit; });
+    box.querySelector('[data-k=teardrop]').addEventListener('change', (e) => { if (e.target.checked) f.teardrop = true; else delete f.teardrop; this.rebuild(); });
     box.querySelector('[data-k=thread]').addEventListener('change', (e) => { // (its tap drill as the diameter)
       if (e.target.value) Object.assign(f, { thread: e.target.value, d: THREADS[e.target.value] }); else delete f.thread;
       this.renderProps();

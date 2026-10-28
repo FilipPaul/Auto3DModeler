@@ -12,8 +12,8 @@ fits-and-tolerances ("printed fits").
 - Decide how it lies on the bed **before** modelling: the biggest flat face down, no supports. Layers are weakest
   across (≈ 50–70 % of the strength along them): a load that pulls layers apart is the one that breaks it — turn
   the part so the main load runs along the layers (a hook printed lying down, not standing).
-- Holes along Z (printed upright) are round and exact; holes across Z sag at the top — give them a teardrop / a flat
-  top or make them smaller than 8 mm, or drill them after.
+- Holes along Z (printed upright) are round and exact; holes across Z sag at the top — give them a teardrop
+  (`add_feature` hole `teardrop: true`: a 45° point on top, the Ø stays) or make them smaller than 8 mm, or drill them after.
 
 ## Shape rules
 - **Walls** ≥ 3 perimeters for load (≈ 1.2–1.6 mm with a 0.4 nozzle; 2–3 mm for screws and load paths), never thinner

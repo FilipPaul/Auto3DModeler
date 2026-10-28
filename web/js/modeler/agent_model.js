@@ -295,7 +295,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       const points = (spec.points || [[0, 0]]).map((p) => (W ? W.uv(p) : p));
       return { ...base, plane, points, d: spec.d ?? 5, ...(spec.thread ? { thread: spec.thread } : {}),
         through: spec.through !== false, depth: spec.depth ?? 10, ...(spec.from ? { from: holeFrom(spec.from) } : {}), ...(fitOf(spec.fit) ? { fit: fitOf(spec.fit) } : {}),
-        ...headOf(spec, spec.d ?? 5) };
+        ...headOf(spec, spec.d ?? 5), ...(spec.teardrop ? { teardrop: true } : {}) };
     }
     if (type === 'rib') {
       const sk = spec.sketch || [...m.sketches()].pop()?.id;
@@ -462,7 +462,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         if (f.plane?.origin) out.origin = f.plane.origin;
         const W = f.type === 'hole' && f.plane?.origin === 'world' ? worldToUV(f.plane.frame) : null; // (as given: world X / Y)
         if (f.type === 'hole') Object.assign(out, { face: f.plane?.face?.name, d: f.d, ...(f.thread ? { thread: f.thread } : {}), points: W ? f.points.map(([u, v]) => [u, W.flip ? -v : v]) : f.points, through: f.through !== false, depth: f.depth, ...(f.fit ? { fit: f.fit } : {}),
-          ...(f.head ? { head: f.head, head_d: f.head_d, ...(f.head_depth ? { head_depth: f.head_depth } : {}), ...(f.head_angle ? { head_angle: f.head_angle } : {}) } : {}) });
+          ...(f.head ? { head: f.head, head_d: f.head_d, ...(f.head_depth ? { head_depth: f.head_depth } : {}), ...(f.head_angle ? { head_angle: f.head_angle } : {}) } : {}), ...(f.teardrop ? { teardrop: true } : {}) });
         if (f.type === 'shell') Object.assign(out, { t: f.t, open_faces: f.faces.map((x) => x.name) });
         if (f.type === 'loft') Object.assign(out, { sketches: f.sketches, op: f.op });
         if (f.type === 'sweep') Object.assign(out, { profile: f.profile, path: f.path, op: f.op });
@@ -573,6 +573,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         if ('fit' in fields && !fields.fit) delete f.fit; // (a hole's fit taken off)
         if ('thread' in fields && !fields.thread) delete f.thread; // (its thread taken off)
         if ('head' in fields && !fields.head) for (const k of ['head', 'head_d', 'head_depth', 'head_angle']) delete f[k]; // (its head taken off)
+        if ('teardrop' in fields && !fields.teardrop) delete f.teardrop; // (round again)
         if (f.type === 'extrude') { // up to next / up to a face / a distance: one at a time; d2 off (or symmetric on): no other side
           if (!next.upto_next) delete f.upto_next;
           if (fields.upto_next || ('up_to' in fields && !fields.up_to)) delete f.upto;
