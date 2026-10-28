@@ -190,6 +190,7 @@ export class Modeler {
         ${btn('mirror', '⇋ Mirror', 'Mirror shapes across a line or the X / Y axis — a copy that stays the mirror image, or moved', t === 'mirror' ? 'on' : '')}
         ${btn('offset', '⧈ Offset', 'A parallel copy of a closed shape, a distance outside or inside it (O)', t === 'offset' ? 'on' : '')}
         ${btn('pattern', '⁂ Pattern', 'Repeat the selected shapes in a row or around a point: select them (⬚ Select, Ctrl+click or a box), then type how many and how far apart — the copies follow the original', t === 'pattern' ? 'on' : '')}
+        ${btn('merge', '⛓ Merge', 'Merge many small shapes into few: pick them (click or a box; nothing picked: click them now), then ⛓ Join into one curve, 🧹 Simplify or ◆ One outline', this.sk.merging ? 'on' : '')}
         <div class="menu sk-relmenu">${btn('relate', `⟂ Relations ▾`, 'Make shapes keep a relation: horizontal, vertical, parallel, perpendicular, equal, concentric, coincident, tangent, fixed', t === 'relate' ? 'on' : '')}
           <div class="menu-list">${Object.entries(RELATIONS).filter(([, r]) => !r.tool).map(([k, r]) => `<button data-rel="${k}" title="${esc(r.hint || '')}">${r.icon} ${esc(r.name)}</button>`).join('')}</div></div>
         ${btn('dim', '↔ Dimension', 'Add a distance: click two points, circles, lines or edges of the part, then type the value (D)', t === 'dim' ? 'on' : '')}
@@ -305,6 +306,7 @@ export class Modeler {
     if (a === 'saveBack') return this.hooks.saveBackToLibrary?.();
     if (a === 'mirror') return this.mode === 'sketch' ? this.sk.setTool('mirror') : this.startMirror();
     if (a === 'construction' && this.mode === 'sketch') return this.sk.toggleConstruction();
+    if (a === 'merge' && this.mode === 'sketch') return this.sk.startMerge();
     if (a === 'loft' || a === 'sweep') return this.startProfiles(a);
     if (a === 'decal') return this.startDecal();
     if (a === 'undo') return this.history.go(-1);

@@ -460,12 +460,14 @@ export class Sketcher {
     if (this.tool === 'spline') return this.spl ? 'Click the next point the curve goes through — click its first point to close it, double-click or Enter to finish, Esc to stop.' : 'Click where the smooth curve starts (a point or a line end joins it there).';
     if (this.tool === 'line') return this.chain ? 'Click the next point — click the first point to close the shape, double-click or Esc to stop.' : 'Click where the line starts.';
     if (this.tool === 'dim') return this.dimA ? 'Type its size and Enter — or click a second one for the distance between them (Esc = start again).' : 'Dimension: click a line or a circle for its size — or a point, a line or an edge of the part, then a second one for a distance.';
+    if (this.tool === 'select' && this.merging) return 'Merge: click or drag a box over the shapes (each click adds one) — then ⛓ Join into one curve, 🧹 Simplify or ◆ One outline in the table. Esc = done.';
     if (this.tool === 'select' && (this.picks || []).length > 1) return 'Drag one of the picked shapes: they all move together · the table offers what fits them · Delete removes them.';
     return this.sel ? 'Drag to move it · click a size to type it and lock it 🔒 · Delete removes it.' : 'Click a shape or a corner to select it — or pick a drawing tool.';
   }
 
   setTool(t) {
     this.tool = t;
+    this.merging = false; // (⛓ Merge ends with another tool, or Esc)
     this.picks = []; // (Esc, another tool: the suggestions go)
     this.relPicks = [];
     this.start = null;
@@ -1088,7 +1090,7 @@ export class Sketcher {
   async showAllSizes() { const keep = new Set(this.userHidden()); await this.relock(() => { this.f.hidden = this.f.hidden.filter((k) => !keep.has(k)); }); }
 
   deleteSel() {
-    const many = (this.picks || []).filter((q) => ['line', 'circle', 'arc'].includes(q.kind));
+    const many = (this.picks || []).filter((q) => ['line', 'circle', 'arc', 'spline'].includes(q.kind));
     if (!this.sel && !many.length) return;
     this.step();
     const s = many.length > 1 || !this.sel ? { kind: 'many' } : this.sel;
@@ -1117,7 +1119,27 @@ export class Sketcher {
       return { kind: 'line', id: e.id, t: { kind: 'line', line: e.id, a: e.a, b: e.b, uvA: a, uvB: b, dir: Math.abs(a[1] - b[1]) < 1e-7 ? 'h' : Math.abs(a[0] - b[0]) < 1e-7 ? 'v' : 's', at: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] } };
     }
     if (e.t === 'circle' || e.t === 'arc') return { kind: e.t, id: e.id, t: { kind: 'point', end: e.c, uv: this.P(e.c), [e.t]: e.id } };
+    if (e.t === 'spline') { const ps = this.splineOf(e); return { kind: 'spline', id: e.id, t: { kind: 'spline', spline: e.id, at: ps[Math.floor(ps.length / 2)] } }; }
     return null;
+  }
+
+  /** The smooth curve (spline) within reach of uv -> {e, d} or null. */
+  splineAt(uv) {
+    let best = null;
+    for (const e of this.f.entities) {
+      if (e.t !== 'spline') continue;
+      const ps = this.splineOf(e);
+      for (let i = 0; i + 1 < ps.length; i++) { const d = segDist(uv, ps[i], ps[i + 1]); if (d < this.mpp() * 8 && (!best || d < best.d)) best = { e, d }; }
+    }
+    return best;
+  }
+
+  /** The points of joined curves (⛓ Join, 🧹 Simplify: `fit` splines, often hundreds of points) not shown or caught
+   *  unless their curve is selected — the curve is one shape. */
+  hiddenPts() {
+    const shown = this.sel?.kind === 'entity' && !this.mg ? this.sel.id : null, out = new Set(); // (one clicked: its points, to drag)
+    for (const e of this.f.entities) if (e.t === 'spline' && e.fit && e.id !== shown) for (const q of e.pts.slice(1, -1)) out.add(q);
+    return out;
   }
 
   /** The shapes a selection box takes (screen corners): dragged right to left — every shape it touches; left to
@@ -1150,7 +1172,7 @@ export class Sketcher {
     if (grab) return { size: grab, x0: e.clientX, y0: e.clientY, moved: false }; // a dimension by its line
     if (this.tool !== 'select') return null;
     const h = uv && this.hit(uv);
-    if (!h) return { box: true, x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY, add: e.ctrlKey || e.metaKey, moved: false }; // a selection box
+    if (!h) return { box: true, x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY, add: e.ctrlKey || e.metaKey || this.merging, moved: false }; // a selection box (⛓ Merge: adds)
     if ((this.picks || []).length > 1 && this.inPicks(h)) { // one of several picked: they all go together, the grabbed point snaps
       const ids = this.pickPoints(), own = h.kind === 'point' ? [h.id] : this.pointsOfSel(h).filter((id) => ids.includes(id));
       const grab = own.sort((a, b) => Math.hypot(this.P(a)[0] - uv[0], this.P(a)[1] - uv[1]) - Math.hypot(this.P(b)[0] - uv[0], this.P(b)[1] - uv[1]))[0];
@@ -1278,7 +1300,7 @@ export class Sketcher {
     if (!uv0) return;
     if (this.tool === 'select') {
       const item = this.pickItem(uv0);
-      if ((e.ctrlKey || e.metaKey) && item) { // Ctrl+click: one more (or one less)
+      if ((e.ctrlKey || e.metaKey || this.merging) && item) { // Ctrl+click (⛓ Merge: any click): one more (or one less)
         const i = (this.picks || []).findIndex((q) => q.kind === item.kind && q.id === item.id);
         this.picks = i >= 0 ? this.picks.filter((_, k) => k !== i) : [...(this.picks || []), item];
       } else { this.sel = this.hit(uv0); this.picks = item ? [item] : []; }
@@ -2193,6 +2215,7 @@ export class Sketcher {
     if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); this.back(); return true; }
     if (e.key === 'Escape') {
       if (this.tool === 'mirror' || this.tool === 'pattern') this.setTool('select');
+      else if (this.mg) this.mergeCancel();
       else if (this.chooser) this.closeChooser();
       else if (this.spl) this.finishSpline();
       else if (this.start || this.chain || this.dimA || this.relPicks?.length) { this.relPicks = []; this.start = null; this.tan = null; this.arcEnd = null; this.chain = null; this.dimA = null; this.changed(); } else this.setTool('select');
@@ -2367,7 +2390,8 @@ export class Sketcher {
     const dirOf = (a, b) => (Math.abs(a[1] - b[1]) < 1e-7 ? 'h' : Math.abs(a[0] - b[0]) < 1e-7 ? 'v' : 's');
     const F = this.pickable;
     if (F.origin) near(Math.hypot(uv[0], uv[1]), { kind: 'point', end: ORIGIN, uv: [0, 0] });
-    if (F.points) for (const [id, p] of Object.entries(this.f.points)) near(Math.hypot(p[0] - uv[0], p[1] - uv[1]), { kind: 'point', end: id, uv: p });
+    const hidden = this.hiddenPts();
+    if (F.points) for (const [id, p] of Object.entries(this.f.points)) if (!hidden.has(id)) near(Math.hypot(p[0] - uv[0], p[1] - uv[1]), { kind: 'point', end: id, uv: p });
     if (F.mid) { // a line's middle (a little less near than a real point)
       for (const e of this.f.entities) {
         if (e.t !== 'line') continue;
@@ -2515,7 +2539,7 @@ export class Sketcher {
     this.chooser = box;
   }
 
-  closeChooser() { this.chooser?.remove(); this.chooser = null; this.xf = null; } // (a ✥ ⟳ ⤢ box: what it shows stays)
+  closeChooser() { this.chooser?.remove(); this.chooser = null; this.xf = null; this.mg = null; } // (a ✥ ⟳ ⤢ / ⛓ box: what it shows stays)
 
   /** Add a dimension (locked at the distance it has now), then let the user type the value right away. */
   async addDim(o, { edit = true } = {}) {
@@ -2616,7 +2640,8 @@ export class Sketcher {
 
   /** What a click with ⬚ Select picks for the suggestions: a point, a line, a circle or an arc of the sketch. */
   pickItem(uv) {
-    const t = this.pickTarget(uv), own = (x) => typeof x === 'string' && x !== ORIGIN;
+    const t = this.pickTarget(uv), own = (x) => typeof x === 'string' && x !== ORIGIN, sp = this.splineAt(uv);
+    if (sp && (!t || (!(t.kind === 'point' && own(t.end) && !t.circle && !t.arc) && sp.d < t.d))) return this.pickOf(sp.e); // (a curve nearer than a line, not a point on it)
     if (!t) return null;
     const at = { ...t, at: uv };
     if (t.circle && own(t.circle)) return { kind: 'circle', id: t.circle, t: at };
@@ -2643,7 +2668,10 @@ export class Sketcher {
    *  under ⋯ More… (in sections). */
   suggestions() {
     const P = this.picks || [], n = P.length;
-    if (!n || this.tool !== 'select' || this.xf) return [];
+    if (this.tool !== 'select' || this.xf || this.mg) return [];
+    const MG = this.mergeItems(P);
+    if (this.merging) return n ? [MG.join, MG.simplify, MG.outline].filter(Boolean) : [MG.whole]; // (⛓ Merge: what it does, nothing else)
+    if (!n) return [];
     const round = (p) => p.kind === 'circle' || p.kind === 'arc';
     const rel = (type, ...ps) => ({ icon: RELATIONS[type].icon, label: t(RELATIONS[type].name), title: t(RELATIONS[type].hint || ''), run: () => this.addRelation(type, ps) });
     const at = () => { const b = this.m.els.viewport.querySelector('.view-suggest')?.getBoundingClientRect(); return { clientX: (b?.right || 300) + 8, clientY: b?.top || 300 }; };
@@ -2662,7 +2690,7 @@ export class Sketcher {
       pattern: { icon: '⁂', label: t('Pattern'), title: t('Repeat it in a row or around a point'), run: () => this.startPattern() },
       offset: { icon: '⧈', label: t('Offset'), title: t('A copy of the closed outline a distance away — it follows its original'), run: () => this.offsetAt(null, at(), loop) },
     };
-    const edit = !ids.length ? [] : [ED.move, ...(pts.length > 1 ? [ED.rotate, ED.scale] : []), ED.copy, ED.mirror, ED.pattern, ...(loop ? [ED.offset] : [])];
+    const edit = !ids.length ? [] : [ED.move, ...(pts.length > 1 ? [ED.rotate, ED.scale] : []), ED.copy, ED.mirror, ED.pattern, ...(loop ? [ED.offset] : []), ...[MG.join, MG.simplify, MG.outline].filter(Boolean)];
     const lines = shapes.filter((e) => e.t === 'line'), hv = (id) => this.f.constraints.find((k) => (k.t === 'h' || k.t === 'v') && k.e === id)?.t;
     const rOf = (e) => (e.t === 'circle' ? e.r : this.arcR(e));
     // the relations that fit two shapes, the nearest to true first ([type, how far from true: < 1 = nearly]; of the
@@ -2686,7 +2714,7 @@ export class Sketcher {
       }
       if (p.kind === 'circle' && loop && !off) top.push(ED.offset);
       if (p.kind === 'point' && !this.f.constraints.some((k) => k.t === 'fix' && k.p === p.id)) top.push(rel('fix', p));
-    } else if (n === 2) {
+    } else if (n === 2 && !P.some((q) => q.kind === 'spline')) {
       const [a, b] = P, [ea, eb] = [this.ent(a.id), this.ent(b.id)];
       if (a.kind === 'line' && b.kind === 'line') {
         const dir = (e) => { const p = this.P(e.a), q = this.P(e.b), L = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1; return [(q[0] - p[0]) / L, (q[1] - p[1]) / L, L]; };
@@ -2718,7 +2746,9 @@ export class Sketcher {
       const L = P.filter((p) => p.kind === 'line'), R = P.filter(round);
       const eqL = L.length > 1 && chain('eq', L, 'Equal — all of them'), parL = L.length > 1 && chain('par', L, 'Parallel — all of them');
       const eqR = R.length > 1 && chain('eq', R, 'Equal — all of them'), conc = R.length > 1 && chain('conc', R, 'Concentric — all of them');
-      if (loop) top.push(ED.offset, ED.pattern, ED.move);
+      if (MG.many) top.push(MG.join, MG.simplify, ...(MG.outline ? [MG.outline] : [])); // (a chain of many pieces — an import: one curve first)
+      else if (MG.closed && !loop) top.push(MG.outline); // (closed outlines picked, holes and all: one rigid outline first)
+      if (loop) top.push(ED.offset, ...(MG.outline && !MG.many ? [MG.outline] : []), ED.pattern, ED.move);
       else if (L.length === n) top.push(eqL, parL, ED.move);
       else if (R.length === n) top.push(eqR, conc, ED.move);
       else top.push(...(ids.length ? [ED.move, ED.copy, ED.mirror] : []));
@@ -2740,24 +2770,24 @@ export class Sketcher {
   /** The suggestions table (bottom left) for what is picked. */
   renderSuggest() {
     const items = this.suggestions(), P = this.picks || [], n = P.length, ns = this.pickShapes(P).length;
-    const kind = { line: 'A line', circle: 'A circle', arc: 'An arc', point: 'A point', mid: "A line's midpoint", origin: 'The origin' }[P[0]?.kind];
+    const kind = { line: 'A line', circle: 'A circle', arc: 'An arc', spline: 'A smooth curve', point: 'A point', mid: "A line's midpoint", origin: 'The origin' }[P[0]?.kind];
     const what = P.map((q) => { // (as the AI's tools name them)
       const e = this.ent(q.id);
       if (q.kind === 'mid') return `${t('the middle of line')} ${q.id}`;
       if (q.kind === 'origin') return t('the origin');
       if (q.kind === 'point') return `${t('point')} ${q.id} (${(this.P(q.id) || []).map(fmt).join(', ')})`;
-      return `${{ line: t('line'), circle: t('circle'), arc: t('arc') }[q.kind] || q.kind} ${q.id}${e?.t === 'circle' ? ` (Ø${fmt(2 * e.r)})` : e?.t === 'line' ? ` (${fmt(this.measure({ t: 'len', e: e.id }))} mm)` : ''}`;
+      return `${{ line: t('line'), circle: t('circle'), arc: t('arc'), spline: t('curve') }[q.kind] || q.kind} ${q.id}${e?.t === 'circle' ? ` (Ø${fmt(2 * e.r)})` : e?.t === 'line' ? ` (${fmt(this.measure({ t: 'len', e: e.id }))} mm)` : ''}`;
     });
     const count = (k, one, many) => (k === 1 ? t(one) : tv(many, { n: k }));
-    const title = n === 1 ? t(kind || 'Selected') : [ns && count(ns, '1 shape', '{n} shapes'), n - ns && count(n - ns, '1 point', '{n} points')].filter(Boolean).join(', ');
+    const title = this.merging && !n ? `⛓ ${t('Merge')}` : n === 1 ? t(kind || 'Selected') : [ns && count(ns, '1 shape', '{n} shapes'), n - ns && count(n - ns, '1 point', '{n} points')].filter(Boolean).join(', ');
     const sg = showSuggest(this.m.els.viewport, title, items,
-      n === 1 ? t('Ctrl+click another shape: what fits the two') : ns ? t('Drag one of them: they all move together') : '', `${t('in the sketch')} ${this.f.id} “${this.f.name || ''}”: ${what.join(', ')}`);
+      this.merging ? t('Click or drag a box over the shapes to merge — each click adds one') : n === 1 ? t('Ctrl+click another shape: what fits the two') : ns ? t('Drag one of them: they all move together') : '', `${t('in the sketch')} ${this.f.id} “${this.f.name || ''}”: ${what.join(', ')}`);
     if (sg) sg.dataset.from = 'sketch';
   }
 
   // ------------------------------------------------------------------ the picks as a whole
-  /** The picked lines, circles and arcs. */
-  pickShapes(P = this.picks || []) { return P.filter((q) => ['line', 'circle', 'arc'].includes(q.kind)).map((q) => this.ent(q.id)).filter(Boolean); }
+  /** The picked lines, circles, arcs and smooth curves. */
+  pickShapes(P = this.picks || []) { return P.filter((q) => ['line', 'circle', 'arc', 'spline'].includes(q.kind)).map((q) => this.ent(q.id)).filter(Boolean); }
 
   /** The points the picks move: their shapes' points and the picked points (not the origin). */
   pickPoints(P = this.picks || []) {
@@ -2791,7 +2821,7 @@ export class Sketcher {
 
   /** The picks again where their shapes are now (after a move); gone ones dropped. */
   refreshPicks() {
-    this.picks = (this.picks || []).map((q) => (['line', 'circle', 'arc'].includes(q.kind) ? (this.ent(q.id) ? this.pickOf(this.ent(q.id)) : null)
+    this.picks = (this.picks || []).map((q) => (['line', 'circle', 'arc', 'spline'].includes(q.kind) ? (this.ent(q.id) ? this.pickOf(this.ent(q.id)) : null)
       : q.kind === 'point' ? (this.f.points[q.id] ? { ...q, t: { ...q.t, uv: [...this.P(q.id)] } } : null) : q)).filter(Boolean);
   }
 
@@ -2939,8 +2969,9 @@ export class Sketcher {
       const f = this.f;
       for (const id of [...new Set(shapes.flatMap(entPts))]) { const p = this.P(id); map[id] = this.newId('p'); f.points[map[id]] = [+(p[0] + g).toFixed(6), +(p[1] - g).toFixed(6)]; }
       for (const e of shapes) {
-        const c = { ...structuredClone(e), id: (emap[e.id] = this.newId(e.t === 'circle' ? 'c' : e.t === 'arc' ? 'a' : 'l')) };
+        const c = { ...structuredClone(e), id: (emap[e.id] = this.newId(e.t === 'circle' ? 'c' : e.t === 'arc' ? 'a' : e.t === 'spline' ? 's' : 'l')) };
         for (const k of ['a', 'b', 'c']) if (typeof e[k] === 'string') c[k] = map[e[k]];
+        if (e.pts) c.pts = e.pts.map((q) => map[q]);
         delete c.g;
         if (e.g && f.entities.every((x) => x.g !== e.g || picked.has(x.id))) c.g = groups[e.g] || (groups[e.g] = this.newId('r')); // (a whole rectangle stays one)
         f.entities.push(c);
@@ -2960,7 +2991,7 @@ export class Sketcher {
 
   /** ⇋ Mirror the picked shapes: the Mirror box opens for them — the X / Y axis or a clicked line, and it is done. */
   mirrorPicks() {
-    const ids = this.pickShapes().map((e) => e.id);
+    const ids = this.pickShapes().filter((e) => e.t !== 'spline').map((e) => e.id); // (a smooth curve is not mirrored yet)
     if (!ids.length) return;
     this.setTool('mirror');
     this.mirSrc = ids;
@@ -2973,6 +3004,142 @@ export class Sketcher {
     this.mirSrc = null;
     if (ents.length) await this.mirror(ents, line, this.mirMove);
     this.setTool('select');
+  }
+
+  // ------------------------------------------------------------------ ⛓ merge: many small shapes into few
+  /** Are the picked curves connected (each shares an end with another one) / closed (every end shared by two)? */
+  chainOf(curves) {
+    // ends in one place (within 0.02 mm: a drawing's ends often miss each other by a hair) count as one
+    const EPS = 0.02, cells = new Map(), key = (i, j) => `${i},${j}`, endsOf = (e) => (e.t === 'spline' ? [e.pts[0], e.pts[e.pts.length - 1]] : [e.a, e.b]);
+    const at = curves.map((e) => endsOf(e).map((q) => this.P(q)).filter(Boolean));
+    at.forEach((ps, k) => ps.forEach((p) => { const c = key(Math.floor(p[0] / EPS), Math.floor(p[1] / EPS)); cells.set(c, [...(cells.get(c) || []), [p, k]]); }));
+    const near = (p) => { // how many ends are where p is
+      const i = Math.floor(p[0] / EPS), j = Math.floor(p[1] / EPS);
+      let n = 0;
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const [q] of cells.get(key(i + a, j + b)) || []) if (Math.hypot(q[0] - p[0], q[1] - p[1]) <= EPS) n++;
+      return n;
+    };
+    const counts = at.map((ps) => ps.map(near));
+    const joined = curves.length > 1 && counts.every((cs) => cs.some((c) => c > 1));
+    return { joined, closed: joined && counts.every((cs) => cs.every((c) => c % 2 === 0)) };
+  }
+
+  /** The ⛓ rows for these picks: join (a connected chain), simplify, outline (closed loops, circles), whole (nothing
+   *  picked: the whole sketch); many: a chain of six pieces or more (they go first in the short list). */
+  mergeItems(P) {
+    const shapes = this.pickShapes(P).filter((e) => !e.construction), curves = shapes.filter((e) => e.t !== 'circle');
+    const { joined, closed } = this.chainOf(curves);
+    const row = (op, icon, label, title, whole = false) => ({ icon, label: t(label), title: t(title), run: () => this.mergeBox(op, whole) });
+    return {
+      many: joined && curves.length >= 6, closed,
+      join: joined ? row('join', '⛓', 'Join into one curve', 'The connected lines, arcs and curves become one smooth curve (split only at sharp corners)') : null,
+      simplify: curves.length > 1 ? row('simplify', '🧹', 'Simplify', 'Fewer shapes, the same outline: ends that nearly meet welded, tiny pieces absorbed, lines in line and arcs on one circle joined') : null,
+      outline: (closed || (shapes.length && !curves.length)) && shapes.length ? row('outline', '◆', 'Make it one outline', 'The closed outline (with its holes) becomes one rigid shape: it moves, turns and scales as a whole') : null,
+      whole: row('simplify', '🧹', 'Simplify the whole sketch', 'Fewer shapes, the same outline — for all the sketch', true),
+    };
+  }
+
+  /** ⛓ Merge (the bar): with shapes picked, the table offers what merges them; with none, a mode — click or drag a box
+   *  over shapes (each adds), then choose in the table. Again: off. */
+  startMerge() {
+    if (this.merging) { this.setTool('select'); return; }
+    if (this.tool !== 'select') this.setTool('select');
+    this.merging = true;
+    this.sgMore = null;
+    this.m.renderCmdBar();
+    this.changed();
+  }
+
+  /** ⛓ Join / 🧹 Simplify / ◆ One outline of the picks (whole: the whole sketch) on the server — shown at once, one
+   *  undo step; Join and Simplify open a small box: the tolerance (retyped: done again from where it was), the count
+   *  before → after, Enter = done, Esc = back. */
+  async mergeBox(op, whole = false) {
+    const kinds = op === 'outline' ? ['line', 'arc', 'spline', 'circle'] : ['line', 'arc', 'spline'];
+    const ids = whole ? null : this.pickShapes().filter((e) => kinds.includes(e.t) && !e.construction).map((e) => e.id);
+    if (!whole && !ids.length) return;
+    this.closeChooser();
+    const mg = { op, ids, base: this.undo.length, orig: this.snapshot(), shown: false };
+    this.mg = mg;
+    if (op === 'outline') { // (nothing to type: done)
+      const ok = await this.mergeTo(mg, null);
+      if (this.mg === mg) this.mg = null;
+      if (ok) { this.merging = false; this.m.renderCmdBar(); this.mergeSaid(mg); }
+      this.changed();
+      return;
+    }
+    const box = document.createElement('div');
+    box.className = 'sk-choose sk-quick sk-xform sk-merge';
+    box.innerHTML = `<div class="sk-choose-t">${op === 'join' ? `⛓ ${t('Join into one curve')}` : `🧹 ${t(whole ? 'Simplify the whole sketch' : 'Simplify')}`}</div>
+      <label title="${t('How far the result may be from the shapes it replaces')}">${t('Tolerance')} <input type="text" data-mk="tol" value=""> mm</label>
+      <p class="hint" data-mk="res">…</p>
+      <p class="hint">${t('Enter = done, Esc = back')}</p>
+      <button class="btn small primary" data-done>${t('Done')}</button>`;
+    for (const ev of ['pointerdown', 'pointerup']) box.addEventListener(ev, (x) => x.stopPropagation());
+    const inp = box.querySelector('[data-mk=tol]');
+    const typed = () => parseFloat(inp.value.replace(',', '.'));
+    const done = async () => { clearTimeout(this.mgTimer); await this.mgBusy; if (this.mg !== mg) return; if (Number.isFinite(typed()) && typed() !== mg.tol) await this.mergeTo(mg, typed()); if (this.chooser === box) { this.closeChooser(); this.merging = false; this.picks = []; this.m.renderCmdBar(); this.mergeSaid(mg); this.changed(); } }; // (done: the toast says what came of it)
+    inp.addEventListener('input', () => { clearTimeout(this.mgTimer); this.mgTimer = setTimeout(() => { if (typed() > 0) this.mergeTo(mg, typed(), true); }, 350); });
+    inp.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Escape') this.mergeCancel(); if (ev.key === 'Enter') done(); });
+    box.querySelector('[data-done]').addEventListener('click', done);
+    this.m.els.viewport.appendChild(box);
+    this.chooser = box;
+    this.mg = mg; // (closeChooser above cleared it — and the table goes while the box is open)
+    this.renderSuggest();
+    await this.mergeTo(mg, null);
+    if (this.chooser === box && mg.report) { inp.value = fmt(mg.report.tol); setTimeout(() => { if (this.chooser === box) { inp.focus(); inp.select(); } }, 0); }
+  }
+
+  /** The merge done (again) from where the sketch was when the box opened, with this tolerance (null: the server's
+   *  default for the sketch's size). One at a time. -> true when it is shown. */
+  mergeTo(mg, tol, quiet = false) {
+    const run = async () => {
+      if (this.mg !== mg) return false;
+      if (mg.shown) { Object.assign(this.f, structuredClone(mg.orig)); this.undo.length = mg.base; mg.shown = false; } // (back where it was, then anew)
+      let j;
+      try {
+        const f = this.f, res = await fetch('/api/model/sketch/clean', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ op: mg.op, ids: mg.ids, tol, name: t('Outline'), sketch: { points: f.points, entities: f.entities, constraints: f.constraints, dims: f.dims } }) });
+        j = await res.json();
+        if (!res.ok || j.error) throw new Error(j.error || res.statusText);
+      } catch (e) {
+        if (!quiet) this.m.toast(t(e.message), 'warning', 5000);
+        this.changed();
+        return false;
+      }
+      if (this.mg !== mg) return false;
+      this.step();
+      Object.assign(this.f, { points: j.sketch.points, entities: j.sketch.entities, constraints: j.sketch.constraints, dims: j.sketch.dims });
+      const had = new Set(mg.orig.entities.map((e) => e.id)), made = this.f.entities.filter((e) => !had.has(e.id));
+      this.picks = made.map((e) => this.pickOf(e)).filter(Boolean);
+      this.sel = made.length === 1 && made[0].t === 'block' ? { kind: 'entity', id: made[0].id } : null; // (an outline: its panel)
+      Object.assign(mg, { shown: true, report: j.report, tol: j.report.tol });
+      const res = this.chooser?.querySelector('[data-mk=res]');
+      if (res) res.textContent = this.mergeText(j.report);
+      this.changed();
+      return true;
+    };
+    this.mgBusy = (this.mgBusy || Promise.resolve()).then(run, run);
+    return this.mgBusy;
+  }
+
+  /** "688 → 1 shapes" (and the area, when it changed). */
+  mergeText(r) {
+    const moved = (r.issues || []).find((x) => x.code === 'area_changed');
+    return `${tv('{a} → {b} shapes', { a: r.before.entities, b: r.after.entities })}${moved ? ` · ${t('the enclosed area changed — try a smaller tolerance')}` : ''}`;
+  }
+
+  mergeSaid(mg) { if (mg.report) this.m.toast(this.mergeText(mg.report), mg.report.issues?.length ? 'warning' : 'ok', 4000); }
+
+  /** Esc in the ⛓ box: the sketch back as it was, the box gone. */
+  mergeCancel() {
+    clearTimeout(this.mgTimer);
+    const mg = this.mg;
+    const run = async () => {
+      if (mg?.shown) { Object.assign(this.f, structuredClone(mg.orig)); this.undo.length = mg.base; this.picks = []; this.sel = null; }
+      this.closeChooser();
+      this.changed();
+    };
+    this.mgBusy = (this.mgBusy || Promise.resolve()).then(run, run);
   }
 
   /** {construction: true} while ┄ Construction is on (new shapes are helpers, not part of the outline). */
@@ -3138,7 +3305,9 @@ export class Sketcher {
         if (p && near) lines.push([near, p, 0x8b95a3, true]);
       }
     }
+    const hidden = this.hiddenPts();
     for (const [id, p] of Object.entries(f.points)) {
+      if (hidden.has(id)) continue;
       const fixed = f.dims.some((d) => (d.t === 'dx' || d.t === 'dy') && d.b === id && d.a === ORIGIN);
       dots.push([p, selPts.has(id) ? SEL : this.free ? (this.free.points.has(id) ? STATE.free : STATE.done) : fixed ? LOCKED : NORM]);
     }
@@ -3249,6 +3418,7 @@ export class Sketcher {
       else if (e?.t === 'line') lines.push([this.P(e.a), this.P(e.b), SEL]);
       else if (e?.t === 'circle') circles.push([this.P(e.c), e.r, SEL]);
       else if (e?.t === 'arc') { const ps = this.arcOf(e); for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], SEL]); }
+      else if (e?.t === 'spline') { const ps = this.splineOf(e); for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], SEL]); }
     }
     // the guides of where the mouse is (in line with a point, on a line's extension): dashed, for the moment
     const guides = this.dragGuides || (!['select', 'dim', 'relate'].includes(this.tool) && this.cursor?.guides);
