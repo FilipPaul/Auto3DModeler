@@ -38,9 +38,17 @@ owner can keep talking to it. Several may work in this one working tree at the s
 - **Only your own changes.** Before committing, `git status` and `git diff` — stage only the files (and hunks)
   your goal changed; never revert, reformat or "fix" someone else's uncommitted work. If a file you need is
   being changed by another job, say so in your report instead of overwriting it.
-- **Staging only your hunks in a shared file:** build the index version from `git show HEAD:<file>` plus your
-  edits (or a temporary index: `GIT_INDEX_FILE=… git read-tree HEAD`), not `git apply --cached --unidiff-zero`
-  (it can put a pure insertion a line off). Always read `git diff --cached` before committing.
+- **Never stage into the shared index** (`.git/index`: no `git add`, `git update-index`, `git apply --cached`)
+  — another agent's `git commit` would take your files with it (this happened: 73bdbff). Commit through a
+  **private index** instead:
+  `export GIT_INDEX_FILE=<your scratchpad>/idx-<job>; git read-tree HEAD`, put your versions of your files in it
+  (whole files that are only yours: `git update-index --add <path>` — with that GIT_INDEX_FILE set; a shared file:
+  `git show HEAD:<file>` plus only your edits, written to a temp file and added with
+  `git update-index --add --cacheinfo 100644,$(git hash-object -w <temp file>),<file>`), read
+  `git diff --cached` (same GIT_INDEX_FILE), `git commit`, then `unset GIT_INDEX_FILE` and
+  `git reset -q -- <your paths>` so the shared index matches the new HEAD for your files. Never `git commit -a`.
+- **HEAD must pass the unit tests** after your commit: check in a clean worktree of HEAD
+  (`git worktree add <scratchpad>/wt HEAD`), not only in the shared tree with others' half-done work.
 - **Small goals, committed at once**, so others build on them; `git pull` is not needed (one local clone).
 - **Report back** in a few lines: what works, what was left out, the commit hashes, test results with numbers.
 
