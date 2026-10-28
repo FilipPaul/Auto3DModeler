@@ -55,8 +55,15 @@ export class Windows {
     if (changed.length || gone.length) this.ch.postMessage({ from: this.wid, parts: changed, gone, next: this.hooks.project.next });
   }
 
+  /** A note to the other windows of the project (not a change of parts). */
+  tell(note) { this.ch?.postMessage({ from: this.wid, note }); }
+
   async receive(msg) {
     if (!msg || msg.from === this.wid) return;
+    if (msg.note) { // a tab of this window was dragged into another one: it goes from here
+      if (msg.note.took && msg.note.win === this.wid) await this.hooks.gave?.(msg.note.took);
+      return;
+    }
     const pr = this.hooks.project;
     while (pr.busy) await new Promise((r) => setTimeout(r, 100)); // (a part being switched to)
     this.send(); // (what changed here first: not lost under theirs)

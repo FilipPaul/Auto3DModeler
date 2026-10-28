@@ -80,6 +80,11 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **One tab per new window, tabs dragged between windows done:** Project.showOnly / shown (a window opened by ⧉
+  shows only its part's tab; switchTo adds, ✕ removes it from this window only — the part stays open elsewhere); a
+  tab's drag carries text/a3d-from {win, project}; a drop on another window's tab row / a tab adopts it there
+  (Project.adopt: the same project, the part already synced) and Windows.tell({took}) makes the first window close it.
+  e2e_windows.
 - **Suggestions for the selection done:** suggest.js showSuggest(viewport, title, items, hint) — a table bottom left;
   Sketcher: ⬚ Select picks (pickItem: point / line / circle / arc; Ctrl+click adds / removes) -> suggestions() by what
   is picked (own sizes, h / v / fix, relations via addRelation, dimBetween for the dimension that fits two, chains for

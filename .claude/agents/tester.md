@@ -186,7 +186,8 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_windows.py <url> <dir>` covers ⧉ a part in a new window (a Base and an assembly using it: a hole added
    in the new window rebuilds the assembly in the first; a part inserted in the first is in the other's project; the
    Base on screen in both: a step in one shown in the other; no messages in 3 quiet seconds, the same in both; a
-   sheet in the other window made again with a new revision after a hole in the first).
+   sheet in the other window made again with a new revision after a hole in the first; the new window shows only its
+   tab; a tab dropped from the first window onto the second's tab row opens there and goes from the first).
    `tools/e2e_ai_gui.py <url> <dir>` covers the AI's GUI testing: gui_action at a point of the 3D view (the lid
    picked, an empty corner: none), Delete / ctrl+z keys, gui_state on a sheet (dims, views, cells), a dimension
    clicked + Delete + ctrl+z, a view dragged 20 mm by at_mm / drag_to, a double-click on the title cell (its field

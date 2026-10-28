@@ -738,6 +738,8 @@ const CS = {
   'The part on screen — double-click to rename, drag to move the tab (out of the window: a new window)': 'Díl na obrazovce — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'Click to show it — double-click to rename, drag to move the tab (out of the window: a new window)': 'Kliknutím zobrazíte — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'No part open': 'Žádný díl není otevřený',
+  'That tab is from another project — open that project here first.': 'Ta záložka je z jiného projektu — nejdřív tu otevřete ten projekt.',
+  'That part has not reached this window yet — try again in a moment.': 'Ten díl do tohoto okna ještě nedorazil — zkuste to za chvíli.',
   Suggested: 'Návrhy',
   'Join them': 'Spojit je', 'Pick a face of each — touch, gap, flush, a pin in a hole …': 'Vyberte plochu na každém — dotyk, mezera, zarovnání, čep v díře …',
   'Measure between them': 'Změřit mezi nimi', 'Check for collisions': 'Zkontrolovat kolize', Only: 'Jen', 'Open its part': 'Otevřít jeho díl',

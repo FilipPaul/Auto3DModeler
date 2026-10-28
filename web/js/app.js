@@ -1740,6 +1740,9 @@ const project = new Project($('partTabs'), {
   },
   openWindow: (id) => windows.open(id).catch((e) => toast(e.message, 'warning', 7000)),
   showNone: (on) => document.body.classList.toggle('none-open', on), // the last tab closed
+  windowId: () => windows?.wid, // (tabs dragged between windows)
+  projectId: () => autosave?.id,
+  tookTab: (id, win) => windows?.tell({ took: id, win }), // (the window it came from lets it go)
   toast,
 });
 
@@ -2395,13 +2398,17 @@ var windows = new Windows({
     else if (state.workspace === 'sheet') await sheet.ensure();
   },
   saveNow: () => autosave.saveNow(),
+  gave: (id) => project.close(id), // (a tab of this window taken by another one)
 });
 windows.connect(autosave.id);
 const opened = new URLSearchParams(location.search);
 if (opened.has('project')) { // a window opened by ⧉: its project, its part on screen
   autosave.open(opened.get('project')).then(async () => {
     const id = opened.get('part');
-    if (id && project.parts.some((p) => p.id === id)) await project.switchTo(id);
+    if (id && project.parts.some((p) => p.id === id)) {
+      await project.switchTo(id);
+      project.showOnly(id); // (only its tab here: the others stay in the project, ☰)
+    }
     document.title = `${project.current?.name || ''} — Auto3DModeler`;
   }).catch((e) => toast(e.message, 'error', 8000));
 }
@@ -2606,4 +2613,4 @@ Object.assign(agentHandlers, {
   },
 });
 
-window.__app = { state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, library, autosave, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d, sheet };
+window.__app = { state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, library, autosave, windows, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d, sheet };

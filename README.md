@@ -78,7 +78,8 @@ drawing** (extension lines, a dimension line with arrows, a leader for Ø / R); 
 feature, **Done** — float in the bottom-right corner of the view in every workspace; the toolbars hold only the tools.
 
 **⧉ Windows (several monitors)**: the **⧉** on a tab (or in ☰ Parts) opens that part — a 3D model, an assembly, a
-drawing sheet, a 2D drawing — in a new browser window. The windows stay linked: a change in one is in the others at
+drawing sheet, a 2D drawing — in a new browser window, with only that tab (the other parts are in its ☰ tree).
+**Drag a tab** from one window onto another window's tab row: it opens there and goes from the first. The windows stay linked: a change in one is in the others at
 once (an assembly using a changed part is built again, a drawing sheet of it gets a new revision, the same part on
 screen in two windows shows the change in both), and the project is saved the same from any of them.
 

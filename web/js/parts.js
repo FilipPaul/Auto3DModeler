@@ -31,6 +31,38 @@ export class Project {
     this.next = 1;
     this.busy = false;
     document.addEventListener('click', () => { for (const m of this.el.querySelectorAll('.part-add, .part-all')) m.classList.remove('open'); });
+    // a tab dragged in from another window of this project (onto the tab row, not onto a tab): it opens here
+    el.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('text/a3d-part')) e.preventDefault(); });
+    el.addEventListener('drop', (e) => {
+      if (e.target.closest('.part-tab') || !e.dataTransfer.types.includes('text/a3d-part')) return;
+      e.preventDefault();
+      const from = this.fromElsewhere(e);
+      if (from) this.adopt(e.dataTransfer.getData('text/a3d-part'), from); else this.droppedHere = true;
+    });
+  }
+
+  /** ⧉ This window shows only these tabs (a window opened for one part); the rest stay in the project (☰). */
+  showOnly(...ids) { this.shown = new Set(ids); this.render(); }
+
+  /** Where a dragged tab comes from: {win, project} when it is another window's, else null. */
+  fromElsewhere(e) {
+    try {
+      const f = JSON.parse(e.dataTransfer.getData('text/a3d-from') || '{}');
+      return f.win && f.win !== this.hooks.windowId?.() ? f : null;
+    } catch { return null; }
+  }
+
+  /** A tab dragged in from another window: its part opens here (that window lets it go). -> done */
+  async adopt(id, from) {
+    if (from.project !== this.hooks.projectId?.()) { this.hooks.toast(t('That tab is from another project — open that project here first.'), 'warning', 5000); return false; }
+    const p = this.parts.find((q) => q.id === id);
+    if (!p) { this.hooks.toast(t('That part has not reached this window yet — try again in a moment.'), 'warning', 4000); return false; }
+    this.shown?.add(id);
+    delete p.closed;
+    await this.switchTo(id);
+    this.render();
+    this.hooks.tookTab?.(id, from.win);
+    return true;
   }
 
   get current() { return this.parts.find((p) => p.id === this.active) || null; }
@@ -173,6 +205,7 @@ export class Project {
 
   async switchTo(id) {
     const p = this.parts.find((q) => q.id === id);
+    if (p) this.shown?.add(id); // (a window of its own: this tab now too)
     if (p?.closed) { delete p.closed; this.render(); } // opened again: its tab comes back
     if (id === this.active && this.none) { this.setNone(false); this.render(); return; }
     if (id === this.active || this.busy) return;
@@ -190,15 +223,17 @@ export class Project {
     }
   }
 
-  get openParts() { return this.parts.filter((p) => !p.closed); }
+  get openParts() { return this.parts.filter((p) => !p.closed && (!this.shown || this.shown.has(p.id))); }
 
   /** ✕ on a tab: the tab goes, the part stays in the project (☰ Parts opens it again). */
   async close(id) {
     const open = this.openParts, p = open.find((q) => q.id === id);
     if (!p || this.busy) return;
+    // (a window of its own: the tab goes from this window only — the part stays open in the others)
+    const shut = () => { if (this.shown) this.shown.delete(id); else p.closed = true; };
     if (open.length < 2) { // the last tab: nothing on screen (☰ opens a part again)
       if (id === this.active) this.setNone(true);
-      p.closed = true;
+      shut();
       this.render();
       return;
     }
@@ -207,7 +242,7 @@ export class Project {
       await this.switchTo((open[i + 1] || open[i - 1]).id);
       if (this.active === id) return;
     }
-    p.closed = true;
+    shut();
     this.render();
     if (!this.toldClosed) { this.toldClosed = true; this.hooks.toast(t('The tab is closed — the part stays in the project (☰ Parts opens it again).'), 'info', 5000); }
   }
@@ -279,6 +314,7 @@ export class Project {
 
   render() {
     window.dispatchEvent(new Event('a3d:changed')); // (a part added, renamed, closed …: autosave)
+    if (this.shown && this.active && !this.none) this.shown.add(this.active); // (a part made in this window: its tab here)
     const el = this.el;
     el.hidden = !this.parts.length;
     el.innerHTML = '';
@@ -297,7 +333,13 @@ export class Project {
       tab.dataset.part = p.id;
       tab.title = p.id === this.active ? 'The part on screen — double-click to rename, drag to move the tab (out of the window: a new window)' : 'Click to show it — double-click to rename, drag to move the tab (out of the window: a new window)';
       tab.draggable = true;
-      tab.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/a3d-part', p.id); e.dataTransfer.effectAllowed = 'move'; tab.classList.add('dragging'); });
+      tab.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/a3d-part', p.id);
+        e.dataTransfer.setData('text/a3d-from', JSON.stringify({ win: this.hooks.windowId?.(), project: this.hooks.projectId?.() }));
+        e.dataTransfer.effectAllowed = 'move';
+        this.droppedHere = false;
+        tab.classList.add('dragging');
+      });
       tab.addEventListener('dragover', (e) => {
         if (!e.dataTransfer.types.includes('text/a3d-part')) return;
         e.preventDefault();
@@ -308,11 +350,14 @@ export class Project {
       tab.addEventListener('dragleave', () => tab.classList.remove('drop-before', 'drop-after'));
       tab.addEventListener('drop', (e) => {
         e.preventDefault();
-        const id = e.dataTransfer.getData('text/a3d-part'), r = tab.getBoundingClientRect();
-        this.move(id, p.id, e.clientX > r.left + r.width / 2);
+        const id = e.dataTransfer.getData('text/a3d-part'), r = tab.getBoundingClientRect(), after = e.clientX > r.left + r.width / 2, from = this.fromElsewhere(e);
+        if (from) { this.adopt(id, from).then((ok) => ok && this.move(id, p.id, after)); return; } // (from another window: it opens here, there)
+        this.droppedHere = true;
+        this.move(id, p.id, after);
       });
       tab.addEventListener('dragend', (e) => {
         tab.classList.remove('dragging');
+        if (e.dataTransfer.dropEffect === 'move' && !this.droppedHere) { this.close(p.id); return; } // taken by another window: it goes from here
         const out = e.clientX <= 0 || e.clientY <= 0 || e.clientX >= innerWidth || e.clientY >= innerHeight;
         if (out && e.dataTransfer.dropEffect === 'none' && this.hooks.openWindow) this.hooks.openWindow(p.id); // dropped outside: its own window
       });

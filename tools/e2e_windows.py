@@ -2,7 +2,8 @@
 new window with the Base on screen -> a hole added there: the assembly in the first window is built again with it ->
 a second Base put in the assembly (first window): the other window has it too -> the Base on screen in both: a step
 added in one is shown in the other -> no changes going back and forth when nothing is done, the same in both -> a
-drawing sheet of the Base in the other window: a hole added in the first -> the sheet made again (a new revision).
+drawing sheet of the Base in the other window: a hole added in the first -> the sheet made again (a new revision) -> the new
+window showed only its tab -> a tab dragged from the first window into the second's tab row: it opens there and goes from the first.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_windows.py http://127.0.0.1:5199 <out dir>
 """
@@ -64,6 +65,8 @@ try:
     d.switch_to.window(second)
     wait(f"return !!window.__app && {P}.parts.length === 2 && {P}.active === '{base}' && !!window.__app.modeler.result?.body")
     print("⧉ the new window:", js(f"return [{P}.current.name, document.title, window.__app.state.workspace, {P}.parts.map(p => p.name)]"))
+    print("  only its tab there:", js("return [...document.querySelectorAll('#partTabs .part-tab')].map(t => t.textContent.trim())"),
+          "| the project has both:", js(f"return {P}.parts.length"))
     call("add_feature", type="hole", face="F2:end", points=[[0, 0]], d=8)
     print("  a hole added there:", js("return window.__app.modeler.part.features.length"), "steps")
     d.switch_to.window(first)
@@ -107,6 +110,23 @@ try:
     wait(f"return window.__app.sheet.d.hash !== '{h0}' && !window.__app.sheet.busy", 120)
     time.sleep(1)
     print("a sheet in the other window made again:", js("return [window.__app.sheet.d.rev, window.__app.sheet.allDims().length]"), "dims before", c0)
+    # a tab dragged from the first window into the second one's tab row: it opens there, it goes from here
+    d.switch_to.window(first)
+    box_id = js(f"return {P}.parts.find(p => p.name === 'Box').id")
+    js(f"{P}.switchTo(arguments[0])", box_id)
+    time.sleep(1)
+    src = js(f"return [window.__app.windows.wid, window.__app.autosave.id]")
+    js("""const tab = document.querySelector(`#partTabs .part-tab[data-part="${arguments[0]}"]`), dt = new DataTransfer();
+      window.__dt = dt; tab.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));""", box_id)
+    d.switch_to.window(second)
+    js("""const dt = new DataTransfer(); dt.setData('text/a3d-part', arguments[0]); dt.setData('text/a3d-from', JSON.stringify({ win: arguments[1], project: arguments[2] }));
+      const el = document.getElementById('partTabs'); el.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      el.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));""", box_id, *src)
+    time.sleep(1.5)
+    print("dropped into the second window:", js("return [...document.querySelectorAll('#partTabs .part-tab')].map(t => t.textContent.trim())"), "| on screen:", js(f"return {P}.current.name"))
+    d.switch_to.window(first)
+    time.sleep(1.2)  # (the second window told it that it took the tab)
+    print("  gone from the first window:", js("return [...document.querySelectorAll('#partTabs .part-tab')].map(t => t.textContent.trim())"), "| windows:", len(d.window_handles))
     for h in (first, second):
         d.switch_to.window(h)
         errors += [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"]
