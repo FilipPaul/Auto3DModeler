@@ -317,7 +317,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       await sheet.ensure();
       return ok({ ...sheet.summary(), ...(points ? { [points]: sheet.pointsOf(points) } : {}) });
     },
-    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, texts, complete, drop_twice } = {}) => {
+    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, texts, complete, drop_twice, fits } = {}) => {
       need('sheet', 'This is for a drawing sheet (📄) — sheet_open opens one');
       const ed = sheet, done = [];
       if (preset !== undefined) {
@@ -367,6 +367,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         ed.setDim(d, { ...(ed.d.dims[id] || {}), ...keep });
       }
       if (Object.keys(move || {}).length) done.push(`${Object.keys(move).length} moved`);
+      for (const [id, f] of Object.entries(fits || {})) { ed.setFit(id, f || ''); done.push(`${id} ${f || 'no fit'}`); }
       const added = [].concat(add).map((spec) => ed.addFor(spec));
       if (added.length) done.push(`added ${added.join(', ')}`);
       if (drop_twice) { const ck = ed.check(); const ids = [...ck.dup, ...ck.over]; for (const id of ids) ed.remove(id); done.push(`${ids.length} given twice removed`); }

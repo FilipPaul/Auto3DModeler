@@ -13,6 +13,7 @@
 //    rev, created, changed}
 import { History } from '../history.js';
 import { t } from '../i18n.js';
+import { HOLE_FITS, SHAFT_FITS, deviationText } from './fits.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const fmt = (v) => (+(+v).toFixed(2)).toString();
@@ -575,6 +576,7 @@ export class SheetEditor {
       ${d ? `<h3>${esc(t('Dimension'))}</h3><p class="mp-count" data-no-i18n>${esc(this.value(d) === null ? '⚠ ?' : this.dimText(d, this.value(d)))}</p>
         <p class="hint">${esc(d.auto ? t('Made by the preset. Drag it to move it; Delete removes it (↺ brings it back).') : t('Your own. Drag it to move it; Delete removes it.'))}</p>
         ${this.value(d) === null ? `<p class="mp-bad">${esc(t('Its points are gone — the part changed. Delete it and add it again.'))}</p>` : ''}
+        ${d.kind === 'dia' && !d.thread ? this.fitField(d) : ''}
         <div class="row-actions"><button class="btn small danger" data-a="del">✕ ${esc(t('Delete'))}</button></div>`
         : `<p class="hint">${esc(t('Drag a dimension or a view to move it. ＋ Dimension: click two points, or a circle. The values come from the part.'))}</p>`}
       ${name ? `<div class="row-actions"><button class="btn small" data-a="part">◆ ${esc(tv('Open {part}', { part: name }))}</button></div>` : ''}`;
@@ -584,7 +586,28 @@ export class SheetEditor {
     }
     box.querySelector('[data-k=paper]').addEventListener('change', (e) => { this.d.paper = e.target.value || null; this.d.views = {}; this.history.commit(); this.ensure(true); });
     box.querySelector('[data-a=del]')?.addEventListener('click', () => this.remove(this.sel));
+    box.querySelector('[data-k=fit]')?.addEventListener('change', (e) => { this.setFit(d.id, e.target.value); this.renderProps(); });
     box.querySelector('[data-a=part]')?.addEventListener('click', () => this.hooks.openPart?.(this.d.source));
+  }
+
+  /** A Ø dimension's fit (ISO 286): holes H6 … H9, shafts (a pin, a boss, an axle) f7 … p6 — with its deviations. */
+  fitField(d) {
+    const now = (d.post || '').trim(), v = this.value(d), dev = now && v ? deviationText(now, v) : '';
+    const opt = (f) => `<option value="${f}" ${f === now ? 'selected' : ''}>${f}</option>`;
+    return `<div class="field"><label>Fit</label><select data-k="fit" title="${esc(t('An ISO 286 fit: H for a hole, a small letter for a shaft (h6 a sliding fit, k6 / m6 a push fit, p6 a press fit)'))}">
+      <option value="">—</option><optgroup label="${esc(t('Hole'))}">${HOLE_FITS.map(opt).join('')}</optgroup><optgroup label="${esc(t('Shaft'))}">${SHAFT_FITS.map(opt).join('')}</optgroup></select></div>
+      ${dev ? `<p class="hint" data-no-i18n>${esc(`${now}: ${dev} mm`)}</p>` : ''}`;
+  }
+
+  /** Set (or with '': take off) the fit of Ø dimension `id` — drawn after its size (Ø8 h6). */
+  setFit(id, fit) {
+    if (fit && !HOLE_FITS.includes(fit) && !SHAFT_FITS.includes(fit)) throw new Error(`fit: one of ${[...HOLE_FITS, ...SHAFT_FITS].join(', ')}.`);
+    const d = this.allDims().find((x) => x.id === id);
+    if (!d || d.kind !== 'dia') throw new Error(`${id} is not a Ø dimension — get_sheet lists them.`);
+    const u = this.d.user.find((x) => x.id === id);
+    if (u) u.post = fit ? ` ${fit}` : '';
+    else this.d.dims = { ...this.d.dims, [id]: { ...(this.d.dims[id] || {}), post: fit ? ` ${fit}` : '' } };
+    this.commit();
   }
 
   // ------------------------------------------------------------------ is it fully dimensioned?

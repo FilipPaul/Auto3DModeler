@@ -72,6 +72,9 @@ anyway while a sketch plane is being chosen.
 The tool buttons are coloured by what they do: make (blue), modify (amber), copy (purple), details (teal),
 define / join (green), look and check (grey).
 
+**Fits on the drawing**: select a Ø dimension on the sheet and choose its *Fit* — H6 … H9 for a hole, f7 / g6 / h6 /
+k6 / m6 / p6 for a shaft (a pin, a boss, an axle); it is drawn *Ø8 h6* and the panel tells its deviations.
+
 **⊿ Rib**: a gusset in a corner — draw one line in a sketch across the corner (e.g. on the Right plane through the
 plate and the wall, from the wall to the plate), then ⊿ Rib and its thickness: the side of the line that closes
 against the part is filled, half the thickness each side of the sketch plane.
