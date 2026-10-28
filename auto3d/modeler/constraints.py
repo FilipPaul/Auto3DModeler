@@ -295,7 +295,8 @@ def solve(sketch, drag=None, keep=None, detail=False):
     keep = "u" | "v": try to keep that coordinate of every other point (a typed width moves nothing up or down);
     dropped when the sketch cannot do it. detail: also which points and circle radii are still free (a point is free
     when fixing it takes freedom away) — for colouring the sketch.
-    -> {"ok", "points", "radii", "dof", "conflicts": [dim ids], "status", "free"?: {"points", "radii"}}"""
+    -> {"ok", "points", "radii", "dof", "conflicts": [dim ids], "status", "free"?: {"points", "radii"},
+        "held"?: {"ok": the dragged points are where asked, "conflicts": the locks that stop them}}"""
     import planegcs as g
 
     pts = {k: [float(x) for x in v] for k, v in (sketch.get("points") or {}).items()}
@@ -462,7 +463,13 @@ def solve(sketch, drag=None, keep=None, detail=False):
                 next(e for e in sketch.get("entities") or [] if e.get("id") == k)["r"] = s.get_param(r)
     s, ids, ents, radius, tags = build(bool(drag))
     status = s.solve()
+    held = None
     if drag:
+        # did the held points get where they were asked to? (a group moved / turned / scaled as a whole is refused
+        # when it is not: which locks stop it)
+        hd = s.diagnose()
+        stuck = sorted({tags[t] for t in hd.conflicting if t in tags and tags[t]})
+        held = {"ok": status in good and not stuck, "conflicts": stuck}
         if status in good:
             # where the held points let it go; the final solve (and its check) is without the hold, which itself
             # can make locks look redundant (a held corner on a held line)
@@ -488,6 +495,9 @@ def solve(sketch, drag=None, keep=None, detail=False):
     radii = {k: round(s.get_param(r), 9) for k, r in radius.items()}
     out = {"ok": ok and not conflicts, "status": status.name, "points": out_pts, "radii": radii,
            "dof": diag.dof, "conflicts": conflicts}
+    if held is not None:
+        held["ok"] = held["ok"] and all(math.hypot(out_pts[k][0] - v[0], out_pts[k][1] - v[1]) < 1e-5 for k, v in drag.items() if k in out_pts)
+        out["held"] = held
     if detail and ok and len(pts) <= FREE_CHECK_MAX:
         free = {"points": [], "radii": []}
         if diag.dof > 0:

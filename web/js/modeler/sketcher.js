@@ -448,6 +448,7 @@ export class Sketcher {
       const what = { line: 'a line', round: 'a circle or an arc', shape: 'a line, a circle or an arc', point: 'a point', any: 'a point, a line or a circle' }[want];
       return `${r.icon} ${r.name}: click ${what}${k ? ' (the second)' : ''}${r.hint && !k ? ` — ${r.hint}` : ''}. Esc = stop.`;
     }
+    if (this.tool === 'mirror' && this.mirSrc && !this.mirLine) return 'Mirror the picked shapes: click the line to mirror across — or choose the X / Y axis in the box.';
     if (this.tool === 'mirror') return this.mirLine ? 'Mirror: click the shapes to mirror (a rectangle or a joined outline goes whole). Esc = done.'
       : 'Mirror: click the line to mirror across — or choose the X / Y axis in the box.';
     if (this.tool === 'pattern') return 'Pattern: type the count and the spacing (Enter = done) — click a line to go along it, or a point / circle to go around it.';
@@ -474,6 +475,7 @@ export class Sketcher {
     this.dimA = null;
     this.closeChooser();
     this.mirLine = null;
+    this.mirSrc = null;
     this.pat = null;
     if (t === 'mirror') { this.mirMove = false; this.mirrorChooser(); } // a copy unless asked (each time)
     if (t !== 'select') this.sel = null;
@@ -691,12 +693,21 @@ export class Sketcher {
     for (const d of this.f.dims) if (d.free) d.v = +this.measure(d).toFixed(6);
   }
 
-  /** Change the locks (dims) and solve; when the result contradicts other locks, go back and say which. */
-  async relock(mutate, hold = null, keep = null, { quiet = false } = {}) {
+  /** Change the locks (dims) and solve; when the result contradicts other locks, go back and say which. exact: the
+   *  held points must get where they are asked (a selection moved / turned / scaled as a whole), else it is refused. */
+  async relock(mutate, hold = null, keep = null, { quiet = false, exact = false } = {}) {
     const before = structuredClone(this.f);
     this.step();
     mutate();
     const r = await this.solve(hold, keep);
+    if (exact && hold && r.ok && r.held && !r.held.ok) {
+      r.ok = false;
+      r.conflicts = r.held.conflicts;
+      const names = r.conflicts.map((id) => this.dimName(this.f.dims.find((d) => d.id === id))
+        || ((k) => k && RELATIONS[k.t] ? `${RELATIONS[k.t].icon} ${t(RELATIONS[k.t].name)}` : '')(this.f.constraints.find((k) => k.id === id))).filter(Boolean);
+      r.error = names.length ? tv('Locked sizes hold the selection where it is ({names}) — unlock one of them first.', { names: names.join(', ') })
+        : t('Locked sizes hold the selection where it is — unlock them first.');
+    }
     // a "solution" that shrinks a line or a circle to nothing means the rules contradict each other
     if (r.ok && r.points) {
       const P = (id) => (id === ORIGIN ? [0, 0] : r.points[id] || this.f.points[id]);
@@ -1238,6 +1249,7 @@ export class Sketcher {
       const got = this.boxPicks(drag.x0, drag.y0, drag.x1, drag.y1), had = drag.add ? this.picks || [] : [];
       this.picks = [...had, ...got.filter((q) => !had.some((x) => x.kind === q.kind && x.id === q.id))]; // (Ctrl: added to what is picked)
       this.sel = null;
+      this.sgMore = null; // (a new pick: the short list)
       this.changed();
       return;
     }
@@ -1257,6 +1269,7 @@ export class Sketcher {
         const i = (this.picks || []).findIndex((q) => q.kind === item.kind && q.id === item.id);
         this.picks = i >= 0 ? this.picks.filter((_, k) => k !== i) : [...(this.picks || []), item];
       } else { this.sel = this.hit(uv0); this.picks = item ? [item] : []; }
+      this.sgMore = null; // (a new pick: the short list)
       this.changed();
       return;
     }
@@ -1380,13 +1393,19 @@ export class Sketcher {
 
   /** A relation between picks ({kind, id}: the second may be missing for h / v / fix). */
   async addRelation(type, picks) {
+    const [a, b] = picks, k = this.relationOf(type, picks);
+    if (type === 'eq' && (a.kind === 'line') !== (b.kind === 'line')) { this.m.toast('Equal: two lines, or two circles / arcs.', 'warning'); this.changed(); return; }
+    await this.relock(() => this.f.constraints.push(k));
+  }
+
+  /** The relation for these picks, as the sketch keeps it. */
+  relationOf(type, picks) {
     const [a, b] = picks, k = { id: this.newId('k'), t: type, user: true };
     if (type === 'h' || type === 'v') k.e = a.id;
     else if (type === 'fix') Object.assign(k, { p: a.id, at: [...this.P(a.id)] });
     else if (type === 'coin') Object.assign(k, b.kind === 'point' || b.kind === 'origin' ? { p: a.id, p2: b.id } : { p: a.id, e: b.id });
     else Object.assign(k, { e: a.id, e2: b.id });
-    if (type === 'eq' && (a.kind === 'line') !== (b.kind === 'line')) { this.m.toast('Equal: two lines, or two circles / arcs.', 'warning'); this.changed(); return; }
-    await this.relock(() => this.f.constraints.push(k));
+    return k;
   }
 
   // ------------------------------------------------------------------ mirror
@@ -1404,7 +1423,7 @@ export class Sketcher {
       <label class="sk-off"><input type="checkbox" data-move ${this.mirMove ? 'checked' : ''}> ${t('Move (do not keep the original)')}</label>
       <button class="btn small primary" data-done>${t('Done')}</button>`;
     for (const ev of ['pointerdown', 'pointerup']) box.addEventListener(ev, (x) => x.stopPropagation());
-    for (const b of box.querySelectorAll('[data-ax]')) b.addEventListener('click', () => { this.mirLine = { axis: b.dataset.ax }; this.mirrorChooser(); this.changed(); });
+    for (const b of box.querySelectorAll('[data-ax]')) b.addEventListener('click', () => { this.mirLine = { axis: b.dataset.ax }; if (this.mirSrc) { this.mirrorPicked(this.mirLine); return; } this.mirrorChooser(); this.changed(); });
     box.querySelector('[data-move]').addEventListener('change', (x) => { this.mirMove = x.target.checked; });
     box.querySelector('[data-done]').addEventListener('click', () => this.setTool('select'));
     this.m.els.viewport.appendChild(box);
@@ -1416,6 +1435,7 @@ export class Sketcher {
       const p = this.relPick(uv, 'line');
       if (!p) { this.m.toast('Click a line to mirror across — or choose the X / Y axis.', 'info', 3000); return; }
       this.mirLine = { e: p.id };
+      if (this.mirSrc) { this.mirrorPicked(this.mirLine); return; }
       this.mirrorChooser();
       this.changed();
       return;
@@ -1808,9 +1828,14 @@ export class Sketcher {
       else if (e.t === 'block') d = this.inBlock(e, uv) ? tol * 0.9 : Infinity;
       if (d < tol && (!best || d < best.d)) best = { d, e };
     }
-    if (!best) return null;
-    const e = best.e;
+    return best ? this.loopFrom(best.e) : null;
+  }
+
+  /** The closed shape `e` is part of: a circle, a picture outline, or lines / arcs joined all round (not open, not
+   *  branching) -> {kind, ids, order?, e?} or null. */
+  loopFrom(e) {
     if (e.t === 'circle' || e.t === 'block') return { kind: e.t, ids: [e.id], e };
+    if (e.t !== 'line' && e.t !== 'arc') return null;
     // walk round from e
     const segs = this.f.entities.filter((x) => x.t === 'line' || x.t === 'arc');
     const order = [{ e, from: e.a, to: e.b }];
@@ -1869,9 +1894,8 @@ export class Sketcher {
     return { pieces, corners };
   }
 
-  /** ⧈ Offset: pick the shape, then type the distance in a small box by the mouse. */
-  offsetAt(uv, ev) {
-    const l = this.loopAt(uv);
+  /** ⧈ Offset: pick the shape (or `l`: the picks' loop), then type the distance in a small box by the mouse. */
+  offsetAt(uv, ev, l = this.loopAt(uv)) {
     if (!l) { this.m.toast('Click a closed shape: a circle, an outline of lines / arcs joined all round, or a picture outline.', 'info', 4000); return; }
     this.closeChooser();
     const box = document.createElement('div');
@@ -2473,7 +2497,7 @@ export class Sketcher {
     this.chooser = box;
   }
 
-  closeChooser() { this.chooser?.remove(); this.chooser = null; }
+  closeChooser() { this.chooser?.remove(); this.chooser = null; this.xf = null; } // (a ✥ ⟳ ⤢ box: what it shows stays)
 
   /** Add a dimension (locked at the distance it has now), then let the user type the value right away. */
   async addDim(o, { edit = true } = {}) {
@@ -2596,75 +2620,333 @@ export class Sketcher {
     this.changed();
   }
 
-  /** What can be done with what is picked (one shape, or several with Ctrl+click) -> [{icon, label, title, run}]. */
+  /** What can be done with what is picked (one shape, several with Ctrl+click or a box) -> [{icon, label, title, run}]:
+   *  a short list, the likeliest first — a dimension, the relation that is nearly true already, Delete —; the rest
+   *  under ⋯ More… (in sections). */
   suggestions() {
     const P = this.picks || [], n = P.length;
-    if (!n || this.tool !== 'select') return [];
+    if (!n || this.tool !== 'select' || this.xf) return [];
     const round = (p) => p.kind === 'circle' || p.kind === 'arc';
     const rel = (type, ...ps) => ({ icon: RELATIONS[type].icon, label: t(RELATIONS[type].name), title: t(RELATIONS[type].hint || ''), run: () => this.addRelation(type, ps) });
     const at = () => { const b = this.m.els.viewport.querySelector('.view-suggest')?.getBoundingClientRect(); return { clientX: (b?.right || 300) + 8, clientY: b?.top || 300 }; };
     const between = (a, b, label) => ({ icon: '↔', label, run: () => this.dimBetween(a.t, b.t, at()) });
-    const cons = (ps) => {
-      const ids = ps.filter((p) => ['line', 'circle', 'arc'].includes(p.kind)).map((p) => p.id);
-      return ids.length ? [{ icon: '┄', label: t(ids.every((id) => this.ent(id)?.construction) ? 'Part of the outline again' : 'Make it construction'), title: t('Construction shapes guide (an axis, a mirror line) but are not part of the outline'), run: () => this.setConstruction(ids) }] : [];
+    const shapes = this.pickShapes(P), ids = shapes.map((e) => e.id), pts = this.pickPoints(P), loop = this.loopOfPicks(shapes);
+    const kind = ids.length ? [{ icon: '┄', label: t(ids.every((id) => this.ent(id)?.construction) ? 'Part of the outline again' : 'Make it construction'), title: t('Construction shapes guide (an axis, a mirror line) but are not part of the outline'), run: () => this.setConstruction(ids) }] : [];
+    const off = n === 1 && ids.length && this.offsetOf(ids[0]);
+    if (off) kind.push({ icon: '⛓', label: t('Unlink the offset'), title: t('The copy stays where it is, but no longer follows its original'), run: () => this.unlinkOffset(off.id) });
+    const del = ids.length ? [{ icon: '✕', label: t(ids.length > 1 ? 'Delete all' : 'Delete'), danger: true, run: () => { if (n > 1) this.sel = null; this.deleteSel(); } }] : []; // (several: the picked shapes, not the last one clicked)
+    const ED = {
+      move: { icon: '✥', label: t('Move…'), title: t('Type how far it goes (dx, dy) — or drag it'), run: () => this.xformBox('move') },
+      rotate: { icon: '⟳', label: t('Rotate…'), title: t(this.pickPivot(P) ? 'Turn it about the picked point' : 'Turn it about its centre'), run: () => this.xformBox('rotate') },
+      scale: { icon: '⤢', label: t('Scale…'), title: t('Make it bigger or smaller about its centre'), run: () => this.xformBox('scale') },
+      copy: { icon: '⧉', label: t('Copy'), title: t('A copy beside it, picked — drag it where it goes'), run: () => this.copyPicks() },
+      mirror: { icon: '⇋', label: t('Mirror'), title: t('Mirror it across a line or the X / Y axis'), run: () => this.mirrorPicks() },
+      pattern: { icon: '⁂', label: t('Pattern'), title: t('Repeat it in a row or around a point'), run: () => this.startPattern() },
+      offset: { icon: '⧈', label: t('Offset'), title: t('A copy of the closed outline a distance away — it follows its original'), run: () => this.offsetAt(null, at(), loop) },
     };
-    const items = [];
+    const edit = !ids.length ? [] : [ED.move, ...(pts.length > 1 ? [ED.rotate, ED.scale] : []), ED.copy, ED.mirror, ED.pattern, ...(loop ? [ED.offset] : [])];
+    const lines = shapes.filter((e) => e.t === 'line'), hv = (id) => this.f.constraints.find((k) => (k.t === 'h' || k.t === 'v') && k.e === id)?.t;
+    const rOf = (e) => (e.t === 'circle' ? e.r : this.arcR(e));
+    // the relations that fit two shapes, the nearest to true first ([type, how far from true: < 1 = nearly]; of the
+    // nearly true ones = Equal after ∥ / ⟂ / ◎), not those held already
+    const ranked = (cands, a, b) => cands.filter(([ty]) => !this.hasRule(ty, a.id, b.id))
+      .sort((x, y) => (x[1] >= 1) - (y[1] >= 1) || (x[1] < 1 && y[1] < 1 && (x[0] === 'eq') - (y[0] === 'eq')) || x[1] - y[1]);
+    const lead = (cands) => (cands.filter((c) => c[1] < 1).length ? cands.filter((c) => c[1] < 1).slice(0, 2) : cands.slice(0, 1)); // (none nearly true: the nearest)
+    let top = [], rels = [];
     if (n === 1) {
       const p = P[0], spec = p.kind === 'line' ? { t: 'len', e: p.id } : p.kind === 'circle' ? { t: 'dia', e: p.id } : p.kind === 'arc' ? { t: 'rad', e: p.id } : null;
       if (spec) {
         const asR = spec.t === 'len' ? null : this.shownFactor(spec) === 1 ? spec.t === 'rad' : spec.t === 'dia';
-        items.push({ icon: spec.t === 'len' ? '↔' : asR ? 'R' : 'Ø', label: t(spec.t === 'len' ? 'Its length' : asR ? 'Its radius' : 'Its diameter'), run: () => this.addDim({ spec, v: this.measure(spec) }) });
-        if (spec.t !== 'len') items.push({ icon: '⇄', label: t(asR ? 'Show it as a diameter' : 'Show it as a radius'), run: () => this.flipRound(p.id) });
+        top.push({ icon: spec.t === 'len' ? '↔' : asR ? 'R' : 'Ø', label: t(spec.t === 'len' ? 'Its length' : asR ? 'Its radius' : 'Its diameter'), run: () => this.addDim({ spec, v: this.measure(spec) }) });
+        if (spec.t !== 'len') top.push({ icon: '⇄', label: t(asR ? 'Show it as a diameter' : 'Show it as a radius'), run: () => this.flipRound(p.id) });
       }
-      if (p.kind === 'line') items.push(rel('h', p), rel('v', p));
-      if (p.kind === 'point') items.push(rel('fix', p));
-      const off = ['line', 'circle', 'arc'].includes(p.kind) && this.offsetOf(p.id);
-      if (off) items.push({ icon: '⛓', label: t('Unlink the offset'), title: t('The copy stays where it is, but no longer follows its original'), run: () => this.unlinkOffset(off.id) });
-      items.push(...cons(P));
+      if (off) top.push(kind.pop()); // (an offset's copy: its link first — it already follows its original's H / V)
+      else if (p.kind === 'line' && !hv(p.id)) { // the nearer of horizontal / vertical first
+        const a = this.P(this.ent(p.id).a), b = this.P(this.ent(p.id).b), flat = Math.abs(b[0] - a[0]) >= Math.abs(b[1] - a[1]);
+        top.push(rel(flat ? 'h' : 'v', p));
+        rels.push(rel(flat ? 'v' : 'h', p));
+      }
+      if (p.kind === 'circle' && loop && !off) top.push(ED.offset);
+      if (p.kind === 'point' && !this.f.constraints.some((k) => k.t === 'fix' && k.p === p.id)) top.push(rel('fix', p));
     } else if (n === 2) {
-      const [a, b] = P;
+      const [a, b] = P, [ea, eb] = [this.ent(a.id), this.ent(b.id)];
       if (a.kind === 'line' && b.kind === 'line') {
-        items.push(between(a, b, t(this.crossing(a.id, b.id) ? 'The angle between them' : 'The distance between them')), rel('par', a, b), rel('perp', a, b), rel('eq', a, b));
+        const dir = (e) => { const p = this.P(e.a), q = this.P(e.b), L = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1; return [(q[0] - p[0]) / L, (q[1] - p[1]) / L, L]; };
+        const [u, w] = [dir(ea), dir(eb)], deg = (Math.acos(Math.min(1, Math.abs(u[0] * w[0] + u[1] * w[1]))) * 180) / Math.PI;
+        const c = ranked([['par', deg / 10], ['perp', (90 - deg) / 10], ['eq', Math.abs(u[2] - w[2]) / Math.max(u[2], w[2]) / 0.1]], a, b), l = lead(c);
+        top.push(between(a, b, t(this.crossing(a.id, b.id) ? 'The angle between them' : 'The distance between them')), ...l.map(([ty]) => rel(ty, a, b)));
+        rels.push(...c.filter((x) => !l.includes(x)).map(([ty]) => rel(ty, a, b)));
       } else if (round(a) && round(b)) {
-        items.push(rel('conc', a, b), rel('eq', a, b), rel('tang', a, b), between(a, b, t('The distance between their centres')));
+        const ca = this.P(ea.c), cb = this.P(eb.c), dc = Math.hypot(ca[0] - cb[0], ca[1] - cb[1]), ra = rOf(ea), rb = rOf(eb), big = Math.max(ra, rb);
+        const c = ranked([['conc', dc / (0.15 * big)], ['eq', Math.abs(ra - rb) / big / 0.1], ['tang', Math.min(Math.abs(dc - ra - rb), Math.abs(dc - Math.abs(ra - rb))) / (0.1 * big) + 0.5]], a, b), l = lead(c);
+        top.push(between(a, b, t('The distance between their centres')), ...l.map(([ty]) => rel(ty, a, b)));
+        rels.push(...c.filter((x) => !l.includes(x)).map(([ty]) => rel(ty, a, b)));
       } else if (round(a) || round(b)) {
         const [c, o] = round(a) ? [a, b] : [b, a];
-        if (o.kind === 'line') items.push(rel('tang', o, c), between(c, o, t('From its centre to the line')));
-        else items.push(...(o.kind === 'point' ? [rel('coin', o, c)] : []), between(c, o, t('The distance between them'))); // (a midpoint / the origin: a distance)
+        if (o.kind === 'line') top.push(between(c, o, t('From its centre to the line')), ...(this.hasRule('tang', o.id, c.id) ? [] : [rel('tang', o, c)]));
+        else top.push(...(o.kind === 'point' ? [rel('coin', o, c)] : []), between(c, o, t('The distance between them'))); // (a midpoint / the origin: a distance)
       } else if (['mid', 'origin'].includes(a.kind) || ['mid', 'origin'].includes(b.kind)) { // (a line's middle, the origin)
         const [x, y] = a.kind === 'point' ? [a, b] : [b, a];
-        if (x.kind === 'point' && y.kind === 'origin') items.push({ ...rel('coin', x, y), label: t('Onto the origin') });
-        items.push(between(a, b, t('The distance between them')));
+        if (x.kind === 'point' && y.kind === 'origin') top.push({ ...rel('coin', x, y), label: t('Onto the origin') });
+        top.push(between(a, b, t('The distance between them')));
       } else if (a.kind === 'point' && b.kind === 'point') {
-        items.push(rel('coin', a, b), between(a, b, t('The distance between them')));
+        top.push(rel('coin', a, b), between(a, b, t('The distance between them')));
       } else {
         const [p, o] = a.kind === 'point' ? [a, b] : [b, a];
-        items.push({ ...rel('coin', p, o), label: t('The point on the line') }, between(p, o, t('Its distance from the line')));
+        top.push({ ...rel('coin', p, o), label: t('The point on the line') }, between(p, o, t('Its distance from the line')));
       }
-      items.push(...cons(P));
     } else {
-      const chain = (type) => async () => { for (const q of P.slice(1)) await this.addRelation(type, [P[0], q]); };
-      if (P.every((p) => p.kind === 'line')) items.push({ icon: '=', label: t('Equal — all of them'), run: chain('eq') }, { icon: '∥', label: t('Parallel — all of them'), run: chain('par') });
-      else if (P.every(round)) items.push({ icon: '=', label: t('Equal — all of them'), run: chain('eq') }, { icon: '◎', label: t('Concentric — all of them'), run: chain('conc') });
-      items.push(...cons(P));
+      const chain = (type, ps, label) => ({ icon: RELATIONS[type].icon, label: t(label), run: () => this.addRelations(ps.slice(1).map((q) => [type, [ps[0], q]])) });
+      const L = P.filter((p) => p.kind === 'line'), R = P.filter(round);
+      const eqL = L.length > 1 && chain('eq', L, 'Equal — all of them'), parL = L.length > 1 && chain('par', L, 'Parallel — all of them');
+      const eqR = R.length > 1 && chain('eq', R, 'Equal — all of them'), conc = R.length > 1 && chain('conc', R, 'Concentric — all of them');
+      if (loop) top.push(ED.offset, ED.pattern, ED.move);
+      else if (L.length === n) top.push(eqL, parL, ED.move);
+      else if (R.length === n) top.push(eqR, conc, ED.move);
+      else top.push(...(ids.length ? [ED.move, ED.copy, ED.mirror] : []));
+      const loose = L.filter((p) => !hv(p.id));
+      if (loose.length) rels.push({ icon: '─', label: t('Horizontal — all of them'), run: () => this.addRelations(loose.map((p) => ['h', [p]])) },
+        { icon: '│', label: t('Vertical — all of them'), run: () => this.addRelations(loose.map((p) => ['v', [p]])) });
+      rels.push(...[eqL, parL, eqR, conc].filter(Boolean));
     }
-    return items;
+    const fix = pts.filter((id) => !this.f.constraints.some((k) => k.t === 'fix' && k.p === id));
+    if (n > 1 && fix.length) rels.push({ icon: '📌', label: t('Fix — all their points'), run: () => this.addRelations(fix.map((id) => ['fix', [{ kind: 'point', id }]])) });
+    top = [...top.filter(Boolean).slice(0, 4), ...del];
+    const more = [['Edit', edit], ['Relations', rels], ['Kind', kind]].map(([s, its]) => [s, its.filter((x) => x && !top.includes(x))]).filter(([, its]) => its.length);
+    const key = P.map((q) => `${q.kind}:${q.id}`).join(',');
+    if (!more.length) return top;
+    if (this.sgMore !== key) return [...top, { icon: '⋯', label: t('More…'), title: t('Everything else that fits what is picked'), run: () => { this.sgMore = key; this.renderSuggest(); } }];
+    return [...top, ...more.flatMap(([s, its]) => [{ section: t(s) }, ...its])];
   }
 
   /** The suggestions table (bottom left) for what is picked. */
   renderSuggest() {
-    const items = this.suggestions(), n = (this.picks || []).length;
-    const kind = { line: 'A line', circle: 'A circle', arc: 'An arc', point: 'A point', mid: "A line's midpoint", origin: 'The origin' }[this.picks?.[0]?.kind];
-    const what = (this.picks || []).map((q) => { // (as the AI's tools name them)
+    const items = this.suggestions(), P = this.picks || [], n = P.length, ns = this.pickShapes(P).length;
+    const kind = { line: 'A line', circle: 'A circle', arc: 'An arc', point: 'A point', mid: "A line's midpoint", origin: 'The origin' }[P[0]?.kind];
+    const what = P.map((q) => { // (as the AI's tools name them)
       const e = this.ent(q.id);
       if (q.kind === 'mid') return `${t('the middle of line')} ${q.id}`;
       if (q.kind === 'origin') return t('the origin');
       if (q.kind === 'point') return `${t('point')} ${q.id} (${(this.P(q.id) || []).map(fmt).join(', ')})`;
       return `${{ line: t('line'), circle: t('circle'), arc: t('arc') }[q.kind] || q.kind} ${q.id}${e?.t === 'circle' ? ` (Ø${fmt(2 * e.r)})` : e?.t === 'line' ? ` (${fmt(this.measure({ t: 'len', e: e.id }))} mm)` : ''}`;
     });
-    const sg = showSuggest(this.m.els.viewport, n === 1 ? t(kind || 'Selected') : t('{n} selected').replace('{n}', n), items,
+    const count = (k, one, many) => (k === 1 ? t(one) : tv(many, { n: k }));
+    const title = n === 1 ? t(kind || 'Selected') : [ns && count(ns, '1 shape', '{n} shapes'), n - ns && count(n - ns, '1 point', '{n} points')].filter(Boolean).join(', ');
+    const sg = showSuggest(this.m.els.viewport, title, items,
       n === 1 ? t('Ctrl+click another shape: what fits the two') : '', `${t('in the sketch')} ${this.f.id} “${this.f.name || ''}”: ${what.join(', ')}`);
     if (sg) sg.dataset.from = 'sketch';
+  }
+
+  // ------------------------------------------------------------------ the picks as a whole
+  /** The picked lines, circles and arcs. */
+  pickShapes(P = this.picks || []) { return P.filter((q) => ['line', 'circle', 'arc'].includes(q.kind)).map((q) => this.ent(q.id)).filter(Boolean); }
+
+  /** The points the picks move: their shapes' points and the picked points (not the origin). */
+  pickPoints(P = this.picks || []) {
+    return [...new Set([...this.pickShapes(P).flatMap(entPts), ...P.filter((q) => q.kind === 'point').map((q) => q.id)])].filter((id) => id !== ORIGIN && this.f.points[id]);
+  }
+
+  /** A picked point (or the origin) next to picked shapes: what they turn / scale about -> [u, v] or null. */
+  pickPivot(P = this.picks || []) {
+    const q = this.pickShapes(P).length && P.find((x) => x.kind === 'point' || x.kind === 'origin');
+    return q ? [...this.P(q.id)] : null;
+  }
+
+  /** What the picks turn / scale about: a picked point, else the middle of their box (circles whole). */
+  pickCentre(P = this.picks || []) {
+    const piv = this.pickPivot(P);
+    if (piv) return piv;
+    const box = [];
+    for (const id of this.pickPoints(P)) box.push(this.P(id));
+    for (const e of this.pickShapes(P)) if (e.t === 'circle') { const c = this.P(e.c); box.push([c[0] - e.r, c[1] - e.r], [c[0] + e.r, c[1] + e.r]); }
+    const xs = box.map((p) => p[0]), ys = box.map((p) => p[1]);
+    return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+  }
+
+  /** The picks again where their shapes are now (after a move); gone ones dropped. */
+  refreshPicks() {
+    this.picks = (this.picks || []).map((q) => (['line', 'circle', 'arc'].includes(q.kind) ? (this.ent(q.id) ? this.pickOf(this.ent(q.id)) : null)
+      : q.kind === 'point' ? (this.f.points[q.id] ? { ...q, t: { ...q.t, uv: [...this.P(q.id)] } } : null) : q)).filter(Boolean);
+  }
+
+  /** The picked shapes as one closed outline (a circle, or lines / arcs joined all round, nothing else) -> loopFrom's
+   *  {kind, ids, order} or null. */
+  loopOfPicks(shapes = this.pickShapes()) {
+    if (!shapes.length) return null;
+    const l = this.loopFrom(shapes[0]), ids = new Set(shapes.map((e) => e.id));
+    return l && l.ids.length === ids.size && l.ids.every((id) => ids.has(id)) ? l : null;
+  }
+
+  /** A relation already holds between these two (∥ / ⟂ also by their own H / V). */
+  hasRule(type, a, b) {
+    const hv = (id) => this.f.constraints.find((k) => (k.t === 'h' || k.t === 'v') && k.e === id)?.t;
+    if (type === 'par' && hv(a) && hv(a) === hv(b)) return true;
+    if (type === 'perp' && hv(a) && hv(b) && hv(a) !== hv(b)) return true;
+    return this.f.constraints.some((k) => k.t === type && ((k.e === a && k.e2 === b) || (k.e === b && k.e2 === a)));
+  }
+
+  /** Several relations as one undo step ([[type, picks]]), each tried in turn: one the others hold already is left out. */
+  async addRelations(list) {
+    const base = this.undo.length;
+    let made = 0;
+    for (const [type, ps] of list) if (await this.relock(() => this.f.constraints.push(this.relationOf(type, ps)), null, null, { quiet: true })) made++;
+    this.undo.length = Math.min(this.undo.length, base + 1);
+    if (!made) this.m.toast(t('That does not fit the other locked sizes — unlock one of them first.'), 'warning', 5000);
+  }
+
+  /** ✥ ⟳ ⤢ The picked shapes moved by [dx, dy], turned by an angle (°) or scaled by a factor about pickCentre — their
+   *  points held there while the solver keeps their relations; refused (a toast naming the locks) when a lock ties
+   *  them to what does not go along. -> true when done. */
+  async transformPicks(kind, v, P = this.picks || [], { quiet = false } = {}) {
+    const ids = this.pickPoints(P), shapes = this.pickShapes(P);
+    if (!ids.length) return false;
+    const c = this.pickCentre(P), a = kind === 'rotate' ? (v * Math.PI) / 180 : 0, cos = Math.cos(a), sin = Math.sin(a);
+    const to = (p) => (kind === 'move' ? [p[0] + v[0], p[1] + v[1]] : kind === 'rotate' ? [c[0] + (p[0] - c[0]) * cos - (p[1] - c[1]) * sin, c[1] + (p[0] - c[0]) * sin + (p[1] - c[1]) * cos]
+      : [c[0] + (p[0] - c[0]) * v, c[1] + (p[1] - c[1]) * v]);
+    const hold = Object.fromEntries(ids.map((id) => [id, to(this.P(id)).map((x) => +x.toFixed(9))]));
+    if (kind === 'scale') { // (a circle's size is not a point: its lock is checked here)
+      const d = this.f.dims.find((x) => x.t === 'dia' && !x.free && shapes.some((e) => e.id === x.e));
+      if (d) { if (!quiet) this.m.toast(tv('Locked sizes hold the selection where it is ({names}) — unlock one of them first.', { names: this.dimName(d) }), 'error', 7000); return false; }
+    }
+    return this.relock(() => {
+      for (const [id, p] of Object.entries(hold)) this.f.points[id] = p; // (they start there)
+      if (kind === 'scale') for (const e of shapes) if (e.t === 'circle') e.r = +(e.r * v).toFixed(9);
+      if (kind === 'rotate') this.turnRules(new Set(shapes.filter((e) => e.t === 'line').map((e) => e.id)), new Set(ids), v);
+    }, hold, null, { quiet, exact: true });
+  }
+
+  /** The rules of turned lines: a quarter turn swaps H and V (and a dx / dy lock between two turned points), a half
+   *  turn keeps them; any other angle puts ∥ / ⟂ in their place (a rectangle stays one). */
+  turnRules(lines, pts, deg) {
+    const f = this.f, q = Math.round(deg / 90), square = Math.abs(deg - q * 90) < 1e-9, n = ((q % 4) + 4) % 4;
+    const hv = f.constraints.filter((k) => (k.t === 'h' || k.t === 'v') && lines.has(k.e));
+    if (square) {
+      if (n % 2) for (const k of hv) k.t = k.t === 'h' ? 'v' : 'h';
+      for (const d of f.dims) {
+        if ((d.t !== 'dx' && d.t !== 'dy') || !pts.has(d.a) || !pts.has(d.b)) continue;
+        let w = d.t === 'dx' ? [d.v, 0] : [0, d.v];
+        for (let i = 0; i < n; i++) w = [-w[1], w[0]];
+        Object.assign(d, Math.abs(w[0]) > Math.abs(w[1]) ? { t: 'dx', v: w[0] } : { t: 'dy', v: w[1] });
+      }
+      return;
+    }
+    const H = hv.filter((k) => k.t === 'h').map((k) => k.e), V = hv.filter((k) => k.t === 'v').map((k) => k.e);
+    f.constraints = f.constraints.filter((k) => !hv.includes(k));
+    for (const [a, b] of [...H.slice(1).map((e) => [H[0], e]), ...V.slice(1).map((e) => [V[0], e])]) f.constraints.push({ id: this.newId('k'), t: 'par', user: true, e: a, e2: b });
+    if (H.length && V.length) f.constraints.push({ id: this.newId('k'), t: 'perp', user: true, e: H[0], e2: V[0] });
+  }
+
+  /** ✥ Move / ⟳ Rotate / ⤢ Scale the picks: a small box (bottom left) — dx and dy, the angle or the factor — shown at
+   *  once and as it is typed (one undo step for all of it); Enter = done, Esc = back as it was. */
+  xformBox(kind) {
+    const P = [...(this.picks || [])];
+    if (!this.pickPoints(P).length) return;
+    this.closeChooser();
+    this.xf = { kind, picks: P, base: this.undo.length, orig: this.snapshot(), shown: false };
+    const box = document.createElement('div');
+    box.className = 'sk-choose sk-quick sk-xform';
+    const field = (k, label, v, unit) => `<label>${label} <input type="text" data-xk="${k}" value="${v}"> ${unit}</label>`;
+    box.innerHTML = `<div class="sk-choose-t">${{ move: '✥', rotate: '⟳', scale: '⤢' }[kind]} ${t({ move: 'Move', rotate: 'Rotate', scale: 'Scale' }[kind])}</div>
+      ${kind === 'move' ? field('dx', 'dx', 0, 'mm') + field('dy', 'dy', 0, 'mm') : kind === 'rotate' ? field('a', t('Angle'), 90, '°') : field('k', t('Factor'), 2, '×')}
+      <p class="hint">${t(kind === 'move' ? 'Or drag one of them.' : this.pickPivot(P) ? 'About the picked point.' : 'About their centre.')} ${t('Enter = done')}</p>
+      <button class="btn small primary" data-done>${t('Done')}</button>`;
+    for (const ev of ['pointerdown', 'pointerup']) box.addEventListener(ev, (x) => x.stopPropagation());
+    const typed = () => {
+      const v = Object.fromEntries([...box.querySelectorAll('[data-xk]')].map((i) => [i.dataset.xk, parseFloat(i.value.replace(',', '.'))]));
+      return kind === 'move' ? [v.dx, v.dy] : kind === 'rotate' ? v.a : v.k;
+    };
+    const done = async () => { clearTimeout(this.xfTimer); if (await this.xformTo(typed()) && this.chooser === box) { this.closeChooser(); this.refreshPicks(); this.changed(); } };
+    for (const inp of box.querySelectorAll('[data-xk]')) {
+      inp.addEventListener('input', () => { clearTimeout(this.xfTimer); this.xfTimer = setTimeout(() => this.xformTo(typed(), true), 300); });
+      inp.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Escape') this.xformCancel(); if (ev.key === 'Enter') done(); });
+    }
+    box.querySelector('[data-done]').addEventListener('click', done);
+    this.m.els.viewport.appendChild(box);
+    this.chooser = box;
+    this.renderSuggest(); // (the table goes while the box is open)
+    if (kind !== 'move') this.xformTo(typed(), true); // (shown at once: one click does it)
+    setTimeout(() => { const i = box.querySelector('[data-xk]'); if (i && this.chooser === box) { i.focus(); i.select(); } }, 0);
+  }
+
+  /** The picks as the box asks (v: [dx, dy], an angle or a factor), from where they were when it opened. quiet: while
+   *  typing (a refusal says nothing yet). One at a time. -> true when they are so. */
+  xformTo(v, quiet = false) {
+    const run = async () => {
+      const xf = this.xf;
+      if (!xf) return false;
+      if (xf.shown) { Object.assign(this.f, structuredClone(xf.orig)); this.undo.length = xf.base; xf.shown = false; } // (back where it was, then anew)
+      const bad = xf.kind === 'move' ? !v.every(Number.isFinite) : xf.kind === 'scale' ? !(v > 0) : !Number.isFinite(v);
+      const none = !bad && (xf.kind === 'move' ? !v[0] && !v[1] : xf.kind === 'scale' ? v === 1 : v % 360 === 0);
+      if (bad || none) {
+        if (bad && !quiet) this.m.toast(t(xf.kind === 'scale' ? 'Type a factor greater than 0 (2 = twice as big).' : 'Type a number.'), 'warning');
+        this.changed();
+        return !bad;
+      }
+      const ok = await this.transformPicks(xf.kind, v, xf.picks, { quiet });
+      if (ok && this.xf === xf) xf.shown = true;
+      return ok;
+    };
+    this.xfBusy = (this.xfBusy || Promise.resolve()).then(run, run);
+    return this.xfBusy;
+  }
+
+  /** Esc in the box: the picks back where they were, the box gone. */
+  xformCancel() {
+    clearTimeout(this.xfTimer);
+    const run = async () => {
+      const xf = this.xf;
+      if (xf?.shown) { Object.assign(this.f, structuredClone(xf.orig)); this.undo.length = xf.base; }
+      this.closeChooser();
+      this.refreshPicks();
+      this.changed();
+    };
+    this.xfBusy = (this.xfBusy || Promise.resolve()).then(run, run);
+  }
+
+  /** ⧉ Copy: the picked shapes again, a little beside them (their H / V, tangents and locked sizes along) — picked,
+   *  ready to drag where they go. */
+  async copyPicks() {
+    const shapes = this.pickShapes();
+    if (!shapes.length) return;
+    const g = this.gridStep() * 2, picked = new Set(shapes.map((e) => e.id)), map = {}, emap = {}, groups = {};
+    const ok = await this.relock(() => {
+      const f = this.f;
+      for (const id of [...new Set(shapes.flatMap(entPts))]) { const p = this.P(id); map[id] = this.newId('p'); f.points[map[id]] = [+(p[0] + g).toFixed(6), +(p[1] - g).toFixed(6)]; }
+      for (const e of shapes) {
+        const c = { ...structuredClone(e), id: (emap[e.id] = this.newId(e.t === 'circle' ? 'c' : e.t === 'arc' ? 'a' : 'l')) };
+        for (const k of ['a', 'b', 'c']) if (typeof e[k] === 'string') c[k] = map[e[k]];
+        delete c.g;
+        if (e.g && f.entities.every((x) => x.g !== e.g || picked.has(x.id))) c.g = groups[e.g] || (groups[e.g] = this.newId('r')); // (a whole rectangle stays one)
+        f.entities.push(c);
+      }
+      for (const k of [...f.constraints]) {
+        if ((k.t === 'h' || k.t === 'v') && emap[k.e]) f.constraints.push({ id: this.newId('k'), t: k.t, e: emap[k.e] });
+        if (k.t === 'tan' && emap[k.e] && emap[k.arc] && map[k.p]) f.constraints.push({ ...k, id: this.newId('k'), e: emap[k.e], arc: emap[k.arc], p: map[k.p] });
+      }
+      for (const d of [...f.dims]) if (!d.free && ['len', 'dia', 'rad'].includes(d.t) && emap[d.e]) f.dims.push({ ...d, id: this.newId('d'), e: emap[d.e] });
+    });
+    if (!ok) return;
+    this.picks = Object.values(emap).map((id) => this.pickOf(this.ent(id))).filter(Boolean);
+    this.sel = null;
+    this.changed();
+    this.m.toast(t('A copy — picked: drag it where it goes.'), 'info', 3500);
+  }
+
+  /** ⇋ Mirror the picked shapes: the Mirror box opens for them — the X / Y axis or a clicked line, and it is done. */
+  mirrorPicks() {
+    const ids = this.pickShapes().map((e) => e.id);
+    if (!ids.length) return;
+    this.setTool('mirror');
+    this.mirSrc = ids;
+    this.m.hint(this.hint());
+  }
+
+  /** The picked shapes (mirrorPicks) mirrored across `line` at once. */
+  async mirrorPicked(line) {
+    const ents = (this.mirSrc || []).filter((id) => id !== line.e).map((id) => this.ent(id)).filter(Boolean);
+    this.mirSrc = null;
+    if (ents.length) await this.mirror(ents, line, this.mirMove);
+    this.setTool('select');
   }
 
   /** {construction: true} while ┄ Construction is on (new shapes are helpers, not part of the outline). */

@@ -165,11 +165,17 @@ parallel flat faces), turning all their steps off, deleting them together.
 by click or by box. Delete removes them all.
 
 **Suggestions for what is selected**: choose a shape in a sketch (⬚ Select) or a part in an assembly, and a small
-table in the bottom-left corner of the view says what can be done with it — a line: its length, horizontal,
-vertical, construction; a part: open it, join it, simplified, its own part, take it out. **Ctrl+click** more and it
-offers what fits them together: two crossing lines — their angle, parallel, perpendicular, equal; a line and a circle —
-tangent, the distance from its centre; two circles — concentric, equal, tangent; two parts — join them, measure,
-check for collisions. Esc (or another tool) closes it.
+table in the bottom-left corner of the view says what can be done with it — a part: open it, join it, simplified, its
+own part, take it out. In a sketch the list is short, the likeliest first, and **⋯ More…** opens the rest (in Edit /
+Relations / Kind sections): a line — its length, horizontal or vertical (whichever it nearly is), delete; two lines —
+the angle (or distance) between them, then ∥ / ⟂ / = whichever is nearly true already; a line and a circle — the
+distance from its centre, tangent; two circles — the distance between centres, concentric / equal; a closed outline
+(a box round a rectangle) — ⧈ offset, ⁂ pattern, ✥ move; several mixed shapes — ✥ Move…, ⧉ Copy, ⇋ Mirror,
+✕ Delete all. **✥ Move…** (dx, dy), **⟳ Rotate…** (an angle about their centre, or about a picked point) and **⤢ Scale…**
+(a factor) open a small box that shows the result at once and as you type (Enter = done, Esc = back, one undo step);
+the shapes keep their relations, and a locked size that would have to change refuses it with a message naming the
+lock. **⧉ Copy** puts a copy beside them, picked, ready to drag. Two parts — join them, measure, check for collisions.
+Esc (or another tool) closes it.
 
 **Construction lines**: **┄ Construction** in the sketch toolbar draws helper lines, circles and arcs (dashed
 amber) while it is on; with ⬚ Select it turns the selected shape into one (or back). They guide — a ⟳ Revolve takes

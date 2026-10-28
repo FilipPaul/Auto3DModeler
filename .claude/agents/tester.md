@@ -301,6 +301,13 @@ Never report "works" without having run it; report failures with their output.
    line, no mid rule; Grid on: on the grid, off: off it; Guides off: no dashed guide; kept after a reload; the row
    clear of the suggestions table, the quick size box and Finish / Cancel, no scrollbar, at 1600×1000 and 1280×800,
    English and Czech — tooltips too). Exits 1 on a failed check.
+   `tools/e2e_sketch_multiselect.py <url> <dir>` covers several sketch shapes at once with real mouse input (a
+   rectangle and a circle box-selected: the short table ✥ Move…, ⧉ Copy, ⇋ Mirror, ✕ Delete all, ⋯ More… with Edit /
+   Relations / Kind; ✥ Move dx 10: all exactly 10; the rectangle alone: ⧈ Offset, ⁂ Pattern first; ⟳ Rotate 90:
+   corners turned about the centre, H / V swapped, one undo step, Ctrl+Z back; ⤢ Scale 2: sizes doubled, with a
+   locked width refused — the toast names it; ┄ construction for all and back; ✕ Delete all, Ctrl+Z; the short lists
+   of two lines nearly parallel (the angle, ∥ first), at 45°, a line + a circle, two circles — at most 5 rows). Exits 1
+   on a failed check.
    `tools/e2e_sketch_pick.py <url> <dir>` covers what a sketch click takes (the filters bottom middle; Lines off: a line
    not picked; the origin's suggestions; a midpoint + the circle: a distance from the middle held at 40; a dimension
    dragged by its line, the shapes not moved; the circle as R: its box shows 5, 5 typed -> Ø 10; an off-grid line: the

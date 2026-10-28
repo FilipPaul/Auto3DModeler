@@ -806,6 +806,19 @@ Date: 2026-10-25. Written by the architect agent.
   that is) and kernel.material_along (the part's depth under the hole, a blind hole's own depth) — a head wider than
   the face or as deep as the part is an issue with the most that fits ("at most Ø6.4"), never cut through.
   test_hole_head_fits; tools/e2e_sheet_hole_callouts.py (the AI's M3 ⌵ on a 2 mm plate).
+- **Short sketch suggestions done:** Sketcher.suggestions — at most 4 rows + ✕ Delete, ranked: a dimension first,
+  then the relations nearly true already (two lines: ∥ under 10°, ⟂ over 80°, = within 10 % of length; two circles:
+  ◎ / = / ⌒ by how near; of the nearly true ones = after ∥ / ⟂ / ◎; none: the nearest one), not those held already
+  (hasRule: ∥ / ⟂ by both lines' H / V); a loop (loopOfPicks -> loopFrom, split out of loopAt): ⧈ Offset, ⁂ Pattern,
+  ✥ Move; mixed: ✥ Move…, ⧉ Copy, ⇋ Mirror. ⋯ More… (sgMore, reset by a new pick) lists the rest in Edit / Relations /
+  Kind sections (showSuggest {section}). The title counts "N shapes, M points". The picks as a whole: pickShapes /
+  pickPoints / pickCentre (a picked point is the pivot); transformPicks (move / rotate / scale: their points held
+  where they go — solve(drag) — the relations kept; turnRules: a quarter turn swaps H / V and dx / dy locks, any other
+  angle puts ∥ / ⟂ for them); relock {exact}: constraints.solve's new `held` {ok, conflicts} refuses a hold the locks
+  do not let through, the toast naming them; xformBox (✥ dx / dy, ⟳ 90°, ⤢ 2×: shown at once, retyped from where they
+  were, one undo step, Esc back); copyPicks (beside them, H / V, tangents, locked sizes along; the copy picked);
+  mirrorPicks (the ⇋ box: an axis or a line and done); addRelations (chains as one undo step, a held one left out).
+  test_held_says_whether_a_group_got_there; tools/e2e_sketch_multiselect.py.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.
