@@ -72,7 +72,7 @@ export class Autosave {
   /** The user started working (a part opened or made): the offer of the last project goes away. */
   dropOffer() {
     if (!this.bar?.isConnected) return;
-    try { if (!this.hooks.project()?.parts?.length) return; } catch { return; }
+    if (!this.hooks.partCount?.()) return; // (counted, not serialized: the project file is not built mid-load)
     this.bar.remove();
   }
 

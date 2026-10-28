@@ -2476,6 +2476,7 @@ Object.assign(agentHandlers, assembly.handlers(), {
 var autosave = new Autosave({
   toast,
   project: () => (project.parts.length ? projectFile() : null),
+  partCount: () => project.parts.length, // (only counted: building the file while a part loads would disturb it)
   status: () => $('autosaveState'),
   async restore(raw) {
     const proj = await (await api('/api/project/migrate', raw)).json();
