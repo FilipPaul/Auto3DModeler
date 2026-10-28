@@ -1,6 +1,6 @@
 """The measure tool's snap points, with REAL mouse input: a 40 × 20 × 10 block with a Ø6 hole in the middle of its top ->
 📏 Measure: the mouse near the middle of the top front edge: "midpoint" shown there; near a top corner: "corner"; near
-the hole's centre: "centre" -> a click on the corner, then on the hole's centre: their distance (the corner to the
+the hole's centre: "centre" -> the snap filters: Corners off, a corner not caught -> a click on the corner, then on the hole's centre: their distance (the corner to the
 middle of the top: √(20² + 10²)) -> the same in an assembly with the block.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_measure_snap.py http://127.0.0.1:5199 <out dir>
@@ -77,6 +77,13 @@ try:
     print("near the top front edge's middle:", hover(M, cv, [mx, y0, z1]))
     print("near a top corner:", hover(M, cv, [x0, y0, z1]))
     print("near the hole's centre:", hover(M, cv, [mx, my, z1], (3, 2)))
+    bar = d.find_element(By.CSS_SELECTOR, "#modelViewport .snap-filters")
+    print("the snap filters:", " | ".join(bar.text.splitlines()))
+    bar.find_element(By.CSS_SELECTOR, "[data-snap=corner]").click()
+    time.sleep(0.3)
+    print("  Corners off — near a top corner:", hover(M, cv, [x0, y0, z1]))
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .snap-filters [data-snap=corner]").click()
+    time.sleep(0.3)
     click(M, cv, [x0, y0, z1])
     click(M, cv, [mx, my, z1], (3, 2))
     box = d.find_element(By.CSS_SELECTOR, "#modelViewport .m-measure").text.replace("\n", " ")

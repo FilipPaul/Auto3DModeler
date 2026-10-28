@@ -815,7 +815,7 @@ body.view-acts .toast-stack { bottom: 84px; }
 .tr-row[draggable=true] { cursor: grab; }
 .viewport.drop-in { outline: 2px dashed var(--accent); outline-offset: -6px; }
 /* the sketch's selection filters: bottom left of the view (the suggestions and the size box above them) */
-.viewport:has(> .sk-filters) .view-suggest, .viewport:has(> .sk-filters) .sk-choose.sk-quick { bottom: 62px; }
+.viewport:has(> .sk-filters) .view-suggest, .viewport:has(> .sk-filters) .sk-choose.sk-quick, .viewport:has(> .snap-filters) .m-editctx { bottom: 62px; }
 .sk-box { position: absolute; z-index: 6; border: 1px solid #58a6ff; background: #58a6ff1a; pointer-events: none; }
 .sk-box.crossing { border: 1px dashed #7ee787; background: #7ee78714; }
 .m-snap { font-size: 10.5px; color: #0d1117; background: #7ee787; border-radius: 4px; padding: 0 5px; transform: translate(10px, -14px); pointer-events: none; }
@@ -829,6 +829,8 @@ body.view-acts .toast-stack { bottom: 84px; }
   border-radius: 10px; box-shadow: 0 8px 24px #0008; overflow: hidden; }
 .vs-head { cursor: move; display: flex; align-items: baseline; justify-content: space-between; padding: 7px 11px 6px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
 .vs-head b { font-size: 12.5px; }
+.vs-head .vs-ai { margin-left: 6px; background: none; border: 1px solid var(--line); border-radius: 6px; padding: 0 5px; cursor: pointer; font-size: 12px; }
+.vs-head .vs-ai:hover { border-color: var(--accent); }
 .vs-head span { font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
 .vs-list { display: flex; flex-direction: column; padding: 4px; }
 .vs-list button { display: flex; align-items: center; gap: 8px; text-align: left; background: none; border: 0; color: var(--text); padding: 5px 8px;

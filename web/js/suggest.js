@@ -5,6 +5,39 @@ import { t } from './i18n.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const KEY = 'a3d.suggestAt';
+let askAI = null; // (the app: what is selected, into the AI chat)
+
+/** How ✨ hands the selection to the AI chat: fn(refs text). */
+export const setAskAI = (fn) => { askAI = fn; };
+
+const SNAP_KEY = 'a3d.snap3d';
+/** The 3D snap filters (what 📏 Measure catches): {corner, midpoint, centre} (remembered). */
+export function snapKinds() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(SNAP_KEY) || 'null'); } catch { saved = null; }
+  return { corner: true, midpoint: true, centre: true, ...(saved || {}) };
+}
+
+/** The row of 3D snap filters in the bottom-left corner of a view (the Suggested table above it). */
+export function showSnapFilters(viewport, on = true) {
+  let bar = viewport.querySelector(':scope > .snap-filters');
+  if (!on) { bar?.remove(); return; }
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.className = 'sk-filters snap-filters';
+    for (const ev of ['pointerdown', 'pointerup', 'click']) bar.addEventListener(ev, (x) => x.stopPropagation());
+    viewport.appendChild(bar);
+  }
+  const k = snapKinds(), F = [['corner', '⌜', 'Corners'], ['midpoint', '⊹', 'Edge midpoints'], ['centre', '◎', 'Centres']];
+  bar.innerHTML = `<span class="skf-t">${esc(t('Snap'))}:</span>${F.map(([key, i, l]) => `<button class="${k[key] ? 'on' : ''}" data-snap="${key}" title="${esc(t('What 📏 Measure catches — click to switch'))}">${i} ${esc(t(l))}</button>`).join('')}`;
+  for (const b of bar.querySelectorAll('[data-snap]')) {
+    b.addEventListener('click', () => {
+      const now = { ...snapKinds(), [b.dataset.snap]: !snapKinds()[b.dataset.snap] };
+      try { localStorage.setItem(SNAP_KEY, JSON.stringify(now)); } catch { /* private window */ }
+      showSnapFilters(viewport);
+    });
+  }
+}
 
 const savedAt = () => { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } };
 
@@ -40,8 +73,8 @@ function draggable(box, viewport) {
 }
 
 /** Show (or with no items: remove) the table in `viewport`: title (what is selected), items [{icon, label, title,
- *  run, danger}], hint (a line under it). */
-export function showSuggest(viewport, title, items, hint = '') {
+ *  run, danger}], hint (a line under it), refs (what is selected, as the AI's tools name it: ✨ puts it in the chat). */
+export function showSuggest(viewport, title, items, hint = '', refs = '') {
   let box = viewport.querySelector(':scope > .view-suggest');
   if (!items?.length) { box?.remove(); return null; }
   if (!box) {
@@ -51,10 +84,12 @@ export function showSuggest(viewport, title, items, hint = '') {
     viewport.appendChild(box);
   }
   box.dataset.noI18n = '';
-  box.innerHTML = `<div class="vs-head"><b>${esc(title)}</b><span>${esc(t('Suggested'))}</span></div>
+  box.innerHTML = `<div class="vs-head"><b>${esc(title)}</b><span>${esc(t('Suggested'))}</span>${refs && askAI ? `<button class="vs-ai" title="${esc(t('Ask the AI about it — what is selected goes into the chat'))}">✨</button>` : ''}</div>
     <div class="vs-list">${items.map((it, i) => `<button data-sg="${i}" class="${it.danger ? 'danger' : ''}" title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span></button>`).join('')}</div>
     ${hint ? `<p class="vs-hint">${esc(hint)}</p>` : ''}`;
   for (const b of box.querySelectorAll('[data-sg]')) b.addEventListener('click', () => items[+b.dataset.sg].run());
+  box.querySelector('.vs-ai')?.addEventListener('click', (e) => { e.stopPropagation(); askAI(refs); });
+  box.querySelector('.vs-ai')?.addEventListener('pointerdown', (e) => e.stopPropagation()); // (not a drag of the table)
   draggable(box, viewport);
   place(box, viewport);
   return box;

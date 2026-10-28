@@ -7,6 +7,7 @@ import { FreeControls } from '../freecontrols.js';
 import { finishOf } from './materials.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/CSS2DRenderer.js';
 import { t } from '../i18n.js';
+import { snapKinds } from '../suggest.js';
 
 const BODY = new THREE.Color(0xd9dee6), HOVER = new THREE.Color(0x6cb6ff), PICKED = new THREE.Color(0x4f8cff);
 const FEATURE = new THREE.Color(0xa9cdf5), SELECTED = new THREE.Color(0xf2cc60); // the step under the mouse / the chosen step
@@ -25,9 +26,10 @@ export function datumFrame(plane) {
 
 /** The measure tool's snap points near the mouse (within px on the screen): an edge's end (corner), the middle of an
  *  edge (midpoint), the centre of a round edge (centre) — list: [{edges, matrix?, inst?}] -> {point, kind, inst} or null. */
-export function snapNear(list, camera, rect, clientX, clientY, px = 10) {
+export function snapNear(list, camera, rect, clientX, clientY, px = 10, kinds = null) {
   let best = null, bd = px;
   const test = (p, kind, inst) => {
+    if (kinds && !kinds[kind]) return; // (the snap filters)
     const q = p.clone().project(camera);
     if (q.z > 1) return; // (behind the camera)
     const d = Math.hypot(rect.left + (q.x + 1) / 2 * rect.width - clientX, rect.top + (1 - q.y) / 2 * rect.height - clientY);
@@ -639,7 +641,7 @@ export class ModelView {
   /** The point a measure click means: a corner of the part within 10 px, else the point on the surface. */
   measurePoint(clientX, clientY) {
     const h = this.pick(clientX, clientY);
-    const s = snapNear([{ edges: this.body?.edges }], this.camera, this.renderer.domElement.getBoundingClientRect(), clientX, clientY);
+    const s = snapNear([{ edges: this.body?.edges }], this.camera, this.renderer.domElement.getBoundingClientRect(), clientX, clientY, 10, snapKinds());
     if (!s && !h) return null;
     return { point: s ? s.point : h.point.clone(), corner: s?.kind === 'corner', snap: s?.kind || null, face: h?.face || null };
   }

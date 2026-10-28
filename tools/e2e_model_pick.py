@@ -104,6 +104,11 @@ try:
     print("a left click: its step chosen, no menu:", js(f"return {M}.selected"), not d.find_elements(By.CSS_SELECTOR, ".m-fmenu"))
     sg = d.find_elements(By.CSS_SELECTOR, "#modelViewport .view-suggest")
     print("  the suggestions table:", [sg[0].find_element(By.CSS_SELECTOR, ".vs-head b").text] + [' '.join(b.text.split()) for b in sg[0].find_elements(By.CSS_SELECTOR, ".vs-list button")][:4] if sg else None)
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-suggest .vs-ai").click()
+    time.sleep(0.4)
+    print("  ✨ the AI: the chat open", js("return !document.getElementById('aiDrawer').hidden"), "| its message:", js("return document.querySelector('#tab-ai textarea').value"))
+    js("document.querySelector('#tab-ai textarea').value = ''; document.getElementById('aiClose').click()")
+    time.sleep(0.3)
     head = d.find_element(By.CSS_SELECTOR, "#modelViewport .view-suggest .vs-head")
     x0 = head.rect["x"]
     ActionChains(d, duration=40).move_to_element(head).click_and_hold().move_by_offset(160, -120).release().perform()

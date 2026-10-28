@@ -27,6 +27,7 @@ import { Windows } from './windows.js';
 import { actionDock } from './actiondock.js';
 import * as THREE from 'three';
 import { bodyOf, picture, svgPicture } from './thumbs.js';
+import { setAskAI } from './suggest.js';
 import { changed as projectChanged } from './history.js';
 
 initI18n();  // Czech / English: translates the page as it is built
@@ -1971,6 +1972,15 @@ function toggleChat(open = !state.chatOpen) {
   if (open) $('aiDrawer').querySelector('textarea')?.focus();
 }
 $('aiBtn').addEventListener('click', () => toggleChat());
+// ✨ in the Suggested table: what is selected goes into the chat (the AI's tools know these ids)
+setAskAI((refs) => {
+  toggleChat(true);
+  const ta = $('tab-ai').querySelector('textarea');
+  if (!ta) return;
+  ta.value = `${ta.value.trim() ? `${ta.value.trimEnd()}\n` : ''}[${t('Selected')} ${refs}] `;
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+});
 $('aiClose').addEventListener('click', () => toggleChat(false));
 function updateTopButtons() {
   if (state.workspace === 'sheet') {

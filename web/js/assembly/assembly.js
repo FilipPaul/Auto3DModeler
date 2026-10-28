@@ -21,7 +21,7 @@ import { sectionBar, sectionMiddle } from '../modeler/sectionbar.js';
 import { ModelView } from '../modeler/view.js';
 import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss } from './joints.js';
 import { snapNear } from '../modeler/view.js';
-import { showSuggest } from '../suggest.js';
+import { showSuggest, showSnapFilters, snapKinds } from '../suggest.js';
 import { freeMotions, motionMatrix } from './dof.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
@@ -191,7 +191,7 @@ class AsmView extends ModelView {
    *  the face — with that face (world) and the part: {point, corner, face, inst} or null. */
   measurePoint(clientX, clientY) {
     const h = this.pickInst(clientX, clientY), r = this.renderer.domElement.getBoundingClientRect();
-    const s = snapNear((this.meshes || []).map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), this.camera, r, clientX, clientY);
+    const s = snapNear((this.meshes || []).map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), this.camera, r, clientX, clientY, 10, snapKinds());
     if (!s && !h?.point) return null;
     return { point: s ? s.point : h.point.clone(), corner: s?.kind === 'corner', snap: s?.kind || null, face: s ? null : h?.face || null, inst: s ? s.inst : h.inst };
   }
@@ -278,14 +278,15 @@ export class Assembly {
     this.$ = (s) => viewport.querySelector(s) || left.querySelector(s) || right.querySelector(s);
   }
 
-  render() { this.renderBar(); this.renderList(); this.renderProps(); this.renderStatus(); this.renderSuggest(); }
+  render() { this.renderBar(); this.renderList(); this.renderProps(); this.renderStatus(); this.renderSuggest(); showSnapFilters(this.els.viewport, this.doc.instances.length > 0); }
 
   /** The suggestions table (bottom left of the view) for the chosen part — or the two chosen with Ctrl+click. */
   renderSuggest() {
     const vp = this.els.viewport, a = this.inst(this.sel), b = this.inst(this.sel2);
     if (!a || this.mode !== 'idle' || this.measuring || this.painting || this.bolt) { showSuggest(vp, '', []); return; }
     const name = (it) => `${this.partName(it.part)} ${it.id}`;
-    const show = (title, items, hint) => showSuggest(vp, title, items.map((x) => ({ ...x, run: async () => { await x.run(); this.renderSuggest(); } })), hint); // (an action started: the table follows)
+    const refs = `${t('in the assembly')} “${this.hooks.safeName?.() || ''}”: ${[a, b].filter(Boolean).map((x) => `${t('part')} ${x.id} “${this.partName(x.part)}”`).join(', ')}`;
+    const show = (title, items, hint) => showSuggest(vp, title, items.map((x) => ({ ...x, run: async () => { await x.run(); this.renderSuggest(); } })), hint, refs); // (an action started: the table follows)
     if (b) {
       show( `${this.partName(a.part)} ↔ ${this.partName(b.part)}`, [
         { icon: '🔗', label: t('Join them'), title: t('Pick a face of each — touch, gap, flush, a pin in a hole …'), run: () => this.startJoint('touch', a.id) },

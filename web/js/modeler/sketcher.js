@@ -2278,8 +2278,15 @@ export class Sketcher {
   renderSuggest() {
     const items = this.suggestions(), n = (this.picks || []).length;
     const kind = { line: 'A line', circle: 'A circle', arc: 'An arc', point: 'A point', mid: "A line's midpoint", origin: 'The origin' }[this.picks?.[0]?.kind];
+    const what = (this.picks || []).map((q) => { // (as the AI's tools name them)
+      const e = this.ent(q.id);
+      if (q.kind === 'mid') return `${t('the middle of line')} ${q.id}`;
+      if (q.kind === 'origin') return t('the origin');
+      if (q.kind === 'point') return `${t('point')} ${q.id} (${(this.P(q.id) || []).map(fmt).join(', ')})`;
+      return `${{ line: t('line'), circle: t('circle'), arc: t('arc') }[q.kind] || q.kind} ${q.id}${e?.t === 'circle' ? ` (Ø${fmt(2 * e.r)})` : e?.t === 'line' ? ` (${fmt(this.measure({ t: 'len', e: e.id }))} mm)` : ''}`;
+    });
     const sg = showSuggest(this.m.els.viewport, n === 1 ? t(kind || 'Selected') : t('{n} selected').replace('{n}', n), items,
-      n === 1 ? t('Ctrl+click another shape: what fits the two') : '');
+      n === 1 ? t('Ctrl+click another shape: what fits the two') : '', `${t('in the sketch')} ${this.f.id} “${this.f.name || ''}”: ${what.join(', ')}`);
     if (sg) sg.dataset.from = 'sketch';
   }
 

@@ -173,7 +173,7 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_model_reorder.py <url> <dir>` covers reordering steps by dragging (a free sketch moved to the top; a boss
    above its sketch and a fillet above the plate refused with the reason; the body the same; Ctrl+Z).
    `tools/e2e_measure_snap.py <url> <dir>` covers 📏 Measure's snap points (a block with a hole: near an edge's middle
-   "midpoint", a corner "corner", the hole's centre "centre"; corner -> centre 22.361; the same in an assembly).
+   "midpoint", a corner "corner", the hole's centre "centre"; the Snap filters: Corners off — not caught; corner -> centre 22.361; the same in an assembly).
    `tools/e2e_materials.py <url> <dir>` covers materials (4 groups, 37; brass: its colour and mass; set_material
    titanium: its colour, the same in an assembly). Needs a server restarted after materials.py changes.
    `tools/e2e_tree_more.py <url> <dir>` covers the tree / tabs more (a library screw: the library icon, changed: its own;

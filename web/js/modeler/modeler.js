@@ -27,7 +27,7 @@ const USES_SKETCH = new Set(['extrude', 'revolve', 'loft', 'sweep']);
 const sketchesOf = (f) => (f.type === 'loft' ? f.sketches || [] : f.type === 'sweep' ? [f.profile, f.path] : USES_SKETCH.has(f.type) ? [f.sketch] : []).filter(Boolean);
 // densities for the mass (g/cm³), common 3D-printing materials
 import { MATERIALS, MATERIAL_GROUPS, MATERIAL_COLOR, lookColor } from './materials.js';
-import { showSuggest } from '../suggest.js';
+import { showSuggest, showSnapFilters } from '../suggest.js';
 export { MATERIALS }; // g/cm³ (materials.js: grouped, with their colours)
 const DATUM_NAME = { XY: 'Top', XZ: 'Front', YZ: 'Right' };
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -152,6 +152,7 @@ export class Modeler {
         <div class="mp-actions">${btn('cancelPlane', '✕ Cancel', 'Do not start a sketch (Esc)')}</div>`;
     } else {
       this.els.viewport.querySelector(':scope > .view-suggest[data-from=sketch]')?.remove(); // (the sketch's suggestions)
+      showSnapFilters(this.els.viewport, !!this.result?.body); // (what 📏 Measure catches)
       if (this.cmd || this.measuring || this.painting) this.dropSuggest(); // (a tool at work: not the face's)
       const canExtrude = this.sketches().length > 0;
       bar.innerHTML = `
@@ -186,7 +187,7 @@ export class Modeler {
     }
     for (const b of bar.querySelectorAll('[data-a]:not([data-a=relate])')) b.addEventListener('click', () => this.action(b.dataset.a));
     this.sketchState();
-    if (this.mode === 'sketch') this.sk.renderFilters(); else this.els.viewport.querySelector(':scope > .sk-filters')?.remove();
+    if (this.mode === 'sketch') { this.sk.renderFilters(); showSnapFilters(this.els.viewport, false); } else this.els.viewport.querySelector(':scope > .sk-filters:not(.snap-filters)')?.remove();
     bar.querySelector('[data-a=relate]')?.addEventListener('click', (e) => { e.stopPropagation(); bar.querySelector('.sk-relmenu').classList.toggle('open'); });
     for (const b of bar.querySelectorAll('[data-rel]')) {
       b.addEventListener('click', () => { bar.querySelector('.sk-relmenu').classList.remove('open'); this.sk.relType = b.dataset.rel; this.sk.setTool('relate'); });
@@ -420,7 +421,8 @@ export class Modeler {
     if (!menu) { // the suggestions table: the same tools
       const face = t(this.faceLabel(h.face.name).replace(/ of .*$/, '').replace(/^the /, ''));
       const sg = showSuggest(this.els.viewport, `${fs.step.name} · ${face}`, sections.flatMap(([, items]) => items)
-        .map(([, icon, label, run, cls]) => ({ icon, label, danger: cls === 'danger', run: () => { this.dropSuggest(); run(); } })), t('Right click: the same at the mouse'));
+        .map(([, icon, label, run, cls]) => ({ icon, label, danger: cls === 'danger', run: () => { this.dropSuggest(); run(); } })), t('Right click: the same at the mouse'),
+        `${t('in the 3D model')}: ${t('step')} ${fs.step.id} “${fs.step.name}”, ${t('face')} ${h.face.name}${h.face.type === 'plane' ? ` (${t('flat')})` : h.face.type === 'cylinder' ? ` (${t('round')}, Ø${fmt(2 * (h.face.radius || 0))})` : ''}`);
       if (sg) sg.dataset.from = 'face';
       return;
     }
