@@ -378,7 +378,9 @@ TOOLS = [
                     "points: a view's name (Front / Top / Right) — also its points (keys: a hole's centre \"H1:hole:0#c\", a line's ends "
                     "\"<faces>#0\" / \"#1\", the view box \"box#x0\" / \"box#x1\" / \"box#y0\" / \"box#y1\") and circles, to add dimensions. "
                     "check: is it fully dimensioned — the sizes missing (each place linked by dimensions to the part's edge, every Ø / R) and the "
-                    "dimensions that give a size twice.",
+                    "dimensions that give a size twice. An assembly's sheet also has parts_list [{pos, name, part, qty, instances (its "
+                    "placed parts), balloon {at_mm, points_to (the placed part it points at)} or null}] — one balloon per item; a "
+                    "sub-assembly is one item (its parts are on its own page).",
      "inputSchema": _obj({"points": {"type": "string", "enum": ["Front", "Top", "Right"]}})},
     {"name": "sheet_edit", "where": "browser",
      "description": "Change the drawing sheet on screen: preset light / medium / full (the automatic dimensions), view_presets {Front | Top | "

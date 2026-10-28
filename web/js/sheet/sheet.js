@@ -326,6 +326,7 @@ export class SheetEditor {
     row(top, cols.map((c) => c[0]), true);
     shown.forEach((r, i) => row(top + 5 * (i + 1), [r.pos, `${r.kind === 'assembly' ? '◇ ' : ''}${r.name}`, r.qty, r.material, r.pn || (r.bought ? t('bought') : '')], false));
     if (rows.length > max) g.push(`<text x="${x0 + 1.2}" y="${top + 5 * (shown.length + 1) + 3.6}" font-size="2.6">… ${rows.length - max} ${t('more')}</text>`);
+    this.balloonAt = {};
     if (this.isoMap && !this.d.off.Iso) { // the balloons: out from the view, apart from each other, where the user put them
       const placed = [];
       for (const r of rows) {
@@ -341,6 +342,7 @@ export class SheetEditor {
           }
         }
         placed.push(b);
+        this.balloonAt[r.pos] = b.map((v) => +v.toFixed(1));
         const D = Math.hypot(b[0] - p[0], b[1] - p[1]) || 1, u = [(b[0] - p[0]) / D, (b[1] - p[1]) / D];
         g.push(`<line x1="${p[0]}" y1="${p[1]}" x2="${b[0] - u[0] * 3.4}" y2="${b[1] - u[1] * 3.4}" stroke="#1b3a8a" stroke-width="0.2"/><circle cx="${p[0]}" cy="${p[1]}" r="0.5" fill="#1b3a8a"/>`);
         g.push(`<g data-balloon="${r.pos}" class="sh-balloon"><circle cx="${b[0]}" cy="${b[1]}" r="3.4" fill="#fff" stroke="#1b3a8a" stroke-width="0.3"/><text x="${b[0]}" y="${b[1] + 1.2}" font-size="3.4" text-anchor="middle" fill="#1b3a8a">${r.pos}</text></g>`);
@@ -352,9 +354,9 @@ export class SheetEditor {
 
   /** A sheet that is not on screen drawn (a page of a drawing set): its data with `built`. */
   svgOf(d) {
-    const keep = this.d;
+    const keep = this.d, at = this.balloonAt;
     this.d = { views: {}, off: {}, dims: {}, hidden: [], user: [], rev: 1, ...d };
-    try { return this.svg(true); } finally { this.d = keep; this.isoMap = null; }
+    try { return this.svg(true); } finally { this.d = keep; this.isoMap = null; this.balloonAt = at; }
   }
 
   /** The drawing set of an assembly — its page (views, overall sizes, parts list, balloons), then each sub-assembly
@@ -392,8 +394,8 @@ export class SheetEditor {
     const nums = this.itemNumbers(this.rootOf(aid) || aid); // (the set's numbers: the same part, the same number)
     const rows = [...groups].map(([part, ids], i) => {
       const pd = this.hooks.partData(part) || {}, kind = ctx.kindOf(part), nm = this.hooks.partName(part) || part;
-      const iso = Object.entries(r.marks).filter(([k]) => k === ids[0] || k.startsWith(`${ids[0]}/`)).map(([, m]) => m.Iso);
-      return { pos: nums.get(part) ?? i + 1, part, name: nm, qty: ids.length, kind, material: kind === 'assembly' ? '—' : pd.material || 'PLA', pn: pd.library?.pn || '',
+      const iso = Object.entries(r.marks).filter(([k]) => k === ids[0] || k.startsWith(`${ids[0]}/`)).map(([, m]) => m.Iso); // (the first one of them: one balloon per item)
+      return { pos: nums.get(part) ?? i + 1, part, name: nm, qty: ids.length, instances: ids, kind, material: kind === 'assembly' ? '—' : pd.material || 'PLA', pn: pd.library?.pn || '',
         bought: kind !== 'assembly' && (!!pd.library || ctx.bought(pd, nm)), iso: iso.length ? [iso.reduce((s, q) => s + q[0], 0) / iso.length, iso.reduce((s, q) => s + q[1], 0) / iso.length] : null };
     }).sort((a, b) => a.pos - b.pos);
     return { built: { ...r, preset: 'light' }, rows };
@@ -997,6 +999,8 @@ export class SheetEditor {
       part: this.hooks.partName(this.d.source), ...(Object.keys(this.d.texts || {}).length ? { texts: this.d.texts } : {}), preset: this.d.preset, ...(Object.keys(this.d.vpreset || {}).length ? { view_presets: this.d.vpreset } : {}), paper: this.lay?.paper, rev: this.d.rev, changed: this.d.changed,
       views: [...VIEWS, 'Iso'].filter((v) => !this.d.off[v]),
       dims: this.allDims().map((d) => ({ id: d.id, view: d.view, kind: d.kind, text: this.value(d) === null ? null : this.dimText(d, this.value(d)), auto: !!d.auto, ...(this.value(d) === null ? { lost: true } : {}) })),
-      deleted_auto: this.d.hidden.length };
+      deleted_auto: this.d.hidden.length,
+      ...(this.d.asm?.rows ? { parts_list: this.d.asm.rows.map((r) => ({ pos: r.pos, name: r.name, part: r.part, qty: r.qty, ...(r.instances ? { instances: r.instances } : {}),
+        balloon: this.balloonAt?.[r.pos] ? { at_mm: this.balloonAt[r.pos], points_to: r.instances?.[0] || null } : null })) } : {}) };
   }
 }

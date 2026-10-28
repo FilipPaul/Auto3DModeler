@@ -135,7 +135,7 @@ Never report "works" without having run it; report failures with their output.
    thick, 📚 Save back: the library's 12, still one item, the project's copy still 5, a new use 12; a catalogue ISO 4762
    M3: ✎ Make my own copy -> a new own part in My parts, the catalogue unchanged; the AI's save_to_library saves back).
    `tools/e2e_assembly_sheet.py <url> <dir>` covers an assembly's own drawing sheet (📄 Drawing in its toolbar, greyed
-   when empty; the parts list and 2 balloons apart, balloon 1 dragged and kept; Pages Machine / Base / Lid, the Lid's
+   when empty; the parts list and 2 balloons apart, balloon 1 dragged and kept; get_sheet's parts_list with each balloon and the part it points at; Pages Machine / Base / Lid, the Lid's
    page opens its sheet and shows the same Pages (Lid marked); 📚 All pages: 3 pages, scrolled to the end marks Lid,
    Pages → Machine scrolls to the top, a double-click on page 3 opens it to edit; no presets / check; a dimension and a note of the user's; the Lid moved:
    Rev 2, the height 34, the note kept; the drawing set's first page has the note; the AI's sheet_open of an assembly).

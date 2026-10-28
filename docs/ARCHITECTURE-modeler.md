@@ -93,6 +93,9 @@ Date: 2026-10-25. Written by the architect agent.
   g-define / g-inspect), used by the sketch's, the 3D model's and the assembly's bars; each group's buttons side by
   side (make blue, modify amber, copy purple, details teal, define / join green, look and check grey).
   tools/e2e_tool_groups.py.
+- **get_sheet lists an assembly's balloons done:** parts_list [{pos, name, part, qty, instances, balloon {at_mm,
+  points_to} or null}] (sheet.balloonAt, kept while other pages are drawn); one balloon per item on its first placed
+  part. tools/e2e_assembly_sheet.py.
 - **Faces picked with no tool on, joints suggested done:** the assembly's idle click also picks a face / a round edge
   (facePicks: one, or Ctrl: one of each of two parts; lit by drawMarks); suggestFaces — one face: the joints it can
   start (then the other face), two: the joint types fitting both (JOINT_TYPES by face kind), made through clickJoint.

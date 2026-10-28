@@ -1,6 +1,6 @@
 """An assembly's drawing sheet (📄 Drawing in the assembly's toolbar), in headless Edge: Machine = Base + Lid -> the button
 -> a sheet tab: the assembly's views (front, top, iso), its parts list (Base, Lid) and balloons, no presets / size check
--> the balloons apart, one dragged (kept) -> Pages: Machine, Base, Lid; the Lid's page opens its sheet and shows the
+-> the balloons apart, one dragged (kept; get_sheet lists the parts with their balloons) -> Pages: Machine, Base, Lid; the Lid's page opens its sheet and shows the
 same Pages (Lid marked) -> 📚 All pages: 3 pages one below the other, scrolling marks the page in sight, a click in
 Pages goes to it, a double-click opens a page to edit -> a dimension of the user's and a note typed -> back in the assembly the Lid moved -> the sheet again: Rev 2 -> the
 drawing set (📄 Drawings (PDF)): its first page is this sheet, with the note -> the AI's sheet_open of an assembly.
@@ -79,6 +79,7 @@ try:
     ActionChains(d).move_to_element_with_offset(stage, x0, y0).click_and_hold().move_by_offset((x1 - x0) // 2, (y1 - y0) // 2).move_by_offset((x1 - x0) - (x1 - x0) // 2, (y1 - y0) - (y1 - y0) // 2).release().perform()
     time.sleep(0.4)
     print("  balloon 1 dragged:", js(f"return {S}.d.balloons?.['1']"), "(was", [round(v, 1) for v in b0], ")")
+    print("  get_sheet's parts list:", js("return window.__app.agentHandlers.get_sheet({}).then(r => JSON.parse(r.text).parts_list.map(p => [p.pos, p.name, p.qty, p.instances, p.balloon && p.balloon.points_to, p.balloon && p.balloon.at_mm]))"))
 
     # Pages: the set from here; a part's page opens its sheet, and shows the same set
     print("  pages:", [b.text.replace("\n", " ") for b in d.find_elements(By.CSS_SELECTOR, "#shLeft .sh-page")])
