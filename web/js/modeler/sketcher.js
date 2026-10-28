@@ -1890,12 +1890,12 @@ export class Sketcher {
   }
 
   /** Add an outline as a block: on a face it is centred on the face's centre, on a plane its corner is at the origin. */
-  addBlock(o) {
+  addBlock(o, extra = {}) {
     this.step();
     const id = this.newId('b');
     const onFace = !this.f.plane?.datum;
     this.f.entities.push({ id, t: 'block', name: o.name, polys: o.polygons, w0: o.width, h0: o.height, scale: 1,
-      at: onFace ? [-o.width / 2, -o.height / 2] : [0, 0] });
+      at: onFace ? [-o.width / 2, -o.height / 2] : [0, 0], ...extra });
     this.sel = { kind: 'entity', id };
     this.setTool('select');
     this.m.view.lookAt(this.frame(), this.m.sketchSpan());
@@ -1908,7 +1908,9 @@ export class Sketcher {
     if (!e || e.t !== 'block' || !Number.isFinite(v)) return;
     if (k === 'w' && v <= 0) { this.m.toast('A size must be greater than zero.', 'error'); return; }
     this.step();
+    if (k === 'h' && v <= 0) { this.m.toast('A size must be greater than zero.', 'error'); return; }
     if (k === 'w') e.scale = v / e.w0;
+    else if (k === 'h') e.scale = v / e.h0;
     else if (k === 'x') e.at = [v, e.at[1]];
     else if (k === 'y') e.at = [e.at[0], v];
     this.changed();
@@ -2714,7 +2716,15 @@ export class Sketcher {
     const s = this.sel;
     let what = '';
     const blk = s?.kind === 'entity' && this.ent(s.id)?.t === 'block' ? this.ent(s.id) : null;
-    if (blk) {
+    if (blk?.text !== undefined) { // 𝐓 Text: the text and its height
+      const row = (k, label, v) => `<div class="field"><label>${label}</label><input type="number" step="any" data-bk="${k}" value="${fmt(v)}"><span class="unit">mm</span></div>`;
+      what = `<h3>Text</h3>
+        <div class="field"><label>Text</label><input type="text" data-bt="text" data-no-i18n value="${String(blk.text).replace(/[<>&"]/g, (c) => `&#${c.charCodeAt(0)};`)}"></div>
+        ${row('h', 'Height', blk.h0 * (blk.scale || 1))}<p class="hint">Width ${fmt(blk.w0 * (blk.scale || 1))} mm (follows the text).</p>
+        ${row('x', 'Corner x', blk.at[0])}${row('y', 'Corner y', blk.at[1])}
+        <p class="hint">Drag it in the view to move it. Finish the sketch and ⬆ Extrude it — on the part it cuts the letters in.</p>
+        <div class="row-actions"><button class="btn small danger" data-a="delSel" title="Delete it (Delete)">Delete</button></div>`;
+    } else if (blk) {
       const row = (k, label, v) => `<div class="field"><label>${label}</label><input type="number" step="any" data-bk="${k}" value="${fmt(v)}"><span class="unit">mm</span></div>`;
       what = `<h3>Outline</h3><p class="hint" data-no-i18n>${(blk.name || '').replace(/[<>&]/g, '')}</p>
         ${row('w', 'Width', blk.w0 * (blk.scale || 1))}<p class="hint">Height ${fmt(blk.h0 * (blk.scale || 1))} mm (follows the width).</p>

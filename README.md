@@ -75,6 +75,9 @@ define / join (green), look and check (grey).
 **⊂⊃ Slot** (sketch): click the centres of its two round ends, move out to its width and click — two straight
 sides and two half circles that stay a slot (sides tangent, ends equal) when you size it.
 
+**𝐓 Text** (sketch): puts "Text" 10 mm high in the sketch — type your text and its height in the panel, drag it
+where it goes, then ⬆ Extrude it (raised letters, or cut in on the part). The letters' holes (A, O …) stay open.
+
 **🖨 Print check** (3D model toolbar): marks what will not print well as the part lies on the bed — overhangs over 45°
 in red (they need supports, or turn the part) and walls thinner than the minimum you set (1.2 mm by default) in
 orange — with their areas and the thinnest wall. It follows the part as you change it.

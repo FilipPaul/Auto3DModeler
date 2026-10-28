@@ -181,6 +181,8 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_assembly_sheet_explode.py <url> <dir>` covers an assembly sheet's exploded iso (Base + Lid on top: ☐ Iso
    view exploded ticked — the iso taller, the front the same, the balloons moved; Ctrl+Z back; a picture of the
    sheet). Needs a server restarted after kernel changes.
+   `tools/e2e_sketch_text.py <url> <dir>` covers 𝐓 Text in a sketch ("Text" 10 high, the text field focused; typed
+   "AO", height 12; extruded 3: 25 × 12 × 3, the letters' holes kept — about 0.58 of its box; ↶ Undo).
    `tools/e2e_sketch_slot.py <url> <dir>` covers the sketch plane's offset direction (+ = +Z and an arrow; on Front
    −Y; gone after ✓ Finish) and ⊂⊃ Slot with real mouse clicks (centres (0, 0) and (30, 0), the
    width at 5: the preview "40 × 10"; two lines, two arcs, tan ×4 / eq / h; extruded 5: (30 · 10 + π 25) · 5).

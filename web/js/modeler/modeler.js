@@ -172,6 +172,7 @@ export class Modeler {
         ${btn('spline', '〰 Spline', 'Draw a smooth curve: click the points it goes through — double-click or Enter to finish; its first point closes it, a line end joins it (S)', t === 'spline' ? 'on' : '')}
         ${btn('arc', '◠ Arc', 'Draw an arc: click where it starts and ends, then bend it with the mouse and click (A)', t === 'arc' ? 'on' : '')}
         ${this.hooks.pickOutline ? btn('outline', '🖼 Outline', 'Insert an outline from a picture, a DXF / DWG drawing or a PDF drawing (as one shape you can move and size)') : ''}
+        ${btn('text', '𝐓 Text', 'Write text in the sketch — an outline to extrude or cut in: type the text and its height in the panel')}
         ${btn('round', '◜ Round corner', 'Round a corner of lines: click the corner, type the radius (F)', t === 'round' ? 'on' : '')}
         ${btn('trim', '✂ Trim', 'Cut away a piece of a line, circle or arc — up to where other shapes cross it (T)', t === 'trim' ? 'on' : '')}
         ${btn('extend', '⟷ Extend', 'Lengthen a line up to the next shape it meets: click near its end (E)', t === 'extend' ? 'on' : '')}
@@ -291,6 +292,7 @@ export class Modeler {
     if (a === 'autodim' && this.sk) return this.sk.autoDimension();
     if (['rect', 'line', 'slot', 'spline', 'circle', 'arc', 'round', 'trim', 'extend', 'offset', 'select', 'dim'].includes(a)) return this.sk.setTool(a);
     if (a === 'outline') return this.insertOutline();
+    if (a === 'text' && this.sk) return this.insertText();
     if (a === 'finish') return this.finishSketch();
     if (a === 'cancelSketch') return this.cancelSketch();
     return null;
@@ -934,6 +936,11 @@ export class Modeler {
         inp.addEventListener('change', () => this.sk.setBlock(inp.dataset.bk, inp.value));
         inp.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') inp.blur(); });
       }
+      for (const inp of box.querySelectorAll('input[data-bt]')) {
+        inp.addEventListener('change', () => this.retext(inp.value));
+        inp.addEventListener('keydown', (ev) => { ev.stopPropagation(); this.textFocus = 0; if (ev.key === 'Enter') inp.blur(); });
+        if (Date.now() - (this.textFocus || 0) < 2000) { inp.focus(); inp.select(); } // (a text just put in: type over it)
+      }
       return null;
     }
     if (this.mode === 'plane') {
@@ -1146,6 +1153,38 @@ export class Modeler {
     const o = await this.hooks.pickOutline();
     if (!o || !this.sk) return;
     this.sk.addBlock(o);
+  }
+
+  /** 𝐓 Text in a sketch: "Text" 10 mm high as a block, its text and height typed in the panel. */
+  async insertText(text = 'Text', h = 10) {
+    const o = await this.textBlock(text, h);
+    if (!o || !this.sk) return;
+    this.textFocus = Date.now(); // (the panel is drawn again once the sketch is solved: renderProps focuses it then)
+    this.sk.addBlock(o, { text });
+  }
+
+  /** The text's outline h mm high, its lower-left corner at 0: {name, polygons, width, height} (null: no ink). */
+  async textBlock(text, h) {
+    try {
+      const o = await textOutline(text, { bold: true });
+      if (!o) { this.hooks.toast('Type some text first.', 'warning'); return null; }
+      // the letters' own box (the trace keeps a margin) scaled to h high, its lower-left corner at 0
+      const pts = o.polygons.flat(2), xs = pts.map((p) => p[0] * o.aspect), ys = pts.map((p) => p[1]);
+      const x0 = Math.min(...xs), y0 = Math.min(...ys), k = h / (Math.max(...ys) - y0 || 1);
+      const polygons = o.polygons.map((poly) => poly.map((r) => r.map(([x, y]) => [+((x * o.aspect - x0) * k).toFixed(4), +((y - y0) * k).toFixed(4)])));
+      return { name: text, polygons, width: (Math.max(...xs) - x0) * k, height: h };
+    } catch (e) { this.hooks.toast(e.message, 'error'); return null; }
+  }
+
+  /** A text block's text typed anew: traced again, its height and corner kept. */
+  async retext(text) {
+    const e = this.sk?.ent(this.sk.sel?.id);
+    if (!e || e.t !== 'block' || e.text === undefined || !String(text).trim()) return;
+    const o = await this.textBlock(text, e.h0 * (e.scale || 1));
+    if (!o || !this.sk || this.sk.ent(e.id) !== e) return;
+    this.sk.step();
+    Object.assign(e, { text, name: text, polys: o.polygons, w0: o.width, h0: o.height, scale: 1 });
+    this.sk.changed();
   }
 
   // ------------------------------------------------------------------ sketch: choosing the plane

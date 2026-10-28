@@ -91,6 +91,10 @@ Date: 2026-10-25. Written by the architect agent.
   tools/e2e_ai_reports.py.
 - **Steps named after their sketch done:** nextName(type, sketch): an extrude / revolve of a sketch the user named
   is "Extrude – Slot" (a "Sketch 2" keeps "Extrude 3"), in the panel and for the AI. tools/e2e_ai_reports.py.
+- **𝐓 Text in sketches done:** the sketch bar's 𝐓 Text (Modeler.insertText / textBlock: textOutline traced by
+  /api/trace, scaled to the letters' own box h high, its corner at 0) -> a block entity with `text` (the kernel's
+  block loops, holes kept); its panel: Text (retext: traced again, the height and corner kept) and Height (setBlock
+  h), the text field focused to type over. tools/e2e_sketch_text.py.
 - **The sketch plane's offset direction shown done:** the ↕ Plane at chip says which way + goes (+ = +Z, on Front −Y)
   and ModelView.setPlaneArrow draws an arrow along the plane's normal labelled the same (gone off the sketch) — the
   GUI audit's offset-plane direction. tools/e2e_sketch_slot.py.
@@ -635,7 +639,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 | Sketch pattern | Linear / circular copies inside the sketch | entities, count, step | Later (use the feature pattern) |
 | Project edges ("Include" / "Convert entities") | Bring part edges into the sketch | picked edges | MVP (M3) |
 | Outline / DXF / PDF block | A traced outline, DXF region or PDF profile as one rigid block (position, angle, scale dimension) | asset + width | MVP (M4) |
-| Text | Text traced into a block (reuses today's browser text tracing) | text, font, height | Later (easy) |
+| Text | Text traced into a block (reuses today's browser text tracing) | text, height | Done (𝐓 Text) |
 | Spline | Free curve | points | Done (〰 Spline) |
 | **Constraints** | coincident, horizontal, vertical, parallel, perpendicular, tangent, equal, fixed, concentric, midpoint, symmetric, point-on-curve | picked entities | MVP (M2), all supported by planegcs |
 | **Dimensions** | distance (aligned / horizontal / vertical), radius / diameter, angle; driving or reference; value may be an expression using parameters (`w/2+3`) | picked entities, value | MVP (M2) |

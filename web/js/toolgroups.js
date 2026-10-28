@@ -2,7 +2,7 @@
 // (amber), copy (purple), details (teal), define / join (green), look and check (grey).
 
 const GROUPS = {
-  make: ['rect', 'line', 'circle', 'slot', 'spline', 'arc', 'outline', 'sketch', 'extrude', 'revolve', 'loft', 'sweep', 'solidFile', 'insert'],
+  make: ['rect', 'line', 'circle', 'slot', 'spline', 'arc', 'outline', 'text', 'sketch', 'extrude', 'revolve', 'loft', 'sweep', 'solidFile', 'insert'],
   modify: ['round', 'trim', 'extend', 'construction', 'fillet', 'chamfer', 'shell', 'draft'],
   copy: ['mirror', 'offset', 'pattern'],
   detail: ['rib', 'hole', 'decal', 'fasteners'],
