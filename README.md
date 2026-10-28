@@ -480,6 +480,9 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
 - **✎ Edit it here** (a placed part's panel, or double-click it): its part opens in the full 3D modeler with the rest
   of the assembly see-through around it, in place; *◇ Back to the assembly* returns. It is **🔒 Locked** per part
   until you unlock it (🔓 Editable from here), so nothing is changed by accident.
+- **Joints with no tool on**: click a face (or a hole's / pin's rim) — it lights up and the Suggested table offers the
+  joints it can start; **Ctrl+click a face of another part** and it offers the joints that fit the two (two round
+  faces: ◎ Concentric; two flat: Touch, Flush, Gap, Parallel …; round and flat: Tangent) — one click makes it.
 - **📌 Fixed in place**: the first part put in an assembly is fixed (📌 in the list): it is not moved by hand, and a
   joint made from it moves the other part. 📌 in a part's panel (or the Suggested table) fixes or frees any part.
 - **📏 Measure** (assembly): click a spot, then another — the distance and Δx / Δy / Δz (corners snap); two parallel

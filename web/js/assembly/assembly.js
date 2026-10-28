@@ -280,10 +280,49 @@ export class Assembly {
 
   render() { this.renderBar(); this.renderList(); this.renderProps(); this.renderStatus(); this.renderSuggest(); showSnapFilters(this.els.viewport, this.doc.instances.length > 0); }
 
+  /** The suggestions for faces picked with no tool on: one face — the joints it can start (then a face of another
+   *  part); two faces of two parts (Ctrl+click) — the joints that fit them (two round: concentric; two flat: touch,
+   *  flush, gap …; round and flat: tangent), made by a click. */
+  suggestFaces(vp, fp) {
+    const kindOf = (q) => (q.face.type === 'cylinder' ? 'round' : q.face.type === 'plane' ? 'flat' : 'other');
+    const fits = (k1, k2) => Object.entries(JOINT_TYPES).filter(([, j]) => !j.pick && (
+      (j.faces === 'plane' && k1 === 'flat' && (k2 === undefined || k2 === 'flat')) || (j.faces === 'cylinder' && k1 === 'round' && (k2 === undefined || k2 === 'round'))
+      || (j.faces === 'mixed' && (k2 === undefined ? k1 !== 'other' : new Set([k1, k2]).size === 2 && ![k1, k2].includes('other')))));
+    const what = (q) => `${this.partName(this.inst(q.inst)?.part)} ${q.inst} · ${this.faceText(q.inst, q.face.name)}`;
+    const refs = `${t('in the assembly')} “${this.hooks.safeName?.() || ''}”: ${fp.map((q) => `${t('part')} ${q.inst} ${t('face')} ${q.face.name}${q.face.type === 'cylinder' && q.face.radius ? ` (${t('round')}, Ø${fmt(2 * q.face.radius)})` : q.face.type === 'plane' ? ` (${t('flat')})` : ''}`).join(', ')}`;
+    const done = () => { this.facePicks = []; this.renderSuggest(); this.drawMarks(); };
+    if (fp.length === 2) {
+      const js = fits(kindOf(fp[0]), kindOf(fp[1]));
+      showSuggest(vp, `${what(fp[0])} ↔ ${what(fp[1])}`, js.map(([type, j]) => ({ icon: j.icon, label: t(j.name), title: t(j.hint || ''), run: () => {
+        this.jointType = type; // (as if the two faces had been clicked with that joint)
+        this.mode = 'joint-to';
+        this.jointFrom = fp[0];
+        this.clickJoint(fp[1]);
+        if (this.mode !== 'idle') this.cancelJoint();
+        done();
+      } })), js.length ? t('A joint between the two faces — the first one\'s part moves') : t('No joint fits these two faces.'), refs);
+      return;
+    }
+    const q = fp[0], js = fits(kindOf(q));
+    showSuggest(vp, what(q), [
+      ...js.map(([type, j]) => ({ icon: j.icon, label: `${t(j.name)}…`, title: t('Then click a face of the other part'), run: () => {
+        this.startJoint(type);
+        this.jointFrom = q;
+        this.mode = 'joint-to';
+        this.jointHint();
+        this.facePicks = [];
+        this.drawMarks();
+      } })),
+      { icon: '📏', label: t('Measure from here'), run: () => { done(); this.toggleMeasure(); } },
+    ], t('Ctrl+click a face of another part: the joints that fit the two'), refs);
+  }
+
   /** The suggestions table (bottom left of the view) for the chosen part — or the two chosen with Ctrl+click. */
   renderSuggest() {
     const vp = this.els.viewport, a = this.inst(this.sel), b = this.inst(this.sel2);
     if (!a || this.mode !== 'idle' || this.measuring || this.painting || this.bolt) { showSuggest(vp, '', []); return; }
+    const fp = (this.facePicks || []).filter((q) => this.inst(q.inst));
+    if (fp.length) { this.suggestFaces(vp, fp); return; }
     const name = (it) => `${this.partName(it.part)} ${it.id}`;
     const refs = `${t('in the assembly')} “${this.hooks.safeName?.() || ''}”: ${[a, b].filter(Boolean).map((x) => `${t('part')} ${x.id} “${this.partName(x.part)}”`).join(', ')}`;
     const show = (title, items, hint) => showSuggest(vp, title, items.map((x) => ({ ...x, run: async () => { await x.run(); this.renderSuggest(); } })), hint, refs); // (an action started: the table follows)
@@ -1470,6 +1509,7 @@ export class Assembly {
     if (this.jointFrom?.face) marks.push({ inst: this.jointFrom.inst, faces: [this.jointFrom.face.id], color: 0x3fb950 });
     for (const [inst, set] of this.painting?.sel || []) marks.push({ inst, faces: [...set], color: 0xff9e64 });
     if (this.hoverFace) marks.push({ inst: this.hoverFace.inst, faces: [this.hoverFace.face.id], color: this.hoverFace.ok ? 0xf2cc60 : 0x8b95a3 });
+    if (this.mode === 'idle') for (const q of this.facePicks || []) if (this.inst(q.inst)) marks.push({ inst: q.inst, faces: faceIds(q.inst, q.face.name), color: 0xf2cc60 }); // (picked with no tool)
     this.view.setMarks(marks);
   }
 
@@ -2417,10 +2457,15 @@ export class Assembly {
       if (this.painting) { this.clickPaint(h, e.ctrlKey || e.metaKey); return; }
       if (this.mode !== 'idle') { this.clickJoint(this.jointPick(e, h)); return; }
       if (this.bolt) { if (h?.face?.type === 'plane') this.startBolt(h); return; } // another point for the bolt
-      const sp = this.view.measurePoint(e.clientX, e.clientY);
+      const sp = this.view.measurePoint(e.clientX, e.clientY), more = e.ctrlKey || e.metaKey;
       this.snapPick = sp?.snap ? sp : null; // (a corner, an edge's middle, a centre: picked with its part)
       this.view.setMeasure(this.snapPick ? [sp.point] : []);
-      this.choose(this.snapPick ? sp.inst : h?.inst || null, e.ctrlKey || e.metaKey);
+      const f = this.snapPick ? null : this.view.roundEdgeAt(e.clientX, e.clientY) || (h?.face ? h : null); // a face, or a hole's / pin's rim
+      const pick = f && { inst: f.inst, face: f.face };
+      const had = this.facePicks || [];
+      this.facePicks = !pick ? [] : more && had.length === 1 && had[0].inst !== pick.inst ? [had[0], pick] : [pick]; // (Ctrl: the other part's face)
+      this.choose(this.snapPick ? sp.inst : h?.inst || pick?.inst || null, more);
+      this.drawMarks();
     });
     window.addEventListener('keydown', (e) => this.key(e));
   }

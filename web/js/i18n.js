@@ -738,6 +738,8 @@ const CS = {
   'The part on screen — double-click to rename, drag to move the tab (out of the window: a new window)': 'Díl na obrazovce — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'Click to show it — double-click to rename, drag to move the tab (out of the window: a new window)': 'Kliknutím zobrazíte — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'No part open': 'Žádný díl není otevřený',
+  "A joint between the two faces — the first one's part moves": 'Vazba mezi oběma plochami — pohne se díl té první', 'No joint fits these two faces.': 'Na tyto dvě plochy se žádná vazba nehodí.',
+  'Then click a face of the other part': 'Pak klikněte na plochu druhého dílu', 'Ctrl+click a face of another part: the joints that fit the two': 'Ctrl+klik na plochu jiného dílu: vazby, které se hodí na obě',
   Undo: 'Zpět', 'Bring back the part deleted last': 'Vrátit naposledy smazaný díl', 'Delete it from the project (↶ Undo brings it back)': 'Smazat z projektu (↶ Zpět ho vrátí)',
   'A corner': 'Roh', 'An edge midpoint': 'Střed hrany', 'A centre': 'Střed', 'Measure from here': 'Měřit odtud', 'Copy its coordinates': 'Kopírovat souřadnice', Copied: 'Zkopírováno',
   "No tool on: a click on a corner, an edge's middle or a centre picks it": 'Bez nástroje: klik na roh, střed hrany nebo střed ho vybere', 'the point': 'bod', 'of the part': 'dílu',
