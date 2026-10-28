@@ -114,6 +114,15 @@ Date: 2026-10-25. Written by the architect agent.
   {ref, point: id} follows it (doc._ref_uv); deleting what it stands on keeps it at {xyz}. AI: add_feature point
   (at {corner: [x, y, z]} / {centre} / {mid} / a ref), find_refs kind "point", get_model's xyz. test_reference_point;
   tools/e2e_model_point.py.
+- **View cube done:** viewcube.js (ModelView {cube: true} in the 3D model and the assembly): CSS 3D faces turned by
+  the camera's rotation each frame (the faces turned away hidden), each face 3 × 3 cells whose data-dir is where they
+  look from — the middle the face, the sides its edges, the corners its corners (the same dir on neighbouring faces
+  lights together on hover); a click -> setView(side | [x, y, z]) (setView: + back / left / bottom, a direction for an
+  edge or a corner; same fitted distance; Z up, the top +Y up, the bottom -Y up); ⌂ the iso view. It sits under the
+  command bar (a ResizeObserver on the bar), the busy box beside it, the hint narrower. The Iso / Top / Front / Right
+  buttons left both bars (`action('view-…')` still works). At 1280×800 the assembly's bar 189 -> 159 px; the 3D
+  model's stays 129 px (its 4 rows are all tools there; the views sat in the last row). Labels TOP … LEFT, Czech
+  SHORA … ZLEVA. tools/e2e_view_cube.py.
 - **Sketches and holes from a corner or the part's origin — step 1 (kernel, AI) done:** plane.origin on a face plane
   (sketch, hole, decal): "corner" (doc._origin: kernel.face_span — the exact box of the faces of that name in the
   frame's u / v — its (u0, v0), found again each rebuild, so it follows the corner), "world" (the world origin seen

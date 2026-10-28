@@ -266,7 +266,7 @@ export class Assembly {
       onChange: () => this.updateUndo(),
     });
     this.build();
-    this.view = new AsmView(this.els.view);
+    this.view = new AsmView(this.els.view, { cube: true });
     this.bindPointer();
     this.render();
     window.addEventListener('a3d:lang', () => this.render()); // (texts built with t(): in the new language)
@@ -440,9 +440,7 @@ export class Assembly {
       <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
       <span class="sep"></span>
       <label class="chip as-explode" title="Pull the parts apart to see them (the placement does not change) — 💥 in the list chooses which parts move">Explode <input type="range" min="0" max="1" step="0.01" value="${this.explode}"></label>
-      <label class="chip as-exrespect" title="Explode along the joints: a joined part moves only the ways its joints leave free (a pin out of its hole along the axis), and goes along with the part it is on"><input type="checkbox" data-a="exRespect" ${this.explodeRespect ? 'checked' : ''}> Respect joints</label>
-      <span class="sep"></span>
-      ${btn('view-iso', 'Iso', 'View from the front-right, above')}${btn('view-top', 'Top', 'View from above')}${btn('view-front', 'Front', 'View from the front')}${btn('view-right', 'Right', 'View from the right')}`;
+      <label class="chip as-exrespect" title="Explode along the joints: a joined part moves only the ways its joints leave free (a pin out of its hole along the axis), and goes along with the part it is on"><input type="checkbox" data-a="exRespect" ${this.explodeRespect ? 'checked' : ''}> Respect joints</label>`; // (the views: the view cube, top right)
     bar.querySelector('[data-a=insert]').disabled = !parts.length && !this.hooks.importSolid;
     for (const b of bar.querySelectorAll('[data-joint]')) b.disabled = this.doc.instances.length < 2;
     for (const a of ['paint', 'section']) bar.querySelector(`[data-a=${a}]`).disabled = !this.doc.instances.length;

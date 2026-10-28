@@ -24,6 +24,9 @@ Never report "works" without having run it; report failures with their output.
    (PDF / DXF / STL), point-to-point dimensions (scaling), the 3D and 2D measure tools and CAD / 3D imports.
    `tools/e2e_view_turn.py <url> <dir>` covers turning the 3D view without limits (REAL drags: over the top, across,
    pan, wheel zoom; no turning in a sketch).
+   `tools/e2e_view_cube.py <url> <dir>` covers the view cube with REAL clicks at 1280×800 (TOP / ⌂ / FRONT / a corner /
+   an edge -> the camera's direction and up, the corner's three parts lit on hover, the bars without view buttons and
+   their heights before / after, drawing in a sketch after the cube turned it, the assembly's cube, Czech labels).
    `tools/e2e_panels.py <url> <dir>` covers panels made wider / narrower by REAL mouse drags (left, right, the AI chat;
    the 3D view follows, remembered after a reload, double-click = usual width, a smallest width).
    `tools/e2e_chat_scroll.py <url> <dir>` covers the AI chat while Claude works (the panel keeps its place and size,

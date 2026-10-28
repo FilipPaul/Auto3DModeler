@@ -8,6 +8,7 @@ import { finishOf } from './materials.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/CSS2DRenderer.js';
 import { t } from '../i18n.js';
 import { snapKinds } from '../suggest.js';
+import { ViewCube } from './viewcube.js';
 
 const BODY = new THREE.Color(0xd9dee6), HOVER = new THREE.Color(0x6cb6ff), PICKED = new THREE.Color(0x4f8cff);
 const FEATURE = new THREE.Color(0xa9cdf5), SELECTED = new THREE.Color(0xf2cc60); // the step under the mouse / the chosen step
@@ -117,7 +118,8 @@ export function axes(fr) {
 }
 
 export class ModelView {
-  constructor(container) {
+  /** cube: the view cube in the top-right corner (the 3D model, the assembly). */
+  constructor(container, { cube = false } = {}) {
     this.container = container;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
     this.renderer.setClearColor(0x000000, 0);
@@ -172,6 +174,7 @@ export class ModelView {
       this.dirty = false;
       this.renderer.render(this.scene, this.camera);
       this.labels.render(this.scene, this.camera);
+      this.cube?.update(this.camera);
     };
     loop();
     this.showDatums(true);
@@ -181,6 +184,7 @@ export class ModelView {
     this.origin.renderOrder = 11;
     this.scene.add(this.origin);
     this.sizeOrigin();
+    if (cube) this.cube = new ViewCube(container, (dir) => this.setView(dir));
   }
 
   sizeOrigin() {
@@ -497,12 +501,16 @@ export class ModelView {
     return box;
   }
 
+  /** Look from a side ('iso', 'top', 'front', 'right', 'back', 'left', 'bottom') or from a direction [x, y, z] (the
+   *  view cube's edges and corners), all of it fitted. Z stays up; the top is seen with +Y up, the bottom with -Y. */
   setView(name) {
     const box = this.fitBox(), c = box.getCenter(new THREE.Vector3()), s = Math.max(box.getSize(new THREE.Vector3()).length(), 1);
-    const dirs = { iso: [0.55, -0.9, 0.7], top: [0, -0.0001, 1], front: [0, -1, 0.0001], right: [1, 0, 0.0001] };
-    const dir = V(dirs[name] || dirs.iso).normalize();
+    const dirs = { iso: [0.55, -0.9, 0.7], top: [0, -0.0001, 1], front: [0, -1, 0.0001], right: [1, 0, 0.0001],
+      back: [0, 1, 0.0001], left: [-1, 0, 0.0001], bottom: [0, 0.0001, -1] };
+    const dir = V(Array.isArray(name) ? name : dirs[name] || dirs.iso).normalize();
     this.camera.up.set(0, 0, 1);
     if (name === 'top') this.camera.up.set(0, 1, 0);
+    if (name === 'bottom') this.camera.up.set(0, -1, 0);
     this.camera.position.copy(c).addScaledVector(dir, s * 1.6);
     this.controls.target.copy(c);
     this.controls.update();

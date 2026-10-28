@@ -186,8 +186,11 @@ nothing in it that still has the name the app gave it — the one on screen stay
 the widths are remembered, a double-click on an edge gives the usual width again.
 
 **Turning the view**: a left drag turns the 3D view freely, as far as you like (over the top too): across the screen
-about its upright, up and down about its level. A right drag pans, the wheel zooms; Iso / Top / Front / Right set the
-view again.
+about its upright, up and down about its level. A right drag pans, the wheel zooms. The **view cube** in the top-right
+corner of the 3D model's and the assembly's view (under the command bar) turns with the view: click a face (TOP, FRONT,
+RIGHT, BACK, LEFT, BOTTOM) to look from that side, an edge or a corner to look from between them (a corner: the iso view
+from it), ⌂ for the usual iso view — the part stays fitted. The face, edge or corner under the mouse lights up; it
+works in a sketch too.
 *Save project* stores all the parts in one file (project version 3). Older project files still open, as a
 project with one part. The plan for the coming 3D model workspace (sketches → extrude / revolve / fillet …,
 light assemblies) is in [docs/ARCHITECTURE-modeler.md](docs/ARCHITECTURE-modeler.md). Its optional packages

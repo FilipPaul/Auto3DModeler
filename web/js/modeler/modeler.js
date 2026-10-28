@@ -67,7 +67,7 @@ export class Modeler {
     this.bigAll = new Set(); // big sketches whose every size is shown anyway
     this.build();
     this.bindSizes(this.els.left);
-    this.view = new ModelView(this.els.view);
+    this.view = new ModelView(this.els.view, { cube: true });
     this.view.onCamera = () => this.sk?.draw();
     this.bindPointer();
     this.render();
@@ -224,9 +224,7 @@ export class Modeler {
         ${btn('measure', '📏 Measure', 'Measure: click a face or an edge (its size), or two spots (the distance between them) (M)', this.measuring ? 'on' : '')}
         ${btn('section', '✂ Section', 'Look inside: cut the view along X, Y or Z', this.section ? 'on' : '')}
         ${btn('printcheck', '🖨 Print check', 'Check the part for 3D printing as it lies on the bed: overhangs over 45° (red) and walls too thin to print (orange)', this.printChk ? 'on' : '')}
-        ${btn('planes', '◫ Planes', 'Show or hide the Top, Front and Right planes (while a sketch plane is chosen they show anyway)', this.planesOn !== false ? 'on' : '')}
-        <span class="sep"></span>
-        ${btn('view-iso', 'Iso', 'View from the front-right, above')}${btn('view-top', 'Top', 'View from above')}${btn('view-front', 'Front', 'View from the front')}${btn('view-right', 'Right', 'View from the right')}`;
+        ${btn('planes', '◫ Planes', 'Show or hide the Top, Front and Right planes (while a sketch plane is chosen they show anyway)', this.planesOn !== false ? 'on' : '')}`; // (the views: the view cube, top right)
       bar.querySelector('[data-a=extrude]').disabled = !canExtrude || !!this.cmd;
       bar.querySelector('[data-a=sketch]').disabled = !!this.cmd;
       for (const a of ['fillet', 'chamfer', 'hole', 'shell', 'pattern', 'decal', 'mirror', 'draft', 'rib']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body || !!this.cmd;

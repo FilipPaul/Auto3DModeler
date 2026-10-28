@@ -298,6 +298,9 @@ const CS = {
   '⬆ Extrude': '⬆ Vysunutí', 'Give a sketch a height: add material or cut (E)': 'Dát skice výšku: přidat materiál nebo řez (E)', 'Draw a sketch first': 'Nejprve nakreslete skicu',
   'Redo (Ctrl+Y)': 'Znovu (Ctrl+Y)', 'View from the front-right, above': 'Pohled zepředu zprava, shora', 'View from above': 'Pohled shora',
   'View from the front': 'Pohled zepředu', 'View from the right': 'Pohled zprava',
+  // the view cube: its faces say where the view is from (capitals, so they are not the planes Top / Front / Right)
+  TOP: 'SHORA', BOTTOM: 'ZDOLA', FRONT: 'ZEPŘEDU', BACK: 'ZEZADU', RIGHT: 'ZPRAVA', LEFT: 'ZLEVA',
+  'Click a face, an edge or a corner of the cube: the view from there': 'Klikněte na stěnu, hranu nebo roh krychle: pohled odtamtud',
   'Change this step (or double-click it)': 'Změnit tento krok (nebo na něj dvakrát klikněte)', 'Delete this step': 'Smazat tento krok',
   'on Top': 'na horní rovině', 'on Front': 'na přední rovině', 'on Right': 'na pravé rovině', 'on a face': 'na ploše', 'cut through all': 'řez skrz vše',
   'Delete this shape (Delete)': 'Smazat tento tvar (Delete)', 'Delete shape': 'Smazat tvar', Tips: 'Tipy', 'Centre x': 'Střed x', 'Centre y': 'Střed y',
