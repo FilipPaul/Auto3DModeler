@@ -229,8 +229,9 @@ Never report "works" without having run it; report failures with their output.
    longer: the corner's hole follows, the origin's stays. Exits 1 on a failed check.
    `tools/e2e_sketch_text.py <url> <dir>` covers 𝐓 Text in a sketch ("Text" 10 high, the text field focused; typed
    "AO", height 12; extruded 3: 25 × 12 × 3, the letters' holes kept — about 0.58 of its box; ↶ Undo).
-   `tools/e2e_sketch_slot.py <url> <dir>` covers the sketch plane's offset direction (+ = +Z and an arrow; on Front
-   −Y; gone after ✓ Finish) and ⊂⊃ Slot with real mouse clicks (centres (0, 0) and (30, 0), the
+   `tools/e2e_sketch_slot.py <url> <dir>` covers the sketch plane's offset direction (+ = +Z; the arrow hidden at the start,
+   drawn while the mouse is on ↕ Plane at or its field has focus, hidden again after Enter; on Front −Y; gone after
+   ✓ Finish) and ⊂⊃ Slot with real mouse clicks (centres (0, 0) and (30, 0), the
    width at 5: the preview "40 × 10"; two lines, two arcs, tan ×4 / eq / h; extruded 5: (30 · 10 + π 25) · 5).
    `tools/e2e_sketch_pattern.py <url> <dir>` covers ⁂ Pattern in a sketch (a circle picked -> 3 at once, the box;
    Count 4, Spacing 15: x 0 / 15 / 30 / 45, a `pat` relation; the ⁂ symbol -> Count 5 re-made; Ctrl+Z -> 4, Ctrl+Z

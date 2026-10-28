@@ -71,6 +71,10 @@ part's edges — off the grid too — the place named at the mouse; the same fil
 corner, a line's middle, the origin) or on the extension of a line, the cursor catches there and a temporary dashed
 line shows what it lines up with (two at once: where they cross).
 
+**↕ Plane at** (a sketch on a base plane) moves the sketch plane along its normal; *(+ = +Z)* says which way.
+Point at it (or type in it) and an arrow shows that direction — ⊙ / ⊗ when you look straight along it; otherwise
+it stays hidden, out of the way of drawing.
+
 **◫ Planes** in the 3D model's toolbar shows or hides the (faint) Top / Front / Right planes — remembered; they show
 anyway while a sketch plane is being chosen.
 
