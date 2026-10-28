@@ -41,8 +41,12 @@ translated; the project file keeps the originals. Translations live in `web/js/i
 `CS`. Texts with values go in `CS_PATTERNS`, where `{}` is a value; values that are known texts are translated
 too. Text with markup goes in `CS_HTML`.
 
-**Long work shows progress**: importing or rebuilding a large 3D file shows a progress bar with **Cancel**.
-Cancelling puts the part back the way it was. Curved or slanted 3D imports get a slice height chosen
+**Long work shows progress**: importing or rebuilding a large 3D file, making a drawing sheet, building an
+assembly's parts or splitting a part for printing shows a progress box with **Cancel** (in whichever workspace is on
+screen). Cancel stops that job in the CAD kernel at once (only its process restarts; other parts' jobs go on), the box
+says *Cancelling…* and is gone — the work is not started again on its own. A quick part goes back the way it was; a 3D
+model keeps its last result with *Cancelled — ↻ Rebuild*; a sheet says *Cancelled* with ↻ Try again; the next change
+builds as usual. The ⚠ Collisions list has ✕ Stop while it checks. Curved or slanted 3D imports get a slice height chosen
 automatically so they build in a few seconds; the Part tab lets you set a finer one.
 
 **Project name and saving**: click the project name in the top bar to rename it. *Save project* and the exports

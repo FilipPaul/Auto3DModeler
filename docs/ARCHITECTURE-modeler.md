@@ -7,6 +7,23 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Cancel stops the job once, nothing restarts it done:** the owner saw Cancel not stopping the kernel and the
+  busy text going Building ↔ Cancelling. Found: the app's busy box (#busy) polled the stage and wrote "Building the 3D
+  model" over "Cancelling…"; it tracked one rid, so a second request at the same time (opening a sheet runs ensure
+  twice: the tab's load and sheet_open) was not cancelled and came back; a cancelled sheet was made again by the next
+  ensure(); the box sat in the quick part's viewport, invisible in the other workspaces; a tab shown while another one
+  loaded (📄 Drawing during an assembly's load) got its data overwritten with 'live' (parts.show) — ↻ Try again then
+  did nothing. The kernel side was right (Worker._run kills only that process on Cancel). Now web/js/progressbox.js
+  (from app.js): several rids at once, the newest shown, ✕ Cancel cancels them all, "Cancelling…" until they end (the
+  poll no longer writes over it), then gone; it moves to the viewport on screen (bottom middle outside the quick part);
+  `delay` for quick ones. The 3D model: Cancel → "Cancelling…", the queued rebuild dropped, the last result kept with
+  "Cancelled — ↻ Rebuild". The sheet: one job per drawing (ensure waits for the same one), a cancelled one is not made
+  again until ↻ Try again or a change. The assembly's part builds go through the box (a cancelled part keeps its
+  body; no clash check after it); a newer clash check cancels the older one's job (/api/assembly/clashes takes a rid,
+  409), the ⚠ list has ✕ Stop; the print split (/api/print/plan rid, 409) too. tests/test_kernel_pool.py
+  (test_cancel_kills_only_that_worker, TestCancelRoutes); tools/e2e_cancel.py: the board's import, 12 real threads, MIT
+  E-Vent's sheet — before: Cancelling… → gone → Making the drawing… → Building again; after: Cancelling… → gone in
+  0.13–0.23 s, no kernel CPU after it, nothing sent again.
 - **Autosave waits longer on a busy machine done:** autosave._write / _read retry a Windows sharing violation
   (WinError 5 / 32) for up to ~8 s with a growing pause (_pause), not ~2 s / ~1 s — under the full test run with the
   kernel pool busy, test_same_project_saved_at_once once failed with "Access is denied".

@@ -262,6 +262,21 @@ export class SheetEditor {
     const h = this.sourceHash(this.d.source);
     const vp = JSON.stringify(this.d.vpreset || {});
     if (!force && this.d.built && !this.d.built.stale && this.d.hash === h && !!this.d.built.section === !!this.d.section && this.d.built.preset === this.d.preset && this.d.built.vp === vp && (this.d.built.paper ?? null) === (this.d.paper ?? null) && this.builtKey() === this.layKey()) return;
+    // the same drawing already being made: wait for it (not a second job); cancelled: not made again on its own —
+    // ↻ Try again or a change makes it
+    const want = JSON.stringify([this.d.source, h, this.d.preset, vp, this.d.paper ?? null, !!this.d.section, this.layKey(), !!this.d.exploded]);
+    if (!force && this.making?.want === want) return this.making.done;
+    if (!force && this.cancelled === want) { this.render(); return; }
+    let finish;
+    this.making = { want, done: new Promise((ok) => { finish = ok; }) };
+    const making = this.making;
+    try { await this.make(asm, h, vp, src, want); } finally {
+      if (this.making === making) this.making = null;
+      finish();
+    }
+  }
+
+  async make(asm, h, vp, src, want) {
     this.busy = true;
     this.error = null;
     this.render();
@@ -284,9 +299,11 @@ export class SheetEditor {
       if (this.d.hash && this.d.hash !== h) { this.d.rev += 1; this.d.changed = new Date().toISOString(); } // the part changed
       Object.assign(this.d, { built: { ...r, preset: this.d.preset, vp, paper: this.d.paper ?? null, section: !!this.d.section && !asm, lk: this.layKey() }, hash: h });
       this.error = null;
+      this.cancelled = null;
     } catch (e) {
       if (run !== this.buildRun) return;
       this.error = e.message;
+      if (/^cancelled/i.test(e.message)) { this.cancelled = want; if (this.geo) this.hooks.toast?.(t('Cancelled — the drawing was not made.'), 'info', 5000); }
       const again = this.toasted?.msg === e.message && performance.now() - this.toasted.at < 5000; // (opening runs it twice)
       if (!/^cancelled/i.test(e.message) && !again) this.hooks.toast?.(tv('The drawing could not be made: {e}', { e: t(e.message) }), 'error', 9000);
       this.toasted = { msg: e.message, at: performance.now() };
@@ -1122,7 +1139,7 @@ export class SheetEditor {
     if (this.setMode) { this.renderSet(); return; }
     this.stage.classList.remove('sh-set');
     if (!this.geo) { // (no drawing yet: being made, or why not with ↻ Try again)
-      this.stage.innerHTML = this.error ? `<div class="sh-empty sh-failed"><p>⚠ ${esc(tv('The drawing could not be made: {e}', { e: t(this.error) }))}</p>
+      this.stage.innerHTML = this.error ? `<div class="sh-empty sh-failed"><p>${/^cancelled/i.test(this.error) ? esc(t('Cancelled — the drawing was not made.')) : `⚠ ${esc(tv('The drawing could not be made: {e}', { e: t(this.error) }))}`}</p>
           <button class="btn small" data-a="retry">↻ ${esc(t('Try again'))}</button></div>`
         : `<p class="hint sh-empty">${esc(this.hooks.partData(this.d.source) ? t('Making the drawing…') : t('Its part is not in the project any more.'))}</p>`;
       this.stage.querySelector('[data-a=retry]')?.addEventListener('click', () => this.ensure(true));

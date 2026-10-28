@@ -242,6 +242,39 @@ class TestPoolProcesses(unittest.TestCase):
         self.assertTrue(wb.proc.is_alive())
         self.assertAlmostEqual(self.pool.run("rebuild", a)["body"]["volume"], 8000, delta=1e-3)
 
+    def test_cancel_kills_only_that_worker(self):
+        """Cancel mid-job (the request's rid): the job ends Cancelled at once, its process is killed (the other one
+        keeps its pid and its job's answer), nothing waits behind it, and the part's next job runs on a new process."""
+        a, b, wa, wb = self.warm()
+        pid_a, pid_b = wa.proc.pid, wb.proc.pid
+        out = {}
+
+        def heavy():
+            try:
+                with progress.operation("pool-cancel"):
+                    self.pool.run("rebuild", holes(60), key=W.part_key("rebuild", a))
+            except progress.Cancelled:
+                out["cancelled"] = time.perf_counter()
+
+        t = threading.Thread(target=heavy)
+        t.start()
+        time.sleep(0.5)
+        self.assertTrue(wa.proc.is_alive())
+        other = threading.Thread(target=lambda: out.__setitem__("b", self.pool.run("rebuild", b)))
+        other.start()
+        t0 = time.perf_counter()
+        progress.cancel("pool-cancel")
+        t.join(10)
+        self.assertIn("cancelled", out)
+        self.assertLess(out["cancelled"] - t0, 1.0)  # (at once, not when the job would have ended)
+        self.assertIsNone(wa.proc)  # (killed)
+        self.assertFalse(wa.waiting)
+        other.join(30)
+        self.assertAlmostEqual(out["b"]["body"]["volume"], 6000, delta=1e-3)
+        self.assertEqual(wb.proc.pid, pid_b)
+        self.assertAlmostEqual(self.pool.run("rebuild", a)["body"]["volume"], 8000, delta=1e-3)
+        self.assertNotEqual(wa.proc.pid, pid_a)
+
     def test_memory_limit_restarts_between_jobs(self):
         """A process grown past the limit finishes its job (the answer comes) and is restarted for the next one."""
         a, _, wa, _ = self.warm()
@@ -285,6 +318,33 @@ class TestPoolProcesses(unittest.TestCase):
         self.assertIsNot(self.pool.worker_for("rebuild", parts[0]), self.pool.worker_for("rebuild", parts[1]))
         print(f"\n  two heavy parts: one kernel process {t1:.2f} s, two {t2:.2f} s")
         self.assertLess(t2, t1)
+
+
+@unittest.skipUnless(OCC, "OCP not installed")
+class TestCancelRoutes(unittest.TestCase):
+    """Every kernel route the page can Cancel answers it clearly (its rid cancelled before the job got its turn)."""
+
+    def setUp(self):
+        import server
+        self.c = server.app.test_client()
+
+    def test_clash_check_and_rebuild_cancelled(self):
+        inst = [{"id": "I1", "part": block(40), "matrix": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]},
+                {"id": "I2", "part": block(30), "matrix": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 5, 0, 0, 1]}]
+        progress.cancel("test-clash-cancel")
+        r = self.c.post("/api/assembly/clashes", json={"instances": inst, "rid": "test-clash-cancel"})
+        self.assertEqual((r.status_code, r.get_json().get("cancelled")), (409, True))
+        r = self.c.post("/api/assembly/clashes", json={"instances": inst})  # (the next one runs)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.get_json()["clashes"]), 1)
+        progress.cancel("test-rebuild-cancel")
+        r = self.c.post("/api/model/rebuild", json={"part": block(40), "rid": "test-rebuild-cancel"})
+        self.assertTrue(r.get_json()["cancelled"])
+
+    def test_print_split_cancelled(self):
+        progress.cancel("test-print-cancel")
+        r = self.c.post("/api/print/plan", json={"model": {}, "rid": "test-print-cancel"})
+        self.assertEqual((r.status_code, r.get_json().get("cancelled")), (409, True))
 
 
 if __name__ == "__main__":

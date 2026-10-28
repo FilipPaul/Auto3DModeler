@@ -1273,6 +1273,13 @@ const CS = {
   'Name / standard': 'Název / norma', 'Material · make/buy': 'Materiál · výroba', 'Make/buy': 'Výroba', make: 'vyrábět', buy: 'nakoupit', 'print 3D': 'tisk 3D',
   item: 'položka', 'items (2–4)': 'položky', items: 'položek', pc: 'ks', 'pcs (2–4)': 'ks', pcs: 'ks',
   '{items} · {pcs} in all': '{items} · celkem {pcs}', 'total mass {m}': 'celková hmotnost {m}',
+  // ✕ Cancel of slow work (progressbox.js): stopped once, not sent again on its own
+  'Building the 3D model': 'Sestavuji 3D model', 'Cancelled —': 'Zrušeno —', '↻ Rebuild': '↻ Sestavit znovu',
+  'Build the part again as it is now': 'Sestavit díl znovu, jak je teď', 'Building the parts…': 'Sestavuji díly…',
+  'Cancelled — the parts not built are shown as they were (a change builds them).': 'Zrušeno — nesestavené díly jsou zobrazeny, jak byly (sestaví je další změna).',
+  'Cancelled — a change builds it.': 'Zrušeno — sestaví ho další změna.', '✕ Stop': '✕ Zastavit',
+  'Stop the check (the last result stays)': 'Zastavit kontrolu (zůstane poslední výsledek)',
+  'Cancelled — the drawing was not made.': 'Zrušeno — výkres nebyl vytvořen.', 'Splitting the part…': 'Dělím díl…', 'Splitting the part': 'Dělím díl',
   // language switch
   'Čeština / English': 'Čeština / English',
 };

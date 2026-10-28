@@ -24,6 +24,7 @@ import { paintedFaces, repaint } from '../modeler/paint.js';
 import { sectionBar, sectionMiddle } from '../modeler/sectionbar.js';
 import { ModelView } from '../modeler/view.js';
 import { fetchRebuild } from '../modeler/packed.js';
+import { newRid, trackProgress, cancelRid, wasCancelled } from '../progressbox.js';
 import { threadSegments } from '../modeler/view.js';
 import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss } from './joints.js';
 import { snapNear, snapPoints } from '../modeler/view.js';
@@ -934,12 +935,16 @@ export class Assembly {
   /** quick: (after a change, in the background) big parts that overlap in many places are estimated, not computed. */
   async checkClashes(quick = false) {
     const run = (this.clashRun = (this.clashRun || 0) + 1);
+    if (this.clashRid) cancelRid(this.clashRid); // (the older check's answer would be dropped: its job is stopped)
+    const rid = (this.clashRid = newRid('c'));
     this.clashBusy = true;
     if (this.clashPanel) this.renderProps(); // (in the background: the panel on screen stays as it is)
     try {
-      const res = await fetch('/api/assembly/clashes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instances: this.flatParts(), quick }) });
+      const res = await fetch('/api/assembly/clashes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instances: this.flatParts(), quick, rid }) });
       const r = await res.json();
       if (run !== this.clashRun) return; // a newer check is on its way
+      if (this.clashRid === rid) this.clashRid = null;
+      if (r.cancelled || wasCancelled(rid)) { this.clashBusy = false; this.updateClashButton(); if (this.clashPanel) this.renderProps(); return; } // (✕ Stop: the last result stays)
       if (!res.ok) throw new Error(r.error || res.statusText);
       this.clashes = r.clashes;
     } catch (e) {
@@ -966,7 +971,7 @@ export class Assembly {
     };
     box.innerHTML = `<h2>⚠ Collisions</h2>
       <p class="hint">Where parts go into each other (touching faces are fine) — checked again after every change. Click one: the view goes to it, the other parts see-through.</p>
-      ${this.clashBusy && !cs ? '<p class="mp-count">Checking…</p>' : !cs ? '' : !cs.length ? '<p class="mp-count ok">✓ No parts overlap.</p>'
+      ${this.clashBusy ? `<p class="mp-count">${cs ? '' : 'Checking…'} <button class="btn small" data-a="stopC" title="${esc(t('Stop the check (the last result stays)'))}">✕ Stop</button></p>` : ''}${this.clashBusy && !cs ? '' : !cs ? '' : !cs.length ? '<p class="mp-count ok">✓ No parts overlap.</p>'
         : `<p class="mp-count">${t2('{n} overlap(s)', { n: cs.length })}${this.clashBusy ? ' …' : ''}</p><div class="as-joints">${cs.map((c, i) => `<div class="as-jrow as-clash ${this.focusClash === c ? 'on' : ''}" data-clash="${i}" title="${esc(t('Show it in the view (again: all of them)'))}">
           <span class="as-jt">⚠</span><span class="as-jw"><b data-no-i18n>${esc(name(c.a))}</b> ↔ <b data-no-i18n>${esc(name(c.b))}</b></span>
           <span class="as-jv" ${c.approx ? `title="${esc(t('Big parts that overlap in many places: estimated from their boxes — ↻ Check again computes it'))}"` : ''}>${c.approx ? '≈ ' : ''}${fmt(+c.volume.toFixed(c.volume < 10 ? 2 : 0))} mm³</span>
@@ -989,6 +994,7 @@ export class Assembly {
       this.draw();
     });
     box.querySelector('[data-a=recheck]').addEventListener('click', () => this.checkClashes());
+    box.querySelector('[data-a=stopC]')?.addEventListener('click', () => { if (this.clashRid) cancelRid(this.clashRid); });
     box.querySelector('[data-a=closeC]').addEventListener('click', () => this.toggleClashes());
   }
 
@@ -1712,7 +1718,7 @@ export class Assembly {
       for (const i of this.hooks.partData(pid)?.instances || []) (this.kindOf(i.part) === 'assembly' ? walk(i.part, seen) : inner.add(i.part));
     };
     subs.forEach((pid) => walk(pid));
-    await this.buildBodies([...new Set([...need.filter((pid) => !subs.includes(pid)), ...inner])]);
+    const cancelled = await this.buildBodies([...new Set([...need.filter((pid) => !subs.includes(pid)), ...inner])]);
     for (const pid of subs) this.mergeAssembly(pid);
     for (const it of this.doc.instances) if (it.inner && subs.includes(it.part)) this.settleInner(it);
     const used = new Set(this.doc.instances.filter((it) => it.inner).map((it) => this.bodyKey(it)));
@@ -1721,6 +1727,7 @@ export class Assembly {
     this.draw();
     this.renderList();
     this.renderProps();
+    if (cancelled) { this.hooks.toast(t('Cancelled — the parts not built are shown as they were (a change builds them).'), 'info', 6000); return; } // (no clash check either)
     this.scheduleClashes(); // (the ⚠ button tells)
   }
 
@@ -1767,8 +1774,10 @@ export class Assembly {
     return this.bodies[at];
   }
 
-  /** The 3D model / quick parts' bodies, from the kernel (unchanged ones are kept). */
+  /** The 3D model / quick parts' bodies, from the kernel (unchanged ones are kept) -> whether any was cancelled (the
+   *  busy box's Cancel: that part keeps the body it had, built again on the next change). */
   async buildBodies(need) {
+    let cancelled = false;
     await Promise.all(need.map(async (pid) => {
       const data = this.hooks.partData(pid);
       if (!data) { this.bodies[pid] = { error: 'This part is no longer in the project.' }; return; }
@@ -1778,16 +1787,19 @@ export class Assembly {
       // the part's newest build wins: the kernel's processes may answer an older one later
       const want = (this.wanted ||= {});
       want[pid] = key;
+      const rid = newRid('a'), stop = trackProgress(rid, t('Building the parts…'), { delay: 400 });
       try {
         const features = await this.partFeatures(pid, data);
-        const { res, r } = await fetchRebuild({ features, lod, threads: data.threads });
+        const { res, r } = await fetchRebuild({ features, lod, threads: data.threads }, rid);
         if (want[pid] !== key) return;
+        if (r.cancelled || wasCancelled(rid)) { cancelled = true; if (!this.bodies[pid]?.body) this.bodies[pid] = { key: null, error: t('Cancelled — a change builds it.') }; return; }
         if (!res.ok) throw new Error(r.error || res.statusText);
         if (!r.ok && !r.body) throw new Error(r.features.flatMap((s) => s.issues).join(' ') || 'This part has no solid.');
         if (r.body) r.body.threads = r.threads?.holes || []; // (🔩 its threaded holes: drawn when its part shows them)
         this.bodies[pid] = r.body ? { key, body: r.body, features } : { key, error: 'This part has no solid yet.' };
-      } catch (e) { if (want[pid] === key) this.bodies[pid] = { key, error: e.message }; }
+      } catch (e) { if (want[pid] === key) this.bodies[pid] = { key, error: e.message }; } finally { stop(); }
     }));
+    return cancelled;
   }
 
   draw() {

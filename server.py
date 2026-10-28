@@ -472,7 +472,17 @@ def _plan(body, solid, model, bender=None, final=None):
 
 @app.post("/api/print/plan")
 def api_print_plan():
+    """A part split for a printer (body.rid: the progress box's Cancel -> 409, the kernel job stopped)."""
     body = request.get_json(force=True)
+    try:
+        with progress.operation(body.get("rid")):
+            return _print_plan(body)
+    except progress.Cancelled:
+        return jsonify({"error": "Cancelled.", "cancelled": True}), 409
+
+
+def _print_plan(body):
+    progress.report("Splitting the part")
     model, solution, final, solid, bender = _solve_full(body)
     if solid is None:
         return jsonify({"error": "The model is invalid."}), 400
@@ -734,7 +744,11 @@ def api_export_3mf():
 def api_assembly_clashes():
     """{instances: [{id, part: {features}, matrix: [16]}]} -> {clashes: [{a, b, volume, bbox}]} — parts that overlap."""
     body = request.get_json(force=True)
-    data, err = _model_call("assembly_clashes", {"instances": body.get("instances") or [], "quick": bool(body.get("quick"))})
+    try:
+        with progress.operation(body.get("rid")):  # (a newer check, ✕ Stop: this one's kernel job stopped)
+            data, err = _model_call("assembly_clashes", {"instances": body.get("instances") or [], "quick": bool(body.get("quick"))})
+    except progress.Cancelled:
+        return jsonify({"error": "Cancelled.", "cancelled": True}), 409
     if err:
         return err
     return jsonify({"clashes": data})

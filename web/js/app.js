@@ -30,6 +30,7 @@ import * as THREE from 'three';
 import { bodyOf, picture, svgPicture } from './thumbs.js';
 import { setAskAI } from './suggest.js';
 import { changed as projectChanged } from './history.js';
+import { trackProgress, newRid } from './progressbox.js'; // (slow requests: the busy box with Cancel)
 
 initI18n();  // Czech / English: translates the page as it is built
 
@@ -200,41 +201,6 @@ async function download(blob, name, { id = 'auto3d-export' } = {}) {
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   return name;
 }
-
-// ------------------------------------------------------------------ progress bar + cancel for slow work
-// A slow request carries an id; while it runs the page polls the server's progress for it and Cancel stops it.
-const newRid = () => `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
-let currentRid = null;
-function trackProgress(rid, label) {
-  currentRid = rid;
-  const box = $('busy'), text = box.querySelector('.busy-text'), bar = box.querySelector('.busy-bar i');
-  text.textContent = label;
-  bar.style.width = '0';
-  box.classList.add('indeterminate');
-  box.hidden = false;
-  let stopped = false;
-  const tick = async () => {
-    if (stopped) return;
-    try {
-      const st = await (await fetch(`/api/progress/${rid}`)).json();
-      if (stopped) return;
-      if (st.stage) text.textContent = st.total ? `${st.stage} ${st.done + 1} / ${st.total}` : st.stage;
-      box.classList.toggle('indeterminate', !st.total);
-      if (st.total) bar.style.width = `${Math.round(((st.done + 1) / st.total) * 100)}%`;
-    } catch { /* keep the last status */ }
-    if (!stopped) setTimeout(tick, 300);
-  };
-  setTimeout(tick, 250);
-  return () => {
-    stopped = true;
-    if (currentRid === rid) { currentRid = null; box.hidden = true; }
-  };
-}
-$('busyCancel').addEventListener('click', () => {
-  if (!currentRid) return;
-  fetch(`/api/progress/${currentRid}/cancel`, { method: 'POST' });
-  $('busy').querySelector('.busy-text').textContent = 'Cancelling…';
-});
 
 const layers = new LayersPanel($('layerList'), {
   onChange: () => scheduleRebuild(),

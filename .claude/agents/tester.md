@@ -164,6 +164,11 @@ Never report "works" without having run it; report failures with their output.
    sessions: one imports the 44 MB board and builds + draws the 171-hole plate, the other keeps editing a small part
    — each of its rebuilds under a second meanwhile). Against a server started with A3D_WORKERS=1 it fails (--report:
    only print the times, the before numbers).
+   `tools/e2e_cancel.py <url> <dir> <the 44 MB board .step> [<MIT E-Vent .step>]` covers ✕ Cancel of heavy work with
+   real clicks (the board's import, a rebuild with 12 real threads, MIT E-Vent's assembly sheet): the box says
+   Cancelling… once and is gone within 2 s, never Building again, no kernel process keeps working (Windows: the
+   server's child processes' CPU), nothing is sent again; the model keeps its result with "Cancelled — ↻ Rebuild", a new
+   edit builds; the sheet says Cancelled, ↻ Try again makes it.
    `tools/e2e_library_edit.py <url> <dir>` covers changing library parts (an own Holder: ✎ Edit in the library -> 12
    thick, 📚 Save back: the library's 12, still one item, the project's copy still 5, a new use 12; a catalogue ISO 4762
    M3: ✎ Make my own copy -> a new own part in My parts, the catalogue unchanged; the AI's save_to_library saves back).

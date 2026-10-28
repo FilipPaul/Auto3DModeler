@@ -493,6 +493,7 @@ details.ol-clean[open] summary { margin-bottom: 6px; }
 .file-name.editable:hover { color: var(--text); text-decoration: underline dotted; }
 .file-name[contenteditable=true] { color: var(--text); outline: 1px solid var(--accent); border-radius: 4px; padding: 0 4px; background: var(--bg); text-decoration: none; }
 .viewport > .busy { top: 46px; }
+.viewport:not(#viewport) > .busy { top: auto; bottom: 12px; right: auto; left: 50%; transform: translateX(-50%); z-index: 5; } /* (the busy box in a 3D model, assembly, sheet …: bottom middle) */
 
 /* ------------------------------------------------------------------ workspaces: Quick part | 3D model */
 body:not(.ws-model) .model-only, body.ws-model .quick-only, body.ws-assembly .quick-only, body:not(.ws-assembly) .asm-only,
@@ -860,6 +861,7 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
   border-radius: 8px; padding: 6px 14px; font-size: 13px; pointer-events: none; white-space: nowrap; }
 .m-busy { position: absolute; top: 50px; right: 12px; z-index: 4; display: flex; gap: 8px; align-items: center; background: #161a20e8;
   border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 12px; }
+.m-busy.m-cancelled { color: var(--muted); }
 .m-status { position: absolute; bottom: 10px; left: 12px; color: var(--muted); font-size: 12px; pointer-events: none; z-index: 3; }
 .m-install { position: absolute; inset: 0; z-index: 6; display: flex; align-items: center; justify-content: center; background: #0f1216e0; }
 .m-install > div { max-width: 460px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; line-height: 1.5; }
