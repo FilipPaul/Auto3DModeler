@@ -814,6 +814,8 @@ body.view-acts .toast-stack { bottom: 84px; }
 /* sketch sizes: value + lock */
 .sk-label.edit { display: inline-flex; align-items: center; gap: 2px; padding: 0 2px 0 5px; }
 .sk-label .sk-val { cursor: text; }
+.sk-label.movable { cursor: grab; }
+.sk-label.movable:active { cursor: grabbing; }
 .sk-label .sk-lock { background: none; border: 0; padding: 0 2px; cursor: pointer; font-size: 10px; opacity: .45; filter: grayscale(1); }
 .sk-label .sk-lock:hover { opacity: 1; filter: none; }
 .sk-label.locked { border-color: #8957e5; color: #e2d4ff; background: #2a1d45e0; }

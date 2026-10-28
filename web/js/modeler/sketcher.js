@@ -273,7 +273,41 @@ export class Sketcher {
     while (used.has(`${pre}${++n}`));
     return `${pre}${n}`;
   }
-  step() { this.undo.push(structuredClone({ points: this.f.points, entities: this.f.entities, constraints: this.f.constraints, dims: this.f.dims })); }
+  step() { this.undo.push(structuredClone({ points: this.f.points, entities: this.f.entities, constraints: this.f.constraints, dims: this.f.dims, place: this.f.place || {} })); }
+
+  /** A size label the mouse can drag (as on a drawing sheet): its place is f.place[key] = at(uv) — an offset from the
+   *  shape (mm) or an angle round a circle; `what` (lines, circles, points) lights up while the mouse is on it. */
+  movable(lab, key, at, what) {
+    const el = lab.el;
+    el.classList.add('movable');
+    el.addEventListener('mouseenter', () => { this.hoverSize = { key, what }; this.drawHighlight(); });
+    el.addEventListener('mouseleave', () => { if (this.hoverSize?.key === key && !this.sizeDrag) { this.hoverSize = null; this.drawHighlight(); } });
+    el.addEventListener('pointerdown', (ev) => {
+      if (ev.button !== 0 || ev.target.closest('button, input')) return;
+      ev.preventDefault();
+      const x0 = ev.clientX, y0 = ev.clientY;
+      let moved = false;
+      const move = (e) => {
+        if (!moved && Math.hypot(e.clientX - x0, e.clientY - y0) < 3) return;
+        if (!moved) { moved = true; this.step(); this.sizeDrag = key; this.hoverSize = { key, what }; }
+        const uv = this.m.view.planePoint(e.clientX, e.clientY, this.frame());
+        if (!uv) return;
+        this.f.place = { ...(this.f.place || {}), [key]: +at(uv).toFixed(4) };
+        this.draw();
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        if (!moved) return;
+        this.sizeDrag = null;
+        this.noClickUntil = performance.now() + 300; // (the click that ends a drag does not open the value)
+        this.changed();
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+    return lab;
+  }
   back() {
     const s = this.undo.pop();
     if (!s) return;
@@ -1838,7 +1872,7 @@ export class Sketcher {
     lock.textContent = locked ? '🔒' : '🔓';
     lock.title = locked ? 'Locked — click to free this size' : 'Free — click to lock this size as it is';
     lock.addEventListener('click', (ev) => { ev.stopPropagation(); this.toggleLock(spec); });
-    el.querySelector('.sk-val').addEventListener('click', (ev) => { ev.stopPropagation(); this.editLabel(el, spec); });
+    el.querySelector('.sk-val').addEventListener('click', (ev) => { ev.stopPropagation(); if (performance.now() < (this.noClickUntil || 0)) return; this.editLabel(el, spec); });
     const dim = this.findDim(spec);
     if (dim) el.dataset.dim = dim.id;
     const x = document.createElement('button');
@@ -1863,7 +1897,7 @@ export class Sketcher {
     lock.textContent = d.free ? '🔓' : '🔒';
     lock.title = d.free ? 'Free — it only measures. Click to lock it at this value' : 'Locked — click to free it (it then only measures)';
     lock.addEventListener('click', (ev) => { ev.stopPropagation(); this.toggleLock(d); });
-    el.querySelector('.sk-val').addEventListener('click', (ev) => { ev.stopPropagation(); this.editLabel(el, d); });
+    el.querySelector('.sk-val').addEventListener('click', (ev) => { ev.stopPropagation(); if (performance.now() < (this.noClickUntil || 0)) return; this.editLabel(el, d); });
     el.querySelector('.sk-del').addEventListener('click', (ev) => { ev.stopPropagation(); this.delDim(d.id); });
     for (const t of ['pointerdown', 'pointerup']) el.addEventListener(t, (ev) => ev.stopPropagation());
     return { el, u, v };
@@ -1889,6 +1923,17 @@ export class Sketcher {
     inp.addEventListener('blur', () => finish(true));
   }
 
+  /** What the size under the mouse measures, lit up (a layer of its own: the labels are not drawn again). */
+  drawHighlight() {
+    const hs = this.hoverSize?.what, mpp = this.mpp(), H = 0xf2cc60;
+    if (!hs) { this.view.setSketchHighlight(null); return; }
+    this.view.setSketchHighlight(this.frame(), {
+      lines: (hs.lines || []).map(([a, b]) => [a, b, H]),
+      circles: [...(hs.circles || []).map(([c, r]) => [c, r, H]), ...(hs.pts || []).map((p) => [p, mpp * 5, H])],
+      dots: (hs.pts || []).map((p) => [p, H]),
+    });
+  }
+
   /** A shape's state for its colour: 'bad' (in a lock that does not fit), 'free' (some of it can still move),
    *  'done' (fully defined), or null (not known: no solver). */
   stateOf(e) {
@@ -1904,32 +1949,53 @@ export class Sketcher {
     const SEL = 0xf2cc60, LOCKED = 0xd2a8ff;
     // blue: can still move, green: fully defined, red: a lock that does not fit (cyan: not known)
     const STATE = { free: 0x58a6ff, done: 0x3fb950, bad: 0xff7b72 }, colourOf = (e) => STATE[this.stateOf(e)] ?? 0x39d0d8, NORM = 0x39d0d8;
+    const place = f.place || {};
+    // a dimension as on a drawing: extension lines, the dimension line with arrows at its ends
+    const arrow = (p, d, col) => {
+      const L = Math.hypot(d[0], d[1]) || 1, ux = d[0] / L, uy = d[1] / L, k = mpp * 7;
+      for (const s of [0.42, -0.42]) lines.push([p, [p[0] - k * (ux * Math.cos(s) - uy * Math.sin(s)), p[1] - k * (ux * Math.sin(s) + uy * Math.cos(s))], col]);
+    };
+    const dimLine = (a, b, a2, b2, col) => {
+      const over = (p, q) => { const d = [q[0] - p[0], q[1] - p[1]], L = Math.hypot(d[0], d[1]); return L < 1e-9 ? q : [q[0] + (d[0] / L) * mpp * 3, q[1] + (d[1] / L) * mpp * 3]; };
+      if (Math.hypot(a2[0] - a[0], a2[1] - a[1]) > 1e-9) lines.push([a, over(a, a2), col]);
+      if (Math.hypot(b2[0] - b[0], b2[1] - b[1]) > 1e-9) lines.push([b, over(b, b2), col]);
+      lines.push([a2, b2, col]);
+      arrow(a2, [a2[0] - b2[0], a2[1] - b2[1]], col);
+      arrow(b2, [b2[0] - a2[0], b2[1] - a2[1]], col);
+    };
     const selPts = new Set(this.pointsOfSel());
     const isSel = (e) => this.sel && ((this.sel.kind === 'entity' && this.sel.id === e.id) || (this.sel.kind === 'group' && this.sel.id === e.g));
-    const shownGroups = new Set();
     // 🏷 Sizes (the modeler's All / Locked / None; a big sketch labels only its locked sizes)
     const shows = (locked) => this.m.sizeShown?.(locked, f) ?? true;
     const freeShown = shows(false), anyShown = shows(true);
     const showSize = (spec) => anyShown && !this.isHidden(spec) && (freeShown || !!this.findDim(spec));
+    const groupSide = {}; // a rectangle's width / height: the side that shows it
+    for (const e of f.entities) {
+      if (e.t !== 'line' || !e.g || this.isHidden({ t: 'len', e: e.id })) continue;
+      const key = `${e.g}:${f.constraints.find((c) => c.e === e.id && (c.t === 'h' || c.t === 'v'))?.t}`;
+      if (!groupSide[key] || (this.findDim({ t: 'len', e: e.id }) && !this.findDim({ t: 'len', e: groupSide[key] }))) groupSide[key] = e.id;
+    }
     for (const e of f.entities) {
       if (e.t === 'line') {
         const a = this.P(e.a), b = this.P(e.b);
         lines.push([a, b, isSel(e) ? SEL : colourOf(e)]);
         // a rectangle shows its width and height once; a free line its length
-        if (e.g) {
+        if (e.g) { // the side with the lock shows it (a hidden side: the opposite one)
           const k = f.constraints.find((c) => c.e === e.id && (c.t === 'h' || c.t === 'v'))?.t;
-          const key = `${e.g}:${k}`;
-          if (shownGroups.has(key) || this.isHidden({ t: 'len', e: e.id })) continue; // a hidden side: the opposite one shows it
-          shownGroups.add(key);
+          if (groupSide[`${e.g}:${k}`] !== e.id) continue;
         }
         const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
         if (L < 1e-9 || !showSize({ t: 'len', e: e.id })) continue;
         const nx = -(b[1] - a[1]) / L, ny = (b[0] - a[0]) / L;
-        // the label goes on the outside of a closed shape (away from its centre)
+        // the label goes on the outside of a closed shape (away from its centre) — or where it was dragged
         const c = this.centreOf(e) || [a[0] + nx, a[1] + ny];
         const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
         const side = (mid[0] - c[0]) * nx + (mid[1] - c[1]) * ny >= 0 ? 1 : -1;
-        labels.push(this.label({ t: 'len', e: e.id }, mid[0] + side * nx * mpp * 16, mid[1] + side * ny * mpp * 16, fmt(L), 'Length'));
+        const key = `len:${e.id}`, off = place[key] ?? side * mpp * 16, spec = { t: 'len', e: e.id };
+        const a2 = [a[0] + nx * off, a[1] + ny * off], b2 = [b[0] + nx * off, b[1] + ny * off];
+        if (this.findDim(spec)) dimLine(a, b, a2, b2, LOCKED); // (a locked size drawn as a dimension; a free one only labelled)
+        labels.push(this.movable(this.label(spec, (a2[0] + b2[0]) / 2, (a2[1] + b2[1]) / 2, fmt(L), 'Length'), key,
+          (uv) => (uv[0] - a[0]) * nx + (uv[1] - a[1]) * ny, { lines: [[a, b]] }));
       } else if (e.t === 'block') {
         for (const r of this.blockRings(e)) for (let i = 0; i < r.length; i++) lines.push([r[i], r[(i + 1) % r.length], isSel(e) ? SEL : NORM]);
         const k = e.scale || 1, [au, av] = e.at;
@@ -1946,7 +2012,11 @@ export class Sketcher {
         for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], col]);
         const m = ps[Math.floor(ps.length / 2)], c = this.P(e.c), r = this.arcR(e) || 1;
         if (showSize({ t: 'rad', e: e.id })) {
-          labels.push(this.label({ t: 'rad', e: e.id }, m[0] + ((m[0] - c[0]) / r) * mpp * 16, m[1] + ((m[1] - c[1]) / r) * mpp * 16, `R${fmt(r)}`, 'Radius'));
+          const key = `rad:${e.id}`, th = place[key] ?? Math.atan2(m[1] - c[1], m[0] - c[0]), rim = [c[0] + r * Math.cos(th), c[1] + r * Math.sin(th)];
+          const at = [rim[0] + Math.cos(th) * mpp * 16, rim[1] + Math.sin(th) * mpp * 16];
+          if (this.findDim({ t: 'rad', e: e.id })) { lines.push([c, at, LOCKED]); arrow(rim, [rim[0] - c[0], rim[1] - c[1]], LOCKED); }
+          labels.push(this.movable(this.label({ t: 'rad', e: e.id }, at[0], at[1], `R${fmt(r)}`, 'Radius'), key,
+            (uv) => Math.atan2(uv[1] - c[1], uv[0] - c[0]), { lines: ps.slice(1).map((p, i) => [ps[i], p]), pts: [c] }));
         }
       } else if (e.t === 'spline') {
         const ps = this.splineOf(e), col = isSel(e) ? SEL : colourOf(e);
@@ -1954,7 +2024,18 @@ export class Sketcher {
       } else if (e.t === 'circle') {
         const c = this.P(e.c);
         circles.push([c, e.r, isSel(e) ? SEL : colourOf(e)]);
-        if (showSize({ t: 'dia', e: e.id })) labels.push(this.label({ t: 'dia', e: e.id }, c[0] + e.r * 0.72 + mpp * 18, c[1] + e.r * 0.72 + mpp * 8, `Ø${fmt(2 * e.r)}`, 'Diameter'));
+        if (showSize({ t: 'dia', e: e.id })) {
+          const key = `dia:${e.id}`, th = place[key] ?? Math.PI / 4, rim = [c[0] + e.r * Math.cos(th), c[1] + e.r * Math.sin(th)];
+          const at = [rim[0] + Math.cos(th) * mpp * 22, rim[1] + Math.sin(th) * mpp * 22];
+          if (this.findDim({ t: 'dia', e: e.id })) { // a leader through the centre, arrows on the rim
+            const far = [c[0] - e.r * Math.cos(th), c[1] - e.r * Math.sin(th)];
+            lines.push([far, at, LOCKED]);
+            arrow(rim, [rim[0] - c[0], rim[1] - c[1]], LOCKED);
+            arrow(far, [far[0] - c[0], far[1] - c[1]], LOCKED);
+          }
+          labels.push(this.movable(this.label({ t: 'dia', e: e.id }, at[0], at[1], `Ø${fmt(2 * e.r)}`, 'Diameter'), key,
+            (uv) => Math.atan2(uv[1] - c[1], uv[0] - c[0]), { circles: [[c, e.r]] }));
+        }
       }
     }
     for (const k of f.constraints.filter((c) => c.t === 'corner')) {
@@ -1987,11 +2068,14 @@ export class Sketcher {
       if (d.t === 'ang' && this.ent(d.e) && this.ent(d.e2)) {
         const X = this.crossing(d.e, d.e2);
         if (!X) continue;
-        const p = this.rayDir(d.e, d.r1), q = this.rayDir(d.e2, d.r2), a0 = Math.atan2(p[1], p[0]), sweep = (this.signedAngle(d) * Math.PI) / 180, R = mpp * 34;
+        const p = this.rayDir(d.e, d.r1), q = this.rayDir(d.e2, d.r2), a0 = Math.atan2(p[1], p[0]), sweep = (this.signedAngle(d) * Math.PI) / 180, R = place[d.id] ?? mpp * 34;
         const arc = Array.from({ length: 25 }, (_, i) => { const a = a0 + (sweep * i) / 24; return [X[0] + R * Math.cos(a), X[1] + R * Math.sin(a)]; });
         for (let i = 0; i + 1 < arc.length; i++) lines.push([arc[i], arc[i + 1], DC]);
-        const am = a0 + sweep / 2;
-        labels.push(this.distLabel(d, X[0] + (R + mpp * 16) * Math.cos(am), X[1] + (R + mpp * 16) * Math.sin(am)));
+        const am = a0 + sweep / 2, A1 = this.ent(d.e), A2 = this.ent(d.e2);
+        arrow(arc[0], [arc[0][0] - arc[1][0], arc[0][1] - arc[1][1]], DC);
+        arrow(arc[24], [arc[24][0] - arc[23][0], arc[24][1] - arc[23][1]], DC);
+        labels.push(this.movable(this.distLabel(d, X[0] + (R + mpp * 14) * Math.cos(am), X[1] + (R + mpp * 14) * Math.sin(am)), d.id,
+          (uv) => Math.max(mpp * 8, Math.hypot(uv[0] - X[0], uv[1] - X[1]) - mpp * 14), { lines: [[this.P(A1.a), this.P(A1.b)], [this.P(A2.a), this.P(A2.b)]] }));
         continue;
       }
       if (d.t === 'pl' && this.ent(d.e)) {
@@ -2006,12 +2090,29 @@ export class Sketcher {
       const A = this.endUV(d.a), B = this.endUV(d.b);
       if (!A || !B) continue;
       if ((d.a === ORIGIN || d.b === ORIGIN) && Math.abs(d.v) < 1e-9) continue; // "locked at the origin": the purple point says it
-      let mid, end;
-      if (d.t === 'dx') { end = [A[0], B[1]]; lines.push([B, end, DC], [A, end, DC, true]); mid = [(A[0] + B[0]) / 2, B[1] + mpp * 10]; }
-      else if (d.t === 'dy') { end = [B[0], A[1]]; lines.push([B, end, DC], [A, end, DC, true]); mid = [B[0] + mpp * 22, (A[1] + B[1]) / 2]; }
-      else { lines.push([A, B, DC]); mid = [(A[0] + B[0]) / 2 + mpp * 8, (A[1] + B[1]) / 2 + mpp * 8]; }
-      labels.push(this.distLabel(d, mid[0], mid[1]));
+      // the dimension line where it was dragged (off: from the moving end, across the distance)
+      const off = place[d.id] ?? 0;
+      let mid, at;
+      if (d.t === 'dx') {
+        const y = B[1] + off, a2 = [A[0], y], b2 = [B[0], y];
+        dimLine(A, B, a2, b2, DC);
+        mid = [(A[0] + B[0]) / 2, y + mpp * 10];
+        at = (uv) => uv[1] - B[1] - mpp * 10;
+      } else if (d.t === 'dy') {
+        const x = B[0] + off, a2 = [x, A[1]], b2 = [x, B[1]];
+        dimLine(A, B, a2, b2, DC);
+        mid = [x + mpp * 22, (A[1] + B[1]) / 2];
+        at = (uv) => uv[0] - B[0] - mpp * 22;
+      } else {
+        const L = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1, nx = -(B[1] - A[1]) / L, ny = (B[0] - A[0]) / L;
+        const a2 = [A[0] + nx * off, A[1] + ny * off], b2 = [B[0] + nx * off, B[1] + ny * off];
+        dimLine(A, B, a2, b2, DC);
+        mid = [(a2[0] + b2[0]) / 2 + nx * mpp * 10, (a2[1] + b2[1]) / 2 + ny * mpp * 10];
+        at = (uv) => (uv[0] - A[0]) * nx + (uv[1] - A[1]) * ny - mpp * 10;
+      }
+      labels.push(this.movable(this.distLabel(d, mid[0], mid[1]), d.id, at, { pts: [A, B] }));
     }
+    this.drawHighlight();
     // the dimension tool's first pick
     if (this.dimA) {
       if (this.dimA.kind === 'point') dots.push([this.dimA.uv, 0x7ee787]);

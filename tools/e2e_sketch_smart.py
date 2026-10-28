@@ -1,6 +1,6 @@
 """The sketch tells its state and dimensions smartly, with REAL mouse input: a new model's rectangle -> ✓ Finish sketch
 not green, 🪄 Auto-dimension shown, its lines blue (free) -> ↔ Dimension, one click on the top line: its length in a box at once, 50 typed +
-Enter -> the line is 50 -> one click on a line, then a click on another: the distance chooser / a distance instead of
+Enter -> the line is 50; its label dragged down (kept), what it measures lit up -> one click on a line, then a click on another: the distance chooser / a distance instead of
 its length -> 🪄 -> every size fixed: ✓ Finish sketch green, 🪄 gone.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_sketch_smart.py http://127.0.0.1:5199 <out dir>
@@ -98,6 +98,19 @@ try:
     inp.send_keys("50", Keys.ENTER)
     time.sleep(1.2)
     print("  50 typed:", lens(), "| locked:", js(f"return {SK}.f.dims.map(x => [x.t, +x.v.toFixed(2)])"))
+    # the locked 50: drawn as a dimension, dragged 40 px down (kept), what it measures lit up meanwhile
+    lab = next(e for e in d.find_elements(By.CSS_SELECTOR, ".sk-label.movable") if e.text.startswith("50"))
+    y0 = lab.rect["y"]
+    ActionChains(d).move_to_element(lab).perform()
+    time.sleep(0.3)
+    lit = js(f"return {SK}.hoverSize?.key || null")
+    lab = next(e for e in d.find_elements(By.CSS_SELECTOR, ".sk-label.movable") if e.text.startswith("50"))  # (drawn anew)
+    ActionChains(d, duration=40).move_to_element_with_offset(lab, -lab.rect["width"] / 2 + 3, 0).click_and_hold().move_by_offset(0, 20).move_by_offset(0, 20).release().perform()
+    time.sleep(0.6)
+    lab = next(e for e in d.find_elements(By.CSS_SELECTOR, ".sk-label.movable") if e.text.startswith("50"))
+    print("the 50 dragged down:", round(lab.rect["y"] - y0), "px | kept:", js(f"return {SK}.f.place"), "| lit while on it:", lit,
+          "| no value box:", not js("return document.querySelector('.sk-input')"))
+    d.save_screenshot(f"{OUT}/sketch_dims.png")
     click_uv(mid("left"))  # the left line …
     print("  a click on the left line: its box", bool(js("return document.querySelector('.sk-quick')")))
     click_uv(mid("right"))  # … then the right line: a distance, not a length

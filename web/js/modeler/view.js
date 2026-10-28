@@ -65,10 +65,11 @@ export class ModelView {
     this.bodyGroup = new THREE.Group();
     this.datumGroup = new THREE.Group();
     this.sketchGroup = new THREE.Group();
+    this.sketchHiGroup = new THREE.Group(); // what a sketch size under the mouse measures (drawn apart: its labels stay)
     this.outlineGroup = new THREE.Group(); // sketches shown as lines outside sketch mode
     this.edgeGroup = new THREE.Group();    // highlighted edges (Fillet / Chamfer)
     this.tagGroup = new THREE.Group();     // the chosen step's sizes, as labels on the part
-    this.scene.add(this.bodyGroup, this.datumGroup, this.sketchGroup, this.outlineGroup, this.edgeGroup, this.tagGroup);
+    this.scene.add(this.bodyGroup, this.datumGroup, this.sketchGroup, this.sketchHiGroup, this.outlineGroup, this.edgeGroup, this.tagGroup);
     this.material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.05, side: THREE.DoubleSide,
       polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
     this.edgeMaterial = new THREE.LineBasicMaterial({ color: 0x1b2430 });
@@ -394,7 +395,7 @@ export class ModelView {
   setSketch(fr, { lines = [], circles = [], dots = [], labels = [], grid = 1 } = {}) {
     this.clear(this.sketchGroup);
     this.invalidate();
-    if (!fr) return;
+    if (!fr) { this.clear(this.sketchHiGroup); return; }
     const { o, x, y, n } = axes(fr);
     const lift = this.size * 0.0005;
     const P = (u, v) => o.clone().addScaledVector(x, u).addScaledVector(y, v).addScaledVector(n, lift);
@@ -402,6 +403,17 @@ export class ModelView {
     if (!grid) grid = this.size / 60 || 1; // only lines and labels (no grid, no plane): dimensions on the part
     else this.drawSketchPlane(P, grid, x, y, n, lift);
     this.drawSketchItems(P, add, grid, { lines, circles, dots, labels });
+  }
+
+  /** Lines, circles and points lit up over the sketch, without drawing it again (its labels stay as they are). */
+  setSketchHighlight(fr, { lines = [], circles = [], dots = [] } = {}) {
+    this.clear(this.sketchHiGroup);
+    this.invalidate();
+    if (!fr) return;
+    const { o, x, y, n } = axes(fr);
+    const lift = this.size * 0.0007;
+    const P = (u, v) => o.clone().addScaledVector(x, u).addScaledVector(y, v).addScaledVector(n, lift);
+    this.drawSketchItems(P, (o3) => { o3.renderOrder = 7; this.sketchHiGroup.add(o3); }, 1, { lines, circles, dots, labels: [] });
   }
 
   drawSketchPlane(P, grid, x, y, n, lift) {

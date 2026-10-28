@@ -80,6 +80,11 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Sketch dimensions as on a drawing done:** Sketcher.movable(label, key, at, what) — a label dragged sets
+  `f.place[key]` (len: offset across the line, dx / dy / dist: the dimension line's offset, dia / rad: an angle round
+  the circle, ang: the arc's radius; kept by undo); locked sizes drawn with extension lines, arrows (dimLine / arrow),
+  leaders for Ø / R; a rectangle shows a size on its locked side; the mouse on a label lights up what it measures in a
+  layer of its own (view.setSketchHighlight: the labels are not redrawn, clicks on them stay). e2e_sketch_smart.
 - **Sketch colours by state done:** constraints.solve(detail=True) (asked on every solve without a drag): a point is
   free when fixing it lowers the dof (each tried: up to FREE_CHECK_MAX = 150 points), a circle's radius likewise ->
   `free: {points, radii}`; Sketcher.stateOf -> lines / arcs / circles / splines and points blue (free), green (done),
