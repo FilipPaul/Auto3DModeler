@@ -1223,8 +1223,7 @@
    "format": "3MF",
    "program": "3MF Consortium sample",
    "source": "https://github.com/3MFConsortium/3mf-samples/blob/master/examples/core/box.3mf",
-   "licence": "BSD-2-Clause (3MF Consortium samples)",
-   "known": "the app does not read 3MF (it only writes it): 'Unsupported file type .3mf'"
+   "licence": "BSD-2-Clause (3MF Consortium samples)"
   },
   {
    "path": "mesh/cube_gears.3mf",
@@ -1232,8 +1231,7 @@
    "format": "3MF",
    "program": "3MF Consortium sample",
    "source": "https://github.com/3MFConsortium/3mf-samples/blob/master/examples/core/cube_gears.3mf",
-   "licence": "BSD-2-Clause (3MF Consortium samples)",
-   "known": "the app does not read 3MF (it only writes it): 'Unsupported file type .3mf'"
+   "licence": "BSD-2-Clause (3MF Consortium samples)"
   },
   {
    "path": "drawings/Drive Gear.dxf",

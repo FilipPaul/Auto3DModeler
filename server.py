@@ -387,7 +387,7 @@ def api_outline_model():
 
 @app.post("/api/import")
 def api_import():
-    """DXF / DWG -> outline model (real size); STL / OBJ / STEP -> mesh model (sliced)."""
+    """DXF / DWG -> outline model (real size); STL / OBJ / 3MF / STEP -> mesh model (sliced)."""
     f = request.files.get("file")
     if f is None:
         return jsonify({"error": "No file uploaded."}), 400
@@ -415,7 +415,7 @@ def _import_data(data: bytes, name: str) -> dict:
     if ext in MESH_FORMATS:
         return {"model": mesh_model(data, name), "preview": {"mesh": True},
                 "import_file": {"name": name, "data": base64.b64encode(data).decode()}}
-    raise ValueError(f"Unsupported file type {ext} (PDF, DXF, DWG, STL, OBJ, STEP).")
+    raise ValueError(f"Unsupported file type {ext} (PDF, DXF, DWG, STL, OBJ, 3MF, STEP).")
 
 
 @app.post("/api/import/register")
@@ -616,7 +616,7 @@ def api_blob_get(sha):
 
 @app.post("/api/model/import")
 def api_model_import():
-    """A STEP / IGES / STL / OBJ file -> a solid step for a 3D model: {blob, faces, bbox, volume, op?, warning?} (form:
+    """A STEP / IGES / STL / OBJ / 3MF file -> a solid step for a 3D model: {blob, faces, bbox, volume, op?, warning?} (form:
     file, rid). An IGES of surfaces that do not close comes as op "ref" (a reference body) with a warning."""
     from auto3d.modeler import blobs
     f = request.files.get("file")

@@ -75,7 +75,8 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
    switches the solid to ⬚ Cut out (or you `edit_feature` it with `fields: {op: "cut"}`, after it in the steps —
    `op: "ref"` shows it only). Ask the user to add the file with ▣ Solid from a file if it is not there. An IGES
    (`open_file` on a .igs / .iges) opens as such a model; when its surfaces do not close it comes as `op: "ref"` — a
-   reference body to build around, say so.
+   reference body to build around, say so. A mesh (`open_file` on an .stl / .obj / .3mf — a 3MF from a slicer or our
+   own 3MF export) opens as a quick part of its triangles, all its objects placed as in the file.
    **Mirror**: `{type: "mirror", plane: "YZ"}` adds the mirror image of the whole part (left ↔ right; "XZ" front ↔
    back, "XY" top ↔ bottom, or `face: "<flat face>"`); `of: "<step id>"` mirrors one step only; `copy: false` turns the
    part over instead. Model half of a symmetric part, then mirror it.

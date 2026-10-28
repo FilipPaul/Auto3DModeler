@@ -866,7 +866,7 @@ MESH_LIMIT = 60000  # triangles: a bigger STL / OBJ takes too long to become a s
 
 
 def import_solid(a):
-    """A STEP / IGES / STL / OBJ file (kept as a blob) -> a solid for a `solid` step: {blob, faces, bbox, volume,
+    """A STEP / IGES / STL / OBJ / 3MF file (kept as a blob) -> a solid for a `solid` step: {blob, faces, bbox, volume,
     triangles?, op?, warning?}. A STEP is used as it is; an IGES is kept as a STEP (its surfaces sewn into a solid when
     they close; else op "ref": a reference body, with a warning); a mesh is made a solid (its triangles sewn) and kept
     as a STEP."""
@@ -889,15 +889,15 @@ def import_solid(a):
             out["op"] = "ref"  # (not closed: it cannot be joined or cut — shown to build around)
             out["warning"] = ("The IGES file holds surfaces that do not close into a solid (a gap or a missing face) — "
                               "it came in as a reference body: shown see-through to build around, not part of the solid.")
-    elif ext in ("stl", "obj"):
-        tris = importers.read_stl(data) if ext == "stl" else importers.read_obj(data.decode("utf-8", "ignore"))
+    elif ext in ("stl", "obj", "3mf"):
+        tris = importers.read_stl(data) if ext == "stl" else importers.read_3mf(data) if ext == "3mf" else importers.read_obj(data.decode("utf-8", "ignore"))
         if len(tris) > MESH_LIMIT:
             raise K.KernelError(f"MESH_TOO_BIG This mesh has {len(tris)} triangles — more than {MESH_LIMIT} take too long to become an exact solid.")
         shape = K.mesh_solid(tris)
         out = {"blob": blobs.put(K.to_step(shape, name)), "triangles": len(tris)}
         _keep(out["blob"], shape, {})
     else:
-        raise K.KernelError("A solid comes from a STEP, IGES, STL or OBJ file.")
+        raise K.KernelError("A solid comes from a STEP, IGES, STL, OBJ or 3MF file.")
     if K.face_count(shape) == 0:
         raise K.KernelError("The file has no solid in it.")
     bb = K.bbox(shape)

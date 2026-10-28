@@ -446,7 +446,7 @@ export class Assembly {
     bar.innerHTML = `
       <div class="menu as-insert">${btn('insert', '＋ Insert part ▾', parts.length ? 'Add a part of this project: a 3D model ◆, a quick part ▤ (drawing, picture, import) or another assembly ◇ (as one unit)' : 'Make a part first (＋ New 3D model, or open a drawing / picture)', 'tool')}
         <div class="menu-list">${parts.map((p) => `<button data-part="${p.id}" data-no-i18n>${p.kind === 'classic' ? '▤' : p.kind === 'assembly' ? '◇' : '◆'} ${esc(p.name)}</button>`).join('') || '<div class="hint">No parts yet</div>'}
-          ${this.hooks.importFile ? '<div class="menu-sep"></div><button data-a="fromFile">📂 From a file (STEP / STL / OBJ)…</button>' : ''}</div></div>
+          ${this.hooks.importFile ? '<div class="menu-sep"></div><button data-a="fromFile">📂 From a file (STEP / STL / OBJ / 3MF)…</button>' : ''}</div></div>
       <div class="as-jbar ${toolGroup('joint')}" title="${esc(t('Hold a part against another one: choose how, then click a face of the part to move and the face it goes to (S = touch)'))}"><span class="as-jlabel">🔗 ${esc(t('Joint'))}</span>
         ${Object.entries(JOINT_TYPES).map(([k, j]) => `<button class="${(k === 'fastener' ? this.bolt : this.mode !== 'idle' && this.jointType === k) ? 'on' : ''}" data-joint="${k}" title="${esc(`${t(j.name)}: ${t(j.hint)}`)}">${j.icon} <span>${esc(t(j.name))}</span></button>`).join('')}</div>
       ${btn('measure', '📏 Measure', 'Measure: click a spot (a face, a corner), then another one — the distance; two parallel flat faces: the gap between them; two round faces: how far apart their axes are', `tool ${this.measuring ? 'on' : ''}`)}
@@ -1936,7 +1936,7 @@ export class Assembly {
     };
     if (file) return go(file);
     const inp = document.createElement('input');
-    Object.assign(inp, { type: 'file', accept: '.step,.stp,.igs,.iges,.stl,.obj' });
+    Object.assign(inp, { type: 'file', accept: '.step,.stp,.igs,.iges,.stl,.obj,.3mf' });
     inp.addEventListener('change', () => { if (inp.files[0]) go(inp.files[0]); });
     inp.click();
   }
@@ -2714,8 +2714,8 @@ export class Assembly {
       vp.classList.remove('drop-in');
       if (!pid && file) {
         e.preventDefault();
-        if (/\.(step|stp|igs|iges|stl|obj)$/i.test(file.name) && this.hooks.importFile) this.insertFile(file);
-        else this.hooks.toast(t('Drop a STEP, IGES, STL or OBJ file to put it into the assembly.'), 'warning', 5000);
+        if (/\.(step|stp|igs|iges|stl|obj|3mf)$/i.test(file.name) && this.hooks.importFile) this.insertFile(file);
+        else this.hooks.toast(t('Drop a STEP, IGES, STL, OBJ or 3MF file to put it into the assembly.'), 'warning', 5000);
         return;
       }
       if (!pid) return;

@@ -823,6 +823,14 @@ Date: 2026-10-25. Written by the architect agent.
   5 while a reader holds the file); reads retry too; a disk error answers 503 with the reason (the last state kept).
   tests/test_autosave.py test_same_project_saved_at_once (6 threads × 15 saves + a reader: failed before with
   PermissionError); tools/e2e_autosave.py fires six saves at once (all 200).
+- **Real files: 3MF import done:** importers.read_3mf_groups (the zip's start part from _rels, else the one .model;
+  objects with a mesh or components, build items' and components' transforms, the unit, basematerials / colorgroup
+  colours) -> read_3mf; .3mf in MESH_FORMATS (a quick part, like STL / OBJ: Open ▾ CAD / 3D file, drop, the AI's
+  open_file), in import_solid (▣ Solid from a file, an assembly's From a file / drop) and project files. Box 10 × 20 × 30
+  (6 000 mm³), cube_gears (17 objects, 25 692 triangles, placed), our part_base_plate.3mf (its two colours; the same
+  volume as its STL) and assembly_frame.3mf (57 698 mm³ ±1 %) read back. tests/test_import.py Test3MFImport,
+  Test3MFSolid (the solid and its STEP round trip); tools/e2e_cad_samples.py opens both 3MF samples (box 0.1 s, cube_gears
+  19 s).
 - **STEP colours done:** kernel.read_step_colours (STEPCAFControl + XCAF: colours followed down the assembly tree to the
   faces of the shape the solid step uses), State.colours by face name -> faces' `color` in the rebuild; the view /
   assembly show them under the paint. tools/e2e_step_colours.py.

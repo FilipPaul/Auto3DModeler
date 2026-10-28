@@ -19,9 +19,10 @@ Use **📂 Open ▾** to open a file. It offers:
   opens as a **📐 Drawing** too, a layer per Gerber file / ODB++ layer (see [PCB boards](#pcb-boards-gerber-odb));
 - a **DXF / DWG drawing** opens as a **📐 Drawing** — see [DXF / DWG drawings](#dxf--dwg-drawings); nothing is made of it until you
   choose (Shift+drop: straight to a quick part, as before);
-- a **CAD / 3D file**: STL / OBJ / STEP / IGES files — a **STEP or IGES opens as a 3D model** with its exact
+- a **CAD / 3D file**: STL / OBJ / 3MF / STEP / IGES files — a **STEP or IGES opens as a 3D model** with its exact
   solid as the first step (sketch on its faces, drill it, build a cover around it; a 40 MB STEP in under a minute);
-  STL / OBJ open as a quick part (sliced, for printing; Shift+drop a STEP for that too). A **STEP assembly** — what
+  STL / OBJ / 3MF open as a quick part (sliced, for printing; Shift+drop a STEP for that too; a 3MF from a slicer or our
+  own export: all its objects, placed as in the file). A **STEP assembly** — what
   SolidWorks, CATIA and Solid Edge export (their own SLDASM / CATProduct / ASM files are closed; save as STEP AP214 /
   AP242 there) — asks first: **Open as an assembly** makes a 3D model part per different part (a screw used 22 times
   is one part), an assembly ◇ with a placed part per placement, sub-assemblies nested, the file's names and colours;
@@ -906,7 +907,7 @@ differs:
 | PDF drawing | the drawing (its dimensions drive the part) | the drawing's dimensions |
 | Picture | the traced outline, clean-up, *Make*: cookie cutter / solid shape / custom | width / height |
 | DXF / DWG | the drawing's closed regions in real size (mm), clean-up, *Make* … | width / height |
-| STL / OBJ / STEP | up axis, 90° turns, mirror, slice height | scale % |
+| STL / OBJ / 3MF / STEP | up axis, 90° turns, mirror, slice height | scale % |
 
 Below it, for every part: **3D objects added to the part** (booleaned on: profile / profile band offsets,
 cylinders, boxes, bars, text — placed and sized by clicking on the part, see *Pick on the part*) and **2D shapes on
@@ -929,13 +930,13 @@ turns it into one. In 2D: 📏 in the outline editor (picture pixels and mm) and
   ignored. Needs `ezdxf`.
 - **DWG** is a closed format: it is converted to DXF with the free **ODA File Converter** or LibreDWG's `dwg2dxf`
   when one is installed; otherwise the import says so (or save the drawing as DXF).
-- **▣ Solid from a file** (3D model) adds a STEP / IGES / STL / OBJ as a step: **▣ Joined** to the part, **⬚ Cut out** of it
+- **▣ Solid from a file** (3D model) adds a STEP / IGES / STL / OBJ / 3MF as a step: **▣ Joined** to the part, **⬚ Cut out** of it
   (a cavity it fits in exactly) or **👁 Reference** (drawn see-through, not part of the part — build a cover or a holder
-  around it, then cut a copy of it out). An STL / OBJ is made an exact solid (up to 60 000 triangles). Assemblies
+  around it, then cut a copy of it out). An STL / OBJ / 3MF is made an exact solid (up to 60 000 triangles). Assemblies
   insert one with *＋ Insert part ▾ → From a file* or by dropping the file on the assembly's view — a STEP assembly
   goes in as a sub-assembly (when you choose *Open as an assembly*). The files are kept by the server and carried in
   the project file.
-- **STL / OBJ / STEP as a quick part** (STEP is tessellated with `cascadio` / OpenCASCADE): the part is cut into flat slices at every
+- **STL / OBJ / 3MF / STEP as a quick part** (STEP is tessellated with `cascadio` / OpenCASCADE): the part is cut into flat slices at every
   flat face — exact for parts whose walls are vertical between flat faces (plates, brackets, cutters), slanted /
   curved walls become steps of the *slice height*. The file is kept on the server (`data/imports/`) and inside the
   project file, so projects reopen anywhere. Design layers need a flat part; on 3D files use 3D objects (e.g.

@@ -49,7 +49,7 @@ TOOLS = [
      "inputSchema": _obj({"view": {"type": "string", "enum": ["iso", "front", "back", "side"]}, "fit": {"type": "boolean"}})},
     {"name": "open_file", "where": "server",
      "description": "Open a file from disk as a new part (its own tab; the parts already open stay): a PDF drawing, an STL / "
-                    "OBJ / STEP 3D file, an IGES (.igs / .iges: a 3D model part with its solid — surfaces are sewn into one; "
+                    "OBJ / 3MF / STEP 3D file (STL / OBJ / 3MF: a quick part of the mesh), an IGES (.igs / .iges: a 3D model part with its solid — surfaces are sewn into one; "
                     "when they do not close it is a reference body), or as a 📐 2D drawing (then get_drawing, drawing_find …): a DXF / DWG, a PCB's Gerber / "
                     "Excellon drill file, a .zip / .tgz with a Gerber set or an ODB++ job, or a folder of loose Gerber / drill "
                     "files (one board). as: \"part\" opens a DXF / DWG as a quick part's outline instead; as: \"assembly\" "

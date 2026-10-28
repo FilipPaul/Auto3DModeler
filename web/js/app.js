@@ -320,7 +320,7 @@ async function loadParsed(data) {
   project.endOpen(partNameOf(data));
 }
 
-const partNameOf = (data) => (data.model?.source || 'part').replace(/\.(pdf|png|jpe?g|webp|gif|bmp|svg|dxf|dwg|stl|obj|step|stp|igs|iges)$/i, '');
+const partNameOf = (data) => (data.model?.source || 'part').replace(/\.(pdf|png|jpe?g|webp|gif|bmp|svg|dxf|dwg|stl|obj|3mf|step|stp|igs|iges)$/i, '');
 
 /** Put a part on screen. `switching`: an existing part tab is shown again (no messages, no new tab). */
 async function loadPart(data, { switching = false } = {}) {
@@ -512,8 +512,8 @@ function enlargeDrawing() {
 
 $('imgInput').addEventListener('change', (e) => { if (e.target.files[0]) openImage(e.target.files[0]); e.target.value = ''; });
 
-const IMPORT_RE = /\.(dxf|dwg|stl|obj|step|stp)$/i;
-/** DXF / DWG drawings (-> an outline in real mm) and STL / OBJ / STEP 3D files (-> a sliced part). */
+const IMPORT_RE = /\.(dxf|dwg|stl|obj|3mf|step|stp)$/i;
+/** DXF / DWG drawings (-> an outline in real mm) and STL / OBJ / 3MF / STEP 3D files (-> a sliced part). */
 async function openImport(file) {
   const fd = new FormData();
   const rid = newRid();
@@ -532,7 +532,7 @@ async function openImport(file) {
   try { await loadParsed(data); } catch (e) { toast(e.message, 'error', 9000); }
 }
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
-// CAD data (STEP, IGES) opens as a 3D model with its exact solid; a mesh (STL / OBJ, mostly for printing) as a quick part
+// CAD data (STEP, IGES) opens as a 3D model with its exact solid; a mesh (STL / OBJ / 3MF, mostly for printing) as a quick part
 const OPEN_SOLID_RE = /\.(step|stp|igs|iges)$/i;
 /** A STEP / IGES / STL / OBJ file made a solid by the kernel (kept on the server by its hash) -> {blob, name, faces,
  *  bbox, volume, op?, warning?} — an IGES of surfaces that do not close: op "ref" (a reference body) and why. */
@@ -626,7 +626,7 @@ vp.addEventListener('drop', (e) => {
     // with a part loaded a picture becomes a design layer; Shift+drop (or no part) traces its outline
     if (state.solution && !e.shiftKey) addImageLayer(f);
     else openImage(f);
-  } else toast('Please drop a PDF, DXF / DWG, STL / OBJ / STEP or a picture.', 'warning');
+  } else toast('Please drop a PDF, DXF / DWG, STL / OBJ / 3MF / STEP or a picture.', 'warning');
 });
 
 // ------------------------------------------------------------------ solving

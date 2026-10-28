@@ -6,13 +6,16 @@ import io
 import math
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 import numpy as np
 
 from auto3d.export import build_solid, to_step, to_stl
-from auto3d.importers import ImportError_, orient, read_dxf, read_mesh, slice_mesh, _dwg_converter, dwg_to_dxf
+from auto3d.export3mf import to_3mf
+from auto3d.importers import ImportError_, orient, read_3mf, read_3mf_groups, read_dxf, read_mesh, slice_mesh, _dwg_converter, dwg_to_dxf
 from auto3d.meshpart import mesh_model, solve_mesh
+from auto3d.modeler import available
 from auto3d.outline import outline_model, solve_outline
 from auto3d.sketch import build_model
 from auto3d.solver import solve
@@ -88,6 +91,105 @@ class TestMeshImport(unittest.TestCase):
         self.assertEqual(mesh_stats(solid)[1], 0)
 
 
+def mesh_volume(tris):
+    """A closed mesh's volume (signed tetrahedra from the origin)."""
+    return float(np.einsum("ij,ij->i", tris[:, 0], np.cross(tris[:, 1], tris[:, 2])).sum() / 6)
+
+
+SAMPLES_IN = ROOT / "samples" / "ToImportToOurApp" / "mesh"
+SAMPLES_OUT = ROOT / "samples" / "ExportFromOurApp"
+
+
+class Test3MFImport(unittest.TestCase):
+    """3MF (a zip with the model's XML) opens as a mesh quick part, like STL / OBJ: its objects, the build items'
+    and components' transforms, the unit, base material colours; the 3MF Consortium's samples and our own export."""
+
+    def test_box_quick_part(self):
+        data = (SAMPLES_IN / "box.3mf").read_bytes()
+        groups = read_3mf_groups(data)
+        self.assertEqual([(g["name"], g["color"], len(g["triangles"])) for g in groups], [("object 1", None, 12)])
+        m = mesh_model(data, "box.3mf")
+        sol, solid = solve_mesh(m)
+        self.assertTrue(sol["ok"], sol["issues"])
+        self.assertAlmostEqual(solid.volume(), 10 * 20 * 30, places=4)
+        self.assertEqual(mesh_stats(solid)[1], 0)
+        self.assertEqual([round(sol["values"][k], 6) for k in ("size_x", "size_y", "size_z")], [10, 20, 30])
+
+    def test_cube_gears_placed(self):
+        """17 objects (a cube and 16 gears), each build item moved by its transform."""
+        groups = read_3mf_groups((SAMPLES_IN / "cube_gears.3mf").read_bytes())
+        self.assertEqual(len(groups), 17)
+        self.assertEqual(groups[6]["name"], "cube 7")
+        tris = np.concatenate([g["triangles"] for g in groups])
+        self.assertEqual(len(tris), 25692)
+        lo, hi = tris.reshape(-1, 3).min(0), tris.reshape(-1, 3).max(0)
+        np.testing.assert_allclose(lo, [2.612, 2.617, 2.249], atol=0.01)  # (moved by -1.24, 1.20, -20.01)
+        np.testing.assert_allclose(hi, [170.61, 127.72, 35.85], atol=0.01)
+        self.assertGreater(mesh_volume(tris), 0)
+        sol, _ = solve_mesh(mesh_model((SAMPLES_IN / "cube_gears.3mf").read_bytes(), "cube_gears.3mf"))
+        self.assertTrue(sol["ok"], sol["issues"])
+
+    def test_our_export_round_trip(self):
+        """Our own 3MF exports read back: the plate (two colours) as its STL, the Frame (9 parts) its volume."""
+        plate = read_3mf_groups((SAMPLES_OUT / "part_base_plate.3mf").read_bytes())
+        self.assertEqual([g["color"] for g in plate], ["#d9dee6", "#d9822b"])
+        v3 = mesh_volume(read_3mf((SAMPLES_OUT / "part_base_plate.3mf").read_bytes()))
+        self.assertAlmostEqual(v3, mesh_volume(read_mesh((SAMPLES_OUT / "part_base_plate.stl").read_bytes(), "p.stl")), delta=0.5)
+        self.assertAlmostEqual(v3, 37864.76, delta=37864.76 * 0.01)  # (the exact solid; the holes are faceted)
+        frame = read_3mf((SAMPLES_OUT / "assembly_frame.3mf").read_bytes())
+        self.assertAlmostEqual(mesh_volume(frame), 57697.89, delta=57697.89 * 0.01)
+        # written by export3mf, read back: the same objects, colours and triangles
+        box = read_mesh(box_stl(4, 3, 2), "b.stl")
+        data = to_3mf([{"name": "body", "color": "#ffd400", "positions": box.ravel().tolist()},
+                       {"name": "lid", "color": "#FF8800", "positions": (box + [0, 0, 2]).ravel().tolist()}], "Box")
+        back = read_3mf_groups(data)
+        self.assertEqual([(g["name"], g["color"], len(g["triangles"])) for g in back], [("body", "#ffd400", 12), ("lid", "#ff8800", 12)])
+        np.testing.assert_allclose(back[1]["triangles"], box + [0, 0, 2])
+        self.assertAlmostEqual(mesh_volume(read_mesh(data, "box.3mf")), 2 * 24, places=6)
+
+    def test_components_units_and_errors(self):
+        """An object made of another one moved (components), an item turned, the file in inches; bad files refused."""
+        tri = '<vertices><vertex x="0" y="0" z="0"/><vertex x="1" y="0" z="0"/><vertex x="0" y="1" z="0"/></vertices><triangles><triangle v1="0" v2="1" v3="2"/></triangles>'
+        model = ('<?xml version="1.0"?><model unit="inch" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><resources>'
+                 f'<object id="1" type="model"><mesh>{tri}</mesh></object>'
+                 '<object id="2" type="model" name="pair"><components><component objectid="1"/><component objectid="1" transform="1 0 0 0 1 0 0 0 1 0 0 5"/></components></object>'
+                 '</resources><build><item objectid="2" transform="0 1 0 -1 0 0 0 0 1 10 0 0"/></build></model>')
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("3D/other.model", model)  # (no _rels: the one .model file)
+        groups = read_3mf_groups(buf.getvalue())
+        self.assertEqual([g["name"] for g in groups], ["pair", "pair"])
+        # turned 90° about z (x -> y), moved 10 along x, in inches
+        np.testing.assert_allclose(groups[0]["triangles"][0], np.array([[10, 0, 0], [10, 1, 0], [9, 0, 0]]) * 25.4)
+        np.testing.assert_allclose(groups[1]["triangles"][0][:, 2], [5 * 25.4] * 3)
+        for bad in (b"not a zip", _zip({"3D/3dmodel.model": model.replace("<item objectid=\"2\"", "<item objectid=\"9\"")}), _zip({"a.txt": "x"})):
+            with self.assertRaises(ImportError_):
+                read_3mf(bad)
+
+
+@unittest.skipUnless(available("occ"), "OCP not installed")
+class Test3MFSolid(unittest.TestCase):
+    def test_solid_from_a_3mf(self):
+        """▣ Solid from a file takes a 3MF too: the mesh sewn into an exact solid, kept as a STEP (read back the same)."""
+        from unittest import mock
+        from auto3d.modeler import blobs, doc, kernel as K
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(blobs, "DIR", Path(tmp)):
+            r = doc.import_solid({"blob": blobs.put((SAMPLES_IN / "box.3mf").read_bytes()), "name": "box.3mf"})
+            self.assertAlmostEqual(r["volume"], 6000, delta=1e-6 * 6000)
+            np.testing.assert_allclose(r["bbox"], [0, 0, 0, 10, 20, 30], atol=1e-6)
+            part = {"features": [{"id": "F1", "type": "solid", "blob": r["blob"], "file": "box.3mf", "op": "add"}]}
+            back = K.from_step(doc.export(part, "step"))
+            self.assertAlmostEqual(K.volume(back), 6000, delta=1e-6 * 6000)
+
+
+def _zip(files):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for k, v in files.items():
+            z.writestr(k, v)
+    return buf.getvalue()
+
+
 class TestDxf(unittest.TestCase):
     def dxf(self, units=4):
         import ezdxf
@@ -160,6 +262,10 @@ class TestServerImport(unittest.TestCase):
         self.assertEqual(c.post("/api/export/step", json={"model": model, "values": {}}).status_code, 200)
         bad = c.post("/api/import", data={"file": (io.BytesIO(b"x"), "a.xyz")}, content_type="multipart/form-data")
         self.assertEqual(bad.status_code, 400)
+        # a 3MF: a quick part of its mesh (it used to say "Unsupported file type .3mf")
+        r = c.post("/api/import", data={"file": (io.BytesIO((SAMPLES_IN / "box.3mf").read_bytes()), "box.3mf")}, content_type="multipart/form-data").get_json()
+        self.assertEqual((r["model"]["kind"], r["import_file"]["name"]), ("mesh", "box.3mf"))
+        self.assertAlmostEqual(c.post("/api/solve", json={"model": r["model"], "values": {}}).get_json()["volume"], 6000, delta=1e-3)
 
         # a PDF part with a 2D shape cut from its profile and an extra 3D object (units: cm)
         pdf = c.get("/api/sample").get_json()["model"]
