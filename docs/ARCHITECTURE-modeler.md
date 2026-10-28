@@ -7,6 +7,9 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Autosave waits longer on a busy machine done:** autosave._write / _read retry a Windows sharing violation
+  (WinError 5 / 32) for up to ~8 s with a growing pause (_pause), not ~2 s / ~1 s — under the full test run with the
+  kernel pool busy, test_same_project_saved_at_once once failed with "Access is denied".
 - **Default title block B — ISO 7200 done:** a drawing that chose no template uses "B — ISO 7200" (title block B,
   parts list B, the ISO 5457 frame) — the owner's choice; sheet.js DEFAULT_TPL, the AI's sheet_edit without a name too.
   Tests that check the Modern block pick it explicitly (e2e_sheet, e2e_bom, e2e_sheet_views_templates).

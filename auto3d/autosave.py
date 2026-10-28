@@ -30,9 +30,15 @@ def _lock(pid):
         return _LOCKS.setdefault(pid, threading.Lock())
 
 
+def _pause(i):
+    """The wait before try i+1 after a sharing violation: short at first, longer under load (~8 s in all over 40 tries)."""
+    return min(0.02 * (1.25 ** i), 0.25)
+
+
 def _write(path: Path, text: str, tries=40):
     """Write whole or not at all: a temp file of this thread, then replace. On Windows the replace fails while
-    another reader has the file open (WinError 32 / 5, a sharing violation): try again for up to ~2 s."""
+    another reader has the file open (WinError 32 / 5, a sharing violation): try again for up to ~8 s (a busy
+    machine can hold a reader that long)."""
     tmp = path.with_name(f"{path.name}.{os.getpid()}-{threading.get_ident()}.tmp")
     tmp.write_text(text, encoding="utf-8")
     try:
@@ -43,19 +49,19 @@ def _write(path: Path, text: str, tries=40):
             except PermissionError:
                 if i == tries - 1:
                     raise
-                time.sleep(0.05)
+                time.sleep(_pause(i))
     finally:
         tmp.unlink(missing_ok=True)
 
 
-def _read(path: Path, tries=20) -> str:
+def _read(path: Path, tries=40) -> str:
     for i in range(tries):  # (a replace under way can deny the read for a moment on Windows)
         try:
             return path.read_text(encoding="utf-8")
         except PermissionError:
             if i == tries - 1:
                 raise
-            time.sleep(0.05)
+            time.sleep(_pause(i))
 
 
 def save(folder: Path, pid: str, project: dict) -> dict:
