@@ -20,6 +20,7 @@ import { paintedFaces, repaint } from '../modeler/paint.js';
 import { sectionBar, sectionMiddle } from '../modeler/sectionbar.js';
 import { ModelView } from '../modeler/view.js';
 import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss } from './joints.js';
+import { showSuggest } from '../suggest.js';
 import { freeMotions, motionMatrix } from './dof.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
@@ -285,7 +286,33 @@ export class Assembly {
     this.$ = (s) => viewport.querySelector(s) || left.querySelector(s) || right.querySelector(s);
   }
 
-  render() { this.renderBar(); this.renderList(); this.renderProps(); this.renderStatus(); }
+  render() { this.renderBar(); this.renderList(); this.renderProps(); this.renderStatus(); this.renderSuggest(); }
+
+  /** The suggestions table (bottom left of the view) for the chosen part — or the two chosen with Ctrl+click. */
+  renderSuggest() {
+    const vp = this.els.viewport, a = this.inst(this.sel), b = this.inst(this.sel2);
+    if (!a || this.mode !== 'idle' || this.measuring || this.painting || this.bolt) { showSuggest(vp, '', []); return; }
+    const name = (it) => `${this.partName(it.part)} ${it.id}`;
+    const show = (title, items, hint) => showSuggest(vp, title, items.map((x) => ({ ...x, run: async () => { await x.run(); this.renderSuggest(); } })), hint); // (an action started: the table follows)
+    if (b) {
+      show( `${this.partName(a.part)} ↔ ${this.partName(b.part)}`, [
+        { icon: '🔗', label: t('Join them'), title: t('Pick a face of each — touch, gap, flush, a pin in a hole …'), run: () => this.startJoint('touch', a.id) },
+        { icon: '📏', label: t('Measure between them'), run: () => this.toggleMeasure() },
+        { icon: '⚠', label: t('Check for collisions'), run: () => this.checkClashes() },
+        { icon: '◆', label: `${t('Only')} ${name(a)}`, run: () => this.choose(a.id) },
+      ]);
+      return;
+    }
+    const joined = (this.doc.mates || []).some((m) => m.move === a.id), model = this.kindOf(a.part) === 'model';
+    const light = this.bodies[a.part]?.body?.light;
+    show(name(a), [
+      ...(this.hooks.openPart ? [{ icon: this.kindOf(a.part) === 'assembly' ? '◇' : '◆', label: t('Open its part'), title: t('Change it in its own tab (the assembly follows)'), run: () => this.hooks.openPart(a.part) }] : []),
+      { icon: '🔗', label: t(joined ? 'Join it to one more part' : 'Join it to another part'), run: () => this.startJoint('touch', a.id) },
+      ...(model ? [{ icon: '🪶', label: t(light ? 'Show it in full' : 'Show it simplified'), title: t('Simplified: a coarser mesh and less data — quicker to load and show'), run: async () => { this.doc.light = { ...(this.doc.light || {}), [a.part]: !light }; await this.refresh(); this.commit(); } }] : []),
+      ...(this.hooks.duplicatePart ? [{ icon: '⧉', label: t('Make it its own part'), title: t('A copy of its part for this place only'), run: () => this.ownPart(a.id) }] : []),
+      { icon: '✕', label: t('Take it out'), danger: true, run: () => this.removeInst(a.id) },
+    ], t('Ctrl+click another part: what fits the two'));
+  }
 
   /** The parts that can go in: 3D models, and quick parts (drawings, pictures, imports) with a shape. */
   modelParts() {

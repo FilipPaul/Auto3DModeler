@@ -80,6 +80,11 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Suggestions for the selection done:** suggest.js showSuggest(viewport, title, items, hint) — a table bottom left;
+  Sketcher: ⬚ Select picks (pickItem: point / line / circle / arc; Ctrl+click adds / removes) -> suggestions() by what
+  is picked (own sizes, h / v / fix, relations via addRelation, dimBetween for the dimension that fits two, chains for
+  3+, setConstruction); the picks drawn as selected, cleared by setTool / Esc. Assembly.renderSuggest for sel / sel2
+  (open its part, join, simplified, own part, take out; join them, measure, collisions). tools/e2e_suggest.py.
 - **Construction lines done:** sketch entities with `construction: true` (the kernel's _loops skip them; the revolve
   side check counts only the outline's points); Sketcher.toggleConstruction / consMode / consFlag (┄ in the bar: with
   ⬚ Select the selection, else new shapes); drawn dashed amber; Revolve offers construction lines first and takes the

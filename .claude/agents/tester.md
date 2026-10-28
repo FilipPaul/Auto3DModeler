@@ -163,6 +163,10 @@ Never report "works" without having run it; report failures with their output.
    the recommended option first ★; one answered: nothing sent; both: one message "<question> → <option>"; ✎ Other…
    puts the question in the box; no options refused). The message is caught in the page (no Claude needed).
    (e2e_drawing_set also checks one item numbering for the whole set: Machine 1–3, the Lid unit's parts 4 and 5.)
+   `tools/e2e_suggest.py <url> <dir>` covers the suggestions table (a sketch line: its length, h, v, construction —
+   bottom left; + a crossing line: angle, parallel, perpendicular, equal (Equal made); a line + a circle: tangent, from
+   its centre; Esc: gone; an assembly part: open, join, simplified, own part, take out; + a second: join them (picking
+   faces, the table gone), measure, collisions).
    `tools/e2e_sketch_construction.py <url> <dir>` covers construction lines (┄ on: a line drawn as construction; ⬚ the
    rectangle + ┄: construction, again: back; Finish; ⟳ Revolve takes the construction line as its axis: the ring's
    volume). Needs a server restarted after doc.py changes.

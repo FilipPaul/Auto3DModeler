@@ -9,6 +9,7 @@
 // outline taken from a picture / DXF / PDF part {t: 'block', polys, w0, h0, at, scale}: rigid, moved by
 // dragging, sized by its width.
 import { t } from '../i18n.js';
+import { showSuggest } from '../suggest.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const nice = (x) => { const p = 10 ** Math.floor(Math.log10(x)); return [1, 2, 5, 10].map((k) => k * p).find((s) => s >= x); };
@@ -318,6 +319,7 @@ export class Sketcher {
   }
 
   changed() {
+    this.renderSuggest();
     if (this.isNew && this.f.entities.length && this.f.plane?.datum && this.m.$('.m-cmdbar [data-a^=plane-]')) this.m.renderCmdBar();
     this.m.renderProps();
     this.m.hint(this.hint());
@@ -363,6 +365,7 @@ export class Sketcher {
 
   setTool(t) {
     this.tool = t;
+    this.picks = []; // (Esc, another tool: the suggestions go)
     this.relPicks = [];
     this.start = null;
     this.arcEnd = null;
@@ -897,7 +900,15 @@ export class Sketcher {
   click(e) {
     const uv0 = this.view.planePoint(e.clientX, e.clientY, this.frame());
     if (!uv0) return;
-    if (this.tool === 'select') { this.sel = this.hit(uv0); this.changed(); return; }
+    if (this.tool === 'select') {
+      const item = this.pickItem(uv0);
+      if ((e.ctrlKey || e.metaKey) && item) { // Ctrl+click: one more (or one less)
+        const i = (this.picks || []).findIndex((q) => q.kind === item.kind && q.id === item.id);
+        this.picks = i >= 0 ? this.picks.filter((_, k) => k !== i) : [...(this.picks || []), item];
+      } else { this.sel = this.hit(uv0); this.picks = item ? [item] : []; }
+      this.changed();
+      return;
+    }
     if (this.tool === 'dim') { this.dimClick(uv0, e); return; }
     const s = this.snap(uv0, e.altKey);
     if (this.tool === 'line') { this.linePoint(s, e.detail >= 2); return; }
@@ -966,6 +977,11 @@ export class Sketcher {
     picks.push(p);
     if (picks.length < r.picks.length) { this.m.hint(this.hint()); this.draw(); return; }
     this.relPicks = [];
+    await this.addRelation(type, picks);
+  }
+
+  /** A relation between picks ({kind, id}: the second may be missing for h / v / fix). */
+  async addRelation(type, picks) {
     const [a, b] = picks, k = { id: this.newId('k'), t: type, user: true };
     if (type === 'h' || type === 'v') k.e = a.id;
     else if (type === 'fix') Object.assign(k, { p: a.id, at: [...this.P(a.id)] });
@@ -1775,13 +1791,18 @@ export class Sketcher {
     if (!this.dimA) { this.dimA = { ...t, at: uv }; this.m.hint(this.hint()); this.draw(); this.quickSize(t, e); return; }
     const A = this.dimA;
     t.at = uv;
+    this.dimA = null;
+    this.m.hint(this.hint());
+    this.dimBetween(A, t, e);
+  }
+
+  /** The dimension that fits two picks (what dimClick gives for a first and a second click). */
+  dimBetween(A, t, e) {
     let opts;
     if (A.line && t.line === A.line) opts = [{ spec: { t: 'len', e: A.line }, v: this.measure({ t: 'len', e: A.line }) }];
     else if (A.circle && t.circle === A.circle) opts = [{ spec: { t: 'dia', e: A.circle }, v: this.measure({ t: 'dia', e: A.circle }) }];
     else if (A.arc && t.arc === A.arc) opts = [{ spec: { t: 'rad', e: A.arc }, v: this.measure({ t: 'rad', e: A.arc }) }];
     else opts = this.dimOptions(A, t);
-    this.dimA = null;
-    this.m.hint(this.hint());
     if (!opts.length) { this.m.toast('Those two cannot be dimensioned — pick points, or a point and a straight horizontal / vertical edge.', 'warning', 5000); this.draw(); return; }
     if (opts.length === 1) { this.addDim(opts[0]); return; }
     this.showChooser(opts, e);
@@ -1921,6 +1942,81 @@ export class Sketcher {
     };
     inp.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') finish(true); if (ev.key === 'Escape') finish(false); });
     inp.addEventListener('blur', () => finish(true));
+  }
+
+  /** What a click with ⬚ Select picks for the suggestions: a point, a line, a circle or an arc of the sketch. */
+  pickItem(uv) {
+    const t = this.pickTarget(uv), own = (x) => typeof x === 'string' && x !== ORIGIN;
+    if (!t) return null;
+    const at = { ...t, at: uv };
+    if (t.circle && own(t.circle)) return { kind: 'circle', id: t.circle, t: at };
+    if (t.arc && own(t.arc)) return { kind: 'arc', id: t.arc, t: at };
+    if (t.kind === 'line' && own(t.line)) return { kind: 'line', id: t.line, t: at };
+    if (t.kind === 'point' && own(t.end)) return { kind: 'point', id: t.end, t: at };
+    return null;
+  }
+
+  /** Make shapes construction (or, when they all are, part of the outline again). */
+  setConstruction(ids) {
+    const ents = ids.map((id) => this.ent(id)).filter(Boolean);
+    if (!ents.length) return;
+    this.step();
+    const on = !ents.every((e) => e.construction);
+    for (const e of ents) { if (on) e.construction = true; else delete e.construction; }
+    this.changed();
+  }
+
+  /** What can be done with what is picked (one shape, or several with Ctrl+click) -> [{icon, label, title, run}]. */
+  suggestions() {
+    const P = this.picks || [], n = P.length;
+    if (!n || this.tool !== 'select') return [];
+    const round = (p) => p.kind === 'circle' || p.kind === 'arc';
+    const rel = (type, ...ps) => ({ icon: RELATIONS[type].icon, label: t(RELATIONS[type].name), title: t(RELATIONS[type].hint || ''), run: () => this.addRelation(type, ps) });
+    const at = () => { const b = this.m.els.viewport.querySelector('.view-suggest')?.getBoundingClientRect(); return { clientX: (b?.right || 300) + 8, clientY: b?.top || 300 }; };
+    const between = (a, b, label) => ({ icon: '↔', label, run: () => this.dimBetween(a.t, b.t, at()) });
+    const cons = (ps) => {
+      const ids = ps.filter((p) => p.kind !== 'point').map((p) => p.id);
+      return ids.length ? [{ icon: '┄', label: t(ids.every((id) => this.ent(id)?.construction) ? 'Part of the outline again' : 'Make it construction'), title: t('Construction shapes guide (an axis, a mirror line) but are not part of the outline'), run: () => this.setConstruction(ids) }] : [];
+    };
+    const items = [];
+    if (n === 1) {
+      const p = P[0], spec = p.kind === 'line' ? { t: 'len', e: p.id } : p.kind === 'circle' ? { t: 'dia', e: p.id } : p.kind === 'arc' ? { t: 'rad', e: p.id } : null;
+      if (spec) items.push({ icon: { len: '↔', dia: 'Ø', rad: 'R' }[spec.t], label: t({ len: 'Its length', dia: 'Its diameter', rad: 'Its radius' }[spec.t]), run: () => this.addDim({ spec, v: this.measure(spec) }) });
+      if (p.kind === 'line') items.push(rel('h', p), rel('v', p));
+      if (p.kind === 'point') items.push(rel('fix', p));
+      items.push(...cons(P));
+    } else if (n === 2) {
+      const [a, b] = P;
+      if (a.kind === 'line' && b.kind === 'line') {
+        items.push(between(a, b, t(this.crossing(a.id, b.id) ? 'The angle between them' : 'The distance between them')), rel('par', a, b), rel('perp', a, b), rel('eq', a, b));
+      } else if (round(a) && round(b)) {
+        items.push(rel('conc', a, b), rel('eq', a, b), rel('tang', a, b), between(a, b, t('The distance between their centres')));
+      } else if (round(a) || round(b)) {
+        const [c, o] = round(a) ? [a, b] : [b, a];
+        if (o.kind === 'line') items.push(rel('tang', o, c), between(c, o, t('From its centre to the line')));
+        else items.push(rel('coin', o, c), between(c, o, t('The distance between them')));
+      } else if (a.kind === 'point' && b.kind === 'point') {
+        items.push(rel('coin', a, b), between(a, b, t('The distance between them')));
+      } else {
+        const [p, o] = a.kind === 'point' ? [a, b] : [b, a];
+        items.push({ ...rel('coin', p, o), label: t('The point on the line') }, between(p, o, t('Its distance from the line')));
+      }
+      items.push(...cons(P));
+    } else {
+      const chain = (type) => async () => { for (const q of P.slice(1)) await this.addRelation(type, [P[0], q]); };
+      if (P.every((p) => p.kind === 'line')) items.push({ icon: '=', label: t('Equal — all of them'), run: chain('eq') }, { icon: '∥', label: t('Parallel — all of them'), run: chain('par') });
+      else if (P.every(round)) items.push({ icon: '=', label: t('Equal — all of them'), run: chain('eq') }, { icon: '◎', label: t('Concentric — all of them'), run: chain('conc') });
+      items.push(...cons(P));
+    }
+    return items;
+  }
+
+  /** The suggestions table (bottom left) for what is picked. */
+  renderSuggest() {
+    const items = this.suggestions(), n = (this.picks || []).length;
+    const kind = { line: 'A line', circle: 'A circle', arc: 'An arc', point: 'A point' }[this.picks?.[0]?.kind];
+    showSuggest(this.m.els.viewport, n === 1 ? t(kind || 'Selected') : t('{n} selected').replace('{n}', n), items,
+      n === 1 ? t('Ctrl+click another shape: what fits the two') : '');
   }
 
   /** {construction: true} while ┄ Construction is on (new shapes are helpers, not part of the outline). */
@@ -2142,6 +2238,13 @@ export class Sketcher {
       labels.push(this.movable(this.distLabel(d, mid[0], mid[1]), d.id, at, { pts: [A, B] }));
     }
     this.drawHighlight();
+    for (const q of this.picks || []) { // (what the suggestions are for)
+      const e = this.ent(q.id);
+      if (q.kind === 'point' && this.P(q.id)) { dots.push([this.P(q.id), SEL]); circles.push([this.P(q.id), mpp * 5, SEL]); }
+      else if (e?.t === 'line') lines.push([this.P(e.a), this.P(e.b), SEL]);
+      else if (e?.t === 'circle') circles.push([this.P(e.c), e.r, SEL]);
+      else if (e?.t === 'arc') { const ps = this.arcOf(e); for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], SEL]); }
+    }
     // the dimension tool's first pick
     if (this.dimA) {
       if (this.dimA.kind === 'point') dots.push([this.dimA.uv, 0x7ee787]);

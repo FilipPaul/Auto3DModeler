@@ -799,6 +799,19 @@ body.view-acts .toast-stack { bottom: 84px; }
 .sk-quick label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
 .sk-quick input { width: 74px; background: var(--bg); border: 1px solid var(--accent); border-radius: 5px; color: inherit; padding: 3px 6px; font: inherit; }
 .sk-quick .hint { margin: 6px 0 0; max-width: 200px; }
+/* the suggestions for what is selected, bottom left of the view (suggest.js) */
+.view-suggest { position: absolute; left: 12px; bottom: 34px; z-index: 6; width: 236px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: 0 8px 24px #0008; overflow: hidden; }
+.vs-head { display: flex; align-items: baseline; justify-content: space-between; padding: 7px 11px 6px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
+.vs-head b { font-size: 12.5px; }
+.vs-head span { font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.vs-list { display: flex; flex-direction: column; padding: 4px; }
+.vs-list button { display: flex; align-items: center; gap: 8px; text-align: left; background: none; border: 0; color: var(--text); padding: 5px 8px;
+  border-radius: 6px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.vs-list button:hover { background: #2b3440; }
+.vs-list .vs-i { width: 18px; flex: none; text-align: center; color: var(--accent); }
+.vs-list button.danger, .vs-list button.danger .vs-i { color: #ff8c84; }
+.vs-hint { margin: 0; padding: 0 11px 8px; font-size: 11px; color: var(--muted); }
 .m-offset { display: inline-flex; align-items: center; gap: 5px; cursor: default; }
 .m-offset input { width: 62px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; color: inherit; padding: 2px 5px; font: inherit; }
 .seg.big button { padding: 9px 6px; font-weight: 600; }

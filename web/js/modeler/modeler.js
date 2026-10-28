@@ -135,6 +135,7 @@ export class Modeler {
         ${btn('datum-XY', 'Top', 'Sketch on the Top plane (XY)')}${btn('datum-XZ', 'Front', 'Sketch on the Front plane (XZ)')}${btn('datum-YZ', 'Right', 'Sketch on the Right plane (YZ)')}
         <div class="mp-actions">${btn('cancelPlane', '✕ Cancel', 'Do not start a sketch (Esc)')}</div>`;
     } else {
+      this.els.viewport.querySelector(':scope > .view-suggest')?.remove(); // (the sketch's suggestions)
       const canExtrude = this.sketches().length > 0;
       bar.innerHTML = `
         ${btn('sketch', '✏ Sketch', 'Start a sketch: on a plane, or on a flat face of the part (S)', 'tool')}

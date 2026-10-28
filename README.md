@@ -53,6 +53,13 @@ open it (the tree stays), ⧉ opens it in a new window, ✕ deletes it from the 
 assemblies use it). Parts made for an assembly (fasteners) are added without a tab. The **＋**
 next to the tabs offers the usual ways to open a file.
 
+**Suggestions for what is selected**: choose a shape in a sketch (⬚ Select) or a part in an assembly, and a small
+table in the bottom-left corner of the view says what can be done with it — a line: its length, horizontal,
+vertical, construction; a part: open it, join it, simplified, its own part, take it out. **Ctrl+click** more and it
+offers what fits them together: two crossing lines — their angle, parallel, perpendicular, equal; a line and a circle —
+tangent, the distance from its centre; two circles — concentric, equal, tangent; two parts — join them, measure,
+check for collisions. Esc (or another tool) closes it.
+
 **Construction lines**: **┄ Construction** in the sketch toolbar draws helper lines, circles and arcs (dashed
 amber) while it is on; with ⬚ Select it turns the selected shape into one (or back). They guide — a ⟳ Revolve takes
 a construction line as its axis by itself, ⇋ Mirror can mirror across one, dimensions and relations use them — but
