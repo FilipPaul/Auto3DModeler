@@ -165,14 +165,22 @@ parallel flat faces), turning all their steps off, deleting them together.
 
 **Box selection** in a sketch (⬚ Select, drag on empty space): **right to left** takes every shape the box touches
 (green, dashed), **left to right** only the shapes wholly inside it (blue); hold **Ctrl** to add to what is picked —
-by click or by box. Delete removes them all.
+by click or by box. Delete removes them all. **Drag one of the picked shapes and they all move together** (the
+grabbed point snaps as the Snap row allows, the others follow by the same offset; one undo step); dragging a shape
+that is not picked moves just that one.
 
 **Suggestions for what is selected**: choose a shape in a sketch (⬚ Select) or a part in an assembly, and a small
-table in the bottom-left corner of the view says what can be done with it — a line: its length, horizontal,
-vertical, construction; a part: open it, join it, simplified, its own part, take it out. **Ctrl+click** more and it
-offers what fits them together: two crossing lines — their angle, parallel, perpendicular, equal; a line and a circle —
-tangent, the distance from its centre; two circles — concentric, equal, tangent; two parts — join them, measure,
-check for collisions. Esc (or another tool) closes it.
+table in the bottom-left corner of the view says what can be done with it — a part: open it, join it, simplified, its
+own part, take it out. In a sketch the list is short, the likeliest first, and **⋯ More…** opens the rest (in Edit /
+Relations / Kind sections): a line — its length, horizontal or vertical (whichever it nearly is), delete; two lines —
+the angle (or distance) between them, then ∥ / ⟂ / = whichever is nearly true already; a line and a circle — the
+distance from its centre, tangent; two circles — the distance between centres, concentric / equal; a closed outline
+(a box round a rectangle) — ⧈ offset, ⁂ pattern, ✥ move; several mixed shapes — ✥ Move…, ⧉ Copy, ⇋ Mirror,
+✕ Delete all. **✥ Move…** (dx, dy), **⟳ Rotate…** (an angle about their centre, or about a picked point) and **⤢ Scale…**
+(a factor) open a small box that shows the result at once and as you type (Enter = done, Esc = back, one undo step);
+the shapes keep their relations, and a locked size that would have to change refuses it with a message naming the
+lock. **⧉ Copy** puts a copy beside them, picked, ready to drag. Two parts — join them, measure, check for collisions.
+Esc (or another tool) closes it.
 
 **Construction lines**: **┄ Construction** in the sketch toolbar draws helper lines, circles and arcs (dashed
 amber) while it is on; with ⬚ Select it turns the selected shape into one (or back). They guide — a ⟳ Revolve takes
@@ -739,6 +747,10 @@ the app exchanges with them — and with Inventor, Fusion, Creo, NX, FreeCAD, On
   {format: "step" | "iges" | "glb" | "obj"}`; on a drawing sheet `export {format: "dxf" | "pdf"}`.
 - In SolidWorks: *File → Open*, file type STEP / IGES (an assembly STEP opens as an assembly with its parts). CATIA:
   *File → Open* (STEP AP214 / IGES). Solid Edge: *Open*, file type STEP / IGES (the import wizard keeps the assembly).
+- **Try them yourself**: `samples/ExportFromOurApp/` holds files the app exported (a part with threaded countersunk
+  holes, an assembly with a sub-assembly and repeated parts, drawing sheets: STEP, IGES, STL, OBJ, GLB, 3MF, BOM CSV,
+  PDF, DXF, the project file); its README.md says what to check in each program. `tools/make_export_samples.py`
+  makes them again.
 
 ## AI assistant (✨ AI tab)
 

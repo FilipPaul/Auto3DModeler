@@ -849,6 +849,24 @@ Date: 2026-10-25. Written by the architect agent.
   Custom… (its five numbers and two ticks). AI: sheet_edit frame; get_sheet frame. tests/test_sheet_views.py
   (margins, a strip's room, the fit); tools/e2e_sheet_views_templates.py (ISO: the PDF's frame rect at 20 mm, zones A
   / 6; None: no frame; Custom… 25 mm typed, Ctrl+Z; the template's ISO frame on all five pages of a set).
+- **Short sketch suggestions done:** Sketcher.suggestions — at most 4 rows + ✕ Delete, ranked: a dimension first,
+  then the relations nearly true already (two lines: ∥ under 10°, ⟂ over 80°, = within 10 % of length; two circles:
+  ◎ / = / ⌒ by how near; of the nearly true ones = after ∥ / ⟂ / ◎; none: the nearest one), not those held already
+  (hasRule: ∥ / ⟂ by both lines' H / V); a loop (loopOfPicks -> loopFrom, split out of loopAt): ⧈ Offset, ⁂ Pattern,
+  ✥ Move; mixed: ✥ Move…, ⧉ Copy, ⇋ Mirror. ⋯ More… (sgMore, reset by a new pick) lists the rest in Edit / Relations /
+  Kind sections (showSuggest {section}). The title counts "N shapes, M points". The picks as a whole: pickShapes /
+  pickPoints / pickCentre (a picked point is the pivot); transformPicks (move / rotate / scale: their points held
+  where they go — solve(drag) — the relations kept; turnRules: a quarter turn swaps H / V and dx / dy locks, any other
+  angle puts ∥ / ⟂ for them); relock {exact}: constraints.solve's new `held` {ok, conflicts} refuses a hold the locks
+  do not let through, the toast naming them; xformBox (✥ dx / dy, ⟳ 90°, ⤢ 2×: shown at once, retyped from where they
+  were, one undo step, Esc back); copyPicks (beside them, H / V, tangents, locked sizes along; the copy picked);
+  mirrorPicks (the ⇋ box: an axis or a line and done); addRelations (chains as one undo step, a held one left out).
+  test_held_says_whether_a_group_got_there; tools/e2e_sketch_multiselect.py.
+- **Dragging several picked sketch shapes done:** Sketcher.down — a press on one of several picks (inPicks: a picked
+  shape, a point of one, a picked side's rectangle) drags pickPoints together; the grabbed point (the nearest of the
+  shape's own) snaps (snap's skip takes a Set: the moving points are not snapped to, nor guide from), its guides drawn
+  (dragGuides); the others by the same offset, the solver keeps the relations; one undo step; picks kept (refreshPicks).
+  An unpicked shape dragged moves alone and drops the picks. tools/e2e_sketch_multiselect.py.
 - **🔩 Cosmetic threads done:** part `threads` "hidden" (default) | "cosmetic" (doc.THREAD_MODES). Every rebuild says
   where the threaded holes are: out.threads {mode, holes} — doc.thread_holes (cached per features key) finds them by
   their walls' names ("<step>:hole:k", a pattern's / mirror's copies "P1:2:<step>:hole:k") in the built body;

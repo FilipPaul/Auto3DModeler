@@ -1,0 +1,3 @@
+# files the app exported: kept byte for byte as written (no line-ending changes)
+samples/ExportFromOurApp/** -text
+samples/ExportFromOurApp/README.md text
