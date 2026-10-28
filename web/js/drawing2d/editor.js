@@ -828,6 +828,21 @@ export class DrawingEditor {
   }
 }
 
+/** A drawing's shapes as a clean sketch (on the XY plane) of a 3D model — the server's /api/drawing/sketch: ends that
+ *  nearly meet welded into one point, an exporter's crumbs absorbed, collinear lines and arcs on one circle joined, a
+ *  flattened smooth curve one arc or spline again. -> {feature, report: {before, after}}; offline: as drawingToSketch. */
+export async function drawingToCleanSketch(drawing) {
+  try {
+    const res = await fetch('/api/drawing/sketch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(drawing) });
+    const j = await res.json();
+    if (!res.ok || j.error) throw new Error(j.error || res.statusText);
+    return { feature: { id: 'F1', type: 'sketch', name: `${t('Sketch')} 1`, plane: { datum: 'XY' }, ...j.sketch }, report: j.report };
+  } catch (e) {
+    console.warn('clean sketch:', e);
+    return { feature: drawingToSketch(drawing), report: null };
+  }
+}
+
 /** A drawing's shapes as a sketch (on the XY plane) of a 3D model: lines, circles, arcs and polylines become sketch
  *  lines, circles and arcs (ends that meet are joined); texts are left out. -> the sketch feature */
 export function drawingToSketch(drawing) {

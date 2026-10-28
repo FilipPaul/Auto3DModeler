@@ -7,6 +7,21 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Clean 2D drawing -> sketch done:** auto3d/modeler/sketchclean.py from_drawing (POST /api/drawing/sketch; editor.js
+  drawingToCleanSketch, the old drawingToSketch as the offline fallback): ends within tol welded (_Nodes: union-find on
+  a grid; tol = max(0.01, 1e-4 · size) ≤ 0.1 mm), pieces shorter than tol absorbed, chains through two-piece nodes
+  (_chains): collinear lines -> one, arcs on one circle -> one (a full turn: a circle), a polyline -> lines / arcs
+  (greedy _segment, the arc's centre on its ends' bisector so both ends are on it) and runs of ≥ 3 smooth ones -> one
+  spline when that is fewer points; a `smooth` poly (read_drawing marks SPLINE / ELLIPSE) -> one line, arc or spline
+  (fit_spline: a natural cubic over the chord, as splinePts, points added where it strays > tol both ways); a closed
+  polyline -> a circle or starts at its sharpest corner. tan relations line–arc only in sketches of ≤ 60 shapes (in the
+  gear they made each solve 7× slower). Finger.dxf: 702 shapes / 827 points -> 231 / 378, area 7186.81 -> 7186.75
+  (the old conversion's ends missed by a hair: its area 185 — nothing closed). Kernel: a closed spline going clockwise
+  is reversed in _mixed_wire (holes are put in reversed: a CW one gave 1335 for 1178); kernel.volume integrates a
+  solid with a B-spline edge of > 8 knots span by span (VolumePropertiesGK, IsUseSpan) — a plane bounded by one
+  770-span curve was 8 % off with the adaptive rule (CTC-02's reference: 47106859.125, as GK without spans at 1e-9).
+  tests/test_sketch_clean.py; tools/e2e_sketch_merge.py (part 1).
+
 - **Autosave waits longer on a busy machine done:** autosave._write / _read retry a Windows sharing violation
   (WinError 5 / 32) for up to ~8 s with a growing pause (_pause), not ~2 s / ~1 s — under the full test run with the
   kernel pool busy, test_same_project_saved_at_once once failed with "Access is denied".

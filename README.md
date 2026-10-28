@@ -467,6 +467,10 @@ layers, in their colours, in real mm.
 - **Use ▾** asks, when shapes are selected or a filter finds some, whether it takes the selection, the filter's
   shapes or all the shown layers — then makes something of them: **✏ As a sketch of a new 3D model** (lines, circles and arcs, their
   ends joined — then ⬆ Extrude), or **▤ As a quick part** (its closed outlines: a cutter, a solid shape …).
+  The sketch comes **cleaned up**: ends that nearly meet become one point (so the outlines close and extrude), an
+  exporter's tiny crumbs are absorbed, lines in line become one line, arcs on one circle one arc (or a circle), and a
+  smooth curve of the file (a SPLINE, flattened into many points) one arc or one spline again — the toast says how
+  much (Finger.dxf: 702 → 231 shapes, the same area).
 
 ## PCB boards (Gerber, ODB++)
 

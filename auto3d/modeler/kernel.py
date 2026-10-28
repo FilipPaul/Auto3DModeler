@@ -195,6 +195,10 @@ def _mixed_wire(fr, ring, owners, arcs, splines=None):
             while j + 1 < n and owners[order[j + 1]] == o:
                 j += 1
             edge = _spline_edge(fr, splines[o], ring[order[i]], ring[(order[j] + 1) % n])
+            if i == 0 and j == n - 1:  # one closed curve all round: counter-clockwise, as the ring (holes are put in reversed)
+                q = spline_points(splines[o], 4)
+                if sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(q, q[1:] + q[:1])) < 0:
+                    edge = TopoDS.Edge(edge.Reversed())
             i = j + 1
         elif o in arcs:
             j = i
@@ -1391,11 +1395,27 @@ def volume(shape):
         other = BRep_Tool.Surface_s(f) is not None and BRepAdaptor_Surface(f, False).GetType() not in _QUICK
         ex.Next()
     p = GProp_GProps()
-    if other:  # (the whole solid so: its planes, trimmed by the other faces' curved edges, need it as well)
+    if other and _long_spline(whole):  # Gauss-Kronrod over each B-spline span: a plane bounded by one long smooth
+        # curve (a joined sketch curve: hundreds of spans, one interval of continuity) was 8 % off with the adaptive rule
+        BRepGProp.VolumePropertiesGK_s(whole, p, 1e-6, False, True)
+    elif other:  # (the whole solid so: its planes, trimmed by the other faces' curved edges, need it as well)
         BRepGProp.VolumeProperties_s(whole, p, 1e-7, False)
     else:
         BRepGProp.VolumeProperties_s(whole, p)
     return p.Mass()
+
+
+LONG_SPLINE = 8  # knots: a B-spline edge with more is integrated span by span (volume)
+
+
+def _long_spline(shape):
+    """Has the shape an edge that is a B-spline of more than LONG_SPLINE knots (a sketch's smooth curve)?"""
+    from OCP.GeomAbs import GeomAbs_BSplineCurve
+    for e in _subshapes(shape, TopAbs_EDGE):
+        c = BRepAdaptor_Curve(TopoDS.Edge(e))
+        if c.GetType() == GeomAbs_BSplineCurve and c.NbKnots() > LONG_SPLINE:
+            return True
+    return False
 
 
 def _subshapes(shape, kind):
