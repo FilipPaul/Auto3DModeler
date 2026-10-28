@@ -153,7 +153,8 @@ def plan(solid: Solid, unit: str, printer: dict, margin_mm: float = 5.0, split: 
         return None
 
     result = {"printer": printer, "margin": margin_mm, "size_mm": size, "usable_mm": bed,
-              "fits": bool(fits(size[0], size[1])) and size[2] <= bed[2] + 1e-9, "pieces": [], "issues": issues}
+              "fits": bool(fits(size[0], size[1])) and size[2] <= bed[2] + 1e-9, "pieces": [], "issues": issues,
+              "z_range": (z0, z1)}
     if size[2] > bed[2] + 1e-9:
         issues.append({"severity": "error", "message": f"The part is {size[2]:.1f} mm tall (lying flat) but the "
                        f"{printer['name']} can only print {bed[2]:.0f} mm high."})
@@ -252,7 +253,8 @@ def plan(solid: Solid, unit: str, printer: dict, margin_mm: float = 5.0, split: 
         i, j = key
         result["pieces"].append({"index": n, "rect": [xs[i], ys[j], xs[i + 1], ys[j + 1]], "cell": [i, j],
                                  "size_mm": (w, h, size[2]), "orientation": fits(w, h) or "too big",
-                                 "flip": flip_all or flips.get(key, False), "solid": piece})
+                                 "flip": flip_all or flips.get(key, False), "solid": piece,
+                                 "cell_region": region, "voids": voids[key]})  # (for the exact pieces: printexact.py)
 
     # connector parts, grouped into identical printable parts
     groups = {}

@@ -38,6 +38,7 @@ from auto3d.meshpart import mesh_model, register, solve_mesh
 from auto3d.outline import add_objects, apply_shapes, detect_outlines, outline_from_mask, outline_model, preset_objects, solve_outline
 from auto3d.modeler import status as modeler_status
 from auto3d.modeler.worker import WORKER as MODEL_WORKER, KernelFailed, KernelUnavailable
+from auto3d import printexact
 from auto3d.printing import PrinterStore, assembly_text, bend_pieces, plan
 from auto3d.project import ProjectError, migrate as migrate_project
 from auto3d.sketch import build_model
@@ -451,10 +452,17 @@ def api_print_plan():
         result = _plan(body, solid, model, bender, final)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
+    # a part with an exact model (a 3D model part's printing copy, a STEP): the pieces cut from it, smooth
+    src = printexact.source(model, solution, bender) if body.get("split") else None
+    exact = printexact.cut(result, src, MODEL_WORKER) if src else None
     # the preview shows bent pieces / connectors in their assembled position
-    for p in result["pieces"]:
+    for k, p in enumerate(result["pieces"]):
         solid_p = p.pop("solid")
-        p["mesh"] = mesh_payload(p.pop("assembled", solid_p))
+        p.pop("cell_region", None)
+        p.pop("voids", None)
+        g = exact[k] if exact else None
+        p["mesh"] = printexact.mesh_payload(g) if g else mesh_payload(p.pop("assembled", solid_p))
+        p.pop("assembled", None)
     for g in result.get("connectors", []):
         for inst in g["instances"]:
             solid_i = inst.pop("solid")
@@ -796,15 +804,20 @@ def _export_bytes(body: dict, fmt: str):
     name = re.sub(r"[^A-Za-z0-9_-]+", "_", Path(model.get("source", "part")).stem).strip("_") or "part"
     writer = to_stl if fmt == "stl" else to_step
     mime = "model/stl" if fmt == "stl" else "model/step"
+    src = printexact.source(model, solution, bender)  # an exact model: the files from it (smooth curved walls)
 
     if body.get("split") and body.get("printer"):
         result = _plan(body, solid, model, bender, final)
         if not result["pieces"]:
             raise ValueError(" ".join(i["message"] for i in result["issues"]) or "Nothing to export.")
+        exact = printexact.cut(result, src, MODEL_WORKER, fmt) if src else None
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-            for p in result["pieces"]:
+            for k, p in enumerate(result["pieces"]):
                 pname = f"{name}_part{p['index']}"
+                if exact and exact[k]:
+                    z.writestr(f"{pname}.{fmt}", exact[k]["data"])
+                    continue
                 piece = p["solid"].flipped() if p["flip"] else p["solid"]
                 z.writestr(f"{pname}.{fmt}", writer(piece.at_origin(), model["unit"], pname))
             for k, g in enumerate(result.get("connectors", []), 1):
@@ -812,7 +825,8 @@ def _export_bytes(body: dict, fmt: str):
                 z.writestr(f"{cname}.{fmt}", writer(g["instances"][0]["solid"].at_origin(), model["unit"], cname))
             z.writestr("ASSEMBLY.txt", assembly_text(result, name))
         return buf.getvalue(), f"{name}_{fmt}_pieces.zip", "application/zip"
-    return writer(final, model["unit"], name), f"{name}.{fmt}", mime
+    whole = printexact.whole(src, MODEL_WORKER, fmt) if src else None
+    return whole or writer(final, model["unit"], name), f"{name}.{fmt}", mime
 
 
 # --------------------------------------------------------------------------- AI agent (MCP tools + chat)

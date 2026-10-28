@@ -1785,10 +1785,10 @@ const modeler = new Modeler({ left: $('modelLeft'), viewport: $('modelViewport')
     toast(t('Each piece is a part of its own now — the part you split keeps both.'), 'ok', 5000);
   },
   newSheet: () => { const p = project.current; if (p) project.newSheet(p.id, `${p.name} — ${t('drawing')}`); },
-  // a printing copy of a model part: its STL as a Quick part, on the 3D print tab
+  // a printing copy of a model part: its STEP as a Quick part, on the 3D print tab (split exactly: printexact.py)
   async toPrint(blob) {
-    const name = `${project.current?.name || safeName()} (print).stl`;
-    await openImport(new File([blob], name, { type: 'model/stl' }));
+    const name = `${project.current?.name || safeName()} (print).step`;
+    await openImport(new File([blob], name, { type: 'model/step' }));
     if (state.workspace === 'quick' && isMesh()) switchRTab('print');
   },
 });

@@ -318,6 +318,20 @@ Date: 2026-10-25. Written by the architect agent.
   (splitPlane: a face through the part cuts along itself, an outer one halfway to the farthest parallel face), ⧉ Make
   each piece its own part (hooks.newParts: two model parts, the steps up to the split, each keeping one side). AI
   add_feature {type: "split", plane, keep}; get_model's body `solids`. test_split; tools/e2e_model_split.py.
+- **Exact print split (R8) done:** 🖨 Prepare for 3D print opens the model's STEP (not an STL) as the quick part, so a
+  STEP quick part (no 3D objects added, no bends, the kernel installed: printexact.source) is split exactly. The
+  planner is unchanged (slices -> printing.plan: cut places, bed fit, joints.apply_joints); each piece also carries
+  its `cell_region` (a polygon, or hidden dovetails' z layers) and `voids` (pockets, glue channels / ports, recesses);
+  printexact.request turns them into rings (a pocket open to the slices' bottom / top: through the exact face) and
+  the worker's `print_pieces` (modeler/printsplit.py) cuts the STEP's solid, turned / scaled like the slices
+  (importers.orient), with them as B-rep prisms (kernel.prisms, kernel.boolean common / cut with lists, unified),
+  meshes each finely (kernel.print_triangles, 0.01 mm) or writes STEP (turned over when it prints back-face up, at the
+  origin). /api/print/plan: `exact` + per piece `exact` {faces, triangles, volume, tol}, its size / fit from the exact
+  box; /api/export: the zips' pieces (and the whole part) from the exact solid; a kernel failure -> the slab pieces
+  with a warning. Connectors stay slab prisms (exact already). Ø100 × 300 on a 200 bed: 2 pieces of 3 faces (the
+  slab pieces: ~4 900 faces, 18 000 triangles, vertices up to 0.25 mm off the cylinder; exact: 888 triangles, vertices
+  on it, chords within 0.0045 mm), volumes = π r² L to 1e-9. The print tab: a hint that the pieces are exact, each
+  piece tagged *exact*. test_print_exact; tools/e2e_print_split_model.py.
 - **Faces picked with no tool on, joints suggested done:** the assembly's idle click also picks a face / a round edge
   (facePicks: one, or Ctrl: one of each of two parts; lit by drawMarks); suggestFaces — one face: the joints it can
   start (then the other face), two: the joint types fitting both (JOINT_TYPES by face kind), made through clickJoint.
@@ -760,10 +774,10 @@ STL (today)            │ design layers, bends, joints, split, export (planar) 
 sketches (planegcs) ──►│ feature tree → OCP B-rep (worker process, cached)     │──► mesh + face/edge ids (viewer)
                        │ extrude, revolve, hole, fillet, shell, pattern …       │──► exact STEP / STL / 3MF
                        └──────────────────────────┬─────────────────────────────┘
-                                                  │ "print / split"
-                                                  ▼  (tessellate → importers.slice_mesh → Solid.from_slabs)
-                                         3D print tab: fit, split, joints (exact for prismatic parts;
-                                         curved walls become stairs; exact OCCT split comes later)
+                                                  │ "print / split" (the STEP as a quick part)
+                                                  ▼  (slices → printing.plan: where to cut, fit, joints)
+                                         3D print tab: fit, split, joints — the pieces cut from the exact
+                                         B-rep with the plan's cells / pockets as prisms (printexact.py)
 ```
 
 Two bridges reuse code that already exists:
@@ -926,7 +940,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 | STL / OBJ | **Mesh body**: shown, measured, used in assemblies and printing. Booleans only after "convert to solid" (OCCT sewing; allowed up to about 50k triangles, with a warning). | `importers.read_mesh` |
 | Design layers | Classic parts only. Later: the "Decorate face" feature on planar faces of model parts. | `design.layer_regions` |
 | Bends | Classic parts only. Model parts use real geometry (revolve, angled planes). | — |
-| 3D print (fit, split, joints) | Works on any part. Model parts: exact bounding box for the fit check; splitting converts B-rep → slabs (stairs warning for curved walls) and then reuses `printing.plan` and `joints` unchanged. Later: exact OCCT split, with joints built as B-rep prisms from the same shapely polygons. | `slice_mesh` + `Solid.from_slabs` |
+| 3D print (fit, split, joints) | Works on any part. Model parts (their STEP as a quick part): the slices plan the split with `printing.plan` and `joints` unchanged; the pieces are cut from the exact B-rep, the joints built as B-rep prisms from the same shapely polygons (done: `printexact.py`, `modeler/printsplit.py`). STL / OBJ parts, parts with 3D objects, no kernel: the slab pieces. | `slice_mesh` + `Solid.from_slabs`, `kernel.prisms` |
 | Print orientation | **New, needed for model parts**: "Place on bed: pick a face". The slab pipeline assumes Z up. | rotation feature applied at print time only |
 
 ### 4.2 Project file v3 (today's files are already `version: 2`, see app.js line 1585)
@@ -1303,7 +1317,7 @@ requirements-modeler.txt       cadquery-ocp-novtk==8.0.1.1.0, planegcs==0.9.6   
 | R5 | Sketch dragging feels slow over HTTP | Local Flask + planegcs: about 5–20 ms per solve. Throttle to one solve in flight (the same pattern as `pump()` in app.js). Later option: a vendored planegcs WASM build. |
 | R6 | planegcs bindings are young (0.9.x) | Adapter layer; our own unit tests for each constraint type; pinned version. |
 | R7 | app.js is already 1,879 lines | The new workspace lives in its own modules with its own state. app.js only gets: workspace switch hooks, "use in model" buttons, and the save / open of v3. |
-| R8 | Splitting model parts for print is approximate at first (stairs on curved walls) | Clear issue text; exact OCCT split in "later". Fit check is exact from the start. |
+| R8 | Splitting model parts for print is approximate at first (stairs on curved walls) | Done: the exact OCCT split (the slab plan's cells and joint pockets as B-rep prisms); the slab pieces stay the fallback (STL parts, no kernel, a kernel failure — with a warning). |
 
 ---
 
@@ -1321,7 +1335,7 @@ Sizes are for one developer with AI help. S ≈ 1 week, M ≈ 2 weeks, L ≈ 3 w
 | **M5 AI** | MCP tools (6.1), `find_refs`; new SYSTEM_PROMPT; `agent_plugin` skills; `get_guide` + MCP prompts + instructions; chat flags change (6.4) | `test_agent.py`: tool list / schemas, command flags, `get_guide` returns each skill. Extend `tools/e2e_agent.py`: drive the model tools through the real MCP process (no model needed): build the bracket from the skill example and compare the volume. One `tools/e2e_chat.py` run (uses the account, so run it sparingly). | M |
 | **M6 Inspect** | exact measure, section view (capped), materials and mass, Czech texts completed | volume / mass vs analytic; `tools/e2e_i18n.py` covers the model workspace with no English left. | S |
 | **M7 Assemblies (light)** | assembly document; insert; ground; coincident, concentric and distance mates; explode; BOM; assembly STEP; print all parts | `test_assembly.py`: pin in hole (concentric + coincident) gives the expected transform; over-constrained mates are reported; BOM counts. `tools/e2e_assembly.py`. | M |
-| **Later (M8+)** | loft, sweep, draft; decorate face (design layers on model faces); exact OCCT split with B-rep joints; 3MF with colours; overhang map; text and spline in sketches; feature reorder; angle / parallel mates; interference check | — | — |
+| **Later (M8+)** | loft, sweep, draft; decorate face (design layers on model faces); ~~exact OCCT split with B-rep joints~~ (done); 3MF with colours; overhang map; text and spline in sketches; feature reorder; angle / parallel mates; interference check | — | — |
 
 **Release order:** M0 → M1 → M2 → M3 is the first big demo: "a real part from sketches". M4 and M5 make it *this* app (pictures + AI). M6 and M7 round it off.
 

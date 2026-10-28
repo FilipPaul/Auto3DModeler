@@ -849,6 +849,75 @@ def split(body, o, n, fid, keep="both"):
     return Body(compound(shapes), names)
 
 
+# ------------------------------------------------------------------ printing: exact pieces (printsplit.py)
+def transformed(shape, m, shift=(0, 0, 0)):
+    """A copy of a shape mapped by x -> m x + shift: m a 3 x 3 rotation / mirror times a uniform scale (mm)."""
+    m, t = np.asarray(m, float), gp_Trsf()
+    t.SetValues(*m[0], float(shift[0]), *m[1], float(shift[1]), *m[2], float(shift[2]))
+    return BRepBuilderAPI_Transform(shape, t, True).Shape()
+
+
+def prisms(polys, z0, z1):
+    """Vertical prisms from z0 to z1 of polygons [[outer ring, hole ring …], …] on the XY plane (rings of (x, y) in mm,
+    the outer ones counter-clockwise, the holes clockwise, as shapely's orient gives them) -> [solid]."""
+    from OCP.gp import gp_Pln
+    out, pln = [], gp_Pln(gp_Pnt(0, 0, float(z0)), gp_Dir(0, 0, 1))
+    for rings in polys:
+        mk = None
+        for ring in rings:
+            poly = BRepBuilderAPI_MakePolygon()
+            for x, y in ring:
+                poly.Add(gp_Pnt(float(x), float(y), float(z0)))
+            poly.Close()
+            if not poly.IsDone():
+                continue
+            if mk is None:
+                mk = BRepBuilderAPI_MakeFace(pln, poly.Wire(), True)
+            else:
+                mk.Add(poly.Wire())
+        if mk is not None and mk.IsDone():
+            out.append(BRepPrimAPI_MakePrism(mk.Face(), gp_Vec(0, 0, float(z1 - z0)), True).Shape())
+    return out
+
+
+def boolean(op, objects, tools):
+    """objects ∩ / − / ∪ tools ("common", "cut", "fuse") — each a list of shapes, the tools may overlap each other."""
+    mk = {"common": BRepAlgoAPI_Common, "cut": BRepAlgoAPI_Cut, "fuse": BRepAlgoAPI_Fuse}[op]()
+    a, b = _C.List_TopoDS_Shape(), _C.List_TopoDS_Shape()
+    for s in objects:
+        a.Append(s)
+    for s in tools:
+        b.Append(s)
+    mk.SetArguments(a)
+    mk.SetTools(b)
+    mk.Build()
+    if not mk.IsDone():
+        raise KernelError("The part could not be cut into pieces here.")
+    return mk.Shape()
+
+
+def unified(shape):
+    """Faces of one plane / cylinder side by side merged into one (a cut leaves no seams on a wall)."""
+    return _unify(Body(shape)).shape
+
+
+def turned_over(shape):
+    """Turned upside down: 180° about the x axis (a piece whose pockets must open upwards)."""
+    t = gp_Trsf()
+    t.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(1, 0, 0)), math.pi)
+    return BRepBuilderAPI_Transform(shape, t, True).Shape()
+
+
+def print_triangles(shape, tol=0.01, angle=0.2):
+    """Fine triangles (n, 3, 3) of a shape for printing: no chord further than tol (mm) from the true surface."""
+    from OCP.BRepTools import BRepTools
+    BRepTools.Clean_s(shape)
+    BRepMesh_IncrementalMesh(shape, float(tol), False, float(angle), True)
+    fm = _face_map(shape)
+    tris = [_face_triangles(TopoDS.Face(fm.FindKey(i))) for i in range(1, fm.Extent() + 1)]
+    return np.concatenate(tris) if tris else np.zeros((0, 3, 3))
+
+
 def combine(body, tool, op):
     """body ∪ tool or body − tool, names of both carried over."""
     if body is None:
@@ -1138,19 +1207,8 @@ def tessellate(body, light=False):
     nf, mesh = fm.Extent(), []
     for fi in range(nf):
         f = TopoDS.Face(fm.FindKey(fi + 1))
-        loc = TopLoc_Location()
-        tri = BRep_Tool.Triangulation_s(f, loc)
         rev = f.Orientation() == TopAbs_REVERSED
-        t = np.zeros((0, 3, 3))
-        if tri is not None and tri.NbTriangles():
-            if loc.IsIdentity():
-                nodes = np.array([tri.Node(i).Coord() for i in range(1, tri.NbNodes() + 1)], float)
-            else:
-                tr = loc.Transformation()
-                nodes = np.array([tri.Node(i).Transformed(tr).Coord() for i in range(1, tri.NbNodes() + 1)], float)
-            k = np.array([tri.Triangle(i).Get() for i in range(1, tri.NbTriangles() + 1)], np.int64) - 1
-            t = nodes[k[:, [0, 2, 1]] if rev else k]
-        mesh.append((f, rev, t))
+        mesh.append((f, rev, _face_triangles(f)))
     tris = np.concatenate([t for _, _, t in mesh]) if nf else np.zeros((0, 3, 3))
     ids = np.repeat(np.arange(nf), [len(t) for _, _, t in mesh])
     if heavy:  # the faces' areas and middles from their triangles (the exact ones take long on 100 000 faces)
@@ -1205,6 +1263,21 @@ def tessellate(body, light=False):
                       "mid": _round(_edge_mid(e), 5)})
     return {"positions": tris.astype(np.float32).tobytes(), "face_ids": ids.astype(np.uint32).tobytes(),
             "faces": faces, "edges": edges, "bbox": bb, "volume": volume(shape), "solids": solids(shape), **({"light": True} if light else {})}
+
+
+def _face_triangles(f):
+    """The triangles (n, 3, 3) of a meshed face, wound outward."""
+    loc = TopLoc_Location()
+    tri = BRep_Tool.Triangulation_s(f, loc)
+    if tri is None or not tri.NbTriangles():
+        return np.zeros((0, 3, 3))
+    if loc.IsIdentity():
+        nodes = np.array([tri.Node(i).Coord() for i in range(1, tri.NbNodes() + 1)], float)
+    else:
+        tr = loc.Transformation()
+        nodes = np.array([tri.Node(i).Transformed(tr).Coord() for i in range(1, tri.NbNodes() + 1)], float)
+    k = np.array([tri.Triangle(i).Get() for i in range(1, tri.NbTriangles() + 1)], np.int64) - 1
+    return nodes[k[:, [0, 2, 1]] if f.Orientation() == TopAbs_REVERSED else k]
 
 
 def _outward(shape, info, point, size):
@@ -1665,8 +1738,8 @@ def read_step_colours(data: bytes):
 
 
 def to_stl(tess) -> bytes:
-    """Binary STL from tessellate() output."""
-    tri = np.frombuffer(tess["positions"], np.float32).reshape(-1, 3, 3)
+    """Binary STL from tessellate() output (or from triangles (n, 3, 3))."""
+    tri = np.asarray(tess, np.float32) if isinstance(tess, np.ndarray) else np.frombuffer(tess["positions"], np.float32).reshape(-1, 3, 3)
     n = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
     ln = np.linalg.norm(n, axis=1, keepdims=True)
     n = np.divide(n, ln, out=np.zeros_like(n), where=ln > 0)

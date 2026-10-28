@@ -9,7 +9,8 @@ description: Use before exporting or when the user wants to 3D print the part �
    (Make it again after changing the model.) A quick part is ready as it is.
 2. `check_print` (optionally `printer: "<id>"` from the result's list) — does it fit, how many pieces.
 3. Too big: `check_print {split: true}`; the user picks a joint in the 3D print tab (dovetail, puzzle,
-   butterfly keys, dowels, splice plate, or glue).
+   butterfly keys, dowels, splice plate, or glue). A model's printing copy is split exactly (smooth curved walls,
+   the result says "Exact split").
 4. Printability rules to mention when they matter: walls ≥ 2 perimeters (≈ 0.8–1.2 mm), holes +0.2 mm,
    overhangs ≤ 45°, bridges ≤ 10 mm, embossed details ≥ 0.4 mm, text strokes ≥ 0.6 mm. A part lies on the bed
    on its largest flat face.
