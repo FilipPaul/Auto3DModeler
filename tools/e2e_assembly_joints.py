@@ -151,6 +151,11 @@ try:
     # turning: the plate, by the slider (it catches at 90°) and by a typed angle
     js(f"{A}.sel = 'I1'; {A}.render()")
     time.sleep(0.3)
+    was_fixed = js(f"return !!{A}.inst('I1').fixed")  # (the first part placed is 📌 fixed: freed to turn it)
+    if was_fixed:
+        d.find_element(By.CSS_SELECTOR, "#asmRight [data-a=fix]").click()
+        time.sleep(0.4)
+    print("plate fixed:", was_fixed, "-> after 📌", js(f"return !!{A}.inst('I1').fixed"))
     sl = d.find_element(By.CSS_SELECTOR, "#asmRight input[data-rot=z]")
     js("arguments[0].value = 88; arguments[0].dispatchEvent(new Event('input')); arguments[0].dispatchEvent(new Event('change'))", sl)
     time.sleep(0.6)
