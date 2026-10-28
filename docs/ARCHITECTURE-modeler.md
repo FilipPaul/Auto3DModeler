@@ -89,6 +89,10 @@ Date: 2026-10-25. Written by the architect agent.
   drawn on white); set_view section "off" / "none" takes the cut off; gui_state lists the 3D model's steps (kind step,
   name, what, [id]) and a choice's text with its value; the 3D Snap row hidden while a feature is made.
   tools/e2e_ai_reports.py.
+- **Tools coloured by group done:** web/js/toolgroups.js (toolGroup(action) -> g-make / g-modify / g-copy / g-detail /
+  g-define / g-inspect), used by the sketch's, the 3D model's and the assembly's bars; each group's buttons side by
+  side (make blue, modify amber, copy purple, details teal, define / join green, look and check grey).
+  tools/e2e_tool_groups.py.
 - **Faces picked with no tool on, joints suggested done:** the assembly's idle click also picks a face / a round edge
   (facePicks: one, or Ctrl: one of each of two parts; lit by drawMarks); suggestFaces — one face: the joints it can
   start (then the other face), two: the joint types fitting both (JOINT_TYPES by face kind), made through clickJoint.

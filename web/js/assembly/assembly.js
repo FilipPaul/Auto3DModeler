@@ -15,6 +15,7 @@
 import * as THREE from 'three';
 import { History } from '../history.js';
 import { t } from '../i18n.js';
+import { toolGroup } from '../toolgroups.js';
 import { renameInPlace } from '../rename.js';
 import { paintedFaces, repaint } from '../modeler/paint.js';
 import { sectionBar, sectionMiddle } from '../modeler/sectionbar.js';
@@ -395,7 +396,7 @@ export class Assembly {
 
   renderBar() {
     const bar = this.$('.m-cmdbar');
-    const btn = (a, label, title, cls = '') => `<button class="chip ${cls}" data-a="${a}" title="${esc(title)}">${label}</button>`;
+    const btn = (a, label, title, cls = '') => `<button class="chip ${cls} ${toolGroup(a)}" data-a="${a}" title="${esc(title)}">${label}</button>`;
     const parts = this.modelParts();
     bar.innerHTML = `
       <div class="menu as-insert">${btn('insert', '＋ Insert part ▾', parts.length ? 'Add a part of this project: a 3D model ◆, a quick part ▤ (drawing, picture, import) or another assembly ◇ (as one unit)' : 'Make a part first (＋ New 3D model, or open a drawing / picture)', 'tool')}

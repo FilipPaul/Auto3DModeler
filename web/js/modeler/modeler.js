@@ -5,6 +5,7 @@
 // The server's CAD kernel builds the body (/api/model/rebuild); this module edits the part JSON.
 import { History } from '../history.js';
 import { t } from '../i18n.js';
+import { toolGroup } from '../toolgroups.js';
 import { renameInPlace } from '../rename.js';
 import { choose } from '../choose.js';
 import { paintedFaces, repaint } from './paint.js';
@@ -117,7 +118,7 @@ export class Modeler {
 
   renderCmdBar() {
     const bar = this.$('.m-cmdbar');
-    const btn = (a, label, title, cls = '') => `<button class="chip ${cls}" data-a="${a}" title="${esc(title)}">${label}</button>`;
+    const btn = (a, label, title, cls = '') => `<button class="chip ${cls} ${toolGroup(a)}" data-a="${a}" title="${esc(title)}">${label}</button>`;
     if (this.mode === 'sketch') {
       const t = this.sk.tool;
       // a new, empty sketch on a base plane can still move to another base plane
@@ -132,13 +133,13 @@ export class Modeler {
         ${btn('circle', '◯ Circle', 'Draw a circle: click the centre, then the edge (C)', t === 'circle' ? 'on' : '')}
         ${btn('spline', '〰 Spline', 'Draw a smooth curve: click the points it goes through — double-click or Enter to finish; its first point closes it, a line end joins it (S)', t === 'spline' ? 'on' : '')}
         ${btn('arc', '◠ Arc', 'Draw an arc: click where it starts and ends, then bend it with the mouse and click (A)', t === 'arc' ? 'on' : '')}
+        ${this.hooks.pickOutline ? btn('outline', '🖼 Outline', 'Insert an outline from a picture, a DXF / DWG drawing or a PDF drawing (as one shape you can move and size)') : ''}
         ${btn('round', '◜ Round corner', 'Round a corner of lines: click the corner, type the radius (F)', t === 'round' ? 'on' : '')}
-        ${btn('mirror', '⇋ Mirror', 'Mirror shapes across a line or the X / Y axis — a copy that stays the mirror image, or moved', t === 'mirror' ? 'on' : '')}
-        ${btn('offset', '⧈ Offset', 'A parallel copy of a closed shape, a distance outside or inside it (O)', t === 'offset' ? 'on' : '')}
-        ${btn('construction', '┄ Construction', 'Construction (helper) lines and circles: the selected shape becomes one (or back) — nothing selected: new shapes are drawn as construction while it is on. They guide (a revolve axis, a mirror line, dimensions) but are not part of the outline', this.sk.consMode ? 'on' : '')}
         ${btn('trim', '✂ Trim', 'Cut away a piece of a line, circle or arc — up to where other shapes cross it (T)', t === 'trim' ? 'on' : '')}
         ${btn('extend', '⟷ Extend', 'Lengthen a line up to the next shape it meets: click near its end (E)', t === 'extend' ? 'on' : '')}
-        ${this.hooks.pickOutline ? btn('outline', '🖼 Outline', 'Insert an outline from a picture, a DXF / DWG drawing or a PDF drawing (as one shape you can move and size)') : ''}
+        ${btn('construction', '┄ Construction', 'Construction (helper) lines and circles: the selected shape becomes one (or back) — nothing selected: new shapes are drawn as construction while it is on. They guide (a revolve axis, a mirror line, dimensions) but are not part of the outline', this.sk.consMode ? 'on' : '')}
+        ${btn('mirror', '⇋ Mirror', 'Mirror shapes across a line or the X / Y axis — a copy that stays the mirror image, or moved', t === 'mirror' ? 'on' : '')}
+        ${btn('offset', '⧈ Offset', 'A parallel copy of a closed shape, a distance outside or inside it (O)', t === 'offset' ? 'on' : '')}
         <div class="menu sk-relmenu">${btn('relate', `⟂ Relations ▾`, 'Make shapes keep a relation: horizontal, vertical, parallel, perpendicular, equal, concentric, coincident, tangent, fixed', t === 'relate' ? 'on' : '')}
           <div class="menu-list">${Object.entries(RELATIONS).filter(([, r]) => !r.tool).map(([k, r]) => `<button data-rel="${k}" title="${esc(r.hint || '')}">${r.icon} ${esc(r.name)}</button>`).join('')}</div></div>
         ${btn('dim', '↔ Dimension', 'Add a distance: click two points, circles, lines or edges of the part, then type the value (D)', t === 'dim' ? 'on' : '')}
@@ -161,14 +162,14 @@ export class Modeler {
         ${btn('revolve', '⟳ Revolve', canExtrude ? 'Spin a sketch around an axis (vases, knobs, wheels)' : 'Draw a sketch first', 'tool')}
         ${btn('loft', '⧫ Loft', 'A shape from one outline to another (e.g. a square base to a round top): two sketches, one above the other', 'tool')}
         ${btn('sweep', '〰 Sweep', 'Move an outline along a path (pipes, handles, rails): a profile sketch and a path sketch', 'tool')}
+        ${btn('solidFile', '▣ Solid from a file', 'Add a STEP / STL / OBJ solid: joined to the part, cut out of it (a cavity it fits in), or as a see-through reference to build around', 'tool')}
         ${btn('fillet', '◜ Fillet', 'Round edges: click the edges, give the radius (F)', 'tool')}
         ${btn('chamfer', '◸ Chamfer', 'Bevel edges: click the edges, give the size', 'tool')}
-        ${btn('hole', '◎ Hole', 'Drill holes: click on a flat face where they go, give the diameter (H)', 'tool')}
         ${btn('shell', '▢ Shell', 'Hollow the part out: click the face(s) to leave open, give the wall thickness', 'tool')}
-        ${btn('decal', 'Aa Text / picture', 'Decorate a flat face: text or a picture outline, raised or engraved', 'tool')}
-        ${btn('solidFile', '▣ Solid from a file', 'Add a STEP / STL / OBJ solid: joined to the part, cut out of it (a cavity it fits in), or as a see-through reference to build around', 'tool')}
-        ${btn('mirror', '⇋ Mirror', 'Mirror the part (or one step) across a base plane or a flat face — as a copy, or moved', 'tool')}
         ${btn('draft', '⟋ Draft', 'Tilt the side walls of an extrude by a few degrees (so a moulded or cast part comes out of its mould)', 'tool')}
+        ${btn('hole', '◎ Hole', 'Drill holes: click on a flat face where they go, give the diameter (H)', 'tool')}
+        ${btn('decal', 'Aa Text / picture', 'Decorate a flat face: text or a picture outline, raised or engraved', 'tool')}
+        ${btn('mirror', '⇋ Mirror', 'Mirror the part (or one step) across a base plane or a flat face — as a copy, or moved', 'tool')}
         ${btn('pattern', '⁂ Pattern', 'Repeat a step (holes, a boss, a cut) in a row or around a circle: give how many and how far apart', 'tool')}
         <span class="sep"></span>
         <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
