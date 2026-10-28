@@ -877,7 +877,7 @@ const CS = {
   'Radius or diameter': 'Poloměr nebo průměr', 'Show it as a diameter': 'Ukázat jako průměr', 'Show it as a radius': 'Ukázat jako poloměr',
   Midpoints: 'Středy úseček', Lines: 'Úsečky', 'Circles / arcs': 'Kružnice / oblouky', 'Part edges': 'Hrany dílu', Points: 'Body',
   // the sketch's Snap / Select filter row
-  Select: 'Výběr', 'On shapes': 'Na tvarech', Guides: 'Vodítka',
+  Select: 'Výběr', 'On shapes': 'Na tvarech', // (Guides: with the 3D row's)
   'Where a point you draw lands — hold Alt for no snapping at all': 'Kam padne kreslený bod — se stisknutým Alt se nepřichytí nikam',
   'What a click takes in ⬚ Select, ↔ Dimension and ⟂ Relations': 'Co klik vezme v ⬚ Výběru, ↔ Kótě a ⟂ Vazbách',
   "Snap to the sketch's points: line ends, corners (a new line joins them). Click to switch": 'Přichytit k bodům náčrtu: koncům úseček, rohům (nová úsečka se k nim připojí). Kliknutím přepnete',
