@@ -75,6 +75,9 @@ define / join (green), look and check (grey).
 **⊂⊃ Slot** (sketch): click the centres of its two round ends, move out to its width and click — two straight
 sides and two half circles that stay a slot (sides tangent, ends equal) when you size it.
 
+**Exploded assembly drawings**: on an assembly's sheet tick *Iso view exploded* — the iso view shows the parts pulled
+apart (a sub-assembly moves as one), with the balloons on them; the front and top views stay assembled.
+
 **Angles on the drawing**: with ＋ Dimension, click two edges that meet at an angle (a slanted edge and the one it
 meets): an angle dimension, an arc round their corner — drag it closer or farther.
 

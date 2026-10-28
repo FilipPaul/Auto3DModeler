@@ -924,8 +924,34 @@ def sheet(part, preset="medium", paper=None, per_view=None):
     return S.build(st.body, preset, fits, paper, per_view, _threads(part))
 
 
-def assembly_sheet(instances, paper=None):
-    """An assembly's drawing sheet: instances as for assembly_clashes (placed) -> sheet.build_assembly."""
+def _exploded(placed, k):
+    """The placed parts pulled apart for an exploded view: each top-level part (a sub-assembly's parts together, ids
+    "I2/I1") moved away from the middle of all by 1.2 × k × its distance (one right at the middle: up)."""
+    groups = {}
+    for key, s in placed:
+        bb = K.bbox(s)
+        if bb:
+            g = groups.setdefault(str(key).split("/")[0], [np.inf] * 3 + [-np.inf] * 3)
+            groups[str(key).split("/")[0]] = [*np.minimum(g[:3], bb[:3]), *np.maximum(g[3:], bb[3:])]
+    if len(groups) < 2:
+        return None
+    centre = {g: (np.asarray(b[:3]) + np.asarray(b[3:])) / 2 for g, b in groups.items()}
+    mid = np.mean(list(centre.values()), axis=0)
+    size = max(float(np.linalg.norm(np.asarray(b[3:]) - np.asarray(b[:3]))) for b in groups.values())
+    out = []
+    for key, s in placed:
+        c = centre.get(str(key).split("/")[0])
+        if c is None:
+            continue
+        v = c - mid
+        v = v * 1.2 * k if np.linalg.norm(v) > 1e-6 * (1 + size) else np.array([0, 0, max(size, 10) * 0.5 * k])
+        out.append((key, K.placed(s, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, float(v[0]), float(v[1]), float(v[2]), 1])))
+    return out
+
+
+def assembly_sheet(instances, paper=None, explode=0):
+    """An assembly's drawing sheet: instances as for assembly_clashes (placed) -> sheet.build_assembly. explode
+    (0 … 1): its iso view drawn with the parts pulled apart."""
     from . import sheet as S
     placed = []
     for inst in instances or []:
@@ -934,7 +960,7 @@ def assembly_sheet(instances, paper=None):
         except K.KernelError:
             continue
         placed.append((inst.get("id"), K.placed(st.body.shape, inst.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])))
-    return S.build_assembly(placed, paper)
+    return S.build_assembly(placed, paper, _exploded(placed, float(explode)) if explode else None)
 
 
 def assembly_clashes(instances, quick=False):

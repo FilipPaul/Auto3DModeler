@@ -688,7 +688,7 @@ def api_sheet_build():
 def api_sheet_assembly():
     """{instances (placed, as for clashes), paper} -> {geometry, layout, dims, marks} — an assembly's drawing sheet."""
     body = request.get_json(force=True)
-    data, err = _model_call("assembly_sheet", {"instances": body.get("instances") or [], "paper": body.get("paper")})
+    data, err = _model_call("assembly_sheet", {"instances": body.get("instances") or [], "paper": body.get("paper"), "explode": body.get("explode") or 0})
     if err:
         return err
     return jsonify(data)

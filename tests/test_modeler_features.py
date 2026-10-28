@@ -665,6 +665,20 @@ class TestAssemblySheet(unittest.TestCase):
         self.assertEqual(len(r["dims"]), 3)  # its overall sizes
         self.assertIn("Iso", r["marks"]["I1"])
 
+    def test_assembly_sheet_exploded(self):
+        """explode 1: the iso view drawn with the two stacked blocks pulled apart (its outline taller, the marks apart
+        in it), the front view as assembled."""
+        part = {"features": box(20, 20, 10)}
+        at = lambda x, y=0, z=0: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1]  # noqa: E731
+        inst = [{"id": "I1", "part": part, "matrix": at(0)}, {"id": "I2", "part": part, "matrix": at(0, 0, 10)}]
+        r0, r1 = doc.assembly_sheet(inst), doc.assembly_sheet(inst, explode=1)
+        self.assertEqual(r1["geometry"]["views"]["Front"]["box"], r0["geometry"]["views"]["Front"]["box"])
+        tall = lambda r: (lambda ys: max(ys) - min(ys))([p[1] for pl in r["geometry"]["iso"] for p in pl])  # noqa: E731
+        self.assertGreater(tall(r1), tall(r0) + 5)  # (12 more along z: 2 × 1.2 × 5, foreshortened in the iso)
+        gap = lambda r: abs(r["marks"]["I2"]["Iso"][1] - r["marks"]["I1"]["Iso"][1])  # noqa: E731
+        self.assertGreater(gap(r1), gap(r0) + 5)
+        self.assertEqual(r1["marks"]["I2"]["Front"], r0["marks"]["I2"]["Front"])
+
     def test_drawing_set_pdf(self):
         import fitz
         from auto3d.modeler import sheet

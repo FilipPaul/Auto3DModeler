@@ -292,13 +292,18 @@ class _Placed:
         self.shape, self.names = shape, {}
 
 
-def build_assembly(placed, paper=None):
+def build_assembly(placed, paper=None, iso_placed=None):
     """An assembly's sheet: placed [(id, shape placed)] -> {geometry, layout, dims (its overall sizes), marks: {id:
-    {Front, Top, Right, Iso: [x, y]} (the middle of each placed part, for its balloon)}}."""
+    {Front, Top, Right, Iso: [x, y]} (the middle of each placed part, for its balloon)}}. iso_placed: the same parts
+    pulled apart — the iso view drawn exploded (the other views as assembled)."""
     shapes = [s for _, s in placed]
     if not shapes:
         raise K.KernelError("The assembly has no solids to draw.")
     geo = geometry(_Placed(K.compound(shapes)))
+    if iso_placed:
+        from .drawing import _iso
+        geo["iso"] = [[[_r(x, 3), _r(y, 3)] for x, y in pl] for pl in _iso(K.compound([s for _, s in iso_placed]))]
+    iso_at = dict(iso_placed or [])
     dims = [d for d in auto_dims(geo, "light") if d["kind"] == "linear" and d["a"].startswith("box#")]
     marks = {}
     for key, s in placed:
@@ -307,6 +312,9 @@ def build_assembly(placed, paper=None):
             continue
         c = np.array([(bb[0] + bb[3]) / 2, (bb[1] + bb[4]) / 2, (bb[2] + bb[5]) / 2])
         m = {v: [_r(c @ np.asarray(R, float)), _r(c @ np.asarray(U, float))] for v, (_, R, U) in VIEWS.items()}
+        if key in iso_at:  # (exploded: where it is drawn in the iso view)
+            ib = K.bbox(iso_at[key])
+            c = np.array([(ib[0] + ib[3]) / 2, (ib[1] + ib[4]) / 2, (ib[2] + ib[5]) / 2]) if ib else c
         m["Iso"] = [_r(c @ np.asarray(ISO_VIEW[1], float)), _r(c @ np.asarray(ISO_VIEW[2], float))]
         marks[key] = m
     return {"geometry": geo, "layout": layout(geo, paper), "dims": dims, "marks": marks}

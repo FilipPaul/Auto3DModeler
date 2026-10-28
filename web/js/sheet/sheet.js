@@ -49,8 +49,8 @@ export class SheetEditor {
     this.pick = null;    // the first point of a new dimension {view, key}
     this.zoom = { k: 1, x: 0, y: 0 };
     this.history = new History({
-      capture: () => ({ balloons: this.d?.balloons, views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper, texts: this.d?.texts }),
-      restore: (s) => { Object.assign(this.d, structuredClone(s)); if (this.d.built?.preset !== this.d.preset || this.d.built?.vp !== JSON.stringify(this.d.vpreset || {})) this.ensure(true); else this.render(); },
+      capture: () => ({ balloons: this.d?.balloons, views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper, texts: this.d?.texts, exploded: !!this.d?.exploded }),
+      restore: (s) => { const ex = !!this.d.exploded; Object.assign(this.d, structuredClone(s)); if (!this.d.exploded) delete this.d.exploded; if (ex !== !!this.d.exploded || this.d.built?.preset !== this.d.preset || this.d.built?.vp !== JSON.stringify(this.d.vpreset || {})) this.ensure(true); else this.render(); },
       onChange: () => this.renderBar(),
     });
     this.build();
@@ -115,7 +115,7 @@ export class SheetEditor {
     try {
       let r;
       if (asm) { // an assembly: its views, overall sizes, parts list and balloons
-        const pg = await this.assemblyPage(this.d.source, this.hooks.drawingCtx());
+        const pg = await this.assemblyPage(this.d.source, this.hooks.drawingCtx(), this.d.exploded ? 2 : 0);
         r = pg.built;
         this.d.asm = { rows: pg.rows };
         if (!this.d.asmLaid) { this.d.off = { ...this.d.off, Right: true }; this.d.views = { ...this.d.views, Iso: r.layout.views.Right }; this.d.asmLaid = true; }
@@ -422,7 +422,7 @@ export class SheetEditor {
     return nums;
   }
 
-  async assemblyPage(aid, ctx) {
+  async assemblyPage(aid, ctx, explode = 0) {
     const flatten = (id, M = ID4, pre = '') => (this.hooks.partData(id)?.instances || []).flatMap((it) => {
       const W = mul4(M, it.matrix || ID4), key = pre ? `${pre}/${it.id}` : it.id;
       if (ctx.kindOf(it.part) === 'assembly') return flatten(it.part, W, key);
@@ -430,7 +430,7 @@ export class SheetEditor {
     });
     const insts = this.hooks.partData(aid)?.instances || [];
     if (!insts.length) throw new Error(t('The assembly has no parts to draw.'));
-    const r = await post('/api/sheet/assembly', { instances: flatten(aid) });
+    const r = await post('/api/sheet/assembly', { instances: flatten(aid), explode }); // (explode: the iso view pulled apart)
     const groups = new Map();
     for (const it of insts) { if (!groups.has(it.part)) groups.set(it.part, []); groups.get(it.part).push(it.id); }
     const nums = this.itemNumbers(this.rootOf(aid) || aid); // (the set's numbers: the same part, the same number)
@@ -447,7 +447,8 @@ export class SheetEditor {
     const pages = [], drawn = new Set([rootId]), name = (id) => this.hooks.partName(id) || id, now = new Date().toISOString();
     const visit = async (aid, parent) => {
       if (!(this.hooks.partData(aid)?.instances || []).length) return;
-      const { built, rows } = await this.cached(`a|${aid}|${this.sourceHash(aid)}|${[...this.itemNumbers(this.rootOf(aid) || aid)].join()}`, () => this.assemblyPage(aid, ctx)), own = ctx.sheetOf(aid); // its own sheet: the user's moves, dimensions, texts
+      const ex = ctx.sheetOf(aid)?.exploded ? 2 : 0; // (its own sheet's iso view exploded)
+      const { built, rows } = await this.cached(`a|${aid}|${this.sourceHash(aid)}|${ex}|${[...this.itemNumbers(this.rootOf(aid) || aid)].join()}`, () => this.assemblyPage(aid, ctx, ex)), own = ctx.sheetOf(aid); // its own sheet: the user's moves, dimensions, texts
       const base = own ? structuredClone(own) : { created: now, changed: now, off: { Right: true }, views: { Iso: built.layout.views.Right } };
       pages.push({ name: name(aid), d: { ...base, source: aid, built, asm: { rows },
         title: { kind: parent ? t('Sub-assembly') : t('Assembly'), part: name(aid), material: '—', of: parent || '' } } });
@@ -613,6 +614,7 @@ export class SheetEditor {
       <p class="hint">${esc(tv('Of {part} — it follows the part: change the part, the drawing is made again (a new revision).', { part: name || '?' }))}</p>
       <div class="mp-facts"><span>Rev</span><b data-no-i18n>${this.d.rev}</b><span>${esc(t('Changed'))}</span><b data-no-i18n>${esc(when(this.d.changed))}</b><span>${esc(t('Created'))}</span><b data-no-i18n>${esc(when(this.d.created))}</b></div>
       ${d ? '' : `<h3>${esc(t('Title block'))}</h3>${TEXTS.map(([k, l]) => `<div class="field"><label>${esc(t(l))}</label><input type="text" data-text="${k}" value="${esc(this.d.texts?.[k] || '')}" placeholder="${esc(k === 'title' ? this.hooks.partName(this.d.source) || '' : '')}"></div>`).join('')}`}
+      ${this.d.asm ? `<label class="check"><input type="checkbox" data-k="exploded" ${this.d.exploded ? 'checked' : ''}> ${esc(t('Iso view exploded'))}</label>` : ''}
       <div class="field"><label>Paper</label><select data-k="paper">${[['', 'Auto'], ['A4', 'A4'], ['A3', 'A3']].map(([v, l]) => `<option value="${v}" ${(this.d.paper || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       ${d ? `<h3>${esc(t('Dimension'))}</h3><p class="mp-count" data-no-i18n>${esc(this.value(d) === null ? '⚠ ?' : this.dimText(d, this.value(d)))}</p>
         <p class="hint">${esc(d.auto ? t('Made by the preset. Drag it to move it; Delete removes it (↺ brings it back).') : t('Your own. Drag it to move it; Delete removes it.'))}</p>
@@ -625,6 +627,12 @@ export class SheetEditor {
       el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') el.blur(); });
       el.addEventListener('change', () => { const x = { ...(this.d.texts || {}) }; if (el.value.trim()) x[el.dataset.text] = el.value.trim(); else delete x[el.dataset.text]; this.d.texts = x; this.commit(); });
     }
+    box.querySelector('[data-k=exploded]')?.addEventListener('change', (e) => { // (the parts pulled apart in the iso view, balloons on them)
+      if (e.target.checked) this.d.exploded = true; else delete this.d.exploded;
+      delete this.d.balloons;
+      this.history.commit();
+      this.ensure(true);
+    });
     box.querySelector('[data-k=paper]').addEventListener('change', (e) => { this.d.paper = e.target.value || null; this.d.views = {}; this.history.commit(); this.ensure(true); });
     box.querySelector('[data-a=del]')?.addEventListener('click', () => this.remove(this.sel));
     box.querySelector('[data-k=fit]')?.addEventListener('change', (e) => { this.setFit(d.id, e.target.value); this.renderProps(); });

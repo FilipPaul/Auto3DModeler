@@ -738,6 +738,7 @@ const CS = {
   'The part on screen — double-click to rename, drag to move the tab (out of the window: a new window)': 'Díl na obrazovce — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'Click to show it — double-click to rename, drag to move the tab (out of the window: a new window)': 'Kliknutím zobrazíte — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'No part open': 'Žádný díl není otevřený',
+  'Iso view exploded': 'Izometrie v rozloženém pohledu',
   '⊂⊃ Slot': '⊂⊃ Drážka', 'Draw a slot: click the centres of its two round ends, then move out to its width and click': 'Nakreslit drážku: klikněte na středy jejích dvou kulatých konců, pak táhněte na šířku a klikněte',
   'Click the centre of one round end of the slot.': 'Klikněte na střed jednoho kulatého konce drážky.', 'Click the centre of the other end.': 'Klikněte na střed druhého konce.',
   'Move out to its width and click (Esc = stop drawing).': 'Táhněte na šířku a klikněte (Esc = konec kreslení).',
