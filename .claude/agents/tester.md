@@ -146,6 +146,9 @@ Never report "works" without having run it; report failures with their output.
    Restart the server after changes to sheet.py (the kernel worker keeps old code).
    `tools/e2e_assembly_light.py <url> <dir>` covers 🪶 Simplified (the Lid ticked: light, no edges, fewer triangles,
    kept in doc.light; a joint onto it still made; unticked: full again, as before).
+   `tools/e2e_big_part_load.py <url> <dir> [<a big .step>]` covers loading big parts (a plate with 171 holes, the 44 MB
+   board in data/imports): the app's time to show it (first, again), the rebuild as JSON + base64 vs the binary
+   message (bytes, fetch and read ms; the same arrays and faces both ways: True), a face picked on it.
    `tools/e2e_library_edit.py <url> <dir>` covers changing library parts (an own Holder: ✎ Edit in the library -> 12
    thick, 📚 Save back: the library's 12, still one item, the project's copy still 5, a new use 12; a catalogue ISO 4762
    M3: ✎ Make my own copy -> a new own part in My parts, the catalogue unchanged; the AI's save_to_library saves back).
@@ -246,6 +249,10 @@ Never report "works" without having run it; report failures with their output.
    then Ø10 × 4, ⌵ Countersink Ø12 at 90° — exact volumes; the step's text; the AI's head "cbore", get_model shows it,
    edit_feature head null takes it off; a wrong head refused; Thread M5: the diameter 4.2 greyed, the step says M5,
    the sheet's hole size M5; a wrong thread refused). Needs a server restarted after kernel changes.
+   `tools/e2e_model_teardrop.py <url> <dir>` covers ▲ teardrop holes with real clicks (a 40 × 20 × 20 block, 🖨 on: a
+   Ø6 hole clicked on the front face shows an overhang at its top; Teardrop ticked: the exact volume, no overhang, faces
+   hole / tear; the step says ▲ teardrop; on the top face greyed with its tooltip; the sheet says Ø6, no R; Ctrl+Z).
+   Exits 1 on a failed check. Needs a server restarted after kernel changes.
    `tools/e2e_tool_groups.py <url> <dir>` covers the tools coloured by group (the 3D model's, the sketch's and the
    assembly's bars: each group in one run, one colour per group, the groups' colours differ; screenshots of the bars).
    `tools/e2e_ai_reports.py <url> <dir>` covers the fixes from the AI's reports (a zoomed-out view: get_screenshot

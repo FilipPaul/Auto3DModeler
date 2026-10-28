@@ -17,7 +17,7 @@ Part JSON (in the project file, `parts[].model`):
      {"id": "F11", "type": "split", "plane": {"datum": "XY", "offset": 5} | {"face": ..., "frame": ..., "mid"?, "offset"?},
       "keep": "both" | "above" | "below"},   (both: two bodies; above: the side the plane's normal points to)
      {"id": "F6", "type": "hole", "plane": {"face": {"name": "F2:end"}, "frame": ...}, "points": [[u, v]], "d": 5,
-      "through": true, "depth": 10},
+      "through": true, "depth": 10},   (+ "teardrop": true: a sideways hole with a 45° point on top, printable)
      {"id": "F10", "type": "point", "at": {"vertex": {"faces": [...], "fp": [x, y, z]}} | {"centre": <edge ref>} |
       {"mid": <edge ref>} | {"xyz": [x, y, z]}}]}   (a reference point: a corner, a round edge's centre, an edge's middle)
 
@@ -345,15 +345,21 @@ def _apply(f, st: State, s):
                 raise K.KernelError("The counterbore has to be less deep than the hole.")
         elif head == "csk":
             hd = _num(f, "head_d", round(dia * 2, 1), what="countersink diameter")
+        tear = bool(f.get("teardrop"))  # ▲ printed sideways: the top of the round becomes a 45° point (a counterbore too)
+        if tear and head == "csk":
+            raise K.KernelError("A countersink cannot be a teardrop (its cone would hang over) — use a counterbore, or untick Teardrop.")
+        prof = K.teardrop_face if tear else K.circle_face
         for k, (u, v) in enumerate(pts):
-            face, names = K.circle_face(fr, float(u), float(v), dia)
+            face, names = prof(fr, float(u), float(v), dia)
             tool = K.prism_body(face, names, -n * depth, fid)
-            tool.names = {f"{fid}:hole:{k}": tool.names.get(f"{fid}:side:c", []), f"{fid}:bottom:{k}": tool.names.get(f"{fid}:end", [])}
+            tool.names = {f"{fid}:hole:{k}": tool.names.get(f"{fid}:side:c", []), f"{fid}:bottom:{k}": tool.names.get(f"{fid}:end", []),
+                          **({f"{fid}:tear:{k}": tool.names.get(f"{fid}:side:t", [])} if tear else {})}
             _use(st, fid, tool, "cut")
             if head == "cbore":
-                face, names = K.circle_face(fr, float(u), float(v), hd)
+                face, names = prof(fr, float(u), float(v), hd)
                 tool = K.prism_body(face, names, -n * hdep, fid)
-                tool.names = {f"{fid}:cbore:{k}": tool.names.get(f"{fid}:side:c", []), f"{fid}:cbore_floor:{k}": tool.names.get(f"{fid}:end", [])}
+                tool.names = {f"{fid}:cbore:{k}": tool.names.get(f"{fid}:side:c", []), f"{fid}:cbore_floor:{k}": tool.names.get(f"{fid}:end", []),
+                              **({f"{fid}:cbore_tear:{k}": tool.names.get(f"{fid}:side:t", [])} if tear else {})}
                 _use(st, fid, tool, "cut")
             elif head == "csk":
                 _use(st, fid, K.countersink(fr, float(u), float(v), hd, dia, float(f.get("head_angle") or 90), f"{fid}:csk:{k}"), "cut")
@@ -1052,9 +1058,26 @@ def _with_colours(mesh, colours):
     return {**mesh, "faces": faces}
 
 
-def rebuild(part):
+_packed: list = []  # [((body, light, colours, id), packed.Mesh)]: an unchanged body is not encoded again either
+
+
+def _packed_mesh(body, light=False, colours=None, rid=None):
+    """The body's mesh as packed.Mesh (its JSON made once, kept like the mesh); rid: a reference solid's id."""
+    from . import packed
+    colours = colours or {}
+    for (b, lt, c, r), m in _packed:
+        if b is body and lt == light and r == rid and c == colours:
+            return m
+    mesh = _with_colours(_tessellated(body, light), colours)
+    m = packed.Mesh({"id": rid, **mesh} if rid is not None else mesh)
+    _packed.insert(0, ((body, light, dict(colours), rid), m))
+    del _packed[4:]  # (a big board's is 80 MB)
+    return m
+
+
+def rebuild(part, binary=False):
     """The part -> what the browser shows: the body's mesh, faces (with names) and edges, every feature's
-    status, the sketch frames."""
+    status, the sketch frames. binary: the meshes as packed.Mesh (for packed.pack, the browser's binary answer)."""
     features = (part or {}).get("features") or []
     st, status = evaluate(features)
     out = {"ok": all(s["ok"] for s in status), "features": status, "frames": st.frames, "body": None}
@@ -1062,9 +1085,9 @@ def rebuild(part):
         # 🪶 lod: "light" (simplified), "full", "auto" (light when it is a big imported model)
         lod = (part or {}).get("lod")
         light = lod == "light" or (lod == "auto" and K.face_count(st.body.shape) > K.HEAVY_FACES)
-        out["body"] = _with_colours(_tessellated(st.body, light), st.colours)
+        out["body"] = _packed_mesh(st.body, light, st.colours) if binary else _with_colours(_tessellated(st.body, light), st.colours)
     # reference solids: shown see-through, not part of the part
-    out["refs"] = [{"id": fid, **_tessellated(b)} for fid, b in st.refs.items()]
+    out["refs"] = [_packed_mesh(b, rid=fid) if binary else {"id": fid, **_tessellated(b)} for fid, b in st.refs.items()]
     out["points"] = st.points  # reference points: id -> [x, y, z]
     return out
 

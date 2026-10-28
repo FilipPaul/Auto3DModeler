@@ -56,7 +56,8 @@ A tapped hole is modelled at the tap-drill Ø (name it "M5 thread").
 
 ## Printed fits (FDM, 0.4 mm nozzle) — instead of ISO fits
 
-- Hole for a screw: clearance + 0.2 (M3 Ø3.4–3.6). A hole printed upright comes out ≈ 0.1–0.2 mm small.
+- Hole for a screw: clearance + 0.2 (M3 Ø3.4–3.6). A hole printed upright comes out ≈ 0.1–0.2 mm small. A hole
+  printed lying (across Z): hole `teardrop: true` — the Ø and its fit stay, only the top gets a 45° point.
 - Bearing seat: Ø D + 0.1 … 0.15 (608: Ø22.1–22.15), a shaft Ø d − 0 … 0.05.
 - Sliding fit 0.3 mm per side, snug 0.15, press 0 … −0.1 (small pins only); dowel holes Ø d + 0.1.
 - For an exact fit, model it with the allowance and say which size to correct after a test print.

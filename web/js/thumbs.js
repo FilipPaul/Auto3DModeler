@@ -1,13 +1,15 @@
 // Small pictures of parts for the project tree's hover preview: a 3D model or an assembly drawn in iso by one offscreen
 // renderer (its bodies made light by the server, kept by what they are made from), a drawing sheet as its own SVG.
 import * as THREE from 'three';
+import { fetchRebuild } from './modeler/packed.js';
 
 const W = 220, H = 160;
 let R = null;
 const bodies = new Map(); // what a body is made from (its steps) -> the body
 const pics = new Map();   // what a picture shows -> its data URL
 
-const b64 = (s, T) => {
+const b64 = (s, T) => { // (a binary answer's arrays come as typed arrays already: modeler/packed.js)
+  if (typeof s !== 'string') return s;
   const bin = atob(s), bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return new T(bytes.buffer);
@@ -17,8 +19,7 @@ const b64 = (s, T) => {
 export async function bodyOf(features) {
   const key = JSON.stringify(features);
   if (bodies.has(key)) return bodies.get(key);
-  const res = await fetch('/api/model/rebuild', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: { features, lod: 'light' } }) });
-  const r = await res.json();
+  const { res, r } = await fetchRebuild({ features, lod: 'light' });
   const b = res.ok ? r.body || null : null;
   if (bodies.size > 60) bodies.delete(bodies.keys().next().value);
   bodies.set(key, b);

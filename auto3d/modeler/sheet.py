@@ -55,6 +55,11 @@ def _key(*names):
     return "+".join(sorted(set(names)))
 
 
+def _deco(key):
+    """An edge no one dimensions: where a rounding begins (its R gives it), a teardrop hole's point (its Ø gives it)."""
+    return ":round:" in key or ":tear:" in key or "_tear:" in key
+
+
 def _scale(bb):
     """The biggest scale (paper mm per mm) the layout may give a part of this box (A4 or A3)."""
     return max(a / b for a, b in (layout({"bbox": bb}, p)["scale"] for p in PAPERS))
@@ -123,8 +128,10 @@ def geometry(body, views=None, iso=True, scale=None):
                 continue
             ax, lo = ci.Axis().Direction(), ci.Location()
             face = next((name(f) for f in fs if f in cyl), None)
+            # a teardrop hole's round part (270°, its top a point) is still a hole: dimensioned Ø d
+            tear = face is not None and t1 - t0 > 1.5 * math.pi - 1e-6 and (":hole:" in face or ":cbore:" in face)
             edges.append(("circle", (np.array([lo.X(), lo.Y(), lo.Z()]), np.array([ax.X(), ax.Y(), ax.Z()]), ci.Radius(),
-                                     abs(t1 - t0 - 2 * math.pi) < 1e-6, P(t0), P(t1), P((t0 + t1) / 2)), key, face))
+                                     abs(t1 - t0 - 2 * math.pi) < 1e-6 or tear, P(t0), P(t1), P((t0 + t1) / 2)), key, face))
     out = {"bbox": [_r(v) for v in bb], "views": {}, "iso": _iso_view(body.shape, bool(simple)) if iso else []}
     if simple:
         out["simple"] = simple
@@ -306,8 +313,8 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None, threads=None):
         f = v["Front"]
         y0, y1 = f["box"][1], f["box"][3]
         levels = {}
-        for ln in f["lines"]:  # (not where a rounding begins)
-            if abs(ln["a"][1] - ln["b"][1]) < TOL and TOL < ln["a"][1] - y0 < (y1 - y0) - TOL and ":round:" not in ln["key"]:
+        for ln in f["lines"]:  # (not where a rounding begins, nor a teardrop's point)
+            if abs(ln["a"][1] - ln["b"][1]) < TOL and TOL < ln["a"][1] - y0 < (y1 - y0) - TOL and not _deco(ln["key"]):
                 levels.setdefault(round(ln["a"][1], 2), ln["key"])
         for y, key in sorted(levels.items())[: (3 if pv("Front") == "medium" else 10)]:
             lin("Front", "box#y0", f"{key}#0", "v", "l", tag=f"lv{y}")
@@ -317,7 +324,7 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None, threads=None):
         x0, x1 = t["box"][0], t["box"][2]
         cols = {}
         for ln in t["lines"]:
-            if abs(ln["a"][0] - ln["b"][0]) < TOL and TOL < ln["a"][0] - x0 < (x1 - x0) - TOL and ":round:" not in ln["key"]:
+            if abs(ln["a"][0] - ln["b"][0]) < TOL and TOL < ln["a"][0] - x0 < (x1 - x0) - TOL and not _deco(ln["key"]):
                 cols.setdefault(round(ln["a"][0], 2), ln["key"])
         for x, key in sorted(cols.items())[:10]:
             lin("Top", "box#x0", f"{key}#0", "h", "b", tag=f"col{x}")
@@ -326,7 +333,7 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None, threads=None):
         x0, y0, x1, y1 = w["box"]
         rows, cols = {}, {}
         for ln in w["lines"]:
-            if ":round:" in ln["key"]:
+            if _deco(ln["key"]):
                 continue
             if abs(ln["a"][1] - ln["b"][1]) < TOL and TOL < ln["a"][1] - y0 < (y1 - y0) - TOL:
                 rows.setdefault(round(ln["a"][1], 2), ln["key"])

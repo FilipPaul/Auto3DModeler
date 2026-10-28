@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { paintedFaces } from './modeler/paint.js';
 import { sectionMiddle } from './modeler/sectionbar.js';
 
-const b64 = (s, T) => { const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new T(u.buffer); };
+const b64 = (s, T) => { if (typeof s !== 'string') return s; const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new T(u.buffer); };
 const r3 = (v) => +(+v).toFixed(3);
 const hex = (c) => (typeof c === 'number' ? `#${c.toString(16).padStart(6, '0')}` : c);
 
