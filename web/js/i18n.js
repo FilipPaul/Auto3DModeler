@@ -1303,6 +1303,8 @@ const CS = {
   'The sketch does not solve as it is: {names} do not fit together — remove or change one of them first.': 'Skicu v tomto stavu nelze vyřešit: {names} k sobě nesedí — nejdřív jedno z nich odeberte nebo změňte.',
   '{names}: held twice (the other sizes fix it already) — now a reference dimension, it only measures.': '{names}: drženo dvakrát (ostatní rozměry ho už určují) — teď je to informativní kóta, jen měří.',
   '{n} size(s) locked — still free: {names}. Lock their sizes by hand, or add relations.': 'Zamčeno rozměrů: {n} — volné zůstávají: {names}. Zamkněte jejich rozměry ručně, nebo přidejte vazby.',
+  'reading a sketch': 'čte skicu', 'dimensioning a sketch': 'kótuje skicu', 'setting a sketch dimension': 'nastavuje kótu skici',
+  'trimming a sketch': 'ořezává skicu', 'uniting shapes in a sketch': 'sjednocuje tvary ve skice', 'simplifying a sketch': 'zjednodušuje skicu',
   'Relations the sketch nearly had, added: {names}': 'Vazby, které skica skoro měla, přidány: {names}',
   'Set by the other sizes and relations — nothing to lock': 'Dáno ostatními rozměry a vazbami — není co zamykat',
   'line {a} – {b}': 'čára {a} – {b}', 'arc R{r} at {c}': 'oblouk R{r} v {c}', 'circle Ø{d} at {c}': 'kružnice Ø{d} v {c}', 'curve from {a}': 'křivka z {a}',

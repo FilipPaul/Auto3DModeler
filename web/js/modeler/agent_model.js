@@ -9,6 +9,7 @@ import { originAt, worldToUV } from './origin.js';
 import { roundAxes, axisOf } from './axes.js';
 import { datumFrame } from './view.js';
 import { nextFrames } from '../frames.js';
+import { sketchHandlers } from './agent_sketch.js';
 
 const r3 = (v) => +(+v).toFixed(3);
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -173,6 +174,24 @@ export function sketchFromShapes(shapes, lock = true, axisAt = null) {
     f.constraints = f.constraints.filter((k) => !((k.t === 'h' || k.t === 'v') && fixedLine(k.e)));
   }
   return f;
+}
+
+/** The size labels shown over the 3D view (page elements, not part of the WebGL picture) drawn onto a screenshot of
+ *  it: ctx the picture's 2D context, src the view's canvas, k the picture's scale. */
+function drawLabels(ctx, src, k) {
+  const box = src.getBoundingClientRect(), sx = (src.width / (box.width || 1)) * k, sy = (src.height / (box.height || 1)) * k;
+  ctx.font = `${Math.round(11 * sx)}px sans-serif`;
+  ctx.textBaseline = 'middle';
+  for (const el of document.querySelectorAll('#modelViewport .sk-label, #modelViewport .m-dimtag')) {
+    const r = el.getBoundingClientRect();
+    if (!r.width || r.right < box.left || r.left > box.right || r.bottom < box.top || r.top > box.bottom) continue;
+    const text = (el.querySelector('.sk-val')?.textContent ?? el.textContent).replace(/\s+/g, ' ').trim() + (el.classList.contains('locked') ? ' 🔒' : '');
+    const x = (r.left - box.left) * sx, y = (r.top - box.top) * sy, w = Math.max(r.width * sx, ctx.measureText(text).width + 6 * sx), h = r.height * sy;
+    ctx.fillStyle = el.classList.contains('locked') ? '#2a1d45e6' : '#0d1117d9';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = el.classList.contains('locked') ? '#e2d4ff' : '#c9d1d9';
+    ctx.fillText(text, x + 3 * sx, y + h / 2);
+  }
 }
 
 const KIND = { model: '3D model', assembly: 'assembly', drawing: '2D drawing', sheet: 'drawing sheet' };
@@ -709,6 +728,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       await nextFrames();
       const v = m.view;
       v.renderer.render(v.scene, v.camera);
+      v.labels?.render(v.scene, v.camera); // (the size labels where this camera puts them)
       const src = v.renderer.domElement, k = Math.min(1, 900 / Math.max(src.width, src.height));
       const c = document.createElement('canvas');
       c.width = Math.round(src.width * k);
@@ -717,9 +737,11 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       ctx.fillStyle = '#161b22';
       ctx.fillRect(0, 0, c.width, c.height);
       ctx.drawImage(src, 0, 0, c.width, c.height);
+      drawLabels(ctx, src, k);
       return { text: `3D view (${view || 'current'}). ${JSON.stringify(summary())}`, image: c.toDataURL('image/png').split(',')[1] };
     },
     model_body: async () => { needModel(); return { text: 'ok', body: { model_part: m.payload(), name: project.current?.name } }; },
     model_undo: async () => { needModel(); const ok = await m.history.go(-1); await settle(); return { text: ok ? `Undone. ${JSON.stringify(summary())}` : 'Nothing to undo.' }; },
+    ...sketchHandlers({ modeler: m, needModel, settle }), // (get_sketch, sketch_auto_dims, sketch_dim, sketch_trim, sketch_union)
   };
 }

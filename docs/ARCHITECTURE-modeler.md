@@ -75,6 +75,23 @@ Date: 2026-10-25. Written by the architect agent.
 - **Default title block B — ISO 7200 done:** a drawing that chose no template uses "B — ISO 7200" (title block B,
   parts list B, the ISO 5457 frame) — the owner's choice; sheet.js DEFAULT_TPL, the AI's sheet_edit without a name too.
   Tests that check the Modern block pick it explicitly (e2e_sheet, e2e_bom, e2e_sheet_views_templates).
+- **The AI's sketch tools (RealSWReports 2026-10-28 21:49 / 21:58 part 1) done:** web/js/modeler/agent_sketch.js
+  (spread into modelHandlers): get_sketch (a detached Sketcher on the step, or the open one: points, shapes with
+  coordinates and state, relations named, dims {id, kind, name, value, locked, between}, dof, free, conflicts
+  {contradicting, held_twice}), sketch_auto_dims {id, round}, sketch_dim {id, dim (an id or "len:l1" / "dia:c1" /
+  "rad:a1"), value | locked}, sketch_trim {sketch, shape, at} (at projected onto the shape), sketch_union {sketch} —
+  withSketch opens a closed sketch in the editor, runs it, finishes it (one model undo step), and returns the
+  sketcher's toasts as messages. Sketcher.unionShapes: the closed loops / circles as they are (a polygon each), then
+  the middle of each piece between crossings that lies inside another region (not on its border) is trimmed
+  (trimAt {quiet}), up to UNION_MAX, one sketch undo step. trimAt keeps a trimmed shape's whole-shape relations (eq,
+  tang, par, perp, conc — once) and the tangents at ends that stay (re-pointed to a split-off piece), and drops an
+  `on` whose point became the shape's own end (held twice). The report's rect + slot: one outline of 5 lines + 2 arcs,
+  59945.008 mm³ = the exact union (shapely); the overlapping shapes extruded gave 59942.757. gui_state: a sketch
+  label is a control {kind dim, label "d3: 65", state locked / free / set by the others / reference}, a 🔒 / 🔓 / ✕
+  button on a label or panel row says which ("65 › ✕"). Screenshots: the labels are CSS2D page elements over the
+  WebGL canvas, never in its picture — model_screenshot renders them for its camera and draws each one (box + text)
+  onto the image (drawLabels). Schemas in agent_tools.py, the model-a-part skill, e2e_agent's case.
+  tools/e2e_ai_sketch.py.
 - **🪄 Auto-dimension that says what it did (RealSWReports 2026-10-28 21:48 / 21:49 / 21:58 part 2-3) done:**
   Sketcher.autoDimension({round}) -> {added, relations?, references?, dof, free: [shape names], error?} (for the AI
   too): a lock only held twice (constraints.solve's new `redundant`, apart from `conflicting`) becomes a reference

@@ -896,6 +896,12 @@ can open them.
   smooth curve (`op: "join"`) or the outlines one rigid outline (`op: "outline"`), and says the counts before → after.
   The AI's shapes open **fully defined** (green): a profile's corners are locked and each arc is tangent to the line it runs
   into (else its radius is locked), a slot is its two centres and one radius with tangent sides and equal ends.
+- **The AI reads and fixes sketches**: `get_sketch` gives a sketch's shapes with coordinates, its relations, every
+  dimension with its name, value and lock, what is still free and which locks do not fit; `sketch_auto_dims` runs 🪄
+  (and says what it added or why not), `sketch_dim` sets / locks / frees one dimension, `sketch_trim` cuts a piece
+  away and `sketch_union` turns overlapping closed shapes (a rectangle and a slot) into one outline of lines and arcs,
+  keeping tangents and equal radii. Its screenshots show the sketch's size labels, and `gui_state` lists them with
+  their values.
 - **Everything the app does, the AI can do**: besides modelling, assemblies, the library and collisions, it colours
   parts (`set_look`: colour, see-through) and single faces (`paint_faces`), in a model or per placed part in an
   assembly; moves a joined part along its free ways (`move_free`); keeps a model in the library (`save_to_library`).

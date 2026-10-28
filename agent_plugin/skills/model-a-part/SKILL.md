@@ -102,6 +102,10 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
 
 `edit_feature {id, fields}` (e.g. `{d: 15}` for an extrude, `{r: 3}`, `{shapes: [...]}` for a sketch),
 `delete_feature {id}` (steps that need it go too), `turn_off_feature {id, off: true}`, `undo`.
+A sketch's own sizes: `get_sketch {id}` (shapes with coordinates, relations, dims with names / values / locked, the
+free sizes and the locks that do not fit), `sketch_auto_dims {id}` (locks what is still free — `round: true` at whole
+mm), `sketch_dim {id, dim, value | locked}`, `sketch_trim {sketch, shape, at}`, `sketch_union {sketch}` (overlapping
+closed shapes -> one outline; prefer it to a hand-computed `profile`).
 Faces and edges keep their names when earlier sizes change, so later steps follow.
 
 ## Worked example — a 60 × 40 × 5 plate with 4 corner holes Ø4 and rounded corners

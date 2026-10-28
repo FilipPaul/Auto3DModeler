@@ -20,6 +20,7 @@ const nice = (x) => { const p = 10 ** Math.floor(Math.log10(x)); return [1, 2, 5
 const ORIGIN = 'O';
 const HV_DEG = 3; // a line drawn within 3° of horizontal / vertical becomes exactly that
 const SOLVE_WAIT_MS = 20000; // a sketch solve that takes longer is given up (the editor stays usable)
+const UNION_MAX = 400; // ∪ Union: the most pieces it trims (each a solve)
 const AUTO_DIM_MS = 30000; // 🪄 Auto-dimension's most time (each size it tries is a solve)
 
 /** An arc (centre c, from a counter-clockwise to b, radius |a - c|) as points from a to b. */
@@ -1847,11 +1848,11 @@ export class Sketcher {
 
   /** ✂ Trim: cut the piece away. A line keeps its other part(s), a circle becomes the arc that is left, an arc is split.
    *  The new ends stay on the shape that cut them ("on" constraints) when sizes change later. */
-  async trimAt(uv) {
+  async trimAt(uv, { quiet = false } = {}) {
     const pc = this.pieceAt(uv);
-    if (!pc) { this.m.toast('Click a line, circle or arc to trim.', 'info', 3000); return; }
+    if (!pc) { if (!quiet) this.m.toast('Click a line, circle or arc to trim.', 'info', 3000); return false; }
     const { e, lo, hi } = pc;
-    await this.relock(() => {
+    const done = await this.relock(() => {
       const f = this.f;
       const newPt = (c) => {
         // on an end of the shape that cuts it: join there; else a new end that stays on that shape
@@ -1879,27 +1880,102 @@ export class Sketcher {
         Object.assign(e, { t: 'arc', a, b });
         delete e.r;
       } else {
+        // relations of the shape as a whole (equal, parallel, tangent to a circle …) still hold for what is left of
+        // it; a tangent at an end that stays stays too (a trimmed slot keeps its smooth joins)
+        const whole = f.constraints.filter((k) => ['eq', 'tang', 'par', 'perp', 'conc'].includes(k.t) && (k.e === e.id || k.e2 === e.id));
+        const tans = f.constraints.filter((k) => k.t === 'tan' && (k.e === e.id || k.arc === e.id));
         forget(e.id);
         const keepA = lo.t > 0, keepB = !(hi.t >= (e.t === 'line' ? 1 : pc.g.sweep) - 1e-12);
         const oldB = e.b;
+        let piece = null;
         if (keepA && keepB) {
           // the middle goes: two pieces
           const p1 = newPt(lo), p2 = newPt(hi);
           e.b = p1;
-          const id = this.newId(e.t === 'line' ? 'l' : 'a');
-          f.entities.push({ ...e, id, a: p2, b: oldB, g: undefined });
-          for (const k of f.constraints.filter((k) => k.e === e.id && (k.t === 'h' || k.t === 'v'))) f.constraints.push({ ...k, id: this.newId('k'), e: id });
+          piece = { ...e, id: this.newId(e.t === 'line' ? 'l' : 'a'), a: p2, b: oldB, g: undefined };
+          f.entities.push(piece);
+          for (const k of f.constraints.filter((k) => k.e === e.id && (k.t === 'h' || k.t === 'v'))) f.constraints.push({ ...k, id: this.newId('k'), e: piece.id });
         } else if (keepA) e.b = newPt(lo);
         else e.a = newPt(hi);
         delete e.g;
+        f.constraints = [...f.constraints.filter((k) => !whole.includes(k)), ...whole]; // (once each)
+        for (const k of tans) {
+          const on = [e, piece].find((x) => x && (x.a === k.p || x.b === k.p));
+          if (on) f.constraints.push(on === e ? k : { ...k, id: this.newId('k'), [k.e === e.id ? 'e' : 'arc']: piece.id });
+        }
       }
       const used = new Set([...f.entities.flatMap((x) => [x.a, x.b, x.c, ...(x.pts || [])]), ...f.constraints.filter((k) => k.t === 'corner').map((k) => k.p)]);
       for (const p of Object.keys(f.points)) if (!used.has(p)) delete f.points[p];
       f.constraints = f.constraints.filter((k) => !k.p || f.points[k.p] || k.p === ORIGIN);
+      // a point kept on a shape that now ends there is on it already (held twice, the solver would refuse it)
+      f.constraints = f.constraints.filter((k) => !(k.t === 'on' && f.entities.some((x) => x.id === k.e && (x.a === k.p || x.b === k.p))));
       f.dims = f.dims.filter((d) => (!d.a || typeof d.a !== 'string' || d.a === ORIGIN || f.points[d.a]) && (!d.b || typeof d.b !== 'string' || d.b === ORIGIN || f.points[d.b]));
-    });
+    }, null, null, { quiet });
     this.sel = null;
     this.changed();
+    return done;
+  }
+
+  /** ∪ Union: closed shapes that overlap become one outline — every piece of a line, circle or arc that lies inside
+   *  another closed shape is trimmed away (✂ Trim's way: the new ends stay on the shape that cut them; equal radii and
+   *  tangents that still apply stay). One undo step. -> {trimmed, before, after} or null (nothing overlaps). */
+  async unionShapes() {
+    const P = (id) => this.P(id), f = this.f;
+    // the regions as they are now (closed loops of lines / arcs, circles): a polygon each, and their shapes
+    const regions = [], seen = new Set();
+    for (const e of f.entities) {
+      if (seen.has(e.id) || e.construction || !['line', 'arc', 'circle'].includes(e.t)) continue;
+      const l = this.loopFrom(e);
+      if (!l) continue;
+      l.ids.forEach((id) => seen.add(id));
+      const ring = [];
+      if (l.kind === 'circle') for (let i = 0; i < 180; i++) ring.push([P(e.c)[0] + e.r * Math.cos((i * TAU) / 180), P(e.c)[1] + e.r * Math.sin((i * TAU) / 180)]);
+      else for (const o of l.order) {
+        const ps = o.e.t === 'line' ? [P(o.from), P(o.to)] : arcPts(P(o.e.c), P(o.e.a), P(o.e.b), 2);
+        ring.push(...(o.from === o.e.a ? ps : [...ps].reverse()).slice(0, -1));
+      }
+      regions.push({ ring, geos: l.ids.map((id) => geomOf(this.ent(id), P)) });
+    }
+    if (regions.length < 2) return null;
+    const inside = (ring, p) => {
+      let c = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i], [xj, yj] = ring[j];
+        if ((yi > p[1]) !== (yj > p[1]) && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) c = !c;
+      }
+      return c;
+    };
+    const onBorder = (r, p) => r.geos.some((g) => (g.kind === 'line' ? segDist(p, g.a, g.b) : Math.abs(Math.hypot(p[0] - g.c[0], p[1] - g.c[1]) - g.r)) < 1e-6 && onShape(g, p, 1e-6));
+    /** The middle of the first piece (between crossings) of a shape that lies inside a region it is not part of. */
+    const nextInner = () => {
+      for (const e of f.entities) {
+        if (e.construction || !['line', 'arc', 'circle'].includes(e.t)) continue;
+        const g = geomOf(e, P), end = g.kind === 'line' ? 1 : g.kind === 'arc' ? g.sweep : TAU;
+        const ts = [0, end];
+        for (const o of f.entities) {
+          if (o === e || !['line', 'circle', 'arc'].includes(o.t)) continue;
+          for (const p of crossings(g, geomOf(o, P))) { const t = paramOf(g, p); if (t > 1e-7 * end && t < end * (1 - 1e-7)) ts.push(t); }
+        }
+        ts.sort((a, b) => a - b);
+        for (let i = 0; i + 1 < ts.length; i++) {
+          if (ts[i + 1] - ts[i] < 1e-6 * end) continue;
+          const tm = (ts[i] + ts[i + 1]) / 2;
+          const m = g.kind === 'line' ? [g.a[0] + tm * (g.b[0] - g.a[0]), g.a[1] + tm * (g.b[1] - g.a[1])]
+            : [g.c[0] + g.r * Math.cos((g.kind === 'arc' ? g.t0 : 0) + tm), g.c[1] + g.r * Math.sin((g.kind === 'arc' ? g.t0 : 0) + tm)];
+          if (regions.some((r) => !onBorder(r, m) && inside(r.ring, m))) return m;
+        }
+      }
+      return null;
+    };
+    const before = f.entities.length, undo0 = this.undo.length;
+    let trimmed = 0;
+    for (let m = nextInner(); m && trimmed < UNION_MAX; m = nextInner()) {
+      if (!(await this.trimAt(m, { quiet: true }))) break; // (a trim the locks do not let through: stop there)
+      trimmed++;
+    }
+    if (trimmed) this.undo.splice(undo0 + 1); // (one undo step for all of it)
+    this.changed();
+    return trimmed ? { trimmed, before, after: f.entities.length } : null;
   }
 
   /** ⟷ Extend: the line under the mouse, its end nearer the mouse and where that end would go — the first shape the
