@@ -4,6 +4,7 @@
 import { paintedFaces } from './paint.js';
 import * as THREE from 'three';
 import { FreeControls } from '../freecontrols.js';
+import { finishOf } from './materials.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/CSS2DRenderer.js';
 
 const BODY = new THREE.Color(0xd9dee6), HOVER = new THREE.Color(0x6cb6ff), PICKED = new THREE.Color(0x4f8cff);
@@ -19,6 +20,31 @@ export const DATUMS = {
 export function datumFrame(plane) {
   const fr = DATUMS[plane?.datum] || DATUMS.XY, off = +plane?.offset || 0;
   return { ...fr, o: fr.o.map((v, i) => v + off * fr.n[i]) };
+}
+
+/** A soft studio for reflections (metal looks like metal): a light sky, a darker floor, a few bright panels round. */
+const STUDIO = new WeakMap(); // (one per renderer: a WebGL texture belongs to its own context)
+function studio(renderer) {
+  if (STUDIO.has(renderer)) return STUDIO.get(renderer);
+  const room = new THREE.Scene(), geo = new THREE.SphereGeometry(10, 32, 16), col = [];
+  const pos = geo.getAttribute('position');
+  for (let i = 0; i < pos.count; i++) { // sky to floor
+    const k = (pos.getZ(i) / 10 + 1) / 2, c = new THREE.Color(0x2a2f36).lerp(new THREE.Color(0xdfe6ee), k);
+    col.push(c.r, c.g, c.b);
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  room.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+  for (const [x, y, z, w, h] of [[0, -8, 5, 9, 4], [7, 4, 6, 4, 7], [-8, 2, 3, 3, 6], [0, 0, 9.5, 8, 8]]) { // soft boxes
+    const panel = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
+    panel.position.set(x, y, z);
+    panel.lookAt(0, 0, 0);
+    room.add(panel);
+  }
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const tex = pmrem.fromScene(room, 0.03).texture;
+  pmrem.dispose();
+  STUDIO.set(renderer, tex);
+  return tex;
 }
 
 const b64 = (s, T) => {
@@ -54,6 +80,7 @@ export class ModelView {
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.12;
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x445566, 1.3));
+    this.scene.environment = studio(this.renderer); // (what metal reflects: a soft studio)
     const key = new THREE.DirectionalLight(0xffffff, 1.7);
     key.position.set(1, -1.5, 2.5);
     this.camera.add(key); // light follows the camera: every face stays readable
@@ -202,8 +229,9 @@ export class ModelView {
   }
 
   /** The part's look: its colour ("#rrggbb", none = the usual grey) and opacity (1 = solid, less = see-through). */
-  setLook({ color, opacity, paint } = {}) {
+  setLook({ color, opacity, paint, material } = {}) {
     this.bodyColor = color ? new THREE.Color(color) : null;
+    Object.assign(this.material, finishOf(material), { envMapIntensity: finishOf(material).metalness > 0.5 ? 1 : 0.35 }); // (metal: metallic)
     // faces painted on their own (paint.js)
     this.faceColor = new Map([...paintedFaces(this.body?.faces || [], paint)].map(([id, p]) => [id, new THREE.Color(p.color)]));
     // the colours an imported STEP file brought (under the faces painted here)

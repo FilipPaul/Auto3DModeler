@@ -24,7 +24,7 @@ import { showSuggest } from '../suggest.js';
 import { freeMotions, motionMatrix } from './dof.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
-import { lookColor } from '../modeler/materials.js';
+import { lookColor, finishOf } from '../modeler/materials.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -52,7 +52,8 @@ class AsmView extends ModelView {
       geo.computeVertexNormals();
       const o = Number.isFinite(it.opacity) ? it.opacity : 1;
       // a chosen part keeps its own colours and painted faces: it glows blue (it was drawn all blue — its look hidden)
-      const mat = new THREE.MeshStandardMaterial({ color: it.colour || COLORS[it.color % COLORS.length], roughness: 0.55, metalness: 0.05,
+      const fin = it.finish || { metalness: 0.05, roughness: 0.55 }; // (a metal part: metallic)
+      const mat = new THREE.MeshStandardMaterial({ color: it.colour || COLORS[it.color % COLORS.length], roughness: fin.roughness, metalness: fin.metalness, envMapIntensity: fin.metalness > 0.5 ? 1 : 0.35,
         side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, emissive: it.clash ? 0x6a0d0d : it.selected ? 0x1e4f86 : it.hover ? 0x1b2a44 : 0x000000,
         transparent: o < 1, opacity: o, depthWrite: o >= 1, clippingPlanes: this.clip || [] });
       const painted = paintedFaces(it.body.faces, it.paint || []);
@@ -1659,7 +1660,8 @@ export class Assembly {
     const data = this.hooks.partData(it.part) || {};
     const colour = it.colour || lookColor(data), opacity = Number.isFinite(it.opacity) ? it.opacity : data.opacity;
     const paint = [...(it.colour ? [] : data.paint || []), ...(it.paint || [])];
-    return { colour: colour ? new THREE.Color(colour).getHex() : null, opacity: Number.isFinite(opacity) ? opacity : 1, paint: paint.length ? paint : null, ownColour: !!it.colour };
+    return { colour: colour ? new THREE.Color(colour).getHex() : null, opacity: Number.isFinite(opacity) ? opacity : 1, paint: paint.length ? paint : null, ownColour: !!it.colour,
+      finish: finishOf(data.material) };
   }
 
   // ------------------------------------------------------------------ editing

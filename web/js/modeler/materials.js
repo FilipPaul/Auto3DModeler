@@ -24,5 +24,15 @@ export const MATERIALS = Object.fromEntries(MATERIAL_GROUPS.flatMap(([, ms]) => 
 /** name -> the colour a part of it is shown in (when it has no colour of its own). */
 export const MATERIAL_COLOR = Object.fromEntries(MATERIAL_GROUPS.flatMap(([, ms]) => ms.map(([n, , c]) => [n, c])));
 
+// how a material's surface looks: metals metallic (each as polished or rough as it usually is), the rest not
+const FINISH = {
+  aluminium: [0.9, 0.38], 'aluminium 7075': [0.9, 0.36], steel: [0.85, 0.42], 'steel C45': [0.85, 0.45], 'stainless steel': [0.95, 0.24],
+  'stainless steel 316': [0.95, 0.22], 'tool steel': [0.85, 0.35], 'cast iron': [0.7, 0.62], brass: [0.95, 0.28], bronze: [0.9, 0.36],
+  copper: [0.95, 0.3], titanium: [0.85, 0.4], 'zinc die-cast': [0.8, 0.45], magnesium: [0.75, 0.5],
+  glass: [0, 0.06], PMMA: [0, 0.12], PC: [0, 0.25], 'rubber (EPDM)': [0, 0.9], silicone: [0, 0.8], TPU: [0, 0.8], plywood: [0, 0.8], MDF: [0, 0.85],
+};
+/** {metalness, roughness} of a material's surface (not chosen: a plain plastic). */
+export const finishOf = (material) => { const f = FINISH[material]; return f ? { metalness: f[0], roughness: f[1] } : { metalness: 0.05, roughness: 0.55 }; };
+
 /** A part's colour as shown: its own, else its material's (when one was chosen), else none (the default). */
 export const lookColor = (part) => part?.color || (part?.material && MATERIAL_COLOR[part.material]) || null;

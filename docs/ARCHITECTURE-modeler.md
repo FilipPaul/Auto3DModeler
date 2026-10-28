@@ -80,6 +80,10 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Metals look metallic done:** materials.finishOf (metalness / roughness per material: metals high, glass smooth,
+  rubber rough); view.js studio(renderer) — a PMREM of a gradient sky + soft boxes as scene.environment (one per
+  renderer: a WebGL texture is its context's); setLook / the assembly's meshes use the finish (envMapIntensity 1 for
+  metal, 0.35 else).
 - **Materials with colours done:** web/js/modeler/materials.js — 37 materials in groups (3D printing, engineering
   plastics, metals, other) with density and a default colour (lookColor: the part's own colour, else its material's
   when one was chosen); auto3d/modeler/materials.py the same densities (drawing PDF mass, set_material's enum).
