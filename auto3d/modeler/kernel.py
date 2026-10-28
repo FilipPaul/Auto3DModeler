@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import tempfile
 
 import numpy as np
@@ -1333,13 +1334,18 @@ def project_edges(shape, look, right, up, fine=None):
     return visible, hidden
 
 
-def placed(shape, m16):
-    """A shape moved by a 4 x 4 placement matrix (column-major, as three.js stores it; only rotation + move) — given a
-    location, not copied (a big imported model took a second a copy)."""
+def _trsf(m16):
+    """A 4 x 4 placement matrix (column-major, as three.js stores it; rotation + move) -> gp_Trsf."""
     m = list(map(float, m16))
     t = gp_Trsf()
     t.SetValues(m[0], m[4], m[8], m[12], m[1], m[5], m[9], m[13], m[2], m[6], m[10], m[14])
-    return shape.Moved(TopLoc_Location(t))
+    return t
+
+
+def placed(shape, m16):
+    """A shape moved by a 4 x 4 placement matrix (column-major, as three.js stores it; only rotation + move) — given a
+    location, not copied (a big imported model took a second a copy)."""
+    return shape.Moved(TopLoc_Location(_trsf(m16)))
 
 
 def _solid_boxes(shape):
@@ -1493,18 +1499,13 @@ def from_step(data: bytes):
         os.unlink(path)
 
 
-def read_step_colours(data: bytes):
-    """A STEP with its colours: (shape, {face index (0-based, in _face_map(shape)): "#rrggbb"}). The colours of
-    components, bodies and faces are followed down the file's assembly tree (a face's own colour wins)."""
-    from OCP.collections import Sequence_TDF_Label
-    from OCP.Quantity import Quantity_Color
+def _read_xcaf(data: bytes):
+    """A STEP file read with its names, colours and assembly tree -> (the XCAF document, its shape tool). Keep the
+    document while its labels are used."""
     from OCP.STEPCAFControl import STEPCAFControl_Reader
     from OCP.TCollection import TCollection_ExtendedString
-    from OCP.TDF import TDF_Label
     from OCP.TDocStd import TDocStd_Document
-    from OCP.TopoDS import TopoDS_Compound
-    from OCP.BRep import BRep_Builder
-    from OCP.XCAFDoc import XCAFDoc_ColorTool, XCAFDoc_ColorType, XCAFDoc_DocumentTool
+    from OCP.XCAFDoc import XCAFDoc_DocumentTool
     fd, path = tempfile.mkstemp(suffix=".step")
     with os.fdopen(fd, "wb") as fh:
         fh.write(data)
@@ -1512,12 +1513,278 @@ def read_step_colours(data: bytes):
         doc = TDocStd_Document(TCollection_ExtendedString("step"))
         r = STEPCAFControl_Reader()
         r.SetColorMode(True)
+        r.SetNameMode(True)
         if r.ReadFile(path) != IFSelect_RetDone:
             raise KernelError("The STEP file could not be read.")
         r.Transfer(doc)
     finally:
         os.unlink(path)
+    return doc, XCAFDoc_DocumentTool.ShapeTool_s(doc.Main())
+
+
+def _label_colour(label):
+    """A label's own colour (surface, else generic) -> "#rrggbb" or None."""
+    from OCP.Quantity import Quantity_Color
+    from OCP.XCAFDoc import XCAFDoc_ColorTool, XCAFDoc_ColorType
+    col = Quantity_Color()
+    for kind in (XCAFDoc_ColorType.XCAFDoc_ColorSurf, XCAFDoc_ColorType.XCAFDoc_ColorGen):
+        if XCAFDoc_ColorTool.GetColor_s(label, kind, col):
+            return "#%02x%02x%02x" % tuple(round(max(0.0, min(1.0, v)) * 255) for v in (col.Red(), col.Green(), col.Blue()))
+    return None
+
+
+def _label_name(label):
+    """A label's name ("" when it has none, or only the text of the program that wrote the file)."""
+    from OCP.TDataStd import TDataStd_Name
+    a = TDataStd_Name()
+    if label.FindAttribute(TDataStd_Name.GetID_s(), a):
+        n = a.Get().ToExtString().strip()
+        return "" if n.startswith("Open CASCADE STEP translator") else n
+    return ""
+
+
+def _label_key(label):
+    from OCP.TCollection import TCollection_AsciiString
+    from OCP.TDF import TDF_Tool
+    e = TCollection_AsciiString()
+    TDF_Tool.Entry_s(label, e)
+    return e.ToCString()
+
+
+def _m16(loc):
+    """A location -> its 4 x 4 matrix, column-major (as three.js stores it); the inverse of placed()."""
+    t = loc.Transformation()
+    m = [0.0] * 16
+    for r in range(3):
+        for c in range(4):
+            m[c * 4 + r] = t.Value(r + 1, c + 1)
+    m[15] = 1.0
+    return [0.0 if abs(v) < 1e-15 else v for v in m]
+
+
+def _components(st, label):
+    from OCP.collections import Sequence_TDF_Label
+    from OCP.TDF import TDF_Label
+    comps = Sequence_TDF_Label()
+    st.GetComponents_s(label, comps, False)
+    out = []
+    for i in range(1, comps.Length() + 1):
+        c, ref = comps.Value(i), TDF_Label()
+        st.GetReferredShape_s(c, ref)
+        out.append((c, ref))
+    return out
+
+
+def _free_labels(st):
+    from OCP.collections import Sequence_TDF_Label
+    free = Sequence_TDF_Label()
+    st.GetFreeShapes(free)
+    return [free.Value(i) for i in range(1, free.Length() + 1)]
+
+
+def step_structure(st, free=None):
+    """How the file is built: {parts (different ones), placements (of parts, all levels), subs (sub-assemblies)} —
+    {parts: 1, placements: 1} for a plain one-body STEP."""
+    parts, subs, n = set(), set(), [0]
+
+    def walk(label):
+        if st.IsAssembly_s(label):
+            for _, ref in _components(st, label):
+                if st.IsAssembly_s(ref):
+                    subs.add(_label_key(ref))
+                walk(ref)
+        else:
+            parts.add(_label_key(label))
+            n[0] += 1
+
+    for lb in _free_labels(st) if free is None else free:
+        walk(lb)
+    return {"parts": len(parts), "placements": n[0], "subs": len(subs)}
+
+
+def read_step_tree(data: bytes):
+    """A STEP assembly as its tree: {root, parts: {key: {name, shape, colours {face index: "#rrggbb"}}},
+    assemblies: {key: {name, instances: [{ref, name, matrix: [16], colour?}]}}} — each different part once (placed
+    several times: one part, several instances), sub-assemblies nested. Several top shapes go under one root."""
+    from OCP.collections import Sequence_TDF_Label
+    doc, st = _read_xcaf(data)  # noqa: F841 — (the document holds the labels)
+    parts, asms = {}, {}
+
+    def part(label):
+        k = _label_key(label)
+        if k in parts:
+            return k
+        shape = st.GetShape_s(label)
+        found = []  # (sub-shape, colour): later ones (a body's, a face's) win
+        c = _label_colour(label)
+        if c:
+            found.append((shape, c))
+        subs = Sequence_TDF_Label()
+        st.GetSubShapes_s(label, subs)
+        for i in range(1, subs.Length() + 1):
+            sc = _label_colour(subs.Value(i))
+            if sc:
+                found.append((st.GetShape_s(subs.Value(i)), sc))
+        fm, colours = _face_map(shape), {}
+        for s, col in sorted(found, key=lambda x: int(x[0].ShapeType())):  # a solid's colour, then its faces'
+            ex = TopExp_Explorer(s, TopAbs_FACE)
+            while ex.More():
+                j = fm.FindIndex(ex.Current())
+                if j:
+                    colours[j - 1] = col
+                ex.Next()
+        parts[k] = {"name": _label_name(label) or f"Part {len(parts) + 1}", "shape": shape, "colours": colours}
+        return k
+
+    def assembly(label, name=None):
+        k = _label_key(label)
+        if k in asms:
+            return k
+        asms[k] = {"name": name or _label_name(label) or f"Assembly {len(asms) + 1}", "instances": []}
+        for comp, ref in _components(st, label):
+            sub = assembly(ref) if st.IsAssembly_s(ref) else part(ref)
+            own = _label_name(comp)
+            inst = {"ref": sub, "matrix": _m16(st.GetLocation_s(comp)), "name": own if own and not own.startswith("=>") else ""}
+            c = _label_colour(comp)
+            if c:
+                inst["colour"] = c
+            asms[k]["instances"].append(inst)
+        return k
+
+    from OCP.TopLoc import TopLoc_Location
+    free = _free_labels(st)
+    if len(free) == 1 and st.IsAssembly_s(free[0]):
+        root = assembly(free[0])
+    else:  # several top shapes (bodies side by side): one root holding them where they are
+        root = "root"
+        asms[root] = {"name": "", "instances": []}
+        for lb in free:
+            loc = TopLoc_Location()
+            asms[root]["instances"].append({"ref": assembly(lb) if st.IsAssembly_s(lb) else part(lb), "matrix": _m16(loc), "name": ""})
+    return _fold({"root": root, "parts": parts, "assemblies": asms})
+
+
+def _fold(tree):
+    """A sub-assembly holding a single placement (an ECAD board wraps each component so: 2388 of them) is not kept:
+    its part goes straight into the parent, the two placements multiplied; assemblies no longer used are dropped."""
+    asms = tree["assemblies"]
+    one = lambda k: k in asms and len(asms[k]["instances"]) == 1  # noqa: E731
+    for a in asms.values():
+        for inst in a["instances"]:
+            while one(inst["ref"]):
+                child = asms[inst["ref"]]["instances"][0]
+                m = np.asarray(inst["matrix"], float).reshape(4, 4, order="F") @ np.asarray(child["matrix"], float).reshape(4, 4, order="F")
+                inst.update(ref=child["ref"], matrix=[float(v) for v in m.reshape(-1, order="F")],
+                            name=inst.get("name") or child.get("name") or asms[inst["ref"]]["name"])
+                if child.get("colour") and not inst.get("colour"):
+                    inst["colour"] = child["colour"]
+    used, todo = set(), [tree["root"]]
+    while todo:
+        k = todo.pop()
+        if k in used:
+            continue
+        used.add(k)
+        todo += [i["ref"] for i in asms.get(k, {}).get("instances", [])]
+    tree["assemblies"] = {k: a for k, a in asms.items() if k in used}
+    tree["parts"] = {k: p for k, p in tree["parts"].items() if k in used}
+    return tree
+
+
+def write_step_tree(parts, assemblies, root, name="assembly"):
+    """An assembly as a structured STEP (AP214, read by SolidWorks, CATIA, Solid Edge as an assembly tree): parts
+    {key: {name, shape, colour?, colours?: [(face, "#rrggbb")]}} (one product each), assemblies {key: {name,
+    instances: [{ref, name?, matrix: [16], colour?}]}} (sub-assemblies stay nested), root: the top assembly's key."""
+    from OCP.Quantity import Quantity_Color, Quantity_TOC_RGB
+    from OCP.STEPCAFControl import STEPCAFControl_Writer
+    from OCP.TCollection import TCollection_ExtendedString
+    from OCP.TDataStd import TDataStd_Name
+    from OCP.TDocStd import TDocStd_Document
+    from OCP.XCAFDoc import XCAFDoc_ColorType, XCAFDoc_DocumentTool
+    doc = TDocStd_Document(TCollection_ExtendedString("XmlXCAF"))
     st, ct = XCAFDoc_DocumentTool.ShapeTool_s(doc.Main()), XCAFDoc_DocumentTool.ColorTool_s(doc.Main())
+
+    def colour(hexa):
+        h = str(hexa or "").lstrip("#")
+        if not re.fullmatch(r"[0-9a-fA-F]{6}", h):
+            return None
+        return Quantity_Color(*(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)), Quantity_TOC_RGB)
+
+    def named(label, text):
+        if text:
+            TDataStd_Name.Set_s(label, TCollection_ExtendedString(str(text)))
+        return label
+
+    labels = {}
+
+    def label_of(k, seen=()):
+        if k in labels:
+            return labels[k]
+        if k in parts:
+            p = parts[k]
+            lb = named(st.AddShape(p["shape"], False, False), p.get("name") or k)
+            c = colour(p.get("colour"))
+            if c:
+                ct.SetColor(lb, c, XCAFDoc_ColorType.XCAFDoc_ColorGen)
+            for face, fc in p.get("colours") or []:
+                c = colour(fc)
+                sub = st.AddSubShape(lb, face) if c else None
+                if sub is not None and not sub.IsNull():
+                    ct.SetColor(sub, c, XCAFDoc_ColorType.XCAFDoc_ColorSurf)
+        elif k in assemblies and k not in seen:
+            a = assemblies[k]
+            lb = named(st.NewShape(), a.get("name") or k)
+            for inst in a.get("instances") or []:
+                ref = label_of(inst["ref"], (*seen, k))
+                if ref is None:
+                    continue
+                comp = st.AddComponent(lb, ref, TopLoc_Location(_trsf(inst.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])))
+                named(comp, inst.get("name"))
+                c = colour(inst.get("colour"))
+                if c:
+                    ct.SetColor(comp, c, XCAFDoc_ColorType.XCAFDoc_ColorGen)
+        else:
+            return None
+        labels[k] = lb
+        return lb
+
+    if label_of(root) is None:
+        raise KernelError("The assembly is empty — insert parts first.")
+    st.UpdateAssemblies()
+    w = STEPCAFControl_Writer()
+    w.SetColorMode(True)
+    w.SetNameMode(True)
+    Interface_Static.SetCVal_s("write.step.schema", "AP214IS")
+    Interface_Static.SetCVal_s("write.step.unit", "MM")
+    Interface_Static.SetCVal_s("write.step.product.name", str(name or "assembly"))
+    if not w.Transfer(doc, STEPControl_AsIs):
+        raise KernelError("The assembly could not be made a STEP file.")
+    fd, path = tempfile.mkstemp(suffix=".step")
+    os.close(fd)
+    try:
+        if w.Write(path) != IFSelect_RetDone:
+            raise KernelError("The STEP file could not be written.")
+        with open(path, "rb") as fh:
+            return fh.read()
+    finally:
+        os.unlink(path)
+
+
+def to_step_coloured(shape, colours, name="part"):
+    """One part as a STEP file with its face colours ({face index: "#rrggbb"}, as read_step_colours gives them)."""
+    fm = _face_map(shape)
+    return write_step_tree({"p": {"name": name, "shape": shape, "colours": [(fm.FindKey(k + 1), c) for k, c in colours.items()]}},
+                           {}, "p", name)
+
+
+def read_step_colours(data: bytes, summary=False):
+    """A STEP with its colours: (shape, {face index (0-based, in _face_map(shape)): "#rrggbb"}). The colours of
+    components, bodies and faces are followed down the file's assembly tree (a face's own colour wins). summary:
+    also how the file is built (step_structure)."""
+    from OCP.collections import Sequence_TDF_Label
+    from OCP.TDF import TDF_Label
+    from OCP.TopoDS import TopoDS_Compound
+    from OCP.BRep import BRep_Builder
+    doc, st = _read_xcaf(data)  # noqa: F841 — (the document holds the labels)
     free = Sequence_TDF_Label()
     st.GetFreeShapes(free)
     shapes = [st.GetShape_s(free.Value(i)) for i in range(1, free.Length() + 1)]
@@ -1528,14 +1795,7 @@ def read_step_colours(data: bytes):
         b.MakeCompound(shape)
         for s in shapes:
             b.Add(shape, s)
-    col = Quantity_Color()
-
-    def own(label):
-        for kind in (XCAFDoc_ColorType.XCAFDoc_ColorSurf, XCAFDoc_ColorType.XCAFDoc_ColorGen):
-            if XCAFDoc_ColorTool.GetColor_s(label, kind, col):
-                return "#%02x%02x%02x" % tuple(round(max(0.0, min(1.0, v)) * 255) for v in (col.Red(), col.Green(), col.Blue()))
-        return None
-
+    own = _label_colour
     found = []  # (located shape, colour): later (deeper) ones win
 
     def walk(label, inherited, loc):
@@ -1574,6 +1834,8 @@ def read_step_colours(data: bytes):
             if k:
                 colours[k - 1] = c
             ex.Next()
+    if summary:
+        return shape, colours, step_structure(st, [free.Value(i) for i in range(1, free.Length() + 1)])
     return shape, colours
 
 

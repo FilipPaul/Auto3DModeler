@@ -51,10 +51,12 @@ TOOLS = [
      "description": "Open a file from disk as a new part (its own tab; the parts already open stay): a PDF drawing, an STL / "
                     "OBJ / STEP 3D file, or as a 📐 2D drawing (then get_drawing, drawing_find …): a DXF / DWG, a PCB's Gerber / "
                     "Excellon drill file, a .zip / .tgz with a Gerber set or an ODB++ job, or a folder of loose Gerber / drill "
-                    "files (one board). as: \"part\" opens a DXF / DWG as a quick part's outline instead. For a photo use "
+                    "files (one board). as: \"part\" opens a DXF / DWG as a quick part's outline instead; as: \"assembly\" "
+                    "opens a STEP assembly (from SolidWorks, CATIA, Solid Edge …) as an assembly: a 3D model part per different "
+                    "part, an instance per placement, sub-assemblies nested, the file's names and colours. For a photo use "
                     "trace_picture.",
      "inputSchema": _obj({"path": STR, "page": {"type": "integer", "description": "PDF page (0-based)"},
-                          "as": {"type": "string", "enum": ["drawing", "part"]}}, ["path"])},
+                          "as": {"type": "string", "enum": ["drawing", "part", "assembly"]}}, ["path"])},
     {"name": "open_sample", "where": "server",
      "description": "Open the app's built-in sample PDF drawing (initial draft.pdf) — ONLY when the user asks for "
                     "the sample (it opens as a new part tab).",

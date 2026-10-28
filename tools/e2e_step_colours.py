@@ -47,10 +47,17 @@ def shown():
       }})""")).most_common(4)
 
 
+def one_body():
+    """A STEP that holds an assembly asks how to open it: as one body, as this test expects (no question: nothing)."""
+    js("""let n = 0; (function go() { const b = [...document.querySelectorAll('.choose .btn')].find((x) => x.textContent.trim().startsWith('Open as one body'));
+      if (b) b.click(); else if (n++ < 300) setTimeout(go, 100); })()""")
+
+
 try:
     d.get(URL)
     wait("return !!window.__app")
     d.find_element(By.ID, "cadInput").send_keys(STEP)
+    one_body()
     wait(f"return window.__app.state.workspace === 'model' && !!{M}.result?.body && !{M}.inflight")
     time.sleep(0.5)
     faces = js(f"return {M}.result.body.faces")

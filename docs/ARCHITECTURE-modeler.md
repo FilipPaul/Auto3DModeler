@@ -604,6 +604,18 @@ Date: 2026-10-25. Written by the architect agent.
 - **Assembly measure done:** AsmView.measurePoint (corners of every placed part), assembly.clickMeasure (faces /
   axes apart). tools/e2e_assembly_measure.py.
 - **Duplicate done:** parts.js duplicate (a new tab after it, "(copy)" names); assembly.ownPart. tools/e2e_duplicate.py.
+- **STEP assemblies in (18a) done:** kernel._read_xcaf / read_step_tree (XCAF: free shapes, components, locations ->
+  column-major matrices, product names, part / face / instance colours; a part placed again is one label -> one part;
+  several top shapes under one root; _fold: a sub-assembly of one placement (an ECAD board wraps each component so)
+  goes into its parent, the matrices multiplied), step_structure (parts / placements / subs, given by import_solid as
+  `structure`), write_step_tree (also to_step_coloured: a part's own STEP with its face colours); doc.import_assembly
+  -> a blob per part (_keep: the read shape kept, the shape cache holds more while small), POST
+  /api/model/import/assembly. web/js/assembly/stepfile.js: askHowToOpen (choose.js; one body first over 150 parts +
+  subs), addTree (a 3D model per part with one solid step, background assemblies, the top one opened; a big tree all
+  🪶 light). Open / drop -> openSolid asks; the assembly's ＋ Insert ▾ From a file and a file dropped on its view ->
+  hooks.importFile (a sub-assembly). AI: open_file {as: "assembly"} -> load_step_assembly. The 44 MB board: 220
+  parts, 270 sub-assemblies, 2269 placements, shown in 70 s (195 s before the cache / light). tests/test_step_assembly.py,
+  tools/e2e_step_assembly.py.
 - **STEP colours done:** kernel.read_step_colours (STEPCAFControl + XCAF: colours followed down the assembly tree to the
   faces of the shape the solid step uses), State.colours by face name -> faces' `color` in the rebuild; the view /
   assembly show them under the paint. tools/e2e_step_colours.py.

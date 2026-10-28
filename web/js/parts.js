@@ -92,12 +92,12 @@ export class Project {
 
   /** A new, empty 3D model part (its own tab). */
   /** A new assembly (its own tab): 3D model parts of the project placed together. */
-  async newAssembly(name = null) {
+  async newAssembly(name = null, data = null) {
     if (this.busy) return;
     await this.hooks.settle();
     if (this.current) this.stash();
     const n = 1 + this.parts.filter((q) => q.kind === 'assembly').length;
-    const p = { id: `P${this.next++}`, name: name || `${t('Assembly')} ${n}`, kind: 'assembly', data: { instances: [] }, history: null };
+    const p = { id: `P${this.next++}`, name: name || `${t('Assembly')} ${n}`, kind: 'assembly', data: data || { instances: [] }, history: null };
     this.parts.push(p);
     this.active = p.id;
     this.render();
@@ -136,8 +136,8 @@ export class Project {
 
   /** A new 3D model part (its own tab) — empty, or with first steps (data) and a command to open (then). */
   /** A 3D model part added to the project without opening it (a standard part for an assembly; no tab). -> its id */
-  addBackground(name, data) {
-    const p = { id: `P${this.next++}`, name, kind: 'model', data, history: null, closed: true };
+  addBackground(name, data, kind = 'model') {
+    const p = { id: `P${this.next++}`, name, kind, data, history: null, closed: true };
     this.parts.push(p);
     this.render();
     return p.id;

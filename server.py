@@ -479,10 +479,10 @@ def attachment(filename: str) -> str:
     return f"attachment; filename=\"{plain}\"; filename*=UTF-8''{quote(filename, safe='')}"
 
 
-def _model_call(op, arg):
+def _model_call(op, arg, timeout=120):
     """Run a kernel op in the worker process -> (result, None) or (None, error response)."""
     try:
-        return MODEL_WORKER.run(op, arg), None
+        return MODEL_WORKER.run(op, arg, timeout), None
     except KernelUnavailable as exc:
         return None, (jsonify({"error": str(exc), "install": "py -m pip install -r requirements-modeler.txt"}), 501)
     except KernelFailed as exc:
@@ -585,6 +585,24 @@ def api_model_import():
             progress.report(f"Reading {name}")
             sha = blobs.put(f.read())
             res, err = _model_call("import_solid", {"blob": sha, "name": name})
+    except progress.Cancelled:
+        return jsonify({"error": "Import cancelled.", "cancelled": True}), 409
+    if err:
+        return err
+    return jsonify({**res, "name": name})
+
+
+@app.post("/api/model/import/assembly")
+def api_model_import_assembly():
+    """{blob (a STEP from /api/model/import), name, rid} -> its assembly tree: {root, parts: {key: {name, blob, faces,
+    bbox, volume}}, assemblies: {key: {name, instances: [{ref, matrix, name, colour?}]}}} — a part per different part
+    (each its own STEP blob), an instance per placement, sub-assemblies nested."""
+    body = request.get_json(force=True) or {}
+    name = body.get("name") or "assembly.step"
+    try:
+        with progress.operation(body.get("rid")):
+            progress.report(f"Reading the assembly of {name}")
+            res, err = _model_call("import_assembly", {"blob": body.get("blob"), "name": name}, timeout=600)
     except progress.Cancelled:
         return jsonify({"error": "Import cancelled.", "cancelled": True}), 409
     if err:
@@ -873,6 +891,14 @@ def tool_open_file(args):
         return {"text": _load_drawing({**read_gerber_set(files), "source": raw.name}, raw.name)}
     p = _file(args["path"])
     ext = p.suffix.lower()
+    if args.get("as") == "assembly":  # a STEP assembly (SolidWorks, CATIA, Solid Edge …): parts + an assembly
+        if ext not in (".step", ".stp"):
+            raise ValueError('as "assembly" is for a STEP file (.step / .stp).')
+        from auto3d.modeler import blobs
+        res = RELAY.call("load_step_assembly", {"blob": blobs.put(p.read_bytes()), "name": p.name}, timeout=900)
+        if res.get("error"):
+            raise ValueError(res.get("text") or "The page could not open it.")
+        return {"text": res.get("text", "Opened.")}
     if ext in PICTURE_FORMATS:
         raise ValueError("That is a picture: use trace_picture to find its outline, then use_outline.")
     if p.name.lower().endswith(PCB_EXT) or (ext in DRAWING_FORMATS and (args.get("as") or "drawing") == "drawing"):

@@ -18,6 +18,7 @@ import { Project } from './parts.js';
 import { Modeler } from './modeler/modeler.js';
 import { modelHandlers } from './modeler/agent_model.js';
 import { Assembly } from './assembly/assembly.js';
+import { askHowToOpen, addTree, treeSize } from './assembly/stepfile.js';
 import { DrawingEditor, drawingToSketch } from './drawing2d/editor.js';
 import { SheetEditor, partHash } from './sheet/sheet.js';
 import { isStandard } from './assembly/fasteners.js';
@@ -551,8 +552,31 @@ async function openSolid(file) {
     } else toast(e.message.replace(/^MESH_TOO_BIG /, ''), /cancel/i.test(e.message) ? 'info' : 'error', 9000);
     return;
   }
+  const how = await askHowToOpen(r); // a STEP assembly (SolidWorks, CATIA, Solid Edge …): as an assembly, or one body
+  if (!how) return;
+  if (how === 'assembly') { await openStepAssembly(r); return; }
   await project.newModel({ features: [solidStep(r)] }, file.name.replace(/\.[^.]+$/, ''));
   toast(t2('{name} is open as a 3D model ({faces} faces) — sketch on its faces, add holes, or ask the AI to build on it.', { name: file.name, faces: r.faces }), 'ok', 7000);
+}
+/** A STEP's assembly tree (r: importSolid's answer, or {blob, name}) -> its parts and sub-assemblies added to the
+ *  project (closed) -> {tree, top: {name, data}} of the top assembly (not added). */
+async function importTree(r) {
+  const rid = newRid(), stop = trackProgress(rid, t2('Reading the assembly of {name}…', { name: r.name }));
+  try {
+    const tree = await (await api('/api/model/import/assembly', { blob: r.blob, name: r.name, rid })).json();
+    const top = addTree(tree, { addModelPart: (n, d) => project.addBackground(n, d), addAssembly: (n, d) => project.addBackground(n, d, 'assembly') },
+      r.name.replace(/\.[^.]+$/, ''));
+    return { tree, top };
+  } finally { stop(); }
+}
+/** A STEP assembly opened as an assembly of the project (its own tab). */
+async function openStepAssembly(r) {
+  let res;
+  try { res = await importTree(r); } catch (e) { toast(e.message, /cancel/i.test(e.message) ? 'info' : 'error', 9000); return null; }
+  await project.newAssembly(res.top.name, res.top.data);
+  const n = treeSize(res.tree);
+  toast(t2('{name} is open as an assembly: {parts} parts, {subs} sub-assemblies — each part a 3D model of the project.', { name: r.name, ...n }), 'ok', 8000);
+  return { ...res, ...n };
 }
 // drawings: DXF / DWG, and PCB data — a Gerber set or an ODB++ job (a .zip / .tgz, or the Gerber / drill files)
 const DRAWING_RE = /\.(dxf|dwg|zip|tgz|tar|gbr|ger|gtl|gbl|gto|gbo|gts|gbs|gtp|gbp|gko|gm\d*|gml|g\d+|cmp|sol|plc|pls|stc|sts|art|pho|drl|xln|drd|exc|ncd)$|\.tar\.gz$/i;
@@ -1925,7 +1949,13 @@ const assembly = new Assembly({ left: $('asmLeft'), viewport: $('asmViewport'), 
   parts: () => project.parts,
   partData: (id) => { const p = project.parts.find((q) => q.id === id); return p && typeof p.data === 'object' ? p.data : null; },
   addModelPart: (name, data) => project.addBackground(name, data),
-  importSolid: async (file) => solidStep(await importSolid(file)),
+  // a STEP / STL / OBJ to insert: a solid step, or (a STEP assembly, if wanted) a new sub-assembly of the project
+  importFile: async (file) => {
+    const r = await importSolid(file), how = await askHowToOpen(r);
+    if (how !== 'assembly') return how ? { step: solidStep(r) } : null;
+    const { top } = await importTree(r);
+    return { part: project.addBackground(top.name, top.data, 'assembly') };
+  },
   duplicatePart: (id) => project.duplicate(id, false),
   renamePart: (id, name) => project.rename(id, name),
   editInPlace: async (id, ctx) => { await project.switchTo(id); if (project.active === id) modeler.setContext(ctx); },
@@ -2173,6 +2203,12 @@ const agentHandlers = {
     for (const msg of data.issues || []) toast(msg, 'info', 8000);
     return { text: `Opened ${name} as a 📐 drawing: ${data.entities.length} shapes on ${data.layers.length} layers${data.pcb ? ' (a board: the top copper, outline, holes and silkscreen shown)' : ''}${data.issues?.length ? `; notes: ${data.issues.join(' ')}` : ''}. get_drawing tells its layers and size.` };
   },
+  load_step_assembly: async ({ blob, name }) => {
+    const r = await openStepAssembly({ blob, name });
+    if (!r) throw new Error(`${name} could not be opened as an assembly.`);
+    const names = Object.values(r.tree.parts).map((p) => p.name);
+    return { text: `Opened ${name} as the assembly “${r.top.name}”: ${r.parts} different parts (${names.slice(0, 12).join(', ')}${names.length > 12 ? ' …' : ''}), ${r.placements} placements, ${r.subs} sub-assemblies; each part is a 3D model of the project (a solid step). get_assembly lists the placed parts.` };
+  },
   load: async ({ data, editor }) => {
     await loadParsed(data);
     if (editor) state.outlineEditor = editor;
@@ -2375,7 +2411,7 @@ async function sheetScreenshot() {
 // 3D model parts: their own tools; the shared ones (screenshot, export, undo, get_part) follow the part on screen
 const MODEL = modelHandlers({ modeler, project, getWorkspace: () => state.workspace });
 const SHARED = { get_screenshot: 'model_screenshot', get_body: 'model_body', undo: 'model_undo' };
-const ANYWHERE = new Set(['load', 'load_drawing', 'ask_user', 'sheet_open', 'get_sheet', 'sheet_edit', 'export_data', 'list_parts', 'open_part', 'duplicate_part', 'new_model', 'new_assembly']);
+const ANYWHERE = new Set(['load', 'load_drawing', 'load_step_assembly', 'ask_user', 'sheet_open', 'get_sheet', 'sheet_edit', 'export_data', 'list_parts', 'open_part', 'duplicate_part', 'new_model', 'new_assembly']);
 for (const [name, fn] of Object.entries(agentHandlers)) {
   if (ANYWHERE.has(name)) continue;
   agentHandlers[name] = async (...args) => {

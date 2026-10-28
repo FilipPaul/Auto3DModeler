@@ -676,6 +676,13 @@ const CS = {
   'The file of an imported solid is not on this computer — open the project file (it carries the file) again.': 'Soubor importovaného tělesa na tomto počítači není — otevřete znovu soubor projektu (soubor nese).',
   'This mesh is too big to become an exact solid — it opens as a quick part (sliced), as before.': 'Tato síť je příliš velká na přesné těleso — otevře se jako rychlý díl (rozřezaný), jako dřív.',
   '{name} is open as a 3D model ({faces} faces) — sketch on its faces, add holes, or ask the AI to build on it.': '{name} je otevřený jako 3D model ({faces} ploch) — skicujte na jeho plochách, přidejte díry, nebo ať na něm staví AI.',
+  // STEP assemblies (SolidWorks, CATIA, Solid Edge)
+  '{name} is an assembly: {parts} different parts placed {placements} times, {subs} sub-assemblies.': '{name} je sestava: {parts} různých dílů umístěných {placements}×, {subs} podsestav.',
+  'Open as an assembly': 'Otevřít jako sestavu', 'a part per part, placed as in the file': 'každý díl zvlášť, umístěný jako v souboru',
+  'Open as one body': 'Otevřít jako jedno těleso', 'one solid to build on': 'jedno těleso, na kterém lze stavět',
+  'Reading the assembly of {name}…': 'Čtu sestavu {name}…',
+  '{name} is open as an assembly: {parts} parts, {subs} sub-assemblies — each part a 3D model of the project.': '{name} je otevřený jako sestava: {parts} dílů, {subs} podsestav — každý díl je 3D model projektu.',
+  'Drop a STEP, STL or OBJ file to put it into the assembly.': 'Přetáhněte soubor STEP, STL nebo OBJ a vloží se do sestavy.',
   '📂 From a file (STEP / STL / OBJ)…': '📂 Ze souboru (STEP / STL / OBJ)…', 'There is nothing to cut it out of yet — make the part first (or show it as a reference).': 'Zatím není z čeho vyříznout — nejdřív udělejte díl (nebo ho zobrazte jako referenci).',
   'Distance along the axis between the facing ends of the two round faces (e.g. two plates 30 mm apart). Empty: it slides freely.': 'Vzdálenost po ose mezi přivrácenými konci obou válcových ploch (např. dvě desky 30 mm od sebe). Prázdné: volně klouže.',
   free: 'volně', 'Its turn about the axis is locked — click to let it turn freely': 'Natočení kolem osy je zamčené — kliknutím ho uvolníte',
@@ -1046,7 +1053,7 @@ const CS = {
 
 // ---------------------------------------------------------------------------- texts with values ({} = a value; {1}, {2} … in the Czech text)
 const CS_PATTERNS = [
-  ['Slicing {} / {}', 'Řezání {1} / {2}'], ['Uploading {}…', 'Nahrávám {1}…'], ['Reading {}', 'Čtu {1}'], ['Reading the STEP file (tessellating)', 'Čtu soubor STEP (triangulace)'],
+  ['Slicing {} / {}', 'Řezání {1} / {2}'], ['Uploading {}…', 'Nahrávám {1}…'], ['Reading {}', 'Čtu {1}'], ['Reading the assembly of {}', 'Čtu sestavu {1}'], ['Reading the STEP file (tessellating)', 'Čtu soubor STEP (triangulace)'],
   ['Drawing read with {} — review the highlighted dimensions.', 'Výkres načten s {1} — zkontrolujte zvýrazněné rozměry.'],
   ['The count is {} … {}.', 'Počet je {1} … {2}.'],
   ['{} error(s)', '{1} chyb(a)'], ['{} warning(s)', '{1} varování'], ['{} error(s) and {} warning(s)', '{1} chyb(a) a {2} varování'],

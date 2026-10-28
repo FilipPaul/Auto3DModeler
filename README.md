@@ -21,7 +21,12 @@ Use **📂 Open ▾** to open a file. It offers:
   choose (Shift+drop: straight to a quick part, as before);
 - a **CAD / 3D file**: STL / OBJ / STEP files — a **STEP opens as a 3D model** with its exact
   solid as the first step (sketch on its faces, drill it, build a cover around it; a 40 MB STEP in under a minute);
-  STL / OBJ open as a quick part (sliced, for printing; Shift+drop a STEP for that too);
+  STL / OBJ open as a quick part (sliced, for printing; Shift+drop a STEP for that too). A **STEP assembly** — what
+  SolidWorks, CATIA and Solid Edge export (their own SLDASM / CATProduct / ASM files are closed; save as STEP AP214 /
+  AP242 there) — asks first: **Open as an assembly** makes a 3D model part per different part (a screw used 22 times
+  is one part), an assembly ◇ with a placed part per placement, sub-assemblies nested, the file's names and colours;
+  **Open as one body** opens it as before. A big tree (an assembled board: hundreds of parts) offers one body first
+  and, as an assembly, shows its parts 🪶 simplified;
 - a saved project.
 
 You can also drop a file on the view. To model a part from scratch, click **＋ New 3D model** (see
@@ -764,7 +769,9 @@ turns it into one. In 2D: 📏 in the outline editor (picture pixels and mm) and
 - **▣ Solid from a file** (3D model) adds a STEP / STL / OBJ as a step: **▣ Joined** to the part, **⬚ Cut out** of it
   (a cavity it fits in exactly) or **👁 Reference** (drawn see-through, not part of the part — build a cover or a holder
   around it, then cut a copy of it out). An STL / OBJ is made an exact solid (up to 60 000 triangles). Assemblies
-  insert one with *＋ Insert part ▾ → From a file*. The files are kept by the server and carried in the project file.
+  insert one with *＋ Insert part ▾ → From a file* or by dropping the file on the assembly's view — a STEP assembly
+  goes in as a sub-assembly (when you choose *Open as an assembly*). The files are kept by the server and carried in
+  the project file.
 - **STL / OBJ / STEP as a quick part** (STEP is tessellated with `cascadio` / OpenCASCADE): the part is cut into flat slices at every
   flat face — exact for parts whose walls are vertical between flat faces (plates, brackets, cutters), slanted /
   curved walls become steps of the *slice height*. The file is kept on the server (`data/imports/`) and inside the

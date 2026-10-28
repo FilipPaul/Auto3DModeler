@@ -428,7 +428,7 @@ export class Assembly {
     bar.innerHTML = `
       <div class="menu as-insert">${btn('insert', '＋ Insert part ▾', parts.length ? 'Add a part of this project: a 3D model ◆, a quick part ▤ (drawing, picture, import) or another assembly ◇ (as one unit)' : 'Make a part first (＋ New 3D model, or open a drawing / picture)', 'tool')}
         <div class="menu-list">${parts.map((p) => `<button data-part="${p.id}" data-no-i18n>${p.kind === 'classic' ? '▤' : p.kind === 'assembly' ? '◇' : '◆'} ${esc(p.name)}</button>`).join('') || '<div class="hint">No parts yet</div>'}
-          ${this.hooks.importSolid ? '<div class="menu-sep"></div><button data-a="fromFile">📂 From a file (STEP / STL / OBJ)…</button>' : ''}</div></div>
+          ${this.hooks.importFile ? '<div class="menu-sep"></div><button data-a="fromFile">📂 From a file (STEP / STL / OBJ)…</button>' : ''}</div></div>
       <div class="as-jbar ${toolGroup('joint')}" title="${esc(t('Hold a part against another one: choose how, then click a face of the part to move and the face it goes to (S = touch)'))}"><span class="as-jlabel">🔗 ${esc(t('Joint'))}</span>
         ${Object.entries(JOINT_TYPES).map(([k, j]) => `<button class="${(k === 'fastener' ? this.bolt : this.mode !== 'idle' && this.jointType === k) ? 'on' : ''}" data-joint="${k}" title="${esc(`${t(j.name)}: ${t(j.hint)}`)}">${j.icon} <span>${esc(t(j.name))}</span></button>`).join('')}</div>
       ${btn('measure', '📏 Measure', 'Measure: click a spot (a face, a corner), then another one — the distance; two parallel flat faces: the gap between them; two round faces: how far apart their axes are', `tool ${this.measuring ? 'on' : ''}`)}
@@ -1795,17 +1795,18 @@ export class Assembly {
     return id;
   }
 
-  /** ＋ Insert part ▾ From a file: a STEP / STL / OBJ becomes a 3D model part of the project, and goes in. */
-  insertFile() {
+  /** ＋ Insert part ▾ From a file (or a file dropped on the view): a STEP / STL / OBJ becomes a 3D model part of the
+   *  project and goes in; a STEP assembly, if wanted, a sub-assembly (its parts, as in the file). */
+  insertFile(file = null) {
+    const go = async (f) => {
+      let r;
+      try { r = await this.hooks.importFile(f); } catch (e) { this.hooks.toast(e.message.replace(/^MESH_TOO_BIG /, ''), 'error', 9000); return; }
+      if (r) await this.insert(r.part || this.hooks.addModelPart(r.step.name, { features: [r.step] }));
+    };
+    if (file) return go(file);
     const inp = document.createElement('input');
     Object.assign(inp, { type: 'file', accept: '.step,.stp,.stl,.obj' });
-    inp.addEventListener('change', async () => {
-      const file = inp.files[0];
-      if (!file) return;
-      let step;
-      try { step = await this.hooks.importSolid(file); } catch (e) { this.hooks.toast(e.message.replace(/^MESH_TOO_BIG /, ''), 'error', 9000); return; }
-      await this.insert(this.hooks.addModelPart(step.name, { features: [step] }));
-    });
+    inp.addEventListener('change', () => { if (inp.files[0]) go(inp.files[0]); });
     inp.click();
   }
 
@@ -2574,11 +2575,18 @@ export class Assembly {
     const cv = this.view.renderer.domElement;
     // a part dragged from the project tree (☰) onto the view: it goes in
     const vp = this.els.viewport;
-    vp.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('text/a3d-insert')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; vp.classList.add('drop-in'); } });
+    // … or a STEP / STL / OBJ file from the computer (a STEP assembly: a sub-assembly, if wanted)
+    vp.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('text/a3d-insert') || e.dataTransfer.types.includes('Files')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; vp.classList.add('drop-in'); } });
     vp.addEventListener('dragleave', () => vp.classList.remove('drop-in'));
     vp.addEventListener('drop', async (e) => {
-      const pid = e.dataTransfer.getData('text/a3d-insert');
+      const pid = e.dataTransfer.getData('text/a3d-insert'), file = e.dataTransfer.files?.[0];
       vp.classList.remove('drop-in');
+      if (!pid && file) {
+        e.preventDefault();
+        if (/\.(step|stp|stl|obj)$/i.test(file.name) && this.hooks.importFile) this.insertFile(file);
+        else this.hooks.toast(t('Drop a STEP, STL or OBJ file to put it into the assembly.'), 'warning', 5000);
+        return;
+      }
       if (!pid) return;
       e.preventDefault();
       if (!this.modelParts().some((q) => q.id === pid)) { this.hooks.toast(t('That part cannot go into this assembly (a drawing, or the assembly itself).'), 'warning', 5000); return; }

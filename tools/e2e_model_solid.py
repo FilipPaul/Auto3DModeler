@@ -55,10 +55,17 @@ def pick_file(path):
                     js("document.getElementById('e2eFile').remove()"))
 
 
+def one_body():
+    """A STEP that holds an assembly asks how to open it: as one body, as this test expects (no question: nothing)."""
+    js("""let n = 0; (function go() { const b = [...document.querySelectorAll('.choose .btn')].find((x) => x.textContent.trim().startsWith('Open as one body'));
+      if (b) b.click(); else if (n++ < 300) setTimeout(go, 100); })()""")
+
+
 def open_cad(path):
     t0 = time.time()
     n = js("return window.__app.project.parts.length")
     d.find_element(By.ID, "cadInput").send_keys(path)
+    one_body()
     lag = 0
     while time.time() - t0 < 300:
         t1 = time.time()

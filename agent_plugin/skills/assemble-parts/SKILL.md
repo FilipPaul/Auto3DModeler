@@ -10,7 +10,8 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
 `library_search {query}`) — screws, nuts, inserts, bearings, standoffs, cylinders, sensors, motors, with their part numbers.
 
 1. `list_parts` — the 3D model parts there are. `new_assembly {name}` opens an empty assembly tab
-   (or `open_part` an existing assembly).
+   (or `open_part` an existing assembly). An assembly from SolidWorks, CATIA or Solid Edge comes as a STEP:
+   `open_file {path, as: "assembly"}` makes its parts (once each) and the assembly, placed as in the file.
 2. `insert_part {part}` for each part — it lands beside the others. The result lists the placed parts
    (I1, I2 …) with positions and bounding boxes in mm. The same part may be inserted again (a second screw).
 3. Join them with `snap_faces {move: {part: "I2", face}, onto: {part: "I1", face}}`: the moved part turns so

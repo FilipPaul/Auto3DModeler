@@ -670,6 +670,14 @@ MAX_COPIES = 200
 
 
 _shapes: OrderedDict = OrderedDict()  # an imported file read once (a big STEP takes seconds)
+SHAPES_FACES = 200000  # kept read: the last 8 files, or more while their faces add up to less (an assembly's parts)
+
+
+def _keep(sha, shape, cols):
+    _shapes[sha] = (shape, cols, K.face_count(shape))
+    _shapes.move_to_end(sha)
+    while len(_shapes) > 8 and sum(v[2] for v in _shapes.values()) > SHAPES_FACES:
+        _shapes.popitem(last=False)
 
 
 def _solid_shape(f):
@@ -682,11 +690,9 @@ def _solid_shape(f):
                 data = blobs.get(sha)
             except blobs.Missing:
                 raise K.KernelError(f"BLOB_MISSING {sha} — the file of this step is not here; open the project file again.") from None
-            _shapes[sha] = K.read_step_colours(data)
-            while len(_shapes) > 8:
-                _shapes.popitem(last=False)
+            _keep(sha, *K.read_step_colours(data))
         _shapes.move_to_end(sha)
-        return _shapes[sha]
+        return _shapes[sha][:2]
     try:
         return K.from_step(base64.b64decode(f.get("step") or "")), {}
     except (ValueError, TypeError):
@@ -705,22 +711,48 @@ def import_solid(a):
     data = blobs.get(sha)
     ext = name.lower().rsplit(".", 1)[-1]
     if ext in ("step", "stp"):
-        shape, cols = K.read_step_colours(data)
-        _shapes[sha] = (shape, cols)
-        out = {"blob": sha, "coloured": len(cols)}
+        shape, cols, built = K.read_step_colours(data, summary=True)
+        _keep(sha, shape, cols)
+        out = {"blob": sha, "coloured": len(cols), "structure": built}
     elif ext in ("stl", "obj"):
         tris = importers.read_stl(data) if ext == "stl" else importers.read_obj(data.decode("utf-8", "ignore"))
         if len(tris) > MESH_LIMIT:
             raise K.KernelError(f"MESH_TOO_BIG This mesh has {len(tris)} triangles — more than {MESH_LIMIT} take too long to become an exact solid.")
         shape = K.mesh_solid(tris)
         out = {"blob": blobs.put(K.to_step(shape, name)), "triangles": len(tris)}
-        _shapes[out["blob"]] = (shape, {})
+        _keep(out["blob"], shape, {})
     else:
         raise K.KernelError("A solid comes from a STEP, STL or OBJ file.")
     if K.face_count(shape) == 0:
         raise K.KernelError("The file has no solid in it.")
     bb = K.bbox(shape)
     return {**out, "faces": K.face_count(shape), "bbox": [round(v, 3) for v in bb] if bb else None, "volume": round(K.volume(shape), 3)}
+
+
+def import_assembly(a):
+    """A STEP assembly (kept as a blob) -> its tree for the browser: {root, parts: {key: {name, blob, faces, bbox,
+    volume, coloured}}, assemblies: {key: {name, instances: [{ref, matrix, name, colour?}]}}}. Each different part is
+    kept as a STEP of its own (with its colours), used by a `solid` step as an imported file is."""
+    from . import blobs
+    try:
+        tree = K.read_step_tree(blobs.get(a["blob"]))
+    except blobs.Missing:
+        raise K.KernelError("BLOB_MISSING — the file is not here any more; open it again.") from None
+    parts = {}
+    for k, p in tree["parts"].items():
+        shape, faces = p["shape"], K.face_count(p["shape"])
+        if not faces:
+            continue
+        bb = K.bbox(shape)
+        sha = blobs.put(K.to_step_coloured(shape, p["colours"], p["name"]))
+        _keep(sha, shape, p["colours"])  # (read back, the file gives the same faces in the same order)
+        parts[k] = {"name": p["name"], "blob": sha, "faces": faces, "bbox": [round(v, 3) for v in bb] if bb else None,
+                    "volume": round(K.volume(shape), 3), "coloured": len(p["colours"])}
+    asms = {k: {"name": v["name"], "instances": [i for i in v["instances"] if i["ref"] in parts or i["ref"] in tree["assemblies"]]}
+            for k, v in tree["assemblies"].items()}
+    if not parts:
+        raise K.KernelError("The file has no solid in it.")
+    return {"root": tree["root"], "parts": parts, "assemblies": asms}
 
 
 def _pattern(f, st):
@@ -1125,3 +1157,4 @@ def assembly_step(instances):
     if not shapes:
         raise K.KernelError("The assembly is empty — insert parts first.")
     return K.to_step(K.compound(shapes))
+
