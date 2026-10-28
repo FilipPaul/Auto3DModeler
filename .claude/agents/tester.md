@@ -251,6 +251,10 @@ Never report "works" without having run it; report failures with their output.
    one "M3 ⌵ Ø5 × 90°", ✓; deleted: the countersink's angle missing with its key; the AI's restore ✓; ＋ on the row:
    the callout back; a counterbore / blind thread "Ø3.4 ⌴ Ø6 ↧ 3.2", "2× M4 ↧ 6", their depths missing when deleted,
    complete; the PDF's and the DXF's texts; the AI's M3 ⌵ on a 2 mm plate: Ø6, Ø10 refused). Needs a server restarted after sheet.py / doc.py changes.
+   `tools/e2e_sheet_views_templates.py <url> <dir> [cs]` covers sheet views renamed, moved and scaled with the mouse
+   (a double-click on the Front label -> "Side A", Ctrl+Z / Ctrl+Y; the Top view dragged snaps under Front, Shift: free;
+   the Right view's Custom… 1:2522 in its label; the sheet's 1:2522 in the title block, real dimension values; 5:1
+   warns past the frame; get_sheet, the DXF (the name, 60 measured at 5:1) and the PDF). Run it in cs too.
    `tools/e2e_sheet_fits.py <url> <dir>` covers fits on the sheet (a Ø8 pin's dimension: Fit h6 drawn "Ø8 h6" with
    0 / −0.009 told, — plain again, the AI's sheet_edit fits k6, a wrong class refused, Ctrl+Z).
    `tools/e2e_model_rib.py <url> <dir>` covers ⊿ Rib (an L bracket and a line from the wall to the plate on the Right

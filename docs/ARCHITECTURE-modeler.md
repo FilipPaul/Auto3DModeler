@@ -806,6 +806,16 @@ Date: 2026-10-25. Written by the architect agent.
   that is) and kernel.material_along (the part's depth under the hole, a blind hole's own depth) — a head wider than
   the face or as deep as the part is an issue with the most that fits ("at most Ø6.4"), never cut through.
   test_hole_head_fits; tools/e2e_sheet_hole_callouts.py (the AI's M3 ⌵ on a 2 mm plate).
+- **Sheet views renamed, moved and scaled done:** d.viewNames (a double-click on a view's label on the sheet: a field
+  over it; or on its name in the Views panel; in undo, the PDF, the DXF), d.scale (the sheet's own, an override of the
+  fit: sheet.parse_scale "1:2522" / "3:1" / "1/5" / "0.5"; layout(geo, paper, scale, frame) — server.py _sheet_layout
+  makes the layout for it; Auto chooses A3 when it does not fit A4) and d.vscale (a view's own, its label "Top
+  (2:1)"; SheetEditor.vs(v) everywhere a view is drawn / picked; the DXF's dimensions of it get their own DIMLFAC).
+  Scale choices: 10:1 … 1:100 and Custom… (choose.js ask(): a small text dialog). The title block's Scale is the
+  sheet's; dimensions stay the part's sizes. Views past the frame: a warning (panel, status, get_sheet past_the_frame),
+  never refused. Dragging a view snaps it in line (Top under / over Front, Right and Section beside it, within 4 mm, a
+  dashed guide); Shift: free. sheet_edit scale / view_scales / view_names for the AI. tests/test_sheet_views.py;
+  tools/e2e_sheet_views_templates.py.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

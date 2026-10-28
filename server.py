@@ -706,23 +706,35 @@ def api_assembly_clashes():
 
 @app.post("/api/sheet/build")
 def api_sheet_build():
-    """{part, preset: light | medium | full, paper} -> {geometry (views, points), layout, dims} — a drawing sheet."""
+    """{part, preset: light | medium | full, paper, scale ("1:2522", else the fit's), frame} -> {geometry (views,
+    points), layout, dims} — a drawing sheet."""
     body = request.get_json(force=True)
     data, err = _model_call("sheet", {"part": body.get("part") or {}, "preset": body.get("preset") or "medium", "paper": body.get("paper"),
                                       "per_view": body.get("per_view") or {}, "section": bool(body.get("section"))})
     if err:
         return err
+    return _sheet_layout(data, body)
+
+
+def _sheet_layout(data, body):
+    """A sheet's layout made for its own scale ("1:2522") and frame ({m: [l, t, r, b], title}) when it has them."""
+    if body.get("scale") or body.get("frame"):
+        from auto3d.modeler.sheet import layout
+        try:
+            data["layout"] = layout(data["geometry"], body.get("paper"), body.get("scale") or None, body.get("frame") or None)
+        except (ValueError, TypeError) as exc:
+            return jsonify({"error": str(exc)}), 400
     return jsonify(data)
 
 
 @app.post("/api/sheet/assembly")
 def api_sheet_assembly():
-    """{instances (placed, as for clashes), paper} -> {geometry, layout, dims, marks} — an assembly's drawing sheet."""
+    """{instances (placed, as for clashes), paper, scale, frame} -> {geometry, layout, dims, marks} — an assembly's drawing sheet."""
     body = request.get_json(force=True)
     data, err = _model_call("assembly_sheet", {"instances": body.get("instances") or [], "paper": body.get("paper"), "explode": body.get("explode") or 0})
     if err:
         return err
-    return jsonify(data)
+    return _sheet_layout(data, body)
 
 
 @app.post("/api/sheet/pdf")

@@ -1112,6 +1112,17 @@ const CS = {
   'Each piece is a part of its own now — the part you split keeps both.': 'Každý kus je teď samostatný díl — rozdělený díl si ponechá oba.',
   'There is no solid yet to split.': 'Zatím není co rozdělit.', 'The part could not be split here.': 'Díl tady nejde rozdělit.',
   'The plane does not cross the part — move it (Offset), or pick a plane or face through the part.': 'Rovina neprochází dílem — posuňte ji (Odsazení), nebo vyberte rovinu či plochu skrz díl.',
+  // drawing sheets: views renamed, moved and scaled
+  'Custom…': 'Vlastní…', 'Show this view on the sheet': 'Zobrazit tento pohled na listu',
+  'Double-click to rename the view': 'Dvojklikem pohled přejmenujete',
+  "The view's scale — the sheet's, a standard one or your own (Custom…); a view at its own scale says it under its name": 'Měřítko pohledu — jako list, normalizované nebo vlastní (Vlastní…); pohled ve vlastním měřítku ho má pod názvem',
+  "Drag a view to move it — it snaps in line with the front view; Shift: freely. Double-click a view's name to rename it.": 'Pohled přesunete tažením — přichytí se v zákrytu s pohledem zepředu; se Shiftem volně. Dvojklikem na název pohled přejmenujete.',
+  '{views}: past the frame — choose a smaller scale or a bigger paper.': '{views}: přesahuje rámeček — zvolte menší měřítko nebo větší papír.',
+  '{views}: past the frame': '{views}: přesahuje rámeček',
+  "The sheet's scale: Auto fits the views on the paper; or a standard one, or your own (Custom…, e.g. 1:2522). Dimensions always show the real sizes.": 'Měřítko listu: Auto vejde pohledy na papír; nebo normalizované, nebo vlastní (Vlastní…, např. 1:2522). Kóty vždy ukazují skutečné rozměry.',
+  'Scale (paper : part), e.g. 1:2522 or 3:1': 'Měřítko (papír : díl), např. 1:2522 nebo 3:1',
+  'Write it as two numbers, e.g. 1:2 or 3:1.': 'Zapište ho jako dvě čísla, např. 1:2 nebo 3:1.', 'Type something first.': 'Nejdřív něco napište.',
+  "The view's name — Enter keeps it, Esc goes back; empty: its standard name": 'Název pohledu — Enter ho ponechá, Esc vrátí; prázdný: standardní název',
   // language switch
   'Čeština / English': 'Čeština / English',
 };

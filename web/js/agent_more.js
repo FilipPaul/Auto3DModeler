@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { paintedFaces } from './modeler/paint.js';
 import { sectionMiddle } from './modeler/sectionbar.js';
+import { parseScale } from './sheet/sheet.js';
 
 const b64 = (s, T) => { if (typeof s !== 'string') return s; const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new T(u.buffer); };
 const r3 = (v) => +(+v).toFixed(3);
@@ -345,9 +346,31 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       await sheet.ensure();
       return ok({ ...sheet.summary(), ...(points ? { [points]: sheet.pointsOf(points) } : {}) });
     },
-    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, texts, complete, drop_twice, fits } = {}) => {
+    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, texts, complete, drop_twice, fits, scale, view_scales, view_names } = {}) => {
       need('sheet', 'This is for a drawing sheet (📄) — sheet_open opens one');
       const ed = sheet, done = [];
+      const sc = (v, what) => { if (v === null || v === '') return null; const s = parseScale(v); if (!s) throw new Error(`${what}: a scale such as "1:2", "2:1" or "1:2522" (null: ${what === 'scale' ? 'automatic' : 'the sheet\'s'}).`); return s; };
+      if (scale !== undefined) {
+        const s = sc(scale, 'scale');
+        if (s) ed.d.scale = s; else delete ed.d.scale;
+        ed.d.views = {};
+        done.push(`scale ${scale || 'auto'}`);
+      }
+      for (const [v, s] of Object.entries(view_scales || {})) {
+        if (!['Front', 'Top', 'Right', 'Iso', 'Section'].includes(v)) throw new Error('view_scales: {Front | Top | Right | Iso | Section: "2:1" | null}.');
+        const k = sc(s, 'view_scales');
+        ed.d.vscale = { ...(ed.d.vscale || {}) };
+        if (k) ed.d.vscale[v] = k; else delete ed.d.vscale[v];
+        done.push(`${v} ${s || 'at the sheet\'s scale'}`);
+      }
+      for (const [v, n] of Object.entries(view_names || {})) {
+        if (!['Front', 'Top', 'Right', 'Iso', 'Section'].includes(v)) throw new Error('view_names: {Front | Top | Right | Iso | Section: "name" | null}.');
+        const names = { ...(ed.d.viewNames || {}) };
+        if (String(n ?? '').trim()) names[v] = String(n).trim().slice(0, 40); else delete names[v];
+        ed.d.viewNames = names;
+        done.push(`${v} named ${n || 'as standard'}`);
+      }
+      if (scale !== undefined) await ed.ensure(true);
       if (preset !== undefined) {
         if (!['light', 'medium', 'full'].includes(preset)) throw new Error('preset: light, medium or full.');
         ed.d.preset = preset;

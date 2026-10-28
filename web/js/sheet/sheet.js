@@ -10,10 +10,14 @@
 //   {source: "<part id>", preset: "light" | "medium" | "full", vpreset: {Top: "full"} (a view's own), paper: null | "A4" | "A3", views: {Front: [x, y]} (moved),
 //    off: {Iso: true} (views not shown), dims: {<id>: {side, off, ang, len}} (automatic ones moved), hidden: [<ids>],
 //    user: [<dimension>], texts: {title, number, drawn, note} (typed into the title block),
+//    viewNames: {Front: "Side A"} (renamed views), scale: null | [a, b] (the sheet's own, else the fit's),
+//    vscale: {Top: [2, 1]} (a view's own scale, its label says it: "Top (2:1)"),
 //    built: {geometry, layout, dims} (from the server), hash (of the part it was built from),
 //    rev, created, changed}
 import { History } from '../history.js';
 import { t } from '../i18n.js';
+import { ask } from '../choose.js';
+import { renameInPlace } from '../rename.js';
 import { HOLE_FITS, SHAFT_FITS, deviationText } from './fits.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -23,6 +27,19 @@ const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const VIEWS = ['Front', 'Top', 'Right'];
 const PRESETS = [['light', 'Light'], ['medium', 'Medium'], ['full', 'Full']];
 const TEXTS = [['title', 'Title'], ['number', 'Drawing no.'], ['drawn', 'Drawn by'], ['note', 'Note']];
+/** The standard drawing scales (ISO 5455) offered in the scale choices; Custom… takes any, e.g. 1:2522. */
+const SCALE_LIST = [[10, 1], [5, 1], [2, 1], [1, 1], [1, 2], [1, 5], [1, 10], [1, 20], [1, 50], [1, 100]];
+/** A scale as written ("1:2522", "3:1", "1/5", "0.5", "2") -> [a, b] (both above 0), or null (as sheet.parse_scale). */
+export function parseScale(text) {
+  const m = /^\s*(\d+(?:[.,]\d+)?)\s*(?:[:/]\s*(\d+(?:[.,]\d+)?))?\s*$/.exec(String(text ?? ''));
+  if (!m) return null;
+  let a = parseFloat(m[1].replace(',', '.')), b = m[2] ? parseFloat(m[2].replace(',', '.')) : 1;
+  if (!m[2] && a > 0 && a < 1) { b = 1 / a; a = 1; }
+  if (!(a > 0 && b > 0 && Number.isFinite(a) && Number.isFinite(b))) return null;
+  return [+a.toFixed(4), +b.toFixed(4)];
+}
+const scaleText = (s) => (s ? `${fmt(s[0])}:${fmt(s[1])}` : '');
+const sameScale = (a, b) => !!a && !!b && Math.abs(a[0] / a[1] - b[0] / b[1]) < 1e-9;
 /** A circle of a hole step (its key has "<step>:hole:k" / ":cbore:k" / ":csk:k"; a pattern's copy "P1:2:H1:hole:0" too)
  *  -> [step id, 'hole' | 'head'], or null. */
 const stepOf = (key) => { const m = /(?:^|[+:])([^:+]+):(hole|cbore|csk):\d+/.exec(key || ''); return m ? [m[1], m[2] === 'hole' ? 'hole' : 'head'] : null; };
@@ -53,8 +70,8 @@ export class SheetEditor {
     this.pick = null;    // the first point of a new dimension {view, key}
     this.zoom = { k: 1, x: 0, y: 0 };
     this.history = new History({
-      capture: () => ({ section: !!this.d?.section, balloons: this.d?.balloons, views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper, texts: this.d?.texts, exploded: !!this.d?.exploded }),
-      restore: (s) => { const ex = !!this.d.exploded, sec = !!this.d.section; Object.assign(this.d, structuredClone(s)); if (!this.d.exploded) delete this.d.exploded; if (!this.d.section) delete this.d.section; if (ex !== !!this.d.exploded || sec !== !!this.d.section || this.d.built?.preset !== this.d.preset || this.d.built?.vp !== JSON.stringify(this.d.vpreset || {})) this.ensure(true); else this.render(); },
+      capture: () => ({ section: !!this.d?.section, balloons: this.d?.balloons, views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper, texts: this.d?.texts, exploded: !!this.d?.exploded, viewNames: this.d?.viewNames, scale: this.d?.scale ?? null, vscale: this.d?.vscale }),
+      restore: (s) => { const ex = !!this.d.exploded, sec = !!this.d.section; Object.assign(this.d, structuredClone(s)); if (!this.d.exploded) delete this.d.exploded; if (!this.d.section) delete this.d.section; if (ex !== !!this.d.exploded || sec !== !!this.d.section || this.d.built?.preset !== this.d.preset || this.d.built?.vp !== JSON.stringify(this.d.vpreset || {}) || this.layKey() !== this.builtKey()) this.ensure(true); else this.render(); },
       onChange: () => this.renderBar(),
     });
     this.build();
@@ -114,23 +131,23 @@ export class SheetEditor {
     const asm = this.hooks.kindOf?.(this.d.source) === 'assembly';
     const h = this.sourceHash(this.d.source);
     const vp = JSON.stringify(this.d.vpreset || {});
-    if (!force && this.d.built && !this.d.built.stale && this.d.hash === h && !!this.d.built.section === !!this.d.section && this.d.built.preset === this.d.preset && this.d.built.vp === vp && (this.d.built.paper ?? null) === (this.d.paper ?? null)) return;
+    if (!force && this.d.built && !this.d.built.stale && this.d.hash === h && !!this.d.built.section === !!this.d.section && this.d.built.preset === this.d.preset && this.d.built.vp === vp && (this.d.built.paper ?? null) === (this.d.paper ?? null) && this.builtKey() === this.layKey()) return;
     this.busy = true;
     this.renderBar();
     try {
       let r;
       if (asm) { // an assembly: its views, overall sizes, parts list and balloons
-        const pg = await this.assemblyPage(this.d.source, this.hooks.drawingCtx(), this.d.exploded ? 2 : 0);
+        const pg = await this.assemblyPage(this.d.source, this.hooks.drawingCtx(), this.d.exploded ? 2 : 0, this.d);
         r = pg.built;
         this.d.asm = { rows: pg.rows };
         if (!this.d.asmLaid) { this.d.off = { ...this.d.off, Right: true }; this.d.views = { ...this.d.views, Iso: r.layout.views.Right }; this.d.asmLaid = true; }
       } else {
-        const res = await fetch('/api/sheet/build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: src, preset: this.d.preset, paper: this.d.paper, per_view: this.d.vpreset || {}, section: !!this.d.section }) });
+        const res = await fetch('/api/sheet/build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: src, preset: this.d.preset, paper: this.d.paper, per_view: this.d.vpreset || {}, section: !!this.d.section, ...this.layReq() }) });
         r = await res.json();
         if (!res.ok) throw new Error(r.error || res.statusText);
       }
       if (this.d.hash && this.d.hash !== h) { this.d.rev += 1; this.d.changed = new Date().toISOString(); } // the part changed
-      Object.assign(this.d, { built: { ...r, preset: this.d.preset, vp, paper: this.d.paper ?? null, section: !!this.d.section && !asm }, hash: h });
+      Object.assign(this.d, { built: { ...r, preset: this.d.preset, vp, paper: this.d.paper ?? null, section: !!this.d.section && !asm, lk: this.layKey() }, hash: h });
       this.error = null;
     } catch (e) { this.error = e.message; }
     this.busy = false;
@@ -142,6 +159,93 @@ export class SheetEditor {
   get lay() { return this.d.built?.layout; }
   get geo() { return this.d.built?.geometry; }
   scale() { const s = this.lay?.scale || [1, 1]; return s[0] / s[1]; }
+
+  /** The sheet's scale [a, b]: its own (d.scale) or the fit's. */
+  scaleArr() { return this.d.scale || this.lay?.scale || [1, 1]; }
+
+  /** A view's scale (paper mm per part mm): its own (d.vscale) or the sheet's. */
+  vs(v) { const s = this.d.vscale?.[v]; return s ? s[0] / s[1] : this.scale(); }
+
+  /** What the server's layout is made for: the sheet's own scale (and frame) — built again when it changes. */
+  layKey(d = this.d) { return JSON.stringify({ s: d.scale || null }); }
+  builtKey(d = this.d) { return d.built?.lk ?? JSON.stringify({ s: null }); }
+  layReq(d = this.d) { return d.scale ? { scale: scaleText(d.scale) } : {}; }
+
+  /** A page's sheet data as drawn (a drawing set's page: what its set gives it). */
+  pageData(d) { return d; }
+
+  /** A scale choice (a <select>): `none` first ("as the sheet (1:2)" / "Auto (1:1)"), the standard scales, the one
+   *  chosen when it is not standard, Custom… */
+  scaleSelect(attr, now, none, title) {
+    const std = SCALE_LIST.some((s) => sameScale(s, now));
+    return `<select ${attr} title="${esc(title)}"><option value="">${esc(none)}</option>${SCALE_LIST.map((s) => `<option value="${scaleText(s)}" ${now && sameScale(s, now) ? 'selected' : ''}>${scaleText(s)}</option>`).join('')}
+      ${now && !std ? `<option value="${scaleText(now)}" selected>${scaleText(now)}</option>` : ''}<option value="custom">${esc(t('Custom…'))}</option></select>`;
+  }
+
+  /** The value of a scale choice -> [a, b], null (as the sheet / auto) or undefined (Custom… cancelled). */
+  async scaleFrom(sel, now) {
+    if (sel.value !== 'custom') return sel.value ? parseScale(sel.value) : null;
+    const v = await ask(t('Scale (paper : part), e.g. 1:2522 or 3:1'), now ? scaleText(now) : '1:1', { placeholder: '1:2', check: (x) => (parseScale(x) ? '' : t('Write it as two numbers, e.g. 1:2 or 3:1.')) });
+    if (v === null) { sel.value = now ? scaleText(now) : ''; return undefined; }
+    return parseScale(v);
+  }
+
+  /** Set the sheet's own scale (null: the automatic fit) — the views placed for it again. */
+  async setSheetScale(s) {
+    if (s) this.d.scale = s; else delete this.d.scale;
+    this.d.views = {};
+    this.history.commit();
+    await this.ensure(true);
+  }
+
+  /** Set a view's own scale (null: the sheet's). */
+  setViewScale(v, s) {
+    const vs = { ...(this.d.vscale || {}) };
+    if (s) vs[v] = s; else delete vs[v];
+    this.d.vscale = vs;
+    this.commit();
+  }
+
+  /** Rename a view ('' or its standard name: back to that). */
+  setViewName(v, name) {
+    const n = String(name || '').trim().slice(0, 40), names = { ...(this.d.viewNames || {}) };
+    if (!n || n === (v === 'Section' ? t('Section A–A') : t(v))) delete names[v]; else names[v] = n;
+    this.d.viewNames = names;
+    this.commit();
+  }
+
+  /** A view's label on the sheet made a text field over it (a double-click): Enter / leaving keeps it, Esc not. */
+  renameOnSheet(v) {
+    const lab = this.svgEl?.querySelector(`[data-vlabel="${v}"]`);
+    if (!lab) return;
+    const r = lab.getBoundingClientRect(), inp = document.createElement('input');
+    inp.className = 'sh-rename';
+    inp.value = this.viewName(v);
+    inp.title = t('The view\'s name — Enter keeps it, Esc goes back; empty: its standard name');
+    Object.assign(inp.style, { left: `${r.left + r.width / 2 - 80}px`, top: `${r.top - 4}px` });
+    document.body.appendChild(inp);
+    let done = false;
+    const finish = (keep) => { if (done) return; done = true; const val = inp.value; inp.remove(); if (keep) this.setViewName(v, val); };
+    inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') finish(true); if (e.key === 'Escape') finish(false); });
+    inp.addEventListener('blur', () => finish(true));
+    setTimeout(() => { inp.focus(); inp.select(); }, 0);
+  }
+
+  /** A view's name on the sheet: the user's (d.viewNames) or its standard one ("Front", "Section A–A"). */
+  viewName(v) { return this.d.viewNames?.[v] || (v === 'Section' ? t('Section A–A') : t(v)); }
+
+  /** Its label: the name, and its own scale when that is not the sheet's ("Detail B (2:1)"). */
+  viewLabel(v) { const s = this.d.vscale?.[v]; return s && !sameScale(s, this.scaleArr()) ? `${this.viewName(v)} (${scaleText(s)})` : this.viewName(v); }
+
+  /** The views that reach past the frame (paper mm) -> [names]: a warning, the sheet still draws them. */
+  outside() {
+    if (!this.lay || !this.geo) return [];
+    const [pw, ph] = this.lay.size, [ml, mt, mr, mb] = this.lay.margins || [this.lay.margin, this.lay.margin, this.lay.margin, this.lay.margin];
+    const off = (b) => b[0] < ml - 0.5 || b[1] < mt - 0.5 || b[2] > pw - mr + 0.5 || b[3] > ph - mb + 0.5;
+    const out = this.drawn().filter((v) => off(this.paperBox(v)));
+    if (this.isoBox && !this.d.off.Iso && off(this.isoBox)) out.push('Iso');
+    return out;
+  }
 
   /** A view's centre on the paper (moved by the user, else the layout's). */
   centre(v) { return this.d.views[v] || this.lay.views[v] || (v === 'Section' ? this.lay.views.Right : null); }
@@ -172,7 +276,7 @@ export class SheetEditor {
 
   /** A point of view v (part mm) -> the paper (mm). */
   P(v, p) {
-    const g = this.geo.views[v], [cx, cy] = this.centre(v), s = this.scale(), b = g.box;
+    const g = this.geo.views[v], [cx, cy] = this.centre(v), s = this.vs(v), b = g.box;
     return [cx + (p[0] - (b[0] + b[2]) / 2) * s, cy - (p[1] - (b[1] + b[3]) / 2) * s];
   }
 
@@ -263,7 +367,7 @@ export class SheetEditor {
       for (const p of g.visible) out.push(`<polyline points="${pl(v, p)}" fill="none" stroke="#000" stroke-width="0.5" stroke-linejoin="round"/>`);
       // its name below the dimensions under it
       const below = Math.max(0, ...this.allDims().filter((d) => d.view === v && d.kind === 'linear' && d.dir === 'h' && d.side !== 't').map((d) => d.off ?? 8));
-      out.push(`<text x="${(pb[0] + pb[2]) / 2}" y="${pb[3] + below + 8}" font-size="3.5" text-anchor="middle" fill="#334">${esc(v === 'Section' ? t('Section A–A') : t(v))}</text></g>`);
+      out.push(`<text x="${(pb[0] + pb[2]) / 2}" y="${pb[3] + below + 8}" font-size="3.5" text-anchor="middle" fill="#334" data-vlabel="${v}" class="sh-vlabel">${esc(this.viewLabel(v))}</text></g>`);
     }
     const cut = this.drawn().includes('Section') && this.drawn().includes('Front') && G.views.Section.cut;
     if (cut) { // where Section A–A is cut, on the front view: a dash-dot line, A at each end, arrows the way it is seen
@@ -277,13 +381,17 @@ export class SheetEditor {
     if (!this.d.off.Iso && G.iso?.length) { // the iso view: fitted into its cell
       const pts = G.iso.flat(), xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
       const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-      const [cx, cy, size] = this.d.views.Iso ? [...this.d.views.Iso, L.iso[2]] : L.iso, k = size / Math.max(x1 - x0, y1 - y0, 1e-6);
+      const [cx, cy, size] = this.d.views.Iso ? [...this.d.views.Iso, L.iso[2]] : L.iso;
+      const k = this.d.vscale?.Iso ? this.vs('Iso') : size / Math.max(x1 - x0, y1 - y0, 1e-6); // (fitted into its cell, or at its own scale)
       this.isoMap = { at: (q) => [cx + (q[0] - (x0 + x1) / 2) * k, cy - (q[1] - (y0 + y1) / 2) * k], c: [cx, cy] };
+      this.isoBox = [cx - (x1 - x0) * k / 2, cy - (y1 - y0) * k / 2, cx + (x1 - x0) * k / 2, cy + (y1 - y0) * k / 2];
       out.push('<g data-view="Iso" class="sh-view">');
       if (!forPrint) out.push(`<rect x="${cx - (x1 - x0) * k / 2 - 2}" y="${cy - (y1 - y0) * k / 2 - 2}" width="${(x1 - x0) * k + 4}" height="${(y1 - y0) * k + 4}" fill="#fff" fill-opacity="0" class="sh-vhit"/>`);
       for (const p of G.iso) out.push(`<polyline points="${p.map((q) => `${(cx + (q[0] - (x0 + x1) / 2) * k).toFixed(3)},${(cy - (q[1] - (y0 + y1) / 2) * k).toFixed(3)}`).join(' ')}" fill="none" stroke="#333" stroke-width="0.3"/>`);
+      if (this.d.viewNames?.Iso || this.d.vscale?.Iso) out.push(`<text x="${cx}" y="${cy + (y1 - y0) * k / 2 + 7}" font-size="3.5" text-anchor="middle" fill="#334" data-vlabel="Iso" class="sh-vlabel">${esc(this.viewLabel('Iso'))}</text>`);
       out.push('</g>');
-    }
+    } else this.isoBox = null;
+    if (!forPrint && this.guides?.length) for (const [x1, y1, x2, y2] of this.guides) out.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1f6feb" stroke-width="0.25" stroke-dasharray="2 1.5" class="sh-guide"/>`);
     for (const d of this.allDims()) out.push(this.dimSvg(d, forPrint));
     if (this.d.asm) out.push(this.asmSvg(pw, ph, m, th));
     if (!forPrint && this.tool === 'dim') out.push(this.snapMarks());
@@ -308,7 +416,7 @@ export class SheetEditor {
     if (d.kind === 'ang') {
       const a = this.angleOf(d);
       if (!a) return '';
-      const X = this.P(d.view, a.X), r = d.r ?? 15, s = this.scale();
+      const X = this.P(d.view, a.X), r = d.r ?? 15, s = this.vs(d.view);
       const pu = (u) => [u[0], -u[1]]; // (paper: y down)
       const U1 = pu(a.u1), U2 = pu(a.u2), at = (u, k) => [X[0] + u[0] * k, X[1] + u[1] * k];
       const sweep = U1[0] * U2[1] - U1[1] * U2[0] > 0 ? 1 : 0, A1 = at(U1, r), A2 = at(U2, r);
@@ -331,7 +439,7 @@ export class SheetEditor {
     if (d.kind === 'dia' || d.kind === 'rad') {
       const c = this.circleOf(d.view, d.a);
       if (!c) return '';
-      const C = this.P(d.view, c.c), R = c.r * this.scale();
+      const C = this.P(d.view, c.c), R = c.r * this.vs(d.view);
       const ang = (d.kind === 'rad' ? Math.atan2(-(c.pm[1] - c.c[1]), c.pm[0] - c.c[0]) * 180 / Math.PI + (d.ang || 0) : d.ang ?? 45) * Math.PI / 180;
       const u = [Math.cos(ang), -Math.sin(ang)], on1 = [C[0] + u[0] * R, C[1] + u[1] * R], end = [C[0] + u[0] * (R + (d.len ?? 6)), C[1] + u[1] * (R + (d.len ?? 6))];
       const txt = esc(this.dimText(d, v)), right = u[0] >= 0, shelf = [end[0] + (right ? 1 : -1) * (txt.length * fs * 0.52 + 1), end[1]];
@@ -382,12 +490,12 @@ export class SheetEditor {
   }
 
   titleSvg(pw, ph, m, th, s) {
-    const x0 = pw - m - 150, y0 = ph - m - th, src = this.hooks.partData(this.d.source) || {}, sc = this.lay.scale, T = this.d.title || {}, X = this.d.texts || {};
+    const x0 = pw - m - 150, y0 = ph - m - th, src = this.hooks.partData(this.d.source) || {}, sc = this.scaleArr(), T = this.d.title || {}, X = this.d.texts || {};
     const what = [T.kind || t('Part'), T.of ? `${t('in')} ${T.of}` : '', T.pos ? `${t('Pos.')} ${T.pos}` : ''].filter(Boolean).join(' · ');
     const cells = [
       [what, X.title || T.part || this.hooks.partName(this.d.source) || '—', 0, 0, 90, 12, 5, 'title'],
       [t('Material'), T.material ?? (src.material || 'PLA'), 90, 0, 60, 12, 3.6],
-      [t('Scale'), `${sc[0]}:${sc[1]}`, 0, 12, 30, 9, 3.4],
+      [t('Scale'), scaleText(sc), 0, 12, 30, 9, 3.4],
       [t('Paper'), this.lay.paper, 30, 12, 30, 9, 3.4],
       [t('Tolerances'), src.tolerance ? `ISO 2768-${src.tolerance}` : '—', 60, 12, 90, 9, 3.4],
       [t('Created'), when(this.d.created), 0, 21, 50, 9, 3],
@@ -478,7 +586,7 @@ export class SheetEditor {
     return nums;
   }
 
-  async assemblyPage(aid, ctx, explode = 0) {
+  async assemblyPage(aid, ctx, explode = 0, sd = null) { // (sd: its sheet's data — its paper, scale, frame)
     const flatten = (id, M = ID4, pre = '', inner = null) => (this.hooks.partData(id)?.instances || []).flatMap((it) => { // (inner: a sub-assembly's parts moved in this placement)
       const W = mul4(M, inner?.[it.id] || it.matrix || ID4), key = pre ? `${pre}/${it.id}` : it.id;
       if (ctx.kindOf(it.part) === 'assembly') return flatten(it.part, W, key, it.inner);
@@ -486,7 +594,7 @@ export class SheetEditor {
     });
     const insts = this.hooks.partData(aid)?.instances || [];
     if (!insts.length) throw new Error(t('The assembly has no parts to draw.'));
-    const r = await post('/api/sheet/assembly', { instances: flatten(aid), explode }); // (explode: the iso view pulled apart)
+    const r = await post('/api/sheet/assembly', { instances: flatten(aid), explode, ...(sd ? { paper: sd.paper || null, ...this.layReq(sd) } : {}) }); // (explode: the iso view pulled apart)
     const groups = new Map();
     for (const it of insts) { if (!groups.has(it.part)) groups.set(it.part, []); groups.get(it.part).push(it.id); }
     const nums = this.itemNumbers(this.rootOf(aid) || aid); // (the set's numbers: the same part, the same number)
@@ -504,7 +612,8 @@ export class SheetEditor {
     const visit = async (aid, parent) => {
       if (!(this.hooks.partData(aid)?.instances || []).length) return;
       const ex = ctx.sheetOf(aid)?.exploded ? 2 : 0; // (its own sheet's iso view exploded)
-      const { built, rows } = await this.cached(`a|${aid}|${this.sourceHash(aid)}|${ex}|${[...this.itemNumbers(this.rootOf(aid) || aid)].join()}`, () => this.assemblyPage(aid, ctx, ex)), own = ctx.sheetOf(aid); // its own sheet: the user's moves, dimensions, texts
+      const own = ctx.sheetOf(aid), sd = this.pageData(own || {}); // its own sheet: the user's moves, dimensions, texts
+      const { built, rows } = await this.cached(`a|${aid}|${this.sourceHash(aid)}|${ex}|${[...this.itemNumbers(this.rootOf(aid) || aid)].join()}|${sd.paper || ''}|${this.layKey(sd)}`, () => this.assemblyPage(aid, ctx, ex, sd));
       const base = own ? structuredClone(own) : { created: now, changed: now, off: { Right: true }, views: { Iso: built.layout.views.Right } };
       pages.push({ name: name(aid), d: { ...base, source: aid, built, asm: { rows },
         title: { kind: parent ? t('Sub-assembly') : t('Assembly'), part: name(aid), material: '—', of: parent || '' } } });
@@ -520,10 +629,10 @@ export class SheetEditor {
     for (const pg of pages) {
       if (!pg.part) continue;
       const src = this.hooks.partData(pg.part), own = ctx.sheetOf(pg.part);
-      const d = own ? structuredClone(own) : { source: pg.part, preset: 'medium', rev: 1, created: now, changed: now };
-      if (!d.built || d.built.stale || d.hash !== partHash(src)) {
-        const key = `p|${pg.part}|${partHash(src)}|${d.preset || 'medium'}|${d.paper || ''}|${JSON.stringify(d.vpreset || {})}`;
-        d.built = { ...(await this.cached(key, () => post('/api/sheet/build', { part: src, preset: d.preset || 'medium', paper: d.paper, per_view: d.vpreset || {} }))), preset: d.preset || 'medium', paper: d.paper ?? null };
+      const d = this.pageData(own ? structuredClone(own) : { source: pg.part, preset: 'medium', rev: 1, created: now, changed: now });
+      if (!d.built || d.built.stale || d.hash !== partHash(src) || this.builtKey(d) !== this.layKey(d)) {
+        const key = `p|${pg.part}|${partHash(src)}|${d.preset || 'medium'}|${d.paper || ''}|${JSON.stringify(d.vpreset || {})}|${this.layKey(d)}`;
+        d.built = { ...(await this.cached(key, () => post('/api/sheet/build', { part: src, preset: d.preset || 'medium', paper: d.paper, per_view: d.vpreset || {}, ...this.layReq(d) }))), preset: d.preset || 'medium', paper: d.paper ?? null, lk: this.layKey(d) };
       }
       pg.d = { ...d, title: { part: pg.name, of: pg.parent, pos: pg.pos } };
     }
@@ -595,7 +704,8 @@ export class SheetEditor {
     this.svgEl = svg;
     this.applyZoom();
     const lost = this.allDims().filter((d) => this.value(d) === null).length;
-    this.$('.sh-status').textContent = `${this.allDims().length} ${t('dimension(s)')}${lost ? ` · ⚠ ${lost} ${t('lost their points')}` : ''} · Rev ${this.d.rev}`;
+    const out = this.outside();
+    this.$('.sh-status').textContent = `${this.allDims().length} ${t('dimension(s)')}${lost ? ` · ⚠ ${lost} ${t('lost their points')}` : ''}${out.length ? ` · ⚠ ${tv('{views}: past the frame', { views: out.map((v) => this.viewName(v)).join(', ') })}` : ''} · ${t('Scale')} ${scaleText(this.scaleArr())} · Rev ${this.d.rev}`;
   }
 
   applyZoom() {
@@ -623,8 +733,13 @@ export class SheetEditor {
     if (!box || !this.d) return;
     const all = this.allDims(), hid = this.d.hidden.length, ck = this.checked || { missing: [], dup: new Set(), over: new Set(), ok: true };
     const vp = this.d.vpreset || {}, per = (v) => ck.missing.filter((m) => m.view === v).length;
-    box.innerHTML = `<h3>Views</h3><div class="sh-views">${[...VIEWS, 'Iso'].map((v) => `<div class="sh-vrow"><label class="check"><input type="checkbox" data-v="${v}" ${this.d.off[v] ? '' : 'checked'}> ${esc(t(v))}${v === 'Iso' || this.d.off[v] ? '' : per(v) ? ` <b class="sh-vbad" title="${esc(t('Sizes missing in this view'))}">⚠ ${per(v)}</b>` : ' <b class="sh-vok">✓</b>'}</label>
-        ${v === 'Iso' || this.d.asm ? '' : `<select data-vp="${v}" title="${esc(t('How many dimensions in this view — as the sheet, or its own'))}"><option value="">${esc(t('as the sheet'))}</option>${PRESETS.map(([k, l]) => `<option value="${k}" ${vp[v] === k ? 'selected' : ''}>${esc(t(l))}</option>`).join('')}<option value="all" ${vp[v] === 'all' ? 'selected' : ''} title="${esc(t('Every size this view shows, also the ones given in another view'))}">${esc(t('All its sizes'))}</option></select>`}</div>`).join('')}</div>
+    const out = this.outside(), sheetSc = scaleText(this.scaleArr());
+    const vrows = [...VIEWS, 'Iso', ...(this.d.section ? ['Section'] : [])];
+    box.innerHTML = `<h3>Views</h3><div class="sh-views">${vrows.map((v) => `<div class="sh-vrow">${v === 'Section' ? '<span class="sh-vchk"></span>' : `<input type="checkbox" class="sh-vchk" data-v="${v}" ${this.d.off[v] ? '' : 'checked'} title="${esc(t('Show this view on the sheet'))}">`}<span class="sh-vname" data-vname="${v}" title="${esc(t('Double-click to rename the view'))}" data-no-i18n>${esc(this.viewName(v))}</span>${v === 'Iso' || this.d.off[v] ? '' : per(v) ? ` <b class="sh-vbad" title="${esc(t('Sizes missing in this view'))}">⚠ ${per(v)}</b>` : v === 'Section' ? '' : ' <b class="sh-vok">✓</b>'}<span class="sh-vgap"></span>
+        ${v === 'Iso' || v === 'Section' || this.d.asm ? '' : `<select data-vp="${v}" title="${esc(t('How many dimensions in this view — as the sheet, or its own'))}"><option value="">${esc(t('as the sheet'))}</option>${PRESETS.map(([k, l]) => `<option value="${k}" ${vp[v] === k ? 'selected' : ''}>${esc(t(l))}</option>`).join('')}<option value="all" ${vp[v] === 'all' ? 'selected' : ''} title="${esc(t('Every size this view shows, also the ones given in another view'))}">${esc(t('All its sizes'))}</option></select>`}
+        ${this.scaleSelect(`data-vs="${v}" class="sh-vscale"`, this.d.vscale?.[v], `${t('Sheet')} ${sheetSc}`, t('The view\'s scale — the sheet\'s, a standard one or your own (Custom…); a view at its own scale says it under its name'))}</div>`).join('')}</div>
+      <p class="hint">${esc(t('Drag a view to move it — it snaps in line with the front view; Shift: freely. Double-click a view\'s name to rename it.'))}</p>
+      ${out.length ? `<p class="mp-bad sh-outside">⚠ ${esc(tv('{views}: past the frame — choose a smaller scale or a bigger paper.', { views: out.map((v) => this.viewName(v)).join(', ') }))}</p>` : ''}
       ${this.d.asm ? '' : `<label class="check sh-secrow" title="${esc(t('The part cut through its middle (across X) and seen from the right, the cut hatched — in the right view\'s place; the cut marked A–A on the front view'))}"><input type="checkbox" data-sec ${this.d.section ? 'checked' : ''}> ${esc(t('Section A–A'))}</label>`}
       ${this.d.asm ? `<p class="hint">${esc(t('An assembly drawing: its views, overall sizes and parts list — each part has its own drawing for its sizes.'))}</p>` : ''}
       ${this.geo?.simple ? `<p class="hint sh-simple">${esc(!this.geo.simple.left_out ? t('A big part: drawn from its mesh, without hidden lines.') : tv('A big part: drawn from its mesh, without hidden lines; {n} pieces smaller than {mm} mm are left out (too small to see at this scale).', { n: this.geo.simple.left_out, mm: this.geo.simple.under }))}</p>` : ''}
@@ -645,6 +760,12 @@ export class SheetEditor {
     });
     for (const el of box.querySelectorAll('[data-v]')) {
       el.addEventListener('change', () => { if (el.checked) delete this.d.off[el.dataset.v]; else this.d.off[el.dataset.v] = true; this.commit(); });
+    }
+    for (const el of box.querySelectorAll('[data-vs]')) {
+      el.addEventListener('change', async () => { const s = await this.scaleFrom(el, this.d.vscale?.[el.dataset.vs]); if (s !== undefined) this.setViewScale(el.dataset.vs, s); });
+    }
+    for (const el of box.querySelectorAll('[data-vname]')) {
+      el.addEventListener('dblclick', () => renameInPlace(el, (n) => this.setViewName(el.dataset.vname, n)));
     }
     for (const el of box.querySelectorAll('[data-vp]')) {
       el.addEventListener('change', () => { const vpr = { ...(this.d.vpreset || {}) }; if (el.value) vpr[el.dataset.vp] = el.value; else delete vpr[el.dataset.vp]; this.d.vpreset = vpr; this.history.commit(); this.ensure(true); });
@@ -680,6 +801,7 @@ export class SheetEditor {
       ${d ? '' : `<h3>${esc(t('Title block'))}</h3>${TEXTS.map(([k, l]) => `<div class="field"><label>${esc(t(l))}</label><input type="text" data-text="${k}" value="${esc(this.d.texts?.[k] || '')}" placeholder="${esc(k === 'title' ? this.hooks.partName(this.d.source) || '' : '')}"></div>`).join('')}`}
       ${this.d.asm ? `<label class="check"><input type="checkbox" data-k="exploded" ${this.d.exploded ? 'checked' : ''}> ${esc(t('Iso view exploded'))}</label>` : ''}
       <div class="field"><label>Paper</label><select data-k="paper">${[['', 'Auto'], ['A4', 'A4'], ['A3', 'A3']].map(([v, l]) => `<option value="${v}" ${(this.d.paper || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="field"><label>${esc(t('Scale'))}</label>${this.scaleSelect('data-k="scale"', this.d.scale, this.d.scale ? t('Auto') : `${t('Auto')} (${scaleText(this.lay?.scale || [1, 1])})`, t('The sheet\'s scale: Auto fits the views on the paper; or a standard one, or your own (Custom…, e.g. 1:2522). Dimensions always show the real sizes.'))}</div>
       ${d ? `<h3>${esc(t('Dimension'))}</h3><p class="mp-count" data-no-i18n>${esc(this.value(d) === null ? '⚠ ?' : this.dimText(d, this.value(d)))}</p>
         <p class="hint">${esc(d.auto ? t('Made by the preset. Drag it to move it; Delete removes it (↺ brings it back).') : t('Your own. Drag it to move it; Delete removes it.'))}</p>
         ${this.value(d) === null ? `<p class="mp-bad">${esc(t('Its points are gone — the part changed. Delete it and add it again.'))}</p>` : ''}
@@ -698,6 +820,7 @@ export class SheetEditor {
       this.ensure(true);
     });
     box.querySelector('[data-k=paper]').addEventListener('change', (e) => { this.d.paper = e.target.value || null; this.d.views = {}; this.history.commit(); this.ensure(true); });
+    box.querySelector('[data-k=scale]')?.addEventListener('change', async (e) => { const s = await this.scaleFrom(e.target, this.d.scale); if (s !== undefined) this.setSheetScale(s); });
     box.querySelector('[data-a=del]')?.addEventListener('click', () => this.remove(this.sel));
     box.querySelector('[data-k=fit]')?.addEventListener('change', (e) => { this.setFit(d.id, e.target.value); this.renderProps(); });
     box.querySelector('[data-a=part]')?.addEventListener('click', () => this.hooks.openPart?.(this.d.source));
@@ -944,7 +1067,7 @@ export class SheetEditor {
   circleAt(p, reach = 1.5) {
     for (const v of this.drawn()) {
       for (const c of this.geo.views[v].circles) {
-        const C = this.P(v, c.c), R = c.r * this.scale();
+        const C = this.P(v, c.c), R = c.r * this.vs(v);
         if (Math.abs(Math.hypot(p[0] - C[0], p[1] - C[1]) - R) < reach) return { view: v, c };
       }
     }
@@ -1034,6 +1157,10 @@ export class SheetEditor {
         setTimeout(() => { inp?.focus(); inp?.select(); }, 0);
         return;
       }
+      const lab = e.target.closest('[data-vlabel]');
+      const again = lab && this.lastLabel?.v === lab.dataset.vlabel && performance.now() - this.lastLabel.at < 400;
+      this.lastLabel = lab ? { v: lab.dataset.vlabel, at: performance.now() } : null;
+      if (again) { e.preventDefault(); this.lastLabel = null; this.renameOnSheet(lab.dataset.vlabel); return; } // a double-click on a view's name: rename it
       const balloon = e.target.closest('[data-balloon]');
       if (balloon) { drag = { kind: 'balloon', pos: balloon.dataset.balloon, moved: false }; this.stage.setPointerCapture(e.pointerId); return; }
       if (dimEl) {
@@ -1067,7 +1194,7 @@ export class SheetEditor {
       if (drag.kind === 'balloon') {
         this.d.balloons = { ...(this.d.balloons || {}), [drag.pos]: [+p[0].toFixed(2), +p[1].toFixed(2)] };
       } else if (drag.kind === 'view') {
-        this.d.views[drag.v] = [drag.from[0] + p[0] - drag.start[0], drag.from[1] + p[1] - drag.start[1]];
+        this.d.views[drag.v] = this.snapView(drag.v, [drag.from[0] + p[0] - drag.start[0], drag.from[1] + p[1] - drag.start[1]], e.shiftKey);
       } else {
         const d = drag.d, o = { ...(this.d.dims[d.id] || {}) };
         if (d.kind === 'linear') {
@@ -1082,7 +1209,7 @@ export class SheetEditor {
         } else {
           const c = this.circleOf(d.view, d.a);
           if (!c) return;
-          const C = this.P(d.view, c.c), R = c.r * this.scale(), deg = Math.atan2(-(p[1] - C[1]), p[0] - C[0]) * 180 / Math.PI;
+          const C = this.P(d.view, c.c), R = c.r * this.vs(d.view), deg = Math.atan2(-(p[1] - C[1]), p[0] - C[0]) * 180 / Math.PI;
           if (d.kind === 'rad') o.ang = deg - Math.atan2(-(c.pm[1] - c.c[1]), c.pm[0] - c.c[0]) * 180 / Math.PI; else o.ang = Math.round(deg);
           o.len = Math.max(2, Math.round(Math.hypot(p[0] - C[0], p[1] - C[1]) - R));
         }
@@ -1091,7 +1218,9 @@ export class SheetEditor {
       this.render();
     });
     this.stage.addEventListener('pointerup', () => {
-      if (drag?.moved && drag.kind !== 'pan') this.commit();
+      const had = this.guides?.length;
+      this.guides = null;
+      if (drag?.moved && drag.kind !== 'pan') this.commit(); else if (had) this.render();
       drag = null;
     });
     this.stage.addEventListener('scroll', () => { if (this.setMode) this.markSeen(); });
@@ -1111,6 +1240,20 @@ export class SheetEditor {
       this.zoom.k = k;
       this.applyZoom();
     }, { passive: false });
+  }
+
+  /** A view dragged to `at` (its centre, paper mm): in line with the views it is projected from / to — Top under (or
+   *  over) Front, Right and Section A–A beside it — when within 4 mm (a dashed guide shows it); free with Shift. */
+  snapView(v, at, free = false) {
+    this.guides = [];
+    if (free || v === 'Iso') return at;
+    const shown = this.drawn().filter((w) => w !== v), [pw, ph] = this.lay.size, out = [...at];
+    const xs = v === 'Front' ? ['Top'] : v === 'Top' ? ['Front'] : [], ys = v === 'Front' ? ['Right', 'Section'] : v === 'Right' || v === 'Section' ? ['Front'] : [];
+    const near = (k, list) => list.filter((w) => shown.includes(w)).map((w) => this.centre(w)[k]).find((c) => Math.abs(c - at[k]) < 4);
+    const x = near(0, xs), y = near(1, ys);
+    if (x !== undefined) { out[0] = x; this.guides.push([x, 0, x, ph]); }
+    if (y !== undefined) { out[1] = y; this.guides.push([0, y, pw, y]); }
+    return out;
   }
 
   /** The moved place of a dimension: an automatic one keeps it in `dims`, the user's in itself. */
@@ -1151,14 +1294,14 @@ export class SheetEditor {
     for (const d of this.allDims()) {
       const v = this.value(d);
       if (v === null) continue;
-      const base = { id: d.id, kind: d.kind, text: this.dimText(d, v), value: v };
+      const base = { id: d.id, kind: d.kind, text: this.dimText(d, v), value: v, scale: this.vs(d.view) }; // (its view's scale: a view at its own)
       if (d.kind === 'ang') {
         const a = this.angleOf(d);
         if (a) out.push({ ...base, X: this.P(d.view, a.X), u1: [a.u1[0], -a.u1[1]], u2: [a.u2[0], -a.u2[1]], r: d.r ?? 15 });
       } else if (d.kind === 'dia' || d.kind === 'rad') {
         const c = this.circleOf(d.view, d.a);
         if (!c) continue;
-        const C = this.P(d.view, c.c), R = c.r * this.scale();
+        const C = this.P(d.view, c.c), R = c.r * this.vs(d.view);
         const ang = (d.kind === 'rad' ? Math.atan2(-(c.pm[1] - c.c[1]), c.pm[0] - c.c[0]) * 180 / Math.PI + (d.ang || 0) : d.ang ?? 45) * Math.PI / 180;
         const u = [Math.cos(ang), -Math.sin(ang)];
         out.push({ ...base, c: C, r: R, u, end: [C[0] + u[0] * (R + (d.len ?? 6)), C[1] + u[1] * (R + (d.len ?? 6))] });
@@ -1216,6 +1359,10 @@ export class SheetEditor {
     return { check: ck ? { fully_dimensioned: ck.ok && !ck.over.size, missing: ck.missing.map((m) => `${m.view}: ${m.what}${m.ax ? ` (${m.ax})` : ''} [${m.key}]`).slice(0, 30), twice: [...ck.dup, ...ck.over] } : null,
       part: this.hooks.partName(this.d.source), ...(Object.keys(this.d.texts || {}).length ? { texts: this.d.texts } : {}), preset: this.d.preset, ...(Object.keys(this.d.vpreset || {}).length ? { view_presets: this.d.vpreset } : {}), paper: this.lay?.paper, rev: this.d.rev, changed: this.d.changed,
       views: [...VIEWS, 'Iso'].filter((v) => !this.d.off[v]),
+      scale: `${scaleText(this.scaleArr())}${this.d.scale ? '' : ' (auto)'}`,
+      ...(Object.keys(this.d.vscale || {}).length ? { view_scales: Object.fromEntries(Object.entries(this.d.vscale).map(([v, s]) => [v, scaleText(s)])) } : {}),
+      ...(Object.keys(this.d.viewNames || {}).length ? { view_names: this.d.viewNames } : {}),
+      ...(this.outside().length ? { past_the_frame: this.outside() } : {}),
       dims: this.allDims().map((d) => ({ id: d.id, view: d.view, kind: d.kind, text: this.value(d) === null ? null : this.dimText(d, this.value(d)), auto: !!d.auto, ...(this.value(d) === null ? { lost: true } : {}) })),
       deleted_auto: this.d.hidden.length,
       ...(this.d.asm?.rows ? { parts_list: this.d.asm.rows.map((r) => ({ pos: r.pos, name: r.name, part: r.part, qty: r.qty, ...(r.instances ? { instances: r.instances } : {}),

@@ -431,11 +431,12 @@ TOOLS = [
                     "views {Front | Top | Right | Iso: true / false}, remove [dimension ids], restore true (the deleted automatic ones "
                     "back), move {id: {side (h: t / b; v: l / r), off (mm from the view on the paper), ang, len (a Ø / R leader)}}, "
                     "add [{view, a, b, dir (h / v; else by the points), pre (text before, e.g. \"4×\")} | {view, circle (its key; a hole's: its whole callout), "
-                    "count, post (e.g. \"H7\")} or {view, edges: [<edge>, <edge>]} (two edges meeting at an angle: the angle)], complete true (every size the check finds missing added), drop_twice true (dimensions giving a size twice removed), texts {title, number (drawing no.), drawn (drawn by), note} (the title block's own; \"\" clears) — fits {<a Ø dimension's id>: \"H7\" (a hole: H6 … H9) / \"h6\" (a shaft: f7, g6, h6, k6, m6, p6) or null} — values are always measured from the part. Do what the user cannot do in a click.",
+                    "count, post (e.g. \"H7\")} or {view, edges: [<edge>, <edge>]} (two edges meeting at an angle: the angle)], complete true (every size the check finds missing added), drop_twice true (dimensions giving a size twice removed), texts {title, number (drawing no.), drawn (drawn by), note} (the title block's own; \"\" clears), scale \"1:2\" / \"2:1\" / \"1:2522\" / null (the sheet's own scale; null: fitted automatically), "
+                    "view_scales {Front | Top | Right | Iso | Section: \"2:1\" / null} (a view's own scale — its label says it, e.g. \"Top (2:1)\"), view_names {Front | …: \"name\" / null} (rename a view's label) — fits {<a Ø dimension's id>: \"H7\" (a hole: H6 … H9) / \"h6\" (a shaft: f7, g6, h6, k6, m6, p6) or null} — values are always measured from the part. Do what the user cannot do in a click.",
      "inputSchema": _obj({"preset": {"type": "string", "enum": ["light", "medium", "full"]}, "view_presets": {"type": "object"}, "paper": {"type": ["string", "null"]}, "views": {"type": "object"},
                           "remove": {"type": "array", "items": STR}, "restore": {"type": "boolean"}, "move": {"type": "object"},
                           "add": {"type": "array", "items": {"type": "object"}}, "texts": {"type": "object"}, "complete": {"type": "boolean"}, "drop_twice": {"type": "boolean"},
-                          "fits": {"type": "object"}})},
+                          "fits": {"type": "object"}, "scale": {"type": ["string", "null"]}, "view_scales": {"type": "object"}, "view_names": {"type": "object"}})},
     {"name": "edit_joint", "where": "browser",
      "description": "Change a joint of the assembly on screen (id J… from get_assembly): gap (mm, flat joints), distance (mm along "
                     "the axis for a concentric joint, null = it slides freely), lock_rotation (true / false), angle (degrees: the "

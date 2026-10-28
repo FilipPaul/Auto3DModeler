@@ -516,8 +516,17 @@ body:not(.ws-model):not(.ws-assembly):not(.ws-drawing):not(.ws-sheet) .not-quick
 .sh-balloon { cursor: move; }
 .sh-asm { font-size: 12px; font-weight: 600; color: var(--muted); padding: 0 6px; }
 .sh-views { display: flex; flex-direction: column; gap: 3px; }
-.sh-vrow { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.sh-vrow select { font-size: 11px; padding: 1px 4px; max-width: 110px; }
+.sh-vrow { display: flex; align-items: center; gap: 5px; font-size: 12.5px; }
+.sh-vrow select { font-size: 11px; padding: 1px 4px; max-width: 96px; }
+.sh-vrow .sh-vscale { max-width: 78px; }
+.sh-vchk { width: 14px; flex: none; margin: 0; }
+.sh-vname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 92px; cursor: text; border-radius: 3px; padding: 0 2px; }
+.sh-vname:hover { background: #ffffff10; }
+.sh-vname.renaming { outline: 1px solid var(--accent, #58a6ff); background: var(--bg); }
+.sh-vgap { flex: 1; }
+.sh-vlabel { cursor: text; }
+.sh-rename { position: fixed; z-index: 90; width: 160px; font-size: 13px; text-align: center; padding: 2px 4px; border: 1px solid #1f6feb; border-radius: 4px; background: #fff; color: #111; }
+.sh-outside { font-size: 12px; }
 .sh-dlist { display: flex; flex-direction: column; gap: 3px; max-height: 50vh; overflow-y: auto; }
 .sh-drow { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; font-size: 11.5px; cursor: pointer; }
 .sh-drow i { font-style: normal; color: var(--muted); font-size: 10.5px; }
@@ -617,6 +626,9 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .choose-opts .btn { text-align: left; display: flex; flex-direction: column; gap: 2px; }
 .choose-hint { font-size: 11px; opacity: .75; font-weight: 400; }
 .choose-x { position: absolute; top: 10px; right: 10px; }
+.choose.ask { width: 340px; }
+.ask-in { width: 100%; box-sizing: border-box; margin-bottom: 8px; }
+.choose .ask-hint, .choose .ask-bad { margin: 0 0 8px; font-size: 12px; }
 .aih { width: min(640px, calc(100vw - 32px)); max-width: none; }
 .autosave-state { font-size: 11px; color: var(--muted); white-space: nowrap; margin-left: 6px; }
 .autosave-state.bad { color: #f85149; }

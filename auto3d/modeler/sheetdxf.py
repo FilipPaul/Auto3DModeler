@@ -158,32 +158,38 @@ def to_dxf(svg: str, dims=(), scale: float = 1.0) -> bytes:
         walk(ch, "frame")
 
     for dm in dims or []:
-        _dimension(msp, dm, Y)
+        _dimension(msp, dm, Y, scale or 1.0)
     out = io.StringIO()
     doc.write(out)
     return out.getvalue().encode("utf-8")
 
 
-def _dimension(msp, dm, Y):
+def _dimension(msp, dm, Y, scale=1.0):
     """One of the editor's dimensions (paper mm, y down) as a DXF dimension on layer dims. Its text: the measurement
     ("<>", the part's size through DIMLFAC) with the editor's prefix / suffix ("3× ", " H7"), or the editor's own text
-    when it is not a plain number (a thread "M5")."""
+    when it is not a plain number (a thread "M5"). A dimension of a view at its own scale (dm.scale, not the sheet's)
+    gets its own DIMLFAC."""
     kind, text, value = dm.get("kind"), str(dm.get("text") or ""), dm.get("value")
     num = _fmt(value) if value is not None else None
     if num is not None and kind == "linear" and num in text:
         text = text.replace(num, "<>", 1)
     at = {"layer": "dims"}
     try:
+        own = float(dm.get("scale") or scale)
+        lfac = {"dimlfac": 1.0 / own} if own > 0 and abs(own - scale) > 1e-12 else {}
+    except (TypeError, ValueError):
+        lfac = {}
+    try:
         if kind == "linear":
             a, b, h = Y(dm["a"]), Y(dm["b"]), dm.get("dir") == "h"
             base = (a[0], Y((0, dm["at"]))[1]) if h else (float(dm["at"]), a[1])
-            msp.add_linear_dim(base=base, p1=a, p2=b, angle=0 if h else 90, text=text, dimstyle="A3D", dxfattribs=at).render()
+            msp.add_linear_dim(base=base, p1=a, p2=b, angle=0 if h else 90, text=text, dimstyle="A3D", override=lfac or None, dxfattribs=at).render()
         elif kind in ("dia", "rad"):
             c, r, u = Y(dm["c"]), float(dm["r"]), dm.get("u") or [1, 0]
             deg = math.degrees(math.atan2(-float(u[1]), float(u[0])))  # (paper y down -> DXF y up)
             make = msp.add_diameter_dim if kind == "dia" else msp.add_radius_dim
             loc = Y(dm["end"]) if dm.get("end") else None
-            make(center=c, radius=r, angle=deg, location=loc, text=text, dimstyle="A3D", override={"dimtmove": 0}, dxfattribs=at).render()
+            make(center=c, radius=r, angle=deg, location=loc, text=text, dimstyle="A3D", override={"dimtmove": 0, **lfac}, dxfattribs=at).render()
         elif kind == "ang":
             x, u1, u2 = Y(dm["X"]), dm["u1"], dm["u2"]
             a1, a2 = (math.degrees(math.atan2(-float(u[1]), float(u[0]))) for u in (u1, u2))

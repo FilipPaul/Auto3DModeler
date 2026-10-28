@@ -227,23 +227,55 @@ def geometry(body, views=None, iso=True, scale=None):
     return out
 
 
-def layout(geo, paper=None):
-    """Where the views go: {paper, size [w, h] mm, scale [a, b], views: {name: [x, y] (the view box's centre on the paper)},
-    iso: [x, y, k]} — front top-left, top below it, right beside the front, iso bottom-right (first-angle as in drawing.py)."""
+def parse_scale(text):
+    """A drawing scale as people write it — "1:2522", "2:1", "1/5", "1 : 20", a number ("0.5" = 1:2, "2" = 2:1) or
+    [a, b] — -> (a, b), both above 0 (paper mm : part mm); ValueError when it is not one."""
+    if isinstance(text, (list, tuple)) and len(text) == 2:
+        try:
+            a, b = (float(v) for v in text)
+        except (TypeError, ValueError):
+            raise ValueError(f"A scale is two numbers, e.g. [1, 2] — not {text!r}.") from None
+    else:
+        m = re.fullmatch(r"\s*(\d+(?:[.,]\d+)?)\s*(?:[:/]\s*(\d+(?:[.,]\d+)?))?\s*", "" if text is None else str(text))
+        if not m:
+            raise ValueError(f"A scale is written 1:2, 2:1 or 1:2522 — not {text!r}.")
+        a = float(m.group(1).replace(",", "."))
+        b = float(m.group(2).replace(",", ".")) if m.group(2) else 1.0
+        if not m.group(2) and 0 < a < 1:  # (0.5 -> 1:2)
+            a, b = 1.0, 1.0 / a
+    if not (a > 0 and b > 0 and math.isfinite(a) and math.isfinite(b)):
+        raise ValueError(f"A scale is two numbers above 0, e.g. 1:2 — not {text!r}.")
+    return tuple(int(v) if float(v).is_integer() else round(v, 4) for v in (a, b))
+
+
+TITLE_H = 38  # the title block's height (mm) when the layout is not told another
+
+
+def layout(geo, paper=None, scale=None, frame=None):
+    """Where the views go: {paper, size [w, h] mm, scale [a, b], margins [left, top, right, bottom] (the frame's),
+    margin (the top one), title (the title block's height), views: {name: [x, y] (the view box's centre on the paper)},
+    iso: [x, y, k]} — front top-left, top below it, right beside the front, iso bottom-right (first-angle as in
+    drawing.py). scale: the sheet's own ("1:2522", parse_scale), else the biggest standard one the views fit at;
+    frame: {m: [left, top, right, bottom] mm, title: mm} (else 10 mm all round, a 38 mm title block)."""
     bb = geo["bbox"]
     size = (bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2])
     need_w, need_h = max(size[0] + size[1], 1), max(size[2] + size[1], 1)
+    fr = frame or {}
+    ml, mt, mr, mb = (max(0.0, min(60.0, float(v))) for v in ((list(fr.get("m") or [10])) * 4)[:4])
+    title = max(0.0, min(80.0, float(fr.get("title") or TITLE_H)))
+    fixed = parse_scale(scale) if scale else None
     for pname in ([paper] if paper in PAPERS else ["A4", "A3"]):
         pw, ph = PAPERS[pname]
-        title, margin = 38, 10
-        fit = [(a, b) for a, b in SCALES if a / b * need_w <= (pw - 2 * margin) * 0.62 and a / b * need_h <= (ph - 2 * margin - title) * 0.62]
+        iw, ih = pw - ml - mr, ph - mt - mb - title
+        fits = lambda a, b: a / b * need_w <= iw * 0.62 and a / b * need_h <= ih * 0.62  # noqa: E731
+        fit = ([fixed] if fits(*fixed) else []) if fixed else [(a, b) for a, b in SCALES if fits(a, b)]
         if fit or pname == "A3" or paper:
             break
-    scale = fit[0] if fit else SCALES[-1]
-    cw, ch = (pw - 2 * margin) / 2, (ph - 2 * margin - title) / 2
-    return {"paper": pname, "size": [pw, ph], "scale": list(scale), "margin": margin, "title": title,
-            "views": {"Front": [margin + cw / 2, margin + ch / 2], "Right": [margin + cw * 1.5, margin + ch / 2], "Top": [margin + cw / 2, margin + ch * 1.5]},
-            "iso": [margin + cw * 1.5, margin + ch * 1.5, 0.55 * min(cw, ch)]}
+    scale = fixed or (fit[0] if fit else SCALES[-1])
+    cw, ch = iw / 2, ih / 2
+    return {"paper": pname, "size": [pw, ph], "scale": list(scale), "margin": mt, "margins": [ml, mt, mr, mb], "title": title,
+            "views": {"Front": [ml + cw / 2, mt + ch / 2], "Right": [ml + cw * 1.5, mt + ch / 2], "Top": [ml + cw / 2, mt + ch * 1.5]},
+            "iso": [ml + cw * 1.5, mt + ch * 1.5, 0.55 * min(cw, ch)]}
 
 
 def _id(*parts):
