@@ -1,7 +1,7 @@
 """Fixes from the AI's own reports, in headless Edge: a 3D model zoomed far out -> get_screenshot: fitted again (the
 camera close to the part); fit: false keeps the view -> set_view section on, then "off": no cut -> gui_state lists the
 model's steps (kind step, with their ids) and a choice with its text -> the Snap row hidden while a feature is
-made -> a wall flush on the plate (add_feature says where it went, the volume change; flipped: -z): its back one face with both names; find_refs of_step / between_steps -> an extrude of
+made -> a wall flush on the plate (add_feature says where it went, the volume change; flipped: -z): its back one face with both names; find_refs of_step / between_steps -> measure in the model (the plate 8, the wall 5) -> an extrude of
 a sketch named Slot: "Extrude – Slot" ->
 a drawing sheet: get_screenshot is a picture of the sheet.
 
@@ -83,6 +83,9 @@ try:
     meet = json.loads(call("find_refs", kind="edge", between_steps=["F2", "F4"], limit=50))
     print("edges between F2 and F4:", [(e["between"], e["mid"]) for e in meet])
     print("a wrong step:", call("find_refs", kind="edge", of_step="F99")[:40])
+    print("measure the plate (top to bottom):", json.loads(call("measure", a={"face": "F2:end"}, b={"face": "F2:start"})).get("gap_between_faces"),
+          "| the wall's thickness:", json.loads(call("measure", a={"face": "F4:side:l1"}, b={"face": "F4:side:l3"})).get("gap_between_faces"),
+          "| a wrong face:", call("measure", a={"face": "F2:end"}, b={"face": "nope"})[:30])
     call("add_feature", type="sketch", plane="XY", name="Slot", shapes=[{"rect": {"x": 20, "y": 10, "w": 20, "h": 6}}])
     js(f"{M}.action('extrude')")
     time.sleep(0.5)

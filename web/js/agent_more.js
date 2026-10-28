@@ -66,6 +66,34 @@ export function guiControls(where = 'all') {
 }
 
 /** The workspace's view on screen (the 3D view, the drawing, the sheet). */
+/** Two faces of the 3D model on screen ({face} or a face name each) -> as an assembly's measure: their centres apart,
+ *  the angle between them, the gap between two parallel flat faces (a wall's thickness), two round faces' axes apart
+ *  and their Ø. */
+function measureModel(modeler, A, B) {
+  const b = modeler.result?.body;
+  if (!b) throw new Error('The model has no solid yet.');
+  const face = (x) => {
+    const name = typeof x === 'string' ? x : x?.face;
+    const f = name && b.faces.find((q) => q.name === name || (q.names || []).includes(name));
+    if (!f) throw new Error(`No face named “${name}” — find_refs gives the face names.`);
+    return f;
+  };
+  const fa = face(A), fb = face(B), V = (p) => new THREE.Vector3(...p);
+  const out = { centres_apart: r3(V(fa.centroid).distanceTo(V(fb.centroid))) };
+  if (fa.normal && fb.normal) {
+    const na = V(fa.normal), ang = (na.angleTo(V(fb.normal)) * 180) / Math.PI;
+    out.angle_between_normals = r3(ang);
+    if (ang < 0.5 || ang > 179.5) out.gap_between_faces = r3(Math.abs(V(fb.centroid).sub(V(fa.centroid)).dot(na.normalize())));
+  }
+  if (fa.axis && fb.axis) {
+    const d = V(fa.axis.d).normalize(), off = V(fb.axis.o).sub(V(fa.axis.o));
+    if (Math.abs(Math.abs(d.dot(V(fb.axis.d).normalize())) - 1) < 1e-4) out.axes_apart = r3(off.sub(d.clone().multiplyScalar(off.dot(d))).length());
+  }
+  const dia = [fa, fb].filter((f) => f.radius).map((f) => r3(2 * f.radius));
+  if (dia.length) out.diameters = dia;
+  return out;
+}
+
 function viewEl() { return [...document.querySelectorAll('section.viewport')].find((v) => v.offsetParent && v.getBoundingClientRect().width > 0); }
 
 /** What is at a point of the screen, in words (for the AI). */
@@ -409,7 +437,8 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       return ok(`Joint ${id} removed — ${m.move} stays where it is (held by its other joints, if any).`);
     },
     measure: async ({ a: A, b: B }) => {
-      need('assembly', 'Measuring between parts is in an assembly (in a 3D model: get_model / find_refs give the sizes)');
+      if (state.workspace === 'model') return ok(measureModel(modeler, A, B)); // (two faces of the 3D model on screen)
+      need('assembly', 'Measuring between faces is in a 3D model or an assembly');
       const fa = assembly.worldFace(A.part, A.face), fb = assembly.worldFace(B.part, B.face);
       const out = { centres_apart: r3(fa.centroid.distanceTo(fb.centroid)) };
       if (fa.normal && fb.normal) {

@@ -444,10 +444,11 @@ TOOLS = [
     {"name": "remove_joint", "where": "browser", "description": "Remove a joint (id J…) of the assembly on screen; the part stays where it is.",
      "inputSchema": _obj({"id": STR}, ["id"])},
     {"name": "measure", "where": "browser",
-     "description": "Measure between two faces of placed parts of the assembly: a = {part: I…, face}, b = {part, face} -> how far "
-                    "apart their centres are, the gap between two parallel flat faces, the angle between them, how far apart two "
-                    "round faces' axes are (and their Ø).",
-     "inputSchema": _obj({"a": _obj({"part": STR, "face": STR}, ["part", "face"]), "b": _obj({"part": STR, "face": STR}, ["part", "face"])}, ["a", "b"])},
+     "description": "Measure between two faces — of placed parts of an assembly: a = {part: I…, face}, b = {part, face}; of the 3D "
+                    "model on screen: a = {face}, b = {face} (names from find_refs) -> how far apart their centres are, the gap between "
+                    "two parallel flat faces (a wall's thickness), the angle between them, how far apart two round faces' axes are "
+                    "(and their Ø).",
+     "inputSchema": _obj({"a": _obj({"part": STR, "face": STR}, ["face"]), "b": _obj({"part": STR, "face": STR}, ["face"])}, ["a", "b"])},
     {"name": "set_view", "where": "browser",
      "description": "Set the 3D view (model or assembly) before get_screenshot: view iso / top / front / right; section {axis x / y / "
                     "z, offset mm, flip} to look inside (null or \"off\": no cut); explode 0 … 1 (an assembly pulled apart); sizes all / "

@@ -91,6 +91,9 @@ Date: 2026-10-25. Written by the architect agent.
   tools/e2e_ai_reports.py.
 - **Steps named after their sketch done:** nextName(type, sketch): an extrude / revolve of a sketch the user named
   is "Extrude – Slot" (a "Sketch 2" keeps "Extrude 3"), in the panel and for the AI. tools/e2e_ai_reports.py.
+- **The AI's measure in 3D models done:** measure {a: {face}, b: {face}} on the model on screen (measureModel: centres
+  apart, the angle, the gap between parallel flat faces — a wall's thickness —, round faces' axes apart and Ø), as in
+  assemblies. tools/e2e_ai_reports.py.
 - **🖨 Print check done:** ModelView.printCheck({minWall, overhang}) on the mesh as it lies (its lowest z the bed):
   triangles facing down past the overhang angle (not on the bed) red; a ray in from each face (both sides hit, a
   4000-face sample on big meshes) meeting the other side within minWall orange; areas, boxes, the thinnest wall. The
