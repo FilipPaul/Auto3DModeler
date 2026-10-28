@@ -305,8 +305,13 @@ export class Assembly {
       } })), js.length ? t('A joint between the two faces — the first one\'s part moves') : t('No joint fits these two faces.'), refs);
       return;
     }
-    const q = fp[0], js = fits(kindOf(q));
+    const q = fp[0], js = fits(kindOf(q)), a = this.inst(q.inst);
+    const after = (x) => ({ ...x, run: async () => { await x.run(); this.renderSuggest(); } });
     showSuggest(vp, what(q), [
+      { section: `${this.partName(a.part)} ${a.id}` },
+      { icon: '◆', label: t('Select the whole part'), title: t('The part chosen, not its face: its moves and joints in the panel'), run: () => { this.facePicks = []; this.snapPick = null; this.view.setMeasure([]); this.choose(a.id); this.drawMarks(); } },
+      ...this.partItems(a).map(after),
+      { section: t('This face') },
       ...js.map(([type, j]) => ({ icon: j.icon, label: `${t(j.name)}…`, title: t('Then click a face of the other part'), run: () => {
         this.startJoint(type);
         this.jointFrom = q;
@@ -337,12 +342,11 @@ export class Assembly {
       ]);
       return;
     }
-    const joined = (this.doc.mates || []).some((m) => m.move === a.id), model = this.kindOf(a.part) === 'model';
-    const light = this.bodies[a.part]?.body?.light;
     const sp = this.snapPick?.inst === a.id ? this.snapPick : null, p = sp?.point;
-    const xyz = p ? [p.x, p.y, p.z].map((v) => fmt(+v.toFixed(3))).join(', ') : '', kind = sp ? t({ corner: 'A corner', midpoint: 'An edge midpoint', centre: 'A centre' }[sp.snap]) : '';
+    const xyz = p ? [p.x, p.y, p.z].map((v) => fmt(+v.toFixed(3))).join(', ') : '', kind = sp ? t({ corner: 'A corner', midpoint: 'An edge midpoint', centre: 'A centre', quadrant: 'A quadrant' }[sp.snap]) : '';
     show(sp ? `${name(a)} · ${kind}` : name(a), [
       ...(sp ? [
+        { section: kind },
         { icon: '📏', label: t('Measure from here'), title: xyz, run: () => {
           this.snapPick = null;
           if (!this.measuring) this.toggleMeasure();
@@ -350,7 +354,17 @@ export class Assembly {
           this.view.setMeasure([p]);
           this.measureBox(`<div class="mm-rows"><b>${esc(kind)}</b><span>Of</span><b data-no-i18n>${esc(this.partName(a.part))} ${a.id}</b><span>${esc(t('Point'))}</span><b>${xyz}</b></div><p class="hint">${esc(t('Click a second spot for the distance.'))}</p>`);
         } },
-        { icon: '⧉', label: t('Copy its coordinates'), title: xyz, run: () => { navigator.clipboard?.writeText(xyz).catch(() => {}); this.hooks.toast(`${t('Copied')}: ${xyz}`, 'info', 2500); } }] : []),
+        { icon: '⧉', label: t('Copy its coordinates'), title: xyz, run: () => { navigator.clipboard?.writeText(xyz).catch(() => {}); this.hooks.toast(`${t('Copied')}: ${xyz}`, 'info', 2500); } },
+        { section: name(a) }] : []),
+      ...this.partItems(a),
+    ], t('Ctrl+click another part: what fits the two'));
+  }
+
+  /** What can be done with a placed part: open / edit its part, join, simplified, fix, its own part, take it out. */
+  partItems(a) {
+    const joined = (this.doc.mates || []).some((m) => m.move === a.id), model = this.kindOf(a.part) === 'model';
+    const light = this.bodies[a.part]?.body?.light;
+    return [
       ...(this.hooks.openPart ? [{ icon: this.kindOf(a.part) === 'assembly' ? '◇' : '◆', label: t('Open its part'), title: t('Change it in its own tab (the assembly follows)'), run: () => this.hooks.openPart(a.part) }] : []),
       { icon: '🔗', label: t(joined ? 'Join it to one more part' : 'Join it to another part'), run: () => this.startJoint('touch', a.id) },
       ...(model ? [{ icon: '🪶', label: t(light ? 'Show it in full' : 'Show it simplified'), title: t('Simplified: a coarser mesh and less data — quicker to load and show'), run: async () => { this.doc.light = { ...(this.doc.light || {}), [a.part]: !light }; await this.refresh(); this.commit(); } }] : []),
@@ -360,7 +374,7 @@ export class Assembly {
       { icon: '📌', label: t(a.fixed ? 'Free it (not fixed)' : 'Fix in place'), run: () => this.toggleFixed(a.id) },
       ...(this.hooks.duplicatePart ? [{ icon: '⧉', label: t('Make it its own part'), title: t('A copy of its part for this place only'), run: () => this.ownPart(a.id) }] : []),
       { icon: '✕', label: t('Take it out'), danger: true, run: () => this.removeInst(a.id) },
-    ], t('Ctrl+click another part: what fits the two'));
+    ];
   }
 
   /** The parts that can go in: 3D models, and quick parts (drawings, pictures, imports) with a shape. */

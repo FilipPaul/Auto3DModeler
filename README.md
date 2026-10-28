@@ -84,7 +84,7 @@ part changes.
 
 **Hover marks** (3D model and assembly, no tool on): the edge under the mouse lights up (a line or a circle), and the
 snap points of the step (in an assembly: the face) under it show as small green dots — corners, edge middles,
-centres and ◔ quadrants of circles. The row bottom left switches them: Snap (what Measure and a click catch) and
+centres (and ◔ quadrants of circles, once switched on — off by default, so a click on a rim takes the rim). The row bottom left switches them: Snap (what Measure and a click catch) and
 Hover (⟋ Edges, • Snap points); both are remembered.
 
 **🖨 Print check** (3D model toolbar): marks what will not print well as the part lies on the bed — overhangs over 45°

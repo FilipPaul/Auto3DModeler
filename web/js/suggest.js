@@ -22,7 +22,7 @@ export function hoverKinds() {
 export function snapKinds() {
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(SNAP_KEY) || 'null'); } catch { saved = null; }
-  return { corner: true, midpoint: true, centre: true, quadrant: true, ...(saved || {}) };
+  return { corner: true, midpoint: true, centre: true, quadrant: false, ...(saved || {}) }; // (quadrants: asked for — near a rim they would take a click meant for it)
 }
 
 /** The row of 3D snap filters in the bottom-left corner of a view (the Suggested table above it). */
@@ -94,7 +94,8 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
   }
   box.dataset.noI18n = '';
   box.innerHTML = `<div class="vs-head"><b>${esc(title)}</b><span>${esc(t('Suggested'))}</span>${refs && askAI ? `<button class="vs-ai" title="${esc(t('Ask the AI about it — what is selected goes into the chat'))}">✨</button>` : ''}</div>
-    <div class="vs-list">${items.map((it, i) => `<button data-sg="${i}" class="${it.danger ? 'danger' : ''}" title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span></button>`).join('')}</div>
+    <div class="vs-list">${items.map((it, i) => (it.section !== undefined ? `<div class="vs-sec">${esc(it.section)}</div>` // (a heading: what the rows under it act on)
+      : `<button data-sg="${i}" class="${it.danger ? 'danger' : ''}" title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span></button>`)).join('')}</div>
     ${hint ? `<p class="vs-hint">${esc(hint)}</p>` : ''}`;
   for (const b of box.querySelectorAll('[data-sg]')) b.addEventListener('click', () => items[+b.dataset.sg].run());
   box.querySelector('.vs-ai')?.addEventListener('click', (e) => { e.stopPropagation(); askAI(refs); });

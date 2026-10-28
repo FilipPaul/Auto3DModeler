@@ -91,6 +91,11 @@ Date: 2026-10-25. Written by the architect agent.
   tools/e2e_ai_reports.py.
 - **Steps named after their sketch done:** nextName(type, sketch): an extrude / revolve of a sketch the user named
   is "Extrude – Slot" (a "Sketch 2" keeps "Extrude 3"), in the panel and for the AI. tools/e2e_ai_reports.py.
+- **The assembly's suggestions in sections done:** showSuggest items {section} are headings (.vs-sec); a picked
+  face's table: the part first (◆ Select the whole part — the face pick dropped, its moves in the panel —, then
+  Assembly.partItems: open, join, simplified, edit here, fix, its own part, take out), then This face (its joints,
+  measure); a snap pick's table: the point's section, then the part's. ◔ Quadrants off by default (near a rim they took
+  the click meant for it). e2e_assembly_facepick, e2e_suggest.
 - **↺ Restore in the size editor done:** openDimEdit's ↺ <the value it opened with> puts it back in the number and
   the slider and previews it (the editor stays open; greyed while unchanged). e2e_model_pick.
 - **Hover marks, quadrants, hover filters done:** view.js snapPoints(edges, matrix, kinds) (snapNear uses it; a round

@@ -78,6 +78,12 @@ try:
     hx, hy = (bb[0] + bb[3]) / 2, (bb[1] + bb[4]) / 2
     click("I1", [hx + 3, hy, bb[5]])           # the hole's rim on the top
     print("the hole's rim:", js(f"return ({A}.facePicks || []).map(q => [q.inst, q.face.name, q.face.type])"), "| the table:", table())
+    print("  its sections:", js("return [...document.querySelectorAll('#asmViewport .view-suggest .vs-sec')].map(e => e.textContent)"))
+    next(b for b in d.find_elements(By.CSS_SELECTOR, "#asmViewport .view-suggest .vs-list button") if "Select the whole part" in b.text).click()
+    time.sleep(0.6)
+    print("  ◆ Select the whole part: face picks", js(f"return ({A}.facePicks || []).length"), "| chosen", js(f"return {A}.sel"),
+          "| the panel's moves:", bool(d.find_elements(By.CSS_SELECTOR, "#asmRight .mv-row, #asmRight [data-move], #asmRight input[type=range]")), "| the table:", (table() or [None])[:3])
+    click("I1", [hx + 3, hy, bb[5]])           # the rim again
     click("I2", [3, 0, 10], ctrl=True)         # + the pin's round face
     print("+ the pin's round face:", js(f"return ({A}.facePicks || []).map(q => [q.inst, q.face.type])"), "| the table:", table())
     next(b for b in d.find_elements(By.CSS_SELECTOR, "#asmViewport .view-suggest .vs-list button") if "Concentric" in b.text).click()

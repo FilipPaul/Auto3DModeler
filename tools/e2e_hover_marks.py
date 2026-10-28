@@ -1,7 +1,7 @@
 """Hover marks with no tool on, in headless Edge with real mouse moves: a block 40 × 20 × 10 with a Ø8 hole -> the mouse
 on the hole's rim: that circle lit; on the top face: the step's snap points shown (corners, edge middles, the hole's
-centre and its 4 quadrants); the hover filters (bottom left) switch each off; the snap filter ◔ Quadrants takes them
-out. Then the same block in an assembly: its rim lit, the hovered face's snap points; the mouse out: gone.
+centre); ◔ Quadrants switched on: the hole's 4 quadrants too, off again; the hover filters (bottom left) switch each
+off. Then the same block in an assembly: its rim lit, the hovered face's snap points; the mouse out: gone.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_hover_marks.py http://127.0.0.1:5199 <out dir>
 """
@@ -79,11 +79,13 @@ try:
     move_to(f"{M}.view", "modelViewport", [8, 4, 10])  # on the top face, away from edges
     m = marks(f"{M}.view")
     print("on the top face: edge lit", m["edge"], "| snap points", m["snaps"])
+    filt("data-snap", "quadrant")  # (off unless asked for)
+    move_to(f"{M}.view", "modelViewport", [9, 4, 10])
+    print("  ◔ Quadrants on: snap points", marks(f"{M}.view")["snaps"])
     d.save_screenshot(f"{OUT}/hover_marks.png")
     filt("data-snap", "quadrant")
     move_to(f"{M}.view", "modelViewport", [9, 4, 10])
     print("  ◔ Quadrants off: snap points", marks(f"{M}.view")["snaps"])
-    filt("data-snap", "quadrant")
     filt("data-hover", "points")
     move_to(f"{M}.view", "modelViewport", [8, 4, 10])
     print("  Hover • Snap points off:", marks(f"{M}.view")["snaps"], "| remembered", js("return localStorage.getItem('a3d.hover3d')"))
