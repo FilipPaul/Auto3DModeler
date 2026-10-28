@@ -1,7 +1,7 @@
 """Fixes from the AI's own reports, in headless Edge: a 3D model zoomed far out -> get_screenshot: fitted again (the
 camera close to the part); fit: false keeps the view -> set_view section on, then "off": no cut -> gui_state lists the
 model's steps (kind step, with their ids) and a choice with its text -> the Snap row hidden while a feature is
-made -> a wall flush on the plate: its back one face with both names; find_refs of_step / between_steps ->
+made -> a wall flush on the plate (add_feature says where it went, the volume change; flipped: -z): its back one face with both names; find_refs of_step / between_steps ->
 a drawing sheet: get_screenshot is a picture of the sheet.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_ai_reports.py http://127.0.0.1:5199 <out dir>
@@ -70,7 +70,11 @@ try:
 
     # find_refs by step: a wall flush on the plate's back edge
     call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 35, "w": 60, "h": 5}}])
-    call("add_feature", type="extrude", sketch="F3", d=30)
+    r = json.loads(call("add_feature", type="extrude", sketch="F3", d=30))
+    print("the wall's extrude: went", r.get("went"), "| volume change", r.get("volume_change_mm3"))
+    r = json.loads(call("edit_feature", id="F4", fields={"flip": True}))
+    print("flipped: went", r.get("went"), "| volume change", r.get("volume_change_mm3"))
+    call("edit_feature", id="F4", fields={"flip": False})
     back = json.loads(call("find_refs", kind="face", normal=[0, 1, 0]))
     print("the back (flush):", [(f["name"], f.get("names")) for f in back])
     print("faces of_step F4:", sorted(f["name"] for f in json.loads(call("find_refs", kind="face", of_step="F4", limit=50))))

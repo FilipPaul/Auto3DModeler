@@ -110,6 +110,20 @@ class TestFeatures(unittest.TestCase):
         named = [f.get("name") for f in faces if f.get("name")]
         self.assertEqual(len(named), len(set(named)), named)
 
+    def test_extrude_says_where_it_went(self):
+        """An extrude's status says where it went: up from the XY plane +z 0 … 10; flipped -z -10 … 0; on the Front
+        plane (its normal -y) -y."""
+        r, _ = vol(*box())
+        self.assertEqual(r["features"][-1]["went"], {"along": "+z", "range": [0, 10]})
+        b = box()
+        b[1] = {**b[1], "flip": True}
+        r, _ = vol(*b)
+        self.assertEqual(r["features"][-1]["went"], {"along": "-z", "range": [-10, 0]})
+        b = box()
+        b[0] = {**b[0], "plane": {"datum": "XZ"}}
+        r, _ = vol(*b)
+        self.assertEqual(r["features"][-1]["went"], {"along": "-y", "range": [-10, 0]})
+
     def test_draft(self):
         """⟋ Draft: a 40 × 20 × 10 block's walls leaning in 5° — a frustum (top 2 × 10·tan 5° smaller each way)."""
         r, v = vol(*box(), {"id": "D1", "type": "draft", "of": "E1", "angle": 5})

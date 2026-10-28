@@ -102,6 +102,10 @@ Date: 2026-10-25. Written by the architect agent.
 - **find_refs by step done:** of_step (the faces a step made / all their edges — to round them at once), between_steps
   [a, b] (the edges where a face of only one meets a face of only the other: a rib's joint with its plate); faces
   merged from two steps listed with names. tools/e2e_ai_reports.py.
+- **An extrude says where it went done:** its status has went {along "+z" / "-y" …, range [from, to]} (doc._went from
+  the extrude's vector and its tools' box); add_feature / edit_feature also return volume_change_mm3 — the AI sees a
+  wrong-way extrude at once (the wishlist's datum-direction item). test_extrude_says_where_it_went;
+  tools/e2e_ai_reports.py.
 - **Faces picked with no tool on, joints suggested done:** the assembly's idle click also picks a face / a round edge
   (facePicks: one, or Ctrl: one of each of two parts; lit by drawMarks); suggestFaces — one face: the joints it can
   start (then the other face), two: the joint types fitting both (JOINT_TYPES by face kind), made through clickJoint.

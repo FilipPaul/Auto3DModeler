@@ -168,7 +168,9 @@ TOOLS = [
                           "of_face": STR, "of_step": STR, "between_steps": {"type": "array", "items": STR},
                           "circular": {"type": "boolean"}, "limit": {"type": "integer"}})},
     {"name": "add_feature", "where": "browser",
-     "description": "Add a step to the 3D model (it rebuilds; the result says ok / issues). type:\n"
+     "description": "Add a step to the 3D model (it rebuilds; the result says ok / issues, volume_change_mm3, and for an "
+                    "extrude where it went: went {along \"+z\" / \"-y\" …, range [from, to] mm} — check it went the way you "
+                    "meant, else flip: true). type:\n"
                     "- sketch: plane \"XY\" (top, the bed) / \"XZ\" (front) / \"YZ\" (right) / {datum: \"XY\", offset: 30} (moved along its "
                     "normal) / {face: <name>} (origin = the face's "
                     "centre); shapes: [{rect: {x, y, w, h, r}} (lower-left corner; r = rounded corners) | {circle: {x, y, d}} | {slot: {x1, y1, x2, y2, w}} (round ends "

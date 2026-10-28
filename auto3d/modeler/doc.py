@@ -155,6 +155,7 @@ def _apply(f, st: State, s):
         for face, names in faces:
             _use(st, fid, K.prism_body(face, names, vec, fid, start), op)
         _cut_check(s, st, before)
+        s["went"] = _went(vec, [t for t, _ in st.tools.get(fid, [])])
         return
     if t == "revolve":
         sk = st.sketches.get(f.get("sketch"))
@@ -482,6 +483,22 @@ def _sized(make, v, what, unit, impossible):
         else:
             hi = mid
     raise K.KernelError(f"The {what} {v:g} {unit} does not fit here — at most {math.floor(lo * 100) / 100:g} {unit}.") from None
+
+
+def _went(vec, tools):
+    """Where an extrude went, for the AI: {along: "+z" / "-y" … (or the direction), range: [from, to] along that
+    axis (mm) of what it added / cut}."""
+    v = np.asarray(vec, float)
+    L = float(np.linalg.norm(v))
+    if L < 1e-12:
+        return None
+    u = v / L
+    k = int(np.argmax(np.abs(u)))
+    out = {"along": f"{'+' if u[k] > 0 else '-'}{'xyz'[k]}" if abs(u[k]) > 0.9999 else [round(float(c), 4) for c in u]}
+    bbs = [b for b in (K.bbox(t.shape) for t in tools) if b]
+    if bbs and abs(u[k]) > 0.9999:
+        out["range"] = [round(min(b[k] for b in bbs), 3), round(max(b[k + 3] for b in bbs), 3)]
+    return out
 
 
 def _cut_check(s, st, before):

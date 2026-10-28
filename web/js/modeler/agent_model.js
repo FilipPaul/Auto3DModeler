@@ -173,9 +173,16 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
   const stepResult = (id) => {
     const st = m.status(id);
     const f = m.part.features.find((x) => x.id === id);
-    return { id, name: f?.name, ok: st ? st.ok : null, issues: st?.issues || [], warnings: st?.warnings || [], body: summary() };
+    return { id, name: f?.name, ok: st ? st.ok : null, issues: st?.issues || [], warnings: st?.warnings || [], ...(st?.went ? { went: st.went } : {}), body: summary() };
   };
-  const commitAnd = async (id) => { m.commit(); await settle(); return { text: JSON.stringify(stepResult(id)) }; };
+  const commitAnd = async (id) => {
+    const v0 = body()?.volume ?? 0;
+    m.commit();
+    await settle();
+    const r = stepResult(id), dv = (body()?.volume ?? 0) - v0;
+    if (r.ok && r.body) r.volume_change_mm3 = r3(dv); // (an add that adds nothing, a cut that cuts nothing: the wrong way?)
+    return { text: JSON.stringify(r) };
+  };
   const ready = () => { if (m.mode !== 'part' || m.cmd) m.closeAll?.(); m.cmd = null; m.mode = 'part'; m.render(); };
 
   /** A feature from the AI's description -> the feature JSON the modeler stores. */
