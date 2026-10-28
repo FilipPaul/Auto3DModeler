@@ -564,7 +564,6 @@ body:not(.ws-model):not(.ws-assembly):not(.ws-drawing):not(.ws-sheet) .not-quick
 .sh-tbmore[open] summary { margin-bottom: 6px; }
 .sh-tbfields { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; font-size: 12px; margin: 4px 0; }
 .sh-logo { display: flex; gap: 6px; align-items: center; }
-.sh-tblayout { margin: 0; }
 .sh-fgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 2px 0 4px; }
 .sh-fnum { display: flex; flex-direction: column; gap: 1px; font-size: 11px; color: var(--muted); }
 .sh-fnum input { width: 100%; box-sizing: border-box; padding: 2px 3px; font-size: 12px; }

@@ -36,7 +36,9 @@ maker numbers.
   Say the material and the finish (e.g. "AlMg3, anodised").
   The title block: `get_sheet` reports its `template` and the ones there are; on the assembly's sheet
   `sheet_edit {template: "<name>", template_all: true}` puts the user's template (company, logo, frame) on every drawing
-  of the set (new ones take it too); `sheet_edit {texts: {company, address}, save_template: "<name>"}` makes one. A
+  of the set (new ones take it too); `sheet_edit {texts: {company, address}, save_template: "<name>"}` makes one. Its look:
+  `sheet_edit {title_style: "D", bom_style: "C"}` (A strip, B ISO 7200, C dark band, D minimal, E column — any title block
+  with any parts list; the templates "A — Strip" … "E — Column" pair each with its own). A
   scale the user names: `sheet_edit {scale: "1:5"}` (a view's own: `sheet_edit {view_scales: {Top: "2:1"}}`).
 
 ## Pneumatic cylinders (SMC CJ2 in the library)

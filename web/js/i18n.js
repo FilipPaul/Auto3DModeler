@@ -1241,13 +1241,33 @@ const CS = {
   '{sub} holds it in place — only {sub} itself is moved here.': '{sub} ho drží na místě — zde se posouvá jen {sub} jako celek.',
   'Open {sub}': 'Otevřít {sub}', 'Choose the whole {sub}': 'Vybrat celou {sub}',
   // a drawing sheet that could not be made (a reference body, a tessellated STEP, Cancel)
-  'The drawing could not be made: {e}': 'Výkres nešlo vytvořit: {e}', 'Try again': 'Zkusit znovu', 'Making the drawing…': 'Dělám výkres…',
+  'Try again': 'Zkusit znovu',
   'Cancelled.': 'Zrušeno.',
   'This part is only a reference body (surfaces that do not close into a solid) — there is no solid to draw. Open the file as a STEP, or close its surfaces in the CAD program it came from.':
     'Tento díl je jen referenční těleso (plochy, které se neuzavírají v těleso) — není co kreslit. Otevřete soubor jako STEP, nebo uzavřete jeho plochy v CAD programu, ze kterého pochází.',
   'This body has no size to draw (no box: its faces are not a proper solid — e.g. a tessellated STEP, faceted surfaces only). Export it from its CAD program as a B-rep STEP (AP214 / AP242).':
     'Toto těleso nemá rozměr ke kreslení (žádný obal: jeho plochy nejsou řádné těleso — např. teselovaný STEP, jen fasetové plochy). Exportujte ho ze svého CAD programu jako B-rep STEP (AP214 / AP242).',
   'The assembly has no solids to draw.': 'Sestava nemá tělesa ke kreslení.',
+  // the title-block and parts-list styles A–E (sheet/tbstyles.js) — their labels as the owner's designs say them
+  'Title block style': 'Styl razítka', 'Parts list style': 'Styl kusovníku', 'Modern — strip': 'Moderní — pruh',
+  'A — Strip': 'A — Pruh', 'B — ISO 7200': 'B — ISO 7200', 'C — Dark band': 'C — Tmavý pás', 'D — Minimal': 'D — Minimal', 'E — Column': 'E — Sloupec',
+  'How the title block looks — any style goes with any parts list': 'Jak razítko vypadá — každý styl jde s každým kusovníkem',
+  'How the parts list of an assembly drawing and the BOM pages look': 'Jak vypadá kusovník na výkresu sestavy a na listech kusovníku',
+  "(this drawing's — 💾 Save as template… keeps it)": '(jen tohoto výkresu — 💾 Uložit jako šablonu… ho zachová)',
+  "The app's clean title block: the name large, then its facts in two rows": 'Čisté razítko aplikace: velký název, pod ním údaje ve dvou řádcích',
+  "The app's low strip: one row — the most room for the views": 'Nízký pruh aplikace: jeden řádek — nejvíc místa pro pohledy',
+  '180 × 21 mm, one row: the name, drawing no., material, scale, sheet, revision': '180 × 21 mm, jeden řádek: název, číslo výkresu, materiál, měřítko, list, revize',
+  '180 × 40 mm, the full ISO 7200 grid: drawn / checked / approved, material, mass, tolerances, roughness, projection': '180 × 40 mm, plná mřížka ISO 7200: kreslil / kontroloval / schválil, materiál, hmotnost, tolerance, drsnost, promítání',
+  '180 × 34 mm, a black band with the name and drawing no., the facts below': '180 × 34 mm, černý pás s názvem a číslem výkresu, údaje pod ním',
+  '170 × 28 mm, no grid: the name large, six facts beside it': '170 × 28 mm, bez mřížky: velký název, vedle šest údajů',
+  '90 × 56 mm, a narrow column in the corner — the most room beside it': '90 × 56 mm, úzký sloupec v rohu — nejvíc místa vedle něj',
+  Revision: 'Revize', 'Rev.': 'Rev.', 'rev.': 'rev.', Date: 'Datum', Checked: 'Kontroloval', Approved: 'Schválil', Roughness: 'Drsnost', 'Sheet size': 'Formát',
+  Projection: 'Promítání', 'ISO first angle': 'ISO 1. kvadrant', 'production drawing': 'výkres výrobní', 'assembly drawing': 'výkres sestavy',
+  'Roughness (Ra)': 'Drsnost (Ra)', 'Checked by': 'Kontroloval', 'Approved by': 'Schválil',
+  'Mass/pc': 'Hmot./ks', 'Standard / order no.': 'Norma / obj. č.', 'Standard / order number': 'Norma / obj. číslo', 'Name / designation': 'Název / označení',
+  'Name / standard': 'Název / norma', 'Material · make/buy': 'Materiál · výroba', 'Make/buy': 'Výroba', make: 'vyrábět', buy: 'nakoupit', 'print 3D': 'tisk 3D',
+  item: 'položka', 'items (2–4)': 'položky', items: 'položek', pc: 'ks', 'pcs (2–4)': 'ks', pcs: 'ks',
+  '{items} · {pcs} in all': '{items} · celkem {pcs}', 'total mass {m}': 'celková hmotnost {m}',
   // language switch
   'Čeština / English': 'Čeština / English',
 };

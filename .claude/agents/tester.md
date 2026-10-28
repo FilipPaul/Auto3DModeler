@@ -270,6 +270,14 @@ Never report "works" without having run it; report failures with their output.
    one "M3 ⌵ Ø5 × 90°", ✓; deleted: the countersink's angle missing with its key; the AI's restore ✓; ＋ on the row:
    the callout back; a counterbore / blind thread "Ø3.4 ⌴ Ø6 ↧ 3.2", "2× M4 ↧ 6", their depths missing when deleted,
    complete; the PDF's and the DXF's texts; the AI's M3 ⌵ on a 2 mm plate: Ø6, Ø10 refused). Needs a server restarted after sheet.py / doc.py changes.
+   `tools/e2e_sheet_styles.py <url> <dir> [cs]` covers the title-block / parts-list styles A–E (an AI-built "Stand":
+   a plate, 2 lids, a bracket, 3 pins, a bought ISO 4762 screw; each style picked in the panel: the block's size at
+   the frame's corner, the list right on it, the labels in the UI's language, the font on screen and in the PDF; a
+   D + C mix aligned right, 💾 saved as "Mix DC" (both styles and the roughness on the server); 📋 BOM page + ⇶: every
+   page of the set D, the BOM page C, the set's PDF has drawn by / drawing no. and embeds Inter + Barlow; the app's
+   "B — ISO 7200" brings its ISO frame; all 36 title / list pairs at A4 and A3: no view box over the list or the title
+   block, a view dragged onto the list stays with ⚠; the AI's title_style / bom_style, a wrong one refused; the DXF's texts).
+   Screenshots styles_<lang>_<pair>.png and _pdf.png. Run it in cs and en.
    `tools/e2e_sheet_views_templates.py <url> <dir> [cs]` covers the modern title block (inside the frame, black / grey
    only, the name large) and sheet views renamed, moved and scaled with the mouse
    (a double-click on the Front label -> "Side A", Ctrl+Z / Ctrl+Y; the Top view dragged snaps under Front, Shift: free;

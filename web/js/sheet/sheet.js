@@ -15,11 +15,13 @@
 //    built: {geometry, layout, dims} (from the server), hash (of the part it was built from),
 //    rev, created, changed}
 import { History } from '../history.js';
-import { t } from '../i18n.js';
+import { t, getLang } from '../i18n.js';
 import { ask } from '../choose.js';
 import { renameInPlace } from '../rename.js';
 import { HOLE_FITS, SHAFT_FITS, deviationText } from './fits.js';
-import { itemNumbers as numbersOf, bomOf } from '../assembly/bom.js';
+import { itemNumbers as numbersOf, bomOf, makeBuy } from '../assembly/bom.js';
+import { MATERIALS } from '../modeler/materials.js';
+import { TITLE_STYLES, BOM_STYLES, STYLE_TIPS, isStyle, isBomStyle, titleSize, titleBlock, partsList, bomWidth, bomHeight, bomRowsIn, grams, fontsReady } from './tbstyles.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const fmt = (v) => (+(+v).toFixed(2)).toString();
@@ -27,14 +29,15 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const VIEWS = ['Front', 'Top', 'Right'];
 const BOM_ROW = 5.5; // a BOM page's row (mm)
+const PAPER = { A4: [297, 210], A3: [420, 297] }; // (as auto3d/modeler/sheet.py PAPERS, landscape mm)
 const PRESETS = [['light', 'Light'], ['medium', 'Medium'], ['full', 'Full']];
 const TEXTS = [['title', 'Title'], ['number', 'Drawing no.'], ['drawn', 'Drawn by'], ['note', 'Note']];
 /** The fixed texts a title-block template holds (a sheet's own text of these overrides it). */
-const TPL_TEXTS = ['company', 'address', 'drawn', 'note', 'tolstd'];
-const MORE_TEXTS = [['company', 'Company'], ['address', 'Address'], ['tolstd', 'Tolerance standard']];
+const TPL_TEXTS = ['company', 'address', 'drawn', 'note', 'tolstd', 'surface'];
+const MORE_TEXTS = [['company', 'Company'], ['address', 'Address'], ['tolstd', 'Tolerance standard'], ['surface', 'Roughness (Ra)'], ['checked', 'Checked by'], ['approved', 'Approved by']];
 /** The title block's fields that a template may leave out. */
 const TB_FIELDS = [['company', 'Company / logo'], ['number', 'Drawing no.'], ['material', 'Material'], ['paper', 'Paper'], ['tolerances', 'Tolerances'], ['drawn', 'Drawn by'], ['created', 'Created'], ['changed', 'Changed'], ['note', 'Note']];
-const DEFAULT_TPL = { name: 'Modern', builtin: true, layout: 'block', hide: [], texts: {}, logo: null, frame: null };
+const DEFAULT_TPL = { name: 'Modern', builtin: true, layout: 'block', titleStyle: 'block', bomStyle: 'modern', hide: [], texts: {}, logo: null, frame: null };
 /** The sheet's frame presets (as auto3d/title_templates.py FRAMES): margins [left, top, right, bottom] mm, the line's
  *  width (0: no frame), zones (grid references A… / 1… in the margins) and centring marks (ISO 5457). */
 const FRAMES = {
@@ -58,6 +61,9 @@ export function parseScale(text) {
 }
 const scaleText = (s) => (s ? `${fmt(s[0])}:${fmt(s[1])}` : '');
 const sameScale = (a, b) => !!a && !!b && Math.abs(a[0] / a[1] - b[0] / b[1]) < 1e-9;
+/** An assembly sheet's iso view still where its layout put it (d.views.Iso: the right view's place, not moved by the
+ *  user) — it follows a new layout. */
+const isoLaid = (d) => { const a = d?.views?.Iso, b = d?.built?.layout?.views?.Right; return !!a && !!b && Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6; };
 /** A circle of a hole step (its key has "<step>:hole:k" / ":cbore:k" / ":csk:k"; a pattern's copy "P1:2:H1:hole:0" too)
  *  -> [step id, 'hole' | 'head'], or null. */
 const stepOf = (key) => { const m = /(?:^|[+:])([^:+]+):(hole|cbore|csk):\d+/.exec(key || ''); return m ? [m[1], m[2] === 'hole' ? 'hole' : 'head'] : null; };
@@ -109,6 +115,7 @@ export class SheetEditor {
     window.addEventListener('a3d:lang', () => { if (this.d) this.render(); }); // (texts built with t(): in the new language)
     this.tpls = [DEFAULT_TPL];
     this.loadTemplates();
+    fontsReady.then(() => { if (this.d) this.render(); }); // (the title-block styles' texts measured in their own fonts)
   }
 
   // ------------------------------------------------------------------ title-block templates (auto3d/title_templates.py)
@@ -130,14 +137,18 @@ export class SheetEditor {
 
   tplOf(d = this.d) { const n = this.tplName(d); return this.tpls.find((x) => x.name === n) || this.tpls[0] || DEFAULT_TPL; }
 
-  /** How a sheet's title block looks: its template, changed on this sheet by d.tb {layout, hide, logo}. */
+  /** How a sheet's title block looks: its template, changed on this sheet by d.tb {titleStyle, bomStyle, hide, logo}.
+   *  style: the title block's — block / strip (the app's Modern) or A … E (tbstyles.js); bomStyle: the parts list's —
+   *  modern or A … E. (layout: block / strip as before, from older sheets and templates.) */
   tbOf(d = this.d) {
     const tp = this.tplOf(d), own = d?.tb || {};
-    return { layout: own.layout || tp.layout || 'block', hide: new Set(own.hide || tp.hide || []), texts: tp.texts || {}, logo: own.logo !== undefined ? own.logo : tp.logo || null };
+    const style = [own.titleStyle, own.layout, tp.titleStyle, tp.layout].find((s) => s && (s === 'block' || s === 'strip' || isStyle(s))) || 'block';
+    const bomStyle = [own.bomStyle, tp.bomStyle].find((s) => s === 'modern' || isBomStyle(s)) || 'modern';
+    return { style, bomStyle, layout: style === 'strip' ? 'strip' : 'block', hide: new Set(own.hide || tp.hide || []), texts: tp.texts || {}, logo: own.logo !== undefined ? own.logo : tp.logo || null };
   }
 
-  /** The title block's height (mm): a block 38, a strip 14. */
-  titleH(d = this.d) { return this.tbOf(d).layout === 'strip' ? 14 : 38; }
+  /** The title block's height (mm): a block 38, a strip 14, a style's own (A 21, B 40, C 34, D 28, E 56). */
+  titleH(d = this.d) { const s = this.tbOf(d).style; return titleSize(s)?.[1] ?? (s === 'strip' ? 14 : 38); }
 
   /** 💾 Save as template…: the title block as this sheet shows it (layout, fields, fixed texts, logo, frame) under a
    *  name, kept on the server for every project; this sheet then uses it. */
@@ -146,7 +157,7 @@ export class SheetEditor {
     if (!own) return null;
     const tb = this.tbOf(), X = this.d.texts || {}, texts = { ...tb.texts };
     for (const k of TPL_TEXTS) if (X[k] !== undefined) texts[k] = X[k];
-    const body = { template: { name: own, layout: tb.layout, hide: [...tb.hide], texts, logo: tb.logo, frame: this.frameOf() } };
+    const body = { template: { name: own, layout: tb.layout, titleStyle: tb.style, bomStyle: tb.bomStyle, hide: [...tb.hide], texts, logo: tb.logo, frame: this.frameOf() } };
     const r = await post('/api/title-templates', body);
     this.tpls = r.templates;
     this.d.template = r.template.name;
@@ -177,6 +188,7 @@ export class SheetEditor {
   async useTemplateForSet(name = this.tplName()) {
     const root = this.rootOf(this.d.source);
     if (!root) throw new Error(t('This drawing is not in an assembly\'s drawing set.'));
+    if (this.ownStyles()) { name = await this.saveTemplate(); if (!name) return 0; } // (this drawing's own mix of styles: kept as a template first, so the set can take it)
     this.useTemplate(name);
     const n = (await this.hooks.applyTemplate?.(root, name, this.pagesOf(root).map((p) => p.id))) || 0;
     this.hooks.toast?.(tv('Title block “{name}” on {n} drawing(s) of {asm} — new ones take it too.', { name, n, asm: this.hooks.partName(root) || root }), 'ok', 6000);
@@ -258,6 +270,7 @@ export class SheetEditor {
         r = pg.built;
         this.d.asm = { rows: pg.rows };
         if (!this.d.asmLaid) { this.d.off = { ...this.d.off, Right: true }; this.d.views = { ...this.d.views, Iso: r.layout.views.Right }; this.d.asmLaid = true; }
+        else if (!this.d.views?.Iso || isoLaid(this.d)) this.d.views = { ...this.d.views, Iso: r.layout.views.Right }; // (not moved by the user: where the new layout puts it)
       } else {
         const res = await fetch('/api/sheet/build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: src, preset: this.d.preset, paper: this.d.paper, per_view: this.d.vpreset || {}, section: !!this.d.section, ...this.layReq(), rid }) });
         r = await res.json();
@@ -291,11 +304,41 @@ export class SheetEditor {
   vs(v) { const s = this.d.vscale?.[v]; return s ? s[0] / s[1] : this.scale(); }
 
   /** What the server's layout is made for: the sheet's own scale (and frame) — built again when it changes. */
-  layKey(d = this.d) { const th = this.titleH(d), m = this.frameOf(d).m, dm = m.every((v) => v === 10); return JSON.stringify({ s: d.scale || null, ...(th !== 38 ? { th } : {}), ...(dm ? {} : { m }) }); }
+  layKey(d = this.d) { const th = this.titleH(d), m = this.frameOf(d).m, dm = m.every((v) => v === 10), k = this.keepOut(d); return JSON.stringify({ s: d.scale || null, ...(th !== 38 ? { th } : {}), ...(dm ? {} : { m }), ...(k ? { k } : {}) }); }
   builtKey(d = this.d) { return d.built?.lk ?? JSON.stringify({ s: null }); }
   layReq(d = this.d) {
-    const th = this.titleH(d), m = this.frameOf(d).m, dm = m.every((v) => v === 10);
-    return { ...(d.scale ? { scale: scaleText(d.scale) } : {}), ...(th !== 38 || !dm ? { frame: { title: th, m } } : {}) };
+    const th = this.titleH(d), m = this.frameOf(d).m, dm = m.every((v) => v === 10), keep = this.keepOut(d);
+    return { ...(d.scale ? { scale: scaleText(d.scale) } : {}), ...(th !== 38 || !dm || keep ? { frame: { title: th, m, ...(keep ? { keep, iso_at: 'Right' } : {}) } } : {}) };
+  }
+
+  /** An assembly sheet's keep-out for the layout (sheet.py _keep): its title block and the parts list on it as drawn
+   *  there (rows past "… n more" are on the BOM page) — {paper: [[w, h], …] mm at the frame's bottom-right corner, h
+   *  from the frame's bottom}; the views keep off their union. null: a part's sheet (its title block's band is left free). */
+  keepOut(d = this.d) {
+    if (this.hooks.kindOf?.(d.source) !== 'assembly') return null;
+    const n = new Set((this.hooks.partData(d.source)?.instances || []).map((it) => it.part)).size;
+    if (!n) return null;
+    const out = {};
+    for (const p of d.paper ? [d.paper] : ['A4', 'A3']) out[p] = this.listKeep(d, ...PAPER[p], n);
+    return out;
+  }
+
+  /** The title block's and the parts list's rectangles [[w, h], [w, h]] (mm) on paper pw × ph with n rows — as asmSvg /
+   *  asmStyled draw them. */
+  listKeep(d, pw, ph, n) {
+    const [, mt, , mb] = this.frameOf(d).m, th = this.titleH(d), tb = this.tbOf(d), tw = titleSize(tb.style)?.[0] ?? (pw >= 400 ? 180 : 150);
+    if (isBomStyle(tb.bomStyle)) {
+      const fit = bomRowsIn(tb.bomStyle, ph - mt - mb - th - 40), lines = n > fit ? Math.max(1, fit - 1) + 1 : n;
+      return [[tw, th], [bomWidth(tb.bomStyle), th + bomHeight(tb.bomStyle, lines)]].map((r) => r.map((v) => +v.toFixed(2)));
+    }
+    const max = Math.max(1, Math.floor((ph - mt - mb - th - 40) / 5) - 1), lines = Math.min(n, max) + (n > max ? 1 : 0);
+    return [[tw, th], [isStyle(tb.style) ? Math.max(tw, pw >= 400 ? 180 : 150) : tw, th + (lines + 1) * 5 + 1]];
+  }
+
+  /** The keep-out on this sheet's paper as rectangles [x0, y0, x1, y1] (y down) — a view over them: ⚠ (outside). */
+  keepRects() {
+    const k = this.lay && this.keepOut()?.[this.lay.paper], [pw, ph] = this.lay?.size || [0, 0], [, , mr, mb] = this.frameOf().m;
+    return (k || []).map(([w, h]) => [pw - mr - w, ph - mb - h, pw - mr, ph - mb]);
   }
 
   /** The sheet's frame: its own (d.frame), else its title-block template's, else Simple (10 mm, 0.5 mm line). */
@@ -439,11 +482,13 @@ export class SheetEditor {
   /** Its label: the name, and its own scale when that is not the sheet's ("Detail B (2:1)"). */
   viewLabel(v) { const s = this.d.vscale?.[v]; return s && !sameScale(s, this.scaleArr()) ? `${this.viewName(v)} (${scaleText(s)})` : this.viewName(v); }
 
-  /** The views that reach past the frame (paper mm) -> [names]: a warning, the sheet still draws them. */
+  /** The views that reach past the frame (paper mm), or on an assembly's sheet over its parts list / title block (one
+   *  the user moved there) -> [names]: a warning, the sheet still draws them. */
   outside() {
     if (!this.lay || !this.geo) return [];
-    const [pw, ph] = this.lay.size, [ml, mt, mr, mb] = this.frameOf().m;
-    const off = (b) => b[0] < ml - 0.5 || b[1] < mt - 0.5 || b[2] > pw - mr + 0.5 || b[3] > ph - mb + 0.5;
+    const [pw, ph] = this.lay.size, [ml, mt, mr, mb] = this.frameOf().m, keep = this.keepRects();
+    const off = (b) => b[0] < ml - 0.5 || b[1] < mt - 0.5 || b[2] > pw - mr + 0.5 || b[3] > ph - mb + 0.5
+      || keep.some((r) => b[0] < r[2] - 0.5 && r[0] < b[2] - 0.5 && b[1] < r[3] - 0.5 && r[1] < b[3] - 0.5);
     const out = this.drawn().filter((v) => off(this.paperBox(v)));
     if (this.isoBox && !this.d.off.Iso && off(this.isoBox)) out.push('Iso');
     return out;
@@ -609,7 +654,7 @@ export class SheetEditor {
     }
     out.push(this.titleSvg(pw, ph, m, th));
     out.push('</svg>');
-    return out.join('').replace(/<text /g, '<text font-family="Helvetica" '); // (the PDF's converter does not inherit a font)
+    return out.join('').replace(/<text (?!data-ff)/g, '<text font-family="Helvetica" '); // (the PDF's converter does not inherit a font; a style's texts say theirs)
   }
 
   /** One dimension: extension lines, the dimension line with arrows and its text (linear); a leader (Ø, R). */
@@ -697,8 +742,31 @@ export class SheetEditor {
     return `${out.join('')}</g>`;
   }
 
-  /** The title block's width (mm): 150 on A4, 180 (ISO 7200's) on A3. */
-  titleW() { return (this.lay?.size?.[0] || 297) >= 400 ? 180 : 150; }
+  /** The title block's width (mm): 150 on A4, 180 (ISO 7200's) on A3; a style's own (A, B, C 180, D 170, E 90). */
+  titleW() { return titleSize(this.tb().style)?.[0] ?? ((this.lay?.size?.[0] || 297) >= 400 ? 180 : 150); }
+
+  /** The title block's fields as text, for the styles A … E (tbstyles.js titleBlock): what the sheet and its part
+   *  say, its own texts over its template's; — where nothing is known. */
+  tbFields() {
+    const src = this.hooks.partData(this.d.source) || {}, T = this.d.title || {}, X = this.d.texts || {}, tb = this.tb(), F = { ...tb.texts, ...X };
+    const cs = getLang() === 'cs', d0 = this.d.changed ? new Date(this.d.changed) : null, p2 = (v) => String(v).padStart(2, '0');
+    const asm = !!this.d.asm, bom = !!this.d.bom, mat = T.material ?? (asm ? (src.material ? t(src.material) : '—') : t(src.material || 'PLA'));
+    const what = [T.kind || (asm ? t('Assembly') : t('Part')), T.of ? `${t('in')} ${T.of}` : '', T.pos ? `${t('Pos.')} ${T.pos}` : ''].filter(Boolean);
+    if (!bom) what.push(t(asm ? 'assembly drawing' : 'production drawing'));
+    let mass = null;
+    if (bom) mass = this.d.bom.mass_g || null;
+    else if (asm) { try { const b = bomOf(this.bomCtx(), this.d.source, {}); mass = b.mass_unknown ? null : b.mass_g || null; } catch { mass = null; } }
+    else if (this.d.built?.volume && MATERIALS[src.material || 'PLA']) mass = (this.d.built.volume / 1000) * MATERIALS[src.material || 'PLA'];
+    return {
+      name: X.title || T.part || this.hooks.partName(this.d.source) || '—', kind: what.join(' · '), number: F.number || '', rev: `${this.d.rev}`,
+      material: mat, mass: mass ? grams(mass) : '', scale: bom ? '' : scaleText(this.scaleArr()), paper: this.lay?.paper || '', sheet: T.sheet || '1 / 1',
+      tol: src.tolerance ? `${(F.tolstd || 'ISO 2768').replace(/-[a-z]+$/i, '')}-${src.tolerance}` : F.tolstd || '', surface: F.surface || '',
+      drawn: F.drawn || '', checked: F.checked || '', approved: F.approved || '', company: F.company || '',
+      address: String(F.address || '').split(/\s*[\n;]\s*|,\s+(?=\d)/).filter(Boolean), logo: tb.logo,
+      date: d0 ? (cs ? `${d0.getDate()}. ${d0.getMonth() + 1}. ${d0.getFullYear()}` : `${d0.getFullYear()}-${p2(d0.getMonth() + 1)}-${p2(d0.getDate())}`) : '',
+      dateShort: d0 ? (cs ? `${d0.getDate()}.${d0.getMonth() + 1}.${String(d0.getFullYear()).slice(2)}` : `${d0.getFullYear()}-${p2(d0.getMonth() + 1)}-${p2(d0.getDate())}`) : '',
+    };
+  }
 
   /** How the title block looks: {layout: 'block' | 'strip', hide: Set of fields, texts (fixed: company, address, drawn,
    *  note, tolstd), logo (a data URL) or null}. */
@@ -709,6 +777,7 @@ export class SheetEditor {
    *  outline. Black on white (prints in black and white), inside the frame at its bottom right. */
   titleSvg(pw, ph, m, th) {
     const L = this.lay, [, , mr, mb] = this.frameOf().m, W = this.titleW(), x0 = pw - mr - W, y0 = ph - mb - th;
+    if (isStyle(this.tb().style)) return titleBlock(this.tb().style, x0, y0, this.tbFields()); // (A … E: as the owner's designs)
     const src = this.hooks.partData(this.d.source) || {}, T = this.d.title || {}, X = this.d.texts || {}, tb = this.tb(), F = { ...tb.texts, ...X };
     const on = (f) => !tb.hide.has(f), INK = '#000', MUTED = '#555', THIN = 0.13;
     const fit = (s, w, fs) => { s = String(s ?? ''); const n = Math.max(1, Math.floor(w / (fs * 0.53))); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
@@ -779,7 +848,8 @@ export class SheetEditor {
   /** An assembly's page: the parts list (pos, name, qty, material, part number) above the title block, and a balloon
    *  with its position for each in the iso view. */
   asmSvg(pw, ph, m, th) {
-    const [, mt, mr, mb] = this.frameOf().m, W = this.titleW();
+    const [, mt, mr, mb] = this.frameOf().m, tb = this.tb(), W = isStyle(tb.style) ? Math.max(this.titleW(), (this.lay?.size?.[0] || 297) >= 400 ? 180 : 150) : this.titleW();
+    if (isBomStyle(tb.bomStyle)) return this.asmStyled(pw, ph, mt, mr, mb, th, tb.bomStyle);
     const rows = this.d.asm.rows, max = Math.max(1, Math.floor((ph - mt - mb - th - 40) / 5) - 1), shown = rows.slice(0, max);
     const x0 = pw - mr - W, cols = [[t('Pos.'), 0.08], [t('Name'), 0.42], [t('Qty'), 0.08], [t('Material'), 0.17], [t('Part number'), 0.25]].map(([l, k]) => [l, W * k]);
     const n = shown.length + (rows.length > max ? 1 : 0), top = ph - mb - th - (n + 1) * 5 - 1, g = ['<g class="sh-bom">'];
@@ -799,6 +869,32 @@ export class SheetEditor {
     row(top, cols.map((c) => c[0]), true);
     shown.forEach((r, i) => row(top + 1 + 5 * (i + 1), [r.pos, `${r.kind === 'assembly' ? '◇ ' : ''}${r.name}`, r.qty, t(r.material), r.pn || (r.bought ? t('bought') : '')], false));
     if (rows.length > max) g.push(`<text x="${x0 + 1.6}" y="${top + 1 + 5 * (shown.length + 1) + 3.6}" font-size="2.6">… ${rows.length - max} ${t('more')}</text>`);
+    return this.balloonsSvg(g, rows);
+  }
+
+  /** A parts-list row as a style shows it (tbstyles.js partsList): mass each, the standard / order no. (else that
+   *  part's drawing no.), make or buy. r: a parts-list row of an assembly sheet or a BOM page's line. */
+  styledRow(r, page = false) {
+    const pd = this.hooks.partData(r.part) || {}, asm = r.kind === 'assembly', ctx = this.hooks.drawingCtx?.();
+    const how = asm ? 'assembly' : r.how || makeBuy(pd, r.name).how, mass = r.mass_g !== undefined ? r.mass_g : asm ? null : ctx?.massOf?.(r.part) ?? null;
+    return { pos: r.pos ?? '', name: `${asm ? '◇ ' : ''}${r.name}`, qty: `${r.qty}`, total: `${r.total ?? ''}`, mat: asm || !r.material ? '' : t(r.material), bold: asm, depth: r.depth || 0,
+      mass: asm ? '' : grams(mass), mass_total: asm ? '' : grams(r.mass_total_g), maker: r.maker || '', make: t({ bought: 'buy', 'made (3D print)': 'print 3D', made: 'make', assembly: 'assembly' }[how] || how),
+      pn: r.pn || (page ? '' : ctx?.sheetOf?.(r.part)?.texts?.number || ''), mass_g: asm ? 0 : mass };
+  }
+
+  /** An assembly sheet's parts list in a style (A … E), directly on the title block at the frame's right; as many rows
+   *  as fit (40 mm left for the views), then "… n more". */
+  asmStyled(pw, ph, mt, mr, mb, th, style) {
+    const rows = this.d.asm.rows, room = ph - mt - mb - th - 40, fit = bomRowsIn(style, room);
+    const max = rows.length > fit ? Math.max(1, fit - 1) : rows.length, shown = rows.slice(0, max).map((r) => this.styledRow(r));
+    const pieces = rows.reduce((a, r) => a + (+r.qty || 0), 0), masses = rows.map((r) => this.styledRow(r).mass_g);
+    const mass = masses.every((m) => m !== null && m !== undefined) ? masses.reduce((a, m, i) => a + m * (+rows[i].qty || 0), 0) : 0;
+    const { svg } = partsList(style, pw - mr, ph - mb - th, shown, { kinds: rows.length, pieces, mass: mass ? grams(mass) : '' }, { more: rows.length > max ? `… ${rows.length - max} ${t('more')}` : '' });
+    return this.balloonsSvg(['<g class="sh-bom sh-bomstyled">', svg], rows);
+  }
+
+  /** The balloons of an assembly sheet's iso view (in g, the parts list's group) -> the group's SVG. */
+  balloonsSvg(g, rows) {
     this.balloonAt = {};
     if (this.isoMap && !this.d.off.Iso) { // the balloons: out from the view, apart from each other, where the user put them
       const placed = [];
@@ -853,8 +949,9 @@ export class SheetEditor {
    *  bomPage: true | 'summary' | 'structured') -> [page data]. */
   bomPages(aid, sd, built, parent = '') {
     const mode = sd.bomPage === 'structured' ? 'structured' : 'summary', bom = bomOf(this.bomCtx(), aid, { mode, numbering: this.rootOf(aid) || aid });
-    const [, ph] = built.layout.size, [, mt, , mb] = this.frameOf(sd).m, th = this.titleH(sd);
-    const per = Math.max(4, Math.floor((ph - mb - th - 4 - (mt + 12) - 6.5) / BOM_ROW) - 1), lines = bom.lines, n = Math.max(1, Math.ceil(lines.length / per));
+    const [, ph] = built.layout.size, [, mt, , mb] = this.frameOf(sd).m, th = this.titleH(sd), bs = this.tbOf(sd).bomStyle;
+    const per = isBomStyle(bs) ? Math.max(4, bomRowsIn(bs, ph - mb - th - mt - 4) - 1) // (a style's list on the title block, its own heading; a line for "… continued")
+      : Math.max(4, Math.floor((ph - mb - th - 4 - (mt + 12) - 6.5) / BOM_ROW) - 1), lines = bom.lines, n = Math.max(1, Math.ceil(lines.length / per));
     const keep = ['template', 'tb', 'frame', 'texts', 'paper', 'scale', 'created', 'changed', 'rev', 'hash'];
     const base = Object.fromEntries(keep.filter((k) => sd[k] !== undefined).map((k) => [k, structuredClone(sd[k])]));
     return Array.from({ length: n }, (_, k) => ({ ...base, source: aid, off: { Front: true, Top: true, Right: true, Iso: true }, views: {}, dims: {}, hidden: [], user: [],
@@ -867,6 +964,7 @@ export class SheetEditor {
    *  muted header over a rule, thin rules between rows, the position bold, a sub-assembly's row bold and its parts
    *  indented in the structured one). */
   bomSvg(pw, ph, th) {
+    if (isBomStyle(this.tb().bomStyle)) return this.bomPageStyled(pw, ph, th, this.tb().bomStyle);
     const B = this.d.bom, [ml, mt, mr] = this.frameOf().m, x0 = ml + 4, W = pw - mr - 4 - x0, structured = B.mode === 'structured';
     const cols = (structured ? [['Pos.', 0.05], ['Name', 0.27], ['Qty per parent', 0.07], ['Total qty', 0.06], ['Material', 0.11], ['Mass each (g)', 0.08], ['Maker', 0.1], ['Part number', 0.15], ['Make / buy', 0.11]]
       : [['Pos.', 0.05], ['Name', 0.3], ['Qty', 0.05], ['Material', 0.12], ['Mass each (g)', 0.08], ['Mass total (g)', 0.08], ['Maker', 0.1], ['Part number', 0.12], ['Make / buy', 0.1]]).map(([l, k]) => [t(l), W * k]);
@@ -900,6 +998,17 @@ export class SheetEditor {
     return g.join('');
   }
 
+  /** A BOM page in a parts-list style (A … E): the heading at the top of the frame, the table the whole width inside
+   *  the frame, directly on the title block (B: its header at the bottom, the rows numbered bottom-up). */
+  bomPageStyled(pw, ph, th, style) {
+    const B = this.d.bom, [ml, , mr, mb] = this.frameOf().m, structured = B.mode === 'structured', W = pw - mr - ml;
+    const title = `${t('Bill of materials')} — ${this.hooks.partName(this.d.source) || ''} · ${t(structured ? 'Structured' : 'Summary')}${B.pages > 1 ? ` · ${B.page} / ${B.pages}` : ''}`;
+    const rows = B.lines.map((r) => this.styledRow(r, true));
+    const more = B.more ? tv('… continued on the next page ({n} / {m})', { n: B.page + 1, m: B.pages }) : '';
+    const list = partsList(style, pw - mr, ph - mb - th, rows, { kinds: B.kinds, pieces: B.pieces, mass: B.mass_g ? grams(B.mass_g) : '' }, { W, kind: structured ? 'structured' : 'summary', more, title, named: true });
+    return `<g class="sh-bompage" data-style="${style}">${list.svg}</g>`;
+  }
+
   async assemblyPage(aid, ctx, explode = 0, sd = null, rid = null) { // (sd: its sheet's data — its paper, scale, frame; rid: progress / Cancel)
     const flatten = (id, M = ID4, pre = '', inner = null) => (this.hooks.partData(id)?.instances || []).flatMap((it) => { // (inner: a sub-assembly's parts moved in this placement)
       const W = mul4(M, inner?.[it.id] || it.matrix || ID4), key = pre ? `${pre}/${it.id}` : it.id;
@@ -929,6 +1038,7 @@ export class SheetEditor {
       const own = ctx.sheetOf(aid), sd = this.pageData(own || { source: aid }); // its own sheet: the user's moves, dimensions, texts
       const { built, rows } = await this.cached(`a|${aid}|${this.sourceHash(aid)}|${ex}|${[...this.itemNumbers(this.rootOf(aid) || aid)].join()}|${sd.paper || ''}|${this.layKey(sd)}`, () => this.assemblyPage(aid, ctx, ex, sd));
       const base = own ? structuredClone(own) : { created: now, changed: now, off: { Right: true }, views: { Iso: built.layout.views.Right } };
+      if (own && isoLaid(own)) base.views = { ...base.views, Iso: built.layout.views.Right }; // (its iso view where this layout puts it)
       pages.push({ name: name(aid), d: { ...base, source: aid, built, asm: { rows },
         title: { kind: parent ? t('Sub-assembly') : t('Assembly'), part: name(aid), material: '—', of: parent || '' } } });
       if (own?.bomPage) for (const d of this.bomPages(aid, sd, built, parent || '')) pages.push({ name: `${t('BOM')} ${name(aid)}`, bom: true, d });
@@ -1140,6 +1250,9 @@ export class SheetEditor {
     return `<h3>${esc(t('Title block'))}</h3>
       <div class="field"><label>${esc(t('Template'))}</label><select data-k="tpl" title="${esc(t('The title block\'s template: its layout, fields, company, logo and frame — Modern is the app\'s clean default'))}">${this.tpls.map((x) => `<option value="${esc(x.name)}" ${x.name === tp.name ? 'selected' : ''} data-no-i18n>${esc(x.builtin ? t(x.name) : x.name)}</option>`).join('')}</select></div>
       ${from ? `<p class="hint">${esc(tv('From the drawing set of {asm}.', { asm: from }))}</p>` : ''}
+      <div class="field"><label>${esc(t('Title block style'))}</label><select data-k="tbstyle" title="${esc(t('How the title block looks — any style goes with any parts list'))}">${TITLE_STYLES.map(([k, l]) => `<option value="${k}" ${tb.style === k ? 'selected' : ''} title="${esc(t(STYLE_TIPS[k]))}">${esc(t(l))}</option>`).join('')}</select></div>
+      <div class="field"><label>${esc(t('Parts list style'))}</label><select data-k="bomstyle" title="${esc(t('How the parts list of an assembly drawing and the BOM pages look'))}">${BOM_STYLES.map(([k, l]) => `<option value="${k}" ${tb.bomStyle === k ? 'selected' : ''}>${esc(t(l))}</option>`).join('')}</select></div>
+      <p class="hint">${esc(t(STYLE_TIPS[tb.style] || ''))}${this.d.tb?.titleStyle || this.d.tb?.bomStyle ? ` ${t('(this drawing\'s — 💾 Save as template… keeps it)')}` : ''}</p>
       <div class="row-actions sh-tplbtns"><button class="btn small" data-a="saveTpl" title="${esc(t('Keep this title block (layout, fields, company, address, drawn by, note, tolerance standard, logo, frame) as a template for all your projects'))}">💾 ${esc(t('Save as template…'))}</button>
         ${tp.builtin ? '' : `<button class="mini danger" data-a="delTpl" title="${esc(t('Delete this template (drawings using it go back to Modern)'))}">✕</button>`}</div>
       ${root ? `<div class="row-actions"><button class="btn small" data-a="tplSet" title="${esc(t('This template on every drawing of the assembly\'s set — the assembly\'s, its sub-assemblies\' and its parts\' — and on new ones'))}">⇶ ${esc(t('Use for all drawings of this assembly'))}</button></div>` : ''}
@@ -1147,10 +1260,28 @@ export class SheetEditor {
       <details class="sh-tbmore" ${this.tbOpen ? 'open' : ''}><summary title="${esc(t('Company, address, tolerance standard, logo, layout and the fields shown'))}">${esc(t('Company, logo and fields'))}</summary>
         ${MORE_TEXTS.map(field).join('')}
         <div class="field"><label>${esc(t('Logo'))}</label><span class="sh-logo"><button class="btn small" data-a="logo" title="${esc(t('A picture (PNG, JPEG or SVG) in the title block\'s left column'))}">🖼 ${esc(t(tb.logo ? 'Change…' : 'Choose…'))}</button>${tb.logo ? `<button class="mini danger" data-a="nologo" title="${esc(t('No logo'))}">✕</button>` : ''}<input type="file" data-k="logofile" accept="image/png,image/jpeg,image/svg+xml" hidden></span></div>
-        <div class="field"><label>${esc(t('Layout'))}</label><div class="seg sh-tblayout">${[['block', 'Block'], ['strip', 'Strip']].map(([k, l]) => `<button class="chip ${tb.layout === k ? 'on' : ''}" data-tbl="${k}" title="${esc(t(k === 'block' ? 'Three rows: the part\'s name large, then its facts' : 'One low row: the name and the main facts — more room for the views'))}">${esc(t(l))}</button>`).join('')}</div></div>
         <div class="sh-tbfields" title="${esc(t('The fields the title block shows'))}">${TB_FIELDS.map(([k, l]) => `<label class="check"><input type="checkbox" data-tbf="${k}" ${tb.hide.has(k) ? '' : 'checked'}> ${esc(t(l))}</label>`).join('')}</div>
         <p class="hint">${esc(t('Changes here are this drawing\'s — 💾 Save as template… keeps them for all.'))}</p>
       </details>`;
+  }
+
+  /** Whether this drawing has its own title block / parts list style (not its template's yet). */
+  ownStyles() { const tb = this.d?.tb || {}, tp = this.tplOf(); return (!!tb.titleStyle && tb.titleStyle !== (tp.titleStyle || tp.layout || 'block')) || (!!tb.bomStyle && tb.bomStyle !== (tp.bomStyle || 'modern')); }
+
+  /** Title block style / parts list style of this sheet ({title: block | strip | A … E, bom: modern | A … E}) — any
+   *  two together; 💾 Save as template… keeps them, ⇶ puts them on the whole drawing set. */
+  setStyles({ title, bom } = {}) {
+    const keys = TITLE_STYLES.map((x) => x[0]), bkeys = BOM_STYLES.map((x) => x[0]);
+    if (title !== undefined && !keys.includes(title)) throw new Error(`No title block style ${title} — one of: ${keys.join(', ')}.`);
+    if (bom !== undefined && !bkeys.includes(bom)) throw new Error(`No parts list style ${bom} — one of: ${bkeys.join(', ')}.`);
+    const own = { ...(this.d.tb || {}) };
+    if (title !== undefined) { own.titleStyle = title; delete own.layout; }
+    if (bom !== undefined) own.bomStyle = bom;
+    this.d.tb = own;
+    this.history.commit();
+    this.render();
+    this.hooks.onChange?.();
+    this.ensure(); // (another height: the views placed again)
   }
 
   bindTitlePanel(box) {
@@ -1161,7 +1292,8 @@ export class SheetEditor {
     box.querySelector('[data-a=delTpl]')?.addEventListener('click', () => this.deleteTemplate(this.tplName()).catch(fail));
     box.querySelector('[data-a=tplSet]')?.addEventListener('click', () => this.useTemplateForSet().catch(fail));
     box.querySelector('.sh-tbmore')?.addEventListener('toggle', (e) => { this.tbOpen = e.target.open; });
-    for (const b of box.querySelectorAll('[data-tbl]')) b.addEventListener('click', () => tbSet('layout', b.dataset.tbl));
+    box.querySelector('[data-k=tbstyle]')?.addEventListener('change', (e) => this.setStyles({ title: e.target.value }));
+    box.querySelector('[data-k=bomstyle]')?.addEventListener('change', (e) => this.setStyles({ bom: e.target.value }));
     for (const c of box.querySelectorAll('[data-tbf]')) {
       c.addEventListener('change', () => { const hide = new Set(this.tbOf().hide); if (c.checked) hide.delete(c.dataset.tbf); else hide.add(c.dataset.tbf); tbSet('hide', [...hide]); });
     }
@@ -1768,6 +1900,7 @@ export class SheetEditor {
       scale: `${scaleText(this.scaleArr())}${this.d.scale ? '' : ' (auto)'}`,
       template: `${this.tplName()}${this.d.template ? '' : this.tplName() === DEFAULT_TPL.name ? ' (default)' : ' (the drawing set\'s)'}`,
       templates: this.tpls.map((x) => x.name),
+      title_style: this.tb().style, bom_style: this.tb().bomStyle,
       frame: (({ preset, m, line, zones, marks }) => ({ preset, margins_mm: m, line, zones, marks, ...(this.d.frame ? {} : { from: 'the template' }) }))(this.frameOf()),
       ...(Object.keys(this.d.vscale || {}).length ? { view_scales: Object.fromEntries(Object.entries(this.d.vscale).map(([v, s]) => [v, scaleText(s)])) } : {}),
       ...(Object.keys(this.d.viewNames || {}).length ? { view_names: this.d.viewNames } : {}),

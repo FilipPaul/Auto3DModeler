@@ -1055,6 +1055,50 @@ Date: 2026-10-25. Written by the architect agent.
   (one imports the 44 MB board and draws the 171-hole plate, the other edits a small part): the small part's
   rebuild 28.4 s (behind the import) -> 7–19 ms, the plate's sheet 25.0 -> 1.4 s; two heavy parts from two
   threads 3.49 -> 2.14 s. tests/test_kernel_pool.py; tools/e2e_kernel_pool.py.
+- **Title-block styles A–E done (the owner's five designs):** web/js/sheet/tbstyles.js titleBlock draws them as SVG in
+  mm, from the 5 px = 1 mm mockups: A "Strip" 180 × 21 (IBM Plex Sans Condensed, one row), B "ISO 7200" 180 × 40 (IBM
+  Plex Sans; drawn / checked / approved, roughness, the first-angle projection symbol), C "Dark band" 180 × 34
+  (Barlow), D "Minimal" 170 × 28 (Inter, no grid), E "Column" 90 × 56 (Plex Condensed). Their fields (SheetEditor
+  tbFields): the name, what it is ("Part · production drawing"), drawing no., rev, material, mass (a part's volume —
+  /api/sheet/build now gives it — × its material's density; an assembly's from its BOM), scale, paper, sheet n / N,
+  tolerances, roughness (a new text `surface`), drawn by, the date (28. 10. 2026 in Czech, 2026-10-28 in English),
+  checked / approved (new texts, — when empty), the company (its first word as the mark, or the logo) and address.
+  Labels small and in capitals as in the designs, Czech through i18n. The fonts (SIL OFL, the licences beside them)
+  are in web/fonts (tools/make_sheet_fonts.py: static weights cut from the variable Plex Sans / Inter, all subset to
+  Latin + Czech + the drawing symbols, ~58 kB a file; fonts.css); texts are measured in the loaded font (a canvas) to
+  fit and to right-align. The PDF: MuPDF's SVG reader only has its base fonts, so auto3d/modeler/sheetpdf.py takes a
+  style's texts (they carry data-ff) out of the SVG and writes them on the page with the same font files (PyMuPDF
+  TextWriter, baseline / anchor / letter spacing kept; a letter a font lacks in Helvetica or Droid Sans Fallback),
+  then subsets the fonts. The DXF keeps its Arial text style. New sheets still start with Modern.
+- **Parts-list styles A–E done:** tbstyles.js partsList, each with its title block's font: A a muted header over a
+  rule, hairline rows, "6 items · 23 pcs in all … total mass"; B the rows numbered bottom-up over a light grey header
+  band and "Parts list · 6 items · 23 pcs … Σ mass", thin column rules; C a black "Parts list" band with the summary,
+  the positions in circles like balloons; D no vertical lines, hairline rows, a spaced heading; E 90 mm, two lines an
+  item (the name over its standard / drawing no.; the material over make · mass). Columns: pos, name, qty, material,
+  mass each (ctx.massOf), standard / order no. (the library's pn, else that part's drawing no.), make / buy (make /
+  print 3D / buy). On an assembly sheet the list sits directly on the title block, both at the frame's right /
+  bottom (other widths: aligned right), as many rows as fit 40 mm under the top (then "… n more"; the balloons kept,
+  SheetEditor.balloonsSvg). A 📋 BOM page in a style: the summary / structured BOM the frame's width on the title
+  block, "Bill of materials — <assembly> · Summary · n / m" in the style's title, its rows per page by the style
+  (bomRowsIn).
+- **Any title block with any parts list done:** a template has titleStyle (block / strip — the app's Modern — or A …
+  E; an older one: its layout) and bomStyle (modern / A … E), checked by auto3d/title_templates.py; the app's
+  templates "A — Strip", "B — ISO 7200" (with the ISO 5457 frame), "C — Dark band", "D — Minimal", "E — Column" pair
+  each title block with its own list (Modern stays the default). The sheet's panel: Title block style ▾ and Parts
+  list style ▾ under Template ▾ (d.tb.titleStyle / bomStyle — this drawing's, the hint says so, until 💾 Save as
+  template… keeps both with the frame; ⇶ Use for all drawings with an unsaved mix asks for its template name first);
+  the Layout Block / Strip chips are gone (Modern — strip is a style). Folded: Roughness (Ra) (kept in the template),
+  Checked by, Approved by. AI: sheet_edit title_style / bom_style (template_all with an unsaved mix wants
+  save_template), texts surface / checked / approved; get_sheet title_style / bom_style; the automation-design skill
+  says how. tests/test_title_templates.py (styles saved / loaded, older ones, the five designs); tools/e2e_sheet_styles.py.
+- **The views keep off an assembly's parts list done:** the styles' taller lists (8 mm rows) covered the views. The
+  sheet sends the layout a keep-out (SheetEditor.keepOut / listKeep: the title block's and the list's rectangles as
+  drawn — rows past "… n more" are on the BOM page — per paper when it is Auto) and iso_at Right; sheet.py layout
+  (_keep, _room, _clear) moves a view in the union's way up or left (the front and the top view together, they line
+  up; KEEP_GAP 14 mm beside, 18 mm below for the sizes and names), shrinks the iso view, then takes the auto scale a
+  step smaller; an own scale stays. An iso view not moved by the user follows the new layout (isoLaid); one the user
+  dragged onto the list stays and gets ⚠ past the frame (outside). tests/test_sheet_views.py TestLayoutKeepOut;
+  tools/e2e_sheet_styles.py 1b (all 36 title / list pairs at A4 and A3, 5 parts: no view box over the list or title).
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.
