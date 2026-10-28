@@ -31,6 +31,68 @@ Date: 2026-10-25. Written by the architect agent.
   and the idle app (6–10 ms a second with three tabs: the render loops only draw when something changed, autosave
   and the window sync wait for a change, no polling but the AI's long poll) needed nothing.
   Left: real threads are cut and meshed again on each edit (9 holes: ~23 s on the server, the view stays usable).
+- **⚙ What is working now done:** the owner could not see what ran in the background or stop it. worker.Pool keeps
+  its jobs waiting or running (Pool.jobs: kind in plain words — worker.KINDS —, the part's name, its process, waiting /
+  running, since) -> list_jobs(); cancel("k<n>") stops one as a Cancel does (leaves the queue, else only its process
+  is killed; its request's rid cancelled too, so its page says Cancelled). progress.operation(rid, kind) and
+  begin_request(what, req): a before_request hook takes the part's name from the body's `what`, else the tab on
+  screen (X-A3D-Tab), and the page's request id (X-A3D-Req). GET /api/jobs: the kernel's jobs plus slow requests
+  outside it (a quick part's slicing, a file being read: "r<rid>"); POST /api/jobs/<id>/cancel (404 when it has
+  ended); _model_call answers a stopped job 409 cancelled. web/js/jobs.js: a fetch wrapper marks the page's slow
+  requests (an upload is listed before the server has a job); ⚙ N in the top bar (#jobsBtn) only while something
+  runs, polled every 1 s then (4 s idle, so other windows' and the AI's jobs show); the list: kind · part · time (live,
+  only the times redrawn) · ✕ Stop; it pulses when a job runs over 3 s with no progress box on screen.
+  tests/test_kernel_pool.py (test_jobs_listed_and_stopped_while_waiting, test_stop_from_the_jobs_list_kills_only_that_worker,
+  test_jobs_route); tools/e2e_cancel.py 1b (the board's import: ⚙ 1, the list names the file, ✕ Stop: gone in 0.13 s).
+- **Cancel stops the job once, nothing restarts it done:** the owner saw Cancel not stopping the kernel and the
+  busy text going Building ↔ Cancelling. Found: the app's busy box (#busy) polled the stage and wrote "Building the 3D
+  model" over "Cancelling…"; it tracked one rid, so a second request at the same time (opening a sheet runs ensure
+  twice: the tab's load and sheet_open) was not cancelled and came back; a cancelled sheet was made again by the next
+  ensure(); the box sat in the quick part's viewport, invisible in the other workspaces; a tab shown while another one
+  loaded (📄 Drawing during an assembly's load) got its data overwritten with 'live' (parts.show) — ↻ Try again then
+  did nothing. The kernel side was right (Worker._run kills only that process on Cancel). Now web/js/progressbox.js
+  (from app.js): several rids at once, the newest shown, ✕ Cancel cancels them all, "Cancelling…" until they end (the
+  poll no longer writes over it), then gone; it moves to the viewport on screen (bottom middle outside the quick part);
+  `delay` for quick ones. The 3D model: Cancel → "Cancelling…", the queued rebuild dropped, the last result kept with
+  "Cancelled — ↻ Rebuild". The sheet: one job per drawing (ensure waits for the same one), a cancelled one is not made
+  again until ↻ Try again or a change. The assembly's part builds go through the box (a cancelled part keeps its
+  body; no clash check after it); a newer clash check cancels the older one's job (/api/assembly/clashes takes a rid,
+  409), the ⚠ list has ✕ Stop; the print split (/api/print/plan rid, 409) too. tests/test_kernel_pool.py
+  (test_cancel_kills_only_that_worker, TestCancelRoutes); tools/e2e_cancel.py: the board's import, 12 real threads, MIT
+  E-Vent's sheet — before: Cancelling… → gone → Making the drawing… → Building again; after: Cancelling… → gone in
+  0.13–0.23 s, no kernel CPU after it, nothing sent again.
+- **AI: simplify_sketch done:** {id, op simplify | join | outline, tol} (agent_tools.py, agent_model.js: the whole
+  sketch through /api/model/sketch/clean, committed as one change) -> the step's result + shapes / points before →
+  after, area_mm2, dropped sizes; the skill use-a-drawing says when. tools/e2e_agent.py (a 72-sided polyline -> one
+  circle, π 20² 5; a wavy 120-line outline -> join: one spline, the area kept; a non-sketch refused).
+- **⛓ Merge in sketches done:** sketchclean.join (each connected chain -> one `fit` spline per run between corners
+  > 25°, a straight run a line; _dense_chain samples it, fit_spline within tol; a closed chain starts at a corner, none:
+  one closed spline) and outline (polygonize the picks within tol, even-odd -> one block {polys, w0, h0, at}), POST
+  /api/model/sketch/clean {op, sketch, ids, tol}. Sketcher: splines can be picked (pickOf / splineAt, box, delete,
+  copy); mergeItems -> ⛓ Join into one curve / 🧹 Simplify first in the short list for a chain of ≥ 6 pieces
+  (chainOf: ends within 0.02 mm count as one — the old conversion's ends missed by a hair), ◆ Make it one outline in
+  the short list for closed loops (else under More… → Edit); mergeBox: one input (Tolerance), shown at once
+  (mergeTo: from the snapshot each time, one undo step), "732 → 13 shapes", Enter / Esc; a `fit` spline's points
+  hidden unless it is clicked (hiddenPts: not drawn, not picked). The bar's ⛓ Merge (copy group): with picks the table
+  offers only the merge rows; with none a mode (clicks and boxes add) whose table has 🧹 Simplify the whole sketch.
+  Drive Gear.dxf as the old conversion made it (732 shapes, the owner's screenshot): ⛓ Join -> 13 shapes (one spline of
+  770 points round the teeth) in ~1 s, area 1540.3; 🧹 Simplify -> 316 (252 at 0.02 mm). tools/e2e_sketch_merge.py.
+
+- **Clean 2D drawing -> sketch done:** auto3d/modeler/sketchclean.py from_drawing (POST /api/drawing/sketch; editor.js
+  drawingToCleanSketch, the old drawingToSketch as the offline fallback): ends within tol welded (_Nodes: union-find on
+  a grid; tol = max(0.01, 1e-4 · size) ≤ 0.1 mm), pieces shorter than tol absorbed, chains through two-piece nodes
+  (_chains): collinear lines -> one, arcs on one circle -> one (a full turn: a circle), a polyline -> lines / arcs
+  (greedy _segment, the arc's centre on its ends' bisector so both ends are on it) and runs of ≥ 3 smooth ones -> one
+  spline when that is fewer points; a `smooth` poly (read_drawing marks SPLINE / ELLIPSE) -> one line, arc or spline
+  (fit_spline: a natural cubic over the chord, as splinePts, points added where it strays > tol both ways); a closed
+  polyline -> a circle or starts at its sharpest corner. tan relations line–arc only in sketches of ≤ 60 shapes (in the
+  gear they made each solve 7× slower). Finger.dxf: 702 shapes / 827 points -> 231 / 378, area 7186.81 -> 7186.75
+  (the old conversion's ends missed by a hair: its area 185 — nothing closed). Kernel: a closed spline going clockwise
+  is reversed in _mixed_wire (holes are put in reversed: a CW one gave 1335 for 1178); kernel.volume integrates a
+  solid with a B-spline edge of > 8 knots span by span (VolumePropertiesGK, IsUseSpan) — a plane bounded by one
+  770-span curve was 8 % off with the adaptive rule (CTC-02's reference: 47106859.125, as GK without spans at 1e-9).
+  tests/test_sketch_clean.py; tools/e2e_sketch_merge.py (part 1).
+
 - **Autosave waits longer on a busy machine done:** autosave._write / _read retry a Windows sharing violation
   (WinError 5 / 32) for up to ~8 s with a growing pause (_pause), not ~2 s / ~1 s — under the full test run with the
   kernel pool busy, test_same_project_saved_at_once once failed with "Access is denied".
@@ -1482,6 +1544,7 @@ The server stays the single source of truth for geometry. The client sends the p
 |---|---|
 | `GET /api/kernel` | → `{occ: "8.0.1" or null, gcs: "0.9.6" or null, install_hint}` |
 | `POST /api/project/migrate` | any project → v3 project |
+| `GET /api/jobs`, `POST /api/jobs/<id>/cancel` | What runs now (kernel jobs and slow requests: id, kind, what, worker, state, elapsed, stage) for the top bar's ⚙ list; ✕ Stop of one (404: ended). |
 | `POST /api/model/rebuild` | `{part, assets_ids, rid, need: ["mesh","topology"], parts: {id: classic payload} for inserts}` → `{ok, bodies: [{id, mesh (base64 positions), face_of_tri (uint32), faces: [{ref, type, normal, centroid, area, radius?}], edges: [{ref, type, polyline, length, radius?}], bbox, volume}], features: [{id, ok, issues, reattached?}], params: {id: value}}`. Uses `progress.operation(rid)`, so the existing progress bar and Cancel work. |
 | `POST /api/model/sketch/solve` | `{sketch, params, drag?: {point, to}}` → `{points, status: ok / over / conflict, dof, free: [...], conflicts: [...]}` |
 | `POST /api/model/measure` | `{part, a: ref, b: ref}` → distance / angle / radius, closest points |

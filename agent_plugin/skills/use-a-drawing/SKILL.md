@@ -22,5 +22,8 @@ description: Use when the user has a 2D drawing (a DXF / DWG, or a PCB's Gerber 
 5. A part from it: `drawing_use {as: "sketch", what: "all" | "found" | "selection"}` makes the sketch of a new 3D
    model (on screen then): `add_feature {type: "extrude", sketch: "F1", d: 3}` — the closed outline becomes the plate,
    the circles in it its holes. For a PCB case: the board outline + the mounting holes, then design the case around
-   them (skill mechanical-design).
+   them (skill mechanical-design). The sketch comes cleaned (ends welded, crumbs absorbed, lines / arcs joined); still
+   too many shapes (get_model's shapes), or a sketch made before: `simplify_sketch {id: "F1"}` (fewer lines and arcs),
+   `{op: "join"}` (each chain one smooth curve — teeth, a cam) or `{op: "outline"}` (one rigid outline); check that
+   area_mm2 stayed the same.
 6. Save it: `export {format: "dxf"}` writes the shown layers (in mm).

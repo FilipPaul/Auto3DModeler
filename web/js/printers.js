@@ -1,4 +1,5 @@
 // Print panel: printer profiles (built-in + custom), build-volume fit check and split into pieces.
+import { newRid, trackProgress } from './progressbox.js';
 const UNIT_IN_MM = { mm: 1, cm: 10, m: 1000, in: 25.4 };
 const LS_KEY = 'a3d.printer';
 const LS_JOINT = 'a3d.joint';
@@ -115,10 +116,11 @@ export class PrintPanel {
     if (!body) return;
     this.busy = true;
     this.render();
+    const rid = newRid('p'), stop = trackProgress(rid, 'Splitting the part…', { delay: 300 });
     try {
       const { solution, ...req } = body;
       const wasShown = !!this.pieces;
-      const plan = await (await this.api('/api/print/plan', { ...req, printer: this.selected, margin: this.margin, split: true, joint: this.jointRequest() })).json();
+      const plan = await (await this.api('/api/print/plan', { ...req, printer: this.selected, margin: this.margin, split: true, joint: this.jointRequest(), rid })).json();
       this.plan = { ...this.plan, issues: plan.issues };
       this.pieces = plan.pieces;
       this.connectors = plan.connectors || [];
@@ -128,7 +130,7 @@ export class PrintPanel {
       this.viewer.showPieces(plan.pieces, { x: (p.x - 2 * this.margin) * s, y: (p.y - 2 * this.margin) * s, z: p.z * s },
         this.connectors, plan.seams || []);
       if (!wasShown) this.viewer.setView('iso');
-    } catch (e) { this.toast(e.message, 'error'); }
+    } catch (e) { this.toast(e.message, /^cancelled/i.test(e.message) ? 'info' : 'error'); } finally { stop(); }
     this.busy = false;
     this.render();
   }

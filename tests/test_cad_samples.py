@@ -206,7 +206,9 @@ class TestCadSampleKnownBugs(unittest.TestCase):
             solid += K.volume(ex.Current())
             ex.Next()
         self.assertAlmostEqual(r["volume"], solid, delta=solid * 1e-6)
-        self.assertAlmostEqual(r["volume"], 47106842.252, delta=1)
+        # (Gauss-Kronrod span by span, as kernel.volume does for long B-spline edges; the same without spans at 1e-9:
+        # 47106859.161 — the adaptive rule said 47106842.252)
+        self.assertAlmostEqual(r["volume"], 47106859.125, delta=1)
         self.assertEqual([x["id"] for x in built["refs"]], ["F1:surfaces"])  # (the loose faces: see-through)
         self.assertTrue(cut["ok"], cut["features"])
         # (to the volume's precision on a 47 · 10⁶ mm³ solid with B-spline faces: 1e-7 of it)

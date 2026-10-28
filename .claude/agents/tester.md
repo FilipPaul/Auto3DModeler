@@ -169,6 +169,12 @@ Never report "works" without having run it; report failures with their output.
    sessions: one imports the 44 MB board and builds + draws the 171-hole plate, the other keeps editing a small part
    — each of its rebuilds under a second meanwhile). Against a server started with A3D_WORKERS=1 it fails (--report:
    only print the times, the before numbers).
+   `tools/e2e_cancel.py <url> <dir> <the 44 MB board .step> [<MIT E-Vent .step>]` covers ✕ Cancel of heavy work with
+   real clicks (the board's import, a rebuild with 12 real threads, MIT E-Vent's assembly sheet): the box says
+   Cancelling… once and is gone within 2 s, never Building again, no kernel process keeps working (Windows: the
+   server's child processes' CPU), nothing is sent again; the model keeps its result with "Cancelled — ↻ Rebuild", a new
+   edit builds; the sheet says Cancelled, ↻ Try again makes it. Also the top bar's ⚙ N jobs list: the board's import
+   listed as "⚙ 1" with its file's name and a running time, its ✕ Stop ends it.
    `tools/e2e_library_edit.py <url> <dir>` covers changing library parts (an own Holder: ✎ Edit in the library -> 12
    thick, 📚 Save back: the library's 12, still one item, the project's copy still 5, a new use 12; a catalogue ISO 4762
    M3: ✎ Make my own copy -> a new own part in My parts, the catalogue unchanged; the AI's save_to_library saves back).
@@ -501,6 +507,12 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_drawing2d.py <url> <dir> [<a .dxf>]` covers the 📐 Drawing workspace (a DXF opens as a drawing; layers,
    File units, a layer hidden, a line snapped corner to corner, measuring 100 mm and Ø8, delete + Ctrl+Z, Use as a
    sketch / as a quick part, saved and reopened).
+   `tools/e2e_sketch_merge.py <url> <dir>` covers merging sketch shapes (Finger.dxf as a drawing -> a sketch: 702 -> ~231
+   shapes, the toast says so, extruded 5 = 7186.8 · 5; Drive Gear.dxf as the old conversion made it (732 shapes) boxed ->
+   ⛓ Join first, 🧹 Simplify second -> Join: one spline round the teeth, 13 shapes, its points hidden, the area kept,
+   under 2 s, Ctrl+Z; ⛓ Merge with nothing picked -> 🧹 Simplify the whole sketch, tolerance 0.02 -> 252 shapes, one
+   undo step; five hand-drawn lines and a tangent arc -> ⛓ Join at 0.5 mm: one spline within 0.5; a rectangle with a
+   circle -> ◆ Make it one outline: one block, 2 rings).
    `tools/e2e_sketch_auto.py <url> <dir>` covers snapping to the part's hole (centre and rim -> the same Ø8) and 🪄
    Auto-dimension (7 free -> 0, the circle and the rectangle placed from the part's nearest edges).
    `tools/e2e_sizes.py <url> <dir>` covers 🏷 Sizes (an extrude's sizes on the part: All 6 / 🔒 Locked = the height /

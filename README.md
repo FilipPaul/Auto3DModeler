@@ -41,8 +41,17 @@ translated; the project file keeps the originals. Translations live in `web/js/i
 `CS`. Texts with values go in `CS_PATTERNS`, where `{}` is a value; values that are known texts are translated
 too. Text with markup goes in `CS_HTML`.
 
-**Long work shows progress**: importing or rebuilding a large 3D file shows a progress bar with **Cancel**.
-Cancelling puts the part back the way it was. Curved or slanted 3D imports get a slice height chosen
+**Long work shows progress**: importing or rebuilding a large 3D file, making a drawing sheet, building an
+assembly's parts or splitting a part for printing shows a progress box with **Cancel** (in whichever workspace is on
+screen). Cancel stops that job in the CAD kernel at once (only its process restarts; other parts' jobs go on), the box
+says *Cancelling…* and is gone — the work is not started again on its own. A quick part goes back the way it was; a 3D
+model keeps its last result with *Cancelled — ↻ Rebuild*; a sheet says *Cancelled* with ↻ Try again; the next change
+builds as usual. The ⚠ Collisions list has ✕ Stop while it checks.
+
+**What is working now (⚙ N)**: while anything runs — a part being built, a file read, a drawing made, a collision
+check, also from another window or the AI — the top bar shows **⚙** with how many jobs; nothing when idle. Click it:
+each job in plain words, which part, how long it has run (live), waiting or running, and **✕ Stop**. A job running
+over 3 s with no progress box on screen makes the ⚙ pulse, so a busy app does not look frozen. Curved or slanted 3D imports get a slice height chosen
 automatically so they build in a few seconds; the Part tab lets you set a finer one.
 
 **Project name and saving**: click the project name in the top bar to rename it. *Save project* and the exports
@@ -172,6 +181,20 @@ parallel flat faces), turning all their steps off, deleting them together.
 by click or by box. Delete removes them all. **Drag one of the picked shapes and they all move together** (the
 grabbed point snaps as the Snap row allows, the others follow by the same offset; one undo step); dragging a shape
 that is not picked moves just that one.
+
+**⛓ Merge — many small shapes into few** (a sketch made from a DXF, or drawn by hand): box-select the shapes (or
+Ctrl+click them), and when they are a connected chain of many pieces the table offers **⛓ Join into one curve** first and
+**🧹 Simplify** second. **⛓ Join** makes each connected chain of lines, arcs and curves ONE smooth curve (a spline fitted
+through it), split only where it turns sharply (a real corner); a straight run stays a line. **🧹 Simplify** keeps lines
+and arcs but fewer of them: ends that nearly meet welded, tiny pieces absorbed, lines in line joined, arcs on one circle
+joined (a full turn: a circle), a run of short lines along a curve -> arcs or a spline; shapes with sizes or relations of
+their own are left as they are. Both show the result at once in a small box with one input, the **Tolerance** (how far the
+result may be from what it replaces; 0.01 mm for most sketches) — retype it and it is done again — and the count,
+*732 → 13 shapes*; Enter = done, Esc = back, one undo step. A joined curve's points are hidden (click the curve to see and
+drag them). **◆ Make it one outline** (closed outlines picked, with their holes) makes them one rigid shape, like an
+imported outline: it moves, turns and scales as a whole. **⛓ Merge** in the sketch bar does the same for any shapes: with
+nothing picked it is a mode — click shapes or drag boxes over them (each adds), then choose in the table; its table also
+has **🧹 Simplify the whole sketch**.
 
 **Suggestions for what is selected**: choose a shape in a sketch (⬚ Select) or a part in an assembly, and a small
 table in the bottom-left corner of the view says what can be done with it — a part: open it, join it, simplified, its
@@ -469,6 +492,10 @@ layers, in their colours, in real mm.
 - **Use ▾** asks, when shapes are selected or a filter finds some, whether it takes the selection, the filter's
   shapes or all the shown layers — then makes something of them: **✏ As a sketch of a new 3D model** (lines, circles and arcs, their
   ends joined — then ⬆ Extrude), or **▤ As a quick part** (its closed outlines: a cutter, a solid shape …).
+  The sketch comes **cleaned up**: ends that nearly meet become one point (so the outlines close and extrude), an
+  exporter's tiny crumbs are absorbed, lines in line become one line, arcs on one circle one arc (or a circle), and a
+  smooth curve of the file (a SPLINE, flattened into many points) one arc or one spline again — the toast says how
+  much (Finger.dxf: 702 → 231 shapes, the same area). More in a sketch: ⛓ Merge (below).
 
 ## PCB boards (Gerber, ODB++)
 
@@ -860,6 +887,8 @@ can open them.
   a whole outline as one `profile` — straight parts, arcs through a point and smooth parts through points — and
   revolves or extrudes it. The curve becomes one true B-spline in the solid, so a vase, a knob or a duck's body is one
   clean smooth surface, not many little faces. The sketch shows the curve and its points can be dragged.
+  `simplify_sketch` tidies a sketch with too many shapes (one from a DXF): fewer lines and arcs, each chain one
+  smooth curve (`op: "join"`) or the outlines one rigid outline (`op: "outline"`), and says the counts before → after.
 - **Everything the app does, the AI can do**: besides modelling, assemblies, the library and collisions, it colours
   parts (`set_look`: colour, see-through) and single faces (`paint_faces`), in a model or per placed part in an
   assembly; moves a joined part along its free ways (`move_free`); keeps a model in the library (`save_to_library`).
