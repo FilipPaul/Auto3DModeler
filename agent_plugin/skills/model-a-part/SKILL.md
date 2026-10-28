@@ -127,4 +127,6 @@ get_model, get_screenshot
 
 `set_look {color: "#FFD400"}` colours the whole model (`opacity` for see-through), `paint_faces {faces: [names], color}`
 single faces (names from `find_refs`; a step id such as `"F6"` colours every face that step made — e.g. a beak that is
-its own revolve). The model keeps them, also in assemblies.
+its own revolve). The model keeps them, also in assemblies. Threaded holes (a hole's `thread: "M5"`) are plain tap
+drills on screen; `set_look {threads: "cosmetic"}` draws their threads as thin helix lines (view only), `"real"` cuts
+true ISO threads into the solid (exports and 3D prints get them; slower — only when asked), `"hidden"` takes them away.

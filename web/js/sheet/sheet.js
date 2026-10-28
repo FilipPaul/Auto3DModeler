@@ -553,6 +553,12 @@ export class SheetEditor {
       if (g.hatch) out.push(this.hatchSvg(v, g.hatch)); // (a section: its cut faces hatched)
       for (const p of g.hidden) out.push(`<polyline points="${pl(v, p)}" fill="none" stroke="#666" stroke-width="0.25" stroke-dasharray="1.5 1"/>`);
       for (const p of g.visible) out.push(`<polyline points="${pl(v, p)}" fill="none" stroke="#000" stroke-width="0.5" stroke-linejoin="round"/>`);
+      for (const c of g.circles) { // a threaded hole seen round: a thin ¾ circle at its major Ø (ISO 6410), open top right
+        const s = c.full && stepOf(c.key), thr = s && s[1] === 'hole' && G.holes?.[s[0]]?.thread, R = thr && parseFloat(thr.slice(1)) / 2;
+        if (!R || R <= c.r) continue;
+        const arc = Array.from({ length: 37 }, (_, k) => { const a = Math.PI / 2 + (k / 36) * 1.5 * Math.PI; return [c.c[0] + R * Math.cos(a), c.c[1] + R * Math.sin(a)]; });
+        out.push(`<polyline points="${pl(v, arc)}" fill="none" stroke="#000" stroke-width="0.25" class="sh-thread"/>`);
+      }
       // its name below the dimensions under it
       const below = Math.max(0, ...this.allDims().filter((d) => d.view === v && d.kind === 'linear' && d.dir === 'h' && d.side !== 't').map((d) => d.off ?? 8));
       out.push(`<text x="${(pb[0] + pb[2]) / 2}" y="${pb[3] + below + 8}" font-size="3.5" text-anchor="middle" fill="#334" data-vlabel="${v}" class="sh-vlabel">${esc(this.viewLabel(v))}</text></g>`);
