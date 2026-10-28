@@ -1,4 +1,6 @@
 // ✂ The section bar over a 3D view (3D model and assembly): the axis, where the cut is (a slider), ⇄ the other side, ✕.
+import { floatBox } from '../floatbox.js';
+
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const K = { x: 0, y: 1, z: 2 };
 
@@ -24,5 +26,5 @@ export function sectionBar(viewport, s, bb, { onChange, onClose }) {
   r.addEventListener('input', () => { s.offset = +r.value; box.querySelector('b').textContent = `${fmt(s.offset)} mm`; onChange(s); });
   box.querySelector('[data-flip]').addEventListener('click', () => { s.flip = !s.flip; onChange(s); });
   box.querySelector('[data-x]').addEventListener('click', () => onClose());
-  return box;
+  return floatBox(box, viewport, { kind: 'section', min: [230, 30] }); // (the ⠿ on its left end moves it)
 }

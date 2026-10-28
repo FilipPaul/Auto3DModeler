@@ -593,7 +593,7 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .m-dimedit-t { font-size: 11px; color: var(--muted); }
 .m-dimedit-row { display: flex; align-items: center; gap: 6px; }
 .m-dimedit-row input { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; color: inherit; padding: 3px 6px; }
-.m-dimedit input[type=range] { width: 100%; }
+.m-dimedit input[type=range] { width: 100%; margin: 0; box-sizing: border-box; }
 .m-dimedit-acts { display: flex; gap: 6px; }
 .as-rot { display: grid; grid-template-columns: 18px 1fr 62px auto; align-items: center; gap: 6px; margin: 3px 0; font-size: 12px; }
 .as-rot input[type=number] { width: 100%; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; color: inherit; padding: 2px 4px; }
@@ -973,5 +973,20 @@ body.view-acts .toast-stack { bottom: 84px; }
 .m-section { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 8px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
 .m-section .seg { margin: 0; }
-.m-section input[type=range] { width: 220px; }
+.m-section input[type=range] { width: 220px; flex: 1 1 auto; min-width: 60px; }
+
+/* floating boxes (floatbox.js): a header / ⠿ strip moves them, the corner grip resizes them, the one in hand on top */
+.fb-box .fb-handle { cursor: move; touch-action: none; user-select: none; }
+.fb-box.fb-front { z-index: 10 !important; }
+.fb-box.fb-sized { overflow: auto; }
+.view-suggest.fb-sized { overflow: hidden; } /* (its rows scroll, the head stays) */
+.fb-strip { height: 10px; margin: -6px -8px 3px; display: flex; align-items: center; justify-content: center; color: var(--muted); border-radius: 6px 6px 0 0; }
+.fb-strip::before { content: '⠿'; font-size: 11px; line-height: 1; letter-spacing: 2px; opacity: .7; }
+.fb-strip:hover { background: #ffffff0d; color: var(--text); }
+.m-section > .fb-strip { height: auto; align-self: stretch; margin: -6px 0 -6px -6px; padding: 0 2px; border-radius: 6px 0 0 6px; } /* (a bar: the handle on its left end) */
+.fb-size { position: absolute; right: 0; bottom: 0; width: 13px; height: 13px; cursor: nwse-resize; touch-action: none; z-index: 1; border-radius: 0 0 8px 0; }
+.fb-size::after { content: ''; position: absolute; right: 3px; bottom: 3px; width: 7px; height: 7px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); opacity: .45; }
+.fb-size:hover::after { opacity: 1; border-color: var(--accent); }
+body.fb-moving, body.fb-moving * { cursor: move !important; user-select: none; }
+body.fb-resizing, body.fb-resizing * { cursor: nwse-resize !important; user-select: none; }
 .mp-sub { color: var(--muted); font-weight: 400; font-size: 11px; }
