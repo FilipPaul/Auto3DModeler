@@ -408,6 +408,13 @@ Date: 2026-10-25. Written by the architect agent.
   coordinate taken from another hole of the step -> from {hole: j, d: 0}, from an earlier hole's rim -> {edge, round};
   else the nearest edges as before (the middle line = half the width from an edge, not "the middle" — no such ref).
   suggest.js snapKinds.guides (┆ Guides in the Snap row, shown while a hole / text is placed). e2e_model_hole_guides.
+- **A hole kept in the middle done:** hole.from {x: {mid: [edge a, edge b], d}} — doc._hole_from_edges finds both
+  straight edges again by name, the hole's x = the middle of their lines + d (a gone / no longer straight edge: a
+  warning, it stays). clickHole stores it when the snap was the face's centre or a guide through edge midpoints
+  (Modeler.midEdges: the nearest edges on either side, the spot halfway); refCoord / drawHoleDims (both halves) /
+  holeDimRow ("↔ in the middle of the left and right edges", 🎯 replaces it) / refsTo / detach know it; the AI's
+  add_feature hole from {mid} (agent_model holeFrom checks two refs). test_hole_midway_between_two_edges (40 → 60
+  wide: exact, STEP round trip, an edge gone), e2e_model_hole_guides (edit_feature 60 wide: the hole follows).
 - **Tree pictures, drag into an assembly, library icon, middle-click close done:** thumbs.js (bodyOf: a light rebuild
   kept by its steps; picture: one offscreen renderer, iso; svgPicture for sheets) via hooks.thumb (sub-assemblies
   placed); Project.showPreview / hidePreview (.tr-preview beside the row); tree rows draggable (text/a3d-insert) —

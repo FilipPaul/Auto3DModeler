@@ -715,8 +715,8 @@ export class Modeler {
         const at = P3(fr, p[0], p[1]);
         if (i === 0) add(at, `Ø${fmt(f.d)}`, num('d', 'Diameter', { min: 0.2 }), `${f.name}: the diameter`);
         for (const [axis, k] of [['x', 0], ['y', 1]]) {
-          const r = f.from?.[i]?.[axis], c = r && this.refCoord(f, r, k);
-          if (r && c !== null && c !== undefined) {
+          const r = f.from?.[i]?.[axis], c = r && !(r.mid && !r.d) && this.refCoord(f, r, k); // (in the middle: nothing to type)
+          if (r && c !== null && c !== undefined && c !== false) {
             const q = k === 0 ? [c, p[1]] : [p[0], c];
             lines.push([P3(fr, ...q), at]);
             add(P3(fr, (q[0] + p[0]) / 2, (q[1] + p[1]) / 2), `${k ? '↕' : '↔'} ${fmt(Math.abs(r.d))}`, {
@@ -952,7 +952,8 @@ export class Modeler {
   refsTo(f, owns) {
     const endRefs = (x) => x && typeof x === 'object' && ((x.edge && (owns(x.edge.a) || owns(x.edge.b))) || (x.vertex?.faces || []).some(owns) || (x.point && owns(`${x.point}:`)) || (x.axis && owns(x.axis.face)));
     if ((f.dims || []).some((d) => endRefs(d.a) || endRefs(d.b))) return true;
-    return (f.from || []).some((s) => s && ['x', 'y'].some((k) => (s[k]?.edge && (owns(s[k].edge.a) || owns(s[k].edge.b))) || (s[k]?.axis && owns(s[k].axis.face))));
+    return (f.from || []).some((s) => s && ['x', 'y'].some((k) => (s[k]?.edge && (owns(s[k].edge.a) || owns(s[k].edge.b))) || (s[k]?.axis && owns(s[k].axis.face))
+      || (s[k]?.mid || []).some((e) => owns(e.a) || owns(e.b))));
   }
 
   /** Is step f a reference point on a corner / edge of a face that `owns` says goes? */
@@ -972,7 +973,7 @@ export class Modeler {
         if (x && typeof x === 'object' && ((x.edge && (owns(x.edge.a) || owns(x.edge.b))) || (x.vertex?.faces || []).some(owns) || (x.point && owns(`${x.point}:`)) || (x.axis && owns(x.axis.face)))) d[k] = { ref: x.ref };
       }
     }
-    (g.from || []).forEach((s) => { for (const k of ['x', 'y']) if ((s?.[k]?.edge && (owns(s[k].edge.a) || owns(s[k].edge.b))) || (s?.[k]?.axis && owns(s[k].axis.face))) delete s[k]; });
+    (g.from || []).forEach((s) => { for (const k of ['x', 'y']) if ((s?.[k]?.edge && (owns(s[k].edge.a) || owns(s[k].edge.b))) || (s?.[k]?.axis && owns(s[k].axis.face)) || (s?.[k]?.mid || []).some((e) => owns(e.a) || owns(e.b))) delete s[k]; });
     if (g.upto && owns(this.faceOwner(g.upto) + ':')) { delete g.upto; g.d = g.d || 10; }
     if (this.pointOn(g, owns)) g.at = { xyz: [...(this.result?.points?.[g.id] || Object.values(g.at)[0]?.fp || [0, 0, 0])] }; // (a fixed place)
     return g;
@@ -1831,13 +1832,16 @@ export class Modeler {
     f.points.push([u, v]);
     // placed from the nearest edges of the face (left / right and below / above): it keeps that distance
     // when the part changes (a step measured from a corner / the part's origin: from that); in line with another
-    // hole: from that hole's centre
+    // hole: from that hole's centre; on the face's centre or a middle line (in line with edge midpoints): midway
+    // between the two edges
     f.from = f.from || [];
     const i = f.points.length - 1;
     if (!f.plane.origin) f.from[i] = this.nearestEdges(f, [u, v]);
     for (const [axis, k] of [['x', 0], ['y', 1]]) {
       const key = at.s.keys?.[axis];
-      if (key?.hole !== undefined) f.from[i] = { ...(f.from[i] || {}), [axis]: { hole: key.hole, d: 0, round: true } };
+      const mid = (key?.kind === 'face' || key?.kind === 'midpoint') && this.midEdges(f, [u, v], k);
+      if (mid) f.from[i] = { ...(f.from[i] || {}), [axis]: mid }; // (the face's centre, the middle line: kept in the middle)
+      else if (key?.hole !== undefined) f.from[i] = { ...(f.from[i] || {}), [axis]: { hole: key.hole, d: 0, round: true } };
       else if (key?.round) {
         const c = this.axisEdges(f, k, true).find((r) => r.round && Math.hypot(...r.ref.fp.map((w, j) => w - key.round.fp[j])) < 1e-6);
         if (c) f.from[i] = { ...(f.from[i] || {}), [axis]: { edge: c.ref, d: +([u, v][k] - c.c).toFixed(6), round: true } };
@@ -1979,8 +1983,17 @@ export class Modeler {
     return out;
   }
 
-  /** Where a hole's reference is now along axis k: another hole of this step, or an edge. */
+  /** A hole at p midway between the nearest edges on either side along axis k -> its from {mid: [edge, edge], d: 0}
+   *  (it stays in the middle when the part changes), else null. */
+  midEdges(f, p, k) {
+    const es = this.axisEdges(f, k).filter((e) => p[1 - k] >= e.lo - 1e-6 && p[1 - k] <= e.hi + 1e-6);
+    const lo = es.filter((e) => e.c < p[k] - 1e-6).sort((a, b) => b.c - a.c)[0], hi = es.filter((e) => e.c > p[k] + 1e-6).sort((a, b) => a.c - b.c)[0];
+    return lo && hi && Math.abs((lo.c + hi.c) / 2 - p[k]) < 1e-6 ? { mid: [lo.ref, hi.ref], d: 0 } : null;
+  }
+
+  /** Where a hole's reference is now along axis k: another hole of this step, an edge, or midway between two edges. */
   refCoord(f, r, k) {
+    if (r.mid) { const [a, b] = r.mid.map((e) => this.edgeCoord(f, e, k)); return a === null || b === null ? null : (a + b) / 2; }
     if (r.axis) return axisOf(roundAxes(this.result?.body, this.holeFrame(f)), r.axis)?.c[k] ?? null; // (a round face's axis)
     return r.hole !== undefined ? f.points[r.hole]?.[k] ?? null : this.edgeCoord(f, r.edge, k);
   }
@@ -2022,14 +2035,16 @@ export class Modeler {
       for (const [axis, k] of [['x', 0], ['y', 1]]) {
         const r = f.from?.[i]?.[axis];
         if (!r) continue;
-        const c = this.refCoord(f, r, k);
-        if (c === null) continue;
-        const a = k === 0 ? [c, p[1]] : [p[0], c];
-        lines.push([a, p, C]);
-        const el = document.createElement('div');
-        el.className = 'sk-label hole-dim';
-        el.textContent = fmt(Math.abs(r.d));
-        labels.push({ el, u: (a[0] + p[0]) / 2 + (k === 1 ? mpp * 12 : 0), v: (a[1] + p[1]) / 2 + (k === 0 ? mpp * 10 : 0) });
+        const cs = r.mid ? r.mid.map((e) => this.edgeCoord(f, e, k)) : [this.refCoord(f, r, k)]; // (midway: from both edges)
+        for (const c of cs) {
+          if (c === null) continue;
+          const a = k === 0 ? [c, p[1]] : [p[0], c];
+          lines.push([a, p, C]);
+          const el = document.createElement('div');
+          el.className = 'sk-label hole-dim';
+          el.textContent = fmt(r.mid ? Math.abs(p[k] - c) : Math.abs(r.d));
+          labels.push({ el, u: (a[0] + p[0]) / 2 + (k === 1 ? mpp * 12 : 0), v: (a[1] + p[1]) / 2 + (k === 0 ? mpp * 10 : 0) });
+        }
       }
     });
     this.view.setSketch(fr, { lines, circles, dots, labels, grid: 0 });
@@ -2060,13 +2075,18 @@ export class Modeler {
   /** One row of a hole's position: "↔ 12 mm from the left edge ⇄", or x / y from the face's centre (no edge there). */
   holeDimRow(f, i, axis, k) {
     const r = f.from?.[i]?.[axis], p = f.points[i];
+    if (r?.mid && !r.d) { // midway between two edges (no number to type: 🎯 measures from an edge instead)
+      return `<label class="mp-hd">${k ? '↕' : '↔'} <span>${k ? 'in the middle of the lower and upper edges' : 'in the middle of the left and right edges'}</span>
+        <button type="button" class="mini ${this.holePick?.i === i && this.holePick?.axis === axis ? 'on' : ''}" data-pickref="${i}:${axis}" title="Measure from another edge, hole or round face (its axis): click it in the view">🎯</button></label>`;
+    }
     if (!r) return `<label class="mp-hd">${axis} <input type="number" step="any" data-${k ? 'v' : 'u'}="${i}" value="${fmt(p[k])}"> <span class="hint">${FROM_TEXT[originKey(f.plane?.origin)] || 'from the reference point'}</span></label>`;
-    const side = r.axis ? (k === 0 ? (r.d >= 0 ? 'right of the axis' : 'left of the axis') : (r.d >= 0 ? 'above the axis' : 'below the axis'))
+    const side = r.mid ? (k === 0 ? (r.d >= 0 ? 'right of the middle' : 'left of the middle') : (r.d >= 0 ? 'above the middle' : 'below the middle'))
+      : r.axis ? (k === 0 ? (r.d >= 0 ? 'right of the axis' : 'left of the axis') : (r.d >= 0 ? 'above the axis' : 'below the axis'))
       : r.round ? (k === 0 ? (r.d >= 0 ? 'right of the hole' : 'left of the hole') : (r.d >= 0 ? 'above the hole' : 'below the hole'))
       : k === 0 ? (r.d >= 0 ? 'from the left edge' : 'from the right edge') : (r.d >= 0 ? 'from the lower edge' : 'from the upper edge');
     const picking = this.holePick?.i === i && this.holePick?.axis === axis;
     return `<label class="mp-hd">${k ? '↕' : '↔'} <input type="number" step="any" min="0" data-hd="${i}:${axis}" value="${fmt(Math.abs(r.d))}"> <span>mm ${side}</span>
-      <button type="button" class="mini" data-flip="${i}:${axis}" title="Measure from the edge on the other side">⇄</button>
+      ${r.mid ? '' : `<button type="button" class="mini" data-flip="${i}:${axis}" title="Measure from the edge on the other side">⇄</button>`}
       <button type="button" class="mini ${picking ? 'on' : ''}" data-pickref="${i}:${axis}" title="Measure from another edge, hole or round face (its axis): click it in the view">🎯</button></label>`;
   }
 

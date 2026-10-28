@@ -698,6 +698,35 @@ class TestFeatures(unittest.TestCase):
         r, _ = vol(*box(), two)
         self.assertEqual(r["features"][-1]["update"], {"points": [[-10, 0], [2, 0]]})
 
+    def test_hole_midway_between_two_edges(self):
+        """A hole in the middle of a 40 × 40 block's top ({mid: [edge, edge]} on x and y) stays in the middle when the
+        block becomes 60 wide; an edge gone: it stays and says so."""
+        from auto3d.modeler import kernel as K
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 20, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        edge = lambda side, fp: {"a": "E1:end", "b": f"E1:side:{side}", "fp": fp}  # noqa: E731
+        mid = {"x": {"mid": [edge("l4", [0, 20, 10]), edge("l2", [40, 20, 10])], "d": 0},
+               "y": {"mid": [edge("l1", [20, 0, 10]), edge("l3", [20, 40, 10])], "d": 0}}
+        hole = {"id": "H1", "type": "hole", "plane": top, "points": [[0, 0]], "d": 5, "through": True, "from": [mid]}
+        r, v = vol(*box(h=40), hole)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertNotIn("update", r["features"][-1])  # already in the middle
+        self.assertAlmostEqual(v, 40 * 40 * 10 - math.pi * 6.25 * 10, delta=1e-3)
+        r, v = vol(*box(w=60, h=40), hole)  # 60 wide: the top's frame stays put (its centre was at x 20) — the hole goes to x 30
+        self.assertEqual(r["features"][-1]["update"], {"points": [[10, 0]]})
+        x = next(f for f in r["body"]["faces"] if f["type"] == "cylinder")["centroid"]
+        self.assertEqual([round(c, 9) for c in x[:2]], [30, 20])
+        self.assertEqual(r["features"][-1]["warnings"], [])
+        self.assertAlmostEqual(v, 60 * 40 * 10 - math.pi * 6.25 * 10, delta=1e-3)
+        self.assertTrue(watertight(r["body"]))
+        step = doc.export({"features": [*box(w=60, h=40), hole]}, "step")
+        self.assertAlmostEqual(K.volume(K.from_step(step)), v, delta=1e-3)
+        # an edge gone: the hole stays where it was, with a warning
+        gone = {"x": {"mid": [edge("l4", [0, 20, 10]), {"a": "X:end", "b": "X:side", "fp": [999, 0, 0]}], "d": 0}}
+        r, _ = vol(*box(h=40), {**hole, "points": [[3, 0]], "from": [gone]})
+        self.assertTrue(r["ok"])
+        self.assertIn("midway between is gone", r["features"][-1]["warnings"][0])
+        self.assertNotIn("update", r["features"][-1])
+
     def test_distances_from_a_round_face_axis(self):
         def cross(x=30):  # a cross hole along y (an extrude cut on the front plane): its axis runs along the top face
             sk = {"id": "S2", "type": "sketch", "plane": {"datum": "XZ"}, "points": {"o": [x, 10]}, "entities": [{"id": "k", "t": "circle", "c": "o", "r": 4}]}

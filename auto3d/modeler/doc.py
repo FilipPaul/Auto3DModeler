@@ -677,7 +677,9 @@ def _up_to_face(f, fr, st):
 
 def _hole_from_edges(f, fr, st, s):
     """Hole centres placed from the face's edges ({x: {edge, d}, y: {edge, d}} per hole): x = the edge's place
-    along the face's x + d (the edge runs along y), likewise y; {axis: {face, fp}, d}: from a round face's axis. The edges are found again by their faces' names,
+    along the face's x + d (the edge runs along y), likewise y; {axis: {face, fp}, d}: from a round face's axis; {mid: [edge a,
+    edge b], d}: midway between two parallel straight edges (the middle line of a block: it stays in the middle when the
+    part gets wider). The edges are found again by their faces' names,
     so the holes keep their distance when the part changes. Without an edge: the stored [u, v] (from the centre)."""
     pts = [list(map(float, p)) for p in f.get("points") or []]
     froms = f.get("from") or []
@@ -696,6 +698,26 @@ def _hole_from_edges(f, fr, st, s):
                     s["warnings"].append(f"Hole {i + 1}: its axis does not run straight across any more — it stays where it was.")
                     continue
                 v = c[k] + float(ref.get("d", 0))
+                if abs(v - p[k]) > 1e-9:
+                    p[k] = round(v, 9)
+                    changed = True
+                continue
+            if ref and isinstance(ref.get("mid"), list) and len(ref["mid"]) == 2:  # midway between two straight edges
+                try:
+                    cs = []
+                    for e in ref["mid"]:
+                        edges, _ = K.find_edges(st.body, [e])
+                        a, b = (_uv(fr, q) for q in K.edge_ends(edges[0]))
+                        if K.edge_centre(edges[0]) is not None or abs(a[k] - b[k]) > 1e-6 * (1 + abs(a[k])):
+                            raise ValueError
+                        cs.append((a[k] + b[k]) / 2)
+                except K.KernelError:
+                    s["warnings"].append(f"Hole {i + 1}: an edge it is midway between is gone — it stays where it was.")
+                    continue
+                except ValueError:
+                    s["warnings"].append(f"Hole {i + 1}: an edge it is midway between is not straight across any more — it stays where it was.")
+                    continue
+                v = (cs[0] + cs[1]) / 2 + float(ref.get("d", 0))
                 if abs(v - p[k]) > 1e-9:
                     p[k] = round(v, 9)
                     changed = True
