@@ -498,6 +498,10 @@ Never report "works" without having run it; report failures with their output.
    sketch / as a quick part, saved and reopened).
    `tools/e2e_sketch_auto.py <url> <dir>` covers snapping to the part's hole (centre and rim -> the same Ø8) and 🪄
    Auto-dimension (7 free -> 0, the circle and the rectangle placed from the part's nearest edges).
+   `tools/e2e_sketch_autodims.py <url> <dir>` covers 🪄 on the AI's reported sketches with real clicks: the hand-drawn
+   rect ∪ slot (5 free -> R + two centres: 9 locks, dof 0, Finish green, no 🔓 left — ＝, the volume kept on Finish),
+   the AI's rect + slot shapes (9 locks at once), the outline without its tangents / equal radii (found first), a
+   lock held twice (-> a reference) and one that does not fit (named, red).
    `tools/e2e_sketch_freeze.py <url> <dir>` covers the AI's report of a frozen app: a sketch set to the report's
    profile (lines + 2 arcs) and opened by a real double-click opens in under 2 s, the page keeps answering, dof 0 with
    no red shapes and ✓ Finish green (2 tangents), get_screenshot answers with no animation frames (a hidden window),

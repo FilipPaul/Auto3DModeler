@@ -334,6 +334,26 @@ class TestSketchSolve(unittest.TestCase):
         self.assertEqual(set(r["free"]["unknown"]), {"p1", "p2", "p3", "p4", "p5", "c1"})
         self.assertNotIn("partial", solve(plate(dims=dims), detail=True)["free"])  # (in time: all of it)
 
+    def test_a_joined_curve_moves_as_a_whole(self):
+        """A ⛓ joined curve ("fit": true, 300 points) is not 600 free sizes: its inner points ride with its ends (the
+        free count is its ends', the free check skips them and stays quick); a hand-drawn curve keeps its points free."""
+        import time as _t
+        n = 300
+        P = {f"q{i}": [i * 0.5, 10 * math.sin(i / 20)] for i in range(n)}
+        fit = {"points": dict(P), "entities": [{"id": "s1", "t": "spline", "pts": list(P), "fit": True}], "constraints": [], "dims": []}
+        t0 = _t.monotonic()
+        r = solve(fit, detail=True)
+        self.assertLess(_t.monotonic() - t0, 3)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["dof"], 4)                                    # (its two ends)
+        self.assertNotIn("partial", r["free"])
+        self.assertEqual(set(r["free"]["points"]), {"q0", f"q{n - 1}"})
+        self.assertLess(max(math.dist(r["points"][k], P[k]) for k in P), 1e-6)  # (nothing moves)
+        dragged = solve(fit, drag={f"q{n - 1}": [P[f"q{n - 1}"][0] + 1, P[f"q{n - 1}"][1]]})
+        self.assertGreater(dragged["points"][f"q{n // 2}"][0] - P[f"q{n // 2}"][0], 0.1)  # (the middle follows its end)
+        hand = {**fit, "points": {k: P[k] for k in list(P)[:6]}, "entities": [{"id": "s1", "t": "spline", "pts": list(P)[:6]}]}
+        self.assertEqual(solve(hand)["dof"], 12)                         # (drawn by hand: every point free)
+
     def test_ais_profile_with_tangent_arcs_is_fully_defined(self):
         """The report's profile (lines + 2 arcs) as the AI's sketch makes it: corners locked, each arc tangent to the
         line it runs into (its centre not locked — that held it twice: dof -2, red, no 🪄) -> dof 0, no conflicts."""

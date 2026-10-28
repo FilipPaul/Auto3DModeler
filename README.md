@@ -255,8 +255,15 @@ SolidWorks. It has only the tools that need almost no input.
    the panel; relations that contradict each other or the locked sizes are refused, naming the one in the way.
    **The part under the sketch**: its round edges (hole rims, bosses — on any level) show dashed with a ✛ centre; a
    click snaps to a centre and to the circle itself (draw a circle on a hole: the same place and Ø), and ↔ Dimension
-   measures from them. **🪄 Auto-dimension** locks what the sketch still needs to be fully defined: each shape's
-   sizes, then its place from the nearest edges of the part (a hole from the outer edges closest to it), else the origin.
+   measures from them. **🪄 Auto-dimension** locks what the sketch still needs to be fully defined: first the
+   relations it nearly has already (a line a hair off horizontal / vertical, a line running smoothly into an arc, arcs
+   of the same radius), then each shape's sizes, an arc's centre (rather than the end of a side running into it), then
+   its place from the nearest edges of the part (a hole from the outer edges closest to it), else the origin. It adds
+   only what fixes something, so nothing is held twice (a rectangle ∪ slot drawn by hand: its 4 sizes + R and the two
+   centres). A lock the others fix already becomes a reference dimension; locks that contradict each other are named
+   (and drawn red); what it cannot fix is named too ("still free: arc R23 at (45, 9)"). Sizes the others set show
+   **＝** instead of 🔓 on their labels. A joined curve (⛓) moves as a whole with its ends — its many points are not
+   free sizes.
    **⇋ Mirror**: choose the Y or X axis in its little box (or click a line of the sketch), then click shapes — a
    rectangle or a joined outline goes whole. The mirror image is a copy that stays mirrored (⇋ *Mirrored*: change the
    original and the copy follows; click the ⇋ symbol to let it go free); points on the mirror line are shared, so half

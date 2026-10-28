@@ -13,6 +13,21 @@ Date: 2026-10-25. Written by the architect agent.
 - **Default title block B — ISO 7200 done:** a drawing that chose no template uses "B — ISO 7200" (title block B,
   parts list B, the ISO 5457 frame) — the owner's choice; sheet.js DEFAULT_TPL, the AI's sheet_edit without a name too.
   Tests that check the Modern block pick it explicitly (e2e_sheet, e2e_bom, e2e_sheet_views_templates).
+- **🪄 Auto-dimension that says what it did (RealSWReports 2026-10-28 21:48 / 21:49 / 21:58 part 2-3) done:**
+  Sketcher.autoDimension({round}) -> {added, relations?, references?, dof, free: [shape names], error?} (for the AI
+  too): a lock only held twice (constraints.solve's new `redundant`, apart from `conflicting`) becomes a reference
+  first; contradicting locks are named (ruleNames) and red; then sketchauto.nearRelations (H / V within 0.5°, a line
+  running into an arc within 0.5° -> tan, radii within 0.5 % -> eq, each kept only when it lowers the dof and moves no
+  point over 0.05 mm), then autoDimCandidates (reordered: sides not ending at an arc, free-standing arcs' centres from
+  the nearest part edges / the origin, the shape's place, then the sides that end at arcs, slanted lines) — each kept
+  only when it lowers the dof, the solver's points applied after each. Still free: a toast naming the shapes
+  (shapeName). Labels of sizes the others set show ＝ (driven, no 🔓). Joined curves (⛓ `fit` splines, the merge on
+  main): constraints._fit_curves — each inner point keeps its distances to two anchors (its ends; closed: start + the
+  first inner point; distances as drawn, so a drag moves the curve), soft (never a conflict), left out of the free
+  check and FREE_CHECK_MAX: a 300-point curve is 4 free, not 600. test_a_joined_curve_moves_as_a_whole;
+  tools/e2e_sketch_autodims.py (the hand-drawn rect ∪ slot: 5 free -> R + 2 centres, 9 locks, ＝ labels, the volume
+  kept on Finish; the AI's shapes: 9 locks at once; tangents / equal found first; a lock held twice; one that does not
+  fit named).
 - **The profile sketch that froze the AI's session fixed (RealSWReports 2026-10-28 21:58) done:** the AI's
   get_screenshot waited for two animation frames, which a hidden / covered window never gets: the call never ended,
   the page's bridge loop (agent.js) stopped asking for calls and after 45 s the server said "the app is not open".

@@ -995,6 +995,7 @@ body.view-acts .toast-stack { bottom: 84px; }
 .sk-label .sk-lock:hover { opacity: 1; filter: none; }
 .sk-label.locked { border-color: #8957e5; color: #e2d4ff; background: #2a1d45e0; }
 .sk-label.locked .sk-lock { opacity: 1; filter: none; }
+.sk-label .sk-lock.sk-driven { cursor: default; opacity: .7; filter: none; color: #3fb950; } /* set by the other sizes: nothing to lock */
 .sk-dof { font-size: 12px; color: #f2cc60; }
 .sk-dof.ok { color: var(--ok); }
 

@@ -1277,6 +1277,13 @@ const CS = {
   'The sketch solver did not answer in time — try again, or undo the last change.': 'Řešič skic neodpověděl včas — zkuste to znovu, nebo vraťte poslední změnu.',
   '🪄 Auto-dimension stopped: {why}': '🪄 Automatické kóty se zastavily: {why}',
   '🪄 Auto-dimension took too long on this sketch — the sizes locked so far stay; click it again to go on.': '🪄 Automatické kóty trvaly u této skici příliš dlouho — dosud zamčené rozměry zůstávají; dalším kliknutím pokračujete.',
+  'The sketch does not solve as it is: {names} do not fit together — remove or change one of them first.': 'Skicu v tomto stavu nelze vyřešit: {names} k sobě nesedí — nejdřív jedno z nich odeberte nebo změňte.',
+  '{names}: held twice (the other sizes fix it already) — now a reference dimension, it only measures.': '{names}: drženo dvakrát (ostatní rozměry ho už určují) — teď je to informativní kóta, jen měří.',
+  '{n} size(s) locked — still free: {names}. Lock their sizes by hand, or add relations.': 'Zamčeno rozměrů: {n} — volné zůstávají: {names}. Zamkněte jejich rozměry ručně, nebo přidejte vazby.',
+  'Relations the sketch nearly had, added: {names}': 'Vazby, které skica skoro měla, přidány: {names}',
+  'Set by the other sizes and relations — nothing to lock': 'Dáno ostatními rozměry a vazbami — není co zamykat',
+  'line {a} – {b}': 'čára {a} – {b}', 'arc R{r} at {c}': 'oblouk R{r} v {c}', 'circle Ø{d} at {c}': 'kružnice Ø{d} v {c}', 'curve from {a}': 'křivka z {a}',
+  'On a shape': 'Na tvaru',
   // language switch
   'Čeština / English': 'Čeština / English',
 };
