@@ -250,6 +250,11 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
     if (!s || typeof s !== 'object') return s;
     const out = { ...s };
     for (const k of ['x', 'y']) {
+      const mid = s[k]?.mid; // (midway between two straight edges: kept in the middle)
+      if (mid !== undefined) {
+        if (!Array.isArray(mid) || mid.length !== 2 || mid.some((e) => !e?.a || !e?.b || !e?.fp)) throw new Error(`from.${k}.mid: two edge refs {a, b, fp} from find_refs (the edges on either side).`);
+        out[k] = { mid, d: +s[k].d || 0 };
+      }
       const ax = s[k]?.axis;
       if (!ax) continue;
       const g = faceOf(typeof ax === 'string' ? ax : ax.face);

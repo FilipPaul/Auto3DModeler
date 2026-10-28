@@ -284,7 +284,9 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_model_hole_guides.py <url> <dir>` covers guides when placing on a face (a 40 × 40 block, ◎ Hole: near
    the middle line one guide, x = 20; near the centre two guides, (20, 20); on it "centre of the face"; a click: exact;
    a second hole in line with the first: from {hole: 0}; Shift: free; Corners off: no corner; Guides off: no guide;
-   the volume; Aa Text: a guide too).
+   the volume; Aa Text: a guide too; hole 1 stored {mid} on x and y, its rows "in the middle of …"; edit_feature 60
+   wide: hole 1 at (30, 20), hole 2 in line at (30, 8); the AI's from {mid}: x = 30, one edge refused). Needs a server
+   restarted after doc.py changes.
    `tools/e2e_materials.py <url> <dir>` covers materials (4 groups, 37; brass: its colour and mass; set_material
    titanium: its colour, the same in an assembly). Needs a server restarted after materials.py changes.
    `tools/e2e_tree_more.py <url> <dir>` covers the tree / tabs more (a library screw: the library icon, changed: its own;

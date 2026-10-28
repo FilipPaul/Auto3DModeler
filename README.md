@@ -306,8 +306,10 @@ SolidWorks. It has only the tools that need almost no input.
    (the snap is named at the mouse), onto its edges, and **in line** with any of those — a dashed green guide; where
    two guides cross it snaps to the crossing (the middle line of a square block: in line with both edge midpoints).
    Shift (or Alt) places it freely. The Snap row bottom left switches corners / midpoints / centres / ┆ Guides on or
-   off. A hole placed in line with another hole of the step is measured from that hole, so it stays in line. *Aa
-   Text / picture* snaps the same way. It goes through all by default, or untick *Through all* and give a depth. *Head* adds room
+   off. A hole placed in line with another hole of the step is measured from that hole, so it stays in line. A hole
+   put on the face's centre, or on a middle line (in line with two edge midpoints), stays **in the middle** when the
+   part changes size — its row says *↔ in the middle of the left and right edges*; 🎯 measures it from an edge instead.
+   *Aa Text / picture* snaps the same way. It goes through all by default, or untick *Through all* and give a depth. *Head* adds room
    for a screw's head: ⌴ a counterbore (Ø 1.8 × the hole, as deep as the hole is wide) or ⌵ a countersink (Ø 2 × the
    hole, 90°) — change the head's Ø / depth if needed. *Thread* (M2 … M20) makes it a threaded hole: drilled with its
    tap drill (M5: Ø4.2) and labelled M5 on the drawing. *Teardrop (print sideways)*, offered on a hole that goes

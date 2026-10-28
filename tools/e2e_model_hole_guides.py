@@ -2,7 +2,8 @@
 mouse near the top face's middle line: a dashed guide, the spot snapped to x = 20; near the centre (not on it): two
 guides, (20, 20); on it: "centre of the face" -> a click: the hole exactly at (20, 20) -> a second hole in line with
 the first one's centre: placed from it (from.x = {hole: 0}) -> Shift: not snapped -> the Corners filter off: no corner
-caught; the Guides filter off: no guide -> OK: the volume -> Aa Text: level with the holes, a guide too.
+caught; the Guides filter off: no guide -> OK: the volume -> Aa Text: level with the holes, a guide too -> the block
+60 wide (edit_feature): hole 1 still in the middle ({mid} on x and y, "in the middle of …"), hole 2 in line with it.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_model_hole_guides.py http://127.0.0.1:5199 <out dir>
 """
@@ -116,6 +117,11 @@ try:
     time.sleep(1.2)
     print("clicked: hole 1 at", world(0), "| from", js(f"return {M}.cmd.feature.from[0]"))
     check("hole 1 exactly at (20, 20)", world(0)[:2] == [20, 20])
+    fr = js(f"return {M}.cmd.feature.from[0]")
+    check("hole 1 kept in the middle: from {mid} on x and y", all(len((fr.get(k) or {}).get("mid") or []) == 2 for k in ("x", "y")))
+    rows = [" ".join(e.text.split()) for e in d.find_elements(By.CSS_SELECTOR, "#modelRight .mp-hole .mp-hd")]
+    print("  its rows:", rows)
+    check("its rows say in the middle", len(rows) == 2 and all("in the middle of" in r for r in rows))
 
     s = hover([20, 8, 10], (5, 0))
     print("in line with hole 1, below it:", s)
@@ -158,6 +164,28 @@ try:
     check("Text: a guide too", s and s["guides"] >= 1 and s["kind"] in ("line", "cross"))
     d.save_screenshot(f"{OUT}/decal_guide.png")
     d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=cancel]").click()
+    time.sleep(0.8)
+
+    # the block 60 wide (the AI's edit_feature): hole 1 stays in the middle, hole 2 in line with it
+    print("widened:", call("edit_feature", id="F1", fields={"shapes": [{"rect": {"x": 0, "y": 0, "w": 60, "h": 40}}]})[:80])
+    time.sleep(0.5)
+    wait(f"return !{M}.inflight && {M}.result?.body?.bbox?.[3] > 59")
+    time.sleep(1)
+    cs = sorted([round(c, 6) for c in f["centroid"][:2]] for f in js(f"return {M}.result.body.faces") if f["type"] == "cylinder")
+    print("  bbox", js(f"return {M}.result.body.bbox"), "| the holes at", cs, "| warnings", js(f"return {M}.result.features.map((x) => x.warnings || [])"))
+    check("60 wide: hole 1 at (30, 20), hole 2 at (30, 8)", cs == [[30, 8], [30, 20]])
+    d.save_screenshot(f"{OUT}/hole_guide_wider.png")
+    # the AI: a hole's from {mid: [edge, edge]} — put on the middle line whatever x it was given
+    left, right = {"a": "F2:side:l4", "b": "F2:end", "fp": [0, 20, 10]}, {"a": "F2:side:l2", "b": "F2:end", "fp": [60, 20, 10]}
+    r = call("add_feature", type="hole", face="F2:end", points=[[7, 12]], d=3, **{"from": [{"x": {"mid": [left, right]}}]})
+    wait(f"return !{M}.inflight")
+    time.sleep(1)
+    cs = sorted([round(c, 6) for c in f["centroid"][:2]] for f in js(f"return {M}.result.body.faces") if f["type"] == "cylinder")
+    print("AI hole midway:", r[:60], "| the holes at", cs)
+    check("the AI's hole on the middle line (x = 30; y from the face's centroid)", len(cs) == 3 and all(c[0] == 30 for c in cs))
+    r = call("add_feature", type="hole", face="F2:end", points=[[7, 12]], d=3, **{"from": [{"x": {"mid": [left]}}]})
+    print("  one edge only:", r[:110])
+    check("a mid with one edge refused", r.startswith("ERROR") and "two edge refs" in r)
 finally:
     errs = [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"]
     print("console errors:", errs)

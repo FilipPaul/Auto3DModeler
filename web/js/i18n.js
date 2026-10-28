@@ -518,6 +518,8 @@ const CS = {
   '＋ Other side': '＋ Druhá strana', 'Other side': 'Druhá strana', 'Also extrude a distance to the other side of the sketch': 'Vysunout také o vzdálenost na druhou stranu skici',
   'Click the face to go up to first.': 'Nejdřív klikněte na plochu, ke které se má vysunout.', 'Click a flat face of the part.': 'Klikněte na rovnou plochu dílu.',
   'Measure from another edge or hole: click it in the view': 'Kótovat od jiné hrany nebo díry: klikněte na ni v pohledu',
+  'in the middle of the left and right edges': 'uprostřed mezi levou a pravou hranou', 'in the middle of the lower and upper edges': 'uprostřed mezi spodní a horní hranou',
+  'mm right of the middle': 'mm vpravo od středu', 'mm left of the middle': 'mm vlevo od středu', 'mm above the middle': 'mm nad středem', 'mm below the middle': 'mm pod středem',
   'mm right of the hole': 'mm vpravo od díry', 'mm left of the hole': 'mm vlevo od díry', 'mm above the hole': 'mm nad dírou', 'mm below the hole': 'mm pod dírou',
   'mm right of the axis': 'mm vpravo od osy', 'mm left of the axis': 'mm vlevo od osy', 'mm above the axis': 'mm nad osou', 'mm below the axis': 'mm pod osou',
   'axis of the round face': 'osa válcové plochy',
