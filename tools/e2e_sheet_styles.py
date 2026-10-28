@@ -2,7 +2,8 @@
 lids, a bracket, three pins, a bought ISO 4762 screw) -> its sheet -> Title block style ▾ / Parts list style ▾ each
 of A … E picked in the panel: the title block has the design's size at the frame's bottom right, the parts list sits
 on it (no gap, the right edges together), the labels in the UI's language, the texts in the style's font (on screen
-and in the PDF, whose fonts are the bundled IBM Plex / Barlow / Inter) -> a mix (title D + list C): 💾 Save as
+and in the PDF, whose fonts are the bundled IBM Plex / Barlow / Inter) -> every title / list style pair at A4 and A3:
+no view box over the parts list or the title block (a view dragged there stays, with ⚠) -> a mix (title D + list C): 💾 Save as
 template… keeps both on the server -> 📋 Add BOM page, ⇶ Use for all drawings of this assembly: every page of the
 drawing set has the D title block, the BOM page the C list; the set's PDF has the fields (drawing no., drawn by,
 labels) -> the app's template "B — ISO 7200" brings its ISO frame -> the AI's sheet_edit title_style / bom_style ->
@@ -143,6 +144,44 @@ try:
         txt = pdf[0].get_text()
         check(any(FONT[k].split()[0] in f for f in fonts) and "A3D-0042" in txt and LABEL[k] in txt.replace("\n", " "), f"{k}: the PDF has {LABEL[k]}, A3D-0042 in {sorted(fonts)}")
         corner_png(pdf, f"styles_{LANG}_{k}{k}_pdf.png")
+
+    print("1b. the views keep off the parts list + title block: every title / list style pair, A4 and A3")
+    for paper in ("A4", "A3"):
+        js(f"{S}.d.paper = '{paper}'; {S}.d.views = {{}}; {S}.history.commit(); {S}.ensure(true)")
+        wait(f"return !{S}.busy && {S}.lay.paper === '{paper}'")
+        bad, scales = [], set()
+        for ts in ("block", "A", "B", "C", "D", "E"):
+            for bs in ("modern", "A", "B", "C", "D", "E"):
+                js(f"{S}.setStyles({{title: '{ts}', bom: '{bs}'}})")
+                wait(f"return !{S}.busy")
+                time.sleep(0.15)
+                r = js("""const s = window.__app.sheet, g = (sel) => { const e = document.querySelector('#shViewport ' + sel); if (!e) return null; const r = e.querySelector('rect').getBBox(); return [r.x, r.y, r.x + r.width, r.y + r.height]; };
+                  const area = [g('.sh-title'), g('.sh-bom [data-style], .sh-bom')], views = s.drawn().map(v => [v, s.paperBox(v)]);
+                  if (s.isoBox && !s.d.off.Iso) views.push(['Iso', s.isoBox]);
+                  const meets = (a, b) => a[0] < b[2] - 0.01 && b[0] < a[2] - 0.01 && a[1] < b[3] - 0.01 && b[1] < a[3] - 0.01;
+                  const keep = s.keepRects(), inKeep = area.every(a => keep.some(k => a[0] >= k[0] - 0.3 && a[1] >= k[1] - 0.3 && a[2] <= k[2] + 0.3 && a[3] <= k[3] + 0.3));
+                  return {over: views.filter(([, b]) => area.some(a => meets(a, b))).map(([v]) => v), out: s.outside(), inKeep, scale: s.scaleArr().join(':'), rows: s.d.asm.rows.length}""")
+                scales.add(r["scale"])
+                if r["over"] or r["out"] or not r["inKeep"] or r["rows"] < 5:
+                    bad.append((ts, bs, r))
+                    d.save_screenshot(f"{OUT}/keep_{paper}_{ts}{bs}.png")
+        check(not bad, f"{paper}: no view box over the parts list or the title block, none ⚠, the keep-out as drawn — 36 pairs, 5 rows, scales {sorted(scales)}: {bad[:3]}")
+        js(f"{S}.setStyles({{title: 'D', bom: 'C'}})")
+        wait(f"return !{S}.busy")
+        time.sleep(0.3)
+        d.save_screenshot(f"{OUT}/keep_{LANG}_{paper}_DC.png")
+        corner_png(pdf_of(f"{{svg: {S}.svg(true)}}"), f"keep_{LANG}_{paper}_DC_pdf.png")
+    print("   a view the user moves onto the list stays there, with ⚠")
+    k = js(f"const k = {S}.keepRects()[1]; {S}.d.views = {{...{S}.d.views, Iso: [(k[0] + k[2]) / 2, (k[1] + k[3]) / 2]}}; {S}.history.commit(); {S}.render(); return k")
+    status = js("return document.querySelector('.sh-status').textContent")
+    check("Iso" in js(f"return {S}.outside()") and ("past the frame" in status or "přesahuje rámeček" in status), f"the iso view moved onto the list: ⚠ {status}")
+    at = js(f"return {S}.d.views.Iso")
+    js(f"{S}.setStyles({{bom: 'B'}})")
+    wait(f"return !{S}.busy")
+    check(js(f"return {S}.d.views.Iso") == at, f"…and stays where the user put it after the list changes: {at}")
+    js(f"{S}.d.paper = null; {S}.d.views = {{}}; {S}.history.commit(); {S}.ensure(true)")
+    wait(f"return !{S}.busy && !!{S}.lay")
+    check(not js(f"return {S}.outside()"), "the paper back to Auto: the iso view where the layout puts it, no ⚠")
 
     print("2. a mix: title block D with parts list C, saved as a template")
     pick("tbstyle", "D")

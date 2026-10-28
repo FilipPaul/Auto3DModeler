@@ -1058,6 +1058,14 @@ Date: 2026-10-25. Written by the architect agent.
   Checked by, Approved by. AI: sheet_edit title_style / bom_style (template_all with an unsaved mix wants
   save_template), texts surface / checked / approved; get_sheet title_style / bom_style; the automation-design skill
   says how. tests/test_title_templates.py (styles saved / loaded, older ones, the five designs); tools/e2e_sheet_styles.py.
+- **The views keep off an assembly's parts list done:** the styles' taller lists (8 mm rows) covered the views. The
+  sheet sends the layout a keep-out (SheetEditor.keepOut / listKeep: the title block's and the list's rectangles as
+  drawn — rows past "… n more" are on the BOM page — per paper when it is Auto) and iso_at Right; sheet.py layout
+  (_keep, _room, _clear) moves a view in the union's way up or left (the front and the top view together, they line
+  up; KEEP_GAP 14 mm beside, 18 mm below for the sizes and names), shrinks the iso view, then takes the auto scale a
+  step smaller; an own scale stays. An iso view not moved by the user follows the new layout (isoLaid); one the user
+  dragged onto the list stays and gets ⚠ past the frame (outside). tests/test_sheet_views.py TestLayoutKeepOut;
+  tools/e2e_sheet_styles.py 1b (all 36 title / list pairs at A4 and A3, 5 parts: no view box over the list or title).
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

@@ -249,6 +249,7 @@ def parse_scale(text):
 
 
 TITLE_H = 38  # the title block's height (mm) when the layout is not told another
+KEEP_GAP = (14.0, 18.0)  # mm a moved view keeps from the parts list / title block and the other views: beside and above it (its sizes), below it (theirs and its name)
 
 
 def layout(geo, paper=None, scale=None, frame=None):
@@ -256,7 +257,10 @@ def layout(geo, paper=None, scale=None, frame=None):
     margin (the top one), title (the title block's height), views: {name: [x, y] (the view box's centre on the paper)},
     iso: [x, y, k]} — front top-left, top below it, right beside the front, iso bottom-right (first-angle as in
     drawing.py). scale: the sheet's own ("1:2522", parse_scale), else the biggest standard one the views fit at;
-    frame: {m: [left, top, right, bottom] mm, title: mm} (else 10 mm all round, a 38 mm title block)."""
+    frame: {m: [left, top, right, bottom] mm, title: mm} (else 10 mm all round, a 38 mm title block), and on an
+    assembly's sheet keep: its parts list and title block at the frame's corner, kept free of views (_keep), iso_at:
+    "Right" (the iso view in the right view's place). A view in their way moves up or left (_clear); with no room the
+    iso view gets smaller, then the auto scale goes a step smaller (an own scale stays: the editor warns)."""
     bb = geo["bbox"]
     size = (bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2])
     need_w, need_h = max(size[0] + size[1], 1), max(size[2] + size[1], 1)
@@ -273,9 +277,80 @@ def layout(geo, paper=None, scale=None, frame=None):
             break
     scale = fixed or (fit[0] if fit else SCALES[-1])
     cw, ch = iw / 2, ih / 2
+    views = {"Front": [ml + cw / 2, mt + ch / 2], "Right": [ml + cw * 1.5, mt + ch / 2], "Top": [ml + cw / 2, mt + ch * 1.5]}
+    iso = [ml + cw * 1.5, mt + ch * 1.5, 0.55 * min(cw, ch)]
+    keep = _keep(fr.get("keep"), pname, pw, ph, mr, mb)
+    if keep:
+        at = fr.get("iso_at") == "Right"  # (an assembly's sheet: the iso view where the right one would be)
+        tries = ((sc, f) for sc in ([scale] if fixed else fit or [scale]) for f in (1, 0.8, 0.65))  # (the iso view smaller before the scale: it shows, the views measure)
+        found = next(((sc, r) for sc, f in tries if (r := _room(size, sc, iso[2] * f, views, iso, keep, (ml, mt, pw - mr, ph - mb), at))), None)
+        if found:
+            scale, (views, iso) = found[0], found[1]
     return {"paper": pname, "size": [pw, ph], "scale": list(scale), "margin": mt, "margins": [ml, mt, mr, mb], "title": title,
-            "views": {"Front": [ml + cw / 2, mt + ch / 2], "Right": [ml + cw * 1.5, mt + ch / 2], "Top": [ml + cw / 2, mt + ch * 1.5]},
-            "iso": [ml + cw * 1.5, mt + ch * 1.5, 0.55 * min(cw, ch)]}
+            "views": views, "iso": iso}
+
+
+def _keep(keep, pname, pw, ph, mr, mb):
+    """The frame's keep-out — [[w, h], …] mm, or {paper: [[w, h], …]}: rectangles at the frame's inner bottom-right
+    corner, h from the frame's bottom (the title block: [its width, its height]; the parts list on it: [its width,
+    both heights]) -> [(x0, y0, x1, y1)] on the paper (y down); the views keep off their union."""
+    if isinstance(keep, dict):
+        keep = keep.get(pname)
+    out = []
+    for r in keep if isinstance(keep, list) else []:
+        try:
+            w, h = (max(0.0, float(v)) for v in r[:2])
+        except (TypeError, ValueError, IndexError):
+            continue
+        if w > 0 and h > 0:
+            out.append((pw - mr - w, ph - mb - h, pw - mr, ph - mb))
+    return out
+
+
+def _room(size, sc, k, views, iso, keep, inner, at):
+    """The views at scale sc (the iso view k mm) off the keep-out -> (views, iso [x, y, k]), or None (no room)."""
+    s = sc[0] / sc[1]
+    half = {"Front": (size[0] * s / 2, size[2] * s / 2), "Top": (size[0] * s / 2, size[1] * s / 2), "Right": (size[1] * s / 2, size[2] * s / 2)}
+    if at:
+        half["Right"] = (k / 2, k / 2)
+    else:
+        half["Iso"] = (k / 2, k / 2)
+    moved = _clear({**views, **({} if at else {"Iso": iso[:2]})}, half, keep, inner, at)
+    if not moved:
+        return None
+    return {v: [round(c, 2) for c in moved[v]] for v in views}, [*(round(c, 2) for c in moved["Right" if at else "Iso"]), round(k, 2)]
+
+
+def _clear(views, half, keep, inner, at=False):
+    """The views ({name: [x, y]}, their half sizes {name: (w / 2, h / 2)} on the paper) moved off the keep-out
+    rectangles: each one in the way up or left — the shorter move that stays inside the frame (inner: x0, y0, x1, y1)
+    and KEEP_GAP from the other views -> {name: [x, y]}, or None (no room). The front and the top view move left
+    together, the front and the right one up together (they line up; at: the right one is the iso view, free)."""
+    gs, gb = KEEP_GAP
+    lines = {"left": ("Front", "Top"), "up": () if at else ("Front", "Right")}
+    box = lambda v, c: (c[0] - half[v][0], c[1] - half[v][1], c[0] + half[v][0], c[1] + half[v][1])  # noqa: E731
+    pad = lambda b: (b[0] - gs, b[1] - gs, b[2] + gs, b[3] + gb)  # noqa: E731
+    meets = lambda a, b: a[0] < b[2] - 1e-6 and b[0] < a[2] - 1e-6 and a[1] < b[3] - 1e-6 and b[1] < a[3] - 1e-6  # noqa: E731
+    views = {v: list(c) for v, c in views.items()}
+    for _ in range(2 * len(views)):
+        hit = next((v for v in views if any(meets(pad(box(v, views[v])), r) for r in keep)), None)
+        if hit is None:
+            return views
+        pb, best = pad(box(hit, views[hit])), None
+        dy = min(r[1] for r in keep if r[0] < pb[2] and pb[0] < r[2]) - pb[3]  # (up: over the highest one under it)
+        dx = min(r[0] for r in keep if r[1] < pb[3] and pb[1] < r[3]) - pb[2]  # (left: past the widest one beside it)
+        for way, d in sorted((("up", dy), ("left", dx)), key=lambda q: abs(q[1])):
+            ws = lines[way] if hit in lines[way] else (hit,)
+            cand = {v: ([c[0] + d, c[1]] if way == "left" else [c[0], c[1] + d]) if v in ws else c for v, c in views.items()}
+            bs = {v: box(v, c) for v, c in cand.items()}
+            if all(bs[v][0] >= inner[0] - 1e-6 and bs[v][1] >= inner[1] - 1e-6 and not any(meets(pad(bs[v]), r) for r in keep) for v in ws) \
+                    and not any(meets(pad(bs[a]), bs[b]) or meets(pad(bs[b]), bs[a]) for a in ws for b in cand if b not in ws):
+                best = cand
+                break
+        if best is None:
+            return None
+        views = best
+    return None
 
 
 def _id(*parts):

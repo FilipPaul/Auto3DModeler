@@ -21,7 +21,7 @@ import { renameInPlace } from '../rename.js';
 import { HOLE_FITS, SHAFT_FITS, deviationText } from './fits.js';
 import { itemNumbers as numbersOf, bomOf, makeBuy } from '../assembly/bom.js';
 import { MATERIALS } from '../modeler/materials.js';
-import { TITLE_STYLES, BOM_STYLES, STYLE_TIPS, isStyle, isBomStyle, titleSize, titleBlock, partsList, bomWidth, bomRowsIn, grams, fontsReady } from './tbstyles.js';
+import { TITLE_STYLES, BOM_STYLES, STYLE_TIPS, isStyle, isBomStyle, titleSize, titleBlock, partsList, bomWidth, bomHeight, bomRowsIn, grams, fontsReady } from './tbstyles.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const fmt = (v) => (+(+v).toFixed(2)).toString();
@@ -29,6 +29,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const VIEWS = ['Front', 'Top', 'Right'];
 const BOM_ROW = 5.5; // a BOM page's row (mm)
+const PAPER = { A4: [297, 210], A3: [420, 297] }; // (as auto3d/modeler/sheet.py PAPERS, landscape mm)
 const PRESETS = [['light', 'Light'], ['medium', 'Medium'], ['full', 'Full']];
 const TEXTS = [['title', 'Title'], ['number', 'Drawing no.'], ['drawn', 'Drawn by'], ['note', 'Note']];
 /** The fixed texts a title-block template holds (a sheet's own text of these overrides it). */
@@ -60,6 +61,9 @@ export function parseScale(text) {
 }
 const scaleText = (s) => (s ? `${fmt(s[0])}:${fmt(s[1])}` : '');
 const sameScale = (a, b) => !!a && !!b && Math.abs(a[0] / a[1] - b[0] / b[1]) < 1e-9;
+/** An assembly sheet's iso view still where its layout put it (d.views.Iso: the right view's place, not moved by the
+ *  user) — it follows a new layout. */
+const isoLaid = (d) => { const a = d?.views?.Iso, b = d?.built?.layout?.views?.Right; return !!a && !!b && Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6; };
 /** A circle of a hole step (its key has "<step>:hole:k" / ":cbore:k" / ":csk:k"; a pattern's copy "P1:2:H1:hole:0" too)
  *  -> [step id, 'hole' | 'head'], or null. */
 const stepOf = (key) => { const m = /(?:^|[+:])([^:+]+):(hole|cbore|csk):\d+/.exec(key || ''); return m ? [m[1], m[2] === 'hole' ? 'hole' : 'head'] : null; };
@@ -264,6 +268,7 @@ export class SheetEditor {
         r = pg.built;
         this.d.asm = { rows: pg.rows };
         if (!this.d.asmLaid) { this.d.off = { ...this.d.off, Right: true }; this.d.views = { ...this.d.views, Iso: r.layout.views.Right }; this.d.asmLaid = true; }
+        else if (!this.d.views?.Iso || isoLaid(this.d)) this.d.views = { ...this.d.views, Iso: r.layout.views.Right }; // (not moved by the user: where the new layout puts it)
       } else {
         const res = await fetch('/api/sheet/build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: src, preset: this.d.preset, paper: this.d.paper, per_view: this.d.vpreset || {}, section: !!this.d.section, ...this.layReq() }) });
         r = await res.json();
@@ -291,11 +296,41 @@ export class SheetEditor {
   vs(v) { const s = this.d.vscale?.[v]; return s ? s[0] / s[1] : this.scale(); }
 
   /** What the server's layout is made for: the sheet's own scale (and frame) — built again when it changes. */
-  layKey(d = this.d) { const th = this.titleH(d), m = this.frameOf(d).m, dm = m.every((v) => v === 10); return JSON.stringify({ s: d.scale || null, ...(th !== 38 ? { th } : {}), ...(dm ? {} : { m }) }); }
+  layKey(d = this.d) { const th = this.titleH(d), m = this.frameOf(d).m, dm = m.every((v) => v === 10), k = this.keepOut(d); return JSON.stringify({ s: d.scale || null, ...(th !== 38 ? { th } : {}), ...(dm ? {} : { m }), ...(k ? { k } : {}) }); }
   builtKey(d = this.d) { return d.built?.lk ?? JSON.stringify({ s: null }); }
   layReq(d = this.d) {
-    const th = this.titleH(d), m = this.frameOf(d).m, dm = m.every((v) => v === 10);
-    return { ...(d.scale ? { scale: scaleText(d.scale) } : {}), ...(th !== 38 || !dm ? { frame: { title: th, m } } : {}) };
+    const th = this.titleH(d), m = this.frameOf(d).m, dm = m.every((v) => v === 10), keep = this.keepOut(d);
+    return { ...(d.scale ? { scale: scaleText(d.scale) } : {}), ...(th !== 38 || !dm || keep ? { frame: { title: th, m, ...(keep ? { keep, iso_at: 'Right' } : {}) } } : {}) };
+  }
+
+  /** An assembly sheet's keep-out for the layout (sheet.py _keep): its title block and the parts list on it as drawn
+   *  there (rows past "… n more" are on the BOM page) — {paper: [[w, h], …] mm at the frame's bottom-right corner, h
+   *  from the frame's bottom}; the views keep off their union. null: a part's sheet (its title block's band is left free). */
+  keepOut(d = this.d) {
+    if (this.hooks.kindOf?.(d.source) !== 'assembly') return null;
+    const n = new Set((this.hooks.partData(d.source)?.instances || []).map((it) => it.part)).size;
+    if (!n) return null;
+    const out = {};
+    for (const p of d.paper ? [d.paper] : ['A4', 'A3']) out[p] = this.listKeep(d, ...PAPER[p], n);
+    return out;
+  }
+
+  /** The title block's and the parts list's rectangles [[w, h], [w, h]] (mm) on paper pw × ph with n rows — as asmSvg /
+   *  asmStyled draw them. */
+  listKeep(d, pw, ph, n) {
+    const [, mt, , mb] = this.frameOf(d).m, th = this.titleH(d), tb = this.tbOf(d), tw = titleSize(tb.style)?.[0] ?? (pw >= 400 ? 180 : 150);
+    if (isBomStyle(tb.bomStyle)) {
+      const fit = bomRowsIn(tb.bomStyle, ph - mt - mb - th - 40), lines = n > fit ? Math.max(1, fit - 1) + 1 : n;
+      return [[tw, th], [bomWidth(tb.bomStyle), th + bomHeight(tb.bomStyle, lines)]].map((r) => r.map((v) => +v.toFixed(2)));
+    }
+    const max = Math.max(1, Math.floor((ph - mt - mb - th - 40) / 5) - 1), lines = Math.min(n, max) + (n > max ? 1 : 0);
+    return [[tw, th], [isStyle(tb.style) ? Math.max(tw, pw >= 400 ? 180 : 150) : tw, th + (lines + 1) * 5 + 1]];
+  }
+
+  /** The keep-out on this sheet's paper as rectangles [x0, y0, x1, y1] (y down) — a view over them: ⚠ (outside). */
+  keepRects() {
+    const k = this.lay && this.keepOut()?.[this.lay.paper], [pw, ph] = this.lay?.size || [0, 0], [, , mr, mb] = this.frameOf().m;
+    return (k || []).map(([w, h]) => [pw - mr - w, ph - mb - h, pw - mr, ph - mb]);
   }
 
   /** The sheet's frame: its own (d.frame), else its title-block template's, else Simple (10 mm, 0.5 mm line). */
@@ -439,11 +474,13 @@ export class SheetEditor {
   /** Its label: the name, and its own scale when that is not the sheet's ("Detail B (2:1)"). */
   viewLabel(v) { const s = this.d.vscale?.[v]; return s && !sameScale(s, this.scaleArr()) ? `${this.viewName(v)} (${scaleText(s)})` : this.viewName(v); }
 
-  /** The views that reach past the frame (paper mm) -> [names]: a warning, the sheet still draws them. */
+  /** The views that reach past the frame (paper mm), or on an assembly's sheet over its parts list / title block (one
+   *  the user moved there) -> [names]: a warning, the sheet still draws them. */
   outside() {
     if (!this.lay || !this.geo) return [];
-    const [pw, ph] = this.lay.size, [ml, mt, mr, mb] = this.frameOf().m;
-    const off = (b) => b[0] < ml - 0.5 || b[1] < mt - 0.5 || b[2] > pw - mr + 0.5 || b[3] > ph - mb + 0.5;
+    const [pw, ph] = this.lay.size, [ml, mt, mr, mb] = this.frameOf().m, keep = this.keepRects();
+    const off = (b) => b[0] < ml - 0.5 || b[1] < mt - 0.5 || b[2] > pw - mr + 0.5 || b[3] > ph - mb + 0.5
+      || keep.some((r) => b[0] < r[2] - 0.5 && r[0] < b[2] - 0.5 && b[1] < r[3] - 0.5 && r[1] < b[3] - 0.5);
     const out = this.drawn().filter((v) => off(this.paperBox(v)));
     if (this.isoBox && !this.d.off.Iso && off(this.isoBox)) out.push('Iso');
     return out;
@@ -993,6 +1030,7 @@ export class SheetEditor {
       const own = ctx.sheetOf(aid), sd = this.pageData(own || { source: aid }); // its own sheet: the user's moves, dimensions, texts
       const { built, rows } = await this.cached(`a|${aid}|${this.sourceHash(aid)}|${ex}|${[...this.itemNumbers(this.rootOf(aid) || aid)].join()}|${sd.paper || ''}|${this.layKey(sd)}`, () => this.assemblyPage(aid, ctx, ex, sd));
       const base = own ? structuredClone(own) : { created: now, changed: now, off: { Right: true }, views: { Iso: built.layout.views.Right } };
+      if (own && isoLaid(own)) base.views = { ...base.views, Iso: built.layout.views.Right }; // (its iso view where this layout puts it)
       pages.push({ name: name(aid), d: { ...base, source: aid, built, asm: { rows },
         title: { kind: parent ? t('Sub-assembly') : t('Assembly'), part: name(aid), material: '—', of: parent || '' } } });
       if (own?.bomPage) for (const d of this.bomPages(aid, sd, built, parent || '')) pages.push({ name: `${t('BOM')} ${name(aid)}`, bom: true, d });

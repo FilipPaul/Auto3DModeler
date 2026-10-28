@@ -518,7 +518,8 @@ panel choose *Template* (Modern, Compact, ISO 5457, the five designs *A — Stri
 title block goes with any parts list: A (180 × 21 mm, one row), B (180 × 40 mm, the full ISO 7200 grid with checked /
 approved, roughness and the projection symbol), C (180 × 34 mm, a black name band; the list's positions in circles),
 D (170 × 28 mm, no grid), E (a 90 × 56 mm column; its list two lines an item). The parts list sits right on the title
-block at the frame's corner, also on the BOM pages; the PDF uses the styles' own fonts (IBM Plex Sans, Barlow, Inter
+block at the frame's corner, also on the BOM pages; on an assembly's drawing the views keep clear of both (moved up or
+left, else the automatic scale a step smaller — a view you drag over the list is kept there and flagged ⚠); the PDF uses the styles' own fonts (IBM Plex Sans, Barlow, Inter
 — open-licence, in web/fonts). Type your *Company*, *Address*, *Drawn by*, a default *Note*, the *Tolerance
 standard*, the *Roughness*, *Checked by* / *Approved by*, pick a *Logo* and the fields shown (under *Company, logo
 and fields*), then **💾 Save as template…** — kept on the server for all your projects. On a

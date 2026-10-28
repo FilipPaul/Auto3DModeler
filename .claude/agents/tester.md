@@ -275,7 +275,8 @@ Never report "works" without having run it; report failures with their output.
    the frame's corner, the list right on it, the labels in the UI's language, the font on screen and in the PDF; a
    D + C mix aligned right, 💾 saved as "Mix DC" (both styles and the roughness on the server); 📋 BOM page + ⇶: every
    page of the set D, the BOM page C, the set's PDF has drawn by / drawing no. and embeds Inter + Barlow; the app's
-   "B — ISO 7200" brings its ISO frame; the AI's title_style / bom_style, a wrong one refused; the DXF's texts).
+   "B — ISO 7200" brings its ISO frame; all 36 title / list pairs at A4 and A3: no view box over the list or the title
+   block, a view dragged onto the list stays with ⚠; the AI's title_style / bom_style, a wrong one refused; the DXF's texts).
    Screenshots styles_<lang>_<pair>.png and _pdf.png. Run it in cs and en.
    `tools/e2e_sheet_views_templates.py <url> <dir> [cs]` covers the modern title block (inside the frame, black / grey
    only, the name large) and sheet views renamed, moved and scaled with the mouse
