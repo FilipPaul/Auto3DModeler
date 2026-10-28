@@ -51,8 +51,8 @@ in the left panel: every part of the project, open or not, as they go together �
 (sub-assemblies inside, *Pin ×2*), each part's 📄 drawing sheets under it, then the parts in no assembly. The mouse on a
 row shows a **picture** of what is in it; a row **dragged onto an assembly's view** puts that part in. A part from the
 library shows the **library icon** (📚) until it is changed. A **middle click** on a tab closes it. Click one to
-open it (the tree stays), ⧉ opens it in a new window, ✕ deletes it from the project (after asking; it says which
-assemblies use it). Parts made for an assembly (fasteners) are added without a tab. The **＋**
+open it (the tree stays), ⧉ opens it in a new window, ✕ deletes it from the project at once — **↶ Undo** in the
+tree's header brings it back (for half a minute). Parts made for an assembly (fasteners) are added without a tab. The **＋**
 next to the tabs offers the usual ways to open a file.
 
 **What a sketch click takes**: the row of filters at the bottom of the sketch — *Points, Midpoints, Origin, Lines,

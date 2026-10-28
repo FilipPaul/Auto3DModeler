@@ -280,8 +280,20 @@ export class Project {
       await this.switchTo(to.id);
       if (this.active === id) return;
     }
+    this.lastDeleted = { p, at: this.parts.indexOf(p), when: Date.now() }; // (↶ in the tree brings it back)
     this.parts = this.parts.filter((q) => q !== p);
     if (!this.openParts.length && this.parts.length) delete this.parts[0].closed;
+    this.render();
+    clearTimeout(this.undoTimer);
+    this.undoTimer = setTimeout(() => { this.lastDeleted = null; this.render(); }, 30000);
+  }
+
+  /** ↶ The part deleted last back where it was (with its data; assemblies that used it find it again). */
+  undoDelete() {
+    const d = this.lastDeleted;
+    if (!d || this.parts.some((q) => q.id === d.p.id)) return;
+    this.parts.splice(Math.min(d.at, this.parts.length), 0, d.p);
+    this.lastDeleted = null;
     this.render();
   }
 
@@ -480,20 +492,23 @@ export class Project {
     };
     const top = this.parts.filter((p) => !used.has(p.id) && !(p.kind === 'sheet' && byId.has(data.get(p.id)?.source)));
     for (const p of [...top.filter((q) => q.kind === 'assembly'), ...top.filter((q) => q.kind !== 'assembly')]) add(p, 0, 1, new Set());
-    box.innerHTML = `<div class="tr-head"><b>☰ ${t('Project')}</b><button class="mini tr-x" title="${t('Close the project tree')}">✕</button></div>
+    const undo = this.lastDeleted ? `<button class="btn small tr-undo" title="${t('Bring back the part deleted last')}">↶ ${t('Undo')}: <span data-no-i18n></span></button>` : '';
+    box.innerHTML = `<div class="tr-head"><b>☰ ${t('Project')}</b>${undo}<button class="mini tr-x" title="${t('Close the project tree')}">✕</button></div>
       <p class="hint">${t('Click a part to open it — ⧉ in a new window, ✕ deletes it from the project.')}</p><div class="tr-list"></div>`;
     box.querySelector('.tr-x').addEventListener('click', () => this.toggleTree(false));
+    const ub = box.querySelector('.tr-undo');
+    if (ub) { ub.querySelector('span').textContent = this.lastDeleted.p.name || ''; ub.addEventListener('click', () => this.undoDelete()); }
     const list = box.querySelector('.tr-list');
     for (const { p, depth, qty } of rows) {
       const row = document.createElement('div');
       row.className = `pt-row tr-row ${p.kind}${p.id === this.active && !this.none ? ' on' : ''}${p.closed ? ' closed' : ''}`;
       row.dataset.part = p.id;
       row.style.paddingLeft = `${4 + 14 * depth}px`;
-      row.innerHTML = `<button class="pt-open" title="${t(p.closed ? 'Open it (a tab)' : 'Show it')}"><span class="pt-kind">${kindIcon(this.libraryPart(p) ? 'library' : p.kind)}</span><span class="pt-rname" data-no-i18n></span>${qty > 1 ? `<i class="tr-qty" data-no-i18n>×${qty}</i>` : ''}</button>${this.hooks.openWindow ? `<button class="mini pt-win" title="${t(WIN_TIP)}">⧉</button>` : ''}${this.parts.length > 1 ? `<button class="mini danger pt-del" title="${t('Delete it from the project')}">✕</button>` : ''}`;
+      row.innerHTML = `<button class="pt-open" title="${t(p.closed ? 'Open it (a tab)' : 'Show it')}"><span class="pt-kind">${kindIcon(this.libraryPart(p) ? 'library' : p.kind)}</span><span class="pt-rname" data-no-i18n></span>${qty > 1 ? `<i class="tr-qty" data-no-i18n>×${qty}</i>` : ''}</button>${this.hooks.openWindow ? `<button class="mini pt-win" title="${t(WIN_TIP)}">⧉</button>` : ''}${this.parts.length > 1 ? `<button class="mini danger pt-del" title="${t('Delete it from the project (↶ Undo brings it back)')}">✕</button>` : ''}`;
       row.querySelector('.pt-rname').textContent = p.name || '…';
       row.querySelector('.pt-open').addEventListener('click', () => this.switchTo(p.id));
       row.querySelector('.pt-win')?.addEventListener('click', (e) => { e.stopPropagation(); this.hooks.openWindow(p.id); });
-      row.querySelector('.pt-del')?.addEventListener('click', (e) => { e.stopPropagation(); this.remove(p.id); });
+      row.querySelector('.pt-del')?.addEventListener('click', (e) => { e.stopPropagation(); this.remove(p.id, false); }); // (at once: ↶ undoes it)
       if (p.kind !== 'sheet' && p.kind !== 'drawing') { // dragged into an assembly's view: it goes in
         row.draggable = true;
         row.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/a3d-insert', p.id); e.dataTransfer.effectAllowed = 'copy'; this.hidePreview(); });

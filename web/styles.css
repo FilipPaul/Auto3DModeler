@@ -71,6 +71,7 @@ body.none-open .no-part b { color: var(--text); font-size: 16px; }
 .proj-tree.open { display: block; }
 .tr-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
 .tr-head b { font-size: 14px; }
+.tr-head .tr-undo { margin-left: auto; margin-right: 6px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tr-list { display: flex; flex-direction: column; gap: 1px; margin-top: 6px; }
 .pt-row { display: flex; align-items: center; gap: 2px; border-radius: 5px; }
 .pt-row:hover { background: var(--panel-2); }

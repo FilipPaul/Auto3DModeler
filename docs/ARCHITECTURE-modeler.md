@@ -80,6 +80,8 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Delete from the tree at once, ↶ Undo done:** the tree's ✕ calls Project.remove(id, false) (no question);
+  lastDeleted kept 30 s — ↶ Undo in the tree's header (undoDelete) puts it back where it was. e2e_project_tree.
 - **Snap points with no tool on done:** the 3D model's and the assembly's hover show setSnapMark; a click on one
   picks it (Modeler.pickSnap / Assembly.snapPick with its part): Measure from here (measuring.a set), Copy its
   coordinates, ✨. e2e_measure_snap.
