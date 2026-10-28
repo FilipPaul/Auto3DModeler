@@ -25,6 +25,8 @@ const MIRROR_PLANES = { YZ: 'left ↔ right', XZ: 'front ↔ back', XY: 'top ↔
 const AXES = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
 const USES_SKETCH = new Set(['extrude', 'revolve', 'loft', 'sweep', 'rib']);
 /** The sketches a step is made from. */
+// ISO metric coarse threads -> their tap drill (as auto3d/modeler/doc.py THREADS)
+const THREADS = { M2: 1.6, 'M2.5': 2.05, M3: 2.5, M4: 3.3, M5: 4.2, M6: 5, M8: 6.8, M10: 8.5, M12: 10.2, M16: 14, M20: 17.5 };
 const sketchesOf = (f) => (f.type === 'loft' ? f.sketches || [] : f.type === 'sweep' ? [f.profile, f.path] : USES_SKETCH.has(f.type) ? [f.sketch] : []).filter(Boolean);
 // densities for the mass (g/cm³), common 3D-printing materials
 import { MATERIALS, MATERIAL_GROUPS, MATERIAL_COLOR, lookColor } from './materials.js';
@@ -331,7 +333,7 @@ export class Modeler {
     if (f.type === 'extrude') return f.op === 'cut' ? (f.through ? 'cut through all' : `cut ${fmt(f.d)} mm`) : `${fmt(f.d)} mm`;
     if (f.type === 'fillet') return `R ${fmt(f.r)} · ${n('edges')} edge(s)`;
     if (f.type === 'chamfer') return `${fmt(f.d)} mm · ${n('edges')} edge(s)`;
-    if (f.type === 'hole') return `Ø${fmt(f.d)}${f.fit ? ` ${f.fit}` : ''}${f.head === 'cbore' ? ` ⌴Ø${fmt(f.head_d)}×${fmt(f.head_depth)}` : f.head === 'csk' ? ` ⌵Ø${fmt(f.head_d)}` : ''} · ${n('points')} hole(s)${f.through === false ? ` · ${fmt(f.depth)} deep` : ''}`;
+    if (f.type === 'hole') return `${f.thread || `Ø${fmt(f.d)}`}${f.fit ? ` ${f.fit}` : ''}${f.head === 'cbore' ? ` ⌴Ø${fmt(f.head_d)}×${fmt(f.head_depth)}` : f.head === 'csk' ? ` ⌵Ø${fmt(f.head_d)}` : ''} · ${n('points')} hole(s)${f.through === false ? ` · ${fmt(f.depth)} deep` : ''}`;
     if (f.type === 'revolve') return `${fmt(f.angle)}°${f.op === 'cut' ? ' cut' : ''}`;
     if (f.type === 'shell') return `wall ${fmt(f.t)} mm · ${n('faces')} open`;
     if (f.type === 'decal') return `${f.source === 'text' ? `“${f.text}”` : 'picture'} · ${fmt(f.h)} mm${f.op === 'cut' ? ' · engraved' : ' · raised'}`;
@@ -1737,7 +1739,9 @@ export class Modeler {
     const f = this.cmd.feature, st = this.status(f.id);
     box.innerHTML = `<h2>${esc(f.name)}</h2>
       <p class="hint">Click on a flat face where a hole goes — click again for more holes on the same face. A click near the face's centre snaps to it.</p>
-      <div class="field"><label>Diameter</label><input type="number" step="any" min="0" data-k="d" value="${fmt(f.d)}"><span class="unit">mm</span></div>
+      <div class="field"><label>Thread</label><select data-k="thread" title="A threaded hole: drilled with its tap drill (M5: Ø4.2), labelled M5 on the drawing">
+        ${['', ...Object.keys(THREADS)].map((v) => `<option value="${v}" ${v === (f.thread || '') ? 'selected' : ''}>${v || '—'}</option>`).join('')}</select></div>
+      <div class="field"><label>Diameter</label><input type="number" step="any" min="0" data-k="d" value="${fmt(f.d)}" ${f.thread ? 'disabled' : ''}><span class="unit">mm</span></div>
       <label class="check"><input type="checkbox" data-k="through" ${f.through !== false ? 'checked' : ''}> Through all</label>
       ${f.through === false ? `<div class="field"><label>Depth</label><input type="number" step="any" min="0" data-k="depth" value="${fmt(f.depth)}"><span class="unit">mm</span></div>` : ''}
       <div class="field"><label>Head</label><select data-k="head" title="Room for a screw's head: ⌴ a counterbore (a socket head sunk in), ⌵ a countersink (a flat head flush with the face)">
@@ -1762,6 +1766,11 @@ export class Modeler {
     if (dep) num(dep, (v) => { if (v > 0) f.depth = v; });
     box.querySelector('[data-k=through]').addEventListener('change', (e) => { f.through = e.target.checked; this.renderProps(); this.rebuild(); });
     box.querySelector('[data-k=fit]').addEventListener('change', (e) => { if (e.target.value) f.fit = e.target.value; else delete f.fit; });
+    box.querySelector('[data-k=thread]').addEventListener('change', (e) => { // (its tap drill as the diameter)
+      if (e.target.value) Object.assign(f, { thread: e.target.value, d: THREADS[e.target.value] }); else delete f.thread;
+      this.renderProps();
+      this.rebuild();
+    });
     box.querySelector('[data-k=head]').addEventListener('change', (e) => { // (a screw head's room, sized from the hole: ISO 4762 / 10642-like)
       const h = e.target.value;
       delete f.head; delete f.head_d; delete f.head_depth;

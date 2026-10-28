@@ -91,6 +91,10 @@ Date: 2026-10-25. Written by the architect agent.
   tools/e2e_ai_reports.py.
 - **Steps named after their sketch done:** nextName(type, sketch): an extrude / revolve of a sketch the user named
   is "Extrude – Slot" (a "Sketch 2" keeps "Extrude 3"), in the panel and for the AI. tools/e2e_ai_reports.py.
+- **Threaded holes done:** a hole's thread "M5" (doc.THREADS: ISO metric coarse M2 … M20 -> the tap drill): drilled
+  at the tap drill whatever d says; doc.sheet passes {tap Ø: "M5"} to sheet.auto_dims, the hole's dimension carries
+  thread and is drawn "2× M5"; the Hole panel's Thread choice (the diameter greyed), the step's text, add_feature /
+  edit_feature thread. test_threaded_hole; tools/e2e_model_hole_head.py.
 - **⊿ Rib done:** a `rib` step {sketch, t}: kernel.open_chain (the sketch's lines end to end) and kernel.rib — the
   line pushed far to each side as a polygon, a prism ±t/2 about the sketch plane, minus the part; the piece by the
   line that closes against the part (not out to the far side) is added (faces R:start / R:end / R:side:<line>); a

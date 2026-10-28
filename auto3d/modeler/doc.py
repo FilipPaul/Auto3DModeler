@@ -45,6 +45,17 @@ def _key(features):
     return hashlib.sha1(json.dumps(features, sort_keys=True).encode()).hexdigest()
 
 
+# ISO metric coarse threads: the tap drill a threaded hole is drilled with (ISO 2306)
+THREADS = {"M2": 1.6, "M2.5": 2.05, "M3": 2.5, "M4": 3.3, "M5": 4.2, "M6": 5.0, "M8": 6.8, "M10": 8.5, "M12": 10.2,
+           "M16": 14.0, "M20": 17.5}
+
+
+def _threads(part):
+    """{tap drill Ø: "M5"} of the part's threaded holes (the drawing labels them M5, not Ø4.2)."""
+    return {THREADS[f["thread"]]: f["thread"] for f in (part or {}).get("features") or []
+            if f.get("type") == "hole" and f.get("thread") in THREADS and not f.get("off")}
+
+
 def _num(f, k, default=None, positive=True, what=None):
     v = f.get(k, default)
     try:
@@ -248,7 +259,9 @@ def _apply(f, st: State, s):
         if not pts:
             raise K.KernelError("Click on a face where the hole goes.")
         pts = _hole_from_edges(f, fr, st, s)
-        dia = _num(f, "d", 5, what="diameter")
+        if f.get("thread") and f["thread"] not in THREADS:
+            raise K.KernelError(f"Unknown thread “{f['thread']}” — one of {', '.join(THREADS)}.")
+        dia = THREADS[f["thread"]] if f.get("thread") else _num(f, "d", 5, what="diameter")  # (a thread: its tap drill)
         depth = _through_depth(st) if f.get("through", True) else _num(f, "depth", 10, what="depth")
         n = np.asarray(fr["n"], float)
         head = f.get("head")  # ⌴ a counterbore (a screw head sunk in) / ⌵ a countersink (a flat head flush)
@@ -908,7 +921,7 @@ def sheet(part, preset="medium", paper=None, per_view=None):
     from . import sheet as S
     st = body_of(part)
     fits = {f["d"]: f["fit"] for f in (part or {}).get("features") or [] if f.get("type") == "hole" and f.get("fit") and not f.get("off")}
-    return S.build(st.body, preset, fits, paper, per_view)
+    return S.build(st.body, preset, fits, paper, per_view, _threads(part))
 
 
 def assembly_sheet(instances, paper=None):

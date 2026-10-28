@@ -212,7 +212,8 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         return { head: x.head, head_d: x.head_d ?? +(d * (x.head === 'cbore' ? 1.8 : 2)).toFixed(1), ...(x.head === 'cbore' ? { head_depth: x.head_depth ?? +(+d).toFixed(1) } : { ...(x.head_angle ? { head_angle: x.head_angle } : {}) }) };
       };
       if (!spec.face) throw new Error('face: the name of the flat face the holes go into (find_refs).');
-      return { ...base, plane: planeOf({ face: spec.face }), points: spec.points || [[0, 0]], d: spec.d ?? 5,
+      if (spec.thread && !/^M(2|2\.5|3|4|5|6|8|10|12|16|20)$/.test(spec.thread)) throw new Error('thread: M2, M2.5, M3, M4, M5, M6, M8, M10, M12, M16 or M20.');
+      return { ...base, plane: planeOf({ face: spec.face }), points: spec.points || [[0, 0]], d: spec.d ?? 5, ...(spec.thread ? { thread: spec.thread } : {}),
         through: spec.through !== false, depth: spec.depth ?? 10, ...(spec.from ? { from: spec.from } : {}), ...(fitOf(spec.fit) ? { fit: fitOf(spec.fit) } : {}),
         ...headOf(spec, spec.d ?? 5) };
     }
@@ -346,7 +347,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         if (f.type === 'revolve') Object.assign(out, { sketch: f.sketch, op: f.op, axis: f.axis, angle: f.angle });
         if (f.type === 'fillet') Object.assign(out, { r: f.r, edges: f.edges.length });
         if (f.type === 'chamfer') Object.assign(out, { d: f.d, edges: f.edges.length });
-        if (f.type === 'hole') Object.assign(out, { face: f.plane?.face?.name, d: f.d, points: f.points, through: f.through !== false, depth: f.depth, ...(f.fit ? { fit: f.fit } : {}),
+        if (f.type === 'hole') Object.assign(out, { face: f.plane?.face?.name, d: f.d, ...(f.thread ? { thread: f.thread } : {}), points: f.points, through: f.through !== false, depth: f.depth, ...(f.fit ? { fit: f.fit } : {}),
           ...(f.head ? { head: f.head, head_d: f.head_d, ...(f.head_depth ? { head_depth: f.head_depth } : {}), ...(f.head_angle ? { head_angle: f.head_angle } : {}) } : {}) });
         if (f.type === 'shell') Object.assign(out, { t: f.t, open_faces: f.faces.map((x) => x.name) });
         if (f.type === 'loft') Object.assign(out, { sketches: f.sketches, op: f.op });
@@ -429,6 +430,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         const next = build({ ...f, ...fields, type: f.type, of: fields.of || f.features, name: fields.name || f.name, face: fields.face || f.plane?.face?.name, faces: fields.faces || f.faces?.map((x) => x.name), sketch: fields.sketch || f.sketch });
         Object.assign(f, { ...next, id: f.id, name: fields.name || f.name });
         if ('fit' in fields && !fields.fit) delete f.fit; // (a hole's fit taken off)
+        if ('thread' in fields && !fields.thread) delete f.thread; // (its thread taken off)
         if ('head' in fields && !fields.head) for (const k of ['head', 'head_d', 'head_depth', 'head_angle']) delete f[k]; // (its head taken off)
       }
       return commitAnd(id);

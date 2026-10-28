@@ -156,8 +156,9 @@ def _grid(cs):
     return len(xs), len(ys), (xs[1] - xs[0]) if len(xs) > 1 else 0, (ys[1] - ys[0]) if len(ys) > 1 else 0
 
 
-def auto_dims(geo, preset="medium", fits=None, per_view=None):
-    """The automatic dimensions of a preset (see the module's docstring). fits: {diameter: "H7"} (holes with a fit).
+def auto_dims(geo, preset="medium", fits=None, per_view=None, threads=None):
+    """The automatic dimensions of a preset (see the module's docstring). fits: {diameter: "H7"} (holes with a fit),
+    threads: {tap drill Ø: "M5"} (threaded holes: labelled M5).
     per_view: {view: preset} — a view's own preset instead of the sheet's; "all": every size of that view, the ones
     given in another view too (its outer sizes, its holes, its edges' places) — as full."""
     preset = preset if preset in PRESETS else "medium"
@@ -165,6 +166,7 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None):
     every = {k for k, v in per_view.items() if v == "all"}
     pv = lambda view: "full" if view in every else per_view.get(view, preset)  # noqa: E731
     fits = {round(float(d), 3): f for d, f in (fits or {}).items() if f}
+    threads = {round(float(d), 3): m for d, m in (threads or {}).items() if m}
     dims, stack, measured = [], {}, set()
 
     def lin(view, a, b, d, side, pre="", tag=""):
@@ -208,7 +210,7 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None):
             at = (round(first["c"][0], 1), round(first["c"][1], 1))
             k = centres[at] = centres.get(at, -1) + 1
             dims.append({"id": _id(vname, "dia", d), "view": vname, "kind": "dia", "a": first["key"], "count": len(cs),
-                         "ang": [45, 135, 315, 225, 20, 160, 340, 200][k % 8], "len": 6 + 5 * (k // 4), **({"post": f" {fits[d]}"} if d in fits else {})})
+                         "ang": [45, 135, 315, 225, 20, 160, 340, 200][k % 8], "len": 6 + 5 * (k // 4), **({"post": f" {fits[d]}"} if d in fits else {}), **({"thread": threads[d]} if d in threads else {})})
             if pv(vname) == "light":
                 continue
             # where they are: the first from the left / bottom of the view, then the pitch of a row / grid
@@ -275,10 +277,10 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None):
     return dims
 
 
-def build(body, preset="medium", fits=None, paper=None, per_view=None):
+def build(body, preset="medium", fits=None, paper=None, per_view=None, threads=None):
     """Everything a new / changed sheet needs: {geometry, layout, dims (automatic)}."""
     geo = geometry(body)
-    return {"geometry": geo, "layout": layout(geo, paper), "dims": auto_dims(geo, preset, fits, per_view)}
+    return {"geometry": geo, "layout": layout(geo, paper), "dims": auto_dims(geo, preset, fits, per_view, threads)}
 
 
 ISO_VIEW = ((-1, 1, -1), (1 / math.sqrt(2), 1 / math.sqrt(2), 0), (-1 / math.sqrt(6), 1 / math.sqrt(6), 2 / math.sqrt(6)))  # as _iso projects

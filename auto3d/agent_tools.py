@@ -186,6 +186,7 @@ TOOLS = [
                     "- hole: face (name), points [[u, v]] from the face's centre, d, through (default) or depth, fit (ISO 286 H6 / H7 / H8 / H9: shown on the 2D drawing as Ø8 H7; model the nominal d); "
                     "head: \"cbore\" (a counterbore: head_d, head_depth — default 1.8 × d, d) or \"csk\" (a countersink: head_d, "
                     "head_angle — default 2 × d, 90°) for a screw's head; "
+                    "thread: \"M5\" (ISO metric M2 … M20: drilled with its tap drill, labelled M5 on the drawing — no d needed); "
                     "from: [{x: {edge: <ref from find_refs>, d}, y: {edge, d}}] per hole = its distance from a straight edge "
                     "of that face (d signed along the face's x / y; the hole keeps it when the part changes).\n"
                     "- fillet: edges [refs from find_refs], r. chamfer: edges, d.\n"

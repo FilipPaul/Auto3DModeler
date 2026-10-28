@@ -91,6 +91,19 @@ class TestFeatures(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertIn("wider", r["features"][-1]["issues"][0])
 
+    def test_threaded_hole(self):
+        """A hole with thread M5: drilled Ø4.2 (its tap drill) whatever d says; the sheet labels it M5; an unknown
+        thread refused."""
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        hole = {"id": "H1", "type": "hole", "plane": top, "points": [[0, 0], [10, 0]], "d": 9, "through": True, "thread": "M5"}
+        r, v = vol(*box(), hole)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 - 2 * math.pi * 2.1 ** 2 * 10, delta=1e-3)
+        dims = [d for d in doc.sheet({"features": box() + [hole]}, "medium")["dims"] if d["kind"] == "dia"]
+        self.assertTrue(dims and all(d.get("thread") == "M5" and d["count"] == 2 for d in dims), dims)
+        r, _ = vol(*box(), {**hole, "thread": "M7"})
+        self.assertFalse(r["ok"])
+
     def test_round_then_hole_and_errors(self):
         fil = {"id": "F1", "type": "fillet", "edges": [{"a": "E1:side:l1", "b": "E1:side:l2", "fp": [40, 0, 5]}], "r": 50}
         r, v = vol(*box(), fil)

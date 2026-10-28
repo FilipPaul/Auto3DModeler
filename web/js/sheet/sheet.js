@@ -172,7 +172,7 @@ export class SheetEditor {
   }
 
   dimText(d, v) {
-    if (d.kind === 'dia') return `${d.count > 1 ? `${d.count}× ` : ''}Ø${fmt(v)}${d.post || ''}`;
+    if (d.kind === 'dia') return `${d.count > 1 ? `${d.count}× ` : ''}${d.thread || `Ø${fmt(v)}`}${d.post || ''}`; // (a threaded hole: M5)
     if (d.kind === 'rad') return `${d.count > 1 ? `${d.count}× ` : ''}R${fmt(v)}`;
     return `${d.pre || ''}${fmt(v)}`;
   }

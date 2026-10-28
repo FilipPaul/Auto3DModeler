@@ -1,6 +1,7 @@
 """⌴ / ⌵ hole heads, in headless Edge: a 40 × 20 × 10 block, ◎ Hole Ø6 on its top -> Head ⌴ Counterbore: Ø10.8 × 6 by
 default, the volume less the counterbore; Head Ø 10, depth 4: exact -> ⌵ Countersink: Ø12 (2 × d) at 90° -> OK; the AI's
-add_feature hole with head "cbore" and edit_feature head null (taken off).
+add_feature hole with head "cbore" and edit_feature head null (taken off) -> Thread M5:
+the diameter its tap drill 4.2 (greyed), the step says M5, the sheet's hole size M5; a wrong thread refused.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_model_hole_head.py http://127.0.0.1:5199 <out dir>
 """
@@ -89,6 +90,22 @@ try:
     r = json.loads(call("edit_feature", id=r["id"], fields={"head": None}))
     print("  head taken off:", r["ok"], r["volume_change_mm3"])
     print("a wrong head:", call("add_feature", type="hole", face="F2:end", points=[[-12, 0]], d=4, head="spot")[:50])
+    # a threaded hole: the panel's Thread sets the tap drill; the drawing says M5
+    js(f"{M}.action('hole')")
+    time.sleep(0.4)
+    js(f"{M}.cmd.feature.plane = {{ face: {{ name: 'F2:end' }}, frame: {{ o: [0, 0, 10], x: [1, 0, 0], n: [0, 0, 1] }} }}; {M}.cmd.feature.points = [[-14, 5]]; {M}.renderProps(); {M}.rebuild();")
+    time.sleep(1)
+    Select(d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=thread]")).select_by_value("M5")
+    time.sleep(1.2)
+    dia = d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=d]")
+    print("Thread M5: Ø", dia.get_attribute("value"), "| disabled", not dia.is_enabled())
+    d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=ok]").click()
+    time.sleep(1)
+    print("  the step:", js(r"return [...document.querySelectorAll('#modelLeft .mt-item')].map(r => r.textContent.replace(/\s+/g, ' ').trim()).slice(-1)[0]"))
+    print("a wrong thread:", call("add_feature", type="hole", face="F2:end", points=[[0, 5]], thread="M7")[:60])
+    print("  sheet_open:", json.loads(call("sheet_open", part="Block"))["preset"])
+    wait("return !!window.__app.sheet.svgEl")
+    print("  the sheet's hole sizes:", sorted({x["text"] for x in json.loads(call("get_sheet"))["dims"] if x["kind"] == "dia"}))
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()

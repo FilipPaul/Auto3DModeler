@@ -738,6 +738,7 @@ const CS = {
   'The part on screen — double-click to rename, drag to move the tab (out of the window: a new window)': 'Díl na obrazovce — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'Click to show it — double-click to rename, drag to move the tab (out of the window: a new window)': 'Kliknutím zobrazíte — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'No part open': 'Žádný díl není otevřený',
+  Thread: 'Závit', 'A threaded hole: drilled with its tap drill (M5: Ø4.2), labelled M5 on the drawing': 'Závitová díra: vrtaná vrtákem pro závit (M5: Ø4,2), na výkresu označená M5',
   Rib: 'Žebro', '⊿ Rib': '⊿ Žebro',
   'A rib (a gusset): draw a line from a wall to the plate in a sketch, give the thickness — it fills up to the part': 'Žebro (výztuha): v náčrtu nakreslete úsečku od stěny k desce, zadejte tloušťku — vyplní se až k dílu',
   "Draw the rib's line first: a sketch on a plane across the corner, one line from the wall to the plate.": 'Nejdřív nakreslete čáru žebra: náčrt v rovině napříč rohem, jedna úsečka od stěny k desce.',

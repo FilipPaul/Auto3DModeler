@@ -177,7 +177,8 @@ Never report "works" without having run it; report failures with their output.
    the air refused). Needs a server restarted after kernel changes.
    `tools/e2e_model_hole_head.py <url> <dir>` covers ⌴ / ⌵ hole heads (a Ø6 hole: ⌴ Counterbore by default Ø10.8 × 6,
    then Ø10 × 4, ⌵ Countersink Ø12 at 90° — exact volumes; the step's text; the AI's head "cbore", get_model shows it,
-   edit_feature head null takes it off; a wrong head refused). Needs a server restarted after kernel changes.
+   edit_feature head null takes it off; a wrong head refused; Thread M5: the diameter 4.2 greyed, the step says M5,
+   the sheet's hole size M5; a wrong thread refused). Needs a server restarted after kernel changes.
    `tools/e2e_tool_groups.py <url> <dir>` covers the tools coloured by group (the 3D model's, the sketch's and the
    assembly's bars: each group in one run, one colour per group, the groups' colours differ; screenshots of the bars).
    `tools/e2e_ai_reports.py <url> <dir>` covers the fixes from the AI's reports (a zoomed-out view: get_screenshot
