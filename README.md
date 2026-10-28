@@ -711,6 +711,10 @@ the app exchanges with them — and with Inventor, Fusion, Creo, NX, FreeCAD, On
   {format: "step" | "iges" | "glb" | "obj"}`; on a drawing sheet `export {format: "dxf" | "pdf"}`.
 - In SolidWorks: *File → Open*, file type STEP / IGES (an assembly STEP opens as an assembly with its parts). CATIA:
   *File → Open* (STEP AP214 / IGES). Solid Edge: *Open*, file type STEP / IGES (the import wizard keeps the assembly).
+- **Try them yourself**: `samples/ExportFromOurApp/` holds files the app exported (a part with threaded countersunk
+  holes, an assembly with a sub-assembly and repeated parts, drawing sheets: STEP, IGES, STL, OBJ, GLB, 3MF, BOM CSV,
+  PDF, DXF, the project file); its README.md says what to check in each program. `tools/make_export_samples.py`
+  makes them again.
 
 ## AI assistant (✨ AI tab)
 

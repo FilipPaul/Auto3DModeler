@@ -135,6 +135,11 @@ Never report "works" without having run it; report failures with their output.
    the drawing sheet's ⬇ DXF (read back with ezdxf: mm, its layers, every dimension a DXF dimension, 40 measured as 40;
    the AI's export dxf on the sheet), GLB / OBJ (the aluminium plate: one node, metallic, metres Y up; its OBJ's volume;
    the assembly's GLB: a node per placed part, "Plate-1", placed as on screen; the AI's export glb / obj).
+   `tools/make_export_samples.py <url> <dir>` (run it into the scratchpad, not the repo) covers the exports end to end:
+   a plate with 4× M6 countersunk threaded holes, posts, a sub-assembly used twice and 4 library screws built with the
+   AI's tools -> every export format (part: STEP, IGES, STL, OBJ, GLB, 3MF; assembly: STEP, IGES, GLB, 3MF, BOM; the
+   sheets' PDF / DXF; 💾 Save project), each written, no console errors; tests/test_export_samples.py reads the
+   committed ones back.
    `tools/e2e_ai_more.py <url> <dir>` covers the AI's drawing tools (get_drawing, drawing_find Ø8 on a layer, set Ø10,
    only one layer, export dxf, use as a sketch -> extruded with its holes), set_view (section, explode), export 3mf (two
    colours = two objects) and bom, edit_joint (gap 5 measured as 5, locked: no removing), remove_joint, rename_part,
