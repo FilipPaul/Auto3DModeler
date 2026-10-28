@@ -806,6 +806,41 @@ Date: 2026-10-25. Written by the architect agent.
   that is) and kernel.material_along (the part's depth under the hole, a blind hole's own depth) — a head wider than
   the face or as deep as the part is an issue with the most that fits ("at most Ø6.4"), never cut through.
   test_hole_head_fits; tools/e2e_sheet_hole_callouts.py (the AI's M3 ⌵ on a 2 mm plate).
+- **🔩 Cosmetic threads done:** part `threads` "hidden" (default) | "cosmetic" (doc.THREAD_MODES). Every rebuild says
+  where the threaded holes are: out.threads {mode, holes} — doc.thread_holes (cached per features key) finds them by
+  their walls' names ("<step>:hole:k", a pattern's / mirror's copies "P1:2:<step>:hole:k") in the built body;
+  kernel.round_span gives the wall's axis, its extent along it and which ends are open (the classifier a hair past
+  each end: an open end is not inside the part; of two, the one the step's normal points to is the entry) -> {name,
+  thread, at (entry, on the axis), axis (into the part), depth, major, minor (tap drill), pitch (doc.PITCH, ISO 261
+  coarse), through}. ModelView.setThreads draws them (view.threadSegments: a right-hand helix on the wall, a hair
+  inside it, 24 pieces a turn, and a 48-piece ring at the major Ø a hair above the entry face; its own thin
+  material, clipped by ✂ Section); the solid is unchanged. The click's "The part" section: 🔩 Show all threads /
+  Hide all threads (only with threaded holes); the Part panel's 🔩 Threads Hidden / Cosmetic; the setting is in the
+  modeler's undo (the look snapshot) and the project file; an assembly's placed part shows its part's (AsmView, the
+  body's threads). The AI: set_look {threads}. test_cosmetic_thread_data; tools/e2e_model_threads.py.
+- **🔩 Real threads done:** part threads "real": after all the steps doc._real_threads cuts an internal ISO metric
+  thread into each threaded hole (cached per features key, so a view change or an undo does not cut again; the
+  steps' own refs are untouched — they were built before it). kernel.thread_tool: the basic profile of ISO 68-1 (60°
+  flanks, P/8 flat at the major Ø; a trapezoid from 0.1 P inside the tap drill out to the major Ø, kernel.thread_reach)
+  swept with BRepOffsetAPI_MakePipeShell along a right-hand helix (2D lines on a Geom_CylindricalSurface, a fixed
+  binormal: the profile stays in the axis's plane), cached per (major, minor, pitch, length). The helix is one edge a
+  turn: one long helical face made the cut with the hole's cylinder fail silently (no intersection found: the volume
+  unchanged, or wrong); per turn it is right to 2e-5 of the groove's analytic volume. A groove runs a pitch past an
+  open end and stops thread_reach short of a blind bottom; kernel.along places it (a location, no copy);
+  kernel.cut_threads cuts them all at once (SetRunParallel: 8 holes 4.6 -> 1.5 s) carrying the names — the hole's
+  wall keeps "<step>:hole:k" on its strips, the thread's faces are "<step>:thread:k" (a copy's "P1:1:<step>:thread:k").
+  A cut that fails or removes nothing: the part without threads and threads.real.issue. rebuild's threads.real {holes,
+  cut, seconds, warning (more than MANY_THREADS = 8), issue}. body_of(part, threads=True) gives exports (STEP / IGES /
+  STL / OBJ / GLB), the print split (its STEP printing copy), assembly STEP / clashes the threaded body; the sheet, the
+  PDF drawing and the assembly sheet take threads=False (no helix edges: the callout and, in sheet.js, a thin ¾ circle
+  at the major Ø on each threaded hole seen round, class sh-thread). The browser: the choose dialog "Cosmetic (light) |
+  Real geometry (slower)", the Part panel's Real (+ "n real threads, cut in s" and the warning), a toast with the
+  time; while a tool / a sketch is open real is asked as cosmetic (threadsShown). Placed parts: flatParts / the STEP
+  tree carry their part's threads. Measured (tessellation included; the cut alone in brackets): M5 × 10 one hole 0.45 s
+  (0.23 s), 220 -> 6 238 triangles; 8 holes M6 × 12 3.7 s (1.8 s), 1 676 -> 48 574; 12 holes 5.1 s (2.5 s), 2 508 ->
+  77 308; again (cached) 0 s. The STEP of two M6 × 12: 1.7 MB (80 spline surfaces). Left out: external threads on
+  shafts (no thread feature for them yet), a print clearance on the profile, thread run-outs, left-hand / fine
+  pitches. test_real_thread, test_real_threads_split; tools/e2e_model_threads.py.
 - **Floating boxes moved and resized done:** web/js/floatbox.js floatBox(box, viewport, {kind, handle, remember,
   min, onDefault}) — called after a box is put in its view (again after its content is re-rendered): dragged by its
   header (or a slim ⠿ .fb-strip added on top / at a bar's left end), resized by the .fb-size grip in its bottom-right
