@@ -397,7 +397,7 @@ class TestCancelRoutes(unittest.TestCase):
                 {"id": "I2", "part": block(30), "matrix": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 5, 0, 0, 1]}]
         progress.cancel("test-clash-cancel")
         r = self.c.post("/api/assembly/clashes", json={"instances": inst, "rid": "test-clash-cancel"})
-        self.assertEqual((r.status_code, r.get_json().get("cancelled")), (409, True))
+        self.assertEqual((r.status_code, r.get_json().get("cancelled")), (200, True))
         r = self.c.post("/api/assembly/clashes", json={"instances": inst})  # (the next one runs)
         self.assertEqual(r.status_code, 200)
         self.assertEqual(len(r.get_json()["clashes"]), 1)

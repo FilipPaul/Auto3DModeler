@@ -832,7 +832,9 @@ def api_assembly_clashes():
         with progress.operation(body.get("rid"), "Checking collisions"):  # (a newer check, ✕ Stop: this one's kernel job stopped)
             data, err = _model_call("assembly_clashes", {"instances": body.get("instances") or [], "quick": bool(body.get("quick"))})
     except progress.Cancelled:
-        return jsonify({"error": "Cancelled.", "cancelled": True}), 409
+        err = (None, 409)
+    if err and err[1] == 409:  # (200: a check overtaken by a newer one is not an error the browser should log)
+        return jsonify({"cancelled": True, "clashes": None})
     if err:
         return err
     return jsonify({"clashes": data})
