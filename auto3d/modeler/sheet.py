@@ -34,6 +34,9 @@ PAPERS = {"A4": (297, 210), "A3": (420, 297)}
 TOL = 1e-3
 FINE, SMALL = 0.05, 0.25  # paper mm: a big part's lines kept to FINE; its solids, edges and holes under SMALL left out
 CACHE_SIZE = 8
+# an assembly with more faces than this is drawn from its mesh (as a big part): the exact hidden-line pass of many placed
+# solids can take minutes or never end (MIT E-Vent, 41 placements, 2 150 faces: its top view > 40 min, from the mesh 12 s)
+ASSEMBLY_EXACT_FACES = 1000
 _cache: OrderedDict = OrderedDict()  # (the part's hash, what) -> its views, projected once (only in the worker process)
 
 
@@ -122,17 +125,21 @@ def _small_left_out(shape, small):
     return K.compound(kept), len(solids) - len(kept)
 
 
-def geometry(body, views=None, iso=True, scale=None):
+def geometry(body, views=None, iso=True, scale=None, from_mesh=False):
     """The views of the part -> {bbox, views: {name: {look, right, up, visible, hidden, lines, circles, points, box}},
     iso, simple?}. lines: [{a, b, key}], circles: [{key, c, r, full, p0, p1, pm, face}], points: {key: [x, y]}.
     views: only these (names of VIEWS); iso False: no iso view (each projection is a hidden-line pass — seconds on a
     big part). A big imported model (over HEAVY_FACES, or given its `scale`) is drawn as the paper shows it at that scale
     (else the layout's): its solids, edges and holes smaller than SMALL paper mm left out, its lines simplified to FINE
-    (and no hidden lines, kernel.project_edges) — simple: {left_out (solids), under (mm)}."""
+    (and no hidden lines, kernel.project_edges) — simple: {left_out (solids), under (mm)}. from_mesh: so is any part
+    (the exact pass took too long, see server._sheet_call)."""
     shape, bb = body.shape, K.bbox(body.shape)
+    if not bb:  # (a tessellated STEP: faces with no box and a negative volume)
+        raise K.KernelError("This body has no size to draw (no box: its faces are not a proper solid — e.g. a tessellated "
+                            "STEP, faceted surfaces only). Export it from its CAD program as a B-rep STEP (AP214 / AP242).")
     fine = small = 0
     simple = None
-    if scale or K.face_count(shape) > K.HEAVY_FACES:
+    if from_mesh or scale or K.face_count(shape) > K.HEAVY_FACES:
         s = scale or _scale(bb)
         fine, small = FINE / s, SMALL / s
         shape, n = _small_left_out(shape, small)
@@ -249,6 +256,7 @@ def parse_scale(text):
 
 
 TITLE_H = 38  # the title block's height (mm) when the layout is not told another
+KEEP_GAP = (14.0, 18.0)  # mm a moved view keeps from the parts list / title block and the other views: beside and above it (its sizes), below it (theirs and its name)
 
 
 def layout(geo, paper=None, scale=None, frame=None):
@@ -256,7 +264,10 @@ def layout(geo, paper=None, scale=None, frame=None):
     margin (the top one), title (the title block's height), views: {name: [x, y] (the view box's centre on the paper)},
     iso: [x, y, k]} — front top-left, top below it, right beside the front, iso bottom-right (first-angle as in
     drawing.py). scale: the sheet's own ("1:2522", parse_scale), else the biggest standard one the views fit at;
-    frame: {m: [left, top, right, bottom] mm, title: mm} (else 10 mm all round, a 38 mm title block)."""
+    frame: {m: [left, top, right, bottom] mm, title: mm} (else 10 mm all round, a 38 mm title block), and on an
+    assembly's sheet keep: its parts list and title block at the frame's corner, kept free of views (_keep), iso_at:
+    "Right" (the iso view in the right view's place). A view in their way moves up or left (_clear); with no room the
+    iso view gets smaller, then the auto scale goes a step smaller (an own scale stays: the editor warns)."""
     bb = geo["bbox"]
     size = (bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2])
     need_w, need_h = max(size[0] + size[1], 1), max(size[2] + size[1], 1)
@@ -273,9 +284,80 @@ def layout(geo, paper=None, scale=None, frame=None):
             break
     scale = fixed or (fit[0] if fit else SCALES[-1])
     cw, ch = iw / 2, ih / 2
+    views = {"Front": [ml + cw / 2, mt + ch / 2], "Right": [ml + cw * 1.5, mt + ch / 2], "Top": [ml + cw / 2, mt + ch * 1.5]}
+    iso = [ml + cw * 1.5, mt + ch * 1.5, 0.55 * min(cw, ch)]
+    keep = _keep(fr.get("keep"), pname, pw, ph, mr, mb)
+    if keep:
+        at = fr.get("iso_at") == "Right"  # (an assembly's sheet: the iso view where the right one would be)
+        tries = ((sc, f) for sc in ([scale] if fixed else fit or [scale]) for f in (1, 0.8, 0.65))  # (the iso view smaller before the scale: it shows, the views measure)
+        found = next(((sc, r) for sc, f in tries if (r := _room(size, sc, iso[2] * f, views, iso, keep, (ml, mt, pw - mr, ph - mb), at))), None)
+        if found:
+            scale, (views, iso) = found[0], found[1]
     return {"paper": pname, "size": [pw, ph], "scale": list(scale), "margin": mt, "margins": [ml, mt, mr, mb], "title": title,
-            "views": {"Front": [ml + cw / 2, mt + ch / 2], "Right": [ml + cw * 1.5, mt + ch / 2], "Top": [ml + cw / 2, mt + ch * 1.5]},
-            "iso": [ml + cw * 1.5, mt + ch * 1.5, 0.55 * min(cw, ch)]}
+            "views": views, "iso": iso}
+
+
+def _keep(keep, pname, pw, ph, mr, mb):
+    """The frame's keep-out — [[w, h], …] mm, or {paper: [[w, h], …]}: rectangles at the frame's inner bottom-right
+    corner, h from the frame's bottom (the title block: [its width, its height]; the parts list on it: [its width,
+    both heights]) -> [(x0, y0, x1, y1)] on the paper (y down); the views keep off their union."""
+    if isinstance(keep, dict):
+        keep = keep.get(pname)
+    out = []
+    for r in keep if isinstance(keep, list) else []:
+        try:
+            w, h = (max(0.0, float(v)) for v in r[:2])
+        except (TypeError, ValueError, IndexError):
+            continue
+        if w > 0 and h > 0:
+            out.append((pw - mr - w, ph - mb - h, pw - mr, ph - mb))
+    return out
+
+
+def _room(size, sc, k, views, iso, keep, inner, at):
+    """The views at scale sc (the iso view k mm) off the keep-out -> (views, iso [x, y, k]), or None (no room)."""
+    s = sc[0] / sc[1]
+    half = {"Front": (size[0] * s / 2, size[2] * s / 2), "Top": (size[0] * s / 2, size[1] * s / 2), "Right": (size[1] * s / 2, size[2] * s / 2)}
+    if at:
+        half["Right"] = (k / 2, k / 2)
+    else:
+        half["Iso"] = (k / 2, k / 2)
+    moved = _clear({**views, **({} if at else {"Iso": iso[:2]})}, half, keep, inner, at)
+    if not moved:
+        return None
+    return {v: [round(c, 2) for c in moved[v]] for v in views}, [*(round(c, 2) for c in moved["Right" if at else "Iso"]), round(k, 2)]
+
+
+def _clear(views, half, keep, inner, at=False):
+    """The views ({name: [x, y]}, their half sizes {name: (w / 2, h / 2)} on the paper) moved off the keep-out
+    rectangles: each one in the way up or left — the shorter move that stays inside the frame (inner: x0, y0, x1, y1)
+    and KEEP_GAP from the other views -> {name: [x, y]}, or None (no room). The front and the top view move left
+    together, the front and the right one up together (they line up; at: the right one is the iso view, free)."""
+    gs, gb = KEEP_GAP
+    lines = {"left": ("Front", "Top"), "up": () if at else ("Front", "Right")}
+    box = lambda v, c: (c[0] - half[v][0], c[1] - half[v][1], c[0] + half[v][0], c[1] + half[v][1])  # noqa: E731
+    pad = lambda b: (b[0] - gs, b[1] - gs, b[2] + gs, b[3] + gb)  # noqa: E731
+    meets = lambda a, b: a[0] < b[2] - 1e-6 and b[0] < a[2] - 1e-6 and a[1] < b[3] - 1e-6 and b[1] < a[3] - 1e-6  # noqa: E731
+    views = {v: list(c) for v, c in views.items()}
+    for _ in range(2 * len(views)):
+        hit = next((v for v in views if any(meets(pad(box(v, views[v])), r) for r in keep)), None)
+        if hit is None:
+            return views
+        pb, best = pad(box(hit, views[hit])), None
+        dy = min(r[1] for r in keep if r[0] < pb[2] and pb[0] < r[2]) - pb[3]  # (up: over the highest one under it)
+        dx = min(r[0] for r in keep if r[1] < pb[3] and pb[1] < r[3]) - pb[2]  # (left: past the widest one beside it)
+        for way, d in sorted((("up", dy), ("left", dx)), key=lambda q: abs(q[1])):
+            ws = lines[way] if hit in lines[way] else (hit,)
+            cand = {v: ([c[0] + d, c[1]] if way == "left" else [c[0], c[1] + d]) if v in ws else c for v, c in views.items()}
+            bs = {v: box(v, c) for v, c in cand.items()}
+            if all(bs[v][0] >= inner[0] - 1e-6 and bs[v][1] >= inner[1] - 1e-6 and not any(meets(pad(bs[v]), r) for r in keep) for v in ws) \
+                    and not any(meets(pad(bs[a]), bs[b]) or meets(pad(bs[b]), bs[a]) for a in ws for b in cand if b not in ws):
+                best = cand
+                break
+        if best is None:
+            return None
+        views = best
+    return None
 
 
 def _id(*parts):
@@ -432,17 +514,18 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None, threads=None, hole
     return dims
 
 
-def build(body, preset="medium", fits=None, paper=None, per_view=None, threads=None, section=False, key=None, holes=None):
+def build(body, preset="medium", fits=None, paper=None, per_view=None, threads=None, section=False, key=None, holes=None, simple=False):
     """Everything a new / changed sheet needs: {geometry, layout, dims (automatic)}. section: also the section A–A
     (geometry.views.Section). key: the part's hash — its views are kept (_cached), only the dimensions made again.
-    holes: the hole steps (doc._holes) — geometry.holes, for their callouts."""
-    geo = _cached((key, "views"), lambda: geometry(body))
+    holes: the hole steps (doc._holes) — geometry.holes, for their callouts. simple: drawn from its mesh (geometry)."""
+    geo = _cached((key, "views", bool(simple)), lambda: geometry(body, from_mesh=simple))
     geo = {**geo, "views": dict(geo["views"])}
     if holes:
         geo["holes"] = holes
     if section:
         geo["views"]["Section"] = _cached((key, "section"), lambda: section_view(body))
-    return {"geometry": geo, "layout": layout(geo, paper), "dims": auto_dims(geo, preset, fits, per_view, threads, holes)}
+    vol = _cached((key, "volume"), lambda: K.volume(getattr(body, "shape", body)))  # (mm³: the title block's mass, with the part's material)
+    return {"geometry": geo, "layout": layout(geo, paper), "dims": auto_dims(geo, preset, fits, per_view, threads, holes), "volume": round(vol, 3)}
 
 
 def _wire_points(w, n=24):
@@ -526,20 +609,22 @@ class _Placed:
         self.shape, self.names = shape, {}
 
 
-def build_assembly(placed, paper=None, iso_placed=None, key=None):
+def build_assembly(placed, paper=None, iso_placed=None, key=None, simple=False):
     """An assembly's sheet: placed [(id, shape placed)] -> {geometry, layout, dims (its overall sizes), marks: {id:
     {Front, Top, Right, Iso: [x, y]} (the middle of each placed part, for its balloon)}}. iso_placed: the same parts
     pulled apart — the iso view drawn exploded (the other views as assembled). key: the placed parts' hash (kept, see
-    _cached)."""
-    out = _cached((key, "assembly"), lambda: _assembly(placed, iso_placed))
+    _cached). simple: drawn from the mesh (so is one over ASSEMBLY_EXACT_FACES faces)."""
+    out = _cached((key, "assembly", bool(simple)), lambda: _assembly(placed, iso_placed, simple))
     return {**out, "layout": layout(out["geometry"], paper)}
 
 
-def _assembly(placed, iso_placed):
+def _assembly(placed, iso_placed, simple=False):
     shapes = [s for _, s in placed]
     if not shapes:
         raise K.KernelError("The assembly has no solids to draw.")
-    geo = geometry(_Placed(K.compound(shapes)), iso=not iso_placed)  # (exploded: its own iso below)
+    whole = K.compound(shapes)
+    simple = simple or K.face_count(whole) > ASSEMBLY_EXACT_FACES
+    geo = geometry(_Placed(whole), iso=not iso_placed, from_mesh=simple)  # (exploded: its own iso below)
     if iso_placed:
         geo["iso"] = _iso_view(K.compound([s for _, s in iso_placed]), "simple" in geo)
     iso_at = dict(iso_placed or [])
@@ -574,9 +659,7 @@ def value(geo, dim):
 
 
 def pdf(svg) -> bytes:
-    """The sheet as the browser drew it (SVG, mm) -> a PDF; several SVGs (a drawing set) -> one PDF, a page each."""
-    import fitz
-    out = fitz.open()
-    for one in [svg] if isinstance(svg, str) else list(svg):
-        out.insert_pdf(fitz.open("pdf", fitz.open(stream=str(one).encode("utf-8"), filetype="svg").convert_to_pdf()))
-    return out.tobytes()
+    """The sheet as the browser drew it (SVG, mm) -> a PDF; several SVGs (a drawing set) -> one PDF, a page each (the
+    title-block styles' texts in their own fonts: sheetpdf.py)."""
+    from .sheetpdf import pdf as make
+    return make(svg)

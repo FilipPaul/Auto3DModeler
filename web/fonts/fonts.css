@@ -1,0 +1,17 @@
+/* The drawing sheet's title-block styles A–E (web/js/sheet/tbstyles.js): open-licence fonts (SIL OFL 1.1, the
+   OFL-*.txt beside them), cut to Latin + Czech + the drawing symbols by tools/make_sheet_fonts.py. The PDF embeds
+   the same files (auto3d/modeler/sheet.py). */
+@font-face { font-family: 'IBM Plex Sans Condensed'; src: url('IBMPlexSansCondensed-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans Condensed'; src: url('IBMPlexSansCondensed-SemiBold.ttf') format('truetype'); font-weight: 500 600; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans Condensed'; src: url('IBMPlexSansCondensed-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans'; src: url('IBMPlexSans-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans'; src: url('IBMPlexSans-Medium.ttf') format('truetype'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans'; src: url('IBMPlexSans-SemiBold.ttf') format('truetype'); font-weight: 600; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans'; src: url('IBMPlexSans-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Barlow'; src: url('Barlow-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Barlow'; src: url('Barlow-SemiBold.ttf') format('truetype'); font-weight: 500 600; font-display: swap; }
+@font-face { font-family: 'Barlow'; src: url('Barlow-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('Inter-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('Inter-Medium.ttf') format('truetype'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('Inter-SemiBold.ttf') format('truetype'); font-weight: 600; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('Inter-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }

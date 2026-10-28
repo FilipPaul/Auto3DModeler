@@ -240,6 +240,8 @@ def api_project_autosave(pid):
         return jsonify(autosave.save(PROJECTS, pid, body.get("project")))
     except autosave.AutosaveError as e:
         return jsonify({"error": str(e)}), 400
+    except OSError as e:  # (the disk: the last kept state stays; the next autosave tries again)
+        return jsonify({"error": str(e.strerror or e)}), 503
 
 
 @app.get("/api/projects")
@@ -385,7 +387,7 @@ def api_outline_model():
 
 @app.post("/api/import")
 def api_import():
-    """DXF / DWG -> outline model (real size); STL / OBJ / STEP -> mesh model (sliced)."""
+    """DXF / DWG -> outline model (real size); STL / OBJ / 3MF / STEP -> mesh model (sliced)."""
     f = request.files.get("file")
     if f is None:
         return jsonify({"error": "No file uploaded."}), 400
@@ -413,7 +415,7 @@ def _import_data(data: bytes, name: str) -> dict:
     if ext in MESH_FORMATS:
         return {"model": mesh_model(data, name), "preview": {"mesh": True},
                 "import_file": {"name": name, "data": base64.b64encode(data).decode()}}
-    raise ValueError(f"Unsupported file type {ext} (PDF, DXF, DWG, STL, OBJ, STEP).")
+    raise ValueError(f"Unsupported file type {ext} (PDF, DXF, DWG, STL, OBJ, 3MF, STEP).")
 
 
 @app.post("/api/import/register")
@@ -614,7 +616,7 @@ def api_blob_get(sha):
 
 @app.post("/api/model/import")
 def api_model_import():
-    """A STEP / IGES / STL / OBJ file -> a solid step for a 3D model: {blob, faces, bbox, volume, op?, warning?} (form:
+    """A STEP / IGES / STL / OBJ / 3MF file -> a solid step for a 3D model: {blob, faces, bbox, volume, op?, warning?} (form:
     file, rid). An IGES of surfaces that do not close comes as op "ref" (a reference body) with a warning. Several files
     (an assembly STEP and the part files it refers to, picked together): the top one opens, with the others."""
     from auto3d.modeler import blobs
@@ -738,13 +740,38 @@ def api_assembly_clashes():
     return jsonify({"clashes": data})
 
 
+EXACT_SHEET_TIMEOUT = 150  # s: the exact hidden-line drawing; longer (it can hang on some shapes): drawn from the mesh
+SHEET_TIMEOUT = 600  # s: the drawing from the mesh (MIT E-Vent's 41 placements: ~25 s); the page can Cancel either
+
+
+def _sheet_call(op, arg, body):
+    """A sheet's kernel job (its own limits, the request's rid for progress and Cancel) -> (data, None) or (None, an
+    error the page shows on the sheet: 422 with the reason, 409 when cancelled). An exact drawing over
+    EXACT_SHEET_TIMEOUT is stopped and made again from the mesh (geometry.simple: no hidden lines)."""
+    try:
+        with progress.operation(body.get("rid")):
+            try:
+                return MODEL_WORKER.run(op, arg, EXACT_SHEET_TIMEOUT), None
+            except KernelFailed as exc:
+                if not str(exc).startswith("Building took longer"):
+                    raise
+                progress.report("The exact drawing takes too long — drawing it from the mesh")
+                return MODEL_WORKER.run(op, {**arg, "simple": True}, SHEET_TIMEOUT), None
+    except progress.Cancelled:
+        return None, (jsonify({"error": "Cancelled.", "cancelled": True}), 409)
+    except KernelUnavailable as exc:
+        return None, (jsonify({"error": str(exc), "install": "py -m pip install -r requirements-modeler.txt"}), 501)
+    except KernelFailed as exc:  # (the kernel's message: why this part / assembly cannot be drawn)
+        return None, (jsonify({"error": str(exc)}), 422)
+
+
 @app.post("/api/sheet/build")
 def api_sheet_build():
-    """{part, preset: light | medium | full, paper, scale ("1:2522", else the fit's), frame} -> {geometry (views,
+    """{part, preset: light | medium | full, paper, scale ("1:2522", else the fit's), frame, rid} -> {geometry (views,
     points), layout, dims} — a drawing sheet."""
     body = request.get_json(force=True)
-    data, err = _model_call("sheet", {"part": body.get("part") or {}, "preset": body.get("preset") or "medium", "paper": body.get("paper"),
-                                      "per_view": body.get("per_view") or {}, "section": bool(body.get("section"))})
+    data, err = _sheet_call("sheet", {"part": body.get("part") or {}, "preset": body.get("preset") or "medium", "paper": body.get("paper"),
+                                      "per_view": body.get("per_view") or {}, "section": bool(body.get("section"))}, body)
     if err:
         return err
     return _sheet_layout(data, body)
@@ -756,16 +783,16 @@ def _sheet_layout(data, body):
         from auto3d.modeler.sheet import layout
         try:
             data["layout"] = layout(data["geometry"], body.get("paper"), body.get("scale") or None, body.get("frame") or None)
-        except (ValueError, TypeError) as exc:
-            return jsonify({"error": str(exc)}), 400
+        except (ValueError, TypeError, KeyError) as exc:
+            return jsonify({"error": f"The sheet's layout could not be made: {exc}"}), 422
     return jsonify(data)
 
 
 @app.post("/api/sheet/assembly")
 def api_sheet_assembly():
-    """{instances (placed, as for clashes), paper, scale, frame} -> {geometry, layout, dims, marks} — an assembly's drawing sheet."""
+    """{instances (placed, as for clashes), paper, scale, frame, rid} -> {geometry, layout, dims, marks} — an assembly's drawing sheet."""
     body = request.get_json(force=True)
-    data, err = _model_call("assembly_sheet", {"instances": body.get("instances") or [], "paper": body.get("paper"), "explode": body.get("explode") or 0})
+    data, err = _sheet_call("assembly_sheet", {"instances": body.get("instances") or [], "paper": body.get("paper"), "explode": body.get("explode") or 0}, body)
     if err:
         return err
     return _sheet_layout(data, body)

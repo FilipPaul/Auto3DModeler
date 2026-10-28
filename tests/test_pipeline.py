@@ -241,6 +241,41 @@ class ValidationTest(unittest.TestCase):
         self.assertIn("open_outline", codes(m))
         self.assertIn("no_geometry", codes(m))
 
+    def test_unsure_outline_beside_views_that_do_not_close(self):
+        """A small closed box beside a bigger view that does not close (a GD&T sheet's views have arcs and crossing
+        lines): the box is used, with a warning that it may not be the part — where the bigger shapes are."""
+        dr = Drawing()
+        dr.outline([(450, 300), (500, 300), (500, 320), (450, 320)])  # (a small closed box: a title-block cell)
+        dr.outline([(60, 60), (360, 60), (360, 240), (60, 240), (60, 80)], closed=False)  # (a big view, not closed)
+        m, _, _ = build_model(dr.bytes())
+        self.assertIn("unsure_outline", codes(m))
+        issue = next(i for i in m["issues"] if i["code"] == "unsure_outline")
+        self.assertIn("18 × 7 mm", issue["message"])  # (50 × 20 pt)
+        self.assertEqual(issue["draw"]["points"], [(60, 60), (360, 240)])
+        self.assertNotIn("unsure_outline", codes(build_model(plate())[0]))  # (one closed outline: sure)
+
+    def test_no_outline_in_a_drawing_with_views_says_what_to_do(self):
+        dr = Drawing()
+        dr.outline([(60, 60), (360, 60), (360, 240), (60, 240), (60, 80)], closed=False)
+        for k in range(2):
+            dr.dim((60, 260 + 15 * k), (360, 260 + 15 * k), "100mm")
+        m, _, _ = build_model(dr.bytes())
+        msg = next(i["message"] for i in m["issues"] if i["code"] == "no_geometry")
+        self.assertIn("several views", msg)
+        self.assertIn("Picture — trace an outline", msg)
+
+    def test_nist_gdt_sheets(self):
+        """NIST's GD&T sheets (CTC-01, FTC-11): views with arcs, values drawn as outlines — the reader says it is
+        unsure / cannot read them instead of quietly making a 25 × 9 mm part."""
+        pdfs = Path(__file__).resolve().parent.parent / "samples" / "ToImportToOurApp" / "pdf"
+        if not pdfs.exists():
+            self.skipTest("the samples are not here")
+        m, _, _ = build_model((pdfs / "nist_ctc_01_asme1_rd.pdf").read_bytes())
+        self.assertTrue({"unsure_outline", "no_text", "no_dimensions"} <= codes(m))
+        self.assertEqual(m["issues"][0]["code"], "no_text")  # (first: the values are drawn as outlines)
+        m, _, _ = build_model((pdfs / "nist_ftc_11_asme1_rb.pdf").read_bytes())
+        self.assertIn("several views", next(i["message"] for i in m["issues"] if i["code"] == "no_geometry"))
+
     def test_no_dimensions(self):
         m, _, _ = build_model(plate(labels=(False, False)))
         self.assertIn("no_dimensions", codes(m))

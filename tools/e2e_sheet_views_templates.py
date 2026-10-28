@@ -113,6 +113,8 @@ try:
     call("set_material", material="aluminium", tolerance="m")
     call("sheet_open")
     wait(f"return !!{S}.svgEl && !{S}.busy", 60)
+    call("sheet_edit", template="Modern")  # (this test checks the Modern title block; the default is B — ISO 7200)
+    wait(f"return !{S}.busy", 60)
     time.sleep(0.5)
     front = "Zepředu" if LANG == "cs" else "Front"
 
@@ -274,7 +276,7 @@ try:
     wait(f"return !!{S}.svgEl && !{S}.busy && !!{S}.d.asm", 90)
     time.sleep(0.5)
     js(f"{S}.sel = null; {S}.render()")
-    check(js(f"return {S}.tplName()") == "Modern", "the assembly's sheet starts with Modern")
+    check(js(f"return {S}.tplName()") == "B — ISO 7200", "the assembly's sheet starts with the default B — ISO 7200")
     Select(d.find_element(By.CSS_SELECTOR, "#shRight select[data-k=tpl]")).select_by_value(TPL)
     time.sleep(0.4)
     d.find_element(By.CSS_SELECTOR, "#shRight [data-a=tplSet]").click()

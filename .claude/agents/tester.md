@@ -270,6 +270,14 @@ Never report "works" without having run it; report failures with their output.
    one "M3 ⌵ Ø5 × 90°", ✓; deleted: the countersink's angle missing with its key; the AI's restore ✓; ＋ on the row:
    the callout back; a counterbore / blind thread "Ø3.4 ⌴ Ø6 ↧ 3.2", "2× M4 ↧ 6", their depths missing when deleted,
    complete; the PDF's and the DXF's texts; the AI's M3 ⌵ on a 2 mm plate: Ø6, Ø10 refused). Needs a server restarted after sheet.py / doc.py changes.
+   `tools/e2e_sheet_styles.py <url> <dir> [cs]` covers the title-block / parts-list styles A–E (an AI-built "Stand":
+   a plate, 2 lids, a bracket, 3 pins, a bought ISO 4762 screw; each style picked in the panel: the block's size at
+   the frame's corner, the list right on it, the labels in the UI's language, the font on screen and in the PDF; a
+   D + C mix aligned right, 💾 saved as "Mix DC" (both styles and the roughness on the server); 📋 BOM page + ⇶: every
+   page of the set D, the BOM page C, the set's PDF has drawn by / drawing no. and embeds Inter + Barlow; the app's
+   "B — ISO 7200" brings its ISO frame; all 36 title / list pairs at A4 and A3: no view box over the list or the title
+   block, a view dragged onto the list stays with ⚠; the AI's title_style / bom_style, a wrong one refused; the DXF's texts).
+   Screenshots styles_<lang>_<pair>.png and _pdf.png. Run it in cs and en.
    `tools/e2e_sheet_views_templates.py <url> <dir> [cs]` covers the modern title block (inside the frame, black / grey
    only, the name large) and sheet views renamed, moved and scaled with the mouse
    (a double-click on the Front label -> "Side A", Ctrl+Z / Ctrl+Y; the Top view dragged snaps under Front, Shift: free;
@@ -453,7 +461,7 @@ Never report "works" without having run it; report failures with their output.
    values measured in samples/ToImportToOurApp/samples.json and README.md): each opened as a user would (a part as one body, an
    assembly "Open as an assembly", an IGES as it is: time, faces / volume / bbox, colours, parts / placements / names);
    the part (or an assembly's biggest part) edited by the AI's tools (a sketch Ø3 cut on its biggest flat face, a Ø2
-   hole, a 0.3 fillet); sheet_open -> PDF + DXF (read back by ezdxf); export STEP / IGES / GLB, the STEP read again
+   hole, a 0.3 fillet); sheet_open -> PDF + DXF (read back by ezdxf; its time; one that cannot be made: its message); export STEP / IGES / GLB, the STEP read again
    (volume, an assembly's parts / placements) and re-opened by open_file as "assembly"; one part bigger than the bed
    split exactly for the P1S; console errors; then the other formats (STL / OBJ meshes, 3MF, DXF / DWG, a PDF drawing,
    pictures for the outline wizard, a KiCad Gerber + Excellon set) opened from their menus. A table at the end; ~45 min;
@@ -462,6 +470,9 @@ Never report "works" without having run it; report failures with their output.
    fixed — a crash on unnamed labels, loose faces in the volume, empty products counted, tessellated STEP, flat
    B-splines, a cut on a B-spline solid, smooth edges, IGES assemblies, external references; a bug still open would be
    an expected failure). A manifest item with "with_files" (CATIA's S1) is picked with the other files of its folder.
+   `tools/e2e_sheet_errors.py <url> <dir>` covers a sheet that cannot be made (an IGES reference body: the toast and
+   the paper's "The drawing could not be made: …" with ↻ Try again, in Czech too) and our own 3MF exports opened as
+   quick parts.
    `tools/e2e_paint.py <url> <dir>` covers 🎨 Paint (a face, Ctrl+click a second, ▣ a whole body of two, one extrude's
    two tops told apart, Ctrl+Z / Ctrl+Y, shown in an assembly) and 🏷 renaming a step and a part.
    `tools/e2e_look.py <url> <dir>` covers colour and see-through (the Part panel -> the model view and assemblies;

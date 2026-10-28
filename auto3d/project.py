@@ -22,7 +22,7 @@ class ProjectError(ValueError):
 
 def _part_name(payload, fallback):
     src = ((payload or {}).get("model") or {}).get("source") or ""
-    for ext in (".pdf", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".svg", ".dxf", ".dwg", ".stl", ".obj", ".step", ".stp"):
+    for ext in (".pdf", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".svg", ".dxf", ".dwg", ".stl", ".obj", ".3mf", ".step", ".stp"):
         if src.lower().endswith(ext):
             return src[: -len(ext)]
     return src or fallback

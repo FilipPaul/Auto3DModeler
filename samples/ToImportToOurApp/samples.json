@@ -468,15 +468,7 @@
     "asm_volume": 1853599.062,
     "subs": 0
    },
-   "slow": true,
-   "known": {
-    "sheet": "the assembly sheet takes over the kernel worker's 120 s: 500, no message",
-    "export": [
-     "pdf",
-     "dxf"
-    ],
-    "console": true
-   }
+   "slow": true
   },
   {
    "path": "freecad-library/Reespirator23 v7.step",
@@ -709,7 +701,7 @@
     "op": "ref"
    },
    "known": {
-    "ref": "a reference body (surfaces that do not close): nothing to edit or export; its drawing sheet never builds (500, no message)",
+    "ref": "a reference body (surfaces that do not close): nothing to edit or export; its drawing sheet says why it cannot be made ('only a reference body')",
     "edit": [
      "cut",
      "hole",
@@ -1181,8 +1173,7 @@
    "format": "3MF",
    "program": "3MF Consortium sample",
    "source": "https://github.com/3MFConsortium/3mf-samples/blob/master/examples/core/box.3mf",
-   "licence": "BSD-2-Clause (3MF Consortium samples)",
-   "known": "the app does not read 3MF (it only writes it): 'Unsupported file type .3mf'"
+   "licence": "BSD-2-Clause (3MF Consortium samples)"
   },
   {
    "path": "mesh/cube_gears.3mf",
@@ -1190,8 +1181,7 @@
    "format": "3MF",
    "program": "3MF Consortium sample",
    "source": "https://github.com/3MFConsortium/3mf-samples/blob/master/examples/core/cube_gears.3mf",
-   "licence": "BSD-2-Clause (3MF Consortium samples)",
-   "known": "the app does not read 3MF (it only writes it): 'Unsupported file type .3mf'"
+   "licence": "BSD-2-Clause (3MF Consortium samples)"
   },
   {
    "path": "drawings/Drive Gear.dxf",
@@ -1225,7 +1215,7 @@
    "program": "NIST FTC-11 drawing (from the CAD model)",
    "source": "https://www.nist.gov/document/nist-pmi-step-files",
    "licence": "public domain (US government work, 17 USC 105; NIST: 'can be used without any restrictions')",
-   "known": "read, but no part: Checks says No closed outline found in the drawing (a GD&T sheet with many views)"
+   "known": "read, but no part: Checks says No closed outline found in the drawing — it looks like a dimensioned drawing with several views (a GD&T sheet: arcs, crossing lines), trace the view from a picture"
   },
   {
    "path": "pdf/nist_ctc_01_asme1_rd.pdf",
@@ -1234,7 +1224,7 @@
    "program": "NIST CTC-01 drawing (from the CAD model)",
    "source": "https://www.nist.gov/document/nist-pmi-step-files",
    "licence": "public domain (US government work, 17 USC 105; NIST: 'can be used without any restrictions')",
-   "note": "but not the real part: a 25 × 9 mm outline with “1 error and 81 warnings” (the part is 1170 × 650 mm — the GD&T sheet is beyond the PDF reader)"
+   "note": "but not the real part: a 25 × 9 mm outline with “2 errors and 82 warnings” (the part is 1170 × 650 mm — the GD&T sheet is beyond the PDF reader); Checks says so first: the dimension values are drawn as outlines, and “Unsure which outline is the part” (7 bigger shapes do not close)"
   },
   {
    "path": "pictures/Hex-nut.png",

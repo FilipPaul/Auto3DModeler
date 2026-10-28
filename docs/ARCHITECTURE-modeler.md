@@ -7,6 +7,9 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Default title block B — ISO 7200 done:** a drawing that chose no template uses "B — ISO 7200" (title block B,
+  parts list B, the ISO 5457 frame) — the owner's choice; sheet.js DEFAULT_TPL, the AI's sheet_edit without a name too.
+  Tests that check the Modern block pick it explicitly (e2e_sheet, e2e_bom, e2e_sheet_views_templates).
 - **M0 done:** several parts in one project (tabs), project file v3, optional packages, `/api/kernel`.
 - **M1 done:** the 3D model workspace; sketch → extrude (add / cut, through all, both sides); worker process; STL / STEP.
 - **M2 done:** the sketcher.
@@ -834,6 +837,39 @@ Date: 2026-10-25. Written by the architect agent.
   one STEP of them), alone it names the files it needs. tessellate classifies flat faces with one classifier per solid
   (40 s -> 4 s on a 1 700-face part). Tests: test_cad_samples (TestCadSampleKnownBugs: a test per fault, no expected
   failures left); e2e_cad_samples (S1 picked with its folder).
+- **Real files: autosave of one project at once done:** autosave.save takes a lock per project id, writes each file
+  through a temp file of its own (pid + thread) and retries the replace for ~2 s on a sharing violation (WinError 32 /
+  5 while a reader holds the file); reads retry too; a disk error answers 503 with the reason (the last state kept).
+  tests/test_autosave.py test_same_project_saved_at_once (6 threads × 15 saves + a reader: failed before with
+  PermissionError); tools/e2e_autosave.py fires six saves at once (all 200).
+- **Real files: 3MF import done:** importers.read_3mf_groups (the zip's start part from _rels, else the one .model;
+  objects with a mesh or components, build items' and components' transforms, the unit, basematerials / colorgroup
+  colours) -> read_3mf; .3mf in MESH_FORMATS (a quick part, like STL / OBJ: Open ▾ CAD / 3D file, drop, the AI's
+  open_file), in import_solid (▣ Solid from a file, an assembly's From a file / drop) and project files. Box 10 × 20 × 30
+  (6 000 mm³), cube_gears (17 objects, 25 692 triangles, placed), our part_base_plate.3mf (its two colours; the same
+  volume as its STL) and assembly_frame.3mf (57 698 mm³ ±1 %) read back. tests/test_import.py Test3MFImport,
+  Test3MFSolid (the solid and its STEP round trip); tools/e2e_cad_samples.py opens both 3MF samples (box 0.1 s, cube_gears
+  19 s).
+- **Real files: drawing sheets that fail or take long done:** the sheet routes run through server._sheet_call: the
+  request's rid (the app's progress bar with Cancel: 409), the exact drawing limited to EXACT_SHEET_TIMEOUT (150 s) then
+  stopped and made again from the mesh (doc.sheet / assembly_sheet `simple` -> sheet.geometry(from_mesh), SHEET_TIMEOUT
+  600 s), a kernel failure answered 422 with its reason (was a bare 500). An assembly over sheet.ASSEMBLY_EXACT_FACES
+  (1000) is drawn from its mesh at once: MIT E-Vent (41 placements, 2 150 faces) — the exact HLR of its top view never
+  ended (> 40 min; front / right 4 s), from the mesh 12 s in the kernel, 10 s in the browser. Why a part cannot be
+  drawn: doc.sheet "only a reference body" (an IGES of open surfaces), sheet.geometry "no size to draw" (no box: the
+  tessellated NIST FTC-08). The sheet (sheet.js) toasts it once and shows it on the paper with ↻ Try again (Czech too).
+  tests/test_sheet_errors.py; tools/e2e_sheet_errors.py; tools/e2e_cad_samples.py waits for the built sheet or its
+  message (MIT E-Vent, hammer.iges, FTC-08: all OK; the manifest's known sheet failure dropped).
+- **Real files: a PDF of several views says it is unsure done:** what NIST's GD&T sheets do to the PDF reader
+  (sketch.py): it takes the stroked lines of the widest class (≥ 0.6 × the thickest) as the outline and the largest
+  closed loop of them as the part; CTC-01's views are 0.72 pt lines with arcs (67 curves, dropped) and crossing lines,
+  so none of its 21 shapes closes — the only closed loop is a 71 × 25 pt box (25 × 9 mm at 1:1); its dimension values
+  are letter outlines, not text (no dimension is read: every size a guess). FTC-11's part is drawn in 0.36 pt lines
+  under 14 short 0.72 pt strokes; read with the next width class down it still gives only small closed boxes, so no
+  simple fix — the reader now says so: `unsure_outline` (a warning, also a toast: the largest closed outline is smaller
+  than shapes that do not close; their boxes drawn), `no_geometry` explains "a dimensioned drawing with several views
+  … trace the view from a picture", `no_text` also when the values are outlines (extract.outlined_glyphs ≥ 20 and no
+  dimension read). tests/test_pipeline.py (synthetic sheets, the two NIST PDFs); tools/e2e_cad_samples.py (pdf/).
 - **STEP colours done:** kernel.read_step_colours (STEPCAFControl + XCAF: colours followed down the assembly tree to the
   faces of the shape the solid step uses), State.colours by face name -> faces' `color` in the rebuild; the view /
   assembly show them under the paint. tools/e2e_step_colours.py.
@@ -1038,6 +1074,50 @@ Date: 2026-10-25. Written by the architect agent.
   (one imports the 44 MB board and draws the 171-hole plate, the other edits a small part): the small part's
   rebuild 28.4 s (behind the import) -> 7–19 ms, the plate's sheet 25.0 -> 1.4 s; two heavy parts from two
   threads 3.49 -> 2.14 s. tests/test_kernel_pool.py; tools/e2e_kernel_pool.py.
+- **Title-block styles A–E done (the owner's five designs):** web/js/sheet/tbstyles.js titleBlock draws them as SVG in
+  mm, from the 5 px = 1 mm mockups: A "Strip" 180 × 21 (IBM Plex Sans Condensed, one row), B "ISO 7200" 180 × 40 (IBM
+  Plex Sans; drawn / checked / approved, roughness, the first-angle projection symbol), C "Dark band" 180 × 34
+  (Barlow), D "Minimal" 170 × 28 (Inter, no grid), E "Column" 90 × 56 (Plex Condensed). Their fields (SheetEditor
+  tbFields): the name, what it is ("Part · production drawing"), drawing no., rev, material, mass (a part's volume —
+  /api/sheet/build now gives it — × its material's density; an assembly's from its BOM), scale, paper, sheet n / N,
+  tolerances, roughness (a new text `surface`), drawn by, the date (28. 10. 2026 in Czech, 2026-10-28 in English),
+  checked / approved (new texts, — when empty), the company (its first word as the mark, or the logo) and address.
+  Labels small and in capitals as in the designs, Czech through i18n. The fonts (SIL OFL, the licences beside them)
+  are in web/fonts (tools/make_sheet_fonts.py: static weights cut from the variable Plex Sans / Inter, all subset to
+  Latin + Czech + the drawing symbols, ~58 kB a file; fonts.css); texts are measured in the loaded font (a canvas) to
+  fit and to right-align. The PDF: MuPDF's SVG reader only has its base fonts, so auto3d/modeler/sheetpdf.py takes a
+  style's texts (they carry data-ff) out of the SVG and writes them on the page with the same font files (PyMuPDF
+  TextWriter, baseline / anchor / letter spacing kept; a letter a font lacks in Helvetica or Droid Sans Fallback),
+  then subsets the fonts. The DXF keeps its Arial text style. New sheets still start with Modern.
+- **Parts-list styles A–E done:** tbstyles.js partsList, each with its title block's font: A a muted header over a
+  rule, hairline rows, "6 items · 23 pcs in all … total mass"; B the rows numbered bottom-up over a light grey header
+  band and "Parts list · 6 items · 23 pcs … Σ mass", thin column rules; C a black "Parts list" band with the summary,
+  the positions in circles like balloons; D no vertical lines, hairline rows, a spaced heading; E 90 mm, two lines an
+  item (the name over its standard / drawing no.; the material over make · mass). Columns: pos, name, qty, material,
+  mass each (ctx.massOf), standard / order no. (the library's pn, else that part's drawing no.), make / buy (make /
+  print 3D / buy). On an assembly sheet the list sits directly on the title block, both at the frame's right /
+  bottom (other widths: aligned right), as many rows as fit 40 mm under the top (then "… n more"; the balloons kept,
+  SheetEditor.balloonsSvg). A 📋 BOM page in a style: the summary / structured BOM the frame's width on the title
+  block, "Bill of materials — <assembly> · Summary · n / m" in the style's title, its rows per page by the style
+  (bomRowsIn).
+- **Any title block with any parts list done:** a template has titleStyle (block / strip — the app's Modern — or A …
+  E; an older one: its layout) and bomStyle (modern / A … E), checked by auto3d/title_templates.py; the app's
+  templates "A — Strip", "B — ISO 7200" (with the ISO 5457 frame), "C — Dark band", "D — Minimal", "E — Column" pair
+  each title block with its own list (Modern stays the default). The sheet's panel: Title block style ▾ and Parts
+  list style ▾ under Template ▾ (d.tb.titleStyle / bomStyle — this drawing's, the hint says so, until 💾 Save as
+  template… keeps both with the frame; ⇶ Use for all drawings with an unsaved mix asks for its template name first);
+  the Layout Block / Strip chips are gone (Modern — strip is a style). Folded: Roughness (Ra) (kept in the template),
+  Checked by, Approved by. AI: sheet_edit title_style / bom_style (template_all with an unsaved mix wants
+  save_template), texts surface / checked / approved; get_sheet title_style / bom_style; the automation-design skill
+  says how. tests/test_title_templates.py (styles saved / loaded, older ones, the five designs); tools/e2e_sheet_styles.py.
+- **The views keep off an assembly's parts list done:** the styles' taller lists (8 mm rows) covered the views. The
+  sheet sends the layout a keep-out (SheetEditor.keepOut / listKeep: the title block's and the list's rectangles as
+  drawn — rows past "… n more" are on the BOM page — per paper when it is Auto) and iso_at Right; sheet.py layout
+  (_keep, _room, _clear) moves a view in the union's way up or left (the front and the top view together, they line
+  up; KEEP_GAP 14 mm beside, 18 mm below for the sizes and names), shrinks the iso view, then takes the auto scale a
+  step smaller; an own scale stays. An iso view not moved by the user follows the new layout (isoLaid); one the user
+  dragged onto the list stays and gets ⚠ past the frame (outside). tests/test_sheet_views.py TestLayoutKeepOut;
+  tools/e2e_sheet_styles.py 1b (all 36 title / list pairs at A4 and A3, 5 parts: no view box over the list or title).
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

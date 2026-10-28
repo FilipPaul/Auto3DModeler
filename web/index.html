@@ -7,6 +7,7 @@
   <meta name="author" content="Rafiontech s.r.o. — https://www.rafiontech.cz/">
   <link rel="icon" type="image/png" href="img/favicon.png">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="fonts/fonts.css">
   <script type="importmap">
     { "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
   </script>
@@ -28,7 +29,7 @@
         <div class="menu-list" id="openMenu">
           <label class="menu-item" title="A dimensioned PDF drawing: its dimensions drive the part">PDF drawing…<input type="file" id="pdfInput" accept="application/pdf,.pdf" hidden></label>
           <label class="menu-item" title="Trace the outline of an object in a picture (cookie cutters, shapes…)">Picture — trace an outline…<input type="file" id="imgInput" accept="image/*" hidden></label>
-          <label class="menu-item" title="DXF / DWG drawings, PCB data (a Gerber set or an ODB++ job: a .zip / .tgz, or several Gerber / drill files) and STL / OBJ / STEP / IGES 3D files">CAD / PCB / 3D file (DXF, DWG, Gerber, ODB++, STL, OBJ, STEP, IGES)…<input type="file" id="cadInput" multiple accept=".dxf,.dwg,.stl,.obj,.step,.stp,.igs,.iges,.zip,.tgz,.tar,.gz,.gbr,.ger,.gtl,.gbl,.gto,.gbo,.gts,.gbs,.gtp,.gbp,.gko,.gm1,.gml,.gm,.g1,.g2,.g3,.g4,.cmp,.sol,.plc,.pls,.stc,.sts,.art,.pho,.drl,.xln,.drd,.exc,.ncd,.txt" hidden></label>
+          <label class="menu-item" title="DXF / DWG drawings, PCB data (a Gerber set or an ODB++ job: a .zip / .tgz, or several Gerber / drill files) and STL / OBJ / 3MF / STEP / IGES 3D files">CAD / PCB / 3D file (DXF, DWG, Gerber, ODB++, STL, OBJ, 3MF, STEP, IGES)…<input type="file" id="cadInput" multiple accept=".dxf,.dwg,.stl,.obj,.3mf,.step,.stp,.igs,.iges,.zip,.tgz,.tar,.gz,.gbr,.ger,.gtl,.gbl,.gto,.gbo,.gts,.gbs,.gtp,.gbp,.gko,.gm1,.gml,.gm,.g1,.g2,.g3,.g4,.cmp,.sol,.plc,.pls,.stc,.sts,.art,.pho,.drl,.xln,.drd,.exc,.ncd,.txt" hidden></label>
           <button id="sampleBtn" title="Load initial draft.pdf">Sample drawing</button>
           <div class="menu-sep"></div>
           <label class="menu-item" title="A project saved with Save project (.a3d.json) — all its parts">Project…<input type="file" id="projectInput" accept=".json,application/json" hidden></label>
@@ -119,7 +120,7 @@
       <div class="busy" id="busy" hidden><span class="busy-text">Building 3D…</span><span class="busy-bar"><i></i></span><button class="mini busy-cancel" id="busyCancel" title="Stop this (the part stays as it was)">Cancel</button></div>
       <div class="measure-box" id="measureBox" hidden></div>
       <div class="status-bar" id="statusBar"></div>
-      <div class="drop-hint" id="dropHint">Drop a PDF, DXF / DWG, STL / OBJ / STEP or a picture here (Shift = trace a picture's outline)</div>
+      <div class="drop-hint" id="dropHint">Drop a PDF, DXF / DWG, STL / OBJ / 3MF / STEP or a picture here (Shift = trace a picture's outline)</div>
     </section>
 
     <aside class="panel right quick-only">

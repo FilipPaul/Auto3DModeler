@@ -2,7 +2,7 @@
 
 * DXF (and DWG through an installed converter) -> closed 2D regions in mm -> an outline model
   (the same tools as an outline traced from a picture: cookie cutter, solid shape, objects, clean-up).
-* STL / OBJ / STEP -> triangles -> sliced into z-slabs (the app's 2.5D solid): exact for parts whose
+* STL / OBJ / 3MF / STEP -> triangles -> sliced into z-slabs (the app's 2.5D solid): exact for parts whose
   walls are vertical between flat faces (most plates, brackets, cutters), a stepped approximation of
   slanted / curved walls (slab height = `layer`).
 """
@@ -25,7 +25,7 @@ from shapely.ops import polygonize, unary_union
 
 from .design import polygons_of
 
-MESH_FORMATS = {".stl", ".obj", ".step", ".stp"}
+MESH_FORMATS = {".stl", ".obj", ".3mf", ".step", ".stp"}
 DRAWING_FORMATS = {".dxf", ".dwg"}
 DXF_UNITS_MM = {0: 1.0, 1: 25.4, 2: 304.8, 4: 1.0, 5: 10.0, 6: 1000.0, 8: 0.0254, 9: 0.0254e-3, 10: 914.4,
                 13: 1e-3, 14: 100.0}
@@ -66,6 +66,96 @@ def read_obj(text: str) -> np.ndarray:
     return np.asarray(v, np.float64)[np.asarray(tris)]
 
 
+# 3MF (auto3d/export3mf.py writes it): a zip with the model's XML — objects (a mesh, or components: other objects
+# moved), build items (the objects printed, each moved), the unit; colours from basematerials / colorgroups
+_3MF_UNITS = {"micron": 1e-3, "millimeter": 1.0, "centimeter": 10.0, "inch": 25.4, "foot": 304.8, "meter": 1000.0}
+
+
+def _3mf_matrix(text):
+    """A 3MF transform "m00 m01 m02 m10 … m32" (row vectors: p' = p · R + t) -> (R 3x3, t 3)."""
+    if not text:
+        return np.eye(3), np.zeros(3)
+    m = [float(v) for v in text.split()]
+    if len(m) != 12:
+        raise ImportError_("a 3MF transform needs 12 numbers")
+    return np.array(m[:9]).reshape(3, 3), np.array(m[9:])
+
+
+def read_3mf_groups(data: bytes) -> list:
+    """A 3MF file -> [{name, color ("#rrggbb" or None), triangles (n, 3, 3) mm}]: one group per build item's mesh
+    object (a component of one: its own group), placed by the item's and the components' transforms."""
+    import io
+    import re
+    import zipfile
+    from xml.etree import ElementTree as ET
+    try:
+        z = zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile as exc:
+        raise ImportError_("not a valid 3MF file (it is not a zip)") from exc
+    names = z.namelist()
+    target = None
+    if "_rels/.rels" in names:  # (the package's start part: usually /3D/3dmodel.model)
+        m = re.search(rb'Target="/?([^"]+\.model)"', z.read("_rels/.rels"))
+        target = m.group(1).decode() if m and m.group(1).decode() in names else None
+    target = target or next((n for n in names if n.lower().endswith(".model")), None)
+    if target is None:
+        raise ImportError_("the 3MF file has no 3D model in it")
+    root = ET.fromstring(z.read(target))
+    tag = lambda el: el.tag.rsplit("}", 1)[-1]  # noqa: E731 — (any namespace)
+    unit = _3MF_UNITS.get(root.get("unit") or "millimeter", 1.0)
+    colours, objects = {}, {}
+    for res in root:
+        if tag(res) != "resources":
+            continue
+        for el in res:
+            if tag(el) in ("basematerials", "colorgroup"):
+                cs = [(c.get("displaycolor") or c.get("color") or "") for c in el if tag(c) in ("base", "color")]
+                colours[el.get("id")] = [c[:7].lower() if re.match(r"^#[0-9a-fA-F]{6}", c) else None for c in cs]
+            elif tag(el) == "object":
+                objects[el.get("id")] = el
+    out = []
+
+    def colour(obj):
+        cs = colours.get(obj.get("pid")) or []
+        k = int(obj.get("pindex") or 0)
+        return cs[k] if 0 <= k < len(cs) else None
+
+    def place(oid, R, t, name, depth=0):
+        obj = objects.get(oid)
+        if obj is None or depth > 16:
+            return
+        name = obj.get("name") or name
+        for part in obj:
+            if tag(part) == "mesh":
+                v = [el for sub in part if tag(sub) == "vertices" for el in sub]
+                f = [el for sub in part if tag(sub) == "triangles" for el in sub]
+                if not v or not f:
+                    continue
+                verts = np.array([[float(e.get("x")), float(e.get("y")), float(e.get("z"))] for e in v])
+                idx = np.array([[int(e.get("v1")), int(e.get("v2")), int(e.get("v3"))] for e in f])
+                if idx.max() >= len(verts) or idx.min() < 0:
+                    raise ImportError_("a 3MF triangle points at a vertex that is not there")
+                out.append({"name": name, "color": colour(obj), "triangles": (verts @ R + t)[idx] * unit})
+            elif tag(part) == "components":
+                for c in part:
+                    r2, t2 = _3mf_matrix(c.get("transform"))
+                    place(c.get("objectid"), r2 @ R, t2 @ R + t, name, depth + 1)
+
+    build = next((el for el in root if tag(el) == "build"), None)
+    for item in build if build is not None else []:
+        if tag(item) == "item":
+            R, t = _3mf_matrix(item.get("transform"))
+            place(item.get("objectid"), R, t, f"object {item.get('objectid')}")
+    if not out:
+        raise ImportError_("the 3MF file has no triangles to print")
+    return out
+
+
+def read_3mf(data: bytes) -> np.ndarray:
+    """A 3MF file -> (n, 3, 3) triangles in mm (all its build items, placed)."""
+    return np.concatenate([g["triangles"] for g in read_3mf_groups(data)])
+
+
 def read_step(data: bytes) -> np.ndarray:
     try:
         import cascadio
@@ -89,6 +179,8 @@ def read_mesh(data: bytes, name: str) -> np.ndarray:
         tris = read_stl(data)
     elif ext == ".obj":
         tris = read_obj(data.decode("utf-8", "ignore"))
+    elif ext == ".3mf":
+        tris = read_3mf(data)
     elif ext in (".step", ".stp"):
         tris = read_step(data)
     else:

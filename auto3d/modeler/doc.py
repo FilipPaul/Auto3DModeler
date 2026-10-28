@@ -901,7 +901,7 @@ def _main_file(files):
 
 
 def import_solid(a):
-    """A STEP / IGES / STL / OBJ file (kept as a blob) -> a solid for a `solid` step: {blob, faces, bbox, volume,
+    """A STEP / IGES / STL / OBJ / 3MF file (kept as a blob) -> a solid for a `solid` step: {blob, faces, bbox, volume,
     triangles?, op?, warning?}. A STEP is used as it is; an IGES is kept as a STEP (its surfaces sewn into a solid when
     they close; else op "ref": a reference body, with a warning); a mesh is made a solid (its triangles sewn) and kept
     as a STEP — a tessellated STEP too (faceted: true). files {name: blob} instead of blob: several files picked together
@@ -956,15 +956,15 @@ def import_solid(a):
             out["op"] = "ref"  # (not closed: it cannot be joined or cut — shown to build around)
             out["warning"] = ("The IGES file holds surfaces that do not close into a solid (a gap or a missing face) — "
                               "it came in as a reference body: shown see-through to build around, not part of the solid.")
-    elif ext in ("stl", "obj"):
-        tris = importers.read_stl(data) if ext == "stl" else importers.read_obj(data.decode("utf-8", "ignore"))
+    elif ext in ("stl", "obj", "3mf"):
+        tris = importers.read_stl(data) if ext == "stl" else importers.read_3mf(data) if ext == "3mf" else importers.read_obj(data.decode("utf-8", "ignore"))
         if len(tris) > MESH_LIMIT:
             raise K.KernelError(f"MESH_TOO_BIG This mesh has {len(tris)} triangles — more than {MESH_LIMIT} take too long to become an exact solid.")
         shape = K.mesh_solid(tris)
         out = {"blob": blobs.put(K.to_step(shape, name)), "triangles": len(tris)}
         _keep(out["blob"], shape, {})
     else:
-        raise K.KernelError("A solid comes from a STEP, IGES, STL or OBJ file.")
+        raise K.KernelError("A solid comes from a STEP, IGES, STL, OBJ or 3MF file.")
     if K.face_count(shape) == 0:
         raise K.KernelError("The file has no solid in it.")
     bb = K.bbox(shape)
@@ -1464,13 +1464,17 @@ def export(part, fmt, name="part"):
     raise K.KernelError(f"Unknown export format “{fmt}”.")
 
 
-def sheet(part, preset="medium", paper=None, per_view=None, section=False):
+def sheet(part, preset="medium", paper=None, per_view=None, section=False, simple=False):
     """A drawing sheet of the part: its views, the points to dimension, the automatic dimensions of the preset, the
-    layout (sheet.py)."""
+    layout (sheet.py). simple: drawn from its mesh (the exact drawing took too long)."""
     from . import sheet as S
+    fs = [f for f in (part or {}).get("features") or [] if not (f.get("off") or f.get("suppressed"))]
+    if fs and all(f.get("type") == "solid" and f.get("op") == "ref" for f in fs):
+        raise K.KernelError("This part is only a reference body (surfaces that do not close into a solid) — there is no "
+                            "solid to draw. Open the file as a STEP, or close its surfaces in the CAD program it came from.")
     st = body_of(part, threads=False)
     fits = {f["d"]: f["fit"] for f in (part or {}).get("features") or [] if f.get("type") == "hole" and f.get("fit") and not (f.get("off") or f.get("suppressed"))}
-    return S.build(st.body, preset, fits, paper, per_view, _threads(part), section, key=_key((part or {}).get("features") or []), holes=_holes(part))
+    return S.build(st.body, preset, fits, paper, per_view, _threads(part), section, key=_key((part or {}).get("features") or []), holes=_holes(part), simple=simple)
 
 
 def _exploded(placed, k):
@@ -1498,9 +1502,9 @@ def _exploded(placed, k):
     return out
 
 
-def assembly_sheet(instances, paper=None, explode=0):
+def assembly_sheet(instances, paper=None, explode=0, simple=False):
     """An assembly's drawing sheet: instances as for assembly_clashes (placed) -> sheet.build_assembly. explode
-    (0 … 1): its iso view drawn with the parts pulled apart."""
+    (0 … 1): its iso view drawn with the parts pulled apart; simple: drawn from the mesh."""
     from . import sheet as S
     placed = []
     for inst in instances or []:
@@ -1510,7 +1514,7 @@ def assembly_sheet(instances, paper=None, explode=0):
             continue
         placed.append((inst.get("id"), K.placed(st.body.shape, inst.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])))
     key = _key([float(explode or 0)] + [[i.get("id"), (i.get("part") or {}).get("features") or [], i.get("matrix")] for i in instances or []])
-    return S.build_assembly(placed, paper, _exploded(placed, float(explode)) if explode else None, key=key)
+    return S.build_assembly(placed, paper, _exploded(placed, float(explode)) if explode else None, key=key, simple=simple)
 
 
 def assembly_clashes(instances, quick=False):

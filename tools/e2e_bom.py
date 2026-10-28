@@ -225,6 +225,8 @@ try:
     mid = js("return window.__app.project.parts.find(p => p.name === 'Machine').id")
     print("sheet:", call("sheet_open", part=mid)[:80])
     wait("return !!window.__app.sheet.d?.built && !!window.__app.sheet.d?.asm", 120)
+    call("sheet_edit", template="Modern")  # (this test reads the Modern parts list's texts; the default is B — ISO 7200)
+    wait("return !window.__app.sheet.busy", 60)
     d.find_element(By.CSS_SELECTOR, "#shRight [data-a=bomAdd]").click()
     wait("return !!document.querySelector('.sh-sheetpage[data-bom]')", 120)
     time.sleep(0.6)

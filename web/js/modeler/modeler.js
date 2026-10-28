@@ -214,7 +214,7 @@ export class Modeler {
         ${btn('revolve', '⟳ Revolve', canExtrude ? 'Spin a sketch around an axis (vases, knobs, wheels)' : 'Draw a sketch first', 'tool')}
         ${btn('loft', '⧫ Loft', 'A shape from one outline to another (e.g. a square base to a round top): two sketches, one above the other', 'tool')}
         ${btn('sweep', '〰 Sweep', 'Move an outline along a path (pipes, handles, rails): a profile sketch and a path sketch', 'tool')}
-        ${btn('solidFile', '▣ Solid from a file', 'Add a STEP / STL / OBJ solid: joined to the part, cut out of it (a cavity it fits in), or as a see-through reference to build around', 'tool')}
+        ${btn('solidFile', '▣ Solid from a file', 'Add a STEP / STL / OBJ / 3MF solid: joined to the part, cut out of it (a cavity it fits in), or as a see-through reference to build around', 'tool')}
         ${btn('fillet', '◜ Fillet', 'Round edges: click the edges, give the radius (F)', 'tool')}
         ${btn('chamfer', '◸ Chamfer', 'Bevel edges: click the edges, give the size', 'tool')}
         ${btn('shell', '▢ Shell', 'Hollow the part out: click the face(s) to leave open, give the wall thickness', 'tool')}
@@ -2517,7 +2517,7 @@ export class Modeler {
   pickSolid() {
     if (this.mode !== 'part' || this.cmd || !this.hooks.importSolid) return;
     const inp = document.createElement('input');
-    Object.assign(inp, { type: 'file', accept: '.step,.stp,.igs,.iges,.stl,.obj' });
+    Object.assign(inp, { type: 'file', accept: '.step,.stp,.igs,.iges,.stl,.obj,.3mf' });
     inp.addEventListener('change', async () => {
       const file = inp.files[0];
       if (!file) return;

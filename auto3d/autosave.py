@@ -3,12 +3,16 @@ or a browser crash loses nothing — and the recent projects to open again. One 
 a small meta file for the list; the oldest go beyond MAX_PROJECTS.
 """
 import json
+import os
 import re
+import threading
 import time
 from pathlib import Path
 
 MAX_PROJECTS = 40
 _ID = re.compile(r"^[A-Za-z0-9-]{8,64}$")
+_LOCKS = {}  # project id -> its lock: two saves of one project at once go one after the other
+_LOCKS_LOCK = threading.Lock()
 
 
 class AutosaveError(Exception):
@@ -19,6 +23,39 @@ def _check(pid):
     if not isinstance(pid, str) or not _ID.match(pid):
         raise AutosaveError("No such project.")
     return pid
+
+
+def _lock(pid):
+    with _LOCKS_LOCK:
+        return _LOCKS.setdefault(pid, threading.Lock())
+
+
+def _write(path: Path, text: str, tries=40):
+    """Write whole or not at all: a temp file of this thread, then replace. On Windows the replace fails while
+    another reader has the file open (WinError 32 / 5, a sharing violation): try again for up to ~2 s."""
+    tmp = path.with_name(f"{path.name}.{os.getpid()}-{threading.get_ident()}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    try:
+        for i in range(tries):
+            try:
+                tmp.replace(path)
+                return
+            except PermissionError:
+                if i == tries - 1:
+                    raise
+                time.sleep(0.05)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def _read(path: Path, tries=20) -> str:
+    for i in range(tries):  # (a replace under way can deny the read for a moment on Windows)
+        try:
+            return path.read_text(encoding="utf-8")
+        except PermissionError:
+            if i == tries - 1:
+                raise
+            time.sleep(0.05)
 
 
 def save(folder: Path, pid: str, project: dict) -> dict:
@@ -32,10 +69,9 @@ def save(folder: Path, pid: str, project: dict) -> dict:
     meta = {"id": pid, "name": project.get("project_name") or (project["parts"][0].get("name") if project["parts"] else "") or "Project",
             "time": time.time(), "size": len(text),
             "parts": [{"name": p.get("name", ""), "kind": p.get("kind", "")} for p in project["parts"] if isinstance(p, dict)]}
-    tmp = folder / f"{pid}.json.tmp"
-    tmp.write_text(text, encoding="utf-8")
-    tmp.replace(folder / f"{pid}.json")  # (whole or not at all: a crash while writing keeps the last one)
-    (folder / f"{pid}.meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    with _lock(pid):  # (whole or not at all: a crash while writing keeps the last one)
+        _write(folder / f"{pid}.json", text)
+        _write(folder / f"{pid}.meta.json", json.dumps(meta))
     for old in recent(folder)[MAX_PROJECTS:]:
         delete(folder, old["id"])
     return meta
@@ -46,7 +82,7 @@ def recent(folder: Path) -> list:
     out = []
     for p in Path(folder).glob("*.meta.json"):
         try:
-            m = json.loads(p.read_text(encoding="utf-8"))
+            m = json.loads(_read(p))
         except (OSError, ValueError):
             continue
         if (Path(folder) / f"{m.get('id')}.json").exists():
@@ -58,7 +94,7 @@ def load(folder: Path, pid: str) -> dict:
     p = Path(folder) / f"{_check(pid)}.json"
     if not p.exists():
         raise AutosaveError("No such project.")
-    return json.loads(p.read_text(encoding="utf-8"))
+    return json.loads(_read(p))
 
 
 # names the app gives by itself (English / Czech): a project or part not named by the user

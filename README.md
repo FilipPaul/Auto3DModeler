@@ -19,9 +19,10 @@ Use **📂 Open ▾** to open a file. It offers:
   opens as a **📐 Drawing** too, a layer per Gerber file / ODB++ layer (see [PCB boards](#pcb-boards-gerber-odb));
 - a **DXF / DWG drawing** opens as a **📐 Drawing** — see [DXF / DWG drawings](#dxf--dwg-drawings); nothing is made of it until you
   choose (Shift+drop: straight to a quick part, as before);
-- a **CAD / 3D file**: STL / OBJ / STEP / IGES files — a **STEP or IGES opens as a 3D model** with its exact
+- a **CAD / 3D file**: STL / OBJ / 3MF / STEP / IGES files — a **STEP or IGES opens as a 3D model** with its exact
   solid as the first step (sketch on its faces, drill it, build a cover around it; a 40 MB STEP in under a minute);
-  STL / OBJ open as a quick part (sliced, for printing; Shift+drop a STEP for that too). A **STEP assembly** — what
+  STL / OBJ / 3MF open as a quick part (sliced, for printing; Shift+drop a STEP for that too; a 3MF from a slicer or our
+  own export: all its objects, placed as in the file). A **STEP assembly** — what
   SolidWorks, CATIA and Solid Edge export (their own SLDASM / CATProduct / ASM files are closed; save as STEP AP214 /
   AP242 there) — asks first: **Open as an assembly** makes a 3D model part per different part (a screw used 22 times
   is one part), an assembly ◇ with a placed part per placement, sub-assemblies nested, the file's names and colours;
@@ -514,9 +515,16 @@ moves it freely. **Scale**: the sheet's *Scale* is *Auto* (fitted to the paper) 
 no longer fits inside the frame is flagged (⚠), not refused. The **title block** is clean and light (ISO 7200
 fields): the part's name large, small grey labels over the values, thin rules, a company / logo column on the left —
 it prints well in black and white; an assembly's parts list matches it. **Title-block templates**: in the sheet's
-panel choose *Template* (Modern, Compact, ISO 5457 or your own); type your *Company*, *Address*, *Drawn by*, a
-default *Note*, the *Tolerance standard*, pick a *Logo*, the *Layout* (Block / a low Strip) and the fields shown
-(under *Company, logo and fields*), then **💾 Save as template…** — kept on the server for all your projects. On a
+panel choose *Template* (Modern, Compact, ISO 5457, the five designs *A — Strip*, *B — ISO 7200*, *C — Dark band*,
+*D — Minimal*, *E — Column*, or your own; a drawing that chose none uses *B — ISO 7200*). **Title block style** and **Parts list style** are chosen apart, so any
+title block goes with any parts list: A (180 × 21 mm, one row), B (180 × 40 mm, the full ISO 7200 grid with checked /
+approved, roughness and the projection symbol), C (180 × 34 mm, a black name band; the list's positions in circles),
+D (170 × 28 mm, no grid), E (a 90 × 56 mm column; its list two lines an item). The parts list sits right on the title
+block at the frame's corner, also on the BOM pages; on an assembly's drawing the views keep clear of both (moved up or
+left, else the automatic scale a step smaller — a view you drag over the list is kept there and flagged ⚠); the PDF uses the styles' own fonts (IBM Plex Sans, Barlow, Inter
+— open-licence, in web/fonts). Type your *Company*, *Address*, *Drawn by*, a default *Note*, the *Tolerance
+standard*, the *Roughness*, *Checked by* / *Approved by*, pick a *Logo* and the fields shown (under *Company, logo
+and fields*), then **💾 Save as template…** — kept on the server for all your projects. On a
 drawing of an assembly, **⇶ Use for all drawings of this assembly** puts it on the assembly's, its sub-assemblies'
 and its parts' drawings, and new drawings of that set take it too; the PDF and DXF use it. **Frame**: *Simple*
 (10 mm all round, the default), *Standard ISO 5457* (20 mm on the left for filing, 10 mm elsewhere, a 0.7 mm line,
@@ -559,6 +567,11 @@ is too small to see at the sheet's scale is left out — solids, edges and holes
 resistor on a board drawn 1:5), the left panel says how many — and its Section A–A cuts only the solids across the
 cut: a 44 MB board's sheet in 25 s instead of 78 s, 4.6 MB to the browser instead of 44 MB. A sheet keeps its part's
 views: another preset, paper or the section turned on does not project the part again (a hundredth of a second).
+An assembly of more than ~1000 faces is drawn from its mesh the same way (MIT E-Vent's 41 placed parts: 10 s; the
+exact hidden-line pass of its top view never ended), and an exact drawing that takes over 2½ minutes is stopped and
+drawn from the mesh. While a sheet is made the progress bar shows it, with Cancel. A sheet that cannot be made says
+why on the paper — *The drawing could not be made: …* (a reference body has no solid; a tessellated STEP has no size)
+— with **↻ Try again**, and in a message.
 Big parts also load faster: the model comes to the browser as raw arrays, not text, and an unchanged body is not sent
 through the kernel again — the 44 MB board is shown again in about half a second instead of two and a half, first
 built in 18 s of meshing instead of 25.
@@ -912,7 +925,7 @@ differs:
 | PDF drawing | the drawing (its dimensions drive the part) | the drawing's dimensions |
 | Picture | the traced outline, clean-up, *Make*: cookie cutter / solid shape / custom | width / height |
 | DXF / DWG | the drawing's closed regions in real size (mm), clean-up, *Make* … | width / height |
-| STL / OBJ / STEP | up axis, 90° turns, mirror, slice height | scale % |
+| STL / OBJ / 3MF / STEP | up axis, 90° turns, mirror, slice height | scale % |
 
 Below it, for every part: **3D objects added to the part** (booleaned on: profile / profile band offsets,
 cylinders, boxes, bars, text — placed and sized by clicking on the part, see *Pick on the part*) and **2D shapes on
@@ -935,13 +948,13 @@ turns it into one. In 2D: 📏 in the outline editor (picture pixels and mm) and
   ignored. Needs `ezdxf`.
 - **DWG** is a closed format: it is converted to DXF with the free **ODA File Converter** or LibreDWG's `dwg2dxf`
   when one is installed; otherwise the import says so (or save the drawing as DXF).
-- **▣ Solid from a file** (3D model) adds a STEP / IGES / STL / OBJ as a step: **▣ Joined** to the part, **⬚ Cut out** of it
+- **▣ Solid from a file** (3D model) adds a STEP / IGES / STL / OBJ / 3MF as a step: **▣ Joined** to the part, **⬚ Cut out** of it
   (a cavity it fits in exactly) or **👁 Reference** (drawn see-through, not part of the part — build a cover or a holder
-  around it, then cut a copy of it out). An STL / OBJ is made an exact solid (up to 60 000 triangles). Assemblies
+  around it, then cut a copy of it out). An STL / OBJ / 3MF is made an exact solid (up to 60 000 triangles). Assemblies
   insert one with *＋ Insert part ▾ → From a file* or by dropping the file on the assembly's view — a STEP assembly
   goes in as a sub-assembly (when you choose *Open as an assembly*). The files are kept by the server and carried in
   the project file.
-- **STL / OBJ / STEP as a quick part** (STEP is tessellated with `cascadio` / OpenCASCADE): the part is cut into flat slices at every
+- **STL / OBJ / 3MF / STEP as a quick part** (STEP is tessellated with `cascadio` / OpenCASCADE): the part is cut into flat slices at every
   flat face — exact for parts whose walls are vertical between flat faces (plates, brackets, cutters), slanted /
   curved walls become steps of the *slice height*. The file is kept on the server (`data/imports/`) and inside the
   project file, so projects reopen anywhere. Design layers need a flat part; on 3D files use 3D objects (e.g.
@@ -1053,8 +1066,8 @@ for drawings.
 
 | Severity | Situation |
 | --- | --- |
-| error | label is not a number / zero / missing; dimensions contradict each other; no outline found; no readable text |
-| warning | a feature is not dimensioned (value estimated); no thickness given (default used); dimension not attached to geometry; orphan dimension text; open outline; curves/angled dimensions (unsupported) |
+| error | label is not a number / zero / missing; dimensions contradict each other; no outline found (a drawing of several views: what to do instead); no readable text (also dimension values drawn as outlines) |
+| warning | a feature is not dimensioned (value estimated); no thickness given (default used); dimension not attached to geometry; orphan dimension text; open outline; curves/angled dimensions (unsupported); unsure which outline is the part (a sheet of several views whose shapes do not close: the largest closed one is used, also said in a message) |
 | info | redundant dimension (shown as reference); arrow snapped to a nearby edge; edges assumed aligned; drawing not to scale |
 
 A thickness can be given in the drawing as a note like `t=18mm`; otherwise set it in the Dimensions panel.

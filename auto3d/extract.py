@@ -49,6 +49,7 @@ class PageExtract:
     texts: list[TextLabel] = field(default_factory=list)
     curve_count: int = 0
     glyph_paths: int = 0
+    outlined_glyphs: int = 0  # small filled shapes that are not arrows and not under a text: letters drawn as outlines
 
 
 def _pt(p) -> Point:
@@ -168,6 +169,8 @@ def extract_page(page: fitz.Page) -> PageExtract:
                 if arrow:
                     arrows.append(arrow)
                     continue
+                if not stroked:
+                    out.outlined_glyphs += 1
             elif stroked:
                 arrow = _open_v_arrow(d)
                 if arrow:
