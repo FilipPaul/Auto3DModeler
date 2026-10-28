@@ -14,6 +14,8 @@ Part JSON (in the project file, `parts[].model`):
      {"id": "F8", "type": "shell", "faces": [{"name": "F2:end", "fp": [x, y, z]}], "t": 2},
      {"id": "F9", "type": "mirror", "of": "body" | <a step's id>, "plane": {"datum": "YZ"} | {"face": ..., "frame": ...},
       "copy": true},   (copy: the part and its mirror image; false: the part moved to its mirror image)
+     {"id": "F11", "type": "split", "plane": {"datum": "XY", "offset": 5} | {"face": ..., "frame": ..., "mid"?, "offset"?},
+      "keep": "both" | "above" | "below"},   (both: two bodies; above: the side the plane's normal points to)
      {"id": "F6", "type": "hole", "plane": {"face": {"name": "F2:end"}, "frame": ...}, "points": [[u, v]], "d": 5,
       "through": true, "depth": 10},
      {"id": "F10", "type": "point", "at": {"vertex": {"faces": [...], "fp": [x, y, z]}} | {"centre": <edge ref>} |
@@ -41,7 +43,7 @@ DATUMS = {
     "XZ": {"o": [0, 0, 0], "x": [1, 0, 0], "n": [0, -1, 0]},  # Front
     "YZ": {"o": [0, 0, 0], "x": [0, 1, 0], "n": [1, 0, 0]},   # Right
 }
-FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell", "pattern", "solid", "loft", "sweep", "decal", "mirror", "draft", "rib", "point")
+FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell", "pattern", "solid", "loft", "sweep", "decal", "mirror", "draft", "rib", "point", "split")
 
 _cache: OrderedDict = OrderedDict()  # prefix hash -> state after that feature (only in the worker process)
 CACHE_SIZE = 48
@@ -418,6 +420,17 @@ def _apply(f, st: State, s):
                 _use(st, fid, K.mirrored_body(tool, f"{fid}:", o, n), op)
         if abs(K.volume(st.body.shape) - before) < 1e-6 * (1 + before):
             s["warnings"].append("The mirror image changes nothing — it lands on the part itself (already symmetric there) or outside it. Choose another plane.")
+        return
+    if t == "split":  # ✂ the part cut in two along a plane: both pieces kept (two bodies), or one side
+        if st.body is None:
+            raise K.KernelError("There is no solid yet to split.")
+        plane = f.get("plane") or {"datum": "XY"}
+        fr = plane_frame(plane, st)
+        if "datum" not in plane and plane.get("offset"):  # a face's plane moved along its normal
+            fr["o"] = [o + float(plane["offset"]) * n for o, n in zip(fr["o"], fr["n"])]
+        st.frames[fid] = fr
+        st.body = K.split(st.body, fr["o"], fr["n"], fid, f.get("keep") or "both")
+        s["bodies"] = K.solids(st.body.shape)
         return
     if t == "pattern":
         before = K.volume(st.body.shape) if st.body is not None else 0

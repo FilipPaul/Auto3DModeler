@@ -224,10 +224,16 @@ TOOLS = [
                     "- mirror: of \"body\" (the whole part, default) or a step's id; plane \"YZ\" (left ↔ right, default) / \"XZ\" / "
                     "\"XY\", or face (a flat face's name) to mirror across; copy true (the part + its mirror image, default) / false "
                     "(the part moved to its mirror image; only for the body).\n"
+                    "- split: cut the part in two along a plane — plane \"XY\" / \"XZ\" / \"YZ\" / {datum, offset} (e.g. {datum: "
+                    "\"XY\", offset: 15}: z = 15) / {face: <a flat face>, offset} / {face, mid: <the parallel face across>} (halfway "
+                    "between them; follows both); keep \"both\" (default: two separate bodies in the part — the body's solids "
+                    "says 2), \"above\" (only the side the plane's normal points to: XY +Z, YZ +X, XZ −Y, a face: out of it) or "
+                    "\"below\". The cut faces are named <id>:cut:0 (above) / <id>:cut:1 (below). A plane that misses the part "
+                    "is an issue.\n"
                     "- point: a reference point (no geometry; it follows the part, sketches snap and dimension to it): at "
                     "{corner: [x, y, z]} (the corner nearest that place) / {centre: <a round edge's ref from find_refs>} / {mid: "
                     "<an edge's ref>: its middle} / a ref from find_refs kind \"point\".",
-     "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep", "decal", "mirror", "draft", "rib", "point"]},
+     "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep", "decal", "mirror", "draft", "rib", "point", "split"]},
                           "name": STR, "plane": {}, "shapes": {"type": "array"}, "lock": {"type": "boolean"},
                           "sketch": STR, "d": NUM, "op": {"type": "string", "enum": ["add", "cut"]}, "through": {"type": "boolean"},
                           "symmetric": {"type": "boolean"}, "flip": {"type": "boolean"}, "axis": {}, "angle": NUM,
@@ -235,7 +241,8 @@ TOOLS = [
                           "faces": {"type": "array"}, "t": NUM, "of": {}, "kind": {"type": "string", "enum": ["linear", "circular"]},
                           "count": NUM, "spacing": NUM, "dir": {}, "up_to": STR, "offset": NUM, "upto_next": {"type": "boolean"}, "d2": NUM,
                           "sketches": {"type": "array"}, "profile": STR, "path": STR,
-                          "text": STR, "h": NUM, "at": {}, "origin": {}, "fit": {"type": "string", "enum": ["H6", "H7", "H8", "H9"]}}, ["type"])},
+                          "text": STR, "h": NUM, "at": {}, "origin": {}, "fit": {"type": "string", "enum": ["H6", "H7", "H8", "H9"]},
+                          "keep": {"type": "string", "enum": ["both", "above", "below"]}}, ["type"])},
     {"name": "edit_feature", "where": "browser",
      "description": "Change a step of the 3D model: id and fields (as in add_feature, e.g. {d: 15}, {r: 3}, {points: …}, a "
                     "sketch's {shapes: […]}). Later steps follow their faces.",

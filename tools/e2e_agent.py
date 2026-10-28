@@ -138,6 +138,18 @@ try:
     xs = sorted(round(x, 3) for x in d.execute_script(
         "return window.__app.modeler.result.body.faces.filter((f) => f.type === 'cylinder' && Math.abs(f.axis.d[2]) > 0.99).map((f) => f.centroid[0])"))
     print(f"    axis refs: {ax} | the cross hole moved 10 -> x {xs} expected [25, 55] | match: {xs == [25, 55]}")
+    # ---- ✂ split: a 60 × 40 × 20 box cut at z 15 — both pieces (two bodies), then only the lid; a plane past it: an issue
+    tool("new_model", name="Box and lid")
+    tool("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 60, "h": 40}}])
+    tool("add_feature", type="extrude", sketch="F1", d=20)
+    t, _ = tool("add_feature", type="split", plane={"datum": "XY", "offset": 15}, keep="both")
+    r = json.loads(t)
+    print(f"    split both: ok {r['ok']} | solids {r['body'].get('solids')} expected 2 | volume {r['body']['volume_mm3']} expected 48000")
+    t, _ = tool("edit_feature", id=r["id"], fields={"keep": "above"})
+    r = json.loads(t)
+    print(f"    split above: volume {r['body']['volume_mm3']} expected 12000 | change {r.get('volume_change_mm3')}")
+    t, _ = tool("edit_feature", id=r["id"], fields={"offset": 40})
+    print("    split past the part:", json.loads(t)["issues"])
     # ---- a sketch shape's ⁂ pattern: a flange, six holes around the middle and three in a row
     tool("new_model", name="Flange")
     tool("add_feature", type="sketch", plane="XY", shapes=[{"circle": {"x": 0, "y": 0, "d": 60}},

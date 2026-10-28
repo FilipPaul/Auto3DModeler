@@ -20,7 +20,7 @@ import numpy as np
 import OCP.collections as _C
 from OCP.BRep import BRep_Tool
 from OCP.BRepAdaptor import BRepAdaptor_Curve, BRepAdaptor_Surface
-from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut, BRepAlgoAPI_Fuse
+from OCP.BRepAlgoAPI import BRepAlgoAPI_Common, BRepAlgoAPI_Cut, BRepAlgoAPI_Fuse
 from OCP.BRepBndLib import BRepBndLib
 from OCP.BRepBuilderAPI import (BRepBuilderAPI_MakeEdge, BRepBuilderAPI_MakeFace, BRepBuilderAPI_MakePolygon,
                                 BRepBuilderAPI_MakeWire, BRepBuilderAPI_Transform)
@@ -780,6 +780,50 @@ def rib(body, fr, chain, ids, t, fid):
     if best is None:
         raise KernelError("The rib does not close against the part — draw its line with the part on one side (e.g. from the wall to the plate), its ends touching the part.")
     return best[1]
+
+
+def split(body, o, n, fid, keep="both"):
+    """✂ Cut a body in two along the plane through o with normal n: keep "above" (the side n points to), "below", or
+    "both" (the two pieces as separate solids of one body). Each piece keeps its faces' names; the new flat faces are
+    fid:cut:0 (on the piece above) and fid:cut:1 (below). A plane that does not cross the part raises."""
+    if keep not in ("both", "above", "below"):
+        raise KernelError("keep: \"both\", \"above\" (the side the plane's normal points to) or \"below\".")
+    o, n = _v(o), _v(n) / np.linalg.norm(_v(n))
+    bb = bbox(body.shape)
+    D = 2 * math.dist(bb[:3], bb[3:]) + 10
+    c = (_v(bb[:3]) + _v(bb[3:])) / 2
+    c = c - ((c - o) @ n) * n  # (the middle of the part seen square onto the plane)
+    fr = {"o": c, "x": _v([1, 0, 0]) if abs(n[0]) < 0.9 else _v([0, 1, 0]), "n": n}
+    fr["x"] = fr["x"] - (fr["x"] @ n) * n
+    fr["x"] /= np.linalg.norm(fr["x"])
+    w, _ = _poly_wire(fr, [(-D, -D), (D, -D), (D, D), (-D, D)], ["s0", "s1", "s2", "s3"])
+    half = prism_body(BRepBuilderAPI_MakeFace(w, True).Face(), [], n * D, fid)  # everything above the plane
+    total = volume(body.shape)
+    pieces = []
+    for k, Op in enumerate((BRepAlgoAPI_Common, BRepAlgoAPI_Cut)):
+        mk = Op(body.shape, half.shape)
+        if not mk.IsDone():
+            raise KernelError("The part could not be split here.")
+        res = mk.Shape()
+        names = _carry(mk, body.names, res)
+        cut = _carry(mk, {f"{fid}:cut:{k}": half.faces_of(f"{fid}:start")}, res)
+        names.update(cut)
+        pieces.append((Body(res, names), volume(res)))
+    if min(v for _, v in pieces) <= 1e-7 * (1 + total):
+        raise KernelError("The plane does not cross the part — move it (Offset), or pick a plane or face through the part.")
+    if keep == "above":
+        return pieces[0][0]
+    if keep == "below":
+        return pieces[1][0]
+    shapes, names = [], {}
+    for b, _ in pieces:
+        ex = TopExp_Explorer(b.shape, TopAbs_SOLID)
+        while ex.More():
+            shapes.append(ex.Current())
+            ex.Next()
+        for k, fs in b.names.items():
+            names.setdefault(k, []).extend(fs)
+    return Body(compound(shapes), names)
 
 
 def combine(body, tool, op):

@@ -299,6 +299,17 @@ Date: 2026-10-25. Written by the architect agent.
 - **Extrude ＋ Other side done:** extrude.d2 — a second blind prism on the other side of the sketch plane (its far
   face named start), any extent; symmetric wins (ticking one unticks the other); went.other_side [from, to]. The AI's
   d2. test_extrude_other_side; tools/e2e_model_extrude_more.py.
+- **✂ Split body done:** a `split` step {plane, keep} — plane as a sketch's ({datum, offset}, {face, frame}, ⇳ {face,
+  mid}; a face plane may have an offset too), keep "both" | "above" (the side its normal points to) | "below".
+  kernel.split: the part ∩ / − a half-space prism on the plane (BRepAlgoAPI_Common / Cut), names carried, the cut
+  faces `<id>:cut:0` (above) / `:1` (below); both: the pieces' solids in one compound (later fuses keep them apart
+  unless a step joins them; tessellate's `solid` index, mass and STEP see two bodies); a piece of no volume -> "The
+  plane does not cross the part". Status `bodies`. The modeler's ✂ Split (renderSplit: Top / Front / Right through
+  the part's middle, Offset, ⇳ Midway on a face plane, Keep ✂ Both / This side / Other side; the arrow says which is
+  "this side"; ModelView.setShades: one shade per body while it is open), clickFace's "✂ Split here" under The part
+  (splitPlane: a face through the part cuts along itself, an outer one halfway to the farthest parallel face), ⧉ Make
+  each piece its own part (hooks.newParts: two model parts, the steps up to the split, each keeping one side). AI
+  add_feature {type: "split", plane, keep}; get_model's body `solids`. test_split; tools/e2e_model_split.py.
 - **Faces picked with no tool on, joints suggested done:** the assembly's idle click also picks a face / a round edge
   (facePicks: one, or Ctrl: one of each of two parts; lit by drawMarks); suggestFaces — one face: the joints it can
   start (then the other face), two: the joint types fitting both (JOINT_TYPES by face kind), made through clickJoint.
@@ -818,7 +829,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 | Loft | Shape between 2+ sketches | sketches | Done (⧫ Loft) |
 | Sweep | Profile along a path | sketch + path sketch | Done (〰 Sweep) |
 | Decorate face | Today's design layers (patterns, logos) on any **planar face** of a model part, embossed or cut along the face normal | face, layer JSON | Later (M8). Easy, because `design.layer_regions` already makes shapely regions. |
-| Thread, rib, split body | — | — | Thread (hole M2 … M20, labelled on drawings) and ⊿ Rib done; split body later |
+| Thread, rib, split body | — | — | Thread (hole M2 … M20, labelled on drawings), ⊿ Rib and ✂ Split body (plane, keep both / one side) done |
 
 ### 3.3 Reference geometry
 

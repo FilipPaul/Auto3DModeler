@@ -76,6 +76,11 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
    **Mirror**: `{type: "mirror", plane: "YZ"}` adds the mirror image of the whole part (left ↔ right; "XZ" front ↔
    back, "XY" top ↔ bottom, or `face: "<flat face>"`); `of: "<step id>"` mirrors one step only; `copy: false` turns the
    part over instead. Model half of a symmetric part, then mirror it.
+   **Split** (cut the part in two along a plane — a box and its lid, a print too big for the bed):
+   `{type: "split", plane: {datum: "XY", offset: 15}, keep: "both"}` (two bodies in one part; get_model's body says
+   `solids`), `keep: "above"` (only the side the plane's normal points to: +Z for XY, +X for YZ, −Y for XZ) or
+   `"below"`; `plane` may be `{face: "<flat face>", offset}` or `{face, mid: "<the face across>"}` (the middle).
+   The cut faces are `<id>:cut:0` (above) and `<id>:cut:1` (below).
    **Reference point** (a place to measure / sketch from that follows the part): `{type: "point", at: {corner: [x, y, z]}}`
    (the nearest corner), `at: {centre: <round edge ref>}` or `at: {mid: <edge ref>}`; `find_refs {kind: "point"}` lists
    them (and corners with ready refs). No geometry — it shows as "• Point 1".

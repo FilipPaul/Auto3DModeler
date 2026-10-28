@@ -219,7 +219,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
   const summary = () => {
     const b = body();
     return b ? { size_mm: [r3(b.bbox[3] - b.bbox[0]), r3(b.bbox[4] - b.bbox[1]), r3(b.bbox[5] - b.bbox[2])], bbox: b.bbox.map(r3), volume_mm3: r3(b.volume),
-      material: m.part.material || 'PLA', mass_g_solid: m.massGrams(), faces: b.faces.length } : null;
+      material: m.part.material || 'PLA', mass_g_solid: m.massGrams(), faces: b.faces.length, ...(b.solids > 1 ? { solids: b.solids } : {}) } : null;
   };
   const stepResult = (id) => {
     const st = m.status(id);
@@ -323,6 +323,19 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       const plane = spec.face ? planeOf({ face: spec.face }) : { datum: ['XY', 'XZ', 'YZ'].includes(pd) ? pd : 'YZ' };
       return { ...base, of, plane, copy: of !== 'body' || spec.copy !== false };
     }
+    if (type === 'split') { // ✂ cut in two along a plane: both pieces (two bodies) or one side
+      const keep = spec.keep || 'both';
+      if (!['both', 'above', 'below'].includes(keep)) throw new Error('keep: "both" (two bodies), "above" (the side the plane\'s normal points to) or "below".');
+      let pl = spec.plane;
+      if (pl && typeof pl === 'object' && pl.face && typeof pl.face === 'object') { // the step's own plane (an edit): by its faces' names
+        const moved = spec.face && spec.face !== pl.face.name;
+        pl = { face: moved ? spec.face : pl.face.name, ...(pl.mid && !moved ? { mid: pl.mid.name } : {}), offset: pl.offset };
+      } else if (!pl && spec.face) pl = { face: spec.face };
+      const off = +(spec.offset ?? (typeof pl === 'object' ? pl?.offset : 0) ?? 0) || 0;
+      const plane = planeOf(pl && typeof pl === 'object' ? { ...pl, offset: pl.datum ? off : 0 } : pl || 'XY');
+      if (off) plane.offset = off; else delete plane.offset;
+      return { ...base, plane, keep };
+    }
     if (type === 'draft') {
       if (!m.part.features.some((g) => g.id === spec.of && g.type === 'extrude')) throw new Error('of: the id of an extrude step (its side walls are tilted).');
       const a = +spec.angle;
@@ -377,7 +390,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       }
       return { ...base, features: of, kind: 'linear', dir: vec(spec.dir || 'x', 'dir'), count: spec.count ?? 3, spacing: spec.spacing ?? 10 };
     }
-    throw new Error('type is sketch, extrude, revolve, fillet, chamfer, hole, shell, pattern, loft, sweep, decal, mirror, draft, rib or point.');
+    throw new Error('type is sketch, extrude, revolve, fillet, chamfer, hole, shell, pattern, loft, sweep, decal, mirror, draft, rib, point or split.');
   };
 
   /** The part's corners, each with a ready ref for a point step: [{corner: [x, y, z], ref: {vertex: {faces, fp}}}]. */

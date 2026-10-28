@@ -119,6 +119,15 @@ against the part is filled, half the thickness each side of the sketch plane.
 **⟋ Draft**: tilts an extrude's side walls by a few degrees (they lean in going up from its base; negative: out) so a
 moulded or cast part comes out of its mould — choose the extrude (or click one of its walls) and the angle.
 
+**✂ Split**: cuts the part in two along a plane — by default across its longest side, in the middle. Choose Top /
+Front / Right (through the part's middle; Offset moves it) or click a flat face: a face inside the part (a step's
+floor) cuts along itself, an outer face cuts halfway to the face across (⇳ Midway picks that face yourself; it
+follows both faces). **Keep**: ✂ Both (two bodies in one part, shown in two shades while you choose — paint by body,
+mass and STEP see both), This side (where the arrow points) or Other side. On a clicked flat face with no tool on,
+*✂ Split here* is under The part. With Both, *⧉ Make each piece its own part* adds two model parts, each with this
+part's steps up to the split and one piece kept. The cut faces are named `<step>:cut:0` / `:1`, so later steps
+(a sketch on the cut, a lid's lip) follow them.
+
 **Reorder steps**: drag a step up or down the step list. A move that would put a step before one it uses is refused
 (it says which), and one after which the model no longer builds is taken back; Ctrl+Z undoes a move.
 

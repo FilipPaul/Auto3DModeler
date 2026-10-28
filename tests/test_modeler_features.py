@@ -380,6 +380,68 @@ class TestFeatures(unittest.TestCase):
         r, _ = vol(*box(), {"id": "M1", "type": "mirror", "plane": mid})
         self.assertTrue(r["features"][-1]["warnings"])
 
+    def test_split(self):
+        """✂ Split: the 40 × 20 × 10 block cut at x = 20 -> two bodies of 4000 each, the cut faces named X1:cut:0 / :1;
+        one side kept; a ⇳ Midway plane that follows the block; a STEP round trip with both; a plane that misses."""
+        from auto3d.modeler import kernel as K
+        import numpy as np
+        mid = {"datum": "YZ", "offset": 20}
+        r, v = vol(*box(), {"id": "X1", "type": "split", "plane": mid, "keep": "both"})
+        self.assertTrue(r["ok"], r["features"])
+        self.assertEqual(r["body"]["solids"], 2)
+        self.assertEqual(r["features"][-1]["bodies"], 2)
+        self.assertAlmostEqual(v, 8000, delta=1e-6)
+        names = {f["name"] for f in r["body"]["faces"]}
+        self.assertTrue({"X1:cut:0", "X1:cut:1", "E1:end"} <= names)
+        # each piece on its own: 4000 mm³, closed (the two pieces touch, so the mesh is checked solid by solid)
+        tri = np.frombuffer(r["body"]["positions"], np.float32).reshape(-1, 9)
+        ids = np.frombuffer(r["body"]["face_ids"], np.uint32)
+        solid = np.array([r["body"]["faces"][i]["solid"] for i in ids])
+        for k in (0, 1):
+            t = tri[solid == k].reshape(-1, 3, 3).astype(float)
+            vk = abs(np.einsum("ij,ij->i", t[:, 0], np.cross(t[:, 1], t[:, 2])).sum()) / 6
+            self.assertAlmostEqual(vk, 4000, delta=1e-2)
+            self.assertTrue(watertight({"positions": tri[solid == k].tobytes()}))
+        # keep one side: above = where the plane's normal (+x) points
+        r, v = vol(*box(), {"id": "X1", "type": "split", "plane": {"datum": "YZ", "offset": 10}, "keep": "above"})
+        self.assertAlmostEqual(v, 6000, delta=1e-6)
+        self.assertEqual(r["body"]["solids"], 1)
+        self.assertAlmostEqual(r["body"]["bbox"][0], 10, delta=1e-6)
+        self.assertTrue(watertight(r["body"]))
+        self.assertIn("X1:cut:0", {f["name"] for f in r["body"]["faces"]})
+        r, v = vol(*box(), {"id": "X1", "type": "split", "plane": {"datum": "YZ", "offset": 10}, "keep": "below"})
+        self.assertAlmostEqual(v, 2000, delta=1e-6)
+        self.assertIn("X1:cut:1", {f["name"] for f in r["body"]["faces"]})
+        # ⇳ Midway between the front and back walls (y 0 / 20): half the block; the block 30 deep -> still half
+        between = {"face": {"name": "E1:side:l1"}, "mid": {"name": "E1:side:l3"}, "frame": {"o": [20, 10, 5], "x": [1, 0, 0], "n": [0, -1, 0]}}
+        split = {"id": "X1", "type": "split", "plane": between, "keep": "above"}  # (above: towards -y, the front)
+        r, v = vol(*box(), split)
+        self.assertAlmostEqual(v, 4000, delta=1e-6)
+        self.assertAlmostEqual(r["body"]["bbox"][4], 10, delta=1e-6)
+        r, v = vol(*box(h=30), split)
+        self.assertAlmostEqual(v, 6000, delta=1e-6)
+        self.assertAlmostEqual(r["body"]["bbox"][4], 15, delta=1e-6)
+        # a face's plane moved along its normal: the top (z 10) 4 mm down -> keep below: 40 × 20 × 6
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}, "offset": -4}
+        r, v = vol(*box(), {"id": "X1", "type": "split", "plane": top, "keep": "below"})
+        self.assertAlmostEqual(v, 4800, delta=1e-6)
+        # later steps see both bodies: a hole through both, a STEP file with two solids
+        hole = {"id": "H1", "type": "hole", "plane": {**top, "offset": 0}, "points": [[-10, 0], [10, 0]], "d": 4, "through": True}
+        feats = [*box(), {"id": "X1", "type": "split", "plane": mid, "keep": "both"}, hole]
+        r, v = vol(*feats)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertEqual(r["body"]["solids"], 2)
+        self.assertAlmostEqual(v, 8000 - 2 * math.pi * 4 * 10, delta=1e-3)
+        back = K.from_step(doc.export({"features": feats}, "step"))
+        self.assertEqual(K.solids(back), 2)
+        self.assertAlmostEqual(K.volume(back), v, delta=1e-3)
+        # a plane that misses the part, and an unknown keep: clear issues
+        r, _ = vol(*box(), {"id": "X1", "type": "split", "plane": {"datum": "YZ", "offset": 50}})
+        self.assertFalse(r["ok"])
+        self.assertIn("does not cross the part", r["features"][-1]["issues"][0])
+        r, _ = vol(*box(), {"id": "X1", "type": "split", "plane": mid, "keep": "left"})
+        self.assertIn("keep", r["features"][-1]["issues"][0])
+
     def test_patterns(self):
         top = {"face": {"name": "E1:end"}, "frame": {"o": [5, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
         hole = {"id": "H1", "type": "hole", "plane": top, "points": [[0, 0]], "d": 4, "through": True}
