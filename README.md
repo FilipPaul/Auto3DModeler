@@ -95,7 +95,7 @@ from it — the sketch goes halfway between them (a rib or a hole centred in a p
 part changes.
 
 **Measured from a corner or the part's origin**: a sketch on a face has *Origin: ◎ Face centre | ⌜ Corner | ⊕ Part
-origin* in its bar. ⌜ Corner puts the sketch's 0, 0 on the face's lower-left corner (it follows that corner when the
+origin* in its bar (the face's centre is the middle of its outline's box — holes cut into the face do not move it). ⌜ Corner puts the sketch's 0, 0 on the face's lower-left corner (it follows that corner when the
 part changes), ⊕ Part origin on the part's own 0, 0, 0 (so the numbers are the X / Y you see; a hole at (30, 10) stays
 there when the block grows the other way). What is already drawn keeps its place — its numbers change, and sizes to
 the origin now measure from the new one; Ctrl+Z takes the switch back. ◎ Hole has the same choice as *From: ⇤ Edges |
