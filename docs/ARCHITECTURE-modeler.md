@@ -80,6 +80,10 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **A view with all its sizes, the same size lit up done:** per_view "all" (sheet.auto_dims: as full, its own outer
+  sizes, Ø / R again, its edges' places; the check does not count it as twice); SheetEditor.sameAs(id) — the chosen
+  dimension's size in the other views (the same direction of the part between the same places, or a Ø / R alike),
+  drawn teal (.sh-dim.same). test_a_view_with_all_its_sizes; tools/e2e_sheet_same.py.
 - **Sketch dimensions as on a drawing done:** Sketcher.movable(label, key, at, what) — a label dragged sets
   `f.place[key]` (len: offset across the line, dx / dy / dist: the dimension line's offset, dia / rad: an angle round
   the circle, ang: the arc's radius; kept by undo); locked sizes drawn with extension lines, arrows (dimLine / arrow),

@@ -222,13 +222,13 @@ export class SheetEditor {
 
   /** One dimension: extension lines, the dimension line with arrows and its text (linear); a leader (Ø, R). */
   dimSvg(d, forPrint) {
-    const v = this.value(d), lost = v === null, on = !forPrint && this.sel === d.id;
-    const col = lost ? '#d97706' : on ? '#1f6feb' : '#1b3a8a', sw = on ? 0.35 : 0.2, fs = 3.2;
+    const v = this.value(d), lost = v === null, on = !forPrint && this.sel === d.id, same = !forPrint && !on && this.same?.has(d.id);
+    const col = lost ? '#d97706' : on ? '#1f6feb' : same ? '#0f9d8a' : '#1b3a8a', sw = on || same ? 0.35 : 0.2, fs = 3.2;
     const arrow = (p, dir) => { // a filled arrowhead at p pointing along dir (unit)
       const [ux, uy] = dir, L = 2.2, W = 0.7;
       return `<path d="M${p[0]},${p[1]} L${p[0] - ux * L - uy * W},${p[1] - uy * L + ux * W} L${p[0] - ux * L + uy * W},${p[1] - uy * L - ux * W} Z" fill="${col}"/>`;
     };
-    const g = [`<g data-dim="${d.id}" class="sh-dim${on ? ' on' : ''}">`];
+    const g = [`<g data-dim="${d.id}" class="sh-dim${on ? ' on' : ''}${same ? ' same' : ''}">`];
     if (d.kind === 'dia' || d.kind === 'rad') {
       const c = this.circleOf(d.view, d.a);
       if (!c) return '';
@@ -442,7 +442,39 @@ export class SheetEditor {
   }
 
   // ------------------------------------------------------------------ the screen
+  /** The dimensions giving the same size as `id` in the other views: a distance along the same direction of the part
+   *  between the same places, a Ø / R of the same size -> Set of ids. */
+  sameAs(id) {
+    const all = this.allDims(), d = all.find((x) => x.id === id), views = this.geo?.views;
+    if (!d || !views) return new Set();
+    const sig = (x) => {
+      const g = views[x.view];
+      if (!g) return null;
+      if (x.kind === 'dia' || x.kind === 'rad') { const v = this.value(x); return v === null ? null : { round: x.kind, v }; }
+      const a = g.points[x.a], b = g.points[x.b], axis = x.dir === 'h' ? g.right : g.up;
+      if (!a || !b || !axis) return null;
+      const k = x.dir === 'h' ? 0 : 1;
+      return { axis, at: [a[k], b[k]] };
+    };
+    const me = sig(d), out = new Set();
+    if (!me) return out;
+    const near = (p, q) => Math.abs(p - q) < 0.02;
+    for (const x of all) {
+      if (x.id === d.id || x.view === d.view) continue;
+      const s = sig(x);
+      if (!s) continue;
+      if (me.round) { if (s.round === me.round && near(s.v, me.v)) out.add(x.id); continue; }
+      if (s.round) continue;
+      const dot = me.axis[0] * s.axis[0] + me.axis[1] * s.axis[1] + me.axis[2] * s.axis[2];
+      if (Math.abs(Math.abs(dot) - 1) > 1e-6) continue; // another direction of the part
+      const sg = Math.sign(dot), p = [...me.at].sort((u, w) => u - w), q = s.at.map((u) => sg * u).sort((u, w) => u - w);
+      if (near(p[0], q[0]) && near(p[1], q[1])) out.add(x.id);
+    }
+    return out;
+  }
+
   render() {
+    this.same = this.sel && this.geo ? this.sameAs(this.sel) : null; // (shown with the chosen one)
     this.checked = this.d && this.geo && !this.d.asm ? this.check() : null; // (the panels show it; an assembly's sheet has no size check)
     this.renderBar();
     this.renderLeft();
@@ -490,7 +522,7 @@ export class SheetEditor {
     const all = this.allDims(), hid = this.d.hidden.length, ck = this.checked || { missing: [], dup: new Set(), over: new Set(), ok: true };
     const vp = this.d.vpreset || {}, per = (v) => ck.missing.filter((m) => m.view === v).length;
     box.innerHTML = `<h3>Views</h3><div class="sh-views">${[...VIEWS, 'Iso'].map((v) => `<div class="sh-vrow"><label class="check"><input type="checkbox" data-v="${v}" ${this.d.off[v] ? '' : 'checked'}> ${esc(t(v))}${v === 'Iso' || this.d.off[v] ? '' : per(v) ? ` <b class="sh-vbad" title="${esc(t('Sizes missing in this view'))}">⚠ ${per(v)}</b>` : ' <b class="sh-vok">✓</b>'}</label>
-        ${v === 'Iso' || this.d.asm ? '' : `<select data-vp="${v}" title="${esc(t('How many dimensions in this view — as the sheet, or its own'))}"><option value="">${esc(t('as the sheet'))}</option>${PRESETS.map(([k, l]) => `<option value="${k}" ${vp[v] === k ? 'selected' : ''}>${esc(t(l))}</option>`).join('')}</select>`}</div>`).join('')}</div>
+        ${v === 'Iso' || this.d.asm ? '' : `<select data-vp="${v}" title="${esc(t('How many dimensions in this view — as the sheet, or its own'))}"><option value="">${esc(t('as the sheet'))}</option>${PRESETS.map(([k, l]) => `<option value="${k}" ${vp[v] === k ? 'selected' : ''}>${esc(t(l))}</option>`).join('')}<option value="all" ${vp[v] === 'all' ? 'selected' : ''} title="${esc(t('Every size this view shows, also the ones given in another view'))}">${esc(t('All its sizes'))}</option></select>`}</div>`).join('')}</div>
       ${this.d.asm ? `<p class="hint">${esc(t('An assembly drawing: its views, overall sizes and parts list — each part has its own drawing for its sizes.'))}</p>` : ''}
       <h3 ${this.d.asm ? 'hidden' : ''}>Check</h3>${this.d.asm ? '' : ck.ok && !ck.over.size ? `<p class="mp-count sh-ok">✓ ${esc(t('Fully dimensioned — every place and size is given once.'))}</p>` : ''}
       ${ck.missing.length ? `<p class="hint">${esc(tv('{n} size(s) missing (orange ? on the drawing):', { n: ck.missing.length }))}</p><div class="sh-miss-list">${ck.missing.slice(0, 40).map((m, i) => `<div class="sh-mrow">
@@ -569,6 +601,7 @@ export class SheetEditor {
     const shown = VIEWS.filter((v) => !this.d.off[v]), dims = this.allDims(), seen = new Map(), dup = new Set(), over = new Set();
     for (const d of dims) {
       if (d.kind !== 'linear' || this.value(d) === null || !shown.includes(d.view)) continue;
+      if ((this.d.vpreset || {})[d.view] === 'all') continue; // (a view with all its sizes repeats them on purpose)
       const g = G.views[d.view], k = d.dir === 'h' ? 0 : 1, ax = AX[d.view][k], a = r2(g.points[d.a][k]), b = r2(g.points[d.b][k]);
       const sig = `${ax}:${Math.min(a, b)}:${Math.max(a, b)}`;
       if (seen.has(sig)) { dup.add(d.id); continue; }

@@ -738,6 +738,7 @@ const CS = {
   'The part on screen — double-click to rename, drag to move the tab (out of the window: a new window)': 'Díl na obrazovce — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'Click to show it — double-click to rename, drag to move the tab (out of the window: a new window)': 'Kliknutím zobrazíte — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'No part open': 'Žádný díl není otevřený',
+  'All its sizes': 'Všechny jeho rozměry', 'Every size this view shows, also the ones given in another view': 'Každý rozměr, který pohled ukazuje, i ty zadané v jiném pohledu',
   'An angle is between 0 and 180°.': 'Úhel je mezi 0 a 180°.', '∠ angle': '∠ úhel', '⊥ from the line': '⊥ od úsečky', angle: 'úhel', 'from a line': 'od úsečky',
   'Every size is fixed — done drawing, next: Extrude (Enter)': 'Všechny rozměry jsou pevné — skica hotová, dál: Vysunout (Enter)',
   'Some sizes are still free (they follow when you drag) — it can be finished anyway; 🪄 Auto-dimension fixes them (Enter)': 'Některé rozměry jsou ještě volné (mění se při tažení) — skicu lze i tak dokončit; 🪄 Auto-kóty je zafixují (Enter)',

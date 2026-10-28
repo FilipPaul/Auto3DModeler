@@ -163,6 +163,9 @@ Never report "works" without having run it; report failures with their output.
    the recommended option first ★; one answered: nothing sent; both: one message "<question> → <option>"; ✎ Other…
    puts the question in the box; no options refused). The message is caught in the page (no Claude needed).
    (e2e_drawing_set also checks one item numbering for the whole set: Machine 1–3, the Lid unit's parts 4 and 5.)
+   `tools/e2e_sheet_same.py <url> <dir>` covers a view with all its sizes and the same size lit up (a block: the Right
+   view has none by itself; "All its sizes": its 30 and 12, not counted as twice; the Front's 12 chosen: the Right's 12
+   lit, the Top's 30: the Right's 30). Needs a server restarted after sheet.py changes.
    `tools/e2e_sketch_smart.py <url> <dir>` covers the sketch's state and the instant size (a rectangle: Finish not
    green, 🪄 shown; one click on a line: its length box, 50 + Enter; the 50 dragged 40 px (f.place), lit while hovered; a click on a line then another: a distance, not a
    length; 🪄: dof 0, Finish green, 🪄 gone; a triangle: two crossing lines -> an angle 36.87, 45 typed; a corner and the

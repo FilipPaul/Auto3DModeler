@@ -513,6 +513,17 @@ class TestSheet(unittest.TestCase):
         self.assertEqual(len(sigs), len(set(sigs)))
         self.assertEqual(sorted(d["kind"] for d in r["dims"] if d["kind"] == "dia"), ["dia"] * 3)
 
+    def test_a_view_with_all_its_sizes(self):
+        """"all": the Right view gets its own outer sizes (given in the Front and Top already) — by default none."""
+        from auto3d.modeler import sheet
+        r = doc.sheet(self.part, "medium")
+        self.assertFalse([d for d in r["dims"] if d["view"] == "Right" and d["kind"] == "linear"])
+        r = doc.sheet(self.part, "medium", per_view={"Right": "all"})
+        right = sorted(sheet.value(r["geometry"], d) for d in r["dims"] if d["view"] == "Right" and d["kind"] == "linear")
+        self.assertIn(20, right)  # its width: the part's depth
+        self.assertIn(10, right)  # its height
+        self.assertEqual(len([d for d in r["dims"] if d["view"] == "Front"]), len([d for d in doc.sheet(self.part, "medium")["dims"] if d["view"] == "Front"]))
+
     def test_view_presets(self):
         """A view's own preset: the top medium while the sheet is light (the rest of the sheet stays light)."""
         light = doc.sheet(self.part, "light")["dims"]

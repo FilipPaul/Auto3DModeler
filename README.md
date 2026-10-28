@@ -289,7 +289,9 @@ right and iso views on an A4 / A3 page with a title block (part, material, scale
 **changed + revision**). Its dimensions are made by a preset (for the whole sheet, and each view may have its own in the Views list) — **Light** (the overall sizes, a Ø for each hole size,
 the biggest R), **Medium** (+ where the holes are, the radii, the heights) or **Full** (+ every level) — and holes
 alike are dimensioned **once**: *8× Ø3 H7*, the first hole's place and the row's pitch *3× 10* (200 holes in a grid
-are one Ø and two pitches, not 400 dimensions). **Drag** a dimension or a view to move it, **Del** removes a
+are one Ø and two pitches, not 400 dimensions). Each size is given once on the sheet — a view whose sizes are all in
+the others (often the Right) has none; its choice **All its sizes** gives it its own anyway. **Clicking a dimension
+lights up the same size in the other views** (teal). **Drag** a dimension or a view to move it, **Del** removes a
 dimension (↺ brings deleted ones back), **＋ Dimension**: click an **edge** (it lights up under the mouse) — click it
 again (or Enter) for its **length**, another edge for the **distance between them**, or a point for the distance from
 the edge —, two points (a corner, a hole's centre), or a circle (its Ø / R). A value is always measured from the part — it cannot be typed. The sheet **follows its part**: change

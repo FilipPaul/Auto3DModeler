@@ -158,10 +158,12 @@ def _grid(cs):
 
 def auto_dims(geo, preset="medium", fits=None, per_view=None):
     """The automatic dimensions of a preset (see the module's docstring). fits: {diameter: "H7"} (holes with a fit).
-    per_view: {view: preset} — a view's own preset instead of the sheet's."""
+    per_view: {view: preset} — a view's own preset instead of the sheet's; "all": every size of that view, the ones
+    given in another view too (its outer sizes, its holes, its edges' places) — as full."""
     preset = preset if preset in PRESETS else "medium"
-    per_view = {k: v for k, v in (per_view or {}).items() if v in PRESETS}
-    pv = lambda view: per_view.get(view, preset)  # noqa: E731
+    per_view = {k: v for k, v in (per_view or {}).items() if v in PRESETS + ("all",)}
+    every = {k for k, v in per_view.items() if v == "all"}
+    pv = lambda view: "full" if view in every else per_view.get(view, preset)  # noqa: E731
     fits = {round(float(d), 3): f for d, f in (fits or {}).items() if f}
     dims, stack, measured = [], {}, set()
 
@@ -185,6 +187,9 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None):
     lin("Front", "box#x0", "box#x1", "h", "b")
     lin("Front", "box#y0", "box#y1", "v", "r")
     lin("Top", "box#y0", "box#y1", "v", "r")
+    for vname in sorted(every & set(v)):  # (a view with all its sizes: its own outer sizes too)
+        lin(vname, "box#x0", "box#x1", "h", "b")
+        lin(vname, "box#y0", "box#y1", "v", "r")
     done_r = set()
     for vname in ("Top", "Front", "Right"):
         view = v[vname]
@@ -196,7 +201,7 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None):
         # concentric circles: their leaders spread round
         centres = {}
         for d, cs in sorted(groups.items(), key=lambda q: -q[0]):
-            if d in done_r:  # already given in another view
+            if d in done_r and vname not in every:  # already given in another view
                 continue
             done_r.add(d)
             first = min(cs, key=lambda c: (round(c["c"][1], 2), round(c["c"][0], 2)))
@@ -228,7 +233,7 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None):
         for c in arcs:
             rg.setdefault(round(c["r"], 3), []).append(c)
         for r, cs in sorted(rg.items(), key=lambda q: -q[0])[: (1 if pv(vname) == "light" else 5 if pv(vname) == "medium" else 20)]:
-            if ("r", r) in done_r:
+            if ("r", r) in done_r and vname not in every:
                 continue
             done_r.add(("r", r))
             dims.append({"id": _id(vname, "rad", r), "view": vname, "kind": "rad", "a": cs[0]["key"], "count": len(cs), "ang": 0, "len": 6})
@@ -252,6 +257,21 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None):
                 cols.setdefault(round(ln["a"][0], 2), ln["key"])
         for x, key in sorted(cols.items())[:10]:
             lin("Top", "box#x0", f"{key}#0", "h", "b", tag=f"col{x}")
+    for vname in sorted(every & set(v) - {"Front", "Top"}):  # its edges' places too (the Front / Top have theirs)
+        w = v[vname]
+        x0, y0, x1, y1 = w["box"]
+        rows, cols = {}, {}
+        for ln in w["lines"]:
+            if ":round:" in ln["key"]:
+                continue
+            if abs(ln["a"][1] - ln["b"][1]) < TOL and TOL < ln["a"][1] - y0 < (y1 - y0) - TOL:
+                rows.setdefault(round(ln["a"][1], 2), ln["key"])
+            if abs(ln["a"][0] - ln["b"][0]) < TOL and TOL < ln["a"][0] - x0 < (x1 - x0) - TOL:
+                cols.setdefault(round(ln["a"][0], 2), ln["key"])
+        for y, key in sorted(rows.items())[:10]:
+            lin(vname, "box#y0", f"{key}#0", "v", "l", tag=f"lv{y}")
+        for x, key in sorted(cols.items())[:10]:
+            lin(vname, "box#x0", f"{key}#0", "h", "b", tag=f"col{x}")
     return dims
 
 
