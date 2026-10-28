@@ -1775,14 +1775,18 @@ export class Assembly {
       const lod = this.doc.light?.[pid] === true ? 'light' : this.doc.light?.[pid] === false ? 'full' : 'auto'; // 🪶
       const key = JSON.stringify([data.features || { model: data.model, values: data.values, layers: data.layers, bends: data.bends }, lod, data.threads]);
       if (this.bodies[pid]?.key === key) return;
+      // the part's newest build wins: the kernel's processes may answer an older one later
+      const want = (this.wanted ||= {});
+      want[pid] = key;
       try {
         const features = await this.partFeatures(pid, data);
         const { res, r } = await fetchRebuild({ features, lod, threads: data.threads });
+        if (want[pid] !== key) return;
         if (!res.ok) throw new Error(r.error || res.statusText);
         if (!r.ok && !r.body) throw new Error(r.features.flatMap((s) => s.issues).join(' ') || 'This part has no solid.');
         if (r.body) r.body.threads = r.threads?.holes || []; // (🔩 its threaded holes: drawn when its part shows them)
         this.bodies[pid] = r.body ? { key, body: r.body, features } : { key, error: 'This part has no solid yet.' };
-      } catch (e) { this.bodies[pid] = { key, error: e.message }; }
+      } catch (e) { if (want[pid] === key) this.bodies[pid] = { key, error: e.message }; }
     }));
   }
 

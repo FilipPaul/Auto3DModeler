@@ -95,8 +95,9 @@ class TestServer(unittest.TestCase):
         self.assertEqual(r.status_code, 400)
         self.assertIn("Not an Auto3DModeler", r.get_json()["error"])
         k = c.get("/api/kernel").get_json()
-        self.assertEqual(set(k), {"occ", "planegcs", "ready", "install"})
+        self.assertEqual(set(k), {"occ", "planegcs", "ready", "install", "workers"})
         self.assertEqual(k["ready"], available("occ") and available("planegcs"))
+        self.assertGreaterEqual(k.pop("workers"), 1)  # (the kernel processes: A3D_WORKERS)
         self.assertEqual(k, status())
 
 

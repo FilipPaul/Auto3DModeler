@@ -429,7 +429,16 @@ other CAD programs.
 The model is built by a real CAD kernel, OpenCASCADE. It runs in its own process, so a failure cannot stop the
 app, and Cancel works on long rebuilds. It needs the optional packages in `requirements-modeler.txt`
 (`py -m pip install -r requirements-modeler.txt`, about 175 MB installed). Without them the rest of the app
-works, and the workspace says what to install.
+works, and the workspace says what to install. Its booleans (cuts, joins, splits, clash checks) use all the
+processor's cores; `A3D_PARALLEL_BOOL=0` (an environment setting) makes them use one — the results are the same.
+
+The kernel runs as a small pool of processes, so one long job — a big STEP import, a drawing set, a print
+split — does not hold up the rest: another part, another window or another assembly part is built meanwhile, and
+an assembly's parts are built side by side when it opens. Each part's jobs stay with one process, in order, so its
+kept results are reused. How many: `A3D_WORKERS` (an environment setting); by default one per core less one, at
+most 4, and one more only while 2 GB of memory are free for it (the size is in `/api/kernel` as `workers`).
+`A3D_WORKERS=1` is one process for everything, as before. A process that crashes, runs out of time or is
+cancelled is restarted alone; one that grows past 3 GB (`A3D_WORKER_MB`) is restarted between jobs.
 
 Coming next ([plan](docs/ARCHITECTURE-modeler.md)):
 - arcs, sizes between any two points, and equal / parallel / perpendicular rules;

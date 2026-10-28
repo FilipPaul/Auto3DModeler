@@ -309,8 +309,9 @@ def api_history_delete(sid):
 
 @app.get("/api/kernel")
 def api_kernel():
-    """Whether the optional 3D model workspace packages (CAD kernel, sketch solver) are installed."""
-    return jsonify(modeler_status())
+    """Whether the optional 3D model workspace packages (CAD kernel, sketch solver) are installed; workers: how many
+    kernel processes work at once (A3D_WORKERS)."""
+    return jsonify({**modeler_status(), "workers": MODEL_WORKER.n})
 
 
 @app.post("/api/solve")
@@ -515,7 +516,7 @@ def attachment(filename: str) -> str:
 
 
 def _model_call(op, arg, timeout=120):
-    """Run a kernel op in the worker process -> (result, None) or (None, error response)."""
+    """Run a kernel op in its part's worker process (worker.Pool) -> (result, None) or (None, error response)."""
     try:
         return MODEL_WORKER.run(op, arg, timeout), None
     except KernelUnavailable as exc:

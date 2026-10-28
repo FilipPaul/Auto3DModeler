@@ -350,6 +350,8 @@ const CS = {
   'Its sketch is missing or has a problem.': 'Jeho skica chybí nebo má problém.', 'The model has no solid yet — sketch a shape and extrude it.': 'Model zatím nemá těleso — nakreslete tvar a vysuňte ho.',
   'The solid operation failed.': 'Operace s tělesem selhala.', 'A sketch shape could not be turned into a face.': 'Z tvaru skici nešlo vytvořit plochu.',
   'The CAD kernel stopped unexpectedly while building — it restarts with the next change.': 'CAD jádro se při sestavování nečekaně zastavilo — při další změně se spustí znovu.',
+  'The CAD kernel stopped unexpectedly while building another job — try again.': 'CAD jádro se nečekaně zastavilo při sestavování jiné úlohy — zkuste to znovu.',
+  'Waiting for the CAD kernel (another job of it is running)': 'Čekám na CAD jádro (běží na něm jiná úloha)',
   'The part on screen is a 3D model (sketches and extrudes) — the AI cannot edit 3D models yet. Ask the user to switch to another part tab, or open a drawing or a picture.':
     'The part on screen is a 3D model (sketches and extrudes) — the AI cannot edit 3D models yet. Ask the user to switch to another part tab, or open a drawing or a picture.',
   // sketcher: lines, locks

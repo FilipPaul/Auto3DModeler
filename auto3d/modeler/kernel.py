@@ -53,6 +53,29 @@ class KernelError(Exception):
     """A modelling step that cannot be built (shown to the user as the feature's issue)."""
 
 
+# ------------------------------------------------------------------ booleans (on all cores)
+PARALLEL = os.environ.get("A3D_PARALLEL_BOOL", "1").strip().lower() not in ("0", "false", "no", "off")
+"""OpenCASCADE's booleans run their intersections on all cores; A3D_PARALLEL_BOOL=0 runs them on one (the results
+are the same: tests/test_parallel_bool.py)."""
+_BOPS = {"common": BRepAlgoAPI_Common, "cut": BRepAlgoAPI_Cut, "fuse": BRepAlgoAPI_Fuse}
+
+
+def bop(op, args, tools):
+    """args ∩ / − / ∪ tools: op "common" / "cut" / "fuse", args and tools a shape or a list of shapes -> the built
+    BRepAlgoAPI operation (IsDone, Shape and its history for _carry). Every boolean of the kernel goes through here."""
+    mk = _BOPS[op]()
+    a, b = _C.List_TopoDS_Shape(), _C.List_TopoDS_Shape()
+    for s in args if isinstance(args, (list, tuple)) else [args]:
+        a.Append(s)
+    for s in tools if isinstance(tools, (list, tuple)) else [tools]:
+        b.Append(s)
+    mk.SetArguments(a)
+    mk.SetTools(b)
+    mk.SetRunParallel(PARALLEL)
+    mk.Build()
+    return mk
+
+
 # ------------------------------------------------------------------ frames
 def _v(a):
     return np.asarray(a, float)
@@ -391,7 +414,7 @@ def material_along(shape, fr, u, v):
     p, n = _v(fr["o"]) + u * _v(fr["x"]) + v * frame_y(fr), _v(fr["n"])
     bb = bbox(shape)
     a, b = p + n * 0.01, p - n * (2 * math.dist(bb[:3], bb[3:]) + 10)
-    mk = BRepAlgoAPI_Common(shape, BRepBuilderAPI_MakeEdge(gp_Pnt(*map(float, a)), gp_Pnt(*map(float, b))).Edge())
+    mk = bop("common", shape, BRepBuilderAPI_MakeEdge(gp_Pnt(*map(float, a)), gp_Pnt(*map(float, b))).Edge())
     if not mk.IsDone():
         return None
     segs, ex = [], TopExp_Explorer(mk.Shape(), TopAbs_EDGE)
@@ -496,14 +519,13 @@ def prism_up_to_next(face, edge_names, u, body, fid, op):
     the profile extruded far, then an add keeps what of it is outside the body from the sketch to there (a boss up to
     an overhang), a cut what is inside it (through the first wall only; a sketch off the part: the nearest piece).
     Faces named as prism_body's; its end: the faces of the part it stops at."""
-    from OCP.BRepAlgoAPI import BRepAlgoAPI_Common
     from OCP.BRepExtrema import BRepExtrema_DistShapeShape
     if body is None:
         raise KernelError("Up to next: there is no part to go up to yet.")
     bb, fb = bbox(body.shape), bbox(face)
     far = 2 * math.dist([min(a, b) for a, b in zip(bb[:3], fb[:3])], [max(a, b) for a, b in zip(bb[3:], fb[3:])]) + 10
     tool = prism_body(face, edge_names, np.asarray(u, float) * far, fid)
-    mk = (BRepAlgoAPI_Common if op == "cut" else BRepAlgoAPI_Cut)(tool.shape, body.shape)
+    mk = bop("common" if op == "cut" else "cut", tool.shape, body.shape)
     if not mk.IsDone():
         raise KernelError("The solid operation failed.")
     res = mk.Shape()
@@ -831,7 +853,7 @@ def rib(body, fr, chain, ids, t, fid):
         ring = [tuple(p) for p in chain] + [tuple(b + d), tuple(a + d)]
         w, en = _poly_wire(fr, ring, list(ids) + ["far_b", "far", "far_a"])
         tool = prism_body(BRepBuilderAPI_MakeFace(w, True).Face(), en, n * t, fid, start=-n * t / 2)
-        mk = BRepAlgoAPI_Cut(tool.shape, body.shape)
+        mk = bop("cut", tool.shape, body.shape)
         if not mk.IsDone():
             continue
         res = mk.Shape()
@@ -878,8 +900,8 @@ def split(body, o, n, fid, keep="both"):
     half = prism_body(BRepBuilderAPI_MakeFace(w, True).Face(), [], n * D, fid)  # everything above the plane
     total = volume(body.shape)
     pieces = []
-    for k, Op in enumerate((BRepAlgoAPI_Common, BRepAlgoAPI_Cut)):
-        mk = Op(body.shape, half.shape)
+    for k, op in enumerate(("common", "cut")):
+        mk = bop(op, body.shape, half.shape)
         if not mk.IsDone():
             raise KernelError("The part could not be split here.")
         res = mk.Shape()
@@ -999,15 +1021,7 @@ def round_span(shape, faces, n=None):
 def cut_threads(body, tools):
     """body − thread solids [(shape, name)] in one cut: the body's names carried (a hole's wall, cut into strips, keeps
     its name: a rounding on its rim still finds it), each thread's faces named `name`."""
-    mk = BRepAlgoAPI_Cut()
-    a, b = _C.List_TopoDS_Shape(), _C.List_TopoDS_Shape()
-    a.Append(body.shape)
-    for s, _ in tools:
-        b.Append(s)
-    mk.SetArguments(a)
-    mk.SetTools(b)
-    mk.SetRunParallel(True)  # (8 holes M6 × 12: 4.6 -> 1.5 s)
-    mk.Build()
+    mk = bop("cut", body.shape, [s for s, _ in tools])  # (in parallel: 8 holes M6 × 12 4.6 -> 1.5 s)
     if not mk.IsDone():
         raise KernelError("The threads could not be cut.")
     res = mk.Shape()
@@ -1052,15 +1066,7 @@ def prisms(polys, z0, z1):
 
 def boolean(op, objects, tools):
     """objects ∩ / − / ∪ tools ("common", "cut", "fuse") — each a list of shapes, the tools may overlap each other."""
-    mk = {"common": BRepAlgoAPI_Common, "cut": BRepAlgoAPI_Cut, "fuse": BRepAlgoAPI_Fuse}[op]()
-    a, b = _C.List_TopoDS_Shape(), _C.List_TopoDS_Shape()
-    for s in objects:
-        a.Append(s)
-    for s in tools:
-        b.Append(s)
-    mk.SetArguments(a)
-    mk.SetTools(b)
-    mk.Build()
+    mk = bop(op, list(objects), list(tools))
     if not mk.IsDone():
         raise KernelError("The part could not be cut into pieces here.")
     return mk.Shape()
@@ -1094,7 +1100,7 @@ def combine(body, tool, op):
         if op == "cut":
             raise KernelError("There is nothing to cut yet — make the first extrude “Add material”.")
         return tool
-    mk = (BRepAlgoAPI_Cut if op == "cut" else BRepAlgoAPI_Fuse)(body.shape, tool.shape)
+    mk = bop("cut" if op == "cut" else "fuse", body.shape, tool.shape)
     if not mk.IsDone():
         raise KernelError("The solid operation failed.")
     res = mk.Shape()
@@ -1720,7 +1726,6 @@ def interference(shapes, min_volume=1e-3, only=None, quick=False):
     biggest first. Parts whose boxes do not meet are not computed; touching faces (no volume) are not a clash.
     only: a set of keys — just the pairs with one of them. quick: a pair whose solids meet in more than QUICK_PAIRS
     places (two big imported boards) is told by their boxes (`approx`), not computed (that takes half a minute)."""
-    from OCP.BRepAlgoAPI import BRepAlgoAPI_Common
     boxes = [(k, s, bbox(s)) for k, s in shapes]
     parts = {}  # key -> its solids with their boxes (made when a pair needs them)
     out = []
@@ -1752,7 +1757,7 @@ def interference(shapes, min_volume=1e-3, only=None, quick=False):
                 for y, by in parts[kb]:
                     if _apart(bx, by):
                         continue
-                    mk = BRepAlgoAPI_Common(x, y)
+                    mk = bop("common", x, y)
                     if not mk.IsDone():
                         continue
                     common = mk.Shape()

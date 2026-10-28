@@ -164,9 +164,10 @@ class TestModelServer(unittest.TestCase):
         e = c.post("/api/model/export/stl", json={"part": {"features": []}})
         self.assertEqual(e.status_code, 500)
         self.assertIn("no solid yet", e.get_json()["error"])
-        # the kernel process dies: the next call starts a new one
-        server.MODEL_WORKER.proc.kill()
-        server.MODEL_WORKER.proc.join(10)
+        # the part's kernel process dies: the next call starts a new one
+        w = server.MODEL_WORKER.worker_for("rebuild", self.PART)
+        w.proc.kill()
+        w.proc.join(10)
         r = c.post("/api/model/rebuild", json={"part": self.PART}).get_json()
         self.assertAlmostEqual(r["body"]["volume"], 8000, delta=1e-3)
 
