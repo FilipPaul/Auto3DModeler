@@ -1,0 +1,4 @@
+# files from other programs to import: kept byte for byte (no line-ending changes)
+samples/ToImportToOurApp/** -text
+samples/ToImportToOurApp/README.md text
+samples/ToImportToOurApp/samples.json text

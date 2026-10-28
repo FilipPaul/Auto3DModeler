@@ -9,3 +9,6 @@ data/
 
 # agents' own copies of the repository (git worktrees)
 .claude/worktrees/
+
+# files from other programs to import (samples/ToImportToOurApp/README.md: sources and licences)
+!samples/ToImportToOurApp/**
