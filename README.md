@@ -116,7 +116,9 @@ the origin now measure from the new one; Ctrl+Z takes the switch back. ◎ Hole 
 **Hover marks** (3D model and assembly, no tool on): the edge under the mouse lights up (a line or a circle), and the
 snap points of the step (in an assembly: the face) under it show as small green dots — corners, edge middles,
 centres (and ◔ quadrants of circles, once switched on — off by default, so a click on a rim takes the rim). The row bottom left switches them: Snap (what Measure and a click catch) and
-Hover (⟋ Edges, • Snap points); both are remembered.
+Hover (⟋ Edges, • Snap points); both are remembered. Hovering stays quick on big parts and assemblies: the 44 MB board
+(almost a million triangles) or a model with real threads answers the mouse at once instead of freezing for seconds —
+the part is searched through a tree of its triangles, built while the app is idle after it opens.
 
 **🖨 Print check** (3D model toolbar): marks what will not print well as the part lies on the bed — overhangs over 45°
 in red (they need supports, or turn the part) and walls thinner than the minimum you set (1.2 mm by default) in

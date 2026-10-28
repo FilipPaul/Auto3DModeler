@@ -160,6 +160,11 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_big_part_load.py <url> <dir> [<a big .step>]` covers loading big parts (a plate with 171 holes, the 44 MB
    board in data/imports): the app's time to show it (first, again), the rebuild as JSON + base64 vs the binary
    message (bytes, fetch and read ms; the same arrays and faces both ways: True), a face picked on it.
+   `tools/e2e_perf.py <url> <dir> [model,big,asm,sketch,sheet,idle] [--profile[=<word>]] [--big=<a .step>]` measures how
+   quick the app feels with real (CDP) mouse input: per action its main-thread ms, long tasks (> 50 ms: count, total,
+   worst) and /api times — a 29-step model with 9 real threads, the 44 MB board, MIT E-Vent and the Festo valve as
+   assemblies (hover, orbit, choose, explode, clashes, BOM), the Drive Gear DXF as a sketch, an assembly's sheet, the
+   idle app; --profile adds the functions that took the time. Writes <dir>/perf.json; compare runs over time.
    `tools/e2e_kernel_pool.py <url> <dir> [<a big .step>] [--report]` covers the kernel's pool of processes (two Edge
    sessions: one imports the 44 MB board and builds + draws the 171-hole plate, the other keeps editing a small part
    — each of its rebuilds under a second meanwhile). Against a server started with A3D_WORKERS=1 it fails (--report:

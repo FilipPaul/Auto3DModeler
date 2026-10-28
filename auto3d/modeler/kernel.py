@@ -1372,18 +1372,32 @@ HEAVY_FACES = 3000  # an imported model with more faces than this is handled mor
 _QUICK = (GeomAbs_Plane, GeomAbs_Cylinder)  # the surfaces the quick (fixed Gauss) volume rule gets right
 
 
+_volumes: list = []  # [(shape, volume)]: the same shape asked again is not integrated again (real threads: 2.5 s)
+
+
 def volume(shape):
     """The volume of the shape's solids — loose faces beside them (a file's reference surfaces) do not count; a shape
     with no solid: what its faces enclose (a closed shell). A solid with faces other than planes and cylinders is
     integrated adaptively: the quick fixed rule was hundreds of mm³ off on a B-spline balloon (a cut "raised" its
-    volume) and 214 mm³ on the spherical head of CATIA's S1."""
+    volume) and 214 mm³ on the spherical head of CATIA's S1. The last few shapes' volumes are kept (a part with real
+    threads: checked after the cut, then again when it is meshed)."""
+    for s, v in _volumes:
+        if s is shape:
+            return v
+    v = _volume(shape)
+    _volumes.insert(0, (shape, v))
+    del _volumes[4:]
+    return v
+
+
+def _volume(shape):
     solid_list = list(_subshapes(shape, TopAbs_SOLID))
     if len(solid_list) > 1:  # (the solids only, without the loose faces beside them)
         if sum(face_count(s) for s in solid_list) > HEAVY_FACES:  # a big model: the quick rule (exact enough there, 3 x quicker)
             p = GProp_GProps()
             BRepGProp.VolumeProperties_s(compound(solid_list), p)
             return p.Mass()
-        return sum(volume(s) for s in solid_list)  # (each on its own: the adaptive rule's error is relative to what it sums)
+        return sum(_volume(s) for s in solid_list)  # (each on its own: the adaptive rule's error is relative to what it sums)
     whole = solid_list[0] if solid_list else shape
     if face_count(whole) > HEAVY_FACES:
         p = GProp_GProps()

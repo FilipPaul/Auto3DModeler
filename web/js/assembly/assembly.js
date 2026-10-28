@@ -23,6 +23,7 @@ import { renameInPlace } from '../rename.js';
 import { paintedFaces, repaint } from '../modeler/paint.js';
 import { sectionBar, sectionMiddle } from '../modeler/sectionbar.js';
 import { ModelView } from '../modeler/view.js';
+import { accelerate } from '../modeler/bvh.js';
 import { fetchRebuild } from '../modeler/packed.js';
 import { newRid, trackProgress, cancelRid, wasCancelled } from '../progressbox.js';
 import { threadSegments } from '../modeler/view.js';
@@ -54,15 +55,28 @@ const b64 = (s, T) => { // (a binary answer's arrays come as typed arrays alread
 /** The 3D view with several parts, each with its own placement. */
 class AsmView extends ModelView {
   setBodies(list) {
-    this.clear(this.bodyGroup);
+    // each body's triangles, normals and edge lines are made once and kept while it is drawn (a hover, the explode
+    // slider, a part chosen draw everything again: only the materials and placements change)
+    const was = this.shapes || new Map();
+    this.shapes = new Map();
+    for (const o of [...this.bodyGroup.children]) this.bodyGroup.remove(o);
     this.meshes = [];
     let box = null;
     for (const it of list) {
       if (!it.body) continue;
-      const pos = b64(it.body.positions, Float32Array), ids = b64(it.body.face_ids, Uint32Array);
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      geo.computeVertexNormals();
+      let sh = this.shapes.get(it.body) || was.get(it.body);
+      if (!sh) {
+        const base = new THREE.BufferGeometry(), seg = [];
+        base.setAttribute('position', new THREE.BufferAttribute(b64(it.body.positions, Float32Array), 3));
+        base.computeVertexNormals();
+        for (const { pts: pl } of it.body.edges) for (let i = 0; i + 5 < pl.length; i += 3) seg.push(pl[i], pl[i + 1], pl[i + 2], pl[i + 3], pl[i + 4], pl[i + 5]);
+        const eg = new THREE.BufferGeometry();
+        eg.setAttribute('position', new THREE.Float32BufferAttribute(seg, 3));
+        sh = { base, ids: b64(it.body.face_ids, Uint32Array), edges: eg, coloured: new Map(), threads: null };
+      }
+      this.shapes.set(it.body, sh);
+      const pos = sh.base.attributes.position.array, ids = sh.ids;
+      let geo = sh.base;
       const o = Number.isFinite(it.opacity) ? it.opacity : 1;
       // a chosen part keeps its own colours and painted faces: it glows blue (it was drawn all blue — its look hidden)
       const fin = it.finish || { metalness: 0.05, roughness: 0.55 }; // (a metal part: metallic)
@@ -73,37 +87,44 @@ class AsmView extends ModelView {
       const fromFile = !it.ownColour ? it.body.faces.filter((f) => f.color) : [];
       const lit = it.lit ? it.body.faces.filter((f) => f.name.startsWith(it.lit)) : []; // (a part inside a sub-assembly chosen in the list)
       if (painted?.size || fromFile.length || lit.length) { // faces painted in their part, or coloured in its STEP file
-        const base = new THREE.Color(it.colour || COLORS[it.color % COLORS.length]), col = new Float32Array(pos.length);
-        const byId = new Map(fromFile.map((f) => [f.id, new THREE.Color(f.color)]));
-        for (const [id, p] of painted || []) byId.set(id, new THREE.Color(p.color));
-        for (const f of lit) byId.set(f.id, new THREE.Color(0x3b82f6));
-        for (let tr = 0; tr < ids.length; tr++) {
-          const c = byId.get(ids[tr]) || base;
-          for (let k = 0; k < 3; k++) col.set([c.r, c.g, c.b], tr * 9 + k * 3);
+        const base = new THREE.Color(it.colour || COLORS[it.color % COLORS.length]);
+        const key = `${base.getHexString()}|${fromFile.length}|${it.lit || ''}|${[...(painted || [])].map(([id, p]) => `${id}:${p.color}`).join()}`;
+        geo = sh.coloured.get(key);
+        if (!geo) { // (its colours: made once for these colours; the same positions and normals)
+          const col = new Float32Array(pos.length), byId = new Map(fromFile.map((f) => [f.id, new THREE.Color(f.color)]));
+          for (const [id, p] of painted || []) byId.set(id, new THREE.Color(p.color));
+          for (const f of lit) byId.set(f.id, new THREE.Color(0x3b82f6));
+          for (let tr = 0; tr < ids.length; tr++) {
+            const c = byId.get(ids[tr]) || base;
+            for (let k = 0; k < 3; k++) col.set([c.r, c.g, c.b], tr * 9 + k * 3);
+          }
+          geo = new THREE.BufferGeometry();
+          geo.setAttribute('position', sh.base.attributes.position);
+          geo.setAttribute('normal', sh.base.attributes.normal);
+          geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+          if (sh.coloured.size >= 6) { for (const g of sh.coloured.values()) g.dispose(); sh.coloured.clear(); }
+          sh.coloured.set(key, geo);
         }
-        geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
         mat.vertexColors = true;
         mat.color.set(0xffffff);
       }
-      const mesh = new THREE.Mesh(geo, mat);
+      const mesh = accelerate(new THREE.Mesh(geo, mat));
       mesh.matrixAutoUpdate = false;
       mesh.matrix.fromArray(it.matrix);
       if (it.explode) mesh.matrix.premultiply(new THREE.Matrix4().makeTranslation(...it.explode));
       mesh.userData = { inst: it.id, faceIds: ids, body: it.body };
       this.bodyGroup.add(mesh);
-      const seg = [];
-      for (const { pts: pl } of it.body.edges) for (let i = 0; i + 5 < pl.length; i += 3) seg.push(pl[i], pl[i + 1], pl[i + 2], pl[i + 3], pl[i + 4], pl[i + 5]);
-      const eg = new THREE.BufferGeometry();
-      eg.setAttribute('position', new THREE.Float32BufferAttribute(seg, 3));
-      const lines = new THREE.LineSegments(eg, this.edgeMaterial);
+      const lines = new THREE.LineSegments(sh.edges, this.edgeMaterial);
       lines.matrixAutoUpdate = false;
       lines.matrix.copy(mesh.matrix);
       this.bodyGroup.add(lines);
-      const thr = it.threads === 'cosmetic' ? threadSegments(it.body.threads) : []; // 🔩 its part's cosmetic threads
-      if (thr.length) {
-        const tg = new THREE.BufferGeometry();
-        tg.setAttribute('position', new THREE.Float32BufferAttribute(thr, 3));
-        const tl = new THREE.LineSegments(tg, this.threadMaterial);
+      if (it.threads === 'cosmetic' && !sh.threads) { // 🔩 its part's cosmetic threads
+        const thr = threadSegments(it.body.threads);
+        sh.threads = new THREE.BufferGeometry();
+        sh.threads.setAttribute('position', new THREE.Float32BufferAttribute(thr, 3));
+      }
+      if (it.threads === 'cosmetic' && sh.threads.attributes.position.count) {
+        const tl = new THREE.LineSegments(sh.threads, this.threadMaterial);
         tl.matrixAutoUpdate = false;
         tl.matrix.copy(mesh.matrix);
         this.bodyGroup.add(tl);
@@ -112,6 +133,10 @@ class AsmView extends ModelView {
       mesh.updateMatrixWorld(true);
       const bb = new THREE.Box3().setFromObject(mesh);
       box = box ? box.union(bb) : bb;
+    }
+    for (const [body, sh] of was) { // (bodies no longer drawn: their shapes freed)
+      if (this.shapes.has(body)) continue;
+      for (const g of [sh.base, sh.edges, sh.threads, ...sh.coloured.values()]) g?.dispose();
     }
     this.mesh = this.meshes[0] || null; // fitting the view, the origin size
     this.clearHoverMarks(); // (the parts drawn anew: the hover marks were on the old ones)
@@ -254,8 +279,8 @@ class AsmView extends ModelView {
   pickInst(clientX, clientY) {
     const h = this.ray(clientX, clientY).intersectObjects(this.meshes || [], false)[0];
     if (!h) return null;
-    const { inst, faceIds, body } = h.object.userData;
-    const f = body.faces.find((x) => x.id === faceIds[h.faceIndex]);
+    const { inst, faceIds, body } = h.object.userData, fid = faceIds[h.faceIndex];
+    const f = body.faces[fid]?.id === fid ? body.faces[fid] : body.faces.find((x) => x.id === fid);
     if (!f) return { inst };
     const m = h.object.matrix, nm = new THREE.Matrix3().getNormalMatrix(m);
     const centroid = new THREE.Vector3(...f.centroid).applyMatrix4(m);
@@ -2736,9 +2761,19 @@ export class Assembly {
       await this.insert(pid);
     });
     let down = null;
-    cv.addEventListener('pointerdown', (e) => { if (e.button === 0) down = { x: e.clientX, y: e.clientY }; });
+    cv.addEventListener('pointerdown', (e) => {
+      if (this.hoverEv) hoverNow(); // (a move not shown yet: as it came, before the press)
+      if (e.button === 0) down = { x: e.clientX, y: e.clientY };
+    });
     cv.addEventListener('pointermove', (e) => {
       if (down) return;
+      this.hoverEv = e; // (the work once a frame: the mouse sends more moves than the screen shows)
+      if (!this.hoverRaf) this.hoverRaf = requestAnimationFrame(() => { this.hoverRaf = 0; hoverNow(); });
+    });
+    const hoverNow = () => {
+      const e = this.hoverEv;
+      this.hoverEv = null;
+      if (!e || down) return;
       if (this.measuring) { this.view.clearHoverMarks(); this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); return; } // (where a click measures from)
       const h0 = this.view.pickInst(e.clientX, e.clientY), h = this.jointPick(e, h0);
       if (this.mode === 'idle') this.hoverMarks(e, h0);
@@ -2757,8 +2792,8 @@ export class Assembly {
       if (id !== this.hoverInst) { this.hoverInst = id; this.draw(); }
       this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); // (a corner, an edge's middle, a centre: it can be picked)
       cv.style.cursor = h ? 'pointer' : '';
-    });
-    cv.addEventListener('pointerleave', () => this.view.clearHoverMarks());
+    };
+    cv.addEventListener('pointerleave', () => { this.hoverEv = null; this.view.clearHoverMarks(); });
     cv.addEventListener('dblclick', (e) => { // a part double-clicked: edit it here (when unlocked)
       if (this.mode !== 'idle' || this.measuring || this.bolt) return;
       const h = this.view.pickInst(e.clientX, e.clientY);
