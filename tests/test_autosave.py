@@ -35,6 +35,21 @@ class TestAutosave(unittest.TestCase):
         self.assertEqual([r["id"] for r in A.recent(self.dir)], ["bbbbbbbb-2"])
         self.assertFalse(list(self.dir.glob("*.tmp")))
 
+    def test_cleanup_empty_default_projects(self):
+        """🧹 only projects with nothing in them and the app's own names go — not a named one, not one with steps,
+        not the one on screen."""
+        empty = lambda name, part="3D model 1": {"project_name": name, "parts": [{"id": "P1", "kind": "model", "name": part, "model": {"features": []}}]}  # noqa: E731
+        A.save(self.dir, "aaaaaaaa-1", empty("3D model 1"))
+        A.save(self.dir, "aaaaaaaa-2", {"parts": [{"id": "P1", "kind": "assembly", "name": "Sestava 1", "assembly": {"instances": []}}]})
+        A.save(self.dir, "aaaaaaaa-3", empty("Bracket"))                                   # a name of the user's
+        A.save(self.dir, "aaaaaaaa-4", {"project_name": "3D model 2", "parts": [{"id": "P1", "kind": "model", "name": "3D model 2", "model": {"features": [{"id": "F1"}]}}]})
+        A.save(self.dir, "aaaaaaaa-5", empty("Project"))                                   # the one on screen
+        found = A.cleanup(self.dir, keep="aaaaaaaa-5", dry_run=True)
+        self.assertEqual(sorted(m["id"] for m in found), ["aaaaaaaa-1", "aaaaaaaa-2"])
+        self.assertEqual(len(A.recent(self.dir)), 5)                                       # (only told)
+        A.cleanup(self.dir, keep="aaaaaaaa-5")
+        self.assertEqual(sorted(m["id"] for m in A.recent(self.dir)), ["aaaaaaaa-3", "aaaaaaaa-4", "aaaaaaaa-5"])
+
     def test_refused_and_pruned(self):
         for bad in ("../x", "short", "a" * 80):
             with self.assertRaises(A.AutosaveError):

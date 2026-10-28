@@ -92,7 +92,9 @@ export class Autosave {
     back.className = 'choose-back';
     back.innerHTML = `<div class="choose aih" role="dialog" aria-modal="true"><h3>🕘 Recent projects</h3>
       <p class="hint">Every project is kept on the server a few seconds after each change (data/projects/). Open one to go on with it.</p>
-      <div class="aih-list"><p class="hint">Loading…</p></div><button class="mini choose-x" title="Close">✕</button></div>`;
+      <div class="aih-list"><p class="hint">Loading…</p></div>
+      <div class="row-actions"><button class="btn small" data-clean title="Delete every empty project that still has the name the app gave it (no steps, no parts, no shapes) — the one on screen stays">🧹 Clean up empty projects</button></div>
+      <button class="mini choose-x" title="Close">✕</button></div>`;
     const close = () => { document.removeEventListener('keydown', onKey, true); back.remove(); };
     const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
     document.addEventListener('keydown', onKey, true);
@@ -120,6 +122,17 @@ export class Autosave {
         });
       }
     };
+    back.querySelector('[data-clean]').addEventListener('click', async () => {
+      const ask = async (dry) => (await (await fetch('/api/projects-cleanup', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keep: this.id, dry_run: dry }) })).json()).projects || [];
+      const found = await ask(true);
+      if (!found.length) { this.hooks.toast(t('Nothing to clean up — every kept project has something in it or a name of yours.'), 'info', 5000); return; }
+      const names = found.slice(0, 8).map((p) => `${p.name} (${when(p.time)})`).join('\n');
+      if (!confirm(`${tv('Delete {n} empty project(s) with default names?', { n: found.length })}\n\n${names}${found.length > 8 ? '\n…' : ''}`)) return;
+      const gone = await ask(false);
+      this.hooks.toast(tv('{n} empty project(s) deleted.', { n: gone.length }), 'ok', 4000);
+      render();
+    });
     render();
   }
 }

@@ -61,6 +61,49 @@ def load(folder: Path, pid: str) -> dict:
     return json.loads(p.read_text(encoding="utf-8"))
 
 
+# names the app gives by itself (English / Czech): a project or part not named by the user
+_DEFAULT_NAME = re.compile(r"^\s*(project|projekt|3d model|3d modelu|assembly|sestava|drawing|výkres|untitled|nový projekt)?\s*\d*\s*$", re.I)
+
+
+def _empty_part(p: dict) -> bool:
+    """A part with nothing in it: a 3D model without steps, an assembly without parts, a drawing without shapes."""
+    kind = p.get("kind")
+    data = p.get("classic" if kind == "classic" else kind) or {}
+    if kind == "model":
+        return not data.get("features")
+    if kind == "assembly":
+        return not data.get("instances")
+    if kind == "drawing":
+        return not data.get("entities")
+    if kind == "sheet":
+        return False  # (a drawing sheet is of something)
+    return not data  # a quick part: its drawing / picture / file
+
+
+def empty_default(project: dict) -> bool:
+    """A project worth nothing to keep: every part empty, and it and its parts still have the names the app gave."""
+    parts = [p for p in project.get("parts") or [] if isinstance(p, dict)]
+    names = [project.get("project_name") or ""] + [p.get("name") or "" for p in parts]
+    return all(_empty_part(p) for p in parts) and all(_DEFAULT_NAME.match(n) for n in names)
+
+
+def cleanup(folder: Path, keep=None, dry_run=False) -> list:
+    """🧹 Delete the empty projects with default names (not `keep`: the one on screen) -> their metas."""
+    out = []
+    for m in recent(folder):
+        if m.get("id") == keep:
+            continue
+        try:
+            project = load(folder, m["id"])
+        except (AutosaveError, OSError, ValueError):
+            continue
+        if empty_default(project):
+            out.append(m)
+            if not dry_run:
+                delete(folder, m["id"])
+    return out
+
+
 def delete(folder: Path, pid: str) -> None:
     for suffix in (".json", ".meta.json"):
         (Path(folder) / f"{_check(pid)}{suffix}").unlink(missing_ok=True)

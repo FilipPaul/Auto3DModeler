@@ -163,6 +163,9 @@ Never report "works" without having run it; report failures with their output.
    the recommended option first ★; one answered: nothing sent; both: one message "<question> → <option>"; ✎ Other…
    puts the question in the box; no options refused). The message is caught in the page (no Claude needed).
    (e2e_drawing_set also checks one item numbering for the whole set: Machine 1–3, the Lid unit's parts 4 and 5.)
+   `tools/e2e_cleanup.py <url> <dir>` covers 🧹 Clean up empty projects (three empty default-named projects asked about
+   by name and deleted; an empty one named by the user and one with a step stay; again: nothing to clean up). Needs a
+   server restarted after server / autosave changes.
    `tools/e2e_suggest.py <url> <dir>` covers the suggestions table (a sketch line: its length, h, v, construction —
    bottom left; + a crossing line: angle, parallel, perpendicular, equal (Equal made); a line + a circle: tangent, from
    its centre; Esc: gone; an assembly part: open, join, simplified, own part, take out; + a second: join them (picking

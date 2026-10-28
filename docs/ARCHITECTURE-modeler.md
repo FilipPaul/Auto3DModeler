@@ -80,6 +80,10 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **🧹 Clean up empty projects done:** autosave.empty_default (every part empty — a model without steps, an assembly
+  without parts, a drawing without shapes; a sheet counts as something — and the project's and parts' names the app's
+  own: 3D model 1, Sestava 2, Project …) / cleanup(keep, dry_run); POST /api/projects-cleanup; 🕘 Recent projects ›
+  🧹 asks with their names first. test_cleanup_empty_default_projects; tools/e2e_cleanup.py.
 - **One tab per new window, tabs dragged between windows done:** Project.showOnly / shown (a window opened by ⧉
   shows only its part's tab; switchTo adds, ✕ removes it from this window only — the part stays open elsewhere); a
   tab's drag carries text/a3d-from {win, project}; a drop on another window's tab row / a tab adopts it there

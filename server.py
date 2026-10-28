@@ -219,6 +219,14 @@ def api_projects_recent():
     return jsonify({"projects": autosave.recent(PROJECTS)})
 
 
+@app.post("/api/projects-cleanup")
+def api_projects_cleanup():
+    """🧹 {keep: the project on screen, dry_run} -> {projects: [meta]} — the empty ones with default names (deleted
+    unless dry_run)."""
+    body = request.get_json(force=True, silent=True) or {}
+    return jsonify({"projects": autosave.cleanup(PROJECTS, body.get("keep"), bool(body.get("dry_run")))})
+
+
 @app.get("/api/projects/<pid>")
 def api_project_load(pid):
     try:

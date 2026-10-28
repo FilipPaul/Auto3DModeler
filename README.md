@@ -85,7 +85,8 @@ screen in two windows shows the change in both), and the project is saved the sa
 
 **Autosave**: the project is kept on the server (`data/projects/`) a few seconds after each change — "✓ Saved 22:31" by
 the project's name says so — so a closed tab or a browser crash loses nothing. **Open ▾ → 🕘 Recent projects…** lists
-the kept projects to open again (✕ forgets one); when the app starts empty, the last one is offered at the bottom left.
+the kept projects to open again (✕ forgets one; **🧹 Clean up empty projects** deletes, after asking, every one with
+nothing in it that still has the name the app gave it — the one on screen stays); when the app starts empty, the last one is offered at the bottom left.
 *Save project* still writes a file to keep or send.
 
 **Panels**: drag the edge between a side panel and the view (or the AI chat's left edge) to make it wider or narrower;
