@@ -99,7 +99,9 @@ try:
     print("a line:", table())
     pos = d.find_element(By.CSS_SELECTOR, "#modelViewport .view-suggest").rect
     vp = d.find_element(By.CSS_SELECTOR, "#modelViewport").rect
-    print("  bottom left:", pos["x"] - vp["x"] < 30 and vp["y"] + vp["height"] - (pos["y"] + pos["height"]) < 60)
+    sel = d.find_element(By.CSS_SELECTOR, "#modelViewport > .sk-filters").rect  # (the sketch's Select: row, under the table)
+    print("  bottom left, just above the Select row:", pos["x"] - vp["x"] < 30 and 0 <= sel["y"] - (pos["y"] + pos["height"]) < 20,
+          f"(left {pos['x'] - vp['x']:.0f} px, {sel['y'] - (pos['y'] + pos['height']):.0f} px above the row)")
     click_uv((40, 6), ctrl=True)  # + the right line (they cross at the corner)
     print("+ a crossing line:", table())
     press("Equal")
