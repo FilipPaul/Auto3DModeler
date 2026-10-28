@@ -1262,17 +1262,19 @@ export class Assembly {
   }
 
   /** "the top of Extrude 1" for a face of a placed part. */
-  faceText(instId, name) {
-    const it = this.inst(instId);
+  faceText(instId, name) { return this.partFaceText(this.inst(instId)?.part, name); }
+
+  /** The same for a face of part `pid` (a sub-assembly's: "Arm I2: the top of Extrude 1"). */
+  partFaceText(pid, name) {
     if (String(name).includes('/')) { // a face of a part inside a sub-assembly
-      const [sub, rest] = String(name).split(/\/(.*)/s), si = (this.hooks.partData(it?.part)?.instances || []).find((x) => x.id === sub);
-      return `${this.partName(si?.part)} ${sub}: ${rest}`;
+      const [sub, rest] = String(name).split(/\/(.*)/s), si = (this.hooks.partData(pid)?.instances || []).find((x) => x.id === sub);
+      return `${this.partName(si?.part)} ${sub}: ${si ? this.partFaceText(si.part, rest) : rest}`;
     }
-    const feats = this.hooks.partData(it?.part)?.features || [];
-    const [fid, role, sub] = String(name).split(':'), g = feats.find((f) => f.id === fid);
-    if (fid === 'Q1') return `face ${String(role).slice(1)}`;
+    const feats = this.hooks.partData(pid)?.features || [];
+    const [fid, role] = String(name).split(':'), g = feats.find((f) => f.id === fid);
+    if (fid === 'Q1') return `${t('face')} ${String(role).slice(1)}`;
     const what = { end: 'the top of', start: 'the bottom of', side: 'a wall of', hole: 'hole of', round: 'a rounding of', bottom: 'a hole bottom of' }[role] || 'a face of';
-    return g ? `${what} ${g.name}` : name;
+    return g ? `${t(what)} ${g.name}` : name;
   }
 
   /** The joints of a part (or all, id null) as rows: what holds what, its gap / flip, ✕. */

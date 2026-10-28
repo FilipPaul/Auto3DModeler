@@ -37,8 +37,8 @@ export function showSnapFilters(viewport, on = true) {
   }
   const k = snapKinds(), F = [['corner', '⌜', 'Corners'], ['midpoint', '⊹', 'Edge midpoints'], ['centre', '◎', 'Centres'], ['quadrant', '◔', 'Quadrants']];
   const hk = hoverKinds(), HV = [['edges', '⟋', 'Edges'], ['points', '•', 'Snap points']];
-  bar.innerHTML = `<span class="skf-t">${esc(t('Snap'))}:</span>${F.map(([key, i, l]) => `<button class="${k[key] ? 'on' : ''}" data-snap="${key}" title="${esc(t('What 📏 Measure and a click catch — click to switch'))}">${i} ${esc(t(l))}</button>`).join('')}
-    <span class="sep"></span><span class="skf-t">${esc(t('Hover'))}:</span>${HV.map(([key, i, l]) => `<button class="${hk[key] ? 'on' : ''}" data-hover="${key}" title="${esc(t(key === 'edges' ? 'Light up the edge under the mouse (a line or a circle) — click to switch' : 'Show the snap points of the step / face under the mouse — click to switch'))}">${i} ${esc(t(l))}</button>`).join('')}`;
+  bar.innerHTML = `<span class="skf-t">${esc(t('Snap'))}:</span>${F.map(([key, i, l]) => `<button class="${k[key] ? 'on' : ''}" data-snap="${key}" title="${esc(`${t(l)}: ${t('What 📏 Measure and a click catch — click to switch')}`)}">${i} <span class="skf-l">${esc(t(l))}</span></button>`).join('')}
+    <span class="sep"></span><span class="skf-t">${esc(t('Hover'))}:</span>${HV.map(([key, i, l]) => `<button class="${hk[key] ? 'on' : ''}" data-hover="${key}" title="${esc(`${t(l)}: ${t(key === 'edges' ? 'Light up the edge under the mouse (a line or a circle) — click to switch' : 'Show the snap points of the step / face under the mouse — click to switch')}`)}">${i} <span class="skf-l">${esc(t(l))}</span></button>`).join('')}`;
   const flip = (store, read, key) => {
     const now = { ...read(), [key]: !read()[key] };
     try { localStorage.setItem(store, JSON.stringify(now)); } catch { /* private window */ }
@@ -46,15 +46,31 @@ export function showSnapFilters(viewport, on = true) {
   };
   for (const b of bar.querySelectorAll('[data-snap]')) b.addEventListener('click', () => flip(SNAP_KEY, snapKinds, b.dataset.snap));
   for (const b of bar.querySelectorAll('[data-hover]')) b.addEventListener('click', () => flip(HOVER_KEY, hoverKinds, b.dataset.hover));
+  fitSnapFilters(viewport);
+  if (!viewport.snapFit && window.ResizeObserver) (viewport.snapFit = new ResizeObserver(() => fitSnapFilters(viewport))).observe(viewport);
+}
+
+/** The filter row as icons only when its names do not fit the view (no scrollbar under it). */
+function fitSnapFilters(viewport) {
+  const bar = viewport.querySelector(':scope > .snap-filters');
+  if (!bar) return;
+  bar.classList.remove('compact');
+  if (bar.scrollWidth > bar.clientWidth + 1) bar.classList.add('compact');
 }
 
 const savedAt = () => { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } };
 
 /** Where the user put it: [x, y] as parts of the view (0 … 1), kept inside it. */
 function place(box, viewport) {
-  const at = savedAt();
-  if (!at) { box.style.left = box.style.top = box.style.bottom = ''; return; }
-  const vr = viewport.getBoundingClientRect(), w = box.offsetWidth || 236, h = box.offsetHeight || 120;
+  const at = savedAt(), vr = viewport.getBoundingClientRect();
+  if (!at) {
+    box.style.left = box.style.top = box.style.bottom = '';
+    const bar = viewport.querySelector(':scope > .m-cmdbar'), top = bar ? bar.offsetTop + bar.offsetHeight + 8 : 8; // (in its corner: under the command bar, its rows scroll)
+    box.style.maxHeight = vr.height ? `${Math.max(150, vr.height - top - (parseFloat(getComputedStyle(box).bottom) || 34))}px` : '';
+    return;
+  }
+  box.style.maxHeight = '';
+  const w = box.offsetWidth || 236, h = box.offsetHeight || 120;
   Object.assign(box.style, { left: `${Math.max(4, Math.min(at[0] * vr.width, vr.width - w - 4))}px`, top: `${Math.max(4, Math.min(at[1] * vr.height, vr.height - h - 4))}px`, bottom: 'auto' });
 }
 

@@ -572,6 +572,7 @@ const CS = {
   'Hold a part against another one: choose how, then click a face of the part to move and the face it goes to (S = touch)': 'Přidržet díl u jiného: vyberte jak, pak klikněte na plochu dílu, který se posune, a na plochu, ke které patří (S = dotyk)',
   'a flat face onto a flat face (facing each other)': 'rovná plocha na rovnou plochu (proti sobě)', 'a flat face facing another one, a distance apart': 'rovná plocha proti jiné, v dané vzdálenosti',
   'two flat faces in one plane, facing the same way': 'dvě rovné plochy v jedné rovině, stejným směrem',
+  'Flush: two flat faces in one plane, facing the same way': 'Zarovnat: dvě rovné plochy v jedné rovině, stejným směrem', // (the bar's tooltip, translated whole)
   'two round faces on one axis (a pin in a hole, a shaft in a bearing)': 'dvě válcové plochy na jedné ose (čep v díře, hřídel v ložisku)',
   'two flat faces parallel (it only turns)': 'dvě rovné plochy rovnoběžně (jen natočí)', Turn: 'Natočení', Joints: 'Vazby',
   'Slide to any angle — it catches at 0, ±90 and ±180°. Type an exact one in the box.': 'Posuňte na libovolný úhel — chytá se na 0, ±90 a ±180°. Přesný úhel napište do políčka.',
@@ -868,7 +869,9 @@ const CS = {
   'Along the axis of {face} ({part})': 'Podél osy: {face} ({part})', 'Turn about the axis of {face} ({part})': 'Otočit kolem osy: {face} ({part})',
   'Along {axis} (on {face})': 'Podél {axis} (po: {face})', 'Along {face}': 'Po: {face}', 'Turn on {face} ({part})': 'Otočit na: {face} ({part})',
   'Away from {face}': 'Od: {face}', 'Along {axis}': 'Podél {axis}', 'Turn about {axis}': 'Otočit kolem {axis}',
-  'held by its joints.': 'drží ho jeho vazby.', 'the joints between them': 'vazby mezi nimi', ': none yet': ': zatím žádné',
+  'held by its joints.': 'drží ho jeho vazby.', 'where its own origin is, and how it is turned.': 'kde je jeho vlastní počátek a jak je natočený.',
+  'the top of': 'horní plocha', 'the bottom of': 'spodní plocha', 'a wall of': 'stěna', 'hole of': 'díra', 'a rounding of': 'zaoblení', 'a hole bottom of': 'dno díry', 'a face of': 'plocha', 'face': 'plocha',
+  'the joints between them': 'vazby mezi nimi', ': none yet': ': zatím žádné',
   '🔗 Join them': '🔗 Spojit je', 'Ctrl+click another part to compare it instead, a click alone shows one part.': 'Ctrl+klik na jiný díl ho porovná místo tohoto, samotný klik ukáže jeden díl.',
   'Place it by hand (breaks its joints)': 'Umístit ručně (zruší jeho vazby)',
   '⚠ Collisions': '⚠ Kolize', 'Check where parts overlap (go into each other) — the pairs, how much, marked in red; checked again after every change while it is open': 'Zkontrolovat, kde se díly překrývají (zasahují do sebe) — dvojice, o kolik, vyznačené červeně; při otevřeném panelu se kontroluje po každé změně',

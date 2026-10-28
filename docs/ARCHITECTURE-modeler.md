@@ -95,6 +95,12 @@ Date: 2026-10-25. Written by the architect agent.
   button of its own (one click starts it, lit while its faces are picked, a click again / Esc stops), Screw / pin last;
   the hint goes under the bar however many rows it has; the suggestions table goes while faces are picked.
   e2e_assembly_joints / _concentric / _bolt / _edgepick / _fasteners / _health, e2e_assembly.
+- **The assembly's UI check done (1600×1000 and 1280×800, EN / CZ):** the suggestions table stays under the command
+  bar (showSuggest's place: a max height, its rows scroll), its head keeps a gap to "Suggested"; the 3D Snap / Hover
+  row turns to icons when its names do not fit (.snap-filters.compact, measured, names in the tooltips); the panel's
+  sliders and buttons shrink / wrap instead of running out of it; a joint row label reads as a label; a face inside a
+  sub-assembly is named ("Arm I2: the top of Extrude 1"), the face names in Czech. e2e_assembly_dof finds its row by
+  the instance order.
 - **Ctrl+click to choose several in the 3D model done:** clickFace keeps `picks` ({face, step, point} / {point,
   snap}); Ctrl adds or takes one away (addPick) -> showPicks: their steps' faces lit, the points marked, the table:
   Between them (the distance; two parallel flat faces: the gap), the steps (turn them off / on, ✕ Delete them —

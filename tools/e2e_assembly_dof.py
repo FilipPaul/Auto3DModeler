@@ -121,7 +121,8 @@ try:
     pick("I1")
     print("base chosen — joints listed:", len(d.find_elements(By.CSS_SELECTOR, "#asmRight [data-jrow]")),
           "| symbols in the view:", js("return document.querySelectorAll('#asmViewport .as-jtag').length"))
-    row = [r for r in d.find_elements(By.CSS_SELECTOR, "#asmLeft .as-list .mt-item") if r.find_element(By.CSS_SELECTOR, ".mt-what").text == "I3"][0]
+    # rows follow doc.instances; not by the row's text — a fixed part reads "I3 📌"
+    row = d.find_elements(By.CSS_SELECTOR, "#asmLeft .as-list .mt-item")[js(f"return {A}.doc.instances.findIndex(i => i.id === 'I3')")]
     ActionChains(d).key_down(Keys.CONTROL).click(row.find_element(By.CSS_SELECTOR, ".mt-name")).key_up(Keys.CONTROL).perform()
     time.sleep(0.4)
     print("Ctrl+click the lid:", d.find_element(By.CSS_SELECTOR, "#asmRight h2").text, "| joints between:",
