@@ -182,6 +182,9 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_assembly_sheet_explode.py <url> <dir>` covers an assembly sheet's exploded iso (Base + Lid on top: ☐ Iso
    view exploded ticked — the iso taller, the front the same, the balloons moved; Ctrl+Z back; a picture of the
    sheet). Needs a server restarted after kernel changes.
+   `tools/e2e_model_multipick.py <url> <dir>` covers Ctrl+click in the 3D model with real clicks (a plate and a boss:
+   2 chosen, gap 10 mm, distance; a corner more; Ctrl+click again takes one away; turn both off, ↶; the boss and a
+   hole deleted together).
    `tools/e2e_assembly_facepick.py` also covers the face table's sections (the part, This face) and ◆ Select the whole
    part (the face pick dropped, the part chosen with its moves).
    `tools/e2e_hover_marks.py <url> <dir>` covers the hover marks with real mouse moves (a block with a Ø8 hole: its

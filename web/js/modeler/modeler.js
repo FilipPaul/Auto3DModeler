@@ -478,10 +478,13 @@ export class Modeler {
    *  in sections: on this face, its edges, the part, the step. */
   clickFace(e) {
     this.closeCtx();
-    const sp = this.view.measurePoint(e.clientX, e.clientY);
+    const sp = this.view.measurePoint(e.clientX, e.clientY), more = e.ctrlKey || e.metaKey;
+    const h = sp?.snap ? null : this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
+    const pick = sp?.snap ? { kind: 'point', point: sp.point.clone(), snap: sp.snap } : fs ? { kind: 'face', step: fs.step, face: h.face, point: h.point.clone() } : null;
+    if (more && pick && this.picks?.length) { this.addPick(pick); return; } // Ctrl+click: one more in the selection
+    this.picks = pick ? [pick] : [];
     if (sp?.snap) { this.pickSnap(sp); return; } // a corner, an edge's middle, a centre
     if (!this.measuring) this.view.setMeasure([]);
-    const h = this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
     if (!fs) { this.selectStep(null); this.dropSuggest(); return; }
     this.selectStep(fs.step.id);
     const flat = h.face.type === 'plane', at = { clientX: e.clientX, clientY: e.clientY };
@@ -510,6 +513,64 @@ export class Modeler {
   }
 
   closeCtx() { this.ctx?.remove(); this.ctx = null; }
+
+  /** Ctrl+click: a face (its step) or a snap point more in the selection — or, chosen already, taken out of it. */
+  addPick(pick) {
+    const same = (a, b) => a.kind === b.kind && (a.kind === 'face' ? a.step.id === b.step.id && a.face.id === b.face.id : a.point.distanceTo(b.point) < 1e-6);
+    const i = this.picks.findIndex((q) => same(q, pick));
+    if (i >= 0) this.picks.splice(i, 1); else this.picks.push(pick);
+    this.showPicks();
+  }
+
+  /** Several things chosen (Ctrl+click): all marked — their steps' faces, the points — and what fits them suggested:
+   *  the distance between two (the gap between two parallel flat faces), turning their steps off, deleting them. */
+  showPicks() {
+    const ps = (this.picks || []).filter((q) => q.kind === 'point' || this.part.features.includes(q.step));
+    this.picks = ps;
+    if (!ps.length) { this.selectStep(null); this.dropSuggest(); this.view.setMeasure([]); return; }
+    const steps = [...new Map(ps.filter((q) => q.kind === 'face').map((q) => [q.step.id, q.step])).values()];
+    this.selectStep(null);
+    this.view.setSelectedFaces(steps.flatMap((s) => this.stepFaceIds(s.id)));
+    const pts = ps.filter((q) => q.kind === 'point').map((q) => q.point);
+    this.view.setMeasure(pts);
+    const dot = (u, v) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2], xyz = (p) => [p.x, p.y, p.z].map((v) => fmt(+v.toFixed(3))).join(', ');
+    const items = [];
+    if (ps.length === 2) {
+      const [a, b] = ps, d = a.point.distanceTo(b.point), fa = a.kind === 'face' && a.face.type === 'plane' && a.face.frame, fb = b.kind === 'face' && b.face.type === 'plane' && b.face.frame;
+      const gap = fa && fb && Math.abs(Math.abs(dot(fa.n, fb.n)) - 1) < 1e-6 ? Math.abs(dot(fb.o.map((v, k) => v - fa.o[k]), fa.n)) : null;
+      const show = (text) => { this.view.setMeasure([a.point, b.point], text); this.hooks.toast(text, 'info', 3000); };
+      items.push({ section: t('Between them') },
+        ...(gap !== null ? [{ icon: '↕', label: `${t('Gap between the faces')} ${fmt(gap)} mm`, title: t('The two flat faces are parallel'), run: () => show(`${fmt(gap)} mm`) }] : []),
+        { icon: '📏', label: `${t('Distance')} ${fmt(d)} mm`, title: `Δx ${fmt(Math.abs(b.point.x - a.point.x))} Δy ${fmt(Math.abs(b.point.y - a.point.y))} Δz ${fmt(Math.abs(b.point.z - a.point.z))}`, run: () => show(`${fmt(d)} mm`) });
+    }
+    if (steps.length) {
+      const allOff = steps.every((s) => s.suppressed), one = steps.length === 1;
+      items.push({ section: one ? `${t('Step')} · ${steps[0].name}` : `${steps.length} ${t('steps')}: ${steps.map((s) => s.name).join(', ')}` },
+        { icon: allOff ? '●' : '◌', label: t(allOff ? (one ? 'Turn it on' : 'Turn them on') : (one ? 'Turn it off' : 'Turn them off')), run: () => {
+          for (const s of steps) { if (allOff) delete s.suppressed; else s.suppressed = true; }
+          this.picks = [];
+          this.dropSuggest();
+          this.commit();
+        } },
+        { icon: '✕', label: t(one ? 'Delete the step' : 'Delete them'), danger: true, run: () => this.removeSteps(steps.map((s) => s.id)) });
+    }
+    const refs = `${t('in the 3D model')}: ${ps.map((q) => (q.kind === 'face' ? `${t('step')} ${q.step.id} “${q.step.name}” ${t('face')} ${q.face.name}` : `${t('the point')} (${xyz(q.point)})`)).join('; ')}`;
+    const sg = showSuggest(this.els.viewport, `${ps.length} ${t('selected')}`, items, t('Ctrl+click: add more, or take one away'), refs);
+    if (sg) sg.dataset.from = 'face';
+  }
+
+  /** Delete several steps at once (and the steps that need them, after asking). */
+  removeSteps(ids) {
+    if (this.mode !== 'part' || this.cmd) return;
+    const gone = new Set(ids.flatMap((id) => [...this.dependents(id, false).gone]));
+    const more = [...gone].filter((x) => !ids.includes(x)).map((x) => this.part.features.find((f) => f.id === x)?.name);
+    if (more.length && !confirm(`${t('These steps need them and are deleted too')}: ${more.join(', ')}.`)) return;
+    this.part.features = this.part.features.filter((f) => !gone.has(f.id));
+    this.selected = null;
+    this.picks = [];
+    this.dropSuggest();
+    this.commit();
+  }
 
   // ------------------------------------------------------------------ 🏷 which sizes are shown
   /** 🏷 Sizes: All / 🔒 Locked / None — the size labels on the sketch and on the part (remembered). */

@@ -123,6 +123,10 @@ corners, edge midpoints, centres. With **no tool on**, the snap point under the 
 Everything for the clicked face is in that table, in sections — *On this face*, *Its edges*, *The part*, *Step* — so
 there is no right-click menu: the right button only pans.
 
+**Ctrl+click** in the 3D model (no tool on) chooses several things — faces (their steps) and snap points; Ctrl+click
+one again takes it away. The table then offers what fits them: the distance between two (and the gap between two
+parallel flat faces), turning all their steps off, deleting them together.
+
 **Box selection** in a sketch (⬚ Select, drag on empty space): **right to left** takes every shape the box touches
 (green, dashed), **left to right** only the shapes wholly inside it (blue); hold **Ctrl** to add to what is picked —
 by click or by box. Delete removes them all.

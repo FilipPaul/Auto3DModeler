@@ -91,6 +91,10 @@ Date: 2026-10-25. Written by the architect agent.
   tools/e2e_ai_reports.py.
 - **Steps named after their sketch done:** nextName(type, sketch): an extrude / revolve of a sketch the user named
   is "Extrude – Slot" (a "Sketch 2" keeps "Extrude 3"), in the panel and for the AI. tools/e2e_ai_reports.py.
+- **Ctrl+click to choose several in the 3D model done:** clickFace keeps `picks` ({face, step, point} / {point,
+  snap}); Ctrl adds or takes one away (addPick) -> showPicks: their steps' faces lit, the points marked, the table:
+  Between them (the distance; two parallel flat faces: the gap), the steps (turn them off / on, ✕ Delete them —
+  removeSteps, one question for steps that need them), ✨ with all of them. tools/e2e_model_multipick.py.
 - **No right-click menu in the 3D model done:** clickFace shows the face's tools in the suggestions table in its
   sections (On this face / Its edges / The part / Step · name, showSuggest {section}); the .m-fmenu pop-up and its
   styles are gone, a right click only pans. e2e_model_pick.
