@@ -7,6 +7,11 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **A threaded part's volume integrated once done:** kernel.volume keeps the last 4 shapes' volumes — the part with
+  🔩 real threads was integrated after its cut (the check that something was cut) and again when meshed (the adaptive
+  rule on helical faces: ~3 s). The 29-step model with 9 real threads (tools/e2e_perf.py model): its rebuild after a
+  dimension edit 22.9 -> 18.6 s on the server, switching to real 21.1 -> 16.8 s; still the cut (~9.5 s) and the
+  mesh of the grooves (~10 s) each edit. test_real_thread_volume_once.
 - **Quick hover and picking on big parts and assemblies done:** the owner found the app slow, at times frozen.
   tools/e2e_perf.py measured it (real CDP mouse input; per action the main-thread ms, long tasks, /api times): with no
   tool on, every mouse move cast up to 600 rays through all the part's triangles for the hover's snap dots

@@ -1310,6 +1310,22 @@ class TestThreads(unittest.TestCase):
         self.assertAlmostEqual(rp["body"]["volume"], 40 * 20 * 12 - 4 * (math.pi * 2.5 ** 2 * 12 + self.groove(6, 5, 1, 12)), delta=0.02)
         self.assertIn("P1:1:H1:thread:0", {n for f in rp["body"]["faces"] for n in f.get("names", [])})
 
+    def test_real_thread_volume_once(self):
+        """The threaded part's volume is integrated once — checked after the cut, kept for its mesh (it took 2.5 s of
+        each rebuild of a part with 9 threads) — and is the same as integrating it again."""
+        from auto3d.modeler import kernel as K
+        part, calls, real = {"features": box(40, 20, 12) + [self.hole(thread="M5")], "threads": "real"}, [], K._volume
+        K._volume = lambda s: calls.append(s) or real(s)
+        try:
+            r = doc.rebuild(part)
+        finally:
+            K._volume = real
+        cut = doc.body_of(part).body.shape
+        self.assertEqual(r["threads"]["real"]["cut"], 2)
+        self.assertEqual(sum(s is cut for s in calls), 1)
+        self.assertEqual(r["body"]["volume"], real(cut))
+        self.assertLess(r["body"]["volume"], 40 * 20 * 12 - 2 * math.pi * 2.1 ** 2 * 12)  # (the grooves cut into the tap drill)
+
 
 class TestFits(unittest.TestCase):
     """ISO 286 deviations by size range, and the labels on the drawing."""
