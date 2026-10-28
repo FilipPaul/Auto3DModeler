@@ -2339,6 +2339,18 @@ export class Assembly {
 
   bindPointer() {
     const cv = this.view.renderer.domElement;
+    // a part dragged from the project tree (☰) onto the view: it goes in
+    const vp = this.els.viewport;
+    vp.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('text/a3d-insert')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; vp.classList.add('drop-in'); } });
+    vp.addEventListener('dragleave', () => vp.classList.remove('drop-in'));
+    vp.addEventListener('drop', async (e) => {
+      const pid = e.dataTransfer.getData('text/a3d-insert');
+      vp.classList.remove('drop-in');
+      if (!pid) return;
+      e.preventDefault();
+      if (!this.modelParts().some((q) => q.id === pid)) { this.hooks.toast(t('That part cannot go into this assembly (a drawing, or the assembly itself).'), 'warning', 5000); return; }
+      await this.insert(pid);
+    });
     let down = null;
     cv.addEventListener('pointerdown', (e) => { if (e.button === 0) down = { x: e.clientX, y: e.clientY }; });
     cv.addEventListener('pointermove', (e) => {

@@ -25,6 +25,8 @@ import { initSplitters } from './splitters.js';
 import { Autosave } from './autosave.js';
 import { Windows } from './windows.js';
 import { actionDock } from './actiondock.js';
+import * as THREE from 'three';
+import { bodyOf, picture, svgPicture } from './thumbs.js';
 import { changed as projectChanged } from './history.js';
 
 initI18n();  // Czech / English: translates the page as it is built
@@ -1741,6 +1743,22 @@ const project = new Project($('partTabs'), {
   openWindow: (id) => windows.open(id).catch((e) => toast(e.message, 'warning', 7000)),
   showNone: (on) => document.body.classList.toggle('none-open', on), // the last tab closed
   windowId: () => windows?.wid, // (tabs dragged between windows)
+  async thumb(p) { // the tree's hover preview: what is in the part
+    const data = project.dataOf(p);
+    if (p.kind === 'sheet') return data?.built ? svgPicture(sheet.svgOf(data)) : null;
+    if (p.kind === 'model') return data?.features?.length ? picture([{ body: await bodyOf(data.features), color: 0xa98be0 }], `m${JSON.stringify(data.features).length}:${p.id}:${JSON.stringify(data.features)}`) : null;
+    if (p.kind !== 'assembly') return null;
+    const list = [], walk = async (asm, M, depth) => { // (sub-assemblies' parts too, placed)
+      for (const it of asm?.instances || []) {
+        const q = project.parts.find((x) => x.id === it.part), d = q && project.dataOf(q);
+        const m = M ? new THREE.Matrix4().fromArray(M).multiply(new THREE.Matrix4().fromArray(it.matrix)).toArray() : it.matrix;
+        if (q?.kind === 'assembly' && depth < 4) await walk(d, m, depth + 1);
+        else if (d?.features?.length) list.push({ body: await bodyOf(d.features), matrix: m, color: [0xa98be0, 0x7ee787, 0x58a6ff, 0xe3b341, 0xff9b7a][list.length % 5] });
+      }
+    };
+    await walk(data, null, 0);
+    return picture(list, `a${p.id}:${JSON.stringify(list.map((x) => x.matrix))}:${list.length}`);
+  },
   projectId: () => autosave?.id,
   tookTab: (id, win) => windows?.tell({ took: id, win }), // (the window it came from lets it go)
   toast,

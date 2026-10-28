@@ -11,6 +11,7 @@
 // A number may be a formula such as "L + k" or "dk / 2" (+ - * / ^, ( ), min, max, sqrt, sin, cos, tan, pi), of the
 // size's values, `L` (the second choice) and the item's `vars`.
 import { sketchFromShapes } from '../modeler/agent_model.js';
+import { stepsHash } from '../parts.js';
 
 // ------------------------------------------------------------------ formulas
 const FN = { min: Math.min, max: Math.max, sqrt: Math.sqrt, sin: Math.sin, cos: Math.cos, tan: Math.tan, abs: Math.abs, round: Math.round, floor: Math.floor, ceil: Math.ceil };
@@ -154,7 +155,7 @@ export function buildPart(item, sizeKey = sizesOf(item)[0]?.key, length) {
       material: item.material || undefined,
       library: { id: item.id, item: item.name, category: item.category, size: sizeKey, ...(vars.L !== undefined && lengthsOf(item, sizeKey) ? { length: vars.L } : {}),
         maker: item.maker || '', pn, description: fill(item.description || item.name, vars), order, approx: !!item.approx && !real, standard: item.standard || '',
-        ...(real ? { real: real.file } : {}) },
+        ...(real ? { real: real.file } : {}), steps: stepsHash(features) },
     },
   };
 }

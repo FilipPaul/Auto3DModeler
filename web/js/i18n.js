@@ -738,6 +738,7 @@ const CS = {
   'The part on screen — double-click to rename, drag to move the tab (out of the window: a new window)': 'Díl na obrazovce — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'Click to show it — double-click to rename, drag to move the tab (out of the window: a new window)': 'Kliknutím zobrazíte — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'No part open': 'Žádný díl není otevřený',
+  'Nothing to show yet': 'Zatím nic k zobrazení', 'That part cannot go into this assembly (a drawing, or the assembly itself).': 'Tento díl do sestavy nejde (výkres, nebo sestava sama).',
   'Radius or diameter': 'Poloměr nebo průměr', 'Show it as a diameter': 'Ukázat jako průměr', 'Show it as a radius': 'Ukázat jako poloměr',
   Midpoints: 'Středy úseček', Lines: 'Úsečky', 'Circles / arcs': 'Kružnice / oblouky', 'Part edges': 'Hrany dílu', Points: 'Body',
   'Click to pick these — or not': 'Kliknutím je vybírat — nebo ne', "A line's midpoint": 'Střed úsečky', 'The origin': 'Počátek', 'Onto the origin': 'Na počátek', midpoint: 'střed',

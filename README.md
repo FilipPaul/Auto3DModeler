@@ -48,7 +48,9 @@ its whole name). Click a tab to switch parts; each keeps its edits and its own u
 tab to rename it, **drag** it to move it (dropped outside the window: it opens in a ⧉ new window), and use **✕** to
 close the tab — the part stays in the project; closing the last one leaves *No part open* until ☰ opens one. **☰** (before the tabs) opens the **project tree**
 in the left panel: every part of the project, open or not, as they go together — each assembly with what is in it
-(sub-assemblies inside, *Pin ×2*), each part's 📄 drawing sheets under it, then the parts in no assembly. Click one to
+(sub-assemblies inside, *Pin ×2*), each part's 📄 drawing sheets under it, then the parts in no assembly. The mouse on a
+row shows a **picture** of what is in it; a row **dragged onto an assembly's view** puts that part in. A part from the
+library shows the **library icon** (📚) until it is changed. A **middle click** on a tab closes it. Click one to
 open it (the tree stays), ⧉ opens it in a new window, ✕ deletes it from the project (after asking; it says which
 assemblies use it). Parts made for an assembly (fasteners) are added without a tab. The **＋**
 next to the tabs offers the usual ways to open a file.

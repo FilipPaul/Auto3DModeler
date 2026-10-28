@@ -18,6 +18,19 @@ const ICON_PATH = {
   sheet: '<path d="M3 1.6h7l3 3v9.8H3z"/><path d="M10 1.6v3h3"/><rect x="5" y="7.6" width="6" height="3.6" rx=".3"/><path d="M5 13h6" opacity=".7"/>', // a drawing sheet
   classic: '<path d="M8 2 14 5 8 8 2 5z"/><path d="M2 8l6 3 6-3M2 11l6 3 6-3"/>', // layers (a quick part)
 };
+ICON_PATH.library = '<path d="M2.5 2.5h2.6v11H2.5zM5.9 2.5h2.6v11H5.9z"/><path d="M9.4 3.4l2.5-.7 2.6 10.1-2.5.7z"/><path d="M2.5 5h2.6M5.9 5h2.6M2.5 11h2.6M5.9 11h2.6" opacity=".7"/>'; // a library part as it came
+
+/** A short hash of a part's steps (a library part keeps the one it came with: changed steps — no longer the library's). */
+export function stepsHash(features) {
+  const s = JSON.stringify(features || []);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(16);
+}
+
+/** A library part not changed since it came in (its icon: the library's). */
+export const fromLibrary = (data) => !!data?.library && (!data.library.steps || data.library.steps === stepsHash(data.features));
+
 export const kindIcon = (kind) => `<svg class="ico ico-${ICON_PATH[kind] ? kind : 'classic'}" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${ICON_PATH[kind] || ICON_PATH.classic}</svg>`;
 
 export class Project {
@@ -361,7 +374,9 @@ export class Project {
         const out = e.clientX <= 0 || e.clientY <= 0 || e.clientX >= innerWidth || e.clientY >= innerHeight;
         if (out && e.dataTransfer.dropEffect === 'none' && this.hooks.openWindow) this.hooks.openWindow(p.id); // dropped outside: its own window
       });
-      tab.insertAdjacentHTML('beforeend', kindIcon(p.kind));
+      tab.insertAdjacentHTML('beforeend', kindIcon(this.libraryPart(p) ? 'library' : p.kind));
+      tab.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); }); // (no scrolling cursor)
+      tab.addEventListener('auxclick', (e) => { if (e.button === 1) { e.preventDefault(); this.close(p.id); } }); // a middle click closes it
       const name = document.createElement('span');
       name.className = 'pt-name';
       name.dataset.noI18n = '';
@@ -413,6 +428,12 @@ export class Project {
     this.treeOpen = on;
     try { localStorage.setItem('a3d.tree', on ? '1' : ''); } catch { /* private window */ }
     this.render();
+  }
+
+  /** Is it a library part as it came (not changed)? */
+  libraryPart(p) {
+    if (p.kind !== 'model') return false;
+    try { return fromLibrary(this.dataOf(p)); } catch { return false; }
   }
 
   /** A part's data now (the one on screen: as it is on screen). */
@@ -468,13 +489,46 @@ export class Project {
       row.className = `pt-row tr-row ${p.kind}${p.id === this.active && !this.none ? ' on' : ''}${p.closed ? ' closed' : ''}`;
       row.dataset.part = p.id;
       row.style.paddingLeft = `${4 + 14 * depth}px`;
-      row.innerHTML = `<button class="pt-open" title="${t(p.closed ? 'Open it (a tab)' : 'Show it')}"><span class="pt-kind">${kindIcon(p.kind)}</span><span class="pt-rname" data-no-i18n></span>${qty > 1 ? `<i class="tr-qty" data-no-i18n>×${qty}</i>` : ''}</button>${this.hooks.openWindow ? `<button class="mini pt-win" title="${t(WIN_TIP)}">⧉</button>` : ''}${this.parts.length > 1 ? `<button class="mini danger pt-del" title="${t('Delete it from the project')}">✕</button>` : ''}`;
+      row.innerHTML = `<button class="pt-open" title="${t(p.closed ? 'Open it (a tab)' : 'Show it')}"><span class="pt-kind">${kindIcon(this.libraryPart(p) ? 'library' : p.kind)}</span><span class="pt-rname" data-no-i18n></span>${qty > 1 ? `<i class="tr-qty" data-no-i18n>×${qty}</i>` : ''}</button>${this.hooks.openWindow ? `<button class="mini pt-win" title="${t(WIN_TIP)}">⧉</button>` : ''}${this.parts.length > 1 ? `<button class="mini danger pt-del" title="${t('Delete it from the project')}">✕</button>` : ''}`;
       row.querySelector('.pt-rname').textContent = p.name || '…';
       row.querySelector('.pt-open').addEventListener('click', () => this.switchTo(p.id));
       row.querySelector('.pt-win')?.addEventListener('click', (e) => { e.stopPropagation(); this.hooks.openWindow(p.id); });
       row.querySelector('.pt-del')?.addEventListener('click', (e) => { e.stopPropagation(); this.remove(p.id); });
+      if (p.kind !== 'sheet' && p.kind !== 'drawing') { // dragged into an assembly's view: it goes in
+        row.draggable = true;
+        row.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/a3d-insert', p.id); e.dataTransfer.effectAllowed = 'copy'; this.hidePreview(); });
+      }
+      row.addEventListener('mouseenter', () => this.showPreview(p, row));
+      row.addEventListener('mouseleave', () => this.hidePreview());
       list.appendChild(row);
     }
+  }
+
+  /** A picture of what is in a part, beside its row in the tree (after a moment on it). */
+  showPreview(p, row) {
+    clearTimeout(this.previewTimer);
+    if (!this.hooks.thumb) return;
+    this.previewTimer = setTimeout(async () => {
+      let box = document.querySelector('.tr-preview');
+      if (!box) { box = document.createElement('div'); box.className = 'tr-preview'; document.body.appendChild(box); }
+      const r = row.getBoundingClientRect();
+      Object.assign(box.style, { left: `${r.right + 8}px`, top: `${Math.max(8, Math.min(r.top - 40, innerHeight - 220))}px` });
+      box.innerHTML = `<b data-no-i18n></b><div class="tp-img">${t('…')}</div>`;
+      box.querySelector('b').textContent = p.name || '';
+      box.hidden = false;
+      this.previewFor = p.id;
+      let url = null;
+      try { url = await this.hooks.thumb(p); } catch { url = null; }
+      if (this.previewFor !== p.id) return;
+      box.querySelector('.tp-img').innerHTML = url ? `<img alt="" src="${url}">` : `<i>${t('Nothing to show yet')}</i>`;
+    }, 280);
+  }
+
+  hidePreview() {
+    clearTimeout(this.previewTimer);
+    this.previewFor = null;
+    const box = document.querySelector('.tr-preview');
+    if (box) box.hidden = true;
   }
 
   editName(p, el) {

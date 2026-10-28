@@ -80,6 +80,11 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Tree pictures, drag into an assembly, library icon, middle-click close done:** thumbs.js (bodyOf: a light rebuild
+  kept by its steps; picture: one offscreen renderer, iso; svgPicture for sheets) via hooks.thumb (sub-assemblies
+  placed); Project.showPreview / hidePreview (.tr-preview beside the row); tree rows draggable (text/a3d-insert) —
+  Assembly's viewport drop inserts; library parts carry library.steps (stepsHash) — fromLibrary while unchanged:
+  kindIcon('library'); a tab's auxclick (middle button) closes it. tools/e2e_tree_more.py.
 - **Sketch picks, filters, midpoints, R / Ø, the face menu on a right click done:** Sketcher.pickable (points, mid,
   origin, lines, round, edges; localStorage a3d.skpick) gates pickTarget, shown as .sk-filters (bottom middle,
   renderFilters from renderCmdBar); a line's middle is a pick ({mid: line} end — constraints.end adds a point held by
