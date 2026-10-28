@@ -410,7 +410,8 @@ other CAD programs.
 The model is built by a real CAD kernel, OpenCASCADE. It runs in its own process, so a failure cannot stop the
 app, and Cancel works on long rebuilds. It needs the optional packages in `requirements-modeler.txt`
 (`py -m pip install -r requirements-modeler.txt`, about 175 MB installed). Without them the rest of the app
-works, and the workspace says what to install.
+works, and the workspace says what to install. Its booleans (cuts, joins, splits, clash checks) use all the
+processor's cores; `A3D_PARALLEL_BOOL=0` (an environment setting) makes them use one — the results are the same.
 
 Coming next ([plan](docs/ARCHITECTURE-modeler.md)):
 - arcs, sizes between any two points, and equal / parallel / perpendicular rules;

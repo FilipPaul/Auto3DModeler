@@ -436,7 +436,6 @@ def section_view(body):
     """Section A–A: the part cut across x at its middle, the far half seen as the Right view sees it (looking along
     -x) -> that view's geometry (lines, circles, points to dimension) with hatch (the cut faces' outlines [[x, y]…])
     and cut (where the cut is, on the Front view: two points)."""
-    from OCP.BRepAlgoAPI import BRepAlgoAPI_Common
     from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
     from OCP.gp import gp_Pnt
     from OCP.TopAbs import TopAbs_FACE, TopAbs_WIRE
@@ -454,7 +453,7 @@ def section_view(body):
         for s, b in solids:
             if b[0] >= xm:
                 continue
-            mk = BRepAlgoAPI_Common(s, keep) if b[3] > xm else None
+            mk = K.bop("common", s, keep) if b[3] > xm else None
             if mk is not None and not mk.IsDone():
                 raise K.KernelError("The part could not be cut for its section.")
             if mk is not None:  # (its new faces meshed as the rest: the view is drawn from the mesh)
@@ -462,7 +461,7 @@ def section_view(body):
             kept.append(mk.Shape() if mk is not None else s)
         half = K.compound(kept)
     else:
-        mk = BRepAlgoAPI_Common(body.shape, keep)
+        mk = K.bop("common", body.shape, keep)
         if not mk.IsDone():
             raise K.KernelError("The part could not be cut for its section.")
         half = mk.Shape()

@@ -825,6 +825,15 @@ Date: 2026-10-25. Written by the architect agent.
   the hole (8.25 / 6.5 -> 8.14 / 6.56). edit_feature keeps the step's stored frame while its face, mid and origin
   stay; a key beside `fields` is refused ("put the changes in fields: {…}"). Saved frames are used as stored.
   test_face_centre_ignores_holes; tools/e2e_agent.py.
+- **Parallel booleans done:** every boolean of the kernel (BRepAlgoAPI Cut / Fuse / Common — combine, up to next,
+  rib, split, material_along, the print split's `boolean`, clashes, the sheet's section) goes through kernel.bop, which
+  sets SetRunParallel (kernel.PARALLEL; A3D_PARALLEL_BOOL=0: serial). No Splitter / BOPAlgo builder is used. Verified
+  the same: the whole unit suite passes both ways, and tests/test_parallel_bool.py builds holes, threads, patterns,
+  fillets / chamfer, shell, split, rib and the 171-hole plate both ways — volumes to 1e-9, face counts, face names;
+  clashes, print pieces and a section alike. Nothing had to stay serial. Times (best of 3, a loaded 16-core machine,
+  serial -> parallel): the 171-hole plate rebuilt 5.29 -> 4.06 s, a split step 0.68 -> 0.61 s, the exact print split
+  (the plate on an 80 mm bed, 6 pieces) 0.88 -> 0.82 s, a clash check of three such plates 0.78 -> 0.59 s — the
+  booleans are small (one hole each): most of the time is outside the intersection stage.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.
