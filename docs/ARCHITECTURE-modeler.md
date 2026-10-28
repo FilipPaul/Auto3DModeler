@@ -604,6 +604,14 @@ Date: 2026-10-25. Written by the architect agent.
 - **Assembly measure done:** AsmView.measurePoint (corners of every placed part), assembly.clickMeasure (faces /
   axes apart). tools/e2e_assembly_measure.py.
 - **Duplicate done:** parts.js duplicate (a new tab after it, "(copy)" names); assembly.ownPart. tools/e2e_duplicate.py.
+- **STEP assemblies out (18b) done:** /api/assembly/export/step {tree: {root, parts: {id: {name, features, colour}},
+  assemblies: {id: {name, instances: [{ref, matrix, colour?}]}}}} -> doc._tree_step (each part built once, its STEP
+  face colours kept, instance names "<part>-<n>") -> kernel.write_step_tree (XCAF: AddShape per part, NewShape +
+  AddComponent per assembly, names, colours; STEPCAFControl_Writer, AP214IS, mm). AP214 rather than AP242: OCCT's
+  AP242 writer adds nothing we use (no PMI) and AP214 is what the three CAD programs read most reliably. The old
+  {instances} flat compound stays. stepfile.stepTree / Assembly.stepTree (a sub-assembly placed with `inner`: a
+  product of its own, "Lever (I2)"); the AI's export {format: "step"} on an assembly (get_body gives step_tree).
+  tests/test_step_assembly.py (export -> import: tree, names, exact matrices, volumes), tools/e2e_step_assembly.py.
 - **STEP assemblies in (18a) done:** kernel._read_xcaf / read_step_tree (XCAF: free shapes, components, locations ->
   column-major matrices, product names, part / face / instance colours; a part placed again is one label -> one part;
   several top shapes under one root; _fold: a sub-assembly of one placement (an ECAD board wraps each component so)

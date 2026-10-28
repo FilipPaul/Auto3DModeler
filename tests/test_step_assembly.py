@@ -1,6 +1,6 @@
 """STEP assemblies, as SolidWorks / CATIA / Solid Edge exchange them: a STEP with an assembly tree opens as parts +
-an assembly (a part placed twice is one part, sub-assemblies nested, names, colours, exact placements). A plain
-one-body STEP opens as before.
+an assembly (a part placed twice is one part, sub-assemblies nested, names, colours, exact placements); an assembly
+is written back as a structured STEP that reads back the same. A plain one-body STEP opens as before.
 Skipped without the CAD kernel.
 """
 import tempfile
@@ -40,19 +40,6 @@ def machine():
                            "A2": {"name": "Sub", "instances": [{"ref": "P2", "matrix": TILTED}, {"ref": "P1", "matrix": [*I16[:12], 0, 0, 30, 1]}]}}}
 
 
-def step_of(tree, name="assembly"):
-    """A tree {root, parts: {id: {name, features, colour?}}, assemblies} -> a structured STEP (kernel.write_step_tree)."""
-    parts = {}
-    for pid, p in tree["parts"].items():
-        try:
-            st = doc.body_of(p)
-        except K.KernelError:
-            continue
-        parts[pid] = {"name": p["name"], "shape": st.body.shape, "colour": p.get("colour"),
-                      "colours": [(f, c) for n, c in st.colours.items() for f in st.body.faces_of(n)]}
-    return K.write_step_tree(parts, tree["assemblies"], tree["root"], name)
-
-
 @unittest.skipUnless(OCC, "OCP not installed")
 class TestStepAssembly(unittest.TestCase):
     def setUp(self):
@@ -68,8 +55,13 @@ class TestStepAssembly(unittest.TestCase):
         """A part of an imported tree as the browser makes it: one `solid` step on its blob -> the rebuild."""
         return doc.rebuild({"features": [{"id": "F1", "type": "solid", "blob": p["blob"], "file": p["name"] + ".step", "op": "add"}]})
 
-    def test_assembly_opens_as_its_tree(self):
-        step = step_of(machine(), name="Machine")
+    def test_export_reads_back_the_same_tree(self):
+        step = doc.assembly_step(tree=machine(), name="Machine")
+        text = step.decode("latin-1")
+        self.assertIn("AUTOMOTIVE_DESIGN", text)  # AP214
+        self.assertEqual(text.count("NEXT_ASSEMBLY_USAGE_OCCURRENCE"), 5)
+        self.assertEqual(text.count("PRODUCT('Post'"), 1)  # one product per part, placed twice
+        self.assertIn("'Post-1'", text)  # instance names as SolidWorks gives them
         # the whole file, read as one body (as before): every placement, nothing lost
         shape, cols, built = K.read_step_colours(step, summary=True)
         self.assertEqual(built, {"parts": 2, "placements": 4, "subs": 1})
@@ -91,6 +83,7 @@ class TestStepAssembly(unittest.TestCase):
             for a, b in zip(got, m):
                 self.assertAlmostEqual(a, b, delta=1e-12)
         self.assertEqual(root["instances"][1].get("colour"), "#00ff00")
+        self.assertEqual(root["instances"][1]["name"], "Post-1")
         # each part is a STEP of its own: built by a solid step, exact volume, watertight, its colour kept
         for p in parts.values():
             r = self.solid(p)
@@ -110,12 +103,30 @@ class TestStepAssembly(unittest.TestCase):
         sha = blobs.put(K.to_step_coloured(plate.shape, cols, "Lid"))
         tree = {"root": "A1", "parts": {"P1": {"name": "Lid", "features": [{"id": "F1", "type": "solid", "blob": sha, "file": "lid.step"}]}},
                 "assemblies": {"A1": {"name": "Box", "instances": [{"ref": "P1", "matrix": I16}, {"ref": "P1", "matrix": [*I16[:12], 0, 0, 20, 1]}]}}}
-        imp = doc.import_assembly({"blob": blobs.put(step_of(tree, name="Box")), "name": "box.step"})
+        imp = doc.import_assembly({"blob": blobs.put(doc.assembly_step(tree=tree, name="Box")), "name": "box.step"})
         (p,) = imp["parts"].values()
         self.assertEqual(p["name"], "Lid")
         self.assertEqual(len(imp["assemblies"][imp["root"]]["instances"]), 2)
         r = self.solid(p)
         self.assertEqual(sorted(f.get("color") or "" for f in r["body"]["faces"]), [""] * 5 + ["#123456"])
+
+    def test_flexible_sub_assembly_placements_are_products_of_their_own(self):
+        """A sub-assembly placed twice, one placement with its parts moved inside it (`inner`, as the browser sends it:
+        "Lever (I2)"): two products, each with its own placements; the plain one shared."""
+        tree = {"root": "A1", "parts": {"P1": {"name": "Arm", "features": box(80, 16, 5)}},
+                "assemblies": {"A1": {"name": "Machine", "instances": [{"ref": "A2", "matrix": I16}, {"ref": "A2@I2", "matrix": [*I16[:12], 0, 100, 0, 1]},
+                                                                       {"ref": "A2", "matrix": [*I16[:12], 0, 200, 0, 1]}]},
+                               "A2": {"name": "Lever", "instances": [{"ref": "P1", "matrix": I16}, {"ref": "P1", "matrix": [*I16[:12], 0, 0, 5, 1]}]},
+                               "A2@I2": {"name": "Lever (I2)", "instances": [{"ref": "P1", "matrix": I16}, {"ref": "P1", "matrix": TURNED}]}}}
+        imp = doc.import_assembly({"blob": blobs.put(doc.assembly_step(tree=tree)), "name": "m.step"})
+        asms = imp["assemblies"]
+        root = asms[imp["root"]]
+        self.assertEqual([asms[i["ref"]]["name"] for i in root["instances"]], ["Lever", "Lever (I2)", "Lever"])
+        self.assertEqual(root["instances"][0]["ref"], root["instances"][2]["ref"])
+        self.assertEqual(len(imp["parts"]), 1)
+        turned = asms[root["instances"][1]["ref"]]["instances"][1]["matrix"]
+        for a, b in zip(turned, TURNED):
+            self.assertAlmostEqual(a, b, delta=1e-12)
 
     def test_plain_step_is_one_body(self):
         step = doc.export({"features": box(40, 20, 10)}, "step")
@@ -134,19 +145,27 @@ class TestStepAssembly(unittest.TestCase):
         tree = {"root": "A1", "parts": {"P1": {"name": "Chip", "features": box(4, 4, 1)}, "P2": {"name": "Board", "features": box(50, 30, 1.6)}},
                 "assemblies": {"A1": {"name": "PCB", "instances": [{"ref": "P2", "matrix": I16}, {"ref": "A2", "matrix": TURNED}]},
                                "A2": {"name": "U1", "instances": [{"ref": "P1", "matrix": [*I16[:12], 1, 2, 1.6, 1]}]}}}
-        imp = doc.import_assembly({"blob": blobs.put(step_of(tree)), "name": "pcb.step"})
+        imp = doc.import_assembly({"blob": blobs.put(doc.assembly_step(tree=tree)), "name": "pcb.step"})
         self.assertEqual([a["name"] for a in imp["assemblies"].values()], ["PCB"])
         chip = imp["assemblies"][imp["root"]]["instances"][1]
         self.assertEqual(imp["parts"][chip["ref"]]["name"], "Chip")
-        self.assertEqual(chip["name"], "U1")  # (the wrapper's name)
+        self.assertEqual(chip["name"], "U1-1")  # (the wrapper's placement keeps its name)
         for a, b in zip(chip["matrix"], [0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1, 0, 98, 1, 1.6, 1]):
             self.assertAlmostEqual(a, b, delta=1e-12)
 
     def test_errors(self):
         with self.assertRaises(K.KernelError):
+            doc.assembly_step(tree={"root": "A1", "parts": {}, "assemblies": {"A1": {"name": "Empty", "instances": []}}})
+        with self.assertRaises(K.KernelError):  # a part with no solid yet is left out; nothing left
+            doc.assembly_step(tree={"root": "A1", "parts": {"P1": {"name": "Blank", "features": []}},
+                                    "assemblies": {"A1": {"name": "A", "instances": [{"ref": "P1", "matrix": I16}]}}})
+        with self.assertRaises(K.KernelError):
             doc.import_assembly({"blob": "0" * 64, "name": "gone.step"})
         with self.assertRaises(K.KernelError):
             doc.import_assembly({"blob": blobs.put(b"not a STEP file"), "name": "x.step"})
+        # the flat export (no tree) is as before: placed bodies in one compound
+        flat = doc.assembly_step([{"part": {"features": box(40, 20, 10)}, "matrix": None}, {"part": {"features": box(40, 20, 10)}, "matrix": TURNED}])
+        self.assertEqual(K.solids(K.from_step(flat)), 2)
 
     @unittest.skipUnless(FRAME, "the owner's sample STEP is not here")
     def test_real_assembly_from_data_imports(self):

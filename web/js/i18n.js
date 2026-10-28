@@ -683,6 +683,7 @@ const CS = {
   'Reading the assembly of {name}…': 'Čtu sestavu {name}…',
   '{name} is open as an assembly: {parts} parts, {subs} sub-assemblies — each part a 3D model of the project.': '{name} je otevřený jako sestava: {parts} dílů, {subs} podsestav — každý díl je 3D model projektu.',
   'Drop a STEP, STL or OBJ file to put it into the assembly.': 'Přetáhněte soubor STEP, STL nebo OBJ a vloží se do sestavy.',
+  'Exported STEP (in mm) — an assembly with its parts, as SolidWorks, CATIA and Solid Edge open it.': 'Exportováno do STEP (v mm) — sestava se svými díly, jak ji otevře SolidWorks, CATIA i Solid Edge.',
   '📂 From a file (STEP / STL / OBJ)…': '📂 Ze souboru (STEP / STL / OBJ)…', 'There is nothing to cut it out of yet — make the part first (or show it as a reference).': 'Zatím není z čeho vyříznout — nejdřív udělejte díl (nebo ho zobrazte jako referenci).',
   'Distance along the axis between the facing ends of the two round faces (e.g. two plates 30 mm apart). Empty: it slides freely.': 'Vzdálenost po ose mezi přivrácenými konci obou válcových ploch (např. dvě desky 30 mm od sebe). Prázdné: volně klouže.',
   free: 'volně', 'Its turn about the axis is locked — click to let it turn freely': 'Natočení kolem osy je zamčené — kliknutím ho uvolníte',

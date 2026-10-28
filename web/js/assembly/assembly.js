@@ -30,6 +30,7 @@ import { freeMotions, motionMatrix } from './dof.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
 import { lookColor, finishOf } from '../modeler/materials.js';
+import { stepTree } from './stepfile.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -2878,6 +2879,8 @@ export class Assembly {
   }
 
   payload() { return structuredClone(this.doc); }
+  /** This assembly as a STEP tree (stepfile.js) for /api/assembly/export/step. */
+  stepTree() { return stepTree(this, this.hooks.selfId?.() || 'root', this.hooks.safeName(), this.doc.instances); }
   hasBody() { return this.doc.instances.some((i) => this.bodies[i.part]?.body); }
 
   async export(fmtName) {
@@ -2900,18 +2903,10 @@ export class Assembly {
       if (await this.hooks.download(new Blob([buf], { type: 'model/stl' }), `${name}.stl`)) this.hooks.toast('Exported STL (in mm).', 'ok');
       return;
     }
-    const flat = [];
-    const expand = (list, parent) => {
-      for (const it of list) {
-        const M = parent.clone().multiply(new THREE.Matrix4().fromArray(it.matrix));
-        if (this.kindOf(it.part) === 'assembly') expand(this.innerList(it), M);
-        else flat.push({ part: { features: this.bodies[it.part]?.features || this.hooks.partData(it.part)?.features || [] }, matrix: M.toArray() });
-      }
-    };
-    expand(this.doc.instances, new THREE.Matrix4());
-    const instances = flat;
-    const res = await fetch('/api/assembly/export/step', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instances, name }) });
+    // a structured STEP (AP214): a product per part, placed instances, sub-assemblies nested — an assembly tree in
+    // SolidWorks, CATIA, Solid Edge
+    const res = await fetch('/api/assembly/export/step', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tree: this.stepTree(), name }) });
     if (!res.ok) { this.hooks.toast(`Export failed: ${(await res.json().catch(() => ({ error: res.statusText }))).error}`, 'error'); return; }
-    if (await this.hooks.download(await res.blob(), `${name}.step`)) this.hooks.toast('Exported STEP (in mm).', 'ok');
+    if (await this.hooks.download(await res.blob(), `${name}.step`)) this.hooks.toast('Exported STEP (in mm) — an assembly with its parts, as SolidWorks, CATIA and Solid Edge open it.', 'ok', 6000);
   }
 }

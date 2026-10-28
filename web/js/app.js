@@ -2418,7 +2418,7 @@ for (const [name, fn] of Object.entries(agentHandlers)) {
     if (state.workspace === 'sheet' && name === 'get_screenshot') return sheetScreenshot();
     if (state.workspace === 'assembly') {
       if (name === 'get_screenshot') return assemblyScreenshot(...args);
-      if (name === 'get_body') return { text: 'ok', body: { assembly: true } };
+      if (name === 'get_body') return { text: 'ok', body: { assembly: true, step_tree: assembly.stepTree(), name: tabName() } };
       if (name === 'undo') { const ok = await assembly.history.go(-1); return { text: ok ? 'Undone.' : 'Nothing to undo.' }; }
       throw new Error(`${name} is not for assemblies — use get_assembly, insert_part, snap_faces, place_part, or open_part a part.`);
     }

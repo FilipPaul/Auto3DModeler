@@ -49,4 +49,5 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
 7. `get_assembly` gives the parts list (quantity, material, mass, maker and part number of bought parts). To change a part, `open_part` it — every
    assembly that uses it follows. The user exports the assembly (STL or STEP) from its Export buttons.
 
-Files for the user: `export {format: "step"}` (the whole assembly), `"3mf"` (in colours, an object per colour for multi-material printing), `"bom"` (the parts list as CSV).
+Files for the user: `export {format: "step"}` (the whole assembly as a STEP assembly — SolidWorks, CATIA and Solid
+Edge open it as an assembly tree, a product per part, sub-assemblies nested), `"3mf"` (in colours, an object per colour for multi-material printing), `"bom"` (the parts list as CSV).

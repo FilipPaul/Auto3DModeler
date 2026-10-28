@@ -1148,8 +1148,13 @@ def assembly_sweep(instances, steps):
     return out
 
 
-def assembly_step(instances):
-    """An assembly -> one STEP file with every placed part: instances [{part: {features}, matrix: [16]}]."""
+def assembly_step(instances=None, tree=None, name="assembly"):
+    """An assembly -> a STEP file. tree {root, parts: {id: {name, features, colour?}}, assemblies: {id: {name,
+    instances: [{ref, matrix: [16], colour?}]}}}: a structured one (a product per part, placed instances, sub-assemblies
+    nested, names and colours; kernel.write_step_tree). Else instances [{part: {features}, matrix: [16]}]: the placed
+    bodies in one compound."""
+    if tree:
+        return _tree_step(tree, name)
     shapes = []
     for inst in instances or []:
         st = body_of(inst.get("part"))
@@ -1158,3 +1163,27 @@ def assembly_step(instances):
         raise K.KernelError("The assembly is empty — insert parts first.")
     return K.to_step(K.compound(shapes))
 
+
+def _tree_step(tree, name):
+    parts, asms = {}, {}
+    for pid, p in (tree.get("parts") or {}).items():
+        try:
+            st = body_of(p)
+        except K.KernelError:
+            continue  # (a part without a solid yet is left out, as in the collisions)
+        body = st.body
+        colours = [(face, c) for n, c in st.colours.items() for face in body.faces_of(n)]
+        parts[pid] = {"name": p.get("name") or pid, "shape": body.shape, "colour": p.get("colour"), "colours": colours}
+    for aid, a in (tree.get("assemblies") or {}).items():
+        seen, insts = {}, []
+        for inst in a.get("instances") or []:
+            ref = inst.get("ref")
+            if ref not in parts and ref not in (tree.get("assemblies") or {}):
+                continue
+            label = (parts.get(ref) or (tree["assemblies"].get(ref) or {})).get("name") or ref
+            seen[ref] = seen.get(ref, 0) + 1
+            insts.append({**inst, "name": inst.get("name") or f"{label}-{seen[ref]}"})  # SolidWorks-like: "Bolt-2"
+        asms[aid] = {"name": a.get("name") or aid, "instances": insts}
+    if not parts:
+        raise K.KernelError("The assembly is empty — insert parts first.")
+    return K.write_step_tree(parts, asms, tree.get("root"), name)

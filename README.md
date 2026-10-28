@@ -510,7 +510,7 @@ with quantity, maker, part number, order numbers and mass, as a CSV that Excel o
 **＋ New assembly** (in the ＋ menu next to the part tabs) opens an assembly tab (◇), where the parts of the project
 are placed together — 3D models ◆, quick parts ▤ (drawings, pictures, imports: they go in as their solid) and other
 **assemblies ◇ as one unit** (a sub-assembly: its parts as placed there, joined and fastened like a part; its mass is
-its parts'; STEP lists every part; an assembly cannot go into itself):
+its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itself):
 - **＋ Insert part ▾** adds a model part, as often as you like (⧉ in the list adds one more). A new one is put
   beside the others.
 - **🔗 Joint** (a button per kind in the bar — one click starts it, lit while you pick the faces; click it again or Esc to stop): choose how the part is held — **Touch** (S: a flat face onto a flat face, centred), **Gap** (facing,
@@ -630,7 +630,10 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   free — a pin comes out of its hole along the axis, a bearing slides off its shaft — and goes along with the part it
   is on; a part held fast stays on it.
 - The **parts list** shows each part, how many, its material and mass, and the total. **Export** gives STL (all
-  parts as placed, in one file) or STEP (each part as its own body).
+  parts as placed, in one file) or STEP — a **STEP assembly** (AP214) that SolidWorks, CATIA and Solid Edge open as an
+  assembly tree: a product per part (named as the part, in its colour; a part placed twice is one product placed twice,
+  "Pin-1", "Pin-2"), each placement where it is, sub-assemblies nested as sub-assemblies (a sub-assembly whose parts
+  were moved in this placement is a product of its own, "Lever (I2)"). A single 3D model still exports as one body.
 - Changing a part in its own tab updates the assembly. The assembly is saved in the project. Undo / redo work as
   everywhere.
 - The AI chat can build assemblies too: *“put the pin into the plate”* — it inserts the parts and snaps their

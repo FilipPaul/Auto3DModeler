@@ -739,12 +739,15 @@ def api_assembly_sweep():
 
 @app.post("/api/assembly/export/step")
 def api_assembly_step():
-    """{instances: [{part: {features}, matrix: [16]}], name} -> one STEP file with every placed part."""
+    """{tree: {root, parts: {id: {name, features, colour?}}, assemblies: {id: {name, instances: [{ref, matrix,
+    colour?}]}}}, name} -> a structured STEP (AP214: a product per part, placed instances, sub-assemblies nested), as
+    SolidWorks / CATIA / Solid Edge open an assembly. {instances: [{part: {features}, matrix: [16]}]} (no tree): every
+    placed body in one compound."""
     body = request.get_json(force=True)
-    data, err = _model_call("assembly_step", {"instances": body.get("instances") or []})
+    name = re.sub(r'[\/:*?"<>|]+', "_", body.get("name") or "assembly").strip() or "assembly"
+    data, err = _model_call("assembly_step", {"instances": body.get("instances") or [], "tree": body.get("tree"), "name": name}, timeout=600)
     if err:
         return err
-    name = re.sub(r'[\/:*?"<>|]+', "_", body.get("name") or "assembly").strip() or "assembly"
     return Response(data, mimetype="model/step", headers={"Content-Disposition": attachment(f"{name}.step")})
 
 
@@ -1030,8 +1033,19 @@ def tool_export(args):
     res = RELAY.call("get_body", {})
     if res.get("error"):
         raise ValueError(res.get("text") or "No part is open.")
-    if res["body"].get("assembly"):
-        raise ValueError("Export an assembly with the Export menu in the app (STL or STEP).")
+    if res["body"].get("assembly"):  # a structured STEP: its parts, placed, sub-assemblies nested
+        if fmt != "step" or not res["body"].get("step_tree"):
+            raise ValueError("An assembly exports as step (its parts as an assembly tree), 3mf or bom — STL from the Export menu in the app.")
+        name = re.sub(r'[\\/:*?"<>|]+', "_", res["body"].get("name") or "assembly").strip() or "assembly"
+        data, err = _model_call("assembly_step", {"tree": res["body"]["step_tree"], "name": name}, timeout=600)
+        if err:
+            raise ValueError(err[0].get_json().get("error"))
+        target = Path(args["path"]).expanduser() if args.get("path") else Path.home() / "Downloads"
+        if target.is_dir() or not target.suffix:
+            target.mkdir(parents=True, exist_ok=True)
+            target = target / f"{name}.step"
+        target.write_bytes(data)
+        return {"text": f"Exported the assembly as a STEP assembly (AP214: a product per part, sub-assemblies nested) — {max(1, len(data) // 1024)} kB to {target}"}
     if res["body"].get("model_part") is not None:  # a 3D model part: the CAD kernel writes it
         name = re.sub(r'[\\/:*?"<>|]+', "_", res["body"].get("name") or "part").strip()
         data, err = _model_call("export", {"part": res["body"]["model_part"], "fmt": fmt, "name": name})

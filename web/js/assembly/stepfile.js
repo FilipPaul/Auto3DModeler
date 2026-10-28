@@ -4,6 +4,7 @@
 // (/api/assembly/export/step {tree}).
 import { t } from '../i18n.js';
 import { choose } from '../choose.js';
+import { lookColor } from '../modeler/materials.js';
 
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const BIG = 150; // more parts + sub-assemblies than this (an ECAD board holds hundreds): one body is the first choice
@@ -50,3 +51,26 @@ export function addTree(tree, hooks, fallbackName) {
 /** How many parts / sub-assemblies a tree made, for the message. */
 export const treeSize = (tree) => ({ parts: Object.keys(tree.parts).length, subs: Object.keys(tree.assemblies).length - 1,
   placements: Object.values(tree.assemblies).reduce((n, a) => n + a.instances.filter((i) => tree.parts[i.ref]).length, 0) });
+
+/** An assembly as a STEP tree for the kernel: {root, parts: {id: {name, features, colour}}, assemblies: {id: {name,
+ *  instances: [{ref, matrix, colour?}]}}}. asm: the Assembly (hooks.partData, kindOf, partName, innerList, bodies);
+ *  a placed sub-assembly moved inside (its `inner`) is a product of its own ("Lever (I2)"). */
+export function stepTree(asm, rootId, rootName, rootInstances) {
+  const parts = {}, assemblies = {};
+  const add = (key, name, list) => {
+    assemblies[key] = { name, instances: [] };
+    for (const it of list) {
+      let ref = it.part;
+      if (asm.kindOf(it.part) === 'assembly') {
+        ref = it.inner ? `${it.part}@${it.id}` : it.part;
+        if (!assemblies[ref]) add(ref, it.inner ? `${asm.partName(it.part)} (${it.id})` : asm.partName(it.part), asm.innerList(it));
+      } else if (!parts[ref]) {
+        const data = asm.hooks.partData(ref) || {};
+        parts[ref] = { name: asm.partName(ref), features: asm.bodies[ref]?.features || data.features || [], colour: lookColor(data) || undefined };
+      }
+      assemblies[key].instances.push({ ref, matrix: it.matrix, ...(it.colour ? { colour: it.colour } : {}) });
+    }
+  };
+  add(rootId, rootName, rootInstances);
+  return { root: rootId, parts, assemblies };
+}
