@@ -183,7 +183,7 @@ async function download(blob, name, { id = 'auto3d-export' } = {}) {
     const ext = name.split('.').pop().toLowerCase();
     const [description, mime] = SAVE_TYPES[ext] || ['File', blob.type || 'application/octet-stream'];
     try {
-      const handle = await window.showSaveFilePicker({ suggestedName: name, id, types: [{ description, accept: { [mime]: [`.${ext}`] } }] });
+      const handle = await window.showSaveFilePicker({ suggestedName: name, id, types: [{ description: t(description), accept: { [mime]: [`.${ext}`] } }] });
       const w = await handle.createWritable();
       await w.write(blob);
       await w.close();

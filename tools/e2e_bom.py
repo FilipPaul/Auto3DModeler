@@ -5,7 +5,8 @@ Hinge, screw ×4 placed directly in it). -> get_bom summary: Base 1, Lid 2, Pin 
 screw 2; get_assembly parts_list `total` -> 📋 BOM in the panel: Summary / Structured, a sub-assembly folded, another
 assembly of the hierarchy chosen -> ⬇ CSV (its rows) and ⬇ Excel (.xlsx) -> in Czech: the headers -> the Machine's
 sheet: 📋 Add BOM page -> 📚 All pages shows it -> the drawing set's PDF has the BOM page, its positions the balloons'
-numbers -> a long BOM flows onto two pages.
+numbers -> a long BOM flows onto two pages. In Czech: the window's headers, materials (hliník, not aluminium) and make / buy,
+the CSV's, the toasts (BOM saved, a library part put in), the BOM page and the assembly pages' parts lists.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_bom.py http://127.0.0.1:5199 <out dir>
 """
@@ -65,10 +66,13 @@ def table():
 
 
 SCREW = "ISO 4762 M3×10"
+EN_MATS = {"aluminium", "steel", "brass", "stainless steel", "made", "assembly"}  # (English texts that must not show in Czech)
 try:
     d.get(URL)
     wait("return !!window.__app")
     js("localStorage.removeItem('auto3d-lang'); localStorage.removeItem('a3d.bomMode')")
+    # every toast's text as it appears (they go after a few seconds)
+    js("window.__toasts = []; new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => window.__toasts.push(n.textContent)))).observe(document.getElementById('toasts'), {childList: true})")
     js("""window.__saved = []; window.showSaveFilePicker = async (o) => ({ name: o.suggestedName,
       createWritable: async () => ({ write: async (b) => { const u = new Uint8Array(await b.arrayBuffer()); window.__saved.push([o.suggestedName, await b.text(), [...u]]); }, close: async () => {} }) });""")
     block("Base", 120, 80, 10)
@@ -185,6 +189,30 @@ try:
     print("Czech headers:", heads, "|", d.find_element(By.CSS_SELECTOR, ".bom-sum").text)
     check(heads[:4] == ["Poz.", "Název", "Ks", "Materiál"] and "Výroba / nákup" in heads, "the headers in Czech")
     check("nakupovaný" in [r[-1] for r in table()] and "vyráběný (3D tisk)" in [r[-1] for r in table()], "make / buy in Czech")
+    mats = {r[1]: r[3] for r in table()}
+    print("Czech materials:", mats)
+    check(mats["Bracket"] == "hliník" and mats["Base"] == "PLA" and not any(m in EN_MATS for m in mats.values()), "materials by their Czech names (hliník), none in English")
+    n0 = len(js("return window.__saved"))
+    d.find_element(By.CSS_SELECTOR, ".bom-win [data-a=csv]").click()
+    wait(f"return window.__saved.length === {n0 + 1}", 20)
+    lines = js(f"return window.__saved[{n0}][1]").lstrip(chr(0xFEFF)).split("\r\n")
+    print("Czech CSV:", lines[0], "|", next(ln for ln in lines if ";Bracket;" in ln))
+    check(lines[0].startswith("Poz.;Název;Ks;Materiál;Hmotnost/ks (g)") and lines[0].endswith("Výroba / nákup")
+          and ";hliník;" in next(ln for ln in lines if ";Bracket;" in ln) and not any(f";{m};" in ln for ln in lines for m in EN_MATS), "the Czech CSV: headers and materials in Czech")
+    time.sleep(0.3)
+    print("toasts:", js("return window.__toasts.slice(-1)"))
+    check(js("return window.__toasts.at(-1)") == "Kusovník uložen: 5 řádků.", "the BOM saved toast in Czech")
+    js("document.querySelector('.bom-win [data-a=close]').click()")
+    before = set(js(f"return {A}.doc.instances.map(i => i.id)"))
+    call("library_add", item="iso4762", size="M3", length=10, to="assembly")
+    time.sleep(0.3)
+    print("toasts:", js("return window.__toasts.slice(-1)"))
+    check(js("return window.__toasts.at(-1)") == f"{SCREW} je v sestavě — připojte ho přes 🔗 Vazba.", "the library part's toast in Czech")
+    for i in set(js(f"return {A}.doc.instances.map(i => i.id)")) - before:
+        call("remove_from_assembly", part=i)
+    wait(f"return {A}.doc.instances.length === 8")
+    js(f"{A}.openBom()")
+    wait("return document.querySelectorAll('.bom-win tbody tr').length >= 5")
     d.save_screenshot(f"{OUT}/bom_cs.png")
     js("document.querySelector('.bom-win [data-mode=structured]').click()")
     time.sleep(0.5)
@@ -248,6 +276,17 @@ try:
         finally { S.hooks.partData = base; S.hooks.kindOf = kind; S.hooks.partName = name; }""")
     print("45 parts: pages", longer)
     check(len(longer) >= 2 and sum(p[0] for p in longer) == 45 and longer[0][3] and not longer[-1][3], "a long BOM flows onto more pages")
+    # the drawing set in Czech: the BOM page and the assembly pages' parts lists
+    d.find_element(By.ID, "langBtn").click()
+    time.sleep(0.4)
+    cz = json.loads(js("return window.__app.agentHandlers.export_data({format: 'pdf'}).then(r => JSON.stringify({pages: r.data.pages, svgs: r.data.svgs}))"))
+    texts = [re.findall(r"<text[^>]*>([^<]*)</text>", s) for s in cz["svgs"]]
+    bom_t = next(tx for p, tx in zip(cz["pages"], texts) if p.startswith("📋"))
+    every = {x.strip() for tx in texts for x in tx}
+    print("Czech BOM page:", bom_t[:12])
+    check(any(x.startswith("Kusovník") for x in bom_t) and "Výroba / nákup" in bom_t and "Materiál" in bom_t and "hliník" in bom_t, "the BOM page in Czech: its title, headers and materials")
+    check(not every & EN_MATS and not every & {"Make / buy", "Material", "Qty", "Part number", "made (3D print)", "bought"}, f"no English material names or headers on any page ({sorted(every & (EN_MATS | {'Material', 'Make / buy'}))})")
+    d.find_element(By.ID, "langBtn").click()
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()

@@ -203,7 +203,8 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_bom.py <url> <dir>` covers the 📋 BOM rolled up through the hierarchy (Machine = Base + Lid unit ×2 (Lid,
    Pin ×3, screw ×2) + Hinge (Bracket, Pin) + 4 screws directly): get_bom totals Base 1, Lid 2, Pin 7, Bracket 1, screw
    8, `from`, make / buy by material, the structured tree, Lid unit alone, parts_list `total`; the 📋 BOM window
-   (Summary / Structured, a fold, Hinge chosen), ⬇ CSV of both views, ⬇ Excel; the Czech headers; the Machine sheet's
+   (Summary / Structured, a fold, Hinge chosen), ⬇ CSV of both views, ⬇ Excel; in Czech the headers, materials (hliník), the
+   CSV, the toasts and every drawing page's texts (no English material names or headers); the Machine sheet's
    📋 Add BOM page in 📚 All pages and in the set's PDF with the balloons' positions; 45 rows flow onto 3 pages.
    `tools/e2e_cleanup.py <url> <dir>` covers 🧹 Clean up empty projects (three empty default-named projects asked about
    by name and deleted; an empty one named by the user and one with a step stay; again: nothing to clean up). Needs a

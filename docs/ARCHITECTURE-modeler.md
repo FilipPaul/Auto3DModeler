@@ -518,6 +518,10 @@ Date: 2026-10-25. Written by the architect agent.
   22 rows on A4) + bomSvg (the parts list's style, the set's template / frame) after its page in drawingSet, 📚 All
   pages and the sheet's own PDF; 📋 Add BOM page in its panel. AI: get_bom {assembly, mode}, get_assembly parts_list
   `total`. tests/test_bom_xlsx.py; tools/e2e_bom.py.
+- **The BOM in Czech done:** material names go through t() like the material select (ocel, hliník …): bomTable's
+  material cell (CSV / Excel), the 📋 BOM window, the BOM page, the assembly pages' parts lists, the title block and
+  the assembly panel's parts list; the Save dialog's file types (app.js SAVE_TYPES) through t(); Czech for the AI's
+  "reading the bill of materials". e2e_bom in Czech: the window's materials, the CSV, the toasts, every page's texts.
 - **One item numbering per drawing set done:** SheetEditor.itemNumbers(root) — the top assembly's parts 1…n, then each
   sub-assembly's new ones in page order; assemblyPage numbers its rows (and balloons) by the set's root (rootOf), so a
   part has one number on every page (the cache key carries the numbering). e2e_drawing_set checks Machine 1–3, Lid unit 4, 5.

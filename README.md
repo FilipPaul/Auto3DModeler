@@ -618,7 +618,8 @@ The choice at the top shows the BOM of any sub-assembly in it (or open that sub-
 positions are the drawing set's numbers — the same as the balloons on the drawings. **⬇ CSV** saves the view shown
 (; separated for Excel); **⬇ Excel (.xlsx)** saves both views as two sheets of one workbook — it needs the optional
 `openpyxl` package on the server (`requirements-modeler.txt`); without it the button is greyed and CSV is offered.
-The headers follow the app's language (in Czech: *Poz., Název, Ks, Materiál … Výroba / nákup*).
+The headers and material names follow the app's language (in Czech: *Poz., Název, Ks, Materiál … Výroba / nákup*;
+*ocel, hliník, PLA*) — in the window, the CSV / Excel, the BOM page and the parts lists on the drawings.
 
 On an assembly's **📄 drawing sheet**, **📋 Add BOM page** puts the BOM on its own page right after the assembly's
 page — in the drawing set, 📚 All pages and the PDFs — with the set's title-block template and frame, in the parts

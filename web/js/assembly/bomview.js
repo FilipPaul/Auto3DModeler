@@ -59,7 +59,7 @@ export function openBomWindow(o) {
       const nm = `<span class="bom-name" style="padding-left:${depth * 18}px">${structured ? fold : ''}${isAsm ? '◇ ' : ''}<span data-no-i18n>${esc(r.name)}</span></span>`;
       const tot = structured ? r.total : r.qty;
       return `<td class="bom-pos">${r.pos ?? ''}</td><td>${nm}</td>${structured ? `<td class="num">${r.qty}</td><td class="num"><b>${r.total}</b></td>` : `<td class="num"><b>${r.qty}</b></td>`}
-        <td data-no-i18n>${esc(r.material || '')}</td><td class="num">${isAsm ? '' : `${num(r.mass_g, 2)}${r.mass_g === null ? '' : ' g'}`}</td>
+        <td data-no-i18n>${esc(r.material ? t(r.material) : '')}</td><td class="num">${isAsm ? '' : `${num(r.mass_g, 2)}${r.mass_g === null ? '' : ' g'}`}</td>
         <td class="num">${isAsm || r.mass_g === null ? (isAsm ? '' : '—') : `${num(r.mass_g * tot, 1)} g`}</td>
         <td data-no-i18n>${esc(r.maker || '')}</td><td data-no-i18n>${esc(r.pn || '')}</td><td>${how(r)}</td>`;
     };

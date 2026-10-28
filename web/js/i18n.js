@@ -1232,6 +1232,9 @@ const CS = {
   '{n} page(s) after this one, in the drawing set and its PDF.': '{n} list(ů) za tímto, ve výkresové sadě i v jejím PDF.',
   'See it among all the pages of the drawing set': 'Ukázat ho mezi všemi listy výkresové sady',
   '… continued on the next page ({n} / {m})': '… pokračuje na dalším listu ({n} / {m})',
+  'reading the bill of materials': 'čte kusovník',
+  // the Save dialog's file types (app.js SAVE_TYPES)
+  'IGES CAD model': 'CAD model IGES', 'DXF drawing': 'výkres DXF', 'OBJ 3D mesh': '3D síť OBJ', 'CSV table': 'tabulka CSV', 'Excel workbook': 'sešit Excelu', File: 'Soubor',
   // the assembly's list as a tree
   '{n} part(s)': '{n} dílů', 'In {sub} — a click shows it in the view': 'V {sub} — kliknutím se ukáže v pohledu',
   '{id} inside {sub} ({top}) — a part of {sub}: it moves with it, and it is changed in its own tab.': '{id} uvnitř {sub} ({top}) — díl sestavy {sub}: pohybuje se s ní a mění se ve své vlastní záložce.',
