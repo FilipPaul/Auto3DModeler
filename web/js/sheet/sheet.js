@@ -117,6 +117,7 @@ export class SheetEditor {
     if (!force && this.d.built && !this.d.built.stale && this.d.hash === h && !!this.d.built.section === !!this.d.section && this.d.built.preset === this.d.preset && this.d.built.vp === vp && (this.d.built.paper ?? null) === (this.d.paper ?? null)) return;
     this.busy = true;
     this.renderBar();
+    const run = (this.buildRun = (this.buildRun || 0) + 1); // (a newer build on its way wins)
     try {
       let r;
       if (asm) { // an assembly: its views, overall sizes, parts list and balloons
@@ -129,10 +130,11 @@ export class SheetEditor {
         r = await res.json();
         if (!res.ok) throw new Error(r.error || res.statusText);
       }
+      if (run !== this.buildRun) return;
       if (this.d.hash && this.d.hash !== h) { this.d.rev += 1; this.d.changed = new Date().toISOString(); } // the part changed
       Object.assign(this.d, { built: { ...r, preset: this.d.preset, vp, paper: this.d.paper ?? null, section: !!this.d.section && !asm }, hash: h });
       this.error = null;
-    } catch (e) { this.error = e.message; }
+    } catch (e) { if (run !== this.buildRun) return; this.error = e.message; }
     this.busy = false;
     this.render();
     this.hooks.onChange?.();
@@ -517,8 +519,7 @@ export class SheetEditor {
     };
     await visit(rootId, null);
     if (!pages.length) throw new Error(t('The assembly has no parts to draw.'));
-    for (const pg of pages) {
-      if (!pg.part) continue;
+    await Promise.all(pages.filter((pg) => pg.part).map(async (pg) => { // (side by side: the kernel's processes draw several parts at once)
       const src = this.hooks.partData(pg.part), own = ctx.sheetOf(pg.part);
       const d = own ? structuredClone(own) : { source: pg.part, preset: 'medium', rev: 1, created: now, changed: now };
       if (!d.built || d.built.stale || d.hash !== partHash(src)) {
@@ -526,7 +527,7 @@ export class SheetEditor {
         d.built = { ...(await this.cached(key, () => post('/api/sheet/build', { part: src, preset: d.preset || 'medium', paper: d.paper, per_view: d.vpreset || {} }))), preset: d.preset || 'medium', paper: d.paper ?? null };
       }
       pg.d = { ...d, title: { part: pg.name, of: pg.parent, pos: pg.pos } };
-    }
+    }));
     const n = pages.length;
     const svgs = pages.map((pg, i) => this.svgOf({ ...pg.d, title: { ...pg.d.title, sheet: `${i + 1} / ${n}` } }));
     return { svgs, ids: pages.map((pg) => pg.part || pg.d.source), pages: pages.map((pg) => (pg.part ? pg.name : `◇ ${pg.name}`)) };

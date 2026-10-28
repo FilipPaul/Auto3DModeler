@@ -834,6 +834,26 @@ Date: 2026-10-25. Written by the architect agent.
   serial -> parallel): the 171-hole plate rebuilt 5.29 -> 4.06 s, a split step 0.68 -> 0.61 s, the exact print split
   (the plate on an 80 mm bed, 6 pieces) 0.88 -> 0.82 s, a clash check of three such plates 0.78 -> 0.59 s — the
   booleans are small (one hole each): most of the time is outside the intersection stage.
+- **A pool of kernel processes done:** worker.Pool (WORKER; server.MODEL_WORKER) of N Worker processes
+  "auto3d-kernel-<i>": N = A3D_WORKERS, else min(4, cores − 1), one more only with 2 GB free each (psutil, else
+  GlobalMemoryStatusEx on Windows; this 16-core machine: 4); /api/kernel says `workers`. Routing (worker.part_key):
+  a part's jobs by its first step (an imported file: its blob; that is what its cached prefixes, meshes and
+  sheet views start with, so the modeller tab, the assembly, the sheet, limits and the AI meet the same caches);
+  an assembly's clashes / sweep / sheet by its instance ids; a print split by its file; imports of a new assembly
+  and assembly exports: the least busy. A key keeps its process (LRU of 512); a new one goes to the least busy (then
+  fewest parts); a part whose process has been busy > 1 s with other parts' jobs (none of its own waiting) moves to
+  an idle one. Each Worker: its own pipe, a Condition and a FIFO of job sequence numbers (jobs run in the order they
+  came; a Cancel while waiting leaves the queue); the reply carries the job's number (an answer to a job cancelled
+  after it was sent is not taken for the next one's). A crash fails that job and those waiting for that process
+  ("…while building another job — try again"), restarts only it; a timeout / Cancel kills only it; a process over
+  A3D_WORKER_MB (3072) resident is restarted after its job. The worker loop and its ops table are unchanged (the
+  messages carry the number). Browser: assembly.buildBodies keeps a part's newest build (an older answer coming
+  later is dropped), the sheet's ensure keeps its newest run, the drawing set asks for its parts' sheets at once
+  (the modeller's pump and the clash check were already ordered). Times (A3D_WORKERS=1 -> 4): an assembly of four
+  171-hole-like plates opened 8.82 -> 2.09 s, a drawing set of four parts 3.17 -> 0.90 s, the two-sessions test
+  (one imports the 44 MB board and draws the 171-hole plate, the other edits a small part): the small part's
+  rebuild 28.4 s (behind the import) -> 7–19 ms, the plate's sheet 25.0 -> 1.4 s; two heavy parts from two
+  threads 3.49 -> 2.14 s. tests/test_kernel_pool.py; tools/e2e_kernel_pool.py.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.
@@ -1443,7 +1463,7 @@ auto3d/modeler/naming.py       named refs: roles from feature history (Generated
 auto3d/modeler/constraints.py  planegcs adapter (sketch JSON ↔ solver), dof, conflicts
 auto3d/modeler/sketch2d.py     sketch → closed regions (shapely for loops; arcs kept as true arcs for the kernel)
 auto3d/modeler/doc.py          feature evaluation, expressions, cache by prefix hash, issues per feature
-auto3d/modeler/worker.py       one worker process holding the shape cache; timeouts; cancel; crash → restart + error
+auto3d/modeler/worker.py       a pool of worker processes (a part's jobs on one, in order) holding the caches; timeouts; cancel; crash → restart + error
 auto3d/modeler/bridges.py      classic part → shape (to_step → read), shape → slabs (slice_mesh), mesh → body
 auto3d/modeler/assembly.py     mates → transforms (small numpy Gauss-Newton on 6 DOF per instance), BOM
 auto3d/project.py              v3 schema, migrate()
@@ -1463,7 +1483,7 @@ requirements-modeler.txt       cadquery-ocp-novtk==8.0.1.1.0, planegcs==0.9.6   
 | # | Risk | What we do |
 |---|---|---|
 | R1 | **Topological naming**: fillet edges "jump" after an earlier feature changes | Name faces by role (from OCCT history) + fingerprint. When a reference is re-attached by fingerprint, show ⚠ "reference re-attached — check" on the feature, so the user or AI can confirm. No promise of full robustness (SolidWorks has the same problem). Tests change early dimensions and check that later fillets keep the same edges. |
-| R2 | OCCT failure or crash brings down Flask | All kernel calls run in `worker.py` (one process). An exception becomes a feature issue. A crash means restart the worker and report "kernel crashed while building Fillet 2". Timeout 60 s, with Cancel through `progress`. This also avoids thread-safety problems (Flask runs `threaded=True`). |
+| R2 | OCCT failure or crash brings down Flask | All kernel calls run in `worker.py` (a pool of processes; a part's jobs always on the same one). An exception becomes a feature issue. A crash means restart the worker and report "kernel crashed while building Fillet 2". Timeout 60 s, with Cancel through `progress`. This also avoids thread-safety problems (Flask runs `threaded=True`). |
 | R3 | Install size and failures | Optional extra; `/api/kernel` shows status and the exact `py -m pip install -r requirements-modeler.txt`. Versions are pinned. Note: do not install `cadquery-ocp` (with VTK) next to `-novtk`, because both provide the `OCP` module. |
 | R4 | OCCT inside both `cascadio` and OCP in one process | Smoke test in M0. If they clash, load OCP only in the worker process (planned anyway). |
 | R5 | Sketch dragging feels slow over HTTP | Local Flask + planegcs: about 5–20 ms per solve. Throttle to one solve in flight (the same pattern as `pump()` in app.js). Later option: a vendored planegcs WASM build. |
