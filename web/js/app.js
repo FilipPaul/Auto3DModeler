@@ -19,7 +19,7 @@ import { Modeler } from './modeler/modeler.js';
 import { modelHandlers } from './modeler/agent_model.js';
 import { Assembly } from './assembly/assembly.js';
 import { askHowToOpen, addTree, treeSize } from './assembly/stepfile.js';
-import { DrawingEditor, drawingToSketch } from './drawing2d/editor.js';
+import { DrawingEditor, drawingToCleanSketch } from './drawing2d/editor.js';
 import { SheetEditor, partHash } from './sheet/sheet.js';
 import { isStandard } from './assembly/fasteners.js';
 import { initSplitters } from './splitters.js';
@@ -31,8 +31,11 @@ import { bodyOf, picture, svgPicture } from './thumbs.js';
 import { setAskAI } from './suggest.js';
 import { changed as projectChanged } from './history.js';
 import { nextFrames } from './frames.js';
+import { trackProgress, newRid } from './progressbox.js'; // (slow requests: the busy box with Cancel)
+import { initJobs } from './jobs.js';
 
 initI18n();  // Czech / English: translates the page as it is built
+initJobs(() => project.current?.name); // ⚙ N in the top bar: what is working now, with ✕ Stop
 
 const $ = (id) => document.getElementById(id);
 const UNIT_TO_M = { mm: 0.001, cm: 0.01, m: 1, in: 0.0254 };
@@ -201,41 +204,6 @@ async function download(blob, name, { id = 'auto3d-export' } = {}) {
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   return name;
 }
-
-// ------------------------------------------------------------------ progress bar + cancel for slow work
-// A slow request carries an id; while it runs the page polls the server's progress for it and Cancel stops it.
-const newRid = () => `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
-let currentRid = null;
-function trackProgress(rid, label) {
-  currentRid = rid;
-  const box = $('busy'), text = box.querySelector('.busy-text'), bar = box.querySelector('.busy-bar i');
-  text.textContent = label;
-  bar.style.width = '0';
-  box.classList.add('indeterminate');
-  box.hidden = false;
-  let stopped = false;
-  const tick = async () => {
-    if (stopped) return;
-    try {
-      const st = await (await fetch(`/api/progress/${rid}`)).json();
-      if (stopped) return;
-      if (st.stage) text.textContent = st.total ? `${st.stage} ${st.done + 1} / ${st.total}` : st.stage;
-      box.classList.toggle('indeterminate', !st.total);
-      if (st.total) bar.style.width = `${Math.round(((st.done + 1) / st.total) * 100)}%`;
-    } catch { /* keep the last status */ }
-    if (!stopped) setTimeout(tick, 300);
-  };
-  setTimeout(tick, 250);
-  return () => {
-    stopped = true;
-    if (currentRid === rid) { currentRid = null; box.hidden = true; }
-  };
-}
-$('busyCancel').addEventListener('click', () => {
-  if (!currentRid) return;
-  fetch(`/api/progress/${currentRid}/cancel`, { method: 'POST' });
-  $('busy').querySelector('.busy-text').textContent = 'Cancelling…';
-});
 
 const layers = new LayersPanel($('layerList'), {
   onChange: () => scheduleRebuild(),
@@ -1892,8 +1860,9 @@ const drawing2d = new DrawingEditor({ left: $('dwgLeft'), viewport: $('dwgViewpo
     if (!d.entities.some((e) => e.t !== 'text')) { toast(t('Nothing to sketch on the shown layers.'), 'warning'); return; }
     if (d.entities.length > 3000) toast(t('A big sketch — hide the layers you do not need first, it is quicker to work with.'), 'info', 7000);
     const name = `${project.current?.name || t('Drawing')} (${t('3D model')})`;
-    await project.newModel({ features: [drawingToSketch(d)] }, name, 'none');
-    toast(t('The drawing is the sketch of a new 3D model — edit it, or ⬆ Extrude it.'), 'ok', 6000);
+    const { feature, report: r } = await drawingToCleanSketch(d);
+    await project.newModel({ features: [feature] }, name, 'none');
+    toast(`${t('The drawing is the sketch of a new 3D model — edit it, or ⬆ Extrude it.')}${r ? ` ${t('Cleaned up: {a} → {b} shapes.').replace('{a}', r.before.entities).replace('{b}', r.after.entities)}` : ''}`, 'ok', 6000);
   },
   async useAsQuick(d) {
     try { await loadParsed(await (await api('/api/drawing/outline', d)).json()); } catch (e) { toast(e.message, 'error', 8000); }

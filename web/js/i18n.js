@@ -953,6 +953,29 @@ const CS = {
   'More…': 'Další…',
   'Everything else that fits what is picked': 'Vše ostatní, co se hodí k výběru',
   'Kind': 'Druh',
+  // ⛓ merge / 🧹 simplify (many small shapes into few)
+  '⛓ Merge': '⛓ Sloučit', Merge: 'Sloučit',
+  'Merge many small shapes into few: pick them (click or a box; nothing picked: click them now), then ⛓ Join into one curve, 🧹 Simplify or ◆ One outline':
+    'Sloučit mnoho malých tvarů do několika: vyberte je (klik nebo rámeček; nic nevybráno: klikejte na ně teď), pak ⛓ Sloučit do jedné křivky, 🧹 Zjednodušit nebo ◆ Jeden obrys',
+  'Join into one curve': 'Sloučit do jedné křivky',
+  'The connected lines, arcs and curves become one smooth curve (split only at sharp corners)': 'Navazující úsečky, oblouky a křivky se stanou jednou hladkou křivkou (rozdělenou jen v ostrých rozích)',
+  Simplify: 'Zjednodušit',
+  'Fewer shapes, the same outline: ends that nearly meet welded, tiny pieces absorbed, lines in line and arcs on one circle joined':
+    'Méně tvarů, stejný obrys: skoro se dotýkající konce spojeny, drobné kousky pohlceny, úsečky v jedné přímce a oblouky na jedné kružnici sloučeny',
+  'Make it one outline': 'Udělat z toho jeden obrys',
+  'The closed outline (with its holes) becomes one rigid shape: it moves, turns and scales as a whole': 'Uzavřený obrys (i s dírami) se stane jedním pevným tvarem: posouvá se, otáčí a mění velikost jako celek',
+  'Simplify the whole sketch': 'Zjednodušit celou skicu', 'Fewer shapes, the same outline — for all the sketch': 'Méně tvarů, stejný obrys — pro celou skicu',
+  'How far the result may be from the shapes it replaces': 'Jak daleko smí být výsledek od tvarů, které nahrazuje',
+  'Enter = done, Esc = back': 'Enter = hotovo, Esc = zpět',
+  '{a} → {b} shapes': '{a} → {b} tvarů', 'Cleaned up: {a} → {b} shapes.': 'Vyčištěno: {a} → {b} tvarů.',
+  'the enclosed area changed — try a smaller tolerance': 'uzavřená plocha se změnila — zkuste menší toleranci',
+  'A smooth curve': 'Hladká křivka', curve: 'křivka',
+  'Click or drag a box over the shapes to merge — each click adds one': 'Klikněte na tvary ke sloučení nebo je ohraničte rámečkem — každý klik jeden přidá',
+  'Merge: click or drag a box over the shapes (each click adds one) — then ⛓ Join into one curve, 🧹 Simplify or ◆ One outline in the table. Esc = done.':
+    'Sloučit: klikněte na tvary nebo je ohraničte rámečkem (každý klik jeden přidá) — pak v tabulce ⛓ Sloučit do jedné křivky, 🧹 Zjednodušit nebo ◆ Jeden obrys. Esc = hotovo.',
+  'Pick the shapes to join first.': 'Nejdřív vyberte tvary ke sloučení.', 'Pick the closed outline first.': 'Nejdřív vyberte uzavřený obrys.',
+  'The picked shapes do not close into an outline.': 'Vybrané tvary se neuzavírají do obrysu.',
+  'The tolerance must be a number (mm).': 'Tolerance musí být číslo (mm).', 'The tolerance must be greater than zero.': 'Tolerance musí být větší než nula.',
   '1 shape': '1 tvar', '1 point': '1 bod',
   'Drag one of them: they all move together': 'Přetáhněte jeden z nich: posunou se všechny spolu',
   'Move': 'Posunout',
@@ -1284,6 +1307,20 @@ const CS = {
   'Set by the other sizes and relations — nothing to lock': 'Dáno ostatními rozměry a vazbami — není co zamykat',
   'line {a} – {b}': 'čára {a} – {b}', 'arc R{r} at {c}': 'oblouk R{r} v {c}', 'circle Ø{d} at {c}': 'kružnice Ø{d} v {c}', 'curve from {a}': 'křivka z {a}',
   'On a shape': 'Na tvaru',
+  // ✕ Cancel of slow work (progressbox.js): stopped once, not sent again on its own
+  'Building the 3D model': 'Sestavuji 3D model', 'Cancelled —': 'Zrušeno —', '↻ Rebuild': '↻ Sestavit znovu',
+  'Build the part again as it is now': 'Sestavit díl znovu, jak je teď', 'Building the parts…': 'Sestavuji díly…',
+  'Cancelled — the parts not built are shown as they were (a change builds them).': 'Zrušeno — nesestavené díly jsou zobrazeny, jak byly (sestaví je další změna).',
+  'Cancelled — a change builds it.': 'Zrušeno — sestaví ho další změna.', '✕ Stop': '✕ Zastavit',
+  'Stop the check (the last result stays)': 'Zastavit kontrolu (zůstane poslední výsledek)',
+  'Cancelled — the drawing was not made.': 'Zrušeno — výkres nebyl vytvořen.', 'Splitting the part…': 'Dělím díl…', 'Splitting the part': 'Dělím díl',
+  // ⚙ N in the top bar: what is working now (jobs.js, GET /api/jobs)
+  'Working now — click: what runs, with ✕ Stop': 'Pracuje se — klikněte: co běží, s ✕ Zastavit', 'Working now': 'Právě běží',
+  'Stop this job (the part stays as it was)': 'Zastavit tuto úlohu (díl zůstane, jak byl)', 'Stopping…': 'Zastavuji…', waiting: 'čeká',
+  Working: 'Pracuji', 'Building a part': 'Sestavení dílu', 'Building a quick part': 'Sestavení rychlého dílu', Exporting: 'Export',
+  'Exporting an assembly': 'Export sestavy', 'Checking collisions': 'Kontrola kolizí', 'Checking a motion': 'Kontrola pohybu',
+  'Making a drawing': 'Tvorba výkresu', 'Working out limits': 'Výpočet mezí', 'Importing a file': 'Import souboru',
+  'Reading an assembly': 'Čtení sestavy', 'Splitting for print': 'Dělení pro tisk',
   // language switch
   'Čeština / English': 'Čeština / English',
 };

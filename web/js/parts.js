@@ -195,7 +195,7 @@ export class Project {
     if (this.none) this.setNone(false);
     await this.hooks.load(p.data, { switching: true, kind: p.kind, ...extra });
     if (p.history) this.hooks.setHistory(p.history, p.kind);
-    p.data = 'live';
+    if (this.active === p.id) p.data = 'live'; // (another tab opened while this one loaded — a sheet of it: that kept its data)
   }
 
   /** A copy of a part as a new, independent part (its own tab, after it) -> its id. open: put it on screen. */

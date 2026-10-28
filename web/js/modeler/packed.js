@@ -3,10 +3,10 @@
 
 const TYPES = { f32: Float32Array, u32: Uint32Array, u8: Uint8Array };
 
-/** POST /api/model/rebuild {part, rid} -> {res, r}: the result as from JSON, its meshes' positions / face_ids typed
- *  arrays. An error or a Cancel comes as JSON and is read as JSON. */
-export async function fetchRebuild(part, rid) {
-  const res = await fetch('/api/model/rebuild', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part, rid, bin: true }) });
+/** POST /api/model/rebuild {part, rid, what} -> {res, r}: the result as from JSON, its meshes' positions / face_ids typed
+ *  arrays. An error or a Cancel comes as JSON and is read as JSON. what: the part's name (the ⚙ jobs list; else the tab's). */
+export async function fetchRebuild(part, rid, what) {
+  const res = await fetch('/api/model/rebuild', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part, rid, bin: true, ...(what ? { what } : {}) }) });
   const binary = (res.headers.get('Content-Type') || '').startsWith('application/octet-stream');
   return { res, r: binary ? unpack(await res.arrayBuffer()) : await res.json() };
 }
