@@ -1008,6 +1008,7 @@ body.view-acts .toast-stack { bottom: 84px; }
 .sk-label .sk-lock:hover { opacity: 1; filter: none; }
 .sk-label.locked { border-color: #8957e5; color: #e2d4ff; background: #2a1d45e0; }
 .sk-label.locked .sk-lock { opacity: 1; filter: none; }
+.sk-label .sk-lock.sk-driven { cursor: default; opacity: .7; filter: none; color: #3fb950; } /* set by the other sizes: nothing to lock */
 .sk-dof { font-size: 12px; color: #f2cc60; }
 .sk-dof.ok { color: var(--ok); }
 
@@ -1035,6 +1036,12 @@ body.view-acts .toast-stack { bottom: 84px; }
 .sk-label.block { border-color: #2a5560; }
 
 .sk-dim-acts { display: flex; gap: 3px; }
+.sk-dim.bad { outline: 1px solid #ff7b72; color: #ffb3ad; } /* a lock that does not fit (its shapes red too) */
+.sk-dim[data-dimrow]:hover { background: #2d2a12; } /* lights its dimension in the view */
+.sk-label.lit { outline: 2px solid #f2cc60; }
+.sk-why { font-size: 12px; color: #f2cc60; margin: 4px 0; }
+.sk-why.bad { color: #ff7b72; }
+.sk-rounded ul { margin: 2px 0 4px 16px; padding: 0; font-size: 12px; }
 .sk-label.dist:not(.locked) { color: #c9d1d9; border-color: #44505f; background: #161a20d8; }
 
 .sk-label.hover { color: #aff5b4; border-color: #2ea04366; background: #0d2016e0; pointer-events: none; }

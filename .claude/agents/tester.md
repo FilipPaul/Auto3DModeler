@@ -515,6 +515,23 @@ Never report "works" without having run it; report failures with their output.
    circle -> ◆ Make it one outline: one block, 2 rings).
    `tools/e2e_sketch_auto.py <url> <dir>` covers snapping to the part's hole (centre and rim -> the same Ø8) and 🪄
    Auto-dimension (7 free -> 0, the circle and the rectangle placed from the part's nearest edges).
+   `tools/e2e_sketch_ui.py <url> <dir>` covers the sketch panel with real clicks: named rows (Width 65, Height 65,
+   R23) lighting their label, ∪ Unite overlapping shapes (one outline, the exact union's volume), 🪄 Lock at rounded
+   values (R23.215 -> R23, y 8.94 -> y 9 listed; ↶ Take back restores; ✓ Keep), a lock that does not fit (named in the
+   panel, its row and shapes red), ⊂⊃ Make it a slot first in the suggestions for a slot drawn piece by piece.
+   `tools/e2e_ai_sketch.py <url> <dir>` covers the AI's sketch tools through agentHandlers: get_sketch (8 shapes, 9
+   named locks, 4 tangents + equal), sketch_union of the report's rect + slot (one outline, 59945.008 mm³ = the exact
+   union, tangents / equal kept), sketch_auto_dims (fully defined; again: says why not), sketch_dim (R 20, a wrong id
+   refused, a lock freed), sketch_trim (a circle -> an arc), gui_state's dimension labels with values, a screenshot
+   with the labels drawn in.
+   `tools/e2e_sketch_autodims.py <url> <dir>` covers 🪄 on the AI's reported sketches with real clicks: the hand-drawn
+   rect ∪ slot (5 free -> R + two centres: 9 locks, dof 0, Finish green, no 🔓 left — ＝, the volume kept on Finish),
+   the AI's rect + slot shapes (9 locks at once), the outline without its tangents / equal radii (found first), a
+   lock held twice (-> a reference) and one that does not fit (named, red).
+   `tools/e2e_sketch_freeze.py <url> <dir>` covers the AI's report of a frozen app: a sketch set to the report's
+   profile (lines + 2 arcs) and opened by a real double-click opens in under 2 s, the page keeps answering, dof 0 with
+   no red shapes and ✓ Finish green (2 tangents), get_screenshot answers with no animation frames (a hidden window),
+   Finish keeps the volume.
    `tools/e2e_sizes.py <url> <dir>` covers 🏷 Sizes (an extrude's sizes on the part: All 6 / 🔒 Locked = the height /
    None 0, remembered after a reload; a 250-circle sketch labels only its locked sizes, with a note, Show them all
    anyway -> every one, Locked / None from the sketch panel, the left panel following; the long list folded).

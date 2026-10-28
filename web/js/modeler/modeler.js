@@ -1096,6 +1096,7 @@ export class Modeler {
       for (const b of box.querySelectorAll('[data-lock]')) b.addEventListener('click', () => this.sk.toggleLock(this.sk.f.dims.find((d) => d.id === b.dataset.lock)));
       box.querySelector('[data-a=showSizes]')?.addEventListener('click', () => this.sk.showAllSizes());
       for (const b of box.querySelectorAll('[data-delrel]')) b.addEventListener('click', () => this.sk.delRelation(b.dataset.delrel));
+      this.sk.bindProps?.(box); // (its own rows and buttons)
       for (const inp of box.querySelectorAll('input[data-bk]')) {
         inp.addEventListener('change', () => this.sk.setBlock(inp.dataset.bk, inp.value));
         inp.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') inp.blur(); });

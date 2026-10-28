@@ -8,6 +8,8 @@ import { textOutline } from '../outlinepanel.js';
 import { originAt, worldToUV } from './origin.js';
 import { roundAxes, axisOf } from './axes.js';
 import { datumFrame } from './view.js';
+import { nextFrames } from '../frames.js';
+import { sketchHandlers } from './agent_sketch.js';
 
 const r3 = (v) => +(+v).toFixed(3);
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -26,9 +28,10 @@ export function sketchFromShapes(shapes, lock = true, axisAt = null) {
   const id = (k) => `${k}${(n[k] = (n[k] || 0) + 1)}`;
   const dim = (spec) => { if (lock) f.dims.push({ id: id('d'), ...spec }); };
   let from = null; // (the shape's axis to measure from, or null: from the origin)
-  const point = (u, v, locked) => {
+  const r9 = (v) => +(+v).toFixed(9);
+  const point = (u, v, locked, exact = false) => { // (exact: a point worked out from others — rounded it would not fit them)
     const p = id('p');
-    f.points[p] = [r3(u), r3(v)];
+    f.points[p] = exact ? [r9(u), r9(v)] : [r3(u), r3(v)];
     if (!locked) return p;
     for (const [t, k] of [['dx', 0], ['dy', 1]]) {
       const ax = from && (!from.dir || Math.abs(from.dir[k]) < 1e-6) ? from : null; // (an axis along the plane gives only the place across it)
@@ -77,12 +80,16 @@ export function sketchFromShapes(shapes, lock = true, axisAt = null) {
       if (!(w > 0) || !(L > 0)) throw new Error('A slot needs x1, y1, x2, y2 (the centres of its round ends, apart) and w > 0.');
       const r = w / 2, nx = (-(y2 - y1) / L) * r, ny = ((x2 - x1) / L) * r;
       const c1 = point(x1, y1, true), c2 = point(x2, y2, true);
-      const A = point(x1 - nx, y1 - ny), B = point(x2 - nx, y2 - ny), C = point(x2 + nx, y2 + ny), D = point(x1 + nx, y1 + ny);
-      const a1 = id('c'), a2 = id('c');
-      f.entities.push({ id: id('l'), t: 'line', a: A, b: B }, { id: a1, t: 'arc', c: c2, a: B, b: C },
-        { id: id('l'), t: 'line', a: C, b: D }, { id: a2, t: 'arc', c: c1, a: D, b: A });
+      const [X1, Y1, X2, Y2] = [x1, y1, x2, y2].map(r3);
+      const A = point(X1 - nx, Y1 - ny, false, true), B = point(X2 - nx, Y2 - ny, false, true), C = point(X2 + nx, Y2 + ny, false, true), D = point(X1 + nx, Y1 + ny, false, true);
+      const a1 = id('c'), a2 = id('c'), s1 = id('l'), s2 = id('l');
+      f.entities.push({ id: s1, t: 'line', a: A, b: B }, { id: a1, t: 'arc', c: c2, a: B, b: C },
+        { id: s2, t: 'line', a: C, b: D }, { id: a2, t: 'arc', c: c1, a: D, b: A });
+      // the sides tangent to both ends, the ends alike: its two centres and one radius fix it (5 sizes)
+      f.constraints.push({ id: id('k'), t: 'tan', e: s1, arc: a1, p: B }, { id: id('k'), t: 'tan', e: s1, arc: a2, p: A },
+        { id: id('k'), t: 'tan', e: s2, arc: a1, p: C }, { id: id('k'), t: 'tan', e: s2, arc: a2, p: D },
+        { id: id('k'), t: 'eq', e: a1, e2: a2, user: true });
       dim({ t: 'rad', e: a1, v: r3(r) });
-      dim({ t: 'rad', e: a2, v: r3(r) });
     } else if (s.path) {
       // an open line (a sweep's path): points joined in order, not closed
       const pts = s.path.points || [];
@@ -103,7 +110,7 @@ export function sketchFromShapes(shapes, lock = true, axisAt = null) {
         } else throw new Error(`Profile item ${i + 1}: a corner [x, y], {smooth: [[x, y], …]} or {arc: [x, y]}.`);
       });
       if (corners.length < 2 && !corners[0]?.next) throw new Error('A profile needs at least 2 corners, or a smooth part.');
-      const ids = corners.map((c) => point(c.at[0], c.at[1], true));
+      const ids = corners.map((c) => point(c.at[0], c.at[1], true)), arcs = [];
       corners.forEach((c, i) => {
         const a = ids[i], b = ids[(i + 1) % ids.length], A = c.at, B = corners[(i + 1) % corners.length].at;
         if (c.next?.smooth) {
@@ -113,9 +120,11 @@ export function sketchFromShapes(shapes, lock = true, axisAt = null) {
           const M = c.next.arc, ax = B[0] - A[0], ay = B[1] - A[1], bx = M[0] - A[0], by = M[1] - A[1], dd = 2 * (ax * by - ay * bx);
           if (Math.abs(dd) < 1e-12) throw new Error(`Profile: the arc through [${M}] is a straight line — move that point off the line.`);
           const ux = (by * (ax * ax + ay * ay) - ay * (bx * bx + by * by)) / dd, uy = (ax * (bx * bx + by * by) - bx * (ax * ax + ay * ay)) / dd;
-          const cc = point(A[0] + ux, A[1] + uy, true), arc = id('a');
+          // its centre is not locked: with both ends locked that would hold it twice (a conflict, the sketch red)
+          const cc = point(A[0] + ux, A[1] + uy, false, true), arc = id('a');
           // the sketch's arcs run counter-clockwise from a to b: from A through M to B, or the other way round
           f.entities.push(dd > 0 ? { id: arc, t: 'arc', c: cc, a: b, b: a } : { id: arc, t: 'arc', c: cc, a, b });
+          arcs.push({ arc, cc, ends: [a, b], r: Math.hypot(ux, uy) });
         } else if (a !== b) {
           const l = id('l');
           f.entities.push({ id: l, t: 'line', a, b });
@@ -123,6 +132,19 @@ export function sketchFromShapes(shapes, lock = true, axisAt = null) {
           else if (Math.abs(A[0] - B[0]) < 1e-9) f.constraints.push({ id: id('k'), t: 'v', e: l });
         }
       });
+      // an arc the line beside it runs into smoothly is tangent to it (that fixes the arc, with its locked ends);
+      // a sharp one gets its radius locked instead. One tangent at most: a second would hold it twice.
+      const P = (p) => f.points[p];
+      for (const { arc, cc, ends, r } of arcs) {
+        const tan = ends.map((p) => {
+          const l = f.entities.slice(first).find((e) => e.t === 'line' && (e.a === p || e.b === p));
+          if (!l) return null;
+          const q = P(l.a === p ? l.b : l.a), o = P(p), c = P(cc), L = Math.hypot(q[0] - o[0], q[1] - o[1]) * r;
+          return L && Math.abs((q[0] - o[0]) * (o[0] - c[0]) + (q[1] - o[1]) * (o[1] - c[1])) / L < Math.sin(Math.PI / 360) ? { e: l.id, p } : null;
+        }).find(Boolean);
+        if (tan) f.constraints.push({ id: id('k'), t: 'tan', e: tan.e, arc, p: tan.p });
+        else dim({ t: 'rad', e: arc, v: r3(r) });
+      }
     } else if (s.polyline) {
       const pts = s.polyline.points || [];
       if (pts.length < 3) throw new Error('A polyline needs at least 3 points (it is closed automatically).');
@@ -149,9 +171,27 @@ export function sketchFromShapes(shapes, lock = true, axisAt = null) {
       const fixed = (p) => f.dims.some((d) => d.t === 'dx' && d.b === p) && f.dims.some((d) => d.t === 'dy' && d.b === p);
       return e && fixed(e.a) && fixed(e.b);
     };
-    f.constraints = f.constraints.filter((k) => !fixedLine(k.e));
+    f.constraints = f.constraints.filter((k) => !((k.t === 'h' || k.t === 'v') && fixedLine(k.e)));
   }
   return f;
+}
+
+/** The size labels shown over the 3D view (page elements, not part of the WebGL picture) drawn onto a screenshot of
+ *  it: ctx the picture's 2D context, src the view's canvas, k the picture's scale. */
+function drawLabels(ctx, src, k) {
+  const box = src.getBoundingClientRect(), sx = (src.width / (box.width || 1)) * k, sy = (src.height / (box.height || 1)) * k;
+  ctx.font = `${Math.round(11 * sx)}px sans-serif`;
+  ctx.textBaseline = 'middle';
+  for (const el of document.querySelectorAll('#modelViewport .sk-label, #modelViewport .m-dimtag')) {
+    const r = el.getBoundingClientRect();
+    if (!r.width || r.right < box.left || r.left > box.right || r.bottom < box.top || r.top > box.bottom) continue;
+    const text = (el.querySelector('.sk-val')?.textContent ?? el.textContent).replace(/\s+/g, ' ').trim() + (el.classList.contains('locked') ? ' 🔒' : '');
+    const x = (r.left - box.left) * sx, y = (r.top - box.top) * sy, w = Math.max(r.width * sx, ctx.measureText(text).width + 6 * sx), h = r.height * sy;
+    ctx.fillStyle = el.classList.contains('locked') ? '#2a1d45e6' : '#0d1117d9';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = el.classList.contains('locked') ? '#e2d4ff' : '#c9d1d9';
+    ctx.fillText(text, x + 3 * sx, y + h / 2);
+  }
 }
 
 const KIND = { model: '3D model', assembly: 'assembly', drawing: '2D drawing', sheet: 'drawing sheet' };
@@ -583,7 +623,10 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       const f = m.part.features.find((x) => x.id === id);
       if (!f) throw new Error(`No step ${id} — see get_model.`);
       if (f.type === 'sketch' && (fields.shapes || fields.plane)) {
-        if (fields.shapes) Object.assign(f, sketchFromShapes(fields.shapes, fields.lock !== false, axisAtOn(f.plane))); // (a new plane alone keeps the shapes)
+        if (fields.shapes) { // (a new plane alone keeps the shapes)
+          for (const k of ['place', 'rd', 'hidden']) delete f[k]; // (they named the old shapes' ids — new shapes reuse them)
+          Object.assign(f, sketchFromShapes(fields.shapes, fields.lock !== false, axisAtOn(f.plane)));
+        }
         if (fields.plane || fields.origin) { // (a new origin alone: the shapes keep their numbers, from the new 0, 0)
           const pl = typeof fields.plane === 'string' ? { datum: fields.plane } : fields.plane || (f.plane?.face ? { face: f.plane.face.name, ...(f.plane.mid ? { mid: f.plane.mid.name } : {}) } : { ...f.plane });
           f.plane = planeOf(fields.origin && !pl.datum ? { ...pl, origin: fields.origin } : pl);
@@ -682,9 +725,10 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       await settle();
       if (view) m.view.setView({ front: 'front', back: 'front', side: 'right', top: 'top' }[view] || 'iso');
       if (fit !== false) m.view.fit(); // (the whole part in the picture)
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      await nextFrames();
       const v = m.view;
       v.renderer.render(v.scene, v.camera);
+      v.labels?.render(v.scene, v.camera); // (the size labels where this camera puts them)
       const src = v.renderer.domElement, k = Math.min(1, 900 / Math.max(src.width, src.height));
       const c = document.createElement('canvas');
       c.width = Math.round(src.width * k);
@@ -693,9 +737,11 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       ctx.fillStyle = '#161b22';
       ctx.fillRect(0, 0, c.width, c.height);
       ctx.drawImage(src, 0, 0, c.width, c.height);
+      drawLabels(ctx, src, k);
       return { text: `3D view (${view || 'current'}). ${JSON.stringify(summary())}`, image: c.toDataURL('image/png').split(',')[1] };
     },
     model_body: async () => { needModel(); return { text: 'ok', body: { model_part: m.payload(), name: project.current?.name } }; },
     model_undo: async () => { needModel(); const ok = await m.history.go(-1); await settle(); return { text: ok ? `Undone. ${JSON.stringify(summary())}` : 'Nothing to undo.' }; },
+    ...sketchHandlers({ modeler: m, needModel, settle }), // (get_sketch, sketch_auto_dims, sketch_dim, sketch_trim, sketch_union)
   };
 }

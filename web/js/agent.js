@@ -26,6 +26,8 @@ function md(text) {
 /** How many of the AI's tool calls this page has run (a turn that ran none here changed nothing here). */
 export const bridgeStats = { calls: 0 };
 
+const CALL_BUDGET_S = 140; // a tool call's most time here (the server waits 150 s for it)
+
 /** Run tool calls from the server: handlers = {tool: async (args) => ({text, image?, error?, body?})}. */
 export function startBridge(handlers) {
   let alive = true;
@@ -53,7 +55,11 @@ export function startBridge(handlers) {
       let result = done.get(cmd.id);
       if (!result) try {
         const fn = handlers[cmd.cmd];
-        result = fn ? await fn(cmd.args || {}) : { text: `The page does not know '${cmd.cmd}'.`, error: true };
+        // (a call that never ends must not stop this loop: the page would stop asking for calls and look closed)
+        let late;
+        const budget = new Promise((r) => { late = setTimeout(() => r({ text: `${cmd.cmd} took longer than ${CALL_BUDGET_S} s and was given up — the app goes on; check what it changed (get_model / gui_state).`, error: true }), CALL_BUDGET_S * 1000); });
+        result = fn ? await Promise.race([fn(cmd.args || {}), budget]) : { text: `The page does not know '${cmd.cmd}'.`, error: true };
+        clearTimeout(late);
         bridgeStats.calls++;
       } catch (e) {
         result = { text: `${cmd.cmd} failed: ${e.message || e}`, error: true };
@@ -77,7 +83,7 @@ const TOOL_LABEL = {
   add_dimension: 'adding a dimension', check_print: 'checking the printer fit', export: 'exporting', undo: 'undoing',
   list_parts: 'looking at the parts', open_part: 'opening a part', duplicate_part: 'copying a part', new_model: 'starting a 3D model', get_model: 'reading the 3D model',
   find_refs: 'finding faces and edges', add_feature: 'adding a step', edit_feature: 'changing a step', delete_feature: 'deleting a step',
-  turn_off_feature: 'turning a step off / on', simplify_sketch: 'simplifying a sketch', prepare_print: 'preparing the print', set_material: 'setting the material', new_assembly: 'starting an assembly', suggest_fasteners: 'finding where fasteners fit', add_fasteners: 'adding fasteners',
+  turn_off_feature: 'turning a step off / on', simplify_sketch: 'simplifying a sketch', get_sketch: 'reading a sketch', sketch_auto_dims: 'dimensioning a sketch', sketch_dim: 'setting a sketch dimension', sketch_trim: 'trimming a sketch', sketch_union: 'uniting shapes in a sketch', prepare_print: 'preparing the print', set_material: 'setting the material', new_assembly: 'starting an assembly', suggest_fasteners: 'finding where fasteners fit', add_fasteners: 'adding fasteners',
   get_assembly: 'reading the assembly', get_bom: 'reading the bill of materials', insert_part: 'inserting a part', library_search: 'searching the parts library', set_look: 'colouring a part', paint_faces: 'painting faces', move_free: 'moving a part', sheet_open: 'opening a drawing', get_sheet: 'reading the drawing', sheet_edit: 'editing the drawing', ask_user: 'asking you', gui_state: 'looking at the screen', gui_action: 'clicking in the app', drawing_delete: 'deleting shapes', drawing_add: 'drawing shapes', drawing_units: 'setting the drawing units', set_travel: 'setting a motion\'s limits', check_travel: 'checking a motion for collisions', lock_motion: 'locking a motion', save_to_library: 'saving to the library', report_problem: 'writing a problem report', library_add: 'adding a library part', check_collisions: 'checking for collisions', snap_faces: 'snapping parts together', place_part: 'placing a part', remove_from_assembly: 'taking a part out', get_guide: 'reading a guide', Skill: 'reading a guide',
 };
 

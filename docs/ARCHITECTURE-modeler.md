@@ -100,6 +100,66 @@ Date: 2026-10-25. Written by the architect agent.
 - **Default title block B — ISO 7200 done:** a drawing that chose no template uses "B — ISO 7200" (title block B,
   parts list B, the ISO 5457 frame) — the owner's choice; sheet.js DEFAULT_TPL, the AI's sheet_edit without a name too.
   Tests that check the Modern block pick it explicitly (e2e_sheet, e2e_bom, e2e_sheet_views_templates).
+- **The sketch panel from the AI's UI report (RealSWReports 2026-10-28 21:49:41) done:** Sketcher.stateHtml (under
+  the free count): the contradicting locks named (`conflicting`, kept by takeState) — their rows `.sk-dim.bad`, their
+  shapes red (badOf takes the dim ids too); locks held twice; 🪄 Lock at rounded values (autoDimension {round}:
+  sketchauto.roundValue — whole mm, ½ under 5 mm, whole degrees; `rounded` lists each size as drawn -> as locked, so
+  the order of rounding does not show) with ✓ Keep / ↶ Take back (back()); ∪ Unite overlapping shapes (overlapping():
+  unionRegions — `crosses`: a region no other one crosses, a hole, is left alone — and innerPiece, ≤ 80 shapes).
+  Rows: data-dimrow, "Width / Height / Length" by the line's H / V; bindProps (one hook line in modeler.renderProps)
+  lights the row's view label (mouseenter on it: its highlight) and binds the buttons. Suggestions:
+  sketchauto.standardShapes (a loop of 2 lines + 2 half arcs of one radius, 4 nearly level / upright lines at right
+  angles without all their H / V, 2 arcs on one centre) -> convertShape (slot: tangent joins, eq, one group;
+  rectangle: H / V, one group; circle: one circle, a rad lock -> its dia) first in the list; ∪ with 2+ picks when
+  shapes overlap. tools/e2e_sketch_ui.py.
+- **The AI's sketch tools (RealSWReports 2026-10-28 21:49 / 21:58 part 1) done:** web/js/modeler/agent_sketch.js
+  (spread into modelHandlers): get_sketch (a detached Sketcher on the step, or the open one: points, shapes with
+  coordinates and state, relations named, dims {id, kind, name, value, locked, between}, dof, free, conflicts
+  {contradicting, held_twice}), sketch_auto_dims {id, round}, sketch_dim {id, dim (an id or "len:l1" / "dia:c1" /
+  "rad:a1"), value | locked}, sketch_trim {sketch, shape, at} (at projected onto the shape), sketch_union {sketch} —
+  withSketch opens a closed sketch in the editor, runs it, finishes it (one model undo step), and returns the
+  sketcher's toasts as messages. Sketcher.unionShapes: the closed loops / circles as they are (a polygon each), then
+  the middle of each piece between crossings that lies inside another region (not on its border) is trimmed
+  (trimAt {quiet}), up to UNION_MAX, one sketch undo step. trimAt keeps a trimmed shape's whole-shape relations (eq,
+  tang, par, perp, conc — once) and the tangents at ends that stay (re-pointed to a split-off piece), and drops an
+  `on` whose point became the shape's own end (held twice). The report's rect + slot: one outline of 5 lines + 2 arcs,
+  59945.008 mm³ = the exact union (shapely); the overlapping shapes extruded gave 59942.757. gui_state: a sketch
+  label is a control {kind dim, label "d3: 65", state locked / free / set by the others / reference}, a 🔒 / 🔓 / ✕
+  button on a label or panel row says which ("65 › ✕"). Screenshots: the labels are CSS2D page elements over the
+  WebGL canvas, never in its picture — model_screenshot renders them for its camera and draws each one (box + text)
+  onto the image (drawLabels). Schemas in agent_tools.py, the model-a-part skill, e2e_agent's case.
+  tools/e2e_ai_sketch.py.
+- **🪄 Auto-dimension that says what it did (RealSWReports 2026-10-28 21:48 / 21:49 / 21:58 part 2-3) done:**
+  Sketcher.autoDimension({round}) -> {added, relations?, references?, dof, free: [shape names], error?} (for the AI
+  too): a lock only held twice (constraints.solve's new `redundant`, apart from `conflicting`) becomes a reference
+  first; contradicting locks are named (ruleNames) and red; then sketchauto.nearRelations (H / V within 0.5°, a line
+  running into an arc within 0.5° -> tan, radii within 0.5 % -> eq, each kept only when it lowers the dof and moves no
+  point over 0.05 mm), then autoDimCandidates (reordered: sides not ending at an arc, free-standing arcs' centres from
+  the nearest part edges / the origin, the shape's place, then the sides that end at arcs, slanted lines) — each kept
+  only when it lowers the dof, the solver's points applied after each. Still free: a toast naming the shapes
+  (shapeName). Labels of sizes the others set show ＝ (driven, no 🔓). Joined curves (⛓ `fit` splines, the merge on
+  main): constraints._fit_curves — each inner point keeps its distances to two anchors (its ends; closed: start + the
+  first inner point; distances as drawn, so a drag moves the curve), soft (never a conflict), left out of the free
+  check and FREE_CHECK_MAX: a 300-point curve is 4 free, not 600. test_a_joined_curve_moves_as_a_whole;
+  tools/e2e_sketch_autodims.py (the hand-drawn rect ∪ slot: 5 free -> R + 2 centres, 9 locks, ＝ labels, the volume
+  kept on Finish; the AI's shapes: 9 locks at once; tangents / equal found first; a lock held twice; one that does not
+  fit named).
+- **The profile sketch that froze the AI's session fixed (RealSWReports 2026-10-28 21:58) done:** the AI's
+  get_screenshot waited for two animation frames, which a hidden / covered window never gets: the call never ended,
+  the page's bridge loop (agent.js) stopped asking for calls and after 45 s the server said "the app is not open".
+  frames.js nextFrames(n, ms) ends by the clock too (every awaited requestAnimationFrame: the screenshots, sketcher's
+  label edits); the bridge gives any call at most CALL_BUDGET_S = 140 s and goes on. The profile itself opened red
+  (dof -2: its arcs' centres were locked besides their locked ends) and so 🪄 was hidden — sketchFromShapes: an arc's
+  centre is not locked (an exact point), a tangent `tan` where the line beside it runs in smoothly (one per arc), else
+  its radius; a slot: tangent sides, `eq` ends, one radius (5 sizes, was 6 + 4 free); points worked out from others
+  kept exact (r9), so opening / finishing moves nothing; the H / V clean-up no longer drops a tangent. Guards:
+  constraints.solve's free-size check has a time budget (FREE_CHECK_SECONDS = 1.5: `free.partial`, `free.unknown`
+  — shown uncoloured), Sketcher.solve gives up after SOLVE_WAIT_MS, 🪄 after AUTO_DIM_MS (what is locked stays, a
+  toast says so) and solves without the free check per try, an error in it is a toast (was silent); a reopened sketch
+  gets its colours at once (takeState / badOf: the shapes of conflicting locks red — `bad` was never set);
+  edit_feature's new shapes drop the old place / rd / hidden. test_free_check_has_a_time_budget,
+  test_ais_profile_with_tangent_arcs_is_fully_defined, test_ais_slot_is_fully_defined_by_five_sizes;
+  tools/e2e_sketch_freeze.py.
 - **M0 done:** several parts in one project (tabs), project file v3, optional packages, `/api/kernel`.
 - **M1 done:** the 3D model workspace; sketch → extrude (add / cut, through all, both sides); worker process; STL / STEP.
 - **M2 done:** the sketcher.

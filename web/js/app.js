@@ -30,6 +30,7 @@ import * as THREE from 'three';
 import { bodyOf, picture, svgPicture } from './thumbs.js';
 import { setAskAI } from './suggest.js';
 import { changed as projectChanged } from './history.js';
+import { nextFrames } from './frames.js';
 import { trackProgress, newRid } from './progressbox.js'; // (slow requests: the busy box with Cancel)
 import { initJobs } from './jobs.js';
 
@@ -2183,7 +2184,7 @@ const agentHandlers = {
   get_screenshot: async ({ view }) => {
     needPart();
     if (view) viewer.setView(view);
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await nextFrames();
     viewer.renderer.render(viewer.scene, viewer.camera);
     const src = viewer.renderer.domElement, k = Math.min(1, 900 / Math.max(src.width, src.height));
     const c = document.createElement('canvas');
@@ -2389,7 +2390,7 @@ const agentHandlers = {
 async function assemblyScreenshot({ view, fit = true } = {}) {
   if (view) assembly.view.setView({ side: 'right', back: 'front' }[view] || view);
   if (fit !== false) assembly.view.fit?.(); // (all of it in the picture)
-  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  await nextFrames();
   const v = assembly.view;
   v.renderer.render(v.scene, v.camera);
   const src = v.renderer.domElement, k = Math.min(1, 900 / Math.max(src.width, src.height));

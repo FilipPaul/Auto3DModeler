@@ -260,6 +260,34 @@ TOOLS = [
      "inputSchema": _obj({"id": STR, "keep_dependents": {"type": "boolean"}}, ["id"])},
     {"name": "turn_off_feature", "where": "browser", "description": "Turn a step off (off true) or on again (off false); it is kept.",
      "inputSchema": _obj({"id": STR, "off": {"type": "boolean"}}, ["id"])},
+    {"name": "get_sketch", "where": "browser",
+     "description": "Read one sketch step (id): its points {id: [x, y]}, shapes (lines from / to, circles centre + d, arcs centre "
+                    "+ r + from / to counter-clockwise, curves; each with state free / done / bad), relations (tangent, equal, "
+                    "H / V …), dims [{id, kind, name, value, locked, between}], dof (free sizes left), free {points, shapes} "
+                    "and conflicts {contradicting, held_twice}. Use before changing a sketch's sizes.",
+     "inputSchema": _obj({"id": STR}, ["id"])},
+    {"name": "sketch_auto_dims", "where": "browser",
+     "description": "🪄 Auto-dimension a sketch step (id): first the relations it nearly has (H / V, tangent, equal radius), "
+                    "then only the sizes it still needs (each shape's sizes, arc centres, its place from the part's edges or "
+                    "the origin) — nothing held twice. round: true locks nice values (whole mm; the shapes move to them). "
+                    "-> added [names], relations, references (locks held twice made reference dims), dof, still-free shapes "
+                    "by name, or why it could not (the locks that do not fit).",
+     "inputSchema": _obj({"id": STR, "round": {"type": "boolean"}}, ["id"])},
+    {"name": "sketch_dim", "where": "browser",
+     "description": "Set one dimension of a sketch step (id): dim = a dims id from get_sketch, or a shape's own size "
+                    "\"len:<line>\", \"dia:<circle>\", \"rad:<arc>\". value: lock it at that value (the sketch follows); "
+                    "locked: false frees it (a shape's size: no lock; a distance: a reference that only measures), true "
+                    "locks it as it is. Refused (with the locks in the way) when it does not fit.",
+     "inputSchema": _obj({"id": STR, "dim": STR, "value": NUM, "locked": {"type": "boolean"}}, ["id", "dim"])},
+    {"name": "sketch_trim", "where": "browser",
+     "description": "✂ Trim in a sketch step (sketch): cut away the piece of shape (a line / circle / arc id from get_sketch) "
+                    "around at [x, y] — up to where other shapes cross it; the new ends stay on the shapes that cut them.",
+     "inputSchema": _obj({"sketch": STR, "shape": STR, "at": {"type": "array", "items": NUM}}, ["sketch", "shape", "at"])},
+    {"name": "sketch_union", "where": "browser",
+     "description": "∪ Union in a sketch step (sketch): overlapping closed shapes (a rect and a slot, circles …) become one "
+                    "outline of lines and arcs — the pieces inside another shape are trimmed away, tangents and equal radii "
+                    "that still apply stay. Then sketch_auto_dims to lock what is free.",
+     "inputSchema": _obj({"sketch": STR}, ["sketch"])},
     {"name": "simplify_sketch", "where": "browser",
      "description": "Fewer shapes in a sketch step (id), the same outline — for a sketch made from a DXF / PDF (hundreds of "
                     "tiny lines) or drawn piece by piece. op \"simplify\" (default): ends that nearly meet welded, tiny pieces "

@@ -12,11 +12,16 @@ import { t } from '../i18n.js';
 import { showSuggest, fitFilterRow } from '../suggest.js';
 import { floatBox } from '../floatbox.js';
 import { roundAxes } from './axes.js';
+import { nextFrames } from '../frames.js';
+import { nearRelations, shapeName, roundValue, standardShapes } from './sketchauto.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const nice = (x) => { const p = 10 ** Math.floor(Math.log10(x)); return [1, 2, 5, 10].map((k) => k * p).find((s) => s >= x); };
 const ORIGIN = 'O';
 const HV_DEG = 3; // a line drawn within 3° of horizontal / vertical becomes exactly that
+const SOLVE_WAIT_MS = 20000; // a sketch solve that takes longer is given up (the editor stays usable)
+const UNION_MAX = 400; // ∪ Union: the most pieces it trims (each a solve)
+const AUTO_DIM_MS = 30000; // 🪄 Auto-dimension's most time (each size it tries is a solve)
 
 /** An arc (centre c, from a counter-clockwise to b, radius |a - c|) as points from a to b. */
 export function arcPts(c, a, b, stepDeg = 5) {
@@ -431,11 +436,35 @@ export class Sketcher {
       if (!this.solver || !this.f.entities.length) { if (this.dof !== null && !this.f.entities.length) { this.dof = null; this.m.renderProps(); } return; }
       const r = await this.solve();
       if (this.m.sk !== this) return;
-      const was = JSON.stringify(this.free ? [[...this.free.points], [...this.free.radii]] : null);
-      if (r.free) this.free = { points: new Set(r.free.points), radii: new Set(r.free.radii) };
-      if (JSON.stringify(this.free ? [[...this.free.points], [...this.free.radii]] : null) !== was) this.draw(); // (its colours)
-      if (r.dof !== undefined && r.dof !== this.dof) { this.dof = r.dof; this.m.renderProps(); }
+      const { colours, dof } = this.takeState(r);
+      if (colours) this.draw();
+      if (dof) this.m.renderProps();
     }, 120);
+  }
+
+  /** The solver's word on the sketch as it is: the free count, which points / radii are free, and the locks and
+   *  relations that do not fit (their shapes red) -> {colours, dof}: what changed (to draw / list again). */
+  takeState(r) {
+    const key = () => JSON.stringify([this.free ? [[...this.free.points], [...this.free.radii], [...(this.free.unknown || [])]] : null, [...(this.bad || [])]]);
+    const was = key(), dofWas = this.dof, consWas = JSON.stringify(this.conflicts || []);
+    if (r.free) this.free = { points: new Set(r.free.points), radii: new Set(r.free.radii), unknown: new Set(r.free.unknown || []) };
+    if (r.conflicts) { this.conflicts = r.conflicts; this.conflicting = r.conflicting || r.conflicts; this.bad = this.badOf(r.conflicts); }
+    if (r.dof !== undefined) this.dof = r.dof;
+    return { colours: key() !== was, dof: this.dof !== dofWas || JSON.stringify(this.conflicts || []) !== consWas };
+  }
+
+  /** The shapes a list of lock / relation ids holds (drawn red when those do not fit). */
+  badOf(ids) {
+    const want = new Set(ids), out = new Set(), f = this.f;
+    const byPoint = (p) => f.entities.filter((e) => [e.a, e.b, e.c, ...(e.pts || [])].includes(p)).map((e) => e.id);
+    const ends = (x) => (typeof x === 'string' ? byPoint(x) : x?.mid ? [x.mid] : []);
+    for (const d of f.dims) if (want.has(d.id)) [d.id, d.e, d.e2, ...ends(d.a), ...ends(d.b)].forEach((e) => e && out.add(e));
+    for (const k of f.constraints) {
+      if (!want.has(k.id)) continue;
+      [k.e, k.e2, k.arc, ...(k.lines || [])].forEach((e) => e && out.add(e));
+      for (const p of [k.p, k.p2]) if (p) byPoint(p).forEach((e) => out.add(e));
+    }
+    return out;
   }
 
   hint() {
@@ -678,11 +707,15 @@ export class Sketcher {
   }
 
   // ------------------------------------------------------------------ solving
-  async solve(drag = null, keep = null) {
+  /** detail: also which points are still free (for the colours) — a check per point, left out where only the
+   *  count matters (🪄 tries many sizes one by one). */
+  async solve(drag = null, keep = null, detail = !drag) {
     if (!this.solver) return { ok: true };
-    const res = await fetch('/api/model/sketch/solve', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sketch: this.f, drag, keep, detail: !drag }) });
-    let r;
+    let res, r;
+    try { // (never waits for ever: a solve that does not come back is an error the caller shows)
+      res = await fetch('/api/model/sketch/solve', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sketch: this.f, drag, keep, detail }), signal: AbortSignal.timeout(SOLVE_WAIT_MS) });
+    } catch { return { ok: false, error: t('The sketch solver did not answer in time — try again, or undo the last change.') }; }
     try { r = await res.json(); } catch { return { ok: false, error: `The sketch could not be solved (server error ${res.status}).` }; }
     if (res.status === 501) { this.solver = false; this.m.toast(r.error, 'warning', 8000); return { ok: true }; }
     if (!res.ok) return { ok: false, error: r.error };
@@ -692,8 +725,7 @@ export class Sketcher {
   apply(r) {
     if (r.points) for (const [k, v] of Object.entries(r.points)) if (this.f.points[k]) this.f.points[k] = v;
     if (r.radii) for (const [k, v] of Object.entries(r.radii)) { const e = this.ent(k); if (e) e.r = v; }
-    if (r.dof !== undefined) this.dof = r.dof;
-    if (r.free) this.free = { points: new Set(r.free.points), radii: new Set(r.free.radii) };
+    this.takeState(r); // (the free count, the colours)
     for (const d of this.f.dims) if (d.free) d.v = +this.measure(d).toFixed(6);
   }
 
@@ -944,49 +976,129 @@ export class Sketcher {
       }
       const lines = c.ents.filter((e) => e.t === 'line'), mid = (e, k) => (P(e.a)[k] + P(e.b)[k]) / 2;
       const hs = lines.filter((e) => hv(e, 'h')).sort((p, q) => mid(p, 1) - mid(q, 1)), vs = lines.filter((e) => hv(e, 'v')).sort((p, q) => mid(p, 0) - mid(q, 0));
-      for (const e of [...hs, ...vs]) out.push({ t: 'len', e: e.id }); // the bottom and left first: a rectangle's width and height
-      for (const e of lines.filter((x) => !hv(x, 'h') && !hv(x, 'v'))) out.push({ t: 'dx', a: e.a, b: e.b }, { t: 'dy', a: e.a, b: e.b }, { t: 'len', e: e.id });
+      // a side that runs into an arc is as long as the arc lets it: the arc's centre is the size worth locking
+      const arcEnds = new Set(c.ents.filter((e) => e.t === 'arc').flatMap((e) => [e.a, e.b]));
+      const plain = (e) => !arcEnds.has(e.a) && !arcEnds.has(e.b);
+      for (const e of [...hs, ...vs].filter(plain)) out.push({ t: 'len', e: e.id }); // the bottom and left first: a rectangle's width and height
+      // an arc of its own (not a rounded corner) is placed by its centre, from the part's nearest edges or the origin
+      const corner = new Set(f.constraints.filter((k) => k.t === 'corner').flatMap((k) => k.lines || []));
+      for (const e of c.ents.filter((x) => x.t === 'arc' && c.ents.length > 1)) {
+        if (f.constraints.some((k) => k.t === 'tan' && k.arc === e.id && corner.has(k.e))) continue;
+        out.push(nearest([e.c], 'x'), nearest([e.c], 'y'));
+      }
       // where it is: a circle / arc by its centre, other shapes by their corner nearest each edge of the part
       const circle = c.ents.find((e) => e.t === 'circle' || e.t === 'arc');
       const pts = circle && c.ents.length === 1 ? [circle.c] : [...c.pts].sort((p, q) => P(p)[0] + P(p)[1] - P(q)[0] - P(q)[1]);
       if (pts.length) out.push(nearest(pts, 'x'), nearest(pts, 'y'));
+      for (const e of [...hs, ...vs].filter((x) => !plain(x))) out.push({ t: 'len', e: e.id });
+      for (const e of lines.filter((x) => !hv(x, 'h') && !hv(x, 'v'))) out.push({ t: 'dx', a: e.a, b: e.b }, { t: 'dy', a: e.a, b: e.b }, { t: 'len', e: e.id });
     }
     // anything still free: its points from the origin
     for (const c of clusters) for (const p of c.pts) out.push({ t: 'dx', a: ORIGIN, b: p }, { t: 'dy', a: ORIGIN, b: p });
     return out;
   }
 
-  /** 🪄 Lock the sizes the sketch still needs to be fully defined (each tried: kept only when it fixes something and
-   *  fits the others). The values are the sizes as they are now: nothing moves. */
-  async autoDimension() {
-    if (!this.solver) { this.m.toast('Auto-dimension needs the sketch solver.', 'warning'); return; }
-    let r = await this.solve();
-    if (!r.ok) { this.m.toast(r.error || 'The sketch does not solve as it is — fix it first.', 'error'); return; }
-    let dof = r.dof ?? 0;
-    if (dof <= 0) { this.m.toast(t('The sketch is fully defined already.'), 'info', 3000); return; }
-    this.step();
-    let added = 0;
-    for (const c of this.autoDimCandidates()) {
-      if (dof <= 0) break;
-      const had = this.findDim(c);
-      if (had && !had.free) continue;
-      const v = +this.measure(c).toFixed(6);
-      if (['len', 'dia', 'rad', 'dist'].includes(c.t) && !(v > 1e-9)) continue;
-      if (had) { had.free = false; delete had.free; had.v = v; } else this.f.dims.push({ id: this.newId('d'), ...c, v });
-      r = await this.solve();
-      if (!r.ok || (r.dof ?? dof) >= dof) { // it fixes nothing, or does not fit: back out
-        if (had) had.free = true; else this.f.dims.pop();
-        continue;
-      }
-      dof = r.dof;
-      added++;
+  /** 🪄 Lock the sizes the sketch still needs to be fully defined. First the relations it nearly has already (H / V,
+   *  tangent, equal radius — sketchauto.nearRelations), then sizes (autoDimCandidates); each tried and kept only when
+   *  it fixes something and fits the others, so no lock is held twice. round: each size locked at a nice value (whole
+   *  mm) — the shapes move to it, listed in the panel to keep or take back. Never silent: a toast says what was locked,
+   *  which shapes are still free, or which locks do not fit. -> {added: [names], dof, free: [shape names], error?}. */
+  async autoDimension({ round = false } = {}) {
+    const say = (text, kind, ms = 6000) => { this.m.toast(text, kind, ms); return text; };
+    if (!this.solver) return { added: [], dof: null, free: [], error: say(t('Auto-dimension needs the sketch solver.'), 'warning') };
+    let r = await this.solve(null, null, false), notes = [];
+    // a lock held twice at the value it has (the others fix it already) is not an error: it becomes a reference
+    const twice = r.ok || r.conflicting?.length ? [] : this.f.dims.filter((d) => !d.free && (r.redundant || []).includes(d.id));
+    if (twice.length) {
+      this.step();
+      twice.forEach((d) => { d.free = true; });
+      r = await this.solve(null, null, false);
+      if (r.ok) notes = twice.map((d) => this.dimName(d)); else { this.undo.pop(); twice.forEach((d) => { delete d.free; }); }
     }
-    if (!added) this.undo.pop();
+    if (!r.ok) {
+      const names = this.ruleNames(r.conflicting?.length ? r.conflicting : r.conflicts || []);
+      return { added: [], dof: r.dof ?? null, free: [], error: say(r.error || (names.length ? tv('The sketch does not solve as it is: {names} do not fit together — remove or change one of them first.', { names: names.join(', ') })
+        : t('The sketch does not solve as it is — fix it first.')), 'error', 8000) };
+    }
+    if (notes.length) say(tv('{names}: held twice (the other sizes fix it already) — now a reference dimension, it only measures.', { names: notes.join(', ') }), 'info', 8000);
+    let dof = r.dof ?? 0;
+    if (dof <= 0) {
+      if (notes.length) { this.apply(r); this.changed(); return { added: [], references: notes, dof, free: [] }; }
+      return { added: [], dof, free: [], error: say(t('The sketch is fully defined already.'), 'info', 3000) };
+    }
+    if (!notes.length) this.step(); // (one undo step with the references made above)
+    const added = [], rels = [], rounded = [], P = (id) => this.P(id), drawn = structuredClone(this.f.points);
+    /** A size as it was drawn (before 🪄 rounded others and the shapes moved): what the rounded list says it was. */
+    const asDrawn = (c) => { const now = this.f.points; this.f.points = drawn; try { return this.measure(c); } finally { this.f.points = now; } };
+    let late = false;
+    const until = performance.now() + AUTO_DIM_MS; // (a big sketch: what is done by then stays, the rest is said)
+    /** Put x into list, solve: kept when it lowers the free count, fits, and moves no point more than `most`. */
+    const tryOne = async (list, x, most = Infinity) => {
+      list.push(x);
+      const res = await this.solve(null, null, false);
+      const moved = res.ok && res.points ? Math.max(0, ...Object.entries(res.points).map(([k, v]) => (this.f.points[k] ? Math.hypot(v[0] - this.f.points[k][0], v[1] - this.f.points[k][1]) : 0))) : 0;
+      if (!res.ok || (res.dof ?? dof) >= dof || moved > most) { list.pop(); return false; }
+      dof = res.dof;
+      this.apply(res);
+      return true;
+    };
+    try {
+      // the relations it nearly has (a hair off): before any size, so no size locks what a relation means
+      for (const k of nearRelations(this.f, P)) {
+        if (dof <= 0) break;
+        if (performance.now() > until) { late = true; break; }
+        const rule = { id: this.newId('k'), ...k };
+        if (await tryOne(this.f.constraints, rule, 0.05)) rels.push(...this.ruleNames([rule.id]));
+      }
+      for (const c of this.autoDimCandidates()) {
+        if (dof <= 0) break;
+        if (performance.now() > until) { late = true; break; }
+        const had = this.findDim(c);
+        if (had && !had.free) continue;
+        const now = +this.measure(c).toFixed(6);
+        if (!Number.isFinite(now) || (['len', 'dia', 'rad', 'dist'].includes(c.t) && !(now > 1e-9))) continue;
+        const v = round ? roundValue(now, c.t) : now;
+        if (had) { // a reference dimension: it drives now
+          delete had.free;
+          had.v = v;
+          const res = await this.solve(null, null, false);
+          if (!res.ok || (res.dof ?? dof) >= dof) { had.free = true; had.v = now; continue; }
+          dof = res.dof;
+          this.apply(res);
+        } else if (!(await tryOne(this.f.dims, { id: this.newId('d'), ...c, v }))) continue;
+        added.push(this.dimName({ ...c, v }));
+        const was = round ? asDrawn(c) : v;
+        if (round && Math.abs(v - was) > 1e-6) rounded.push({ name: this.dimName({ ...c, v }), from: this.dimName({ ...c, v: was }) });
+      }
+    } catch (e) { // (never silent: say what stopped it)
+      say(tv('🪄 Auto-dimension stopped: {why}', { why: e.message || e }), 'error', 8000);
+    }
+    if (!added.length && !rels.length && !notes.length) this.undo.pop();
     r = await this.solve();
     if (r.ok) this.apply(r);
+    this.rounded = round && rounded.length ? rounded : null; // (the panel lists them: keep, or take back)
     this.changed();
-    this.m.toast(dof <= 0 ? tv('{n} size(s) locked — the sketch is fully defined.', { n: added })
-      : tv('{n} size(s) locked — {k} still free (lock them by hand, or add relations).', { n: added, k: dof }), dof <= 0 ? 'ok' : 'warning', 6000);
+    // what is still free, by name (the solver's free points)
+    const free = dof > 0 ? this.f.entities.filter((e) => this.stateOf(e) === 'free').map((e) => shapeName(e, P)) : [];
+    if (rels.length) say(tv('Relations the sketch nearly had, added: {names}', { names: rels.join(', ') }), 'info', 8000);
+    if (late) say(t('🪄 Auto-dimension took too long on this sketch — the sizes locked so far stay; click it again to go on.'), 'warning', 8000);
+    else if (dof <= 0) say(tv('{n} size(s) locked — the sketch is fully defined.', { n: added.length }), 'ok');
+    else if (free.length) say(tv('{n} size(s) locked — still free: {names}. Lock their sizes by hand, or add relations.', { n: added.length, names: free.slice(0, 3).join('; ') + (free.length > 3 ? ' …' : '') }), 'warning', 9000);
+    else say(tv('{n} size(s) locked — {k} still free (lock them by hand, or add relations).', { n: added.length, k: dof }), 'warning', 9000);
+    return { added, ...(rels.length ? { relations: rels } : {}), ...(notes.length ? { references: notes } : {}), dof, free, ...(late ? { error: 'it took too long — the sizes locked so far stay' } : {}) };
+  }
+
+  /** Locks and relations by id -> their names as the panel shows them ("R23", "⌒ Tangent", "Horizontal"). */
+  ruleNames(ids, cons = this.f.constraints) {
+    const own = { on: 'On a shape', corner: 'Corner', mid: 'Midpoint' };
+    return ids.map((id) => {
+      const d = this.f.dims.find((x) => x.id === id);
+      if (d) return this.dimName(d);
+      const k = cons.find((x) => x.id === id);
+      if (!k) return '';
+      const rel = RELATIONS[k.t === 'tan' ? 'tang' : k.t]; // (a tangent arc's own tangent is the same relation)
+      return rel ? `${rel.icon} ${t(rel.name)}` : t(own[k.t] || k.t);
+    }).filter(Boolean);
   }
 
   findDim(spec) {
@@ -1739,11 +1851,11 @@ export class Sketcher {
 
   /** ✂ Trim: cut the piece away. A line keeps its other part(s), a circle becomes the arc that is left, an arc is split.
    *  The new ends stay on the shape that cut them ("on" constraints) when sizes change later. */
-  async trimAt(uv) {
+  async trimAt(uv, { quiet = false } = {}) {
     const pc = this.pieceAt(uv);
-    if (!pc) { this.m.toast('Click a line, circle or arc to trim.', 'info', 3000); return; }
+    if (!pc) { if (!quiet) this.m.toast('Click a line, circle or arc to trim.', 'info', 3000); return false; }
     const { e, lo, hi } = pc;
-    await this.relock(() => {
+    const done = await this.relock(() => {
       const f = this.f;
       const newPt = (c) => {
         // on an end of the shape that cuts it: join there; else a new end that stays on that shape
@@ -1771,27 +1883,112 @@ export class Sketcher {
         Object.assign(e, { t: 'arc', a, b });
         delete e.r;
       } else {
+        // relations of the shape as a whole (equal, parallel, tangent to a circle …) still hold for what is left of
+        // it; a tangent at an end that stays stays too (a trimmed slot keeps its smooth joins)
+        const whole = f.constraints.filter((k) => ['eq', 'tang', 'par', 'perp', 'conc'].includes(k.t) && (k.e === e.id || k.e2 === e.id));
+        const tans = f.constraints.filter((k) => k.t === 'tan' && (k.e === e.id || k.arc === e.id));
         forget(e.id);
         const keepA = lo.t > 0, keepB = !(hi.t >= (e.t === 'line' ? 1 : pc.g.sweep) - 1e-12);
         const oldB = e.b;
+        let piece = null;
         if (keepA && keepB) {
           // the middle goes: two pieces
           const p1 = newPt(lo), p2 = newPt(hi);
           e.b = p1;
-          const id = this.newId(e.t === 'line' ? 'l' : 'a');
-          f.entities.push({ ...e, id, a: p2, b: oldB, g: undefined });
-          for (const k of f.constraints.filter((k) => k.e === e.id && (k.t === 'h' || k.t === 'v'))) f.constraints.push({ ...k, id: this.newId('k'), e: id });
+          piece = { ...e, id: this.newId(e.t === 'line' ? 'l' : 'a'), a: p2, b: oldB, g: undefined };
+          f.entities.push(piece);
+          for (const k of f.constraints.filter((k) => k.e === e.id && (k.t === 'h' || k.t === 'v'))) f.constraints.push({ ...k, id: this.newId('k'), e: piece.id });
         } else if (keepA) e.b = newPt(lo);
         else e.a = newPt(hi);
         delete e.g;
+        f.constraints = [...f.constraints.filter((k) => !whole.includes(k)), ...whole]; // (once each)
+        for (const k of tans) {
+          const on = [e, piece].find((x) => x && (x.a === k.p || x.b === k.p));
+          if (on) f.constraints.push(on === e ? k : { ...k, id: this.newId('k'), [k.e === e.id ? 'e' : 'arc']: piece.id });
+        }
       }
       const used = new Set([...f.entities.flatMap((x) => [x.a, x.b, x.c, ...(x.pts || [])]), ...f.constraints.filter((k) => k.t === 'corner').map((k) => k.p)]);
       for (const p of Object.keys(f.points)) if (!used.has(p)) delete f.points[p];
       f.constraints = f.constraints.filter((k) => !k.p || f.points[k.p] || k.p === ORIGIN);
+      // a point kept on a shape that now ends there is on it already (held twice, the solver would refuse it)
+      f.constraints = f.constraints.filter((k) => !(k.t === 'on' && f.entities.some((x) => x.id === k.e && (x.a === k.p || x.b === k.p))));
       f.dims = f.dims.filter((d) => (!d.a || typeof d.a !== 'string' || d.a === ORIGIN || f.points[d.a]) && (!d.b || typeof d.b !== 'string' || d.b === ORIGIN || f.points[d.b]));
-    });
+    }, null, null, { quiet });
     this.sel = null;
     this.changed();
+    return done;
+  }
+
+  /** ∪ Union: closed shapes that overlap become one outline — every piece of a line, circle or arc that lies inside
+   *  another closed shape is trimmed away (✂ Trim's way: the new ends stay on the shape that cut them; equal radii and
+   *  tangents that still apply stay). One undo step. -> {trimmed, before, after} or null (nothing overlaps). */
+  async unionShapes() {
+    const f = this.f, regions = this.unionRegions();
+    if (regions.length < 2) return null;
+    const before = f.entities.length, undo0 = this.undo.length;
+    let trimmed = 0;
+    for (let m = this.innerPiece(regions); m && trimmed < UNION_MAX; m = this.innerPiece(regions)) {
+      if (!(await this.trimAt(m, { quiet: true }))) break; // (a trim the locks do not let through: stop there)
+      trimmed++;
+    }
+    if (trimmed) this.undo.splice(undo0 + 1); // (one undo step for all of it)
+    this.changed();
+    return trimmed ? { trimmed, before, after: f.entities.length } : null;
+  }
+
+  /** The closed regions of the sketch as they are (loops of lines / arcs, circles): a polygon each, and its shapes. */
+  unionRegions() {
+    const P = (id) => this.P(id), f = this.f;
+    const regions = [], seen = new Set();
+    for (const e of f.entities) {
+      if (seen.has(e.id) || e.construction || !['line', 'arc', 'circle'].includes(e.t)) continue;
+      const l = this.loopFrom(e);
+      if (!l) continue;
+      l.ids.forEach((id) => seen.add(id));
+      const ring = [];
+      if (l.kind === 'circle') for (let i = 0; i < 180; i++) ring.push([P(e.c)[0] + e.r * Math.cos((i * TAU) / 180), P(e.c)[1] + e.r * Math.sin((i * TAU) / 180)]);
+      else for (const o of l.order) {
+        const ps = o.e.t === 'line' ? [P(o.from), P(o.to)] : arcPts(P(o.e.c), P(o.e.a), P(o.e.b), 2);
+        ring.push(...(o.from === o.e.a ? ps : [...ps].reverse()).slice(0, -1));
+      }
+      regions.push({ ring, ids: new Set(l.ids), geos: l.ids.map((id) => geomOf(this.ent(id), P)) });
+    }
+    // a region no other one crosses (a hole inside a plate, a shape on its own) is left as it is
+    for (const r of regions) r.crosses = regions.some((o) => o !== r && r.geos.some((g) => o.geos.some((h) => crossings(g, h).length)));
+    return regions;
+  }
+
+  /** The middle of the first piece (between crossings) of a shape that lies inside a region it is not part of, or null. */
+  innerPiece(regions) {
+    const P = (id) => this.P(id), f = this.f;
+    const inside = (ring, p) => {
+      let c = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i], [xj, yj] = ring[j];
+        if ((yi > p[1]) !== (yj > p[1]) && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) c = !c;
+      }
+      return c;
+    };
+    const onBorder = (r, p) => r.geos.some((g) => (g.kind === 'line' ? segDist(p, g.a, g.b) : Math.abs(Math.hypot(p[0] - g.c[0], p[1] - g.c[1]) - g.r)) < 1e-6 && onShape(g, p, 1e-6));
+    const alone = regions.filter((r) => !r.crosses);
+    for (const e of f.entities) {
+      if (e.construction || !['line', 'arc', 'circle'].includes(e.t) || alone.some((r) => r.ids.has(e.id))) continue;
+      const g = geomOf(e, P), end = g.kind === 'line' ? 1 : g.kind === 'arc' ? g.sweep : TAU;
+      const ts = [0, end];
+      for (const o of f.entities) {
+        if (o === e || !['line', 'circle', 'arc'].includes(o.t)) continue;
+        for (const p of crossings(g, geomOf(o, P))) { const t = paramOf(g, p); if (t > 1e-7 * end && t < end * (1 - 1e-7)) ts.push(t); }
+      }
+      ts.sort((a, b) => a - b);
+      for (let i = 0; i + 1 < ts.length; i++) {
+        if (ts[i + 1] - ts[i] < 1e-6 * end) continue;
+        const tm = (ts[i] + ts[i + 1]) / 2;
+        const m = g.kind === 'line' ? [g.a[0] + tm * (g.b[0] - g.a[0]), g.a[1] + tm * (g.b[1] - g.a[1])]
+          : [g.c[0] + g.r * Math.cos((g.kind === 'arc' ? g.t0 : 0) + tm), g.c[1] + g.r * Math.sin((g.kind === 'arc' ? g.t0 : 0) + tm)];
+        if (regions.some((r) => !onBorder(r, m) && inside(r.ring, m))) return m;
+      }
+    }
+    return null;
   }
 
   /** ⟷ Extend: the line under the mouse, its end nearer the mouse and where that end would go — the first shape the
@@ -2080,7 +2277,7 @@ export class Sketcher {
     if (!arc || !this.ent(arc)) return;
     this.sel = { kind: 'entity', id: arc };
     this.changed();
-    await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+    await nextFrames();
     const d = this.findDim({ t: 'rad', e: arc });
     const el = d && this.m.els.viewport.querySelector(`.sk-label[data-dim="${d.id}"]`);
     if (el) this.editLabel(el, { t: 'rad', e: arc });
@@ -2562,7 +2759,7 @@ export class Sketcher {
     const d = this.findDim(o.spec);
     if (!d || !edit) return;
     // labels reach the page with the next frame of the 3D view
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await nextFrames();
     const el = this.m.els.viewport.querySelector(`.sk-label[data-dim="${d.id}"]`);
     if (el) this.editLabel(el, o.spec);
   }
@@ -2574,16 +2771,17 @@ export class Sketcher {
   // ------------------------------------------------------------------ drawing
   /** One size label: the value (click = type it and lock it) and a lock button (🔒 locked / 🔓 free). */
   label(spec, u, v, text, title) {
-    const locked = !!this.findDim(spec);
+    const locked = !!this.findDim(spec), driven = !locked && this.driven(spec);
     const el = document.createElement('div');
-    el.className = `sk-label edit${locked ? ' locked' : ''}`;
-    el.innerHTML = '<span class="sk-val"></span><button class="sk-lock"></button>';
+    el.className = `sk-label edit${locked ? ' locked' : ''}${driven ? ' driven' : ''}`;
+    // (a size the other sizes and relations set already is not "free": nothing to lock, shown with ＝)
+    el.innerHTML = `<span class="sk-val"></span>${driven ? '<span class="sk-lock sk-driven">＝</span>' : '<button class="sk-lock"></button>'}`;
     el.querySelector('.sk-val').textContent = text;
     el.querySelector('.sk-val').title = `${title} — click to type it (that locks it)`;
     const lock = el.querySelector('.sk-lock');
-    lock.textContent = locked ? '🔒' : '🔓';
-    lock.title = locked ? 'Locked — click to free this size' : 'Free — click to lock this size as it is';
-    lock.addEventListener('click', (ev) => { ev.stopPropagation(); this.toggleLock(spec); });
+    lock.textContent = locked ? '🔒' : driven ? '＝' : '🔓';
+    lock.title = locked ? 'Locked — click to free this size' : driven ? 'Set by the other sizes and relations — nothing to lock' : 'Free — click to lock this size as it is';
+    if (!driven) lock.addEventListener('click', (ev) => { ev.stopPropagation(); this.toggleLock(spec); });
     el.querySelector('.sk-val').addEventListener('click', (ev) => { ev.stopPropagation(); if (performance.now() < (this.noClickUntil || 0)) return; this.editLabel(el, spec); });
     const dim = this.findDim(spec);
     if (dim) el.dataset.dim = dim.id;
@@ -2595,6 +2793,15 @@ export class Sketcher {
     el.appendChild(x);
     for (const t of ['pointerdown', 'pointerup']) el.addEventListener(t, (ev) => ev.stopPropagation());
     return { el, u, v };
+  }
+
+  /** Is a size not locked but set already by the others (its shape / points fully defined)? */
+  driven(spec) {
+    if (!this.free) return false;
+    const e = spec.e && this.ent(spec.e);
+    if (e) return this.stateOf(e) === 'done';
+    const pts = [spec.a, spec.b].filter((p) => typeof p === 'string' && p !== ORIGIN);
+    return pts.length > 0 && pts.every((p) => !this.free.points.has(p) && !this.free.unknown?.has(p));
   }
 
   /** A distance label: the value (click = type a new one) and ✕ (delete the dimension). */
@@ -2759,6 +2966,13 @@ export class Sketcher {
     }
     const fix = pts.filter((id) => !this.f.constraints.some((k) => k.t === 'fix' && k.p === id));
     if (n > 1 && fix.length) rels.push({ icon: '📌', label: t('Fix — all their points'), run: () => this.addRelations(fix.map((id) => ['fix', [{ kind: 'point', id }]])) });
+    // a slot / rectangle / circle drawn piece by piece: the real thing first; overlapping closed shapes: one outline
+    const std = ids.length ? standardShapes(this.f, (p) => this.P(p)).find((sh) => ids.some((id) => sh.ids.includes(id))) : null;
+    const STD = { slot: ['⊂⊃', 'Make it a slot', 'Its sides tangent to its round ends, the ends equal — one slot, sized by its centres and one radius'],
+      rect: ['▭', 'Make it a rectangle', 'Its sides horizontal / vertical — one rectangle, sized by its width and height'],
+      circle: ['◯', 'Make it a circle', 'The two arcs on one centre become one circle'] };
+    if (std) top.unshift({ icon: STD[std.kind][0], label: t(STD[std.kind][1]), title: t(STD[std.kind][2]), run: () => this.convertShape(std) });
+    if (ids.length > 1 && shapes.length <= 80 && this.overlapping()) top.unshift({ icon: '∪', label: t('Unite overlapping shapes'), title: t('Closed shapes overlap: trim the pieces inside each other — one outline of lines and arcs (tangents and equal radii stay)'), run: () => this.unite() });
     top = [...top.filter(Boolean).slice(0, 4), ...del];
     const more = [['Edit', edit], ['Relations', rels], ['Kind', kind]].map(([s, its]) => [s, its.filter((x) => x && !top.includes(x))]).filter(([, its]) => its.length);
     const key = P.map((q) => `${q.kind}:${q.id}`).join(',');
@@ -3183,7 +3397,8 @@ export class Sketcher {
     if (!this.free) return null;
     const pts = e.t === 'line' ? [e.a, e.b] : e.t === 'arc' ? [e.a, e.b, e.c] : e.t === 'circle' ? [e.c] : e.t === 'spline' ? e.pts || [] : null;
     if (!pts) return null;
-    return pts.some((p) => this.free.points.has(p)) || this.free.radii.has(e.id) ? 'free' : 'done';
+    if (pts.some((p) => this.free.points.has(p)) || this.free.radii.has(e.id)) return 'free';
+    return pts.some((p) => this.free.unknown?.has(p)) || this.free.unknown?.has(e.id) ? null : 'done'; // (not checked in time)
   }
 
   draw() {
@@ -3576,8 +3791,8 @@ export class Sketcher {
         <div class="row-actions"><button class="btn small danger" data-a="delSel" title="Delete it (Delete)">Delete</button></div>`;
     }
     const name = (d) => {
-      const v = fmt(Math.abs(d.v));
-      if (d.t === 'len') return `Length ${v}`;  // (a free distance shows its measured value)
+      const v = fmt(Math.abs(d.v)), hv = this.f.constraints.find((k) => (k.t === 'h' || k.t === 'v') && k.e === d.e)?.t;
+      if (d.t === 'len') return `${hv === 'h' ? t('Width') : hv === 'v' ? t('Height') : t('Length')} ${v}`;  // (a free distance shows its measured value)
       if (d.t === 'dia') return this.roundAs(d.e) === 'r' ? `R${fmt(Math.abs(d.v) / 2)}` : `Ø${v}`;
       if (d.t === 'rad') return this.roundAs(d.e) === 'd' ? `Ø${fmt(Math.abs(d.v) * 2)}` : `R${v}`;
       if (d.t === 'ang') return `∠ ${v}° (${t('angle')})`;
@@ -3592,7 +3807,7 @@ export class Sketcher {
       <span class="sk-dim-acts"><button class="mini danger" data-delrel="${k.id}" title="${k.t === 'off' ? 'Unlink: the copy stays, but no longer follows its original' : 'Remove this relation'}">✕</button></span></div>`).join('')}</div>` : '';
     const fold = this.f.dims.length > 12; // a long list is folded
     const list = (this.f.dims.length ? `${fold ? `<details class="sk-fold"><summary>${tv('Dimensions ({n})', { n: this.f.dims.length })}</summary>` : '<h3>Dimensions</h3>'}<div class="sk-dims">${this.f.dims.map((d) =>
-      `<div class="sk-dim"><span>${d.free ? '🔓' : '🔒'} ${d.free ? `(${name({ ...d, v: this.measure(d) })})` : name(d)}</span>
+      `<div class="sk-dim${this.bad?.has(d.id) ? ' bad' : ''}" data-dimrow="${d.id}"><span>${d.free ? '🔓' : '🔒'} ${d.free ? `(${name({ ...d, v: this.measure(d) })})` : name(d)}</span>
         <span class="sk-dim-acts">${['len', 'dia', 'rad'].includes(d.t) ? '' : `<button class="mini" data-lock="${d.id}" title="${d.free ? 'Lock it at this value' : 'Free it (it then only measures)'}">${d.free ? '🔒' : '🔓'}</button>`}
         <button class="mini danger" data-del="${d.id}" title="Delete this dimension">✕</button></span></div>`).join('')}</div>${fold ? '</details>' : ''}` : '')
       + (hidden ? `<div class="row-actions"><button class="btn small" data-a="showSizes">Show ${hidden} hidden size(s)</button></div>` : '');
@@ -3600,15 +3815,99 @@ export class Sketcher {
     const bigNote = big ? `<p class="hint sk-big">${this.m.bigAll?.has(this.f.id)
       ? `${tv('Every size of the {n} shapes is shown.', { n })} <button class="btn small" data-a="bigAll">Show only the locked ones</button>`
       : `${tv('A big sketch ({n} shapes): only the locked sizes are shown.', { n })} <button class="btn small" data-a="bigAll">Show them all anyway</button>`}</p>` : '';
-    return `<h2>Sketch</h2><p class="hint">${this.hint()}</p>${st}${this.m.sizesHtml?.() || ''}${bigNote}${what}${list}${relList}
+    return `<h2>Sketch</h2><p class="hint">${this.hint()}</p>${st}${this.stateHtml()}${this.m.sizesHtml?.() || ''}${bigNote}${what}${list}${relList}
       <h3>Tips</h3><p class="hint">A shape inside another one becomes a hole. Lines that meet at a point are joined; click the
       first point again to close a shape. 🔒 = locked size (it stays when other sizes change). ↔ Dimension adds a distance
       between two points, circles or edges (also the part's edges, dashed). Right mouse button pans, wheel zooms, Ctrl+Z undoes.</p>`;
   }
 
+  /** Under the free count: what does not fit and why (red on the shapes), 🪄 at rounded values while sizes are free
+   *  (then what it rounded, to keep or take back), ∪ when closed shapes overlap. */
+  stateHtml() {
+    const out = [], con = this.conflicting || [], twice = (this.conflicts || []).filter((id) => !con.includes(id));
+    if (con.length) out.push(`<p class="sk-why bad">⚠ ${tv('These do not fit together: {names} — remove or change one of them (their shapes are red).', { names: this.ruleNames(con).join(', ') })}</p>`);
+    if (twice.length) out.push(`<p class="sk-why">${tv('Held twice: {names} — the other sizes fix it already; 🪄 makes it a reference dimension.', { names: this.ruleNames(twice).join(', ') })}</p>`);
+    if (this.rounded) {
+      out.push(`<div class="sk-rounded"><p class="hint">${t('Locked at rounded values (the shapes moved to them):')}</p><ul>${this.rounded.map((x) => `<li data-no-i18n>${x.from} → <b>${x.name}</b></li>`).join('')}</ul>
+        <div class="row-actions"><button class="btn small primary" data-a="roundKeep">✓ ${t('Keep')}</button><button class="btn small" data-a="roundBack" title="${t('Back to the sketch as it was (Ctrl+Z)')}">↶ ${t('Take back')}</button></div></div>`);
+    } else if (this.dof > 0 && this.solver) {
+      out.push(`<div class="row-actions"><button class="btn small" data-a="autodimRound" title="${t('🪄 Auto-dimension, each size locked at a nice value (whole mm) — the shapes move to it; you see what changed and can take it back')}">🪄 ${t('Lock at rounded values')}</button></div>`);
+    }
+    if (this.f.entities.length <= 80 && this.overlapping()) {
+      out.push(`<div class="row-actions"><button class="btn small" data-a="unite" title="${t('Closed shapes overlap: trim the pieces inside each other — one outline of lines and arcs (tangents and equal radii stay)')}">∪ ${t('Unite overlapping shapes')}</button></div>`);
+    }
+    return out.join('');
+  }
+
+  /** The panel's own buttons and rows (the modeler binds the rest): a row lights its dimension in the view. */
+  bindProps(box) {
+    for (const row of box.querySelectorAll('[data-dimrow]')) {
+      const lab = () => this.m.els.viewport.querySelector(`.sk-label[data-dim="${row.dataset.dimrow}"]`);
+      row.addEventListener('mouseenter', () => { const l = lab(); if (l) { l.classList.add('lit'); l.dispatchEvent(new MouseEvent('mouseenter')); } });
+      row.addEventListener('mouseleave', () => { const l = lab(); if (l) { l.classList.remove('lit'); l.dispatchEvent(new MouseEvent('mouseleave')); } });
+    }
+    box.querySelector('[data-a=autodimRound]')?.addEventListener('click', () => this.autoDimension({ round: true }));
+    box.querySelector('[data-a=roundKeep]')?.addEventListener('click', () => { this.rounded = null; this.m.renderProps(); });
+    box.querySelector('[data-a=roundBack]')?.addEventListener('click', () => { this.rounded = null; this.back(); });
+    box.querySelector('[data-a=unite]')?.addEventListener('click', () => this.unite());
+  }
+
+  /** ∪ from the panel / the suggestions: unite, and say what happened. */
+  async unite() {
+    const r = await this.unionShapes();
+    this.m.toast(r ? tv('∪ One outline: {k} piece(s) inside other shapes trimmed — 🪄 Auto-dimension locks what is free now.', { k: r.trimmed }) : t('No closed shapes overlap — nothing to unite.'), r ? 'ok' : 'info', 6000);
+  }
+
+  /** Do closed shapes of the sketch overlap (they cross, a piece of one inside another — not a hole inside a plate)? */
+  overlapping() {
+    const regions = this.unionRegions();
+    return regions.filter((r) => r.crosses).length > 1 && !!this.innerPiece(regions);
+  }
+
+  /** A standard shape drawn from single pieces made the real thing: a slot (its joins tangent, its ends equal, one
+   *  shape), a rectangle (H / V sides, one shape), a circle (two half arcs -> one circle). */
+  async convertShape(sh) {
+    const f = this.f;
+    await this.relock(() => {
+      const ents = sh.ids.map((id) => this.ent(id)), g = this.newId('r');
+      const has = (fn) => f.constraints.some(fn);
+      if (sh.kind === 'slot') {
+        const arcs = ents.filter((e) => e.t === 'arc'), lines = ents.filter((e) => e.t === 'line');
+        for (const a of arcs) for (const p of [a.a, a.b]) {
+          const l = lines.find((x) => x.a === p || x.b === p);
+          if (l && !has((k) => k.t === 'tan' && k.e === l.id && k.arc === a.id && k.p === p)) f.constraints.push({ id: this.newId('k'), t: 'tan', e: l.id, arc: a.id, p });
+        }
+        if (!has((k) => k.t === 'eq' && [k.e, k.e2].includes(arcs[0].id) && [k.e, k.e2].includes(arcs[1].id))) f.constraints.push({ id: this.newId('k'), t: 'eq', e: arcs[0].id, e2: arcs[1].id });
+        ents.forEach((e) => { e.g = g; });
+      } else if (sh.kind === 'rect') {
+        for (const l of ents) {
+          if (has((k) => (k.t === 'h' || k.t === 'v') && k.e === l.id)) continue;
+          const a = this.P(l.a), b = this.P(l.b);
+          f.constraints.push({ id: this.newId('k'), t: Math.abs(b[0] - a[0]) >= Math.abs(b[1] - a[1]) ? 'h' : 'v', e: l.id });
+        }
+        ents.forEach((e) => { e.g = g; });
+      } else if (sh.kind === 'circle') {
+        const gone = new Set(sh.ids);
+        f.entities = f.entities.filter((e) => !gone.has(e.id));
+        f.constraints = f.constraints.filter((k) => ![k.e, k.e2, k.arc].some((x) => gone.has(x)));
+        const rad = f.dims.find((d) => d.t === 'rad' && gone.has(d.e));
+        f.dims = f.dims.filter((d) => !gone.has(d.e));
+        const id = this.newId('c');
+        f.entities.push({ id, t: 'circle', c: sh.c, r: sh.r });
+        if (rad) f.dims.push({ id: rad.id, t: 'dia', e: id, v: 2 * rad.v });
+        const used = new Set(f.entities.flatMap((x) => [x.a, x.b, x.c, ...(x.pts || [])]));
+        for (const p of Object.keys(f.points)) if (!used.has(p) && !f.dims.some((d) => d.a === p || d.b === p) && !f.constraints.some((k) => k.p === p || k.p2 === p)) delete f.points[p];
+      }
+    });
+  }
+
   async init() {
     // a reopened sketch: ask the solver for the free degrees (nothing moves)
-    if (this.f.entities.length) { const r = await this.solve(); if (r.dof !== undefined) this.dof = r.dof; this.m.renderProps(); }
+    if (this.f.entities.length) {
+      const r = await this.solve();
+      if (this.takeState(r).colours) this.draw(); // (its colours)
+      this.m.renderProps();
+    }
   }
 
   result() {

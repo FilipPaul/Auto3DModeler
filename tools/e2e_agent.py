@@ -200,6 +200,21 @@ try:
     r = json.loads(tool("simplify_sketch", id="F3", op="join")[0])
     print(f"    join: shapes {r['shapes']} | one curve: {r['shapes']['after'] == 1} | area {r['area_mm2']} kept: {abs(r['area_mm2']['after'] - r['area_mm2']['before']) < r['area_mm2']['before'] * 0.005}")
     tool("simplify_sketch", id="F2")  # (not a sketch: refused)
+    # ---- the sketch tools: a rect and an overlapping slot -> get_sketch, sketch_union (one outline), sketch_auto_dims,
+    # sketch_dim (R 20), sketch_trim (a circle cut by a line)
+    tool("new_model", name="Sketch tools")
+    tool("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": -20, "y": -30, "w": 65, "h": 65}}, {"slot": {"x1": 45, "y1": 9, "x2": 15, "y2": 35, "w": 46}}])
+    v0 = json.loads(tool("add_feature", type="extrude", sketch="F1", d=10)[0])["body"]["volume_mm3"]
+    s = json.loads(tool("get_sketch", id="F1")[0])
+    print(f"    get_sketch: {len(s['shapes'])} shapes, {sum(x['locked'] for x in s['dims'])} locks, dof {s['dof']}, names {[x['name'] for x in s['dims']][:3]}")
+    u = json.loads(tool("sketch_union", sketch="F1")[0])
+    a = json.loads(tool("sketch_auto_dims", id="F1")[0])
+    v1 = json.loads(tool("get_model")[0])["body"]["volume_mm3"]
+    print(f"    union: {u['shapes']} | auto-dims: fully defined {a['fully_defined']} | volume {v0} (overlapping) -> {v1} | the exact union's"
+          f" 59945.008: {abs(v1 - 59945.0078) < 0.01}")
+    arc = next(x["id"] for x in json.loads(tool("get_sketch", id="F1")[0])["shapes"] if x["t"] == "arc")
+    tool("sketch_dim", id="F1", dim=f"rad:{arc}", value=20)
+    tool("sketch_dim", id="F1", dim="nothing", value=3)  # (no such dimension: refused)
     tool("list_parts")
     # the BOM of an assembly with a sub-assembly placed twice (get_bom: every level rolled up)
     tool("new_assembly", name="Pair")

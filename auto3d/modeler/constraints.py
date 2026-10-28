@@ -39,6 +39,7 @@ rest is free, so dragging moves it.
 from __future__ import annotations
 
 import math
+import time
 
 ORIGIN = "O"
 
@@ -287,19 +288,34 @@ def _offset_place(sketch, ks, P):
             P[q] = cross or [p[0] + n[0], p[1] + n[1]]
 
 
+def _fit_curves(sketch, known):
+    """The joined curves ("fit": true splines) -> (entity, its two anchor points, its inner points) — the anchors its
+    ends (a closed one: its start and its first inner point); only points in `known`."""
+    for e in sketch.get("entities") or []:
+        q = [p for p in (e.get("pts") or []) if p in known]
+        if e.get("t") != "spline" or not e.get("fit") or len(q) < 3:
+            continue
+        anchors = [q[0], q[-1]] if q[0] != q[-1] else [q[0], q[1]]
+        yield e, anchors, [p for p in dict.fromkeys(q) if p not in anchors]
+
+
 FREE_CHECK_MAX = 150  # points: more and which ones are free is not worked out (each costs a solver set-up)
+FREE_CHECK_SECONDS = 1.5  # the most time the free-size check takes; what is left unchecked is "unknown" (partial)
 
 
-def solve(sketch, drag=None, keep=None, detail=False):
+def solve(sketch, drag=None, keep=None, detail=False, budget=FREE_CHECK_SECONDS):
     """Solve the sketch. drag = {point id: [u, v]}: move these points there (as far as the locks allow).
     keep = "u" | "v": try to keep that coordinate of every other point (a typed width moves nothing up or down);
     dropped when the sketch cannot do it. detail: also which points and circle radii are still free (a point is free
     when fixing it takes freedom away) — for colouring the sketch.
-    -> {"ok", "points", "radii", "dof", "conflicts": [dim ids], "status", "free"?: {"points", "radii"},
+    -> {"ok", "points", "radii", "dof", "conflicts": [dim / rule ids], "conflicting": those that contradict,
+        "redundant": those only held twice, "status",
+        "free"?: {"points", "radii", "partial"?: true, "unknown"?: [point / circle ids not checked in time]},
         "held"?: {"ok": the dragged points are where asked, "conflicts": the locks that stop them}}"""
     import planegcs as g
 
     pts = {k: [float(x) for x in v] for k, v in (sketch.get("points") or {}).items()}
+    curve_at = {k: list(v) for k, v in pts.items()}  # (as drawn: a joined curve keeps this shape when its ends are dragged)
     for k, v in (drag or {}).items():
         if k in pts:
             pts[k] = [float(x) for x in v]
@@ -347,6 +363,12 @@ def solve(sketch, drag=None, keep=None, detail=False):
 
         tags = {}
         soft.clear()  # a mirror's own parts may repeat what other rules hold (a point on the axis): not a conflict
+        # a joined curve (⛓ / 🧹: "fit": true, often hundreds of points) moves as a whole with its ends: each inner
+        # point keeps its distances to two anchors, so it is not free on its own (nor counted, nor dimensioned)
+        for e, anchors, inner in _fit_curves(sketch, pts):
+            for q in inner:
+                for a in anchors:
+                    soft.add(s.set_p2p_distance(ids[a], ids[q], max(math.dist(*(curve_at.get(x, pts[x]) for x in (a, q))), 1e-9)))
         for k in sketch.get("constraints") or []:
             tag = _relation(s, k, ents, ids, pts)
             if tag is not None:
@@ -491,23 +513,31 @@ def solve(sketch, drag=None, keep=None, detail=False):
     ok = status in (g.SolveStatus.Success, g.SolveStatus.Converged)
     diag = s.diagnose()
     conflicts = sorted({tags[t] for t in list(diag.conflicting) + [x for x in diag.redundant if x not in soft] if t in tags and tags[t]})
+    # of those: the ones that contradict (no solution keeps them all) and the ones only held twice (at a value the
+    # others give already — harmless as a reference dimension)
+    conflicting = sorted({tags[t] for t in diag.conflicting if t in tags and tags[t]})
+    redundant = sorted(set(conflicts) - set(conflicting))
     out_pts = {k: [round(c, 9) for c in s.get_point(ids[k])] for k in pts}
     radii = {k: round(s.get_param(r), 9) for k, r in radius.items()}
     out = {"ok": ok and not conflicts, "status": status.name, "points": out_pts, "radii": radii,
-           "dof": diag.dof, "conflicts": conflicts}
+           "dof": diag.dof, "conflicts": conflicts, "conflicting": conflicting, "redundant": redundant}
     if held is not None:
         held["ok"] = held["ok"] and all(math.hypot(out_pts[k][0] - v[0], out_pts[k][1] - v[1]) < 1e-5 for k, v in drag.items() if k in out_pts)
         out["held"] = held
-    if detail and ok and len(pts) <= FREE_CHECK_MAX:
+    riding = {q for _, _, inner in _fit_curves(sketch, pts) for q in inner}  # (a joined curve's inner points: with its ends)
+    if detail and ok and len(pts) - len(riding) <= FREE_CHECK_MAX:
         free = {"points": [], "radii": []}
         if diag.dof > 0:
             for k in pts:
                 pts[k] = list(out_pts[k])
-            for k in pts:
-                if build(False, fix=(k,))[0].diagnose().dof < diag.dof:
-                    free["points"].append(k)
-            for k, r in radii.items():
-                if build(False, fix_r=(k, r))[0].diagnose().dof < diag.dof:
-                    free["radii"].append(k)
+            # each check builds the sketch again: a time budget, so no sketch keeps the editor waiting
+            until, todo = time.monotonic() + budget, [("p", k, None) for k in pts if k not in riding] + [("r", k, r) for k, r in radii.items()]
+            for i, (kind, k, r) in enumerate(todo):
+                if time.monotonic() > until:
+                    free["partial"] = True
+                    free["unknown"] = [x[1] for x in todo[i:]]
+                    break
+                if build(False, fix=(k,) if kind == "p" else (), fix_r=(k, r) if kind == "r" else None)[0].diagnose().dof < diag.dof:
+                    free["points" if kind == "p" else "radii"].append(k)
         out["free"] = free
     return out

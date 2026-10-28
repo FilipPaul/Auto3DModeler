@@ -226,6 +226,15 @@ dimension**: it only measures, shown in brackets *(90°)*; 🔓 / 🔒 on a dime
 driving; **drag** any size label to move it
 (kept with the sketch), and the mouse on a label lights up what it measures.
 
+**The sketch panel says what is going on**: each dimension row has its name and value (*Width 65*, *Height 65*,
+*R23*) and the mouse on a row lights that dimension in the view; locks that do not fit are listed (*These do not fit
+together: 65, x -20, x 50*) with their rows and shapes red. While sizes are free, **🪄 Lock at rounded values** locks
+them at whole millimetres — the shapes move to them, the panel lists what changed (*R23.215 → R23*) with **✓ Keep**
+and **↶ Take back**. Closed shapes that overlap (a rectangle and a slot) get **∪ Unite overlapping shapes**: the
+pieces inside each other are trimmed — one outline of lines and arcs, tangents and equal radii kept (a hole inside a
+plate stays a hole). A slot, rectangle or circle drawn piece by piece is offered first in the suggestions as **⊂⊃
+Make it a slot** / **▭ Make it a rectangle** / **◯ Make it a circle**.
+
 **Actions in the corner**: the buttons that finish or leave a step — **✓ Finish sketch**, **OK** / **Cancel** of a
 feature, **Done** — float in the bottom-right corner of the view in every workspace; the toolbars hold only the tools.
 
@@ -280,8 +289,15 @@ SolidWorks. It has only the tools that need almost no input.
    the panel; relations that contradict each other or the locked sizes are refused, naming the one in the way.
    **The part under the sketch**: its round edges (hole rims, bosses — on any level) show dashed with a ✛ centre; a
    click snaps to a centre and to the circle itself (draw a circle on a hole: the same place and Ø), and ↔ Dimension
-   measures from them. **🪄 Auto-dimension** locks what the sketch still needs to be fully defined: each shape's
-   sizes, then its place from the nearest edges of the part (a hole from the outer edges closest to it), else the origin.
+   measures from them. **🪄 Auto-dimension** locks what the sketch still needs to be fully defined: first the
+   relations it nearly has already (a line a hair off horizontal / vertical, a line running smoothly into an arc, arcs
+   of the same radius), then each shape's sizes, an arc's centre (rather than the end of a side running into it), then
+   its place from the nearest edges of the part (a hole from the outer edges closest to it), else the origin. It adds
+   only what fixes something, so nothing is held twice (a rectangle ∪ slot drawn by hand: its 4 sizes + R and the two
+   centres). A lock the others fix already becomes a reference dimension; locks that contradict each other are named
+   (and drawn red); what it cannot fix is named too ("still free: arc R23 at (45, 9)"). Sizes the others set show
+   **＝** instead of 🔓 on their labels. A joined curve (⛓) moves as a whole with its ends — its many points are not
+   free sizes.
    **⇋ Mirror**: choose the Y or X axis in its little box (or click a line of the sketch), then click shapes — a
    rectangle or a joined outline goes whole. The mirror image is a copy that stays mirrored (⇋ *Mirrored*: change the
    original and the copy follows; click the ⇋ symbol to let it go free); points on the mirror line are shared, so half
@@ -889,6 +905,14 @@ can open them.
   clean smooth surface, not many little faces. The sketch shows the curve and its points can be dragged.
   `simplify_sketch` tidies a sketch with too many shapes (one from a DXF): fewer lines and arcs, each chain one
   smooth curve (`op: "join"`) or the outlines one rigid outline (`op: "outline"`), and says the counts before → after.
+  The AI's shapes open **fully defined** (green): a profile's corners are locked and each arc is tangent to the line it runs
+  into (else its radius is locked), a slot is its two centres and one radius with tangent sides and equal ends.
+- **The AI reads and fixes sketches**: `get_sketch` gives a sketch's shapes with coordinates, its relations, every
+  dimension with its name, value and lock, what is still free and which locks do not fit; `sketch_auto_dims` runs 🪄
+  (and says what it added or why not), `sketch_dim` sets / locks / frees one dimension, `sketch_trim` cuts a piece
+  away and `sketch_union` turns overlapping closed shapes (a rectangle and a slot) into one outline of lines and arcs,
+  keeping tangents and equal radii. Its screenshots show the sketch's size labels, and `gui_state` lists them with
+  their values.
 - **Everything the app does, the AI can do**: besides modelling, assemblies, the library and collisions, it colours
   parts (`set_look`: colour, see-through) and single faces (`paint_faces`), in a model or per placed part in an
   assembly; moves a joined part along its free ways (`move_free`); keeps a model in the library (`save_to_library`).

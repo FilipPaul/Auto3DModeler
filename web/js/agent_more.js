@@ -47,6 +47,8 @@ export function guiControls(where = 'all') {
     let label = (isPart || isStep ? `${el.querySelector('.mt-name')?.textContent || ''} ${el.querySelector('.mt-what')?.textContent || ''}${isStep ? ` [${el.dataset.id}]` : ''}`
       : el.tagName === 'INPUT' || el.tagName === 'SELECT' ? (lab?.textContent || el.placeholder || el.dataset.k || '') : el.textContent || el.title || '').replace(/\s+/g, ' ').trim();
     if ((el.tagName === 'INPUT' || el.tagName === 'SELECT') && row && row !== lab) label = `${(row.querySelector('label, .as-jt')?.textContent || '').replace(/\s+/g, ' ').trim()} › ${label}`.trim();
+    const dimRow = el.tagName === 'BUTTON' && el.closest('.sk-dim, .sk-label'); // (a sketch dimension's 🔒 / 🔓 / ✕: which one)
+    if (dimRow) label = `${(dimRow.querySelector('.sk-val, :scope > span')?.textContent || '').replace(/\s+/g, ' ').trim()} › ${label}`;
     if (!label) label = el.getAttribute('aria-label') || el.title || el.className || el.tagName.toLowerCase();
     const kind = isStep ? 'step' : isPart ? 'part' : el.tagName === 'SELECT' ? 'choice' : el.tagName === 'INPUT' ? (el.type === 'range' ? 'slider' : el.type === 'checkbox' ? 'checkbox' : 'box') : el.dataset.jname ? 'name' : 'button';
     const a = area(el);
@@ -54,6 +56,14 @@ export function guiControls(where = 'all') {
       state: kind === 'checkbox' ? (el.checked ? 'on' : 'off') : ['button', 'name', 'part', 'step'].includes(kind) ? (el.classList.contains('on') ? 'on' : el.classList.contains('off') ? 'off' : undefined)
         : kind === 'choice' ? `${el.selectedOptions[0]?.textContent?.trim() || ''}${el.value && el.value !== el.selectedOptions[0]?.textContent?.trim() ? ` (${el.value})` : ''}` : String(el.value),
       ...(kind === 'slider' ? { min: +el.min, max: +el.max } : {}), disabled: !!el.disabled || undefined, where: a, el });
+  }
+  // in a sketch: each size label on the view, its name and value (locked 🔒, free 🔓, set by the others ＝)
+  for (const el of document.querySelectorAll('#modelViewport .sk-label')) {
+    if (seen.has(el) || !el.getBoundingClientRect().width) continue;
+    seen.add(el);
+    const val = (el.querySelector('.sk-val')?.textContent || '').replace(/\s+/g, ' ').trim();
+    const st = el.classList.contains('locked') ? 'locked' : el.classList.contains('driven') ? 'set by the others' : el.classList.contains('dist') ? 'reference' : 'free';
+    out.push({ n: out.length + 1, kind: 'dim', label: `${el.dataset.dim ? `${el.dataset.dim}: ` : ''}${val}`.slice(0, 90), state: st, where: 'view', el });
   }
   // on a drawing sheet: its dimensions, views and title-block cells (drawn, not controls — clicked where they are)
   for (const el of document.querySelectorAll('#shViewport [data-dim], #shViewport [data-view], #shViewport [data-tcell]')) {
