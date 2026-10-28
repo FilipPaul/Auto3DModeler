@@ -38,6 +38,9 @@ owner can keep talking to it. Several may work in this one working tree at the s
 - **Only your own changes.** Before committing, `git status` and `git diff` — stage only the files (and hunks)
   your goal changed; never revert, reformat or "fix" someone else's uncommitted work. If a file you need is
   being changed by another job, say so in your report instead of overwriting it.
+- **Staging only your hunks in a shared file:** build the index version from `git show HEAD:<file>` plus your
+  edits (or a temporary index: `GIT_INDEX_FILE=… git read-tree HEAD`), not `git apply --cached --unidiff-zero`
+  (it can put a pure insertion a line off). Always read `git diff --cached` before committing.
 - **Small goals, committed at once**, so others build on them; `git pull` is not needed (one local clone).
 - **Report back** in a few lines: what works, what was left out, the commit hashes, test results with numbers.
 
