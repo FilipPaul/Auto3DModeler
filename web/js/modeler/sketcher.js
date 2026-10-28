@@ -297,7 +297,11 @@ export class Sketcher {
     this.dofTimer = setTimeout(async () => {
       if (!this.solver || !this.f.entities.length) { if (this.dof !== null && !this.f.entities.length) { this.dof = null; this.m.renderProps(); } return; }
       const r = await this.solve();
-      if (r.dof !== undefined && r.dof !== this.dof && this.m.sk === this) { this.dof = r.dof; this.m.renderProps(); }
+      if (this.m.sk !== this) return;
+      const was = JSON.stringify(this.free ? [[...this.free.points], [...this.free.radii]] : null);
+      if (r.free) this.free = { points: new Set(r.free.points), radii: new Set(r.free.radii) };
+      if (JSON.stringify(this.free ? [[...this.free.points], [...this.free.radii]] : null) !== was) this.draw(); // (its colours)
+      if (r.dof !== undefined && r.dof !== this.dof) { this.dof = r.dof; this.m.renderProps(); }
     }, 120);
   }
 
@@ -462,7 +466,7 @@ export class Sketcher {
   async solve(drag = null, keep = null) {
     if (!this.solver) return { ok: true };
     const res = await fetch('/api/model/sketch/solve', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sketch: this.f, drag, keep }) });
+      body: JSON.stringify({ sketch: this.f, drag, keep, detail: !drag }) });
     let r;
     try { r = await res.json(); } catch { return { ok: false, error: `The sketch could not be solved (server error ${res.status}).` }; }
     if (res.status === 501) { this.solver = false; this.m.toast(r.error, 'warning', 8000); return { ok: true }; }
@@ -474,6 +478,7 @@ export class Sketcher {
     if (r.points) for (const [k, v] of Object.entries(r.points)) if (this.f.points[k]) this.f.points[k] = v;
     if (r.radii) for (const [k, v] of Object.entries(r.radii)) { const e = this.ent(k); if (e) e.r = v; }
     if (r.dof !== undefined) this.dof = r.dof;
+    if (r.free) this.free = { points: new Set(r.free.points), radii: new Set(r.free.radii) };
     for (const d of this.f.dims) if (d.free) d.v = +this.measure(d).toFixed(6);
   }
 
@@ -1884,9 +1889,21 @@ export class Sketcher {
     inp.addEventListener('blur', () => finish(true));
   }
 
+  /** A shape's state for its colour: 'bad' (in a lock that does not fit), 'free' (some of it can still move),
+   *  'done' (fully defined), or null (not known: no solver). */
+  stateOf(e) {
+    if (this.bad?.has(e.id)) return 'bad';
+    if (!this.free) return null;
+    const pts = e.t === 'line' ? [e.a, e.b] : e.t === 'arc' ? [e.a, e.b, e.c] : e.t === 'circle' ? [e.c] : e.t === 'spline' ? e.pts || [] : null;
+    if (!pts) return null;
+    return pts.some((p) => this.free.points.has(p)) || this.free.radii.has(e.id) ? 'free' : 'done';
+  }
+
   draw() {
     const f = this.f, mpp = this.mpp(), labels = [], lines = [], circles = [], dots = [];
-    const SEL = 0xf2cc60, NORM = 0x39d0d8, LOCKED = 0xd2a8ff;
+    const SEL = 0xf2cc60, LOCKED = 0xd2a8ff;
+    // blue: can still move, green: fully defined, red: a lock that does not fit (cyan: not known)
+    const STATE = { free: 0x58a6ff, done: 0x3fb950, bad: 0xff7b72 }, colourOf = (e) => STATE[this.stateOf(e)] ?? 0x39d0d8, NORM = 0x39d0d8;
     const selPts = new Set(this.pointsOfSel());
     const isSel = (e) => this.sel && ((this.sel.kind === 'entity' && this.sel.id === e.id) || (this.sel.kind === 'group' && this.sel.id === e.g));
     const shownGroups = new Set();
@@ -1897,7 +1914,7 @@ export class Sketcher {
     for (const e of f.entities) {
       if (e.t === 'line') {
         const a = this.P(e.a), b = this.P(e.b);
-        lines.push([a, b, isSel(e) ? SEL : NORM]);
+        lines.push([a, b, isSel(e) ? SEL : colourOf(e)]);
         // a rectangle shows its width and height once; a free line its length
         if (e.g) {
           const k = f.constraints.find((c) => c.e === e.id && (c.t === 'h' || c.t === 'v'))?.t;
@@ -1925,18 +1942,18 @@ export class Sketcher {
         for (const t of ['pointerdown', 'pointerup']) el.addEventListener(t, (ev) => ev.stopPropagation());
         if (anyShown) labels.push({ el, u: au + (e.w0 * k) / 2, v: av - mpp * 14 });
       } else if (e.t === 'arc') {
-        const ps = this.arcOf(e), col = isSel(e) ? SEL : NORM;
+        const ps = this.arcOf(e), col = isSel(e) ? SEL : colourOf(e);
         for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], col]);
         const m = ps[Math.floor(ps.length / 2)], c = this.P(e.c), r = this.arcR(e) || 1;
         if (showSize({ t: 'rad', e: e.id })) {
           labels.push(this.label({ t: 'rad', e: e.id }, m[0] + ((m[0] - c[0]) / r) * mpp * 16, m[1] + ((m[1] - c[1]) / r) * mpp * 16, `R${fmt(r)}`, 'Radius'));
         }
       } else if (e.t === 'spline') {
-        const ps = this.splineOf(e), col = isSel(e) ? SEL : NORM;
+        const ps = this.splineOf(e), col = isSel(e) ? SEL : colourOf(e);
         for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], col]);
       } else if (e.t === 'circle') {
         const c = this.P(e.c);
-        circles.push([c, e.r, isSel(e) ? SEL : NORM]);
+        circles.push([c, e.r, isSel(e) ? SEL : colourOf(e)]);
         if (showSize({ t: 'dia', e: e.id })) labels.push(this.label({ t: 'dia', e: e.id }, c[0] + e.r * 0.72 + mpp * 18, c[1] + e.r * 0.72 + mpp * 8, `Ø${fmt(2 * e.r)}`, 'Diameter'));
       }
     }
@@ -1949,7 +1966,7 @@ export class Sketcher {
     }
     for (const [id, p] of Object.entries(f.points)) {
       const fixed = f.dims.some((d) => (d.t === 'dx' || d.t === 'dy') && d.b === id && d.a === ORIGIN);
-      dots.push([p, selPts.has(id) ? SEL : fixed ? LOCKED : NORM]);
+      dots.push([p, selPts.has(id) ? SEL : this.free ? (this.free.points.has(id) ? STATE.free : STATE.done) : fixed ? LOCKED : NORM]);
     }
     // the part's edges in this plane (fixed references), dashed
     const refs = this.refs();

@@ -1,5 +1,5 @@
 """The sketch tells its state and dimensions smartly, with REAL mouse input: a new model's rectangle -> ✓ Finish sketch
-not green, 🪄 Auto-dimension shown -> ↔ Dimension, one click on the top line: its length in a box at once, 50 typed +
+not green, 🪄 Auto-dimension shown, its lines blue (free) -> ↔ Dimension, one click on the top line: its length in a box at once, 50 typed +
 Enter -> the line is 50 -> one click on a line, then a click on another: the distance chooser / a distance instead of
 its length -> 🪄 -> every size fixed: ✓ Finish sketch green, 🪄 gone.
 
@@ -86,6 +86,9 @@ try:
     wait(f"return {SK}.dof > 0", 10)
     time.sleep(0.6)
     print("a rectangle:", state())
+    colours = lambda: js(f"return {SK}.f.entities.map(e => {SK}.stateOf(e))")  # noqa: E731
+    wait(f"return !!{SK}.free", 10)
+    print("  its lines:", colours(), "(blue: free)")
     tool("dim")
     click_uv((20, 20))  # the top line
     box = wait("return document.querySelector('.sk-quick input')", 5)
@@ -110,6 +113,8 @@ try:
     wait(f"return {SK}.dof === 0", 15)
     time.sleep(0.6)
     print("🪄 then:", state())
+    time.sleep(0.5)
+    print("  its lines:", colours(), "(green: fully defined)")
     d.save_screenshot(f"{OUT}/sketch_smart.png")
 
     # a triangle: two crossing lines -> their angle; a corner and the slanted side -> its distance from it

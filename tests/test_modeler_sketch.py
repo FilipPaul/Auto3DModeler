@@ -113,6 +113,17 @@ class TestSketchSolve(unittest.TestCase):
             sk["dims"][2]["v"] = 180
             solve(sk)
 
+    def test_which_points_are_free(self):
+        """detail: a rectangle with its corner and width locked — the far side (and the circle) still free."""
+        dims = LOCK_CORNER + [{"id": "d3", "t": "len", "e": "l1", "v": 40}]
+        r = solve(plate(dims=dims), detail=True)
+        free = set(r["free"]["points"])
+        self.assertNotIn("p1", free)                      # the locked corner
+        self.assertNotIn("p2", free)                      # the corner the width reaches
+        self.assertTrue({"p3", "p4"} <= free)             # the height is free
+        self.assertIn("c1", r["free"]["radii"])
+        self.assertNotIn("free", solve(plate(dims=dims)))  # (only when asked)
+
     def test_point_from_a_slanted_line(self):
         sk = {"points": {"p1": [0, 0], "p2": [10, 10], "p3": [0, 8]},
               "entities": [{"id": "l1", "t": "line", "a": "p1", "b": "p2"}, {"id": "c1", "t": "circle", "c": "p3", "r": 1}],

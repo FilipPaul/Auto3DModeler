@@ -112,11 +112,15 @@ def _relation(s, k, ents, ids, pts):
     return None
 
 
-def solve(sketch, drag=None, keep=None):
+FREE_CHECK_MAX = 150  # points: more and which ones are free is not worked out (each costs a solver set-up)
+
+
+def solve(sketch, drag=None, keep=None, detail=False):
     """Solve the sketch. drag = {point id: [u, v]}: move these points there (as far as the locks allow).
     keep = "u" | "v": try to keep that coordinate of every other point (a typed width moves nothing up or down);
-    dropped when the sketch cannot do it.
-    -> {"ok", "points", "radii", "dof", "conflicts": [dim ids], "status"}"""
+    dropped when the sketch cannot do it. detail: also which points and circle radii are still free (a point is free
+    when fixing it takes freedom away) — for colouring the sketch.
+    -> {"ok", "points", "radii", "dof", "conflicts": [dim ids], "status", "free"?: {"points", "radii"}}"""
     import planegcs as g
 
     pts = {k: [float(x) for x in v] for k, v in (sketch.get("points") or {}).items()}
@@ -124,7 +128,7 @@ def solve(sketch, drag=None, keep=None):
         if k in pts:
             pts[k] = [float(x) for x in v]
 
-    def build(with_drag, with_keep=False):
+    def build(with_drag, with_keep=False, fix=(), fix_r=None):
         s = g.Sketch()
         ids = {ORIGIN: s.add_fixed_point(0.0, 0.0)}
         for k, (u, v) in pts.items():
@@ -245,6 +249,10 @@ def solve(sketch, drag=None, keep=None):
             for k in drag or {}:
                 if k in ids and k != ORIGIN:
                     s.fix_point(ids[k], *pts[k])
+        for k in fix:
+            s.fix_point(ids[k], *pts[k])
+        if fix_r:
+            s.set_circle_diameter(ents[fix_r[0]][1], 2 * fix_r[1])
         if with_keep:
             i = 0 if keep == "u" else 1
             for k, p in pts.items():
@@ -281,5 +289,18 @@ def solve(sketch, drag=None, keep=None):
     conflicts = sorted({tags[t] for t in list(diag.conflicting) + [x for x in diag.redundant if x not in soft] if t in tags and tags[t]})
     out_pts = {k: [round(c, 9) for c in s.get_point(ids[k])] for k in pts}
     radii = {k: round(s.get_param(r), 9) for k, r in radius.items()}
-    return {"ok": ok and not conflicts, "status": status.name, "points": out_pts, "radii": radii,
-            "dof": diag.dof, "conflicts": conflicts}
+    out = {"ok": ok and not conflicts, "status": status.name, "points": out_pts, "radii": radii,
+           "dof": diag.dof, "conflicts": conflicts}
+    if detail and ok and len(pts) <= FREE_CHECK_MAX:
+        free = {"points": [], "radii": []}
+        if diag.dof > 0:
+            for k in pts:
+                pts[k] = list(out_pts[k])
+            for k in pts:
+                if build(False, fix=(k,))[0].diagnose().dof < diag.dof:
+                    free["points"].append(k)
+            for k, r in radii.items():
+                if build(False, fix_r=(k, r))[0].diagnose().dof < diag.dof:
+                    free["radii"].append(k)
+        out["free"] = free
+    return out

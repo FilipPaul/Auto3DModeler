@@ -53,7 +53,8 @@ open it (the tree stays), ⧉ opens it in a new window, ✕ deletes it from the 
 assemblies use it). Parts made for an assembly (fasteners) are added without a tab. The **＋**
 next to the tabs offers the usual ways to open a file.
 
-**The sketch tells its state**: **✓ Finish sketch** turns green when every size is fixed, and **🪄 Auto-dimension**
+**The sketch tells its state**: its shapes are **blue** while they can still move, **green** when fully defined and
+**red** in a lock that does not fit; **✓ Finish sketch** turns green when every size is fixed, and **🪄 Auto-dimension**
 shows only while sizes are still free. **↔ Dimension** on a line, circle or arc gives its size at once (a box beside
 it: type and Enter); a click on a second shape instead gives what fits the two: two points — the distance (along x,
 along y or straight), two crossing lines — the **angle** between the arms you clicked, a point and a slanted line —
