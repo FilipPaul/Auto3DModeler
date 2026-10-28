@@ -176,6 +176,42 @@ class TestRouting(unittest.TestCase):
         self.assertEqual(len(p.workers[0].waiting), 0)
         self.assertNotIn("w", [x["n"] for _, _, x in log])
 
+    def test_jobs_listed_and_stopped_while_waiting(self):
+        """The jobs list: each job waiting or running with its kind, part name, process and time; ✕ Stop of a waiting
+        one ends it as cancelled (the running one goes on); a finished job is gone from the list."""
+        p, log = self.pool(1)
+        out = {}
+
+        def slow():
+            progress.begin_request("Plate", "q1")
+            out["slow"] = p.run("rebuild", {"n": "slow", "t": 0.6}, key="A")
+
+        def waiting():
+            progress.begin_request("Bracket", "q2")
+            try:
+                p.run("sheet", {"n": "w", "t": 0}, key="A")
+            except progress.Cancelled:
+                out["stopped"] = True
+
+        t1, t2 = threading.Thread(target=slow), threading.Thread(target=waiting)
+        t1.start()
+        time.sleep(0.05)
+        t2.start()
+        time.sleep(0.1)
+        jobs = p.list_jobs()
+        self.assertEqual([(j["kind"], j["what"], j["state"], j["worker"], j["req"]) for j in jobs],
+                         [("Building a part", "Plate", "running", 1, "q1"), ("Making a drawing", "Bracket", "waiting", 1, "q2")])
+        self.assertGreater(jobs[0]["elapsed"], 0)
+        self.assertTrue(p.cancel(jobs[1]["id"]))
+        t2.join(5)
+        self.assertTrue(out.get("stopped"))
+        self.assertEqual([j["what"] for j in p.list_jobs()], ["Plate"])
+        t1.join(5)
+        self.assertEqual(out["slow"]["n"], "slow")
+        self.assertEqual(p.list_jobs(), [])
+        self.assertFalse(p.cancel(jobs[0]["id"]))  # (ended)
+        self.assertNotIn("w", [x["n"] for _, _, x in log])
+
 
 @unittest.skipUnless(OCC, "OCP not installed")
 class TestPoolProcesses(unittest.TestCase):
@@ -275,6 +311,34 @@ class TestPoolProcesses(unittest.TestCase):
         self.assertAlmostEqual(self.pool.run("rebuild", a)["body"]["volume"], 8000, delta=1e-3)
         self.assertNotEqual(wa.proc.pid, pid_a)
 
+    def test_stop_from_the_jobs_list_kills_only_that_worker(self):
+        """✕ Stop of a running job (by its id, no rid): its process is killed at once, the job ends cancelled, the other
+        process is untouched, the next job runs."""
+        a, b, wa, wb = self.warm()
+        pid_b = wb.proc.pid
+        out = {}
+
+        def heavy():
+            progress.begin_request("Heavy plate", None)
+            try:
+                self.pool.run("rebuild", holes(60), key=W.part_key("rebuild", a))
+            except progress.Cancelled:
+                out["cancelled"] = time.perf_counter()
+
+        t = threading.Thread(target=heavy)
+        t.start()
+        time.sleep(0.5)
+        job = next(j for j in self.pool.list_jobs() if j["what"] == "Heavy plate")
+        self.assertEqual((job["state"], job["worker"]), ("running", wa.index))
+        t0 = time.perf_counter()
+        self.assertTrue(self.pool.cancel(job["id"]))
+        t.join(10)
+        self.assertLess(out["cancelled"] - t0, 1.0)
+        self.assertIsNone(wa.proc)
+        self.assertEqual(wb.proc.pid, pid_b)
+        self.assertEqual(self.pool.list_jobs(), [])
+        self.assertAlmostEqual(self.pool.run("rebuild", a)["body"]["volume"], 8000, delta=1e-3)
+
     def test_memory_limit_restarts_between_jobs(self):
         """A process grown past the limit finishes its job (the answer comes) and is restarted for the next one."""
         a, _, wa, _ = self.warm()
@@ -340,6 +404,25 @@ class TestCancelRoutes(unittest.TestCase):
         progress.cancel("test-rebuild-cancel")
         r = self.c.post("/api/model/rebuild", json={"part": block(40), "rid": "test-rebuild-cancel"})
         self.assertTrue(r.get_json()["cancelled"])
+
+    def test_jobs_route(self):
+        """GET /api/jobs: a slow request outside the kernel (its rid) is listed with its kind and part name (the tab's,
+        from X-A3D-Tab); POST /api/jobs/r<rid>/cancel cancels it; an ended job answers 404."""
+        progress.begin_request("Velký díl", "q9")
+        with progress.operation("test-jobs-route", "Building a quick part"):
+            progress.report("Slicing", 3, 10)
+            jobs = self.c.get("/api/jobs").get_json()["jobs"]
+            mine = [j for j in jobs if j["rid"] == "test-jobs-route"]
+            self.assertEqual([(j["id"], j["kind"], j["what"], j["req"], j["stage"], j["total"]) for j in mine],
+                             [("rtest-jobs-route", "Building a quick part", "Velký díl", "q9", "Slicing", 10)])
+            self.assertEqual(self.c.post("/api/jobs/rtest-jobs-route/cancel").status_code, 200)
+            with self.assertRaises(progress.Cancelled):
+                progress.check()
+        self.assertFalse([j for j in self.c.get("/api/jobs").get_json()["jobs"] if j["rid"] == "test-jobs-route"])
+        self.assertEqual(self.c.post("/api/jobs/rtest-jobs-route/cancel").status_code, 404)
+        self.assertEqual(self.c.post("/api/jobs/k999999/cancel").status_code, 404)
+        r = self.c.post("/api/model/rebuild", json={"part": block(40)}, headers={"X-A3D-Tab": "Bracket%20%C4%8D"})
+        self.assertEqual(r.status_code, 200)
 
     def test_print_split_cancelled(self):
         progress.cancel("test-print-cancel")

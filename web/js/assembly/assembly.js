@@ -1790,7 +1790,7 @@ export class Assembly {
       const rid = newRid('a'), stop = trackProgress(rid, t('Building the parts…'), { delay: 400 });
       try {
         const features = await this.partFeatures(pid, data);
-        const { res, r } = await fetchRebuild({ features, lod, threads: data.threads }, rid);
+        const { res, r } = await fetchRebuild({ features, lod, threads: data.threads }, rid, this.partName(pid));
         if (want[pid] !== key) return;
         if (r.cancelled || wasCancelled(rid)) { cancelled = true; if (!this.bodies[pid]?.body) this.bodies[pid] = { key: null, error: t('Cancelled — a change builds it.') }; return; }
         if (!res.ok) throw new Error(r.error || res.statusText);

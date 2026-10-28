@@ -31,8 +31,10 @@ import { bodyOf, picture, svgPicture } from './thumbs.js';
 import { setAskAI } from './suggest.js';
 import { changed as projectChanged } from './history.js';
 import { trackProgress, newRid } from './progressbox.js'; // (slow requests: the busy box with Cancel)
+import { initJobs } from './jobs.js';
 
 initI18n();  // Czech / English: translates the page as it is built
+initJobs(() => project.current?.name); // ⚙ N in the top bar: what is working now, with ✕ Stop
 
 const $ = (id) => document.getElementById(id);
 const UNIT_TO_M = { mm: 0.001, cm: 0.01, m: 1, in: 0.0254 };

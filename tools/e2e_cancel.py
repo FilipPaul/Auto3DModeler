@@ -6,6 +6,8 @@ server keeps working), and the page does not send the job again:
    its last result, the box says "Cancelled — ↻ Rebuild"; then a normal edit builds as usual (the analytic volume);
 3. the MIT E-Vent assembly's drawing sheet (📄 Drawing in the assembly's bar) → Cancel: the sheet says Cancelled, not
    made again on its own; ↻ Try again starts it again.
+Also (1b) the top bar's ⚙ N: idle nothing; the board imported again → "⚙ 1", its list shows the import with the file's
+name and a running time, its ✕ Stop ends it (the indicator and the busy box gone, the kernel idle).
 
   PYTHONIOENCODING=utf-8 py tools/e2e_cancel.py http://127.0.0.1:5199 <out dir> <the 44 MB board .step> [<MIT E-Vent .step>]
 """
@@ -136,6 +138,36 @@ try:
     idle_kernel("after the import's Cancel")
     check("no 3D model was opened", js("return window.__app.state.workspace") != "model")
     check("nothing was sent again", not [u for _, u in js("return window.__sent") if "import" in u][1:])
+
+    # ---- 1b. ⚙ in the top bar: the import listed with its file, ✕ Stop there ends it
+    print("1b. the board imported again, stopped from the ⚙ jobs list")
+    check("idle: no ⚙", js("return document.getElementById('jobsBtn').hidden"))
+    js(LOG)
+    d.find_element(By.ID, "cadInput").send_keys(os.path.abspath(BOARD))
+    wait("return !document.getElementById('jobsBtn').hidden", 15)
+    time.sleep(2.5)
+    btn = d.find_element(By.ID, "jobsBtn")
+    print("   the indicator:", btn.text)
+    check("the indicator says ⚙ 1", btn.text.replace(" ", "") == "⚙1")
+    btn.click()
+    wait("return !document.getElementById('jobsList').hidden && document.querySelectorAll('#jobsList .jobs-row').length", 5)
+    row = d.find_element(By.CSS_SELECTOR, "#jobsList .jobs-row")
+    print("   the list:", " | ".join(r.text.replace("\n", " · ") for r in d.find_elements(By.CSS_SELECTOR, "#jobsList .jobs-row")))
+    check("the list shows the import with its file's name", "Importing a file" in row.text and os.path.basename(BOARD) in row.text)
+    t1 = row.find_element(By.CSS_SELECTOR, ".jobs-time").text
+    time.sleep(1.2)
+    t2 = row.find_element(By.CSS_SELECTOR, ".jobs-time").text
+    check(f"its time runs ({t1} -> {t2})", t2 != t1)
+    d.save_screenshot(os.path.join(OUT, "cancel_jobs_list.png"))
+    t0 = time.time()
+    row.find_element(By.CSS_SELECTOR, "[data-stop]").click()
+    wait("return document.getElementById('jobsBtn').hidden && document.getElementById('busy').hidden", 10)
+    print(f"   ⚙ gone after {time.time() - t0:.2f} s")
+    check("✕ Stop ends it: the indicator and the busy box are gone within 3 s", time.time() - t0 < 3)
+    texts = after_cancel(log(), 0)
+    check(f"the busy box: Cancelling…, then nothing {texts}", texts == ["Cancelling…", ""])
+    idle_kernel("after ✕ Stop")
+    check("no 3D model was opened", js("return window.__app.state.workspace") != "model")
 
     # ---- 2. a heavy rebuild (12 real threads) -> Cancel; then a normal edit
     print("2. a part with 12 real threads, Cancel in the 3D model's box")

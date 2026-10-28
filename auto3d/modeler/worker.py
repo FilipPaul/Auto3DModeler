@@ -30,6 +30,19 @@ MEMORY_LIMIT = float(os.environ.get("A3D_WORKER_MB") or 3072) * (1 << 20)  # a p
 _seq = itertools.count(1)  # every job's sequence number (its reply carries it back)
 
 
+# what each job is, in plain words (the jobs list in the top bar)
+KINDS = {"rebuild": "Building a part", "rebuild_bin": "Building a part", "export": "Exporting", "assembly_step": "Exporting an assembly",
+         "assembly_clashes": "Checking collisions", "assembly_sweep": "Checking a motion", "sheet": "Making a drawing",
+         "assembly_sheet": "Making a drawing", "limits": "Working out limits", "import_solid": "Importing a file",
+         "import_assembly": "Reading an assembly", "print_pieces": "Splitting for print"}
+
+
+def _stop_asked(job):
+    """A job stopped from the jobs list (✕ Stop) ends as cancelled, as a Cancel of its request does."""
+    if job is not None and job.get("cancel"):
+        raise progress.Cancelled()
+
+
 class KernelUnavailable(RuntimeError):
     pass
 
@@ -153,6 +166,7 @@ class Worker:
         self.crashes = 0  # times it died mid-job (jobs that waited for it fail)
         self.restarts = 0  # times its process was started
         self.since = None  # when the running job got its turn
+        self.job = None  # the running job's entry in the pool's list (its ✕ Stop)
 
     def busy(self):
         with self.cv:
@@ -180,7 +194,7 @@ class Worker:
         self.proc = None
 
     @contextmanager
-    def _turn(self, seq, key):
+    def _turn(self, seq, key, job=None):
         """Wait for this job's turn (the jobs before it done); a Cancel while waiting leaves the queue."""
         with self.cv:
             self.waiting.append(seq)
@@ -192,16 +206,21 @@ class Worker:
                 while self.waiting[0] != seq:
                     self.cv.wait(0.05)
                     progress.check()
+                    _stop_asked(job)
                 if self.crashes != crashes:
                     raise KernelFailed("The CAD kernel stopped unexpectedly while building another job — try again.")
             except BaseException:
                 self._leave(seq, key)
                 raise
             self.since = time.time()
+            self.job = job
+            if job is not None:
+                job["state"] = "running"
         try:
             yield
         finally:
             with self.cv:
+                self.job = None
                 self._leave(seq, key)
 
     def _leave(self, seq, key):
@@ -213,10 +232,11 @@ class Worker:
             del self.keys[key]
         self.cv.notify_all()
 
-    def run(self, op, arg, timeout=120, key=None, seq=None):
-        """Run op in the kernel process; honours the request's Cancel (progress.Cancelled is raised)."""
+    def run(self, op, arg, timeout=120, key=None, seq=None, job=None):
+        """Run op in the kernel process; honours the request's Cancel and the job's ✕ Stop (progress.Cancelled is
+        raised)."""
         seq = next(_seq) if seq is None else seq
-        with self._turn(seq, key):
+        with self._turn(seq, key, job):
             return self._run(op, arg, timeout, seq)
 
     def _run(self, op, arg, timeout, seq):
@@ -251,6 +271,7 @@ class Worker:
                 raise KernelFailed("The CAD kernel stopped unexpectedly while building — it restarts with the next change.")
             try:
                 progress.check()
+                _stop_asked(self.job)
             except progress.Cancelled:
                 self._kill()  # the only way to stop OpenCASCADE mid-operation; it restarts on the next call
                 raise
@@ -309,8 +330,9 @@ class Pool:
     def __init__(self, n=None):
         self.n = n or pool_size()
         self.workers = [Worker(i + 1) for i in range(self.n)]
-        self.lock = threading.Lock()  # the routing table
+        self.lock = threading.Lock()  # the routing table and the jobs
         self.route = OrderedDict()  # part key -> its worker (the last 512 parts)
+        self.jobs = {}  # seq -> the job waiting or running: {id, op, kind, what, rid, req, worker, state, since, cancel}
 
     def worker_for(self, op, arg, key=...):
         """The process the job goes to (and its part's from now on)."""
@@ -339,9 +361,39 @@ class Pool:
             return w
 
     def run(self, op, arg, timeout=120, key=...):
-        """Run op in the part's kernel process (see the module's docstring); the same errors as Worker.run."""
+        """Run op in the part's kernel process (see the module's docstring); the same errors as Worker.run. While it
+        waits or runs it is in the jobs list (`jobs`), where ✕ Stop (`cancel`) can end it."""
         key = part_key(op, arg) if key is ... else key
-        return self.worker_for(op, arg, key).run(op, arg, timeout, key)
+        w, seq = self.worker_for(op, arg, key), next(_seq)
+        job = {"id": f"k{seq}", "op": op, "kind": KINDS.get(op, "Working"), "what": progress.what(), "rid": progress.rid(),
+               "req": progress.req(), "worker": w.index, "state": "waiting", "since": time.time(), "cancel": False}
+        with self.lock:
+            self.jobs[seq] = job
+        try:
+            return w.run(op, arg, timeout, key, seq, job)
+        finally:
+            with self.lock:
+                self.jobs.pop(seq, None)
+
+    def list_jobs(self):
+        """The kernel's jobs waiting or running, oldest first: [{id, kind, what, rid, req, worker, state, elapsed}]."""
+        now = time.time()
+        with self.lock:
+            jobs = [dict(j) for _, j in sorted(self.jobs.items())]
+        return [{**{k: v for k, v in j.items() if k not in ("since", "cancel")}, "elapsed": round(now - j["since"], 1),
+                 "stopping": j["cancel"]} for j in jobs]
+
+    def cancel(self, job_id):
+        """✕ Stop of a job ("k<n>"): it leaves the queue, or its process is killed (only that one) — and its request,
+        when it has a rid, is cancelled as a whole (the page gets "cancelled"). -> whether there was such a job."""
+        with self.lock:
+            job = next((j for j in self.jobs.values() if j["id"] == job_id), None)
+            if job is None:
+                return False
+            job["cancel"] = True
+        if job["rid"]:
+            progress.cancel(job["rid"])
+        return True
 
     def close(self):
         for w in self.workers:

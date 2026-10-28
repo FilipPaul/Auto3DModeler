@@ -20,15 +20,37 @@ _lock = threading.Lock()
 _local = threading.local()
 
 
+def begin_request(what: str | None = None, req: str | None = None):
+    """A request thread starts: what it works on (a part's name, for the jobs list) and the page's id of the request."""
+    _local.what, _local.req = what, req
+
+
+def name(what: str | None):
+    """What this request works on, once known (an uploaded file's name)."""
+    _local.what = what
+
+
+def what() -> str | None:
+    return getattr(_local, "what", None)
+
+
+def req() -> str | None:
+    return getattr(_local, "req", None)
+
+
+def rid() -> str | None:
+    return getattr(_local, "rid", None)
+
+
 @contextmanager
-def operation(rid: str | None):
-    """Run the body as the operation `rid` (in this thread)."""
+def operation(rid: str | None, kind: str = "Working"):
+    """Run the body as the operation `rid` (in this thread); kind: what it is, in plain words (the jobs list)."""
     if not rid:
         yield
         return
     with _lock:
         _ops[rid] = {"stage": "Starting…", "done": 0, "total": 0, "cancel": _ops.get(rid, {}).get("cancel", False),
-                     "started": time.time(), "finished": False}
+                     "started": time.time(), "finished": False, "live": True, "kind": kind, "what": what(), "req": req()}
         for k in [k for k, v in _ops.items() if v.get("finished") and time.time() - v["started"] > 300]:
             del _ops[k]
     _local.rid = rid
@@ -60,7 +82,8 @@ def check():
 def status(rid: str) -> dict:
     with _lock:
         op = dict(_ops.get(rid) or {"stage": "", "done": 0, "total": 0, "finished": False})
-    op.pop("started", None)
+    for k in ("started", "live", "kind", "what", "req"):
+        op.pop(k, None)
     return op
 
 
@@ -68,3 +91,9 @@ def cancel(rid: str):
     with _lock:
         # a cancel can arrive before the work registered itself: remember it
         _ops.setdefault(rid, {"stage": "", "done": 0, "total": 0, "started": time.time(), "finished": False})["cancel"] = True
+
+
+def running() -> list[tuple[str, dict]]:
+    """The operations under way: [(rid, {stage, done, total, started, kind, what, req, cancel})]."""
+    with _lock:
+        return [(r, dict(op)) for r, op in _ops.items() if op.get("live") and not op.get("finished")]

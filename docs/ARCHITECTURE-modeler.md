@@ -7,6 +7,19 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⚙ What is working now done:** the owner could not see what ran in the background or stop it. worker.Pool keeps
+  its jobs waiting or running (Pool.jobs: kind in plain words — worker.KINDS —, the part's name, its process, waiting /
+  running, since) -> list_jobs(); cancel("k<n>") stops one as a Cancel does (leaves the queue, else only its process
+  is killed; its request's rid cancelled too, so its page says Cancelled). progress.operation(rid, kind) and
+  begin_request(what, req): a before_request hook takes the part's name from the body's `what`, else the tab on
+  screen (X-A3D-Tab), and the page's request id (X-A3D-Req). GET /api/jobs: the kernel's jobs plus slow requests
+  outside it (a quick part's slicing, a file being read: "r<rid>"); POST /api/jobs/<id>/cancel (404 when it has
+  ended); _model_call answers a stopped job 409 cancelled. web/js/jobs.js: a fetch wrapper marks the page's slow
+  requests (an upload is listed before the server has a job); ⚙ N in the top bar (#jobsBtn) only while something
+  runs, polled every 1 s then (4 s idle, so other windows' and the AI's jobs show); the list: kind · part · time (live,
+  only the times redrawn) · ✕ Stop; it pulses when a job runs over 3 s with no progress box on screen.
+  tests/test_kernel_pool.py (test_jobs_listed_and_stopped_while_waiting, test_stop_from_the_jobs_list_kills_only_that_worker,
+  test_jobs_route); tools/e2e_cancel.py 1b (the board's import: ⚙ 1, the list names the file, ✕ Stop: gone in 0.13 s).
 - **Cancel stops the job once, nothing restarts it done:** the owner saw Cancel not stopping the kernel and the
   busy text going Building ↔ Cancelling. Found: the app's busy box (#busy) polled the stage and wrote "Building the 3D
   model" over "Cancelling…"; it tracked one rid, so a second request at the same time (opening a sheet runs ensure
@@ -1475,6 +1488,7 @@ The server stays the single source of truth for geometry. The client sends the p
 |---|---|
 | `GET /api/kernel` | → `{occ: "8.0.1" or null, gcs: "0.9.6" or null, install_hint}` |
 | `POST /api/project/migrate` | any project → v3 project |
+| `GET /api/jobs`, `POST /api/jobs/<id>/cancel` | What runs now (kernel jobs and slow requests: id, kind, what, worker, state, elapsed, stage) for the top bar's ⚙ list; ✕ Stop of one (404: ended). |
 | `POST /api/model/rebuild` | `{part, assets_ids, rid, need: ["mesh","topology"], parts: {id: classic payload} for inserts}` → `{ok, bodies: [{id, mesh (base64 positions), face_of_tri (uint32), faces: [{ref, type, normal, centroid, area, radius?}], edges: [{ref, type, polyline, length, radius?}], bbox, volume}], features: [{id, ok, issues, reattached?}], params: {id: value}}`. Uses `progress.operation(rid)`, so the existing progress bar and Cancel work. |
 | `POST /api/model/sketch/solve` | `{sketch, params, drag?: {point, to}}` → `{points, status: ok / over / conflict, dof, free: [...], conflicts: [...]}` |
 | `POST /api/model/measure` | `{part, a: ref, b: ref}` → distance / angle / radius, closest points |

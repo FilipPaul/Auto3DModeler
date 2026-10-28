@@ -168,7 +168,8 @@ Never report "works" without having run it; report failures with their output.
    real clicks (the board's import, a rebuild with 12 real threads, MIT E-Vent's assembly sheet): the box says
    Cancelling… once and is gone within 2 s, never Building again, no kernel process keeps working (Windows: the
    server's child processes' CPU), nothing is sent again; the model keeps its result with "Cancelled — ↻ Rebuild", a new
-   edit builds; the sheet says Cancelled, ↻ Try again makes it.
+   edit builds; the sheet says Cancelled, ↻ Try again makes it. Also the top bar's ⚙ N jobs list: the board's import
+   listed as "⚙ 1" with its file's name and a running time, its ✕ Stop ends it.
    `tools/e2e_library_edit.py <url> <dir>` covers changing library parts (an own Holder: ✎ Edit in the library -> 12
    thick, 📚 Save back: the library's 12, still one item, the project's copy still 5, a new use 12; a catalogue ISO 4762
    M3: ✎ Make my own copy -> a new own part in My parts, the catalogue unchanged; the AI's save_to_library saves back).

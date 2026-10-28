@@ -46,7 +46,12 @@ assembly's parts or splitting a part for printing shows a progress box with **Ca
 screen). Cancel stops that job in the CAD kernel at once (only its process restarts; other parts' jobs go on), the box
 says *Cancelling…* and is gone — the work is not started again on its own. A quick part goes back the way it was; a 3D
 model keeps its last result with *Cancelled — ↻ Rebuild*; a sheet says *Cancelled* with ↻ Try again; the next change
-builds as usual. The ⚠ Collisions list has ✕ Stop while it checks. Curved or slanted 3D imports get a slice height chosen
+builds as usual. The ⚠ Collisions list has ✕ Stop while it checks.
+
+**What is working now (⚙ N)**: while anything runs — a part being built, a file read, a drawing made, a collision
+check, also from another window or the AI — the top bar shows **⚙** with how many jobs; nothing when idle. Click it:
+each job in plain words, which part, how long it has run (live), waiting or running, and **✕ Stop**. A job running
+over 3 s with no progress box on screen makes the ⚙ pulse, so a busy app does not look frozen. Curved or slanted 3D imports get a slice height chosen
 automatically so they build in a few seconds; the Part tab lets you set a finer one.
 
 **Project name and saving**: click the project name in the top bar to rename it. *Save project* and the exports

@@ -1280,6 +1280,13 @@ const CS = {
   'Cancelled — a change builds it.': 'Zrušeno — sestaví ho další změna.', '✕ Stop': '✕ Zastavit',
   'Stop the check (the last result stays)': 'Zastavit kontrolu (zůstane poslední výsledek)',
   'Cancelled — the drawing was not made.': 'Zrušeno — výkres nebyl vytvořen.', 'Splitting the part…': 'Dělím díl…', 'Splitting the part': 'Dělím díl',
+  // ⚙ N in the top bar: what is working now (jobs.js, GET /api/jobs)
+  'Working now — click: what runs, with ✕ Stop': 'Pracuje se — klikněte: co běží, s ✕ Zastavit', 'Working now': 'Právě běží',
+  'Stop this job (the part stays as it was)': 'Zastavit tuto úlohu (díl zůstane, jak byl)', 'Stopping…': 'Zastavuji…', waiting: 'čeká',
+  Working: 'Pracuji', 'Building a part': 'Sestavení dílu', 'Building a quick part': 'Sestavení rychlého dílu', Exporting: 'Export',
+  'Exporting an assembly': 'Export sestavy', 'Checking collisions': 'Kontrola kolizí', 'Checking a motion': 'Kontrola pohybu',
+  'Making a drawing': 'Tvorba výkresu', 'Working out limits': 'Výpočet mezí', 'Importing a file': 'Import souboru',
+  'Reading an assembly': 'Čtení sestavy', 'Splitting for print': 'Dělení pro tisk',
   // language switch
   'Čeština / English': 'Čeština / English',
 };

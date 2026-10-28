@@ -56,6 +56,16 @@ app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024  # big STEP files
 
 
+@app.before_request
+def _request_label():
+    """What a request works on, for the jobs list: the page's request id (X-A3D-Req) and its part's name — the body's
+    `what`, else the tab on screen (X-A3D-Tab, URL-encoded)."""
+    from urllib.parse import unquote
+    body = request.get_json(silent=True) if request.is_json else None
+    what = (body or {}).get("what") if isinstance(body, dict) else None
+    progress.begin_request(what or unquote(request.headers.get("X-A3D-Tab", "")) or None, request.headers.get("X-A3D-Req"))
+
+
 @app.get("/")
 def index():
     return send_from_directory(WEB, "index.html")
@@ -319,7 +329,7 @@ def api_kernel():
 @app.post("/api/solve")
 def api_solve():
     body = request.get_json(force=True)
-    with progress.operation(body.get("rid")):
+    with progress.operation(body.get("rid"), "Building a quick part"):
         try:
             progress.report("Building the part")
             _model, solution, final, _flat, bender = _solve_full(body)
@@ -341,6 +351,41 @@ def api_progress(rid):
 @app.post("/api/progress/<rid>/cancel")
 def api_progress_cancel(rid):
     progress.cancel(rid)
+    return jsonify({"ok": True})
+
+
+@app.get("/api/jobs")
+def api_jobs():
+    """What runs now, for the top bar's ⚙ list (every window sees all): the kernel's jobs waiting or running, and the
+    slow requests not in the kernel (a quick part's slicing, a file being read) -> {jobs: [{id, kind, what, worker,
+    state: waiting | running, elapsed (s), stage?, done?, total?, rid?, req?, stopping}]}."""
+    jobs = MODEL_WORKER.list_jobs()
+    now = time.time()
+    ops = dict(progress.running())
+    for j in jobs:
+        op = ops.get(j["rid"]) if j["rid"] else None
+        if op:
+            j.update(stage=op["stage"], done=op["done"], total=op["total"], stopping=j["stopping"] or op["cancel"])
+    inside = {j["rid"] for j in jobs if j["rid"]}
+    for rid, op in ops.items():
+        if rid not in inside:
+            jobs.append({"id": f"r{rid}", "kind": op["kind"], "what": op["what"], "rid": rid, "req": op["req"], "worker": None,
+                         "state": "running", "elapsed": round(now - op["started"], 1), "stage": op["stage"], "done": op["done"],
+                         "total": op["total"], "stopping": op["cancel"]})
+    return jsonify({"jobs": jobs})
+
+
+@app.post("/api/jobs/<job_id>/cancel")
+def api_jobs_cancel(job_id):
+    """✕ Stop of a job in the list: a kernel job ("k…") as its request's Cancel does (only its process is killed), a
+    request outside the kernel ("r<rid>") through its rid. 404: it has ended meanwhile."""
+    if job_id.startswith("r"):
+        if not any(r == job_id[1:] for r, _ in progress.running()):
+            return jsonify({"error": "That job has ended."}), 404
+        progress.cancel(job_id[1:])
+        return jsonify({"ok": True})
+    if not MODEL_WORKER.cancel(job_id):
+        return jsonify({"error": "That job has ended."}), 404
     return jsonify({"ok": True})
 
 
@@ -392,8 +437,9 @@ def api_import():
     if f is None:
         return jsonify({"error": "No file uploaded."}), 400
     name, data = f.filename or "part", f.read()
+    progress.name(name)
     try:
-        with progress.operation(request.form.get("rid")):
+        with progress.operation(request.form.get("rid"), "Importing a file"):
             return jsonify(_import_data(data, name))
     except progress.Cancelled:
         return jsonify({"error": "Import cancelled.", "cancelled": True}), 409
@@ -475,7 +521,7 @@ def api_print_plan():
     """A part split for a printer (body.rid: the progress box's Cancel -> 409, the kernel job stopped)."""
     body = request.get_json(force=True)
     try:
-        with progress.operation(body.get("rid")):
+        with progress.operation(body.get("rid"), "Splitting for print"):
             return _print_plan(body)
     except progress.Cancelled:
         return jsonify({"error": "Cancelled.", "cancelled": True}), 409
@@ -531,6 +577,8 @@ def _model_call(op, arg, timeout=120):
     """Run a kernel op in its part's worker process (worker.Pool) -> (result, None) or (None, error response)."""
     try:
         return MODEL_WORKER.run(op, arg, timeout), None
+    except progress.Cancelled:  # (✕ Stop in the jobs list, or the request's Cancel)
+        return None, (jsonify({"error": "Cancelled.", "cancelled": True}), 409)
     except KernelUnavailable as exc:
         return None, (jsonify({"error": str(exc), "install": "py -m pip install -r requirements-modeler.txt"}), 501)
     except KernelFailed as exc:
@@ -544,7 +592,7 @@ def api_model_rebuild():
     with the arrays in base64."""
     body = request.get_json(force=True)
     try:
-        with progress.operation(body.get("rid")):
+        with progress.operation(body.get("rid"), "Building a part"):
             res, err = _model_call("rebuild_bin" if body.get("bin") else "rebuild", body.get("part") or {})
     except progress.Cancelled:
         return jsonify({"cancelled": True})
@@ -634,8 +682,9 @@ def api_model_import():
     if not fs:
         return jsonify({"error": "No file uploaded."}), 400
     name = fs[0].filename or "part.step"
+    progress.name(name)
     try:
-        with progress.operation(request.form.get("rid")):
+        with progress.operation(request.form.get("rid"), "Importing a file"):
             progress.report(f"Reading {name}")
             if len(fs) > 1:
                 files = {f.filename or f"part{i}.step": blobs.put(f.read()) for i, f in enumerate(fs)}
@@ -658,8 +707,9 @@ def api_model_import_assembly():
     (each its own STEP blob), an instance per placement, sub-assemblies nested."""
     body = request.get_json(force=True) or {}
     name = body.get("name") or "assembly.step"
+    progress.name(name)
     try:
-        with progress.operation(body.get("rid")):
+        with progress.operation(body.get("rid"), "Reading an assembly"):
             progress.report(f"Reading the assembly of {name}")
             res, err = _model_call("import_assembly", {"blob": body.get("blob"), "name": name}, timeout=600)
     except progress.Cancelled:
@@ -745,7 +795,7 @@ def api_assembly_clashes():
     """{instances: [{id, part: {features}, matrix: [16]}]} -> {clashes: [{a, b, volume, bbox}]} — parts that overlap."""
     body = request.get_json(force=True)
     try:
-        with progress.operation(body.get("rid")):  # (a newer check, ✕ Stop: this one's kernel job stopped)
+        with progress.operation(body.get("rid"), "Checking collisions"):  # (a newer check, ✕ Stop: this one's kernel job stopped)
             data, err = _model_call("assembly_clashes", {"instances": body.get("instances") or [], "quick": bool(body.get("quick"))})
     except progress.Cancelled:
         return jsonify({"error": "Cancelled.", "cancelled": True}), 409
@@ -763,7 +813,7 @@ def _sheet_call(op, arg, body):
     error the page shows on the sheet: 422 with the reason, 409 when cancelled). An exact drawing over
     EXACT_SHEET_TIMEOUT is stopped and made again from the mesh (geometry.simple: no hidden lines)."""
     try:
-        with progress.operation(body.get("rid")):
+        with progress.operation(body.get("rid"), "Making a drawing"):
             try:
                 return MODEL_WORKER.run(op, arg, EXACT_SHEET_TIMEOUT), None
             except KernelFailed as exc:
