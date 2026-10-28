@@ -91,6 +91,12 @@ Date: 2026-10-25. Written by the architect agent.
   tools/e2e_ai_reports.py.
 - **Steps named after their sketch done:** nextName(type, sketch): an extrude / revolve of a sketch the user named
   is "Extrude – Slot" (a "Sketch 2" keeps "Extrude 3"), in the panel and for the AI. tools/e2e_ai_reports.py.
+- **Hover marks, quadrants, hover filters done:** view.js snapPoints(edges, matrix, kinds) (snapNear uses it; a round
+  edge's ◔ quadrants: along the world axis lying best in its plane, and across), ModelView.edgeAt (pickEdge over
+  placed edge lists, hidden ones not taken), setHoverEdges / setHoverSnaps (the snap dots the camera sees: one ray
+  each) / clearHoverMarks; Modeler.hoverMarks (the edge under the mouse, the hovered step's points) and
+  Assembly.hoverMarks (only the hovered part's edges, the face's points); suggest.js hoverKinds (a3d.hover3d) — the
+  filter row's Hover: ⟋ Edges, • Snap points. tools/e2e_hover_marks.py.
 - **⇳ Midway sketch plane done:** a face plane's `mid` (the parallel face across): doc.plane_frame puts its origin
   halfway between both faces as they are now (_plane_offset; a face gone: the place it had); the "Sketch on…" bar's
   ⇳ Midway (toggleMidPick / clickMid: the first face lit, the second parallel and across -> enterSketch); the AI's

@@ -10,12 +10,19 @@ let askAI = null; // (the app: what is selected, into the AI chat)
 /** How ✨ hands the selection to the AI chat: fn(refs text). */
 export const setAskAI = (fn) => { askAI = fn; };
 
-const SNAP_KEY = 'a3d.snap3d';
+const SNAP_KEY = 'a3d.snap3d', HOVER_KEY = 'a3d.hover3d';
+/** The hover filters: what lights up under the mouse with no tool on — {edges, points} (remembered). */
+export function hoverKinds() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(HOVER_KEY) || 'null'); } catch { saved = null; }
+  return { edges: true, points: true, ...(saved || {}) };
+}
+
 /** The 3D snap filters (what 📏 Measure catches): {corner, midpoint, centre} (remembered). */
 export function snapKinds() {
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(SNAP_KEY) || 'null'); } catch { saved = null; }
-  return { corner: true, midpoint: true, centre: true, ...(saved || {}) };
+  return { corner: true, midpoint: true, centre: true, quadrant: true, ...(saved || {}) };
 }
 
 /** The row of 3D snap filters in the bottom-left corner of a view (the Suggested table above it). */
@@ -28,15 +35,17 @@ export function showSnapFilters(viewport, on = true) {
     for (const ev of ['pointerdown', 'pointerup', 'click']) bar.addEventListener(ev, (x) => x.stopPropagation());
     viewport.appendChild(bar);
   }
-  const k = snapKinds(), F = [['corner', '⌜', 'Corners'], ['midpoint', '⊹', 'Edge midpoints'], ['centre', '◎', 'Centres']];
-  bar.innerHTML = `<span class="skf-t">${esc(t('Snap'))}:</span>${F.map(([key, i, l]) => `<button class="${k[key] ? 'on' : ''}" data-snap="${key}" title="${esc(t('What 📏 Measure catches — click to switch'))}">${i} ${esc(t(l))}</button>`).join('')}`;
-  for (const b of bar.querySelectorAll('[data-snap]')) {
-    b.addEventListener('click', () => {
-      const now = { ...snapKinds(), [b.dataset.snap]: !snapKinds()[b.dataset.snap] };
-      try { localStorage.setItem(SNAP_KEY, JSON.stringify(now)); } catch { /* private window */ }
-      showSnapFilters(viewport);
-    });
-  }
+  const k = snapKinds(), F = [['corner', '⌜', 'Corners'], ['midpoint', '⊹', 'Edge midpoints'], ['centre', '◎', 'Centres'], ['quadrant', '◔', 'Quadrants']];
+  const hk = hoverKinds(), HV = [['edges', '⟋', 'Edges'], ['points', '•', 'Snap points']];
+  bar.innerHTML = `<span class="skf-t">${esc(t('Snap'))}:</span>${F.map(([key, i, l]) => `<button class="${k[key] ? 'on' : ''}" data-snap="${key}" title="${esc(t('What 📏 Measure and a click catch — click to switch'))}">${i} ${esc(t(l))}</button>`).join('')}
+    <span class="sep"></span><span class="skf-t">${esc(t('Hover'))}:</span>${HV.map(([key, i, l]) => `<button class="${hk[key] ? 'on' : ''}" data-hover="${key}" title="${esc(t(key === 'edges' ? 'Light up the edge under the mouse (a line or a circle) — click to switch' : 'Show the snap points of the step / face under the mouse — click to switch'))}">${i} ${esc(t(l))}</button>`).join('')}`;
+  const flip = (store, read, key) => {
+    const now = { ...read(), [key]: !read()[key] };
+    try { localStorage.setItem(store, JSON.stringify(now)); } catch { /* private window */ }
+    showSnapFilters(viewport);
+  };
+  for (const b of bar.querySelectorAll('[data-snap]')) b.addEventListener('click', () => flip(SNAP_KEY, snapKinds, b.dataset.snap));
+  for (const b of bar.querySelectorAll('[data-hover]')) b.addEventListener('click', () => flip(HOVER_KEY, hoverKinds, b.dataset.hover));
 }
 
 const savedAt = () => { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } };

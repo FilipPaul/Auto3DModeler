@@ -24,40 +24,55 @@ export function datumFrame(plane) {
   return { ...fr, o: fr.o.map((v, i) => v + off * fr.n[i]) };
 }
 
+/** The snap points of edges: an edge's ends (corner), its middle (midpoint), a round edge's centre (centre) —
+ *  matrix: where the part is placed; kinds: the snap filters -> [{point, kind}]. */
+export function snapPoints(edges, matrix = null, kinds = null) {
+  const out = [], push = (point, kind) => { if (!kinds || kinds[kind]) out.push({ point, kind }); };
+  for (const e of edges || []) {
+    const n = e.pts.length;
+    if (n < 6) continue;
+    const P = (k) => { const p = new THREE.Vector3(e.pts[k], e.pts[k + 1], e.pts[k + 2]); return matrix ? p.applyMatrix4(matrix) : p; };
+    const closed = Math.hypot(e.pts[0] - e.pts[n - 3], e.pts[1] - e.pts[n - 2], e.pts[2] - e.pts[n - 1]) < 1e-6;
+    if (closed) { // a round edge (a hole's rim, a pin's end): its centre
+      const c = new THREE.Vector3();
+      for (let k = 0; k < n - 3; k += 3) c.add(new THREE.Vector3(e.pts[k], e.pts[k + 1], e.pts[k + 2]));
+      c.multiplyScalar(3 / (n - 3));
+      if (!kinds || kinds.quadrant) { // its four quadrant points: along the world axis lying best in its plane, and across
+        const a = new THREE.Vector3(e.pts[0], e.pts[1], e.pts[2]).sub(c), b = new THREE.Vector3(e.pts[3 * Math.floor((n / 3 - 1) / 4)], e.pts[3 * Math.floor((n / 3 - 1) / 4) + 1], e.pts[3 * Math.floor((n / 3 - 1) / 4) + 2]).sub(c);
+        const nn = a.clone().cross(b).normalize(), rad = a.length();
+        if (nn.lengthSq() > 0.5 && rad > 0) {
+          const ax = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)].sort((p, q) => Math.abs(p.dot(nn)) - Math.abs(q.dot(nn)))[0];
+          const u = ax.clone().addScaledVector(nn, -ax.dot(nn)).normalize().multiplyScalar(rad), w = nn.clone().cross(u);
+          for (const d of [u, w, u.clone().negate(), w.clone().negate()]) { const q = c.clone().add(d); out.push({ point: matrix ? q.applyMatrix4(matrix) : q, kind: 'quadrant' }); }
+        }
+      }
+      push(matrix ? c.applyMatrix4(matrix) : c, 'centre');
+      continue;
+    }
+    if (e.faces.length < 2) continue; // a seam on a round face: not a real edge
+    push(P(0), 'corner');
+    push(P(n - 3), 'corner');
+    let L = 0; // its middle: half its length along it
+    for (let k = 3; k < n; k += 3) L += Math.hypot(e.pts[k] - e.pts[k - 3], e.pts[k + 1] - e.pts[k - 2], e.pts[k + 2] - e.pts[k - 1]);
+    for (let k = 3, s = 0; k < n; k += 3) {
+      const l = Math.hypot(e.pts[k] - e.pts[k - 3], e.pts[k + 1] - e.pts[k - 2], e.pts[k + 2] - e.pts[k - 1]);
+      if (s + l >= L / 2 && l > 0) { push(P(k - 3).lerp(P(k), (L / 2 - s) / l), 'midpoint'); break; }
+      s += l;
+    }
+  }
+  return out;
+}
+
 /** The measure tool's snap points near the mouse (within px on the screen): an edge's end (corner), the middle of an
  *  edge (midpoint), the centre of a round edge (centre) — list: [{edges, matrix?, inst?}] -> {point, kind, inst} or null. */
 export function snapNear(list, camera, rect, clientX, clientY, px = 10, kinds = null) {
   let best = null, bd = px;
-  const test = (p, kind, inst) => {
-    if (kinds && !kinds[kind]) return; // (the snap filters)
-    const q = p.clone().project(camera);
-    if (q.z > 1) return; // (behind the camera)
-    const d = Math.hypot(rect.left + (q.x + 1) / 2 * rect.width - clientX, rect.top + (1 - q.y) / 2 * rect.height - clientY);
-    if (d < bd) { bd = d; best = { point: p, kind, inst }; }
-  };
   for (const { edges, matrix, inst } of list) {
-    for (const e of edges || []) {
-      const n = e.pts.length;
-      if (n < 6) continue;
-      const P = (k) => { const p = new THREE.Vector3(e.pts[k], e.pts[k + 1], e.pts[k + 2]); return matrix ? p.applyMatrix4(matrix) : p; };
-      const closed = Math.hypot(e.pts[0] - e.pts[n - 3], e.pts[1] - e.pts[n - 2], e.pts[2] - e.pts[n - 1]) < 1e-6;
-      if (closed) { // a round edge (a hole's rim, a pin's end): its centre
-        const c = new THREE.Vector3();
-        for (let k = 0; k < n - 3; k += 3) c.add(new THREE.Vector3(e.pts[k], e.pts[k + 1], e.pts[k + 2]));
-        c.multiplyScalar(3 / (n - 3));
-        test(matrix ? c.applyMatrix4(matrix) : c, 'centre', inst);
-        continue;
-      }
-      if (e.faces.length < 2) continue; // a seam on a round face: not a real edge
-      test(P(0), 'corner', inst);
-      test(P(n - 3), 'corner', inst);
-      let L = 0; // its middle: half its length along it
-      for (let k = 3; k < n; k += 3) L += Math.hypot(e.pts[k] - e.pts[k - 3], e.pts[k + 1] - e.pts[k - 2], e.pts[k + 2] - e.pts[k - 1]);
-      for (let k = 3, s = 0; k < n; k += 3) {
-        const l = Math.hypot(e.pts[k] - e.pts[k - 3], e.pts[k + 1] - e.pts[k - 2], e.pts[k + 2] - e.pts[k - 1]);
-        if (s + l >= L / 2 && l > 0) { test(P(k - 3).lerp(P(k), (L / 2 - s) / l), 'midpoint', inst); break; }
-        s += l;
-      }
+    for (const { point: p, kind } of snapPoints(edges, matrix, kinds)) {
+      const q = p.clone().project(camera);
+      if (q.z > 1) continue; // (behind the camera)
+      const d = Math.hypot(rect.left + (q.x + 1) / 2 * rect.width - clientX, rect.top + (1 - q.y) / 2 * rect.height - clientY);
+      if (d < bd) { bd = d; best = { point: p, kind, inst }; }
     }
   }
   return best;
@@ -625,35 +640,88 @@ export class ModelView {
    *  camera when two are about as close; -1 when none. */
   pickEdge(clientX, clientY, maxPx = 9) {
     if (!this.body) return -1;
+    return this.edgeAt([{ edges: this.body.edges }], clientX, clientY, maxPx, this.mesh ? [this.mesh] : [])?.i ?? -1;
+  }
+
+  /** The edge nearest to the mouse on screen among list [{edges, matrix?, inst?}] (within maxPx), preferring the one
+   *  nearer the camera when two are about as close; one behind the surface of `solids` is not taken
+   *  -> {edge, i, matrix, inst} or null. */
+  edgeAt(list, clientX, clientY, maxPx = 9, solids = []) {
     const r = this.renderer.domElement.getBoundingClientRect();
-    const mx = clientX - r.left, my = clientY - r.top;
-    const scr = (x, y, z) => {
-      const v = new THREE.Vector3(x, y, z).project(this.camera);
-      return [(v.x + 1) / 2 * r.width, (1 - v.y) / 2 * r.height, v.z];
-    };
+    const mx = clientX - r.left, my = clientY - r.top, v = new THREE.Vector3();
     // an edge hidden behind the part is not pickable: it must not be farther than the surface under the mouse
-    const hit = this.mesh ? this.ray(clientX, clientY).intersectObject(this.mesh, false)[0] : null;
+    const hit = solids.length ? this.ray(clientX, clientY).intersectObjects(solids, false)[0] : null;
     const cam = this.camera.position, slack = this.size * 0.01;
-    let best = -1, bestD = maxPx, bestZ = Infinity;
-    this.body.edges.forEach((e, i) => {
-      if (e.faces.length < 2) return; // a seam on a round face: not a real edge
-      const p = e.pts;
-      let prev = scr(p[0], p[1], p[2]);
-      for (let k = 3; k < p.length; k += 3) {
-        const cur = scr(p[k], p[k + 1], p[k + 2]);
-        const dx = cur[0] - prev[0], dy = cur[1] - prev[1], L = dx * dx + dy * dy || 1;
-        const t = Math.max(0, Math.min(1, ((mx - prev[0]) * dx + (my - prev[1]) * dy) / L));
-        const d = Math.hypot(prev[0] + t * dx - mx, prev[1] + t * dy - my), z = prev[2] + t * (cur[2] - prev[2]);
-        if (d < maxPx && hit) {
-          const q = new THREE.Vector3(p[k - 3] + t * (p[k] - p[k - 3]), p[k - 2] + t * (p[k + 1] - p[k - 2]), p[k - 1] + t * (p[k + 2] - p[k - 1]));
-          if (q.distanceTo(cam) > hit.distance + slack) { prev = cur; continue; }
+    let best = null, bestD = maxPx, bestZ = Infinity;
+    for (const { edges, matrix, inst } of list) {
+      const W = (p, k) => { v.set(p[k], p[k + 1], p[k + 2]); return matrix ? v.applyMatrix4(matrix) : v; };
+      const scr = (p, k) => { const w = W(p, k).project(this.camera); return [(w.x + 1) / 2 * r.width, (1 - w.y) / 2 * r.height, w.z]; };
+      (edges || []).forEach((e, i) => {
+        if (e.faces.length < 2) return; // a seam on a round face: not a real edge
+        const p = e.pts;
+        let prev = scr(p, 0);
+        for (let k = 3; k < p.length; k += 3) {
+          const cur = scr(p, k);
+          const dx = cur[0] - prev[0], dy = cur[1] - prev[1], L = dx * dx + dy * dy || 1;
+          const t = Math.max(0, Math.min(1, ((mx - prev[0]) * dx + (my - prev[1]) * dy) / L));
+          const d = Math.hypot(prev[0] + t * dx - mx, prev[1] + t * dy - my), z = prev[2] + t * (cur[2] - prev[2]);
+          if (d < maxPx && hit) {
+            const a = W(p, k - 3).clone(), q = a.lerp(W(p, k), t);
+            if (q.distanceTo(cam) > hit.distance + slack) { prev = cur; continue; }
+          }
+          if (d < bestD - 2 || (d < bestD + 2 && d < maxPx && z < bestZ)) { best = { edge: e, i, matrix, inst }; bestD = Math.min(d, bestD); bestZ = z; }
+          prev = cur;
         }
-        if (d < bestD - 2 || (d < bestD + 2 && d < maxPx && z < bestZ)) { best = i; bestD = Math.min(d, bestD); bestZ = z; }
-        prev = cur;
-      }
-    });
+      });
+    }
     return best;
   }
+
+  /** The edge under the mouse lit (a line or a circle): [{pts, matrix?}], drawn over the part; key: the same -> kept. */
+  setHoverEdges(list = [], key = '') {
+    if (!this.hoverEdgeGroup) { this.hoverEdgeGroup = new THREE.Group(); this.scene.add(this.hoverEdgeGroup); }
+    if (key === (this.hoverEdgeKey || '')) return;
+    this.hoverEdgeKey = key;
+    this.clear(this.hoverEdgeGroup);
+    this.invalidate();
+    const pts = [];
+    for (const { pts: p, matrix } of list) {
+      for (let k = 0; k + 5 < p.length; k += 3) {
+        const a = new THREE.Vector3(p[k], p[k + 1], p[k + 2]), b = new THREE.Vector3(p[k + 3], p[k + 4], p[k + 5]);
+        pts.push(matrix ? a.applyMatrix4(matrix) : a, matrix ? b.applyMatrix4(matrix) : b);
+      }
+    }
+    if (!pts.length) return;
+    const l = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xffd75e, depthTest: false, transparent: true }));
+    const dots = new THREE.Points(new THREE.BufferGeometry().setFromPoints(pts), new THREE.PointsMaterial({ color: 0xffd75e, size: 3.5, sizeAttenuation: false, depthTest: false, transparent: true, opacity: 0.85 }));
+    l.renderOrder = dots.renderOrder = 12;
+    this.hoverEdgeGroup.add(l, dots);
+  }
+
+  /** The hovered step's / face's snap points shown as small dots (corners, edge middles, centres): [{point}]. */
+  setHoverSnaps(points = [], key = '') {
+    if (!this.hoverSnapGroup) { this.hoverSnapGroup = new THREE.Group(); this.scene.add(this.hoverSnapGroup); }
+    if (key === (this.hoverSnapKey || '')) return;
+    this.hoverSnapKey = key;
+    this.clear(this.hoverSnapGroup);
+    this.invalidate();
+    // only the points the camera sees (one behind the part is left out; the camera moves only by a drag, which clears these)
+    const solids = this.meshes || (this.mesh ? [this.mesh] : []), cam = this.camera.position, rc = new THREE.Raycaster(), slack = this.size * 0.01;
+    const seen = points.slice(0, 600).map((p) => p.point).filter((p) => {
+      const dist = p.distanceTo(cam);
+      rc.set(cam, p.clone().sub(cam).normalize());
+      const h = rc.intersectObjects(solids, false)[0];
+      return !h || h.distance >= dist - slack;
+    });
+    if (!seen.length) return;
+    const dots = new THREE.Points(new THREE.BufferGeometry().setFromPoints(seen),
+      new THREE.PointsMaterial({ color: 0x7ee787, size: 6, sizeAttenuation: false, depthTest: false, transparent: true, opacity: 0.85 }));
+    dots.renderOrder = 13;
+    this.hoverSnapGroup.add(dots);
+  }
+
+  /** No hover marks (the mouse left, a tool started, the part was rebuilt). */
+  clearHoverMarks() { this.setHoverEdges([]); this.setHoverSnaps([]); }
 
   /** Highlight edges: hovered (yellow) and selected (blue), drawn over the part. */
   setEdgeHighlight(hover = -1, selected = []) {
@@ -735,7 +803,7 @@ export class ModelView {
     dot.renderOrder = 14;
     const el = document.createElement('div');
     el.className = 'm-snap';
-    el.textContent = t({ corner: 'corner', midpoint: 'midpoint', centre: 'centre' }[mp.snap]);
+    el.textContent = t({ corner: 'corner', midpoint: 'midpoint', centre: 'centre', quadrant: 'quadrant' }[mp.snap]);
     const lab = new CSS2DObject(el);
     lab.position.copy(mp.point);
     this.snapGroup.add(dot, lab);

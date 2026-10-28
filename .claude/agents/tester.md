@@ -181,6 +181,9 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_assembly_sheet_explode.py <url> <dir>` covers an assembly sheet's exploded iso (Base + Lid on top: ☐ Iso
    view exploded ticked — the iso taller, the front the same, the balloons moved; Ctrl+Z back; a picture of the
    sheet). Needs a server restarted after kernel changes.
+   `tools/e2e_hover_marks.py <url> <dir>` covers the hover marks with real mouse moves (a block with a Ø8 hole: its
+   rim lit; on the top face the step's snap points, fewer with ◔ Quadrants off; Hover • Snap points / ⟋ Edges off;
+   the same in an assembly; gone when the mouse leaves).
    `tools/e2e_sketch_midplane.py <url> <dir>` covers ⇳ Midway with real clicks (a block's front face, the camera
    turned, its back face -> a sketch at y 10 with plane {face, mid}); the AI's plane {face, mid}; the block made
    deeper -> the sketch at y 15; a face not parallel refused. Needs a server restarted after kernel changes.

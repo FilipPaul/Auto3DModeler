@@ -9,7 +9,7 @@ import { toolGroup } from '../toolgroups.js';
 import { renameInPlace } from '../rename.js';
 import { choose } from '../choose.js';
 import { paintedFaces, repaint } from './paint.js';
-import { ModelView, DATUMS, datumFrame } from './view.js';
+import { ModelView, DATUMS, datumFrame, snapPoints } from './view.js';
 import { Sketcher, upgradeSketch, arcPts, splinePts, RELATIONS, BIG_SKETCH } from './sketcher.js';
 import { textOutline } from '../outlinepanel.js';
 import { sectionBar, sectionMiddle } from './sectionbar.js';
@@ -30,7 +30,7 @@ const THREADS = { M2: 1.6, 'M2.5': 2.05, M3: 2.5, M4: 3.3, M5: 4.2, M6: 5, M8: 6
 const sketchesOf = (f) => (f.type === 'loft' ? f.sketches || [] : f.type === 'sweep' ? [f.profile, f.path] : USES_SKETCH.has(f.type) ? [f.sketch] : []).filter(Boolean);
 // densities for the mass (g/cm³), common 3D-printing materials
 import { MATERIALS, MATERIAL_GROUPS, MATERIAL_COLOR, lookColor } from './materials.js';
-import { showSuggest, showSnapFilters } from '../suggest.js';
+import { showSuggest, showSnapFilters, snapKinds, hoverKinds } from '../suggest.js';
 export { MATERIALS }; // g/cm³ (materials.js: grouped, with their colours)
 const DATUM_NAME = { XY: 'Top', XZ: 'Front', YZ: 'Right' };
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -409,6 +409,18 @@ export class Modeler {
     if (!step) return null;
     const ids = (this.result?.body?.faces || []).filter((f) => [f.name, ...(f.names || [])].some((n) => String(n).split(':')[0] === id)).map((f) => f.id);
     return { step, ids };
+  }
+
+  /** With no tool on: the edge under the mouse lit (a line or a circle), and the snap points of the hovered step
+   *  (its faces' corners, edge middles and centres, by the snap filters) shown as dots. */
+  hoverMarks(e, fs) {
+    const body = this.view.body, hk = hoverKinds(), i = body && hk.edges ? this.view.pickEdge(e.clientX, e.clientY, 7) : -1;
+    this.view.setHoverEdges(i >= 0 ? [{ pts: body.edges[i].pts }] : [], i >= 0 ? `e${i}` : '');
+    if (!fs || !body || !hk.points) { this.view.setHoverSnaps([]); return; }
+    const ids = new Set(fs.ids), idx = new Set(body.faces.map((f, k) => (ids.has(f.id) ? k : -1)).filter((k) => k >= 0));
+    const kinds = snapKinds(), key = `${fs.step.id}|${Object.entries(kinds).map(([k, v]) => (v ? k : '')).join('')}`;
+    if (key === this.view.hoverSnapKey) return;
+    this.view.setHoverSnaps(snapPoints(body.edges.filter((ed) => ed.faces.some((k) => idx.has(k))), null, kinds), key);
   }
 
   /** The faces a step made; for a sketch, the faces of the steps made from it. */
@@ -2549,7 +2561,8 @@ export class Modeler {
         if (!down?.drag) { const uv = this.view.planePoint(e.clientX, e.clientY, this.frame()); cv.style.cursor = uv && this.sk.dimHitAt(uv) ? 'grab' : cv.style.cursor === 'grab' ? '' : cv.style.cursor; }
         this.sk.move(e, down?.drag || null);
       }
-      else if (this.mode === 'part' && this.cmd && !down && (!USES_SKETCH.has(this.cmd.feature.type) || this.cmd.feature.upto)) {
+      if (this.mode !== 'part' || this.cmd || down) this.view.clearHoverMarks(); // (only with no tool on)
+      if (this.mode === 'part' && this.cmd && !down && (!USES_SKETCH.has(this.cmd.feature.type) || this.cmd.feature.upto)) {
         const f = this.cmd.feature;
         if (f.type === 'extrude') {
           const h = f.upto ? this.view.pick(e.clientX, e.clientY) : null, ok = h?.face?.type === 'plane' && !h.face.name?.startsWith(`${f.id}:`);
@@ -2587,13 +2600,14 @@ export class Modeler {
         }
       } else if (this.mode === 'part' && !this.cmd && !down) {
         const id = this.view.pickOutline(e.clientX, e.clientY);
-        if (id) { this.view.setHover(-1); this.tip(null); cv.style.cursor = 'pointer'; cv.title = 'Double-click to edit this sketch'; return; }
+        if (id) { this.view.clearHoverMarks(); this.view.setHover(-1); this.tip(null); cv.style.cursor = 'pointer'; cv.title = 'Double-click to edit this sketch'; return; }
         cv.title = '';
-        if (this.measuring) { this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); return; } // (where a click measures from)
+        if (this.measuring) { this.view.clearHoverMarks(); this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); return; } // (where a click measures from)
         this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); // (a corner, an edge's middle, a centre: it can be picked)
         // the step under the mouse: all its faces light up, its name at the mouse
         const h = this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
         this.view.setHover(h?.face ? h.face.id : -1, fs?.ids || null);
+        this.hoverMarks(e, fs);
         this.tip(fs ? { x: e.clientX, y: e.clientY, text: `${fs.step.name} — ${this.faceLabel(h.face.name).replace(/ of .*$/, '').replace(/^the /, '')}` } : null);
         cv.style.cursor = h?.face ? 'pointer' : '';
       }
@@ -2613,7 +2627,7 @@ export class Modeler {
       if (this.mode === 'part' && !this.cmd) return this.clickFace(e);
       return null;
     });
-    cv.addEventListener('pointerleave', () => { if (this.mode === 'part' && !this.cmd) { this.view.setHover(-1); this.tip(null); } });
+    cv.addEventListener('pointerleave', () => { this.view.clearHoverMarks(); if (this.mode === 'part' && !this.cmd) { this.view.setHover(-1); this.tip(null); } });
     cv.addEventListener('dblclick', (e) => {
       if (this.mode !== 'part' || this.cmd) return;
       const id = this.view.pickOutline(e.clientX, e.clientY);

@@ -82,6 +82,11 @@ where it goes, then ⬆ Extrude it (raised letters, or cut in on the part). The 
 from it — the sketch goes halfway between them (a rib or a hole centred in a part) and stays in the middle when the
 part changes.
 
+**Hover marks** (3D model and assembly, no tool on): the edge under the mouse lights up (a line or a circle), and the
+snap points of the step (in an assembly: the face) under it show as small green dots — corners, edge middles,
+centres and ◔ quadrants of circles. The row bottom left switches them: Snap (what Measure and a click catch) and
+Hover (⟋ Edges, • Snap points); both are remembered.
+
 **🖨 Print check** (3D model toolbar): marks what will not print well as the part lies on the bed — overhangs over 45°
 in red (they need supports, or turn the part) and walls thinner than the minimum you set (1.2 mm by default) in
 orange — with their areas and the thinnest wall. It follows the part as you change it.

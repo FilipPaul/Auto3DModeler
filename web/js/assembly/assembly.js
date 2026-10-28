@@ -21,8 +21,8 @@ import { paintedFaces, repaint } from '../modeler/paint.js';
 import { sectionBar, sectionMiddle } from '../modeler/sectionbar.js';
 import { ModelView } from '../modeler/view.js';
 import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss } from './joints.js';
-import { snapNear } from '../modeler/view.js';
-import { showSuggest, showSnapFilters, snapKinds } from '../suggest.js';
+import { snapNear, snapPoints } from '../modeler/view.js';
+import { showSuggest, showSnapFilters, snapKinds, hoverKinds } from '../suggest.js';
 import { freeMotions, motionMatrix } from './dof.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
@@ -92,6 +92,7 @@ class AsmView extends ModelView {
       box = box ? box.union(bb) : bb;
     }
     this.mesh = this.meshes[0] || null; // fitting the view, the origin size
+    this.clearHoverMarks(); // (the parts drawn anew: the hover marks were on the old ones)
     if (box) { const s = box.getSize(new THREE.Vector3()); this.size = Math.max(s.x, s.y, s.z, 1); this.sizeOrigin(); }
     this.showDatums(!this.meshes.length);
     this.invalidate();
@@ -2349,6 +2350,20 @@ export class Assembly {
 
   /** For a joint: the face under the mouse, or — when that is not the kind it wants and it wants a round one — the
    *  round face of a circular edge near the mouse (a hole seen from the front: click its circle). */
+  /** With no tool on: the edge of the part under the mouse lit (a line or a circle), and the snap points of the face
+   *  under it (corners, edge middles, centres, quadrants — by the snap filters) as dots; by the hover filters. */
+  hoverMarks(e, h0) {
+    const v = this.view, mesh = h0?.inst ? (v.meshes || []).find((m) => m.userData.inst === h0.inst) : null, hk = hoverKinds();
+    if (!mesh) { v.clearHoverMarks(); return; }
+    const body = mesh.userData.body, src = [{ edges: body.edges, matrix: mesh.matrix, inst: h0.inst }];
+    const eh = hk.edges ? v.edgeAt(src, e.clientX, e.clientY, 7, v.meshes) : null;
+    v.setHoverEdges(eh ? [{ pts: eh.edge.pts, matrix: mesh.matrix }] : [], eh ? `${mesh.uuid}:${eh.i}` : '');
+    const fi = h0.face ? body.faces.findIndex((f) => f.id === h0.face.id) : -1, kinds = snapKinds();
+    if (!hk.points || fi < 0) { v.setHoverSnaps([]); return; }
+    const key = `${mesh.uuid}:${fi}|${Object.entries(kinds).map(([k, on]) => (on ? k : '')).join('')}`;
+    if (key !== v.hoverSnapKey) v.setHoverSnaps(snapPoints(body.edges.filter((ed) => ed.faces.includes(fi)), mesh.matrix, kinds), key);
+  }
+
   jointPick(e, h) {
     if (this.faceFits(h) || this.mode === 'idle') return h;
     const want = JOINT_TYPES[this.jointType]?.faces;
@@ -2426,8 +2441,10 @@ export class Assembly {
     cv.addEventListener('pointerdown', (e) => { if (e.button === 0) down = { x: e.clientX, y: e.clientY }; });
     cv.addEventListener('pointermove', (e) => {
       if (down) return;
-      if (this.measuring) { this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); return; } // (where a click measures from)
+      if (this.measuring) { this.view.clearHoverMarks(); this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); return; } // (where a click measures from)
       const h0 = this.view.pickInst(e.clientX, e.clientY), h = this.jointPick(e, h0);
+      if (this.mode === 'idle') this.hoverMarks(e, h0);
+      else this.view.clearHoverMarks();
       if (this.mode !== 'idle') {
         const key = h?.face ? `${h.inst}:${h.face.id}` : '';
         if (key !== this.hoverFaceKey) {
@@ -2443,6 +2460,7 @@ export class Assembly {
       this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); // (a corner, an edge's middle, a centre: it can be picked)
       cv.style.cursor = h ? 'pointer' : '';
     });
+    cv.addEventListener('pointerleave', () => this.view.clearHoverMarks());
     cv.addEventListener('dblclick', (e) => { // a part double-clicked: edit it here (when unlocked)
       if (this.mode !== 'idle' || this.measuring || this.bolt) return;
       const h = this.view.pickInst(e.clientX, e.clientY);
