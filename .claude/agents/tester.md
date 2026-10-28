@@ -285,6 +285,10 @@ Never report "works" without having run it; report failures with their output.
    above its sketch and a fillet above the plate refused with the reason; the body the same; Ctrl+Z).
    `tools/e2e_measure_snap.py <url> <dir>` covers 📏 Measure's snap points (a block with a hole: near an edge's middle
    "midpoint", a corner "corner", the hole's centre "centre"; the Snap filters: Corners off — not caught; corner -> centre 22.361; the same in an assembly).
+   `tools/e2e_model_hole_guides.py <url> <dir>` covers guides when placing on a face (a 40 × 40 block, ◎ Hole: near
+   the middle line one guide, x = 20; near the centre two guides, (20, 20); on it "centre of the face"; a click: exact;
+   a second hole in line with the first: from {hole: 0}; Shift: free; Corners off: no corner; Guides off: no guide;
+   the volume; Aa Text: a guide too).
    `tools/e2e_materials.py <url> <dir>` covers materials (4 groups, 37; brass: its colour and mass; set_material
    titanium: its colour, the same in an assembly). Needs a server restarted after materials.py changes.
    `tools/e2e_tree_more.py <url> <dir>` covers the tree / tabs more (a library screw: the library icon, changed: its own;

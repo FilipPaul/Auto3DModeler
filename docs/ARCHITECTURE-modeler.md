@@ -399,6 +399,15 @@ Date: 2026-10-25. Written by the architect agent.
   constraints symmetric_point), the part's corners / centres, a place on a sketch line / circle / arc (an `on` rule) or
   on the part's straight / round edges, then the grid; the snap named at the mouse (midpoint, on the line …).
   test_point_held_at_a_lines_middle; e2e_sketch_pick (an off-grid line: from its middle to a place on it).
+- **Guides when placing on a face done:** web/js/modeler/facesnap.js — snapOnFace (faceKeys: the face's edges'
+  snapPoints by snapKinds, its centre from view.faceSpan, view.refPoints, extra keys: this step's holes) as
+  Sketcher.snap: onto a key, onto the face's edges, else level with a key along the face's x / y or on a straight
+  edge's extension, both: the crossing; snapDrawing (the guides dashed green, the spot ringed and named, .face-snap).
+  Modeler.faceSpot / showSpot (pointermove for ◎ Hole and Aa Text; Shift / Alt free) — the hole's preview: a ring of
+  Ø d and its nearestEdges distances (drawHoleDims(at)); clickHole / clickDecal place on the snap. Stored meaning: a
+  coordinate taken from another hole of the step -> from {hole: j, d: 0}, from an earlier hole's rim -> {edge, round};
+  else the nearest edges as before (the middle line = half the width from an edge, not "the middle" — no such ref).
+  suggest.js snapKinds.guides (┆ Guides in the Snap row, shown while a hole / text is placed). e2e_model_hole_guides.
 - **Tree pictures, drag into an assembly, library icon, middle-click close done:** thumbs.js (bodyOf: a light rebuild
   kept by its steps; picture: one offscreen renderer, iso; svgPicture for sheets) via hooks.thumb (sub-assemblies
   placed); Project.showPreview / hidePreview (.tr-preview beside the row); tree rows draggable (text/a3d-insert) —
