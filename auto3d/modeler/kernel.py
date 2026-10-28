@@ -969,6 +969,20 @@ def plane_of(face):
     return np.array([c.X(), c.Y(), c.Z()]), n
 
 
+def face_axis(face):
+    """A round face (a cylinder, a cone, a torus or any turned face) -> (a point on its axis, its unit direction), or
+    None (a flat face, a sphere, a free-form one) — a shaft's or a hole's axis to measure from."""
+    from OCP.GeomAbs import GeomAbs_Cone, GeomAbs_SurfaceOfRevolution, GeomAbs_Torus
+    s = BRepAdaptor_Surface(TopoDS.Face(face), True)
+    kind = s.GetType()
+    ax = (s.Cylinder().Axis() if kind == GeomAbs_Cylinder else s.Cone().Axis() if kind == GeomAbs_Cone
+          else s.Torus().Axis() if kind == GeomAbs_Torus else s.AxeOfRevolution() if kind == GeomAbs_SurfaceOfRevolution else None)
+    if ax is None:
+        return None
+    p, d = ax.Location(), ax.Direction()
+    return np.array([p.X(), p.Y(), p.Z()]), np.array([d.X(), d.Y(), d.Z()])
+
+
 def face_span(faces, fr):
     """How far faces reach along a frame's x and y, from its origin: [u0, u1, v0, v1] (exact; None: no faces) — a
     sketch's ⌜ corner origin is (u0, v0)."""

@@ -79,6 +79,9 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
    **Reference point** (a place to measure / sketch from that follows the part): `{type: "point", at: {corner: [x, y, z]}}`
    (the nearest corner), `at: {centre: <round edge ref>}` or `at: {mid: <edge ref>}`; `find_refs {kind: "point"}` lists
    them (and corners with ready refs). No geometry — it shows as "• Point 1".
+   **From a shaft's or a hole's axis** (a cross hole, a shaft along the face, a boss): `find_refs {kind: "axis"}` lists
+   the round faces' axes; a sketch shape's `from: {axis: "<name>"}` (x / y as usual — its place across the axis is kept
+   from it) or a hole's `from: [{x: {axis: "<name>", d: 15}}]` — they follow the axis when the part changes.
 7. **Check**: `get_model` — every step `ok: true` (read `issues` / `warnings` and fix them),
    `get_screenshot {view: "iso"}` and another view. Report the size and the steps the user can change
    (double-click a step in the list, or ask you).

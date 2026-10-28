@@ -299,6 +299,11 @@ SolidWorks. It has only the tools that need almost no input.
    **Dimensions follow the part.** A hole's distances and a sketch's dimensions to the part's edges or corners
    (↔ Dimension on a dashed edge) remember *which* edge or corner it is (by the faces that meet there). Make the
    part wider in an earlier step and the hole or the sketch moves with its edge, keeping its distance.
+   **From a shaft's or a hole's axis**: in a sketch, the axes of the part's round faces show as dashed blue centre
+   lines (a cross hole under the face, a shaft lying along it; seen end on: the ✛ at a round edge's centre) — ↔ Dimension
+   on one (on the line or anywhere over the round face) measures from the axis. In the hole panel, 🎯 then a click on a
+   round face (or its rim) measures the hole from its axis (*↔ 15 mm right of the axis*). Move the shaft or the cross
+   hole and the sketch or the hole goes along.
 5. **⟳ Revolve** spins a sketch around an axis: the sketch's vertical axis (the default), its horizontal axis or one
    of its lines, a full turn or any angle. Draw half the shape beside the axis, e.g. half a vase on the **Front**
    plane. A new, empty sketch can be moved to Front / Right with the buttons in the bar, and a sketch on a base plane

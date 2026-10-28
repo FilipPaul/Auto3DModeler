@@ -16,6 +16,7 @@ import { textOutline } from '../outlinepanel.js';
 import { sectionBar, sectionMiddle } from './sectionbar.js';
 import { originSeg, originKey, sameOrigin, moveOrigin, shiftSketch, shiftPoints, HOLE_ORIGINS, FROM_TEXT } from './origin.js';
 import { libraryFactsHtml } from '../library/browser.js';
+import { roundAxes, axisOf } from './axes.js';
 
 const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa', mirror: '⇋', draft: '⟋', rib: '⊿', point: '•' };
 const TYPE_NAME = { point: 'Point', rib: 'Rib', draft: 'Draft', sketch: 'Sketch', extrude: 'Extrude', revolve: 'Revolve', fillet: 'Fillet', chamfer: 'Chamfer', hole: 'Hole', shell: 'Shell', pattern: 'Pattern',
@@ -940,9 +941,9 @@ export class Modeler {
 
   /** Does step f measure from (or place holes from) an edge / corner of a face that `owns` says goes? */
   refsTo(f, owns) {
-    const endRefs = (x) => x && typeof x === 'object' && ((x.edge && (owns(x.edge.a) || owns(x.edge.b))) || (x.vertex?.faces || []).some(owns) || (x.point && owns(`${x.point}:`)));
+    const endRefs = (x) => x && typeof x === 'object' && ((x.edge && (owns(x.edge.a) || owns(x.edge.b))) || (x.vertex?.faces || []).some(owns) || (x.point && owns(`${x.point}:`)) || (x.axis && owns(x.axis.face)));
     if ((f.dims || []).some((d) => endRefs(d.a) || endRefs(d.b))) return true;
-    return (f.from || []).some((s) => s && ['x', 'y'].some((k) => s[k]?.edge && (owns(s[k].edge.a) || owns(s[k].edge.b))));
+    return (f.from || []).some((s) => s && ['x', 'y'].some((k) => (s[k]?.edge && (owns(s[k].edge.a) || owns(s[k].edge.b))) || (s[k]?.axis && owns(s[k].axis.face))));
   }
 
   /** Is step f a reference point on a corner / edge of a face that `owns` says goes? */
@@ -959,10 +960,10 @@ export class Modeler {
     for (const d of g.dims || []) {
       for (const k of ['a', 'b']) {
         const x = d[k];
-        if (x && typeof x === 'object' && ((x.edge && (owns(x.edge.a) || owns(x.edge.b))) || (x.vertex?.faces || []).some(owns) || (x.point && owns(`${x.point}:`)))) d[k] = { ref: x.ref };
+        if (x && typeof x === 'object' && ((x.edge && (owns(x.edge.a) || owns(x.edge.b))) || (x.vertex?.faces || []).some(owns) || (x.point && owns(`${x.point}:`)) || (x.axis && owns(x.axis.face)))) d[k] = { ref: x.ref };
       }
     }
-    (g.from || []).forEach((s) => { for (const k of ['x', 'y']) if (s?.[k]?.edge && (owns(s[k].edge.a) || owns(s[k].edge.b))) delete s[k]; });
+    (g.from || []).forEach((s) => { for (const k of ['x', 'y']) if ((s?.[k]?.edge && (owns(s[k].edge.a) || owns(s[k].edge.b))) || (s?.[k]?.axis && owns(s[k].axis.face))) delete s[k]; });
     if (g.upto && owns(this.faceOwner(g.upto) + ':')) { delete g.upto; g.d = g.d || 10; }
     if (this.pointOn(g, owns)) g.at = { xyz: [...(this.result?.points?.[g.id] || Object.values(g.at)[0]?.fp || [0, 0, 0])] }; // (a fixed place)
     return g;
@@ -1903,12 +1904,23 @@ export class Modeler {
     return this.axisEdges(f, k, true).find((x) => Math.hypot(...x.ref.fp.map((v, j) => v - e.mid[j])) < 1e-6) || null;
   }
 
+  /** 🎯 a round face under the mouse (a shaft, a cross hole — or an edge of one) as a hole reference: its axis, when
+   *  it is square to the face or runs straight across the axis being picked -> {c, ref: {axis}, face}, or null. */
+  holeAxisAt(clientX, clientY, edge = -1) {
+    const f = this.cmd.feature, k = this.holePick.axis === 'x' ? 0 : 1, b = this.result?.body;
+    if (!b) return null;
+    const ids = [...(edge >= 0 ? b.edges[edge]?.faces || [] : []), this.view.pick(clientX, clientY)?.face?.id].filter((x) => x !== undefined);
+    const axes = roundAxes(b, this.holeFrame(f), (nm) => nm.startsWith(`${f.id}:`));
+    const q = axes.find((a) => ids.includes(a.face) || ids.some((x) => b.faces[x]?.name === a.ref.face));
+    return q && (!q.dir || Math.abs(q.dir[k]) < 1e-6) ? { c: q.c[k], ref: { axis: q.ref }, face: q.face } : null;
+  }
+
   pickHoleRef(e) {
     const f = this.cmd.feature, { i, axis } = this.holePick, k = axis === 'x' ? 0 : 1;
-    const idx = this.view.pickEdge(e.clientX, e.clientY), r = idx >= 0 && this.holeRefAt(idx);
-    if (!r) { this.hooks.toast(axis === 'x' ? 'Click a straight edge running up / down on this face, or another hole.' : 'Click a straight edge running left / right on this face, or another hole.', 'info', 4000); return; }
+    const idx = this.view.pickEdge(e.clientX, e.clientY), r = (idx >= 0 && this.holeRefAt(idx)) || this.holeAxisAt(e.clientX, e.clientY, idx);
+    if (!r) { this.hooks.toast(axis === 'x' ? 'Click a straight edge running up / down on this face, another hole, or a round face (its axis).' : 'Click a straight edge running left / right on this face, another hole, or a round face (its axis).', 'info', 4000); return; }
     f.from = f.from || [];
-    f.from[i] = { ...(f.from[i] || {}), [axis]: { ...(r.ref.hole !== undefined ? { hole: r.ref.hole } : { edge: r.ref }), d: +(f.points[i][k] - r.c).toFixed(6), ...(r.round ? { round: true } : {}) } };
+    f.from[i] = { ...(f.from[i] || {}), [axis]: { ...(r.ref.hole !== undefined ? { hole: r.ref.hole } : r.ref.axis ? { axis: r.ref.axis } : { edge: r.ref }), d: +(f.points[i][k] - r.c).toFixed(6), ...(r.round ? { round: true } : {}) } };
     this.holePick = null;
     this.view.setEdgeHighlight();
     this.hint('Hole — click on a flat face where it goes (click again for more holes). Enter = OK, Esc = Cancel.');
@@ -1929,7 +1941,10 @@ export class Modeler {
   }
 
   /** Where a hole's reference is now along axis k: another hole of this step, or an edge. */
-  refCoord(f, r, k) { return r.hole !== undefined ? f.points[r.hole]?.[k] ?? null : this.edgeCoord(f, r.edge, k); }
+  refCoord(f, r, k) {
+    if (r.axis) return axisOf(roundAxes(this.result?.body, this.holeFrame(f)), r.axis)?.c[k] ?? null; // (a round face's axis)
+    return r.hole !== undefined ? f.points[r.hole]?.[k] ?? null : this.edgeCoord(f, r.edge, k);
+  }
 
   /** Where a hole's reference edge is now (its x or y in the face), or null. */
   edgeCoord(f, ref, k) {
@@ -1975,12 +1990,13 @@ export class Modeler {
   holeDimRow(f, i, axis, k) {
     const r = f.from?.[i]?.[axis], p = f.points[i];
     if (!r) return `<label class="mp-hd">${axis} <input type="number" step="any" data-${k ? 'v' : 'u'}="${i}" value="${fmt(p[k])}"> <span class="hint">${FROM_TEXT[originKey(f.plane?.origin)] || 'from the reference point'}</span></label>`;
-    const side = r.round ? (k === 0 ? (r.d >= 0 ? 'right of the hole' : 'left of the hole') : (r.d >= 0 ? 'above the hole' : 'below the hole'))
+    const side = r.axis ? (k === 0 ? (r.d >= 0 ? 'right of the axis' : 'left of the axis') : (r.d >= 0 ? 'above the axis' : 'below the axis'))
+      : r.round ? (k === 0 ? (r.d >= 0 ? 'right of the hole' : 'left of the hole') : (r.d >= 0 ? 'above the hole' : 'below the hole'))
       : k === 0 ? (r.d >= 0 ? 'from the left edge' : 'from the right edge') : (r.d >= 0 ? 'from the lower edge' : 'from the upper edge');
     const picking = this.holePick?.i === i && this.holePick?.axis === axis;
     return `<label class="mp-hd">${k ? '↕' : '↔'} <input type="number" step="any" min="0" data-hd="${i}:${axis}" value="${fmt(Math.abs(r.d))}"> <span>mm ${side}</span>
       <button type="button" class="mini" data-flip="${i}:${axis}" title="Measure from the edge on the other side">⇄</button>
-      <button type="button" class="mini ${picking ? 'on' : ''}" data-pickref="${i}:${axis}" title="Measure from another edge or hole: click it in the view">🎯</button></label>`;
+      <button type="button" class="mini ${picking ? 'on' : ''}" data-pickref="${i}:${axis}" title="Measure from another edge, hole or round face (its axis): click it in the view">🎯</button></label>`;
   }
 
   renderRound(box) {
@@ -2732,9 +2748,10 @@ export class Modeler {
           this.view.setHover(ok ? h.face.id : -1);
           cv.style.cursor = ok ? 'crosshair' : '';
         } else if (f.type === 'hole' && this.holePick) {
-          const i = this.view.pickEdge(e.clientX, e.clientY), ok = i >= 0 && this.holeRefAt(i);
+          const i = this.view.pickEdge(e.clientX, e.clientY), ok = i >= 0 && this.holeRefAt(i), ax = !ok && this.holeAxisAt(e.clientX, e.clientY, i);
           this.view.setEdgeHighlight(ok ? i : -1, []);
-          cv.style.cursor = ok ? 'pointer' : '';
+          this.view.setHover(ax ? ax.face : -1);
+          cv.style.cursor = ok || ax ? 'pointer' : '';
         } else if (f.type === 'pattern') {
           const i = f.kind === 'circular' ? -1 : this.view.pickEdge(e.clientX, e.clientY);
           const straight = i >= 0 && this.edgeDir(i);

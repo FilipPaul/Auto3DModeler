@@ -123,6 +123,21 @@ try:
     t, _ = tool("edit_feature", id="F2", fields={"d2": 4})
     r = json.loads(t)
     print(f"    d2 4: went {r.get('went')} | +{r.get('volume_change_mm3')} expected 6400")
+    # ---- distances from a round face's axis: a block with a cross hole, a sketch circle and a hole measured from it;
+    # the cross hole moves 10 -> both go along
+    tool("new_model", name="Cross")
+    tool("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 60, "h": 40}}])
+    tool("add_feature", type="extrude", sketch="F1", d=20)
+    tool("add_feature", type="sketch", plane="XZ", shapes=[{"circle": {"x": 30, "y": 10, "d": 8}}])
+    tool("add_feature", type="extrude", sketch="F3", op="cut", d=100, symmetric=True)
+    ax = json.loads(tool("find_refs", kind="axis")[0])[0]["axis"]
+    tool("add_feature", type="sketch", plane={"face": "F2:end"}, shapes=[{"circle": {"x": 15, "y": 5, "d": 6}, "from": {"axis": ax}}])
+    tool("add_feature", type="extrude", sketch="F5", op="cut", through=True)
+    tool("add_feature", type="hole", face="F2:end", points=[[-15, -10]], d=4, **{"from": [{"x": {"axis": ax, "d": -15}}]})
+    tool("edit_feature", id="F3", fields={"shapes": [{"circle": {"x": 40, "y": 10, "d": 8}}]})
+    xs = sorted(round(x, 3) for x in d.execute_script(
+        "return window.__app.modeler.result.body.faces.filter((f) => f.type === 'cylinder' && Math.abs(f.axis.d[2]) > 0.99).map((f) => f.centroid[0])"))
+    print(f"    axis refs: {ax} | the cross hole moved 10 -> x {xs} expected [25, 55] | match: {xs == [25, 55]}")
     # ---- a sketch shape's ⁂ pattern: a flange, six holes around the middle and three in a row
     tool("new_model", name="Flange")
     tool("add_feature", type="sketch", plane="XY", shapes=[{"circle": {"x": 0, "y": 0, "d": 60}},

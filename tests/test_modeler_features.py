@@ -563,6 +563,62 @@ class TestFeatures(unittest.TestCase):
         r, _ = vol(*box(), two)
         self.assertEqual(r["features"][-1]["update"], {"points": [[-10, 0], [2, 0]]})
 
+    def test_distances_from_a_round_face_axis(self):
+        def cross(x=30):  # a cross hole along y (an extrude cut on the front plane): its axis runs along the top face
+            sk = {"id": "S2", "type": "sketch", "plane": {"datum": "XZ"}, "points": {"o": [x, 10]}, "entities": [{"id": "k", "t": "circle", "c": "o", "r": 4}]}
+            return [sk, {"id": "E2", "type": "extrude", "sketch": "S2", "op": "cut", "d": 100, "symmetric": True}]
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [30, 20, 20], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        axis = {"face": "E2:side:k", "fp": [30, 20, 10]}
+        # a circle on the top 15 to the right of the cross hole's axis (seen from above: a line along v at u 0)
+        sk = {"id": "S3", "type": "sketch", "plane": top, "points": {"c": [15, 5]}, "entities": [{"id": "k2", "t": "circle", "c": "c", "r": 3}],
+              "dims": [{"id": "d1", "t": "dx", "a": {"ref": [0, 0], "axis": axis}, "b": "c", "v": 15},
+                       {"id": "d2", "t": "dy", "a": "O", "b": "c", "v": 5}, {"id": "d3", "t": "dia", "e": "k2", "v": 6}]}
+        cut = {"id": "E3", "type": "extrude", "sketch": "S3", "op": "cut", "through": True}
+        bore = lambda r: next(f for f in r["body"]["faces"] if f.get("name") == "E3:side:k2")["centroid"]  # noqa: E731
+        r, v = vol(*box(60, 40, 20), *cross(), sk, cut)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertEqual(bore(r)[:2], [45, 25])
+        self.assertNotIn("update", r["features"][4])  # already 15 from it
+        self.assertAlmostEqual(v, 60 * 40 * 20 - math.pi * 16 * 40 - math.pi * 9 * 20, delta=1e-3)
+        self.assertTrue(watertight(r["body"]))
+        # the cross hole moves 10 to the right: the circle follows its axis
+        r, v = vol(*box(60, 40, 20), *cross(40), sk, cut)
+        self.assertEqual(r["features"][4]["warnings"], [])
+        self.assertEqual(r["features"][4]["update"]["dims"][0]["a"]["ref"], [10, 0])
+        if available("planegcs"):
+            self.assertEqual(r["features"][4]["update"]["points"]["c"], [25, 5])
+            self.assertEqual(bore(r)[:2], [55, 25])
+            self.assertAlmostEqual(v, 60 * 40 * 20 - math.pi * 16 * 40 - math.pi * 9 * 20, delta=1e-3)
+        # STEP written and read back: the same solid
+        from auto3d.modeler import kernel as K
+        step = doc.export({"features": [*box(60, 40, 20), *cross(40), sk, cut]}, "step")
+        self.assertAlmostEqual(K.volume(K.from_step(step)), v, delta=1e-3)
+        # a hole 15 from the axis (the AI's form: just the face's name), and one 10 left of the vertical bore's axis
+        # (square to the top: a point there)
+        h1 = {"id": "H1", "type": "hole", "plane": top, "points": [[0, -10]], "d": 4, "through": True, "from": [{"x": {"axis": "E2:side:k", "d": 15}}]}
+        h2 = {"id": "H2", "type": "hole", "plane": top, "points": [[0, 5]], "d": 2, "through": True,
+              "from": [{"x": {"axis": {"face": "E3:side:k2", "fp": [45, 25, 10]}, "d": -10}}]}
+        r, v = vol(*box(60, 40, 20), *cross(), sk, cut, h1, h2)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertEqual(r["features"][-2]["update"], {"points": [[15, -10]]})
+        self.assertEqual(r["features"][-1]["update"], {"points": [[5, 5]]})
+        self.assertAlmostEqual(v, 60 * 40 * 20 - math.pi * (16 * 40 + 9 * 20 + 4 * 20 + 1 * 20), delta=1e-3)
+        r, _ = vol(*box(60, 40, 20), *cross(40), {**h1, "points": [[15, -10]]})
+        self.assertEqual(r["features"][-1]["update"], {"points": [[25, -10]]})
+        # the axis runs along y: it gives no y; the round face is gone: the hole and the sketch stay and say so
+        r, _ = vol(*box(60, 40, 20), *cross(), {**h1, "from": [{"y": {"axis": "E2:side:k", "d": 3}}]})
+        self.assertIn("does not run straight across", r["features"][-1]["warnings"][0])
+        r, _ = vol(*box(60, 40, 20), *cross(), {**h1, "from": [{"x": {"axis": "E9:side:k", "d": 3}}]})
+        self.assertTrue(r["ok"])
+        self.assertIn("round face is gone", r["features"][-1]["warnings"][0])
+        self.assertEqual(r["features"][-1].get("update"), None)
+        r, _ = vol(*box(60, 40, 20), sk)
+        self.assertTrue(r["ok"])
+        self.assertIn("round face of the part is gone", r["features"][-1]["warnings"][0])
+        # a flat face picked as an axis: no axis
+        r, _ = vol(*box(60, 40, 20), {**h1, "from": [{"x": {"axis": "E1:side:l2", "d": 3}}]})
+        self.assertIn("round face is gone", r["features"][-1]["warnings"][0])
+
     def test_reference_point(self):
         corner = {"vertex": {"faces": ["E1:end", "E1:side:l1", "E1:side:l2"], "fp": [40, 0, 10]}}
         pt = {"id": "P1", "type": "point", "at": corner}

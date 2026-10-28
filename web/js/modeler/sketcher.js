@@ -10,6 +10,7 @@
 // dragging, sized by its width.
 import { t } from '../i18n.js';
 import { showSuggest } from '../suggest.js';
+import { roundAxes } from './axes.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const nice = (x) => { const p = 10 ** Math.floor(Math.log10(x)); return [1, 2, 5, 10].map((k) => k * p).find((s) => s >= x); };
@@ -2195,7 +2196,7 @@ export class Sketcher {
     if (this._refsKey === key) return this._refs;
     // lines / points: [u, v] in the sketch; lineIds / pointIds: which edge / corner of the part they are (by the
     // names of its faces), so a dimension from them follows the part when earlier steps change
-    const out = { lines: [], curves: [], points: [], lineIds: [], pointIds: [], circles: [] };
+    const out = { lines: [], curves: [], points: [], lineIds: [], pointIds: [], circles: [], axes: [] };
     if (body) {
       const o = fr.o, x = fr.x, n = fr.n, y = [n[1] * x[2] - n[2] * x[1], n[2] * x[0] - n[0] * x[2], n[0] * x[1] - n[1] * x[0]];
       const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -2251,6 +2252,14 @@ export class Sketcher {
         const d = [c3.c[0] - o[0], c3.c[1] - o[1], c3.c[2] - o[2]], c = [+dot(d, x).toFixed(5), +dot(d, y).toFixed(5)], r = +c3.r.toFixed(5);
         if (!out.circles.some((q) => Math.hypot(q.c[0] - c[0], q.c[1] - c[1]) < 1e-4 && Math.abs(q.r - r) < 1e-4)) out.circles.push({ c, r });
       }
+      // the round faces' axes: square to the sketch they name the circles' centres there (a size from one follows
+      // it), else a line to measure from (a shaft lying along the plane, a cross hole under it)
+      for (const q of roundAxes(body, fr)) {
+        if (q.dir) { out.axes.push(q); continue; }
+        const on = out.circles.filter((k) => Math.hypot(k.c[0] - q.c[0], k.c[1] - q.c[1]) < 1e-4);
+        for (const k of on) k.axis = k.axis || q.ref;
+        if (!on.length) out.circles.push({ c: q.c, r: q.r, axis: q.ref });
+      }
     }
     // the reference points (• point steps) seen square onto the sketch: snapped to, a size to one follows it
     const y = [fr.n[1] * fr.x[2] - fr.n[2] * fr.x[1], fr.n[2] * fr.x[0] - fr.n[0] * fr.x[2], fr.n[0] * fr.x[1] - fr.n[1] * fr.x[0]];
@@ -2292,11 +2301,15 @@ export class Sketcher {
         near(Math.hypot(m[0] - uv[0], m[1] - uv[1]) * 1.15, { kind: 'point', end: { mid: e.id }, uv: m, mid: e.id });
       }
     }
-    const R = F.edges ? this.refs() : { points: [], pointIds: [], circles: [], lines: [], lineIds: [] };
+    const R = F.edges ? this.refs() : { points: [], pointIds: [], circles: [], lines: [], lineIds: [], axes: [] };
     R.points.forEach((r, i) => near(Math.hypot(r[0] - uv[0], r[1] - uv[1]), { kind: 'point', end: R.pointIds[i]?.point ? { ref: r, point: R.pointIds[i].point } : R.pointIds[i] ? { ref: r, vertex: R.pointIds[i] } : { ref: r }, uv: r }));
     for (const q of R.circles) { // a round edge of the part: its centre (on the rim or inside it)
       const d = Math.hypot(q.c[0] - uv[0], q.c[1] - uv[1]);
-      near(Math.min(d, Math.abs(d - q.r) < tol ? tol * 0.9 : Infinity), { kind: 'point', end: { ref: q.c }, uv: q.c });
+      near(Math.min(d, Math.abs(d - q.r) < tol ? tol * 0.9 : Infinity), { kind: 'point', end: q.axis ? { ref: q.c, axis: q.axis } : { ref: q.c }, uv: q.c });
+    }
+    for (const q of R.axes) { // a round face's axis (a shaft along the plane): on the axis, or anywhere over the face
+      const d = segD(q.a, q.b), end = (p) => ({ ref: p, axis: q.ref });
+      near(d < tol ? d : d < q.r ? tol * 0.95 : Infinity, { kind: 'line', a: end(q.a), b: end(q.b), uvA: q.a, uvB: q.b, dir: dirOf(q.a, q.b), axis: q.ref });
     }
     for (const e of this.f.entities) {
       if ((e.t === 'circle' || e.t === 'arc') && !F.round) continue;
@@ -2799,6 +2812,10 @@ export class Sketcher {
       const k = mpp * 6;
       lines.push([[q.c[0] - k, q.c[1]], [q.c[0] + k, q.c[1]], 0x8b95a3], [[q.c[0], q.c[1] - k], [q.c[0], q.c[1] + k], 0x8b95a3]);
     }
+    for (const q of refs.axes) { // round faces' axes along the sketch: a dashed centre line a little past the face
+      const k = mpp * 10, a = q.a.map((v, i) => v - q.dir[i] * k), b = q.b.map((v, i) => v + q.dir[i] * k);
+      lines.push([a, b, 0x6e9fd1, true]);
+    }
     // distances (dimension tool): a dimension line from the moving end, an extension line to the other end
     for (const d of f.dims) {
       if (!shows(!d.free)) continue;
@@ -2938,7 +2955,7 @@ export class Sketcher {
         if (hv.circle) { const c = this.ent(hv.circle); circles.push([this.P(c.c), c.r, HL]); name = 'circle (its centre)'; }
         else if (hv.arc) { const ps = this.arcOf(this.ent(hv.arc)); for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], HL]); name = 'arc (its centre)'; }
         else name = hv.mid ? 'midpoint' : hv.onShape ? { line: 'on the line', circle: 'on the circle', arc: 'on the arc', edge: 'on the edge of the part' }[hv.onShape] || 'on it'
-          : hv.corner ? 'corner' : hv.end === ORIGIN ? 'origin' : hv.end && typeof hv.end === 'object' ? 'corner of the part' : 'point';
+          : hv.corner ? 'corner' : hv.end === ORIGIN ? 'origin' : hv.end?.axis ? 'axis of the round face' : hv.end && typeof hv.end === 'object' ? 'corner of the part' : 'point';
         at = hv.uv;
       } else if (hv.kind === 'piece') {
         for (let i = 0; i + 1 < hv.pts.length; i++) lines.push([hv.pts[i], hv.pts[i + 1], hv.grow ? 0x7ee787 : 0xff7b72]);
@@ -2946,7 +2963,7 @@ export class Sketcher {
         at = hv.pts[Math.floor(hv.pts.length / 2)];
       } else if (hv.kind === 'line') {
         lines.push([hv.uvA, hv.uvB, HL], [hv.uvA, hv.uvB, HL]);
-        name = hv.line ? 'line' : 'edge of the part';
+        name = hv.line ? 'line' : hv.axis ? 'axis of the round face' : 'edge of the part';
         at = [(hv.uvA[0] + hv.uvB[0]) / 2, (hv.uvA[1] + hv.uvB[1]) / 2];
       } else if (hv.kind === 'entity' || hv.kind === 'group') {
         const ents = hv.loop ? hv.loop.map((id) => this.ent(id)).filter(Boolean) : hv.kind === 'group' ? this.f.entities.filter((x) => x.g === hv.id) : [this.ent(hv.id)].filter(Boolean);

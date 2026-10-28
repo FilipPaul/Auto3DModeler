@@ -114,6 +114,15 @@ Date: 2026-10-25. Written by the architect agent.
   {ref, point: id} follows it (doc._ref_uv); deleting what it stands on keeps it at {xyz}. AI: add_feature point
   (at {corner: [x, y, z]} / {centre} / {mid} / a ref), find_refs kind "point", get_model's xyz. test_reference_point;
   tools/e2e_model_point.py.
+- **Distances from round faces' axes done:** a sketch dimension end {ref, axis: {face, fp}} and a hole's from
+  {x: {axis: {face, fp}, d}} — doc._axis_of (kernel.find_faces + face_axis: cylinder / cone / torus / turned faces) /
+  _axis_in (seen square onto the plane: a point, or a line — the end is the point of it nearest its ref); gone: a
+  warning, the last place kept. The browser: axes.js roundAxes (the faces' axes on a plane, as far as each face
+  reaches; roundings left out); Sketcher.refs().axes (dashed blue centre lines; picked on the line or over the face as
+  a 'line' target) and the circles' centres named by an axis square to the plane; the hole panel's 🎯 holeAxisAt (a
+  round face or its rim; the axis square to the face or straight across) and refCoord; refsTo / detach know them. AI:
+  find_refs kind "axis", a sketch shape's from: {axis}, hole from {x: {axis: <name>, d}}. test_distances_from_a_round_face_axis;
+  tools/e2e_model_axis_refs.py.
 - **View cube done:** viewcube.js (ModelView {cube: true} in the 3D model and the assembly): CSS 3D faces turned by
   the camera's rotation each frame (the faces turned away hidden), each face 3 × 3 cells whose data-dir is where they
   look from — the middle the face, the sides its edges, the corners its corners (the same dir on neighbouring faces
@@ -625,8 +634,8 @@ Date: 2026-10-25. Written by the architect agent.
   depths from the geometry), /api/model/limits; failures explained with the most that fits (doc._sized).
 - **Sketch relations done:** par / perp / eq / conc / coin / tang / fix (+ h / v) set by the user (constraints.py
   _relation; sketcher RELATIONS, symbols, list; collapsing solutions refused). tools/e2e_model_relations.py.
-- **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): hole / sketch distances from
-  round faces (a shaft's axis); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
+- **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
+  round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.
 
 ## 0. Summary

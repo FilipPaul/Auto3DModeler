@@ -75,6 +75,9 @@ Never report "works" without having run it; report failures with their output.
    extrude volume, the AI's slot).
    `tools/e2e_model_refs.py <url> <dir>` covers dimensions that follow the part: a hole placed from the face's edges
    (typed, ⇄), a sketch circle dimensioned from the part's edge; the part gets wider -> both keep their distance.
+   `tools/e2e_model_axis_refs.py <url> <dir>` covers distances from a round face's axis with real clicks (a block with
+   a cross hole: its axis a dashed line in a sketch on the top, ↔ Dimension from a circle to it, typed 15, cut; a hole's
+   🎯 on the cross hole's rim; the cross hole moved -> both follow). Exits 1 on a failed check.
    `tools/e2e_model_round.py <url> <dir>` covers ◜ Round corner (default R, typed R5, width typed -> still tangent and
    no height drift, undo, exact extrude volume, the AI's rect with r).
    `tools/e2e_model_custom.py <url> <dir>` covers custom references: 🎯 a hole from a picked edge and from another hole
