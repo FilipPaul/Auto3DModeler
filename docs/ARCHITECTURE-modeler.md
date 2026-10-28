@@ -91,6 +91,9 @@ Date: 2026-10-25. Written by the architect agent.
   tools/e2e_ai_reports.py.
 - **Steps named after their sketch done:** nextName(type, sketch): an extrude / revolve of a sketch the user named
   is "Extrude – Slot" (a "Sketch 2" keeps "Extrude 3"), in the panel and for the AI. tools/e2e_ai_reports.py.
+- **The sketch plane's offset direction shown done:** the ↕ Plane at chip says which way + goes (+ = +Z, on Front −Y)
+  and ModelView.setPlaneArrow draws an arrow along the plane's normal labelled the same (gone off the sketch) — the
+  GUI audit's offset-plane direction. tools/e2e_sketch_slot.py.
 - **The sheet check leaves decoration out done:** check() skips circles and edges of a decal step's faces (engraved /
   raised text and pictures are not sized); get_sheet's missing items end with their point key / circle [...] for
   sheet_edit add. tools/e2e_ai_reports.py.

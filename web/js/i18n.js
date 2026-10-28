@@ -738,6 +738,7 @@ const CS = {
   'The part on screen — double-click to rename, drag to move the tab (out of the window: a new window)': 'Díl na obrazovce — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'Click to show it — double-click to rename, drag to move the tab (out of the window: a new window)': 'Kliknutím zobrazíte — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'No part open': 'Žádný díl není otevřený',
+  "Move the sketch plane along its normal (e.g. 30 mm above the bed — for a loft's second profile); a positive offset moves it along the arrow": 'Posunout rovinu náčrtu po její normále (např. 30 mm nad podložku — pro druhý profil šablony); kladný posun ji posune ve směru šipky',
   '🖨 Print check': '🖨 Kontrola tisku', 'Print check': 'Kontrola tisku', 'Overhangs over 45°': 'Převisy nad 45°', 'Walls thinner than': 'Stěny tenčí než', thinnest: 'nejtenčí',
   'Check the part for 3D printing as it lies on the bed: overhangs over 45° (red) and walls too thin to print (orange)': 'Zkontrolovat díl pro 3D tisk, jak leží na podložce: převisy nad 45° (červeně) a stěny příliš tenké na tisk (oranžově)',
   'Nothing to worry about — it prints as it lies.': 'Vše v pořádku — vytiskne se, jak leží.',

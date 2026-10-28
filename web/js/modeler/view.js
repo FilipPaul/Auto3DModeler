@@ -706,6 +706,23 @@ export class ModelView {
   }
 
   /** The measure tool's snap under the mouse, shown: a green point and its name (corner, midpoint, centre). */
+  /** The way a positive offset moves a sketch plane: an arrow from its origin along its normal, labelled (null: none). */
+  setPlaneArrow(fr, label = '') {
+    if (!this.arrowGroup) { this.arrowGroup = new THREE.Group(); this.scene.add(this.arrowGroup); }
+    this.clear(this.arrowGroup);
+    this.invalidate();
+    if (!fr) return;
+    const o = new THREE.Vector3(...fr.o), n = new THREE.Vector3(...fr.n).normalize(), L = Math.max(10, (this.size || 40) * 0.35);
+    const arrow = new THREE.ArrowHelper(n, o, L, 0xd2a8ff, L * 0.22, L * 0.12);
+    arrow.traverse((x) => { if (x.material) { x.material.depthTest = false; x.material.transparent = true; } x.renderOrder = 13; });
+    const el = document.createElement('div');
+    el.className = 'm-snap m-plane-plus';
+    el.textContent = `+ ${label}`;
+    const lab = new CSS2DObject(el);
+    lab.position.copy(o).addScaledVector(n, L * 1.15);
+    this.arrowGroup.add(arrow, lab);
+  }
+
   setSnapMark(mp) {
     if (!this.snapGroup) { this.snapGroup = new THREE.Group(); this.scene.add(this.snapGroup); }
     const key = mp?.snap ? `${mp.snap}:${mp.point.toArray().map((v) => v.toFixed(4))}` : '';

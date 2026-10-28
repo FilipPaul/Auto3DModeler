@@ -159,8 +159,11 @@ export class Modeler {
       const dat = this.sk.isNew && !this.sk.f.entities.length && this.sk.f.plane?.datum;
       const planes = dat ? `<span class="m-say">on</span>${['XY', 'XZ', 'YZ'].map((k) => btn(`plane-${k}`, DATUM_NAME[k], `Sketch on the ${DATUM_NAME[k]} plane`, k === dat ? 'on' : '')).join('')}<span class="sep"></span>` : '';
       const onDatum = this.sk.f.plane?.datum;
-      const offset = onDatum ? `<label class="chip m-offset" title="Move the sketch plane along its normal (e.g. 30 mm above the bed — for a loft's second profile)">↕ Plane at
-        <input type="number" step="any" data-k="planeOffset" value="${fmt(this.sk.f.plane.offset || 0)}"> mm</label><span class="sep"></span>` : '';
+      const nrm = onDatum ? datumFrame({ datum: onDatum }).n : null, k = nrm ? nrm.findIndex((c) => Math.abs(c) > 0.5) : -1;
+      const plus = k >= 0 ? `${nrm[k] > 0 ? '+' : '−'}${'XYZ'[k]}` : ''; // (which way a positive offset moves it)
+      const offset = onDatum ? `<label class="chip m-offset" title="Move the sketch plane along its normal (e.g. 30 mm above the bed — for a loft's second profile); a positive offset moves it along the arrow">↕ Plane at
+        <input type="number" step="any" data-k="planeOffset" value="${fmt(this.sk.f.plane.offset || 0)}"> mm <span class="m-plus" data-no-i18n>(+ = ${plus})</span></label><span class="sep"></span>` : '';
+      this.view.setPlaneArrow(onDatum ? this.frame() : null, plus);
       bar.innerHTML = `<span class="m-mode">Sketch</span>${planes}${offset}
         ${btn('rect', '▭ Rectangle', 'Draw a rectangle: click two corners (R)', t === 'rect' ? 'on' : '')}
         ${btn('line', '⟋ Line', 'Draw lines: click point after point; click the first point to close the shape (L)', t === 'line' ? 'on' : '')}
@@ -188,6 +191,7 @@ export class Modeler {
         <div class="mp-actions">${btn('cancelPlane', '✕ Cancel', 'Do not start a sketch (Esc)')}</div>`;
     } else {
       this.els.viewport.querySelector(':scope > .view-suggest[data-from=sketch]')?.remove(); // (the sketch's suggestions)
+      this.view.setPlaneArrow(null);
       showSnapFilters(this.els.viewport, !!this.result?.body && !this.cmd); // (what 📏 Measure catches — not while a feature is made)
       if (this.cmd || this.measuring || this.painting) this.dropSuggest(); // (a tool at work: not the face's)
       const canExtrude = this.sketches().length > 0;

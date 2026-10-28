@@ -181,7 +181,8 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_assembly_sheet_explode.py <url> <dir>` covers an assembly sheet's exploded iso (Base + Lid on top: ☐ Iso
    view exploded ticked — the iso taller, the front the same, the balloons moved; Ctrl+Z back; a picture of the
    sheet). Needs a server restarted after kernel changes.
-   `tools/e2e_sketch_slot.py <url> <dir>` covers ⊂⊃ Slot with real mouse clicks (centres (0, 0) and (30, 0), the
+   `tools/e2e_sketch_slot.py <url> <dir>` covers the sketch plane's offset direction (+ = +Z and an arrow; on Front
+   −Y; gone after ✓ Finish) and ⊂⊃ Slot with real mouse clicks (centres (0, 0) and (30, 0), the
    width at 5: the preview "40 × 10"; two lines, two arcs, tan ×4 / eq / h; extruded 5: (30 · 10 + π 25) · 5).
    `tools/e2e_sheet_angle.py <url> <dir>` covers angle dimensions on the sheet (a plate with a slanted edge: ＋ Dimension
    on the slanted and the upright edge -> 123.7° drawn as an arc; the AI's sheet_edit add edges the same; parallel

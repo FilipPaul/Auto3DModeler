@@ -840,6 +840,7 @@ body.view-acts .toast-stack { bottom: 84px; }
   border-radius: 10px; box-shadow: 0 8px 24px #0008; overflow: hidden; }
 .vs-head { cursor: move; display: flex; align-items: baseline; justify-content: space-between; padding: 7px 11px 6px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
 .vs-head b { font-size: 12.5px; }
+.m-offset .m-plus { color: var(--muted); font-size: 11px; }
 .m-printcheck { position: absolute; top: 56px; left: 12px; z-index: 5; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 12px; max-width: 330px; box-shadow: 0 6px 20px #0008; }
 .m-printcheck .mpc-row { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
 .m-printcheck .mpc-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
