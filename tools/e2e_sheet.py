@@ -73,6 +73,8 @@ try:
     js(f"{M}.renderProps()")
     d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=newSheet]").click()
     wait(f"return !!{S}.svgEl", 60)
+    call("sheet_edit", template="Modern")  # (this test checks the Modern title block; the default is B — ISO 7200)
+    wait(f"return !{S}.busy", 60)
     time.sleep(0.5)
     print("tabs:", [t.text for t in d.find_elements(By.CSS_SELECTOR, "#partTabs .part-tab")])
     med = texts()

@@ -515,7 +515,7 @@ no longer fits inside the frame is flagged (⚠), not refused. The **title block
 fields): the part's name large, small grey labels over the values, thin rules, a company / logo column on the left —
 it prints well in black and white; an assembly's parts list matches it. **Title-block templates**: in the sheet's
 panel choose *Template* (Modern, Compact, ISO 5457, the five designs *A — Strip*, *B — ISO 7200*, *C — Dark band*,
-*D — Minimal*, *E — Column*, or your own). **Title block style** and **Parts list style** are chosen apart, so any
+*D — Minimal*, *E — Column*, or your own; a drawing that chose none uses *B — ISO 7200*). **Title block style** and **Parts list style** are chosen apart, so any
 title block goes with any parts list: A (180 × 21 mm, one row), B (180 × 40 mm, the full ISO 7200 grid with checked /
 approved, roughness and the projection symbol), C (180 × 34 mm, a black name band; the list's positions in circles),
 D (170 × 28 mm, no grid), E (a 90 × 56 mm column; its list two lines an item). The parts list sits right on the title

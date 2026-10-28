@@ -37,7 +37,9 @@ const TPL_TEXTS = ['company', 'address', 'drawn', 'note', 'tolstd', 'surface'];
 const MORE_TEXTS = [['company', 'Company'], ['address', 'Address'], ['tolstd', 'Tolerance standard'], ['surface', 'Roughness (Ra)'], ['checked', 'Checked by'], ['approved', 'Approved by']];
 /** The title block's fields that a template may leave out. */
 const TB_FIELDS = [['company', 'Company / logo'], ['number', 'Drawing no.'], ['material', 'Material'], ['paper', 'Paper'], ['tolerances', 'Tolerances'], ['drawn', 'Drawn by'], ['created', 'Created'], ['changed', 'Changed'], ['note', 'Note']];
-const DEFAULT_TPL = { name: 'Modern', builtin: true, layout: 'block', titleStyle: 'block', bomStyle: 'modern', hide: [], texts: {}, logo: null, frame: null };
+// the default for drawings that chose none (the owner's choice, 2026-10-28): B — ISO 7200 with its ISO 5457 frame
+export const DEFAULT_TPL = { name: 'B — ISO 7200', builtin: true, layout: 'block', titleStyle: 'B', bomStyle: 'B', hide: [], texts: {}, logo: null,
+  frame: { preset: 'iso', m: [20, 10, 10, 10], line: 0.7, zones: true, marks: true } };
 /** The sheet's frame presets (as auto3d/title_templates.py FRAMES): margins [left, top, right, bottom] mm, the line's
  *  width (0: no frame), zones (grid references A… / 1… in the margins) and centring marks (ISO 5457). */
 const FRAMES = {

@@ -119,7 +119,7 @@ try:
     js("return document.fonts.ready.then(() => true)")
     js(f"{S}.sel = null; {S}.render()")
     time.sleep(0.4)
-    check(js(f"return {S}.tplName()") == "Modern" and js(f"return {S}.tb().style") == "block", "a new sheet keeps the Modern title block (the default)")
+    check(js(f"return {S}.tplName()") == "B — ISO 7200" and js(f"return {S}.tb().style") == "B", "a new sheet gets the default title block B — ISO 7200")
     names = js("return [...document.querySelectorAll('#shRight select[data-k=tbstyle] option')].map(o => o.textContent)")
     check(("A — Pruh" if CS else "A — Strip") in names and ("E — Sloupec" if CS else "E — Column") in names, f"Title block style ▾: {names}")
 

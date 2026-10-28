@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { paintedFaces } from './modeler/paint.js';
 import { sectionMiddle } from './modeler/sectionbar.js';
-import { parseScale } from './sheet/sheet.js';
+import { parseScale, DEFAULT_TPL } from './sheet/sheet.js';
 
 const b64 = (s, T) => { if (typeof s !== 'string') return s; const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new T(u.buffer); };
 const r3 = (v) => +(+v).toFixed(3);
@@ -351,8 +351,8 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       const ed = sheet, done = [];
       if (template !== undefined) {
         await ed.loadTemplates();
-        ed.useTemplate(template || 'Modern');
-        done.push(`title block ${template || 'Modern'}`);
+        ed.useTemplate(template || DEFAULT_TPL.name);
+        done.push(`title block ${template || DEFAULT_TPL.name}`);
       }
       if (title_style !== undefined || bom_style !== undefined) {
         ed.setStyles({ ...(title_style !== undefined ? { title: title_style || 'block' } : {}), ...(bom_style !== undefined ? { bom: bom_style || 'modern' } : {}) });
