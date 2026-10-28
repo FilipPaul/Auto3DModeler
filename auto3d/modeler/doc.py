@@ -1039,9 +1039,26 @@ def _with_colours(mesh, colours):
     return {**mesh, "faces": faces}
 
 
-def rebuild(part):
+_packed: list = []  # [((body, light, colours, id), packed.Mesh)]: an unchanged body is not encoded again either
+
+
+def _packed_mesh(body, light=False, colours=None, rid=None):
+    """The body's mesh as packed.Mesh (its JSON made once, kept like the mesh); rid: a reference solid's id."""
+    from . import packed
+    colours = colours or {}
+    for (b, lt, c, r), m in _packed:
+        if b is body and lt == light and r == rid and c == colours:
+            return m
+    mesh = _with_colours(_tessellated(body, light), colours)
+    m = packed.Mesh({"id": rid, **mesh} if rid is not None else mesh)
+    _packed.insert(0, ((body, light, dict(colours), rid), m))
+    del _packed[4:]  # (a big board's is 80 MB)
+    return m
+
+
+def rebuild(part, binary=False):
     """The part -> what the browser shows: the body's mesh, faces (with names) and edges, every feature's
-    status, the sketch frames."""
+    status, the sketch frames. binary: the meshes as packed.Mesh (for packed.pack, the browser's binary answer)."""
     features = (part or {}).get("features") or []
     st, status = evaluate(features)
     out = {"ok": all(s["ok"] for s in status), "features": status, "frames": st.frames, "body": None}
@@ -1049,9 +1066,9 @@ def rebuild(part):
         # 🪶 lod: "light" (simplified), "full", "auto" (light when it is a big imported model)
         lod = (part or {}).get("lod")
         light = lod == "light" or (lod == "auto" and K.face_count(st.body.shape) > K.HEAVY_FACES)
-        out["body"] = _with_colours(_tessellated(st.body, light), st.colours)
+        out["body"] = _packed_mesh(st.body, light, st.colours) if binary else _with_colours(_tessellated(st.body, light), st.colours)
     # reference solids: shown see-through, not part of the part
-    out["refs"] = [{"id": fid, **_tessellated(b)} for fid, b in st.refs.items()]
+    out["refs"] = [_packed_mesh(b, rid=fid) if binary else {"id": fid, **_tessellated(b)} for fid, b in st.refs.items()]
     out["points"] = st.points  # reference points: id -> [x, y, z]
     return out
 

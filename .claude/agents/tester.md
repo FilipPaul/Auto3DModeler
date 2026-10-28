@@ -146,6 +146,9 @@ Never report "works" without having run it; report failures with their output.
    Restart the server after changes to sheet.py (the kernel worker keeps old code).
    `tools/e2e_assembly_light.py <url> <dir>` covers 🪶 Simplified (the Lid ticked: light, no edges, fewer triangles,
    kept in doc.light; a joint onto it still made; unticked: full again, as before).
+   `tools/e2e_big_part_load.py <url> <dir> [<a big .step>]` covers loading big parts (a plate with 171 holes, the 44 MB
+   board in data/imports): the app's time to show it (first, again), the rebuild as JSON + base64 vs the binary
+   message (bytes, fetch and read ms; the same arrays and faces both ways: True), a face picked on it.
    `tools/e2e_library_edit.py <url> <dir>` covers changing library parts (an own Holder: ✎ Edit in the library -> 12
    thick, 📚 Save back: the library's 12, still one item, the project's copy still 5, a new use 12; a catalogue ISO 4762
    M3: ✎ Make my own copy -> a new own part in My parts, the catalogue unchanged; the AI's save_to_library saves back).

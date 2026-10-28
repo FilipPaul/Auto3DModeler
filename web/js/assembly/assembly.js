@@ -23,6 +23,7 @@ import { renameInPlace } from '../rename.js';
 import { paintedFaces, repaint } from '../modeler/paint.js';
 import { sectionBar, sectionMiddle } from '../modeler/sectionbar.js';
 import { ModelView } from '../modeler/view.js';
+import { fetchRebuild } from '../modeler/packed.js';
 import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss } from './joints.js';
 import { snapNear, snapPoints } from '../modeler/view.js';
 import { showSuggest, showSnapFilters, snapKinds, hoverKinds } from '../suggest.js';
@@ -37,7 +38,8 @@ const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const ID = () => new THREE.Matrix4().identity().toArray();
 const COLORS = [0xd9dee6, 0x9ecbff, 0xffd8a8, 0xb5f5c5, 0xe2c6ff, 0xffc2c2, 0xfff3b0];
 
-const b64 = (s, T) => {
+const b64 = (s, T) => { // (a binary answer's arrays come as typed arrays already: modeler/packed.js)
+  if (typeof s !== 'string') return s;
   const bin = atob(s), bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return new T(bytes.buffer);
@@ -1654,8 +1656,7 @@ export class Assembly {
       if (this.bodies[pid]?.key === key) return;
       try {
         const features = await this.partFeatures(pid, data);
-        const res = await fetch('/api/model/rebuild', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: { features, lod } }) });
-        const r = await res.json();
+        const { res, r } = await fetchRebuild({ features, lod });
         if (!res.ok) throw new Error(r.error || res.statusText);
         if (!r.ok && !r.body) throw new Error(r.features.flatMap((s) => s.issues).join(' ') || 'This part has no solid.');
         this.bodies[pid] = r.body ? { key, body: r.body, features } : { key, error: 'This part has no solid yet.' };

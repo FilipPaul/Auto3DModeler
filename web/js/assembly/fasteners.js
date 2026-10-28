@@ -179,7 +179,8 @@ export function findCandidates(asm) {
 
 // ------------------------------------------------------------------ a new bolt: drilled through the parts
 
-const b64 = (s, T) => {
+const b64 = (s, T) => { // (a binary answer's arrays come as typed arrays already: modeler/packed.js)
+  if (typeof s !== 'string') return s;
   const bin = atob(s), bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return new T(bytes.buffer);

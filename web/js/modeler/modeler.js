@@ -17,6 +17,7 @@ import { sectionBar, sectionMiddle } from './sectionbar.js';
 import { originSeg, originKey, sameOrigin, moveOrigin, shiftSketch, shiftPoints, HOLE_ORIGINS, FROM_TEXT } from './origin.js';
 import { libraryFactsHtml } from '../library/browser.js';
 import { roundAxes, axisOf } from './axes.js';
+import { fetchRebuild } from './packed.js';
 
 const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa', mirror: '⇋', draft: '⟋', rib: '⊿', point: '•' };
 const TYPE_NAME = { point: 'Point', rib: 'Rib', draft: 'Draft', sketch: 'Sketch', extrude: 'Extrude', revolve: 'Revolve', fillet: 'Fillet', chamfer: 'Chamfer', hole: 'Hole', shell: 'Shell', pattern: 'Pattern',
@@ -1168,8 +1169,7 @@ export class Modeler {
       this.rid = `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
       const timer = setTimeout(() => { this.$('.m-busy').hidden = false; }, 350);
       try {
-        const res = await fetch('/api/model/rebuild', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: { features }, rid: this.rid }) });
-        const r = await res.json();
+        const { res, r } = await fetchRebuild({ features }, this.rid);
         if (res.status === 501) { this.showInstall(r.error); continue; }
         if (!res.ok) throw new Error(r.error || res.statusText);
         if (r.cancelled) { this.hooks.toast('Cancelled — the model is shown as it was.', 'info'); continue; }

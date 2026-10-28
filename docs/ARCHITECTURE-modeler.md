@@ -466,6 +466,21 @@ Date: 2026-10-25. Written by the architect agent.
   faces, 5237 solids): sheet 78 -> 25 s, 44 -> 4.6 MB; + Section > 45 min (10 GB, never finished) -> 10 s; a
   preset / paper change 78 -> 0.01 s; two boards' exploded assembly sheet 438 -> 60 s, 77 -> 7.3 MB, again 1 s; a
   plate with 171 holes: 2.1 -> 0.9 MB, its Section on 1.0 -> 0.15 s, its assembly 4.3 -> 1.8 MB. tests/test_sheet_speed.py.
+- **Big parts load faster (binary mesh transfer) done:** /api/model/rebuild {bin: true} answers one binary message
+  (auto3d/modeler/packed.py: "A3DM", the header's length, a JSON header {arrays: [{at, off, n, type}], result}, then
+  the arrays as they are, each at a multiple of 4) — web/js/modeler/packed.js fetchRebuild views them as Float32Array
+  / Uint32Array (nothing decoded; the b64 helpers pass typed arrays through); the modeler, the assembly's bodies, the
+  thumbnails and the library's preview use it; without `bin` the JSON answer (base64) is as before (the AI tools,
+  tests, e2e_library_build). The worker packs it (op rebuild_bin) and doc._packed keeps a body's encoded mesh
+  (packed.Mesh: its JSON made once) by body, lod, colours and ref id — an unchanged body is not encoded again.
+  kernel.tessellate gathers each face's triangles as arrays and makes the positions, face ids and (big models) the
+  faces' areas / middles at once (np.bincount), the flat faces' frames in plain floats — the same bytes as before.
+  Measured (tools/e2e_big_part_load.py, localhost, headless Edge), before -> after: the 44 MB board (126 062 faces,
+  943 717 triangles) tessellated 24.9 -> 17.7 s; shown again (unchanged, e.g. a sketch added) 2.4–2.7 s -> 0.55 s
+  (server 1.7 s -> 0.12 s: no pickled dicts, base64 or JSON per rebuild; the fetch 1.9 s -> 0.19 s; read 0.29 ->
+  0.14 s); 87.7 -> 79.6 MB; the plate with 171 holes 2.21 -> 1.78 MB, 25 + 8 -> 8 + 1 ms. Left out: gzip (localhost:
+  1.2 s to pack 92 MB, more than the transfer), quantised positions and edges as one buffer (edges are 2 MB of the
+  board's 80; the faces' JSON is 40 MB but parses in 0.14 s), indexed geometry. tests/test_model_packed.py.
 - **Quick collisions with big imported parts done:** kernel.placed gives a location (shape.Moved), no copy — a 42 MB
   board (24 290 faces, 1170 solids) cost 1.3 s a placed copy, now 0.09 s (10 copies apart 8.9 -> 0.9 s); interference
   goes solid by solid (only solids whose boxes meet); quick (the background check after a change): a pair meeting in

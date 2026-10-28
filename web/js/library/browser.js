@@ -2,6 +2,7 @@
 // 3D with its maker, part number and shop links — then open it as a new 3D model or put it into the assembly on screen.
 import { t } from '../i18n.js';
 import { ModelView } from '../modeler/view.js';
+import { fetchRebuild } from '../modeler/packed.js';
 import { buildPart, sizesOf, lengthsOf, shopLinks, fill, varsOf, modelKey } from './build.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -196,8 +197,7 @@ export class LibraryBrowser {
     const run = (this.run = (this.run || 0) + 1);
     holder.classList.add('busy');
     try {
-      const res = await fetch('/api/model/rebuild', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: { features: data.features } }) });
-      const r = await res.json();
+      const { res, r } = await fetchRebuild({ features: data.features });
       if (run !== this.run || !this.view) return;
       if (!res.ok || !r.body) throw new Error(r.error || (r.features || []).flatMap((s) => s.issues || []).join(' ') || 'No solid.');
       this.view.setBody(r.body);

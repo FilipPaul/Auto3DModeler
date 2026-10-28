@@ -491,15 +491,19 @@ def _model_call(op, arg):
 
 @app.post("/api/model/rebuild")
 def api_model_rebuild():
-    """{part, rid} -> the body (mesh with one face id per triangle, faces, edges), each feature's status."""
+    """{part, rid, bin} -> the body (mesh with one face id per triangle, faces, edges), each feature's status.
+    bin: one binary message (auto3d/modeler/packed.py: the arrays as they are, a big body encoded once), else JSON
+    with the arrays in base64."""
     body = request.get_json(force=True)
     try:
         with progress.operation(body.get("rid")):
-            res, err = _model_call("rebuild", body.get("part") or {})
+            res, err = _model_call("rebuild_bin" if body.get("bin") else "rebuild", body.get("part") or {})
     except progress.Cancelled:
         return jsonify({"cancelled": True})
     if err:
         return err
+    if body.get("bin"):
+        return Response(res, mimetype="application/octet-stream")
     for b in [res.get("body"), *(res.get("refs") or [])]:
         if b:
             b["positions"] = base64.b64encode(b["positions"]).decode("ascii")

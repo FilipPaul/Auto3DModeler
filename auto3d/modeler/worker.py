@@ -28,9 +28,10 @@ def _main(conn):
         os.dup2(devnull, 1)
     except OSError:
         pass
-    from . import doc
+    from . import doc, packed
     from .kernel import KernelError
-    ops = {"rebuild": doc.rebuild, "export": lambda a: doc.export(a["part"], a["fmt"], a.get("name") or "part"),
+    ops = {"rebuild": doc.rebuild, "rebuild_bin": lambda a: packed.pack(doc.rebuild(a, True)),  # (the browser's: packed.py)
+           "export": lambda a: doc.export(a["part"], a["fmt"], a.get("name") or "part"),
            "assembly_step": lambda a: doc.assembly_step(a["instances"]),
            "assembly_clashes": lambda a: doc.assembly_clashes(a["instances"], bool(a.get("quick"))),
            "assembly_sweep": lambda a: doc.assembly_sweep(a["instances"], a["steps"]),

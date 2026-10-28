@@ -464,6 +464,9 @@ is too small to see at the sheet's scale is left out — solids, edges and holes
 resistor on a board drawn 1:5), the left panel says how many — and its Section A–A cuts only the solids across the
 cut: a 44 MB board's sheet in 25 s instead of 78 s, 4.6 MB to the browser instead of 44 MB. A sheet keeps its part's
 views: another preset, paper or the section turned on does not project the part again (a hundredth of a second).
+Big parts also load faster: the model comes to the browser as raw arrays, not text, and an unchanged body is not sent
+through the kernel again — the 44 MB board is shown again in about half a second instead of two and a half, first
+built in 18 s of meshing instead of 25.
 
 **Fits and tolerances**: a Hole step has a **Fit** (H6 / H7 / H8 / H9, ISO 286) — the drawing labels it *Ø8 H7* and
 lists it with its deviations (*Ø8 H7 (+0.015 / 0)*); the part's **Tolerances** (ISO 2768-f / m / c) go into the
