@@ -38,6 +38,7 @@ PLATE = 80 * 50 * 10 - math.pi * 5 ** 2 * 10 - 4 * math.pi * 2.5 ** 2 * 10 - 4 *
 POST = math.pi * 6 ** 2 * 40 - math.pi * 2.1 ** 2 * 12  # Ø12 × 40, a blind M5 (tap drill Ø4.2) 12 deep
 SCREW = 600.641  # ISO 10642 M6×16 as the library draws it
 FRAME = PLATE + 4 * POST + 4 * SCREW
+ORANGE, GREEN = "#d9822b", "#2e9e4f"  # the plate's painted top, the green post
 
 
 def read(name):
@@ -60,6 +61,33 @@ def glb(data):
     assert (magic, version, length) == (b"glTF", 2, len(data))
     n = struct.unpack("<I", data[12:16])[0]
     return json.loads(data[20:20 + n])
+
+
+def colours_of(g):
+    """A glTF's materials' colours -> ["#rrggbb"]."""
+    return ["#%02x%02x%02x" % tuple(round(c * 255) for c in m["pbrMetallicRoughness"]["baseColorFactor"][:3]) for m in g["materials"]]
+
+
+def file_names(data, kind="step"):
+    """The names in a STEP / IGES file: its products and placements, as a CAD program's tree lists them."""
+    d, st = K._read_xcaf(data, kind)  # noqa: F841 — (the document holds the labels)
+    out = []
+
+    def walk(label):
+        out.append(K._label_name(label))
+        for comp, ref in K._components(st, label):
+            out.append(K._label_name(comp))
+            walk(ref)
+    for label in K._free_labels(st):
+        walk(label)
+    return out
+
+
+def painted(shape, colours):
+    """The faces read back in each colour -> {colour: how many} — the orange one: [x, y, z] of its middle (one face)."""
+    fm, out = K._face_map(shape), Counter(colours.values())
+    at = [k for k, c in colours.items() if c == ORANGE]
+    return {**out, **({ORANGE: [round(v, 6) + 0 for v in K._centroid(fm.FindKey(at[0] + 1))]} if len(at) == 1 else {})}
 
 
 def dims_of(data):
@@ -109,6 +137,7 @@ class TestMeshes(unittest.TestCase):
         pos = [g["accessors"][p["attributes"]["POSITION"]] for p in g["meshes"][0]["primitives"]]
         span = [round(max(a["max"][k] for a in pos) - min(a["min"][k] for a in pos), 6) for k in range(3)]
         self.assertEqual(span, [0.08, 0.01, 0.05])  # metres, Y up
+        self.assertEqual(colours_of(g), ["#c3c8cd", ORANGE])  # aluminium, the painted top
         g = glb(read("assembly_frame.glb"))
         nodes = g["nodes"]
         root = nodes[g["scenes"][g.get("scene", 0)]["nodes"][0]]
@@ -118,6 +147,8 @@ class TestMeshes(unittest.TestCase):
         self.assertEqual(len(kids), 7)  # the plate, the pair twice, 4 screws
         self.assertEqual([nodes[k]["name"] for k in kids[1]["children"]], ["Post-1", "Post-2"])  # nested
         self.assertEqual(sum(1 for n in nodes if "mesh" in n), 9)
+        self.assertEqual([k["name"] for k in kids[3:]], [f"ISO 10642 M6×16-{i}" for i in range(1, 5)])  # (not "Ã—")
+        self.assertTrue({ORANGE, GREEN} <= set(colours_of(g)))  # the painted top, the green post
 
 
 class TestBom(unittest.TestCase):
@@ -125,7 +156,7 @@ class TestBom(unittest.TestCase):
         rows = list(csv.DictReader(io.StringIO(read("assembly_frame_BOM.csv").decode("utf-8-sig")), delimiter=";"))
         self.assertEqual([(r["Pos"], r["Qty"], r["Name"]) for r in rows], [("1", "1", "Base plate"), ("2", "4", "Post"), ("3", "4", "ISO 10642 M6×16")])
         self.assertEqual(rows[2]["Part number"], "ISO 10642 M6x16")
-        self.assertEqual(rows[2]["Bought / made"], "bought")
+        self.assertEqual([r["Bought / made"] for r in rows], ["made", "made", "bought"])  # (aluminium, steel: not 3D printed)
         self.assertAlmostEqual(float(rows[0]["Mass each (g)"].replace(",", ".")), PLATE / 1000 * 2.7, delta=0.01)  # aluminium
 
 
@@ -140,6 +171,7 @@ class TestSheets(unittest.TestCase):
         frame = fitz.open(stream=read("sheet_frame.pdf"), filetype="pdf")[0].get_text()
         for s in ("Post pair", "ISO 10642 M6x16", "1:2"):  # the parts list, its scale
             self.assertIn(s, frame)
+        self.assertNotIn("PLA", frame)  # (the title block's material: "—"; the parts' are in the list)
 
     def test_dxf(self):
         dx, dims, sizes = dims_of(read("sheet_base_plate.dxf"))
@@ -175,14 +207,18 @@ class TestCad(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_part(self):
-        shape, _, built = K.read_step_colours(read("part_base_plate.step"), summary=True)
+        shape, colours, built = K.read_step_colours(read("part_base_plate.step"), summary=True)
         self.assertEqual(built, {"parts": 1, "placements": 1, "subs": 0})
         self.assertAlmostEqual(K.volume(shape), PLATE, delta=1e-3)
         self.assertEqual([round(v, 6) for v in K.bbox(shape)], [-40, -25, 0, 40, 25, 10])
         self.assertEqual(K.face_count(shape), 15)  # 6 sides, the Ø10 wall, 4 × (drill + cone)
-        shape, _, how = K.read_iges(read("part_base_plate.igs"))
+        self.assertEqual(file_names(read("part_base_plate.step")), ["Base plate"])  # (exported after the assembly: still its own name)
+        self.assertEqual(painted(shape, colours), {"#c3c8cd": 14, ORANGE: [0, 0, 10]})  # aluminium, the top painted
+        shape, colours, how = K.read_iges(read("part_base_plate.igs"))
         self.assertEqual(how, "solid")
         self.assertAlmostEqual(K.volume(shape), PLATE, delta=1e-3)
+        self.assertEqual(file_names(read("part_base_plate.igs"), "iges"), ["Base plate"])
+        self.assertEqual(painted(shape, colours), {"#c3c8cd": 14, ORANGE: [0, 0, 10]})
         # 🔩 real threads: the grooves cut into the 4 holes, as the project's plate rebuilds with them
         shape = K.from_step(read("part_base_plate_real_threads.step"))
         self.assertEqual(K.solids(shape), 1)
@@ -206,12 +242,20 @@ class TestCad(unittest.TestCase):
         self.assertEqual([names(i["ref"]) for i in pair["instances"]], ["Post", "Post"])  # one part, placed twice
         self.assertEqual(pair["instances"][1].get("colour"), "#2e9e4f")
         self.assertEqual([round(v, 6) for v in pair["instances"][1]["matrix"][12:15]], [40, 0, 0])
-        shape, _, built = K.read_step_colours(read("assembly_frame.step"), summary=True)
+        self.assertIn("ISO 10642 M6×16", [p["name"] for p in parts.values()])  # (not "Ã—")
+        self.assertTrue(read("assembly_frame.step").isascii())  # (× as STEP's \X2\00D7\X0\, which every reader decodes)
+        shape, colours, built = K.read_step_colours(read("assembly_frame.step"), summary=True)
         self.assertEqual(built, {"parts": 3, "placements": 9, "subs": 1})
         self.assertAlmostEqual(K.volume(shape), FRAME, delta=0.01)
-        shape, _, how = K.read_iges(read("assembly_frame.igs"))
+        self.assertEqual(painted(shape, colours)[ORANGE], [0, 0, 10])  # the plate's painted top
+        self.assertEqual(painted(shape, colours)[GREEN], 2 * 5)  # Post-2 of both pairs: 5 faces each (side, ends, the M5 drill: wall, tip)
+        shape, colours, how = K.read_iges(read("assembly_frame.igs"))
         self.assertEqual((how, K.solids(shape)), ("solid", 9))
         self.assertAlmostEqual(K.volume(shape), FRAME, delta=0.01)
+        self.assertEqual(file_names(read("assembly_frame.igs"), "iges"), ["Base plate-1", "Post pair-1/Post-1", "Post pair-1/Post-2", "Post pair-2/Post-1",
+                                                                     "Post pair-2/Post-2", *[f"ISO 10642 M6x16-{i}" for i in range(1, 5)]])  # (IGES: ASCII)
+        self.assertEqual(painted(shape, colours)[ORANGE], [0, 0, 10])
+        self.assertEqual(painted(shape, colours)[GREEN], 2 * 5)
 
 
 if __name__ == "__main__":
