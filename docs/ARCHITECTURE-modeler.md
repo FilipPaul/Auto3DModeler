@@ -498,6 +498,19 @@ Date: 2026-10-25. Written by the architect agent.
   wrapping into rows; a tab ≥ 5 letters + its buttons, up to 200 px (on screen / renaming: 420 px); tabs draggable
   (Project.move; dropped outside the window: hooks.openWindow); ✕ on the last tab too — Project.setNone: the part
   stays live underneath, body.none-open shows "No part open", switchTo / show bring it back. tools/e2e_tabs.py.
+- **📋 Bill of materials rolled up through the hierarchy done:** web/js/assembly/bom.js — one engine (the assembly's
+  panel, the sheets, the AI): instanceTree (the placed parts instance by instance, sub-assemblies opened, loops not),
+  itemNumbers (moved here from SheetEditor: the drawing set's positions), makeBuy (the one place make / buy is decided:
+  library / standard -> bought; own parts by material: printing plastics -> made (3D print), metals -> made (machined),
+  else made), bomOf(ctx, aid, {mode, numbering}) -> tree (per assembly a node per part: qty in its parent, total =
+  qty × the parent's total), rows (one per part, the totals summed over every place, `in`: where from), lines,
+  pieces / kinds / mass; bomTable / bomCsv. bomview.js: 📋 BOM window (Summary / Structured with ▾ folds, the assembly
+  or any sub-assembly, ⬇ CSV, ⬇ Excel). auto3d/bomxlsx.py + GET / POST /api/bom/xlsx (openpyxl optional: 501 and CSV
+  only). Assembly.bomCtx / massOf / numberingOf (hooks.setRoot = sheet.rootOf: positions as the balloons), bomFlat and
+  ⬇ BOM (CSV) on the engine. Sheets: d.bomPage ('summary' | 'structured') on an assembly's sheet -> bomPages (paged,
+  22 rows on A4) + bomSvg (the parts list's style, the set's template / frame) after its page in drawingSet, 📚 All
+  pages and the sheet's own PDF; 📋 Add BOM page in its panel. AI: get_bom {assembly, mode}, get_assembly parts_list
+  `total`. tests/test_bom_xlsx.py; tools/e2e_bom.py.
 - **One item numbering per drawing set done:** SheetEditor.itemNumbers(root) — the top assembly's parts 1…n, then each
   sub-assembly's new ones in page order; assemblyPage numbers its rows (and balloons) by the set's root (rootOf), so a
   part has one number on every page (the cache key carries the numbering). e2e_drawing_set checks Machine 1–3, Lid unit 4, 5.

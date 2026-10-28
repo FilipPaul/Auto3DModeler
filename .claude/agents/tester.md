@@ -192,6 +192,11 @@ Never report "works" without having run it; report failures with their output.
    the recommended option first ★; one answered: nothing sent; both: one message "<question> → <option>"; ✎ Other…
    puts the question in the box; no options refused). The message is caught in the page (no Claude needed).
    (e2e_drawing_set also checks one item numbering for the whole set: Machine 1–3, the Lid unit's parts 4 and 5.)
+   `tools/e2e_bom.py <url> <dir>` covers the 📋 BOM rolled up through the hierarchy (Machine = Base + Lid unit ×2 (Lid,
+   Pin ×3, screw ×2) + Hinge (Bracket, Pin) + 4 screws directly): get_bom totals Base 1, Lid 2, Pin 7, Bracket 1, screw
+   8, `from`, make / buy by material, the structured tree, Lid unit alone, parts_list `total`; the 📋 BOM window
+   (Summary / Structured, a fold, Hinge chosen), ⬇ CSV of both views, ⬇ Excel; the Czech headers; the Machine sheet's
+   📋 Add BOM page in 📚 All pages and in the set's PDF with the balloons' positions; 45 rows flow onto 3 pages.
    `tools/e2e_cleanup.py <url> <dir>` covers 🧹 Clean up empty projects (three empty default-named projects asked about
    by name and deleted; an empty one named by the user and one with a step stay; again: nothing to clean up). Needs a
    server restarted after server / autosave changes.

@@ -19,12 +19,14 @@ import { t } from '../i18n.js';
 import { ask } from '../choose.js';
 import { renameInPlace } from '../rename.js';
 import { HOLE_FITS, SHAFT_FITS, deviationText } from './fits.js';
+import { itemNumbers as numbersOf, bomOf } from '../assembly/bom.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const fmt = (v) => (+(+v).toFixed(2)).toString();
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const VIEWS = ['Front', 'Top', 'Right'];
+const BOM_ROW = 5.5; // a BOM page's row (mm)
 const PRESETS = [['light', 'Light'], ['medium', 'Medium'], ['full', 'Full']];
 const TEXTS = [['title', 'Title'], ['number', 'Drawing no.'], ['drawn', 'Drawn by'], ['note', 'Note']];
 /** The fixed texts a title-block template holds (a sheet's own text of these overrides it). */
@@ -99,8 +101,8 @@ export class SheetEditor {
     this.pick = null;    // the first point of a new dimension {view, key}
     this.zoom = { k: 1, x: 0, y: 0 };
     this.history = new History({
-      capture: () => ({ section: !!this.d?.section, balloons: this.d?.balloons, views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper, texts: this.d?.texts, exploded: !!this.d?.exploded, viewNames: this.d?.viewNames, scale: this.d?.scale ?? null, vscale: this.d?.vscale, template: this.d?.template, tb: this.d?.tb, frame: this.d?.frame }),
-      restore: (s) => { const ex = !!this.d.exploded, sec = !!this.d.section; Object.assign(this.d, structuredClone(s)); if (!this.d.exploded) delete this.d.exploded; if (!this.d.section) delete this.d.section; if (ex !== !!this.d.exploded || sec !== !!this.d.section || this.d.built?.preset !== this.d.preset || this.d.built?.vp !== JSON.stringify(this.d.vpreset || {}) || this.layKey() !== this.builtKey()) this.ensure(true); else this.render(); },
+      capture: () => ({ section: !!this.d?.section, balloons: this.d?.balloons, views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper, texts: this.d?.texts, exploded: !!this.d?.exploded, viewNames: this.d?.viewNames, scale: this.d?.scale ?? null, vscale: this.d?.vscale, template: this.d?.template, tb: this.d?.tb, frame: this.d?.frame, bomPage: this.d?.bomPage }),
+      restore: (s) => { const ex = !!this.d.exploded, sec = !!this.d.section; Object.assign(this.d, structuredClone(s)); if (!this.d.exploded) delete this.d.exploded; if (!this.d.section) delete this.d.section; if (!this.d.bomPage) delete this.d.bomPage; if (ex !== !!this.d.exploded || sec !== !!this.d.section || this.d.built?.preset !== this.d.preset || this.d.built?.vp !== JSON.stringify(this.d.vpreset || {}) || this.layKey() !== this.builtKey()) this.ensure(true); else this.render(); },
       onChange: () => this.renderBar(),
     });
     this.build();
@@ -588,6 +590,7 @@ export class SheetEditor {
     if (!forPrint && this.guides?.length) for (const [x1, y1, x2, y2] of this.guides) out.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1f6feb" stroke-width="0.25" stroke-dasharray="2 1.5" class="sh-guide"/>`);
     for (const d of this.allDims()) out.push(this.dimSvg(d, forPrint));
     if (this.d.asm) out.push(this.asmSvg(pw, ph, m, th));
+    if (this.d.bom) out.push(this.bomSvg(pw, ph, th));
     if (!forPrint && this.tool === 'dim') out.push(this.snapMarks());
     if (!forPrint && this.checked) for (const m of this.checked.missing) { // what is missing: an orange ?
       const q = this.P(m.view, m.at);
@@ -722,7 +725,7 @@ export class SheetEditor {
     const appLine = 'Auto3DModeler · mm';
     if (tb.layout === 'strip') { // one row: name, material, scale, paper, drawing no., rev, sheet
       row(y0, th, x0, W, [[what, name, 2.6, 'title', 3.6, true], ...(on('material') ? [[t('Material'), T.material ?? (src.material || 'PLA'), 1.3]] : []),
-        [t('Scale'), scaleText(this.scaleArr()), 0.8], ...(on('paper') ? [[t('Paper'), L.paper, 0.6]] : []),
+        [t('Scale'), this.d.bom ? '—' : scaleText(this.scaleArr()), 0.8], ...(on('paper') ? [[t('Paper'), L.paper, 0.6]] : []),
         ...(on('number') ? [[t('Drawing no.'), F.number || '', 1.3, 'number']] : []), ['Rev', `${this.d.rev}`, 0.5], ...(T.sheet ? [[t('Sheet'), T.sheet, 0.8]] : [])]);
       g.push(`<text x="${x0 + W - 1.2}" y="${y0 - 1.2}" font-size="1.6" fill="${MUTED}" text-anchor="end">${esc(appLine)}</text>`);
       g.push('</g>');
@@ -752,7 +755,7 @@ export class SheetEditor {
       if (!C) g.push(`<text x="${x0 + W - 1.2}" y="${y0 - 1.2}" font-size="1.6" fill="${MUTED}" text-anchor="end">${esc(appLine)}</text>`);
     }
     g.push(`<line x1="${xm}" y1="${y0 + hA}" x2="${x0 + W}" y2="${y0 + hA}" stroke="${INK}" stroke-width="${THIN}"/>`);
-    row(y0 + hA, hB, xm, M, [...(on('material') ? [[t('Material'), T.material ?? (src.material || 'PLA'), 1.35]] : []), [t('Scale'), scaleText(this.scaleArr()), 0.8],
+    row(y0 + hA, hB, xm, M, [...(on('material') ? [[t('Material'), T.material ?? (src.material || 'PLA'), 1.35]] : []), [t('Scale'), this.d.bom ? '—' : scaleText(this.scaleArr()), 0.8],
       ...(on('paper') ? [[t('Paper'), L.paper, 0.65]] : []), ...(on('tolerances') ? [[t('Tolerances'), tol, 1.3]] : []), ...(T.sheet ? [[t('Sheet'), T.sheet, 0.85]] : [])]);
     g.push(`<line x1="${xm}" y1="${y0 + hA + hB}" x2="${x0 + W}" y2="${y0 + hA + hB}" stroke="${INK}" stroke-width="${THIN}"/>`);
     row(y0 + hA + hB, hB, xm, M, [...(on('drawn') ? [[t('Drawn by'), F.drawn || '', 1.1, 'drawn']] : []), ...(on('created') ? [[t('Created'), day(this.d.created), 0.95]] : []),
@@ -825,17 +828,64 @@ export class SheetEditor {
    *  material, part number, bought) and where each one's balloon points -> {built, rows}. */
   /** One numbering of the parts for the whole drawing set from `root` (a part keeps its number on every page): the
    *  top assembly's parts first, then each sub-assembly's new ones, in the order of the pages -> Map(part id -> n). */
-  itemNumbers(root) {
-    const nums = new Map(), seen = new Set();
-    const visit = (aid) => {
-      if (seen.has(aid)) return;
-      seen.add(aid);
-      const parts = [...new Set((this.hooks.partData(aid)?.instances || []).map((it) => it.part))];
-      for (const p of parts) if (!nums.has(p)) nums.set(p, nums.size + 1);
-      for (const p of parts) if (this.hooks.kindOf?.(p) === 'assembly') visit(p);
+  itemNumbers(root) { return numbersOf(this.bomCtx(), root); }
+
+  /** What the BOM engine (assembly/bom.js) reads of the project; masses from the assembly's bodies when it has them. */
+  bomCtx() {
+    return { partData: (id) => this.hooks.partData(id), kindOf: (id) => this.hooks.kindOf?.(id), partName: (id) => this.hooks.partName(id) || id,
+      massOf: (id) => this.hooks.drawingCtx?.().massOf?.(id) ?? null };
+  }
+
+  /** 📋 The BOM pages of assembly `aid` (its whole hierarchy rolled up: bom.js; positions as the set's balloons), on the
+   *  paper and frame of its page (`built`), as many pages as its rows need. sd: its sheet's data (template, texts,
+   *  bomPage: true | 'summary' | 'structured') -> [page data]. */
+  bomPages(aid, sd, built, parent = '') {
+    const mode = sd.bomPage === 'structured' ? 'structured' : 'summary', bom = bomOf(this.bomCtx(), aid, { mode, numbering: this.rootOf(aid) || aid });
+    const [, ph] = built.layout.size, [, mt, , mb] = this.frameOf(sd).m, th = this.titleH(sd);
+    const per = Math.max(4, Math.floor((ph - mb - th - 4 - (mt + 12) - 6.5) / BOM_ROW) - 1), lines = bom.lines, n = Math.max(1, Math.ceil(lines.length / per));
+    const keep = ['template', 'tb', 'frame', 'texts', 'paper', 'scale', 'created', 'changed', 'rev', 'hash'];
+    const base = Object.fromEntries(keep.filter((k) => sd[k] !== undefined).map((k) => [k, structuredClone(sd[k])]));
+    return Array.from({ length: n }, (_, k) => ({ ...base, source: aid, off: { Front: true, Top: true, Right: true, Iso: true }, views: {}, dims: {}, hidden: [], user: [],
+      built: { layout: built.layout, geometry: { views: {}, iso: [] }, dims: [], preset: 'light' },
+      bom: { mode, lines: lines.slice(k * per, (k + 1) * per), page: k + 1, pages: n, kinds: bom.kinds, pieces: bom.pieces, mass_g: bom.mass_g, more: k + 1 < n },
+      title: { kind: t('Bill of materials'), part: this.hooks.partName(aid) || aid, material: '—', of: parent } }));
+  }
+
+  /** A BOM page's table: the whole width inside the frame over the title block, in the parts list's style (one outline,
+   *  muted header over a rule, thin rules between rows, the position bold, a sub-assembly's row bold and its parts
+   *  indented in the structured one). */
+  bomSvg(pw, ph, th) {
+    const B = this.d.bom, [ml, mt, mr] = this.frameOf().m, x0 = ml + 4, W = pw - mr - 4 - x0, structured = B.mode === 'structured';
+    const cols = (structured ? [['Pos.', 0.05], ['Name', 0.27], ['Qty per parent', 0.07], ['Total qty', 0.06], ['Material', 0.11], ['Mass each (g)', 0.08], ['Maker', 0.1], ['Part number', 0.15], ['Make / buy', 0.11]]
+      : [['Pos.', 0.05], ['Name', 0.3], ['Qty', 0.05], ['Material', 0.12], ['Mass each (g)', 0.08], ['Mass total (g)', 0.08], ['Maker', 0.1], ['Part number', 0.12], ['Make / buy', 0.1]]).map(([l, k]) => [t(l), W * k]);
+    const NUM = new Set(structured ? [0, 2, 3, 5] : [0, 2, 4, 5]), g = ['<g class="sh-bompage">'], top = mt + 12;
+    const kg = (v) => (v === null || v === undefined ? '' : String(+(+v).toFixed(2)));
+    g.push(`<text x="${x0}" y="${mt + 8}" font-size="5" font-weight="bold" fill="#000">${esc(`${t('Bill of materials')} — ${this.hooks.partName(this.d.source) || ''}`)}</text>`);
+    g.push(`<text x="${x0 + W}" y="${mt + 8}" font-size="2.6" fill="#555" text-anchor="end">${esc(`${t(structured ? 'Structured' : 'Summary')} · ${tv('{kinds} different part(s), {pieces} piece(s) in all', { kinds: B.kinds, pieces: B.pieces })}${B.pages > 1 ? ` · ${B.page} / ${B.pages}` : ''}`)}</text>`);
+    const h = 6.5 + BOM_ROW * B.lines.length + (B.more ? BOM_ROW : 0);
+    g.push(`<rect x="${x0}" y="${top}" width="${W}" height="${h}" fill="#fff" stroke="#000" stroke-width="0.35"/>`);
+    const row = (y, cells, head, o = {}) => {
+      let x = x0;
+      cells.forEach((v, i) => {
+        const w = cols[i][1], num = NUM.has(i), fs = head ? 2 : 2.8, ind = !head && i === 1 ? (o.depth || 0) * 3.5 : 0, n = Math.max(1, Math.floor((w - 2.4 - ind) / (fs * 0.53)));
+        const str = String(v ?? ''), txt = str.length > n ? `${str.slice(0, n - 1)}…` : str, bold = !head && (i === 0 || (o.asm && i === 1));
+        if (i && !head) g.push(`<line x1="${x}" y1="${y + 1}" x2="${x}" y2="${y + BOM_ROW - 1}" stroke="#000" stroke-width="0.13"/>`);
+        g.push(`<text x="${num ? x + w / 2 : x + 1.6 + ind}" y="${y + (head ? 4.2 : 3.9)}" font-size="${fs}" fill="${head ? '#555' : '#000'}"${num ? ' text-anchor="middle"' : ''}${bold ? ' font-weight="bold"' : ''}>${esc(txt)}</text>`);
+        x += w;
+      });
+      const yb = y + (head ? 6.5 : BOM_ROW);
+      g.push(`<line x1="${x0}" y1="${yb}" x2="${x0 + W}" y2="${yb}" stroke="#000" stroke-width="${head ? 0.25 : 0.13}"/>`);
     };
-    visit(root);
-    return nums;
+    row(top, cols.map((c) => c[0]), true);
+    B.lines.forEach((r, i) => {
+      const asm = r.kind === 'assembly', how = asm ? t('assembly') : t(r.how);
+      const cells = structured ? [r.pos ?? '', `${asm ? '◇ ' : ''}${r.name}`, r.qty, r.total, r.material || '', asm ? '' : kg(r.mass_g), r.maker || '', r.pn || '', how]
+        : [r.pos ?? '', r.name, r.qty, r.material || '', kg(r.mass_g), kg(r.mass_total_g), r.maker || '', r.pn || '', how];
+      row(top + 6.5 + BOM_ROW * i, cells, false, { depth: r.depth || 0, asm });
+    });
+    if (B.more) g.push(`<text x="${x0 + 1.6}" y="${top + 6.5 + BOM_ROW * B.lines.length + 3.9}" font-size="2.6" fill="#555">${esc(tv('… continued on the next page ({n} / {m})', { n: B.page + 1, m: B.pages }))}</text>`);
+    g.push('</g>');
+    return g.join('');
   }
 
   async assemblyPage(aid, ctx, explode = 0, sd = null) { // (sd: its sheet's data — its paper, scale, frame)
@@ -869,6 +919,7 @@ export class SheetEditor {
       const base = own ? structuredClone(own) : { created: now, changed: now, off: { Right: true }, views: { Iso: built.layout.views.Right } };
       pages.push({ name: name(aid), d: { ...base, source: aid, built, asm: { rows },
         title: { kind: parent ? t('Sub-assembly') : t('Assembly'), part: name(aid), material: '—', of: parent || '' } } });
+      if (own?.bomPage) for (const d of this.bomPages(aid, sd, built, parent || '')) pages.push({ name: `${t('BOM')} ${name(aid)}`, bom: true, d });
       for (const row of rows) if (row.kind === 'assembly' && !drawn.has(row.part)) { drawn.add(row.part); await visit(row.part, name(aid)); }
       for (const row of rows) {
         if (row.kind !== 'model' || row.bought || drawn.has(row.part)) continue;
@@ -890,7 +941,7 @@ export class SheetEditor {
     }
     const n = pages.length;
     const svgs = pages.map((pg, i) => this.svgOf({ ...pg.d, title: { ...pg.d.title, sheet: `${i + 1} / ${n}` } }));
-    return { svgs, ids: pages.map((pg) => pg.part || pg.d.source), pages: pages.map((pg) => (pg.part ? pg.name : `◇ ${pg.name}`)) };
+    return { svgs, ids: pages.map((pg) => pg.part || pg.d.source), bom: pages.map((pg) => !!pg.bom), pages: pages.map((pg) => (pg.part ? pg.name : pg.bom ? `📋 ${pg.name}` : `◇ ${pg.name}`)) };
   }
 
   /** A server build kept by its key (what it was made from), the last 40. */
@@ -1092,6 +1143,7 @@ export class SheetEditor {
       <div class="mp-facts"><span>Rev</span><b data-no-i18n>${this.d.rev}</b><span>${esc(t('Changed'))}</span><b data-no-i18n>${esc(when(this.d.changed))}</b><span>${esc(t('Created'))}</span><b data-no-i18n>${esc(when(this.d.created))}</b></div>
       ${d ? '' : this.titlePanel()}
       ${this.d.asm ? `<label class="check"><input type="checkbox" data-k="exploded" ${this.d.exploded ? 'checked' : ''}> ${esc(t('Iso view exploded'))}</label>` : ''}
+      ${this.d.asm ? this.bomPanel() : ''}
       <div class="field"><label>Paper</label><select data-k="paper">${[['', 'Auto'], ['A4', 'A4'], ['A3', 'A3']].map(([v, l]) => `<option value="${v}" ${(this.d.paper || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="field"><label>${esc(t('Scale'))}</label>${this.scaleSelect('data-k="scale"', this.d.scale, this.d.scale ? t('Auto') : `${t('Auto')} (${scaleText(this.lay?.scale || [1, 1])})`, t('The sheet\'s scale: Auto fits the views on the paper; or a standard one, or your own (Custom…, e.g. 1:2522). Dimensions always show the real sizes.'))}</div>
       ${d ? '' : this.framePanel()}
@@ -1114,11 +1166,31 @@ export class SheetEditor {
       this.history.commit();
       this.ensure(true);
     });
+    this.bindBomPanel(box);
     box.querySelector('[data-k=paper]').addEventListener('change', (e) => { this.d.paper = e.target.value || null; this.d.views = {}; this.history.commit(); this.ensure(true); });
     box.querySelector('[data-k=scale]')?.addEventListener('change', async (e) => { const s = await this.scaleFrom(e.target, this.d.scale); if (s !== undefined) this.setSheetScale(s); });
     box.querySelector('[data-a=del]')?.addEventListener('click', () => this.remove(this.sel));
     box.querySelector('[data-k=fit]')?.addEventListener('change', (e) => { this.setFit(d.id, e.target.value); this.renderProps(); });
     box.querySelector('[data-a=part]')?.addEventListener('click', () => this.hooks.openPart?.(this.d.source));
+  }
+
+  /** An assembly's sheet: 📋 Add BOM page — the whole BOM on its own page(s) after this one, in the drawing set and its
+   *  PDF; Summary | Structured; 👁 shows it in 📚 All pages. */
+  bomPanel() {
+    const on = this.d.bomPage, mode = on === 'structured' ? 'structured' : 'summary';
+    if (!on) return `<div class="row-actions"><button class="btn small" data-a="bomAdd" title="${esc(t('A page with the bill of materials of this assembly — every level rolled up, the positions as the balloons — after this page, in the drawing set and its PDF'))}">📋 ${esc(t('Add BOM page'))}</button></div>`;
+    const n = this.d.built ? this.bomPages(this.d.source, this.d, this.d.built).length : 1;
+    return `<h3>📋 ${esc(t('BOM page'))}</h3><span class="seg"><button class="${mode === 'summary' ? 'on' : ''}" data-bommode="summary" title="${esc(t('One row per part: how many in all, from every level of the assembly'))}">${esc(t('Summary'))}</button><button class="${mode === 'structured' ? 'on' : ''}" data-bommode="structured" title="${esc(t('The assembly tree: each sub-assembly with its parts, how many in each and in all'))}">${esc(t('Structured'))}</button></span>
+      <p class="hint">${esc(tv('{n} page(s) after this one, in the drawing set and its PDF.', { n }))}</p>
+      <div class="row-actions"><button class="btn small" data-a="bomShow" title="${esc(t('See it among all the pages of the drawing set'))}">👁 ${esc(t('Show it'))}</button><button class="btn small danger" data-a="bomDel">✕ ${esc(t('Remove BOM page'))}</button></div>`;
+  }
+
+  bindBomPanel(box) {
+    const show = () => { this.setMode = true; this.setScrolled = false; this.toBom = true; this.seen = null; this.render(); };
+    box.querySelector('[data-a=bomAdd]')?.addEventListener('click', () => { this.d.bomPage = 'summary'; this.commit(); show(); });
+    box.querySelector('[data-a=bomShow]')?.addEventListener('click', show);
+    box.querySelector('[data-a=bomDel]')?.addEventListener('click', () => { delete this.d.bomPage; this.commit(); });
+    for (const b of box.querySelectorAll('[data-bommode]')) b.addEventListener('click', () => { this.d.bomPage = b.dataset.bommode; this.commit(); if (this.setMode) { this.setScrolled = false; this.toBom = true; this.render(); } });
   }
 
   /** A Ø dimension's fit (ISO 286): holes H6 … H9, shafts (a pin, a boss, an axle) f7 … p6 — with its deviations. */
@@ -1282,9 +1354,9 @@ export class SheetEditor {
     try { set = await this.drawingSet(root, this.hooks.drawingCtx()); } catch (e) { this.stage.innerHTML = `<p class="hint sh-empty">${esc(e.message)}</p>`; return; }
     if (run !== this.setRun || !this.setMode) return;
     const top = this.stage.scrollTop;
-    this.stage.innerHTML = set.svgs.map((svg, i) => `<div class="sh-sheetpage" data-pageid="${set.ids[i]}" title="${esc(t('Double-click: edit this page'))}" data-no-i18n>${svg}</div>`).join('');
+    this.stage.innerHTML = set.svgs.map((svg, i) => `<div class="sh-sheetpage" data-pageid="${set.ids[i]}"${set.bom[i] ? ' data-bom="1"' : ''} title="${esc(t('Double-click: edit this page'))}" data-no-i18n>${svg}</div>`).join('');
     if (this.setScrolled) this.stage.scrollTop = top;
-    else { this.stage.querySelector(`[data-pageid="${this.d.source}"]`)?.scrollIntoView({ block: 'start' }); this.setScrolled = true; }
+    else { this.stage.querySelector(this.toBom ? '[data-bom]' : `[data-pageid="${this.d.source}"]`)?.scrollIntoView({ block: 'start' }); this.setScrolled = true; this.toBom = false; }
     this.$('.sh-status').textContent = tv('{n} pages — scroll; double-click one to edit it', { n: set.svgs.length });
   }
 
@@ -1567,7 +1639,8 @@ export class SheetEditor {
   }
 
   async exportPdf() {
-    const res = await fetch('/api/sheet/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ svg: this.svg(true), name: this.hooks.safeName() }) });
+    const svgs = [this.svg(true), ...(this.d.asm && this.d.bomPage && this.d.built ? this.bomPages(this.d.source, this.d, this.d.built).map((d) => this.svgOf(d)) : [])];
+    const res = await fetch('/api/sheet/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ svgs, name: this.hooks.safeName() }) });
     if (!res.ok) { this.hooks.toast((await res.json()).error || res.statusText, 'error'); return; }
     await this.hooks.download(await res.blob(), `${this.hooks.safeName()}.pdf`);
   }
