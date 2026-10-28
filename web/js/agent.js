@@ -26,6 +26,8 @@ function md(text) {
 /** How many of the AI's tool calls this page has run (a turn that ran none here changed nothing here). */
 export const bridgeStats = { calls: 0 };
 
+const CALL_BUDGET_S = 140; // a tool call's most time here (the server waits 150 s for it)
+
 /** Run tool calls from the server: handlers = {tool: async (args) => ({text, image?, error?, body?})}. */
 export function startBridge(handlers) {
   let alive = true;
@@ -53,7 +55,11 @@ export function startBridge(handlers) {
       let result = done.get(cmd.id);
       if (!result) try {
         const fn = handlers[cmd.cmd];
-        result = fn ? await fn(cmd.args || {}) : { text: `The page does not know '${cmd.cmd}'.`, error: true };
+        // (a call that never ends must not stop this loop: the page would stop asking for calls and look closed)
+        let late;
+        const budget = new Promise((r) => { late = setTimeout(() => r({ text: `${cmd.cmd} took longer than ${CALL_BUDGET_S} s and was given up — the app goes on; check what it changed (get_model / gui_state).`, error: true }), CALL_BUDGET_S * 1000); });
+        result = fn ? await Promise.race([fn(cmd.args || {}), budget]) : { text: `The page does not know '${cmd.cmd}'.`, error: true };
+        clearTimeout(late);
         bridgeStats.calls++;
       } catch (e) {
         result = { text: `${cmd.cmd} failed: ${e.message || e}`, error: true };

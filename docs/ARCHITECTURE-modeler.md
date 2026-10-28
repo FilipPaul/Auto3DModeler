@@ -13,6 +13,22 @@ Date: 2026-10-25. Written by the architect agent.
 - **Default title block B — ISO 7200 done:** a drawing that chose no template uses "B — ISO 7200" (title block B,
   parts list B, the ISO 5457 frame) — the owner's choice; sheet.js DEFAULT_TPL, the AI's sheet_edit without a name too.
   Tests that check the Modern block pick it explicitly (e2e_sheet, e2e_bom, e2e_sheet_views_templates).
+- **The profile sketch that froze the AI's session fixed (RealSWReports 2026-10-28 21:58) done:** the AI's
+  get_screenshot waited for two animation frames, which a hidden / covered window never gets: the call never ended,
+  the page's bridge loop (agent.js) stopped asking for calls and after 45 s the server said "the app is not open".
+  frames.js nextFrames(n, ms) ends by the clock too (every awaited requestAnimationFrame: the screenshots, sketcher's
+  label edits); the bridge gives any call at most CALL_BUDGET_S = 140 s and goes on. The profile itself opened red
+  (dof -2: its arcs' centres were locked besides their locked ends) and so 🪄 was hidden — sketchFromShapes: an arc's
+  centre is not locked (an exact point), a tangent `tan` where the line beside it runs in smoothly (one per arc), else
+  its radius; a slot: tangent sides, `eq` ends, one radius (5 sizes, was 6 + 4 free); points worked out from others
+  kept exact (r9), so opening / finishing moves nothing; the H / V clean-up no longer drops a tangent. Guards:
+  constraints.solve's free-size check has a time budget (FREE_CHECK_SECONDS = 1.5: `free.partial`, `free.unknown`
+  — shown uncoloured), Sketcher.solve gives up after SOLVE_WAIT_MS, 🪄 after AUTO_DIM_MS (what is locked stays, a
+  toast says so) and solves without the free check per try, an error in it is a toast (was silent); a reopened sketch
+  gets its colours at once (takeState / badOf: the shapes of conflicting locks red — `bad` was never set);
+  edit_feature's new shapes drop the old place / rd / hidden. test_free_check_has_a_time_budget,
+  test_ais_profile_with_tangent_arcs_is_fully_defined, test_ais_slot_is_fully_defined_by_five_sizes;
+  tools/e2e_sketch_freeze.py.
 - **M0 done:** several parts in one project (tabs), project file v3, optional packages, `/api/kernel`.
 - **M1 done:** the 3D model workspace; sketch → extrude (add / cut, through all, both sides); worker process; STL / STEP.
 - **M2 done:** the sketcher.

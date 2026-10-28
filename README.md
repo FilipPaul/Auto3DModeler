@@ -857,7 +857,9 @@ can open them.
   point closes it, a line's end joins it. The AI draws
   a whole outline as one `profile` — straight parts, arcs through a point and smooth parts through points — and
   revolves or extrudes it. The curve becomes one true B-spline in the solid, so a vase, a knob or a duck's body is one
-  clean smooth surface, not many little faces. The sketch shows the curve and its points can be dragged.
+  clean smooth surface, not many little faces. The sketch shows the curve and its points can be dragged. The AI's
+  shapes open **fully defined** (green): a profile's corners are locked and each arc is tangent to the line it runs
+  into (else its radius is locked), a slot is its two centres and one radius with tangent sides and equal ends.
 - **Everything the app does, the AI can do**: besides modelling, assemblies, the library and collisions, it colours
   parts (`set_look`: colour, see-through) and single faces (`paint_faces`), in a model or per placed part in an
   assembly; moves a joined part along its free ways (`move_free`); keeps a model in the library (`save_to_library`).

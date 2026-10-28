@@ -498,6 +498,10 @@ Never report "works" without having run it; report failures with their output.
    sketch / as a quick part, saved and reopened).
    `tools/e2e_sketch_auto.py <url> <dir>` covers snapping to the part's hole (centre and rim -> the same Ø8) and 🪄
    Auto-dimension (7 free -> 0, the circle and the rectangle placed from the part's nearest edges).
+   `tools/e2e_sketch_freeze.py <url> <dir>` covers the AI's report of a frozen app: a sketch set to the report's
+   profile (lines + 2 arcs) and opened by a real double-click opens in under 2 s, the page keeps answering, dof 0 with
+   no red shapes and ✓ Finish green (2 tangents), get_screenshot answers with no animation frames (a hidden window),
+   Finish keeps the volume.
    `tools/e2e_sizes.py <url> <dir>` covers 🏷 Sizes (an extrude's sizes on the part: All 6 / 🔒 Locked = the height /
    None 0, remembered after a reload; a 250-circle sketch labels only its locked sizes, with a note, Show them all
    anyway -> every one, Locked / None from the sketch panel, the left panel following; the long list folded).

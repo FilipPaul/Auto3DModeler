@@ -39,6 +39,7 @@ rest is free, so dragging moves it.
 from __future__ import annotations
 
 import math
+import time
 
 ORIGIN = "O"
 
@@ -288,14 +289,16 @@ def _offset_place(sketch, ks, P):
 
 
 FREE_CHECK_MAX = 150  # points: more and which ones are free is not worked out (each costs a solver set-up)
+FREE_CHECK_SECONDS = 1.5  # the most time the free-size check takes; what is left unchecked is "unknown" (partial)
 
 
-def solve(sketch, drag=None, keep=None, detail=False):
+def solve(sketch, drag=None, keep=None, detail=False, budget=FREE_CHECK_SECONDS):
     """Solve the sketch. drag = {point id: [u, v]}: move these points there (as far as the locks allow).
     keep = "u" | "v": try to keep that coordinate of every other point (a typed width moves nothing up or down);
     dropped when the sketch cannot do it. detail: also which points and circle radii are still free (a point is free
     when fixing it takes freedom away) — for colouring the sketch.
-    -> {"ok", "points", "radii", "dof", "conflicts": [dim ids], "status", "free"?: {"points", "radii"},
+    -> {"ok", "points", "radii", "dof", "conflicts": [dim ids], "status",
+        "free"?: {"points", "radii", "partial"?: true, "unknown"?: [point / circle ids not checked in time]},
         "held"?: {"ok": the dragged points are where asked, "conflicts": the locks that stop them}}"""
     import planegcs as g
 
@@ -503,11 +506,14 @@ def solve(sketch, drag=None, keep=None, detail=False):
         if diag.dof > 0:
             for k in pts:
                 pts[k] = list(out_pts[k])
-            for k in pts:
-                if build(False, fix=(k,))[0].diagnose().dof < diag.dof:
-                    free["points"].append(k)
-            for k, r in radii.items():
-                if build(False, fix_r=(k, r))[0].diagnose().dof < diag.dof:
-                    free["radii"].append(k)
+            # each check builds the sketch again: a time budget, so no sketch keeps the editor waiting
+            until, todo = time.monotonic() + budget, [("p", k, None) for k in pts] + [("r", k, r) for k, r in radii.items()]
+            for i, (kind, k, r) in enumerate(todo):
+                if time.monotonic() > until:
+                    free["partial"] = True
+                    free["unknown"] = [x[1] for x in todo[i:]]
+                    break
+                if build(False, fix=(k,) if kind == "p" else (), fix_r=(k, r) if kind == "r" else None)[0].diagnose().dof < diag.dof:
+                    free["points" if kind == "p" else "radii"].append(k)
         out["free"] = free
     return out

@@ -1273,6 +1273,10 @@ const CS = {
   'Name / standard': 'Název / norma', 'Material · make/buy': 'Materiál · výroba', 'Make/buy': 'Výroba', make: 'vyrábět', buy: 'nakoupit', 'print 3D': 'tisk 3D',
   item: 'položka', 'items (2–4)': 'položky', items: 'položek', pc: 'ks', 'pcs (2–4)': 'ks', pcs: 'ks',
   '{items} · {pcs} in all': '{items} · celkem {pcs}', 'total mass {m}': 'celková hmotnost {m}',
+  // sketches: no waiting for ever, 🪄 Auto-dimension saying why
+  'The sketch solver did not answer in time — try again, or undo the last change.': 'Řešič skic neodpověděl včas — zkuste to znovu, nebo vraťte poslední změnu.',
+  '🪄 Auto-dimension stopped: {why}': '🪄 Automatické kóty se zastavily: {why}',
+  '🪄 Auto-dimension took too long on this sketch — the sizes locked so far stay; click it again to go on.': '🪄 Automatické kóty trvaly u této skici příliš dlouho — dosud zamčené rozměry zůstávají; dalším kliknutím pokračujete.',
   // language switch
   'Čeština / English': 'Čeština / English',
 };

@@ -325,6 +325,57 @@ class TestSketchSolve(unittest.TestCase):
         self.assertIn("c1", r["free"]["radii"])
         self.assertNotIn("free", solve(plate(dims=dims)))  # (only when asked)
 
+    def test_free_check_has_a_time_budget(self):
+        """The free-size check stops at its time budget: what it did not get to is "unknown" (partial), never a hang."""
+        dims = LOCK_CORNER + [{"id": "d3", "t": "len", "e": "l1", "v": 40}]
+        r = solve(plate(dims=dims), detail=True, budget=0)
+        self.assertTrue(r["ok"], r)
+        self.assertTrue(r["free"]["partial"])
+        self.assertEqual(set(r["free"]["unknown"]), {"p1", "p2", "p3", "p4", "p5", "c1"})
+        self.assertNotIn("partial", solve(plate(dims=dims), detail=True)["free"])  # (in time: all of it)
+
+    def test_ais_profile_with_tangent_arcs_is_fully_defined(self):
+        """The report's profile (lines + 2 arcs) as the AI's sketch makes it: corners locked, each arc tangent to the
+        line it runs into (its centre not locked — that held it twice: dof -2, red, no 🪄) -> dof 0, no conflicts."""
+        P = {"p1": [-20, -30], "p2": [45, -30], "p3": [45, -14], "p4": [60.063, 26.381], "p5": [30.063, 52.381],
+             "p6": [-8, 35], "p7": [-20, 35], "p8": [45.000015, 8.999941], "p9": [15.000008, 35.000005]}
+        sk = {"points": P,
+              "entities": [{"id": "l1", "t": "line", "a": "p1", "b": "p2"}, {"id": "l2", "t": "line", "a": "p2", "b": "p3"},
+                           {"id": "a1", "t": "arc", "c": "p8", "a": "p3", "b": "p4"}, {"id": "l3", "t": "line", "a": "p4", "b": "p5"},
+                           {"id": "a2", "t": "arc", "c": "p9", "a": "p5", "b": "p6"}, {"id": "l4", "t": "line", "a": "p6", "b": "p7"},
+                           {"id": "l5", "t": "line", "a": "p7", "b": "p1"}],
+              "constraints": [{"id": "k1", "t": "tan", "e": "l3", "arc": "a1", "p": "p4"}, {"id": "k2", "t": "tan", "e": "l3", "arc": "a2", "p": "p5"}],
+              "dims": [{"id": f"d{i}{t}", "t": t, "a": "O", "b": p, "v": P[p][k]} for i, p in enumerate(["p1", "p2", "p3", "p4", "p5", "p6", "p7"])
+                       for t, k in (("dx", 0), ("dy", 1))]}
+        r = solve(sk, detail=True)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["dof"], 0)
+        self.assertEqual(r["conflicts"], [])
+        self.assertEqual(r["free"], {"points": [], "radii": []})
+        self.assertLess(max(math.dist(r["points"][k], P[k]) for k in P), 1e-3)  # (only the centres settle, a hair)
+        locked = sk | {"dims": sk["dims"] + [{"id": "dc", "t": "dx", "a": "O", "b": "p8", "v": 45}, {"id": "dd", "t": "dy", "a": "O", "b": "p8", "v": 9}]}
+        self.assertFalse(solve(locked)["ok"])  # (the centre locked as well: held twice)
+
+    def test_ais_slot_is_fully_defined_by_five_sizes(self):
+        """A slot: two centres + one radius, its sides tangent to both ends, the ends equal -> dof 0, nothing moves."""
+        r0, (x1, y1), (x2, y2) = 23.0, (45.0, 9.0), (15.0, 35.0)
+        L = math.dist((x1, y1), (x2, y2))
+        nx, ny = -(y2 - y1) / L * r0, (x2 - x1) / L * r0
+        P = {"c1": [x1, y1], "c2": [x2, y2], "A": [x1 - nx, y1 - ny], "B": [x2 - nx, y2 - ny], "C": [x2 + nx, y2 + ny], "D": [x1 + nx, y1 + ny]}
+        sk = {"points": P,
+              "entities": [{"id": "s1", "t": "line", "a": "A", "b": "B"}, {"id": "a1", "t": "arc", "c": "c2", "a": "B", "b": "C"},
+                           {"id": "s2", "t": "line", "a": "C", "b": "D"}, {"id": "a2", "t": "arc", "c": "c1", "a": "D", "b": "A"}],
+              "constraints": [{"id": "k1", "t": "tan", "e": "s1", "arc": "a1", "p": "B"}, {"id": "k2", "t": "tan", "e": "s1", "arc": "a2", "p": "A"},
+                              {"id": "k3", "t": "tan", "e": "s2", "arc": "a1", "p": "C"}, {"id": "k4", "t": "tan", "e": "s2", "arc": "a2", "p": "D"},
+                              {"id": "k5", "t": "eq", "e": "a1", "e2": "a2"}],
+              "dims": [{"id": "d1", "t": "dx", "a": "O", "b": "c1", "v": x1}, {"id": "d2", "t": "dy", "a": "O", "b": "c1", "v": y1},
+                       {"id": "d3", "t": "dx", "a": "O", "b": "c2", "v": x2}, {"id": "d4", "t": "dy", "a": "O", "b": "c2", "v": y2},
+                       {"id": "d5", "t": "rad", "e": "a1", "v": r0}]}
+        r = solve(sk, detail=True)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual((r["dof"], r["conflicts"]), (0, []))
+        self.assertLess(max(math.dist(r["points"][k], P[k]) for k in P), 1e-7)
+
     def test_distance_from_a_lines_middle(self):
         """An end {"mid": line}: the distance is held from the line's middle (wherever its ends go)."""
         sk = {"points": {"p1": [0, 0], "p2": [10, 4], "p3": [3, 9]},

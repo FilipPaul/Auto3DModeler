@@ -12,11 +12,14 @@ import { t } from '../i18n.js';
 import { showSuggest, fitFilterRow } from '../suggest.js';
 import { floatBox } from '../floatbox.js';
 import { roundAxes } from './axes.js';
+import { nextFrames } from '../frames.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const nice = (x) => { const p = 10 ** Math.floor(Math.log10(x)); return [1, 2, 5, 10].map((k) => k * p).find((s) => s >= x); };
 const ORIGIN = 'O';
 const HV_DEG = 3; // a line drawn within 3° of horizontal / vertical becomes exactly that
+const SOLVE_WAIT_MS = 20000; // a sketch solve that takes longer is given up (the editor stays usable)
+const AUTO_DIM_MS = 30000; // 🪄 Auto-dimension's most time (each size it tries is a solve)
 
 /** An arc (centre c, from a counter-clockwise to b, radius |a - c|) as points from a to b. */
 export function arcPts(c, a, b, stepDeg = 5) {
@@ -431,11 +434,35 @@ export class Sketcher {
       if (!this.solver || !this.f.entities.length) { if (this.dof !== null && !this.f.entities.length) { this.dof = null; this.m.renderProps(); } return; }
       const r = await this.solve();
       if (this.m.sk !== this) return;
-      const was = JSON.stringify(this.free ? [[...this.free.points], [...this.free.radii]] : null);
-      if (r.free) this.free = { points: new Set(r.free.points), radii: new Set(r.free.radii) };
-      if (JSON.stringify(this.free ? [[...this.free.points], [...this.free.radii]] : null) !== was) this.draw(); // (its colours)
-      if (r.dof !== undefined && r.dof !== this.dof) { this.dof = r.dof; this.m.renderProps(); }
+      const { colours, dof } = this.takeState(r);
+      if (colours) this.draw();
+      if (dof) this.m.renderProps();
     }, 120);
+  }
+
+  /** The solver's word on the sketch as it is: the free count, which points / radii are free, and the locks and
+   *  relations that do not fit (their shapes red) -> {colours, dof}: what changed (to draw / list again). */
+  takeState(r) {
+    const key = () => JSON.stringify([this.free ? [[...this.free.points], [...this.free.radii], [...(this.free.unknown || [])]] : null, [...(this.bad || [])]]);
+    const was = key(), dofWas = this.dof, consWas = JSON.stringify(this.conflicts || []);
+    if (r.free) this.free = { points: new Set(r.free.points), radii: new Set(r.free.radii), unknown: new Set(r.free.unknown || []) };
+    if (r.conflicts) { this.conflicts = r.conflicts; this.bad = this.badOf(r.conflicts); }
+    if (r.dof !== undefined) this.dof = r.dof;
+    return { colours: key() !== was, dof: this.dof !== dofWas || JSON.stringify(this.conflicts || []) !== consWas };
+  }
+
+  /** The shapes a list of lock / relation ids holds (drawn red when those do not fit). */
+  badOf(ids) {
+    const want = new Set(ids), out = new Set(), f = this.f;
+    const byPoint = (p) => f.entities.filter((e) => [e.a, e.b, e.c, ...(e.pts || [])].includes(p)).map((e) => e.id);
+    const ends = (x) => (typeof x === 'string' ? byPoint(x) : x?.mid ? [x.mid] : []);
+    for (const d of f.dims) if (want.has(d.id)) [d.e, d.e2, ...ends(d.a), ...ends(d.b)].forEach((e) => e && out.add(e));
+    for (const k of f.constraints) {
+      if (!want.has(k.id)) continue;
+      [k.e, k.e2, k.arc, ...(k.lines || [])].forEach((e) => e && out.add(e));
+      for (const p of [k.p, k.p2]) if (p) byPoint(p).forEach((e) => out.add(e));
+    }
+    return out;
   }
 
   hint() {
@@ -676,11 +703,15 @@ export class Sketcher {
   }
 
   // ------------------------------------------------------------------ solving
-  async solve(drag = null, keep = null) {
+  /** detail: also which points are still free (for the colours) — a check per point, left out where only the
+   *  count matters (🪄 tries many sizes one by one). */
+  async solve(drag = null, keep = null, detail = !drag) {
     if (!this.solver) return { ok: true };
-    const res = await fetch('/api/model/sketch/solve', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sketch: this.f, drag, keep, detail: !drag }) });
-    let r;
+    let res, r;
+    try { // (never waits for ever: a solve that does not come back is an error the caller shows)
+      res = await fetch('/api/model/sketch/solve', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sketch: this.f, drag, keep, detail }), signal: AbortSignal.timeout(SOLVE_WAIT_MS) });
+    } catch { return { ok: false, error: t('The sketch solver did not answer in time — try again, or undo the last change.') }; }
     try { r = await res.json(); } catch { return { ok: false, error: `The sketch could not be solved (server error ${res.status}).` }; }
     if (res.status === 501) { this.solver = false; this.m.toast(r.error, 'warning', 8000); return { ok: true }; }
     if (!res.ok) return { ok: false, error: r.error };
@@ -690,8 +721,7 @@ export class Sketcher {
   apply(r) {
     if (r.points) for (const [k, v] of Object.entries(r.points)) if (this.f.points[k]) this.f.points[k] = v;
     if (r.radii) for (const [k, v] of Object.entries(r.radii)) { const e = this.ent(k); if (e) e.r = v; }
-    if (r.dof !== undefined) this.dof = r.dof;
-    if (r.free) this.free = { points: new Set(r.free.points), radii: new Set(r.free.radii) };
+    this.takeState(r); // (the free count, the colours)
     for (const d of this.f.dims) if (d.free) d.v = +this.measure(d).toFixed(6);
   }
 
@@ -963,22 +993,29 @@ export class Sketcher {
     let dof = r.dof ?? 0;
     if (dof <= 0) { this.m.toast(t('The sketch is fully defined already.'), 'info', 3000); return; }
     this.step();
-    let added = 0;
-    for (const c of this.autoDimCandidates()) {
-      if (dof <= 0) break;
-      const had = this.findDim(c);
-      if (had && !had.free) continue;
-      const v = +this.measure(c).toFixed(6);
-      if (['len', 'dia', 'rad', 'dist'].includes(c.t) && !(v > 1e-9)) continue;
-      if (had) { had.free = false; delete had.free; had.v = v; } else this.f.dims.push({ id: this.newId('d'), ...c, v });
-      r = await this.solve();
-      if (!r.ok || (r.dof ?? dof) >= dof) { // it fixes nothing, or does not fit: back out
-        if (had) had.free = true; else this.f.dims.pop();
-        continue;
+    let added = 0, late = false;
+    const until = performance.now() + AUTO_DIM_MS; // (a big sketch: what is done by then stays, the rest is said)
+    try {
+      for (const c of this.autoDimCandidates()) {
+        if (dof <= 0) break;
+        if (performance.now() > until) { late = true; break; }
+        const had = this.findDim(c);
+        if (had && !had.free) continue;
+        const v = +this.measure(c).toFixed(6);
+        if (!Number.isFinite(v) || (['len', 'dia', 'rad', 'dist'].includes(c.t) && !(v > 1e-9))) continue;
+        if (had) { had.free = false; delete had.free; had.v = v; } else this.f.dims.push({ id: this.newId('d'), ...c, v });
+        r = await this.solve(null, null, false);
+        if (!r.ok || (r.dof ?? dof) >= dof) { // it fixes nothing, or does not fit: back out
+          if (had) had.free = true; else this.f.dims.pop();
+          continue;
+        }
+        dof = r.dof;
+        added++;
       }
-      dof = r.dof;
-      added++;
+    } catch (e) { // (never silent: say what stopped it)
+      this.m.toast(tv('🪄 Auto-dimension stopped: {why}', { why: e.message || e }), 'error', 8000);
     }
+    if (late) this.m.toast(t('🪄 Auto-dimension took too long on this sketch — the sizes locked so far stay; click it again to go on.'), 'warning', 8000);
     if (!added) this.undo.pop();
     r = await this.solve();
     if (r.ok) this.apply(r);
@@ -2058,7 +2095,7 @@ export class Sketcher {
     if (!arc || !this.ent(arc)) return;
     this.sel = { kind: 'entity', id: arc };
     this.changed();
-    await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+    await nextFrames();
     const d = this.findDim({ t: 'rad', e: arc });
     const el = d && this.m.els.viewport.querySelector(`.sk-label[data-dim="${d.id}"]`);
     if (el) this.editLabel(el, { t: 'rad', e: arc });
@@ -2538,7 +2575,7 @@ export class Sketcher {
     const d = this.findDim(o.spec);
     if (!d || !edit) return;
     // labels reach the page with the next frame of the 3D view
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await nextFrames();
     const el = this.m.els.viewport.querySelector(`.sk-label[data-dim="${d.id}"]`);
     if (el) this.editLabel(el, o.spec);
   }
@@ -3016,7 +3053,8 @@ export class Sketcher {
     if (!this.free) return null;
     const pts = e.t === 'line' ? [e.a, e.b] : e.t === 'arc' ? [e.a, e.b, e.c] : e.t === 'circle' ? [e.c] : e.t === 'spline' ? e.pts || [] : null;
     if (!pts) return null;
-    return pts.some((p) => this.free.points.has(p)) || this.free.radii.has(e.id) ? 'free' : 'done';
+    if (pts.some((p) => this.free.points.has(p)) || this.free.radii.has(e.id)) return 'free';
+    return pts.some((p) => this.free.unknown?.has(p)) || this.free.unknown?.has(e.id) ? null : 'done'; // (not checked in time)
   }
 
   draw() {
@@ -3438,7 +3476,11 @@ export class Sketcher {
 
   async init() {
     // a reopened sketch: ask the solver for the free degrees (nothing moves)
-    if (this.f.entities.length) { const r = await this.solve(); if (r.dof !== undefined) this.dof = r.dof; this.m.renderProps(); }
+    if (this.f.entities.length) {
+      const r = await this.solve();
+      if (this.takeState(r).colours) this.draw(); // (its colours)
+      this.m.renderProps();
+    }
   }
 
   result() {
