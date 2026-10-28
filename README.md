@@ -224,6 +224,15 @@ dimension**: it only measures, shown in brackets *(90°)*; 🔓 / 🔒 on a dime
 driving; **drag** any size label to move it
 (kept with the sketch), and the mouse on a label lights up what it measures.
 
+**The sketch panel says what is going on**: each dimension row has its name and value (*Width 65*, *Height 65*,
+*R23*) and the mouse on a row lights that dimension in the view; locks that do not fit are listed (*These do not fit
+together: 65, x -20, x 50*) with their rows and shapes red. While sizes are free, **🪄 Lock at rounded values** locks
+them at whole millimetres — the shapes move to them, the panel lists what changed (*R23.215 → R23*) with **✓ Keep**
+and **↶ Take back**. Closed shapes that overlap (a rectangle and a slot) get **∪ Unite overlapping shapes**: the
+pieces inside each other are trimmed — one outline of lines and arcs, tangents and equal radii kept (a hole inside a
+plate stays a hole). A slot, rectangle or circle drawn piece by piece is offered first in the suggestions as **⊂⊃
+Make it a slot** / **▭ Make it a rectangle** / **◯ Make it a circle**.
+
 **Actions in the corner**: the buttons that finish or leave a step — **✓ Finish sketch**, **OK** / **Cancel** of a
 feature, **Done** — float in the bottom-right corner of the view in every workspace; the toolbars hold only the tools.
 

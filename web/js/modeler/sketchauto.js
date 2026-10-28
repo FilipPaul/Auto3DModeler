@@ -95,7 +95,7 @@ export function standardShapes(f, P) {
       if (half && Math.abs(r1 - r2) < 0.01 * r1 && len(sub(P(arcs[0].c), P(arcs[1].c))) > 1e-6) out.push({ kind: 'slot', ids, c1: P(arcs[0].c), c2: P(arcs[1].c), r: (r1 + r2) / 2 });
     } else if (loop.length === 4 && lines.length === 4 && !lines.every((l) => (f.constraints || []).some((k) => k.e === l.id && (k.t === 'h' || k.t === 'v')))) {
       const dir = (l) => { const d = sub(P(l.b), P(l.a)); return d.map((v) => v / (len(d) || 1)); };
-      const square = lines.every((l, i) => { const u = dir(l), w = dir(lines[(i + 1) % 4]); return Math.abs(u[0] * w[0] + u[1] * w[1]) < 0.01; });
+      const square = lines.every((l, i) => { const u = dir(l), w = dir(lines[(i + 1) % 4]); return Math.abs(u[0] * w[0] + u[1] * w[1]) < 0.01 && Math.min(Math.abs(u[0]), Math.abs(u[1])) < Math.sin(Math.PI / 60); });
       if (square) out.push({ kind: 'rect', ids });
     } else if (loop.length === 2 && arcs.length === 2 && arcs[0].c === arcs[1].c) {
       out.push({ kind: 'circle', ids, c: arcs[0].c, r: radiusOf(arcs[0], P) });

@@ -75,6 +75,18 @@ Date: 2026-10-25. Written by the architect agent.
 - **Default title block B — ISO 7200 done:** a drawing that chose no template uses "B — ISO 7200" (title block B,
   parts list B, the ISO 5457 frame) — the owner's choice; sheet.js DEFAULT_TPL, the AI's sheet_edit without a name too.
   Tests that check the Modern block pick it explicitly (e2e_sheet, e2e_bom, e2e_sheet_views_templates).
+- **The sketch panel from the AI's UI report (RealSWReports 2026-10-28 21:49:41) done:** Sketcher.stateHtml (under
+  the free count): the contradicting locks named (`conflicting`, kept by takeState) — their rows `.sk-dim.bad`, their
+  shapes red (badOf takes the dim ids too); locks held twice; 🪄 Lock at rounded values (autoDimension {round}:
+  sketchauto.roundValue — whole mm, ½ under 5 mm, whole degrees; `rounded` lists each size as drawn -> as locked, so
+  the order of rounding does not show) with ✓ Keep / ↶ Take back (back()); ∪ Unite overlapping shapes (overlapping():
+  unionRegions — `crosses`: a region no other one crosses, a hole, is left alone — and innerPiece, ≤ 80 shapes).
+  Rows: data-dimrow, "Width / Height / Length" by the line's H / V; bindProps (one hook line in modeler.renderProps)
+  lights the row's view label (mouseenter on it: its highlight) and binds the buttons. Suggestions:
+  sketchauto.standardShapes (a loop of 2 lines + 2 half arcs of one radius, 4 nearly level / upright lines at right
+  angles without all their H / V, 2 arcs on one centre) -> convertShape (slot: tangent joins, eq, one group;
+  rectangle: H / V, one group; circle: one circle, a rad lock -> its dia) first in the list; ∪ with 2+ picks when
+  shapes overlap. tools/e2e_sketch_ui.py.
 - **The AI's sketch tools (RealSWReports 2026-10-28 21:49 / 21:58 part 1) done:** web/js/modeler/agent_sketch.js
   (spread into modelHandlers): get_sketch (a detached Sketcher on the step, or the open one: points, shapes with
   coordinates and state, relations named, dims {id, kind, name, value, locked, between}, dof, free, conflicts
