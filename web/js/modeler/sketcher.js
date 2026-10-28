@@ -350,6 +350,7 @@ export class Sketcher {
   hint() {
     if (this.tool === 'rect') return this.start ? 'Click the second corner (Esc = stop drawing).' : 'Click the first corner of a rectangle.';
     if (this.tool === 'circle') return this.start ? 'Click to set the size (Esc = stop drawing).' : 'Click the centre of a circle.';
+    if (this.tool === 'slot') return !this.start ? 'Click the centre of one round end of the slot.' : !this.slotEnd ? 'Click the centre of the other end.' : 'Move out to its width and click (Esc = stop drawing).';
     if (this.tool === 'round') return 'Round corner: click a corner where two lines meet, then type the radius.';
     if (this.tool === 'offset') return 'Offset: click a closed shape — a circle, an outline of lines / arcs, or a picture outline — then type the distance (negative = inside).';
     if (this.tool === 'relate') {
@@ -374,6 +375,7 @@ export class Sketcher {
     this.picks = []; // (Esc, another tool: the suggestions go)
     this.relPicks = [];
     this.start = null;
+    this.slotEnd = null;
     this.arcEnd = null;
     this.tan = null;
     this.chain = null;
@@ -1143,6 +1145,7 @@ export class Sketcher {
     if (this.tool === 'relate') { this.relateClick(uv0); return; }
     if (this.tool === 'offset') { this.offsetAt(uv0, e); return; }
     if (this.tool === 'mirror') { this.mirrorClick(uv0); return; }
+    if (this.tool === 'slot') { this.slotPoint(s); return; }
     if (!this.start) { this.start = s; this.m.hint(this.hint()); this.draw(); return; }
     const a = this.start;
     this.start = null;
@@ -1165,6 +1168,50 @@ export class Sketcher {
       this.f.entities.push({ id, t: 'line', a: p, b: ids[(i + 1) % 4], g, ...this.consFlag() });
       this.f.constraints.push({ id: this.newId('k'), t: i % 2 ? 'v' : 'h', e: id });
     });
+    this.sel = { kind: 'group', id: g };
+    this.changed();
+  }
+
+  /** ⊂⊃ Slot: the centre of one end, of the other, then its width (the mouse's distance from the middle line × 2). */
+  slotPoint(s) {
+    if (!this.start) { this.start = s; this.m.hint(this.hint()); this.draw(); return; }
+    if (!this.slotEnd) {
+      if (Math.hypot(s.uv[0] - this.start.uv[0], s.uv[1] - this.start.uv[1]) < 1e-6) return;
+      this.slotEnd = s;
+      this.m.hint(this.hint());
+      this.draw();
+      return;
+    }
+    const a = this.start, b = this.slotEnd, r = this.slotHalf(a.uv, b.uv, s.uv);
+    this.start = this.slotEnd = null;
+    if (r > 1e-6) this.addSlot(a, b, r);
+    else this.changed();
+  }
+
+  /** Half a slot's width: how far p is from the line through its two centres. */
+  slotHalf(a, b, p) {
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    return Math.abs((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])) / L;
+  }
+
+  /** A slot of half width r round centres a, b (snapped points): two straight sides and two half circles, kept a slot
+   *  (the sides tangent to the ends, the ends the same size) — its width and length then sized like any shape. */
+  addSlot(a, b, r) {
+    this.step();
+    const g = this.newId('r'), c1 = this.pointAt(a), c2 = this.pointAt(b), A1 = this.P(c1), A2 = this.P(c2);
+    const L = Math.hypot(A2[0] - A1[0], A2[1] - A1[1]), n = [-(A2[1] - A1[1]) / L * r, (A2[0] - A1[0]) / L * r];
+    const pt = (p) => { const id = this.newId('p'); this.f.points[id] = [+p[0].toFixed(6), +p[1].toFixed(6)]; return id; };
+    const P1 = pt([A1[0] - n[0], A1[1] - n[1]]), P2 = pt([A2[0] - n[0], A2[1] - n[1]]), P3 = pt([A2[0] + n[0], A2[1] + n[1]]), P4 = pt([A1[0] + n[0], A1[1] + n[1]]);
+    const l1 = this.newId('l'), e2 = this.newId('a'), l2 = this.newId('l'), e1 = this.newId('a'), cf = this.consFlag();
+    this.f.entities.push({ id: l1, t: 'line', a: P1, b: P2, g, ...cf }, { id: e2, t: 'arc', c: c2, a: P2, b: P3, g, ...cf },
+      { id: l2, t: 'line', a: P3, b: P4, g, ...cf }, { id: e1, t: 'arc', c: c1, a: P4, b: P1, g, ...cf });
+    const k = (o) => this.f.constraints.push({ id: this.newId('k'), ...o });
+    k({ t: 'tan', e: l1, arc: e2, p: P2 });
+    k({ t: 'tan', e: l2, arc: e2, p: P3 });
+    k({ t: 'tan', e: l2, arc: e1, p: P4 });
+    k({ t: 'tan', e: l1, arc: e1, p: P1 });
+    k({ t: 'eq', e: e1, e2 });
+    if (Math.abs(A2[1] - A1[1]) < 1e-9) k({ t: 'h', e: l1 }); else if (Math.abs(A2[0] - A1[0]) < 1e-9) k({ t: 'v', e: l1 }); // (drawn level / upright: kept so)
     this.sel = { kind: 'group', id: g };
     this.changed();
   }
@@ -2613,6 +2660,17 @@ export class Sketcher {
       const [u0, v0] = this.start.uv, [u1, v1] = cur;
       for (const [a, b] of [[[u0, v0], [u1, v0]], [[u1, v0], [u1, v1]], [[u1, v1], [u0, v1]], [[u0, v1], [u0, v0]]]) lines.push([a, b, SEL]);
       live = { text: `${fmt(Math.abs(u1 - u0))} × ${fmt(Math.abs(v1 - v0))}`, u: (u0 + u1) / 2, v: (v0 + v1) / 2 };
+    } else if (cur && this.start && this.tool === 'slot') { // its middle line, then the slot at the mouse's width
+      const a = this.start.uv, b = this.slotEnd?.uv;
+      if (!b) { lines.push([a, cur, SEL, true]); live = { text: fmt(Math.hypot(cur[0] - a[0], cur[1] - a[1])), u: cur[0], v: cur[1] + mpp * 14 }; } else {
+        const r = this.slotHalf(a, b, cur), L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, ang = Math.atan2(b[1] - a[1], b[0] - a[0]), n = [-(b[1] - a[1]) / L * r, (b[0] - a[0]) / L * r];
+        lines.push([[a[0] - n[0], a[1] - n[1]], [b[0] - n[0], b[1] - n[1]], SEL], [[a[0] + n[0], a[1] + n[1]], [b[0] + n[0], b[1] + n[1]], SEL], [a, b, SEL, true]);
+        for (const [c, a0] of [[b, ang - Math.PI / 2], [a, ang + Math.PI / 2]]) {
+          const ps = Array.from({ length: 17 }, (_, i) => [c[0] + r * Math.cos(a0 + Math.PI * i / 16), c[1] + r * Math.sin(a0 + Math.PI * i / 16)]);
+          for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], SEL]);
+        }
+        live = { text: `${fmt(L + 2 * r)} × ${fmt(2 * r)}`, u: (a[0] + b[0]) / 2, v: (a[1] + b[1]) / 2 };
+      }
     } else if (cur && this.start && this.tool === 'circle') {
       const r = Math.hypot(cur[0] - this.start.uv[0], cur[1] - this.start.uv[1]);
       circles.push([this.start.uv, r, SEL]);

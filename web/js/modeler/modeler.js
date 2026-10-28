@@ -133,6 +133,7 @@ export class Modeler {
         ${btn('rect', '▭ Rectangle', 'Draw a rectangle: click two corners (R)', t === 'rect' ? 'on' : '')}
         ${btn('line', '⟋ Line', 'Draw lines: click point after point; click the first point to close the shape (L)', t === 'line' ? 'on' : '')}
         ${btn('circle', '◯ Circle', 'Draw a circle: click the centre, then the edge (C)', t === 'circle' ? 'on' : '')}
+        ${btn('slot', '⊂⊃ Slot', 'Draw a slot: click the centres of its two round ends, then move out to its width and click', t === 'slot' ? 'on' : '')}
         ${btn('spline', '〰 Spline', 'Draw a smooth curve: click the points it goes through — double-click or Enter to finish; its first point closes it, a line end joins it (S)', t === 'spline' ? 'on' : '')}
         ${btn('arc', '◠ Arc', 'Draw an arc: click where it starts and ends, then bend it with the mouse and click (A)', t === 'arc' ? 'on' : '')}
         ${this.hooks.pickOutline ? btn('outline', '🖼 Outline', 'Insert an outline from a picture, a DXF / DWG drawing or a PDF drawing (as one shape you can move and size)') : ''}
@@ -250,7 +251,7 @@ export class Modeler {
     if (a.startsWith('plane-')) return this.movePlane(a.slice(6));
     if (a === 'cancelPlane') return this.cancelPlane();
     if (a === 'autodim' && this.sk) return this.sk.autoDimension();
-    if (['rect', 'line', 'spline', 'circle', 'arc', 'round', 'trim', 'extend', 'offset', 'select', 'dim'].includes(a)) return this.sk.setTool(a);
+    if (['rect', 'line', 'slot', 'spline', 'circle', 'arc', 'round', 'trim', 'extend', 'offset', 'select', 'dim'].includes(a)) return this.sk.setTool(a);
     if (a === 'outline') return this.insertOutline();
     if (a === 'finish') return this.finishSketch();
     if (a === 'cancelSketch') return this.cancelSketch();

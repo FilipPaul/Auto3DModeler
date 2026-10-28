@@ -91,6 +91,9 @@ Date: 2026-10-25. Written by the architect agent.
   tools/e2e_ai_reports.py.
 - **Steps named after their sketch done:** nextName(type, sketch): an extrude / revolve of a sketch the user named
   is "Extrude – Slot" (a "Sketch 2" keeps "Extrude 3"), in the panel and for the AI. tools/e2e_ai_reports.py.
+- **⊂⊃ Slot sketch tool done:** Sketcher.slotPoint (centre, centre, width from the mouse's distance to the middle
+  line: slotHalf), addSlot (two lines and two arcs in a group, tan ×4, eq on the ends, h / v when drawn level /
+  upright), a live preview "40 × 10"; the toolbar's ⊂⊃ Slot (make group). tools/e2e_sketch_slot.py.
 - **Angle dimensions on sheets done:** kind "ang" {a, b: edge keys, r}: SheetEditor.angleOf (where the two lines cross,
   each toward its far end, the angle between), drawn as an arc with arrows and extension lines to edges short of it,
   the text clear of the arc; dragged: its radius; ＋ Dimension on two non-parallel edges makes one; sheet_edit add
