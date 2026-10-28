@@ -2,9 +2,9 @@
 // in the bottom-left corner of the view — small, out of the way, gone when nothing is selected. Its header drags it
 // elsewhere in the view; that place is remembered.
 import { t } from './i18n.js';
+import { floatBox } from './floatbox.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const KEY = 'a3d.suggestAt';
 let askAI = null; // (the app: what is selected, into the AI chat)
 
 /** How ✨ hands the selection to the AI chat: fn(refs text). */
@@ -75,43 +75,10 @@ export function fitFilterRow(bar) {
   vp?.style.setProperty('--skf-h', `${bar.offsetHeight}px`);
 }
 
-const savedAt = () => { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } };
-
-/** Where the user put it: [x, y] as parts of the view (0 … 1), kept inside it. */
-function place(box, viewport) {
-  const at = savedAt(), vr = viewport.getBoundingClientRect();
-  if (!at) {
-    box.style.left = box.style.top = box.style.bottom = '';
-    const bar = viewport.querySelector(':scope > .m-cmdbar'), top = bar ? bar.offsetTop + bar.offsetHeight + 8 : 8; // (in its corner: under the command bar, its rows scroll)
-    box.style.maxHeight = vr.height ? `${Math.max(150, vr.height - top - (parseFloat(getComputedStyle(box).bottom) || 34))}px` : '';
-    return;
-  }
-  box.style.maxHeight = '';
-  const w = box.offsetWidth || 236, h = box.offsetHeight || 120;
-  Object.assign(box.style, { left: `${Math.max(4, Math.min(at[0] * vr.width, vr.width - w - 4))}px`, top: `${Math.max(4, Math.min(at[1] * vr.height, vr.height - h - 4))}px`, bottom: 'auto' });
-}
-
-function draggable(box, viewport) {
-  const head = box.querySelector('.vs-head');
-  head.title = t('Drag to move the table — it stays there');
-  head.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    const vr = viewport.getBoundingClientRect(), br = box.getBoundingClientRect(), dx = e.clientX - br.left, dy = e.clientY - br.top;
-    const move = (m) => {
-      Object.assign(box.style, { left: `${Math.max(4, Math.min(m.clientX - vr.left - dx, vr.width - br.width - 4))}px`,
-        top: `${Math.max(4, Math.min(m.clientY - vr.top - dy, vr.height - br.height - 4))}px`, bottom: 'auto' });
-    };
-    const up = () => {
-      window.removeEventListener('pointermove', move, true);
-      window.removeEventListener('pointerup', up, true);
-      const r = box.getBoundingClientRect();
-      try { localStorage.setItem(KEY, JSON.stringify([(r.left - vr.left) / vr.width, (r.top - vr.top) / vr.height])); } catch { /* private window */ }
-    };
-    window.addEventListener('pointermove', move, true); // (before the table, which keeps the mouse to itself)
-    window.addEventListener('pointerup', up, true);
-  });
-  head.addEventListener('dblclick', () => { try { localStorage.removeItem(KEY); } catch { /* */ } place(box, viewport); }); // (back to its corner)
+/** In its corner (bottom left): under the command bar, its rows scroll. */
+function cornerPlace(box, viewport) {
+  const vr = viewport.getBoundingClientRect(), bar = viewport.querySelector(':scope > .m-cmdbar'), top = bar ? bar.offsetTop + bar.offsetHeight + 8 : 8;
+  box.style.maxHeight = vr.height ? `${Math.max(150, vr.height - top - (parseFloat(getComputedStyle(box).bottom) || 34))}px` : '';
 }
 
 /** Show (or with no items: remove) the table in `viewport`: title (what is selected), items [{icon, label, title,
@@ -133,7 +100,6 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
   for (const b of box.querySelectorAll('[data-sg]')) b.addEventListener('click', () => items[+b.dataset.sg].run());
   box.querySelector('.vs-ai')?.addEventListener('click', (e) => { e.stopPropagation(); askAI(refs); });
   box.querySelector('.vs-ai')?.addEventListener('pointerdown', (e) => e.stopPropagation()); // (not a drag of the table)
-  draggable(box, viewport);
-  place(box, viewport);
+  floatBox(box, viewport, { kind: 'suggest', handle: '.vs-head', min: [170, 90], onDefault: (b) => cornerPlace(b, viewport) }); // (moved / resized / remembered)
   return box;
 }

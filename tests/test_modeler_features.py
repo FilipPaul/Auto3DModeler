@@ -73,6 +73,42 @@ class TestFeatures(unittest.TestCase):
         self.assertAlmostEqual(v, 12000 - math.pi * 9 * 4, delta=1e-3)
         self.assertAlmostEqual(r["frames"]["H1"]["o"][2], 15)
 
+    def test_face_centre_ignores_holes(self):
+        """A face's 0, 0 is the middle of its box, not of its area: a hole cut into the 60 × 40 top leaves it at (30, 20),
+        a second hole placed from it lands exactly where asked, a new d keeps it there; a frame stored with the old
+        (area) centre still builds where it says."""
+        from auto3d.modeler import kernel
+
+        def axes(r):
+            return sorted([round(c, 6) for c in f["axis"]["o"][:2]] for f in r["body"]["faces"] if f["type"] == "cylinder")
+
+        def top(r):
+            return next(f for f in r["body"]["faces"] if f.get("name") == "E1:end")
+        base = box(60, 40, 10)
+        r, _ = vol(*base)
+        h1 = {"id": "H1", "type": "hole", "plane": {"face": {"name": "E1:end"}, "frame": top(r)["frame"]}, "points": [[-15, 0]], "d": 8, "through": True}
+        r, _ = vol(*base, h1)
+        face = top(r)
+        self.assertEqual(face["frame"]["o"], [30, 20, 10])
+        self.assertGreater(face["centroid"][0], 30.3)  # (the centre of its area went off with the hole)
+        h2 = {"id": "H2", "type": "hole", "plane": {"face": {"name": "E1:end"}, "frame": face["frame"]}, "points": [[10, 12]], "d": 4, "through": True}
+        r, v = vol(*base, h1, h2)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertEqual(axes(r), [[15, 20], [40, 32]])
+        self.assertAlmostEqual(v, 24000 - math.pi * (16 + 4) * 10, delta=1e-3)
+        self.assertTrue(watertight(r["body"]))
+        self.assertEqual(top(r)["frame"]["o"], [30, 20, 10])  # (two holes: still the middle)
+        r, v = vol(*base, h1, {**h2, "d": 5})  # only d changed: the same place
+        self.assertEqual(axes(r), [[15, 20], [40, 32]])
+        self.assertAlmostEqual(v, 24000 - math.pi * (16 + 6.25) * 10, delta=1e-3)
+        step = doc.export({"features": [*base, h1, h2]}, "step")
+        self.assertAlmostEqual(kernel.volume(kernel.from_step(step)), 24000 - math.pi * (16 + 4) * 10, delta=1e-3)
+        # a saved file's frame from the area's centre: the hole where that frame puts it, the same volume
+        old = {**face["frame"], "o": face["centroid"]}
+        r, v = vol(*base, h1, {**h2, "plane": {"face": {"name": "E1:end"}, "frame": old}})
+        self.assertEqual(axes(r), sorted([[15, 20], [round(old["o"][0] + 10, 6), round(old["o"][1] + 12, 6)]]))
+        self.assertAlmostEqual(v, 24000 - math.pi * (16 + 4) * 10, delta=1e-3)
+
     def test_face_origin(self):
         """A hole / sketch on a face measured from the part's origin (world), the face's corner or a • point: at world
         (30, 10) it lands there and stays when the block grows the other way (−x); a corner origin follows the corner."""
@@ -1189,6 +1225,90 @@ class TestLightMesh(unittest.TestCase):
         self.assertEqual(hole["radius"], 3)
         self.assertEqual(hole["name"], "H1:hole:0")
         self.assertIn("frame", next(f for f in doc.rebuild({**part, "lod": "full"})["body"]["faces"] if f["type"] == "plane"))  # (the full one kept apart)
+
+
+@unittest.skipUnless(OCC, "OCP not installed")
+class TestThreads(unittest.TestCase):
+    """🔩 part.threads: how threaded holes show. The rebuild says where each threaded hole is (thread_holes) — a
+    pattern's copies too; hidden / cosmetic leave the solid as it is."""
+    TOP = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 12], "x": [1, 0, 0], "n": [0, 0, 1]}}
+
+    def hole(self, **kw):
+        return {"id": "H1", "type": "hole", "plane": self.TOP, "points": [[-8, 0], [8, 0]], "through": True, "thread": "M6", **kw}
+
+    def test_cosmetic_thread_data(self):
+        plain = 40 * 20 * 12 - 2 * math.pi * 2.5 ** 2 * 12
+        r = doc.rebuild({"features": box(40, 20, 12) + [self.hole()]})
+        self.assertEqual(r["threads"]["mode"], "hidden")
+        self.assertAlmostEqual(r["body"]["volume"], plain, delta=1e-3)
+        holes = r["threads"]["holes"]
+        self.assertEqual([h["name"] for h in holes], ["H1:hole:0", "H1:hole:1"])
+        for h, x in zip(holes, (12, 28)):
+            self.assertEqual((h["thread"], h["major"], h["minor"], h["pitch"], h["through"]), ("M6", 6.0, 5.0, 1.0, True))
+            self.assertEqual(h["at"], [x, 10, 12])  # on the top face it is drilled from, going down
+            self.assertEqual(h["axis"], [0, 0, -1])
+            self.assertAlmostEqual(h["depth"], 12, places=6)
+        c = doc.rebuild({"features": box(40, 20, 12) + [self.hole()], "threads": "cosmetic"})
+        self.assertEqual(c["threads"]["mode"], "cosmetic")
+        self.assertEqual(c["threads"]["holes"], holes)
+        self.assertAlmostEqual(c["body"]["volume"], plain, delta=1e-3)  # view only: the solid as it was
+        self.assertEqual(doc.rebuild({"features": box(40, 20, 12) + [self.hole()], "threads": "odd"})["threads"]["mode"], "hidden")
+        # a blind one: its entry on top, 8 deep, not through; a pattern's copies are threaded holes too
+        b = doc.rebuild({"features": box(40, 20, 12) + [self.hole(through=False, depth=8)]})["threads"]["holes"]
+        self.assertEqual([(h["at"], h["axis"], round(h["depth"], 6), h["through"]) for h in b], [([12, 10, 12], [0, 0, -1], 8, False), ([28, 10, 12], [0, 0, -1], 8, False)])
+        row = {"id": "P1", "type": "pattern", "features": ["H1"], "kind": "linear", "dir": [0, 1, 0], "count": 2, "spacing": 5}
+        p = doc.rebuild({"features": box(40, 20, 12) + [self.hole(), row]})["threads"]["holes"]
+        self.assertEqual(sorted(h["name"] for h in p), ["H1:hole:0", "H1:hole:1", "P1:1:H1:hole:0", "P1:1:H1:hole:1"])
+        self.assertEqual(sorted(h["at"][1] for h in p), [10, 10, 15, 15])
+        # plain holes, a hole turned off: none
+        self.assertEqual(doc.rebuild({"features": box(40, 20, 12) + [self.hole(thread=None, d=5)]})["threads"]["holes"], [])
+        self.assertEqual(doc.rebuild({"features": box(40, 20, 12) + [self.hole(suppressed=True)]})["threads"]["holes"], [])
+
+    @staticmethod
+    def groove(major, minor, pitch, length):
+        """The volume an ISO thread's groove takes out of a tap-drilled hole, `length` long: its profile outside the tap
+        drill (width P/8 at the major Ø, growing by 2 tan 30° per mm inwards) turned about the axis, once per pitch."""
+        R, r0, a, b = major / 2, minor / 2, pitch / 8, 2 * math.tan(math.radians(30))
+        return 2 * math.pi * (a * (R * R - r0 * r0) / 2 + b * (R * (R * R - r0 * r0) / 2 - (R ** 3 - r0 ** 3) / 3)) * length / pitch
+
+    def test_real_thread(self):
+        """🔩 real: an M6 thread cut along both 12 mm holes — watertight, the volume between the tap-drilled and the
+        major-Ø holes and the groove's analytic volume; faces H1:thread:k beside the hole's own names; the STEP round
+        trip; drawings without it; a blind one stops short of its bottom; a pattern's copies threaded too."""
+        from auto3d.modeler import kernel as K
+        part = {"features": box(40, 20, 12) + [self.hole()], "threads": "real"}
+        plain, major = 40 * 20 * 12 - 2 * math.pi * 2.5 ** 2 * 12, 40 * 20 * 12 - 2 * math.pi * 3 ** 2 * 12
+        r = doc.rebuild(part)
+        v = r["body"]["volume"]
+        self.assertTrue(r["ok"], r["features"])
+        self.assertEqual(r["threads"]["mode"], "real")
+        self.assertEqual({k: r["threads"]["real"][k] for k in ("holes", "cut")}, {"holes": 2, "cut": 2})
+        self.assertNotIn("issue", r["threads"]["real"])
+        self.assertTrue(major < v < plain, (major, v, plain))
+        self.assertAlmostEqual(v, plain - 2 * self.groove(6, 5, 1, 12), delta=0.01)  # (the sweep: 2e-5 of the groove)
+        self.assertTrue(watertight(r["body"]))
+        self.assertGreater(len(r["body"]["face_ids"]), 20 * len(doc.rebuild({**part, "threads": "hidden"})["body"]["face_ids"]))
+        names = {n for f in r["body"]["faces"] for n in f.get("names", [])}
+        self.assertTrue({"H1:hole:0", "H1:hole:1", "H1:thread:0", "H1:thread:1", "E1:end", "E1:start"} <= names, names)
+        st = doc.body_of(part)
+        self.assertTrue(st.body.faces_of("H1:hole:0") and st.body.faces_of("H1:thread:1"))  # the hole's own name still finds its wall
+        self.assertAlmostEqual(K.volume(K.from_step(doc.export(part, "step"))), v, delta=1e-3)
+        self.assertAlmostEqual(K.volume(doc.body_of(part, threads=False).body.shape), plain, delta=1e-3)
+        again = doc.rebuild(part)["threads"]["real"]  # cut once per features (cached)
+        self.assertEqual(again["seconds"], r["threads"]["real"]["seconds"])
+        # the sheet: the same lines as without threads (the callout says M6)
+        geo = lambda p: doc.sheet(p, "medium")["geometry"]["views"]["Top"]  # noqa: E731
+        self.assertEqual(geo(part)["visible"], geo({**part, "threads": "hidden"})["visible"])
+        # a blind hole 8 deep: the groove stops before its bottom; a pattern's copies are threaded too
+        blind = doc.rebuild({**part, "features": box(40, 20, 12) + [self.hole(through=False, depth=8)]})
+        vb, pb = blind["body"]["volume"], 40 * 20 * 12 - 2 * math.pi * 2.5 ** 2 * 8
+        self.assertTrue(pb - 2 * self.groove(6, 5, 1, 8) < vb < pb - 2 * self.groove(6, 5, 1, 6), (vb, pb))
+        self.assertTrue(watertight(blind["body"]))
+        row = {"id": "P1", "type": "pattern", "features": ["H1"], "kind": "linear", "dir": [1, 0, 0], "count": 2, "spacing": 8}  # (x 12, 20, 28, 36)
+        rp = doc.rebuild({**part, "features": box(40, 20, 12) + [self.hole(), row]})
+        self.assertEqual(rp["threads"]["real"]["cut"], 4)
+        self.assertAlmostEqual(rp["body"]["volume"], 40 * 20 * 12 - 4 * (math.pi * 2.5 ** 2 * 12 + self.groove(6, 5, 1, 12)), delta=0.02)
+        self.assertIn("P1:1:H1:thread:0", {n for f in rp["body"]["faces"] for n in f.get("names", [])})
 
 
 class TestFits(unittest.TestCase):

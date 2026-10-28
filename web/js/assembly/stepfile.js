@@ -67,7 +67,7 @@ export function stepTree(asm, rootId, rootName, rootInstances) {
       } else if (!parts[ref]) {
         const data = asm.hooks.partData(ref) || {};
         parts[ref] = { name: asm.partName(ref), features: asm.bodies[ref]?.features || data.features || [], colour: lookColor(data) || undefined,
-          material: data.material || undefined }; // (the material: a GLB's metal / plastic look)
+          material: data.material || undefined, threads: data.threads }; // (the material: a GLB's metal / plastic look; 🔩 real threads cut)
       }
       assemblies[key].instances.push({ ref, matrix: it.matrix, ...(it.colour ? { colour: it.colour } : {}) });
     }

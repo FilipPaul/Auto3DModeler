@@ -574,8 +574,11 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       return commitAnd(f.id);
     },
 
-    edit_feature: async ({ id, fields = {} }) => {
+    edit_feature: async ({ id, fields = {}, ...rest }) => {
       needModel();
+      const stray = Object.keys(rest);
+      if (stray.length) throw new Error(`edit_feature takes id and fields — put the changes in fields: {${stray.map((k) => `${k}: …`).join(', ')}}.`);
+      if (!fields || typeof fields !== 'object' || Array.isArray(fields)) throw new Error('fields: an object of the changes, e.g. {d: 15}.');
       ready();
       const f = m.part.features.find((x) => x.id === id);
       if (!f) throw new Error(`No step ${id} — see get_model.`);
@@ -587,6 +590,12 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         }
       } else {
         const next = build({ ...f, ...fields, type: f.type, origin: 'origin' in fields ? fields.origin : f.plane?.origin, uv: !fields.points, of: fields.of || f.features, name: fields.name || f.name, face: fields.face || f.plane?.face?.name, faces: fields.faces || f.faces?.map((x) => x.name), sketch: fields.sketch || f.sketch });
+        // on the same face from the same origin: the stored frame stays (picked again, the face's centre may have moved —
+        // holes cut into it since — and the step with it)
+        const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+        if (next.plane?.face && f.plane?.frame && next.plane.face.name === f.plane.face?.name && same(next.plane.mid?.name, f.plane.mid?.name) && same(next.plane.origin, f.plane.origin)) {
+          next.plane = { ...next.plane, frame: f.plane.frame };
+        }
         Object.assign(f, { ...next, id: f.id, name: fields.name || f.name });
         if ('fit' in fields && !fields.fit) delete f.fit; // (a hole's fit taken off)
         if ('thread' in fields && !fields.thread) delete f.thread; // (its thread taken off)

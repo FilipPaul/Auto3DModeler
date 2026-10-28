@@ -264,6 +264,14 @@ Never report "works" without having run it; report failures with their output.
    Ø6 hole clicked on the front face shows an overhang at its top; Teardrop ticked: the exact volume, no overhang, faces
    hole / tear; the step says ▲ teardrop; on the top face greyed with its tooltip; the sheet says Ø6, no R; Ctrl+Z).
    Exits 1 on a failed check. Needs a server restarted after kernel changes.
+   `tools/e2e_model_threads.py <url> <dir>` covers 🔩 threads shown on the part with real clicks (a block with two M6
+   holes: a click on the part -> 🔩 Show all threads -> the choose dialog -> Cosmetic: the view's helix pieces counted,
+   the volume unchanged, the Part panel's Threads; Hide all threads, Ctrl+Z; Show -> Real geometry: the volume less the
+   grooves' analytic volume, faces F3:thread:k beside F3:hole:k, the time and triangles printed, STEP / STL exports
+   carry them, the Part panel's Hidden, Ctrl+Z; the AI's set_look threads real / hidden / a wrong value; the sheet: M6,
+   a ¾ circle per hole, the same lines with real threads; a placed part in an assembly shows its lines; close-up
+   screenshots cosmetic / real / real in section). Exits 1 on a failed check. Needs a server restarted after kernel
+   changes.
    `tools/e2e_tool_groups.py <url> <dir>` covers the tools coloured by group (the 3D model's, the sketch's and the
    assembly's bars: each group in one run, one colour per group, the groups' colours differ; screenshots of the bars).
    `tools/e2e_ai_reports.py <url> <dir>` covers the fixes from the AI's reports (a zoomed-out view: get_screenshot
@@ -321,6 +329,11 @@ Never report "works" without having run it; report failures with their output.
    bottom left; + a crossing line: angle, parallel, perpendicular, equal (Equal made); a line + a circle: tangent, from
    its centre; Esc: gone; an assembly part: open, join, simplified, own part, take out; + a second: join them (picking
    faces, the table gone), measure, collisions).
+   `tools/e2e_floatboxes.py <url> <dir>` covers the floating boxes with real mouse drags (the suggestions table, 🖨
+   Print check, 📏 Measure, ✂ Section: dragged by the header / ⠿ strip they move; the corner grip resizes them; the
+   section's Y button still works and the bar stays put; after a reload each opens where it was left, at its size;
+   dragged far out it stops at the view's edge, under the toolbar; a double-click on the header forgets it — the print
+   check back under the toolbar, the suggestions bottom left; a smaller window pulls a box back in; Czech tooltips).
    `tools/e2e_sketch_construction.py <url> <dir>` covers construction lines (┄ on: a line drawn as construction; ⬚ the
    rectangle + ┄: construction, again: back; Finish; ⟳ Revolve takes the construction line as its axis: the ring's
    volume). Needs a server restarted after doc.py changes.

@@ -10,6 +10,7 @@
 // dragging, sized by its width.
 import { t } from '../i18n.js';
 import { showSuggest, fitFilterRow } from '../suggest.js';
+import { floatBox } from '../floatbox.js';
 import { roundAxes } from './axes.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -1439,6 +1440,7 @@ export class Sketcher {
     box.querySelector('[data-move]').addEventListener('change', (x) => { this.mirMove = x.target.checked; });
     box.querySelector('[data-done]').addEventListener('click', () => this.setTool('select'));
     this.m.els.viewport.appendChild(box);
+    floatBox(box, this.m.els.viewport, { kind: 'sk-mirror', handle: '.sk-choose-t' });
     this.chooser = box;
   }
 
@@ -1594,6 +1596,7 @@ export class Sketcher {
     for (const b of box.querySelectorAll('[data-kind]')) b.addEventListener('click', () => this.repattern({ kind: b.dataset.kind }));
     box.querySelector('[data-done]').addEventListener('click', async () => { clearTimeout(this.patTimer); if (await this.repattern(typed())) this.setTool('select'); });
     this.m.els.viewport.appendChild(box);
+    floatBox(box, this.m.els.viewport, { kind: 'sk-pattern', handle: '.sk-choose-t' });
     this.chooser = box;
     this.m.hint(this.hint());
     setTimeout(() => { const i = box.querySelector('[data-pk=n]'); if (i && this.chooser === box) { i.focus(); i.select(); } }, 0);
@@ -1918,6 +1921,7 @@ export class Sketcher {
       <p class="hint">Negative = inside.</p>${l.kind === 'block' ? '<p class="hint">A picture outline: a one-off copy (it does not follow).</p>' : ''}<button class="btn small primary">OK</button>`;
     for (const t of ['pointerdown', 'pointerup']) box.addEventListener(t, (x) => x.stopPropagation());
     this.m.els.viewport.appendChild(box);
+    floatBox(box, this.m.els.viewport, { kind: 'sk-offset', handle: '.sk-choose-t', remember: 'size' }); // (opens by the mouse)
     this.chooser = box;
     const inp = box.querySelector('input');
     const go = () => {
@@ -2486,6 +2490,7 @@ export class Sketcher {
     });
     for (const ev of ['pointerdown', 'pointerup']) box.addEventListener(ev, (x) => x.stopPropagation());
     this.m.els.viewport.appendChild(box);
+    floatBox(box, this.m.els.viewport, { kind: 'sk-quick' }); // (a ⠿ strip on top moves it)
     this.chooser = box;
     setTimeout(() => { inp.focus(); inp.select(); }, 0);
   }
@@ -2506,6 +2511,7 @@ export class Sketcher {
     }
     for (const t of ['pointerdown', 'pointerup']) box.addEventListener(t, (ev) => ev.stopPropagation());
     this.m.els.viewport.appendChild(box);
+    floatBox(box, this.m.els.viewport, { kind: 'sk-which', handle: '.sk-choose-t', remember: 'size' }); // (opens by the mouse)
     this.chooser = box;
   }
 

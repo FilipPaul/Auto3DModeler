@@ -95,7 +95,7 @@ from it — the sketch goes halfway between them (a rib or a hole centred in a p
 part changes.
 
 **Measured from a corner or the part's origin**: a sketch on a face has *Origin: ◎ Face centre | ⌜ Corner | ⊕ Part
-origin* in its bar. ⌜ Corner puts the sketch's 0, 0 on the face's lower-left corner (it follows that corner when the
+origin* in its bar (the face's centre is the middle of its outline's box — holes cut into the face do not move it). ⌜ Corner puts the sketch's 0, 0 on the face's lower-left corner (it follows that corner when the
 part changes), ⊕ Part origin on the part's own 0, 0, 0 (so the numbers are the X / Y you see; a hole at (30, 10) stays
 there when the block grows the other way). What is already drawn keeps its place — its numbers change, and sizes to
 the origin now measure from the new one; Ctrl+Z takes the switch back. ◎ Hole has the same choice as *From: ⇤ Edges |
@@ -145,6 +145,9 @@ part's steps up to the split and one piece kept. The cut faces are named `<step>
 
 **A click on a face of a 3D model** chooses its step and shows its tools in the Suggested table (bottom left) — the
 table can be **dragged by its header** anywhere in the view, and stays there (a double-click on the header: back).
+The same goes for every box floating over a view — 🖨 Print check, 📏 Measure, the ✂ Section bar, the size editor and
+the sketch's small boxes: drag the header (or the **⠿** strip), **resize** with the grip in the bottom-right corner;
+the place and size are remembered, and a double-click on the header puts the box back where it started.
 Its **✨** puts what is selected into the AI chat — as the AI's tools name it (a step and a face, sketch shapes,
 assembly parts) — so you can ask about it. The **Snap** row under it (3D model, assembly) says what 📏 Measure catches:
 corners, edge midpoints, centres. With **no tool on**, the snap point under the mouse shows too and a click picks it
@@ -329,7 +332,18 @@ SolidWorks. It has only the tools that need almost no input.
    hole, 90°; a threaded hole's from its size, M3: Ø6) — change the head's Ø / depth if needed. A head that would not
    fit — wider than the face around the hole, or as deep as the part there (it would cut through) — is refused,
    with the most that fits. *Thread* (M2 … M20) makes it a threaded hole: drilled with its
-   tap drill (M5: Ø4.2) and labelled M5 on the drawing. *Teardrop (print sideways)*, offered on a hole that goes
+   tap drill (M5: Ø4.2) and labelled M5 on the drawing. Its thread is not drawn on the part unless you ask: click the
+   part (no tool on) and choose **🔩 Show all threads** under *The part*, then how: *Cosmetic (light)* draws a thin
+   helix at the thread's pitch on each threaded hole's wall and a thin ring at its major Ø on the face (view only: the
+   solid, its volume and exports stay as they are; quick, it may stay on). *Real geometry (slower)* cuts a true ISO
+   metric thread (60°, the basic profile) along each threaded hole — through, or down to just short of a blind hole's
+   bottom — so it is in the volume and mass, the STEP / IGES / STL / 3MF exports and 🖨 the print split. It costs
+   time and triangles (an M5 × 10: about 0.45 s and 6 000 triangles; eight M6 × 12: about 3.7 s and 49 000); the
+   Part panel says how long the cut took and warns when there are many. While a tool or a sketch is open the real
+   threads show as cosmetic lines, so editing stays quick. Drawings keep showing the thread the standard way: the
+   hole's callout (*2× M6*) and a thin ¾ circle at the major Ø. *Hide all threads* takes them away; the Part panel's
+   *🔩 Threads* row (Hidden / Cosmetic / Real, shown when the part has threaded holes) switches it too, and placed
+   parts in an assembly show their part's choice. *Teardrop (print sideways)*, offered on a hole that goes
    sideways (into a side face, across Z), gives the hole a 45° point on top so it prints lying on its side without
    support (the 🖨 Print check shows no overhang there); the drawing still says Ø d. A counterbore gets the point too; a
    countersink cannot. On a hole that goes up / down it is greyed. Each hole is

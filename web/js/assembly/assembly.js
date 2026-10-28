@@ -24,9 +24,11 @@ import { paintedFaces, repaint } from '../modeler/paint.js';
 import { sectionBar, sectionMiddle } from '../modeler/sectionbar.js';
 import { ModelView } from '../modeler/view.js';
 import { fetchRebuild } from '../modeler/packed.js';
+import { threadSegments } from '../modeler/view.js';
 import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss } from './joints.js';
 import { snapNear, snapPoints } from '../modeler/view.js';
 import { showSuggest, showSnapFilters, snapKinds, hoverKinds } from '../suggest.js';
+import { floatBox } from '../floatbox.js';
 import { freeMotions, motionMatrix } from './dof.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
@@ -92,6 +94,15 @@ class AsmView extends ModelView {
       lines.matrixAutoUpdate = false;
       lines.matrix.copy(mesh.matrix);
       this.bodyGroup.add(lines);
+      const thr = it.threads === 'cosmetic' ? threadSegments(it.body.threads) : []; // 🔩 its part's cosmetic threads
+      if (thr.length) {
+        const tg = new THREE.BufferGeometry();
+        tg.setAttribute('position', new THREE.Float32BufferAttribute(thr, 3));
+        const tl = new THREE.LineSegments(tg, this.threadMaterial);
+        tl.matrixAutoUpdate = false;
+        tl.matrix.copy(mesh.matrix);
+        this.bodyGroup.add(tl);
+      }
       this.meshes.push(mesh);
       mesh.updateMatrixWorld(true);
       const bb = new THREE.Box3().setFromObject(mesh);
@@ -807,7 +818,7 @@ export class Assembly {
       for (const it of list) {
         const M = parent.clone().multiply(new THREE.Matrix4().fromArray(it.matrix)), id = pre ? `${pre}/${it.id}` : it.id;
         if (this.kindOf(it.part) === 'assembly') expand(this.innerList(it), M, id);
-        else flat.push({ id, part: { features: this.bodies[it.part]?.features || this.hooks.partData(it.part)?.features || [] }, matrix: M.toArray() });
+        else flat.push({ id, part: { features: this.bodies[it.part]?.features || this.hooks.partData(it.part)?.features || [], threads: this.hooks.partData(it.part)?.threads }, matrix: M.toArray() });
       }
     };
     expand(this.doc.instances, new THREE.Matrix4(), '');
@@ -986,6 +997,7 @@ export class Assembly {
       this.els.viewport.appendChild(box);
     }
     box.innerHTML = html;
+    floatBox(box, this.els.viewport, { kind: 'measure', min: [180, 60] });
   }
 
   clickMeasure(e) {
@@ -1655,13 +1667,14 @@ export class Assembly {
       const data = this.hooks.partData(pid);
       if (!data) { this.bodies[pid] = { error: 'This part is no longer in the project.' }; return; }
       const lod = this.doc.light?.[pid] === true ? 'light' : this.doc.light?.[pid] === false ? 'full' : 'auto'; // 🪶
-      const key = JSON.stringify([data.features || { model: data.model, values: data.values, layers: data.layers, bends: data.bends }, lod]);
+      const key = JSON.stringify([data.features || { model: data.model, values: data.values, layers: data.layers, bends: data.bends }, lod, data.threads]);
       if (this.bodies[pid]?.key === key) return;
       try {
         const features = await this.partFeatures(pid, data);
-        const { res, r } = await fetchRebuild({ features, lod });
+        const { res, r } = await fetchRebuild({ features, lod, threads: data.threads });
         if (!res.ok) throw new Error(r.error || res.statusText);
         if (!r.ok && !r.body) throw new Error(r.features.flatMap((s) => s.issues).join(' ') || 'This part has no solid.');
+        if (r.body) r.body.threads = r.threads?.holes || []; // (🔩 its threaded holes: drawn when its part shows them)
         this.bodies[pid] = r.body ? { key, body: r.body, features } : { key, error: 'This part has no solid yet.' };
       } catch (e) { this.bodies[pid] = { key, error: e.message }; }
     }));
@@ -1693,7 +1706,7 @@ export class Assembly {
       const c = it.stay ? null : centres[k];
       const look = this.lookOf(it);
       if (focus && !clashing.has(it.id)) look.opacity = Math.min(look.opacity ?? 1, 0.12); // the rest see-through
-      return { id: it.id, body: this.bodyOf(it)?.body, matrix: it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part), ...look,
+      return { id: it.id, body: this.bodyOf(it)?.body, matrix: it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part), ...look, threads: this.hooks.partData(it.part)?.threads,
         selected: it.id === this.sel || it.id === this.sel2 || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst, clash: clashing.has(it.id),
         explode: along ? along.get(it.id)?.toArray() || null : this.explode && c ? away(c).multiplyScalar(this.explode * 1.2).toArray() : null };
     }));

@@ -36,6 +36,7 @@ const sketchesOf = (f) => (f.type === 'loft' ? f.sketches || [] : f.type === 'sw
 // densities for the mass (g/cm³), common 3D-printing materials
 import { MATERIALS, MATERIAL_GROUPS, MATERIAL_COLOR, lookColor } from './materials.js';
 import { showSuggest, showSnapFilters, snapKinds, hoverKinds } from '../suggest.js';
+import { floatBox } from '../floatbox.js';
 export { MATERIALS }; // g/cm³ (materials.js: grouped, with their colours)
 const DATUM_NAME = { XY: 'Top', XZ: 'Front', YZ: 'Right' };
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -56,10 +57,10 @@ export class Modeler {
     this.sk = null;     // the open sketch (a Sketcher)
     this.selected = null; // feature id selected in the tree
     this.history = new History({
-      capture: () => ({ features: this.part.features, look: { color: this.part.color, opacity: this.part.opacity, paint: this.part.paint } }),
+      capture: () => ({ features: this.part.features, look: { color: this.part.color, opacity: this.part.opacity, paint: this.part.paint, threads: this.part.threads } }),
       restore: async (s) => {
         this.part.features = s.features;
-        for (const k of ['color', 'opacity', 'paint']) { if (s.look?.[k] === undefined) delete this.part[k]; else this.part[k] = s.look[k]; }
+        for (const k of ['color', 'opacity', 'paint', 'threads']) { if (s.look?.[k] === undefined) delete this.part[k]; else this.part[k] = s.look[k]; }
         this.closeAll();
         this.render();
         await this.rebuild();
@@ -132,7 +133,7 @@ export class Modeler {
     const box = document.createElement('div');
     box.className = 'm-printcheck';
     const ok = !r.overhang.area && !r.thin.area;
-    box.innerHTML = `<b>🖨 ${esc(t('Print check'))}</b>
+    box.innerHTML = `<div class="mpc-head"><b>🖨 ${esc(t('Print check'))}</b></div>
       <div class="mpc-row"><i class="mpc-dot" style="background:#f8524a"></i>${esc(t('Overhangs over 45°'))}: <b data-no-i18n>${r.overhang.area ? `${fmt(r.overhang.area)} mm²` : '—'}</b></div>
       <div class="mpc-row"><i class="mpc-dot" style="background:#ff9e1a"></i>${esc(t('Walls thinner than'))} <input type="number" step="0.1" min="0.1" data-k="minWall" value="${fmt(this.printChk.minWall)}"> mm: <b data-no-i18n>${r.thin.area ? `${fmt(r.thin.area)} mm² (${t('thinnest')} ${fmt(r.thin.min)})` : '—'}</b></div>
       <p class="hint">${esc(t(ok ? 'Nothing to worry about — it prints as it lies.' : 'Overhangs need supports (or turn the part); thin walls may not print — make them thicker.'))}</p>`;
@@ -146,6 +147,7 @@ export class Modeler {
     this.els.viewport.appendChild(box);
     const bar = this.$('.m-cmdbar'), vr = this.els.viewport.getBoundingClientRect(); // (below the toolbar, however many rows it takes)
     if (bar) box.style.top = `${Math.max(56, bar.getBoundingClientRect().bottom - vr.top + 8)}px`;
+    floatBox(box, this.els.viewport, { kind: 'printcheck', handle: '.mpc-head', min: [200, 80] });
     return r;
   }
 
@@ -579,7 +581,10 @@ export class Modeler {
         ['chamfer', '◸', t('Bevel its edges'), () => { this.startRound('chamfer'); if (this.cmd) this.clickCommand(at); }]]],
       [t('The part'), [
         flat && ['mirror', '⇋', t('Mirror across this face'), () => { this.startMirror(); if (this.cmd) this.clickMirror(at); }],
-        flat && ['split', '✂', t('Split here'), () => this.startSplit(this.splitPlane(h.face))]]],
+        flat && ['split', '✂', t('Split here'), () => this.startSplit(this.splitPlane(h.face))],
+        this.threadHoles().length && (this.part.threads && this.part.threads !== 'hidden'
+          ? ['threads', '🔩', t('Hide all threads'), () => this.setThreads('hidden')]
+          : ['threads', '🔩', t('Show all threads'), () => this.askThreads()])]],
       [`${t('Step')} · ${fs.step.name}`, [
         ['edit', '✎', t('Edit the step'), () => this.edit(fs.step.id)],
         ['off', fs.step.suppressed ? '●' : '◌', t(fs.step.suppressed ? 'Turn it on' : 'Turn it off'), () => this.toggleOff(fs.step.id)],
@@ -825,6 +830,7 @@ export class Modeler {
     Object.assign(box.style, { left: `${Math.min(r.left - vr.left, vr.width - 220)}px`, top: `${Math.min(r.bottom - vr.top + 6, vr.height - 140)}px` });
     for (const t2 of ['pointerdown', 'pointerup']) box.addEventListener(t2, (ev) => ev.stopPropagation());
     this.els.viewport.appendChild(box);
+    floatBox(box, this.els.viewport, { kind: 'dimedit', handle: '.m-dimedit-t', remember: 'size', min: [170, 100] }); // (opens by the size clicked)
     this.dimEdit = box;
     const num = box.querySelector('input[type=number]'), slider = box.querySelector('input[type=range]');
     if (edit.field && edit.stepId) { // the real range of this number of the step
@@ -1113,7 +1119,8 @@ export class Modeler {
           <div class="field"><label>Tolerances</label><select data-k="tolerance" title="The general tolerances (ISO 2768) for sizes without their own — on the 2D drawing">
             ${[['', '—'], ['f', 'ISO 2768-f (fine)'], ['m', 'ISO 2768-m (medium)'], ['c', 'ISO 2768-c (coarse)']].map(([v, l]) => `<option value="${v}" ${v === (this.part.tolerance || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
           <div class="field"><label>Colour</label><input type="color" data-k="color" value="${lookColor(this.part) || '#d9dee6'}" title="Its colour here and in assemblies (without one: its material's)"></div>
-          <div class="field mp-look"><label>See-through</label><input type="range" min="0" max="90" step="5" data-k="clear" value="${Math.round((1 - (this.part.opacity ?? 1)) * 100)}"><span class="unit">${Math.round((1 - (this.part.opacity ?? 1)) * 100)} %</span></div>`
+          <div class="field mp-look"><label>See-through</label><input type="range" min="0" max="90" step="5" data-k="clear" value="${Math.round((1 - (this.part.opacity ?? 1)) * 100)}"><span class="unit">${Math.round((1 - (this.part.opacity ?? 1)) * 100)} %</span></div>
+          ${this.threadsHtml()}`
       : '<p class="hint">No solid yet — extrude a sketch.</p>'}
         ${bad.length ? `<p class="mp-bad">⚠ ${bad.length} step(s) could not be built — point at ⚠ in the list to see why.</p>` : ''}
         <h3>Next</h3><p class="hint">${esc(this.nextHint())}</p>
@@ -1149,8 +1156,58 @@ export class Modeler {
       this.view.setLook({ ...this.part, color: lookColor(this.part) });
     });
     clr?.addEventListener('change', () => { this.history.commit(); this.hooks.onChange?.(); });
+    for (const el of box.querySelectorAll('[data-thr]')) el.addEventListener('click', () => this.setThreads(el.dataset.thr));
     return null;
   }
+
+  // ------------------------------------------------------------------ 🔩 threads
+  /** The part's threaded holes as built (the kernel's thread_holes: where each starts, its axis, depth, Ø, pitch). */
+  threadHoles() { return (this.result?.threads?.holes || []); }
+
+  /** The Part panel's Threads choice (only for a part with threaded holes): Hidden / Cosmetic / Real, and what the
+   *  real ones took (or why they could not be cut). */
+  threadsHtml() {
+    const n = this.threadHoles().length, mode = this.part.threads || 'hidden', real = this.result?.threads?.real;
+    if (!n) return '';
+    const b = (k, label, title) => `<button data-thr="${k}" class="${mode === k ? 'on' : ''}" title="${esc(t(title))}">${esc(t(label))}</button>`;
+    const note = mode === 'real' && real ? (real.issue ? `<p class="mp-bad">⚠ ${esc(real.issue)}</p>`
+      : `<p class="hint mp-thr-real">${esc(t2('{n} real threads, cut in {s} s', { n: real.cut, s: fmt(real.seconds) }))}${real.warning ? ` — ${esc(t('the part may rebuild slowly'))}` : ''}</p>`) : '';
+    return `<div class="field mp-threads"><label title="${esc(t('How the threads of its threaded holes show'))}">🔩 ${esc(t('Threads'))}</label><div class="seg">${b('hidden', 'Hidden', 'Plain holes at the tap drill (the threads are on the drawing)')}${b('cosmetic', 'Cosmetic', 'Thin helix lines on the holes — view only, quick')}${b('real', 'Real', 'The threads cut into the solid (ISO metric, 60°) — in STEP / STL / 3MF exports and the print split; slower')}</div></div>${note}`;
+  }
+
+  /** 🔩 Show all threads (the suggestions table): asked once — cosmetic lines or real geometry. */
+  async askThreads() {
+    const mode = await choose(t('Show the threads as'), [
+      { value: 'cosmetic', label: 'Cosmetic (light)', hint: 'Thin helix lines — view only, quick', primary: true },
+      { value: 'real', label: 'Real geometry (slower)', hint: 'Cut into the solid: exports and 3D print' }]);
+    return mode ? this.setThreads(mode) : null;
+  }
+
+  /** What the rebuild asks for: real threads only with no tool and no sketch open (else cosmetic lines — each preview
+   *  would cut them again). */
+  threadsShown() { return this.part.threads === 'real' && (this.cmd || this.mode !== 'part') ? 'cosmetic' : this.part.threads; }
+
+  /** 🔩 How the part's threaded holes show: 'hidden' (as the tap drill) | 'cosmetic' (helix lines, view only) | 'real'
+   *  (cut into the solid: exports, the print split). */
+  async setThreads(mode) {
+    if (!['hidden', 'cosmetic', 'real'].includes(mode)) throw new Error('threads is "hidden", "cosmetic" or "real".');
+    if ((this.part.threads || 'hidden') === mode) return null;
+    if (mode === 'hidden') delete this.part.threads; else this.part.threads = mode;
+    this.history.commit();
+    this.hooks.onChange?.();
+    this.showThreads();
+    this.renderProps();
+    await this.rebuild();
+    const real = this.result?.threads?.real;
+    if (mode === 'real' && real) {
+      if (real.issue) this.hooks.toast(real.issue, 'error', 8000);
+      else this.hooks.toast(`${t2('{n} real threads, cut in {s} s', { n: real.cut, s: fmt(real.seconds) })}${real.warning ? ` — ${t('the part may rebuild slowly')}` : ''}`, real.warning ? 'warning' : 'info', 5000);
+    }
+    return this.result;
+  }
+
+  /** Cosmetic threads drawn on the part (not while sketching; real ones while a tool is open). */
+  showThreads() { this.view.setThreads(this.mode === 'part' && (this.result?.threads?.mode ?? this.part.threads) === 'cosmetic' && this.part.threads ? this.threadHoles() : null); }
 
   nextHint() {
     const used = new Set(this.part.features.flatMap(sketchesOf));
@@ -1192,7 +1249,7 @@ export class Modeler {
       this.rid = `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
       const timer = setTimeout(() => { this.$('.m-busy').hidden = false; }, 350);
       try {
-        const { res, r } = await fetchRebuild({ features }, this.rid);
+        const { res, r } = await fetchRebuild({ features, threads: this.threadsShown() }, this.rid);
         if (res.status === 501) { this.showInstall(r.error); continue; }
         if (!res.ok) throw new Error(r.error || res.statusText);
         if (r.cancelled) { this.hooks.toast('Cancelled — the model is shown as it was.', 'info'); continue; }
@@ -1204,6 +1261,7 @@ export class Modeler {
         this.view.setLook({ ...this.part, color: lookColor(this.part) });
         this.view.setShades(this.cmd?.feature.type === 'split'); // (✂ Split's preview: the pieces in two shades)
         this.view.setRefs(r.refs || []);
+        this.showThreads();
         if (this.printChk) this.runPrintCheck(); // (it follows the part)
         if (first && this.mode === 'part') this.view.setView('iso');
         const gone = (r.features || []).flatMap((s) => s.issues || []).find((x) => /^BLOB_MISSING/.test(x));
@@ -2885,6 +2943,7 @@ export class Modeler {
       this.els.viewport.appendChild(box);
     }
     box.innerHTML = html;
+    floatBox(box, this.els.viewport, { kind: 'measure', min: [180, 60] });
   }
 
   clickMeasure(e) {
