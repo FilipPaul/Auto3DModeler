@@ -701,6 +701,7 @@ export class Assembly {
         <div class="row-actions"><button class="btn small" data-a="bomCsv" title="The bill of materials as a CSV file (Excel): every part with its quantity, maker, part number, order numbers and mass — the parts inside sub-assemblies too">⬇ BOM (CSV)</button></div>
         <h3>Export</h3><div class="row-actions"><button class="btn small" data-x="stl" title="All parts in one STL, as placed">STL</button>
         <button class="btn small" data-x="step" title="All parts as separate bodies in one STEP file">STEP</button>
+        <button class="btn small" data-x="iges" title="Every part placed in one IGES file (names, colours) — for CAD programs that ask for IGES; it has no assembly tree">IGES</button>
         ${this.hooks.newSheet ? '<button class="btn small" data-a="sheetHere" title="The assembly\'s drawing sheet to edit (views, parts list, balloons, your dimensions and texts)">📄 Drawing sheet</button>' : ''}
         ${this.hooks.drawingSet ? '<button class="btn small primary" data-a="drawingSet" title="One PDF: this assembly (its views, parts list and balloons), then each sub-assembly with its parts, then its own made parts — their drawing sheets when they have one">📄 Drawings (PDF)</button>' : ''}</div>
         <p class="hint">To print, open each part's tab and use 🖨 Prepare for 3D print there.</p>`
@@ -1797,7 +1798,7 @@ export class Assembly {
     return id;
   }
 
-  /** ＋ Insert part ▾ From a file (or a file dropped on the view): a STEP / STL / OBJ becomes a 3D model part of the
+  /** ＋ Insert part ▾ From a file (or a file dropped on the view): a STEP / IGES / STL / OBJ becomes a 3D model part of the
    *  project and goes in; a STEP assembly, if wanted, a sub-assembly (its parts, as in the file). */
   insertFile(file = null) {
     const go = async (f) => {
@@ -1807,7 +1808,7 @@ export class Assembly {
     };
     if (file) return go(file);
     const inp = document.createElement('input');
-    Object.assign(inp, { type: 'file', accept: '.step,.stp,.stl,.obj' });
+    Object.assign(inp, { type: 'file', accept: '.step,.stp,.igs,.iges,.stl,.obj' });
     inp.addEventListener('change', () => { if (inp.files[0]) go(inp.files[0]); });
     inp.click();
   }
@@ -2585,8 +2586,8 @@ export class Assembly {
       vp.classList.remove('drop-in');
       if (!pid && file) {
         e.preventDefault();
-        if (/\.(step|stp|stl|obj)$/i.test(file.name) && this.hooks.importFile) this.insertFile(file);
-        else this.hooks.toast(t('Drop a STEP, STL or OBJ file to put it into the assembly.'), 'warning', 5000);
+        if (/\.(step|stp|igs|iges|stl|obj)$/i.test(file.name) && this.hooks.importFile) this.insertFile(file);
+        else this.hooks.toast(t('Drop a STEP, IGES, STL or OBJ file to put it into the assembly.'), 'warning', 5000);
         return;
       }
       if (!pid) return;
@@ -2905,9 +2906,13 @@ export class Assembly {
       return;
     }
     // a structured STEP (AP214): a product per part, placed instances, sub-assemblies nested — an assembly tree in
-    // SolidWorks, CATIA, Solid Edge
-    const res = await fetch('/api/assembly/export/step', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tree: this.stepTree(), name }) });
+    // SolidWorks, CATIA, Solid Edge; IGES: every part placed in one file (it has no tree)
+    const iges = fmtName === 'iges';
+    const res = await fetch(`/api/assembly/export/${iges ? 'iges' : 'step'}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tree: this.stepTree(), name }) });
     if (!res.ok) { this.hooks.toast(`Export failed: ${(await res.json().catch(() => ({ error: res.statusText }))).error}`, 'error'); return; }
-    if (await this.hooks.download(await res.blob(), `${name}.step`)) this.hooks.toast('Exported STEP (in mm) — an assembly with its parts, as SolidWorks, CATIA and Solid Edge open it.', 'ok', 6000);
+    if (await this.hooks.download(await res.blob(), `${name}.${iges ? 'igs' : 'step'}`)) {
+      this.hooks.toast(iges ? 'Exported IGES (in mm) — every part placed in one file, with its name and colour.'
+        : 'Exported STEP (in mm) — an assembly with its parts, as SolidWorks, CATIA and Solid Edge open it.', 'ok', 6000);
+    }
   }
 }

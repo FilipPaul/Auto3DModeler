@@ -767,8 +767,10 @@ MESH_LIMIT = 60000  # triangles: a bigger STL / OBJ takes too long to become a s
 
 
 def import_solid(a):
-    """A STEP / STL / OBJ file (kept as a blob) -> a solid for a `solid` step: {blob, faces, bbox, volume, triangles?}.
-    A STEP is used as it is; a mesh is made a solid (its triangles sewn) and kept as a STEP."""
+    """A STEP / IGES / STL / OBJ file (kept as a blob) -> a solid for a `solid` step: {blob, faces, bbox, volume,
+    triangles?, op?, warning?}. A STEP is used as it is; an IGES is kept as a STEP (its surfaces sewn into a solid when
+    they close; else op "ref": a reference body, with a warning); a mesh is made a solid (its triangles sewn) and kept
+    as a STEP."""
     from . import blobs
     from .. import importers
     sha, name = a["blob"], a.get("name") or "part"
@@ -778,6 +780,16 @@ def import_solid(a):
         shape, cols, built = K.read_step_colours(data, summary=True)
         _keep(sha, shape, cols)
         out = {"blob": sha, "coloured": len(cols), "structure": built}
+    elif ext in ("igs", "iges"):
+        shape, cols, how = K.read_iges(data)
+        out = {"blob": blobs.put(K.to_step_coloured(shape, cols, name) if cols else K.to_step(shape, name)), "iges": how}
+        _keep(out["blob"], shape, cols)
+        if how == "sewn":
+            out["warning"] = "The IGES file held surfaces only — they were sewn into a closed solid."
+        elif how == "surfaces":
+            out["op"] = "ref"  # (not closed: it cannot be joined or cut — shown to build around)
+            out["warning"] = ("The IGES file holds surfaces that do not close into a solid (a gap or a missing face) — "
+                              "it came in as a reference body: shown see-through to build around, not part of the solid.")
     elif ext in ("stl", "obj"):
         tris = importers.read_stl(data) if ext == "stl" else importers.read_obj(data.decode("utf-8", "ignore"))
         if len(tris) > MESH_LIMIT:
@@ -786,7 +798,7 @@ def import_solid(a):
         out = {"blob": blobs.put(K.to_step(shape, name)), "triangles": len(tris)}
         _keep(out["blob"], shape, {})
     else:
-        raise K.KernelError("A solid comes from a STEP, STL or OBJ file.")
+        raise K.KernelError("A solid comes from a STEP, IGES, STL or OBJ file.")
     if K.face_count(shape) == 0:
         raise K.KernelError("The file has no solid in it.")
     bb = K.bbox(shape)
@@ -1142,6 +1154,8 @@ def export(part, fmt, name="part"):
                            tolerance=(part or {}).get("tolerance"))
     if fmt == "step":
         return K.to_step(st.body.shape)
+    if fmt == "iges":
+        return K.to_iges(st.body.shape)
     if fmt == "stl":
         return K.to_stl(K.tessellate(st.body))
     raise K.KernelError(f"Unknown export format “{fmt}”.")
@@ -1229,23 +1243,25 @@ def assembly_sweep(instances, steps):
     return out
 
 
-def assembly_step(instances=None, tree=None, name="assembly"):
-    """An assembly -> a STEP file. tree {root, parts: {id: {name, features, colour?}}, assemblies: {id: {name,
-    instances: [{ref, matrix: [16], colour?}]}}}: a structured one (a product per part, placed instances, sub-assemblies
-    nested, names and colours; kernel.write_step_tree). Else instances [{part: {features}, matrix: [16]}]: the placed
-    bodies in one compound."""
+def assembly_step(instances=None, tree=None, name="assembly", fmt="step"):
+    """An assembly -> a STEP file (fmt "iges": an IGES). tree {root, parts: {id: {name, features, colour?}},
+    assemblies: {id: {name, instances: [{ref, matrix: [16], colour?}]}}}: a structured one (a product per part, placed
+    instances, sub-assemblies nested, names and colours; kernel.write_step_tree / write_iges_tree). Else instances
+    [{part: {features}, matrix: [16]}]: the placed bodies in one compound."""
+    if fmt not in ("step", "iges"):
+        raise K.KernelError(f"Unknown export format “{fmt}”.")
     if tree:
-        return _tree_step(tree, name)
+        return _tree_step(tree, name, fmt)
     shapes = []
     for inst in instances or []:
         st = body_of(inst.get("part"))
         shapes.append(K.placed(st.body.shape, inst.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]))
     if not shapes:
         raise K.KernelError("The assembly is empty — insert parts first.")
-    return K.to_step(K.compound(shapes))
+    return K.to_iges(K.compound(shapes)) if fmt == "iges" else K.to_step(K.compound(shapes))
 
 
-def _tree_step(tree, name):
+def _tree_step(tree, name, fmt="step"):
     parts, asms = {}, {}
     for pid, p in (tree.get("parts") or {}).items():
         try:
@@ -1267,4 +1283,6 @@ def _tree_step(tree, name):
         asms[aid] = {"name": a.get("name") or aid, "instances": insts}
     if not parts:
         raise K.KernelError("The assembly is empty — insert parts first.")
+    if fmt == "iges":
+        return K.write_iges_tree(parts, asms, tree.get("root"))
     return K.write_step_tree(parts, asms, tree.get("root"), name)

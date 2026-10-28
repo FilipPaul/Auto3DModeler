@@ -1639,6 +1639,59 @@ def to_step(shape, name="part"):
         os.unlink(path)
 
 
+def to_iges(shape, surfaces=False):
+    """One part as an IGES file (5.3, its exact B-rep solid as MSBO entities, mm) — for CAD programs that take IGES
+    rather than STEP. surfaces: trimmed surfaces only (entity 144, as older programs write IGES), no solid."""
+    from OCP.IGESControl import IGESControl_Controller, IGESControl_Writer
+    mode = 0 if surfaces else 1
+    IGESControl_Controller.Init_s()
+    Interface_Static.SetIVal_s("write.iges.brep.mode", mode)
+    w = IGESControl_Writer("MM", mode)
+    if not w.AddShape(shape):
+        raise KernelError("The part could not be made an IGES file.")
+    w.ComputeModel()
+    return _written(lambda path: w.Write(path), ".igs")
+
+
+def sewn_solid(shape, tol=0.01):
+    """Loose faces (an IGES of trimmed surfaces, as many programs write it) sewn together -> closed solids (one, or a
+    compound of them), or None when they do not close (a gap wider than tol mm, a missing face)."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeSolid, BRepBuilderAPI_Sewing
+    from OCP.ShapeFix import ShapeFix_Solid
+    from OCP.TopAbs import TopAbs_SHELL
+    sew = BRepBuilderAPI_Sewing(tol)
+    ex = TopExp_Explorer(shape, TopAbs_FACE)
+    while ex.More():
+        sew.Add(ex.Current())
+        ex.Next()
+    sew.Perform()
+    if sew.NbFreeEdges():
+        return None  # (open: an edge with a face on one side only)
+    out, ex = [], TopExp_Explorer(sew.SewedShape(), TopAbs_SHELL)
+    while ex.More():
+        fix = ShapeFix_Solid(BRepBuilderAPI_MakeSolid(TopoDS.Shell(ex.Current())).Solid())
+        fix.Perform()
+        out.append(fix.Solid())
+        ex.Next()
+    if not out or any(volume(s) <= 0 for s in out):
+        return None
+    return out[0] if len(out) == 1 else compound(out)
+
+
+def read_iges(data: bytes):
+    """An IGES file -> (shape, {face index: "#rrggbb"}, how): its solids as they are (how "solid"); surfaces only
+    sewn into closed solids where they close ("sewn"); else the surfaces as they are ("surfaces": not a solid)."""
+    shape, colours = read_step_colours(data, kind="iges")
+    if face_count(shape) == 0:
+        raise KernelError("The IGES file has no faces in it (only curves?) — there is nothing to make a 3D model of.")
+    if solids(shape):
+        return shape, colours, "solid"
+    sewn = sewn_solid(shape)
+    if sewn is not None:
+        return sewn, {}, "sewn"
+    return shape, colours, "surfaces"
+
+
 def solid_body(shape, fid):
     """A solid made elsewhere (a STEP file, a quick part) as a body; its faces are named <fid>:f<k>."""
     fm = _face_map(shape)
@@ -1659,23 +1712,24 @@ def from_step(data: bytes):
         os.unlink(path)
 
 
-def _read_xcaf(data: bytes):
-    """A STEP file read with its names, colours and assembly tree -> (the XCAF document, its shape tool). Keep the
-    document while its labels are used."""
+def _read_xcaf(data: bytes, kind="step"):
+    """A STEP (or IGES: kind "iges") file read with its names, colours and assembly tree -> (the XCAF document, its
+    shape tool). Keep the document while its labels are used."""
+    from OCP.IGESCAFControl import IGESCAFControl_Reader
     from OCP.STEPCAFControl import STEPCAFControl_Reader
     from OCP.TCollection import TCollection_ExtendedString
     from OCP.TDocStd import TDocStd_Document
     from OCP.XCAFDoc import XCAFDoc_DocumentTool
-    fd, path = tempfile.mkstemp(suffix=".step")
+    fd, path = tempfile.mkstemp(suffix=".igs" if kind == "iges" else ".step")
     with os.fdopen(fd, "wb") as fh:
         fh.write(data)
     try:
-        doc = TDocStd_Document(TCollection_ExtendedString("step"))
-        r = STEPCAFControl_Reader()
+        doc = TDocStd_Document(TCollection_ExtendedString(kind))
+        r = IGESCAFControl_Reader() if kind == "iges" else STEPCAFControl_Reader()
         r.SetColorMode(True)
         r.SetNameMode(True)
         if r.ReadFile(path) != IFSelect_RetDone:
-            raise KernelError("The STEP file could not be read.")
+            raise KernelError(f"The {kind.upper()} file could not be read.")
         r.Transfer(doc)
     finally:
         os.unlink(path)
@@ -1850,12 +1904,11 @@ def _fold(tree):
     return tree
 
 
-def write_step_tree(parts, assemblies, root, name="assembly"):
-    """An assembly as a structured STEP (AP214, read by SolidWorks, CATIA, Solid Edge as an assembly tree): parts
-    {key: {name, shape, colour?, colours?: [(face, "#rrggbb")]}} (one product each), assemblies {key: {name,
-    instances: [{ref, name?, matrix: [16], colour?}]}} (sub-assemblies stay nested), root: the top assembly's key."""
+def _xcaf_tree(parts, assemblies, root):
+    """An assembly as an XCAF document (what the STEP / IGES writers take) -> the document. parts {key: {name, shape,
+    colour?, colours?: [(face, "#rrggbb")]}} (one product each), assemblies {key: {name, instances: [{ref, name?,
+    matrix: [16], colour?}]}} (sub-assemblies stay nested), root: the top assembly's key."""
     from OCP.Quantity import Quantity_Color, Quantity_TOC_RGB
-    from OCP.STEPCAFControl import STEPCAFControl_Writer
     from OCP.TCollection import TCollection_ExtendedString
     from OCP.TDataStd import TDataStd_Name
     from OCP.TDocStd import TDocStd_Document
@@ -1910,6 +1963,27 @@ def write_step_tree(parts, assemblies, root, name="assembly"):
     if label_of(root) is None:
         raise KernelError("The assembly is empty — insert parts first.")
     st.UpdateAssemblies()
+    return doc
+
+
+def _written(write, suffix):
+    """A writer's file (write(path) -> ok) as bytes."""
+    fd, path = tempfile.mkstemp(suffix=suffix)
+    os.close(fd)
+    try:
+        if not write(path):
+            raise KernelError(f"The {suffix[1:].upper()} file could not be written.")
+        with open(path, "rb") as fh:
+            return fh.read()
+    finally:
+        os.unlink(path)
+
+
+def write_step_tree(parts, assemblies, root, name="assembly"):
+    """An assembly as a structured STEP (AP214, read by SolidWorks, CATIA, Solid Edge as an assembly tree): parts,
+    assemblies and root as for _xcaf_tree."""
+    from OCP.STEPCAFControl import STEPCAFControl_Writer
+    doc = _xcaf_tree(parts, assemblies, root)
     w = STEPCAFControl_Writer()
     w.SetColorMode(True)
     w.SetNameMode(True)
@@ -1918,15 +1992,24 @@ def write_step_tree(parts, assemblies, root, name="assembly"):
     Interface_Static.SetCVal_s("write.step.product.name", str(name or "assembly"))
     if not w.Transfer(doc, STEPControl_AsIs):
         raise KernelError("The assembly could not be made a STEP file.")
-    fd, path = tempfile.mkstemp(suffix=".step")
-    os.close(fd)
-    try:
-        if w.Write(path) != IFSelect_RetDone:
-            raise KernelError("The STEP file could not be written.")
-        with open(path, "rb") as fh:
-            return fh.read()
-    finally:
-        os.unlink(path)
+    return _written(lambda path: w.Write(path) == IFSelect_RetDone, ".step")
+
+
+def write_iges_tree(parts, assemblies, root):
+    """An assembly as one IGES file (5.3, B-rep solids, mm): every part placed, with its name and colour — IGES has no
+    assembly tree, so a CAD program opens it as one part of several bodies."""
+    from OCP.IGESCAFControl import IGESCAFControl_Writer
+    from OCP.IGESControl import IGESControl_Controller
+    doc = _xcaf_tree(parts, assemblies, root)
+    IGESControl_Controller.Init_s()  # (the IGES settings exist only once it is set up: else B-rep mode is ignored)
+    Interface_Static.SetIVal_s("write.iges.brep.mode", 1)
+    Interface_Static.SetCVal_s("write.iges.unit", "MM")
+    w = IGESCAFControl_Writer()
+    w.SetColorMode(True)
+    w.SetNameMode(True)
+    if not w.Transfer(doc):
+        raise KernelError("The assembly could not be made an IGES file.")
+    return _written(lambda path: w.Write(path), ".igs")
 
 
 def to_step_coloured(shape, colours, name="part"):
@@ -1936,15 +2019,15 @@ def to_step_coloured(shape, colours, name="part"):
                            {}, "p", name)
 
 
-def read_step_colours(data: bytes, summary=False):
+def read_step_colours(data: bytes, summary=False, kind="step"):
     """A STEP with its colours: (shape, {face index (0-based, in _face_map(shape)): "#rrggbb"}). The colours of
     components, bodies and faces are followed down the file's assembly tree (a face's own colour wins). summary:
-    also how the file is built (step_structure)."""
+    also how the file is built (step_structure). kind "iges": an IGES file, read the same way."""
     from OCP.collections import Sequence_TDF_Label
     from OCP.TDF import TDF_Label
     from OCP.TopoDS import TopoDS_Compound
     from OCP.BRep import BRep_Builder
-    doc, st = _read_xcaf(data)  # noqa: F841 — (the document holds the labels)
+    doc, st = _read_xcaf(data, kind)  # noqa: F841 — (the document holds the labels)
     free = Sequence_TDF_Label()
     st.GetFreeShapes(free)
     shapes = [st.GetShape_s(free.Value(i)) for i in range(1, free.Length() + 1)]

@@ -32,7 +32,7 @@ def _main(conn):
     from .kernel import KernelError
     ops = {"rebuild": doc.rebuild, "rebuild_bin": lambda a: packed.pack(doc.rebuild(a, True)),  # (the browser's: packed.py)
            "export": lambda a: doc.export(a["part"], a["fmt"], a.get("name") or "part"),
-           "assembly_step": lambda a: doc.assembly_step(a.get("instances"), a.get("tree"), a.get("name") or "assembly"),
+           "assembly_step": lambda a: doc.assembly_step(a.get("instances"), a.get("tree"), a.get("name") or "assembly", a.get("fmt") or "step"),
            "assembly_clashes": lambda a: doc.assembly_clashes(a["instances"], bool(a.get("quick"))),
            "assembly_sweep": lambda a: doc.assembly_sweep(a["instances"], a["steps"]),
            "sheet": lambda a: doc.sheet(a["part"], a.get("preset") or "medium", a.get("paper"), a.get("per_view"), bool(a.get("section"))),

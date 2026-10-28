@@ -684,6 +684,16 @@ Date: 2026-10-25. Written by the architect agent.
   hooks.importFile (a sub-assembly). AI: open_file {as: "assembly"} -> load_step_assembly. The 44 MB board: 220
   parts, 270 sub-assemblies, 2269 placements, shown in 70 s (195 s before the cache / light). tests/test_step_assembly.py,
   tools/e2e_step_assembly.py.
+- **IGES in and out (18c) done:** kernel.to_iges (IGESControl_Writer, B-rep mode: MSBO solids, mm; `surfaces`: trimmed
+  surfaces only, as older programs write it), read_iges (IGESCAFControl through _read_xcaf / read_step_colours(kind
+  "iges"): solids as they are; surfaces only -> sewn_solid (BRepBuilderAPI_Sewing 0.01 mm, no free edges -> solids);
+  not closed -> the surfaces, `how` "surfaces"), write_iges_tree (the STEP tree's XCAF document, now kernel._xcaf_tree,
+  through IGESCAFControl_Writer: every part placed with its name and colour; IGESControl_Controller.Init_s() first, else
+  the B-rep mode setting does not exist yet and faces are written). doc.import_solid .igs / .iges -> a STEP blob
+  (`iges`: solid | sewn | surfaces; surfaces: op "ref" + a warning), doc.export "iges", assembly_step fmt "iges"
+  (/api/assembly/export/<step|iges>, /api/model/export/iges -> .igs). The browser: OPEN_SOLID_RE, the accept lists, the
+  Export menu (model / assembly only), the panels' IGES buttons; the AI's export iges and open_file .igs (load_solid ->
+  openSolid). tests/test_exchange_formats.py TestIges, tools/e2e_exchange_formats.py.
 - **STEP colours done:** kernel.read_step_colours (STEPCAFControl + XCAF: colours followed down the assembly tree to the
   faces of the shape the solid step uses), State.colours by face name -> faces' `color` in the rebuild; the view /
   assembly show them under the paint. tools/e2e_step_colours.py.

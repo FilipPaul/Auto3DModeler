@@ -318,7 +318,7 @@ async function loadParsed(data) {
   project.endOpen(partNameOf(data));
 }
 
-const partNameOf = (data) => (data.model?.source || 'part').replace(/\.(pdf|png|jpe?g|webp|gif|bmp|svg|dxf|dwg|stl|obj|step|stp)$/i, '');
+const partNameOf = (data) => (data.model?.source || 'part').replace(/\.(pdf|png|jpe?g|webp|gif|bmp|svg|dxf|dwg|stl|obj|step|stp|igs|iges)$/i, '');
 
 /** Put a part on screen. `switching`: an existing part tab is shown again (no messages, no new tab). */
 async function loadPart(data, { switching = false } = {}) {
@@ -530,9 +530,10 @@ async function openImport(file) {
   try { await loadParsed(data); } catch (e) { toast(e.message, 'error', 9000); }
 }
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
-// CAD data (STEP) opens as a 3D model with its exact solid; a mesh (STL / OBJ, mostly for printing) as a quick part
-const OPEN_SOLID_RE = /\.(step|stp)$/i;
-/** A STEP / STL / OBJ file made a solid by the kernel (kept on the server by its hash) -> {blob, name, faces, bbox, volume}. */
+// CAD data (STEP, IGES) opens as a 3D model with its exact solid; a mesh (STL / OBJ, mostly for printing) as a quick part
+const OPEN_SOLID_RE = /\.(step|stp|igs|iges)$/i;
+/** A STEP / IGES / STL / OBJ file made a solid by the kernel (kept on the server by its hash) -> {blob, name, faces,
+ *  bbox, volume, op?, warning?} — an IGES of surfaces that do not close: op "ref" (a reference body) and why. */
 async function importSolid(file) {
   const fd = new FormData(), rid = newRid();
   fd.append('rid', rid);
@@ -541,7 +542,7 @@ async function importSolid(file) {
   try { return await (await api('/api/model/import', fd)).json(); } finally { stop(); }
 }
 /** The step of a 3D model that is that solid: joined (add), cut out of the part (cut), or a reference (ref). */
-const solidStep = (r, id = 'F1', op = 'add') => ({ id, type: 'solid', name: r.name.replace(/\.[^.]+$/, ''), blob: r.blob, file: r.name, op });
+const solidStep = (r, id = 'F1', op = r.op || 'add') => ({ id, type: 'solid', name: r.name.replace(/\.[^.]+$/, ''), blob: r.blob, file: r.name, op });
 /** Open a 3D file as a 3D model part: the exact solid, then sketches, holes … on it (a big mesh: a sliced quick part). */
 async function openSolid(file) {
   let r;
@@ -557,6 +558,8 @@ async function openSolid(file) {
   if (how === 'assembly') { await openStepAssembly(r); return; }
   await project.newModel({ features: [solidStep(r)] }, file.name.replace(/\.[^.]+$/, ''));
   toast(t2('{name} is open as a 3D model ({faces} faces) — sketch on its faces, add holes, or ask the AI to build on it.', { name: file.name, faces: r.faces }), 'ok', 7000);
+  if (r.warning) toast(t(r.warning), r.op === 'ref' ? 'warning' : 'info', 10000); // (an IGES: sewn, or only a reference body)
+  return r;
 }
 /** A STEP's assembly tree (r: importSolid's answer, or {blob, name}) -> its parts and sub-assemblies added to the
  *  project (closed) -> {tree, top: {name, data}} of the top assembly (not added). */
@@ -1959,6 +1962,7 @@ const assembly = new Assembly({ left: $('asmLeft'), viewport: $('asmViewport'), 
   // a STEP / STL / OBJ to insert: a solid step, or (a STEP assembly, if wanted) a new sub-assembly of the project
   importFile: async (file) => {
     const r = await importSolid(file), how = await askHowToOpen(r);
+    if (r.warning) toast(t(r.warning), r.op === 'ref' ? 'warning' : 'info', 10000);
     if (how !== 'assembly') return how ? { step: solidStep(r) } : null;
     const { top } = await importTree(r);
     return { part: project.addBackground(top.name, top.data, 'assembly') };
@@ -2210,6 +2214,13 @@ const agentHandlers = {
     for (const msg of data.issues || []) toast(msg, 'info', 8000);
     return { text: `Opened ${name} as a 📐 drawing: ${data.entities.length} shapes on ${data.layers.length} layers${data.pcb ? ' (a board: the top copper, outline, holes and silkscreen shown)' : ''}${data.issues?.length ? `; notes: ${data.issues.join(' ')}` : ''}. get_drawing tells its layers and size.` };
   },
+  load_solid: async ({ blob, name }) => { // an IGES from disk: a 3D model part with its solid (/api/model/import)
+    const file = new File([await (await fetch(`/api/blob/${blob}`)).blob()], name);
+    const r = await openSolid(file);
+    if (!r) throw new Error(`${name} could not be opened.`);
+    const bb = r.bbox ? ` ${r.bbox.slice(3).map((v, i) => +(v - r.bbox[i]).toFixed(2)).join(' × ')} mm,` : '';
+    return { text: `Opened ${name} as the 3D model “${project.current?.name}”: one solid step F1 (op ${r.op || 'add'}),${bb} ${r.faces} faces${r.op === 'ref' ? '' : `, ${r.volume} mm³`}.${r.warning ? ` Note: ${r.warning}` : ''} get_model / find_refs give its faces.` };
+  },
   load_step_assembly: async ({ blob, name }) => {
     const r = await openStepAssembly({ blob, name });
     if (!r) throw new Error(`${name} could not be opened as an assembly.`);
@@ -2418,7 +2429,7 @@ async function sheetScreenshot() {
 // 3D model parts: their own tools; the shared ones (screenshot, export, undo, get_part) follow the part on screen
 const MODEL = modelHandlers({ modeler, project, getWorkspace: () => state.workspace });
 const SHARED = { get_screenshot: 'model_screenshot', get_body: 'model_body', undo: 'model_undo' };
-const ANYWHERE = new Set(['load', 'load_drawing', 'load_step_assembly', 'ask_user', 'sheet_open', 'get_sheet', 'sheet_edit', 'export_data', 'list_parts', 'open_part', 'duplicate_part', 'new_model', 'new_assembly']);
+const ANYWHERE = new Set(['load', 'load_drawing', 'load_solid', 'load_step_assembly', 'ask_user', 'sheet_open', 'get_sheet', 'sheet_edit', 'export_data', 'list_parts', 'open_part', 'duplicate_part', 'new_model', 'new_assembly']);
 for (const [name, fn] of Object.entries(agentHandlers)) {
   if (ANYWHERE.has(name)) continue;
   agentHandlers[name] = async (...args) => {

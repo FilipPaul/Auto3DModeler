@@ -73,7 +73,9 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
    **Around an imported model** (a `solid` step from a STEP / STL the user opened — get_model gives its `bbox`):
    a cover / holder is a box sketched a wall bigger than the bbox, extruded, `shell`ed open on one side; then the user
    switches the solid to ⬚ Cut out (or you `edit_feature` it with `fields: {op: "cut"}`, after it in the steps —
-   `op: "ref"` shows it only). Ask the user to add the file with ▣ Solid from a file if it is not there.
+   `op: "ref"` shows it only). Ask the user to add the file with ▣ Solid from a file if it is not there. An IGES
+   (`open_file` on a .igs / .iges) opens as such a model; when its surfaces do not close it comes as `op: "ref"` — a
+   reference body to build around, say so.
    **Mirror**: `{type: "mirror", plane: "YZ"}` adds the mirror image of the whole part (left ↔ right; "XZ" front ↔
    back, "XY" top ↔ bottom, or `face: "<flat face>"`); `of: "<step id>"` mirrors one step only; `copy: false` turns the
    part over instead. Model half of a symmetric part, then mirror it.

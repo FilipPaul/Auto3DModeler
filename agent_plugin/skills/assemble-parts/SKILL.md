@@ -50,4 +50,5 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    assembly that uses it follows. The user exports the assembly (STL or STEP) from its Export buttons.
 
 Files for the user: `export {format: "step"}` (the whole assembly as a STEP assembly — SolidWorks, CATIA and Solid
-Edge open it as an assembly tree, a product per part, sub-assemblies nested), `"3mf"` (in colours, an object per colour for multi-material printing), `"bom"` (the parts list as CSV).
+Edge open it as an assembly tree, a product per part, sub-assemblies nested), `"iges"` (every part placed in one IGES —
+only for a program that asks for IGES; it has no assembly tree), `"3mf"` (in colours, an object per colour for multi-material printing), `"bom"` (the parts list as CSV).

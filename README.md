@@ -19,7 +19,7 @@ Use **📂 Open ▾** to open a file. It offers:
   opens as a **📐 Drawing** too, a layer per Gerber file / ODB++ layer (see [PCB boards](#pcb-boards-gerber-odb));
 - a **DXF / DWG drawing** opens as a **📐 Drawing** — see [DXF / DWG drawings](#dxf--dwg-drawings); nothing is made of it until you
   choose (Shift+drop: straight to a quick part, as before);
-- a **CAD / 3D file**: STL / OBJ / STEP files — a **STEP opens as a 3D model** with its exact
+- a **CAD / 3D file**: STL / OBJ / STEP / IGES files — a **STEP or IGES opens as a 3D model** with its exact
   solid as the first step (sketch on its faces, drill it, build a cover around it; a 40 MB STEP in under a minute);
   STL / OBJ open as a quick part (sliced, for printing; Shift+drop a STEP for that too). A **STEP assembly** — what
   SolidWorks, CATIA and Solid Edge export (their own SLDASM / CATProduct / ASM files are closed; save as STEP AP214 /
@@ -662,6 +662,23 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
 - The AI chat can build assemblies too: *“put the pin into the plate”* — it inserts the parts and snaps their
   faces together (tools new_assembly, insert_part, snap_faces, place_part, get_assembly; skill assemble-parts).
 
+## Exchange with other CAD programs
+
+SolidWorks (SLDPRT / SLDASM), CATIA (CATPart / CATProduct) and Solid Edge (PAR / ASM) keep their own files closed;
+the app exchanges with them — and with Inventor, Fusion, Creo, NX, FreeCAD, Onshape — through **neutral formats**:
+
+| Format | In | Out | Notes |
+|---|---|---|---|
+| **STEP** (.step / .stp, AP214) | a part (exact solid, colours); an assembly (parts, placements, sub-assemblies, names, colours) | a part; an assembly as an assembly tree | The best choice: all three read and write it (*Save As → STEP AP214 / AP242*). |
+| **IGES** (.igs / .iges, 5.3) | a part: its solids, or its surfaces sewn into a solid (a warning says so); surfaces that do not close come in as a 👁 reference body | a part (exact B-rep solid, mm); an assembly as one file (every part placed, names and colours — IGES has no assembly tree) | For programs and suppliers that still ask for IGES. Prefer STEP. |
+
+- **In**: *📂 Open ▾ → CAD / PCB / 3D file*, a file dropped on the view, *▣ Solid from a file* in a 3D model, or
+  *＋ Insert part ▾ → From a file* in an assembly. The AI's `open_file` opens them too.
+- **Out**: the *Export ▾* menu (or the Export buttons in the 3D model's / assembly's panel); the AI's `export
+  {format: "step" | "iges"}`.
+- In SolidWorks: *File → Open*, file type STEP / IGES (an assembly STEP opens as an assembly with its parts). CATIA:
+  *File → Open* (STEP AP214 / IGES). Solid Edge: *Open*, file type STEP / IGES (the import wizard keeps the assembly).
+
 ## AI assistant (✨ AI tab)
 
 Tell Claude what you want — *"make a 90 mm cookie cutter from C:\pics\star.png with a hanging hole"*, *"cut a
@@ -792,7 +809,7 @@ turns it into one. In 2D: 📏 in the outline editor (picture pixels and mm) and
   ignored. Needs `ezdxf`.
 - **DWG** is a closed format: it is converted to DXF with the free **ODA File Converter** or LibreDWG's `dwg2dxf`
   when one is installed; otherwise the import says so (or save the drawing as DXF).
-- **▣ Solid from a file** (3D model) adds a STEP / STL / OBJ as a step: **▣ Joined** to the part, **⬚ Cut out** of it
+- **▣ Solid from a file** (3D model) adds a STEP / IGES / STL / OBJ as a step: **▣ Joined** to the part, **⬚ Cut out** of it
   (a cavity it fits in exactly) or **👁 Reference** (drawn see-through, not part of the part — build a cover or a holder
   around it, then cut a copy of it out). An STL / OBJ is made an exact solid (up to 60 000 triangles). Assemblies
   insert one with *＋ Insert part ▾ → From a file* or by dropping the file on the assembly's view — a STEP assembly

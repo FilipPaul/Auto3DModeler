@@ -49,7 +49,8 @@ TOOLS = [
      "inputSchema": _obj({"view": {"type": "string", "enum": ["iso", "front", "back", "side"]}, "fit": {"type": "boolean"}})},
     {"name": "open_file", "where": "server",
      "description": "Open a file from disk as a new part (its own tab; the parts already open stay): a PDF drawing, an STL / "
-                    "OBJ / STEP 3D file, or as a 📐 2D drawing (then get_drawing, drawing_find …): a DXF / DWG, a PCB's Gerber / "
+                    "OBJ / STEP 3D file, an IGES (.igs / .iges: a 3D model part with its solid — surfaces are sewn into one; "
+                    "when they do not close it is a reference body), or as a 📐 2D drawing (then get_drawing, drawing_find …): a DXF / DWG, a PCB's Gerber / "
                     "Excellon drill file, a .zip / .tgz with a Gerber set or an ODB++ job, or a folder of loose Gerber / drill "
                     "files (one board). as: \"part\" opens a DXF / DWG as a quick part's outline instead; as: \"assembly\" "
                     "opens a STEP assembly (from SolidWorks, CATIA, Solid Edge …) as an assembly: a 3D model part per different "
@@ -133,12 +134,12 @@ TOOLS = [
                     "-> areas (mm²), a box round each, the thinnest wall, ok. Marked on the user's screen (red / orange).",
      "inputSchema": _obj({"printer": STR, "split": {"type": "boolean"}, "min_wall": NUM, "overhang": NUM})},
     {"name": "export", "where": "server",
-     "description": "Export to a file: stl / step (mm) — the part (an assembly as step: a STEP assembly — a product per part, placed instances, sub-assemblies nested — that SolidWorks / CATIA / Solid Edge open as an assembly tree); pdf: the drawing sheet (📄) on screen as drawn, for an assembly its drawing set (one PDF: the assembly with its parts list and balloons, each sub-assembly, then the made parts — every part once, by its own sheet when it has one), or for a 3D model a 2D drawing (front / top / right "
+     "description": "Export to a file: stl / step (mm) — the part (an assembly as step: a STEP assembly — a product per part, placed instances, sub-assemblies nested — that SolidWorks / CATIA / Solid Edge open as an assembly tree); iges: a 3D model part or an assembly as one IGES (B-rep solids, mm; for CAD programs that ask for IGES — STEP is better when they take it); pdf: the drawing sheet (📄) on screen as drawn, for an assembly its drawing set (one PDF: the assembly with its parts list and balloons, each sub-assembly, then the made parts — every part once, by its own sheet when it has one), or for a 3D model a 2D drawing (front / top / right "
                     "views, sizes, holes, title block); 3mf: the 3D model or the whole assembly in its colours, an object per colour "
                     "(for multi-material printing: AMS / MMU); bom: the assembly's bill of materials as CSV (qty, maker, part "
                     "number, mass); dxf: the shown layers of a 2D drawing. path: file or folder (default: the user's Downloads "
                     "folder). Returns the written path.",
-     "inputSchema": _obj({"format": {"type": "string", "enum": ["stl", "step", "pdf", "3mf", "bom", "dxf"]}, "path": STR}, ["format"])},
+     "inputSchema": _obj({"format": {"type": "string", "enum": ["stl", "step", "iges", "pdf", "3mf", "bom", "dxf"]}, "path": STR}, ["format"])},
     {"name": "undo", "where": "browser", "description": "Undo the last change made through these tools.",
      "inputSchema": _obj({})},
 
@@ -520,7 +521,7 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 - **Drawing sheets** (📄, of a 3D model part — its views and dimensions, made by a preset, edited by the user, following the part): sheet_open, get_sheet, sheet_edit; export {format: "pdf"} on a sheet writes it as drawn. Prefer a sheet over export pdf of the model when the user wants a drawing.
 - **2D drawings** (a DXF / DWG, or a PCB's Gerber / ODB++ opened as a 📐 drawing — open_file opens them, also a folder of loose Gerber files): get_drawing, drawing_find (shapes by filters), drawing_delete, drawing_add (lines, circles), drawing_units, drawing_layers (show / hide, colour, a new layer), drawing_set_size, drawing_use (as the sketch of a 3D model, or a quick part).
 - The GUI: gui_state lists what the user sees (buttons, sliders, their state; a sheet's dimensions / views / cells); gui_action clicks / slides one as the user would, clicks / drags at a point of the view (at, at_mm on a sheet) and presses keys (Delete, Enter, Escape, ctrl+z) — use them to tell the user where something is and to check the GUI behaves like the tools.
-- Assemblies also: edit_joint / remove_joint, measure (between faces), move_free, lock_motion (fix one free motion where it is); set_travel (a free motion's limits: a cylinder's stroke) and check_travel (collisions along it); the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, delete_part (only when asked). Files: export stl / step / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf.
+- Assemblies also: edit_joint / remove_joint, measure (between faces), move_free, lock_motion (fix one free motion where it is); set_travel (a free motion's limits: a cylinder's stroke) and check_travel (collisions along it); the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, delete_part (only when asked). Files: export stl / step / iges / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf.
 - **The parts library** holds real, bought parts with their maker and part number (screws, nuts, washers, inserts, bearings, standoffs, panel parts, SMC pneumatics, SICK sensors, stepper motors, the user's own): library_search, library_add.
 - Both: get_screenshot, check_print, export, undo. Opening a file or tracing a picture adds a new quick part tab.
 

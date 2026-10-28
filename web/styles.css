@@ -483,6 +483,7 @@ details.ol-clean[open] summary { margin-bottom: 6px; }
 body:not(.ws-model) .model-only, body.ws-model .quick-only, body.ws-assembly .quick-only, body:not(.ws-assembly) .asm-only,
 body.ws-drawing .quick-only, body:not(.ws-drawing) .dwg-only, body.ws-sheet .quick-only, body:not(.ws-sheet) .sheet-only { display: none !important; }
 body.ws-assembly #exportMenu [data-fmt=glb] { display: none; }
+body:not(.ws-model):not(.ws-assembly) #exportMenu [data-fmt=iges] { display: none; }
 body:not(.ws-model):not(.ws-assembly):not(.ws-drawing):not(.ws-sheet) .not-quick { display: none !important; }
 /* the drawing sheet (📄) */
 #shLeft { padding: 10px 10px 14px; overflow-y: auto; }

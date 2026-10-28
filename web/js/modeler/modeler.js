@@ -1116,6 +1116,7 @@ export class Modeler {
           <div class="row-actions"><button class="btn small primary" data-a="toPrint">🖨 Prepare for 3D print</button></div>` : ''}
         ${b ? `<h3>Export</h3><div class="row-actions"><button class="btn small" data-x="stl" title="For 3D printing">STL</button>
           <button class="btn small" data-x="step" title="For other CAD programs (exact circles and faces)">STEP</button>
+          <button class="btn small" data-x="iges" title="For CAD programs that ask for IGES (exact solid, mm) — STEP is better where it is read">IGES</button>
           <button class="btn small" data-x="pdf" title="A 2D drawing: front, top and right views, sizes, holes, title block">📐 Drawing (PDF)</button></div>
           ${this.hooks.newSheet ? '<div class="row-actions"><button class="btn small primary" data-a="newSheet" title="A drawing sheet of this part to edit: its views and dimensions (light / medium / full), moved, deleted, added — it follows the part when it changes">📄 Drawing sheet</button></div>' : ''}` : ''}`;
     }
@@ -2368,19 +2369,20 @@ export class Modeler {
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
   }
 
-  // ------------------------------------------------------------------ a solid from a file (STEP / STL / OBJ)
+  // ------------------------------------------------------------------ a solid from a file (STEP / IGES / STL / OBJ)
   pickSolid() {
     if (this.mode !== 'part' || this.cmd || !this.hooks.importSolid) return;
     const inp = document.createElement('input');
-    Object.assign(inp, { type: 'file', accept: '.step,.stp,.stl,.obj' });
+    Object.assign(inp, { type: 'file', accept: '.step,.stp,.igs,.iges,.stl,.obj' });
     inp.addEventListener('change', async () => {
       const file = inp.files[0];
       if (!file) return;
       let r;
       try { r = await this.hooks.importSolid(file); } catch (e) { this.hooks.toast(e.message.replace(/^MESH_TOO_BIG /, ''), 'error', 9000); return; }
       if (this.mode !== 'part' || this.cmd) return;
-      // with a part there: a reference to build around (a cover, a holder); else the part itself
-      this.openCommand({ id: this.newId(), type: 'solid', name: r.name.replace(/\.[^.]+$/, ''), blob: r.blob, file: r.file || r.name, op: this.result?.body ? 'ref' : 'add' }, true);
+      if (r.warning) this.hooks.toast(t(r.warning), r.op === 'ref' ? 'warning' : 'info', 10000); // (an IGES: sewn, or not closed)
+      // with a part there: a reference to build around (a cover, a holder); else the part itself (open surfaces: a reference)
+      this.openCommand({ id: this.newId(), type: 'solid', name: r.name.replace(/\.[^.]+$/, ''), blob: r.blob, file: r.file || r.name, op: this.result?.body ? 'ref' : r.op || 'add' }, true);
     });
     inp.click();
   }
@@ -3062,7 +3064,7 @@ export class Modeler {
     const res = await fetch(`/api/model/export/${fmtName}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ part: this.part, name: this.hooks.safeName() }) });
     if (!res.ok) { this.hooks.toast(`Export failed: ${(await res.json()).error}`, 'error'); return; }
-    if (await this.hooks.download(await res.blob(), `${this.hooks.safeName()}.${fmtName}`)) {
+    if (await this.hooks.download(await res.blob(), `${this.hooks.safeName()}.${{ iges: 'igs' }[fmtName] || fmtName}`)) {
       this.hooks.toast(fmtName === 'pdf' ? 'Exported the drawing (PDF).' : `Exported ${fmtName.toUpperCase()} (in mm).`, 'ok');
     }
   }
