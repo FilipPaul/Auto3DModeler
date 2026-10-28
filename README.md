@@ -486,7 +486,11 @@ panel choose *Template* (Modern, Compact, ISO 5457 or your own); type your *Comp
 default *Note*, the *Tolerance standard*, pick a *Logo*, the *Layout* (Block / a low Strip) and the fields shown
 (under *Company, logo and fields*), then **💾 Save as template…** — kept on the server for all your projects. On a
 drawing of an assembly, **⇶ Use for all drawings of this assembly** puts it on the assembly's, its sub-assemblies'
-and its parts' drawings, and new drawings of that set take it too; the PDF and DXF use it.
+and its parts' drawings, and new drawings of that set take it too; the PDF and DXF use it. **Frame**: *Simple*
+(10 mm all round, the default), *Standard ISO 5457* (20 mm on the left for filing, 10 mm elsewhere, a 0.7 mm line,
+zones A… / 1… and centring marks), *Narrow* (5 mm), *None*, or *Custom…* (each margin, the line, zones, centring
+marks). The views and the automatic scale fit inside the margins; the frame is kept in the title-block template, so a
+whole drawing set follows it (a drawing may choose its own).
 The title block takes your own texts — *Title*, *Drawing no.*, *Drawn by*, *Note* — in the panel (a double-click on a cell goes to its field). **⬇ PDF** gives the sheet as you see it — the page is the paper (A4 / A3) and
 1 mm on the sheet is 1 mm on the page, so printed at 100 % ("actual size", not "fit to page") the sheet's scale holds.
 **⬇ DXF** gives it for drafting programs (AutoCAD, SolidWorks / Solid Edge drafting): the paper 1:1 in mm, the views

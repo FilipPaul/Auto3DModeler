@@ -346,13 +346,21 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       await sheet.ensure();
       return ok({ ...sheet.summary(), ...(points ? { [points]: sheet.pointsOf(points) } : {}) });
     },
-    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, texts, complete, drop_twice, fits, scale, view_scales, view_names, template, template_all, save_template } = {}) => {
+    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, texts, complete, drop_twice, fits, scale, view_scales, view_names, template, template_all, save_template, frame } = {}) => {
       need('sheet', 'This is for a drawing sheet (📄) — sheet_open opens one');
       const ed = sheet, done = [];
       if (template !== undefined) {
         await ed.loadTemplates();
         ed.useTemplate(template || 'Modern');
         done.push(`title block ${template || 'Modern'}`);
+      }
+      if (frame !== undefined) {
+        if (frame === null) { delete ed.d.frame; ed.d.views = {}; ed.history.commit(); await ed.ensure(); } else {
+          if (typeof frame === 'string' ? !['simple', 'iso', 'narrow', 'none'].includes(frame) : typeof frame !== 'object') throw new Error('frame: "simple" | "iso" | "narrow" | "none" | {m: [left, top, right, bottom] mm, line: mm, zones, marks} | null (the template\'s).');
+          ed.setFrame(frame);
+          await ed.ensure();
+        }
+        done.push(`frame ${typeof frame === 'string' ? frame : frame ? 'custom' : 'as the template'}`);
       }
       const sc = (v, what) => { if (v === null || v === '') return null; const s = parseScale(v); if (!s) throw new Error(`${what}: a scale such as "1:2", "2:1" or "1:2522" (null: ${what === 'scale' ? 'automatic' : 'the sheet\'s'}).`); return s; };
       if (scale !== undefined) {

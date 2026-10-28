@@ -200,6 +200,40 @@ try:
     Select(d.find_element(By.CSS_SELECTOR, "#shRight select[data-k=scale]")).select_by_value("")  # (Auto again)
     wait(f"return !{S}.busy && !{S}.d.scale", 30)
 
+    print("3b. the frame: Standard ISO 5457, None, Custom…")
+    js(f"{S}.sel = null; {S}.render()")
+    Select(d.find_element(By.CSS_SELECTOR, "#shRight select[data-k=frame]")).select_by_value("iso")
+    wait(f"return !{S}.busy && {S}.lay.margins[0] === 20", 30)
+    time.sleep(0.4)
+    pdf = pdf_of(f"{{svg: {S}.svg(true)}}")
+    mm = 72 / 25.4
+    rects = [it["rect"] for it in pdf[0].get_drawings() if it["rect"].width > 200 * mm and it["rect"].height > 150 * mm]
+    frame = [r for r in rects if abs(r.x0 - 20 * mm) < 0.2 and abs(r.x1 - 287 * mm) < 0.2 and abs(r.y0 - 10 * mm) < 0.2]
+    check(bool(frame), f"ISO 5457: the PDF's frame starts 20 mm from the left: {[(round(r.x0 / mm, 2), round(r.y0 / mm, 2), round(r.x1 / mm, 2), round(r.y1 / mm, 2)) for r in rects]}")
+    txt = pdf[0].get_text("words")
+    check(any(w[4] == "A" and w[0] < 20 * mm for w in txt) and any(w[4] == "6" and w[1] < 10 * mm for w in txt), "zones: A in the left margin, 6 along the top")
+    fx = js(f"return {S}.centre('Front')[0]")
+    check(js(f"return {S}.paperBox('Front')[0]") > 20 and fx > 79.25, f"the views laid out inside it: Front at x {fx:.2f} (was 79.25)")
+    d.save_screenshot(f"{OUT}/frame_iso.png")
+    pdf[0].get_pixmap(dpi=70).save(f"{OUT}/frame_iso_pdf.png")
+    Select(d.find_element(By.CSS_SELECTOR, "#shRight select[data-k=frame]")).select_by_value("none")
+    wait(f"return !{S}.busy && {S}.lay.margins[0] === 10", 30)
+    pdf = pdf_of(f"{{svg: {S}.svg(true)}}")
+    rects = [it["rect"] for it in pdf[0].get_drawings() if it["rect"].width > 200 * mm and it["rect"].height > 150 * mm and it.get("color") is not None]
+    check(not rects and "data-frame" not in js(f"return {S}.svg(true)"), f"None: no frame line ({len(rects)})")
+    Select(d.find_element(By.CSS_SELECTOR, "#shRight select[data-k=frame]")).select_by_value("custom")
+    left = wait("return document.querySelector('#shRight [data-fr=l]')", 5)
+    left.send_keys(Keys.CONTROL, "a")
+    left.send_keys("25", Keys.ENTER)
+    wait(f"return !{S}.busy && {S}.lay.margins[0] === 25", 30)
+    check(js(f"return {S}.frameOf().preset") == "custom" and js(f"return {S}.svg(true)").count('data-frame') == 1, "Custom…: a 25 mm left margin typed, the frame drawn there")
+    ActionChains(d).move_to_element_with_offset(stage(), 0, -300).click().perform()
+    ActionChains(d).key_down(Keys.CONTROL).send_keys("z").key_up(Keys.CONTROL).perform()
+    wait(f"return !{S}.busy && {S}.lay.margins[0] !== 25", 30)
+    check(js(f"return {S}.frameOf().m[0]") == 10, "Ctrl+Z: back to before")
+    Select(d.find_element(By.CSS_SELECTOR, "#shRight select[data-k=frame]")).select_by_value("iso")
+    wait(f"return !{S}.busy && {S}.lay.margins[0] === 20", 30)
+
     print("4. a title-block template: typed, saved, used for an assembly's whole drawing set")
     js(f"{S}.sel = null; {S}.render()")
     d.find_element(By.CSS_SELECTOR, "#shRight .sh-tbmore summary").click()
@@ -264,6 +298,8 @@ try:
     pdf = pdf_of("{svgs: window.__set.svgs}")
     pages = [p.get_text() for p in pdf]
     check(len(pages) == 5 and all(COMPANY in p for p in pages), f"every page of the set's PDF ({len(pages)}) has the company")
+    framed = [any(abs(it["rect"].x0 - 20 * mm) < 0.2 and it["rect"].height > 150 * mm for it in p.get_drawings()) for p in pdf]
+    check(all(framed), f"the template's ISO frame (20 mm left) on every page: {framed}")
     pdf[0].get_pixmap(dpi=80).save(f"{OUT}/template_set_p1.png")
     pdf[len(pages) - 1].get_pixmap(dpi=80).save(f"{OUT}/template_set_last.png")
     dxf = js(f"""return fetch('/api/sheet/dxf', {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({S}.dxfData())}}).then(r => r.text())""")

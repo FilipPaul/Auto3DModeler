@@ -838,6 +838,17 @@ Date: 2026-10-25. Written by the architect agent.
   save_template, texts company / address / tolstd; get_sheet template + templates. tests/test_title_templates.py;
   tools/e2e_sheet_views_templates.py (typed, saved, kept on the server; Machine → Lid unit → Lid / Pin, Base: all five
   pages and their PDF carry the company; a new sheet of the set takes it; the DXF; back to Modern).
+- **The sheet's frame and margins done:** frame {preset simple (10 mm, 0.5 line: the default, as before) | iso (ISO
+  5457: 20 mm left for filing, 10 elsewhere, 0.7 line, zones, centring marks) | narrow (5 mm) | none (no line, 10 mm
+  kept) | custom {m [left, top, right, bottom] ≤ 40 mm, line ≤ 2 mm, zones, marks}} — held by the title-block template
+  (so a drawing set follows it), a sheet's own d.frame overrides it (in undo). SheetEditor.frameSvg: the line; zones
+  (about 50 mm each, an even count: A4 6 × 4, A3 8 × 6; numbers across, letters down, in the margins with ticks);
+  centring marks from the paper's edge 5 mm into the frame. layKey / layReq pass the margins to layout(frame) — the
+  views' cells and the auto-fit scale use them; the title block, parts list and the fit warning sit inside them; the
+  PDF and DXF draw it from the same SVG. The right panel's Frame: Simple | Standard ISO 5457 | Narrow | None |
+  Custom… (its five numbers and two ticks). AI: sheet_edit frame; get_sheet frame. tests/test_sheet_views.py
+  (margins, a strip's room, the fit); tools/e2e_sheet_views_templates.py (ISO: the PDF's frame rect at 20 mm, zones A
+  / 6; None: no frame; Custom… 25 mm typed, Ctrl+Z; the template's ISO frame on all five pages of a set).
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

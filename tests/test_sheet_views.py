@@ -41,6 +41,20 @@ class TestLayoutScale(unittest.TestCase):
         self.assertEqual(layout(BOX, scale="5:1")["paper"], "A3")
         self.assertEqual(layout(BOX, "A4", scale="5:1")["paper"], "A4")  # (asked for: kept — the editor warns)
 
+    def test_the_frames_margins(self):
+        lay = layout(BOX, frame={"m": [20, 10, 10, 10]})  # (ISO 5457: 20 mm on the left for filing)
+        self.assertEqual(lay["margins"], [20, 10, 10, 10])
+        self.assertEqual(lay["views"]["Front"], [20 + 267 / 4, 48.0])
+        self.assertEqual(layout(BOX, frame={"m": [12]})["margins"], [12, 12, 12, 12])
+        low = layout(BOX, frame={"title": 14})  # (a strip title block: the views get its room)
+        self.assertEqual(low["title"], 14)
+        self.assertGreater(low["views"]["Top"][1], layout(BOX)["views"]["Top"][1])
+
+    def test_narrow_margins_fit_a_bigger_scale(self):
+        big = {"bbox": [0, 0, 0, 110, 60, 40]}
+        self.assertEqual(layout(big, "A4", frame={"m": [5, 5, 5, 5], "title": 14})["scale"], [1, 1])  # (the auto-fit counts the margins)
+        self.assertEqual(layout(big, "A4", frame={"m": [25, 25, 25, 25]})["scale"], [1, 2])
+
     def test_bad_scale_raises(self):
         with self.assertRaises(ValueError):
             layout(BOX, scale="big")

@@ -33,6 +33,16 @@ const MORE_TEXTS = [['company', 'Company'], ['address', 'Address'], ['tolstd', '
 /** The title block's fields that a template may leave out. */
 const TB_FIELDS = [['company', 'Company / logo'], ['number', 'Drawing no.'], ['material', 'Material'], ['paper', 'Paper'], ['tolerances', 'Tolerances'], ['drawn', 'Drawn by'], ['created', 'Created'], ['changed', 'Changed'], ['note', 'Note']];
 const DEFAULT_TPL = { name: 'Modern', builtin: true, layout: 'block', hide: [], texts: {}, logo: null, frame: null };
+/** The sheet's frame presets (as auto3d/title_templates.py FRAMES): margins [left, top, right, bottom] mm, the line's
+ *  width (0: no frame), zones (grid references A… / 1… in the margins) and centring marks (ISO 5457). */
+const FRAMES = {
+  simple: { preset: 'simple', m: [10, 10, 10, 10], line: 0.5, zones: false, marks: false },
+  iso: { preset: 'iso', m: [20, 10, 10, 10], line: 0.7, zones: true, marks: true },
+  narrow: { preset: 'narrow', m: [5, 5, 5, 5], line: 0.35, zones: false, marks: false },
+  none: { preset: 'none', m: [10, 10, 10, 10], line: 0, zones: false, marks: false },
+};
+const FRAME_CHOICES = [['simple', 'Simple (10 mm)', 'A thin frame 10 mm from the edge all round — as before'], ['iso', 'Standard ISO 5457', '20 mm on the left for filing, 10 mm elsewhere, a 0.7 mm frame, zones A… / 1… and centring marks'],
+  ['narrow', 'Narrow', '5 mm all round — the most room for the views'], ['none', 'None', 'No frame line (10 mm left free for the printer)'], ['custom', 'Custom…', 'Your own margins, line, zones and centring marks']];
 /** The standard drawing scales (ISO 5455) offered in the scale choices; Custom… takes any, e.g. 1:2522. */
 const SCALE_LIST = [[10, 1], [5, 1], [2, 1], [1, 1], [1, 2], [1, 5], [1, 10], [1, 20], [1, 50], [1, 100]];
 /** A scale as written ("1:2522", "3:1", "1/5", "0.5", "2") -> [a, b] (both above 0), or null (as sheet.parse_scale). */
@@ -89,7 +99,7 @@ export class SheetEditor {
     this.pick = null;    // the first point of a new dimension {view, key}
     this.zoom = { k: 1, x: 0, y: 0 };
     this.history = new History({
-      capture: () => ({ section: !!this.d?.section, balloons: this.d?.balloons, views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper, texts: this.d?.texts, exploded: !!this.d?.exploded, viewNames: this.d?.viewNames, scale: this.d?.scale ?? null, vscale: this.d?.vscale, template: this.d?.template, tb: this.d?.tb }),
+      capture: () => ({ section: !!this.d?.section, balloons: this.d?.balloons, views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper, texts: this.d?.texts, exploded: !!this.d?.exploded, viewNames: this.d?.viewNames, scale: this.d?.scale ?? null, vscale: this.d?.vscale, template: this.d?.template, tb: this.d?.tb, frame: this.d?.frame }),
       restore: (s) => { const ex = !!this.d.exploded, sec = !!this.d.section; Object.assign(this.d, structuredClone(s)); if (!this.d.exploded) delete this.d.exploded; if (!this.d.section) delete this.d.section; if (ex !== !!this.d.exploded || sec !== !!this.d.section || this.d.built?.preset !== this.d.preset || this.d.built?.vp !== JSON.stringify(this.d.vpreset || {}) || this.layKey() !== this.builtKey()) this.ensure(true); else this.render(); },
       onChange: () => this.renderBar(),
     });
@@ -134,11 +144,12 @@ export class SheetEditor {
     if (!own) return null;
     const tb = this.tbOf(), X = this.d.texts || {}, texts = { ...tb.texts };
     for (const k of TPL_TEXTS) if (X[k] !== undefined) texts[k] = X[k];
-    const body = { template: { name: own, layout: tb.layout, hide: [...tb.hide], texts, logo: tb.logo, frame: this.frameOf ? this.frameOf() : null } };
+    const body = { template: { name: own, layout: tb.layout, hide: [...tb.hide], texts, logo: tb.logo, frame: this.frameOf() } };
     const r = await post('/api/title-templates', body);
     this.tpls = r.templates;
     this.d.template = r.template.name;
     delete this.d.tb;
+    delete this.d.frame; // (the template holds it now)
     const keep = { ...(this.d.texts || {}) };
     for (const k of TPL_TEXTS) delete keep[k];
     this.d.texts = keep;
@@ -152,6 +163,7 @@ export class SheetEditor {
     if (!this.tpls.some((x) => x.name === name)) throw new Error(`No template ${name} — one of: ${this.tpls.map((x) => x.name).join(', ')}.`);
     this.d.template = name;
     delete this.d.tb;
+    delete this.d.frame;
     this.history.commit();
     this.render();
     this.hooks.onChange?.();
@@ -266,9 +278,87 @@ export class SheetEditor {
   vs(v) { const s = this.d.vscale?.[v]; return s ? s[0] / s[1] : this.scale(); }
 
   /** What the server's layout is made for: the sheet's own scale (and frame) — built again when it changes. */
-  layKey(d = this.d) { const th = this.titleH(d); return JSON.stringify({ s: d.scale || null, ...(th !== 38 ? { th } : {}) }); }
+  layKey(d = this.d) { const th = this.titleH(d), m = this.frameOf(d).m, dm = m.every((v) => v === 10); return JSON.stringify({ s: d.scale || null, ...(th !== 38 ? { th } : {}), ...(dm ? {} : { m }) }); }
   builtKey(d = this.d) { return d.built?.lk ?? JSON.stringify({ s: null }); }
-  layReq(d = this.d) { const th = this.titleH(d); return { ...(d.scale ? { scale: scaleText(d.scale) } : {}), ...(th !== 38 ? { frame: { title: th } } : {}) }; }
+  layReq(d = this.d) {
+    const th = this.titleH(d), m = this.frameOf(d).m, dm = m.every((v) => v === 10);
+    return { ...(d.scale ? { scale: scaleText(d.scale) } : {}), ...(th !== 38 || !dm ? { frame: { title: th, m } } : {}) };
+  }
+
+  /** The sheet's frame: its own (d.frame), else its title-block template's, else Simple (10 mm, 0.5 mm line). */
+  frameOf(d = this.d) {
+    const f = d?.frame || this.tplOf(d).frame || FRAMES.simple;
+    if (f.preset !== 'custom' && FRAMES[f.preset]) return FRAMES[f.preset];
+    const m = (Array.isArray(f.m) ? f.m : [f.m ?? 10]).map((v) => Math.max(0, Math.min(40, +v || 0)));
+    return { preset: 'custom', m: [0, 1, 2, 3].map((i) => m[i] ?? m[0]), line: Math.max(0, Math.min(2, +(f.line ?? 0.5))), zones: !!f.zones, marks: !!f.marks };
+  }
+
+  /** The frame (ISO 5457): its line at the margins; zones — numbers across the top and bottom, letters down the sides,
+   *  about 50 mm each, in the margins with short ticks between them; centring marks from the paper's edge 5 mm into the
+   *  frame at the middle of each side. None: nothing. */
+  frameSvg(pw, ph) {
+    const f = this.frameOf(), [l, tp, r, b] = f.m, x1 = pw - r, y1 = ph - b, w = x1 - l, h = y1 - tp, lw = f.line;
+    if (!lw) return '';
+    const g = [`<g class="sh-frame"><rect x="${l}" y="${tp}" width="${w}" height="${h}" fill="none" stroke="#000" stroke-width="${lw}" data-frame="1"/>`];
+    if (f.zones) {
+      const even = (n) => Math.max(2, Math.round(n / 2) * 2), nx = even(w / 50), ny = even(h / 50), fs = 2.5;
+      const out = (m) => Math.min(5, m); // (the ticks and letters in the margin, at most 5 mm out)
+      for (let i = 0; i < nx; i++) {
+        const xa = l + (w * i) / nx, xc = l + (w * (i + 0.5)) / nx;
+        if (i) for (const [y, o] of [[tp, -out(tp)], [y1, out(b)]]) g.push(`<line x1="${xa}" y1="${y}" x2="${xa}" y2="${y + o}" stroke="#000" stroke-width="0.25"/>`);
+        if (tp >= 3.5) g.push(`<text x="${xc}" y="${tp - out(tp) / 2 + fs * 0.35}" font-size="${fs}" text-anchor="middle" fill="#000">${i + 1}</text>`);
+        if (b >= 3.5) g.push(`<text x="${xc}" y="${y1 + out(b) / 2 + fs * 0.35}" font-size="${fs}" text-anchor="middle" fill="#000">${i + 1}</text>`);
+      }
+      for (let i = 0; i < ny; i++) {
+        const ya = tp + (h * i) / ny, yc = tp + (h * (i + 0.5)) / ny, letter = 'ABCDEFGHJKLMNPRSTUVWXYZ'[i] || '?';
+        if (i) for (const [x, o] of [[l, -out(l)], [x1, out(r)]]) g.push(`<line x1="${x}" y1="${ya}" x2="${x + o}" y2="${ya}" stroke="#000" stroke-width="0.25"/>`);
+        if (l >= 3.5) g.push(`<text x="${l - out(l) / 2}" y="${yc + fs * 0.35}" font-size="${fs}" text-anchor="middle" fill="#000">${letter}</text>`);
+        if (r >= 3.5) g.push(`<text x="${x1 + out(r) / 2}" y="${yc + fs * 0.35}" font-size="${fs}" text-anchor="middle" fill="#000">${letter}</text>`);
+      }
+    }
+    if (f.marks) {
+      const mx = (l + x1) / 2, my = (tp + y1) / 2, sw = Math.max(0.5, lw);
+      for (const [xa, ya, xb, yb] of [[mx, 0, mx, tp + 5], [mx, ph, mx, y1 - 5], [0, my, l + 5, my], [pw, my, x1 - 5, my]]) g.push(`<line x1="${xa}" y1="${ya}" x2="${xb}" y2="${yb}" stroke="#000" stroke-width="${sw}"/>`);
+    }
+    g.push('</g>');
+    return g.join('');
+  }
+
+  /** Set the sheet's frame: a preset's name, or a custom one {m, line, zones, marks} — the views placed again. */
+  setFrame(f) {
+    this.d.frame = typeof f === 'string' ? { preset: f } : { preset: 'custom', ...this.frameOf(), ...f, ...(f.preset ? {} : { preset: 'custom' }) };
+    this.d.views = {};
+    this.history.commit();
+    this.render();
+    this.ensure();
+  }
+
+  /** The right panel's Frame: a preset choice; Custom… shows its margins, line, zones and centring marks. */
+  framePanel() {
+    const f = this.frameOf(), own = !!this.d.frame, tip = Object.fromEntries(FRAME_CHOICES.map(([k, , h]) => [k, h]));
+    const num = (k, label, v, max) => `<label class="sh-fnum" title="${esc(t(label))} (mm)"><span>${esc(t(label))}</span><input type="number" min="0" max="${max}" step="0.5" data-fr="${k}" value="${v}"></label>`;
+    return `<h3>${esc(t('Frame'))}</h3>
+      <div class="field"><label>${esc(t('Frame'))}</label><select data-k="frame" title="${esc(t('The border line and the margins of the paper — kept in the title-block template, so a drawing set follows it'))}">${FRAME_CHOICES.map(([k, l]) => `<option value="${k}" ${f.preset === k ? 'selected' : ''} title="${esc(t(tip[k]))}">${esc(t(l))}</option>`).join('')}</select></div>
+      <p class="hint">${esc(t(tip[f.preset] || ''))}${own ? '' : ` ${t('(from the title-block template)')}`}</p>
+      ${f.preset === 'custom' ? `<div class="sh-fgrid">${num('l', 'Left', f.m[0], 40)}${num('t', 'Top', f.m[1], 40)}${num('r', 'Right', f.m[2], 40)}${num('b', 'Bottom', f.m[3], 40)}${num('line', 'Line', f.line, 2)}</div>
+        <div class="sh-fchecks"><label class="check" title="${esc(t('Grid references along the edges: numbers across, letters down (ISO 5457)'))}"><input type="checkbox" data-fr="zones" ${f.zones ? 'checked' : ''}> ${esc(t('Zones'))}</label>
+        <label class="check" title="${esc(t('Short thick lines at the middle of each side, for copying and folding'))}"><input type="checkbox" data-fr="marks" ${f.marks ? 'checked' : ''}> ${esc(t('Centring marks'))}</label></div>` : ''}`;
+  }
+
+  bindFramePanel(box) {
+    box.querySelector('[data-k=frame]')?.addEventListener('change', (e) => this.setFrame(e.target.value === 'custom' ? { ...this.frameOf(), preset: 'custom', line: this.frameOf().line || 0.5 } : e.target.value)); // (Custom… from None: a line to start from)
+    for (const el of box.querySelectorAll('[data-fr]')) {
+      el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') el.blur(); });
+      el.addEventListener('change', () => {
+        const f = this.frameOf(), k = el.dataset.fr, m = [...f.m];
+        if (k === 'zones' || k === 'marks') { this.setFrame({ [k]: el.checked }); return; }
+        const v = Math.max(0, parseFloat(el.value) || 0);
+        if (k === 'line') { this.setFrame({ line: Math.min(2, v) }); return; }
+        m['ltrb'.indexOf(k)] = Math.min(40, v);
+        this.setFrame({ m });
+      });
+    }
+  }
 
   /** A page's sheet data as drawn (a drawing set's page: what its set gives it). */
   pageData(d) { return d; }
@@ -339,7 +429,7 @@ export class SheetEditor {
   /** The views that reach past the frame (paper mm) -> [names]: a warning, the sheet still draws them. */
   outside() {
     if (!this.lay || !this.geo) return [];
-    const [pw, ph] = this.lay.size, [ml, mt, mr, mb] = this.lay.margins || [this.lay.margin, this.lay.margin, this.lay.margin, this.lay.margin];
+    const [pw, ph] = this.lay.size, [ml, mt, mr, mb] = this.frameOf().m;
     const off = (b) => b[0] < ml - 0.5 || b[1] < mt - 0.5 || b[2] > pw - mr + 0.5 || b[3] > ph - mb + 0.5;
     const out = this.drawn().filter((v) => off(this.paperBox(v)));
     if (this.isoBox && !this.d.off.Iso && off(this.isoBox)) out.push('Iso');
@@ -454,8 +544,7 @@ export class SheetEditor {
     if (!L || !G) return '';
     const [pw, ph] = L.size, m = L.margin, th = this.titleH();
     const out = [`<svg xmlns="${NS}" width="${pw}mm" height="${ph}mm" viewBox="0 0 ${pw} ${ph}" font-family="Helvetica">`,
-      `<rect x="0" y="0" width="${pw}" height="${ph}" fill="#fff"/>`,
-      `<rect x="${m}" y="${m}" width="${pw - 2 * m}" height="${ph - 2 * m}" fill="none" stroke="#000" stroke-width="0.5"/>`];
+      `<rect x="0" y="0" width="${pw}" height="${ph}" fill="#fff"/>`, this.frameSvg(pw, ph)];
     const pl = (v, pts) => pts.map((p) => this.P(v, p).map((q) => q.toFixed(3)).join(',')).join(' ');
     for (const v of this.drawn()) {
       const g = G.views[v], pb = this.paperBox(v);
@@ -599,7 +688,7 @@ export class SheetEditor {
    *  values, thin rules only between rows and short ones between cells; a company / logo column on the left; one
    *  outline. Black on white (prints in black and white), inside the frame at its bottom right. */
   titleSvg(pw, ph, m, th) {
-    const L = this.lay, [, , mr, mb] = L.margins || [m, m, m, m], W = this.titleW(), x0 = pw - mr - W, y0 = ph - mb - th;
+    const L = this.lay, [, , mr, mb] = this.frameOf().m, W = this.titleW(), x0 = pw - mr - W, y0 = ph - mb - th;
     const src = this.hooks.partData(this.d.source) || {}, T = this.d.title || {}, X = this.d.texts || {}, tb = this.tb(), F = { ...tb.texts, ...X };
     const on = (f) => !tb.hide.has(f), INK = '#000', MUTED = '#555', THIN = 0.13;
     const fit = (s, w, fs) => { s = String(s ?? ''); const n = Math.max(1, Math.floor(w / (fs * 0.53))); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
@@ -669,7 +758,7 @@ export class SheetEditor {
   /** An assembly's page: the parts list (pos, name, qty, material, part number) above the title block, and a balloon
    *  with its position for each in the iso view. */
   asmSvg(pw, ph, m, th) {
-    const [, mt, mr, mb] = this.lay.margins || [m, m, m, m], W = this.titleW();
+    const [, mt, mr, mb] = this.frameOf().m, W = this.titleW();
     const rows = this.d.asm.rows, max = Math.max(1, Math.floor((ph - mt - mb - th - 40) / 5) - 1), shown = rows.slice(0, max);
     const x0 = pw - mr - W, cols = [[t('Pos.'), 0.08], [t('Name'), 0.42], [t('Qty'), 0.08], [t('Material'), 0.17], [t('Part number'), 0.25]].map(([l, k]) => [l, W * k]);
     const n = shown.length + (rows.length > max ? 1 : 0), top = ph - mb - th - (n + 1) * 5 - 1, g = ['<g class="sh-bom">'];
@@ -999,6 +1088,7 @@ export class SheetEditor {
       ${this.d.asm ? `<label class="check"><input type="checkbox" data-k="exploded" ${this.d.exploded ? 'checked' : ''}> ${esc(t('Iso view exploded'))}</label>` : ''}
       <div class="field"><label>Paper</label><select data-k="paper">${[['', 'Auto'], ['A4', 'A4'], ['A3', 'A3']].map(([v, l]) => `<option value="${v}" ${(this.d.paper || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="field"><label>${esc(t('Scale'))}</label>${this.scaleSelect('data-k="scale"', this.d.scale, this.d.scale ? t('Auto') : `${t('Auto')} (${scaleText(this.lay?.scale || [1, 1])})`, t('The sheet\'s scale: Auto fits the views on the paper; or a standard one, or your own (Custom…, e.g. 1:2522). Dimensions always show the real sizes.'))}</div>
+      ${d ? '' : this.framePanel()}
       ${d ? `<h3>${esc(t('Dimension'))}</h3><p class="mp-count" data-no-i18n>${esc(this.value(d) === null ? '⚠ ?' : this.dimText(d, this.value(d)))}</p>
         <p class="hint">${esc(d.auto ? t('Made by the preset. Drag it to move it; Delete removes it (↺ brings it back).') : t('Your own. Drag it to move it; Delete removes it.'))}</p>
         ${this.value(d) === null ? `<p class="mp-bad">${esc(t('Its points are gone — the part changed. Delete it and add it again.'))}</p>` : ''}
@@ -1011,6 +1101,7 @@ export class SheetEditor {
       el.addEventListener('change', () => { const x = { ...(this.d.texts || {}) }; if (el.value.trim()) x[el.dataset.text] = el.value.trim(); else delete x[el.dataset.text]; this.d.texts = x; this.commit(); });
     }
     this.bindTitlePanel(box);
+    this.bindFramePanel(box);
     box.querySelector('[data-k=exploded]')?.addEventListener('change', (e) => { // (the parts pulled apart in the iso view, balloons on them)
       if (e.target.checked) this.d.exploded = true; else delete this.d.exploded;
       delete this.d.balloons;
@@ -1560,6 +1651,7 @@ export class SheetEditor {
       scale: `${scaleText(this.scaleArr())}${this.d.scale ? '' : ' (auto)'}`,
       template: `${this.tplName()}${this.d.template ? '' : this.tplName() === DEFAULT_TPL.name ? ' (default)' : ' (the drawing set\'s)'}`,
       templates: this.tpls.map((x) => x.name),
+      frame: (({ preset, m, line, zones, marks }) => ({ preset, margins_mm: m, line, zones, marks, ...(this.d.frame ? {} : { from: 'the template' }) }))(this.frameOf()),
       ...(Object.keys(this.d.vscale || {}).length ? { view_scales: Object.fromEntries(Object.entries(this.d.vscale).map(([v, s]) => [v, scaleText(s)])) } : {}),
       ...(Object.keys(this.d.viewNames || {}).length ? { view_names: this.d.viewNames } : {}),
       ...(this.outside().length ? { past_the_frame: this.outside() } : {}),

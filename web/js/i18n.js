@@ -1145,6 +1145,18 @@ const CS = {
   'Saved the title-block template “{name}”.': 'Šablona razítka „{name}“ uložena.',
   "This drawing is not in an assembly's drawing set.": 'Tento výkres není ve výkresové sadě sestavy.',
   'Title block “{name}” on {n} drawing(s) of {asm} — new ones take it too.': 'Razítko „{name}“ na výkresech sestavy {asm}: {n} — nové ho dostanou také.',
+  // drawing sheets: the frame and margins
+  Frame: 'Rámeček', 'Simple (10 mm)': 'Jednoduchý (10 mm)', 'Standard ISO 5457': 'Normalizovaný ISO 5457', Narrow: 'Úzký',
+  'A thin frame 10 mm from the edge all round — as before': 'Tenký rámeček 10 mm od okraje dokola — jako dosud',
+  '20 mm on the left for filing, 10 mm elsewhere, a 0.7 mm frame, zones A… / 1… and centring marks': '20 mm vlevo pro založení, jinde 10 mm, rámeček 0,7 mm, pole A… / 1… a středicí značky',
+  '5 mm all round — the most room for the views': '5 mm dokola — nejvíc místa pro pohledy',
+  'No frame line (10 mm left free for the printer)': 'Bez čáry rámečku (10 mm zůstane volných pro tiskárnu)',
+  'Your own margins, line, zones and centring marks': 'Vlastní okraje, čára, pole a středicí značky',
+  'The border line and the margins of the paper — kept in the title-block template, so a drawing set follows it': 'Čára rámečku a okraje papíru — uloží se do šablony razítka, takže se jí řídí celá výkresová sada',
+  '(from the title-block template)': '(ze šablony razítka)', Left: 'Vlevo',
+  'Grid references along the edges: numbers across, letters down (ISO 5457)': 'Souřadnicová pole podél okrajů: čísla napříč, písmena dolů (ISO 5457)',
+  Zones: 'Pole', 'Short thick lines at the middle of each side, for copying and folding': 'Krátké silné čáry uprostřed každé strany, pro kopírování a skládání',
+  'Centring marks': 'Středicí značky',
   'The picture could not be read.': 'Obrázek nejde načíst.', 'The logo is too big — use a smaller picture.': 'Logo je příliš velké — použijte menší obrázek.',
   // language switch
   'Čeština / English': 'Čeština / English',
