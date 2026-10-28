@@ -849,6 +849,8 @@ const CS = {
   'A point that stays on this place of the part when it changes — sketches and 📏 Measure snap to it': 'Bod, který zůstane na tomto místě dílu, i když se díl změní — skici a 📏 Měření se k němu přichytí',
   "No tool on: a click on a corner, an edge's middle or a centre picks it": 'Bez nástroje: klik na roh, střed hrany nebo střed ho vybere', 'the point': 'bod', 'of the part': 'dílu',
   Snap: 'Přichytit', Corners: 'Rohy', 'Edge midpoints': 'Středy hran', Centres: 'Středy', 'What 📏 Measure catches — click to switch': 'Co 📏 Měření zachytí — kliknutím přepnete',
+  Guides: 'Vodítka', 'Line up a hole or a text with corners, midpoints and centres while placing it — click to switch': 'Zarovnat díru nebo text s rohy, středy hran a středy při umisťování — kliknutím přepnete',
+  'centre of the face': 'střed plochy', 'hole centre': 'střed díry', "on the edge's extension": 'na prodloužení hrany', 'in line': 'v zákrytu', 'where the lines cross': 'průsečík vodítek',
   Quadrants: 'Kvadranty', quadrant: 'kvadrant', Hover: 'Najetí', Edges: 'Hrany', 'Snap points': 'Body přichycení',
   'What 📏 Measure and a click catch — click to switch': 'Co 📏 Měření a kliknutí zachytí — kliknutím přepnete',
   'Light up the edge under the mouse (a line or a circle) — click to switch': 'Zvýraznit hranu pod myší (úsečku nebo kružnici) — kliknutím přepnete',

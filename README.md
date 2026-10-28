@@ -300,8 +300,14 @@ SolidWorks. It has only the tools that need almost no input.
 
 4. **◜ Fillet** (F) rounds edges and **◸ Chamfer** bevels them. Click the edges (a click on a face takes all of its
    edges; a picked edge is dropped by clicking it again), then type the radius or size. **◎ Hole** (H): click on a
-   flat face where a hole goes (near the centre it snaps to it; click again for more holes on the same face), and
-   type the diameter. It goes through all by default, or untick *Through all* and give a depth. *Head* adds room
+   flat face where a hole goes (click again for more holes on the same face), and type the diameter. While you move
+   the mouse the hole is shown where it would go, with its distances to the nearest edges, and it **snaps** like a
+   sketch: onto the face's corners, edge midpoints, centre, round edges' centres, other holes and • reference points
+   (the snap is named at the mouse), onto its edges, and **in line** with any of those — a dashed green guide; where
+   two guides cross it snaps to the crossing (the middle line of a square block: in line with both edge midpoints).
+   Shift (or Alt) places it freely. The Snap row bottom left switches corners / midpoints / centres / ┆ Guides on or
+   off. A hole placed in line with another hole of the step is measured from that hole, so it stays in line. *Aa
+   Text / picture* snaps the same way. It goes through all by default, or untick *Through all* and give a depth. *Head* adds room
    for a screw's head: ⌴ a counterbore (Ø 1.8 × the hole, as deep as the hole is wide) or ⌵ a countersink (Ø 2 × the
    hole, 90°) — change the head's Ø / depth if needed. *Thread* (M2 … M20) makes it a threaded hole: drilled with its
    tap drill (M5: Ø4.2) and labelled M5 on the drawing. *Teardrop (print sideways)*, offered on a hole that goes
