@@ -39,6 +39,9 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
      **Round, organic parts** (a vase, a bottle, a knob, a duck's body): plane `"XZ"`, u = the radius (≥ 0) and
      v = the height, e.g. `[[0, 0], [20, 0], {smooth: [[26, 15], [18, 35], [24, 55]]}, [22, 60], [0, 60]]`, then
      a revolve (`add_feature {type: "revolve", sketch, axis: "y"}`). Put a few more points where the shape bends; keep the axis side straight (u = 0).
+   - any shape + `pattern: {count, spacing}` (copies in a row along X) or `pattern: {count, around: [u, v]}`
+     (around that point, over 360°) — e.g. six holes on a circle: `{circle: {x: 20, y: 0, d: 5}, pattern: {count: 6,
+     around: [0, 0]}}`; the copies stay equal to the shape (a ⁂ Pattern in the sketch the user can change).
    All sizes and positions are locked (the sketch is fully defined), so the user can change them later.
 4. **Base solid**: `add_feature {type: "extrude", sketch: "<id>", d: 10}` (op "add"); or
    `{type: "revolve", sketch, axis: "y", angle: 360}`.

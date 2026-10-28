@@ -107,6 +107,17 @@ try:
     tool("get_screenshot", view="iso")
     tool("export", format="step", path=str(Path(OUT) / "agent_plate.step"))
     print("    STEP file:", (Path(OUT) / "agent_plate.step").stat().st_size, "bytes")
+    # ---- a sketch shape's ⁂ pattern: a flange, six holes around the middle and three in a row
+    tool("new_model", name="Flange")
+    tool("add_feature", type="sketch", plane="XY", shapes=[{"circle": {"x": 0, "y": 0, "d": 60}},
+                                                           {"circle": {"x": 20, "y": 0, "d": 5}, "pattern": {"count": 6, "around": [0, 0]}},
+                                                           {"circle": {"x": -6, "y": -15, "d": 3}, "pattern": {"count": 3, "spacing": 6}}])
+    t, _ = tool("add_feature", type="extrude", sketch="F1", d=5)
+    v = json.loads(t)["body"]["volume_mm3"]
+    exp = math.pi * (30 ** 2 - 6 * 2.5 ** 2 - 3 * 1.5 ** 2) * 5
+    print(f"    pattern: volume {v} expected {exp:.3f} | match: {abs(v - exp) < 0.01} | relations:",
+          d.execute_script("return window.__app.modeler.part.features[0].constraints.filter((k) => k.t === 'pat').map((k) => [k.kind, k.n])"))
+    tool("add_feature", type="sketch", plane="XY", shapes=[{"circle": {"x": 0, "y": 0, "d": 4}, "pattern": {"count": 3, "around": [0, 0]}}])  # (on its centre: refused)
     tool("list_parts")
     tool("prepare_print")
     tool("check_print")

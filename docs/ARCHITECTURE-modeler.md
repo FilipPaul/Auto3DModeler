@@ -191,8 +191,9 @@ Date: 2026-10-25. Written by the architect agent.
   set_l2l_angle i·360°/n; circles equal_radius — the copies keep the original's size and follow it, dof unchanged.
   The quick box (bottom left, editPattern: In a row / Around, Count, Spacing) re-makes them live as you type
   (repattern: unmake + make in one relock), a click on a line = along it, on a point / circle = around it; Enter =
-  done; the whole edit is one undo step; the ⁂ symbol reopens it. test_modeler_sketch TestSketchPattern;
-  tools/e2e_sketch_pattern.py.
+  done; the whole edit is one undo step; the ⁂ symbol reopens it. The AI: any sketch shape + pattern {count, spacing}
+  or {count, around: [u, v]} (agent_model sketchFromShapes -> makePattern). test_modeler_sketch TestSketchPattern;
+  tools/e2e_sketch_pattern.py; e2e_agent (a flange: 6 around, 3 in a row).
 - **Angle dimensions on sheets done:** kind "ang" {a, b: edge keys, r}: SheetEditor.angleOf (where the two lines cross,
   each toward its far end, the angle between), drawn as an arc with arrows and extension lines to edges short of it,
   the text clear of the arc; dragged: its radius; ＋ Dimension on two non-parallel edges makes one; sheet_edit add

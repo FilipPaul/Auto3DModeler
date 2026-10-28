@@ -185,7 +185,7 @@ TOOLS = [
                     "(closed) | {profile: {points: [[u, v], {smooth: [[u, v], …]}, [u, v], {arc: [u, v]}, [u, v], …]}} (closed: corners "
                     "[u, v] joined by straight lines; {smooth: [...]} = a smooth curve through those points to the next corner — one "
                     "clean B-spline, no facets; {arc: [u, v]} = an arc through that point to the next corner)] — a shape inside another "
-                    "is a hole; sizes are locked. For round, turned parts (a vase, a knob, a bottle, a duck's body): a profile on "
+                    "is a hole; sizes are locked. Any shape may add pattern: {count, spacing} (copies in a row along X, spacing apart) or {count, around: [u, v]} (copies around that point, spread over 360°) — e.g. {circle: {x: 20, y: 0, d: 5}, pattern: {count: 6, around: [0, 0]}}; the copies stay equal to the shape. For round, turned parts (a vase, a knob, a bottle, a duck's body): a profile on "
                     "plane \"XZ\" — u = the radius (≥ 0, the axis at u = 0), v = the height — then revolve axis \"y\".\n"
                     "- extrude: sketch (id), d, op add / cut, through (cut through all), symmetric, flip; or up_to: a flat face's "
                     "name (as far as that face — it follows the face), offset (mm past it, negative = short of it).\n"

@@ -3,7 +3,7 @@
 // a screenshot, a printing copy. Every change goes through the modeler like a user edit (visible, undoable).
 
 import { MATERIALS } from './materials.js';
-import { roundCorner } from './sketcher.js';
+import { makePattern, roundCorner } from './sketcher.js';
 import { textOutline } from '../outlinepanel.js';
 
 const r3 = (v) => +(+v).toFixed(3);
@@ -13,7 +13,9 @@ const len = (a) => Math.hypot(a[0], a[1], a[2]);
 const DATUM = { XY: 'XY', TOP: 'XY', XZ: 'XZ', FRONT: 'XZ', YZ: 'YZ', RIGHT: 'YZ' };
 
 /** A sketch from simple shapes: rect {x, y, w, h, r} (lower-left corner, r = rounded corners), circle {x, y, d} (centre), polyline {points}
- *  (closed). lock: every size and position is locked (the sketch is fully defined). */
+ *  (closed). Any shape may add pattern: {count, spacing} (copies in a row along X) or {count, around: [x, y]} (around that
+ *  point, over 360°) — a ⁂ Pattern of the sketch, the copies follow it. lock: every size and position is locked (the
+ *  sketch is fully defined). */
 export function sketchFromShapes(shapes, lock = true) {
   const f = { points: {}, entities: [], constraints: [], dims: [] };
   let n = { p: 0, l: 0, c: 0, r: 0, k: 0, d: 0 };
@@ -26,6 +28,7 @@ export function sketchFromShapes(shapes, lock = true) {
     return p;
   };
   for (const s of shapes || []) {
+    const first = f.entities.length; // (this shape's entities: from here)
     if (s.rect) {
       const { x = 0, y = 0, w, h, r = 0 } = s.rect;
       if (!(w > 0 && h > 0)) throw new Error('A rectangle needs w and h greater than zero.');
@@ -116,6 +119,12 @@ export function sketchFromShapes(shapes, lock = true) {
         else if (Math.abs(p[0] - q[0]) < 1e-9) f.constraints.push({ id: id('k'), t: 'v', e: l });
       });
     } else throw new Error('Each shape is {rect: {x, y, w, h}}, {circle: {x, y, d}}, {polyline: {points: [[u, v], …]}} or {profile: {points: [[u, v], {smooth: [[u, v], …]}, {arc: [u, v]}, …]}}.');
+    if (s.pattern) { // ⁂ copies of this shape, held by a pattern relation (as the sketch's ⁂ Pattern makes them)
+      const pt = s.pattern, n = pt.count ?? pt.n, at = pt.around;
+      if (at !== undefined && !(Array.isArray(at) && at.length === 2 && at.every(Number.isFinite))) throw new Error('pattern.around: the centre [x, y].');
+      const c = at ? (Math.hypot(at[0], at[1]) < 1e-9 ? 'O' : point(at[0], at[1], true)) : null;
+      makePattern(f, f.entities.slice(first).map((e) => e.id), c ? { kind: 'around', n, c } : { kind: 'row', n, d: pt.spacing ?? pt.d }, id);
+    }
   }
   // a locked polyline / rectangle corner already fixes its points: the H / V rules there are redundant locks
   if (lock) {
