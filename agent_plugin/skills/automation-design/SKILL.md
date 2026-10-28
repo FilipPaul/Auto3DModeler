@@ -29,7 +29,8 @@ maker numbers.
   `check_collisions {}` at rest.
 - **Drawings**: each made part gets a drawing sheet — `sheet_open {part}` (preset medium: overall sizes, holes once
   with their pitch, radii, heights), set the hole fits (`edit_feature` fit) and `set_material {material, tolerance: "m"}`
-  first so the sheet shows "Ø8 H7" and ISO 2768-m; `get_sheet {points: "Top"}` and `sheet_edit {add: [...]}` for a
+  first so the sheet shows "Ø8 H7" and ISO 2768-m (each hole step gets one callout with its thread, depth and head:
+  "4× M3 ⌵ Ø5 × 90°" — keep it, the check needs a countersink's angle / a counterbore's depth); `get_sheet {points: "Top"}` and `sheet_edit {add: [...]}` for a
   dimension the preset left out, `sheet_edit {remove: [...]}` for clutter; then `export {format: "pdf"}` on the sheet (and `"dxf"` when the
   user's drafting program — AutoCAD, SolidWorks, Solid Edge — should take it: the paper 1:1, real dimensions).
   Say the material and the finish (e.g. "AlMg3, anodised").

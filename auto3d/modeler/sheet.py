@@ -3,18 +3,22 @@ points a dimension can hang on (each with a key from the part's face names, so a
 when the part changes), the automatic dimensions for a preset — light (the overall sizes and the holes), medium (+ where
 the holes are, the radii, the heights), full (+ every level) — and where the views go on the paper.
 
-Holes alike are dimensioned once: "200× Ø5", the first one's position and the pitch of the row / grid.
+Holes alike are dimensioned once: "200× Ø5", the first one's position and the pitch of the row / grid. A hole step's
+holes get one callout in the view that shows them round, with all of the step (ISO 129 symbols): "4× Ø3.4 THRU",
+"M5 ↧ 8", "Ø3.4 ⌴ Ø6 ↧ 3.2", "M3 ⌵ Ø5 × 90°", "Ø8 H7 THRU", "Ø6 THRU ▲" (a teardrop) — its head's circle not given again.
 
 The browser draws and edits the sheet (web/js/sheet/sheet.js); its SVG becomes the PDF (sheet_pdf).
 Dimension JSON (in view coordinates, mm of the part):
   {id, view, kind: "linear", a: "<point key>", b: "<point key>", dir: "h" | "v", side: "b" | "t" | "l" | "r", off: paper mm,
    pre: "4× " (text before the value)}
-  {id, view, kind: "dia" | "rad", a: "<circle key>", count, ang: degrees, len: paper mm, post: " H7"}
+  {id, view, kind: "dia" | "rad", a: "<circle key>", count, ang: degrees, len: paper mm, post: " H7", thread: "M5",
+   hole: "<hole step id>" (a callout: its text from geometry.holes, see callout)}
 """
 from __future__ import annotations
 
 import hashlib
 import math
+import re
 from collections import OrderedDict
 
 import numpy as np
@@ -53,6 +57,39 @@ def _r(v, n=4):
 
 def _key(*names):
     return "+".join(sorted(set(names)))
+
+
+_STEP = re.compile(r"(?:^|[+:])([^:+]+):(hole|cbore|csk):\d+")
+
+
+def _step(key):
+    """A circle of a hole step -> (step id, "hole" | "head"), else None. A pattern's / mirror's copy ("P1:2:H1:hole:0")
+    is of its hole step too."""
+    m = _STEP.search(key)
+    return (m.group(1), "hole" if m.group(2) == "hole" else "head") if m else None
+
+
+def _n(v):
+    return f"{round(float(v), 2):g}"
+
+
+def callout(geo, dim, thru="THRU"):
+    """A hole callout's text (as the editor draws it, web/js/sheet/sheet.js dimText): "4× " the hole's size (its thread,
+    else Ø measured) and fit, then its depth (↧, or THRU with neither a thread nor a head), its head (⌴ Ø6 ↧ 3.2 / ⌵ Ø5
+    × 90°) and ▲ a teardrop."""
+    h = (geo.get("holes") or {}).get(dim.get("hole")) or {}
+    d = value(geo, dim)
+    size = dim.get("thread") or f"Ø{_n(h.get('d', 0) if d is None else d)}"
+    out = (f"{dim['count']}× " if dim.get("count", 1) > 1 else "") + size + (dim.get("post") or "")
+    if not h.get("through", True):
+        out += f" ↧ {_n(h['depth'])}"
+    elif not h.get("thread") and not h.get("head"):
+        out += f" {thru}"
+    if h.get("head") == "cbore":
+        out += f" ⌴ Ø{_n(h['head_d'])} ↧ {_n(h['head_depth'])}"
+    elif h.get("head") == "csk":
+        out += f" ⌵ Ø{_n(h['head_d'])} × {_n(h['head_angle'])}°"
+    return out + (" ▲" if h.get("teardrop") else "")
 
 
 def _deco(key):
@@ -225,9 +262,10 @@ def _grid(cs):
     return len(xs), len(ys), (xs[1] - xs[0]) if len(xs) > 1 else 0, (ys[1] - ys[0]) if len(ys) > 1 else 0
 
 
-def auto_dims(geo, preset="medium", fits=None, per_view=None, threads=None):
+def auto_dims(geo, preset="medium", fits=None, per_view=None, threads=None, holes=None):
     """The automatic dimensions of a preset (see the module's docstring). fits: {diameter: "H7"} (holes with a fit),
-    threads: {tap drill Ø: "M5"} (threaded holes: labelled M5).
+    threads: {tap drill Ø: "M5"} (threaded holes: labelled M5), holes: {step id: what its callout says} (doc._holes —
+    each step's holes one callout, in the first view showing them round).
     per_view: {view: preset} — a view's own preset instead of the sheet's; "all": every size of that view, the ones
     given in another view too (its outer sizes, its holes, its edges' places) — as full."""
     preset = preset if preset in PRESETS else "medium"
@@ -261,7 +299,8 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None, threads=None):
     for vname in sorted(every & set(v)):  # (a view with all its sizes: its own outer sizes too)
         lin(vname, "box#x0", "box#x1", "h", "b")
         lin(vname, "box#y0", "box#y1", "v", "r")
-    done_r = set()
+    done_r, called = set(), set()
+    ANG = [45, 135, 315, 225, 20, 160, 340, 200]
     for vname in ("Top", "Front", "Right"):
         view = v[vname]
         full = [c for c in view["circles"] if c["full"]]
@@ -271,15 +310,30 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None, threads=None):
             groups.setdefault(round(2 * c["r"], 3), []).append(c)
         # concentric circles: their leaders spread round
         centres = {}
+        covered = set()  # circles a hole callout gives (its holes and their heads)
+        for fid, h in (holes or {}).items():
+            mine = [c for c in full if _step(c["key"]) == (fid, "hole")]
+            if fid in called or not mine:
+                continue
+            called.add(fid)
+            covered |= {c["key"] for c in full if _step(c["key"]) and _step(c["key"])[0] == fid}
+            first = min(mine, key=lambda c: (round(c["c"][1], 2), round(c["c"][0], 2)))
+            at = (round(first["c"][0], 1), round(first["c"][1], 1))
+            k = centres[at] = centres.get(at, -1) + 1
+            dims.append({"id": _id(vname, "hole", fid), "view": vname, "kind": "dia", "a": first["key"], "count": len(mine), "hole": fid,
+                         "ang": ANG[k % 8], "len": 6 + 5 * (k // 4), **({"post": f" {h['fit']}"} if h.get("fit") else {}), **({"thread": h["thread"]} if h.get("thread") else {})})
         for d, cs in sorted(groups.items(), key=lambda q: -q[0]):
             if d in done_r and vname not in every:  # already given in another view
                 continue
             done_r.add(d)
+            rest = [c for c in cs if c["key"] not in covered]  # (not the ones a callout gives)
+            if rest:
+                first = min(rest, key=lambda c: (round(c["c"][1], 2), round(c["c"][0], 2)))
+                at = (round(first["c"][0], 1), round(first["c"][1], 1))
+                k = centres[at] = centres.get(at, -1) + 1
+                dims.append({"id": _id(vname, "dia", d), "view": vname, "kind": "dia", "a": first["key"], "count": len(rest),
+                             "ang": ANG[k % 8], "len": 6 + 5 * (k // 4), **({"post": f" {fits[d]}"} if d in fits else {}), **({"thread": threads[d]} if d in threads else {})})
             first = min(cs, key=lambda c: (round(c["c"][1], 2), round(c["c"][0], 2)))
-            at = (round(first["c"][0], 1), round(first["c"][1], 1))
-            k = centres[at] = centres.get(at, -1) + 1
-            dims.append({"id": _id(vname, "dia", d), "view": vname, "kind": "dia", "a": first["key"], "count": len(cs),
-                         "ang": [45, 135, 315, 225, 20, 160, 340, 200][k % 8], "len": 6 + 5 * (k // 4), **({"post": f" {fits[d]}"} if d in fits else {}), **({"thread": threads[d]} if d in threads else {})})
             if pv(vname) == "light":
                 continue
             # where they are: the first from the left / bottom of the view, then the pitch of a row / grid
@@ -346,14 +400,17 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None, threads=None):
     return dims
 
 
-def build(body, preset="medium", fits=None, paper=None, per_view=None, threads=None, section=False, key=None):
+def build(body, preset="medium", fits=None, paper=None, per_view=None, threads=None, section=False, key=None, holes=None):
     """Everything a new / changed sheet needs: {geometry, layout, dims (automatic)}. section: also the section A–A
-    (geometry.views.Section). key: the part's hash — its views are kept (_cached), only the dimensions made again."""
+    (geometry.views.Section). key: the part's hash — its views are kept (_cached), only the dimensions made again.
+    holes: the hole steps (doc._holes) — geometry.holes, for their callouts."""
     geo = _cached((key, "views"), lambda: geometry(body))
     geo = {**geo, "views": dict(geo["views"])}
+    if holes:
+        geo["holes"] = holes
     if section:
         geo["views"]["Section"] = _cached((key, "section"), lambda: section_view(body))
-    return {"geometry": geo, "layout": layout(geo, paper), "dims": auto_dims(geo, preset, fits, per_view, threads)}
+    return {"geometry": geo, "layout": layout(geo, paper), "dims": auto_dims(geo, preset, fits, per_view, threads, holes)}
 
 
 def _wire_points(w, n=24):

@@ -996,6 +996,42 @@ class TestSheet(unittest.TestCase):
         self.assertIn(10, right)  # its height
         self.assertEqual(len([d for d in r["dims"] if d["view"] == "Front"]), len([d for d in doc.sheet(self.part, "medium")["dims"] if d["view"] == "Front"]))
 
+    def test_hole_callouts(self):
+        """Each hole step's holes get one callout with all of the step (ISO 129): a countersunk M3 in a 14.5 × 14 × 2
+        plate "M3 ⌵ Ø5 × 90°" — not "M3" and "Ø5" apart —, its place still 8.25 / 6.5; a counterbore, a blind thread,
+        4× alike, a fit, a teardrop (in the front view, where it is round)."""
+        from auto3d.modeler import sheet
+
+        def callouts(features, **h):
+            r = doc.sheet({"features": features + [{**{"id": "H1", "type": "hole", "through": True}, **h}]}, "medium")
+            dia = [d for d in r["dims"] if d["kind"] in ("dia", "rad")]
+            return [(d["view"], sheet.callout(r["geometry"], d)) for d in dia if d.get("hole")], dia, r
+
+        top = lambda o: {"face": {"name": "E1:end"}, "frame": {"o": o, "x": [1, 0, 0], "n": [0, 0, 1]}}  # noqa: E731
+        plate = box(14.5, 14, 2)
+        got, dia, r = callouts(plate, plane=top([7.25, 7, 2]), points=[[1, -0.5]], d=3, thread="M3", head="csk")
+        self.assertEqual(got, [("Top", "M3 ⌵ Ø5 × 90°")])
+        self.assertEqual(len(dia), 1)  # the countersink's Ø5 not again
+        places = sorted(sheet.value(r["geometry"], d) for d in r["dims"] if d["view"] == "Top" and d["kind"] == "linear")
+        self.assertEqual(places, [6.5, 8.25, 14])
+        self.assertEqual(r["geometry"]["holes"]["H1"], {"d": 2.5, "through": True, "teardrop": False, "thread": "M3", "head": "csk", "head_d": 5.0, "head_angle": 90.0})
+        on = top([20, 10, 10])
+        got, *_ = callouts(box(), plane=on, points=[[0, 0]], d=3.4, head="cbore", head_d=6, head_depth=3.2)
+        self.assertEqual(got, [("Top", "Ø3.4 ⌴ Ø6 ↧ 3.2")])
+        got, *_ = callouts(box(), plane=on, points=[[0, 0]], thread="M5", through=False, depth=8)
+        self.assertEqual(got, [("Top", "M5 ↧ 8")])
+        got, dia, _ = callouts(box(), plane=on, points=[[x, y] for x in (-10, 10) for y in (-5, 5)], d=3.4)
+        self.assertEqual(got, [("Top", "4× Ø3.4 THRU")])
+        self.assertEqual(len(dia), 1)
+        got, *_ = callouts(box(), plane=on, points=[[0, 0]], d=8, fit="H7")
+        self.assertEqual(got, [("Top", "Ø8 H7 THRU")])
+        front = {"face": {"name": "E1:side:l1"}, "frame": {"o": [20, 0, 5], "x": [1, 0, 0], "n": [0, -1, 0]}}
+        got, *_ = callouts(box(), plane=front, points=[[0, 0]], d=6, teardrop=True)
+        self.assertEqual(got, [("Front", "Ø6 THRU ▲")])
+        # a hole step turned off (suppressed): no hole, no callout
+        got, dia, _ = callouts(plate, plane=top([7.25, 7, 2]), points=[[1, -0.5]], d=3, thread="M3", head="csk", suppressed=True)
+        self.assertEqual((got, dia), ([], []))
+
     def test_view_presets(self):
         """A view's own preset: the top medium while the sheet is light (the rest of the sheet stays light)."""
         light = doc.sheet(self.part, "light")["dims"]

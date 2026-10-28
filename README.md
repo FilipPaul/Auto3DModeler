@@ -442,7 +442,10 @@ right and iso views on an A4 / A3 page with a title block (part, material, scale
 **changed + revision**). Its dimensions are made by a preset (for the whole sheet, and each view may have its own in the Views list) — **Light** (the overall sizes, a Ø for each hole size,
 the biggest R), **Medium** (+ where the holes are, the radii, the heights) or **Full** (+ every level) — and holes
 alike are dimensioned **once**: *8× Ø3 H7*, the first hole's place and the row's pitch *3× 10* (200 holes in a grid
-are one Ø and two pitches, not 400 dimensions). Each size is given once on the sheet — a view whose sizes are all in
+are one Ø and two pitches, not 400 dimensions). Each hole step gets **one callout** in the view that shows its holes
+round, with everything needed to make them (ISO 129 symbols): *4× Ø3.4 THRU*, *M5 ↧ 8* (a blind thread, its depth),
+*Ø3.4 ⌴ Ø6 ↧ 3.2* (a counterbore), *M3 ⌵ Ø5 × 90°* (a countersink), *Ø8 H7 THRU* (a fit), *Ø6 THRU ▲* (a teardrop) —
+the head's circle is not given again. Each size is given once on the sheet — a view whose sizes are all in
 the others (often the Right) has none; its choice **All its sizes** gives it its own anyway. **Clicking a dimension
 lights up the same size in the other views** (teal). **Drag** a dimension or a view to move it, **Del** removes a
 dimension (↺ brings deleted ones back), **＋ Dimension**: click an **edge** (it lights up under the mouse) — click it
@@ -450,7 +453,8 @@ again (or Enter) for its **length**, another edge for the **distance between the
 the edge —, two points (a corner, a hole's centre), or a circle (its Ø / R). A value is always measured from the part — it cannot be typed. The sheet **follows its part**: change
 the part and the views and dimensions are made again, the revision goes up and *Changed* says when (your moved and
 own dimensions stay on their edges and holes). **Check** (the left panel) tells whether the part is fully dimensioned: each view shows ✓ or ⚠ with how many sizes it
-misses — a hole's place, an edge, a Ø or R — listed with **＋** (add that one, from the part's edge) and **＋ Add all
+misses — a hole's place, an edge, a Ø or R, and without a hole's callout its countersink angle, counterbore depth or
+blind depth (*the countersink's angle (H1)*) — listed with **＋** (add that one, from the part's edge) and **＋ Add all
 missing**, and marked with an orange **?** on the drawing (not in the PDF); dimensions that give a size twice are
 marked ⧉ (*✕ Remove them*). A known circle gives its own edges (a tangent side, a boss), a pitch *4× 10* its row.
 The title block takes your own texts — *Title*, *Drawing no.*, *Drawn by*, *Note* — in the panel (a double-click on a cell goes to its field). **⬇ PDF** gives the sheet as you see it — the page is the paper (A4 / A3) and

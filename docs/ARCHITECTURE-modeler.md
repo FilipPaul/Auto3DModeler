@@ -764,6 +764,17 @@ Date: 2026-10-25. Written by the architect agent.
   depths from the geometry), /api/model/limits; failures explained with the most that fits (doc._sized).
 - **Sketch relations done:** par / perp / eq / conc / coin / tang / fix (+ h / v) set by the user (constraints.py
   _relation; sketcher RELATIONS, symbols, list; collapsing solutions refused). tools/e2e_model_relations.py.
+- **Hole callouts on sheets done:** doc._holes (each hole step's d / thread / depth / head / fit / teardrop; _head_sizes
+  shared with the hole feature) -> sheet.build(holes) -> geometry.holes; auto_dims gives each step's holes one dia dim
+  {hole: step} in the first view showing them round (sheet._step: "<step>:hole|cbore|csk:k", a pattern's copy too), its
+  head's circle no Ø of its own; the text (sheet.callout / SheetEditor.calloutRest): "4× Ø3.4 THRU", "M5 ↧ 8",
+  "Ø3.4 ⌴ Ø6 ↧ 3.2", "M3 ⌵ Ø5 × 90°", "Ø8 H7 THRU", "Ø6 THRU ▲". The check: a callout gives its step's Ø, head Ø, angle,
+  depths and its head's edges; without it a countersink's angle (an ang dim on its cone), a counterbore's / blind
+  depth (a linear dim on cbore_floor / bottom) are missing items {kind: hole, hole, key: the hole circle}; ＋, the AI's
+  complete and add {circle} on a hole circle add the callout (calloutFor). PDF: MuPDF takes ⌴ ⌵ ↧ ▲ from its Noto
+  Symbols fallback (the text extracts as typed); DXF: the dimension's own text (Unicode, the drafting program's font
+  shows it). Also: suppressed hole steps no longer feed the sheet's fits / threads. test_hole_callouts (+ the 171-hole
+  plate: one "171×" callout); tools/e2e_sheet_hole_callouts.py.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.
