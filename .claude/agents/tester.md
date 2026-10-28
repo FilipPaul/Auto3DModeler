@@ -85,7 +85,8 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_assembly_links.py <url> <dir>` covers snaps that hold (the plate thicker / moved -> the pin follows; moved
    by hand -> unlinked; undo; saved).
    `tools/e2e_model_drawing.py <url> <dir>` covers 📐 Drawing (PDF): the panel button, the Export menu, the AI's export.
-   `tools/e2e_model_pick.py <url> <dir>` covers pointing / clicking the part (the step lit, the face tools, sizes on the
+   `tools/e2e_model_pick.py <url> <dir>` covers pointing / clicking the part (the size editor's ↺ back to the size it
+   opened with; the step lit, the face tools, sizes on the
    part with number + slider, exact volumes, "Hole here").
    `tools/e2e_assembly_joints.py <url> <dir>` covers joints (pin in hole + touch seats a pin, the list, a gap, ✕, the
    plate thicker -> it follows) and the turning sliders (catch at 90°, a typed angle).

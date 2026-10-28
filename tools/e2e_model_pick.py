@@ -128,6 +128,13 @@ try:
     time.sleep(1.5)
     settled()
     print("slider at 70 -> preview size:", js(f"return {M}.result.body.bbox"))
+    back = box.find_element(By.CSS_SELECTOR, "[data-a=restore]")
+    print("  restore button:", back.text, "| enabled:", back.is_enabled())
+    back.click()
+    time.sleep(1.2)
+    settled()
+    print("  ↺ restored -> preview size:", js(f"return {M}.result.body.bbox"), "| field", box.find_element(By.CSS_SELECTOR, "input[type=number]").get_attribute("value"),
+          "| still open:", bool(d.find_elements(By.CSS_SELECTOR, ".m-dimedit")), "| button greyed:", not back.is_enabled())
     inp = box.find_element(By.CSS_SELECTOR, "input[type=number]")
     inp.send_keys(Keys.CONTROL, "a")
     inp.send_keys("80", Keys.ENTER)

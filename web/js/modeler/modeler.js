@@ -695,7 +695,8 @@ export class Modeler {
     box.innerHTML = `<div class="m-dimedit-t">${esc(t(edit.label || 'Size'))}</div>
       <div class="m-dimedit-row"><input type="number" step="${step}" value="${fmt(v0)}"><span class="unit">${edit.unit || (edit.int ? '' : 'mm')}</span></div>
       <input type="range" min="${edit.int ? lo : 0}" max="${hi}" step="${edit.int ? 1 : step}" value="${v0}">
-      <div class="m-dimedit-acts"><button class="btn small primary" data-a="ok">OK</button><button class="btn small" data-a="cancel">Cancel</button></div>`;
+      <div class="m-dimedit-acts"><button class="btn small primary" data-a="ok">OK</button><button class="btn small" data-a="cancel">Cancel</button>
+        <button class="btn small" data-a="restore" disabled title="${esc(t('Back to the size it had when this was opened'))}" data-no-i18n>↺ ${fmt(v0)}</button></div>`;
     const vr = this.els.viewport.getBoundingClientRect(), r = el.getBoundingClientRect();
     Object.assign(box.style, { left: `${Math.min(r.left - vr.left, vr.width - 220)}px`, top: `${Math.min(r.bottom - vr.top + 6, vr.height - 140)}px` });
     for (const t2 of ['pointerdown', 'pointerup']) box.addEventListener(t2, (ev) => ev.stopPropagation());
@@ -728,8 +729,10 @@ export class Modeler {
       busy = false;
     };
     const valid = (v) => Number.isFinite(v) && v <= hi && (edit.int ? Number.isInteger(v) && v >= lo : lo <= v || lo < 0);
-    num.addEventListener('input', () => { const v = parseFloat(num.value); if (valid(v)) { slider.value = v; preview(v); } });
-    slider.addEventListener('input', () => { const v = Math.max(parseFloat(slider.value), edit.min > 0 ? edit.min : 0); num.value = fmt(v); preview(v); });
+    const back = box.querySelector('[data-a=restore]'), moved = () => { back.disabled = Math.abs(parseFloat(num.value) - v0) < 1e-9; };
+    num.addEventListener('input', () => { const v = parseFloat(num.value); moved(); if (valid(v)) { slider.value = v; preview(v); } });
+    slider.addEventListener('input', () => { const v = Math.max(parseFloat(slider.value), edit.min > 0 ? edit.min : 0); num.value = fmt(v); moved(); preview(v); });
+    back.addEventListener('click', () => { num.value = fmt(v0); slider.value = v0; moved(); preview(v0); num.focus(); num.select(); }); // (the editor stays open)
     const ok = async () => {
       const v = parseFloat(num.value);
       if (!valid(v)) { this.hooks.toast('That size does not fit here.', 'warning'); return; }

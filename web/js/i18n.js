@@ -559,6 +559,7 @@ const CS = {
   'On this face': 'Na této ploše', 'Its edges': 'Její hrany', 'The part': 'Díl', 'Step': 'Krok', 'Sketch on this face': 'Skica na této ploše',
   'Hole here': 'Díra sem', 'Text / picture here': 'Text / obrázek sem', 'Hollow out, open here': 'Vydutit, otevřít zde', 'Round its edges': 'Zaoblit její hrany',
   'Bevel its edges': 'Zkosit její hrany', 'Mirror across this face': 'Zrcadlit podle této plochy', 'Turn it on': 'Zapnout', 'Turn it off': 'Vypnout', 'Edit the step': 'Upravit krok', 'Delete the step': 'Smazat krok',
+  'Back to the size it had when this was opened': 'Zpět na velikost, kterou měl při otevření',
   'Click to change it': 'Kliknutím změníte', 'That size does not fit here.': 'Tato velikost sem nepasuje.', Size: 'Velikost', Wall: 'Stěna',
   "That does not fit the sketch's other locked sizes — open the sketch and unlock one.": 'To nesedí na ostatní zamčené rozměry skici — otevřete skicu a jeden odemkněte.',
   '🔗 Joint ▾': '🔗 Vazba ▾', Touch: 'Dotyk', Gap: 'Mezera', Flush: 'Zarovnat', 'Pin in hole': 'Čep do díry', Parallel: 'Rovnoběžně',
