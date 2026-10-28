@@ -78,7 +78,6 @@ try:
         time.sleep(0.3)
         ActionChains(d).click().perform()
         time.sleep(0.6)
-    d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=joint]").click()
     time.sleep(0.2)
     d.find_element(By.CSS_SELECTOR, "#asmViewport [data-joint=fastener]").click()
     time.sleep(0.3)

@@ -91,6 +91,10 @@ Date: 2026-10-25. Written by the architect agent.
   tools/e2e_ai_reports.py.
 - **Steps named after their sketch done:** nextName(type, sketch): an extrude / revolve of a sketch the user named
   is "Extrude – Slot" (a "Sketch 2" keeps "Extrude 3"), in the panel and for the AI. tools/e2e_ai_reports.py.
+- **The assembly's joints as buttons done:** the bar's 🔗 Joint ▾ menu is a row (.as-jbar): each joint type a
+  button of its own (one click starts it, lit while its faces are picked, a click again / Esc stops), Screw / pin last;
+  the hint goes under the bar however many rows it has; the suggestions table goes while faces are picked.
+  e2e_assembly_joints / _concentric / _bolt / _edgepick / _fasteners / _health, e2e_assembly.
 - **Ctrl+click to choose several in the 3D model done:** clickFace keeps `picks` ({face, step, point} / {point,
   snap}); Ctrl adds or takes one away (addPick) -> showPicks: their steps' faces lit, the points marked, the table:
   Between them (the distance; two parallel flat faces: the gap), the steps (turn them off / on, ✕ Delete them —

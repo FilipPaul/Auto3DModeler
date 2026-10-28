@@ -91,7 +91,6 @@ try:
     js(f"{A}.view.setView('iso')")
     time.sleep(0.6)
 
-    d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=joint]").click()
     time.sleep(0.2)
     d.find_element(By.CSS_SELECTOR, "#asmViewport [data-joint=axis]").click()
     time.sleep(0.3)

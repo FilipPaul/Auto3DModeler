@@ -824,6 +824,13 @@ body.view-acts .toast-stack { bottom: 84px; }
   border-radius: 10px; box-shadow: 0 8px 24px #0008; overflow: hidden; }
 .vs-head { cursor: move; display: flex; align-items: baseline; justify-content: space-between; padding: 7px 11px 6px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
 .vs-head b { font-size: 12.5px; }
+/* the assembly's joints, each a button of its own (one click starts it; lit while its faces are picked) */
+.as-jbar { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px; padding: 2px 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); }
+.as-jbar .as-jlabel { font-size: 12px; color: var(--muted); padding: 0 6px 0 4px; white-space: nowrap; }
+.as-jbar button { display: inline-flex; align-items: center; gap: 4px; background: none; border: 1px solid transparent; border-radius: 6px; color: var(--text); padding: 3px 7px; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.as-jbar button:hover:not(:disabled) { background: #2b3440; }
+.m-cmdbar .as-jbar button.on { background: #6e40c9; border-color: #8957e5; color: #fff; } /* (as the bar's other tools that are on) */
+.as-jbar button:disabled { opacity: 0.45; cursor: default; }
 .view-suggest .vs-sec { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding: 6px 6px 2px; border-top: 1px solid var(--line); }
 .view-suggest .vs-sec:first-child { border-top: 0; padding-top: 2px; }
 .m-offset .m-plus { color: var(--muted); font-size: 11px; }

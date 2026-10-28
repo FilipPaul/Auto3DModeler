@@ -103,7 +103,6 @@ try:
     print("holes left (Base, Lid):", holes())
 
     # 🔩 in the Joint menu: the Fasteners panel
-    d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=joint]").click()
     time.sleep(0.3)
     d.find_element(By.CSS_SELECTOR, "#asmViewport [data-joint=fastener]").click()
     time.sleep(0.4)

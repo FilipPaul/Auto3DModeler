@@ -475,7 +475,7 @@ are placed together — 3D models ◆, quick parts ▤ (drawings, pictures, impo
 its parts'; STEP lists every part; an assembly cannot go into itself):
 - **＋ Insert part ▾** adds a model part, as often as you like (⧉ in the list adds one more). A new one is put
   beside the others.
-- **🔗 Joint ▾**: choose how the part is held — **Touch** (S: a flat face onto a flat face, centred), **Gap** (facing,
+- **🔗 Joint** (a button per kind in the bar — one click starts it, lit while you pick the faces; click it again or Esc to stop): choose how the part is held — **Touch** (S: a flat face onto a flat face, centred), **Gap** (facing,
   a distance apart), **Flush** (in one plane), **Concentric** (two round faces on one axis: a pin in a hole; its
   **↕ distance** is the gap along the axis between the facing ends of the two round faces — two plates with holes
   joined this way get it filled in (touching) and you type e.g. 30; empty = it slides),
@@ -553,7 +553,7 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
 - The panel of a selected part has its x / y / z position, **Turn** sliders for X / Y / Z (any angle; they catch at
   0, ±90 and ±180°, or type an exact angle), its joints, *Join it to another part*, **◆ Open its part** (its part's
   own tab, to change it), *Reset its place* and *Take it out*. Moving or turning a joined part by hand asks before it breaks its joints (locked ones never break).
-- **🔩 Screw / pin through parts** (🔩 Fasteners → *Screw / pin through parts…*; 🔩 in 🔗 Joint ▾ opens the same
+- **🔩 Screw / pin through parts** (🔩 Fasteners → *Screw / pin through parts…*; 🔩 Screw / pin in the 🔗 Joint row opens the same
   panel, ready for the click): click a point on
   a flat face where it goes in — the parts touching one after another under it are found, and the panel suggests
   what fits, with a see-through preview: **screw + nut** (a hex nut on the far side), **screw + heat-set insert**

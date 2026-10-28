@@ -74,7 +74,6 @@ try:
     # the ports are cut from the valve's underside: look from below so they are circles on its face
     js(f"const v = {A}.view, b = v.fitBox(), c = b.getCenter(new (v.camera.position.constructor)()); v.camera.up.set(0, 1, 0); v.camera.position.set(c.x + 20, c.y - 30, c.z - 160); v.controls.target.copy(c); v.controls.update(); v.invalidate()")
     time.sleep(0.6)
-    d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=joint]").click()
     time.sleep(0.2)
     d.find_element(By.CSS_SELECTOR, "#asmViewport [data-joint=axis]").click()
     time.sleep(0.3)

@@ -65,7 +65,6 @@ def click(inst, local):
 
 
 def joint_menu(kind):
-    d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=joint]").click()
     time.sleep(0.2)
     d.find_element(By.CSS_SELECTOR, f"#asmViewport [data-joint={kind}]").click()
     time.sleep(0.3)
