@@ -133,6 +133,7 @@ class SketchBuilder:
         self.levels = {"x": [], "y": []}
         self.params: list[dict] = []
         self.unit = "mm"
+        self.open_shapes: list[tuple] = []  # shapes of thick lines that do not close: (corners, bbox on the page, pt)
 
     def issue(self, severity, code, message, params=None, draw=None):
         self.issues.append({"severity": severity, "code": code, "message": message,
@@ -186,6 +187,8 @@ class SketchBuilder:
                 stack += adj[v] - seen
             bad = [v for v in comp if len(adj[v]) != 2]
             if bad:
+                cx, cy = [pts[v][0] for v in comp], [pts[v][1] for v in comp]
+                self.open_shapes.append((len(comp), (min(cx), min(cy), max(cx), max(cy))))
                 p = pts[bad[0]]
                 kind = "open end" if len(adj[bad[0]]) == 1 else "branch"
                 self.issue("warning", "open_outline",
@@ -225,9 +228,25 @@ class SketchBuilder:
             self.issue("info", "frame_ignored", "A drawing frame/border was detected and ignored.")
 
         kept = sorted(polys, key=lambda lp: -lp[1].area)
+        views = self._views_beside(kept[0][1] if kept else None)
         if not kept:
-            self.issue("error", "no_geometry", "No closed outline found in the drawing.")
+            many = views or len(self.ex.arrows) >= 4 or self.ex.curve_count  # (a dimensioned drawing, not one outline)
+            self.issue("error", "no_geometry", "No closed outline found in the drawing." + (
+                f" It looks like a dimensioned drawing with several views ({len(self.open_shapes)} shape(s) of its thick "
+                f"lines do not close, {self.ex.curve_count} curve(s)) — this reader takes one closed outline of straight "
+                "lines. Trace the view you want from a picture of it (📂 Open ▾ → Picture — trace an outline…), or draw "
+                "it in a 3D model's sketch." if many else ""),
+                draw={"points": [p for _, b in views for p in ((b[0], b[1]), (b[2], b[3]))]} if views else None)
             return
+        if views:  # (the largest closed outline is small beside shapes that do not close: probably not the part)
+            b = kept[0][1].bounds
+            w, h = ((b[2] - b[0]) / PT_PER_UNIT["mm"], (b[3] - b[1]) / PT_PER_UNIT["mm"])
+            self.issue("warning", "unsure_outline",
+                       f"Unsure which outline is the part: this looks like a dimensioned drawing with several views — "
+                       f"{len(views)} bigger shape(s) of its thick lines do not close (curves, lines crossing), and the "
+                       f"outline used is the largest closed one, {w:.0f} × {h:.0f} mm on the paper. Check the part; for "
+                       "another view trace it from a picture of it (📂 Open ▾ → Picture — trace an outline…).",
+                       draw={"points": [p for _, vb in views for p in ((vb[0], vb[1]), (vb[2], vb[3]))]})
 
         outer_loop, outer_poly = kept[0]
         final = [(outer_loop, outer_poly, "outer")]
@@ -267,6 +286,13 @@ class SketchBuilder:
             self.issue("warning", "curves_unsupported",
                        f"{self.ex.curve_count} curved outline segment(s) (arcs/circles) were found; "
                        "only straight-line outlines are supported, curves were ignored.")
+
+    def _views_beside(self, outline):
+        """The shapes that do not close and are bigger than `outline` (a Polygon, or None: all of some size) — the views
+        of a multi-view drawing whose curves and crossing lines this reader cannot close; the biggest first."""
+        big = [(n, b) for n, b in self.open_shapes if n >= 4 and (b[2] - b[0]) * (b[3] - b[1]) > (
+            outline.area * 1.5 if outline is not None else 400)]  # (pt²: about 7 × 7 mm)
+        return sorted(big, key=lambda nb: -(nb[1][2] - nb[1][0]) * (nb[1][3] - nb[1][1]))
 
     # ------------------------------------------------------------------ levels
     def build_levels(self):
@@ -763,9 +789,13 @@ def build_model(pdf_bytes: bytes, page_index: int = 0) -> tuple[dict, fitz.Page,
     model = SketchBuilder(ex).build()
     model["page"]["index"] = page_index
     model["page"]["count"] = doc.page_count
-    if not ex.texts and ex.glyph_paths == 0 and ex.arrows:
+    no_dims = any(i["code"] == "no_dimensions" for i in model["issues"])
+    if (not ex.texts and ex.glyph_paths == 0 and ex.arrows) or (no_dims and ex.arrows and ex.outlined_glyphs >= 20):
         model["issues"].insert(0, {"severity": "error", "code": "no_text",
                                    "message": "The PDF contains no readable text; dimension values may be converted to outlines. "
-                                              "Re-export the drawing with text kept as text.",
+                                              "Re-export the drawing with text kept as text." if not ex.texts else
+                                              f"The dimension values are drawn as outlines ({ex.outlined_glyphs} letter shapes), "
+                                              "not as text — they cannot be read, so every size is a guess. Re-export the drawing "
+                                              "with text kept as text.",
                                    "params": [], "draw": None})
     return model, page, doc

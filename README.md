@@ -1053,8 +1053,8 @@ for drawings.
 
 | Severity | Situation |
 | --- | --- |
-| error | label is not a number / zero / missing; dimensions contradict each other; no outline found; no readable text |
-| warning | a feature is not dimensioned (value estimated); no thickness given (default used); dimension not attached to geometry; orphan dimension text; open outline; curves/angled dimensions (unsupported) |
+| error | label is not a number / zero / missing; dimensions contradict each other; no outline found (a drawing of several views: what to do instead); no readable text (also dimension values drawn as outlines) |
+| warning | a feature is not dimensioned (value estimated); no thickness given (default used); dimension not attached to geometry; orphan dimension text; open outline; curves/angled dimensions (unsupported); unsure which outline is the part (a sheet of several views whose shapes do not close: the largest closed one is used, also said in a message) |
 | info | redundant dimension (shown as reference); arrow snapped to a nearby edge; edges assumed aligned; drawing not to scale |
 
 A thickness can be given in the drawing as a note like `t=18mm`; otherwise set it in the Dimensions panel.

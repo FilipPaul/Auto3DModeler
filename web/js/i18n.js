@@ -1258,6 +1258,13 @@ const CS_PATTERNS = [
   ['Drawing read with {} — review the highlighted dimensions.', 'Výkres načten s {1} — zkontrolujte zvýrazněné rozměry.'],
   ['The count is {} … {}.', 'Počet je {1} … {2}.'],
   ['{} error(s)', '{1} chyb(a)'], ['{} warning(s)', '{1} varování'], ['{} error(s) and {} warning(s)', '{1} chyb(a) a {2} varování'],
+  // a PDF with several views (GD&T sheets): the reader is unsure of its outline
+  ["No closed outline found in the drawing. It looks like a dimensioned drawing with several views ({} shape(s) of its thick lines do not close, {} curve(s)) — this reader takes one closed outline of straight lines. Trace the view you want from a picture of it (📂 Open ▾ → Picture — trace an outline…), or draw it in a 3D model's sketch.",
+    'Ve výkresu nebyl nalezen uzavřený obrys. Vypadá to na kótovaný výkres s několika pohledy ({1} tvarů jeho tlustých čar se neuzavírá, křivek: {2}) — tato čtečka bere jeden uzavřený obrys z rovných čar. Obkreslete pohled, který chcete, z jeho obrázku (📂 Otevřít ▾ → Obrázek — obkreslit obrys…), nebo ho nakreslete v náčrtu 3D modelu.'],
+  ['Unsure which outline is the part: this looks like a dimensioned drawing with several views — {} bigger shape(s) of its thick lines do not close (curves, lines crossing), and the outline used is the largest closed one, {} × {} mm on the paper. Check the part; for another view trace it from a picture of it (📂 Open ▾ → Picture — trace an outline…).',
+    'Není jisté, který obrys je díl: vypadá to na kótovaný výkres s několika pohledy — {1} větších tvarů jeho tlustých čar se neuzavírá (křivky, křížící se čáry) a použitý obrys je největší uzavřený, {2} × {3} mm na papíře. Zkontrolujte díl; jiný pohled obkreslete z jeho obrázku (📂 Otevřít ▾ → Obrázek — obkreslit obrys…).'],
+  ['The dimension values are drawn as outlines ({} letter shapes), not as text — they cannot be read, so every size is a guess. Re-export the drawing with text kept as text.',
+    'Hodnoty kót jsou nakreslené jako obrysy ({1} tvarů písmen), ne jako text — nedají se přečíst, takže každý rozměr je odhad. Exportujte výkres znovu s textem jako textem.'],
   ['Change not applied: {}', 'Změna nebyla použita: {1}'], ['Limit reached: {}', 'Dosažen limit: {1}'],
   ['{} triangles', '{1} trojúhelníků'], ['volume {}', 'objem {1}'], ['{} cutout(s)', '{1} výřez(ů)'], ['{} design layer(s)', '{1} vrstev designu'], ['{} object(s)', '{1} objekt(ů)'],
   ['{} change(s) from the drawing', '{1} změn(a) oproti výkresu'],

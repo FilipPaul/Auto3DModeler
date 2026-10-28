@@ -1257,7 +1257,7 @@
    "program": "NIST FTC-11 drawing (from the CAD model)",
    "source": "https://www.nist.gov/document/nist-pmi-step-files",
    "licence": "public domain (US government work, 17 USC 105; NIST: 'can be used without any restrictions')",
-   "known": "read, but no part: Checks says No closed outline found in the drawing (a GD&T sheet with many views)"
+   "known": "read, but no part: Checks says No closed outline found in the drawing — it looks like a dimensioned drawing with several views (a GD&T sheet: arcs, crossing lines), trace the view from a picture"
   },
   {
    "path": "pdf/nist_ctc_01_asme1_rd.pdf",
@@ -1266,7 +1266,7 @@
    "program": "NIST CTC-01 drawing (from the CAD model)",
    "source": "https://www.nist.gov/document/nist-pmi-step-files",
    "licence": "public domain (US government work, 17 USC 105; NIST: 'can be used without any restrictions')",
-   "note": "but not the real part: a 25 × 9 mm outline with “1 error and 81 warnings” (the part is 1170 × 650 mm — the GD&T sheet is beyond the PDF reader)"
+   "note": "but not the real part: a 25 × 9 mm outline with “2 errors and 82 warnings” (the part is 1170 × 650 mm — the GD&T sheet is beyond the PDF reader); Checks says so first: the dimension values are drawn as outlines, and “Unsure which outline is the part” (7 bigger shapes do not close)"
   },
   {
    "path": "pictures/Hex-nut.png",

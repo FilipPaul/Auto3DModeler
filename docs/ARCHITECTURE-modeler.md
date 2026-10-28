@@ -841,6 +841,16 @@ Date: 2026-10-25. Written by the architect agent.
   tessellated NIST FTC-08). The sheet (sheet.js) toasts it once and shows it on the paper with ↻ Try again (Czech too).
   tests/test_sheet_errors.py; tools/e2e_sheet_errors.py; tools/e2e_cad_samples.py waits for the built sheet or its
   message (MIT E-Vent, hammer.iges, FTC-08: all OK; the manifest's known sheet failure dropped).
+- **Real files: a PDF of several views says it is unsure done:** what NIST's GD&T sheets do to the PDF reader
+  (sketch.py): it takes the stroked lines of the widest class (≥ 0.6 × the thickest) as the outline and the largest
+  closed loop of them as the part; CTC-01's views are 0.72 pt lines with arcs (67 curves, dropped) and crossing lines,
+  so none of its 21 shapes closes — the only closed loop is a 71 × 25 pt box (25 × 9 mm at 1:1); its dimension values
+  are letter outlines, not text (no dimension is read: every size a guess). FTC-11's part is drawn in 0.36 pt lines
+  under 14 short 0.72 pt strokes; read with the next width class down it still gives only small closed boxes, so no
+  simple fix — the reader now says so: `unsure_outline` (a warning, also a toast: the largest closed outline is smaller
+  than shapes that do not close; their boxes drawn), `no_geometry` explains "a dimensioned drawing with several views
+  … trace the view from a picture", `no_text` also when the values are outlines (extract.outlined_glyphs ≥ 20 and no
+  dimension read). tests/test_pipeline.py (synthetic sheets, the two NIST PDFs); tools/e2e_cad_samples.py (pdf/).
 - **STEP colours done:** kernel.read_step_colours (STEPCAFControl + XCAF: colours followed down the assembly tree to the
   faces of the shape the solid step uses), State.colours by face name -> faces' `color` in the rebuild; the view /
   assembly show them under the paint. tools/e2e_step_colours.py.

@@ -382,6 +382,8 @@ async function loadPart(data, { switching = false } = {}) {
   else if (isMesh()) toast('3D file imported — orientation, scale and added objects are in the Part tab.', 'ok', 6000);
   else if (errs || warns) {
     toast(`Drawing read with ${errs ? `${errs} error(s)` : ''}${errs && warns ? ' and ' : ''}${warns ? `${warns} warning(s)` : ''} — review the highlighted dimensions.`, errs ? 'error' : 'warning', 7000);
+    const unsure = data.model.issues.find((i) => i.code === 'unsure_outline'); // (a sheet of several views: maybe not the part)
+    if (unsure) toast(unsure.message, 'warning', 12000);
   } else toast('All dimensions read successfully.', 'ok');
 }
 
