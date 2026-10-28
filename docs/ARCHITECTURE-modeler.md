@@ -89,6 +89,8 @@ Date: 2026-10-25. Written by the architect agent.
   drawn on white); set_view section "off" / "none" takes the cut off; gui_state lists the 3D model's steps (kind step,
   name, what, [id]) and a choice's text with its value; the 3D Snap row hidden while a feature is made.
   tools/e2e_ai_reports.py.
+- **Steps named after their sketch done:** nextName(type, sketch): an extrude / revolve of a sketch the user named
+  is "Extrude – Slot" (a "Sketch 2" keeps "Extrude 3"), in the panel and for the AI. tools/e2e_ai_reports.py.
 - **⌴ / ⌵ hole heads done:** a hole's head "cbore" (head_d, head_depth: a second, wider prism; faces H:cbore:k,
   H:cbore_floor:k) or "csk" (head_d, head_angle 90: kernel.countersink, a cone; face H:csk:k); the Hole panel's Head
   choice sizes it from the hole (1.8 × d × d / 2 × d), the step's text shows it; add_feature / edit_feature head (null

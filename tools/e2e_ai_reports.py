@@ -1,7 +1,8 @@
 """Fixes from the AI's own reports, in headless Edge: a 3D model zoomed far out -> get_screenshot: fitted again (the
 camera close to the part); fit: false keeps the view -> set_view section on, then "off": no cut -> gui_state lists the
 model's steps (kind step, with their ids) and a choice with its text -> the Snap row hidden while a feature is
-made -> a wall flush on the plate (add_feature says where it went, the volume change; flipped: -z): its back one face with both names; find_refs of_step / between_steps ->
+made -> a wall flush on the plate (add_feature says where it went, the volume change; flipped: -z): its back one face with both names; find_refs of_step / between_steps -> an extrude of
+a sketch named Slot: "Extrude – Slot" ->
 a drawing sheet: get_screenshot is a picture of the sheet.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_ai_reports.py http://127.0.0.1:5199 <out dir>
@@ -82,6 +83,12 @@ try:
     meet = json.loads(call("find_refs", kind="edge", between_steps=["F2", "F4"], limit=50))
     print("edges between F2 and F4:", [(e["between"], e["mid"]) for e in meet])
     print("a wrong step:", call("find_refs", kind="edge", of_step="F99")[:40])
+    call("add_feature", type="sketch", plane="XY", name="Slot", shapes=[{"rect": {"x": 20, "y": 10, "w": 20, "h": 6}}])
+    js(f"{M}.action('extrude')")
+    time.sleep(0.5)
+    print("⬆ Extrude of the sketch named Slot, in the panel:", js(f"return {M}.cmd?.feature?.name || null"))
+    js(f"{M}.cmd && {M}.cancelCommand()")
+    print("  the AI's:", json.loads(call("add_feature", type="extrude", op="cut", through=True))["name"])
     print("sheet_open:", json.loads(call("sheet_open", part="Plate"))["preset"])
     wait("return !!window.__app.sheet.svgEl")
     r = js(f"return {H}.get_screenshot({{}}).then(r => [r.text, r.image]).catch(e => ['ERROR ' + e.message, null])")

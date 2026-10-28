@@ -188,7 +188,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
   /** A feature from the AI's description -> the feature JSON the modeler stores. */
   const build = (spec) => {
     const type = spec.type;
-    const base = { id: m.newId(), type, name: spec.name || m.nextName(type) };
+    const base = { id: m.newId(), type, name: spec.name || m.nextName(type, spec.sketch || (['extrude', 'revolve'].includes(type) ? [...m.sketches()].pop()?.id : null)) };
     if (type === 'sketch') {
       return { ...base, plane: planeOf(spec.plane), ...sketchFromShapes(spec.shapes, spec.lock !== false) };
     }

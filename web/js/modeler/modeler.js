@@ -728,8 +728,11 @@ export class Modeler {
     this.commit();
   }
 
-  nextName(type) {
+  /** A new step's name: "Extrude 3" — or, made from a sketch the user named, "Extrude – Slot". */
+  nextName(type, sketchId = null) {
     const base = t(TYPE_NAME[type] || type); // named in the language on screen
+    const sk = sketchId && this.part.features.find((f) => f.id === sketchId && f.type === 'sketch');
+    if (sk?.name && !/^\S+ \d+$/.test(sk.name.trim())) return `${base} – ${sk.name.trim()}`; // (not a "Sketch 2" / "Skica 2")
     const n = Math.max(0, ...this.part.features.filter((f) => f.type === type).map((f) => parseInt(String(f.name).replace(/\D/g, ''), 10) || 0));
     return `${base} ${n + 1}`;
   }
@@ -1220,7 +1223,7 @@ export class Modeler {
     const sk = this.part.features.find((f) => f.id === sketchId);
     const onFace = !!sk?.plane?.face && !!this.result?.body;
     // a sketch on a face of the part usually makes a hole or a pocket; on a plane, new material
-    return { id: this.newId(), type: 'extrude', name: this.nextName('extrude'), sketch: sketchId, op: onFace ? 'cut' : 'add',
+    return { id: this.newId(), type: 'extrude', name: this.nextName('extrude', sketchId), sketch: sketchId, op: onFace ? 'cut' : 'add',
       d: onFace ? 5 : 10, symmetric: false, flip: false, through: false };
   }
 
@@ -1825,7 +1828,7 @@ export class Modeler {
     if (!sks.length) { this.hooks.toast('Draw a sketch first (✏ Sketch).', 'warning'); return; }
     const sk = [...sks].reverse().find((x) => !used.has(x.id)) || sks[sks.length - 1];
     const helper = (sk.entities || []).find((e) => e.t === 'line' && e.construction); // (a construction line drawn for it: the axis)
-    this.openCommand({ id: this.newId(), type: 'revolve', name: this.nextName('revolve'), sketch: sk.id, axis: helper ? helper.id : 'y', angle: 360, op: 'add' }, true);
+    this.openCommand({ id: this.newId(), type: 'revolve', name: this.nextName('revolve', sk.id), sketch: sk.id, axis: helper ? helper.id : 'y', angle: 360, op: 'add' }, true);
   }
 
   startShell() {
