@@ -61,7 +61,9 @@ picked and dimensioned from (the distance is held from the middle as the line ch
 its label or **by its dimension line**. A circle or arc shows its size as **R or Ø** — *⇄ Show it as a radius /
 diameter* (or R ⇄ Ø in its size box); a typed value is taken that way. **Drawing snaps** to points, a line's
 **midpoint** (the new point stays at the middle), anywhere **on a line, circle or arc** (it stays on it) and the
-part's edges — off the grid too — the place named at the mouse; the same filters say what it snaps to.
+part's edges — off the grid too — the place named at the mouse; the same filters say what it snaps to. **Guides**: in line with a point (its x or y — a
+corner, a line's middle, the origin) or on the extension of a line, the cursor catches there and a temporary dashed
+line shows what it lines up with (two at once: where they cross).
 
 **The tools for a face of a 3D model** open with a **right click** on it (a left click chooses its step and shows its
 sizes; the right button dragged still pans).

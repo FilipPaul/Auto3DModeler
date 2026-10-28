@@ -446,8 +446,41 @@ export class Sketcher {
       }
     }
     if (best) return best;
-    const g = this.gridStep();
-    return { uv: [Math.round(uv[0] / g) * g, Math.round(uv[1] / g) * g].map((x) => +x.toFixed(6)) };
+    const g = this.gridStep(), grid = [Math.round(uv[0] / g) * g, Math.round(uv[1] / g) * g];
+    // guides: in line with a point (its x or its y — a corner, a line's middle, the origin) or on the extension of a
+    // line; shown as dashed lines from what it lines up with while the mouse is there
+    const keys = [...(F.points ? Object.values(this.f.points) : []), ...(F.origin ? [[0, 0]] : []),
+      ...(F.mid ? lines.map((e) => { const a = this.P(e.a), b = this.P(e.b); return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; }) : [])];
+    let gx = null, gy = null;
+    for (const p of keys) {
+      const dx = Math.abs(p[0] - uv[0]), dy = Math.abs(p[1] - uv[1]);
+      if (dx < tol && dy > tol && (!gx || dx < gx.d)) gx = { d: dx, v: p[0], from: p };
+      if (dy < tol && dx > tol && (!gy || dy < gy.d)) gy = { d: dy, v: p[1], from: p };
+    }
+    let ext = null;
+    if (F.lines) {
+      for (const e of lines) { // beyond a line's end, along it
+        const a = this.P(e.a), b = this.P(e.b), dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy;
+        if (L2 < 1e-12) continue;
+        const k = ((uv[0] - a[0]) * dx + (uv[1] - a[1]) * dy) / L2;
+        if (k >= 0 && k <= 1) continue; // (on the line itself: snapped above)
+        const p = [a[0] + k * dx, a[1] + k * dy], d = Math.hypot(p[0] - uv[0], p[1] - uv[1]);
+        if (d < tol * 0.8 && (!ext || d < ext.d)) ext = { d, a, dir: [dx, dy], from: k < 0 ? a : b, p };
+      }
+    }
+    const cut = (x, y) => { // where a line's extension meets x = … or y = …
+      if (x !== null && Math.abs(ext.dir[0]) > 1e-9) { const k = (x - ext.a[0]) / ext.dir[0]; return [x, ext.a[1] + k * ext.dir[1]]; }
+      if (y !== null && Math.abs(ext.dir[1]) > 1e-9) { const k = (y - ext.a[1]) / ext.dir[1]; return [ext.a[0] + k * ext.dir[0], y]; }
+      return null;
+    };
+    let at = null, guides = [];
+    if (gx && gy) { at = [gx.v, gy.v]; guides = [gx.from, gy.from]; }
+    else if (ext && (gx || gy)) { at = cut(gx ? gx.v : null, gy ? gy.v : null) || ext.p; guides = [ext.from, (gx || gy).from]; }
+    else if (ext) { at = ext.p; guides = [ext.from]; }
+    else if (gx) { at = [gx.v, grid[1]]; guides = [gx.from]; }
+    else if (gy) { at = [grid[0], gy.v]; guides = [gy.from]; }
+    if (at) { const p = at.map((x) => +x.toFixed(6)); return { uv: p, guides: guides.map((q) => [[...q], p]) }; }
+    return { uv: grid.map((x) => +x.toFixed(6)) };
   }
 
   gridStep() { return nice(this.mpp() * 12); }
@@ -2411,6 +2444,10 @@ export class Sketcher {
       else if (e?.t === 'line') lines.push([this.P(e.a), this.P(e.b), SEL]);
       else if (e?.t === 'circle') circles.push([this.P(e.c), e.r, SEL]);
       else if (e?.t === 'arc') { const ps = this.arcOf(e); for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], SEL]); }
+    }
+    // the guides of where the mouse is (in line with a point, on a line's extension): dashed, for the moment
+    if (this.cursor?.guides && !['select', 'dim', 'relate'].includes(this.tool)) {
+      for (const [p, q] of this.cursor.guides) { lines.push([p, q, 0x7ee787, true]); dots.push([p, 0x7ee787]); circles.push([p, mpp * 4, 0x7ee787]); }
     }
     // the dimension tool's first pick
     if (this.dimA) {

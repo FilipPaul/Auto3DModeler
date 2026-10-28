@@ -80,6 +80,10 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Drawing guides done:** Sketcher.snap after the shapes: in line with a key point's x / y (points, midpoints, the
+  origin) or on a line's extension (beyond its ends), both: where they cross; `guides` [[from, to]] drawn dashed green
+  while a drawing tool is on. The filters moved bottom left (the suggestions / size box above them, clear of the
+  Finish / Cancel corner). e2e_sketch_pick (beside a corner: level with it; above it: two guides).
 - **Snapping onto shapes done:** Sketcher.snap (by the filters): points / origin, line midpoints (a `mid` rule:
   constraints symmetric_point), the part's corners / centres, a place on a sketch line / circle / arc (an `on` rule) or
   on the part's straight / round edges, then the grid; the snap named at the mouse (midpoint, on the line …).

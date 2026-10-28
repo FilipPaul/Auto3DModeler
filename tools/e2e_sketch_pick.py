@@ -1,7 +1,8 @@
 """What a sketch click can take, with REAL mouse input: a rectangle and a circle -> the selection filters at the bottom of
 the view -> "Lines" off: a click on a line takes nothing, on again -> the origin picked: its suggestions -> a line's
 midpoint and the circle (Ctrl+click): the distance between them, kept by the solver at the middle -> a locked
-dimension dragged by its line (not its label) -> the circle's size shown as R (⇄), 5 typed: Ø 10.
+dimension dragged by its line (not its label) -> the circle's size shown as R (⇄), 5 typed: Ø 10 -> an off-grid line:
+its middle and a place on it snapped to -> guides: in line with a corner, on a side's extension.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_sketch_pick.py http://127.0.0.1:5199 <out dir>
 """
@@ -85,7 +86,8 @@ try:
     tool("select")
     bar = d.find_element(By.CSS_SELECTOR, "#modelViewport .sk-filters")
     vp = d.find_element(By.CSS_SELECTOR, "#modelViewport").rect
-    print("the filters:", bar.text.replace("\n", " | "), "| at the bottom middle:", abs(bar.rect["x"] + bar.rect["width"] / 2 - (vp["x"] + vp["width"] / 2)) < 20)
+    print("the filters:", bar.text.replace("\n", " | "), "| bottom left:", bar.rect["x"] - vp["x"] < 20,
+          "| clear of Finish / Cancel:", bar.rect["x"] + bar.rect["width"] < d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions").rect["x"])
     bar.find_element(By.CSS_SELECTOR, "[data-f=lines]").click()
     time.sleep(0.3)
     click_uv((20, 30))  # the top line, not its middle
@@ -155,6 +157,19 @@ try:
     pa, pb, ks = new
     cross = lambda p: abs((b0[0] - a0[0]) * (p[1] - a0[1]) - (b0[1] - a0[1]) * (p[0] - a0[0])) / math.dist(a0, b0)
     print("  a line from its middle to a place on it: rules", ks, "| at the middle:", round(math.dist(pa, mid), 4), "| on the line:", round(cross(pb), 4))
+    # guides: in line with the rectangle's right side's end (its x) and on the extension of its top side
+    rect = js(f"return Object.values({SK}.f.points)")
+    corner = max((p for p in rect), key=lambda p: (p[0], p[1]))  # the top-right corner of the rectangle
+    tool("line")
+    ActionChains(d, duration=30).move_to_element_with_offset(canvas(), *off([corner[0] + 14.3, corner[1] + 0.35])).perform()
+    time.sleep(0.4)
+    g = js(f"return [{SK}.cursor?.uv, ({SK}.cursor?.guides || []).map(x => x[0])]")
+    print("guides: to the right of the top-right corner:", g, "| the corner:", corner)
+    ActionChains(d, duration=30).move_to_element_with_offset(canvas(), *off([corner[0] + 0.3, corner[1] + 12.4])).perform()
+    time.sleep(0.4)
+    g = js(f"return [{SK}.cursor?.uv, ({SK}.cursor?.guides || []).map(x => x[0])]")
+    print("  above it:", g)
+    d.save_screenshot(f"{OUT}/sketch_guides.png")
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()
