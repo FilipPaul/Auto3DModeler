@@ -164,6 +164,34 @@ class TestFeatures(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertIn("wider", r["features"][-1]["issues"][0])
 
+    def test_hole_head_fits(self):
+        """A thread's head is sized from its nominal Ø (M3 ⌵: Ø6, 1.75 deep — the exact volume, its STEP read back, the
+        callout "M3 ⌵ Ø6 × 90°"); a head deeper than a 2 mm plate or wider than the face is refused with the most
+        that fits, never cut through."""
+        from auto3d.modeler import kernel as K, sheet
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [7.25, 7, 2], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        hole = {"id": "H1", "type": "hole", "plane": top, "points": [[1, -0.5]], "through": True, "thread": "M3", "head": "csk"}
+        plate = box(14.5, 14, 2)
+        r, v = vol(*plate, hole)
+        self.assertTrue(r["ok"], r["features"])
+        h, R, rr = 1.75, 3, 1.25  # the cone Ø6 -> Ø2.5 at 90°
+        self.assertAlmostEqual(v, 14.5 * 14 * 2 - math.pi * rr * rr * 2 - (math.pi * h / 3 * (R * R + R * rr + rr * rr) - math.pi * rr * rr * h), delta=0.05)
+        self.assertAlmostEqual(K.volume(K.from_step(doc.export({"features": [*plate, hole]}, "step"))), v, delta=0.05)
+        s = doc.sheet({"features": [*plate, hole]}, "medium")
+        self.assertEqual([sheet.callout(s["geometry"], d) for d in s["dims"] if d.get("hole")], ["M3 ⌵ Ø6 × 90°"])
+        r, _ = vol(*plate, {**hole, "head_d": 10})  # 3.75 deep in a 2 mm plate
+        self.assertFalse(r["ok"])
+        self.assertIn("at most Ø6.4", r["features"][-1]["issues"][0])
+        r, _ = vol(*plate, {**hole, "head": "cbore", "head_d": 6, "head_depth": 3})
+        self.assertFalse(r["ok"])
+        self.assertIn("at most 1.9", r["features"][-1]["issues"][0])
+        r, _ = vol(*plate, {**hole, "points": [[5, 0]]})  # 2.25 from the plate's edge
+        self.assertFalse(r["ok"])
+        self.assertIn("wider than the face", r["features"][-1]["issues"][0])
+        self.assertIn("at most Ø4.4", r["features"][-1]["issues"][0])
+        r, _ = vol(*plate, {**hole, "points": [[5, 0]], "head_d": 4.4})
+        self.assertTrue(r["ok"], r["features"])
+
     def test_threaded_hole(self):
         """A hole with thread M5: drilled Ø4.2 (its tap drill) whatever d says; the sheet labels it M5; an unknown
         thread refused."""
@@ -1038,7 +1066,7 @@ class TestSheet(unittest.TestCase):
 
         top = lambda o: {"face": {"name": "E1:end"}, "frame": {"o": o, "x": [1, 0, 0], "n": [0, 0, 1]}}  # noqa: E731
         plate = box(14.5, 14, 2)
-        got, dia, r = callouts(plate, plane=top([7.25, 7, 2]), points=[[1, -0.5]], d=3, thread="M3", head="csk")
+        got, dia, r = callouts(plate, plane=top([7.25, 7, 2]), points=[[1, -0.5]], d=3, thread="M3", head="csk", head_d=5)
         self.assertEqual(got, [("Top", "M3 ⌵ Ø5 × 90°")])
         self.assertEqual(len(dia), 1)  # the countersink's Ø5 not again
         places = sorted(sheet.value(r["geometry"], d) for d in r["dims"] if d["view"] == "Top" and d["kind"] == "linear")

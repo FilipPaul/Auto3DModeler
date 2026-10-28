@@ -250,7 +250,7 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_sheet_hole_callouts.py <url> <dir>` covers hole callouts (the 14.5 × 14 × 2 plate with a countersunk M3:
    one "M3 ⌵ Ø5 × 90°", ✓; deleted: the countersink's angle missing with its key; the AI's restore ✓; ＋ on the row:
    the callout back; a counterbore / blind thread "Ø3.4 ⌴ Ø6 ↧ 3.2", "2× M4 ↧ 6", their depths missing when deleted,
-   complete; the PDF's and the DXF's texts). Needs a server restarted after sheet.py / doc.py changes.
+   complete; the PDF's and the DXF's texts; the AI's M3 ⌵ on a 2 mm plate: Ø6, Ø10 refused). Needs a server restarted after sheet.py / doc.py changes.
    `tools/e2e_sheet_fits.py <url> <dir>` covers fits on the sheet (a Ø8 pin's dimension: Fit h6 drawn "Ø8 h6" with
    0 / −0.009 told, — plain again, the AI's sheet_edit fits k6, a wrong class refused, Ctrl+Z).
    `tools/e2e_model_rib.py <url> <dir>` covers ⊿ Rib (an L bracket and a line from the wall to the plate on the Right

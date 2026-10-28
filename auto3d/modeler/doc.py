@@ -65,10 +65,42 @@ def _threads(part):
 
 
 def _head_sizes(f, dia):
-    """A hole head's Ø and depth (a counterbore: 1.8 × d, d deep; a countersink: 2 × d, its depth from the angle)."""
+    """A hole head's Ø and depth (a counterbore: 1.8 × d, d deep; a countersink: 2 × d, its depth from the angle) — d of
+    a thread its nominal Ø (M3: 3), as the Hole panel's Head choice."""
+    if f.get("thread") in THREADS:
+        dia = float(f["thread"][1:])
     if f.get("head") == "cbore":
         return _num(f, "head_d", round(dia * 1.8, 1), what="counterbore diameter"), _num(f, "head_depth", round(dia, 1), what="counterbore depth")
     return _num(f, "head_d", round(dia * 2, 1), what="countersink diameter"), None
+
+
+def _floor(v):
+    return f"{math.floor(v * 10 + 1e-9) / 10:g}"
+
+
+def _head_fits(f, fr, st, pts, dia, hd, hdep, depth):
+    """A hole head must sit on the face and in the part: no wider than the face around each hole (kernel.head_room)
+    and less deep than the part there (kernel.material_along; a blind hole: than the hole) — else an issue with the
+    most that fits, never a head cut through."""
+    csk = f.get("head") == "csk"
+    half = math.radians(float(f.get("head_angle") or 90)) / 2
+    what = "countersink" if csk else "counterbore"
+    for i, (u, v) in enumerate(pts):
+        at = f" (hole {i + 1})" if len(pts) > 1 else ""
+        room = K.head_room(st.body.shape, fr, float(u), float(v), hd)
+        if room is not None and room < hd - 1e-6:
+            raise K.KernelError(f"The {what} Ø{hd:g} is wider than the face around the hole{at} — at most Ø{_floor(room)}.")
+        t = K.material_along(st.body.shape, fr, float(u), float(v))
+        if t is None:
+            continue
+        t = min(t, depth) if depth else t
+        deep = (hd - dia) / 2 / math.tan(half) if csk else hdep
+        if deep >= t - 1e-6:
+            if csk:
+                most = dia + 2 * (t - 0.05) * math.tan(half)
+                raise K.KernelError(f"The countersink Ø{hd:g} would be {deep:.2f} deep — deeper than the {'hole' if depth else 'part'} "
+                                    f"here ({t:g}){at}, it would cut through: at most Ø{_floor(most)}.")
+            raise K.KernelError(f"The counterbore {hdep:g} deep is as deep as the {'hole' if depth else 'part'} here ({t:g}){at} — at most {_floor(t - 0.05)}.")
 
 
 def _holes(part):
@@ -385,6 +417,8 @@ def _apply(f, st: State, s):
         if tear and head == "csk":
             raise K.KernelError("A countersink cannot be a teardrop (its cone would hang over) — use a counterbore, or untick Teardrop.")
         prof = K.teardrop_face if tear else K.circle_face
+        if head in ("cbore", "csk"):
+            _head_fits(f, fr, st, pts, dia, hd, hdep if head == "cbore" else None, None if f.get("through", True) else depth)
         for k, (u, v) in enumerate(pts):
             face, names = prof(fr, float(u), float(v), dia)
             tool = K.prism_body(face, names, -n * depth, fid)

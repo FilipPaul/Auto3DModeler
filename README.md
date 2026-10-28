@@ -318,7 +318,9 @@ SolidWorks. It has only the tools that need almost no input.
    part changes size — its row says *↔ in the middle of the left and right edges*; 🎯 measures it from an edge instead.
    *Aa Text / picture* snaps the same way. It goes through all by default, or untick *Through all* and give a depth. *Head* adds room
    for a screw's head: ⌴ a counterbore (Ø 1.8 × the hole, as deep as the hole is wide) or ⌵ a countersink (Ø 2 × the
-   hole, 90°) — change the head's Ø / depth if needed. *Thread* (M2 … M20) makes it a threaded hole: drilled with its
+   hole, 90°; a threaded hole's from its size, M3: Ø6) — change the head's Ø / depth if needed. A head that would not
+   fit — wider than the face around the hole, or as deep as the part there (it would cut through) — is refused,
+   with the most that fits. *Thread* (M2 … M20) makes it a threaded hole: drilled with its
    tap drill (M5: Ø4.2) and labelled M5 on the drawing. *Teardrop (print sideways)*, offered on a hole that goes
    sideways (into a side face, across Z), gives the hole a 45° point on top so it prints lying on its side without
    support (the 🖨 Print check shows no overhang there); the drawing still says Ø d. A counterbore gets the point too; a

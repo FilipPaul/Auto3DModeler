@@ -800,6 +800,12 @@ Date: 2026-10-25. Written by the architect agent.
   Symbols fallback (the text extracts as typed); DXF: the dimension's own text (Unicode, the drafting program's font
   shows it). Also: suppressed hole steps no longer feed the sheet's fits / threads. test_hole_callouts (+ the 171-hole
   plate: one "171×" callout); tools/e2e_sheet_hole_callouts.py.
+- **Hole heads that fit done:** a threaded hole's head defaults come from its nominal Ø (M3: ⌵ Ø6, ⌴ Ø5.4 × 3), not d
+  or the tap drill — doc._head_sizes, the AI's add_feature headOf, the Hole panel's Head choice alike. doc._head_fits
+  (before cutting): kernel.head_room (the head's rim just under the face inside the part all round, else the widest
+  that is) and kernel.material_along (the part's depth under the hole, a blind hole's own depth) — a head wider than
+  the face or as deep as the part is an issue with the most that fits ("at most Ø6.4"), never cut through.
+  test_hole_head_fits; tools/e2e_sheet_hole_callouts.py (the AI's M3 ⌵ on a 2 mm plate).
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.
