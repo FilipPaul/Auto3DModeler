@@ -1105,6 +1105,8 @@ const CS = {
   "the hole's depth ({id})": 'hloubka díry ({id})', "the thread's depth ({id})": 'hloubka závitu ({id})',
   "the countersink's Ø{d} ({id})": 'Ø{d} záhlubení ({id})', "the counterbore's Ø{d} ({id})": 'Ø{d} zahloubení ({id})',
   'Title block': 'Rohové razítko', Title: 'Název', 'Drawing no.': 'Číslo výkresu', 'Drawn by': 'Kreslil', Note: 'Poznámka',
+  'As the sheet': 'Jako list', 'Dimensions in this view': 'Kóty v tomto pohledu', 'Fully dimensioned': 'Plně zakótováno',
+  'Drag a view to move it (Shift: freely). Double-click a name to rename it.': 'Pohled přesunete tažením (Shift: volně). Dvojklikem na název ho přejmenujete.',
   'as the sheet': 'jako list', 'How many dimensions in this view — as the sheet, or its own': 'Kolik kót v tomto pohledu — jako celý list, nebo vlastní',
   'opening a drawing': 'otevírá výkres', 'reading the drawing': 'čte výkres', 'editing the drawing': 'upravuje výkres',
   'looking at the screen': 'dívá se na obrazovku', 'clicking in the app': 'kliká v aplikaci',

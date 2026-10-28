@@ -22,6 +22,20 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
 body { display: flex; flex-direction: column; }
 body > .topbar { flex: none; }
 button, input, select { font: inherit; color: inherit; }
+/* one dark look for every choice and text field (no browser-default controls): the same height as .field inputs,
+   a quiet custom arrow, the accent focus ring, a dimmed disabled state. :where() — any panel's own rule still wins. */
+:where(select) { appearance: none; -webkit-appearance: none; background-color: var(--bg); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238b95a3' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat;
+  background-position: right 7px center; background-size: 10px 6px; border: 1px solid var(--line); border-radius: 5px; padding: 4px 24px 4px 6px;
+  color: var(--text); cursor: pointer; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+:where(select[multiple], select[size]) { background-image: none; padding-right: 6px; white-space: normal; cursor: default; }
+:where(select:hover:not(:disabled)) { border-color: #44505f; }
+:where(select option, select optgroup) { background: var(--panel-2); color: var(--text); }
+:where(select optgroup) { color: var(--muted); font-style: normal; }
+:where(input:not([type=checkbox], [type=radio], [type=range], [type=color], [type=file], [type=button], [type=submit])) {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 4px 6px; color: var(--text); }
+:where(select, input:not([type=checkbox], [type=radio], [type=range]), textarea):focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px #3b82f633; }
+:where(select, input, textarea):disabled { opacity: .45; cursor: default; }
+:where(input[type=checkbox], input[type=radio]) { accent-color: var(--accent); }
 kbd { background: var(--panel-2); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; font-size: 11px; }
 code { background: var(--panel-2); padding: 0 4px; border-radius: 3px; }
 
@@ -205,8 +219,9 @@ body.none-open .no-part b { color: var(--text); font-size: 16px; }
 .field { display: grid; grid-template-columns: 92px 1fr; align-items: center; gap: 8px; margin-bottom: 7px; }
 .field.two { grid-template-columns: 92px 1fr 1fr; }
 .field label { color: var(--muted); font-size: 12px; }
-.field input, .field select { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 4px 6px; min-width: 0; }
+.field input, .field select { width: 100%; background-color: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 4px 6px; min-width: 0; }
 .field input[type=color] { padding: 1px; height: 26px; }
+.field select { padding-right: 24px; }
 .row-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .check { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12px; cursor: pointer; }
 .check.off { opacity: 0.5; cursor: help; }
@@ -289,7 +304,7 @@ body.none-open .no-part b { color: var(--text); font-size: 16px; }
 .dim-popup .dp-info.warn { color: #ffe3a3; }
 .dim-popup .dp-row { display: flex; align-items: center; gap: 6px; }
 .dim-popup .dp-row input { width: 100px; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 4px 6px; }
-.dim-popup select { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 4px; }
+.dim-popup select { width: 100%; background-color: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 4px 24px 4px 6px; }
 .dim-popup .dp-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
 .seg { display: flex; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
 .seg button { flex: 1; background: var(--bg); border: 0; padding: 5px; cursor: pointer; color: var(--muted); }
@@ -302,7 +317,7 @@ body.none-open .no-part b { color: var(--text); font-size: 16px; }
 .dim-label.added { border-color: var(--user); color: #e2d4ff; }
 .toast-stack { right: calc(var(--right-w, 310px) + 20px); }
 .promote-box { grid-column: 1 / -1; padding: 8px; border: 1px solid var(--line); border-radius: 6px; margin-top: 6px; }
-.promote-box select { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 4px; margin-bottom: 6px; }
+.promote-box select { width: 100%; background-color: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 4px 24px 4px 6px; margin-bottom: 6px; }
 .piece.connector { border-left-color: #f2cc60; }
 .joint-params .check { margin: 2px 0 8px; }
 .params-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 2px 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; font-size: 12px; color: var(--muted); }
@@ -515,15 +530,29 @@ body:not(.ws-model):not(.ws-assembly):not(.ws-drawing):not(.ws-sheet) .not-quick
 .sh-page i { font-style: normal; color: var(--muted); font-size: 10.5px; margin-right: 2px; }
 .sh-balloon { cursor: move; }
 .sh-asm { font-size: 12px; font-weight: 600; color: var(--muted); padding: 0 6px; }
-.sh-views { display: flex; flex-direction: column; gap: 3px; }
-.sh-vrow { display: flex; align-items: center; gap: 5px; font-size: 12.5px; }
-.sh-vrow select { font-size: 11px; padding: 1px 4px; max-width: 96px; }
-.sh-vrow .sh-vscale { max-width: 78px; }
-.sh-vchk { width: 14px; flex: none; margin: 0; }
-.sh-vname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 92px; cursor: text; border-radius: 3px; padding: 0 2px; }
+.sh-views { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+/* a view: ☑ | name (its own dimension choice) | ✓ / ⚠ | ⋯ | scale — the same columns in every row */
+.sh-vrow { display: grid; grid-template-columns: 16px minmax(0, 1fr) 30px 24px 92px; align-items: center; gap: 6px; min-height: 30px; padding: 0 4px; border-radius: 6px; font-size: 12.5px; }
+.sh-vrow:hover { background: #ffffff08; }
+.sh-vrow.off .sh-vcell { color: var(--muted); }
+.sh-vchk { width: 14px; height: 14px; margin: 0; cursor: pointer; }
+.sh-vcell { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.sh-vname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; cursor: text; border-radius: 3px; padding: 0 2px; }
 .sh-vname:hover { background: #ffffff10; }
 .sh-vname.renaming { outline: 1px solid var(--accent, #58a6ff); background: var(--bg); }
-.sh-vgap { flex: 1; }
+.sh-vtag { flex: none; font-style: normal; font-size: 10.5px; color: #d2a8ff; }
+.sh-vstate { font-size: 12px; text-align: center; white-space: nowrap; }
+.sh-vstate .sh-vok { color: var(--ok); font-weight: 400; }
+.sh-vstate .sh-vbad { color: var(--warn); }
+.sh-vmenu { justify-self: center; }
+.sh-vmore { width: 22px; height: 22px; padding: 0; font-size: 13px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+.sh-vmore.on { color: #d2a8ff; border-color: #8957e5; }
+.sh-vmenu .menu-list { min-width: 200px; top: calc(100% + 2px); }
+.sh-vmenu .menu-list .sh-vmhead { padding: 4px 10px 6px; font-size: 11px; color: var(--muted); }
+.sh-vmenu .menu-list button { padding: 6px 10px; font-size: 12.5px; display: flex; gap: 6px; }
+.sh-vmenu .menu-list button i { width: 12px; font-style: normal; color: var(--accent); }
+.sh-vrow select.sh-vscale { width: 100%; font-size: 12px; padding: 3px 20px 3px 6px; background-position: right 6px center; }
+.sh-vhint { display: flex; gap: 6px; align-items: baseline; margin: 2px 4px 10px; }
 .sh-vlabel { cursor: text; }
 .sh-rename { position: fixed; z-index: 90; width: 160px; font-size: 13px; text-align: center; padding: 2px 4px; border: 1px solid #1f6feb; border-radius: 4px; background: #fff; color: #111; }
 .sh-outside { font-size: 12px; }
@@ -565,12 +594,13 @@ body:not(.ws-model):not(.ws-assembly):not(.ws-drawing):not(.ws-sheet) .not-quick
 .dw-lsel .row-actions { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-start; margin-top: 4px; }
 .dw-lsel .btn { flex: 0 0 auto; padding: 2px 6px; }
 .dw-filter select[multiple] { grid-column: 3; }
+.dw-filter select:not([multiple]) { padding-right: 20px; background-position: right 5px center; }
 .dw-layer input[type=color] { width: 22px; height: 18px; padding: 0; border: 0; background: none; cursor: pointer; }
 .dw-lname { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dw-measure { position: absolute; right: 12px; bottom: 34px; z-index: 5; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 12px; }
 .dw-status { pointer-events: none; }
 .dw-filter { display: grid; grid-template-columns: 1fr 64px 1fr auto; gap: 4px; margin-bottom: 4px; }
-.dw-filter select, .dw-filter input { min-width: 0; background: var(--bg); color: inherit; border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; font-size: 12px; }
+.dw-filter select, .dw-filter input { min-width: 0; background-color: var(--bg); color: inherit; border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; font-size: 12px; }
 .dw-fcount { align-self: center; }
 .ai-btn.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 .ai-drawer { position: fixed; top: 48px; right: 0; bottom: 0; width: min(440px, 100vw); z-index: 40; display: flex; flex-direction: column;
@@ -765,7 +795,7 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .as-doflim { display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
 .as-dof .as-doflim label { display: inline-flex; align-items: center; gap: 4px; margin: 0; }
 .as-doflim input[type=number] { width: 58px; }
-.as-doflim .as-dspeed { font-size: 11px; padding: 1px 2px; width: auto; }
+.as-doflim .as-dspeed { font-size: 11px; padding: 1px 18px 1px 4px; width: auto; background-position: right 5px center; }
 .as-dofnote { margin: 4px 0 0; font-size: 11.5px; }
 .as-dofnote.bad { color: #f85149; }
 .as-list.exploding .as-boom, .as-boom.off, .mt-item:hover .as-boom { display: inline-block; }

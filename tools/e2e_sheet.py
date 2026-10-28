@@ -87,13 +87,14 @@ try:
     d.find_element(By.CSS_SELECTOR, "#shViewport [data-preset=light]").click()
     wait(f"return !{S}.busy && {S}.d.built?.preset === 'light'", 60)
     n_top = js(f"return {S}.allDims().filter(x => x.view === 'Top').length")
-    from selenium.webdriver.support.ui import Select
-    Select(d.find_element(By.CSS_SELECTOR, "#shLeft [data-vp=Top]")).select_by_value("medium")
+    d.find_element(By.CSS_SELECTOR, "#shLeft [data-vmore=Top]").click()  # ⋯ the view's own dimensions
+    d.find_element(By.CSS_SELECTOR, "#shLeft .sh-vmenu.open [data-vpset=medium]").click()
     wait(f"return !{S}.busy && {S}.d.built?.vp === JSON.stringify({{Top: 'medium'}})", 60)
     time.sleep(0.3)
     print("light, the top medium: top dims", n_top, "->", js(f"return {S}.allDims().filter(x => x.view === 'Top').length"),
           "| front stays:", js(f"return {S}.allDims().filter(x => x.view === 'Front').length"))
-    Select(d.find_element(By.CSS_SELECTOR, "#shLeft [data-vp=Top]")).select_by_value("")
+    d.find_element(By.CSS_SELECTOR, "#shLeft [data-vmore=Top]").click()
+    d.find_element(By.CSS_SELECTOR, "#shLeft .sh-vmenu.open [data-vpset='']").click()
     wait(f"return !{S}.busy && {S}.d.built?.vp === '{{}}'", 60)
     d.find_element(By.CSS_SELECTOR, "#shViewport [data-preset=medium]").click()
     wait(f"return !{S}.busy && {S}.d.built?.preset === 'medium'", 60)

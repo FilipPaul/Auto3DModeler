@@ -52,9 +52,10 @@ try:
     call("sheet_open", part="Block")
     wait(f"return !!{S}.svgEl && !{S}.busy")
     print("the Right view by itself:", dims("Right"))
-    sel = d.find_element(By.CSS_SELECTOR, "#shLeft select[data-vp=Right]")
-    print("  its choices:", [o.text for o in Select(sel).options])
-    Select(sel).select_by_value("all")
+    d.find_element(By.CSS_SELECTOR, "#shLeft [data-vmore=Right]").click()  # ⋯ the view's own dimensions
+    time.sleep(0.2)
+    print("  its choices:", [b.text for b in d.find_elements(By.CSS_SELECTOR, "#shLeft .sh-vmenu.open [data-vpset]")])
+    d.find_element(By.CSS_SELECTOR, "#shLeft .sh-vmenu.open [data-vpset=all]").click()
     wait(f"return {S}.d.built?.vp === JSON.stringify({{Right: 'all'}}) && !{S}.busy", 60)
     time.sleep(0.6)
     right = dims("Right")

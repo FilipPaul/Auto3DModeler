@@ -934,6 +934,15 @@ Date: 2026-10-25. Written by the architect agent.
   its material only, so a placement's own colour (the green post) shows. The BOM's Bought / made by the material
   (materials.printed / made_how: a printing plastic "made (3D print)", else "made"); an assembly sheet's title block
   material "—" (not "PLA"). test_export_names, test_export_samples; the samples made again.
+- **One dark look for choices (fix, the owner: "the Views panel does not fit the app"):** styles.css gives every
+  `<select>` (and text field) the app's style at zero specificity (`:where`): var(--bg), the --line border, a quiet
+  SVG arrow, the .field height, the accent focus ring, a dimmed disabled state; panel rules set background-color only
+  (the arrow stays). The sheet's Views panel: one grid row per view — ☑, its name (double-click: rename; its own
+  dimensions as a small tag), ✓ / ⚠ n, ⋯ (a small menu: Dimensions in this view — As the sheet, Light, Medium, Full,
+  All its sizes), the scale in a column (Sheet 1:2 / standard / Custom…; disabled while the view is off); Section A–A
+  is a row of its own (its tick turns the section on, no separate check box); a one-line hint. Verified on screenshots
+  (sheet left / right panels, 1600 × 1000 and 1280 × 800, EN / CS; the hole panel; the material choice; the library);
+  tools/e2e_sheet.py and e2e_sheet_same.py pick the per-view dimensions through ⋯.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

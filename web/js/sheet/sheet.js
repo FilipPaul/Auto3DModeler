@@ -198,6 +198,7 @@ export class SheetEditor {
     this.stage = this.$('.sh-stage');
     this.bind();
     window.addEventListener('keydown', (e) => this.key(e));
+    document.addEventListener('click', (e) => { if (!e.target.closest?.('.sh-vmenu')) this.closeViewMenus(); });
   }
 
   // ------------------------------------------------------------------ the sheet as a project part
@@ -987,13 +988,22 @@ export class SheetEditor {
     const all = this.allDims(), hid = this.d.hidden.length, ck = this.checked || { missing: [], dup: new Set(), over: new Set(), ok: true };
     const vp = this.d.vpreset || {}, per = (v) => ck.missing.filter((m) => m.view === v).length;
     const out = this.outside(), sheetSc = scaleText(this.scaleArr());
-    const vrows = [...VIEWS, 'Iso', ...(this.d.section ? ['Section'] : [])];
-    box.innerHTML = `<h3>Views</h3><div class="sh-views">${vrows.map((v) => `<div class="sh-vrow">${v === 'Section' ? '<span class="sh-vchk"></span>' : `<input type="checkbox" class="sh-vchk" data-v="${v}" ${this.d.off[v] ? '' : 'checked'} title="${esc(t('Show this view on the sheet'))}">`}<span class="sh-vname" data-vname="${v}" title="${esc(t('Double-click to rename the view'))}" data-no-i18n>${esc(this.viewName(v))}</span>${v === 'Iso' || this.d.off[v] ? '' : per(v) ? ` <b class="sh-vbad" title="${esc(t('Sizes missing in this view'))}">⚠ ${per(v)}</b>` : v === 'Section' ? '' : ' <b class="sh-vok">✓</b>'}<span class="sh-vgap"></span>
-        ${v === 'Iso' || v === 'Section' || this.d.asm ? '' : `<select data-vp="${v}" title="${esc(t('How many dimensions in this view — as the sheet, or its own'))}"><option value="">${esc(t('as the sheet'))}</option>${PRESETS.map(([k, l]) => `<option value="${k}" ${vp[v] === k ? 'selected' : ''}>${esc(t(l))}</option>`).join('')}<option value="all" ${vp[v] === 'all' ? 'selected' : ''} title="${esc(t('Every size this view shows, also the ones given in another view'))}">${esc(t('All its sizes'))}</option></select>`}
-        ${this.scaleSelect(`data-vs="${v}" class="sh-vscale"`, this.d.vscale?.[v], `${t('Sheet')} ${sheetSc}`, t('The view\'s scale — the sheet\'s, a standard one or your own (Custom…); a view at its own scale says it under its name'))}</div>`).join('')}</div>
-      <p class="hint">${esc(t('Drag a view to move it — it snaps in line with the front view; Shift: freely. Double-click a view\'s name to rename it.'))}</p>
+    const vrows = [...VIEWS, 'Iso', ...(this.d.asm ? [] : ['Section'])];
+    const own = (v) => vp[v] === 'all' ? t('All its sizes') : PRESETS.find(([k]) => k === vp[v])?.[1] && t(PRESETS.find(([k]) => k === vp[v])[1]);
+    const vrow = (v) => {
+      const on = v === 'Section' ? !!this.d.section : !this.d.off[v], dims = v !== 'Iso' && v !== 'Section' && !this.d.asm;
+      const chk = v === 'Section'
+        ? `<input type="checkbox" class="sh-vchk" data-sec ${on ? 'checked' : ''} title="${esc(t('The part cut through its middle (across X) and seen from the right, the cut hatched — in the right view\'s place; the cut marked A–A on the front view'))}">`
+        : `<input type="checkbox" class="sh-vchk" data-v="${v}" ${on ? 'checked' : ''} title="${esc(t('Show this view on the sheet'))}">`;
+      const state = !on || v === 'Iso' || v === 'Section' ? '' : per(v) ? `<b class="sh-vbad" title="${esc(t('Sizes missing in this view'))}">⚠ ${per(v)}</b>` : `<b class="sh-vok" title="${esc(t('Fully dimensioned'))}">✓</b>`;
+      const menu = !dims ? '<span></span>' : `<div class="menu sh-vmenu"><button class="mini sh-vmore ${vp[v] ? 'on' : ''}" data-vmore="${v}" title="${esc(t('How many dimensions in this view — as the sheet, or its own'))}">⋯</button>
+        <div class="menu-list"><div class="sh-vmhead">${esc(t('Dimensions in this view'))}</div>${[['', 'As the sheet'], ...PRESETS, ['all', 'All its sizes']].map(([k, l]) => `<button data-vpset="${k}" data-vpview="${v}" ${k === 'all' ? `title="${esc(t('Every size this view shows, also the ones given in another view'))}"` : ''}><i>${(vp[v] || '') === k ? '✓' : ''}</i>${esc(t(l))}</button>`).join('')}</div></div>`;
+      return `<div class="sh-vrow ${on ? '' : 'off'}" data-vrow="${v}">${chk}<span class="sh-vcell"><span class="sh-vname" data-vname="${v}" title="${esc(t('Double-click to rename the view'))}" data-no-i18n>${esc(this.viewName(v))}</span>${dims && vp[v] ? `<i class="sh-vtag" data-no-i18n>${esc(own(v))}</i>` : ''}</span>
+        <span class="sh-vstate">${state}</span>${menu}${this.scaleSelect(`data-vs="${v}" class="sh-vscale" ${on ? '' : 'disabled'}`, this.d.vscale?.[v], `${t('Sheet')} ${sheetSc}`, t('The view\'s scale — the sheet\'s, a standard one or your own (Custom…); a view at its own scale says it under its name'))}</div>`;
+    };
+    box.innerHTML = `<h3>Views</h3><div class="sh-views">${vrows.map(vrow).join('')}</div>
+      <p class="hint sh-vhint">${esc(t('Drag a view to move it (Shift: freely). Double-click a name to rename it.'))}</p>
       ${out.length ? `<p class="mp-bad sh-outside">⚠ ${esc(tv('{views}: past the frame — choose a smaller scale or a bigger paper.', { views: out.map((v) => this.viewName(v)).join(', ') }))}</p>` : ''}
-      ${this.d.asm ? '' : `<label class="check sh-secrow" title="${esc(t('The part cut through its middle (across X) and seen from the right, the cut hatched — in the right view\'s place; the cut marked A–A on the front view'))}"><input type="checkbox" data-sec ${this.d.section ? 'checked' : ''}> ${esc(t('Section A–A'))}</label>`}
       ${this.d.asm ? `<p class="hint">${esc(t('An assembly drawing: its views, overall sizes and parts list — each part has its own drawing for its sizes.'))}</p>` : ''}
       ${this.geo?.simple ? `<p class="hint sh-simple">${esc(!this.geo.simple.left_out ? t('A big part: drawn from its mesh, without hidden lines.') : tv('A big part: drawn from its mesh, without hidden lines; {n} pieces smaller than {mm} mm are left out (too small to see at this scale).', { n: this.geo.simple.left_out, mm: this.geo.simple.under }))}</p>` : ''}
       <h3 ${this.d.asm ? 'hidden' : ''}>Check</h3>${this.d.asm ? '' : ck.ok && !ck.over.size ? `<p class="mp-count sh-ok">✓ ${esc(t('Fully dimensioned — every place and size is given once.'))}</p>` : ''}
@@ -1020,8 +1030,11 @@ export class SheetEditor {
     for (const el of box.querySelectorAll('[data-vname]')) {
       el.addEventListener('dblclick', () => renameInPlace(el, (n) => this.setViewName(el.dataset.vname, n)));
     }
-    for (const el of box.querySelectorAll('[data-vp]')) {
-      el.addEventListener('change', () => { const vpr = { ...(this.d.vpreset || {}) }; if (el.value) vpr[el.dataset.vp] = el.value; else delete vpr[el.dataset.vp]; this.d.vpreset = vpr; this.history.commit(); this.ensure(true); });
+    for (const b of box.querySelectorAll('[data-vmore]')) { // ⋯ a view's own dimensions: a small menu
+      b.addEventListener('click', (e) => { e.stopPropagation(); const m = b.parentElement, was = m.classList.contains('open'); this.closeViewMenus(); m.classList.toggle('open', !was); });
+    }
+    for (const b of box.querySelectorAll('[data-vpset]')) {
+      b.addEventListener('click', () => { this.closeViewMenus(); this.setViewPreset(b.dataset.vpview, b.dataset.vpset || null); });
     }
     for (const row of box.querySelectorAll('[data-d]')) row.addEventListener('click', (e) => { if (!e.target.closest('[data-x]')) { this.sel = row.dataset.d; this.render(); } });
     for (const b of box.querySelectorAll('[data-x]')) b.addEventListener('click', () => this.remove(b.dataset.x));
@@ -1036,6 +1049,17 @@ export class SheetEditor {
     box.querySelector('[data-a=allMissing]')?.addEventListener('click', () => this.addAllMissing());
     box.querySelector('[data-a=dropTwice]')?.addEventListener('click', () => { for (const id of [...ck.dup, ...ck.over]) this.remove(id); });
   }
+
+  /** A view's own dimensions ('light' / 'medium' / 'full' / 'all'; null: as the sheet) — the sheet made again. */
+  setViewPreset(v, k) {
+    const vpr = { ...(this.d.vpreset || {}) };
+    if (k) vpr[v] = k; else delete vpr[v];
+    this.d.vpreset = vpr;
+    this.history.commit();
+    this.ensure(true);
+  }
+
+  closeViewMenus() { for (const m of document.querySelectorAll('#shLeft .sh-vmenu.open')) m.classList.remove('open'); }
 
   /** ＋ every missing size (one by one: each new one may give others, e.g. a row's pitch). */
   addAllMissing(limit = 60) {
@@ -1559,6 +1583,7 @@ export class SheetEditor {
   }
 
   key(e) {
+    if (e.key === 'Escape' && document.querySelector('#shLeft .sh-vmenu.open')) { this.closeViewMenus(); e.preventDefault(); return; }
     if (!this.active || e.target.closest?.('input,select,textarea,[contenteditable]')) return;
     if (e.key === 'Enter' && this.tool === 'dim' && this.pick?.edge) { this.edgeLength(this.pick.view, this.pick.edge); e.preventDefault(); return; } // its length
     if (e.key === 'Escape' && this.tool === 'dim') { if (this.pick) { this.pick = null; this.render(); } else this.action('dim'); e.preventDefault(); }
