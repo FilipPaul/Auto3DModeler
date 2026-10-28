@@ -145,6 +145,9 @@ part's steps up to the split and one piece kept. The cut faces are named `<step>
 
 **A click on a face of a 3D model** chooses its step and shows its tools in the Suggested table (bottom left) — the
 table can be **dragged by its header** anywhere in the view, and stays there (a double-click on the header: back).
+The same goes for every box floating over a view — 🖨 Print check, 📏 Measure, the ✂ Section bar, the size editor and
+the sketch's small boxes: drag the header (or the **⠿** strip), **resize** with the grip in the bottom-right corner;
+the place and size are remembered, and a double-click on the header puts the box back where it started.
 Its **✨** puts what is selected into the AI chat — as the AI's tools name it (a step and a face, sketch shapes,
 assembly parts) — so you can ask about it. The **Snap** row under it (3D model, assembly) says what 📏 Measure catches:
 corners, edge midpoints, centres. With **no tool on**, the snap point under the mouse shows too and a click picks it

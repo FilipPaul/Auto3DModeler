@@ -113,8 +113,8 @@ try:
     x0 = head.rect["x"]
     ActionChains(d, duration=40).move_to_element(head).click_and_hold().move_by_offset(160, -120).release().perform()
     time.sleep(0.3)
-    print("  dragged by its header:", round(d.find_element(By.CSS_SELECTOR, "#modelViewport .view-suggest").rect["x"] - x0), "px | remembered:", bool(js("return localStorage.getItem('a3d.suggestAt')")))
-    js("localStorage.removeItem('a3d.suggestAt'); document.querySelector('#modelViewport .view-suggest')?.remove()")
+    print("  dragged by its header:", round(d.find_element(By.CSS_SELECTOR, "#modelViewport .view-suggest").rect["x"] - x0), "px | remembered:", bool(js("return localStorage.getItem('a3d.box.suggest')")))
+    js("localStorage.removeItem('a3d.box.suggest'); document.querySelector('#modelViewport .view-suggest')?.remove()")
     rclick([20, 20, 5])
     print("a right click: no menu (it only pans):", not d.find_elements(By.CSS_SELECTOR, ".m-fmenu"))
     click([20, 20, 5])

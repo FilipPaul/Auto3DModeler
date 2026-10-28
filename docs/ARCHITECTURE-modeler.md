@@ -806,6 +806,19 @@ Date: 2026-10-25. Written by the architect agent.
   that is) and kernel.material_along (the part's depth under the hole, a blind hole's own depth) — a head wider than
   the face or as deep as the part is an issue with the most that fits ("at most Ø6.4"), never cut through.
   test_hole_head_fits; tools/e2e_sheet_hole_callouts.py (the AI's M3 ⌵ on a 2 mm plate).
+- **Floating boxes moved and resized done:** web/js/floatbox.js floatBox(box, viewport, {kind, handle, remember,
+  min, onDefault}) — called after a box is put in its view (again after its content is re-rendered): dragged by its
+  header (or a slim ⠿ .fb-strip added on top / at a bar's left end), resized by the .fb-size grip in its bottom-right
+  corner (pointer events, window listeners in the capture phase; min sizes, the content scrolls), the one in hand on
+  top (.fb-front), kept inside the view and under the command bar (a ResizeObserver on the view pulls it back in),
+  remembered per kind in localStorage a3d.box.<kind> ({ax, dx, ay, dy} from the nearer side of the view + {w, h}); a
+  double-click on the header forgets it (back at the caller's default place). Clicks on its buttons / fields neither
+  drag nor reach the 3D view. Covered: the suggestions table (suggest; was a3d.suggestAt), 🖨 Print check
+  (printcheck), 📏 Measure (measure — 3D model and assembly), ✂ Section (section), and in sketches ⇋ Mirror, ⁂ Pattern,
+  the quick size box (sk-mirror / sk-pattern / sk-quick); the boxes that open by the mouse — the size editor
+  (dimedit), ⧈ Offset by, "Which distance?" — keep only their size (remember 'size'). Not covered yet: the 2D
+  drawing editor's .dw-measure line; the drawing sheet editor (sheet.js) has no box floating over its sheet.
+  tools/e2e_floatboxes.py.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.
