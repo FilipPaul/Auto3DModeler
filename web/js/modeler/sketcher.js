@@ -297,7 +297,8 @@ export class Sketcher {
         if (!moved) { moved = true; this.step(); this.sizeDrag = key; this.hoverSize = { key, what }; }
         const uv = this.m.view.planePoint(e.clientX, e.clientY, this.frame());
         if (!uv) return;
-        this.f.place = { ...(this.f.place || {}), [key]: +at(uv).toFixed(4) };
+        const v = at(uv);
+        this.f.place = { ...(this.f.place || {}), [key]: Array.isArray(v) ? v : +v.toFixed(4) };
         this.draw();
       };
       const up = () => {
@@ -988,7 +989,8 @@ export class Sketcher {
     if (drag?.size) { // a dimension dragged by its line: its place, as when its label is dragged
       if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 3) return;
       if (!drag.moved) { drag.moved = true; this.step(); this.sizeDrag = drag.size.key; this.hoverSize = { key: drag.size.key, what: drag.size.what }; }
-      this.f.place = { ...(this.f.place || {}), [drag.size.key]: +drag.size.at(uv).toFixed(4) };
+      const v = drag.size.at(uv);
+      this.f.place = { ...(this.f.place || {}), [drag.size.key]: Array.isArray(v) ? v : +v.toFixed(4) };
       this.draw();
       return;
     }
@@ -2282,6 +2284,22 @@ export class Sketcher {
       const L = Math.hypot(d[0], d[1]) || 1, ux = d[0] / L, uy = d[1] / L, k = mpp * 7;
       for (const s of [0.42, -0.42]) lines.push([p, [p[0] - k * (ux * Math.cos(s) - uy * Math.sin(s)), p[1] - k * (ux * Math.sin(s) + uy * Math.cos(s))], col]);
     };
+    // a round size: its label at an angle and a distance from the centre; as Ø a line across the circle (arrows on
+    // both rims), as R a line from the centre (an arrow on the rim) — out to the label when it is outside
+    const roundDim = (c, r, th, dist, dia, col) => {
+      const u = [Math.cos(th), Math.sin(th)], rim = [c[0] + u[0] * r, c[1] + u[1] * r], at = [c[0] + u[0] * dist, c[1] + u[1] * dist];
+      const out = dist > r ? at : rim, start = dia ? [c[0] - u[0] * r, c[1] - u[1] * r] : c;
+      lines.push([start, out, col, true]);
+      arrow(rim, u, col);
+      if (dia) arrow(start, [-u[0], -u[1]], col);
+      return { at, grab: [start, out] };
+    };
+    // dragging it: its angle and distance; dropped inside the circle it shows as Ø, outside as R
+    const roundAt = (id, c, r) => (uv) => {
+      const d = Math.hypot(uv[0] - c[0], uv[1] - c[1]);
+      this.f.rd = { ...(this.f.rd || {}), [id]: d < r ? 'd' : 'r' };
+      return [+Math.atan2(uv[1] - c[1], uv[0] - c[0]).toFixed(4), +Math.max(d, mpp * 4).toFixed(4)];
+    };
     const dimLine = (a, b, a2, b2, col) => { // (dashed: they show what is measured without standing out)
       const over = (p, q) => { const d = [q[0] - p[0], q[1] - p[1]], L = Math.hypot(d[0], d[1]); return L < 1e-9 ? q : [q[0] + (d[0] / L) * mpp * 3, q[1] + (d[1] / L) * mpp * 3]; };
       if (Math.hypot(a2[0] - a[0], a2[1] - a[1]) > 1e-9) lines.push([a, over(a, a2), col, true]);
@@ -2339,11 +2357,10 @@ export class Sketcher {
         for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], col, !!e.construction]);
         const m = ps[Math.floor(ps.length / 2)], c = this.P(e.c), r = this.arcR(e) || 1;
         if (showSize({ t: 'rad', e: e.id })) {
-          const key = `rad:${e.id}`, th = place[key] ?? Math.atan2(m[1] - c[1], m[0] - c[0]), rim = [c[0] + r * Math.cos(th), c[1] + r * Math.sin(th)];
-          const at = [rim[0] + Math.cos(th) * mpp * 16, rim[1] + Math.sin(th) * mpp * 16];
-          { const col = this.findDim({ t: 'rad', e: e.id }) ? DIM_ON : DIM_FREE; lines.push([c, at, col, true]); arrow(rim, [rim[0] - c[0], rim[1] - c[1]], col); }
+          const key = `rad:${e.id}`, pl = place[key], col = this.findDim({ t: 'rad', e: e.id }) ? DIM_ON : DIM_FREE;
+          const { at, grab } = roundDim(c, r, Array.isArray(pl) ? pl[0] : pl ?? Math.atan2(m[1] - c[1], m[0] - c[0]), Array.isArray(pl) ? pl[1] : r + mpp * 16, this.roundAs(e.id) === 'd', col);
           labels.push(this.movable(this.label({ t: 'rad', e: e.id }, at[0], at[1], this.roundAs(e.id) === 'd' ? `Ø${fmt(2 * r)}` : `R${fmt(r)}`, 'Radius'), key,
-            (uv) => Math.atan2(uv[1] - c[1], uv[0] - c[0]), { lines: ps.slice(1).map((p, i) => [ps[i], p]), pts: [c] }, [[rim, at]]));
+            roundAt(e.id, c, r), { lines: ps.slice(1).map((p, i) => [ps[i], p]), pts: [c] }, [grab]));
         }
       } else if (e.t === 'spline') {
         const ps = this.splineOf(e), col = isSel(e) ? SEL : colourOf(e);
@@ -2357,16 +2374,10 @@ export class Sketcher {
           }
         } else circles.push([c, e.r, isSel(e) ? SEL : colourOf(e)]);
         if (showSize({ t: 'dia', e: e.id })) {
-          const key = `dia:${e.id}`, th = place[key] ?? Math.PI / 4, rim = [c[0] + e.r * Math.cos(th), c[1] + e.r * Math.sin(th)];
-          const at = [rim[0] + Math.cos(th) * mpp * 22, rim[1] + Math.sin(th) * mpp * 22];
-          { // a leader through the centre, arrows on the rim
-            const far = [c[0] - e.r * Math.cos(th), c[1] - e.r * Math.sin(th)], col = this.findDim({ t: 'dia', e: e.id }) ? DIM_ON : DIM_FREE;
-            lines.push([far, at, col, true]);
-            arrow(rim, [rim[0] - c[0], rim[1] - c[1]], col);
-            arrow(far, [far[0] - c[0], far[1] - c[1]], col);
-          }
+          const key = `dia:${e.id}`, pl = place[key], col = this.findDim({ t: 'dia', e: e.id }) ? DIM_ON : DIM_FREE;
+          const { at, grab } = roundDim(c, e.r, Array.isArray(pl) ? pl[0] : pl ?? Math.PI / 4, Array.isArray(pl) ? pl[1] : e.r + mpp * 22, this.roundAs(e.id) !== 'r', col);
           labels.push(this.movable(this.label({ t: 'dia', e: e.id }, at[0], at[1], this.roundAs(e.id) === 'r' ? `R${fmt(e.r)}` : `Ø${fmt(2 * e.r)}`, 'Diameter'), key,
-            (uv) => Math.atan2(uv[1] - c[1], uv[0] - c[0]), { circles: [[c, e.r]] }, [[rim, at]]));
+            roundAt(e.id, c, e.r), { circles: [[c, e.r]] }, [grab]));
         }
       }
     }

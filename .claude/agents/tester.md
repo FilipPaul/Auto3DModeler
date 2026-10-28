@@ -172,7 +172,8 @@ Never report "works" without having run it; report failures with their output.
    not picked; the origin's suggestions; a midpoint + the circle: a distance from the middle held at 40; a dimension
    dragged by its line, the shapes not moved; the circle as R: its box shows 5, 5 typed -> Ø 10; an off-grid line: the
    mouse near its middle snaps there, a line drawn from its middle to a place on it — mid / on rules, exactly on it;
-   guides beside / above a corner; Ctrl+Z then Ctrl+Y gives the shape back). Needs a server
+   guides beside / above a corner; Ctrl+Z then Ctrl+Y gives the shape back; the circle's size label dragged far out:
+   R at its place, dragged inside: Ø). Needs a server
    restarted after constraints.py changes.
    `tools/e2e_suggest.py <url> <dir>` covers the suggestions table (a sketch line: its length, h, v, construction —
    bottom left; + a crossing line: angle, parallel, perpendicular, equal (Equal made); a line + a circle: tangent, from
