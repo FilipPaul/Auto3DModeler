@@ -408,6 +408,15 @@ Date: 2026-10-25. Written by the architect agent.
   constraints symmetric_point), the part's corners / centres, a place on a sketch line / circle / arc (an `on` rule) or
   on the part's straight / round edges, then the grid; the snap named at the mouse (midpoint, on the line …).
   test_point_held_at_a_lines_middle; e2e_sketch_pick (an off-grid line: from its middle to a place on it).
+- **Guides when placing on a face done:** web/js/modeler/facesnap.js — snapOnFace (faceKeys: the face's edges'
+  snapPoints by snapKinds, its centre from view.faceSpan, view.refPoints, extra keys: this step's holes) as
+  Sketcher.snap: onto a key, onto the face's edges, else level with a key along the face's x / y or on a straight
+  edge's extension, both: the crossing; snapDrawing (the guides dashed green, the spot ringed and named, .face-snap).
+  Modeler.faceSpot / showSpot (pointermove for ◎ Hole and Aa Text; Shift / Alt free) — the hole's preview: a ring of
+  Ø d and its nearestEdges distances (drawHoleDims(at)); clickHole / clickDecal place on the snap. Stored meaning: a
+  coordinate taken from another hole of the step -> from {hole: j, d: 0}, from an earlier hole's rim -> {edge, round};
+  else the nearest edges as before (the middle line = half the width from an edge, not "the middle" — no such ref).
+  suggest.js snapKinds.guides (┆ Guides in the Snap row, shown while a hole / text is placed). e2e_model_hole_guides.
 - **Tree pictures, drag into an assembly, library icon, middle-click close done:** thumbs.js (bodyOf: a light rebuild
   kept by its steps; picture: one offscreen renderer, iso; svgPicture for sheets) via hooks.thumb (sub-assemblies
   placed); Project.showPreview / hidePreview (.tr-preview beside the row); tree rows draggable (text/a3d-insert) —
@@ -773,6 +782,17 @@ Date: 2026-10-25. Written by the architect agent.
   depths from the geometry), /api/model/limits; failures explained with the most that fits (doc._sized).
 - **Sketch relations done:** par / perp / eq / conc / coin / tang / fix (+ h / v) set by the user (constraints.py
   _relation; sketcher RELATIONS, symbols, list; collapsing solutions refused). tools/e2e_model_relations.py.
+- **Hole callouts on sheets done:** doc._holes (each hole step's d / thread / depth / head / fit / teardrop; _head_sizes
+  shared with the hole feature) -> sheet.build(holes) -> geometry.holes; auto_dims gives each step's holes one dia dim
+  {hole: step} in the first view showing them round (sheet._step: "<step>:hole|cbore|csk:k", a pattern's copy too), its
+  head's circle no Ø of its own; the text (sheet.callout / SheetEditor.calloutRest): "4× Ø3.4 THRU", "M5 ↧ 8",
+  "Ø3.4 ⌴ Ø6 ↧ 3.2", "M3 ⌵ Ø5 × 90°", "Ø8 H7 THRU", "Ø6 THRU ▲". The check: a callout gives its step's Ø, head Ø, angle,
+  depths and its head's edges; without it a countersink's angle (an ang dim on its cone), a counterbore's / blind
+  depth (a linear dim on cbore_floor / bottom) are missing items {kind: hole, hole, key: the hole circle}; ＋, the AI's
+  complete and add {circle} on a hole circle add the callout (calloutFor). PDF: MuPDF takes ⌴ ⌵ ↧ ▲ from its Noto
+  Symbols fallback (the text extracts as typed); DXF: the dimension's own text (Unicode, the drafting program's font
+  shows it). Also: suppressed hole steps no longer feed the sheet's fits / threads. test_hole_callouts (+ the 171-hole
+  plate: one "171×" callout); tools/e2e_sheet_hole_callouts.py.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

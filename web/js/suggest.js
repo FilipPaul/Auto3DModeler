@@ -18,11 +18,12 @@ export function hoverKinds() {
   return { edges: true, points: true, ...(saved || {}) };
 }
 
-/** The 3D snap filters (what 📏 Measure catches): {corner, midpoint, centre} (remembered). */
+/** The 3D snap filters (what 📏 Measure catches, and a spot placed on a face): {corner, midpoint, centre, quadrant,
+ *  guides} (guides: in line with those while a hole / text is placed — modeler/facesnap.js) (remembered). */
 export function snapKinds() {
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(SNAP_KEY) || 'null'); } catch { saved = null; }
-  return { corner: true, midpoint: true, centre: true, quadrant: false, ...(saved || {}) }; // (quadrants: asked for — near a rim they would take a click meant for it)
+  return { corner: true, midpoint: true, centre: true, quadrant: false, guides: true, ...(saved || {}) }; // (quadrants: asked for — near a rim they would take a click meant for it)
 }
 
 /** The row of 3D snap filters in the bottom-left corner of a view (the Suggested table above it). */
@@ -35,9 +36,9 @@ export function showSnapFilters(viewport, on = true) {
     for (const ev of ['pointerdown', 'pointerup', 'click']) bar.addEventListener(ev, (x) => x.stopPropagation());
     viewport.appendChild(bar);
   }
-  const k = snapKinds(), F = [['corner', '⌜', 'Corners'], ['midpoint', '⊹', 'Edge midpoints'], ['centre', '◎', 'Centres'], ['quadrant', '◔', 'Quadrants']];
+  const k = snapKinds(), F = [['corner', '⌜', 'Corners'], ['midpoint', '⊹', 'Edge midpoints'], ['centre', '◎', 'Centres'], ['quadrant', '◔', 'Quadrants'], ['guides', '┆', 'Guides']];
   const hk = hoverKinds(), HV = [['edges', '⟋', 'Edges'], ['points', '•', 'Snap points']];
-  bar.innerHTML = `<span class="skf-t">${esc(t('Snap'))}:</span>${F.map(([key, i, l]) => `<button class="${k[key] ? 'on' : ''}" data-snap="${key}" title="${esc(`${t(l)}: ${t('What 📏 Measure and a click catch — click to switch')}`)}">${i} <span class="skf-l">${esc(t(l))}</span></button>`).join('')}
+  bar.innerHTML = `<span class="skf-t">${esc(t('Snap'))}:</span>${F.map(([key, i, l]) => `<button class="${k[key] ? 'on' : ''}" data-snap="${key}" title="${esc(`${t(l)}: ${t(key === 'guides' ? 'Line up a hole or a text with corners, midpoints and centres while placing it — click to switch' : 'What 📏 Measure and a click catch — click to switch')}`)}">${i} <span class="skf-l">${esc(t(l))}</span></button>`).join('')}
     <span class="sep"></span><span class="skf-t">${esc(t('Hover'))}:</span>${HV.map(([key, i, l]) => `<button class="${hk[key] ? 'on' : ''}" data-hover="${key}" title="${esc(`${t(l)}: ${t(key === 'edges' ? 'Light up the edge under the mouse (a line or a circle) — click to switch' : 'Show the snap points of the step / face under the mouse — click to switch')}`)}">${i} <span class="skf-l">${esc(t(l))}</span></button>`).join('')}`;
   const flip = (store, read, key) => {
     const now = { ...read(), [key]: !read()[key] };

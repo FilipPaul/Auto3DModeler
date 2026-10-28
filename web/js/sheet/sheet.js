@@ -1,6 +1,6 @@
 // The drawing sheet of a 3D model part (📄): its views (front, top, right, iso) on an A4 / A3 page with a title block,
 // and dimensions — made automatically for a preset (light / medium / full, auto3d/modeler/sheet.py: holes alike once,
-// "8× Ø3 H7", a row by its pitch), moved by dragging, deleted (Del; an automatic one can be brought back), and added by
+// "8× Ø3 H7", a row by its pitch; a hole step's holes one callout "4× M3 ⌵ Ø5 × 90°"), moved by dragging, deleted (Del; an automatic one can be brought back), and added by
 // clicking two points or a circle. A value is always measured from the part, never typed. The sheet follows its part:
 // when the part changes the views and dimensions are made again, the revision goes up and the title block says when.
 // The PDF is the same SVG the editor shows (/api/sheet/pdf); so is the DXF (/api/sheet/dxf: the paper 1:1 in mm, a layer
@@ -23,6 +23,9 @@ const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const VIEWS = ['Front', 'Top', 'Right'];
 const PRESETS = [['light', 'Light'], ['medium', 'Medium'], ['full', 'Full']];
 const TEXTS = [['title', 'Title'], ['number', 'Drawing no.'], ['drawn', 'Drawn by'], ['note', 'Note']];
+/** A circle of a hole step (its key has "<step>:hole:k" / ":cbore:k" / ":csk:k"; a pattern's copy "P1:2:H1:hole:0" too)
+ *  -> [step id, 'hole' | 'head'], or null. */
+const stepOf = (key) => { const m = /(?:^|[+:])([^:+]+):(hole|cbore|csk):\d+/.exec(key || ''); return m ? [m[1], m[2] === 'hole' ? 'hole' : 'head'] : null; };
 const when = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 
 /** 4 × 4 placement matrices (column-major, as three.js keeps them): a · b. */
@@ -216,10 +219,29 @@ export class SheetEditor {
   }
 
   dimText(d, v) {
-    if (d.kind === 'dia') return `${d.count > 1 ? `${d.count}× ` : ''}${d.thread || `Ø${fmt(v)}`}${d.post || ''}`; // (a threaded hole: M5)
+    if (d.kind === 'dia') return `${d.count > 1 ? `${d.count}× ` : ''}${d.thread || `Ø${fmt(v)}`}${d.post || ''}${d.hole ? this.calloutRest(d.hole) : ''}`; // (a threaded hole: M5)
     if (d.kind === 'rad') return `${d.count > 1 ? `${d.count}× ` : ''}R${fmt(v)}`;
     if (d.kind === 'ang') return `${fmt(+v.toFixed(1))}°`;
     return `${d.pre || ''}${fmt(v)}`;
+  }
+
+  /** What a hole callout says after the hole's size (ISO 129; as sheet.py callout): its depth ↧ — THRU when it has
+   *  neither a thread nor a head —, its head (⌴ Ø6 ↧ 3.2 a counterbore, ⌵ Ø5 × 90° a countersink), ▲ a teardrop. */
+  calloutRest(step) {
+    const h = this.geo?.holes?.[step];
+    if (!h) return '';
+    let out = h.through ? (h.thread || h.head ? '' : ` ${t('THRU')}`) : ` ↧ ${fmt(h.depth)}`;
+    if (h.head === 'cbore') out += ` ⌴ Ø${fmt(h.head_d)} ↧ ${fmt(h.head_depth)}`;
+    if (h.head === 'csk') out += ` ⌵ Ø${fmt(h.head_d)} × ${fmt(h.head_angle)}°`;
+    return out + (h.teardrop ? ' ▲' : '');
+  }
+
+  /** A hole callout on a hole step's circle in view `v` (all that step's holes there: "4× …"), or null (not a hole). */
+  calloutFor(v, key) {
+    const s = stepOf(key), h = s && this.geo?.holes?.[s[0]], cs = h ? this.geo.views[v].circles.filter((c) => c.full && stepOf(c.key)?.[0] === s[0] && stepOf(c.key)[1] === 'hole') : [];
+    if (!cs.length) return null;
+    const c = cs.find((x) => x.key === key) || cs[0];
+    return { view: v, kind: 'dia', a: c.key, count: cs.length, hole: s[0], ang: 45, len: 6, ...(h.thread ? { thread: h.thread } : {}), ...(h.fit ? { post: ` ${h.fit}` } : {}) };
   }
 
   // ------------------------------------------------------------------ drawing (one SVG for the screen and the PDF)
@@ -705,8 +727,10 @@ export class SheetEditor {
   /** The part's sizes as a reader of the drawing finds them. On each axis of the part (x: across in the front and top;
    *  y: up in the top, across in the right; z: up in the front and right) every place that needs one — a circle's
    *  centre, a straight edge, the far end — must be linked by dimensions to the part's lowest place there (a pitch
-   *  "4× 10" links its whole row); every circle needs its Ø, every arc its R. -> {missing: [{view, dir, at, key, what}],
-   *  dup: Set (the same distance twice), over: Set (a distance the others give already), ok}. */
+   *  "4× 10" links its whole row); every circle needs its Ø, every arc its R. A hole step needs what makes it: its
+   *  callout gives it all (its head's circles and edges too); else a countersink's angle, a counterbore's or a blind
+   *  hole's depth by their own dimensions. -> {missing: [{view, dir, at, key, what, hole?}], dup: Set (the same
+   *  distance twice), over: Set (a distance the others give already), ok}. */
   check() {
     const G = this.geo;
     if (!G) return null;
@@ -727,6 +751,8 @@ export class SheetEditor {
       if (n > 1) for (let i = 1; i < n; i++) join(ax, r2(a + i * (b - a)), r2(a + (i + 1) * (b - a))); // the rest of the row
     }
     const fullR = new Set(dims.filter((d) => d.kind === 'dia' && this.value(d) !== null).map((d) => r2(this.value(d) / 2)));
+    const holes = G.holes || {}, called = new Set(dims.filter((d) => d.hole && holes[d.hole] && shown.includes(d.view) && this.value(d) !== null).map((d) => d.hole));
+    for (const id of called) if (holes[id].head) fullR.add(r2(holes[id].head_d / 2)); // (its callout gives its head's Ø)
     const arcR = new Set(dims.filter((d) => d.kind === 'rad' && this.value(d) !== null).map((d) => r2(this.value(d))));
     // a circle of a known size: its edges are where its centre is ± its radius (a tangent edge, a boss's side)
     for (const v of shown) {
@@ -746,23 +772,40 @@ export class SheetEditor {
 
     const decals = new Set((this.hooks.partData(this.d.source)?.features || []).filter((f) => f.type === 'decal').map((f) => f.id));
     const deco = (key) => decals.size > 0 && key.split('+').some((n) => decals.has(n.split(':')[0])); // (an edge of a decal step's faces)
-    const diaTold = new Set();
+    const diaTold = new Set(), holeAt = {};
+    const stepFace = (key, face) => [...(key || '').matchAll(new RegExp(`(?:^|[+:])([^:+]+):(${face}):\\d+`, 'g'))].map((m) => m[1]); // (the hole steps a key's faces are of)
+    const inCallout = (key) => stepFace(key, 'csk|cbore|cbore_floor|cbore_tear|bottom').some((id) => called.has(id));
     for (const v of shown) {
       const g = G.views[v];
       for (const c of g.circles) {
         if (deco(c.key)) continue; // (text / a picture on a face: not sized)
+        const st = stepOf(c.key), h = st && holes[st[0]];
+        if (h && st[1] === 'hole' && !holeAt[st[0]]) holeAt[st[0]] = { view: v, c };
         if (c.full) {
           for (const k of [0, 1]) need(v, k, c.c[k], `${c.key}#c`, c.c, `Ø${fmt(2 * c.r)}`);
-          if (!fullR.has(r2(c.r)) && !diaTold.has(`d${r2(c.r)}`)) { diaTold.add(`d${r2(c.r)}`); missing.push({ view: v, kind: 'dia', key: c.key, at: c.pm, what: `Ø${fmt(2 * c.r)}` }); }
+          if (h && called.has(st[0])) continue; // (its callout gives it)
+          const what = !h ? `Ø${fmt(2 * c.r)}` : st[1] === 'head' ? tv(h.head === 'csk' ? "the countersink's Ø{d} ({id})" : "the counterbore's Ø{d} ({id})", { d: fmt(2 * c.r), id: st[0] }) : `${h.thread || `Ø${fmt(2 * c.r)}`} (${st[0]})`;
+          if (!fullR.has(r2(c.r)) && !diaTold.has(`d${r2(c.r)}`)) { diaTold.add(`d${r2(c.r)}`); missing.push({ view: v, kind: 'dia', key: c.key, at: c.pm, what, ...(h ? { hole: st[0] } : {}) }); }
         } else if (!arcR.has(r2(c.r)) && !diaTold.has(`r${r2(c.r)}`)) { diaTold.add(`r${r2(c.r)}`); missing.push({ view: v, kind: 'rad', key: c.key, at: c.pm, what: `R${fmt(c.r)}` }); }
       }
       for (const ln of g.lines) {
-        if (/:round:|[:_]tear:/.test(ln.key) || deco(ln.key)) continue; // where a rounding begins: its R gives it; a teardrop's point: its Ø; text / a picture: decoration
+        if (/:round:|[:_]tear:/.test(ln.key) || deco(ln.key) || inCallout(ln.key)) continue; // where a rounding begins: its R gives it; a teardrop's point: its Ø; text / a picture: decoration; a head's edges: its callout
         if (Math.abs(ln.a[0] - ln.b[0]) < 1e-3) need(v, 0, ln.a[0], `${ln.key}#0`, [(ln.a[0] + ln.b[0]) / 2, (ln.a[1] + ln.b[1]) / 2], t('an edge'));
         if (Math.abs(ln.a[1] - ln.b[1]) < 1e-3) need(v, 1, ln.a[1], `${ln.key}#0`, [(ln.a[0] + ln.b[0]) / 2, (ln.a[1] + ln.b[1]) / 2], t('an edge'));
       }
       need(v, 0, g.box[2], 'box#x1', [g.box[2], g.box[1]], t('the far end'));
       need(v, 1, g.box[3], 'box#y1', [g.box[2], g.box[3]], t('the top'));
+    }
+    // a hole step without its callout: what no circle shows — a countersink's angle, a counterbore's / a blind hole's depth
+    const gives = (id, face, kind) => dims.some((d) => d.kind === kind && this.value(d) !== null && shown.includes(d.view) && [d.a, d.b].some((k) => stepFace(k, face).includes(id)));
+    for (const [id, h] of Object.entries(holes)) {
+      const at = holeAt[id];
+      if (called.has(id) || !at) continue;
+      const lack = [];
+      if (h.head === 'csk' && !gives(id, 'csk', 'ang')) lack.push(tv("the countersink's angle ({id})", { id }));
+      if (h.head === 'cbore' && !gives(id, 'cbore_floor', 'linear')) lack.push(tv("the counterbore's depth ({id})", { id }));
+      if (!h.through && !gives(id, 'bottom', 'linear')) lack.push(tv(h.thread ? "the thread's depth ({id})" : "the hole's depth ({id})", { id }));
+      for (const what of lack) missing.push({ view: at.view, kind: 'hole', hole: id, key: at.c.key, at: [at.c.c[0] + at.c.r * 0.7, at.c.c[1] - at.c.r * 0.7], what });
     }
     return { missing, dup, over, ok: !missing.length && !dup.size };
   }
@@ -839,6 +882,8 @@ export class SheetEditor {
 
   /** ＋ a missing size: from the part's lowest place in that view to it (a Ø / R on its circle). */
   addMissing(m) {
+    const co = m.hole && this.calloutFor(m.view, m.key); // (a hole step's size, head, depth: its callout gives them all)
+    if (co) { this.addUser(co); return; }
     if (m.kind === 'dia' || m.kind === 'rad') { this.addUser({ view: m.view, kind: m.kind, a: m.key, count: 1, ang: m.kind === 'dia' ? 45 : 0, len: 6 }); return; }
     const n = this.d.user.filter((d) => d.view === m.view && d.dir === m.dir).length;
     this.addUser({ view: m.view, kind: 'linear', a: m.dir === 'h' ? 'box#x0' : 'box#y0', b: m.key, dir: m.dir, side: m.dir === 'h' ? 'b' : 'l', off: 20 + 7 * n });
@@ -941,7 +986,7 @@ export class SheetEditor {
     if (!pk) {
       if (s) { this.pick = s; this.render(); return; }
       if (e) { this.pick = { view: e.view, edge: e.edge }; this.hint(t('An edge: click it again for its length, or another edge / a point for the distance.')); this.render(); return; }
-      if (ci) { this.addUser({ view: ci.view, kind: ci.c.full ? 'dia' : 'rad', a: ci.c.key, count: 1, ang: ci.c.full ? 45 : 0, len: 6 }); return; }
+      if (ci) { this.addUser((ci.c.full && this.calloutFor(ci.view, ci.c.key)) || { view: ci.view, kind: ci.c.full ? 'dia' : 'rad', a: ci.c.key, count: 1, ang: ci.c.full ? 45 : 0, len: 6 }); return; } // (a hole: its callout)
       this.hooks.toast(t('Click a point (an orange dot), an edge or the line of a circle.'), 'info', 2500);
       return;
     }
@@ -1139,13 +1184,15 @@ export class SheetEditor {
   }
 
   /** For the AI: a dimension added — {view, a, b, dir?} (two point keys; dir "h" / "v", else by the points) or
-   *  {view, circle: key} (its Ø, or R of an arc) -> its id. */
+   *  {view, circle: key} (its Ø, or R of an arc; a hole step's circle: its callout "M3 ⌵ Ø5 × 90°") -> its id. */
   addFor(spec) {
     const g = this.geo?.views[spec.view];
     if (!g) throw new Error(`view is one of ${VIEWS.join(', ')}.`);
     if (spec.circle) {
       const c = g.circles.find((x) => x.key === spec.circle);
       if (!c) throw new Error(`No circle ${spec.circle} in ${spec.view} — get_sheet {points: "${spec.view}"} lists them.`);
+      const co = c.full && !spec.post && this.calloutFor(spec.view, c.key);
+      if (co) { this.addUser(co); return this.sel; }
       this.addUser({ view: spec.view, kind: c.full ? 'dia' : 'rad', a: c.key, count: Math.max(1, +spec.count || 1), ang: c.full ? 45 : 0, len: 6, ...(spec.post ? { post: ` ${spec.post}` } : {}) });
       return this.sel;
     }

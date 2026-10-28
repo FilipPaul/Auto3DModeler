@@ -415,10 +415,10 @@ TOOLS = [
      "inputSchema": _obj({"part": STR})},
     {"name": "get_sheet", "where": "browser",
      "description": "The drawing sheet on screen: its part, preset, paper, revision, views and dimensions [{id, view, kind (linear / dia / rad), "
-                    "text (as drawn, e.g. \"8× Ø3 H7\"), auto (made by the preset) or the user's, lost (its points are gone)}]. "
+                    "text (as drawn, e.g. \"8× Ø3 H7\"; a hole step's callout \"4× M3 ⌵ Ø5 × 90°\", \"Ø3.4 ⌴ Ø6 ↧ 3.2\", \"M5 ↧ 8\", \"Ø3.4 THRU\"), auto (made by the preset) or the user's, lost (its points are gone)}]. "
                     "points: a view's name (Front / Top / Right) — also its points (keys: a hole's centre \"H1:hole:0#c\", a line's ends "
                     "\"<faces>#0\" / \"#1\", the view box \"box#x0\" / \"box#x1\" / \"box#y0\" / \"box#y1\") and circles, to add dimensions. "
-                    "check: is it fully dimensioned — the sizes missing (each place linked by dimensions to the part's edge, every Ø / R; [its point key or circle] for sheet_edit add; text and pictures on faces left out) and the "
+                    "check: is it fully dimensioned — the sizes missing (each place linked by dimensions to the part's edge, every Ø / R, a hole's countersink angle / counterbore depth / blind depth unless its callout gives them; [its point key or circle] for sheet_edit add; text and pictures on faces left out) and the "
                     "dimensions that give a size twice. An assembly's sheet also has parts_list [{pos, name, part, qty, instances (its "
                     "placed parts), balloon {at_mm, points_to (the placed part it points at)} or null}] — one balloon per item; a "
                     "sub-assembly is one item (its parts are on its own page).",
@@ -428,7 +428,7 @@ TOOLS = [
                     "Right: light / medium / full / null} (a view's own, null: as the sheet), paper A4 / A3 / null, "
                     "views {Front | Top | Right | Iso: true / false}, remove [dimension ids], restore true (the deleted automatic ones "
                     "back), move {id: {side (h: t / b; v: l / r), off (mm from the view on the paper), ang, len (a Ø / R leader)}}, "
-                    "add [{view, a, b, dir (h / v; else by the points), pre (text before, e.g. \"4×\")} | {view, circle (its key), "
+                    "add [{view, a, b, dir (h / v; else by the points), pre (text before, e.g. \"4×\")} | {view, circle (its key; a hole's: its whole callout), "
                     "count, post (e.g. \"H7\")} or {view, edges: [<edge>, <edge>]} (two edges meeting at an angle: the angle)], complete true (every size the check finds missing added), drop_twice true (dimensions giving a size twice removed), texts {title, number (drawing no.), drawn (drawn by), note} (the title block's own; \"\" clears) — fits {<a Ø dimension's id>: \"H7\" (a hole: H6 … H9) / \"h6\" (a shaft: f7, g6, h6, k6, m6, p6) or null} — values are always measured from the part. Do what the user cannot do in a click.",
      "inputSchema": _obj({"preset": {"type": "string", "enum": ["light", "medium", "full"]}, "view_presets": {"type": "object"}, "paper": {"type": ["string", "null"]}, "views": {"type": "object"},
                           "remove": {"type": "array", "items": STR}, "restore": {"type": "boolean"}, "move": {"type": "object"},

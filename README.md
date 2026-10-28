@@ -307,8 +307,14 @@ SolidWorks. It has only the tools that need almost no input.
 
 4. **◜ Fillet** (F) rounds edges and **◸ Chamfer** bevels them. Click the edges (a click on a face takes all of its
    edges; a picked edge is dropped by clicking it again), then type the radius or size. **◎ Hole** (H): click on a
-   flat face where a hole goes (near the centre it snaps to it; click again for more holes on the same face), and
-   type the diameter. It goes through all by default, or untick *Through all* and give a depth. *Head* adds room
+   flat face where a hole goes (click again for more holes on the same face), and type the diameter. While you move
+   the mouse the hole is shown where it would go, with its distances to the nearest edges, and it **snaps** like a
+   sketch: onto the face's corners, edge midpoints, centre, round edges' centres, other holes and • reference points
+   (the snap is named at the mouse), onto its edges, and **in line** with any of those — a dashed green guide; where
+   two guides cross it snaps to the crossing (the middle line of a square block: in line with both edge midpoints).
+   Shift (or Alt) places it freely. The Snap row bottom left switches corners / midpoints / centres / ┆ Guides on or
+   off. A hole placed in line with another hole of the step is measured from that hole, so it stays in line. *Aa
+   Text / picture* snaps the same way. It goes through all by default, or untick *Through all* and give a depth. *Head* adds room
    for a screw's head: ⌴ a counterbore (Ø 1.8 × the hole, as deep as the hole is wide) or ⌵ a countersink (Ø 2 × the
    hole, 90°) — change the head's Ø / depth if needed. *Thread* (M2 … M20) makes it a threaded hole: drilled with its
    tap drill (M5: Ø4.2) and labelled M5 on the drawing. *Teardrop (print sideways)*, offered on a hole that goes
@@ -449,7 +455,10 @@ right and iso views on an A4 / A3 page with a title block (part, material, scale
 **changed + revision**). Its dimensions are made by a preset (for the whole sheet, and each view may have its own in the Views list) — **Light** (the overall sizes, a Ø for each hole size,
 the biggest R), **Medium** (+ where the holes are, the radii, the heights) or **Full** (+ every level) — and holes
 alike are dimensioned **once**: *8× Ø3 H7*, the first hole's place and the row's pitch *3× 10* (200 holes in a grid
-are one Ø and two pitches, not 400 dimensions). Each size is given once on the sheet — a view whose sizes are all in
+are one Ø and two pitches, not 400 dimensions). Each hole step gets **one callout** in the view that shows its holes
+round, with everything needed to make them (ISO 129 symbols): *4× Ø3.4 THRU*, *M5 ↧ 8* (a blind thread, its depth),
+*Ø3.4 ⌴ Ø6 ↧ 3.2* (a counterbore), *M3 ⌵ Ø5 × 90°* (a countersink), *Ø8 H7 THRU* (a fit), *Ø6 THRU ▲* (a teardrop) —
+the head's circle is not given again. Each size is given once on the sheet — a view whose sizes are all in
 the others (often the Right) has none; its choice **All its sizes** gives it its own anyway. **Clicking a dimension
 lights up the same size in the other views** (teal). **Drag** a dimension or a view to move it, **Del** removes a
 dimension (↺ brings deleted ones back), **＋ Dimension**: click an **edge** (it lights up under the mouse) — click it
@@ -457,7 +466,8 @@ again (or Enter) for its **length**, another edge for the **distance between the
 the edge —, two points (a corner, a hole's centre), or a circle (its Ø / R). A value is always measured from the part — it cannot be typed. The sheet **follows its part**: change
 the part and the views and dimensions are made again, the revision goes up and *Changed* says when (your moved and
 own dimensions stay on their edges and holes). **Check** (the left panel) tells whether the part is fully dimensioned: each view shows ✓ or ⚠ with how many sizes it
-misses — a hole's place, an edge, a Ø or R — listed with **＋** (add that one, from the part's edge) and **＋ Add all
+misses — a hole's place, an edge, a Ø or R, and without a hole's callout its countersink angle, counterbore depth or
+blind depth (*the countersink's angle (H1)*) — listed with **＋** (add that one, from the part's edge) and **＋ Add all
 missing**, and marked with an orange **?** on the drawing (not in the PDF); dimensions that give a size twice are
 marked ⧉ (*✕ Remove them*). A known circle gives its own edges (a tangent side, a boss), a pitch *4× 10* its row.
 The title block takes your own texts — *Title*, *Drawing no.*, *Drawn by*, *Note* — in the panel (a double-click on a cell goes to its field). **⬇ PDF** gives the sheet as you see it — the page is the paper (A4 / A3) and

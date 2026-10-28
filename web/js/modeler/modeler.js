@@ -18,6 +18,7 @@ import { originSeg, originKey, sameOrigin, moveOrigin, shiftSketch, shiftPoints,
 import { libraryFactsHtml } from '../library/browser.js';
 import { roundAxes, axisOf } from './axes.js';
 import { fetchRebuild } from './packed.js';
+import { snapOnFace, snapDrawing, toFace } from './facesnap.js';
 
 const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa', mirror: '⇋', draft: '⟋', rib: '⊿', point: '•', split: '✂' };
 const TYPE_NAME = { point: 'Point', rib: 'Rib', draft: 'Draft', sketch: 'Sketch', extrude: 'Extrude', revolve: 'Revolve', fillet: 'Fillet', chamfer: 'Chamfer', hole: 'Hole', shell: 'Shell', pattern: 'Pattern',
@@ -202,7 +203,7 @@ export class Modeler {
     } else {
       this.els.viewport.querySelector(':scope > .view-suggest[data-from=sketch]')?.remove(); // (the sketch's suggestions)
       this.view.setPlaneArrow(this.cmd?.feature.type === 'split' ? this.splitFrame() : null, t('this side'), false); // (✂ Split: which side is "this side")
-      showSnapFilters(this.els.viewport, !!this.result?.body && !this.cmd); // (what 📏 Measure catches — not while a feature is made)
+      showSnapFilters(this.els.viewport, !!this.result?.body && (!this.cmd || ['hole', 'decal'].includes(this.cmd.feature.type))); // (what 📏 Measure catches, and a hole / text placed on a face — not while other features are made)
       if (this.cmd || this.measuring || this.painting) this.dropSuggest(); // (a tool at work: not the face's)
       const canExtrude = this.sketches().length > 0;
       bar.innerHTML = `
@@ -1834,20 +1835,43 @@ export class Modeler {
       return;
     }
     if (!f.plane) f.plane = { face: h.face.ref || null, frame: h.face.frame };
-    const fr = this.holeFrame(f); // the clicked face's frame (a later rebuild only moves it along its normal)
-    const o = fr.o, x = fr.x, n = fr.n, y = [n[1] * x[2] - n[2] * x[1], n[2] * x[0] - n[0] * x[2], n[0] * x[1] - n[1] * x[0]];
-    const d = [h.point.x - o[0], h.point.y - o[1], h.point.z - o[2]];
-    let u = d[0] * x[0] + d[1] * x[1] + d[2] * x[2], v = d[0] * y[0] + d[1] * y[1] + d[2] * y[2];
-    // snap: to the face centre within ~10 px, else to a 0.5 mm grid
-    const mpp = this.view.mmPerPixel(fr);
-    if (Math.hypot(u, v) < mpp * 10 && !f.plane.origin) { u = 0; v = 0; } else { u = Math.round(u * 2) / 2; v = Math.round(v * 2) / 2; }
+    // snapped (facesnap.js): a corner, an edge's middle, a centre, another hole, in line with one of them …, else a 0.5 mm grid
+    const at = this.faceSpot(e, f);
+    if (!at) return;
+    const [u, v] = at.s.uv;
     f.points.push([u, v]);
     // placed from the nearest edges of the face (left / right and below / above): it keeps that distance
-    // when the part changes (a step measured from a corner / the part's origin: from that)
+    // when the part changes (a step measured from a corner / the part's origin: from that); in line with another
+    // hole: from that hole's centre
     f.from = f.from || [];
-    if (!f.plane.origin) f.from[f.points.length - 1] = this.nearestEdges(f, [u, v]);
+    const i = f.points.length - 1;
+    if (!f.plane.origin) f.from[i] = this.nearestEdges(f, [u, v]);
+    for (const [axis, k] of [['x', 0], ['y', 1]]) {
+      const key = at.s.keys?.[axis];
+      if (key?.hole !== undefined) f.from[i] = { ...(f.from[i] || {}), [axis]: { hole: key.hole, d: 0, round: true } };
+      else if (key?.round) {
+        const c = this.axisEdges(f, k, true).find((r) => r.round && Math.hypot(...r.ref.fp.map((w, j) => w - key.round.fp[j])) < 1e-6);
+        if (c) f.from[i] = { ...(f.from[i] || {}), [axis]: { edge: c.ref, d: +([u, v][k] - c.c).toFixed(6), round: true } };
+      }
+    }
+    this.spotKey = null;
     this.renderProps();
     this.rebuild();
+  }
+
+  /** The spot on a flat face under the mouse, snapped (facesnap.js) — for f a hole (on its face only) or a text /
+   *  picture: {h, fr, s} (s: facesnap's snap, in fr's coordinates), or null. Shift / Alt: not snapped. */
+  faceSpot(e, f) {
+    const h = this.view.pick(e.clientX, e.clientY);
+    if (!h?.face || h.face.type !== 'plane' || h.face.name?.startsWith(`${f.id}:`)) return null;
+    let fr = h.face.frame;
+    if (f.type === 'hole' && f.plane) {
+      if (f.plane.face?.name !== h.face.name || h.face.normal.some((w, k) => Math.abs(w - f.plane.frame.n[k]) > 1e-6)) return null;
+      fr = this.holeFrame(f);
+    } else if (f.plane?.frame && f.plane.face?.name === h.face.name) fr = f.plane.frame;
+    const extra = f.type === 'hole' && f.plane ? f.points.map((p, j) => ({ uv: p, kind: 'hole', hole: j })) : [];
+    const s = snapOnFace(this.view, { face: h.face, fr, uv: toFace(fr, h.point), mpp: this.view.mmPerPixel(fr), skip: `${f.id}:`, extra, free: !!(e.shiftKey || e.altKey) });
+    return { h, fr, s };
   }
 
   /** The hole's face as it is now (the rebuild follows it when it moves), else where it was clicked. */
@@ -1983,11 +2007,28 @@ export class Modeler {
     return best && bd < 1e6 ? best.c : best?.c ?? null;
   }
 
-  /** The hole's distances to its edges, drawn on the face: a dimension line from the edge to the centre. */
-  drawHoleDims() {
+  /** The hole's distances to its edges, drawn on the face: a dimension line from the edge to the centre. at: the spot
+   *  under the mouse (faceSpot) — the hole there, its distances to the nearest edges, the guides it is snapped by. */
+  drawHoleDims(at = null) {
     const f = this.cmd?.feature;
-    if (!f || f.type !== 'hole' || !f.plane?.frame) { this.view.setSketch(null); return; }
-    const fr = this.holeFrame(f), lines = [], labels = [], C = 0xd2a8ff, mpp = this.view.mmPerPixel(fr);
+    if (!f || f.type !== 'hole' || (!f.plane?.frame && !at)) { this.view.setSketch(null); return; }
+    const g = f.plane ? f : { ...f, plane: { face: at.h.face.ref || null, frame: at.h.face.frame } }; // (the first hole: on the face under the mouse)
+    const fr = this.holeFrame(g), lines = [], labels = [], circles = [], dots = [], C = 0xd2a8ff, mpp = this.view.mmPerPixel(fr);
+    if (at) {
+      const p = at.s.uv, near = this.nearestEdges(g, p), draw = snapDrawing(at.s, mpp);
+      circles.push([p, (f.d || 5) / 2, 0x7ee787]);
+      for (const [axis, k] of [['x', 0], ['y', 1]]) {
+        const r = near[axis];
+        if (!r) continue;
+        const a = k === 0 ? [p[0] - r.d, p[1]] : [p[0], p[1] - r.d];
+        lines.push([a, p, C]); // (purple like the placed ones: the dashed green guides stay apart)
+        const el = document.createElement('div');
+        el.className = 'sk-label hole-dim live';
+        el.textContent = fmt(Math.abs(r.d));
+        labels.push({ el, u: (a[0] + p[0]) / 2 + (k === 1 ? mpp * 12 : 0), v: (a[1] + p[1]) / 2 + (k === 0 ? mpp * 10 : 0) });
+      }
+      lines.push(...draw.lines); dots.push(...draw.dots); circles.push(...draw.circles); labels.push(...draw.labels);
+    }
     f.points.forEach((p, i) => {
       for (const [axis, k] of [['x', 0], ['y', 1]]) {
         const r = f.from?.[i]?.[axis];
@@ -2002,7 +2043,22 @@ export class Modeler {
         labels.push({ el, u: (a[0] + p[0]) / 2 + (k === 1 ? mpp * 12 : 0), v: (a[1] + p[1]) / 2 + (k === 0 ? mpp * 10 : 0) });
       }
     });
-    this.view.setSketch(fr, { lines, labels, grid: 0 });
+    this.view.setSketch(fr, { lines, circles, dots, labels, grid: 0 });
+  }
+
+  /** The spot under the mouse while a hole / text / picture is being placed: snapped, the guides and (a hole) its
+   *  preview drawn — redrawn only when it changes. */
+  showSpot(e) {
+    const f = this.cmd?.feature, at = e && f ? this.faceSpot(e, f) : null;
+    this.spot = at;
+    const key = at ? JSON.stringify([at.h.face.id, at.s.uv, at.s.kind, at.s.guides]) : '';
+    this.view.setHover(at ? at.h.face.id : -1);
+    if (key === this.spotKey) return at;
+    this.spotKey = key;
+    if (f?.type === 'hole') this.drawHoleDims(at);
+    else if (at) this.view.setSketch(at.fr, { ...snapDrawing(at.s, this.view.mmPerPixel(at.fr)), grid: 0 });
+    else this.view.setSketch(null);
+    return at;
   }
 
   /** After a rebuild moved holes (their edges moved), show the new numbers without retyping. */
@@ -2254,12 +2310,8 @@ export class Modeler {
     if (!h?.face || h.face.type !== 'plane' || h.face.name?.startsWith(`${f.id}:`)) { this.hooks.toast('Click a flat face of the part.', 'info', 3000); return; }
     const same = f.plane && f.plane.face?.name === h.face.name;
     if (!same) f.plane = { face: h.face.ref || { name: h.face.name }, frame: h.face.frame };
-    const fr = f.plane.frame, o = fr.o, x = fr.x, n = fr.n, y = [n[1] * x[2] - n[2] * x[1], n[2] * x[0] - n[0] * x[2], n[0] * x[1] - n[1] * x[0]];
-    const dd = [h.point.x - o[0], h.point.y - o[1], h.point.z - o[2]];
-    let u = dd[0] * x[0] + dd[1] * x[1] + dd[2] * x[2], v = dd[0] * y[0] + dd[1] * y[1] + dd[2] * y[2];
-    const mpp = this.view.mmPerPixel(fr);
-    if (Math.hypot(u, v) < mpp * 12) { u = 0; v = 0; } else { u = Math.round(u * 2) / 2; v = Math.round(v * 2) / 2; } // near the centre: on it
-    f.at = [u, v];
+    f.at = this.faceSpot(e, f).s.uv; // snapped (facesnap.js): the face's centre, a corner, in line with a hole …, else a 0.5 mm grid
+    this.spotKey = null;
     this.renderProps();
     this.rebuild();
   }
@@ -2906,7 +2958,9 @@ export class Modeler {
           const h = f.upto ? this.view.pick(e.clientX, e.clientY) : null, ok = h?.face?.type === 'plane' && !h.face.name?.startsWith(`${f.id}:`);
           this.view.setHover(ok ? h.face.id : -1);
           cv.style.cursor = ok ? 'pointer' : '';
-        } else if (f.type === 'decal' || f.type === 'mirror' || f.type === 'split') {
+        } else if (f.type === 'decal' || (f.type === 'hole' && !this.holePick)) {
+          cv.style.cursor = this.showSpot(e) ? 'crosshair' : ''; // (snapped, with guides and the hole's preview)
+        } else if (f.type === 'mirror' || f.type === 'split') {
           const h = this.view.pick(e.clientX, e.clientY), ok = h?.face?.type === 'plane' && !h.face.name?.startsWith(`${f.id}:`);
           this.view.setHover(ok ? h.face.id : -1);
           cv.style.cursor = ok ? 'crosshair' : '';
@@ -2926,10 +2980,6 @@ export class Modeler {
           const h = this.view.pick(e.clientX, e.clientY);
           this.view.setHover(h?.face ? h.face.id : -1);
           cv.style.cursor = h?.face ? 'pointer' : '';
-        } else if (f.type === 'hole') {
-          const h = this.view.pick(e.clientX, e.clientY);
-          this.view.setHover(h?.face?.type === 'plane' ? h.face.id : -1);
-          cv.style.cursor = h?.face?.type === 'plane' ? 'crosshair' : '';
         } else {
           const i = this.view.pickEdge(e.clientX, e.clientY), ok = i >= 0 && this.edgeRef(i);
           this.view.setEdgeHighlight(ok ? i : -1, this.refEdges(f.edges));
@@ -2966,7 +3016,7 @@ export class Modeler {
       if (this.mode === 'part' && !this.cmd) return this.clickFace(e);
       return null;
     });
-    cv.addEventListener('pointerleave', () => { this.view.clearHoverMarks(); if (this.mode === 'part' && !this.cmd) { this.view.setHover(-1); this.tip(null); } });
+    cv.addEventListener('pointerleave', () => { this.view.clearHoverMarks(); if (['hole', 'decal'].includes(this.cmd?.feature.type) && !this.holePick) this.showSpot(null); if (this.mode === 'part' && !this.cmd) { this.view.setHover(-1); this.tip(null); } });
     cv.addEventListener('dblclick', (e) => {
       if (this.mode !== 'part' || this.cmd) return;
       const id = this.view.pickOutline(e.clientX, e.clientY);

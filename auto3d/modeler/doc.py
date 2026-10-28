@@ -61,7 +61,43 @@ THREADS = {"M2": 1.6, "M2.5": 2.05, "M3": 2.5, "M4": 3.3, "M5": 4.2, "M6": 5.0, 
 def _threads(part):
     """{tap drill Ø: "M5"} of the part's threaded holes (the drawing labels them M5, not Ø4.2)."""
     return {THREADS[f["thread"]]: f["thread"] for f in (part or {}).get("features") or []
-            if f.get("type") == "hole" and f.get("thread") in THREADS and not f.get("off")}
+            if f.get("type") == "hole" and f.get("thread") in THREADS and not (f.get("off") or f.get("suppressed"))}
+
+
+def _head_sizes(f, dia):
+    """A hole head's Ø and depth (a counterbore: 1.8 × d, d deep; a countersink: 2 × d, its depth from the angle)."""
+    if f.get("head") == "cbore":
+        return _num(f, "head_d", round(dia * 1.8, 1), what="counterbore diameter"), _num(f, "head_depth", round(dia, 1), what="counterbore depth")
+    return _num(f, "head_d", round(dia * 2, 1), what="countersink diameter"), None
+
+
+def _holes(part):
+    """{step id: {d, thread, through, depth, head, head_d, head_depth, head_angle, fit, teardrop}} of the part's hole
+    steps — what the drawing's hole callout says ("4× M3 ⌵ Ø5 × 90°", sheet.callout)."""
+    out = {}
+    for f in (part or {}).get("features") or []:
+        if f.get("type") != "hole" or f.get("off") or f.get("suppressed"):
+            continue
+        try:
+            dia = THREADS[f["thread"]] if f.get("thread") in THREADS else _num(f, "d", 5)
+            h = {"d": dia, "through": bool(f.get("through", True)), "teardrop": bool(f.get("teardrop"))}
+            if not h["through"]:
+                h["depth"] = _num(f, "depth", 10)
+            if f.get("thread") in THREADS:
+                h["thread"] = f["thread"]
+            if f.get("fit"):
+                h["fit"] = f["fit"]
+            if f.get("head") in ("cbore", "csk"):
+                h["head"] = f["head"]
+                h["head_d"], hdep = _head_sizes(f, dia)
+                if f["head"] == "cbore":
+                    h["head_depth"] = hdep
+                else:
+                    h["head_angle"] = float(f.get("head_angle") or 90)
+        except K.KernelError:
+            continue  # (a step that did not build: no callout)
+        out[f["id"]] = h
+    return out
 
 
 def _num(f, k, default=None, positive=True, what=None):
@@ -338,13 +374,13 @@ def _apply(f, st: State, s):
         n = np.asarray(fr["n"], float)
         head = f.get("head")  # ⌴ a counterbore (a screw head sunk in) / ⌵ a countersink (a flat head flush)
         if head == "cbore":
-            hd, hdep = _num(f, "head_d", round(dia * 1.8, 1), what="counterbore diameter"), _num(f, "head_depth", round(dia, 1), what="counterbore depth")
+            hd, hdep = _head_sizes(f, dia)
             if hd <= dia:
                 raise K.KernelError("The counterbore has to be wider than the hole.")
             if not f.get("through", True) and hdep >= depth:
                 raise K.KernelError("The counterbore has to be less deep than the hole.")
         elif head == "csk":
-            hd = _num(f, "head_d", round(dia * 2, 1), what="countersink diameter")
+            hd, _ = _head_sizes(f, dia)
         tear = bool(f.get("teardrop"))  # ▲ printed sideways: the top of the round becomes a 45° point (a counterbore too)
         if tear and head == "csk":
             raise K.KernelError("A countersink cannot be a teardrop (its cone would hang over) — use a counterbore, or untick Teardrop.")
@@ -1149,7 +1185,7 @@ def export(part, fmt, name="part"):
         from . import drawing
         from .materials import DENSITY as mats  # g / cm³, as in the browser
         mat = (part or {}).get("material") or "PLA"
-        fits = {f["d"]: f["fit"] for f in (part or {}).get("features") or [] if f.get("type") == "hole" and f.get("fit") and not f.get("off")}
+        fits = {f["d"]: f["fit"] for f in (part or {}).get("features") or [] if f.get("type") == "hole" and f.get("fit") and not (f.get("off") or f.get("suppressed"))}
         return drawing.pdf(st.body, name=name, material=mat, mass_g=K.volume(st.body.shape) / 1000 * mats.get(mat, 1.24), fits=fits,
                            tolerance=(part or {}).get("tolerance"))
     if fmt == "step":
@@ -1173,8 +1209,8 @@ def sheet(part, preset="medium", paper=None, per_view=None, section=False):
     layout (sheet.py)."""
     from . import sheet as S
     st = body_of(part)
-    fits = {f["d"]: f["fit"] for f in (part or {}).get("features") or [] if f.get("type") == "hole" and f.get("fit") and not f.get("off")}
-    return S.build(st.body, preset, fits, paper, per_view, _threads(part), section, key=_key((part or {}).get("features") or []))
+    fits = {f["d"]: f["fit"] for f in (part or {}).get("features") or [] if f.get("type") == "hole" and f.get("fit") and not (f.get("off") or f.get("suppressed"))}
+    return S.build(st.body, preset, fits, paper, per_view, _threads(part), section, key=_key((part or {}).get("features") or []), holes=_holes(part))
 
 
 def _exploded(placed, k):
