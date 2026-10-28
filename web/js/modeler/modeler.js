@@ -277,6 +277,25 @@ export class Modeler {
         return null;
       });
       row.addEventListener('dblclick', () => this.edit(f.id));
+      if (!editing && this.mode === 'part' && !this.cmd) { // dragged up or down the list: the step moves (if what it uses stays before it)
+        row.draggable = true;
+        row.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/a3d-step', f.id); e.dataTransfer.effectAllowed = 'move'; row.classList.add('dragging'); });
+        row.addEventListener('dragend', () => row.classList.remove('dragging'));
+        row.addEventListener('dragover', (e) => {
+          if (!e.dataTransfer.types.includes('text/a3d-step')) return;
+          e.preventDefault();
+          const r = row.getBoundingClientRect(), after = e.clientY > r.top + r.height / 2;
+          row.classList.toggle('drop-before', !after);
+          row.classList.toggle('drop-after', after);
+        });
+        row.addEventListener('dragleave', () => row.classList.remove('drop-before', 'drop-after'));
+        row.addEventListener('drop', (e) => {
+          e.preventDefault();
+          row.classList.remove('drop-before', 'drop-after');
+          const r = row.getBoundingClientRect();
+          this.moveStep(e.dataTransfer.getData('text/a3d-step'), f.id, e.clientY > r.top + r.height / 2);
+        });
+      }
       tree.appendChild(row);
     }
   }
@@ -718,6 +737,39 @@ export class Modeler {
   }
 
   /** Delete a step; steps that stand on it are asked about (how: 'keep' / 'all' answers it already — the AI). */
+  /** A step dragged to another place in the list (before / after `toId`): refused when it would come before a step it
+   *  uses (or after one that uses it); taken back when the model no longer builds there. -> moved */
+  async moveStep(id, toId, after = false) {
+    const fs = this.part.features, f = fs.find((x) => x.id === id), to = fs.find((x) => x.id === toId);
+    if (!f || !to || f === to || this.mode !== 'part' || this.cmd) return false;
+    const order = fs.filter((x) => x !== f);
+    order.splice(order.indexOf(to) + (after ? 1 : 0), 0, f);
+    if (order.every((x, i) => x === fs[i])) return false;
+    const at = new Map(order.map((x, i) => [x.id, i]));
+    for (const a of order) { // what uses a step must stay after it
+      for (const b of this.dependents(a.id, false).gone) {
+        if (b !== a.id && at.get(b) < at.get(a.id)) {
+          this.hooks.toast(t2('“{b}” uses “{a}” — it has to stay after it.', { a: a.name, b: fs.find((x) => x.id === b)?.name || b }), 'warning', 6000);
+          return false;
+        }
+      }
+    }
+    const badBefore = new Set((this.result?.features || []).filter((s) => !s.ok).map((s) => s.id));
+    this.part.features = order;
+    this.commit();
+    await this.inflight;
+    const bad = (this.result?.features || []).filter((s) => !s.ok && !badBefore.has(s.id));
+    if (bad.length) { // it builds no more there: back
+      this.history.go(-1);
+      await this.inflight;
+      const s = bad[0], name = fs.find((x) => x.id === s.id)?.name || s.id;
+      this.hooks.toast(t2('Not moved — “{name}” cannot be built there: {why}', { name, why: (s.issues || [])[0] || '' }), 'warning', 8000);
+      return false;
+    }
+    this.hooks.onChange?.();
+    return true;
+  }
+
   async remove(id, how = null) {
     if (this.mode !== 'part' || this.cmd) return;
     const all = this.dependents(id, false), kept = this.dependents(id, true);

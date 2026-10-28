@@ -738,6 +738,8 @@ const CS = {
   'The part on screen — double-click to rename, drag to move the tab (out of the window: a new window)': 'Díl na obrazovce — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'Click to show it — double-click to rename, drag to move the tab (out of the window: a new window)': 'Kliknutím zobrazíte — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'No part open': 'Žádný díl není otevřený',
+  '“{b}” uses “{a}” — it has to stay after it.': '„{b}“ používá „{a}“ — musí zůstat za ním.',
+  'Not moved — “{name}” cannot be built there: {why}': 'Nepřesunuto — „{name}“ tam nejde sestavit: {why}',
   Midpoint: 'Střed hrany',
   '3D printing': '3D tisk', 'Engineering plastics': 'Technické plasty', 'Metals': 'Kovy', 'Other': 'Ostatní', 'aluminium 7075': 'hliník 7075', 'steel C45': 'ocel C45', 'stainless steel 316': 'nerez 316', 'tool steel': 'nástrojová ocel', 'cast iron': 'litina', 'bronze': 'bronz', 'copper': 'měď', 'titanium': 'titan', 'zinc die-cast': 'zinková slitina (Zamak)', 'magnesium': 'hořčík', 'rubber (EPDM)': 'pryž (EPDM)', 'silicone': 'silikon', 'plywood': 'překližka', 'MDF': 'MDF', 'glass': 'sklo', 'carbon fibre (CFRP)': 'uhlíkový kompozit (CFRP)', 'FR4 (PCB)': 'FR4 (DPS)', "Its colour here and in assemblies (without one: its material's)": 'Jeho barva zde i v sestavách (bez ní: barva materiálu)',
   'on the line': 'na úsečce', 'on the circle': 'na kružnici', 'on the arc': 'na oblouku', 'on the edge of the part': 'na hraně dílu', 'on it': 'na něm',

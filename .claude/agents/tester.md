@@ -166,6 +166,8 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_cleanup.py <url> <dir>` covers 🧹 Clean up empty projects (three empty default-named projects asked about
    by name and deleted; an empty one named by the user and one with a step stay; again: nothing to clean up). Needs a
    server restarted after server / autosave changes.
+   `tools/e2e_model_reorder.py <url> <dir>` covers reordering steps by dragging (a free sketch moved to the top; a boss
+   above its sketch and a fillet above the plate refused with the reason; the body the same; Ctrl+Z).
    `tools/e2e_measure_snap.py <url> <dir>` covers 📏 Measure's snap points (a block with a hole: near an edge's middle
    "midpoint", a corner "corner", the hole's centre "centre"; corner -> centre 22.361; the same in an assembly).
    `tools/e2e_materials.py <url> <dir>` covers materials (4 groups, 37; brass: its colour and mass; set_material
