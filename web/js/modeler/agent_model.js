@@ -2,6 +2,7 @@
 // list / open / start parts, read the model, find faces and edges, add / change / delete / turn off steps,
 // a screenshot, a printing copy. Every change goes through the modeler like a user edit (visible, undoable).
 
+import { MATERIALS } from './materials.js';
 import { roundCorner } from './sketcher.js';
 import { textOutline } from '../outlinepanel.js';
 
@@ -132,7 +133,7 @@ const KIND = { model: '3D model', assembly: 'assembly', drawing: '2D drawing', s
 const FITS = ['H6', 'H7', 'H8', 'H9'];
 /** A hole's fit as written ("h7", "H7") -> "H7", or null (none / unknown: refused by the caller's check). */
 const fitOf = (v) => { if (!v) return null; const f = String(v).toUpperCase(); if (!FITS.includes(f)) throw new Error(`fit: one of ${FITS.join(', ')} (ISO 286 holes), not ${v}.`); return f; };
-const MATERIAL_NAME = Object.fromEntries(['PLA', 'PETG', 'ABS', 'ASA', 'TPU', 'PA', 'POM', 'aluminium', 'steel', 'stainless steel', 'brass'].map((k) => [k.toLowerCase(), k])); // (as in MATERIALS)
+const MATERIAL_NAME = Object.fromEntries(Object.keys(MATERIALS).map((k) => [k.toLowerCase(), k])); // (any case)
 
 export function modelHandlers({ modeler: m, project, getWorkspace }) {
   const needModel = () => {

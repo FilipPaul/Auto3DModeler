@@ -24,6 +24,7 @@ import { showSuggest } from '../suggest.js';
 import { freeMotions, motionMatrix } from './dof.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
+import { lookColor } from '../modeler/materials.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -1656,7 +1657,7 @@ export class Assembly {
   /** How a placed part looks: its own colour / see-through in this assembly, else its part's -> {colour, opacity}. */
   lookOf(it) {
     const data = this.hooks.partData(it.part) || {};
-    const colour = it.colour || data.color, opacity = Number.isFinite(it.opacity) ? it.opacity : data.opacity;
+    const colour = it.colour || lookColor(data), opacity = Number.isFinite(it.opacity) ? it.opacity : data.opacity;
     const paint = [...(it.colour ? [] : data.paint || []), ...(it.paint || [])];
     return { colour: colour ? new THREE.Color(colour).getHex() : null, opacity: Number.isFinite(opacity) ? opacity : 1, paint: paint.length ? paint : null, ownColour: !!it.colour };
   }

@@ -363,8 +363,10 @@ lines: seconds instead of minutes; its dimensions are still measured from the ex
 
 **Fits and tolerances**: a Hole step has a **Fit** (H6 / H7 / H8 / H9, ISO 286) — the drawing labels it *Ø8 H7* and
 lists it with its deviations (*Ø8 H7 (+0.015 / 0)*); the part's **Tolerances** (ISO 2768-f / m / c) go into the
-title block. The model keeps the nominal size. Materials for machined parts too: POM, aluminium, steel, stainless
-steel, brass.
+title block. The model keeps the nominal size. **Materials** (37, in groups): 3D printing (PLA, PETG, ABS, ASA, TPU, PA, PA-CF, PC, PP), engineering plastics (POM, PE-HD,
+PA6-GF30, PTFE, PEEK, PMMA, PVC), metals (aluminium, 7075, steel, C45, stainless 304 / 316, tool steel, cast iron, brass,
+bronze, copper, titanium, zinc die-cast, magnesium) and other (EPDM rubber, silicone, plywood, MDF, glass, CFRP, FR4) —
+each with its density (the mass) and a colour the part takes when it has none of its own.
 
 ## 📚 Parts library
 

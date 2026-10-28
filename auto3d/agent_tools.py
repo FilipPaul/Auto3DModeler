@@ -6,6 +6,8 @@ the server: reading files, tracing a picture, writing export files.
 """
 from __future__ import annotations
 
+from auto3d.modeler.materials import NAMES as MATERIAL_NAMES
+
 NUM = {"type": "number"}
 STR = {"type": "string"}
 POINT = {"type": "array", "items": NUM, "minItems": 3, "maxItems": 3, "description": "[x, y, z] in the part's unit"}
@@ -213,10 +215,13 @@ TOOLS = [
     {"name": "turn_off_feature", "where": "browser", "description": "Turn a step off (off true) or on again (off false); it is kept.",
      "inputSchema": _obj({"id": STR, "off": {"type": "boolean"}}, ["id"])},
     {"name": "set_material", "where": "browser",
-     "description": "The 3D model's material (its mass in get_model, the 2D drawing's title block): printed PLA, PETG, ABS, ASA, TPU, "
-                    "PA; machined POM, aluminium, steel, stainless steel, brass. tolerance: the general tolerances on its drawing, ISO "
+     "description": "The 3D model's material (its mass in get_model, the 2D drawing's title block, and its colour when it has none "
+                    "of its own): printed PLA, PETG, ABS, ASA, TPU, PA, PA-CF, PC, PP; engineering plastics POM, PE-HD, PA6-GF30, "
+                    "PTFE, PEEK, PMMA, PVC; metals aluminium, aluminium 7075, steel, steel C45, stainless steel, stainless steel 316, "
+                    "tool steel, cast iron, brass, bronze, copper, titanium, zinc die-cast, magnesium; other rubber (EPDM), silicone, "
+                    "plywood, MDF, glass, carbon fibre (CFRP), FR4 (PCB). tolerance: the general tolerances on its drawing, ISO "
                     "2768 \"f\" (fine), \"m\" (medium — the usual for machined parts) or \"c\" (coarse); null: none.",
-     "inputSchema": _obj({"material": {"type": "string", "enum": ["PLA", "PETG", "ABS", "ASA", "TPU", "PA", "POM", "aluminium", "steel", "stainless steel", "brass"]},
+     "inputSchema": _obj({"material": {"type": "string", "enum": MATERIAL_NAMES},
                           "tolerance": {"type": ["string", "null"], "enum": ["f", "m", "c", None]}})},
     {"name": "prepare_print", "where": "browser",
      "description": "A printing copy of the 3D model on screen, opened as a quick part on the 3D print tab — then check_print "

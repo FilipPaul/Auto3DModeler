@@ -80,6 +80,10 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Materials with colours done:** web/js/modeler/materials.js — 37 materials in groups (3D printing, engineering
+  plastics, metals, other) with density and a default colour (lookColor: the part's own colour, else its material's
+  when one was chosen); auto3d/modeler/materials.py the same densities (drawing PDF mass, set_material's enum).
+  tools/e2e_materials.py.
 - **Round sizes placed freely, Ø inside / R outside done:** f.place['dia:' / 'rad:' + id] = [angle, distance] (an
   old single angle still read); roundDim draws Ø across the circle or R from the centre, out to the label; roundAt sets
   f.rd by where it is dropped (inside: Ø, outside: R); movable keeps array places. e2e_sketch_pick.

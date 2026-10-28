@@ -26,7 +26,8 @@ const USES_SKETCH = new Set(['extrude', 'revolve', 'loft', 'sweep']);
 /** The sketches a step is made from. */
 const sketchesOf = (f) => (f.type === 'loft' ? f.sketches || [] : f.type === 'sweep' ? [f.profile, f.path] : USES_SKETCH.has(f.type) ? [f.sketch] : []).filter(Boolean);
 // densities for the mass (g/cm³), common 3D-printing materials
-export const MATERIALS = { PLA: 1.24, PETG: 1.27, ABS: 1.04, ASA: 1.07, TPU: 1.21, PA: 1.14, POM: 1.41, aluminium: 2.7, steel: 7.85, 'stainless steel': 7.93, brass: 8.5 }; // g/cm³ (printed, then machined / bought)
+import { MATERIALS, MATERIAL_GROUPS, MATERIAL_COLOR, lookColor } from './materials.js';
+export { MATERIALS }; // g/cm³ (materials.js: grouped, with their colours)
 const DATUM_NAME = { XY: 'Top', XZ: 'Front', YZ: 'Right' };
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const SIZES_KEY = 'a3d.sizes', SIZE_MODES = ['all', 'locked', 'none'];
@@ -795,10 +796,10 @@ export class Modeler {
         ${b ? `<div class="mp-facts"><span>Size</span><b>${fmt(b.bbox[3] - b.bbox[0])} × ${fmt(b.bbox[4] - b.bbox[1])} × ${fmt(b.bbox[5] - b.bbox[2])} mm</b>
           <span>Volume</span><b>${fmt(b.volume / 1000)} cm³</b>
           <span>Mass</span><b>${fmt(+(b.volume / 1000 * (MATERIALS[this.part.material || 'PLA'])).toFixed(1))} g <span class="mp-sub">(solid)</span></b></div>
-          <div class="field"><label>Material</label><select data-k="material">${Object.keys(MATERIALS).map((k) => `<option value="${k}" ${k === (this.part.material || 'PLA') ? 'selected' : ''}>${k}</option>`).join('')}</select></div>
+          <div class="field"><label>Material</label><select data-k="material">${MATERIAL_GROUPS.map(([g, ms]) => `<optgroup label="${esc(t(g))}">${ms.map(([k, rho]) => `<option value="${k}" ${k === (this.part.material || 'PLA') ? 'selected' : ''}>${esc(t(k))} — ${rho} g/cm³</option>`).join('')}</optgroup>`).join('')}</select></div>
           <div class="field"><label>Tolerances</label><select data-k="tolerance" title="The general tolerances (ISO 2768) for sizes without their own — on the 2D drawing">
             ${[['', '—'], ['f', 'ISO 2768-f (fine)'], ['m', 'ISO 2768-m (medium)'], ['c', 'ISO 2768-c (coarse)']].map(([v, l]) => `<option value="${v}" ${v === (this.part.tolerance || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-          <div class="field"><label>Colour</label><input type="color" data-k="color" value="${this.part.color || '#d9dee6'}" title="Its colour here and in assemblies"></div>
+          <div class="field"><label>Colour</label><input type="color" data-k="color" value="${lookColor(this.part) || '#d9dee6'}" title="Its colour here and in assemblies (without one: its material's)"></div>
           <div class="field mp-look"><label>See-through</label><input type="range" min="0" max="90" step="5" data-k="clear" value="${Math.round((1 - (this.part.opacity ?? 1)) * 100)}"><span class="unit">${Math.round((1 - (this.part.opacity ?? 1)) * 100)} %</span></div>`
       : '<p class="hint">No solid yet — extrude a sketch.</p>'}
         ${bad.length ? `<p class="mp-bad">⚠ ${bad.length} step(s) could not be built — point at ⚠ in the list to see why.</p>` : ''}
@@ -820,16 +821,16 @@ export class Modeler {
     }
     for (const el of box.querySelectorAll('[data-a]')) el.addEventListener('click', () => (el.dataset.a === 'newSheet' ? this.hooks.newSheet() : this.action(el.dataset.a)));
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
-    box.querySelector('[data-k=material]')?.addEventListener('change', (e) => { this.part.material = e.target.value; this.history.commit(); this.renderProps(); });
+    box.querySelector('[data-k=material]')?.addEventListener('change', (e) => this.setMaterial(e.target.value));
     box.querySelector('[data-k=tolerance]')?.addEventListener('change', (e) => { if (e.target.value) this.part.tolerance = e.target.value; else delete this.part.tolerance; this.history.commit(); });
     const col = box.querySelector('[data-k=color]'), clr = box.querySelector('[data-k=clear]');
-    col?.addEventListener('input', () => { this.part.color = col.value; this.view.setLook(this.part); });
+    col?.addEventListener('input', () => { this.part.color = col.value; this.view.setLook({ ...this.part, color: lookColor(this.part) }); });
     col?.addEventListener('change', () => { this.history.commit(); this.hooks.onChange?.(); });
     clr?.addEventListener('input', () => {
       this.part.opacity = +(1 - clr.value / 100).toFixed(2);
       if (this.part.opacity >= 1) delete this.part.opacity;
       clr.nextElementSibling.textContent = `${clr.value} %`;
-      this.view.setLook(this.part);
+      this.view.setLook({ ...this.part, color: lookColor(this.part) });
     });
     clr?.addEventListener('change', () => { this.history.commit(); this.hooks.onChange?.(); });
     return null;
@@ -885,7 +886,7 @@ export class Modeler {
         this.frames = { ...this.frames, ...r.frames }; // also while rolled back before an open sketch
         const first = !this.view.body && r.body;
         this.view.setBody(r.body);
-        this.view.setLook(this.part);
+        this.view.setLook({ ...this.part, color: lookColor(this.part) });
         this.view.setRefs(r.refs || []);
         if (first && this.mode === 'part') this.view.setView('iso');
         const gone = (r.features || []).flatMap((s) => s.issues || []).find((x) => /^BLOB_MISSING/.test(x));
@@ -2134,7 +2135,7 @@ export class Modeler {
     for (const el of box.querySelectorAll('[data-by]')) el.addEventListener('click', () => { ps.by = el.dataset.by; ps.sel.clear(); this.paintMarks(); this.renderProps(); });
     const col = box.querySelector('[data-k=paint]');
     const commit = () => { this.history.commit(); this.hooks.onChange?.(); };
-    const setPaint = (p) => { if (p.length) this.part.paint = p; else delete this.part.paint; this.view.setLook(this.part); };
+    const setPaint = (p) => { if (p.length) this.part.paint = p; else delete this.part.paint; this.view.setLook({ ...this.part, color: lookColor(this.part) }); };
     col.addEventListener('input', () => setPaint(repaint(b.faces, this.part.paint, ps.sel, col.value)));
     col.addEventListener('change', () => { commit(); this.renderProps(); });
     box.querySelector('[data-a=unpaint]').addEventListener('click', () => { setPaint(repaint(b.faces, this.part.paint, ps.sel, null)); commit(); this.renderProps(); });
@@ -2419,8 +2420,10 @@ export class Modeler {
   setMaterial(name) {
     if (!MATERIALS[name]) throw new Error(`material is one of ${Object.keys(MATERIALS).join(', ')}.`);
     this.part.material = name;
+    this.view.setLook({ ...this.part, color: lookColor(this.part) }); // (its colour: the material's, unless it has its own)
     this.history.commit();
     this.renderProps();
+    this.hooks.onChange?.();
   }
 
   /** A printing copy of this part: its STL opened as a Quick part (printer fit, splitting, joints). */

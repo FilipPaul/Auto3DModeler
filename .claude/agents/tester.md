@@ -166,6 +166,8 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_cleanup.py <url> <dir>` covers 🧹 Clean up empty projects (three empty default-named projects asked about
    by name and deleted; an empty one named by the user and one with a step stay; again: nothing to clean up). Needs a
    server restarted after server / autosave changes.
+   `tools/e2e_materials.py <url> <dir>` covers materials (4 groups, 37; brass: its colour and mass; set_material
+   titanium: its colour, the same in an assembly). Needs a server restarted after materials.py changes.
    `tools/e2e_tree_more.py <url> <dir>` covers the tree / tabs more (a library screw: the library icon, changed: its own;
    a hover on a row: a picture; a row dropped on the assembly's view: one more Base; a middle click closes a tab).
    `tools/e2e_sketch_pick.py <url> <dir>` covers what a sketch click takes (the filters bottom middle; Lines off: a line
