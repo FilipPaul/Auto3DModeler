@@ -819,6 +819,11 @@ Date: 2026-10-25. Written by the architect agent.
   were, one undo step, Esc back); copyPicks (beside them, H / V, tangents, locked sizes along; the copy picked);
   mirrorPicks (the ⇋ box: an axis or a line and done); addRelations (chains as one undo step, a held one left out).
   test_held_says_whether_a_group_got_there; tools/e2e_sketch_multiselect.py.
+- **Dragging several picked sketch shapes done:** Sketcher.down — a press on one of several picks (inPicks: a picked
+  shape, a point of one, a picked side's rectangle) drags pickPoints together; the grabbed point (the nearest of the
+  shape's own) snaps (snap's skip takes a Set: the moving points are not snapped to, nor guide from), its guides drawn
+  (dragGuides); the others by the same offset, the solver keeps the relations; one undo step; picks kept (refreshPicks).
+  An unpicked shape dragged moves alone and drops the picks. tools/e2e_sketch_multiselect.py.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

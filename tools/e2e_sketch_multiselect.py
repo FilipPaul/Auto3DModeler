@@ -1,5 +1,6 @@
 """Several sketch shapes at once, with REAL mouse input: a rectangle and a circle box-selected -> the short table
-(✥ Move…, ⧉ Copy, ⇋ Mirror, ✕ Delete all, ⋯ More… — the rest in sections) -> ✥ Move with dx 10 typed: all exactly 10 -> the rectangle alone: ⧈ Offset,
+(✥ Move…, ⧉ Copy, ⇋ Mirror, ✕ Delete all, ⋯ More… — the rest in sections) -> the rectangle's edge dragged: both go by
+the same vector (one undo step) -> ✥ Move with dx 10 typed: all exactly 10 -> the rectangle alone: ⧈ Offset,
 ⁂ Pattern first; ⟳ Rotate 90: its corners turned about its centre (H / V swapped) -> ⤢ Scale 2: its sizes doubled; with
 a locked width: refused, the toast names the lock -> ┄ construction toggles all -> ✕ Delete all, Ctrl+Z restores.
 Then the short lists: two lines nearly parallel (the angle, ∥ first), two at an angle, a line and a circle (the
@@ -189,6 +190,20 @@ try:
     check("More… shows the Edit / Relations / Kind sections", [s.lower() for s in sections()] == ["edit", "relations", "kind"])
     check("…with Rotate, Scale, Pattern, Equal, Fix, construction", all(any(x in r for r in table()) for x in ["Rotate…", "Scale…", "Pattern", "Fix — all their points", "Make it construction"]))
 
+    # --- the rectangle's edge dragged: everything picked goes by the same vector, one undo step
+    p0, n0 = pts(), js(f"return {SK}.undo.length")
+    grab = (rb[0] + (rb[2] - rb[0]) * 0.3, rb[1])
+    ActionChains(d, duration=40).move_to_element_with_offset(canvas(), *off(grab)).click_and_hold().move_by_offset(20, -10).move_by_offset(20, -10).move_by_offset(10, -5).release().perform()
+    time.sleep(1.0)
+    p1 = pts()
+    vecs = {k: (round(p1[k][0] - p0[k][0], 6), round(p1[k][1] - p0[k][1], 6)) for k in p0}
+    print("dragged by its edge: the moves", vecs)
+    check("all points moved by one vector (not zero)", len(set(vecs.values())) == 1 and list(vecs.values())[0] != (0, 0))
+    check("one undo step", js(f"return {SK}.undo.length") == n0 + 1)
+    check("still both picked", len(js(f"return {SK}.picks")) == 5)
+    tb = table()
+    check("the table stays", tb and tb[0] == "5 shapes")
+
     # --- ✥ Move: dx 10 typed
     p0 = pts()
     press("Move")
@@ -206,6 +221,17 @@ try:
     tb = table()
     print("the rectangle box-selected:", got, "->", tb)
     check("a loop: Offset, Pattern, Move, Delete all, More…", tb and [r.split(" ", 1)[1] for r in tb[1:]] == ["Offset", "Pattern", "Move…", "Delete all", "More…"])
+    # an unpicked shape (the circle) dragged: only it moves, the picks go
+    (cc, cr), p0 = circle(), pts()
+    ActionChains(d, duration=40).move_to_element_with_offset(canvas(), *off((cc[0] - cr, cc[1]))).click_and_hold().move_by_offset(-15, 0).move_by_offset(-15, 0).release().perform()
+    time.sleep(1.0)
+    p1 = pts()
+    moved = [k for k in p0 if p0[k] != p1[k]]
+    print("the unpicked circle dragged: moved", moved, "| picks", js(f"return {SK}.picks.length"))
+    check("an unpicked shape dragged: only it moves, the picks go", moved == [js(f"return {SK}.f.entities.find(e => e.t === 'circle').c")] and js(f"return {SK}.picks.length") == 0)
+    if moved:
+        keys("z", ctrl=True)
+    box_around(rb)
     n0 = js(f"return {SK}.undo.length")
     press("More")
     press("Rotate")

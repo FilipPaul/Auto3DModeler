@@ -459,6 +459,7 @@ export class Sketcher {
     if (this.tool === 'spline') return this.spl ? 'Click the next point the curve goes through — click its first point to close it, double-click or Enter to finish, Esc to stop.' : 'Click where the smooth curve starts (a point or a line end joins it there).';
     if (this.tool === 'line') return this.chain ? 'Click the next point — click the first point to close the shape, double-click or Esc to stop.' : 'Click where the line starts.';
     if (this.tool === 'dim') return this.dimA ? 'Type its size and Enter — or click a second one for the distance between them (Esc = start again).' : 'Dimension: click a line or a circle for its size — or a point, a line or an edge of the part, then a second one for a distance.';
+    if (this.tool === 'select' && (this.picks || []).length > 1) return 'Drag one of the picked shapes: they all move together · the table offers what fits them · Delete removes them.';
     return this.sel ? 'Drag to move it · click a size to type it and lock it 🔒 · Delete removes it.' : 'Click a shape or a corner to select it — or pick a drawing tool.';
   }
 
@@ -489,20 +490,20 @@ export class Sketcher {
   /** Snap (what the Snap filters at the bottom allow — snapKinds): existing points / ends (they get connected),
    *  centres and the origin, a line's middle, the part's corners and centres, then a place on a sketch line / circle /
    *  arc (the new point stays on it) or on an edge of the part, then the guides, then the grid (off: just where the
-   *  mouse is). Alt = no snapping. */
+   *  mouse is). Alt = no snapping. skip: a point (or a Set of points: a selection dragged together) not snapped to. */
   snap(uv, free = false, skip = null) {
     if (free) return { uv };
-    const tol = this.mpp() * 9, S = this.snapKinds;
+    const tol = this.mpp() * 9, S = this.snapKinds, out = skip instanceof Set ? (id) => skip.has(id) : (id) => id === skip;
     const centres = new Set(this.f.entities.filter((e) => e.t === 'circle' || e.t === 'arc').map((e) => e.c));
     let best = null;
     // a sketch point on the origin wins over the origin itself (so the new line joins it)
     for (const [id, p] of [...Object.entries(this.f.points).filter(([id]) => (centres.has(id) ? S.centre : S.ends)), ...(S.origin ? [[ORIGIN, [0, 0]]] : [])]) {
-      if (id === skip) continue;
+      if (out(id)) continue;
       const d = Math.hypot(p[0] - uv[0], p[1] - uv[1]);
       if (d < tol && (!best || d < best.d)) best = { id, d, uv: [...p] };
     }
     if (best) return best;
-    const lines = this.f.entities.filter((e) => e.t === 'line' && e.a !== skip && e.b !== skip); // (not the line being drawn from)
+    const lines = this.f.entities.filter((e) => e.t === 'line' && !out(e.a) && !out(e.b)); // (not the line being drawn from)
     if (S.mid) {
       for (const e of lines) {
         const a = this.P(e.a), b = this.P(e.b), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], d = Math.hypot(m[0] - uv[0], m[1] - uv[1]);
@@ -552,7 +553,7 @@ export class Sketcher {
     const g = this.gridStep(), grid = S.grid ? [Math.round(uv[0] / g) * g, Math.round(uv[1] / g) * g] : [...uv]; // (Grid off: just where the mouse is)
     // guides: in line with a point (its x or its y — a corner, a line's middle, the origin) or on the extension of a
     // line; shown as dashed lines from what it lines up with while the mouse is there
-    const keys = !S.guides ? [] : [...Object.values(this.f.points), [0, 0],
+    const keys = !S.guides ? [] : [...Object.entries(this.f.points).filter(([id]) => !out(id)).map(([, p]) => p), [0, 0],
       ...lines.map((e) => { const a = this.P(e.a), b = this.P(e.b); return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; })];
     let gx = null, gy = null;
     for (const p of keys) {
@@ -1149,12 +1150,17 @@ export class Sketcher {
     if (this.tool !== 'select') return null;
     const h = uv && this.hit(uv);
     if (!h) return { box: true, x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY, add: e.ctrlKey || e.metaKey, moved: false }; // a selection box
+    if ((this.picks || []).length > 1 && this.inPicks(h)) { // one of several picked: they all go together, the grabbed point snaps
+      const ids = this.pickPoints(), own = h.kind === 'point' ? [h.id] : this.pointsOfSel(h).filter((id) => ids.includes(id));
+      const grab = own.sort((a, b) => Math.hypot(this.P(a)[0] - uv[0], this.P(a)[1] - uv[1]) - Math.hypot(this.P(b)[0] - uv[0], this.P(b)[1] - uv[1]))[0];
+      if (ids.length) return { uv0: uv, ids, grab, from: Object.fromEntries(ids.map((id) => [id, [...this.P(id)]])), moved: false, group: true };
+    }
     this.sel = h;
     this.changed();
     const blk = h.kind === 'entity' && this.ent(h.id)?.t === 'block' ? this.ent(h.id) : null;
     if (blk) return { uv0: uv, block: blk, from: [...blk.at], moved: false };
     const ids = this.pointsOfSel(h);
-    return { uv0: uv, ids, from: Object.fromEntries(ids.map((id) => [id, [...this.P(id)]])), moved: false, snapshot: structuredClone(this.f) };
+    return { uv0: uv, ids, from: Object.fromEntries(ids.map((id) => [id, [...this.P(id)]])), moved: false, snapshot: structuredClone(this.f), unpick: !(e.ctrlKey || e.metaKey) };
   }
 
   async move(e, drag) {
@@ -1191,13 +1197,18 @@ export class Sketcher {
     }
     if (drag) {
       let du = uv[0] - drag.uv0[0], dv = uv[1] - drag.uv0[1];
-      if (drag.ids.length === 1 && !e.altKey) { // a single point snaps to the grid / other points
+      if (drag.group && drag.grab && !e.altKey) { // a picked group: its grabbed point snaps (what the Snap row allows), the rest follow
+        const g = drag.from[drag.grab], s = this.snap([g[0] + du, g[1] + dv], false, new Set(drag.ids));
+        du = s.uv[0] - g[0];
+        dv = s.uv[1] - g[1];
+        this.dragGuides = s.guides || null;
+      } else if (drag.ids.length === 1 && !e.altKey) { // a single point snaps to the grid / other points
         const s = this.snap([drag.from[drag.ids[0]][0] + du, drag.from[drag.ids[0]][1] + dv], false, drag.ids[0]);
         du = s.uv[0] - drag.from[drag.ids[0]][0];
         dv = s.uv[1] - drag.from[drag.ids[0]][1];
       } else if (!e.altKey && this.snapKinds.grid) { const g = this.gridStep(); du = Math.round(du / g) * g; dv = Math.round(dv / g) * g; }
       const target = Object.fromEntries(drag.ids.map((id) => [id, [drag.from[id][0] + du, drag.from[id][1] + dv]]));
-      if (!drag.moved && (du || dv)) { drag.moved = true; this.step(); }
+      if (!drag.moved && (du || dv)) { drag.moved = true; this.step(); if (drag.unpick && this.picks?.length) { this.picks = []; this.renderSuggest(); } } // (an unpicked shape dragged: the picks go)
       if (!drag.moved) return;
       drag.pending = target;
       if (drag.busy) return; // one solve at a time; the last position wins
@@ -1257,6 +1268,7 @@ export class Sketcher {
     if (!drag) return;
     while (drag.busy) await new Promise((r) => setTimeout(r, 15));
     if (!drag.moved) return;
+    if (drag.group) { this.dragGuides = null; this.refreshPicks(); }
     this.changed();
   }
 
@@ -2733,7 +2745,7 @@ export class Sketcher {
     const count = (k, one, many) => (k === 1 ? t(one) : tv(many, { n: k }));
     const title = n === 1 ? t(kind || 'Selected') : [ns && count(ns, '1 shape', '{n} shapes'), n - ns && count(n - ns, '1 point', '{n} points')].filter(Boolean).join(', ');
     const sg = showSuggest(this.m.els.viewport, title, items,
-      n === 1 ? t('Ctrl+click another shape: what fits the two') : '', `${t('in the sketch')} ${this.f.id} “${this.f.name || ''}”: ${what.join(', ')}`);
+      n === 1 ? t('Ctrl+click another shape: what fits the two') : ns ? t('Drag one of them: they all move together') : '', `${t('in the sketch')} ${this.f.id} “${this.f.name || ''}”: ${what.join(', ')}`);
     if (sg) sg.dataset.from = 'sketch';
   }
 
@@ -2761,6 +2773,14 @@ export class Sketcher {
     for (const e of this.pickShapes(P)) if (e.t === 'circle') { const c = this.P(e.c); box.push([c[0] - e.r, c[1] - e.r], [c[0] + e.r, c[1] + e.r]); }
     const xs = box.map((p) => p[0]), ys = box.map((p) => p[1]);
     return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+  }
+
+  /** Is this (what hit() found) among the picks: a picked shape, a point of one, a picked point, a picked side's rectangle. */
+  inPicks(h) {
+    const P = this.picks || [], shapes = this.pickShapes(P);
+    if (h.kind === 'point') return P.some((q) => q.kind === 'point' && q.id === h.id) || shapes.some((e) => entPts(e).includes(h.id));
+    if (h.kind === 'group') return shapes.some((e) => e.g === h.id);
+    return shapes.some((e) => e.id === h.id);
   }
 
   /** The picks again where their shapes are now (after a move); gone ones dropped. */
@@ -3225,8 +3245,9 @@ export class Sketcher {
       else if (e?.t === 'arc') { const ps = this.arcOf(e); for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], SEL]); }
     }
     // the guides of where the mouse is (in line with a point, on a line's extension): dashed, for the moment
-    if (this.cursor?.guides && !['select', 'dim', 'relate'].includes(this.tool)) {
-      for (const [p, q] of this.cursor.guides) { lines.push([p, q, 0x7ee787, true]); dots.push([p, 0x7ee787]); circles.push([p, mpp * 4, 0x7ee787]); }
+    const guides = this.dragGuides || (!['select', 'dim', 'relate'].includes(this.tool) && this.cursor?.guides);
+    if (guides) {
+      for (const [p, q] of guides) { lines.push([p, q, 0x7ee787, true]); dots.push([p, 0x7ee787]); circles.push([p, mpp * 4, 0x7ee787]); }
     }
     // the dimension tool's first pick
     if (this.dimA) {

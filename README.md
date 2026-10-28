@@ -162,7 +162,9 @@ parallel flat faces), turning all their steps off, deleting them together.
 
 **Box selection** in a sketch (⬚ Select, drag on empty space): **right to left** takes every shape the box touches
 (green, dashed), **left to right** only the shapes wholly inside it (blue); hold **Ctrl** to add to what is picked —
-by click or by box. Delete removes them all.
+by click or by box. Delete removes them all. **Drag one of the picked shapes and they all move together** (the
+grabbed point snaps as the Snap row allows, the others follow by the same offset; one undo step); dragging a shape
+that is not picked moves just that one.
 
 **Suggestions for what is selected**: choose a shape in a sketch (⬚ Select) or a part in an assembly, and a small
 table in the bottom-left corner of the view says what can be done with it — a part: open it, join it, simplified, its
