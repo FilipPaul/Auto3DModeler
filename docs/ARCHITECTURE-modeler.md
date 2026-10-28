@@ -109,6 +109,15 @@ Date: 2026-10-25. Written by the architect agent.
   the click meant for it). e2e_assembly_facepick, e2e_suggest.
 - **↺ Restore in the size editor done:** openDimEdit's ↺ <the value it opened with> puts it back in the number and
   the slider and previews it (the editor stays open; greyed while unchanged). e2e_model_pick.
+- **Flexible sub-assemblies done (step 1: their own motions):** a placed sub-assembly's `inner` {its instance id:
+  matrix in its frame} — its parts moved in this placement only (its own document stays); innerList (the overrides
+  over its document), bodyOf / bodyKey (such a placement has its own merged body, `<part>@<inner>`), innerAsm (an
+  engine Object.create(this) on its parts and joints — holdPart / applyMates / motionsOf / moveFree as they are —
+  whose draw / commit go to keepInner: the moved places kept, the body merged again, the parent's joints applied),
+  settleInner on refresh (its joints changed in its tab), innerMotions -> the panel's "Moves inside <sub>" (sliders
+  only: motionHtml `only`; limits read from its document) and ↺ As in <sub>; flatParts / STEP / the sheet's flatten
+  / the tree's preview use the moved places. AI: get_assembly `inner` (part "I3/I2", free, at), move_free "I3/I2"
+  (set_travel / lock_motion / check_travel refuse it: its own assembly's). tools/e2e_assembly_flexsub.py.
 - **Hover marks, quadrants, hover filters done:** view.js snapPoints(edges, matrix, kinds) (snapNear uses it; a round
   edge's ◔ quadrants: along the world axis lying best in its plane, and across), ModelView.edgeAt (pickEdge over
   placed edge lists, hidden ones not taken), setHoverEdges / setHoverSnaps (the snap dots the camera sees: one ray

@@ -516,6 +516,11 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   on it go along), **▶** plays it from min to max and back — its **speed** (¼× … 4×) and **↻ repeat** next to it —, and **⚠ Check the travel** moves it from min to max in
   small steps and checks for collisions on the way: *"✓ Free all the way"* or *"⚠ It hits Stop (I3) from 1.25 to 20
   mm"*. It ends where it was. The AI does the same with `set_travel`, `check_travel` and `move_free {to}`.
+- **A sub-assembly keeps its own motions**: choose a placed sub-assembly — **Moves inside <it>** shows a slider for
+  each way its own joints leave its parts free (a lever on its pin). Slide: the lever turns here, in this placement
+  only — the sub-assembly's own tab stays as it is, and a second placement of it can stand differently. Parts joined
+  to the lever follow; collisions, STEP and drawings see it where it is. **↺ As in <it>** puts its parts back. The AI:
+  get_assembly lists them as `inner` ("I3/I2"), `move_free {part: "I3/I2"}` moves one.
   A part on a face is centred on it once, when the joint is made; after that it keeps where it slid, and goes along
   with the part it hangs on.
 - **🔒 Lock a motion**: the 🔒 next to a free way fixes it where the part is — its joint's turn or distance along the

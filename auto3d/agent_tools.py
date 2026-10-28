@@ -249,7 +249,7 @@ TOOLS = [
      "description": "Start a new, empty assembly (its own tab) to place 3D model parts of the project together. Then insert_part.",
      "inputSchema": _obj({"name": STR})},
     {"name": "get_assembly", "where": "browser",
-     "description": "The assembly on screen: its placed parts (id I1…, part, position, bounding box in mm), its joints (a joint that does not hold has `not_held`: how far off and which joint holds the part elsewhere — fix one of the two), its fasteners (one each: id K1…, text, its parts) and the parts list (qty, material, mass).",
+     "description": "The assembly on screen: its placed parts (id I1…, part, position, bounding box in mm), its joints (a joint that does not hold has `not_held`: how far off and which joint holds the part elsewhere — fix one of the two), its fasteners (one each: id K1…, text, its parts) and the parts list (qty, material, mass). A placed sub-assembly whose own joints leave its parts free has `inner`: those parts (\"I3/I2\") and how they can move inside it.",
      "inputSchema": _obj({})},
     {"name": "insert_part", "where": "browser",
      "description": "Add a part (id or name from list_parts: a 3D model, or a quick part — a drawing, picture or import — as its solid) to the assembly on screen; it is put beside the others. Returns the parts.",
@@ -315,7 +315,7 @@ TOOLS = [
      "inputSchema": _obj({"faces": {"type": "array", "items": STR}, "color": {"type": ["string", "null"]}, "part": STR}, ["faces"])},
     {"name": "move_free", "where": "browser",
      "description": "Move a joined part of the assembly on screen along one of the ways its joints leave free (get_assembly lists them "
-                    "as `free`, and in `at` where it is along each): part = I…, motion = its number (0, 1 …) or words of its name, "
+                    "as `free`, and in `at` where it is along each): part = I… (a part inside a sub-assembly: \"I3/I2\" from its `inner` — moved in this placement only, the sub-assembly itself stays), motion = its number (0, 1 …) or words of its name, "
                     "amount = by how much (mm for a move, degrees for a turn) or to = where along it. Its joints keep holding it; the "
                     "parts on it go along; it stops at its limits (set_travel). A fully held part cannot move.",
      "inputSchema": _obj({"part": STR, "motion": {}, "amount": NUM, "to": NUM}, ["part"])},

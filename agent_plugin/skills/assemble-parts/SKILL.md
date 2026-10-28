@@ -37,6 +37,8 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    A part that moves (a cylinder's rod, a slide, a door): `set_travel {part, motion, min, max}` gives its free motion
    its limits (where along it: get_assembly `at`), then `check_travel {part, motion}` tells whether it hits anything
    on the way; `move_free {part, motion, to}` puts it at a position (it stops at the limits).
+   A sub-assembly placed in this one keeps its own motions: get_assembly lists them in its `inner` (part "I3/I2");
+   `move_free {part: "I3/I2", …}` moves that part here only — the sub-assembly's own tab stays as it is.
    A joint with `not_held` is overridden by another joint of that part (it names it): change or `remove_joint` one
    of the two — never leave a joint that does not hold. Joining the same two faces again changes that joint.
    `remove_from_assembly` on a fastener's screw or nut takes out the whole fastener and the holes drilled for it.

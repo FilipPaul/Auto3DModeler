@@ -511,7 +511,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         if (ws === 'assembly') {
           await assembly.refresh();
           const groups = assembly.doc.instances.flatMap((it) => {
-            const b = assembly.bodies[it.part]?.body;
+            const b = assembly.bodyOf(it)?.body;
             if (!b) return [];
             const look = assembly.lookOf(it);
             return colouredGroups(b, { base: look.colour !== null && look.colour !== undefined ? hex(look.colour) : '#d9dee6', paint: look.paint, matrix: it.matrix,

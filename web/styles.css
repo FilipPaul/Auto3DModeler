@@ -724,6 +724,7 @@ body.ws-model #exportMenu [data-fmt=glb] { display: none; }
 .as-jtag.bad { border-color: #f85149; color: #ffb3ae; }
 .as-jtag.locked { border-color: #d2a8ff; }
 .as-dof { margin-bottom: 8px; }
+.as-innerpart { font-size: 12px; font-weight: 600; margin: 6px 0 2px; }
 .as-free { margin: 6px 0 10px; }
 .as-free summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
 .as-dof label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }

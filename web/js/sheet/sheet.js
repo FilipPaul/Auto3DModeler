@@ -99,7 +99,7 @@ export class SheetEditor {
     if (!data) return null;
     if (this.hooks.kindOf?.(id) !== 'assembly') return partHash(data);
     seen.add(id);
-    const inside = (data.instances || []).map((it) => [it.part, it.matrix, seen.has(it.part) ? '' : this.sourceHash(it.part, seen)]);
+    const inside = (data.instances || []).map((it) => [it.part, it.matrix, seen.has(it.part) ? '' : this.sourceHash(it.part, seen), ...(it.inner ? [it.inner] : [])]);
     return partHash({ features: inside });
   }
 
@@ -455,9 +455,9 @@ export class SheetEditor {
   }
 
   async assemblyPage(aid, ctx, explode = 0) {
-    const flatten = (id, M = ID4, pre = '') => (this.hooks.partData(id)?.instances || []).flatMap((it) => {
-      const W = mul4(M, it.matrix || ID4), key = pre ? `${pre}/${it.id}` : it.id;
-      if (ctx.kindOf(it.part) === 'assembly') return flatten(it.part, W, key);
+    const flatten = (id, M = ID4, pre = '', inner = null) => (this.hooks.partData(id)?.instances || []).flatMap((it) => { // (inner: a sub-assembly's parts moved in this placement)
+      const W = mul4(M, inner?.[it.id] || it.matrix || ID4), key = pre ? `${pre}/${it.id}` : it.id;
+      if (ctx.kindOf(it.part) === 'assembly') return flatten(it.part, W, key, it.inner);
       return [{ id: key, part: { features: this.hooks.partData(it.part)?.features || [] }, matrix: W }];
     });
     const insts = this.hooks.partData(aid)?.instances || [];

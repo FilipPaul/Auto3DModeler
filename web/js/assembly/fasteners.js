@@ -73,7 +73,7 @@ function holes(asm) {
   const out = [];
   const fasteners = new Set((asm.doc.mates || []).filter((m) => m.type === 'axis').map((m) => m.move)); // pins / screws in holes
   for (const it of asm.doc.instances) {
-    const b = asm.bodies[it.part]?.body;
+    const b = asm.bodyOf(it)?.body;
     if (!b || fasteners.has(it.id)) continue;
     const M = new THREE.Matrix4().fromArray(it.matrix), N = new THREE.Matrix3().getNormalMatrix(M);
     for (const f of b.faces) {
@@ -92,7 +92,7 @@ function holes(asm) {
 
 /** The flat face of a placed part across the axis at a point, its normal pointing `out`. */
 function planeAt(asm, inst, point, out) {
-  const it = asm.inst(inst), b = asm.bodies[it.part]?.body;
+  const it = asm.inst(inst), b = asm.bodyOf(it)?.body;
   const M = new THREE.Matrix4().fromArray(it.matrix), N = new THREE.Matrix3().getNormalMatrix(M);
   let best = null;
   for (const f of b.faces) {
@@ -195,7 +195,7 @@ export function partsAlong(asm, o, d, skip = () => false) {
   const dir = d.clone().normalize(), from = o.clone().addScaledVector(dir, -1);
   const ray = new THREE.Raycaster(from, dir, 0, 1e5), out = [];
   for (const it of asm.doc.instances) {
-    const b = asm.bodies[it.part]?.body;
+    const b = asm.bodyOf(it)?.body;
     if (!b || skip(it)) continue;
     if (!b._geo) {
       b._geo = new THREE.BufferGeometry();
