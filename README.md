@@ -791,6 +791,13 @@ the app exchanges with them — and with Inventor, Fusion, Creo, NX, FreeCAD, On
   holes, an assembly with a sub-assembly and repeated parts, drawing sheets: STEP, IGES, STL, OBJ, GLB, 3MF, BOM CSV,
   PDF, DXF, the project file); its README.md says what to check in each program. `tools/make_export_samples.py`
   makes them again.
+- **Tested with real files** (`samples/ToImportToOurApp` — its README says for each file which program made it, how to open
+  it and what you should see, with its source and licence; `solidedge/` is for your own Solid Edge exports): exchange tested with files
+  from CATIA V5, NX / Unigraphics, Creo / Pro/ENGINEER, SolidWorks, Inventor, Fusion 360, I-DEAS, CoCreate, AutoCAD and
+  others (STEP AP203 / AP214 / AP242, IGES) — parts and assemblies open with their parts, placements, sub-assemblies,
+  names and colours; they can be edited, drawn (sheet -> PDF / DXF) and exported back (STEP / IGES / GLB) and read again
+  the same. Known gaps: an assembly whose parts are separate files (external references) and tessellated (mesh-only)
+  STEP files are not opened as solids; an IGES of loose surfaces that do not close comes in as a reference body.
 
 ## AI assistant (✨ AI tab)
 

@@ -1,3 +1,7 @@
 # files the app exported: kept byte for byte as written (no line-ending changes)
 samples/ExportFromOurApp/** -text
 samples/ExportFromOurApp/README.md text
+# files from other programs to import: kept byte for byte (no line-ending changes)
+samples/ToImportToOurApp/** -text
+samples/ToImportToOurApp/README.md text
+samples/ToImportToOurApp/samples.json text
