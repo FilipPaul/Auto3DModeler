@@ -5,18 +5,15 @@
 //
 // ctx: {partData(id), kindOf(id) ('model' | 'classic' | 'assembly' …), partName(id), massOf?(id) -> g each or null}.
 import { isStandard } from './fasteners.js';
-import { MATERIAL_GROUPS } from '../modeler/materials.js';
+import { printed } from '../modeler/materials.js';
 
-const PRINTED = new Set(MATERIAL_GROUPS.find(([g]) => g === '3D printing')[1].map(([n]) => n));
-const METALS = new Set(MATERIAL_GROUPS.find(([g]) => g === 'Metals')[1].map(([n]) => n));
-
-/** Make or buy, by the part's library facts and its material (the one place it is decided): a library or standard part
- *  is bought; an own part is made — printed (a 3D printing plastic, or none chosen: PLA), machined (a metal), or
- *  plain made (engineering plastics, wood, glass…) -> {buy, how: 'bought' | 'made (3D print)' | 'made (machined)' | 'made'}. */
+/** Make or buy, by the part's library facts and its material (the one place the browser decides it; the server's
+ *  auto3d/modeler/materials.made_how is the same rule): a library or standard part (screws, nuts, inserts, pins) is
+ *  bought; an own part is made — "made (3D print)" of a printing plastic (none chosen: PLA), else "made" (metals,
+ *  engineering plastics …) -> {buy, how: 'bought' | 'made (3D print)' | 'made'}. */
 export function makeBuy(data, name = '') {
   if (data?.library || isStandard(data, name)) return { buy: true, how: 'bought' };
-  const m = data?.material || 'PLA';
-  return { buy: false, how: PRINTED.has(m) ? 'made (3D print)' : METALS.has(m) ? 'made (machined)' : 'made' };
+  return { buy: false, how: printed(data?.material) ? 'made (3D print)' : 'made' };
 }
 
 /** The placed parts of assembly `aid` as a tree, instance by instance: [{id, path ("I3/I2"), part, kind, children

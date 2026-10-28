@@ -647,10 +647,10 @@ export class Assembly {
   numberingOf(aid) { return this.hooks.setRoot?.(aid) || aid; }
 
   /** The bill of materials of every part, rolled up through the sub-assemblies (bom.js) -> rows
-   *  [{pos, name, qty, maker, pn, description, order: {…}, material, mass_g (each), library (bool), buy, how}]. */
+   *  [{pos, name, qty, maker, pn, description, order: {…}, material, mass_g (each), library (bool), buy, how / made (bom.js makeBuy)}]. */
   bomFlat(aid = this.hooks.selfId?.()) {
     return bomOf(this.bomCtx(), aid, { numbering: this.numberingOf(aid) }).rows.map((r) => ({ pos: r.pos, name: r.name, qty: r.qty, maker: r.maker, pn: r.pn, description: r.description,
-      order: r.order, material: r.material, mass_g: r.mass_g, library: r.library, approx: r.approx, buy: r.buy, how: r.how }));
+      order: r.order, material: r.material, mass_g: r.mass_g, library: r.library, approx: r.approx, buy: r.buy, how: r.how, made: r.how }));
   }
 
   /** ⬇ BOM (CSV): the summary BOM (bom.js bomCsv: ; separated — Excel in Czech / German reads it —, UTF-8 with a BOM mark). */

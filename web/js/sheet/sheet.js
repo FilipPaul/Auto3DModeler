@@ -704,6 +704,7 @@ export class SheetEditor {
     const tol = src.tolerance ? `${(F.tolstd || 'ISO 2768').replace(/-[a-z]+$/i, '')}-${src.tolerance}` : F.tolstd || '—';
     const day = (iso) => (iso ? new Date(iso).toISOString().slice(0, 10) : '—');
     const name = X.title || T.part || this.hooks.partName(this.d.source) || '—';
+    const mat = T.material ?? (this.d.asm ? src.material || '—' : src.material || 'PLA'); // (an assembly: its parts' are in its parts list)
     const what = [T.kind || (this.d.asm ? t('Assembly') : t('Part')), T.of ? `${t('in')} ${T.of}` : '', T.pos ? `${t('Pos.')} ${T.pos}` : ''].filter(Boolean).join(' · ');
     const g = [`<g class="sh-title"><rect x="${x0}" y="${y0}" width="${W}" height="${th}" fill="#fff" stroke="${INK}" stroke-width="0.35"/>`];
     const hit = (key, x, y, w, h) => g.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fff" fill-opacity="0" stroke="none" data-tcell="${key}" class="sh-tcell"/>`);
@@ -724,7 +725,7 @@ export class SheetEditor {
     };
     const appLine = 'Auto3DModeler · mm';
     if (tb.layout === 'strip') { // one row: name, material, scale, paper, drawing no., rev, sheet
-      row(y0, th, x0, W, [[what, name, 2.6, 'title', 3.6, true], ...(on('material') ? [[t('Material'), T.material ?? (src.material || 'PLA'), 1.3]] : []),
+      row(y0, th, x0, W, [[what, name, 2.6, 'title', 3.6, true], ...(on('material') ? [[t('Material'), mat, 1.3]] : []),
         [t('Scale'), this.d.bom ? '—' : scaleText(this.scaleArr()), 0.8], ...(on('paper') ? [[t('Paper'), L.paper, 0.6]] : []),
         ...(on('number') ? [[t('Drawing no.'), F.number || '', 1.3, 'number']] : []), ['Rev', `${this.d.rev}`, 0.5], ...(T.sheet ? [[t('Sheet'), T.sheet, 0.8]] : [])]);
       g.push(`<text x="${x0 + W - 1.2}" y="${y0 - 1.2}" font-size="1.6" fill="${MUTED}" text-anchor="end">${esc(appLine)}</text>`);
@@ -755,7 +756,7 @@ export class SheetEditor {
       if (!C) g.push(`<text x="${x0 + W - 1.2}" y="${y0 - 1.2}" font-size="1.6" fill="${MUTED}" text-anchor="end">${esc(appLine)}</text>`);
     }
     g.push(`<line x1="${xm}" y1="${y0 + hA}" x2="${x0 + W}" y2="${y0 + hA}" stroke="${INK}" stroke-width="${THIN}"/>`);
-    row(y0 + hA, hB, xm, M, [...(on('material') ? [[t('Material'), T.material ?? (src.material || 'PLA'), 1.35]] : []), [t('Scale'), this.d.bom ? '—' : scaleText(this.scaleArr()), 0.8],
+    row(y0 + hA, hB, xm, M, [...(on('material') ? [[t('Material'), mat, 1.35]] : []), [t('Scale'), this.d.bom ? '—' : scaleText(this.scaleArr()), 0.8],
       ...(on('paper') ? [[t('Paper'), L.paper, 0.65]] : []), ...(on('tolerances') ? [[t('Tolerances'), tol, 1.3]] : []), ...(T.sheet ? [[t('Sheet'), T.sheet, 0.85]] : [])]);
     g.push(`<line x1="${xm}" y1="${y0 + hA + hB}" x2="${x0 + W}" y2="${y0 + hA + hB}" stroke="${INK}" stroke-width="${THIN}"/>`);
     row(y0 + hA + hB, hB, xm, M, [...(on('drawn') ? [[t('Drawn by'), F.drawn || '', 1.1, 'drawn']] : []), ...(on('created') ? [[t('Created'), day(this.d.created), 0.95]] : []),

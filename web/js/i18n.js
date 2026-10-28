@@ -1205,7 +1205,7 @@ const CS = {
   'The picture could not be read.': 'Obrázek nejde načíst.', 'The logo is too big — use a smaller picture.': 'Logo je příliš velké — použijte menší obrázek.',
   // 📋 BOM (assembly/bom.js, bomview.js; the drawing set's BOM pages)
   '📋 BOM': '📋 Kusovník', 'Bill of materials': 'Kusovník', BOM: 'Kusovník', Summary: 'Souhrnný', Structured: 'Strukturovaný', structured: 'strukturovaný',
-  'made (3D print)': 'vyráběný (3D tisk)', 'made (machined)': 'vyráběný (obrábění)', made: 'vyráběný', assembly: 'sestava',
+  'made (3D print)': 'vyráběný (3D tisk)', made: 'vyráběný', assembly: 'sestava',
   Level: 'Úroveň', 'Qty per parent': 'Ks v nadřazené', 'Total qty': 'Ks celkem', 'Mass each': 'Hmotnost/ks', 'Mass total': 'Hmotnost celkem',
   'Mass each (g)': 'Hmotnost/ks (g)', 'Mass total (g)': 'Hmotnost celkem (g)', Description: 'Popis', 'Make / buy': 'Výroba / nákup',
   'The bill of materials: every part with its total quantity from all levels (sub-assemblies counted in), material, mass, maker and part number — as a summary or as the assembly tree':

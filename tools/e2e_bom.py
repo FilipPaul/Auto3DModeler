@@ -103,7 +103,7 @@ try:
     scr = next(r for r in s["rows"] if r["name"] == SCREW)
     check(scr["make_buy"] == "bought" and scr.get("pn") and "Machine: 4" in scr["from"], f"the screw is bought ({scr.get('pn')}), 4 of them directly in Machine")
     mb = {r["name"]: r["make_buy"] for r in s["rows"]}
-    check(mb["Base"] == "made (3D print)" and mb["Bracket"] == "made (machined)", f"make / buy by material: {mb}")
+    check(mb["Base"] == "made (3D print)" and mb["Bracket"] == "made", f"make / buy by material (aluminium: made, not printed): {mb}")
     check(all(r.get("mass_g_each") for r in s["rows"]), "every row has its mass")
     st = json.loads(call("get_bom", mode="structured"))
     tree = [(r["level"], r["name"], r["qty_per_parent"], r["total"]) for r in st["rows"]]

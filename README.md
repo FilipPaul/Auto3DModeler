@@ -600,7 +600,7 @@ depth, a sub-assembly placed twice counting its parts twice. A screw placed both
 sub-assembly is counted in both, nothing twice. Two views:
 - **Summary** — one row per part: position, name, total quantity, material, mass each and in all, maker and part
   number (library parts), and **make / buy** (library and standard parts are bought; your own parts are made —
-  *3D print* for printing plastics, *machined* for metals). Hover a row to see where its count comes from
+  *made (3D print)* of a printing plastic, *made* of a metal or another material). Hover a row to see where its count comes from
   (*Lid unit: 3 × 2 + Hinge: 1*).
 - **Structured** — the assembly tree: each sub-assembly with its parts, the quantity in its parent and the running
   total; ▾ / ▸ folds a sub-assembly.
@@ -764,10 +764,10 @@ the app exchanges with them — and with Inventor, Fusion, Creo, NX, FreeCAD, On
 
 | Format | In | Out | Notes |
 |---|---|---|---|
-| **STEP** (.step / .stp, AP214) | a part (exact solid, colours); an assembly (parts, placements, sub-assemblies, names, colours) | a part; an assembly as an assembly tree | The best choice: all three read and write it (*Save As → STEP AP214 / AP242*). |
-| **IGES** (.igs / .iges, 5.3) | a part: its solids, or its surfaces sewn into a solid (a warning says so); surfaces that do not close come in as a 👁 reference body | a part (exact B-rep solid, mm); an assembly as one file (every part placed, names and colours — IGES has no assembly tree) | For programs and suppliers that still ask for IGES. Prefer STEP. |
+| **STEP** (.step / .stp, AP214) | a part (exact solid, colours); an assembly (parts, placements, sub-assemblies, names, colours) | a part (named, in its colour, 🎨 painted faces in theirs); an assembly as an assembly tree (the same for each part) | The best choice: all three read and write it (*Save As → STEP AP214 / AP242*). Names with ×, č … are written as STEP's own `\X2\` codes (an ASCII file every reader decodes). |
+| **IGES** (.igs / .iges, 5.3) | a part: its solids, or its surfaces sewn into a solid (a warning says so); surfaces that do not close come in as a 👁 reference body | a part (exact B-rep solid, mm, its name and colours); an assembly as one file (a body per placed part, named by its place, e.g. "Post pair-2/Post-1", with its colours — IGES has no assembly tree) | For programs and suppliers that still ask for IGES. Prefer STEP. IGES holds ASCII only: "M6×16" becomes "M6x16", accents are dropped. |
 | **DXF** (drawing sheet) | — (a DXF / DWG opens as a 📐 2D drawing) | a part's or an assembly's 📄 drawing sheet: the paper 1:1 in mm, views, real dimensions, title block, a layer per kind | ⬇ DXF on the sheet. Opens in AutoCAD, DraftSight, SolidWorks (*Open → DXF*, as a drawing) and Solid Edge Draft. |
-| **glTF** (.glb) | — | a 3D model part (its colour, the material's metal / plastic look) or an assembly (a node per placed part with its name, sub-assemblies nested, colours, PBR materials); metres, Y up | For viewers, rendering (Blender, KeyShot), web pages, SolidWorks Visualize / CATIA Composer-like tools. A quick part's GLB is its preview mesh. |
+| **glTF** (.glb) | — | a 3D model part (its colour, 🎨 painted faces, the material's metal / plastic look) or an assembly (a node per placed part with its name, sub-assemblies nested, colours, PBR materials); metres, Y up | For viewers, rendering (Blender, KeyShot), web pages, SolidWorks Visualize / CATIA Composer-like tools. A quick part's GLB is its preview mesh. |
 | **OBJ** (.obj) | a mesh made a solid (up to 60 000 triangles), or a sliced quick part | a 3D model part as a mesh (mm, shared corners, normals) | For renderers and 3D programs that take OBJ. |
 | **Parasolid** (.x_t / .x_b), **JT**, native SLDPRT / CATPart / PAR | not read | not written | Closed or licensed formats with no free reader that gives an exact solid — save as **STEP** in the program that made them (see *Parasolid and JT* in docs/ARCHITECTURE-modeler.md Progress). |
 

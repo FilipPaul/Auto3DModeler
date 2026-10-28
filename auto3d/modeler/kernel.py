@@ -12,6 +12,7 @@ two faces it joins.
 """
 from __future__ import annotations
 
+import contextlib
 import math
 import os
 import re
@@ -39,7 +40,7 @@ from OCP.GProp import GProp_GProps
 from OCP.gp import gp_Ax1, gp_Ax2, gp_Circ, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec
 from OCP.IFSelect import IFSelect_RetDone
 from OCP.Interface import Interface_Static
-from OCP.STEPControl import STEPControl_AsIs, STEPControl_Reader, STEPControl_Writer
+from OCP.STEPControl import STEPControl_AsIs, STEPControl_Reader
 from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE, TopAbs_REVERSED, TopAbs_SOLID, TopAbs_VERTEX
 from OCP.TopExp import TopExp, TopExp_Explorer
 from OCP.TopLoc import TopLoc_Location
@@ -1809,34 +1810,61 @@ def mesh_solid(tris, tol=1e-4):
     return u.Shape()
 
 
-def to_step(shape, name="part"):
-    w = STEPControl_Writer()
-    Interface_Static.SetCVal_s("write.step.schema", "AP214")
-    Interface_Static.SetCVal_s("write.step.unit", "MM")
-    w.Transfer(shape, STEPControl_AsIs)
-    fd, path = tempfile.mkstemp(suffix=".step")
-    os.close(fd)
-    try:
-        if w.Write(path) != IFSelect_RetDone:
-            raise KernelError("The STEP file could not be written.")
-        with open(path, "rb") as fh:
-            return fh.read()
-    finally:
-        os.unlink(path)
+def to_step(shape, name="part", colour=None, colours=None):
+    """One part as a STEP file (AP214, mm), as other CAD programs read it: a product named `name`, the part's colour
+    ("#rrggbb") and its faces' own colours (colours [(face, "#rrggbb")]: an imported file's, 🎨 painted ones)."""
+    return write_step_tree({"p": {"name": name, "shape": shape, "colour": colour, "colours": colours or []}}, {}, "p", name)
 
 
-def to_iges(shape, surfaces=False):
+def to_iges(shape, surfaces=False, name=None, colour=None, colours=None):
     """One part as an IGES file (5.3, its exact B-rep solid as MSBO entities, mm) — for CAD programs that take IGES
-    rather than STEP. surfaces: trimmed surfaces only (entity 144, as older programs write IGES), no solid."""
-    from OCP.IGESControl import IGESControl_Controller, IGESControl_Writer
-    mode = 0 if surfaces else 1
-    IGESControl_Controller.Init_s()
-    Interface_Static.SetIVal_s("write.iges.brep.mode", mode)
-    w = IGESControl_Writer("MM", mode)
-    if not w.AddShape(shape):
-        raise KernelError("The part could not be made an IGES file.")
-    w.ComputeModel()
-    return _written(lambda path: w.Write(path), ".igs")
+    rather than STEP — with its name and colours as for to_step. surfaces: trimmed surfaces only (entity 144, as older
+    programs write IGES), no solid."""
+    return _iges({"p": {"name": name or "part", "shape": shape, "colour": colour, "colours": colours or []}}, surfaces=surfaces)
+
+
+@contextlib.contextmanager
+def _settings(values):
+    """The STEP / IGES writers' settings (Interface_Static: one set for the whole process) for one export, the old
+    values back after it — so an export never inherits what an earlier one set (e.g. its product name)."""
+    old = {}
+    try:
+        for k, v in values.items():
+            if isinstance(v, int):
+                old[k] = Interface_Static.IVal_s(k)
+                Interface_Static.SetIVal_s(k, v)
+            else:
+                old[k] = Interface_Static.CVal_s(k)
+                Interface_Static.SetCVal_s(k, v)
+        yield
+    finally:
+        for k, v in old.items():
+            if isinstance(v, int):
+                Interface_Static.SetIVal_s(k, v)
+            elif v:
+                Interface_Static.SetCVal_s(k, v)
+
+
+def _step_ascii(data: bytes) -> bytes:
+    r"""A STEP file in plain ASCII: a character beyond it (×, č …) as STEP's own \X2\00D7\X0\ (\X4\ beyond U+FFFF),
+    which every STEP reader decodes — OCCT writes the UTF-8 bytes, which older readers show as "Ã—"."""
+    text = data.decode("utf-8", errors="replace")
+    if text.isascii():
+        return data
+
+    def code(m):
+        s = m.group(0)
+        if all(ord(c) <= 0xFFFF for c in s):
+            return "\\X2\\" + "".join("%04X" % ord(c) for c in s) + "\\X0\\"
+        return "\\X4\\" + "".join("%08X" % ord(c) for c in s) + "\\X0\\"
+    return re.sub(r"[^\x00-\x7f]+", code, text).encode("ascii")
+
+
+def _ascii(text):
+    """A name as IGES holds it (ASCII only: its strings count characters as bytes): accents dropped, "×" -> "x"."""
+    import unicodedata
+    s = unicodedata.normalize("NFKD", str(text or "").replace("×", "x"))
+    return "".join(c for c in s if c.isascii() and not unicodedata.combining(c))
 
 
 def sewn_solid(shape, tol=0.01):
@@ -2112,7 +2140,7 @@ def _xcaf_tree(parts, assemblies, root, finish=False):
 
     def named(label, text):
         if text:
-            TDataStd_Name.Set_s(label, TCollection_ExtendedString(str(text)))
+            TDataStd_Name.Set_s(label, TCollection_ExtendedString(str(text), True))  # (True: the text is UTF-8, not Latin-1)
         return label
 
     labels = {}
@@ -2124,7 +2152,7 @@ def _xcaf_tree(parts, assemblies, root, finish=False):
             p = parts[k]
             lb = named(st.AddShape(p["shape"], False, False), p.get("name") or k)
             c = colour(p.get("colour"))
-            if c:
+            if c and mt is None:  # (glTF: the colour is in its material — a colour on the part beat a placement's own)
                 ct.SetColor(lb, c, XCAFDoc_ColorType.XCAFDoc_ColorGen)
             if mt is not None:  # glTF: the part's look as a PBR material (a metal shines, a plastic does not)
                 pbr = XCAFDoc_VisMaterialPBR()
@@ -2156,10 +2184,42 @@ def _xcaf_tree(parts, assemblies, root, finish=False):
         labels[k] = lb
         return lb
 
-    if label_of(root) is None:
+    if root is None:  # no tree: every part a shape of its own (an IGES file's bodies)
+        for k in parts:
+            label_of(k)
+    elif label_of(root) is None:
         raise KernelError("The assembly is empty — insert parts first.")
     st.UpdateAssemblies()
     return doc
+
+
+def _flat(parts, assemblies, root):
+    """An assembly's parts each where it is placed (all levels) -> parts as for _xcaf_tree, one per placement: named by
+    the path of its placements ("Post pair-2/Post-1"), copied there, its colour as a STEP reader finds it (the
+    placement's own, else the part's, else a sub-assembly placement's around it)."""
+    out = {}
+
+    def walk(k, loc, path, inherited, seen):
+        for i, inst in enumerate((assemblies.get(k) or {}).get("instances") or []):
+            ref, c = inst["ref"], inst.get("colour")
+            here = loc.Multiplied(TopLoc_Location(_trsf(inst.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])))
+            name = "/".join([*path, str(inst.get("name") or (parts.get(ref) or assemblies.get(ref) or {}).get("name") or ref)])
+            if ref in parts:
+                p = parts[ref]
+                # (copied there, not moved: IGES finds a face's colour only on a face with no location, and the faces a
+                # part placed twice shares took one placement's colour for both)
+                op = BRepBuilderAPI_Transform(p["shape"], here.Transformation(), True)
+                out[f"{len(out)}"] = {"name": name, "shape": op.Shape(), "colour": c or p.get("colour") or inherited,
+                                      "colours": [(op.ModifiedShape(f), fc) for f, fc in p.get("colours") or []]}
+            elif ref in assemblies and ref not in seen:
+                walk(ref, here, [*path, name.rsplit("/", 1)[-1]], c or inherited, (*seen, ref))
+
+    if root in parts:
+        return {root: parts[root]}
+    walk(root, TopLoc_Location(), [], None, (root,))
+    if not out:
+        raise KernelError("The assembly is empty — insert parts first.")
+    return out
 
 
 def _written(write, suffix):
@@ -2180,32 +2240,37 @@ def write_step_tree(parts, assemblies, root, name="assembly"):
     assemblies and root as for _xcaf_tree."""
     from OCP.STEPCAFControl import STEPCAFControl_Writer
     doc = _xcaf_tree(parts, assemblies, root)
-    w = STEPCAFControl_Writer()
-    w.SetColorMode(True)
-    w.SetNameMode(True)
-    Interface_Static.SetCVal_s("write.step.schema", "AP214IS")
-    Interface_Static.SetCVal_s("write.step.unit", "MM")
-    Interface_Static.SetCVal_s("write.step.product.name", str(name or "assembly"))
-    if not w.Transfer(doc, STEPControl_AsIs):
-        raise KernelError("The assembly could not be made a STEP file.")
-    return _written(lambda path: w.Write(path) == IFSelect_RetDone, ".step")
+    # (the settings set for this file only: they are the whole process's — the next part's STEP kept this one's name)
+    with _settings({"write.step.schema": "AP214IS", "write.step.unit": "MM", "write.step.product.name": str(name or "assembly")}):
+        w = STEPCAFControl_Writer()
+        w.SetColorMode(True)
+        w.SetNameMode(True)
+        if not w.Transfer(doc, STEPControl_AsIs):
+            raise KernelError("The assembly could not be made a STEP file.")
+        return _step_ascii(_written(lambda path: w.Write(path) == IFSelect_RetDone, ".step"))
 
 
 def write_iges_tree(parts, assemblies, root):
-    """An assembly as one IGES file (5.3, B-rep solids, mm): every part placed, with its name and colour — IGES has no
-    assembly tree, so a CAD program opens it as one part of several bodies."""
+    """An assembly as one IGES file (5.3, B-rep solids, mm): every part placed, a body each with its name (the path of
+    its placements: "Post pair-2/Post-1") and colours — IGES has no assembly tree, so a CAD program opens it as one
+    part of several bodies."""
+    return _iges(_flat(parts, assemblies, root))
+
+
+def _iges(parts, surfaces=False):
+    """Parts (as for _xcaf_tree, already placed) as one IGES file, a body each named in ASCII (IGES's strings: the
+    entity's label, 8 characters, and its full name as a Name property), with its colour and its faces' colours."""
     from OCP.IGESCAFControl import IGESCAFControl_Writer
     from OCP.IGESControl import IGESControl_Controller
-    doc = _xcaf_tree(parts, assemblies, root)
+    doc = _xcaf_tree({k: {**p, "name": _ascii(p.get("name")) or "part"} for k, p in parts.items()}, {}, None)
     IGESControl_Controller.Init_s()  # (the IGES settings exist only once it is set up: else B-rep mode is ignored)
-    Interface_Static.SetIVal_s("write.iges.brep.mode", 1)
-    Interface_Static.SetCVal_s("write.iges.unit", "MM")
-    w = IGESCAFControl_Writer()
-    w.SetColorMode(True)
-    w.SetNameMode(True)
-    if not w.Transfer(doc):
-        raise KernelError("The assembly could not be made an IGES file.")
-    return _written(lambda path: w.Write(path), ".igs")
+    with _settings({"write.iges.brep.mode": 0 if surfaces else 1, "write.iges.unit": "MM"}):
+        w = IGESCAFControl_Writer()
+        w.SetColorMode(True)
+        w.SetNameMode(True)
+        if not w.Transfer(doc):
+            raise KernelError("The part could not be made an IGES file." if len(parts) == 1 else "The assembly could not be made an IGES file.")
+        return _written(lambda path: w.Write(path), ".igs")
 
 
 def write_gltf_tree(parts, assemblies, root):
@@ -2238,8 +2303,7 @@ def write_gltf_tree(parts, assemblies, root):
 def to_step_coloured(shape, colours, name="part"):
     """One part as a STEP file with its face colours ({face index: "#rrggbb"}, as read_step_colours gives them)."""
     fm = _face_map(shape)
-    return write_step_tree({"p": {"name": name, "shape": shape, "colours": [(fm.FindKey(k + 1), c) for k, c in colours.items()]}},
-                           {}, "p", name)
+    return to_step(shape, name, colours=[(fm.FindKey(k + 1), c) for k, c in colours.items()])
 
 
 def read_step_colours(data: bytes, summary=False, kind="step"):

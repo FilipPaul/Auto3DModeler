@@ -24,21 +24,21 @@ them. To make them again, start a server and run
 
 | File | What it is | Open it in | What to check |
 |---|---|---|---|
-| `part_base_plate.step` | The Base plate as a STEP (AP214, mm), one solid | Solid Edge, FreeCAD, any STEP viewer | 80 × 50 × 10 mm; volume 37 864.76 mm³ (FreeCAD: Part → Check geometry / Mass properties); 15 faces; the 4 countersinks are real cones (Ø12 at the top, 90°); the holes have no modelled thread (only the Ø5 tap drill). |
+| `part_base_plate.step` | The Base plate as a STEP (AP214, mm), one solid, named "Base plate", aluminium grey with its top face orange | Solid Edge, FreeCAD, any STEP viewer | 80 × 50 × 10 mm; the name "Base plate"; the orange top; volume 37 864.76 mm³ (FreeCAD: Part → Check geometry / Mass properties); 15 faces; the 4 countersinks are real cones (Ø12 at the top, 90°); the holes have no modelled thread (only the Ø5 tap drill). |
 | `part_base_plate_real_threads.step` | The same plate with **🔩 real threads**: ISO metric M6 grooves cut into the 4 holes (2 MB) | Solid Edge, FreeCAD | One solid; the thread helix visible in the holes (pitch 1 mm); volume about 37 771 mm³ (94 mm³ of grooves less than the plain plate). |
-| `part_base_plate.igs` | The same plate as IGES 5.3 (a B-rep solid, mm) | Solid Edge, FreeCAD | It opens as **one solid**, not loose surfaces; same size and volume as the STEP. |
+| `part_base_plate.igs` | The same plate as IGES 5.3 (a B-rep solid, mm), named, in its colours | Solid Edge, FreeCAD | It opens as **one solid**, not loose surfaces; same size and volume as the STEP; grey with the orange top. |
 | `part_base_plate.stl` | Binary STL (mm) | A slicer (PrusaSlicer, Bambu Studio, Cura), Windows 3D Viewer | 80 × 50 × 10 mm at 100 %; no "repair needed" warning (watertight); round holes in facets. |
 | `part_base_plate.obj` | Wavefront OBJ (mm, normals) | Blender, Windows 3D Viewer, MeshLab | Object named `Base_plate`; the same shape as the STL. |
-| `part_base_plate.glb` | Binary glTF 2.0 (metres, Y up, PBR material) | gltf-viewer.donmccurdy.com, Blender, Windows 3D Viewer | One node "Base plate"; looks metallic (aluminium); 0.08 × 0.05 × 0.01 m. |
+| `part_base_plate.glb` | Binary glTF 2.0 (metres, Y up, PBR material) | gltf-viewer.donmccurdy.com, Blender, Windows 3D Viewer | One node "Base plate"; looks metallic (aluminium) with the orange top; 0.08 × 0.05 × 0.01 m. |
 | `part_base_plate.3mf` | 3MF, one object per colour (multi-material printing) | Bambu Studio, PrusaSlicer, Orca Slicer | 80 × 50 × 10 mm; **two colours**: the plate light grey, its top face orange — the slicer offers a filament for each. |
-| `assembly_frame.step` | The Frame as a **STEP assembly** (AP214: a product per part, placed instances, sub-assembly nested) | Solid Edge (Open → it builds an .asm), FreeCAD (Assembly / A2plus), a STEP viewer with a tree | The tree **Frame → Base plate-1, Post pair-1, Post pair-2 (each → Post-1, Post-2), 4 screws**; Post is one part used 4×, the screw one part used 4×; Post-2 is green; the plate grey (aluminium), posts and screws steel grey; total volume 57 697.89 mm³. |
-| `assembly_frame.igs` | The Frame as **one IGES** (every part placed; IGES has no assembly tree) | Solid Edge, FreeCAD | 9 solids, placed as in the STEP, in their colours; total volume 57 697.89 mm³. |
-| `assembly_frame.glb` | The Frame as glTF (a node per placed part, nested; materials) | gltf-viewer.donmccurdy.com, Blender | The node tree as the STEP's; the green post; metal look on the steel parts. |
+| `assembly_frame.step` | The Frame as a **STEP assembly** (AP214: a product per part, placed instances, sub-assembly nested) | Solid Edge (Open → it builds an .asm), FreeCAD (Assembly / A2plus), a STEP viewer with a tree | The tree **Frame → Base plate-1, Post pair-1, Post pair-2 (each → Post-1, Post-2), 4 screws**; Post is one part used 4×, the screw one part used 4×; Post-2 is green; the plate grey (aluminium) with its orange top, posts and screws steel grey; the screw named "ISO 10642 M6×16"; total volume 57 697.89 mm³. |
+| `assembly_frame.igs` | The Frame as **one IGES** (every part placed; IGES has no assembly tree) | Solid Edge, FreeCAD | 9 solids, placed as in the STEP, in their colours (the orange top, the two green posts); each named by its place: "Base plate-1", "Post pair-1/Post-1" … "ISO 10642 M6x16-4" (IGES holds ASCII only: × becomes x); total volume 57 697.89 mm³. |
+| `assembly_frame.glb` | The Frame as glTF (a node per placed part, nested; materials) | gltf-viewer.donmccurdy.com, Blender | The node tree as the STEP's (the screws "ISO 10642 M6×16-1" …); the green posts, the orange top; metal look on the steel parts. |
 | `assembly_frame.3mf` | The whole Frame as 3MF, an object per colour | A slicer | 80 × 50 × 56 mm; every part where it belongs (each placed part is its own object). |
-| `assembly_frame_BOM.csv` | The bill of materials (`;`-separated, decimal comma, UTF-8 — for Excel) | Excel, LibreOffice Calc | 3 rows: Base plate ×1 (aluminium, 102,23 g), Post ×4 (steel, 34,21 g), ISO 10642 M6×16 ×4 (part number, description, bought). |
+| `assembly_frame_BOM.csv` | The bill of materials (`;`-separated, decimal comma, UTF-8 — for Excel) | Excel, LibreOffice Calc | 3 rows: Base plate ×1 (aluminium, 102,23 g, made), Post ×4 (steel, 34,21 g, made), ISO 10642 M6×16 ×4 (part number, description, bought). |
 | `sheet_base_plate.pdf` | The plate's **drawing sheet**, A4 landscape, scale 1:1 | Any PDF viewer; print it at 100 % ("actual size") | Front / Top / Right views; the callouts **`4× M6 ⌵ Ø12 × 90°`** and **`Ø10 THRU`** (the ⌵ countersink symbol must show, not a box); 80, 50, 10, 60, 34 …; title block: aluminium, 1:1, ISO 2768-m. Printed: the 80 mm edge measures 80 mm with a ruler. |
 | `sheet_base_plate.dxf` | The same sheet as DXF (AutoCAD 2010, mm, the paper 1:1) | Solid Edge Draft, AutoCAD, LibreCAD, ShareCAD.org | Layers `visible`, `hidden` (dashed), `dims`, `text`, `frame`; the dimensions are **real DIMENSION entities** that measure 80, 50, 10 …; the countersink callout keeps its ⌵ and ×. |
-| `sheet_frame.pdf` | The Frame's assembly drawing, A4, scale 1:2 | A PDF viewer | Front / Top / iso views, balloons 1–3, the parts list (Base plate 1, ◇ Post pair 2, ISO 10642 M6×16 4 with its part number). |
+| `sheet_frame.pdf` | The Frame's assembly drawing, A4, scale 1:2 | A PDF viewer | Front / Top / iso views, balloons 1–3, the parts list (Base plate 1, ◇ Post pair 2, ISO 10642 M6×16 4 with its part number) with each part's material; the title block's material "—". |
 | `sheet_frame.dxf` | The assembly drawing as DXF | A DXF viewer | Overall sizes 80, 56, 50 as dimensions; the parts list as text. |
 | `project_frame.a3d.json` | The whole project (💾 Save project): 3 parts, 2 assemblies, 2 sheets | Our app: Open → Project…, or drop it on the window | The tabs Base plate, Post, Post pair, Frame, ISO 10642 M6×16 and the two drawings come back as they were. |
 
@@ -57,13 +57,9 @@ them. To make them again, start a server and run
 6. **PDF**: print `sheet_base_plate.pdf` at 100 % and measure the 80 mm edge.
 7. **BOM**: open `assembly_frame_BOM.csv` in Excel: columns split at `;`, numbers with a decimal comma, "×" readable.
 
-## Known faults these files show (2026-10-28)
+## Known faults
 
-- **"×" in names becomes "Ã—"** in `assembly_frame.step` and `assembly_frame.glb` (the screw "ISO 10642 M6×16"). The
-  PDF, DXF, 3MF and CSV are right.
-- **`assembly_frame.igs` holds only the name "Frame"**, not the names of its parts.
-- **`part_base_plate.step` has no colours and a wrong product name** (the name of an earlier assembly export, e.g.
-  "Frame 4", instead of "Base plate"). The assembly STEP has its parts' colours.
-- **The painted top face (orange)** is in the 3MF exports only, not in STEP, IGES or GLB.
-- The assembly drawing's title block says material "PLA"; the BOM says "made (3D print)" for the aluminium and steel
-  parts.
+None known (2026-10-28: the "×" in names, the part STEP's name and colours, the painted face outside 3MF, the IGES
+names, the assembly sheet's "PLA" and the BOM's "made (3D print)" for metal parts are fixed; tests/test_export_samples.py
+checks each). Still as designed: IGES names are ASCII ("M6x16"); a face painted on one placed part in an assembly (not in
+its part) is in the 3MF only.

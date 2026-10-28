@@ -1088,6 +1088,8 @@ def tool_use_outline(args):
 
 def bom_csv(rows, shops) -> bytes:
     """The BOM rows of an assembly -> a CSV for Excel (; separated, UTF-8 with its mark)."""
+    from auto3d.modeler.materials import made_how
+
     def q(v):
         s = "" if v is None else str(v)
         return f'"{s.replace(chr(34), chr(34) * 2)}"' if any(c in s for c in ';"' + LF) else s
@@ -1096,7 +1098,7 @@ def bom_csv(rows, shops) -> bytes:
     for i, r in enumerate(rows, start=1):
         mass = "" if r.get("mass_g") is None else str(r["mass_g"]).replace(".", ",")
         lines.append(";".join(map(q, [i, r.get("qty"), r.get("name"), r.get("maker"), r.get("pn"), *[(r.get("order") or {}).get(s, "") for s in shops],
-                                       r.get("description"), r.get("material"), mass, "bought" if r.get("library") else "made (3D print)"])))
+                                       r.get("description"), r.get("material"), mass, r.get("made") or made_how(r)])))
     return ("\ufeff" + "\r\n".join(lines)).encode("utf-8")
 
 
