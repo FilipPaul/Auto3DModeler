@@ -27,6 +27,9 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_view_cube.py <url> <dir>` covers the view cube with REAL clicks at 1280×800 (TOP / ⌂ / FRONT / a corner /
    an edge -> the camera's direction and up, the corner's three parts lit on hover, the bars without view buttons and
    their heights before / after, drawing in a sketch after the cube turned it, the assembly's cube, Czech labels).
+   `tools/e2e_compact_bars.py <url> <dir>` covers compact command bars: at 1280×800 the 3D model's, the sketch's and
+   the assembly's bar in at most 2 rows (icons only, the name first in the tooltip; English and Czech), a wider
+   window brings the names and tooltips back, at 1600×1000 the full names as before.
    `tools/e2e_panels.py <url> <dir>` covers panels made wider / narrower by REAL mouse drags (left, right, the AI chat;
    the 3D view follows, remembered after a reload, double-click = usual width, a smallest width).
    `tools/e2e_chat_scroll.py <url> <dir>` covers the AI chat while Claude works (the panel keeps its place and size,

@@ -123,6 +123,14 @@ Date: 2026-10-25. Written by the architect agent.
   buttons left both bars (`action('view-…')` still works). At 1280×800 the assembly's bar 189 -> 159 px; the 3D
   model's stays 129 px (its 4 rows are all tools there; the views sat in the last row). Labels TOP … LEFT, Czech
   SHORA … ZLEVA. tools/e2e_view_cube.py.
+- **Compact command bars done:** compactbar.js fitBar(bar) (one call in renderCmdBar and the assembly's renderBar):
+  after each render (a MutationObserver on the bar — the translation too) and on the view's resize (a ResizeObserver)
+  it counts the rows of the bar's controls; over 3 rows with names, the tools (data-a / data-joint / data-origin
+  buttons, the 🔗 Joint label) show only their icon (CSS: font-size 0 + ::before attr(data-icon); "⚠ 3 collision(s)"
+  -> "⚠ 3", a menu keeps ▾), the name leads the tooltip (t(): in the current language); labels without an icon (Top,
+  Front) and ✓ Finish / ✕ Cancel keep their text; wider again: names and tooltips back. At 1280×800 the 3D model's bar
+  129 -> 59 px, the sketch's 126 -> 64 px, the assembly's 159 -> 66 px (2 rows, English and Czech); at 1600×1000 the
+  bars keep their 3 rows of names (95 / 94 / 98 px, as before — so the limit is 3 rows, not 2). tools/e2e_compact_bars.py.
 - **Sketches and holes from a corner or the part's origin — step 1 (kernel, AI) done:** plane.origin on a face plane
   (sketch, hole, decal): "corner" (doc._origin: kernel.face_span — the exact box of the faces of that name in the
   frame's u / v — its (u0, v0), found again each rebuild, so it follows the corner), "world" (the world origin seen

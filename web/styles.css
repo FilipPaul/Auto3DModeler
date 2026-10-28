@@ -800,6 +800,12 @@ body.ws-model #exportMenu [data-fmt=glb] { display: none; }
 .view-actions .chip.primary { background: var(--accent); border-color: var(--accent); color: white; font-weight: 600; }
 .view-actions .chip.primary.done { background: #238636; border-color: #2ea043; }
 .m-cmdbar .chip[hidden] { display: none; }
+/* a narrow view: the tools show only their icons (compactbar.js; the name leads the tooltip) */
+.m-cmdbar.cb-compact [data-icon] { font-size: 0 !important; gap: 0; }
+.m-cmdbar.cb-compact [data-icon]::before { content: attr(data-icon); font-size: 14px; line-height: 1.25; }
+.m-cmdbar.cb-compact .chip.tool[data-icon], .m-cmdbar.cb-compact .chip[data-icon] { padding: 4px 7px; min-width: 30px; }
+.m-cmdbar.cb-compact .as-jbar button[data-icon] { padding: 3px 7px; }
+.m-cmdbar.cb-compact .as-jlabel[data-icon] { padding: 0 6px 0 3px; }
 body.view-acts .toast-stack { bottom: 84px; }
 /* the view cube (viewcube.js), top right of the 3D model's and the assembly's view, under the bar: the hint and the busy box keep clear of it */
 .view-cube { position: absolute; top: 50px; right: 8px; width: 88px; height: 88px; z-index: 4; user-select: none; }

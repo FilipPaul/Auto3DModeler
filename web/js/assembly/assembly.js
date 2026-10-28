@@ -18,6 +18,7 @@ import * as THREE from 'three';
 import { History } from '../history.js';
 import { t } from '../i18n.js';
 import { toolGroup } from '../toolgroups.js';
+import { fitBar } from '../compactbar.js';
 import { renameInPlace } from '../rename.js';
 import { paintedFaces, repaint } from '../modeler/paint.js';
 import { sectionBar, sectionMiddle } from '../modeler/sectionbar.js';
@@ -464,6 +465,7 @@ export class Assembly {
     const r = bar.querySelector('.as-explode input');
     r.addEventListener('input', () => { this.explode = +r.value; this.$('.as-list')?.classList.toggle('exploding', this.explode > 0); this.draw(); });
     this.updateUndo();
+    fitBar(bar); // (icons only when the names do not fit)
   }
 
   updateUndo() {

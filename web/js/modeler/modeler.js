@@ -6,6 +6,7 @@
 import { History } from '../history.js';
 import { t } from '../i18n.js';
 import { toolGroup } from '../toolgroups.js';
+import { fitBar } from '../compactbar.js';
 import { renameInPlace } from '../rename.js';
 import { choose } from '../choose.js';
 import { paintedFaces, repaint } from './paint.js';
@@ -253,6 +254,7 @@ export class Modeler {
       });
     }
     this.updateUndo();
+    fitBar(bar); // (icons only when the names do not fit)
     const h = this.$('.m-hint');
     if (h) h.style.top = `${bar.offsetTop + bar.offsetHeight + 8}px`;
   }

@@ -191,6 +191,8 @@ corner of the 3D model's and the assembly's view (under the command bar) turns w
 RIGHT, BACK, LEFT, BOTTOM) to look from that side, an edge or a corner to look from between them (a corner: the iso view
 from it), ⌂ for the usual iso view — the part stays fitted. The face, edge or corner under the mouse lights up; it
 works in a sketch too.
+On a narrow view (a small window, wide side panels) the command bars show only their tools' icons — the name is in
+the tooltip — so they keep to two rows; a wider view brings the names back.
 *Save project* stores all the parts in one file (project version 3). Older project files still open, as a
 project with one part. The plan for the coming 3D model workspace (sketches → extrude / revolve / fillet …,
 light assemblies) is in [docs/ARCHITECTURE-modeler.md](docs/ARCHITECTURE-modeler.md). Its optional packages
