@@ -201,7 +201,7 @@ TOOLS = [
                     "- revolve: sketch, axis \"y\" (the sketch's vertical axis) / \"x\" / a line id, angle (360), op.\n"
                     "- hole: face (name), points [[u, v]] from the face's centre — or origin \"corner\" / \"world\" (points in world "
                     "coordinates: [x, y] on a top face, or [x, y, z]) / {point: <id>} as for a sketch —, d, through (default) or depth, fit (ISO 286 H6 / H7 / H8 / H9: shown on the 2D drawing as Ø8 H7; model the nominal d); "
-                    "head: \"cbore\" (a counterbore: head_d, head_depth — default 1.8 × d, d) or \"csk\" (a countersink: head_d, "
+                    "head: \"cbore\" (a counterbore: head_d, head_depth — default 1.8 × d, d; d of a thread: its nominal Ø, M3: 3) or \"csk\" (a countersink: head_d, "
                     "head_angle — default 2 × d, 90°) for a screw's head; "
                     "thread: \"M5\" (ISO metric M2 … M20: drilled with its tap drill, labelled M5 on the drawing — no d needed); "
                     "teardrop: true (a hole that goes sideways — its axis level with the bed — gets a 45° point on top, so it "

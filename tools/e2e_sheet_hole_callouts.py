@@ -3,7 +3,8 @@
 ✓ fully dimensioned -> the callout deleted: the check lists the countersink's angle with its circle key (and the M3 /
 the Ø5) -> the AI's sheet_edit restore: ✓ again -> deleted again, ＋ on the angle's row: the callout back (the user's),
 ✓ -> a counterbore and a blind thread on another plate: "Ø3.4 ⌴ Ø6 ↧ 3.2", "2× M4 ↧ 6", ✓ -> the PDF's text and the
-DXF's dimension texts carry the callouts with their symbols. No console errors.
+DXF's dimension texts carry the callouts with their symbols -> the AI's M3 ⌵ with no head_d on a 2 mm plate: Ø6 (from M3,
+not from d), Ø10 refused "at most Ø6.4", its sheet "M3 ⌵ Ø6 × 90°" ✓. No console errors.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_sheet_hole_callouts.py http://127.0.0.1:5199 <out dir>
 """
@@ -128,6 +129,20 @@ try:
     words = pdf_text()
     check(all(w in words for w in ("Ø3.4 ⌴ Ø6 ↧ 3.2", "2× M4 ↧ 6", "Ø2 THRU")), "the PDF's text has them")
     d.save_screenshot(f"{OUT}/sheet_hole_callout_block.png")
+
+    # the AI's M3 countersink with no head_d on a 2 mm plate: sized from M3 (Ø6, 1.75 deep), not from d; too big: refused
+    ai("new_model", name="Thin")
+    ai("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 14.5, "h": 14}}])
+    ai("add_feature", type="extrude", sketch="F1", d=2)
+    h = json.loads(ai("add_feature", type="hole", face="F2:end", points=[[1, -0.5]], thread="M3", head="csk"))
+    step = next(s for s in json.loads(ai("get_model"))["steps"] if s["id"] == h["id"])
+    check(h["ok"] and step.get("head_d") == 6, f"the AI's M3 ⌵ on a 2 mm plate: Ø{step.get('head_d')} (from M3, not d)")
+    r = ai("edit_feature", id=h["id"], fields={"head_d": 10})
+    print("   Ø10:", r[:240])
+    check("at most Ø6.4" in r, "a countersink deeper than the plate refused with the most that fits")
+    ai("edit_feature", id=h["id"], fields={"head_d": 6})
+    g = json.loads(ai("sheet_open"))
+    check("M3 ⌵ Ø6 × 90°" in texts(g) and g["check"]["fully_dimensioned"], f"its sheet: {texts(g)}")
 
     errs = [m["message"] for m in d.get_log("browser") if m["level"] == "SEVERE" and "favicon" not in m["message"]]
     check(not errs, f"no console errors {errs[:3]}")

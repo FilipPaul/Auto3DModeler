@@ -384,6 +384,59 @@ def countersink(fr, u, v, top_d, d, angle, name):
     return Body(shape, {name: cone})
 
 
+def material_along(shape, fr, u, v):
+    """How deep the part is under (u, v) of a plane frame, into it (along −n) from the face: the length of its first
+    piece of solid on that line (a hole's head must stay inside it), or None (no solid there)."""
+    p, n = _v(fr["o"]) + u * _v(fr["x"]) + v * frame_y(fr), _v(fr["n"])
+    bb = bbox(shape)
+    a, b = p + n * 0.01, p - n * (2 * math.dist(bb[:3], bb[3:]) + 10)
+    mk = BRepAlgoAPI_Common(shape, BRepBuilderAPI_MakeEdge(gp_Pnt(*map(float, a)), gp_Pnt(*map(float, b))).Edge())
+    if not mk.IsDone():
+        return None
+    segs, ex = [], TopExp_Explorer(mk.Shape(), TopAbs_EDGE)
+    while ex.More():  # (the line's pieces inside the solid, as distances from the face)
+        c = BRepAdaptor_Curve(TopoDS.Edge(ex.Current()))
+        ts = sorted(float((p - _v([q.X(), q.Y(), q.Z()])) @ n) for q in (c.Value(c.FirstParameter()), c.Value(c.LastParameter())))
+        segs.append(ts)
+        ex.Next()
+    segs.sort()
+    if not segs or segs[0][0] > 0.05:
+        return None
+    end = segs[0][1]
+    for t0, t1 in segs[1:]:  # (one piece split by an inner face: joined)
+        if t0 > end + 1e-6:
+            break
+        end = max(end, t1)
+    return end
+
+
+def head_room(shape, fr, u, v, d, n=48):
+    """Does a hole's head Ø d at (u, v) sit on the face — its rim just under the face inside the part all round? None:
+    it does; else the widest Ø that does (halved until it fits, then narrowed down to 0.05 mm)."""
+    from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+    from OCP.TopAbs import TopAbs_IN
+    p, xx = _v(fr["o"]) + u * _v(fr["x"]) + v * frame_y(fr) - _v(fr["n"]) * 0.02, _v(fr["x"])  # (just under the face)
+    yy = frame_y(fr)
+    cl = BRepClass3d_SolidClassifier(shape)
+
+    def inside(r):
+        for k in range(n):
+            a = 2 * math.pi * k / n
+            q = p + r * (math.cos(a) * xx + math.sin(a) * yy)
+            cl.Perform(gp_Pnt(*map(float, q)), 1e-6)
+            if cl.State() != TopAbs_IN:
+                return False
+        return True
+
+    if inside(d / 2):
+        return None
+    lo, hi = 0.0, d / 2
+    while hi - lo > 0.025:
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if inside(mid) else (lo, mid)
+    return 2 * lo
+
+
 # ------------------------------------------------------------------ bodies with named faces
 class Body:
     """A solid and the names of its faces {name: [faces]}."""

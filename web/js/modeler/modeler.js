@@ -2142,7 +2142,8 @@ export class Modeler {
     box.querySelector('[data-k=head]').addEventListener('change', (e) => { // (a screw head's room, sized from the hole: ISO 4762 / 10642-like)
       const h = e.target.value;
       delete f.head; delete f.head_d; delete f.head_depth;
-      if (h) Object.assign(f, { head: h, head_d: +(f.d * (h === 'cbore' ? 1.8 : 2)).toFixed(1) }, h === 'cbore' ? { head_depth: +(+f.d).toFixed(1) } : {});
+      const d = f.thread ? parseFloat(f.thread.slice(1)) : +f.d; // (a thread: its nominal Ø, M3: 3 — not its tap drill)
+      if (h) Object.assign(f, { head: h, head_d: +(d * (h === 'cbore' ? 1.8 : 2)).toFixed(1) }, h === 'cbore' ? { head_depth: +d.toFixed(1) } : {});
       this.renderProps();
       this.rebuild();
     });

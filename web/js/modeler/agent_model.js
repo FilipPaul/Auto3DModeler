@@ -283,7 +283,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       return { ...base, edges, ...(type === 'fillet' ? { r: spec.r ?? 1 } : { d: spec.d ?? 1 }) };
     }
     if (type === 'hole') {
-      const headOf = (x, d) => { // ⌴ / ⌵ room for a screw head (sized from the hole unless given)
+      const headOf = (x, d) => { // ⌴ / ⌵ room for a screw head (sized from the hole — a thread's nominal Ø, M3: 3 — unless given)
         if (!x.head) return {};
         if (!['cbore', 'csk'].includes(x.head)) throw new Error('head: "cbore" (a counterbore) or "csk" (a countersink).');
         return { head: x.head, head_d: x.head_d ?? +(d * (x.head === 'cbore' ? 1.8 : 2)).toFixed(1), ...(x.head === 'cbore' ? { head_depth: x.head_depth ?? +(+d).toFixed(1) } : { ...(x.head_angle ? { head_angle: x.head_angle } : {}) }) };
@@ -295,7 +295,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       const points = (spec.points || [[0, 0]]).map((p) => (W ? W.uv(p) : p));
       return { ...base, plane, points, d: spec.d ?? 5, ...(spec.thread ? { thread: spec.thread } : {}),
         through: spec.through !== false, depth: spec.depth ?? 10, ...(spec.from ? { from: holeFrom(spec.from) } : {}), ...(fitOf(spec.fit) ? { fit: fitOf(spec.fit) } : {}),
-        ...headOf(spec, spec.d ?? 5), ...(spec.teardrop ? { teardrop: true } : {}) };
+        ...headOf(spec, spec.thread ? parseFloat(spec.thread.slice(1)) : spec.d ?? 5), ...(spec.teardrop ? { teardrop: true } : {}) };
     }
     if (type === 'rib') {
       const sk = spec.sketch || [...m.sketches()].pop()?.id;
