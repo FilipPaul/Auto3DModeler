@@ -95,7 +95,7 @@ from it — the sketch goes halfway between them (a rib or a hole centred in a p
 part changes.
 
 **Measured from a corner or the part's origin**: a sketch on a face has *Origin: ◎ Face centre | ⌜ Corner | ⊕ Part
-origin* in its bar. ⌜ Corner puts the sketch's 0, 0 on the face's lower-left corner (it follows that corner when the
+origin* in its bar (the face's centre is the middle of its outline's box — holes cut into the face do not move it). ⌜ Corner puts the sketch's 0, 0 on the face's lower-left corner (it follows that corner when the
 part changes), ⊕ Part origin on the part's own 0, 0, 0 (so the numbers are the X / Y you see; a hole at (30, 10) stays
 there when the block grows the other way). What is already drawn keeps its place — its numbers change, and sizes to
 the origin now measure from the new one; Ctrl+Z takes the switch back. ◎ Hole has the same choice as *From: ⇤ Edges |
@@ -145,6 +145,9 @@ part's steps up to the split and one piece kept. The cut faces are named `<step>
 
 **A click on a face of a 3D model** chooses its step and shows its tools in the Suggested table (bottom left) — the
 table can be **dragged by its header** anywhere in the view, and stays there (a double-click on the header: back).
+The same goes for every box floating over a view — 🖨 Print check, 📏 Measure, the ✂ Section bar, the size editor and
+the sketch's small boxes: drag the header (or the **⠿** strip), **resize** with the grip in the bottom-right corner;
+the place and size are remembered, and a double-click on the header puts the box back where it started.
 Its **✨** puts what is selected into the AI chat — as the AI's tools name it (a step and a face, sketch shapes,
 assembly parts) — so you can ask about it. The **Snap** row under it (3D model, assembly) says what 📏 Measure catches:
 corners, edge midpoints, centres. With **no tool on**, the snap point under the mouse shows too and a click picks it

@@ -36,6 +36,7 @@ const sketchesOf = (f) => (f.type === 'loft' ? f.sketches || [] : f.type === 'sw
 // densities for the mass (g/cm³), common 3D-printing materials
 import { MATERIALS, MATERIAL_GROUPS, MATERIAL_COLOR, lookColor } from './materials.js';
 import { showSuggest, showSnapFilters, snapKinds, hoverKinds } from '../suggest.js';
+import { floatBox } from '../floatbox.js';
 export { MATERIALS }; // g/cm³ (materials.js: grouped, with their colours)
 const DATUM_NAME = { XY: 'Top', XZ: 'Front', YZ: 'Right' };
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -132,7 +133,7 @@ export class Modeler {
     const box = document.createElement('div');
     box.className = 'm-printcheck';
     const ok = !r.overhang.area && !r.thin.area;
-    box.innerHTML = `<b>🖨 ${esc(t('Print check'))}</b>
+    box.innerHTML = `<div class="mpc-head"><b>🖨 ${esc(t('Print check'))}</b></div>
       <div class="mpc-row"><i class="mpc-dot" style="background:#f8524a"></i>${esc(t('Overhangs over 45°'))}: <b data-no-i18n>${r.overhang.area ? `${fmt(r.overhang.area)} mm²` : '—'}</b></div>
       <div class="mpc-row"><i class="mpc-dot" style="background:#ff9e1a"></i>${esc(t('Walls thinner than'))} <input type="number" step="0.1" min="0.1" data-k="minWall" value="${fmt(this.printChk.minWall)}"> mm: <b data-no-i18n>${r.thin.area ? `${fmt(r.thin.area)} mm² (${t('thinnest')} ${fmt(r.thin.min)})` : '—'}</b></div>
       <p class="hint">${esc(t(ok ? 'Nothing to worry about — it prints as it lies.' : 'Overhangs need supports (or turn the part); thin walls may not print — make them thicker.'))}</p>`;
@@ -146,6 +147,7 @@ export class Modeler {
     this.els.viewport.appendChild(box);
     const bar = this.$('.m-cmdbar'), vr = this.els.viewport.getBoundingClientRect(); // (below the toolbar, however many rows it takes)
     if (bar) box.style.top = `${Math.max(56, bar.getBoundingClientRect().bottom - vr.top + 8)}px`;
+    floatBox(box, this.els.viewport, { kind: 'printcheck', handle: '.mpc-head', min: [200, 80] });
     return r;
   }
 
@@ -828,6 +830,7 @@ export class Modeler {
     Object.assign(box.style, { left: `${Math.min(r.left - vr.left, vr.width - 220)}px`, top: `${Math.min(r.bottom - vr.top + 6, vr.height - 140)}px` });
     for (const t2 of ['pointerdown', 'pointerup']) box.addEventListener(t2, (ev) => ev.stopPropagation());
     this.els.viewport.appendChild(box);
+    floatBox(box, this.els.viewport, { kind: 'dimedit', handle: '.m-dimedit-t', remember: 'size', min: [170, 100] }); // (opens by the size clicked)
     this.dimEdit = box;
     const num = box.querySelector('input[type=number]'), slider = box.querySelector('input[type=range]');
     if (edit.field && edit.stepId) { // the real range of this number of the step
@@ -2940,6 +2943,7 @@ export class Modeler {
       this.els.viewport.appendChild(box);
     }
     box.innerHTML = html;
+    floatBox(box, this.els.viewport, { kind: 'measure', min: [180, 60] });
   }
 
   clickMeasure(e) {

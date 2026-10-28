@@ -146,6 +146,23 @@ try:
     t, _ = tool("add_feature", type="hole", face="F2:end", points=[[0, 0]], d=4, teardrop=True)
     print(f"    teardrop on the top refused: {'sideways' in t}")
     tool("undo")
+    # ---- a second hole on a face with a hole in it lands where asked (the face's centre: the middle of its box, not of
+    # its area); a slice cut off the side (the face's box moves), then an edit of only d: the hole stays; a field next to
+    # fields instead of in it: refused
+    tool("new_model", name="Two holes")
+    tool("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 60, "h": 40}}])
+    tool("add_feature", type="extrude", sketch="F1", d=10)
+    tool("add_feature", type="hole", face="F2:end", points=[[-15, 0]], d=8)
+    tool("add_feature", type="hole", face="F2:end", points=[[10, 12]], d=4)
+    holes = lambda: sorted([round(c, 4) for c in f["axis"]["o"][:2]] for f in d.execute_script(  # noqa: E731
+        "return window.__app.modeler.result.body.faces.filter((f) => f.type === 'cylinder')"))
+    print(f"    second hole: axes {holes()} expected [[15, 20], [40, 32]] | match: {holes() == [[15, 20], [40, 32]]}")
+    tool("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 50, "y": 0, "w": 10, "h": 40}}])
+    tool("add_feature", type="extrude", sketch="F5", op="cut", through=True)
+    t, r = tool("edit_feature", id="F4", head_d=6)
+    print(f"    stray field refused: {bool(r.get('isError')) and 'fields' in t}")
+    tool("edit_feature", id="F4", fields={"d": 5})
+    print(f"    after the side cut and d 5: axes {holes()} expected [[15, 20], [40, 32]] | match: {holes() == [[15, 20], [40, 32]]}")
     # ---- ✂ split: a 60 × 40 × 20 box cut at z 15 — both pieces (two bodies), then only the lid; a plane past it: an issue
     tool("new_model", name="Box and lid")
     tool("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 60, "h": 40}}])

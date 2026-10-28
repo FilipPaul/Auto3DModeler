@@ -841,6 +841,25 @@ Date: 2026-10-25. Written by the architect agent.
   77 308; again (cached) 0 s. The STEP of two M6 × 12: 1.7 MB (80 spline surfaces). Left out: external threads on
   shafts (no thread feature for them yet), a print clearance on the profile, thread run-outs, left-hand / fine
   pitches. test_real_thread, test_real_threads_split; tools/e2e_model_threads.py.
+- **Floating boxes moved and resized done:** web/js/floatbox.js floatBox(box, viewport, {kind, handle, remember,
+  min, onDefault}) — called after a box is put in its view (again after its content is re-rendered): dragged by its
+  header (or a slim ⠿ .fb-strip added on top / at a bar's left end), resized by the .fb-size grip in its bottom-right
+  corner (pointer events, window listeners in the capture phase; min sizes, the content scrolls), the one in hand on
+  top (.fb-front), kept inside the view and under the command bar (a ResizeObserver on the view pulls it back in),
+  remembered per kind in localStorage a3d.box.<kind> ({ax, dx, ay, dy} from the nearer side of the view + {w, h}); a
+  double-click on the header forgets it (back at the caller's default place). Clicks on its buttons / fields neither
+  drag nor reach the 3D view. Covered: the suggestions table (suggest; was a3d.suggestAt), 🖨 Print check
+  (printcheck), 📏 Measure (measure — 3D model and assembly), ✂ Section (section), and in sketches ⇋ Mirror, ⁂ Pattern,
+  the quick size box (sk-mirror / sk-pattern / sk-quick); the boxes that open by the mouse — the size editor
+  (dimedit), ⧈ Offset by, "Which distance?" — keep only their size (remember 'size'). Not covered yet: the 2D
+  drawing editor's .dw-measure line; the drawing sheet editor (sheet.js) has no box floating over its sheet.
+  tools/e2e_floatboxes.py.
+- **A face's centre does not drift with its holes (fix):** a flat face's frame `o` (kernel._box_centre) is the middle of
+  its box in its own u / v, not the centre of its area — that moved with every hole cut into the face, so the AI's
+  second hole landed 0.32 off (40.32 for 40) and any edit_feature of a hole (it picked the face's frame again) moved
+  the hole (8.25 / 6.5 -> 8.14 / 6.56). edit_feature keeps the step's stored frame while its face, mid and origin
+  stay; a key beside `fields` is refused ("put the changes in fields: {…}"). Saved frames are used as stored.
+  test_face_centre_ignores_holes; tools/e2e_agent.py.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

@@ -73,6 +73,42 @@ class TestFeatures(unittest.TestCase):
         self.assertAlmostEqual(v, 12000 - math.pi * 9 * 4, delta=1e-3)
         self.assertAlmostEqual(r["frames"]["H1"]["o"][2], 15)
 
+    def test_face_centre_ignores_holes(self):
+        """A face's 0, 0 is the middle of its box, not of its area: a hole cut into the 60 × 40 top leaves it at (30, 20),
+        a second hole placed from it lands exactly where asked, a new d keeps it there; a frame stored with the old
+        (area) centre still builds where it says."""
+        from auto3d.modeler import kernel
+
+        def axes(r):
+            return sorted([round(c, 6) for c in f["axis"]["o"][:2]] for f in r["body"]["faces"] if f["type"] == "cylinder")
+
+        def top(r):
+            return next(f for f in r["body"]["faces"] if f.get("name") == "E1:end")
+        base = box(60, 40, 10)
+        r, _ = vol(*base)
+        h1 = {"id": "H1", "type": "hole", "plane": {"face": {"name": "E1:end"}, "frame": top(r)["frame"]}, "points": [[-15, 0]], "d": 8, "through": True}
+        r, _ = vol(*base, h1)
+        face = top(r)
+        self.assertEqual(face["frame"]["o"], [30, 20, 10])
+        self.assertGreater(face["centroid"][0], 30.3)  # (the centre of its area went off with the hole)
+        h2 = {"id": "H2", "type": "hole", "plane": {"face": {"name": "E1:end"}, "frame": face["frame"]}, "points": [[10, 12]], "d": 4, "through": True}
+        r, v = vol(*base, h1, h2)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertEqual(axes(r), [[15, 20], [40, 32]])
+        self.assertAlmostEqual(v, 24000 - math.pi * (16 + 4) * 10, delta=1e-3)
+        self.assertTrue(watertight(r["body"]))
+        self.assertEqual(top(r)["frame"]["o"], [30, 20, 10])  # (two holes: still the middle)
+        r, v = vol(*base, h1, {**h2, "d": 5})  # only d changed: the same place
+        self.assertEqual(axes(r), [[15, 20], [40, 32]])
+        self.assertAlmostEqual(v, 24000 - math.pi * (16 + 6.25) * 10, delta=1e-3)
+        step = doc.export({"features": [*base, h1, h2]}, "step")
+        self.assertAlmostEqual(kernel.volume(kernel.from_step(step)), 24000 - math.pi * (16 + 4) * 10, delta=1e-3)
+        # a saved file's frame from the area's centre: the hole where that frame puts it, the same volume
+        old = {**face["frame"], "o": face["centroid"]}
+        r, v = vol(*base, h1, {**h2, "plane": {"face": {"name": "E1:end"}, "frame": old}})
+        self.assertEqual(axes(r), sorted([[15, 20], [round(old["o"][0] + 10, 6), round(old["o"][1] + 12, 6)]]))
+        self.assertAlmostEqual(v, 24000 - math.pi * (16 + 4) * 10, delta=1e-3)
+
     def test_face_origin(self):
         """A hole / sketch on a face measured from the part's origin (world), the face's corner or a • point: at world
         (30, 10) it lands there and stays when the block grows the other way (−x); a corner origin follows the corner."""

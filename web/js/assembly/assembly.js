@@ -28,6 +28,7 @@ import { threadSegments } from '../modeler/view.js';
 import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss } from './joints.js';
 import { snapNear, snapPoints } from '../modeler/view.js';
 import { showSuggest, showSnapFilters, snapKinds, hoverKinds } from '../suggest.js';
+import { floatBox } from '../floatbox.js';
 import { freeMotions, motionMatrix } from './dof.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
@@ -996,6 +997,7 @@ export class Assembly {
       this.els.viewport.appendChild(box);
     }
     box.innerHTML = html;
+    floatBox(box, this.els.viewport, { kind: 'measure', min: [180, 60] });
   }
 
   clickMeasure(e) {

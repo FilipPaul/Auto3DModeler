@@ -50,7 +50,7 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
    - a side: `normal: [1, 0, 0]` (right), `[-1, 0, 0]`, `[0, 1, 0]` (back), `[0, -1, 0]` (front)
    - the edges of a face: `find_refs {kind: "edge", of_face: "<face name>"}`; round edges: `circular: true`
    - Holes: `add_feature {type: "hole", face: "<face name>", points: [[u, v], ...], d: 5}` — u, v are measured
-     from the face's centre along the face's own x / y (on a top face: world x / y). Through all by default;
+     from the face's centre (the middle of its outline, also with holes in it) along the face's own x / y (on a top face: world x / y). Through all by default;
      `through: false, depth: 6` for blind holes. A hole into a side face (across Z) of a printed part: `teardrop: true`
      (a 45° point on top — prints without support).
    - Pockets / bosses: a sketch with `plane: {face: "<face name>"}` (its origin is the face's centre), then

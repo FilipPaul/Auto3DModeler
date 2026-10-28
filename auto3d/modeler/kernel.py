@@ -1393,7 +1393,7 @@ def tessellate(body, light=False):
     for fi, (f, rev, t) in enumerate(mesh):
         on_face = t[0].mean(axis=0) if len(t) else None  # a point on the face (a triangle's middle — a ring's centre is not on it)
         if heavy:
-            info = _face_info(f, fi, rev, (float(area[fi]), cms[fi]))
+            info = _face_info(f, fi, rev, (float(area[fi]), cms[fi]), t)
         else:
             info = _face_info(f, fi, rev)
         if info.get("type") == "plane" and on_face is not None and not heavy:
@@ -1473,7 +1473,7 @@ def _edge_len(c):
     return a.Distance(m) + m.Distance(b)
 
 
-def _face_info(f, fi, rev, rough=None):
+def _face_info(f, fi, rev, rough=None, tris=None):
     s = BRepAdaptor_Surface(f, True)
     if rough:  # (area, centre) from the mesh
         info = {"id": fi, "area": rough[0], "centroid": _round(tuple(rough[1]))}
@@ -1495,6 +1495,7 @@ def _face_info(f, fi, rev, rough=None):
         x = [(1.0 if i == k else 0.0) - n[k] * n[i] for i in range(3)]
         ln = math.sqrt(x[0] * x[0] + x[1] * x[1] + x[2] * x[2])
         info["frame"] = {"o": info["centroid"], "x": _round(v / ln for v in x), "n": _round(n)}
+        info["frame"]["o"] = _box_centre(f, info["frame"], tris if rough else None)
     elif kind == GeomAbs_Cylinder:
         info["type"] = "cylinder"
         cyl = s.Cylinder()
@@ -1504,6 +1505,23 @@ def _face_info(f, fi, rev, rough=None):
     else:
         info["type"] = "other"
     return info
+
+
+def _box_centre(f, fr, tris=None):
+    """A flat face's centre: the middle of its box in its own u / v (not the centre of its area — that moves with
+    every hole cut into the face, and a hole placed from it would land off). tris: from the mesh (a heavy model)."""
+    o, x, y = _v(fr["o"]), _v(fr["x"]), frame_y(fr)
+    if tris is not None:
+        if not len(tris):
+            return fr["o"]
+        p = tris.reshape(-1, 3) - o
+        u, v = p @ x, p @ y
+        span = [u.min(), u.max(), v.min(), v.max()]
+    else:
+        span = face_span([f], fr)
+        if span is None:
+            return fr["o"]
+    return _round(o + (span[0] + span[1]) / 2 * x + (span[2] + span[3]) / 2 * y)
 
 
 def _chain(segs, tol=1e-6, fine=None):

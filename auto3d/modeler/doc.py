@@ -22,7 +22,7 @@ Part JSON (in the project file, `parts[].model`):
       {"mid": <edge ref>} | {"xyz": [x, y, z]}}]}   (a reference point: a corner, a round edge's centre, an edge's middle)
 
 A sketch or a hole on a face stores the face's frame and its name: when the face moves (the extrude gets
-longer), the sketch moves with it. Its 0, 0 is the face's centre (when it was picked), or plane.origin: "corner" (the
+longer), the sketch moves with it. Its 0, 0 is the face's centre (the middle of its box, when it was picked), or plane.origin: "corner" (the
 face's lower-left corner in its u / v, following it), "world" (the part's origin) or {point: <a point step>}.
 An edge is stored as the two faces it joins (+ where it was).
 Features are evaluated in order; one that fails gets an issue and is skipped, the rest still build.
