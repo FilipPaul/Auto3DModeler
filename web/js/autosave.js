@@ -15,7 +15,7 @@ export class Autosave {
     this.id = newId();
     this.last = '';
     this.timer = null;
-    window.addEventListener('a3d:changed', () => this.schedule());
+    window.addEventListener('a3d:changed', () => { this.schedule(); this.dropOffer(); });
     // the last change, when the tab is closed or reloaded
     window.addEventListener('pagehide', () => this.saveNow({ beacon: true }));
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') this.saveNow(); });
@@ -69,7 +69,15 @@ export class Autosave {
     this.last = JSON.stringify(this.hooks.project() || {});
   }
 
-  /** The app started empty: the last project is offered (Open / Recent… / ✕). */
+  /** The user started working (a part opened or made): the offer of the last project goes away. */
+  dropOffer() {
+    if (!this.bar?.isConnected) return;
+    try { if (!this.hooks.project()?.parts?.length) return; } catch { return; }
+    this.bar.remove();
+  }
+
+  /** The app started empty: the last project is offered (Open / Recent… / ✕) in a strip under the top bar (in the
+   *  page's flow, so it covers no button; it goes when a part is opened or made). */
   async offerLast() {
     let list;
     try { list = await this.recent(); } catch { return; }
@@ -82,7 +90,8 @@ export class Autosave {
     bar.querySelector('[data-a=open]').addEventListener('click', async () => { bar.remove(); try { await this.open(last.id); this.hooks.toast(tv('“{name}” is open again.', { name: last.name }), 'ok'); } catch (e) { this.hooks.toast(e.message, 'error'); } });
     bar.querySelector('[data-a=recent]').addEventListener('click', () => { bar.remove(); this.showRecent(); });
     bar.querySelector('[data-a=x]').addEventListener('click', () => bar.remove());
-    document.body.appendChild(bar);
+    const top = document.querySelector('body > .topbar');
+    if (top) top.after(bar); else document.body.prepend(bar);
     this.bar = bar;
   }
 

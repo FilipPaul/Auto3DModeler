@@ -93,6 +93,9 @@ Date: 2026-10-25. Written by the architect agent.
   when a ray from the camera to it meets nothing more than ~1.5 px before it (was: the hit distance + 1 % of the part,
   so a corner 3 mm under a box won); clicking / dragging an object matches its heights within 0.1 % of the part (was
   0.6 %, so a band on a 3 mm box picked the box). tools/e2e_history.py.
+- **"Continue where you left off" covers nothing (full test pass, job 15):** the restore bar is a strip under the top
+  bar in the page's flow (was fixed bottom-left, over the Quick part's chat Send); Autosave.dropOffer takes it away on
+  the first change with a part open. tools/e2e_autosave.py, e2e_chat_photos.py.
 - **Steps named after their sketch done:** nextName(type, sketch): an extrude / revolve of a sketch the user named
   is "Extrude – Slot" (a "Sketch 2" keeps "Extrude 3"), in the panel and for the AI. tools/e2e_ai_reports.py.
 - **The assembly's joints as buttons done:** the bar's 🔗 Joint ▾ menu is a row (.as-jbar): each joint type a
