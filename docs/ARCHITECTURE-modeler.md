@@ -860,6 +860,19 @@ Date: 2026-10-25. Written by the architect agent.
   the hole (8.25 / 6.5 -> 8.14 / 6.56). edit_feature keeps the step's stored frame while its face, mid and origin
   stay; a key beside `fields` is refused ("put the changes in fields: {…}"). Saved frames are used as stored.
   test_face_centre_ignores_holes; tools/e2e_agent.py.
+- **Export names and colours right (fix, found making samples/ExportFromOurApp):** names reach XCAF as UTF-8
+  (`TCollection_ExtendedString(text, True)`: "M6×16", not "M6Ã—16"); a STEP is written in ASCII, its other characters
+  as STEP's own `\X2\00D7\X0\` (kernel._step_ascii — OCCT wrote raw UTF-8); the writers' Interface_Static settings
+  (product name, schema, IGES B-rep mode — one set per worker process) are set for one export and put back
+  (kernel._settings), so a part's STEP no longer took the last assembly's product name. A part's STEP / IGES go
+  through XCAF as the assembly's do: its name, its colour (own or material's), its faces' colours — an imported file's
+  and the 🎨 paint (doc.face_colours resolves part.paint as paint.js paintedFaces: the face of that name nearest fp,
+  or every face of a step); the assembly tree carries each part's paint (stepfile.js) to STEP, IGES and glTF. An
+  assembly's IGES is a body per placement (kernel._flat: copied there, so a part placed twice keeps each placement's
+  colour), each named in ASCII by its placements' path ("Post pair-2/Post-1", "M6x16"). glTF: a part's colour lives in
+  its material only, so a placement's own colour (the green post) shows. The BOM's Bought / made by the material
+  (materials.printed / made_how: a printing plastic "made (3D print)", else "made"); an assembly sheet's title block
+  material "—" (not "PLA"). test_export_names, test_export_samples; the samples made again.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

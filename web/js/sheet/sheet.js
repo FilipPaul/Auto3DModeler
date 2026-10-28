@@ -392,7 +392,7 @@ export class SheetEditor {
     const what = [T.kind || t('Part'), T.of ? `${t('in')} ${T.of}` : '', T.pos ? `${t('Pos.')} ${T.pos}` : ''].filter(Boolean).join(' · ');
     const cells = [
       [what, X.title || T.part || this.hooks.partName(this.d.source) || '—', 0, 0, 90, 12, 5, 'title'],
-      [t('Material'), T.material ?? (src.material || 'PLA'), 90, 0, 60, 12, 3.6],
+      [t('Material'), T.material ?? (this.d.asm ? src.material || '—' : src.material || 'PLA'), 90, 0, 60, 12, 3.6], // (an assembly: its parts' are in the parts list)
       [t('Scale'), `${sc[0]}:${sc[1]}`, 0, 12, 30, 9, 3.4],
       [t('Paper'), this.lay.paper, 30, 12, 30, 9, 3.4],
       [t('Tolerances'), src.tolerance ? `ISO 2768-${src.tolerance}` : '—', 60, 12, 90, 9, 3.4],

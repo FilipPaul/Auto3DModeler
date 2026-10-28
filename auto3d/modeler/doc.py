@@ -1336,6 +1336,37 @@ def body_of(part, threads=True):
     return st
 
 
+def face_colours(st, paint=None):
+    """The faces of the built part (body_of) coloured on their own -> [(face, "#rrggbb")]: an imported file's face
+    colours, the part's 🎨 paint over them — paint [{name, fp, color}]: the face of that name nearest fp; {feature,
+    color}: every face that step made; a later entry wins (as web/js/modeler/paint.js paintedFaces finds them)."""
+    body = st.body
+    fm, out = K._face_map(body.shape), {}
+
+    def put(face, c):
+        k = fm.FindIndex(face)
+        if k:
+            out[k] = (fm.FindKey(k), c)
+
+    for n, c in st.colours.items():
+        for face in body.faces_of(n):
+            put(face, c)
+    for e in paint or []:
+        c = e.get("color")
+        if not c:
+            continue
+        if e.get("feature"):
+            pre = f"{e['feature']}:"
+            for face in [f for n, faces in body.names.items() if n.startswith(pre) for f in faces]:
+                put(face, c)
+            continue
+        faces = body.faces_of(e.get("name"))
+        if faces:
+            fp = np.asarray([*(e.get("fp") or []), 0, 0, 0][:3], float)
+            put(min(faces, key=lambda f: float(np.linalg.norm(np.asarray(K._centroid(f)) - fp))), c)
+    return list(out.values())
+
+
 def export(part, fmt, name="part"):
     st = body_of(part, threads=fmt != "pdf")
     if fmt == "pdf":  # a 2D drawing: three views, sizes, title block
@@ -1345,18 +1376,17 @@ def export(part, fmt, name="part"):
         fits = {f["d"]: f["fit"] for f in (part or {}).get("features") or [] if f.get("type") == "hole" and f.get("fit") and not (f.get("off") or f.get("suppressed"))}
         return drawing.pdf(st.body, name=name, material=mat, mass_g=K.volume(st.body.shape) / 1000 * mats.get(mat, 1.24), fits=fits,
                            tolerance=(part or {}).get("tolerance"))
-    if fmt == "step":
-        return K.to_step(st.body.shape)
+    from .materials import finish_of, look_colour
+    if fmt == "step":  # named, in its colour, its faces' own colours (an imported file's, 🎨 painted)
+        return K.to_step(st.body.shape, name, look_colour(part), face_colours(st, (part or {}).get("paint")))
     if fmt == "iges":
-        return K.to_iges(st.body.shape)
+        return K.to_iges(st.body.shape, name=name, colour=look_colour(part), colours=face_colours(st, (part or {}).get("paint")))
     if fmt == "stl":
         return K.to_stl(K.tessellate(st.body))
     if fmt == "obj":
         return K.to_obj(K.tessellate(st.body), name)
-    if fmt == "glb":  # the part in its colour and material's finish (and an imported file's face colours)
-        from .materials import finish_of, look_colour
-        colours = [(face, c) for n, c in st.colours.items() for face in st.body.faces_of(n)]
-        return K.write_gltf_tree({"p": {"name": name, "shape": st.body.shape, "colour": look_colour(part), "colours": colours,
+    if fmt == "glb":  # the part in its colour and material's finish (and its faces' own colours)
+        return K.write_gltf_tree({"p": {"name": name, "shape": st.body.shape, "colour": look_colour(part), "colours": face_colours(st, (part or {}).get("paint")),
                                         "finish": finish_of((part or {}).get("material"))}}, {}, "p")
     raise K.KernelError(f"Unknown export format “{fmt}”.")
 
@@ -1472,9 +1502,7 @@ def _tree_step(tree, name, fmt="step"):
             st = body_of(p)
         except K.KernelError:
             continue  # (a part without a solid yet is left out, as in the collisions)
-        body = st.body
-        colours = [(face, c) for n, c in st.colours.items() for face in body.faces_of(n)]
-        parts[pid] = {"name": p.get("name") or pid, "shape": body.shape, "colour": p.get("colour"), "colours": colours,
+        parts[pid] = {"name": p.get("name") or pid, "shape": st.body.shape, "colour": p.get("colour"), "colours": face_colours(st, p.get("paint")),
                       "finish": finish_of(p.get("material"))}
     for aid, a in (tree.get("assemblies") or {}).items():
         seen, insts = {}, []

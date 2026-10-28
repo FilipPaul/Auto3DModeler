@@ -32,7 +32,7 @@ import { floatBox } from '../floatbox.js';
 import { freeMotions, motionMatrix } from './dof.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
-import { lookColor, finishOf } from '../modeler/materials.js';
+import { lookColor, finishOf, printed } from '../modeler/materials.js';
 import { stepTree } from './stepfile.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -556,7 +556,8 @@ export class Assembly {
   }
 
   /** The bill of materials of every part (those inside sub-assemblies counted in) -> rows
-   *  [{name, qty, maker, pn, description, order: {…}, material, mass_g (each), library (bool)}]. */
+   *  [{name, qty, maker, pn, description, order: {…}, material, mass_g (each), library (bool), made: bought / made /
+   *  made (3D print) — by its material}]. */
   bomFlat() {
     const rows = new Map();
     const walk = (list, times) => {
@@ -567,6 +568,7 @@ export class Assembly {
         const r = rows.get(key) || { name: this.partName(it.part), qty: 0, maker: lib?.maker || '', pn: lib?.pn || '', description: lib?.description || '',
           order: lib?.order || {}, material: data.material || (lib ? '' : 'PLA'), library: !!lib, approx: !!lib?.approx };
         r.qty += times;
+        r.made = lib ? 'bought' : printed(r.material) ? 'made (3D print)' : 'made';
         const b = this.bodies[it.part]?.body;
         r.mass_g = b?.mass_g ?? (b?.volume && MATERIALS[r.material] ? +((b.volume / 1000) * MATERIALS[r.material]).toFixed(2) : null);
         rows.set(key, r);
@@ -582,7 +584,7 @@ export class Assembly {
     const q = (v) => { const s = String(v ?? ''); return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
     const head = ['Pos', 'Qty', 'Name', 'Maker', 'Part number', ...shops.map((s) => `Order (${s})`), 'Description', 'Material', 'Mass each (g)', 'Bought / made'];
     const lines = [head.map(q).join(';'), ...rows.map((r, i) => [i + 1, r.qty, r.name, r.maker, r.pn, ...shops.map((s) => r.order?.[s] || ''), r.description, r.material,
-      r.mass_g === null || r.mass_g === undefined ? '' : String(r.mass_g).replace('.', ','), r.library ? 'bought' : 'made (3D print)'].map(q).join(';'))];
+      r.mass_g === null || r.mass_g === undefined ? '' : String(r.mass_g).replace('.', ','), r.made].map(q).join(';'))];
     const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv' });
     if (await this.hooks.download(blob, `${this.hooks.safeName()} BOM.csv`)) this.hooks.toast(t2('BOM saved: {n} line(s).', { n: rows.length }), 'ok');
   }
