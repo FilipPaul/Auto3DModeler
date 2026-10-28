@@ -35,7 +35,7 @@ DATUMS = {
     "XZ": {"o": [0, 0, 0], "x": [1, 0, 0], "n": [0, -1, 0]},  # Front
     "YZ": {"o": [0, 0, 0], "x": [0, 1, 0], "n": [1, 0, 0]},   # Right
 }
-FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell", "pattern", "solid", "loft", "sweep", "decal", "mirror", "draft")
+FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell", "pattern", "solid", "loft", "sweep", "decal", "mirror", "draft", "rib")
 
 _cache: OrderedDict = OrderedDict()  # prefix hash -> state after that feature (only in the worker process)
 CACHE_SIZE = 48
@@ -197,6 +197,13 @@ def _apply(f, st: State, s):
         wire = K.path_wire(st.frames[f["path"]], path)
         for face, names in prof[1]:
             _use(st, fid, K.sweep_body(face, names, wire, fid), f.get("op", "add"))
+        return
+    if t == "rib":  # a gusset: an open line of a sketch filled up to the part, t thick about its plane
+        src = st.sketch_src.get(f.get("sketch"))
+        if src is None or f.get("sketch") not in st.frames:
+            raise K.KernelError("Choose the rib's sketch: a line from the part to the part (e.g. wall to plate).")
+        chain, ids = K.open_chain(src)
+        _use(st, fid, K.rib(st.body, st.frames[f["sketch"]], chain, ids, _num(f, "t", 3, what="thickness"), fid), "add")
         return
     if t == "draft":  # the side walls of an extrude tilted (moulding, casting)
         if st.body is None:
@@ -701,7 +708,7 @@ def evaluate(features):
 
 # ------------------------------------------------------------------ the sizes a step can take
 LIMIT_FIELDS = {"extrude": ("d", "offset"), "revolve": ("angle",), "fillet": ("r",), "chamfer": ("d",), "hole": ("d", "depth"),
-                "shell": ("t",), "pattern": ("count", "spacing"), "decal": ("h", "depth"), "draft": ("angle",)}
+                "shell": ("t",), "pattern": ("count", "spacing"), "decal": ("h", "depth"), "draft": ("angle",), "rib": ("t",)}
 _limit_cache: OrderedDict = OrderedDict()
 
 

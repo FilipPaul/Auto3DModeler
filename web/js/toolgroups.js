@@ -5,7 +5,7 @@ const GROUPS = {
   make: ['rect', 'line', 'circle', 'spline', 'arc', 'outline', 'sketch', 'extrude', 'revolve', 'loft', 'sweep', 'solidFile', 'insert'],
   modify: ['round', 'trim', 'extend', 'construction', 'fillet', 'chamfer', 'shell', 'draft'],
   copy: ['mirror', 'offset', 'pattern'],
-  detail: ['hole', 'decal', 'fasteners'],
+  detail: ['rib', 'hole', 'decal', 'fasteners'],
   define: ['relate', 'dim', 'autodim', 'joint'],
   inspect: ['paint', 'measure', 'section', 'planes', 'clashes'],
 };

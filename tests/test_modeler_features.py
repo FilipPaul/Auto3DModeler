@@ -143,6 +143,27 @@ class TestFeatures(unittest.TestCase):
         r, _ = vol(*b)
         self.assertEqual(r["features"][-1]["went"], {"along": "-y", "range": [-10, 0]})
 
+    def test_rib(self):
+        """A rib in an L bracket: a plate 40 × 20 × 5 and a wall 5 thick at its back (y 15 … 20) 30 tall; on the Right
+        plane (YZ, x = 20 the middle) a line from the wall (y 15, z 25) to the plate (y 0, z 5) — the triangle below it
+        filled, 4 thick: + ½ · 15 · 20 · 4."""
+        pts = {"q1": [0, 15], "q2": [40, 15], "q3": [40, 20], "q4": [0, 20]}
+        lines = [{"id": f"m{i + 1}", "t": "line", "a": f"q{i + 1}", "b": f"q{(i + 1) % 4 + 1}"} for i in range(4)]
+        wall = [{"id": "S2", "type": "sketch", "plane": {"datum": "XY"}, "points": pts, "entities": lines},
+                {"id": "E2", "type": "extrude", "sketch": "S2", "op": "add", "d": 30}]
+        ln = {"id": "S3", "type": "sketch", "plane": {"datum": "YZ", "offset": 20}, "points": {"r1": [15, 25], "r2": [0, 5]},
+              "entities": [{"id": "k1", "t": "line", "a": "r1", "b": "r2"}]}
+        r0, v0 = vol(*box(d=5), *wall)
+        r, v = vol(*box(d=5), *wall, ln, {"id": "R1", "type": "rib", "sketch": "S3", "t": 4})
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v - v0, 0.5 * 15 * 20 * 4, delta=0.01)
+        names = {n for f in r["body"]["faces"] for n in f.get("names") or [f.get("name")] if n}
+        self.assertTrue({"R1:side:k1", "R1:start", "R1:end"} <= names, names)
+        # a line in the air (nothing to close against): refused
+        air = {**ln, "points": {"r1": [15, 60], "r2": [0, 45]}}
+        r, _ = vol(*box(d=5), *wall, air, {"id": "R1", "type": "rib", "sketch": "S3", "t": 4})
+        self.assertFalse(r["ok"])
+
     def test_draft(self):
         """⟋ Draft: a 40 × 20 × 10 block's walls leaning in 5° — a frustum (top 2 × 10·tan 5° smaller each way)."""
         r, v = vol(*box(), {"id": "D1", "type": "draft", "of": "E1", "angle": 5})

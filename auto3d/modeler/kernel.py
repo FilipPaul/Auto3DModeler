@@ -662,6 +662,85 @@ def draft(body, of, angle, fid):
     return Body(res, _carry(mk, body.names, res))
 
 
+def open_chain(sk):
+    """The straight lines of a sketch (not construction) as one open chain of points [(u, v)…] and their ids."""
+    pts = sk.get("points") or {}
+    P = lambda i: (0.0, 0.0) if i == "O" else tuple(map(float, pts.get(i)))  # noqa: E731
+    segs = [e for e in sk.get("entities") or [] if e.get("t") == "line" and not e.get("construction")]
+    if not segs:
+        raise KernelError("A rib needs a line in its sketch — draw where its edge goes (e.g. from the wall to the plate).")
+    count = {}
+    for e in segs:
+        for p in (e["a"], e["b"]):
+            count[p] = count.get(p, 0) + 1
+    if any(c > 2 for c in count.values()) or not any(c == 1 for c in count.values()):
+        raise KernelError("A rib's lines are one open line (or lines joined end to end, not closed).")
+    at = next(p for p, c in count.items() if c == 1)
+    left, chain, ids = list(segs), [P(at)], []
+    while left:
+        e = next((x for x in left if at in (x["a"], x["b"])), None)
+        if e is None:
+            raise KernelError("A rib's lines have to join end to end.")
+        left.remove(e)
+        at = e["b"] if e["a"] == at else e["a"]
+        chain.append(P(at))
+        ids.append(e.get("id", "l"))
+    return chain, ids
+
+
+def rib(body, fr, chain, ids, t, fid):
+    """A rib: the open line `chain` (sketch coordinates) filled up to the part on whichever side it closes against
+    it, `t` thick about the sketch plane -> the rib alone (a Body, to add). Faces: fid:start / fid:end (its two flat sides), fid:side:<line
+    id> (its edge along the line)."""
+    from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+    from OCP.TopAbs import TopAbs_IN
+    if body is None:
+        raise KernelError("A rib goes onto a part — make the part first.")
+    if not t > 0:
+        raise KernelError("A rib's thickness is more than 0.")
+    bb = bbox(body.shape)
+    D = 2 * math.dist(bb[:3], bb[3:]) + 10
+    a, b = np.asarray(chain[0]), np.asarray(chain[-1])
+    ch = b - a
+    if np.linalg.norm(ch) < 1e-9:
+        raise KernelError("A rib's line has no length.")
+    nrm = np.array([-ch[1], ch[0]]) / np.linalg.norm(ch)
+    n = np.asarray(fr["n"], float)
+    best = None
+    for side in (1, -1):
+        d = nrm * side * D
+        ring = [tuple(p) for p in chain] + [tuple(b + d), tuple(a + d)]
+        w, en = _poly_wire(fr, ring, list(ids) + ["far_b", "far", "far_a"])
+        tool = prism_body(BRepBuilderAPI_MakeFace(w, True).Face(), en, n * t, fid, start=-n * t / 2)
+        mk = BRepAlgoAPI_Cut(tool.shape, body.shape)
+        if not mk.IsDone():
+            continue
+        res = mk.Shape()
+        names = _carry(mk, tool.names, res)
+        m0 = (np.asarray(chain[0]) + np.asarray(chain[1])) / 2
+        probe = m0 + nrm * side * min(0.05, t / 4)  # (just off the line, in the rib)
+        ex = TopExp_Explorer(res, TopAbs_SOLID)
+        while ex.More():
+            sol = ex.Current()
+            cl = BRepClass3d_SolidClassifier(sol, to_3d(fr, *probe), 1e-6)
+            if cl.State() == TopAbs_IN:
+                sb = bbox(sol)
+                corners = np.array([[x, y, z] for x in (sb[0], sb[3]) for y in (sb[1], sb[4]) for z in (sb[2], sb[5])])
+                o = np.array([to_3d(fr, *a).X(), to_3d(fr, *a).Y(), to_3d(fr, *a).Z()])
+                d3 = np.array([to_3d(fr, *(a + nrm * side)).X(), to_3d(fr, *(a + nrm * side)).Y(), to_3d(fr, *(a + nrm * side)).Z()]) - o
+                if max((corners - o) @ d3) < 0.9 * D:  # (it closes against the part — not out to the far side)
+                    fm = _face_map(sol)
+                    own = {k: [f for f in fs if fm.Contains(f)] for k, fs in names.items()}
+                    v = volume(sol)
+                    if best is None or v < best[0]:
+                        best = (v, Body(sol, {k: fs for k, fs in own.items() if fs}))
+                break
+            ex.Next()
+    if best is None:
+        raise KernelError("The rib does not close against the part — draw its line with the part on one side (e.g. from the wall to the plate), its ends touching the part.")
+    return best[1]
+
+
 def combine(body, tool, op):
     """body ∪ tool or body − tool, names of both carried over."""
     if body is None:

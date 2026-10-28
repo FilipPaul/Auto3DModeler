@@ -190,6 +190,8 @@ TOOLS = [
                     "of that face (d signed along the face's x / y; the hole keeps it when the part changes).\n"
                     "- fillet: edges [refs from find_refs], r. chamfer: edges, d.\n"
                     "- shell: faces [names of the faces left open], t (wall).\n"
+                    "- rib: sketch (one open line — or lines end to end — across a corner, e.g. on a plane through the plate and "
+                    "the wall, from the wall to the plate), t (thickness, half each side of the sketch plane): filled up to the part.\n"
                     "- draft: of (an extrude's id), angle (degrees, 0 … 45; its side walls lean in going away from its base — a mould's "
                     "draft; negative: out).\n"
                     "- pattern: repeat steps — of [ids of extrude / revolve / hole / pattern steps], count (with the original). "
@@ -204,7 +206,7 @@ TOOLS = [
                     "- mirror: of \"body\" (the whole part, default) or a step's id; plane \"YZ\" (left ↔ right, default) / \"XZ\" / "
                     "\"XY\", or face (a flat face's name) to mirror across; copy true (the part + its mirror image, default) / false "
                     "(the part moved to its mirror image; only for the body).",
-     "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep", "decal", "mirror", "draft"]},
+     "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep", "decal", "mirror", "draft", "rib"]},
                           "name": STR, "plane": {}, "shapes": {"type": "array"}, "lock": {"type": "boolean"},
                           "sketch": STR, "d": NUM, "op": {"type": "string", "enum": ["add", "cut"]}, "through": {"type": "boolean"},
                           "symmetric": {"type": "boolean"}, "flip": {"type": "boolean"}, "axis": {}, "angle": NUM,

@@ -72,6 +72,10 @@ anyway while a sketch plane is being chosen.
 The tool buttons are coloured by what they do: make (blue), modify (amber), copy (purple), details (teal),
 define / join (green), look and check (grey).
 
+**⊿ Rib**: a gusset in a corner — draw one line in a sketch across the corner (e.g. on the Right plane through the
+plate and the wall, from the wall to the plate), then ⊿ Rib and its thickness: the side of the line that closes
+against the part is filled, half the thickness each side of the sketch plane.
+
 **⟋ Draft**: tilts an extrude's side walls by a few degrees (they lean in going up from its base; negative: out) so a
 moulded or cast part comes out of its mould — choose the extrude (or click one of its walls) and the angle.
 

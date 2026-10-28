@@ -172,6 +172,9 @@ Never report "works" without having run it; report failures with their output.
    refused; a joint from it moves the other part; the Lid's suggestions: unlock and edit here, fix; freed: it moves).
    `tools/e2e_planes.py <url> <dir>` covers the planes (faint on an empty model; ◫ Planes off: hidden, remembered;
    choosing a sketch plane: shown anyway; back: hidden; on again).
+   `tools/e2e_model_rib.py <url> <dir>` covers ⊿ Rib (an L bracket and a line from the wall to the plate on the Right
+   plane: the toolbar's Rib picks that sketch, 3 thick +450, 4 thick +600; the step's text; the AI's rib on a line in
+   the air refused). Needs a server restarted after kernel changes.
    `tools/e2e_model_hole_head.py <url> <dir>` covers ⌴ / ⌵ hole heads (a Ø6 hole: ⌴ Counterbore by default Ø10.8 × 6,
    then Ø10 × 4, ⌵ Countersink Ø12 at 90° — exact volumes; the step's text; the AI's head "cbore", get_model shows it,
    edit_feature head null takes it off; a wrong head refused). Needs a server restarted after kernel changes.

@@ -91,6 +91,11 @@ Date: 2026-10-25. Written by the architect agent.
   tools/e2e_ai_reports.py.
 - **Steps named after their sketch done:** nextName(type, sketch): an extrude / revolve of a sketch the user named
   is "Extrude – Slot" (a "Sketch 2" keeps "Extrude 3"), in the panel and for the AI. tools/e2e_ai_reports.py.
+- **⊿ Rib done:** a `rib` step {sketch, t}: kernel.open_chain (the sketch's lines end to end) and kernel.rib — the
+  line pushed far to each side as a polygon, a prism ±t/2 about the sketch plane, minus the part; the piece by the
+  line that closes against the part (not out to the far side) is added (faces R:start / R:end / R:side:<line>); a
+  line in the air is refused. The modeler's ⊿ Rib (renderRib: the sketch, the thickness; the newest unused sketch
+  with a line), add_feature rib for the AI. test_rib; tools/e2e_model_rib.py.
 - **⌴ / ⌵ hole heads done:** a hole's head "cbore" (head_d, head_depth: a second, wider prism; faces H:cbore:k,
   H:cbore_floor:k) or "csk" (head_d, head_angle 90: kernel.countersink, a cone; face H:csk:k); the Hole panel's Head
   choice sizes it from the hole (1.8 × d × d / 2 × d), the step's text shows it; add_feature / edit_feature head (null
