@@ -100,6 +100,20 @@ export class Modeler {
     this.renderStatus();
   }
 
+  /** The Top / Front / Right planes shown (when wanted): ◫ Planes off hides them — except while a sketch plane is
+   *  being chosen. */
+  datums(on, size) {
+    if (this.planesOn === undefined) { try { this.planesOn = localStorage.getItem('a3d.planes') !== '0'; } catch { this.planesOn = true; } }
+    this.view.showDatums(!!on && (this.planesOn || this.mode === 'plane'), size);
+  }
+
+  togglePlanes() {
+    this.planesOn = !this.planesOn;
+    try { localStorage.setItem('a3d.planes', this.planesOn ? '1' : '0'); } catch { /* private window */ }
+    this.datums(!this.result?.body || this.mode === 'plane' || this.planesOn);
+    this.renderCmdBar();
+  }
+
   renderCmdBar() {
     const bar = this.$('.m-cmdbar');
     const btn = (a, label, title, cls = '') => `<button class="chip ${cls}" data-a="${a}" title="${esc(title)}">${label}</button>`;
@@ -158,6 +172,7 @@ export class Modeler {
         ${btn('paint', '🎨 Paint', 'Colour faces, or whole bodies of an imported file: click them (Ctrl+click: more), then pick a colour', this.painting ? 'on' : '')}
         ${btn('measure', '📏 Measure', 'Measure: click a face or an edge (its size), or two spots (the distance between them) (M)', this.measuring ? 'on' : '')}
         ${btn('section', '✂ Section', 'Look inside: cut the view along X, Y or Z', this.section ? 'on' : '')}
+        ${btn('planes', '◫ Planes', 'Show or hide the Top, Front and Right planes (while a sketch plane is chosen they show anyway)', this.planesOn !== false ? 'on' : '')}
         <span class="sep"></span>
         ${btn('view-iso', 'Iso', 'View from the front-right, above')}${btn('view-top', 'Top', 'View from above')}${btn('view-front', 'Front', 'View from the front')}${btn('view-right', 'Right', 'View from the right')}`;
       bar.querySelector('[data-a=extrude]').disabled = !canExtrude || !!this.cmd;
@@ -207,6 +222,7 @@ export class Modeler {
     if (a === 'measure') return this.toggleMeasure();
     if (a === 'paint') return this.togglePaint();
     if (a === 'section') return this.toggleSection();
+    if (a === 'planes') return this.togglePlanes();
     if (a === 'shell') return this.startShell();
     if (a === 'pattern') return this.startPattern();
     if (a === 'solidFile') return this.pickSolid();
@@ -943,7 +959,7 @@ export class Modeler {
         if (first && this.mode === 'part') this.view.setView('iso');
         const gone = (r.features || []).flatMap((s) => s.issues || []).find((x) => /^BLOB_MISSING/.test(x));
         if (gone) this.hooks.toast(t('The file of an imported solid is not on this computer — open the project file (it carries the file) again.'), 'error', 9000);
-        this.view.showDatums(!r.body || this.mode === 'plane');
+        this.datums(!r.body || this.mode === 'plane');
         this.sk?.draw();
       } catch (e) {
         this.hooks.toast(e.message, 'error', 7000);
@@ -1056,7 +1072,7 @@ export class Modeler {
       return;
     }
     this.mode = 'plane';
-    this.view.showDatums(true);
+    this.datums(true);
     this.hint('Click a flat face of the part to sketch on it — or choose Top / Front / Right above. Esc cancels.');
     this.render();
   }
@@ -1064,7 +1080,7 @@ export class Modeler {
   cancelPlane() {
     this.mode = 'part';
     this.view.setHover(-1);
-    this.view.showDatums(!this.result?.body);
+    this.datums(!this.result?.body);
     this.hint('');
     this.render();
   }
@@ -1084,7 +1100,7 @@ export class Modeler {
     this.mode = 'sketch';
     this.showOutlines();
     this.view.setHover(-1);
-    this.view.showDatums(false);
+    this.datums(false);
     this.view.setGhost(true); // the part see-through: the sketch and its dimensions show through it
     this.view.controls.enableRotate = false; // left button draws; right button pans, wheel zooms
     this.view.controls.mouseButtons = { LEFT: null, MIDDLE: 2, RIGHT: 2 };

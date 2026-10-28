@@ -80,6 +80,9 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Quieter planes, ◫ Planes on / off done:** the Top / Front / Right planes fainter (fill 0.035, edges 0.22, small
+  labels); Modeler.datums / togglePlanes (localStorage a3d.planes) — hidden unless a sketch plane is being chosen.
+  tools/e2e_planes.py.
 - **Box selection in sketches done:** Sketcher.down on empty space with ⬚ Select -> a box drag (.sk-box; crossing when
   dragged right to left); boxPicks (each shape's points on the screen: touched / wholly inside); Ctrl adds to the
   picks; deleteSel removes several picks. e2e_sketch_pick.

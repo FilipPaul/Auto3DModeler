@@ -349,11 +349,11 @@ export class ModelView {
     for (const [name, fr] of Object.entries(DATUMS)) {
       const { o, x, y, n } = axes(fr);
       const m = new THREE.Mesh(new THREE.PlaneGeometry(s, s), new THREE.MeshBasicMaterial({
-        color: DATUM_COLORS[name], transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false }));
+        color: DATUM_COLORS[name], transparent: true, opacity: 0.035, side: THREE.DoubleSide, depthWrite: false })); // (faint: they stay out of the way)
       m.matrix.makeBasis(x, y, n).setPosition(o.clone().addScaledVector(x, s / 2).addScaledVector(y, s / 2));
       m.matrixAutoUpdate = false;
       m.userData.datum = name;
-      const edge = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color: DATUM_COLORS[name], transparent: true, opacity: 0.55 }));
+      const edge = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color: DATUM_COLORS[name], transparent: true, opacity: 0.22 }));
       edge.matrix.copy(m.matrix);
       edge.matrixAutoUpdate = false;
       this.datumGroup.add(m, edge);
@@ -368,7 +368,7 @@ export class ModelView {
   }
 
   highlightDatum(name) {
-    for (const m of this.datumGroup.children) if (m.userData.datum) m.material.opacity = m.userData.datum === name ? 0.28 : 0.08;
+    for (const m of this.datumGroup.children) if (m.userData.datum) m.material.opacity = m.userData.datum === name ? 0.2 : 0.035;
     this.invalidate();
   }
 

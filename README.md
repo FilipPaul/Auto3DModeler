@@ -66,6 +66,9 @@ part's edges — off the grid too — the place named at the mouse; the same fil
 corner, a line's middle, the origin) or on the extension of a line, the cursor catches there and a temporary dashed
 line shows what it lines up with (two at once: where they cross).
 
+**◫ Planes** in the 3D model's toolbar shows or hides the (faint) Top / Front / Right planes — remembered; they show
+anyway while a sketch plane is being chosen.
+
 **Reorder steps**: drag a step up or down the step list. A move that would put a step before one it uses is refused
 (it says which), and one after which the model no longer builds is taken back; Ctrl+Z undoes a move.
 

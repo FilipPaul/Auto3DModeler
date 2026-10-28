@@ -738,6 +738,7 @@ const CS = {
   'The part on screen — double-click to rename, drag to move the tab (out of the window: a new window)': 'Díl na obrazovce — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'Click to show it — double-click to rename, drag to move the tab (out of the window: a new window)': 'Kliknutím zobrazíte — dvojklik přejmenuje, tažením přesunete záložku (ven z okna: nové okno)',
   'No part open': 'Žádný díl není otevřený',
+  '◫ Planes': '◫ Roviny', 'Show or hide the Top, Front and Right planes (while a sketch plane is chosen they show anyway)': 'Ukázat nebo skrýt roviny Horní, Přední a Pravou (při volbě roviny skici se ukážou vždy)',
   '“{b}” uses “{a}” — it has to stay after it.': '„{b}“ používá „{a}“ — musí zůstat za ním.',
   'Not moved — “{name}” cannot be built there: {why}': 'Nepřesunuto — „{name}“ tam nejde sestavit: {why}',
   Midpoint: 'Střed hrany',
