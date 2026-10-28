@@ -1018,6 +1018,16 @@ Date: 2026-10-25. Written by the architect agent.
   SheetEditor.balloonsSvg). A 📋 BOM page in a style: the summary / structured BOM the frame's width on the title
   block, "Bill of materials — <assembly> · Summary · n / m" in the style's title, its rows per page by the style
   (bomRowsIn).
+- **Any title block with any parts list done:** a template has titleStyle (block / strip — the app's Modern — or A …
+  E; an older one: its layout) and bomStyle (modern / A … E), checked by auto3d/title_templates.py; the app's
+  templates "A — Strip", "B — ISO 7200" (with the ISO 5457 frame), "C — Dark band", "D — Minimal", "E — Column" pair
+  each title block with its own list (Modern stays the default). The sheet's panel: Title block style ▾ and Parts
+  list style ▾ under Template ▾ (d.tb.titleStyle / bomStyle — this drawing's, the hint says so, until 💾 Save as
+  template… keeps both with the frame; ⇶ Use for all drawings with an unsaved mix asks for its template name first);
+  the Layout Block / Strip chips are gone (Modern — strip is a style). Folded: Roughness (Ra) (kept in the template),
+  Checked by, Approved by. AI: sheet_edit title_style / bom_style (template_all with an unsaved mix wants
+  save_template), texts surface / checked / approved; get_sheet title_style / bom_style; the automation-design skill
+  says how. tests/test_title_templates.py (styles saved / loaded, older ones, the five designs); tools/e2e_sheet_styles.py.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

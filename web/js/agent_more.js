@@ -346,13 +346,18 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       await sheet.ensure();
       return ok({ ...sheet.summary(), ...(points ? { [points]: sheet.pointsOf(points) } : {}) });
     },
-    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, texts, complete, drop_twice, fits, scale, view_scales, view_names, template, template_all, save_template, frame } = {}) => {
+    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, texts, complete, drop_twice, fits, scale, view_scales, view_names, template, template_all, save_template, frame, title_style, bom_style } = {}) => {
       need('sheet', 'This is for a drawing sheet (📄) — sheet_open opens one');
       const ed = sheet, done = [];
       if (template !== undefined) {
         await ed.loadTemplates();
         ed.useTemplate(template || 'Modern');
         done.push(`title block ${template || 'Modern'}`);
+      }
+      if (title_style !== undefined || bom_style !== undefined) {
+        ed.setStyles({ ...(title_style !== undefined ? { title: title_style || 'block' } : {}), ...(bom_style !== undefined ? { bom: bom_style || 'modern' } : {}) });
+        await ed.ensure();
+        done.push(`title block style ${ed.tb().style}, parts list style ${ed.tb().bomStyle}`);
       }
       if (frame !== undefined) {
         if (frame === null) { delete ed.d.frame; ed.d.views = {}; ed.history.commit(); await ed.ensure(); } else {
@@ -409,7 +414,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       }
       if (restore) { ed.d.hidden = []; done.push('the deleted ones back'); }
       for (const [k, v] of Object.entries(texts || {})) {
-        if (!['title', 'number', 'drawn', 'note', 'company', 'address', 'tolstd'].includes(k)) throw new Error('texts: {title, number, drawn, note, company, address, tolstd} — the title block\'s own texts.');
+        if (!['title', 'number', 'drawn', 'note', 'company', 'address', 'tolstd', 'surface', 'checked', 'approved'].includes(k)) throw new Error('texts: {title, number, drawn, note, company, address, tolstd, surface, checked, approved} — the title block\'s own texts.');
         ed.d.texts = { ...(ed.d.texts || {}) };
         if (String(v ?? '').trim()) ed.d.texts[k] = String(v).trim(); else delete ed.d.texts[k];
         done.push(`${k}: ${v || '—'}`);
@@ -438,7 +443,10 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       if (complete) done.push(`${ed.addAllMissing()} missing size(s) added`);
       ed.commit();
       if (save_template) done.push(`saved as the template ${await ed.saveTemplate(String(save_template))}`);
-      if (template_all) done.push(`${await ed.useTemplateForSet()} drawing(s) of the set use ${ed.tplName()}`);
+      if (template_all) {
+        if (ed.ownStyles()) throw new Error('This drawing\'s own title block / parts list style is not in a template yet — give save_template "<name>" with template_all.');
+        done.push(`${await ed.useTemplateForSet()} drawing(s) of the set use ${ed.tplName()}`);
+      }
       return ok({ done: done.join('; ') || 'nothing', ...ed.summary() });
     },
 

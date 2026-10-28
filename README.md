@@ -513,9 +513,15 @@ moves it freely. **Scale**: the sheet's *Scale* is *Auto* (fitted to the paper) 
 no longer fits inside the frame is flagged (⚠), not refused. The **title block** is clean and light (ISO 7200
 fields): the part's name large, small grey labels over the values, thin rules, a company / logo column on the left —
 it prints well in black and white; an assembly's parts list matches it. **Title-block templates**: in the sheet's
-panel choose *Template* (Modern, Compact, ISO 5457 or your own); type your *Company*, *Address*, *Drawn by*, a
-default *Note*, the *Tolerance standard*, pick a *Logo*, the *Layout* (Block / a low Strip) and the fields shown
-(under *Company, logo and fields*), then **💾 Save as template…** — kept on the server for all your projects. On a
+panel choose *Template* (Modern, Compact, ISO 5457, the five designs *A — Strip*, *B — ISO 7200*, *C — Dark band*,
+*D — Minimal*, *E — Column*, or your own). **Title block style** and **Parts list style** are chosen apart, so any
+title block goes with any parts list: A (180 × 21 mm, one row), B (180 × 40 mm, the full ISO 7200 grid with checked /
+approved, roughness and the projection symbol), C (180 × 34 mm, a black name band; the list's positions in circles),
+D (170 × 28 mm, no grid), E (a 90 × 56 mm column; its list two lines an item). The parts list sits right on the title
+block at the frame's corner, also on the BOM pages; the PDF uses the styles' own fonts (IBM Plex Sans, Barlow, Inter
+— open-licence, in web/fonts). Type your *Company*, *Address*, *Drawn by*, a default *Note*, the *Tolerance
+standard*, the *Roughness*, *Checked by* / *Approved by*, pick a *Logo* and the fields shown (under *Company, logo
+and fields*), then **💾 Save as template…** — kept on the server for all your projects. On a
 drawing of an assembly, **⇶ Use for all drawings of this assembly** puts it on the assembly's, its sub-assemblies'
 and its parts' drawings, and new drawings of that set take it too; the PDF and DXF use it. **Frame**: *Simple*
 (10 mm all round, the default), *Standard ISO 5457* (20 mm on the left for filing, 10 mm elsewhere, a 0.7 mm line,

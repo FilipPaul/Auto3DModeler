@@ -36,7 +36,7 @@ const TPL_TEXTS = ['company', 'address', 'drawn', 'note', 'tolstd', 'surface'];
 const MORE_TEXTS = [['company', 'Company'], ['address', 'Address'], ['tolstd', 'Tolerance standard'], ['surface', 'Roughness (Ra)'], ['checked', 'Checked by'], ['approved', 'Approved by']];
 /** The title block's fields that a template may leave out. */
 const TB_FIELDS = [['company', 'Company / logo'], ['number', 'Drawing no.'], ['material', 'Material'], ['paper', 'Paper'], ['tolerances', 'Tolerances'], ['drawn', 'Drawn by'], ['created', 'Created'], ['changed', 'Changed'], ['note', 'Note']];
-const DEFAULT_TPL = { name: 'Modern', builtin: true, layout: 'block', hide: [], texts: {}, logo: null, frame: null };
+const DEFAULT_TPL = { name: 'Modern', builtin: true, layout: 'block', titleStyle: 'block', bomStyle: 'modern', hide: [], texts: {}, logo: null, frame: null };
 /** The sheet's frame presets (as auto3d/title_templates.py FRAMES): margins [left, top, right, bottom] mm, the line's
  *  width (0: no frame), zones (grid references A… / 1… in the margins) and centring marks (ISO 5457). */
 const FRAMES = {
@@ -153,7 +153,7 @@ export class SheetEditor {
     if (!own) return null;
     const tb = this.tbOf(), X = this.d.texts || {}, texts = { ...tb.texts };
     for (const k of TPL_TEXTS) if (X[k] !== undefined) texts[k] = X[k];
-    const body = { template: { name: own, layout: tb.layout, hide: [...tb.hide], texts, logo: tb.logo, frame: this.frameOf() } };
+    const body = { template: { name: own, layout: tb.layout, titleStyle: tb.style, bomStyle: tb.bomStyle, hide: [...tb.hide], texts, logo: tb.logo, frame: this.frameOf() } };
     const r = await post('/api/title-templates', body);
     this.tpls = r.templates;
     this.d.template = r.template.name;
@@ -184,6 +184,7 @@ export class SheetEditor {
   async useTemplateForSet(name = this.tplName()) {
     const root = this.rootOf(this.d.source);
     if (!root) throw new Error(t('This drawing is not in an assembly\'s drawing set.'));
+    if (this.ownStyles()) { name = await this.saveTemplate(); if (!name) return 0; } // (this drawing's own mix of styles: kept as a template first, so the set can take it)
     this.useTemplate(name);
     const n = (await this.hooks.applyTemplate?.(root, name, this.pagesOf(root).map((p) => p.id))) || 0;
     this.hooks.toast?.(tv('Title block “{name}” on {n} drawing(s) of {asm} — new ones take it too.', { name, n, asm: this.hooks.partName(root) || root }), 'ok', 6000);
@@ -1200,6 +1201,9 @@ export class SheetEditor {
     return `<h3>${esc(t('Title block'))}</h3>
       <div class="field"><label>${esc(t('Template'))}</label><select data-k="tpl" title="${esc(t('The title block\'s template: its layout, fields, company, logo and frame — Modern is the app\'s clean default'))}">${this.tpls.map((x) => `<option value="${esc(x.name)}" ${x.name === tp.name ? 'selected' : ''} data-no-i18n>${esc(x.builtin ? t(x.name) : x.name)}</option>`).join('')}</select></div>
       ${from ? `<p class="hint">${esc(tv('From the drawing set of {asm}.', { asm: from }))}</p>` : ''}
+      <div class="field"><label>${esc(t('Title block style'))}</label><select data-k="tbstyle" title="${esc(t('How the title block looks — any style goes with any parts list'))}">${TITLE_STYLES.map(([k, l]) => `<option value="${k}" ${tb.style === k ? 'selected' : ''} title="${esc(t(STYLE_TIPS[k]))}">${esc(t(l))}</option>`).join('')}</select></div>
+      <div class="field"><label>${esc(t('Parts list style'))}</label><select data-k="bomstyle" title="${esc(t('How the parts list of an assembly drawing and the BOM pages look'))}">${BOM_STYLES.map(([k, l]) => `<option value="${k}" ${tb.bomStyle === k ? 'selected' : ''}>${esc(t(l))}</option>`).join('')}</select></div>
+      <p class="hint">${esc(t(STYLE_TIPS[tb.style] || ''))}${this.d.tb?.titleStyle || this.d.tb?.bomStyle ? ` ${t('(this drawing\'s — 💾 Save as template… keeps it)')}` : ''}</p>
       <div class="row-actions sh-tplbtns"><button class="btn small" data-a="saveTpl" title="${esc(t('Keep this title block (layout, fields, company, address, drawn by, note, tolerance standard, logo, frame) as a template for all your projects'))}">💾 ${esc(t('Save as template…'))}</button>
         ${tp.builtin ? '' : `<button class="mini danger" data-a="delTpl" title="${esc(t('Delete this template (drawings using it go back to Modern)'))}">✕</button>`}</div>
       ${root ? `<div class="row-actions"><button class="btn small" data-a="tplSet" title="${esc(t('This template on every drawing of the assembly\'s set — the assembly\'s, its sub-assemblies\' and its parts\' — and on new ones'))}">⇶ ${esc(t('Use for all drawings of this assembly'))}</button></div>` : ''}
@@ -1207,10 +1211,28 @@ export class SheetEditor {
       <details class="sh-tbmore" ${this.tbOpen ? 'open' : ''}><summary title="${esc(t('Company, address, tolerance standard, logo, layout and the fields shown'))}">${esc(t('Company, logo and fields'))}</summary>
         ${MORE_TEXTS.map(field).join('')}
         <div class="field"><label>${esc(t('Logo'))}</label><span class="sh-logo"><button class="btn small" data-a="logo" title="${esc(t('A picture (PNG, JPEG or SVG) in the title block\'s left column'))}">🖼 ${esc(t(tb.logo ? 'Change…' : 'Choose…'))}</button>${tb.logo ? `<button class="mini danger" data-a="nologo" title="${esc(t('No logo'))}">✕</button>` : ''}<input type="file" data-k="logofile" accept="image/png,image/jpeg,image/svg+xml" hidden></span></div>
-        <div class="field"><label>${esc(t('Layout'))}</label><div class="seg sh-tblayout">${[['block', 'Block'], ['strip', 'Strip']].map(([k, l]) => `<button class="chip ${tb.layout === k ? 'on' : ''}" data-tbl="${k}" title="${esc(t(k === 'block' ? 'Three rows: the part\'s name large, then its facts' : 'One low row: the name and the main facts — more room for the views'))}">${esc(t(l))}</button>`).join('')}</div></div>
         <div class="sh-tbfields" title="${esc(t('The fields the title block shows'))}">${TB_FIELDS.map(([k, l]) => `<label class="check"><input type="checkbox" data-tbf="${k}" ${tb.hide.has(k) ? '' : 'checked'}> ${esc(t(l))}</label>`).join('')}</div>
         <p class="hint">${esc(t('Changes here are this drawing\'s — 💾 Save as template… keeps them for all.'))}</p>
       </details>`;
+  }
+
+  /** Whether this drawing has its own title block / parts list style (not its template's yet). */
+  ownStyles() { const tb = this.d?.tb || {}, tp = this.tplOf(); return (!!tb.titleStyle && tb.titleStyle !== (tp.titleStyle || tp.layout || 'block')) || (!!tb.bomStyle && tb.bomStyle !== (tp.bomStyle || 'modern')); }
+
+  /** Title block style / parts list style of this sheet ({title: block | strip | A … E, bom: modern | A … E}) — any
+   *  two together; 💾 Save as template… keeps them, ⇶ puts them on the whole drawing set. */
+  setStyles({ title, bom } = {}) {
+    const keys = TITLE_STYLES.map((x) => x[0]), bkeys = BOM_STYLES.map((x) => x[0]);
+    if (title !== undefined && !keys.includes(title)) throw new Error(`No title block style ${title} — one of: ${keys.join(', ')}.`);
+    if (bom !== undefined && !bkeys.includes(bom)) throw new Error(`No parts list style ${bom} — one of: ${bkeys.join(', ')}.`);
+    const own = { ...(this.d.tb || {}) };
+    if (title !== undefined) { own.titleStyle = title; delete own.layout; }
+    if (bom !== undefined) own.bomStyle = bom;
+    this.d.tb = own;
+    this.history.commit();
+    this.render();
+    this.hooks.onChange?.();
+    this.ensure(); // (another height: the views placed again)
   }
 
   bindTitlePanel(box) {
@@ -1221,7 +1243,8 @@ export class SheetEditor {
     box.querySelector('[data-a=delTpl]')?.addEventListener('click', () => this.deleteTemplate(this.tplName()).catch(fail));
     box.querySelector('[data-a=tplSet]')?.addEventListener('click', () => this.useTemplateForSet().catch(fail));
     box.querySelector('.sh-tbmore')?.addEventListener('toggle', (e) => { this.tbOpen = e.target.open; });
-    for (const b of box.querySelectorAll('[data-tbl]')) b.addEventListener('click', () => tbSet('layout', b.dataset.tbl));
+    box.querySelector('[data-k=tbstyle]')?.addEventListener('change', (e) => this.setStyles({ title: e.target.value }));
+    box.querySelector('[data-k=bomstyle]')?.addEventListener('change', (e) => this.setStyles({ bom: e.target.value }));
     for (const c of box.querySelectorAll('[data-tbf]')) {
       c.addEventListener('change', () => { const hide = new Set(this.tbOf().hide); if (c.checked) hide.delete(c.dataset.tbf); else hide.add(c.dataset.tbf); tbSet('hide', [...hide]); });
     }
@@ -1828,6 +1851,7 @@ export class SheetEditor {
       scale: `${scaleText(this.scaleArr())}${this.d.scale ? '' : ' (auto)'}`,
       template: `${this.tplName()}${this.d.template ? '' : this.tplName() === DEFAULT_TPL.name ? ' (default)' : ' (the drawing set\'s)'}`,
       templates: this.tpls.map((x) => x.name),
+      title_style: this.tb().style, bom_style: this.tb().bomStyle,
       frame: (({ preset, m, line, zones, marks }) => ({ preset, margins_mm: m, line, zones, marks, ...(this.d.frame ? {} : { from: 'the template' }) }))(this.frameOf()),
       ...(Object.keys(this.d.vscale || {}).length ? { view_scales: Object.fromEntries(Object.entries(this.d.vscale).map(([v, s]) => [v, scaleText(s)])) } : {}),
       ...(Object.keys(this.d.viewNames || {}).length ? { view_names: this.d.viewNames } : {}),

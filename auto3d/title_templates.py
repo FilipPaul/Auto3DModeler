@@ -4,9 +4,12 @@ centring marks). Kept next to the server (data/title_templates.json), so every p
 ones (BUILTIN) cannot be changed. web/js/sheet/sheet.js draws them; a sheet names its template (d.template), an
 assembly's drawing set takes its top sheet's.
 
-A template: {name, layout: "block" | "strip", hide: [field], texts: {company, address, drawn, note, tolstd},
-logo: "data:image/…;base64,…" | null, frame: {preset: simple | iso | narrow | none | custom, m: [left, top, right,
-bottom] mm, line: mm, zones: bool, marks: bool}}.
+A template: {name, layout: "block" | "strip", titleStyle: "block" | "strip" | "A" … "E", bomStyle: "modern" | "A" …
+"E", hide: [field], texts: {company, address, drawn, note, tolstd, surface}, logo: "data:image/…;base64,…" | null,
+frame: {preset: simple | iso | narrow | none | custom, m: [left, top, right, bottom] mm, line: mm, zones: bool, marks:
+bool}}. The title block's style and the parts list's are apart — any two together (web/js/sheet/tbstyles.js: A strip,
+B ISO 7200, C dark band, D minimal, E column; block / strip / modern the app's first ones); an older template without
+them: its layout, the modern parts list.
 """
 from __future__ import annotations
 
@@ -17,7 +20,9 @@ from pathlib import Path
 FILE = "title_templates.json"
 LAYOUTS = ("block", "strip")
 FIELDS = ("material", "scale", "paper", "tolerances", "created", "changed", "number", "drawn", "note", "company")
-TEXTS = ("company", "address", "drawn", "note", "tolstd")
+TEXTS = ("company", "address", "drawn", "note", "tolstd", "surface")
+TITLE_STYLES = ("block", "strip", "A", "B", "C", "D", "E")
+BOM_STYLES = ("modern", "A", "B", "C", "D", "E")
 PRESETS = ("simple", "iso", "narrow", "none", "custom")
 LOGO_MAX = 400_000  # characters of a logo's data URL (a small picture: it goes into every page)
 
@@ -29,9 +34,13 @@ FRAMES = {  # the frame presets (a sheet's frame: its preset's, or custom)
 }
 
 BUILTIN = [
-    {"name": "Modern", "builtin": True, "layout": "block", "hide": [], "texts": {}, "logo": None, "frame": FRAMES["simple"]},
-    {"name": "Compact", "builtin": True, "layout": "strip", "hide": ["created", "note", "company"], "texts": {}, "logo": None, "frame": FRAMES["narrow"]},
-    {"name": "ISO 5457", "builtin": True, "layout": "block", "hide": [], "texts": {"tolstd": "ISO 2768-mK"}, "logo": None, "frame": FRAMES["iso"]},
+    {"name": "Modern", "builtin": True, "layout": "block", "titleStyle": "block", "bomStyle": "modern", "hide": [], "texts": {}, "logo": None, "frame": FRAMES["simple"]},
+    {"name": "Compact", "builtin": True, "layout": "strip", "titleStyle": "strip", "bomStyle": "modern", "hide": ["created", "note", "company"], "texts": {}, "logo": None, "frame": FRAMES["narrow"]},
+    {"name": "ISO 5457", "builtin": True, "layout": "block", "titleStyle": "block", "bomStyle": "modern", "hide": [], "texts": {"tolstd": "ISO 2768-mK"}, "logo": None, "frame": FRAMES["iso"]},
+] + [  # the owner's five designs: each title block with its own parts list (any other pair: a template of the user's)
+    {"name": name, "builtin": True, "layout": "block", "titleStyle": k, "bomStyle": k, "hide": [], "texts": {}, "logo": None, "frame": FRAMES[frame]}
+    for k, name, frame in (("A", "A — Strip", "simple"), ("B", "B — ISO 7200", "iso"), ("C", "C — Dark band", "simple"),
+                           ("D", "D — Minimal", "simple"), ("E", "E — Column", "simple"))
 ]
 
 
@@ -67,6 +76,14 @@ def check(tpl) -> dict:
     layout = tpl.get("layout") or "block"
     if layout not in LAYOUTS:
         raise TemplateError(f"layout: {' or '.join(LAYOUTS)}.")
+    style = tpl.get("titleStyle") or layout
+    if style not in TITLE_STYLES:
+        raise TemplateError(f"titleStyle: {', '.join(TITLE_STYLES)}.")
+    bom = tpl.get("bomStyle") or "modern"
+    if bom not in BOM_STYLES:
+        raise TemplateError(f"bomStyle: {', '.join(BOM_STYLES)}.")
+    if style in ("block", "strip"):
+        layout = style
     hide = [f for f in (tpl.get("hide") or []) if f in FIELDS]
     texts = {k: str(v).strip()[:200] for k, v in (tpl.get("texts") or {}).items() if k in TEXTS and str(v or "").strip()}
     logo = tpl.get("logo") or None
@@ -75,7 +92,7 @@ def check(tpl) -> dict:
             raise TemplateError("logo: a PNG, JPEG or SVG picture (a data URL).")
         if len(logo) > LOGO_MAX:
             raise TemplateError(f"logo: too big ({len(logo) // 1000} kB) — at most {LOGO_MAX // 1000} kB; use a smaller picture.")
-    return {"name": name, "layout": layout, "hide": hide, "texts": texts, "logo": logo, "frame": check_frame(tpl.get("frame"))}
+    return {"name": name, "layout": layout, "titleStyle": style, "bomStyle": bom, "hide": hide, "texts": texts, "logo": logo, "frame": check_frame(tpl.get("frame"))}
 
 
 def _read(folder: Path) -> list:
