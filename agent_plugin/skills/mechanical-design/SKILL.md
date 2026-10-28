@@ -46,7 +46,7 @@ description: Use for any real design — a device, a mechanism, a housing or bra
 - `get_screenshot` to look at it, then say what is bought (with part numbers) and what is printed.
 
 ## 5. Hand over
-- The BOM: `get_assembly` → parts_list (qty, maker, part number, mass). Tell the user the assembly's
-  **⬇ BOM (CSV)** button exports it.
+- The BOM: `get_bom {assembly, mode}` (every level rolled up: total, maker, part number, mass, make / buy). Tell the
+  user the assembly's **📋 BOM** shows it (Summary / Structured, ⬇ CSV / Excel).
 - Name the parts and the assembly clearly (what they are), say the key sizes and why (e.g. "Ø22.1 seat for the
   608-2Z bearing").

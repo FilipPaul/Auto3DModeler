@@ -46,7 +46,12 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    Change a joint with `edit_joint {id, gap | distance | lock_rotation | angle | flip | locked}` (ids from
    get_assembly), take one away with `remove_joint {id}`; `measure {a: {part, face}, b: {part, face}}` gives gaps and
    axis distances; `set_view {view, section, explode}` before `get_screenshot` to look inside or pull it apart.
-7. `get_assembly` gives the parts list (quantity, material, mass, maker and part number of bought parts). To change a part, `open_part` it — every
+7. `get_assembly` gives the parts list (quantity, material, mass, maker and part number of bought parts; `total`: how many in
+   all, the ones inside sub-assemblies counted in). The whole BOM: `get_bom {assembly, mode}` — any assembly of the
+   hierarchy, summary (a row per part: total, pos = the drawings' balloon number, make_buy, `from`: where the count
+   comes from) or structured (the tree: qty_per_parent, total). Screws placed both in the assembly and in a
+   sub-assembly are counted in both; the user sees the same in 📋 BOM (⬇ CSV / Excel) and can add a BOM page to the
+   assembly's drawing (📋 Add BOM page). To change a part, `open_part` it — every
    assembly that uses it follows. The user exports the assembly (STL or STEP) from its Export buttons.
 
 Files for the user: `export {format: "step"}` (the whole assembly as a STEP assembly — SolidWorks, CATIA and Solid

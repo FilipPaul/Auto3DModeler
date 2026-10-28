@@ -174,6 +174,7 @@ const SAVE_TYPES = {
   json: ['Auto3DModeler project', 'application/json'], stl: ['STL 3D model', 'model/stl'], step: ['STEP CAD model', 'model/step'],
   glb: ['GLB 3D preview', 'model/gltf-binary'], zip: ['ZIP of pieces', 'application/zip'], pdf: ['PDF drawing', 'application/pdf'],
   igs: ['IGES CAD model', 'model/iges'], dxf: ['DXF drawing', 'image/vnd.dxf'], obj: ['OBJ 3D mesh', 'model/obj'],
+  csv: ['CSV table', 'text/csv'], xlsx: ['Excel workbook', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
 };
 /** Save a file where the user chooses (name + folder: the browser's Save dialog, Edge / Chrome), else as a
  *  download. Resolves to the chosen file name, or null when the dialog was cancelled. */
@@ -1937,6 +1938,7 @@ function drawingCtx() {
       return !p ? null : p.data === 'live' ? sheet.payload() : p.data;
     },
     bought: (data, name) => isStandard(data, name),
+    massOf: (id) => assembly.massOf(id), // (g each, from the assembly's bodies when it has built that part)
   };
 }
 async function drawingSetPdf(aid, { quiet = false } = {}) {
@@ -1991,6 +1993,7 @@ const assembly = new Assembly({ left: $('asmLeft'), viewport: $('asmViewport'), 
   drawingSet: () => drawingSetPdf(project.active),
   newSheet: () => { const p = project.current; if (p) project.newSheet(p.id, `${p.name} — ${t('drawing')}`); },
   selfId: () => project.active, // the assembly on screen (it may not go into itself)
+  setRoot: (id) => sheet.rootOf(id), // the top assembly whose drawing set numbers its parts (the BOM's positions)
   onChange: () => updateTopButtons(),
 });
 state.workspace = 'quick';

@@ -160,6 +160,10 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_big_part_load.py <url> <dir> [<a big .step>]` covers loading big parts (a plate with 171 holes, the 44 MB
    board in data/imports): the app's time to show it (first, again), the rebuild as JSON + base64 vs the binary
    message (bytes, fetch and read ms; the same arrays and faces both ways: True), a face picked on it.
+   `tools/e2e_kernel_pool.py <url> <dir> [<a big .step>] [--report]` covers the kernel's pool of processes (two Edge
+   sessions: one imports the 44 MB board and builds + draws the 171-hole plate, the other keeps editing a small part
+   — each of its rebuilds under a second meanwhile). Against a server started with A3D_WORKERS=1 it fails (--report:
+   only print the times, the before numbers).
    `tools/e2e_library_edit.py <url> <dir>` covers changing library parts (an own Holder: ✎ Edit in the library -> 12
    thick, 📚 Save back: the library's 12, still one item, the project's copy still 5, a new use 12; a catalogue ISO 4762
    M3: ✎ Make my own copy -> a new own part in My parts, the catalogue unchanged; the AI's save_to_library saves back).
@@ -192,6 +196,15 @@ Never report "works" without having run it; report failures with their output.
    the recommended option first ★; one answered: nothing sent; both: one message "<question> → <option>"; ✎ Other…
    puts the question in the box; no options refused). The message is caught in the page (no Claude needed).
    (e2e_drawing_set also checks one item numbering for the whole set: Machine 1–3, the Lid unit's parts 4 and 5.)
+   `tools/e2e_assembly_tree.py <url> <dir>` covers the assembly's list as a tree with real clicks (Machine = Frame +
+   Lid unit ×2 + Lever: folded nodes "· 3 part(s)"; ▸ opens Lever, its Base / Arm indented; the Arm chosen: only it lit
+   blue, "I2 inside Lever (I4)", its slider turns it (inner); Choose the whole Lever; a pin in Lid unit "holds it in
+   place"; Ctrl+click an inner row; ▾ folds; Lever still open after saving and reopening the project).
+   `tools/e2e_bom.py <url> <dir>` covers the 📋 BOM rolled up through the hierarchy (Machine = Base + Lid unit ×2 (Lid,
+   Pin ×3, screw ×2) + Hinge (Bracket, Pin) + 4 screws directly): get_bom totals Base 1, Lid 2, Pin 7, Bracket 1, screw
+   8, `from`, make / buy by material, the structured tree, Lid unit alone, parts_list `total`; the 📋 BOM window
+   (Summary / Structured, a fold, Hinge chosen), ⬇ CSV of both views, ⬇ Excel; the Czech headers; the Machine sheet's
+   📋 Add BOM page in 📚 All pages and in the set's PDF with the balloons' positions; 45 rows flow onto 3 pages.
    `tools/e2e_cleanup.py <url> <dir>` covers 🧹 Clean up empty projects (three empty default-named projects asked about
    by name and deleted; an empty one named by the user and one with a step stay; again: nothing to clean up). Needs a
    server restarted after server / autosave changes.

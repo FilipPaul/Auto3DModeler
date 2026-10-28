@@ -32,8 +32,10 @@ import { floatBox } from '../floatbox.js';
 import { freeMotions, motionMatrix } from './dof.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
-import { lookColor, finishOf, printed } from '../modeler/materials.js';
+import { lookColor, finishOf } from '../modeler/materials.js';
 import { stepTree } from './stepfile.js';
+import { bomOf, bomCsv, instanceTree } from './bom.js';
+import { openBomWindow } from './bomview.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -68,10 +70,12 @@ class AsmView extends ModelView {
         transparent: o < 1, opacity: o, depthWrite: o >= 1, clippingPlanes: this.clip || [] });
       const painted = paintedFaces(it.body.faces, it.paint || []);
       const fromFile = !it.ownColour ? it.body.faces.filter((f) => f.color) : [];
-      if (painted?.size || fromFile.length) { // faces painted in their part, or coloured in its STEP file
+      const lit = it.lit ? it.body.faces.filter((f) => f.name.startsWith(it.lit)) : []; // (a part inside a sub-assembly chosen in the list)
+      if (painted?.size || fromFile.length || lit.length) { // faces painted in their part, or coloured in its STEP file
         const base = new THREE.Color(it.colour || COLORS[it.color % COLORS.length]), col = new Float32Array(pos.length);
         const byId = new Map(fromFile.map((f) => [f.id, new THREE.Color(f.color)]));
-        for (const [id, p] of painted) byId.set(id, new THREE.Color(p.color));
+        for (const [id, p] of painted || []) byId.set(id, new THREE.Color(p.color));
+        for (const f of lit) byId.set(f.id, new THREE.Color(0x3b82f6));
         for (let tr = 0; tr < ids.length; tr++) {
           const c = byId.get(ids[tr]) || base;
           for (let k = 0; k < 3; k++) col.set([c.r, c.g, c.b], tr * 9 + k * 3);
@@ -510,7 +514,7 @@ export class Assembly {
   }
 
   renderList() {
-    const list = this.$('.as-list');
+    const list = this.$('.as-list'), open = this.openPaths();
     this.$('.as-start').hidden = this.doc.instances.length > 0;
     list.innerHTML = '';
     list.classList.toggle('exploding', this.explode > 0);
@@ -524,6 +528,9 @@ export class Assembly {
         <button class="mini as-boom${it.stay ? ' off' : ''}" data-a="boom" title="${it.stay ? 'Stays in place when exploded — click to let it move' : 'Moves when exploded — click to keep it in place (Ctrl+click: only this one moves)'}">💥</button>`;
       row.querySelector('.mt-name').textContent = this.partName(it.part);
       row.querySelector('.mt-what').textContent = `${it.id}${it.fixed ? ' 📌' : ''}`;
+      const kids = this.kindOf(it.part) === 'assembly' ? instanceTree(this.bomCtx(), it.part, it.id) : null;
+      if (kids) this.twist(row, it.id, kids, open);
+      if (it.id === this.sel && this.selInner?.top === it.id) row.classList.add('has-inner');
       if (it.fixed) row.title = t('Fixed in place 📌');
       if (b?.error) row.title = b.error;
       row.addEventListener('click', (e) => {
@@ -535,11 +542,79 @@ export class Assembly {
         }
         if (a === 'del') return this.removeInst(it.id);
         if (a === 'boom') return this.toggleStay(it.id, e.ctrlKey || e.metaKey);
+        if (a === 'twist') return this.toggleOpen(it.id);
         this.choose(it.id, e.ctrlKey || e.metaKey);
         return null;
       });
       list.appendChild(row);
+      if (kids && open.has(it.id)) this.innerRows(list, it, kids, 1, open);
     }
+  }
+
+  /** ▸ / ▾ on a sub-assembly's row; folded: how many parts are in it (all levels). */
+  twist(row, path, kids, open) {
+    const on = open.has(path), b = document.createElement('button');
+    b.className = 'mini as-twist';
+    b.dataset.a = 'twist';
+    b.textContent = on ? '▾' : '▸';
+    b.title = t(on ? 'Hide its parts' : 'Show its parts');
+    row.prepend(b);
+    row.classList.add('as-node');
+    if (!on) {
+      let n = 0;
+      const count = (nodes) => { for (const x of nodes) (x.children ? count(x.children) : n++); };
+      count(kids);
+      row.querySelector('.mt-what').textContent += ` · ${t2('{n} part(s)', { n })}`;
+    }
+  }
+
+  /** A placed sub-assembly's own parts under its row, indented with a guide line; a sub-assembly in it folds open too.
+   *  A click: that part lit in the view, what can be done with it in the panel (its top-level placement chosen). */
+  innerRows(list, top, nodes, depth, open) {
+    for (const n of nodes) {
+      const inner = n.path.slice(top.id.length + 1), row = document.createElement('div');
+      row.className = `mt-item as-inner-row${this.sel === top.id && this.selInner?.top === top.id && this.selInner.path === inner ? ' on' : ''}`;
+      row.style.setProperty('--depth', depth);
+      row.dataset.path = n.path;
+      row.innerHTML = `<span class="mt-icon">${n.kind === 'assembly' ? '◇' : n.kind === 'classic' ? '▤' : '◆'}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>`;
+      row.querySelector('.mt-name').textContent = this.partName(n.part);
+      row.querySelector('.mt-what').textContent = n.id;
+      row.title = t2('In {sub} — a click shows it in the view', { sub: this.partName(top.part) });
+      if (n.children) this.twist(row, n.path, n.children, open);
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('[data-a=twist]')) { this.toggleOpen(n.path); return; }
+        this.chooseInner(top.id, inner, e.ctrlKey || e.metaKey);
+      });
+      list.appendChild(row);
+      if (n.children && open.has(n.path)) this.innerRows(list, top, n.children, depth + 1, open);
+    }
+  }
+
+  /** The sub-assemblies folded open in this assembly's list (localStorage a3d.asmTree: {assembly id: [paths]}). */
+  openPaths() {
+    let all = {};
+    try { all = JSON.parse(localStorage.getItem('a3d.asmTree') || '{}') || {}; } catch { all = {}; }
+    return new Set(all[this.hooks.selfId?.() || ''] || []);
+  }
+
+  toggleOpen(path) {
+    const open = this.openPaths(), id = this.hooks.selfId?.() || '';
+    if (open.has(path)) open.delete(path); else open.add(path);
+    let all = {};
+    try { all = JSON.parse(localStorage.getItem('a3d.asmTree') || '{}') || {}; } catch { all = {}; }
+    all[id] = [...open];
+    try { localStorage.setItem('a3d.asmTree', JSON.stringify(all)); } catch { /* private window */ }
+    this.renderList();
+  }
+
+  /** A part inside a placed sub-assembly chosen in the list: its placement chosen, that part (path "I2" or "I2/I1"
+   *  inside it) lit in the view; Ctrl: its placement as the second part (the joints between the two). */
+  chooseInner(top, path, more = false) {
+    if (more) { this.choose(top, true); return; }
+    this.choose(top);
+    this.selInner = { top, path };
+    this.render();
+    this.draw();
   }
 
   /** 💥 Which parts move in Explode: one on / off, or (only) just this one moves — and again: all of them. */
@@ -555,38 +630,43 @@ export class Assembly {
     this.commit();
   }
 
-  /** The bill of materials of every part (those inside sub-assemblies counted in) -> rows
-   *  [{name, qty, maker, pn, description, order: {…}, material, mass_g (each), library (bool), made: bought / made /
-   *  made (3D print) — by its material}]. */
-  bomFlat() {
-    const rows = new Map();
-    const walk = (list, times) => {
-      for (const it of list) {
-        const data = this.hooks.partData(it.part) || {};
-        if (this.kindOf(it.part) === 'assembly') { walk(data.instances || [], times); continue; }
-        const lib = data.library || null, key = it.part;
-        const r = rows.get(key) || { name: this.partName(it.part), qty: 0, maker: lib?.maker || '', pn: lib?.pn || '', description: lib?.description || '',
-          order: lib?.order || {}, material: data.material || (lib ? '' : 'PLA'), library: !!lib, approx: !!lib?.approx };
-        r.qty += times;
-        r.made = lib ? 'bought' : printed(r.material) ? 'made (3D print)' : 'made';
-        const b = this.bodies[it.part]?.body;
-        r.mass_g = b?.mass_g ?? (b?.volume && MATERIALS[r.material] ? +((b.volume / 1000) * MATERIALS[r.material]).toFixed(2) : null);
-        rows.set(key, r);
-      }
-    };
-    walk(this.doc.instances, 1);
-    return [...rows.values()];
+  /** What the BOM engine (bom.js) reads of the project. */
+  bomCtx() {
+    const self = this.active ? this.hooks.selfId?.() : null; // (the assembly on screen: its document here, the project's copy is 'live')
+    return { partData: (id) => (id === self && !this.owner ? this.doc : this.hooks.partData(id)), kindOf: (id) => this.kindOf(id), partName: (id) => this.partName(id), massOf: (id) => this.massOf(id) };
   }
 
-  /** ⬇ BOM (CSV): ; separated (Excel in Czech / German reads it), UTF-8 with a BOM mark. */
+  /** A part's mass (g, each) from its body as last built (its own mass, else volume × its material), or null. */
+  massOf(pid) {
+    const b = this.bodies[pid]?.body, data = this.hooks.partData(pid) || {}, mat = data.material || (data.library ? '' : 'PLA');
+    if (!b || b.sub) return null;
+    return b.mass_g ?? (b.volume && MATERIALS[mat] ? (b.volume / 1000) * MATERIALS[mat] : null);
+  }
+
+  /** The assembly whose drawing set numbers this one's positions (the top one it is in), so the BOM and the balloons agree. */
+  numberingOf(aid) { return this.hooks.setRoot?.(aid) || aid; }
+
+  /** The bill of materials of every part, rolled up through the sub-assemblies (bom.js) -> rows
+   *  [{pos, name, qty, maker, pn, description, order: {…}, material, mass_g (each), library (bool), buy, how / made (bom.js makeBuy)}]. */
+  bomFlat(aid = this.hooks.selfId?.()) {
+    return bomOf(this.bomCtx(), aid, { numbering: this.numberingOf(aid) }).rows.map((r) => ({ pos: r.pos, name: r.name, qty: r.qty, maker: r.maker, pn: r.pn, description: r.description,
+      order: r.order, material: r.material, mass_g: r.mass_g, library: r.library, approx: r.approx, buy: r.buy, how: r.how, made: r.how }));
+  }
+
+  /** ⬇ BOM (CSV): the summary BOM (bom.js bomCsv: ; separated — Excel in Czech / German reads it —, UTF-8 with a BOM mark). */
   async exportBom() {
-    const rows = this.bomFlat(), shops = [...new Set(rows.flatMap((r) => Object.keys(r.order || {})))];
-    const q = (v) => { const s = String(v ?? ''); return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-    const head = ['Pos', 'Qty', 'Name', 'Maker', 'Part number', ...shops.map((s) => `Order (${s})`), 'Description', 'Material', 'Mass each (g)', 'Bought / made'];
-    const lines = [head.map(q).join(';'), ...rows.map((r, i) => [i + 1, r.qty, r.name, r.maker, r.pn, ...shops.map((s) => r.order?.[s] || ''), r.description, r.material,
-      r.mass_g === null || r.mass_g === undefined ? '' : String(r.mass_g).replace('.', ','), r.made].map(q).join(';'))];
-    const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv' });
-    if (await this.hooks.download(blob, `${this.hooks.safeName()} BOM.csv`)) this.hooks.toast(t2('BOM saved: {n} line(s).', { n: rows.length }), 'ok');
+    const aid = this.hooks.selfId?.(), bom = bomOf(this.bomCtx(), aid, { numbering: this.numberingOf(aid) });
+    const blob = new Blob([bomCsv(bom, t)], { type: 'text/csv' });
+    if (await this.hooks.download(blob, `${this.hooks.safeName()} BOM.csv`)) this.hooks.toast(t2('BOM saved: {n} line(s).', { n: bom.rows.length }), 'ok');
+  }
+
+  /** 📋 BOM: the window with the whole BOM (Summary / Structured) of this assembly or any of its sub-assemblies. */
+  openBom() {
+    const aid = this.hooks.selfId?.(), seen = new Set([aid]), choices = [{ id: aid, name: this.partName(aid), depth: 0 }];
+    const walk = (nodes, depth) => { for (const n of nodes) if (n.children) { if (!seen.has(n.part)) { seen.add(n.part); choices.push({ id: n.part, name: this.partName(n.part), depth }); } walk(n.children, depth + 1); } };
+    walk(instanceTree(this.bomCtx(), aid), 1);
+    this.bomWin = openBomWindow({ ctx: this.bomCtx(), aid, choices, numberingOf: (id) => this.numberingOf(id), download: this.hooks.download, toast: this.hooks.toast });
+    return this.bomWin;
   }
 
   /** The parts list: part, how many, material, mass each and in all. */
@@ -616,6 +696,7 @@ export class Assembly {
 
   /** A part clicked: chosen alone, or (Ctrl) as the second one — the joints between the two are shown. */
   choose(id, more = false) {
+    this.selInner = null;
     if (more && this.sel && id && id !== this.sel) this.sel2 = this.sel2 === id ? null : id;
     else { this.sel = id || null; this.sel2 = null; }
     this.render();
@@ -644,6 +725,7 @@ export class Assembly {
     if (this.bolt) { this.renderBolt(box); return; }
     this.view.setGhost([]);
     if (this.fastenerPanel && !it) { this.renderFasteners(box); return; }
+    if (it && this.selInner?.top === it.id) { this.renderInner(box, it, this.selInner.path); return; }
     if (it) {
       const m = new THREE.Matrix4().fromArray(it.matrix), p = new THREE.Vector3().setFromMatrixPosition(m);
       const e = new THREE.Euler().setFromRotationMatrix(m, 'XYZ'), deg = (r) => Math.round((r * 180) / Math.PI * 10) / 10;
@@ -711,7 +793,7 @@ export class Assembly {
         ${rows.map((r) => `<tr><td data-no-i18n>${esc(r.name)}</td><td>${r.qty}</td><td>${r.material}</td><td>${r.mass === null ? '—' : `${fmt(+(r.mass * r.qty).toFixed(1))} g`}</td></tr>`).join('')}
         <tr class="as-total"><td>Total</td><td>${rows.reduce((s, r) => s + r.qty, 0)}</td><td></td><td>${fmt(+total.toFixed(1))} g</td></tr></table>
         ${rows.some((r) => r.lib?.pn) ? `<div class="as-pns">${rows.filter((r) => r.lib?.pn).map((r) => `<div><span data-no-i18n>${r.qty}× ${esc(r.lib.pn)}</span> <i data-no-i18n>${esc(r.lib.maker || '')}</i></div>`).join('')}</div>` : ''}
-        <div class="row-actions"><button class="btn small" data-a="bomCsv" title="The bill of materials as a CSV file (Excel): every part with its quantity, maker, part number, order numbers and mass — the parts inside sub-assemblies too">⬇ BOM (CSV)</button></div>
+        <div class="row-actions"><button class="btn small primary" data-a="bomWin" title="The bill of materials: every part with its total quantity from all levels (sub-assemblies counted in), material, mass, maker and part number — as a summary or as the assembly tree">📋 BOM</button><button class="btn small" data-a="bomCsv" title="The bill of materials as a CSV file (Excel): every part with its quantity, maker, part number, order numbers and mass — the parts inside sub-assemblies too">⬇ BOM (CSV)</button></div>
         <h3>Export</h3><div class="row-actions"><button class="btn small" data-x="stl" title="All parts in one STL, as placed">STL</button>
         <button class="btn small" data-x="step" title="All parts as separate bodies in one STEP file">STEP</button>
         <button class="btn small" data-x="iges" title="Every part placed in one IGES file (names, colours) — for CAD programs that ask for IGES; it has no assembly tree">IGES</button>
@@ -723,8 +805,30 @@ export class Assembly {
     this.bindJointRows(box);
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
     box.querySelector('[data-a=bomCsv]')?.addEventListener('click', () => this.exportBom());
+    box.querySelector('[data-a=bomWin]')?.addEventListener('click', () => this.openBom());
     box.querySelector('[data-a=drawingSet]')?.addEventListener('click', () => this.hooks.drawingSet());
     box.querySelector('[data-a=sheetHere]')?.addEventListener('click', () => this.hooks.newSheet());
+  }
+
+  /** A part inside a placed sub-assembly (chosen in the list): where it is, its moves inside the sub-assembly here
+   *  (when its own joints leave it free: only in this placement), open its part / the sub-assembly, or choose the whole. */
+  renderInner(box, it, path) {
+    const ids = path.split('/'), node = (() => { let list = this.innerList(it), x = null; for (const id of ids) { x = list.find((q) => q.id === id); list = x && this.kindOf(x.part) === 'assembly' ? this.hooks.partData(x.part)?.instances || [] : []; } return x; })();
+    if (!node) { this.selInner = null; this.renderProps(); return; }
+    const sub = this.partName(it.part), name = this.partName(node.part);
+    let inner = ids.length === 1 ? this.innerMotions(it) : null;
+    if (inner) inner = { ...inner, parts: inner.parts.filter((q) => q.id === ids[0]) };
+    if (inner && !inner.parts.length) inner = null;
+    box.innerHTML = `<h2>${this.kindOf(node.part) === 'assembly' ? '◇' : '◆'} <span data-no-i18n>${esc(name)}</span></h2>
+      <p class="hint">${esc(t2('{id} inside {sub} ({top}) — a part of {sub}: it moves with it, and it is changed in its own tab.', { id: path, sub, top: it.id }))}</p>
+      ${inner ? this.innerHtml(it, inner) : `<p class="hint">${esc(t2('{sub} holds it in place — only {sub} itself is moved here.', { sub }))}</p>`}
+      <div class="row-actions wrap">${this.hooks.openPart ? `<button class="btn small primary" data-a="openInner" title="${esc(t('Change it in its own tab (the assembly follows)'))}">${this.kindOf(node.part) === 'assembly' ? '◇' : '◆'} ${esc(t('Open its part'))}</button>
+        <button class="btn small" data-a="openSub">◇ ${esc(t2('Open {sub}', { sub }))}</button>` : ''}
+        <button class="btn small" data-a="wholeSub">${esc(t2('Choose the whole {sub}', { sub }))}</button></div>`;
+    if (inner) this.bindInner(box, it, inner);
+    box.querySelector('[data-a=openInner]')?.addEventListener('click', () => this.hooks.openPart(node.part));
+    box.querySelector('[data-a=openSub]')?.addEventListener('click', () => this.hooks.openPart(it.part));
+    box.querySelector('[data-a=wholeSub]').addEventListener('click', () => this.choose(it.id));
   }
 
   // ------------------------------------------------------------------ fasteners
@@ -1671,14 +1775,18 @@ export class Assembly {
       const lod = this.doc.light?.[pid] === true ? 'light' : this.doc.light?.[pid] === false ? 'full' : 'auto'; // 🪶
       const key = JSON.stringify([data.features || { model: data.model, values: data.values, layers: data.layers, bends: data.bends }, lod, data.threads]);
       if (this.bodies[pid]?.key === key) return;
+      // the part's newest build wins: the kernel's processes may answer an older one later
+      const want = (this.wanted ||= {});
+      want[pid] = key;
       try {
         const features = await this.partFeatures(pid, data);
         const { res, r } = await fetchRebuild({ features, lod, threads: data.threads });
+        if (want[pid] !== key) return;
         if (!res.ok) throw new Error(r.error || res.statusText);
         if (!r.ok && !r.body) throw new Error(r.features.flatMap((s) => s.issues).join(' ') || 'This part has no solid.');
         if (r.body) r.body.threads = r.threads?.holes || []; // (🔩 its threaded holes: drawn when its part shows them)
         this.bodies[pid] = r.body ? { key, body: r.body, features } : { key, error: 'This part has no solid yet.' };
-      } catch (e) { this.bodies[pid] = { key, error: e.message }; }
+      } catch (e) { if (want[pid] === key) this.bodies[pid] = { key, error: e.message }; }
     }));
   }
 
@@ -1708,13 +1816,17 @@ export class Assembly {
       const c = it.stay ? null : centres[k];
       const look = this.lookOf(it);
       if (focus && !clashing.has(it.id)) look.opacity = Math.min(look.opacity ?? 1, 0.12); // the rest see-through
+      const lit = this.innerLit(it);
       return { id: it.id, body: this.bodyOf(it)?.body, matrix: it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part), ...look, threads: this.hooks.partData(it.part)?.threads,
-        selected: it.id === this.sel || it.id === this.sel2 || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst, clash: clashing.has(it.id),
+        ...(lit ? { lit } : {}), selected: (it.id === this.sel && !lit) || it.id === this.sel2 || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst, clash: clashing.has(it.id),
         explode: along ? along.get(it.id)?.toArray() || null : this.explode && c ? away(c).multiplyScalar(this.explode * 1.2).toArray() : null };
     }));
     this.drawMarks();
     this.drawJointTags();
   }
+
+  /** The faces' prefix of the inner part chosen in the list ("I2/") when `it` is its placement, else null. */
+  innerLit(it) { return this.selInner && this.selInner.top === it.id && it.id === this.sel ? `${this.selInner.path}/` : null; }
 
   /** Explode respecting the joints: each joined part goes along with the part it is on, and moves itself only along
    *  the ways its joints leave free (its pull projected onto them) -> id -> its offset (THREE.Vector3). */
@@ -2738,6 +2850,7 @@ export class Assembly {
   }
 
   summary() {
+    const self = this.hooks.selfId?.(), totals = new Map(self ? bomOf(this.bomCtx(), self).rows.map((r) => [r.part, r.qty]) : []); // (rolled up through the sub-assemblies)
     return {
       parts: this.doc.instances.map((it) => {
         const b = this.bodyOf(it)?.body, m = new THREE.Matrix4().fromArray(it.matrix);
@@ -2750,9 +2863,21 @@ export class Assembly {
         ...(m.locked ? { locked: true } : {}), ...(this.inst(m.move)?.fastener ? { fastener: this.inst(m.move).fastener.id } : {}), ...(this.whyNot(m) ? { not_held: this.whyNot(m) } : {}) })),
       fasteners: [...new Map(this.doc.instances.filter((i) => i.fastener).map((i) => [i.fastener.id, i.fastener])).values()].map((f) => ({ id: f.id, text: f.text,
         parts: this.doc.instances.filter((i) => i.fastener?.id === f.id).map((i) => i.id), ...(f.bolt ? { drilled_holes: true } : {}) })),
-      parts_list: this.bom().map((r) => ({ name: r.name, qty: r.qty, material: r.material, mass_g_each: r.mass === null || !Number.isFinite(r.mass) ? null : +r.mass.toFixed(2),
+      parts_list: this.bom().map((r) => ({ name: r.name, qty: r.qty, ...(this.kindOf(r.part) === 'assembly' ? { assembly: true } : { total: totals.get(r.part) ?? r.qty }),
+        material: r.material, mass_g_each: r.mass === null || !Number.isFinite(r.mass) ? null : +r.mass.toFixed(2),
         ...(r.lib ? { maker: r.lib.maker || undefined, pn: r.lib.pn || undefined, bought: true } : {}) })),
     };
+  }
+
+  /** For the AI: the BOM of an assembly (this one, or any by id / name) -> {assembly, mode, parts, pieces, mass_g, rows}. */
+  bomFor(aid, mode = 'summary') {
+    const bom = bomOf(this.bomCtx(), aid, { mode, numbering: this.numberingOf(aid) });
+    const facts = (r) => ({ material: r.material || undefined, mass_g_each: r.mass_g ?? undefined, maker: r.maker || undefined, pn: r.pn || undefined, make_buy: r.how });
+    const rows = mode === 'structured'
+      ? bom.lines.map((r) => ({ level: r.depth + 1, pos: r.pos, name: r.name, qty_per_parent: r.qty, total: r.total, ...(r.kind === 'assembly' ? { assembly: true } : facts(r)) }))
+      : bom.rows.map((r) => ({ pos: r.pos, name: r.name, total: r.qty, ...facts(r), mass_g_total: r.mass_total_g ?? undefined,
+        from: r.in.map((w) => (w.times > 1 ? `${w.assembly}: ${w.qty} × ${w.times}` : `${w.assembly}: ${w.qty}`)).join(' + ') }));
+    return { assembly: bom.assembly.name, mode, parts: bom.kinds, pieces: bom.pieces, mass_g: bom.mass_g, ...(bom.mass_unknown ? { mass_unknown: bom.mass_unknown } : {}), rows };
   }
 
   handlers() {
@@ -2760,6 +2885,19 @@ export class Assembly {
     const settle = () => this.refresh();
     return {
       get_assembly: async () => { need(); await settle(); return { text: JSON.stringify(this.summary()) }; },
+      get_bom: async ({ assembly: which, mode = 'summary' } = {}) => {
+        const self = this.active ? this.hooks.selfId?.() : null;
+        const a = which ? this.hooks.parts().find((p) => p.kind === 'assembly' && (p.id === which || p.name === which)) : null;
+        if (which && !a) throw new Error(`No assembly “${which}” — list_parts lists them (kind assembly).`);
+        const aid = a?.id || self;
+        if (!aid) throw new Error('Which assembly? Give assembly (its id or name from list_parts), or open one.');
+        if (mode !== 'summary' && mode !== 'structured') throw new Error('mode: summary (a row per part, its total from every level) or structured (the tree).');
+        if (aid === self) await settle();
+        const leaves = new Set(), walk = (nodes) => { for (const n of nodes) (n.children ? walk(n.children) : leaves.add(n.part)); };
+        walk(instanceTree(this.bomCtx(), aid));
+        await this.buildBodies([...leaves]); // (their masses; built ones are kept)
+        return { text: JSON.stringify(this.bomFor(aid, mode)) };
+      },
       insert_part: async ({ part }) => {
         need();
         const p = this.modelParts().find((q) => q.id === part || q.name === part);

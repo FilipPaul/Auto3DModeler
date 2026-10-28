@@ -747,6 +747,30 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .as-bom th, .as-bom td { text-align: left; padding: 3px 4px; border-bottom: 1px solid var(--line); }
 .as-bom th { color: var(--muted); font-weight: 500; }
 .as-total td { font-weight: 600; }
+/* 📋 BOM window (assembly/bomview.js) */
+.bom-win { width: min(1180px, 94vw); max-width: none; max-height: 88vh; display: flex; flex-direction: column; padding: 14px 18px 12px; }
+.bom-head { display: flex; align-items: center; gap: 12px; margin-right: 30px; flex-wrap: wrap; }
+.bom-head > b { font-size: 15px; }
+.bom-head .seg { margin: 0; flex: none; }
+.bom-head .seg button { flex: none; padding: 4px 12px; }
+.bom-of { max-width: 320px; }
+.bom-title { font-weight: 600; }
+.bom-sum { margin: 8px 0 6px; color: var(--muted); font-size: 12px; }
+.bom-scroll { overflow: auto; flex: 1; min-height: 120px; border: 1px solid var(--line); border-radius: 6px; }
+.bom-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.bom-table th { position: sticky; top: 0; background: var(--panel-2); color: var(--muted); font-weight: 500; text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.bom-table td { padding: 4px 8px; border-bottom: 1px solid #ffffff10; white-space: nowrap; }
+.bom-table tbody tr:hover td { background: #ffffff08; }
+.bom-table .num { text-align: right; }
+.bom-table td.bom-pos { font-weight: 700; text-align: right; color: #c8d3e0; width: 36px; }
+.bom-name { display: inline-flex; align-items: center; gap: 4px; }
+.bom-tree tr.bom-sub td { background: #6e40c912; font-weight: 600; }
+.bom-fold { width: 18px; height: 18px; padding: 0; line-height: 1; }
+.bom-leaf { display: inline-block; width: 18px; }
+.bom-buy { color: #79c0ff; }
+.bom-make { color: #b5f5c5; }
+.bom-asm { color: #d2a8ff; }
+.bom-note { margin: 6px 0 4px; font-size: 11.5px; }
 .btn.accent2 { background: #6e40c9; border-color: #8957e5; color: white; }
 
 /* feature tree */
@@ -779,6 +803,13 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .mt-acts { display: none; gap: 3px; }
 .mt-item:hover .mt-acts { display: flex; }
 .as-boom { display: none; }
+/* the assembly's list as a tree: a placed sub-assembly folds open to its own parts */
+.as-twist { width: 18px; height: 18px; padding: 0; line-height: 1; margin-right: -4px; flex: none; font-size: 12px; }
+.as-inner-row { position: relative; padding: 4px 8px 4px calc(12px + var(--depth) * 16px); font-size: 12.5px; }
+.as-inner-row::before { content: ''; position: absolute; left: calc(var(--depth) * 16px); top: 0; bottom: 0; border-left: 1px solid #ffffff24; }
+.as-inner-row .mt-name { font-weight: 500; }
+.as-inner-row .mt-icon { width: 14px; }
+.mt-item.has-inner { border-color: #3b82f655; background: transparent; }
 .as-jtag { pointer-events: auto; cursor: pointer; font-size: 13px; line-height: 1; padding: 3px 5px; border-radius: 6px; background: #1d2633e6;
   border: 1px solid #3fb950; color: #c9f5d1; box-shadow: 0 2px 6px #0008; }
 .as-jtag:hover { background: #2a3a2e; }

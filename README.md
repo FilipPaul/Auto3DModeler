@@ -429,7 +429,16 @@ other CAD programs.
 The model is built by a real CAD kernel, OpenCASCADE. It runs in its own process, so a failure cannot stop the
 app, and Cancel works on long rebuilds. It needs the optional packages in `requirements-modeler.txt`
 (`py -m pip install -r requirements-modeler.txt`, about 175 MB installed). Without them the rest of the app
-works, and the workspace says what to install.
+works, and the workspace says what to install. Its booleans (cuts, joins, splits, clash checks) use all the
+processor's cores; `A3D_PARALLEL_BOOL=0` (an environment setting) makes them use one — the results are the same.
+
+The kernel runs as a small pool of processes, so one long job — a big STEP import, a drawing set, a print
+split — does not hold up the rest: another part, another window or another assembly part is built meanwhile, and
+an assembly's parts are built side by side when it opens. Each part's jobs stay with one process, in order, so its
+kept results are reused. How many: `A3D_WORKERS` (an environment setting); by default one per core less one, at
+most 4, and one more only while 2 GB of memory are free for it (the size is in `/api/kernel` as `workers`).
+`A3D_WORKERS=1` is one process for everything, as before. A process that crashes, runs out of time or is
+cancelled is restarted alone; one that grows past 3 GB (`A3D_WORKER_MB`) is restarted between jobs.
 
 Coming next ([plan](docs/ARCHITECTURE-modeler.md)):
 - arcs, sizes between any two points, and equal / parallel / perpendicular rules;
@@ -593,7 +602,37 @@ if bought, in `data/library/` on the server. The format for writing parts by han
 [library/README.md](library/README.md). An assembly's **⬇ BOM (CSV)** lists every part (inside sub-assemblies too)
 with quantity, maker, part number, order numbers and mass, as a CSV that Excel opens.
 
+### 📋 Bill of materials (BOM)
+**📋 BOM** in an assembly's panel (nothing chosen) opens its whole bill of materials, every level of the assembly
+rolled up: a part's total is the sum over every place it is in — the assembly itself, its sub-assemblies at any
+depth, a sub-assembly placed twice counting its parts twice. A screw placed both in the machine and inside a
+sub-assembly is counted in both, nothing twice. Two views:
+- **Summary** — one row per part: position, name, total quantity, material, mass each and in all, maker and part
+  number (library parts), and **make / buy** (library and standard parts are bought; your own parts are made —
+  *made (3D print)* of a printing plastic, *made* of a metal or another material). Hover a row to see where its count comes from
+  (*Lid unit: 3 × 2 + Hinge: 1*).
+- **Structured** — the assembly tree: each sub-assembly with its parts, the quantity in its parent and the running
+  total; ▾ / ▸ folds a sub-assembly.
+
+The choice at the top shows the BOM of any sub-assembly in it (or open that sub-assembly: its own 📋 BOM). The
+positions are the drawing set's numbers — the same as the balloons on the drawings. **⬇ CSV** saves the view shown
+(; separated for Excel); **⬇ Excel (.xlsx)** saves both views as two sheets of one workbook — it needs the optional
+`openpyxl` package on the server (`requirements-modeler.txt`); without it the button is greyed and CSV is offered.
+The headers follow the app's language (in Czech: *Poz., Název, Ks, Materiál … Výroba / nákup*).
+
+On an assembly's **📄 drawing sheet**, **📋 Add BOM page** puts the BOM on its own page right after the assembly's
+page — in the drawing set, 📚 All pages and the PDFs — with the set's title-block template and frame, in the parts
+list's style (Summary or Structured, chosen in the sheet's panel); a long BOM goes on over more pages (*… continued
+on the next page*). The AI reads the same BOM with `get_bom {assembly, mode}`; `get_assembly`'s parts list has each
+part's rolled-up `total`.
+
 ## Assemblies
+- The **parts list on the left is a tree**: a placed sub-assembly has **▸** — it opens to its own parts (indented,
+  with their ids; a sub-assembly in it opens too, at any depth); folded, it says how many parts are in it
+  (*Lid unit I2 · 3 parts*). Which ones are open is remembered per assembly. A click on a part inside a sub-assembly
+  lights it in the view and shows it in the panel: its **Moves inside** the sub-assembly when that one's own joints
+  leave it free (moved in this placement only), *Open its part*, *Open* the sub-assembly or *Choose the whole* one;
+  Ctrl+click takes its sub-assembly as the second part. The top rows work as before.
 
 **＋ New assembly** (in the ＋ menu next to the part tabs) opens an assembly tab (◇), where the parts of the project
 are placed together — 3D models ◆, quick parts ▤ (drawings, pictures, imports: they go in as their solid) and other
