@@ -111,6 +111,38 @@ export class Modeler {
     this.view.showDatums(!!on && (this.planesOn || this.mode === 'plane'), size);
   }
 
+  /** 🖨 Print check on / off: the marks on the part and a small box with what was found (and the thinnest wall to
+   *  look for — remembered). It follows the part as it changes. */
+  togglePrintCheck() {
+    this.printChk = this.printChk ? null : { minWall: +(localStorage.getItem('a3d.minWall') || 1.2) || 1.2 };
+    this.runPrintCheck();
+    this.renderCmdBar();
+  }
+
+  runPrintCheck() {
+    this.els.viewport.querySelector(':scope > .m-printcheck')?.remove();
+    const r = this.view.printCheck(this.printChk && this.result?.body ? { minWall: this.printChk.minWall } : null);
+    if (!this.printChk || !r) return r;
+    const box = document.createElement('div');
+    box.className = 'm-printcheck';
+    const ok = !r.overhang.area && !r.thin.area;
+    box.innerHTML = `<b>🖨 ${esc(t('Print check'))}</b>
+      <div class="mpc-row"><i class="mpc-dot" style="background:#f8524a"></i>${esc(t('Overhangs over 45°'))}: <b data-no-i18n>${r.overhang.area ? `${fmt(r.overhang.area)} mm²` : '—'}</b></div>
+      <div class="mpc-row"><i class="mpc-dot" style="background:#ff9e1a"></i>${esc(t('Walls thinner than'))} <input type="number" step="0.1" min="0.1" data-k="minWall" value="${fmt(this.printChk.minWall)}"> mm: <b data-no-i18n>${r.thin.area ? `${fmt(r.thin.area)} mm² (${t('thinnest')} ${fmt(r.thin.min)})` : '—'}</b></div>
+      <p class="hint">${esc(t(ok ? 'Nothing to worry about — it prints as it lies.' : 'Overhangs need supports (or turn the part); thin walls may not print — make them thicker.'))}</p>`;
+    for (const ev of ['pointerdown', 'pointerup', 'click', 'keydown']) box.addEventListener(ev, (x) => x.stopPropagation());
+    const w = box.querySelector('[data-k=minWall]');
+    w.addEventListener('change', () => {
+      const v = parseFloat(String(w.value).replace(',', '.'));
+      if (v > 0) { this.printChk.minWall = v; try { localStorage.setItem('a3d.minWall', String(v)); } catch { /* private window */ } }
+      this.runPrintCheck();
+    });
+    this.els.viewport.appendChild(box);
+    const bar = this.$('.m-cmdbar'), vr = this.els.viewport.getBoundingClientRect(); // (below the toolbar, however many rows it takes)
+    if (bar) box.style.top = `${Math.max(56, bar.getBoundingClientRect().bottom - vr.top + 8)}px`;
+    return r;
+  }
+
   togglePlanes() {
     this.planesOn = !this.planesOn;
     try { localStorage.setItem('a3d.planes', this.planesOn ? '1' : '0'); } catch { /* private window */ }
@@ -181,6 +213,7 @@ export class Modeler {
         ${btn('paint', '🎨 Paint', 'Colour faces, or whole bodies of an imported file: click them (Ctrl+click: more), then pick a colour', this.painting ? 'on' : '')}
         ${btn('measure', '📏 Measure', 'Measure: click a face or an edge (its size), or two spots (the distance between them) (M)', this.measuring ? 'on' : '')}
         ${btn('section', '✂ Section', 'Look inside: cut the view along X, Y or Z', this.section ? 'on' : '')}
+        ${btn('printcheck', '🖨 Print check', 'Check the part for 3D printing as it lies on the bed: overhangs over 45° (red) and walls too thin to print (orange)', this.printChk ? 'on' : '')}
         ${btn('planes', '◫ Planes', 'Show or hide the Top, Front and Right planes (while a sketch plane is chosen they show anyway)', this.planesOn !== false ? 'on' : '')}
         <span class="sep"></span>
         ${btn('view-iso', 'Iso', 'View from the front-right, above')}${btn('view-top', 'Top', 'View from above')}${btn('view-front', 'Front', 'View from the front')}${btn('view-right', 'Right', 'View from the right')}`;
@@ -232,6 +265,7 @@ export class Modeler {
     if (a === 'paint') return this.togglePaint();
     if (a === 'section') return this.toggleSection();
     if (a === 'planes') return this.togglePlanes();
+    if (a === 'printcheck') return this.togglePrintCheck();
     if (a === 'shell') return this.startShell();
     if (a === 'pattern') return this.startPattern();
     if (a === 'draft') return this.startDraft();
@@ -1004,6 +1038,7 @@ export class Modeler {
         this.view.setBody(r.body);
         this.view.setLook({ ...this.part, color: lookColor(this.part) });
         this.view.setRefs(r.refs || []);
+        if (this.printChk) this.runPrintCheck(); // (it follows the part)
         if (first && this.mode === 'part') this.view.setView('iso');
         const gone = (r.features || []).flatMap((s) => s.issues || []).find((x) => /^BLOB_MISSING/.test(x));
         if (gone) this.hooks.toast(t('The file of an imported solid is not on this computer — open the project file (it carries the file) again.'), 'error', 9000);

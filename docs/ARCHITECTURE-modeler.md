@@ -91,6 +91,11 @@ Date: 2026-10-25. Written by the architect agent.
   tools/e2e_ai_reports.py.
 - **Steps named after their sketch done:** nextName(type, sketch): an extrude / revolve of a sketch the user named
   is "Extrude – Slot" (a "Sketch 2" keeps "Extrude 3"), in the panel and for the AI. tools/e2e_ai_reports.py.
+- **🖨 Print check done:** ModelView.printCheck({minWall, overhang}) on the mesh as it lies (its lowest z the bed):
+  triangles facing down past the overhang angle (not on the bed) red; a ray in from each face (both sides hit, a
+  4000-face sample on big meshes) meeting the other side within minWall orange; areas, boxes, the thinnest wall. The
+  toolbar's 🖨 Print check (a box under the toolbar, its min wall remembered, re-run after each rebuild); the AI's
+  check_print {min_wall, overhang}. tools/e2e_model_printcheck.py.
 - **Section A–A on part sheets done:** sheet.section_view (the part ∩ the box x ≤ its middle, projected as the Right
   view sees it; the cut faces' wires -> hatch outlines; the cut's two ends on the Front view) -> geometry.views.Section
   when build(…, section) (doc.sheet / worker / /api/sheet/build section); the sheet: d.section (☐ Section A–A, in the
@@ -680,7 +685,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 | Mass properties: volume, area, mass, centre of mass | body + material | MVP (M6) |
 | Materials: PLA 1.24, PETG 1.27, ABS 1.04, ASA 1.07, TPU 1.21, PA 1.14 g/cm³; infill % as an estimate | per part | MVP (M6) |
 | Section view: clipping plane with a capped cut | plane, offset | MVP (M6) |
-| Printability: faces overhanging more than 45° highlighted, thin walls | body | Later |
+| Printability: faces overhanging more than 45° highlighted, thin walls | body | Done (🖨 Print check, check_print) |
 
 ### 3.6 Assemblies (keep it light)
 

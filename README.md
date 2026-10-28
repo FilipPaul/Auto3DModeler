@@ -75,6 +75,10 @@ define / join (green), look and check (grey).
 **⊂⊃ Slot** (sketch): click the centres of its two round ends, move out to its width and click — two straight
 sides and two half circles that stay a slot (sides tangent, ends equal) when you size it.
 
+**🖨 Print check** (3D model toolbar): marks what will not print well as the part lies on the bed — overhangs over 45°
+in red (they need supports, or turn the part) and walls thinner than the minimum you set (1.2 mm by default) in
+orange — with their areas and the thinnest wall. It follows the part as you change it.
+
 **Section A–A**: on a part's sheet tick *Section A–A* — the part cut through its middle and seen from the right, the
 cut faces hatched, in the right view's place; the cut is marked A–A on the front view. Its edges can be dimensioned
 like any view's.

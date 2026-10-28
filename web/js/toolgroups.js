@@ -7,7 +7,7 @@ const GROUPS = {
   copy: ['mirror', 'offset', 'pattern'],
   detail: ['rib', 'hole', 'decal', 'fasteners'],
   define: ['relate', 'dim', 'autodim', 'joint'],
-  inspect: ['paint', 'measure', 'section', 'planes', 'clashes'],
+  inspect: ['paint', 'measure', 'section', 'printcheck', 'planes', 'clashes'],
 };
 const OF = Object.fromEntries(Object.entries(GROUPS).flatMap(([g, as]) => as.map((a) => [a, g])));
 

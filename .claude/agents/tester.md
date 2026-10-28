@@ -172,6 +172,9 @@ Never report "works" without having run it; report failures with their output.
    refused; a joint from it moves the other part; the Lid's suggestions: unlock and edit here, fix; freed: it moves).
    `tools/e2e_planes.py <url> <dir>` covers the planes (faint on an empty model; ◫ Planes off: hidden, remembered;
    choosing a sketch plane: shown anyway; back: hidden; on again).
+   `tools/e2e_model_printcheck.py <url> <dir>` covers 🖨 Print check (a block: nothing; a 1 mm 40 × 40 cap on a stem:
+   overhang 1500 mm², thin 1600 mm² thinnest 1; min wall 0.5: no thin walls; off: marks gone; the AI's check_print; a
+   screenshot of the view).
    `tools/e2e_sheet_section.py <url> <dir>` covers Section A–A (a block with a hole: ☐ Section A–A — the Right view
    replaced, hatch lines, its name, the two A marks on the front; a dimension on the section's height; Ctrl+Z back;
    a picture of the sheet). Needs a server restarted after kernel changes.

@@ -219,6 +219,54 @@ export class ModelView {
     this.paint();
   }
 
+  /** 🖨 Print check of the part as it lies on the bed (its lowest z): faces hanging over more than `overhang`° from
+   *  upright (facing down, not on the bed) and walls thinner than `minWall` mm (a ray in from each face meets the other
+   *  side sooner) — marked red / orange over the part; null takes the marks off. -> {overhang: {area, box}, thin:
+   *  {area, box, min}} (mm², [x0 … z1] round them). */
+  printCheck(opts) {
+    if (this.printMarks) { this.scene.remove(this.printMarks); this.printMarks.geometry.dispose(); this.printMarks = null; }
+    if (!opts || !this.mesh || !this.body) { this.invalidate(); return null; }
+    const { minWall = 1.2, overhang = 45 } = opts, pos = this.mesh.geometry.attributes.position.array, n = pos.length / 9, z0 = this.body.bbox[2];
+    const lim = -Math.cos((90 - overhang) * Math.PI / 180) - 1e-9; // (a face's normal more downward than this: it hangs over)
+    const side = new THREE.Mesh(this.mesh.geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })), ray = new THREE.Raycaster();
+    const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3(), N = new THREE.Vector3(), M = new THREE.Vector3();
+    const res = { overhang: { area: 0, box: null }, thin: { area: 0, box: null, min: null } }, out = [], col = [];
+    const grow = (r, p) => { r.box = r.box ? [Math.min(r.box[0], p.x), Math.min(r.box[1], p.y), Math.min(r.box[2], p.z), Math.max(r.box[3], p.x), Math.max(r.box[4], p.y), Math.max(r.box[5], p.z)] : [p.x, p.y, p.z, p.x, p.y, p.z]; };
+    const step = Math.max(1, Math.ceil(n / 4000)); // (a big mesh: every k-th face for the walls)
+    for (let i = 0; i < n; i++) {
+      A.fromArray(pos, 9 * i); B.fromArray(pos, 9 * i + 3); C.fromArray(pos, 9 * i + 6);
+      N.subVectors(B, A).cross(M.subVectors(C, A));
+      const area = N.length() / 2;
+      if (area < 1e-9) continue;
+      N.normalize();
+      let kind = null;
+      const onBed = Math.max(A.z, B.z, C.z) - z0 < 1e-3;
+      if (N.z < lim && !onBed) kind = 'overhang';
+      else if (i % step === 0) {
+        M.copy(A).add(B).add(C).multiplyScalar(1 / 3);
+        ray.set(M.clone().addScaledVector(N, -1e-3), N.clone().negate());
+        ray.far = minWall;
+        const hit = ray.intersectObject(side, false).find((h) => h.distance > 1e-3);
+        if (hit) { kind = 'thin'; res.thin.min = Math.min(res.thin.min ?? Infinity, hit.distance + 1e-3); }
+      }
+      if (!kind) continue;
+      res[kind].area += area * (kind === 'thin' ? step : 1);
+      for (const p of [A, B, C]) { grow(res[kind], p); out.push(p.x + N.x * 0.02, p.y + N.y * 0.02, p.z + N.z * 0.02); col.push(...(kind === 'overhang' ? [0.97, 0.32, 0.29] : [1, 0.62, 0.1])); }
+    }
+    if (out.length) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(out, 3));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+      this.printMarks = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2 }));
+      this.scene.add(this.printMarks);
+    }
+    const r1 = (v) => Math.round(v * 10) / 10;
+    for (const k of ['overhang', 'thin']) { res[k].area = r1(res[k].area); if (res[k].box) res[k].box = res[k].box.map(r1); }
+    if (res.thin.min !== null) res.thin.min = Math.round(res.thin.min * 100) / 100;
+    this.invalidate();
+    return res;
+  }
+
   /** The rest of an assembly around a part edited in place: [{positions (base64), matrix (16, in the part's frame)}],
    *  grey and see-through, not picked. */
   setContext(list = []) {

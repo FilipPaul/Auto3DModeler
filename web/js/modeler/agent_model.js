@@ -457,6 +457,15 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       return { text: JSON.stringify(stepResult(id)) };
     },
 
+    check_print: async ({ min_wall = 1.2, overhang = 45 } = {}) => {
+      needModel();
+      await settle();
+      if (!body()) throw new Error('The model has no solid yet.');
+      const r = m.view.printCheck({ minWall: +min_wall, overhang: +overhang }); // (marked on screen too, until the part changes)
+      return { text: JSON.stringify({ as_it_lies: 'on the bed at its lowest z', overhang_over_deg: +overhang, overhang_mm2: r.overhang.area, overhang_box: r.overhang.box,
+        min_wall_mm: +min_wall, thin_mm2: r.thin.area, thin_box: r.thin.box, thinnest_mm: r.thin.min, ok: !r.overhang.area && !r.thin.area }) };
+    },
+
     set_material: async ({ material, tolerance }) => {
       needModel();
       if (material) m.setMaterial(MATERIAL_NAME[String(material).toLowerCase()] || String(material));

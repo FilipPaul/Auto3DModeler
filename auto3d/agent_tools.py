@@ -156,6 +156,11 @@ TOOLS = [
      "description": "The 3D model on screen: its steps in order (id, type, values, ok / issues / warnings), the body's "
                     "size and volume. Call it first and after changes.",
      "inputSchema": _obj({})},
+    {"name": "check_print", "where": "browser",
+     "description": "Check the 3D model for 3D printing as it lies on the bed (its lowest z): faces hanging over more than overhang° "
+                    "(default 45; they need supports) and walls thinner than min_wall mm (default 1.2) -> areas (mm²), a box round each, "
+                    "the thinnest wall, ok. Marked on the user's screen (red / orange).",
+     "inputSchema": _obj({"min_wall": NUM, "overhang": NUM})},
     {"name": "find_refs", "where": "browser",
      "description": "Find faces or edges of the 3D model by description (never guess names). Faces: normal [x, y, z] "
                     "(e.g. [0, 0, 1] = facing up), extreme max / min along that normal (the top-most face), name "
