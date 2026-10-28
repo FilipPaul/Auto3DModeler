@@ -449,7 +449,11 @@ the **Front**, **Top** and **Right** views with visible edges (solid) and hidden
 overall sizes dimensioned, every hole labelled (Ø) and listed with its position from the part's lower-left corner,
 and a title block (name, size, material, mass, scale). The AI's `export {format: "pdf"}` writes the same file.
 A big imported model (more than ~3000 faces — an assembled PCB, a maker's STEP) is drawn from its mesh, without hidden
-lines: seconds instead of minutes; its dimensions are still measured from the exact edges.
+lines: seconds instead of minutes; its dimensions are still measured from the exact edges. On its drawing sheet what
+is too small to see at the sheet's scale is left out — solids, edges and holes under 0.25 mm on the paper (a 0402
+resistor on a board drawn 1:5), the left panel says how many — and its Section A–A cuts only the solids across the
+cut: a 44 MB board's sheet in 25 s instead of 78 s, 4.6 MB to the browser instead of 44 MB. A sheet keeps its part's
+views: another preset, paper or the section turned on does not project the part again (a hundredth of a second).
 
 **Fits and tolerances**: a Hole step has a **Fit** (H6 / H7 / H8 / H9, ISO 286) — the drawing labels it *Ø8 H7* and
 lists it with its deviations (*Ø8 H7 (+0.015 / 0)*); the part's **Tolerances** (ISO 2768-f / m / c) go into the

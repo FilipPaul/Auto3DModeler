@@ -432,6 +432,18 @@ Date: 2026-10-25. Written by the architect agent.
 - **Drawings of big imported parts done:** project_edges of a shape over HEAVY_FACES: HLRBRep_PolyAlgo on its mesh
   (kept, not meshed again), the pieces chained, no hidden lines (a grey wash on a board) — the 42 MB board's sheet
   296 s -> 19 s, 17 -> 8 MB; dimensions still from the exact edges.
+- **Faster drawing sheets for huge parts done:** sheet._cached keeps a part's views by its features' hash (doc._key)
+  in the worker — another preset / paper / the section on only makes the dimensions again (the assembly sheet's by
+  its placed parts + explode); the section projects only its Right view of the half, the exploded assembly only its
+  own iso; a big model (over HEAVY_FACES) drawn as the paper shows it (sheet._scale: the layout's biggest scale):
+  solids, edges and holes under SMALL 0.25 paper mm left out (geometry.simple {left_out, under} -> a note in the
+  sheet's left panel), the mesh outline joined end to end in any order and kept to FINE 0.05 paper mm (kernel._chain /
+  _simplify), the iso at its cell's scale; its Section cut solid by solid (only those across x = middle; the cut
+  pieces meshed); an exact projection's straight splines (a hole's sides seen edge-on) sent as two points
+  (kernel._straight). PolyAlgo holds the GIL — views in threads gain nothing, left out. The 44 MB board (126 062
+  faces, 5237 solids): sheet 78 -> 25 s, 44 -> 4.6 MB; + Section > 45 min (10 GB, never finished) -> 10 s; a
+  preset / paper change 78 -> 0.01 s; two boards' exploded assembly sheet 438 -> 60 s, 77 -> 7.3 MB, again 1 s; a
+  plate with 171 holes: 2.1 -> 0.9 MB, its Section on 1.0 -> 0.15 s, its assembly 4.3 -> 1.8 MB. tests/test_sheet_speed.py.
 - **Quick collisions with big imported parts done:** kernel.placed gives a location (shape.Moved), no copy — a 42 MB
   board (24 290 faces, 1170 solids) cost 1.3 s a placed copy, now 0.09 s (10 copies apart 8.9 -> 0.9 s); interference
   goes solid by solid (only solids whose boxes meet); quick (the background check after a change): a pair meeting in

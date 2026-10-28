@@ -994,6 +994,8 @@ const CS = {
   Pages: 'Listy', 'Open its drawing sheet': 'Otevřít jeho výkres', In: 'Je v',
   'Assembly drawing': 'Výkres sestavy', '📄 Drawing': '📄 Výkres',
   'An assembly drawing: its views, overall sizes and parts list — each part has its own drawing for its sizes.': 'Výkres sestavy: pohledy, celkové rozměry a kusovník — každý díl má pro své rozměry vlastní výkres.',
+  'A big part: drawn from its mesh, without hidden lines.': 'Velký díl: kreslen ze sítě, bez skrytých hran.',
+  'A big part: drawn from its mesh, without hidden lines; {n} pieces smaller than {mm} mm are left out (too small to see at this scale).': 'Velký díl: kreslen ze sítě, bez skrytých hran; {n} kusů menších než {mm} mm je vynecháno (v tomto měřítku nejsou vidět).',
   "The assembly's drawing sheet to edit: its views, overall sizes, parts list and balloons — it follows the assembly; 📄 Drawings (PDF) in the panel makes the whole set": 'Výkres sestavy k úpravám: pohledy, celkové rozměry, kusovník a pozice — sleduje sestavu; 📄 Výkresy (PDF) v panelu udělají celou sadu',
   "The assembly's drawing sheet to edit (views, parts list, balloons, your dimensions and texts)": 'Výkres sestavy k úpravám (pohledy, kusovník, pozice, vaše kóty a texty)',
   Check: 'Kontrola', 'Fully dimensioned — every place and size is given once.': 'Plně zakótováno — každé místo a rozměr je dán jednou.',

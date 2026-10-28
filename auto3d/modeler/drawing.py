@@ -22,12 +22,12 @@ VIEWS = {  # (looking along, the drawing's right, the drawing's up) — first-an
 }
 
 
-def _project(shape, look, right, up):
-    return K.project_edges(shape, look, right, up)
+def _project(shape, look, right, up, fine=None):
+    return K.project_edges(shape, look, right, up, fine)
 
 
-def _iso(shape):
-    v, _ = _project(shape, (-1, 1, -1), (1 / math.sqrt(2), 1 / math.sqrt(2), 0), (0, 0, 1))
+def _iso(shape, fine=None):
+    v, _ = _project(shape, (-1, 1, -1), (1 / math.sqrt(2), 1 / math.sqrt(2), 0), (0, 0, 1), fine)
     return v
 
 

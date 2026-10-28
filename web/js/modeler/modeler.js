@@ -385,6 +385,7 @@ export class Modeler {
   whatText(f) {
     const n = (k) => (f[k] || []).length;
     if (f.type === 'sketch') return this.planeText(f);
+    if (f.type === 'extrude' && f.upto_next) return f.op === 'cut' ? 'cut up to next' : 'up to next';
     if (f.type === 'extrude' && f.upto) return `${f.op === 'cut' ? 'cut ' : ''}up to a face${f.offset ? ` ${f.offset > 0 ? '+' : ''}${fmt(f.offset)} mm` : ''}`;
     if (f.type === 'extrude') return f.op === 'cut' ? (f.through ? 'cut through all' : `cut ${fmt(f.d)} mm`) : `${fmt(f.d)} mm`;
     if (f.type === 'fillet') return `R ${fmt(f.r)} · ${n('edges')} edge(s)`;
@@ -686,7 +687,7 @@ export class Modeler {
       const sk = skOf(f.sketch), fr = frameOf(sk);
       if (sk && fr) {
         this.sketchTags(sk, fr, add, P3);
-        if (f.type === 'extrude' && !f.upto && !f.through) {
+        if (f.type === 'extrude' && !f.upto && !f.upto_next && !f.through) {
           const s = (f.op === 'cut' ? -1 : 1) * (f.flip ? -1 : 1), c = this.sketchCorner(sk);
           const a = P3(fr, c[0], c[1]), b = a.map((v, i) => v + fr.n[i] * f.d * s * (f.symmetric ? 0.5 : 1));
           lines.push([a, b]);
@@ -1489,8 +1490,10 @@ export class Modeler {
     const f = this.cmd.feature, sks = this.sketches(), st = this.status(f.id);
     box.innerHTML = `<h2>${esc(f.name)}</h2>
       <div class="seg big"><button data-op="add" class="${f.op !== 'cut' ? 'on' : ''}" title="Add material">⬆ Add material</button><button data-op="cut" class="${f.op === 'cut' ? 'on' : ''}" title="Remove material (holes, pockets)">⬇ Cut</button></div>
-      ${this.result?.body || f.upto ? `<div class="seg"><button data-upto="0" class="${!f.upto ? 'on' : ''}" title="A height you type">Distance</button><button data-upto="1" class="${f.upto ? 'on' : ''}" title="As far as a face of the part — it follows the face when the part changes">Up to a face</button></div>` : ''}
-      ${f.upto ? `<p class="mp-count">${f.upto.name ? `Up to the face <b>${esc(this.faceLabel(f.upto.name))}</b>` : 'Click a flat face of the part (parallel to the sketch).'}</p>
+      ${this.result?.body || f.upto || f.upto_next ? `<div class="seg"><button data-upto="0" class="${!f.upto && !f.upto_next ? 'on' : ''}" title="A height you type">Distance</button><button data-upto="1" class="${f.upto && !f.upto_next ? 'on' : ''}" title="As far as a face of the part — it follows the face when the part changes">Up to a face</button><button data-upto="next" class="${f.upto_next ? 'on' : ''}" title="As far as the first face of the part across the whole sketch — it follows the part">Up to next</button></div>` : ''}
+      ${f.upto_next ? `<p class="mp-count">Up to the next face of the part across the whole sketch.</p>
+        <div class="row-actions"><button class="btn small" data-k="flip" title="Extrude to the other side of the sketch">⇅ Flip direction</button></div>`
+      : f.upto ? `<p class="mp-count">${f.upto.name ? `Up to the face <b>${esc(this.faceLabel(f.upto.name))}</b>` : 'Click a flat face of the part (parallel to the sketch).'}</p>
         <div class="field"><label>Offset</label><input type="number" step="any" data-k="offset" value="${fmt(f.offset || 0)}"><span class="unit">mm</span></div>
         <p class="hint">Offset: more = past the face, less (negative) = short of it. Click another face to change it.</p>`
       : `<div class="field"><label>Distance</label><input type="number" step="any" min="0" data-k="d" value="${fmt(f.d)}" ${f.through ? 'disabled' : ''}><span class="unit">mm</span></div>
@@ -1498,23 +1501,32 @@ export class Modeler {
       <label class="check"><input type="checkbox" data-k="symmetric" ${f.symmetric ? 'checked' : ''}> Both sides (symmetric)</label>
       <div class="row-actions"><button class="btn small" data-k="flip" title="Extrude to the other side of the sketch">⇅ Flip direction</button></div>`}
       ${sks.length > 1 ? `<div class="field"><label>Sketch</label><select data-k="sketch">${sks.map((s) => `<option value="${s.id}" ${s.id === f.sketch ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></div>` : ''}
-      ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
+      <p class="mp-bad" ${st && !st.ok ? '' : 'hidden'}>${st && !st.ok ? `⚠ ${esc(st.issues.join(' '))}` : ''}</p>
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>
       <p class="hint">The preview is in the 3D view. Enter = OK, Esc = Cancel.</p>`;
-    const changed = () => { this.renderExtrude(box); this.rebuild(); };
+    const issue = () => { // (once built: what is wrong with these settings, e.g. nothing to go up to that way)
+      const s2 = this.status(f.id), p = box.querySelector('.mp-bad');
+      if (this.cmd?.feature !== f || !p) return;
+      p.hidden = !s2 || s2.ok;
+      p.textContent = p.hidden ? '' : `⚠ ${s2.issues.join(' ')}`;
+    };
+    const rebuild = () => this.rebuild().then(issue);
+    const changed = () => { this.renderExtrude(box); rebuild(); };
     for (const b of box.querySelectorAll('[data-op]')) b.addEventListener('click', () => { f.op = b.dataset.op; if (f.op === 'add') f.through = false; changed(); });
     for (const b of box.querySelectorAll('[data-upto]')) {
       b.addEventListener('click', () => {
         if (b.dataset.upto === '1') { f.upto = f.upto || { name: null }; f.through = false; this.hint('Up to a face — click a flat face of the part. Enter = OK, Esc = Cancel.'); } else delete f.upto;
+        if (b.dataset.upto === 'next') { f.upto_next = true; f.through = false; f.symmetric = false; } else delete f.upto_next;
         changed();
       });
     }
-    const d = box.querySelector('[data-k=d]') || box.querySelector('[data-k=offset]');
-    d.addEventListener('input', () => {
-      const v = parseFloat(d.value);
-      if (d.dataset.k === 'offset' ? Number.isFinite(v) : v > 0) { f[d.dataset.k] = v; this.rebuild(); }
-    });
-    d.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okExtrude(); if (e.key === 'Escape') this.cancelExtrude(); });
+    for (const d of box.querySelectorAll('[data-k=d], [data-k=offset]')) {
+      d.addEventListener('input', () => {
+        const v = parseFloat(d.value);
+        if (d.dataset.k === 'offset' ? Number.isFinite(v) : v > 0) { f[d.dataset.k] = v; rebuild(); }
+      });
+      d.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okExtrude(); if (e.key === 'Escape') this.cancelExtrude(); });
+    }
     box.querySelector('[data-k=through]')?.addEventListener('change', (e) => { f.through = e.target.checked; changed(); });
     box.querySelector('[data-k=symmetric]')?.addEventListener('change', (e) => { f.symmetric = e.target.checked; changed(); });
     box.querySelector('[data-k=flip]')?.addEventListener('click', () => { f.flip = !f.flip; changed(); });
@@ -1627,7 +1639,7 @@ export class Modeler {
   okCommand() {
     const { feature: f, isNew } = this.cmd;
     if (f.type === 'extrude' && f.upto && !f.upto.name) { this.hooks.toast('Click the face to go up to first.', 'warning'); return; }
-    if (f.type === 'extrude' && !f.upto && !f.through && !(f.d > 0)) { this.hooks.toast('The distance must be greater than zero.', 'error'); return; }
+    if (f.type === 'extrude' && !f.upto && !f.upto_next && !f.through && !(f.d > 0)) { this.hooks.toast('The distance must be greater than zero.', 'error'); return; }
     if ((f.type === 'fillet' || f.type === 'chamfer') && !f.edges.length) { this.hooks.toast('Click at least one edge first.', 'warning'); return; }
     if (f.type === 'shell' && !f.faces.length) { this.hooks.toast('Click the face(s) to leave open first.', 'warning'); return; }
     if (f.type === 'decal' && (!f.plane || !f.polys)) { this.hooks.toast(f.plane ? 'Type some text, or choose a picture.' : 'Click on a flat face where it goes.', 'warning'); return; }

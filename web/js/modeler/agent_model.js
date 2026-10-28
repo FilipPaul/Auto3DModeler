@@ -232,7 +232,8 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       if (!m.part.features.some((f) => f.id === sk && f.type === 'sketch')) throw new Error('sketch: the id of a sketch step (from get_model).');
       return type === 'extrude'
         ? { ...base, sketch: sk, op: spec.op === 'cut' ? 'cut' : 'add', d: spec.d ?? 10, through: !!spec.through, symmetric: !!spec.symmetric, flip: !!spec.flip,
-          ...(spec.up_to ? { upto: { name: faceOf(spec.up_to).name, fp: faceOf(spec.up_to).centroid }, offset: spec.offset || 0 } : {}) }
+          ...(spec.up_to ? { upto: { name: faceOf(spec.up_to).name, fp: faceOf(spec.up_to).centroid }, offset: spec.offset || 0 } : {}),
+          ...(spec.upto_next && !spec.up_to ? { upto_next: true } : {}) }
         : { ...base, sketch: sk, op: spec.op === 'cut' ? 'cut' : 'add', axis: spec.axis || 'y', angle: spec.angle ?? 360 };
     }
     if (type === 'fillet' || type === 'chamfer') {
@@ -521,6 +522,10 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         if ('fit' in fields && !fields.fit) delete f.fit; // (a hole's fit taken off)
         if ('thread' in fields && !fields.thread) delete f.thread; // (its thread taken off)
         if ('head' in fields && !fields.head) for (const k of ['head', 'head_d', 'head_depth', 'head_angle']) delete f[k]; // (its head taken off)
+        if (f.type === 'extrude') { // up to next / up to a face / a distance: one at a time
+          if (!next.upto_next) delete f.upto_next;
+          if (fields.upto_next || ('up_to' in fields && !fields.up_to)) delete f.upto;
+        }
       }
       return commitAnd(id);
     },

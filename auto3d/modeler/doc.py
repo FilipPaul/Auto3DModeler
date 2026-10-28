@@ -1021,7 +1021,7 @@ def sheet(part, preset="medium", paper=None, per_view=None, section=False):
     from . import sheet as S
     st = body_of(part)
     fits = {f["d"]: f["fit"] for f in (part or {}).get("features") or [] if f.get("type") == "hole" and f.get("fit") and not f.get("off")}
-    return S.build(st.body, preset, fits, paper, per_view, _threads(part), section)
+    return S.build(st.body, preset, fits, paper, per_view, _threads(part), section, key=_key((part or {}).get("features") or []))
 
 
 def _exploded(placed, k):
@@ -1060,7 +1060,8 @@ def assembly_sheet(instances, paper=None, explode=0):
         except K.KernelError:
             continue
         placed.append((inst.get("id"), K.placed(st.body.shape, inst.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])))
-    return S.build_assembly(placed, paper, _exploded(placed, float(explode)) if explode else None)
+    key = _key([float(explode or 0)] + [[i.get("id"), (i.get("part") or {}).get("features") or [], i.get("matrix")] for i in instances or []])
+    return S.build_assembly(placed, paper, _exploded(placed, float(explode)) if explode else None, key=key)
 
 
 def assembly_clashes(instances, quick=False):

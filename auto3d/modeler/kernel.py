@@ -1136,20 +1136,67 @@ def _face_info(f, fi, rev, rough=None):
     return info
 
 
-def _chain(segs, tol=1e-6):
-    """Line pieces [[p, q]] -> polylines joining the ones that meet end to start (a mesh's outline is many pieces)."""
-    out, cur = [], None
-    for a, b in segs:
-        if cur and abs(cur[-1][0] - a[0]) < tol and abs(cur[-1][1] - a[1]) < tol:
-            cur.append(b)
-        else:
-            cur = [a, b]
-            out.append(cur)
+def _chain(segs, tol=1e-6, fine=None):
+    """Line pieces [[p, q]] -> polylines joining the ones that meet at their ends, in any order (a mesh's outline is
+    many pieces). fine: a length too small to see on the paper — each polyline simplified to it (Douglas–Peucker) and
+    one smaller than it left out."""
+    at = {}  # an end -> the pieces there
+    q = lambda p: (round(p[0] / tol), round(p[1] / tol))  # noqa: E731
+    for i, (a, b) in enumerate(segs):
+        at.setdefault(q(a), []).append(i)
+        at.setdefault(q(b), []).append(i)
+    used, out = [False] * len(segs), []
+
+    def walk(pl):  # on from pl's last point while one unused piece goes on from it
+        while True:
+            nxt = next((j for j in at[q(pl[-1])] if not used[j]), None)
+            if nxt is None:
+                return
+            used[nxt] = True
+            a, b = segs[nxt]
+            pl.append(b if q(a) == q(pl[-1]) else a)
+
+    for i, (a, b) in enumerate(segs):
+        if used[i]:
+            continue
+        used[i] = True
+        pl = [a, b]
+        walk(pl)
+        pl.reverse()
+        walk(pl)
+        if fine:
+            xs, ys = [p[0] for p in pl], [p[1] for p in pl]
+            if max(xs) - min(xs) < fine and max(ys) - min(ys) < fine:
+                continue
+            pl = _simplify(pl, fine / 2)
+        out.append(pl)
     return out
 
 
-def _project_poly(shape, ax, flip, size):
-    """Hidden-line removal on the shape's mesh (a big imported model: the exact one takes minutes) -> (visible, no hidden)."""
+def _simplify(pl, tol):
+    """A polyline with the points it does not need to stay within tol (Douglas–Peucker)."""
+    if len(pl) < 3:
+        return pl
+    a = np.asarray(pl, float)
+    keep, todo = {0, len(a) - 1}, [(0, len(a) - 1)]
+    while todo:
+        i, j = todo.pop()
+        if j - i < 2:
+            continue
+        d = a[j] - a[i]
+        n = math.hypot(*d)
+        mid = a[i + 1:j] - a[i]
+        dist = np.abs(mid[:, 0] * d[1] - mid[:, 1] * d[0]) / n if n > 1e-12 else np.hypot(mid[:, 0], mid[:, 1])
+        k = int(dist.argmax())
+        if dist[k] > tol:
+            keep.add(i + 1 + k)
+            todo += [(i, i + 1 + k), (i + 1 + k, j)]
+    return [pl[k] for k in sorted(keep)]
+
+
+def _project_poly(shape, ax, flip, size, fine=None):
+    """Hidden-line removal on the shape's mesh (a big imported model: the exact one takes minutes) -> (visible, no hidden).
+    fine: see _chain."""
     from OCP.HLRAlgo import HLRAlgo_Projector
     from OCP.HLRBRep import HLRBRep_PolyAlgo, HLRBRep_PolyHLRToShape
     ex = TopExp_Explorer(shape, TopAbs_FACE)
@@ -1173,16 +1220,33 @@ def _project_poly(shape, ax, flip, size):
             p, q = c.Value(c.FirstParameter()), c.Value(c.LastParameter())
             segs.append([(p.X(), -p.Y() if flip else p.Y()), (q.X(), -q.Y() if flip else q.Y())])
             ex.Next()
-        return _chain(segs)
+        return _chain(segs, fine=fine)
 
     # no hidden lines: on a model this big they are a dense grey wash (and hundreds of thousands of pieces)
     return pieces(hl.VCompound()) + pieces(hl.OutLineVCompound()), []
 
 
-def project_edges(shape, look, right, up):
+def _straight(pts, tol=1e-4):
+    """A projected curve that is a straight line after all (a hole's outline seen from the side: a spline, not a line)
+    -> its two ends; else as it is (48 points each: most of a sheet's payload)."""
+    if len(pts) < 3:
+        return pts
+    a = np.asarray(pts, float)
+    d = a[-1] - a[0]
+    n = math.hypot(*d)
+    if n < tol or np.abs((a[:, 0] - a[0, 0]) * d[1] - (a[:, 1] - a[0, 1]) * d[0]).max() > tol * n:
+        return pts
+    along = (a - a[0]) @ d
+    if along.min() < -tol * n or along.max() > n * n + tol * n:  # (an arc seen edge-on: it goes past its ends)
+        return pts
+    return [pts[0], pts[-1]]
+
+
+def project_edges(shape, look, right, up, fine=None):
     """The visible and hidden edges of the shape seen along `look` (hidden-line removal) -> ([[(x, y)…]…], [[…]…])
     in mm, in the view's axes: x along `right`, y along `up`. A big imported model (more than HEAVY_FACES faces) is
-    projected from its mesh (seconds, not minutes; its lines a hair less smooth)."""
+    projected from its mesh (seconds, not minutes; its lines a hair less smooth) — so is a shape given `fine`: its
+    lines kept to `fine` mm (what the paper shows, see _chain)."""
     from OCP.BRepLib import BRepLib
     from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt
     from OCP.HLRAlgo import HLRAlgo_Projector
@@ -1192,9 +1256,9 @@ def project_edges(shape, look, right, up):
     # the projector looks against its axis' direction: the axis points at the viewer
     ax = gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(*[-c for c in look]), gp_Dir(*right))
     up_v0 = np.cross(np.asarray([-c for c in look], float), np.asarray(right, float))
-    if face_count(shape) > HEAVY_FACES:
+    if fine or face_count(shape) > HEAVY_FACES:
         bb = bbox(shape) or [0, 0, 0, 1, 1, 1]
-        return _project_poly(shape, ax, float(up_v0 @ np.asarray(up, float)) < 0, max(bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2], 1e-6))
+        return _project_poly(shape, ax, float(up_v0 @ np.asarray(up, float)) < 0, max(bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2], 1e-6), fine)
     algo = HLRBRep_Algo()
     algo.Add(shape)
     algo.Projector(HLRAlgo_Projector(ax))
@@ -1219,7 +1283,7 @@ def project_edges(shape, look, right, up):
             for i in range(n + 1):
                 p = c.Value(t0 + (t1 - t0) * i / n)
                 pts.append((p.X(), -p.Y() if flip else p.Y()))
-            out.append(pts)
+            out.append(_straight(pts))
             ex.Next()
         return out
 

@@ -7,6 +7,7 @@ import math
 import unittest
 
 from auto3d.modeler import available
+from test_modeler_kernel import watertight
 
 OCC = available("occ")
 if OCC:
@@ -467,6 +468,54 @@ class TestFeatures(unittest.TestCase):
         # a wall is not parallel to the sketch: refused
         r, _ = vol(*box(), sk, {**pin, "upto": {"name": "E1:side:l1", "fp": [20, 0, 5]}})
         self.assertIn("parallel", r["features"][-1]["issues"][0])
+
+    def two_plates(self):
+        """Plate B 40 × 40 at z 0 … 10, plate A above it at z 20 … 30 (a 10 mm gap), a wall x 0 … 5 joining them; and
+        a circle r 5 at (20, 20) sketched on the XY plane moved to z."""
+        def rect(i, w, z):
+            pts = {"p1": [0, 0], "p2": [w, 0], "p3": [w, 40], "p4": [0, 40]}
+            lines = [{"id": f"l{k + 1}", "t": "line", "a": f"p{k + 1}", "b": f"p{(k + 1) % 4 + 1}"} for k in range(4)]
+            return [{"id": f"S{i}", "type": "sketch", "plane": {"datum": "XY", "offset": z} if z else {"datum": "XY"}, "points": pts, "entities": lines},
+                    {"id": f"E{i}", "type": "extrude", "sketch": f"S{i}", "op": "add", "d": 10}]
+        circle = lambda z: {"id": "S9", "type": "sketch", "plane": {"datum": "XY", "offset": z}, "points": {"c": [20, 20]},  # noqa: E731
+                            "entities": [{"id": "k", "t": "circle", "c": "c", "r": 5}]}
+        return [*rect(1, 40, 0), *rect(2, 5, 10), *rect(3, 40, 20)], circle, 2 * 16000 + 5 * 40 * 10
+
+    def test_extrude_up_to_next(self):
+        """Up to next: a cut from plate A's top goes through A only (it stops at A's underside, not in B); a boss from
+        B's top fills the gap up to A's underside; the mesh stays watertight; nothing in the way -> an issue."""
+        from auto3d.modeler import kernel as K
+        plates, circle, v0 = self.two_plates()
+        cut = {"id": "C1", "type": "extrude", "sketch": "S9", "op": "cut", "upto_next": True}
+        r, v = vol(*plates, circle(30), cut)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, v0 - math.pi * 25 * 10, delta=1e-3)
+        self.assertEqual(r["features"][-1]["went"], {"along": "-z", "range": [20, 30]})
+        self.assertTrue(watertight(r["body"]))
+        boss = {**cut, "op": "add"}
+        r, v = vol(*plates, circle(10), boss)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, v0 + math.pi * 25 * 10, delta=1e-3)
+        self.assertEqual(r["features"][-1]["went"], {"along": "+z", "range": [10, 20]})
+        self.assertIn("C1:side:k", {f.get("name") for f in r["body"]["faces"]})
+        self.assertTrue(watertight(r["body"]))
+        # it follows the part: the gap 15 tall (plate A moved up 5) -> the boss 15 tall
+        moved = [*plates[:4], {**plates[4], "plane": {"datum": "XY", "offset": 25}}, plates[5]]
+        moved[3] = {**moved[3], "d": 15}
+        r, v = vol(*moved, circle(10), boss)
+        self.assertAlmostEqual(v, v0 + 5 * 40 * 5 + math.pi * 25 * 15, delta=1e-3)
+        # STEP write -> read: the same solid
+        step = doc.export({"features": [*plates, circle(10), boss]}, "step")
+        self.assertAlmostEqual(K.volume(K.from_step(step)), v0 + math.pi * 25 * 10, delta=1e-3)
+        # nothing in the way: a boss up from A's top, a cut from A's top going up (flipped)
+        r, _ = vol(*plates, circle(30), boss)
+        self.assertFalse(r["ok"])
+        self.assertIn("Up to next", r["features"][-1]["issues"][0])
+        r, _ = vol(*plates, circle(30), {**cut, "flip": True})
+        self.assertIn("meets no part", r["features"][-1]["issues"][0])
+        # no part yet
+        r, _ = vol(circle(0), {**boss, "op": "add"})
+        self.assertIn("no part", r["features"][-1]["issues"][0])
 
     def test_hole_measured_from_another_hole(self):
         top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}

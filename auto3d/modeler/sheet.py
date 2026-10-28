@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+from collections import OrderedDict
 
 import numpy as np
 from OCP.BRepAdaptor import BRepAdaptor_Curve, BRepAdaptor_Surface
@@ -27,6 +28,23 @@ from .drawing import SCALES, VIEWS, _extent, _iso, _project
 PRESETS = ("light", "medium", "full")
 PAPERS = {"A4": (297, 210), "A3": (420, 297)}
 TOL = 1e-3
+FINE, SMALL = 0.05, 0.25  # paper mm: a big part's lines kept to FINE; its solids, edges and holes under SMALL left out
+CACHE_SIZE = 8
+_cache: OrderedDict = OrderedDict()  # (the part's hash, what) -> its views, projected once (only in the worker process)
+
+
+def _cached(key, make):
+    """make() once per key (None: not kept) — a sheet built again with another preset / paper, or its section turned on,
+    does not project the part again."""
+    if key is None:
+        return make()
+    if key in _cache:
+        _cache.move_to_end(key)
+        return _cache[key]
+    out = _cache[key] = make()
+    while len(_cache) > CACHE_SIZE:
+        _cache.popitem(last=False)
+    return out
 
 
 def _r(v, n=4):
@@ -37,10 +55,46 @@ def _key(*names):
     return "+".join(sorted(set(names)))
 
 
-def geometry(body):
+def _scale(bb):
+    """The biggest scale (paper mm per mm) the layout may give a part of this box (A4 or A3)."""
+    return max(a / b for a, b in (layout({"bbox": bb}, p)["scale"] for p in PAPERS))
+
+
+def _iso_view(shape, heavy):
+    """The iso view's lines; a big model's as its cell shows it (drawn smaller than the views: more left out)."""
+    fine = None
+    if heavy:
+        bb = K.bbox(shape)
+        s = max(layout({"bbox": bb}, p)["iso"][2] for p in PAPERS) / max(math.dist(bb[:3], bb[3:]), 1e-6)
+        shape, fine = _small_left_out(shape, SMALL / s)[0], FINE / s
+    return [[[_r(x, 3), _r(y, 3)] for x, y in pl] for pl in _iso(shape, fine)]
+
+
+def _small_left_out(shape, small):
+    """A big imported model without its solids smaller than `small` (an 0402 resistor on a board drawn 1:5: a dot) ->
+    (the shape drawn, how many were left out). A third of the time each view takes."""
+    solids = K._solid_boxes(shape)
+    kept = [x for x, b in solids if max(b[3] - b[0], b[4] - b[1], b[5] - b[2]) >= small]
+    if not kept or len(kept) == len(solids):
+        return shape, 0
+    return K.compound(kept), len(solids) - len(kept)
+
+
+def geometry(body, views=None, iso=True, scale=None):
     """The views of the part -> {bbox, views: {name: {look, right, up, visible, hidden, lines, circles, points, box}},
-    iso}. lines: [{a, b, key}], circles: [{key, c, r, full, p0, p1, pm, face}], points: {key: [x, y]}."""
-    shape = body.shape
+    iso, simple?}. lines: [{a, b, key}], circles: [{key, c, r, full, p0, p1, pm, face}], points: {key: [x, y]}.
+    views: only these (names of VIEWS); iso False: no iso view (each projection is a hidden-line pass — seconds on a
+    big part). A big imported model (over HEAVY_FACES, or given its `scale`) is drawn as the paper shows it at that scale
+    (else the layout's): its solids, edges and holes smaller than SMALL paper mm left out, its lines simplified to FINE
+    (and no hidden lines, kernel.project_edges) — simple: {left_out (solids), under (mm)}."""
+    shape, bb = body.shape, K.bbox(body.shape)
+    fine = small = 0
+    simple = None
+    if scale or K.face_count(shape) > K.HEAVY_FACES:
+        s = scale or _scale(bb)
+        fine, small = FINE / s, SMALL / s
+        shape, n = _small_left_out(shape, small)
+        simple = {"left_out": n, "under": _r(small, 2)}
     fm, em, adj = K._adjacency(shape)
     names = K._face_names(body, fm)
     cyl = {i for i in range(fm.Extent()) if BRepAdaptor_Surface(TopoDS.Face(fm.FindKey(i + 1))).GetType() == GeomAbs_Cylinder}
@@ -59,19 +113,27 @@ def geometry(body):
         if c.GetType() == GeomAbs_Line:
             if len(fs) == 1 and fs[0] in cyl:  # a round face's seam: not an edge anyone dimensions
                 continue
-            edges.append(("line", (P(t0), P(t1)), key, None))
+            a, b = P(t0), P(t1)
+            if small and np.linalg.norm(b - a) < small:
+                continue
+            edges.append(("line", (a, b), key, None))
         elif c.GetType() == GeomAbs_Circle:
             ci = c.Circle()
+            if small and 2 * ci.Radius() < small:
+                continue
             ax, lo = ci.Axis().Direction(), ci.Location()
             face = next((name(f) for f in fs if f in cyl), None)
             edges.append(("circle", (np.array([lo.X(), lo.Y(), lo.Z()]), np.array([ax.X(), ax.Y(), ax.Z()]), ci.Radius(),
                                      abs(t1 - t0 - 2 * math.pi) < 1e-6, P(t0), P(t1), P((t0 + t1) / 2)), key, face))
-    bb = K.bbox(shape)
-    out = {"bbox": [_r(v) for v in bb], "views": {}, "iso": [[[_r(x, 3), _r(y, 3)] for x, y in pl] for pl in _iso(shape)]}
+    out = {"bbox": [_r(v) for v in bb], "views": {}, "iso": _iso_view(body.shape, bool(simple)) if iso else []}
+    if simple:
+        out["simple"] = simple
     for vname, (look, right, up) in VIEWS.items():
+        if views is not None and vname not in views:
+            continue
         L, R, U = (np.asarray(v, float) for v in (look, right, up))
         pr = lambda p: [_r(p @ R), _r(p @ U)]  # noqa: E731
-        vis, hid = _project(shape, look, right, up)
+        vis, hid = _project(shape, look, right, up, fine)
         lines, seen, circles, ckeys, points = [], {}, [], {}, {}
         for kind, d, key, face in edges:
             if kind == "line":
@@ -277,12 +339,13 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None, threads=None):
     return dims
 
 
-def build(body, preset="medium", fits=None, paper=None, per_view=None, threads=None, section=False):
+def build(body, preset="medium", fits=None, paper=None, per_view=None, threads=None, section=False, key=None):
     """Everything a new / changed sheet needs: {geometry, layout, dims (automatic)}. section: also the section A–A
-    (geometry.views.Section)."""
-    geo = geometry(body)
+    (geometry.views.Section). key: the part's hash — its views are kept (_cached), only the dimensions made again."""
+    geo = _cached((key, "views"), lambda: geometry(body))
+    geo = {**geo, "views": dict(geo["views"])}
     if section:
-        geo["views"]["Section"] = section_view(body)
+        geo["views"]["Section"] = _cached((key, "section"), lambda: section_view(body))
     return {"geometry": geo, "layout": layout(geo, paper), "dims": auto_dims(geo, preset, fits, per_view, threads)}
 
 
@@ -318,11 +381,28 @@ def section_view(body):
     bb = K.bbox(body.shape)
     xm = (bb[0] + bb[3]) / 2
     keep = BRepPrimAPI_MakeBox(gp_Pnt(bb[0] - 1, bb[1] - 1, bb[2] - 1), gp_Pnt(xm, bb[4] + 1, bb[5] + 1)).Shape()
-    mk = BRepAlgoAPI_Common(body.shape, keep)
-    if not mk.IsDone():
-        raise K.KernelError("The part could not be cut for its section.")
-    half = mk.Shape()
-    view = geometry(_Placed(half))["views"]["Right"]
+    heavy = K.face_count(body.shape) > K.HEAVY_FACES
+    scale = _scale(bb) if heavy else None
+    solids = K._solid_boxes(_small_left_out(body.shape, SMALL / scale)[0]) if heavy else []
+    if len(solids) > 1:  # a big imported model (a board: a thousand solids): only the solids across the cut are cut
+        from OCP.BRepMesh import BRepMesh_IncrementalMesh
+        kept, size = [], max(bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2], 1e-6)
+        for s, b in solids:
+            if b[0] >= xm:
+                continue
+            mk = BRepAlgoAPI_Common(s, keep) if b[3] > xm else None
+            if mk is not None and not mk.IsDone():
+                raise K.KernelError("The part could not be cut for its section.")
+            if mk is not None:  # (its new faces meshed as the rest: the view is drawn from the mesh)
+                BRepMesh_IncrementalMesh(mk.Shape(), max(size * 0.004, 0.002), False, 0.6, True)
+            kept.append(mk.Shape() if mk is not None else s)
+        half = K.compound(kept)
+    else:
+        mk = BRepAlgoAPI_Common(body.shape, keep)
+        if not mk.IsDone():
+            raise K.KernelError("The part could not be cut for its section.")
+        half = mk.Shape()
+    view = geometry(_Placed(half), ("Right",), iso=False, scale=scale)["views"]["Right"]
     _, R, U = VIEWS["Right"]
     R, U = np.asarray(R, float), np.asarray(U, float)
     hatch, fx = [], TopExp_Explorer(half, TopAbs_FACE)
@@ -351,17 +431,22 @@ class _Placed:
         self.shape, self.names = shape, {}
 
 
-def build_assembly(placed, paper=None, iso_placed=None):
+def build_assembly(placed, paper=None, iso_placed=None, key=None):
     """An assembly's sheet: placed [(id, shape placed)] -> {geometry, layout, dims (its overall sizes), marks: {id:
     {Front, Top, Right, Iso: [x, y]} (the middle of each placed part, for its balloon)}}. iso_placed: the same parts
-    pulled apart — the iso view drawn exploded (the other views as assembled)."""
+    pulled apart — the iso view drawn exploded (the other views as assembled). key: the placed parts' hash (kept, see
+    _cached)."""
+    out = _cached((key, "assembly"), lambda: _assembly(placed, iso_placed))
+    return {**out, "layout": layout(out["geometry"], paper)}
+
+
+def _assembly(placed, iso_placed):
     shapes = [s for _, s in placed]
     if not shapes:
         raise K.KernelError("The assembly has no solids to draw.")
-    geo = geometry(_Placed(K.compound(shapes)))
+    geo = geometry(_Placed(K.compound(shapes)), iso=not iso_placed)  # (exploded: its own iso below)
     if iso_placed:
-        from .drawing import _iso
-        geo["iso"] = [[[_r(x, 3), _r(y, 3)] for x, y in pl] for pl in _iso(K.compound([s for _, s in iso_placed]))]
+        geo["iso"] = _iso_view(K.compound([s for _, s in iso_placed]), "simple" in geo)
     iso_at = dict(iso_placed or [])
     dims = [d for d in auto_dims(geo, "light") if d["kind"] == "linear" and d["a"].startswith("box#")]
     marks = {}
@@ -376,7 +461,7 @@ def build_assembly(placed, paper=None, iso_placed=None):
             c = np.array([(ib[0] + ib[3]) / 2, (ib[1] + ib[4]) / 2, (ib[2] + ib[5]) / 2]) if ib else c
         m["Iso"] = [_r(c @ np.asarray(ISO_VIEW[1], float)), _r(c @ np.asarray(ISO_VIEW[2], float))]
         marks[key] = m
-    return {"geometry": geo, "layout": layout(geo, paper), "dims": dims, "marks": marks}
+    return {"geometry": geo, "dims": dims, "marks": marks}
 
 
 def value(geo, dim):
