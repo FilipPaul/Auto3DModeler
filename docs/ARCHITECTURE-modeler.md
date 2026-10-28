@@ -240,6 +240,10 @@ Date: 2026-10-25. Written by the architect agent.
   Relations panel's ✕ (unlinkOffset: the copy stays, its lines get their original's h / v), deleting all its shapes
   drops it; an offset circle's Ø label starts at 135° (not on its original's). TestSketchOffset;
   tools/e2e_sketch_offset_linked.py.
+- **Unique ids in sketches done:** Sketcher.newId also skips the ids it gave out before — several asked for before
+  any is added (a point on the origin's dx / dy locks, a slot's two sides and ends, a rounded corner's relations)
+  got one id (d1, d1), so ✕ / 🔒 on one acted on both; upgradeSketch gives the later of two equal ids a free one
+  (old files open repaired). tools/e2e_sketch_ids.py.
 - **Angle dimensions on sheets done:** kind "ang" {a, b: edge keys, r}: SheetEditor.angleOf (where the two lines cross,
   each toward its far end, the angle between), drawn as an arc with arrows and extension lines to edges short of it,
   the text clear of the arc; dragged: its radius; ＋ Dimension on two non-parallel edges makes one; sheet_edit add

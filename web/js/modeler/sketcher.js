@@ -301,6 +301,20 @@ export function upgradeSketch(f) {
       out.entities.push({ id: kid('c'), t: 'circle', c: p, r: e.d / 2 });
     } else out.entities.push(e);
   }
+  // ids used twice (older versions gave the dx / dy locks of a point on the origin, or a slot's two sides, one id):
+  // the later one gets a free id (what refers to that id keeps meaning the first, as it did)
+  const all = new Set([...Object.keys(out.points), ...out.entities.flatMap((e) => [e.id, e.g]), ...out.constraints.map((c) => c.id), ...out.dims.map((d) => d.id)]);
+  const seen = new Set();
+  for (const key of ['entities', 'constraints', 'dims']) {
+    out[key] = out[key].map((x) => {
+      if (!seen.has(x.id)) { seen.add(x.id); return x; }
+      const pre = String(x.id).replace(/\d+$/, '') || key[0];
+      let i = 0;
+      while (all.has(`${pre}${++i}`));
+      all.add(`${pre}${i}`); seen.add(`${pre}${i}`);
+      return { ...x, id: `${pre}${i}` };
+    });
+  }
   return out;
 }
 
@@ -339,10 +353,14 @@ export class Sketcher {
   frame() { return this.m.frame(); }
   P(id) { return id === ORIGIN ? [0, 0] : this.f.points[id]; }
   ent(id) { return this.f.entities.find((e) => e.id === id); }
+  /** A free id. It also skips the ids it gave out before: several are often asked for before any is added to the
+   *  sketch (the dx and dy locks of a point on the origin, a slot's two sides), and must differ. */
   newId(pre) {
     const used = new Set([...Object.keys(this.f.points), ...this.f.entities.flatMap((e) => [e.id, e.g]), ...this.f.constraints.map((c) => c.id), ...this.f.dims.map((d) => d.id)]);
+    const given = this.givenIds || (this.givenIds = new Set());
     let n = 0;
-    while (used.has(`${pre}${++n}`));
+    while (used.has(`${pre}${++n}`) || given.has(`${pre}${n}`));
+    given.add(`${pre}${n}`);
     return `${pre}${n}`;
   }
   /** The sketch as it is (for undo / redo; on a face also its plane — its origin can move). */

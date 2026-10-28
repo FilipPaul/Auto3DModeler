@@ -227,6 +227,9 @@ Never report "works" without having run it; report failures with their output.
    relation, dof unchanged; the width label typed 60 -> the copy −3 … 63; the ⧈ 3 label typed 5 -> −5 … 65, the
    rectangle stays; Ctrl+Z / Ctrl+Y; the copy picked -> ⛓ Unlink the offset -> h / v, Ctrl+Z linked again; extruded
    5: 4500; a circle offset −2, its Ø typed 30 -> radii 13 / 15, extruded π (15² − 13²) · 5).
+   `tools/e2e_sketch_ids.py <url> <dir>` covers unique ids in a sketch (a rectangle, a circle at the origin, a slot, a
+   pattern, an offset: no id twice; two ↔ dimensions, ✕ on one removes only it; an old sketch with two d1 / l1 / k1
+   opens repaired).
    `tools/e2e_sheet_angle.py <url> <dir>` covers angle dimensions on the sheet (a plate with a slanted edge: ＋ Dimension
    on the slanted and the upright edge -> 123.7° drawn as an arc; the AI's sheet_edit add edges the same; parallel
    edges refused; a picture of the sheet).
