@@ -80,7 +80,8 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_model_custom.py <url> <dir>` covers custom references: 🎯 a hole from a picked edge and from another hole
    (it follows), Extrude up to a face + offset (it follows the face).
    `tools/e2e_model_extrude_more.py <url> <dir>` covers Extrude "Up to next" (a boss filling the gap between two
-   plates, exact volume, it follows; flipped: the issue shown), Ctrl+Z / Ctrl+Y.
+   plates, exact volume, it follows; flipped: the issue shown) and "＋ Other side" (5 mm, exact volume, unticks Both
+   sides), Ctrl+Z / Ctrl+Y.
    `tools/e2e_assembly_quick.py <url> <dir>` covers quick parts in assemblies (a PDF part + a model pin, snapped, STEP).
    `tools/e2e_model_loft.py <url> <dir>` covers ⧫ Loft (a frustum, exact volume) and 〰 Sweep (a bent rod, swapped
    profile / path refused), the AI's loft.

@@ -517,6 +517,36 @@ class TestFeatures(unittest.TestCase):
         r, _ = vol(circle(0), {**boss, "op": "add"})
         self.assertIn("no part", r["features"][-1]["issues"][0])
 
+    def test_extrude_other_side(self):
+        """＋ Other side: 10 up and d2 4 down -> 40 × 20 × 14, its range said for both sides; a cut 3 down from the
+        top and 2 up (nothing there); symmetric wins over d2; d2 not > 0 -> an issue."""
+        from auto3d.modeler import kernel as K
+        b = box()
+        b[1] = {**b[1], "d2": 4}
+        r, v = vol(*b)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 40 * 20 * 14, delta=1e-6)
+        self.assertEqual(r["features"][-1]["went"], {"along": "+z", "range": [0, 10], "other_side": [-4, 0]})
+        self.assertEqual(r["body"]["bbox"][2], -4)
+        names = sorted(f.get("name") for f in r["body"]["faces"])
+        self.assertEqual(names, ["E1:end", "E1:side:l1", "E1:side:l2", "E1:side:l3", "E1:side:l4", "E1:start"])
+        self.assertTrue(watertight(r["body"]))
+        step = doc.export({"features": b}, "step")
+        self.assertAlmostEqual(K.volume(K.from_step(step)), 40 * 20 * 14, delta=1e-3)
+        # a pocket from the top: 3 down into the part, 2 up (above it: nothing more)
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        sk = {"id": "S2", "type": "sketch", "plane": top, "points": {"c": [0, 0]}, "entities": [{"id": "k", "t": "circle", "c": "c", "r": 4}]}
+        r, v = vol(*box(), sk, {"id": "E2", "type": "extrude", "sketch": "S2", "op": "cut", "d": 3, "d2": 2})
+        self.assertAlmostEqual(v, 8000 - math.pi * 16 * 3, delta=1e-3)
+        self.assertEqual(r["features"][-1]["went"]["other_side"], [10, 12])
+        # symmetric: d2 is not used
+        b[1] = {**b[1], "symmetric": True}
+        _, v = vol(*b)
+        self.assertAlmostEqual(v, 8000, delta=1e-6)
+        b[1] = {**b[1], "symmetric": False, "d2": -3}
+        r, _ = vol(*b)
+        self.assertIn("greater than zero", r["features"][-1]["issues"][0])
+
     def test_hole_measured_from_another_hole(self):
         top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
         h1 = {"id": "H1", "type": "hole", "plane": top, "points": [[-10, 0]], "d": 4, "through": True}

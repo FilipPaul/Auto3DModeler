@@ -5,7 +5,8 @@ Part JSON (in the project file, `parts[].model`):
   {"features": [
      {"id": "F1", "type": "sketch", "name": "Sketch 1", "plane": {"datum": "XY"}, "points": {...}, "entities": [...]},
      {"id": "F2", "type": "extrude", "sketch": "F1", "op": "add" | "cut", "d": 10, "symmetric": false, "flip": false, "through": false},
-      (or "upto": {name, fp} + "offset": up to a face; "upto_next": true: up to the next face its whole sketch meets)
+      (or "upto": {name, fp} + "offset": up to a face; "upto_next": true: up to the next face its whole sketch meets;
+      "d2": 5 = also 5 mm to the other side of the sketch)
      {"id": "F3", "type": "sketch", "plane": {"face": {"name": "F2:end"}, "frame": {"o", "x", "n"}}, ...},
      {"id": "F4", "type": "fillet", "edges": [{"a": "F2:end", "b": "F2:side:l1", "fp": [x, y, z]}], "r": 2},
      {"id": "F5", "type": "chamfer", "edges": [...], "d": 1},
@@ -215,14 +216,27 @@ def _apply(f, st: State, s):
             d = _through_depth(st) if through else _num(f, "d", 10)
             vec = n * d * sign
             start = -vec / 2 if f.get("symmetric") else None
+        # ＋ Other side: d2 more on the other side of the sketch plane (not with symmetric)
+        d2 = _num(f, "d2", what="other side's distance") if f.get("d2") and not f.get("symmetric") else 0
         if not faces:
             raise K.KernelError("Its sketch has no closed shape to extrude.")
         before = K.volume(st.body.shape) if op == "cut" and st.body is not None else None
         body0 = st.body
         for face, names in faces:
             _use(st, fid, K.prism_up_to_next(face, names, vec, body0, fid, op) if nxt else K.prism_body(face, names, vec, fid, start), op)
+        main = [t for t, _ in st.tools.get(fid, [])]
+        if d2:
+            back = -vec / float(np.linalg.norm(vec)) * d2
+            for face, names in faces:
+                b = K.prism_body(face, names, back, fid)
+                b.names[f"{fid}:start"] = b.names.pop(f"{fid}:end")  # (its far face starts the extrude; the one on the plane is inside)
+                _use(st, fid, b, op)
         _cut_check(s, st, before)
-        s["went"] = _went(vec, [t for t, _ in st.tools.get(fid, [])])
+        s["went"] = _went(vec, main)
+        if d2 and s["went"]:
+            other = _went(-vec, [t for t, _ in st.tools.get(fid, [])][len(main):])
+            if other and other.get("range"):
+                s["went"]["other_side"] = other["range"]
         return
     if t == "revolve":
         sk = st.sketches.get(f.get("sketch"))
@@ -824,7 +838,7 @@ def evaluate(features):
 
 
 # ------------------------------------------------------------------ the sizes a step can take
-LIMIT_FIELDS = {"extrude": ("d", "offset"), "revolve": ("angle",), "fillet": ("r",), "chamfer": ("d",), "hole": ("d", "depth"),
+LIMIT_FIELDS = {"extrude": ("d", "offset", "d2"), "revolve": ("angle",), "fillet": ("r",), "chamfer": ("d",), "hole": ("d", "depth"),
                 "shell": ("t",), "pattern": ("count", "spacing"), "decal": ("h", "depth"), "draft": ("angle",), "rib": ("t",)}
 _limit_cache: OrderedDict = OrderedDict()
 

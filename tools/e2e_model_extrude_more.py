@@ -1,7 +1,9 @@
-"""⬆ Extrude "Up to next", with REAL mouse / keyboard input in headless Edge:
+"""⬆ Extrude "Up to next" and "＋ Other side", with REAL mouse / keyboard input in headless Edge:
 1. Two plates 40 × 40 × 10 with a 10 mm gap (a wall joins them); a circle Ø10 on the lower plate's top: ⬆ Extrude,
    Up to next -> the boss fills the gap up to the upper plate (+ π · 25 · 10), the tree says "up to next"; ⇅ flip
    -> nothing that way: the panel says so; Ctrl+Z after OK takes the boss away, Ctrl+Y brings it back.
+2. A block 40 × 20: ⬆ Extrude 10, tick ＋ Other side, type 5, Enter -> 40 × 20 × 15 (z -5 … 10); ticking Both
+   sides unticks it; Ctrl+Z.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
   PYTHONIOENCODING=utf-8 py tools/e2e_model_extrude_more.py http://127.0.0.1:5199 <out dir>
@@ -125,6 +127,44 @@ try:
     settled()
     check("Ctrl+Y: the boss again", abs(vol() - exp) < 1e-3, f"{vol():.4f}")
 
+    # 2. the other side: a block 10 up + 5 down
+    call("new_model", name="Block")
+    call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 40, "h": 20}}])
+    settled()
+    btn("#modelViewport [data-a=extrude]")
+    settled()
+    btn("#modelRight [data-k=other]")
+    settled()
+    inp = d.find_element(By.CSS_SELECTOR, "#modelRight input[data-k=d2]")
+    check("Other side: its distance shown and focused", inp == d.switch_to.active_element, inp.get_attribute("value"))
+    inp.send_keys(Keys.CONTROL, "a")
+    inp.send_keys("5")
+    settled()
+    check("preview 40 × 20 × 15", abs(vol() - 12000) < 1e-6, vol())
+    sliders = len(d.find_elements(By.CSS_SELECTOR, "#modelRight .mp-slider"))
+    check("a slider under each distance", sliders >= 2, sliders)
+    btn("#modelRight [data-k=symmetric]")
+    settled()
+    check("Both sides unticks Other side", not d.find_elements(By.CSS_SELECTOR, "#modelRight input[data-k=d2]") and abs(vol() - 8000) < 1e-6, vol())
+    btn("#modelRight [data-k=other]")
+    settled()
+    check("Other side unticks Both sides", not d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=symmetric]").is_selected())
+    inp = d.find_element(By.CSS_SELECTOR, "#modelRight input[data-k=d2]")
+    inp.send_keys(Keys.CONTROL, "a")
+    inp.send_keys("5")
+    settled()
+    d.save_screenshot(f"{OUT}/x2_other_side.png")
+    inp.send_keys(Keys.ENTER)
+    settled()
+    bb = js(f"return {M}.result.body.bbox")
+    check("Enter = OK: 12000, z -5 … 10", abs(vol() - 12000) < 1e-6 and bb[2] == -5 and bb[5] == 10, (vol(), bb))
+    what = js(f"return {M}.whatText({M}.part.features.at(-1))")
+    check("the tree says the other side", what == "10 mm · other side 5 mm", what)
+    went = js(f"return {M}.status({M}.part.features.at(-1).id)?.went")
+    check("went has both ranges", went == {"along": "+z", "range": [0, 10], "other_side": [-5, 0]}, went)
+    keys("z")
+    settled()
+    check("Ctrl+Z: no block", vol() == 0, vol())
 finally:
     errs = [e["message"] for e in d.get_log("browser") if e["level"] == "SEVERE"]
     print("console errors:", errs)

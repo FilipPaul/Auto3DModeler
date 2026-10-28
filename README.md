@@ -277,6 +277,8 @@ SolidWorks. It has only the tools that need almost no input.
    - Or **Up to next**: the extrude goes as far as the first face of the part across the whole sketch — a boss
      from a plate up to the plate above it, a cut through the first wall only. It follows the part; when nothing is
      in the way, the panel says so (*⇅ Flip direction* turns it).
+   - Tick **＋ Other side** to extrude also a distance to the other side of the sketch (5 mm to start with; type
+     another). It is the other way of going both ways to *Both sides*: ticking one unticks the other.
    - OK, or Enter, adds the step.
 3. **✏ Sketch** again and **click a flat face** of the part to sketch on it. On a face, Extrude starts as
    **Cut**, ready for holes and pockets.

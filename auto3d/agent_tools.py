@@ -193,7 +193,8 @@ TOOLS = [
                     "- extrude: sketch (id), d, op add / cut, through (cut through all), symmetric, flip; or up_to: a flat face's "
                     "name (as far as that face — it follows the face), offset (mm past it, negative = short of it); or upto_next: "
                     "true (as far as the first face of the part across the whole sketch: a boss up to the plate above, a cut "
-                    "through the first wall only; flip turns it).\n"
+                    "through the first wall only; flip turns it). d2: also d2 mm to the other side of the sketch (not with "
+                    "symmetric; went then has other_side [from, to]).\n"
                     "- revolve: sketch, axis \"y\" (the sketch's vertical axis) / \"x\" / a line id, angle (360), op.\n"
                     "- hole: face (name), points [[u, v]] from the face's centre — or origin \"corner\" / \"world\" (points in world "
                     "coordinates: [x, y] on a top face, or [x, y, z]) / {point: <id>} as for a sketch —, d, through (default) or depth, fit (ISO 286 H6 / H7 / H8 / H9: shown on the 2D drawing as Ø8 H7; model the nominal d); "
@@ -229,7 +230,7 @@ TOOLS = [
                           "symmetric": {"type": "boolean"}, "flip": {"type": "boolean"}, "axis": {}, "angle": NUM,
                           "face": STR, "points": {"type": "array"}, "depth": NUM, "edges": {"type": "array"}, "r": NUM,
                           "faces": {"type": "array"}, "t": NUM, "of": {}, "kind": {"type": "string", "enum": ["linear", "circular"]},
-                          "count": NUM, "spacing": NUM, "dir": {}, "up_to": STR, "offset": NUM, "upto_next": {"type": "boolean"},
+                          "count": NUM, "spacing": NUM, "dir": {}, "up_to": STR, "offset": NUM, "upto_next": {"type": "boolean"}, "d2": NUM,
                           "sketches": {"type": "array"}, "profile": STR, "path": STR,
                           "text": STR, "h": NUM, "at": {}, "origin": {}, "fit": {"type": "string", "enum": ["H6", "H7", "H8", "H9"]}}, ["type"])},
     {"name": "edit_feature", "where": "browser",

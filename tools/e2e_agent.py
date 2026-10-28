@@ -107,7 +107,8 @@ try:
     tool("get_screenshot", view="iso")
     tool("export", format="step", path=str(Path(OUT) / "agent_plate.step"))
     print("    STEP file:", (Path(OUT) / "agent_plate.step").stat().st_size, "bytes")
-    # ---- ⬆ up to next: two plates 10 apart (a wall joins them), a boss from the lower one up to the upper one
+    # ---- ⬆ up to next and the other side: two plates 10 apart (a wall joins them), a boss from the lower one up to
+    # the upper one; a block 10 up + d2 4 down
     tool("new_model", name="Shelf")
     tool("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 40, "h": 40}}])
     tool("add_feature", type="extrude", sketch="F1", d=10)
@@ -119,6 +120,9 @@ try:
     t, _ = tool("add_feature", type="extrude", sketch="F7", upto_next=True)
     r = json.loads(t)
     print(f"    up to next: went {r.get('went')} | +{r.get('volume_change_mm3')} expected {math.pi * 25 * 10:.3f}")
+    t, _ = tool("edit_feature", id="F2", fields={"d2": 4})
+    r = json.loads(t)
+    print(f"    d2 4: went {r.get('went')} | +{r.get('volume_change_mm3')} expected 6400")
     # ---- a sketch shape's ⁂ pattern: a flange, six holes around the middle and three in a row
     tool("new_model", name="Flange")
     tool("add_feature", type="sketch", plane="XY", shapes=[{"circle": {"x": 0, "y": 0, "d": 60}},
