@@ -80,6 +80,9 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Measure snap points done:** view.snapNear — an edge's ends (corner), its middle along it (midpoint), a round
+  edge's centre (centre) within 10 px; measurePoint (model and assembly) uses it; while 📏 Measure is on the snap
+  under the mouse is shown (setSnapMark: a green point and its name). tools/e2e_measure_snap.py.
 - **Metals look metallic done:** materials.finishOf (metalness / roughness per material: metals high, glass smooth,
   rubber rough); view.js studio(renderer) — a PMREM of a gradient sky + soft boxes as scene.environment (one per
   renderer: a WebGL texture is its context's); setLook / the assembly's meshes use the finish (envMapIntensity 1 for

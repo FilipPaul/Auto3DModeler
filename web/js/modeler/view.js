@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { FreeControls } from '../freecontrols.js';
 import { finishOf } from './materials.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/CSS2DRenderer.js';
+import { t } from '../i18n.js';
 
 const BODY = new THREE.Color(0xd9dee6), HOVER = new THREE.Color(0x6cb6ff), PICKED = new THREE.Color(0x4f8cff);
 const FEATURE = new THREE.Color(0xa9cdf5), SELECTED = new THREE.Color(0xf2cc60); // the step under the mouse / the chosen step
@@ -20,6 +21,44 @@ export const DATUMS = {
 export function datumFrame(plane) {
   const fr = DATUMS[plane?.datum] || DATUMS.XY, off = +plane?.offset || 0;
   return { ...fr, o: fr.o.map((v, i) => v + off * fr.n[i]) };
+}
+
+/** The measure tool's snap points near the mouse (within px on the screen): an edge's end (corner), the middle of an
+ *  edge (midpoint), the centre of a round edge (centre) — list: [{edges, matrix?, inst?}] -> {point, kind, inst} or null. */
+export function snapNear(list, camera, rect, clientX, clientY, px = 10) {
+  let best = null, bd = px;
+  const test = (p, kind, inst) => {
+    const q = p.clone().project(camera);
+    if (q.z > 1) return; // (behind the camera)
+    const d = Math.hypot(rect.left + (q.x + 1) / 2 * rect.width - clientX, rect.top + (1 - q.y) / 2 * rect.height - clientY);
+    if (d < bd) { bd = d; best = { point: p, kind, inst }; }
+  };
+  for (const { edges, matrix, inst } of list) {
+    for (const e of edges || []) {
+      const n = e.pts.length;
+      if (n < 6) continue;
+      const P = (k) => { const p = new THREE.Vector3(e.pts[k], e.pts[k + 1], e.pts[k + 2]); return matrix ? p.applyMatrix4(matrix) : p; };
+      const closed = Math.hypot(e.pts[0] - e.pts[n - 3], e.pts[1] - e.pts[n - 2], e.pts[2] - e.pts[n - 1]) < 1e-6;
+      if (closed) { // a round edge (a hole's rim, a pin's end): its centre
+        const c = new THREE.Vector3();
+        for (let k = 0; k < n - 3; k += 3) c.add(new THREE.Vector3(e.pts[k], e.pts[k + 1], e.pts[k + 2]));
+        c.multiplyScalar(3 / (n - 3));
+        test(matrix ? c.applyMatrix4(matrix) : c, 'centre', inst);
+        continue;
+      }
+      if (e.faces.length < 2) continue; // a seam on a round face: not a real edge
+      test(P(0), 'corner', inst);
+      test(P(n - 3), 'corner', inst);
+      let L = 0; // its middle: half its length along it
+      for (let k = 3; k < n; k += 3) L += Math.hypot(e.pts[k] - e.pts[k - 3], e.pts[k + 1] - e.pts[k - 2], e.pts[k + 2] - e.pts[k - 1]);
+      for (let k = 3, s = 0; k < n; k += 3) {
+        const l = Math.hypot(e.pts[k] - e.pts[k - 3], e.pts[k + 1] - e.pts[k - 2], e.pts[k + 2] - e.pts[k - 1]);
+        if (s + l >= L / 2 && l > 0) { test(P(k - 3).lerp(P(k), (L / 2 - s) / l), 'midpoint', inst); break; }
+        s += l;
+      }
+    }
+  }
+  return best;
 }
 
 /** A soft studio for reflections (metal looks like metal): a light sky, a darker floor, a few bright panels round. */
@@ -600,21 +639,28 @@ export class ModelView {
   /** The point a measure click means: a corner of the part within 10 px, else the point on the surface. */
   measurePoint(clientX, clientY) {
     const h = this.pick(clientX, clientY);
-    const r = this.renderer.domElement.getBoundingClientRect();
-    let best = null, bd = 10;
-    for (const e of this.body?.edges || []) {
-      const n = e.pts.length;
-      if (e.faces.length < 2) continue; // a seam on a round face: not a real edge
-      if (Math.hypot(e.pts[0] - e.pts[n - 3], e.pts[1] - e.pts[n - 2], e.pts[2] - e.pts[n - 1]) < 1e-6) continue; // a closed edge (a circle): no corner
-      for (const k of [0, n - 3]) {
-        const p = new THREE.Vector3(e.pts[k], e.pts[k + 1], e.pts[k + 2]);
-        const q = p.clone().project(this.camera);
-        const d = Math.hypot(r.left + (q.x + 1) / 2 * r.width - clientX, r.top + (1 - q.y) / 2 * r.height - clientY);
-        if (d < bd) { bd = d; best = p; }
-      }
-    }
-    if (!best && !h) return null;
-    return { point: best || h.point.clone(), corner: !!best, face: h?.face || null };
+    const s = snapNear([{ edges: this.body?.edges }], this.camera, this.renderer.domElement.getBoundingClientRect(), clientX, clientY);
+    if (!s && !h) return null;
+    return { point: s ? s.point : h.point.clone(), corner: s?.kind === 'corner', snap: s?.kind || null, face: h?.face || null };
+  }
+
+  /** The measure tool's snap under the mouse, shown: a green point and its name (corner, midpoint, centre). */
+  setSnapMark(mp) {
+    if (!this.snapGroup) { this.snapGroup = new THREE.Group(); this.scene.add(this.snapGroup); }
+    const key = mp?.snap ? `${mp.snap}:${mp.point.toArray().map((v) => v.toFixed(4))}` : '';
+    if (key === this.snapKey) return;
+    this.snapKey = key;
+    this.clear(this.snapGroup);
+    this.invalidate();
+    if (!key) return;
+    const dot = new THREE.Points(new THREE.BufferGeometry().setFromPoints([mp.point]), new THREE.PointsMaterial({ color: 0x7ee787, size: 11, sizeAttenuation: false, depthTest: false }));
+    dot.renderOrder = 14;
+    const el = document.createElement('div');
+    el.className = 'm-snap';
+    el.textContent = t({ corner: 'corner', midpoint: 'midpoint', centre: 'centre' }[mp.snap]);
+    const lab = new CSS2DObject(el);
+    lab.position.copy(mp.point);
+    this.snapGroup.add(dot, lab);
   }
 
   /** The measure overlay: points and a line between them, with a label. */

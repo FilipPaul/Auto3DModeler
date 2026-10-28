@@ -107,7 +107,7 @@ try:
     # material -> mass
     vol = js(f"return {M}.result.body.volume")
     print("mass PLA:", js("return [...document.querySelectorAll('#modelRight .mp-facts b')].map(b => b.textContent)"), "| expected", round(vol / 1000 * 1.24, 1))
-    Select(d.find_element(By.CSS_SELECTOR, "#modelRight select[data-k=material]")).select_by_visible_text("PETG")
+    Select(d.find_element(By.CSS_SELECTOR, "#modelRight select[data-k=material]")).select_by_value("PETG")
     time.sleep(0.4)
     print("mass PETG:", js("return [...document.querySelectorAll('#modelRight .mp-facts b')].map(b => b.textContent).pop()"), "| expected", round(vol / 1000 * 1.27, 1),
           "| AI sees:", json.loads(call("get_model"))["body"]["mass_g_solid"])

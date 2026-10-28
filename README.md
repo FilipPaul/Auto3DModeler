@@ -246,7 +246,8 @@ yellow ⚠.
 
 **Looking at it:**
 - **📏 Measure** (M): click a face for its type and area (and Ø when it is round), or an edge for its length (or
-  Ø). Then click a second spot for the distance with Δx / Δy / Δz. It snaps to the part's corners, and edges hidden
+  Ø). Then click a second spot for the distance with Δx / Δy / Δz. It snaps to the part's **corners, edge midpoints and the centres of round edges** (holes, pins) — the point it will
+  take shows green with its name while the mouse is near (in assemblies too) — and edges hidden
   behind the part are not picked.
 - **✂ Section** cuts the view along X, Y or Z with a slider, to look inside (⇄ shows the other side).
 - The Part panel shows the size, volume and **mass** for the chosen **material** (PLA, PETG, ABS, ASA, TPU, PA;

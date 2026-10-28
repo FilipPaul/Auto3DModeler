@@ -20,6 +20,7 @@ import { paintedFaces, repaint } from '../modeler/paint.js';
 import { sectionBar, sectionMiddle } from '../modeler/sectionbar.js';
 import { ModelView } from '../modeler/view.js';
 import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss } from './joints.js';
+import { snapNear } from '../modeler/view.js';
 import { showSuggest } from '../suggest.js';
 import { freeMotions, motionMatrix } from './dof.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
@@ -190,20 +191,9 @@ class AsmView extends ModelView {
    *  the face — with that face (world) and the part: {point, corner, face, inst} or null. */
   measurePoint(clientX, clientY) {
     const h = this.pickInst(clientX, clientY), r = this.renderer.domElement.getBoundingClientRect();
-    let best = null, bd = 10;
-    for (const mesh of this.meshes || []) {
-      for (const e of mesh.userData.body.edges || []) {
-        const n = e.pts.length;
-        if (e.faces.length < 2 || Math.hypot(e.pts[0] - e.pts[n - 3], e.pts[1] - e.pts[n - 2], e.pts[2] - e.pts[n - 1]) < 1e-6) continue;
-        for (const k of [0, n - 3]) {
-          const p = new THREE.Vector3(e.pts[k], e.pts[k + 1], e.pts[k + 2]).applyMatrix4(mesh.matrix), q = p.clone().project(this.camera);
-          const dd = Math.hypot(r.left + (q.x + 1) / 2 * r.width - clientX, r.top + (1 - q.y) / 2 * r.height - clientY);
-          if (dd < bd) { bd = dd; best = { p, inst: mesh.userData.inst }; }
-        }
-      }
-    }
-    if (!best && !h?.point) return null;
-    return { point: best ? best.p : h.point.clone(), corner: !!best, face: h?.face || null, inst: best ? best.inst : h.inst };
+    const s = snapNear((this.meshes || []).map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), this.camera, r, clientX, clientY);
+    if (!s && !h?.point) return null;
+    return { point: s ? s.point : h.point.clone(), corner: s?.kind === 'corner', snap: s?.kind || null, face: s ? null : h?.face || null, inst: s ? s.inst : h.inst };
   }
 
   /** A round edge near the mouse (within px): the edge of a hole or of a pin, seen as a circle — -> {inst, face: the
@@ -888,6 +878,7 @@ export class Assembly {
   toggleMeasure() {
     this.measuring = this.measuring ? null : { a: null };
     if (this.measuring) { this.cancelJoint(); if (this.bolt) this.cancelBolt(); if (this.painting) this.togglePaint(); }
+    else this.view.setSnapMark(null);
     this.view.setMeasure();
     this.hint(this.measuring ? 'Measure — click a spot, then another one (corners snap). Esc ends.' : '');
     if (!this.measuring) this.$('.m-measure')?.remove();
@@ -915,7 +906,7 @@ export class Assembly {
       this.view.setMeasure([mp.point]);
       const what = face ? `<b>${face.type === 'cylinder' ? 'Round face' : face.type === 'plane' ? 'Flat face' : 'Face'}</b><span>Of</span><b data-no-i18n>${who} ${mp.inst}</b>
         <span>Area</span><b>${fmt(+face.area.toFixed(2))} mm²</b>${face.radius ? `<span>Ø</span><b>${fmt(+(2 * face.radius).toFixed(3))} mm</b>` : ''}`
-        : `<b>Corner</b><span>Of</span><b data-no-i18n>${who} ${mp.inst}</b>`;
+        : `<b>${{ corner: 'Corner', midpoint: 'Midpoint', centre: 'Centre' }[mp.snap] || 'Point'}</b><span>Of</span><b data-no-i18n>${who} ${mp.inst}</b>`;
       this.measureBox(`<div class="mm-rows">${what}<span>Point</span><b>${f3(mp.point)}</b></div><p class="hint">Click a second spot for the distance.</p>`);
       return;
     }
@@ -2358,6 +2349,7 @@ export class Assembly {
     cv.addEventListener('pointerdown', (e) => { if (e.button === 0) down = { x: e.clientX, y: e.clientY }; });
     cv.addEventListener('pointermove', (e) => {
       if (down) return;
+      if (this.measuring) { this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); return; } // (where a click measures from)
       const h0 = this.view.pickInst(e.clientX, e.clientY), h = this.jointPick(e, h0);
       if (this.mode !== 'idle') {
         const key = h?.face ? `${h.inst}:${h.face.id}` : '';

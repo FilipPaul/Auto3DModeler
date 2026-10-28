@@ -2149,7 +2149,7 @@ export class Modeler {
     this.measuring = this.measuring ? null : { a: null };
     this.view.setMeasure();
     this.hint(this.measuring ? 'Measure — click a face or an edge for its size, or two spots for the distance between them. Esc ends.' : '');
-    if (!this.measuring) this.$('.m-measure')?.remove();
+    if (!this.measuring) { this.$('.m-measure')?.remove(); this.view.setSnapMark(null); }
     this.renderCmdBar();
   }
 
@@ -2173,7 +2173,7 @@ export class Modeler {
     if (!mp && ei < 0) return;
     if (!ms.a) {
       let what = '';
-      if (ei >= 0 && !mp?.corner) {
+      if (ei >= 0 && !mp?.snap) {
         const ed = b.edges[ei];
         let L = 0;
         for (let k = 3; k < ed.pts.length; k += 3) L += Math.hypot(ed.pts[k] - ed.pts[k - 3], ed.pts[k + 1] - ed.pts[k - 2], ed.pts[k + 2] - ed.pts[k - 1]);
@@ -2189,7 +2189,7 @@ export class Modeler {
       }
       ms.a = mp?.point || null;
       this.view.setMeasure(ms.a ? [ms.a] : []);
-      this.measureBox(`<div class="mm-rows">${what}${ms.a ? `<span>${mp.corner ? 'Corner' : 'Point'}</span><b>${f3(ms.a)}</b>` : ''}</div>
+      this.measureBox(`<div class="mm-rows">${what}${ms.a ? `<span>${{ corner: 'Corner', midpoint: 'Midpoint', centre: 'Centre' }[mp.snap] || 'Point'}</span><b>${f3(ms.a)}</b>` : ''}</div>
         <p class="hint">Click a second spot for the distance.</p>`);
       return;
     }
@@ -2295,7 +2295,7 @@ export class Modeler {
         const id = this.view.pickOutline(e.clientX, e.clientY);
         if (id) { this.view.setHover(-1); this.tip(null); cv.style.cursor = 'pointer'; cv.title = 'Double-click to edit this sketch'; return; }
         cv.title = '';
-        if (this.measuring) return;
+        if (this.measuring) { this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); return; } // (where a click measures from)
         // the step under the mouse: all its faces light up, its name at the mouse
         const h = this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
         this.view.setHover(h?.face ? h.face.id : -1, fs?.ids || null);
