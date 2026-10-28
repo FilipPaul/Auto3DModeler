@@ -715,6 +715,24 @@ Date: 2026-10-25. Written by the architect agent.
   quick part's stays viewer.exportGLB), OBJ for 3D models; the panels' GLB / OBJ buttons; the AI's export glb / obj.
   The part's paint (faces painted in the browser) is not in the GLB / STEP (only the part's, instances' and the file's
   colours). tests/test_exchange_formats.py TestGltfObj, tools/e2e_exchange_formats.py.
+- **Parasolid (.x_t / .x_b) and JT — looked into (18f), not added:** checked 2026-10-28 on PyPI (jt, jtreader, jtopen,
+  jt-reader, parasolid, pyparasolid, xt-reader, x_t … — none exist; pyjt is unrelated) and GitHub. pythonocc-core /
+  cadquery-ocp (our OCP) read neither.
+  - *Parasolid*: Siemens' kernel. The XT format is documented (Siemens' "Parasolid XT Format Reference"), but every
+    working reader is commercial: Parasolid itself, OCCT's paid Parasolid XDE component, CAD Exchanger, HOOPS Exchange.
+    Open efforts: omerbasavul/cadconvert (Rust, C ABI / .NET, MIT, created 2026-08, 4 stars: x_t / STEP -> glTF / USDZ
+    *meshes* only — no B-rep for our kernel, very young); akiselev/xt-parser (Rust, WIP alpha, no licence: may not be
+    used).
+  - *JT* (ISO 14306): Siemens' JT Open Toolkit needs a JT Open programme licence. Open Cascade published its JT reader
+    (TKJT) and JT Assistant under GPL-2.0 (Open-Cascade-SAS/JT-Assistant, 2025; fork cbsghost/oce-jt, 2019): C++ / Qt,
+    reads the tessellated LODs (meshes), not the exact XT B-rep inside a JT; GPL-2.0 — linked into the app it would
+    make the app GPL; run as a separate program on a file it would not, but it needs a C++ / Qt build for Windows.
+    Others are partial: TobiasMusin/Voyager (Java, Apache-2.0, experimental JT 10 -> glTF mesh), svr2kos2/JTReader (C#,
+    MIT, WIP), ian-wigley/JT-Reader (partial, v8.1).
+  - *Recommendation*: no native or Parasolid / JT reading now; STEP stays the way in (SolidWorks, CATIA, Solid Edge, NX
+    and Creo all save STEP AP214 / AP242; the app tells the user so). If a JT / XT must be seen one day: a mesh-only
+    👁 reference body through an external converter run as its own program (cadconvert, MIT), never as an exact solid —
+    and only once an open reader has matured. Revisit in a year.
 - **STEP colours done:** kernel.read_step_colours (STEPCAFControl + XCAF: colours followed down the assembly tree to the
   faces of the shape the solid step uses), State.colours by face name -> faces' `color` in the rebuild; the view /
   assembly show them under the paint. tools/e2e_step_colours.py.
