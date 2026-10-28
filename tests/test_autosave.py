@@ -62,6 +62,44 @@ class TestAutosave(unittest.TestCase):
                 time.sleep(0.01)
         self.assertEqual([r["id"] for r in A.recent(self.dir)], ["dddddddd-3", "dddddddd-2"])
 
+    def test_same_project_saved_at_once(self):
+        """Saves of one project from several threads at once (two quick autosaves, a reader listing the projects
+        meanwhile) all succeed and leave one whole file: the last state of one of them, no temp files (on Windows the
+        replace used to fail with WinError 32)."""
+        import threading
+        errors, stop = [], threading.Event()
+
+        def saver(k):
+            try:
+                for i in range(15):
+                    A.save(self.dir, "ffffffff-6", project(f"T{k}", 1 + (k + i) % 4))
+            except Exception as e:  # noqa: BLE001 (any failure fails the test)
+                errors.append(e)
+
+        def reader():
+            while not stop.is_set():
+                try:
+                    A.recent(self.dir)
+                    if (self.dir / "ffffffff-6.json").exists():
+                        A.load(self.dir, "ffffffff-6")
+                except Exception as e:  # noqa: BLE001
+                    errors.append(e)
+
+        r = threading.Thread(target=reader)
+        r.start()
+        threads = [threading.Thread(target=saver, args=(k,)) for k in range(6)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        stop.set()
+        r.join()
+        self.assertEqual(errors, [])
+        kept = A.load(self.dir, "ffffffff-6")
+        self.assertTrue(kept["project_name"].startswith("T"))
+        self.assertEqual([m["id"] for m in A.recent(self.dir)], ["ffffffff-6"])
+        self.assertFalse(list(self.dir.glob("*.tmp")))
+
     def test_routes(self):
         import server
         with mock.patch.object(server, "PROJECTS", self.dir):

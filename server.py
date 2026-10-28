@@ -240,6 +240,8 @@ def api_project_autosave(pid):
         return jsonify(autosave.save(PROJECTS, pid, body.get("project")))
     except autosave.AutosaveError as e:
         return jsonify({"error": str(e)}), 400
+    except OSError as e:  # (the disk: the last kept state stays; the next autosave tries again)
+        return jsonify({"error": str(e.strerror or e)}), 503
 
 
 @app.get("/api/projects")

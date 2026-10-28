@@ -1,5 +1,5 @@
 """Autosave and recent projects, in headless Edge: a 3D model made -> kept on the server a few seconds later ("✓ Saved")
--> the page reloaded (as after a crash): the bar offers it -> Open: the same parts and steps back -> a change: kept under
+-> two quick saves of it at once (several POSTs together) all kept -> the page reloaded (as after a crash): the bar offers it -> Open: the same parts and steps back -> a change: kept under
 the same project (not a new one) -> 🕘 Recent projects lists it -> forgotten with ✕.
 
 Run the test server with its own data folder, so the user's recent projects stay clean:
@@ -56,6 +56,11 @@ try:
     rec = recent()
     print("kept:", [(p["name"], [x["name"] for x in p["parts"]]) for p in rec])
     pid = js("return window.__app.autosave.id")
+    # two quick autosaves (and more) of the same project at once: all answered 200 (WinError 32 used to make one 500)
+    st = js("""const a = window.__app.autosave, p = a.hooks.project(), url = `/api/projects/${a.id}`;
+      return Promise.all([1, 2, 3, 4, 5, 6].map(k => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project: { ...p, project_name: 'Bracket' } }) }).then(r => r.status)));""")
+    print("quick saves at once:", st, "| kept:", [p["name"] for p in recent()])
 
     d.refresh()  # as after a crash
     wait("return !!window.__app")

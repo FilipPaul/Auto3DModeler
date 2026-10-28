@@ -818,6 +818,11 @@ Date: 2026-10-25. Written by the architect agent.
   project's previous save holds the file: WinError 32). Other formats: STL / OBJ open as quick parts, DXF and the
   Gerber set as 2D drawings, pictures in the outline wizard; DWG needs ODA / LibreDWG (says so); 3MF is not read
   ("Unsupported file type"); NIST's GD&T PDF sheets give no part (FTC-11) or a wrong 25 × 9 mm one (CTC-01).
+- **Real files: autosave of one project at once done:** autosave.save takes a lock per project id, writes each file
+  through a temp file of its own (pid + thread) and retries the replace for ~2 s on a sharing violation (WinError 32 /
+  5 while a reader holds the file); reads retry too; a disk error answers 503 with the reason (the last state kept).
+  tests/test_autosave.py test_same_project_saved_at_once (6 threads × 15 saves + a reader: failed before with
+  PermissionError); tools/e2e_autosave.py fires six saves at once (all 200).
 - **STEP colours done:** kernel.read_step_colours (STEPCAFControl + XCAF: colours followed down the assembly tree to the
   faces of the shape the solid step uses), State.colours by face name -> faces' `color` in the rebuild; the view /
   assembly show them under the paint. tools/e2e_step_colours.py.
