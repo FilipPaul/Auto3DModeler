@@ -201,6 +201,15 @@ Date: 2026-10-25. Written by the architect agent.
   /api/trace, scaled to the letters' own box h high, its corner at 0) -> a block entity with `text` (the kernel's
   block loops, holes kept); its panel: Text (retext: traced again, the height and corner kept) and Height (setBlock
   h), the text field focused to type over. tools/e2e_sketch_text.py.
+- **Sketch Snap filters done:** the sketch's filter row has two groups — Snap: • Points, ⊹ Midpoints, ◎ Centres,
+  ⊕ Origin, ⟋ On shapes, ⌜ Part edges, ┆ Guides, ▦ Grid (Sketcher.snapKinds, localStorage a3d.sksnap; Sketcher.snap
+  and point drags follow them; Grid off: the point lands where the mouse is) and Select (pickable, a3d.skpick: what
+  ⬚ Select / ↔ Dimension / ⟂ Relations take — kept apart, as snapping used to follow it). suggest.js fitFilterRow:
+  names on one line; the group the tool does not use as icons; a group a line; icons — up to the Finish / Cancel dock,
+  its height (--skf-h) lifting the suggestions / size box. tools/e2e_sketch_snaps.py.
+- **The offset arrow only on demand done:** the arrow (and its ⊙ / ⊗ / "+ +Z" tag) is drawn only while the mouse is
+  over the ↕ Plane at chip or its field has focus (Modeler.showPlaneArrow; planeArrowLabel kept by renderCmdBar) —
+  a sketch starts without it, so it is not in the way of drawing. tools/e2e_sketch_slot.py.
 - **The offset arrow seen end-on done:** ModelView.updatePlaneArrow (each frame drawn): looking along the plane's
   normal (the Top view down +Z) the arrow's cone tip was a purple blob — then it is the CAD symbol ⊙ (toward you) /
   ⊗ (away) with its label beside the origin, from the side the arrow and "+ +Z" at its tip.

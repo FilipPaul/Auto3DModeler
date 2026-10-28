@@ -229,8 +229,9 @@ Never report "works" without having run it; report failures with their output.
    longer: the corner's hole follows, the origin's stays. Exits 1 on a failed check.
    `tools/e2e_sketch_text.py <url> <dir>` covers 𝐓 Text in a sketch ("Text" 10 high, the text field focused; typed
    "AO", height 12; extruded 3: 25 × 12 × 3, the letters' holes kept — about 0.58 of its box; ↶ Undo).
-   `tools/e2e_sketch_slot.py <url> <dir>` covers the sketch plane's offset direction (+ = +Z and an arrow; on Front
-   −Y; gone after ✓ Finish) and ⊂⊃ Slot with real mouse clicks (centres (0, 0) and (30, 0), the
+   `tools/e2e_sketch_slot.py <url> <dir>` covers the sketch plane's offset direction (+ = +Z; the arrow hidden at the start,
+   drawn while the mouse is on ↕ Plane at or its field has focus, hidden again after Enter; on Front −Y; gone after
+   ✓ Finish) and ⊂⊃ Slot with real mouse clicks (centres (0, 0) and (30, 0), the
    width at 5: the preview "40 × 10"; two lines, two arcs, tan ×4 / eq / h; extruded 5: (30 · 10 + π 25) · 5).
    `tools/e2e_sketch_pattern.py <url> <dir>` covers ⁂ Pattern in a sketch (a circle picked -> 3 at once, the box;
    Count 4, Spacing 15: x 0 / 15 / 30 / 45, a `pat` relation; the ⁂ symbol -> Count 5 re-made; Ctrl+Z -> 4, Ctrl+Z
@@ -295,6 +296,11 @@ Never report "works" without having run it; report failures with their output.
    titanium: its colour, the same in an assembly). Needs a server restarted after materials.py changes.
    `tools/e2e_tree_more.py <url> <dir>` covers the tree / tabs more (a library screw: the library icon, changed: its own;
    a hover on a row: a picture; a row dropped on the assembly's view: one more Base; a middle click closes a tab).
+   `tools/e2e_sketch_snaps.py <url> <dir>` covers the sketch's Snap filters with real mouse input (the row: 8 Snap
+   toggles + the 6 Select ones; Midpoints on: a click near a line's middle lands there with a mid rule, off: on the
+   line, no mid rule; Grid on: on the grid, off: off it; Guides off: no dashed guide; kept after a reload; the row
+   clear of the suggestions table, the quick size box and Finish / Cancel, no scrollbar, at 1600×1000 and 1280×800,
+   English and Czech — tooltips too). Exits 1 on a failed check.
    `tools/e2e_sketch_pick.py <url> <dir>` covers what a sketch click takes (the filters bottom middle; Lines off: a line
    not picked; the origin's suggestions; a midpoint + the circle: a distance from the middle held at 40; a dimension
    dragged by its line, the shapes not moved; the circle as R: its box shows 5, 5 typed -> Ø 10; an off-grid line: the

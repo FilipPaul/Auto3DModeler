@@ -53,10 +53,26 @@ export function showSnapFilters(viewport, on = true) {
 
 /** The filter row as icons only when its names do not fit the view (no scrollbar under it). */
 function fitSnapFilters(viewport) {
-  const bar = viewport.querySelector(':scope > .snap-filters');
+  fitFilterRow(viewport.querySelector(':scope > .snap-filters'));
+}
+
+/** A filter row (.sk-filters) fitted to its view, names first: one line with every name; the groups not in use
+ *  (.skf-g without .active) as icons; each group on a line of its own, named; icons only (the names stay in the
+ *  tooltips) on one line, then on two. Its height goes to the view (--skf-h): the suggestions / size box sit above it. */
+export function fitFilterRow(bar) {
   if (!bar) return;
-  bar.classList.remove('compact');
-  if (bar.scrollWidth > bar.clientWidth + 1) bar.classList.add('compact');
+  const over = () => bar.scrollWidth > bar.clientWidth + 1, groups = [...bar.querySelectorAll('.skf-g')];
+  const vp = bar.parentElement, dock = vp?.querySelector(':scope > .view-actions'); // (up to Finish / OK in the corner)
+  bar.style.maxWidth = dock?.offsetWidth ? `${Math.max(120, dock.getBoundingClientRect().left - vp.getBoundingClientRect().left - bar.offsetLeft - 10)}px` : '';
+  bar.classList.remove('compact', 'wrap');
+  for (const g of groups) g.classList.remove('compact');
+  const steps = groups.length > 1 ? [
+    () => { for (const g of groups) if (!g.classList.contains('active')) g.classList.add('compact'); },
+    () => { for (const g of groups) g.classList.remove('compact'); bar.classList.add('wrap'); },
+    () => { bar.classList.remove('wrap'); bar.classList.add('compact'); },
+    () => bar.classList.add('wrap')] : [() => bar.classList.add('compact')];
+  for (const step of steps) { if (!over()) break; step(); }
+  vp?.style.setProperty('--skf-h', `${bar.offsetHeight}px`);
 }
 
 const savedAt = () => { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } };

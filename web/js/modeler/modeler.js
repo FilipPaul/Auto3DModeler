@@ -169,7 +169,8 @@ export class Modeler {
       const plus = k >= 0 ? `${nrm[k] > 0 ? '+' : '−'}${'XYZ'[k]}` : ''; // (which way a positive offset moves it)
       const offset = onDatum ? `<label class="chip m-offset" title="Move the sketch plane along its normal (e.g. 30 mm above the bed — for a loft's second profile); a positive offset moves it along the arrow">↕ Plane at
         <input type="number" step="any" data-k="planeOffset" value="${fmt(this.sk.f.plane.offset || 0)}"> mm <span class="m-plus" data-no-i18n>(+ = ${plus})</span></label><span class="sep"></span>` : '';
-      this.view.setPlaneArrow(onDatum ? this.frame() : null, plus);
+      this.planeArrowLabel = onDatum ? plus : null; // (drawn only while the ↕ Plane at chip is pointed at / its field typed in)
+      this.view.setPlaneArrow(null);
       const origin = originSeg(this.sk.f.plane, originKey(this.sk.f.plane?.origin));
       bar.innerHTML = `<span class="m-mode">Sketch</span>${planes}${offset}${origin ? `${origin}<span class="sep"></span>` : ''}
         ${btn('rect', '▭ Rectangle', 'Draw a rectangle: click two corners (R)', t === 'rect' ? 'on' : '')}
@@ -247,6 +248,9 @@ export class Modeler {
     }
     const off = bar.querySelector('[data-k=planeOffset]');
     if (off) {
+      const chip = off.closest('.m-offset'), show = () => chip.isConnected && this.showPlaneArrow((chip.matches(':hover') || chip.contains(document.activeElement)));
+      for (const ev of ['mouseenter', 'mouseleave', 'focusin', 'focusout']) chip.addEventListener(ev, () => setTimeout(show));
+      show(); // (drawn again over a bar drawn anew under the mouse)
       off.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') off.blur(); });
       off.addEventListener('change', () => {
         const v = parseFloat(String(off.value).replace(',', '.'));
@@ -255,12 +259,19 @@ export class Modeler {
         if (!v) delete this.sk.f.plane.offset;
         this.view.lookAt(this.frame(), this.sketchSpan());
         this.sk.draw();
+        show(); // (the arrow moves with the plane)
       });
     }
     this.updateUndo();
     fitBar(bar); // (icons only when the names do not fit)
     const h = this.$('.m-hint');
     if (h) h.style.top = `${bar.offsetTop + bar.offsetHeight + 8}px`;
+  }
+
+  /** The offset arrow (which way + moves the sketch plane) — only while the ↕ Plane at chip is pointed at or typed
+   *  in: it would be in the way of drawing otherwise. */
+  showPlaneArrow(on) {
+    this.view.setPlaneArrow(on && this.mode === 'sketch' && this.planeArrowLabel != null ? this.frame() : null, this.planeArrowLabel || '');
   }
 
   updateUndo() {
