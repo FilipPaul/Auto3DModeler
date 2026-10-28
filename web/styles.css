@@ -839,7 +839,7 @@ body.view-acts .toast-stack { bottom: 84px; }
 .tr-row[draggable=true] { cursor: grab; }
 .viewport.drop-in { outline: 2px dashed var(--accent); outline-offset: -6px; }
 /* the sketch's selection filters: bottom left of the view (the suggestions and the size box above them) */
-.viewport:has(> .sk-filters) .view-suggest, .viewport:has(> .sk-filters) .sk-choose.sk-quick, .viewport:has(> .snap-filters) .m-editctx { bottom: 62px; }
+.viewport:has(> .sk-filters) .view-suggest, .viewport:has(> .sk-filters) .sk-choose.sk-quick, .viewport:has(> .snap-filters) .m-editctx { bottom: calc(34px + var(--skf-h, 28px)); }
 .sk-box { position: absolute; z-index: 6; border: 1px solid #58a6ff; background: #58a6ff1a; pointer-events: none; }
 .sk-box.crossing { border: 1px dashed #7ee787; background: #7ee78714; }
 .m-snap { font-size: 10.5px; color: #0d1117; background: #7ee787; border-radius: 4px; padding: 0 5px; transform: translate(10px, -14px); pointer-events: none; }
@@ -849,10 +849,13 @@ body.view-acts .toast-stack { bottom: 84px; }
 .sk-filters { position: absolute; left: 12px; bottom: 26px; z-index: 5; max-width: calc(100% - 300px); overflow-x: auto; display: flex; align-items: center; gap: 3px;
   background: #161a20e0; border: 1px solid var(--line); border-radius: 16px; padding: 3px 6px; font-size: 11.5px; white-space: nowrap; }
 .sk-filters .skf-t { color: var(--muted); padding: 0 4px; }
-/* the 3D snap / hover filters too long for the view (narrow, Czech): icons only, their names in the tooltips (suggest.js) */
-.snap-filters.compact .skf-l { display: none; }
-.snap-filters.compact button { padding: 2px 6px; }
-.sk-filters button { background: none; border: 1px solid transparent; color: var(--muted); border-radius: 12px; padding: 2px 8px; cursor: pointer; font: inherit; }
+/* filter rows too long for the view (narrow, Czech): icons only — first the sketch group not in use, then all; the names in the tooltips (suggest.js fitFilterRow) */
+.sk-filters.compact .skf-l, .sk-filters .skf-g.compact .skf-l { display: none; }
+.sk-filters.compact button, .sk-filters .skf-g.compact button { padding: 2px 5px; }
+.sk-filters .skf-g { display: inline-flex; align-items: center; gap: 3px; }
+.sk-filters.wrap { display: grid; justify-items: start; row-gap: 2px; border-radius: 12px; } /* (a group a line, as wide as the widest) */
+.sk-filters.wrap > .sep { display: none; }
+.sk-filters button { background: none; border: 1px solid transparent; color: var(--muted); border-radius: 12px; padding: 2px 6px; cursor: pointer; font: inherit; }
 .sk-filters button.on { color: var(--text); background: #2b3440; border-color: var(--line); }
 .sk-filters button:hover { border-color: var(--accent); }
 .view-suggest { position: absolute; left: 12px; bottom: 34px; z-index: 6; width: 236px; background: var(--panel); border: 1px solid var(--line);

@@ -9,7 +9,7 @@
 // outline taken from a picture / DXF / PDF part {t: 'block', polys, w0, h0, at, scale}: rigid, moved by
 // dragging, sized by its width.
 import { t } from '../i18n.js';
-import { showSuggest } from '../suggest.js';
+import { showSuggest, fitFilterRow } from '../suggest.js';
 import { roundAxes } from './axes.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -484,30 +484,32 @@ export class Sketcher {
   // ------------------------------------------------------------------ geometry helpers
   mpp() { return this.view.mmPerPixel(this.frame()); }
 
-  /** Snap (what the filters at the bottom allow): existing points (they get connected) and the origin, a line's
-   *  middle, the part's corners and centres, then a place on a sketch line / circle / arc (the new point stays on it)
-   *  or on an edge of the part, then the grid. Alt = no snapping. */
+  /** Snap (what the Snap filters at the bottom allow — snapKinds): existing points / ends (they get connected),
+   *  centres and the origin, a line's middle, the part's corners and centres, then a place on a sketch line / circle /
+   *  arc (the new point stays on it) or on an edge of the part, then the guides, then the grid (off: just where the
+   *  mouse is). Alt = no snapping. */
   snap(uv, free = false, skip = null) {
     if (free) return { uv };
-    const tol = this.mpp() * 9, F = this.pickable;
+    const tol = this.mpp() * 9, S = this.snapKinds;
+    const centres = new Set(this.f.entities.filter((e) => e.t === 'circle' || e.t === 'arc').map((e) => e.c));
     let best = null;
     // a sketch point on the origin wins over the origin itself (so the new line joins it)
-    for (const [id, p] of [...(F.points ? Object.entries(this.f.points) : []), ...(F.origin ? [[ORIGIN, [0, 0]]] : [])]) {
+    for (const [id, p] of [...Object.entries(this.f.points).filter(([id]) => (centres.has(id) ? S.centre : S.ends)), ...(S.origin ? [[ORIGIN, [0, 0]]] : [])]) {
       if (id === skip) continue;
       const d = Math.hypot(p[0] - uv[0], p[1] - uv[1]);
       if (d < tol && (!best || d < best.d)) best = { id, d, uv: [...p] };
     }
     if (best) return best;
     const lines = this.f.entities.filter((e) => e.t === 'line' && e.a !== skip && e.b !== skip); // (not the line being drawn from)
-    if (F.mid) {
+    if (S.mid) {
       for (const e of lines) {
         const a = this.P(e.a), b = this.P(e.b), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], d = Math.hypot(m[0] - uv[0], m[1] - uv[1]);
         if (d < tol && (!best || d < best.d)) best = { d, uv: m.map((v) => +v.toFixed(6)), on: e.id, mid: e.id };
       }
     }
     if (best) return best;
-    const R = F.edges ? this.refs() : { points: [], circles: [], lines: [] };
-    for (const r of [...R.points, ...R.circles.map((q) => q.c)]) {
+    const R = S.part || S.centre ? this.refs() : { points: [], circles: [], lines: [] };
+    for (const r of [...(S.part ? R.points : []), ...(S.centre ? R.circles.map((q) => q.c) : [])]) { // (the part's corners; its holes' centres)
       const d = Math.hypot(r[0] - uv[0], r[1] - uv[1]);
       if (d < tol && (!best || d < best.d)) best = { d, uv: [...r], ref: true };
     }
@@ -516,13 +518,13 @@ export class Sketcher {
       const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy || 1, k = Math.max(0, Math.min(1, ((uv[0] - a[0]) * dx + (uv[1] - a[1]) * dy) / L));
       return [a[0] + k * dx, a[1] + k * dy];
     };
-    if (F.lines) {
+    if (S.on) {
       for (const e of lines) { // on a line of the sketch: the point stays on it
         const p = foot(this.P(e.a), this.P(e.b)), d = Math.hypot(p[0] - uv[0], p[1] - uv[1]);
         if (d < tol * 0.8 && (!best || d < best.d)) best = { d, uv: p.map((v) => +v.toFixed(6)), on: e.id };
       }
     }
-    if (F.round) {
+    if (S.on) {
       for (const e of this.f.entities) { // on a circle / arc of the sketch
         if (e.t !== 'circle' && e.t !== 'arc') continue;
         const c = this.P(e.c), r = e.t === 'circle' ? e.r : this.arcR(e), d0 = Math.hypot(uv[0] - c[0], uv[1] - c[1]);
@@ -533,23 +535,23 @@ export class Sketcher {
       }
     }
     if (best) return best;
-    for (const [a, b] of R.lines) { // on a straight edge of the part
+    for (const [a, b] of S.part ? R.lines : []) { // on a straight edge of the part
       const p = foot(a, b), d = Math.hypot(p[0] - uv[0], p[1] - uv[1]);
       if (d < tol * 0.8 && (!best || d < best.d)) best = { d, uv: p.map((v) => +v.toFixed(6)), ref: true, edge: true };
     }
     if (best) return best;
-    for (const q of R.circles) { // on a round edge of the part: the nearest point of it
+    for (const q of S.part ? R.circles : []) { // on a round edge of the part: the nearest point of it
       const d = Math.hypot(uv[0] - q.c[0], uv[1] - q.c[1]);
       if (d > 1e-9 && Math.abs(d - q.r) < tol && (!best || Math.abs(d - q.r) < best.d)) {
         best = { d: Math.abs(d - q.r), uv: [q.c[0] + ((uv[0] - q.c[0]) * q.r) / d, q.c[1] + ((uv[1] - q.c[1]) * q.r) / d].map((v) => +v.toFixed(6)), ref: true, onCircle: q };
       }
     }
     if (best) return best;
-    const g = this.gridStep(), grid = [Math.round(uv[0] / g) * g, Math.round(uv[1] / g) * g];
+    const g = this.gridStep(), grid = S.grid ? [Math.round(uv[0] / g) * g, Math.round(uv[1] / g) * g] : [...uv]; // (Grid off: just where the mouse is)
     // guides: in line with a point (its x or its y — a corner, a line's middle, the origin) or on the extension of a
     // line; shown as dashed lines from what it lines up with while the mouse is there
-    const keys = [...(F.points ? Object.values(this.f.points) : []), ...(F.origin ? [[0, 0]] : []),
-      ...(F.mid ? lines.map((e) => { const a = this.P(e.a), b = this.P(e.b); return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; }) : [])];
+    const keys = !S.guides ? [] : [...Object.values(this.f.points), [0, 0],
+      ...lines.map((e) => { const a = this.P(e.a), b = this.P(e.b); return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; })];
     let gx = null, gy = null;
     for (const p of keys) {
       const dx = Math.abs(p[0] - uv[0]), dy = Math.abs(p[1] - uv[1]);
@@ -557,7 +559,7 @@ export class Sketcher {
       if (dy < tol && dx > tol && (!gy || dy < gy.d)) gy = { d: dy, v: p[1], from: p };
     }
     let ext = null;
-    if (F.lines) {
+    if (S.guides) {
       for (const e of lines) { // beyond a line's end, along it
         const a = this.P(e.a), b = this.P(e.b), dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy;
         if (L2 < 1e-12) continue;
@@ -816,7 +818,7 @@ export class Sketcher {
     this.changed();
   }
 
-  /** What a click may take (the filters at the bottom of the view; remembered). */
+  /** What a click may take in ⬚ Select, ↔ Dimension, ⟂ Relations (the Select filters at the bottom; remembered). */
   get pickable() {
     if (!this._pickable) {
       let saved = null;
@@ -826,8 +828,19 @@ export class Sketcher {
     return this._pickable;
   }
 
-  /** The selection filters: a row of toggles at the bottom of the view — points, midpoints, the origin, lines,
-   *  circles / arcs, the part's edges. */
+  /** Where a drawn (or dragged) point may land (the Snap filters at the bottom; remembered): points / ends, midpoints,
+   *  centres, the origin, on lines / curves, the part's edges / corners, guides, the grid. */
+  get snapKinds() {
+    if (!this._snapKinds) {
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem('a3d.sksnap') || 'null'); } catch { saved = null; }
+      this._snapKinds = { ends: true, mid: true, centre: true, origin: true, on: true, part: true, guides: true, grid: true, ...(saved || {}) };
+    }
+    return this._snapKinds;
+  }
+
+  /** The filter row at the bottom of the view: Snap (where a drawn point lands) and Select (what a click takes) —
+   *  toggles, remembered; fitted to the view (suggest.js fitFilterRow). */
   renderFilters() {
     const vp = this.m.els.viewport;
     let bar = vp.querySelector(':scope > .sk-filters');
@@ -837,8 +850,18 @@ export class Sketcher {
       for (const ev of ['pointerdown', 'pointerup', 'click']) bar.addEventListener(ev, (x) => x.stopPropagation());
       vp.appendChild(bar);
     }
+    const SN = [['ends', '•', 'Points', "Snap to the sketch's points: line ends, corners (a new line joins them). Click to switch"],
+      ['mid', '⊹', 'Midpoints', 'Snap to the middle of a line (the point stays there). Click to switch'],
+      ['centre', '◎', 'Centres', "Snap to the centre of a circle or arc, also of the part's holes. Click to switch"],
+      ['origin', '⊕', 'Origin', 'Snap to the origin (0, 0). Click to switch'],
+      ['on', '⟋', 'On shapes', 'Snap anywhere on a line, circle or arc of the sketch (the point stays on it). Click to switch'],
+      ['part', '⌜', 'Part edges', 'Snap to the corners and edges of the part under the sketch. Click to switch'],
+      ['guides', '┆', 'Guides', "Catch in line with a point or on a line's extension (dashed green lines). Click to switch"],
+      ['grid', '▦', 'Grid', 'Snap to the grid; off: a point lands exactly where you click. Click to switch']];
     const F = [['points', '•', 'Points'], ['mid', '⊹', 'Midpoints'], ['origin', '⊕', 'Origin'], ['lines', '╱', 'Lines'], ['round', '◯', 'Circles / arcs'], ['edges', '┅', 'Part edges']];
-    bar.innerHTML = `<span class="skf-t">${t('Select')}:</span>${F.map(([k, i, l]) => `<button class="${this.pickable[k] ? 'on' : ''}" data-f="${k}" title="${t('Click to pick these — or not')}">${i} ${t(l)}</button>`).join('')}`;
+    const drawing = ['line', 'rect', 'circle', 'slot', 'spline', 'arc'].includes(this.tool);
+    bar.innerHTML = `<span class="skf-g skf-snap${drawing ? ' active' : ''}"><span class="skf-t" title="${t('Where a point you draw lands — hold Alt for no snapping at all')}">${t('Snap')}:</span>${SN.map(([k, i, l, w]) => `<button class="${this.snapKinds[k] ? 'on' : ''}" data-sksnap="${k}" title="${t(l)}: ${t(w)}">${i} <span class="skf-l">${t(l)}</span></button>`).join('')}</span>
+      <span class="sep"></span><span class="skf-g skf-pick${drawing ? '' : ' active'}"><span class="skf-t" title="${t('What a click takes in ⬚ Select, ↔ Dimension and ⟂ Relations')}">${t('Select')}:</span>${F.map(([k, i, l]) => `<button class="${this.pickable[k] ? 'on' : ''}" data-f="${k}" title="${t(l)}: ${t('Click to pick these — or not')}">${i} <span class="skf-l">${t(l)}</span></button>`).join('')}</span>`;
     for (const b of bar.querySelectorAll('[data-f]')) {
       b.addEventListener('click', () => {
         this.pickable[b.dataset.f] = !this.pickable[b.dataset.f];
@@ -848,6 +871,17 @@ export class Sketcher {
         this.draw();
       });
     }
+    for (const b of bar.querySelectorAll('[data-sksnap]')) {
+      b.addEventListener('click', () => {
+        this.snapKinds[b.dataset.sksnap] = !this.snapKinds[b.dataset.sksnap];
+        try { localStorage.setItem('a3d.sksnap', JSON.stringify(this.snapKinds)); } catch { /* private window */ }
+        this.cursor = null;
+        this.renderFilters();
+        this.draw();
+      });
+    }
+    fitFilterRow(bar);
+    if (!vp.skFit && window.ResizeObserver) (vp.skFit = new ResizeObserver(() => fitFilterRow(vp.querySelector(':scope > .sk-filters:not(.snap-filters)')))).observe(vp);
   }
 
   // ------------------------------------------------------------------ 🪄 auto-dimension
@@ -1136,7 +1170,7 @@ export class Sketcher {
       return;
     }
     if (drag?.block) {
-      const g = e.altKey ? 0 : this.gridStep();
+      const g = e.altKey || !this.snapKinds.grid ? 0 : this.gridStep();
       let du = uv[0] - drag.uv0[0], dv = uv[1] - drag.uv0[1];
       if (g) { du = Math.round(du / g) * g; dv = Math.round(dv / g) * g; }
       if (!drag.moved && (du || dv)) { drag.moved = true; this.step(); }
@@ -1150,7 +1184,7 @@ export class Sketcher {
         const s = this.snap([drag.from[drag.ids[0]][0] + du, drag.from[drag.ids[0]][1] + dv], false, drag.ids[0]);
         du = s.uv[0] - drag.from[drag.ids[0]][0];
         dv = s.uv[1] - drag.from[drag.ids[0]][1];
-      } else if (!e.altKey) { const g = this.gridStep(); du = Math.round(du / g) * g; dv = Math.round(dv / g) * g; }
+      } else if (!e.altKey && this.snapKinds.grid) { const g = this.gridStep(); du = Math.round(du / g) * g; dv = Math.round(dv / g) * g; }
       const target = Object.fromEntries(drag.ids.map((id) => [id, [drag.from[id][0] + du, drag.from[id][1] + dv]]));
       if (!drag.moved && (du || dv)) { drag.moved = true; this.step(); }
       if (!drag.moved) return;

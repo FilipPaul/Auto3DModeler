@@ -60,14 +60,17 @@ open it (the tree stays), ⧉ opens it in a new window, ✕ deletes it from the 
 tree's header brings it back (for half a minute). Parts made for an assembly (fasteners) are added without a tab. The **＋**
 next to the tabs offers the usual ways to open a file.
 
-**What a sketch click takes**: the row of filters at the bottom of the sketch — *Points, Midpoints, Origin, Lines,
-Circles / arcs, Part edges* — says what a click may pick (remembered). The origin and a line's **midpoint** can be
+**Snap and Select filters** (the row at the bottom of a sketch, remembered): **Snap:** *Points, Midpoints, Centres,
+Origin, On shapes, Part edges, Guides, Grid* — where a point you draw (or drag) lands; *Grid* off puts it exactly
+where you click, Alt held snaps to nothing. **Select:** *Points, Midpoints, Origin, Lines, Circles / arcs, Part edges*
+— what a click may pick in ⬚ Select, ↔ Dimension and ⟂ Relations. In a narrow window the names turn to icons (they
+stay in the tooltips). The origin and a line's **midpoint** can be
 picked and dimensioned from (the distance is held from the middle as the line changes). A dimension can be dragged by
 its label or **by its dimension line**. A circle or arc shows its size as **R or Ø** — *⇄ Show it as a radius /
 diameter* (or R ⇄ Ø in its size box); a typed value is taken that way. Drag a round size's label anywhere: dropped
 **inside the circle** it becomes a diameter across it, **outside** a radius from the centre. **Drawing snaps** to points, a line's
 **midpoint** (the new point stays at the middle), anywhere **on a line, circle or arc** (it stays on it) and the
-part's edges — off the grid too — the place named at the mouse; the same filters say what it snaps to. **Guides**: in line with a point (its x or y — a
+part's edges — off the grid too — the place named at the mouse; the Snap filters say what it snaps to. **Guides**: in line with a point (its x or y — a
 corner, a line's middle, the origin) or on the extension of a line, the cursor catches there and a temporary dashed
 line shows what it lines up with (two at once: where they cross).
 

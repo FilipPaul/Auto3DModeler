@@ -286,6 +286,11 @@ Never report "works" without having run it; report failures with their output.
    titanium: its colour, the same in an assembly). Needs a server restarted after materials.py changes.
    `tools/e2e_tree_more.py <url> <dir>` covers the tree / tabs more (a library screw: the library icon, changed: its own;
    a hover on a row: a picture; a row dropped on the assembly's view: one more Base; a middle click closes a tab).
+   `tools/e2e_sketch_snaps.py <url> <dir>` covers the sketch's Snap filters with real mouse input (the row: 8 Snap
+   toggles + the 6 Select ones; Midpoints on: a click near a line's middle lands there with a mid rule, off: on the
+   line, no mid rule; Grid on: on the grid, off: off it; Guides off: no dashed guide; kept after a reload; the row
+   clear of the suggestions table, the quick size box and Finish / Cancel, no scrollbar, at 1600×1000 and 1280×800,
+   English and Czech — tooltips too). Exits 1 on a failed check.
    `tools/e2e_sketch_pick.py <url> <dir>` covers what a sketch click takes (the filters bottom middle; Lines off: a line
    not picked; the origin's suggestions; a midpoint + the circle: a distance from the middle held at 40; a dimension
    dragged by its line, the shapes not moved; the circle as R: its box shows 5, 5 typed -> Ø 10; an off-grid line: the
