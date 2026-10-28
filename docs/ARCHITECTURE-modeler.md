@@ -1007,6 +1007,17 @@ Date: 2026-10-25. Written by the architect agent.
   style's texts (they carry data-ff) out of the SVG and writes them on the page with the same font files (PyMuPDF
   TextWriter, baseline / anchor / letter spacing kept; a letter a font lacks in Helvetica or Droid Sans Fallback),
   then subsets the fonts. The DXF keeps its Arial text style. New sheets still start with Modern.
+- **Parts-list styles A–E done:** tbstyles.js partsList, each with its title block's font: A a muted header over a
+  rule, hairline rows, "6 items · 23 pcs in all … total mass"; B the rows numbered bottom-up over a light grey header
+  band and "Parts list · 6 items · 23 pcs … Σ mass", thin column rules; C a black "Parts list" band with the summary,
+  the positions in circles like balloons; D no vertical lines, hairline rows, a spaced heading; E 90 mm, two lines an
+  item (the name over its standard / drawing no.; the material over make · mass). Columns: pos, name, qty, material,
+  mass each (ctx.massOf), standard / order no. (the library's pn, else that part's drawing no.), make / buy (make /
+  print 3D / buy). On an assembly sheet the list sits directly on the title block, both at the frame's right /
+  bottom (other widths: aligned right), as many rows as fit 40 mm under the top (then "… n more"; the balloons kept,
+  SheetEditor.balloonsSvg). A 📋 BOM page in a style: the summary / structured BOM the frame's width on the title
+  block, "Bill of materials — <assembly> · Summary · n / m" in the style's title, its rows per page by the style
+  (bomRowsIn).
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

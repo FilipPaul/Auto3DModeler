@@ -731,8 +731,8 @@ export class SheetEditor {
    *  outline. Black on white (prints in black and white), inside the frame at its bottom right. */
   titleSvg(pw, ph, m, th) {
     const L = this.lay, [, , mr, mb] = this.frameOf().m, W = this.titleW(), x0 = pw - mr - W, y0 = ph - mb - th;
-    const src = this.hooks.partData(this.d.source) || {}, T = this.d.title || {}, X = this.d.texts || {}, tb = this.tb(), F = { ...tb.texts, ...X };
     if (isStyle(this.tb().style)) return titleBlock(this.tb().style, x0, y0, this.tbFields()); // (A … E: as the owner's designs)
+    const src = this.hooks.partData(this.d.source) || {}, T = this.d.title || {}, X = this.d.texts || {}, tb = this.tb(), F = { ...tb.texts, ...X };
     const on = (f) => !tb.hide.has(f), INK = '#000', MUTED = '#555', THIN = 0.13;
     const fit = (s, w, fs) => { s = String(s ?? ''); const n = Math.max(1, Math.floor(w / (fs * 0.53))); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
     const tol = src.tolerance ? `${(F.tolstd || 'ISO 2768').replace(/-[a-z]+$/i, '')}-${src.tolerance}` : F.tolstd || '—';
@@ -802,7 +802,8 @@ export class SheetEditor {
   /** An assembly's page: the parts list (pos, name, qty, material, part number) above the title block, and a balloon
    *  with its position for each in the iso view. */
   asmSvg(pw, ph, m, th) {
-    const [, mt, mr, mb] = this.frameOf().m, W = this.titleW();
+    const [, mt, mr, mb] = this.frameOf().m, tb = this.tb(), W = isStyle(tb.style) ? Math.max(this.titleW(), (this.lay?.size?.[0] || 297) >= 400 ? 180 : 150) : this.titleW();
+    if (isBomStyle(tb.bomStyle)) return this.asmStyled(pw, ph, mt, mr, mb, th, tb.bomStyle);
     const rows = this.d.asm.rows, max = Math.max(1, Math.floor((ph - mt - mb - th - 40) / 5) - 1), shown = rows.slice(0, max);
     const x0 = pw - mr - W, cols = [[t('Pos.'), 0.08], [t('Name'), 0.42], [t('Qty'), 0.08], [t('Material'), 0.17], [t('Part number'), 0.25]].map(([l, k]) => [l, W * k]);
     const n = shown.length + (rows.length > max ? 1 : 0), top = ph - mb - th - (n + 1) * 5 - 1, g = ['<g class="sh-bom">'];
@@ -822,6 +823,32 @@ export class SheetEditor {
     row(top, cols.map((c) => c[0]), true);
     shown.forEach((r, i) => row(top + 1 + 5 * (i + 1), [r.pos, `${r.kind === 'assembly' ? '◇ ' : ''}${r.name}`, r.qty, r.material, r.pn || (r.bought ? t('bought') : '')], false));
     if (rows.length > max) g.push(`<text x="${x0 + 1.6}" y="${top + 1 + 5 * (shown.length + 1) + 3.6}" font-size="2.6">… ${rows.length - max} ${t('more')}</text>`);
+    return this.balloonsSvg(g, rows);
+  }
+
+  /** A parts-list row as a style shows it (tbstyles.js partsList): mass each, the standard / order no. (else that
+   *  part's drawing no.), make or buy. r: a parts-list row of an assembly sheet or a BOM page's line. */
+  styledRow(r, page = false) {
+    const pd = this.hooks.partData(r.part) || {}, asm = r.kind === 'assembly', ctx = this.hooks.drawingCtx?.();
+    const how = asm ? 'assembly' : r.how || makeBuy(pd, r.name).how, mass = r.mass_g !== undefined ? r.mass_g : asm ? null : ctx?.massOf?.(r.part) ?? null;
+    return { pos: r.pos ?? '', name: `${asm ? '◇ ' : ''}${r.name}`, qty: `${r.qty}`, total: `${r.total ?? ''}`, mat: asm ? '' : r.material || '', bold: asm, depth: r.depth || 0,
+      mass: asm ? '' : grams(mass), mass_total: asm ? '' : grams(r.mass_total_g), maker: r.maker || '', make: t({ bought: 'buy', 'made (3D print)': 'print 3D', made: 'make', assembly: 'assembly' }[how] || how),
+      pn: r.pn || (page ? '' : ctx?.sheetOf?.(r.part)?.texts?.number || ''), mass_g: asm ? 0 : mass };
+  }
+
+  /** An assembly sheet's parts list in a style (A … E), directly on the title block at the frame's right; as many rows
+   *  as fit (40 mm left for the views), then "… n more". */
+  asmStyled(pw, ph, mt, mr, mb, th, style) {
+    const rows = this.d.asm.rows, room = ph - mt - mb - th - 40, fit = bomRowsIn(style, room);
+    const max = rows.length > fit ? Math.max(1, fit - 1) : rows.length, shown = rows.slice(0, max).map((r) => this.styledRow(r));
+    const pieces = rows.reduce((a, r) => a + (+r.qty || 0), 0), masses = rows.map((r) => this.styledRow(r).mass_g);
+    const mass = masses.every((m) => m !== null && m !== undefined) ? masses.reduce((a, m, i) => a + m * (+rows[i].qty || 0), 0) : 0;
+    const { svg } = partsList(style, pw - mr, ph - mb - th, shown, { kinds: rows.length, pieces, mass: mass ? grams(mass) : '' }, { more: rows.length > max ? `… ${rows.length - max} ${t('more')}` : '' });
+    return this.balloonsSvg(['<g class="sh-bom sh-bomstyled">', svg], rows);
+  }
+
+  /** The balloons of an assembly sheet's iso view (in g, the parts list's group) -> the group's SVG. */
+  balloonsSvg(g, rows) {
     this.balloonAt = {};
     if (this.isoMap && !this.d.off.Iso) { // the balloons: out from the view, apart from each other, where the user put them
       const placed = [];
@@ -876,8 +903,9 @@ export class SheetEditor {
    *  bomPage: true | 'summary' | 'structured') -> [page data]. */
   bomPages(aid, sd, built, parent = '') {
     const mode = sd.bomPage === 'structured' ? 'structured' : 'summary', bom = bomOf(this.bomCtx(), aid, { mode, numbering: this.rootOf(aid) || aid });
-    const [, ph] = built.layout.size, [, mt, , mb] = this.frameOf(sd).m, th = this.titleH(sd);
-    const per = Math.max(4, Math.floor((ph - mb - th - 4 - (mt + 12) - 6.5) / BOM_ROW) - 1), lines = bom.lines, n = Math.max(1, Math.ceil(lines.length / per));
+    const [, ph] = built.layout.size, [, mt, , mb] = this.frameOf(sd).m, th = this.titleH(sd), bs = this.tbOf(sd).bomStyle;
+    const per = isBomStyle(bs) ? Math.max(4, bomRowsIn(bs, ph - mb - th - mt - 4) - 1) // (a style's list on the title block, its own heading; a line for "… continued")
+      : Math.max(4, Math.floor((ph - mb - th - 4 - (mt + 12) - 6.5) / BOM_ROW) - 1), lines = bom.lines, n = Math.max(1, Math.ceil(lines.length / per));
     const keep = ['template', 'tb', 'frame', 'texts', 'paper', 'scale', 'created', 'changed', 'rev', 'hash'];
     const base = Object.fromEntries(keep.filter((k) => sd[k] !== undefined).map((k) => [k, structuredClone(sd[k])]));
     return Array.from({ length: n }, (_, k) => ({ ...base, source: aid, off: { Front: true, Top: true, Right: true, Iso: true }, views: {}, dims: {}, hidden: [], user: [],
@@ -890,6 +918,7 @@ export class SheetEditor {
    *  muted header over a rule, thin rules between rows, the position bold, a sub-assembly's row bold and its parts
    *  indented in the structured one). */
   bomSvg(pw, ph, th) {
+    if (isBomStyle(this.tb().bomStyle)) return this.bomPageStyled(pw, ph, th, this.tb().bomStyle);
     const B = this.d.bom, [ml, mt, mr] = this.frameOf().m, x0 = ml + 4, W = pw - mr - 4 - x0, structured = B.mode === 'structured';
     const cols = (structured ? [['Pos.', 0.05], ['Name', 0.27], ['Qty per parent', 0.07], ['Total qty', 0.06], ['Material', 0.11], ['Mass each (g)', 0.08], ['Maker', 0.1], ['Part number', 0.15], ['Make / buy', 0.11]]
       : [['Pos.', 0.05], ['Name', 0.3], ['Qty', 0.05], ['Material', 0.12], ['Mass each (g)', 0.08], ['Mass total (g)', 0.08], ['Maker', 0.1], ['Part number', 0.12], ['Make / buy', 0.1]]).map(([l, k]) => [t(l), W * k]);
@@ -921,6 +950,17 @@ export class SheetEditor {
     if (B.more) g.push(`<text x="${x0 + 1.6}" y="${top + 6.5 + BOM_ROW * B.lines.length + 3.9}" font-size="2.6" fill="#555">${esc(tv('… continued on the next page ({n} / {m})', { n: B.page + 1, m: B.pages }))}</text>`);
     g.push('</g>');
     return g.join('');
+  }
+
+  /** A BOM page in a parts-list style (A … E): the heading at the top of the frame, the table the whole width inside
+   *  the frame, directly on the title block (B: its header at the bottom, the rows numbered bottom-up). */
+  bomPageStyled(pw, ph, th, style) {
+    const B = this.d.bom, [ml, , mr, mb] = this.frameOf().m, structured = B.mode === 'structured', W = pw - mr - ml;
+    const title = `${t('Bill of materials')} — ${this.hooks.partName(this.d.source) || ''} · ${t(structured ? 'Structured' : 'Summary')}${B.pages > 1 ? ` · ${B.page} / ${B.pages}` : ''}`;
+    const rows = B.lines.map((r) => this.styledRow(r, true));
+    const more = B.more ? tv('… continued on the next page ({n} / {m})', { n: B.page + 1, m: B.pages }) : '';
+    const list = partsList(style, pw - mr, ph - mb - th, rows, { kinds: B.kinds, pieces: B.pieces, mass: B.mass_g ? grams(B.mass_g) : '' }, { W, kind: structured ? 'structured' : 'summary', more, title, named: true });
+    return `<g class="sh-bompage" data-style="${style}">${list.svg}</g>`;
   }
 
   async assemblyPage(aid, ctx, explode = 0, sd = null) { // (sd: its sheet's data — its paper, scale, frame)
