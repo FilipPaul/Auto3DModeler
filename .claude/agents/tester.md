@@ -255,7 +255,11 @@ Never report "works" without having run it; report failures with their output.
    only, the name large) and sheet views renamed, moved and scaled with the mouse
    (a double-click on the Front label -> "Side A", Ctrl+Z / Ctrl+Y; the Top view dragged snaps under Front, Shift: free;
    the Right view's Custom… 1:2522 in its label; the sheet's 1:2522 in the title block, real dimension values; 5:1
-   warns past the frame; get_sheet, the DXF (the name, 60 measured at 5:1) and the PDF). Run it in cs too.
+   warns past the frame; get_sheet, the DXF (the name, 60 measured at 5:1) and the PDF) and title-block templates
+   (company / address / drawn by typed, 💾 Save as template… "ACME" kept on the server; an AI-built Machine → Lid unit
+   → Lid, Pin, Base: ⇶ Use for all drawings, all five pages and their PDF carry the company, a new sheet of the set
+   takes it, get_sheet / the DXF, the AI back to Modern). Needs a server restarted after server.py changes. Run it in
+   cs too.
    `tools/e2e_sheet_fits.py <url> <dir>` covers fits on the sheet (a Ø8 pin's dimension: Fit h6 drawn "Ø8 h6" with
    0 / −0.009 told, — plain again, the AI's sheet_edit fits k6, a wrong class refused, Ctrl+Z).
    `tools/e2e_model_rib.py <url> <dir>` covers ⊿ Rib (an L bracket and a line from the wall to the plate on the Right

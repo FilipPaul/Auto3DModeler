@@ -27,6 +27,12 @@ const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const VIEWS = ['Front', 'Top', 'Right'];
 const PRESETS = [['light', 'Light'], ['medium', 'Medium'], ['full', 'Full']];
 const TEXTS = [['title', 'Title'], ['number', 'Drawing no.'], ['drawn', 'Drawn by'], ['note', 'Note']];
+/** The fixed texts a title-block template holds (a sheet's own text of these overrides it). */
+const TPL_TEXTS = ['company', 'address', 'drawn', 'note', 'tolstd'];
+const MORE_TEXTS = [['company', 'Company'], ['address', 'Address'], ['tolstd', 'Tolerance standard']];
+/** The title block's fields that a template may leave out. */
+const TB_FIELDS = [['company', 'Company / logo'], ['number', 'Drawing no.'], ['material', 'Material'], ['paper', 'Paper'], ['tolerances', 'Tolerances'], ['drawn', 'Drawn by'], ['created', 'Created'], ['changed', 'Changed'], ['note', 'Note']];
+const DEFAULT_TPL = { name: 'Modern', builtin: true, layout: 'block', hide: [], texts: {}, logo: null, frame: null };
 /** The standard drawing scales (ISO 5455) offered in the scale choices; Custom… takes any, e.g. 1:2522. */
 const SCALE_LIST = [[10, 1], [5, 1], [2, 1], [1, 1], [1, 2], [1, 5], [1, 10], [1, 20], [1, 50], [1, 100]];
 /** A scale as written ("1:2522", "3:1", "1/5", "0.5", "2") -> [a, b] (both above 0), or null (as sheet.parse_scale). */
@@ -50,6 +56,19 @@ const mul4 = (a, b) => { const o = new Array(16).fill(0); for (let c = 0; c < 4;
 const ID4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 const post = async (url, body) => { const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const r = await res.json(); if (!res.ok) throw new Error(r.error || res.statusText); return r; };
 
+/** A logo picture -> a small data URL for the title block (a PNG / JPEG scaled to at most 600 × 300 px; an SVG as it
+ *  is, when small). */
+async function logoData(file) {
+  const url = await new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => bad(new Error(t('The picture could not be read.'))); r.readAsDataURL(file); });
+  if (/^data:image\/svg\+xml/.test(url)) { if (url.length > 300000) throw new Error(t('The logo is too big — use a smaller picture.')); return url; }
+  const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => bad(new Error(t('The picture could not be read.'))); i.src = url; });
+  const k = Math.min(1, 600 / img.width, 300 / img.height), c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(img.width * k));
+  c.height = Math.max(1, Math.round(img.height * k));
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/png');
+}
+
 /** A short hash of what a sheet is made from: the part's steps, material and tolerances. */
 export function partHash(data) {
   const s = JSON.stringify({ f: data?.features || [], m: data?.material || '', t: data?.tolerance || '' });
@@ -70,12 +89,92 @@ export class SheetEditor {
     this.pick = null;    // the first point of a new dimension {view, key}
     this.zoom = { k: 1, x: 0, y: 0 };
     this.history = new History({
-      capture: () => ({ section: !!this.d?.section, balloons: this.d?.balloons, views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper, texts: this.d?.texts, exploded: !!this.d?.exploded, viewNames: this.d?.viewNames, scale: this.d?.scale ?? null, vscale: this.d?.vscale }),
+      capture: () => ({ section: !!this.d?.section, balloons: this.d?.balloons, views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper, texts: this.d?.texts, exploded: !!this.d?.exploded, viewNames: this.d?.viewNames, scale: this.d?.scale ?? null, vscale: this.d?.vscale, template: this.d?.template, tb: this.d?.tb }),
       restore: (s) => { const ex = !!this.d.exploded, sec = !!this.d.section; Object.assign(this.d, structuredClone(s)); if (!this.d.exploded) delete this.d.exploded; if (!this.d.section) delete this.d.section; if (ex !== !!this.d.exploded || sec !== !!this.d.section || this.d.built?.preset !== this.d.preset || this.d.built?.vp !== JSON.stringify(this.d.vpreset || {}) || this.layKey() !== this.builtKey()) this.ensure(true); else this.render(); },
       onChange: () => this.renderBar(),
     });
     this.build();
     window.addEventListener('a3d:lang', () => { if (this.d) this.render(); }); // (texts built with t(): in the new language)
+    this.tpls = [DEFAULT_TPL];
+    this.loadTemplates();
+  }
+
+  // ------------------------------------------------------------------ title-block templates (auto3d/title_templates.py)
+  /** The templates kept on the server (the app's, then the user's) -> this.tpls. */
+  async loadTemplates() {
+    try {
+      const r = await (await fetch('/api/title-templates')).json();
+      if (Array.isArray(r.templates) && r.templates.length) this.tpls = r.templates;
+      if (this.d) this.render();
+    } catch { /* the server's are not there: Modern only */ }
+  }
+
+  /** The template a sheet uses: its own (d.template), else its drawing set's (the top assembly's sheet's), else Modern. */
+  tplName(d = this.d) {
+    if (d?.template) return d.template;
+    const root = d?.source && this.hooks.drawingCtx ? this.rootOf(d.source) : null;
+    return (root && root !== d.source && this.hooks.drawingCtx().sheetOf(root)?.template) || DEFAULT_TPL.name;
+  }
+
+  tplOf(d = this.d) { const n = this.tplName(d); return this.tpls.find((x) => x.name === n) || this.tpls[0] || DEFAULT_TPL; }
+
+  /** How a sheet's title block looks: its template, changed on this sheet by d.tb {layout, hide, logo}. */
+  tbOf(d = this.d) {
+    const tp = this.tplOf(d), own = d?.tb || {};
+    return { layout: own.layout || tp.layout || 'block', hide: new Set(own.hide || tp.hide || []), texts: tp.texts || {}, logo: own.logo !== undefined ? own.logo : tp.logo || null };
+  }
+
+  /** The title block's height (mm): a block 38, a strip 14. */
+  titleH(d = this.d) { return this.tbOf(d).layout === 'strip' ? 14 : 38; }
+
+  /** 💾 Save as template…: the title block as this sheet shows it (layout, fields, fixed texts, logo, frame) under a
+   *  name, kept on the server for every project; this sheet then uses it. */
+  async saveTemplate(name = null) {
+    const tp = this.tplOf(), own = name || await ask(t('Name of the title-block template'), tp.builtin ? t('My template') : tp.name, { hint: t('Kept for all your projects: its layout, the fields shown, the company, address, drawn by, note, tolerance standard, logo and frame.'), ok: 'Save' });
+    if (!own) return null;
+    const tb = this.tbOf(), X = this.d.texts || {}, texts = { ...tb.texts };
+    for (const k of TPL_TEXTS) if (X[k] !== undefined) texts[k] = X[k];
+    const body = { template: { name: own, layout: tb.layout, hide: [...tb.hide], texts, logo: tb.logo, frame: this.frameOf ? this.frameOf() : null } };
+    const r = await post('/api/title-templates', body);
+    this.tpls = r.templates;
+    this.d.template = r.template.name;
+    delete this.d.tb;
+    const keep = { ...(this.d.texts || {}) };
+    for (const k of TPL_TEXTS) delete keep[k];
+    this.d.texts = keep;
+    this.commit();
+    this.hooks.toast?.(tv('Saved the title-block template “{name}”.', { name: r.template.name }), 'ok', 4000);
+    return r.template.name;
+  }
+
+  /** Use a template on this sheet (its own changes of the title block dropped). */
+  useTemplate(name) {
+    if (!this.tpls.some((x) => x.name === name)) throw new Error(`No template ${name} — one of: ${this.tpls.map((x) => x.name).join(', ')}.`);
+    this.d.template = name;
+    delete this.d.tb;
+    this.history.commit();
+    this.render();
+    this.hooks.onChange?.();
+    this.ensure();
+  }
+
+  /** Use for all drawings of this assembly: the template on every sheet of the drawing set this sheet is in (the top
+   *  assembly's sheet made when it has none — new sheets of the set take it from there) -> how many sheets. */
+  async useTemplateForSet(name = this.tplName()) {
+    const root = this.rootOf(this.d.source);
+    if (!root) throw new Error(t('This drawing is not in an assembly\'s drawing set.'));
+    this.useTemplate(name);
+    const n = (await this.hooks.applyTemplate?.(root, name, this.pagesOf(root).map((p) => p.id))) || 0;
+    this.hooks.toast?.(tv('Title block “{name}” on {n} drawing(s) of {asm} — new ones take it too.', { name, n, asm: this.hooks.partName(root) || root }), 'ok', 6000);
+    return n;
+  }
+
+  async deleteTemplate(name) {
+    const r = await fetch(`/api/title-templates/${encodeURIComponent(name)}`, { method: 'DELETE' }), j = await r.json();
+    if (!r.ok) throw new Error(j.error || r.statusText);
+    this.tpls = j.templates;
+    if (this.d.template === name) delete this.d.template;
+    this.commit();
   }
 
   build() {
@@ -167,9 +266,9 @@ export class SheetEditor {
   vs(v) { const s = this.d.vscale?.[v]; return s ? s[0] / s[1] : this.scale(); }
 
   /** What the server's layout is made for: the sheet's own scale (and frame) — built again when it changes. */
-  layKey(d = this.d) { return JSON.stringify({ s: d.scale || null }); }
+  layKey(d = this.d) { const th = this.titleH(d); return JSON.stringify({ s: d.scale || null, ...(th !== 38 ? { th } : {}) }); }
   builtKey(d = this.d) { return d.built?.lk ?? JSON.stringify({ s: null }); }
-  layReq(d = this.d) { return d.scale ? { scale: scaleText(d.scale) } : {}; }
+  layReq(d = this.d) { const th = this.titleH(d); return { ...(d.scale ? { scale: scaleText(d.scale) } : {}), ...(th !== 38 ? { frame: { title: th } } : {}) }; }
 
   /** A page's sheet data as drawn (a drawing set's page: what its set gives it). */
   pageData(d) { return d; }
@@ -353,7 +452,7 @@ export class SheetEditor {
   svg(forPrint = false) {
     const L = this.lay, G = this.geo;
     if (!L || !G) return '';
-    const [pw, ph] = L.size, m = L.margin, th = L.title, s = this.scale();
+    const [pw, ph] = L.size, m = L.margin, th = this.titleH();
     const out = [`<svg xmlns="${NS}" width="${pw}mm" height="${ph}mm" viewBox="0 0 ${pw} ${ph}" font-family="Helvetica">`,
       `<rect x="0" y="0" width="${pw}" height="${ph}" fill="#fff"/>`,
       `<rect x="${m}" y="${m}" width="${pw - 2 * m}" height="${ph - 2 * m}" fill="none" stroke="#000" stroke-width="0.5"/>`];
@@ -399,7 +498,7 @@ export class SheetEditor {
       const q = this.P(m.view, m.at);
       out.push(`<g class="sh-miss"><circle cx="${q[0]}" cy="${q[1]}" r="2" fill="#f59e0b" opacity="0.85"/><text x="${q[0]}" y="${q[1] + 1.1}" font-size="2.8" text-anchor="middle" fill="#fff">?</text></g>`);
     }
-    out.push(this.titleSvg(pw, ph, m, th, s));
+    out.push(this.titleSvg(pw, ph, m, th));
     out.push('</svg>');
     return out.join('').replace(/<text /g, '<text font-family="Helvetica" '); // (the PDF's converter does not inherit a font)
   }
@@ -494,7 +593,7 @@ export class SheetEditor {
 
   /** How the title block looks: {layout: 'block' | 'strip', hide: Set of fields, texts (fixed: company, address, drawn,
    *  note, tolstd), logo (a data URL) or null}. */
-  tb() { return { layout: 'block', hide: new Set(), texts: {}, logo: null }; }
+  tb() { return this.tbOf(this.d); }
 
   /** The title block (ISO 7200 fields), clean and light: the part's name large, small muted labels over readable
    *  values, thin rules only between rows and short ones between cells; a company / logo column on the left; one
@@ -507,7 +606,7 @@ export class SheetEditor {
     const tol = src.tolerance ? `${(F.tolstd || 'ISO 2768').replace(/-[a-z]+$/i, '')}-${src.tolerance}` : F.tolstd || '—';
     const day = (iso) => (iso ? new Date(iso).toISOString().slice(0, 10) : '—');
     const name = X.title || T.part || this.hooks.partName(this.d.source) || '—';
-    const what = [T.kind || t('Part'), T.of ? `${t('in')} ${T.of}` : '', T.pos ? `${t('Pos.')} ${T.pos}` : ''].filter(Boolean).join(' · ');
+    const what = [T.kind || (this.d.asm ? t('Assembly') : t('Part')), T.of ? `${t('in')} ${T.of}` : '', T.pos ? `${t('Pos.')} ${T.pos}` : ''].filter(Boolean).join(' · ');
     const g = [`<g class="sh-title"><rect x="${x0}" y="${y0}" width="${W}" height="${th}" fill="#fff" stroke="${INK}" stroke-width="0.35"/>`];
     const hit = (key, x, y, w, h) => g.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fff" fill-opacity="0" stroke="none" data-tcell="${key}" class="sh-tcell"/>`);
     const cell = (label, value, x, y, w, h, fs = 2.9, key = null, bold = false) => {
@@ -518,16 +617,16 @@ export class SheetEditor {
     const row = (y, h, x, w, items) => { // cells by their weights, short rules between them
       const sum = items.reduce((a, it) => a + it[2], 0);
       let cx = x;
-      items.forEach(([label, value, wt, key, fs], i) => {
+      items.forEach(([label, value, wt, key, fs, bold], i) => {
         const cw = (w * wt) / sum;
         if (i) g.push(`<line x1="${cx}" y1="${y + 1.6}" x2="${cx}" y2="${y + h - 1.6}" stroke="${INK}" stroke-width="${THIN}"/>`);
-        cell(label, value, cx, y, cw, h, fs || 2.9, key);
+        cell(label, value, cx, y, cw, h, fs || 2.9, key, bold);
         cx += cw;
       });
     };
     const appLine = 'Auto3DModeler · mm';
     if (tb.layout === 'strip') { // one row: name, material, scale, paper, drawing no., rev, sheet
-      row(y0, th, x0, W, [[what, name, 2.6, 'title', 3.6], ...(on('material') ? [[t('Material'), T.material ?? (src.material || 'PLA'), 1.3]] : []),
+      row(y0, th, x0, W, [[what, name, 2.6, 'title', 3.6, true], ...(on('material') ? [[t('Material'), T.material ?? (src.material || 'PLA'), 1.3]] : []),
         [t('Scale'), scaleText(this.scaleArr()), 0.8], ...(on('paper') ? [[t('Paper'), L.paper, 0.6]] : []),
         ...(on('number') ? [[t('Drawing no.'), F.number || '', 1.3, 'number']] : []), ['Rev', `${this.d.rev}`, 0.5], ...(T.sheet ? [[t('Sheet'), T.sheet, 0.8]] : [])]);
       g.push(`<text x="${x0 + W - 1.2}" y="${y0 - 1.2}" font-size="1.6" fill="${MUTED}" text-anchor="end">${esc(appLine)}</text>`);
@@ -539,7 +638,7 @@ export class SheetEditor {
     if (C) {
       let y = y0 + 3;
       if (tb.logo) { g.push(`<image x="${x0 + 2}" y="${y}" width="${C - 4}" height="${th * 0.42}" preserveAspectRatio="xMidYMid meet" href="${esc(tb.logo)}"/>`); y += th * 0.42 + 1; }
-      if (F.company) { g.push(`<text x="${x0 + 2}" y="${y + 3.4}" font-size="3" font-weight="bold" fill="${INK}">${esc(fit(F.company, C - 4, 3))}</text>`); y += 4.6; }
+      if (F.company) { const cf = Math.max(2.1, Math.min(3, (C - 4) / (F.company.length * 0.5))); g.push(`<text x="${x0 + 2}" y="${y + 3.4}" font-size="${cf.toFixed(2)}" font-weight="bold" fill="${INK}">${esc(fit(F.company, C - 4, cf * 0.9))}</text>`); y += 4.6; }
       if (!F.company && !tb.logo) g.push(`<text x="${x0 + 2}" y="${y + 3.4}" font-size="2.6" font-weight="bold" fill="${MUTED}">Auto3DModeler</text><text x="${x0 + 2}" y="${y + 6.6}" font-size="1.9" fill="${MUTED}">${esc(t('Dimensions in mm'))}</text>`);
       for (const ln of String(F.address || '').split(/\s*[\n;]\s*|,\s+(?=\d)/).filter(Boolean).slice(0, tb.logo ? 2 : 4)) { g.push(`<text x="${x0 + 2}" y="${y + 2.4}" font-size="1.9" fill="${MUTED}">${esc(fit(ln, C - 4, 1.9))}</text>`); y += 2.8; }
       if (F.company || tb.logo) g.push(`<text x="${x0 + 2}" y="${y0 + th - 2.2}" font-size="1.7" fill="${MUTED}">${esc(appLine)}</text>`);
@@ -618,8 +717,8 @@ export class SheetEditor {
 
   /** A sheet that is not on screen drawn (a page of a drawing set): its data with `built`. */
   svgOf(d) {
-    const keep = this.d, at = this.balloonAt;
-    this.d = { views: {}, off: {}, dims: {}, hidden: [], user: [], rev: 1, ...d };
+    const keep = this.d, at = this.balloonAt, template = this.tplName(d); // (its set's template found while the sheet on screen is this.d)
+    this.d = { views: {}, off: {}, dims: {}, hidden: [], user: [], rev: 1, ...d, template };
     try { return this.svg(true); } finally { this.d = keep; this.isoMap = null; this.balloonAt = at; }
   }
 
@@ -670,7 +769,7 @@ export class SheetEditor {
     const visit = async (aid, parent) => {
       if (!(this.hooks.partData(aid)?.instances || []).length) return;
       const ex = ctx.sheetOf(aid)?.exploded ? 2 : 0; // (its own sheet's iso view exploded)
-      const own = ctx.sheetOf(aid), sd = this.pageData(own || {}); // its own sheet: the user's moves, dimensions, texts
+      const own = ctx.sheetOf(aid), sd = this.pageData(own || { source: aid }); // its own sheet: the user's moves, dimensions, texts
       const { built, rows } = await this.cached(`a|${aid}|${this.sourceHash(aid)}|${ex}|${[...this.itemNumbers(this.rootOf(aid) || aid)].join()}|${sd.paper || ''}|${this.layKey(sd)}`, () => this.assemblyPage(aid, ctx, ex, sd));
       const base = own ? structuredClone(own) : { created: now, changed: now, off: { Right: true }, views: { Iso: built.layout.views.Right } };
       pages.push({ name: name(aid), d: { ...base, source: aid, built, asm: { rows },
@@ -849,6 +948,46 @@ export class SheetEditor {
     return n;
   }
 
+  /** The right panel's Title block: its template (▾, 💾 Save as template…, Use for all drawings of this assembly), the
+   *  sheet's own texts, and (folded) the company, address, tolerance standard, logo, layout and the fields shown. */
+  titlePanel() {
+    const tp = this.tplOf(), tb = this.tbOf(), X = this.d.texts || {}, root = this.hooks.drawingCtx ? this.rootOf(this.d.source) : null;
+    const from = !this.d.template && tp.name !== DEFAULT_TPL.name ? this.hooks.partName(root) : null;
+    const field = ([k, l]) => `<div class="field"><label>${esc(t(l))}</label><input type="text" data-text="${k}" value="${esc(X[k] || '')}" placeholder="${esc(k === 'title' ? this.hooks.partName(this.d.source) || '' : k === 'tolstd' ? tp.texts?.tolstd || 'ISO 2768' : tp.texts?.[k] || '')}"></div>`;
+    return `<h3>${esc(t('Title block'))}</h3>
+      <div class="field"><label>${esc(t('Template'))}</label><select data-k="tpl" title="${esc(t('The title block\'s template: its layout, fields, company, logo and frame — Modern is the app\'s clean default'))}">${this.tpls.map((x) => `<option value="${esc(x.name)}" ${x.name === tp.name ? 'selected' : ''} data-no-i18n>${esc(x.builtin ? t(x.name) : x.name)}</option>`).join('')}</select></div>
+      ${from ? `<p class="hint">${esc(tv('From the drawing set of {asm}.', { asm: from }))}</p>` : ''}
+      <div class="row-actions sh-tplbtns"><button class="btn small" data-a="saveTpl" title="${esc(t('Keep this title block (layout, fields, company, address, drawn by, note, tolerance standard, logo, frame) as a template for all your projects'))}">💾 ${esc(t('Save as template…'))}</button>
+        ${tp.builtin ? '' : `<button class="mini danger" data-a="delTpl" title="${esc(t('Delete this template (drawings using it go back to Modern)'))}">✕</button>`}</div>
+      ${root ? `<div class="row-actions"><button class="btn small" data-a="tplSet" title="${esc(t('This template on every drawing of the assembly\'s set — the assembly\'s, its sub-assemblies\' and its parts\' — and on new ones'))}">⇶ ${esc(t('Use for all drawings of this assembly'))}</button></div>` : ''}
+      ${TEXTS.map(field).join('')}
+      <details class="sh-tbmore" ${this.tbOpen ? 'open' : ''}><summary title="${esc(t('Company, address, tolerance standard, logo, layout and the fields shown'))}">${esc(t('Company, logo and fields'))}</summary>
+        ${MORE_TEXTS.map(field).join('')}
+        <div class="field"><label>${esc(t('Logo'))}</label><span class="sh-logo"><button class="btn small" data-a="logo" title="${esc(t('A picture (PNG, JPEG or SVG) in the title block\'s left column'))}">🖼 ${esc(t(tb.logo ? 'Change…' : 'Choose…'))}</button>${tb.logo ? `<button class="mini danger" data-a="nologo" title="${esc(t('No logo'))}">✕</button>` : ''}<input type="file" data-k="logofile" accept="image/png,image/jpeg,image/svg+xml" hidden></span></div>
+        <div class="field"><label>${esc(t('Layout'))}</label><div class="seg sh-tblayout">${[['block', 'Block'], ['strip', 'Strip']].map(([k, l]) => `<button class="chip ${tb.layout === k ? 'on' : ''}" data-tbl="${k}" title="${esc(t(k === 'block' ? 'Three rows: the part\'s name large, then its facts' : 'One low row: the name and the main facts — more room for the views'))}">${esc(t(l))}</button>`).join('')}</div></div>
+        <div class="sh-tbfields" title="${esc(t('The fields the title block shows'))}">${TB_FIELDS.map(([k, l]) => `<label class="check"><input type="checkbox" data-tbf="${k}" ${tb.hide.has(k) ? '' : 'checked'}> ${esc(t(l))}</label>`).join('')}</div>
+        <p class="hint">${esc(t('Changes here are this drawing\'s — 💾 Save as template… keeps them for all.'))}</p>
+      </details>`;
+  }
+
+  bindTitlePanel(box) {
+    const tbSet = (k, v) => { this.d.tb = { ...(this.d.tb || {}), [k]: v }; this.commit(); this.ensure(); };
+    const fail = (e) => this.hooks.toast?.(e.message, 'error', 6000);
+    box.querySelector('[data-k=tpl]')?.addEventListener('change', (e) => { try { this.useTemplate(e.target.value); } catch (err) { fail(err); } });
+    box.querySelector('[data-a=saveTpl]')?.addEventListener('click', () => this.saveTemplate().catch(fail));
+    box.querySelector('[data-a=delTpl]')?.addEventListener('click', () => this.deleteTemplate(this.tplName()).catch(fail));
+    box.querySelector('[data-a=tplSet]')?.addEventListener('click', () => this.useTemplateForSet().catch(fail));
+    box.querySelector('.sh-tbmore')?.addEventListener('toggle', (e) => { this.tbOpen = e.target.open; });
+    for (const b of box.querySelectorAll('[data-tbl]')) b.addEventListener('click', () => tbSet('layout', b.dataset.tbl));
+    for (const c of box.querySelectorAll('[data-tbf]')) {
+      c.addEventListener('change', () => { const hide = new Set(this.tbOf().hide); if (c.checked) hide.delete(c.dataset.tbf); else hide.add(c.dataset.tbf); tbSet('hide', [...hide]); });
+    }
+    const file = box.querySelector('[data-k=logofile]');
+    box.querySelector('[data-a=logo]')?.addEventListener('click', () => file?.click());
+    box.querySelector('[data-a=nologo]')?.addEventListener('click', () => tbSet('logo', null));
+    file?.addEventListener('change', async () => { const f = file.files?.[0]; if (f) { try { tbSet('logo', await logoData(f)); } catch (e) { fail(e); } } });
+  }
+
   renderProps() {
     const box = this.$('.sh-props');
     if (!box || !this.d) return;
@@ -856,7 +995,7 @@ export class SheetEditor {
     box.innerHTML = `<h2>📄 ${esc(t('Drawing'))}</h2>
       <p class="hint">${esc(tv('Of {part} — it follows the part: change the part, the drawing is made again (a new revision).', { part: name || '?' }))}</p>
       <div class="mp-facts"><span>Rev</span><b data-no-i18n>${this.d.rev}</b><span>${esc(t('Changed'))}</span><b data-no-i18n>${esc(when(this.d.changed))}</b><span>${esc(t('Created'))}</span><b data-no-i18n>${esc(when(this.d.created))}</b></div>
-      ${d ? '' : `<h3>${esc(t('Title block'))}</h3>${TEXTS.map(([k, l]) => `<div class="field"><label>${esc(t(l))}</label><input type="text" data-text="${k}" value="${esc(this.d.texts?.[k] || '')}" placeholder="${esc(k === 'title' ? this.hooks.partName(this.d.source) || '' : '')}"></div>`).join('')}`}
+      ${d ? '' : this.titlePanel()}
       ${this.d.asm ? `<label class="check"><input type="checkbox" data-k="exploded" ${this.d.exploded ? 'checked' : ''}> ${esc(t('Iso view exploded'))}</label>` : ''}
       <div class="field"><label>Paper</label><select data-k="paper">${[['', 'Auto'], ['A4', 'A4'], ['A3', 'A3']].map(([v, l]) => `<option value="${v}" ${(this.d.paper || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="field"><label>${esc(t('Scale'))}</label>${this.scaleSelect('data-k="scale"', this.d.scale, this.d.scale ? t('Auto') : `${t('Auto')} (${scaleText(this.lay?.scale || [1, 1])})`, t('The sheet\'s scale: Auto fits the views on the paper; or a standard one, or your own (Custom…, e.g. 1:2522). Dimensions always show the real sizes.'))}</div>
@@ -871,6 +1010,7 @@ export class SheetEditor {
       el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') el.blur(); });
       el.addEventListener('change', () => { const x = { ...(this.d.texts || {}) }; if (el.value.trim()) x[el.dataset.text] = el.value.trim(); else delete x[el.dataset.text]; this.d.texts = x; this.commit(); });
     }
+    this.bindTitlePanel(box);
     box.querySelector('[data-k=exploded]')?.addEventListener('change', (e) => { // (the parts pulled apart in the iso view, balloons on them)
       if (e.target.checked) this.d.exploded = true; else delete this.d.exploded;
       delete this.d.balloons;
@@ -1418,6 +1558,8 @@ export class SheetEditor {
       part: this.hooks.partName(this.d.source), ...(Object.keys(this.d.texts || {}).length ? { texts: this.d.texts } : {}), preset: this.d.preset, ...(Object.keys(this.d.vpreset || {}).length ? { view_presets: this.d.vpreset } : {}), paper: this.lay?.paper, rev: this.d.rev, changed: this.d.changed,
       views: [...VIEWS, 'Iso'].filter((v) => !this.d.off[v]),
       scale: `${scaleText(this.scaleArr())}${this.d.scale ? '' : ' (auto)'}`,
+      template: `${this.tplName()}${this.d.template ? '' : this.tplName() === DEFAULT_TPL.name ? ' (default)' : ' (the drawing set\'s)'}`,
+      templates: this.tpls.map((x) => x.name),
       ...(Object.keys(this.d.vscale || {}).length ? { view_scales: Object.fromEntries(Object.entries(this.d.vscale).map(([v, s]) => [v, scaleText(s)])) } : {}),
       ...(Object.keys(this.d.viewNames || {}).length ? { view_names: this.d.viewNames } : {}),
       ...(this.outside().length ? { past_the_frame: this.outside() } : {}),

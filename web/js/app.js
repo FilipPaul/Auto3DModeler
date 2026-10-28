@@ -1910,6 +1910,22 @@ const sheet = new SheetEditor({ left: $('shLeft'), viewport: $('shViewport'), ri
   parts: () => project.parts,
   openSheet: (id) => { const p = project.parts.find((q) => q.id === id); if (p) project.newSheet(id, `${p.name} — ${t('drawing')}`); },
   openPart: (id) => project.switchTo(id),
+  // a title-block template on every sheet of a drawing set (ids: its pages' sources); the top assembly gets a sheet
+  // when it has none (new sheets of the set take the template from it) -> how many sheets
+  applyTemplate: (root, name, ids) => {
+    let n = 0;
+    for (const id of ids) {
+      const p = project.parts.find((q) => q.kind === 'sheet' && (q.data === 'live' ? q.id === project.active && sheet.d?.source === id : q.data?.source === id));
+      const d = !p ? null : p.data === 'live' ? sheet.d : p.data;
+      if (d) { d.template = name; delete d.tb; delete d.frame; n++; continue; }
+      if (id !== root) continue; // (a page without its own sheet: drawn with the set's template)
+      const now = new Date().toISOString(), a = project.parts.find((q) => q.id === root);
+      project.addBackground(`${a?.name || root} — ${t('drawing')}`, { source: root, preset: 'medium', created: now, changed: now, rev: 1, template: name }, 'sheet');
+      n++;
+    }
+    updateTopButtons();
+    return n;
+  },
 });
 /** The drawing set of an assembly as one PDF -> the downloaded file's name (pages: the assembly, its sub-assemblies, the parts). */
 /** What a drawing set needs to know of the project. */

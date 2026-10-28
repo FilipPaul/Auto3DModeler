@@ -824,6 +824,20 @@ Date: 2026-10-25. Written by the architect agent.
   cells; dates as ISO 8601. 150 mm wide on A4, 180 mm on A3, inside the frame's right / bottom margins. The parts list
   of an assembly's page in the same style (one outline, muted header over a rule, light rows, the position bold).
   tools/e2e_sheet_views_templates.py (inside the frame, black / grey / white only, the name ≥ 5 mm).
+- **Title-block templates for a whole drawing set done:** auto3d/title_templates.py — {name, layout block | strip,
+  hide [fields], texts {company, address, drawn, note, tolstd}, logo (a data URL ≤ 400 kB), frame} kept in
+  data/title_templates.json (server-side, like the parts library: every project uses them); the app's Modern (the
+  default), Compact (a strip) and ISO 5457 cannot be changed. GET / POST / DELETE /api/title-templates. A sheet names
+  its template (d.template); without one it takes its drawing set's (the top assembly's sheet's — new sheets of the set
+  too), else Modern; d.tb {layout, hide, logo} are this sheet's own changes. The right panel: Template ▾, 💾 Save as
+  template… (ask: a name; the title block as shown, the sheet's company / address / drawn / note / tolerance standard
+  go into it), ⇶ Use for all drawings of this assembly (hooks.applyTemplate: every sheet of SheetEditor.pagesOf(root),
+  the top assembly's made when it has none), and folded: Company, Address, Tolerance standard, Logo (scaled to ≤ 600 ×
+  300 px), Layout Block | Strip (14 mm: layout(frame.title) gives the views the room), the fields shown. svgOf takes
+  the set's template, so the PDF, the DXF and 📚 All pages show it. AI: sheet_edit template / template_all /
+  save_template, texts company / address / tolstd; get_sheet template + templates. tests/test_title_templates.py;
+  tools/e2e_sheet_views_templates.py (typed, saved, kept on the server; Machine → Lid unit → Lid / Pin, Base: all five
+  pages and their PDF carry the company; a new sheet of the set takes it; the DXF; back to Modern).
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

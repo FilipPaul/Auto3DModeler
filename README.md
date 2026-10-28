@@ -481,7 +481,12 @@ moves it freely. **Scale**: the sheet's *Scale* is *Auto* (fitted to the paper) 
 (*Detail B (2:1)*). The title block shows the sheet's scale; dimensions always show the part's real sizes; a view that
 no longer fits inside the frame is flagged (⚠), not refused. The **title block** is clean and light (ISO 7200
 fields): the part's name large, small grey labels over the values, thin rules, a company / logo column on the left —
-it prints well in black and white; an assembly's parts list matches it.
+it prints well in black and white; an assembly's parts list matches it. **Title-block templates**: in the sheet's
+panel choose *Template* (Modern, Compact, ISO 5457 or your own); type your *Company*, *Address*, *Drawn by*, a
+default *Note*, the *Tolerance standard*, pick a *Logo*, the *Layout* (Block / a low Strip) and the fields shown
+(under *Company, logo and fields*), then **💾 Save as template…** — kept on the server for all your projects. On a
+drawing of an assembly, **⇶ Use for all drawings of this assembly** puts it on the assembly's, its sub-assemblies'
+and its parts' drawings, and new drawings of that set take it too; the PDF and DXF use it.
 The title block takes your own texts — *Title*, *Drawing no.*, *Drawn by*, *Note* — in the panel (a double-click on a cell goes to its field). **⬇ PDF** gives the sheet as you see it — the page is the paper (A4 / A3) and
 1 mm on the sheet is 1 mm on the page, so printed at 100 % ("actual size", not "fit to page") the sheet's scale holds.
 **⬇ DXF** gives it for drafting programs (AutoCAD, SolidWorks / Solid Edge drafting): the paper 1:1 in mm, the views

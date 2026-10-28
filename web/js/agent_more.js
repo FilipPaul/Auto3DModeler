@@ -346,9 +346,14 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       await sheet.ensure();
       return ok({ ...sheet.summary(), ...(points ? { [points]: sheet.pointsOf(points) } : {}) });
     },
-    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, texts, complete, drop_twice, fits, scale, view_scales, view_names } = {}) => {
+    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, texts, complete, drop_twice, fits, scale, view_scales, view_names, template, template_all, save_template } = {}) => {
       need('sheet', 'This is for a drawing sheet (📄) — sheet_open opens one');
       const ed = sheet, done = [];
+      if (template !== undefined) {
+        await ed.loadTemplates();
+        ed.useTemplate(template || 'Modern');
+        done.push(`title block ${template || 'Modern'}`);
+      }
       const sc = (v, what) => { if (v === null || v === '') return null; const s = parseScale(v); if (!s) throw new Error(`${what}: a scale such as "1:2", "2:1" or "1:2522" (null: ${what === 'scale' ? 'automatic' : 'the sheet\'s'}).`); return s; };
       if (scale !== undefined) {
         const s = sc(scale, 'scale');
@@ -396,7 +401,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       }
       if (restore) { ed.d.hidden = []; done.push('the deleted ones back'); }
       for (const [k, v] of Object.entries(texts || {})) {
-        if (!['title', 'number', 'drawn', 'note'].includes(k)) throw new Error('texts: {title, number, drawn, note} — the title block\'s own texts.');
+        if (!['title', 'number', 'drawn', 'note', 'company', 'address', 'tolstd'].includes(k)) throw new Error('texts: {title, number, drawn, note, company, address, tolstd} — the title block\'s own texts.');
         ed.d.texts = { ...(ed.d.texts || {}) };
         if (String(v ?? '').trim()) ed.d.texts[k] = String(v).trim(); else delete ed.d.texts[k];
         done.push(`${k}: ${v || '—'}`);
@@ -424,6 +429,8 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       if (drop_twice) { const ck = ed.check(); const ids = [...ck.dup, ...ck.over]; for (const id of ids) ed.remove(id); done.push(`${ids.length} given twice removed`); }
       if (complete) done.push(`${ed.addAllMissing()} missing size(s) added`);
       ed.commit();
+      if (save_template) done.push(`saved as the template ${await ed.saveTemplate(String(save_template))}`);
+      if (template_all) done.push(`${await ed.useTemplateForSet()} drawing(s) of the set use ${ed.tplName()}`);
       return ok({ done: done.join('; ') || 'nothing', ...ed.summary() });
     },
 

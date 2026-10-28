@@ -527,6 +527,13 @@ body:not(.ws-model):not(.ws-assembly):not(.ws-drawing):not(.ws-sheet) .not-quick
 .sh-vlabel { cursor: text; }
 .sh-rename { position: fixed; z-index: 90; width: 160px; font-size: 13px; text-align: center; padding: 2px 4px; border: 1px solid #1f6feb; border-radius: 4px; background: #fff; color: #111; }
 .sh-outside { font-size: 12px; }
+.sh-tplbtns { align-items: center; }
+.sh-tbmore { margin: 6px 0 4px; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
+.sh-tbmore summary { cursor: pointer; font-size: 12px; color: var(--muted); padding: 2px 0; }
+.sh-tbmore[open] summary { margin-bottom: 6px; }
+.sh-tbfields { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; font-size: 12px; margin: 4px 0; }
+.sh-logo { display: flex; gap: 6px; align-items: center; }
+.sh-tblayout { margin: 0; }
 .sh-dlist { display: flex; flex-direction: column; gap: 3px; max-height: 50vh; overflow-y: auto; }
 .sh-drow { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; font-size: 11.5px; cursor: pointer; }
 .sh-drow i { font-style: normal; color: var(--muted); font-size: 10.5px; }

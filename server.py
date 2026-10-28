@@ -26,6 +26,7 @@ from auto3d import progress
 from auto3d.agent import ChatSession, Relay, find_claude
 from auto3d.ai_history import HistoryError, delete_state, list_states, load_state, save_state
 from auto3d import library as parts_library
+from auto3d import title_templates
 from auto3d import autosave
 from auto3d.agent_tools import BROWSER_TOOLS, TOOL_NAMES
 from auto3d.bend import bend_info, bend_solid
@@ -200,6 +201,32 @@ def api_library_delete(item_id):
     except parts_library.LibraryError as e:
         return jsonify({"error": str(e)}), 404
     return jsonify({"ok": True})
+
+
+@app.get("/api/title-templates")
+def api_title_templates():
+    """The title-block templates of drawing sheets: the app's, then the user's (data/title_templates.json)."""
+    return jsonify({"templates": title_templates.load(DATA)})
+
+
+@app.post("/api/title-templates")
+def api_title_template_save():
+    """{template: {name, layout, hide, texts, logo, frame}} -> it kept (one of the same name replaced) + the list."""
+    body = request.get_json(force=True, silent=True) or {}
+    try:
+        kept = title_templates.save(DATA, body.get("template"))
+    except title_templates.TemplateError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"template": kept, "templates": title_templates.load(DATA)})
+
+
+@app.delete("/api/title-templates/<path:name>")
+def api_title_template_delete(name):
+    try:
+        title_templates.delete(DATA, name)
+    except title_templates.TemplateError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"templates": title_templates.load(DATA)})
 
 
 PROJECTS = DATA / "projects"  # autosave: the projects kept on the server (auto3d/autosave.py)
