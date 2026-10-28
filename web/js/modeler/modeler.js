@@ -189,6 +189,7 @@ export class Modeler {
     } else if (this.mode === 'plane') {
       bar.innerHTML = `<span class="m-mode">Sketch on…</span><span class="m-say">click a flat face of the part — or a plane:</span>
         ${btn('datum-XY', 'Top', 'Sketch on the Top plane (XY)')}${btn('datum-XZ', 'Front', 'Sketch on the Front plane (XZ)')}${btn('datum-YZ', 'Right', 'Sketch on the Right plane (YZ)')}
+        <span class="sep"></span>${btn('midPlane', '⇳ Midway', 'Sketch midway between two parallel flat faces (e.g. a rib in the middle of a part): click one face, then the other — the sketch stays in the middle when they move', this.midPick ? 'on' : '')}
         <div class="mp-actions">${btn('cancelPlane', '✕ Cancel', 'Do not start a sketch (Esc)')}</div>`;
     } else {
       this.els.viewport.querySelector(':scope > .view-suggest[data-from=sketch]')?.remove(); // (the sketch's suggestions)
@@ -289,6 +290,7 @@ export class Modeler {
     if (a.startsWith('datum-')) return this.enterSketch({ datum: a.slice(6) });
     if (a.startsWith('plane-')) return this.movePlane(a.slice(6));
     if (a === 'cancelPlane') return this.cancelPlane();
+    if (a === 'midPlane') return this.toggleMidPick();
     if (a === 'autodim' && this.sk) return this.sk.autoDimension();
     if (['rect', 'line', 'slot', 'spline', 'circle', 'arc', 'round', 'trim', 'extend', 'offset', 'select', 'dim'].includes(a)) return this.sk.setTool(a);
     if (a === 'outline') return this.insertOutline();
@@ -1203,7 +1205,17 @@ export class Modeler {
     this.render();
   }
 
+  /** ⇳ Midway: the next two clicks on parallel flat faces put the sketch halfway between them. */
+  toggleMidPick() {
+    this.midPick = this.midPick ? null : {};
+    this.view.setSelectedFaces(null);
+    this.hint(this.midPick ? 'Midway — click a flat face, then the face opposite it. Esc cancels.' : 'Click a flat face of the part to sketch on it — or choose Top / Front / Right above. Esc cancels.');
+    this.render();
+  }
+
   cancelPlane() {
+    this.midPick = null;
+    this.view.setSelectedFaces(null);
     this.mode = 'part';
     this.view.setHover(-1);
     this.datums(!this.result?.body);
@@ -1213,6 +1225,7 @@ export class Modeler {
 
   // ------------------------------------------------------------------ sketch mode (sketcher.js does the drawing)
   enterSketch(plane, existing = null) {
+    this.midPick = null;
     this.closeCtx();
     this.closeDimEdit();
     this.dimStep = null;
@@ -2613,10 +2626,32 @@ export class Modeler {
     const h = this.view.pick(e.clientX, e.clientY, { datums: true });
     if (h?.face) {
       if (h.face.type !== 'plane') { this.hooks.toast('Pick a flat face — sketches go on flat faces.', 'warning'); return; }
+      if (this.midPick) return this.clickMid(h);
       const plane = { frame: h.face.frame };
       if (h.face.ref) plane.face = h.face.ref;
       this.enterSketch(plane);
     } else if (h?.datum) this.enterSketch({ datum: h.datum });
+  }
+
+  /** ⇳ Midway's clicks: the first face kept (lit), the second one parallel to it -> the sketch halfway between. */
+  clickMid(h) {
+    const ref = h.face.ref || (h.face.name ? { name: h.face.name } : null);
+    const first = this.midPick.first;
+    if (!first) {
+      this.midPick.first = { id: h.face.id, ref, frame: h.face.frame };
+      this.view.setSelectedFaces([h.face.id]);
+      this.hint('Now click the face opposite it (parallel to it). Esc cancels.');
+      return;
+    }
+    const fr = first.frame, n = fr.n, p = [h.point.x, h.point.y, h.point.z];
+    const par = Math.abs(n[0] * h.face.frame.n[0] + n[1] * h.face.frame.n[1] + n[2] * h.face.frame.n[2]);
+    const gap = (p[0] - fr.o[0]) * n[0] + (p[1] - fr.o[1]) * n[1] + (p[2] - fr.o[2]) * n[2];
+    if (Math.abs(par - 1) > 1e-6 || Math.abs(gap) < 1e-6) { this.hooks.toast('Click a face parallel to the first one, across from it.', 'warning'); return; }
+    const plane = { frame: { ...fr, o: fr.o.map((v, i) => v + (gap / 2) * n[i]) } };
+    if (first.ref && ref) Object.assign(plane, { face: first.ref, mid: ref });
+    this.midPick = null;
+    this.view.setSelectedFaces(null);
+    this.enterSketch(plane);
   }
 
   key(e) {

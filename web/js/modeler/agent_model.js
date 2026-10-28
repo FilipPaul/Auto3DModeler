@@ -163,6 +163,12 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
     }
     const f = faceOf(plane.face);
     if (f.type !== 'plane') throw new Error(`The face “${plane.face}” is not flat — sketches and holes go on flat faces.`);
+    if (plane.mid) { // midway between this face and the parallel face across from it (follows both)
+      const g = faceOf(plane.mid), n = f.frame.n, dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+      const gap = g.type === 'plane' ? dot(g.frame.o.map((v, i) => v - f.frame.o[i]), n) : 0;
+      if (g.type !== 'plane' || Math.abs(Math.abs(dot(n, g.frame.n)) - 1) > 1e-6 || Math.abs(gap) < 1e-6) throw new Error(`mid: “${plane.mid}” must be a flat face parallel to “${plane.face}”, across from it.`);
+      return { face: f.ref || { name: f.name }, mid: g.ref || { name: g.name }, frame: { ...f.frame, o: f.frame.o.map((v, i) => v + (gap / 2) * n[i]) } };
+    }
     return { face: f.ref || { name: f.name }, frame: f.frame };
   };
   const summary = () => {

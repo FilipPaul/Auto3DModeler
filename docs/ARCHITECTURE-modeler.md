@@ -91,6 +91,10 @@ Date: 2026-10-25. Written by the architect agent.
   tools/e2e_ai_reports.py.
 - **Steps named after their sketch done:** nextName(type, sketch): an extrude / revolve of a sketch the user named
   is "Extrude – Slot" (a "Sketch 2" keeps "Extrude 3"), in the panel and for the AI. tools/e2e_ai_reports.py.
+- **⇳ Midway sketch plane done:** a face plane's `mid` (the parallel face across): doc.plane_frame puts its origin
+  halfway between both faces as they are now (_plane_offset; a face gone: the place it had); the "Sketch on…" bar's
+  ⇳ Midway (toggleMidPick / clickMid: the first face lit, the second parallel and across -> enterSketch); the AI's
+  plane {face, mid} (planeOf refuses one not parallel). test_mid_plane; tools/e2e_sketch_midplane.py.
 - **𝐓 Text in sketches done:** the sketch bar's 𝐓 Text (Modeler.insertText / textBlock: textOutline traced by
   /api/trace, scaled to the letters' own box h high, its corner at 0) -> a block entity with `text` (the kernel's
   block loops, holes kept); its panel: Text (retext: traced again, the height and corner kept) and Height (setBlock
@@ -675,7 +679,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 | Datum planes XY / XZ / YZ, axes X / Y / Z, origin | built in | MVP (M1) |
 | Offset plane | plane or face, distance | MVP (M3) |
 | Angled plane | plane + edge / axis, angle | MVP (M3) |
-| Mid plane | two parallel faces | Later |
+| Mid plane | two parallel faces | Done (⇳ Midway, a sketch's plane {face, mid}) |
 | Axis | cylinder face, or 2 points, or 2 planes | MVP (M3): cylinder and 2 points |
 | Point | vertex, centre of circle | Later |
 

@@ -95,6 +95,17 @@ def _face_name(plane):
     return None
 
 
+def _plane_offset(name, n0, o0, st: State):
+    """How far along n0 from o0 the flat face `name` (square to n0) lies now; None when it is not there."""
+    if not name or st.body is None:
+        return None
+    for face in st.body.faces_of(name):
+        pl = K.plane_of(face)
+        if pl is not None and abs(abs(pl[1] @ n0) - 1) <= 1e-6:
+            return float((pl[0] - o0) @ n0)
+    return None
+
+
 def plane_frame(plane, st: State):
     if not plane or "datum" in plane:
         fr = DATUMS.get((plane or {}).get("datum", "XY"))
@@ -109,6 +120,12 @@ def plane_frame(plane, st: State):
         raise K.KernelError("The sketch has no plane.")
     fr = {k: [float(x) for x in v] for k, v in fr.items()}
     name = _face_name(plane)
+    if plane.get("mid"):  # midway between two parallel faces: wherever both are now
+        n0, o0 = np.asarray(fr["n"], float), np.asarray(fr["o"], float)
+        offs = [_plane_offset(nm, n0, o0, st) for nm in (name, _face_name({"face": plane["mid"]}))]
+        if None not in offs:
+            fr["o"] = [round(float(x), 9) for x in o0 + (sum(offs) / 2) * n0]
+        return fr
     if name and st.body is not None:
         # follow the face: wherever it is now (its plane), the sketch keeps its place on it
         for face in st.body.faces_of(name):

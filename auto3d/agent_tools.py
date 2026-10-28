@@ -178,7 +178,7 @@ TOOLS = [
                     "meant, else flip: true). type:\n"
                     "- sketch: plane \"XY\" (top, the bed) / \"XZ\" (front) / \"YZ\" (right) / {datum: \"XY\", offset: 30} (moved along its "
                     "normal) / {face: <name>} (origin = the face's "
-                    "centre); shapes: [{rect: {x, y, w, h, r}} (lower-left corner; r = rounded corners) | {circle: {x, y, d}} | {slot: {x1, y1, x2, y2, w}} (round ends "
+                    "centre) / {face: <name>, mid: <the parallel face across>} (midway between them, e.g. a centred rib; follows both); shapes: [{rect: {x, y, w, h, r}} (lower-left corner; r = rounded corners) | {circle: {x, y, d}} | {slot: {x1, y1, x2, y2, w}} (round ends "
                     "centred at x1,y1 and x2,y2) | {polyline: {points: [[u, v], …]}} "
                     "(closed) | {profile: {points: [[u, v], {smooth: [[u, v], …]}, [u, v], {arc: [u, v]}, [u, v], …]}} (closed: corners "
                     "[u, v] joined by straight lines; {smooth: [...]} = a smooth curve through those points to the next corner — one "

@@ -181,6 +181,9 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_assembly_sheet_explode.py <url> <dir>` covers an assembly sheet's exploded iso (Base + Lid on top: ☐ Iso
    view exploded ticked — the iso taller, the front the same, the balloons moved; Ctrl+Z back; a picture of the
    sheet). Needs a server restarted after kernel changes.
+   `tools/e2e_sketch_midplane.py <url> <dir>` covers ⇳ Midway with real clicks (a block's front face, the camera
+   turned, its back face -> a sketch at y 10 with plane {face, mid}); the AI's plane {face, mid}; the block made
+   deeper -> the sketch at y 15; a face not parallel refused. Needs a server restarted after kernel changes.
    `tools/e2e_sketch_text.py <url> <dir>` covers 𝐓 Text in a sketch ("Text" 10 high, the text field focused; typed
    "AO", height 12; extruded 3: 25 × 12 × 3, the letters' holes kept — about 0.58 of its box; ↶ Undo).
    `tools/e2e_sketch_slot.py <url> <dir>` covers the sketch plane's offset direction (+ = +Z and an arrow; on Front

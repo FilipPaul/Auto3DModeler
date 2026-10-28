@@ -72,6 +72,18 @@ class TestFeatures(unittest.TestCase):
         self.assertAlmostEqual(v, 12000 - math.pi * 9 * 4, delta=1e-3)
         self.assertAlmostEqual(r["frames"]["H1"]["o"][2], 15)
 
+    def test_mid_plane(self):
+        """A sketch midway between the front (y 0) and back (y 20) walls: at y 10; the box 30 deep: at y 15 — it follows
+        both faces. A face that is gone keeps the place it had."""
+        mid = {"face": {"name": "E1:side:l1"}, "mid": {"name": "E1:side:l3"}, "frame": {"o": [20, 10, 5], "x": [1, 0, 0], "n": [0, -1, 0]}}
+        sk = {"id": "S2", "type": "sketch", "plane": mid, "points": {}, "entities": []}
+        r, _ = vol(*box(), sk)
+        self.assertAlmostEqual(r["frames"]["S2"]["o"][1], 10)
+        r, _ = vol(*box(h=30), sk)
+        self.assertAlmostEqual(r["frames"]["S2"]["o"][1], 15)
+        r, _ = vol(*box(), {**sk, "plane": {**mid, "mid": {"name": "E9:end"}}})
+        self.assertAlmostEqual(r["frames"]["S2"]["o"][1], 10)
+
     def test_hole_heads(self):
         """⌴ A counterbore (Ø10 × 4 over a Ø6 through hole) and ⌵ a countersink (Ø12 at 90° over Ø6: a cone 3 deep):
         exact volumes, the head's faces named; a head narrower than the hole refused."""
