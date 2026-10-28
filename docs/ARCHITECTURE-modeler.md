@@ -80,6 +80,10 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Reference dimensions, quieter dimension lines done:** relock returns whether it held ({quiet}); addDim of a size
+  the others fix (redundant at its own value) keeps it as `free: true` (a reference: only measures, "(90°)"; a
+  shape's own size: a note); dimension / extension lines dashed (DIM_ON soft violet, DIM_FREE faint), drawn for free
+  sizes too. e2e_sketch_smart (90° between two sides of the rectangle: a reference, no error).
 - **🧹 Clean up empty projects done:** autosave.empty_default (every part empty — a model without steps, an assembly
   without parts, a drawing without shapes; a sheet counts as something — and the project's and parts' names the app's
   own: 3D model 1, Sestava 2, Project …) / cleanup(keep, dry_run); POST /api/projects-cleanup; 🕘 Recent projects ›

@@ -128,6 +128,17 @@ try:
     print("🪄 then:", state())
     time.sleep(0.5)
     print("  its lines:", colours(), "(green: fully defined)")
+    # a dimension the others fix already (90° between two sides of the rectangle): kept as a reference, in brackets
+    tool("dim")
+    click_uv(mid("left"))
+    click_uv((mid("right")[0] * 0.25 + mid("left")[0] * 0.75, js(f"return Math.max(...Object.values({SK}.f.points).map(p => p[1]))")))  # the top side, near the left
+    time.sleep(1.0)
+    ref = js(f"const x = {SK}.f.dims.find(x => x.t === 'ang'); return x ? [!!x.free, +{SK}.measure(x).toFixed(2)] : null")
+    print("90° between two sides: a reference:", ref, "| its label:",
+          js("return [...document.querySelectorAll('.sk-label.dist')].map(l => l.querySelector('.sk-val').textContent).find(t => t.startsWith('∠'))"),
+          "| an error:", js("return [...document.querySelectorAll('.toast.error')].length"), "| still fully defined:", js(f"return {SK}.dof"))
+    d.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
+    time.sleep(0.3)
     d.save_screenshot(f"{OUT}/sketch_smart.png")
 
     # a triangle: two crossing lines -> their angle; a corner and the slanted side -> its distance from it

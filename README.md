@@ -70,8 +70,11 @@ are not part of the outline that is extruded.
 shows only while sizes are still free. **↔ Dimension** on a line, circle or arc gives its size at once (a box beside
 it: type and Enter); a click on a second shape instead gives what fits the two: two points — the distance (along x,
 along y or straight), two crossing lines — the **angle** between the arms you clicked, a point and a slanted line —
-its distance from the line, two parallel lines — the distance between them. Locked sizes are drawn **as on a
-drawing** (extension lines, a dimension line with arrows, a leader for Ø / R); **drag** any size label to move it
+its distance from the line, two parallel lines — the distance between them. Sizes are drawn **as on a
+drawing** (dashed extension lines, a dimension line with arrows, a leader for Ø / R — soft violet when locked, faint
+when free). A dimension the other sizes fix already (90° between two sides of a rectangle) is added as a **reference
+dimension**: it only measures, shown in brackets *(90°)*; 🔓 / 🔒 on a dimension switches it between reference and
+driving; **drag** any size label to move it
 (kept with the sketch), and the mouse on a label lights up what it measures.
 
 **Actions in the corner**: the buttons that finish or leave a step — **✓ Finish sketch**, **OK** / **Cancel** of a

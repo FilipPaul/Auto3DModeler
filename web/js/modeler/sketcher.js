@@ -520,7 +520,7 @@ export class Sketcher {
   }
 
   /** Change the locks (dims) and solve; when the result contradicts other locks, go back and say which. */
-  async relock(mutate, hold = null, keep = null) {
+  async relock(mutate, hold = null, keep = null, { quiet = false } = {}) {
     const before = structuredClone(this.f);
     this.step();
     mutate();
@@ -542,10 +542,13 @@ export class Sketcher {
       this.undo.pop();
       const names = (r.conflicts || []).map((id) => this.dimName(this.f.dims.find((d) => d.id === id))
         || ((k) => k && RELATIONS[k.t] ? `${RELATIONS[k.t].icon} ${t(RELATIONS[k.t].name)}` : '')(before.constraints.find((k) => k.id === id))).filter(Boolean);
-      this.m.toast(r.error || (names.length ? `That does not fit the other locked sizes (${names.join(', ')}) — unlock one of them first.`
-        : 'That does not fit the other locked sizes — unlock one of them first.'), 'error', 7000);
+      if (!quiet) {
+        this.m.toast(r.error || (names.length ? `That does not fit the other locked sizes (${names.join(', ')}) — unlock one of them first.`
+          : 'That does not fit the other locked sizes — unlock one of them first.'), 'error', 7000);
+      }
     } else this.apply(r);
     this.changed();
+    return !!r.ok;
   }
 
   dimName(d) {
@@ -1864,10 +1867,21 @@ export class Sketcher {
   /** Add a dimension (locked at the distance it has now), then let the user type the value right away. */
   async addDim(o, { edit = true } = {}) {
     const v = +o.v.toFixed(6);
-    await this.relock(() => {
+    const held = await this.relock(() => {
       if (!this.findDim(o.spec)) this.f.dims.push({ id: this.newId('d'), ...o.spec, v });
       this.unhide(o.spec);
-    });
+    }, null, null, { quiet: true });
+    if (!held) { // (at the value it has, so it can only repeat what the other sizes fix)
+      if (['len', 'dia', 'rad'].includes(o.spec.t)) {
+        this.m.toast(t('Its size is fixed by the other sizes already — its label shows it as it is.'), 'info', 5000);
+        return;
+      }
+      this.step();
+      if (!this.findDim(o.spec)) this.f.dims.push({ id: this.newId('d'), ...o.spec, v, free: true });
+      this.changed();
+      this.m.toast(t('Fixed by the other sizes already — added as a reference dimension: it only measures (shown in brackets). 🔒 on it makes it drive instead of another.'), 'info', 7000);
+      return;
+    }
     const d = this.findDim(o.spec);
     if (!d || !edit) return;
     // labels reach the page with the next frame of the 3D view
@@ -1912,11 +1926,12 @@ export class Sketcher {
     el.className = `sk-label edit dist${d.free ? '' : ' locked'}`;
     el.dataset.dim = d.id;
     el.innerHTML = '<span class="sk-val"></span><button class="sk-lock"></button><button class="sk-del" title="Delete this dimension">✕</button>';
-    el.querySelector('.sk-val').textContent = `${{ dx: '↔', dy: '↕', dist: '⤢', ang: '∠', pl: '⊥' }[d.t]} ${fmt(Math.abs(d.free ? this.measure(d) : d.v))}${d.t === 'ang' ? '°' : ''}`;
-    el.querySelector('.sk-val').title = d.free ? 'Measured distance (free) — click to type a value and lock it' : 'Locked distance — click to type a new value';
+    const shown = `${fmt(Math.abs(d.free ? this.measure(d) : d.v))}${d.t === 'ang' ? '°' : ''}`;
+    el.querySelector('.sk-val').textContent = `${{ dx: '↔', dy: '↕', dist: '⤢', ang: '∠', pl: '⊥' }[d.t]} ${d.free ? `(${shown})` : shown}`;
+    el.querySelector('.sk-val').title = d.free ? 'A reference dimension (it only measures: the other sizes drive it) — click to type a value and lock it' : 'Locked distance — click to type a new value';
     const lock = el.querySelector('.sk-lock');
     lock.textContent = d.free ? '🔓' : '🔒';
-    lock.title = d.free ? 'Free — it only measures. Click to lock it at this value' : 'Locked — click to free it (it then only measures)';
+    lock.title = d.free ? 'A reference — it only measures. Click to lock it at this value (it then drives)' : 'Locked — click to make it a reference (it then only measures)';
     lock.addEventListener('click', (ev) => { ev.stopPropagation(); this.toggleLock(d); });
     el.querySelector('.sk-val').addEventListener('click', (ev) => { ev.stopPropagation(); if (performance.now() < (this.noClickUntil || 0)) return; this.editLabel(el, d); });
     el.querySelector('.sk-del').addEventListener('click', (ev) => { ev.stopPropagation(); this.delDim(d.id); });
@@ -2068,6 +2083,7 @@ export class Sketcher {
     const SEL = 0xf2cc60, LOCKED = 0xd2a8ff;
     // blue: can still move, green: fully defined, red: a lock that does not fit (cyan: not known)
     const CONS = 0xd29922; // construction shapes: dashed amber
+    const DIM_ON = 0x8e7cc3, DIM_FREE = 0x4f5966; // dimension lines: a locked size (soft violet), a free one / a reference (faint)
     const STATE = { free: 0x58a6ff, done: 0x3fb950, bad: 0xff7b72 }, colourOf = (e) => STATE[this.stateOf(e)] ?? 0x39d0d8, NORM = 0x39d0d8;
     const place = f.place || {};
     // a dimension as on a drawing: extension lines, the dimension line with arrows at its ends
@@ -2075,11 +2091,11 @@ export class Sketcher {
       const L = Math.hypot(d[0], d[1]) || 1, ux = d[0] / L, uy = d[1] / L, k = mpp * 7;
       for (const s of [0.42, -0.42]) lines.push([p, [p[0] - k * (ux * Math.cos(s) - uy * Math.sin(s)), p[1] - k * (ux * Math.sin(s) + uy * Math.cos(s))], col]);
     };
-    const dimLine = (a, b, a2, b2, col) => {
+    const dimLine = (a, b, a2, b2, col) => { // (dashed: they show what is measured without standing out)
       const over = (p, q) => { const d = [q[0] - p[0], q[1] - p[1]], L = Math.hypot(d[0], d[1]); return L < 1e-9 ? q : [q[0] + (d[0] / L) * mpp * 3, q[1] + (d[1] / L) * mpp * 3]; };
-      if (Math.hypot(a2[0] - a[0], a2[1] - a[1]) > 1e-9) lines.push([a, over(a, a2), col]);
-      if (Math.hypot(b2[0] - b[0], b2[1] - b[1]) > 1e-9) lines.push([b, over(b, b2), col]);
-      lines.push([a2, b2, col]);
+      if (Math.hypot(a2[0] - a[0], a2[1] - a[1]) > 1e-9) lines.push([a, over(a, a2), col, true]);
+      if (Math.hypot(b2[0] - b[0], b2[1] - b[1]) > 1e-9) lines.push([b, over(b, b2), col, true]);
+      lines.push([a2, b2, col, true]);
       arrow(a2, [a2[0] - b2[0], a2[1] - b2[1]], col);
       arrow(b2, [b2[0] - a2[0], b2[1] - a2[1]], col);
     };
@@ -2113,7 +2129,7 @@ export class Sketcher {
         const side = (mid[0] - c[0]) * nx + (mid[1] - c[1]) * ny >= 0 ? 1 : -1;
         const key = `len:${e.id}`, off = place[key] ?? side * mpp * 16, spec = { t: 'len', e: e.id };
         const a2 = [a[0] + nx * off, a[1] + ny * off], b2 = [b[0] + nx * off, b[1] + ny * off];
-        if (this.findDim(spec)) dimLine(a, b, a2, b2, LOCKED); // (a locked size drawn as a dimension; a free one only labelled)
+        dimLine(a, b, a2, b2, this.findDim(spec) ? DIM_ON : DIM_FREE); // (a locked size stronger, a free one faint)
         labels.push(this.movable(this.label(spec, (a2[0] + b2[0]) / 2, (a2[1] + b2[1]) / 2, fmt(L), 'Length'), key,
           (uv) => (uv[0] - a[0]) * nx + (uv[1] - a[1]) * ny, { lines: [[a, b]] }));
       } else if (e.t === 'block') {
@@ -2134,7 +2150,7 @@ export class Sketcher {
         if (showSize({ t: 'rad', e: e.id })) {
           const key = `rad:${e.id}`, th = place[key] ?? Math.atan2(m[1] - c[1], m[0] - c[0]), rim = [c[0] + r * Math.cos(th), c[1] + r * Math.sin(th)];
           const at = [rim[0] + Math.cos(th) * mpp * 16, rim[1] + Math.sin(th) * mpp * 16];
-          if (this.findDim({ t: 'rad', e: e.id })) { lines.push([c, at, LOCKED]); arrow(rim, [rim[0] - c[0], rim[1] - c[1]], LOCKED); }
+          { const col = this.findDim({ t: 'rad', e: e.id }) ? DIM_ON : DIM_FREE; lines.push([c, at, col, true]); arrow(rim, [rim[0] - c[0], rim[1] - c[1]], col); }
           labels.push(this.movable(this.label({ t: 'rad', e: e.id }, at[0], at[1], `R${fmt(r)}`, 'Radius'), key,
             (uv) => Math.atan2(uv[1] - c[1], uv[0] - c[0]), { lines: ps.slice(1).map((p, i) => [ps[i], p]), pts: [c] }));
         }
@@ -2152,11 +2168,11 @@ export class Sketcher {
         if (showSize({ t: 'dia', e: e.id })) {
           const key = `dia:${e.id}`, th = place[key] ?? Math.PI / 4, rim = [c[0] + e.r * Math.cos(th), c[1] + e.r * Math.sin(th)];
           const at = [rim[0] + Math.cos(th) * mpp * 22, rim[1] + Math.sin(th) * mpp * 22];
-          if (this.findDim({ t: 'dia', e: e.id })) { // a leader through the centre, arrows on the rim
-            const far = [c[0] - e.r * Math.cos(th), c[1] - e.r * Math.sin(th)];
-            lines.push([far, at, LOCKED]);
-            arrow(rim, [rim[0] - c[0], rim[1] - c[1]], LOCKED);
-            arrow(far, [far[0] - c[0], far[1] - c[1]], LOCKED);
+          { // a leader through the centre, arrows on the rim
+            const far = [c[0] - e.r * Math.cos(th), c[1] - e.r * Math.sin(th)], col = this.findDim({ t: 'dia', e: e.id }) ? DIM_ON : DIM_FREE;
+            lines.push([far, at, col, true]);
+            arrow(rim, [rim[0] - c[0], rim[1] - c[1]], col);
+            arrow(far, [far[0] - c[0], far[1] - c[1]], col);
           }
           labels.push(this.movable(this.label({ t: 'dia', e: e.id }, at[0], at[1], `Ø${fmt(2 * e.r)}`, 'Diameter'), key,
             (uv) => Math.atan2(uv[1] - c[1], uv[0] - c[0]), { circles: [[c, e.r]] }));
@@ -2189,13 +2205,13 @@ export class Sketcher {
     // distances (dimension tool): a dimension line from the moving end, an extension line to the other end
     for (const d of f.dims) {
       if (!shows(!d.free)) continue;
-      const DC = d.free ? 0x8b95a3 : LOCKED;
+      const DC = d.free ? DIM_FREE : DIM_ON;
       if (d.t === 'ang' && this.ent(d.e) && this.ent(d.e2)) {
         const X = this.crossing(d.e, d.e2);
         if (!X) continue;
         const p = this.rayDir(d.e, d.r1), q = this.rayDir(d.e2, d.r2), a0 = Math.atan2(p[1], p[0]), sweep = (this.signedAngle(d) * Math.PI) / 180, R = place[d.id] ?? mpp * 34;
         const arc = Array.from({ length: 25 }, (_, i) => { const a = a0 + (sweep * i) / 24; return [X[0] + R * Math.cos(a), X[1] + R * Math.sin(a)]; });
-        for (let i = 0; i + 1 < arc.length; i++) lines.push([arc[i], arc[i + 1], DC]);
+        for (let i = 0; i + 1 < arc.length; i++) lines.push([arc[i], arc[i + 1], DC, i % 2 === 1]); // (dashed by turns)
         const am = a0 + sweep / 2, A1 = this.ent(d.e), A2 = this.ent(d.e2);
         arrow(arc[0], [arc[0][0] - arc[1][0], arc[0][1] - arc[1][1]], DC);
         arrow(arc[24], [arc[24][0] - arc[23][0], arc[24][1] - arc[23][1]], DC);
@@ -2206,8 +2222,8 @@ export class Sketcher {
       if (d.t === 'pl' && this.ent(d.e)) {
         const e = this.ent(d.e), P = this.endUV(d.a), a = this.P(e.a), b = this.P(e.b), u = [b[0] - a[0], b[1] - a[1]], L2 = u[0] * u[0] + u[1] * u[1] || 1;
         const k = ((P[0] - a[0]) * u[0] + (P[1] - a[1]) * u[1]) / L2, foot = [a[0] + k * u[0], a[1] + k * u[1]];
-        lines.push([P, foot, DC]);
-        if (k < 0 || k > 1) lines.push([foot, k < 0 ? a : b, DC, true]); // (beyond the line's ends: dashed on to it)
+        lines.push([P, foot, DC, true]);
+        if (k < 0 || k > 1) lines.push([foot, k < 0 ? a : b, DC, true]); // (beyond the line's ends: on to it)
         labels.push(this.distLabel(d, (P[0] + foot[0]) / 2 + mpp * 10, (P[1] + foot[1]) / 2 + mpp * 10));
         continue;
       }
@@ -2389,7 +2405,7 @@ export class Sketcher {
       <span class="sk-dim-acts"><button class="mini danger" data-delrel="${k.id}" title="Remove this relation">✕</button></span></div>`).join('')}</div>` : '';
     const fold = this.f.dims.length > 12; // a long list is folded
     const list = (this.f.dims.length ? `${fold ? `<details class="sk-fold"><summary>${tv('Dimensions ({n})', { n: this.f.dims.length })}</summary>` : '<h3>Dimensions</h3>'}<div class="sk-dims">${this.f.dims.map((d) =>
-      `<div class="sk-dim"><span>${d.free ? '🔓' : '🔒'} ${name(d.free ? { ...d, v: this.measure(d) } : d)}</span>
+      `<div class="sk-dim"><span>${d.free ? '🔓' : '🔒'} ${d.free ? `(${name({ ...d, v: this.measure(d) })})` : name(d)}</span>
         <span class="sk-dim-acts">${['len', 'dia', 'rad'].includes(d.t) ? '' : `<button class="mini" data-lock="${d.id}" title="${d.free ? 'Lock it at this value' : 'Free it (it then only measures)'}">${d.free ? '🔒' : '🔓'}</button>`}
         <button class="mini danger" data-del="${d.id}" title="Delete this dimension">✕</button></span></div>`).join('')}</div>${fold ? '</details>' : ''}` : '')
       + (hidden ? `<div class="row-actions"><button class="btn small" data-a="showSizes">Show ${hidden} hidden size(s)</button></div>` : '');
