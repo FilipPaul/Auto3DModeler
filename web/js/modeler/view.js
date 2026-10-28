@@ -9,6 +9,7 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/CSS2DRenderer.js';
 import { t } from '../i18n.js';
 import { snapKinds } from '../suggest.js';
 import { ViewCube } from './viewcube.js';
+import { accelerate } from './bvh.js';
 
 const BODY = new THREE.Color(0xd9dee6), HOVER = new THREE.Color(0x6cb6ff), PICKED = new THREE.Color(0x4f8cff);
 const FEATURE = new THREE.Color(0xa9cdf5), SELECTED = new THREE.Color(0xf2cc60); // the step under the mouse / the chosen step
@@ -29,6 +30,15 @@ export function datumFrame(plane) {
 /** The snap points of edges: an edge's ends (corner), its middle (midpoint), a round edge's centre (centre) —
  *  matrix: where the part is placed; kinds: the snap filters -> [{point, kind}]. */
 export function snapPoints(edges, matrix = null, kinds = null) {
+  const memo = edges && SNAPS.get(edges), key = `${matrix ? matrix.elements.join() : ''}|${kinds ? Object.entries(kinds).map(([k, v]) => (v ? k : '')).join() : '*'}`;
+  if (memo?.key === key) return memo.pts.map(({ point, kind }) => ({ point: point.clone(), kind }));
+  const pts = pointsOf(edges, matrix, kinds);
+  if (edges) SNAPS.set(edges, { key, pts: pts.map(({ point, kind }) => ({ point: point.clone(), kind })) });
+  return pts;
+}
+const SNAPS = new WeakMap(); // edge list -> {key, pts} (hovering asks for the same points again and again)
+
+function pointsOf(edges, matrix, kinds) {
   const out = [], push = (point, kind) => { if (!kinds || kinds[kind]) out.push({ point, kind }); };
   for (const e of edges || []) {
     const n = e.pts.length;
@@ -69,15 +79,37 @@ export function snapPoints(edges, matrix = null, kinds = null) {
  *  edge (midpoint), the centre of a round edge (centre) — list: [{edges, matrix?, inst?}] -> {point, kind, inst} or null. */
 export function snapNear(list, camera, rect, clientX, clientY, px = 10, kinds = null) {
   let best = null, bd = px;
+  const cam = camKey(camera, rect);
   for (const { edges, matrix, inst } of list) {
-    for (const { point: p, kind } of snapPoints(edges, matrix, kinds)) {
-      const q = p.clone().project(camera);
-      if (q.z > 1) continue; // (behind the camera)
-      const d = Math.hypot(rect.left + (q.x + 1) / 2 * rect.width - clientX, rect.top + (1 - q.y) / 2 * rect.height - clientY);
-      if (d < bd) { bd = d; best = { point: p, kind, inst }; }
+    // the points on the screen, kept while the camera, the part and the filters stay (the mouse moves over a still view)
+    const key = `${cam}|${matrix ? matrix.elements.join() : ''}|${kinds ? Object.entries(kinds).map(([k, v]) => (v ? k : '')).join() : '*'}`;
+    let memo = edges && SNAP_SCREEN.get(edges);
+    if (memo?.key !== key) {
+      const pts = snapPoints(edges, matrix, kinds), scr = new Float64Array(pts.length * 3), q = new THREE.Vector3();
+      pts.forEach(({ point: p }, k) => {
+        q.copy(p).project(camera);
+        scr[k * 3] = rect.left + (q.x + 1) / 2 * rect.width;
+        scr[k * 3 + 1] = rect.top + (1 - q.y) / 2 * rect.height;
+        scr[k * 3 + 2] = q.z;
+      });
+      memo = { key, pts, scr };
+      if (edges) SNAP_SCREEN.set(edges, memo);
+    }
+    const { pts, scr } = memo;
+    for (let k = 0; k < pts.length; k++) {
+      if (scr[k * 3 + 2] > 1) continue; // (behind the camera)
+      const d = Math.hypot(scr[k * 3] - clientX, scr[k * 3 + 1] - clientY);
+      if (d < bd) { bd = d; best = { point: pts[k].point.clone(), kind: pts[k].kind, inst }; }
     }
   }
   return best;
+}
+const SNAP_SCREEN = new WeakMap(); // edge list -> {key, pts, scr: x, y, z on the screen per point}
+
+/** The camera as it looks now (its place, its lens) and the canvas: a key that changes when anything moves on screen. */
+export function camKey(camera, rect) {
+  camera.updateMatrixWorld();
+  return `${camera.matrixWorld.elements.join()}|${camera.projectionMatrix.elements.join()}|${rect.left},${rect.top},${rect.width},${rect.height}`;
 }
 
 /** A soft studio for reflections (metal looks like metal): a light sky, a darker floor, a few bright panels round. */
@@ -112,6 +144,7 @@ const b64 = (s, T) => { // (a binary answer's arrays come as typed arrays alread
   return new T(bytes.buffer);
 };
 const V = (a) => new THREE.Vector3(a[0], a[1], a[2]);
+const EDGE_SCREEN = new WeakMap(); // edge list -> its points on the screen (ModelView.edgesOnScreen)
 
 /** A plane frame {o, x, n} -> three vectors (origin, x, y, normal). */
 export function axes(fr) {
@@ -193,6 +226,7 @@ export class ModelView {
       this.dirty = false;
       this.updatePlaneArrow(); // (end-on or from the side: the camera may have turned)
       this.renderer.render(this.scene, this.camera);
+      this.paintedAll = false; // (the colours are on the GPU now)
       this.labels.render(this.scene, this.camera);
       this.cube?.update(this.camera);
     };
@@ -245,7 +279,8 @@ export class ModelView {
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(pos.length), 3));
     geo.computeVertexNormals();
-    this.mesh = new THREE.Mesh(geo, this.material);
+    this.mesh = accelerate(new THREE.Mesh(geo, this.material));
+    this.faceTris = null;
     this.bodyGroup.add(this.mesh);
     const seg = [];
     for (const { pts: pl } of body.edges) for (let i = 0; i + 5 < pl.length; i += 3) seg.push(pl[i], pl[i + 1], pl[i + 2], pl[i + 3], pl[i + 4], pl[i + 5]);
@@ -384,15 +419,53 @@ export class ModelView {
     this.paint();
   }
 
+  /** A face's colour now: under the mouse, picked, of the hovered step, of the chosen step, painted … */
+  colorOf(f) {
+    return f === this.hover ? HOVER : this.picked.has(f) ? PICKED : this.hoverSet?.has(f) ? FEATURE : this.selSet?.has(f) ? SELECTED
+      : this.shades ? SHADES[(this.body.faces[f]?.solid || 0) % SHADES.length]
+        : this.faceColor?.get(f) || this.fileColor?.get(f) || this.bodyColor || BODY;
+  }
+
   paint() {
     if (!this.mesh) return;
     const col = this.mesh.geometry.attributes.color;
     for (let t = 0; t < this.faceIds.length; t++) {
-      const f = this.faceIds[t];
-      const c = f === this.hover ? HOVER : this.picked.has(f) ? PICKED : this.hoverSet?.has(f) ? FEATURE : this.selSet?.has(f) ? SELECTED
-        : this.shades ? SHADES[(this.body.faces[f]?.solid || 0) % SHADES.length]
-          : this.faceColor?.get(f) || this.fileColor?.get(f) || this.bodyColor || BODY;
+      const c = this.colorOf(this.faceIds[t]);
       for (let k = 0; k < 3; k++) col.setXYZ(t * 3 + k, c.r, c.g, c.b);
+    }
+    col.clearUpdateRanges();
+    col.needsUpdate = true;
+    this.paintedAll = true; // (all of it goes to the GPU with the next frame)
+    this.invalidate();
+  }
+
+  /** Only these faces painted again (a hover: a few faces of a part of a million triangles) — and only their
+   *  triangles sent to the GPU. */
+  repaint(faces) {
+    if (!this.mesh) return;
+    if (!this.faceTris) { // face id -> its triangles (counted, then listed: start[f] … start[f + 1])
+      const n = this.body.faces.reduce((m, f) => Math.max(m, f.id + 1), 0), start = new Uint32Array(n + 2), tris = new Uint32Array(this.faceIds.length);
+      for (const f of this.faceIds) start[Math.min(f, n) + 1]++;
+      for (let i = 1; i < start.length; i++) start[i] += start[i - 1];
+      const at = start.slice();
+      this.faceIds.forEach((f, t) => { tris[at[Math.min(f, n)]++] = t; });
+      this.faceTris = { start, tris, n };
+    }
+    const { start, tris, n } = this.faceTris, col = this.mesh.geometry.attributes.color, runs = [];
+    for (const f of faces) {
+      if (!(f >= 0 && f < n)) continue;
+      const c = this.colorOf(f);
+      for (let i = start[f]; i < start[f + 1]; i++) {
+        const t = tris[i];
+        for (let k = 0; k < 3; k++) col.setXYZ(t * 3 + k, c.r, c.g, c.b);
+        const last = runs[runs.length - 1];
+        if (last && last[1] === t) last[1] = t + 1; else runs.push([t, t + 1]);
+      }
+    }
+    if (!runs.length) return;
+    if (!this.paintedAll) { // (a whole repaint not sent yet: it sends all anyway)
+      if (runs.length > 64) { const lo = Math.min(...runs.map((x) => x[0])), hi = Math.max(...runs.map((x) => x[1])); runs.length = 0; runs.push([lo, hi]); }
+      for (const [a, b] of runs) col.addUpdateRange(a * 9, (b - a) * 9);
     }
     col.needsUpdate = true;
     this.invalidate();
@@ -417,12 +490,19 @@ export class ModelView {
 
   /** faceId: the face under the mouse; also: the faces of its whole step (lighter). */
   setHover(faceId, also = null) {
-    const key = also ? also.join(',') : '';
-    if (faceId === this.hover && key === (this.hoverKey || '')) return;
+    const was = this.hoverAlso || [], now = also || [], same = also === this.hoverFrom || (was.length === now.length && now.every((f, i) => f === was[i]));
+    if (faceId === this.hover && same) return;
+    const changed = new Set([this.hover, faceId]); // (only the faces whose colour may change: a big step's other faces stay)
+    if (!same) {
+      const set = also ? new Set(also) : null;
+      for (const f of was) if (!set?.has(f)) changed.add(f);
+      for (const f of now) if (!this.hoverSet?.has(f)) changed.add(f);
+      this.hoverSet = set;
+      this.hoverAlso = also ? [...also] : null;
+    }
+    this.hoverFrom = also; // (the same list again: the same faces, not compared one by one)
     this.hover = faceId;
-    this.hoverKey = key;
-    this.hoverSet = also ? new Set(also) : null;
-    this.paint();
+    this.repaint(changed);
   }
 
   /** Labels on the part: [{p: [x, y, z], el}] and thin lines [[a, b]] (from the label to what it measures). */
@@ -449,7 +529,7 @@ export class ModelView {
     this.paint();
   }
 
-  face(id) { return this.body?.faces.find((f) => f.id === id) || null; }
+  face(id) { return (this.body?.faces[id]?.id === id ? this.body.faces[id] : this.body?.faces.find((f) => f.id === id)) || null; }
 
   // ------------------------------------------------------------------ base planes
   showDatums(on, size) {
@@ -615,33 +695,49 @@ export class ModelView {
     const pts = [];
     for (let t = -half; t <= half + 1e-9; t += grid) pts.push(P(-half, t), P(half, t), P(t, -half), P(t, half));
     const gridLines = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),
-      new THREE.LineBasicMaterial({ color: 0x39d0d8, transparent: true, opacity: 0.09, depthWrite: false, depthTest: false }));
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(2 * half, 2 * half), new THREE.MeshBasicMaterial({
-      color: 0x1a2a3a, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }));
+      this.sketchMat('grid', () => new THREE.LineBasicMaterial({ color: 0x39d0d8, transparent: true, opacity: 0.09, depthWrite: false, depthTest: false })));
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(2 * half, 2 * half), this.sketchMat('plane', () => new THREE.MeshBasicMaterial({
+      color: 0x1a2a3a, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false })));
     plane.matrix.makeBasis(x, y, n).setPosition(P(0, 0).addScaledVector(n, -lift * 0.6));
     plane.matrixAutoUpdate = false;
     const axesLines = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([P(-half, 0), P(half, 0), P(0, -half), P(0, half)]),
-      new THREE.LineBasicMaterial({ color: 0x8b95a3, transparent: true, opacity: 0.45, depthTest: false }));
+      this.sketchMat('axes', () => new THREE.LineBasicMaterial({ color: 0x8b95a3, transparent: true, opacity: 0.45, depthTest: false })));
     this.sketchGroup.add(plane, gridLines, axesLines);
   }
 
+  /** A sketch drawing's material, made once and kept (a sketch is drawn again at every hover: new materials each
+   *  time cost the GPU set-up of each). */
+  sketchMat(key, make) {
+    if (!this.sketchMats) this.sketchMats = new Map();
+    let m = this.sketchMats.get(key);
+    if (!m) { m = make(); this.sketchMats.set(key, m); }
+    return m;
+  }
+
   drawSketchItems(P, add, grid, { lines, circles, dots, labels }) {
-    for (const [a, b, color, dashed] of lines) {
-      const geo = new THREE.BufferGeometry().setFromPoints([P(a[0], a[1]), P(b[0], b[1])]);
-      const mat = dashed ? new THREE.LineDashedMaterial({ color, dashSize: grid * 0.6, gapSize: grid * 0.4, depthTest: false, transparent: true, opacity: 0.7 })
-        : new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true });
-      const l = new THREE.Line(geo, mat);
-      if (dashed) l.computeLineDistances();
-      add(l);
-    }
+    // lines and circles of one colour (and dashing) drawn as one object (a sketch of 700 shapes: a few objects, not 700)
+    const groups = new Map(), group = (color, dashed) => {
+      const key = `${new THREE.Color(color).getHexString()}|${dashed ? `d${grid}` : ''}`;
+      if (!groups.has(key)) groups.set(key, { color, dashed, pts: [] });
+      return groups.get(key).pts;
+    };
+    for (const [a, b, color, dashed] of lines) group(color, dashed).push(P(a[0], a[1]), P(b[0], b[1]));
     for (const [c, r, color] of circles) {
       const ring = Array.from({ length: 97 }, (_, i) => { const a = (i / 96) * Math.PI * 2; return P(c[0] + r * Math.cos(a), c[1] + r * Math.sin(a)); });
-      add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(ring), new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true })));
+      const pts = group(color, false);
+      for (let i = 0; i + 1 < ring.length; i++) pts.push(ring[i], ring[i + 1]);
+    }
+    for (const [key, { color, dashed, pts }] of groups) {
+      const mat = this.sketchMat(`l${key}`, () => (dashed ? new THREE.LineDashedMaterial({ color, dashSize: grid * 0.6, gapSize: grid * 0.4, depthTest: false, transparent: true, opacity: 0.7 })
+        : new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true })));
+      const l = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), mat);
+      if (dashed) l.computeLineDistances(); // (each piece dashed from its own start, as one line of its own)
+      add(l);
     }
     if (dots.length) {
       const geo = new THREE.BufferGeometry().setFromPoints(dots.map(([p]) => P(p[0], p[1])));
       geo.setAttribute('color', new THREE.Float32BufferAttribute(dots.flatMap(([, c]) => { const k = new THREE.Color(c); return [k.r, k.g, k.b]; }), 3));
-      add(new THREE.Points(geo, new THREE.PointsMaterial({ size: 7, sizeAttenuation: false, vertexColors: true, depthTest: false, transparent: true })));
+      add(new THREE.Points(geo, this.sketchMat('dots', () => new THREE.PointsMaterial({ size: 7, sizeAttenuation: false, vertexColors: true, depthTest: false, transparent: true }))));
     }
     for (const l of labels) {
       if (l.el.classList.contains('edit')) l.el.style.pointerEvents = 'auto';
@@ -701,30 +797,60 @@ export class ModelView {
     const mx = clientX - r.left, my = clientY - r.top, v = new THREE.Vector3();
     // an edge hidden behind the part is not pickable: it must not be farther than the surface under the mouse
     const hit = solids.length ? this.ray(clientX, clientY).intersectObjects(solids, false)[0] : null;
-    const cam = this.camera.position, slack = this.size * 0.01;
+    const cam = this.camera.position, slack = this.size * 0.01, ck = camKey(this.camera, r);
     let best = null, bestD = maxPx, bestZ = Infinity;
     for (const { edges, matrix, inst } of list) {
       const W = (p, k) => { v.set(p[k], p[k + 1], p[k + 2]); return matrix ? v.applyMatrix4(matrix) : v; };
-      const scr = (p, k) => { const w = W(p, k).project(this.camera); return [(w.x + 1) / 2 * r.width, (1 - w.y) / 2 * r.height, w.z]; };
+      const { scr, at, box } = this.edgesOnScreen(edges || [], matrix, ck, r);
       (edges || []).forEach((e, i) => {
         if (e.faces.length < 2) return; // a seam on a round face: not a real edge
+        // (its points' box on the screen farther than maxPx from the mouse: no piece of it is nearer)
+        if (mx < box[i * 4] - maxPx || mx > box[i * 4 + 2] + maxPx || my < box[i * 4 + 1] - maxPx || my > box[i * 4 + 3] + maxPx) return;
         const p = e.pts;
-        let prev = scr(p, 0);
-        for (let k = 3; k < p.length; k += 3) {
-          const cur = scr(p, k);
-          const dx = cur[0] - prev[0], dy = cur[1] - prev[1], L = dx * dx + dy * dy || 1;
-          const t = Math.max(0, Math.min(1, ((mx - prev[0]) * dx + (my - prev[1]) * dy) / L));
-          const d = Math.hypot(prev[0] + t * dx - mx, prev[1] + t * dy - my), z = prev[2] + t * (cur[2] - prev[2]);
+        for (let k = 3, j = at[i] + 3; k < p.length; k += 3, j += 3) {
+          const px = scr[j - 3], py = scr[j - 2], pz = scr[j - 1];
+          const dx = scr[j] - px, dy = scr[j + 1] - py, L = dx * dx + dy * dy || 1;
+          const t = Math.max(0, Math.min(1, ((mx - px) * dx + (my - py) * dy) / L));
+          const d = Math.hypot(px + t * dx - mx, py + t * dy - my), z = pz + t * (scr[j + 2] - pz);
           if (d < maxPx && hit) {
             const a = W(p, k - 3).clone(), q = a.lerp(W(p, k), t);
-            if (q.distanceTo(cam) > hit.distance + slack) { prev = cur; continue; }
+            if (q.distanceTo(cam) > hit.distance + slack) continue;
           }
           if (d < bestD - 2 || (d < bestD + 2 && d < maxPx && z < bestZ)) { best = { edge: e, i, matrix, inst }; bestD = Math.min(d, bestD); bestZ = z; }
-          prev = cur;
         }
       });
     }
     return best;
+  }
+
+  /** Edges' points on the screen (x, y from the canvas' corner, z: depth) and each edge's box there, kept while the
+   *  camera, the canvas and the placement stay -> {scr, at: each edge's first in scr, box: x0, y0, x1, y1 per edge}. */
+  edgesOnScreen(edges, matrix, ck, r) {
+    const key = `${ck}|${matrix ? matrix.elements.join() : ''}`, memo = EDGE_SCREEN.get(edges);
+    if (memo?.key === key) return memo;
+    const at = new Uint32Array(edges.length), box = new Float64Array(edges.length * 4), v = new THREE.Vector3();
+    let n = 0;
+    edges.forEach((e, i) => { at[i] = n; n += e.pts.length; });
+    const scr = new Float64Array(n);
+    edges.forEach((e, i) => {
+      const p = e.pts;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (let k = 0, j = at[i]; k < p.length; k += 3, j += 3) {
+        v.set(p[k], p[k + 1], p[k + 2]);
+        if (matrix) v.applyMatrix4(matrix);
+        v.project(this.camera);
+        const x = (v.x + 1) / 2 * r.width, y = (1 - v.y) / 2 * r.height;
+        scr[j] = x; scr[j + 1] = y; scr[j + 2] = v.z;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+      box.set([x0, y0, x1, y1], i * 4);
+    });
+    const out = { key, scr, at, box };
+    EDGE_SCREEN.set(edges, out);
+    return out;
   }
 
   /** The edge under the mouse lit (a line or a circle): [{pts, matrix?}], drawn over the part; key: the same -> kept. */
