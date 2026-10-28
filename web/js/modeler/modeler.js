@@ -27,6 +27,7 @@ const USES_SKETCH = new Set(['extrude', 'revolve', 'loft', 'sweep']);
 const sketchesOf = (f) => (f.type === 'loft' ? f.sketches || [] : f.type === 'sweep' ? [f.profile, f.path] : USES_SKETCH.has(f.type) ? [f.sketch] : []).filter(Boolean);
 // densities for the mass (g/cm³), common 3D-printing materials
 import { MATERIALS, MATERIAL_GROUPS, MATERIAL_COLOR, lookColor } from './materials.js';
+import { showSuggest } from '../suggest.js';
 export { MATERIALS }; // g/cm³ (materials.js: grouped, with their colours)
 const DATUM_NAME = { XY: 'Top', XZ: 'Front', YZ: 'Right' };
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -150,7 +151,8 @@ export class Modeler {
         ${btn('datum-XY', 'Top', 'Sketch on the Top plane (XY)')}${btn('datum-XZ', 'Front', 'Sketch on the Front plane (XZ)')}${btn('datum-YZ', 'Right', 'Sketch on the Right plane (YZ)')}
         <div class="mp-actions">${btn('cancelPlane', '✕ Cancel', 'Do not start a sketch (Esc)')}</div>`;
     } else {
-      this.els.viewport.querySelector(':scope > .view-suggest')?.remove(); // (the sketch's suggestions)
+      this.els.viewport.querySelector(':scope > .view-suggest[data-from=sketch]')?.remove(); // (the sketch's suggestions)
+      if (this.cmd || this.measuring || this.painting) this.dropSuggest(); // (a tool at work: not the face's)
       const canExtrude = this.sketches().length > 0;
       bar.innerHTML = `
         ${btn('sketch', '✏ Sketch', 'Start a sketch: on a plane, or on a flat face of the part (S)', 'tool')}
@@ -387,13 +389,16 @@ export class Modeler {
     Object.assign(el.style, { left: `${t.x - vr.left + 14}px`, top: `${t.y - vr.top + 14}px` });
   }
 
-  /** A click on the part: its step is chosen (its sizes show); a right click also pops up the tools for that face. */
+  /** The suggestions table of the 3D model (a face's tools) gone. */
+  dropSuggest() { const b = this.els.viewport.querySelector(':scope > .view-suggest[data-from=face]'); b?.remove(); }
+
+  /** A click on the part: its step is chosen (its sizes show) and the tools for that face are suggested (bottom left);
+   *  a right click pops them up at the mouse. */
   clickFace(e, menu = false) {
     this.closeCtx();
     const h = this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
-    if (!fs) { this.selectStep(null); return; }
+    if (!fs) { this.selectStep(null); this.dropSuggest(); return; }
     this.selectStep(fs.step.id);
-    if (!menu) return;
     const flat = h.face.type === 'plane', at = { clientX: e.clientX, clientY: e.clientY };
     // [key, icon, label, do it] by section: this face, its edges, the whole part, the step it belongs to
     const sections = [
@@ -412,6 +417,14 @@ export class Modeler {
         ['off', fs.step.suppressed ? '●' : '◌', t(fs.step.suppressed ? 'Turn it on' : 'Turn it off'), () => this.toggleOff(fs.step.id)],
         ['del', '✕', t('Delete the step'), () => this.remove(fs.step.id), 'danger']]],
     ].map(([title, items]) => [title, items.filter(Boolean)]).filter(([, items]) => items.length);
+    if (!menu) { // the suggestions table: the same tools
+      const face = t(this.faceLabel(h.face.name).replace(/ of .*$/, '').replace(/^the /, ''));
+      const sg = showSuggest(this.els.viewport, `${fs.step.name} · ${face}`, sections.flatMap(([, items]) => items)
+        .map(([, icon, label, run, cls]) => ({ icon, label, danger: cls === 'danger', run: () => { this.dropSuggest(); run(); } })), t('Right click: the same at the mouse'));
+      if (sg) sg.dataset.from = 'face';
+      return;
+    }
+    this.dropSuggest();
     const box = document.createElement('div');
     box.className = 'm-fmenu';
     box.dataset.noI18n = '';

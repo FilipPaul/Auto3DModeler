@@ -2278,8 +2278,9 @@ export class Sketcher {
   renderSuggest() {
     const items = this.suggestions(), n = (this.picks || []).length;
     const kind = { line: 'A line', circle: 'A circle', arc: 'An arc', point: 'A point', mid: "A line's midpoint", origin: 'The origin' }[this.picks?.[0]?.kind];
-    showSuggest(this.m.els.viewport, n === 1 ? t(kind || 'Selected') : t('{n} selected').replace('{n}', n), items,
+    const sg = showSuggest(this.m.els.viewport, n === 1 ? t(kind || 'Selected') : t('{n} selected').replace('{n}', n), items,
       n === 1 ? t('Ctrl+click another shape: what fits the two') : '');
+    if (sg) sg.dataset.from = 'sketch';
   }
 
   /** {construction: true} while ┄ Construction is on (new shapes are helpers, not part of the outline). */

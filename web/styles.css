@@ -827,7 +827,7 @@ body.view-acts .toast-stack { bottom: 84px; }
 .sk-filters button:hover { border-color: var(--accent); }
 .view-suggest { position: absolute; left: 12px; bottom: 34px; z-index: 6; width: 236px; background: var(--panel); border: 1px solid var(--line);
   border-radius: 10px; box-shadow: 0 8px 24px #0008; overflow: hidden; }
-.vs-head { display: flex; align-items: baseline; justify-content: space-between; padding: 7px 11px 6px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
+.vs-head { cursor: move; display: flex; align-items: baseline; justify-content: space-between; padding: 7px 11px 6px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
 .vs-head b { font-size: 12.5px; }
 .vs-head span { font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
 .vs-list { display: flex; flex-direction: column; padding: 4px; }

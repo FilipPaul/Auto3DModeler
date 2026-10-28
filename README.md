@@ -72,7 +72,9 @@ anyway while a sketch plane is being chosen.
 **Reorder steps**: drag a step up or down the step list. A move that would put a step before one it uses is refused
 (it says which), and one after which the model no longer builds is taken back; Ctrl+Z undoes a move.
 
-**The tools for a face of a 3D model** open with a **right click** on it (a left click chooses its step and shows its
+**A click on a face of a 3D model** chooses its step and shows its tools in the Suggested table (bottom left) — the
+table can be **dragged by its header** anywhere in the view, and stays there (a double-click on the header: back).
+The same tools open with a **right click** on it (a left click chooses its step and shows its
 sizes; the right button dragged still pans).
 
 **Box selection** in a sketch (⬚ Select, drag on empty space): **right to left** takes every shape the box touches

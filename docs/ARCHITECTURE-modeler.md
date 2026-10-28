@@ -80,6 +80,10 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **The face's tools as suggestions, a movable table done:** clickFace (left click) shows the face's tools with
+  showSuggest (data-from face; dropped when a tool starts or nothing is clicked); suggest.js — the header drags the
+  table (window listeners in the capture phase), its place kept as a part of the view (localStorage a3d.suggestAt;
+  a double-click on the header: back to its corner). e2e_model_pick.
 - **Quieter planes, ◫ Planes on / off done:** the Top / Front / Right planes fainter (fill 0.035, edges 0.22, small
   labels); Modeler.datums / togglePlanes (localStorage a3d.planes) — hidden unless a sketch plane is being chosen.
   tools/e2e_planes.py.
