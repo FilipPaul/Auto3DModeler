@@ -777,6 +777,29 @@ def api_sheet_pdf():
     return Response(data, mimetype="application/pdf", headers={"Content-Disposition": attachment(f"{name}.pdf")})
 
 
+@app.get("/api/bom/xlsx")
+def api_bom_xlsx_ok():
+    """Whether a BOM can be written as Excel (.xlsx): openpyxl installed."""
+    from auto3d.bomxlsx import available
+    return jsonify({"available": available()})
+
+
+@app.post("/api/bom/xlsx")
+def api_bom_xlsx():
+    """{name, sheets: [{title, head, rows, levels, keys}]} -> the BOM as an Excel workbook (a sheet per view)."""
+    from auto3d.bomxlsx import available, to_xlsx
+    if not available():
+        return jsonify({"error": "Excel needs the openpyxl package (py -m pip install openpyxl) — the BOM can be saved as CSV."}), 501
+    body = request.get_json(force=True)
+    name = re.sub(r'[\\/:*?"<>|]+', "_", body.get("name") or "BOM").strip() or "BOM"
+    try:
+        data = to_xlsx(body.get("sheets") or [], name)
+    except Exception as exc:  # noqa: BLE001 — cells it cannot write
+        return jsonify({"error": f"The BOM could not be written as Excel: {exc}"}), 400
+    return Response(data, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": attachment(f"{name}.xlsx")})
+
+
 @app.post("/api/sheet/dxf")
 def api_sheet_dxf():
     """{svg, dims, scale, name} -> the sheet as a DXF: the paper 1:1 in mm, the views at the sheet's scale, real

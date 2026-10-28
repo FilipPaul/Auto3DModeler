@@ -34,6 +34,8 @@ import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES 
 import { MATERIALS } from '../modeler/modeler.js';
 import { lookColor, finishOf } from '../modeler/materials.js';
 import { stepTree } from './stepfile.js';
+import { bomOf, bomCsv, instanceTree } from './bom.js';
+import { openBomWindow } from './bomview.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -555,36 +557,43 @@ export class Assembly {
     this.commit();
   }
 
-  /** The bill of materials of every part (those inside sub-assemblies counted in) -> rows
-   *  [{name, qty, maker, pn, description, order: {…}, material, mass_g (each), library (bool)}]. */
-  bomFlat() {
-    const rows = new Map();
-    const walk = (list, times) => {
-      for (const it of list) {
-        const data = this.hooks.partData(it.part) || {};
-        if (this.kindOf(it.part) === 'assembly') { walk(data.instances || [], times); continue; }
-        const lib = data.library || null, key = it.part;
-        const r = rows.get(key) || { name: this.partName(it.part), qty: 0, maker: lib?.maker || '', pn: lib?.pn || '', description: lib?.description || '',
-          order: lib?.order || {}, material: data.material || (lib ? '' : 'PLA'), library: !!lib, approx: !!lib?.approx };
-        r.qty += times;
-        const b = this.bodies[it.part]?.body;
-        r.mass_g = b?.mass_g ?? (b?.volume && MATERIALS[r.material] ? +((b.volume / 1000) * MATERIALS[r.material]).toFixed(2) : null);
-        rows.set(key, r);
-      }
-    };
-    walk(this.doc.instances, 1);
-    return [...rows.values()];
+  /** What the BOM engine (bom.js) reads of the project. */
+  bomCtx() {
+    const self = this.active ? this.hooks.selfId?.() : null; // (the assembly on screen: its document here, the project's copy is 'live')
+    return { partData: (id) => (id === self && !this.owner ? this.doc : this.hooks.partData(id)), kindOf: (id) => this.kindOf(id), partName: (id) => this.partName(id), massOf: (id) => this.massOf(id) };
   }
 
-  /** ⬇ BOM (CSV): ; separated (Excel in Czech / German reads it), UTF-8 with a BOM mark. */
+  /** A part's mass (g, each) from its body as last built (its own mass, else volume × its material), or null. */
+  massOf(pid) {
+    const b = this.bodies[pid]?.body, data = this.hooks.partData(pid) || {}, mat = data.material || (data.library ? '' : 'PLA');
+    if (!b || b.sub) return null;
+    return b.mass_g ?? (b.volume && MATERIALS[mat] ? (b.volume / 1000) * MATERIALS[mat] : null);
+  }
+
+  /** The assembly whose drawing set numbers this one's positions (the top one it is in), so the BOM and the balloons agree. */
+  numberingOf(aid) { return this.hooks.setRoot?.(aid) || aid; }
+
+  /** The bill of materials of every part, rolled up through the sub-assemblies (bom.js) -> rows
+   *  [{pos, name, qty, maker, pn, description, order: {…}, material, mass_g (each), library (bool), buy, how}]. */
+  bomFlat(aid = this.hooks.selfId?.()) {
+    return bomOf(this.bomCtx(), aid, { numbering: this.numberingOf(aid) }).rows.map((r) => ({ pos: r.pos, name: r.name, qty: r.qty, maker: r.maker, pn: r.pn, description: r.description,
+      order: r.order, material: r.material, mass_g: r.mass_g, library: r.library, approx: r.approx, buy: r.buy, how: r.how }));
+  }
+
+  /** ⬇ BOM (CSV): the summary BOM (bom.js bomCsv: ; separated — Excel in Czech / German reads it —, UTF-8 with a BOM mark). */
   async exportBom() {
-    const rows = this.bomFlat(), shops = [...new Set(rows.flatMap((r) => Object.keys(r.order || {})))];
-    const q = (v) => { const s = String(v ?? ''); return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-    const head = ['Pos', 'Qty', 'Name', 'Maker', 'Part number', ...shops.map((s) => `Order (${s})`), 'Description', 'Material', 'Mass each (g)', 'Bought / made'];
-    const lines = [head.map(q).join(';'), ...rows.map((r, i) => [i + 1, r.qty, r.name, r.maker, r.pn, ...shops.map((s) => r.order?.[s] || ''), r.description, r.material,
-      r.mass_g === null || r.mass_g === undefined ? '' : String(r.mass_g).replace('.', ','), r.library ? 'bought' : 'made (3D print)'].map(q).join(';'))];
-    const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv' });
-    if (await this.hooks.download(blob, `${this.hooks.safeName()} BOM.csv`)) this.hooks.toast(t2('BOM saved: {n} line(s).', { n: rows.length }), 'ok');
+    const aid = this.hooks.selfId?.(), bom = bomOf(this.bomCtx(), aid, { numbering: this.numberingOf(aid) });
+    const blob = new Blob([bomCsv(bom, t)], { type: 'text/csv' });
+    if (await this.hooks.download(blob, `${this.hooks.safeName()} BOM.csv`)) this.hooks.toast(t2('BOM saved: {n} line(s).', { n: bom.rows.length }), 'ok');
+  }
+
+  /** 📋 BOM: the window with the whole BOM (Summary / Structured) of this assembly or any of its sub-assemblies. */
+  openBom() {
+    const aid = this.hooks.selfId?.(), seen = new Set([aid]), choices = [{ id: aid, name: this.partName(aid), depth: 0 }];
+    const walk = (nodes, depth) => { for (const n of nodes) if (n.children) { if (!seen.has(n.part)) { seen.add(n.part); choices.push({ id: n.part, name: this.partName(n.part), depth }); } walk(n.children, depth + 1); } };
+    walk(instanceTree(this.bomCtx(), aid), 1);
+    this.bomWin = openBomWindow({ ctx: this.bomCtx(), aid, choices, numberingOf: (id) => this.numberingOf(id), download: this.hooks.download, toast: this.hooks.toast });
+    return this.bomWin;
   }
 
   /** The parts list: part, how many, material, mass each and in all. */
@@ -709,7 +718,7 @@ export class Assembly {
         ${rows.map((r) => `<tr><td data-no-i18n>${esc(r.name)}</td><td>${r.qty}</td><td>${r.material}</td><td>${r.mass === null ? '—' : `${fmt(+(r.mass * r.qty).toFixed(1))} g`}</td></tr>`).join('')}
         <tr class="as-total"><td>Total</td><td>${rows.reduce((s, r) => s + r.qty, 0)}</td><td></td><td>${fmt(+total.toFixed(1))} g</td></tr></table>
         ${rows.some((r) => r.lib?.pn) ? `<div class="as-pns">${rows.filter((r) => r.lib?.pn).map((r) => `<div><span data-no-i18n>${r.qty}× ${esc(r.lib.pn)}</span> <i data-no-i18n>${esc(r.lib.maker || '')}</i></div>`).join('')}</div>` : ''}
-        <div class="row-actions"><button class="btn small" data-a="bomCsv" title="The bill of materials as a CSV file (Excel): every part with its quantity, maker, part number, order numbers and mass — the parts inside sub-assemblies too">⬇ BOM (CSV)</button></div>
+        <div class="row-actions"><button class="btn small primary" data-a="bomWin" title="The bill of materials: every part with its total quantity from all levels (sub-assemblies counted in), material, mass, maker and part number — as a summary or as the assembly tree">📋 BOM</button><button class="btn small" data-a="bomCsv" title="The bill of materials as a CSV file (Excel): every part with its quantity, maker, part number, order numbers and mass — the parts inside sub-assemblies too">⬇ BOM (CSV)</button></div>
         <h3>Export</h3><div class="row-actions"><button class="btn small" data-x="stl" title="All parts in one STL, as placed">STL</button>
         <button class="btn small" data-x="step" title="All parts as separate bodies in one STEP file">STEP</button>
         <button class="btn small" data-x="iges" title="Every part placed in one IGES file (names, colours) — for CAD programs that ask for IGES; it has no assembly tree">IGES</button>
@@ -721,6 +730,7 @@ export class Assembly {
     this.bindJointRows(box);
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
     box.querySelector('[data-a=bomCsv]')?.addEventListener('click', () => this.exportBom());
+    box.querySelector('[data-a=bomWin]')?.addEventListener('click', () => this.openBom());
     box.querySelector('[data-a=drawingSet]')?.addEventListener('click', () => this.hooks.drawingSet());
     box.querySelector('[data-a=sheetHere]')?.addEventListener('click', () => this.hooks.newSheet());
   }
@@ -2736,6 +2746,7 @@ export class Assembly {
   }
 
   summary() {
+    const self = this.hooks.selfId?.(), totals = new Map(self ? bomOf(this.bomCtx(), self).rows.map((r) => [r.part, r.qty]) : []); // (rolled up through the sub-assemblies)
     return {
       parts: this.doc.instances.map((it) => {
         const b = this.bodyOf(it)?.body, m = new THREE.Matrix4().fromArray(it.matrix);
@@ -2748,9 +2759,21 @@ export class Assembly {
         ...(m.locked ? { locked: true } : {}), ...(this.inst(m.move)?.fastener ? { fastener: this.inst(m.move).fastener.id } : {}), ...(this.whyNot(m) ? { not_held: this.whyNot(m) } : {}) })),
       fasteners: [...new Map(this.doc.instances.filter((i) => i.fastener).map((i) => [i.fastener.id, i.fastener])).values()].map((f) => ({ id: f.id, text: f.text,
         parts: this.doc.instances.filter((i) => i.fastener?.id === f.id).map((i) => i.id), ...(f.bolt ? { drilled_holes: true } : {}) })),
-      parts_list: this.bom().map((r) => ({ name: r.name, qty: r.qty, material: r.material, mass_g_each: r.mass === null || !Number.isFinite(r.mass) ? null : +r.mass.toFixed(2),
+      parts_list: this.bom().map((r) => ({ name: r.name, qty: r.qty, ...(this.kindOf(r.part) === 'assembly' ? { assembly: true } : { total: totals.get(r.part) ?? r.qty }),
+        material: r.material, mass_g_each: r.mass === null || !Number.isFinite(r.mass) ? null : +r.mass.toFixed(2),
         ...(r.lib ? { maker: r.lib.maker || undefined, pn: r.lib.pn || undefined, bought: true } : {}) })),
     };
+  }
+
+  /** For the AI: the BOM of an assembly (this one, or any by id / name) -> {assembly, mode, parts, pieces, mass_g, rows}. */
+  bomFor(aid, mode = 'summary') {
+    const bom = bomOf(this.bomCtx(), aid, { mode, numbering: this.numberingOf(aid) });
+    const facts = (r) => ({ material: r.material || undefined, mass_g_each: r.mass_g ?? undefined, maker: r.maker || undefined, pn: r.pn || undefined, make_buy: r.how });
+    const rows = mode === 'structured'
+      ? bom.lines.map((r) => ({ level: r.depth + 1, pos: r.pos, name: r.name, qty_per_parent: r.qty, total: r.total, ...(r.kind === 'assembly' ? { assembly: true } : facts(r)) }))
+      : bom.rows.map((r) => ({ pos: r.pos, name: r.name, total: r.qty, ...facts(r), mass_g_total: r.mass_total_g ?? undefined,
+        from: r.in.map((w) => (w.times > 1 ? `${w.assembly}: ${w.qty} × ${w.times}` : `${w.assembly}: ${w.qty}`)).join(' + ') }));
+    return { assembly: bom.assembly.name, mode, parts: bom.kinds, pieces: bom.pieces, mass_g: bom.mass_g, ...(bom.mass_unknown ? { mass_unknown: bom.mass_unknown } : {}), rows };
   }
 
   handlers() {
@@ -2758,6 +2781,19 @@ export class Assembly {
     const settle = () => this.refresh();
     return {
       get_assembly: async () => { need(); await settle(); return { text: JSON.stringify(this.summary()) }; },
+      get_bom: async ({ assembly: which, mode = 'summary' } = {}) => {
+        const self = this.active ? this.hooks.selfId?.() : null;
+        const a = which ? this.hooks.parts().find((p) => p.kind === 'assembly' && (p.id === which || p.name === which)) : null;
+        if (which && !a) throw new Error(`No assembly “${which}” — list_parts lists them (kind assembly).`);
+        const aid = a?.id || self;
+        if (!aid) throw new Error('Which assembly? Give assembly (its id or name from list_parts), or open one.');
+        if (mode !== 'summary' && mode !== 'structured') throw new Error('mode: summary (a row per part, its total from every level) or structured (the tree).');
+        if (aid === self) await settle();
+        const leaves = new Set(), walk = (nodes) => { for (const n of nodes) (n.children ? walk(n.children) : leaves.add(n.part)); };
+        walk(instanceTree(this.bomCtx(), aid));
+        await this.buildBodies([...leaves]); // (their masses; built ones are kept)
+        return { text: JSON.stringify(this.bomFor(aid, mode)) };
+      },
       insert_part: async ({ part }) => {
         need();
         const p = this.modelParts().find((q) => q.id === part || q.name === part);

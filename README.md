@@ -593,6 +593,30 @@ if bought, in `data/library/` on the server. The format for writing parts by han
 [library/README.md](library/README.md). An assembly's **⬇ BOM (CSV)** lists every part (inside sub-assemblies too)
 with quantity, maker, part number, order numbers and mass, as a CSV that Excel opens.
 
+### 📋 Bill of materials (BOM)
+**📋 BOM** in an assembly's panel (nothing chosen) opens its whole bill of materials, every level of the assembly
+rolled up: a part's total is the sum over every place it is in — the assembly itself, its sub-assemblies at any
+depth, a sub-assembly placed twice counting its parts twice. A screw placed both in the machine and inside a
+sub-assembly is counted in both, nothing twice. Two views:
+- **Summary** — one row per part: position, name, total quantity, material, mass each and in all, maker and part
+  number (library parts), and **make / buy** (library and standard parts are bought; your own parts are made —
+  *3D print* for printing plastics, *machined* for metals). Hover a row to see where its count comes from
+  (*Lid unit: 3 × 2 + Hinge: 1*).
+- **Structured** — the assembly tree: each sub-assembly with its parts, the quantity in its parent and the running
+  total; ▾ / ▸ folds a sub-assembly.
+
+The choice at the top shows the BOM of any sub-assembly in it (or open that sub-assembly: its own 📋 BOM). The
+positions are the drawing set's numbers — the same as the balloons on the drawings. **⬇ CSV** saves the view shown
+(; separated for Excel); **⬇ Excel (.xlsx)** saves both views as two sheets of one workbook — it needs the optional
+`openpyxl` package on the server (`requirements-modeler.txt`); without it the button is greyed and CSV is offered.
+The headers follow the app's language (in Czech: *Poz., Název, Ks, Materiál … Výroba / nákup*).
+
+On an assembly's **📄 drawing sheet**, **📋 Add BOM page** puts the BOM on its own page right after the assembly's
+page — in the drawing set, 📚 All pages and the PDFs — with the set's title-block template and frame, in the parts
+list's style (Summary or Structured, chosen in the sheet's panel); a long BOM goes on over more pages (*… continued
+on the next page*). The AI reads the same BOM with `get_bom {assembly, mode}`; `get_assembly`'s parts list has each
+part's rolled-up `total`.
+
 ## Assemblies
 
 **＋ New assembly** (in the ＋ menu next to the part tabs) opens an assembly tab (◇), where the parts of the project

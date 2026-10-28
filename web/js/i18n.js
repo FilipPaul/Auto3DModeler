@@ -1203,6 +1203,31 @@ const CS = {
   Zones: 'Pole', 'Short thick lines at the middle of each side, for copying and folding': 'Krátké silné čáry uprostřed každé strany, pro kopírování a skládání',
   'Centring marks': 'Středicí značky',
   'The picture could not be read.': 'Obrázek nejde načíst.', 'The logo is too big — use a smaller picture.': 'Logo je příliš velké — použijte menší obrázek.',
+  // 📋 BOM (assembly/bom.js, bomview.js; the drawing set's BOM pages)
+  '📋 BOM': '📋 Kusovník', 'Bill of materials': 'Kusovník', BOM: 'Kusovník', Summary: 'Souhrnný', Structured: 'Strukturovaný', structured: 'strukturovaný',
+  'made (3D print)': 'vyráběný (3D tisk)', 'made (machined)': 'vyráběný (obrábění)', made: 'vyráběný', assembly: 'sestava',
+  Level: 'Úroveň', 'Qty per parent': 'Ks v nadřazené', 'Total qty': 'Ks celkem', 'Mass each': 'Hmotnost/ks', 'Mass total': 'Hmotnost celkem',
+  'Mass each (g)': 'Hmotnost/ks (g)', 'Mass total (g)': 'Hmotnost celkem (g)', Description: 'Popis', 'Make / buy': 'Výroba / nákup',
+  'The bill of materials: every part with its total quantity from all levels (sub-assemblies counted in), material, mass, maker and part number — as a summary or as the assembly tree':
+    'Kusovník: každý díl s celkovým počtem ze všech úrovní (včetně podsestav), materiálem, hmotností, výrobcem a objednacím číslem — souhrnně nebo jako strom sestavy',
+  'The assembly whose BOM is shown — this one or any sub-assembly in it': 'Sestava, jejíž kusovník se zobrazuje — tato nebo kterákoli její podsestava',
+  'One row per part: how many in all, from every level of the assembly': 'Jeden řádek na díl: kolik kusů celkem ze všech úrovní sestavy',
+  'The assembly tree: each sub-assembly with its parts, how many in each and in all': 'Strom sestavy: každá podsestava se svými díly, kolik kusů v každé a celkem',
+  '{kinds} different part(s), {pieces} piece(s) in all': '{kinds} různých dílů, celkem {pieces} ks', 'mass {m} g': 'hmotnost {m} g', '{n} without a mass': '{n} bez hmotnosti',
+  'No parts in it yet.': 'Zatím v ní nejsou žádné díly.', 'Show its parts': 'Ukázat její díly', 'Hide its parts': 'Skrýt její díly',
+  'Qty per parent: how many in the assembly above it; Total qty: how many in all (multiplied through the levels).':
+    'Ks v nadřazené: kolik kusů je v sestavě nad ním; Ks celkem: kolik kusů celkem (vynásobeno přes všechny úrovně).',
+  "Pos. — the numbers of the drawing set's balloons. Hover a row: where its count comes from.": 'Poz. — čísla pozic z výkresů sestavy. Najeďte na řádek: odkud se počet skládá.',
+  'The BOM as shown, for Excel (; separated)': 'Kusovník, jak je zobrazen, pro Excel (oddělený středníkem)',
+  'Both views as sheets of one Excel workbook': 'Oba pohledy jako listy jednoho sešitu Excelu',
+  'Excel needs the openpyxl package on the server — CSV only': 'Excel potřebuje na serveru balíček openpyxl — jen CSV',
+  'Excel: not installed (openpyxl) — CSV only.': 'Excel: není nainstalován (openpyxl) — jen CSV.',
+  'Add BOM page': 'Přidat list kusovníku', 'BOM page': 'List kusovníku', 'Remove BOM page': 'Odebrat list kusovníku',
+  'A page with the bill of materials of this assembly — every level rolled up, the positions as the balloons — after this page, in the drawing set and its PDF':
+    'List s kusovníkem této sestavy — sečtené všechny úrovně, pozice jako u odkazových čísel — za tímto listem, ve výkresové sadě i v jejím PDF',
+  '{n} page(s) after this one, in the drawing set and its PDF.': '{n} list(ů) za tímto, ve výkresové sadě i v jejím PDF.',
+  'See it among all the pages of the drawing set': 'Ukázat ho mezi všemi listy výkresové sady',
+  '… continued on the next page ({n} / {m})': '… pokračuje na dalším listu ({n} / {m})',
   // language switch
   'Čeština / English': 'Čeština / English',
 };
@@ -1334,6 +1359,7 @@ const CS_PATTERNS = [
   ['background ({} colour)', 'pozadí ({1} barva)'], ['background ({} colours)', 'pozadí ({1} barvy)'], ['colour clusters ({})', 'shluky barev ({1})'],
   ['your colours ±{}', 'vaše barvy ±{1}'], ['object colour ±{}', 'barva předmětu ±{1}'], ['background colour ±{}', 'barva pozadí ±{1}'],
   ['{}, {}', '{1}, {2}'],
+  ['Order ({})', 'Objednávka ({1})'],
   // catch-alls, used only when a part of them is a known text
   ['{} — {}', '{1} — {2}'], ['{}: {}', '{1}: {2}'], ['{} · {}', '{1} · {2}'], ['{} ({})', '{1} ({2})'],
 ];
