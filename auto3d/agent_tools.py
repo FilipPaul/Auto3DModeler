@@ -43,9 +43,10 @@ TOOLS = [
                     "z levels of its flat faces, volume and open issues. Call this first and after changes.",
      "inputSchema": _obj({})},
     {"name": "get_screenshot", "where": "browser",
-     "description": "A picture of the 3D view, to check your work. view: iso (default), front (top-down onto the "
-                    "front face), back, side.",
-     "inputSchema": _obj({"view": {"type": "string", "enum": ["iso", "front", "back", "side"]}})},
+     "description": "A picture of what is on screen, to check your work: the 3D model or assembly (fitted to the whole of it; "
+                    "fit: false keeps the view as set_view left it — a zoomed section), or a drawing sheet as drawn. view: iso "
+                    "(default), front (top-down onto the front face), back, side.",
+     "inputSchema": _obj({"view": {"type": "string", "enum": ["iso", "front", "back", "side"]}, "fit": {"type": "boolean"}})},
     {"name": "open_file", "where": "server",
      "description": "Open a file from disk as a new part (its own tab; the parts already open stay): a PDF drawing, an STL / "
                     "OBJ / STEP 3D file, or as a 📐 2D drawing (then get_drawing, drawing_find …): a DXF / DWG, a PCB's Gerber / "
@@ -431,7 +432,7 @@ TOOLS = [
      "inputSchema": _obj({"a": _obj({"part": STR, "face": STR}, ["part", "face"]), "b": _obj({"part": STR, "face": STR}, ["part", "face"])}, ["a", "b"])},
     {"name": "set_view", "where": "browser",
      "description": "Set the 3D view (model or assembly) before get_screenshot: view iso / top / front / right; section {axis x / y / "
-                    "z, offset mm, flip} to look inside (null: no cut); explode 0 … 1 (an assembly pulled apart); sizes all / "
+                    "z, offset mm, flip} to look inside (null or \"off\": no cut); explode 0 … 1 (an assembly pulled apart); sizes all / "
                     "locked / none (the size labels).",
      "inputSchema": _obj({"view": {"type": "string", "enum": ["iso", "top", "front", "right"]}, "section": {}, "explode": NUM,
                           "sizes": {"type": "string", "enum": ["all", "locked", "none"]}})},

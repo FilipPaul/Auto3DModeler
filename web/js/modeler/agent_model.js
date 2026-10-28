@@ -443,10 +443,11 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
     },
 
     // the model versions of shared tools
-    model_screenshot: async ({ view }) => {
+    model_screenshot: async ({ view, fit = true }) => {
       needModel();
       await settle();
       if (view) m.view.setView({ front: 'front', back: 'front', side: 'right', top: 'top' }[view] || 'iso');
+      if (fit !== false) m.view.fit(); // (the whole part in the picture)
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       const v = m.view;
       v.renderer.render(v.scene, v.camera);

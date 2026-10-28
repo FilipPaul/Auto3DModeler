@@ -446,6 +446,17 @@ export class ModelView {
     this.invalidate();
   }
 
+  /** All of it in the view, seen from where the camera looks now. */
+  fit() {
+    const box = this.fitBox(), c = box.getCenter(new THREE.Vector3()), s = Math.max(box.getSize(new THREE.Vector3()).length(), 1);
+    const dir = this.camera.position.clone().sub(this.controls.target);
+    if (dir.lengthSq() < 1e-12) dir.set(0.55, -0.9, 0.7);
+    this.camera.position.copy(c).addScaledVector(dir.normalize(), s * 1.6);
+    this.controls.target.copy(c);
+    this.controls.update();
+    this.invalidate();
+  }
+
   /** Look straight at a sketch plane (its y axis up). */
   lookAt(fr, span) {
     const { o, y, n } = axes(fr);

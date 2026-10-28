@@ -152,7 +152,7 @@ export class Modeler {
         <div class="mp-actions">${btn('cancelPlane', '✕ Cancel', 'Do not start a sketch (Esc)')}</div>`;
     } else {
       this.els.viewport.querySelector(':scope > .view-suggest[data-from=sketch]')?.remove(); // (the sketch's suggestions)
-      showSnapFilters(this.els.viewport, !!this.result?.body); // (what 📏 Measure catches)
+      showSnapFilters(this.els.viewport, !!this.result?.body && !this.cmd); // (what 📏 Measure catches — not while a feature is made)
       if (this.cmd || this.measuring || this.painting) this.dropSuggest(); // (a tool at work: not the face's)
       const canExtrude = this.sketches().length > 0;
       bar.innerHTML = `

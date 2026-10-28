@@ -84,6 +84,11 @@ Date: 2026-10-25. Written by the architect agent.
   face, the pull from its start to its end, names carried); a `draft` step {of, angle} (doc, LIMIT_FIELDS angle: the
   most that fits is told); the modeler's ⟋ Draft (renderDraft: the extrude, the angle; a click on a wall picks its
   extrude); add_feature draft for the AI. test_draft; tools/e2e_model_draft.py.
+- **Fixes from the AI's reports done (RealSWReports 2026-10-28):** get_screenshot fits the whole part / assembly
+  (view.fit: the camera's direction kept; fit: false keeps a zoomed view), on a drawing sheet it is the sheet (its SVG
+  drawn on white); set_view section "off" / "none" takes the cut off; gui_state lists the 3D model's steps (kind step,
+  name, what, [id]) and a choice's text with its value; the 3D Snap row hidden while a feature is made.
+  tools/e2e_ai_reports.py.
 - **Faces picked with no tool on, joints suggested done:** the assembly's idle click also picks a face / a round edge
   (facePicks: one, or Ctrl: one of each of two parts; lit by drawMarks); suggestFaces — one face: the joints it can
   start (then the other face), two: the joint types fitting both (JOINT_TYPES by face kind), made through clickJoint.

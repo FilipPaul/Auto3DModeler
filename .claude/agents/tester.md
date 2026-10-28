@@ -172,6 +172,9 @@ Never report "works" without having run it; report failures with their output.
    refused; a joint from it moves the other part; the Lid's suggestions: unlock and edit here, fix; freed: it moves).
    `tools/e2e_planes.py <url> <dir>` covers the planes (faint on an empty model; ◫ Planes off: hidden, remembered;
    choosing a sketch plane: shown anyway; back: hidden; on again).
+   `tools/e2e_ai_reports.py <url> <dir>` covers the fixes from the AI's reports (a zoomed-out view: get_screenshot
+   fitted again, fit: false kept; set_view section "off": no cut; gui_state's step rows and a choice's text; the Snap
+   row gone while ▢ Shell is on; a drawing sheet's screenshot is a PNG of the sheet).
    `tools/e2e_model_draft.py <url> <dir>` covers ⟋ Draft (5° on a block: the frustum's volume; the step's text; 60°
    refused with the most that fits; the AI's add_feature draft). Needs a server restarted after kernel changes.
    `tools/e2e_model_reorder.py <url> <dir>` covers reordering steps by dragging (a free sketch moved to the top; a boss

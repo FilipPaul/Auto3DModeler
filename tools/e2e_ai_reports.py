@@ -1,0 +1,78 @@
+"""Fixes from the AI's own reports, in headless Edge: a 3D model zoomed far out -> get_screenshot: fitted again (the
+camera close to the part); fit: false keeps the view -> set_view section on, then "off": no cut -> gui_state lists the
+model's steps (kind step, with their ids) and a choice with its text -> the Snap row hidden while a feature is made ->
+a drawing sheet: get_screenshot is a picture of the sheet.
+
+  PYTHONIOENCODING=utf-8 py tools/e2e_ai_reports.py http://127.0.0.1:5199 <out dir>
+"""
+import base64
+import json
+import sys
+import time
+
+from selenium import webdriver
+
+URL, OUT = sys.argv[1], sys.argv[2]
+opts = webdriver.EdgeOptions()
+opts.add_argument("--headless=new")
+opts.add_argument("--window-size=1600,1000")
+opts.set_capability("ms:loggingPrefs", {"browser": "ALL"})
+d = webdriver.Edge(options=opts)
+js = d.execute_script
+M = "window.__app.modeler"
+H = "window.__app.agentHandlers"
+
+
+def wait(script, t=120):
+    end = time.time() + t
+    while time.time() < end:
+        v = js(script)
+        if v:
+            return v
+        time.sleep(0.2)
+    raise TimeoutError(script)
+
+
+def call(tool_name, **args):
+    return js(f"return {H}[arguments[0]](arguments[1]).then(r => r.text + (r.image ? ' |IMG ' + r.image.length : '')).catch(e => 'ERROR ' + e.message)", tool_name, args)
+
+
+def far():
+    return round(js(f"return {M}.view.camera.position.distanceTo({M}.view.controls.target)"), 1)
+
+
+try:
+    d.get(URL)
+    wait("return !!window.__app")
+    call("new_model", name="Plate")
+    call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 60, "h": 40}}])
+    call("add_feature", type="extrude", sketch="F1", d=8)
+    wait(f"return !!{M}.result?.body")
+    fitted = far()
+    js(f"const v = {M}.view; v.camera.position.sub(v.controls.target).multiplyScalar(8).add(v.controls.target); v.controls.update();")
+    print("zoomed out:", fitted, "->", far())
+    print("fit: false:", call("get_screenshot", fit=False)[-14:], "| distance", far())
+    print("default:", call("get_screenshot")[-14:], "| distance", far(), "(fitted", fitted, ")")
+
+    call("set_view", section={"axis": "x"})
+    print("section on:", js(f"return !!{M}.section && {M}.view.renderer.localClippingEnabled"))
+    call("set_view", section="off")
+    print("section 'off':", js(f"return !{M}.section && !{M}.view.renderer.localClippingEnabled"))
+
+    st = json.loads(call("gui_state"))["controls"]
+    print("steps in gui_state:", [c["label"] for c in st if c["kind"] == "step"])
+    print("a choice:", next((c["label"], c.get("state")) for c in st if c["kind"] == "choice"))
+    print("Snap row, no tool:", js("return !!document.querySelector('#modelViewport > .snap-filters, .viewport > .snap-filters')"))
+    js(f"{M}.action('shell')")
+    print("Snap row, shell on:", js("return !!document.querySelector('.viewport > .snap-filters')"))
+    js(f"{M}.cancelCommand()")
+
+    print("sheet_open:", json.loads(call("sheet_open", part="Plate"))["preset"])
+    wait("return !!window.__app.sheet.svgEl")
+    r = js(f"return {H}.get_screenshot({{}}).then(r => [r.text, r.image]).catch(e => ['ERROR ' + e.message, null])")
+    print("sheet screenshot:", r[0], "| png", bool(r[1]) and base64.b64decode(r[1])[:4] == b"\x89PNG")
+    if r[1]:
+        open(f"{OUT}/sheet_shot.png", "wb").write(base64.b64decode(r[1]))
+finally:
+    print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
+    d.quit()

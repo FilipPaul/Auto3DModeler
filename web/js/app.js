@@ -2337,8 +2337,9 @@ const agentHandlers = {
   undo: async () => aiUndo(),
 };
 
-async function assemblyScreenshot({ view } = {}) {
+async function assemblyScreenshot({ view, fit = true } = {}) {
   if (view) assembly.view.setView({ side: 'right', back: 'front' }[view] || view);
+  if (fit !== false) assembly.view.fit?.(); // (all of it in the picture)
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
   const v = assembly.view;
   v.renderer.render(v.scene, v.camera);
@@ -2353,6 +2354,24 @@ async function assemblyScreenshot({ view } = {}) {
   return { text: `Assembly view (${view || 'current'}).`, image: c.toDataURL('image/png').split(',')[1] };
 }
 
+/** A drawing sheet on screen, as a picture (its SVG drawn on white). */
+async function sheetScreenshot() {
+  await sheet.ensure();
+  const svg = sheet.svgEl ? new XMLSerializer().serializeToString(sheet.svgEl) : null;
+  if (!svg) throw new Error('The sheet is not drawn yet.');
+  const img = new Image(), url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+  await new Promise((ok, bad) => { img.onload = ok; img.onerror = () => bad(new Error('The sheet could not be drawn as a picture.')); img.src = url; });
+  const w = 1400, h = Math.round(w * (img.height / img.width || 0.707)), c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(img, 0, 0, w, h);
+  URL.revokeObjectURL(url);
+  return { text: `Drawing sheet of ${project.current?.name || ''} (rev ${sheet.d?.rev || 1}).`, image: c.toDataURL('image/png').split(',')[1] };
+}
+
 // 3D model parts: their own tools; the shared ones (screenshot, export, undo, get_part) follow the part on screen
 const MODEL = modelHandlers({ modeler, project, getWorkspace: () => state.workspace });
 const SHARED = { get_screenshot: 'model_screenshot', get_body: 'model_body', undo: 'model_undo' };
@@ -2360,6 +2379,7 @@ const ANYWHERE = new Set(['load', 'load_drawing', 'ask_user', 'sheet_open', 'get
 for (const [name, fn] of Object.entries(agentHandlers)) {
   if (ANYWHERE.has(name)) continue;
   agentHandlers[name] = async (...args) => {
+    if (state.workspace === 'sheet' && name === 'get_screenshot') return sheetScreenshot();
     if (state.workspace === 'assembly') {
       if (name === 'get_screenshot') return assemblyScreenshot(...args);
       if (name === 'get_body') return { text: 'ok', body: { assembly: true } };
