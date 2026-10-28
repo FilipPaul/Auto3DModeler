@@ -176,7 +176,9 @@ Never report "works" without having run it; report failures with their output.
    assembly's bars: each group in one run, one colour per group, the groups' colours differ; screenshots of the bars).
    `tools/e2e_ai_reports.py <url> <dir>` covers the fixes from the AI's reports (a zoomed-out view: get_screenshot
    fitted again, fit: false kept; set_view section "off": no cut; gui_state's step rows and a choice's text; the Snap
-   row gone while ▢ Shell is on; a drawing sheet's screenshot is a PNG of the sheet).
+   row gone while ▢ Shell is on; a wall flush on the plate: its back one face with both names; find_refs of_step: the
+   wall's 6 faces, between_steps F2 / F4: the one joint edge; a wrong step refused; a drawing sheet's screenshot is a
+   PNG of the sheet).
    `tools/e2e_model_draft.py <url> <dir>` covers ⟋ Draft (5° on a block: the frustum's volume; the step's text; 60°
    refused with the most that fits; the AI's add_feature draft). Needs a server restarted after kernel changes.
    `tools/e2e_model_reorder.py <url> <dir>` covers reordering steps by dragging (a free sketch moved to the top; a boss

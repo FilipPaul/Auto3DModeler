@@ -159,11 +159,14 @@ TOOLS = [
     {"name": "find_refs", "where": "browser",
      "description": "Find faces or edges of the 3D model by description (never guess names). Faces: normal [x, y, z] "
                     "(e.g. [0, 0, 1] = facing up), extreme max / min along that normal (the top-most face), name "
-                    "(part of a face name), near [x, y, z]. Edges: of_face (a face name), circular true / false, near. "
+                    "(part of a face name), near [x, y, z], of_step (a step's id: the faces it made). Edges: of_face (a face name), "
+                    "of_step (all the edges of a step's faces — to round them at once), between_steps [id, id] (where two steps "
+                    "meet, e.g. a rib and its plate), circular true / false, near. A face merged from two steps (flush) has names. "
                     "Edges come with a ready ref {a, b, fp} for fillet / chamfer.",
      "inputSchema": _obj({"kind": {"type": "string", "enum": ["face", "edge"]}, "normal": POINT,
                           "extreme": {"type": "string", "enum": ["max", "min"]}, "name": STR, "near": POINT,
-                          "of_face": STR, "circular": {"type": "boolean"}, "limit": {"type": "integer"}})},
+                          "of_face": STR, "of_step": STR, "between_steps": {"type": "array", "items": STR},
+                          "circular": {"type": "boolean"}, "limit": {"type": "integer"}})},
     {"name": "add_feature", "where": "browser",
      "description": "Add a step to the 3D model (it rebuilds; the result says ok / issues). type:\n"
                     "- sketch: plane \"XY\" (top, the bed) / \"XZ\" (front) / \"YZ\" (right) / {datum: \"XY\", offset: 30} (moved along its "

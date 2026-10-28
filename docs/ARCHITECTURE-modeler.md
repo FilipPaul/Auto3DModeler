@@ -99,6 +99,9 @@ Date: 2026-10-25. Written by the architect agent.
 - **Flush faces merged done:** kernel.combine ends with _unify (ShapeUpgrade_UnifySameDomain, names carried through
   its history): a wall flush with the plate it stands on gives one face per plane, with both names — no seam, no name
   on two faces (the AI's coplanar-faces report). test_flush_faces_merge.
+- **find_refs by step done:** of_step (the faces a step made / all their edges — to round them at once), between_steps
+  [a, b] (the edges where a face of only one meets a face of only the other: a rib's joint with its plate); faces
+  merged from two steps listed with names. tools/e2e_ai_reports.py.
 - **Faces picked with no tool on, joints suggested done:** the assembly's idle click also picks a face / a round edge
   (facePicks: one, or Ctrl: one of each of two parts; lit by drawMarks); suggestFaces — one face: the joints it can
   start (then the other face), two: the joint types fitting both (JOINT_TYPES by face kind), made through clickJoint.

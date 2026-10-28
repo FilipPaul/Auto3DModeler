@@ -339,14 +339,21 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       return { text: JSON.stringify({ name: project.current?.name, unit: 'mm', steps, body: summary() }) };
     },
 
-    find_refs: async ({ kind = 'face', name, normal, extreme, near, of_face, circular, limit = 12 }) => {
+    find_refs: async ({ kind = 'face', name, normal, extreme, near, of_face, of_step, between_steps, circular, limit = 12 }) => {
       needModel();
       await settle();
       const b = body();
       if (!b) throw new Error('The model has no solid yet.');
+      const namesOf = (f) => (f?.names?.length ? f.names : f?.name ? [f.name] : []);
+      const ofStep = (f, id) => namesOf(f).some((n) => n.split(':')[0] === id); // (a face the step made, e.g. F10:side:l2)
+      for (const id of [of_step, ...(between_steps || [])].filter(Boolean)) {
+        if (!m.part.features.some((g) => g.id === id)) throw new Error(`No step ${id} — get_model lists the steps.`);
+      }
+      if (between_steps && (!Array.isArray(between_steps) || between_steps.length !== 2)) throw new Error('between_steps: two step ids, e.g. ["F2", "F10"].');
       if (kind === 'face') {
         let fs = b.faces.filter((f) => f.name);
-        if (name) fs = fs.filter((f) => f.name.includes(name));
+        if (name) fs = fs.filter((f) => namesOf(f).some((n) => n.includes(name)));
+        if (of_step) fs = fs.filter((f) => ofStep(f, of_step));
         if (normal) { const n = normal.map(Number), L = len(n) || 1; fs = fs.filter((f) => f.normal && dot(f.normal, n) / L > 0.999); }
         if (extreme && fs.length) {
           const dir = normal || [0, 0, 1], L = len(dir) || 1;
@@ -356,13 +363,18 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         }
         if (near) fs.sort((a, c) => len(sub(a.centroid, near)) - len(sub(c.centroid, near)));
         else fs.sort((a, c) => c.area - a.area);
-        return { text: JSON.stringify(fs.slice(0, limit).map((f) => ({ name: f.name, type: f.type, normal: f.normal, centroid: f.centroid, area: r3(f.area), radius: f.radius }))) };
+        return { text: JSON.stringify(fs.slice(0, limit).map((f) => ({ name: f.name, ...(namesOf(f).length > 1 ? { names: namesOf(f) } : {}), type: f.type, normal: f.normal, centroid: f.centroid, area: r3(f.area), radius: f.radius }))) };
       }
       if (kind === 'edge') {
         let es = b.edges.map((e, i) => ({ e, i })).filter(({ e }) => e.faces.length === 2);
         if (of_face) {
           const ids = b.faces.filter((f) => f.name === of_face).map((f) => f.id);
           es = es.filter(({ e }) => e.faces.some((k) => ids.includes(k)));
+        }
+        if (of_step) es = es.filter(({ e }) => e.faces.some((k) => ofStep(b.faces[k], of_step))); // (all the step's edges: to round them at once)
+        if (between_steps) { // (where the two steps meet: a rib on its plate)
+          const [s1, s2] = between_steps;
+          es = es.filter(({ e }) => { const [fa, fb] = e.faces.map((k) => b.faces[k]); const only = (f, x, y) => ofStep(f, x) && !ofStep(f, y); return (only(fa, s1, s2) && only(fb, s2, s1)) || (only(fa, s2, s1) && only(fb, s1, s2)); }); // (a face flush with both: not a joint)
         }
         const info = es.map(({ e }) => {
           const [fa, fb] = e.faces.map((k) => b.faces[k]?.name);

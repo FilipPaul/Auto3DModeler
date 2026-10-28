@@ -1,6 +1,7 @@
 """Fixes from the AI's own reports, in headless Edge: a 3D model zoomed far out -> get_screenshot: fitted again (the
 camera close to the part); fit: false keeps the view -> set_view section on, then "off": no cut -> gui_state lists the
-model's steps (kind step, with their ids) and a choice with its text -> the Snap row hidden while a feature is made ->
+model's steps (kind step, with their ids) and a choice with its text -> the Snap row hidden while a feature is
+made -> a wall flush on the plate: its back one face with both names; find_refs of_step / between_steps ->
 a drawing sheet: get_screenshot is a picture of the sheet.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_ai_reports.py http://127.0.0.1:5199 <out dir>
@@ -67,6 +68,16 @@ try:
     print("Snap row, shell on:", js("return !!document.querySelector('.viewport > .snap-filters')"))
     js(f"{M}.cancelCommand()")
 
+    # find_refs by step: a wall flush on the plate's back edge
+    call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 35, "w": 60, "h": 5}}])
+    call("add_feature", type="extrude", sketch="F3", d=30)
+    back = json.loads(call("find_refs", kind="face", normal=[0, 1, 0]))
+    print("the back (flush):", [(f["name"], f.get("names")) for f in back])
+    print("faces of_step F4:", sorted(f["name"] for f in json.loads(call("find_refs", kind="face", of_step="F4", limit=50))))
+    print("edges of_step F4:", len(json.loads(call("find_refs", kind="edge", of_step="F4", limit=50))))
+    meet = json.loads(call("find_refs", kind="edge", between_steps=["F2", "F4"], limit=50))
+    print("edges between F2 and F4:", [(e["between"], e["mid"]) for e in meet])
+    print("a wrong step:", call("find_refs", kind="edge", of_step="F99")[:40])
     print("sheet_open:", json.loads(call("sheet_open", part="Plate"))["preset"])
     wait("return !!window.__app.sheet.svgEl")
     r = js(f"return {H}.get_screenshot({{}}).then(r => [r.text, r.image]).catch(e => ['ERROR ' + e.message, null])")
