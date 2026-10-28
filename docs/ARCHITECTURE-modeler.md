@@ -118,6 +118,12 @@ Date: 2026-10-25. Written by the architect agent.
   only: motionHtml `only`; limits read from its document) and ↺ As in <sub>; flatParts / STEP / the sheet's flatten
   / the tree's preview use the moved places. AI: get_assembly `inner` (part "I3/I2", free, at), move_free "I3/I2"
   (set_travel / lock_motion / check_travel refuse it: its own assembly's). tools/e2e_assembly_flexsub.py.
+- **Flexible sub-assemblies, step 2 (the parent's joints) done:** flexOf (the parts that move inside a sub-assembly
+  by its own joints, cached until refresh); insideMate: a parent joint whose face is on such a part ("I2/…") holds
+  that part inside it, when the sub-assembly is held otherwise too (another joint, or 📌) — alone it places the whole
+  as before. holdPart / motionsOf of the sub-assembly leave such joints out; applyMates places it, then settleInner;
+  innerAsm(it, outer) adds them to its engine with the parts they join as fixed stand-ins ("^I1", joint "^J3", in
+  its frame) — so its Moves inside lose what they hold. e2e_assembly_flexsub (a parallel joint locks the lever's turn).
 - **Hover marks, quadrants, hover filters done:** view.js snapPoints(edges, matrix, kinds) (snapNear uses it; a round
   edge's ◔ quadrants: along the world axis lying best in its plane, and across), ModelView.edgeAt (pickEdge over
   placed edge lists, hidden ones not taken), setHoverEdges / setHoverSnaps (the snap dots the camera sees: one ray

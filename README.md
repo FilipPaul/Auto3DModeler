@@ -521,6 +521,9 @@ its parts'; STEP lists every part; an assembly cannot go into itself):
   only — the sub-assembly's own tab stays as it is, and a second placement of it can stand differently. Parts joined
   to the lever follow; collisions, STEP and drawings see it where it is. **↺ As in <it>** puts its parts back. The AI:
   get_assembly lists them as `inner` ("I3/I2"), `move_free {part: "I3/I2"}` moves one.
+  A joint of this assembly on such a moving part (e.g. the lever's side parallel to the frame) holds that part inside
+  the sub-assembly — the turn it locks is gone from the sliders — as long as the sub-assembly is held otherwise too
+  (another joint, or 📌); a sub-assembly held only by that one joint moves as one piece, as before.
   A part on a face is centred on it once, when the joint is made; after that it keeps where it slid, and goes along
   with the part it hangs on.
 - **🔒 Lock a motion**: the 🔒 next to a free way fixes it where the part is — its joint's turn or distance along the

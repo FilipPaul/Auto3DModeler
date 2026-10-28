@@ -3,7 +3,8 @@ in "Machine" (on a frame) -> get_assembly lists the turn as `inner` of each plac
 placement shows "Moves inside Lever" with a slider -> the slider turns the lever in this view (the frame and the base
 stay) -> saved on that placement (`inner`), the other placement and Lever's own document unchanged -> move_free
 "I2/I2" to 90° -> undo / redo -> the collisions and the STEP see the turned lever (flatParts) -> ↺ As in Lever -> the
-project file keeps `inner` and Lever's own tab still has the lever where it was.
+project file keeps `inner` -> a parallel joint of Machine on the arm turns it inside Lever and locks its turn (the
+placement stays), taken away: it turns again -> Lever's own tab still has the lever where it was.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_assembly_flexsub.py http://127.0.0.1:5199 <out dir>
 """
@@ -144,6 +145,25 @@ try:
     d.find_element(By.CSS_SELECTOR, "#asmRight [data-a=innerReset]").click()
     time.sleep(0.8)
     check(not js(f"return !!{A}.inst('I2').inner") and inner_turn("I2") == 0, "↺ As in Lever: back where Lever has it")
+
+    # this assembly's joints on the arm hold it inside Lever: a parallel joint to the frame's side locks the turn
+    call("move_free", part="I2/I2", motion=0, to=40)
+    place0 = js(f"return [...{A}.inst('I2').matrix]")
+    r = json.loads(call("snap_faces", type="parallel", move={"part": "I2", "face": "I2/F2:side:l1"}, onto={"part": "I1", "face": "F2:side:l1"}))
+    jid = r["joints"][-1]["id"]
+    t2 = inner_turn("I2")
+    check(abs(t2 % 180) < 0.6 or abs(t2 % 180 - 180) < 0.6, f"parallel joint {jid} on the arm (I2/F2:side:l1): the arm turned inside to {t2}°")
+    check(js(f"return {A}.inst('I2').matrix.every((v, k) => Math.abs(v - arguments[0][k]) < 1e-6)", place0), "the placement itself did not move (its touch holds it)")
+    p2 = part("I2")
+    check(not p2.get("inner") and not any(j.get("not_held") for j in r["joints"]), f"the arm's turn is held now (inner: {p2.get('inner')}; joints hold)")
+    js(f"{A}.choose('I2')")
+    time.sleep(0.5)
+    heads = [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmRight h3")]
+    check(not any(h.startswith("Moves inside") for h in heads), f"no inner sliders while held ({heads[:3]})")
+    check(json.dumps(sub_doc()["instances"]) == own0, "Lever's own document still unchanged")
+    call("remove_joint", id=jid)
+    time.sleep(0.5)
+    check(len(part("I2").get("inner") or []) == 1, "the joint taken away: the arm turns again")
 
     call("open_part", id="Lever")
     time.sleep(1.5)

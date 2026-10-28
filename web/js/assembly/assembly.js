@@ -1575,6 +1575,7 @@ export class Assembly {
 
   // ------------------------------------------------------------------ bodies of the parts
   async refresh() {
+    this.flexCache = null;
     const need = [...new Set(this.doc.instances.map((i) => i.part))];
     // sub-assemblies: their own parts first, then them as one body each
     const subs = need.filter((pid) => this.kindOf(pid) === 'assembly');
@@ -1904,7 +1905,7 @@ export class Assembly {
    *  (nothing is noted on the joints). */
   holdPart(id, M, probe = false, skip = null) {
     let fixed = null;
-    (this.doc.mates || []).filter((m) => m.move === id && m.id !== skip && this.inst(m.onto)).forEach((m, k) => {
+    (this.doc.mates || []).filter((m) => m.move === id && m.id !== skip && this.inst(m.onto) && !this.insideMate(m)).forEach((m, k) => {
       try {
         const r = applyJoint(M, m, (MM) => this.worldFace(id, m.face, MM), this.worldFace(m.onto, m.ontoFace), k === 0, fixed, k === 0 && !m.centred);
         M = r.M;
@@ -1930,14 +1931,18 @@ export class Assembly {
         done.add(id);
         const it = this.inst(id);
         if (!this.bodyOf(it)?.body || mine.some((m) => !this.bodyOf(this.inst(m.onto))?.body)) continue; // not built yet
-        let M = new THREE.Matrix4().fromArray(it.matrix);
-        const parent = this.inst(mine[0].onto), P = new THREE.Matrix4().fromArray(parent.matrix);
-        if (it.hang?.on === parent.id && it.hang.m.some((v, i) => Math.abs(v - parent.matrix[i]) > 1e-9)) {
-          M = P.clone().multiply(new THREE.Matrix4().fromArray(it.hang.m).invert()).multiply(M); // it goes along
+        const rigid = mine.filter((m) => !this.insideMate(m));
+        if (rigid.length) {
+          let M = new THREE.Matrix4().fromArray(it.matrix);
+          const parent = this.inst(rigid[0].onto), P = new THREE.Matrix4().fromArray(parent.matrix);
+          if (it.hang?.on === parent.id && it.hang.m.some((v, i) => Math.abs(v - parent.matrix[i]) > 1e-9)) {
+            M = P.clone().multiply(new THREE.Matrix4().fromArray(it.hang.m).invert()).multiply(M); // it goes along
+          }
+          M = this.holdPart(id, M);
+          it.matrix = M.toArray().map((v) => (Math.abs(v - Math.round(v)) < 1e-9 ? Math.round(v) : +v.toFixed(9)));
+          it.hang = { on: parent.id, m: [...parent.matrix] };
         }
-        M = this.holdPart(id, M);
-        it.matrix = M.toArray().map((v) => (Math.abs(v - Math.round(v)) < 1e-9 ? Math.round(v) : +v.toFixed(9)));
-        it.hang = { on: parent.id, m: [...parent.matrix] };
+        if (rigid.length < mine.length) this.settleInner(it); // (joints on its parts that move inside it: they hold those)
       }
     }
     this.checkJoints();
@@ -1945,7 +1950,7 @@ export class Assembly {
 
   /** How a joined part can still move: {count, motions: [{kind, dir, point, label}], centre, size}. */
   motionsOf(id, own = false) {
-    const it = this.inst(id), b = this.bodyOf(it)?.body, mine = (this.doc.mates || []).filter((m) => m.move === id && this.inst(m.onto));
+    const it = this.inst(id), b = this.bodyOf(it)?.body, mine = (this.doc.mates || []).filter((m) => m.move === id && this.inst(m.onto) && !this.insideMate(m));
     if (!it || !b || !mine.length) return null;
     const M = new THREE.Matrix4().fromArray(it.matrix);
     const c = new THREE.Vector3((b.bbox[0] + b.bbox[3]) / 2, (b.bbox[1] + b.bbox[4]) / 2, (b.bbox[2] + b.bbox[5]) / 2).applyMatrix4(M);
@@ -1996,13 +2001,23 @@ export class Assembly {
   // ------------------------------------------------------------------ a sub-assembly's own motions, in this one
   /** A placed sub-assembly's own joints at work on its parts as this placement has them (in its own frame): an engine
    *  like this one (holdPart, applyMates, motionsOf, motionPos, moveFree …) whose draw / commit keep the parts' places
-   *  on the placement (its `inner`) -> it, or null (not a sub-assembly, or no joints in it). */
-  innerAsm(it) {
+   *  on the placement (its `inner`) -> it, or null (not a sub-assembly, or no joints in it). outer: with this
+   *  assembly's joints on its moving parts (insideMate), the parts they are joined to as fixed stand-ins "^I1". */
+  innerAsm(it, outer = true) {
     const data = it && this.kindOf(it.part) === 'assembly' ? this.hooks.partData(it.part) : null;
     if (!data?.mates?.length) return null;
-    const sub = Object.create(this), list = structuredClone(this.innerList(it));
+    const sub = Object.create(this), list = structuredClone(this.innerList(it)), mates = structuredClone(data.mates);
     for (const i of list) { const on = i.hang && list.find((x) => x.id === i.hang.on); if (on) i.hang = { on: on.id, m: [...on.matrix] }; } // (as they stand: none goes along)
-    Object.assign(sub, { doc: { instances: list, mates: structuredClone(data.mates) }, owner: it, _via: null, health: null, whyCache: null, travelNote: null, playing: null });
+    if (outer) { // this assembly's joints on its parts that move inside it: the parts they are joined to stand still
+      const Si = new THREE.Matrix4().fromArray(it.matrix).invert();
+      for (const m of (this.doc.mates || []).filter((x) => x.move === it.id && this.insideMate(x))) {
+        const y = this.inst(m.onto), [k, face] = String(m.face).split(/\/(.*)/s);
+        if (!y) continue;
+        if (!list.some((x) => x.id === `^${y.id}`)) list.push({ id: `^${y.id}`, part: y.part, from: y.id, ...(y.inner ? { inner: y.inner } : {}), fixed: true, matrix: Si.clone().multiply(new THREE.Matrix4().fromArray(y.matrix)).toArray() });
+        mates.push({ ...structuredClone(m), id: `^${m.id}`, move: k, face, onto: `^${y.id}`, centred: true });
+      }
+    }
+    Object.assign(sub, { doc: { instances: list, mates }, owner: it, _via: null, health: null, whyCache: null, travelNote: null, playing: null, flexCache: null });
     sub.draw = () => this.keepInner(it, sub, false);
     sub.commit = () => this.keepInner(it, sub, true);
     return sub;
@@ -2031,6 +2046,32 @@ export class Assembly {
     if (!sub) { this.mergeAssembly(it.part, new Set(), it); return; }
     try { sub.applyMates(); } catch { /* as they were */ }
     this.keepInner(it, sub, null);
+  }
+
+  /** The parts that can move inside a sub-assembly by its own joints (ids; kept until the next refresh). */
+  flexOf(it) {
+    this.flexCache = this.flexCache || new Map();
+    if (!this.flexCache.has(it.part)) {
+      this.flexCache.set(it.part, new Set()); // (while it is worked out: none)
+      const sub = this.innerAsm({ id: it.id, part: it.part, matrix: it.matrix }, false), ids = new Set();
+      for (const id of sub ? [...new Set(sub.doc.mates.map((m) => m.move))] : []) {
+        try { const d = sub.motionsOf(id); if (d?.count && !d.via) ids.add(id); } catch { /* not built */ }
+      }
+      this.flexCache.set(it.part, ids);
+    }
+    return this.flexCache.get(it.part);
+  }
+
+  /** Is a joint of this assembly on a part that moves inside a placed sub-assembly (its face "I2/…")? Then it holds
+   *  that part inside it — when the sub-assembly is held otherwise too (another joint, or 📌 fixed); alone, it places
+   *  the whole sub-assembly as before. */
+  insideMate(m) {
+    if (this.owner) return false; // (in a sub-assembly's engine: its own joints)
+    const it = this.inst(m.move), k = String(m.face).split('/')[0];
+    if (!it || !String(m.face).includes('/') || this.kindOf(it.part) !== 'assembly') return false;
+    const flex = this.flexOf(it);
+    if (!flex.has(k)) return false;
+    return !!it.fixed || (this.doc.mates || []).some((x) => x.move === it.id && x !== m && !flex.has(String(x.face).split('/')[0]));
   }
 
   /** The ways a placed sub-assembly's parts can still move inside it, by its own joints -> {sub (its engine), parts:

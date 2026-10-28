@@ -286,7 +286,8 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_assembly_flexsub.py <url> <dir>` covers flexible sub-assemblies (a lever on a pin placed twice in a
    parent: get_assembly `inner` "I2/I2", the panel's "Moves inside Lever" slider turns it in the parent only — kept
    on that placement's `inner`, the other placement and Lever's own document unchanged —, move_free "I2/I2", undo /
-   redo, flatParts see it, ↺ As in Lever, the project file keeps it; prints ALL OK or the failed checks).
+   redo, flatParts see it, ↺ As in Lever, the project file keeps it; a parallel joint of the parent on the arm turns
+   it inside and locks its turn, the placement stays, ✕ frees it again; prints ALL OK or the failed checks).
    `tools/e2e_assembly_lockmotion.py <url> <dir>` covers 🔒 lock a motion (a pin in a hole: its turn -> the joint's
    angle, its slide -> the joint's distance, fully held and not moved; a lid on a base: Along X -> a new Flush joint
    of side faces, not moved; the AI's lock_motion, and on a held part refused).
