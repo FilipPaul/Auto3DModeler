@@ -343,8 +343,8 @@ export class Sketcher {
     while (used.has(`${pre}${++n}`));
     return `${pre}${n}`;
   }
-  /** The sketch as it is (for undo / redo). */
-  snapshot() { return structuredClone({ points: this.f.points, entities: this.f.entities, constraints: this.f.constraints, dims: this.f.dims, place: this.f.place || {}, rd: this.f.rd || {} }); }
+  /** The sketch as it is (for undo / redo; on a face also its plane — its origin can move). */
+  snapshot() { return structuredClone({ points: this.f.points, entities: this.f.entities, constraints: this.f.constraints, dims: this.f.dims, place: this.f.place || {}, rd: this.f.rd || {}, ...(this.f.plane?.face ? { plane: this.f.plane } : {}) }); }
 
   step() { this.undo.push(this.snapshot()); this.redo = []; } // (a new change: what was undone is gone)
 

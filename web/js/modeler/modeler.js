@@ -13,6 +13,7 @@ import { ModelView, DATUMS, datumFrame, snapPoints } from './view.js';
 import { Sketcher, upgradeSketch, arcPts, splinePts, RELATIONS, BIG_SKETCH } from './sketcher.js';
 import { textOutline } from '../outlinepanel.js';
 import { sectionBar, sectionMiddle } from './sectionbar.js';
+import { originSeg, originKey, sameOrigin, moveOrigin, shiftSketch, shiftPoints, HOLE_ORIGINS, FROM_TEXT } from './origin.js';
 import { libraryFactsHtml } from '../library/browser.js';
 
 const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa', mirror: '⇋', draft: '⟋', rib: '⊿', point: '•' };
@@ -165,7 +166,8 @@ export class Modeler {
       const offset = onDatum ? `<label class="chip m-offset" title="Move the sketch plane along its normal (e.g. 30 mm above the bed — for a loft's second profile); a positive offset moves it along the arrow">↕ Plane at
         <input type="number" step="any" data-k="planeOffset" value="${fmt(this.sk.f.plane.offset || 0)}"> mm <span class="m-plus" data-no-i18n>(+ = ${plus})</span></label><span class="sep"></span>` : '';
       this.view.setPlaneArrow(onDatum ? this.frame() : null, plus);
-      bar.innerHTML = `<span class="m-mode">Sketch</span>${planes}${offset}
+      const origin = originSeg(this.sk.f.plane, originKey(this.sk.f.plane?.origin));
+      bar.innerHTML = `<span class="m-mode">Sketch</span>${planes}${offset}${origin ? `${origin}<span class="sep"></span>` : ''}
         ${btn('rect', '▭ Rectangle', 'Draw a rectangle: click two corners (R)', t === 'rect' ? 'on' : '')}
         ${btn('line', '⟋ Line', 'Draw lines: click point after point; click the first point to close the shape (L)', t === 'line' ? 'on' : '')}
         ${btn('circle', '◯ Circle', 'Draw a circle: click the centre, then the edge (C)', t === 'circle' ? 'on' : '')}
@@ -233,6 +235,7 @@ export class Modeler {
       for (const a of ['measure', 'section', 'paint']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body;
     }
     for (const b of bar.querySelectorAll('[data-a]:not([data-a=relate])')) b.addEventListener('click', () => this.action(b.dataset.a));
+    for (const b of bar.querySelectorAll('[data-origin]')) b.addEventListener('click', () => this.setSketchOrigin(b.dataset.origin));
     this.sketchState();
     if (this.mode === 'sketch') { this.sk.renderFilters(); showSnapFilters(this.els.viewport, false); } else this.els.viewport.querySelector(':scope > .sk-filters:not(.snap-filters)')?.remove();
     bar.querySelector('[data-a=relate]')?.addEventListener('click', (e) => { e.stopPropagation(); bar.querySelector('.sk-relmenu').classList.toggle('open'); });
@@ -1033,6 +1036,8 @@ export class Modeler {
         : any && dof > 0 ? 'Some sizes are still free (they follow when you drag) — it can be finished anyway; 🪄 Auto-dimension fixes them (Enter)' : 'Done drawing — next: Extrude (Enter)');
     }
     if (auto) auto.hidden = !(any && dof > 0);
+    const o = originKey(this.sk.f.plane?.origin); // (after an undo: the origin it went back to)
+    for (const b of this.els.viewport.querySelectorAll('.m-cmdbar [data-origin]')) b.classList.toggle('on', b.dataset.origin === o);
   }
 
   renderProps() {
@@ -1395,7 +1400,21 @@ export class Modeler {
   frame() {
     const f = this.sk.f;
     if (f.plane?.datum) return datumFrame(f.plane);
-    return this.frames?.[f.id] || f.plane.frame;
+    const fr = this.frames?.[f.id];
+    return fr && sameOrigin(fr, f.plane) ? fr : f.plane.frame; // (an origin just switched: the plane's own)
+  }
+
+  /** The sketch's Origin (◎ the face's centre, ⌜ its corner, ⊕ the part's origin): its 0, 0 moves there, the shapes
+   *  keep their place on the part (their coordinates shift; one undo step). */
+  setSketchOrigin(how) {
+    const f = this.sk.f;
+    if (originKey(f.plane?.origin) === how) return;
+    const r = moveOrigin(this, f.plane, this.frame(), how);
+    if (!r) { this.hooks.toast('The face is not in the view — the origin stays where it is.', 'warning'); return; }
+    this.sk.step();
+    shiftSketch(f, r.du, r.dv);
+    f.plane = r.plane;
+    this.sk.changed();
   }
 
   sketchSpan() {
@@ -1766,24 +1785,36 @@ export class Modeler {
       return;
     }
     if (!f.plane) f.plane = { face: h.face.ref || null, frame: h.face.frame };
-    const fr = f.plane.frame; // the clicked face's frame (a later rebuild only moves it along its normal)
+    const fr = this.holeFrame(f); // the clicked face's frame (a later rebuild only moves it along its normal)
     const o = fr.o, x = fr.x, n = fr.n, y = [n[1] * x[2] - n[2] * x[1], n[2] * x[0] - n[0] * x[2], n[0] * x[1] - n[1] * x[0]];
     const d = [h.point.x - o[0], h.point.y - o[1], h.point.z - o[2]];
     let u = d[0] * x[0] + d[1] * x[1] + d[2] * x[2], v = d[0] * y[0] + d[1] * y[1] + d[2] * y[2];
     // snap: to the face centre within ~10 px, else to a 0.5 mm grid
     const mpp = this.view.mmPerPixel(fr);
-    if (Math.hypot(u, v) < mpp * 10) { u = 0; v = 0; } else { u = Math.round(u * 2) / 2; v = Math.round(v * 2) / 2; }
+    if (Math.hypot(u, v) < mpp * 10 && !f.plane.origin) { u = 0; v = 0; } else { u = Math.round(u * 2) / 2; v = Math.round(v * 2) / 2; }
     f.points.push([u, v]);
     // placed from the nearest edges of the face (left / right and below / above): it keeps that distance
-    // when the part changes
+    // when the part changes (a step measured from a corner / the part's origin: from that)
     f.from = f.from || [];
-    f.from[f.points.length - 1] = this.nearestEdges(f, [u, v]);
+    if (!f.plane.origin) f.from[f.points.length - 1] = this.nearestEdges(f, [u, v]);
     this.renderProps();
     this.rebuild();
   }
 
   /** The hole's face as it is now (the rebuild follows it when it moves), else where it was clicked. */
-  holeFrame(f) { return this.result?.frames?.[f.id] || f.plane?.frame || null; }
+  holeFrame(f) { const fr = this.result?.frames?.[f.id]; return fr && sameOrigin(fr, f.plane) ? fr : f.plane?.frame || null; }
+
+  /** The holes' From (⇤ each from its nearest edges, ⌜ all from the face's corner, ⊕ from the part's origin): they
+   *  keep their place, their numbers are from the new reference. */
+  setHoleOrigin(how) {
+    const f = this.cmd.feature, r = moveOrigin(this, f.plane, this.holeFrame(f), how === 'edges' ? 'centre' : how);
+    if (!r) { this.hooks.toast('The face is not in the view — the holes stay measured as they are.', 'warning'); return; }
+    f.points = shiftPoints(f.points, r.du, r.dv);
+    f.plane = r.plane;
+    f.from = how === 'edges' ? f.points.map((p) => this.nearestEdges(f, p)) : [];
+    this.renderProps();
+    this.rebuild();
+  }
 
   /** The straight edges of the part in the hole's face plane, in its coordinates: [{a: [u, v], b, ref: {a, b, fp}}]. */
   planeEdges(f) {
@@ -1921,7 +1952,7 @@ export class Modeler {
   /** One row of a hole's position: "↔ 12 mm from the left edge ⇄", or x / y from the face's centre (no edge there). */
   holeDimRow(f, i, axis, k) {
     const r = f.from?.[i]?.[axis], p = f.points[i];
-    if (!r) return `<label class="mp-hd">${axis} <input type="number" step="any" data-${k ? 'v' : 'u'}="${i}" value="${fmt(p[k])}"> <span class="hint">from the face's centre</span></label>`;
+    if (!r) return `<label class="mp-hd">${axis} <input type="number" step="any" data-${k ? 'v' : 'u'}="${i}" value="${fmt(p[k])}"> <span class="hint">${FROM_TEXT[originKey(f.plane?.origin)] || 'from the reference point'}</span></label>`;
     const side = r.round ? (k === 0 ? (r.d >= 0 ? 'right of the hole' : 'left of the hole') : (r.d >= 0 ? 'above the hole' : 'below the hole'))
       : k === 0 ? (r.d >= 0 ? 'from the left edge' : 'from the right edge') : (r.d >= 0 ? 'from the lower edge' : 'from the upper edge');
     const picking = this.holePick?.i === i && this.holePick?.axis === axis;
@@ -1952,6 +1983,7 @@ export class Modeler {
     const f = this.cmd.feature, st = this.status(f.id);
     box.innerHTML = `<h2>${esc(f.name)}</h2>
       <p class="hint">Click on a flat face where a hole goes — click again for more holes on the same face. A click near the face's centre snaps to it.</p>
+      ${f.plane?.face ? `<div class="field m-holefrom"><label>From</label>${originSeg(f.plane, f.plane.origin ? originKey(f.plane.origin) : f.from?.some((x) => x?.x || x?.y) ? 'edges' : '', '', HOLE_ORIGINS)}</div>` : ''}
       <div class="field"><label>Thread</label><select data-k="thread" title="A threaded hole: drilled with its tap drill (M5: Ø4.2), labelled M5 on the drawing">
         ${['', ...Object.keys(THREADS)].map((v) => `<option value="${v}" ${v === (f.thread || '') ? 'selected' : ''}>${v || '—'}</option>`).join('')}</select></div>
       <div class="field"><label>Diameter</label><input type="number" step="any" min="0" data-k="d" value="${fmt(f.d)}" ${f.thread ? 'disabled' : ''}><span class="unit">mm</span></div>
@@ -1966,7 +1998,9 @@ export class Modeler {
       ${f.points.length ? `<h3>Holes</h3><div class="mp-holes">${f.points.map((p, i) => `<div class="mp-hole">
         <span>${i + 1}</span><div class="mp-hole-dims">${['x', 'y'].map((axis, k) => this.holeDimRow(f, i, axis, k)).join('')}</div>
         <button class="mini danger" data-del="${i}" title="Remove this hole">✕</button></div>`).join('')}</div>
-        <p class="hint">Each hole keeps its distance from the edge it is measured from, also when the part changes. ⇄ measures from the other side.</p>`
+        <p class="hint">${f.plane?.origin === 'corner' ? 'The holes keep their distances from the corner — they follow it when the part changes.'
+          : f.plane?.origin ? 'The holes stay where these numbers put them, also when the part changes.'
+          : 'Each hole keeps its distance from the edge it is measured from, also when the part changes. ⇄ measures from the other side.'}</p>`
         : '<p class="mp-count">No holes yet — click on a face.</p>'}
       ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
@@ -2040,6 +2074,7 @@ export class Modeler {
         this.rebuild();
       });
     }
+    for (const b of box.querySelectorAll('[data-origin]')) b.addEventListener('click', () => this.setHoleOrigin(b.dataset.origin));
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
   }

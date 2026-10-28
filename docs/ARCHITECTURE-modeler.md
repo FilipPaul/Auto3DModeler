@@ -122,6 +122,13 @@ Date: 2026-10-25. Written by the architect agent.
   origin} / hole {face, origin, points} — "world" places in world X / Y / Z (a face whose v runs against its world
   axis — the bottom, the back — turned over: v, dy and arcs), get_model gives origin and the world places back.
   test_face_origin; tools/e2e_sketch_origin.py.
+- **… step 2 (the UI) done:** the sketch bar's Origin .seg (originSeg; a sketch on a face): setSketchOrigin ->
+  moveOrigin (the face's centre from the body, ⌜ from view.faceSpan, ⊕ the world origin, all seen square onto the
+  plane), shiftSketch (points, {ref} ends, a block's `at`, fix's `at`; dx / dy / dist to the origin measured anew), one
+  undo step (Sketcher.snapshot keeps a face plane). frame() / holeFrame() take a rebuild's frame only while its
+  `origin` tag matches the plane's (sameOrigin), else the plane's own. The hole panel's From: ⇤ Edges (each hole's
+  `from` its nearest edges) | ⌜ Corner | ⊕ Origin (plane.origin, `from` dropped, the rows "from the corner" / "from the
+  part's origin"); a click on the face is measured from it. tools/e2e_sketch_origin.py.
 - **No right-click menu in the 3D model done:** clickFace shows the face's tools in the suggestions table in its
   sections (On this face / Its edges / The part / Step · name, showSuggest {section}); the .m-fmenu pop-up and its
   styles are gone, a right click only pans. e2e_model_pick.

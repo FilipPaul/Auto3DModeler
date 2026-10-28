@@ -82,10 +82,13 @@ where it goes, then ⬆ Extrude it (raised letters, or cut in on the part). The 
 from it — the sketch goes halfway between them (a rib or a hole centred in a part) and stays in the middle when the
 part changes.
 
-**Measured from a corner or the part's origin**: a sketch or holes on a face are measured from the face's centre
-unless told otherwise — the AI can give `origin: "corner"` (the face's lower-left corner; it follows that corner when
-the part changes), `origin: "world"` (places in the part's own X / Y / Z: a hole at (30, 10) stays at (30, 10) when
-the block grows the other way) or a • reference point.
+**Measured from a corner or the part's origin**: a sketch on a face has *Origin: ◎ Face centre | ⌜ Corner | ⊕ Part
+origin* in its bar. ⌜ Corner puts the sketch's 0, 0 on the face's lower-left corner (it follows that corner when the
+part changes), ⊕ Part origin on the part's own 0, 0, 0 (so the numbers are the X / Y you see; a hole at (30, 10) stays
+there when the block grows the other way). What is already drawn keeps its place — its numbers change, and sizes to
+the origin now measure from the new one; Ctrl+Z takes the switch back. ◎ Hole has the same choice as *From: ⇤ Edges |
+⌜ Corner | ⊕ Origin* (Edges: each hole from its nearest edges, as before). The AI gives `origin: "corner"` /
+`"world"` / a • reference point.
 
 **Hover marks** (3D model and assembly, no tool on): the edge under the mouse lights up (a line or a circle), and the
 snap points of the step (in an assembly: the face) under it show as small green dots — corners, edge middles,

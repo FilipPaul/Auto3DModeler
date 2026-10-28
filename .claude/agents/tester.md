@@ -202,7 +202,10 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_sketch_origin.py <url> <dir>` covers sketches / holes measured from a face's corner or the part's origin
    (the AI: a hole at world (30, 10), a circle 10, 5 from the top's corner cut through, a hole and a pocket on the
    bottom in world X / Y; the block made longer towards −x: the world places stay, the corner's follow; get_model; a
-   wrong origin refused). Exits 1 on a failed check.
+   wrong origin refused); then with real clicks: a circle drawn on a new block's top, the sketch bar's ⌜ Corner (0, 0
+   at the corner, the circle keeps its place: its numbers + (20, 10)), Ctrl+Z / Ctrl+Y, a circle (10, 10) from the
+   corner cut through; ◎ Hole's From ⊕ Origin (its numbers = world X / Y, rows "from the part's origin"); the block
+   longer: the corner's hole follows, the origin's stays. Exits 1 on a failed check.
    `tools/e2e_sketch_text.py <url> <dir>` covers 𝐓 Text in a sketch ("Text" 10 high, the text field focused; typed
    "AO", height 12; extruded 3: 25 × 12 × 3, the letters' holes kept — about 0.58 of its box; ↶ Undo).
    `tools/e2e_sketch_slot.py <url> <dir>` covers the sketch plane's offset direction (+ = +Z and an arrow; on Front

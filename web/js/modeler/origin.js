@@ -61,15 +61,16 @@ export function shiftSketch(f, du, dv) {
 export const shiftPoints = (pts, du, dv) => pts.map((p) => [+(p[0] - du).toFixed(6), +(p[1] - dv).toFixed(6)]);
 
 // holes: each from its nearest edges (as clicked), or all from one origin
-export const HOLE_ORIGINS = [['edges', '⇤ Edges', 'Each hole from the nearest edges of the face (⇄ / 🎯 choose others)'], ...ORIGINS.slice(1)];
+export const HOLE_ORIGINS = [['edges', '⇤ Edges', 'Each hole from the nearest edges of the face (⇄ / 🎯 choose others)'], ORIGINS[1],
+  ['world', '⊕ Origin', ORIGINS[2][2]]]; // (short: the panel is narrow)
 export const FROM_TEXT = { centre: 'from the face\'s centre', corner: 'from the corner', world: 'from the part\'s origin' };
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-/** The Origin choice as a .seg (a sketch / holes on a face; '' elsewhere): its buttons carry data-origin. */
+/** The Origin choice as a .seg after its label (a sketch / holes on a face; '' elsewhere): its buttons carry data-origin. */
 export function originSeg(plane, cur, label = 'Origin', options = ORIGINS) {
   if (!plane?.face) return '';
-  return `<span class="m-say">${label}</span><div class="seg m-origin">${options.map(([k, l, tip]) =>
+  return `${label ? `<span class="m-say">${label}</span>` : ''}<div class="seg m-origin">${options.map(([k, l, tip]) =>
     `<button type="button" data-origin="${k}" class="${cur === k ? 'on' : ''}" title="${esc(tip)}">${l}</button>`).join('')}</div>`;
 }
 
