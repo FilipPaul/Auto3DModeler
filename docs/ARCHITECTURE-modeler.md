@@ -7,6 +7,10 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **AI: simplify_sketch done:** {id, op simplify | join | outline, tol} (agent_tools.py, agent_model.js: the whole
+  sketch through /api/model/sketch/clean, committed as one change) -> the step's result + shapes / points before →
+  after, area_mm2, dropped sizes; the skill use-a-drawing says when. tools/e2e_agent.py (a 72-sided polyline -> one
+  circle, π 20² 5; a wavy 120-line outline -> join: one spline, the area kept; a non-sketch refused).
 - **⛓ Merge in sketches done:** sketchclean.join (each connected chain -> one `fit` spline per run between corners
   > 25°, a straight run a line; _dense_chain samples it, fit_spline within tol; a closed chain starts at a corner, none:
   one closed spline) and outline (polygonize the picks within tol, even-odd -> one block {polys, w0, h0, at}), POST

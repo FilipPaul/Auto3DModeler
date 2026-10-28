@@ -186,6 +186,20 @@ try:
     print(f"    pattern: volume {v} expected {exp:.3f} | match: {abs(v - exp) < 0.01} | relations:",
           d.execute_script("return window.__app.modeler.part.features[0].constraints.filter((k) => k.t === 'pat').map((k) => [k.kind, k.n])"))
     tool("add_feature", type="sketch", plane="XY", shapes=[{"circle": {"x": 0, "y": 0, "d": 4}, "pattern": {"count": 3, "around": [0, 0]}}])  # (on its centre: refused)
+    # ---- simplify_sketch: a circle as a 72-sided polyline (as a DXF gives it) -> one circle; a wavy outline of 120
+    # lines -> join: one spline, the same area
+    tool("new_model", name="Simplified")
+    ring = [[round(20 * math.cos(math.radians(i * 5)), 6), round(20 * math.sin(math.radians(i * 5)), 6)] for i in range(72)]
+    tool("add_feature", type="sketch", plane="XY", lock=False, shapes=[{"polyline": {"points": ring}}])
+    r = json.loads(tool("simplify_sketch", id="F1", tol=0.05)[0])  # (the 72 sides are 0.019 off the circle)
+    t, _ = tool("add_feature", type="extrude", sketch="F1", d=5)
+    v = json.loads(t)["body"]["volume_mm3"]
+    print(f"    simplify: shapes {r['shapes']} | a circle: {r['shapes']['after'] == 1} | volume {v} ~ π 20² 5 = {math.pi * 2000:.1f}")
+    wave = [[round((20 + 2 * math.cos(6 * t)) * math.cos(t), 6), round((20 + 2 * math.cos(6 * t)) * math.sin(t), 6)] for t in (i * 2 * math.pi / 120 for i in range(120))]
+    tool("add_feature", type="sketch", plane={"datum": "XY", "offset": 20}, lock=False, shapes=[{"polyline": {"points": wave}}])
+    r = json.loads(tool("simplify_sketch", id="F3", op="join")[0])
+    print(f"    join: shapes {r['shapes']} | one curve: {r['shapes']['after'] == 1} | area {r['area_mm2']} kept: {abs(r['area_mm2']['after'] - r['area_mm2']['before']) < r['area_mm2']['before'] * 0.005}")
+    tool("simplify_sketch", id="F2")  # (not a sketch: refused)
     tool("list_parts")
     # the BOM of an assembly with a sub-assembly placed twice (get_bom: every level rolled up)
     tool("new_assembly", name="Pair")
