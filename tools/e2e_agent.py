@@ -6,6 +6,7 @@ usage (server running, e.g. `py server.py --port 5199 --no-browser`):
 """
 import base64
 import json
+import math
 import subprocess
 import sys
 import time
@@ -123,6 +124,40 @@ try:
     t, _ = tool("edit_feature", id="F2", fields={"d2": 4})
     r = json.loads(t)
     print(f"    d2 4: went {r.get('went')} | +{r.get('volume_change_mm3')} expected 6400")
+    # ---- distances from a round face's axis: a block with a cross hole, a sketch circle and a hole measured from it;
+    # the cross hole moves 10 -> both go along
+    tool("new_model", name="Cross")
+    tool("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 60, "h": 40}}])
+    tool("add_feature", type="extrude", sketch="F1", d=20)
+    tool("add_feature", type="sketch", plane="XZ", shapes=[{"circle": {"x": 30, "y": 10, "d": 8}}])
+    tool("add_feature", type="extrude", sketch="F3", op="cut", d=100, symmetric=True)
+    ax = json.loads(tool("find_refs", kind="axis")[0])[0]["axis"]
+    tool("add_feature", type="sketch", plane={"face": "F2:end"}, shapes=[{"circle": {"x": 15, "y": 5, "d": 6}, "from": {"axis": ax}}])
+    tool("add_feature", type="extrude", sketch="F5", op="cut", through=True)
+    tool("add_feature", type="hole", face="F2:end", points=[[-15, -10]], d=4, **{"from": [{"x": {"axis": ax, "d": -15}}]})
+    tool("edit_feature", id="F3", fields={"shapes": [{"circle": {"x": 40, "y": 10, "d": 8}}]})
+    xs = sorted(round(x, 3) for x in d.execute_script(
+        "return window.__app.modeler.result.body.faces.filter((f) => f.type === 'cylinder' && Math.abs(f.axis.d[2]) > 0.99).map((f) => f.centroid[0])"))
+    print(f"    axis refs: {ax} | the cross hole moved 10 -> x {xs} expected [25, 55] | match: {xs == [25, 55]}")
+    # ---- a teardrop hole into the front (sideways: prints without support); refused on the top (it goes down)
+    front = json.loads(tool("find_refs", kind="face", normal=[0, -1, 0])[0])[0]["name"]
+    r = json.loads(tool("add_feature", type="hole", face=front, points=[[-20, 0]], d=4, teardrop=True)[0])
+    print(f"    teardrop: ok {r.get('ok')} | {r.get('volume_change_mm3')} expected {-(3 * math.pi + 4) * 40:.3f}")
+    t, _ = tool("add_feature", type="hole", face="F2:end", points=[[0, 0]], d=4, teardrop=True)
+    print(f"    teardrop on the top refused: {'sideways' in t}")
+    tool("undo")
+    # ---- ✂ split: a 60 × 40 × 20 box cut at z 15 — both pieces (two bodies), then only the lid; a plane past it: an issue
+    tool("new_model", name="Box and lid")
+    tool("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 60, "h": 40}}])
+    tool("add_feature", type="extrude", sketch="F1", d=20)
+    t, _ = tool("add_feature", type="split", plane={"datum": "XY", "offset": 15}, keep="both")
+    r = json.loads(t)
+    print(f"    split both: ok {r['ok']} | solids {r['body'].get('solids')} expected 2 | volume {r['body']['volume_mm3']} expected 48000")
+    t, _ = tool("edit_feature", id=r["id"], fields={"keep": "above"})
+    r = json.loads(t)
+    print(f"    split above: volume {r['body']['volume_mm3']} expected 12000 | change {r.get('volume_change_mm3')}")
+    t, _ = tool("edit_feature", id=r["id"], fields={"offset": 40})
+    print("    split past the part:", json.loads(t)["issues"])
     # ---- a sketch shape's ⁂ pattern: a flange, six holes around the middle and three in a row
     tool("new_model", name="Flange")
     tool("add_feature", type="sketch", plane="XY", shapes=[{"circle": {"x": 0, "y": 0, "d": 60}},

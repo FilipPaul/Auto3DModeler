@@ -177,6 +177,51 @@ class TestFeatures(unittest.TestCase):
         r, _ = vol(*box(), {**hole, "thread": "M7"})
         self.assertFalse(r["ok"])
 
+    def test_teardrop_hole(self):
+        """▲ A teardrop (a sideways hole printed without support): Ø6 through the 20 deep block from its front face, its
+        top a 45° point — the circle and the kite beyond it, (¾π + 1) r² × 20; watertight, the faces named, the STEP
+        round trip; a thread keeps its tap drill; a counterbore gets the point too; a hole going down and a countersink
+        refused; the drawing still says Ø6 and sizes no edge of the point."""
+        front = {"face": {"name": "E1:side:l1"}, "frame": {"o": [20, 0, 5], "x": [1, 0, 0], "n": [0, -1, 0]}}
+        hole = {"id": "H1", "type": "hole", "plane": front, "points": [[0, 0]], "d": 6, "through": True, "teardrop": True}
+        tear = lambda r, depth: (0.75 * math.pi + 1) * r * r * depth  # noqa: E731
+        r, v = vol(*box(), hole)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 - tear(3, 20), delta=1e-3)
+        self.assertTrue(watertight(r["body"]))
+        faces = {f["name"]: f for f in r["body"]["faces"] if f["name"].startswith("H1")}
+        self.assertEqual(sorted(faces), ["H1:hole:0", "H1:tear:0"])
+        tops = [f["centroid"] for f in r["body"]["faces"] if f["name"] == "H1:tear:0"]
+        self.assertEqual(len(tops), 2)
+        self.assertTrue(all(c[2] > 5 + 3 / math.sqrt(2) for c in tops))  # the point is up (+z), above the round part
+        from auto3d.modeler import kernel as K
+        step = doc.export({"features": [*box(), hole]}, "step")
+        self.assertAlmostEqual(K.volume(K.from_step(step)), 8000 - tear(3, 20), delta=1e-3)
+        # a blind one, a thread (its tap drill round, the point added), a counterbore with its point
+        r, v = vol(*box(), {**hole, "through": False, "depth": 8})
+        self.assertAlmostEqual(v, 8000 - tear(3, 8), delta=1e-3)
+        r, v = vol(*box(), {**hole, "thread": "M5"})
+        self.assertAlmostEqual(v, 8000 - tear(2.1, 20), delta=1e-3)
+        r, v = vol(*box(), {**hole, "d": 4, "head": "cbore", "head_d": 7, "head_depth": 3})
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 - tear(2, 20) - (tear(3.5, 3) - tear(2, 3)), delta=1e-3)
+        names = {n for f in r["body"]["faces"] for n in f.get("names") or [f.get("name")] if n and n.startswith("H1")}
+        self.assertTrue({"H1:hole:0", "H1:tear:0", "H1:cbore:0", "H1:cbore_tear:0", "H1:cbore_floor:0"} <= names, names)
+        r, _ = vol(*box(), {**hole, "head": "csk", "head_d": 10})
+        self.assertFalse(r["ok"])
+        self.assertIn("countersink", r["features"][-1]["issues"][0])
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        r, v = vol(*box(), {**hole, "plane": top})
+        self.assertFalse(r["ok"])
+        self.assertIn("sideways", r["features"][-1]["issues"][0])
+        self.assertAlmostEqual(v, 8000, delta=1e-6)
+        # the drawing: Ø6 with its place, no R, no level / column at the point's edges (also in the full preset)
+        for preset in ("medium", "full"):
+            dims = doc.sheet({"features": box() + [hole]}, preset)["dims"]
+            self.assertEqual([(x["kind"], x["a"]) for x in dims if x["kind"] in ("dia", "rad")], [("dia", "H1:hole:0")])
+            self.assertTrue(any(x.get("b") == "H1:hole:0#c" for x in dims))
+            self.assertFalse(any("tear:" in (x.get("a", "") + x.get("b", "")) for x in dims), dims)
+
     def test_round_then_hole_and_errors(self):
         fil = {"id": "F1", "type": "fillet", "edges": [{"a": "E1:side:l1", "b": "E1:side:l2", "fp": [40, 0, 5]}], "r": 50}
         r, v = vol(*box(), fil)
@@ -380,6 +425,68 @@ class TestFeatures(unittest.TestCase):
         r, _ = vol(*box(), {"id": "M1", "type": "mirror", "plane": mid})
         self.assertTrue(r["features"][-1]["warnings"])
 
+    def test_split(self):
+        """✂ Split: the 40 × 20 × 10 block cut at x = 20 -> two bodies of 4000 each, the cut faces named X1:cut:0 / :1;
+        one side kept; a ⇳ Midway plane that follows the block; a STEP round trip with both; a plane that misses."""
+        from auto3d.modeler import kernel as K
+        import numpy as np
+        mid = {"datum": "YZ", "offset": 20}
+        r, v = vol(*box(), {"id": "X1", "type": "split", "plane": mid, "keep": "both"})
+        self.assertTrue(r["ok"], r["features"])
+        self.assertEqual(r["body"]["solids"], 2)
+        self.assertEqual(r["features"][-1]["bodies"], 2)
+        self.assertAlmostEqual(v, 8000, delta=1e-6)
+        names = {f["name"] for f in r["body"]["faces"]}
+        self.assertTrue({"X1:cut:0", "X1:cut:1", "E1:end"} <= names)
+        # each piece on its own: 4000 mm³, closed (the two pieces touch, so the mesh is checked solid by solid)
+        tri = np.frombuffer(r["body"]["positions"], np.float32).reshape(-1, 9)
+        ids = np.frombuffer(r["body"]["face_ids"], np.uint32)
+        solid = np.array([r["body"]["faces"][i]["solid"] for i in ids])
+        for k in (0, 1):
+            t = tri[solid == k].reshape(-1, 3, 3).astype(float)
+            vk = abs(np.einsum("ij,ij->i", t[:, 0], np.cross(t[:, 1], t[:, 2])).sum()) / 6
+            self.assertAlmostEqual(vk, 4000, delta=1e-2)
+            self.assertTrue(watertight({"positions": tri[solid == k].tobytes()}))
+        # keep one side: above = where the plane's normal (+x) points
+        r, v = vol(*box(), {"id": "X1", "type": "split", "plane": {"datum": "YZ", "offset": 10}, "keep": "above"})
+        self.assertAlmostEqual(v, 6000, delta=1e-6)
+        self.assertEqual(r["body"]["solids"], 1)
+        self.assertAlmostEqual(r["body"]["bbox"][0], 10, delta=1e-6)
+        self.assertTrue(watertight(r["body"]))
+        self.assertIn("X1:cut:0", {f["name"] for f in r["body"]["faces"]})
+        r, v = vol(*box(), {"id": "X1", "type": "split", "plane": {"datum": "YZ", "offset": 10}, "keep": "below"})
+        self.assertAlmostEqual(v, 2000, delta=1e-6)
+        self.assertIn("X1:cut:1", {f["name"] for f in r["body"]["faces"]})
+        # ⇳ Midway between the front and back walls (y 0 / 20): half the block; the block 30 deep -> still half
+        between = {"face": {"name": "E1:side:l1"}, "mid": {"name": "E1:side:l3"}, "frame": {"o": [20, 10, 5], "x": [1, 0, 0], "n": [0, -1, 0]}}
+        split = {"id": "X1", "type": "split", "plane": between, "keep": "above"}  # (above: towards -y, the front)
+        r, v = vol(*box(), split)
+        self.assertAlmostEqual(v, 4000, delta=1e-6)
+        self.assertAlmostEqual(r["body"]["bbox"][4], 10, delta=1e-6)
+        r, v = vol(*box(h=30), split)
+        self.assertAlmostEqual(v, 6000, delta=1e-6)
+        self.assertAlmostEqual(r["body"]["bbox"][4], 15, delta=1e-6)
+        # a face's plane moved along its normal: the top (z 10) 4 mm down -> keep below: 40 × 20 × 6
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}, "offset": -4}
+        r, v = vol(*box(), {"id": "X1", "type": "split", "plane": top, "keep": "below"})
+        self.assertAlmostEqual(v, 4800, delta=1e-6)
+        # later steps see both bodies: a hole through both, a STEP file with two solids
+        hole = {"id": "H1", "type": "hole", "plane": {**top, "offset": 0}, "points": [[-10, 0], [10, 0]], "d": 4, "through": True}
+        feats = [*box(), {"id": "X1", "type": "split", "plane": mid, "keep": "both"}, hole]
+        r, v = vol(*feats)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertEqual(r["body"]["solids"], 2)
+        self.assertAlmostEqual(v, 8000 - 2 * math.pi * 4 * 10, delta=1e-3)
+        back = K.from_step(doc.export({"features": feats}, "step"))
+        self.assertEqual(K.solids(back), 2)
+        self.assertAlmostEqual(K.volume(back), v, delta=1e-3)
+        # a plane that misses the part, and an unknown keep: clear issues
+        r, _ = vol(*box(), {"id": "X1", "type": "split", "plane": {"datum": "YZ", "offset": 50}})
+        self.assertFalse(r["ok"])
+        self.assertIn("does not cross the part", r["features"][-1]["issues"][0])
+        r, _ = vol(*box(), {"id": "X1", "type": "split", "plane": mid, "keep": "left"})
+        self.assertIn("keep", r["features"][-1]["issues"][0])
+
     def test_patterns(self):
         top = {"face": {"name": "E1:end"}, "frame": {"o": [5, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
         hole = {"id": "H1", "type": "hole", "plane": top, "points": [[0, 0]], "d": 4, "through": True}
@@ -562,6 +669,62 @@ class TestFeatures(unittest.TestCase):
         two = {"id": "H1", "type": "hole", "plane": top, "points": [[-10, 0], [0, 0]], "d": 3, "through": True, "from": [{}, {"x": {"hole": 0, "d": 12}}]}
         r, _ = vol(*box(), two)
         self.assertEqual(r["features"][-1]["update"], {"points": [[-10, 0], [2, 0]]})
+
+    def test_distances_from_a_round_face_axis(self):
+        def cross(x=30):  # a cross hole along y (an extrude cut on the front plane): its axis runs along the top face
+            sk = {"id": "S2", "type": "sketch", "plane": {"datum": "XZ"}, "points": {"o": [x, 10]}, "entities": [{"id": "k", "t": "circle", "c": "o", "r": 4}]}
+            return [sk, {"id": "E2", "type": "extrude", "sketch": "S2", "op": "cut", "d": 100, "symmetric": True}]
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [30, 20, 20], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        axis = {"face": "E2:side:k", "fp": [30, 20, 10]}
+        # a circle on the top 15 to the right of the cross hole's axis (seen from above: a line along v at u 0)
+        sk = {"id": "S3", "type": "sketch", "plane": top, "points": {"c": [15, 5]}, "entities": [{"id": "k2", "t": "circle", "c": "c", "r": 3}],
+              "dims": [{"id": "d1", "t": "dx", "a": {"ref": [0, 0], "axis": axis}, "b": "c", "v": 15},
+                       {"id": "d2", "t": "dy", "a": "O", "b": "c", "v": 5}, {"id": "d3", "t": "dia", "e": "k2", "v": 6}]}
+        cut = {"id": "E3", "type": "extrude", "sketch": "S3", "op": "cut", "through": True}
+        bore = lambda r: next(f for f in r["body"]["faces"] if f.get("name") == "E3:side:k2")["centroid"]  # noqa: E731
+        r, v = vol(*box(60, 40, 20), *cross(), sk, cut)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertEqual(bore(r)[:2], [45, 25])
+        self.assertNotIn("update", r["features"][4])  # already 15 from it
+        self.assertAlmostEqual(v, 60 * 40 * 20 - math.pi * 16 * 40 - math.pi * 9 * 20, delta=1e-3)
+        self.assertTrue(watertight(r["body"]))
+        # the cross hole moves 10 to the right: the circle follows its axis
+        r, v = vol(*box(60, 40, 20), *cross(40), sk, cut)
+        self.assertEqual(r["features"][4]["warnings"], [])
+        self.assertEqual(r["features"][4]["update"]["dims"][0]["a"]["ref"], [10, 0])
+        if available("planegcs"):
+            self.assertEqual(r["features"][4]["update"]["points"]["c"], [25, 5])
+            self.assertEqual(bore(r)[:2], [55, 25])
+            self.assertAlmostEqual(v, 60 * 40 * 20 - math.pi * 16 * 40 - math.pi * 9 * 20, delta=1e-3)
+        # STEP written and read back: the same solid
+        from auto3d.modeler import kernel as K
+        step = doc.export({"features": [*box(60, 40, 20), *cross(40), sk, cut]}, "step")
+        self.assertAlmostEqual(K.volume(K.from_step(step)), v, delta=1e-3)
+        # a hole 15 from the axis (the AI's form: just the face's name), and one 10 left of the vertical bore's axis
+        # (square to the top: a point there)
+        h1 = {"id": "H1", "type": "hole", "plane": top, "points": [[0, -10]], "d": 4, "through": True, "from": [{"x": {"axis": "E2:side:k", "d": 15}}]}
+        h2 = {"id": "H2", "type": "hole", "plane": top, "points": [[0, 5]], "d": 2, "through": True,
+              "from": [{"x": {"axis": {"face": "E3:side:k2", "fp": [45, 25, 10]}, "d": -10}}]}
+        r, v = vol(*box(60, 40, 20), *cross(), sk, cut, h1, h2)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertEqual(r["features"][-2]["update"], {"points": [[15, -10]]})
+        self.assertEqual(r["features"][-1]["update"], {"points": [[5, 5]]})
+        self.assertAlmostEqual(v, 60 * 40 * 20 - math.pi * (16 * 40 + 9 * 20 + 4 * 20 + 1 * 20), delta=1e-3)
+        r, _ = vol(*box(60, 40, 20), *cross(40), {**h1, "points": [[15, -10]]})
+        self.assertEqual(r["features"][-1]["update"], {"points": [[25, -10]]})
+        # the axis runs along y: it gives no y; the round face is gone: the hole and the sketch stay and say so
+        r, _ = vol(*box(60, 40, 20), *cross(), {**h1, "from": [{"y": {"axis": "E2:side:k", "d": 3}}]})
+        self.assertIn("does not run straight across", r["features"][-1]["warnings"][0])
+        r, _ = vol(*box(60, 40, 20), *cross(), {**h1, "from": [{"x": {"axis": "E9:side:k", "d": 3}}]})
+        self.assertTrue(r["ok"])
+        self.assertIn("round face is gone", r["features"][-1]["warnings"][0])
+        self.assertEqual(r["features"][-1].get("update"), None)
+        r, _ = vol(*box(60, 40, 20), sk)
+        self.assertTrue(r["ok"])
+        self.assertIn("round face of the part is gone", r["features"][-1]["warnings"][0])
+        # a flat face picked as an axis: no axis
+        r, _ = vol(*box(60, 40, 20), {**h1, "from": [{"x": {"axis": "E1:side:l2", "d": 3}}]})
+        self.assertIn("round face is gone", r["features"][-1]["warnings"][0])
 
     def test_reference_point(self):
         corner = {"vertex": {"faces": ["E1:end", "E1:side:l1", "E1:side:l2"], "fp": [40, 0, 10]}}

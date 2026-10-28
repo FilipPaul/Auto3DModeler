@@ -21,7 +21,7 @@ import numpy as np
 import OCP.collections as _C
 from OCP.BRep import BRep_Tool
 from OCP.BRepAdaptor import BRepAdaptor_Curve, BRepAdaptor_Surface
-from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut, BRepAlgoAPI_Fuse
+from OCP.BRepAlgoAPI import BRepAlgoAPI_Common, BRepAlgoAPI_Cut, BRepAlgoAPI_Fuse
 from OCP.BRepBndLib import BRepBndLib
 from OCP.BRepBuilderAPI import (BRepBuilderAPI_MakeEdge, BRepBuilderAPI_MakeFace, BRepBuilderAPI_MakePolygon,
                                 BRepBuilderAPI_MakeWire, BRepBuilderAPI_Transform)
@@ -34,7 +34,7 @@ from OCP.BRepTools import BRepTools_WireExplorer
 from OCP.GC import GC_MakeArcOfCircle
 from OCP.Bnd import Bnd_Box
 from OCP.GCPnts import GCPnts_TangentialDeflection
-from OCP.GeomAbs import GeomAbs_Cylinder, GeomAbs_Plane
+from OCP.GeomAbs import GeomAbs_Circle, GeomAbs_Cylinder, GeomAbs_Plane
 from OCP.GProp import GProp_GProps
 from OCP.gp import gp_Ax1, gp_Ax2, gp_Circ, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec
 from OCP.IFSelect import IFSelect_RetDone
@@ -337,6 +337,29 @@ def sketch_faces(fr, sk):
 def circle_face(fr, u, v, d):
     """A round face on a plane frame (for holes) with its edge."""
     w, names = _circle_wire(fr, {"cx": u, "cy": v, "d": d, "id": "c"})
+    return BRepBuilderAPI_MakeFace(w, True).Face(), names
+
+
+def teardrop_face(fr, u, v, d):
+    """A teardrop at (u, v) of a plane frame whose normal lies flat (a hole printed sideways): the circle Ø d with its
+    top (toward +Z, up on the bed) replaced by a point, its two sides tangent at 45°, so nothing overhangs more than
+    45°. Edges named "c" (the round part, 270°) and "t" (the two flat sides)."""
+    n = np.asarray(fr["n"], float)
+    if abs(n[2]) > 1e-4:
+        raise KernelError("A teardrop is for a hole that goes sideways (its axis level with the print bed) — "
+                          "this one goes up / down: untick Teardrop.")
+    x, y = _v(fr["x"]), frame_y(fr)
+    up = np.array([x[2], y[2]], float)
+    up /= np.linalg.norm(up)
+    side = np.array([up[1], -up[0]])  # (the up direction turned a quarter, in the face's u / v)
+    r, c = d / 2, np.array([u, v], float)
+    t1, t2 = c + r * (up + side) / math.sqrt(2), c + r * (up - side) / math.sqrt(2)  # where the sides touch the circle
+    tip, bottom = c + r * math.sqrt(2) * up, c - r * up
+    arc = BRepBuilderAPI_MakeEdge(GC_MakeArcOfCircle(to_3d(fr, *t1), to_3d(fr, *bottom), to_3d(fr, *t2)).Value()).Edge()
+    s2 = BRepBuilderAPI_MakeEdge(to_3d(fr, *t2), to_3d(fr, *tip)).Edge()
+    s1 = BRepBuilderAPI_MakeEdge(to_3d(fr, *tip), to_3d(fr, *t1)).Edge()
+    w = BRepBuilderAPI_MakeWire(arc, s2, s1).Wire()
+    names = [(e, "c" if BRepAdaptor_Curve(e).GetType() == GeomAbs_Circle else "t") for e in _wire_edges(w)]
     return BRepBuilderAPI_MakeFace(w, True).Face(), names
 
 
@@ -783,6 +806,50 @@ def rib(body, fr, chain, ids, t, fid):
     return best[1]
 
 
+def split(body, o, n, fid, keep="both"):
+    """✂ Cut a body in two along the plane through o with normal n: keep "above" (the side n points to), "below", or
+    "both" (the two pieces as separate solids of one body). Each piece keeps its faces' names; the new flat faces are
+    fid:cut:0 (on the piece above) and fid:cut:1 (below). A plane that does not cross the part raises."""
+    if keep not in ("both", "above", "below"):
+        raise KernelError("keep: \"both\", \"above\" (the side the plane's normal points to) or \"below\".")
+    o, n = _v(o), _v(n) / np.linalg.norm(_v(n))
+    bb = bbox(body.shape)
+    D = 2 * math.dist(bb[:3], bb[3:]) + 10
+    c = (_v(bb[:3]) + _v(bb[3:])) / 2
+    c = c - ((c - o) @ n) * n  # (the middle of the part seen square onto the plane)
+    fr = {"o": c, "x": _v([1, 0, 0]) if abs(n[0]) < 0.9 else _v([0, 1, 0]), "n": n}
+    fr["x"] = fr["x"] - (fr["x"] @ n) * n
+    fr["x"] /= np.linalg.norm(fr["x"])
+    w, _ = _poly_wire(fr, [(-D, -D), (D, -D), (D, D), (-D, D)], ["s0", "s1", "s2", "s3"])
+    half = prism_body(BRepBuilderAPI_MakeFace(w, True).Face(), [], n * D, fid)  # everything above the plane
+    total = volume(body.shape)
+    pieces = []
+    for k, Op in enumerate((BRepAlgoAPI_Common, BRepAlgoAPI_Cut)):
+        mk = Op(body.shape, half.shape)
+        if not mk.IsDone():
+            raise KernelError("The part could not be split here.")
+        res = mk.Shape()
+        names = _carry(mk, body.names, res)
+        cut = _carry(mk, {f"{fid}:cut:{k}": half.faces_of(f"{fid}:start")}, res)
+        names.update(cut)
+        pieces.append((Body(res, names), volume(res)))
+    if min(v for _, v in pieces) <= 1e-7 * (1 + total):
+        raise KernelError("The plane does not cross the part — move it (Offset), or pick a plane or face through the part.")
+    if keep == "above":
+        return pieces[0][0]
+    if keep == "below":
+        return pieces[1][0]
+    shapes, names = [], {}
+    for b, _ in pieces:
+        ex = TopExp_Explorer(b.shape, TopAbs_SOLID)
+        while ex.More():
+            shapes.append(ex.Current())
+            ex.Next()
+        for k, fs in b.names.items():
+            names.setdefault(k, []).extend(fs)
+    return Body(compound(shapes), names)
+
+
 def combine(body, tool, op):
     """body ∪ tool or body − tool, names of both carried over."""
     if body is None:
@@ -970,6 +1037,20 @@ def plane_of(face):
     return np.array([c.X(), c.Y(), c.Z()]), n
 
 
+def face_axis(face):
+    """A round face (a cylinder, a cone, a torus or any turned face) -> (a point on its axis, its unit direction), or
+    None (a flat face, a sphere, a free-form one) — a shaft's or a hole's axis to measure from."""
+    from OCP.GeomAbs import GeomAbs_Cone, GeomAbs_SurfaceOfRevolution, GeomAbs_Torus
+    s = BRepAdaptor_Surface(TopoDS.Face(face), True)
+    kind = s.GetType()
+    ax = (s.Cylinder().Axis() if kind == GeomAbs_Cylinder else s.Cone().Axis() if kind == GeomAbs_Cone
+          else s.Torus().Axis() if kind == GeomAbs_Torus else s.AxeOfRevolution() if kind == GeomAbs_SurfaceOfRevolution else None)
+    if ax is None:
+        return None
+    p, d = ax.Location(), ax.Direction()
+    return np.array([p.X(), p.Y(), p.Z()]), np.array([d.X(), d.Y(), d.Z()])
+
+
 def face_span(faces, fr):
     """How far faces reach along a frame's x and y, from its origin: [u0, u1, v0, v1] (exact; None: no faces) — a
     sketch's ⌜ corner origin is (u0, v0)."""
@@ -1053,33 +1134,40 @@ def tessellate(body, light=False):
     else:
         BRepMesh_IncrementalMesh(shape, max(size * (0.004 if heavy else 0.0008), 0.002), False, 0.6 if heavy else 0.25, True)
     names = _face_names(body, fm)
-    pos, ids, faces = [], [], []
-    for fi in range(fm.Extent()):
+    # every face's triangles as arrays, then all of them at once (a Python step per triangle took most of the time on
+    # a big model: 900 000 triangles)
+    nf, mesh = fm.Extent(), []
+    for fi in range(nf):
         f = TopoDS.Face(fm.FindKey(fi + 1))
         loc = TopLoc_Location()
         tri = BRep_Tool.Triangulation_s(f, loc)
         rev = f.Orientation() == TopAbs_REVERSED
-        if tri is not None:
-            tr = loc.Transformation()
-            nodes = []
-            for i in range(1, tri.NbNodes() + 1):
-                p = tri.Node(i).Transformed(tr)
-                nodes.append((p.X(), p.Y(), p.Z()))
-            for i in range(1, tri.NbTriangles() + 1):
-                a, b, c = tri.Triangle(i).Get()
-                if rev:
-                    b, c = c, b
-                pos.extend(nodes[a - 1] + nodes[b - 1] + nodes[c - 1])
-                ids.append(fi)
-        on_face = None  # a point on the face (a triangle's middle — a ring's centre is not on it)
+        t = np.zeros((0, 3, 3))
         if tri is not None and tri.NbTriangles():
-            a, b, c = tri.Triangle(1).Get()
-            on_face = np.mean([nodes[a - 1], nodes[b - 1], nodes[c - 1]], axis=0)
-        if heavy:  # the face's area and middle from its triangles (the exact ones take long on 100 000 faces)
-            t = np.asarray(pos[len(pos) - 9 * tri.NbTriangles():] if tri is not None else [], float).reshape(-1, 3, 3)
-            ar = np.linalg.norm(np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0]), axis=1) / 2 if len(t) else np.zeros(0)
-            cm = (ar[:, None] * t.mean(axis=1)).sum(axis=0) / ar.sum() if ar.sum() > 0 else (t.reshape(-1, 3).mean(axis=0) if len(t) else np.zeros(3))
-            info = _face_info(f, fi, rev, (float(ar.sum()), cm))
+            if loc.IsIdentity():
+                nodes = np.array([tri.Node(i).Coord() for i in range(1, tri.NbNodes() + 1)], float)
+            else:
+                tr = loc.Transformation()
+                nodes = np.array([tri.Node(i).Transformed(tr).Coord() for i in range(1, tri.NbNodes() + 1)], float)
+            k = np.array([tri.Triangle(i).Get() for i in range(1, tri.NbTriangles() + 1)], np.int64) - 1
+            t = nodes[k[:, [0, 2, 1]] if rev else k]
+        mesh.append((f, rev, t))
+    tris = np.concatenate([t for _, _, t in mesh]) if nf else np.zeros((0, 3, 3))
+    ids = np.repeat(np.arange(nf), [len(t) for _, _, t in mesh])
+    if heavy:  # the faces' areas and middles from their triangles (the exact ones take long on 100 000 faces)
+        ar = np.linalg.norm(np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0]), axis=1) / 2
+        mid, n_tri = tris.mean(axis=1), np.bincount(ids, minlength=nf)
+        area = np.bincount(ids, ar, minlength=nf)
+        cms = np.zeros((nf, 3))
+        for c in range(3):
+            w = np.bincount(ids, ar * mid[:, c], minlength=nf)
+            m = np.bincount(ids, mid[:, c], minlength=nf)
+            cms[:, c] = np.where(area > 0, w / np.where(area > 0, area, 1), m / np.maximum(n_tri, 1))
+    faces = []
+    for fi, (f, rev, t) in enumerate(mesh):
+        on_face = t[0].mean(axis=0) if len(t) else None  # a point on the face (a triangle's middle — a ring's centre is not on it)
+        if heavy:
+            info = _face_info(f, fi, rev, (float(area[fi]), cms[fi]))
         else:
             info = _face_info(f, fi, rev)
         if info.get("type") == "plane" and on_face is not None and not heavy:
@@ -1116,7 +1204,7 @@ def tessellate(body, light=False):
             continue
         edges.append({"pts": [round(v, 5) for p in pts for v in (p.X(), p.Y(), p.Z())], "faces": sorted(adj.get(ei, ())),
                       "mid": _round(_edge_mid(e), 5)})
-    return {"positions": np.asarray(pos, np.float32).tobytes(), "face_ids": np.asarray(ids, np.uint32).tobytes(),
+    return {"positions": tris.astype(np.float32).tobytes(), "face_ids": ids.astype(np.uint32).tobytes(),
             "faces": faces, "edges": edges, "bbox": bb, "volume": volume(shape), "solids": solids(shape), **({"light": True} if light else {})}
 
 
@@ -1155,18 +1243,17 @@ def _face_info(f, fi, rev, rough=None):
         info = {"id": fi, "area": p.Mass(), "centroid": _round((c.X(), c.Y(), c.Z()))}
     kind = s.GetType()
     if kind == GeomAbs_Plane:
-        d = s.Plane().Axis().Direction()
-        n = np.array([d.X(), d.Y(), d.Z()])
+        n = s.Plane().Axis().Direction().Coord()
         if rev:
-            n = -n
+            n = tuple(-v for v in n)
         info["type"] = "plane"
         info["normal"] = _round(n)
-        # a sketch frame on this face: origin at its centre, x along the world axis closest to the face
-        axes = np.eye(3)
-        x = axes[int(np.argmin(np.abs(axes @ n)))]
-        x = x - (x @ n) * n
-        x /= np.linalg.norm(x)
-        info["frame"] = {"o": info["centroid"], "x": _round(x), "n": _round(n)}
+        # a sketch frame on this face: origin at its centre, x along the world axis closest to the face (plain floats:
+        # numpy per face took seconds on a big model)
+        k = min(range(3), key=lambda i: abs(n[i]))
+        x = [(1.0 if i == k else 0.0) - n[k] * n[i] for i in range(3)]
+        ln = math.sqrt(x[0] * x[0] + x[1] * x[1] + x[2] * x[2])
+        info["frame"] = {"o": info["centroid"], "x": _round(v / ln for v in x), "n": _round(n)}
     elif kind == GeomAbs_Cylinder:
         info["type"] = "cylinder"
         cyl = s.Cylinder()

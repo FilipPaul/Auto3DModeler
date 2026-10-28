@@ -51,7 +51,8 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
    - the edges of a face: `find_refs {kind: "edge", of_face: "<face name>"}`; round edges: `circular: true`
    - Holes: `add_feature {type: "hole", face: "<face name>", points: [[u, v], ...], d: 5}` — u, v are measured
      from the face's centre along the face's own x / y (on a top face: world x / y). Through all by default;
-     `through: false, depth: 6` for blind holes.
+     `through: false, depth: 6` for blind holes. A hole into a side face (across Z) of a printed part: `teardrop: true`
+     (a 45° point on top — prints without support).
    - Pockets / bosses: a sketch with `plane: {face: "<face name>"}` (its origin is the face's centre), then
      extrude `op: "cut"` (pocket, `through: true` for a cut through) or `op: "add"` (boss).
      `upto_next: true` instead of `d` goes as far as the first face of the part across the whole sketch (a boss up to
@@ -76,9 +77,17 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
    **Mirror**: `{type: "mirror", plane: "YZ"}` adds the mirror image of the whole part (left ↔ right; "XZ" front ↔
    back, "XY" top ↔ bottom, or `face: "<flat face>"`); `of: "<step id>"` mirrors one step only; `copy: false` turns the
    part over instead. Model half of a symmetric part, then mirror it.
+   **Split** (cut the part in two along a plane — a box and its lid, a print too big for the bed):
+   `{type: "split", plane: {datum: "XY", offset: 15}, keep: "both"}` (two bodies in one part; get_model's body says
+   `solids`), `keep: "above"` (only the side the plane's normal points to: +Z for XY, +X for YZ, −Y for XZ) or
+   `"below"`; `plane` may be `{face: "<flat face>", offset}` or `{face, mid: "<the face across>"}` (the middle).
+   The cut faces are `<id>:cut:0` (above) and `<id>:cut:1` (below).
    **Reference point** (a place to measure / sketch from that follows the part): `{type: "point", at: {corner: [x, y, z]}}`
    (the nearest corner), `at: {centre: <round edge ref>}` or `at: {mid: <edge ref>}`; `find_refs {kind: "point"}` lists
    them (and corners with ready refs). No geometry — it shows as "• Point 1".
+   **From a shaft's or a hole's axis** (a cross hole, a shaft along the face, a boss): `find_refs {kind: "axis"}` lists
+   the round faces' axes; a sketch shape's `from: {axis: "<name>"}` (x / y as usual — its place across the axis is kept
+   from it) or a hole's `from: [{x: {axis: "<name>", d: 15}}]` — they follow the axis when the part changes.
 7. **Check**: `get_model` — every step `ok: true` (read `issues` / `warnings` and fix them),
    `get_screenshot {view: "iso"}` and another view. Report the size and the steps the user can change
    (double-click a step in the list, or ask you).

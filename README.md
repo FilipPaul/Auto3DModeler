@@ -124,6 +124,15 @@ against the part is filled, half the thickness each side of the sketch plane.
 **⟋ Draft**: tilts an extrude's side walls by a few degrees (they lean in going up from its base; negative: out) so a
 moulded or cast part comes out of its mould — choose the extrude (or click one of its walls) and the angle.
 
+**✂ Split**: cuts the part in two along a plane — by default across its longest side, in the middle. Choose Top /
+Front / Right (through the part's middle; Offset moves it) or click a flat face: a face inside the part (a step's
+floor) cuts along itself, an outer face cuts halfway to the face across (⇳ Midway picks that face yourself; it
+follows both faces). **Keep**: ✂ Both (two bodies in one part, shown in two shades while you choose — paint by body,
+mass and STEP see both), This side (where the arrow points) or Other side. On a clicked flat face with no tool on,
+*✂ Split here* is under The part. With Both, *⧉ Make each piece its own part* adds two model parts, each with this
+part's steps up to the split and one piece kept. The cut faces are named `<step>:cut:0` / `:1`, so later steps
+(a sketch on the cut, a lid's lip) follow them.
+
 **Reorder steps**: drag a step up or down the step list. A move that would put a step before one it uses is refused
 (it says which), and one after which the model no longer builds is taken back; Ctrl+Z undoes a move.
 
@@ -295,7 +304,10 @@ SolidWorks. It has only the tools that need almost no input.
    type the diameter. It goes through all by default, or untick *Through all* and give a depth. *Head* adds room
    for a screw's head: ⌴ a counterbore (Ø 1.8 × the hole, as deep as the hole is wide) or ⌵ a countersink (Ø 2 × the
    hole, 90°) — change the head's Ø / depth if needed. *Thread* (M2 … M20) makes it a threaded hole: drilled with its
-   tap drill (M5: Ø4.2) and labelled M5 on the drawing. Each hole is
+   tap drill (M5: Ø4.2) and labelled M5 on the drawing. *Teardrop (print sideways)*, offered on a hole that goes
+   sideways (into a side face, across Z), gives the hole a 45° point on top so it prints lying on its side without
+   support (the 🖨 Print check shows no overhang there); the drawing still says Ø d. A counterbore gets the point too; a
+   countersink cannot. On a hole that goes up / down it is greyed. Each hole is
    placed from the face's nearest edges — *↔ 10 mm from the right edge*, *↕ 5 mm from the lower edge*, drawn on
    the face. Type a distance to move it, ⇄ measures from the edge on the other side, and 🎯 lets you click *any*
    edge of the face — or another hole (then it is measured from that hole's centre and follows it). Every tool shows a live
@@ -304,6 +316,11 @@ SolidWorks. It has only the tools that need almost no input.
    **Dimensions follow the part.** A hole's distances and a sketch's dimensions to the part's edges or corners
    (↔ Dimension on a dashed edge) remember *which* edge or corner it is (by the faces that meet there). Make the
    part wider in an earlier step and the hole or the sketch moves with its edge, keeping its distance.
+   **From a shaft's or a hole's axis**: in a sketch, the axes of the part's round faces show as dashed blue centre
+   lines (a cross hole under the face, a shaft lying along it; seen end on: the ✛ at a round edge's centre) — ↔ Dimension
+   on one (on the line or anywhere over the round face) measures from the axis. In the hole panel, 🎯 then a click on a
+   round face (or its rim) measures the hole from its axis (*↔ 15 mm right of the axis*). Move the shaft or the cross
+   hole and the sketch or the hole goes along.
 5. **⟳ Revolve** spins a sketch around an axis: the sketch's vertical axis (the default), its horizontal axis or one
    of its lines, a full turn or any angle. Draw half the shape beside the axis, e.g. half a vase on the **Front**
    plane. A new, empty sketch can be moved to Front / Right with the buttons in the bar, and a sketch on a base plane
@@ -464,6 +481,9 @@ is too small to see at the sheet's scale is left out — solids, edges and holes
 resistor on a board drawn 1:5), the left panel says how many — and its Section A–A cuts only the solids across the
 cut: a 44 MB board's sheet in 25 s instead of 78 s, 4.6 MB to the browser instead of 44 MB. A sheet keeps its part's
 views: another preset, paper or the section turned on does not project the part again (a hundredth of a second).
+Big parts also load faster: the model comes to the browser as raw arrays, not text, and an unchanged body is not sent
+through the kernel again — the 44 MB board is shown again in about half a second instead of two and a half, first
+built in 18 s of meshing instead of 25.
 
 **Fits and tolerances**: a Hole step has a **Fit** (H6 / H7 / H8 / H9, ISO 286) — the drawing labels it *Ø8 H7* and
 lists it with its deviations (*Ø8 H7 (+0.015 / 0)*); the part's **Tolerances** (ISO 2768-f / m / c) go into the

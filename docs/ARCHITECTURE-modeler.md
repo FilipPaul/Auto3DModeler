@@ -114,6 +114,15 @@ Date: 2026-10-25. Written by the architect agent.
   {ref, point: id} follows it (doc._ref_uv); deleting what it stands on keeps it at {xyz}. AI: add_feature point
   (at {corner: [x, y, z]} / {centre} / {mid} / a ref), find_refs kind "point", get_model's xyz. test_reference_point;
   tools/e2e_model_point.py.
+- **Distances from round faces' axes done:** a sketch dimension end {ref, axis: {face, fp}} and a hole's from
+  {x: {axis: {face, fp}, d}} — doc._axis_of (kernel.find_faces + face_axis: cylinder / cone / torus / turned faces) /
+  _axis_in (seen square onto the plane: a point, or a line — the end is the point of it nearest its ref); gone: a
+  warning, the last place kept. The browser: axes.js roundAxes (the faces' axes on a plane, as far as each face
+  reaches; roundings left out); Sketcher.refs().axes (dashed blue centre lines; picked on the line or over the face as
+  a 'line' target) and the circles' centres named by an axis square to the plane; the hole panel's 🎯 holeAxisAt (a
+  round face or its rim; the axis square to the face or straight across) and refCoord; refsTo / detach know them. AI:
+  find_refs kind "axis", a sketch shape's from: {axis}, hole from {x: {axis: <name>, d}}. test_distances_from_a_round_face_axis;
+  tools/e2e_model_axis_refs.py.
 - **View cube done:** viewcube.js (ModelView {cube: true} in the 3D model and the assembly): CSS 3D faces turned by
   the camera's rotation each frame (the faces turned away hidden), each face 3 × 3 cells whose data-dir is where they
   look from — the middle the face, the sides its edges, the corners its corners (the same dir on neighbouring faces
@@ -264,6 +273,14 @@ Date: 2026-10-25. Written by the architect agent.
   H:cbore_floor:k) or "csk" (head_d, head_angle 90: kernel.countersink, a cone; face H:csk:k); the Hole panel's Head
   choice sizes it from the hole (1.8 × d × d / 2 × d), the step's text shows it; add_feature / edit_feature head (null
   takes it off). test_hole_heads; tools/e2e_model_hole_head.py.
+- **▲ Teardrop holes done:** a hole's `teardrop: true` (a sideways hole, its axis square to Z): kernel.teardrop_face —
+  the circle with its top (+Z) a 45° point (a 270° arc and two tangent sides), prism faces H:hole:k (the round part)
+  and H:tear:k (the sides); a counterbore gets the point too (H:cbore_tear:k), a countersink is refused, a hole going
+  up / down is refused (an issue); a thread keeps its round tap drill. The sheet: a 270° arc of a hole face counts as
+  full (Ø d, its place), the point's edges are decoration (sheet._deco, sheet.js check). The print check takes a face
+  at just 45° as printable (1e-4). The Hole panel's Teardrop (print sideways) checkbox (greyed with a tooltip when the
+  hole goes up / down), the step's text "▲ teardrop"; add_feature / edit_feature teardrop. test_teardrop_hole;
+  tools/e2e_model_teardrop.py.
 - **Tools coloured by group done:** web/js/toolgroups.js (toolGroup(action) -> g-make / g-modify / g-copy / g-detail /
   g-define / g-inspect), used by the sketch's, the 3D model's and the assembly's bars; each group's buttons side by
   side (make blue, modify amber, copy purple, details teal, define / join green, look and check grey).
@@ -290,6 +307,17 @@ Date: 2026-10-25. Written by the architect agent.
 - **Extrude ＋ Other side done:** extrude.d2 — a second blind prism on the other side of the sketch plane (its far
   face named start), any extent; symmetric wins (ticking one unticks the other); went.other_side [from, to]. The AI's
   d2. test_extrude_other_side; tools/e2e_model_extrude_more.py.
+- **✂ Split body done:** a `split` step {plane, keep} — plane as a sketch's ({datum, offset}, {face, frame}, ⇳ {face,
+  mid}; a face plane may have an offset too), keep "both" | "above" (the side its normal points to) | "below".
+  kernel.split: the part ∩ / − a half-space prism on the plane (BRepAlgoAPI_Common / Cut), names carried, the cut
+  faces `<id>:cut:0` (above) / `:1` (below); both: the pieces' solids in one compound (later fuses keep them apart
+  unless a step joins them; tessellate's `solid` index, mass and STEP see two bodies); a piece of no volume -> "The
+  plane does not cross the part". Status `bodies`. The modeler's ✂ Split (renderSplit: Top / Front / Right through
+  the part's middle, Offset, ⇳ Midway on a face plane, Keep ✂ Both / This side / Other side; the arrow says which is
+  "this side"; ModelView.setShades: one shade per body while it is open), clickFace's "✂ Split here" under The part
+  (splitPlane: a face through the part cuts along itself, an outer one halfway to the farthest parallel face), ⧉ Make
+  each piece its own part (hooks.newParts: two model parts, the steps up to the split, each keeping one side). AI
+  add_feature {type: "split", plane, keep}; get_model's body `solids`. test_split; tools/e2e_model_split.py.
 - **Faces picked with no tool on, joints suggested done:** the assembly's idle click also picks a face / a round edge
   (facePicks: one, or Ctrl: one of each of two parts; lit by drawMarks); suggestFaces — one face: the joints it can
   start (then the other face), two: the joint types fitting both (JOINT_TYPES by face kind), made through clickJoint.
@@ -457,6 +485,21 @@ Date: 2026-10-25. Written by the architect agent.
   faces, 5237 solids): sheet 78 -> 25 s, 44 -> 4.6 MB; + Section > 45 min (10 GB, never finished) -> 10 s; a
   preset / paper change 78 -> 0.01 s; two boards' exploded assembly sheet 438 -> 60 s, 77 -> 7.3 MB, again 1 s; a
   plate with 171 holes: 2.1 -> 0.9 MB, its Section on 1.0 -> 0.15 s, its assembly 4.3 -> 1.8 MB. tests/test_sheet_speed.py.
+- **Big parts load faster (binary mesh transfer) done:** /api/model/rebuild {bin: true} answers one binary message
+  (auto3d/modeler/packed.py: "A3DM", the header's length, a JSON header {arrays: [{at, off, n, type}], result}, then
+  the arrays as they are, each at a multiple of 4) — web/js/modeler/packed.js fetchRebuild views them as Float32Array
+  / Uint32Array (nothing decoded; the b64 helpers pass typed arrays through); the modeler, the assembly's bodies, the
+  thumbnails and the library's preview use it; without `bin` the JSON answer (base64) is as before (the AI tools,
+  tests, e2e_library_build). The worker packs it (op rebuild_bin) and doc._packed keeps a body's encoded mesh
+  (packed.Mesh: its JSON made once) by body, lod, colours and ref id — an unchanged body is not encoded again.
+  kernel.tessellate gathers each face's triangles as arrays and makes the positions, face ids and (big models) the
+  faces' areas / middles at once (np.bincount), the flat faces' frames in plain floats — the same bytes as before.
+  Measured (tools/e2e_big_part_load.py, localhost, headless Edge), before -> after: the 44 MB board (126 062 faces,
+  943 717 triangles) tessellated 24.9 -> 17.7 s; shown again (unchanged, e.g. a sketch added) 2.4–2.7 s -> 0.55 s
+  (server 1.7 s -> 0.12 s: no pickled dicts, base64 or JSON per rebuild; the fetch 1.9 s -> 0.19 s; read 0.29 ->
+  0.14 s); 87.7 -> 79.6 MB; the plate with 171 holes 2.21 -> 1.78 MB, 25 + 8 -> 8 + 1 ms. Left out: gzip (localhost:
+  1.2 s to pack 92 MB, more than the transfer), quantised positions and edges as one buffer (edges are 2 MB of the
+  board's 80; the faces' JSON is 40 MB but parses in 0.14 s), indexed geometry. tests/test_model_packed.py.
 - **Quick collisions with big imported parts done:** kernel.placed gives a location (shape.Moved), no copy — a 42 MB
   board (24 290 faces, 1170 solids) cost 1.3 s a placed copy, now 0.09 s (10 copies apart 8.9 -> 0.9 s); interference
   goes solid by solid (only solids whose boxes meet); quick (the background check after a change): a pair meeting in
@@ -645,8 +688,8 @@ Date: 2026-10-25. Written by the architect agent.
   depths from the geometry), /api/model/limits; failures explained with the most that fits (doc._sized).
 - **Sketch relations done:** par / perp / eq / conc / coin / tang / fix (+ h / v) set by the user (constraints.py
   _relation; sketcher RELATIONS, symbols, list; collapsing solutions refused). tools/e2e_model_relations.py.
-- **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): hole / sketch distances from
-  round faces (a shaft's axis); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
+- **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
+  round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.
 
 ## 0. Summary
@@ -766,7 +809,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 >   "Symmetric" is a single checkbox. (Since done, each one control: "Up to a face", "Up to next" and "＋ Other
 >   side" — the second direction as one more distance.)
 > - **Hole**: click a point on a face and give a diameter. It goes through by default. Counterbore,
->   countersink, size tables and teardrop are deferred.
+>   countersink, size tables and teardrop are deferred. (Since done: heads, threads and teardrop, one control each.)
 > - **Chamfer**: one distance only. **Fillet**: pick edges and give a radius.
 > - **Shell**: pick the face to open and give the wall thickness.
 > - **Patterns**: count only; the spacing follows from the part. Even simpler is "repeat N times along an
@@ -815,7 +858,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 |---|---|---|---|
 | Extrude | Push a sketch region out | sketch, regions (default: all closed), op = new / add / cut / intersect, extent = blind / symmetric / through all / up to face / up to next, flip, 2nd direction | Done: blind, symmetric, through, up to face (+ offset), up to next, ＋ other side (d2, blind) |
 | Revolve | Spin a sketch around an axis | sketch, axis (centreline or datum axis), angle, op | MVP (M3) |
-| Hole | Proper holes on a face | face, sketch points, type = simple / counterbore / countersink, size from a table (M2–M12, with print clearance), depth or through, **teardrop** option for horizontal holes (printable without support) | MVP (M3) |
+| Hole | Proper holes on a face | face, sketch points, type = simple / counterbore / countersink, size from a table (M2–M12, with print clearance), depth or through, **teardrop** option for horizontal holes (printable without support) — done: `teardrop: true` | MVP (M3) |
 | Fillet | Round edges | edges (named references), radius | MVP (M3) |
 | Chamfer | Bevel edges | edges, distance, or distance + angle | MVP (M3) |
 | Shell | Hollow a part | faces to remove, wall thickness | MVP (M3) |
@@ -829,7 +872,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 | Loft | Shape between 2+ sketches | sketches | Done (⧫ Loft) |
 | Sweep | Profile along a path | sketch + path sketch | Done (〰 Sweep) |
 | Decorate face | Today's design layers (patterns, logos) on any **planar face** of a model part, embossed or cut along the face normal | face, layer JSON | Later (M8). Easy, because `design.layer_regions` already makes shapely regions. |
-| Thread, rib, split body | — | — | Thread (hole M2 … M20, labelled on drawings) and ⊿ Rib done; split body later |
+| Thread, rib, split body | — | — | Thread (hole M2 … M20, labelled on drawings), ⊿ Rib and ✂ Split body (plane, keep both / one side) done |
 
 ### 3.3 Reference geometry
 

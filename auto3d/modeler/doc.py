@@ -14,8 +14,10 @@ Part JSON (in the project file, `parts[].model`):
      {"id": "F8", "type": "shell", "faces": [{"name": "F2:end", "fp": [x, y, z]}], "t": 2},
      {"id": "F9", "type": "mirror", "of": "body" | <a step's id>, "plane": {"datum": "YZ"} | {"face": ..., "frame": ...},
       "copy": true},   (copy: the part and its mirror image; false: the part moved to its mirror image)
+     {"id": "F11", "type": "split", "plane": {"datum": "XY", "offset": 5} | {"face": ..., "frame": ..., "mid"?, "offset"?},
+      "keep": "both" | "above" | "below"},   (both: two bodies; above: the side the plane's normal points to)
      {"id": "F6", "type": "hole", "plane": {"face": {"name": "F2:end"}, "frame": ...}, "points": [[u, v]], "d": 5,
-      "through": true, "depth": 10},
+      "through": true, "depth": 10},   (+ "teardrop": true: a sideways hole with a 45° point on top, printable)
      {"id": "F10", "type": "point", "at": {"vertex": {"faces": [...], "fp": [x, y, z]}} | {"centre": <edge ref>} |
       {"mid": <edge ref>} | {"xyz": [x, y, z]}}]}   (a reference point: a corner, a round edge's centre, an edge's middle)
 
@@ -41,7 +43,7 @@ DATUMS = {
     "XZ": {"o": [0, 0, 0], "x": [1, 0, 0], "n": [0, -1, 0]},  # Front
     "YZ": {"o": [0, 0, 0], "x": [0, 1, 0], "n": [1, 0, 0]},   # Right
 }
-FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell", "pattern", "solid", "loft", "sweep", "decal", "mirror", "draft", "rib", "point")
+FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell", "pattern", "solid", "loft", "sweep", "decal", "mirror", "draft", "rib", "point", "split")
 
 _cache: OrderedDict = OrderedDict()  # prefix hash -> state after that feature (only in the worker process)
 CACHE_SIZE = 48
@@ -343,15 +345,21 @@ def _apply(f, st: State, s):
                 raise K.KernelError("The counterbore has to be less deep than the hole.")
         elif head == "csk":
             hd = _num(f, "head_d", round(dia * 2, 1), what="countersink diameter")
+        tear = bool(f.get("teardrop"))  # ▲ printed sideways: the top of the round becomes a 45° point (a counterbore too)
+        if tear and head == "csk":
+            raise K.KernelError("A countersink cannot be a teardrop (its cone would hang over) — use a counterbore, or untick Teardrop.")
+        prof = K.teardrop_face if tear else K.circle_face
         for k, (u, v) in enumerate(pts):
-            face, names = K.circle_face(fr, float(u), float(v), dia)
+            face, names = prof(fr, float(u), float(v), dia)
             tool = K.prism_body(face, names, -n * depth, fid)
-            tool.names = {f"{fid}:hole:{k}": tool.names.get(f"{fid}:side:c", []), f"{fid}:bottom:{k}": tool.names.get(f"{fid}:end", [])}
+            tool.names = {f"{fid}:hole:{k}": tool.names.get(f"{fid}:side:c", []), f"{fid}:bottom:{k}": tool.names.get(f"{fid}:end", []),
+                          **({f"{fid}:tear:{k}": tool.names.get(f"{fid}:side:t", [])} if tear else {})}
             _use(st, fid, tool, "cut")
             if head == "cbore":
-                face, names = K.circle_face(fr, float(u), float(v), hd)
+                face, names = prof(fr, float(u), float(v), hd)
                 tool = K.prism_body(face, names, -n * hdep, fid)
-                tool.names = {f"{fid}:cbore:{k}": tool.names.get(f"{fid}:side:c", []), f"{fid}:cbore_floor:{k}": tool.names.get(f"{fid}:end", [])}
+                tool.names = {f"{fid}:cbore:{k}": tool.names.get(f"{fid}:side:c", []), f"{fid}:cbore_floor:{k}": tool.names.get(f"{fid}:end", []),
+                              **({f"{fid}:cbore_tear:{k}": tool.names.get(f"{fid}:side:t", [])} if tear else {})}
                 _use(st, fid, tool, "cut")
             elif head == "csk":
                 _use(st, fid, K.countersink(fr, float(u), float(v), hd, dia, float(f.get("head_angle") or 90), f"{fid}:csk:{k}"), "cut")
@@ -419,6 +427,17 @@ def _apply(f, st: State, s):
         if abs(K.volume(st.body.shape) - before) < 1e-6 * (1 + before):
             s["warnings"].append("The mirror image changes nothing — it lands on the part itself (already symmetric there) or outside it. Choose another plane.")
         return
+    if t == "split":  # ✂ the part cut in two along a plane: both pieces kept (two bodies), or one side
+        if st.body is None:
+            raise K.KernelError("There is no solid yet to split.")
+        plane = f.get("plane") or {"datum": "XY"}
+        fr = plane_frame(plane, st)
+        if "datum" not in plane and plane.get("offset"):  # a face's plane moved along its normal
+            fr["o"] = [o + float(plane["offset"]) * n for o, n in zip(fr["o"], fr["n"])]
+        st.frames[fid] = fr
+        st.body = K.split(st.body, fr["o"], fr["n"], fid, f.get("keep") or "both")
+        s["bodies"] = K.solids(st.body.shape)
+        return
     if t == "pattern":
         before = K.volume(st.body.shape) if st.body is not None else 0
         _pattern(f, st)
@@ -477,10 +496,39 @@ def _uv(fr, p):
     return [round(float(d @ x), 9), round(float(d @ y), 9)]
 
 
+def _axis_of(ref, st):
+    """{face, fp} (or just a face's name) -> the axis (a point, its direction) of that round face as it is now."""
+    ref = {"face": ref} if isinstance(ref, str) else ref or {}
+    if st.body is None:
+        raise K.KernelError("Its round face is gone.")
+    face = K.find_faces(st.body, [{"name": ref.get("face"), "fp": ref.get("fp")}])[0]
+    ax = K.face_axis(face)
+    if ax is None:
+        raise K.KernelError("Its face is not round any more — it has no axis.")
+    return ax
+
+
+def _axis_in(fr, ax):
+    """An axis seen square onto a sketch plane -> ([u, v] of a point of it, its unit direction [du, dv]) — None for the
+    direction when the axis is square to the plane (it is a point there)."""
+    c = np.asarray(_uv(fr, ax[0]), float)
+    d = np.array([float(ax[1] @ np.asarray(fr["x"], float)), float(ax[1] @ K.frame_y(fr))])
+    L = float(np.linalg.norm(d))
+    return c, (d / L if L > 1e-6 else None)
+
+
 def _ref_uv(end, fr, st):
     """A dimension end that points at the part -> where that point is now, in sketch coordinates (or None).
     {ref: [u, v], vertex: {faces, fp}} = a corner, {ref, edge: {a, b, fp}} = a straight edge (its middle),
-    {ref, point: <id>} = a reference point (a point step; seen square onto the sketch)."""
+    {ref, point: <id>} = a reference point (a point step; seen square onto the sketch), {ref, axis: {face, fp}} = the
+    axis of a round face (a shaft, a hole): square to the sketch a point, else a line — the point of it nearest ref."""
+    if isinstance(end, dict) and end.get("axis") and st.body is not None:
+        c, along = _axis_in(fr, _axis_of(end["axis"], st))
+        if along is None:
+            return [round(float(v), 9) for v in c], False
+        r = np.asarray(end.get("ref") or c, float) - c
+        t = float(r @ along)
+        return [round(float(c[0] + t * along[0]), 9), round(float(c[1] + t * along[1]), 9)], False
     if isinstance(end, dict) and end.get("point"):
         if end["point"] not in st.points:
             raise K.KernelError("Its reference point is gone.")
@@ -509,7 +557,9 @@ def _follow_refs(f, fr, st, s):
             try:
                 uv, g = _ref_uv(d.get(k), fr, st)
             except K.KernelError:
-                s["warnings"].append("A dimension's edge of the part is gone — its distance is kept from where the edge was.")
+                s["warnings"].append("A dimension's round face of the part is gone — its distance is kept from where its axis was."
+                                     if isinstance(d.get(k), dict) and d[k].get("axis") else
+                                     "A dimension's edge of the part is gone — its distance is kept from where the edge was.")
                 uv, g = None, False
             if uv is None:
                 continue
@@ -557,7 +607,7 @@ def _up_to_face(f, fr, st):
 
 def _hole_from_edges(f, fr, st, s):
     """Hole centres placed from the face's edges ({x: {edge, d}, y: {edge, d}} per hole): x = the edge's place
-    along the face's x + d (the edge runs along y), likewise y. The edges are found again by their faces' names,
+    along the face's x + d (the edge runs along y), likewise y; {axis: {face, fp}, d}: from a round face's axis. The edges are found again by their faces' names,
     so the holes keep their distance when the part changes. Without an edge: the stored [u, v] (from the centre)."""
     pts = [list(map(float, p)) for p in f.get("points") or []]
     froms = f.get("from") or []
@@ -566,6 +616,20 @@ def _hole_from_edges(f, fr, st, s):
         spec = froms[i] if i < len(froms) and isinstance(froms[i], dict) else {}
         for axis, k in (("x", 0), ("y", 1)):
             ref = spec.get(axis)
+            if ref and ref.get("axis"):  # from a round face's axis (a shaft, a cross hole): square to the face or across
+                try:
+                    c, along = _axis_in(fr, _axis_of(ref["axis"], st))
+                except K.KernelError:
+                    s["warnings"].append(f"Hole {i + 1}: its round face is gone — it stays where it was.")
+                    continue
+                if along is not None and abs(along[k]) > 1e-6:
+                    s["warnings"].append(f"Hole {i + 1}: its axis does not run straight across any more — it stays where it was.")
+                    continue
+                v = c[k] + float(ref.get("d", 0))
+                if abs(v - p[k]) > 1e-9:
+                    p[k] = round(v, 9)
+                    changed = True
+                continue
             if not ref or not ref.get("edge"):
                 continue  # (a hole of this step: placed below, once the edges have placed the others)
             try:
@@ -1026,9 +1090,26 @@ def _with_colours(mesh, colours):
     return {**mesh, "faces": faces}
 
 
-def rebuild(part):
+_packed: list = []  # [((body, light, colours, id), packed.Mesh)]: an unchanged body is not encoded again either
+
+
+def _packed_mesh(body, light=False, colours=None, rid=None):
+    """The body's mesh as packed.Mesh (its JSON made once, kept like the mesh); rid: a reference solid's id."""
+    from . import packed
+    colours = colours or {}
+    for (b, lt, c, r), m in _packed:
+        if b is body and lt == light and r == rid and c == colours:
+            return m
+    mesh = _with_colours(_tessellated(body, light), colours)
+    m = packed.Mesh({"id": rid, **mesh} if rid is not None else mesh)
+    _packed.insert(0, ((body, light, dict(colours), rid), m))
+    del _packed[4:]  # (a big board's is 80 MB)
+    return m
+
+
+def rebuild(part, binary=False):
     """The part -> what the browser shows: the body's mesh, faces (with names) and edges, every feature's
-    status, the sketch frames."""
+    status, the sketch frames. binary: the meshes as packed.Mesh (for packed.pack, the browser's binary answer)."""
     features = (part or {}).get("features") or []
     st, status = evaluate(features)
     out = {"ok": all(s["ok"] for s in status), "features": status, "frames": st.frames, "body": None}
@@ -1036,9 +1117,9 @@ def rebuild(part):
         # 🪶 lod: "light" (simplified), "full", "auto" (light when it is a big imported model)
         lod = (part or {}).get("lod")
         light = lod == "light" or (lod == "auto" and K.face_count(st.body.shape) > K.HEAVY_FACES)
-        out["body"] = _with_colours(_tessellated(st.body, light), st.colours)
+        out["body"] = _packed_mesh(st.body, light, st.colours) if binary else _with_colours(_tessellated(st.body, light), st.colours)
     # reference solids: shown see-through, not part of the part
-    out["refs"] = [{"id": fid, **_tessellated(b)} for fid, b in st.refs.items()]
+    out["refs"] = [_packed_mesh(b, rid=fid) if binary else {"id": fid, **_tessellated(b)} for fid, b in st.refs.items()]
     out["points"] = st.points  # reference points: id -> [x, y, z]
     return out
 

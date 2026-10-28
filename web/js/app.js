@@ -1801,6 +1801,13 @@ const modeler = new Modeler({ left: $('modelLeft'), viewport: $('modelViewport')
   saveToLibrary: () => saveToLibrary(project.current?.name || safeName(), modeler.payload(), toast),
   saveBackToLibrary: () => saveBackToLibrary().catch((e) => toast(e.message, 'error', 7000)),
   duplicatePart: async () => { await project.duplicate(); toast(t2('{name} — a copy of its own (change it without changing the original).', { name: project.current?.name }), 'ok', 5000); },
+  // ✂ Split's pieces as parts of their own: new tabs, the first one opened
+  newParts: async (parts) => {
+    const ids = parts.map((p) => project.addBackground(p.name, p.data));
+    for (const p of project.parts) if (ids.includes(p.id)) delete p.closed;
+    await project.switchTo(ids[0]);
+    toast(t('Each piece is a part of its own now — the part you split keeps both.'), 'ok', 5000);
+  },
   newSheet: () => { const p = project.current; if (p) project.newSheet(p.id, `${p.name} — ${t('drawing')}`); },
   // a printing copy of a model part: its STL as a Quick part, on the 3D print tab
   async toPrint(blob) {

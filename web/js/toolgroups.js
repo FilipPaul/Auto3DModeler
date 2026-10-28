@@ -3,7 +3,7 @@
 
 const GROUPS = {
   make: ['rect', 'line', 'circle', 'slot', 'spline', 'arc', 'outline', 'text', 'sketch', 'extrude', 'revolve', 'loft', 'sweep', 'solidFile', 'insert'],
-  modify: ['round', 'trim', 'extend', 'construction', 'fillet', 'chamfer', 'shell', 'draft'],
+  modify: ['round', 'trim', 'extend', 'construction', 'fillet', 'chamfer', 'shell', 'draft', 'split'],
   copy: ['mirror', 'offset', 'pattern'],
   detail: ['rib', 'hole', 'decal', 'fasteners'],
   define: ['relate', 'dim', 'autodim', 'joint', 'midPlane'],

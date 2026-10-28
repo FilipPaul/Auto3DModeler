@@ -6,6 +6,8 @@ import { MATERIALS } from './materials.js';
 import { makePattern, roundCorner } from './sketcher.js';
 import { textOutline } from '../outlinepanel.js';
 import { originAt, worldToUV } from './origin.js';
+import { roundAxes, axisOf } from './axes.js';
+import { datumFrame } from './view.js';
 
 const r3 = (v) => +(+v).toFixed(3);
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -16,20 +18,33 @@ const DATUM = { XY: 'XY', TOP: 'XY', XZ: 'XZ', FRONT: 'XZ', YZ: 'YZ', RIGHT: 'YZ
 /** A sketch from simple shapes: rect {x, y, w, h, r} (lower-left corner, r = rounded corners), circle {x, y, d} (centre), polyline {points}
  *  (closed). Any shape may add pattern: {count, spacing} (copies in a row along X) or {count, around: [x, y]} (around that
  *  point, over 360°) — a ⁂ Pattern of the sketch, the copies follow it. lock: every size and position is locked (the
- *  sketch is fully defined). */
-export function sketchFromShapes(shapes, lock = true) {
+ *  sketch is fully defined). A shape's from: {axis: <a round face's name>} measures its place across that axis from it
+ *  (it follows the axis): axisAt(name) -> {ref: {face, fp}, c: [u, v] of the axis, dir: [du, dv] or null (square)}. */
+export function sketchFromShapes(shapes, lock = true, axisAt = null) {
   const f = { points: {}, entities: [], constraints: [], dims: [] };
   let n = { p: 0, l: 0, c: 0, r: 0, k: 0, d: 0 };
   const id = (k) => `${k}${(n[k] = (n[k] || 0) + 1)}`;
   const dim = (spec) => { if (lock) f.dims.push({ id: id('d'), ...spec }); };
+  let from = null; // (the shape's axis to measure from, or null: from the origin)
   const point = (u, v, locked) => {
     const p = id('p');
     f.points[p] = [r3(u), r3(v)];
-    if (locked) { dim({ t: 'dx', a: 'O', b: p, v: r3(u) }); dim({ t: 'dy', a: 'O', b: p, v: r3(v) }); }
+    if (!locked) return p;
+    for (const [t, k] of [['dx', 0], ['dy', 1]]) {
+      const ax = from && (!from.dir || Math.abs(from.dir[k]) < 1e-6) ? from : null; // (an axis along the plane gives only the place across it)
+      const at = [r3(u), r3(v)];
+      if (ax) at[k] = r3(ax.c[k]);
+      dim(ax ? { t, a: { ref: ax.dir ? at : ax.c.map(r3), axis: ax.ref }, b: p, v: r3([u, v][k] - ax.c[k]) } : { t, a: 'O', b: p, v: r3([u, v][k]) });
+    }
     return p;
   };
   for (const s of shapes || []) {
     const first = f.entities.length; // (this shape's entities: from here)
+    from = null;
+    if (s.from) {
+      if (!s.from.axis || !axisAt) throw new Error('from: {axis: "<a round face\'s name>"} (find_refs kind "axis").');
+      from = axisAt(s.from.axis);
+    }
     if (s.rect) {
       const { x = 0, y = 0, w, h, r = 0 } = s.rect;
       if (!(w > 0 && h > 0)) throw new Error('A rectangle needs w and h greater than zero.');
@@ -194,14 +209,17 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
   const fromWorld = (sk, fr) => {
     if (!worldToUV(fr).flip) return sk;
     for (const [k, p] of Object.entries(sk.points)) sk.points[k] = [p[0], r3(-p[1])];
-    for (const d of sk.dims) if (d.t === 'dy') d.v = r3(-d.v);
+    for (const d of sk.dims) {
+      if (d.t === 'dy') d.v = r3(-d.v);
+      if (Array.isArray(d.a?.ref)) d.a = { ...d.a, ref: [d.a.ref[0], r3(-d.a.ref[1])] };
+    }
     for (const e of sk.entities) if (e.t === 'arc') [e.a, e.b] = [e.b, e.a]; // (counter-clockwise again)
     return sk;
   };
   const summary = () => {
     const b = body();
     return b ? { size_mm: [r3(b.bbox[3] - b.bbox[0]), r3(b.bbox[4] - b.bbox[1]), r3(b.bbox[5] - b.bbox[2])], bbox: b.bbox.map(r3), volume_mm3: r3(b.volume),
-      material: m.part.material || 'PLA', mass_g_solid: m.massGrams(), faces: b.faces.length } : null;
+      material: m.part.material || 'PLA', mass_g_solid: m.massGrams(), faces: b.faces.length, ...(b.solids > 1 ? { solids: b.solids } : {}) } : null;
   };
   const stepResult = (id) => {
     const st = m.status(id);
@@ -218,13 +236,36 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
   };
   const ready = () => { if (m.mode !== 'part' || m.cmd) m.closeAll?.(); m.cmd = null; m.mode = 'part'; m.render(); };
 
+  /** A round face's axis on a sketch's plane, for a shape's from: {axis} (world: v turned over as the shapes are). */
+  const axisAtOn = (plane) => (name) => {
+    const fr = plane.datum ? datumFrame(plane) : plane.frame, g = faceOf(name);
+    const q = axisOf(roundAxes(body(), fr), { face: g.name, fp: g.centroid });
+    if (!q) throw new Error(`from.axis: “${name}” is not a round face (a cylinder) — find_refs kind "axis" lists them.`);
+    if (q.dir && Math.abs(q.dir[0]) > 1e-6 && Math.abs(q.dir[1]) > 1e-6) throw new Error(`from.axis: the axis of “${name}” runs slanted across the sketch — measure from an axis along its x or y, or square to it.`);
+    const flip = plane.origin === 'world' && worldToUV(fr).flip ? -1 : 1;
+    return { ref: q.ref, c: [q.c[0], flip * q.c[1]], dir: q.dir && [q.dir[0], flip * q.dir[1]] };
+  };
+  /** A hole's from: {x: {axis: <name>, d}} -> the round face's ref {face, fp} (edges and holes as given). */
+  const holeFrom = (from) => (Array.isArray(from) ? from.map((s) => {
+    if (!s || typeof s !== 'object') return s;
+    const out = { ...s };
+    for (const k of ['x', 'y']) {
+      const ax = s[k]?.axis;
+      if (!ax) continue;
+      const g = faceOf(typeof ax === 'string' ? ax : ax.face);
+      if (!g.axis) throw new Error(`from.${k}.axis: “${g.name}” is not a round face (a cylinder) — find_refs kind "axis" lists them.`);
+      out[k] = { ...s[k], axis: typeof ax === 'string' ? { face: g.name, fp: g.centroid } : ax };
+    }
+    return out;
+  }) : from);
+
   /** A feature from the AI's description -> the feature JSON the modeler stores. */
   const build = (spec) => {
     const type = spec.type;
     const base = { id: m.newId(), type, name: spec.name || m.nextName(type, spec.sketch || (['extrude', 'revolve'].includes(type) ? [...m.sketches()].pop()?.id : null)) };
     if (type === 'sketch') {
       const plane = planeOf(spec.origin && spec.plane && typeof spec.plane === 'object' ? { ...spec.plane, origin: spec.origin } : spec.plane);
-      const sk = sketchFromShapes(spec.shapes, spec.lock !== false);
+      const sk = sketchFromShapes(spec.shapes, spec.lock !== false, axisAtOn(plane));
       return { ...base, plane, ...(plane.origin === 'world' ? fromWorld(sk, plane.frame) : sk) };
     }
     if (type === 'extrude' || type === 'revolve') {
@@ -253,8 +294,8 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       const W = plane.origin === 'world' && !spec.uv ? worldToUV(plane.frame) : null; // (spec.uv: the stored places, an edit)
       const points = (spec.points || [[0, 0]]).map((p) => (W ? W.uv(p) : p));
       return { ...base, plane, points, d: spec.d ?? 5, ...(spec.thread ? { thread: spec.thread } : {}),
-        through: spec.through !== false, depth: spec.depth ?? 10, ...(spec.from ? { from: spec.from } : {}), ...(fitOf(spec.fit) ? { fit: fitOf(spec.fit) } : {}),
-        ...headOf(spec, spec.d ?? 5) };
+        through: spec.through !== false, depth: spec.depth ?? 10, ...(spec.from ? { from: holeFrom(spec.from) } : {}), ...(fitOf(spec.fit) ? { fit: fitOf(spec.fit) } : {}),
+        ...headOf(spec, spec.d ?? 5), ...(spec.teardrop ? { teardrop: true } : {}) };
     }
     if (type === 'rib') {
       const sk = spec.sketch || [...m.sketches()].pop()?.id;
@@ -281,6 +322,19 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       const pd = typeof spec.plane === 'object' && spec.plane ? spec.plane.datum : spec.plane; // a name, or the step's own plane (an edit)
       const plane = spec.face ? planeOf({ face: spec.face }) : { datum: ['XY', 'XZ', 'YZ'].includes(pd) ? pd : 'YZ' };
       return { ...base, of, plane, copy: of !== 'body' || spec.copy !== false };
+    }
+    if (type === 'split') { // ✂ cut in two along a plane: both pieces (two bodies) or one side
+      const keep = spec.keep || 'both';
+      if (!['both', 'above', 'below'].includes(keep)) throw new Error('keep: "both" (two bodies), "above" (the side the plane\'s normal points to) or "below".');
+      let pl = spec.plane;
+      if (pl && typeof pl === 'object' && pl.face && typeof pl.face === 'object') { // the step's own plane (an edit): by its faces' names
+        const moved = spec.face && spec.face !== pl.face.name;
+        pl = { face: moved ? spec.face : pl.face.name, ...(pl.mid && !moved ? { mid: pl.mid.name } : {}), offset: pl.offset };
+      } else if (!pl && spec.face) pl = { face: spec.face };
+      const off = +(spec.offset ?? (typeof pl === 'object' ? pl?.offset : 0) ?? 0) || 0;
+      const plane = planeOf(pl && typeof pl === 'object' ? { ...pl, offset: pl.datum ? off : 0 } : pl || 'XY');
+      if (off) plane.offset = off; else delete plane.offset;
+      return { ...base, plane, keep };
     }
     if (type === 'draft') {
       if (!m.part.features.some((g) => g.id === spec.of && g.type === 'extrude')) throw new Error('of: the id of an extrude step (its side walls are tilted).');
@@ -336,7 +390,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       }
       return { ...base, features: of, kind: 'linear', dir: vec(spec.dir || 'x', 'dir'), count: spec.count ?? 3, spacing: spec.spacing ?? 10 };
     }
-    throw new Error('type is sketch, extrude, revolve, fillet, chamfer, hole, shell, pattern, loft, sweep, decal, mirror, draft, rib or point.');
+    throw new Error('type is sketch, extrude, revolve, fillet, chamfer, hole, shell, pattern, loft, sweep, decal, mirror, draft, rib, point or split.');
   };
 
   /** The part's corners, each with a ready ref for a point step: [{corner: [x, y, z], ref: {vertex: {faces, fp}}}]. */
@@ -421,7 +475,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         if (f.plane?.origin) out.origin = f.plane.origin;
         const W = f.type === 'hole' && f.plane?.origin === 'world' ? worldToUV(f.plane.frame) : null; // (as given: world X / Y)
         if (f.type === 'hole') Object.assign(out, { face: f.plane?.face?.name, d: f.d, ...(f.thread ? { thread: f.thread } : {}), points: W ? f.points.map(([u, v]) => [u, W.flip ? -v : v]) : f.points, through: f.through !== false, depth: f.depth, ...(f.fit ? { fit: f.fit } : {}),
-          ...(f.head ? { head: f.head, head_d: f.head_d, ...(f.head_depth ? { head_depth: f.head_depth } : {}), ...(f.head_angle ? { head_angle: f.head_angle } : {}) } : {}) });
+          ...(f.head ? { head: f.head, head_d: f.head_d, ...(f.head_depth ? { head_depth: f.head_depth } : {}), ...(f.head_angle ? { head_angle: f.head_angle } : {}) } : {}), ...(f.teardrop ? { teardrop: true } : {}) });
         if (f.type === 'shell') Object.assign(out, { t: f.t, open_faces: f.faces.map((x) => x.name) });
         if (f.type === 'loft') Object.assign(out, { sketches: f.sketches, op: f.op });
         if (f.type === 'sweep') Object.assign(out, { profile: f.profile, path: f.path, op: f.op });
@@ -493,7 +547,17 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         if (near) all.sort((p, q) => len(sub(p.xyz || p.corner, near)) - len(sub(q.xyz || q.corner, near)));
         return { text: JSON.stringify(all.slice(0, limit)) };
       }
-      throw new Error('kind is "face", "edge" or "point".');
+      if (kind === 'axis') { // the round faces' axes (shafts, holes, bosses): a ref for a sketch shape's / a hole's from
+        let fs = b.faces.filter((f) => f.name && f.axis && !/:(round|bevel):/.test(f.name));
+        if (name) fs = fs.filter((f) => namesOf(f).some((n) => n.includes(name)));
+        if (of_step) fs = fs.filter((f) => ofStep(f, of_step));
+        const seen = new Set();
+        fs = fs.filter((f) => !seen.has(f.name) && seen.add(f.name)); // (a round face in two halves: once)
+        if (near) fs.sort((a, c) => len(sub(a.centroid, near)) - len(sub(c.centroid, near)));
+        else fs.sort((a, c) => c.area - a.area);
+        return { text: JSON.stringify(fs.slice(0, limit).map((f) => ({ axis: f.name, radius: f.radius, through: f.axis.o.map(r3), direction: f.axis.d.map(r3), centroid: f.centroid }))) };
+      }
+      throw new Error('kind is "face", "edge", "point" or "axis".');
     },
 
     add_feature: async (spec) => {
@@ -511,7 +575,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       const f = m.part.features.find((x) => x.id === id);
       if (!f) throw new Error(`No step ${id} — see get_model.`);
       if (f.type === 'sketch' && (fields.shapes || fields.plane)) {
-        if (fields.shapes) Object.assign(f, sketchFromShapes(fields.shapes, fields.lock !== false)); // (a new plane alone keeps the shapes)
+        if (fields.shapes) Object.assign(f, sketchFromShapes(fields.shapes, fields.lock !== false, axisAtOn(f.plane))); // (a new plane alone keeps the shapes)
         if (fields.plane || fields.origin) { // (a new origin alone: the shapes keep their numbers, from the new 0, 0)
           const pl = typeof fields.plane === 'string' ? { datum: fields.plane } : fields.plane || (f.plane?.face ? { face: f.plane.face.name, ...(f.plane.mid ? { mid: f.plane.mid.name } : {}) } : { ...f.plane });
           f.plane = planeOf(fields.origin && !pl.datum ? { ...pl, origin: fields.origin } : pl);
@@ -522,6 +586,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         if ('fit' in fields && !fields.fit) delete f.fit; // (a hole's fit taken off)
         if ('thread' in fields && !fields.thread) delete f.thread; // (its thread taken off)
         if ('head' in fields && !fields.head) for (const k of ['head', 'head_d', 'head_depth', 'head_angle']) delete f[k]; // (its head taken off)
+        if ('teardrop' in fields && !fields.teardrop) delete f.teardrop; // (round again)
         if (f.type === 'extrude') { // up to next / up to a face / a distance: one at a time; d2 off (or symmetric on): no other side
           if (!next.upto_next) delete f.upto_next;
           if (fields.upto_next || ('up_to' in fields && !fields.up_to)) delete f.upto;

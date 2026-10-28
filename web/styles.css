@@ -209,6 +209,7 @@ body.none-open .no-part b { color: var(--text); font-size: 16px; }
 .field input[type=color] { padding: 1px; height: 26px; }
 .row-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .check { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12px; cursor: pointer; }
+.check.off { opacity: 0.5; cursor: help; }
 .decal-list { display: flex; flex-direction: column; gap: 6px; }
 .decal { display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: center; padding: 6px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel-2); cursor: pointer; }
 .decal.sel { border-color: var(--accent); }

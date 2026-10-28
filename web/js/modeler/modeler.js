@@ -16,10 +16,12 @@ import { textOutline } from '../outlinepanel.js';
 import { sectionBar, sectionMiddle } from './sectionbar.js';
 import { originSeg, originKey, sameOrigin, moveOrigin, shiftSketch, shiftPoints, HOLE_ORIGINS, FROM_TEXT } from './origin.js';
 import { libraryFactsHtml } from '../library/browser.js';
+import { roundAxes, axisOf } from './axes.js';
+import { fetchRebuild } from './packed.js';
 
-const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa', mirror: '⇋', draft: '⟋', rib: '⊿', point: '•' };
+const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa', mirror: '⇋', draft: '⟋', rib: '⊿', point: '•', split: '✂' };
 const TYPE_NAME = { point: 'Point', rib: 'Rib', draft: 'Draft', sketch: 'Sketch', extrude: 'Extrude', revolve: 'Revolve', fillet: 'Fillet', chamfer: 'Chamfer', hole: 'Hole', shell: 'Shell', pattern: 'Pattern',
-  loft: 'Loft', sweep: 'Sweep', solid: 'Solid', decal: 'Decoration', mirror: 'Mirror' };
+  loft: 'Loft', sweep: 'Sweep', solid: 'Solid', decal: 'Decoration', mirror: 'Mirror', split: 'Split' };
 const LIMIT_FIELDS = { extrude: ['d', 'offset'], revolve: ['angle'], fillet: ['r'], chamfer: ['d'], hole: ['d', 'depth'], shell: ['t'],
   pattern: ['count', 'spacing'], decal: ['h', 'depth'] }; // the numbers the kernel finds ranges for (doc.LIMIT_FIELDS)
 const REPEATABLE = new Set(['extrude', 'revolve', 'hole', 'pattern', 'loft', 'sweep', 'decal', 'mirror']);
@@ -198,7 +200,7 @@ export class Modeler {
         <div class="mp-actions">${btn('cancelPlane', '✕ Cancel', 'Do not start a sketch (Esc)')}</div>`;
     } else {
       this.els.viewport.querySelector(':scope > .view-suggest[data-from=sketch]')?.remove(); // (the sketch's suggestions)
-      this.view.setPlaneArrow(null);
+      this.view.setPlaneArrow(this.cmd?.feature.type === 'split' ? this.splitFrame() : null, t('this side'), false); // (✂ Split: which side is "this side")
       showSnapFilters(this.els.viewport, !!this.result?.body && !this.cmd); // (what 📏 Measure catches — not while a feature is made)
       if (this.cmd || this.measuring || this.painting) this.dropSuggest(); // (a tool at work: not the face's)
       const canExtrude = this.sketches().length > 0;
@@ -213,6 +215,7 @@ export class Modeler {
         ${btn('chamfer', '◸ Chamfer', 'Bevel edges: click the edges, give the size', 'tool')}
         ${btn('shell', '▢ Shell', 'Hollow the part out: click the face(s) to leave open, give the wall thickness', 'tool')}
         ${btn('draft', '⟋ Draft', 'Tilt the side walls of an extrude by a few degrees (so a moulded or cast part comes out of its mould)', 'tool')}
+        ${btn('split', '✂ Split', 'Cut the part in two along a plane or a flat face: keep both pieces (two bodies) or one side', 'tool')}
         ${btn('rib', '⊿ Rib', 'A rib (a gusset): draw a line from a wall to the plate in a sketch, give the thickness — it fills up to the part', 'tool')}
         ${btn('hole', '◎ Hole', 'Drill holes: click on a flat face where they go, give the diameter (H)', 'tool')}
         ${btn('decal', 'Aa Text / picture', 'Decorate a flat face: text or a picture outline, raised or engraved', 'tool')}
@@ -228,7 +231,7 @@ export class Modeler {
         ${btn('planes', '◫ Planes', 'Show or hide the Top, Front and Right planes (while a sketch plane is chosen they show anyway)', this.planesOn !== false ? 'on' : '')}`; // (the views: the view cube, top right)
       bar.querySelector('[data-a=extrude]').disabled = !canExtrude || !!this.cmd;
       bar.querySelector('[data-a=sketch]').disabled = !!this.cmd;
-      for (const a of ['fillet', 'chamfer', 'hole', 'shell', 'pattern', 'decal', 'mirror', 'draft', 'rib']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body || !!this.cmd;
+      for (const a of ['fillet', 'chamfer', 'hole', 'shell', 'pattern', 'decal', 'mirror', 'split', 'draft', 'rib']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body || !!this.cmd;
       bar.querySelector('[data-a=revolve]').disabled = !canExtrude || !!this.cmd;
       for (const a of ['loft', 'sweep']) bar.querySelector(`[data-a=${a}]`).disabled = this.sketches().length < 2 || !!this.cmd;
       for (const a of ['measure', 'section', 'paint']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body;
@@ -280,6 +283,7 @@ export class Modeler {
     if (a === 'shell') return this.startShell();
     if (a === 'pattern') return this.mode === 'sketch' ? this.sk.startPattern() : this.startPattern();
     if (a === 'draft') return this.startDraft();
+    if (a === 'split') return this.startSplit();
     if (a === 'rib') return this.startRib();
     if (a === 'solidFile') return this.pickSolid();
     if (a === 'duplicatePart') return this.hooks.duplicatePart?.();
@@ -391,7 +395,7 @@ export class Modeler {
     if (f.type === 'extrude') return f.op === 'cut' ? (f.through ? 'cut through all' : `cut ${fmt(f.d)} mm`) : `${fmt(f.d)} mm`;
     if (f.type === 'fillet') return `R ${fmt(f.r)} · ${n('edges')} edge(s)`;
     if (f.type === 'chamfer') return `${fmt(f.d)} mm · ${n('edges')} edge(s)`;
-    if (f.type === 'hole') return `${f.thread || `Ø${fmt(f.d)}`}${f.fit ? ` ${f.fit}` : ''}${f.head === 'cbore' ? ` ⌴Ø${fmt(f.head_d)}×${fmt(f.head_depth)}` : f.head === 'csk' ? ` ⌵Ø${fmt(f.head_d)}` : ''} · ${n('points')} hole(s)${f.through === false ? ` · ${fmt(f.depth)} deep` : ''}`;
+    if (f.type === 'hole') return `${f.thread || `Ø${fmt(f.d)}`}${f.fit ? ` ${f.fit}` : ''}${f.head === 'cbore' ? ` ⌴Ø${fmt(f.head_d)}×${fmt(f.head_depth)}` : f.head === 'csk' ? ` ⌵Ø${fmt(f.head_d)}` : ''}${f.teardrop ? ' ▲ teardrop' : ''} · ${n('points')} hole(s)${f.through === false ? ` · ${fmt(f.depth)} deep` : ''}`;
     if (f.type === 'revolve') return `${fmt(f.angle)}°${f.op === 'cut' ? ' cut' : ''}`;
     if (f.type === 'shell') return `wall ${fmt(f.t)} mm · ${n('faces')} open`;
     if (f.type === 'decal') return `${f.source === 'text' ? `“${f.text}”` : 'picture'} · ${fmt(f.h)} mm${f.op === 'cut' ? ' · engraved' : ' · raised'}`;
@@ -408,6 +412,10 @@ export class Modeler {
     if (f.type === 'mirror') {
       const of = f.of === 'body' || !f.of ? 'the part' : this.part.features.find((g) => g.id === f.of)?.name || '?';
       return `${of} · ${f.plane?.datum ? f.plane.datum : 'a face'}${f.copy === false ? ' · moved' : ' · copy'}`;
+    }
+    if (f.type === 'split') {
+      const pl = f.plane || {}, where = pl.datum ? DATUM_NAME[pl.datum] : pl.mid ? 'midway between two faces' : 'a face';
+      return `${{ above: 'this side', below: 'the other side' }[f.keep] || 'both pieces'} · ${where}${pl.offset ? ` · ${pl.offset > 0 ? '+' : ''}${fmt(pl.offset)} mm` : ''}`;
     }
     if (f.type === 'pattern') return f.kind === 'circular' ? `${f.count}× around` : `${f.count}× · ${fmt(f.spacing)} mm apart`;
     return '';
@@ -558,7 +566,8 @@ export class Modeler {
         ['fillet', '◜', t('Round its edges'), () => { this.startRound('fillet'); if (this.cmd) this.clickCommand(at); }],
         ['chamfer', '◸', t('Bevel its edges'), () => { this.startRound('chamfer'); if (this.cmd) this.clickCommand(at); }]]],
       [t('The part'), [
-        flat && ['mirror', '⇋', t('Mirror across this face'), () => { this.startMirror(); if (this.cmd) this.clickMirror(at); }]]],
+        flat && ['mirror', '⇋', t('Mirror across this face'), () => { this.startMirror(); if (this.cmd) this.clickMirror(at); }],
+        flat && ['split', '✂', t('Split here'), () => this.startSplit(this.splitPlane(h.face))]]],
       [`${t('Step')} · ${fs.step.name}`, [
         ['edit', '✎', t('Edit the step'), () => this.edit(fs.step.id)],
         ['off', fs.step.suppressed ? '●' : '◌', t(fs.step.suppressed ? 'Turn it on' : 'Turn it off'), () => this.toggleOff(fs.step.id)],
@@ -940,9 +949,9 @@ export class Modeler {
 
   /** Does step f measure from (or place holes from) an edge / corner of a face that `owns` says goes? */
   refsTo(f, owns) {
-    const endRefs = (x) => x && typeof x === 'object' && ((x.edge && (owns(x.edge.a) || owns(x.edge.b))) || (x.vertex?.faces || []).some(owns) || (x.point && owns(`${x.point}:`)));
+    const endRefs = (x) => x && typeof x === 'object' && ((x.edge && (owns(x.edge.a) || owns(x.edge.b))) || (x.vertex?.faces || []).some(owns) || (x.point && owns(`${x.point}:`)) || (x.axis && owns(x.axis.face)));
     if ((f.dims || []).some((d) => endRefs(d.a) || endRefs(d.b))) return true;
-    return (f.from || []).some((s) => s && ['x', 'y'].some((k) => s[k]?.edge && (owns(s[k].edge.a) || owns(s[k].edge.b))));
+    return (f.from || []).some((s) => s && ['x', 'y'].some((k) => (s[k]?.edge && (owns(s[k].edge.a) || owns(s[k].edge.b))) || (s[k]?.axis && owns(s[k].axis.face))));
   }
 
   /** Is step f a reference point on a corner / edge of a face that `owns` says goes? */
@@ -959,10 +968,10 @@ export class Modeler {
     for (const d of g.dims || []) {
       for (const k of ['a', 'b']) {
         const x = d[k];
-        if (x && typeof x === 'object' && ((x.edge && (owns(x.edge.a) || owns(x.edge.b))) || (x.vertex?.faces || []).some(owns) || (x.point && owns(`${x.point}:`)))) d[k] = { ref: x.ref };
+        if (x && typeof x === 'object' && ((x.edge && (owns(x.edge.a) || owns(x.edge.b))) || (x.vertex?.faces || []).some(owns) || (x.point && owns(`${x.point}:`)) || (x.axis && owns(x.axis.face)))) d[k] = { ref: x.ref };
       }
     }
-    (g.from || []).forEach((s) => { for (const k of ['x', 'y']) if (s?.[k]?.edge && (owns(s[k].edge.a) || owns(s[k].edge.b))) delete s[k]; });
+    (g.from || []).forEach((s) => { for (const k of ['x', 'y']) if ((s?.[k]?.edge && (owns(s[k].edge.a) || owns(s[k].edge.b))) || (s?.[k]?.axis && owns(s[k].axis.face))) delete s[k]; });
     if (g.upto && owns(this.faceOwner(g.upto) + ':')) { delete g.upto; g.d = g.d || 10; }
     if (this.pointOn(g, owns)) g.at = { xyz: [...(this.result?.points?.[g.id] || Object.values(g.at)[0]?.fp || [0, 0, 0])] }; // (a fixed place)
     return g;
@@ -1050,7 +1059,7 @@ export class Modeler {
       const ty = this.cmd.feature.type;
       const r = ty === 'extrude' ? this.renderExtrude(box) : ty === 'hole' ? this.renderHole(box) : ty === 'revolve' ? this.renderRevolve(box)
         : ty === 'shell' ? this.renderShell(box) : ty === 'pattern' ? this.renderPattern(box)
-        : ty === 'loft' || ty === 'sweep' ? this.renderProfiles(box) : ty === 'decal' ? this.renderDecal(box) : ty === 'mirror' ? this.renderMirror(box) : ty === 'draft' ? this.renderDraft(box) : ty === 'rib' ? this.renderRib(box) : ty === 'solid' ? this.renderSolid(box) : this.renderRound(box);
+        : ty === 'loft' || ty === 'sweep' ? this.renderProfiles(box) : ty === 'decal' ? this.renderDecal(box) : ty === 'mirror' ? this.renderMirror(box) : ty === 'draft' ? this.renderDraft(box) : ty === 'split' ? this.renderSplit(box) : ty === 'rib' ? this.renderRib(box) : ty === 'solid' ? this.renderSolid(box) : this.renderRound(box);
       this.addSliders(box);
       return r;
     }
@@ -1167,8 +1176,7 @@ export class Modeler {
       this.rid = `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
       const timer = setTimeout(() => { this.$('.m-busy').hidden = false; }, 350);
       try {
-        const res = await fetch('/api/model/rebuild', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: { features }, rid: this.rid }) });
-        const r = await res.json();
+        const { res, r } = await fetchRebuild({ features }, this.rid);
         if (res.status === 501) { this.showInstall(r.error); continue; }
         if (!res.ok) throw new Error(r.error || res.statusText);
         if (r.cancelled) { this.hooks.toast('Cancelled — the model is shown as it was.', 'info'); continue; }
@@ -1178,6 +1186,7 @@ export class Modeler {
         const first = !this.view.body && r.body;
         this.view.setBody(r.body);
         this.view.setLook({ ...this.part, color: lookColor(this.part) });
+        this.view.setShades(this.cmd?.feature.type === 'split'); // (✂ Split's preview: the pieces in two shades)
         this.view.setRefs(r.refs || []);
         if (this.printChk) this.runPrintCheck(); // (it follows the part)
         if (first && this.mode === 'part') this.view.setView('iso');
@@ -1658,6 +1667,7 @@ export class Modeler {
     else this.part.features = this.part.features.map((g) => (g.id === f.id ? f : g));
     this.cmd = null;
     this.holePick = null;
+    this.splitMid = false;
     this.view.setEdgeHighlight();
     this.view.setHover(-1);
     this.view.setSketch(null);
@@ -1670,6 +1680,7 @@ export class Modeler {
   cancelCommand() {
     this.cmd = null;
     this.holePick = null;
+    this.splitMid = false;
     this.view.setSketch(null);
     this.view.setEdgeHighlight();
     this.view.setHover(-1);
@@ -1710,6 +1721,7 @@ export class Modeler {
       : feature.type === 'sweep' ? 'Sweep — choose the outline (profile) and the path it moves along. Enter = OK, Esc = Cancel.'
       : feature.type === 'solid' ? 'Solid from a file — joined to the part, cut out of it, or a see-through reference. Enter = OK, Esc = Cancel.'
       : feature.type === 'mirror' ? 'Mirror — choose the plane, or click a flat face to mirror across it. Enter = OK, Esc = Cancel.'
+      : feature.type === 'split' ? 'Split — choose a plane, or click a flat face to cut along it; keep both pieces or one side. Enter = OK, Esc = Cancel.'
       : feature.type === 'pattern' ? 'Pattern — how many and how far apart. Click an edge for the direction (or a round face for the axis). Enter = OK, Esc = Cancel.'
       : feature.type === 'hole' ? 'Hole — click on a flat face where it goes (click again for more holes). Enter = OK, Esc = Cancel.'
       : `${feature.type === 'fillet' ? 'Fillet' : 'Chamfer'} — click the edges (or a face: all its edges). Enter = OK, Esc = Cancel.`);
@@ -1757,6 +1769,7 @@ export class Modeler {
     if (f.type === 'decal') return this.clickDecal(e);
     if (f.type === 'mirror') return this.clickMirror(e);
     if (f.type === 'draft') return this.clickDraft(e);
+    if (f.type === 'split') return this.clickSplit(e);
     if (f.type === 'revolve') return null;
     const i = this.view.pickEdge(e.clientX, e.clientY);
     if (i >= 0) {
@@ -1793,7 +1806,7 @@ export class Modeler {
   /** "the top of Extrude 1" for a face name. */
   faceLabel(name) {
     const [id, role, sub] = String(name).split(':'), g = this.part.features.find((x) => x.id === id);
-    const what = { end: 'the top of', start: 'the bottom of', side: 'a wall of', hole: 'a hole of', round: 'a rounding of' }[role] || 'a face of';
+    const what = { end: 'the top of', start: 'the bottom of', side: 'a wall of', hole: 'a hole of', round: 'a rounding of', cut: 'the cut face of' }[role] || 'a face of';
     return g ? `${what} ${g.name}` : name;
   }
 
@@ -1903,12 +1916,23 @@ export class Modeler {
     return this.axisEdges(f, k, true).find((x) => Math.hypot(...x.ref.fp.map((v, j) => v - e.mid[j])) < 1e-6) || null;
   }
 
+  /** 🎯 a round face under the mouse (a shaft, a cross hole — or an edge of one) as a hole reference: its axis, when
+   *  it is square to the face or runs straight across the axis being picked -> {c, ref: {axis}, face}, or null. */
+  holeAxisAt(clientX, clientY, edge = -1) {
+    const f = this.cmd.feature, k = this.holePick.axis === 'x' ? 0 : 1, b = this.result?.body;
+    if (!b) return null;
+    const ids = [...(edge >= 0 ? b.edges[edge]?.faces || [] : []), this.view.pick(clientX, clientY)?.face?.id].filter((x) => x !== undefined);
+    const axes = roundAxes(b, this.holeFrame(f), (nm) => nm.startsWith(`${f.id}:`));
+    const q = axes.find((a) => ids.includes(a.face) || ids.some((x) => b.faces[x]?.name === a.ref.face));
+    return q && (!q.dir || Math.abs(q.dir[k]) < 1e-6) ? { c: q.c[k], ref: { axis: q.ref }, face: q.face } : null;
+  }
+
   pickHoleRef(e) {
     const f = this.cmd.feature, { i, axis } = this.holePick, k = axis === 'x' ? 0 : 1;
-    const idx = this.view.pickEdge(e.clientX, e.clientY), r = idx >= 0 && this.holeRefAt(idx);
-    if (!r) { this.hooks.toast(axis === 'x' ? 'Click a straight edge running up / down on this face, or another hole.' : 'Click a straight edge running left / right on this face, or another hole.', 'info', 4000); return; }
+    const idx = this.view.pickEdge(e.clientX, e.clientY), r = (idx >= 0 && this.holeRefAt(idx)) || this.holeAxisAt(e.clientX, e.clientY, idx);
+    if (!r) { this.hooks.toast(axis === 'x' ? 'Click a straight edge running up / down on this face, another hole, or a round face (its axis).' : 'Click a straight edge running left / right on this face, another hole, or a round face (its axis).', 'info', 4000); return; }
     f.from = f.from || [];
-    f.from[i] = { ...(f.from[i] || {}), [axis]: { ...(r.ref.hole !== undefined ? { hole: r.ref.hole } : { edge: r.ref }), d: +(f.points[i][k] - r.c).toFixed(6), ...(r.round ? { round: true } : {}) } };
+    f.from[i] = { ...(f.from[i] || {}), [axis]: { ...(r.ref.hole !== undefined ? { hole: r.ref.hole } : r.ref.axis ? { axis: r.ref.axis } : { edge: r.ref }), d: +(f.points[i][k] - r.c).toFixed(6), ...(r.round ? { round: true } : {}) } };
     this.holePick = null;
     this.view.setEdgeHighlight();
     this.hint('Hole — click on a flat face where it goes (click again for more holes). Enter = OK, Esc = Cancel.');
@@ -1929,7 +1953,10 @@ export class Modeler {
   }
 
   /** Where a hole's reference is now along axis k: another hole of this step, or an edge. */
-  refCoord(f, r, k) { return r.hole !== undefined ? f.points[r.hole]?.[k] ?? null : this.edgeCoord(f, r.edge, k); }
+  refCoord(f, r, k) {
+    if (r.axis) return axisOf(roundAxes(this.result?.body, this.holeFrame(f)), r.axis)?.c[k] ?? null; // (a round face's axis)
+    return r.hole !== undefined ? f.points[r.hole]?.[k] ?? null : this.edgeCoord(f, r.edge, k);
+  }
 
   /** Where a hole's reference edge is now (its x or y in the face), or null. */
   edgeCoord(f, ref, k) {
@@ -1975,12 +2002,23 @@ export class Modeler {
   holeDimRow(f, i, axis, k) {
     const r = f.from?.[i]?.[axis], p = f.points[i];
     if (!r) return `<label class="mp-hd">${axis} <input type="number" step="any" data-${k ? 'v' : 'u'}="${i}" value="${fmt(p[k])}"> <span class="hint">${FROM_TEXT[originKey(f.plane?.origin)] || 'from the reference point'}</span></label>`;
-    const side = r.round ? (k === 0 ? (r.d >= 0 ? 'right of the hole' : 'left of the hole') : (r.d >= 0 ? 'above the hole' : 'below the hole'))
+    const side = r.axis ? (k === 0 ? (r.d >= 0 ? 'right of the axis' : 'left of the axis') : (r.d >= 0 ? 'above the axis' : 'below the axis'))
+      : r.round ? (k === 0 ? (r.d >= 0 ? 'right of the hole' : 'left of the hole') : (r.d >= 0 ? 'above the hole' : 'below the hole'))
       : k === 0 ? (r.d >= 0 ? 'from the left edge' : 'from the right edge') : (r.d >= 0 ? 'from the lower edge' : 'from the upper edge');
     const picking = this.holePick?.i === i && this.holePick?.axis === axis;
     return `<label class="mp-hd">${k ? '↕' : '↔'} <input type="number" step="any" min="0" data-hd="${i}:${axis}" value="${fmt(Math.abs(r.d))}"> <span>mm ${side}</span>
       <button type="button" class="mini" data-flip="${i}:${axis}" title="Measure from the edge on the other side">⇄</button>
-      <button type="button" class="mini ${picking ? 'on' : ''}" data-pickref="${i}:${axis}" title="Measure from another edge or hole: click it in the view">🎯</button></label>`;
+      <button type="button" class="mini ${picking ? 'on' : ''}" data-pickref="${i}:${axis}" title="Measure from another edge, hole or round face (its axis): click it in the view">🎯</button></label>`;
+  }
+
+  /** ▲ Teardrop: offered when the hole goes sideways (its axis level with the print bed, square to Z) — else greyed,
+   *  the tooltip says why (still on when it was ticked, so it can be taken off). */
+  teardropRow(f) {
+    const fr = this.holeFrame(f), side = !!fr && Math.abs(fr.n[2]) < 1e-4, on = !!f.teardrop;
+    const tip = side ? 'The top of the hole becomes a 45° point, so it prints lying on its side without support'
+      : fr ? 'Only for a hole that goes sideways (its axis level with the print bed) — this one goes up / down'
+        : 'Click a face on the side of the part first: a teardrop is for a hole that goes sideways';
+    return `<label class="check ${side || on ? '' : 'off'}" title="${tip}"><input type="checkbox" data-k="teardrop" ${on ? 'checked' : ''} ${side || on ? '' : 'disabled'}> Teardrop (print sideways)</label>`;
   }
 
   renderRound(box) {
@@ -2015,6 +2053,7 @@ export class Modeler {
         ${[['', '—'], ['cbore', '⌴ Counterbore'], ['csk', '⌵ Countersink']].map(([v, l]) => `<option value="${v}" ${v === (f.head || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       ${f.head ? `<div class="field"><label>Head Ø</label><input type="number" step="any" min="0" data-k="head_d" value="${fmt(f.head_d)}"><span class="unit">mm</span></div>` : ''}
       ${f.head === 'cbore' ? `<div class="field"><label>Head depth</label><input type="number" step="any" min="0" data-k="head_depth" value="${fmt(f.head_depth)}"><span class="unit">mm</span></div>` : ''}
+      ${this.teardropRow(f)}
       <div class="field"><label>Fit</label><select data-k="fit" title="An ISO 286 fit for the hole — shown on the 2D drawing (Ø8 H7 and its deviations); the model keeps the nominal size">
         ${['', 'H6', 'H7', 'H8', 'H9'].map((v) => `<option value="${v}" ${v === (f.fit || '') ? 'selected' : ''}>${v || '—'}</option>`).join('')}</select></div>
       ${f.points.length ? `<h3>Holes</h3><div class="mp-holes">${f.points.map((p, i) => `<div class="mp-hole">
@@ -2035,6 +2074,7 @@ export class Modeler {
     if (dep) num(dep, (v) => { if (v > 0) f.depth = v; });
     box.querySelector('[data-k=through]').addEventListener('change', (e) => { f.through = e.target.checked; this.renderProps(); this.rebuild(); });
     box.querySelector('[data-k=fit]').addEventListener('change', (e) => { if (e.target.value) f.fit = e.target.value; else delete f.fit; });
+    box.querySelector('[data-k=teardrop]').addEventListener('change', (e) => { if (e.target.checked) f.teardrop = true; else delete f.teardrop; this.rebuild(); });
     box.querySelector('[data-k=thread]').addEventListener('change', (e) => { // (its tap drill as the diameter)
       if (e.target.value) Object.assign(f, { thread: e.target.value, d: THREADS[e.target.value] }); else delete f.thread;
       this.renderProps();
@@ -2397,6 +2437,130 @@ export class Modeler {
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
   }
 
+  // ------------------------------------------------------------------ ✂ Split
+  /** Where the part lies along a plane's normal: [lowest, highest] of its mesh's points (0 = on the plane). */
+  planeSpan(fr) {
+    const p = this.view.mesh?.geometry.attributes.position.array, o = fr.o, n = fr.n;
+    if (!p) return [0, 0];
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < p.length; i += 3) {
+      const s = (p[i] - o[0]) * n[0] + (p[i + 1] - o[1]) * n[1] + (p[i + 2] - o[2]) * n[2];
+      if (s < lo) lo = s;
+      if (s > hi) hi = s;
+    }
+    return [lo, hi];
+  }
+
+  /** The plane a clicked flat face splits along: its own plane when that goes through the part (a step's floor, a
+   *  boss's top), else (an outer face) midway between it and the farthest parallel face across — the part in halves. */
+  splitPlane(face) {
+    const pl = { face: face.ref || { name: face.name }, frame: face.frame }, n = face.frame.n, slack = 1e-6 * (1 + this.view.size);
+    const [lo, hi] = this.planeSpan(face.frame);
+    if (lo < -slack && hi > slack) return pl;
+    const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    const across = (this.result?.body?.faces || []).filter((g) => g.type === 'plane' && g.name && Math.abs(Math.abs(dot(g.frame.n, n)) - 1) < 1e-6)
+      .map((g) => ({ g, gap: dot(g.frame.o.map((v, k) => v - face.frame.o[k]), n) })).filter((x) => Math.abs(x.gap) > slack)
+      .sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap))[0];
+    if (across) return { ...pl, mid: across.g.ref || { name: across.g.name }, frame: { ...face.frame, o: face.frame.o.map((v, k) => v + (across.gap / 2) * n[k]) } };
+    return { ...pl, offset: +((lo + hi) / 2).toFixed(3) };
+  }
+
+  /** The base plane `datum` through the middle of the part (its offset to there). */
+  datumThroughMiddle(datum) {
+    const b = this.result?.body?.bbox, n = datumFrame({ datum }).n;
+    const off = b ? +[0, 1, 2].reduce((s, k) => s + ((b[k] + b[k + 3]) / 2) * n[k], 0).toFixed(3) : 0;
+    return { datum, ...(off ? { offset: off } : {}) };
+  }
+
+  /** ✂ Split: the part cut in two — by default across its longest side, in the middle (or along `plane`). */
+  startSplit(plane = null) {
+    if (this.mode !== 'part' || this.cmd || !this.result?.body) return;
+    if (!plane) {
+      const b = this.result.body.bbox, size = [0, 1, 2].map((k) => b[k + 3] - b[k]);
+      plane = this.datumThroughMiddle(['YZ', 'XZ', 'XY'][size.indexOf(Math.max(...size))]);
+    }
+    this.splitMid = false;
+    this.openCommand({ id: this.newId(), type: 'split', name: this.nextName('split'), plane, keep: 'both' }, true);
+  }
+
+  /** The split's plane as built, its origin in the middle of the part (its arrow points to "this side"). */
+  splitFrame() {
+    const f = this.cmd?.feature, pl = f?.plane || {}, b = this.result?.body?.bbox;
+    let fr = this.result?.frames?.[f?.id];
+    if (!fr) {
+      fr = pl.datum ? datumFrame(pl) : pl.frame;
+      if (fr && pl.offset && !pl.datum) fr = { ...fr, o: fr.o.map((v, k) => v + pl.offset * fr.n[k]) };
+    }
+    if (!fr || !b) return fr;
+    const c = [0, 1, 2].map((k) => (b[k] + b[k + 3]) / 2), s = [0, 1, 2].reduce((a, k) => a + (c[k] - fr.o[k]) * fr.n[k], 0);
+    return { ...fr, o: c.map((v, k) => v - s * fr.n[k]) };
+  }
+
+  /** A click on a flat face: the split goes along it — or, after ⇳ Midway, halfway between the first face and this one. */
+  clickSplit(e) {
+    const f = this.cmd.feature, h = this.view.pick(e.clientX, e.clientY);
+    if (!h?.face || h.face.type !== 'plane' || h.face.name?.startsWith(`${f.id}:`)) { this.hooks.toast('Click a flat face — the part is cut along it.', 'info', 3000); return; }
+    if (this.splitMid && f.plane?.face) {
+      const nm = f.plane.face.name, first = this.result.body.faces.find((g) => g.type === 'plane' && (g.name === nm || (g.names || []).includes(nm)))?.frame || f.plane.frame;
+      const n = first.n, dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], gap = dot(h.face.frame.o.map((v, k) => v - first.o[k]), n);
+      if (Math.abs(Math.abs(dot(h.face.frame.n, n)) - 1) > 1e-6 || Math.abs(gap) < 1e-6) { this.hooks.toast('Click a flat face parallel to the first one, across from it.', 'warning', 4000); return; }
+      f.plane = { face: f.plane.face, mid: h.face.ref || { name: h.face.name }, frame: { ...first, o: first.o.map((v, k) => v + (gap / 2) * n[k]) } };
+      this.splitMid = false;
+    } else f.plane = this.splitPlane(h.face);
+    this.renderProps();
+    this.rebuild();
+  }
+
+  renderSplit(box) {
+    const f = this.cmd.feature, st = this.status(f.id), pl = f.plane || {}, face = !pl.datum;
+    const where = face ? (pl.mid ? t('Midway between two faces') : t('Along the face you clicked')) : `${t(DATUM_NAME[pl.datum])} — ${t('through the part')}`;
+    const keeps = [['both', '✂ Both'], ['above', 'This side'], ['below', 'Other side']];
+    box.innerHTML = `<h2>${esc(f.name)}</h2>
+      <div class="field"><label>Plane</label><div class="seg">${Object.entries(DATUM_NAME).map(([k, v]) => `<button data-pl="${k}" class="${pl.datum === k ? 'on' : ''}">${esc(t(v))}</button>`).join('')}</div></div>
+      ${face ? `<div class="field"><label></label><div class="seg"><button data-a="mid" class="${pl.mid || this.splitMid ? 'on' : ''}" title="${esc(t('Midway between this face and another one parallel to it: click the other face'))}">⇳ Midway</button></div></div>` : ''}
+      <p class="hint">${esc(where)}${this.splitMid ? ` — ${esc(t('now click the face across from it.'))}` : ` — ${esc(t('or click a flat face to cut along it.'))}`}</p>
+      <div class="field"><label>Offset</label><input type="number" step="any" data-k="offset" value="${fmt(pl.offset || 0)}"><span class="unit">mm</span></div>
+      <div class="field"><label>Keep</label><div class="seg big">${keeps.map(([k, label]) => `<button data-keep="${k}" class="${(f.keep || 'both') === k ? 'on' : ''}">${esc(t(label))}</button>`).join('')}</div></div>
+      <p class="hint">${esc(t((f.keep || 'both') === 'both' ? 'Both pieces stay, as two bodies of this part (two shades here).' : 'This side: where the arrow points.'))}${st?.ok && st.bodies ? ` ${esc(t('Bodies'))}: ${st.bodies}` : ''}</p>
+      ${(f.keep || 'both') === 'both' && st?.ok && this.hooks.newParts ? `<button class="btn" data-a="pieces" title="${esc(t('Two new parts: this part\'s steps up to here, each keeping one piece'))}">⧉ Make each piece its own part</button>` : ''}
+      ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}${st?.warnings?.length ? `<p class="mp-warn">${esc(st.warnings.join(' '))}</p>` : ''}
+      <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
+    const changed = () => { this.renderProps(); this.rebuild()?.then?.(() => { if (this.cmd?.feature === f) this.renderProps(); }); }; // (its result shown when built)
+    for (const b of box.querySelectorAll('[data-pl]')) b.addEventListener('click', () => { f.plane = this.datumThroughMiddle(b.dataset.pl); this.splitMid = false; changed(); });
+    box.querySelector('[data-a=mid]')?.addEventListener('click', () => {
+      this.splitMid = !this.splitMid;
+      if (!this.splitMid && f.plane.mid) { const { mid, ...rest } = f.plane; f.plane = rest; changed(); return; } // (off again: along the face itself)
+      this.renderProps();
+    });
+    const off = box.querySelector('[data-k=offset]');
+    off.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') off.blur(); if (e.key === 'Escape') this.cancelCommand(); });
+    off.addEventListener('change', () => {
+      const v = parseFloat(String(off.value).replace(',', '.'));
+      if (!Number.isFinite(v)) return;
+      f.plane = { ...f.plane, offset: v };
+      if (!v) delete f.plane.offset;
+      changed();
+    });
+    for (const b of box.querySelectorAll('[data-keep]')) b.addEventListener('click', () => { f.keep = b.dataset.keep; changed(); });
+    box.querySelector('[data-a=pieces]')?.addEventListener('click', () => this.piecesAsParts());
+    box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
+    box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
+  }
+
+  /** ⧉ Each piece its own part: the split is kept here (both pieces), and two new model parts get this part's steps
+   *  up to the split, one keeping this side, the other the other side. */
+  async piecesAsParts() {
+    const f = this.cmd?.feature;
+    if (!f || f.type !== 'split') return;
+    this.okCommand();
+    await this.inflight;
+    const at = this.part.features.findIndex((g) => g.id === f.id), name = this.hooks.safeName?.() || t('3D model');
+    if (at < 0) return;
+    const pieces = [['above', 1], ['below', 2]].map(([keep, k]) => ({ name: `${name} — ${t('piece')} ${k}`,
+      data: { ...this.payload(), features: structuredClone(this.part.features.slice(0, at + 1)).map((g) => (g.id === f.id ? { ...g, keep } : g)) } }));
+    await this.hooks.newParts(pieces);
+  }
+
   // ------------------------------------------------------------------ Rib
   startRib() {
     if (this.mode !== 'part' || this.cmd || !this.result?.body) return;
@@ -2727,14 +2891,15 @@ export class Modeler {
           const h = f.upto ? this.view.pick(e.clientX, e.clientY) : null, ok = h?.face?.type === 'plane' && !h.face.name?.startsWith(`${f.id}:`);
           this.view.setHover(ok ? h.face.id : -1);
           cv.style.cursor = ok ? 'pointer' : '';
-        } else if (f.type === 'decal' || f.type === 'mirror') {
+        } else if (f.type === 'decal' || f.type === 'mirror' || f.type === 'split') {
           const h = this.view.pick(e.clientX, e.clientY), ok = h?.face?.type === 'plane' && !h.face.name?.startsWith(`${f.id}:`);
           this.view.setHover(ok ? h.face.id : -1);
           cv.style.cursor = ok ? 'crosshair' : '';
         } else if (f.type === 'hole' && this.holePick) {
-          const i = this.view.pickEdge(e.clientX, e.clientY), ok = i >= 0 && this.holeRefAt(i);
+          const i = this.view.pickEdge(e.clientX, e.clientY), ok = i >= 0 && this.holeRefAt(i), ax = !ok && this.holeAxisAt(e.clientX, e.clientY, i);
           this.view.setEdgeHighlight(ok ? i : -1, []);
-          cv.style.cursor = ok ? 'pointer' : '';
+          this.view.setHover(ax ? ax.face : -1);
+          cv.style.cursor = ok || ax ? 'pointer' : '';
         } else if (f.type === 'pattern') {
           const i = f.kind === 'circular' ? -1 : this.view.pickEdge(e.clientX, e.clientY);
           const straight = i >= 0 && this.edgeDir(i);

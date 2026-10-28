@@ -12,6 +12,7 @@ import { ViewCube } from './viewcube.js';
 
 const BODY = new THREE.Color(0xd9dee6), HOVER = new THREE.Color(0x6cb6ff), PICKED = new THREE.Color(0x4f8cff);
 const FEATURE = new THREE.Color(0xa9cdf5), SELECTED = new THREE.Color(0xf2cc60); // the step under the mouse / the chosen step
+const SHADES = [new THREE.Color(0x9ec5ef), new THREE.Color(0xf0b77a)]; // ✂ Split's preview: one shade per body
 const DATUM_COLORS = { XY: 0x4f8cff, XZ: 0x7ee787, YZ: 0xffa657 };
 export const DATUMS = {
   XY: { o: [0, 0, 0], x: [1, 0, 0], n: [0, 0, 1] },
@@ -104,7 +105,8 @@ function studio(renderer) {
   return tex;
 }
 
-const b64 = (s, T) => {
+const b64 = (s, T) => { // (a binary answer's arrays come as typed arrays already: modeler/packed.js)
+  if (typeof s !== 'string') return s;
   const bin = atob(s), bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return new T(bytes.buffer);
@@ -246,7 +248,7 @@ export class ModelView {
     if (this.printMarks) { this.scene.remove(this.printMarks); this.printMarks.geometry.dispose(); this.printMarks = null; }
     if (!opts || !this.mesh || !this.body) { this.invalidate(); return null; }
     const { minWall = 1.2, overhang = 45 } = opts, pos = this.mesh.geometry.attributes.position.array, n = pos.length / 9, z0 = this.body.bbox[2];
-    const lim = -Math.cos((90 - overhang) * Math.PI / 180) - 1e-9; // (a face's normal more downward than this: it hangs over)
+    const lim = -Math.cos((90 - overhang) * Math.PI / 180) - 1e-4; // (a face's normal more downward than this: it hangs over; a face at just 45°, a teardrop's side, does not)
     const side = new THREE.Mesh(this.mesh.geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })), ray = new THREE.Raycaster();
     const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3(), N = new THREE.Vector3(), M = new THREE.Vector3();
     const res = { overhang: { area: 0, box: null }, thin: { area: 0, box: null, min: null } }, out = [], col = [];
@@ -356,11 +358,19 @@ export class ModelView {
     for (let t = 0; t < this.faceIds.length; t++) {
       const f = this.faceIds[t];
       const c = f === this.hover ? HOVER : this.picked.has(f) ? PICKED : this.hoverSet?.has(f) ? FEATURE : this.selSet?.has(f) ? SELECTED
-        : this.faceColor?.get(f) || this.fileColor?.get(f) || this.bodyColor || BODY;
+        : this.shades ? SHADES[(this.body.faces[f]?.solid || 0) % SHADES.length]
+          : this.faceColor?.get(f) || this.fileColor?.get(f) || this.bodyColor || BODY;
       for (let k = 0; k < 3; k++) col.setXYZ(t * 3 + k, c.r, c.g, c.b);
     }
     col.needsUpdate = true;
     this.invalidate();
+  }
+
+  /** ✂ Split's preview: each body (solid) of the part in a shade of its own — on / off. */
+  setShades(on) {
+    if (!!this.shades === !!on) return;
+    this.shades = !!on;
+    this.paint();
   }
 
   /** Sketch mode: the part see-through, so the sketch, the grid and dimensions show even behind it. */
@@ -811,8 +821,9 @@ export class ModelView {
   }
 
   /** The measure tool's snap under the mouse, shown: a green point and its name (corner, midpoint, centre). */
-  /** The way a positive offset moves a sketch plane: an arrow from its origin along its normal, labelled (null: none). */
-  setPlaneArrow(fr, label = '') {
+  /** The way a positive offset moves a sketch plane: an arrow from its origin along its normal, labelled (null: none;
+   *  plus false: the label alone, no "+"). */
+  setPlaneArrow(fr, label = '', plus = true) {
     if (!this.arrowGroup) { this.arrowGroup = new THREE.Group(); this.scene.add(this.arrowGroup); }
     this.clear(this.arrowGroup);
     this.invalidate();
@@ -822,7 +833,7 @@ export class ModelView {
     arrow.traverse((x) => { if (x.material) { x.material.depthTest = false; x.material.transparent = true; } x.renderOrder = 13; });
     const el = document.createElement('div');
     el.className = 'm-snap m-plane-plus';
-    el.textContent = `+ ${label}`;
+    el.textContent = plus ? `+ ${label}` : label;
     const lab = new CSS2DObject(el);
     lab.position.copy(o).addScaledVector(n, L * 1.15);
     this.arrowGroup.add(arrow, lab);

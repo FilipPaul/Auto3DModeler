@@ -171,8 +171,10 @@ TOOLS = [
                     "meet, e.g. a rib and its plate), circular true / false, near. A face merged from two steps (flush) has names. "
                     "Edges come with a ready ref {a, b, fp} for fillet / chamfer. Points (kind \"point\"): the reference points "
                     "(point steps: {point: id, name, xyz}), then the part's corners {corner: [x, y, z], ref} (of_face, of_step, near) — "
-                    "a ref is the `at` of add_feature point.",
-     "inputSchema": _obj({"kind": {"type": "string", "enum": ["face", "edge", "point"]}, "normal": POINT,
+                    "a ref is the `at` of add_feature point. Axes (kind \"axis\"): the round faces' axes (shafts, holes, bosses: "
+                    "{axis: <the face's name>, radius, through, direction}; name, of_step, near) — to measure a sketch shape or a "
+                    "hole from (their from: {axis: <name>}).",
+     "inputSchema": _obj({"kind": {"type": "string", "enum": ["face", "edge", "point", "axis"]}, "normal": POINT,
                           "extreme": {"type": "string", "enum": ["max", "min"]}, "name": STR, "near": POINT,
                           "of_face": STR, "of_step": STR, "between_steps": {"type": "array", "items": STR},
                           "circular": {"type": "boolean"}, "limit": {"type": "integer"}})},
@@ -190,7 +192,7 @@ TOOLS = [
                     "(closed) | {profile: {points: [[u, v], {smooth: [[u, v], …]}, [u, v], {arc: [u, v]}, [u, v], …]}} (closed: corners "
                     "[u, v] joined by straight lines; {smooth: [...]} = a smooth curve through those points to the next corner — one "
                     "clean B-spline, no facets; {arc: [u, v]} = an arc through that point to the next corner)] — a shape inside another "
-                    "is a hole; sizes are locked. Any shape may add pattern: {count, spacing} (copies in a row along X, spacing apart) or {count, around: [u, v]} (copies around that point, spread over 360°) — e.g. {circle: {x: 20, y: 0, d: 5}, pattern: {count: 6, around: [0, 0]}}; the copies stay equal to the shape. For round, turned parts (a vase, a knob, a bottle, a duck's body): a profile on "
+                    "is a hole; sizes are locked. Any shape may add pattern: {count, spacing} (copies in a row along X, spacing apart) or {count, around: [u, v]} (copies around that point, spread over 360°) — e.g. {circle: {x: 20, y: 0, d: 5}, pattern: {count: 6, around: [0, 0]}}; the copies stay equal to the shape. Any shape may add from: {axis: <a round face's name from find_refs kind \"axis\">}: x / y stay sketch coordinates, but its place across that axis (a shaft lying along the plane, a cross hole under it; both when the axis is square to the plane) is kept from the axis when the part changes. For round, turned parts (a vase, a knob, a bottle, a duck's body): a profile on "
                     "plane \"XZ\" — u = the radius (≥ 0, the axis at u = 0), v = the height — then revolve axis \"y\".\n"
                     "- extrude: sketch (id), d, op add / cut, through (cut through all), symmetric, flip; or up_to: a flat face's "
                     "name (as far as that face — it follows the face), offset (mm past it, negative = short of it); or upto_next: "
@@ -203,8 +205,12 @@ TOOLS = [
                     "head: \"cbore\" (a counterbore: head_d, head_depth — default 1.8 × d, d) or \"csk\" (a countersink: head_d, "
                     "head_angle — default 2 × d, 90°) for a screw's head; "
                     "thread: \"M5\" (ISO metric M2 … M20: drilled with its tap drill, labelled M5 on the drawing — no d needed); "
+                    "teardrop: true (a hole that goes sideways — its axis level with the bed — gets a 45° point on top, so it "
+                    "prints lying on its side without support; still Ø d on the drawing; refused on a hole going up / down and with "
+                    "csk, a cbore gets the point too); "
                     "from: [{x: {edge: <ref from find_refs>, d}, y: {edge, d}}] per hole = its distance from a straight edge "
-                    "of that face (d signed along the face's x / y; the hole keeps it when the part changes).\n"
+                    "of that face (d signed along the face's x / y; the hole keeps it when the part changes), or {axis: <a round face's "
+                    "name, find_refs kind \"axis\">, d} = from that face's axis (square to the face, or running straight across x / y).\n"
                     "- fillet: edges [refs from find_refs], r. chamfer: edges, d.\n"
                     "- shell: faces [names of the faces left open], t (wall).\n"
                     "- rib: sketch (one open line — or lines end to end — across a corner, e.g. on a plane through the plate and "
@@ -223,10 +229,16 @@ TOOLS = [
                     "- mirror: of \"body\" (the whole part, default) or a step's id; plane \"YZ\" (left ↔ right, default) / \"XZ\" / "
                     "\"XY\", or face (a flat face's name) to mirror across; copy true (the part + its mirror image, default) / false "
                     "(the part moved to its mirror image; only for the body).\n"
+                    "- split: cut the part in two along a plane — plane \"XY\" / \"XZ\" / \"YZ\" / {datum, offset} (e.g. {datum: "
+                    "\"XY\", offset: 15}: z = 15) / {face: <a flat face>, offset} / {face, mid: <the parallel face across>} (halfway "
+                    "between them; follows both); keep \"both\" (default: two separate bodies in the part — the body's solids "
+                    "says 2), \"above\" (only the side the plane's normal points to: XY +Z, YZ +X, XZ −Y, a face: out of it) or "
+                    "\"below\". The cut faces are named <id>:cut:0 (above) / <id>:cut:1 (below). A plane that misses the part "
+                    "is an issue.\n"
                     "- point: a reference point (no geometry; it follows the part, sketches snap and dimension to it): at "
                     "{corner: [x, y, z]} (the corner nearest that place) / {centre: <a round edge's ref from find_refs>} / {mid: "
                     "<an edge's ref>: its middle} / a ref from find_refs kind \"point\".",
-     "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep", "decal", "mirror", "draft", "rib", "point"]},
+     "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep", "decal", "mirror", "draft", "rib", "point", "split"]},
                           "name": STR, "plane": {}, "shapes": {"type": "array"}, "lock": {"type": "boolean"},
                           "sketch": STR, "d": NUM, "op": {"type": "string", "enum": ["add", "cut"]}, "through": {"type": "boolean"},
                           "symmetric": {"type": "boolean"}, "flip": {"type": "boolean"}, "axis": {}, "angle": NUM,
@@ -234,7 +246,8 @@ TOOLS = [
                           "faces": {"type": "array"}, "t": NUM, "of": {}, "kind": {"type": "string", "enum": ["linear", "circular"]},
                           "count": NUM, "spacing": NUM, "dir": {}, "up_to": STR, "offset": NUM, "upto_next": {"type": "boolean"}, "d2": NUM,
                           "sketches": {"type": "array"}, "profile": STR, "path": STR,
-                          "text": STR, "h": NUM, "at": {}, "origin": {}, "fit": {"type": "string", "enum": ["H6", "H7", "H8", "H9"]}}, ["type"])},
+                          "text": STR, "h": NUM, "at": {}, "origin": {}, "fit": {"type": "string", "enum": ["H6", "H7", "H8", "H9"]},
+                          "keep": {"type": "string", "enum": ["both", "above", "below"]}}, ["type"])},
     {"name": "edit_feature", "where": "browser",
      "description": "Change a step of the 3D model: id and fields (as in add_feature, e.g. {d: 15}, {r: 3}, {points: …}, a "
                     "sketch's {shapes: […]}). Later steps follow their faces.",
