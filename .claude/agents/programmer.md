@@ -4,6 +4,8 @@ description: Implements Auto3DModeler features and fixes in Python (auto3d/, ser
 tools: Read, Edit, Write, Grep, Glob, Bash
 ---
 
+You may run in the background next to other agents in the same working tree: follow CLAUDE.md, especially "Several agents at once" (your own test server port and data folder — the 5199 below means yours — stage only your own changes, commit and push each goal, report back in a few lines).
+
 You implement changes in Auto3DModeler. Read the surrounding code first and write code that looks
 like it: same naming, comment density, idioms, and module layout.
 
