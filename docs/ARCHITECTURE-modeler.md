@@ -17,7 +17,8 @@ Date: 2026-10-25. Written by the architect agent.
   ended); _model_call answers a stopped job 409 cancelled. web/js/jobs.js: a fetch wrapper marks the page's slow
   requests (an upload is listed before the server has a job); ⚙ N in the top bar (#jobsBtn) only while something
   runs, polled every 1 s then (4 s idle, so other windows' and the AI's jobs show); the list: kind · part · time (live,
-  only the times redrawn) · ✕ Stop; it pulses when a job runs over 3 s with no progress box on screen.
+  only the times redrawn — just after each whole second of the first job, from a start time on the page's clock that
+  polls never set back: redrawn once a second at a random moment, a number could stay for almost 2 s) · ✕ Stop; it pulses when a job runs over 3 s with no progress box on screen.
   tests/test_kernel_pool.py (test_jobs_listed_and_stopped_while_waiting, test_stop_from_the_jobs_list_kills_only_that_worker,
   test_jobs_route); tools/e2e_cancel.py 1b (the board's import: ⚙ 1, the list names the file, ✕ Stop: gone in 0.13 s).
 - **Cancel stops the job once, nothing restarts it done:** the owner saw Cancel not stopping the kernel and the

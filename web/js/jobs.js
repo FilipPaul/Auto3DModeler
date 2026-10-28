@@ -13,7 +13,8 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 
 const pending = new Map(); // this page's request id -> {url, kind, rid, at, abort}
 const PAGE = Math.random().toString(36).slice(2, 8); // (this page's requests: "<PAGE>-<n>")
-let jobs = [], fetched = 0, timer = null, n = 0, drawn = '';
+let jobs = [], timer = null, ticker = null, n = 0, drawn = '';
+const starts = new Map(); // job id -> when it started, on this page's clock (the earliest the polls gave: never set back)
 let els = null, tabName = () => '';
 
 /** fetch, with each slow request marked (X-A3D-Req: matched with the server's job; X-A3D-Tab: the part on screen). */
@@ -43,7 +44,9 @@ async function poll() {
   try {
     const r = await (await fetch('/api/jobs')).json();
     jobs = r.jobs || [];
-    fetched = performance.now();
+    const now = performance.now();
+    for (const j of jobs) starts.set(j.id, Math.min(starts.get(j.id) ?? Infinity, now - j.elapsed * 1000));
+    for (const id of starts.keys()) if (!jobs.some((j) => j.id === id)) starts.delete(id);
   } catch { /* the server restarting: keep the last list */ }
   show();
   timer = setTimeout(poll, jobs.length || pending.size ? 1000 : 4000);
@@ -51,11 +54,11 @@ async function poll() {
 
 /** The rows: the server's jobs, then this page's requests the server has no job for (yet). */
 function rows() {
-  const age = (performance.now() - fetched) / 1000, mine = new Set(jobs.map((j) => j.req).filter(Boolean));
+  const now = performance.now(), mine = new Set(jobs.map((j) => j.req).filter(Boolean));
   // (a request of this page that has ended: its job is gone, whatever the last poll said)
-  const out = jobs.filter((j) => !j.req?.startsWith(`${PAGE}-`) || pending.has(j.req)).map((j) => ({ ...j, secs: j.elapsed + age }));
+  const out = jobs.filter((j) => !j.req?.startsWith(`${PAGE}-`) || pending.has(j.req)).map((j) => ({ ...j, secs: (now - (starts.get(j.id) ?? now - j.elapsed * 1000)) / 1000 }));
   for (const [id, p] of pending) {
-    const secs = (performance.now() - p.at) / 1000;
+    const secs = (now - p.at) / 1000;
     if (!mine.has(id) && secs > 0.5) out.push({ id, local: true, kind: p.kind, what: p.what, state: 'running', secs, rid: p.rid });
   }
   return out;
@@ -97,14 +100,23 @@ async function stop(id) {
   soon(200);
 }
 
+/** The times, live: redrawn just after the next whole second of the list's first job (a time shown once a second at
+ *  any moment could stay on one number for almost two seconds); 1 s while the list is closed (the ⚙ and its pulse). */
+function tick() {
+  clearTimeout(ticker);
+  if (!els.btn.hidden) show();
+  const first = els.list.hidden ? null : rows()[0];
+  ticker = setTimeout(tick, first ? 1000 - ((first.secs * 1000) % 1000) + 15 : 1000);
+}
+
 /** Start: the ⚙ button and its list in the top bar (#jobsBtn, #jobsList); tab: the part on screen's name. */
 export function initJobs(tab) {
   tabName = tab || tabName;
   els = { btn: document.getElementById('jobsBtn'), list: document.getElementById('jobsList') };
   wrapFetch();
-  els.btn.addEventListener('click', (e) => { e.stopPropagation(); els.list.hidden = !els.list.hidden; show(); });
+  els.btn.addEventListener('click', (e) => { e.stopPropagation(); els.list.hidden = !els.list.hidden; tick(); });
   els.list.addEventListener('click', (e) => { e.stopPropagation(); const b = e.target.closest('[data-stop]'); if (b) { b.disabled = true; stop(b.dataset.stop); } });
   document.addEventListener('click', () => { els.list.hidden = true; });
-  setInterval(() => { if (!els.btn.hidden) show(); }, 1000); // (the times, live)
+  tick();
   poll();
 }
