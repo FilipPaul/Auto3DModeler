@@ -80,6 +80,8 @@ Date: 2026-10-25. Written by the architect agent.
   with their texts; `points: <view>` its point keys and circles), sheet_edit (preset, paper, views, remove, restore,
   move, add by two point keys or a circle; SheetEditor.addFor / pointsOf); export pdf on a sheet: export_data pdf ->
   the sheet's SVG -> sheet.pdf. automation-design uses sheets. tools/e2e_ai_sheet.py.
+- **Redo in a sketch done:** Sketcher.snapshot / step (clears redo) / back (keeps it for redo) / forward — Ctrl+Y or
+  Ctrl+Shift+Z (the other workspaces had it already). e2e_sketch_pick.
 - **Drawing guides done:** Sketcher.snap after the shapes: in line with a key point's x / y (points, midpoints, the
   origin) or on a line's extension (beyond its ends), both: where they cross; `guides` [[from, to]] drawn dashed green
   while a drawing tool is on. The filters moved bottom left (the suggestions / size box above them, clear of the

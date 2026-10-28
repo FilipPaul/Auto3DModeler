@@ -274,7 +274,10 @@ export class Sketcher {
     while (used.has(`${pre}${++n}`));
     return `${pre}${n}`;
   }
-  step() { this.undo.push(structuredClone({ points: this.f.points, entities: this.f.entities, constraints: this.f.constraints, dims: this.f.dims, place: this.f.place || {} })); }
+  /** The sketch as it is (for undo / redo). */
+  snapshot() { return structuredClone({ points: this.f.points, entities: this.f.entities, constraints: this.f.constraints, dims: this.f.dims, place: this.f.place || {}, rd: this.f.rd || {} }); }
+
+  step() { this.undo.push(this.snapshot()); this.redo = []; } // (a new change: what was undone is gone)
 
   /** A size label the mouse can drag (as on a drawing sheet): its place is f.place[key] = at(uv) — an offset from the
    *  shape (mm) or an angle round a circle; `what` (lines, circles, points) lights up while the mouse is on it. */
@@ -313,6 +316,7 @@ export class Sketcher {
   back() {
     const s = this.undo.pop();
     if (!s) return;
+    (this.redo || (this.redo = [])).push(this.snapshot());
     Object.assign(this.f, s);
     this.sel = null;
     this.chain = null;
@@ -703,6 +707,17 @@ export class Sketcher {
   /** Show a circle / arc's size the other way (R ⇄ Ø). */
   flipRound(id) {
     this.f.rd = { ...(this.f.rd || {}), [id]: this.roundAs(id) === 'r' ? 'd' : 'r' };
+    this.changed();
+  }
+
+  /** Ctrl+Y: what Ctrl+Z took back, again. */
+  forward() {
+    const s = this.redo?.pop();
+    if (!s) return;
+    this.undo.push(this.snapshot());
+    Object.assign(this.f, s);
+    this.sel = null;
+    this.chain = null;
     this.changed();
   }
 
@@ -1724,6 +1739,7 @@ export class Sketcher {
 
   key(e) {
     const k = e.key.toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && (k === 'y' || (k === 'z' && e.shiftKey))) { e.preventDefault(); this.forward(); return true; } // redo
     if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); this.back(); return true; }
     if (e.key === 'Escape') {
       if (this.tool === 'mirror') this.setTool('select');
