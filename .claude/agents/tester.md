@@ -246,6 +246,10 @@ Never report "works" without having run it; report failures with their output.
    then Ø10 × 4, ⌵ Countersink Ø12 at 90° — exact volumes; the step's text; the AI's head "cbore", get_model shows it,
    edit_feature head null takes it off; a wrong head refused; Thread M5: the diameter 4.2 greyed, the step says M5,
    the sheet's hole size M5; a wrong thread refused). Needs a server restarted after kernel changes.
+   `tools/e2e_model_teardrop.py <url> <dir>` covers ▲ teardrop holes with real clicks (a 40 × 20 × 20 block, 🖨 on: a
+   Ø6 hole clicked on the front face shows an overhang at its top; Teardrop ticked: the exact volume, no overhang, faces
+   hole / tear; the step says ▲ teardrop; on the top face greyed with its tooltip; the sheet says Ø6, no R; Ctrl+Z).
+   Exits 1 on a failed check. Needs a server restarted after kernel changes.
    `tools/e2e_tool_groups.py <url> <dir>` covers the tools coloured by group (the 3D model's, the sketch's and the
    assembly's bars: each group in one run, one colour per group, the groups' colours differ; screenshots of the bars).
    `tools/e2e_ai_reports.py <url> <dir>` covers the fixes from the AI's reports (a zoomed-out view: get_screenshot

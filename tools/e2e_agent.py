@@ -6,6 +6,7 @@ usage (server running, e.g. `py server.py --port 5199 --no-browser`):
 """
 import base64
 import json
+import math
 import subprocess
 import sys
 import time
@@ -138,6 +139,13 @@ try:
     xs = sorted(round(x, 3) for x in d.execute_script(
         "return window.__app.modeler.result.body.faces.filter((f) => f.type === 'cylinder' && Math.abs(f.axis.d[2]) > 0.99).map((f) => f.centroid[0])"))
     print(f"    axis refs: {ax} | the cross hole moved 10 -> x {xs} expected [25, 55] | match: {xs == [25, 55]}")
+    # ---- a teardrop hole into the front (sideways: prints without support); refused on the top (it goes down)
+    front = json.loads(tool("find_refs", kind="face", normal=[0, -1, 0])[0])[0]["name"]
+    r = json.loads(tool("add_feature", type="hole", face=front, points=[[-20, 0]], d=4, teardrop=True)[0])
+    print(f"    teardrop: ok {r.get('ok')} | {r.get('volume_change_mm3')} expected {-(3 * math.pi + 4) * 40:.3f}")
+    t, _ = tool("add_feature", type="hole", face="F2:end", points=[[0, 0]], d=4, teardrop=True)
+    print(f"    teardrop on the top refused: {'sideways' in t}")
+    tool("undo")
     # ---- a sketch shape's ⁂ pattern: a flange, six holes around the middle and three in a row
     tool("new_model", name="Flange")
     tool("add_feature", type="sketch", plane="XY", shapes=[{"circle": {"x": 0, "y": 0, "d": 60}},

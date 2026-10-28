@@ -273,6 +273,14 @@ Date: 2026-10-25. Written by the architect agent.
   H:cbore_floor:k) or "csk" (head_d, head_angle 90: kernel.countersink, a cone; face H:csk:k); the Hole panel's Head
   choice sizes it from the hole (1.8 × d × d / 2 × d), the step's text shows it; add_feature / edit_feature head (null
   takes it off). test_hole_heads; tools/e2e_model_hole_head.py.
+- **▲ Teardrop holes done:** a hole's `teardrop: true` (a sideways hole, its axis square to Z): kernel.teardrop_face —
+  the circle with its top (+Z) a 45° point (a 270° arc and two tangent sides), prism faces H:hole:k (the round part)
+  and H:tear:k (the sides); a counterbore gets the point too (H:cbore_tear:k), a countersink is refused, a hole going
+  up / down is refused (an issue); a thread keeps its round tap drill. The sheet: a 270° arc of a hole face counts as
+  full (Ø d, its place), the point's edges are decoration (sheet._deco, sheet.js check). The print check takes a face
+  at just 45° as printable (1e-4). The Hole panel's Teardrop (print sideways) checkbox (greyed with a tooltip when the
+  hole goes up / down), the step's text "▲ teardrop"; add_feature / edit_feature teardrop. test_teardrop_hole;
+  tools/e2e_model_teardrop.py.
 - **Tools coloured by group done:** web/js/toolgroups.js (toolGroup(action) -> g-make / g-modify / g-copy / g-detail /
   g-define / g-inspect), used by the sketch's, the 3D model's and the assembly's bars; each group's buttons side by
   side (make blue, modify amber, copy purple, details teal, define / join green, look and check grey).
@@ -755,7 +763,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 >   "Symmetric" is a single checkbox. (Since done, each one control: "Up to a face", "Up to next" and "＋ Other
 >   side" — the second direction as one more distance.)
 > - **Hole**: click a point on a face and give a diameter. It goes through by default. Counterbore,
->   countersink, size tables and teardrop are deferred.
+>   countersink, size tables and teardrop are deferred. (Since done: heads, threads and teardrop, one control each.)
 > - **Chamfer**: one distance only. **Fillet**: pick edges and give a radius.
 > - **Shell**: pick the face to open and give the wall thickness.
 > - **Patterns**: count only; the spacing follows from the part. Even simpler is "repeat N times along an
@@ -804,7 +812,7 @@ MVP = in the first usable version (M1–M4). Later = after M7, or only if users 
 |---|---|---|---|
 | Extrude | Push a sketch region out | sketch, regions (default: all closed), op = new / add / cut / intersect, extent = blind / symmetric / through all / up to face / up to next, flip, 2nd direction | Done: blind, symmetric, through, up to face (+ offset), up to next, ＋ other side (d2, blind) |
 | Revolve | Spin a sketch around an axis | sketch, axis (centreline or datum axis), angle, op | MVP (M3) |
-| Hole | Proper holes on a face | face, sketch points, type = simple / counterbore / countersink, size from a table (M2–M12, with print clearance), depth or through, **teardrop** option for horizontal holes (printable without support) | MVP (M3) |
+| Hole | Proper holes on a face | face, sketch points, type = simple / counterbore / countersink, size from a table (M2–M12, with print clearance), depth or through, **teardrop** option for horizontal holes (printable without support) — done: `teardrop: true` | MVP (M3) |
 | Fillet | Round edges | edges (named references), radius | MVP (M3) |
 | Chamfer | Bevel edges | edges, distance, or distance + angle | MVP (M3) |
 | Shell | Hollow a part | faces to remove, wall thickness | MVP (M3) |
