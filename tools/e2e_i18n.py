@@ -21,8 +21,9 @@ opts.set_capability("ms:loggingPrefs", {"browser": "ALL"})
 d = webdriver.Edge(options=opts)
 js = d.execute_script
 
-# visible text nodes / tooltips with English words that were not translated
-LEFT = r"""const out = new Set(), words = /\b(the|and|to|of|with|click|add|from|part|outline|size|height|width|drawing|remove|edit|object|shape|layer|show|pick)\b/i;
+# visible text nodes / tooltips with English words that were not translated — whole words only (no letter, also
+# no Czech one, right before or after: "této" is not "to"); "to" itself is a Czech word too ("jen to, co"), left out
+LEFT = r"""const out = new Set(), words = /(?<![\p{L}\d])(the|and|of|with|click|add|from|part|outline|size|height|width|drawing|remove|edit|object|shape|layer|show|pick)(?![\p{L}\d])/iu;
   const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   let n; while ((n = w.nextNode())) { const p = n.parentElement, s = n.nodeValue.trim();
     if (!s || !p || p.closest('.ai-msg, [data-no-i18n], script, style, .dim-label') || !p.getClientRects().length) continue;
