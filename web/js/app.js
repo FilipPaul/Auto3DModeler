@@ -1904,6 +1904,7 @@ function partDataNow(id) {
 }
 const sheet = new SheetEditor({ left: $('shLeft'), viewport: $('shViewport'), right: $('shRight') }, {
   toast, download, safeName: () => tabName(), onChange: () => updateTopButtons(),
+  progress: (rid, label) => trackProgress(rid, label), // (a sheet being made: the progress bar with Cancel)
   partData: (id) => partDataNow(id),
   partName: (id) => project.parts.find((q) => q.id === id)?.name || null,
   kindOf: (id) => project.parts.find((q) => q.id === id)?.kind,

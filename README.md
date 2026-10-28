@@ -559,6 +559,11 @@ is too small to see at the sheet's scale is left out — solids, edges and holes
 resistor on a board drawn 1:5), the left panel says how many — and its Section A–A cuts only the solids across the
 cut: a 44 MB board's sheet in 25 s instead of 78 s, 4.6 MB to the browser instead of 44 MB. A sheet keeps its part's
 views: another preset, paper or the section turned on does not project the part again (a hundredth of a second).
+An assembly of more than ~1000 faces is drawn from its mesh the same way (MIT E-Vent's 41 placed parts: 10 s; the
+exact hidden-line pass of its top view never ended), and an exact drawing that takes over 2½ minutes is stopped and
+drawn from the mesh. While a sheet is made the progress bar shows it, with Cancel. A sheet that cannot be made says
+why on the paper — *The drawing could not be made: …* (a reference body has no solid; a tessellated STEP has no size)
+— with **↻ Try again**, and in a message.
 Big parts also load faster: the model comes to the browser as raw arrays, not text, and an unchanged body is not sent
 through the kernel again — the 44 MB board is shown again in about half a second instead of two and a half, first
 built in 18 s of meshing instead of 25.

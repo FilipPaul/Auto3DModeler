@@ -831,6 +831,16 @@ Date: 2026-10-25. Written by the architect agent.
   volume as its STL) and assembly_frame.3mf (57 698 mm³ ±1 %) read back. tests/test_import.py Test3MFImport,
   Test3MFSolid (the solid and its STEP round trip); tools/e2e_cad_samples.py opens both 3MF samples (box 0.1 s, cube_gears
   19 s).
+- **Real files: drawing sheets that fail or take long done:** the sheet routes run through server._sheet_call: the
+  request's rid (the app's progress bar with Cancel: 409), the exact drawing limited to EXACT_SHEET_TIMEOUT (150 s) then
+  stopped and made again from the mesh (doc.sheet / assembly_sheet `simple` -> sheet.geometry(from_mesh), SHEET_TIMEOUT
+  600 s), a kernel failure answered 422 with its reason (was a bare 500). An assembly over sheet.ASSEMBLY_EXACT_FACES
+  (1000) is drawn from its mesh at once: MIT E-Vent (41 placements, 2 150 faces) — the exact HLR of its top view never
+  ended (> 40 min; front / right 4 s), from the mesh 12 s in the kernel, 10 s in the browser. Why a part cannot be
+  drawn: doc.sheet "only a reference body" (an IGES of open surfaces), sheet.geometry "no size to draw" (no box: the
+  tessellated NIST FTC-08). The sheet (sheet.js) toasts it once and shows it on the paper with ↻ Try again (Czech too).
+  tests/test_sheet_errors.py; tools/e2e_sheet_errors.py; tools/e2e_cad_samples.py waits for the built sheet or its
+  message (MIT E-Vent, hammer.iges, FTC-08: all OK; the manifest's known sheet failure dropped).
 - **STEP colours done:** kernel.read_step_colours (STEPCAFControl + XCAF: colours followed down the assembly tree to the
   faces of the shape the solid step uses), State.colours by face name -> faces' `color` in the rebuild; the view /
   assembly show them under the paint. tools/e2e_step_colours.py.

@@ -1391,13 +1391,17 @@ def export(part, fmt, name="part"):
     raise K.KernelError(f"Unknown export format “{fmt}”.")
 
 
-def sheet(part, preset="medium", paper=None, per_view=None, section=False):
+def sheet(part, preset="medium", paper=None, per_view=None, section=False, simple=False):
     """A drawing sheet of the part: its views, the points to dimension, the automatic dimensions of the preset, the
-    layout (sheet.py)."""
+    layout (sheet.py). simple: drawn from its mesh (the exact drawing took too long)."""
     from . import sheet as S
+    fs = [f for f in (part or {}).get("features") or [] if not (f.get("off") or f.get("suppressed"))]
+    if fs and all(f.get("type") == "solid" and f.get("op") == "ref" for f in fs):
+        raise K.KernelError("This part is only a reference body (surfaces that do not close into a solid) — there is no "
+                            "solid to draw. Open the file as a STEP, or close its surfaces in the CAD program it came from.")
     st = body_of(part, threads=False)
     fits = {f["d"]: f["fit"] for f in (part or {}).get("features") or [] if f.get("type") == "hole" and f.get("fit") and not (f.get("off") or f.get("suppressed"))}
-    return S.build(st.body, preset, fits, paper, per_view, _threads(part), section, key=_key((part or {}).get("features") or []), holes=_holes(part))
+    return S.build(st.body, preset, fits, paper, per_view, _threads(part), section, key=_key((part or {}).get("features") or []), holes=_holes(part), simple=simple)
 
 
 def _exploded(placed, k):
@@ -1425,9 +1429,9 @@ def _exploded(placed, k):
     return out
 
 
-def assembly_sheet(instances, paper=None, explode=0):
+def assembly_sheet(instances, paper=None, explode=0, simple=False):
     """An assembly's drawing sheet: instances as for assembly_clashes (placed) -> sheet.build_assembly. explode
-    (0 … 1): its iso view drawn with the parts pulled apart."""
+    (0 … 1): its iso view drawn with the parts pulled apart; simple: drawn from the mesh."""
     from . import sheet as S
     placed = []
     for inst in instances or []:
@@ -1437,7 +1441,7 @@ def assembly_sheet(instances, paper=None, explode=0):
             continue
         placed.append((inst.get("id"), K.placed(st.body.shape, inst.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])))
     key = _key([float(explode or 0)] + [[i.get("id"), (i.get("part") or {}).get("features") or [], i.get("matrix")] for i in instances or []])
-    return S.build_assembly(placed, paper, _exploded(placed, float(explode)) if explode else None, key=key)
+    return S.build_assembly(placed, paper, _exploded(placed, float(explode)) if explode else None, key=key, simple=simple)
 
 
 def assembly_clashes(instances, quick=False):

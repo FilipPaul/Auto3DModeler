@@ -34,6 +34,9 @@ PAPERS = {"A4": (297, 210), "A3": (420, 297)}
 TOL = 1e-3
 FINE, SMALL = 0.05, 0.25  # paper mm: a big part's lines kept to FINE; its solids, edges and holes under SMALL left out
 CACHE_SIZE = 8
+# an assembly with more faces than this is drawn from its mesh (as a big part): the exact hidden-line pass of many placed
+# solids can take minutes or never end (MIT E-Vent, 41 placements, 2 150 faces: its top view > 40 min, from the mesh 12 s)
+ASSEMBLY_EXACT_FACES = 1000
 _cache: OrderedDict = OrderedDict()  # (the part's hash, what) -> its views, projected once (only in the worker process)
 
 
@@ -122,17 +125,21 @@ def _small_left_out(shape, small):
     return K.compound(kept), len(solids) - len(kept)
 
 
-def geometry(body, views=None, iso=True, scale=None):
+def geometry(body, views=None, iso=True, scale=None, from_mesh=False):
     """The views of the part -> {bbox, views: {name: {look, right, up, visible, hidden, lines, circles, points, box}},
     iso, simple?}. lines: [{a, b, key}], circles: [{key, c, r, full, p0, p1, pm, face}], points: {key: [x, y]}.
     views: only these (names of VIEWS); iso False: no iso view (each projection is a hidden-line pass — seconds on a
     big part). A big imported model (over HEAVY_FACES, or given its `scale`) is drawn as the paper shows it at that scale
     (else the layout's): its solids, edges and holes smaller than SMALL paper mm left out, its lines simplified to FINE
-    (and no hidden lines, kernel.project_edges) — simple: {left_out (solids), under (mm)}."""
+    (and no hidden lines, kernel.project_edges) — simple: {left_out (solids), under (mm)}. from_mesh: so is any part
+    (the exact pass took too long, see server._sheet_call)."""
     shape, bb = body.shape, K.bbox(body.shape)
+    if not bb:  # (a tessellated STEP: faces with no box and a negative volume)
+        raise K.KernelError("This body has no size to draw (no box: its faces are not a proper solid — e.g. a tessellated "
+                            "STEP, faceted surfaces only). Export it from its CAD program as a B-rep STEP (AP214 / AP242).")
     fine = small = 0
     simple = None
-    if scale or K.face_count(shape) > K.HEAVY_FACES:
+    if from_mesh or scale or K.face_count(shape) > K.HEAVY_FACES:
         s = scale or _scale(bb)
         fine, small = FINE / s, SMALL / s
         shape, n = _small_left_out(shape, small)
@@ -432,11 +439,11 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None, threads=None, hole
     return dims
 
 
-def build(body, preset="medium", fits=None, paper=None, per_view=None, threads=None, section=False, key=None, holes=None):
+def build(body, preset="medium", fits=None, paper=None, per_view=None, threads=None, section=False, key=None, holes=None, simple=False):
     """Everything a new / changed sheet needs: {geometry, layout, dims (automatic)}. section: also the section A–A
     (geometry.views.Section). key: the part's hash — its views are kept (_cached), only the dimensions made again.
-    holes: the hole steps (doc._holes) — geometry.holes, for their callouts."""
-    geo = _cached((key, "views"), lambda: geometry(body))
+    holes: the hole steps (doc._holes) — geometry.holes, for their callouts. simple: drawn from its mesh (geometry)."""
+    geo = _cached((key, "views", bool(simple)), lambda: geometry(body, from_mesh=simple))
     geo = {**geo, "views": dict(geo["views"])}
     if holes:
         geo["holes"] = holes
@@ -526,20 +533,22 @@ class _Placed:
         self.shape, self.names = shape, {}
 
 
-def build_assembly(placed, paper=None, iso_placed=None, key=None):
+def build_assembly(placed, paper=None, iso_placed=None, key=None, simple=False):
     """An assembly's sheet: placed [(id, shape placed)] -> {geometry, layout, dims (its overall sizes), marks: {id:
     {Front, Top, Right, Iso: [x, y]} (the middle of each placed part, for its balloon)}}. iso_placed: the same parts
     pulled apart — the iso view drawn exploded (the other views as assembled). key: the placed parts' hash (kept, see
-    _cached)."""
-    out = _cached((key, "assembly"), lambda: _assembly(placed, iso_placed))
+    _cached). simple: drawn from the mesh (so is one over ASSEMBLY_EXACT_FACES faces)."""
+    out = _cached((key, "assembly", bool(simple)), lambda: _assembly(placed, iso_placed, simple))
     return {**out, "layout": layout(out["geometry"], paper)}
 
 
-def _assembly(placed, iso_placed):
+def _assembly(placed, iso_placed, simple=False):
     shapes = [s for _, s in placed]
     if not shapes:
         raise K.KernelError("The assembly has no solids to draw.")
-    geo = geometry(_Placed(K.compound(shapes)), iso=not iso_placed)  # (exploded: its own iso below)
+    whole = K.compound(shapes)
+    simple = simple or K.face_count(whole) > ASSEMBLY_EXACT_FACES
+    geo = geometry(_Placed(whole), iso=not iso_placed, from_mesh=simple)  # (exploded: its own iso below)
     if iso_placed:
         geo["iso"] = _iso_view(K.compound([s for _, s in iso_placed]), "simple" in geo)
     iso_at = dict(iso_placed or [])

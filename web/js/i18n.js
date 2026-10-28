@@ -1240,6 +1240,14 @@ const CS = {
   '{id} inside {sub} ({top}) — a part of {sub}: it moves with it, and it is changed in its own tab.': '{id} uvnitř {sub} ({top}) — díl sestavy {sub}: pohybuje se s ní a mění se ve své vlastní záložce.',
   '{sub} holds it in place — only {sub} itself is moved here.': '{sub} ho drží na místě — zde se posouvá jen {sub} jako celek.',
   'Open {sub}': 'Otevřít {sub}', 'Choose the whole {sub}': 'Vybrat celou {sub}',
+  // a drawing sheet that could not be made (a reference body, a tessellated STEP, Cancel)
+  'The drawing could not be made: {e}': 'Výkres nešlo vytvořit: {e}', 'Try again': 'Zkusit znovu', 'Making the drawing…': 'Dělám výkres…',
+  'Cancelled.': 'Zrušeno.',
+  'This part is only a reference body (surfaces that do not close into a solid) — there is no solid to draw. Open the file as a STEP, or close its surfaces in the CAD program it came from.':
+    'Tento díl je jen referenční těleso (plochy, které se neuzavírají v těleso) — není co kreslit. Otevřete soubor jako STEP, nebo uzavřete jeho plochy v CAD programu, ze kterého pochází.',
+  'This body has no size to draw (no box: its faces are not a proper solid — e.g. a tessellated STEP, faceted surfaces only). Export it from its CAD program as a B-rep STEP (AP214 / AP242).':
+    'Toto těleso nemá rozměr ke kreslení (žádný obal: jeho plochy nejsou řádné těleso — např. teselovaný STEP, jen fasetové plochy). Exportujte ho ze svého CAD programu jako B-rep STEP (AP214 / AP242).',
+  'The assembly has no solids to draw.': 'Sestava nemá tělesa ke kreslení.',
   // language switch
   'Čeština / English': 'Čeština / English',
 };

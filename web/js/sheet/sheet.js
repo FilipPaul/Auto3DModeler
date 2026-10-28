@@ -247,17 +247,19 @@ export class SheetEditor {
     const vp = JSON.stringify(this.d.vpreset || {});
     if (!force && this.d.built && !this.d.built.stale && this.d.hash === h && !!this.d.built.section === !!this.d.section && this.d.built.preset === this.d.preset && this.d.built.vp === vp && (this.d.built.paper ?? null) === (this.d.paper ?? null) && this.builtKey() === this.layKey()) return;
     this.busy = true;
-    this.renderBar();
+    this.error = null;
+    this.render();
     const run = (this.buildRun = (this.buildRun || 0) + 1); // (a newer build on its way wins)
+    const rid = `sh${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`, stop = this.hooks.progress?.(rid, t('Making the drawing…'));
     try {
       let r;
       if (asm) { // an assembly: its views, overall sizes, parts list and balloons
-        const pg = await this.assemblyPage(this.d.source, this.hooks.drawingCtx(), this.d.exploded ? 2 : 0, this.d);
+        const pg = await this.assemblyPage(this.d.source, this.hooks.drawingCtx(), this.d.exploded ? 2 : 0, this.d, rid);
         r = pg.built;
         this.d.asm = { rows: pg.rows };
         if (!this.d.asmLaid) { this.d.off = { ...this.d.off, Right: true }; this.d.views = { ...this.d.views, Iso: r.layout.views.Right }; this.d.asmLaid = true; }
       } else {
-        const res = await fetch('/api/sheet/build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: src, preset: this.d.preset, paper: this.d.paper, per_view: this.d.vpreset || {}, section: !!this.d.section, ...this.layReq() }) });
+        const res = await fetch('/api/sheet/build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: src, preset: this.d.preset, paper: this.d.paper, per_view: this.d.vpreset || {}, section: !!this.d.section, ...this.layReq(), rid }) });
         r = await res.json();
         if (!res.ok) throw new Error(r.error || res.statusText);
       }
@@ -265,7 +267,13 @@ export class SheetEditor {
       if (this.d.hash && this.d.hash !== h) { this.d.rev += 1; this.d.changed = new Date().toISOString(); } // the part changed
       Object.assign(this.d, { built: { ...r, preset: this.d.preset, vp, paper: this.d.paper ?? null, section: !!this.d.section && !asm, lk: this.layKey() }, hash: h });
       this.error = null;
-    } catch (e) { if (run !== this.buildRun) return; this.error = e.message; }
+    } catch (e) {
+      if (run !== this.buildRun) return;
+      this.error = e.message;
+      const again = this.toasted?.msg === e.message && performance.now() - this.toasted.at < 5000; // (opening runs it twice)
+      if (!/^cancelled/i.test(e.message) && !again) this.hooks.toast?.(tv('The drawing could not be made: {e}', { e: t(e.message) }), 'error', 9000);
+      this.toasted = { msg: e.message, at: performance.now() };
+    } finally { stop?.(); }
     this.busy = false;
     this.render();
     this.hooks.onChange?.();
@@ -892,7 +900,7 @@ export class SheetEditor {
     return g.join('');
   }
 
-  async assemblyPage(aid, ctx, explode = 0, sd = null) { // (sd: its sheet's data — its paper, scale, frame)
+  async assemblyPage(aid, ctx, explode = 0, sd = null, rid = null) { // (sd: its sheet's data — its paper, scale, frame; rid: progress / Cancel)
     const flatten = (id, M = ID4, pre = '', inner = null) => (this.hooks.partData(id)?.instances || []).flatMap((it) => { // (inner: a sub-assembly's parts moved in this placement)
       const W = mul4(M, inner?.[it.id] || it.matrix || ID4), key = pre ? `${pre}/${it.id}` : it.id;
       if (ctx.kindOf(it.part) === 'assembly') return flatten(it.part, W, key, it.inner);
@@ -900,7 +908,7 @@ export class SheetEditor {
     });
     const insts = this.hooks.partData(aid)?.instances || [];
     if (!insts.length) throw new Error(t('The assembly has no parts to draw.'));
-    const r = await post('/api/sheet/assembly', { instances: flatten(aid), explode, ...(sd ? { paper: sd.paper || null, ...this.layReq(sd) } : {}) }); // (explode: the iso view pulled apart)
+    const r = await post('/api/sheet/assembly', { instances: flatten(aid), explode, ...(sd ? { paper: sd.paper || null, ...this.layReq(sd) } : {}), ...(rid ? { rid } : {}) }); // (explode: the iso view pulled apart)
     const groups = new Map();
     for (const it of insts) { if (!groups.has(it.part)) groups.set(it.part, []); groups.get(it.part).push(it.id); }
     const nums = this.itemNumbers(this.rootOf(aid) || aid); // (the set's numbers: the same part, the same number)
@@ -998,8 +1006,11 @@ export class SheetEditor {
     if (!this.d) return;
     if (this.setMode) { this.renderSet(); return; }
     this.stage.classList.remove('sh-set');
-    if (!this.geo) {
-      this.stage.innerHTML = `<p class="hint sh-empty">${esc(this.error ? tv('The drawing could not be made: {e}', { e: this.error }) : this.hooks.partData(this.d.source) ? t('Making the drawing…') : t('Its part is not in the project any more.'))}</p>`;
+    if (!this.geo) { // (no drawing yet: being made, or why not with ↻ Try again)
+      this.stage.innerHTML = this.error ? `<div class="sh-empty sh-failed"><p>⚠ ${esc(tv('The drawing could not be made: {e}', { e: t(this.error) }))}</p>
+          <button class="btn small" data-a="retry">↻ ${esc(t('Try again'))}</button></div>`
+        : `<p class="hint sh-empty">${esc(this.hooks.partData(this.d.source) ? t('Making the drawing…') : t('Its part is not in the project any more.'))}</p>`;
+      this.stage.querySelector('[data-a=retry]')?.addEventListener('click', () => this.ensure(true));
       return;
     }
     this.stage.innerHTML = this.svg(false);

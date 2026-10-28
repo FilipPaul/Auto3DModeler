@@ -253,7 +253,7 @@
     "subs": 0
    },
    "known": {
-    "tessellated": "tessellated (faceted) geometry: a body with a negative volume and no box; its sheet never builds, IGES / GLB fail",
+    "tessellated": "tessellated (faceted) geometry: a body with a negative volume and no box; its sheet says it has no size to draw, IGES / GLB fail",
     "edit": [
      "cut",
      "hole",
@@ -448,7 +448,7 @@
    },
    "slow": true,
    "known": {
-    "ref": "a reference body (surfaces that do not close): nothing to edit or export; its drawing sheet never builds (500, no message)",
+    "ref": "a reference body (surfaces that do not close): nothing to edit or export; its drawing sheet says why it cannot be made ('only a reference body')",
     "edit": [
      "cut",
      "hole",
@@ -494,15 +494,7 @@
     "asm_volume": 1853595.87,
     "subs": 0
    },
-   "slow": true,
-   "known": {
-    "sheet": "the assembly sheet takes over the kernel worker's 120 s: 500, no message",
-    "export": [
-     "pdf",
-     "dxf"
-    ],
-    "console": true
-   }
+   "slow": true
   },
   {
    "path": "freecad-library/Reespirator23 v7.step",
@@ -742,7 +734,7 @@
     "op": "ref"
    },
    "known": {
-    "ref": "a reference body (surfaces that do not close): nothing to edit or export; its drawing sheet never builds (500, no message)",
+    "ref": "a reference body (surfaces that do not close): nothing to edit or export; its drawing sheet says why it cannot be made ('only a reference body')",
     "edit": [
      "cut",
      "hole",
@@ -781,7 +773,7 @@
     "op": "ref"
    },
    "known": {
-    "ref": "a reference body (surfaces that do not close): nothing to edit or export; its drawing sheet never builds (500, no message)",
+    "ref": "a reference body (surfaces that do not close): nothing to edit or export; its drawing sheet says why it cannot be made ('only a reference body')",
     "edit": [
      "cut",
      "hole",

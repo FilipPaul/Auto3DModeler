@@ -453,13 +453,16 @@ Never report "works" without having run it; report failures with their output.
    values measured in samples/ToImportToOurApp/samples.json and README.md): each opened as a user would (a part as one body, an
    assembly "Open as an assembly", an IGES as it is: time, faces / volume / bbox, colours, parts / placements / names);
    the part (or an assembly's biggest part) edited by the AI's tools (a sketch Ø3 cut on its biggest flat face, a Ø2
-   hole, a 0.3 fillet); sheet_open -> PDF + DXF (read back by ezdxf); export STEP / IGES / GLB, the STEP read again
+   hole, a 0.3 fillet); sheet_open -> PDF + DXF (read back by ezdxf; its time; one that cannot be made: its message); export STEP / IGES / GLB, the STEP read again
    (volume, an assembly's parts / placements) and re-opened by open_file as "assembly"; one part bigger than the bed
    split exactly for the P1S; console errors; then the other formats (STL / OBJ meshes, 3MF, DXF / DWG, a PDF drawing,
    pictures for the outline wizard, a KiCad Gerber + Excellon set) opened from their menus. A table at the end; ~45 min;
    the manifest's "known" lists the app bugs / steps that do not apply per file. Unit tests: tests/test_cad_samples.py (each
    file's counts and volumes, STEP / IGES round trips; files over 3 MB with A3D_SLOW_SAMPLES=1; the known app bugs as
    expected failures — an unexpected success means one was fixed).
+   `tools/e2e_sheet_errors.py <url> <dir>` covers a sheet that cannot be made (an IGES reference body: the toast and
+   the paper's "The drawing could not be made: …" with ↻ Try again, in Czech too) and our own 3MF exports opened as
+   quick parts.
    `tools/e2e_paint.py <url> <dir>` covers 🎨 Paint (a face, Ctrl+click a second, ▣ a whole body of two, one extrude's
    two tops told apart, Ctrl+Z / Ctrl+Y, shown in an assembly) and 🏷 renaming a step and a part.
    `tools/e2e_look.py <url> <dir>` covers colour and see-through (the Part panel -> the model view and assemblies;

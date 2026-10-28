@@ -279,18 +279,27 @@ def dxf_facts(path):
 
 
 def drawing(stem, model_name):
-    """The drawing sheet of the part / assembly on screen -> its views and dimensions, PDF and DXF written."""
+    """The drawing sheet of the part / assembly on screen -> its views and dimensions, PDF and DXF written (the time
+    it took); one that cannot be made: the message on the sheet (with ↻ Try again) and the toast."""
+    t0 = time.time()
     r = call("sheet_open")
     if r.startswith("ERROR"):
         return {"sheet": r[:160]}
     try:
-        wait("return window.__app.state.workspace === 'sheet' && !!window.__app.sheet.d?.built", 180)
+        wait("return window.__app.state.workspace === 'sheet' && (!!window.__app.sheet.d?.built || !!document.querySelector('.sh-failed'))", 900)
     except TimeoutError:
-        out = {"sheet": "the sheet was not built in 180 s: " + " | ".join(toasts())[:160]}
+        out = {"sheet": "the sheet was not built in 900 s: " + " | ".join(toasts())[:160]}
+        call("open_part", id=model_name)
+        return out
+    if not js("return !!window.__app.sheet.d?.built"):
+        out = {"sheet": "not made: " + js("return document.querySelector('.sh-failed p').textContent")[:200],
+               "retry": js("return !!document.querySelector('.sh-failed [data-a=retry]')"),
+               "toast": any(x.startswith("The drawing could not be made") for x in toasts())}
         call("open_part", id=model_name)
         return out
     s = json.loads(call("get_sheet"))
-    out = {"views": len(s.get("views") or []), "dims": len(s.get("dims") or []), "rev": s.get("revision")}
+    out = {"views": len(s.get("views") or []), "dims": len(s.get("dims") or []), "rev": s.get("revision"), "s": round(time.time() - t0, 1),
+           "from_mesh": js("return !!window.__app.sheet.geo?.simple")}
     relay_ready()
     pdf = ai("export", format="pdf", path=str(Path(OUT, stem + ".pdf")))
     out["pdf"] = "ok" if pdf.startswith("Exported") and Path(OUT, stem + ".pdf").stat().st_size > 1000 else pdf[:120]
