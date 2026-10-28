@@ -332,6 +332,9 @@ Date: 2026-10-25. Written by the architect agent.
   slab pieces: ~4 900 faces, 18 000 triangles, vertices up to 0.25 mm off the cylinder; exact: 888 triangles, vertices
   on it, chords within 0.0045 mm), volumes = π r² L to 1e-9. The print tab: a hint that the pieces are exact, each
   piece tagged *exact*. test_print_exact; tools/e2e_print_split_model.py.
+- **check_print on quick parts again done:** the 3D model's check_print (🖨 Print check) had replaced the quick part's
+  (printer fit / split) — after prepare_print it answered "not a 3D model"; app.js BOTH routes it by the workspace,
+  agent_tools has one check_print schema (printer, split, min_wall, overhang). e2e_agent, e2e_model_printcheck.
 - **Faces picked with no tool on, joints suggested done:** the assembly's idle click also picks a face / a round edge
   (facePicks: one, or Ctrl: one of each of two parts; lit by drawMarks); suggestFaces — one face: the joints it can
   start (then the other face), two: the joint types fitting both (JOINT_TYPES by face kind), made through clickJoint.

@@ -124,9 +124,12 @@ TOOLS = [
                     "the part; on PDF parts it is a reference value.",
      "inputSchema": _obj({"a": POINT, "b": POINT, "axis": {"type": "string", "enum": ["d", "x", "y", "z"]}}, ["a", "b"])},
     {"name": "check_print", "where": "browser",
-     "description": "Check the part against a 3D printer (default: the one selected in the app): does it fit, how "
-                    "many pieces when split. printer: id from the result's printer list.",
-     "inputSchema": _obj({"printer": STR, "split": {"type": "boolean"}})},
+     "description": "A quick part (also a 3D model's printing copy from prepare_print): check it against a 3D printer "
+                    "(default: the one selected in the app): does it fit, how many pieces when split. printer: id from the "
+                    "result's printer list. A 3D model: check it as it lies on the bed (its lowest z): faces hanging over "
+                    "more than overhang° (default 45; they need supports) and walls thinner than min_wall mm (default 1.2) "
+                    "-> areas (mm²), a box round each, the thinnest wall, ok. Marked on the user's screen (red / orange).",
+     "inputSchema": _obj({"printer": STR, "split": {"type": "boolean"}, "min_wall": NUM, "overhang": NUM})},
     {"name": "export", "where": "server",
      "description": "Export to a file: stl / step (mm) — the part; pdf: the drawing sheet (📄) on screen as drawn, for an assembly its drawing set (one PDF: the assembly with its parts list and balloons, each sub-assembly, then the made parts — every part once, by its own sheet when it has one), or for a 3D model a 2D drawing (front / top / right "
                     "views, sizes, holes, title block); 3mf: the 3D model or the whole assembly in its colours, an object per colour "
@@ -156,11 +159,6 @@ TOOLS = [
      "description": "The 3D model on screen: its steps in order (id, type, values, ok / issues / warnings), the body's "
                     "size and volume. Call it first and after changes.",
      "inputSchema": _obj({})},
-    {"name": "check_print", "where": "browser",
-     "description": "Check the 3D model for 3D printing as it lies on the bed (its lowest z): faces hanging over more than overhang° "
-                    "(default 45; they need supports) and walls thinner than min_wall mm (default 1.2) -> areas (mm²), a box round each, "
-                    "the thinnest wall, ok. Marked on the user's screen (red / orange).",
-     "inputSchema": _obj({"min_wall": NUM, "overhang": NUM})},
     {"name": "find_refs", "where": "browser",
      "description": "Find faces or edges of the 3D model by description (never guess names). Faces: normal [x, y, z] "
                     "(e.g. [0, 0, 1] = facing up), extreme max / min along that normal (the top-most face), name "

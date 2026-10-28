@@ -2404,12 +2404,15 @@ for (const [name, fn] of Object.entries(agentHandlers)) {
     return fn(...args);
   };
 }
+const BOTH = new Set(['check_print']); // a tool of both kinds: on a quick part (a printing copy) the quick part's
 for (const [name, fn] of Object.entries(MODEL)) {
   if (SHARED[name] || Object.values(SHARED).includes(name)) continue;
+  const quick = BOTH.has(name) ? agentHandlers[name] : null;
   agentHandlers[name] = async (...args) => {
     if (state.workspace === 'assembly' && !ANYWHERE.has(name)) {
       throw new Error(`${name}: an assembly is on screen — open_part the part to change it, or use get_assembly / insert_part / snap_faces / place_part.`);
     }
+    if (quick && state.workspace !== 'model') return quick(...args);
     return fn(...args);
   };
 }
