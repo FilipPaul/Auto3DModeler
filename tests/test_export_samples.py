@@ -1,6 +1,6 @@
 """samples/ExportFromOurApp (made by tools/make_export_samples.py through the app's own export paths) read back as other
 programs read them: the base plate (80 × 50 × 10, a Ø10 hole, 4× M6 countersunk Ø12 × 90°) as STEP / IGES / STL / OBJ /
-GLB / 3MF with its exact volume and size; the assembly "Frame" (the plate, the sub-assembly "Post pair" twice, 4 ISO
+GLB / 3MF with its exact volume and size, and as a STEP with 🔩 real threads; the assembly "Frame" (the plate, the sub-assembly "Post pair" twice, 4 ISO
 10642 screws) as a STEP tree, one IGES, a GLB of nested nodes, a 3MF and a BOM; the sheets as PDF (A4, true scale, the
 callouts) and DXF (mm, layers, real dimensions); the project file opens (version 3, every kind of part).
 The STEP / IGES checks are skipped without the CAD kernel.
@@ -183,6 +183,13 @@ class TestCad(unittest.TestCase):
         shape, _, how = K.read_iges(read("part_base_plate.igs"))
         self.assertEqual(how, "solid")
         self.assertAlmostEqual(K.volume(shape), PLATE, delta=1e-3)
+        # 🔩 real threads: the grooves cut into the 4 holes, as the project's plate rebuilds with them
+        shape = K.from_step(read("part_base_plate_real_threads.step"))
+        self.assertEqual(K.solids(shape), 1)
+        plate = next(x for x in migrate(json.loads(read("project_frame.a3d.json")))["parts"] if x["name"] == "Base plate")["model"]
+        real = doc.rebuild({**plate, "threads": "real"})["body"]["volume"]
+        self.assertAlmostEqual(K.volume(shape), real, delta=1e-2)
+        self.assertTrue(PLATE - 120 < real < PLATE - 60, real)  # (4 × M6 × 10: about 94 mm³ of grooves)
 
     def test_assembly(self):
         imp = doc.import_assembly({"blob": blobs.put(read("assembly_frame.step")), "name": "assembly_frame.step"})

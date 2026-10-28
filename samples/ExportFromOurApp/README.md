@@ -25,6 +25,7 @@ them. To make them again, start a server and run
 | File | What it is | Open it in | What to check |
 |---|---|---|---|
 | `part_base_plate.step` | The Base plate as a STEP (AP214, mm), one solid | Solid Edge, FreeCAD, any STEP viewer | 80 × 50 × 10 mm; volume 37 864.76 mm³ (FreeCAD: Part → Check geometry / Mass properties); 15 faces; the 4 countersinks are real cones (Ø12 at the top, 90°); the holes have no modelled thread (only the Ø5 tap drill). |
+| `part_base_plate_real_threads.step` | The same plate with **🔩 real threads**: ISO metric M6 grooves cut into the 4 holes (2 MB) | Solid Edge, FreeCAD | One solid; the thread helix visible in the holes (pitch 1 mm); volume about 37 771 mm³ (94 mm³ of grooves less than the plain plate). |
 | `part_base_plate.igs` | The same plate as IGES 5.3 (a B-rep solid, mm) | Solid Edge, FreeCAD | It opens as **one solid**, not loose surfaces; same size and volume as the STEP. |
 | `part_base_plate.stl` | Binary STL (mm) | A slicer (PrusaSlicer, Bambu Studio, Cura), Windows 3D Viewer | 80 × 50 × 10 mm at 100 %; no "repair needed" warning (watertight); round holes in facets. |
 | `part_base_plate.obj` | Wavefront OBJ (mm, normals) | Blender, Windows 3D Viewer, MeshLab | Object named `Base_plate`; the same shape as the STL. |
@@ -44,7 +45,8 @@ them. To make them again, start a server and run
 ## Export check — what to try
 
 1. **STEP part → Solid Edge / FreeCAD**: `part_base_plate.step`. Measure the volume and the countersink (Ø12, 90°).
-   Compare with `part_base_plate.igs`: the same solid.
+   Compare with `part_base_plate.igs`: the same solid. Then `part_base_plate_real_threads.step`: the threads arrive as
+   real geometry (a section through a hole shows the thread profile).
 2. **STEP assembly → Solid Edge**: open `assembly_frame.step`. You should get an assembly with a sub-assembly "Post
    pair" (used twice) and a part per different part; the names as in the table; the green post.
 3. **Slicer**: drop `part_base_plate.stl` and `part_base_plate.3mf` into a slicer: right size, no repair, and the 3MF

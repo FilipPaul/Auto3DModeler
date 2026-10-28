@@ -1,10 +1,10 @@
 """Make samples/ExportFromOurApp/: files the app exported, to open in other programs (Solid Edge, FreeCAD, a STEP / glTF
 viewer, a slicer, a DXF viewer) and check our exports. In headless Edge, through the AI's tools (the app's real export
 paths, as the Export menu): a base plate with 4× M6 threaded countersunk holes (aluminium, its top face painted), a post
-(steel, a blind M5 thread 12 deep in its top), a sub-assembly "Post pair" (the post twice) placed twice in the assembly "Frame" with
-two library screws -> STEP / IGES / STL / OBJ / GLB / 3MF of the plate, STEP / IGES / GLB / 3MF / BOM CSV of the
-assembly, the plate's drawing sheet as PDF and DXF, the assembly's drawing set as PDF, and the project file. Each file is
-checked as it comes; tests/test_export_samples.py reads them all back. No console errors.
+(steel, a blind M5 thread 12 deep in its top), a sub-assembly "Post pair" (the post twice) placed twice in the assembly
+"Frame" with 4 library screws -> STEP / IGES / STL / OBJ / GLB / 3MF of the plate, STEP / IGES / GLB / 3MF / BOM CSV of
+the assembly, both drawing sheets as PDF and DXF, the plate with 🔩 real threads as STEP, and the project file.
+Each file is checked as it comes; tests/test_export_samples.py reads them all back. No console errors.
 
 usage (server running, e.g. `py server.py --port 5193 --no-browser`):
   PYTHONIOENCODING=utf-8 py tools/make_export_samples.py http://127.0.0.1:5193 [out dir, default samples/ExportFromOurApp]
@@ -145,6 +145,17 @@ try:
     print("   assembly sheet:", r.get("paper"), r.get("scale"), [x.get("name") for x in r.get("parts_list") or []])
     export("pdf", "sheet_frame.pdf")
     export("dxf", "sheet_frame.dxf")
+
+    # the plate again with 🔩 real threads (ISO metric grooves cut into the solid) as a STEP (its STL: 0.75 MB, left out)
+    call("open_part", id="Base plate")
+    wait(f"return window.__app.state.workspace === 'model' && window.__app.project.current?.name === 'Base plate' && !{M}.building && !!{M}.result?.body", 60)
+    plain = js(f"return {M}.result.body.volume")
+    call("set_look", threads="real")
+    wait(f"return !{M}.building && {M}.result?.body && {M}.result.body.volume < {plain} - 1", 120)
+    print("   real threads: the volume", round(plain, 3), "->", round(js(f"return {M}.result.body.volume"), 3))
+    export("step", "part_base_plate_real_threads.step")
+    call("set_look", threads="hidden")  # (the project keeps the plain plate)
+    wait(f"return !{M}.building && Math.abs(({M}.result?.body?.volume || 0) - {plain}) < 1e-6", 120)
 
     # ------------------------------------------------------------------ the project file (💾 Save project)
     js("document.getElementById('saveBtn').click()")
