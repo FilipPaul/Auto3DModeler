@@ -740,6 +740,40 @@ def api_model_sketch_offset():
     return jsonify({"polys": [[ring(p.exterior)] + [ring(h) for h in p.interiors] for p in polygons_of(g)]})
 
 
+@app.post("/api/model/sketch/clean")
+def api_model_sketch_clean():
+    """{op: "simplify" | "join" | "outline", sketch, ids?, tol?} -> {sketch: {points, entities, constraints, dims},
+    report}: 🧹 Simplify (the picks or the whole sketch), ⛓ Join into one curve, ◆ One outline (sketchclean.py)."""
+    from auto3d.modeler import sketchclean
+    body = request.get_json(force=True) or {}
+    op, sk, ids = body.get("op"), body.get("sketch") or {}, body.get("ids") or None
+    try:
+        if op == "simplify":
+            new, rep = sketchclean.simplify(sk, ids, body.get("tol"))
+        elif op == "join":
+            new, rep = sketchclean.join(sk, ids, body.get("tol"))
+        elif op == "outline":
+            new, rep = sketchclean.outline(sk, ids, body.get("name") or "Outline", body.get("tol"))
+        else:
+            return jsonify({"error": "Ask for simplify, join or outline."}), 400
+    except (ValueError, KeyError, TypeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"sketch": new, "report": rep})
+
+
+@app.post("/api/drawing/sketch")
+def api_drawing_sketch():
+    """A drawing (its chosen shapes) -> a sketch, cleaned: ends welded, crumbs absorbed, lines / arcs joined, smooth
+    curves as splines -> {sketch: {points, entities, constraints, dims}, report: before / after counts}."""
+    from auto3d.modeler import sketchclean
+    d = request.get_json(force=True) or {}
+    try:
+        new, rep = sketchclean.from_drawing(d, d.get("tol"))
+    except (ValueError, KeyError, TypeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"sketch": new, "report": rep})
+
+
 @app.post("/api/model/profile")
 def api_model_profile():
     """A classic part (picture outline, DXF, PDF drawing, 3D file's footprint) -> its outline in mm, lower-left

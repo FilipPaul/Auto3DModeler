@@ -1,7 +1,7 @@
 """Several sketch shapes at once, with REAL mouse input: a rectangle and a circle box-selected -> the short table
-(✥ Move…, ⧉ Copy, ⇋ Mirror, ✕ Delete all, ⋯ More… — the rest in sections) -> the rectangle's edge dragged: both go by
+(◆ Make it one outline, ✥ Move…, ⧉ Copy, ⇋ Mirror, ✕ Delete all, ⋯ More… — the rest in sections) -> the rectangle's edge dragged: both go by
 the same vector (one undo step) -> ✥ Move with dx 10 typed: all exactly 10 -> the rectangle alone: ⧈ Offset,
-⁂ Pattern first; ⟳ Rotate 90: its corners turned about its centre (H / V swapped) -> ⤢ Scale 2: its sizes doubled; with
+◆ One outline, ⁂ Pattern first; ⟳ Rotate 90: its corners turned about its centre (H / V swapped) -> ⤢ Scale 2: its sizes doubled; with
 a locked width: refused, the toast names the lock -> ┄ construction toggles all -> ✕ Delete all, Ctrl+Z restores.
 Then the short lists: two lines nearly parallel (the angle, ∥ first), two at an angle, a line and a circle (the
 distance, ⌒ Tangent), two circles (the distance, ◎ / =), each at most 5 rows.
@@ -184,7 +184,8 @@ try:
     print("both box-selected:", got, "->", tb)
     check("box picks 4 lines and the circle", got == ["circle", "line", "line", "line", "line"])
     check("title says 5 shapes", tb and tb[0] == "5 shapes")
-    check("mixed: Move, Copy, Mirror, Delete all, More…", tb and [r.split(" ", 1)[1] for r in tb[1:]] == ["Move…", "Copy", "Mirror", "Delete all", "More…"])
+    check("closed outlines (a rectangle round a circle): One outline, Move, Copy, Mirror, Delete all, More…",
+          tb and [r.split(" ", 1)[1] for r in tb[1:]] == ["Make it one outline", "Move…", "Copy", "Mirror", "Delete all", "More…"])
     press("More")
     print("  More…:", sections(), table()[1:])
     check("More… shows the Edit / Relations / Kind sections", [s.lower() for s in sections()] == ["edit", "relations", "kind"])
@@ -220,7 +221,8 @@ try:
     got = box_around(rb)
     tb = table()
     print("the rectangle box-selected:", got, "->", tb)
-    check("a loop: Offset, Pattern, Move, Delete all, More…", tb and [r.split(" ", 1)[1] for r in tb[1:]] == ["Offset", "Pattern", "Move…", "Delete all", "More…"])
+    check("a loop: Offset, One outline, Pattern, Move, Delete all, More…",
+          tb and [r.split(" ", 1)[1] for r in tb[1:]] == ["Offset", "Make it one outline", "Pattern", "Move…", "Delete all", "More…"])
     # an unpicked shape (the circle) dragged: only it moves, the picks go
     (cc, cr), p0 = circle(), pts()
     ActionChains(d, duration=40).move_to_element_with_offset(canvas(), *off((cc[0] - cr, cc[1]))).click_and_hold().move_by_offset(-15, 0).move_by_offset(-15, 0).release().perform()

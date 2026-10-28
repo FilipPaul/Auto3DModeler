@@ -621,6 +621,23 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       return { text: `Deleted ${before - m.part.features.length} step(s). ${JSON.stringify({ steps: m.part.features.map((x) => x.id), body: summary() })}` };
     },
 
+    simplify_sketch: async ({ id, op = 'simplify', tol }) => {
+      needModel();
+      ready();
+      const f = m.part.features.find((x) => x.id === id);
+      if (!f || f.type !== 'sketch') throw new Error(`No sketch step ${id} — see get_model.`);
+      if (!['simplify', 'join', 'outline'].includes(op)) throw new Error('op: simplify, join or outline.');
+      const ids = op === 'simplify' ? null : (f.entities || []).filter((e) => !e.construction).map((e) => e.id); // (join / outline: all of it)
+      const res = await fetch('/api/model/sketch/clean', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ op, ids, tol, sketch: { points: f.points, entities: f.entities, constraints: f.constraints, dims: f.dims } }) });
+      const j = await res.json();
+      if (!res.ok || j.error) throw new Error(j.error || res.statusText);
+      Object.assign(f, j.sketch);
+      const r = JSON.parse((await commitAnd(id)).text), rep = j.report;
+      return { text: JSON.stringify({ ...r, shapes: { before: rep.before.entities, after: rep.after.entities }, points: { before: rep.before.points, after: rep.after.points },
+        area_mm2: { before: rep.area[0], after: rep.area[1] }, tol: rep.tol, dropped_sizes_relations: rep.dropped, issues: rep.issues }) };
+    },
+
     turn_off_feature: async ({ id, off = true }) => {
       needModel();
       ready();

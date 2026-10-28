@@ -502,6 +502,12 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_drawing2d.py <url> <dir> [<a .dxf>]` covers the 📐 Drawing workspace (a DXF opens as a drawing; layers,
    File units, a layer hidden, a line snapped corner to corner, measuring 100 mm and Ø8, delete + Ctrl+Z, Use as a
    sketch / as a quick part, saved and reopened).
+   `tools/e2e_sketch_merge.py <url> <dir>` covers merging sketch shapes (Finger.dxf as a drawing -> a sketch: 702 -> ~231
+   shapes, the toast says so, extruded 5 = 7186.8 · 5; Drive Gear.dxf as the old conversion made it (732 shapes) boxed ->
+   ⛓ Join first, 🧹 Simplify second -> Join: one spline round the teeth, 13 shapes, its points hidden, the area kept,
+   under 2 s, Ctrl+Z; ⛓ Merge with nothing picked -> 🧹 Simplify the whole sketch, tolerance 0.02 -> 252 shapes, one
+   undo step; five hand-drawn lines and a tangent arc -> ⛓ Join at 0.5 mm: one spline within 0.5; a rectangle with a
+   circle -> ◆ Make it one outline: one block, 2 rings).
    `tools/e2e_sketch_auto.py <url> <dir>` covers snapping to the part's hole (centre and rim -> the same Ø8) and 🪄
    Auto-dimension (7 free -> 0, the circle and the rectangle placed from the part's nearest edges).
    `tools/e2e_sizes.py <url> <dir>` covers 🏷 Sizes (an extrude's sizes on the part: All 6 / 🔒 Locked = the height /

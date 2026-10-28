@@ -7,8 +7,9 @@ Drawing JSON (in the project file, `parts[].drawing`):
    "layers": [{"name": "0", "color": "#ffffff", "visible": true}],
    "entities": [{"id": "e1", "layer": "0", "t": "line", "a": [x, y], "b": [x, y]},
                 {"t": "circle", "c": [x, y], "r": 5}, {"t": "arc", "c", "r", "a0": deg, "a1": deg},   (counter-clockwise)
-                {"t": "poly", "pts": [[x, y], ...], "closed": true}, {"t": "text", "at": [x, y], "h": 3.5, "text": "…", "rot": 0}],
-   "color" on an entity: its own colour (else its layer's)}
+                {"t": "poly", "pts": [[x, y], ...], "closed": true, "smooth": true?}, {"t": "text", "at": [x, y], "h": 3.5, "text": "…", "rot": 0}],
+   "color" on an entity: its own colour (else its layer's); "smooth": a SPLINE / ELLIPSE flattened (a sketch makes it
+   one smooth curve again)}
 """
 from __future__ import annotations
 
@@ -102,7 +103,8 @@ def read_drawing(data: bytes, name: str) -> dict:
                     pts = [P(v) for v in dxfpath.make_path(e).flattening(0.01 / k)]
                     if len(pts) >= 2:
                         closed = bool(getattr(e, "closed", False) or getattr(e, "is_closed", False)) or math.dist(pts[0], pts[-1]) < 1e-9
-                        add(e, layer, t="poly", pts=pts[:-1] if closed and math.dist(pts[0], pts[-1]) < 1e-9 else pts, closed=closed)
+                        add(e, layer, t="poly", pts=pts[:-1] if closed and math.dist(pts[0], pts[-1]) < 1e-9 else pts, closed=closed,
+                            **({"smooth": True} if t in ("SPLINE", "ELLIPSE") else {}))  # (a smooth curve, flattened)
                 elif t in ("TEXT", "MTEXT"):
                     txt = e.plain_text() if t == "MTEXT" else e.dxf.text
                     h = e.dxf.get("char_height" if t == "MTEXT" else "height", 2.5)

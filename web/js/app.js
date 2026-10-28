@@ -19,7 +19,7 @@ import { Modeler } from './modeler/modeler.js';
 import { modelHandlers } from './modeler/agent_model.js';
 import { Assembly } from './assembly/assembly.js';
 import { askHowToOpen, addTree, treeSize } from './assembly/stepfile.js';
-import { DrawingEditor, drawingToSketch } from './drawing2d/editor.js';
+import { DrawingEditor, drawingToCleanSketch } from './drawing2d/editor.js';
 import { SheetEditor, partHash } from './sheet/sheet.js';
 import { isStandard } from './assembly/fasteners.js';
 import { initSplitters } from './splitters.js';
@@ -1859,8 +1859,9 @@ const drawing2d = new DrawingEditor({ left: $('dwgLeft'), viewport: $('dwgViewpo
     if (!d.entities.some((e) => e.t !== 'text')) { toast(t('Nothing to sketch on the shown layers.'), 'warning'); return; }
     if (d.entities.length > 3000) toast(t('A big sketch — hide the layers you do not need first, it is quicker to work with.'), 'info', 7000);
     const name = `${project.current?.name || t('Drawing')} (${t('3D model')})`;
-    await project.newModel({ features: [drawingToSketch(d)] }, name, 'none');
-    toast(t('The drawing is the sketch of a new 3D model — edit it, or ⬆ Extrude it.'), 'ok', 6000);
+    const { feature, report: r } = await drawingToCleanSketch(d);
+    await project.newModel({ features: [feature] }, name, 'none');
+    toast(`${t('The drawing is the sketch of a new 3D model — edit it, or ⬆ Extrude it.')}${r ? ` ${t('Cleaned up: {a} → {b} shapes.').replace('{a}', r.before.entities).replace('{b}', r.after.entities)}` : ''}`, 'ok', 6000);
   },
   async useAsQuick(d) {
     try { await loadParsed(await (await api('/api/drawing/outline', d)).json()); } catch (e) { toast(e.message, 'error', 8000); }

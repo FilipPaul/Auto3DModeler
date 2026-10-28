@@ -37,6 +37,38 @@ Date: 2026-10-25. Written by the architect agent.
   (test_cancel_kills_only_that_worker, TestCancelRoutes); tools/e2e_cancel.py: the board's import, 12 real threads, MIT
   E-Vent's sheet — before: Cancelling… → gone → Making the drawing… → Building again; after: Cancelling… → gone in
   0.13–0.23 s, no kernel CPU after it, nothing sent again.
+- **AI: simplify_sketch done:** {id, op simplify | join | outline, tol} (agent_tools.py, agent_model.js: the whole
+  sketch through /api/model/sketch/clean, committed as one change) -> the step's result + shapes / points before →
+  after, area_mm2, dropped sizes; the skill use-a-drawing says when. tools/e2e_agent.py (a 72-sided polyline -> one
+  circle, π 20² 5; a wavy 120-line outline -> join: one spline, the area kept; a non-sketch refused).
+- **⛓ Merge in sketches done:** sketchclean.join (each connected chain -> one `fit` spline per run between corners
+  > 25°, a straight run a line; _dense_chain samples it, fit_spline within tol; a closed chain starts at a corner, none:
+  one closed spline) and outline (polygonize the picks within tol, even-odd -> one block {polys, w0, h0, at}), POST
+  /api/model/sketch/clean {op, sketch, ids, tol}. Sketcher: splines can be picked (pickOf / splineAt, box, delete,
+  copy); mergeItems -> ⛓ Join into one curve / 🧹 Simplify first in the short list for a chain of ≥ 6 pieces
+  (chainOf: ends within 0.02 mm count as one — the old conversion's ends missed by a hair), ◆ Make it one outline in
+  the short list for closed loops (else under More… → Edit); mergeBox: one input (Tolerance), shown at once
+  (mergeTo: from the snapshot each time, one undo step), "732 → 13 shapes", Enter / Esc; a `fit` spline's points
+  hidden unless it is clicked (hiddenPts: not drawn, not picked). The bar's ⛓ Merge (copy group): with picks the table
+  offers only the merge rows; with none a mode (clicks and boxes add) whose table has 🧹 Simplify the whole sketch.
+  Drive Gear.dxf as the old conversion made it (732 shapes, the owner's screenshot): ⛓ Join -> 13 shapes (one spline of
+  770 points round the teeth) in ~1 s, area 1540.3; 🧹 Simplify -> 316 (252 at 0.02 mm). tools/e2e_sketch_merge.py.
+
+- **Clean 2D drawing -> sketch done:** auto3d/modeler/sketchclean.py from_drawing (POST /api/drawing/sketch; editor.js
+  drawingToCleanSketch, the old drawingToSketch as the offline fallback): ends within tol welded (_Nodes: union-find on
+  a grid; tol = max(0.01, 1e-4 · size) ≤ 0.1 mm), pieces shorter than tol absorbed, chains through two-piece nodes
+  (_chains): collinear lines -> one, arcs on one circle -> one (a full turn: a circle), a polyline -> lines / arcs
+  (greedy _segment, the arc's centre on its ends' bisector so both ends are on it) and runs of ≥ 3 smooth ones -> one
+  spline when that is fewer points; a `smooth` poly (read_drawing marks SPLINE / ELLIPSE) -> one line, arc or spline
+  (fit_spline: a natural cubic over the chord, as splinePts, points added where it strays > tol both ways); a closed
+  polyline -> a circle or starts at its sharpest corner. tan relations line–arc only in sketches of ≤ 60 shapes (in the
+  gear they made each solve 7× slower). Finger.dxf: 702 shapes / 827 points -> 231 / 378, area 7186.81 -> 7186.75
+  (the old conversion's ends missed by a hair: its area 185 — nothing closed). Kernel: a closed spline going clockwise
+  is reversed in _mixed_wire (holes are put in reversed: a CW one gave 1335 for 1178); kernel.volume integrates a
+  solid with a B-spline edge of > 8 knots span by span (VolumePropertiesGK, IsUseSpan) — a plane bounded by one
+  770-span curve was 8 % off with the adaptive rule (CTC-02's reference: 47106859.125, as GK without spans at 1e-9).
+  tests/test_sketch_clean.py; tools/e2e_sketch_merge.py (part 1).
+
 - **Autosave waits longer on a busy machine done:** autosave._write / _read retry a Windows sharing violation
   (WinError 5 / 32) for up to ~8 s with a growing pause (_pause), not ~2 s / ~1 s — under the full test run with the
   kernel pool busy, test_same_project_saved_at_once once failed with "Access is denied".

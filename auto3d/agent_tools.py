@@ -260,6 +260,14 @@ TOOLS = [
      "inputSchema": _obj({"id": STR, "keep_dependents": {"type": "boolean"}}, ["id"])},
     {"name": "turn_off_feature", "where": "browser", "description": "Turn a step off (off true) or on again (off false); it is kept.",
      "inputSchema": _obj({"id": STR, "off": {"type": "boolean"}}, ["id"])},
+    {"name": "simplify_sketch", "where": "browser",
+     "description": "Fewer shapes in a sketch step (id), the same outline — for a sketch made from a DXF / PDF (hundreds of "
+                    "tiny lines) or drawn piece by piece. op \"simplify\" (default): ends that nearly meet welded, tiny pieces "
+                    "absorbed, lines in line and arcs on one circle joined, runs of short lines along a curve -> arcs / a spline; "
+                    "\"join\": each connected chain of lines / arcs / curves -> ONE smooth spline (split at sharp corners); "
+                    "\"outline\": the closed outlines -> one rigid outline (holes kept). tol: how far the result may be from "
+                    "the shapes (mm; default 0.01, more for big sketches). -> before / after counts and the enclosed area.",
+     "inputSchema": _obj({"id": STR, "op": {"type": "string", "enum": ["simplify", "join", "outline"]}, "tol": NUM}, ["id"])},
     {"name": "set_material", "where": "browser",
      "description": "The 3D model's material (its mass in get_model, the 2D drawing's title block, and its colour when it has none "
                     "of its own): printed PLA, PETG, ABS, ASA, TPU, PA, PA-CF, PC, PP; engineering plastics POM, PE-HD, PA6-GF30, "
