@@ -818,6 +818,22 @@ Date: 2026-10-25. Written by the architect agent.
   project's previous save holds the file: WinError 32). Other formats: STL / OBJ open as quick parts, DXF and the
   Gerber set as 2D drawings, pictures in the outline wizard; DWG needs ODA / LibreDWG (says so); 3MF is not read
   ("Unsupported file type"); NIST's GD&T PDF sheets give no part (FTC-11) or a wrong 25 × 9 mm one (CTC-01).
+- **Real-file import faults fixed (18h):** kernel._label_name checks the name is there (FindAttribute on a label without
+  one killed the worker: CTC-02 AP242 as an assembly), components pointing nowhere are skipped; kernel.volume counts
+  the solids only (loose faces beside them: kernel.loose_faces, shown as a `<id>:surfaces` reference, out of the
+  booleans) and integrates faces other than planes / cylinders adaptively, each solid on its own (the quick rule was
+  ~1e-4 off on B-splines and spheres: a cut "raised" the Reespirator balloon's volume); step_structure counts only
+  products with faces (Pro/E AS1: 5 / 18 as opened); kernel.turned_out turns inside-out solids the STEP reader's
+  healing leaves (by the volume's sign); a tessellated STEP (faces with triangles only: kernel.faceted) becomes a solid
+  of its facets per closed body (faceted_solids -> mesh_solid) with a note; B-spline faces flat within 1e-5 mm are
+  planes (flat_plane: GeomLib_IsPlanarSurface, oriented like the surface) for frames, sketches, holes; a fillet on
+  smooth edges (BRepLib.ContinuityOfFaces) says so (NIST FTC-07's longest edges are tangent to roundings); IGES
+  surfaces are sewn per shell (sewn_solids: a solid per closed body, the rest loose faces, how "partly"; again at
+  1 / 10 000 of the size); an assembly with external references (external_refs: DOCUMENT_FILE names) opens with its
+  part files picked together (/api/model/import takes several files; _main_file picks the top one; merged_step makes
+  one STEP of them), alone it names the files it needs. tessellate classifies flat faces with one classifier per solid
+  (40 s -> 4 s on a 1 700-face part). Tests: test_cad_samples (TestCadSampleKnownBugs: a test per fault, no expected
+  failures left); e2e_cad_samples (S1 picked with its folder).
 - **STEP colours done:** kernel.read_step_colours (STEPCAFControl + XCAF: colours followed down the assembly tree to the
   faces of the shape the solid step uses), State.colours by face name -> faces' `color` in the rebuild; the view /
   assembly show them under the paint. tools/e2e_step_colours.py.

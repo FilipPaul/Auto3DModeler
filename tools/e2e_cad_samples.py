@@ -140,11 +140,13 @@ def answer(label, t=300):
     return None
 
 
-def import_part(path, kind):
-    """Open → CAD / 3D file -> a 3D model (or an assembly) -> facts."""
+def import_part(path, kind, with_files=False):
+    """Open → CAD / 3D file -> a 3D model (or an assembly) -> facts. with_files: the other files of its folder picked
+    with it (an assembly STEP whose parts are files of their own)."""
     t0 = time.time()
     n0 = js("return window.__app.project.parts.length")
-    d.find_element(By.ID, "cadInput").send_keys(str(path))
+    more = [str(f) for f in sorted(Path(path).parent.iterdir()) if f != Path(path)] if with_files else []
+    d.find_element(By.ID, "cadInput").send_keys("\n".join([str(path), *more]))
     q = answer("Open as an assembly" if kind == "assembly" else "Open as one body")
     out = {"asked": q}
     if kind == "assembly":
@@ -400,7 +402,7 @@ try:
         print(f"\n=== {item['path']} ({item['program']}, {item['format']}, {kind})", flush=True)
         try:
             fresh()
-            imp = import_part(path, "assembly" if kind == "assembly" else "part")
+            imp = import_part(path, "assembly" if kind == "assembly" else "part", item.get("with_files"))
             row["import"] = imp
             print("   import:", json.dumps(imp, ensure_ascii=False)[:400], flush=True)
             fails = []

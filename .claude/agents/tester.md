@@ -458,8 +458,10 @@ Never report "works" without having run it; report failures with their output.
    split exactly for the P1S; console errors; then the other formats (STL / OBJ meshes, 3MF, DXF / DWG, a PDF drawing,
    pictures for the outline wizard, a KiCad Gerber + Excellon set) opened from their menus. A table at the end; ~45 min;
    the manifest's "known" lists the app bugs / steps that do not apply per file. Unit tests: tests/test_cad_samples.py (each
-   file's counts and volumes, STEP / IGES round trips; files over 3 MB with A3D_SLOW_SAMPLES=1; the known app bugs as
-   expected failures — an unexpected success means one was fixed).
+   file's counts and volumes, STEP / IGES round trips; files over 3 MB with A3D_SLOW_SAMPLES=1; a test per import fault
+   fixed — a crash on unnamed labels, loose faces in the volume, empty products counted, tessellated STEP, flat
+   B-splines, a cut on a B-spline solid, smooth edges, IGES assemblies, external references; a bug still open would be
+   an expected failure). A manifest item with "with_files" (CATIA's S1) is picked with the other files of its folder.
    `tools/e2e_paint.py <url> <dir>` covers 🎨 Paint (a face, Ctrl+click a second, ▣ a whole body of two, one extrude's
    two tops told apart, Ctrl+Z / Ctrl+Y, shown in an assembly) and 🏷 renaming a step and a part.
    `tools/e2e_look.py <url> <dir>` covers colour and see-through (the Part panel -> the model view and assemblies;

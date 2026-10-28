@@ -11,7 +11,7 @@
    "MB": 0.24,
    "expect": {
     "faces": 139,
-    "volume": 14642823.569,
+    "volume": 14642823.505,
     "bbox": [
      -590.0,
      -325.0,
@@ -21,14 +21,14 @@
      50.0
     ],
     "structure": {
-     "parts": 2,
-     "placements": 2,
+     "parts": 1,
+     "placements": 1,
      "subs": 0
     },
     "parts": 1,
     "asms": 1,
     "placements": 1,
-    "asm_volume": 14642823.557,
+    "asm_volume": 14642823.505,
     "subs": 0
    }
   },
@@ -42,7 +42,7 @@
    "MB": 0.79,
    "expect": {
     "faces": 518,
-    "volume": 17518568.276,
+    "volume": 17519087.919,
     "bbox": [
      -250.0,
      -0.0,
@@ -59,7 +59,7 @@
     "parts": 2,
     "asms": 1,
     "placements": 2,
-    "asm_volume": 17519087.704,
+    "asm_volume": 17519087.919,
     "subs": 0
    }
   },
@@ -73,7 +73,7 @@
    "MB": 0.33,
    "expect": {
     "faces": 209,
-    "volume": 12828990.962,
+    "volume": 12694921.72,
     "bbox": [
      -263.525,
      -279.4,
@@ -83,14 +83,14 @@
      482.6
     ],
     "structure": {
-     "parts": 3,
-     "placements": 3,
+     "parts": 2,
+     "placements": 2,
      "subs": 0
     },
     "parts": 2,
     "asms": 1,
     "placements": 2,
-    "asm_volume": 12694921.73,
+    "asm_volume": 12694921.72,
     "subs": 0
    }
   },
@@ -104,7 +104,7 @@
    "MB": 0.4,
    "expect": {
     "faces": 269,
-    "volume": 1726247.579,
+    "volume": 1726247.58,
     "bbox": [
      -155.803,
      -123.19,
@@ -121,12 +121,12 @@
     "parts": 1,
     "asms": 1,
     "placements": 1,
-    "asm_volume": 1726247.579,
+    "asm_volume": 1726247.58,
     "subs": 0
    },
    "print": true,
    "known": {
-    "fillet": "a fillet on any of the 8 longest edges of its 4 biggest faces is refused: 'These edges cannot be rounded here (whatever the size)'",
+    "fillet": "the 8 longest edges of its 4 biggest faces are smooth (a flat face running into a rounding): a fillet there is refused with 'This edge is smooth — … it is rounded already'",
     "edit": [
      "fillet"
     ]
@@ -142,7 +142,7 @@
    "MB": 1.98,
    "expect": {
     "faces": 637,
-    "volume": 45468679.565,
+    "volume": 47106842.252,
     "bbox": [
      -340.0,
      -40.0,
@@ -152,20 +152,15 @@
      40.0
     ],
     "structure": {
-     "parts": 4,
-     "placements": 4,
+     "parts": 3,
+     "placements": 3,
      "subs": 1
     },
-    "subs": 1,
-    "tree_crash": true
-   },
-   "known": {
-    "tree_crash": "read_step_tree segfaults: the supplemental-geometry label has no name (kernel._label_name)",
-    "volume": "the volume counts 2 loose faces: 45.47 instead of 47.11 · 10⁶ mm³; a cut / hole then raises it",
-    "edit": [
-     "cut",
-     "hole"
-    ]
+    "parts": 3,
+    "asms": 2,
+    "placements": 3,
+    "asm_volume": 47106842.252,
+    "subs": 1
    }
   },
   {
@@ -178,7 +173,7 @@
    "MB": 1.88,
    "expect": {
     "faces": 282,
-    "volume": 188171.218,
+    "volume": 188318.068,
     "bbox": [
      -79.0,
      -0.0,
@@ -188,14 +183,14 @@
      37.5
     ],
     "structure": {
-     "parts": 3,
-     "placements": 3,
+     "parts": 2,
+     "placements": 2,
      "subs": 0
     },
     "parts": 2,
     "asms": 1,
     "placements": 2,
-    "asm_volume": 188216.746,
+    "asm_volume": 188216.744,
     "subs": 0
    }
   },
@@ -239,33 +234,26 @@
    "licence": "public domain (US government work, 17 USC 105; NIST: 'can be used without any restrictions')",
    "MB": 2.12,
    "expect": {
-    "faces": 273,
-    "volume": -313110.999,
+    "faces": 1739,
+    "volume": 503280.82,
+    "bbox": [
+     -155.797,
+     -111.347,
+     0.0,
+     155.797,
+     111.347,
+     48.26
+    ],
     "structure": {
-     "parts": 2,
-     "placements": 2,
+     "parts": 1,
+     "placements": 1,
      "subs": 0
     },
-    "parts": 2,
+    "parts": 1,
     "asms": 1,
-    "placements": 2,
-    "asm_volume": -503280.82,
+    "placements": 1,
+    "asm_volume": 503280.82,
     "subs": 0
-   },
-   "known": {
-    "tessellated": "tessellated (faceted) geometry: a body with a negative volume and no box; its sheet never builds, IGES / GLB fail",
-    "edit": [
-     "cut",
-     "hole",
-     "fillet"
-    ],
-    "export": [
-     "pdf",
-     "dxf",
-     "iges",
-     "glb"
-    ],
-    "console": true
    }
   },
   {
@@ -309,7 +297,7 @@
    "MB": 3.73,
    "expect": {
     "faces": 117,
-    "volume": 22869.801,
+    "volume": 22869.874,
     "bbox": [
      -0.0,
      -0.0,
@@ -326,7 +314,7 @@
     "parts": 1,
     "asms": 1,
     "placements": 1,
-    "asm_volume": 22869.801,
+    "asm_volume": 22869.874,
     "subs": 0
    }
   },
@@ -371,7 +359,7 @@
    "MB": 0.29,
    "expect": {
     "faces": 113,
-    "volume": 22459.499,
+    "volume": 22459.495,
     "bbox": [
      -0.0,
      -9.5,
@@ -402,7 +390,7 @@
    "MB": 6.6,
    "expect": {
     "faces": 1995,
-    "volume": 604817.765,
+    "volume": 604814.62,
     "bbox": [
      -150.392,
      -66.411,
@@ -419,7 +407,7 @@
     "parts": 12,
     "asms": 1,
     "placements": 24,
-    "asm_volume": 604815.234,
+    "asm_volume": 604814.62,
     "subs": 0
    },
    "slow": true
@@ -434,7 +422,7 @@
    "MB": 11.32,
    "expect": {
     "faces": 1995,
-    "volume": 195578.589,
+    "volume": 486651.07,
     "bbox": [
      -150.392,
      -66.411,
@@ -443,25 +431,11 @@
      72.089,
      117.349
     ],
-    "iges": "surfaces",
-    "op": "ref"
+    "iges": "partly"
    },
    "slow": true,
    "known": {
-    "ref": "a reference body (surfaces that do not close): nothing to edit or export; its drawing sheet never builds (500, no message)",
-    "edit": [
-     "cut",
-     "hole",
-     "fillet"
-    ],
-    "export": [
-     "pdf",
-     "dxf",
-     "step",
-     "iges",
-     "glb"
-    ],
-    "console": true
+    "volume": "17 bodies in one part, some overlapping (screws in their holes: kernel.interference finds 80 / 51 / 40 mm³ overlaps): a cut on that compound resolves the overlaps too, so the volume drops by thousands of mm³ more than the Ø3 × 1 cut, and its STEP read back is not the edited volume"
    }
   },
   {
@@ -474,7 +448,7 @@
    "MB": 7.77,
    "expect": {
     "faces": 2150,
-    "volume": 1853592.395,
+    "volume": 1853599.065,
     "bbox": [
      -243.97,
      200.256,
@@ -491,7 +465,7 @@
     "parts": 13,
     "asms": 1,
     "placements": 41,
-    "asm_volume": 1853595.87,
+    "asm_volume": 1853599.062,
     "subs": 0
    },
    "slow": true,
@@ -514,7 +488,7 @@
    "MB": 1.12,
    "expect": {
     "faces": 729,
-    "volume": 3854873.203,
+    "volume": 3855000.86,
     "bbox": [
      -82.554,
      -96.399,
@@ -531,15 +505,8 @@
     "parts": 13,
     "asms": 2,
     "placements": 26,
-    "asm_volume": 3854779.594,
+    "asm_volume": 3855000.863,
     "subs": 1
-   },
-   "known": {
-    "cut": "a Ø3 × 1 cut and a Ø2 hole on its biggest part (balloon: one B-spline solid of 8 faces) raise the volume by ~4 000 / 3 200 mm³",
-    "edit": [
-     "cut",
-     "hole"
-    ]
    }
   },
   {
@@ -583,7 +550,7 @@
    "MB": 3.06,
    "expect": {
     "faces": 665,
-    "volume": 104886.139,
+    "volume": 104886.077,
     "bbox": [
      -45.0,
      -37.15,
@@ -636,7 +603,7 @@
    "MB": 0.59,
    "expect": {
     "faces": 409,
-    "volume": 121134.116,
+    "volume": 121134.048,
     "bbox": [
      -10.0,
      -10.0,
@@ -653,7 +620,7 @@
     "parts": 1,
     "asms": 1,
     "placements": 1,
-    "asm_volume": 121134.116,
+    "asm_volume": 121134.048,
     "subs": 0
    }
   },
@@ -667,7 +634,7 @@
    "MB": 0.09,
    "expect": {
     "faces": 10,
-    "volume": 3788.271,
+    "volume": 3788.274,
     "bbox": [
      -27.82,
      -10.826,
@@ -684,7 +651,7 @@
     "parts": 1,
     "asms": 1,
     "placements": 1,
-    "asm_volume": 3788.271,
+    "asm_volume": 3788.274,
     "subs": 0
    }
   },
@@ -768,33 +735,16 @@
    "MB": 1.04,
    "expect": {
     "faces": 45,
-    "volume": 175654498676.195,
+    "volume": 205941180243.165,
     "bbox": [
      -10939.272,
      17053.245,
      -13714.204,
      2239.517,
      21342.96,
-     24717.179
+     24717.169
     ],
-    "iges": "surfaces",
-    "op": "ref"
-   },
-   "known": {
-    "ref": "a reference body (surfaces that do not close): nothing to edit or export; its drawing sheet never builds (500, no message)",
-    "edit": [
-     "cut",
-     "hole",
-     "fillet"
-    ],
-    "export": [
-     "pdf",
-     "dxf",
-     "step",
-     "iges",
-     "glb"
-    ],
-    "console": true
+    "iges": "sewn"
    }
   },
   {
@@ -807,7 +757,7 @@
    "MB": 0.44,
    "expect": {
     "faces": 160,
-    "volume": 764522.662,
+    "volume": 764518.028,
     "bbox": [
      -10.0,
      -0.0,
@@ -824,7 +774,7 @@
     "parts": 5,
     "asms": 4,
     "placements": 18,
-    "asm_volume": 764519.802,
+    "asm_volume": 764518.034,
     "subs": 3
    }
   },
@@ -838,7 +788,7 @@
    "MB": 0.09,
    "expect": {
     "faces": 48,
-    "volume": 109059.383,
+    "volume": 109159.909,
     "bbox": [
      -0.0,
      -27.0,
@@ -855,16 +805,8 @@
     "parts": 3,
     "asms": 1,
     "placements": 7,
-    "asm_volume": 109069.688,
+    "asm_volume": 109159.909,
     "subs": 0
-   },
-   "known": {
-    "bspline": "every face is a B-spline (flat ones too): no face counts as flat, so no sketch / hole on it",
-    "edit": [
-     "cut",
-     "hole",
-     "fillet"
-    ]
    }
   },
   {
@@ -938,10 +880,34 @@
    "licence": "BSD-3-Clause (STEPcode collective work; CAx-IF test file)",
    "MB": 0.01,
    "expect": {
-    "error": "The file has no solid in it."
+    "alone_error": "This STEP file refers to 4 part file(s) of its own",
+    "faces": 182,
+    "volume": 1237892.926,
+    "bbox": [
+     -199.0,
+     -74.0,
+     -83.73,
+     262.0,
+     74.0,
+     73.0
+    ],
+    "structure": {
+     "parts": 8,
+     "placements": 11,
+     "subs": 4
+    },
+    "parts": 8,
+    "asms": 5,
+    "placements": 11,
+    "asm_volume": 1237892.927,
+    "subs": 4
    },
+   "with_files": true,
    "known": {
-    "unsupported": "an assembly whose parts are in other files (external references): 'The file has no solid in it.'"
+    "hole": "the e2e's Ø2 hole through the second flat face of its biggest part (HEAD_BACK: the 1.5 mm wide end ring of a tube) takes nothing off in the browser",
+    "edit": [
+     "hole"
+    ]
    }
   },
   {
@@ -964,8 +930,8 @@
      1905.0
     ],
     "structure": {
-     "parts": 10,
-     "placements": 36,
+     "parts": 5,
+     "placements": 18,
      "subs": 8
     },
     "parts": 5,
@@ -1016,7 +982,7 @@
    "MB": 0.14,
    "expect": {
     "faces": 160,
-    "volume": 764518.984,
+    "volume": 764518.03,
     "bbox": [
      -10.0,
      -0.0,
@@ -1033,7 +999,7 @@
     "parts": 5,
     "asms": 4,
     "placements": 18,
-    "asm_volume": 764518.987,
+    "asm_volume": 764518.035,
     "subs": 3
    }
   },
@@ -1047,7 +1013,7 @@
    "MB": 0.08,
    "expect": {
     "faces": 29,
-    "volume": 78171.663,
+    "volume": 78179.58,
     "bbox": [
      0.0,
      -44.0,
@@ -1057,14 +1023,14 @@
      44.0
     ],
     "structure": {
-     "parts": 2,
-     "placements": 2,
+     "parts": 1,
+     "placements": 1,
      "subs": 0
     },
     "parts": 1,
     "asms": 1,
     "placements": 1,
-    "asm_volume": 78171.664,
+    "asm_volume": 78179.58,
     "subs": 0
    }
   },
@@ -1119,14 +1085,6 @@
      5.0
     ],
     "iges": "solid"
-   },
-   "known": {
-    "bspline": "Inventor's IGES gives the cube's faces as B-spline surfaces: none counts as flat, so no sketch / hole on them (the STEP of the same cube works)",
-    "edit": [
-     "cut",
-     "hole",
-     "fillet"
-    ]
    }
   },
   {

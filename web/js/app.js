@@ -536,19 +536,19 @@ const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const OPEN_SOLID_RE = /\.(step|stp|igs|iges)$/i;
 /** A STEP / IGES / STL / OBJ file made a solid by the kernel (kept on the server by its hash) -> {blob, name, faces,
  *  bbox, volume, op?, warning?} — an IGES of surfaces that do not close: op "ref" (a reference body) and why. */
-async function importSolid(file) {
+async function importSolid(file, more = []) {
   const fd = new FormData(), rid = newRid();
   fd.append('rid', rid);
-  fd.append('file', file);
+  for (const f of [file, ...more]) fd.append('file', f); // (more: the part files an assembly STEP refers to)
   const stop = trackProgress(rid, `Reading ${file.name}…`);
   try { return await (await api('/api/model/import', fd)).json(); } finally { stop(); }
 }
 /** The step of a 3D model that is that solid: joined (add), cut out of the part (cut), or a reference (ref). */
 const solidStep = (r, id = 'F1', op = r.op || 'add') => ({ id, type: 'solid', name: r.name.replace(/\.[^.]+$/, ''), blob: r.blob, file: r.name, op });
 /** Open a 3D file as a 3D model part: the exact solid, then sketches, holes … on it (a big mesh: a sliced quick part). */
-async function openSolid(file) {
+async function openSolid(file, more = []) {
   let r;
-  try { r = await importSolid(file); } catch (e) {
+  try { r = await importSolid(file, more); } catch (e) {
     if (/MESH_TOO_BIG/.test(e.message)) {
       toast(t('This mesh is too big to become an exact solid — it opens as a quick part (sliced), as before.'), 'info', 7000);
       await openImport(file);
@@ -558,8 +558,8 @@ async function openSolid(file) {
   const how = await askHowToOpen(r); // a STEP assembly (SolidWorks, CATIA, Solid Edge …): as an assembly, or one body
   if (!how) return;
   if (how === 'assembly') { await openStepAssembly(r); return; }
-  await project.newModel({ features: [solidStep(r)] }, file.name.replace(/\.[^.]+$/, ''));
-  toast(t2('{name} is open as a 3D model ({faces} faces) — sketch on its faces, add holes, or ask the AI to build on it.', { name: file.name, faces: r.faces }), 'ok', 7000);
+  await project.newModel({ features: [solidStep(r)] }, r.name.replace(/\.[^.]+$/, ''));
+  toast(t2('{name} is open as a 3D model ({faces} faces) — sketch on its faces, add holes, or ask the AI to build on it.', { name: r.name, faces: r.faces }), 'ok', 7000);
   if (r.warning) toast(t(r.warning), r.op === 'ref' ? 'warning' : 'info', 10000); // (an IGES: sewn, or only a reference body)
   return r;
 }
@@ -602,6 +602,8 @@ $('cadInput').addEventListener('change', (e) => {
   e.target.value = '';
   // several Gerber / drill files picked together: one board (a drill file may be a .txt)
   if (all.length > 1 && all.every((x) => DRAWING_RE.test(x.name) || /\.txt$/i.test(x.name))) openDrawing(f, all.slice(1));
+  // several STEP files: an assembly and the part files it refers to (CATIA) — the server opens the top one with them
+  else if (all.length > 1 && all.every((x) => /\.(step|stp)$/i.test(x.name))) openSolid(f, all.slice(1));
   else if (f) (DRAWING_RE.test(f.name) ? openDrawing : OPEN_SOLID_RE.test(f.name) ? openSolid : openImport)(f);
 });
 $('pdfInput').addEventListener('change', (e) => { if (e.target.files[0]) openPdf(e.target.files[0]); e.target.value = ''; });
@@ -615,8 +617,9 @@ vp.addEventListener('dragleave', () => vp.classList.remove('drag-over'));
 vp.addEventListener('drop', (e) => {
   e.preventDefault();
   vp.classList.remove('drag-over');
-  const f = e.dataTransfer.files[0];
+  const f = e.dataTransfer.files[0], all = [...e.dataTransfer.files];
   if (!f) return;
+  if (all.length > 1 && all.every((x) => /\.(step|stp)$/i.test(x.name))) { openSolid(f, all.slice(1)); return; } // (an assembly and its part files)
   if (/\.json$/i.test(f.name)) openProject(f);
   else if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') openPdf(f);
   else if (OPEN_SOLID_RE.test(f.name) && !e.shiftKey) openSolid(f); // Shift: a sliced quick part, as before

@@ -26,7 +26,8 @@ Use **📂 Open ▾** to open a file. It offers:
   AP242 there) — asks first: **Open as an assembly** makes a 3D model part per different part (a screw used 22 times
   is one part), an assembly ◇ with a placed part per placement, sub-assemblies nested, the file's names and colours;
   **Open as one body** opens it as before. A big tree (an assembled board: hundreds of parts) offers one body first
-  and, as an assembly, shows its parts 🪶 simplified;
+  and, as an assembly, shows its parts 🪶 simplified. An assembly STEP whose parts are files of their own (CATIA
+  writes it so): pick it **with its part files** at once (or drop them all) — they open as one assembly;
 - a saved project.
 
 You can also drop a file on the view. To model a part from scratch, click **＋ New 3D model** (see
@@ -796,8 +797,13 @@ the app exchanges with them — and with Inventor, Fusion, Creo, NX, FreeCAD, On
   from CATIA V5, NX / Unigraphics, Creo / Pro/ENGINEER, SolidWorks, Inventor, Fusion 360, I-DEAS, CoCreate, AutoCAD and
   others (STEP AP203 / AP214 / AP242, IGES) — parts and assemblies open with their parts, placements, sub-assemblies,
   names and colours; they can be edited, drawn (sheet -> PDF / DXF) and exported back (STEP / IGES / GLB) and read again
-  the same. Known gaps: an assembly whose parts are separate files (external references) and tessellated (mesh-only)
-  STEP files are not opened as solids; an IGES of loose surfaces that do not close comes in as a reference body.
+  the same. An assembly whose parts are separate files (CATIA's external references) opens when you pick the assembly
+  file **together with its part files** (alone it names the files it needs); a tessellated (mesh-only) AP242 STEP opens
+  as a solid of its triangles, with a note; an IGES of loose surfaces is sewn into a solid per closed body (the faces
+  that do not close are shown see-through), and comes in as a 👁 reference body only when nothing closes. Loose
+  surfaces beside a STEP's solid (supplemental geometry) are shown see-through and take no part in the volume, mass
+  or cuts; flat faces stored as B-splines count as flat (sketch, hole); a fillet on a smooth edge (rounded already)
+  says so.
 
 ## AI assistant (✨ AI tab)
 

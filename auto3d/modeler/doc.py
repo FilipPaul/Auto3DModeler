@@ -388,10 +388,13 @@ def _apply(f, st: State, s):
         size = _num(f, "r" if t == "fillet" else "d", 1, what="radius" if t == "fillet" else "size")
         if not edges:
             raise K.KernelError("Pick at least one edge.")
-        body = st.body
-        st.body = _sized(lambda v: K.round_edges(body, edges, v, fid, chamfer=t == "chamfer"), size, "radius" if t == "fillet" else "size", "mm",
-                         f"These edges cannot be {'rounded' if t == 'fillet' else 'bevelled'} here (whatever the size) — pick other edges, "
-                         "or do it before the steps that changed them.")
+        body, smooth = st.body, K.smooth_edges(st.body, edges)
+        why = (f"These edges cannot be {'rounded' if t == 'fillet' else 'bevelled'} here (whatever the size) — pick other edges, "
+               "or do it before the steps that changed them.")
+        if smooth:  # (an imported part's edge between a face and its rounding: the faces meet without a corner)
+            why = (f"{'This edge is' if len(edges) == 1 else f'{smooth} of these {len(edges)} edges are'} smooth — the faces meet there "
+                   f"without a corner (it is rounded already), so there is nothing to {'round' if t == 'fillet' else 'bevel'}. Pick a sharp edge.")
+        st.body = _sized(lambda v: K.round_edges(body, edges, v, fid, chamfer=t == "chamfer"), size, "radius" if t == "fillet" else "size", "mm", why)
         if guessed:
             s["warnings"].append(f"{guessed} edge(s) were found again by their position only — check that the right edges are {'rounded' if t == 'fillet' else 'bevelled'}.")
         return
@@ -468,16 +471,19 @@ def _apply(f, st: State, s):
         # file kept by the server). op: add (joined to the part), cut (cut out of it: a cavity it fits in), ref (shown
         # only, for sizing what is made around it)
         shape, cols = _solid_shape(f)
-        body = K.solid_body(shape, fid)
+        op = f.get("op") or "add"
+        body = K.solid_body(shape, fid, whole=op == "ref")
         if f.get("colours", True):  # the file's own colours (off: the part's colour)
             st.colours.update({f"{fid}:f{k}": c for k, c in cols.items()})
         bb = K.bbox(body.shape)
         if bb:
             s["bbox"] = [round(v, 3) for v in bb]
-        op = f.get("op") or "add"
         if op == "ref":
             st.refs[fid] = body
             return
+        loose = K.loose_faces(shape)  # (a file's surfaces beside its solid: shown see-through, not in the volume / booleans)
+        if loose is not None:
+            st.refs[f"{fid}:surfaces"] = K.Body(loose)
         if op == "cut" and st.body is None:
             raise K.KernelError("There is nothing to cut it out of yet — make the part first (or show it as a reference).")
         _use(st, fid, body, "cut" if op == "cut" else "add")
@@ -865,26 +871,87 @@ def _solid_shape(f):
 MESH_LIMIT = 60000  # triangles: a bigger STL / OBJ takes too long to become a solid
 
 
+def _all_refs(refs, files):
+    """The part files an assembly STEP needs (its external references, and theirs: a sub-assembly's own files) ->
+    names; files {name: bytes}: those that are here (their references are followed)."""
+    here = {str(n).rsplit("/", 1)[-1].lower(): d for n, d in files.items()}
+    out, todo = [], list(refs)
+    while todo:
+        n = todo.pop(0)
+        if n in out:
+            continue
+        out.append(n)
+        if n.lower() in here:
+            todo += K.external_refs(here[n.lower()])
+    return out
+
+
+def _main_file(files):
+    """Several files picked together {name: blob} -> the one to open {blob, name}: the STEP no other one refers to
+    (the top assembly), else the first."""
+    from . import blobs
+    steps = [(n, s) for n, s in files.items() if n.lower().rsplit(".", 1)[-1] in ("step", "stp", "p21")]
+    if not steps:
+        n, s = next(iter(files.items()))
+        return {"blob": s, "name": n}
+    used = {r.lower() for _, s in steps for r in K.external_refs(blobs.get(s))}
+    top = [(n, s) for n, s in steps if n.rsplit("/", 1)[-1].lower() not in used]
+    n, s = (top or steps)[0]
+    return {"blob": s, "name": n}
+
+
 def import_solid(a):
     """A STEP / IGES / STL / OBJ file (kept as a blob) -> a solid for a `solid` step: {blob, faces, bbox, volume,
     triangles?, op?, warning?}. A STEP is used as it is; an IGES is kept as a STEP (its surfaces sewn into a solid when
     they close; else op "ref": a reference body, with a warning); a mesh is made a solid (its triangles sewn) and kept
-    as a STEP."""
+    as a STEP — a tessellated STEP too (faceted: true). files {name: blob} instead of blob: several files picked together
+    (an assembly STEP and the part files it refers to): the top one opens with them, as one STEP (name: which)."""
     from . import blobs
     from .. import importers
+    if not a.get("blob") and a.get("files"):  # several files picked together: the assembly and the part files it refers to
+        a = {**a, **_main_file(a["files"])}
     sha, name = a["blob"], a.get("name") or "part"
     data = blobs.get(sha)
     ext = name.lower().rsplit(".", 1)[-1]
     if ext in ("step", "stp"):
+        refs, note = K.external_refs(data), None
+        if refs:  # an assembly whose parts are files of their own (CATIA): made one file with them, when they are here
+            have = {str(n).rsplit("/", 1)[-1].lower(): s for n, s in (a.get("files") or {}).items()}
+            files = {n: blobs.get(s) for n, s in (a.get("files") or {}).items() if s != sha}
+            missing = [n for n in _all_refs(refs, files) if n.lower() not in have]
+            if missing:
+                note = (f"This STEP file refers to {len(missing)} part file(s) of its own ({', '.join(missing[:6])}"
+                        f"{' …' if len(missing) > 6 else ''}) — export it from its CAD program as a single file, or open it together "
+                        "with those files (pick them all at once).")
+            else:
+                data = K.merged_step(data, files, name.rsplit(".", 1)[0])
+                sha = blobs.put(data)
         shape, cols, built = K.read_step_colours(data, summary=True)
+        if note and K.face_count(shape) == 0:
+            raise K.KernelError(note)
+        out = {"blob": sha, "coloured": len(cols), "structure": built, **({"warning": note} if note else {}),
+               **({"name": name} if a.get("files") else {})}
+        if K.faceted(shape):  # a tessellated STEP (AP242: triangles only, no exact surfaces): solids of its facets
+            made, skipped = K.faceted_solids(shape, MESH_LIMIT)
+            if not made:
+                raise K.KernelError("The STEP file holds tessellated (faceted) surfaces only, and they do not close into a solid — "
+                                    "export it from its CAD program with exact (B-rep) geometry, or as an STL to open it as a quick part.")
+            shape, cols = (made[0] if len(made) == 1 else K.compound(made)), {}
+            out = {"blob": blobs.put(K.to_step(shape, name)), "coloured": 0, "structure": {"parts": 1, "placements": 1, "subs": 0}, "faceted": True,
+                   "warning": "The STEP file holds tessellated (faceted) geometry, not exact surfaces — it was made a solid of its flat facets: "
+                              "sizes are as exact as the triangles." + (f" {skipped} piece(s) that do not close were left out." if skipped else "")}
+            sha = out["blob"]
         _keep(sha, shape, cols)
-        out = {"blob": sha, "coloured": len(cols), "structure": built}
     elif ext in ("igs", "iges"):
         shape, cols, how = K.read_iges(data)
         out = {"blob": blobs.put(K.to_step_coloured(shape, cols, name) if cols else K.to_step(shape, name)), "iges": how}
         _keep(out["blob"], shape, cols)
         if how == "sewn":
             out["warning"] = "The IGES file held surfaces only — they were sewn into a closed solid."
+        elif how == "partly":
+            n_loose = K.face_count(K.loose_faces(shape))
+            out["warning"] = (f"The IGES file held surfaces only — they were sewn into {K.solids(shape)} closed solid(s); {n_loose} face(s) "
+                              "do not close and are shown see-through for reference (not part of the solid).")
         elif how == "surfaces":
             out["op"] = "ref"  # (not closed: it cannot be joined or cut — shown to build around)
             out["warning"] = ("The IGES file holds surfaces that do not close into a solid (a gap or a missing face) — "
@@ -918,6 +985,12 @@ def import_assembly(a):
         shape, faces = p["shape"], K.face_count(p["shape"])
         if not faces:
             continue
+        if K.faceted(shape):  # (a tessellated part: a solid of its facets, as import_solid makes it)
+            made, _ = K.faceted_solids(shape, MESH_LIMIT)
+            if not made:
+                continue
+            shape, p = (made[0] if len(made) == 1 else K.compound(made)), {**p, "colours": {}}
+            faces = K.face_count(shape)
         bb = K.bbox(shape)
         sha = blobs.put(K.to_step_coloured(shape, p["colours"], p["name"]))
         _keep(sha, shape, p["colours"])  # (read back, the file gives the same faces in the same order)

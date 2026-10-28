@@ -615,17 +615,23 @@ def api_blob_get(sha):
 @app.post("/api/model/import")
 def api_model_import():
     """A STEP / IGES / STL / OBJ file -> a solid step for a 3D model: {blob, faces, bbox, volume, op?, warning?} (form:
-    file, rid). An IGES of surfaces that do not close comes as op "ref" (a reference body) with a warning."""
+    file, rid). An IGES of surfaces that do not close comes as op "ref" (a reference body) with a warning. Several files
+    (an assembly STEP and the part files it refers to, picked together): the top one opens, with the others."""
     from auto3d.modeler import blobs
-    f = request.files.get("file")
-    if f is None:
+    fs = [f for f in request.files.getlist("file") if f]
+    if not fs:
         return jsonify({"error": "No file uploaded."}), 400
-    name = f.filename or "part.step"
+    name = fs[0].filename or "part.step"
     try:
         with progress.operation(request.form.get("rid")):
             progress.report(f"Reading {name}")
-            sha = blobs.put(f.read())
-            res, err = _model_call("import_solid", {"blob": sha, "name": name})
+            if len(fs) > 1:
+                files = {f.filename or f"part{i}.step": blobs.put(f.read()) for i, f in enumerate(fs)}
+                res, err = _model_call("import_solid", {"files": files}, timeout=600)
+                name = (res or {}).get("name") or name
+            else:
+                sha = blobs.put(fs[0].read())
+                res, err = _model_call("import_solid", {"blob": sha, "name": name})
     except progress.Cancelled:
         return jsonify({"error": "Import cancelled.", "cancelled": True}), 409
     if err:

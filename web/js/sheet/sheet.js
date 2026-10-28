@@ -47,6 +47,8 @@ const FRAME_CHOICES = [['simple', 'Simple (10 mm)', 'A thin frame 10 mm from the
   ['narrow', 'Narrow', '5 mm all round — the most room for the views'], ['none', 'None', 'No frame line (10 mm left free for the printer)'], ['custom', 'Custom…', 'Your own margins, line, zones and centring marks']];
 /** The standard drawing scales (ISO 5455) offered in the scale choices; Custom… takes any, e.g. 1:2522. */
 const SCALE_LIST = [[10, 1], [5, 1], [2, 1], [1, 1], [1, 2], [1, 5], [1, 10], [1, 20], [1, 50], [1, 100]];
+/** [min, max] of many numbers (a spread into Math.min overflows the stack past ~100 000). */
+const span = (vs) => vs.reduce(([lo, hi], v) => [Math.min(lo, v), Math.max(hi, v)], [Infinity, -Infinity]);
 /** A scale as written ("1:2522", "3:1", "1/5", "0.5", "2") -> [a, b] (both above 0), or null (as sheet.parse_scale). */
 export function parseScale(text) {
   const m = /^\s*(\d+(?:[.,]\d+)?)\s*(?:[:/]\s*(\d+(?:[.,]\d+)?))?\s*$/.exec(String(text ?? ''));
@@ -453,7 +455,8 @@ export class SheetEditor {
     const P = polys.map((pl) => pl.map((q) => this.P(v, q))), rot = (q) => [(q[0] + q[1]) / Math.SQRT2, (q[1] - q[0]) / Math.SQRT2];
     const back = (u, w) => [(u - w) / Math.SQRT2, (u + w) / Math.SQRT2], R = P.map((pl) => pl.map(rot)), ws = R.flat().map((q) => q[1]);
     const out = [];
-    for (let w = Math.ceil(Math.min(...ws) / 2) * 2; w <= Math.max(...ws); w += 2) {
+    const [w0, w1] = span(ws);
+    for (let w = Math.ceil(w0 / 2) * 2; w <= w1; w += 2) {
       const xs = [];
       for (const pl of R) for (let i = 0; i < pl.length; i++) {
         const a = pl[i], b = pl[(i + 1) % pl.length];
@@ -579,7 +582,7 @@ export class SheetEditor {
     }
     if (!this.d.off.Iso && G.iso?.length) { // the iso view: fitted into its cell
       const pts = G.iso.flat(), xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
-      const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+      const [x0, x1, y0, y1] = [...span(xs), ...span(ys)]; // (not Math.min(...xs): a big part's 100 000 points overflow the stack)
       const [cx, cy, size] = this.d.views.Iso ? [...this.d.views.Iso, L.iso[2]] : L.iso;
       const k = this.d.vscale?.Iso ? this.vs('Iso') : size / Math.max(x1 - x0, y1 - y0, 1e-6); // (fitted into its cell, or at its own scale)
       this.isoMap = { at: (q) => [cx + (q[0] - (x0 + x1) / 2) * k, cy - (q[1] - (y0 + y1) / 2) * k], c: [cx, cy] };

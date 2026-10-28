@@ -37,7 +37,7 @@ from OCP.Bnd import Bnd_Box
 from OCP.GCPnts import GCPnts_TangentialDeflection
 from OCP.GeomAbs import GeomAbs_Circle, GeomAbs_Cylinder, GeomAbs_Plane
 from OCP.GProp import GProp_GProps
-from OCP.gp import gp_Ax1, gp_Ax2, gp_Circ, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec
+from OCP.gp import gp_Ax1, gp_Ax2, gp_Circ, gp_Dir, gp_Pln, gp_Pnt, gp_Trsf, gp_Vec
 from OCP.IFSelect import IFSelect_RetDone
 from OCP.Interface import Interface_Static
 from OCP.STEPControl import STEPControl_AsIs, STEPControl_Reader
@@ -1265,13 +1265,67 @@ def round_edges(body, edges, r, fid, chamfer=False):
     return Body(res, names)
 
 
+FLAT_TOL = 1e-5  # mm: a free-form face (a B-spline) this close to a plane counts as flat
+
+
+def flat_plane(face, s=None):
+    """A flat face's plane (gp_Pln, its normal as the surface's own — before the face's orientation), or None: a plane,
+    or a B-spline / Bézier surface flat within FLAT_TOL (I-DEAS, Inventor's IGES store flat faces so)."""
+    from OCP.GeomAbs import GeomAbs_BezierSurface, GeomAbs_BSplineSurface
+    s = s or BRepAdaptor_Surface(face, True)
+    kind = s.GetType()
+    if kind == GeomAbs_Plane:
+        return s.Plane()
+    if kind not in (GeomAbs_BSplineSurface, GeomAbs_BezierSurface):
+        return None
+    from OCP.GeomLib import GeomLib_IsPlanarSurface
+    try:
+        surf = BRep_Tool.Surface_s(face)
+        if surf is None:
+            return None
+        test = GeomLib_IsPlanarSurface(surf, FLAT_TOL)
+        if not test.IsPlanar():
+            return None
+        pln = test.Plan()
+        u, v = (s.FirstUParameter() + s.LastUParameter()) / 2, (s.FirstVParameter() + s.LastVParameter()) / 2
+        p, du, dv = gp_Pnt(), gp_Vec(), gp_Vec()
+        s.D1(u, v, p, du, dv)
+        own = du.Crossed(dv)
+    except Exception:  # noqa: BLE001 — a degenerate surface: not flat
+        return None
+    if own.Magnitude() > 1e-12 and own.Dot(gp_Vec(pln.Axis().Direction())) < 0:
+        pln = gp_Pln(pln.Location(), pln.Axis().Direction().Reversed())
+    return pln
+
+
+def smooth_edges(body, edges):
+    """How many of the edges are smooth: the two faces meet there without a corner (tangent: a rounding the file
+    already has) — no fillet or chamfer can go on such an edge."""
+    from OCP.BRepLib import BRepLib
+    from OCP.GeomAbs import GeomAbs_C0
+    em = _C.IndexedDataMap_TopoDS_Shape_List_TopoDS_Shape_TopTools_ShapeMapHasher()
+    TopExp.MapShapesAndAncestors_s(body.shape, TopAbs_EDGE, TopAbs_FACE, em)
+    n = 0
+    for e in edges:
+        k = em.FindIndex(e)
+        faces = list(em.FindFromIndex(k)) if k else []
+        if len(faces) != 2:
+            continue
+        try:
+            if BRepLib.ContinuityOfFaces_s(TopoDS.Edge(e), TopoDS.Face(faces[0]), TopoDS.Face(faces[1]), math.radians(1)) != GeomAbs_C0:
+                n += 1
+        except Exception:  # noqa: BLE001 — (cannot tell: counted as sharp)
+            pass
+    return n
+
+
 def plane_of(face):
     """A planar face -> (its centre, outward normal) or None."""
     face = TopoDS.Face(face)  # names hold faces as plain shapes (from OpenCASCADE's history)
-    s = BRepAdaptor_Surface(face, True)
-    if s.GetType() != GeomAbs_Plane:
+    pln = flat_plane(face)
+    if pln is None:
         return None
-    d = s.Plane().Axis().Direction()
+    d = pln.Axis().Direction()
     n = np.array([d.X(), d.Y(), d.Z()])
     if face.Orientation() == TopAbs_REVERSED:
         n = -n
@@ -1310,13 +1364,45 @@ def face_span(faces, fr):
 
 
 # ------------------------------------------------------------------ queries
+HEAVY_FACES = 3000  # an imported model with more faces than this is handled more roughly (else minutes per step)
+_QUICK = (GeomAbs_Plane, GeomAbs_Cylinder)  # the surfaces the quick (fixed Gauss) volume rule gets right
+
+
 def volume(shape):
+    """The volume of the shape's solids — loose faces beside them (a file's reference surfaces) do not count; a shape
+    with no solid: what its faces enclose (a closed shell). A solid with faces other than planes and cylinders is
+    integrated adaptively: the quick fixed rule was hundreds of mm³ off on a B-spline balloon (a cut "raised" its
+    volume) and 214 mm³ on the spherical head of CATIA's S1."""
+    solid_list = list(_subshapes(shape, TopAbs_SOLID))
+    if len(solid_list) > 1:  # (the solids only, without the loose faces beside them)
+        if sum(face_count(s) for s in solid_list) > HEAVY_FACES:  # a big model: the quick rule (exact enough there, 3 x quicker)
+            p = GProp_GProps()
+            BRepGProp.VolumeProperties_s(compound(solid_list), p)
+            return p.Mass()
+        return sum(volume(s) for s in solid_list)  # (each on its own: the adaptive rule's error is relative to what it sums)
+    whole = solid_list[0] if solid_list else shape
+    if face_count(whole) > HEAVY_FACES:
+        p = GProp_GProps()
+        BRepGProp.VolumeProperties_s(whole, p)
+        return p.Mass()
+    other, ex = False, TopExp_Explorer(whole, TopAbs_FACE)
+    while ex.More() and not other:
+        f = TopoDS.Face(ex.Current())
+        other = BRep_Tool.Surface_s(f) is not None and BRepAdaptor_Surface(f, False).GetType() not in _QUICK
+        ex.Next()
     p = GProp_GProps()
-    BRepGProp.VolumeProperties_s(shape, p)
+    if other:  # (the whole solid so: its planes, trimmed by the other faces' curved edges, need it as well)
+        BRepGProp.VolumeProperties_s(whole, p, 1e-7, False)
+    else:
+        BRepGProp.VolumeProperties_s(whole, p)
     return p.Mass()
 
 
-HEAVY_FACES = 3000  # an imported model with more faces than this is handled more roughly (else minutes per step)
+def _subshapes(shape, kind):
+    ex = TopExp_Explorer(shape, kind)
+    while ex.More():
+        yield ex.Current()
+        ex.Next()
 
 
 def face_count(shape):
@@ -1396,7 +1482,7 @@ def tessellate(body, light=False):
             w = np.bincount(ids, ar * mid[:, c], minlength=nf)
             m = np.bincount(ids, mid[:, c], minlength=nf)
             cms[:, c] = np.where(area > 0, w / np.where(area > 0, area, 1), m / np.maximum(n_tri, 1))
-    faces = []
+    faces, cls = [], {}  # (cls: the solid's classifier, set up once for all its flat faces)
     for fi, (f, rev, t) in enumerate(mesh):
         on_face = t[0].mean(axis=0) if len(t) else None  # a point on the face (a triangle's middle — a ring's centre is not on it)
         if heavy:
@@ -1404,7 +1490,7 @@ def tessellate(body, light=False):
         else:
             info = _face_info(f, fi, rev)
         if info.get("type") == "plane" and on_face is not None and not heavy:
-            _outward(shape, info, on_face, size)
+            _outward(shape, info, on_face, size, cls)
         if fi in solid_of:
             info["solid"] = solid_of[fi]
         nm = names.get(fi, [])
@@ -1456,16 +1542,23 @@ def _face_triangles(f):
     return nodes[k[:, [0, 2, 1]] if f.Orientation() == TopAbs_REVERSED else k]
 
 
-def _outward(shape, info, point, size):
+def _outward(shape, info, point, size, cls=None):
     """A flat face's normal made to point out of the solid: a point a hair along it, from a point on the face, must
-    be outside (a revolved solid can come with its faces' orientation the other way round)."""
+    be outside (a revolved solid can come with its faces' orientation the other way round). cls: a dict keeping the
+    solid's classifier for the next face (set up once: per face it took 40 s on a 1 700-face part)."""
     from OCP.BRepClass3d import BRepClass3d_SolidClassifier
     from OCP.TopAbs import TopAbs_IN
     n = np.asarray(info["normal"], float)
     eps = max(size * 1e-4, 1e-4)
     q = np.asarray(point, float) + n * eps
     try:
-        inside = BRepClass3d_SolidClassifier(shape, gp_Pnt(*map(float, q)), eps * 0.1).State() == TopAbs_IN
+        c = (cls or {}).get("c")
+        if c is None:
+            c = BRepClass3d_SolidClassifier(shape)
+            if cls is not None:
+                cls["c"] = c
+        c.Perform(gp_Pnt(*map(float, q)), eps * 0.1)
+        inside = c.State() == TopAbs_IN
     except Exception:  # noqa: BLE001 — not a closed solid: keep what the face says
         return
     if inside:
@@ -1490,8 +1583,9 @@ def _face_info(f, fi, rev, rough=None, tris=None):
         c = p.CentreOfMass()
         info = {"id": fi, "area": p.Mass(), "centroid": _round((c.X(), c.Y(), c.Z()))}
     kind = s.GetType()
-    if kind == GeomAbs_Plane:
-        n = s.Plane().Axis().Direction().Coord()
+    pln = flat_plane(f, s)
+    if pln is not None:
+        n = pln.Axis().Direction().Coord()
         if rev:
             n = tuple(-v for v in n)
         info["type"] = "plane"
@@ -1872,49 +1966,121 @@ def _ascii(text):
     return "".join(c for c in s if c.isascii() and not unicodedata.combining(c))
 
 
-def sewn_solid(shape, tol=0.01):
-    """Loose faces (an IGES of trimmed surfaces, as many programs write it) sewn together -> closed solids (one, or a
-    compound of them), or None when they do not close (a gap wider than tol mm, a missing face)."""
+def sewn_solids(faces, tol=0.01):
+    """Loose faces (an IGES of trimmed surfaces, as many programs write it) sewn together -> (closed solids, the faces
+    left over): each piece that closes (no gap wider than tol mm, no face missing) is a solid of its own — an
+    assembly's IGES gives a solid per body — the others (and a closed piece that is not a valid solid) stay faces."""
     from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeSolid, BRepBuilderAPI_Sewing
+    from OCP.BRepCheck import BRepCheck_Analyzer
     from OCP.ShapeFix import ShapeFix_Solid
     from OCP.TopAbs import TopAbs_SHELL
     sew = BRepBuilderAPI_Sewing(tol)
-    ex = TopExp_Explorer(shape, TopAbs_FACE)
-    while ex.More():
-        sew.Add(ex.Current())
-        ex.Next()
+    for f in faces:
+        sew.Add(f)
     sew.Perform()
-    if sew.NbFreeEdges():
-        return None  # (open: an edge with a face on one side only)
-    out, ex = [], TopExp_Explorer(sew.SewedShape(), TopAbs_SHELL)
+    sewed, out, left = sew.SewedShape(), [], []
+    for shell in _subshapes(sewed, TopAbs_SHELL):
+        solid = None
+        if BRep_Tool.IsClosed_s(shell):  # (closed: every edge has a face on both sides)
+            fix = ShapeFix_Solid(BRepBuilderAPI_MakeSolid(TopoDS.Shell(shell)).Solid())
+            fix.Perform()
+            # (and valid: a cut through a body that closes but is broken took thousands of mm³ off the valve's IGES)
+            if volume(fix.Solid()) > 0 and BRepCheck_Analyzer(fix.Solid()).IsValid():
+                solid = fix.Solid()
+        if solid is None:
+            left += list(_subshapes(shell, TopAbs_FACE))
+        else:
+            out.append(solid)
+    ex = TopExp_Explorer(sewed, TopAbs_FACE, TopAbs_SHELL)  # (a face sewn to nothing)
     while ex.More():
-        fix = ShapeFix_Solid(BRepBuilderAPI_MakeSolid(TopoDS.Shell(ex.Current())).Solid())
-        fix.Perform()
-        out.append(fix.Solid())
+        left.append(ex.Current())
         ex.Next()
-    if not out or any(volume(s) <= 0 for s in out):
+    return out, left
+
+
+def sewn_solid(shape, tol=0.01):
+    """Loose faces sewn together -> closed solids (one, or a compound of them), or None when they do not all close."""
+    out, left = sewn_solids(list(_subshapes(shape, TopAbs_FACE)), tol)
+    if not out or left:
         return None
     return out[0] if len(out) == 1 else compound(out)
 
 
 def read_iges(data: bytes):
     """An IGES file -> (shape, {face index: "#rrggbb"}, how): its solids as they are (how "solid"); surfaces only
-    sewn into closed solids where they close ("sewn"); else the surfaces as they are ("surfaces": not a solid)."""
+    sewn into closed solids where they close ("sewn"; "partly": some pieces do not close — they stay loose faces beside
+    the solids, shown for reference); else the surfaces as they are ("surfaces": not a solid). Pieces that do not close
+    at 0.01 mm are sewn again with a tolerance of 1 / 10 000 of the model's size (a model drawn in metres)."""
     shape, colours = read_step_colours(data, kind="iges")
     if face_count(shape) == 0:
         raise KernelError("The IGES file has no faces in it (only curves?) — there is nothing to make a 3D model of.")
     if solids(shape):
         return shape, colours, "solid"
-    sewn = sewn_solid(shape)
-    if sewn is not None:
-        return sewn, {}, "sewn"
-    return shape, colours, "surfaces"
+    got, left = sewn_solids(list(_subshapes(shape, TopAbs_FACE)))
+    bb = bbox(shape) or [0, 0, 0, 0, 0, 0]
+    loose = max(bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2]) * 1e-4
+    if left and loose > 0.02:
+        more, left = sewn_solids(left, loose)
+        got += more
+    if not got:
+        return shape, colours, "surfaces"
+    if not left:
+        return (got[0] if len(got) == 1 else compound(got)), {}, "sewn"
+    return compound(got + left), {}, "partly"
 
 
-def solid_body(shape, fid):
-    """A solid made elsewhere (a STEP file, a quick part) as a body; its faces are named <fid>:f<k>."""
+def loose_faces(shape):
+    """The faces of a shape that belong to no solid (a STEP's reference surfaces beside its solid, an IGES's surfaces
+    that do not close) as one compound, or None. They take no part in the volume, the mass or the booleans."""
+    if not solids(shape):
+        return None
+    inside = ShapeMap()
+    for s in _subshapes(shape, TopAbs_SOLID):
+        TopExp.MapShapes_s(s, TopAbs_FACE, inside)
+    out = [f for f in _subshapes(shape, TopAbs_FACE) if not inside.Contains(f)]
+    return compound(out) if out else None
+
+
+def solid_body(shape, fid, whole=False):
+    """A solid made elsewhere (a STEP file, a quick part) as a body; its faces are named <fid>:f<k> (k: the face's
+    place in the whole file's shape — its colours are found by it). Loose faces beside its solids are left out (see
+    loose_faces); whole: kept (a reference body)."""
     fm = _face_map(shape)
-    return Body(shape, {f"{fid}:f{k}": [fm.FindKey(k + 1)] for k in range(fm.Extent())})
+    names = {f"{fid}:f{k}": [fm.FindKey(k + 1)] for k in range(fm.Extent())}
+    loose = None if whole else loose_faces(shape)
+    if loose is None:
+        return Body(shape, names)
+    solid_list = list(_subshapes(shape, TopAbs_SOLID))
+    body = solid_list[0] if len(solid_list) == 1 else compound(solid_list)
+    inside = _face_map(body)
+    return Body(body, {n: fs for n, fs in names.items() if inside.Contains(fs[0])})
+
+
+def faceted(shape):
+    """Does the shape hold faces with no surface — only triangles (a tessellated AP242 STEP)?"""
+    return any(BRep_Tool.Surface_s(TopoDS.Face(f)) is None for f in _subshapes(shape, TopAbs_FACE))
+
+
+def faceted_solids(shape, limit=None):
+    """A tessellated STEP's closed bodies (its triangles, no exact surfaces) -> (solids made of their flat facets
+    (mesh_solid), how many pieces did not close). limit: at most so many triangles in all (else KernelError)."""
+    from OCP.TopAbs import TopAbs_SHELL
+    pieces = list(_subshapes(shape, TopAbs_SOLID))
+    ex = TopExp_Explorer(shape, TopAbs_SHELL, TopAbs_SOLID)  # (a shell of its own, not in a solid)
+    while ex.More():
+        pieces.append(ex.Current())
+        ex.Next()
+    tris = [np.concatenate([_face_triangles(TopoDS.Face(f)) for f in _subshapes(p, TopAbs_FACE)] or [np.zeros((0, 3, 3))]) for p in pieces]
+    n = sum(len(t) for t in tris)
+    if limit and n > limit:
+        raise KernelError(f"MESH_TOO_BIG This tessellated STEP has {n} triangles — more than {limit} take too long to become a solid.")
+    out, skipped = [], 0
+    for t in tris:
+        try:
+            out.append(mesh_solid(t))
+        except KernelError:
+            skipped += 1
+    return out, skipped
 
 
 def from_step(data: bytes):
@@ -1926,23 +2092,30 @@ def from_step(data: bytes):
         if r.ReadFile(path) != IFSelect_RetDone:
             raise KernelError("The STEP file could not be read.")
         r.TransferRoots()
-        return r.OneShape()
+        return turned_out(r.OneShape())
     finally:
         os.unlink(path)
 
 
-def _read_xcaf(data: bytes, kind="step"):
+def _read_xcaf(data: bytes, kind="step", files=None):
     """A STEP (or IGES: kind "iges") file read with its names, colours and assembly tree -> (the XCAF document, its
-    shape tool). Keep the document while its labels are used."""
+    shape tool). Keep the document while its labels are used. files {name: bytes}: the part files an assembly STEP
+    refers to (external references: CATIA writes an assembly so) — put beside it, read with it."""
     from OCP.IGESCAFControl import IGESCAFControl_Reader
     from OCP.STEPCAFControl import STEPCAFControl_Reader
     from OCP.TCollection import TCollection_ExtendedString
     from OCP.TDocStd import TDocStd_Document
     from OCP.XCAFDoc import XCAFDoc_DocumentTool
-    fd, path = tempfile.mkstemp(suffix=".igs" if kind == "iges" else ".step")
-    with os.fdopen(fd, "wb") as fh:
-        fh.write(data)
-    try:
+    # (a folder of its own: OpenCASCADE looks for referenced files beside the file — only those given are there)
+    with tempfile.TemporaryDirectory(prefix="a3d-") as tmp:
+        path = os.path.abspath(os.path.join(tmp, "__a3d_main" + (".igs" if kind == "iges" else ".step")))
+        with open(path, "wb") as fh:
+            fh.write(data)
+        for name, blob in (files or {}).items():
+            base = os.path.basename(str(name).replace("\\", "/"))
+            if base and not base.startswith("__a3d_main"):
+                with open(os.path.join(tmp, base), "wb") as fh:
+                    fh.write(blob)
         doc = TDocStd_Document(TCollection_ExtendedString(kind))
         r = IGESCAFControl_Reader() if kind == "iges" else STEPCAFControl_Reader()
         r.SetColorMode(True)
@@ -1950,15 +2123,27 @@ def _read_xcaf(data: bytes, kind="step"):
         if r.ReadFile(path) != IFSelect_RetDone:
             raise KernelError(f"The {kind.upper()} file could not be read.")
         r.Transfer(doc)
-    finally:
-        os.unlink(path)
     return doc, XCAFDoc_DocumentTool.ShapeTool_s(doc.Main())
+
+
+def external_refs(data: bytes):
+    """The part files a STEP refers to (external references: DOCUMENT_FILE('TAIL.stp' …), CATIA's assemblies) ->
+    their names, in the file's order; [] for a file that holds all its geometry."""
+    text = data.decode("latin-1", errors="replace")
+    out = []
+    for m in re.finditer(r"DOCUMENT_FILE\s*\(\s*'([^']+)'", text, re.I):
+        name = m.group(1).strip()
+        if re.search(r"\.(stp|step|p21)$", name, re.I) and name not in out:
+            out.append(name)
+    return out
 
 
 def _label_colour(label):
     """A label's own colour (surface, else generic) -> "#rrggbb" or None."""
     from OCP.Quantity import Quantity_Color
     from OCP.XCAFDoc import XCAFDoc_ColorTool, XCAFDoc_ColorType
+    if label is None or label.IsNull():
+        return None
     col = Quantity_Color()
     for kind in (XCAFDoc_ColorType.XCAFDoc_ColorSurf, XCAFDoc_ColorType.XCAFDoc_ColorGen):
         if XCAFDoc_ColorTool.GetColor_s(label, kind, col):
@@ -1969,6 +2154,8 @@ def _label_colour(label):
 def _label_name(label):
     """A label's name ("" when it has none, or only the text of the program that wrote the file)."""
     from OCP.TDataStd import TDataStd_Name
+    if label is None or label.IsNull() or not label.IsAttribute(TDataStd_Name.GetID_s()):
+        return ""  # (FindAttribute on a label without a name crashes the process: CATIA's AP242 has such assemblies)
     a = TDataStd_Name()
     if label.FindAttribute(TDataStd_Name.GetID_s(), a):
         n = a.Get().ToExtString().strip()
@@ -2003,8 +2190,8 @@ def _components(st, label):
     out = []
     for i in range(1, comps.Length() + 1):
         c, ref = comps.Value(i), TDF_Label()
-        st.GetReferredShape_s(c, ref)
-        out.append((c, ref))
+        if st.GetReferredShape_s(c, ref) and not ref.IsNull():  # (a component pointing nowhere: skipped)
+            out.append((c, ref))
     return out
 
 
@@ -2017,37 +2204,50 @@ def _free_labels(st):
 
 def step_structure(st, free=None):
     """How the file is built: {parts (different ones), placements (of parts, all levels), subs (sub-assemblies)} —
-    {parts: 1, placements: 1} for a plain one-body STEP."""
-    parts, subs, n = set(), set(), [0]
+    {parts: 1, placements: 1} for a plain one-body STEP. A product with no faces (Pro/E writes an empty one beside
+    each solid) is not counted, nor a sub-assembly holding none: the count is what opening it as an assembly gives."""
+    parts, subs, n, empty = set(), set(), [0], {}
+
+    def has_faces(label):
+        k = _label_key(label)
+        if k not in empty:
+            empty[k] = face_count(st.GetShape_s(label)) == 0
+        return not empty[k]
 
     def walk(label):
         if st.IsAssembly_s(label):
+            got = 0
             for _, ref in _components(st, label):
-                if st.IsAssembly_s(ref):
+                inner = walk(ref)
+                if inner and st.IsAssembly_s(ref):
                     subs.add(_label_key(ref))
-                walk(ref)
-        else:
-            parts.add(_label_key(label))
-            n[0] += 1
+                got += inner
+            return got
+        if not has_faces(label):
+            return 0
+        parts.add(_label_key(label))
+        n[0] += 1
+        return 1
 
     for lb in _free_labels(st) if free is None else free:
         walk(lb)
     return {"parts": len(parts), "placements": n[0], "subs": len(subs)}
 
 
-def read_step_tree(data: bytes):
+def read_step_tree(data: bytes, files=None):
     """A STEP assembly as its tree: {root, parts: {key: {name, shape, colours {face index: "#rrggbb"}}},
     assemblies: {key: {name, instances: [{ref, name, matrix: [16], colour?}]}}} — each different part once (placed
-    several times: one part, several instances), sub-assemblies nested. Several top shapes go under one root."""
+    several times: one part, several instances), sub-assemblies nested. Several top shapes go under one root. files:
+    the part files it refers to (as for _read_xcaf)."""
     from OCP.collections import Sequence_TDF_Label
-    doc, st = _read_xcaf(data)  # noqa: F841 — (the document holds the labels)
+    doc, st = _read_xcaf(data, files=files)  # noqa: F841 — (the document holds the labels)
     parts, asms = {}, {}
 
     def part(label):
         k = _label_key(label)
         if k in parts:
             return k
-        shape = st.GetShape_s(label)
+        shape = turned_out(st.GetShape_s(label))  # (an inside-out solid: turned the right way)
         found = []  # (sub-shape, colour): later ones (a body's, a face's) win
         c = _label_colour(label)
         if c:
@@ -2097,6 +2297,22 @@ def read_step_tree(data: bytes):
     return _fold({"root": root, "parts": parts, "assemblies": asms})
 
 
+def merged_step(data: bytes, files, name="assembly"):
+    """An assembly STEP whose parts are files of their own (external references) and those files ({name: bytes}) ->
+    one STEP that holds them all: its tree, names, placements and colours (then it opens as any other)."""
+    tree = read_step_tree(data, files)
+    parts = {}
+    for k, p in tree["parts"].items():
+        if face_count(p["shape"]):
+            fm = _face_map(p["shape"])
+            parts[k] = {"name": p["name"], "shape": p["shape"], "colours": [(fm.FindKey(i + 1), c) for i, c in p["colours"].items()]}
+    if not parts:
+        raise KernelError("The file has no solid in it.")
+    asms = {k: {**a, "instances": [i for i in a["instances"] if i["ref"] in parts or i["ref"] in tree["assemblies"]]}
+            for k, a in tree["assemblies"].items()}
+    return write_step_tree(parts, asms, tree["root"], name)
+
+
 def _fold(tree):
     """A sub-assembly holding a single placement (an ECAD board wraps each component so: 2388 of them) is not kept:
     its part goes straight into the parent, the two placements multiplied; assemblies no longer used are dropped."""
@@ -2121,6 +2337,40 @@ def _fold(tree):
     tree["assemblies"] = {k: a for k, a in asms.items() if k in used}
     tree["parts"] = {k: p for k, p in tree["parts"].items() if k in used}
     return tree
+
+
+def turned_out(shape):
+    """The shape with every solid that is inside out (its faces facing in: a negative volume) turned the right way —
+    as the STEP reader's healing leaves some (CATIA's S1 head, read back from a STEP made of it). The faces stay the
+    same faces, in the same order (their colours are kept); a shape with none comes back as it is. (By the volume's
+    sign: OpenCASCADE's "is a far point inside" test is wrong on that head — the cause of the reader's mistake.)"""
+    from OCP.BRep import BRep_Builder
+    from OCP.BRepTools import BRepTools_ReShape
+    from OCP.TopoDS import TopoDS_Iterator, TopoDS_Solid
+    rs, b, n = BRepTools_ReShape(), BRep_Builder(), 0
+    for s in _subshapes(shape, TopAbs_SOLID):
+        it = TopoDS_Iterator(s)
+        turned = False
+        while it.More() and not turned:  # (only a solid whose shell is stored reversed — as the reader leaves such
+            turned = it.Value().Orientation() == TopAbs_REVERSED  # solids — is measured: 5 000 volumes took 25 s)
+            it.Next()
+        if not turned:
+            continue
+        p = GProp_GProps()
+        BRepGProp.VolumeProperties_s(s, p)  # (the quick rule: its sign is all that counts here)
+        if not p.Mass() < 0:
+            continue
+        bare, new = s.Located(TopLoc_Location()), TopoDS_Solid()
+        b.MakeSolid(new)
+        it = TopoDS_Iterator(bare, False, False)
+        while it.More():
+            b.Add(new, it.Value().Reversed())
+            it.Next()
+        new.Location(s.Location())
+        new.Orientation(s.Orientation())
+        rs.Replace(s, new)
+        n += 1
+    return rs.Apply(shape) if n else shape
 
 
 def _xcaf_tree(parts, assemblies, root, finish=False):
@@ -2311,15 +2561,16 @@ def to_step_coloured(shape, colours, name="part"):
     return to_step(shape, name, colours=[(fm.FindKey(k + 1), c) for k, c in colours.items()])
 
 
-def read_step_colours(data: bytes, summary=False, kind="step"):
+def read_step_colours(data: bytes, summary=False, kind="step", files=None):
     """A STEP with its colours: (shape, {face index (0-based, in _face_map(shape)): "#rrggbb"}). The colours of
     components, bodies and faces are followed down the file's assembly tree (a face's own colour wins). summary:
-    also how the file is built (step_structure). kind "iges": an IGES file, read the same way."""
+    also how the file is built (step_structure). kind "iges": an IGES file, read the same way. files: the part files
+    it refers to (as for _read_xcaf)."""
     from OCP.collections import Sequence_TDF_Label
     from OCP.TDF import TDF_Label
     from OCP.TopoDS import TopoDS_Compound
     from OCP.BRep import BRep_Builder
-    doc, st = _read_xcaf(data, kind)  # noqa: F841 — (the document holds the labels)
+    doc, st = _read_xcaf(data, kind, files)  # noqa: F841 — (the document holds the labels)
     free = Sequence_TDF_Label()
     st.GetFreeShapes(free)
     shapes = [st.GetShape_s(free.Value(i)) for i in range(1, free.Length() + 1)]
@@ -2337,7 +2588,8 @@ def read_step_colours(data: bytes, summary=False, kind="step"):
         c = own(label) or inherited
         if st.IsReference_s(label):  # a component: placed, its own colour over its part's
             ref = TDF_Label()
-            st.GetReferredShape_s(label, ref)
+            if not st.GetReferredShape_s(label, ref) or ref.IsNull():
+                return
             walk_part(ref, c if own(label) else (own(ref) or inherited), loc.Multiplied(st.GetLocation_s(label)))
         else:
             walk_part(label, c, loc)
@@ -2361,6 +2613,7 @@ def read_step_colours(data: bytes, summary=False, kind="step"):
     from OCP.TopLoc import TopLoc_Location
     for i in range(1, free.Length() + 1):
         walk(free.Value(i), None, TopLoc_Location())
+    shape = turned_out(shape)  # (an inside-out solid: turned the right way — the same faces)
     fm, colours = _face_map(shape), {}
     for s, c in found:
         ex = TopExp_Explorer(s, TopAbs_FACE)
