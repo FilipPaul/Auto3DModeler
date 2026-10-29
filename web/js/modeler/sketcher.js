@@ -403,14 +403,14 @@ export class Sketcher {
       };
       const up = () => {
         window.removeEventListener('pointermove', move);
-        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointerup', up, true);
         if (!moved) return;
         this.sizeDrag = null;
         this.noClickUntil = performance.now() + 300; // (the click that ends a drag does not open the value)
         this.changed();
       };
       window.addEventListener('pointermove', move);
-      window.addEventListener('pointerup', up);
+      window.addEventListener('pointerup', up, true); // (capture: the label itself stops pointerup — a plain click must end it too)
     });
     return lab;
   }
