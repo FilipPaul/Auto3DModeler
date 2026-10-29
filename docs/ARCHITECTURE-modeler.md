@@ -7,6 +7,19 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Floating boxes resize from every edge; the suggestions never show a scrollbar (2026-10-29)** (the owner: "never
+  show a scroll bar in the suggestions table, let me resize it by any edge"). floatbox.js puts invisible zones on each
+  floating box (`.fb-edge[data-dir=n|s|e|w|nw|ne|sw|se]`: 6 px along the edges, 10 px at the corners; the bottom-right
+  one stays the visible `.fb-size` grip) with the matching cursor (also while dragging: body `--fb-cur`); dragging the
+  left / top side moves the box so the right / bottom side stays put; min sizes, the view's edges, the remembered
+  place / size and the header's double-click reset as before. The zones show only on a floating box (`.fb-box`), so a
+  docked widget / docked suggestions have none; the floating table's rows are inset 6 px, clear of them.
+  `scrollFade(el)` (floatbox.js): a scroll container with a hidden scrollbar (`.fb-fade`) and a soft mask fade at the
+  edge where content is hidden (`fade-top` / `fade-bottom`, kept on scroll and resize) — the suggestions' `.vs-list`,
+  floating and docked; the wheel / touch still scroll it. Tests: e2e_floatboxes (real drags on the w / n / e edges and
+  the ne / sw corners, the cursors under the mouse at each zone, 40 rows: offsetWidth − clientWidth = 0, the fades,
+  the wheel, a click 2 px inside a row 7 px from the edge runs it, docked: no scrollbar, no zones).
+
 - **✂ Section view fixed and capped (2026-10-29)** (the AI's report: a revolved pump body cut at y = 0 showed whole, with
   a jagged ring at z = 0). Causes: a Y cut kept the half toward the iso / front cameras (x and z kept the far half), so
   the part looked uncut; a face lying in the cut (the bottom at z = 0) z-fought with the clip plane — the jagged ring;
