@@ -605,7 +605,7 @@ yellow ⚠.
   behind the part are not picked.
 - **✂ Section** cuts the view along X, Y or Z with a slider, to look inside (⇄ shows the other side): the half toward
   you is taken away and the cut faces are filled in brick red, so bores, seats and channels show (also in the AI's
-  screenshots).
+  screenshots). Opening another part or model turns the cut off.
 - The Part panel shows the size, volume and **mass** for the chosen **material** (PLA, PETG, ABS, ASA, TPU, PA;
   solid, no infill), its **surface area** and its **centre of mass** (CoG, in the part's coordinates); **⊕** next to
   it marks the centre of mass in the view.

@@ -1014,6 +1014,7 @@ export class ModelView {
     this.edgeMaterial.clippingPlanes = planes;
     this.threadMaterial.clippingPlanes = planes;
     this.material.needsUpdate = this.edgeMaterial.needsUpdate = this.threadMaterial.needsUpdate = true;
+    if (!sec) this.updateCaps(); // (no cut: its caps gone now, not at the next frame drawn)
     this.invalidate();
   }
 

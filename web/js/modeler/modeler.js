@@ -4098,13 +4098,13 @@ export class Modeler {
   }
 
   toggleSection() {
-    if (!this.result?.body) return;
-    if (this.section) {
+    if (this.section) { // (off also when the part has no solid now: rolled back, its solid step deleted, another model)
       this.section = null;
       this.view.setSection(null);
       this.$('.m-section')?.remove();
     } else {
-      const bb = this.result.body.bbox;
+      const bb = this.result?.body?.bbox;
+      if (!bb) return;
       this.section = { axis: 'y', offset: sectionMiddle(bb, 'y'), flip: false };
       this.view.setSection(this.section);
       this.renderSection();

@@ -426,7 +426,9 @@ Never report "works" without having run it; report failures with their output.
    in the part's box), X too, ✕ no caps; the AI's set_view front + section y 0 + get_screenshot: brick-red walls
    7 : 10 : 7 with the bore open, the flange 15 : 10 : 15, no oversized cap; flipped: no cap seen; z 25 from the top:
    a ring of π(12² − 5²); z 0 on the bottom face: nothing left, no flickering ring; an assembly of two: both capped,
-   four walls on a row, its ✂ button too. Exits 1 on a failure.
+   four walls on a row, its ✂ button too; cut, then rolled back to no solid and a new model / another part / another
+   assembly opened: no section, no cap mesh left in the scene; set_view section off: the caps gone at once. Exits 1 on
+   a failure.
    `tools/e2e_model_draft.py <url> <dir>` covers ⟋ Draft (5° on a block: the frustum's volume; the step's text; 60°
    refused with the most that fits; the AI's add_feature draft). Needs a server restarted after kernel changes.
    `tools/e2e_model_draft_rib.py <url> <dir>` covers an extrude's Draft field (5° on a block: the prismatoid's
