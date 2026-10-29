@@ -293,6 +293,9 @@ try:
     print("    get_bom totals:", {r["name"]: r["total"] for r in b["rows"]}, "| Flange 3 (1 × 2 + 1):",
           next(r["total"] for r in b["rows"] if r["name"] == "Flange") == 3)
     tool("get_bom", assembly="Pair", mode="structured")
+    # ⚙ a mechanism: none in a rack of loose parts (refused, it says why); a loose part's motion cannot be named
+    print("    drive_mechanism, no mechanism:", tool("drive_mechanism", to=90)[0][:100])
+    print("    name_motion, not joined:", tool("name_motion", part="I1", motion=0, name="Turn")[0][:100])
     tool("open_part", id="Flange")
     tool("prepare_print")
     tool("check_print")

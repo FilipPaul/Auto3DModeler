@@ -1,7 +1,7 @@
 # PyInstaller spec: the one-folder Windows build of Auto3DModeler (docs/DISTRIBUTION.md).
 # Run through tools/build/build.py (it makes the venv, BUILD.json and the icon first):
 #   <venv>\Scripts\python -m PyInstaller tools/build/auto3d.spec --distpath dist --workpath build/pyi --noconfirm
-# Result: dist/Auto3DModeler/Auto3DModeler.exe + _internal/ (Python, the packages, web/, library/, agent_plugin/).
+# Result: dist/Auto3DModeler/Auto3DModeler.exe + _internal/ (Python, the packages, web/, library/, agent_plugin/, demos/).
 import importlib.util
 from pathlib import Path
 
@@ -27,6 +27,7 @@ def libs_of(package):
 
 
 datas = [(str(ROOT / "web"), "web"), (str(ROOT / "library"), "library"), (str(ROOT / "agent_plugin"), "agent_plugin"),
+         (str(ROOT / "demos"), "demos"),  # 🎬 the demo projects (read-only: opened as a copy)
          (str(ROOT / "initial draft.pdf"), ".")]
 if (STAGE / "BUILD.json").exists():
     datas.append((str(STAGE / "BUILD.json"), "."))

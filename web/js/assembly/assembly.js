@@ -14,6 +14,8 @@
 //   placement only (in the sub-assembly's frame; innerAsm / keepInner); its own document stays as it is
 //   "light": {"P3": true | false} — 🪶 a part shown simplified (true) or with full data (false); not said: a big
 //   imported part (thousands of faces) is simplified
+//   an instance's "moveNames": {"J3:turn": "crank"} — a free motion's own name (nameMotion); "mechs": the ⚙ Mechanism
+//   widget's names, drivers and speeds (mechanism.js)
 import * as THREE from 'three';
 import { History } from '../history.js';
 import { t } from '../i18n.js';
@@ -40,6 +42,8 @@ import { stepTree } from './stepfile.js';
 import { bomOf, bomCsv, instanceTree } from './bom.js';
 import { openBomWindow } from './bomview.js';
 import { kindIcon, fromLibrary } from '../parts.js';
+import { MechanismPanel, driveTo } from './mechanism.js';
+import { startDrag } from './drag.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -304,9 +308,11 @@ export class Assembly {
     this.jointType = 'touch';
     this.explode = 0;
     this.history = new History({
-      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [] }),
+      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [], ...(this.doc.mechs?.length ? { mechs: this.doc.mechs } : {}) }),
       restore: async (s) => {
+        this.mech?.stop(false);
         this.doc.instances = s.instances; this.doc.mates = s.mates || []; this.doc.bolts = s.bolts || []; this.mode = 'idle'; this.bolt = null;
+        if (s.mechs) this.doc.mechs = s.mechs; else delete this.doc.mechs;
         this.syncDrills(); // the holes drilled for bolts: back as they were
         this.tidyCopies(); // (⧉ its own part undone: its copy goes too)
         this.render();
@@ -316,6 +322,7 @@ export class Assembly {
     });
     this.build();
     this.view = new AsmView(this.els.view, { cube: true });
+    this.mech = new MechanismPanel(this); // (⚙ Mechanism: a widget of the left column while there is one)
     this.bindPointer();
     this.render();
     window.addEventListener('a3d:lang', () => this.render()); // (texts built with t(): in the new language)
@@ -332,7 +339,7 @@ export class Assembly {
     this.$ = (s) => viewport.querySelector(s) || left.querySelector(s) || right.querySelector(s);
   }
 
-  render() { this.renderBar(); this.renderList(); this.renderProps(); this.renderStatus(); this.renderSuggest(); showSnapFilters(this.els.viewport, this.doc.instances.length > 0); }
+  render() { this.mech?.render(); this.renderBar(); this.renderList(); this.renderProps(); this.renderStatus(); this.renderSuggest(); showSnapFilters(this.els.viewport, this.doc.instances.length > 0); }
 
   /** The suggestions for faces picked with no tool on: one face — the joints it can start (then a face of another
    *  part); two faces of two parts (Ctrl+click) — the joints that fit them (two round: concentric; two flat: touch,
@@ -418,6 +425,7 @@ export class Assembly {
     const light = this.bodies[a.part]?.body?.light;
     return [ // (the most relevant first: join it, open / edit its part, fix it)
       { icon: '🔗', label: t(joined ? 'Join it to one more part' : 'Join it to another part'), run: () => this.startJoint('touch', a.id) },
+      ...(this.mech?.list.some((m) => m.parts.includes(a.id)) ? [{ icon: '⚙', label: t('Drive the mechanism'), title: t('One slider moves the whole mechanism — ▶ plays it'), run: () => this.mech.open(a.id) }] : []),
       ...(this.hooks.openPart ? [{ icon: this.kindOf(a.part) === 'assembly' ? '◇' : '◆', label: t('Open its part'), title: t('Change it in its own tab (the assembly follows)'), run: () => this.hooks.openPart(a.part) }] : []),
       ...(this.hooks.editInPlace && model ? [this.editable(a.part)
         ? { icon: '✎', label: t('Edit it here'), title: t('Change its part here, the rest of the assembly see-through around it'), run: () => this.editInPlace(a.id) }
@@ -492,6 +500,7 @@ export class Assembly {
       ${btn('section', '✂ Section', 'Look inside: cut the view along X, Y or Z', `tool ${this.section ? 'on' : ''}`)}
       ${btn('clashes', this.clashLabel(), 'Where parts overlap (go into each other) — checked after every change; click: the list, each one shown in the view', `tool ${this.clashPanel ? 'on' : ''} ${this.clashes?.length ? 'bad' : this.clashes ? 'good' : ''}`)}
       ${btn('fasteners', '🔩 Fasteners', 'Screws, heat-set inserts and pins where holes line up across parts — suggested, added with one click', `tool ${this.fastenerPanel ? 'on' : ''}`)}
+      ${this.mech?.list.length ? btn('mech', '⚙ Mechanism', 'The mechanisms of this assembly: one slider each moves all of its parts, ▶ plays it', `tool ${this.mech.closed ? '' : 'on'}`) : ''}
       ${this.hooks.newSheet ? btn('sheet', '📄 Drawing', 'The assembly\'s drawing sheet to edit: its views, overall sizes, parts list and balloons — it follows the assembly; 📄 Drawings (PDF) in the panel makes the whole set', 'tool') : ''}
       <span class="sep"></span>
       <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
@@ -537,6 +546,7 @@ export class Assembly {
     if (a === 'clashes') return this.toggleClashes();
     if (a === 'section') return this.toggleSection();
     if (a === 'sheet') { this.hooks.newSheet?.(); return null; }
+    if (a === 'mech') { this.mech.toggle(); return null; }
     if (a === 'fasteners') { this.fastenerPanel = !this.fastenerPanel; this.sel = null; this.render(); this.draw(); return null; }
     if (a === 'undo') return this.history.go(-1);
     if (a === 'redo') return this.history.go(1);
@@ -1775,6 +1785,8 @@ export class Assembly {
     for (const k of Object.keys(this.bodies)) if (k.includes('@') && !used.has(k)) delete this.bodies[k]; // (moved inside no more)
     this.applyMates();
     this.draw();
+    this.mech?.render(); // (the loops are known now: ⚙ Mechanism and its button)
+    this.renderBar();
     this.renderList();
     this.renderProps();
     if (cancelled) { this.hooks.toast(t('Cancelled — the parts not built are shown as they were (a change builds them).'), 'info', 6000); return; } // (no clash check either)
@@ -2268,6 +2280,7 @@ export class Assembly {
       cands.push({ kind: 'turn', dir: new THREE.Vector3(...dir), point: c.clone(), key: `turn${k}`, label: t2('Turn about {axis}', { axis: k }) });
     }
     const r = freeMotions(M, (MM) => this.holdPart(id, MM, true), c, L, cands);
+    if (it.moveNames) r.motions = r.motions.map((mo) => (it.moveNames[mo.key] ? { ...mo, name: it.moveNames[mo.key], auto: mo.label, label: it.moveNames[mo.key] } : mo)); // (the user's own names)
     if (!r.count && !own) { // fixed on the part it hangs on: the ways that one can move (it goes along)
       const P = mine[0].onto, seen = new Set([...(this._via || []), id]);
       if (!seen.has(P) && mine.every((m) => m.onto === P)) {
@@ -2411,6 +2424,17 @@ export class Assembly {
     return c.find((x) => x >= lim.min - 1e-6 && x <= lim.max + 1e-6) ?? c.sort((p, q) => Math.abs(p - (lim.min + lim.max) / 2) - Math.abs(q - (lim.min + lim.max) / 2))[0];
   }
 
+  /** A free motion's own name (shown wherever the motion is: its row, ⚙ Mechanism, the AI's lists); empty: its own
+   *  words again. Kept on the part that moves (a part fixed on another: that one's). -> the name. */
+  nameMotion(id, mo, name) {
+    const it = this.inst(mo.via || id), v = String(name || '').trim();
+    if (!it || !mo.key) throw new Error('This motion cannot have a name.');
+    if (v) it.moveNames = { ...(it.moveNames || {}), [mo.key]: v };
+    else if (it.moveNames) { delete it.moveNames[mo.key]; if (!Object.keys(it.moveNames).length) delete it.moveNames; }
+    this.commit();
+    return v;
+  }
+
   /** A motion's limits on its part ({min, max}) or null. */
   limitsOf(it, mo) { const x = mo.via ? this.inst(mo.via) : it; return (mo.key && x?.travel?.[mo.key]) || null; }
 
@@ -2426,7 +2450,7 @@ export class Assembly {
     const span = Math.max(10, Math.round(size));
     const lo = lim ? lim.min : turn ? -180 : Math.floor(pos - span), hi = lim ? lim.max : turn ? 180 : Math.ceil(pos + span);
     const note = this.travelNote?.inst === it.id && this.travelNote.key === mo.key ? this.travelNote : null;
-    return `<div class="as-dof" data-dofrow="${i}"><label>${turn ? '↻' : '↔'} ${esc(mo.label)}</label>
+    return `<div class="as-dof" data-dofrow="${i}"><label>${turn ? '↻' : '↔'} <span class="as-mname ${mo.name ? 'own' : ''}" data-mname="${i}" title="${esc(t('Double-click: give this motion your own name'))}" ${mo.name ? 'data-no-i18n' : ''}>${esc(mo.label)}</span></label>
       <div class="as-dofrow"><input type="range" data-dof="${i}" min="${lo}" max="${hi}" step="${turn ? 1 : 0.5}" value="${pos}">
       <input type="number" step="any" data-dofn="${i}" value="${fmt(pos)}"><span class="unit">${u}</span>${only ? '</div></div>' : `
       <button class="mini ${lim ? 'on' : ''}" data-dlim="${i}" title="${esc(lim ? 'Its limits — click to take them off (it moves freely again)' : 'Limits: how far it may go each way (a cylinder\'s stroke, a slide\'s ends, a door\'s swing)')}">⇤⇥</button>
@@ -2455,6 +2479,15 @@ export class Assembly {
       sl.addEventListener('change', () => go(+sl.value, true));
       num.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') num.blur(); });
       num.addEventListener('change', () => { const v = parseFloat(String(num.value).replace(',', '.')); if (Number.isFinite(v)) go(v, true); });
+    }
+    for (const el of box.querySelectorAll('[data-mname]')) {
+      el.addEventListener('dblclick', (ev) => {
+        ev.stopPropagation();
+        const mo = dof.motions[+el.dataset.mname];
+        el.textContent = mo.name || '';
+        renameInPlace(el, (n) => this.nameMotion(it.id, mo, n));
+        el.addEventListener('blur', () => { if (!el.textContent.trim()) el.textContent = mo.label; }, { once: true }); // (left empty: as it was)
+      });
     }
     for (const b of box.querySelectorAll('[data-dlim]')) {
       b.addEventListener('click', () => {
@@ -2623,10 +2656,11 @@ export class Assembly {
 
   /** ⚠ The travel checked: the part moved from min to max in `n` steps (the parts on it go along), the kernel tells the
    *  collisions at each step (/api/assembly/sweep) -> {free: true} or {hits: [{with, from, to, volume}]}; it ends where
-   *  it was. Two parts that both move are not checked against each other (they go along together). */
-  async checkTravel(id, mo, n = 24) {
+   *  it was. Two parts that both move are not checked against each other (they go along together). range: {min, max}
+   *  instead of its limits (⚙ Mechanism: a crank's full turn). */
+  async checkTravel(id, mo, n = 24, range = null) {
     if (mo.via) id = mo.via;
-    const it = this.inst(id), lim = this.limitsOf(it, mo);
+    const it = this.inst(id), lim = range || this.limitsOf(it, mo);
     if (!lim) throw new Error('Set its limits first (⇤⇥).');
     const u = mo.kind === 'turn' ? '°' : 'mm';
     this.travelNote = { inst: id, key: mo.key, text: t('Checking the travel…') };
@@ -2680,8 +2714,8 @@ export class Assembly {
   }
 
   /** Move a joined part by one of its free motions (mm or degrees) from where it was (from: its matrix then);
-   *  its joints hold it, the parts on it follow. final: an undo step (else a live preview). */
-  moveFree(id, mo, amount, from, final) {
+   *  its joints hold it, the parts on it follow. final: an undo step (else a live preview; quiet: not even drawn). */
+  moveFree(id, mo, amount, from, final, quiet = false) {
     if (mo.via) id = mo.via; // fixed on a part that moves: that one moves, it goes along
     const it = this.inst(id);
     if (!it) return;
@@ -2689,7 +2723,7 @@ export class Assembly {
     const M = motionMatrix(mo, mo.kind === 'turn' ? (amount * Math.PI) / 180 : amount).multiply(new THREE.Matrix4().fromArray(from)), was = [...it.matrix];
     it.matrix = this.holdPart(id, M).toArray();
     this.applyMates({ id, was }); // (in a closed loop the others follow it from where it was)
-    if (final) this.commit(); else this.draw();
+    if (final) this.commit(); else if (!quiet) this.draw();
   }
 
   /** The selected part turned to an angle (degrees) about X / Y / Z, about its own centre (the other two angles
@@ -2875,6 +2909,25 @@ export class Assembly {
       if (!this.modelParts().some((q) => q.id === pid)) { this.hooks.toast(t('That part cannot go into this assembly (a drawing, or the assembly itself).'), 'warning', 5000); return; }
       await this.insert(pid);
     });
+    // the chosen part dragged: it moves the way its joints let it (a crank turns, the rod and slider follow) — before
+    // the view's own turning sees the press (capture); elsewhere a drag turns the view as always
+    vp.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || e.target !== cv || !this.sel || this.mode !== 'idle' || this.measuring || this.painting || this.bolt || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      const drag = startDrag(this, this.sel, e);
+      if (!drag) return;
+      this.mech?.stop(false);
+      this.view.controls.enabled = false;
+      cv.style.cursor = 'grabbing';
+      const move = (ev) => drag.move(ev), up = () => {
+        window.removeEventListener('pointermove', move, true);
+        window.removeEventListener('pointerup', up, true);
+        this.view.controls.enabled = true;
+        cv.style.cursor = '';
+        drag.end();
+      };
+      window.addEventListener('pointermove', move, true);
+      window.addEventListener('pointerup', up, true);
+    }, true);
     let down = null;
     cv.addEventListener('pointerdown', (e) => {
       if (this.hoverEv) hoverNow(); // (a move not shown yet: as it came, before the press)
@@ -2906,7 +2959,7 @@ export class Assembly {
       const id = h?.inst || null;
       if (id !== this.hoverInst) { this.hoverInst = id; this.draw(); }
       this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); // (a corner, an edge's middle, a centre: it can be picked)
-      cv.style.cursor = h ? 'pointer' : '';
+      cv.style.cursor = !h ? '' : h.inst === this.sel && (this.dof?.count || this.mech?.list.some((m) => m.parts.includes(h.inst))) ? 'grab' : 'pointer'; // (the chosen part that can move: drag it)
     };
     cv.addEventListener('pointerleave', () => { this.hoverEv = null; this.view.clearHoverMarks(); });
     cv.addEventListener('dblclick', (e) => { // a part double-clicked: edit it here (when unlocked)
@@ -3039,6 +3092,7 @@ export class Assembly {
           bbox: bb ? [...bb.min.toArray(), ...bb.max.toArray()].map((v) => +v.toFixed(3)) : null, error: this.bodies[it.part]?.error, ...this.freeOf(it.id), ...this.innerOf(it) };
       }),
       ...(this.loops?.some((l) => this.mechanismOf(l.parts[0])) ? { loops: this.loopsSummary() } : {}),
+      ...(this.mech?.list.length ? { mechanisms: this.mech.summary() } : {}),
       joints: (this.doc.mates || []).map((m) => ({ id: m.id, ...(m.name ? { name: m.name } : {}), type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
         ...(m.type === 'axis' ? { distance: Number.isFinite(m.dist) ? m.dist : null } : { gap: m.gap || 0 }), ...(m.type !== 'parallel' ? { rotation_locked: Number.isFinite(m.angle) } : {}), ...(m.broken ? { broken: true } : {}),
         ...(m.locked ? { locked: true } : {}), ...(this.inst(m.move)?.fastener ? { fastener: this.inst(m.move).fastener.id } : {}), ...(this.whyNot(m) ? { not_held: this.whyNot(m) } : {}) })),
@@ -3171,6 +3225,38 @@ export class Assembly {
         const { it, mo } = this.motionFor(part, motion), text = this.lockMotion(it.id, mo);
         return { text: `${text}. ${JSON.stringify(this.summary().parts.find((x) => x.id === (mo.via || it.id)))}` };
       },
+      drive_mechanism: async ({ mechanism, to, driver, name, play } = {}) => {
+        need();
+        await settle();
+        this.mech.render();
+        let m = this.mech.find(mechanism);
+        const again = () => { this.mech.render(); return this.mech.find(m.parts[0]); }; // (found again: its driver / name changed)
+        if (driver !== undefined && driver !== null) { // {part, motion} or "I3 motion 0"
+          const [p, k] = typeof driver === 'object' ? [driver.part, driver.motion ?? 0] : String(driver).split(/\s+motion\s+/);
+          const { it, mo } = this.motionFor(p, k ?? 0);
+          if (!m.drivers.some((d) => d.part === it.id && d.mo.key === mo.key)) throw new Error(`${it.id} — ${mo.label} does not drive ${m.id}; its drivers: ${m.drivers.map((d) => `${d.part} “${d.mo.label}”`).join(', ')}.`);
+          this.mech.recFor(m).drive = { part: it.id, key: mo.key };
+        }
+        if (name !== undefined && name !== null) { const v = String(name).trim(), rec = this.mech.recFor(m); if (v) rec.name = v; else delete rec.name; }
+        if ((driver !== undefined && driver !== null) || (name !== undefined && name !== null)) { this.commit(); m = again(); }
+        if (!m.closed) throw new Error(`${m.id} “${m.name}” cannot close where its parts are — a part is too short or too long (get_assembly loops).`);
+        let r = null;
+        if (to !== undefined && to !== null) {
+          if (!Number.isFinite(+to)) throw new Error('to: where its driver goes (degrees for a turn, mm for a slide).');
+          this.mech.stop(false);
+          r = driveTo(this, m, +to, true);
+          m = again();
+        }
+        if (play === true) this.mech.play(m); else if (play === false) this.mech.stop();
+        const s = this.mech.summary().find((x) => x.id === m.id), where = this.summary().parts.filter((x) => m.parts.includes(x.id)).map((x) => ({ id: x.id, name: x.name, position: x.position, ...(x.at ? { at: x.at } : {}) }));
+        return { text: `${m.id} “${m.name}”, driven by ${m.driver.part} — ${m.driver.mo.label}: at ${s.at} ${m.turn ? '°' : 'mm'} (${m.min} … ${m.max}${m.full ? ', a full turn' : ''})${r?.stopped ? ' — stopped: it cannot go further that way (a dead point or its end)' : ''}${this.mech.playing?.key === m.key ? '; ▶ playing (play: false stops it)' : ''}. Its parts: ${JSON.stringify(where)}` };
+      },
+      name_motion: async ({ part, motion = 0, name = '' } = {}) => {
+        need();
+        await settle();
+        const { it, mo } = this.motionFor(part, motion), v = this.nameMotion(it.id, mo, name);
+        return { text: v ? `${mo.via || it.id}: the motion “${mo.auto || mo.label}” is called “${v}” now (get_assembly, its panel and ⚙ Mechanism show it).` : `${mo.via || it.id}: the motion has its own words again (“${mo.auto || mo.label}”).` };
+      },
       check_travel: async ({ part, motion = 0 }) => {
         need();
         await settle();
@@ -3203,6 +3289,7 @@ export class Assembly {
 
   // ------------------------------------------------------------------ the assembly as a project tab
   async load(data) {
+    this.mech?.stop(false);
     this.doc = structuredClone(data || { instances: [] });
     this.doc.instances = this.doc.instances || [];
     this.doc.mates = (this.doc.mates || []).map((m, i) => ({ id: m.id || `J${i + 1}`, type: m.type || 'touch', gap: m.gap || 0, ...m }));

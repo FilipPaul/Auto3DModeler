@@ -7,6 +7,8 @@ __pycache__/
 *.a3d.json
 # files the app exported, kept for the owner to open in other programs
 !samples/ExportFromOurApp/**
+# the 🎬 demo projects the app opens (auto3d/demos.py)
+!demos/*.a3d.json
 data/
 
 # agents' own copies of the repository (git worktrees)

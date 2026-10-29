@@ -282,6 +282,13 @@ the kept projects to open again (✕ forgets one; **🧹 Clean up empty projects
 nothing in it that still has the name the app gave it — the one on screen stays); when the app starts empty, the last one is offered in a strip under the top bar (it goes once a part is opened or made).
 *Save project* still writes a file to keep or send.
 
+**🎬 Demo projects** (Open ▾ → *Demo projects…*): ready-made projects that show whole mechanisms moving — a crank –
+rod – slider (*Klikový mechanismus*), a four-bar linkage (*Čtyřkloubový mechanismus*: the crank turns round, the
+rocker swings) and a robot arm (*Robotické rameno*: an open chain — turn the arm and the forearm and gripper go
+along). Each is listed with what it shows (in Czech or English) and opens as a new project — a copy, the demo stays
+as it is — on its assembly with ⚙ Mechanism ready (Czech motion names, ▶). The files are in `demos/` (built through
+the app by `tools/make_demos.py`) and go into the Windows build.
+
 **Panels**: drag the edge between a side panel and the view (or the AI chat's left edge) to make it wider or narrower;
 the widths are remembered, a double-click on an edge gives the usual width again.
 
@@ -805,6 +812,25 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   them*. A move past a dead point stops there. A loop that cannot close (the rod too short for that place) says so
   on its joints and in the panel (*⚠ The closed loop … cannot close here*). The AI sees `loops` in get_assembly
   (parts, closed, free_motions, the motions that drive it).
+- **⚙ Mechanism — the whole mechanism by one slider**: an assembly with a mechanism (a closed loop that moves, or a
+  part turning / sliding on an axis or with limits) gets a **⚙ Mechanism** widget in the left column (dock it, float it
+  over the view or close it with ✕; ⚙ Mechanism in the toolbar and *Drive the mechanism* in a part's suggestions open
+  it again). One row per mechanism: its name, **one slider** over its driver's travel — a crank's full turn 0 … 360°,
+  a slide's limits — and **▶** (round and round for a full turn, to and fro otherwise, back at a dead point; ⏸ stops it
+  where it is). Every part of the mechanism follows live. The driver is the crank by default (a full turn, else the
+  part the closing rod is on); **⋯** picks another driver, the speed (½× 1× 2×), **⚠ Check the travel** (collisions over
+  the whole turn) and **📈 Trace** (a curve: how the slider moves over the crank's turn). Nothing shows in an
+  assembly without one.
+- **Drag a part in the view**: choose a joined part, then drag it in the 3D view (the cursor shows a hand): it moves
+  the way its joints leave free — a crank turns round its shaft after the mouse, a slider slides along its line — and
+  every part joined to it follows live (the rod and the slider of a crank; a forearm and its gripper on a turning
+  arm). Grabbing any part of a closed loop (the rod) turns the loop's driver. Elsewhere a drag turns the view as
+  always.
+- **Name the motions**: double-click a motion's name in the part's panel or in ⚙ Mechanism (*"Dvojklik: dát mu
+  vlastní název"*) — "Otáčení kliky" instead of "Turn about the axis of …"; double-click a mechanism's name for its
+  own. The names are kept in the assembly (undo, save and open again) and show everywhere: the panel, the widget, the
+  AI's get_assembly / gui_state. The AI: get_assembly `mechanisms`, `drive_mechanism {mechanism, to, driver, name,
+  play}` and `name_motion {part, motion, name}`.
 - **A sub-assembly keeps its own motions**: choose a placed sub-assembly — **Moves inside <it>** shows a slider for
   each way its own joints leave its parts free (a lever on its pin). Slide: the lever turns here, in this placement
   only — the sub-assembly's own tab stays as it is, and a second placement of it can stand differently. Parts joined

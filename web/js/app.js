@@ -35,6 +35,7 @@ import { changed as projectChanged } from './history.js';
 import { nextFrames } from './frames.js';
 import { trackProgress, newRid } from './progressbox.js'; // (slow requests: the busy box with Cancel)
 import { initJobs } from './jobs.js';
+import { showDemos } from './demos.js';
 
 initI18n();  // Czech / English: translates the page as it is built
 initJobs(() => project.current?.name); // ⚙ N in the top bar: what is working now, with ✕ Stop
@@ -2087,13 +2088,19 @@ async function openProject(file) {
     const res = await api('/api/project/migrate', raw);
     const proj = await res.json();
     if (proj.error) throw new Error(proj.error);
-    state.projectName = proj.project_name;
-    await autosave?.saveNow(); // (the one on screen kept first)
-    await project.loadAll(proj);
-    autosave?.fresh();
-    showProjectName();
+    await openLoaded(proj);
     toast(proj.parts.length > 1 ? `Project loaded — ${proj.parts.length} parts (tabs in the top bar).` : 'Project loaded.', 'ok');
   } catch (e) { toast(e.message, 'error'); }
+}
+
+/** A project (version 3) on screen as a new one: the one there kept first, then a fresh autosave record for it. */
+async function openLoaded(proj) {
+  delete proj.demo;
+  state.projectName = proj.project_name;
+  await autosave?.saveNow(); // (the one on screen kept first)
+  await project.loadAll(proj);
+  autosave?.fresh();
+  showProjectName();
 }
 $('projectInput').addEventListener('change', (e) => { if (e.target.files[0]) openProject(e.target.files[0]); e.target.value = ''; });
 
@@ -2509,6 +2516,7 @@ if (opened.has('project')) { // a window opened by ⧉: its project, its part on
   }).catch((e) => toast(e.message, 'error', 8000));
 }
 $('recentBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); autosave.showRecent(); });
+$('demoBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); showDemos({ open: openLoaded, toast }); }); // 🎬 (demos.js)
 if (!opened.has('sample') && !opened.has('project')) setTimeout(() => autosave.offerLast(), 600);
 
 // 🕘 the project after each AI turn that ran tools here, kept by the server; loaded back like a project file

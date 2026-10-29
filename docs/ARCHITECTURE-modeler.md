@@ -18,6 +18,51 @@ Date: 2026-10-25. Written by the architect agent.
   unpinned; a saved layout stays as it was. A floating panel opens beside a floating tree (left 314 px), not on it.
   e2e_left_pins (66 checks), e2e_project_tree starts with the tree behind ☰ (its subject), e2e_project / e2e_tabs open
   ☰ only when the tree is not in sight.
+- **🎬 Demo projects done** (the owner: "make demo projects, e.g. a simple crank, where all parts can be seen moving
+  right; let the app load them"): demos/ klikovy-mechanismus (r 25, L 100), ctyrkloubovy-mechanismus (a crank–rocker:
+  20 / 70 / 50 on a 60 mm base, the loop closed elbow-up) and roboticke-rameno (an open chain: arm on a column, forearm
+  on its pin with limits ±135°, a gripper with its turn locked) — 7–8 kB each, 3D models of sketches / extrudes /
+  holes, built through the app by tools/make_demos.py (the same tools as the AI: snap_faces, move_free, name_motion,
+  drive_mechanism, lock_motion, set_travel), Czech part, joint and motion names, each with a "demo" record {name,
+  name_cs, text, text_cs, order} and opening on its assembly. auto3d/demos.py listing / load (only a file of the
+  folder, migrated), server /api/demos and /api/demos/<file> (read-only), web/js/demos.js (Open ▾ → 🎬 Demo projects…:
+  the names and texts in the app's language; Open -> app.js openLoaded: a new project, a fresh autosave record).
+  tools/build/auto3d.spec takes demos/, smoke.py opens one. tests/test_demos.py (each valid, its loop's joints, Czech
+  names, small, bad names refused, the routes), tools/e2e_demos.py.
+  The owner's own project (data/projects/db8d0297…, "Klikový mechanismus") was left as it is; a copy with J9 back is in
+  the scratchpad of the job (not a demo: it has two copies of the crank, sheets and a second assembly).
+
+- **A part dragged in the 3D view moves its whole mechanism done** (the owner: "the parts move as a whole, by their
+  joints"): there was no way to move a part with the mouse — a drag always turned the view. web/js/assembly/drag.js
+  startDrag(asm, id, press): the chosen part under the mouse (a capture listener on the viewport, before the view's
+  controls; their `enabled` off while it drags) — a part of a closed-loop mechanism drives the loop's driver, else
+  its own motion (an axis turn first, else a slide along an axis, else the first); a turn follows the angle of the
+  mouse's ray on the plane across the axis through the grabbed point (unwrapped past ±180°), a slide the nearest
+  point of its line to the ray; each move Assembly.moveFree by the change (limits kept), so placeAll carries the
+  parts hanging on it (an open chain) and closeLoops solves the loop; one undo step when let go. The cursor: a hand
+  over the chosen part that can move. Assembly.refresh renders ⚙ Mechanism and the toolbar once the loops are known
+  (an opened project showed none until the next change). Checked: the crank dragged ~90° — the slider at the formula
+  (e2e_assembly_mechanism), the demos' crank, four-bar crank and robot arm (e2e_demos).
+
+- **⚙ Mechanism widget and named motions done** (the owner: "a slider should set the motions of all the parts, not
+  one — for simulating whole systems"; "let the motions be named"). The owner's project "Klikový mechanismus" had lost
+  its closing joint J9 (the rod's second eye on the slider's pin — the AI removed it, report 2026-10-29 01:51:11);
+  added back, the crank drives the rod and the slider (r 30, L 110: x = r·cosθ + √(L² − r²sin²θ) at 90° steps).
+  web/js/assembly/mechanism.js: mechanisms(asm) — each mechanismOf loop (its closing part, joined onto two of its
+  parts, does not drive) and each part outside loops with a turn / slide about an axis or limits (no fasteners, no 📌);
+  the default driver ranked: a full-turn limit, a turn of a part the closing part is on (the crank), any axis turn,
+  limits; the travel: limits, else 0 … 360 for a turn (full: the short way round), else ± its size. driveTo
+  (Assembly.moveFree, quiet for sweeps; `stopped`: the loop's dead point or a miss), traceOf (36 steps of the driver,
+  the first follower's motionPos, put back), MechanismPanel (render on every Assembly.render; ▶: 90°/s a full turn or
+  the travel in 2 s each way × speed, reversed when stopped; ⏸ commits; ⋯ driver / speed / ⚠ checkTravel(…, range) /
+  📈 SVG). doc.mechs [{parts, name, drive {part, key}, speed}] found again by the parts they share (History captures
+  it); a motion's own name in instance.moveNames {key: name} (motionsOf puts it in `label`, keeps `auto`) —
+  Assembly.nameMotion; the part panel's motion name and the widget's names renamed by double-click (renameInPlace).
+  leftdock.js: addWidget(w, ws, {title, h, close}) / show(w, on) — a workspace's own widget, docked (default) or
+  floating like the others, its mode per workspace, its ✕. Toolbar ⚙ Mechanism (only with a mechanism), the part
+  suggestion "Drive the mechanism". AI: get_assembly `mechanisms`, drive_mechanism {mechanism, to, driver, name, play},
+  name_motion {part, motion, name}. tools/e2e_assembly_mechanism.py; e2e_agent (both refused without a mechanism).
+  Left out: a mechanism through a sub-assembly's own moving parts (its inner motions stay in its part panel).
 
 - **⬆ Extrude this face done:** a new sketch entity `{t: "outline", face: {name, fp}}` — a flat face's edges as
   projected edges: doc._face_outlines finds the face again each rebuild (kernel.find_faces), kernel.face_loops copies
