@@ -307,6 +307,21 @@ the kept projects to open again (✕ forgets one; **🧹 Clean up empty projects
 nothing in it that still has the name the app gave it — the one on screen stays); when the app starts empty, the last one is offered in a strip under the top bar (it goes once a part is opened or made).
 *Save project* still writes a file to keep or send.
 
+**🕘 Versions** (a widget in the left column of the 3D model and the assembly, folded until you open it): the project's
+earlier states, kept on the server without git (`data/versions/<project>/`). Versions come by themselves as you work
+(with the autosave, at most one every 3 minutes; a part added or removed at once) and with *Save project*;
+**💾 Save version…** keeps one with a short description. The timeline, newest first, shows a small picture of the view,
+the time, the description (or *automatic*) and the parts that changed. **Click** a version to look at it — read only, a
+banner says so, with **↩ Back to current** and **⤺ Restore this version** (the state before is kept as a version first,
+so a restore can be undone — also by ↶ in its message). **⇄** compares a version with the project now: parts and steps
+added or removed, changed values (*Extrude 1: 10 → 15 mm*), the volume before → after. **⑂** makes a **variant** (a
+branch with its own timeline) from a version; **Variant: main ▾** on top switches between them, and **Take a part from
+a variant…** copies one part as it is in another variant into this one (there is no merge). Unchanged parts are stored
+once (each part's JSON under its SHA-256, zlib), so a version costs a few kB; old automatic versions are thinned (all of
+the last day, one an hour for a week, one a day after that; named ones and variants are kept). *Save project ▾ → with
+version history* puts the versions into the file, and opening it brings them back. The AI has list_versions,
+save_version, compare_versions, restore_version and create_variant.
+
 **🎬 Demo projects** (Open ▾ → *Demo projects…*): ready-made projects that show whole mechanisms moving — a crank –
 rod – slider (*Klikový mechanismus*), a four-bar linkage (*Čtyřkloubový mechanismus*: the crank turns round, the
 rocker swings), a robot arm (*Robotické rameno*: an open chain — turn the arm and the forearm and gripper go

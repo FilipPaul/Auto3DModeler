@@ -384,6 +384,12 @@ Never report "works" without having run it; report failures with their output.
    tip dragged; 4 typed; ⇅ = a cut 4 in and back; Cancel leaves no step; OK = an outline sketch + an extrude, one undo
    step; the block made taller: it follows; the sketch opened draws the outline; the AI's add_feature extrude {face};
    "Vysunout tuto plochu" in Czech). Ends ALL OK / FAILED. Needs a server restarted after kernel changes.
+   `tools/e2e_versions.py <url> <dir>` covers 🕘 Versions, in Czech (the widget folded at first; 💾 "A", the extrude
+   10 -> 15, "B"; both with thumbnails; ⇄ "Vysunutí 1: 10 → 15 mm" and "Objem: 2000 → 3000 mm³"; a click on A: the
+   banner, 10, read only — ＋ New 3D model, Ctrl+Z, Delete do nothing, no autosave; ↩ back: 15; ⤺ restore A: 10, B and
+   "Před obnovením" listed, ↶ in the toast; ⑂ variant "delší" from B: its own empty timeline, 40; switched to hlavní: 10;
+   the part taken from "delší": 40; reload keeps it all; Save project with the history -> opened: the versions back).
+   Screenshots versions_*.png. Ends ALL OK / FAILED.
    `tools/e2e_parameters.py <url> <dir>` covers 𝑥 project parameters (the browser's parser against
    tests/param_cases.json — the same cases as Python's; "L = 40" typed as an Extrude distance makes L, the step keeps d = L;
    the 𝑥 Parameters widget appears; a sketch's width typed "L/2" on its size label (shown "L/2 = 20"); L = 60 in the

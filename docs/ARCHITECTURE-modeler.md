@@ -27,6 +27,48 @@ Date: 2026-10-25. Written by the architect agent.
   tools/e2e_model_rollback.py (+ 16 checks: the panel / menu / toast notes in Czech, STL and 3MF volumes, the print
   copy's note, check_print and exact pieces, an assembly and a drawing sheet of the plate with their ⚠ notes; at the end: all, no note).
   Left out: thumbnails in the project tree and the parts library still show every step.
+- **🕘 Versions done** (the owner's design: versions without git, also in the frozen exe). auto3d/versions.py: a
+  content-addressed store per project, `<data>/versions/<project id>/` — `objects/ab/cdef…` (each part's JSON, the
+  project-level bits {name, parameters, order …} and the thumbnail, zlib, under the SHA-256 of their bytes: a part that
+  did not change costs nothing), `versions/<id>.json` (a manifest {id, parent, variant, time, label, auto, parts: {part
+  id: hash}, project, thumb, names, kinds, changed, volumes, note}), `state.json` (the variants {id, name, head, base}
+  and the one on screen). Imported files stay in the blob store (the parts name them by hash). Written whole (temp +
+  replace, autosave's PermissionError retries), a lock per project; ids, hashes and variant ids checked by pattern (no
+  path traversal). An automatic version at most every AUTO_GAP = 180 s (a part added / removed: at once; nothing
+  changed: none). Thinning of automatic ones (all of 24 h, the newest of each hour for a week, of each day after;
+  per variant; named ones, heads and bases kept) and gc of objects no manifest uses, after each automatic save.
+  diff(a, b): parts added / removed / changed, a 3D model's steps by id (added, removed, values {key, before, after,
+  unit}: a sketch's locked sizes by dim id), an assembly's placed parts, the volume (the browser sends the part on
+  screen's), the parameters. restore = the state now kept as "before-restore", then the old one as a new version on top.
+  Variants: create from any version (it becomes the one on screen), switch, take_part (one part of another variant's
+  head). bundle / unbundle: the store in the project file (`versions` key; each object checked against its hash).
+  Server: /api/versions/<pid> (GET list, POST save), /v/<vid> (+ /thumb, /restore), /diff, /variants (+ /<var>/switch),
+  /take-part, /bundle (GET / POST); forgetting a project (✕ in Recent projects) drops its store. web/js/versions.js: the
+  🕘 Versions widget (leftdock addWidget `folded`: folded until opened — computed, not written into the saved layout),
+  model and assembly: Variant ▾, 💾 Save version… (one field), the timeline (thumbnail 160 × 100 JPEG from the view,
+  not fitted; time; label / "automatic"; changed parts), ⇄ compare (inline), ⑂ variant (one field), "Take a part from
+  a variant…"; the preview (the project loaded, body.vr-preview, a banner ↩ / ⤺, capture listeners block clicks, keys,
+  the assembly's left drag — the view still turns; autosave.paused); restore with ↶ in its toast. app.js hooks only
+  (autosave `saved` -> versions.auto; Save project makes a version; Save project ▾ "with version history"; Open of a
+  file with `versions` -> /bundle). AI: list_versions, save_version, restore_version, compare_versions,
+  create_variant (agent_tools.py, change-a-model skill, e2e_agent). tests/test_versions.py (9: dedupe 10 versions ×
+  one of 5 parts = 14 part objects, restore exact, diff names "d 10 -> 15" and a sketch dim, thinning with fake times,
+  gc, variants, take-part, bad ids, bundle round trip), tools/e2e_versions.py (29 checks, Czech). Measured: 50 automatic
+  versions of a 5-part project (the gear demo's parts, a real ~2 kB thumbnail each, one part changed each time): 170 kB
+  in 155 files (620 kB allocated at 4 kB clusters), 219 kB bundled into the project file.
+  Left out: the two bodies overlaid in two colours (compare is text), a Ctrl+Z of a restore (↶ in its toast and the
+  "Before restoring" version instead), versions of the quick part / drawing / sheet workspaces' own widget (the widget
+  is in the model and assembly workspaces; versions are of the whole project anyway), renaming / deleting a variant in
+  the UI (versions.rename_variant exists).
+  **Plan, not built: "Also save versions to Git"** (an option for users who use git). Mirror, never replace: the
+  content store stays the truth (the frozen exe has no git). When on and `git` is on PATH (or dulwich, pure Python, if
+  bundled), a repository per project under `<data>/versions/<pid>/git/` (or a folder the user picks); each manifest
+  saved becomes a commit — one file per part (`parts/<name>-<id>.json`, pretty-printed so diffs read), `project.json`,
+  `thumb.jpg`; message = the label or "automatic" + the changed parts; author = the app user; the variant = a branch
+  (`main`, `variant/<name>`), parent = the manifest's parent's commit (a map manifest id -> commit sha in
+  `git-map.json`). Thinned automatic versions stay in git (git's own packing keeps it small). Written by a background
+  thread after the manifest (a failure only marks the version "not in git" and retries); nothing is ever read back from
+  git, so there is no merge to resolve. A push to a remote is the user's own (a button later, not automatic).
 
 - **⚙ Mechanism tall enough at first done**: its default height 150 -> 230 px (mechanism.js addWidget h), so the
   crank demo's two motion rows and the "Chybí jedna vazba…" line with ➕ Přidat vazbu show without scrolling.

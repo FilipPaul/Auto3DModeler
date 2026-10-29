@@ -38,6 +38,7 @@ import { trackProgress, newRid } from './progressbox.js'; // (slow requests: the
 import { initJobs } from './jobs.js';
 import { initParams, paramHandlers } from './paramsui.js';
 import { showDemos } from './demos.js';
+import { Versions } from './versions.js';
 
 initI18n();  // Czech / English: translates the page as it is built
 initJobs(() => project.current?.name); // ⚙ N in the top bar: what is working now, with ✕ Stop
@@ -2063,9 +2064,18 @@ function projectFile() {
   return { app: 'Auto3DModeler', version: 3, project_name: state.projectName, unit: state.model?.unit || 'mm', ...project.toJSON(), assets: {}, assemblies: [] };
 }
 
-$('saveBtn').addEventListener('click', async () => {
+/** The project file as Save project writes it: its imported files, and 🕘 its versions when "with version history" is
+ *  ticked (a version of it made first: a save point). */
+async function savedProject({ history = $('saveWithVersions')?.checked } = {}) {
+  await versions?.save('', { auto: true, force: true }).catch(() => null);
   const proj = projectFile();
   proj.blobs = await projectBlobs(proj);
+  if (history && autosave?.id) proj.versions = (await (await api(`/api/versions/${encodeURIComponent(autosave.id)}/bundle`)).json()).versions || undefined;
+  return proj;
+}
+
+$('saveBtn').addEventListener('click', async () => {
+  const proj = await savedProject();
   const saved = await download(new Blob([JSON.stringify(proj)], { type: 'application/json' }), `${safeName()}.a3d.json`, { id: 'auto3d-project' });
   if (!saved) return;
   // a name changed in the Save dialog becomes the project's name
@@ -2100,10 +2110,16 @@ async function openProject(file) {
       void sha;
     }
     delete raw.blobs;
+    const history = raw.versions;
+    delete raw.versions;
     const res = await api('/api/project/migrate', raw);
     const proj = await res.json();
     if (proj.error) throw new Error(proj.error);
     await openLoaded(proj);
+    if (history) { // 🕘 saved with its version history: into the new project's store
+      await api(`/api/versions/${encodeURIComponent(autosave.id)}/bundle`, { versions: history }).catch((e) => toast(e.message, 'warning', 7000));
+      await versions?.changed();
+    }
     toast(proj.parts.length > 1 ? `Project loaded — ${proj.parts.length} parts (tabs in the top bar).` : 'Project loaded.', 'ok');
   } catch (e) { toast(e.message, 'error'); }
 }
@@ -2493,6 +2509,7 @@ var autosave = new Autosave({
   project: () => (project.parts.length ? projectFile() : null),
   partCount: () => project.parts.length, // (only counted: building the file while a part loads would disturb it)
   status: () => $('autosaveState'),
+  saved: () => versions?.auto(), // (🕘 an automatic version, at most one every few minutes)
   async restore(raw) {
     const proj = await (await api('/api/project/migrate', raw)).json();
     if (proj.error) throw new Error(proj.error);
@@ -2500,7 +2517,7 @@ var autosave = new Autosave({
     await project.loadAll(proj);
     showProjectName();
   },
-  onId: (id) => windows?.connect(id),
+  onId: (id) => { windows?.connect(id); versions?.changed(); },
 });
 
 // OK / Cancel, ✓ Finish sketch, Done: in the bottom-right corner of each view
@@ -2534,6 +2551,32 @@ if (opened.has('project')) { // a window opened by ⧉: its project, its part on
     document.title = `${project.current?.name || ''} — Auto3DModeler`;
   }).catch((e) => toast(e.message, 'error', 8000));
 }
+// 🕘 Versions: the project's states on the server — preview, compare, restore, variants (versions.js)
+var versions = new Versions({
+  toast, autosave,
+  id: () => autosave.id,
+  project: () => (project.parts.length ? projectFile() : null),
+  async load(raw, { preview = false } = {}) {
+    const proj = await (await api('/api/project/migrate', raw)).json();
+    if (proj.error) throw new Error(proj.error);
+    state.projectName = proj.project_name;
+    await project.loadAll(proj);
+    if (!preview) { windows.connect(autosave.id, true); windows.send(); } // (the same project, as it is now: to its other windows too)
+    showProjectName();
+  },
+  thumb() { // a small picture of the view (as it is seen: not fitted)
+    const v = state.workspace === 'model' ? modeler.view : state.workspace === 'assembly' ? assembly.view : null;
+    return v?.snapshot ? v.snapshot({ w: 160, h: 100, fit: false }).toDataURL('image/jpeg', 0.75) : null;
+  },
+  volumes: () => (state.workspace === 'model' && Number.isFinite(modeler.result?.body?.volume) && !modeler.part?.rollback ? { [project.active]: modeler.result.body.volume } : {}),
+});
+versions.changed();
+Object.assign(agentHandlers, versions.handlers()); // (list_versions, save_version, restore_version, compare_versions, create_variant: anywhere)
+$('saveMenuBtn').addEventListener('click', (e) => { e.stopPropagation(); $('saveMenuWrap').classList.toggle('open'); });
+document.addEventListener('click', (e) => { if (!e.target.closest('#saveMenuWrap')) $('saveMenuWrap').classList.remove('open'); });
+try { $('saveWithVersions').checked = localStorage.getItem('a3d.saveVersions') === '1'; } catch { /* private window */ }
+$('saveWithVersions').addEventListener('change', (e) => { try { localStorage.setItem('a3d.saveVersions', e.target.checked ? '1' : '0'); } catch { /* private window */ } });
+
 $('recentBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); autosave.showRecent(); });
 $('demoBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); showDemos({ open: openLoaded, toast }); }); // 🎬 (demos.js)
 if (!opened.has('sample') && !opened.has('project')) setTimeout(() => autosave.offerLast(), 600);
@@ -2744,4 +2787,4 @@ Object.assign(agentHandlers, {
   },
 });
 
-window.__app = { state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, library, autosave, windows, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d, sheet };
+window.__app = { state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, library, autosave, versions, savedProject, windows, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d, sheet };

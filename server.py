@@ -28,6 +28,7 @@ from auto3d.ai_history import HistoryError, delete_state, list_states, load_stat
 from auto3d import library as parts_library
 from auto3d import title_templates
 from auto3d import autosave
+from auto3d import versions
 from auto3d import demos
 from auto3d import animation
 from auto3d.agent_tools import BROWSER_TOOLS, TOOL_NAMES
@@ -297,9 +298,108 @@ def api_project_load(pid):
 def api_project_forget(pid):
     try:
         autosave.delete(PROJECTS, pid)
-    except autosave.AutosaveError as e:
+        versions.drop(VERSIONS, pid)  # (its 🕘 versions too)
+    except (autosave.AutosaveError, versions.VersionError) as e:
         return jsonify({"error": str(e)}), 404
     return jsonify({"ok": True})
+
+
+VERSIONS = DATA / "versions"  # 🕘 the projects' versions, one content-addressed store each (auto3d/versions.py)
+
+
+def _thumb_of(body):
+    """A version's thumbnail sent as base64 JPEG (a data URL too) -> its bytes, or None."""
+    t = body.get("thumb")
+    if not isinstance(t, str) or not t:
+        return None
+    try:
+        return base64.b64decode(t.split(",", 1)[-1], validate=True)
+    except ValueError:
+        raise versions.VersionError("The thumbnail is not a small JPEG picture.")
+
+
+def _versions_call(fn):
+    try:
+        return jsonify(fn())
+    except versions.VersionError as e:
+        return jsonify({"error": str(e)}), 400
+    except OSError as e:  # (the disk: nothing half written; tried again next time)
+        return jsonify({"error": str(e.strerror or e)}), 503
+
+
+@app.get("/api/versions/<pid>")
+def api_versions_list(pid):
+    """-> {current, variant, variants, versions (the newest first), base} — of ?variant= (default: the one on screen)."""
+    return _versions_call(lambda: versions.versions(VERSIONS, pid, request.args.get("variant") or None))
+
+
+@app.post("/api/versions/<pid>")
+def api_versions_save(pid):
+    """{project, label, auto, force, thumb (base64 JPEG), volumes {part id: mm³}} -> the version's manifest (same: true
+    when not kept — nothing changed, or an automatic one too soon)."""
+    b = request.get_json(force=True, silent=True) or {}
+    return _versions_call(lambda: versions.save(VERSIONS, pid, b.get("project"), b.get("label") or "", bool(b.get("auto")),
+                                                _thumb_of(b), b.get("volumes"), bool(b.get("force"))))
+
+
+@app.get("/api/versions/<pid>/v/<vid>")
+def api_versions_get(pid, vid):
+    return _versions_call(lambda: versions.get(VERSIONS, pid, vid))
+
+
+@app.get("/api/versions/<pid>/v/<vid>/thumb")
+def api_versions_thumb(pid, vid):
+    try:
+        data = versions.thumb(VERSIONS, pid, vid)
+    except versions.VersionError as e:
+        return jsonify({"error": str(e)}), 404
+    return Response(data, mimetype="image/jpeg", headers={"Cache-Control": "max-age=86400"})
+
+
+@app.post("/api/versions/<pid>/v/<vid>/restore")
+def api_versions_restore(pid, vid):
+    """{project: the one on screen (kept first), thumb, volumes} -> {version, before, project}."""
+    b = request.get_json(force=True, silent=True) or {}
+    return _versions_call(lambda: versions.restore(VERSIONS, pid, vid, b.get("project"), _thumb_of(b), b.get("volumes")))
+
+
+@app.post("/api/versions/<pid>/diff")
+def api_versions_diff(pid):
+    """{a, b: version ids or "current", project + volumes: the one on screen} -> what changed from a to b."""
+    b = request.get_json(force=True, silent=True) or {}
+    return _versions_call(lambda: versions.compare(VERSIONS, pid, b.get("a"), b.get("b") or "current", b.get("project"), b.get("volumes")))
+
+
+@app.post("/api/versions/<pid>/variants")
+def api_versions_variant_new(pid):
+    """{from: a version id, name} -> {variant, project, variants} (the new variant on screen)."""
+    b = request.get_json(force=True, silent=True) or {}
+    return _versions_call(lambda: versions.create_variant(VERSIONS, pid, b.get("from"), b.get("name")))
+
+
+@app.post("/api/versions/<pid>/variants/<var>/switch")
+def api_versions_variant_switch(pid, var):
+    return _versions_call(lambda: versions.switch_variant(VERSIONS, pid, var))
+
+
+@app.post("/api/versions/<pid>/take-part")
+def api_versions_take_part(pid):
+    """{variant, part} -> {part: its JSON in that variant's newest version, version}."""
+    b = request.get_json(force=True, silent=True) or {}
+    return _versions_call(lambda: versions.take_part(VERSIONS, pid, b.get("variant"), b.get("part")))
+
+
+@app.get("/api/versions/<pid>/bundle")
+def api_versions_bundle(pid):
+    """The store for the project file (Save project … with version history) -> {versions: the bundle or null}."""
+    return _versions_call(lambda: {"versions": versions.bundle(VERSIONS, pid)})
+
+
+@app.post("/api/versions/<pid>/bundle")
+def api_versions_unbundle(pid):
+    """{versions: a project file's bundle} -> {versions, objects} put into this project's store."""
+    b = request.get_json(force=True, silent=True) or {}
+    return _versions_call(lambda: versions.unbundle(VERSIONS, pid, b.get("versions")))
 
 
 AI_HISTORY = DATA / "history"  # the project after each AI turn (auto3d/ai_history.py)

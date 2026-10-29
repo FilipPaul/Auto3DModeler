@@ -77,7 +77,9 @@ class LeftDock {
   }
   get project() { return this.st.project; }
   get suggestDocked() { return this.st.suggest === 'dock'; }
-  folded(w) { return !!this.my().fold[w]; }
+  folded(w) { return this.isFold(this.my(), w); }
+  /** Folded in workspace record `me`: as the user left it, else as it starts (a widget added folded: 🕘 Versions). */
+  isFold(me, w) { return w in me.fold ? !!me.fold[w] : !!this.extra[w]?.folded; }
 
   save() { try { localStorage.setItem(KEY, JSON.stringify(this.st)); } catch { /* private window: not remembered */ } }
 
@@ -155,8 +157,9 @@ class LeftDock {
 
   /** A widget of workspace `ws` only (w: its name, e.g. 'mech'), docked under the others at first; hidden until
    *  show(w, true). title: its header (English, translated); h: its first height docked (px); close(): its ✕ was
-   *  clicked (it is hidden then). -> the element to fill. */
-  addWidget(w, ws, { title, h = 160, close } = {}) {
+   *  clicked (it is hidden then); folded: folded to its header the first time (🕘 Versions: unobtrusive). -> the
+   *  element to fill. */
+  addWidget(w, ws, { title, h = 160, close, folded = false } = {}) {
     if (this.extra[w]) return this.extra[w].body;
     const el = this.widget(w, ws), body = document.createElement('div');
     el.hidden = true;
@@ -170,7 +173,7 @@ class LeftDock {
       x.addEventListener('click', (e) => { e.stopPropagation(); close(); });
       el.querySelector(':scope > .lw-head').appendChild(x);
     }
-    this.extra[w] = { ws, el, body, title, h, on: false };
+    this.extra[w] = { ws, el, body, title, h, on: false, folded };
     this.col?.appendChild(el);
     this.apply();
     return body;
@@ -208,7 +211,9 @@ class LeftDock {
     docked.splice(at, 0, w);
     this.st.order = [...docked, ...this.st.order.filter((x) => !docked.includes(x))];
     this.setMode(w, 'dock', ws);
-    delete this.my(ws).fold[w];
+    const me = this.my(ws);
+    delete me.fold[w];
+    if (this.extra[w]?.folded) me.fold[w] = false; // (docked by hand: open)
     this.save();
     this.apply();
   }
@@ -235,7 +240,7 @@ class LeftDock {
   fold(w, on) {
     on ??= !this.folded(w);
     const f = this.my().fold;
-    if (on) f[w] = true; else delete f[w];
+    if (on === !!this.extra[w]?.folded) delete f[w]; else f[w] = on; // (kept: only what differs from how it starts)
     this.save();
     this.apply();
   }
@@ -348,7 +353,7 @@ class LeftDock {
       if (here && this.mode(w, ws) === 'float') this.floatIn(x.el, this.layout.querySelector(VIEW[ws]), w, ws);
       else this.dockIn(x.el);
       x.el.hidden = !here;
-      x.el.classList.toggle('folded', here && !!me.fold[w]);
+      x.el.classList.toggle('folded', here && this.isFold(me, w));
     }
     this.widgets.suggest.hidden = this.st.suggest !== 'dock';
     // the column: its widgets in order, a splitter between two, the heights
@@ -356,16 +361,16 @@ class LeftDock {
     this.splits ||= [];
     this.splits.forEach((sp, i) => { sp.hidden = i >= docked.length - 1; }); // (kept: one may be in the hand now)
     const H = this.col.clientHeight;
-    const open = docked.filter((w) => !me.fold[w]);
+    const open = docked.filter((w) => !this.isFold(me, w));
     const flex = open.includes('panel') ? 'panel' : open[open.length - 1];
     docked.forEach((w, i) => {
       const el = this.widgetEl(w, ws);
       el.style.order = String(i * 2);
-      el.classList.toggle('folded', !!me.fold[w]);
-      const caret = me.fold[w] ? '▸' : '▾', f = el.querySelector(':scope > .lw-head > .lw-fold');
+      el.classList.toggle('folded', this.isFold(me, w));
+      const caret = this.isFold(me, w) ? '▸' : '▾', f = el.querySelector(':scope > .lw-head > .lw-fold');
       if (f.textContent !== caret) f.textContent = caret;
       el.style.minHeight = w === flex ? '110px' : ''; // (the stretching one keeps some room: the others give way)
-      if (me.fold[w]) el.style.flex = '0 0 auto';
+      if (this.isFold(me, w)) el.style.flex = '0 0 auto';
       else if (w === flex) el.style.flex = '1 1 0';
       else el.style.flex = `0 1 ${Math.round(clamp(me.h[w] ?? this.defHeight(w, H), MIN_H, Math.max(MIN_H, H - MIN_H)))}px`;
       if (i) { const sp = this.splitter(i - 1); sp.dataset.a = docked[i - 1]; sp.dataset.b = w; sp.style.order = String(i * 2 - 1); }
@@ -387,7 +392,7 @@ class LeftDock {
     if (this.splits[i]) { this.splits[i].hidden = false; return this.splits[i]; }
     const sp = this.splits[i] = document.createElement('div');
     sp.className = 'lw-split';
-    sp.title = t('Drag to share the height between them — double-click for the usual heights');
+    sp.title = 'Drag to share the height between them — double-click for the usual heights'; // (English: the page's translation follows a language switch)
     sp.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
       e.preventDefault();
@@ -397,7 +402,7 @@ class LeftDock {
       const w = fa ? b : a, el = fa ? eb : ea, h0 = el.getBoundingClientRect().height, y0 = e.clientY, sign = fa ? -1 : 1;
       document.body.classList.add('resizing-v');
       sp.classList.add('on');
-      const move = (ev) => { me.h[w] = Math.round(Math.max(MIN_H, h0 + sign * (ev.clientY - y0))); delete me.fold[w]; this.apply(); };
+      const move = (ev) => { me.h[w] = Math.round(Math.max(MIN_H, h0 + sign * (ev.clientY - y0))); if (this.isFold(me, w)) me.fold[w] = false; this.apply(); };
       const up = () => {
         sp.removeEventListener('pointermove', move);
         document.body.classList.remove('resizing-v');

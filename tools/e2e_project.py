@@ -149,7 +149,8 @@ try:
     # ☰ Parts: every part — the closed one opens again (a tab), the state is saved with the project
     js("if (!document.querySelector('#projTree .pt-row')?.offsetParent) document.querySelector('#partTabs .pt-all').click()")  # (☰: the tree in sight — docked at first, or its popup)
     time.sleep(0.2)
-    print("☰ Parts:", [r.text for r in d.find_elements(By.CSS_SELECTOR, "#projTree .pt-row")],
+    # (read in one go: the tree is drawn again 400 ms after the tab was closed — row by row could catch it half way)
+    print("☰ Parts:", js("return [...document.querySelectorAll('#projTree .pt-row')].map(r => r.innerText)"),
           "| closed ones:", len(d.find_elements(By.CSS_SELECTOR, "#projTree .pt-row.closed")))
     d.find_element(By.CSS_SELECTOR, "#projTree .pt-row.closed .pt-open").click()
     wait("return document.querySelectorAll('#partTabs .part-tab').length === 2")

@@ -117,12 +117,20 @@ def no_hscroll():
     return js("return document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1")
 
 
+
+def no_versions():
+    """The 🕘 Versions widgets (folded at the column's foot; e2e_versions tests them) out of the way: the layout as it
+    is with the project tree, the panel and the suggestions."""
+    js("return import('/js/leftdock.js').then(m => { for (const w of ['versions-model', 'versions-assembly']) m.leftDock.show(w, false); })")
+
+
 try:
     d.get(URL)
     wait("return !!window.__app")
     js("localStorage.clear(); localStorage.setItem('auto3d-lang', 'en')")
     d.get(URL)
     wait("return !!window.__app")
+    no_versions()
     for name in ("Base", "Lid"):
         call("new_model", name=name)
         call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 40, "h": 30}}])
@@ -307,6 +315,7 @@ try:
     time.sleep(4.5)  # (the project kept on the server: autosave)
     d.refresh()
     wait("return !!window.__app")
+    no_versions()
     wait("return document.querySelector('.restore-bar [data-a=open]')", 15).click()
     wait(f"return {P}.parts.length === 3", 30)
     js(f"{P}.switchTo({P}.parts.find(p => p.name === 'Base plate').id)")

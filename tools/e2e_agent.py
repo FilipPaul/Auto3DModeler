@@ -318,6 +318,21 @@ try:
     tool("open_part", id="Flange")
     tool("prepare_print")
     tool("check_print")
+    # 🕘 versions: a named one, the extrude 10 -> 12, compared (the value and the volume named), a variant from it,
+    # the first version restored (the answer names the one that undoes it)
+    tool("new_model", name="Versioned")
+    tool("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 10, "h": 10}}])
+    tool("add_feature", type="extrude", d=10)
+    first = json.loads(tool("save_version", label="before the change")[0])["saved"]["id"]
+    tool("edit_feature", id="F2", fields={"d": 12})
+    c = json.loads(tool("compare_versions", a=first)[0])
+    print("    compare:", c["summary"], "| names 10 → 12 mm:", any("10 → 12 mm" in s for s in c["summary"]))
+    tool("create_variant", name="taller")
+    v = json.loads(tool("list_versions")[0])
+    print("    variants:", [x["name"] for x in v["variants"]], "on:", v["variant"]["name"])
+    r = json.loads(tool("restore_version", id=first)[0])
+    print(f"    restored: volume {json.loads(tool('get_model')[0])['body']['volume_mm3']} expected 1000 | undo: {r['undo']}")
+    print("    a bad id:", tool("restore_version", id="../x")[0][:80])
     # teaching: a ring and a tip at a control (gone on clear), and the reports written so far
     tool("gui_highlight", control="Save project", text="Save your work here.", step="1/1")
     print("    highlighted:", d.execute_script("return document.querySelector('.teach-tip')?.textContent.replace(/\\s+/g, ' ').trim()"))
