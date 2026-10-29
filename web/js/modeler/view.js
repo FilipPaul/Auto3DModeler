@@ -10,9 +10,11 @@ import { t } from '../i18n.js';
 import { snapKinds } from '../suggest.js';
 import { ViewCube } from './viewcube.js';
 import { accelerate } from './bvh.js';
+import { capGeometry } from './sectioncap.js';
 
 const BODY = new THREE.Color(0xd9dee6), HOVER = new THREE.Color(0x6cb6ff), PICKED = new THREE.Color(0x4f8cff);
 const FEATURE = new THREE.Color(0xa9cdf5), SELECTED = new THREE.Color(0xf2cc60); // the step under the mouse / the chosen step
+const CAP = new THREE.Color(0xc0604a); // ✂ the section's cut faces (a brick red: not a face of the part, not a pick)
 const MARK = new THREE.Color(0xff7b54); // faces the AI asked to see lit in its picture (get_screenshot highlight)
 const SHADES = [new THREE.Color(0x9ec5ef), new THREE.Color(0xf0b77a)]; // ✂ Split's preview: one shade per body
 const DATUM_COLORS = { XY: 0x4f8cff, XZ: 0x7ee787, YZ: 0xffa657 };
@@ -226,6 +228,7 @@ export class ModelView {
       if (!this.dirty) return;
       this.dirty = false;
       this.updatePlaneArrow(); // (end-on or from the side: the camera may have turned)
+      this.updateCaps();
       this.renderer.render(this.scene, this.camera);
       this.paintedAll = false; // (the colours are on the GPU now)
       this.labels.render(this.scene, this.camera);
@@ -678,6 +681,7 @@ export class ModelView {
       this.camera.updateProjectionMatrix();
       if (fit) this.fit();
       this.updatePlaneArrow?.();
+      this.updateCaps();
       this.renderer.render(this.scene, this.camera);
       this.labels.render(this.scene, this.camera);
       const ctx = c.getContext('2d');
@@ -993,20 +997,45 @@ export class ModelView {
   }
 
   // ------------------------------------------------------------------ section view
-  /** Cut the view along a plane: axis x / y / z, at offset (mm), flip = show the other side; null = no cut. */
+  /** Cut the view along a plane: axis x / y / z, at offset (mm), flip = show the other side; null = no cut. Kept
+   *  without flip: the half away from the iso / front / right / top cameras (x and z below the cut, y behind it), so
+   *  the cut faces the viewer. The plane sits a hair into the kept side: a face lying in the cut is cut away whole,
+   *  not left flickering half drawn; the cut faces are filled (updateCaps). */
   setSection(sec) {
     this.renderer.localClippingEnabled = !!sec;
     const planes = [];
     if (sec) {
-      const n = new THREE.Vector3(sec.axis === 'x' ? 1 : 0, sec.axis === 'y' ? 1 : 0, sec.axis === 'z' ? 1 : 0);
-      if (!sec.flip) n.negate();
-      planes.push(new THREE.Plane(n, sec.flip ? -sec.offset : sec.offset));
+      const n = new THREE.Vector3(sec.axis === 'x' ? -1 : 0, sec.axis === 'y' ? 1 : 0, sec.axis === 'z' ? -1 : 0);
+      if (sec.flip) n.negate();
+      const along = n.x + n.y + n.z; // (±1)
+      planes.push(new THREE.Plane(n, -along * sec.offset - Math.max(this.size || 1, 1) * 1e-4));
     }
     this.material.clippingPlanes = planes;
     this.edgeMaterial.clippingPlanes = planes;
     this.threadMaterial.clippingPlanes = planes;
     this.material.needsUpdate = this.edgeMaterial.needsUpdate = this.threadMaterial.needsUpdate = true;
     this.invalidate();
+  }
+
+  /** ✂ The cut faces filled: each part sliced by the section plane (sectioncap.js), in a colour of its own — remade
+   *  when the cut, a part or its place changes (a mechanism playing moves them). Called before each picture. */
+  updateCaps() {
+    const plane = this.material.clippingPlanes?.[0] || null;
+    if (!this.capGroup) { if (!plane) return; this.capGroup = new THREE.Group(); this.scene.add(this.capGroup); }
+    if (plane) this.scene.updateMatrixWorld();
+    const meshes = plane ? (this.meshes || (this.mesh ? [this.mesh] : [])).filter((m) => m.visible) : [];
+    const key = plane ? `${plane.normal.toArray()}|${plane.constant}|${meshes.map((m) => `${m.geometry.uuid}:${m.matrixWorld.elements.join()}`).join('|')}` : '';
+    if (key === this.capKey) return;
+    this.capKey = key;
+    for (const o of [...this.capGroup.children]) { this.capGroup.remove(o); o.geometry.dispose(); o.material.dispose(); }
+    for (const m of meshes) {
+      const geo = capGeometry(m, plane);
+      if (!geo) continue;
+      const own = !m.material.vertexColors && m.material.color; // (an assembly's part: the cap a little toward its colour)
+      const cap = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: own ? CAP.clone().lerp(own, 0.25) : CAP, roughness: 0.8, metalness: 0, side: THREE.DoubleSide }));
+      cap.userData.cap = true;
+      this.capGroup.add(cap);
+    }
   }
 
   // ------------------------------------------------------------------ measuring
