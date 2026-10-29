@@ -442,6 +442,12 @@ Never report "works" without having run it; report failures with their output.
    ⇤⇥ min / max typed, a typed position past max stops there, ⚠ Check the travel free, then a block in its way: "hits
    Stop (I3) from 1.25 to 20 mm", ▶ plays and ends where it was; the AI's get_assembly `at`, move_free `to` stopped
    at the limit, check_travel, set_travel and off). Needs a server restarted after backend changes (/api/assembly/sweep).
+   `tools/e2e_assembly_loop.py <url> <dir>` covers a closed loop of joints (a crank – rod – slider, r 25, L 100: one
+   loop I2–I3–I4 with 1 free motion in get_assembly; move_free the crank 30° × 3, 90°, 135°, −200° at once: the
+   slider at r·cosθ + √(L² − r²sin²θ), every joint held; the slider drives the crank; the panel's loop hint and
+   its slider; set_travel 0 … 360 + check_travel; ▶ play checked against the formula; the slider pushed past its
+   dead point stops at r + L; the second eye joined again 12 mm off closes by itself; the rod too short ("cannot
+   close", closed false) and back). Prints ALL OK / FAILED, exit code 1 on a failure.
    `tools/e2e_assembly_flexsub.py <url> <dir>` covers flexible sub-assemblies (a lever on a pin placed twice in a
    parent: get_assembly `inner` "I2/I2", the panel's "Moves inside Lever" slider turns it in the parent only — kept
    on that placement's `inner`, the other placement and Lever's own document unchanged —, move_free "I2/I2", undo /

@@ -2700,7 +2700,7 @@ Object.assign(agentHandlers, {
     const stopped = lim && (goal < lim.min || goal > lim.max);
     if (lim) goal = Math.max(lim.min, Math.min(lim.max, goal));
     eng.moveFree(it.id, mo, eng.stepTo(mo, p, goal, lim), null, true);
-    return { text: `${part} moved: ${mo.label}, now at ${+eng.motionPos(it.id, mo).toFixed(2)} ${mo.kind === 'turn' ? '°' : 'mm'}${stopped ? ` (stopped at its limit ${lim.min} … ${lim.max})` : ''}. ${JSON.stringify(assembly.summary().parts.find((x) => x.id === assembly.topOf(part)))}` };
+    return { text: `${part} moved: ${mo.label}, now at ${+eng.motionPos(it.id, mo).toFixed(2)} ${mo.kind === 'turn' ? '°' : 'mm'}${stopped ? ` (stopped at its limit ${lim.min} … ${lim.max})` : ''}${eng.loops?.some((l) => l.stopped) ? ' (stopped: its closed loop cannot follow it further — a dead point)' : ''}. ${JSON.stringify(assembly.summary().parts.find((x) => x.id === assembly.topOf(part)))}` };
   },
   save_to_library: async ({ name, category = 'My parts', maker = '', pn = '' }) => {
     if (state.workspace !== 'model' || !modeler.part.features.length) throw new Error('Open the 3D model to keep (it needs steps).');

@@ -40,6 +40,11 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    on the way; `move_free {part, motion, to}` puts it at a position (it stops at the limits).
    A sub-assembly placed in this one keeps its own motions: get_assembly lists them in its `inner` (part "I3/I2");
    `move_free {part: "I3/I2", …}` moves that part here only — the sub-assembly's own tab stays as it is.
+   A closed loop (a crank – rod – slider: the rod joined to the crank's pin and to the slider's pin) is solved as one
+   mechanism: get_assembly `loops` gives its parts, `free_motions` (1 for a crank-slider) and the motions that
+   `drive` it — move_free the crank (or the slider), set_travel 0 … 360 + check_travel it: the rest follows. Place
+   the parts near where they go before the last joint (it closes the loop the shortest way). `closed: false` /
+   "cannot close": a part is too short or too long for that place.
    A joint with `not_held` is overridden by another joint of that part (it names it): change or `remove_joint` one
    of the two — never leave a joint that does not hold. Joining the same two faces again changes that joint.
    `remove_from_assembly` on a fastener's screw or nut takes out the whole fastener and the holes drilled for it.

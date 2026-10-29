@@ -32,6 +32,7 @@ import { snapNear, snapPoints } from '../modeler/view.js';
 import { showSuggest, showSnapFilters, snapKinds, hoverKinds } from '../suggest.js';
 import { floatBox } from '../floatbox.js';
 import { freeMotions, motionMatrix } from './dof.js';
+import { findLoops, solveLoop, loopFreedom, worstMiss, screwBetween, stepsBetween } from './loops.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
 import { lookColor, finishOf } from '../modeler/materials.js';
@@ -43,6 +44,7 @@ const fmt = (v) => (+(+v).toFixed(3)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const ID = () => new THREE.Matrix4().identity().toArray();
+const tidy = (a) => a.map((v) => (Math.abs(v - Math.round(v)) < 1e-9 ? Math.round(v) : +v.toFixed(9))); // (a matrix: whole numbers kept whole)
 const COLORS = [0xd9dee6, 0x9ecbff, 0xffd8a8, 0xb5f5c5, 0xe2c6ff, 0xffc2c2, 0xfff3b0];
 
 const b64 = (s, T) => { // (a binary answer's arrays come as typed arrays already: modeler/packed.js)
@@ -763,9 +765,11 @@ export class Assembly {
         <h3>Turn</h3><datalist id="as-ticks"><option value="-180"></option><option value="-90"></option><option value="0"></option><option value="90"></option><option value="180"></option></datalist>
         ${rot('x')}${rot('y')}${rot('z')}
         <p class="hint">Slide to any angle — it catches at 0, ±90 and ±180°. Type an exact one in the box.</p>`;
-      const dof = this.motionsOf(it.id);
+      const dof = this.motionsOf(it.id), lp = this.mechanismOf(it.id);
       this.dof = dof;
-      const place = dof ? `<h3>Moves</h3>${dof.count === 0 ? '<p class="mp-count">🔒 Fully held — its joints fix it, it cannot move.</p>'
+      const loopHint = !lp ? '' : `<p class="hint as-loop ${lp.closed ? '' : 'bad'}">${esc(lp.closed ? t2('In a closed loop with {parts}: they move together, {n} way(s) for all of them — move one, the others follow.', { parts: lp.parts.filter((x) => x !== it.id).join(', '), n: lp.free ?? '?' })
+        : t2('⚠ The closed loop {parts} cannot close here — a part is too short or too long for this place.', { parts: lp.parts.join('–') }))}</p>`;
+      const place = dof ? `<h3>Moves</h3>${loopHint}${dof.count === 0 ? (lp?.free ? '' : '<p class="mp-count">🔒 Fully held — its joints fix it, it cannot move.</p>')
         : `<p class="hint">${dof.via ? t2('It is fixed on {part} — it moves with it: drive it here, {part} goes along.', { part: this.partName(this.inst(dof.via)?.part) })
           : t2('It can still move {n} way(s) — the ways its joints leave free. Slide, then let go: it stays there.', { n: dof.count })}</p>
         <div class="as-motions">${dof.motions.map((mo, i) => this.motionHtml(it, mo, i, dof.size)).join('')}</div>
@@ -1516,7 +1520,12 @@ export class Assembly {
     if (this.whyCache?.has(m.id)) return this.whyCache.get(m.id);
     const off = [r.mm >= 0.05 ? `${fmt(+r.mm.toFixed(2))} mm` : '', r.deg >= 0.1 ? `${fmt(+r.deg.toFixed(1))}°` : ''].filter(Boolean).join(t(' and '));
     let by = null;
-    const it = this.inst(m.move), M0 = new THREE.Matrix4().fromArray(it.matrix);
+    const it = this.inst(m.move), M0 = new THREE.Matrix4().fromArray(it.matrix), lp = (this.loops || []).find((l) => !l.closed && l.parts.includes(m.move));
+    if (lp) { // a closed loop that cannot close: not one joint's fault
+      const why = t2('Not held — {off} off: the closed loop {parts} cannot close here — a part is too short or too long for this place. Move one of them back, or change a joint.', { off, parts: lp.parts.join('–') });
+      this.whyCache.set(m.id, why);
+      return why;
+    }
     for (const o of (this.doc.mates || []).filter((x) => x.move === m.move && x.id !== m.id)) {
       try {
         const M = this.holdPart(m.move, M0.clone(), true, o.id);
@@ -2088,12 +2097,22 @@ export class Assembly {
     return M;
   }
 
-  /** Place every joined part again: each part's joints in order, a part after the parts it hangs on. A part goes
-   *  along with the part it hangs on (its first joint's) as that one moved, then its joints set what they fix —
-   *  so where it slid or turned freely stays. */
-  applyMates() {
+  /** Place every joined part again: each part's joints in order, a part after the parts it hangs on (placeAll); then
+   *  the closed loops together (closeLoops: a rod on a crank and a slider) and, when they moved, the parts on them.
+   *  drive: {id, was} — a part moved by a slider, ▶ or the AI (was: its matrix before): it stays where it was put. */
+  applyMates(drive = null) {
     const mates = (this.doc.mates || []).filter((m) => this.inst(m.move) && this.inst(m.onto));
     this.doc.mates = mates;
+    const before = new Map(this.doc.instances.map((i) => [i.id, [...i.matrix]]));
+    this.placeAll(mates);
+    if (this.closeLoops(before, drive)) this.placeAll(mates);
+    this.checkJoints();
+  }
+
+  /** Each joined part placed by its joints, after the parts it hangs on. A part goes along with the part it hangs on
+   *  (its first joint's) as that one moved, then its joints set what they fix — so where it slid or turned freely
+   *  stays. */
+  placeAll(mates) {
     const movers = [...new Set(mates.map((m) => m.move))], done = new Set();
     for (let pass = 0; pass <= movers.length && done.size < movers.length; pass++) {
       for (const id of movers) {
@@ -2111,13 +2130,76 @@ export class Assembly {
             M = P.clone().multiply(new THREE.Matrix4().fromArray(it.hang.m).invert()).multiply(M); // it goes along
           }
           M = this.holdPart(id, M);
-          it.matrix = M.toArray().map((v) => (Math.abs(v - Math.round(v)) < 1e-9 ? Math.round(v) : +v.toFixed(9)));
+          it.matrix = tidy(M.toArray());
           it.hang = { on: parent.id, m: [...parent.matrix] };
         }
         if (rigid.length < mine.length) this.settleInner(it); // (joints on its parts that move inside it: they hold those)
       }
     }
-    this.checkJoints();
+  }
+
+  /** The closed loops (loops.js) — a part joined onto two parts that move —: when their joints do not all hold, their
+   *  parts are moved together (the least they can) until they do. A driven part in a loop (drive) stays where it was
+   *  put and is followed from where it was in steps (a crank turned 90° at once: the rod and the slider follow it
+   *  round); where the loop cannot follow it further (a dead point), the part stops at the last place that closes.
+   *  -> this.loops [{id, parts, closed, stopped}]; true when a part was moved. */
+  closeLoops(before, drive) {
+    const mates = (this.doc.mates || []).filter((m) => !this.insideMate(m));
+    const moves = (x) => { const i = this.inst(x); return !!i && !i.fixed && !!this.bodyOf(i)?.body && mates.some((m) => m.move === x); };
+    this.loops = findLoops(mates, moves).map((parts, k) => ({ id: `L${k + 1}`, parts, closed: true }));
+    const Mat = (a) => new THREE.Matrix4().fromArray(a), faceAt = (id, name, M) => this.worldFace(id, name, M);
+    let changed = false;
+    for (const lp of this.loops) {
+      const held = mates.filter((m) => lp.parts.includes(m.move));
+      const now = new Map(held.flatMap((m) => [m.move, m.onto]).map((x) => [x, Mat(this.inst(x).matrix)]));
+      if (worstMiss(held, now, faceAt) < 1e-5) continue; // (it holds: placed one joint after another, nothing was off)
+      const dr = drive?.was && lp.parts.includes(drive.id) ? drive : null, free = lp.parts.filter((x) => x !== dr?.id).map((x) => this.loopPart(x));
+      const was = new Map(now); // (where the loop's parts were before: it held there)
+      for (const f of free) if (before.has(f.id)) was.set(f.id, Mat(before.get(f.id)));
+      let P = null;
+      if (dr) { // followed from where it was, a step at a time
+        const A = Mat(dr.was), B = Mat(this.inst(dr.id).matrix), path = screwBetween(A, B), n = stepsBetween(A, B, this.loopPart(dr.id).L);
+        let S = new Map(was).set(dr.id, A), k = 1;
+        const closedThen = worstMiss(held, S, faceAt) < 1e-4, at = (s) => solveLoop(free, held, new Map(S).set(dr.id, path(s)), faceAt);
+        for (; k <= n; k++) {
+          const r = at(k / n);
+          if (!r.ok) break;
+          S = r.P;
+        }
+        if (k > n) P = S;
+        else if (closedThen) { // a dead point between the last step and this one: as near to it as it closes
+          let lo = (k - 1) / n, hi = k / n;
+          for (let q = 0; q < 8; q++) { const mid = (lo + hi) / 2, r = at(mid); if (r.ok) { lo = mid; S = r.P; } else hi = mid; }
+          P = S;
+          lp.stopped = true;
+        }
+      }
+      for (const S of P ? [] : [was, now]) { // where it is: from where the parts were, else as placed one joint after another
+        const r = solveLoop(free, held, S, faceAt);
+        if (r.ok) { P = r.P; break; }
+      }
+      if (!P) { lp.closed = false; continue; }
+      for (const id of [...free.map((f) => f.id), ...(dr ? [dr.id] : [])]) this.inst(id).matrix = tidy(P.get(id).toArray());
+      for (const id of lp.parts) { const it = this.inst(id), on = it.hang && this.inst(it.hang.on); if (on) it.hang = { on: on.id, m: [...on.matrix] }; } // (they are where they go)
+      changed = true;
+    }
+    return changed;
+  }
+
+  /** A part as the loop solve moves it: {id, c (its centre, in its own frame), L (its size)}. */
+  loopPart(id) {
+    const b = this.bodyOf(this.inst(id))?.body, bb = b?.bbox || [0, 0, 0, 1, 1, 1];
+    return { id, c: new THREE.Vector3((bb[0] + bb[3]) / 2, (bb[1] + bb[4]) / 2, (bb[2] + bb[5]) / 2), L: Math.max(1, Math.hypot(bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2])) };
+  }
+
+  /** The closed loop a part is in (this.loops), with how many ways its parts can move together (`free`) -> it or null. */
+  loopOf(id) {
+    const lp = (this.loops || []).find((l) => l.parts.includes(id));
+    if (!lp || lp.free !== undefined) return lp || null;
+    const held = (this.doc.mates || []).filter((m) => lp.parts.includes(m.move) && !this.insideMate(m));
+    const P = new Map(held.flatMap((m) => [m.move, m.onto]).map((x) => [x, new THREE.Matrix4().fromArray(this.inst(x).matrix)]));
+    try { lp.free = loopFreedom(lp.parts.map((x) => this.loopPart(x)), held, P, (i, n, M) => this.worldFace(i, n, M)); } catch { lp.free = null; }
+    return lp;
   }
 
   /** How a joined part can still move: {count, motions: [{kind, dir, point, label}], centre, size}. */
@@ -2496,13 +2578,14 @@ export class Assembly {
         this.renderProps();
         return;
       }
-      const v = lim.min + (lim.max - lim.min) * (0.5 - 0.5 * Math.cos(2 * Math.PI * k)); // min -> max -> min
+      const v = lim.min + (lim.max - lim.min) * (0.5 - 0.5 * Math.cos(2 * Math.PI * k)), was = [...it.matrix]; // min -> max -> min
       it.matrix = this.holdPart(id, motionMatrix(mo, ((mo.kind === 'turn' ? Math.PI / 180 : 1) * this.stepTo(mo, p0, v, lim))).multiply(new THREE.Matrix4().fromArray(from)), true).toArray();
-      this.applyMates();
+      this.applyMates({ id, was });
       this.draw();
       requestAnimationFrame(frame);
     };
     it.matrix = this.holdPart(id, motionMatrix(mo, ((mo.kind === 'turn' ? Math.PI / 180 : 1) * this.stepTo(mo, p0, lim.min, lim))).multiply(new THREE.Matrix4().fromArray(from)), true).toArray();
+    this.applyMates({ id, was: from }); // (a closed loop follows it to min)
     requestAnimationFrame(frame);
   }
 
@@ -2520,9 +2603,9 @@ export class Assembly {
     const base = this.flatParts(), steps = [];
     try {
       for (let k = 0; k <= n; k++) {
-        const v = lim.min + ((lim.max - lim.min) * k) / n;
+        const v = lim.min + ((lim.max - lim.min) * k) / n, was = [...it.matrix];
         it.matrix = this.holdPart(id, motionMatrix(mo, (mo.kind === 'turn' ? Math.PI / 180 : 1) * this.stepTo(mo, p0, v, lim)).multiply(from.clone()), true).toArray();
-        this.applyMates();
+        this.applyMates({ id, was });
         steps.push({ at: +v.toFixed(3), matrices: Object.fromEntries(this.flatParts().map((f) => [f.id, f.matrix])) });
       }
       // the parts that move at some step, at every step (also where one is where it started)
@@ -2571,9 +2654,9 @@ export class Assembly {
     const it = this.inst(id);
     if (!it) return;
     from = from || [...it.matrix];
-    const M = motionMatrix(mo, mo.kind === 'turn' ? (amount * Math.PI) / 180 : amount).multiply(new THREE.Matrix4().fromArray(from));
+    const M = motionMatrix(mo, mo.kind === 'turn' ? (amount * Math.PI) / 180 : amount).multiply(new THREE.Matrix4().fromArray(from)), was = [...it.matrix];
     it.matrix = this.holdPart(id, M).toArray();
-    this.applyMates();
+    this.applyMates({ id, was }); // (in a closed loop the others follow it from where it was)
     if (final) this.commit(); else this.draw();
   }
 
@@ -2878,14 +2961,15 @@ export class Assembly {
     return (body._spans[name] = lo <= hi ? [lo, hi] : null);
   }
 
-  /** For the AI: how a joined part can still move -> {free: [the ways]} or {fully_held: true} ({} when not joined). */
+  /** For the AI: how a joined part can still move -> {free: [the ways]} or {fully_held: true} ({} when not joined); a
+   *  part in a closed loop: its `loop` (summary's loops), held by it alone: {moves_with_loop}. */
   freeOf(id) {
     try {
-      const d = this.motionsOf(id);
-      if (!d) return {};
-      if (!d.count) return { fully_held: true };
+      const d = this.motionsOf(id), lp = this.mechanismOf(id), loop = lp ? { loop: lp.id } : {};
+      if (!d) return loop;
+      if (!d.count) return lp?.free ? { moves_with_loop: lp.id } : { fully_held: true, ...loop };
       const it = this.inst(id);
-      return { free: d.motions.map((m) => m.label), at: d.motions.map((m) => { const l = this.limitsOf(it, m); return { motion: m.label, [m.kind === 'turn' ? 'deg' : 'mm']: +this.motionPos(id, m).toFixed(2), ...(l ? { min: l.min, max: l.max } : {}) }; }) };
+      return { ...loop, free: d.motions.map((m) => m.label), at: d.motions.map((m) => { const l = this.limitsOf(it, m); return { motion: m.label, [m.kind === 'turn' ? 'deg' : 'mm']: +this.motionPos(id, m).toFixed(2), ...(l ? { min: l.min, max: l.max } : {}) }; }) };
     } catch { return {}; }
   }
 
@@ -2894,6 +2978,23 @@ export class Assembly {
     let r = null;
     try { r = this.innerMotions(it); } catch { r = null; }
     return r ? { inner: r.parts.map(({ id }) => ({ part: `${it.id}/${id}`, name: this.partName(r.sub.inst(id).part), ...r.sub.freeOf(id) })) } : {};
+  }
+
+  /** The closed loop a part is in when it is a mechanism (its parts move together) or cannot close — not one that holds
+   *  still (plates screwed together) -> it or null. */
+  mechanismOf(id) { const lp = this.loopOf(id); return lp && (!lp.closed || lp.free) ? lp : null; }
+
+  /** For the AI: the closed loops — their parts, do they close, how many ways they move together and which part's
+   *  motion drives them (move_free it: the others follow). */
+  loopsSummary() {
+    return (this.loops || []).filter((l) => this.mechanismOf(l.parts[0])).map((l) => {
+      const lp = this.loopOf(l.parts[0]), drive = l.parts.flatMap((x) => {
+        let d = null;
+        try { d = this.motionsOf(x, true); } catch { d = null; }
+        return d?.count ? d.motions.map((mo, i) => `${x} motion ${i}: ${mo.label}`) : [];
+      });
+      return { id: l.id, parts: l.parts, closed: l.closed, free_motions: lp.free, ...(l.stopped ? { stopped: true } : {}), drive };
+    });
   }
 
   summary() {
@@ -2905,6 +3006,7 @@ export class Assembly {
         return { id: it.id, part: it.part, name: this.partName(it.part), ...(it.fixed ? { fixed: true } : {}), position: new THREE.Vector3().setFromMatrixPosition(m).toArray().map((v) => +v.toFixed(3)),
           bbox: bb ? [...bb.min.toArray(), ...bb.max.toArray()].map((v) => +v.toFixed(3)) : null, error: this.bodies[it.part]?.error, ...this.freeOf(it.id), ...this.innerOf(it) };
       }),
+      ...(this.loops?.some((l) => this.mechanismOf(l.parts[0])) ? { loops: this.loopsSummary() } : {}),
       joints: (this.doc.mates || []).map((m) => ({ id: m.id, ...(m.name ? { name: m.name } : {}), type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
         ...(m.type === 'axis' ? { distance: Number.isFinite(m.dist) ? m.dist : null } : { gap: m.gap || 0 }), ...(m.type !== 'parallel' ? { rotation_locked: Number.isFinite(m.angle) } : {}), ...(m.broken ? { broken: true } : {}),
         ...(m.locked ? { locked: true } : {}), ...(this.inst(m.move)?.fastener ? { fastener: this.inst(m.move).fastener.id } : {}), ...(this.whyNot(m) ? { not_held: this.whyNot(m) } : {}) })),

@@ -744,6 +744,13 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   on it go along), **▶** plays it from min to max and back — its **speed** (¼× … 4×) and **↻ repeat** next to it —, and **⚠ Check the travel** moves it from min to max in
   small steps and checks for collisions on the way: *"✓ Free all the way"* or *"⚠ It hits Stop (I3) from 1.25 to 20
   mm"*. It ends where it was. The AI does the same with `set_travel`, `check_travel` and `move_free {to}`.
+- **Closed loops — a mechanism**: a part joined to two parts that move closes a loop (a crank–rod–slider: the rod's
+  eyes on the crank's pin and on the slider's pin). Its parts are solved together: turn the crank (its slider, ▶ or
+  ⚠ Check the travel through a full turn) and the rod and the slider follow, the slider at r·cosθ + √(L² − r²sin²θ);
+  push the slider and the crank turns. Each part's panel says *In a closed loop with I3, I4: … 1 way(s) for all of
+  them*. A move past a dead point stops there. A loop that cannot close (the rod too short for that place) says so
+  on its joints and in the panel (*⚠ The closed loop … cannot close here*). The AI sees `loops` in get_assembly
+  (parts, closed, free_motions, the motions that drive it).
 - **A sub-assembly keeps its own motions**: choose a placed sub-assembly — **Moves inside <it>** shows a slider for
   each way its own joints leave its parts free (a lever on its pin). Slide: the lever turns here, in this placement
   only — the sub-assembly's own tab stays as it is, and a second placement of it can stand differently. Parts joined
