@@ -8,6 +8,8 @@ project as the app saves it, with its "demo" record (auto3d/demos.py).
   ctyrkloubovy-mechanismus a four-bar crank–rocker (crank 20, coupler 70, rocker 50 on a 60 mm base)
   roboticke-rameno         an open chain: an arm on a column, a forearm on its pin, a gripper fixed on the forearm
   prevodovka-s-hrebenem    gears and a rack: a pinion Ø30 turns a wheel Ø60 (i = 2:1) and moves a rack π·30 mm a turn
+  pumpicka                 a pump: a piston on a 〰 spring, two ↕ check-valve balls (an inlet in the body, an outlet in the piston)
+  ridici-box-s-motorem     a box with a PCB and a motor joined by a 🔌 4-wire harness; the motor turns a pulley
 """
 import json
 import math
@@ -250,5 +252,103 @@ try:
             "order": 4, "name": "Gears and a rack", "name_cs": "Převodovka s hřebenem",
             "text": "A pinion Ø30 turns a wheel Ø60 (⚙ i = 2:1 — half as fast, the other way) and moves a rack π·30 mm a turn — one slider (⚙ Mechanism) moves all three; ▶ plays it. Drag the wheel or push the rack in the view: the others follow.",
             "text_cs": "Pastorek Ø30 otáčí kolem Ø60 (⚙ i = 2:1 — polovičními otáčkami, opačně) a posouvá hřeben o π·30 mm na otáčku — jeden posuvník (⚙ Mechanismus) hýbe všemi třemi; ▶ ho přehraje. Táhněte kolo nebo hřeben v pohledu: ostatní je následují."})
+    # ---------------------------------------------------------------- a pump: a spring and two check-valve balls
+    if want("pumpicka"):
+        fresh()
+
+        def turned(name, pts):
+            """A part turned about its own Z: a closed profile [radius, height] on XZ, a full turn."""
+            call("new_model", name=name)
+            call("add_feature", type="sketch", plane="XZ", shapes=[{"profile": {"points": pts}}])
+            call("add_feature", type="revolve", sketch="F1", axis="y", angle=360)
+        # the body: an inlet Ø4 with a 45° seat (its apex 5 up) under a bore Ø20 from 10 to 50 mm
+        turned("Těleso", [[2, 0], [15, 0], [15, 50], [10, 50], [10, 10], [5, 10], [2, 7]])
+        # the piston Ø19.6 × 8 with a hollow rod: a channel Ø3 up to a 45° seat (its apex 10.5 up) for the outlet ball
+        turned("Píst", [[1.5, 0], [9.8, 0], [9.8, 8], [4, 8], [4, 40], [3.5, 40], [3.5, 14], [1.5, 12]])
+        call("new_model", name="Pružina")
+        call("add_feature", type="sketch", plane="XY", shapes=[{"circle": {"x": 0, "y": 0, "d": 18}}, {"circle": {"x": 0, "y": 0, "d": 12}}])
+        call("add_feature", type="extrude", sketch="F1", d=20)
+        for name in ("Kulička sací", "Kulička výtlačná"):
+            turned(name, [[0, -3], {"arc": [3, 0]}, [0, 3]])
+        assembly("Pumpička", ["Těleso", "Píst", "Pružina", "Kulička sací", "Kulička výtlačná"])
+
+        def find(i, kind, **w):
+            """A placed part's face: its type, radius / the z of a flat face looking up (+1) or down (-1)."""
+            return js(f"""const it = {A}.inst(arguments[0]), b = {A}.bodies[it.part].body, w = arguments[2];
+              return b.faces.find(f => f.type === arguments[1] && (w.r === undefined || Math.abs(f.radius - w.r) < 1e-6)
+                && (w.up === undefined || (f.normal[2] * w.up > 0.99 && Math.abs(f.centroid[2] - w.z) < 1e-6)))?.name""", i, kind, w)
+        seat = 3 / math.sin(math.pi / 4)  # (a Ø6 ball in a 45° seat: its centre r / sin 45° from the apex)
+        call("place_part", part="I2", x=0, y=0, z=30)
+        call("place_part", part="I3", x=0, y=0, z=10)
+        call("place_part", part="I4", x=0, y=0, z=5 + seat)
+        call("place_part", part="I5", x=0, y=0, z=40.5 + seat)
+        bore = find("I1", "cylinder", r=10)
+        snap(type="axis", move={"part": "I3", "face": find("I3", "cylinder", r=9)}, onto={"part": "I1", "face": bore}, lock_rotation=True)
+        snap(type="touch", move={"part": "I3", "face": "F2:start"}, onto={"part": "I1", "face": find("I1", "plane", up=1, z=10)})
+        snap(type="axis", move={"part": "I2", "face": find("I2", "cylinder", r=9.8)}, onto={"part": "I1", "face": bore}, lock_rotation=True)
+        snap(type="spring", move={"part": "I3", "face": "F2:end"}, onto={"part": "I2", "face": find("I2", "plane", up=-1, z=0)}, value=0.3, name="pružina pístu")
+        snap(type="ball", move={"part": "I4", "face": find("I4", "sphere")}, onto={"part": "I1", "face": find("I1", "cone")}, name="sací ventil")
+        snap(type="ball", move={"part": "I5", "face": find("I5", "sphere")}, onto={"part": "I2", "face": find("I2", "cone")}, name="výtlačný ventil")
+        press = motion("I2", "Slide")
+        call("name_motion", part="I2", motion=press, name="Zmáčknutí tlačítka")
+        up = js(f"return {A}.motionsOf('I2').motions[arguments[0]].dir.z > 0", press)  # (its value grows going up)
+        at = float(js(f"const a = {A}, mo = a.motionsOf('I2').motions[arguments[0]]; return a.motionPos('I2', mo)", press))
+        call("set_travel", part="I2", motion=press, min=min(at, at + (-6 if up else 6)), max=max(at, at + (-6 if up else 6)))
+        for i, name, lift_when_up in (("I4", "Zdvih sacího ventilu", True), ("I5", "Zdvih výtlačného ventilu", False)):
+            k = motion(i, "Slide")
+            bu = js(f"return {A}.motionsOf(arguments[0]).motions[arguments[1]].dir.z > 0", i, k)
+            p = float(js(f"const a = {A}, mo = a.motionsOf(arguments[0]).motions[arguments[1]]; return a.motionPos(arguments[0], mo)", i, k))
+            lift = 2.5 if bu else -2.5
+            call("set_travel", part=i, motion=k, min=min(p, p + lift), max=max(p, p + lift))
+            lifted, seated = ("max", "min") if bu else ("min", "max")
+            # the inlet opens while the piston goes up (it sucks), the outlet while it goes down (it presses)
+            call("set_travel", part=i, motion=k, follow={"part": "I2", "motion": press, "at": lifted if lift_when_up == up else seated})
+            call("name_motion", part=i, motion=k, name=name)
+        call("set_look", part="I1", color="#9fb3c8", opacity=0.35)
+        for i, color in (("I2", "#e8a33d"), ("I3", "#4a90d9"), ("I4", "#d94a4a"), ("I5", "#3fb950")):
+            call("set_look", part=i, color=color)
+        print(call("drive_mechanism", mechanism="I2", name="Pumpička", to=at + (-3 if up else 3))[:160])
+        save("pumpicka.a3d.json", "Pumpička", {
+            "order": 5, "name": "Pump", "name_cs": "Pumpička",
+            "text": "Press the button: the piston compresses the spring (〰 drawn as long as it is: free 20 mm, now, the force), the outlet ball lifts and the inlet ball sits on its seat; let go: the other way round — check valves (↕ by the piston's direction). ▶ plays it, 📈 Trace shows a ball's two stops.",
+            "text_cs": "Zmáčkněte tlačítko: píst stlačí pružinu (〰 kreslená tak dlouhá, jaká je: volná 20 mm, teď, síla), výtlačná kulička se zvedne a sací dosedne do sedla; pusťte: naopak — zpětné ventily (↕ podle směru pístu). ▶ to přehraje, 📈 Průběh ukáže oba dorazy kuličky."})
+    # ---------------------------------------------------------------- a box with a PCB and a motor: a 🔌 4-wire harness
+    if want("ridici-box-s-motorem"):
+        fresh()
+        call("new_model", name="Krabice")
+        call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 160, "h": 100}}])
+        call("add_feature", type="extrude", sketch="F1", d=8)
+        call("new_model", name="DPS")
+        call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 60, "h": 40}}])
+        call("add_feature", type="extrude", sketch="F1", d=1.6)
+        call("new_model", name="Motor")
+        call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 30, "h": 30}}])
+        call("add_feature", type="extrude", sketch="F1", d=30)
+        call("add_feature", type="sketch", plane={"face": "F2:end"}, shapes=[{"circle": {"x": 0, "y": 0, "d": 6}}])
+        call("add_feature", type="extrude", sketch="F3", d=10)  # (its shaft)
+        call("new_model", name="Řemenice")
+        call("add_feature", type="sketch", plane="XY", shapes=[{"circle": {"x": 0, "y": 0, "d": 30}}])
+        call("add_feature", type="extrude", sketch="F1", d=6)
+        call("add_feature", type="hole", face="F2:end", points=[[0, 0]], d=6)
+        call("add_feature", type="hole", face="F2:end", points=[[9, 0]], d=4)  # (a mark: it is seen to turn)
+        assembly("Řídicí box s motorem", ["Krabice", "DPS", "Motor", "Řemenice"])
+        call("place_part", part="I2", x=15, y=30, z=8)
+        call("place_part", part="I2", fixed=True)
+        call("place_part", part="I3", x=110, y=35, z=8)
+        call("place_part", part="I3", fixed=True)
+        snap(type="axis", move={"part": "I4", "face": rounds("I4", "hole")[0] if axis("I4", rounds("I4", "hole")[0])[0] < axis("I4", rounds("I4", "hole")[-1])[0] else rounds("I4", "hole")[-1]},
+             onto={"part": "I3", "face": rounds("I3", "side")[0]}, name="řemenice na hřídeli")
+        snap(type="touch", move={"part": "I4", "face": "F2:start"}, onto={"part": "I3", "face": "F2:end"})
+        for i, color in (("I1", "#c9ced6"), ("I2", "#2f8f4e"), ("I3", "#5b6470"), ("I4", "#e8a33d")):
+            call("set_look", part=i, color=color)
+        call("name_motion", part="I4", motion=motion("I4", "Turn"), name="Otáčení řemenice")
+        print(call("add_harness", type="wires", count=4, name="Napájení motoru",
+                   points=[{"part": "I2", "face": "F2:end"}, {"xyz": [62, 50, 34]}, {"xyz": [95, 18, 34]}, {"part": "I3", "face": "F2:side:l1"}])[:160])
+        print(call("drive_mechanism", driver={"part": "I4", "motion": 0}, name="Motor", to=0)[:140])
+        js(f"{A}.harnessTool.sel = null; {A}.render(); {A}.draw()")
+        save("ridici-box-s-motorem.a3d.json", "Řídicí box s motorem", {
+            "order": 5, "name": "Control box with a motor", "name_cs": "Řídicí box s motorem",
+            "text": "A PCB and a motor in a box, joined by a 🔌 cable harness of 4 loose wires (red, black, blue, brown) routed over the box — its length, the bends at the minimum radius, a BOM line per wire. Click the harness: edit its points, change it to a cable; ▶ turns the motor's pulley.",
+            "text_cs": "Deska plošných spojů a motor v krabici, spojené 🔌 kabelovým svazkem ze 4 volných drátů (červený, černý, modrý, hnědý) vedeným nad krabicí — jeho délka, ohyby na minimální poloměr, řádek kusovníku na každý drát. Klikněte na svazek: upravte body, změňte ho na kabel; ▶ otáčí řemenicí motoru."})
 finally:
     d.quit()

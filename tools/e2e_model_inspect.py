@@ -59,7 +59,7 @@ def click_xyz(p):
 
 
 def box():
-    return js("return document.querySelector('.m-measure')?.innerText.replace(/\\n/g, ' ')")
+    return js("return [...document.querySelectorAll('[data-w=measure-model] .ms-row')].at(-1)?.innerText.replace(/\\s+/g, ' ')")  # (📏 the newest row)
 
 
 try:

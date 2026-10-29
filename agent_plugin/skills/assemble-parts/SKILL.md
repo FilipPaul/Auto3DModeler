@@ -20,9 +20,19 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    answers with the list of faces. `type` picks the joint: `touch` (default), `gap` (with `gap` mm), `flush`, `axis`
    (concentric round faces — a pin / screw / shaft in a hole; with `gap` the distance along the axis between their
    facing ends, e.g. two plates with holes 30 mm apart; `lock_rotation: true` keeps the turn), `parallel`, `perp`, `angle` (`value` degrees between
-   the faces' directions), `tangent` (a round face on a flat one: a roller on a plate). A part's joints apply in order: `axis` first, then
+   the faces' directions), `tangent` (a round face on a flat one: a roller on a plate), `ball` (a ball's spherical face —
+   a revolved half circle — with its centre on the axis of a hole or a cone: it slides along it and turns; onto another
+   ball: a ball joint, 3 turns), `seat` (the ball seated in a conical seat or on the edge of a smaller hole: a valve
+   ball — on the axis, touching), `rigid` (🔗 fixed together as they are now: `{move: {part}, onto: {part}}`, no faces —
+   a part that rides on another one, e.g. a ball carried by a piston), `spring` (〰 a spring part — keep it its own part,
+   joined where it sits — from its end face `move` to the face it pushes on `onto`, `value` = k N/mm: it is drawn as long
+   as it reaches while the mechanism moves; get_assembly `springs`: free / now / compressed, force). A part's joints apply in order: `axis` first, then
    `touch` from the head to the face it sits on, seats a pin. Joints hold: the part follows when the other one moves
    or changes size (`get_assembly` lists the `joints`); `place_part` on a joined part removes its joints.
+   The user does the same by clicking: a part or a face selected, the **suggestions table** in the view's corner
+   offers its joints (Touch…, Gap…, Concentric…), two faces picked offer what joins them. To show them how, select it
+   (`gui_action {pick: "I2"}` or `{pick: "I2 F2:end"}`), read `gui_state {where: "suggest"}` and point at the row
+   with `gui_highlight {control: <its n>}`.
 4. Fine-tune with `place_part {part, x, y, z}` (its origin in mm) and `turn: "x" | "y" | "z"` (90° about its
    centre). Check the bounding boxes from `get_assembly` and look with `get_screenshot`.
 5. **Fasteners through parts with no holes**: join the parts so they touch, then `bolt_parts {part, face, x, y, kind,
@@ -37,7 +47,13 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    `check_collisions` lists parts that go into each other (fix the made part: a hole, a pocket).
    A part that moves (a cylinder's rod, a slide, a door): `set_travel {part, motion, min, max}` gives its free motion
    its limits (where along it: get_assembly `at`), then `check_travel {part, motion}` tells whether it hits anything
-   on the way; `move_free {part, motion, to}` puts it at a position (it stops at the limits).
+   on the way; `move_free {part, motion, to}` puts it at a position (it stops at the limits). `lock_motion {part,
+   motion}` keeps one free motion where it is — also a touch's slides on the face (one by one) and a ball's turns.
+   A check valve's ball (or a pawl) that sits at one stop or the other by the way the piston goes: join it so it has one
+   slide (`ball` on its seat's axis), `set_travel {part, motion, min, max}` = its two stops (seated / lifted), then
+   `set_travel {part, motion, follow: {part: <the piston>, at: "max" | "min"}}` — where it sits while the piston moves
+   forward (its value grows); back: the other stop. It then moves with the piston's mechanism (drive_mechanism, ▶, trace).
+   A part that only rides along: `rigid`. A crank's full turn always goes forward — the rule is for a to-and-fro driver.
    A sub-assembly placed in this one keeps its own motions: get_assembly lists them in its `inner` (part "I3/I2");
    `move_free {part: "I3/I2", …}` moves that part here only — the sub-assembly's own tab stays as it is. Its own
    mechanisms (a crank loop, gears) are in get_assembly `mechanisms` too (`inside: "I3"`, parts "I3/I2"):
@@ -57,7 +73,7 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    (`name_motion {part, motion, name: "Otáčení kliky"}`, `drive_mechanism {name}` for the mechanism) — the names show
    everywhere and work as `motion` in move_free / set_travel. To show it moving: `set_view` as it should be seen, then
    `record_animation {mechanism, format: "gif" | "video"}` saves one full cycle in the data folder (it answers the path).
-   Ready-made mechanisms (a crank – rod – slider, a four-bar, gears with a rack, a robot arm) to show or start from:
+   Ready-made mechanisms (a crank – rod – slider, a four-bar, gears with a rack, a robot arm, a pump: a spring and check valves) to show or start from:
    `list_demos`, `open_demo {name: "crank"}` — only when the user asks (a new project; the one on screen is kept in
    🕘 Recent projects). A saved project file (.a3d.json) opens with `open_file {path}` the same way.
    **Gears, belts, a rack**: two parts that each turn on their own pin are coupled by `snap_faces {type: "gear" |
@@ -80,6 +96,17 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    sub-assembly are counted in both; the user sees the same in 📋 BOM (⬇ CSV / Excel) and can add a BOM page to the
    assembly's drawing (📋 Add BOM page). To change a part, `open_part` it — every
    assembly that uses it follows. The user exports the assembly (STL or STEP) from its Export buttons.
+8. **Cables and wires** (🔌 Cable harness): `add_harness {type, points, …}` routes one through points — `{part: "I2",
+   face: "F2:end"}` (it lies on that face's middle, Ø/2 off it; a round face: through the hole's centre), `{part, point:
+   [x, y, z]}` (the part's own coordinates) or `{xyz: [x, y, z]}` (in space, to lead it round things). type `"wires"`
+   (loose wires: `count` + `wire_d`, or `wires: [{color, d}]` — IEC colours black, brown, red, orange, yellow, green,
+   blue, violet, grey, white, pink, green-yellow), `"cable"` (`d`, `color`), `"ribbon"` (`count` × `pitch`) or
+   `"sleeve"` (`d`). `r_min` (mm) is the minimum bend radius (default 5 × Ø): every corner is rounded to it; a corner
+   whose legs are too short for it is reported (`bends_too_tight`: add a point further out or lower r_min), and
+   `through_parts` names parts its centre line goes through (add a point round them). Points on a part move with it.
+   The answer and get_assembly `harnesses` give its length; get_bom lists a line per wire with its length + the
+   reserve (5 %). `edit_harness {id, …}` changes any of these (`points` replaces them, `add_points` appends, `remove:
+   true` deletes it). STEP / GLB exports and the assembly drawing include it.
 
 Files for the user: `export {format: "step"}` (the whole assembly as a STEP assembly — SolidWorks, CATIA and Solid
 Edge open it as an assembly tree, a product per part, sub-assemblies nested), `"iges"` (every part placed in one IGES —

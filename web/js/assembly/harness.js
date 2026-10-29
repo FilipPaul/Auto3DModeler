@@ -1,0 +1,855 @@
+// 🔌 Cable harnesses in the assembly: choose what runs (one cable, loose wires, a ribbon cable, a sleeve), its Ø and
+// the minimum bend radius, then click the points it passes — on a part's face (it lies on it: Ø/2 + 0.5 mm off), a
+// hole's centre (it goes through), or in space. A point on a part sticks to it (the placed part + its own
+// coordinates): it follows when the part moves (mechanisms, dragging, explode). The route: a polyline with every corner
+// rounded to the minimum radius (straight lines + arcs); a corner whose legs are too short for it gets the largest
+// radius that fits, drawn red with ⚠. Drawn as tubes (wires twisted round the centre line, a sleeve corrugated, a
+// ribbon flat), listed in the assembly tree, in the BOM (a line per wire / cable, its length + a reserve, rounded up),
+// exported to STEP / GLB / the drawing as a "harness" step of its own part (auto3d/modeler/harness.py: the same math).
+//
+// Assembly JSON: "harnesses": [{"id": "H1", "kind": "cable" | "wires" | "ribbon" | "sleeve", "d": 6 (cable / sleeve Ø),
+//   "color": "black", "wires": [{"d": 1.5, "color": "brown"}] (loose wires, a ribbon's count), "pitch": 1.27,
+//   "r_min": 30 (not said: the rule of thumb, autoRmin), "reserve": 5 (%), "name": "…",
+//   "points": [{"inst": "I2", "at": [x, y, z] (in the part), "n": [x, y, z] (its face's normal: the cable lies on it;
+//   none: right there, a hole's centre)} | {"xyz": [x, y, z]} (in space)]}]
+import * as THREE from 'three';
+import { CSS2DObject } from 'three/addons/CSS2DRenderer.js';
+import { t, getLang } from '../i18n.js';
+
+const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const V = (a) => new THREE.Vector3(...a);
+const CLEAR = 0.5; // mm between a face and the cable lying on it
+
+export const KINDS = {
+  cable: { icon: '⚫', name: 'Cable', hint: 'One round cable: its Ø and colour' },
+  wires: { icon: '≋', name: 'Loose wires', hint: 'Single wires laid together: how many, each one\'s Ø and colour — the bundle\'s Ø from how they pack' },
+  ribbon: { icon: '▬', name: 'Ribbon cable', hint: 'A flat cable: its width = wires × pitch' },
+  sleeve: { icon: '〰', name: 'Sleeve', hint: 'A corrugated hose round the wires: its Ø' },
+};
+// IEC 60757 wire colours: [code, hex, English, Czech (as a colour), Czech (of a wire / cable)]
+export const COLOURS = {
+  black: ['BK', 0x262626, 'black', 'černá', 'černý'], brown: ['BN', 0x7b4a24, 'brown', 'hnědá', 'hnědý'], red: ['RD', 0xd0312d, 'red', 'červená', 'červený'],
+  orange: ['OG', 0xf08c1a, 'orange', 'oranžová', 'oranžový'], yellow: ['YE', 0xf2d22e, 'yellow', 'žlutá', 'žlutý'], green: ['GN', 0x2e9d48, 'green', 'zelená', 'zelený'],
+  blue: ['BU', 0x2f6fd0, 'blue', 'modrá', 'modrý'], violet: ['VT', 0x8a4fc4, 'violet', 'fialová', 'fialový'], grey: ['GY', 0x8c9096, 'grey', 'šedá', 'šedý'],
+  white: ['WH', 0xf2f2f0, 'white', 'bílá', 'bílý'], pink: ['PK', 0xf29bb8, 'pink', 'růžová', 'růžový'], 'green-yellow': ['GNYE', 0x9cc23a, 'green-yellow', 'zelenožlutá', 'zelenožlutý'],
+};
+const ORDER = ['red', 'black', 'blue', 'brown', 'green-yellow', 'white', 'grey', 'orange', 'yellow', 'violet', 'pink', 'green'];
+const colourOf = (c) => COLOURS[c] || COLOURS.black;
+export const colourName = (c) => (getLang() === 'cs' ? colourOf(c)[3] : colourOf(c)[2]);
+const hexOf = (c) => `#${colourOf(c)[1].toString(16).padStart(6, '0')}`;
+
+/** A length in whole mm, thousands apart ("1 284"). */
+export const mmText = (v) => String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+const num = (v) => { const s = String(+(+v).toFixed(2)); return getLang() === 'cs' ? s.replace('.', ',') : s; };
+
+// ------------------------------------------------------------------ the math (as auto3d/modeler/harness.py)
+const PACKING = { 1: 1, 2: 2, 3: 1 + 2 / Math.sqrt(3), 4: 1 + Math.SQRT2, 5: 1 + 1 / Math.sin(Math.PI / 5), 6: 3, 7: 3, 8: 1 + 1 / Math.sin(Math.PI / 7), 9: 1 + 1 / Math.sin(Math.PI / 8) };
+
+/** n wires of Ø d in a round bundle -> their centres [[x, y]] in its cross-section. */
+export function wireLayout(n, d) {
+  n = Math.max(1, n | 0);
+  const ring = (k, r, a0 = 0) => Array.from({ length: k }, (_, i) => [r * Math.cos(a0 + (2 * Math.PI * i) / k), r * Math.sin(a0 + (2 * Math.PI * i) / k)]);
+  if (n === 1) return [[0, 0]];
+  if (n === 2) return [[-d / 2, 0], [d / 2, 0]];
+  if (n <= 6) return ring(n, d / (2 * Math.sin(Math.PI / n)));
+  if (n <= 9) return [[0, 0], ...ring(n - 1, Math.max(d, d / (2 * Math.sin(Math.PI / (n - 1)))))];
+  const m = Math.max(3, Math.round(n / 3.2)), ri = d / (2 * Math.sin(Math.PI / m)), ro = Math.max(ri + d, d / (2 * Math.sin(Math.PI / (n - m))));
+  return [...ring(m, ri), ...ring(n - m, ro, Math.PI / (n - m))];
+}
+
+/** The outer Ø of n wires of Ø d laid in a round bundle (1, 3, 7 wires: 1, 2.155, 3 × d). */
+export function bundleD(n, d) {
+  n = Math.max(1, n | 0);
+  return PACKING[n] ? PACKING[n] * d : 2 * Math.max(...wireLayout(n, d).map(([x, y]) => Math.hypot(x, y))) + d;
+}
+
+const wireD = (h) => Math.max(...(h.wires || []).map((w) => +w.d || 1.5), 0) || 1.5;
+/** A harness's outer size: a cable's / sleeve's Ø, a bundle's Ø, a ribbon's width. */
+export function outerD(h) {
+  if (h.kind === 'wires') return bundleD((h.wires || []).length || 1, wireD(h));
+  if (h.kind === 'ribbon') return Math.max(1, (h.wires || []).length) * (+h.pitch || 1.27);
+  return +h.d || 6;
+}
+/** How far its centre line keeps off a face it lies on (a ribbon: lying flat). */
+const lift = (h) => (h.kind === 'ribbon' ? (+h.d || 1) / 2 : outerD(h) / 2) + CLEAR;
+/** The rule of thumb when none is given: 5 × Ø (a cable, a bundle), 3 × Ø (a corrugated sleeve), 10 mm (a ribbon). */
+export const autoRmin = (h) => (h.kind === 'ribbon' ? 10 : Math.ceil((h.kind === 'sleeve' ? 3 : 5) * outerD(h)));
+export const rMinOf = (h) => (Number.isFinite(+h.r_min) && h.r_min !== null && h.r_min !== '' ? +h.r_min : autoRmin(h));
+
+/** The route through world points (THREE.Vector3): each corner rounded with rMin where its legs leave room, else with
+ *  the largest radius that fits -> {segs: [{t: 'line' | 'arc', a, b, len, (arc) c, r, ang, axis}], length, bends:
+ *  [{at (the point's number in pts), r, ok, angle (deg), p}]}. */
+export function route(pts, rMin) {
+  const P = [], idx = [];
+  pts.forEach((p, k) => { if (!P.length || p.distanceTo(P[P.length - 1]) > 1e-6) { P.push(p.clone()); idx.push(k); } });
+  if (P.length < 2) return { segs: [], length: 0, bends: [] };
+  const L = [], U = [];
+  for (let k = 0; k + 1 < P.length; k++) { const v = P[k + 1].clone().sub(P[k]); L.push(v.length()); U.push(v.divideScalar(L[k])); }
+  const turn = P.map((_, i) => (i === 0 || i === P.length - 1 ? 0 : Math.acos(Math.max(-1, Math.min(1, U[i - 1].dot(U[i]))))));
+  const want = turn.map((a) => (a > 1e-9 && a < Math.PI - 1e-9 ? rMin * Math.tan(a / 2) : a >= Math.PI - 1e-9 ? Infinity : 0));
+  const room = (i, k) => { // how much of leg k corner i may take (the room split by what the corners at its two ends want)
+    const j = i === k ? k + 1 : k, a = want[i], b = want[j];
+    if (b <= 0 || a + b <= L[k]) return b <= 0 ? L[k] : Math.min(a, L[k]);
+    if (Number.isFinite(a + b)) return L[k] * (a / (a + b));
+    return a === Infinity && b === Infinity ? L[k] / 2 : a === Infinity ? L[k] : 0;
+  };
+  const segs = [], bends = [];
+  let at = P[0], length = 0;
+  for (let i = 1; i + 1 < P.length; i++) {
+    const a = turn[i];
+    if (a <= 1e-9) continue;
+    const T = Math.min(want[i], room(i, i - 1), room(i, i)), r = a < Math.PI - 1e-9 ? T / Math.tan(a / 2) : 0;
+    bends.push({ at: idx[i], r, ok: r >= rMin * (1 - 1e-6), angle: (a * 180) / Math.PI, p: P[i] });
+    const A = P[i].clone().addScaledVector(U[i - 1], -T), B = P[i].clone().addScaledVector(U[i], T);
+    if (A.distanceTo(at) > 1e-9) { segs.push({ t: 'line', a: at, b: A, len: A.distanceTo(at) }); length += A.distanceTo(at); }
+    if (r > 1e-9) {
+      const w = U[i].clone().sub(U[i - 1]).normalize(), c = P[i].clone().addScaledVector(w, r / Math.cos(a / 2));
+      const axis = A.clone().sub(c).cross(B.clone().sub(c)).normalize();
+      segs.push({ t: 'arc', a: A, b: B, c, r, ang: a, axis, len: r * a, bend: bends.length - 1 });
+      length += r * a;
+    }
+    at = B;
+  }
+  if (P[P.length - 1].distanceTo(at) > 1e-9) { segs.push({ t: 'line', a: at, b: P[P.length - 1], len: P[P.length - 1].distanceTo(at) }); length += P[P.length - 1].distanceTo(at); }
+  return { segs, length, bends };
+}
+
+/** The route as a three.js curve, parametrised by its length (TubeGeometry samples it evenly). */
+class RouteCurve extends THREE.Curve {
+  constructor(segs, length) { super(); this.segs = segs; this.length = length || 1; }
+
+  getPoint(u, out = new THREE.Vector3()) {
+    let s = Math.max(0, Math.min(1, u)) * this.length;
+    for (const g of this.segs) {
+      if (s <= g.len + 1e-9 || g === this.segs[this.segs.length - 1]) {
+        const k = g.len ? Math.min(1, s / g.len) : 0;
+        if (g.t === 'line') return out.copy(g.a).lerp(g.b, k);
+        return out.copy(g.a).sub(g.c).applyAxisAngle(g.axis, g.ang * k).add(g.c);
+      }
+      s -= g.len;
+    }
+    return out.copy(this.segs[0]?.a || new THREE.Vector3());
+  }
+
+  getUtoTmapping(u) { return u; } // (already by length)
+  getLength() { return this.length; }
+}
+
+/** A polyline as a curve by its length (a wire's offset line). */
+class PolyCurve extends THREE.Curve {
+  constructor(pts) {
+    super();
+    this.pts = pts;
+    this.acc = [0];
+    for (let i = 1; i < pts.length; i++) this.acc.push(this.acc[i - 1] + pts[i].distanceTo(pts[i - 1]));
+  }
+
+  getPoint(u, out = new THREE.Vector3()) {
+    const L = this.acc[this.acc.length - 1], s = Math.max(0, Math.min(1, u)) * L;
+    let i = 1;
+    while (i < this.acc.length - 1 && this.acc[i] < s) i++;
+    const span = this.acc[i] - this.acc[i - 1] || 1;
+    return out.copy(this.pts[i - 1]).lerp(this.pts[i], (s - this.acc[i - 1]) / span);
+  }
+
+  getUtoTmapping(u) { return u; }
+}
+
+// ------------------------------------------------------------------ where its points are
+/** A placed part's matrix as drawn (exploded too: the points stay on it), else as placed. */
+function matrixOf(asm, id) {
+  const mesh = (asm.view?.meshes || []).find((m) => m.userData.inst === id);
+  if (mesh) return mesh.matrix;
+  const it = asm.inst(id);
+  return it ? new THREE.Matrix4().fromArray(it.matrix) : null;
+}
+
+/** A point of a harness in the world (a point on a part: off its face by Ø/2 + clearance) -> Vector3 or null (its
+ *  part is gone). M: a placed part's matrix (default: as drawn). */
+export function pointAt(asm, h, p, M = null) {
+  if (p.xyz) return V(p.xyz);
+  M = M || matrixOf(asm, p.inst);
+  if (!M) return null;
+  const w = V(p.at).applyMatrix4(M);
+  if (p.n) w.addScaledVector(V(p.n).applyMatrix3(new THREE.Matrix3().getNormalMatrix(M)).normalize(), lift(h));
+  return w;
+}
+
+/** The world points of a harness (its placed parts' matrices from the assembly document: the BOM, the export). */
+export function docPoints(doc, h) {
+  const mats = new Map((doc.instances || []).map((it) => [it.id, new THREE.Matrix4().fromArray(it.matrix)]));
+  return (h.points || []).map((p) => pointAt({ inst: () => null }, h, p, p.inst ? mats.get(p.inst) || null : null)).filter(Boolean);
+}
+
+/** A harness as the kernel's step (auto3d/modeler/harness.py), its points in the assembly's frame. */
+export function harnessStep(doc, h) {
+  return { id: h.id, type: 'harness', kind: h.kind, points: docPoints(doc, h).map((p) => p.toArray().map((v) => +v.toFixed(4))), d: +h.d || (h.kind === 'ribbon' ? 1 : 6),
+    wires: (h.wires || []).map((w) => ({ d: +w.d || 1.5, color: w.color })), pitch: +h.pitch || 1.27, r_min: rMinOf(h) };
+}
+
+/** Each harness of an assembly as a part placed where it is, for the drawing sheet: [{id, part: {features}, matrix}]. */
+export function harnessSolids(doc, matrix) {
+  return (doc?.harnesses || []).filter((h) => (h.points || []).length > 1).map((h) => ({ id: h.id, part: { features: [harnessStep(doc, h)] }, matrix }));
+}
+
+/** The assembly's STEP / GLB tree with its harnesses: a part each ("Harness 1"), in its colour(s), placed as is. */
+export function withHarnesses(asm, tree) {
+  const root = tree.assemblies[tree.root];
+  for (const h of asm.doc.harnesses || []) {
+    if ((h.points || []).length < 2) continue;
+    const key = `${tree.root}:${h.id}`, wires = h.kind === 'wires' ? h.wires || [] : [];
+    tree.parts[key] = { name: nameOf(h), features: [harnessStep(asm.doc, h)], colour: hexOf(h.kind === 'wires' ? wires[0]?.color : h.kind === 'ribbon' ? 'grey' : h.color),
+      ...(wires.length > 1 ? { paint: wires.map((w, k) => ({ feature: `${h.id}:w${k}`, color: hexOf(w.color) })) } : {}) };
+    root.instances.push({ ref: key, matrix: new THREE.Matrix4().identity().toArray() });
+  }
+  return tree;
+}
+
+/** "Harness 1" (its own name when it has one). */
+export const nameOf = (h) => h.name || t2('Harness {n}', { n: String(h.id).replace(/\D/g, '') || h.id });
+/** What it is in short: "4 × Ø1.5", "Ø6", "10 × 1.27". */
+export const specOf = (h) => (h.kind === 'wires' ? `${(h.wires || []).length} × Ø${num(wireD(h))}` : h.kind === 'ribbon' ? `${(h.wires || []).length} × ${num(+h.pitch || 1.27)}` : `Ø${num(outerD(h))}`);
+
+/** The BOM lines of an assembly's harnesses: a line per wire (a cable, ribbon, sleeve: one), its length with the
+ *  reserve, rounded up to 10 mm -> [{key, name, qty, length_mm, colour, harness}]. */
+export function harnessBom(doc) {
+  const cs = getLang() === 'cs', out = new Map();
+  for (const h of doc?.harnesses || []) {
+    const pts = docPoints(doc, h);
+    if (pts.length < 2) continue;
+    const L = Math.ceil((route(pts, rMinOf(h)).length * (1 + (Number.isFinite(+h.reserve) ? +h.reserve : 5) / 100)) / 10) * 10;
+    const line = (what, colour) => {
+      const name = `${what}${colour ? ` ${cs ? colourOf(colour)[4] : colourOf(colour)[2]}` : ''} — ${mmText(L)} mm`, key = `${h.id}|${name}`;
+      const r = out.get(key) || { key, name, qty: 0, length_mm: L, colour: colour || null, harness: h.id, harness_name: nameOf(h) };
+      r.qty++;
+      out.set(key, r);
+    };
+    if (h.kind === 'wires') for (const w of h.wires || []) line(`${cs ? 'Vodič' : 'Wire'} Ø${num(+w.d || 1.5)} mm`, w.color || 'black');
+    else if (h.kind === 'ribbon') line(`${cs ? 'Plochý kabel' : 'Ribbon cable'} ${(h.wires || []).length} × ${num(+h.pitch || 1.27)} mm`, null);
+    else if (h.kind === 'sleeve') line(`${cs ? 'Chránička' : 'Sleeve'} Ø${num(outerD(h))} mm`, null);
+    else line(`${cs ? 'Kabel' : 'Cable'} Ø${num(outerD(h))} mm`, h.color || 'black');
+  }
+  return [...out.values()];
+}
+
+/** For the AI and the tree: a harness's facts as the parts stand now. */
+export function harnessFacts(asm, h) {
+  const pts = (h.points || []).map((p) => pointAt(asm, h, p)).filter(Boolean), r = route(pts, rMinOf(h)), tool = asm.harnessTool;
+  return { id: h.id, name: nameOf(h), type: h.kind, d_mm: +outerD(h).toFixed(3), r_min_mm: rMinOf(h), points: (h.points || []).length, length_mm: +r.length.toFixed(1),
+    ...(h.kind === 'wires' || h.kind === 'ribbon' ? { wires: (h.wires || []).map((w) => ({ d: +w.d || 1.5, color: w.color })) } : { color: h.color || 'black' }),
+    ...(r.bends.some((b) => !b.ok) ? { bends_too_tight: r.bends.filter((b) => !b.ok).map((b) => ({ point: b.at + 1, r_mm: +b.r.toFixed(1), min_mm: rMinOf(h) })) } : {}),
+    ...(tool?.through.get(h.id)?.length ? { through_parts: tool.through.get(h.id) } : {}) };
+}
+
+const defaults = () => {
+  let s = {};
+  try { s = JSON.parse(localStorage.getItem('a3d.harness') || '{}') || {}; } catch { s = {}; }
+  return { kind: KINDS[s.kind] ? s.kind : 'wires', n: s.n > 0 ? s.n : 4, wd: s.wd > 0 ? s.wd : 1.5, d: s.d > 0 ? s.d : 6 };
+};
+const wiresOf = (n, d, had = []) => Array.from({ length: Math.max(1, Math.min(60, n | 0)) }, (_, k) => had[k] || { d, color: ORDER[k % ORDER.length] });
+
+// ------------------------------------------------------------------ the tool
+export class HarnessTool {
+  constructor(asm) {
+    this.asm = asm;
+    this.edit = null; // the harness whose points are being clicked
+    this.sel = null; // the harness chosen
+    this.pt = null; // its point chosen (Delete removes it)
+    this.hover = null; // where a click would put the next point
+    this.through = new Map(); // harness id -> the parts its centre line goes through
+    this.built = new Map(); // harness id -> {key, objs}
+    asm.els.viewport.addEventListener('pointerdown', (e) => this.down(e), true); // (before the part's drag and the view's turning)
+  }
+
+  list() { return this.asm.doc.harnesses || []; }
+  get(id) { return this.list().find((h) => h.id === id) || null; }
+  get busy() { return !!this.edit; }
+
+  /** 🔌 A new harness (the last one's kind and sizes), its points clicked next; from: its first point. */
+  start(from = null) {
+    const a = this.asm, s = defaults();
+    a.measuring && a.toggleMeasure();
+    a.painting && a.togglePaint();
+    if (a.mode !== 'idle') a.cancelJoint();
+    if (a.bolt) a.cancelBolt();
+    a.clashPanel = false;
+    a.fastenerPanel = false;
+    this.finish(false);
+    const n = Math.max(0, ...this.list().map((h) => parseInt(String(h.id).replace(/\D/g, ''), 10) || 0)) + 1;
+    const h = { id: `H${n}`, kind: s.kind, d: s.d, color: 'black', wires: wiresOf(s.kind === 'ribbon' ? 10 : s.n, s.wd), pitch: 1.27, reserve: 5, points: from ? [from] : [] };
+    if (h.kind === 'ribbon') h.d = 1;
+    (a.doc.harnesses ||= []).push(h);
+    this.edit = h.id;
+    this.sel = h.id;
+    this.pt = null;
+    a.sel = null;
+    a.sel2 = null;
+    a.facePicks = [];
+    a.snapPick = null;
+    a.view.setMeasure([]);
+    if (from) a.history.commit();
+    a.hint(t('🔌 Click the points the harness passes: a face of a part, a hole\'s centre, or in space — Esc / Enter / ✓ Done keeps them.'));
+    a.render();
+    a.draw();
+    return h;
+  }
+
+  /** ✎ Click more points of a harness (drag them, click the cable to add one between, Delete). */
+  editPoints(id) {
+    if (!this.get(id)) return;
+    this.edit = id;
+    this.sel = id;
+    this.pt = null;
+    this.asm.sel = null;
+    this.asm.hint(t('🔌 Click the points the harness passes: a face of a part, a hole\'s centre, or in space — Esc / Enter / ✓ Done keeps them.'));
+    this.asm.render();
+    this.asm.draw();
+  }
+
+  /** ✓ Done (Esc, Enter): the points so far are kept; fewer than two — nothing is kept. */
+  finish(redraw = true) {
+    const h = this.get(this.edit);
+    this.edit = null;
+    this.hover = null;
+    this.pt = null;
+    if (!h) return;
+    if ((h.points || []).length < 2) {
+      this.asm.doc.harnesses = this.list().filter((x) => x !== h);
+      this.sel = null;
+      if ((h.points || []).length) this.asm.history.commit();
+      this.asm.hooks.toast(t('A harness needs at least two points — none was kept.'), 'info', 4000);
+    }
+    this.asm.hint('');
+    if (redraw) { this.asm.render(); this.asm.draw(); }
+  }
+
+  remove(id) {
+    this.asm.doc.harnesses = this.list().filter((h) => h.id !== id);
+    if (this.sel === id) this.sel = null;
+    if (this.edit === id) { this.edit = null; this.hover = null; this.asm.hint(''); }
+    this.asm.commit();
+  }
+
+  /** A setting of a harness changed (one undo step): its kind, Ø, count, R, colours. */
+  set(id, change) {
+    const h = this.get(id);
+    if (!h) return;
+    change(h);
+    if (!h.wires?.length) h.wires = wiresOf(4, 1.5);
+    try { localStorage.setItem('a3d.harness', JSON.stringify({ kind: h.kind, n: h.wires.length, wd: wireD(h), d: +h.d || 6 })); } catch { /* private window */ }
+    this.asm.commit();
+  }
+
+  /** Where a click puts a point: a hole's centre (snapped), a face of a part (lying on it), else in space — on the
+   *  plane through `ref` (the last point) facing the camera -> a point of the harness's JSON + its world spot. */
+  candidate(e, ref = null) {
+    const v = this.asm.view, sp = v.measurePoint(e.clientX, e.clientY, 8);
+    const local = (inst, w) => { const M = matrixOf(this.asm, inst); return M ? w.clone().applyMatrix4(M.clone().invert()) : null; };
+    if (sp?.snap === 'centre' && sp.inst) {
+      const at = local(sp.inst, sp.point);
+      if (at) return { p: { inst: sp.inst, at: at.toArray().map((x) => +x.toFixed(4)) }, w: sp.point.clone(), what: 'centre' };
+    }
+    const ray = v.ray(e.clientX, e.clientY), hit = ray.intersectObjects(v.meshes || [], false)[0];
+    if (hit?.face) {
+      const inst = hit.object.userData.inst, at = local(inst, hit.point), n = hit.face.normal.clone();
+      const nw = n.clone().applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrix)).normalize();
+      if (nw.dot(ray.ray.direction) > 0) n.negate(); // (the side seen: the cable lies on it)
+      return { p: { inst, at: at.toArray().map((x) => +x.toFixed(4)), n: n.normalize().toArray().map((x) => +x.toFixed(6)) }, w: hit.point.clone(), what: 'face' };
+    }
+    const o = ref || v.controls.target.clone(), dir = v.camera.getWorldDirection(new THREE.Vector3()), w = new THREE.Vector3();
+    if (!ray.ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(dir, o), w)) return null;
+    return { p: { xyz: w.toArray().map((x) => +x.toFixed(3)) }, w, what: 'space' };
+  }
+
+  /** The harness's points on the screen -> the one within px of the mouse (its index) or -1. */
+  pointNear(h, e, px = 10) {
+    let best = -1, bd = px;
+    (h.points || []).forEach((p, i) => {
+      const w = pointAt(this.asm, h, p);
+      if (!w) return;
+      const [x, y] = this.asm.view.toScreen(w), d = Math.hypot(x - e.clientX, y - e.clientY);
+      if (d < bd) { bd = d; best = i; }
+    });
+    return best;
+  }
+
+  /** The cable near the mouse (within px on the screen) -> {leg (insert after this point), w (the spot)} or null. */
+  cableNear(h, e, px = 7) {
+    const pts = (h.points || []).map((p) => pointAt(this.asm, h, p)), ok = pts.filter(Boolean);
+    const r = route(ok, rMinOf(h));
+    if (!r.segs.length) return null;
+    const curve = new RouteCurve(r.segs, r.length), n = Math.min(400, Math.max(40, Math.ceil(r.length / 2)));
+    let best = null;
+    for (let i = 0; i <= n; i++) {
+      const w = curve.getPoint(i / n), [x, y] = this.asm.view.toScreen(w), d = Math.hypot(x - e.clientX, y - e.clientY);
+      if (d < px && (!best || d < best.d)) best = { d, w };
+    }
+    if (!best) return null;
+    let leg = 0, ld = Infinity; // (the leg of the clicked points it is nearest)
+    const ln = new THREE.Line3(), q = new THREE.Vector3();
+    for (let k = 0; k + 1 < ok.length; k++) {
+      ln.set(ok[k], ok[k + 1]);
+      const dd = ln.closestPointToPoint(best.w, true, q).distanceTo(best.w);
+      if (dd < ld) { ld = dd; leg = k; }
+    }
+    return { leg: pts.indexOf(ok[leg]), w: best.w };
+  }
+
+  /** A press on a point of the harness being edited (or chosen): it is dragged — on a face it lies on, in space it
+   *  moves in the plane facing the camera. Before the view turns (capture). */
+  down(e) {
+    const a = this.asm, h = this.get(this.edit || this.sel);
+    if (e.button !== 0 || !h || !a.active || e.target !== a.view.renderer.domElement || a.measuring || a.painting || a.mode !== 'idle') return;
+    const i = this.pointNear(h, e);
+    if (i < 0) return;
+    e.stopPropagation(); // (no view turning, no part dragged)
+    this.pt = i;
+    const start = { x: e.clientX, y: e.clientY }, cv = a.view.renderer.domElement;
+    let moved = false;
+    const was = JSON.stringify(h.points[i]);
+    const move = (ev) => {
+      if (!moved && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 4) return;
+      moved = true;
+      cv.style.cursor = 'grabbing';
+      const c = this.candidate(ev, pointAt(a, h, h.points[i]));
+      if (c) { h.points[i] = c.p; this.drawNow(); }
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move, true);
+      window.removeEventListener('pointerup', up, true);
+      cv.style.cursor = '';
+      if (moved && JSON.stringify(h.points[i]) !== was) a.commit();
+      else { a.render(); a.draw(); } // (a click on a point: it is chosen — Delete removes it)
+    };
+    window.addEventListener('pointermove', move, true);
+    window.addEventListener('pointerup', up, true);
+  }
+
+  /** The mouse over the view while clicking points: the next point and the route to it shown (live length). */
+  hoverAt(e) {
+    const a = this.asm;
+    if (!this.edit || a.measuring || a.painting || a.mode !== 'idle' || a.bolt) return false;
+    const h = this.get(this.edit), v = this.asm.view, cv = v.renderer.domElement;
+    if (!h) return false;
+    v.clearHoverMarks();
+    if (this.pointNear(h, e) >= 0) { this.hover = null; cv.style.cursor = 'grab'; this.drawNow(); return true; }
+    if (this.cableNear(h, e)) { this.hover = null; cv.style.cursor = 'copy'; this.drawNow(); return true; }
+    const last = h.points.length ? pointAt(this.asm, h, h.points[h.points.length - 1]) : null;
+    this.hover = this.candidate(e, last);
+    cv.style.cursor = 'crosshair';
+    v.setSnapMark(this.hover?.what === 'centre' ? { snap: 'centre', point: this.hover.w } : null);
+    this.drawNow();
+    return true;
+  }
+
+  /** A click: while editing — a point (chosen), the cable (a point added there), else a new last point; with no tool
+   *  on — a harness clicked is chosen. -> handled? */
+  click(e) {
+    const a = this.asm;
+    if (this.edit && (a.measuring || a.painting || a.mode !== 'idle' || a.bolt)) this.finish(false); // (another tool started meanwhile: it takes the click)
+    if (this.edit) {
+      const h = this.get(this.edit);
+      if (!h) { this.edit = null; return false; }
+      const i = this.pointNear(h, e);
+      if (i >= 0) { this.pt = i; a.render(); a.draw(); return true; }
+      const on = this.cableNear(h, e);
+      if (on) {
+        const p0 = h.points[on.leg], p1 = h.points[on.leg + 1], M = p0?.inst && p0.inst === p1?.inst ? matrixOf(a, p0.inst) : null; // (between two points of one part: on it too)
+        h.points.splice(on.leg + 1, 0, M ? { inst: p0.inst, at: on.w.clone().applyMatrix4(M.clone().invert()).toArray().map((x) => +x.toFixed(4)) } : { xyz: on.w.toArray().map((x) => +x.toFixed(3)) });
+        this.pt = on.leg + 1;
+        a.commit();
+        return true;
+      }
+      const last = h.points.length ? pointAt(a, h, h.points[h.points.length - 1]) : null, c = this.candidate(e, last);
+      if (!c) return true;
+      h.points.push(c.p);
+      this.pt = null;
+      this.hover = null;
+      a.commit();
+      return true;
+    }
+    if (a.measuring || a.painting || a.mode !== 'idle' || a.bolt) return false;
+    const hit = this.pick(e);
+    if (!hit) { if (this.sel) { this.sel = null; this.pt = null; } return false; }
+    this.sel = hit;
+    this.pt = null;
+    a.sel = null;
+    a.sel2 = null;
+    a.facePicks = [];
+    a.snapPick = null;
+    a.view.setMeasure([]);
+    a.render();
+    a.draw();
+    return true;
+  }
+
+  /** The harness under the mouse (in front of the parts) -> its id or null. */
+  pick(e) {
+    const v = this.asm.view, ray = v.ray(e.clientX, e.clientY), objs = [];
+    for (const [, b] of this.built) objs.push(...b.objs.filter((o) => o.isMesh && o.userData.harness));
+    const hh = ray.intersectObjects(objs, false)[0];
+    if (!hh) return null;
+    const part = ray.intersectObjects(v.meshes || [], false)[0];
+    return !part || hh.distance <= part.distance + 1e-6 ? hh.object.userData.harness : null;
+  }
+
+  /** Keys: Esc / Enter — done; Delete — the chosen point (or the chosen harness). -> handled? */
+  key(e) {
+    if (this.edit) {
+      if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); this.finish(); return true; }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && this.pt !== null) {
+        const h = this.get(this.edit);
+        h.points.splice(this.pt, 1);
+        this.pt = null;
+        this.asm.commit();
+        return true;
+      }
+      return e.key === 'Delete';
+    }
+    if (!this.sel) return false;
+    if (e.key === 'Escape') { this.sel = null; this.pt = null; this.asm.render(); this.asm.draw(); return true; }
+    if (e.key === 'Delete') {
+      const h = this.get(this.sel);
+      if (this.pt !== null && h?.points.length > 2) { h.points.splice(this.pt, 1); this.pt = null; this.asm.commit(); } else this.remove(this.sel);
+      return true;
+    }
+    return false;
+  }
+
+  // ---------------------------------------------------------------- drawing
+  /** Each harness drawn (made again only when its points or settings changed); the one chosen lit, its points shown
+   *  while chosen or edited, a corner too tight red with ⚠, the next point's preview while clicking. */
+  draw() {
+    const v = this.asm.view;
+    if (!v) return;
+    if (!this.group) { this.group = new THREE.Group(); v.scene.add(this.group); }
+    const seen = new Set();
+    for (const h of this.list()) {
+      seen.add(h.id);
+      const pts = (h.points || []).map((p) => pointAt(this.asm, h, p));
+      const extra = this.hoverWorld(h);
+      const key = JSON.stringify([h.kind, h.d, h.color, h.wires, h.pitch, h.r_min, [...pts, ...extra].map((p) => p && p.toArray().map((x) => x.toFixed(3))), this.sel === h.id, this.edit === h.id, this.pt, this.asm.view.clip?.length || 0]);
+      const was = this.built.get(h.id);
+      if (was?.key === key) continue;
+      if (was) for (const o of was.objs) { this.group.remove(o); o.geometry?.dispose(); if (o.isCSS2DObject) o.element.remove(); }
+      this.built.set(h.id, { key, objs: this.make(h, pts, extra) });
+    }
+    for (const [id, b] of this.built) {
+      if (seen.has(id)) continue;
+      for (const o of b.objs) { this.group.remove(o); o.geometry?.dispose(); if (o.isCSS2DObject) o.element.remove(); }
+      this.built.delete(id);
+    }
+    v.invalidate();
+    clearTimeout(this.clashTimer);
+    this.clashTimer = setTimeout(() => this.checkThrough(), 400);
+  }
+
+  drawNow() { this.draw(); const el = this.asm.$('.hn-len'); if (el) el.textContent = this.lengthText(this.get(this.edit || this.sel)); }
+
+  /** The tubes, marks and labels of one harness. */
+  make(h, pts, extra) {
+    const v = this.asm.view, objs = [], on = this.sel === h.id || this.edit === h.id, clip = v.clip || [];
+    const all = [...pts.filter(Boolean), ...extra], r = route(all, rMinOf(h)), D = outerD(h);
+    const add = (o) => { o.userData.harness = h.id; this.group.add(o); objs.push(o); return o; };
+    const mat = (hex, extraOpts = {}) => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.5, metalness: 0.05, emissive: on ? 0x0e2a4a : 0x000000, clippingPlanes: clip, ...extraOpts });
+    if (r.segs.length && r.length > 1e-6) {
+      const curve = new RouteCurve(r.segs, r.length), n = Math.min(1200, Math.max(24, Math.ceil(r.length / Math.max(0.6, D / 2))));
+      if (h.kind === 'wires') {
+        const fr = curve.computeFrenetFrames(n, false), wd = wireD(h), lay = Math.max(20 * D, 30); // (one turn of the twist every lay mm)
+        wireLayout((h.wires || []).length, wd).forEach(([x, y], k) => {
+          const rho = Math.hypot(x, y), phi = Math.atan2(y, x), line = [];
+          for (let i = 0; i <= n; i++) {
+            const a = phi + (2 * Math.PI * (i / n) * r.length) / lay;
+            line.push(curve.getPoint(i / n).addScaledVector(fr.normals[i], rho * Math.cos(a)).addScaledVector(fr.binormals[i], rho * Math.sin(a)));
+          }
+          add(new THREE.Mesh(new THREE.TubeGeometry(rho ? new PolyCurve(line) : curve, n, (+(h.wires[k]?.d) || wd) / 2, 8, false), mat(colourOf(h.wires[k]?.color)[1])));
+        });
+      } else if (h.kind === 'ribbon') {
+        // flat at its start: its width level (across the route and the up axis), as the kernel's (harness.py)
+        const w = D, th = +h.d || 1, fr = curve.computeFrenetFrames(n, false), t0 = curve.getTangent(0);
+        let x0 = t0.clone().cross(new THREE.Vector3(0, 0, 1));
+        if (x0.length() < 1e-6) x0 = t0.clone().cross(new THREE.Vector3(1, 0, 0));
+        x0.normalize();
+        const a = Math.atan2(x0.dot(fr.binormals[0]), x0.dot(fr.normals[0])), c = Math.cos(a), s = Math.sin(a);
+        const at = (u, v) => new THREE.Vector2(u * c - v * s, u * s + v * c); // (x along the frame's normal, y its binormal)
+        add(new THREE.Mesh(new THREE.ExtrudeGeometry(new THREE.Shape([at(-w / 2, -th / 2), at(w / 2, -th / 2), at(w / 2, th / 2), at(-w / 2, th / 2)]), { steps: n, extrudePath: curve, bevelEnabled: false }), mat(0xa9adb3)));
+        const edge = [], e = at(-(w / 2 - (+h.pitch || 1.27) / 2), th * 0.3); // (the first wire marked red, as on a real one)
+        for (let i = 0; i <= n; i++) edge.push(curve.getPoint(i / n).addScaledVector(fr.normals[i], e.x).addScaledVector(fr.binormals[i], e.y));
+        add(new THREE.Mesh(new THREE.TubeGeometry(new PolyCurve(edge), n, Math.min(th, +h.pitch || 1.27) * 0.32, 6, false), mat(0xd0312d)));
+      } else {
+        const sleeve = h.kind === 'sleeve', segs = sleeve ? Math.min(2400, Math.ceil(r.length / (D / 12))) : n, rad = sleeve ? 16 : 14;
+        const geo = new THREE.TubeGeometry(curve, segs, D / 2, rad, false);
+        if (sleeve) { // corrugated: its radius in and out every D/3
+          const pos = geo.attributes.position, c = new THREE.Vector3(), q = new THREE.Vector3();
+          for (let i = 0; i <= segs; i++) {
+            curve.getPoint(i / segs, c);
+            const k = 1 + 0.09 * Math.cos((2 * Math.PI * (i / segs) * r.length) / (D / 3));
+            for (let j = 0; j <= rad; j++) { const ix = i * (rad + 1) + j; q.fromBufferAttribute(pos, ix).sub(c).multiplyScalar(k).add(c); pos.setXYZ(ix, q.x, q.y, q.z); }
+          }
+          geo.computeVertexNormals();
+        }
+        add(new THREE.Mesh(geo, mat(colourOf(sleeve ? 'black' : h.color)[1], extra.length ? { transparent: true, opacity: 0.85 } : {})));
+      }
+      for (const g of r.segs) { // a bend tighter than the minimum: red over it, ⚠ with its radius
+        if (g.t !== 'arc' || r.bends[g.bend]?.ok) continue;
+        const arc = new RouteCurve([g], g.len);
+        add(new THREE.Mesh(new THREE.TubeGeometry(arc, 12, D / 2 * 1.35 + 0.3, 12, false), new THREE.MeshBasicMaterial({ color: 0xff4d4d, transparent: true, opacity: 0.55, depthWrite: false, clippingPlanes: clip })));
+      }
+      const label = (cls, text, at) => { // (a label just above its spot: CSS2D places the outer box, the inner one is lifted)
+        const el = document.createElement('div'), sp = document.createElement('span');
+        el.style.pointerEvents = 'none';
+        sp.className = cls;
+        sp.textContent = text;
+        el.appendChild(sp);
+        const o = new CSS2DObject(el);
+        o.position.copy(at);
+        return add(o);
+      };
+      r.bends.forEach((b, k) => {
+        if (b.ok) return;
+        const g = r.segs.find((x) => x.bend === k); // (on its arc's middle; a sharp turn back: at its point)
+        label('hn-warn', `⚠ ${t2('bend R {r} mm < min {min} mm', { r: num(b.r), min: num(rMinOf(h)) })}`, g ? new RouteCurve([g], g.len).getPoint(0.5) : b.p);
+      });
+      if (on) label('hn-tag', `🔌 ${mmText(r.length)} mm`, curve.getPoint(0.5)); // its length at its middle
+    }
+    if (on) { // its points: drag them; the chosen one yellow
+      const P = pts.map((p, i) => [p, i]).filter(([p]) => p);
+      const dots = new THREE.Points(new THREE.BufferGeometry().setFromPoints(P.map(([p]) => p)), new THREE.PointsMaterial({ color: 0x7ee787, size: 11, sizeAttenuation: false, depthTest: false }));
+      dots.renderOrder = 15;
+      add(dots);
+      const ch = P.find(([, i]) => i === this.pt);
+      if (ch) {
+        const o = new THREE.Points(new THREE.BufferGeometry().setFromPoints([ch[0]]), new THREE.PointsMaterial({ color: 0xf2cc60, size: 16, sizeAttenuation: false, depthTest: false }));
+        o.renderOrder = 16;
+        add(o);
+      }
+      if (extra.length) {
+        const o = new THREE.Points(new THREE.BufferGeometry().setFromPoints(extra), new THREE.PointsMaterial({ color: 0x58a6ff, size: 9, sizeAttenuation: false, depthTest: false }));
+        o.renderOrder = 15;
+        add(o);
+      }
+    }
+    return objs;
+  }
+
+  /** ⚠ Where a harness's centre line goes through a part (a ray from the spot crosses the part's faces an odd
+   *  number of times) -> this.through: id -> [part names]; checked a moment after a change. */
+  checkThrough() {
+    const v = this.asm.view, was = JSON.stringify([...this.through]);
+    this.through = new Map();
+    const ray = new THREE.Raycaster(), dir = new THREE.Vector3(0.3017, 0.2081, 0.9304).normalize();
+    for (const h of this.list()) {
+      const pts = (h.points || []).map((p) => pointAt(this.asm, h, p)).filter(Boolean), r = route(pts, rMinOf(h));
+      if (!r.segs.length) continue;
+      const curve = new RouteCurve(r.segs, r.length), n = Math.min(240, Math.max(8, Math.ceil(r.length / 3))), hit = new Set();
+      for (let i = 1; i < n; i++) {
+        ray.set(curve.getPoint(i / n), dir);
+        for (const m of v.meshes || []) {
+          if (hit.has(m.userData.inst)) continue;
+          if (ray.intersectObject(m, false).length % 2) hit.add(m.userData.inst);
+        }
+      }
+      if (hit.size) this.through.set(h.id, [...hit].map((id) => `${this.asm.partName(this.asm.inst(id)?.part)} ${id}`));
+    }
+    if (JSON.stringify([...this.through]) !== was && (this.sel || this.edit)) this.asm.renderProps();
+  }
+
+  lengthText(h) {
+    if (!h) return '';
+    const pts = (h.points || []).map((p) => pointAt(this.asm, h, p)).filter(Boolean);
+    return t2('Length {l} mm', { l: mmText(route([...pts, ...this.hoverWorld(h)], rMinOf(h)).length) });
+  }
+
+  /** The next point under the mouse while clicking a harness's points (lying on its face) -> [Vector3] or []. */
+  hoverWorld(h) {
+    return this.edit === h.id && this.hover ? [pointAt(this.asm, h, this.hover.p) || this.hover.w] : [];
+  }
+
+  // ---------------------------------------------------------------- the panel, the tree, the suggestions
+  /** The right panel of the harness being edited or chosen -> drawn? */
+  panel(box) {
+    const id = this.edit || this.sel, h = this.get(id);
+    if (!h) { this.sel = null; this.edit = null; return false; }
+    const pts = (h.points || []).map((p) => pointAt(this.asm, h, p)).filter(Boolean), r = route(pts, rMinOf(h)), bad = r.bends.filter((b) => !b.ok);
+    const field = (k, label, value, unit, title, extra = '') => `<div class="field" title="${esc(t(title))}"><label>${esc(t(label))}</label><input type="number" step="any" data-hn="${k}" value="${value}" ${extra}><span class="unit">${unit}</span></div>`;
+    const colours = (k, c) => `<select data-hc="${k}" title="${esc(t('Its colour'))}" style="border-left: 14px solid ${hexOf(c)}">${Object.keys(COLOURS).map((x) => `<option value="${x}" ${x === c ? 'selected' : ''}>${esc(colourName(x))}</option>`).join('')}</select>`;
+    const first = h.kind === 'wires' || h.kind === 'ribbon' ? field('n', 'Wires', (h.wires || []).length, '×', 'How many wires', 'min="1" max="60" step="1"')
+      : field('d', 'Ø', +h.d || 6, 'mm', h.kind === 'sleeve' ? 'The sleeve\'s outer Ø' : 'The cable\'s Ø', 'min="0.1"');
+    const more = h.kind === 'wires' ? `${field('wd', 'Wire Ø', wireD(h), 'mm', 'Each wire\'s Ø (with its insulation)', 'min="0.1"')}<div class="hn-cols">${(h.wires || []).map((w, k) => colours(k, w.color)).join('')}</div>`
+      : h.kind === 'ribbon' ? field('pitch', 'Pitch', +h.pitch || 1.27, 'mm', 'The spacing of its wires: the width = wires × pitch', 'min="0.1"')
+        : h.kind === 'cable' ? `<div class="hn-cols">${colours('c', h.color || 'black')}</div>` : '';
+    const thr = this.through.get(h.id) || [];
+    box.innerHTML = `<h2>🔌 <span data-no-i18n>${esc(nameOf(h))}</span></h2>
+      <div class="hn-kinds">${Object.entries(KINDS).map(([k, x]) => `<button class="chip ${k === h.kind ? 'on' : ''}" data-kind="${k}" title="${esc(t(x.hint))}">${x.icon} ${esc(t(x.name))}</button>`).join('')}</div>
+      ${first}
+      ${field('r', 'Min. bend R', rMinOf(h), 'mm', 'The smallest radius it may bend round — every corner is rounded at least this much (rule of thumb: 5 × Ø)', `min="0" placeholder="${autoRmin(h)}"`)}
+      <div class="mp-facts hn-facts"><span>Ø</span><b data-no-i18n>${num(outerD(h))} mm</b><span>${esc(t('Points'))}</span><b>${(h.points || []).length}</b></div>
+      <p class="mp-count hn-len">${esc(this.lengthText(h))}</p>
+      ${bad.map((b) => `<p class="hint bad hn-bad">⚠ ${esc(t2('Point {p}: bend R {r} mm < min {min} mm', { p: b.at + 1, r: num(b.r), min: num(rMinOf(h)) }))}</p>`).join('')}
+      ${thr.length ? `<p class="hint bad hn-thr">⚠ ${esc(t2('Goes through {parts}', { parts: thr.join(', ') }))}</p>` : ''}
+      <details class="hn-more" ${this.moreOpen ? 'open' : ''}><summary>${esc(t('More'))}</summary>${more}
+        ${field('reserve', 'Reserve', Number.isFinite(+h.reserve) ? +h.reserve : 5, '%', 'Added to its length in the BOM (cut longer), rounded up to 10 mm', 'min="0" max="100"')}</details>
+      ${this.edit ? `<p class="hint">${esc(t('Click the points it passes: a face of a part (it lies on it), a hole\'s centre (it goes through), or in space. Drag a point to move it, click the cable to add one between, Delete removes the chosen one.'))}</p>` : ''}
+      <div class="mp-actions">${this.edit ? `<button class="btn small" data-hx="undoPt" ${(h.points || []).length ? '' : 'disabled'} title="${esc(t('Take the last point away'))}">↶ ${esc(t('Last point'))}</button><button class="btn small primary" data-hx="done" title="${esc(t('Keep the points (Esc, Enter)'))}">✓ ${esc(t('Done'))}</button>`
+        : `<button class="btn small danger" data-hx="del" title="${esc(t('Delete the harness (Delete)'))}">✕ ${esc(t('Delete'))}</button><button class="btn small primary" data-hx="edit" title="${esc(t('Click more points, drag them, add one on the cable'))}">✎ ${esc(t('Edit points'))}</button>`}</div>`;
+    for (const b of box.querySelectorAll('[data-kind]')) b.addEventListener('click', () => this.set(h.id, (x) => {
+      x.kind = b.dataset.kind;
+      if (x.kind === 'ribbon') { x.wires = wiresOf(Math.max(x.wires?.length || 0, 10), 1.5); x.d = 1; } else if (x.d <= 2) x.d = x.kind === 'sleeve' ? 10 : 6;
+      if (x.kind === 'sleeve' && x.d < 8) x.d = 10;
+    }));
+    for (const inp of box.querySelectorAll('input[data-hn]')) {
+      inp.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') inp.blur(); });
+      inp.addEventListener('change', () => {
+        const raw = String(inp.value).replace(',', '.').trim(), val = parseFloat(raw), k = inp.dataset.hn;
+        if (k === 'r' && raw === '') { this.set(h.id, (x) => { delete x.r_min; }); return; } // (empty: the rule of thumb)
+        if (!Number.isFinite(val) || val < 0 || (val === 0 && k !== 'reserve' && k !== 'r')) { this.asm.render(); return; }
+        this.set(h.id, (x) => {
+          if (k === 'n') x.wires = wiresOf(val, wireD(x), x.wires);
+          else if (k === 'wd') x.wires = (x.wires || []).map((w) => ({ ...w, d: val }));
+          else if (k === 'r') x.r_min = val;
+          else if (k === 'd') x.d = val;
+          else x[k] = val;
+        });
+      });
+    }
+    for (const s of box.querySelectorAll('select[data-hc]')) s.addEventListener('change', () => this.set(h.id, (x) => { if (s.dataset.hc === 'c') x.color = s.value; else x.wires[+s.dataset.hc].color = s.value; }));
+    box.querySelector('.hn-more').addEventListener('toggle', (e) => { this.moreOpen = e.target.open; });
+    box.querySelector('[data-hx=done]')?.addEventListener('click', () => this.finish());
+    box.querySelector('[data-hx=undoPt]')?.addEventListener('click', () => { h.points.pop(); this.asm.commit(); });
+    box.querySelector('[data-hx=edit]')?.addEventListener('click', () => this.editPoints(h.id));
+    box.querySelector('[data-hx=del]')?.addEventListener('click', () => this.remove(h.id));
+    return true;
+  }
+
+  /** The harnesses under the parts in the assembly tree: "🔌 Harness 1 · 4 × Ø1.5 · 1 284 mm". */
+  rows(list) {
+    for (const h of this.list()) {
+      const pts = (h.points || []).map((p) => pointAt(this.asm, h, p)).filter(Boolean), r = route(pts, rMinOf(h)), row = document.createElement('div');
+      row.className = `mt-item hn-row${h.id === this.sel ? ' on' : ''}${r.bends.some((b) => !b.ok) ? ' bad' : ''}`;
+      row.dataset.harness = h.id;
+      row.innerHTML = `<span class="mt-icon">🔌</span><span class="mt-name" data-no-i18n></span><span class="mt-what" data-no-i18n></span>${r.bends.some((b) => !b.ok) ? '<span class="mt-warn">⚠</span>' : ''}
+        <span class="mt-acts"><button class="mini" data-a="edit" title="${esc(t('Edit points'))}">✎</button><button class="mini danger" data-a="del" title="${esc(t('Delete the harness (Delete)'))}">✕</button></span>`;
+      row.querySelector('.mt-name').textContent = nameOf(h);
+      row.querySelector('.mt-what').textContent = `${specOf(h)} · ${mmText(r.length)} mm`;
+      row.addEventListener('click', (e) => {
+        const a = e.target.closest('[data-a]')?.dataset.a;
+        if (a === 'del') { this.remove(h.id); return; }
+        if (a === 'edit') { this.editPoints(h.id); return; }
+        if (this.edit && this.edit !== h.id) this.finish(false);
+        this.sel = h.id;
+        this.pt = null;
+        this.asm.sel = null;
+        this.asm.sel2 = null;
+        this.asm.render();
+        this.asm.draw();
+      });
+      list.appendChild(row);
+    }
+  }
+
+  /** The Suggested table while a harness is edited or chosen -> shown? */
+  suggest(vp, show) {
+    const h = this.get(this.edit || this.sel);
+    if (!h) return false;
+    if (this.edit) {
+      show(vp, `🔌 ${nameOf(h)}`, [
+        { icon: '✓', label: t('Done'), title: t('Keep the points (Esc, Enter)'), run: () => this.finish() },
+        ...((h.points || []).length ? [{ icon: '↶', label: t('Take the last point away'), run: () => { h.points.pop(); this.asm.commit(); } }] : []),
+        ...(this.pt !== null ? [{ icon: '✕', label: t2('Delete point {n}', { n: this.pt + 1 }), danger: true, title: 'Delete', run: () => { h.points.splice(this.pt, 1); this.pt = null; this.asm.commit(); } }] : []),
+      ], t('Click a face, a hole\'s centre or in space: the next point'));
+      return true;
+    }
+    const len = this.lengthText(h);
+    show(vp, `🔌 ${nameOf(h)}`, [
+      { icon: '✎', label: t('Edit points'), rank: 0, title: t('Click more points, drag them, add one on the cable'), run: () => this.editPoints(h.id) },
+      { icon: '📏', label: len, rank: 1, title: t('Copy its length'), run: () => { navigator.clipboard?.writeText(String(Math.round(route((h.points || []).map((p) => pointAt(this.asm, h, p)).filter(Boolean), rMinOf(h)).length))).catch(() => {}); this.asm.hooks.toast(len, 'info', 2500); } },
+      ...Object.entries(KINDS).filter(([k]) => k !== h.kind).map(([k, x], i) => ({ icon: x.icon, label: t2('Make it: {kind}', { kind: t(x.name) }), rank: 3 + i, title: t(x.hint), run: () => this.set(h.id, (y) => { y.kind = k; if (k === 'ribbon') { y.wires = wiresOf(Math.max(y.wires?.length || 0, 10), 1.5); y.d = 1; } else if (y.d <= 2 || (k === 'sleeve' && y.d < 8)) y.d = k === 'sleeve' ? 10 : 6; }) })),
+      { icon: '📋', label: t('Bill of materials'), rank: 6, title: t('Every part with its quantity, material and mass'), run: () => this.asm.openBom() },
+      { icon: '✕', label: t('Delete the harness'), rank: 2, danger: true, title: 'Delete', run: () => this.remove(h.id) },
+    ], t('Ø, bend radius and colours: in the panel on the right'));
+    return true;
+  }
+
+  /** 🔌 Route a cable from a picked spot -> a suggestion, or null. q: a click's candidate {p} (on a face: lying on
+   *  it), or a snap point {inst, point} (a corner, a centre: right there). */
+  fromHere(q, rank = 2.5) {
+    let p = q?.p || null;
+    if (!p && q?.inst && q.point) {
+      const M = matrixOf(this.asm, q.inst);
+      if (M) p = { inst: q.inst, at: q.point.clone().applyMatrix4(M.clone().invert()).toArray().map((x) => +x.toFixed(4)) };
+    }
+    if (!p?.inst) return null;
+    return { icon: '🔌', label: t('Route a cable from here'), rank, title: t('A cable harness: its first point here, then click the next ones'), run: () => this.start(p) };
+  }
+}
+
+// ------------------------------------------------------------------ for the AI
+/** add_harness / edit_harness (the assembly on screen). */
+export function harnessHandlers(asm) {
+  const need = () => { if (!asm.active) throw new Error('No assembly is on screen — new_assembly, or open_part an assembly.'); };
+  const toPoint = (q, k) => { // {part, face} (on its face's middle, or through a hole's centre) | {part, point: [x, y, z] in the part} | {xyz} | [x, y, z]
+    if (Array.isArray(q)) q = { xyz: q };
+    if (q.xyz) { if (q.xyz.length !== 3) throw new Error(`points[${k}].xyz: [x, y, z] in mm.`); return { xyz: q.xyz.map(Number) }; }
+    const it = asm.inst(q.part);
+    if (!it) throw new Error(`points[${k}]: no placed part “${q.part}” — get_assembly lists them (I…), or give xyz.`);
+    if (q.point) { if (q.point.length !== 3) throw new Error(`points[${k}].point: [x, y, z] in the part's own coordinates.`); return { inst: it.id, at: q.point.map(Number) }; }
+    const inv = matrixOf(asm, it.id).clone().invert();
+    if (!q.face) throw new Error(`points[${k}]: give face (its name, as find_refs names it), point ([x, y, z] in the part) or xyz.`);
+    const f = asm.worldFace(it.id, q.face);
+    if (f.type === 'cylinder') return { inst: it.id, at: f.centroid.clone().applyMatrix4(inv).toArray().map((x) => +x.toFixed(4)) }; // (a hole: through its centre)
+    if (!f.normal) throw new Error(`points[${k}]: ${q.face} is neither flat nor round — give point or xyz.`);
+    return { inst: it.id, at: f.centroid.clone().applyMatrix4(inv).toArray().map((x) => +x.toFixed(4)), n: f.normal.clone().transformDirection(inv).toArray().map((x) => +x.toFixed(6)) };
+  };
+  const apply = (h, a) => {
+    if (a.type !== undefined) { if (!KINDS[a.type]) throw new Error(`type is ${Object.keys(KINDS).join(', ')}.`); h.kind = a.type; }
+    if (a.wires !== undefined) {
+      if (!Array.isArray(a.wires) || !a.wires.length) throw new Error('wires: [{color, d}, …] — one per wire.');
+      h.wires = a.wires.map((w, k) => ({ d: +w.d > 0 ? +w.d : +a.wire_d || 1.5, color: COLOURS[w.color] ? w.color : ORDER[k % ORDER.length] }));
+      for (const w of a.wires) if (w.color && !COLOURS[w.color]) throw new Error(`colour “${w.color}”: one of ${Object.keys(COLOURS).join(', ')}.`);
+    } else if (a.count !== undefined) h.wires = wiresOf(+a.count, +a.wire_d || wireD(h), h.wires);
+    else if (a.wire_d !== undefined) h.wires = (h.wires || []).map((w) => ({ ...w, d: +a.wire_d }));
+    if (a.d !== undefined) { if (!(+a.d > 0)) throw new Error('d: the Ø in mm (> 0).'); h.d = +a.d; }
+    if (a.color !== undefined) { if (!COLOURS[a.color]) throw new Error(`color: one of ${Object.keys(COLOURS).join(', ')}.`); h.color = a.color; }
+    if (a.r_min !== undefined) { if (a.r_min === null) delete h.r_min; else if (+a.r_min >= 0) h.r_min = +a.r_min; else throw new Error('r_min: mm, 0 or more (null: the rule of thumb).'); }
+    if (a.pitch !== undefined) h.pitch = +a.pitch || 1.27;
+    if (a.reserve !== undefined) h.reserve = Math.max(0, +a.reserve || 0);
+    if (a.name !== undefined) { if (String(a.name).trim()) h.name = String(a.name).trim(); else delete h.name; }
+    if (a.points !== undefined) h.points = a.points.map(toPoint);
+    if (a.add_points !== undefined) h.points.push(...a.add_points.map((q, k) => toPoint(q, h.points.length + k)));
+    if (h.kind === 'ribbon' && !(+h.d > 0 && +h.d < 3)) h.d = 1;
+  };
+  const answer = (h) => {
+    asm.harnessTool.checkThrough();
+    const f = harnessFacts(asm, h);
+    return { text: `${f.id} ${f.type}, Ø${f.d_mm} mm, ${f.length_mm} mm long through ${f.points} points${f.bends_too_tight ? ` — ⚠ bends tighter than R ${f.r_min_mm}: ${f.bends_too_tight.map((b) => `point ${b.point} R ${b.r_mm}`).join(', ')} (spread the points out or lower r_min)` : ''}${f.through_parts ? ` — ⚠ goes through ${f.through_parts.join(', ')}` : ''}. ${JSON.stringify(f)}` };
+  };
+  return {
+    add_harness: async (a = {}) => {
+      need();
+      await asm.refresh();
+      if (!Array.isArray(a.points) || a.points.length < 2) throw new Error('points: at least two — [{part, face} | {part, point} | {xyz}, …].');
+      const h = { id: '', kind: 'wires', d: 6, color: 'black', wires: wiresOf(a.type === 'ribbon' ? 10 : 4, 1.5), pitch: 1.27, reserve: 5, points: [] };
+      apply(h, a);
+      h.id = `H${Math.max(0, ...asm.harnessTool.list().map((x) => parseInt(String(x.id).replace(/\D/g, ''), 10) || 0)) + 1}`;
+      if (asm.harnessTool.edit) asm.harnessTool.finish(false);
+      (asm.doc.harnesses ||= []).push(h);
+      asm.harnessTool.sel = h.id;
+      asm.sel = null;
+      asm.commit();
+      return answer(h);
+    },
+    edit_harness: async (a = {}) => {
+      need();
+      const h = asm.harnessTool.get(a.id) || asm.harnessTool.list().find((x) => nameOf(x) === a.id);
+      if (!h) throw new Error(`No harness “${a.id}” — get_assembly lists them (\`harnesses\`, ids H…).`);
+      if (a.remove) { asm.harnessTool.remove(h.id); return { text: `${h.id} removed.` }; }
+      const keep = structuredClone(h);
+      try { apply(h, a); } catch (e) { Object.assign(h, keep); throw e; }
+      if ((h.points || []).length < 2) { Object.assign(h, keep); throw new Error('A harness keeps at least two points.'); }
+      asm.harnessTool.sel = h.id;
+      asm.commit();
+      return answer(h);
+    },
+  };
+}

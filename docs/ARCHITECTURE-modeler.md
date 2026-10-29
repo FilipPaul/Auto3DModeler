@@ -7,6 +7,74 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **The AI sees the suggestions table (2026-10-29)** (the owner: "zdá se mi, že agent nevidí suggestion table"). It
+  did not: gui_state listed the table's rows as plain buttons among the rest (where: panel, no title, no order, nothing
+  marking them), the rows under ⋯ Show all not at all, and get_screenshot drew the 3D only. Now suggest.js keeps each
+  table's rows on its box (`suggestTables()`: title, refs, every row with its section and rank, shown or hidden;
+  `runSuggestion()` opens ⋯ Show all for a hidden row, then back to the top rows) and agent_more.js gives the AI:
+  gui_state `suggestions` {title, about (what is selected, as the ✨ refs name it), hint, where, rows [{n, icon, label,
+  section, rank_pos}], more, all, show_all} and `where: "suggest"`; gui_action `suggest` (a row by its label — Czech or
+  English, part of it, no accents needed) and `pick` (a face "F2:end" / a part "I2" / "I2 F2:end" clicked where it
+  shows on screen: the middle of where a scan of the view hits it, not under a panel); every gui_action answer has the
+  table now. get_screenshot {ui: true}: the window as the user sees it, drawn box by box from the page (no HTML-to-canvas
+  library: backgrounds, borders, text, fields' values, the view's canvas and the sheet's SVG; z-index overlays last),
+  the text giving the table's box. No separate get_suggestions tool: pick + gui_state answer "what would the table
+  offer here". The prompt and the skills (ui-tester: suggestion-first, rank_pos judged; teach-the-user: lead through the
+  table's rows; model-a-part, assemble-parts) teach it. Tests: test_agent (schemas), e2e_ai_suggest.
+
+- **🔌 Cable harness in the assembly (2026-10-29)** (the owner: "simulovat kabelové svazky … zvolím tloušťku kabelu,
+  minimální radius a pak jen naklikám body"). web/js/assembly/harness.js (HarnessTool; assembly.js only hooks it:
+  toolbar, suggestions, panel, tree, draw, pointer, keys, history, summary, handlers, stepTree): assembly JSON
+  `harnesses` [{id H…, kind cable | wires | ribbon | sleeve, d, color, wires [{d, color}], pitch, r_min (none: 5 × Ø),
+  reserve %, points [{inst, at (in the part), n (its face's normal: lies on it, Ø/2 + 0.5 off; none: a hole's centre)} |
+  {xyz}]}] — a point on a part follows it (the drawn mesh's matrix: mechanisms, drags, explode). The route: the
+  polyline with each corner rounded to r_min where its legs leave room (a leg shared by two corners split by what each
+  wants), else the largest radius that fits — flagged, red + ⚠ "ohyb R 6 mm < min 15 mm"; lines + arcs, its length
+  live. Drawn as TubeGeometry along a by-length curve (wires twisted round the centre, a ribbon flat — ExtrudeGeometry
+  turned level at its start —, a sleeve corrugated); ⚠ through a part: the centre line's samples tested by ray parity
+  against the parts' meshes. BOM (bom.js): a line per wire / cable "Vodič Ø1,5 mm hnědý — 1 350 mm" (+ reserve, up to
+  10 mm), kind harness, no position. Export: a part per harness with one step {type: "harness"} (doc.py ->
+  auto3d/modeler/harness.py, the same math in Python; kernel.pipe_body: circles / a ribbon's rectangle swept with
+  MakePipeShell along lines + arcs, one solid per wire, faces <id>:w<k>:… painted their colours) — STEP / IGES / GLB
+  and the assembly's drawing sheet (sheet.js flatten). AI: add_harness / edit_harness, get_assembly `harnesses`
+  (length, bends_too_tight, through_parts); the assemble-parts skill. Demo *Řídicí box s motorem*. Tests:
+  tests/test_harness.py (straight, L = straight parts + πR/2, a tight corner flagged, bundle Ø 1 / 3 / 7, cable volume
+  π(d/2)²·L + watertight + STEP round trip, 4 wire solids, ribbon / sleeve, errors), tools/e2e_harness.py.
+  Left out: a sleeve is solid in STEP (not hollow); wires are laid side by side in STEP (twisted only on screen); the
+  through-a-part check tests the centre line, not the Ø; a point on a part inside a moved sub-assembly is on the
+  sub-assembly as a whole.
+- **Floating boxes resize from every edge; the suggestions never show a scrollbar (2026-10-29)** (the owner: "never
+  show a scroll bar in the suggestions table, let me resize it by any edge"). floatbox.js puts invisible zones on each
+  floating box (`.fb-edge[data-dir=n|s|e|w|nw|ne|sw|se]`: 6 px along the edges, 10 px at the corners; the bottom-right
+  one stays the visible `.fb-size` grip) with the matching cursor (also while dragging: body `--fb-cur`); dragging the
+  left / top side moves the box so the right / bottom side stays put; min sizes, the view's edges, the remembered
+  place / size and the header's double-click reset as before. The zones show only on a floating box (`.fb-box`), so a
+  docked widget / docked suggestions have none; the floating table's rows are inset 6 px, clear of them.
+  `scrollFade(el)` (floatbox.js): a scroll container with a hidden scrollbar (`.fb-fade`) and a soft mask fade at the
+  edge where content is hidden (`fade-top` / `fade-bottom`, kept on scroll and resize) — the suggestions' `.vs-list`,
+  floating and docked; the wheel / touch still scroll it. Tests: e2e_floatboxes (real drags on the w / n / e edges and
+  the ne / sw corners, the cursors under the mouse at each zone, 40 rows: offsetWidth − clientWidth = 0, the fades,
+  the wheel, a click 2 px inside a row 7 px from the edge runs it, docked: no scrollbar, no zones).
+
+- **📏 Measurements table done (2026-10-29)** (the owner: measure more kinds, keep the results in a compact table).
+  web/js/measure.js — one MeasureTool per workspace (3D model, assembly), hooked in by toggleMeasure / measurePick /
+  clickMeasure: what a click picks decides the kind (no mode menu): a corner / reference point (a round edge's centre
+  or an edge's middle only within 6 px — snapWins — else the edge itself), an edge (a line: L; a circle: Ø; an arc: R,
+  by its points), a face (area; a round one Ø and its axis), a part (the assembly's Prvky | Díly chip). Two picks:
+  point–point (distance, ΔX ΔY ΔZ), point–face / edge / axis (square to it), parallel flat faces (the gap), else the
+  angle (acute, 180 − a in the tail), parallel edges / axes (apart; round ones also `alt`: the gap between their
+  surfaces — the střed–střed | min chip), part–part: the clearance from the kernel (POST /api/assembly/clearance ->
+  doc.assembly_clearance -> kernel.min_distance, BRepExtrema_DistShapeShape; a sub-assembly: its parts as one side;
+  `overlap` when they go into each other). The first click adds a row, the second turns it into the pair's; empty
+  space starts anew; the tool stays on, Esc ends it. Rows live in the doc (part.measures / assembly.measures: saved
+  with it, kept across tab switches and reloads; not in undo) with their marks (lines, dots, a label) drawn in the
+  view (view.msGroup). The table: a left-dock widget (`measure-model` / `measure-assembly`) — #, icon, what, value
+  (tabular, 70 px, mm in the header), muted tail, ✕; 22 px rows; hover lights the mark, a click suggests copy value /
+  row, hide its mark, delete; head 👁 📋 (tab separated) 🗑 (↶ in the toast). The old floating .m-measure box is gone.
+  AI: measure also adds a row (table_row, value); list_measurements / clear_measurements. Tests: test_clearance,
+  e2e_measure_table (Czech, 1280 × 800, real mouse: 28.284, L 20, Ø6, 5 apart, 90°, hover, ✕, 12 rows, Esc, tab
+  switch, 🗑 + ↶, the assembly's clearance 5); e2e_measure_snap / e2e_assembly_measure / e2e_model_inspect /
+  e2e_ux_model / e2e_floatboxes / e2e_i18n read the table now.
 - **✂ Section view fixed and capped (2026-10-29)** (the AI's report: a revolved pump body cut at y = 0 showed whole, with
   a jagged ring at z = 0). Causes: a Y cut kept the half toward the iso / front cameras (x and z kept the far half), so
   the part looked uncut; a face lying in the cut (the bottom at z = 0) z-fought with the clip plane — the jagged ring;
@@ -43,6 +111,69 @@ Date: 2026-10-25. Written by the architect agent.
   be offset as a whole even without the bite (no shell back; likely its 1 mm lip at the neck, gone at 2 mm), so it
   gets that issue — the AI's
   workaround (shell first, then the bite and a plug) stays the way. Tests: test_shell_after_a_side_bite.
+- **🎬 Demo "Pumpička" (2026-10-29)**: the AI's pump rebuilt as a stand-in (tools/make_demos.py pumpicka): a turned
+  body (an inlet Ø4 with a 45° seat under a bore Ø20, see-through), a piston with a hollow rod and a 45° seat for the
+  outlet ball (concentric in the bore, its turn locked, 6 mm stroke "Zmáčknutí tlačítka"), a 〰 spring Ø18/12 × 20 from
+  the bore's bottom to the piston (k 0.3 N/mm), two Ø6 balls ● on their seats' axes with 2.5 mm lifts going ↕ by the
+  piston's direction (the inlet lifts going up, the outlet going down) — one ⚙ "Pumpička", no collisions. Tests:
+  test_demos (its spring and valve rules), e2e_demos (▶: the piston and both balls move, the spring drawn at the
+  piston every frame).
+
+- **Assembly: ↕ by the driver's direction — check valves (2026-10-29)** (report 2026-10-29-203234: the pump's balls
+  could not move by the stroke's direction). A motion's limits may carry `follow: {part, key?, at: "max" | "min"}`:
+  Assembly.moveFree measures the moved part's position along that motion before and after (any move: a slider, ▶,
+  a drag, the AI) and followDirection puts each follower at `at` when it went forward, at the other end when it went
+  back (still: stays). mechanism.js lists a follower in its driver's mechanism, not as one of its own; traceOf goes
+  there and back for it (the curve drawn in order: a loop showing both stops). The row of a slide with limits:
+  "↕ Podle směru pohonu" (the driver: the mechanism whose driver slides most nearly along it) and "<driver> vpřed → na
+  max / na min". AI: set_travel `follow` ({part, motion?, at} | null), get_assembly `at[].follows`. Left out: a
+  keyframe table (the driver's position → the part's) — not needed for valves; a crank's full turn only goes forward,
+  so a valve on a crank-driven piston follows the crank, not the piston (the rule takes the driver's own motion).
+  Tests: e2e_assembly_ball_spring (one click picks the piston; forward → max, back → min; the AI's rule at min; ▶ only
+  at the stops, both seen; the trace has both; null takes it off).
+
+- **Assembly: 〰 springs (2026-10-29)** (the app's AI, report 2026-10-29-203234: in a pump's mechanism the spring was a
+  rigid part, the piston passed through it). assembly/springs.js: `springs: [{id, part, face (its end that reaches),
+  onto, ontoFace, k?}]` — not a joint that holds (its part is held by its own joints). Free length: its modelled length
+  between its end face and the flat face across it (springEnds); now: from that base to the face it reaches, along its
+  axis; Assembly.draw gives its mesh the matrix scaled along the axis about its base (springMatrix) — so sliders, a
+  drag, ⚙ ▶, the 🎬 animation and screenshots show it compressing; the row (part panel, overview) "volná · teď ·
+  stlačení" + k (N/mm, the one input) → the force, updated while the parts move. Clashes (the panel, check_collisions,
+  ⚠ the travel) between a spring and the parts it is joined to / reaches are dropped (the kernel has it at its free
+  length). 〰 Spring in Joint ▾ (two flat faces); two flat faces picked: 〰 first when a part is called spring /
+  pružina. AI: snap_faces type "spring" (value = k), get_assembly `springs`. Tests: e2e_assembly_ball_spring (scale =
+  distance / free length at rest, 4 mm down and every frame of ▶; 16 / 4 mm / 2 N in get_assembly and the row; the
+  kernel's overlap dropped from check_collisions and check_travel).
+
+- **Assembly: 🔒 a touch's slides lockable (2026-10-29)** (the same report: after a touch the ball still slid in X / Y,
+  lock_motion said "Nenašla se vazba…"). lockMotion tries as before (the joint's angle / distance, a new flush / gap /
+  parallel joint), then keeps the motion on its own joint: a slide as `slides: [{d (in the other part's frame), at}]`
+  — the anchor (a ball's centre, else the face's centroid) kept at that distance along d —, a turn of a ball joint as
+  `rot` (all three turns: one turn alone of three is not kept). joints.js applies them after the joint's own kind and
+  counts them in jointMiss / jointResidual (closed loops). The row: "🔒 2 locked" with ✕; get_assembly joints
+  `locked_motions`. Tests: e2e_assembly_ball_spring (a disc on a top: 3 → 2 → 1 ways, not moved, pushed back by its
+  joint, ✕ frees; a ball on an axis: its slide, then its turns), e2e_assembly_lockmotion as before.
+
+- **Assembly: 🔗 fixed together (2026-10-29)** (the same report: "fix part A to part B as they are now"). A `rigid`
+  joint keeps the part's own directions and its anchor face's place in the other part's frame (`rot`, `pos`, from
+  joints.frameNow); its faces only anchor it (the clicked ones, else each part's biggest). It is applied last of the
+  part's joints (it has the last word); the part has no motion of its own, its Moves are the other part's (*— with
+  …*). 🔗 Fixed together in Joint ▾ (any face of each part), *🔗 Fix A to B* in the suggestions for two chosen parts
+  (a 📌 fixed one is the one it goes to); its row names the two parts "as they are". AI: snap_faces type "rigid", no
+  faces needed. Tests: e2e_assembly_ball_spring (a flag fixed to a pin follows its slide and turn, 0 own motions).
+
+- **Assembly: ● ball joints (2026-10-29)** (the app's AI, report 2026-10-29-202947: a valve ball could not be joined —
+  tangent refused a sphere, concentric wants a cylinder). The kernel's face info tells a sphere (`type: "sphere"`,
+  radius, centre) and a cone (`type: "cone"`, `cone: {apex, d (the way it opens), half}` — not an `axis`, so the
+  sketch's axis references stay the holes' and shafts'), also for faces placed again (_moved_surface). joints.js:
+  **● ball** — a ball's centre on the other part's axis (a hole, a cone: it slides along it and turns any way, 4 ways)
+  or on another ball's centre (3 turns); **◉ seat** — the ball in a conical seat (its centre r / sin half from the
+  apex) or on the edge of a hole smaller than it (√(R² − r²) out of the hole's end, on its side). Both are pure shifts
+  (either part may be the ball); a part's later joints are followed by its ball joints again (holdPart). A ball's
+  turns about X / Y / Z through its centre are its motions (after the axis' slide and turn). A ball + a hole / cone /
+  ball picked as two faces with no tool on: ◉ and ● first in the suggestions; one ball face: ● / ◉ … first. AI:
+  snap_faces type "ball" / "seat" (anything else refused, it says why). Tests: test_modeler_features
+  (test_ball_and_cone_faces: volumes, apex / half angle, moved, STEP round trip), e2e_assembly_ball_spring.
 
 - **Icons at an extrude's height (2026-10-29)** (the owner: "u kliknutí na dimenzi vysunutí … pár ikonek … směr, k
   ploše a další ploše"): clicking the "↕ 10" label on the part opens the size editor with one line of 16 px stroke
@@ -325,8 +456,27 @@ Date: 2026-10-25. Written by the architect agent.
   in 155 files (620 kB allocated at 4 kB clusters), 219 kB bundled into the project file.
   Left out: the two bodies overlaid in two colours (compare is text), a Ctrl+Z of a restore (↶ in its toast and the
   "Before restoring" version instead), versions of the quick part / drawing / sheet workspaces' own widget (the widget
-  is in the model and assembly workspaces; versions are of the whole project anyway), renaming / deleting a variant in
-  the UI (versions.rename_variant exists).
+  is in the model and assembly workspaces; versions are of the whole project anyway).
+- **🕘 Versions: a graph of the branches; rename / delete a variant done** (the owner: "a graph of the branches would
+  help, the history is unclear now"). versions.js draws one SVG over the list's left column (14 px a lane, from the
+  rows' measured positions: rows keep one height, a ResizeObserver draws it again when the widget is shown): a line per
+  variant in its colour (7 colours by the variant's place; the chip by Variant ▾ and the legend have it), a dot per
+  version, the fork a curve from the version a variant was made from into its lane, the variant on screen's lane bolder
+  (the others at half), its newest version ringed green (● current), other heads ringed in their colour, the previewed
+  one a dashed ring. Default: the variant on screen + the fork row (dashed, a hollow dot on the parent's lane); its
+  versions other variants were made from carry a small stub in their colour. "All variants" (a toggle by the switcher,
+  remembered; GET ?all=1 -> `all`: every manifest) interleaves every variant by time with a legend (name, number of
+  versions; double-click renames, ✕ deletes); another variant's version previewed: the banner names the variant and
+  offers ⑂ Go to this variant. Variant ▾ also has ✎ Rename this variant… / 🗑 Delete this variant… (double-click the chip
+  / label renames too); delete asks inline ("Smazat variantu „X“ i s jejími verzemi (n)? Nejde to vrátit.", Esc keeps
+  it). versions.delete_variant (not main, not one another variant was made from; the one on screen -> main's head; its
+  manifests deleted after state.json, then gc), rename_variant refuses a clashing name; the list's variants carry
+  `count`. Server: POST /variants/<var>/rename {name}, /variants/<var>/delete. AI: list_versions gives each version's
+  parent and variant and each variant's made_from / versions; rename_variant, delete_variant (only when asked).
+  Tests: test_versions (10: + rename clash, all, delete refused for main / a parent, its own objects collected, A's
+  kept), e2e_versions (46 checks; + 17 at 1280 × 800: 3 lanes, the forks at the dots of B and A, the bolder lane and the
+  ring, another variant's preview banner, rename by double-click, delete with the confirm and Zrušit, the default view
+  main only with the stub, list_versions' graph fields, rename_variant). Left out: merging variants.
   **Plan, not built: "Also save versions to Git"** (an option for users who use git). Mirror, never replace: the
   content store stays the truth (the frozen exe has no git). When on and `git` is on PATH (or dulwich, pure Python, if
   bundled), a repository per project under `<data>/versions/<pid>/git/` (or a folder the user picks); each manifest

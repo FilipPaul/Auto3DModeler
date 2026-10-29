@@ -50,6 +50,7 @@ const sketchesOf = (f) => (f.type === 'loft' ? f.sketches || [] : f.type === 'sw
 import { MATERIALS, MATERIAL_GROUPS, MATERIAL_COLOR, lookColor, cogText } from './materials.js';
 import { showSuggest, showSnapFilters, snapKinds, hoverKinds } from '../suggest.js';
 import { floatBox } from '../floatbox.js';
+import { MeasureTool, snapWins } from '../measure.js';
 export { MATERIALS }; // g/cm³ (materials.js: grouped, with their colours)
 const DATUM_NAME = { XY: 'Top', XZ: 'Front', YZ: 'Right' };
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -96,6 +97,9 @@ export class Modeler {
     this.bindSizes(this.els.left);
     this.view = new ModelView(this.els.view, { cube: true });
     this.view.onCamera = () => this.sk?.draw();
+    this.ms = new MeasureTool({ ws: 'model', view: () => this.view, viewport: this.els.viewport, list: (make) => (make ? (this.part.measures ||= []) : this.part.measures),
+      pick: (e) => this.measurePick(e), hover: (x) => this.view.setHover(x?.kind === 'face' ? x.faceId : -1), hint: (s) => this.hint(s),
+      changed: () => this.hooks.onChange?.(), stop: () => { if (this.measuring) this.toggleMeasure(); }, toast: (...a) => this.hooks.toast(...a) });
     this.bindPointer();
     this.render();
     window.addEventListener('a3d:lang', () => this.render()); // (texts built with t(): in the new language)
@@ -845,9 +849,7 @@ export class Modeler {
       { icon: '📏', label: t('Measure from here'), run: () => {
         this.dropSuggest();
         if (!this.measuring) this.toggleMeasure();
-        this.measuring.a = p;
-        this.view.setMeasure([p]);
-        this.measureBox(`<div class="mm-rows"><b>${esc(kind)}</b><span>${esc(t('Point'))}</span><b>${xyz}</b></div><p class="hint">${esc(t('Click a second spot for the distance.'))}</p>`);
+        if (this.measuring) this.ms.from({ kind: 'point', p: p.clone(), snap: sp.snap, name: sp.name || '' });
       } },
       { icon: '⧉', label: t('Copy its coordinates'), run: () => { navigator.clipboard?.writeText(xyz).catch(() => {}); this.hooks.toast(`${t('Copied')}: ${xyz}`, 'info', 2500); } },
     ], t('No tool on: a click on a corner, an edge\'s middle or a centre picks it'), `${t('in the 3D model')}: ${t('the point')} (${xyz}) — ${kind.toLowerCase()} ${t('of the part')}`);
@@ -4040,61 +4042,31 @@ export class Modeler {
   toggleMeasure() {
     if (this.mode !== 'part' || this.cmd) return;
     this.measuring = this.measuring ? null : { a: null };
-    this.view.setMeasure();
-    this.hint(this.measuring ? 'Measure — click a face or an edge for its size, or two spots for the distance between them. Esc ends.' : '');
-    if (!this.measuring) { this.$('.m-measure')?.remove(); this.view.setSnapMark(null); }
+    if (this.measuring) this.ms.start(); else this.ms.stop();
+    this.view.setHover(-1);
+    if (!this.measuring) { this.hint(''); this.view.setSnapMark(null); }
     this.renderCmdBar();
   }
 
-  measureBox(html) {
-    let box = this.$('.m-measure');
-    if (!box) {
-      box = document.createElement('div');
-      box.className = 'm-measure';
-      this.els.viewport.appendChild(box);
+  /** 📏 What a measure click takes (measure.js): a corner / reference point near the mouse, else an edge under it (its
+   *  middle and a round edge's centre only when the mouse is right on them — snapWins), else the face. */
+  measurePick(e) {
+    const b = this.result?.body, v = this.view;
+    if (!b) return null;
+    const mp = v.measurePoint(e.clientX, e.clientY);
+    const ei = snapWins(v, mp, e) ? -1 : v.pickEdge(e.clientX, e.clientY, 6);
+    if (mp?.snap && ei < 0) return { kind: 'point', p: mp.point.clone(), snap: mp.snap, name: mp.name || '' };
+    if (ei >= 0) {
+      const ed = b.edges[ei], names = ed.faces.map((k) => b.faces[k]?.name || ''), n = ed.pts.length / 3, k = 3 * Math.floor(n / 2);
+      return { kind: 'edge', pts: ed.pts, id: `E${ei + 1}`, at: mp?.point?.clone() || [ed.pts[k], ed.pts[k + 1], ed.pts[k + 2]],
+        hole: names.some((x) => x.includes(':hole')), tip: names.filter(Boolean).map((x) => this.faceLabel(x)).join(' / ') };
     }
-    box.innerHTML = html;
-    floatBox(box, this.els.viewport, { kind: 'measure', min: [180, 60] });
+    if (!mp?.face) return null;
+    const f = mp.face, i = b.faces.indexOf(f);
+    return { kind: 'face', face: f, faceId: f.id, id: `F${(i >= 0 ? i : f.id) + 1}`, at: mp.point.clone(), hole: String(f.name).includes(':hole'), tip: this.faceLabel(f.name) };
   }
 
-  clickMeasure(e) {
-    const ms = this.measuring, b = this.result?.body;
-    if (!b) return;
-    const f3 = (p) => `${fmt(p.x)}, ${fmt(p.y)}, ${fmt(p.z)}`;
-    // an edge under the mouse: its length / diameter (when no point is picked yet)
-    const ei = this.view.pickEdge(e.clientX, e.clientY, 6);
-    const mp = this.view.measurePoint(e.clientX, e.clientY);
-    if (!mp && ei < 0) return;
-    if (!ms.a) {
-      let what = '';
-      if (ei >= 0 && !mp?.snap) {
-        const ed = b.edges[ei];
-        let L = 0;
-        for (let k = 3; k < ed.pts.length; k += 3) L += Math.hypot(ed.pts[k] - ed.pts[k - 3], ed.pts[k + 1] - ed.pts[k - 2], ed.pts[k + 2] - ed.pts[k - 1]);
-        const P = []; for (let k = 0; k < ed.pts.length; k += 3) P.push(ed.pts.slice(k, k + 3));
-        if (P.length > 2 && Math.hypot(...P[0].map((x, i) => x - P[P.length - 1][i])) < 1e-6) P.pop(); // a closed loop: its first point twice
-        const c = P.reduce((s, p) => s.map((x, i) => x + p[i] / P.length), [0, 0, 0]);
-        const rs = P.map((p) => Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2])), r0 = rs.reduce((s, x) => s + x, 0) / rs.length;
-        const round = P.length > 8 && rs.every((x) => Math.abs(x - r0) < r0 * 0.01 + 1e-6) && Math.abs(L - 2 * Math.PI * r0) < L * 0.02;
-        what = round ? `<b>Circular edge</b><span>Ø</span><b>${fmt(2 * r0)} mm</b>` : `<b>Edge</b><span>Length</span><b>${fmt(L)} mm</b>`;
-      } else if (mp?.face) {
-        const f = mp.face;
-        what = `<b>${f.type === 'cylinder' ? 'Round face' : f.type === 'plane' ? 'Flat face' : 'Face'}</b><span>Area</span><b>${fmt(f.area)} mm²</b>${f.radius ? `<span>Ø</span><b>${fmt(2 * f.radius)} mm</b>` : ''}`;
-      }
-      ms.a = mp?.point || null;
-      this.view.setMeasure(ms.a ? [ms.a] : []);
-      this.measureBox(`<div class="mm-rows">${what}${ms.a ? `<span>${{ corner: 'Corner', midpoint: 'Midpoint', centre: 'Centre' }[mp.snap] || 'Point'}</span><b>${f3(ms.a)}</b>` : ''}</div>
-        <p class="hint">Click a second spot for the distance.</p>`);
-      return;
-    }
-    if (!mp) return;
-    const a = ms.a, p = mp.point, d = a.distanceTo(p);
-    this.view.setMeasure([a, p], `${fmt(d)} mm`);
-    this.measureBox(`<div class="mm-rows"><b>Distance</b><span></span><b>${fmt(d)} mm</b>
-      <span>Δx</span><b>${fmt(Math.abs(p.x - a.x))}</b><span>Δy</span><b>${fmt(Math.abs(p.y - a.y))}</b><span>Δz</span><b>${fmt(Math.abs(p.z - a.z))}</b></div>
-      <p class="hint">Click again to measure from a new spot.</p>`);
-    ms.a = null;
-  }
+  clickMeasure(e) { if (this.result?.body) this.ms.click(e); }
 
   toggleSection() {
     if (!this.result?.body) return;
@@ -4130,7 +4102,7 @@ export class Modeler {
       const id = this.view.pickOutline(e.clientX, e.clientY);
       if (id) { this.view.clearHoverMarks(); this.view.setHover(-1); this.tip(null); cv.style.cursor = 'pointer'; cv.title = 'Double-click to edit this sketch'; return; }
       cv.title = '';
-      if (this.measuring) { this.view.clearHoverMarks(); this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); return; } // (where a click measures from)
+      if (this.measuring) { this.view.setHoverSnaps([]); this.ms.hover(e); return; } // (what a click measures: lit, named)
       this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); // (a corner, an edge's middle, a centre: it can be picked)
       // the step under the mouse: all its faces light up, its name at the mouse
       const h = this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
@@ -4225,7 +4197,7 @@ export class Modeler {
       if (this.mode === 'part' && !this.cmd) return this.clickFace(e);
       return null;
     });
-    cv.addEventListener('pointerleave', () => { this.hoverEv = null; this.view.clearHoverMarks(); if (['hole', 'decal'].includes(this.cmd?.feature.type) && !this.holePick) this.showSpot(null); if (this.mode === 'part' && !this.cmd) { this.view.setHover(-1); this.tip(null); } });
+    cv.addEventListener('pointerleave', () => { this.hoverEv = null; this.view.clearHoverMarks(); if (this.measuring) this.ms.hover(null); if (['hole', 'decal'].includes(this.cmd?.feature.type) && !this.holePick) this.showSpot(null); if (this.mode === 'part' && !this.cmd) { this.view.setHover(-1); this.tip(null); } });
     cv.addEventListener('dblclick', (e) => {
       if (this.mode !== 'part' || this.cmd) return;
       const id = this.view.pickOutline(e.clientX, e.clientY);
@@ -4321,6 +4293,7 @@ export class Modeler {
     this.$('.m-install').hidden = true;
     this.view.setBody(null);
     this.history.reset();
+    this.ms.reset(); // (its measurements: this part's)
     this.render();
     this.rebuild().then(() => {
       if (then === 'extrude' && this.sketches().length) { this.startExtrude(); return; }

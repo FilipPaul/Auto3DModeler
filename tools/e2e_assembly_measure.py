@@ -54,7 +54,8 @@ def click(inst, local, dx=0, dy=0):
 
 
 def box():
-    return d.find_element(By.CSS_SELECTOR, "#asmViewport .m-measure").text.replace("\n", " ")
+    """📏 The newest row of the measurements table (measure.js)."""
+    return js("return [...document.querySelectorAll('[data-w=measure-assembly] .ms-row')].at(-1)?.innerText.replace(/\\s+/g, ' ') || ''")
 
 
 try:
@@ -98,7 +99,7 @@ try:
     print("base hole:", box())
     d.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
     time.sleep(0.3)
-    print("Esc: box gone", not d.find_elements(By.CSS_SELECTOR, "#asmViewport .m-measure"), "| button on", "on" in d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=measure]").get_attribute("class"))
+    print("Esc: the table kept", js("return document.querySelectorAll('[data-w=measure-assembly] .ms-row').length"), "row(s) | button on", "on" in d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=measure]").get_attribute("class"))
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()

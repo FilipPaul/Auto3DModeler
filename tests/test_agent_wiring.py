@@ -34,6 +34,7 @@ HANDLER_BLOCKS = [
     ("modeler/agent_model.js", "export function modelHandlers("),
     ("modeler/agent_sketch.js", "export function sketchHandlers("),
     ("assembly/assembly.js", "  handlers() {"),
+    ("assembly/harness.js", "export function harnessHandlers("),
 ]
 # the page's handlers that are no AI tool of their own: the server's relays (open_file -> load …) and the 3D model's
 # versions of the shared tools (app.js SHARED: get_screenshot / undo follow the part on screen)

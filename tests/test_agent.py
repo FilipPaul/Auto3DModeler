@@ -253,6 +253,28 @@ class TestMcpServer(unittest.TestCase):
             self.assertIn(words, SYSTEM_PROMPT)
         self.assertNotIn("trace_picture", BROWSER_TOOLS)
 
+    def test_the_ai_sees_the_suggestions_table(self):
+        """The app is worked through its suggestions table: gui_state returns it (where: suggest = only it), gui_action
+        picks a named face / part and runs a row by its label, get_screenshot {ui: true} draws it; the prompt and the
+        skills teach the suggestion-first way (the page's side: tools/e2e_ai_suggest.py)."""
+        from auto3d.agent_tools import SYSTEM_PROMPT
+        from auto3d.guides import guides
+        schema = {t["name"]: t["inputSchema"]["properties"] for t in TOOLS}
+        self.assertIn("suggest", schema["gui_state"]["where"]["enum"])
+        self.assertEqual(schema["gui_action"]["suggest"], {"type": "string"})
+        self.assertEqual(schema["gui_action"]["pick"], {"type": "string"})
+        self.assertEqual(schema["get_screenshot"]["ui"], {"type": "boolean"})
+        desc = {t["name"]: t["description"] for t in TOOLS}
+        self.assertIn("suggestions", desc["gui_state"])
+        self.assertIn("Show all", desc["gui_action"])
+        self.assertIn("suggestions table", SYSTEM_PROMPT)
+        self.assertIn('gui_action {suggest:', SYSTEM_PROMPT)
+        g = {k: v["text"] for k, v in guides().items()}
+        for topic in ("ui-tester", "teach-the-user", "model-a-part", "assemble-parts"):
+            self.assertIn("suggest", g[topic], topic)
+        self.assertIn("gui_state {where: \"suggest\"}", g["ui-tester"])
+        self.assertIn("rank_pos", g["ui-tester"])
+
 
 class TestRelay(unittest.TestCase):
     def test_round_trip_and_not_connected(self):

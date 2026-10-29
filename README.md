@@ -228,7 +228,7 @@ chosen; Ctrl+click more edges), a click on a **step in the list** ✎ Edit, 🏷
 
 **A click on a face of a 3D model** chooses its step and shows its tools in the Suggested table (bottom left) — the
 table can be **dragged by its header** anywhere in the view, and stays there (a double-click on the header: back).
-The same goes for every box floating over a view — 🖨 Print check, 📏 Measure, the ✂ Section bar, the size editor and
+The same goes for every box floating over a view — 🖨 Print check, the ✂ Section bar, the size editor and
 the sketch's small boxes: drag the header (or the **⠿** strip), **resize** with the grip in the bottom-right corner;
 the place and size are remembered, and a double-click on the header puts the box back where it started.
 Its **✨** puts what is selected into the AI chat — as the AI's tools name it (a step and a face, sketch shapes,
@@ -239,6 +239,19 @@ corners, edge midpoints, centres. With **no tool on**, the snap point under the 
 round edge's centre when earlier steps change. Sketches snap to it and ↔ Dimension measures from it (seen square onto
 the sketch), 📏 Measure snaps to it; it can be turned off, renamed and deleted like any step. When its corner is gone
 the step says so and keeps its last place.
+
+**📏 Measure** (3D model and assembly, key M) works out what to measure from what you click — no mode menu: a corner
+(two corners: the distance with ΔX ΔY ΔZ), an edge (its length; a circle Ø, an arc R — a hole's rim says *Hole*), a
+face (its area; a round one Ø and its axis), and between two things: a point and a face (square to it), two flat faces
+(the gap when parallel, else the angle), two edges or axes (how far apart when parallel — two holes: their axes, the
+*min* chip the gap between their walls — else the angle). In an assembly the **Parts** chip measures the **clearance**
+between two whole parts (the kernel's least distance). Each result is a row of the **📏 Measurements** table (a widget
+of the left column — dock it or float it) and stays marked in the view (a thin line and a small label); the tool stays
+on for the next one (a click on empty space starts anew), Esc ends it and the table stays — saved with the part /
+assembly. One line a row: #, icon, what (*F4 ↔ F7*, *Edge E5*, *Hole E16*), the value bold (mm in the header), the
+rest muted; the mouse on a row lights its mark, a click offers copy / hide / delete; 👁 all marks, 📋 copy all (paste
+into a spreadsheet), 🗑 clear (↶ in the toast brings them back). The AI's `measure` adds a row too; it can
+`list_measurements` / `clear_measurements`.
 Everything for the clicked face is in that table, in sections — *On this face*, *Its edges*, *The part*, *Step* — so
 there is no right-click menu: the right button only pans.
 
@@ -355,14 +368,20 @@ branch with its own timeline) from a version; **Variant: main ▾** on top switc
 a variant…** copies one part as it is in another variant into this one (there is no merge). Unchanged parts are stored
 once (each part's JSON under its SHA-256, zlib), so a version costs a few kB; old automatic versions are thinned (all of
 the last day, one an hour for a week, one a day after that; named ones and variants are kept). *Save project ▾ → with
-version history* puts the versions into the file, and opening it brings them back. The AI has list_versions,
-save_version, compare_versions, restore_version and create_variant.
+version history* puts the versions into the file, and opening it brings them back. A graph of the branches runs down
+the list's left side (a coloured lane per variant, a dot per version, the fork from the version it was made from);
+*All variants* shows every variant's versions together. Variant ▾ renames (or double-click the name) and deletes a
+variant (with its versions, after an inline confirmation). The AI has list_versions, save_version, compare_versions,
+restore_version, create_variant, rename_variant and delete_variant.
 
 **🎬 Demo projects** (Open ▾ → *Demo projects…*): ready-made projects that show whole mechanisms moving — a crank –
 rod – slider (*Klikový mechanismus*), a four-bar linkage (*Čtyřkloubový mechanismus*: the crank turns round, the
 rocker swings), a robot arm (*Robotické rameno*: an open chain — turn the arm and the forearm and gripper go
 along) and gears with a rack (*Převodovka s hřebenem*: a pinion Ø30 turns a wheel Ø60 at i = 2:1 and moves a rack
-π·30 mm a turn — ⚙ couplings). Each is listed with what it shows (in Czech or English) and opens as a new project — a copy, the demo stays
+π·30 mm a turn — ⚙ couplings) and a pump (*Pumpička*: press the button — the piston compresses the 〰 spring, the
+outlet ball lifts and the inlet ball sits on its seat; let go: the other way round — ↕ check valves). Each is listed with what it shows (in Czech or English) and opens as a new project — a copy, the demo stays
+π·30 mm a turn — ⚙ couplings) and a control box with a motor (*Řídicí box s motorem*: a PCB and a motor joined by
+a 🔌 harness of 4 loose wires; the motor turns a pulley). Each is listed with what it shows (in Czech or English) and opens as a new project — a copy, the demo stays
 as it is — on its assembly with ⚙ Mechanism ready (Czech motion names, ▶). The files are in `demos/` (built through
 the app by `tools/make_demos.py`) and go into the Windows build.
 
@@ -886,7 +905,11 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   **↕ distance** is the gap along the axis between the facing ends of the two round faces — two plates with holes
   joined this way get it filled in (touching) and you type e.g. 30; empty = it slides),
   **Parallel**, **Perpendicular**, **Angle** (two flat faces at the angle you type), **Tangent** (a round face on a
-  flat one), or **🔩 Screw / pin** — then
+  flat one), **● Ball joint** (a ball — a revolved half circle — with its centre on the axis of a hole or a cone: it
+  slides along the axis and turns any way; onto another ball: one centre, it only turns), **◉ Ball in seat** (a valve
+  ball seated in a conical seat, or on the edge of a hole smaller than it: on the axis, touching it), **🔗 Fixed
+  together** (a part fixed to another one as they are now: it goes with it and has no motion of its own — also
+  *🔗 Fix A to B* in the suggestions when two parts are chosen), or **🔩 Screw / pin** — then
   click a face of the part to move and the face it goes to (the face under the mouse is marked). For round faces a
   click on (or near) a **circle** — a hole's or a pin's edge — is enough: its round face is taken (a hole seen from the
   front, whose wall is hard to hit). A part can have
@@ -900,6 +923,22 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   broken: the part cannot be moved by hand while it holds; moving a part held by unlocked joints asks first.
   **Double-click a joint's name** to give it your own (e.g. *ložisko na tyč*); it is shown in the list, over its
   symbol in the view and to the AI.
+- **〰 Spring**: pick the spring's end face and the face it pushes on (Ctrl+click; a part called *spring* / *pružina*
+  puts 〰 first in the suggestions, or 〰 Spring in Joint ▾). The spring part is drawn as long as it reaches — scaled
+  along its axis, its other end where it sits — while the parts move (sliders, dragging, ⚙ ▶, the 🎬 animation,
+  screenshots); its model stays as it is, its free length is its modelled length. Its row: *free 20 mm · now 16 mm ·
+  compressed 4 mm*, and with its stiffness **k** (N/mm, the one input) the force (*2 N*). Collisions between the spring
+  and the parts it is joined to are not counted.
+- **↕ By the driver's direction** (a check valve's ball, a pawl): a part with one slide between two limits (⇤⇥ — its
+  stops, e.g. seated / lifted) gets **↕ By the driver's direction** in its motion's row: one click and it goes by the
+  piston (the mechanism's driver sliding along it) — while the piston goes forward it sits at one stop, going back at
+  the other (*Piston forward → at max / at min* chooses which). It moves with the piston's ⚙ mechanism (its slider, ▶,
+  a drag), and 📈 Trace goes there and back, so both stops show. Not for a crank turning round and round (it always
+  goes forward).
+- **🔒 Lock a motion where it is**: 🔒 by a motion in the part's Moves keeps it — a joint's turn or distance, a new
+  flush / gap / parallel joint where faces line up, else **its own joint keeps it** (a touch's slides on the face one
+  by one, a ball's slide along its axis; a ball's turn locks all three of its turns). The joint's row says
+  *🔒 2 locked* and ✕ there frees them again.
 - **A part fixed on a moving part moves with it**: a lever fixed on a bearing (its turn locked) that turns on a
   shaft is not "fully held" — its Moves are the bearing's (*Turn about … — with Bearing*): drive the lever, the
   bearing turns and the lever goes along.
@@ -1057,6 +1096,25 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   when the parts change. In the joints list a fastener is **one row** — *🔩 M3×16 screw + M3 nut · through Lid, Base*
   — not its four joints; its **✕** (or *Take it out* on the screw or the nut) takes out the screw, the nut / insert
   and the holes that were drilled for it.
+- **🔌 Cable harness** (*Kabelový svazek* in the toolbar; *🔌 Route a cable from here* on a clicked face or snap
+  point, *🔌 Route a cable between them* with two parts chosen): choose what runs — **Cable** (its Ø and colour),
+  **Loose wires** (how many, each one's Ø, default 1.5 mm, and IEC colour; the bundle's Ø from how round wires pack:
+  1, 3, 7 wires = 1, 2.155, 3 × Ø), **Ribbon cable** (wires × pitch 1.27) or **Sleeve** (a corrugated hose, its Ø) —
+  and the **minimum bend radius** (empty: the rule of thumb, 5 × Ø; a sleeve 3 × Ø), then **click the points it
+  passes**: on a part's face it lies on that face (Ø/2 + 0.5 mm off), a hole's centre takes it through, a click in
+  space puts a point there (in the plane facing you, through the last point). A live preview follows the mouse with
+  the length (*Délka 1 284 mm*). **Esc / Enter / ✓ Done** keeps the points. Points on a part **stick to it**: they
+  follow when it moves (a mechanism, a drag, 💥 Explode). Afterwards *✎ Edit points*: drag a point (onto another face
+  or in space), click the cable to put a point there, click a point and press Delete. The route is straight lines
+  with every corner rounded to the minimum radius; a corner whose legs are too short for it gets the largest radius
+  that fits and is **marked red with ⚠ *ohyb R 6 mm < min 15 mm*** in the view and the panel — never bent tighter
+  silently. *⚠ Goes through Motor I3* when its centre line passes through a part. It is drawn as tubes (loose wires
+  twisted round the centre line in their colours, a ribbon flat, a sleeve corrugated), listed in the assembly tree
+  (*🔌 Svazek 1 · 4 × Ø1,5 · 1 284 mm*), in the **BOM** a line per wire or cable with its length + a reserve (5 %, under
+  *More*) rounded up to 10 mm — *Vodič Ø1,5 mm hnědý — 1 350 mm* — and in the **STEP / GLB / IGES** exports (a part
+  per harness, each wire a solid in its colour: a circle swept along the route) and the assembly's drawing sheet.
+  The AI routes them with `add_harness` / `edit_harness`; get_assembly lists them with their lengths. The demo *Řídicí
+  box s motorem* has one.
 - **⚠ Collisions** finds where parts go into each other (touching faces are fine). It is checked a moment after
   every change, so the button itself says it: **⚠ 2 collision(s)** in red, or **✓ No collisions** in green. Click it
   for the list — each pair and how much (mm³), the parts glowing red and the overlap boxed in red; hover a row for
@@ -1220,7 +1278,11 @@ can open them.
   does — so it can check the app behaves like its tools. It also clicks, double-clicks or drags **at a point** of the
   view (picking a part or a face in 3D, a dimension, view or title cell on a drawing sheet — `at_mm` on the paper) and
   presses **keys** (Delete, Enter, Escape, ctrl+z). A value given to a button is refused (nothing clicked), and when
-  the controls on screen change (a part chosen: its panel) the answer lists them with their new numbers; a sheet's dimensions, views and title cells are listed too. A **locked 🔒 joint** is greyed out in the panel (only 🔒
+  the controls on screen change (a part chosen: its panel) the answer lists them with their new numbers; a sheet's dimensions, views and title cells are listed too.
+  The AI sees the **suggestions table** as you do: its title, what it is about, its rows in order and how many are
+  under ⋯ Show all; it can select a face or a part by name (`pick`) and run a row by its label (`suggest`), and
+  `get_screenshot {ui: true}` gives it a picture of the whole window with the table and panels — so it can point you at
+  the row to click and test the app the way you use it. A **locked 🔒 joint** is greyed out in the panel (only 🔒
   unlocks it) and the AI cannot change it either.
 - **The AI shows you where**: ask "how do I add a hole?", "where is the pattern?" or "show me" and Claude leads you
   through the app's own buttons step by step (`gui_highlight`): a pulsing ring around the control (or a spot of the 3D

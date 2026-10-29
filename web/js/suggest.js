@@ -5,6 +5,7 @@
 // small menu at a place (a tab's right-click).
 import { t } from './i18n.js';
 import { leftDock } from './leftdock.js';
+import { scrollFade } from './floatbox.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let askAI = null; // (the app: what is selected, into the AI chat)
@@ -12,7 +13,13 @@ let askAI = null; // (the app: what is selected, into the AI chat)
 /** How ✨ hands the selection to the AI chat: fn(refs text). */
 export const setAskAI = (fn) => { askAI = fn; };
 
-const SNAP_KEY = 'a3d.snap3d', HOVER_KEY = 'a3d.hover3d';
+const SNAP_KEY = 'a3d.snap3d', HOVER_KEY = 'a3d.hover3d', SHOW_KEY = 'a3d.show3d';
+/** What the view shows besides the parts: {joints} — an assembly's joint symbols (remembered). */
+export function showKinds() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(SHOW_KEY) || 'null'); } catch { saved = null; }
+  return { joints: true, ...(saved || {}) };
+}
 /** The hover filters: what lights up under the mouse with no tool on — {edges, points} (remembered). */
 export function hoverKinds() {
   let saved = null;
@@ -34,7 +41,9 @@ export function setSnapKind(key, on) {
 }
 
 /** The row of 3D snap filters in the bottom-left corner of a view (the Suggested table above it). */
-export function showSnapFilters(viewport, on = true) {
+/** opts.show: the "Show:" group's keys for this view (an assembly: ['joints']); opts.onShow: called after a switch. */
+export function showSnapFilters(viewport, on = true, opts = viewport.snapOpts || {}) {
+  viewport.snapOpts = opts;
   let bar = viewport.querySelector(':scope > .snap-filters');
   if (!on) { bar?.remove(); return; }
   if (!bar) {
@@ -45,8 +54,10 @@ export function showSnapFilters(viewport, on = true) {
   }
   const k = snapKinds(), F = [['corner', '⌜', 'Corners'], ['midpoint', '⊹', 'Edge midpoints'], ['centre', '◎', 'Centres'], ['quadrant', '◔', 'Quadrants'], ['guides', '┆', 'Guides']];
   const hk = hoverKinds(), HV = [['edges', '⟋', 'Edges'], ['points', '•', 'Snap points']];
+  const sk = showKinds(), SH = [['joints', '🔗', 'Joints', "the joints' symbols in the view — click to hide or show them"]];
   bar.innerHTML = `<span class="skf-t">${esc(t('Snap'))}:</span>${F.map(([key, i, l]) => `<button class="${k[key] ? 'on' : ''}" data-snap="${key}" title="${esc(`${t(l)}: ${t(key === 'guides' ? 'Line up a hole or a text with corners, midpoints and centres while placing it — click to switch' : 'What 📏 Measure and a click catch — click to switch')}`)}">${i} <span class="skf-l">${esc(t(l))}</span></button>`).join('')}
-    <span class="sep"></span><span class="skf-t">${esc(t('Hover'))}:</span>${HV.map(([key, i, l]) => `<button class="${hk[key] ? 'on' : ''}" data-hover="${key}" title="${esc(`${t(l)}: ${t(key === 'edges' ? 'Light up the edge under the mouse (a line or a circle) — click to switch' : 'Show the snap points of the step / face under the mouse — click to switch')}`)}">${i} <span class="skf-l">${esc(t(l))}</span></button>`).join('')}`;
+    <span class="sep"></span><span class="skf-t">${esc(t('Hover'))}:</span>${HV.map(([key, i, l]) => `<button class="${hk[key] ? 'on' : ''}" data-hover="${key}" title="${esc(`${t(l)}: ${t(key === 'edges' ? 'Light up the edge under the mouse (a line or a circle) — click to switch' : 'Show the snap points of the step / face under the mouse — click to switch')}`)}">${i} <span class="skf-l">${esc(t(l))}</span></button>`).join('')}${
+    opts.show?.length ? `<span class="sep"></span><span class="skf-t">${esc(t('Show'))}:</span>${SH.filter(([key]) => opts.show.includes(key)).map(([key, i, l, w]) => `<button class="${sk[key] ? 'on' : ''}" data-show="${key}" title="${esc(`${t(l)}: ${t(w)}`)}">${i} <span class="skf-l">${esc(t(l))}</span></button>`).join('')}` : ''}`;
   const flip = (store, read, key) => {
     const now = { ...read(), [key]: !read()[key] };
     try { localStorage.setItem(store, JSON.stringify(now)); } catch { /* private window */ }
@@ -54,6 +65,7 @@ export function showSnapFilters(viewport, on = true) {
   };
   for (const b of bar.querySelectorAll('[data-snap]')) b.addEventListener('click', () => flip(SNAP_KEY, snapKinds, b.dataset.snap));
   for (const b of bar.querySelectorAll('[data-hover]')) b.addEventListener('click', () => flip(HOVER_KEY, hoverKinds, b.dataset.hover));
+  for (const b of bar.querySelectorAll('[data-show]')) b.addEventListener('click', () => { flip(SHOW_KEY, showKinds, b.dataset.show); opts.onShow?.(); });
   fitSnapFilters(viewport);
   if (!viewport.snapFit && window.ResizeObserver) (viewport.snapFit = new ResizeObserver(() => fitSnapFilters(viewport))).observe(viewport);
 }
@@ -124,7 +136,7 @@ function pickRows(items, all) {
     if (sec) { rows.push(sec); sec = null; } // (a heading only above rows that show)
     rows.push({ ...it, i });
   });
-  return { rows, total: acts.length, over };
+  return { rows, total: acts.length, over, ranked: [...acts].sort((a, b) => a.r - b.r || a.i - b.i).map((a) => a.i) };
 }
 
 /** Show (or with no items: remove) the table in `viewport`: title (what is selected), items [{icon, label, title,
@@ -140,7 +152,8 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
     viewport.appendChild(box);
   }
   const again = () => showSuggest(viewport, title, items, hint, refs);
-  const all = showingAll(), { rows, total, over } = pickRows(items, all), setting = box.dataset.setting === '1';
+  const all = showingAll(), { rows, total, over, ranked } = pickRows(items, all), setting = box.dataset.setting === '1';
+  box.sg = { title, hint, refs, items, ranked, shown: rows.filter((it) => it.section === undefined).map((it) => it.i) }; // (for the AI: suggestTables)
   box.dataset.noI18n = '';
   const keep = box.contains(document.activeElement) && document.activeElement.dataset.sg; // (drawn again: the row in the keyboard's hand stays there)
   box.innerHTML = `<div class="vs-head"><button class="vs-pin" title="${esc(t('Dock it in the left panel — always in sight (or drag its header there)'))}">📌</button><b title="${esc(title)}">${esc(title)}</b><button class="vs-set${setting ? ' on' : ''}" title="${esc(t('How many suggestions show before ⋯ Show all — click to change'))}">${esc(t('Top {n}').replace('{n}', suggestLimit()))}</button>${refs && askAI ? `<button class="vs-ai" title="${esc(t('Ask the AI about it — what is selected goes into the chat'))}">✨</button>` : ''}</div>
@@ -170,8 +183,35 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
   box.querySelector('.vs-pin')?.addEventListener('click', (e) => { e.stopPropagation(); leftDock.dock('suggest'); for (const b of document.querySelectorAll('.view-suggest')) leftDock.placeSuggest(b, b.parentElement); });
   box.sgOpts = { kind: 'suggest', handle: '.vs-head', min: [170, 90], onDefault: (b) => cornerPlace(b, viewport) };
   leftDock.placeSuggest(box, viewport); // (floating: moved / resized / remembered; or docked in the left column)
+  scrollFade(box.querySelector('.vs-list')); // (no scrollbar: a fade where rows are hidden)
   if (keep) box.querySelector(`[data-sg="${keep}"]`)?.focus();
   return box;
+}
+
+/** The suggestion tables the user sees now (floating, docked, a menu), for the AI: [{box, title, hint, refs, docked,
+ *  menu, rows: [{i, icon, label, title, section, rank_pos, shown}]} — every action, the ones under ⋯ Show all with
+ *  shown false; rank_pos 1 = the most relevant]. */
+export function suggestTables() {
+  return [...document.querySelectorAll('.view-suggest, .sg-menu')].filter((b) => b.sg && b.getClientRects().length && !b.classList.contains('lw-off') && (b.classList.contains('sg-menu') || b.parentElement?.offsetParent)).map((box) => {
+    const { title, hint, refs, items, ranked, shown } = box.sg, on = new Set(shown);
+    let sec = null;
+    const secOf = new Map();
+    items.forEach((it, i) => { if (it.section !== undefined) sec = it.section; else secOf.set(i, sec); });
+    return { box, title, hint, refs, docked: box.classList.contains('docked'), menu: box.classList.contains('sg-menu'),
+      rows: ranked.map((i, k) => ({ i, icon: items[i].icon || '', label: items[i].label, title: items[i].title || '', section: secOf.get(i) || undefined, rank_pos: k + 1, shown: on.has(i) })) };
+  });
+}
+
+/** Run the row `i` of a table from suggestTables as the user would: a row under ⋯ Show all shown first (then the
+ *  table goes back to its top rows, as the user had it). -> false when the row is not there. */
+export function runSuggestion(box, i) {
+  let row = box.querySelector(`[data-sg="${i}"]`), opened = false;
+  if (!row && box.querySelector('[data-sg-all]')) { box.querySelector('[data-sg-all]').click(); opened = true; row = box.querySelector(`[data-sg="${i}"]`); }
+  if (!row) return false;
+  row.dispatchEvent(new MouseEvent('mouseenter'));
+  row.click();
+  if (opened) setShowingAll(false);
+  return true;
 }
 
 // ---------------------------------------------------------------------------------------------- the keyboard
@@ -214,6 +254,7 @@ export function suggestMenu(at, title, items) {
   box.className = 'sg-menu';
   box.dataset.noI18n = '';
   box.setAttribute('role', 'menu');
+  box.sg = { title, hint: '', refs: '', items, ranked: items.map((it, i) => (it.section === undefined ? i : -1)).filter((i) => i >= 0), shown: items.map((_, i) => i) };
   box.innerHTML = `${title ? `<div class="vs-head"><b title="${esc(title)}">${esc(title)}</b></div>` : ''}<div class="vs-list">${items.map((it, i) => (it.section !== undefined
     ? `<div class="vs-sec">${esc(it.section)}</div>`
     : `<button data-sg="${i}" role="menuitem" class="${it.danger ? 'danger' : ''}" title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span>${it.key ? `<kbd class="vs-key">${esc(it.key)}</kbd>` : ''}</button>`)).join('')}</div>`;

@@ -9,7 +9,9 @@
 //               "move": "I2", "face": "F2:start", "onto": "I1", "ontoFace": "F2:end", "gap": 0, "value": 30, "flip": false,
 //               "angle": 0 (its turn locked there), "name": "bearing on the shaft" (the user's own)}],
 //    "bolts": [{"id": "B1", "text": "M3×20 screw + M3 nut", "holes": [{"part": "P2", "feature": {the hole step drilled}}]}]}
-//   an instance's "travel": {"J2:along": {"min": 0, "max": 25}} — the limits of a free motion (motionsOf keys)
+//   an instance's "travel": {"J2:along": {"min": 0, "max": 25}} — the limits of a free motion (motionsOf keys); with
+//   "follow": {"part": "I3", "key": "J4:along", "at": "max"} ↕ it goes by that part's direction (a check valve's ball):
+//   at max while I3 moves forward along that motion, at min while it goes back (followDirection)
 //   a placed sub-assembly's "inner": {"I2": [16 numbers]} — its parts moved inside it by its own joints, in this
 //   placement only (in the sub-assembly's frame; innerAsm / keepInner); its own document stays as it is; "rigid": true
 //   — 🧱 it moves as one body here, its own mechanisms do not (not said: ⚙ a moving sub-assembly — they work here too,
@@ -18,7 +20,8 @@
 //   imported part (thousands of faces) is simplified
 //   an instance's "moveNames": {"J3:turn": "crank"} — a free motion's own name (nameMotion); "mechs": the ⚙ Mechanism
 //   widget's names, drivers and speeds (mechanism.js); "couplings": ⚙ gear pairs, ⛓ belts, ▤ racks — one part's turn
-//   tied to another's by a ratio (couplings.js)
+//   tied to another's by a ratio (couplings.js); "springs": 〰 a spring part drawn as long as it reaches (springs.js)
+//   tied to another's by a ratio (couplings.js); "harnesses": 🔌 cable harnesses routed through points (harness.js)
 import * as THREE from 'three';
 import { History } from '../history.js';
 import { t } from '../i18n.js';
@@ -32,10 +35,11 @@ import { accelerate } from '../modeler/bvh.js';
 import { fetchRebuild } from '../modeler/packed.js';
 import { newRid, trackProgress, cancelRid, wasCancelled } from '../progressbox.js';
 import { threadSegments } from '../modeler/view.js';
-import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss } from './joints.js';
+import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss, frameNow, slideNow } from './joints.js';
 import { snapNear, snapPoints } from '../modeler/view.js';
-import { showSuggest, showSnapFilters, snapKinds, hoverKinds } from '../suggest.js';
+import { showSuggest, showSnapFilters, snapKinds, hoverKinds, showKinds } from '../suggest.js';
 import { floatBox } from '../floatbox.js';
+import { MeasureTool, snapWins } from '../measure.js';
 import { freeMotions, motionMatrix } from './dof.js';
 import { findLoops, solveLoop, loopFreedom, worstMiss, screwBetween, stepsBetween } from './loops.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
@@ -52,6 +56,8 @@ import { saveAnimation } from './anim.js';
 import { startDrag, dragCue, dragValue, cueLabel, firstTip, tipSeen } from './drag.js';
 import { isPin } from './missing.js';
 import { pinFits, restOn } from './smart.js';
+import { springMatrix, addSpring, springIgnores, springsHtml, bindSpringRows, updateSpringRows, springsSummary } from './springs.js';
+import { HarnessTool, harnessHandlers, harnessFacts, withHarnesses } from './harness.js';
 import { COUPLING_TYPES, couplingOptions, addCoupling, followCouplings, couplingsHtml, bindCouplingRows, couplingsSummary, ratioText, coupledWith } from './couplings.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -317,12 +323,14 @@ export class Assembly {
     this.jointType = 'touch';
     this.explode = 0;
     this.history = new History({
-      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [], ...(this.doc.mechs?.length ? { mechs: this.doc.mechs } : {}), ...(this.doc.couplings?.length ? { couplings: this.doc.couplings } : {}) }),
+      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [], ...(this.doc.mechs?.length ? { mechs: this.doc.mechs } : {}), ...(this.doc.couplings?.length ? { couplings: this.doc.couplings } : {}), ...(this.doc.springs?.length ? { springs: this.doc.springs } : {}), ...(this.doc.harnesses?.length ? { harnesses: this.doc.harnesses } : {}) }),
       restore: async (s) => {
         this.mech?.stop(false);
         this.doc.instances = s.instances; this.doc.mates = s.mates || []; this.doc.bolts = s.bolts || []; this.mode = 'idle'; this.bolt = null;
         if (s.mechs) this.doc.mechs = s.mechs; else delete this.doc.mechs;
         if (s.couplings) this.doc.couplings = s.couplings; else delete this.doc.couplings;
+        if (s.springs) this.doc.springs = s.springs; else delete this.doc.springs;
+        if (s.harnesses) this.doc.harnesses = s.harnesses; else delete this.doc.harnesses;
         this.syncDrills(); // the holes drilled for bolts: back as they were
         this.tidyCopies(); // (⧉ its own part undone: its copy goes too)
         this.render();
@@ -333,6 +341,10 @@ export class Assembly {
     this.build();
     this.view = new AsmView(this.els.view, { cube: true });
     this.mech = new MechanismPanel(this); // (⚙ Mechanism: a widget of the left column while there is one)
+    this.harnessTool = new HarnessTool(this); // (🔌 cable harnesses: its press on a point comes before the part's drag)
+    this.ms = new MeasureTool({ ws: 'assembly', view: () => this.view, viewport: this.els.viewport, list: (make) => (make ? (this.doc.measures ||= []) : this.doc.measures),
+      pick: (e, mode) => this.measurePick(e, mode), hint: (s) => this.hint(s), clearance: (a, b) => this.clearanceOf(a, b),
+      changed: () => this.hooks.onChange?.(), stop: () => { if (this.measuring) this.toggleMeasure(); }, toast: (...a) => this.hooks.toast(...a) });
     this.bindPointer();
     this.render();
     window.addEventListener('a3d:lang', () => this.render()); // (texts built with t(): in the new language)
@@ -350,19 +362,39 @@ export class Assembly {
     this.$ = (s) => viewport.querySelector(s) || left.querySelector(s) || right.querySelector(s);
   }
 
-  render() { this.mech?.render(); this.renderBar(); this.renderList(); this.renderProps(); this.renderStatus(); this.renderSuggest(); showSnapFilters(this.els.viewport, this.doc.instances.length > 0); }
+  render() { this.mech?.render(); this.renderBar(); this.renderList(); this.renderProps(); this.renderStatus(); this.renderSuggest(); showSnapFilters(this.els.viewport, this.doc.instances.length > 0, { show: ['joints'], onShow: () => this.drawJointTags() }); }
 
   /** The suggestions for faces picked with no tool on: one face — the joints it can start (then a face of another
    *  part); two faces of two parts (Ctrl+click) — the joints that fit them (two round: concentric; two flat: touch,
    *  flush, gap …; round and flat: tangent), made by a click. */
   suggestFaces(vp, fp) {
-    const kindOf = (q) => (q.face.type === 'cylinder' ? 'round' : q.face.type === 'plane' ? 'flat' : 'other');
+    const kindOf = (q) => ({ cylinder: 'round', plane: 'flat', sphere: 'ball', cone: 'cone' }[q.face.type] || 'other');
+    const balls = ['ball', 'round', 'cone'];
     const fits = (k1, k2) => Object.entries(JOINT_TYPES).filter(([, j]) => !j.pick && (
       (j.faces === 'plane' && k1 === 'flat' && (k2 === undefined || k2 === 'flat')) || (j.faces === 'cylinder' && k1 === 'round' && (k2 === undefined || k2 === 'round'))
-      || (j.faces === 'mixed' && (k2 === undefined ? k1 !== 'other' : new Set([k1, k2]).size === 2 && ![k1, k2].includes('other')))));
+      || (j.faces === 'mixed' && (k2 === undefined ? ['flat', 'round'].includes(k1) : new Set([k1, k2]).size === 2 && [k1, k2].every((k) => k === 'flat' || k === 'round')))
+      || (j.faces === 'ball' && (k2 === undefined ? balls.includes(k1) : [k1, k2].includes('ball') && balls.includes(k1) && balls.includes(k2)))));
     const what = (q) => `${this.partName(this.inst(q.inst)?.part)} ${q.inst} · ${this.faceText(q.inst, q.face.name)}`;
-    const refs = `${t('in the assembly')} “${this.hooks.safeName?.() || ''}”: ${fp.map((q) => `${t('part')} ${q.inst} ${t('face')} ${q.face.name}${q.face.type === 'cylinder' && q.face.radius ? ` (${t('round')}, Ø${fmt(2 * q.face.radius)})` : q.face.type === 'plane' ? ` (${t('flat')})` : ''}`).join(', ')}`;
+    const refs = `${t('in the assembly')} “${this.hooks.safeName?.() || ''}”: ${fp.map((q) => `${t('part')} ${q.inst} ${t('face')} ${q.face.name}${q.face.type === 'cylinder' && q.face.radius ? ` (${t('round')}, Ø${fmt(2 * q.face.radius)})` : q.face.type === 'sphere' ? ` (${t('ball')}, Ø${fmt(2 * q.face.radius)})` : q.face.type === 'cone' ? ` (${t('cone')})` : q.face.type === 'plane' ? ` (${t('flat')})` : ''}`).join(', ')}`;
     const done = () => { this.facePicks = []; this.renderSuggest(); this.drawMarks(); };
+    const join = (type, a, b) => { // (as if the two faces had been clicked with that joint)
+      this.jointType = type;
+      this.mode = 'joint-to';
+      this.jointFrom = a;
+      this.clickJoint(b);
+      if (this.mode !== 'idle') this.cancelJoint();
+      done();
+    };
+    if (fp.length === 2 && fp[0].inst !== fp[1].inst && fits(kindOf(fp[0]), kindOf(fp[1])).some(([k]) => k === 'ball')) { // ● a ball and its seat / axis / socket: first
+      const ball = fp.find((q) => q.face.type === 'sphere'), other = fp.find((q) => q !== ball), d = `Ø${fmt(+(2 * ball.face.radius).toFixed(2))}`;
+      const socket = other.face.type === 'sphere', seats = other.face.type === 'cone' || (other.face.type === 'cylinder' && other.face.radius < ball.face.radius - 1e-6);
+      showSuggest(vp, `${what(fp[0])} ↔ ${what(fp[1])}`, [
+        ...(seats ? [{ icon: '◉', label: `${t('Seat the ball in it')} · ${d}`, rank: -2, title: t(JOINT_TYPES.seat.hint), run: () => join('seat', fp[0], fp[1]) }] : []),
+        { icon: '●', label: `${t(socket ? 'Ball joint: centres together' : 'Ball centre on its axis')} · ${d}`, rank: seats ? -1 : -2,
+          title: t(socket ? 'The two balls share one centre — it turns any way, it cannot slide' : 'The ball stays on the axis: it slides along it and turns any way'), run: () => join('ball', fp[0], fp[1]) },
+      ], t("A joint between the two faces — the first one's part moves"), refs);
+      return;
+    }
     if (fp.length === 2 && kindOf(fp[0]) === 'round' && kindOf(fp[1]) === 'round') { // a pin in a hole: ◎ first, with its Ø
       const dia = fp.map((q) => fmt(+(2 * (q.face.radius || 0)).toFixed(2))), d = dia[0] === dia[1] ? `Ø${dia[0]}` : `Ø${dia[0]} ↔ Ø${dia[1]}`;
       const seat = this.seatPair(fp[0], fp[1]), cpl = this.couplingItems(fp, done); // (⚙ two gears that turn: first)
@@ -376,7 +408,8 @@ export class Assembly {
     }
     if (fp.length === 2) {
       const same = fp[0].face.normal && fp[1].face.normal && fp[0].face.normal.dot(fp[1].face.normal) > 0.999; // (facing the same way: ▭ Flush first, as they stand)
-      const js = fits(kindOf(fp[0]), kindOf(fp[1])).sort(([a], [b]) => (same ? (b === 'flush') - (a === 'flush') : 0)), on = this.putOn(fp[0], fp[1]), cpl = this.couplingItems(fp, done);
+      const springy = fp.some((q) => /spring|pru[žz]in/i.test(this.partName(this.inst(q.inst)?.part) || '')); // (a part called a spring: 〰 first)
+      const js = fits(kindOf(fp[0]), kindOf(fp[1])).sort(([a], [b]) => (springy ? (b === 'spring') - (a === 'spring') : 0) || (same ? (b === 'flush') - (a === 'flush') : 0)), on = this.putOn(fp[0], fp[1]), cpl = this.couplingItems(fp, done);
       const put = on ? [{ icon: '⧉', label: t2('Put {a} on {b}', { a: this.partName(this.inst(on.move.inst)?.part), b: this.partName(this.inst(on.onto.inst)?.part) }), rank: -1,
         title: t('Its face on the other side (the underside) touches this face — no need to turn the view to click it'), run: () => {
           this.jointType = 'touch';
@@ -400,7 +433,7 @@ export class Assembly {
     const after = (x) => ({ ...x, run: async () => { await x.run(); this.renderSuggest(); } });
     showSuggest(vp, what(q), [ // (the face's joints first, then its part: the table shows the top ones, the rest under ⋯ Show all)
       { section: t('This face') },
-      ...js.map(([type, j], k) => ({ icon: j.icon, label: `${t(j.name)}…`, rank: ['parallel', 'perp', 'angle'].includes(type) ? 10 + k : k, title: t('Then click a face of the other part'), run: () => {
+      ...js.map(([type, j], k) => ({ icon: j.icon, label: `${t(j.name)}…`, rank: ['parallel', 'perp', 'angle'].includes(type) || (j.faces === 'ball' && q.face.type !== 'sphere') ? 10 + k : j.faces === 'ball' ? k - 5 : k, title: t('Then click a face of the other part'), run: () => {
         this.startJoint(type);
         this.jointFrom = q;
         this.mode = 'joint-to';
@@ -409,6 +442,7 @@ export class Assembly {
         this.drawMarks();
       } })),
       { icon: '📏', label: t('Measure from here'), rank: 7, run: () => { done(); this.toggleMeasure(); } },
+      ...[this.harnessTool.fromHere(this.lastClick?.p?.inst === q.inst ? this.lastClick : null)].filter(Boolean),
       { section: `${this.partName(a.part)} ${a.id}` },
       { icon: '◆', label: t('Select the whole part'), rank: 5, title: t('The part chosen, not its face: its moves and joints in the panel'), run: () => { this.facePicks = []; this.snapPick = null; this.view.setMeasure([]); this.choose(a.id); this.drawMarks(); } },
       ...this.partItems(a).map((x, k) => ({ ...after(x), rank: x.icon === '🔗' ? 20 : 8 + k })), // (joining: the face's own joints above)
@@ -527,10 +561,40 @@ export class Assembly {
     this.commit();
   }
 
+  /** 🔗 Part `a` fixed to part `b` as they are now (a rigid joint: it goes with b, no motion of its own; a 📌 fixed
+   *  part stays: the other one is fixed to it). Faces: what anchors it (each part's biggest face when not given). One
+   *  undo step -> the joint, or null. */
+  fixTogether(a, b, aFace = null, bFace = null) {
+    const big = (id) => [...(this.bodyOf(this.inst(id))?.body?.faces || [])].sort((p, q) => q.area - p.area)[0]?.name;
+    if (!this.inst(a) || !this.inst(b) || a === b) throw new Error('Fix one part to another part.');
+    const nj = this.addJoint({ inst: a, face: { name: aFace || big(a) } }, { inst: b, face: { name: bFace || big(b) } }, 'rigid');
+    if (!nj) return null;
+    Object.assign(nj, frameNow(this.worldFace(nj.move, nj.face), this.worldFace(nj.onto, nj.ontoFace)));
+    this.applyMates();
+    this.sel = nj.move;
+    this.sel2 = null;
+    this.hooks.toast(t2('{a} is fixed to {b}: it goes with it, it has no motion of its own (✕ the joint frees it; Ctrl+Z: back).', { a: this.partName(this.inst(nj.move)?.part), b: this.partName(this.inst(nj.onto)?.part) }), 'ok', 5000);
+    this.commit();
+    return nj;
+  }
+
+  /** 〰 A spring: the spring part's end face ({inst, face}) reaches face b of another part (springs.js) — one undo step,
+   *  a word on what it does -> the record or null. */
+  makeSpring(a, b, k = null) {
+    let s;
+    try { s = addSpring(this, a, b, k); } catch (e) { this.hooks.toast(e.message, 'warning', 6000); return null; }
+    this.sel = s.part;
+    this.sel2 = null;
+    this.hooks.toast(t2('{a} is a spring to {b}: it is drawn as long as it reaches — its free length, length now and force in its row (Ctrl+Z: back).', { a: this.partName(this.inst(s.part)?.part), b: this.partName(this.inst(s.onto)?.part) }), 'ok', 5000);
+    this.commit();
+    return s;
+  }
+
   /** The suggestions table (bottom left of the view) for the chosen part — or the two chosen with Ctrl+click. */
   renderSuggest() {
     const vp = this.els.viewport, a = this.inst(this.sel), b = this.inst(this.sel2);
     if (this.mode !== 'idle' || this.measuring || this.painting || this.bolt || (!a && (this.clashPanel || this.fastenerPanel))) { showSuggest(vp, '', []); return; }
+    if (this.harnessTool.suggest(vp, showSuggest)) return; // (🔌 a harness edited or chosen)
     if (!a) { this.suggestAssembly(vp); return; } // (nothing chosen: what to do next with the whole assembly)
     const fp = (this.facePicks || []).filter((q) => this.inst(q.inst));
     if (fp.length) { this.suggestFaces(vp, fp); return; }
@@ -542,7 +606,10 @@ export class Assembly {
       show( `${this.partName(a.part)} ↔ ${this.partName(b.part)}`, [
         ...pins.slice(0, 1).map((f) => this.pinItem(f, -2)),
         ...(on ? [this.restItem(on, -1)] : []),
+        { icon: '🔌', label: t('Route a cable between them'), title: t('A cable harness: click its points on the two parts (and between them)'), run: () => this.harnessTool.start() },
         { icon: '🔗', label: t('Join them'), title: t('Pick a face of each — touch, gap, flush, a pin in a hole …'), run: () => this.startJoint('touch', a.id) },
+        ...(a.fixed && b.fixed ? [] : [{ icon: '🔗', label: t2('Fix {a} to {b}', { a: this.partName((a.fixed ? b : a).part), b: this.partName((a.fixed ? a : b).part) }), rank: 0.5,
+          title: t('Fixed together, as they are now: it goes with the other part and has no motion of its own'), run: () => this.fixTogether(a.id, b.id) }]),
         { icon: '📏', label: t('Measure between them'), run: () => this.toggleMeasure() },
         { icon: '⚠', label: t('Check for collisions'), run: () => this.checkClashes() },
         { icon: '◆', label: `${t('Only')} ${name(a)}`, run: () => this.choose(a.id) },
@@ -559,10 +626,9 @@ export class Assembly {
         { icon: '📏', label: t('Measure from here'), title: xyz, run: () => {
           this.snapPick = null;
           if (!this.measuring) this.toggleMeasure();
-          this.measuring.a = { point: p, face: null, inst: a.id };
-          this.view.setMeasure([p]);
-          this.measureBox(`<div class="mm-rows"><b>${esc(kind)}</b><span>Of</span><b data-no-i18n>${esc(this.partName(a.part))} ${a.id}</b><span>${esc(t('Point'))}</span><b>${xyz}</b></div><p class="hint">${esc(t('Click a second spot for the distance.'))}</p>`);
+          this.ms.from({ kind: 'point', p: p.clone(), snap: sp.snap, inst: a.id });
         } },
+        ...[this.harnessTool.fromHere({ inst: a.id, point: p }, 1)].filter(Boolean),
         { icon: '⧉', label: t('Copy its coordinates'), title: xyz, run: () => { navigator.clipboard?.writeText(xyz).catch(() => {}); this.hooks.toast(`${t('Copied')}: ${xyz}`, 'info', 2500); } },
         { section: name(a) }] : []),
       ...this.partItems(a), // (the owner's choice: a click shows its actions in the table, as everywhere)
@@ -686,6 +752,7 @@ export class Assembly {
     if (this.hooks.newSheet) items.push({ icon: '📄', label: t('Drawing of the assembly'), rank: 3.5, title: t('Its views, parts list and balloons — it follows the assembly'), run: () => this.hooks.newSheet() });
     if (this.hooks.openLibrary) items.push({ icon: '📚', label: t('From the library…'), rank: 9, title: t('Standard parts (screws, bearings, motors …) — ⤵ Put into the assembly'), run: () => this.hooks.openLibrary() });
     if (this.hooks.newProject) items.push({ icon: '📄', label: t('New project'), rank: 20, title: t('Start a new, empty project in this window — the one on screen is kept (🕘 Recent projects opens it again) (Ctrl+Alt+N)'), run: () => this.hooks.newProject() });
+    items.push({ icon: '🔌', label: t('Cable harness…'), rank: 9.5, title: t('A cable or loose wires through points you click — its length, the bends, the BOM'), run: () => this.harnessTool.start() });
     if (n > 1) items.push({ icon: '🔩', label: t('Screw / pin through parts…'), rank: 10, title: t('Click where it goes in — the holes are drilled for it'), run: () => { this.fastenerPanel = false; this.startJoint('fastener'); this.render(); this.draw(); } });
     showSuggest(vp, title, items.map((x) => ({ ...x, run: async () => { await x.run(); this.renderSuggest(); } })), t('Click a part or a face: what fits it'));
   }
@@ -770,6 +837,7 @@ export class Assembly {
           <p class="hint">${esc(t('💥 in the parts list: which parts move'))}</p></div></div>
       ${btn('clashes', this.clashLabel(), 'Where parts overlap (go into each other) — checked after every change; click: the list, each one shown in the view', `tool ${this.clashPanel ? 'on' : ''} ${this.clashes?.length ? 'bad' : this.clashes ? 'good' : ''}`)}
       ${btn('fasteners', '🔩 Fasteners', 'Screws, heat-set inserts and pins where holes line up across parts — suggested, added with one click', `tool ${this.fastenerPanel ? 'on' : ''}`)}
+      ${btn('harness', '🔌 Cable harness', 'Cable harness: a cable, loose wires, a ribbon or a sleeve — choose its Ø and bend radius, click the points it passes (on parts, through holes, in space)', `tool ${this.harnessTool?.busy ? 'on' : ''}`)}
       ${this.mech?.list.length ? btn('mech', '⚙ Mechanism', 'The mechanisms of this assembly: one slider each moves all of its parts, ▶ plays it', `tool ${this.mech.closed ? '' : 'on'}`) : ''}
       ${this.hooks.newSheet ? btn('sheet', '📄 Drawing', 'The assembly\'s drawing sheet to edit: its views, overall sizes, parts list and balloons — it follows the assembly; 📄 Drawings (PDF) in the panel makes the whole set', 'tool') : ''}
       ${btn('paint', '🎨 Paint', 'Colour faces of the placed parts, or whole parts — in this assembly: click them (Ctrl+click: more), then pick a colour', `tool ${this.painting ? 'on' : ''}`)}
@@ -834,6 +902,7 @@ export class Assembly {
     if (a === 'section') return this.toggleSection();
     if (a === 'sheet') { this.hooks.newSheet?.(); return null; }
     if (a === 'mech') { this.mech.toggle(); return null; }
+    if (a === 'harness') { if (this.harnessTool.busy) this.harnessTool.finish(); else this.harnessTool.start(); return null; }
     if (a === 'fasteners') { this.fastenerPanel = !this.fastenerPanel; this.sel = null; this.render(); this.draw(); return null; }
     if (a === 'undo') return this.history.go(-1);
     if (a === 'redo') return this.history.go(1);
@@ -885,6 +954,7 @@ export class Assembly {
       list.appendChild(row);
       if (kids && open.has(it.id)) this.innerRows(list, it, kids, 1, open);
     }
+    this.harnessTool.rows(list); // (🔌 its harnesses under the parts)
   }
 
   /** ▸ / ▾ on a sub-assembly's row; folded: how many parts are in it (all levels). */
@@ -1061,6 +1131,7 @@ export class Assembly {
   /** A part clicked: chosen alone, or (Ctrl) as the second one — the joints between the two are shown. */
   choose(id, more = false) {
     this.selInner = null;
+    if (id && this.harnessTool) this.harnessTool.sel = null; // (a part chosen: not the harness)
     if (more && this.sel && id && id !== this.sel) this.sel2 = this.sel2 === id ? null : id;
     else { this.sel = id || null; this.sel2 = null; }
     this.cueParts = null; // (the drag cue: found again at the next mouse move, for what is chosen now)
@@ -1073,9 +1144,9 @@ export class Assembly {
 
   /** The overview's joints and couplings under one folded line ("Joints (7)"; open when one does not hold). */
   jointsFold() {
-    const html = `${this.jointsHtml(null)}${couplingsHtml(this, null)}`;
+    const html = `${this.jointsHtml(null)}${couplingsHtml(this, null)}${springsHtml(this, null)}`;
     if (!html) return '';
-    const n = (this.doc.mates || []).filter((m) => this.inst(m.move) && this.inst(m.onto)).length + (this.doc.couplings || []).length;
+    const n = (this.doc.mates || []).filter((m) => this.inst(m.move) && this.inst(m.onto)).length + (this.doc.couplings || []).length + (this.doc.springs || []).length;
     const bad = (this.doc.mates || []).some((m) => m.broken || this.health?.get(m.id)?.ok === false);
     return `<details class="as-jfold" ${this.jointsOpen || bad ? 'open' : ''}><summary title="${esc(t('Every joint and coupling — a part clicked shows only its own'))}">🔗 ${esc(t2('Joints ({n})', { n }))}${bad ? ' <span class="as-jbad">⚠</span>' : ''}</summary>${html}</details>`;
   }
@@ -1096,6 +1167,7 @@ export class Assembly {
   renderProps() {
     const box = this.$('.mp-body'), it = this.inst(this.sel);
     this.drawJointTags();
+    if (this.harnessTool.panel(box)) return; // (🔌 a harness edited or chosen)
     if (this.painting) { this.renderPaint(box); return; }
     if (this.clashPanel && !it) { this.renderClashes(box); return; }
     if (this.sel2 && it && this.inst(this.sel2) && !this.bolt && this.mode === 'idle') { this.renderPair(box); return; }
@@ -1136,7 +1208,7 @@ export class Assembly {
         ${this.flexHtml(it)}
         ${inner ? this.innerHtml(it, inner) : ''}
         ${place}
-        ${this.jointsHtml(it.id)}${couplingsHtml(this, it.id)}
+        ${this.jointsHtml(it.id)}${couplingsHtml(this, it.id)}${springsHtml(this, it.id)}
         <details class="as-more" ${this.moreOpen ? 'open' : ''}><summary title="${esc(t('Its colour, see-through, simplified, and editing it from here'))}">🎨 ${esc(t('Look and editing'))}</summary>
           ${this.editHtml(it)}${this.lookHtml(it)}</details>`;
       if (missHere) this.mech.bindMissing(box);
@@ -1162,6 +1234,7 @@ export class Assembly {
       if (inner) this.bindInner(box, it, inner);
       this.bindJointRows(box);
       bindCouplingRows(this, box, renameInPlace);
+      bindSpringRows(this, box, renameInPlace);
       this.bindLook(box, it);
       box.querySelector('[data-a=editHere]')?.addEventListener('click', () => this.editInPlace(it.id));
       box.querySelector('[data-a=editLock]')?.addEventListener('click', () => this.toggleEditable(it.part));
@@ -1191,6 +1264,7 @@ export class Assembly {
         : `<p class="hint">Insert parts of this project (3D models and quick parts) with ＋ Insert part, then join them with 🔗 Joint.</p>`}`;
     this.bindJointRows(box);
     bindCouplingRows(this, box, renameInPlace);
+    bindSpringRows(this, box, renameInPlace);
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
     box.querySelector('[data-a=bomCsv]')?.addEventListener('click', () => this.exportBom());
     box.querySelector('[data-a=bomWin]')?.addEventListener('click', () => this.openBom());
@@ -1336,7 +1410,7 @@ export class Assembly {
       if (this.clashRid === rid) this.clashRid = null;
       if (r.cancelled || wasCancelled(rid)) { this.clashBusy = false; this.updateClashButton(); if (this.clashPanel) this.renderProps(); return; } // (✕ Stop: the last result stays)
       if (!res.ok) throw new Error(r.error || res.statusText);
-      this.clashes = r.clashes;
+      this.clashes = r.clashes.filter((c) => !springIgnores(this, c.a, c.b)); // (〰 a spring is compressed in the view only)
     } catch (e) {
       if (run !== this.clashRun) return;
       this.clashes = null;
@@ -1352,6 +1426,9 @@ export class Assembly {
 
   /** The placed part (top level) a clash's id is in: 'I3/I1' -> 'I3'. */
   topOf(id) { return String(id).split('/')[0]; }
+
+  /** A clash of parts x and y that is only a 〰 spring drawn compressed against its parts (springs.js)? */
+  springIgnores(x, y) { return springIgnores(this, x, y); }
 
   renderClashes(box) {
     this.hoverClash = null; // the rows are drawn anew (a row under the mouse goes without a mouseleave)
@@ -1483,55 +1560,47 @@ export class Assembly {
   // ------------------------------------------------------------------ 📏 measure
   toggleMeasure() {
     this.measuring = this.measuring ? null : { a: null };
-    if (this.measuring) { this.cancelJoint(); if (this.bolt) this.cancelBolt(); if (this.painting) this.togglePaint(); }
-    else this.view.setSnapMark(null);
-    this.view.setMeasure();
-    this.hint(this.measuring ? 'Measure — click a spot, then another one (corners snap). Esc ends.' : '');
-    if (!this.measuring) this.$('.m-measure')?.remove();
+    if (this.measuring) { this.cancelJoint(); if (this.bolt) this.cancelBolt(); if (this.painting) this.togglePaint(); this.ms.start(); }
+    else { this.ms.stop(); this.hint(''); this.view.setSnapMark(null); }
     this.renderBar();
     this.renderSuggest(); // (measuring: the table goes; done: it is back)
   }
 
-  measureBox(html) {
-    let box = this.$('.m-measure');
-    if (!box) {
-      box = document.createElement('div');
-      box.className = 'm-measure';
-      this.els.viewport.appendChild(box);
+  /** 📏 What a measure click takes (measure.js): mode 'parts' — the part under the mouse; else a corner near the mouse,
+   *  else an edge under it (its middle and a round edge's centre only when the mouse is right on them), else the face. */
+  measurePick(e, mode = 'items') {
+    const v = this.view;
+    if (mode === 'parts') {
+      const h = v.pickInst(e.clientX, e.clientY), it = h?.inst && this.inst(h.inst);
+      return it ? { kind: 'part', inst: it.id, id: it.id, at: h.point?.clone(), tip: this.partName(it.part) } : null;
     }
-    box.innerHTML = html;
-    floatBox(box, this.els.viewport, { kind: 'measure', min: [180, 60] });
+    const mp = v.measurePoint(e.clientX, e.clientY);
+    const eh = snapWins(v, mp, e) ? null : v.edgeAt((v.meshes || []).map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), e.clientX, e.clientY, 6, v.meshes);
+    if (mp?.snap && !eh) return { kind: 'point', p: mp.point.clone(), snap: mp.snap, inst: mp.inst };
+    if (eh) {
+      const body = (v.meshes || []).find((m) => m.userData.inst === eh.inst)?.userData.body, names = eh.edge.faces.map((k) => body?.faces[k]?.name || '');
+      const n = eh.edge.pts.length / 3, k = 3 * Math.floor(n / 2), mid = new THREE.Vector3(eh.edge.pts[k], eh.edge.pts[k + 1], eh.edge.pts[k + 2]).applyMatrix4(eh.matrix);
+      return { kind: 'edge', pts: eh.edge.pts, matrix: eh.matrix, inst: eh.inst, id: `${eh.inst}·E${eh.i + 1}`, at: mp?.point?.clone() || mid,
+        hole: names.some((x) => x.includes(':hole')), tip: this.partName(this.inst(eh.inst)?.part) };
+    }
+    if (!mp?.face || !mp.inst) return null;
+    let face;
+    try { face = this.worldFace(mp.inst, mp.face.name); } catch { return null; }
+    const body = this.bodyOf(this.inst(mp.inst))?.body, i = body ? body.faces.findIndex((f) => f.id === mp.face.id) : -1;
+    return { kind: 'face', face, id: `${mp.inst}·F${(i >= 0 ? i : mp.face.id) + 1}`, inst: mp.inst, at: mp.point.clone(), hole: String(mp.face.name).includes(':hole'), tip: this.partName(this.inst(mp.inst)?.part) };
   }
 
-  clickMeasure(e) {
-    const ms = this.measuring, mp = this.view.measurePoint(e.clientX, e.clientY);
-    if (!mp) return;
-    const f3 = (p) => `${fmt(+p.x.toFixed(3))}, ${fmt(+p.y.toFixed(3))}, ${fmt(+p.z.toFixed(3))}`;
-    const face = mp.face && !mp.corner ? this.worldFace(mp.inst, mp.face.name) : null;
-    const who = esc(this.partName(this.inst(mp.inst)?.part));
-    if (!ms.a) {
-      ms.a = { point: mp.point, face, inst: mp.inst };
-      this.view.setMeasure([mp.point]);
-      const what = face ? `<b>${face.type === 'cylinder' ? 'Round face' : face.type === 'plane' ? 'Flat face' : 'Face'}</b><span>Of</span><b data-no-i18n>${who} ${mp.inst}</b>
-        <span>Area</span><b>${fmt(+face.area.toFixed(2))} mm²</b>${face.radius ? `<span>Ø</span><b>${fmt(+(2 * face.radius).toFixed(3))} mm</b>` : ''}`
-        : `<b>${{ corner: 'Corner', midpoint: 'Midpoint', centre: 'Centre' }[mp.snap] || 'Point'}</b><span>Of</span><b data-no-i18n>${who} ${mp.inst}</b>`;
-      this.measureBox(`<div class="mm-rows">${what}<span>Point</span><b>${f3(mp.point)}</b></div><p class="hint">Click a second spot for the distance.</p>`);
-      return;
-    }
-    const a = ms.a, p = mp.point, dist = a.point.distanceTo(p);
-    let extra = '';
-    const fa = a.face, fb = face;
-    if (fa?.normal && fb?.normal && Math.abs(fa.normal.dot(fb.normal)) > 0.9999) { // parallel flat faces: the gap between them
-      extra = `<span>Faces apart</span><b>${fmt(+Math.abs(fb.centroid.clone().sub(fa.centroid).dot(fa.normal)).toFixed(3))} mm</b>`;
-    } else if (fa?.axis && fb?.axis && Math.abs(fa.axis.d.dot(fb.axis.d)) > 0.9999) { // two round faces: their axes
-      const v = fb.axis.o.clone().sub(fa.axis.o), off = v.clone().sub(fa.axis.d.clone().multiplyScalar(v.dot(fa.axis.d))).length();
-      extra = `<span>Axes apart</span><b>${fmt(+off.toFixed(3))} mm</b>`;
-    }
-    this.view.setMeasure([a.point, p], `${fmt(+dist.toFixed(3))} mm`);
-    this.measureBox(`<div class="mm-rows"><b>Distance</b><span></span><b>${fmt(+dist.toFixed(3))} mm</b>${extra}
-      <span>Δx</span><b>${fmt(+Math.abs(p.x - a.point.x).toFixed(3))}</b><span>Δy</span><b>${fmt(+Math.abs(p.y - a.point.y).toFixed(3))}</b><span>Δz</span><b>${fmt(+Math.abs(p.z - a.point.z).toFixed(3))}</b></div>
-      <p class="hint">Click again to measure from a new spot.</p>`);
-    ms.a = null;
+  clickMeasure(e) { this.ms.click(e); }
+
+  /** ⇹ The clearance between two placed parts (a sub-assembly: all its parts) — the kernel's least distance. */
+  async clearanceOf(A, B) {
+    const flat = this.flatParts(), of = (id) => flat.filter((f) => f.id === id || f.id.startsWith(`${id}/`));
+    const a = of(A.inst), b = of(B.inst);
+    if (!a.length || !b.length) throw new Error(t('That part has no solid to measure.'));
+    const res = await fetch('/api/assembly/clearance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instances: [...a, ...b], a: a.map((x) => x.id) }) });
+    const r = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(r.error || res.statusText);
+    return r;
   }
 
   // ------------------------------------------------------------------ a new bolt: through the parts, holes drilled
@@ -1805,6 +1874,8 @@ export class Assembly {
       if (f?.type === 'plane') return t('a flat face');
     }
     if (fid === 'Q1') return `${t('face')} ${String(role).slice(1)}`;
+    const bf = this.bodies[pid]?.body?.faces?.find((x) => (x.type === 'sphere' || x.type === 'cone') && (x.name === name || (x.names || []).includes(name)));
+    if (bf) return `${bf.type === 'sphere' ? t2('the ball Ø{d}', { d: fmt(+(2 * bf.radius).toFixed(2)) }) : t('the cone')}${g ? ` (${g.name})` : ''}`; // (● what a ball joint holds)
     const what = { end: 'the top of', start: 'the bottom of', side: 'a wall of', hole: 'hole of', round: 'a rounding of', bottom: 'a hole bottom of' }[role] || 'a face of';
     return g ? `${t(what)} ${g.name}` : name;
   }
@@ -1815,7 +1886,7 @@ export class Assembly {
     if (!all.length) return id === null ? '' : '<p class="hint">Not joined to anything — it stays where you put it.</p>';
     const fast = (m) => this.inst(m.move)?.fastener?.id, groups = [...new Set(all.map(fast).filter(Boolean))];
     const js = all.filter((m) => !fast(m)), bad = all.filter((m) => this.health?.get(m.id)?.ok === false).length;
-    const dbl = esc(t('Double-click: give it your own name')); // (translated here: a joint's own name is not, nor its tooltip then)
+    const dbl = esc(t('Double-click: give it your own name')), asThey = esc(t('as they are')), lockTip = esc(t('Motions of the part locked on this joint where they were (🔒 by a motion in Moves) — ✕ frees them')); // (translated here: a joint's own name is not, nor its tooltip then)
     const fRow = (gid) => {
       const f = this.doc.instances.find((i) => i.fastener?.id === gid).fastener, mine = (this.doc.mates || []).filter((m) => fast(m) === gid);
       const into = [...new Set(mine.map((m) => m.onto).filter((x) => !this.inst(x)?.fastener))].map((x) => this.partName(this.inst(x)?.part));
@@ -1830,14 +1901,15 @@ export class Assembly {
         ? `<label class="as-jv">${m.type === 'flush' ? 'offset' : 'gap'} <input type="number" step="any" data-jgap="${m.id}" value="${fmt(m.gap || 0)}"> mm</label>`
         : m.type === 'axis' ? `<label class="as-jv" title="Distance along the axis between the facing ends of the two round faces (e.g. two plates 30 mm apart). Empty: it slides freely.">↕ <input type="number" step="any" data-jdist="${m.id}" value="${Number.isFinite(m.dist) ? fmt(m.dist) : ''}" placeholder="free"> mm</label>
           <button class="mini" data-jflip="${m.id}" title="Turn it the other way round">⇅</button>`
-        : m.type === 'perp' ? '<span></span>'
+        : ['perp', 'ball', 'seat', 'rigid'].includes(m.type) ? '<span></span>'
         : `${m.type === 'angle' ? `<label class="as-jv">∠ <input type="number" step="any" data-jval="${m.id}" value="${fmt(m.value || 0)}"> °</label>` : ''}<button class="mini" data-jflip="${m.id}" title="Turn it the other way round">⇅</button>`;
       const spin = Math.round(Number.isFinite(m.angle) ? m.angle : this.spinNow(m)), why = this.whyNot(m);
-      const turns = m.type !== 'parallel', rot = Number.isFinite(m.angle);
+      const turns = !['parallel', 'ball', 'seat', 'rigid'].includes(m.type), rot = Number.isFinite(m.angle); // (a ball turns any way: its moves in the part's panel)
       return `<div class="as-jrow ${m.broken || why ? 'bad' : ''} ${m.locked ? 'locked' : ''}" data-jrow="${m.id}"><span class="as-jt">${t.icon} <span class="as-jname ${m.name ? 'own' : ''}" data-jname="${m.id}" title="${dbl}" ${m.name ? 'data-no-i18n' : ''}>${esc(m.name || t.name)}</span> <i>${m.id}</i></span>
-        <span class="as-jw"><b data-no-i18n>${esc(this.partName(a?.part))}</b> <i>${m.move}</i> · ${esc(this.faceText(m.move, m.face))} → <b data-no-i18n>${esc(this.partName(b?.part))}</b> <i>${m.onto}</i> · ${esc(this.faceText(m.onto, m.ontoFace))}${m.broken ? ' — ⚠ a face is gone' : ''}</span>
+        <span class="as-jw"><b data-no-i18n>${esc(this.partName(a?.part))}</b> <i>${m.move}</i>${m.type === 'rigid' ? '' : ` · ${esc(this.faceText(m.move, m.face))}`} → <b data-no-i18n>${esc(this.partName(b?.part))}</b> <i>${m.onto}</i>${m.type === 'rigid' ? ` · ${asThey}` : ` · ${esc(this.faceText(m.onto, m.ontoFace))}`}${m.broken ? ' — ⚠ a face is gone' : ''}</span>
         ${why ? `<span class="as-jwhy" data-no-i18n>⚠ ${esc(why)}</span>` : ''}
         ${val}<span class="as-jbtn"><button class="mini ${m.locked ? 'on' : ''}" data-jlock="${m.id}" title="${m.locked ? 'Locked: moving the part by hand cannot break it — click to unlock' : 'Lock it: then it cannot be broken by moving the part'}">${m.locked ? '🔒' : '🔓'}</button><button class="mini danger" data-jdel="${m.id}" title="Remove this joint (the part stays where it is)" ${m.locked ? 'disabled' : ''}>✕</button></span>
+        ${m.slides?.length || (m.rot && m.type !== 'rigid') ? `<span class="as-jv as-jlocks" title="${lockTip}">🔒 ${esc(t2('{n} locked', { n: (m.slides?.length || 0) + (m.rot && m.type !== 'rigid' ? 1 : 0) }))} <button class="mini" data-junlock="${m.id}" ${m.locked ? 'disabled' : ''}>✕</button></span>` : ''}
         ${this.gapSlider(m)}
         ${turns ? `<label class="as-jspin" title="${rot ? 'The angle its turn is locked at, against the other part — to turn both, use Moves of the part they are on' : 'Turn the part about this joint (about the axis, or on the face) — it stays free to turn'}">↻ <input type="range" min="-180" max="180" step="1" list="as-ticks" data-jspin="${m.id}" value="${spin}">
         <input type="number" step="any" data-jspinn="${m.id}" value="${spin}">°<button class="mini as-jrot ${rot ? 'on' : ''}" data-jrot="${m.id}" title="${rot ? 'Its turn is locked here — click to let it turn freely' : 'It may turn freely — click to lock its turn where it is now'}">${rot ? '🔒 locked' : '🔓 free'}</button></label>` : ''}</div>`;
@@ -2006,6 +2078,15 @@ export class Assembly {
         renameInPlace(el, (n) => { const v = String(n || '').trim(); if (v) m.name = v; else delete m.name; this.commit(); });
       });
     }
+    for (const el of box.querySelectorAll('[data-junlock]')) {
+      el.addEventListener('click', () => {
+        const m = this.doc.mates.find((x) => x.id === el.dataset.junlock);
+        delete m.slides;
+        if (m.type !== 'rigid') delete m.rot;
+        this.applyMates();
+        this.commit();
+      });
+    }
     for (const el of box.querySelectorAll('[data-jrot]')) {
       el.addEventListener('click', () => {
         const m = this.doc.mates.find((x) => x.id === el.dataset.jrot);
@@ -2091,6 +2172,7 @@ export class Assembly {
       if (!on) continue;
       marks.push({ inst: m.move, faces: faceIds(m.move, m.face), color: 0x3fb950 }, { inst: m.onto, faces: faceIds(m.onto, m.ontoFace), color: 0x58a6ff });
     }
+    for (const x of this.doc.springs || []) if (this.hoverJoint === x.id) marks.push({ inst: x.part, faces: faceIds(x.part, x.face), color: 0x3fb950 }, { inst: x.onto, faces: faceIds(x.onto, x.ontoFace), color: 0x58a6ff }); // (〰 a spring's end and the face it reaches)
     for (const c of this.doc.couplings || []) if (this.hoverJoint === c.id) marks.push({ inst: c.a, faces: faceIds(c.a, c.aFace), color: 0x3fb950 }, { inst: c.b, faces: faceIds(c.b, c.bFace), color: 0x58a6ff }); // (⚙ a coupling's two faces)
     for (const h of this.hoverCand?.holes || []) marks.push({ inst: h.inst, faces: faceIds(h.inst, h.name), color: 0xf2cc60 });
     for (const q of this.hoverMissing ? [this.hoverMissing.hole, this.hoverMissing.pin] : []) marks.push({ inst: q.inst, faces: faceIds(q.inst, q.name), color: 0xf2cc60 }); // (➕ Add joint: its hole and pin)
@@ -2105,7 +2187,7 @@ export class Assembly {
   drawJointTags() {
     if (!this.view?.setTags) return;
     const tags = [];
-    if (this.mode === 'idle' && !this.painting && !this.measuring) {
+    if (this.mode === 'idle' && !this.painting && !this.measuring && showKinds().joints) { // (🔗 Show: Joints off in the bottom row: none)
       for (const m of this.shownJoints()) {
         let a, b;
         try { a = this.worldFace(m.move, m.face).centroid; b = this.worldFace(m.onto, m.ontoFace).centroid; } catch { continue; }
@@ -2261,13 +2343,15 @@ export class Assembly {
       const look = this.lookOf(it);
       if (focus && !clashing.has(it.id)) look.opacity = Math.min(look.opacity ?? 1, 0.12); // the rest see-through
       const lit = this.innerLit(it);
-      return { id: it.id, body: this.bodyOf(it)?.body, matrix: it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part), ...look, threads: this.hooks.partData(it.part)?.threads,
+      return { id: it.id, body: this.bodyOf(it)?.body, matrix: (this.doc.springs && springMatrix(this, it)) || it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part), ...look, threads: this.hooks.partData(it.part)?.threads,
         ...(lit ? { lit } : {}), selected: (it.id === this.sel && !lit) || it.id === this.sel2 || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst, moving: !!this.cueParts?.includes(it.id), clash: clashing.has(it.id),
         explode: along ? along.get(it.id)?.toArray() || null : this.explode && c ? away(c).multiplyScalar(this.explode * 1.2).toArray() : null };
     }));
     this.drawMarks();
     this.drawJointTags();
     this.showCog();
+    if (this.doc.springs) updateSpringRows(this, this.$('.mp-body')); // (〰 its length now, while the parts move)
+    this.harnessTool.draw(); // (🔌 the harnesses: their points on the parts as drawn now)
   }
 
   /** The faces' prefix of the inner part chosen in the list ("I2/") when `it` is its placement, else null. */
@@ -2492,7 +2576,7 @@ export class Assembly {
     if (same) {
       const was = t((JOINT_TYPES[same.type || 'touch'] || JOINT_TYPES.touch).name), now = t(JOINT_TYPES[type].name);
       if (same.locked) { this.hooks.toast(t2('These two faces are joined already by {id} ({type}), locked 🔒 — unlock it to change it.', { id: same.id, type: was }), 'warning', 5000); return false; }
-      for (const k of ['flip', 'value', 'dist', 'side', 'angle']) delete same[k];
+      for (const k of ['flip', 'value', 'dist', 'side', 'angle', 'rot', 'pos', 'slides']) delete same[k];
       Object.assign(same, { type, gap: +gap || 0 });
       this.hooks.toast(t2('These two faces were joined already ({id}, {was}) — that joint is now {type}, not a second one.', { id: same.id, was, type: now }), 'info', 5000);
       return same;
@@ -2513,7 +2597,9 @@ export class Assembly {
    *  (nothing is noted on the joints). */
   holdPart(id, M, probe = false, skip = null) {
     let fixed = null;
-    (this.doc.mates || []).filter((m) => m.move === id && m.id !== skip && this.inst(m.onto) && !this.insideMate(m)).forEach((m, k) => {
+    const mine = (this.doc.mates || []).filter((m) => m.move === id && m.id !== skip && this.inst(m.onto) && !this.insideMate(m));
+    const ordered = [...mine.filter((m) => m.type !== 'rigid'), ...mine.filter((m) => m.type === 'rigid')]; // (🔗 fixed together: last, it has the last word)
+    ordered.forEach((m, k) => {
       try {
         const r = applyJoint(M, m, (MM) => this.worldFace(id, m.face, MM), this.worldFace(m.onto, m.ontoFace), k === 0, fixed, k === 0 && !m.centred);
         M = r.M;
@@ -2521,6 +2607,9 @@ export class Assembly {
         if (!probe) { delete m.broken; if (k === 0) m.centred = true; }
       } catch { if (!probe) m.broken = true; }
     });
+    for (const m of ordered.length > 1 ? ordered.filter((x) => x.type === 'ball' || x.type === 'seat') : []) { // ● a ball's centre back where it goes (a later joint turned it about another point)
+      try { M = applyJoint(M, m, (MM) => this.worldFace(id, m.face, MM), this.worldFace(m.onto, m.ontoFace), false, fixed, false).M; } catch { /* (marked above) */ }
+    }
     return M;
   }
 
@@ -2532,6 +2621,7 @@ export class Assembly {
     const mates = (this.doc.mates || []).filter((m) => this.inst(m.move) && this.inst(m.onto));
     this.doc.mates = mates;
     if (this.doc.couplings) { this.doc.couplings = this.doc.couplings.filter((c) => this.inst(c.a) && this.inst(c.b)); if (!this.doc.couplings.length) delete this.doc.couplings; }
+    if (this.doc.springs) { this.doc.springs = this.doc.springs.filter((x) => this.inst(x.part) && this.inst(x.onto)); if (!this.doc.springs.length) delete this.doc.springs; }
     const before = new Map(this.doc.instances.map((i) => [i.id, [...i.matrix]]));
     this.placeAll(mates);
     if (this.closeLoops(before, drive)) this.placeAll(mates);
@@ -2639,7 +2729,7 @@ export class Assembly {
     const M = new THREE.Matrix4().fromArray(it.matrix);
     const c = new THREE.Vector3((b.bbox[0] + b.bbox[3]) / 2, (b.bbox[1] + b.bbox[4]) / 2, (b.bbox[2] + b.bbox[5]) / 2).applyMatrix4(M);
     const L = Math.max(1, Math.hypot(b.bbox[3] - b.bbox[0], b.bbox[4] - b.bbox[1], b.bbox[5] - b.bbox[2]));
-    const cands = [], axisName = (v) => {
+    const cands = [], balls = [], axisName = (v) => {
       const k = ['X', 'Y', 'Z'].find((_, i) => Math.abs(Math.abs(v.getComponent(i)) - 1) < 1e-6);
       return k || null;
     };
@@ -2647,6 +2737,13 @@ export class Assembly {
       let fA;
       try { fA = this.worldFace(m.onto, m.ontoFace); } catch { continue; }
       const what = m.name ? `“${m.name}”` : this.faceText(m.onto, m.ontoFace), part = this.partName(this.inst(m.onto)?.part); // (the joint's own name when the user gave it one)
+      if (m.type === 'ball' || m.type === 'seat') { // ● a ball turns any way about its centre
+        let o = fA.centre;
+        try { o = o || this.worldFace(id, m.face).centre; } catch { o = null; }
+        for (const [k, dir] of o ? [['X', [1, 0, 0]], ['Y', [0, 1, 0]], ['Z', [0, 0, 1]]] : []) {
+          balls.push({ kind: 'turn', dir: new THREE.Vector3(...dir), point: o.clone(), key: `${m.id}:ball${k}`, ref: m.id, how: t2('about {axis}', { axis: k }), label: t2('Turn about {axis} (the ball)', { axis: k }) });
+        }
+      }
       if (fA.axis) {
         cands.push({ kind: 'move', dir: fA.axis.d.clone(), key: `${m.id}:along`, ref: m.id, how: t('along the axis'), label: t2('Along the axis of {face} ({part})', { face: what, part }) });
         cands.push({ kind: 'turn', dir: fA.axis.d.clone(), point: fA.axis.o.clone(), key: `${m.id}:turn`, ref: m.id, how: t('about the axis'), label: t2('Turn about the axis of {face} ({part})', { face: what, part }) });
@@ -2662,6 +2759,7 @@ export class Assembly {
         cands.push({ kind: 'move', dir: n.clone(), key: `${m.id}:away`, ref: m.id, how: t('away from the face'), label: t2('Away from {face}', { face: what }) });
       }
     }
+    cands.push(...balls); // (after its axis' slide and turn)
     for (const [k, dir] of [['X', [1, 0, 0]], ['Y', [0, 1, 0]], ['Z', [0, 0, 1]]]) {
       cands.push({ kind: 'move', dir: new THREE.Vector3(...dir), key: k, how: t2('along {axis}', { axis: k }), label: t2('Along {axis}', { axis: k }) });
       cands.push({ kind: 'turn', dir: new THREE.Vector3(...dir), point: c.clone(), key: `turn${k}`, how: t2('about {axis}', { axis: k }), label: t2('Turn about {axis}', { axis: k }) });
@@ -2972,8 +3070,18 @@ export class Assembly {
         <button class="mini ${this.playing?.key === mo.key ? 'on' : ''}" data-dplay="${i}" title="Play: from min to max and back">${this.playing?.key === mo.key ? '■' : '▶'}</button>
         <select class="as-dspeed" data-dspeed="${i}" title="How fast ▶ plays">${[[0.25, '¼×'], [0.5, '½×'], [1, '1×'], [2, '2×'], [4, '4×']].map(([v, l]) => `<option value="${v}" ${(lim.speed || 1) === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
         <button class="mini ${lim.loop ? 'on' : ''}" data-dloop="${i}" title="${lim.loop ? 'It plays again and again (■ stops it) — click: once' : 'Play once — click: again and again, until ■'}">↻</button>
-        <button class="btn small" data-dcheck="${i}" title="Move it from min to max in small steps and check for collisions on the way">⚠ Check the travel</button></div>` : ''}
+        <button class="btn small" data-dcheck="${i}" title="Move it from min to max in small steps and check for collisions on the way">⚠ Check the travel</button></div>
+      ${this.followHtml(it, mo, i, lim)}` : ''}
       ${note ? `<p class="mp-count as-dofnote ${note.bad ? 'bad' : ''}" data-no-i18n>${esc(note.text)}</p>` : ''}</div>`}`;
+  }
+
+  /** ↕ A motion's "by the driver's direction" line (a slide with limits): the toggle, and which end it sits at while the
+   *  driver goes forward. */
+  followHtml(it, mo, i, lim) {
+    if (mo.kind !== 'move' || mo.via) return '';
+    const f = lim.follow, by = f && this.partName(this.inst(f.part)?.part);
+    return `<div class="as-doflim as-follow"><button class="mini ${f ? 'on' : ''}" data-dfollow="${i}" title="${esc(t('By the driver\'s direction (a check valve, a pawl): while the driver goes forward it sits at one stop, while it goes back at the other'))}">↕ ${esc(t('By the driver\'s direction'))}</button>
+      ${f ? `<select data-dfollowat="${i}" title="${esc(t('Where it sits while the driver goes forward'))}"><option value="max" ${f.at === 'max' ? 'selected' : ''}>${esc(t2('{part} forward → at max', { part: by }))}</option><option value="min" ${f.at === 'min' ? 'selected' : ''}>${esc(t2('{part} forward → at min', { part: by }))}</option></select>` : ''}</div>`;
   }
 
   bindMotions(box, it, dof) {
@@ -3026,6 +3134,15 @@ export class Assembly {
     for (const el of box.querySelectorAll('[data-dspeed]')) el.addEventListener('change', () => this.setPlay(it.id, dof.motions[+el.dataset.dspeed], { speed: +el.value }));
     for (const b of box.querySelectorAll('[data-dloop]')) b.addEventListener('click', () => { const mo = dof.motions[+b.dataset.dloop]; this.setPlay(it.id, mo, { loop: !this.limitsOf(it, mo)?.loop }); });
     for (const b of box.querySelectorAll('[data-dcheck]')) b.addEventListener('click', () => this.checkTravel(it.id, dof.motions[+b.dataset.dcheck]));
+    for (const b of box.querySelectorAll('[data-dfollow]')) {
+      b.addEventListener('click', () => {
+        const mo = dof.motions[+b.dataset.dfollow];
+        try { this.setFollow(it.id, mo, this.limitsOf(it, mo)?.follow ? null : {}); } catch (e) { this.hooks.toast(e.message, 'warning', 6000); }
+      });
+    }
+    for (const el of box.querySelectorAll('[data-dfollowat]')) {
+      el.addEventListener('change', () => { const mo = dof.motions[+el.dataset.dfollowat], f = this.limitsOf(it, mo)?.follow; if (f) this.setFollow(it.id, mo, { ...f, at: el.value }); });
+    }
   }
 
   /** A motion's limits set ({min, max}; a turn within ±180°) or taken off (null); a part outside them is put back
@@ -3114,6 +3231,21 @@ export class Assembly {
       const j = { id: `J${n}`, type: p.type, move: id, face: p.b.name, onto: p.onto, ontoFace: p.a.name, gap: p.type === 'flush' || p.type === 'gap' ? p.gap : 0, ...(p.flip ? { flip: true } : {}) };
       this.doc.mates = [...(this.doc.mates || []), j];
       const r = tried(t2('{id} added: {type} {face} – {other}', { id: j.id, type: t(JOINT_TYPES[j.type].name), face: this.faceText(id, j.face), other: this.faceText(p.onto, j.ontoFace) }));
+      if (r) return r;
+    }
+    // else its joint keeps it where it is: a slide along its direction (a touch's in-plane slides, a ball along its axis),
+    // a ball's turns (all three at once)
+    const cur = (this.doc.mates || []).filter((x) => x.move === id && !x.locked && x.type !== 'rigid'); // (as they are now: a failed try put back copies)
+    const jo = cur.find((x) => x.id === m?.id) || cur[0];
+    let fB = null, fA = null;
+    try { fB = jo && this.worldFace(id, jo.face); fA = jo && this.worldFace(jo.onto, jo.ontoFace); } catch { fB = null; }
+    if (fB && mo.kind === 'move') {
+      jo.slides = [...(jo.slides || []), slideNow(fB, fA, dir)];
+      const r = tried(t2('{id}: {what} locked where it is', { id: jo.id, what: mo.label }));
+      if (r) return r;
+    } else if (fB && !jo.rot) {
+      jo.rot = frameNow(fB, fA).rot;
+      const r = tried(t2('{id}: its turns locked where they are', { id: jo.id }));
       if (r) return r;
     }
     throw new Error(t('No joint found that locks this motion — join it by hand (🔗 Join it to another part).'));
@@ -3208,7 +3340,7 @@ export class Assembly {
     r.steps.forEach((s, k) => {
       const moving = new Set(Object.keys(steps[k].matrices));
       for (const c of s.clashes) {
-        if (moving.has(c.a) && moving.has(c.b)) continue;
+        if ((moving.has(c.a) && moving.has(c.b)) || springIgnores(this, c.a, c.b)) continue;
         const other = this.topOf(moving.has(c.a) ? c.b : c.a), h = hits.get(other) || { with: other, from: s.at, to: s.at, volume: 0 };
         h.from = Math.min(h.from, s.at);
         h.to = Math.max(h.to, s.at);
@@ -3233,9 +3365,61 @@ export class Assembly {
     if (!it) return;
     from = from || [...it.matrix];
     const M = motionMatrix(mo, mo.kind === 'turn' ? (amount * Math.PI) / 180 : amount).multiply(new THREE.Matrix4().fromArray(from)), was = [...it.matrix];
+    const follows = this.followers(id, mo).length > 0;
+    let p0 = 0;
+    if (follows) { try { p0 = this.motionPos(id, mo); } catch { p0 = 0; } }
     it.matrix = this.holdPart(id, M).toArray();
     this.applyMates({ id, was, mo, amount }); // (in a closed loop the others follow it from where it was)
+    if (follows) { let p1 = p0; try { p1 = this.motionPos(id, mo); } catch { /* (as it was) */ } this.followDirection(id, mo, mo.kind === 'turn' ? this.stepTo(mo, p0, p1) : p1 - p0); }
     if (final) this.commit(); else if (!quiet) this.draw();
+  }
+
+  /** ↕ The parts that go by the direction part `id` moves along motion `mo` (a check valve's ball, a ratchet's pawl):
+   *  [{it, key, lim}] — their travel's `follow`. */
+  followers(id, mo) {
+    const out = [];
+    for (const it of this.doc.instances) {
+      for (const [key, lim] of Object.entries(it.travel || {})) if (lim?.follow?.part === id && (!lim.follow.key || lim.follow.key === mo?.key)) out.push({ it, key, lim });
+    }
+    return out;
+  }
+
+  /** ↕ Part `id` has just moved by `delta` along `mo`: each part that goes by its direction is put at its stop — its
+   *  rule's end (`at`) while it goes forward (delta > 0), the other end while it goes back; still: where it is. */
+  followDirection(id, mo, delta) {
+    if (Math.abs(delta) < 1e-9) return;
+    for (const { it, key, lim } of this.followers(id, mo)) {
+      let d = null;
+      try { d = this.motionsOf(it.id, true); } catch { d = null; }
+      const fm = d?.motions.find((x) => x.key === key);
+      if (!fm) continue;
+      const end = delta > 0 ? lim.follow.at : lim.follow.at === 'max' ? 'min' : 'max', p = this.motionPos(it.id, fm);
+      if (Math.abs(lim[end] - p) < 1e-6) continue;
+      const was = [...it.matrix], step = this.stepTo(fm, p, lim[end], lim);
+      it.matrix = this.holdPart(it.id, motionMatrix(fm, (fm.kind === 'turn' ? Math.PI / 180 : 1) * step).multiply(new THREE.Matrix4().fromArray(was))).toArray();
+      this.applyMates({ id: it.id, was, mo: fm, amount: step }); // (the parts on it go along)
+    }
+  }
+
+  /** ↕ A motion with limits goes by a driver's direction (rule {part, key, at: 'max' | 'min'}) or not (null) -> the
+   *  rule. The driver when not given: the first mechanism's driver that is another part. */
+  setFollow(id, mo, rule) {
+    if (mo.via) id = mo.via;
+    const it = this.inst(id), lim = it?.travel?.[mo.key];
+    if (!lim) throw new Error(t('Set its limits first (⇤⇥): the two stops it goes between.'));
+    if (!rule) { delete lim.follow; this.commit(); return null; }
+    let { part, key, at } = rule;
+    if (!part) {
+      const m = (this.mech?.list || []).filter((x) => x.driver && x.driver.part !== id) // (a slide along its own first: a piston for its valve)
+        .sort((a, b) => (b.driver.mo.kind === 'move' ? Math.abs(b.driver.mo.dir.clone().normalize().dot(mo.dir.clone().normalize())) : 0) - (a.driver.mo.kind === 'move' ? Math.abs(a.driver.mo.dir.clone().normalize().dot(mo.dir.clone().normalize())) : 0))[0];
+      if (!m) throw new Error(t('Nothing drives it: it goes by the direction of a part that moves (a piston) — make that one move first.'));
+      ({ part } = m.driver);
+      key = key || m.driver.mo.key;
+    }
+    if (!this.inst(part) || part === id) throw new Error(t('It goes by the direction of another part that moves.'));
+    lim.follow = { part, ...(key ? { key } : {}), at: at === 'min' ? 'min' : 'max' };
+    this.commit();
+    return lim.follow;
   }
 
   /** The selected part turned to an angle (degrees) about X / Y / Z, about its own centre (the other two angles
@@ -3297,7 +3481,7 @@ export class Assembly {
   jointHint() {
     const t = JOINT_TYPES[this.jointType], f0 = this.jointFrom?.face;
     const what = t.faces === 'cylinder' ? 'a round face' : t.faces === 'mixed' ? (this.mode === 'joint-to' ? (f0?.type === 'cylinder' ? 'a flat face' : 'a round face') : 'a round or a flat face')
-      : 'a flat face';
+      : t.faces === 'ball' ? (this.mode === 'joint-to' && f0?.type !== 'sphere' ? 'the ball' : this.mode === 'joint-to' ? 'a hole, a cone or a ball' : 'a ball, or a hole / cone it sits in') : t.faces === 'part' ? 'any face' : 'a flat face';
     if (t.faces === 'any' && this.mode === 'joint-from') {
       this.hint(`${t.icon} ${t.name}: click where it goes in — a point on a flat face (the holes are drilled for it), or a hole that is there. Esc cancels.`);
       this.renderBar();
@@ -3316,7 +3500,12 @@ export class Assembly {
     const want = JOINT_TYPES[this.jointType].faces;
     // a screw / pin: the second part is clicked anywhere (its hole is often hidden under the first part)
     if (this.jointType === 'fastener' && this.mode === 'joint-to') return h.inst !== this.jointFrom?.inst;
-    if (want === 'any' || want === 'mixed') {
+    if (want === 'part') { // 🔗 fixed together: any face of each part
+      // (any face will do)
+    } else if (want === 'ball') { // a ball and a hole / cone / ball — one of the two a ball
+      if (!['sphere', 'cylinder', 'cone'].includes(h.face.type)) return false;
+      if (this.mode === 'joint-to' && h.face.type !== 'sphere' && this.jointFrom?.face?.type !== 'sphere') return false;
+    } else if (want === 'any' || want === 'mixed') {
       if (h.face.type !== 'plane' && h.face.type !== 'cylinder') return false;
       if (want === 'mixed' && this.mode === 'joint-to' && h.face.type === this.jointFrom?.face?.type) return false; // the other kind
     } else if (h.face.type !== want) return false;
@@ -3362,7 +3551,7 @@ export class Assembly {
     if (!this.faceFits(h)) {
       const kind = JOINT_TYPES[this.jointType].faces;
       const want = kind === 'cylinder' ? 'a round face (a hole, a pin)' : kind === 'mixed' ? (this.mode === 'joint-to' ? 'the other kind of face (round ↔ flat)' : 'a round or a flat face')
-        : kind === 'any' ? 'a flat face or a hole' : 'a flat face';
+        : kind === 'ball' ? 'a ball and a hole, a cone or another ball' : kind === 'any' ? 'a flat face or a hole' : 'a flat face';
       if (h) this.hooks.toast(this.mode === 'joint-to' && h.inst === this.jointFrom?.inst ? 'Now a face of the other part.' : `Click ${want}.`, 'info', 2500);
       return;
     }
@@ -3375,6 +3564,24 @@ export class Assembly {
     }
     const type = this.jointType;
     if (type === 'fastener') { this.fastenerAt(this.jointFrom, h); return; }
+    if (type === 'spring') { // 〰 a spring's end to the face it pushes on
+      const from = this.jointFrom;
+      this.mode = 'idle';
+      this.jointFrom = null;
+      this.hoverFace = null;
+      this.hint('');
+      this.makeSpring(from, h);
+      return;
+    }
+    if (type === 'rigid') { // 🔗 fixed together, as they are
+      const from = this.jointFrom;
+      this.mode = 'idle';
+      this.jointFrom = null;
+      this.hoverFace = null;
+      this.hint('');
+      this.fixTogether(from.inst, h.inst, from.face?.name, h.face?.name);
+      return;
+    }
     const mover = this.inst(this.jointFrom.inst)?.fixed ? h.inst : this.jointFrom.inst, placed = (this.doc.mates || []).some((m) => m.move === mover);
     const before = new Set(this.unmet().map((m) => m.id)), had = new Set((this.doc.mates || []).map((m) => m.id)), nj = this.addJoint(this.jointFrom, h, type, type === 'gap' ? 5 : 0);
     let kept = null;
@@ -3471,7 +3678,8 @@ export class Assembly {
       const e = this.hoverEv;
       this.hoverEv = null;
       if (!e || down) return;
-      if (this.measuring) { this.view.clearHoverMarks(); this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); return; } // (where a click measures from)
+      if (this.measuring) { this.view.setHoverSnaps([]); this.ms.hover(e); return; } // (what a click measures: lit, named)
+      if (this.harnessTool.hoverAt(e)) return; // (🔌 clicking a harness's points: the next one shown)
       const h0 = this.view.pickInst(e.clientX, e.clientY), h = this.jointPick(e, h0);
       if (this.mode === 'idle') this.hoverMarks(e, h0);
       else this.view.clearHoverMarks();
@@ -3495,6 +3703,7 @@ export class Assembly {
     cv.addEventListener('pointerleave', () => {
       this.hoverEv = null;
       this.view.clearHoverMarks();
+      if (this.measuring) this.ms.hover(null);
       if (this.dragging) return;
       cueLabel(vp, null, '');
       if (this.cueParts) { this.cueParts = null; this.hoverInst = null; this.draw(); }
@@ -3509,7 +3718,9 @@ export class Assembly {
       const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4;
       down = null;
       if (moved) return;
+      if (this.harnessTool.click(e)) return; // (🔌 a point of a harness, or a harness chosen)
       const h = this.view.pickInst(e.clientX, e.clientY);
+      this.lastClick = h?.face ? this.harnessTool.candidate(e) : null; // (🔌 Route a cable from here: that spot, lying on its face)
       if (this.measuring) { this.clickMeasure(e); return; }
       if (this.painting) { this.clickPaint(h, e.ctrlKey || e.metaKey); return; }
       if (this.mode !== 'idle') { this.clickJoint(this.jointPick(e, h)); return; }
@@ -3530,6 +3741,7 @@ export class Assembly {
 
   key(e) {
     if (!this.active || e.target.closest?.('input,select,textarea,[contenteditable]')) return;
+    if (this.harnessTool.key(e)) return; // (🔌 Esc / Enter: done; Delete: its point)
     const k = e.key.toLowerCase();
     if (e.key === 'Escape' && this.measuring) { this.toggleMeasure(); return; }
     if (e.key === 'Escape' && this.painting) { this.togglePaint(); return; }
@@ -3557,8 +3769,8 @@ export class Assembly {
     if (!b) throw new Error(`${instId} has no solid.`);
     const f = b.faces.filter((x) => x.name === name || (x.names || []).includes(name)).sort((p, q) => q.area - p.area)[0];
     if (!f) {
-      const flat = [...new Set(b.faces.filter((x) => x.type === 'plane' || x.type === 'cylinder').map((x) => x.name))];
-      throw new Error(`${instId} has no face “${name}”. Its flat and round faces: ${flat.join(', ')} (find_refs in its part tells which is which).`);
+      const flat = [...new Set(b.faces.filter((x) => ['plane', 'cylinder', 'sphere', 'cone'].includes(x.type)).map((x) => x.name))];
+      throw new Error(`${instId} has no face “${name}”. Its flat, round, ball and cone faces: ${flat.join(', ')} (find_refs in its part tells which is which).`);
     }
     const m = matrix || new THREE.Matrix4().fromArray(it.matrix), nm = new THREE.Matrix3().getNormalMatrix(m);
     const out = { ...f, centroid: new THREE.Vector3(...f.centroid).applyMatrix4(m),
@@ -3567,6 +3779,11 @@ export class Assembly {
     if (f.type === 'cylinder' && f.axis) {
       out.axis = { o: new THREE.Vector3(...f.axis.o).applyMatrix4(m), d: new THREE.Vector3(...f.axis.d).applyMatrix3(nm).normalize() };
       out.span = this.cylSpan(b, name, f.axis);
+    }
+    if (f.type === 'sphere' && f.centre) out.centre = new THREE.Vector3(...f.centre).applyMatrix4(m); // (a ball: ● joints)
+    if (f.type === 'cone' && f.cone) { // (a conical seat: its axis from the apex, as a round face's)
+      out.cone = { apex: new THREE.Vector3(...f.cone.apex).applyMatrix4(m), d: new THREE.Vector3(...f.cone.d).applyMatrix3(nm).normalize(), half: f.cone.half };
+      out.axis = { o: out.cone.apex.clone(), d: out.cone.d.clone() };
     }
     return out;
   }
@@ -3600,7 +3817,7 @@ export class Assembly {
       if (!d) return loop;
       if (!d.count) return lp?.free ? { moves_with_loop: lp.id } : { fully_held: true, ...loop };
       const it = this.inst(id);
-      return { ...loop, free: d.motions.map((m) => m.label), at: d.motions.map((m) => { const l = this.limitsOf(it, m); return { motion: m.label, [m.kind === 'turn' ? 'deg' : 'mm']: +this.motionPos(id, m).toFixed(2), ...(l ? { min: l.min, max: l.max } : {}) }; }) };
+      return { ...loop, free: d.motions.map((m) => m.label), at: d.motions.map((m) => { const l = this.limitsOf(it, m); return { motion: m.label, [m.kind === 'turn' ? 'deg' : 'mm']: +this.motionPos(id, m).toFixed(2), ...(l ? { min: l.min, max: l.max } : {}), ...(l?.follow ? { follows: { part: l.follow.part, at_forward: l.follow.at } } : {}) }; }) };
     } catch { return {}; }
   }
 
@@ -3644,8 +3861,11 @@ export class Assembly {
       ...(this.mech?.list.length ? { mechanisms: this.mech.summary() } : {}),
       ...(this.mech?.missing ? { missing_joint: this.missingSummary() } : {}),
       ...(this.doc.couplings?.length ? { couplings: couplingsSummary(this) } : {}),
+      ...(this.doc.springs?.length ? { springs: springsSummary(this) } : {}),
+      ...(this.doc.harnesses?.length ? { harnesses: this.doc.harnesses.map((h) => harnessFacts(this, h)) } : {}),
       joints: (this.doc.mates || []).map((m) => ({ id: m.id, ...(m.name ? { name: m.name } : {}), type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
         ...(m.type === 'axis' ? { distance: Number.isFinite(m.dist) ? m.dist : null } : { gap: m.gap || 0 }), ...(m.type !== 'parallel' ? { rotation_locked: Number.isFinite(m.angle) } : {}), ...(m.broken ? { broken: true } : {}),
+        ...(m.slides?.length || (m.rot && m.type !== 'rigid') ? { locked_motions: (m.slides?.length || 0) + (m.rot && m.type !== 'rigid' ? 1 : 0) } : {}),
         ...(m.locked ? { locked: true } : {}), ...(this.inst(m.move)?.fastener ? { fastener: this.inst(m.move).fastener.id } : {}), ...(this.whyNot(m) ? { not_held: this.whyNot(m) } : {}) })),
       fasteners: [...new Map(this.doc.instances.filter((i) => i.fastener).map((i) => [i.fastener.id, i.fastener])).values()].map((f) => ({ id: f.id, text: f.text,
         parts: this.doc.instances.filter((i) => i.fastener?.id === f.id).map((i) => i.id), ...(f.bolt ? { drilled_holes: true } : {}) })),
@@ -3708,12 +3928,26 @@ export class Assembly {
           this.commit();
           return { text: `${c.id} ${type}: ${c.a} ↔ ${c.b}, ${ratioText(c)} — move_free / drive_mechanism one of them, the other follows. ${JSON.stringify(this.summary())}` };
         }
+        if (type === 'spring') { // 〰 move: the spring's end face, onto: the face it reaches; value: k (N/mm)
+          const s = addSpring(this, { inst: move.part, face: this.worldFace(move.part, move.face) }, { inst: onto.part, face: this.worldFace(onto.part, onto.face) }, value ?? null);
+          if (name) s.name = String(name).trim();
+          this.commit();
+          return { text: `${s.id} 〰 spring: ${s.part} reaches ${s.onto} — drawn as long as it reaches (drive_mechanism / move_free: it follows). ${JSON.stringify(springsSummary(this).find((x) => x.id === s.id))}` };
+        }
+        if (type === 'rigid') { // 🔗 fixed together as they are: faces not needed
+          const nj = this.fixTogether(move?.part, onto?.part, move?.face || null, onto?.face || null);
+          if (!nj) throw new Error('Not fixed: the other part already hangs on this one, or both are 📌 fixed.');
+          if (name) { nj.name = String(name).trim(); this.commit(); }
+          return { text: `${nj.id} 🔗 rigid: ${nj.move} goes with ${nj.onto} as they are now (no motion of its own). ${JSON.stringify(this.summary())}` };
+        }
         if (!JOINT_TYPES[type] || JOINT_TYPES[type].pick) throw new Error(`type is ${[...Object.keys(JOINT_TYPES).filter((k) => !JOINT_TYPES[k].pick), ...Object.keys(COUPLING_TYPES)].join(', ')} (screws and pins: suggest_fasteners / add_fasteners).`);
         const from = { inst: move.part, face: this.worldFace(move.part, move.face) };
         const to = { inst: onto.part, face: this.worldFace(onto.part, onto.face) };
         if (from.inst === to.inst) throw new Error('Join a face of one part to a face of another part.');
-        const want = JOINT_TYPES[type].faces;
-        if (want === 'mixed') {
+        const want = JOINT_TYPES[type].faces, kinds = [from.face.type, to.face.type];
+        if (want === 'ball') {
+          if (!kinds.includes('sphere') || !kinds.every((k) => ['sphere', 'cylinder', 'cone'].includes(k))) throw new Error(`${type} joins a ball (a spherical face, e.g. a revolved half circle) and a hole / a cone (its seat) or another ball — these faces are ${kinds.join(' and ')}.`);
+        } else if (want === 'mixed') {
           if (new Set([from.face.type, to.face.type, 'plane', 'cylinder']).size !== 2 || from.face.type === to.face.type) throw new Error('Tangent joins a round face and a flat face.');
         } else if (from.face.type !== want || to.face.type !== want) throw new Error(`${JOINT_TYPES[type].name} joins two ${want === 'cylinder' ? 'round' : 'flat'} faces.`);
         const nj = this.addJoint(from, to, type, type === 'axis' ? 0 : gap || 0);
@@ -3793,14 +4027,20 @@ export class Assembly {
         return { text: `${j.id} ◎ Concentric: the pin ${x.pin.face} of ${x.pin.part} (${x.pin.name}, Ø${x.pin.d}) in the hole ${x.hole.face} of ${x.hole.part} (${x.hole.name}, Ø${x.hole.d}). ${JSON.stringify({ loops: s.loops || [], mechanisms: s.mechanisms || [] })}` };
       },
       remove_from_assembly: async ({ part }) => { need(); this.removeInst(part); return { text: JSON.stringify(this.summary()) }; },
-      set_travel: async ({ part, motion = 0, min, max, speed, loop }) => {
+      set_travel: async ({ part, motion = 0, min, max, speed, loop, follow }) => {
         need();
         await settle();
-        const { it, mo } = this.motionFor(part, motion), only = min === undefined && max === undefined && (speed !== undefined || loop !== undefined);
+        const { it, mo } = this.motionFor(part, motion), only = min === undefined && max === undefined && (speed !== undefined || loop !== undefined || follow !== undefined);
         let l = only ? this.limitsOf(it, mo) : min === null || max === null || (min === undefined && max === undefined) ? this.setTravel(it.id, mo, null)
           : this.setTravel(it.id, mo, { min: +(min ?? this.limitsOf(it, mo)?.min ?? 0), max: +(max ?? this.limitsOf(it, mo)?.max ?? 0) });
         if (l && (speed !== undefined || loop !== undefined)) l = this.setPlay(it.id, mo, { speed, loop });
-        return { text: `${it.id} — ${mo.label}: ${l ? `limits ${l.min} … ${l.max} ${mo.kind === 'turn' ? '°' : 'mm'}${l.speed ? `, ▶ ${l.speed}×` : ''}${l.loop ? ', ▶ again and again' : ''}` : 'no limits'}; now at ${+this.motionPos(it.id, mo).toFixed(2)}.` };
+        if (follow !== undefined) { // ↕ by a driver's direction: {part, motion?, at: "max" | "min"} or null
+          let key = null;
+          if (follow?.part && follow.motion !== undefined && follow.motion !== null) key = this.motionFor(follow.part, follow.motion).mo.key;
+          this.setFollow(it.id, mo, follow ? { part: follow.part || null, key, at: follow.at } : null);
+          l = this.limitsOf(it, mo);
+        }
+        return { text: `${it.id} — ${mo.label}: ${l ? `limits ${l.min} … ${l.max} ${mo.kind === 'turn' ? '°' : 'mm'}${l.speed ? `, ▶ ${l.speed}×` : ''}${l.loop ? ', ▶ again and again' : ''}${l.follow ? `, ↕ by ${l.follow.part}'s direction: at ${l.follow.at} while it goes forward, at ${l.follow.at === 'max' ? 'min' : 'max'} while it goes back` : ''}` : 'no limits'}; now at ${+this.motionPos(it.id, mo).toFixed(2)}.` };
       },
       lock_motion: async ({ part, motion = 0 }) => {
         need();
@@ -3857,6 +4097,7 @@ export class Assembly {
         const { it, mo } = this.motionFor(part, motion), v = this.nameMotion(it.id, mo, name);
         return { text: v ? `${mo.via || it.id}: the motion “${mo.auto || mo.label}” is called “${v}” now (get_assembly, its panel and ⚙ Mechanism show it).` : `${mo.via || it.id}: the motion has its own words again (“${mo.auto || mo.label}”).` };
       },
+      ...harnessHandlers(this), // (🔌 add_harness, edit_harness)
       check_travel: async ({ part, motion = 0 }) => {
         need();
         await settle();
@@ -3901,7 +4142,9 @@ export class Assembly {
     this.sel = null;
     this.mode = 'idle';
     this.explode = 0;
+    Object.assign(this.harnessTool, { edit: null, sel: null, pt: null, hover: null });
     this.history.reset();
+    this.ms.reset(); // (its measurements: this assembly's)
     this.render();
     await this.refresh();
     this.view.setView('iso');
@@ -3909,7 +4152,7 @@ export class Assembly {
 
   payload() { return structuredClone(this.doc); }
   /** This assembly as a STEP tree (stepfile.js) for /api/assembly/export/step. */
-  stepTree() { return stepTree(this, this.hooks.selfId?.() || 'root', this.hooks.safeName(), this.doc.instances); }
+  stepTree() { return withHarnesses(this, stepTree(this, this.hooks.selfId?.() || 'root', this.hooks.safeName(), this.doc.instances)); } // (🔌 a part per harness)
   hasBody() { return this.doc.instances.some((i) => this.bodies[i.part]?.body); }
 
   async export(fmtName) {

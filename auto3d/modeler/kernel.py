@@ -776,6 +776,50 @@ def path_wire(fr, sk):
     return mk.Wire()
 
 
+def pipe_body(segments, profiles, fid):
+    """🔌 A cable harness (harness.py): profiles swept along a route of lines and arcs. segments [("line", a, b) |
+    ("arc", a, m, b)] (points [x, y, z]); profiles at the route's start [("circle", centre, direction, r) | ("rect",
+    centre, direction, x, w, h)]. One solid per profile, kept apart in one compound (wires side by side are not fused).
+    Faces: <fid>:start, <fid>:end, <fid>:side; several profiles also <fid>:w<k>:start … (each wire's own)."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_TransitionMode
+    from OCP.BRepOffsetAPI import BRepOffsetAPI_MakePipeShell
+
+    P = lambda p: gp_Pnt(*map(float, p))  # noqa: E731
+    mk = BRepBuilderAPI_MakeWire()
+    for s in segments:
+        mk.Add(BRepBuilderAPI_MakeEdge(P(s[1]), P(s[2])).Edge() if s[0] == "line"
+               else BRepBuilderAPI_MakeEdge(GC_MakeArcOfCircle(P(s[1]), P(s[2]), P(s[3])).Value()).Edge())
+        if not mk.IsDone():
+            raise KernelError("The harness's route does not join up.")
+    path = mk.Wire()
+    solids, names = [], {}
+    for pr in profiles:
+        if pr[0] == "circle":
+            prof = BRepBuilderAPI_MakeWire(BRepBuilderAPI_MakeEdge(gp_Circ(gp_Ax2(P(pr[1]), gp_Dir(*map(float, pr[2]))), float(pr[3]))).Edge()).Wire()
+        else:
+            c, t, x = (np.asarray(v, float) for v in pr[1:4])
+            w, h = float(pr[4]), float(pr[5])
+            y = np.cross(t, x)
+            poly = BRepBuilderAPI_MakePolygon()
+            for u, v in ((-w / 2, -h / 2), (w / 2, -h / 2), (w / 2, h / 2), (-w / 2, h / 2)):
+                poly.Add(P(c + x * u + y * v))
+            poly.Close()
+            prof = poly.Wire()
+        pipe = BRepOffsetAPI_MakePipeShell(path)
+        pipe.SetTransitionMode(BRepBuilderAPI_TransitionMode.BRepBuilderAPI_RightCorner)
+        pipe.Add(prof)
+        pipe.Build()
+        if not pipe.IsDone() or not pipe.MakeSolid():
+            raise KernelError("The harness could not be made solid — are its bends wide enough for its Ø?")
+        side = [g for e in _wire_edges(prof) for g in pipe.Generated(e) if g.ShapeType() == TopAbs_FACE]
+        for pre in [fid] + ([f"{fid}:w{len(solids)}"] if len(profiles) > 1 else []):  # (a wire's own: its colour)
+            names.setdefault(f"{pre}:start", []).append(pipe.FirstShape())
+            names.setdefault(f"{pre}:end", []).append(pipe.LastShape())
+            names.setdefault(f"{pre}:side", []).extend(side)
+        solids.append(pipe.Shape())
+    return Body(solids[0] if len(solids) == 1 else compound(solids), names)
+
+
 def revolve_body(face, edge_names, origin, direction, angle_deg, fid):
     """Spin a face around an axis: faces named side:<sketch name> (and start / end when not a full turn)."""
     full = abs(angle_deg) >= 360 - 1e-9
@@ -2071,15 +2115,25 @@ def _edge_len(c):
 
 def _surface_of(f):
     """What a face's surface is to the viewer: ("plane", its normal as the surface's own), ("cylinder", radius, a point
-    of the axis, its direction) or ("other",)."""
+    of the axis, its direction), ("sphere", radius, its centre), ("cone", its half angle (degrees), its apex, the
+    direction it opens to) or ("other",) — a ball and a conical seat for the assembly's ● ball joints."""
+    from OCP.GeomAbs import GeomAbs_Cone, GeomAbs_Sphere
     s = BRepAdaptor_Surface(f, True)
     pln = flat_plane(f, s)
     if pln is not None:
         return ("plane", pln.Axis().Direction().Coord())
-    if s.GetType() == GeomAbs_Cylinder:
+    kind = s.GetType()
+    if kind == GeomAbs_Cylinder:
         cyl = s.Cylinder()
         a = cyl.Axis()
         return ("cylinder", cyl.Radius(), a.Location().Coord(), a.Direction().Coord())
+    if kind == GeomAbs_Sphere:
+        sph = s.Sphere()
+        return ("sphere", sph.Radius(), sph.Location().Coord())
+    if kind == GeomAbs_Cone:
+        cone = s.Cone()
+        semi, d = cone.SemiAngle(), cone.Axis().Direction().Coord()
+        return ("cone", abs(math.degrees(semi)), cone.Apex().Coord(), d if semi > 0 else tuple(-v for v in d))
     return ("other",)
 
 
@@ -2099,11 +2153,17 @@ def _moved_surface(surf, m):
         ln = length(d) or 1.0
         return ("cylinder", surf[1] * ln / (length(surf[3]) or 1.0), tuple(a + m[i][3] for i, a in enumerate(turn(surf[2]))),
                 tuple(x / ln for x in d))
+    if surf[0] == "sphere":
+        return ("sphere", surf[1] * length(turn((1.0, 0.0, 0.0))), tuple(a + m[i][3] for i, a in enumerate(turn(surf[2]))))
+    if surf[0] == "cone":
+        d = turn(surf[3])
+        return ("cone", surf[1], tuple(a + m[i][3] for i, a in enumerate(turn(surf[2]))), tuple(x / (length(d) or 1.0) for x in d))
     return surf
 
 
 def _face_info(f, fi, rev, rough=None, tris=None, centre=True, surf=None):
-    """A face for the viewer: {id, area, centroid, type, normal + frame (flat) / radius + axis (a cylinder)}. rough:
+    """A face for the viewer: {id, area, centroid, type, normal + frame (flat) / radius + axis (a cylinder) / radius +
+    centre (a sphere) / cone {apex, d (the way it opens), half} (a cone)}. rough:
     (area, centre) from the mesh; centre False: a flat face's frame keeps the centroid (_box_centres sets it); surf:
     its _surface_of when known (a face placed again)."""
     if rough:  # (area, centre) from the mesh
@@ -2132,6 +2192,13 @@ def _face_info(f, fi, rev, rough=None, tris=None, centre=True, surf=None):
         info["type"] = "cylinder"
         info["radius"] = round(surf[1], 6)
         info["axis"] = {"o": _round(surf[2]), "d": _round(surf[3])}
+    elif surf[0] == "sphere":  # (a ball: its centre and radius)
+        info["type"] = "sphere"
+        info["radius"] = round(surf[1], 6)
+        info["centre"] = _round(surf[2])
+    elif surf[0] == "cone":  # (a conical seat or tip: its apex, the way it opens, its half angle — not an "axis": the
+        info["type"] = "cone"  # sketch's axis references stay the holes' and shafts')
+        info["cone"] = {"apex": _round(surf[2]), "d": _round(surf[3]), "half": round(surf[1], 6)}
     else:
         info["type"] = "other"
     return info
@@ -2394,6 +2461,20 @@ def interference(shapes, min_volume=1e-3, only=None, quick=False):
             if v > min_volume:
                 out.append({"a": ka, "b": kb, "volume": round(v, 3), "bbox": _round(lo + hi, 3)})
     return sorted(out, key=lambda c: -c["volume"])
+
+
+def min_distance(a, b):
+    """📏 The least distance between two placed shapes (a clearance) -> {distance (mm), a, b: the nearest points [x, y,
+    z] on each}; 0 when they touch or go into each other (then `overlap`: True when one goes into the other)."""
+    from OCP.BRepExtrema import BRepExtrema_DistShapeShape
+    d = BRepExtrema_DistShapeShape(a, b)
+    if not d.IsDone() or d.NbSolution() < 1:
+        raise KernelError("The distance between the parts could not be worked out.")
+    pa, pb = d.PointOnShape1(1), d.PointOnShape2(1)
+    out = {"distance": round(float(d.Value()), 6), "a": _round([pa.X(), pa.Y(), pa.Z()], 5), "b": _round([pb.X(), pb.Y(), pb.Z()], 5)}
+    if out["distance"] < 1e-6 and interference([("a", a), ("b", b)]):
+        out["overlap"] = True
+    return out
 
 
 def compound(shapes):

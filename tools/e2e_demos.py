@@ -3,7 +3,8 @@ one opened from the menu (as a new project; the demo file on the server unchange
 ⚙ Mechanism and Czech motion names -> ▶ plays: every moving part moves and every joint holds (the loop's worst miss
 < 0.05 mm) -> the crank – rod – slider: the slider at r·cosθ + √(L² − r²·sin²θ); the four-bar: the rocker's pin where
 the closed form puts it (one branch all the way); the robot arm: the forearm and the gripper go along with the arm ->
-the crank (the arm) dragged in the 3D view: the others follow.
+the crank (the arm) dragged in the 3D view: the others follow -> the pump: ▶ moves the piston and both valve balls, the
+spring drawn as long as the piston leaves it.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_demos.py http://127.0.0.1:5199 <out dir>
 """
@@ -271,6 +272,22 @@ try:
     gr["off"] = 0
     ratios()
     check({"I2", "I3", "I4"} <= moved and gr["off"] < 0.05, f"the wheel dragged in the view: {sorted(moved)} moved, the ratios held ({gr['off']:.4f}°)")
+
+    # 5. the pump: 〰 the spring compresses with the piston, ↕ the valve balls go by its direction
+    f = open_demo(4)
+    a = json.loads(call("get_assembly"))
+    m = a["mechanisms"][0]
+    check(f == "pumpicka.a3d.json" and len(a["mechanisms"]) == 1 and m["name"] == "Pumpička" and m["driver"]["label"] == "Zmáčknutí tlačítka"
+          and {"I2", "I4", "I5"} <= set(m["parts"]) and a.get("springs"), f"{f}: one ⚙ {m['name']} of {m['parts']}, driven by “{m['driver']['label']}”, a spring")
+    sp = {"off": 0, "scales": set()}
+
+    def spring():
+        z, piston = js(f"""const m = {A}.view.meshes.find(x => x.userData.inst === 'I3').matrix.elements; return [Math.hypot(m[8], m[9], m[10]), {A}.inst('I2').matrix[14]]""")
+        sp["off"] = max(sp["off"], abs(z - (piston - 10) / 20))
+        sp["scales"].add(round(z, 2))
+    moved, w, n = play(0, secs=3, look=spring)
+    check({"I2", "I4", "I5"} <= moved and w < 0.05 and sp["off"] < 1e-3 and len(sp["scales"]) > 3, f"▶: {sorted(moved)} moved (the piston and both balls), joints off {w:.4f} mm, the spring drawn at the piston ({sp['off']:.5f} off, {len(sp['scales'])} lengths)")
+    d.save_screenshot(f"{OUT}/demo_pump.png")
 
     # the demo files did not change; Czech
     after = {x["file"]: demo_bytes(x["file"]) for x in listing}

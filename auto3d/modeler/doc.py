@@ -55,7 +55,7 @@ DATUMS = {
     "XZ": {"o": [0, 0, 0], "x": [1, 0, 0], "n": [0, -1, 0]},  # Front
     "YZ": {"o": [0, 0, 0], "x": [0, 1, 0], "n": [1, 0, 0]},   # Right
 }
-FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell", "pattern", "solid", "loft", "sweep", "decal", "mirror", "draft", "rib", "point", "split")
+FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell", "pattern", "solid", "loft", "sweep", "decal", "mirror", "draft", "rib", "point", "split", "harness")
 
 _cache: OrderedDict = OrderedDict()  # prefix hash -> state after that feature (only in the worker process)
 CACHE_SIZE = 48
@@ -397,6 +397,10 @@ def _apply(f, st: State, s):
         wire = K.path_wire(st.frames[f["path"]], path)
         for face, names in prof[1]:
             _use(st, fid, K.sweep_body(face, names, wire, fid), f.get("op", "add"))
+        return
+    if t == "harness":  # 🔌 a cable / loose wires / a ribbon / a sleeve along its route (an assembly's harness exported)
+        from .harness import solid as harness_solid
+        _use(st, fid, harness_solid(f, fid), "add")
         return
     if t == "rib":  # a gusset: an open line of a sketch filled up to the part, t thick about its plane
         src = st.sketch_src.get(f.get("sketch"))
@@ -1753,6 +1757,23 @@ def assembly_clashes(instances, quick=False):
             continue
         shapes.append((inst.get("id"), K.placed(st.body.shape, inst.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])))
     return K.interference(shapes, quick=quick)
+
+
+def assembly_clearance(instances, a=None):
+    """📏 The clearance between two placed parts of an assembly: instances [{id, part: {features}, matrix: [16]}] (two;
+    or a sub-assembly's parts: a = the ids on one side, the rest on the other) -> {a, b (the ids of the two sides'
+    first parts), distance (mm), pa, pb (the nearest points), overlap?}."""
+    one = set(a) if a else {(instances or [{}])[0].get("id")}
+    sides = [[i for i in instances or [] if i.get("id") in one], [i for i in instances or [] if i.get("id") not in one]]
+    if len(instances or []) < 2 or not all(sides):
+        raise K.KernelError("The clearance is measured between two parts.")
+    shapes = []
+    for side in sides:
+        got = [K.placed(body_of(i.get("part"), threads=False).body.shape, i.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]) for i in side]
+        shapes.append(got[0] if len(got) == 1 else K.compound(got))
+    r = K.min_distance(*shapes)
+    return {"a": sides[0][0].get("id"), "b": sides[1][0].get("id"), "distance": r["distance"], "pa": r["a"], "pb": r["b"],
+            **({"overlap": True} if r.get("overlap") else {})}
 
 
 def assembly_sweep(instances, steps):

@@ -36,6 +36,7 @@ The check found 12 tools the chat showed by their raw name and 3 no skill named 
 | Parameters: make, change, delete, where used | (𝑥 Parametry) | `get_parameters`, `set_parameter {delete}` | ok |
 | Versions: list, save, compare, restore, new variant | (🕘 Verze) | `list_versions`, `save_version`, `compare_versions`, `restore_version`, `create_variant` | ok |
 | Switch variant | (Varianta ▾) | `switch_variant` | ok (was gui) |
+| Rename / delete a variant | (Varianta ▾ ✎ / 🗑, the legend) | `rename_variant`, `delete_variant` | ok |
 | Take a part from a variant | (Převzít díl z varianty…) | `take_part` | ok (was gui) |
 | Preview a version | 🕘 timeline row | `compare_versions` | partial (text, not the picture) |
 | Parts library: search, put in, keep a model | (📚 Knihovna), (📚 Uložit do knihovny) | `library_search`, `library_add`, `save_to_library` | ok |

@@ -279,6 +279,8 @@ Never report "works" without having run it; report failures with their output.
    move glow; nothing chosen, the 📌 fixed base, a fully held part, a part not chosen: the normal cursor; the first-time
    hint "Táhněte — pohne mechanismem"; dragging: the filled cursor and "↻ 3°" at the cursor (= ⚙ Mechanism's value),
    the slider at the formula; screenshots with the cursor drawn in and the cursors 4× (cue_icons.png).
+   `tools/e2e_joint_toggle.py <url> <dir>` covers 🔗 Show: Joints in the assembly's bottom row (Czech): the crank demo's
+   joint symbols shown -> switched off: none -> after a reload still off (remembered) -> on again: back.
    `tools/e2e_mechanism_by_mouse.py <url> <dir>` replays building the crank – rod – slider by mouse only (Czech, 1600×1000):
    the crank demo's parts, ＋ Nová sestava, ＋ Vložit díl ×4, each joint by real clicks — a hole's rim + Ctrl+click the
    pin -> "◎ Soustředně + dosednout · Ø10" first; the slider's top + Ctrl+click the base's top -> "⧉ Položit …"; the
@@ -441,8 +443,11 @@ Never report "works" without having run it; report failures with their output.
    10 -> 15, "B"; both with thumbnails; ⇄ "Vysunutí 1: 10 → 15 mm" and "Objem: 2000 → 3000 mm³"; a click on A: the
    banner, 10, read only — ＋ New 3D model, Ctrl+Z, Delete do nothing, no autosave; ↩ back: 15; ⤺ restore A: 10, B and
    "Před obnovením" listed, ↶ in the toast; ⑂ variant "delší" from B: its own empty timeline, 40; switched to hlavní: 10;
-   the part taken from "delší": 40; reload keeps it all; Save project with the history -> opened: the versions back).
-   Screenshots versions_*.png. Ends ALL OK / FAILED.
+   the part taken from "delší": 40; reload keeps it all; Save project with the history -> opened: the versions back;
+   at 1280×800 the graph of the branches: "kratší" from A alone = its lane + the fork row, Všechny varianty = 3 lanes,
+   the forks at B's and A's dots, the lane on screen bolder and its head ringed; C of "delší" previewed: the banner names
+   the variant; rename by double-click in the legend; delete with the inline confirm (Zrušit keeps it); the default view
+   main only with a stub at B). Screenshots versions_*.png (versions_graph_all*.png: the graph). Ends ALL OK / FAILED.
    `tools/e2e_ux_shell.py <url> <dir>` covers the app's shell for a new user, in Czech at 1280×800 (it clears the
    server's recent projects first): the start screen (✏ Nový díl, 📂 Otevřít soubor, 🎬 Demo, ✨ Zeptat se AI; ≤ 14
    controls in sight, no quick-part panels, → between the cards); ✨ opens the chat beside it; ✏ makes a 3D model (the
@@ -483,6 +488,12 @@ Never report "works" without having run it; report failures with their output.
    note). Exits 1.
    `tools/e2e_measure_snap.py <url> <dir>` covers 📏 Measure's snap points (a block with a hole: near an edge's middle
    "midpoint", a corner "corner", the hole's centre "centre"; the Snap filters: Corners off — not caught; corner -> centre 22.361; the same in an assembly).
+   `tools/e2e_measure_table.py <url> <dir>` covers the 📏 Measurements table (Czech, 1280 × 800, real mouse; a block
+   with a hole and a boss: two corners 28.284 with ΔX ΔY ΔZ, an edge L 20, the hole's rim Ø6, parallel tops 5 apart,
+   90° between two faces — each a row that stays; hovering a row lights its mark; ✕ removes one; a row's copy value;
+   12 rows tidy (22 px, nothing sticks out; screenshot measure_table_12.png); Esc keeps the table; another part and
+   back keeps it; 🗑 clears and ↶ brings them back; the assembly: Díly -> clearance 5, Prvky -> parallel faces).
+   Exits 1.
    `tools/e2e_model_hole_guides.py <url> <dir>` covers guides when placing on a face (a 40 × 40 block, ◎ Hole: near
    the middle line one guide, x = 20; near the centre two guides, (20, 20); on it "centre of the face"; a click: exact;
    a second hole in line with the first: from {hole: 0}; Shift: free; Corners off: no corner; Guides off: no guide;
@@ -600,6 +611,12 @@ Never report "works" without having run it; report failures with their output.
    next call says "the user clicked it"), Escape closes it without cancelling the sketch, a new tip replaces the old,
    clear, wait: true through /api/agent/call answers after the click, a 1 s timeout keeps it, a view spot (at) clicked,
    refusals, an assembly in Czech (✕ tooltip, the tip's own text kept) above floating boxes.
+   `tools/e2e_ai_suggest.py <url> <dir>` covers the AI and the suggestions table (in Czech): gui_action pick F2:end ->
+   gui_state.suggestions (title, about the face, 8 rows with n and rank_pos, more = the ⋯ Show all count and its
+   labels), where: suggest; suggest "Díra" opens the hole command; a hidden row named in English ("turn it off")
+   reached through ⋯ Show all (the table back to its top rows); an unknown label refused with the offered rows;
+   get_screenshot {ui: true} draws the table where it is (its box differs from the view with the table hidden); an
+   assembly's part picked (its table, a row run); a sheet's dimension (its table, the ui screenshot names it).
    `tools/e2e_ai_gui.py <url> <dir>` covers the AI's GUI testing: gui_action at a point of the 3D view (the lid
    picked, an empty corner: none), Delete / ctrl+z keys, gui_state on a sheet (dims, views, cells), a dimension
    clicked + Delete + ctrl+z, a view dragged 20 mm by at_mm / drag_to, a double-click on the title cell (its field
@@ -626,6 +643,14 @@ Never report "works" without having run it; report failures with their output.
    its slider; set_travel 0 … 360 + check_travel; ▶ play checked against the formula; the slider pushed past its
    dead point stops at r + L; the second eye joined again 12 mm off closes by itself; the rod too short ("cannot
    close", closed false) and back). Prints ALL OK / FAILED, exit code 1 on a failure.
+   `tools/e2e_harness.py <url> <dir>` covers 🔌 Cable harness with a real mouse, in Czech (a box, a PCB, a motor: a
+   click on the PCB -> *🔌 Vést kabel odsud* -> Volné dráty 4× -> a hover shows the next point and the length -> three
+   more points on the PCB, the box, the motor -> Esc keeps them; the length equals auto3d/modeler/harness.py's route of
+   the same points, the points Ø/2 + 0.5 off their faces; the tree row; BOM lines *Vodič Ø1,5 mm červený — N mm* (+5 %,
+   up to 10 mm) in get_bom and the 📋 window; the motor moved / 💥 explode: its points follow; a point dragged onto
+   another face; R 80: ⚠ in the view and the panel, R empty: 5 × Ø; a point clicked + Delete, Ctrl+Z, Enter; STEP export
+   with 3 parts + 4 wire solids; add_harness / edit_harness / get_assembly). Prints ALL OK / FAILED, exit code 1 on a
+   failure.
    `tools/e2e_assembly_mechanism.py <url> <dir>` covers ⚙ Mechanism (the same crank – rod – slider: the widget shows
    by itself with the crank driving a full turn, its slider to 90°: the slider part at the formula; ▶ moves every
    part with the formula held, ⏸ stops where it is; the mechanism and the crank's motion renamed by a double-click —
@@ -665,6 +690,16 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_assembly_lockmotion.py <url> <dir>` covers 🔒 lock a motion (a pin in a hole: its turn -> the joint's
    angle, its slide -> the joint's distance, fully held and not moved; a lid on a base: Along X -> a new Flush joint
    of side faces, not moved; the AI's lock_motion, and on a held part refused).
+   `tools/e2e_assembly_ball_spring.py <url> <dir>` covers ● ball joints (a ball's centre on a hole's axis: 4 ways, it
+   cannot leave the axis; ball in ball: 3 turns; ◉ seated in a 45° cone and on a hole's edge at the formula; the
+   suggestions for a ball + a hole put ◉ / ● first; a flat face refused), 🔗 fixed together (snap_faces "rigid"
+   without faces: the flag stays where it was, has 0 own motions, follows the pin's slide and turn; 🔗 Fix … to … for
+   two chosen parts), 🔒 a touch's slides locked one by one (3 → 2 → 1 ways, not moved, no new joint, pushed back,
+   ✕ in the row frees them) and a ball's slide / turns, 〰 a spring (snap_faces "spring" k 0.5: drawn at distance /
+   free length at rest, 4 mm down and every frame of ▶; get_assembly and its row 16 mm / 4 mm / 2 N; its overlap with
+   the piston dropped from check_collisions and check_travel), ↕ a check valve (a ball between two stops: one click
+   picks the piston, forward → max, back → min, the AI's follow at min, ▶ only at its stops, 📈 both stops); the
+   🎬 Pumpička demo in e2e_demos (▶ moves the piston and both valve balls, the spring drawn at the piston).
    `tools/e2e_assembly_health.py <url> <dir>` covers joints that do not hold (the same faces joined again as a Gap:
    one joint changed; a Flush fighting it: the Gap red with "9 mm off: J2 (Flush) holds Lid elsewhere", ⚠ tag, status
    count, get_assembly not_held; one removed: all hold), a screw + nut as one 🔩 row whose ✕ takes the screw, nut and

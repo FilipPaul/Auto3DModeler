@@ -199,6 +199,46 @@ class VersionsTest(unittest.TestCase):
         with self.assertRaises(V.VersionError):
             V.take_part(self.root, PID, var, "P99")
 
+    def test_rename_and_delete_variant_collects_its_objects(self):
+        p = _project(2)
+        a = V.save(self.root, PID, p, label="A", now=1_800_000_000)
+        r = V.create_variant(self.root, PID, a["id"], "delší", now=1_800_000_100)
+        var = r["variant"]["id"]
+        own = copy.deepcopy(p)
+        own["parts"][0]["model"]["features"][1]["d"] = 77  # (an object only this variant uses)
+        c = V.save(self.root, PID, own, label="C", now=1_800_000_200, thumb=JPEG)
+        only = {c["parts"]["P1"], c["thumb"]}
+        self.assertTrue(only <= self.objects())
+        # rename: a clash refused, else kept; main may go back to "" (shown as "main")
+        V.create_variant(self.root, PID, a["id"], "kratší", now=1_800_000_300)
+        with self.assertRaises(V.VersionError):
+            V.rename_variant(self.root, PID, var, "Kratší")
+        self.assertEqual(V.rename_variant(self.root, PID, var, "dlouhá")["name"], "dlouhá")
+        self.assertEqual(V.rename_variant(self.root, PID, "main", "")["name"], "")
+        # every variant's versions together, for the graph
+        allv = V.versions(self.root, PID, every=True)["all"]
+        self.assertEqual([m["label"] for m in allv], ["C", "A"])
+        counts = {v["id"]: v["count"] for v in V.versions(self.root, PID)["variants"]}
+        self.assertEqual((counts["main"], counts[var]), (1, 1))
+        # a variant another one was made from cannot go first; main never
+        V.switch_variant(self.root, PID, var)
+        kid = V.create_variant(self.root, PID, c["id"], "z dlouhé", now=1_800_000_400)["variant"]["id"]
+        with self.assertRaises(V.VersionError):
+            V.delete_variant(self.root, PID, var)
+        with self.assertRaises(V.VersionError):
+            V.delete_variant(self.root, PID, "main")
+        V.delete_variant(self.root, PID, kid)
+        V.switch_variant(self.root, PID, var)
+        d = V.delete_variant(self.root, PID, var)
+        self.assertEqual((d["deleted"], d["versions"], d["current"]), (var, 1, "main"))
+        self.assertEqual(d["project"], p)  # (it was on screen: main's head comes back)
+        self.assertNotIn(var, [v["id"] for v in V.versions(self.root, PID)["variants"]])
+        self.assertFalse(only & self.objects())  # (its own objects gone)
+        self.assertEqual(set(a["parts"].values()) | {a["project"]}, self.objects())  # (A's all kept)
+        self.assertEqual(V.get(self.root, PID, a["id"])["project"], p)
+        with self.assertRaises(V.VersionError):
+            V.get(self.root, PID, c["id"])
+
     def test_bad_ids_are_refused(self):
         p = _project(1)
         V.save(self.root, PID, p)
