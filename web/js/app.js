@@ -1964,6 +1964,7 @@ const assembly = new Assembly({ left: $('asmLeft'), viewport: $('asmViewport'), 
     return { part: project.addBackground(top.name, top.data, 'assembly') };
   },
   duplicatePart: (id) => project.duplicate(id, false),
+  takePart: (id) => (project.usedBy(id).length ? null : project.take(id)), putPartBack: (x) => project.putBack(x), // (⧉ its own part undone / redone)
   renamePart: (id, name) => project.rename(id, name),
   editInPlace: async (id, ctx) => { await project.switchTo(id); if (project.active === id) modeler.setContext(ctx); },
   openPart: (id) => project.switchTo(id),

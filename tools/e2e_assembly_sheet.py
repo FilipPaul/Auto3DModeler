@@ -1,6 +1,8 @@
-"""An assembly's drawing sheet (📄 Drawing in the assembly's toolbar), in headless Edge: Machine = Base + Lid -> the button
--> a sheet tab: the assembly's views (front, top, iso), its parts list (Base, Lid) and balloons, no presets / size check
--> the balloons apart, one dragged (kept; get_sheet lists the parts with their balloons) -> Pages: Machine, Base, Lid; the Lid's page opens its sheet and shows the
+"""An assembly's drawing sheet (📄 Drawing in the assembly's toolbar), in headless Edge: Machine = Base + 2 × Lid (one
+inside the Base, one beside it) -> the button -> a sheet tab: the assembly's views (front, top, iso), its parts list
+(Base, Lid qty 2) and balloons, no presets / size check shown -> the balloons apart, one dragged (kept; get_sheet lists
+the parts with their balloons: the Lid's one balloon on the Lid that shows, balloons ok; its check asks only for the
+overall sizes — one removed: just that one missing) -> Pages: Machine, Base, Lid; the Lid's page opens its sheet and shows the
 same Pages (Lid marked) -> 📚 All pages: 3 pages one below the other, scrolling marks the page in sight, a click in
 Pages goes to it, a double-click opens a page to edit -> a dimension of the user's and a note typed -> back in the assembly the Lid moved -> the sheet again: Rev 2 -> the
 drawing set (📄 Drawings (PDF)): its first page is this sheet, with the note -> the AI's sheet_open of an assembly.
@@ -57,6 +59,8 @@ try:
     print("empty: the button greyed", not d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=sheet]").is_enabled())
     ai("insert_part", part="Base")
     ai("insert_part", part="Lid")
+    ai("insert_part", part="Lid")
+    ai("place_part", part="I3", x=100)
     time.sleep(1)
     asm = js("return window.__app.project.active")
     d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=sheet]").click()
@@ -80,6 +84,21 @@ try:
     time.sleep(0.4)
     print("  balloon 1 dragged:", js(f"return {S}.d.balloons?.['1']"), "(was", [round(v, 1) for v in b0], ")")
     print("  get_sheet's parts list:", js("return window.__app.agentHandlers.get_sheet({}).then(r => JSON.parse(r.text).parts_list.map(p => [p.pos, p.name, p.qty, p.instances, p.balloon && p.balloon.points_to, p.balloon && p.balloon.at_mm]))"))
+    # one item per part: the two Lids are one item, qty 2, one balloon — on the Lid that shows (I2 is inside the Base)
+    g = json.loads(js("return window.__app.agentHandlers.get_sheet({}).then(r => r.text)"))
+    lid = next(p for p in g["parts_list"] if p["name"] == "Lid")
+    print("  the Lid: qty", lid["qty"], "| one balloon, on", lid["balloon"]["points_to"], "| its leader to", lid["balloon"]["leader_to_mm"], "| balloons:", g["balloons"])
+    assert lid["qty"] == 2 and lid["balloon"]["points_to"] == "I3" and g["balloons"]["ok"] and g["balloons"]["count"] == 2
+    # the size check of an assembly sheet: only its overall sizes (no part details)
+    print("  the check:", g["check"]["fully_dimensioned"], g["check"]["missing"], "|", g["check"].get("asks_for", "")[:50])
+    assert g["check"]["fully_dimensioned"] and g["check"].get("asks_for")
+    first = next(x["id"] for x in g["dims"] if x["auto"])
+    g2 = json.loads(ai("sheet_edit", remove=[first]))
+    g2 = json.loads(js("return window.__app.agentHandlers.get_sheet({}).then(r => r.text)"))
+    print("  an overall size removed:", g2["check"]["fully_dimensioned"], g2["check"]["missing"])
+    assert not g2["check"]["fully_dimensioned"] and len(g2["check"]["missing"]) == 1
+    ai("sheet_edit", restore=True)
+    time.sleep(0.4)
 
     # Pages: the set from here; a part's page opens its sheet, and shows the same set
     print("  pages:", [b.text.replace("\n", " ") for b in d.find_elements(By.CSS_SELECTOR, "#shLeft .sh-page")])

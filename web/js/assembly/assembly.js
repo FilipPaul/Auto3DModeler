@@ -307,6 +307,7 @@ export class Assembly {
       restore: async (s) => {
         this.doc.instances = s.instances; this.doc.mates = s.mates || []; this.doc.bolts = s.bolts || []; this.mode = 'idle'; this.bolt = null;
         this.syncDrills(); // the holes drilled for bolts: back as they were
+        this.tidyCopies(); // (⧉ its own part undone: its copy goes too)
         this.render();
         await this.refresh();
       },
@@ -406,7 +407,7 @@ export class Assembly {
         } },
         { icon: '⧉', label: t('Copy its coordinates'), title: xyz, run: () => { navigator.clipboard?.writeText(xyz).catch(() => {}); this.hooks.toast(`${t('Copied')}: ${xyz}`, 'info', 2500); } },
         { section: name(a) }] : []),
-      ...this.partItems(a),
+      ...this.partItems(a), // (the owner's choice: a click shows its actions in the table, as everywhere)
     ], t('Ctrl+click another part: what fits the two'));
   }
 
@@ -758,7 +759,7 @@ export class Assembly {
       const m = new THREE.Matrix4().fromArray(it.matrix), p = new THREE.Vector3().setFromMatrixPosition(m);
       const e = new THREE.Euler().setFromRotationMatrix(m, 'XYZ'), deg = (r) => Math.round((r * 180) / Math.PI * 10) / 10;
       const row = (k, v) => `<div class="field"><label>${k.toUpperCase()}</label><input type="number" step="any" data-k="${k}" value="${fmt(v)}"><span class="unit">mm</span></div>`;
-      const rot = (k) => `<div class="as-rot"><label>${k.toUpperCase()}</label>
+      const rot = (k) => `<div class="as-rot"><label>↻ ${k.toUpperCase()}</label>
         <input type="range" min="-180" max="180" step="1" list="as-ticks" data-rot="${k}" value="${deg(e[k])}">
         <input type="number" step="any" data-rotn="${k}" value="${fmt(deg(e[k]))}"><span class="unit">°</span></div>`;
       const freePlace = `${row('x', p.x)}${row('y', p.y)}${row('z', p.z)}
@@ -785,7 +786,7 @@ export class Assembly {
         ${this.jointsHtml(it.id)}
         <div class="row-actions wrap"><button class="btn small" data-a="joinThis">🔗 Join it to another part</button></div>
         ${this.hooks.duplicatePart ? '<div class="row-actions"><button class="btn small" data-a="ownPart" title="Copy its part as a new part of the project and use the copy here — then it can be changed alone (the other copies stay as they are)">⧉ Make it its own part</button></div>' : ''}
-        <div class="row-actions">${this.hooks.openPart ? `<button class="btn small primary" data-a="openPart" title="Open its part in its own tab (to change it — the assembly follows)">${this.kindOf(it.part) === 'assembly' ? '◇' : '◆'} Open its part</button>` : ''}<button class="btn small ${it.fixed ? 'on' : ''}" data-a="fix" title="${it.fixed ? 'Fixed in place: it is not moved by hand, joints bring the other parts to it — click to free it' : 'Fix it in place: it is not moved by hand, joints bring the other parts to it'}">📌 ${it.fixed ? 'Fixed' : 'Fix in place'}</button><button class="btn small" data-a="reset" title="Back to its place in its own model">Reset its place</button><button class="btn small danger" data-a="del">Take it out</button></div>`;
+        <div class="row-actions">${this.hooks.openPart ? `<button class="btn small primary" data-a="openPart" title="Open its part in its own tab (to change it — the assembly follows)">${this.kindOf(it.part) === 'assembly' ? '◇' : '◆'} ${esc(t('Open its part'))}</button>` : ''}<button class="btn small ${it.fixed ? 'on' : ''}" data-a="fix" title="${it.fixed ? 'Fixed in place: it is not moved by hand, joints bring the other parts to it — click to free it' : 'Fix it in place: it is not moved by hand, joints bring the other parts to it'}">📌 ${esc(t(it.fixed ? 'Fixed' : 'Fix in place'))}</button><button class="btn small" data-a="reset" title="Back to its place in its own model">Reset its place</button><button class="btn small danger" data-a="del">✕ ${esc(t('Take it out'))}</button></div>`;
       for (const inp of box.querySelectorAll('input[data-k]')) {
         inp.addEventListener('change', () => this.setPos(inp.dataset.k, inp.value));
         inp.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') inp.blur(); });
@@ -1429,8 +1430,13 @@ export class Assembly {
       const [sub, rest] = String(name).split(/\/(.*)/s), si = (this.hooks.partData(pid)?.instances || []).find((x) => x.id === sub);
       return `${this.partName(si?.part)} ${sub}: ${si ? this.partFaceText(si.part, rest) : rest}`;
     }
-    const feats = this.hooks.partData(pid)?.features || [];
+    const pd = this.hooks.partData(pid), feats = pd?.features || [];
     const [fid, role] = String(name).split(':'), g = feats.find((f) => f.id === fid);
+    if (pd?.library || g?.type === 'solid') { // a library or imported part: its steps' names mean nothing to the user — what the face is
+      const f = this.bodies[pid]?.body?.faces?.find((x) => x.name === name || (x.names || []).includes(name));
+      if (f?.type === 'cylinder' && f.radius) return t2('the round face Ø{d}', { d: fmt(+(2 * f.radius).toFixed(2)) });
+      if (f?.type === 'plane') return t('a flat face');
+    }
     if (fid === 'Q1') return `${t('face')} ${String(role).slice(1)}`;
     const what = { end: 'the top of', start: 'the bottom of', side: 'a wall of', hole: 'hole of', round: 'a rounding of', bottom: 'a hole bottom of' }[role] || 'a face of';
     return g ? `${t(what)} ${g.name}` : name;
@@ -1442,6 +1448,7 @@ export class Assembly {
     if (!all.length) return id === null ? '' : '<p class="hint">Not joined to anything — it stays where you put it.</p>';
     const fast = (m) => this.inst(m.move)?.fastener?.id, groups = [...new Set(all.map(fast).filter(Boolean))];
     const js = all.filter((m) => !fast(m)), bad = all.filter((m) => this.health?.get(m.id)?.ok === false).length;
+    const dbl = esc(t('Double-click: give it your own name')); // (translated here: a joint's own name is not, nor its tooltip then)
     const fRow = (gid) => {
       const f = this.doc.instances.find((i) => i.fastener?.id === gid).fastener, mine = (this.doc.mates || []).filter((m) => fast(m) === gid);
       const into = [...new Set(mine.map((m) => m.onto).filter((x) => !this.inst(x)?.fastener))].map((x) => this.partName(this.inst(x)?.part));
@@ -1460,7 +1467,7 @@ export class Assembly {
         : `${m.type === 'angle' ? `<label class="as-jv">∠ <input type="number" step="any" data-jval="${m.id}" value="${fmt(m.value || 0)}"> °</label>` : ''}<button class="mini" data-jflip="${m.id}" title="Turn it the other way round">⇅</button>`;
       const spin = Math.round(Number.isFinite(m.angle) ? m.angle : this.spinNow(m)), why = this.whyNot(m);
       const turns = m.type !== 'parallel', rot = Number.isFinite(m.angle);
-      return `<div class="as-jrow ${m.broken || why ? 'bad' : ''} ${m.locked ? 'locked' : ''}" data-jrow="${m.id}"><span class="as-jt">${t.icon} <span class="as-jname ${m.name ? 'own' : ''}" data-jname="${m.id}" title="Double-click: give it your own name" ${m.name ? 'data-no-i18n' : ''}>${esc(m.name || t.name)}</span> <i>${m.id}</i></span>
+      return `<div class="as-jrow ${m.broken || why ? 'bad' : ''} ${m.locked ? 'locked' : ''}" data-jrow="${m.id}"><span class="as-jt">${t.icon} <span class="as-jname ${m.name ? 'own' : ''}" data-jname="${m.id}" title="${dbl}" ${m.name ? 'data-no-i18n' : ''}>${esc(m.name || t.name)}</span> <i>${m.id}</i></span>
         <span class="as-jw"><b data-no-i18n>${esc(this.partName(a?.part))}</b> <i>${m.move}</i> · ${esc(this.faceText(m.move, m.face))} → <b data-no-i18n>${esc(this.partName(b?.part))}</b> <i>${m.onto}</i> · ${esc(this.faceText(m.onto, m.ontoFace))}${m.broken ? ' — ⚠ a face is gone' : ''}</span>
         ${why ? `<span class="as-jwhy" data-no-i18n>⚠ ${esc(why)}</span>` : ''}
         ${val}<span class="as-jbtn"><button class="mini ${m.locked ? 'on' : ''}" data-jlock="${m.id}" title="${m.locked ? 'Locked: moving the part by hand cannot break it — click to unlock' : 'Lock it: then it cannot be broken by moving the part'}">${m.locked ? '🔒' : '🔓'}</button><button class="mini danger" data-jdel="${m.id}" title="Remove this joint (the part stays where it is)" ${m.locked ? 'disabled' : ''}>✕</button></span>
@@ -1965,11 +1972,27 @@ export class Assembly {
     if (!it || !this.hooks.duplicatePart) return null;
     const id = await this.hooks.duplicatePart(it.part);
     if (!id) return null;
+    this.copies = { ...(this.copies || {}), [id]: { asm: this.hooks.selfId?.(), data: JSON.stringify(this.hooks.partData(id)) } }; // (an undo takes it away again)
     it.part = id;
     await this.refresh();
     this.commit();
     this.hooks.toast(t2('{inst} now has a part of its own: {name} — change it without changing the others.', { inst: instId, name: this.partName(id) }), 'ok', 5000);
     return id;
+  }
+
+  /** After an undo / redo: a copy ⧉ Make it its own part made goes out of the project when nothing uses it any more and
+   *  it was not changed; a redo brings it back. */
+  tidyCopies() {
+    const self = this.hooks.selfId?.();
+    for (const [id, c] of Object.entries(this.copies || {})) {
+      if (c.asm !== self) continue;
+      const used = this.doc.instances.some((i) => i.part === id);
+      if (used && c.taken) { this.hooks.putPartBack?.(c.taken); c.taken = null; continue; }
+      if (used || c.taken || JSON.stringify(this.hooks.partData(id)) !== c.data) continue;
+      const name = this.partName(id);
+      c.taken = this.hooks.takePart?.(id) || null;
+      if (c.taken) this.hooks.toast(t2('{name} (the copy made for it) is out of the project again.', { name }), 'info', 4000);
+    }
   }
 
   /** ＋ Insert part ▾ From a file (or a file dropped on the view): a STEP / IGES / STL / OBJ becomes a 3D model part of the
@@ -2216,7 +2239,7 @@ export class Assembly {
     for (const m of mine) { // first what the joints suggest: along / about their axis, along / about their face
       let fA;
       try { fA = this.worldFace(m.onto, m.ontoFace); } catch { continue; }
-      const what = this.faceText(m.onto, m.ontoFace), part = this.partName(this.inst(m.onto)?.part);
+      const what = m.name ? `“${m.name}”` : this.faceText(m.onto, m.ontoFace), part = this.partName(this.inst(m.onto)?.part); // (the joint's own name when the user gave it one)
       if (fA.axis) {
         cands.push({ kind: 'move', dir: fA.axis.d.clone(), key: `${m.id}:along`, ref: m.id, label: t2('Along the axis of {face} ({part})', { face: what, part }) });
         cands.push({ kind: 'turn', dir: fA.axis.d.clone(), point: fA.axis.o.clone(), key: `${m.id}:turn`, ref: m.id, label: t2('Turn about the axis of {face} ({part})', { face: what, part }) });

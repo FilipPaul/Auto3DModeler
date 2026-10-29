@@ -288,6 +288,24 @@ export class Project {
     this.undoTimer = setTimeout(() => { this.lastDeleted = null; this.render(); }, 30000);
   }
 
+  /** A part taken out of the project without asking (an undo took away what made it: ⧉ Make it its own part's
+   *  copy) -> {p, at} for putBack, or null (it is on screen). */
+  take(id) {
+    const p = this.parts.find((q) => q.id === id);
+    if (!p || p.id === this.active || this.busy) return null;
+    const at = this.parts.indexOf(p);
+    this.parts.splice(at, 1);
+    this.render();
+    return { p, at };
+  }
+
+  /** A part taken back where it was (a redo). */
+  putBack({ p, at }) {
+    if (this.parts.some((q) => q.id === p.id)) return;
+    this.parts.splice(Math.min(at, this.parts.length), 0, p);
+    this.render();
+  }
+
   /** ↶ The part deleted last back where it was (with its data; assemblies that used it find it again). */
   undoDelete() {
     const d = this.lastDeleted;

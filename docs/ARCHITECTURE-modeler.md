@@ -99,6 +99,33 @@ Date: 2026-10-25. Written by the architect agent.
   assembly face — its joints (touch / gap / flush / concentric / tangent) first, the part's actions under them.
   e2e_suggest (14 checks), e2e_sketch_multiselect, e2e_model_split / threads updated. Not done: a drawing sheet has
   no suggestions table (nothing to rank); "Extrude this face" is not a command yet.
+- **A placed part's panel in Czech, each action once done** (AI report 2026-10-29-015647): the panel's "◆ Open its
+  part", "📌 Fix in place" were one text with their icon (not in the dictionary: English) — now t() on the words; the
+  joint names' tooltip translated before data-no-i18n (a named joint's) skips it; the suggestions table left out the
+  chosen part's actions the panel already has (Assembly.inPanel: chosen alone, not an inner part, no paint / bolt); the
+  turn rows read ↻ X / ↻ Y / ↻ Z and gui_state names a row's inputs by it (.as-rot; an empty label: the row's name, not
+  "input"); a motion is named by its joint's own name, a library / imported part's face by what it is
+  (partFaceText: "the round face Ø22", "a flat face"). tools/e2e_assembly_panel_cs.py.
+
+- **gui_action safe with changed panels; ⧉ its own part undone takes the copy done** (AI report 2026-10-29-015635):
+  the AI gave a value to control n 63 — a slider in its last gui_state, a button after a part was chosen — and the
+  button was clicked (a copy made). Now a value for a button (or anything but a slider / box / choice; a checkbox takes
+  true / false) is refused, nothing done; every gui_action answer whose controls changed has `controls` with their new
+  numbers. Undo of ⧉ Make it its own part: Assembly.tidyCopies after each undo / redo takes the copy out of the project
+  (project.take) while no assembly uses it and it is unchanged; a redo puts it back (putBack). tools/e2e_ai_gui.py.
+
+- **Assembly sheet: balloons on a bare face, checked; only overall sizes asked done** (AI reports 2026-10-28-042725,
+  2026-10-29-015608): a balloon's leader ended at the middle of its part's box — a base plate's under the rod lying on
+  it, next to the rod's own. sheet._shown_spots: a depth buffer of the iso view (points strewn over each part's coarse
+  triangles, kernel.view_triangles; 220 cells across), each part's spot inside its largest patch no other part hides,
+  apart from the spots taken before (the least seen first) -> marks[id].Iso and .seen (mm² seen); a big assembly drawn
+  from its mesh keeps the middles. sheet.js: an item's one balloon on its copy that shows most (a sub-assembly: on its
+  part that shows most). get_sheet: parts_list[].balloon {at_mm, leader_to_mm, points_to} and balloons {count, ok,
+  problems: a pos twice, a qty not what the level places, an item with no balloon}. check() on an assembly sheet
+  (asmCheck): only the overall length / width / height (a part's holes, radii and edges belong on its own sheet).
+  test_balloon_spot_on_a_bare_face, test_assembly_sheet_exploded; tools/e2e_assembly_sheet.py (2 Lids: one item, qty
+  2, its balloon on the visible one; an overall size removed: just that one missing).
+
 - **A threaded part's volume integrated once done:** kernel.volume keeps the last 4 shapes' volumes — the part with
   🔩 real threads was integrated after its cut (the check that something was cut) and again when meshed (the adaptive
   rule on helical faces: ~3 s). The 29-step model with 9 real threads (tools/e2e_perf.py model): its rebuild after a

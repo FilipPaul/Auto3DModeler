@@ -1098,6 +1098,15 @@ def print_triangles(shape, tol=0.01, angle=0.2):
     return np.concatenate(tris) if tris else np.zeros((0, 3, 3))
 
 
+def view_triangles(shape, tol):
+    """Coarse triangles (n, 3, 3) of a shape as placed, for what a view sees of it (a finer mesh it has is kept, not
+    cleaned away as print_triangles does)."""
+    BRepMesh_IncrementalMesh(shape, float(tol), False, 0.5, True)
+    fm = _face_map(shape)
+    tris = [_face_triangles(TopoDS.Face(fm.FindKey(i))) for i in range(1, fm.Extent() + 1)]
+    return np.concatenate(tris) if tris else np.zeros((0, 3, 3))
+
+
 def combine(body, tool, op):
     """body ∪ tool or body − tool, names of both carried over."""
     if body is None:

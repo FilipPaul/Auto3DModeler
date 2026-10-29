@@ -6,6 +6,8 @@ Run:  python -m unittest discover -s tests -v
 import math
 import unittest
 
+import numpy as np
+
 from auto3d.modeler import available
 from test_modeler_kernel import watertight
 
@@ -1179,9 +1181,31 @@ class TestAssemblySheet(unittest.TestCase):
         self.assertEqual(len(r["dims"]), 3)  # its overall sizes
         self.assertIn("Iso", r["marks"]["I1"])
 
+    def test_balloon_spot_on_a_bare_face(self):
+        """A rod lying across the middle of a base plate: the plate's middle is under the rod in the iso view, so its
+        balloon's spot is on the plate's bare top, outside the rod's outline there, and away from the rod's own spot;
+        how much of each shows (the plate more than the rod)."""
+        from auto3d.modeler import sheet as S
+        at = lambda x, y=0, z=0: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1]  # noqa: E731
+        r = doc.assembly_sheet([{"id": "I1", "part": {"features": box(100, 60, 5)}, "matrix": at(0)},
+                                {"id": "I2", "part": {"features": box(90, 10, 6)}, "matrix": at(5, 25, 5)}])
+        R, U = (np.asarray(v, float) for v in S.ISO_VIEW[1:])
+        iso = lambda p: np.array([np.dot(p, R), np.dot(p, U)])  # noqa: E731
+        middle = iso([50, 30, 2.5])
+        plate, rod = np.array(r["marks"]["I1"]["Iso"]), np.array(r["marks"]["I2"]["Iso"])
+        self.assertGreater(np.linalg.norm(plate - middle), 10)  # (no longer the plate's middle, under the rod)
+        self.assertGreater(np.linalg.norm(plate - rod), 15)
+        # the plate's spot is outside the rod's outline (the hull of its corners) in the iso view
+        from shapely.geometry import MultiPoint, Point
+        corners = [iso([x, y, z]) for x in (5, 95) for y in (25, 35) for z in (5, 11)]
+        self.assertFalse(MultiPoint([tuple(c) for c in corners]).convex_hull.buffer(0.5).contains(Point(*plate)))
+        self.assertTrue(MultiPoint([tuple(c) for c in corners]).convex_hull.contains(Point(*rod)))
+        self.assertGreater(r["marks"]["I1"]["seen"], r["marks"]["I2"]["seen"])
+        self.assertEqual(r["marks"]["I1"]["Front"], [50, 2.5])  # (the other views: the middles, as before)
+
     def test_assembly_sheet_exploded(self):
         """explode 1: the iso view drawn with the two stacked blocks pulled apart (its outline taller, the marks apart
-        in it), the front view as assembled."""
+        in it, the lower block's top bare then: more of it seen), the front view as assembled."""
         part = {"features": box(20, 20, 10)}
         at = lambda x, y=0, z=0: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1]  # noqa: E731
         inst = [{"id": "I1", "part": part, "matrix": at(0)}, {"id": "I2", "part": part, "matrix": at(0, 0, 10)}]
@@ -1190,7 +1214,8 @@ class TestAssemblySheet(unittest.TestCase):
         tall = lambda r: (lambda ys: max(ys) - min(ys))([p[1] for pl in r["geometry"]["iso"] for p in pl])  # noqa: E731
         self.assertGreater(tall(r1), tall(r0) + 5)  # (12 more along z: 2 × 1.2 × 5, foreshortened in the iso)
         gap = lambda r: abs(r["marks"]["I2"]["Iso"][1] - r["marks"]["I1"]["Iso"][1])  # noqa: E731
-        self.assertGreater(gap(r1), gap(r0) + 5)
+        self.assertGreater(gap(r1), 15)
+        self.assertGreater(r1["marks"]["I1"]["seen"], 1.3 * r0["marks"]["I1"]["seen"])
         self.assertEqual(r1["marks"]["I2"]["Front"], r0["marks"]["I2"]["Front"])
 
     def test_drawing_set_pdf(self):

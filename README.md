@@ -591,7 +591,10 @@ offer in a click.
 **📄 Drawing** in an assembly's toolbar (or *📄 Drawing sheet* in its panel) opens the **assembly's own drawing sheet**
 to edit: its front, top and iso views, overall sizes, parts list and balloons — move them, add your dimensions and
 texts, **drag the balloons** where you want them (they start spread round the view); it follows the assembly (a moved
-part: a new revision). Its **Pages** list — on every page of the set, the part's sheets too — shows the whole set
+part: a new revision). Each part is one item of its level's parts list (two of the same screw: one item, qty 2; a
+sub-assembly: one item, its parts on its own page) with **one balloon**, on the copy that shows most — its leader ends
+on a face of that part no other part hides, apart from the other leaders. Its size check asks only for the assembly's
+overall sizes; the parts' details belong on their own sheets. Its **Pages** list — on every page of the set, the part's sheets too — shows the whole set
 (the assembly, its sub-assemblies, their parts) with this page marked; a click opens that page's drawing sheet (made
 when it has none). **📚 All pages** shows the set one page below the other to scroll through, like a PDF: Pages marks
 the page in sight, a click in Pages goes to it, a double-click on a page opens it to edit. The drawing set below uses these sheets.
@@ -777,11 +780,14 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   faces: ◎ Concentric; two flat: Touch, Flush, Gap, Parallel …; round and flat: Tangent) — one click makes it.
 - **📌 Fixed in place**: the first part put in an assembly is fixed (📌 in the list): it is not moved by hand, and a
   joint made from it moves the other part. 📌 in a part's panel (or the Suggested table) fixes or frees any part.
+  A chosen part's actions are in its panel only (the Suggested table leaves them out — each action once on screen);
+  its free motions are named by the joint's own name when you gave it one, a library or imported part's face by what
+  it is ("the round face Ø22"), not by its steps' names; the turn sliders under X / Y / Z are ↻ X / ↻ Y / ↻ Z.
 - **📏 Measure** (assembly): click a spot, then another — the distance and Δx / Δy / Δz (corners snap); two parallel
   flat faces also give the gap between them, two round faces how far apart their axes are.
 - **⧉ Duplicate as a new part** (a 3D model's *Part* panel) copies it into a new, independent part (its own tab);
-  in an assembly **⧉ Make it its own part** gives a placed part a copy of its own, to change it alone. The AI:
-  `duplicate_part`.
+  in an assembly **⧉ Make it its own part** gives a placed part a copy of its own, to change it alone (↶ undo
+  takes the copy out of the project again while nothing else uses it and it was not changed). The AI: `duplicate_part`.
 - **A STEP file's colours** (of its components, bodies and faces) come with it — in the modeler and in assemblies;
   your own 🎨 paint goes over them, and *Keep the file's colours* (in its solid step) turns them off.
 - **Deleting a step others stand on** (e.g. an imported model you sketched on): *Keep them where they are* leaves a
@@ -954,7 +960,8 @@ can open them.
   out or not) so the AI can tell you exactly where something is; `gui_action` clicks or slides one the way the mouse
   does — so it can check the app behaves like its tools. It also clicks, double-clicks or drags **at a point** of the
   view (picking a part or a face in 3D, a dimension, view or title cell on a drawing sheet — `at_mm` on the paper) and
-  presses **keys** (Delete, Enter, Escape, ctrl+z); a sheet's dimensions, views and title cells are listed too. A **locked 🔒 joint** is greyed out in the panel (only 🔒
+  presses **keys** (Delete, Enter, Escape, ctrl+z). A value given to a button is refused (nothing clicked), and when
+  the controls on screen change (a part chosen: its panel) the answer lists them with their new numbers; a sheet's dimensions, views and title cells are listed too. A **locked 🔒 joint** is greyed out in the panel (only 🔒
   unlocks it) and the AI cannot change it either.
 - **The AI shows you where**: ask "how do I add a hole?", "where is the pattern?" or "show me" and Claude leads you
   through the app's own buttons step by step (`gui_highlight`): a pulsing ring around the control (or a spot of the 3D

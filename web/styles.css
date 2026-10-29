@@ -638,7 +638,7 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .m-dimedit-row input { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; color: inherit; padding: 3px 6px; }
 .m-dimedit input[type=range] { width: 100%; margin: 0; box-sizing: border-box; }
 .m-dimedit-acts { display: flex; gap: 6px; }
-.as-rot { display: grid; grid-template-columns: 18px 1fr 62px auto; align-items: center; gap: 6px; margin: 3px 0; font-size: 12px; }
+.as-rot { display: grid; grid-template-columns: 26px 1fr 62px auto; align-items: center; gap: 6px; margin: 3px 0; font-size: 12px; }
 .as-rot input[type=number] { width: 100%; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; color: inherit; padding: 2px 4px; }
 .as-joints { display: flex; flex-direction: column; gap: 4px; }
 #asmRight .row-actions { flex-wrap: wrap; justify-content: flex-start; } /* (a part's buttons wrap in a narrow panel, none cut off) */

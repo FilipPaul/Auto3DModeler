@@ -42,11 +42,14 @@ export function guiControls(where = 'all') {
     if (seen.has(el) || el.closest('#aiDrawer, #tab-ai, .ai-drawer') || !shown(el)) continue;
     if (el.tagName === 'INPUT' && el.type === 'hidden') continue;
     seen.add(el);
-    const lab = el.closest('label'), row = el.closest('[data-jrow], .as-dof, .field');
+    const lab = el.closest('label'), row = el.closest('[data-jrow], .as-dof, .as-rot, .field');
     const isPart = el.matches('.as-list .mt-item'), isStep = el.matches('#modelLeft .mt-item'); // (an assembly's part, a model's step)
     let label = (isPart || isStep ? `${el.querySelector('.mt-name')?.textContent || ''} ${el.querySelector('.mt-what')?.textContent || ''}${isStep ? ` [${el.dataset.id}]` : ''}`
       : el.tagName === 'INPUT' || el.tagName === 'SELECT' ? (lab?.textContent || el.placeholder || el.dataset.k || '') : el.textContent || el.title || '').replace(/\s+/g, ' ').trim();
-    if ((el.tagName === 'INPUT' || el.tagName === 'SELECT') && row && row !== lab) label = `${(row.querySelector('label, .as-jt')?.textContent || '').replace(/\s+/g, ' ').trim()} › ${label}`.trim();
+    if ((el.tagName === 'INPUT' || el.tagName === 'SELECT') && row && row !== lab) { // (its row's name first: "↻ X", a joint's, a motion's)
+      const name = (row.querySelector('label, .as-jt')?.textContent || '').replace(/\s+/g, ' ').trim();
+      label = label && label !== name ? `${name} › ${label}`.trim() : name;
+    }
     const dimRow = el.tagName === 'BUTTON' && el.closest('.sk-dim, .sk-label'); // (a sketch dimension's 🔒 / 🔓 / ✕: which one)
     if (dimRow) label = `${(dimRow.querySelector('.sk-val, :scope > span')?.textContent || '').replace(/\s+/g, ' ').trim()} › ${label}`;
     if (!label) label = el.getAttribute('aria-label') || el.title || el.className || el.tagName.toLowerCase();
@@ -288,6 +291,10 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       const shown = () => ({ workspace: state.workspace, selected: state.workspace === 'assembly' ? assembly.sel || null : state.workspace === 'sheet' ? sheet.sel || null : undefined,
         toasts: [...document.querySelectorAll('.toast')].map((x) => x.textContent.trim()).slice(-3) });
       const settle = () => new Promise((r) => setTimeout(r, 400));
+      // the controls changed by it (a part chosen: its panel): the list with their new numbers comes with the answer
+      const sig = (list) => list.map((x) => `${x.kind}|${x.label}`).join('\n');
+      const fresh = (was) => { const list = guiControls('all'); return sig(list) === was ? {} : { controls_changed: 'the controls on screen changed — their numbers now (gui_state\'s were before):', controls: list.map(({ el, title, ...x }) => x) }; };
+      const before = sig(guiControls('all'));
       let c = null;
       if (control !== undefined && control !== null && control !== '') {
         const list = guiControls('all'), want = String(control).trim().toLowerCase();
@@ -318,22 +325,27 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         await gesture(to ? [from, to] : [from], { double: !!double });
         if (keys) press(keys);
         await settle();
-        return ok({ done: `${double ? 'double-clicked' : to ? 'dragged' : 'clicked'} ${under}${to ? ` to ${underAt(...to)}` : ''}${keys ? `, then ${keys}` : ''}`, ...shown() });
+        return ok({ done: `${double ? 'double-clicked' : to ? 'dragged' : 'clicked'} ${under}${to ? ` to ${underAt(...to)}` : ''}${keys ? `, then ${keys}` : ''}`, ...shown(), ...fresh(before) });
       }
       if (!c) {
         if (!keys) throw new Error('control (from gui_state), a point (at / at_mm) or a key.');
         press(keys);
         await settle();
-        return ok({ done: `pressed ${keys}`, ...shown() });
+        return ok({ done: `pressed ${keys}`, ...shown(), ...fresh(before) });
       }
       const el = c.el;
       if (keys) {
         el.focus();
         press(keys);
         await settle();
-        return ok({ done: `pressed ${keys} on ${c.kind} “${c.label}”`, ...shown() });
+        return ok({ done: `pressed ${keys} on ${c.kind} “${c.label}”`, ...shown(), ...fresh(before) });
       }
-      if (value !== undefined && value !== null && /^(range|number|text|color)$/.test(el.type || '') || el.tagName === 'SELECT') {
+      const typed = /^(range|number|text|color)$/.test(el.type || '') || el.tagName === 'SELECT', given = value !== undefined && value !== null;
+      if (given && !typed) { // (a value for a button: the panel changed under the AI's numbers — never click it then)
+        const on = c.kind === 'checkbox' && [true, false, 'on', 'off', 'true', 'false', 1, 0].includes(value);
+        if (!on) throw new Error(`n ${c.n} is a ${c.kind} (“${c.label}”), not a slider, box or choice — nothing done. The controls may have changed since gui_state: call it again for the numbers now.`);
+        if (el.checked !== [true, 'on', 'true', 1].includes(value)) el.click(); // (a checkbox set on / off)
+      } else if (given) {
         el.value = value;
         el.dispatchEvent(new Event('input', { bubbles: true }));
         el.dispatchEvent(new Event('change', { bubbles: true }));
@@ -342,7 +354,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         el.click();
       }
       await settle();
-      return ok({ done: `${c.kind} “${c.label}”${value !== undefined ? ` = ${value}` : ' clicked'}`, ...shown() });
+      return ok({ done: `${c.kind} “${c.label}”${given ? ` = ${value}` : ' clicked'}`, ...shown(), ...fresh(before) });
     },
 
     // ---------------------------------------------------------------- drawing sheets (📄)

@@ -34,6 +34,9 @@ maker numbers.
   dimension the preset left out, `sheet_edit {remove: [...]}` for clutter; then `export {format: "pdf"}` on the sheet (and `"dxf"` when the
   user's drafting program — AutoCAD, SolidWorks, Solid Edge — should take it: the paper 1:1, real dimensions).
   Say the material and the finish (e.g. "AlMg3, anodised").
+  The assembly's sheet: its check asks only for the overall sizes (no part details — those are on the parts' sheets);
+  `get_sheet` lists its balloons (each parts_list row's balloon: the copy it points at, where its leader ends) and
+  checks them (balloons: ok, problems — a pos given twice, a qty that is not what this level places, an item without one).
   The title block: `get_sheet` reports its `template` and the ones there are; on the assembly's sheet
   `sheet_edit {template: "<name>", template_all: true}` puts the user's template (company, logo, frame) on every drawing
   of the set (new ones take it too); `sheet_edit {texts: {company, address}, save_template: "<name>"}` makes one. Its look:
