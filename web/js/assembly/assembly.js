@@ -32,7 +32,7 @@ import { accelerate } from '../modeler/bvh.js';
 import { fetchRebuild } from '../modeler/packed.js';
 import { newRid, trackProgress, cancelRid, wasCancelled } from '../progressbox.js';
 import { threadSegments } from '../modeler/view.js';
-import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss } from './joints.js';
+import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss, frameNow, slideNow } from './joints.js';
 import { snapNear, snapPoints } from '../modeler/view.js';
 import { showSuggest, showSnapFilters, snapKinds, hoverKinds } from '../suggest.js';
 import { floatBox } from '../floatbox.js';
@@ -547,6 +547,23 @@ export class Assembly {
     this.commit();
   }
 
+  /** 🔗 Part `a` fixed to part `b` as they are now (a rigid joint: it goes with b, no motion of its own; a 📌 fixed
+   *  part stays: the other one is fixed to it). Faces: what anchors it (each part's biggest face when not given). One
+   *  undo step -> the joint, or null. */
+  fixTogether(a, b, aFace = null, bFace = null) {
+    const big = (id) => [...(this.bodyOf(this.inst(id))?.body?.faces || [])].sort((p, q) => q.area - p.area)[0]?.name;
+    if (!this.inst(a) || !this.inst(b) || a === b) throw new Error('Fix one part to another part.');
+    const nj = this.addJoint({ inst: a, face: { name: aFace || big(a) } }, { inst: b, face: { name: bFace || big(b) } }, 'rigid');
+    if (!nj) return null;
+    Object.assign(nj, frameNow(this.worldFace(nj.move, nj.face), this.worldFace(nj.onto, nj.ontoFace)));
+    this.applyMates();
+    this.sel = nj.move;
+    this.sel2 = null;
+    this.hooks.toast(t2('{a} is fixed to {b}: it goes with it, it has no motion of its own (✕ the joint frees it; Ctrl+Z: back).', { a: this.partName(this.inst(nj.move)?.part), b: this.partName(this.inst(nj.onto)?.part) }), 'ok', 5000);
+    this.commit();
+    return nj;
+  }
+
   /** The suggestions table (bottom left of the view) for the chosen part — or the two chosen with Ctrl+click. */
   renderSuggest() {
     const vp = this.els.viewport, a = this.inst(this.sel), b = this.inst(this.sel2);
@@ -563,6 +580,8 @@ export class Assembly {
         ...pins.slice(0, 1).map((f) => this.pinItem(f, -2)),
         ...(on ? [this.restItem(on, -1)] : []),
         { icon: '🔗', label: t('Join them'), title: t('Pick a face of each — touch, gap, flush, a pin in a hole …'), run: () => this.startJoint('touch', a.id) },
+        ...(a.fixed && b.fixed ? [] : [{ icon: '🔗', label: t2('Fix {a} to {b}', { a: this.partName((a.fixed ? b : a).part), b: this.partName((a.fixed ? a : b).part) }), rank: 0.5,
+          title: t('Fixed together, as they are now: it goes with the other part and has no motion of its own'), run: () => this.fixTogether(a.id, b.id) }]),
         { icon: '📏', label: t('Measure between them'), run: () => this.toggleMeasure() },
         { icon: '⚠', label: t('Check for collisions'), run: () => this.checkClashes() },
         { icon: '◆', label: `${t('Only')} ${name(a)}`, run: () => this.choose(a.id) },
@@ -1819,7 +1838,7 @@ export class Assembly {
     if (!all.length) return id === null ? '' : '<p class="hint">Not joined to anything — it stays where you put it.</p>';
     const fast = (m) => this.inst(m.move)?.fastener?.id, groups = [...new Set(all.map(fast).filter(Boolean))];
     const js = all.filter((m) => !fast(m)), bad = all.filter((m) => this.health?.get(m.id)?.ok === false).length;
-    const dbl = esc(t('Double-click: give it your own name')); // (translated here: a joint's own name is not, nor its tooltip then)
+    const dbl = esc(t('Double-click: give it your own name')), asThey = esc(t('as they are')); // (translated here: a joint's own name is not, nor its tooltip then)
     const fRow = (gid) => {
       const f = this.doc.instances.find((i) => i.fastener?.id === gid).fastener, mine = (this.doc.mates || []).filter((m) => fast(m) === gid);
       const into = [...new Set(mine.map((m) => m.onto).filter((x) => !this.inst(x)?.fastener))].map((x) => this.partName(this.inst(x)?.part));
@@ -1839,7 +1858,7 @@ export class Assembly {
       const spin = Math.round(Number.isFinite(m.angle) ? m.angle : this.spinNow(m)), why = this.whyNot(m);
       const turns = !['parallel', 'ball', 'seat', 'rigid'].includes(m.type), rot = Number.isFinite(m.angle); // (a ball turns any way: its moves in the part's panel)
       return `<div class="as-jrow ${m.broken || why ? 'bad' : ''} ${m.locked ? 'locked' : ''}" data-jrow="${m.id}"><span class="as-jt">${t.icon} <span class="as-jname ${m.name ? 'own' : ''}" data-jname="${m.id}" title="${dbl}" ${m.name ? 'data-no-i18n' : ''}>${esc(m.name || t.name)}</span> <i>${m.id}</i></span>
-        <span class="as-jw"><b data-no-i18n>${esc(this.partName(a?.part))}</b> <i>${m.move}</i> · ${esc(this.faceText(m.move, m.face))} → <b data-no-i18n>${esc(this.partName(b?.part))}</b> <i>${m.onto}</i> · ${esc(this.faceText(m.onto, m.ontoFace))}${m.broken ? ' — ⚠ a face is gone' : ''}</span>
+        <span class="as-jw"><b data-no-i18n>${esc(this.partName(a?.part))}</b> <i>${m.move}</i>${m.type === 'rigid' ? '' : ` · ${esc(this.faceText(m.move, m.face))}`} → <b data-no-i18n>${esc(this.partName(b?.part))}</b> <i>${m.onto}</i>${m.type === 'rigid' ? ` · ${asThey}` : ` · ${esc(this.faceText(m.onto, m.ontoFace))}`}${m.broken ? ' — ⚠ a face is gone' : ''}</span>
         ${why ? `<span class="as-jwhy" data-no-i18n>⚠ ${esc(why)}</span>` : ''}
         ${val}<span class="as-jbtn"><button class="mini ${m.locked ? 'on' : ''}" data-jlock="${m.id}" title="${m.locked ? 'Locked: moving the part by hand cannot break it — click to unlock' : 'Lock it: then it cannot be broken by moving the part'}">${m.locked ? '🔒' : '🔓'}</button><button class="mini danger" data-jdel="${m.id}" title="Remove this joint (the part stays where it is)" ${m.locked ? 'disabled' : ''}>✕</button></span>
         ${this.gapSlider(m)}
@@ -2496,7 +2515,7 @@ export class Assembly {
     if (same) {
       const was = t((JOINT_TYPES[same.type || 'touch'] || JOINT_TYPES.touch).name), now = t(JOINT_TYPES[type].name);
       if (same.locked) { this.hooks.toast(t2('These two faces are joined already by {id} ({type}), locked 🔒 — unlock it to change it.', { id: same.id, type: was }), 'warning', 5000); return false; }
-      for (const k of ['flip', 'value', 'dist', 'side', 'angle']) delete same[k];
+      for (const k of ['flip', 'value', 'dist', 'side', 'angle', 'rot', 'pos', 'slides']) delete same[k];
       Object.assign(same, { type, gap: +gap || 0 });
       this.hooks.toast(t2('These two faces were joined already ({id}, {was}) — that joint is now {type}, not a second one.', { id: same.id, was, type: now }), 'info', 5000);
       return same;
@@ -3314,7 +3333,7 @@ export class Assembly {
   jointHint() {
     const t = JOINT_TYPES[this.jointType], f0 = this.jointFrom?.face;
     const what = t.faces === 'cylinder' ? 'a round face' : t.faces === 'mixed' ? (this.mode === 'joint-to' ? (f0?.type === 'cylinder' ? 'a flat face' : 'a round face') : 'a round or a flat face')
-      : t.faces === 'ball' ? (this.mode === 'joint-to' && f0?.type !== 'sphere' ? 'the ball' : this.mode === 'joint-to' ? 'a hole, a cone or a ball' : 'a ball, or a hole / cone it sits in') : 'a flat face';
+      : t.faces === 'ball' ? (this.mode === 'joint-to' && f0?.type !== 'sphere' ? 'the ball' : this.mode === 'joint-to' ? 'a hole, a cone or a ball' : 'a ball, or a hole / cone it sits in') : t.faces === 'part' ? 'any face' : 'a flat face';
     if (t.faces === 'any' && this.mode === 'joint-from') {
       this.hint(`${t.icon} ${t.name}: click where it goes in — a point on a flat face (the holes are drilled for it), or a hole that is there. Esc cancels.`);
       this.renderBar();
@@ -3333,7 +3352,9 @@ export class Assembly {
     const want = JOINT_TYPES[this.jointType].faces;
     // a screw / pin: the second part is clicked anywhere (its hole is often hidden under the first part)
     if (this.jointType === 'fastener' && this.mode === 'joint-to') return h.inst !== this.jointFrom?.inst;
-    if (want === 'ball') { // a ball and a hole / cone / ball — one of the two a ball
+    if (want === 'part') { // 🔗 fixed together: any face of each part
+      // (any face will do)
+    } else if (want === 'ball') { // a ball and a hole / cone / ball — one of the two a ball
       if (!['sphere', 'cylinder', 'cone'].includes(h.face.type)) return false;
       if (this.mode === 'joint-to' && h.face.type !== 'sphere' && this.jointFrom?.face?.type !== 'sphere') return false;
     } else if (want === 'any' || want === 'mixed') {
@@ -3395,6 +3416,15 @@ export class Assembly {
     }
     const type = this.jointType;
     if (type === 'fastener') { this.fastenerAt(this.jointFrom, h); return; }
+    if (type === 'rigid') { // 🔗 fixed together, as they are
+      const from = this.jointFrom;
+      this.mode = 'idle';
+      this.jointFrom = null;
+      this.hoverFace = null;
+      this.hint('');
+      this.fixTogether(from.inst, h.inst, from.face?.name, h.face?.name);
+      return;
+    }
     const mover = this.inst(this.jointFrom.inst)?.fixed ? h.inst : this.jointFrom.inst, placed = (this.doc.mates || []).some((m) => m.move === mover);
     const before = new Set(this.unmet().map((m) => m.id)), had = new Set((this.doc.mates || []).map((m) => m.id)), nj = this.addJoint(this.jointFrom, h, type, type === 'gap' ? 5 : 0);
     let kept = null;
@@ -3732,6 +3762,12 @@ export class Assembly {
           this.applyMates();
           this.commit();
           return { text: `${c.id} ${type}: ${c.a} ↔ ${c.b}, ${ratioText(c)} — move_free / drive_mechanism one of them, the other follows. ${JSON.stringify(this.summary())}` };
+        }
+        if (type === 'rigid') { // 🔗 fixed together as they are: faces not needed
+          const nj = this.fixTogether(move?.part, onto?.part, move?.face || null, onto?.face || null);
+          if (!nj) throw new Error('Not fixed: the other part already hangs on this one, or both are 📌 fixed.');
+          if (name) { nj.name = String(name).trim(); this.commit(); }
+          return { text: `${nj.id} 🔗 rigid: ${nj.move} goes with ${nj.onto} as they are now (no motion of its own). ${JSON.stringify(this.summary())}` };
         }
         if (!JOINT_TYPES[type] || JOINT_TYPES[type].pick) throw new Error(`type is ${[...Object.keys(JOINT_TYPES).filter((k) => !JOINT_TYPES[k].pick), ...Object.keys(COUPLING_TYPES)].join(', ')} (screws and pins: suggest_fasteners / add_fasteners).`);
         const from = { inst: move.part, face: this.worldFace(move.part, move.face) };

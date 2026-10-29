@@ -9,6 +9,8 @@
 //   ball     — a ball's centre (a spherical face's) on another part's axis (a hole, a cone: it slides along it) or on
 //              another ball's centre (a ball joint: it only turns, three ways)
 //   seat     — a ball sitting in a seat: in a cone, or on the edge of a hole smaller than it — on the axis, touching it
+//   rigid    — 🔗 fixed together: the part goes with the other one as they were when joined (its `rot` and `pos`; the
+//              faces only anchor it: each part's biggest one)
 // Any joint may also hold motions its type leaves free, where they were when locked (lockMotion): `slides` — a move
 // along a direction of the other part kept at a distance, `rot` — the part's turn against the other part kept (a ball's
 // three turns at once); with `pos` too that is a 🔗 rigid joint: the part fixed to the other one as they were.
@@ -31,6 +33,7 @@ export const JOINT_TYPES = {
   tangent: { icon: '⌒', name: 'Tangent', faces: 'mixed', hint: 'a round face touching a flat face (a roller on a plate)' },
   ball: { icon: '●', name: 'Ball joint', faces: 'ball', hint: "a ball's centre on an axis (a hole, a cone: it slides along it and turns any way) or on another ball's centre (it only turns)" },
   seat: { icon: '◉', name: 'Ball in seat', faces: 'ball', hint: 'a ball sitting in a conical seat or on the edge of a hole — on its axis, touching it' },
+  rigid: { icon: '🔗', name: 'Fixed together', faces: 'part', hint: 'the first part goes with the other one as they are now — it has no motion of its own' },
   // not a joint of its own: a screw (+ nut / insert) or pin through the parts — the holes drilled for it, or ones there
   fastener: { icon: '🔩', name: 'Screw / pin', faces: 'any', hint: 'click where it goes in: a flat face (the holes are drilled for it, through the parts below) or a hole that is there', pick: true },
 };

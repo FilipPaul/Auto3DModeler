@@ -23,7 +23,8 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    the faces' directions), `tangent` (a round face on a flat one: a roller on a plate), `ball` (a ball's spherical face —
    a revolved half circle — with its centre on the axis of a hole or a cone: it slides along it and turns; onto another
    ball: a ball joint, 3 turns), `seat` (the ball seated in a conical seat or on the edge of a smaller hole: a valve
-   ball — on the axis, touching). A part's joints apply in order: `axis` first, then
+   ball — on the axis, touching), `rigid` (🔗 fixed together as they are now: `{move: {part}, onto: {part}}`, no faces —
+   a part that rides on another one, e.g. a ball carried by a piston). A part's joints apply in order: `axis` first, then
    `touch` from the head to the face it sits on, seats a pin. Joints hold: the part follows when the other one moves
    or changes size (`get_assembly` lists the `joints`); `place_part` on a joined part removes its joints.
 4. Fine-tune with `place_part {part, x, y, z}` (its origin in mm) and `turn: "x" | "y" | "z"` (90° about its

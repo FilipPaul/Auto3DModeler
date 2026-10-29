@@ -7,6 +7,14 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Assembly: 🔗 fixed together (2026-10-29)** (the same report: "fix part A to part B as they are now"). A `rigid`
+  joint keeps the part's own directions and its anchor face's place in the other part's frame (`rot`, `pos`, from
+  joints.frameNow); its faces only anchor it (the clicked ones, else each part's biggest). It is applied last of the
+  part's joints (it has the last word); the part has no motion of its own, its Moves are the other part's (*— with
+  …*). 🔗 Fixed together in Joint ▾ (any face of each part), *🔗 Fix A to B* in the suggestions for two chosen parts
+  (a 📌 fixed one is the one it goes to); its row names the two parts "as they are". AI: snap_faces type "rigid", no
+  faces needed. Tests: e2e_assembly_ball_spring (a flag fixed to a pin follows its slide and turn, 0 own motions).
+
 - **Assembly: ● ball joints (2026-10-29)** (the app's AI, report 2026-10-29-202947: a valve ball could not be joined —
   tangent refused a sphere, concentric wants a cylinder). The kernel's face info tells a sphere (`type: "sphere"`,
   radius, centre) and a cone (`type: "cone"`, `cone: {apex, d (the way it opens), half}` — not an `axis`, so the

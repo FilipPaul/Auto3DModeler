@@ -157,6 +157,48 @@ try:
     check(r.startswith("ERROR") and "ball" in r, f"a ball joint onto a flat face is refused: {r[:120]}")
     d.save_screenshot(str(OUT / "ball_seat.png"))
 
+    # 🔗 fixed together: a flag fixed to a pin that slides in the body's hole goes with it, no motion of its own
+    must("new_model", name="Pin")
+    must("add_feature", type="sketch", plane="XY", shapes=[{"circle": {"x": 0, "y": 0, "d": 6}}])
+    must("add_feature", type="extrude", sketch="F1", d=40)
+    must("new_model", name="Flag")
+    must("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": -2, "w": 20, "h": 4}}])
+    must("add_feature", type="extrude", sketch="F1", d=10)
+    must("open_part", id="Balls")
+    wait(f"return {A}.doc.instances.length === 4")
+    must("insert_part", part="Pin")
+    must("insert_part", part="Flag")
+    wait(f"return {A}.doc.instances.length === 6 && {A}.doc.instances.every(i => {A}.bodies[i.part]?.body)")
+    must("snap_faces", move={"part": "I5", "face": face("I5", "cylinder")}, onto={"part": "I1", "face": hole}, type="axis")
+    must("place_part", part="I6", x=3, y=0, z=40)
+    js(f"{A}.applyMates()")
+    flag0 = js(f"return {A}.inst('I6').matrix.slice(12, 15)")
+    r = must("snap_faces", move={"part": "I6"}, onto={"part": "I5"}, type="rigid")
+    check("rigid" in r, f"🔗 rigid by the AI without faces: {r[:90]}")
+    flag1 = js(f"return {A}.inst('I6').matrix.slice(12, 15)")
+    check(max(abs(p - q) for p, q in zip(flag0, flag1)) < 1e-6, f"fixed where it was: {flag0} -> {flag1}")
+    own = js(f"return {A}.motionsOf('I6', true)?.count")
+    check(own == 0, f"🔗 no motion of its own ({own})")
+    js(f"""const a = {A}, d = a.motionsOf('I5'), mo = d.motions.find(m => /:along$/.test(m.key)); a.moveFree('I5', mo, 6, null, true)""")
+    pin = js(f"return {A}.inst('I5').matrix.slice(12, 15)")
+    flag2 = js(f"return {A}.inst('I6').matrix.slice(12, 15)")
+    check(abs(abs(flag2[2] - flag1[2]) - 6) < 1e-6 and abs(flag2[0] - flag1[0]) < 1e-6, f"the pin slid 6 mm ({pin}): the flag went along {flag1} -> {flag2}")
+    js(f"""const a = {A}, d = a.motionsOf('I5'), mo = d.motions.find(m => /:turn$/.test(m.key)); a.moveFree('I5', mo, 90, null, true)""")
+    f3 = js(f"return {A}.inst('I6').matrix.slice(0, 3)")
+    check(abs(f3[0]) < 1e-6 and abs(abs(f3[1]) - 1) < 1e-6, f"the pin turned 90°: the flag turned with it (its X now {f3})")
+    held = js(f"return {A}.health.get({A}.doc.mates.find(m => m.type === 'rigid').id)?.ok")
+    check(held is True, "the rigid joint holds")
+    # 🔗 Fixed together from Joint ▾: any face of each part
+    js(f"""const a = {A}; a.startJoint('rigid'); a.clickJoint({{inst: 'I4', face: a.worldFace('I4', arguments[0])}});
+      a.clickJoint({{inst: 'I1', face: a.worldFace('I1', arguments[1])}})""", b2, hole)
+    rj = js(f"return {A}.doc.mates.find(m => m.move === 'I4')?.type")
+    check(rj == "rigid" and js(f"return {A}.mode") == "idle" and js(f"return {A}.motionsOf('I4', true)?.count") == 0, f"🔗 from Joint ▾: two faces clicked, fixed ({rj})")
+    # the two parts chosen: 🔗 Fix … to … in the suggestions
+    js(f"{A}.choose('I2'); {A}.choose('I4', true)")
+    time.sleep(0.4)
+    sug = js("return [...document.querySelectorAll('#asmViewport .view-suggest [data-sg]')].map(e => e.textContent.trim())")
+    check(any("🔗" in x and ("Fix" in x or "Pevně" in x) for x in sug), f"two parts chosen: 🔗 Fix … to … suggested {sug[:5]}")
+
     logs = [x for x in d.get_log("browser") if x["level"] == "SEVERE"]
     check(not logs, f"no errors in the console {logs[:3]}")
 finally:

@@ -640,7 +640,9 @@ Never report "works" without having run it; report failures with their output.
    of side faces, not moved; the AI's lock_motion, and on a held part refused).
    `tools/e2e_assembly_ball_spring.py <url> <dir>` covers ● ball joints (a ball's centre on a hole's axis: 4 ways, it
    cannot leave the axis; ball in ball: 3 turns; ◉ seated in a 45° cone and on a hole's edge at the formula; the
-   suggestions for a ball + a hole put ◉ / ● first; a flat face refused).
+   suggestions for a ball + a hole put ◉ / ● first; a flat face refused), 🔗 fixed together (snap_faces "rigid"
+   without faces: the flag stays where it was, has 0 own motions, follows the pin's slide and turn; 🔗 Fix … to … for
+   two chosen parts).
    `tools/e2e_assembly_health.py <url> <dir>` covers joints that do not hold (the same faces joined again as a Gap:
    one joint changed; a Flush fighting it: the Gap red with "9 mm off: J2 (Flush) holds Lid elsewhere", ⚠ tag, status
    count, get_assembly not_held; one removed: all hold), a screw + nut as one 🔩 row whose ✕ takes the screw, nut and
