@@ -325,6 +325,19 @@ the kept projects to open again (✕ forgets one; **🧹 Clean up empty projects
 nothing in it that still has the name the app gave it — the one on screen stays); when the app starts empty, the last one is offered in a strip under the top bar (it goes once a part is opened or made).
 *Save project* still writes a file to keep or send.
 
+**📄 New project** (**Open ▾ → 📄 New project**, **Ctrl+Alt+N** — Ctrl+N is the browser's own new window — or the
+project widget's **⋯** menu; also a row of the suggestions with nothing selected): the project on screen is kept (it is
+in 🕘 Recent projects) and the window starts again with an empty one — the start screen. A message says where the
+previous one is, and its **↶ Open it again** brings it back. **⧉ New project in a new window** starts the empty one in
+a window of its own, side by side with this one (so does **Ctrl+click** on 📄 New project). The window's title is the
+project's name, so windows are told apart.
+
+**Several windows, several starts**: the app runs once per data folder — starting it again (the built app) only opens
+another window of it. Each window holds its own project: a new window starts on the start screen, and its *Continue
+where you left off* offers the last project that is **not** open in another window; 🕘 Recent projects marks such a
+project *open in another window* (opening it there too is allowed: the windows of one project keep each other up to
+date, see ⧉ Windows). Each window has its own ✨ AI chat, working in that window only (see *AI assistant*).
+
 **🕘 Versions** (a widget in the left column of the 3D model and the assembly, folded until you open it): the project's
 earlier states, kept on the server without git (`data/versions/<project>/`). Versions come by themselves as you work
 (with the autosave, at most one every 3 minutes; a part added or removed at once) and with *Save project*;
@@ -1195,6 +1208,13 @@ can open them.
   and out, streamed to the page as Server-Sent Events) → the MCP server → `POST /api/agent/call` → tools that change
   the part are relayed to the open page (long-poll), applied there like a user edit and answered; reading files,
   tracing pictures and writing exports run on the server.
+- **Several windows**: each app window has **its own chat** (its own conversation and Claude Code process, started
+  with its first message), and what the AI does goes to **that window only** — the chat's MCP server is started with
+  `--client <the window's id>`, every tool call carries it, and the relay hands it to that window, never to another
+  one (also when another window is the one in front). A reload and 📄 New project keep the window's chat; a new
+  window starts a new one. When the window is closed, its chat's calls fail at once with *"The app window this chat
+  belongs to was closed — nothing was changed"*; its Claude Code ends 10 minutes later. An MCP client of its own
+  (below, no `--client`) works in the window in use, as before.
 
 The same MCP server works from **Claude Desktop or Claude Code** directly (the app must be running and open in a
 browser) — e.g. in a Claude Code / Desktop MCP configuration:

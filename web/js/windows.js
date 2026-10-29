@@ -2,6 +2,8 @@
 // whole project; a part changed in one window is sent to the others (a BroadcastChannel per project), which take it
 // in — a part on screen there is shown again, an assembly or a drawing sheet using it is built again. The project is
 // saved by each window (autosave) and is the same in all of them.
+// Every window of the app (any project) also answers "which project is open here?" (the channel a3d-windows):
+// a new window's "continue where you left off" skips the projects open elsewhere, 🕘 Recent projects marks them.
 
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
 const keyOf = (p, data) => JSON.stringify([p.name, p.kind, data]);
@@ -18,6 +20,24 @@ export class Windows {
     this.timer = null;
     window.addEventListener('a3d:changed', () => { clearTimeout(this.timer); this.timer = setTimeout(() => this.send(), 250); });
     window.addEventListener('a3d:project-loading', () => this.connect(null)); // (another project: not sent to this one's windows)
+    if (typeof BroadcastChannel !== 'undefined') { // (asked by another window: the project open here, if any)
+      this.all = new BroadcastChannel('a3d-windows');
+      this.all.onmessage = (e) => {
+        if (e.data?.ask && this.room && this.hooks.project.parts.length) this.all.postMessage({ answer: e.data.ask, room: this.room, from: this.wid });
+      };
+    }
+  }
+
+  /** The ids of the projects open in the app's other windows (those that answer within `ms`). */
+  async openElsewhere(ms = 250) {
+    const got = new Set();
+    if (!this.all) return got;
+    const ask = newId(), ch = new BroadcastChannel('a3d-windows');
+    ch.onmessage = (e) => { if (e.data?.answer === ask && e.data.from !== this.wid) got.add(e.data.room); };
+    ch.postMessage({ ask });
+    await new Promise((r) => setTimeout(r, ms));
+    ch.close();
+    return got;
   }
 
   /** The windows of project `id` (null: none). What there is now is what they have (a new window loads it saved) —

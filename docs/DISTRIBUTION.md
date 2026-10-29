@@ -84,7 +84,13 @@ runs `Auto3DModeler.exe`. Same program, no Start menu entry or uninstaller.
   computer can reach it) and opens the app in **its own window** (Edge `--app`: no tabs, no address bar, its own
   profile in the data folder). No console window.
 - **One copy**: a second start (or a click on the Start menu entry while it runs) only opens another window of the
-  running one — a named mutex per data folder + `instance.json` with its address.
+  running one — a named mutex per data folder + `instance.json` with its address. That window starts on the start
+  screen with a project of its own (*Continue where you left off* offers the last project that is **not** open in
+  another window — no second copy of the same project unless picked in 🕘 Recent projects, where it is marked *open
+  in another window*); each window's title is its project's name. Each window's ✨ AI chat is its own: the AI works in
+  the window it is asked in, never in another (a window closed: its chat's calls fail, saying so). In a window,
+  **📄 New project** (Open ▾, Ctrl+Alt+N) starts an empty project there, the previous one kept in 🕘 Recent projects;
+  **⧉ New project in a new window** (or Ctrl+click on 📄) opens one side by side.
 - **Quitting**: closing the app window quits the app (the server, the CAD kernel processes, the chat's Claude Code).
   The **tray icon** (a blue cube) has *Open*, *Open in the browser*, *Logs* and *Quit* (in Czech on a Czech Windows) —
   for when the window was the default browser's

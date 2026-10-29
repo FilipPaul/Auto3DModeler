@@ -68,6 +68,23 @@ class TestMcpServer(unittest.TestCase):
         self.assertEqual(resps[5]["error"]["code"], -32601)
         self.assertEqual(StubApp.calls[-1], {"tool": "add_object", "args": {"kind": "cylinder", "x": 5}})
 
+    def test_the_chat_window_goes_with_each_call(self):
+        """--client (a window's chat): every tool call names that window, so the app sends it there only."""
+        srv = HTTPServer(("127.0.0.1", 0), StubApp)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        url = f"http://127.0.0.1:{srv.server_address[1]}"
+        p = subprocess.Popen([sys.executable, str(MCP), "--url", url, "--client", "win-A"], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        msg = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "get_part", "arguments": {}}}
+        p.communicate((json.dumps(msg) + "\n").encode(), timeout=30)
+        srv.shutdown()
+        self.assertEqual(StubApp.calls[-1], {"tool": "get_part", "args": {}, "client": "win-A"})
+        from auto3d.agent import ChatSession
+        cmd = ChatSession("http://127.0.0.1:1", "win-A").command("claude")
+        args = json.loads(cmd[cmd.index("--mcp-config") + 1])["mcpServers"]["auto3d"]["args"]
+        self.assertEqual(args[args.index("--client") + 1], "win-A")
+        cmd = ChatSession("http://127.0.0.1:1").command("claude")  # (no window: no --client)
+        self.assertNotIn("--client", json.loads(cmd[cmd.index("--mcp-config") + 1])["mcpServers"]["auto3d"]["args"])
+
     def test_app_not_running_is_a_tool_error(self):
         import socket
         sock = socket.socket()
@@ -298,6 +315,122 @@ class TestRelay(unittest.TestCase):
         with self.assertRaises(TimeoutError):
             relay.call("get_part", timeout=0.2)
 
+    def test_a_windows_chat_acts_in_that_window_only(self):
+        """Two windows, B the one in use: a call of A's chat goes to A — B, polling all the while, gets nothing."""
+        relay = Relay()
+        relay.poll(0.01, client="A", active=False)   # A: in the background
+        relay.poll(0.01, client="B", active=True)    # B: the window in use (the owner)
+        got = {}
+
+        def window(name, wait):
+            cmd = relay.poll(wait, client=name, active=name == "B")
+            got[name] = cmd
+            if cmd:
+                relay.resolve(cmd["id"], {"text": f"done in {name}"})
+
+        tb = threading.Thread(target=window, args=("B", 1.5), daemon=True)
+        tb.start()
+        time.sleep(0.1)  # (B is waiting first: it would take anything it may)
+        threading.Thread(target=window, args=("A", 3), daemon=True).start()
+        self.assertEqual(relay.call("get_part", timeout=5, client="A"), {"text": "done in A"})
+        tb.join(3)
+        self.assertIsNone(got["B"])
+        self.assertEqual(got["A"]["cmd"], "get_part")
+        # the same through ROUTE (set by the server for a chat's MCP call): also a server tool's calls go there
+        from auto3d.agent import ROUTE
+        threading.Thread(target=window, args=("A", 3), daemon=True).start()
+        token = ROUTE.set("A")
+        try:
+            self.assertEqual(relay.call("load", {"n": 1}, timeout=5), {"text": "done in A"})
+        finally:
+            ROUTE.reset(token)
+
+    def test_the_windows_chat_after_it_closed(self):
+        """A window closed (its goodbye, not back): its chat's call fails with a clear message, the other window
+        gets nothing; a reload (back within the grace) still works; a window never seen fails at once."""
+        from auto3d.agent import GONE_TEXT
+        relay = Relay(grace=0.3)
+        relay.poll(0.01, client="A")
+        relay.poll(0.01, client="B")
+        relay.bye("A")
+        got = {}
+        threading.Thread(target=lambda: got.setdefault("B", relay.poll(1.2, client="B")), daemon=True).start()
+        time.sleep(0.4)
+        t0 = time.time()
+        with self.assertRaises(RuntimeError) as e:
+            relay.call("get_part", timeout=5, client="A")
+        self.assertEqual(str(e.exception), GONE_TEXT)
+        self.assertIn("closed", GONE_TEXT)
+        self.assertLess(time.time() - t0, 0.5)
+        time.sleep(1)
+        self.assertIsNone(got["B"])
+        self.assertFalse(relay.outbox)  # (nothing left queued for another window)
+        # a call waiting while its window closes: it fails, it does not wait the whole timeout
+        def close_soon():
+            time.sleep(0.2)
+            relay.bye("B")
+        threading.Thread(target=close_soon, daemon=True).start()
+        t0 = time.time()
+        with self.assertRaises(RuntimeError):
+            relay.call("get_part", timeout=10, client="B")
+        self.assertLess(time.time() - t0, 3)
+        # a reload: goodbye, then a poll again at once — the call is taken by the window back
+        relay.poll(0.01, client="C")
+        relay.bye("C")
+        threading.Thread(target=lambda: (lambda c: relay.resolve(c["id"], {"text": "reloaded"}))(relay.poll(3, client="C")), daemon=True).start()
+        self.assertEqual(relay.call("get_part", timeout=5, client="C"), {"text": "reloaded"})
+        with self.assertRaises(RuntimeError):
+            relay.call("get_part", timeout=5, client="never-opened")
+
+    def test_a_window_gone_without_a_goodbye(self):
+        """The browser killed (no goodbye): its last poll still took the call. While it says it is there (alive) the
+        call waits; silent for gone_after: the call fails — it is not handed to another window."""
+        relay = Relay(gone_after=0.6)
+        relay.poll(0.01, client="A")
+        relay.poll(0.01, client="B")
+
+        def a_runs_long():
+            cmd = relay.poll(2, client="A")
+            for _ in range(5):          # 1 s of work, saying it is there
+                time.sleep(0.2)
+                relay.alive("A")
+            relay.resolve(cmd["id"], {"text": "long one done"})
+
+        threading.Thread(target=a_runs_long, daemon=True).start()
+        self.assertEqual(relay.call("get_part", timeout=5, client="A"), {"text": "long one done"})
+        threading.Thread(target=lambda: relay.poll(2, client="A"), daemon=True).start()  # takes it, then is gone
+        got = {}
+        threading.Thread(target=lambda: got.setdefault("B", relay.poll(2.5, client="B")), daemon=True).start()
+        t0 = time.time()
+        with self.assertRaises(RuntimeError):
+            relay.call("get_part", timeout=10, client="A")
+        self.assertLess(time.time() - t0, 3)
+        time.sleep(2.6 - (time.time() - t0) if time.time() - t0 < 2.6 else 0)
+        self.assertIsNone(got.get("B"))
+
+    def test_server_routes_a_chats_call_and_keeps_a_chat_per_window(self):
+        import server
+        orig = server.RELAY
+        server.RELAY = Relay(grace=0.1)
+        try:
+            server.RELAY.poll(0.01, client="W1")
+            server.RELAY.bye("W1")
+            time.sleep(0.2)
+            c = server.app.test_client()
+            r = c.post("/api/agent/call", json={"tool": "get_part", "args": {}, "client": "W1"}).get_json()
+            self.assertTrue(r["isError"])
+            self.assertIn("window this chat belongs to was closed", r["content"][0]["text"])
+            self.assertEqual(c.post("/api/agent/bye?client=W2").get_json(), {"ok": True})
+            self.assertIn("W2", server.RELAY.left)
+        finally:
+            server.RELAY = orig
+        a, b = server._chat("wa"), server._chat("wb")
+        self.assertIsNot(a, b)
+        self.assertIs(server._chat("wa"), a)
+        self.assertEqual((a.client, server._chat("").client), ("wa", None))
+        for k in ("wa", "wb"):
+            server.CHATS.pop(k, None)
+
 
 class TestTranslate(unittest.TestCase):
     def test_stream_json_events(self):
@@ -387,7 +520,7 @@ class TestChatPhotos(unittest.TestCase):
                 sent.append((text, photos))
 
         orig = server._chat
-        server._chat = lambda: Stub()
+        server._chat = lambda client="": Stub()
         try:
             c = server.app.test_client()
             r = c.post("/api/chat/send", json={"text": "", "photos": [{"name": "my star.png", "data": self.PNG}]})

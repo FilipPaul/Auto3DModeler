@@ -662,6 +662,7 @@ export class Assembly {
     items.push({ icon: '📋', label: t('Bill of materials'), rank: 7, title: t('Every part with its quantity, material and mass'), run: () => this.openBom() });
     if (this.hooks.newSheet) items.push({ icon: '📄', label: t('Drawing of the assembly'), rank: 3.5, title: t('Its views, parts list and balloons — it follows the assembly'), run: () => this.hooks.newSheet() });
     if (this.hooks.openLibrary) items.push({ icon: '📚', label: t('From the library…'), rank: 9, title: t('Standard parts (screws, bearings, motors …) — ⤵ Put into the assembly'), run: () => this.hooks.openLibrary() });
+    if (this.hooks.newProject) items.push({ icon: '📄', label: t('New project'), rank: 20, title: t('Start a new, empty project in this window — the one on screen is kept (🕘 Recent projects opens it again) (Ctrl+Alt+N)'), run: () => this.hooks.newProject() });
     if (n > 1) items.push({ icon: '🔩', label: t('Screw / pin through parts…'), rank: 10, title: t('Click where it goes in — the holes are drilled for it'), run: () => { this.fastenerPanel = false; this.startJoint('fastener'); this.render(); this.draw(); } });
     showSuggest(vp, title, items.map((x) => ({ ...x, run: async () => { await x.run(); this.renderSuggest(); } })), t('Click a part or a face: what fits it'));
   }

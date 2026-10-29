@@ -12,6 +12,8 @@
 // workspace). ↺ Default layout in a widget's ⋯ menu puts it all back.
 // A workspace may add widgets of its own (addWidget: the assembly's ⚙ Mechanism): there only while it has something
 // to show (show()), docked or floating like the others, closed by its ✕.
+// The app's own project actions (projectMenu: 📄 New project, ⧉ … in a new window) head the project tree's ⋯ menu;
+// the first one is also the row of the suggestions widget with nothing selected.
 import { t } from './i18n.js';
 import { resetWidth } from './splitters.js';
 import { floatBox, setDockHook } from './floatbox.js';
@@ -103,10 +105,14 @@ class LeftDock {
       this.widgets.panel[ws] = w;
     }
     for (const x of Object.values(this.extra)) col.appendChild(x.el);
-    const empty = document.createElement('p');
-    empty.className = 'hint lw-empty-sg';
-    empty.textContent = t('Nothing selected — click a face, an edge, a part or a step: what can be done with it shows here.');
+    // nothing selected: what to do, and the project's own row (📄 New project — the app's projectMenu)
+    const empty = document.createElement('div');
+    empty.className = 'lw-empty-sg';
+    empty.innerHTML = `<p class="hint"></p><div class="vs-list"><button class="lw-sg-new"><span class="vs-i">📄</span> <span></span></button></div>`;
+    empty.querySelector('p').textContent = t('Nothing selected — click a face, an edge, a part or a step: what can be done with it shows here.');
+    empty.querySelector('.lw-sg-new').addEventListener('click', () => this.projectMenu?.()[0]?.[3]());
     this.widgets.suggest.appendChild(empty);
+    this.emptySg = empty;
     this.mark = document.createElement('div');
     this.mark.className = 'lw-mark';
     this.mark.hidden = true;
@@ -192,6 +198,11 @@ class LeftDock {
     for (const [ws, el] of Object.entries(this.widgets.panel)) set(el, t(TITLES[ws]));
     for (const x of Object.values(this.extra)) set(x.el, t(x.title));
     for (const el of this.col.querySelectorAll('.lw-widget')) this.headTip(el);
+    const nb = this.emptySg?.querySelector('.lw-sg-new');
+    if (nb) {
+      nb.lastElementChild.textContent = t('New project');
+      nb.title = t('Start a new, empty project in this window — the one on screen is kept (🕘 Recent projects opens it again) (Ctrl+Alt+N)');
+    }
   }
 
   headTip(el) {
@@ -574,7 +585,9 @@ class LeftDock {
     if (m !== 'dock') items.push(['dock', `📌 ${t('Dock in the left panel')}`, t('Into the left panel, always in sight (or drag its header there)')]);
     if (m !== 'float') items.push(['float', `⧉ ${t('Float over the view')}`, t('A box over the view — drag its header where you want it')]);
     if (w === 'project') items.push(['popup', `☰ ${t('Back behind the ☰ button')}`, t('The project tree opens from the ☰ button again')]);
-    pop.innerHTML = `${items.map(([k, l, tip]) => `<button data-a="${k}" title="${tip}">${l}</button>`).join('')}
+    const own = w === 'project' ? this.projectMenu?.() || [] : []; // (the app's: 📄 New project …)
+    pop.innerHTML = `${own.map(([i, l, tip], k) => `<button data-own="${k}" title="${tip}">${i} ${l}</button>`).join('')}${own.length ? '<div class="menu-sep"></div>' : ''}
+      ${items.map(([k, l, tip]) => `<button data-a="${k}" title="${tip}">${l}</button>`).join('')}
       ${m === 'float' ? Object.entries(OPS).map(([k, o]) => { const v = Math.round(this.opacity(w, k) * 100); return `<label class="lw-opl" title="${t(o.tip)}"><span class="lw-opn">${t(o.label)}</span><input type="range" data-k="${k}" min="${o.min * 100}" max="100" step="5" value="${v}"><span class="lw-opv">${v} %</span></label>`; }).join('') : ''}
       <div class="menu-sep"></div><button data-a="reset" title="${t('Every widget back to its usual place and size: the project tree behind ☰, the panels in the left panel, the suggestions in the view\'s corner')}">↺ ${t('Default layout')}</button>`;
     for (const b of pop.querySelectorAll('[data-a]')) {
@@ -588,6 +601,7 @@ class LeftDock {
         if (w === 'project') this.onProject?.();
       });
     }
+    for (const b of pop.querySelectorAll('[data-own]')) b.addEventListener('click', () => { this.closeMenu(); own[+b.dataset.own][3](); });
     for (const r of pop.querySelectorAll('input[type=range]')) r.addEventListener('input', () => this.setOpacity(w, r.dataset.k, r.value / 100, this.widgetEl(w)?.querySelector('.lw-head')));
     document.body.appendChild(pop);
     const br = btn.getBoundingClientRect(), pw = pop.offsetWidth;

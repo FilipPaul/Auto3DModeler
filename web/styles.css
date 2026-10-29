@@ -1312,6 +1312,8 @@ body.lw-empty .split-left { display: none; }
 .view-suggest.docked .vs-pin { display: none; }
 .view-suggest.docked.lw-off { display: none; }
 .lw-widget[data-w=suggest] .lw-empty-sg { margin: 10px 12px; }
+.lw-widget[data-w=suggest] .lw-empty-sg .hint { margin: 0 0 6px; }
+.lw-widget[data-w=suggest] .lw-empty-sg .vs-list { padding: 0; }
 .lw-widget[data-w=suggest].has-sg .lw-empty-sg { visibility: hidden; }
 /* dragging a widget: where it would go */
 .lw-mark { position: absolute; left: 0; width: var(--left-w, 340px); height: 4px; background: var(--accent); z-index: 31; pointer-events: none; border-radius: 2px;
@@ -1393,6 +1395,7 @@ body.start-open .restore-bar { justify-content: center; }
 body.file-over::after { content: ""; position: fixed; inset: 6px; border: 2px dashed var(--accent); border-radius: 12px; pointer-events: none; z-index: 90; background: #3b82f610; }
 body.file-over.start-open .st-card[data-start=open] { border-color: var(--accent); background: var(--panel-2); }
 .menu-list button.menu-strong { font-weight: 600; display: flex; align-items: center; gap: 12px; }
+.menu-list button.menu-keyed { display: flex; align-items: center; gap: 12px; } /* (📄 New project: its key on the right) */
 .menu-key { margin-left: auto; font-weight: 400; font-size: 11px; color: var(--muted); }
 /* the 3D print tab: the fit answer first; the printer's settings and the joints of split pieces folded (open when it
    does not fit) */

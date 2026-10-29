@@ -8,7 +8,7 @@ import { BendsPanel } from './bends.js';
 import { OutlineWizard } from './outline.js';
 import { OutlinePanel, shapeRings, hitShape } from './outlinepanel.js';
 import { openLightbox } from './lightbox.js';
-import { ChatPanel, startBridge, bridgeStats } from './agent.js';
+import { ChatPanel, startBridge, bridgeStats, CLIENT, keepChatClient } from './agent.js';
 import { AiHistory } from './aihistory.js';
 import { LibraryBrowser, saveToLibrary, libraryItems, matchScore, itemFromModel } from './library/browser.js';
 import { repaint } from './modeler/paint.js';
@@ -40,6 +40,7 @@ import { initParams, paramHandlers } from './paramsui.js';
 import { showDemos } from './demos.js';
 import { Versions } from './versions.js';
 import { initStart, initWindowDrop } from './start.js';
+import { initNewProject } from './newproject.js';
 
 initI18n();  // Czech / English: translates the page as it is built
 initJobs(() => project.current?.name); // ⚙ N in the top bar: what is working now, with ✕ Stop
@@ -1715,6 +1716,9 @@ function showProjectName() {
   el.textContent = state.projectName || ''; // (nothing yet: the start screen says what to do)
   el.title = state.model ? `Project “${state.projectName}” from ${state.model.source} — click to rename` : state.projectName ? 'Click to rename the project' : '';
   el.classList.toggle('editable', !!(state.model || state.projectName));
+  // the window's title: which project (a ⧉ window of one part: that part too) — windows side by side told apart
+  const one = project.shown ? project.current?.name : '';
+  document.title = state.projectName ? `${[state.projectName, one].filter(Boolean).join(' · ')} — Auto3DModeler` : 'Auto3DModeler — Rafiontech';
 }
 $('fileName').addEventListener('click', () => {
   const el = $('fileName');
@@ -2002,6 +2006,7 @@ const assembly = new Assembly({ left: $('asmLeft'), viewport: $('asmViewport'), 
   editInPlace: async (id, ctx) => { await project.switchTo(id); if (project.active === id) modeler.setContext(ctx); },
   openPart: (id) => project.switchTo(id),
   openLibrary: () => library.open(), // (📚 From the library… in the Insert menu and the Suggested table)
+  newProject: () => newProject.start(), // (📄 New project: the last row of the table with nothing chosen)
   openSheet: (id) => { const p = project.parts.find((q) => q.id === id); if (p) project.newSheet(id, `${p.name} — ${t('drawing')}`); }, // (📄 Drawing of the part: a placed part's sheet)
   drawingSet: () => drawingSetPdf(project.active),
   newSheet: () => { const p = project.current; if (p) project.newSheet(p.id, `${p.name} — ${t('drawing')}`); },
@@ -2549,6 +2554,7 @@ var autosave = new Autosave({
     showProjectName();
   },
   onId: (id) => { windows?.connect(id); versions?.changed(); },
+  elsewhere: () => windows.openElsewhere(), // (the projects open in the app's other windows)
 });
 
 // OK / Cancel, ✓ Finish sketch, Done: in the bottom-right corner of each view
@@ -2579,7 +2585,7 @@ if (opened.has('project')) { // a window opened by ⧉: its project, its part on
       await project.switchTo(id);
       project.showOnly(id); // (only its tab here: the others stay in the project, ☰)
     }
-    document.title = `${project.current?.name || ''} — Auto3DModeler`;
+    showProjectName(); // (the window's title: the project · its part)
   }).catch((e) => toast(e.message, 'error', 8000));
 }
 // 🕘 Versions: the project's states on the server — preview, compare, restore, variants (versions.js)
@@ -2610,7 +2616,20 @@ $('saveWithVersions').addEventListener('change', (e) => { try { localStorage.set
 
 $('recentBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); autosave.showRecent(); });
 $('demoBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); showDemos({ open: openLoaded, toast }); }); // 🎬 (demos.js)
-if (!opened.has('sample') && !opened.has('project')) setTimeout(() => autosave.offerLast(), 600);
+if (!opened.has('sample') && !opened.has('project') && !opened.has('new')) setTimeout(() => autosave.offerLast(), 600);
+// 📄 New project (Open ▾, the project widget's ⋯, Ctrl+Alt+N): the one on screen kept, this window starts empty
+const newProject = initNewProject({
+  autosave, toast,
+  name: () => state.projectName || project.current?.name || '',
+  empty: () => !project.parts.length,
+  keepChat: keepChatClient, // (this window's AI chat goes on in the new project)
+});
+$('newProjectBtn').addEventListener('click', (e) => { $('openMenuWrap').classList.remove('open'); newProject.start(e.ctrlKey || e.metaKey || e.shiftKey); }); // (Ctrl+click: a new window)
+$('newProjectWinBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); newProject.start(true); });
+leftDock.projectMenu = () => [
+  ['📄', t('New project'), t('Start a new, empty project in this window — the one on screen is kept (🕘 Recent projects opens it again) (Ctrl+Alt+N)'), () => newProject.start()],
+  ['⧉', t('New project in a new window'), t('A new, empty project in a window of its own — this one stays as it is, side by side'), () => newProject.start(true)],
+];
 
 // ------------------------------------------------------------------ the start screen and files dropped anywhere
 initStart({
@@ -2840,4 +2859,4 @@ Object.assign(agentHandlers, {
   },
 });
 
-window.__app = { state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, library, autosave, versions, savedProject, windows, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d, sheet };
+window.__app = { client: CLIENT, state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, library, autosave, versions, savedProject, windows, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d, sheet };

@@ -5,7 +5,8 @@ Started by Claude Code from the app's chat (see auto3d/agent.py), or by hand fro
     py auto3d/mcp_server.py --url http://127.0.0.1:5173
 
 It speaks MCP's JSON-RPC over stdin / stdout (one message per line) and forwards every tool call to the
-running app (POST /api/agent/call), which applies it to the part open in the browser.
+running app (POST /api/agent/call), which applies it to the part open in the browser. The app's chat adds
+`--client <id>`: the calls act in the window of that chat only (without it: in the window in use).
 Standard library only.
 """
 from __future__ import annotations
@@ -26,6 +27,7 @@ from auto3d.guides import guide, guides  # noqa: E402
 SERVER_INFO = {"name": "auto3d", "version": "1.0"}
 PROTOCOL = "2025-06-18"
 CALL_TIMEOUT = 180  # seconds: building a part with many objects or tracing a big picture can take a while
+CLIENT = None  # --client: the app window whose chat started this server (its calls go there only)
 
 
 def _unreachable(url: str, why) -> dict:
@@ -41,7 +43,7 @@ def call_app(url: str, name: str, args: dict) -> dict:
         socket.create_connection((u.hostname, u.port or 80), timeout=3).close()
     except OSError as exc:
         return _unreachable(url, exc)
-    body = json.dumps({"tool": name, "args": args}).encode()
+    body = json.dumps({"tool": name, "args": args, **({"client": CLIENT} if CLIENT else {})}).encode()
     req = urllib.request.Request(f"{url}/api/agent/call", data=body, headers={"Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=CALL_TIMEOUT) as r:
@@ -98,8 +100,11 @@ def handle(msg: dict, url: str):
 
 def main():
     ap = argparse.ArgumentParser()
+    global CLIENT
     ap.add_argument("--url", default="http://127.0.0.1:5173")
-    url = ap.parse_args().url.rstrip("/")
+    ap.add_argument("--client", default=None, help="the app window whose chat this is (its tool calls act there only)")
+    a = ap.parse_args()
+    url, CLIENT = a.url.rstrip("/"), a.client or None
     stdin = sys.stdin.buffer
     out = sys.stdout.buffer
     for raw in stdin:

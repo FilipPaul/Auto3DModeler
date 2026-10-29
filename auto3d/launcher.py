@@ -4,8 +4,9 @@ checkout does the same): the server on a free port, the app in its own window, o
 * `data_dir()` – where the user's data lives: A3D_DATA, else (the built app) %LOCALAPPDATA%\\Auto3DModeler — never the
   install folder — else the checkout's data/.
 * `pick_port()` – --port / A3D_PORT as given, else 5173 when free (the page's local storage stays the same), else any.
-* One copy per data folder: a named mutex (Windows) and data/instance.json {url, pid}; a second start only opens the
-  window of the running one (`running_url`).
+* One copy per data folder: a named mutex (Windows) and data/instance.json {url, pid}; a second start only opens
+  another window of the running one (`running_url`) — a new page there: the start screen with a project of its own
+  (web/js/autosave.js offers the last project not open in another window), its own AI chat.
 * `open_window()` – Microsoft Edge as an app window (--app, its own profile in data/window: no tabs, no address bar),
   else the default browser. Closing that window quits the app; the tray icon (pystray, when installed) has
   Open / Logs / Quit.
@@ -281,8 +282,7 @@ class App:
         clear_instance(self.data)
         try:
             import server
-            if server.CHAT is not None:  # the chat's Claude Code
-                server.CHAT.stop()
+            server.stop_chats()  # the chats' Claude Code (one per window that chatted)
             from auto3d.modeler.worker import WORKER
             WORKER.close()
         except Exception:  # noqa: BLE001 — quitting anyway

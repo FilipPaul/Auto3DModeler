@@ -23,6 +23,34 @@ Date: 2026-10-25. Written by the architect agent.
   whole; tests: e2e_ux_model. **AI: a dimension's tolerance / reference**: sheet_edit {dims: {<id>: {tol: "±0.1" /
   "+0.2/-0.1" / null, ref: true / false}}} (tolText checks it, a Ø is told to take a fit; stored as the panel does:
   d.dims[id] for an automatic one, on the user's own dimension), get_sheet's dims show tol / ref; tests: e2e_agent.
+- **Several windows / starts done**: a second start of the exe (launcher: unchanged — Edge --app with the same
+  profile opens a new window of the running server, a fresh page) or ⧉ / Ctrl+click on 📄 Nový projekt -> the start
+  screen with a project of its own. windows.js answers on a BroadcastChannel "a3d-windows" which project is open
+  there (openElsewhere): autosave.offerLast offers the last project NOT open in another window, 🕘 Nedávné projekty
+  marks such a one "otevřen v jiném okně" (opening it is allowed: the windows of a project sync). The title is the
+  project's name. tests: tools/e2e_new_project.py (a second window of the app).
+- **✨ AI: a chat per window done** (the owner: "jak to funguje, pokud program spustím víckrát? … A bude fungovat
+  agent?"). Decided: (a) each window its own chat — server.CHATS {client id: ChatSession}, made at the window's first
+  chat request, its Claude Code process only with its first message (a window that never chats costs nothing; ended
+  10 min after its window closed); (b) one shared chat aimed at the last-typed window was rejected: two projects' talk
+  in one conversation, and a call could still land in the wrong window between two messages. The window's id
+  (agent.js CLIENT: sessionStorage — kept by a reload and 📄 New project, new in a new window) goes with every chat
+  request; ChatSession starts its MCP server with --client <id>, which sends it with each tool call; /api/agent/call
+  sets agent.ROUTE (a ContextVar: server tools such as open_file relay with it too); Relay.call(to=…) is taken by that
+  window's poll only. Closed: the page's pagehide beacon (/api/agent/bye) -> calls fail with GONE_TEXT after a 10 s
+  grace (a reload polls again first); no beacon (a killed browser) -> not seen for 90 s (a long call says
+  /api/agent/alive every 10 s). Calls without a client (an MCP client of its own, e2e_agent) go to the window in use as
+  before. launcher.stop -> server.stop_chats(). tests: test_agent (routing, closed, no goodbye, server, --client),
+  tools/e2e_new_project.py (two browsers, two projects).
+- **📄 New project done** (the owner, 2026-10-29: "Nevím jak intuitivně založit nový projekt, pokud mám zrovna nějaký
+  projekt otevřený"): web/js/newproject.js — Otevřít ▾ › 📄 Nový projekt (Ctrl+Alt+N by the key's place, e.code KeyN:
+  Ctrl+N is the browser's, and Ctrl+Alt is AltGr on a Czech keyboard), the project widget's ⋯ menu (leftDock.projectMenu),
+  the docked suggestions' row with nothing selected and the assembly's table (rank 20: under ⋯ Ukázat vše). The project
+  on screen is kept first (autosave.saveNow, autosave.kept() — not kept: asked), then the page loads afresh with ?new
+  (nothing of the old project lingers in the workspaces; no "continue" strip): the start screen, a new autosave id, a
+  toast „Předchozí projekt „…“ je uložen — Otevřít ▾ › 🕘 Nedávné projekty" with ↶ Otevřít znovu (autosave.open: its
+  own id). ⧉ Nový projekt v novém okně: window.open(?new). The window's title is the project's name (showProjectName).
+  tests: tools/e2e_new_project.py.
 - **Assembly: suggestion-based and compact done** (the owner: "90 % základních věcí ze suggestions"; audit of 22 basic
   tasks: 8 → 20 doable from the Suggested table alone, the crank built from its four parts in 14 clicks instead of
   ≈ 27 with four Ctrl+clicks on small faces). assembly/smart.js: pinFits (a free round face of the chosen part and one
