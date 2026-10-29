@@ -382,7 +382,7 @@ def _apply(f, st: State, s):
         if src is None or f.get("sketch") not in st.frames:
             raise K.KernelError("Choose the rib's sketch: a line from the part to the part (e.g. wall to plate).")
         chain, ids = K.open_chain(src)
-        _use(st, fid, K.rib(st.body, st.frames[f["sketch"]], chain, ids, _num(f, "t", 3, what="thickness"), fid), "add")
+        _use(st, fid, K.rib(st.body, st.frames[f["sketch"]], chain, ids, _num(f, "t", 3, what="thickness"), fid, bool(f.get("flip"))), "add")
         return
     if t == "draft":  # the side walls of an extrude tilted (moulding, casting)
         if st.body is None:

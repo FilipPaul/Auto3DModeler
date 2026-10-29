@@ -80,6 +80,10 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
    (`open_file` on a .igs / .iges) opens as such a model; when its surfaces do not close it comes as `op: "ref"` — a
    reference body to build around, say so. A mesh (`open_file` on an .stl / .obj / .3mf — a 3MF from a slicer or our
    own 3MF export) opens as a quick part of its triangles, all its objects placed as in the file.
+   **Rib** (a gusset in a corner): a sketch on a plane through the corner (e.g. `{datum: "YZ", offset: <the middle>}`)
+   with ONE open line from the wall to the plate (`shapes: [{path: {points: [[u1, v1], [u2, v2]]}}]`, its ends on the
+   part), then `{type: "rib", sketch: "<id>", t: 3}` — filled up to the part on the side where it closes; `flip: true`
+   takes the other side (when both close, e.g. a line across a bore). A line in the air is refused.
    **Mirror**: `{type: "mirror", plane: "YZ"}` adds the mirror image of the whole part (left ↔ right; "XZ" front ↔
    back, "XY" top ↔ bottom, or `face: "<flat face>"`); `of: "<step id>"` mirrors one step only; `copy: false` turns the
    part over instead. Model half of a symmetric part, then mirror it.

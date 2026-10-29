@@ -139,7 +139,9 @@ k6 / m6 / p6 for a shaft (a pin, a boss, an axle); it is drawn *Ø8 h6* and the 
 
 **⊿ Rib**: a gusset in a corner — draw one line in a sketch across the corner (e.g. on the Right plane through the
 plate and the wall, from the wall to the plate), then ⊿ Rib and its thickness: the side of the line that closes
-against the part is filled, half the thickness each side of the sketch plane.
+against the part is filled, half the thickness each side of the sketch plane. When both sides close (a line across a
+bore), the smaller piece is filled; *⇅ Flip direction* takes the other. A click on such a line in the view (or on its
+sketch in the list) suggests *⊿ Rib from this line*.
 
 **⟋ Draft**: tilts an extrude's side walls by a few degrees (they lean in going up from its base; negative: out) so a
 moulded or cast part comes out of its mould — choose the extrude (or click one of its walls) and the angle. (Or give

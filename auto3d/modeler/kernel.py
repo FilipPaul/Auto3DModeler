@@ -846,10 +846,11 @@ def open_chain(sk):
     return chain, ids
 
 
-def rib(body, fr, chain, ids, t, fid):
+def rib(body, fr, chain, ids, t, fid, flip=False):
     """A rib: the open line `chain` (sketch coordinates) filled up to the part on whichever side it closes against
-    it, `t` thick about the sketch plane -> the rib alone (a Body, to add). Faces: fid:start / fid:end (its two flat sides), fid:side:<line
-    id> (its edge along the line)."""
+    it (both do — a chord across a bore —: the smaller piece; flip: the other side's), `t` thick about the sketch plane
+    -> the rib alone (a Body, to add). Faces: fid:start / fid:end (its two flat sides), fid:side:<line id> (its edge
+    along the line)."""
     from OCP.BRepClass3d import BRepClass3d_SolidClassifier
     from OCP.TopAbs import TopAbs_IN
     if body is None:
@@ -864,7 +865,7 @@ def rib(body, fr, chain, ids, t, fid):
         raise KernelError("A rib's line has no length.")
     nrm = np.array([-ch[1], ch[0]]) / np.linalg.norm(ch)
     n = np.asarray(fr["n"], float)
-    best = None
+    best = {}  # side -> (volume, the rib that way)
     for side in (1, -1):
         d = nrm * side * D
         ring = [tuple(p) for p in chain] + [tuple(b + d), tuple(a + d)]
@@ -890,13 +891,18 @@ def rib(body, fr, chain, ids, t, fid):
                     fm = _face_map(sol)
                     own = {k: [f for f in fs if fm.Contains(f)] for k, fs in names.items()}
                     v = volume(sol)
-                    if best is None or v < best[0]:
-                        best = (v, Body(sol, {k: fs for k, fs in own.items() if fs}))
+                    if side not in best or v < best[side][0]:
+                        best[side] = (v, Body(sol, {k: fs for k, fs in own.items() if fs}))
                 break
             ex.Next()
-    if best is None:
+    if not best:
         raise KernelError("The rib does not close against the part — draw its line with the part on one side (e.g. from the wall to the plate), its ends touching the part.")
-    return best[1]
+    auto = min(best, key=lambda k: best[k][0])
+    if flip:
+        if -auto not in best:
+            raise KernelError("On the other side of the line the rib does not close against the part — ⇅ flip it back.")
+        return best[-auto][1]
+    return best[auto][1]
 
 
 def split(body, o, n, fid, keep="both"):

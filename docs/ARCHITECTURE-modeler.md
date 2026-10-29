@@ -7,6 +7,13 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⊿ Rib's other side and its suggestion done:** a rib's `flip` (kernel.rib keeps the closing piece of each side of
+  the line: by itself the smaller, flipped the other side's; that side open: "⇅ flip it back"). The Rib panel's
+  ⇅ Flip direction; a sketch of one open line (isOpenLine) chosen in the list or clicked in the view suggests
+  ⊿ Rib from this line (rank 0), Edit the sketch, Delete (suggestSketch); startRib(id) takes that sketch. AI:
+  add_feature rib {flip}. test_rib_flip (a chord across a bore: both segments' volumes, watertight, STEP round trip;
+  the L bracket flipped refused); tools/e2e_model_draft_rib.py; e2e_agent.
+
 - **Draft angle on extrudes done:** an extrude's `draft` (degrees, under 45; negative: out): each prism tool tapered
   by kernel.draft before it is added or cut (the neutral plane the sketch; Both sides with a draft = two halves, each
   tapering away from the sketch, as ＋ Other side; d2's piece too; up to a face too; Through all / Up to next refused);

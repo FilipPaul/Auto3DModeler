@@ -354,12 +354,47 @@ class TestFeatures(unittest.TestCase):
         r, v = vol(*box(d=5), *wall, ln, {"id": "R1", "type": "rib", "sketch": "S3", "t": 4})
         self.assertTrue(r["ok"], r["features"])
         self.assertAlmostEqual(v - v0, 0.5 * 15 * 20 * 4, delta=0.01)
-        names = {n for f in r["body"]["faces"] for n in f.get("names") or [f.get("name")] if n}
+        self.assertTrue(watertight(r["body"]))
+        names ={n for f in r["body"]["faces"] for n in f.get("names") or [f.get("name")] if n}
         self.assertTrue({"R1:side:k1", "R1:start", "R1:end"} <= names, names)
         # a line in the air (nothing to close against): refused
         air = {**ln, "points": {"r1": [15, 60], "r2": [0, 45]}}
         r, _ = vol(*box(d=5), *wall, air, {"id": "R1", "type": "rib", "sketch": "S3", "t": 4})
         self.assertFalse(r["ok"])
+
+    def test_rib_flip(self):
+        """⇅ A rib's other side: a 40 cube with a bore Ø20 along X (centre y 20, z 20); on the Right plane through its
+        middle a line across the bore at z 25 (ends in the material). Both sides close: by itself the smaller piece
+        (the circle's segment above the line, r² acos(d / r) − d √(r² − d²), 4 thick), flipped the larger one; in the
+        L bracket flipped there is nothing to close against. Watertight, the same volume back from STEP."""
+        from auto3d.modeler import kernel as K
+        from test_modeler_kernel import watertight
+        bore = [{"id": "S2", "type": "sketch", "plane": {"datum": "YZ"}, "points": {"c": [20, 20]},
+                 "entities": [{"id": "c1", "t": "circle", "c": "c", "r": 10}]},
+                {"id": "E2", "type": "extrude", "sketch": "S2", "op": "cut", "d": 100, "symmetric": True}]
+        ln = {"id": "S3", "type": "sketch", "plane": {"datum": "YZ", "offset": 20}, "points": {"r1": [5, 25], "r2": [35, 25]},
+              "entities": [{"id": "k1", "t": "line", "a": "r1", "b": "r2"}]}
+        rib = {"id": "R1", "type": "rib", "sketch": "S3", "t": 4}
+        seg = 100 * math.acos(0.5) - 5 * math.sqrt(75)
+        _, v0 = vol(*box(40, 40, 40), *bore)
+        r, v = vol(*box(40, 40, 40), *bore, ln, rib)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v - v0, 4 * seg, delta=1e-3)
+        flipped = [*box(40, 40, 40), *bore, ln, {**rib, "flip": True}]
+        r, v = vol(*flipped)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v - v0, 4 * (math.pi * 100 - seg), delta=1e-3)
+        self.assertTrue(watertight(r["body"]))
+        st, _ = doc.evaluate(flipped)
+        self.assertAlmostEqual(K.volume(K.from_step(K.to_step(st.body.shape))), v, delta=v * 1e-6)
+        # the L bracket's rib flipped: above the line it is open — refused, with the way back
+        pts = {"q1": [0, 15], "q2": [40, 15], "q3": [40, 20], "q4": [0, 20]}
+        lines = [{"id": f"m{i + 1}", "t": "line", "a": f"q{i + 1}", "b": f"q{(i + 1) % 4 + 1}"} for i in range(4)]
+        wall = [{"id": "S2", "type": "sketch", "plane": {"datum": "XY"}, "points": pts, "entities": lines},
+                {"id": "E2", "type": "extrude", "sketch": "S2", "op": "add", "d": 30}]
+        gusset = {**ln, "points": {"r1": [15, 25], "r2": [0, 5]}}
+        r, _ = vol(*box(d=5), *wall, gusset, {**rib, "flip": True})
+        self.assertIn("flip it back", r["features"][-1]["issues"][0])
 
     def test_draft(self):
         """⟋ Draft: a 40 × 20 × 10 block's walls leaning in 5° — a frustum (top 2 × 10·tan 5° smaller each way)."""

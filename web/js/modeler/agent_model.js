@@ -358,7 +358,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
     if (type === 'rib') {
       const sk = spec.sketch || [...m.sketches()].pop()?.id;
       if (!m.part.features.some((f) => f.id === sk && f.type === 'sketch')) throw new Error('sketch: the id of the sketch with the rib\'s line (from get_model).');
-      return { ...base, sketch: sk, t: spec.t ?? 3 };
+      return { ...base, sketch: sk, t: spec.t ?? 3, ...(spec.flip ? { flip: true } : {}) };
     }
     if (type === 'shell') {
       const faces = (spec.faces || []).map((n) => { const f = faceOf(typeof n === 'string' ? n : n.name); return { name: f.name, fp: f.centroid }; });
@@ -670,6 +670,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
           if (!next.d2) delete f.d2;
           if (!next.draft) delete f.draft; // (draft 0: straight walls again)
         }
+        if (f.type === 'rib' && !next.flip) delete f.flip; // (flip: false — its own side again)
       }
       return commitAnd(id);
     },

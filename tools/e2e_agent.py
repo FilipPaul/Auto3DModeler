@@ -134,6 +134,21 @@ try:
     print(f"    draft 5°: volume {v} expected {exp:.3f} | match: {abs(v - exp) < 0.01} | step: {json.loads(tool('get_model')[0])['steps'][-1].get('draft')}")
     t, _ = tool("edit_feature", id="F2", fields={"draft": 0})
     print(f"    draft 0: volume {json.loads(t)['body']['volume_mm3']} expected 8000")
+    # ---- ⊿ a rib across a bore: a 40 cube, a bore Ø20 along X, a line across it at z 25 — the small segment, flipped
+    # the large one (4 thick)
+    tool("new_model", name="Bore rib")
+    tool("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 40, "h": 40}}])
+    tool("add_feature", type="extrude", sketch="F1", d=40)
+    tool("add_feature", type="sketch", plane="YZ", shapes=[{"circle": {"x": 20, "y": 20, "d": 20}}])
+    tool("add_feature", type="extrude", sketch="F3", op="cut", d=100, symmetric=True)
+    tool("add_feature", type="sketch", plane={"datum": "YZ", "offset": 20}, shapes=[{"path": {"points": [[5, 25], [35, 25]]}}])
+    seg = 100 * math.acos(0.5) - 5 * math.sqrt(75)
+    t, _ = tool("add_feature", type="rib", sketch="F5", t=4)
+    print(f"    rib: +{json.loads(t).get('volume_change_mm3')} expected {4 * seg:.3f}")
+    t, _ = tool("edit_feature", id="F6", fields={"flip": True})
+    v = json.loads(t)["body"]["volume_mm3"]
+    exp = 64000 - math.pi * 100 * 40 + 4 * (math.pi * 100 - seg)
+    print(f"    rib flipped: volume {v} expected {exp:.3f} | match: {abs(v - exp) < 0.01}")
     # ---- distances from a round face's axis: a block with a cross hole, a sketch circle and a hole measured from it;
     # the cross hole moves 10 -> both go along
     tool("new_model", name="Cross")
