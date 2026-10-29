@@ -7,6 +7,21 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⬆ Extrude this face done:** a new sketch entity `{t: "outline", face: {name, fp}}` — a flat face's edges as
+  projected edges: doc._face_outlines finds the face again each rebuild (kernel.find_faces), kernel.face_loops copies
+  its wires (outer loop + holes) onto the sketch plane, counter-clockwise, with [u, v] rings for "what is inside what";
+  kernel._loops takes them (edges named `<entity>:<loop>:<k>`, so the extrude's walls are `<id>:side:o1:0:3`); the
+  sketch step's status carries `outline` {entity: rings} for the browser (modeler.faceOutlines: the 3D view's sketch
+  lines, the sketcher draws / selects / deletes it). A flat face's suggestions: "⬆ Extrude this face" (rank 0.5, after
+  ✏ Sketch on this face) -> modeler.extrudeFace: the outline sketch kept in cmd.pre (shown() builds it before the
+  extrude; OK pushes both — one undo step; Cancel drops it), the Extrude panel 10 mm add, no Sketch choice; ⇅ of a face
+  extrude (isFaceExtrude) toggles add / cut into the part. The Extrude panel's pull arrow (view.setPullArrow /
+  pullHit / pullAlong: any extrude by a distance): its tip dragged sets the distance (0.5 mm steps), the field and
+  slider follow. AI: add_feature extrude {face, d, op} (the sketch made first, as the GUI); get_model's sketch
+  `outline_of`. tests/test_face_extrude.py (top up 10 = 16000, the hole kept, cut 4, follows the face, a side face,
+  watertight, STEP round trip, a missing face an issue); tools/e2e_model_face_extrude.py; e2e_suggest; e2e_agent.
+  Left out: an outline entity cannot be mirrored / patterned / offset in the sketcher (it is the face's; draw over it).
+
 - **Hole positions drawn on the sheet done:** sheet.auto_dims places each hole step's holes of one size (a counterbore's
   circles left to its holes) in the view showing them round, from box#x0 / box#y0 (ISO 129): a row / grid its first
   one + its pitch (as before), a bolt circle (sheet._ring: least-squares circle through the centres, equal angles — all

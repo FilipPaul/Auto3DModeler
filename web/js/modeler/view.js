@@ -1076,6 +1076,37 @@ export class ModelView {
     }
   }
 
+  /** An open extrude's pull arrow: from o along the unit direction dir, len long (null: none) — its tip is dragged. */
+  setPullArrow(o, dir, len) {
+    if (!this.pullGroup) { this.pullGroup = new THREE.Group(); this.scene.add(this.pullGroup); }
+    this.clear(this.pullGroup);
+    this.pull = null;
+    this.invalidate();
+    if (!o) return;
+    const a = V(o), n = V(dir).normalize(), head = Math.max(2, Math.min(len * 0.4, (this.size || 40) * 0.08));
+    const arrow = new THREE.ArrowHelper(n, a, len + head, 0xf0883e, head, head * 0.55);
+    arrow.traverse((x) => { if (x.material) { x.material.depthTest = false; x.material.transparent = true; } x.renderOrder = 14; });
+    this.pullGroup.add(arrow);
+    this.pull = { o: a, n, len, head };
+  }
+
+  /** Is the mouse on the pull arrow's head (within 12 px of it)? */
+  pullHit(clientX, clientY) {
+    const p = this.pull;
+    if (!p) return false;
+    const [x, y] = this.toScreen(p.o.clone().addScaledVector(p.n, p.len + p.head * 0.5));
+    return Math.hypot(x - clientX, y - clientY) < 12;
+  }
+
+  /** How far along the pull arrow (mm from its start) the mouse is: the point of its line nearest the mouse's ray. */
+  pullAlong(clientX, clientY) {
+    const p = this.pull;
+    if (!p) return null;
+    const big = (this.size || 40) * 50, at = new THREE.Vector3();
+    this.ray(clientX, clientY).ray.distanceSqToSegment(p.o.clone().addScaledVector(p.n, -big), p.o.clone().addScaledVector(p.n, big), null, at);
+    return at.sub(p.o).dot(p.n) - p.head * 0.5;
+  }
+
   setSnapMark(mp) {
     if (!this.snapGroup) { this.snapGroup = new THREE.Group(); this.scene.add(this.snapGroup); }
     const key = mp?.snap ? `${mp.snap}:${mp.point.toArray().map((v) => v.toFixed(4))}` : '';

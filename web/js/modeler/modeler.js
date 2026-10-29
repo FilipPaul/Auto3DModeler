@@ -590,6 +590,7 @@ export class Modeler {
     const sections = [
       [t('On this face'), [
         flat && ['sketch', '✏', t('Sketch on this face'), () => this.enterSketch({ frame: h.face.frame, ...(h.face.ref ? { face: h.face.ref } : {}) })],
+        flat && this.result?.body && ['faceup', '⬆', t('Extrude this face'), () => this.extrudeFace(h.face)],
         flat && ['hole', '◎', t('Hole here'), () => { this.startHole(); if (this.cmd) this.clickHole(at); }],
         flat && ['decal', 'Aa', t('Text / picture here'), () => { this.startDecal(); if (this.cmd) this.clickDecal(at); }],
         flat && ['shell', '▢', t('Hollow out, open here'), () => { this.startShell(); if (this.cmd) this.clickShell(at); }]]],
@@ -609,8 +610,8 @@ export class Modeler {
     ].map(([title, items]) => [title, items.filter(Boolean)]).filter(([, items]) => items.length);
     const face = t(this.faceLabel(h.face.name).replace(/ of .*$/, '').replace(/^the /, ''));
     // the most relevant first (the table shows the top ones, the rest under ⋯ Show all): a flat face — sketch on it,
-    // a hole, round / bevel, edit; a round one — its edges, threads, edit
-    const RANK = { sketch: 0, hole: 1, fillet: 2, chamfer: 3, edit: 4, decal: 5, shell: 6, del: 7, mirror: 8, split: 9, off: 10, threads: flat ? 11 : 2.5 };
+    // extrude it, a hole, round / bevel, edit; a round one — its edges, threads, edit
+    const RANK = { sketch: 0, faceup: 0.5, hole: 1, fillet: 2, chamfer: 3, edit: 4, decal: 5, shell: 6, del: 7, mirror: 8, split: 9, off: 10, threads: flat ? 11 : 2.5 };
     const sg = showSuggest(this.els.viewport, `${fs.step.name} · ${face}`, sections.flatMap(([title, items]) => [{ section: title },
       ...items.map(([key, icon, label, run, cls]) => ({ icon, label, rank: RANK[key], danger: cls === 'danger', run: () => { this.dropSuggest(); run(); } }))]), '',
       `${t('in the 3D model')}: ${t('step')} ${fs.step.id} “${fs.step.name}”, ${t('face')} ${h.face.name}${h.face.type === 'plane' ? ` (${t('flat')})` : h.face.type === 'cylinder' ? ` (${t('round')}, Ø${fmt(2 * (h.face.radius || 0))})` : ''}`);
@@ -1267,7 +1268,7 @@ export class Modeler {
     }
     if (this.cmd) {
       const f = this.cmd.feature;
-      return this.cmd.isNew ? [...fs, f] : fs.map((g) => (g.id === f.id ? f : g));
+      return this.cmd.isNew ? [...fs, ...(this.cmd.pre || []), f] : fs.map((g) => (g.id === f.id ? f : g));
     }
     return fs;
   }
@@ -1316,6 +1317,7 @@ export class Modeler {
         this.result = r;
         this.applyUpdates(r);
         this.frames = { ...this.frames, ...r.frames }; // also while rolled back before an open sketch
+        for (const s of r.features || []) if (s.outline) this.faceOutlines = { ...this.faceOutlines, [s.id]: s.outline }; // (⬆ faces' outlines, for drawing them)
         const first = !this.view.body && r.body;
         this.view.setBody(r.body);
         this.view.setLook({ ...this.part, color: lookColor(this.part) });
@@ -1352,6 +1354,7 @@ export class Modeler {
     this.renderStatus();
     if (this.mode === 'part') this.renderCmdBar(); // the tools that need a solid wake up when the first one arrives
     if (!this.cmd && this.mode === 'part') this.renderProps();
+    this.showPullArrow();
     this.hooks.onChange?.();
   }
 
@@ -1409,6 +1412,9 @@ export class Modeler {
       for (const e of sk.entities.filter((x) => x.t === 'spline' && (x.pts || []).every(P))) { // smooth curves
         const ps = splinePts(e.pts.map(P));
         for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1]]);
+      }
+      for (const e of sk.entities.filter((x) => x.t === 'outline')) { // ⬆ a face's outline: as the last rebuild found it
+        for (const r of this.faceOutlines?.[f.id]?.[e.id] || []) for (let i = 0; i < r.length; i++) lines.push([r[i], r[(i + 1) % r.length]]);
       }
       for (const e of sk.entities.filter((x) => x.t === 'block')) {
         const k = e.scale || 1, [au, av] = e.at || [0, 0];
@@ -1567,7 +1573,8 @@ export class Modeler {
   sketchSpan() {
     // the sketch's own points, and the edges of the face it is on (fit the face, not the whole part)
     const ps = [...Object.values(this.sk.f.points), ...this.sk.refs().points,
-      ...this.sk.f.entities.filter((e) => e.t === 'block').flatMap((e) => this.sk.blockRings(e).flat())];
+      ...this.sk.f.entities.filter((e) => e.t === 'block').flatMap((e) => this.sk.blockRings(e).flat()),
+      ...this.sk.f.entities.filter((e) => e.t === 'outline').flatMap((e) => this.sk.outlineRings(e).flat())];
     const rs = this.sk.f.entities.filter((e) => e.t === 'circle').map((e) => [...(this.sk.P(e.c) || [0, 0]), e.r]);
     if (!ps.length) return Math.max(this.view.size * 1.4, 80);
     const ext = Math.max(...ps.map((p) => Math.max(Math.abs(p[0]), Math.abs(p[1]))), ...rs.map(([u, v, r]) => Math.max(Math.abs(u), Math.abs(v)) + r));
@@ -1611,6 +1618,52 @@ export class Modeler {
       d: onFace ? 5 : 10, symmetric: false, flip: false, through: false };
   }
 
+  /** A sketch whose one shape is a flat face's outline — its outer loop and holes, the face's own edges found again each
+   *  rebuild (as projected edges: it follows the face when earlier steps change it). */
+  faceSketch(face, id = this.newId()) {
+    return { id, type: 'sketch', name: this.nextName('sketch'), plane: { face: face.ref || { name: face.name }, frame: face.frame },
+      points: {}, entities: [{ id: 'o1', t: 'outline', face: { name: face.name, fp: face.centroid } }], constraints: [], dims: [] };
+  }
+
+  /** ⬆ Extrude this face: its outline sketch and an extrude of it 10 mm out of the part, the panel open (⇅: a cut into
+   *  the part instead). OK keeps both as ordinary steps; Cancel drops the sketch too (it was never a step). */
+  extrudeFace(face) {
+    if (this.mode !== 'part' || this.cmd || face?.type !== 'plane') return;
+    const sk = this.faceSketch(face), n = parseInt(sk.id.replace(/\D/g, ''), 10) || 0;
+    this.openExtrude({ id: `F${n + 1}`, type: 'extrude', name: this.nextName('extrude'), sketch: sk.id, op: 'add', d: 10, symmetric: false, flip: false, through: false }, true, [sk]);
+  }
+
+  /** The sketch of a step (also the open ⬆ Extrude this face's own, not a step yet). */
+  sketchOf(id) { return this.part.features.find((g) => g.id === id) || this.cmd?.pre?.find((g) => g.id === id) || null; }
+
+  /** An extrude of a face's outline (its sketch only that, on that face): ⇅ makes it a cut into the part. */
+  isFaceExtrude(f) {
+    const sk = f?.type === 'extrude' && this.sketchOf(f.sketch), es = sk?.entities || [];
+    return !!es.length && es.every((e) => e.t === 'outline' && e.face?.name === sk.plane?.face?.name);
+  }
+
+  /** The open extrude's pull arrow: from its sketch along the way it goes, as long as its distance — drag its tip. */
+  showPullArrow() {
+    const f = this.cmd?.feature, sk = f?.type === 'extrude' && this.mode === 'part' && !f.upto && !f.upto_next && !f.through && this.sketchOf(f.sketch);
+    const fr = sk && (sk.plane?.datum ? datumFrame(sk.plane) : this.frames?.[sk.id] || sk.plane?.frame);
+    if (!fr || !(f.d > 0)) { this.view.setPullArrow(null); return; }
+    const c = this.isFaceExtrude(f) ? [0, 0] : this.sketchCentre(sk), y = [fr.n[1] * fr.x[2] - fr.n[2] * fr.x[1], fr.n[2] * fr.x[0] - fr.n[0] * fr.x[2], fr.n[0] * fr.x[1] - fr.n[1] * fr.x[0]];
+    const s = (f.op === 'cut' ? -1 : 1) * (f.flip ? -1 : 1), o = [0, 1, 2].map((i) => fr.o[i] + c[0] * fr.x[i] + c[1] * y[i]);
+    this.view.setPullArrow(o, fr.n.map((v) => v * s), f.symmetric ? f.d / 2 : f.d);
+  }
+
+  /** The pull arrow dragged: the distance follows the mouse along it (0.5 mm steps), the panel's number too. */
+  pullTo(e) {
+    const f = this.cmd?.feature, t0 = this.view.pullAlong(e.clientX, e.clientY);
+    if (!f || t0 === null) return;
+    const d = Math.max(0.5, Math.round(t0 * (f.symmetric ? 2 : 1) * 2) / 2);
+    if (d === f.d) return;
+    f.d = d;
+    const num = this.$('.mp-body input[data-k=d]');
+    if (num) { num.value = fmt(d); num.dispatchEvent(new Event('input', { bubbles: true })); } else this.rebuild();
+    this.showPullArrow();
+  }
+
   startExtrude() {
     if (this.mode !== 'part' || this.cmd) return;
     const used = new Set(this.part.features.flatMap(sketchesOf));
@@ -1620,9 +1673,9 @@ export class Modeler {
     this.openExtrude(this.newExtrude(sk.id), true);
   }
 
-  openExtrude(feature, isNew) {
+  openExtrude(feature, isNew, pre = null) {
     if (this.measuring) this.toggleMeasure();
-    this.cmd = { feature, isNew };
+    this.cmd = { feature, isNew, ...(pre ? { pre } : {}) };
     this.mode = 'part';
     this.selected = feature.id;
     this.hint('Extrude — the preview is in the view. Enter = OK, Esc = Cancel.');
@@ -1649,7 +1702,7 @@ export class Modeler {
       <label class="check" title="Also extrude a distance to the other side of the sketch"><input type="checkbox" data-k="other" ${f.d2 ? 'checked' : ''}> ＋ Other side</label>
       ${f.d2 ? `<div class="field"><label>Other side</label><input type="number" step="any" min="0" data-k="d2" value="${fmt(f.d2)}"><span class="unit">mm</span></div>` : ''}
       ${f.upto_next || f.through ? '' : `<div class="field" title="Taper the side walls: they lean in going away from the sketch (negative: out) — so a moulded or cast part comes out"><label>Draft</label><input type="number" step="0.5" min="-44" max="44" data-k="draft" data-slider="1" value="${fmt(f.draft || 0)}"><span class="unit">°</span></div>`}
-      ${sks.length > 1 ? `<div class="field"><label>Sketch</label><select data-k="sketch">${sks.map((s) => `<option value="${s.id}" ${s.id === f.sketch ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></div>` : ''}
+      ${sks.length > 1 && !this.cmd.pre ? `<div class="field"><label>Sketch</label><select data-k="sketch">${sks.map((s) => `<option value="${s.id}" ${s.id === f.sketch ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></div>` : ''}
       <p class="mp-bad" ${st && !st.ok ? '' : 'hidden'}>${st && !st.ok ? `⚠ ${esc(st.issues.join(' '))}` : ''}</p>
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>
       <p class="hint">The preview is in the 3D view. Enter = OK, Esc = Cancel.</p>`;
@@ -1687,7 +1740,11 @@ export class Modeler {
       changed();
       if (f.d2) setTimeout(() => { const i = box.querySelector('[data-k=d2]'); i?.focus(); i?.select(); }, 0);
     });
-    box.querySelector('[data-k=flip]')?.addEventListener('click', () => { f.flip = !f.flip; changed(); });
+    box.querySelector('[data-k=flip]')?.addEventListener('click', () => {
+      if (this.isFaceExtrude(f) && !f.upto && !f.upto_next) { f.op = f.op === 'cut' ? 'add' : 'cut'; f.flip = false; if (f.op === 'add') f.through = false; } // (out of the part, or a cut into it)
+      else f.flip = !f.flip;
+      changed();
+    });
     box.querySelector('[data-k=sketch]')?.addEventListener('change', (e) => { f.sketch = e.target.value; changed(); });
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okExtrude());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelExtrude());
@@ -1803,9 +1860,10 @@ export class Modeler {
     if (f.type === 'shell' && !f.faces.length) { this.hooks.toast('Click the face(s) to leave open first.', 'warning'); return; }
     if (f.type === 'decal' && (!f.plane || !f.polys)) { this.hooks.toast(f.plane ? 'Type some text, or choose a picture.' : 'Click on a flat face where it goes.', 'warning'); return; }
     if (f.type === 'hole' && !f.points.length) { this.hooks.toast('Click on a flat face where the hole goes.', 'warning'); return; }
-    if (isNew) this.part.features.push(f);
+    if (isNew) this.part.features.push(...(this.cmd.pre || []), f); // (⬆ Extrude this face: its outline sketch first)
     else this.part.features = this.part.features.map((g) => (g.id === f.id ? f : g));
     this.cmd = null;
+    this.view.setPullArrow(null);
     this.holePick = null;
     this.splitMid = false;
     this.view.setEdgeHighlight();
@@ -1818,7 +1876,8 @@ export class Modeler {
   cancelExtrude() { this.cancelCommand(); }
 
   cancelCommand() {
-    this.cmd = null;
+    this.cmd = null; // (⬆ Extrude this face: its outline sketch goes with it — it was never a step)
+    this.view.setPullArrow(null);
     this.holePick = null;
     this.splitMid = false;
     this.view.setSketch(null);
@@ -3162,12 +3221,20 @@ export class Modeler {
       if (this.hoverEv) hoverNow(); // (a move not shown yet: as it came, before the press)
       if (e.button !== 0 || (e.buttons & ~1)) { down = null; return; } // the left button alone
       down = { x: e.clientX, y: e.clientY, drag: null };
+      if (this.mode === 'part' && this.cmd?.feature.type === 'extrude' && this.view.pullHit(e.clientX, e.clientY)) { // the pull arrow's tip: drag the distance
+        down.pull = true;
+        this.view.controls.enabled = false;
+        cv.setPointerCapture(e.pointerId);
+        return;
+      }
       if (this.mode === 'sketch') {
         down.drag = this.sk.down(e);
         if (down.drag) cv.setPointerCapture(e.pointerId);
       }
     });
     cv.addEventListener('pointermove', (e) => {
+      if (down?.pull) { this.pullTo(e); return; }
+      if (this.mode === 'part' && this.cmd?.feature.type === 'extrude' && !down && this.view.pullHit(e.clientX, e.clientY)) { cv.style.cursor = 'grab'; return; }
       if (this.mode === 'plane') {
         const h = this.view.pick(e.clientX, e.clientY, { datums: true });
         this.view.setHover(h?.face?.type === 'plane' ? h.face.id : -1);
@@ -3224,6 +3291,7 @@ export class Modeler {
       if (e.button !== 0 || !down) return;
       const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4;
       const drag = down.drag;
+      if (down.pull) { down = null; this.view.controls.enabled = true; return; } // (the pull arrow let go)
       down = null;
       if (drag) { this.sk?.up(drag); if (drag.moved || moved) return; }
       if (moved) return; // the camera was moved

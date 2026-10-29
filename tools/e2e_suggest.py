@@ -174,7 +174,7 @@ try:
     time.sleep(0.5)
     print("after the sketch:", table())
 
-    # a face of a 3D model: Sketch on it, Hole here first; the rest under Show all
+    # a face of a 3D model: Sketch on it, Extrude it, Hole here first; the rest under Show all
     call("new_model", name="Plate")
     call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 40, "h": 20}}])
     call("add_feature", type="extrude", sketch="F1", d=10)
@@ -191,7 +191,7 @@ try:
     tb = table()
     print("a flat face:", sections(), tb)
     d.save_screenshot(f"{OUT}/suggest_face.png")
-    check("a face: ✏ Sketch on this face, ◎ Hole here first", tb and "Sketch on this face" in tb[1] and "Hole here" in tb[2])
+    check("a face: ✏ Sketch on this face, ⬆ Extrude this face, ◎ Hole here first", tb and "Sketch on this face" in tb[1] and "Extrude this face" in tb[2] and "Hole here" in tb[3])
     check("a face: 8 rows (Fillet, Edit among them) + Show all", len(rows(tb)) == 8 and any("Round its edges" in r for r in tb) and any("Edit the step" in r for r in tb) and (more_row() or "").startswith("⋯ Show all"))
     check("a face: Split / Mirror only under Show all", not any("Split here" in r or "Mirror across" in r for r in tb))
     d.find_element(By.CSS_SELECTOR, "#modelViewport .view-suggest [data-sg-all]").click()

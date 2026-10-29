@@ -63,6 +63,9 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
      the plate above it, a cut through the first wall only — it follows the part); `d2: 5` also extrudes 5 mm to the
      other side of the sketch (`went.other_side` says where). `draft: 3` tapers the walls 3° (in going away from the
      sketch, negative: out — a moulded / cast part, a pocket that releases); with a distance or `up_to`, add or cut.
+   - **A whole flat face pulled out or pushed in** (a plate made taller, a side lengthened, a face lowered):
+     `add_feature {type: "extrude", face: "<face name>", d: 10}` (`op: "cut"`: that deep into the part) — the app makes
+     the sketch of the face's outline (its holes kept, following the face) and the extrude, as ⬆ Extrude this face.
    - **Measure from a corner or the part's origin** instead of the face's centre: `origin: "corner"` (the face's
      min-u min-v corner, followed when the part changes) or `origin: "world"` (points / shapes in world X / Y / Z: a
      hole at world (30, 10) on a top face is `points: [[30, 10]]`), or `origin: {point: "<point step>"}` — on a hole

@@ -8,6 +8,8 @@ Part JSON (in the project file, `parts[].model`):
       (or "upto": {name, fp} + "offset": up to a face; "upto_next": true: up to the next face its whole sketch meets;
       "d2": 5 = also 5 mm to the other side of the sketch)
      {"id": "F3", "type": "sketch", "plane": {"face": {"name": "F2:end"}, "frame": {"o", "x", "n"}}, ...},
+      (an entity {"id": "o1", "t": "outline", "face": {"name": "F2:end", "fp": [x, y, z]}}: that flat face's edges — its
+      outer loop and holes — found again each rebuild, as projected edges: ⬆ Extrude this face)
      {"id": "F4", "type": "fillet", "edges": [{"a": "F2:end", "b": "F2:side:l1", "fp": [x, y, z]}], "r": 2},
      {"id": "F5", "type": "chamfer", "edges": [...], "d": 1},
       (a fillet / chamfer rounds each edge's whole tangent chain — OpenCASCADE's way; "chain": false (⛓ off) only
@@ -279,6 +281,7 @@ def _apply(f, st: State, s):
         fr = plane_frame(f.get("plane"), st)
         st.frames[fid] = fr
         f = _follow_refs(f, fr, st, s)
+        f = _face_outlines(f, fr, st, s)
         st.sketch_src[fid] = f
         try:
             st.sketches[fid] = (fr, K.sketch_faces(fr, f))
@@ -708,6 +711,27 @@ def _follow_refs(f, fr, st, s):
             s["warnings"].append("The sketch's sizes no longer fit the part's new shape — open the sketch and unlock one.")
     s["update"] = {"dims": f["dims"], "points": f.get("points"), "entities": f.get("entities")}
     return f
+
+
+def _face_outlines(f, fr, st, s):
+    """⬆ A sketch's face outlines ({t: "outline", face: {name, fp}}: the edges of a flat face of the part, as
+    projected edges) found again on the part as it is now — the loops for the kernel, their [u, v] rings for the
+    browser (s["outline"] = {entity id: [ring, …]}). A face that is gone is an issue (the sketch has nothing left)."""
+    ents = f.get("entities") or []
+    if not any(e.get("t") == "outline" for e in ents):
+        return f
+    out, rings = [], {}
+    for e in ents:
+        if e.get("t") == "outline" and not e.get("construction"):
+            if st.body is None:
+                raise K.KernelError("The face it takes its outline from is not there (it needs a part first).")
+            face = K.find_faces(st.body, [e.get("face") or {}])[0]
+            loops = K.face_loops(face, fr)
+            rings[e.get("id")] = [[[round(u, 6), round(v, 6)] for u, v in ring] for _, ring in loops]
+            e = {**e, "_loops": loops}
+        out.append(e)
+    s["outline"] = rings
+    return {**f, "entities": out}
 
 
 def _up_to_face(f, fr, st):

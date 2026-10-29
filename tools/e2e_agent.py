@@ -157,6 +157,21 @@ try:
     v = json.loads(t)["body"]["volume_mm3"]
     exp = 64000 - math.pi * 100 * 40 + 4 * (math.pi * 100 - seg)
     print(f"    rib flipped: volume {v} expected {exp:.3f} | match: {abs(v - exp) < 0.01}")
+    # ---- ⬆ a face extruded: a 40 × 20 × 10 block with a Ø6 hole, its top pulled up 10 (the hole goes on up), then
+    # its top cut 4 back in
+    tool("new_model", name="Face up")
+    tool("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 40, "h": 20}}])
+    tool("add_feature", type="extrude", sketch="F1", d=10)
+    tool("add_feature", type="hole", face="F2:end", points=[[0, 0]], d=6)
+    r = json.loads(tool("add_feature", type="extrude", face="F2:end", d=10)[0])
+    want = 8000 - 9 * math.pi * 10
+    steps = json.loads(tool("get_model")[0])["steps"]
+    print(f"    face extruded: ok {r.get('ok')} | +{r.get('volume_change_mm3')} expected {want:.3f} | match: "
+          f"{abs(r.get('volume_change_mm3', 0) - want) < 0.01 and steps[-2].get('outline_of') == ['F2:end'] and steps[-1]['sketch'] == steps[-2]['id']}")
+    r = json.loads(tool("add_feature", type="extrude", face=f"{r['id']}:end", d=4, op="cut")[0])
+    print(f"    face cut in: {r.get('volume_change_mm3')} expected {-(800 - 9 * math.pi) * 4:.3f} | match: {abs(r.get('volume_change_mm3', 0) + (800 - 9 * math.pi) * 4) < 0.01}")
+    t, _ = tool("add_feature", type="extrude", face="F9:end", d=4)
+    print(f"    an unknown face refused: {'No face' in t and not any(s.get('outline_of') == ['F9:end'] for s in json.loads(tool('get_model')[0])['steps'])}")
     # ---- distances from a round face's axis: a block with a cross hole, a sketch circle and a hole measured from it;
     # the cross hole moves 10 -> both go along
     tool("new_model", name="Cross")
