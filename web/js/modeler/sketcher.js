@@ -3931,10 +3931,11 @@ export class Sketcher {
     const bigNote = big ? `<p class="hint sk-big">${this.m.bigAll?.has(this.f.id)
       ? `${tv('Every size of the {n} shapes is shown.', { n })} <button class="btn small" data-a="bigAll">Show only the locked ones</button>`
       : `${tv('A big sketch ({n} shapes): only the locked sizes are shown.', { n })} <button class="btn small" data-a="bigAll">Show them all anyway</button>`}</p>` : '';
-    return `<h2>Sketch</h2><p class="hint">${this.hint()}</p>${st}${this.stateHtml()}${this.m.sizesHtml?.() || ''}${bigNote}${what}${list}${relList}
-      <h3>Tips</h3><p class="hint">A shape inside another one becomes a hole. Lines that meet at a point are joined; click the
+    // (what to do now: the hint over the view; which sizes show: 🏷 in the step list — not again here)
+    return `<h2>Sketch</h2>${st}${this.stateHtml()}${bigNote}${what}${list}${relList}
+      <details class="sk-tips"><summary>Tips</summary><p class="hint">A shape inside another one becomes a hole. Lines that meet at a point are joined; click the
       first point again to close a shape. 🔒 = locked size (it stays when other sizes change). ↔ Dimension adds a distance
-      between two points, circles or edges (also the part's edges, dashed). Right mouse button pans, wheel zooms, Ctrl+Z undoes.</p>`;
+      between two points, circles or edges (also the part's edges, dashed). Right mouse button pans, wheel zooms, Ctrl+Z undoes.</p></details>`;
   }
 
   /** Under the free count: what does not fit and why (red on the shapes), 🪄 at rounded values while sizes are free

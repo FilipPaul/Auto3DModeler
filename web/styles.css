@@ -999,6 +999,12 @@ input.px-in.px-bad, .px-box input.px-bad { border-color: #f0883e !important; out
 /* property panel */
 #modelRight { padding: 12px 14px; }
 .mp-body h2 { font-size: 15px; margin: 2px 0 10px; }
+/* folded, rarely used: the part's tolerances / see-through (More…), the sketch's tips */
+.mp-body details.mp-more, .mp-body details.sk-tips { margin: 6px 0 4px; }
+.mp-body details.mp-more > summary, .mp-body details.sk-tips > summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 2px 0; }
+.mp-body details.mp-more > summary:hover, .mp-body details.sk-tips > summary:hover { color: var(--text); }
+.mp-body details.mp-more[open] > summary { margin-bottom: 6px; }
+#modelRight .row-actions.wrap { flex-wrap: wrap; justify-content: flex-start; } /* (the part's buttons wrap in a narrow panel, none cut off) */
 .mp-facts { display: grid; grid-template-columns: 70px 1fr; gap: 4px 10px; margin-bottom: 10px; }
 .mp-facts span { color: var(--muted); }
 .mp-bad { color: var(--err); font-size: 12px; }

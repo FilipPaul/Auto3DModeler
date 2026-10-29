@@ -1646,25 +1646,24 @@ export class Modeler {
           ${b.cog ? `<span title="${esc(t("Centre of mass (centre of gravity) of the solid, in the part's coordinates"))}">CoG</span><b class="mp-cog"><span data-no-i18n>${cogText(b.cog)} mm</span>
             <button class="btn small ${this.cogOn ? 'on' : ''}" data-a="cog" title="${esc(t('Show the centre of mass in the view (⊕)'))}">⊕</button></b>` : ''}</div>
           <div class="field"><label>Material</label><select data-k="material">${MATERIAL_GROUPS.map(([g, ms]) => `<optgroup label="${esc(t(g))}">${ms.map(([k, rho]) => `<option value="${k}" ${k === (this.part.material || 'PLA') ? 'selected' : ''}>${esc(t(k))} — ${rho} g/cm³</option>`).join('')}</optgroup>`).join('')}</select></div>
+          <div class="field"><label>Colour</label><input type="color" data-k="color" value="${lookColor(this.part) || '#d9dee6'}" title="Its colour here and in assemblies (without one: its material's)"></div>
+          <details class="mp-more"${this.moreOpen ? ' open' : ''}><summary title="Tolerances for the 2D drawing, see-through">More…</summary>
           <div class="field"><label>Tolerances</label><select data-k="tolerance" title="The general tolerances (ISO 2768) for sizes without their own — on the 2D drawing">
             ${[['', '—'], ['f', 'ISO 2768-f (fine)'], ['m', 'ISO 2768-m (medium)'], ['c', 'ISO 2768-c (coarse)']].map(([v, l]) => `<option value="${v}" ${v === (this.part.tolerance || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-          <div class="field"><label>Colour</label><input type="color" data-k="color" value="${lookColor(this.part) || '#d9dee6'}" title="Its colour here and in assemblies (without one: its material's)"></div>
           <div class="field mp-look"><label>See-through</label><input type="range" min="0" max="90" step="5" data-k="clear" value="${Math.round((1 - (this.part.opacity ?? 1)) * 100)}"><span class="unit">${Math.round((1 - (this.part.opacity ?? 1)) * 100)} %</span></div>
+          </details>
           ${this.threadsHtml()}`
       : '<p class="hint">No solid yet — extrude a sketch.</p>'}
         ${bad.length ? `<p class="mp-bad">⚠ ${bad.length} step(s) could not be built — point at ⚠ in the list to see why.</p>` : ''}
-        <h3>Next</h3><p class="hint">${esc(this.nextHint())}</p>
-        <div class="row-actions wrap"><button class="btn small" data-a="sketch">✏ Sketch</button>
-        ${this.sketches().length ? '<button class="btn small" data-a="extrude">⬆ Extrude</button>' : ''}</div>
         ${libraryFactsHtml(this.part.library)}
         ${this.part.libEdit && this.hooks.saveBackToLibrary ? `<div class="mp-libedit"><b>📚 ${esc(t('Library part'))}</b> <span data-no-i18n>${esc(this.part.libEdit.name || '')}</span>
           <p class="hint">${esc(t('You are changing a part of your library. Save it back to keep the change there — parts already in projects stay as they were.'))}</p>
           <div class="row-actions"><button class="btn small primary" data-a="saveBack">📚 ${esc(t('Save back to the library'))}</button></div></div>` : ''}
-        ${this.hooks.saveToLibrary && this.part.features.length ? '<div class="row-actions"><button class="btn small" data-a="saveToLibrary" title="Keep this 3D model in your parts library (on the server) — to use it again in any project">📚 Save to the library</button></div>' : ''}
-        ${this.hooks.duplicatePart ? '<div class="row-actions"><button class="btn small" data-a="duplicatePart" title="A copy of this 3D model as a new part of its own (its own tab) — change it without changing this one">⧉ Duplicate as a new part</button></div>' : ''}
-        ${b && this.hooks.toPrint ? `<h3>3D print</h3><p class="hint">Check it fits your printer, split it into exact pieces with joints — in a printing copy of this part.</p>
-          <div class="row-actions"><button class="btn small primary" data-a="toPrint">🖨 Prepare for 3D print</button></div>${rbNote}` : ''}
-        ${b ? `<h3>Export</h3>${rbNote}<div class="row-actions"><button class="btn small" data-x="stl" title="For 3D printing">STL</button>
+        <div class="row-actions wrap">${this.hooks.saveToLibrary && this.part.features.length ? '<button class="btn small" data-a="saveToLibrary" title="Keep this 3D model in your parts library (on the server) — to use it again in any project">📚 Save to the library</button>' : ''}
+        ${this.hooks.duplicatePart ? '<button class="btn small" data-a="duplicatePart" title="A copy of this 3D model as a new part of its own (its own tab) — change it without changing this one">⧉ Duplicate as a new part</button>' : ''}</div>
+        ${b && this.hooks.toPrint ? `<h3>3D print</h3>
+          <div class="row-actions"><button class="btn small primary" data-a="toPrint" title="Check it fits your printer, split it into exact pieces with joints — in a printing copy of this part">🖨 Prepare for 3D print</button></div>${rbNote}` : ''}
+        ${b ? `<h3>Export</h3>${rbNote}<div class="row-actions wrap"><button class="btn small" data-x="stl" title="For 3D printing">STL</button>
           <button class="btn small" data-x="step" title="For other CAD programs (exact circles and faces)">STEP</button>
           <button class="btn small" data-x="iges" title="For CAD programs that ask for IGES (exact solid, mm) — STEP is better where it is read">IGES</button>
           <button class="btn small" data-x="glb" title="glTF for viewers and rendering: its colour and material (metal / plastic)">GLB</button>
@@ -1675,6 +1674,7 @@ export class Modeler {
     for (const el of box.querySelectorAll('[data-a]')) el.addEventListener('click', () => (el.dataset.a === 'newSheet' ? this.hooks.newSheet() : this.action(el.dataset.a)));
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
     box.querySelector('[data-k=material]')?.addEventListener('change', (e) => this.setMaterial(e.target.value));
+    box.querySelector('.mp-more')?.addEventListener('toggle', (e) => { this.moreOpen = e.target.open; }); // (open stays open while the panel is drawn again)
     box.querySelector('[data-k=tolerance]')?.addEventListener('change', (e) => { if (e.target.value) this.part.tolerance = e.target.value; else delete this.part.tolerance; this.history.commit(); });
     const col = box.querySelector('[data-k=color]'), clr = box.querySelector('[data-k=clear]');
     col?.addEventListener('input', () => { this.part.color = col.value; this.view.setLook({ ...this.part, color: lookColor(this.part) }); });
@@ -1780,13 +1780,6 @@ export class Modeler {
         this.hooks.toast(e.message, 'error', 7000);
       }
     }
-  }
-
-  nextHint() {
-    const used = new Set(this.part.features.flatMap(sketchesOf));
-    if (this.sketches().some((s) => !used.has(s.id))) return 'A sketch is not used yet (bright lines in the view) — Extrude it, or double-click its lines to change it.';
-    if (!this.result?.body) return 'Extrude a sketch to make the solid.';
-    return 'Click ✏ Sketch, then a flat face of the part, to add a pocket or a boss — or ◎ Hole, ◜ Fillet, ◸ Chamfer. Double-click a step to change it.';
   }
 
   renderStatus() {

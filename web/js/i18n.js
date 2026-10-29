@@ -1744,6 +1744,7 @@ const CS = {
   'Lock the sizes the sketch still needs to be fully defined': 'Zamknout rozměry, které skice ještě chybí k úplnému určení',
   'Pick a shape': 'Vybrat tvar', 'Click a shape: its sizes and relations are offered here': 'Klikněte na tvar: jeho rozměry a vazby se nabídnou zde',
   'Click a line or a circle for its size — or two things for the distance between them (D)': 'Klikněte na čáru nebo kruh pro jeho velikost — nebo na dvě věci pro vzdálenost mezi nimi (D)',
+  'Tolerances for the 2D drawing, see-through': 'Tolerance pro 2D výkres, průhlednost',
   // (a face's kind in the suggestions' title: "Extrude 1 · top")
   top: 'horní plocha', bottom: 'spodní plocha', 'a wall': 'stěna', 'a hole': 'díra', 'a rounding': 'zaoblení', 'cut face': 'plocha řezu', 'a face': 'plocha',
 };
