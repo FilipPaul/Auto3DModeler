@@ -7,6 +7,19 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **AI tool coverage checked (2026-10-29)** (the owner: "checkni, jestli AI agent má přístup ke všem toolům"):
+  docs/AI-TOOLS-COVERAGE.md — 90 GUI capabilities against the tools: before ok 54 / partial 14 / gui only 21, now
+  ok 64 / partial 13 / gui 12 (layout, rare, many-input tools). tests/test_agent_wiring.py: the page's handlers (read
+  from the JS: the blocks that build agentHandlers) ↔ TOOLS both ways, SERVER_TOOLS, the MCP tools/list, the chat's
+  TOOL_LABEL (12 were missing) and a skill / the system prompt naming each tool (3 were not); e2e_agent asks the page
+  for its handlers too. Added: list_demos / open_demo and open_file of a .a3d.json (server -> load_project ->
+  openLoaded, blobs and version history), export format "project" (savedProject), get_assembly parts' mass_g and
+  missing_joint + add_missing_joint, drive_mechanism trace, place_part fixed, switch_variant / take_part, add_feature
+  type "solid" with a path (server: import_solid into the blob store). The real chat (tools/e2e_chat.py, fixed to wait
+  for the whole turn: ai-busy) ran "open the crank demo, its mass, the slider's stroke, a GIF, save the project":
+  open_demo, get_assembly, drive_mechanism trace, record_animation, export project — 203.6 g, 50 mm.
+  Left to gui_action: layout (widgets, windows, language, planes / ⊕ shown, explode per part, simplified look),
+  sketch extend / construction / mirror / offset, step reorder, split pieces as parts, bending, print split joints.
 - **⏮ Print and export as the rollback bar stands done** (the owner: "Chci tisknout podle aktuálního umístění
   posuvníku" — as SolidWorks): one place on the server, doc.at_bar(part) — the steps up to part.rollback (absent or a
   step that is not there: all) — used by rebuild, body_of, export (STEP / IGES / STL / OBJ / GLB / PDF) and sheet, so

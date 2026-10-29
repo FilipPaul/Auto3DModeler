@@ -1112,7 +1112,16 @@ can open them.
   `remove_joint`), `measure` between faces, the view for its screenshots (`set_view`: a section, explode, size labels;
   `get_screenshot` is a 1200 × 900 picture of the whole part or assembly however narrow the view is beside the chat,
   without your hover or picks, and `highlight` lights the faces of a step in orange),
-  parts renamed or deleted, and files: `export` stl / step / pdf / **3mf** / **bom** / **dxf**.
+  parts renamed or deleted, and files: `export` stl / step / pdf / **3mf** / **bom** / **dxf** / **project** (the
+  whole project as a .a3d.json, as *Save project*).
+- **Demos, project files, variants, mechanisms**: ask "open the crank demo, tell me its mass and save a GIF of it" —
+  the AI opens a 🎬 demo (`list_demos`, `open_demo`) or a saved project (`open_file` of a .a3d.json), reads each placed
+  part's mass, traces how the slider moves over a turn of the crank (`drive_mechanism {trace: true}`, the 📈 Trace),
+  adds the joint the *One joint is missing* line offers (`add_missing_joint`), fixes a part in place
+  (`place_part {fixed}`), switches 🕘 variants and takes a part from another one (`switch_variant`, `take_part`), and
+  puts a STEP / STL file into a 3D model as a step (`add_feature {type: "solid", path}`: ▣ Solid from a file).
+  [docs/AI-TOOLS-COVERAGE.md](docs/AI-TOOLS-COVERAGE.md) lists what the AI reaches in each workspace and what is left
+  to `gui_action` on purpose (layout, tools with many inputs).
 - **Problem reports**: when something in the app does not behave as expected, the AI writes a dated report
   (`report_problem`) into **RealSWReports/** next to `server.py`: what happened, what was expected, the steps, the
   workaround — a **bug**, a **tool request** (no tool fitted, so it worked around it: the tool it would want) or a
