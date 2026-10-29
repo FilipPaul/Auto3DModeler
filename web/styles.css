@@ -70,12 +70,6 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 3px; }
 .part-tab.drop-after { box-shadow: inset -3px 0 0 var(--accent); }
 .part-tab .pt-x { opacity: .35; }
 .part-tab:hover .pt-x, .part-tab.on .pt-x { opacity: 1; }
-.no-part { display: none; }
-body.none-open .layout > :not(.no-part):not(.proj-tree):not(.left-col), body.none-open .left-col > :not([data-w=project]) { visibility: hidden; }
-body.none-open .left-col { background: none; border-color: transparent; }
-body.none-open .no-part { display: flex; position: absolute; inset: 0; z-index: 5; align-items: center; justify-content: center; flex-direction: column;
-  gap: 6px; color: var(--muted); text-align: center; }
-body.none-open .no-part b { color: var(--text); font-size: 16px; }
 .part-tab:hover { color: var(--text); }
 .pt-all { flex: none; align-self: center; margin: 0 4px 3px 0; background: transparent; border: 1px solid var(--line); color: var(--text);
   border-radius: 6px; padding: 2px 8px; cursor: pointer; font-size: 12px; }
@@ -1337,3 +1331,35 @@ body.vr-preview #partTabs, body.vr-preview .topbar .actions > :not(#langBtn), bo
 .save-menu .caret { padding-left: 5px; padding-right: 5px; margin-left: -4px; }
 .save-menu .menu-item input { vertical-align: middle; margin-right: 4px; }
 .toast .vr-undo { margin-left: 6px; }
+
+/* ---------------------------------------------------------------- the start screen (start.js): an empty project, or
+   every tab closed — four big ways to begin in the middle; the workspace's panels come with the first part */
+.start-screen { display: none; }
+body.start-open .start-screen { display: flex; position: absolute; inset: 0; z-index: 5; align-items: center; justify-content: center;
+  padding: 24px; pointer-events: none; }
+body.start-open:not(.start-fresh) .start-screen { left: var(--left-w, 340px); } /* (the project tree beside it) */
+body.start-open .layout > :not(.start-screen):not(.proj-tree):not(.left-col):not(.ai-drawer), body.start-open .left-col > :not([data-w=project]) { visibility: hidden; }
+body.start-open .left-col { background: none; border-color: transparent; }
+body.start-fresh .left-col { visibility: hidden; }
+.st-box { pointer-events: auto; display: flex; flex-direction: column; align-items: center; gap: 16px; max-width: 720px; width: 100%; }
+.st-title { margin: 0; font-size: 20px; font-weight: 600; color: var(--text); }
+.st-box .no-part { display: none; }
+body.none-open .st-box .no-part { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--muted); text-align: center; }
+body.none-open .st-box .no-part b { color: var(--text); font-size: 15px; }
+body.none-open .st-title { font-size: 15px; color: var(--muted); font-weight: 500; }
+.st-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; width: 100%; }
+.st-card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 20px 12px 16px; min-height: 150px; text-align: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; color: var(--text); transition: border-color .12s, background .12s, transform .12s; }
+.st-card:hover, .st-card:focus-visible { border-color: var(--accent); background: var(--panel-2); outline: none; transform: translateY(-1px); }
+.st-card .st-i { font-size: 30px; line-height: 1.2; }
+.st-card b { font-size: 14.5px; }
+.st-card .st-sub { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.st-card.st-new { border-color: #8957e5; background: color-mix(in srgb, #6e40c9 18%, var(--panel)); }
+.st-card.st-new:hover, .st-card.st-new:focus-visible { background: color-mix(in srgb, #6e40c9 30%, var(--panel)); border-color: #a371f7; }
+@media (max-width: 1100px) { .st-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+body.start-open .restore-bar { justify-content: center; }
+/* a file over the window: it opens wherever it is dropped */
+body.file-over::after { content: ""; position: fixed; inset: 6px; border: 2px dashed var(--accent); border-radius: 12px; pointer-events: none; z-index: 90; background: #3b82f610; }
+body.file-over.start-open .st-card[data-start=open] { border-color: var(--accent); background: var(--panel-2); }
+.menu-list button.menu-strong { font-weight: 600; display: flex; align-items: center; gap: 12px; }
+.menu-key { margin-left: auto; font-weight: 400; font-size: 11px; color: var(--muted); }

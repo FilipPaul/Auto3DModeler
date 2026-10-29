@@ -39,6 +39,7 @@ import { initJobs } from './jobs.js';
 import { initParams, paramHandlers } from './paramsui.js';
 import { showDemos } from './demos.js';
 import { Versions } from './versions.js';
+import { initStart, initWindowDrop } from './start.js';
 
 initI18n();  // Czech / English: translates the page as it is built
 initJobs(() => project.current?.name); // ⚙ N in the top bar: what is working now, with ✕ Stop
@@ -594,20 +595,27 @@ vp.addEventListener('dragleave', () => vp.classList.remove('drag-over'));
 vp.addEventListener('drop', (e) => {
   e.preventDefault();
   vp.classList.remove('drag-over');
-  const f = e.dataTransfer.files[0], all = [...e.dataTransfer.files];
+  openFiles([...e.dataTransfer.files], { shift: e.shiftKey, onView: state.workspace === 'quick' && !document.body.classList.contains('start-open') });
+});
+/** Files dropped or picked (📂 Open › File…, the start screen): each kind where it opens — a project, a PDF drawing,
+ *  a 3D file, a DXF / PCB drawing, a picture (onView: dropped on a quick part's view — a picture becomes its design
+ *  layer; shift: a 3D / DXF file straight to a quick part, a picture traced). */
+function openFiles(all, { shift = false, onView = false } = {}) {
+  const f = all[0];
   if (!f) return;
   if (all.length > 1 && all.every((x) => /\.(step|stp)$/i.test(x.name))) { openSolid(f, all.slice(1)); return; } // (an assembly and its part files)
+  if (all.length > 1 && all.every((x) => DRAWING_RE.test(x.name) || /\.txt$/i.test(x.name))) { openDrawing(f, all.slice(1)); return; } // (a Gerber set)
   if (/\.json$/i.test(f.name)) openProject(f);
   else if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') openPdf(f);
-  else if (OPEN_SOLID_RE.test(f.name) && !e.shiftKey) openSolid(f); // Shift: a sliced quick part, as before
-  else if (DRAWING_RE.test(f.name) && !e.shiftKey) openDrawing(f); // Shift: straight to a quick part, as before
+  else if (OPEN_SOLID_RE.test(f.name) && !shift) openSolid(f); // Shift: a sliced quick part, as before
+  else if (DRAWING_RE.test(f.name) && !shift) openDrawing(f); // Shift: straight to a quick part, as before
   else if (IMPORT_RE.test(f.name)) openImport(f);
-  else if (f.type.startsWith('image/')) {
-    // with a part loaded a picture becomes a design layer; Shift+drop (or no part) traces its outline
-    if (state.solution && !e.shiftKey) addImageLayer(f);
+  else if (f.type.startsWith('image/') || /\.(png|jpe?g|webp|bmp|gif)$/i.test(f.name)) {
+    // with a part loaded a picture dropped on it becomes a design layer; Shift+drop (or no part) traces its outline
+    if (onView && state.solution && !shift) addImageLayer(f);
     else openImage(f);
-  } else toast('Please drop a PDF, DXF / DWG, STL / OBJ / 3MF / STEP or a picture.', 'warning');
-});
+  } else toast(t2('{name}: not a file the app opens — STEP, STL, DXF, PDF, a picture or a project.', { name: f.name }), 'warning', 6000);
+}
 
 // ------------------------------------------------------------------ solving
 let inflight = null, queued = null;
@@ -1698,7 +1706,7 @@ async function export3mf() {
 function showProjectName() {
   const el = $('fileName');
   el.toggleAttribute('data-no-i18n', !!state.projectName);  // the user's own name
-  el.textContent = state.projectName || 'No drawing loaded';
+  el.textContent = state.projectName || ''; // (nothing yet: the start screen says what to do)
   el.title = state.model ? `Project “${state.projectName}” from ${state.model.source} — click to rename` : state.projectName ? 'Click to rename the project' : '';
   el.classList.toggle('editable', !!(state.model || state.projectName));
 }
@@ -2012,7 +2020,7 @@ function setWorkspace(ws) {
 
 // the AI chat: a tab of the quick-part panel; in the 3D model and assembly workspaces the ✨ AI button opens it in a drawer
 function placeChat() {
-  const el = $('tab-ai'), drawer = $('aiDrawer'), quick = state.workspace === 'quick';
+  const el = $('tab-ai'), drawer = $('aiDrawer'), quick = state.workspace === 'quick' && !document.body.classList.contains('start-open'); // (the start screen: in the drawer)
   if (quick && el.parentElement === drawer) document.querySelector('.panel.left.quick-only').insertBefore(el, $('tab-drawing'));
   if (!quick && el.parentElement !== drawer) drawer.appendChild(el);
   drawer.hidden = quick || !state.chatOpen;
@@ -2028,7 +2036,12 @@ function toggleChat(open = !state.chatOpen) {
   placeChat();
   if (open) $('aiDrawer').querySelector('textarea')?.focus();
 }
-$('aiBtn').addEventListener('click', () => toggleChat());
+$('aiBtn').addEventListener('click', () => {
+  if (state.workspace === 'quick' && !document.body.classList.contains('start-open')) { // (the quick part: the chat is its left panel's ✨ AI tab)
+    switchTab('ai');
+    $('tab-ai').querySelector('textarea')?.focus();
+  } else toggleChat();
+});
 // ✨ in the Suggested table: what is selected goes into the chat (the AI's tools know these ids)
 setAskAI((refs) => {
   toggleChat(true);
@@ -2580,6 +2593,25 @@ $('saveWithVersions').addEventListener('change', (e) => { try { localStorage.set
 $('recentBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); autosave.showRecent(); });
 $('demoBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); showDemos({ open: openLoaded, toast }); }); // 🎬 (demos.js)
 if (!opened.has('sample') && !opened.has('project')) setTimeout(() => autosave.offerLast(), 600);
+
+// ------------------------------------------------------------------ the start screen and files dropped anywhere
+initStart({
+  project,
+  newPart: () => project.newModel(),
+  openFiles: (files) => openFiles(files),
+  demos: () => showDemos({ open: openLoaded, toast }),
+  askAI: () => toggleChat(true),
+  onChange: () => { placeChat(); updateTopButtons(); },
+});
+initWindowDrop((files, { shift }) => openFiles(files, { shift }));
+$('openAnyBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); $('anyInput').click(); });
+// Ctrl+O: open a file · Ctrl+S: save the project (not while typing)
+window.addEventListener('keydown', (e) => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.target.closest?.('input,select,textarea,[contenteditable=true]')) return;
+  const k = e.key.toLowerCase();
+  if (k === 'o') { e.preventDefault(); $('anyInput').click(); }
+  if (k === 's') { e.preventDefault(); if (!$('saveBtn').disabled) $('saveBtn').click(); }
+});
 
 // 🕘 the project after each AI turn that ran tools here, kept by the server; loaded back like a project file
 const aiHistory = new AiHistory({

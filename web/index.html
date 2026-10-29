@@ -19,7 +19,7 @@
       <span class="brand-text"><span class="brand-name">Auto3D<span>Modeler</span></span><span class="brand-by">by <b>RAFIONTECH</b></span></span>
     </a>
     <div class="project-bar">
-      <div class="file-name" id="fileName">No drawing loaded</div>
+      <div class="file-name" id="fileName"></div>
       <span class="autosave-state" id="autosaveState" hidden></span>
       <span class="jobs"><button class="jobs-btn" id="jobsBtn" hidden title="Working now — click: what runs, with ✕ Stop">⚙ <b>0</b></button><div class="jobs-list" id="jobsList" hidden></div></span>
     </div>
@@ -28,6 +28,8 @@
       <div class="menu" id="openMenuWrap">
         <button class="btn primary" id="openBtn" title="Open a drawing, a picture, a CAD / 3D file or a saved project — each file becomes its own part tab">📂 Open ▾</button>
         <div class="menu-list" id="openMenu">
+          <button id="openAnyBtn" class="menu-strong" title="Any file the app reads: STEP, IGES, STL, OBJ, 3MF, DXF / DWG, PCB data, a PDF drawing, a picture or a saved project (Ctrl+O)">📂 File… <span class="menu-key">Ctrl+O</span></button>
+          <div class="menu-sep"></div>
           <label class="menu-item" title="A dimensioned PDF drawing: its dimensions drive the part">PDF drawing…<input type="file" id="pdfInput" accept="application/pdf,.pdf" hidden></label>
           <label class="menu-item" title="Trace the outline of an object in a picture (cookie cutters, shapes…)">Picture — trace an outline…<input type="file" id="imgInput" accept="image/*" hidden></label>
           <label class="menu-item" title="DXF / DWG drawings, PCB data (a Gerber set or an ODB++ job: a .zip / .tgz, or several Gerber / drill files) and STL / OBJ / 3MF / STEP / IGES 3D files">CAD / PCB / 3D file (DXF, DWG, Gerber, ODB++, STL, OBJ, 3MF, STEP, IGES)…<input type="file" id="cadInput" multiple accept=".dxf,.dwg,.stl,.obj,.3mf,.step,.stp,.igs,.iges,.zip,.tgz,.tar,.gz,.gbr,.ger,.gtl,.gbl,.gto,.gbo,.gts,.gbs,.gtp,.gbp,.gko,.gm1,.gml,.gm,.g1,.g2,.g3,.g4,.cmp,.sol,.plc,.pls,.stc,.sts,.art,.pho,.drl,.xln,.drd,.exc,.ncd,.txt" hidden></label>
@@ -57,14 +59,26 @@
         </div>
       </div>
       <span class="sep"></span>
-      <button class="btn ai-btn not-quick" id="aiBtn" title="Open the AI chat — Claude works on the part or assembly on screen">✨ AI</button>
+      <button class="btn ai-btn" id="aiBtn" title="Open the AI chat — Claude works on the part or assembly on screen">✨ AI</button>
       <button class="btn lang-btn" id="langBtn" data-no-i18n title="Čeština / English">CZ</button>
     </div>
   </header>
   <nav class="part-tabs" id="partTabs" hidden></nav>
 
   <main class="layout">
-    <div class="no-part"><b>No part open</b><span>☰ lists the parts of the project — click one to open it; ＋ adds a new one.</span></div>
+    <div class="start-screen" id="startScreen">
+      <div class="st-box">
+        <div class="no-part"><b>No part open</b><span>☰ lists the parts of the project — click one to open it; ＋ adds a new one.</span></div>
+        <h2 class="st-title">What do you want to make?</h2>
+        <div class="st-cards">
+          <button class="st-card st-new" data-start="new" title="A new 3D model: sketch a rectangle or a circle, then give it a height (Extrude)"><span class="st-i">✏</span><b>New part</b><span class="st-sub">Sketch it, then give it a height</span></button>
+          <button class="st-card" data-start="open" title="STEP, IGES, STL, OBJ, 3MF, DXF / DWG, a PDF drawing, a picture or a saved project — or drop the file anywhere in the window"><span class="st-i">📂</span><b>Open a file</b><span class="st-sub">STEP, STL, DXF, PDF, a picture… or drop it here</span></button>
+          <button class="st-card" data-start="demo" title="Ready-made projects to try — mechanisms that move; each opens as a new copy"><span class="st-i">🎬</span><b>Demo</b><span class="st-sub">A ready-made mechanism to try</span></button>
+          <button class="st-card" data-start="ai" title="Describe the part in your own words — Claude makes it in the app"><span class="st-i">✨</span><b>Ask the AI</b><span class="st-sub">Describe the part, Claude makes it</span></button>
+        </div>
+        <input type="file" id="anyInput" multiple hidden accept=".a3d.json,.json,.pdf,image/*,.dxf,.dwg,.stl,.obj,.3mf,.step,.stp,.igs,.iges,.zip,.tgz,.tar,.gz,.gbr,.ger,.gtl,.gbl,.gto,.gbo,.gts,.gbs,.gtp,.gbp,.gko,.gm1,.gml,.gm,.g1,.g2,.g3,.g4,.cmp,.sol,.plc,.pls,.stc,.sts,.art,.pho,.drl,.xln,.drd,.exc,.ncd,.txt">
+      </div>
+    </div>
     <aside class="panel left quick-only">
       <nav class="tabs">
         <button class="tab active" data-tab="params">Dimensions</button>
