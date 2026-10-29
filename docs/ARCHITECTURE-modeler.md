@@ -41,6 +41,36 @@ Date: 2026-10-25. Written by the architect agent.
   Tests: tools/e2e_ux_shell.py (32 checks, Czech, 1280×800 + 1600×1000 screenshots); e2e_suggest's setting click hovers
   the table first. Left out: the "continue where you left off" strip stays above the start screen; the outline wizard
   unchanged (dense but each control relevant).
+- **📐 Suggestions in the 2D drawing done**: web/js/drawing2d/drawsuggest.js (showSuggest). With nothing chosen:
+  ✏ as a sketch of a new 3D model, ▤ as a quick part, 📏 measure, ⬇ DXF. For the shapes chosen: ≡ all like this, Ø / R
+  / length: change the size… (one value, all of them change), only these as a sketch / a quick part (no question:
+  DrawingEditor.useShapes), to another layer…, ✕ delete. Esc with shapes chosen: nothing chosen. No table while
+  drawing or measuring. tools/e2e_ux_sheet.py (2D part, 4 checks).
+  Left out: merge / simplify as a command (it happens when the drawing becomes a sketch), lasting dimensions.
+- **📄 Suggestions on the drawing sheet done** (the owner: "suggestion based — 90 % of the basic things from
+  suggestions"; before, the sheet had no table, and a click on a view, an edge or the title block did nothing
+  visible). web/js/sheet/sheetsuggest.js builds the table from what is chosen. SheetEditor has selView, selGeo
+  {view, edge | c} and selTitle, set by a click without a drag (clickSelect: a circle or an edge under the mouse,
+  else the view), and marked in blue, not printed (selSvg; the title block framed).
+  - View: its missing sizes, all its sizes / as the sheet, ＋ a dimension, bigger / smaller (the next ISO 5455
+    scale) / as the sheet, add Section A–A, back to its place, rename, hide (also Delete).
+  - Edge: dimension its length, or distance / angle to… (the ＋ Dimension tool with the edge as its first pick).
+  - Circle: Ø / R, or the hole callout; when it has a dimension already, "Its dimension: …" chooses that one.
+  - Dimension: tolerance… (tolText: ±0.1 or +0.2/−0.1, d.tol), fit… (H7, H8, h6, g6, k6, p6), reference
+    dimension (d.ref: "(60 ±0.1)"; check() leaves it out of "given twice"), to the other side, delete. Both are kept
+    like a moved place: d.dims[id] for an automatic dimension, on the user's dimension itself (setDimProps); the
+    text (dimText = dimCore + tol, in brackets) also goes to the PDF, the DXF and get_sheet.
+  - Title block: title / drawing no. / drawn by / note… (one field), material (opens the part), template…, frame…,
+    paper A3 / A4, save as template…, company, logo and fields, export DXF.
+  - Nothing chosen (kept short so it covers little of the paper): add the missing sizes, remove sizes given twice,
+    remove lost dimensions, show a hidden view, ⬇ Export PDF, 🖨 Print (printPdf: the sheet's PDF printed from a
+    hidden frame), add BOM page (an assembly).
+  - Also fixed: a view's label under a hole callout's text (leaderEnd); the left panel's double line and gap above
+    Views; Paper and Scale above the title block in the right panel; Tolerance and Reference as fields in the
+    dimension's panel.
+  - Tests: tools/e2e_ux_sheet.py (30 checks, Czech, real clicks).
+  - Left out: a detail view (more than 2 inputs); the top bar's Export ▾ on a sheet (shell); `sheet_edit` setting
+    tol / ref (AI tools).
 - **⏮ Print and export as the rollback bar stands done** (the owner: "Chci tisknout podle aktuálního umístění
   posuvníku" — as SolidWorks): one place on the server, doc.at_bar(part) — the steps up to part.rollback (absent or a
   step that is not there: all) — used by rebuild, body_of, export (STEP / IGES / STL / OBJ / GLB / PDF) and sheet, so

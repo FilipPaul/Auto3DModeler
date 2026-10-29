@@ -5,6 +5,8 @@
 import { History } from '../history.js';
 import { t } from '../i18n.js';
 import { choose } from '../choose.js';
+import { showSuggest } from '../suggest.js';
+import { drawingSuggest } from './drawsuggest.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -434,6 +436,7 @@ export class DrawingEditor {
     const k = e.key.toLowerCase();
     if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y')) { e.preventDefault(); this.history.go(k === 'y' || e.shiftKey ? 1 : -1); return; }
     if (e.key === 'Escape' && this.picking) { this.picking = false; this.hint(''); this.renderProps(); return; }
+    if (e.key === 'Escape' && this.tool === 'select' && this.sel.size && !this.pending) { this.sel.clear(); this.renderProps(); this.draw(); return; }
     if (e.key === 'Escape') { if (this.pending || this.measure) { this.pending = null; this.measure = null; this.$('.dw-measure').hidden = true; this.draw(); } else this.setTool('select'); return; }
     if ((e.key === 'Delete' || e.key === 'Backspace') && this.sel.size) { this.removeSel(); return; }
     if (e.ctrlKey || e.metaKey) return;
@@ -451,7 +454,14 @@ export class DrawingEditor {
     this.hint({ line: 'Line: click where it starts, then where it ends (it goes on from there; Esc = stop).', circle: 'Circle: click the centre, then a point on it.',
       measure: 'Measure: click two spots (ends, middles and centres snap) — or a circle for its Ø.', select: '' }[tool] || '');
     this.renderBar();
+    this.renderSuggest();
     this.draw();
+  }
+
+  /** The suggestions table (bottom left of the view) for the chosen shapes — or the drawing's next steps. */
+  renderSuggest() {
+    const s = drawingSuggest(this);
+    showSuggest(this.els.viewport, s?.title || '', s?.items || [], s?.hint || '', s?.refs || '');
   }
 
   hint(text) { const h = this.$('.m-hint'); h.hidden = !text; h.textContent = t(text); }
@@ -658,6 +668,13 @@ export class DrawingEditor {
     else this.hooks.useAsQuick?.(d);
   }
 
+  /** Only these shapes (the chosen ones) as a sketch / a quick part — no question asked. */
+  useShapes(kind, shapes) {
+    const d = { ...this.payload(), entities: structuredClone(shapes) };
+    if (kind === 'sketch') this.hooks.useAsSketch?.(d);
+    else this.hooks.useAsQuick?.(d);
+  }
+
   /** ⬇ the shown layers as a DXF. */
   async exportDxf() {
     const shown = { ...this.d, layers: this.d.layers, entities: this.d.entities.filter((e) => this.shown(e)) };
@@ -808,6 +825,7 @@ export class DrawingEditor {
       box.querySelector('[data-a=like]')?.addEventListener('click', () => this.likeThis(e));
       box.querySelector('[data-k=layer]').addEventListener('change', (ev) => { for (const x of sel) x.layer = ev.target.value; this.d.entities = [...this.d.entities]; this.commit(); });
       box.querySelector('[data-a=del]').addEventListener('click', () => this.removeSel());
+      this.renderSuggest();
       return;
     }
     const b = this.bbox(), n = this.d.entities.length, shown = this.d.entities.filter((e) => this.shown(e)).length;
@@ -825,6 +843,7 @@ export class DrawingEditor {
     for (const el of box.querySelectorAll('[data-use]')) {
       el.addEventListener('click', () => this.use(el.dataset.use));
     }
+    this.renderSuggest();
   }
 }
 

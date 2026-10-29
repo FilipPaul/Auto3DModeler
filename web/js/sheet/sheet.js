@@ -22,6 +22,8 @@ import { HOLE_FITS, SHAFT_FITS, deviationText } from './fits.js';
 import { itemNumbers as numbersOf, bomOf, makeBuy } from '../assembly/bom.js';
 import { MATERIALS } from '../modeler/materials.js';
 import { stepsAtBar, rolledText } from '../modeler/steptree.js';
+import { showSuggest } from '../suggest.js';
+import { sheetSuggest, tolText } from './sheetsuggest.js';
 import { TITLE_STYLES, BOM_STYLES, STYLE_TIPS, isStyle, isBomStyle, titleSize, titleBlock, partsList, bomWidth, bomHeight, bomRowsIn, grams, fontsReady } from './tbstyles.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -108,6 +110,9 @@ export class SheetEditor {
     this.hooks = hooks;
     this.d = null;
     this.sel = null;     // the chosen dimension's id
+    this.selView = null; // the chosen view (a click on it), or
+    this.selGeo = null;  // the chosen edge / circle of a view {view, edge | c}, or
+    this.selTitle = false; // the title block — each with its row of suggestions (sheetsuggest.js)
     this.tool = 'select'; // or 'dim' (＋ Dimension)
     this.pick = null;    // the first point of a new dimension {view, key}
     this.zoom = { k: 1, x: 0, y: 0 };
@@ -232,7 +237,7 @@ export class SheetEditor {
     this.d.rev = this.d.rev || 1;
     this.d.created = this.d.created || new Date().toISOString();
     this.d.changed = this.d.changed || this.d.created;
-    this.sel = null;
+    this.clearSel();
     this.tool = 'select';
     this.pick = null;
     this.history.reset();
@@ -628,7 +633,13 @@ export class SheetEditor {
     return d.dir === 'h' ? Math.abs(b[0] - a[0]) : Math.abs(b[1] - a[1]);
   }
 
+  /** A dimension's text: its size (dimCore), its tolerance after it, in brackets when it is a reference dimension. */
   dimText(d, v) {
+    const s = `${this.dimCore(d, v)}${d.tol ? ` ${d.tol}` : ''}`;
+    return d.ref ? `(${s})` : s;
+  }
+
+  dimCore(d, v) {
     if (d.kind === 'dia') return `${d.count > 1 ? `${d.count}× ` : ''}${d.thread || `Ø${fmt(v)}`}${d.post || ''}${d.hole ? this.calloutRest(d.hole) : ''}`; // (a threaded hole: M5)
     if (d.kind === 'rad') return `${d.count > 1 ? `${d.count}× ` : ''}R${fmt(v)}`;
     if (d.kind === 'ang') return `${fmt(+v.toFixed(1))}°`;
@@ -679,7 +690,8 @@ export class SheetEditor {
         out.push(`<polyline points="${pl(v, arc)}" fill="none" stroke="#000" stroke-width="0.25" class="sh-thread"/>`);
       }
       // its name below the dimensions under it
-      const below = Math.max(0, ...this.allDims().filter((d) => d.view === v && d.kind === 'linear' && d.dir === 'h' && d.side !== 't').map((d) => (d.off ?? 8) + (d.ord ? 1 + 3.2 * 0.6 * String(fmt(this.value(d) ?? 0)).length : 0))); // (an ordinate's value stands past its row)
+      const below = Math.max(0, ...this.allDims().filter((d) => d.view === v && d.kind === 'linear' && d.dir === 'h' && d.side !== 't').map((d) => (d.off ?? 8) + (d.ord ? 1 + 3.2 * 0.6 * String(fmt(this.value(d) ?? 0)).length : 0)), // (an ordinate's value stands past its row)
+        ...this.allDims().filter((d) => d.view === v && (d.kind === 'dia' || d.kind === 'rad')).map((d) => this.leaderEnd(d) - pb[3] - 2.5)); // (a callout's text under the view: the name below it)
       out.push(`<text x="${(pb[0] + pb[2]) / 2}" y="${pb[3] + below + 8}" font-size="3.5" text-anchor="middle" fill="#334" data-vlabel="${v}" class="sh-vlabel">${esc(this.viewLabel(v))}</text></g>`);
     }
     const cut = this.drawn().includes('Section') && this.drawn().includes('Front') && G.views.Section.cut;
@@ -705,6 +717,7 @@ export class SheetEditor {
       out.push('</g>');
     } else this.isoBox = null;
     if (!forPrint && this.guides?.length) for (const [x1, y1, x2, y2] of this.guides) out.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1f6feb" stroke-width="0.25" stroke-dasharray="2 1.5" class="sh-guide"/>`);
+    if (!forPrint) out.push(this.selSvg());
     this.zeros = new Set(); // (an ordinate row's 0: drawn once)
     for (const d of this.allDims()) out.push(this.dimSvg(d, forPrint));
     if (this.d.asm) out.push(this.asmSvg(pw, ph, m, th));
@@ -717,6 +730,28 @@ export class SheetEditor {
     out.push(this.titleSvg(pw, ph, m, th));
     out.push('</svg>');
     return out.join('').replace(/<text (?!data-ff)/g, '<text font-family="Helvetica" '); // (the PDF's converter does not inherit a font; a style's texts say theirs)
+  }
+
+  /** Where a Ø / R leader's shelf is (paper y, mm) — as dimSvg draws it; -Infinity when its circle is gone. */
+  leaderEnd(d) {
+    const c = this.circleOf(d.view, d.a);
+    if (!c) return -Infinity;
+    const C = this.P(d.view, c.c), R = c.r * this.vs(d.view);
+    const ang = (d.kind === 'rad' ? Math.atan2(-(c.pm[1] - c.c[1]), c.pm[0] - c.c[0]) * 180 / Math.PI + (d.ang || 0) : d.ang ?? 45) * Math.PI / 180;
+    return C[1] - Math.sin(ang) * (R + (d.len ?? 6));
+  }
+
+  /** What is chosen, marked in blue (not printed): a view's box, an edge, a circle. */
+  selSvg() {
+    const B = '#1f6feb', out = [];
+    if (this.selView) {
+      const b = this.selView === 'Iso' ? this.isoBox : this.drawn().includes(this.selView) ? this.paperBox(this.selView) : null;
+      if (b) out.push(`<rect x="${b[0] - 3}" y="${b[1] - 3}" width="${b[2] - b[0] + 6}" height="${b[3] - b[1] + 6}" fill="#1f6feb" fill-opacity="0.04" stroke="${B}" stroke-width="0.35" stroke-dasharray="2 1.2" rx="1"/>`);
+    }
+    const g = this.selGeo;
+    if (g?.edge) { const a = this.P(g.view, g.edge.a), b = this.P(g.view, g.edge.b); out.push(`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${B}" stroke-width="1" stroke-linecap="round" opacity="0.85"/>`); }
+    if (g?.c) { const C = this.P(g.view, g.c.c); out.push(`<circle cx="${C[0]}" cy="${C[1]}" r="${g.c.r * this.vs(g.view)}" fill="none" stroke="${B}" stroke-width="0.9" opacity="0.85"/>`); }
+    return out.length ? `<g class="sh-selmark" pointer-events="none">${out.join('')}</g>` : '';
   }
 
   /** One dimension: extension lines, the dimension line with arrows and its text (linear); a leader (Ø, R). */
@@ -1206,9 +1241,10 @@ export class SheetEditor {
     this.renderLeft();
     this.renderProps();
     if (!this.d) return;
-    if (this.setMode) { this.renderSet(); return; }
+    if (this.setMode) { this.renderSuggest(); this.renderSet(); return; }
     this.stage.classList.remove('sh-set');
-    if (!this.geo) { // (no drawing yet: being made, or why not with ↻ Try again)
+    if (!this.geo) {
+      this.renderSuggest(); // (no drawing yet: being made, or why not with ↻ Try again)
       this.stage.innerHTML = this.error ? `<div class="sh-empty sh-failed"><p>${/^cancelled/i.test(this.error) ? esc(t('Cancelled — the drawing was not made.')) : `⚠ ${esc(tv('The drawing could not be made: {e}', { e: t(this.error) }))}`}</p>
           <button class="btn small" data-a="retry">↻ ${esc(t('Try again'))}</button></div>`
         : `<p class="hint sh-empty">${esc(this.hooks.partData(this.d.source) ? t('Making the drawing…') : t('Its part is not in the project any more.'))}</p>`;
@@ -1224,6 +1260,11 @@ export class SheetEditor {
     this.applyZoom();
     const lost = this.allDims().filter((d) => this.value(d) === null).length;
     const out = this.outside();
+    if (this.selTitle) { // (its place: the title block's own drawing — each style lays it out its own way)
+      const tb = svg.querySelector('.sh-title'), b = tb?.getBBox();
+      if (b) tb.insertAdjacentHTML('beforeend', `<rect x="${b.x - 0.8}" y="${b.y - 0.8}" width="${b.width + 1.6}" height="${b.height + 1.6}" fill="#1f6feb" fill-opacity="0.05" stroke="#1f6feb" stroke-width="0.5" stroke-dasharray="2 1.2" pointer-events="none" class="sh-selmark"/>`);
+    }
+    this.renderSuggest();
     this.$('.sh-status').textContent = `${this.allDims().length} ${t('dimension(s)')}${lost ? ` · ⚠ ${lost} ${t('lost their points')}` : ''}${out.length ? ` · ⚠ ${tv('{views}: past the frame', { views: out.map((v) => this.viewName(v)).join(', ') })}` : ''} · ${t('Scale')} ${scaleText(this.scaleArr())} · Rev ${this.d.rev}`;
   }
 
@@ -1281,11 +1322,7 @@ export class SheetEditor {
       <h3>Dimensions</h3><div class="sh-dlist">${all.map((d) => { const v = this.value(d), twice = ck.dup.has(d.id) || ck.over.has(d.id); return `<div class="sh-drow ${this.sel === d.id ? 'on' : ''} ${v === null || twice ? 'bad' : ''}" data-d="${d.id}">
         <span data-no-i18n>${twice ? '⧉ ' : ''}${d.kind === 'linear' ? (d.dir === 'h' ? '↔ ' : '↕ ') : d.kind === 'ang' ? '∠ ' : ''}${esc(v === null ? '⚠ ?' : this.dimText(d, v))}</span><i>${esc(t(d.view))}${d.auto ? '' : ' · ✎'}</i><button class="mini danger" data-x="${d.id}" title="Delete it">✕</button></div>`; }).join('') || '<p class="hint">None.</p>'}</div>
       ${hid ? `<div class="row-actions"><button class="btn small" data-a="unhide">↺ ${esc(tv('Bring back deleted ones ({n})', { n: hid }))}</button></div>` : ''}`;
-    box.querySelector('[data-sec]')?.addEventListener('change', (e) => { // Section A–A: in the Right view's place (the Right view hidden)
-      if (e.target.checked) { this.d.section = true; this.d.off = { ...this.d.off, Right: true }; } else delete this.d.section;
-      this.history.commit();
-      this.ensure(true);
-    });
+    box.querySelector('[data-sec]')?.addEventListener('change', (e) => this.setSection(e.target.checked)); // Section A–A: in the Right view's place (the Right view hidden)
     for (const el of box.querySelectorAll('[data-v]')) {
       el.addEventListener('change', () => { if (el.checked) delete this.d.off[el.dataset.v]; else this.d.off[el.dataset.v] = true; this.commit(); });
     }
@@ -1424,16 +1461,18 @@ export class SheetEditor {
       <p class="hint">${esc(tv('Of {part} — it follows the part: change the part, the drawing is made again (a new revision).', { part: name || '?' }))}</p>
       ${this.rolledNote() ? `<p class="hint sh-rb-note" data-no-i18n>${esc(this.rolledNote())}</p>` : ''}
       <div class="mp-facts"><span>Rev</span><b data-no-i18n>${this.d.rev}</b><span>${esc(t('Changed'))}</span><b data-no-i18n>${esc(when(this.d.changed))}</b><span>${esc(t('Created'))}</span><b data-no-i18n>${esc(when(this.d.created))}</b></div>
+      <div class="field"><label>Paper</label><select data-k="paper">${[['', 'Auto'], ['A4', 'A4'], ['A3', 'A3']].map(([v, l]) => `<option value="${v}" ${(this.d.paper || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="field"><label>${esc(t('Scale'))}</label>${this.scaleSelect('data-k="scale"', this.d.scale, this.d.scale ? t('Auto') : `${t('Auto')} (${scaleText(this.lay?.scale || [1, 1])})`, t('The sheet\'s scale: Auto fits the views on the paper; or a standard one, or your own (Custom…, e.g. 1:2522). Dimensions always show the real sizes.'))}</div>
       ${d ? '' : this.titlePanel()}
       ${this.d.asm ? `<label class="check"><input type="checkbox" data-k="exploded" ${this.d.exploded ? 'checked' : ''}> ${esc(t('Iso view exploded'))}</label>` : ''}
       ${this.d.asm ? this.bomPanel() : ''}
-      <div class="field"><label>Paper</label><select data-k="paper">${[['', 'Auto'], ['A4', 'A4'], ['A3', 'A3']].map(([v, l]) => `<option value="${v}" ${(this.d.paper || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-      <div class="field"><label>${esc(t('Scale'))}</label>${this.scaleSelect('data-k="scale"', this.d.scale, this.d.scale ? t('Auto') : `${t('Auto')} (${scaleText(this.lay?.scale || [1, 1])})`, t('The sheet\'s scale: Auto fits the views on the paper; or a standard one, or your own (Custom…, e.g. 1:2522). Dimensions always show the real sizes.'))}</div>
       ${d ? '' : this.framePanel()}
       ${d ? `<h3>${esc(t('Dimension'))}</h3><p class="mp-count" data-no-i18n>${esc(this.value(d) === null ? '⚠ ?' : this.dimText(d, this.value(d)))}</p>
         <p class="hint">${esc(d.auto ? t('Made by the preset. Drag it to move it; Delete removes it (↺ brings it back).') : t('Your own. Drag it to move it; Delete removes it.'))}</p>
         ${this.value(d) === null ? `<p class="mp-bad">${esc(t('Its points are gone — the part changed. Delete it and add it again.'))}</p>` : ''}
         ${d.kind === 'dia' && !d.thread ? this.fitField(d) : ''}
+        ${d.kind === 'pcd' || (d.kind === 'dia' && !d.thread) ? '' : `<div class="field"><label>${esc(t('Tolerance'))}</label><input type="text" data-k="tol" value="${esc(d.tol || '')}" placeholder="±0.1" title="${esc(t('A tolerance after the size: ±0.1, or +0.2/−0.1'))}"><span class="unit">mm</span></div>`}
+        <label class="check" title="${esc(t('A reference dimension is in brackets: for information only, not to be checked'))}"><input type="checkbox" data-k="ref" ${d.ref ? 'checked' : ''}> ${esc(t('Reference dimension'))}</label>
         <div class="row-actions"><button class="btn small danger" data-a="del">✕ ${esc(t('Delete'))}</button></div>`
         : `<p class="hint">${esc(t('Drag a dimension or a view to move it. ＋ Dimension: click two points, or a circle. The values come from the part.'))}</p>`}
       ${name ? `<div class="row-actions"><button class="btn small" data-a="part">◆ ${esc(tv('Open {part}', { part: name }))}</button></div>` : ''}`;
@@ -1454,6 +1493,10 @@ export class SheetEditor {
     box.querySelector('[data-k=scale]')?.addEventListener('change', async (e) => { const s = await this.scaleFrom(e.target, this.d.scale); if (s !== undefined) this.setSheetScale(s); });
     box.querySelector('[data-a=del]')?.addEventListener('click', () => this.remove(this.sel));
     box.querySelector('[data-k=fit]')?.addEventListener('change', (e) => { this.setFit(d.id, e.target.value); this.renderProps(); });
+    const tol = box.querySelector('[data-k=tol]');
+    tol?.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') tol.blur(); });
+    tol?.addEventListener('change', () => { const v = tolText(tol.value); if (v === null) { this.hooks.toast?.(t('Write it as ±0.1 or +0.2/−0.1.'), 'warning', 4000); tol.value = d.tol || ''; return; } this.setDimProps(d.id, { tol: v || undefined }); });
+    box.querySelector('[data-k=ref]')?.addEventListener('change', (e) => this.setDimProps(d.id, { ref: e.target.checked }));
     box.querySelector('[data-a=part]')?.addEventListener('click', () => this.hooks.openPart?.(this.d.source));
   }
 
@@ -1512,7 +1555,7 @@ export class SheetEditor {
     const uf = { x: new Map(), y: new Map(), z: new Map() };
     const find = (ax, v) => { const m = uf[ax]; let k = String(r2(v)); while (m.has(k) && m.get(k) !== k) k = m.get(k); if (!m.has(k)) m.set(k, k); return k; };
     const join = (ax, a, b) => { const p = find(ax, a), q = find(ax, b); if (p === q) return false; uf[ax].set(p, q); return true; };
-    const shown = VIEWS.filter((v) => !this.d.off[v]), dims = this.allDims(), seen = new Map(), dup = new Set(), over = new Set();
+    const shown = VIEWS.filter((v) => !this.d.off[v]), dims = this.allDims().filter((d) => !d.ref), seen = new Map(), dup = new Set(), over = new Set(); // (a reference dimension (in brackets) gives a size twice on purpose)
     for (const d of dims) {
       if (d.kind !== 'linear' || this.value(d) === null || !shown.includes(d.view)) continue;
       if ((this.d.vpreset || {})[d.view] === 'all') continue; // (a view with all its sizes repeats them on purpose)
@@ -1722,7 +1765,7 @@ export class SheetEditor {
 
   // ------------------------------------------------------------------ editing
   action(a) {
-    if (a === 'dim') { this.tool = this.tool === 'dim' ? 'select' : 'dim'; this.pick = null; this.hoverEdge = null; this.hint(this.tool === 'dim' ? t('Click a point, an edge or a circle — an edge alone twice gives its length. Esc: done.') : ''); this.render(); }
+    if (a === 'dim') { this.tool = this.tool === 'dim' ? 'select' : 'dim'; this.dimOnce = false; this.pick = null; this.hoverEdge = null; this.hint(this.tool === 'dim' ? t('Click a point, an edge or a circle — an edge alone twice gives its length. Esc: done.') : ''); this.render(); }
     if (a === 'undo') this.history.go(-1);
     if (a === 'redo') this.history.go(1);
     if (a === 'fit') { this.zoom = { k: 1, x: 0, y: 0 }; this.applyZoom(); }
@@ -1732,6 +1775,88 @@ export class SheetEditor {
   }
 
   hint(text) { const h = this.$('.sh-hint'); h.hidden = !text; h.textContent = text; }
+
+  // ------------------------------------------------------------------ what is chosen, and its suggestions
+  clearSel() { this.sel = null; this.selView = null; this.selGeo = null; this.selTitle = false; }
+
+  /** The suggestions table (bottom left of the sheet) for what is chosen — or the sheet's next steps. */
+  renderSuggest() {
+    const vp = this.els.viewport, s = sheetSuggest(this);
+    showSuggest(vp, s?.title || '', s?.items || [], s?.hint || '', s?.refs || '');
+  }
+
+  /** A dimension's own settings ({ref, tol, side …}; undefined / false: taken off) — an automatic one keeps them in
+   *  d.dims (with its moved place). */
+  setDimProps(id, props) {
+    const u = this.d.user.find((x) => x.id === id), o = u || { ...(this.d.dims[id] || {}) };
+    for (const [k, v] of Object.entries(props)) { if (v === undefined || v === false) delete o[k]; else o[k] = v; }
+    if (!u) this.d.dims = { ...this.d.dims, [id]: o };
+    this.commit();
+  }
+
+  /** Section A–A on (in the Right view's place, that view hidden) or off. */
+  setSection(on) {
+    if (on) { this.d.section = true; this.d.off = { ...this.d.off, Right: true }; } else delete this.d.section;
+    if (!on && this.selView === 'Section') this.selView = null;
+    this.history.commit();
+    this.ensure(true);
+  }
+
+  /** The paper ('A4' / 'A3' / null: automatic) — the views placed again. */
+  setPaper(p) { this.d.paper = p || null; this.d.views = {}; this.history.commit(); this.ensure(true); }
+
+  /** A view taken off the sheet (Section A–A: the section off, the right view back). */
+  hideView(v) {
+    if (v === 'Section') { delete this.d.off.Right; this.setSection(false); return; }
+    this.d.off = { ...this.d.off, [v]: true };
+    if (this.selView === v) this.selView = null;
+    this.commit();
+    this.hooks.toast?.(tv('{v} hidden — ↶ or 👁 Show view brings it back.', { v: this.viewName(v) }), 'info', 3500);
+  }
+
+  /** The chosen edge's length / circle's Ø, R or hole callout as a dimension. */
+  addGeoDim() {
+    const g = this.selGeo;
+    if (!g) return;
+    this.selGeo = null;
+    if (g.edge) { this.edgeLength(g.view, g.edge); return; }
+    this.addUser((g.c.full && this.calloutFor(g.view, g.c.key)) || { view: g.view, kind: g.c.full ? 'dia' : 'rad', a: g.c.key, count: 1, ang: g.c.full ? 45 : 0, len: 6 });
+  }
+
+  /** ＋ Dimension from the chosen edge (or a circle's centre): the next click gives the distance / angle. */
+  startDimFrom() {
+    const g = this.selGeo, pts = g ? this.geo.views[g.view].points : {};
+    this.clearSel();
+    this.tool = 'dim';
+    this.dimOnce = true;
+    this.hoverEdge = null;
+    if (g?.edge) this.pick = { view: g.view, edge: g.edge };
+    else if (g?.c) { const key = Object.keys(pts).find((k) => Math.hypot(pts[k][0] - g.c.c[0], pts[k][1] - g.c.c[1]) < 1e-6); this.pick = key ? { view: g.view, key, at: this.P(g.view, g.c.c) } : null; }
+    this.hint(t('Now click another edge or a point of the same view. Esc: done.'));
+    this.render();
+  }
+
+  /** The right panel's "Company, logo and fields" opened and in sight. */
+  openTitleMore() {
+    this.clearSel();
+    this.tbOpen = true;
+    this.render();
+    this.$('.sh-props .sh-tbmore')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  /** 🖨 Print: the sheet's PDF (the paper size it is drawn for) printed from a hidden frame. */
+  async printPdf() {
+    const svgs = [this.svg(true), ...(this.d.asm && this.d.bomPage && this.d.built ? this.bomPages(this.d.source, this.d, this.d.built).map((d) => this.svgOf(d)) : [])];
+    const res = await fetch('/api/sheet/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ svgs, name: this.hooks.safeName() }) });
+    if (!res.ok) { this.hooks.toast((await res.json()).error || res.statusText, 'error'); return; }
+    const url = URL.createObjectURL(await res.blob());
+    document.querySelector('iframe.sh-print')?.remove();
+    const f = Object.assign(document.createElement('iframe'), { className: 'sh-print', src: url, title: 'print' });
+    f.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0';
+    f.addEventListener('load', () => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch { window.open(url, '_blank'); } });
+    document.body.appendChild(f);
+    this.hooks.toast?.(t('Printing the sheet — choose the printer in the dialog (the paper as drawn, landscape).'), 'info', 4000);
+  }
 
   async setPreset(p) {
     if (p === this.d.preset) return;
@@ -1845,6 +1970,7 @@ export class SheetEditor {
     const id = `u${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
     this.d.user = [...this.d.user, { id, ...d }];
     this.sel = id;
+    if (this.dimOnce) { this.dimOnce = false; this.tool = 'select'; this.pick = null; this.hoverEdge = null; this.hint(''); } // (one dimension from a suggestion: back to choosing, its table shows)
     this.commit();
   }
 
@@ -1872,14 +1998,14 @@ export class SheetEditor {
       const balloon = e.target.closest('[data-balloon]');
       if (balloon) { drag = { kind: 'balloon', pos: balloon.dataset.balloon, moved: false }; this.stage.setPointerCapture(e.pointerId); return; }
       if (dimEl) {
+        this.clearSel();
         this.sel = dimEl.dataset.dim;
         drag = { kind: 'dim', id: this.sel, d: this.allDims().find((x) => x.id === this.sel), moved: false };
       } else if (viewEl) {
         const v = viewEl.dataset.view;
-        drag = { kind: 'view', v, start: p, from: v === 'Iso' ? (this.d.views.Iso || this.lay.iso.slice(0, 2)) : this.centre(v), moved: false };
+        drag = { kind: 'view', v, p, start: p, from: v === 'Iso' ? (this.d.views.Iso || this.lay.iso.slice(0, 2)) : this.centre(v), moved: false };
       } else {
-        this.sel = null;
-        drag = { kind: 'pan', start: [e.clientX, e.clientY], from: { ...this.zoom }, moved: false };
+        drag = { kind: 'pan', start: [e.clientX, e.clientY], from: { ...this.zoom }, moved: false, title: !!e.target.closest('.sh-title') };
       }
       this.stage.setPointerCapture(e.pointerId);
       this.render();
@@ -1892,6 +2018,7 @@ export class SheetEditor {
       }
       if (!drag || !this.svgEl) return;
       if (drag.kind === 'pan') {
+        if (Math.hypot(e.clientX - drag.start[0], e.clientY - drag.start[1]) > 3) drag.moved = true;
         this.zoom.x = drag.from.x + e.clientX - drag.start[0];
         this.zoom.y = drag.from.y + e.clientY - drag.start[1];
         this.applyZoom();
@@ -1928,7 +2055,9 @@ export class SheetEditor {
     this.stage.addEventListener('pointerup', () => {
       const had = this.guides?.length;
       this.guides = null;
-      if (drag?.moved && drag.kind !== 'pan') { this.commit(); if (drag.kind === 'view') this.replace(); } else if (had) this.render(); // (a view dropped: its dimensions placed clear again)
+      if (drag?.moved && drag.kind !== 'pan') { this.commit(); if (drag.kind === 'view') this.replace(); } // (a view dropped: its dimensions placed clear again)
+      else if (drag && !drag.moved) this.clickSelect(drag); // (a click: what is under it chosen, its suggestions shown)
+      else if (had) this.render();
       drag = null;
     });
     this.stage.addEventListener('scroll', () => { if (this.setMode) this.markSeen(); });
@@ -1948,6 +2077,19 @@ export class SheetEditor {
       this.zoom.k = k;
       this.applyZoom();
     }, { passive: false });
+  }
+
+  /** A click (no drag): a view's edge or circle under it, else the view; the title block; empty paper: nothing. */
+  clickSelect(drag) {
+    if (drag.kind === 'dim' || drag.kind === 'balloon') { this.render(); return; }
+    this.clearSel();
+    if (drag.kind === 'view') {
+      const v = drag.v, c = v !== 'Iso' ? this.circleAt(drag.p, 1.2) : null, ed = v !== 'Iso' && !c ? this.edgeAt(drag.p, 1) : null;
+      if (c?.view === v) this.selGeo = { view: v, c: c.c };
+      else if (ed?.view === v) this.selGeo = { view: v, edge: ed.edge };
+      else this.selView = v;
+    } else if (drag.title) this.selTitle = true;
+    this.render();
   }
 
   /** A view dragged to `at` (its centre, paper mm): in line with the views it is projected from / to — Top under (or
@@ -1975,7 +2117,8 @@ export class SheetEditor {
     if (!this.active || e.target.closest?.('input,select,textarea,[contenteditable]')) return;
     if (e.key === 'Enter' && this.tool === 'dim' && this.pick?.edge) { this.edgeLength(this.pick.view, this.pick.edge); e.preventDefault(); return; } // its length
     if (e.key === 'Escape' && this.tool === 'dim') { if (this.pick) { this.pick = null; this.render(); } else this.action('dim'); e.preventDefault(); }
-    if ((e.key === 'Delete' || e.key === 'Backspace') && this.sel) { this.remove(this.sel); e.preventDefault(); }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && this.sel) { this.remove(this.sel); e.preventDefault(); } else if ((e.key === 'Delete' || e.key === 'Backspace') && this.selView) { this.hideView(this.selView); e.preventDefault(); }
+    if (e.key === 'Escape' && this.tool === 'select' && (this.sel || this.selView || this.selGeo || this.selTitle)) { this.clearSel(); this.render(); e.preventDefault(); }
     if (e.ctrlKey && e.key.toLowerCase() === 'z') { this.history.go(-1); e.preventDefault(); }
     if (e.ctrlKey && e.key.toLowerCase() === 'y') { this.history.go(1); e.preventDefault(); }
   }
