@@ -946,6 +946,17 @@ can open them.
   view (picking a part or a face in 3D, a dimension, view or title cell on a drawing sheet — `at_mm` on the paper) and
   presses **keys** (Delete, Enter, Escape, ctrl+z); a sheet's dimensions, views and title cells are listed too. A **locked 🔒 joint** is greyed out in the panel (only 🔒
   unlocks it) and the AI cannot change it either.
+- **The AI shows you where**: ask "how do I add a hole?", "where is the pattern?" or "show me" and Claude leads you
+  through the app's own buttons step by step (`gui_highlight`): a pulsing ring around the control (or a spot of the 3D
+  view) with a short tip, the rest of the screen dimmed a little. Nothing is blocked — you click the control itself;
+  the tip goes when you click it, press **Esc** or ✕, and Claude waits for your click before it shows the next step.
+- **/uiTester and /suggest** in the AI chat: **/uiTester** makes Claude the app's tester — it designs a few test parts
+  (sketch, extrude, hole, pattern, fillet; an assembly with joints; a drawing sheet), checks for every feature that
+  its button exists, is reachable, does what the tool does and is in Czech, writes a report for each problem and ends
+  with a summary table (words after it narrow it: "/uiTester only the sheet"). **/suggest** — it proposes new
+  features and files the ones you pick as tool requests. Reports are filed **once**: `list_reports` shows those
+  written, and `report_problem` does not write a report whose title says the same as an earlier one (it names that
+  one instead; `again: true` when it is really another problem).
 - **Library first**: Claude designs like a mechanical engineer. Every bought part (screws, nuts, inserts, bearings,
   standoffs, panel parts, SMC pneumatics, SICK sensors, motors) comes from the 📚 parts library (`library_search`,
   `library_add`), with its real part number in the BOM. Only the parts to be printed are drawn, around the bought ones.

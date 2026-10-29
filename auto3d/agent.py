@@ -154,6 +154,28 @@ class Relay:
                 self.cv.notify_all()
 
 
+# --------------------------------------------------------------------------- slash commands
+# a chat message starting with one of these runs the app's skill for it (the chat shows what the user typed; Claude
+# gets the instruction, and the rest of the message as what the user added)
+COMMANDS = {
+    "uitester": ("ui-tester", "Test the app's GUI now: load the skill auto3d:ui-tester (or get_guide topic \"ui-tester\") and follow "
+                              "it — design the test parts, check each feature's GUI path, report each problem once, end with the "
+                              "summary table."),
+    "suggest": ("suggest-features", "Suggest new features for the app: load the skill auto3d:suggest-features (or get_guide topic "
+                                    "\"suggest-features\") and follow it — propose them, file the ones I agree to."),
+}
+
+
+def expand_command(text: str) -> str:
+    """"/uiTester …" -> the instruction for Claude (the words after the command kept as the user's own); other text as it is."""
+    m = re.match(r"^/([A-Za-z][\w-]*)\b\s*(.*)$", text.strip(), re.S)
+    cmd = COMMANDS.get(m.group(1).lower().replace("-", "").replace("_", "")) if m else None
+    if not cmd:
+        return text
+    rest = m.group(2).strip()
+    return f"[/{m.group(1)}] {cmd[1]}" + (f"\n\nThe user adds: {rest}" if rest else "")
+
+
 # --------------------------------------------------------------------------- chat session
 class ChatSession:
     """One Claude Code process for the chat; events fan out to all subscribed pages."""
@@ -237,7 +259,7 @@ class ChatSession:
         self.emit({"type": "user", "text": text, "photos": [{"name": p["name"], "url": p["url"]} for p in photos]})
         content = [{"type": "image", "source": {"type": "base64", "media_type": p["media_type"], "data": p["data"]}} for p in photos]
         note = "\n".join(f"[Attached photo: {p['path']}]" for p in photos)
-        content.append({"type": "text", "text": "\n\n".join(x for x in (text, note) if x)})
+        content.append({"type": "text", "text": "\n\n".join(x for x in (expand_command(text), note) if x)})
         line = json.dumps({"type": "user", "message": {"role": "user", "content": content}})
         try:
             self.proc.stdin.write((line + "\n").encode("utf-8"))

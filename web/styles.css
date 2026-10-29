@@ -1077,3 +1077,19 @@ body.view-acts .toast-stack { bottom: 84px; }
 body.fb-moving, body.fb-moving * { cursor: move !important; user-select: none; }
 body.fb-resizing, body.fb-resizing * { cursor: nwse-resize !important; user-select: none; }
 .mp-sub { color: var(--muted); font-weight: 400; font-size: 11px; }
+
+/* the AI teaching (agent_teach.js): a pulsing ring around a control, the rest dimmed lightly, a tip next to it —
+   nothing of it takes a click (only the tip's ✕) */
+.teach-ring { position: fixed; z-index: 1000; pointer-events: none; border: 2px solid #ffb020; border-radius: 8px;
+  box-shadow: 0 0 0 9999px #00000059, 0 0 14px 3px #ffb020aa; animation: teach-pulse 1.3s ease-in-out infinite; }
+.teach-ring.spot { border-radius: 50%; }
+@keyframes teach-pulse { 50% { box-shadow: 0 0 0 9999px #00000059, 0 0 4px 7px #ffb02055; border-color: #ffd27a; } }
+.teach-tip { position: fixed; z-index: 1001; max-width: 300px; padding: 8px 11px 10px; border-radius: 10px; background: #fff8e6; color: #241a05;
+  border: 1px solid #ffb020; box-shadow: 0 8px 26px #000a; font-size: 13px; line-height: 1.4; animation: slide .2s ease-out; }
+.teach-tip::before { content: ''; position: absolute; left: calc(var(--arrow, 50%) - 7px); top: -8px; border: 7px solid transparent; border-top: 0; border-bottom: 8px solid #ffb020; }
+.teach-tip.above::before { top: auto; bottom: -8px; border-bottom: 0; border-top: 8px solid #ffb020; }
+.teach-head { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; font-size: 11px; color: #7a5a10; }
+.teach-step { background: #ffb020; color: #241a05; border-radius: 9px; padding: 0 7px; font-weight: 600; }
+.teach-who { flex: 1; }
+.teach-x { background: none; border: 0; color: #7a5a10; cursor: pointer; font-size: 13px; padding: 0 2px; }
+.teach-x:hover { color: #241a05; }

@@ -15,3 +15,8 @@ description: Use before exporting or when the user wants to 3D print the part �
    overhangs ≤ 45°, bridges ≤ 10 mm, embossed details ≥ 0.4 mm, text strokes ≥ 0.6 mm. A part lies on the bed
    on its largest flat face.
 5. `export {format: "stl"}` for printing (or "step" for other CAD programs) — the result names the file.
+
+**Missing a tool?** When no tool fits and you work around it (several calls for one thing, guessing, asking the user
+to click for you), file it at once: `list_reports {search: "<the words>"}`, and if it is not there
+`report_problem {kind: "tool request", …}` (the tool you would want: name, inputs, result; your workaround) —
+then tell the user in one line and carry on. A wrong result is `{kind: "bug"}`; each thing reported once.

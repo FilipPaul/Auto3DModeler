@@ -19,3 +19,8 @@ description: Use when the user wants to change an existing 3D model part (make i
 5. If a step shows a warning that an edge was "found again by its position only", look at a screenshot and
    re-pick the edges with `edit_feature {id, fields: {edges: [...]}}`.
 6. Check `get_model` (all ok) and `get_screenshot`. Everything can be undone (`undo`).
+
+**Missing a tool?** When no tool fits and you work around it (several calls for one thing, guessing, asking the user
+to click for you), file it at once: `list_reports {search: "<the words>"}`, and if it is not there
+`report_problem {kind: "tool request", …}` (the tool you would want: name, inputs, result; your workaround) —
+then tell the user in one line and carry on. A wrong result is `{kind: "bug"}`; each thing reported once.

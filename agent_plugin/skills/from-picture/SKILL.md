@@ -18,3 +18,8 @@ description: Use when the user gives a photo or picture (a path, or an attached 
 3. Cookie cutters: notches narrower than about twice the wall do not cut — use the outline clean-up
    (`set_part_options {cleanup: {close: 1.5}}`) or round them.
 4. Check with `get_part` and `get_screenshot`; tell the user the real size.
+
+**Missing a tool?** When no tool fits and you work around it (several calls for one thing, guessing, asking the user
+to click for you), file it at once: `list_reports {search: "<the words>"}`, and if it is not there
+`report_problem {kind: "tool request", …}` (the tool you would want: name, inputs, result; your workaround) —
+then tell the user in one line and carry on. A wrong result is `{kind: "bug"}`; each thing reported once.

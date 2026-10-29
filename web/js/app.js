@@ -13,6 +13,7 @@ import { AiHistory } from './aihistory.js';
 import { LibraryBrowser, saveToLibrary, libraryItems, matchScore, itemFromModel } from './library/browser.js';
 import { repaint } from './modeler/paint.js';
 import { moreHandlers, colouredGroups } from './agent_more.js';
+import { teachHandlers } from './agent_teach.js';
 import { buildPart, sizesOf, lengthsOf } from './library/build.js';
 import { Project } from './parts.js';
 import { Modeler } from './modeler/modeler.js';
@@ -2634,6 +2635,7 @@ const libraryTools = {
 };
 Object.assign(agentHandlers, libraryTools);
 Object.assign(agentHandlers, moreHandlers({ state, project, modeler, assembly, drawing2d, sheet, drawingSet: (aid) => sheet.drawingSet(aid, drawingCtx()), t2 }));
+Object.assign(agentHandlers, teachHandlers()); // gui_highlight: the AI shows the user where to click
 
 // the AI and the look of parts: the whole part's colour / see-through, single faces; a joined part moved its free ways;
 // the model on screen kept in the library

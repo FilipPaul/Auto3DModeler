@@ -1330,6 +1330,13 @@ def tool_report_problem(args):
     what = str(args.get("what") or "").strip()
     if not title or not what:
         raise ValueError("A report needs a title and what happened.")
+    from auto3d import reports
+    same = [] if args.get("again") else reports.similar(REPORTS, title)
+    if same:  # (one thing reported twice is noise for the developers)
+        listed = "; ".join(f"“{r['title']}” ({r['kind']}, {r['date']}, {r['file']})" for r in same)
+        return {"text": f"Not written — a similar report exists: {listed}. If it is the same problem, tell the user it is reported "
+                        f"already and carry on. Only if yours is really another one, call report_problem again with again: true "
+                        f"and a title that says how it differs."}
     now = time.localtime()
     kind = str(args.get("kind") or "bug").strip().lower()
     kind = kind if kind in ("bug", "tool request", "ui") else "bug"
@@ -1347,7 +1354,17 @@ def tool_report_problem(args):
     return {"text": f"Reported: {path.relative_to(ROOT).as_posix()} — thank you. Tell the user, then carry on."}
 
 
-SERVER_TOOLS = {"open_file": tool_open_file, "report_problem": tool_report_problem, "open_sample": tool_open_sample, "trace_picture": tool_trace_picture,
+def tool_list_reports(args):
+    """The problem reports written so far (newest first): those of a kind, those sharing a word with `search`."""
+    from auto3d import reports
+    kind = str(args.get("kind") or "").strip().lower()
+    rows = reports.search(REPORTS, str(args.get("search") or ""), kind if kind in ("bug", "tool request", "ui") else "")
+    if not rows:
+        return {"text": "No reports" + (" match" if args.get("search") or kind else " yet") + "."}
+    return {"text": json.dumps([{"title": r["title"], "kind": r["kind"], "date": r["date"]} for r in rows], ensure_ascii=False)}
+
+
+SERVER_TOOLS = {"open_file": tool_open_file, "report_problem": tool_report_problem, "list_reports": tool_list_reports, "open_sample": tool_open_sample, "trace_picture": tool_trace_picture,
                 "use_outline": tool_use_outline, "export": tool_export}
 
 

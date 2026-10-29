@@ -230,6 +230,12 @@ try:
     tool("open_part", id="Flange")
     tool("prepare_print")
     tool("check_print")
+    # teaching: a ring and a tip at a control (gone on clear), and the reports written so far
+    tool("gui_highlight", control="Save project", text="Save your work here.", step="1/1")
+    print("    highlighted:", d.execute_script("return document.querySelector('.teach-tip')?.textContent.replace(/\\s+/g, ' ').trim()"))
+    tool("gui_highlight", clear=True)
+    print("    cleared:", d.execute_script("return !document.querySelector('.teach-ring')"))
+    tool("list_reports", search="sketch")
 finally:
     print("console errors:", [e["message"] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     mcp.stdin.close()

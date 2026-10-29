@@ -413,6 +413,11 @@ Never report "works" without having run it; report failures with their output.
    Base on screen in both: a step in one shown in the other; no messages in 3 quiet seconds, the same in both; a
    sheet in the other window made again with a new revision after a hole in the first; the new window shows only its
    tab; a tab dropped from the first window onto the second's tab row opens there and goes from the first).
+   `tools/e2e_ai_teach.py <url> <dir>` covers the AI's gui_highlight: a ring around ✏ Sketch with its tip (the rest
+   dimmed, nothing blocked), a click elsewhere keeps it, the user's real click starts the sketch and removes it (the
+   next call says "the user clicked it"), Escape closes it without cancelling the sketch, a new tip replaces the old,
+   clear, wait: true through /api/agent/call answers after the click, a 1 s timeout keeps it, a view spot (at) clicked,
+   refusals, an assembly in Czech (✕ tooltip, the tip's own text kept) above floating boxes.
    `tools/e2e_ai_gui.py <url> <dir>` covers the AI's GUI testing: gui_action at a point of the 3D view (the lid
    picked, an empty corner: none), Delete / ctrl+z keys, gui_state on a sheet (dims, views, cells), a dimension
    clicked + Delete + ctrl+z, a view dragged 20 mm by at_mm / drag_to, a double-click on the title cell (its field

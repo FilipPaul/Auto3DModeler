@@ -94,7 +94,7 @@ class TestMcpServer(unittest.TestCase):
         self.assertIn("prompts", r[1]["result"]["capabilities"])
         self.assertIn("get_guide", r[1]["result"]["instructions"])
         self.assertIn("find_refs", r[2]["result"]["content"][0]["text"])
-        self.assertEqual(sorted(x["name"] for x in r[3]["result"]["prompts"]), ["assemble-parts", "automation-design", "change-a-model", "fits-and-tolerances", "from-picture", "mechanical-design", "model-a-part", "print-functional", "print-graphics", "print-prep", "start-a-design", "use-a-drawing"])
+        self.assertEqual(sorted(x["name"] for x in r[3]["result"]["prompts"]), ["assemble-parts", "automation-design", "change-a-model", "fits-and-tolerances", "from-picture", "mechanical-design", "model-a-part", "print-functional", "print-graphics", "print-prep", "start-a-design", "suggest-features", "teach-the-user", "ui-tester", "use-a-drawing"])
         self.assertIn("check_print", r[4]["result"]["messages"][0]["content"]["text"])
         self.assertTrue(r[5]["result"]["isError"])
 
@@ -107,7 +107,7 @@ class TestMcpServer(unittest.TestCase):
         self.assertEqual(cmd[cmd.index("--plugin-dir") + 1], str(PLUGIN_DIR))
         self.assertTrue((PLUGIN_DIR / ".claude-plugin" / "plugin.json").exists())
         for name in ("start-a-design", "model-a-part", "from-picture", "print-prep", "change-a-model", "assemble-parts", "mechanical-design", "automation-design",
-                     "fits-and-tolerances", "print-functional", "print-graphics", "use-a-drawing"):
+                     "fits-and-tolerances", "print-functional", "print-graphics", "use-a-drawing", "teach-the-user", "ui-tester", "suggest-features"):
             text = (PLUGIN_DIR / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
             self.assertTrue(text.startswith("---\nname: " + name), name)
         # every tool a skill tells the AI to use exists
@@ -144,6 +144,70 @@ class TestMcpServer(unittest.TestCase):
             with self.assertRaises(ValueError):
                 server.tool_report_problem({"title": "", "what": "x"})
 
+    def test_report_problem_once(self):
+        """A report whose title says the same as an earlier one is not written again: the AI gets the earlier one;
+        again: true writes it anyway. list_reports lists them (a kind, words of a title)."""
+        import tempfile
+        from unittest import mock
+        import server
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(server, "REPORTS", Path(tmp) / "RealSWReports"), mock.patch.object(server, "ROOT", Path(tmp)):
+            self.assertEqual(server.tool_list_reports({})["text"], "No reports yet.")
+            server.tool_report_problem({"title": "Paint does not show in the assembly", "what": "the face stayed grey"})
+            server.tool_report_problem({"title": "A tool to drive a mechanism", "what": "no tool turns a crank", "kind": "tool request"})
+            r = server.tool_report_problem({"title": "Painted faces are not shown in an assembly", "what": "grey again"})
+            self.assertIn("a similar report exists", r["text"])
+            self.assertIn("“Paint does not show in the assembly” (bug", r["text"])
+            self.assertEqual(len(list((Path(tmp) / "RealSWReports").glob("*.md"))), 2)  # not written
+            time.sleep(1.1)  # (a report's file name has the second it was written)
+            r = server.tool_report_problem({"title": "Painted faces are not shown in an assembly", "what": "in a sub-assembly", "again": True})
+            self.assertIn("Reported:", r["text"])
+            self.assertEqual(len(list((Path(tmp) / "RealSWReports").glob("*.md"))), 3)
+            # another problem with a word in common is written
+            self.assertIn("Reported:", server.tool_report_problem({"title": "Fillet fails on a hole's edge", "what": "x"})["text"])
+            rows = json.loads(server.tool_list_reports({})["text"])
+            self.assertEqual(len(rows), 4)
+            self.assertEqual(set(rows[0]), {"title", "kind", "date"})
+            self.assertEqual([x["title"] for x in json.loads(server.tool_list_reports({"kind": "tool request"})["text"])], ["A tool to drive a mechanism"])
+            found = json.loads(server.tool_list_reports({"search": "painting in assemblies"})["text"])
+            self.assertEqual({x["title"] for x in found}, {"Paint does not show in the assembly", "Painted faces are not shown in an assembly"})
+            self.assertEqual(server.tool_list_reports({"search": "screenshot"})["text"], "No reports match.")
+
+    def test_report_titles_alike(self):
+        from auto3d.reports import similarity, SIMILAR
+        same = [("Paint does not show in the assembly", "Painted faces are not shown in an assembly"),
+                ("edit_feature on a mirror resets its plane", "edit_feature on a mirror resets the plane"),
+                ("No tool to read a sketch", "A tool to read a sketch")]
+        other = [("edit_feature on a mirror resets its plane", "edit_feature on a sketch's plane drops its shapes"),
+                 ("Paint does not show in the assembly", "Fillet fails on a hole edge"),
+                 ("Concentric joint on a library screw: no free motions", "Joint panel: free-turn slider greyed out on locked joints"),
+                 ("", "anything")]
+        for a, b in same:
+            self.assertGreaterEqual(similarity(a, b), SIMILAR, (a, b))
+        for a, b in other:
+            self.assertLess(similarity(a, b), SIMILAR, (a, b))
+
+    def test_slash_commands(self):
+        """/uiTester and /suggest in the chat: Claude gets the instruction to load its skill (any case, words after it kept)."""
+        from auto3d.agent import COMMANDS, ChatSession, expand_command
+        from auto3d.guides import guides
+        for name, (skill, _) in COMMANDS.items():
+            self.assertIn(skill, guides(), name)
+        self.assertIn("auto3d:ui-tester", expand_command("/uiTester"))
+        self.assertIn("auto3d:ui-tester", expand_command("  /UITESTER  "))
+        r = expand_command("/ui-tester only the drawing sheet")
+        self.assertIn("auto3d:ui-tester", r)
+        self.assertTrue(r.endswith("The user adds: only the drawing sheet"))
+        self.assertIn("auto3d:suggest-features", expand_command("/suggest"))
+        for plain in ("make a /uiTester", "/unknown thing", "hello", "/uitesterx"):
+            self.assertEqual(expand_command(plain), plain)
+        # the chat shows what the user typed; Claude gets the instruction
+        chat = ChatSession("http://127.0.0.1:1")
+        sent = []
+        chat.proc = type("P", (), {"poll": lambda self: None, "stdin": type("S", (), {"write": lambda self, b: sent.append(b), "flush": lambda self: None})()})()
+        chat.send("/uiTester")
+        self.assertEqual(chat.history[-1]["text"], "/uiTester")
+        self.assertIn("auto3d:ui-tester", json.loads(sent[0])["message"]["content"][-1]["text"])
+
     def test_version_route(self):
         import server
         from auto3d import version
@@ -156,10 +220,20 @@ class TestMcpServer(unittest.TestCase):
             self.assertEqual(t["inputSchema"]["type"], "object", t["name"])
             self.assertTrue(t["description"])
         self.assertIn("get_part", BROWSER_TOOLS)
-        for name in ("set_look", "paint_faces", "move_free", "set_travel", "check_travel", "lock_motion", "gui_state", "gui_action", "ask_user", "sheet_open", "get_sheet", "sheet_edit", "save_to_library", "library_search", "library_add", "check_collisions",
+        for name in ("set_look", "paint_faces", "move_free", "set_travel", "check_travel", "lock_motion", "gui_state", "gui_action", "gui_highlight", "ask_user", "sheet_open", "get_sheet", "sheet_edit", "save_to_library", "library_search", "library_add", "check_collisions",
                      "get_sketch", "sketch_auto_dims", "sketch_dim", "sketch_trim", "sketch_union"):
             self.assertIn(name, BROWSER_TOOLS)
         self.assertNotIn("report_problem", BROWSER_TOOLS)  # the server writes it
+        self.assertNotIn("list_reports", BROWSER_TOOLS)    # and reads them
+        hl = next(t for t in TOOLS if t["name"] == "gui_highlight")["inputSchema"]["properties"]
+        self.assertTrue({"control", "at", "text", "step", "wait", "timeout", "clear"} <= set(hl))
+        self.assertIn("again", next(t for t in TOOLS if t["name"] == "report_problem")["inputSchema"]["properties"])
+        from auto3d.guides import guides
+        topics = next(t for t in TOOLS if t["name"] == "get_guide")["inputSchema"]["properties"]["topic"]["enum"]
+        self.assertEqual(sorted(topics), sorted(guides()))  # every skill is a guide topic
+        from auto3d.agent_tools import SYSTEM_PROMPT
+        for words in ("gui_highlight", "auto3d:teach-the-user", "/uiTester", "auto3d:ui-tester", "auto3d:suggest-features", "list_reports"):
+            self.assertIn(words, SYSTEM_PROMPT)
         self.assertNotIn("trace_picture", BROWSER_TOOLS)
 
 
