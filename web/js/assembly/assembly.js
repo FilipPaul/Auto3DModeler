@@ -332,7 +332,8 @@ export class Assembly {
     const { left, viewport, right } = this.els;
     left.innerHTML = `<div class="mt-head"><b>Assembly</b><span class="mt-sub">its parts</span></div><div class="as-list"></div>
       <div class="mt-start as-start" hidden><p><b>Put parts together</b></p><ol><li><b>＋ Insert part</b> — a 3D model of this project</li>
-      <li><b>🧲 Snap</b> — click a face of one part, then the face it goes onto</li><li>Nudge or turn it in the panel on the right</li></ol></div>`;
+      <li><b>🔗 Join</b> — click a face of one part, Ctrl+click a face of the other, pick the joint (a pin in a hole: ◎ Concentric)</li>
+      <li><b>⚙ Mechanism</b> — shows by itself once the joints let the parts move</li></ol></div>`;
     viewport.innerHTML = `<div class="m-cmdbar"></div><div class="m-hint" hidden></div><div class="m-view"></div><div class="m-status"></div>`;
     right.innerHTML = '<div class="mp-body"></div>';
     this.els.view = viewport.querySelector('.m-view');
@@ -754,7 +755,7 @@ export class Assembly {
   renderPair(box) {
     const a = this.inst(this.sel), b = this.inst(this.sel2), js = this.shownJoints();
     box.innerHTML = `<h2><span data-no-i18n>${esc(this.partName(a.part))}</span> ↔ <span data-no-i18n>${esc(this.partName(b.part))}</span></h2>
-      <p class="hint">${a.id} and ${b.id} — the joints between them${js.length ? '' : ': none yet'}.</p>
+      <p class="hint">${esc(t2(js.length ? '{a} and {b} — the joints between them.' : '{a} and {b} — no joints between them yet.', { a: a.id, b: b.id }))}</p>
       ${js.length ? this.jointsHtml(null, js) : ''}
       <div class="row-actions wrap"><button class="btn small primary" data-a="joinPair">🔗 Join them</button><button class="btn small" data-a="onlyA">${esc(this.partName(a.part))} ${a.id}</button><button class="btn small" data-a="onlyB">${esc(this.partName(b.part))} ${b.id}</button></div>
       <p class="hint">Ctrl+click another part to compare it instead, a click alone shows one part.</p>`;

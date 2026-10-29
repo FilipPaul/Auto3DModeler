@@ -749,6 +749,7 @@ const CS = {
   '{name} — a copy of its own (change it without changing the original).': '{name} — samostatná kopie (měňte ji bez změny originálu).',
   '{inst} now has a part of its own: {name} — change it without changing the others.': '{inst} má teď vlastní díl: {name} — měňte ho bez změny ostatních.',
   '{name} (the copy made for it) is out of the project again.': '{name} (kopie pro něj vytvořená) je zase mimo projekt.',
+  '{a} and {b} — the joints between them.': '{a} a {b} — vazby mezi nimi.', '{a} and {b} — no joints between them yet.': '{a} a {b} — zatím mezi nimi není žádná vazba.',
   'Measure: click a spot (a face, a corner), then another one — the distance; two parallel flat faces: the gap between them; two round faces: how far apart their axes are': 'Měření: klikněte na místo (plochu, roh), pak na další — vzdálenost; dvě rovnoběžné rovné plochy: mezera mezi nimi; dvě válcové plochy: vzdálenost jejich os',
   'Measure — click a spot, then another one (corners snap). Esc ends.': 'Měření — klikněte na místo, pak na další (rohy se chytají). Esc končí.',
   Of: 'Díl', Corner: 'Roh', 'Faces apart': 'Plochy od sebe', 'Axes apart': 'Osy od sebe',
@@ -1869,6 +1870,10 @@ const CS_PATTERNS = [
 
 // rich hints (text with markup): normalised text -> Czech HTML
 const CS_HTML = {
+  '＋ Insert part — a 3D model of this project': '<b>＋ Vložit díl</b> — 3D model tohoto projektu',
+  '🔗 Join — click a face of one part, Ctrl+click a face of the other, pick the joint (a pin in a hole: ◎ Concentric)':
+    '<b>🔗 Spojit</b> — klikněte na plochu jednoho dílu, Ctrl+klik na plochu druhého a vyberte vazbu (čep v díře: ◎ Soustředně)',
+  '⚙ Mechanism — shows by itself once the joints let the parts move': '<b>⚙ Mechanismus</b> — ukáže se sám, jakmile vazby dovolí dílům pohyb',
   '✏ Sketch — draw a rectangle or a circle': '<b>✏ Skica</b> — nakreslete obdélník nebo kruh',
   '⬆ Extrude — give it a height': '<b>⬆ Vysunutí</b> — dejte mu výšku',
   'Sketch on a face of the part to add holes, pockets and bosses': 'Skicou na <b>ploše</b> dílu přidáte díry, kapsy a výstupky',
