@@ -357,7 +357,8 @@ save_version, compare_versions, restore_version and create_variant.
 rod – slider (*Klikový mechanismus*), a four-bar linkage (*Čtyřkloubový mechanismus*: the crank turns round, the
 rocker swings), a robot arm (*Robotické rameno*: an open chain — turn the arm and the forearm and gripper go
 along) and gears with a rack (*Převodovka s hřebenem*: a pinion Ø30 turns a wheel Ø60 at i = 2:1 and moves a rack
-π·30 mm a turn — ⚙ couplings). Each is listed with what it shows (in Czech or English) and opens as a new project — a copy, the demo stays
+π·30 mm a turn — ⚙ couplings) and a control box with a motor (*Řídicí box s motorem*: a PCB and a motor joined by
+a 🔌 harness of 4 loose wires; the motor turns a pulley). Each is listed with what it shows (in Czech or English) and opens as a new project — a copy, the demo stays
 as it is — on its assembly with ⚙ Mechanism ready (Czech motion names, ▶). The files are in `demos/` (built through
 the app by `tools/make_demos.py`) and go into the Windows build.
 
@@ -1066,7 +1067,8 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   (*🔌 Svazek 1 · 4 × Ø1,5 · 1 284 mm*), in the **BOM** a line per wire or cable with its length + a reserve (5 %, under
   *More*) rounded up to 10 mm — *Vodič Ø1,5 mm hnědý — 1 350 mm* — and in the **STEP / GLB / IGES** exports (a part
   per harness, each wire a solid in its colour: a circle swept along the route) and the assembly's drawing sheet.
-  The AI routes them with `add_harness` / `edit_harness`; get_assembly lists them with their lengths.
+  The AI routes them with `add_harness` / `edit_harness`; get_assembly lists them with their lengths. The demo *Řídicí
+  box s motorem* has one.
 - **⚠ Collisions** finds where parts go into each other (touching faces are fine). It is checked a moment after
   every change, so the button itself says it: **⚠ 2 collision(s)** in red, or **✓ No collisions** in green. Click it
   for the list — each pair and how much (mm³), the parts glowing red and the overlap boxed in red; hover a row for

@@ -22,7 +22,7 @@ Date: 2026-10-25. Written by the architect agent.
   auto3d/modeler/harness.py, the same math in Python; kernel.pipe_body: circles / a ribbon's rectangle swept with
   MakePipeShell along lines + arcs, one solid per wire, faces <id>:w<k>:… painted their colours) — STEP / IGES / GLB
   and the assembly's drawing sheet (sheet.js flatten). AI: add_harness / edit_harness, get_assembly `harnesses`
-  (length, bends_too_tight, through_parts); the assemble-parts skill. Tests:
+  (length, bends_too_tight, through_parts); the assemble-parts skill. Demo *Řídicí box s motorem*. Tests:
   tests/test_harness.py (straight, L = straight parts + πR/2, a tight corner flagged, bundle Ø 1 / 3 / 7, cable volume
   π(d/2)²·L + watertight + STEP round trip, 4 wire solids, ribbon / sleeve, errors), tools/e2e_harness.py.
   Left out: a sleeve is solid in STEP (not hollow); wires are laid side by side in STEP (twisted only on screen); the

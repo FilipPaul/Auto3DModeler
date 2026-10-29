@@ -8,6 +8,7 @@ project as the app saves it, with its "demo" record (auto3d/demos.py).
   ctyrkloubovy-mechanismus a four-bar crank–rocker (crank 20, coupler 70, rocker 50 on a 60 mm base)
   roboticke-rameno         an open chain: an arm on a column, a forearm on its pin, a gripper fixed on the forearm
   prevodovka-s-hrebenem    gears and a rack: a pinion Ø30 turns a wheel Ø60 (i = 2:1) and moves a rack π·30 mm a turn
+  ridici-box-s-motorem     a box with a PCB and a motor joined by a 🔌 4-wire harness; the motor turns a pulley
 """
 import json
 import math
@@ -250,5 +251,43 @@ try:
             "order": 4, "name": "Gears and a rack", "name_cs": "Převodovka s hřebenem",
             "text": "A pinion Ø30 turns a wheel Ø60 (⚙ i = 2:1 — half as fast, the other way) and moves a rack π·30 mm a turn — one slider (⚙ Mechanism) moves all three; ▶ plays it. Drag the wheel or push the rack in the view: the others follow.",
             "text_cs": "Pastorek Ø30 otáčí kolem Ø60 (⚙ i = 2:1 — polovičními otáčkami, opačně) a posouvá hřeben o π·30 mm na otáčku — jeden posuvník (⚙ Mechanismus) hýbe všemi třemi; ▶ ho přehraje. Táhněte kolo nebo hřeben v pohledu: ostatní je následují."})
+    # ---------------------------------------------------------------- a box with a PCB and a motor: a 🔌 4-wire harness
+    if want("ridici-box-s-motorem"):
+        fresh()
+        call("new_model", name="Krabice")
+        call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 160, "h": 100}}])
+        call("add_feature", type="extrude", sketch="F1", d=8)
+        call("new_model", name="DPS")
+        call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 60, "h": 40}}])
+        call("add_feature", type="extrude", sketch="F1", d=1.6)
+        call("new_model", name="Motor")
+        call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 30, "h": 30}}])
+        call("add_feature", type="extrude", sketch="F1", d=30)
+        call("add_feature", type="sketch", plane={"face": "F2:end"}, shapes=[{"circle": {"x": 0, "y": 0, "d": 6}}])
+        call("add_feature", type="extrude", sketch="F3", d=10)  # (its shaft)
+        call("new_model", name="Řemenice")
+        call("add_feature", type="sketch", plane="XY", shapes=[{"circle": {"x": 0, "y": 0, "d": 30}}])
+        call("add_feature", type="extrude", sketch="F1", d=6)
+        call("add_feature", type="hole", face="F2:end", points=[[0, 0]], d=6)
+        call("add_feature", type="hole", face="F2:end", points=[[9, 0]], d=4)  # (a mark: it is seen to turn)
+        assembly("Řídicí box s motorem", ["Krabice", "DPS", "Motor", "Řemenice"])
+        call("place_part", part="I2", x=15, y=30, z=8)
+        call("place_part", part="I2", fixed=True)
+        call("place_part", part="I3", x=110, y=35, z=8)
+        call("place_part", part="I3", fixed=True)
+        snap(type="axis", move={"part": "I4", "face": rounds("I4", "hole")[0] if axis("I4", rounds("I4", "hole")[0])[0] < axis("I4", rounds("I4", "hole")[-1])[0] else rounds("I4", "hole")[-1]},
+             onto={"part": "I3", "face": rounds("I3", "side")[0]}, name="řemenice na hřídeli")
+        snap(type="touch", move={"part": "I4", "face": "F2:start"}, onto={"part": "I3", "face": "F2:end"})
+        for i, color in (("I1", "#c9ced6"), ("I2", "#2f8f4e"), ("I3", "#5b6470"), ("I4", "#e8a33d")):
+            call("set_look", part=i, color=color)
+        call("name_motion", part="I4", motion=motion("I4", "Turn"), name="Otáčení řemenice")
+        print(call("add_harness", type="wires", count=4, name="Napájení motoru",
+                   points=[{"part": "I2", "face": "F2:end"}, {"xyz": [62, 50, 34]}, {"xyz": [95, 18, 34]}, {"part": "I3", "face": "F2:side:l1"}])[:160])
+        print(call("drive_mechanism", driver={"part": "I4", "motion": 0}, name="Motor", to=0)[:140])
+        js(f"{A}.harnessTool.sel = null; {A}.render(); {A}.draw()")
+        save("ridici-box-s-motorem.a3d.json", "Řídicí box s motorem", {
+            "order": 5, "name": "Control box with a motor", "name_cs": "Řídicí box s motorem",
+            "text": "A PCB and a motor in a box, joined by a 🔌 cable harness of 4 loose wires (red, black, blue, brown) routed over the box — its length, the bends at the minimum radius, a BOM line per wire. Click the harness: edit its points, change it to a cable; ▶ turns the motor's pulley.",
+            "text_cs": "Deska plošných spojů a motor v krabici, spojené 🔌 kabelovým svazkem ze 4 volných drátů (červený, černý, modrý, hnědý) vedeným nad krabicí — jeho délka, ohyby na minimální poloměr, řádek kusovníku na každý drát. Klikněte na svazek: upravte body, změňte ho na kabel; ▶ otáčí řemenicí motoru."})
 finally:
     d.quit()
