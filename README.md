@@ -1299,6 +1299,16 @@ accounts for.
 
 Projects (model, edited/added dimensions, design layers) can be saved/loaded as `.a3d.json`.
 
+## Windows program for customers (no Python)
+
+`py tools/build/build.py` builds `dist/Auto3DModeler/Auto3DModeler.exe` (PyInstaller, one folder, ≈ 445 MB with the CAD
+kernel), a portable zip (≈ 160 MB) and — with Inno Setup 6 installed — a per-user installer, then smoke-tests the
+result. The exe starts the server on a free port and opens the app in its own window (Edge app mode); a second start
+only opens the window, closing it quits, a tray icon has Open / Logs / Quit. The customer's data lives in
+`%LOCALAPPDATA%\Auto3DModeler` (logs in `logs\`), never in the install folder. The AI chat is optional and needs the
+customer's own Claude Code. Building, installing, updating, code signing and a short Czech guide for the customer
+("Instalace"): [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).
+
 ## Tests
 
 ```

@@ -6,6 +6,7 @@ the model only refers to them by id, so it stays small (projects carry the file 
 """
 from __future__ import annotations
 
+import os
 import threading
 from functools import lru_cache
 from pathlib import Path
@@ -19,7 +20,7 @@ from .importers import ImportError_, auto_layer, file_id, orient, read_mesh, sli
 from .outline import add_objects
 from .solid import Solid
 
-STORE = Path(__file__).resolve().parent.parent / "data" / "imports"
+STORE = Path(os.environ.get("A3D_DATA") or Path(__file__).resolve().parent.parent / "data") / "imports"
 _meshes: dict[str, np.ndarray] = {}
 _lock = threading.Lock()
 

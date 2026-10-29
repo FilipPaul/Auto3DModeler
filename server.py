@@ -1324,7 +1324,7 @@ def tool_export(args):
     return {"text": f"Exported {len(data) // 1024} kB to {target}"}
 
 
-REPORTS = ROOT / "RealSWReports"  # the AI's reports of things that did not behave as expected
+REPORTS = (DATA if getattr(__import__("sys"), "frozen", False) else ROOT) / "RealSWReports"  # the AI's reports of things that did not behave as expected (the built app: in the user's data)
 
 
 def tool_report_problem(args):

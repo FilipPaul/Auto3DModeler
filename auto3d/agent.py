@@ -31,7 +31,7 @@ from .agent_tools import SYSTEM_PROMPT
 from .guides import PLUGIN_DIR
 
 MCP_SCRIPT = Path(__file__).resolve().parent / "mcp_server.py"
-WORKDIR = Path(__file__).resolve().parent.parent / "data" / "agent"
+WORKDIR = Path(os.environ.get("A3D_DATA") or Path(__file__).resolve().parent.parent / "data") / "agent"
 
 
 # --------------------------------------------------------------------------- Claude Code
@@ -218,8 +218,10 @@ class ChatSession:
         return self.proc is not None and self.proc.poll() is None
 
     def command(self, exe: str) -> list[str]:
+        # (the built app has no Python: its own exe is the MCP server, auto3d/launcher.py)
+        script = ["--mcp-server"] if getattr(sys, "frozen", False) else [str(MCP_SCRIPT)]
         mcp = {"mcpServers": {"auto3d": {"type": "stdio", "command": sys.executable,
-                                         "args": [str(MCP_SCRIPT), "--url", self.app_url]}}}
+                                         "args": [*script, "--url", self.app_url]}}}
         cmd = [exe, "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
                "--include-partial-messages",
                "--mcp-config", json.dumps(mcp), "--strict-mcp-config",

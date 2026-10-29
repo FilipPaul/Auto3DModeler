@@ -7,6 +7,20 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **A Windows program for customers done (docs/DISTRIBUTION.md):** tools/build/build.py — a clean venv (versions
+  pinned in tools/build/constraints.txt), PyInstaller one-folder (tools/build/auto3d.spec: web/, library/,
+  agent_plugin/, the delvewheel DLL folders of OCP / planegcs / cascadio, BUILD.json with the commit), the portable zip,
+  the Inno Setup installer (tools/build/installer.iss: per user, no admin; only when ISCC is installed — it is not on
+  the build machine yet: the owner's call) and tools/build/smoke.py on the result. auto3d/launcher.py (the exe's start;
+  `py -m auto3d.launcher` from a checkout): the data in %LOCALAPPDATA%\Auto3DModeler (A3D_DATA), port 5173 or a free one
+  (--port / A3D_PORT), one copy per data folder (mutex + instance.json probed), Edge --app window with its own profile
+  (closing it quits), pystray tray (Open / Logs / Quit, Czech on a Czech Windows), logs in data\logs, a message box when
+  it cannot start. The kernel processes run frozen (freeze_support in tools/build/Auto3DModeler.py); the chat's MCP
+  server is the exe (`--mcp-server`, auto3d/agent.py when frozen); agent.WORKDIR, meshpart.STORE and the AI's
+  RealSWReports (frozen) follow A3D_DATA; version.build reads BUILD.json. tests/test_launcher.py; checked on the built
+  exe: smoke (kernel + 4 workers, 8000 mm³ block, STEP), e2e_model_features, e2e_exchange_formats, a real e2e_chat.
+  Left out: code signing (unsigned: SmartScreen warning; options in the doc), an update check.
+
 - **Hole positions drawn on the sheet done:** sheet.auto_dims places each hole step's holes of one size (a counterbore's
   circles left to its holes) in the view showing them round, from box#x0 / box#y0 (ISO 129): a row / grid its first
   one + its pitch (as before), a bolt circle (sheet._ring: least-squares circle through the centres, equal angles — all
