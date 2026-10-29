@@ -1127,6 +1127,60 @@ class TestSheet(unittest.TestCase):
         got, dia, _ = callouts(plate, plane=top([7.25, 7, 2]), points=[[1, -0.5]], d=3, thread="M3", head="csk", suppressed=True)
         self.assertEqual((got, dia), ([], []))
 
+    def test_hole_positions(self):
+        """Where the holes are, drawn in the view showing them round, from the part's left / bottom edge (ISO 129): 4
+        corner holes -> the first one 8 / 8 and the pitches 64 / 34; a ⁂ row of 5 -> 10 / 25 and "4× 15"; 6 holes ⁂
+        around a Ø20 bore -> one PCD Ø60 (6× 60°), the centre once (the bore's 50 / 50); 6 holes anywhere -> ordinates
+        (one row each way); none of them covering another dimension, another view, the frame or the title block."""
+        from auto3d.modeler import sheet
+        top = lambda o: {"face": {"name": "E1:end"}, "frame": {"o": o, "x": [1, 0, 0], "n": [0, 0, 1]}}  # noqa: E731
+
+        def positions(features):
+            r = doc.sheet({"features": features}, "medium")
+            g, dims = r["geometry"], r["dims"]
+            self.assertEqual(sheet.overlaps(g, r["layout"], dims), [])
+            return r, [(d["kind"], d.get("pre", ""), sheet.value(g, d)) for d in dims if d.get("pos")]
+
+        _, got = positions(box(80, 50, 5) + [{"id": "H1", "type": "hole", "plane": top([40, 25, 5]), "points": [[x, y] for x in (-32, 32) for y in (-17, 17)], "d": 5, "through": True}])
+        self.assertEqual(sorted(v for *_, v in got), [8, 8, 34, 64])
+        _, got = positions(box(80, 50, 5) + [{"id": "H1", "type": "hole", "plane": top([40, 25, 5]), "points": [[-30, 0]], "d": 4, "through": True},
+                                             {"id": "P1", "type": "pattern", "features": ["H1"], "kind": "linear", "dir": [1, 0, 0], "count": 5, "spacing": 15}])
+        self.assertEqual(sorted(got), [("linear", "", 10), ("linear", "", 25), ("linear", "4× ", 15)])
+        r, got = positions(box(100, 100, 8) + [{"id": "H1", "type": "hole", "plane": top([50, 50, 8]), "points": [[30, 0]], "d": 6, "through": True},
+                                               {"id": "P1", "type": "pattern", "features": ["H1"], "kind": "circular", "axis": {"o": [50, 50, 0], "d": [0, 0, 1]}, "count": 6},
+                                               {"id": "H2", "type": "hole", "plane": top([50, 50, 8]), "points": [[0, 0]], "d": 20, "through": True}])
+        self.assertEqual(sorted(got), [("linear", "", 50), ("linear", "", 50), ("pcd", "", 60)])
+        pcd = next(d for d in r["dims"] if d["kind"] == "pcd")
+        self.assertEqual((pcd["view"], pcd["count"], pcd["step"], pcd["pos"], "start" in pcd), ("Top", 6, 60, "H1", False))
+        ring = r["geometry"]["views"]["Top"]["rings"][0]
+        self.assertEqual((ring["c"], ring["r"], ring["n"], ring["full"]), ([50, 50], 30, 6, True))
+        self.assertEqual(r["geometry"]["views"]["Top"]["points"][f"{ring['key']}#c"], [50, 50])
+        self.assertEqual(sheet._text(r["geometry"], pcd, 60), "PCD Ø60 · 6× 60°")
+        pts = [[-40, -20], [-25, 10], [-5, -12], [12, 18], [30, -5], [41, 22]]
+        r, got = positions(box(100, 60, 5) + [{"id": "H1", "type": "hole", "plane": top([50, 30, 5]), "points": pts, "d": 4, "through": True}])
+        ords = [d for d in r["dims"] if d.get("ord")]
+        self.assertEqual(len(ords), 12)
+        self.assertEqual(len({(d["view"], d["dir"], d["side"], d["off"]) for d in ords}), 2)  # one row each way
+        self.assertEqual(sorted(v for *_, v in got), sorted([x + 50 for x, _ in pts] + [y + 30 for _, y in pts]))
+
+    def test_bolt_circles_and_crowded_ordinates(self):
+        """_ring: all round, an arc of 4 (one gap wider), a turned one (its first hole's angle); not 3 in a line, not 3
+        unevenly spaced. Ordinate values closer than their text moved apart along the row (sh), clear of each other."""
+        from auto3d.modeler import sheet
+        at = lambda r, degs, c=(0, 0): [{"c": [c[0] + r * math.cos(math.radians(a)), c[1] + r * math.sin(math.radians(a))]} for a in degs]  # noqa: E731
+        rg = sheet._ring(at(20, range(0, 360, 45), (5, 7)))
+        self.assertEqual((rg["c"], rg["r"], rg["n"], rg["step"], rg["full"]), ([5, 7], 20, 8, 45, True))
+        rg = sheet._ring(at(10, (30, 60, 90, 120)))
+        self.assertEqual((rg["step"], rg["start"], rg["full"]), (30, 30, False))
+        self.assertEqual(sheet._ring(at(10, (15, 135, 255)))["start"], 15)
+        self.assertIsNone(sheet._ring([{"c": [x, 0]} for x in (0, 10, 20)]))
+        self.assertIsNone(sheet._ring(at(10, (0, 100, 220))))
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [50, 30, 5], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        pts = [[-40, -20], [-38, 5], [-36.5, 12], [0, -15], [20, 20], [41, 22]]  # (three close together in x)
+        r = doc.sheet({"features": box(100, 60, 5) + [{"id": "H1", "type": "hole", "plane": top, "points": pts, "d": 3, "through": True}]}, "medium")
+        self.assertTrue(any(d.get("sh") for d in r["dims"] if d.get("ord")))
+        self.assertEqual(sheet.overlaps(r["geometry"], r["layout"], r["dims"]), [])
+
     def test_view_presets(self):
         """A view's own preset: the top medium while the sheet is light (the rest of the sheet stays light)."""
         light = doc.sheet(self.part, "light")["dims"]

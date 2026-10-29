@@ -878,11 +878,14 @@ def api_sheet_build():
 
 
 def _sheet_layout(data, body):
-    """A sheet's layout made for its own scale ("1:2522") and frame ({m: [l, t, r, b], title}) when it has them."""
+    """A sheet's layout made for its own scale ("1:2522") and frame ({m: [l, t, r, b], title}) when it has them (its
+    holes' positions and callouts placed clear again for it)."""
     if body.get("scale") or body.get("frame"):
-        from auto3d.modeler.sheet import layout
+        from auto3d.modeler.sheet import layout, place
         try:
             data["layout"] = layout(data["geometry"], body.get("paper"), body.get("scale") or None, body.get("frame") or None)
+            if data.get("dims"):
+                data["dims"] = place(data["geometry"], data["layout"], data["dims"])
         except (ValueError, TypeError, KeyError) as exc:
             return jsonify({"error": f"The sheet's layout could not be made: {exc}"}), 422
     return jsonify(data)

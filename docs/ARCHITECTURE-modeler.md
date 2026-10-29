@@ -7,6 +7,20 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Hole positions drawn on the sheet done:** sheet.auto_dims places each hole step's holes of one size (a counterbore's
+  circles left to its holes) in the view showing them round, from box#x0 / box#y0 (ISO 129): a row / grid its first
+  one + its pitch (as before), a bolt circle (sheet._ring: least-squares circle through the centres, equal angles — all
+  round ≥ 3, an arc ≥ 4; geometry.views[v].rings {key "pcd:<first hole>", c, r, n, step, start, keys}, its centre a
+  point "<key>#c") its centre + one `pcd` dim "PCD Ø60 · 6× 60°" (start "(15°)" when no hole is on an axis), ≤ 3
+  (BASELINE_MAX) baseline, more ordinates (`ord`: one row each way, the edge's 0 once a row, values closer than their
+  text moved along it, `sh`). Each carries `pos` (its step / "Ø3"). sheet.place (in build, and server._sheet_layout
+  for the frame's layout): a side's positions that hit another view, the frame, the title block (180 mm), the iso view
+  or other dimensions go to the view's other side when clearer; a callout in the way turned / lengthened (outside its
+  view when it can); sheet.overlaps for the tests. sheet.js: the pitch circle dash-dot (.sh-pcd), ordSvg, check()
+  joins a pcd's holes to its centre, dxfDims -> real ordinate dimensions (sheetdxf add_ordinate_x/y_dim) and a Ø for
+  the PCD; get_sheet's dims {hole_position, ordinate}; "PCD" -> "rozteč". test_hole_positions (4 corners, a row of 5,
+  6 around a bore, 6 anywhere: no overlaps), test_bolt_circles_and_crowded_ordinates; tools/e2e_sheet_hole_positions.py.
+  Left out: a jogged ordinate's own DXF jog (the leader is ezdxf's), positions on an assembly sheet (only overall sizes).
 - **The AI's screenshots whole and clean (RealSWReports 2026-10-29 01:55:47, 2026-10-28 04:30:30 / 04:30:48) done:**
   with the chat beside it the view was a 339 × 900 strip and the picture too — an assembly 240 mm long cut off.
   ModelView.snapshot({w, h, fit, faces, over}): the renderer and the label layer set to 1200 × 900 for one frame (the
@@ -1394,7 +1408,7 @@ Date: 2026-10-25. Written by the architect agent.
   dragged onto the list stays and gets ⚠ past the frame (outside). tests/test_sheet_views.py TestLayoutKeepOut;
   tools/e2e_sheet_styles.py 1b (all 36 title / list pairs at A4 and A3, 5 parts: no view box over the list or title).
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
-  round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
+  round faces (a shaft's axis)~~ (done); ~~dimensions of hole positions drawn on the 2D drawing (not only listed)~~ (done); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.
 
 ## 0. Summary

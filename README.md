@@ -540,7 +540,12 @@ right and iso views on an A4 / A3 page with a title block (part, material, scale
 **changed + revision**). Its dimensions are made by a preset (for the whole sheet, and each view may have its own in the Views list) — **Light** (the overall sizes, a Ø for each hole size,
 the biggest R), **Medium** (+ where the holes are, the radii, the heights) or **Full** (+ every level) — and holes
 alike are dimensioned **once**: *8× Ø3 H7*, the first hole's place and the row's pitch *3× 10* (200 holes in a grid
-are one Ø and two pitches, not 400 dimensions). Each hole step gets **one callout** in the view that shows its holes
+are one Ø and two pitches, not 400 dimensions). **Where the holes are** is drawn in the view that shows them round,
+measured from the part's left and bottom edge (ISO 129): a row / grid as its first hole and its pitch, holes evenly
+round a centre (⁂ Pattern around, a bolt circle) as their centre and one dash-dot pitch circle *PCD Ø60 · 6× 60°*, up
+to 3 holes each from the edges, more as **ordinates** (one row each way, the edge's *0*, the values moved apart where
+they would touch). They are placed clear of the other views, the frame, the title block and the other dimensions;
+drag / Del them like any dimension. Each hole step gets **one callout** in the view that shows its holes
 round, with everything needed to make them (ISO 129 symbols): *4× Ø3.4 THRU*, *M5 ↧ 8* (a blind thread, its depth),
 *Ø3.4 ⌴ Ø6 ↧ 3.2* (a counterbore), *M3 ⌵ Ø5 × 90°* (a countersink), *Ø8 H7 THRU* (a fit), *Ø6 THRU ▲* (a teardrop) —
 the head's circle is not given again. Each size is given once on the sheet — a view whose sizes are all in
@@ -554,7 +559,8 @@ own dimensions stay on their edges and holes). **Check** (the left panel) tells 
 misses — a hole's place, an edge, a Ø or R, and without a hole's callout its countersink angle, counterbore depth or
 blind depth (*the countersink's angle (H1)*) — listed with **＋** (add that one, from the part's edge) and **＋ Add all
 missing**, and marked with an orange **?** on the drawing (not in the PDF); dimensions that give a size twice are
-marked ⧉ (*✕ Remove them*). A known circle gives its own edges (a tangent side, a boss), a pitch *4× 10* its row.
+marked ⧉ (*✕ Remove them*). A known circle gives its own edges (a tangent side, a boss), a pitch *4× 10* its row,
+a pitch circle its holes.
 **Views**: double-click a view's name (on the sheet or in the Views list) to **rename** it (*Side A*); drag a view to
 move it — it **snaps in line** with the front view (Top under it, Right beside it; a dashed guide shows it), Shift
 moves it freely. **Scale**: the sheet's *Scale* is *Auto* (fitted to the paper) or one you choose — 10:1 … 1:100 or

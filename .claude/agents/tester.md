@@ -286,6 +286,10 @@ Never report "works" without having run it; report failures with their output.
    one "M3 ⌵ Ø5 × 90°", ✓; deleted: the countersink's angle missing with its key; the AI's restore ✓; ＋ on the row:
    the callout back; a counterbore / blind thread "Ø3.4 ⌴ Ø6 ↧ 3.2", "2× M4 ↧ 6", their depths missing when deleted,
    complete; the PDF's and the DXF's texts; the AI's M3 ⌵ on a 2 mm plate: Ø6, Ø10 refused). Needs a server restarted after sheet.py / doc.py changes.
+   `tools/e2e_sheet_hole_positions.py <url> <dir>` covers hole positions on the sheet (4 corner holes: 8 / 8 and
+   the pitches 64 / 34; a ⁂ row "4× 15"; 6 around a bore "PCD Ø60 · 6× 60°" with its pitch circle, deleted: the holes'
+   places missing, restored ✓; 6 anywhere: 12 ordinates, the edges' 0 once, ✓, the DXF's 14 ordinate dimensions, one
+   moved; no dimension text over another or another view; the PDF's PCD text). Needs a server restarted after sheet.py changes.
    `tools/e2e_sheet_styles.py <url> <dir> [cs]` covers the title-block / parts-list styles A–E (an AI-built "Stand":
    a plate, 2 lids, a bracket, 3 pins, a bought ISO 4762 screw; each style picked in the panel: the block's size at
    the frame's corner, the list right on it, the labels in the UI's language, the font on screen and in the PDF; a

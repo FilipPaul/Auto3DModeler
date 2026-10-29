@@ -10,9 +10,13 @@ holes get one callout in the view that shows them round, with all of the step (I
 The browser draws and edits the sheet (web/js/sheet/sheet.js); its SVG becomes the PDF (sheet_pdf).
 Dimension JSON (in view coordinates, mm of the part):
   {id, view, kind: "linear", a: "<point key>", b: "<point key>", dir: "h" | "v", side: "b" | "t" | "l" | "r", off: paper mm,
-   pre: "4× " (text before the value)}
+   pre: "4× " (text before the value), pos: "<hole step id>" | "Ø3" (a hole's position), ord: true (an ordinate one: its
+   value at the end of its extension line, the edge's 0 on the same row; sh: its text moved along the row, paper mm)}
   {id, view, kind: "dia" | "rad", a: "<circle key>", count, ang: degrees, len: paper mm, post: " H7", thread: "M5",
    hole: "<hole step id>" (a callout: its text from geometry.holes, see callout)}
+  {id, view, kind: "pcd", a: "<ring key>" (geometry.views[view].rings), count (its steps), step: degrees, start?: the
+   first hole's angle when none is on an axis, ang, len, pos} — "PCD Ø60 · 6× 60°", the pitch circle dash-dotted
+Holes' positions are placed (place) so that they keep off the other views, the frame, the title block and each other.
 """
 from __future__ import annotations
 
@@ -34,6 +38,7 @@ PAPERS = {"A4": (297, 210), "A3": (420, 297)}
 TOL = 1e-3
 FINE, SMALL = 0.05, 0.25  # paper mm: a big part's lines kept to FINE; its solids, edges and holes under SMALL left out
 CACHE_SIZE = 8
+BASELINE_MAX = 3  # holes alike (not a row / grid / bolt circle) each dimensioned from the edges; more: as ordinates
 # an assembly with more faces than this is drawn from its mesh (as a big part): the exact hidden-line pass of many placed
 # solids can take minutes or never end (MIT E-Vent, 41 placements, 2 150 faces: its top view > 40 min, from the mesh 12 s)
 ASSEMBLY_EXACT_FACES = 1000
@@ -226,10 +231,13 @@ def geometry(body, views=None, iso=True, scale=None, from_mesh=False):
             if keys[k] > 1:
                 ci["key"] = k = f"{k}~{keys[k]}"
             points[f"{k}#c"], points[f"{k}#m"] = ci["c"], ci["pm"]
+        rings = _rings(circles)
+        for rg in rings:  # (a bolt circle's centre: a point its place is measured to)
+            points[f"{rg['key']}#c"] = rg["c"]
         x0, y0, x1, y1 = _extent(vis + hid)
         box = [_r(x0), _r(y0), _r(x1), _r(y1)]
         points.update({"box#x0": [box[0], box[1]], "box#x1": [box[2], box[1]], "box#y0": [box[2], box[1]], "box#y1": [box[2], box[3]]})
-        out["views"][vname] = {"look": list(look), "right": list(right), "up": list(up), "box": box, "lines": lines, "circles": circles, "points": points,
+        out["views"][vname] = {"look": list(look), "right": list(right), "up": list(up), "box": box, "lines": lines, "circles": circles, "points": points, "rings": rings,
                                "visible": [[[_r(x, 3), _r(y, 3)] for x, y in pl] for pl in vis], "hidden": [[[_r(x, 3), _r(y, 3)] for x, y in pl] for pl in hid]}
     return out
 
@@ -376,6 +384,47 @@ def _grid(cs):
     return len(xs), len(ys), (xs[1] - xs[0]) if len(xs) > 1 else 0, (ys[1] - ys[0]) if len(ys) > 1 else 0
 
 
+def _ring(cs):
+    """Circles alike evenly round a centre — a bolt circle: all round (≥ 3) or an arc of it (≥ 4, one gap wider) ->
+    {c, r, n, step, start (the first one's angle, degrees ccw from the view's right), full} or None."""
+    if len(cs) < 3:
+        return None
+    P = np.array([c["c"] for c in cs], float)
+    sol = np.linalg.lstsq(np.c_[2 * P, np.ones(len(P))], (P ** 2).sum(1), rcond=None)[0]
+    c, rr = sol[:2], sol[2] + sol[:2] @ sol[:2]
+    if not (np.isfinite(rr) and rr > 1e-6):
+        return None
+    r = math.sqrt(rr)
+    if r > 1e4 or np.abs(np.hypot(*(P - c).T) - r).max() > 0.01:
+        return None
+    ang = sorted(math.degrees(math.atan2(p[1] - c[1], p[0] - c[0])) % 360 for p in P)
+    gaps = [b - a for a, b in zip(ang, ang[1:])] + [ang[0] + 360 - ang[-1]]
+    step = min(gaps)
+    same = [abs(g - step) < 0.05 for g in gaps]
+    if step < 1 or sum(same) < len(gaps) - 1 or (not all(same) and len(cs) < 4):
+        return None
+    full = all(same)
+    start = ang[0] if full else ang[(gaps.index(max(gaps)) + 1) % len(ang)]
+    return {"c": [_r(c[0]), _r(c[1])], "r": _r(r), "n": len(cs), "step": _r(step, 3), "start": _r(start % 360, 3), "full": full}
+
+
+def _rings(circles):
+    """A view's bolt circles: its holes alike (one size, one hole step) evenly round a centre, not in a row / grid ->
+    [{key ("pcd:" + its first hole's key), c, r, n, step, start, full, keys}]."""
+    groups = {}
+    for c in circles:
+        st = _step(c["key"])
+        if c["full"] and (st is None or st[1] == "hole"):  # (not a counterbore's circles: its holes' ring gives them)
+            groups.setdefault((round(c["r"], 3), st[0] if st else ""), []).append(c)
+    out = []
+    for _, cs in sorted(groups.items()):
+        rg = len(cs) >= 3 and not _grid(cs) and _ring(cs)
+        if rg:
+            first = min(cs, key=lambda c: (round(c["c"][1], 2), round(c["c"][0], 2)))
+            out.append({"key": f"pcd:{first['key']}", **rg, "keys": sorted(c["key"] for c in cs)})
+    return out
+
+
 def auto_dims(geo, preset="medium", fits=None, per_view=None, threads=None, holes=None):
     """The automatic dimensions of a preset (see the module's docstring). fits: {diameter: "H7"} (holes with a fit),
     threads: {tap drill Ø: "M5"} (threaded holes: labelled M5), holes: {step id: what its callout says} (doc._holes —
@@ -390,9 +439,10 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None, threads=None, hole
     threads = {round(float(d), 3): m for d, m in (threads or {}).items() if m}
     dims, stack, measured = [], {}, set()
 
-    def lin(view, a, b, d, side, pre="", tag=""):
+    def lin(view, a, b, d, side, pre="", tag="", pos=None, off=None):
         # one dimension per distance: the same direction between the same places only once (concentric circles,
-        # holes in a row share their places)
+        # holes in a row share their places). pos: a hole position (of that step / size); off given: an ordinate
+        # one on that shared row
         pts = geo["views"][view]["points"]
         if a in pts and b in pts:
             k = 0 if d == "h" else 1
@@ -400,10 +450,51 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None, threads=None, hole
             if sig in measured or sig[2] == sig[3]:
                 return
             measured.add(sig)
-        n = stack.get((view, side), 0)
-        stack[(view, side)] = n + 1
+        if off is None:
+            n = stack.get((view, side), 0)
+            stack[(view, side)] = n + 1
         dims.append({"id": _id(view, a, b, d, tag), "view": view, "kind": "linear", "a": a, "b": b, "dir": d, "side": side,
-                     "off": 8 + 7 * n, **({"pre": pre} if pre else {})})
+                     "off": 8 + 7 * n if off is None else off, **({"pre": pre} if pre else {}), **({"pos": pos} if pos else {}),
+                     **({"ord": True} if off is not None else {})})
+
+    def where(vname, cs, tg, pos):
+        # where holes alike are, from the view's left / bottom edge (ISO 129): a row / grid its first one and its
+        # pitch "3× 10", a bolt circle its centre and the pitch circle "PCD Ø60 · 6× 60°", a few each from the edges
+        # (baseline), more as ordinates (one row a direction, the edge 0)
+        sh = "t" if vname == "Top" else "b"
+        first = min(cs, key=lambda c: (round(c["c"][1], 2), round(c["c"][0], 2)))
+        g = _grid(cs) if len(cs) > 1 else None
+        keys = sorted(c["key"] for c in cs)
+        ring = None if g else next((r for r in v[vname].get("rings") or () if r["keys"] == keys), None)
+        if ring:
+            lin(vname, "box#x0", f"{ring['key']}#c", "h", sh, tag=f"x{tg}", pos=pos)
+            lin(vname, "box#y0", f"{ring['key']}#c", "v", "l", tag=f"y{tg}", pos=pos)
+            on_axis = any(abs((ring["start"] + i * ring["step"] + 45) % 90 - 45) < 0.01 for i in range(ring["n"]))
+            dims.append({"id": _id(vname, "pcd", tg), "view": vname, "kind": "pcd", "a": ring["key"], "count": ring["n"] if ring["full"] else ring["n"] - 1,
+                         "step": ring["step"], **({} if on_axis else {"start": ring["start"]}), "ang": 45, "len": 6, "pos": pos})
+            return
+        if g or len(cs) <= BASELINE_MAX:
+            lin(vname, "box#x0", f"{first['key']}#c", "h", sh, tag=f"x{tg}", pos=pos)
+            lin(vname, "box#y0", f"{first['key']}#c", "v", "l", tag=f"y{tg}", pos=pos)
+        if g:
+            nx, ny, px, py = g
+            row = sorted(cs, key=lambda c: (round(c["c"][1], 2), round(c["c"][0], 2)))
+            if nx > 1:
+                lin(vname, f"{row[0]['key']}#c", f"{row[1]['key']}#c", "h", sh, pre=f"{nx - 1}× " if nx > 2 else "", tag=f"px{tg}", pos=pos)
+            if ny > 1:
+                up = next(c for c in row if round(c["c"][1], 2) > round(row[0]["c"][1], 2))
+                lin(vname, f"{row[0]['key']}#c", f"{up['key']}#c", "v", "l", pre=f"{ny - 1}× " if ny > 2 else "", tag=f"py{tg}", pos=pos)
+        elif len(cs) <= BASELINE_MAX:
+            for c in sorted(cs, key=lambda c: (c["c"][1], c["c"][0]))[1:]:
+                lin(vname, "box#x0", f"{c['key']}#c", "h", sh, tag=f"x{tg}{c['key']}", pos=pos)
+                lin(vname, "box#y0", f"{c['key']}#c", "v", "l", tag=f"y{tg}{c['key']}", pos=pos)
+        else:
+            limit = 30 if pv(vname) == "medium" else 60
+            for d, side, k in (("h", sh, 0), ("v", "l", 1)):
+                n = stack.get((vname, side), 0)
+                stack[(vname, side)] = n + 2  # (its values stand out past the row)
+                for c in sorted(cs, key=lambda c: (c["c"][k], c["c"][1 - k]))[:limit]:
+                    lin(vname, f"box#{'xy'[k]}0", f"{c['key']}#c", d, side, tag=f"o{d}{tg}{c['key']}", pos=pos, off=8 + 7 * n)
 
     v = geo["views"]
     # the overall sizes: width and height in the front, depth in the top
@@ -419,6 +510,7 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None, threads=None, hole
         view = v[vname]
         full = [c for c in view["circles"] if c["full"]]
         arcs = [c for c in view["circles"] if not c["full"]]
+        stepped = {st[0]: True for c in full if (st := _step(c["key"])) and st[1] == "hole"}  # (hole steps whose holes are round here)
         groups = {}
         for c in full:
             groups.setdefault(round(2 * c["r"], 3), []).append(c)
@@ -447,26 +539,15 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None, threads=None, hole
                 k = centres[at] = centres.get(at, -1) + 1
                 dims.append({"id": _id(vname, "dia", d), "view": vname, "kind": "dia", "a": first["key"], "count": len(rest),
                              "ang": ANG[k % 8], "len": 6 + 5 * (k // 4), **({"post": f" {fits[d]}"} if d in fits else {}), **({"thread": threads[d]} if d in threads else {})})
-            first = min(cs, key=lambda c: (round(c["c"][1], 2), round(c["c"][0], 2)))
             if pv(vname) == "light":
                 continue
-            # where they are: the first from the left / bottom of the view, then the pitch of a row / grid
-            g = _grid(cs) if len(cs) > 1 else None
-            lin(vname, "box#x0", f"{first['key']}#c", "h", "t" if vname == "Top" else "b", tag=f"x{d}")
-            lin(vname, "box#y0", f"{first['key']}#c", "v", "l", tag=f"y{d}")
-            if g:
-                nx, ny, px, py = g
-                row = sorted(cs, key=lambda c: (round(c["c"][1], 2), round(c["c"][0], 2)))
-                if nx > 1:
-                    lin(vname, f"{row[0]['key']}#c", f"{row[1]['key']}#c", "h", "t" if vname == "Top" else "b", pre=f"{nx - 1}× " if nx > 2 else "", tag=f"px{d}")
-                if ny > 1:
-                    up = next(c for c in row if round(c["c"][1], 2) > round(row[0]["c"][1], 2))
-                    lin(vname, f"{row[0]['key']}#c", f"{up['key']}#c", "v", "l", pre=f"{ny - 1}× " if ny > 2 else "", tag=f"py{d}")
-            elif len(cs) > 1:
-                limit = 6 if pv(vname) == "medium" else 30
-                for c in sorted(cs, key=lambda c: (c["c"][1], c["c"][0]))[1:limit]:
-                    lin(vname, "box#x0", f"{c['key']}#c", "h", "t" if vname == "Top" else "b", tag=f"x{d}{c['key']}")
-                    lin(vname, "box#y0", f"{c['key']}#c", "v", "l", tag=f"y{d}{c['key']}")
+            subs = {}  # (one hole step's holes apart from another's of the same size; a counterbore's circles: its holes give their places)
+            for c in cs:
+                st = _step(c["key"])
+                if not (st and st[1] == "head" and stepped.get(st[0])):
+                    subs.setdefault(st[0] if st else "", []).append(c)
+            for sid, sub in sorted(subs.items()):
+                where(vname, sub, f"{d}{sid}" if len(subs) > 1 else f"{d}", sid or f"Ø{_n(d)}")
         # roundings: one radius per size (the biggest first)
         rg = {}
         for c in arcs:
@@ -514,6 +595,180 @@ def auto_dims(geo, preset="medium", fits=None, per_view=None, threads=None, hole
     return dims
 
 
+FS = 3.2  # paper mm: the editor's dimension text (sheet.js dimSvg)
+TITLE_W = 180  # paper mm: the widest title block (ISO 7200), kept free of dimensions
+OPPOSITE = {"t": "b", "b": "t", "l": "r", "r": "l"}
+
+
+def _text(geo, d, v):
+    """A dimension's text as the editor writes it (sheet.js dimText) — how far it reaches."""
+    if d["kind"] == "dia":
+        return callout(geo, d) if d.get("hole") else (f"{d['count']}× " if d.get("count", 1) > 1 else "") + (d.get("thread") or f"Ø{_n(v)}") + (d.get("post") or "")
+    if d["kind"] == "rad":
+        return f"R{_n(v)}"
+    if d["kind"] == "pcd":
+        return f"PCD Ø{_n(v)} · {d['count']}× {_n(d['step'])}°" + (f" ({_n(d['start'])}°)" if "start" in d else "")
+    return ("" if d.get("ord") else d.get("pre", "")) + _n(v)
+
+
+def _meet(a, b):
+    """How much two rectangles [x0, y0, x1, y1] cover each other (mm²)."""
+    return max(0.0, min(a[2], b[2]) - max(a[0], b[0])) * max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+
+
+class _Paper:
+    """Where the editor draws a sheet's views and dimensions for a layout (sheet.js P, paperBox, dimSvg): paper mm, y down."""
+
+    def __init__(self, geo, lay):
+        self.geo, self.s = geo, lay["scale"][0] / lay["scale"][1]
+        self.at = {v: c for v, c in lay["views"].items() if v in geo["views"]}
+
+    def P(self, v, p):
+        b, (cx, cy) = self.geo["views"][v]["box"], self.at[v]
+        return cx + (p[0] - (b[0] + b[2]) / 2) * self.s, cy - (p[1] - (b[1] + b[3]) / 2) * self.s
+
+    def box(self, v):
+        b = self.geo["views"][v]["box"]
+        (x0, y1), (x1, y0) = self.P(v, b[:2]), self.P(v, b[2:])
+        return x0, y0, x1, y1
+
+    def row(self, d):
+        """A linear dimension's line: its y (h) / x (v)."""
+        pb, off = self.box(d["view"]), d.get("off", 8)
+        return {"t": pb[1] - off, "b": pb[3] + off, "l": pb[0] - off, "r": pb[2] + off}[d["side"]]
+
+    def ord_text(self, d, at, L):
+        """An ordinate value's rectangle: across the row at `at` (paper x of an h one, y of a v one), L long."""
+        r = self.row(d)
+        far = (r - 0.5, r + 1 + L) if d["side"] in ("b", "r") else (r - 1 - L, r + 0.5)
+        return (at - FS * 0.5, far[0], at + FS * 0.5, far[1]) if d["dir"] == "h" else (far[0], at - FS * 0.5, far[1], at + FS * 0.5)
+
+    def zero(self, d):
+        """An ordinate row's 0 at its edge."""
+        return self.ord_text(d, self.P(d["view"], self.geo["views"][d["view"]]["points"][d["a"]])[0 if d["dir"] == "h" else 1], FS * 0.6)
+
+    def foot(self, d):
+        """The rectangles a dimension's line and text cover (not its thin extension lines / leader) -> [[x0, y0, x1, y1]]."""
+        v = d["view"]
+        val = value(self.geo, d) if v in self.at else None
+        if val is None:
+            return []
+        g, tw = self.geo["views"][v], len(_text(self.geo, d, val)) * FS * 0.6
+        if d["kind"] == "linear":
+            A, B, at, k = self.P(v, g["points"][d["a"]]), self.P(v, g["points"][d["b"]]), self.row(d), 0 if d["dir"] == "h" else 1
+            if d.get("ord"):
+                return [self.ord_text(d, B[k] + d.get("sh", 0), tw)]
+            lo, hi = sorted((A[k], B[k]))
+            if hi - lo < 8:  # (a short one: its arrows from outside)
+                lo, hi = lo - 5, hi + 5
+            mid = (lo + hi) / 2
+            lo, hi = min(lo, mid - tw / 2), max(hi, mid + tw / 2)
+            return [(lo - 0.5, at - FS - 1, hi + 0.5, at + 0.6) if k == 0 else (at - FS - 1.2, lo - 0.5, at + 0.6, hi + 0.5)]
+        if d["kind"] in ("dia", "pcd"):
+            c = next((c for c in (g["circles"] if d["kind"] == "dia" else g.get("rings") or ()) if c["key"] == d["a"]), None)
+            C, R, a = self.P(v, c["c"]), c["r"] * self.s, math.radians(d.get("ang", 45))
+            u, ln = (math.cos(a), -math.sin(a)), d.get("len", 6)
+            end, w = (C[0] + u[0] * (R + ln), C[1] + u[1] * (R + ln)), len(_text(self.geo, d, val)) * FS * 0.52 + 1
+            x0, x1 = (end[0], end[0] + w) if u[0] >= 0 else (end[0] - w, end[0])
+            return [(x0, end[1] - FS - 1, x1, end[1] + 0.3)]
+        return []
+
+
+def _obstacles(pp, lay):
+    """What dimensions keep off besides each other: outside the frame, the title block, the iso view -> rectangles."""
+    pw, ph = lay["size"]
+    ml, mt, mr, mb = lay.get("margins") or [lay.get("margin", 10)] * 4
+    out = [(-1e4, -1e4, ml, 1e4), (pw - mr, -1e4, 1e4, 1e4), (-1e4, -1e4, 1e4, mt), (-1e4, ph - mb, 1e4, 1e4),
+           (pw - mr - TITLE_W, ph - mb - lay.get("title", TITLE_H), pw - mr, ph - mb)]
+    if pp.geo.get("iso") and lay.get("iso"):
+        x, y, k = lay["iso"]
+        out.append((x - k / 2, y - k / 2, x + k / 2, y + k / 2))
+    return out
+
+
+def _rows(dims):
+    """The ordinate rows: {(view, dir, side, off): [their dims]}."""
+    rows = OrderedDict()
+    for d in dims:
+        if d.get("ord") and d["kind"] == "linear":
+            rows.setdefault((d["view"], d["dir"], d["side"], d.get("off", 8)), []).append(d)
+    return rows
+
+
+def place(geo, lay, dims):
+    """The holes' positions and callouts kept clear, as the editor draws them on this layout: an ordinate row's values
+    that would touch moved apart along it (sh, from the edge's 0 on); a view's hole positions on a side where they run
+    into another view, the frame, the title block or other dimensions moved to the view's other side when they are
+    clearer there (after its dimensions); a callout whose text is in the way turned / lengthened to the first clear
+    place, outside its own view when it can be. -> the dims (new dicts; the rest as they were)."""
+    pp, dims = _Paper(geo, lay), [dict(d) for d in dims]
+    for row in _rows([d for d in dims if d["view"] in pp.at]).values():
+        k = 0 if row[0]["dir"] == "h" else 1
+        z = pp.P(row[0]["view"], geo["views"][row[0]["view"]]["points"][row[0]["a"]])[k]
+        q = 0.0
+        for d, p in sorted(((d, pp.P(d["view"], geo["views"][d["view"]]["points"][d["b"]])[k]) for d in row if value(geo, d) is not None), key=lambda e: abs(e[1] - z)):
+            q = max(abs(p - z), q + FS + 0.8)
+            sh = round((q - abs(p - z)) * (1 if p >= z else -1), 2)
+            if sh:
+                d["sh"] = sh
+            else:
+                d.pop("sh", None)
+    views, walls = {v: pp.box(v) for v in pp.at}, _obstacles(pp, lay)
+    lin = [d for d in dims if d["kind"] == "linear" and d["view"] in pp.at]
+    groups = OrderedDict()
+    for d in lin:
+        if d.get("pos"):
+            groups.setdefault((d["view"], d["dir"], d["side"]), []).append(d)
+    for (v, dr, side), ds in groups.items():
+        mine = {id(d) for d in ds}
+        others = [b for w, b in views.items() if w != v] + walls + [r for d in lin if id(d) not in mine for r in pp.foot(d)] \
+            + [pp.zero(r[0]) for key, r in _rows(lin).items() if not any(id(d) in mine for d in r)]
+
+        def bad(cand):
+            rs = [r for d in cand for r in pp.foot(d)] + [pp.zero(r[0]) for r in _rows(cand).values()]
+            return sum(_meet(r, o) for r in rs for o in others)
+
+        now = bad(ds)
+        if not now:
+            continue
+        there = [d.get("off", 8) for d in lin if d["view"] == v and d["dir"] == dr and d["side"] == OPPOSITE[side] and id(d) not in mine]
+        base, low = (max(there) + 7 if there else 8), min(d.get("off", 8) for d in ds)
+        moved = [{**d, "side": OPPOSITE[side], "off": base + d.get("off", 8) - low} for d in ds]
+        if bad(moved) < now:
+            for d, m in zip(ds, moved):
+                d.update(side=m["side"], off=m["off"])
+    fixed = [r for d in lin for r in pp.foot(d)] + [pp.zero(r[0]) for r in _rows(lin).values()]
+    done = []
+    for d in dims:
+        if d["kind"] not in ("dia", "pcd") or d["view"] not in pp.at or not pp.foot(d):
+            continue
+        rest = [b for w, b in views.items() if w != d["view"]] + walls + fixed + done
+
+        def hit(o, inner=True):
+            return sum(_meet(r, x) for r in pp.foot({**d, **o}) for x in rest + ([views[d["view"]]] if inner else []))
+
+        cur = {"ang": d.get("ang", 45), "len": d.get("len", 6)}
+        if hit(cur):
+            tries = [{"ang": a, "len": ln} for ln in (6, 12, 20, 30, 40) for a in (45, 135, 315, 225, 20, 160, 340, 200, 70, 110, 250, 290)]
+            d.update(next((o for o in tries if not hit(o)), None) or min([cur] + tries, key=lambda o: hit(o, False)))
+        done += pp.foot(d)
+    return dims
+
+
+def overlaps(geo, lay, dims):
+    """What covers what on the sheet as drawn: [(dim id, dim id | a view's name | "frame")] — two dimensions' lines /
+    texts, a dimension over another view, past the frame or on the title block / iso view."""
+    pp, out = _Paper(geo, lay), []
+    feet = [(d["id"], r) for d in dims for r in pp.foot(d)] + [(f"0:{k[0]}:{k[1]}:{k[2]}", pp.zero(r[0])) for k, r in _rows(dims).items() if r[0]["view"] in pp.at]
+    views, walls = {v: pp.box(v) for v in pp.at}, _obstacles(pp, lay)
+    for i, (a, ra) in enumerate(feet):
+        out += [(a, b) for b, rb in feet[i + 1:] if a != b and _meet(ra, rb) > 0.01]
+        view = next((d["view"] for d in dims if d["id"] == a), a.split(":")[1] if a.startswith("0:") else None)
+        out += [(a, v) for v, b in views.items() if v != view and _meet(ra, b) > 0.01]
+        out += [(a, "frame") for w in walls if _meet(ra, w) > 0.01]
+    return out
+
+
 def build(body, preset="medium", fits=None, paper=None, per_view=None, threads=None, section=False, key=None, holes=None, simple=False):
     """Everything a new / changed sheet needs: {geometry, layout, dims (automatic)}. section: also the section A–A
     (geometry.views.Section). key: the part's hash — its views are kept (_cached), only the dimensions made again.
@@ -525,7 +780,8 @@ def build(body, preset="medium", fits=None, paper=None, per_view=None, threads=N
     if section:
         geo["views"]["Section"] = _cached((key, "section"), lambda: section_view(body))
     vol = _cached((key, "volume"), lambda: K.volume(getattr(body, "shape", body)))  # (mm³: the title block's mass, with the part's material)
-    return {"geometry": geo, "layout": layout(geo, paper), "dims": auto_dims(geo, preset, fits, per_view, threads, holes), "volume": round(vol, 3)}
+    lay = layout(geo, paper)
+    return {"geometry": geo, "layout": lay, "dims": place(geo, lay, auto_dims(geo, preset, fits, per_view, threads, holes)), "volume": round(vol, 3)}
 
 
 def _wire_points(w, n=24):
@@ -723,6 +979,9 @@ def value(geo, dim):
     if dim["kind"] in ("dia", "rad"):
         c = next((c for c in view["circles"] if c["key"] == dim["a"]), None)
         return None if c is None else (2 * c["r"] if dim["kind"] == "dia" else c["r"])
+    if dim["kind"] == "pcd":  # (a bolt circle's Ø)
+        rg = next((r for r in view.get("rings") or () if r["key"] == dim["a"]), None)
+        return None if rg is None else 2 * rg["r"]
     a, b = view["points"].get(dim["a"]), view["points"].get(dim["b"])
     if a is None or b is None:
         return None

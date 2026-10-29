@@ -88,7 +88,7 @@ def _path_points(d):
 
 def to_dxf(svg: str, dims=(), scale: float = 1.0) -> bytes:
     """The sheet's SVG (mm, y down; as svg(true) draws it) + its dimensions [{kind: linear | dia | rad | ang, …} in
-    paper mm, y down] + its scale (paper mm per part mm) -> a DXF (R2010, mm, the paper 1:1)."""
+    paper mm, y down; ord: an ordinate {dir, origin, at, row, sh}] + its scale (paper mm per part mm) -> a DXF (R2010, mm, the paper 1:1)."""
     import ezdxf
     from ezdxf.enums import TextEntityAlignment
     root = ET.fromstring(svg)
@@ -171,7 +171,7 @@ def _dimension(msp, dm, Y, scale=1.0):
     gets its own DIMLFAC."""
     kind, text, value = dm.get("kind"), str(dm.get("text") or ""), dm.get("value")
     num = _fmt(value) if value is not None else None
-    if num is not None and kind == "linear" and num in text:
+    if num is not None and kind in ("linear", "ord") and num in text:
         text = text.replace(num, "<>", 1)
     at = {"layer": "dims"}
     try:
@@ -184,6 +184,12 @@ def _dimension(msp, dm, Y, scale=1.0):
             a, b, h = Y(dm["a"]), Y(dm["b"]), dm.get("dir") == "h"
             base = (a[0], Y((0, dm["at"]))[1]) if h else (float(dm["at"]), a[1])
             msp.add_linear_dim(base=base, p1=a, p2=b, angle=0 if h else 90, text=text, dimstyle="A3D", override=lfac or None, dxfattribs=at).render()
+        elif kind == "ord":  # (an ordinate: from its origin, the edge's 0; its leader to the row, moved along it by sh)
+            o, f, sh = Y(dm["origin"]), Y(dm["at"]), float(dm.get("sh") or 0)
+            if dm.get("dir") == "h":
+                msp.add_ordinate_x_dim(feature_location=f, offset=(sh, Y((0, dm["row"]))[1] - f[1]), origin=o, text=text, dimstyle="A3D", override=lfac or None, dxfattribs=at).render()
+            else:
+                msp.add_ordinate_y_dim(feature_location=f, offset=(float(dm["row"]) - f[0], -sh), origin=o, text=text, dimstyle="A3D", override=lfac or None, dxfattribs=at).render()
         elif kind in ("dia", "rad"):
             c, r, u = Y(dm["c"]), float(dm["r"]), dm.get("u") or [1, 0]
             deg = math.degrees(math.atan2(-float(u[1]), float(u[0])))  # (paper y down -> DXF y up)

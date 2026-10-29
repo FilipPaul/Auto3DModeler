@@ -479,8 +479,10 @@ TOOLS = [
                     "revision) and the user edits it. -> get_sheet's answer. export {format: \"pdf\"} on a sheet writes it as drawn.",
      "inputSchema": _obj({"part": STR})},
     {"name": "get_sheet", "where": "browser",
-     "description": "The drawing sheet on screen: its part, preset, paper, scale, title-block template (and the templates there are), revision, views and dimensions [{id, view, kind (linear / dia / rad), "
-                    "text (as drawn, e.g. \"8× Ø3 H7\"; a hole step's callout \"4× M3 ⌵ Ø5 × 90°\", \"Ø3.4 ⌴ Ø6 ↧ 3.2\", \"M5 ↧ 8\", \"Ø3.4 THRU\"), auto (made by the preset) or the user's, lost (its points are gone)}]. "
+     "description": "The drawing sheet on screen: its part, preset, paper, scale, title-block template (and the templates there are), revision, views and dimensions [{id, view, kind (linear / dia / rad / ang / pcd), "
+                    "text (as drawn, e.g. \"8× Ø3 H7\"; a hole step's callout \"4× M3 ⌵ Ø5 × 90°\", \"Ø3.4 ⌴ Ø6 ↧ 3.2\", \"M5 ↧ 8\", \"Ø3.4 THRU\"), auto (made by the preset) or the user's, lost (its points are gone), "
+                    "hole_position (a hole step's place from the part's left / bottom edge: a pitch \"4× 15\", a bolt circle kind pcd \"PCD Ø60 · 6× 60°\", "
+                    "ordinate: true — one row each way from the edge's 0)}]. "
                     "points: a view's name (Front / Top / Right) — also its points (keys: a hole's centre \"H1:hole:0#c\", a line's ends "
                     "\"<faces>#0\" / \"#1\", the view box \"box#x0\" / \"box#x1\" / \"box#y0\" / \"box#y1\") and circles, to add dimensions. "
                     "check: is it fully dimensioned — the sizes missing (each place linked by dimensions to the part's edge, every Ø / R, a hole's countersink angle / counterbore depth / blind depth unless its callout gives them; [its point key or circle] for sheet_edit add; text and pictures on faces left out) and the "

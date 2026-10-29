@@ -562,7 +562,8 @@ export class SheetEditor {
     return [...auto, ...this.d.user.filter((d) => !this.d.off[d.view]).map((d) => ({ ...d, ...(this.d.dims[d.id] || {}) }))];
   }
 
-  circleOf(v, key) { return this.geo.views[v]?.circles.find((c) => c.key === key) || null; }
+  /** A circle of view v by its key — or a bolt circle's ring (geometry rings: {key, c, r, n, step, keys}). */
+  circleOf(v, key) { const g = this.geo.views[v]; return g?.circles.find((c) => c.key === key) || g?.rings?.find((c) => c.key === key) || null; }
 
   /** A dimension's value from the part, or null (its points are gone: the part changed). */
   /** An angle dimension's two edges as they meet: {X (where their lines cross), u1, u2 (from X along each, toward its
@@ -585,7 +586,7 @@ export class SheetEditor {
     const g = this.geo?.views[d.view];
     if (!g) return null;
     if (d.kind === 'ang') { const a = this.angleOf(d); return a ? +a.deg.toFixed(2) : null; }
-    if (d.kind === 'dia' || d.kind === 'rad') { const c = this.circleOf(d.view, d.a); return c ? (d.kind === 'dia' ? 2 * c.r : c.r) : null; }
+    if (d.kind === 'dia' || d.kind === 'rad' || d.kind === 'pcd') { const c = this.circleOf(d.view, d.a); return c ? (d.kind === 'rad' ? c.r : 2 * c.r) : null; }
     const a = g.points[d.a], b = g.points[d.b];
     if (!a || !b) return null;
     return d.dir === 'h' ? Math.abs(b[0] - a[0]) : Math.abs(b[1] - a[1]);
@@ -595,6 +596,8 @@ export class SheetEditor {
     if (d.kind === 'dia') return `${d.count > 1 ? `${d.count}× ` : ''}${d.thread || `Ø${fmt(v)}`}${d.post || ''}${d.hole ? this.calloutRest(d.hole) : ''}`; // (a threaded hole: M5)
     if (d.kind === 'rad') return `${d.count > 1 ? `${d.count}× ` : ''}R${fmt(v)}`;
     if (d.kind === 'ang') return `${fmt(+v.toFixed(1))}°`;
+    if (d.kind === 'pcd') return `${t('PCD')} Ø${fmt(v)} · ${d.count}× ${fmt(d.step)}°${d.start != null ? ` (${fmt(d.start)}°)` : ''}`; // (a bolt circle: its Ø and the angle between its holes)
+    if (d.ord) return fmt(v); // (an ordinate: the distance from the edge's 0)
     return `${d.pre || ''}${fmt(v)}`;
   }
 
@@ -640,7 +643,7 @@ export class SheetEditor {
         out.push(`<polyline points="${pl(v, arc)}" fill="none" stroke="#000" stroke-width="0.25" class="sh-thread"/>`);
       }
       // its name below the dimensions under it
-      const below = Math.max(0, ...this.allDims().filter((d) => d.view === v && d.kind === 'linear' && d.dir === 'h' && d.side !== 't').map((d) => d.off ?? 8));
+      const below = Math.max(0, ...this.allDims().filter((d) => d.view === v && d.kind === 'linear' && d.dir === 'h' && d.side !== 't').map((d) => (d.off ?? 8) + (d.ord ? 1 + 3.2 * 0.6 * String(fmt(this.value(d) ?? 0)).length : 0))); // (an ordinate's value stands past its row)
       out.push(`<text x="${(pb[0] + pb[2]) / 2}" y="${pb[3] + below + 8}" font-size="3.5" text-anchor="middle" fill="#334" data-vlabel="${v}" class="sh-vlabel">${esc(this.viewLabel(v))}</text></g>`);
     }
     const cut = this.drawn().includes('Section') && this.drawn().includes('Front') && G.views.Section.cut;
@@ -666,6 +669,7 @@ export class SheetEditor {
       out.push('</g>');
     } else this.isoBox = null;
     if (!forPrint && this.guides?.length) for (const [x1, y1, x2, y2] of this.guides) out.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1f6feb" stroke-width="0.25" stroke-dasharray="2 1.5" class="sh-guide"/>`);
+    this.zeros = new Set(); // (an ordinate row's 0: drawn once)
     for (const d of this.allDims()) out.push(this.dimSvg(d, forPrint));
     if (this.d.asm) out.push(this.asmSvg(pw, ph, m, th));
     if (this.d.bom) out.push(this.bomSvg(pw, ph, th));
@@ -711,10 +715,11 @@ export class SheetEditor {
       g.push('</g>');
       return g.join('');
     }
-    if (d.kind === 'dia' || d.kind === 'rad') {
+    if (d.kind === 'dia' || d.kind === 'rad' || d.kind === 'pcd') {
       const c = this.circleOf(d.view, d.a);
       if (!c) return '';
       const C = this.P(d.view, c.c), R = c.r * this.vs(d.view);
+      if (d.kind === 'pcd') g.unshift(`<circle cx="${C[0]}" cy="${C[1]}" r="${R}" fill="none" stroke="#000" stroke-width="0.18" stroke-dasharray="6 1.2 1 1.2" class="sh-pcd"/>`); // the pitch circle (dash-dot, ISO 128)
       const ang = (d.kind === 'rad' ? Math.atan2(-(c.pm[1] - c.c[1]), c.pm[0] - c.c[0]) * 180 / Math.PI + (d.ang || 0) : d.ang ?? 45) * Math.PI / 180;
       const u = [Math.cos(ang), -Math.sin(ang)], on1 = [C[0] + u[0] * R, C[1] + u[1] * R], end = [C[0] + u[0] * (R + (d.len ?? 6)), C[1] + u[1] * (R + (d.len ?? 6))];
       const txt = esc(this.dimText(d, v)), right = u[0] >= 0, shelf = [end[0] + (right ? 1 : -1) * (txt.length * fs * 0.52 + 1), end[1]];
@@ -726,6 +731,7 @@ export class SheetEditor {
       const A = gv.points[d.a] ? this.P(d.view, gv.points[d.a]) : null, B = gv.points[d.b] ? this.P(d.view, gv.points[d.b]) : null;
       if (!A || !B) return '';
       const pb = this.paperBox(d.view), off = d.off ?? 8, txt = esc(this.dimText(d, v));
+      if (d.ord) { g.push(this.ordSvg(d, A, B, pb, off, txt, col, fs, forPrint), '</g>'); return g.join(''); }
       if (d.dir === 'h') {
         const y = d.side === 't' ? pb[1] - off : pb[3] + off, sgn = d.side === 't' ? -1 : 1, x0 = Math.min(A[0], B[0]), x1 = Math.max(A[0], B[0]);
         for (const p of [A, B]) g.push(`<line x1="${p[0]}" y1="${p[1] + sgn * 1}" x2="${p[0]}" y2="${y + sgn * 1.5}" stroke="${col}" stroke-width="0.15"/>`);
@@ -744,6 +750,26 @@ export class SheetEditor {
     }
     g.push('</g>');
     return g.join('');
+  }
+
+  /** An ordinate dimension: an extension line from its point to the row (off from the view's side) with a jog when its
+   *  value is moved along the row (d.sh, paper mm: clear of its neighbour), the value past the row; the row's 0 at the
+   *  edge it is measured from, once per row (this.zeros). */
+  ordSvg(d, A, B, pb, off, txt, col, fs, forPrint) {
+    const h = d.dir === 'h', k = h ? 0 : 1, sgn = d.side === 't' || d.side === 'l' ? -1 : 1;
+    const at = h ? (d.side === 't' ? pb[1] - off : pb[3] + off) : (d.side === 'l' ? pb[0] - off : pb[2] + off), out = [];
+    const leg = (p, sh, label, grab) => {
+      const m = p[k] + sh, j = at - sgn * 2.5, cross = (u) => (h ? [p[0], u] : [u, p[1]]), along = (u) => (h ? [m, u] : [u, m]);
+      const pts = [cross(p[1 - k] + sgn), ...(sh ? [cross(j), along(at)] : [cross(at)]), along(at + sgn * 0.6)];
+      out.push(`<polyline points="${pts.map((q) => q.join(',')).join(' ')}" fill="none" stroke="${col}" stroke-width="0.15"/>`);
+      const T = h ? [m + fs * 0.35, at + sgn] : [at + sgn, m + fs * 0.35], anchor = (sgn > 0) === h ? 'end' : 'start'; // (h: turned to read upwards)
+      out.push(`<text x="${T[0]}" y="${T[1]}" font-size="${fs}" text-anchor="${anchor}" fill="${col}"${h ? ` transform="rotate(-90 ${T[0]} ${T[1]})"` : ''}>${label}</text>`);
+      if (grab) { const L = label.length * fs * 0.6 + 1; out.push(`<rect x="${h ? m - fs * 0.6 : sgn > 0 ? at : at - L - 1}" y="${h ? (sgn > 0 ? at : at - L - 1) : m - fs * 0.6}" width="${h ? fs * 1.2 : L + 1}" height="${h ? L + 1 : fs * 1.2}" fill="#fff" fill-opacity="0" class="sh-grab"/>`); }
+    };
+    const z = `${d.view}|${d.dir}|${d.side}|${off}`;
+    if (!this.zeros?.has(z)) { this.zeros?.add(z); leg(A, 0, '0', false); }
+    leg(B, d.sh || 0, txt, !forPrint);
+    return out.join('');
   }
 
   /** ＋ Dimension: the points it can hang on (and the first one picked). */
@@ -1114,7 +1140,7 @@ export class SheetEditor {
     const sig = (x) => {
       const g = views[x.view];
       if (!g) return null;
-      if (x.kind === 'dia' || x.kind === 'rad') { const v = this.value(x); return v === null ? null : { round: x.kind, v }; }
+      if (x.kind === 'dia' || x.kind === 'rad' || x.kind === 'pcd') { const v = this.value(x); return v === null ? null : { round: x.kind, v }; }
       const a = g.points[x.a], b = g.points[x.b], axis = x.dir === 'h' ? g.right : g.up;
       if (!a || !b || !axis) return null;
       const k = x.dir === 'h' ? 0 : 1;
@@ -1439,6 +1465,11 @@ export class SheetEditor {
       if (!join(ax, a, b)) over.add(d.id);
       const n = parseInt(d.pre, 10);
       if (n > 1) for (let i = 1; i < n; i++) join(ax, r2(a + i * (b - a)), r2(a + (i + 1) * (b - a))); // the rest of the row
+    }
+    for (const d of dims) { // a bolt circle ("PCD Ø60 · 6× 60°"): its holes are where its centre and its Ø put them
+      const rg = d.kind === 'pcd' && shown.includes(d.view) && this.circleOf(d.view, d.a), g = G.views[d.view];
+      if (!rg) continue;
+      for (const c of g.circles) if (rg.keys.includes(c.key)) for (const k of [0, 1]) join(AX[d.view][k], rg.c[k], c.c[k]);
     }
     const fullR = new Set(dims.filter((d) => d.kind === 'dia' && this.value(d) !== null).map((d) => r2(this.value(d) / 2)));
     const holes = G.holes || {}, called = new Set(dims.filter((d) => d.hole && holes[d.hole] && shown.includes(d.view) && this.value(d) !== null).map((d) => d.hole));
@@ -1882,7 +1913,7 @@ export class SheetEditor {
    *  at (the dimension line's y / x)}, dia / rad {c, r (on the paper), u (out from the centre), end (the leader's end)},
    *  ang {X, u1, u2, r}; each with its text and value. */
   dxfDims() {
-    const out = [];
+    const out = [], zeros = new Set();
     for (const d of this.allDims()) {
       const v = this.value(d);
       if (v === null) continue;
@@ -1890,9 +1921,10 @@ export class SheetEditor {
       if (d.kind === 'ang') {
         const a = this.angleOf(d);
         if (a) out.push({ ...base, X: this.P(d.view, a.X), u1: [a.u1[0], -a.u1[1]], u2: [a.u2[0], -a.u2[1]], r: d.r ?? 15 });
-      } else if (d.kind === 'dia' || d.kind === 'rad') {
+      } else if (d.kind === 'dia' || d.kind === 'rad' || d.kind === 'pcd') {
         const c = this.circleOf(d.view, d.a);
         if (!c) continue;
+        if (d.kind === 'pcd') base.kind = 'dia'; // (a bolt circle: a Ø dimension of its pitch circle)
         const C = this.P(d.view, c.c), R = c.r * this.vs(d.view);
         const ang = (d.kind === 'rad' ? Math.atan2(-(c.pm[1] - c.c[1]), c.pm[0] - c.c[0]) * 180 / Math.PI + (d.ang || 0) : d.ang ?? 45) * Math.PI / 180;
         const u = [Math.cos(ang), -Math.sin(ang)];
@@ -1902,6 +1934,12 @@ export class SheetEditor {
         if (!pa || !pb) continue;
         const box = this.paperBox(d.view), off = d.off ?? 8;
         const at = d.dir === 'h' ? (d.side === 't' ? box[1] - off : box[3] + off) : (d.side === 'l' ? box[0] - off : box[2] + off);
+        if (d.ord) { // an ordinate: from the edge (origin) to its point, its value past the row; the row's 0 once
+          const z = `${d.view}|${d.dir}|${d.side}|${off}`, o = this.P(d.view, pa);
+          if (!zeros.has(z)) { zeros.add(z); out.push({ ...base, id: `${d.id}:0`, kind: 'ord', text: '0', value: 0, dir: d.dir, origin: o, at: o, row: at, sh: 0 }); }
+          out.push({ ...base, kind: 'ord', dir: d.dir, origin: o, at: this.P(d.view, pb), row: at, sh: d.sh || 0 });
+          continue;
+        }
         out.push({ ...base, dir: d.dir, a: this.P(d.view, pa), b: this.P(d.view, pb), at });
       }
     }
@@ -1959,7 +1997,8 @@ export class SheetEditor {
       ...(Object.keys(this.d.vscale || {}).length ? { view_scales: Object.fromEntries(Object.entries(this.d.vscale).map(([v, s]) => [v, scaleText(s)])) } : {}),
       ...(Object.keys(this.d.viewNames || {}).length ? { view_names: this.d.viewNames } : {}),
       ...(this.outside().length ? { past_the_frame: this.outside() } : {}),
-      dims: this.allDims().map((d) => ({ id: d.id, view: d.view, kind: d.kind, text: this.value(d) === null ? null : this.dimText(d, this.value(d)), auto: !!d.auto, ...(this.value(d) === null ? { lost: true } : {}) })),
+      dims: this.allDims().map((d) => ({ id: d.id, view: d.view, kind: d.kind, text: this.value(d) === null ? null : this.dimText(d, this.value(d)), auto: !!d.auto, ...(this.value(d) === null ? { lost: true } : {}),
+        ...(d.pos ? { hole_position: d.pos } : {}), ...(d.ord ? { ordinate: true } : {}) })),
       deleted_auto: this.d.hidden.length,
       ...(this.d.asm?.rows ? { parts_list: this.d.asm.rows.map((r) => ({ pos: r.pos, name: r.name, part: r.part, qty: r.qty, ...(r.instances ? { instances: r.instances } : {}),
         balloon: this.balloonAt?.[r.pos] ? { at_mm: this.balloonAt[r.pos].at, leader_to_mm: this.balloonAt[r.pos].end, points_to: r.at || r.instances?.[0] || null } : null })),
