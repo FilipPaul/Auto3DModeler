@@ -84,8 +84,10 @@ buttons, text — 30 % at least, whole while the mouse is over it; **Ctrl+Shift+
 layout** puts everything back. A double-click on a row of the project tree renames the part.
 
 **Snap and Select filters** (the row at the bottom of a sketch, remembered): **Snap:** *Points, Midpoints, Centres,
-Origin, On shapes, Part edges, Guides, Grid* — where a point you draw (or drag) lands; *Grid* off puts it exactly
-where you click, Alt held snaps to nothing. **Select:** *Points, Midpoints, Origin, Lines, Circles / arcs, Part edges*
+Origin, On shapes, Guides, Grid* — where a point you draw (or drag) lands; *Grid* off puts it exactly
+where you click, Alt held snaps to nothing. On a part, **On the part:** *Corners, Edge midpoints, Centres, Quadrants,
+Edges* says which of the part's points a drawn point catches — the same choice as the 3D view's Snap row (turned off
+there, off in the sketch too); while you draw, the part's points that can be caught near the mouse are marked. **Select:** *Points, Midpoints, Origin, Lines, Circles / arcs, Part edges*
 — what a click may pick in ⬚ Select, ↔ Dimension and ⟂ Relations. In a narrow window the names turn to icons (they
 stay in the tooltips). The origin and a line's **midpoint** can be
 picked and dimensioned from (the distance is held from the middle as the line changes). A dimension can be dragged by

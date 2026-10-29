@@ -26,6 +26,11 @@ export function snapKinds() {
   return { corner: true, midpoint: true, centre: true, quadrant: false, guides: true, ...(saved || {}) }; // (quadrants: asked for — near a rim they would take a click meant for it)
 }
 
+/** One 3D snap filter switched (remembered) — also from a sketch on the part (its "On the part" group: one choice). */
+export function setSnapKind(key, on) {
+  try { localStorage.setItem(SNAP_KEY, JSON.stringify({ ...snapKinds(), [key]: !!on })); } catch { /* private window */ }
+}
+
 /** The row of 3D snap filters in the bottom-left corner of a view (the Suggested table above it). */
 export function showSnapFilters(viewport, on = true) {
   let bar = viewport.querySelector(':scope > .snap-filters');
