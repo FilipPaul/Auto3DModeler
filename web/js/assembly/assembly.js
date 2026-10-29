@@ -353,8 +353,18 @@ export class Assembly {
     const what = (q) => `${this.partName(this.inst(q.inst)?.part)} ${q.inst} · ${this.faceText(q.inst, q.face.name)}`;
     const refs = `${t('in the assembly')} “${this.hooks.safeName?.() || ''}”: ${fp.map((q) => `${t('part')} ${q.inst} ${t('face')} ${q.face.name}${q.face.type === 'cylinder' && q.face.radius ? ` (${t('round')}, Ø${fmt(2 * q.face.radius)})` : q.face.type === 'plane' ? ` (${t('flat')})` : ''}`).join(', ')}`;
     const done = () => { this.facePicks = []; this.renderSuggest(); this.drawMarks(); };
+    if (fp.length === 2 && kindOf(fp[0]) === 'round' && kindOf(fp[1]) === 'round') { // a pin in a hole: ◎ first, with its Ø
+      const dia = fp.map((q) => fmt(+(2 * (q.face.radius || 0)).toFixed(2))), d = dia[0] === dia[1] ? `Ø${dia[0]}` : `Ø${dia[0]} ↔ Ø${dia[1]}`;
+      const seat = this.seatPair(fp[0], fp[1]);
+      showSuggest(vp, `${what(fp[0])} ↔ ${what(fp[1])}`, [
+        ...(seat ? [{ icon: '◎', label: `${t('Concentric + seat')} · ${d}`, rank: 0, title: t('A pin in a hole: on one axis and down on the face around it (Concentric + Touch) — it can still turn'), run: () => { this.joinRound(fp, true); done(); } }] : []),
+        { icon: '◎', label: `${t(seat ? 'Concentric only' : 'Concentric')} · ${d}`, rank: 1, title: t(JOINT_TYPES.axis.hint), run: () => { this.joinRound(fp, false); done(); } },
+      ], t("A joint between the two faces — the first one's part moves"), refs);
+      return;
+    }
     if (fp.length === 2) {
-      const js = fits(kindOf(fp[0]), kindOf(fp[1]));
+      const same = fp[0].face.normal && fp[1].face.normal && fp[0].face.normal.dot(fp[1].face.normal) > 0.999; // (facing the same way: ▭ Flush first, as they stand)
+      const js = fits(kindOf(fp[0]), kindOf(fp[1])).sort(([a], [b]) => (same ? (b === 'flush') - (a === 'flush') : 0));
       showSuggest(vp, `${what(fp[0])} ↔ ${what(fp[1])}`, js.map(([type, j]) => ({ icon: j.icon, label: t(j.name), title: t(j.hint || ''), run: () => {
         this.jointType = type; // (as if the two faces had been clicked with that joint)
         this.mode = 'joint-to';
@@ -382,6 +392,62 @@ export class Assembly {
       { icon: '◆', label: t('Select the whole part'), rank: 5, title: t('The part chosen, not its face: its moves and joints in the panel'), run: () => { this.facePicks = []; this.snapPick = null; this.view.setMeasure([]); this.choose(a.id); this.drawMarks(); } },
       ...this.partItems(a).map((x, k) => ({ ...after(x), rank: x.icon === '🔗' ? 20 : 8 + k })), // (joining: the face's own joints above)
     ], t('Ctrl+click a face of another part: the joints that fit the two'), refs);
+  }
+
+  /** The flat faces a round face (a hole, a pin) ends on — across its axis, bigger than the round face's own end (a
+   *  pin's cap, a blind hole's bottom left out): [{name, face (world)}]. */
+  roundEnds(q) {
+    const b = this.bodyOf(this.inst(q.inst))?.body;
+    if (!b || q.face.type !== 'cylinder' || !q.face.radius) return [];
+    const own = new Set(b.faces.map((f, i) => (f.name === q.face.name ? i : -1)).filter((i) => i >= 0)), next = new Set();
+    for (const e of b.edges || []) if ((e.faces || []).some((i) => own.has(i))) for (const i of e.faces) if (!own.has(i)) next.add(i);
+    let axis;
+    try { axis = this.worldFace(q.inst, q.face.name).axis.d; } catch { return []; }
+    const disc = Math.PI * q.face.radius ** 2, names = [...new Set([...next].map((i) => b.faces[i]).filter((f) => f?.type === 'plane' && f.area > disc * 1.05).map((f) => f.name))];
+    return names.map((name) => { try { return { name, face: this.worldFace(q.inst, name) }; } catch { return null; } })
+      .filter((x) => x && Math.abs(x.face.normal.dot(axis)) > 0.999);
+  }
+
+  /** A pin in a hole (two round faces, the first one's part moves): the flat faces that seat it — the moving part's
+   *  face at the round face's end onto the other part's, the pair that faces each other and is nearest along the axis
+   *  -> {move: {inst, face}, onto: {inst, face}} or null (the moving part is joined already, both are 📌 fixed, a
+   *  through hole in both: which faces is not clear). */
+  seatPair(qa, qb) {
+    let [a, b] = [qa, qb];
+    if (this.inst(a.inst)?.fixed) [a, b] = [b, a];
+    if (this.inst(a.inst)?.fixed || (this.doc.mates || []).some((m) => m.move === a.inst && !(m.onto === b.inst && m.type === 'axis'))) return null;
+    const A = this.roundEnds(a), B = this.roundEnds(b);
+    if (!A.length || !B.length || (A.length > 1 && B.length > 1)) return null;
+    let best = null;
+    for (const x of A) {
+      for (const y of B) {
+        const facing = x.face.normal.dot(y.face.normal) < 0, apart = Math.abs(x.face.centroid.clone().sub(y.face.centroid).dot(y.face.normal));
+        const score = (facing ? 0 : 1e6) + apart;
+        if (!best || score < best.score) best = { score, move: { inst: a.inst, face: x.face }, onto: { inst: b.inst, face: y.face } };
+      }
+    }
+    return best && { move: best.move, onto: best.onto };
+  }
+
+  /** ◎ Two round faces joined: Concentric — with `seat`, also Touch on the faces around them (a pin in a hole sits down
+   *  on its face; Solid Edge's Insert). One undo step. */
+  joinRound(fp, seat) {
+    const before = new Set(this.unmet().map((m) => m.id)), nj = this.addJoint(fp[0], fp[1], 'axis');
+    if (!nj) return;
+    if (/:hole:/.test(nj.face) && /:hole:/.test(nj.ontoFace)) this.autoDistance(nj);
+    this.applyMates();
+    let tj = null;
+    if (seat) {
+      const s = this.seatPair({ inst: nj.move, face: this.worldFace(nj.move, nj.face) }, { inst: nj.onto, face: this.worldFace(nj.onto, nj.ontoFace) });
+      if (s) { tj = this.addJoint(s.move, s.onto, 'touch'); this.applyMates(); }
+    }
+    this.sel = nj.move;
+    this.sel2 = null;
+    const fights = this.unmet().filter((m) => !before.has(m.id));
+    if (fights.length) this.hooks.toast(t2('{type} added, but it fights another joint: {ids} no longer hold — see the red joint(s) in the panel.', { type: t(JOINT_TYPES.axis.name), ids: fights.map((m) => m.id).join(', ') }), 'warning', 7000);
+    else if (tj) this.hooks.toast(t2('{a} + {b}: {part} sits on the face around the pin and can still turn (Ctrl+Z: back).', { a: t('Concentric'), b: t('Touch'), part: this.partName(this.inst(nj.move)?.part) }), 'ok', 4000);
+    else this.hooks.toast(`${JOINT_TYPES.axis.name} — it now holds (change it or ✕ it in the panel).`, 'ok', 3000);
+    this.commit();
   }
 
   /** The suggestions table (bottom left of the view) for the chosen part — or the two chosen with Ctrl+click. */

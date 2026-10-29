@@ -1,6 +1,6 @@
 """Faces picked with no tool on in an assembly, with REAL mouse input: a Base with a Ø6 hole and a Ø6 Pin -> a click on
 the hole's rim: its face picked (lit), the Suggested table offers the joints it can start -> Ctrl+click on the pin's
-round face: the joints that fit two round faces (Concentric) -> a click on it: the pin is concentric in the hole ->
+round face: the joints that fit two round faces (◎ Concentric · Ø6 first) -> a click on it: the pin is concentric in the hole ->
 a click on the Base's top and Ctrl+click on the pin's end: two flat faces — Touch, Flush, Gap … -> the view zoomed out
 (the wheel): a click on the small pin's round face and on the hole's rim pick the faces, not the snap of their centres
 (the hole's centre is a few px away; the Concentric undone first); a Ctrl+click beside the parts keeps the face picked first.
@@ -102,6 +102,8 @@ try:
     click("I1", [hx + 3, hy, bb[5]])           # the rim again
     click("I2", [3, 0, 10], ctrl=True)         # + the pin's round face
     print("+ the pin's round face:", js(f"return ({A}.facePicks || []).map(q => [q.inst, q.face.type])"), "| the table:", table())
+    tb = table() or ["", ""]
+    check(tb[1].startswith("◎ Concentric") and "Ø6" in tb[1], f"two round faces: ◎ Concentric first, with its Ø: {tb[1:]}")
     next(b for b in d.find_elements(By.CSS_SELECTOR, "#asmViewport .view-suggest .vs-list button") if "Concentric" in b.text).click()
     time.sleep(1)
     print("Concentric: the joints", js(f"return {A}.doc.mates.map(m => [m.type, m.move, m.onto])"), "| the pin on the hole's axis:",
