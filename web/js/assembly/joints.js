@@ -6,6 +6,12 @@
 //   perp     — two flat faces at right angles (turns only)
 //   angle    — two flat faces at an angle (`value` degrees between their directions; turns only)
 //   tangent  — a round face touching a flat face (the cylinder's side on the plane)
+//   ball     — a ball's centre (a spherical face's) on another part's axis (a hole, a cone: it slides along it) or on
+//              another ball's centre (a ball joint: it only turns, three ways)
+//   seat     — a ball sitting in a seat: in a cone, or on the edge of a hole smaller than it — on the axis, touching it
+// Any joint may also hold motions its type leaves free, where they were when locked (lockMotion): `slides` — a move
+// along a direction of the other part kept at a distance, `rot` — the part's turn against the other part kept (a ball's
+// three turns at once); with `pos` too that is a 🔗 rigid joint: the part fixed to the other one as they were.
 // A part's joints are applied in order: the first one places it freely; the later ones only turn it about the
 // direction fixed before, and only move it along their own direction — so "pin in hole" + "touch" = the pin in
 // the hole, down to the face. A flat face put onto another one is centred on it once (when the joint is made); then
@@ -23,6 +29,8 @@ export const JOINT_TYPES = {
   perp: { icon: '⟂', name: 'Perpendicular', faces: 'plane', hint: 'two flat faces at right angles (it only turns)' },
   angle: { icon: '∠', name: 'Angle', faces: 'plane', hint: 'two flat faces at an angle you set (it only turns)' },
   tangent: { icon: '⌒', name: 'Tangent', faces: 'mixed', hint: 'a round face touching a flat face (a roller on a plate)' },
+  ball: { icon: '●', name: 'Ball joint', faces: 'ball', hint: "a ball's centre on an axis (a hole, a cone: it slides along it and turns any way) or on another ball's centre (it only turns)" },
+  seat: { icon: '◉', name: 'Ball in seat', faces: 'ball', hint: 'a ball sitting in a conical seat or on the edge of a hole — on its axis, touching it' },
   // not a joint of its own: a screw (+ nut / insert) or pin through the parts — the holes drilled for it, or ones there
   fastener: { icon: '🔩', name: 'Screw / pin', faces: 'any', hint: 'click where it goes in: a flat face (the holes are drilled for it, through the parts below) or a hole that is there', pick: true },
 };
@@ -113,7 +121,13 @@ export function jointMiss(j, fB, fA) {
   const type = j.type || 'touch', ang = (a, b) => (V(a).normalize().angleTo(V(b).normalize()) * 180) / Math.PI;
   const wrap = (d) => Math.abs(((((d + 180) % 360) + 360) % 360) - 180);
   let mm = 0, deg = 0, dir = null;
-  if (type === 'axis') {
+  if (type === 'rigid') {
+    // (only its locks)
+  } else if (type === 'ball' || type === 'seat') {
+    const v = ballShift(type, fB, fA);
+    if (!v) return null;
+    mm = v.length();
+  } else if (type === 'axis') {
     if (!fA.axis || !fB.axis) return null;
     const dA = V(fA.axis.d).normalize(), a = ang(fB.axis.d, dA);
     deg = Math.min(a, 180 - a);
@@ -141,6 +155,9 @@ export function jointMiss(j, fB, fA) {
     dir = nA;
   }
   if (Number.isFinite(j.angle) && dir && deg < 0.1) deg = Math.max(deg, wrap(spinOf(fB, fA, dir) - j.angle)); // its turn locked
+  const [lm, ld] = lockMiss(j, fB, fA);
+  mm = Math.max(mm, lm);
+  deg = Math.max(deg, ld);
   return { mm, deg, ok: mm < 0.05 && deg < 0.1 };
 }
 
@@ -151,7 +168,13 @@ export function jointResidual(j, fB, fA, S = 50) {
   const type = j.type || 'touch', out = [], vec = (v, k = 1) => out.push(v.x * k, v.y * k, v.z * k);
   const cross = (a, b) => new THREE.Vector3().crossVectors(V(a).normalize(), V(b).normalize());
   let dir = null;
-  if (type === 'axis') {
+  if (type === 'rigid') {
+    // (only its locks)
+  } else if (type === 'ball' || type === 'seat') {
+    const v = ballShift(type, fB, fA);
+    if (!v) return out;
+    vec(v);
+  } else if (type === 'axis') {
     if (!fA.axis || !fB.axis) return out;
     const dA = V(fA.axis.d).normalize();
     vec(V(fB.axis.o).sub(V(fA.axis.o)).projectOnPlane(dA)); // the axes apart
@@ -178,15 +201,120 @@ export function jointResidual(j, fB, fA, S = 50) {
     const w = ((((spinOf(fB, fA, dir) - j.angle + 180) % 360) + 360) % 360) - 180;
     out.push(((w * Math.PI) / 180) * S);
   }
+  if (j.rot || j.pos || j.slides?.length) { // its locks
+    const F = frameOf(fA), off = anchorOf(fB).sub(V(fA.centroid));
+    for (const s of j.slides || []) out.push(off.dot(toWorld(s.d, F).normalize()) - s.at);
+    if (j.pos) vec(off.clone().sub(toWorld(j.pos, F)));
+    if (j.rot) { const B = frameOf(fB); vec(B[0].sub(toWorld(j.rot.x, F)), S); vec(B[1].sub(toWorld(j.rot.y, F)), S); }
+  }
   return out;
+}
+
+/** A round face's axis as a line (a cylinder's; a cone's from its apex the way it opens) -> {o, d} or null. */
+function lineOf(f) {
+  if (f.cone) return { o: V(f.cone.apex), d: V(f.cone.d).normalize() };
+  return f.axis ? { o: V(f.axis.o), d: V(f.axis.d).normalize() } : null;
+}
+
+/** Where a ball's centre goes for a ● ball joint / ◉ seat on `seat` (another ball, a hole, a cone; world), the ball r
+ *  and its centre now c -> {p, d?} (d: a line through p — the centre may slide along it), or null. In a cone it touches
+ *  the cone r / sin(half) from the apex; on a hole smaller than it, √(R² − r²) out of the hole's end on its side. */
+export function ballTarget(type, seat, r, c) {
+  if (seat.type === 'sphere' && seat.centre) return { p: V(seat.centre) };
+  const ax = lineOf(seat);
+  if (!ax) return null;
+  if (type !== 'seat') return { p: ax.o, d: ax.d };
+  if (seat.cone) {
+    const s = Math.sin((seat.cone.half * Math.PI) / 180);
+    return s > 1e-6 ? { p: ax.o.clone().addScaledVector(ax.d, r / s) } : { p: ax.o, d: ax.d };
+  }
+  if (!seat.span || !(seat.radius < r)) return { p: ax.o, d: ax.d }; // (a ball in a bore as big: anywhere along it)
+  const h = Math.sqrt(r * r - seat.radius * seat.radius), at = V(c).sub(ax.o).dot(ax.d), [s0, s1] = [...seat.span].sort((a, b) => a - b);
+  return { p: ax.o.clone().addScaledVector(ax.d, at >= (s0 + s1) / 2 ? s1 + h : s0 - h) };
+}
+
+/** A ● ball joint / ◉ seat: how far the moving part has to shift for it to hold (fB: its face, fA: the other's; either
+ *  may be the ball) -> THREE.Vector3, or null when neither is a ball. */
+function ballShift(type, fB, fA) {
+  const mine = fB.type === 'sphere', ball = mine ? fB : fA, seat = mine ? fA : fB;
+  if (ball.type !== 'sphere' || !ball.centre) return null;
+  const c = V(ball.centre), tg = ballTarget(type, seat, ball.radius, c);
+  if (!tg) return null;
+  const v = tg.p.clone().sub(c);
+  if (tg.d) v.projectOnPlane(tg.d); // (on a line: only across it)
+  return mine ? v : v.negate();
+}
+
+/** The point of a face a lock measures from: a ball's centre, else its centroid. */
+export const anchorOf = (f) => V(f.type === 'sphere' && f.centre ? f.centre : f.centroid);
+
+/** A part's own directions in the world (from a face of it: its xdir / ydir) -> [x, y, z]. */
+const frameOf = (f) => { const x = V(f.xdir).normalize(), y = V(f.ydir).normalize(); return [x, y, new THREE.Vector3().crossVectors(x, y).normalize()]; };
+const toLocal = (v, F) => F.map((a) => +a.dot(v).toFixed(9));
+const toWorld = (a, F) => F[0].clone().multiplyScalar(a[0]).addScaledVector(F[1], a[1]).addScaledVector(F[2], a[2]);
+
+/** The moving part as it is against the other one, in the other part's own frame (fB, fA: faces of the two, world):
+ *  {rot: {x, y} (its own directions), pos (its face's anchor from the other face's centroid)} — what a 🔗 rigid
+ *  joint and a lock of a ball's turns keep. */
+export function frameNow(fB, fA) {
+  const F = frameOf(fA), B = frameOf(fB);
+  return { rot: { x: toLocal(B[0], F), y: toLocal(B[1], F) }, pos: toLocal(anchorOf(fB).sub(V(fA.centroid)), F) };
+}
+
+/** A move along `dir` (world) locked where it is: {d (in the other part's frame), at (mm)}. */
+export function slideNow(fB, fA, dir) {
+  const F = frameOf(fA), d = V(dir).normalize();
+  return { d: toLocal(d, F), at: +anchorOf(fB).sub(V(fA.centroid)).dot(d).toFixed(4) };
+}
+
+/** What a joint's locks (slides, rot, pos) miss: [mm off each slide / the position, the turn off (degrees)]. */
+function lockMiss(j, fB, fA) {
+  if (!j.rot && !j.pos && !j.slides?.length) return [0, 0];
+  const F = frameOf(fA), off = anchorOf(fB).sub(V(fA.centroid));
+  let mm = 0, deg = 0;
+  for (const s of j.slides || []) mm = Math.max(mm, Math.abs(off.dot(toWorld(s.d, F).normalize()) - s.at));
+  if (j.pos) mm = Math.max(mm, off.distanceTo(toWorld(j.pos, F)));
+  if (j.rot) { const B = frameOf(fB); deg = (Math.max(B[0].angleTo(toWorld(j.rot.x, F)), B[1].angleTo(toWorld(j.rot.y, F))) * 180) / Math.PI; }
+  return [mm, deg];
+}
+
+/** The locks applied: the part turned about its anchor to `rot`, moved to `pos`, along each slide to its distance. */
+function holdLocks(M, j, faceAt, fA) {
+  if (!j.rot && !j.pos && !j.slides?.length) return M;
+  const F = frameOf(fA);
+  let fB = faceAt(M);
+  if (j.rot) {
+    const B = frameOf(fB), x = toWorld(j.rot.x, F).normalize(), y = toWorld(j.rot.y, F).normalize();
+    const T = new THREE.Matrix4().makeBasis(x, y, new THREE.Vector3().crossVectors(x, y).normalize()), Bm = new THREE.Matrix4().makeBasis(...B);
+    const p = anchorOf(fB);
+    M = new THREE.Matrix4().makeTranslation(p.x, p.y, p.z).multiply(T.multiply(Bm.transpose())).multiply(new THREE.Matrix4().makeTranslation(-p.x, -p.y, -p.z)).multiply(M);
+    fB = faceAt(M);
+  }
+  if (j.pos) M = shift(M, toWorld(j.pos, F).sub(anchorOf(fB).sub(V(fA.centroid))));
+  for (const s of j.slides || []) {
+    const d = toWorld(s.d, F).normalize(), now = anchorOf(faceAt(M)).sub(V(fA.centroid)).dot(d);
+    M = shift(M, d.multiplyScalar(s.at - now));
+  }
+  return M;
 }
 
 /** One joint: the moving part's matrix M (THREE.Matrix4) and its face fB (world, as placed by M) against the other
  *  part's face fA. faceAt(M) gives fB again for a new M. fixed: what an earlier joint fixed ({dir, flippable}).
- *  -> {M, fixed} (what this joint fixes). */
+ *  -> {M, fixed} (what this joint fixes). Its locks (slides, rot, pos) after its own kind. */
 export function applyJoint(M, j, faceAt, fA, first, fixed, centre = first) {
+  const r = placeJoint(M, j, faceAt, fA, first, fixed, centre);
+  return { M: holdLocks(r.M, j, faceAt, fA), fixed: r.fixed };
+}
+
+function placeJoint(M, j, faceAt, fA, first, fixed, centre = first) {
   let fB = faceAt(M);
   const type = j.type || 'touch';
+  if (type === 'rigid') return { M, fixed: null }; // (its rot and pos hold it: holdLocks)
+  if (type === 'ball' || type === 'seat') {
+    const v = ballShift(type, fB, fA);
+    if (!v) throw new Error('A ball joint joins a ball (a spherical face) and a hole, a cone or another ball.');
+    return { M: shift(M, v), fixed: null };
+  }
   if (type === 'axis') {
     if (fA.type !== 'cylinder' || fB.type !== 'cylinder') throw new Error('Pin in hole joins two round faces.');
     const dA = V(fA.axis.d).normalize(), dB = V(fB.axis.d).normalize();

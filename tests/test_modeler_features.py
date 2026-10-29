@@ -461,6 +461,43 @@ class TestFeatures(unittest.TestCase):
         r, _ = vol(*b)
         self.assertIn("at most", r["features"][-1]["issues"][0])
 
+    def test_ball_and_cone_faces(self):
+        """A revolved half circle is a ball: its face says sphere, its centre and radius; a slanted line turned is a
+        cone: its apex, the way it opens and its half angle — what the assembly's ● ball joints and ◉ seats use."""
+        from auto3d.modeler import kernel
+        ball = {"id": "S1", "type": "sketch", "plane": {"datum": "XZ"}, "points": {"a": [0, -5], "b": [0, 5], "c": [0, 0]},
+                "entities": [{"id": "l1", "t": "line", "a": "a", "b": "b"}, {"id": "a1", "t": "arc", "c": "c", "a": "a", "b": "b"}]}
+        rev = {"id": "R1", "type": "revolve", "sketch": "S1", "axis": "y", "angle": 360, "op": "add"}
+        r, v = vol(ball, rev)
+        self.assertAlmostEqual(v, 4 / 3 * math.pi * 125, delta=1e-3)
+        sph = [f for f in r["body"]["faces"] if f["type"] == "sphere"]
+        self.assertEqual(len(sph), 1)
+        self.assertAlmostEqual(sph[0]["radius"], 5, places=6)
+        self.assertEqual([round(c, 6) for c in sph[0]["centre"]], [0, 0, 0])
+        # a cone: the triangle (0, 0) – (5, 0) – (0, 10) turned — its apex at z 10, opening down, half angle atan(5 / 10)
+        pts = {"a": [0, 0], "b": [5, 0], "c": [0, 10]}
+        tri = {"id": "S1", "type": "sketch", "plane": {"datum": "XZ"}, "points": pts,
+               "entities": [{"id": f"l{i}", "t": "line", "a": k, "b": "bca"[i]} for i, k in enumerate("abc")]}
+        r, v = vol(tri, rev)
+        self.assertAlmostEqual(v, math.pi * 25 * 10 / 3, delta=1e-3)
+        cone = [f for f in r["body"]["faces"] if f["type"] == "cone"]
+        self.assertEqual(len(cone), 1)
+        self.assertEqual([round(c, 6) for c in cone[0]["cone"]["apex"]], [0, 0, 10])
+        self.assertEqual([round(c, 6) for c in cone[0]["cone"]["d"]], [0, 0, -1])
+        self.assertAlmostEqual(cone[0]["cone"]["half"], math.degrees(math.atan(0.5)), places=5)
+        self.assertNotIn("axis", cone[0])  # (not an axis reference for sketches: those stay holes' and shafts')
+        # placed again (a big STEP's repeated parts): moved by the part's place — turned 90° about X, up 20
+        m = [[1, 0, 0, 0], [0, 0, -1, 0], [0, 1, 0, 20]]
+        s = kernel._moved_surface(("sphere", 5.0, (1.0, 2.0, 3.0)), m)
+        self.assertEqual((s[0], round(s[1], 9)), ("sphere", 5.0))
+        self.assertEqual([round(c, 9) for c in s[2]], [1, -3, 22])
+        c = kernel._moved_surface(("cone", 30.0, (0.0, 0.0, 10.0), (0.0, 0.0, -1.0)), m)
+        self.assertEqual([round(x, 9) for x in c[2]], [0, -10, 20])
+        self.assertEqual([round(x, 9) for x in c[3]], [0, 1, 0])
+        # a STEP written and read back keeps the ball, exact
+        step = doc.export({"features": [ball, rev]}, "step")
+        self.assertAlmostEqual(kernel.volume(kernel.from_step(step)), 4 / 3 * math.pi * 125, delta=1e-3)
+
     def test_revolve(self):
         # a 10 x 20 rectangle beside the vertical axis (x 5..15) spun a full turn: a tube
         pts = {"a": [5, 0], "b": [15, 0], "c": [15, 20], "d": [5, 20]}

@@ -7,6 +7,19 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Assembly: ● ball joints (2026-10-29)** (the app's AI, report 2026-10-29-202947: a valve ball could not be joined —
+  tangent refused a sphere, concentric wants a cylinder). The kernel's face info tells a sphere (`type: "sphere"`,
+  radius, centre) and a cone (`type: "cone"`, `cone: {apex, d (the way it opens), half}` — not an `axis`, so the
+  sketch's axis references stay the holes' and shafts'), also for faces placed again (_moved_surface). joints.js:
+  **● ball** — a ball's centre on the other part's axis (a hole, a cone: it slides along it and turns any way, 4 ways)
+  or on another ball's centre (3 turns); **◉ seat** — the ball in a conical seat (its centre r / sin half from the
+  apex) or on the edge of a hole smaller than it (√(R² − r²) out of the hole's end, on its side). Both are pure shifts
+  (either part may be the ball); a part's later joints are followed by its ball joints again (holdPart). A ball's
+  turns about X / Y / Z through its centre are its motions (after the axis' slide and turn). A ball + a hole / cone /
+  ball picked as two faces with no tool on: ◉ and ● first in the suggestions; one ball face: ● / ◉ … first. AI:
+  snap_faces type "ball" / "seat" (anything else refused, it says why). Tests: test_modeler_features
+  (test_ball_and_cone_faces: volumes, apex / half angle, moved, STEP round trip), e2e_assembly_ball_spring.
+
 - **Icons at an extrude's height (2026-10-29)** (the owner: "u kliknutí na dimenzi vysunutí … pár ikonek … směr, k
   ploše a další ploše"): clicking the "↕ 10" label on the part opens the size editor with one line of 16 px stroke
   icons (web/js/modeler/dimicons.js, drawn like the step tree's): ⇅ flip, both sides, up to a face… (opens the Extrude

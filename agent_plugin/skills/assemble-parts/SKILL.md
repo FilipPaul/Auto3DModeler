@@ -20,7 +20,10 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    answers with the list of faces. `type` picks the joint: `touch` (default), `gap` (with `gap` mm), `flush`, `axis`
    (concentric round faces — a pin / screw / shaft in a hole; with `gap` the distance along the axis between their
    facing ends, e.g. two plates with holes 30 mm apart; `lock_rotation: true` keeps the turn), `parallel`, `perp`, `angle` (`value` degrees between
-   the faces' directions), `tangent` (a round face on a flat one: a roller on a plate). A part's joints apply in order: `axis` first, then
+   the faces' directions), `tangent` (a round face on a flat one: a roller on a plate), `ball` (a ball's spherical face —
+   a revolved half circle — with its centre on the axis of a hole or a cone: it slides along it and turns; onto another
+   ball: a ball joint, 3 turns), `seat` (the ball seated in a conical seat or on the edge of a smaller hole: a valve
+   ball — on the axis, touching). A part's joints apply in order: `axis` first, then
    `touch` from the head to the face it sits on, seats a pin. Joints hold: the part follows when the other one moves
    or changes size (`get_assembly` lists the `joints`); `place_part` on a joined part removes its joints.
 4. Fine-tune with `place_part {part, x, y, z}` (its origin in mm) and `turn: "x" | "y" | "z"` (90° about its

@@ -434,13 +434,16 @@ TOOLS = [
                     "onto = {part, face}. type: \"touch\" (flat faces meet, centred — the default), \"gap\" (flat faces facing, gap mm "
                     "apart), \"flush\" (flat faces in one plane, gap = offset), \"axis\" (concentric: two round faces on one axis, a pin in a hole; gap = the distance along the axis between the facing ends of the two round faces — two plates with holes 30 mm apart: gap 30; lock_rotation: true keeps its turn), "
                     "\"parallel\", \"perp\" (perpendicular), \"angle\" (value = degrees between the faces' directions), \"tangent\" "
-                    "(a round face touching a flat one). A part's joints apply in order: e.g. axis (pin shaft → hole) then touch (head → plate top) seats a "
+                    "(a round face touching a flat one), \"ball\" (a ball's spherical face — e.g. a revolved half circle — with its centre on "
+                    "the axis of a hole / a cone of the other part: it slides along that axis and turns any way; onto another ball: one centre, "
+                    "a ball joint that only turns), \"seat\" (a ball seated in a conical seat, or on the edge of a hole smaller than it: on "
+                    "its axis, touching it — a check valve's ball; the ball part or the seat part may move). A part's joints apply in order: e.g. axis (pin shaft → hole) then touch (head → plate top) seats a "
                     "pin. Face names come from find_refs in the part's own model (\"F2:end\" = the top of the first extrude). name: the user's own name of the joint (e.g. \"bearing on the shaft\"); lock_rotation also on flat joints (its turn on the face). "
                     "Couplings between two parts that each turn (or slide) on their own joints: \"gear\" (two round faces — the gears' pitch circles — on parallel axes: they turn opposite ways, a ring gear round the other the same way), \"belt\" (two pulleys / sprockets: the same way), "
                     "\"rack\" (move = the pinion's round face, onto = the rack's flat face along its axis: the rack slides π·Ø per turn); value = the ratio (gear / belt: turns of move's part per one turn of onto's, default Ø onto / Ø move; rack: mm per turn, default π·Ø). "
                     "Turning one (move_free, drive_mechanism) turns the other; the coupled parts are one mechanism. get_assembly lists them as `couplings` (ids G…; edit_joint {id, ratio, flip} / remove_joint).",
      "inputSchema": _obj({"move": _obj({"part": STR, "face": STR}, ["part", "face"]), "onto": _obj({"part": STR, "face": STR}, ["part", "face"]),
-                          "type": {"type": "string", "enum": ["touch", "gap", "flush", "axis", "parallel", "perp", "angle", "tangent", "gear", "belt", "rack"]}, "gap": NUM,
+                          "type": {"type": "string", "enum": ["touch", "gap", "flush", "axis", "parallel", "perp", "angle", "tangent", "ball", "seat", "gear", "belt", "rack"]}, "gap": NUM,
                           "value": NUM, "lock_rotation": {"type": "boolean"}, "name": STR}, ["move", "onto"])},
     {"name": "bolt_parts", "where": "browser",
      "description": "Fasten parts that have no holes yet: a screw goes in at a point of a flat face of a placed part (part = I…, face = its "

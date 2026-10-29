@@ -853,7 +853,9 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   **↕ distance** is the gap along the axis between the facing ends of the two round faces — two plates with holes
   joined this way get it filled in (touching) and you type e.g. 30; empty = it slides),
   **Parallel**, **Perpendicular**, **Angle** (two flat faces at the angle you type), **Tangent** (a round face on a
-  flat one), or **🔩 Screw / pin** — then
+  flat one), **● Ball joint** (a ball — a revolved half circle — with its centre on the axis of a hole or a cone: it
+  slides along the axis and turns any way; onto another ball: one centre, it only turns), **◉ Ball in seat** (a valve
+  ball seated in a conical seat, or on the edge of a hole smaller than it: on the axis, touching it), or **🔩 Screw / pin** — then
   click a face of the part to move and the face it goes to (the face under the mouse is marked). For round faces a
   click on (or near) a **circle** — a hole's or a pin's edge — is enough: its round face is taken (a hole seen from the
   front, whose wall is hard to hit). A part can have

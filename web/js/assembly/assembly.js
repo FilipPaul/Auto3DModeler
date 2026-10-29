@@ -356,13 +356,33 @@ export class Assembly {
    *  part); two faces of two parts (Ctrl+click) — the joints that fit them (two round: concentric; two flat: touch,
    *  flush, gap …; round and flat: tangent), made by a click. */
   suggestFaces(vp, fp) {
-    const kindOf = (q) => (q.face.type === 'cylinder' ? 'round' : q.face.type === 'plane' ? 'flat' : 'other');
+    const kindOf = (q) => ({ cylinder: 'round', plane: 'flat', sphere: 'ball', cone: 'cone' }[q.face.type] || 'other');
+    const balls = ['ball', 'round', 'cone'];
     const fits = (k1, k2) => Object.entries(JOINT_TYPES).filter(([, j]) => !j.pick && (
       (j.faces === 'plane' && k1 === 'flat' && (k2 === undefined || k2 === 'flat')) || (j.faces === 'cylinder' && k1 === 'round' && (k2 === undefined || k2 === 'round'))
-      || (j.faces === 'mixed' && (k2 === undefined ? k1 !== 'other' : new Set([k1, k2]).size === 2 && ![k1, k2].includes('other')))));
+      || (j.faces === 'mixed' && (k2 === undefined ? ['flat', 'round'].includes(k1) : new Set([k1, k2]).size === 2 && [k1, k2].every((k) => k === 'flat' || k === 'round')))
+      || (j.faces === 'ball' && (k2 === undefined ? balls.includes(k1) : [k1, k2].includes('ball') && balls.includes(k1) && balls.includes(k2)))));
     const what = (q) => `${this.partName(this.inst(q.inst)?.part)} ${q.inst} · ${this.faceText(q.inst, q.face.name)}`;
-    const refs = `${t('in the assembly')} “${this.hooks.safeName?.() || ''}”: ${fp.map((q) => `${t('part')} ${q.inst} ${t('face')} ${q.face.name}${q.face.type === 'cylinder' && q.face.radius ? ` (${t('round')}, Ø${fmt(2 * q.face.radius)})` : q.face.type === 'plane' ? ` (${t('flat')})` : ''}`).join(', ')}`;
+    const refs = `${t('in the assembly')} “${this.hooks.safeName?.() || ''}”: ${fp.map((q) => `${t('part')} ${q.inst} ${t('face')} ${q.face.name}${q.face.type === 'cylinder' && q.face.radius ? ` (${t('round')}, Ø${fmt(2 * q.face.radius)})` : q.face.type === 'sphere' ? ` (${t('ball')}, Ø${fmt(2 * q.face.radius)})` : q.face.type === 'cone' ? ` (${t('cone')})` : q.face.type === 'plane' ? ` (${t('flat')})` : ''}`).join(', ')}`;
     const done = () => { this.facePicks = []; this.renderSuggest(); this.drawMarks(); };
+    const join = (type, a, b) => { // (as if the two faces had been clicked with that joint)
+      this.jointType = type;
+      this.mode = 'joint-to';
+      this.jointFrom = a;
+      this.clickJoint(b);
+      if (this.mode !== 'idle') this.cancelJoint();
+      done();
+    };
+    if (fp.length === 2 && fp[0].inst !== fp[1].inst && fits(kindOf(fp[0]), kindOf(fp[1])).some(([k]) => k === 'ball')) { // ● a ball and its seat / axis / socket: first
+      const ball = fp.find((q) => q.face.type === 'sphere'), other = fp.find((q) => q !== ball), d = `Ø${fmt(+(2 * ball.face.radius).toFixed(2))}`;
+      const socket = other.face.type === 'sphere', seats = other.face.type === 'cone' || (other.face.type === 'cylinder' && other.face.radius < ball.face.radius - 1e-6);
+      showSuggest(vp, `${what(fp[0])} ↔ ${what(fp[1])}`, [
+        ...(seats ? [{ icon: '◉', label: `${t('Seat the ball in it')} · ${d}`, rank: -2, title: t(JOINT_TYPES.seat.hint), run: () => join('seat', fp[0], fp[1]) }] : []),
+        { icon: '●', label: `${t(socket ? 'Ball joint: centres together' : 'Ball centre on its axis')} · ${d}`, rank: seats ? -1 : -2,
+          title: t(socket ? 'The two balls share one centre — it turns any way, it cannot slide' : 'The ball stays on the axis: it slides along it and turns any way'), run: () => join('ball', fp[0], fp[1]) },
+      ], t("A joint between the two faces — the first one's part moves"), refs);
+      return;
+    }
     if (fp.length === 2 && kindOf(fp[0]) === 'round' && kindOf(fp[1]) === 'round') { // a pin in a hole: ◎ first, with its Ø
       const dia = fp.map((q) => fmt(+(2 * (q.face.radius || 0)).toFixed(2))), d = dia[0] === dia[1] ? `Ø${dia[0]}` : `Ø${dia[0]} ↔ Ø${dia[1]}`;
       const seat = this.seatPair(fp[0], fp[1]), cpl = this.couplingItems(fp, done); // (⚙ two gears that turn: first)
@@ -400,7 +420,7 @@ export class Assembly {
     const after = (x) => ({ ...x, run: async () => { await x.run(); this.renderSuggest(); } });
     showSuggest(vp, what(q), [ // (the face's joints first, then its part: the table shows the top ones, the rest under ⋯ Show all)
       { section: t('This face') },
-      ...js.map(([type, j], k) => ({ icon: j.icon, label: `${t(j.name)}…`, rank: ['parallel', 'perp', 'angle'].includes(type) ? 10 + k : k, title: t('Then click a face of the other part'), run: () => {
+      ...js.map(([type, j], k) => ({ icon: j.icon, label: `${t(j.name)}…`, rank: ['parallel', 'perp', 'angle'].includes(type) || (j.faces === 'ball' && q.face.type !== 'sphere') ? 10 + k : j.faces === 'ball' ? k - 5 : k, title: t('Then click a face of the other part'), run: () => {
         this.startJoint(type);
         this.jointFrom = q;
         this.mode = 'joint-to';
@@ -1787,6 +1807,8 @@ export class Assembly {
       if (f?.type === 'plane') return t('a flat face');
     }
     if (fid === 'Q1') return `${t('face')} ${String(role).slice(1)}`;
+    const bf = this.bodies[pid]?.body?.faces?.find((x) => (x.type === 'sphere' || x.type === 'cone') && (x.name === name || (x.names || []).includes(name)));
+    if (bf) return `${bf.type === 'sphere' ? t2('the ball Ø{d}', { d: fmt(+(2 * bf.radius).toFixed(2)) }) : t('the cone')}${g ? ` (${g.name})` : ''}`; // (● what a ball joint holds)
     const what = { end: 'the top of', start: 'the bottom of', side: 'a wall of', hole: 'hole of', round: 'a rounding of', bottom: 'a hole bottom of' }[role] || 'a face of';
     return g ? `${t(what)} ${g.name}` : name;
   }
@@ -1812,10 +1834,10 @@ export class Assembly {
         ? `<label class="as-jv">${m.type === 'flush' ? 'offset' : 'gap'} <input type="number" step="any" data-jgap="${m.id}" value="${fmt(m.gap || 0)}"> mm</label>`
         : m.type === 'axis' ? `<label class="as-jv" title="Distance along the axis between the facing ends of the two round faces (e.g. two plates 30 mm apart). Empty: it slides freely.">↕ <input type="number" step="any" data-jdist="${m.id}" value="${Number.isFinite(m.dist) ? fmt(m.dist) : ''}" placeholder="free"> mm</label>
           <button class="mini" data-jflip="${m.id}" title="Turn it the other way round">⇅</button>`
-        : m.type === 'perp' ? '<span></span>'
+        : ['perp', 'ball', 'seat', 'rigid'].includes(m.type) ? '<span></span>'
         : `${m.type === 'angle' ? `<label class="as-jv">∠ <input type="number" step="any" data-jval="${m.id}" value="${fmt(m.value || 0)}"> °</label>` : ''}<button class="mini" data-jflip="${m.id}" title="Turn it the other way round">⇅</button>`;
       const spin = Math.round(Number.isFinite(m.angle) ? m.angle : this.spinNow(m)), why = this.whyNot(m);
-      const turns = m.type !== 'parallel', rot = Number.isFinite(m.angle);
+      const turns = !['parallel', 'ball', 'seat', 'rigid'].includes(m.type), rot = Number.isFinite(m.angle); // (a ball turns any way: its moves in the part's panel)
       return `<div class="as-jrow ${m.broken || why ? 'bad' : ''} ${m.locked ? 'locked' : ''}" data-jrow="${m.id}"><span class="as-jt">${t.icon} <span class="as-jname ${m.name ? 'own' : ''}" data-jname="${m.id}" title="${dbl}" ${m.name ? 'data-no-i18n' : ''}>${esc(m.name || t.name)}</span> <i>${m.id}</i></span>
         <span class="as-jw"><b data-no-i18n>${esc(this.partName(a?.part))}</b> <i>${m.move}</i> · ${esc(this.faceText(m.move, m.face))} → <b data-no-i18n>${esc(this.partName(b?.part))}</b> <i>${m.onto}</i> · ${esc(this.faceText(m.onto, m.ontoFace))}${m.broken ? ' — ⚠ a face is gone' : ''}</span>
         ${why ? `<span class="as-jwhy" data-no-i18n>⚠ ${esc(why)}</span>` : ''}
@@ -2495,7 +2517,9 @@ export class Assembly {
    *  (nothing is noted on the joints). */
   holdPart(id, M, probe = false, skip = null) {
     let fixed = null;
-    (this.doc.mates || []).filter((m) => m.move === id && m.id !== skip && this.inst(m.onto) && !this.insideMate(m)).forEach((m, k) => {
+    const mine = (this.doc.mates || []).filter((m) => m.move === id && m.id !== skip && this.inst(m.onto) && !this.insideMate(m));
+    const ordered = [...mine.filter((m) => m.type !== 'rigid'), ...mine.filter((m) => m.type === 'rigid')]; // (🔗 fixed together: last, it has the last word)
+    ordered.forEach((m, k) => {
       try {
         const r = applyJoint(M, m, (MM) => this.worldFace(id, m.face, MM), this.worldFace(m.onto, m.ontoFace), k === 0, fixed, k === 0 && !m.centred);
         M = r.M;
@@ -2503,6 +2527,9 @@ export class Assembly {
         if (!probe) { delete m.broken; if (k === 0) m.centred = true; }
       } catch { if (!probe) m.broken = true; }
     });
+    for (const m of ordered.length > 1 ? ordered.filter((x) => x.type === 'ball' || x.type === 'seat') : []) { // ● a ball's centre back where it goes (a later joint turned it about another point)
+      try { M = applyJoint(M, m, (MM) => this.worldFace(id, m.face, MM), this.worldFace(m.onto, m.ontoFace), false, fixed, false).M; } catch { /* (marked above) */ }
+    }
     return M;
   }
 
@@ -2621,7 +2648,7 @@ export class Assembly {
     const M = new THREE.Matrix4().fromArray(it.matrix);
     const c = new THREE.Vector3((b.bbox[0] + b.bbox[3]) / 2, (b.bbox[1] + b.bbox[4]) / 2, (b.bbox[2] + b.bbox[5]) / 2).applyMatrix4(M);
     const L = Math.max(1, Math.hypot(b.bbox[3] - b.bbox[0], b.bbox[4] - b.bbox[1], b.bbox[5] - b.bbox[2]));
-    const cands = [], axisName = (v) => {
+    const cands = [], balls = [], axisName = (v) => {
       const k = ['X', 'Y', 'Z'].find((_, i) => Math.abs(Math.abs(v.getComponent(i)) - 1) < 1e-6);
       return k || null;
     };
@@ -2629,6 +2656,13 @@ export class Assembly {
       let fA;
       try { fA = this.worldFace(m.onto, m.ontoFace); } catch { continue; }
       const what = m.name ? `“${m.name}”` : this.faceText(m.onto, m.ontoFace), part = this.partName(this.inst(m.onto)?.part); // (the joint's own name when the user gave it one)
+      if (m.type === 'ball' || m.type === 'seat') { // ● a ball turns any way about its centre
+        let o = fA.centre;
+        try { o = o || this.worldFace(id, m.face).centre; } catch { o = null; }
+        for (const [k, dir] of o ? [['X', [1, 0, 0]], ['Y', [0, 1, 0]], ['Z', [0, 0, 1]]] : []) {
+          balls.push({ kind: 'turn', dir: new THREE.Vector3(...dir), point: o.clone(), key: `${m.id}:ball${k}`, ref: m.id, how: t2('about {axis}', { axis: k }), label: t2('Turn about {axis} (the ball)', { axis: k }) });
+        }
+      }
       if (fA.axis) {
         cands.push({ kind: 'move', dir: fA.axis.d.clone(), key: `${m.id}:along`, ref: m.id, how: t('along the axis'), label: t2('Along the axis of {face} ({part})', { face: what, part }) });
         cands.push({ kind: 'turn', dir: fA.axis.d.clone(), point: fA.axis.o.clone(), key: `${m.id}:turn`, ref: m.id, how: t('about the axis'), label: t2('Turn about the axis of {face} ({part})', { face: what, part }) });
@@ -2644,6 +2678,7 @@ export class Assembly {
         cands.push({ kind: 'move', dir: n.clone(), key: `${m.id}:away`, ref: m.id, how: t('away from the face'), label: t2('Away from {face}', { face: what }) });
       }
     }
+    cands.push(...balls); // (after its axis' slide and turn)
     for (const [k, dir] of [['X', [1, 0, 0]], ['Y', [0, 1, 0]], ['Z', [0, 0, 1]]]) {
       cands.push({ kind: 'move', dir: new THREE.Vector3(...dir), key: k, how: t2('along {axis}', { axis: k }), label: t2('Along {axis}', { axis: k }) });
       cands.push({ kind: 'turn', dir: new THREE.Vector3(...dir), point: c.clone(), key: `turn${k}`, how: t2('about {axis}', { axis: k }), label: t2('Turn about {axis}', { axis: k }) });
@@ -3279,7 +3314,7 @@ export class Assembly {
   jointHint() {
     const t = JOINT_TYPES[this.jointType], f0 = this.jointFrom?.face;
     const what = t.faces === 'cylinder' ? 'a round face' : t.faces === 'mixed' ? (this.mode === 'joint-to' ? (f0?.type === 'cylinder' ? 'a flat face' : 'a round face') : 'a round or a flat face')
-      : 'a flat face';
+      : t.faces === 'ball' ? (this.mode === 'joint-to' && f0?.type !== 'sphere' ? 'the ball' : this.mode === 'joint-to' ? 'a hole, a cone or a ball' : 'a ball, or a hole / cone it sits in') : 'a flat face';
     if (t.faces === 'any' && this.mode === 'joint-from') {
       this.hint(`${t.icon} ${t.name}: click where it goes in — a point on a flat face (the holes are drilled for it), or a hole that is there. Esc cancels.`);
       this.renderBar();
@@ -3298,7 +3333,10 @@ export class Assembly {
     const want = JOINT_TYPES[this.jointType].faces;
     // a screw / pin: the second part is clicked anywhere (its hole is often hidden under the first part)
     if (this.jointType === 'fastener' && this.mode === 'joint-to') return h.inst !== this.jointFrom?.inst;
-    if (want === 'any' || want === 'mixed') {
+    if (want === 'ball') { // a ball and a hole / cone / ball — one of the two a ball
+      if (!['sphere', 'cylinder', 'cone'].includes(h.face.type)) return false;
+      if (this.mode === 'joint-to' && h.face.type !== 'sphere' && this.jointFrom?.face?.type !== 'sphere') return false;
+    } else if (want === 'any' || want === 'mixed') {
       if (h.face.type !== 'plane' && h.face.type !== 'cylinder') return false;
       if (want === 'mixed' && this.mode === 'joint-to' && h.face.type === this.jointFrom?.face?.type) return false; // the other kind
     } else if (h.face.type !== want) return false;
@@ -3344,7 +3382,7 @@ export class Assembly {
     if (!this.faceFits(h)) {
       const kind = JOINT_TYPES[this.jointType].faces;
       const want = kind === 'cylinder' ? 'a round face (a hole, a pin)' : kind === 'mixed' ? (this.mode === 'joint-to' ? 'the other kind of face (round ↔ flat)' : 'a round or a flat face')
-        : kind === 'any' ? 'a flat face or a hole' : 'a flat face';
+        : kind === 'ball' ? 'a ball and a hole, a cone or another ball' : kind === 'any' ? 'a flat face or a hole' : 'a flat face';
       if (h) this.hooks.toast(this.mode === 'joint-to' && h.inst === this.jointFrom?.inst ? 'Now a face of the other part.' : `Click ${want}.`, 'info', 2500);
       return;
     }
@@ -3539,8 +3577,8 @@ export class Assembly {
     if (!b) throw new Error(`${instId} has no solid.`);
     const f = b.faces.filter((x) => x.name === name || (x.names || []).includes(name)).sort((p, q) => q.area - p.area)[0];
     if (!f) {
-      const flat = [...new Set(b.faces.filter((x) => x.type === 'plane' || x.type === 'cylinder').map((x) => x.name))];
-      throw new Error(`${instId} has no face “${name}”. Its flat and round faces: ${flat.join(', ')} (find_refs in its part tells which is which).`);
+      const flat = [...new Set(b.faces.filter((x) => ['plane', 'cylinder', 'sphere', 'cone'].includes(x.type)).map((x) => x.name))];
+      throw new Error(`${instId} has no face “${name}”. Its flat, round, ball and cone faces: ${flat.join(', ')} (find_refs in its part tells which is which).`);
     }
     const m = matrix || new THREE.Matrix4().fromArray(it.matrix), nm = new THREE.Matrix3().getNormalMatrix(m);
     const out = { ...f, centroid: new THREE.Vector3(...f.centroid).applyMatrix4(m),
@@ -3549,6 +3587,11 @@ export class Assembly {
     if (f.type === 'cylinder' && f.axis) {
       out.axis = { o: new THREE.Vector3(...f.axis.o).applyMatrix4(m), d: new THREE.Vector3(...f.axis.d).applyMatrix3(nm).normalize() };
       out.span = this.cylSpan(b, name, f.axis);
+    }
+    if (f.type === 'sphere' && f.centre) out.centre = new THREE.Vector3(...f.centre).applyMatrix4(m); // (a ball: ● joints)
+    if (f.type === 'cone' && f.cone) { // (a conical seat: its axis from the apex, as a round face's)
+      out.cone = { apex: new THREE.Vector3(...f.cone.apex).applyMatrix4(m), d: new THREE.Vector3(...f.cone.d).applyMatrix3(nm).normalize(), half: f.cone.half };
+      out.axis = { o: out.cone.apex.clone(), d: out.cone.d.clone() };
     }
     return out;
   }
@@ -3694,8 +3737,10 @@ export class Assembly {
         const from = { inst: move.part, face: this.worldFace(move.part, move.face) };
         const to = { inst: onto.part, face: this.worldFace(onto.part, onto.face) };
         if (from.inst === to.inst) throw new Error('Join a face of one part to a face of another part.');
-        const want = JOINT_TYPES[type].faces;
-        if (want === 'mixed') {
+        const want = JOINT_TYPES[type].faces, kinds = [from.face.type, to.face.type];
+        if (want === 'ball') {
+          if (!kinds.includes('sphere') || !kinds.every((k) => ['sphere', 'cylinder', 'cone'].includes(k))) throw new Error(`${type} joins a ball (a spherical face, e.g. a revolved half circle) and a hole / a cone (its seat) or another ball — these faces are ${kinds.join(' and ')}.`);
+        } else if (want === 'mixed') {
           if (new Set([from.face.type, to.face.type, 'plane', 'cylinder']).size !== 2 || from.face.type === to.face.type) throw new Error('Tangent joins a round face and a flat face.');
         } else if (from.face.type !== want || to.face.type !== want) throw new Error(`${JOINT_TYPES[type].name} joins two ${want === 'cylinder' ? 'round' : 'flat'} faces.`);
         const nj = this.addJoint(from, to, type, type === 'axis' ? 0 : gap || 0);
