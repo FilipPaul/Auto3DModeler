@@ -83,6 +83,8 @@ try:
     js(f"{M}.view.setView('iso')")
     time.sleep(0.4)
     click_at([20, 10, 10])  # the top face, no tool on: its suggestions
+    js("document.querySelector('#modelViewport .view-suggest [data-sg-all]')?.click()")  # (⋯ Show all: the rarer rows)
+    time.sleep(0.3)
     items = [' '.join(b.text.split()) for b in d.find_elements(By.CSS_SELECTOR, "#modelViewport .view-suggest .vs-list button")]
     print("suggestions:", [x for x in items if x.startswith("✂")], "under", js("return [...document.querySelectorAll('#modelViewport .view-suggest .vs-sec')].map(e => e.textContent)"))
     next(b for b in d.find_elements(By.CSS_SELECTOR, "#modelViewport .view-suggest .vs-list button") if b.text.startswith("✂")).click()

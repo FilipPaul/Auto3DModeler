@@ -88,6 +88,8 @@ def click(o):
 
 def suggestion(start):
     """The suggestions table's button whose text starts with `start` (None: not offered)."""
+    js("document.querySelector('#modelViewport .view-suggest [data-sg-all]')?.click()")  # (⋯ Show all: the rarer rows)
+    time.sleep(0.3)
     for b in d.find_elements(By.CSS_SELECTOR, "#modelViewport .view-suggest .vs-list button"):
         if " ".join(b.text.split()).startswith(start):
             return b

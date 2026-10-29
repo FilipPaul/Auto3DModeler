@@ -952,6 +952,12 @@ const CS = {
   'Fix — all their points': 'Ukotvit — všechny jejich body',
   'More…': 'Další…',
   'Everything else that fits what is picked': 'Vše ostatní, co se hodí k výběru',
+  // the suggestions table: the most relevant first, the rest under ⋯ Show all
+  'Show all': 'Ukázat vše', Fewer: 'Méně', 'Show first': 'Ukázat prvních', suggestions: 'návrhů',
+  'Everything that can be done with what is selected': 'Vše, co jde s výběrem udělat',
+  'Only the most relevant suggestions': 'Jen nejdůležitější návrhy',
+  'How many suggestions show before ⋯ Show all — click to change': 'Kolik návrhů se ukáže před ⋯ Ukázat vše — kliknutím změníte',
+  'The most relevant suggestions first; the rest under ⋯ Show all': 'Nejdůležitější návrhy nahoře; ostatní pod ⋯ Ukázat vše',
   'Kind': 'Druh',
   // ⛓ merge / 🧹 simplify (many small shapes into few)
   '⛓ Merge': '⛓ Sloučit', Merge: 'Sloučit',

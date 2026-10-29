@@ -355,12 +355,9 @@ export class Assembly {
     }
     const q = fp[0], js = fits(kindOf(q)), a = this.inst(q.inst);
     const after = (x) => ({ ...x, run: async () => { await x.run(); this.renderSuggest(); } });
-    showSuggest(vp, what(q), [
-      { section: `${this.partName(a.part)} ${a.id}` },
-      { icon: '◆', label: t('Select the whole part'), title: t('The part chosen, not its face: its moves and joints in the panel'), run: () => { this.facePicks = []; this.snapPick = null; this.view.setMeasure([]); this.choose(a.id); this.drawMarks(); } },
-      ...this.partItems(a).map(after),
+    showSuggest(vp, what(q), [ // (the face's joints first, then its part: the table shows the top ones, the rest under ⋯ Show all)
       { section: t('This face') },
-      ...js.map(([type, j]) => ({ icon: j.icon, label: `${t(j.name)}…`, title: t('Then click a face of the other part'), run: () => {
+      ...js.map(([type, j], k) => ({ icon: j.icon, label: `${t(j.name)}…`, rank: ['parallel', 'perp', 'angle'].includes(type) ? 10 + k : k, title: t('Then click a face of the other part'), run: () => {
         this.startJoint(type);
         this.jointFrom = q;
         this.mode = 'joint-to';
@@ -368,7 +365,10 @@ export class Assembly {
         this.facePicks = [];
         this.drawMarks();
       } })),
-      { icon: '📏', label: t('Measure from here'), run: () => { done(); this.toggleMeasure(); } },
+      { icon: '📏', label: t('Measure from here'), rank: 7, run: () => { done(); this.toggleMeasure(); } },
+      { section: `${this.partName(a.part)} ${a.id}` },
+      { icon: '◆', label: t('Select the whole part'), rank: 5, title: t('The part chosen, not its face: its moves and joints in the panel'), run: () => { this.facePicks = []; this.snapPick = null; this.view.setMeasure([]); this.choose(a.id); this.drawMarks(); } },
+      ...this.partItems(a).map((x, k) => ({ ...after(x), rank: x.icon === '🔗' ? 20 : 8 + k })), // (joining: the face's own joints above)
     ], t('Ctrl+click a face of another part: the joints that fit the two'), refs);
   }
 
@@ -412,14 +412,14 @@ export class Assembly {
   partItems(a) {
     const joined = (this.doc.mates || []).some((m) => m.move === a.id), model = this.kindOf(a.part) === 'model';
     const light = this.bodies[a.part]?.body?.light;
-    return [
-      ...(this.hooks.openPart ? [{ icon: this.kindOf(a.part) === 'assembly' ? '◇' : '◆', label: t('Open its part'), title: t('Change it in its own tab (the assembly follows)'), run: () => this.hooks.openPart(a.part) }] : []),
+    return [ // (the most relevant first: join it, open / edit its part, fix it)
       { icon: '🔗', label: t(joined ? 'Join it to one more part' : 'Join it to another part'), run: () => this.startJoint('touch', a.id) },
-      ...(model ? [{ icon: '🪶', label: t(light ? 'Show it in full' : 'Show it simplified'), title: t('Simplified: a coarser mesh and less data — quicker to load and show'), run: async () => { this.doc.light = { ...(this.doc.light || {}), [a.part]: !light }; await this.refresh(); this.commit(); } }] : []),
+      ...(this.hooks.openPart ? [{ icon: this.kindOf(a.part) === 'assembly' ? '◇' : '◆', label: t('Open its part'), title: t('Change it in its own tab (the assembly follows)'), run: () => this.hooks.openPart(a.part) }] : []),
       ...(this.hooks.editInPlace && model ? [this.editable(a.part)
         ? { icon: '✎', label: t('Edit it here'), title: t('Change its part here, the rest of the assembly see-through around it'), run: () => this.editInPlace(a.id) }
         : { icon: '🔓', label: t('Unlock and edit it here'), title: t('Its part can be changed from this assembly then'), run: () => { this.toggleEditable(a.part); this.editInPlace(a.id); } }] : []),
       { icon: '📌', label: t(a.fixed ? 'Free it (not fixed)' : 'Fix in place'), run: () => this.toggleFixed(a.id) },
+      ...(model ? [{ icon: '🪶', label: t(light ? 'Show it in full' : 'Show it simplified'), title: t('Simplified: a coarser mesh and less data — quicker to load and show'), run: async () => { this.doc.light = { ...(this.doc.light || {}), [a.part]: !light }; await this.refresh(); this.commit(); } }] : []),
       ...(this.hooks.duplicatePart ? [{ icon: '⧉', label: t('Make it its own part'), title: t('A copy of its part for this place only'), run: () => this.ownPart(a.id) }] : []),
       { icon: '✕', label: t('Take it out'), danger: true, run: () => this.removeInst(a.id) },
     ];

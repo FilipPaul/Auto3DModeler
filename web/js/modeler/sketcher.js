@@ -2973,12 +2973,14 @@ export class Sketcher {
       circle: ['◯', 'Make it a circle', 'The two arcs on one centre become one circle'] };
     if (std) top.unshift({ icon: STD[std.kind][0], label: t(STD[std.kind][1]), title: t(STD[std.kind][2]), run: () => this.convertShape(std) });
     if (ids.length > 1 && shapes.length <= 80 && this.overlapping()) top.unshift({ icon: '∪', label: t('Unite overlapping shapes'), title: t('Closed shapes overlap: trim the pieces inside each other — one outline of lines and arcs (tangents and equal radii stay)'), run: () => this.unite() });
-    top = [...top.filter(Boolean).slice(0, 4), ...del];
-    const more = [['Edit', edit], ['Relations', rels], ['Kind', kind]].map(([s, its]) => [s, its.filter((x) => x && !top.includes(x))]).filter(([, its]) => its.length);
-    const key = P.map((q) => `${q.kind}:${q.id}`).join(',');
-    if (!more.length) return top;
-    if (this.sgMore !== key) return [...top, { icon: '⋯', label: t('More…'), title: t('Everything else that fits what is picked'), run: () => { this.sgMore = key; this.renderSuggest(); } }];
-    return [...top, ...more.flatMap(([s, its]) => [{ section: t(s) }, ...its])];
+    // ranked for the table (suggest.js shows the most relevant, the rest under ⋯ Show all): the likeliest four,
+    // Delete, the rest of the likeliest; then two shapes — the other relations, the kind, the edits; more shapes —
+    // the edits, the kind, the relations
+    top = top.filter(Boolean);
+    const first = [...top.map((x, k) => ({ ...x, rank: k < 4 ? k : k + 1 })), ...del.map((x) => ({ ...x, rank: Math.min(top.length, 4) }))];
+    const order = n > 2 ? { Edit: 10, Kind: 20, Relations: 30 } : { Relations: 10, Kind: 20, Edit: 30 };
+    const more = [['Edit', edit], ['Relations', rels], ['Kind', kind]].map(([s, its]) => [s, its.filter((x) => x && !top.includes(x)).map((x, k) => ({ ...x, rank: order[s] + k }))]).filter(([, its]) => its.length).sort((a, b) => order[a[0]] - order[b[0]]); // (the sections in that order too)
+    return [...first, ...more.flatMap(([s, its]) => [{ section: t(s) }, ...its])];
   }
 
   /** The suggestions table (bottom left) for what is picked. */

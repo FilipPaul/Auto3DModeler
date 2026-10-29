@@ -597,8 +597,11 @@ export class Modeler {
         ['del', '✕', t('Delete the step'), () => this.remove(fs.step.id), 'danger']]],
     ].map(([title, items]) => [title, items.filter(Boolean)]).filter(([, items]) => items.length);
     const face = t(this.faceLabel(h.face.name).replace(/ of .*$/, '').replace(/^the /, ''));
+    // the most relevant first (the table shows the top ones, the rest under ⋯ Show all): a flat face — sketch on it,
+    // a hole, round / bevel, edit; a round one — its edges, threads, edit
+    const RANK = { sketch: 0, hole: 1, fillet: 2, chamfer: 3, edit: 4, decal: 5, shell: 6, del: 7, mirror: 8, split: 9, off: 10, threads: flat ? 11 : 2.5 };
     const sg = showSuggest(this.els.viewport, `${fs.step.name} · ${face}`, sections.flatMap(([title, items]) => [{ section: title },
-      ...items.map(([, icon, label, run, cls]) => ({ icon, label, danger: cls === 'danger', run: () => { this.dropSuggest(); run(); } }))]), '',
+      ...items.map(([key, icon, label, run, cls]) => ({ icon, label, rank: RANK[key], danger: cls === 'danger', run: () => { this.dropSuggest(); run(); } }))]), '',
       `${t('in the 3D model')}: ${t('step')} ${fs.step.id} “${fs.step.name}”, ${t('face')} ${h.face.name}${h.face.type === 'plane' ? ` (${t('flat')})` : h.face.type === 'cylinder' ? ` (${t('round')}, Ø${fmt(2 * (h.face.radius || 0))})` : ''}`);
     if (sg) sg.dataset.from = 'face';
   }
