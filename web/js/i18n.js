@@ -1080,6 +1080,9 @@ const CS = {
   'Fold or unfold it (its header stays)': 'Sbalit nebo rozbalit (záhlaví zůstane)',
   'Layout: dock it, float it over the view, its opacities, ↺ Default layout': 'Rozložení: ukotvit, nechat plavat nad pohledem, krytí, ↺ Výchozí rozložení',
   'Close it (it comes back from the toolbar)': 'Zavřít (vrátíte ho z panelu nástrojů)',
+  // a free motion's readable name (Assembly.motionsOf): "Otáčení: Klika", two of a kind with how in brackets
+  'Turn: {part}': 'Otáčení: {part}', 'Slide: {part}': 'Posuv: {part}', 'along the axis': 'podél osy', 'about the axis': 'kolem osy',
+  'along {axis}': 'podél {axis}', 'about {axis}': 'kolem {axis}', 'along the face': 'po stěně', 'on the face': 'na stěně', 'away from the face': 'od stěny',
   // ⚙ couplings: gears, belts, racks (assembly/couplings.js)
   'Gear pair': 'Ozubení / převod', 'Belt / chain': 'Řemen / řetěz', 'Rack and pinion': 'Hřeben a pastorek',
   'Two round faces of two turning parts: turning one turns the other by the ratio (gears in mesh turn opposite ways, a ring gear the same way)': 'Dvě kruhové stěny dvou otočných dílů: otočení jednoho otočí druhý podle převodu (zabírající kola se točí opačně, vnitřní ozubení stejně)',

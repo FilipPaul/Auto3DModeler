@@ -7,6 +7,14 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Readable motion names by default done** (the walkthrough's "left out": the crank's motion was "Otočit kolem osy:
+  stěna Extrude 2" until renamed). Assembly.motionsOf names each free motion by its part and kind: "Turn: Crank" /
+  "Slide: Slider" (Czech "Otáčení: Klika" / "Posuv: Smýkadlo"); two motions of one kind add how, in brackets ("Slide:
+  Lid (along X)", "(along the axis)", "(on the face)" …: each candidate's `how`); the joint's own words stay as
+  `detail` (the motion row's tooltip); a part fixed on a turning one shows that part's motion ("Turn: Bearing", the
+  hint says it goes along). The user's names (moveNames) still win. e2e_assembly_lockmotion / lever / loop /
+  mechanism and make_demos find the motions by the new words.
+
 - **⚙ Couplings between motions — gears, belts, a rack done** (the owner: "couplings between motions in assemblies,
   each one joint with ONE input"). web/js/assembly/couplings.js: assembly JSON `couplings` [{id G…, type gear | belt
   | rack, a, aFace, b, bFace, ratio, inner, flip, name}] — gear / belt: ratio = turns of a per turn of b (Ø b / Ø a,

@@ -135,7 +135,7 @@ try:
     S(type="touch", move={"part": "I4", "face": "F2:start"}, onto={"part": "I1", "face": "F2:end"})
     S(type="flush", move={"part": "I4", "face": "F2:side:l1"}, onto={"part": "I1", "face": "F2:side:l1"}, gap=-15)
     a = json.loads(call("get_assembly"))
-    along = next(i for i, m in enumerate(next(p for p in a["parts"] if p["id"] == "I4")["free"]) if "X" in m)
+    along = next(i for i, m in enumerate(next(p for p in a["parts"] if p["id"] == "I4")["free"]) if m.startswith("Slide"))
     qx = js(f"return {A}.worldFace('I4', 'F4:side:c1').axis.o.x")
     ex = js(f"return {A}.worldFace('I3', arguments[0]).axis.o.x", hole("I3", 1))
     call("move_free", part="I4", motion=along, amount=ex - qx)

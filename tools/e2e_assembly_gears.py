@@ -4,7 +4,8 @@ the pinion turned 90°: the wheel −45° (half, the other way) -> a belt wheel 
 as fast -> rim + the rack's side: "▤ Rack and pinion · 94.248 mm per turn" first -> the rack moves π·Ø per turn ->
 one ⚙ Mechanism for the whole train: its slider, ▶ (the ratios hold while it plays), ⚠ the travel checked ->
 the wheel dragged in the view: the pinion turns twice as far back -> the panel's ratio typed (3) and ⇄ -> undo ->
-the AI's snap_faces type gear / belt / rack and get_assembly `couplings` -> Czech.
+the AI's snap_faces type gear / belt / rack and get_assembly `couplings` -> readable motion names ("Turn: Pinion",
+"Otáčení: Pinion") -> Czech.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_assembly_gears.py http://127.0.0.1:5199 <out dir>
 """
@@ -155,6 +156,9 @@ try:
     check(len(c) == 1 and c[0]["type"] == "gear" and c[0]["ratio"] == 2 and c[0]["way"] == "opposite", f"G1 made: {c}")
     m = mech()
     check(any(sorted(x["parts"]) == ["I2", "I3"] for x in m), f"one mechanism for the pair: {[x['parts'] for x in m]}")
+
+    free = {p["id"]: p.get("free") for p in json.loads(call("get_assembly"))["parts"]}
+    check(free["I2"] == ["Turn: Pinion"] and free["I3"] == ["Turn: Wheel"] and free["I5"] == ["Slide: Rack"], f"readable motion names: {free}")
 
     # the pinion turned 90°: the wheel −45°
     s0 = snapshot()
@@ -310,6 +314,9 @@ try:
     rows = pick(("I2", rim("I2")), ("I3", rim("I3")))
     check(bool(rows) and rows[0] == "⚙ Ozubení / převod · i = 2:1", f"Czech: {rows[:2]}")
     js(f"document.querySelector('#asmViewport .view-suggest')?.remove(); {A}.facePicks = []; {A}.choose('I2')")
+    free = {p["id"]: p.get("free") for p in json.loads(call("get_assembly"))["parts"]}
+    mo = js("return document.querySelector('[data-mcmo]')?.textContent || ''")
+    check(free["I2"] == ["Otáčení: Pinion"] and free["I5"] == ["Posuv: Rack"] and "Otáčení: Pinion" in mo, f"Czech motion names: {free['I2']}, {free['I5']} | ⚙ {mo}")
     time.sleep(0.4)
     head = d.find_elements(By.CSS_SELECTOR, "#asmRight h3")
     txt = d.find_element(By.CSS_SELECTOR, "#asmRight").text

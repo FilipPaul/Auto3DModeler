@@ -837,11 +837,12 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   every part joined to it follows live (the rod and the slider of a crank; a forearm and its gripper on a turning
   arm). Grabbing any part of a closed loop (the rod) turns the loop's driver. Elsewhere a drag turns the view as
   always.
-- **Name the motions**: double-click a motion's name in the part's panel or in ⚙ Mechanism (*"Dvojklik: dát mu
-  vlastní název"*) — "Otáčení kliky" instead of "Turn about the axis of …"; double-click a mechanism's name for its
-  own. The names are kept in the assembly (undo, save and open again) and show everywhere: the panel, the widget, the
-  AI's get_assembly / gui_state. The AI: get_assembly `mechanisms`, `drive_mechanism {mechanism, to, driver, name,
-  play}` and `name_motion {part, motion, name}`.
+- **Name the motions**: a free motion is named by its part — *Turn: Crank*, *Slide: Slider* (*Otáčení: Klika*,
+  *Posuv: Smýkadlo*; two of a kind say how: *Slide: Lid (along X)*; the joint it comes from is in its tooltip).
+  Double-click a motion's name in the part's panel or in ⚙ Mechanism (*"Dvojklik: dát mu vlastní název"*) for your
+  own — "Otáčení kliky"; double-click a mechanism's name for its own. The names are kept in the assembly (undo, save
+  and open again) and show everywhere: the panel, the widget, the AI's get_assembly / gui_state. The AI: get_assembly
+  `mechanisms`, `drive_mechanism {mechanism, to, driver, name, play}` and `name_motion {part, motion, name}`.
 - **A sub-assembly keeps its own motions**: choose a placed sub-assembly — **Moves inside <it>** shows a slider for
   each way its own joints leave its parts free (a lever on its pin). Slide: the lever turns here, in this placement
   only — the sub-assembly's own tab stays as it is, and a second placement of it can stand differently. Parts joined

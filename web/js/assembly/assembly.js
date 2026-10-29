@@ -2421,24 +2421,29 @@ export class Assembly {
       try { fA = this.worldFace(m.onto, m.ontoFace); } catch { continue; }
       const what = m.name ? `“${m.name}”` : this.faceText(m.onto, m.ontoFace), part = this.partName(this.inst(m.onto)?.part); // (the joint's own name when the user gave it one)
       if (fA.axis) {
-        cands.push({ kind: 'move', dir: fA.axis.d.clone(), key: `${m.id}:along`, ref: m.id, label: t2('Along the axis of {face} ({part})', { face: what, part }) });
-        cands.push({ kind: 'turn', dir: fA.axis.d.clone(), point: fA.axis.o.clone(), key: `${m.id}:turn`, ref: m.id, label: t2('Turn about the axis of {face} ({part})', { face: what, part }) });
+        cands.push({ kind: 'move', dir: fA.axis.d.clone(), key: `${m.id}:along`, ref: m.id, how: t('along the axis'), label: t2('Along the axis of {face} ({part})', { face: what, part }) });
+        cands.push({ kind: 'turn', dir: fA.axis.d.clone(), point: fA.axis.o.clone(), key: `${m.id}:turn`, ref: m.id, how: t('about the axis'), label: t2('Turn about the axis of {face} ({part})', { face: what, part }) });
       }
       if (fA.normal) {
         const n = fA.normal.clone(), u = new THREE.Vector3(1, 0, 0).projectOnPlane(n);
         if (u.length() < 1e-6) u.set(0, 1, 0).projectOnPlane(n);
         u.normalize();
         const v = new THREE.Vector3().crossVectors(n, u).normalize();
-        [u, v].forEach((dir, k) => cands.push({ kind: 'move', dir, key: `${m.id}:${'uv'[k]}`, ref: m.id, label: axisName(dir) ? t2('Along {axis} (on {face})', { axis: axisName(dir), face: what }) : t2('Along {face}', { face: what }) }));
-        cands.push({ kind: 'turn', dir: n, point: c.clone(), key: `${m.id}:spin`, ref: m.id, label: t2('Turn on {face} ({part})', { face: what, part }) });
-        cands.push({ kind: 'move', dir: n.clone(), key: `${m.id}:away`, ref: m.id, label: t2('Away from {face}', { face: what }) });
+        [u, v].forEach((dir, k) => cands.push({ kind: 'move', dir, key: `${m.id}:${'uv'[k]}`, ref: m.id, how: axisName(dir) ? t2('along {axis}', { axis: axisName(dir) }) : `${t('along the face')} ${'uv'[k]}`,
+          label: axisName(dir) ? t2('Along {axis} (on {face})', { axis: axisName(dir), face: what }) : t2('Along {face}', { face: what }) }));
+        cands.push({ kind: 'turn', dir: n, point: c.clone(), key: `${m.id}:spin`, ref: m.id, how: t('on the face'), label: t2('Turn on {face} ({part})', { face: what, part }) });
+        cands.push({ kind: 'move', dir: n.clone(), key: `${m.id}:away`, ref: m.id, how: t('away from the face'), label: t2('Away from {face}', { face: what }) });
       }
     }
     for (const [k, dir] of [['X', [1, 0, 0]], ['Y', [0, 1, 0]], ['Z', [0, 0, 1]]]) {
-      cands.push({ kind: 'move', dir: new THREE.Vector3(...dir), key: k, label: t2('Along {axis}', { axis: k }) });
-      cands.push({ kind: 'turn', dir: new THREE.Vector3(...dir), point: c.clone(), key: `turn${k}`, label: t2('Turn about {axis}', { axis: k }) });
+      cands.push({ kind: 'move', dir: new THREE.Vector3(...dir), key: k, how: t2('along {axis}', { axis: k }), label: t2('Along {axis}', { axis: k }) });
+      cands.push({ kind: 'turn', dir: new THREE.Vector3(...dir), point: c.clone(), key: `turn${k}`, how: t2('about {axis}', { axis: k }), label: t2('Turn about {axis}', { axis: k }) });
     }
     const r = freeMotions(M, (MM) => this.holdPart(id, MM, true), c, L, cands);
+    // readable names: "Turn: Crank", "Slide: Slider" (two of a kind: how, in brackets); the joint's words kept as `detail`
+    const me = this.partName(it.part), kinds = {}, word = (mo) => t2(mo.kind === 'turn' ? 'Turn: {part}' : 'Slide: {part}', { part: me });
+    for (const mo of r.motions) kinds[mo.kind] = (kinds[mo.kind] || 0) + 1;
+    r.motions = r.motions.map((mo) => ({ ...mo, detail: mo.label, label: kinds[mo.kind] > 1 ? `${word(mo)} (${mo.how})` : word(mo) }));
     if (it.moveNames) r.motions = r.motions.map((mo) => (it.moveNames[mo.key] ? { ...mo, name: it.moveNames[mo.key], auto: mo.label, label: it.moveNames[mo.key] } : mo)); // (the user's own names)
     if (!r.count && !own) { // fixed on the part it hangs on: the ways that one can move (it goes along)
       const P = mine[0].onto, seen = new Set([...(this._via || []), id]);
@@ -2449,7 +2454,7 @@ export class Assembly {
         if (d?.count) {
           const with_ = this.partName(this.inst(P)?.part);
           return { count: d.count, unexplained: d.unexplained, via: P, centre: c, size: L,
-            motions: d.motions.map((m) => ({ ...m, via: m.via || P, label: t2('{way} — with {part}', { way: m.label, part: with_ }) })) };
+            motions: d.motions.map((m) => ({ ...m, via: m.via || P, label: m.label, detail: t2('{way} — with {part}', { way: m.detail || m.label, part: with_ }) })) }; // (its name: the part that turns)
         }
       }
     }
@@ -2609,7 +2614,7 @@ export class Assembly {
     const span = Math.max(10, Math.round(size));
     const lo = lim ? lim.min : turn ? -180 : Math.floor(pos - span), hi = lim ? lim.max : turn ? 180 : Math.ceil(pos + span);
     const note = this.travelNote?.inst === it.id && this.travelNote.key === mo.key ? this.travelNote : null;
-    return `<div class="as-dof" data-dofrow="${i}"><label>${turn ? '↻' : '↔'} <span class="as-mname ${mo.name ? 'own' : ''}" data-mname="${i}" title="${esc(t('Double-click: give this motion your own name'))}" ${mo.name ? 'data-no-i18n' : ''}>${esc(mo.label)}</span></label>
+    return `<div class="as-dof" data-dofrow="${i}"><label>${turn ? '↻' : '↔'} <span class="as-mname ${mo.name ? 'own' : ''}" data-mname="${i}" title="${esc(`${mo.detail ? `${mo.detail} · ` : ''}${t('Double-click: give this motion your own name')}`)}" ${mo.name ? 'data-no-i18n' : ''}>${esc(mo.label)}</span></label>
       <div class="as-dofrow"><input type="range" data-dof="${i}" min="${lo}" max="${hi}" step="${turn ? 1 : 0.5}" value="${pos}">
       <input type="number" step="any" data-dofn="${i}" value="${fmt(pos)}"><span class="unit">${u}</span>${only ? '</div></div>' : `
       <button class="mini ${lim ? 'on' : ''}" data-dlim="${i}" title="${esc(lim ? 'Its limits — click to take them off (it moves freely again)' : 'Limits: how far it may go each way (a cylinder\'s stroke, a slide\'s ends, a door\'s swing)')}">⇤⇥</button>
