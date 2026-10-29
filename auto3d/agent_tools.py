@@ -485,7 +485,9 @@ TOOLS = [
      "description": "Search the parts library — real parts with their maker and part number: ISO / DIN screws M1–M6 (socket, button, "
                     "countersunk, pan, cheese, hex heads), screws for plastics, nuts, washers, heat-set inserts (ruthex), bearings (608-2Z…, "
                     "LMxUU), standoffs, panel parts (LEDs, push buttons, USB / RJ45), SMC cylinders / fittings / valves, SICK inductive "
-                    "sensors, NEMA 17 / 23 steppers, and the user's own parts. query: words like \"M3 socket\", \"608\", \"cylinder 16\", "
+                    "sensors, NEMA 17 / 23 steppers, ICT / FCT test probes (pogo pins: INGUN GKS-100 / 075 / 050, KESACON MPI) and their "
+                    "receptacles (INGUN KS-100 / KS-050), and the user's own parts. query: words like \"M3 socket\", \"608\", \"cylinder 16\", "
+                    "\"probe 1.27\", \"GKS-100 crown\", an order code, "
                     "\"inductive M12\". -> items (item id, sizes, lengths / strokes, an example with its part number). Use it BEFORE "
                     "drawing a bought part yourself.",
      "inputSchema": _obj({"query": STR, "category": STR}, ["query"])},

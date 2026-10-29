@@ -7,6 +7,22 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **📚 Test probes and receptacles (2026-10-29)** (the owner, an ICT / FCT tester maker: "knihovny pouzder a jehel od
+  INGUN, ECT a KESACON … pokud si nejsi jistý rozměry, tak je do knihovny nepřidávej"). library/probes.json: INGUN
+  GKS-100 / GKS-075 / GKS-050 probes (17 items by series and head style, 45 variants by exact order code + INGUN item
+  no., spring force, preload, current), INGUN KS-100 (30, 30 05, 30 25, 30 40, 30 93) and KS-050 30 E08 receptacles,
+  KESACON MPI100 / MPI075 / MPI050 flat-tip probes (12 variants). Sizes from the INGUN product pages and datasheet
+  drawings (length, barrel / plunger / head Ø, plunger and head lengths, head angle), each checked against INGUN's free
+  STEP model read with the app's importer (a STEP that disagrees: the part left out); a receptacle's collar thickness
+  and solder cup from the STEP; the probe's seat from the maker's installation-height lists (the bore: the probe's
+  barrel down to it). KESACON: its 2025 catalogue (pp. 11, 14, 18). Left out: ECT (no tip sizes, no inner sizes of
+  receptacles), KESACON receptacles and INGUN KS-075 (seat or collar not certain), heads with two angles (daggers 291
+  / 297, 207, 238, 319, 222, 225, 289) and the GKS-050 214 / 297 (STEP ≠ datasheet). Fields: accuracy "catalogue"
+  (📐 Dimensions per catalogue), name_cs / description_cs, datasheet / cad / page links (no vendor files in the repo).
+  The 📚 window lists a three-level category under its maker's heading (closed until clicked), searches Czech words,
+  series and item numbers; INGUN shop link. Tests: test_library_probes (each entry built by the kernel to its sizes
+  within 0.01 mm, catalogue numbers, links, searches), e2e_library_probes, e2e_library_build (192 builds).
+
 - **The AI sees the suggestions table (2026-10-29)** (the owner: "zdá se mi, že agent nevidí suggestion table"). It
   did not: gui_state listed the table's rows as plain buttons among the rest (where: panel, no title, no order, nothing
   marking them), the rows under ⋯ Show all not at all, and get_screenshot drew the 3D only. Now suggest.js keeps each

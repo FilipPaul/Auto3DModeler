@@ -146,6 +146,8 @@ export function buildPart(item, sizeKey = sizesOf(item)[0]?.key, length) {
   for (const [k, v] of Object.entries({ ...(item.order || {}), ...(vars.order || {}) })) order[k] = fill(v, vars);
   const name = fill(item.title || item.name, vars);
   const pn = fill(vars.pn ?? item.pn ?? '', vars);
+  // the maker's pages for this choice: its datasheet, its own 3D model (STEP, to download there), its product page
+  const links = Object.fromEntries(['datasheet', 'cad', 'page'].map((k) => [k, fill(item[k], vars)]).filter(([, v]) => /^https:\/\//.test(v)));
   return {
     name,
     data: {
@@ -155,6 +157,8 @@ export function buildPart(item, sizeKey = sizesOf(item)[0]?.key, length) {
       material: item.material || undefined,
       library: { id: item.id, item: item.name, category: item.category, size: sizeKey, ...(vars.L !== undefined && lengthsOf(item, sizeKey) ? { length: vars.L } : {}),
         maker: item.maker || '', pn, description: fill(item.description || item.name, vars), order, approx: !!item.approx && !real, standard: item.standard || '',
+        ...(item.description_cs ? { description_cs: fill(item.description_cs, vars) } : {}), ...(item.accuracy ? { accuracy: item.accuracy } : {}),
+        ...(Object.keys(links).length ? { links } : {}),
         ...(real ? { real: real.file } : {}), steps: stepsHash(features) },
     },
   };
@@ -167,6 +171,7 @@ const SHOPS = {
   smc: { shop: 'SMC', url: 'https://www.smc.eu/cs-cz/search?searchTerm={q}' },
   sick: { shop: 'SICK', url: 'https://www.sick.com/cz/cs/search?text={q}' },
   skf: { shop: 'SKF', url: 'https://www.skf.com/group/search-results?q={q}' },
+  ingun: { shop: 'INGUN', url: 'https://ingun.com/en/search?search={q}' },
   misumi: { shop: 'MISUMI', url: 'https://cz.misumi-ec.com/vona2/result/?Keyword={q}' },
   rs: { shop: 'RS Components', url: 'https://cz.rs-online.com/web/c/?searchTerm={q}' },
   conrad: { shop: 'Conrad', url: 'https://www.conrad.cz/cs/search.html?search={q}' },
@@ -175,14 +180,14 @@ const SHOPS = {
   farnell: { shop: 'Farnell', url: 'https://cz.farnell.com/search?st={q}' },
   gme: { shop: 'GM Electronic', url: 'https://www.gme.cz/hledani?search={q}' },
 };
-const MAKER_SHOP = { SMC: 'smc', SICK: 'sick', SKF: 'skf' };
+const MAKER_SHOP = { SMC: 'smc', SICK: 'sick', SKF: 'skf', INGUN: 'ingun' };
 const MECHANICAL = ['misumi', 'rs', 'conrad', 'tme'], ELECTRONIC = ['mouser', 'farnell', 'tme', 'gme', 'rs', 'conrad'];
 
 /** The shops where a part number is looked up: [{shop, url}] — lib: the part's library facts (its category, maker). */
 export function shopLinks(pn, lib = {}) {
   if (!pn) return [];
   const q = encodeURIComponent(pn), top = String(lib.category || '').split(' / ')[0];
-  const electronic = ['Panel', 'Sensors'].includes(top) && lib.maker !== 'SMC';
+  const electronic = ['Panel', 'Sensors', 'Test probes', 'Receptacles'].includes(top) && lib.maker !== 'SMC';
   const keys = [...new Set([MAKER_SHOP[lib.maker], ...(electronic ? ELECTRONIC : MECHANICAL)].filter(Boolean))];
   return keys.map((k) => ({ shop: SHOPS[k].shop, url: SHOPS[k].url.replace('{q}', q) }));
 }
