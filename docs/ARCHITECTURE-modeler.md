@@ -20,6 +20,27 @@ Date: 2026-10-25. Written by the architect agent.
   open_demo, get_assembly, drive_mechanism trace, record_animation, export project — 203.6 g, 50 mm.
   Left to gui_action: layout (widgets, windows, language, planes / ⊕ shown, explode per part, simplified look),
   sketch extend / construction / mirror / offset, step reorder, split pieces as parts, bending, print split joints.
+- **The shell for a new user done** (the owner: "maximální intuitivnost… suggestion based"; an audit at 1280×800 and
+  1600×1000 in Czech). **Start screen** (web/js/start.js): a project with no part, or every tab closed
+  (body.start-open; start-fresh when there are no parts), shows only "Co chcete vytvořit?" and four cards — ✏ Nový díl
+  (project.newModel), 📂 Otevřít soubor (#anyInput: any kind, routed by its extension — openFiles in app.js, also behind
+  Open ▾ › 📂 Soubor… and Ctrl+O), 🎬 Demo (showDemos), ✨ Zeptat se AI (the chat in the drawer beside it); ← → between
+  the cards; the quick part's panels hidden behind it (12 controls in sight instead of ~35); "No part open" above the
+  cards when tabs were closed, the project tree beside it. No tour. **Files dropped anywhere** (initWindowDrop): a dashed
+  frame over the window; a drop no view took (the quick part's view, the assembly's, the chat keep theirs) opens as
+  from 📂. **Top bar**: ✨ AI in every workspace (the quick part: its left AI tab), no "No drawing loaded", Ctrl+S saves.
+  **Suggestions core** (suggest.js, API unchanged): the head one line (the title ends in … with a tooltip), its setting
+  "Top 8" / "Prvních 8" shows with the mouse over the table (or while open), not in the title's way; keyboard — ↓ with
+  no field focused goes into the table on screen, ↓ ↑ Home End move, Enter runs (and nothing else that listens for it),
+  Esc leaves; **suggestMenu(at, title, items)**: the same rows as a small menu at a place — a part tab's right-click /
+  long-press: ✎ Přejmenovat, ⧉ Duplikovat, ↗ Otevřít v novém okně, ✕ Zavřít záložku. **Less bulk**: the docked project
+  widget as tall as its rows (leftDock.fitContent; one part 80 px, was ~200), the quick part's view chips one line each
+  (the row wraps, nothing cut off at 1280), toasts close on a click and at most 4 stay, the 3D print tab answers first
+  (fits / does not fit right under the printer; the build volume settings and the joints of split pieces folded — open
+  when it does not fit), the library shows its first part at once (↑ ↓ in the search walk the list; categories in Czech).
+  Tests: tools/e2e_ux_shell.py (32 checks, Czech, 1280×800 + 1600×1000 screenshots); e2e_suggest's setting click hovers
+  the table first. Left out: the "continue where you left off" strip stays above the start screen; the outline wizard
+  unchanged (dense but each control relevant).
 - **⏮ Print and export as the rollback bar stands done** (the owner: "Chci tisknout podle aktuálního umístění
   posuvníku" — as SolidWorks): one place on the server, doc.at_bar(part) — the steps up to part.rollback (absent or a
   step that is not there: all) — used by rebuild, body_of, export (STEP / IGES / STL / OBJ / GLB / PDF) and sheet, so

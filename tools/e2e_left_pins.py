@@ -1,5 +1,5 @@
 """Widgets in the left column, in headless Edge at 1280×800 with real mouse drags: two parts "Base", "Lid" and an
-assembly -> at first (a first install) the project tree is docked on top of the column, compact (5–8 rows) -> ⋯ ☰
+assembly -> at first (a first install) the project tree is docked on top of the column, compact (as tall as its rows, at most ~8) -> ⋯ ☰
 Back behind the button: ☰ opens it as before -> its header dragged into the left column docks it on top of the 3D
 model's step tree (the same rows, icons, ⧉ / ✕; a double-click renames a part) -> it stays in the sketch, the
 assembly and the 3D model again -> the splitter between the two widgets dragged: their heights change -> ▾ folds the
@@ -147,8 +147,9 @@ try:
     order = js("return [...document.querySelectorAll('#leftCol > .lw-widget')].filter(e => e.offsetHeight).sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top).map(e => e.dataset.w)")
     check(order == ["project", "panel"], f"on top of the step tree: {order}")
     th, rh = rect("#leftCol .lw-widget[data-w=project]")["h"], rect("#leftCol #projTree .pt-row")["h"]
-    rows_fit = (th - 26 - 12) / rh
-    check(5 <= rows_fit <= 8.5, f"compact: {th:.0f} px, {rows_fit:.1f} rows before it scrolls")
+    rows_fit, rows_in = (th - 26 - 12) / rh, js("return document.querySelectorAll('#leftCol #projTree .pt-row').length")
+    check(rows_in - 0.1 <= rows_fit <= 8.5 and js("const t = document.querySelector('#leftCol #projTree'); return t.scrollHeight <= t.clientHeight + 1"),
+          f"compact: {th:.0f} px, room for {rows_fit:.1f} rows — as tall as its {rows_in} rows, no scrolling")
     check(rect("#modelLeft")["h"] > 300, f"the step tree keeps room: {rect('#modelLeft')['h']:.0f} px")
     shot("lp0_default")
     d.find_element(By.CSS_SELECTOR, "#partTabs .pt-all").click()

@@ -70,12 +70,6 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 3px; }
 .part-tab.drop-after { box-shadow: inset -3px 0 0 var(--accent); }
 .part-tab .pt-x { opacity: .35; }
 .part-tab:hover .pt-x, .part-tab.on .pt-x { opacity: 1; }
-.no-part { display: none; }
-body.none-open .layout > :not(.no-part):not(.proj-tree):not(.left-col), body.none-open .left-col > :not([data-w=project]) { visibility: hidden; }
-body.none-open .left-col { background: none; border-color: transparent; }
-body.none-open .no-part { display: flex; position: absolute; inset: 0; z-index: 5; align-items: center; justify-content: center; flex-direction: column;
-  gap: 6px; color: var(--muted); text-align: center; }
-body.none-open .no-part b { color: var(--text); font-size: 16px; }
 .part-tab:hover { color: var(--text); }
 .pt-all { flex: none; align-self: center; margin: 0 4px 3px 0; background: transparent; border: 1px solid var(--line); color: var(--text);
   border-radius: 6px; padding: 2px 8px; cursor: pointer; font-size: 12px; }
@@ -205,7 +199,9 @@ body.none-open .no-part b { color: var(--text); font-size: 16px; }
 .viewport canvas { display: block; }
 .viewport.drag-over .drop-hint { display: flex; }
 .drop-hint { display: none; position: absolute; inset: 16px; border: 2px dashed var(--accent); border-radius: 12px; align-items: center; justify-content: center; font-size: 18px; background: #0f121680; z-index: 5; pointer-events: none; }
-.view-tools { position: absolute; top: 10px; left: 10px; display: flex; gap: 4px; z-index: 3; align-items: center; }
+.view-tools { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; flex-wrap: wrap; gap: 4px; z-index: 3; align-items: center; pointer-events: none; }
+.view-tools > * { pointer-events: auto; } /* (the row spans the view: its empty end is the view's) */
+.view-tools .chip { white-space: nowrap; }
 .chip { background: #161a20d0; border: 1px solid var(--line); border-radius: 14px; padding: 4px 11px; cursor: pointer; font-size: 12px; }
 .chip:hover { border-color: #44505f; }
 .chip.toggle.on { border-color: var(--accent); color: #cfe2ff; }
@@ -242,7 +238,7 @@ body.none-open .no-part b { color: var(--text); font-size: 16px; }
 .icon-btn:hover { color: var(--err); }
 
 .toast-stack { position: fixed; bottom: 18px; right: 310px; display: flex; flex-direction: column; gap: 8px; z-index: 50; max-width: 420px; }
-.toast { background: var(--panel-2); border: 1px solid var(--line); border-left: 4px solid var(--dim); border-radius: 8px; padding: 10px 14px; box-shadow: 0 8px 24px #0009; line-height: 1.4; animation: slide .2s; }
+.toast { background: var(--panel-2); border: 1px solid var(--line); border-left: 4px solid var(--dim); border-radius: 8px; padding: 10px 14px; box-shadow: 0 8px 24px #0009; line-height: 1.4; animation: slide .2s; cursor: pointer; }
 .toast.error { border-left-color: var(--err); }
 .toast.warning { border-left-color: var(--warn); }
 .toast.ok { border-left-color: var(--ok); }
@@ -1083,8 +1079,8 @@ body.view-acts .toast-stack { bottom: 84px; }
   border-radius: 10px; box-shadow: 0 8px 24px #0008; overflow: hidden; display: flex; flex-direction: column; max-height: calc(100% - 120px); }
 .view-suggest .vs-list { overflow-y: auto; min-height: 0; } /* (a long table in a low view: its rows scroll, the head stays) */
 .view-suggest .vs-head, .view-suggest .vs-hint { flex: none; }
-.vs-head { cursor: move; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 7px 11px 6px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
-.vs-head b { font-size: 12.5px; }
+.vs-head { cursor: move; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 9px 6px 11px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
+.vs-head b { font-size: 12.5px; flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* (one line: a long name ends in …, whole in its tooltip) */
 /* the assembly's joints, each a button of its own (one click starts it; lit while its faces are picked) */
 .as-jbar { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px; padding: 2px 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); }
 .as-jbar .as-jlabel { font-size: 12px; color: var(--muted); padding: 0 8px 0 4px; margin-right: 2px; border-right: 1px solid var(--line); white-space: nowrap; } /* (a label, not a button) */
@@ -1103,7 +1099,12 @@ body.view-acts .toast-stack { bottom: 84px; }
 .vs-head .vs-ai { margin-left: 6px; background: none; border: 1px solid var(--line); border-radius: 6px; padding: 0 5px; cursor: pointer; font-size: 12px; }
 .vs-head .vs-ai:hover { border-color: var(--accent); }
 .vs-head span, .vs-head .vs-set { flex: none; font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
-.vs-head .vs-set { margin-left: auto; background: none; border: 0; padding: 0; font-family: inherit; cursor: pointer; }
+.vs-head .vs-set { margin-left: auto; background: none; border: 1px solid transparent; border-radius: 5px; padding: 0 4px; font-family: inherit; cursor: pointer; text-transform: none; letter-spacing: 0; }
+.vs-head .vs-set:hover { border-color: var(--line); }
+/* the setting out of the way: it shows with the mouse over the table (or while open) — the title keeps the head */
+.view-suggest .vs-head .vs-set { max-width: 0; padding: 0; border-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; transition: opacity .12s; }
+.view-suggest:hover .vs-head .vs-set, .view-suggest .vs-head .vs-set.on, .view-suggest .vs-head .vs-set:focus-visible { max-width: 100px; padding: 0 4px; border-width: 1px; opacity: 1; }
+.sg-menu .vs-key { font-family: inherit; }
 .vs-head .vs-set:hover, .vs-head .vs-set.on { color: var(--accent); }
 .view-suggest .vs-top { flex: none; display: flex; align-items: center; gap: 6px; padding: 5px 11px; font-size: 11.5px; color: var(--muted); border-bottom: 1px solid var(--line); }
 .view-suggest .vs-top input { width: 46px; }
@@ -1113,6 +1114,11 @@ body.view-acts .toast-stack { bottom: 84px; }
 .vs-list button { display: flex; align-items: center; gap: 8px; text-align: left; background: none; border: 0; color: var(--text); padding: 5px 8px;
   border-radius: 6px; font: inherit; font-size: 12.5px; cursor: pointer; }
 .vs-list button:hover { background: #2b3440; }
+.vs-list button:focus-visible { outline: none; background: #2b3440; box-shadow: inset 2px 0 0 var(--accent); } /* (the row the keyboard is on) */
+/* suggestMenu: the same rows as a small menu at a place (a tab's right-click) */
+.sg-menu { position: fixed; z-index: 60; min-width: 200px; max-width: 320px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px #0009; overflow: hidden; }
+.sg-menu .vs-head { cursor: default; }
+.sg-menu .vs-key { margin-left: auto; font-size: 10.5px; color: var(--muted); }
 .vs-list .vs-i { width: 18px; flex: none; text-align: center; color: var(--accent); }
 .vs-list button.danger, .vs-list button.danger .vs-i { color: #ff8c84; }
 .vs-hint { margin: 0; padding: 0 11px 8px; font-size: 11px; color: var(--muted); }
@@ -1337,3 +1343,42 @@ body.vr-preview #partTabs, body.vr-preview .topbar .actions > :not(#langBtn), bo
 .save-menu .caret { padding-left: 5px; padding-right: 5px; margin-left: -4px; }
 .save-menu .menu-item input { vertical-align: middle; margin-right: 4px; }
 .toast .vr-undo { margin-left: 6px; }
+
+/* ---------------------------------------------------------------- the start screen (start.js): an empty project, or
+   every tab closed — four big ways to begin in the middle; the workspace's panels come with the first part */
+.start-screen { display: none; }
+body.start-open .start-screen { display: flex; position: absolute; inset: 0; z-index: 5; align-items: center; justify-content: center;
+  padding: 24px; pointer-events: none; }
+body.start-open:not(.start-fresh) .start-screen { left: var(--left-w, 340px); } /* (the project tree beside it) */
+body.start-open .layout > :not(.start-screen):not(.proj-tree):not(.left-col):not(.ai-drawer), body.start-open .left-col > :not([data-w=project]) { visibility: hidden; }
+body.start-open .left-col { background: none; border-color: transparent; }
+body.start-fresh .left-col { visibility: hidden; }
+.st-box { pointer-events: auto; display: flex; flex-direction: column; align-items: center; gap: 16px; max-width: 720px; width: 100%; }
+.st-title { margin: 0; font-size: 20px; font-weight: 600; color: var(--text); }
+.st-box .no-part { display: none; }
+body.none-open .st-box .no-part { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--muted); text-align: center; }
+body.none-open .st-box .no-part b { color: var(--text); font-size: 15px; }
+body.none-open .st-title { font-size: 15px; color: var(--muted); font-weight: 500; }
+.st-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; width: 100%; }
+.st-card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 20px 12px 16px; min-height: 150px; text-align: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; color: var(--text); transition: border-color .12s, background .12s, transform .12s; }
+.st-card:hover, .st-card:focus-visible { border-color: var(--accent); background: var(--panel-2); outline: none; transform: translateY(-1px); }
+.st-card .st-i { font-size: 30px; line-height: 1.2; }
+.st-card b { font-size: 14.5px; }
+.st-card .st-sub { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.st-card.st-new { border-color: #8957e5; background: color-mix(in srgb, #6e40c9 18%, var(--panel)); }
+.st-card.st-new:hover, .st-card.st-new:focus-visible { background: color-mix(in srgb, #6e40c9 30%, var(--panel)); border-color: #a371f7; }
+@media (max-width: 1100px) { .st-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+body.start-open .restore-bar { justify-content: center; }
+/* a file over the window: it opens wherever it is dropped */
+body.file-over::after { content: ""; position: fixed; inset: 6px; border: 2px dashed var(--accent); border-radius: 12px; pointer-events: none; z-index: 90; background: #3b82f610; }
+body.file-over.start-open .st-card[data-start=open] { border-color: var(--accent); background: var(--panel-2); }
+.menu-list button.menu-strong { font-weight: 600; display: flex; align-items: center; gap: 12px; }
+.menu-key { margin-left: auto; font-weight: 400; font-size: 11px; color: var(--muted); }
+/* the 3D print tab: the fit answer first; the printer's settings and the joints of split pieces folded (open when it
+   does not fit) */
+details.pr-more { margin: 10px 0 4px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--panel-2); }
+details.pr-more summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+details.pr-more summary:hover { color: var(--text); }
+details.pr-more[open] summary { margin-bottom: 8px; color: var(--text); }
+#rtab-print .fit { margin-top: 10px; }

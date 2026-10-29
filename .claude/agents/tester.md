@@ -390,6 +390,14 @@ Never report "works" without having run it; report failures with their output.
    "Před obnovením" listed, ↶ in the toast; ⑂ variant "delší" from B: its own empty timeline, 40; switched to hlavní: 10;
    the part taken from "delší": 40; reload keeps it all; Save project with the history -> opened: the versions back).
    Screenshots versions_*.png. Ends ALL OK / FAILED.
+   `tools/e2e_ux_shell.py <url> <dir>` covers the app's shell for a new user, in Czech at 1280×800 (it clears the
+   server's recent projects first): the start screen (✏ Nový díl, 📂 Otevřít soubor, 🎬 Demo, ✨ Zeptat se AI; ≤ 14
+   controls in sight, no quick-part panels, → between the cards); ✨ opens the chat beside it; ✏ makes a 3D model (the
+   project widget ≤ 90 px with one part); a tab right-clicked: Přejmenovat / Duplikovat / okno / Zavřít, ↓ Enter
+   renames, Esc closes; Ctrl+S = Save project; Export ▾ with STL / STEP; a face's suggestions: "Prvních 8" in the head,
+   ↓ into the table, ↓ ↑, Enter = a sketch on the face; an STL dropped on a 3D model's view opens; ✨ AI in the quick
+   part's top bar (its AI tab); every tab closed: the start screen + "Žádný díl" + the tree; a STEP through 📂 opens;
+   🎬 Demo opens the mechanism. Screenshots ux_*.png (1280 and 1600 wide). Ends all checks OK / FAILED.
    `tools/e2e_parameters.py <url> <dir>` covers 𝑥 project parameters (the browser's parser against
    tests/param_cases.json — the same cases as Python's; "L = 40" typed as an Extrude distance makes L, the step keeps d = L;
    the 𝑥 Parameters widget appears; a sketch's width typed "L/2" on its size label (shown "L/2 = 20"); L = 60 in the
