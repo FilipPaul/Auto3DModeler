@@ -38,7 +38,8 @@ Then the toolbar path, for every step above (sketch, extrude, hole, pattern, fil
   (`gui_action {control: "<box label>", value: …}`), OK / Finish, then `get_model` / `get_assembly` / `get_sheet` —
   the result must equal what the tool gave. Picks in the view: `gui_action {at: [x, y]}` — the pixels you read off
   your last `get_screenshot` (an edge too: aimed through the picture's camera); keys: Escape cancels, Delete
-  deletes, ctrl+z undoes.
+  deletes, ctrl+z undoes. Multi-select as the user does: a click, then `gui_action {pick: …, mods: ["ctrl"]}`
+  (Ctrl+click) — the table then offers what fits both.
 - **Czech**: click the top bar's **CZ** (`gui_action {control: "CZ"}`), `gui_state` again — every label and tooltip
   must be Czech (English words left = a ui problem: list them); **EN** switches back. Do this once per workspace.
 - **Intuitive**: the panel opens with good defaults (works with one click), says in plain words what to pick, the

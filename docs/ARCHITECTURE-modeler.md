@@ -7,6 +7,10 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **gui_action `mods` (2026-10-29)** (an app report: the AI could not test Ctrl+click multi-select): mods = ["ctrl" |
+  "shift" | "alt" | "meta"] held during a click — at / pick / at_mm / a drawn thing (the pointer + mouse events carry
+  ctrlKey …) or a control (its click event). Test: e2e_ai_gui.py — F2:end, then the front face with ctrl: both
+  selected; a plain click: one; a wrong key refused.
 - **gui_action `at` = a point of the AI's picture (2026-10-29)** (an app report: a fillet click meant for an edge
   landed on the face). get_screenshot is 1200 × 900 whatever the view's shape, but `at` was 0 … 1 of the view on
   screen (another aspect, and a narrow view fitted from farther): a point read off the picture missed by tens of px.

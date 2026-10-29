@@ -373,15 +373,16 @@ function underAt(x, y) {
   return el.tagName === 'CANVAS' ? 'the 3D view' : el.tagName.toLowerCase();
 }
 
-/** A mouse press / drag / double-click as the user's, at screen points: pointer + mouse events on what is there. A
- *  pointer capture asked for (a drag) gets the rest, as in the browser (what was pressed may be drawn anew). */
-async function gesture(path, { double = false } = {}) {
+/** A mouse press / drag / double-click as the user's, at screen points: pointer + mouse events on what is there, with
+ *  the keys held (mods: {ctrlKey, shiftKey, altKey, metaKey}). A pointer capture asked for (a drag) gets the rest, as
+ *  in the browser (what was pressed may be drawn anew). */
+async function gesture(path, { double = false, mods = {} } = {}) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const [x0, y0] = path[0], end = path[path.length - 1];
   if (!document.elementFromPoint(x0, y0)) throw new Error('That point is off the screen.');
   let captured = null;
   const ev = (el, type, [x, y], buttons) => {
-    const o = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, button: 0, buttons, pointerId: 1, pointerType: 'mouse', isPrimary: true, detail: 1 };
+    const o = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, button: 0, buttons, pointerId: 1, pointerType: 'mouse', isPrimary: true, detail: 1, ...mods };
     el.dispatchEvent(type.startsWith('pointer') ? new PointerEvent(type, o) : new MouseEvent(type, o));
   };
   const to = (p) => captured || document.elementFromPoint(...p) || document.body;
@@ -548,7 +549,13 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       return ok({ workspace: state.workspace, ...(sg ? { suggestions: sg } : {}), controls: list.map(({ el, ...c }) => c), ...(steps ? { steps } : {}), ...(bar ? { rollback_bar: { under: above?.dataset.id || null } } : {}), ...(anim ? { animation: anim } : {}), ...(mechs.length ? { mechanisms: mechs } : {}),
         toasts: [...document.querySelectorAll('.toast')].map((x) => x.textContent.trim()).slice(-3) });
     },
-    gui_action: async ({ control, click, value, key: keys, at, at_mm, drag_to, double, suggest, pick } = {}) => {
+    gui_action: async ({ control, click, value, key: keys, at, at_mm, drag_to, double, suggest, pick, mods } = {}) => {
+      // keys held during the click (Ctrl+click: one more in the selection) -> the events' ctrlKey / shiftKey / altKey / metaKey
+      const held = (Array.isArray(mods) ? mods : mods ? [mods] : []).map((m) => String(m).trim().toLowerCase());
+      const bad = held.filter((m) => !['ctrl', 'control', 'shift', 'alt', 'meta', 'cmd'].includes(m));
+      if (bad.length) throw new Error(`mods: ["ctrl" | "shift" | "alt" | "meta"] — not ${bad.join(', ')}.`);
+      const keysHeld = { ctrlKey: held.includes('ctrl') || held.includes('control'), shiftKey: held.includes('shift'), altKey: held.includes('alt'), metaKey: held.includes('meta') || held.includes('cmd') };
+      const withKeys = held.length ? ` with ${held.join('+')}` : '';
       const shown = () => { const sg = suggestInfo(); return { workspace: state.workspace, selected: state.workspace === 'assembly' ? assembly.sel || null : state.workspace === 'sheet' ? sheet.sel || null : undefined,
         toasts: [...document.querySelectorAll('.toast')].map((x) => x.textContent.trim()).slice(-3), ...(sg ? { suggestions: sg } : {}) }; };
       const settle = () => new Promise((r) => setTimeout(r, 400));
@@ -571,9 +578,9 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         const p = pointOf(state, modeler, assembly, pick);
         if (!p) throw new Error(`“${pick}” is not in sight in the view — find_refs / get_assembly give the names; set_view (another side) may show it.`);
         const under = underAt(...p), sp = shotSpace(), at = sp.toShot(...p); // (where it is in the AI's last picture)
-        await gesture([p]);
+        await gesture([p], { mods: keysHeld });
         await settle();
-        return ok({ done: `clicked ${pick} (${under})`, ...(at ? { at, at_is: sp.space } : {}), ...shown(), ...fresh(before) });
+        return ok({ done: `clicked ${pick}${withKeys} (${under})`, ...(at ? { at, at_is: sp.space } : {}), ...shown(), ...fresh(before) });
       }
       let c = null;
       if (control !== undefined && control !== null && control !== '') {
@@ -599,10 +606,10 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       if (from) {
         const under = underAt(...from), to = drag_to ? (at_mm ? ofPaper(drag_to) : ofView(drag_to, 'drag_to')) : null;
         const back = at && !at_mm ? sp.aim() : () => {};
-        try { await gesture(to ? [from, to] : [from], { double: !!double }); } finally { back(); }
+        try { await gesture(to ? [from, to] : [from], { double: !!double, mods: keysHeld }); } finally { back(); }
         if (keys) press(keys);
         await settle();
-        return ok({ done: `${double ? 'double-clicked' : to ? 'dragged' : 'clicked'} ${under}${to ? ` to ${underAt(...to)}` : ''}${keys ? `, then ${keys}` : ''}`, ...shown(), ...fresh(before) });
+        return ok({ done: `${double ? 'double-clicked' : to ? 'dragged' : 'clicked'}${withKeys} ${under}${to ? ` to ${underAt(...to)}` : ''}${keys ? `, then ${keys}` : ''}`, ...shown(), ...fresh(before) });
       }
       if (!c) {
         if (!keys) throw new Error('control (from gui_state), a point (at / at_mm) or a key.');
@@ -628,10 +635,11 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         el.dispatchEvent(new Event('change', { bubbles: true }));
       } else if (click !== false) {
         el.dispatchEvent(new MouseEvent('mouseenter'));
-        el.click();
+        if (held.length) el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window, detail: 1, ...keysHeld }));
+        else el.click();
       }
       await settle();
-      return ok({ done: `${c.kind} “${c.label}”${given ? ` = ${value}` : ' clicked'}`, ...shown(), ...fresh(before) });
+      return ok({ done: `${c.kind} “${c.label}”${given ? ` = ${value}` : ` clicked${withKeys}`}`, ...shown(), ...fresh(before) });
     },
 
     // ---------------------------------------------------------------- drawing sheets (📄)

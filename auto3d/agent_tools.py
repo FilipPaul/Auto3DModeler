@@ -743,10 +743,13 @@ TOOLS = [
                     "an assembly's part (\"I2\") or its face (\"I2 F2:end\") — the table then offers what fits it (`at` in the answer: "
                     "where it is in your last picture). suggest = a "
                     "row of the suggestions table run by its label (Czech or English, part of it: \"Díra\", \"hole\"); a row under "
-                    "⋯ Show all is reached through it. Then get_assembly / gui_state / get_screenshot tell what changed.",
+                    "⋯ Show all is reached through it. mods = keys held during the click: [\"ctrl\"] (the user's Ctrl+click: one "
+                    "more in the selection — e.g. face A clicked, then face B with ctrl, for a two-face command), \"shift\", "
+                    "\"alt\", \"meta\". Then get_assembly / gui_state / get_screenshot tell what changed.",
      "inputSchema": _obj({"control": {}, "value": {}, "click": {"type": "boolean"}, "at": {"type": "array", "items": NUM},
                           "at_mm": {"type": "array", "items": NUM}, "drag_to": {"type": "array", "items": NUM},
-                          "double": {"type": "boolean"}, "key": STR, "suggest": STR, "pick": STR})},
+                          "double": {"type": "boolean"}, "key": STR, "suggest": STR, "pick": STR,
+                          "mods": {"type": "array", "items": {"type": "string", "enum": ["ctrl", "shift", "alt", "meta"]}}})},
     {"name": "gui_highlight", "where": "browser",
      "description": "Show the user where to click — to teach and lead them: a pulsing ring around a control (control = its n or "
                     "label from gui_state, as gui_action takes it) or a spot of the view (at = [x, y] of your last get_screenshot picture, as gui_action takes it), "

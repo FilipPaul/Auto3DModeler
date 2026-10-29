@@ -6,7 +6,8 @@ its own part" button: refused, nothing made -> clicked: a copy -> ctrl+z: the co
 selected -> Delete: gone -> ctrl+z: back -> at_mm on the view, drag_to 20 mm right: the view moved -> a double-click on
 the title's cell: its field has the focus -> no control / point / key: refused -> a block in ◜ Fillet at 1600 × 800
 and in a narrow view: get_screenshot, an edge's pixel in it (projected with the picture's camera), gui_action at it:
-that edge picked -> pick answers `at` in the picture's pixels; gui_highlight at them rings the same face.
+that edge picked -> pick answers `at` in the picture's pixels; gui_highlight at them rings the same face -> mods:
+the top face, then the front face with ctrl: both selected (a plain click: the front only); a wrong key refused.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_ai_gui.py http://127.0.0.1:5199 <out dir>
 """
@@ -202,6 +203,21 @@ try:
     call("gui_highlight", clear=True)
     print("gui_highlight at those pixels: the ring on", face)
     assert face and face.startswith("F2:end")
+    # mods: the user's Ctrl+click — the top face, then the front face with ctrl: both selected; without: the front only
+    d.set_window_size(1600, 800)  # (the narrow view's floating table covers the front face)
+    time.sleep(0.8)
+    front = json.loads(call("find_refs", kind="face", normal=[0, -1, 0]))[0]["name"]
+    picks = lambda: js(f"return ({M}.picks || []).map(p => p.face?.name || p.kind)")  # noqa: E731
+    act(pick="F2:end")
+    r = act(pick=front, mods=["ctrl"])
+    assert not isinstance(r, str), r
+    print("Ctrl+click", front, "after F2:end:", r["done"], "| selection", picks())
+    assert "with ctrl" in r["done"] and len(picks()) == 2 and front in picks()
+    act(pick=front)
+    print("  a plain click on it then:", picks())
+    assert picks() == [front]
+    print("bad mods:", act(pick=front, mods=["hyper"])[:60])
+    act(key="Escape")
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()
