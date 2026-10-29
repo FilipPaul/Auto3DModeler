@@ -403,6 +403,13 @@ try:
     # a saved project file opens the same way (the demo's own file)
     t, _ = tool("open_file", path=str(ROOT / "demos" / "ctyrkloubovy-mechanismus.a3d.json"))
     print(f"    project file: {t[:120]}")
+    # ... and the project on screen saved as one (export format project), then opened again: the same parts
+    proj = Path(OUT) / "agent_project.a3d.json"
+    tool("export", format="project", path=str(proj))
+    saved = json.loads(proj.read_text(encoding="utf-8"))
+    tool("open_file", path=str(proj))
+    again = [p["name"] for p in json.loads(tool("list_parts")[0])]
+    print(f"    export project: {saved['app']} v{saved['version']} {[p['name'] for p in saved['parts']]} | opened again the same: {again == [p['name'] for p in saved['parts']]}")
     # every browser tool has its handler in the page (tests/test_agent_wiring.py reads the sources; this asks the page)
     sys.path.insert(0, str(ROOT))
     from auto3d.agent_tools import BROWSER_TOOLS

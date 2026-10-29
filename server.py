@@ -1506,8 +1506,23 @@ def _from_page(fmt):
 
 def tool_export(args):
     fmt = args.get("format", "stl")
-    if fmt not in ("stl", "step", "iges", "glb", "obj", "pdf", "3mf", "bom", "dxf"):
-        raise ValueError("format: stl, step, iges, glb (glTF with colours), obj, pdf (a 2D drawing of a 3D model), 3mf (with colours), bom (an assembly's CSV) or dxf (a 2D drawing or a sheet)")
+    if fmt not in ("stl", "step", "iges", "glb", "obj", "pdf", "3mf", "bom", "dxf", "project"):
+        raise ValueError("format: stl, step, iges, glb (glTF with colours), obj, pdf (a 2D drawing of a 3D model), 3mf (with colours), bom (an assembly's CSV), dxf (a 2D drawing or a sheet) or project (the .a3d.json)")
+    if fmt == "project":  # the whole project as Save project writes it (its imported files in it; its 🕘 history when asked)
+        res = RELAY.call("export_data", {"format": "project", "history": bool(args.get("history"))}, timeout=600)
+        if res.get("error"):
+            raise ValueError(res.get("text") or "No project to save.")
+        d = res.get("data") or {}
+        p = d.get("project") or {}
+        data = json.dumps(p, ensure_ascii=False).encode("utf-8")
+        name = re.sub(r'[\\/:*?"<>|]+', "_", d.get("name") or "project").strip() or "project"
+        target = Path(args["path"]).expanduser() if args.get("path") else Path.home() / "Downloads"
+        if target.is_dir() or not target.suffix:
+            target.mkdir(parents=True, exist_ok=True)
+            target = target / f"{name}.a3d.json"
+        target.write_bytes(data)
+        return {"text": f"Saved the project ({len(p.get('parts') or [])} parts{', with its version history' if p.get('versions') else ''}; "
+                        f"{max(1, len(data) // 1024)} kB) to {target} — open_file opens it again."}
     if fmt == "pdf":  # a drawing sheet on screen: the sheet as it is drawn
         res = RELAY.call("export_data", {"format": "pdf"})
         if not res.get("error") and ((res.get("data") or {}).get("svg") or (res.get("data") or {}).get("svgs")):

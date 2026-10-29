@@ -2719,6 +2719,9 @@ const libraryTools = {
 Object.assign(agentHandlers, libraryTools);
 Object.assign(agentHandlers, moreHandlers({ state, project, modeler, assembly, drawing2d, sheet, drawingSet: (aid) => sheet.drawingSet(aid, drawingCtx()), t2 }));
 Object.assign(agentHandlers, teachHandlers()); // gui_highlight: the AI shows the user where to click
+const exportData = agentHandlers.export_data; // (+ the project file, as Save project writes it: export {format: "project"})
+agentHandlers.export_data = async (args = {}) => (args.format === 'project'
+  ? { text: 'ok', data: { name: safeName(), project: await savedProject({ history: !!args.history }) } } : exportData(args));
 
 // the AI and the look of parts: the whole part's colour / see-through, single faces; a joined part moved its free ways;
 // the model on screen kept in the library
