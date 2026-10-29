@@ -950,6 +950,9 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .mc-more .mc-drv select { flex: 1; min-width: 0; font-size: 11.5px; }
 .mc-acts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .mc-acts .as-dspeed { font-size: 11px; padding: 1px 18px 1px 4px; width: auto; background-position: right 5px center; }
+.mc-anim select { font-size: 11px; padding: 1px 18px 1px 4px; width: auto; background-position: right 5px center; }
+.mc-anim .mc-cap { display: inline-flex; align-items: center; gap: 3px; margin: 0; font-size: 11.5px; color: var(--muted); }
+.mc-anote .btn { margin-left: 6px; }
 .mc-trace { font-size: 11px; color: var(--muted); }
 .mc-trace svg { display: block; width: 100%; height: 64px; background: var(--panel-2); border-radius: 4px; }
 .mc-trace polyline { fill: none; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }

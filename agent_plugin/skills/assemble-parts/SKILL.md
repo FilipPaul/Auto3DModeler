@@ -49,7 +49,8 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    where it is and its travel) -> `drive_mechanism {mechanism, to}` (every part follows; `play: true` runs it on and on
    in the app's ⚙ Mechanism, `driver` picks another driver). Name the motions in the user's words
    (`name_motion {part, motion, name: "Otáčení kliky"}`, `drive_mechanism {name}` for the mechanism) — the names show
-   everywhere and work as `motion` in move_free / set_travel.
+   everywhere and work as `motion` in move_free / set_travel. To show it moving: `set_view` as it should be seen, then
+   `record_animation {mechanism, format: "gif" | "video"}` saves one full cycle in the data folder (it answers the path).
    A joint with `not_held` is overridden by another joint of that part (it names it): change or `remove_joint` one
    of the two — never leave a joint that does not hold. Joining the same two faces again changes that joint.
    `remove_from_assembly` on a fastener's screw or nut takes out the whole fastener and the holes drilled for it.
