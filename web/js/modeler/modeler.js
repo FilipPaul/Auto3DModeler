@@ -65,9 +65,10 @@ export class Modeler {
     this.sk = null;     // the open sketch (a Sketcher)
     this.selected = null; // feature id selected in the tree
     this.history = new History({
-      capture: () => ({ features: this.part.features, look: { color: this.part.color, opacity: this.part.opacity, paint: this.part.paint, threads: this.part.threads } }),
+      capture: () => ({ features: this.part.features, rollback: this.part.rollback ?? null, look: { color: this.part.color, opacity: this.part.opacity, paint: this.part.paint, threads: this.part.threads } }),
       restore: async (s) => {
         this.part.features = s.features;
+        if (s.rollback) this.part.rollback = s.rollback; else delete this.part.rollback;
         for (const k of ['color', 'opacity', 'paint', 'threads']) { if (s.look?.[k] === undefined) delete this.part[k]; else this.part[k] = s.look[k]; }
         this.closeAll();
         this.render();
@@ -345,10 +346,11 @@ export class Modeler {
   }
 
   // ------------------------------------------------------------------ feature tree
-  sketches() { return this.part.features.filter((f) => f.type === 'sketch'); }
+  sketches() { return this.part.features.slice(0, this.usable()).filter((f) => f.type === 'sketch'); }
   status(id) { return this.result?.features?.find((s) => s.id === id); }
 
   renderTree() {
+    if (this.barDrag) return; // (the rollback bar is being dragged: drawn again when let go)
     const tree = this.$('.mt-tree');
     const fs = this.part.features, byId = new Map(fs.map((f) => [f.id, f]));
     this.$('.mt-start').hidden = fs.length > 0;
@@ -356,6 +358,7 @@ export class Modeler {
     // the tree's shape: a step with the sketch it is made from under it, pattern / mirror with links to what they
     // repeat, the reference points in "Reference" at the top (each row's fold remembered; folded at first)
     const shape = this.treeShapeNow = treeShape(fs, sketchesOf);
+    this.rolledIds = new Set(fs.slice(this.barAt()).map((f) => f.id)); // (⏮ under the rollback bar: greyed)
     for (const id of [this.selected, this.sk?.f.id, this.cmd?.feature.id]) this.openTo(id);
     if (fs.length) this.refGroup(tree, shape, byId);
     const addRow = (f, depth, hidden, parentId) => {
@@ -371,6 +374,7 @@ export class Modeler {
       }
     };
     for (const id of shape.top) addRow(byId.get(id), 0, false, null);
+    this.rollbar(tree, shape);
     if (this.selected && this.selected !== this.treeScrolled) { // chosen (also by a click on the part): its row in sight
       const row = tree.querySelector(`.mt-item[data-id="${CSS.escape(this.selected)}"]`);
       if (row && !row.hidden) row.scrollIntoView({ block: 'nearest' });
@@ -471,7 +475,7 @@ export class Modeler {
     const row = document.createElement('div');
     const editing = (this.sk && this.sk.f.id === f.id) || (this.cmd && this.cmd.feature.id === f.id);
     const warn = st && st.ok && st.warnings?.length;
-    row.className = `mt-row mt-item${f.id === this.selected ? ' on' : ''}${st && !st.ok ? ' bad' : ''}${warn ? ' warned' : ''}${editing ? ' editing' : ''}${f.suppressed ? ' off' : ''}`;
+    row.className = `mt-row mt-item${f.id === this.selected ? ' on' : ''}${st && !st.ok ? ' bad' : ''}${warn ? ' warned' : ''}${editing ? ' editing' : ''}${f.suppressed ? ' off' : ''}${this.rolledIds?.has(f.id) ? ' rolled' : ''}`;
     row.dataset.id = f.id;
     row.dataset.kind = stepKind(f);
     row.dataset.group = stepGroup(f);
@@ -485,6 +489,8 @@ export class Modeler {
     row.querySelector('.mt-what').textContent = f.suppressed ? 'off' : this.whatText(f);
     if (st && !st.ok) row.title = st.issues.join(' ');
     else if (warn) row.title = st.warnings.join(' ');
+    else if (this.rolledIds?.has(f.id)) row.title = t('Rolled back: under the rollback bar — kept, not built now. Drag the bar below it, or ⤓ To the end.');
+    row.addEventListener('contextmenu', (e) => { e.preventDefault(); this.stepMenu(f, e); });
     row.addEventListener('click', (e) => {
       const a = e.target.closest('[data-a]')?.dataset.a;
       if (a === 'twist') return this.toggleFold(f.id);
@@ -523,6 +529,173 @@ export class Modeler {
       });
     }
     return row;
+  }
+
+  // ------------------------------------------------------------------ ⏮ the rollback bar (SolidWorks / Solid Edge)
+  /** How many steps are built: all, or those above the rollback bar (part.rollback: the id of the step it is under;
+   *  saved with the part, one undo step each move). Exports and assemblies use every step. */
+  barAt() {
+    const r = this.part.rollback, i = r ? this.part.features.findIndex((f) => f.id === r) : -1;
+    return i >= 0 ? i + 1 : this.part.features.length;
+  }
+
+  rolledBack() { return this.barAt() < this.part.features.length; }
+
+  /** The steps above the bar (all of them when it is at the end). */
+  builtSteps() { return this.part.features.slice(0, this.barAt()); }
+
+  /** How many steps (from the first) a step being made may use — its sketch, what it repeats: those above the bar, or,
+   *  while a step under the bar is changed, those before it. */
+  usable() {
+    const i = this.cmd && !this.cmd.isNew ? this.part.features.findIndex((f) => f.id === this.cmd.feature.id) : -1;
+    return Math.max(this.barAt(), i);
+  }
+
+  /** New steps go in at the bar (at the end when it is there); the bar stays right under them. */
+  insertSteps(...fs) {
+    this.part.features.splice(this.barAt(), 0, ...fs);
+    if (this.part.rollback) this.part.rollback = fs[fs.length - 1].id;
+  }
+
+  /** After a change: the bar under a deleted step goes up to the step before it; under the last step it is at the end. */
+  fixBar() {
+    const r = this.part.rollback, fs = this.part.features;
+    if (!r) return;
+    if (!fs.some((f) => f.id === r)) {
+      const was = (this.history.base?.features || []).map((f) => f.id), live = new Set(fs.map((f) => f.id)), i = was.indexOf(r);
+      const prev = i > 0 ? was.slice(0, i).reverse().find((id) => live.has(id)) : null;
+      if (prev) this.part.rollback = prev; else delete this.part.rollback;
+    }
+    if (this.part.rollback === fs[fs.length - 1]?.id) delete this.part.rollback;
+  }
+
+  /** ⏮ The bar put under step `id` (null / 'end': at the end — every step built again): one undo step. */
+  setRollback(id) {
+    if (this.mode !== 'part' || this.cmd) return null;
+    const fs = this.part.features;
+    if (id && id !== 'end' && !fs.some((f) => f.id === id)) throw new Error(`No step ${id} — get_model lists the steps.`);
+    if (!id || id === 'end') delete this.part.rollback; else this.part.rollback = id;
+    this.closeCtx();
+    this.commit();
+    return this.inflight;
+  }
+
+  /** The bar in the tree (6 px, a line with a grip) under the last step built; dragged up or down between the top-level
+   *  steps (the 3D view follows while dragging; Esc: back), ↑ / ↓ / Home / End keys; a double-click puts it at the
+   *  end. Rolled back: "⤓ To the end" under the tree. */
+  rollbar(tree, shape) {
+    const fs = this.part.features, at = new Map(fs.map((f, i) => [f.id, i])), n = this.barAt();
+    const top = shape.top.filter((id) => at.has(id));
+    if (!top.length) return;
+    const rows = top.map((id) => tree.querySelector(`.mt-item[data-depth="0"][data-id="${CSS.escape(id)}"]`));
+    const block = (id) => [id, ...(shape.kids.get(id) || []).filter((k) => !k.link && at.has(k.id)).flatMap((k) => block(k.id))];
+    // gap j: under top-level block j -> the bar under its last step in the part's order (the last gap: the end)
+    const gapId = (j) => (j >= top.length - 1 ? null : block(top[j]).reduce((a, b) => (at.get(b) > at.get(a) ? b : a)));
+    let cur = -1;
+    top.forEach((id, j) => { if (at.get(id) < n) cur = j; });
+    const free = this.mode === 'part' && !this.cmd, rolled = n < fs.length;
+    const bar = document.createElement('div');
+    bar.className = `mt-rollbar${rolled ? ' rolled' : ''}`;
+    bar.tabIndex = free ? 0 : -1;
+    bar.setAttribute('role', 'separator');
+    bar.setAttribute('aria-orientation', 'horizontal');
+    bar.setAttribute('aria-label', t('Rollback bar'));
+    bar.title = t(free ? 'Rollback bar: drag it up to see the part as it was after that step — new steps go in here; drag it back down (or double-click it) for all steps. Keys: ↑ ↓, End'
+      : 'Rollback bar (finish the open command to move it)');
+    bar.innerHTML = '<i class="mt-rb-grip"></i>';
+    let endBtn = null;
+    if (rolled) {
+      endBtn = document.createElement('div');
+      endBtn.className = 'mt-rb-end';
+      endBtn.innerHTML = `<span class="hint">${esc(t2('{n} step(s) rolled back', { n: fs.length - n }))}</span><button class="btn small" data-a="toEnd" title="${esc(t('Move the rollback bar to the end: every step built again'))}">⤓ ${esc(t('To the end'))}</button>`;
+      endBtn.querySelector('button').disabled = !free;
+      endBtn.querySelector('button').addEventListener('click', () => this.setRollback('end'));
+      tree.appendChild(endBtn);
+    }
+    const place = (j) => { const next = rows[j + 1]; if (next) tree.insertBefore(bar, next); else if (endBtn) tree.insertBefore(bar, endBtn); else tree.appendChild(bar); };
+    place(cur);
+    if (this.barFocus && free) bar.focus({ preventScroll: true });
+    bar.addEventListener('focus', () => { this.barFocus = true; });
+    bar.addEventListener('blur', () => setTimeout(() => { if (bar.isConnected) this.barFocus = false; })); // (drawn anew: the new bar takes the focus)
+    if (!free) return;
+    const grey = () => { const k = this.barAt(); for (const r of tree.querySelectorAll('.mt-item')) r.classList.toggle('rolled', (at.get(r.dataset.id) ?? -1) >= k); };
+    const preview = (j) => { const id = gapId(j); if (id) this.part.rollback = id; else delete this.part.rollback; grey(); this.rebuild(); };
+    bar.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      bar.focus({ preventScroll: true }); // (keys move it next)
+      bar.classList.add('dragging');
+      const was = this.part.rollback, from = cur;
+      this.barDrag = true;
+      let moved = false;
+      const bottom = () => { const all = [...tree.querySelectorAll('.mt-row')].filter((r) => !r.hidden); return all.length ? all[all.length - 1].getBoundingClientRect().bottom : 0; };
+      const move = (ev) => {
+        const ys = top.map((_, j) => (rows[j + 1] ? rows[j + 1].getBoundingClientRect().top : bottom()));
+        let best = 0;
+        ys.forEach((y, j) => { if (Math.abs(ev.clientY - y) < Math.abs(ev.clientY - ys[best])) best = j; });
+        if (best !== cur) { cur = best; moved = true; place(cur); preview(cur); }
+      };
+      let done = false;
+      const end = (cancel) => {
+        if (done) return;
+        done = true;
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointercancel', back);
+        window.removeEventListener('keydown', key, true);
+        bar.classList.remove('dragging');
+        this.barDrag = false;
+        if (cancel && cur !== from) { if (was) this.part.rollback = was; else delete this.part.rollback; this.render(); this.rebuild(); return; }
+        if ((this.part.rollback || null) !== (was || null)) this.commit(); else if (moved) this.renderTree(); // (not moved: left as it is — a double-click finds the same bar)
+      };
+      const up = () => end(false), back = () => end(true);
+      const key = (ev) => { if (ev.key === 'Escape') { ev.stopPropagation(); ev.preventDefault(); end(true); } };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+      window.addEventListener('pointercancel', back);
+      window.addEventListener('keydown', key, true);
+    });
+    bar.addEventListener('dblclick', () => this.setRollback('end'));
+    bar.addEventListener('keydown', (e) => {
+      const go = { ArrowUp: Math.max(0, cur - 1), ArrowDown: Math.min(top.length - 1, cur + 1), Home: 0, End: top.length - 1, Enter: top.length - 1 }[e.key];
+      if (go === undefined) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this.barFocus = true;
+      if (go !== cur) this.setRollback(gapId(go) || 'end');
+    });
+  }
+
+  /** A step's row right-clicked: ⏮ Roll back to here (the bar under it), ⤓ To the end, ✎ Edit, ✕ Delete. Esc closes. */
+  stepMenu(f, e) {
+    this.closeCtx();
+    if (this.mode !== 'part' || this.cmd) return;
+    const fs = this.part.features, i = fs.indexOf(f), n = this.barAt();
+    const items = [
+      ['rollHere', '⏮', 'Roll back to here', 'Show the part as it was after this step — the steps under it are kept but not built; new steps go in under it', i === n - 1],
+      ...(n < fs.length ? [['toEnd', '⤓', 'To the end', 'Move the rollback bar to the end: every step built again']] : []),
+      ['edit', '✎', 'Edit the step', 'Change this step (or double-click it)'],
+      ['del', '✕', 'Delete the step', 'Delete this step']];
+    const menu = document.createElement('div');
+    menu.className = 'menu-list mt-ctx';
+    menu.innerHTML = items.map(([a, ic, label, title, off]) => `<button data-a="${a}" title="${esc(t(title))}"${off ? ' disabled' : ''}>${ic} ${esc(t(label))}</button>`).join('');
+    menu.addEventListener('click', (ev) => {
+      const a = ev.target.closest('[data-a]')?.dataset.a;
+      if (!a) return;
+      this.closeCtx();
+      if (a === 'rollHere') this.setRollback(f.id);
+      if (a === 'toEnd') this.setRollback('end');
+      if (a === 'edit') this.edit(f.id);
+      if (a === 'del') this.remove(f.id);
+    });
+    document.body.appendChild(menu);
+    Object.assign(menu.style, { left: `${Math.max(4, Math.min(e.clientX, innerWidth - menu.offsetWidth - 4))}px`, top: `${Math.max(4, Math.min(e.clientY, innerHeight - menu.offsetHeight - 4))}px` });
+    this.ctx = menu;
+    const away = (ev) => { if (!menu.contains(ev.target)) this.closeCtx(); };
+    const key = (ev) => { if (ev.key === 'Escape') { ev.stopPropagation(); this.closeCtx(); } };
+    window.addEventListener('pointerdown', away, true);
+    window.addEventListener('keydown', key, true);
+    this.ctxOff = () => { window.removeEventListener('pointerdown', away, true); window.removeEventListener('keydown', key, true); };
   }
 
   /** The reference points (point steps) in the 3D view: a dot and its name each, the chosen one lit. */
@@ -682,7 +855,7 @@ export class Modeler {
     const at = this.pointRef(sp.point, sp.snap);
     if (!at) { this.hooks.toast(t('No corner, edge middle or centre of the part here.'), 'warning', 4000); return null; }
     const f = { id: this.newId(), type: 'point', name: this.nextName('point'), at };
-    this.part.features.push(f);
+    this.insertSteps(f);
     this.selected = f.id;
     this.commit();
     return f;
@@ -754,7 +927,7 @@ export class Modeler {
     return sg;
   }
 
-  closeCtx() { this.ctx?.remove(); this.ctx = null; }
+  closeCtx() { this.ctxOff?.(); this.ctxOff = null; this.ctx?.remove(); this.ctx = null; }
 
   /** Ctrl+click: a face (its step) or a snap point more in the selection — or, chosen already, taken out of it. */
   addPick(pick) {
@@ -1376,22 +1549,30 @@ export class Modeler {
 
   renderStatus() {
     const b = this.result?.body;
-    this.$('.m-status').textContent = b ? `${fmt(b.bbox[3] - b.bbox[0])} × ${fmt(b.bbox[4] - b.bbox[1])} × ${fmt(b.bbox[5] - b.bbox[2])} mm · volume ${fmt(b.volume / 1000)} cm³` : '';
+    const el = this.$('.m-status'), n = this.barAt(); // (⏮ rolled back: said after the sizes, in its own line part)
+    el.textContent = b ? `${fmt(b.bbox[3] - b.bbox[0])} × ${fmt(b.bbox[4] - b.bbox[1])} × ${fmt(b.bbox[5] - b.bbox[2])} mm · volume ${fmt(b.volume / 1000)} cm³` : '';
+    if (n < this.part.features.length) {
+      const rb = document.createElement('span');
+      rb.className = 'm-rb-note';
+      rb.textContent = `⏮ ${t2('Rolled back after “{name}”', { name: this.part.features[n - 1]?.name || '' })}`;
+      el.appendChild(rb);
+    }
   }
 
   // ------------------------------------------------------------------ rebuild
   /** The features to show: the part, with the open command's preview, or rolled back to the open sketch. */
   shown() {
-    const fs = this.part.features;
+    const fs = this.part.features, upTo = this.builtSteps(); // (⏮ rolled back: the steps above the bar)
     if (this.mode === 'sketch' || this.mode === 'plane') {
       const i = this.sk && !this.sk.isNew ? fs.findIndex((f) => f.id === this.sk.f.id) : -1;
-      return i >= 0 ? fs.slice(0, i) : fs;
+      return i >= 0 ? fs.slice(0, i) : upTo;
     }
     if (this.cmd) {
-      const f = this.cmd.feature;
-      return this.cmd.isNew ? [...fs, ...(this.cmd.pre || []), f] : fs.map((g) => (g.id === f.id ? f : g));
+      const f = this.cmd.feature, i = fs.findIndex((g) => g.id === f.id);
+      if (this.cmd.isNew) return [...upTo, ...(this.cmd.pre || []), f]; // (inserted at the bar)
+      return fs.slice(0, Math.max(upTo.length, i + 1)).map((g) => (g.id === f.id ? f : g)); // (a step under the bar: the part up to it)
     }
-    return fs;
+    return upTo;
   }
 
   /** ✕ Cancel of a rebuild: its kernel job stopped (only that process restarts); what waited is dropped — the part
@@ -1499,6 +1680,7 @@ export class Modeler {
 
   /** Record a step in the undo history and rebuild. */
   commit() {
+    this.fixBar();
     this.history.commit();
     this.render();
     this.rebuild();
@@ -1519,7 +1701,7 @@ export class Modeler {
     const used = new Set(this.part.features.filter((f) => !f.suppressed).flatMap(sketchesOf));
     if (this.cmd?.feature) for (const x of sketchesOf(this.cmd.feature)) used.add(x);
     const list = [];
-    for (const f of this.part.features) {
+    for (const f of this.part.features.slice(0, this.usable())) { // (⏮ not the sketches under the rollback bar)
       if (f.type !== 'sketch') continue;
       const fr = f.plane?.datum ? datumFrame(f.plane) : this.frames?.[f.id] || f.plane?.frame;
       if (!fr) continue;
@@ -1706,7 +1888,7 @@ export class Modeler {
     const f = this.sk.result();
     if (!f.entities.length) { this.hooks.toast('Draw a rectangle, lines or a circle first — or Cancel.', 'warning'); return; }
     const { isNew } = this.sk;
-    if (isNew) this.part.features.push(f);
+    if (isNew) this.insertSteps(f);
     else this.part.features = this.part.features.map((g) => (g.id === f.id ? f : g));
     this.leaveSketchMode();
     this.mode = 'part';
@@ -1981,7 +2163,7 @@ export class Modeler {
     if (f.type === 'shell' && !f.faces.length) { this.hooks.toast('Click the face(s) to leave open first.', 'warning'); return; }
     if (f.type === 'decal' && (!f.plane || !f.polys)) { this.hooks.toast(f.plane ? 'Type some text, or choose a picture.' : 'Click on a flat face where it goes.', 'warning'); return; }
     if (f.type === 'hole' && !f.points.length) { this.hooks.toast('Click on a flat face where the hole goes.', 'warning'); return; }
-    if (isNew) this.part.features.push(...(this.cmd.pre || []), f); // (⬆ Extrude this face: its outline sketch first)
+    if (isNew) this.insertSteps(...(this.cmd.pre || []), f); // (⬆ Extrude this face: its outline sketch first)
     else this.part.features = this.part.features.map((g) => (g.id === f.id ? f : g));
     this.cmd = null;
     this.view.setPullArrow(null);
@@ -3038,7 +3220,7 @@ export class Modeler {
   /** The extrudes whose side walls a draft can tilt (before step `before`). */
   draftable(before = null) {
     const at = before ? this.part.features.findIndex((x) => x.id === before) : -1;
-    return this.part.features.filter((g) => g.type === 'extrude' && !g.suppressed && (at < 0 || this.part.features.indexOf(g) < at));
+    return this.part.features.slice(0, this.usable()).filter((g) => g.type === 'extrude' && !g.suppressed && (at < 0 || this.part.features.indexOf(g) < at));
   }
 
   startDraft() {
@@ -3076,7 +3258,7 @@ export class Modeler {
   }
 
   // ------------------------------------------------------------------ Pattern
-  repeatable() { return this.part.features.filter((f) => REPEATABLE.has(f.type) && !f.suppressed); }
+  repeatable() { return this.part.features.slice(0, this.usable()).filter((f) => REPEATABLE.has(f.type) && !f.suppressed); }
 
   startPattern() {
     if (this.mode !== 'part' || this.cmd || !this.result?.body) return;

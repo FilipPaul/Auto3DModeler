@@ -266,7 +266,8 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
   const stepResult = (id) => {
     const st = m.status(id);
     const f = m.part.features.find((x) => x.id === id);
-    return { id, name: f?.name, ok: st ? st.ok : null, issues: st?.issues || [], warnings: st?.warnings || [], ...(st?.went ? { went: st.went } : {}), body: summary() };
+    const under = f && m.part.features.indexOf(f) >= m.barAt(); // (⏮ under the rollback bar: kept, not built now)
+    return { id, name: f?.name, ok: st ? st.ok : null, issues: st?.issues || [], warnings: st?.warnings || [], ...(st?.went ? { went: st.went } : {}), ...(under ? { rolled_back: true } : {}), body: summary() };
   };
   const commitAnd = async (id) => {
     const v0 = body()?.volume ?? 0;
@@ -531,6 +532,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         if (st.issues?.length) out.issues = st.issues;
         if (st.warnings?.length) out.warnings = st.warnings;
         if (f.suppressed) out.off = true;
+        if (m.part.features.indexOf(f) >= m.barAt()) out.rolled_back = true; // (under the rollback bar)
         if (f.type === 'sketch') {
           out.plane = f.plane?.datum || f.plane?.face?.name;
           out.shapes = (f.entities || []).map((e) => e.t).reduce((a, t) => ({ ...a, [t]: (a[t] || 0) + 1 }), {});
@@ -554,7 +556,22 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         if (f.type === 'point') Object.assign(out, { on: Object.keys(f.at || {})[0], xyz: m.result?.points?.[f.id] || null });
         return out;
       });
-      return { text: JSON.stringify({ name: project.current?.name, unit: 'mm', steps, body: summary() }) };
+      const n = m.barAt(), fs = m.part.features;
+      const rollback = n < fs.length ? { after: fs[n - 1].id, name: fs[n - 1].name, rolled_back: fs.slice(n).map((f) => f.id),
+        note: 'The view, body and new steps are as after this step (new steps go in under it); exports use all steps. rollback {to: "end"} brings them back.' } : undefined;
+      return { text: JSON.stringify({ name: project.current?.name, unit: 'mm', steps, ...(rollback ? { rollback } : {}), body: summary() }) };
+    },
+
+    rollback: async ({ to } = {}) => {
+      needModel();
+      ready();
+      await settle();
+      if (to === undefined || to === null || to === '') throw new Error('to: a step id (the bar goes under it) or "end".');
+      await m.setRollback(String(to));
+      await settle();
+      const n = m.barAt(), fs = m.part.features;
+      return { text: JSON.stringify(n < fs.length ? { rolled_back_after: fs[n - 1].id, built: fs.slice(0, n).map((f) => f.id), rolled_back: fs.slice(n).map((f) => f.id), body: summary() }
+        : { rollback: 'end — every step built', body: summary() }) };
     },
 
     find_refs: async ({ kind = 'face', name, normal, extreme, near, of_face, of_step, between_steps, circular, limit = 12 }) => {
@@ -640,12 +657,13 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         const g = faceOf(spec.face);
         if (g.type !== 'plane') throw new Error(`The face “${spec.face}” is not flat — only a flat face can be extruded.`);
         sk = m.faceSketch(g);
-        m.part.features.push(sk);
+        m.insertSteps(sk); // (at the rollback bar, when it is up)
         spec = { ...spec, sketch: sk.id, flip: false };
       }
       let f;
-      try { f = await build(spec); } catch (e) { if (sk) m.part.features = m.part.features.filter((g) => g !== sk); throw e; }
-      m.part.features.push(f);
+      const rb = m.part.rollback;
+      try { f = await build(spec); } catch (e) { if (sk) { m.part.features = m.part.features.filter((g) => g !== sk); if (rb) m.part.rollback = rb; } throw e; }
+      m.insertSteps(f); // (at the rollback bar, when it is up)
       return commitAnd(f.id);
     },
 

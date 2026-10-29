@@ -1609,6 +1609,18 @@ const CS = {
   'Excel needs the openpyxl package (py -m pip install openpyxl) — the BOM can be saved as CSV.': 'Excel potřebuje balíček openpyxl (py -m pip install openpyxl) — kusovník jde uložit jako CSV.',
   'Empty message.': 'Prázdná zpráva.',
   // language switch
+  // ⏮ the rollback bar of the 3D model's step tree
+  'Rollback bar': 'Pruh vrácení stromu',
+  'Rollback bar: drag it up to see the part as it was after that step — new steps go in here; drag it back down (or double-click it) for all steps. Keys: ↑ ↓, End': 'Pruh vrácení stromu: přetáhněte ho nahoru a uvidíte díl, jak vypadal po tom kroku — nové kroky se vloží sem; přetáhněte ho zpět dolů (nebo na něj dvakrát klikněte) a budou zase všechny kroky. Klávesy: ↑ ↓, End',
+  'Rollback bar (finish the open command to move it)': 'Pruh vrácení stromu (posunete ho, až dokončíte otevřený příkaz)',
+  '{n} step(s) rolled back': 'Potlačeno do konce: {n} krok(ů)',
+  'Move the rollback bar to the end: every step built again': 'Posunout pruh vrácení na konec: znovu se sestaví všechny kroky',
+  'To the end': 'Na konec',
+  'Rolled back: under the rollback bar — kept, not built now. Drag the bar below it, or ⤓ To the end.': 'Potlačeno do konce: pod pruhem vrácení — krok zůstává, jen se teď nesestavuje. Přetáhněte pruh pod něj, nebo ⤓ Na konec.',
+  'Roll back to here': 'Vrátit se sem',
+  'Show the part as it was after this step — the steps under it are kept but not built; new steps go in under it': 'Ukázat díl, jak vypadal po tomto kroku — kroky pod ním zůstanou, ale nesestaví se; nové kroky se vloží pod něj',
+  'Rolled back after “{name}”': 'Vráceno za krok „{name}“',
+  'moving the rollback bar': 'posouvá pruh vrácení',
   'Čeština / English': 'Čeština / English',
 };
 

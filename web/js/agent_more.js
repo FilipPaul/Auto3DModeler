@@ -285,8 +285,11 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       const steps = rows.length ? rows.map((r) => ({ id: r.dataset.id, name: r.querySelector('.mt-name')?.textContent || '', what: r.querySelector('.mt-what')?.textContent || '',
         ...(r.dataset.parent ? { parent: r.dataset.parent, depth: +r.dataset.depth || 1 } : {}), ...(r.hidden ? { folded: true } : {}),
         ...(r.classList.contains('off') ? { off: true } : {}), ...(r.classList.contains('bad') ? { failed: r.title || true } : {}),
-        ...(r.classList.contains('on') ? { selected: true } : {}), ...(r.classList.contains('editing') ? { editing: true } : {}) })) : undefined;
-      return ok({ workspace: state.workspace, controls: list.map(({ el, ...c }) => c), ...(steps ? { steps } : {}),
+        ...(r.classList.contains('on') ? { selected: true } : {}), ...(r.classList.contains('editing') ? { editing: true } : {}),
+        ...(r.classList.contains('rolled') ? { state: 'rolled_back' } : {}) })) : undefined; // (⏮ under the rollback bar: kept, not built)
+      const bar = rows.length && document.querySelector('#modelLeft .mt-rollbar.rolled'); // (the bar up: under which top-level step)
+      const above = bar && [...document.querySelectorAll('#modelLeft .mt-tree > *')].slice(0, [...bar.parentNode.children].indexOf(bar)).reverse().find((r) => r.matches('.mt-item[data-depth="0"]'));
+      return ok({ workspace: state.workspace, controls: list.map(({ el, ...c }) => c), ...(steps ? { steps } : {}), ...(bar ? { rollback_bar: { under: above?.dataset.id || null } } : {}),
         toasts: [...document.querySelectorAll('.toast')].map((x) => x.textContent.trim()).slice(-3) });
     },
     gui_action: async ({ control, click, value, key: keys, at, at_mm, drag_to, double } = {}) => {

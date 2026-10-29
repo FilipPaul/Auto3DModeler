@@ -188,6 +188,14 @@ on a row tints its faces (a sketch: its outline lit), the mouse on a row lights 
 step before one it uses is refused (it says which), and one after which the model no longer builds is taken back;
 Ctrl+Z undoes a move.
 
+**⏮ Rollback bar** (as in SolidWorks / Solid Edge): the thin line with a grip under the last step. Drag it up between
+two steps and the part shows its state after that step — the steps under it are greyed (*potlačené do konce*: kept,
+not built), and a new step (a sketch, a hole …) goes in right at the bar. Drag it back down, double-click it, or
+**⤓ To the end** (under the tree) and every step is built again. A right-click on a step: **⏮ Roll back to here**. The
+keys ↑ / ↓ / Home / End move a focused bar. Its place is saved with the part and is one undo step; the status line says
+"Rolled back after …". Steps above (and under) the bar can still be changed. Exports and assemblies always use every
+step. The AI sees it in get_model (rollback) and moves it with `rollback {to: step id | "end"}`.
+
 **A click on a face of a 3D model** chooses its step and shows its tools in the Suggested table (bottom left) — the
 table can be **dragged by its header** anywhere in the view, and stays there (a double-click on the header: back).
 The same goes for every box floating over a view — 🖨 Print check, 📏 Measure, the ✂ Section bar, the size editor and

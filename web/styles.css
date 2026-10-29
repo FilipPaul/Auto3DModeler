@@ -867,6 +867,23 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .mt-lnk { flex: none; display: flex; }
 .mt-tree .mt-group .mt-name, .mt-tree .mt-plane .mt-name { font-weight: 500; color: var(--muted); }
 .mt-tree .mt-group { margin-bottom: 1px; }
+/* ⏮ the rollback bar: a thin line with a grip under the last step built; steps under it greyed */
+.mt-rollbar { position: relative; flex: none; height: 6px; margin: 1px 0; cursor: ns-resize; outline: none; touch-action: none; }
+.mt-rollbar::before { content: ''; position: absolute; left: 2px; right: 2px; top: 2px; height: 2px; border-radius: 1px; background: var(--line); }
+.mt-rollbar.rolled::before { background: var(--warn); }
+.mt-rb-grip { position: absolute; left: 6px; top: 0; width: 20px; height: 6px; box-sizing: border-box; border-radius: 3px; background: var(--panel-2); border: 1px solid var(--muted); }
+.mt-rollbar.rolled .mt-rb-grip { border-color: var(--warn); background: #3a2f12; }
+.mt-rollbar:hover::before, .mt-rollbar.dragging::before, .mt-rollbar:focus-visible::before { background: var(--accent); }
+.mt-rollbar:hover .mt-rb-grip, .mt-rollbar.dragging .mt-rb-grip, .mt-rollbar:focus-visible .mt-rb-grip { border-color: var(--accent); background: #1c2a3d; }
+.mt-rollbar:focus-visible { box-shadow: 0 0 0 1px #3b82f655; border-radius: 3px; }
+.mt-tree .mt-item.rolled .mt-icon, .mt-tree .mt-item.rolled .mt-name, .mt-tree .mt-item.rolled .mt-what { opacity: .4; }
+.mt-tree .mt-item.rolled .mt-name { font-style: italic; }
+.mt-rb-end { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 2px 2px 4px; }
+.mt-rb-end .hint { margin: 0; font-size: 11px; color: var(--warn); }
+.mt-ctx { position: fixed; display: block; z-index: 1000; right: auto; min-width: 170px; width: max-content; }
+.mt-ctx button { padding: 5px 10px; font-size: 12.5px; }
+.mt-ctx button:disabled { opacity: .45; cursor: default; background: none; }
+.m-rb-note { margin-left: 10px; color: var(--warn); }
 .as-boom { display: none; }
 /* the assembly's list as a tree: a placed sub-assembly folds open to its own parts */
 .as-twist { width: 18px; height: 18px; padding: 0; line-height: 1; margin-right: -4px; flex: none; font-size: 12px; }

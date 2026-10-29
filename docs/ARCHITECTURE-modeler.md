@@ -7,6 +7,27 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⏮ Rollback bar in the 3D model's step tree done** (SolidWorks / Solid Edge): part.rollback = the id of the step
+  the bar is under (absent: at the end); saved with the part, in the undo history (History capture), one undo step a
+  move. modeler.barAt / builtSteps / insertSteps / fixBar / setRollback: shown() builds the steps above the bar (a new
+  command's preview inserted at it; a step under the bar opened: the part up to it), new steps (sketch, OK of a command,
+  a reference point, the AI's add_feature) are spliced in at the bar and the bar moves under them; a deleted bar step
+  moves it to the step before; under the last step it is at the end. sketches() / repeatable() / draftable() and the
+  sketch outlines in the view only offer what is above the bar (usable()). The tree (rollbar): a 6 px separator with a
+  grip after the last top-level block above the bar (role=separator, tabindex 0); dragged with the mouse between the
+  top-level blocks — the 3D view follows while dragging (the tree is not redrawn then: barDrag), Esc puts it back;
+  ↑ / ↓ / Home / End / Enter keys (focus kept), a double-click: to the end. Rows under it greyed (.rolled, a tooltip),
+  "Potlačeno do konce: n krok(ů)" + ⤓ Na konec under the tree, the status line "⏮ Vráceno za krok „…“". A right-click
+  on a row: ⏮ Vrátit se sem / ⤓ Na konec / ✎ Upravit krok / ✕ Smazat krok (stepMenu; Esc closes). Rebuilds are fast:
+  doc.evaluate's prefix cache already holds the state after each step, so a rolled-back rebuild builds nothing
+  (tests/test_modeler_kernel test_rollback_reuses_the_cached_prefix). Exports / assemblies / the print use every step
+  (the server ignores part.rollback). AI: get_model `rollback {after, name, rolled_back}` and each step `rolled_back`;
+  a tool `rollback {to: step id | "end"}`; gui_state steps `state: "rolled_back"` and `rollback_bar {under}`.
+  tools/e2e_model_rollback.py (33 checks: 4 steps -> the bar dragged above step 3 = the 2-step volume, greyed rows; a
+  hole inserted at position 3; edits above / under the bar; a reload keeps it; the menu, keys, double-click, Ctrl+Z;
+  dragged to the end = all; the AI tool; Czech). Left out: the bar above the first step (nothing built), dragging it
+  inside a block (between a sketch and its extrude) — the right-click on the sketch does that.
+
 - **A mechanism built by mouse: the walkthrough, its fixes, "one joint is missing" done** (the owner: "how hard is it
   for a user to make a mechanism?"). The crank – rod – slider put together with real clicks only (headless Edge, Czech,
   1600×1000; the crank demo's parts; tools/e2e_mechanism_by_mouse.py replays it). Found and fixed, one commit each:
