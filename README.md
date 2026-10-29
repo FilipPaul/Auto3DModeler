@@ -790,6 +790,20 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   them*. A move past a dead point stops there. A loop that cannot close (the rod too short for that place) says so
   on its joints and in the panel (*⚠ The closed loop … cannot close here*). The AI sees `loops` in get_assembly
   (parts, closed, free_motions, the motions that drive it).
+- **⚙ Mechanism — the whole mechanism by one slider**: an assembly with a mechanism (a closed loop that moves, or a
+  part turning / sliding on an axis or with limits) gets a **⚙ Mechanism** widget in the left column (dock it, float it
+  over the view or close it with ✕; ⚙ Mechanism in the toolbar and *Drive the mechanism* in a part's suggestions open
+  it again). One row per mechanism: its name, **one slider** over its driver's travel — a crank's full turn 0 … 360°,
+  a slide's limits — and **▶** (round and round for a full turn, to and fro otherwise, back at a dead point; ⏸ stops it
+  where it is). Every part of the mechanism follows live. The driver is the crank by default (a full turn, else the
+  part the closing rod is on); **⋯** picks another driver, the speed (½× 1× 2×), **⚠ Check the travel** (collisions over
+  the whole turn) and **📈 Trace** (a curve: how the slider moves over the crank's turn). Nothing shows in an
+  assembly without one.
+- **Name the motions**: double-click a motion's name in the part's panel or in ⚙ Mechanism (*"Dvojklik: dát mu
+  vlastní název"*) — "Otáčení kliky" instead of "Turn about the axis of …"; double-click a mechanism's name for its
+  own. The names are kept in the assembly (undo, save and open again) and show everywhere: the panel, the widget, the
+  AI's get_assembly / gui_state. The AI: get_assembly `mechanisms`, `drive_mechanism {mechanism, to, driver, name,
+  play}` and `name_motion {part, motion, name}`.
 - **A sub-assembly keeps its own motions**: choose a placed sub-assembly — **Moves inside <it>** shows a slider for
   each way its own joints leave its parts free (a lever on its pin). Slide: the lever turns here, in this placement
   only — the sub-assembly's own tab stays as it is, and a second placement of it can stand differently. Parts joined

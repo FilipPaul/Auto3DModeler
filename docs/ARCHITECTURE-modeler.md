@@ -7,6 +7,26 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⚙ Mechanism widget and named motions done** (the owner: "a slider should set the motions of all the parts, not
+  one — for simulating whole systems"; "let the motions be named"). The owner's project "Klikový mechanismus" had lost
+  its closing joint J9 (the rod's second eye on the slider's pin — the AI removed it, report 2026-10-29 01:51:11);
+  added back, the crank drives the rod and the slider (r 30, L 110: x = r·cosθ + √(L² − r²sin²θ) at 90° steps).
+  web/js/assembly/mechanism.js: mechanisms(asm) — each mechanismOf loop (its closing part, joined onto two of its
+  parts, does not drive) and each part outside loops with a turn / slide about an axis or limits (no fasteners, no 📌);
+  the default driver ranked: a full-turn limit, a turn of a part the closing part is on (the crank), any axis turn,
+  limits; the travel: limits, else 0 … 360 for a turn (full: the short way round), else ± its size. driveTo
+  (Assembly.moveFree, quiet for sweeps; `stopped`: the loop's dead point or a miss), traceOf (36 steps of the driver,
+  the first follower's motionPos, put back), MechanismPanel (render on every Assembly.render; ▶: 90°/s a full turn or
+  the travel in 2 s each way × speed, reversed when stopped; ⏸ commits; ⋯ driver / speed / ⚠ checkTravel(…, range) /
+  📈 SVG). doc.mechs [{parts, name, drive {part, key}, speed}] found again by the parts they share (History captures
+  it); a motion's own name in instance.moveNames {key: name} (motionsOf puts it in `label`, keeps `auto`) —
+  Assembly.nameMotion; the part panel's motion name and the widget's names renamed by double-click (renameInPlace).
+  leftdock.js: addWidget(w, ws, {title, h, close}) / show(w, on) — a workspace's own widget, docked (default) or
+  floating like the others, its mode per workspace, its ✕. Toolbar ⚙ Mechanism (only with a mechanism), the part
+  suggestion "Drive the mechanism". AI: get_assembly `mechanisms`, drive_mechanism {mechanism, to, driver, name, play},
+  name_motion {part, motion, name}. tools/e2e_assembly_mechanism.py; e2e_agent (both refused without a mechanism).
+  Left out: a mechanism through a sub-assembly's own moving parts (its inner motions stay in its part panel).
+
 - **⬆ Extrude this face done:** a new sketch entity `{t: "outline", face: {name, fp}}` — a flat face's edges as
   projected edges: doc._face_outlines finds the face again each rebuild (kernel.find_faces), kernel.face_loops copies
   its wires (outer loop + holes) onto the sketch plane, counter-clockwise, with [u, v] rings for "what is inside what";

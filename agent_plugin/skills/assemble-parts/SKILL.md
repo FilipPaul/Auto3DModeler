@@ -45,6 +45,11 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    `drive` it — move_free the crank (or the slider), set_travel 0 … 360 + check_travel it: the rest follows. Place
    the parts near where they go before the last joint (it closes the loop the shortest way). `closed: false` /
    "cannot close": a part is too short or too long for that place.
+   The whole mechanism by one value: get_assembly `mechanisms` (each with its driver — a crank's full turn by default —
+   where it is and its travel) -> `drive_mechanism {mechanism, to}` (every part follows; `play: true` runs it on and on
+   in the app's ⚙ Mechanism, `driver` picks another driver). Name the motions in the user's words
+   (`name_motion {part, motion, name: "Otáčení kliky"}`, `drive_mechanism {name}` for the mechanism) — the names show
+   everywhere and work as `motion` in move_free / set_travel.
    A joint with `not_held` is overridden by another joint of that part (it names it): change or `remove_joint` one
    of the two — never leave a joint that does not hold. Joining the same two faces again changes that joint.
    `remove_from_assembly` on a fastener's screw or nut takes out the whole fastener and the holes drilled for it.

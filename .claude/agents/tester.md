@@ -490,6 +490,12 @@ Never report "works" without having run it; report failures with their output.
    its slider; set_travel 0 … 360 + check_travel; ▶ play checked against the formula; the slider pushed past its
    dead point stops at r + L; the second eye joined again 12 mm off closes by itself; the rod too short ("cannot
    close", closed false) and back). Prints ALL OK / FAILED, exit code 1 on a failure.
+   `tools/e2e_assembly_mechanism.py <url> <dir>` covers ⚙ Mechanism (the same crank – rod – slider: the widget shows
+   by itself with the crank driving a full turn, its slider to 90°: the slider part at the formula; ▶ moves every
+   part with the formula held, ⏸ stops where it is; the mechanism and the crank's motion renamed by a double-click —
+   get_assembly, the part panel, gui_state, undo / redo, the project saved and opened again —; drive_mechanism to /
+   driver / name, name_motion; ✕ and the toolbar button; ⋯ drivers, 📈 trace, ⚠ the travel; Czech labels; a plain
+   assembly: no widget, no button). Prints ALL OK / FAILED, exit code 1 on a failure.
    `tools/e2e_assembly_flexsub.py <url> <dir>` covers flexible sub-assemblies (a lever on a pin placed twice in a
    parent: get_assembly `inner` "I2/I2", the panel's "Moves inside Lever" slider turns it in the parent only — kept
    on that placement's `inner`, the other placement and Lever's own document unchanged —, move_free "I2/I2", undo /

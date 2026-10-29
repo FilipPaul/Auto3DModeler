@@ -9,6 +9,8 @@
 // they belong to the project / the selection) and the order; per workspace (quick / model / assembly / drawing /
 // sheet): where its panel is, the heights, the folded ones, the opacities (the floating places: floatbox.js, per
 // workspace). ↺ Default layout in a widget's ⋯ menu puts it all back.
+// A workspace may add widgets of its own (addWidget: the assembly's ⚙ Mechanism): there only while it has something
+// to show (show()), docked or floating like the others, closed by its ✕.
 import { t } from './i18n.js';
 import { resetWidth } from './splitters.js';
 import { floatBox, setDockHook } from './floatbox.js';
@@ -32,7 +34,7 @@ function load() {
     return {
       project: ['popup', 'dock', 'float'].includes(s.project) ? s.project : f.project,
       suggest: ['dock', 'float'].includes(s.suggest) ? s.suggest : f.suggest,
-      order: Array.isArray(s.order) && f.order.every((w) => s.order.includes(w)) ? s.order.filter((w) => f.order.includes(w)) : f.order,
+      order: Array.isArray(s.order) && f.order.every((w) => s.order.includes(w)) ? s.order.filter((w) => typeof w === 'string') : f.order, // (a workspace's own widgets too)
       ws: s.ws && typeof s.ws === 'object' ? s.ws : {},
     };
   } catch { return fresh(); }
@@ -44,6 +46,7 @@ class LeftDock {
     this.st = load();
     this.shown = false; // a project with parts: the project widget has something to show
     this.lastWs = null;
+    this.extra = {}; // a workspace's own widgets: w -> {ws, el, title, h, on}
   }
 
   /** The workspace on screen (body.ws-*; none of them: the quick part). */
@@ -60,7 +63,12 @@ class LeftDock {
   }
 
   /** Where a widget is now: 'dock', 'float' (the project tree also 'popup': behind ☰). */
-  mode(w, ws = this.ws()) { return w === 'panel' ? (this.my(ws).panel || 'dock') : this.st[w]; }
+  mode(w, ws = this.ws()) { return w === 'panel' ? (this.my(ws).panel || 'dock') : this.extra[w] ? (this.my(this.extra[w].ws).modes?.[w] || 'dock') : this.st[w]; }
+  setMode(w, m, ws = this.ws()) {
+    if (w === 'panel') this.my(ws).panel = m;
+    else if (this.extra[w]) (this.my(this.extra[w].ws).modes ||= {})[w] = m;
+    else this.st[w] = m;
+  }
   get project() { return this.st.project; }
   get suggestDocked() { return this.st.suggest === 'dock'; }
   folded(w) { return !!this.my().fold[w]; }
@@ -85,6 +93,7 @@ class LeftDock {
       col.appendChild(w);
       this.widgets.panel[ws] = w;
     }
+    for (const x of Object.values(this.extra)) col.appendChild(x.el);
     const empty = document.createElement('p');
     empty.className = 'hint lw-empty-sg';
     empty.textContent = t('Nothing selected — click a face, an edge, a part or a step: what can be done with it shows here.');
@@ -137,6 +146,32 @@ class LeftDock {
     return el;
   }
 
+  /** A widget of workspace `ws` only (w: its name, e.g. 'mech'), docked under the others at first; hidden until
+   *  show(w, true). title: its header (English, translated); h: its first height docked (px); close(): its ✕ was
+   *  clicked (it is hidden then). -> the element to fill. */
+  addWidget(w, ws, { title, h = 160, close } = {}) {
+    if (this.extra[w]) return this.extra[w].body;
+    const el = this.widget(w, ws), body = document.createElement('div');
+    el.hidden = true;
+    body.className = 'lw-body';
+    el.appendChild(body);
+    if (close) {
+      const x = document.createElement('button');
+      x.className = 'mini lw-close';
+      x.textContent = '✕';
+      x.title = t('Close it (it comes back from the toolbar)');
+      x.addEventListener('click', (e) => { e.stopPropagation(); close(); });
+      el.querySelector(':scope > .lw-head').appendChild(x);
+    }
+    this.extra[w] = { ws, el, body, title, h, on: false };
+    this.col?.appendChild(el);
+    this.apply();
+    return body;
+  }
+
+  /** A workspace's own widget shown (it has something to show) or hidden. */
+  show(w, on) { const x = this.extra[w]; if (x && x.on !== !!on) { x.on = !!on; this.apply(); } }
+
   /** The texts that follow the language. */
   titles() {
     if (!this.widgets) return;
@@ -144,6 +179,7 @@ class LeftDock {
     set(this.widgets.project, `☰ ${t('Project')}`);
     set(this.widgets.suggest, `💡 ${t('Suggested')}`);
     for (const [ws, el] of Object.entries(this.widgets.panel)) set(el, t(TITLES[ws]));
+    for (const x of Object.values(this.extra)) set(x.el, t(x.title));
     for (const el of this.col.querySelectorAll('.lw-widget')) this.headTip(el);
   }
 
@@ -164,7 +200,7 @@ class LeftDock {
     at = clamp(at ?? (w === 'project' ? 0 : docked.length), 0, docked.length);
     docked.splice(at, 0, w);
     this.st.order = [...docked, ...this.st.order.filter((x) => !docked.includes(x))];
-    if (w === 'panel') this.my(ws).panel = 'dock'; else this.st[w] = 'dock';
+    this.setMode(w, 'dock', ws);
     delete this.my(ws).fold[w];
     this.save();
     this.apply();
@@ -179,9 +215,9 @@ class LeftDock {
       try { old = JSON.parse(localStorage.getItem(`a3d.box.${kind}`) || 'null'); } catch { old = null; }
       try { localStorage.setItem(`a3d.box.${kind}`, JSON.stringify({ ...(old?.w ? { w: old.w, h: old.h } : {}), ax: 'l', dx: Math.round(Math.max(0, x)), ay: 't', dy: Math.round(Math.max(0, y)) })); } catch { /* private window */ }
     }
-    if (w === 'panel') this.my(ws).panel = 'float'; else this.st[w] = 'float';
+    this.setMode(w, 'float', ws);
     this.save();
-    if (w === 'panel' || w === 'project') this.widgetEl(w).dataset.place = ''; // (placed anew)
+    if (w !== 'suggest') this.widgetEl(w).dataset.place = ''; // (placed anew)
     this.apply();
     if (w === 'suggest') for (const b of document.querySelectorAll('.view-suggest')) this.placeSuggest(b, b.parentElement, true);
   }
@@ -215,6 +251,7 @@ class LeftDock {
       const v = op[w] !== undefined ? String(op[w]) : '';
       if (s.getPropertyValue(`--op-${w}`) !== v) { if (v) s.setProperty(`--op-${w}`, v); else s.removeProperty(`--op-${w}`); }
     }
+    for (const [w, x] of Object.entries(this.extra)) x.el.style.opacity = x.el.classList.contains('floating') && op[w] !== undefined ? String(op[w]) : '';
   }
 
   /** ↺ Default layout: the project tree behind ☰, the panels docked, the suggestions in their corner, the usual sizes. */
@@ -236,10 +273,12 @@ class LeftDock {
 
   /** The widgets docked in workspace `ws`, in their order. */
   docked(ws = this.ws()) {
-    return this.st.order.filter((w) => (w === 'project' ? this.st.project === 'dock' && this.shown : this.mode(w, ws) === 'dock'));
+    const order = [...this.st.order, ...Object.keys(this.extra).filter((w) => !this.st.order.includes(w))];
+    return order.filter((w) => (w === 'project' ? this.st.project === 'dock' && this.shown
+      : this.extra[w] ? this.extra[w].ws === ws && this.extra[w].on && this.mode(w, ws) === 'dock' : this.mode(w, ws) === 'dock'));
   }
 
-  widgetEl(w, ws = this.ws()) { return w === 'panel' ? this.widgets.panel[ws] : this.widgets[w]; }
+  widgetEl(w, ws = this.ws()) { return w === 'panel' ? this.widgets.panel[ws] : this.widgets[w] || this.extra[w]?.el; }
 
   /** The project tree's box (parts.js) where its mode puts it. */
   placeTree() {
@@ -289,6 +328,13 @@ class LeftDock {
       if (this.mode('panel', w) === 'float') this.floatIn(el, this.layout.querySelector(VIEW[w]), 'panel', w);
       else this.dockIn(el);
     }
+    for (const [w, x] of Object.entries(this.extra)) { // (a workspace's own: there only in it, while it has something to show)
+      const here = x.on && x.ws === ws;
+      if (here && this.mode(w, ws) === 'float') this.floatIn(x.el, this.layout.querySelector(VIEW[ws]), w, ws);
+      else this.dockIn(x.el);
+      x.el.hidden = !here;
+      x.el.classList.toggle('folded', here && !!me.fold[w]);
+    }
     this.widgets.suggest.hidden = this.st.suggest !== 'dock';
     // the column: its widgets in order, a splitter between two, the heights
     const docked = this.docked(ws);
@@ -318,7 +364,7 @@ class LeftDock {
     this.sync();
   }
 
-  defHeight(w, H) { return w === 'project' ? Math.round((H || 600) * 0.38) : w === 'suggest' ? 200 : Math.round((H || 600) * 0.5); }
+  defHeight(w, H) { return this.extra[w] ? this.extra[w].h : w === 'project' ? Math.round((H || 600) * 0.38) : w === 'suggest' ? 200 : Math.round((H || 600) * 0.5); }
 
   /** The splitter between docked widgets a (above) and b: dragged, the one of them that is not the stretching one
    *  gets taller or shorter; a double-click: the usual heights. */
