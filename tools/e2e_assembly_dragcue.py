@@ -87,7 +87,14 @@ def svg(cur):
 def kind(cur):
     """Which cue the cursor is: 'turn' / 'slide' / 'mech' (by its drawing), '' the normal one."""
     s = svg(cur)
-    return "" if not s else "mech" if "<circle cx=\"9.5\"" in s else "slide" if "M3.5 12H20.5" in s else "turn" if "A7.5 7.5 0 1 0" in s else "?"
+    m = re.search(r'data-cue="(\w+)', s)
+    return "" if not s else m.group(1) if m else "?"
+
+
+def hotspot(cur):
+    """The cursor's hotspot (after its image / image-set) and whether a 2× image comes with it."""
+    m = re.search(r'\)\s+(\d+) (\d+), grab', cur or "")
+    return (int(m.group(1)), int(m.group(2))) if m else None, " 2x)" in (cur or "")
 
 
 def tip():
@@ -97,7 +104,7 @@ def tip():
 
 def shot(name, at):
     """A screenshot with the cursor drawn where the mouse is (headless Edge draws no cursor)."""
-    js("""const cv = document.querySelector('#asmViewport canvas'), r = cv.getBoundingClientRect(), m = /url\\("([^"]+)"\\) (\\d+) (\\d+)/.exec(cv.style.cursor);
+    js("""const cv = document.querySelector('#asmViewport canvas'), r = cv.getBoundingClientRect(), m = /url\\("([^"]+)"\\).*?\\)?\\s(\\d+) (\\d+), grab/.exec(cv.style.cursor);
       if (!m) return; const im = document.createElement('img'); im.id = 'j-cur'; im.src = m[1];
       Object.assign(im.style, { position: 'fixed', zIndex: 99999, pointerEvents: 'none', width: '32px', height: '32px', left: (r.left + r.width / 2 + arguments[0] - +m[2]) + 'px', top: (r.top + r.height / 2 + arguments[1] - +m[3]) + 'px' });
       document.body.appendChild(im);""", at[0], at[1])
@@ -147,6 +154,8 @@ def plain():
     at = spot("I2")
     c = hover(at=at)
     check(kind(c) == "turn" and c.endswith("grab"), f"the pin chosen (it turns and slides): ↻ over it — {kind(c)!r}, the fallback {c[-5:]!r}")
+    hs, two = hotspot(c)
+    check(hs == (1, 1) and "M1.5 1.5V17.6" in svg(c), f"the normal arrow with the badge, the hotspot at its tip: {hs}, a 2× image: {two}")
     check(js(f"return {A}.cueParts?.join()") == "I2", f"the pin glows as the part that moves: {js(f'return {A}.cueParts')}")
     shot("cue_turn", at)
     check(kind(hover("I1")) == "", f"over the base (not chosen, 📌 fixed): the normal cursor ({cursor()[:20]!r})")
@@ -204,7 +213,7 @@ def crank():
     th, x = state()
     mc = js(f"return +document.querySelector('[data-mcn]')?.value")
     m = re.match(r"↻ (-?\d+)°", text)
-    check("<circle cx=\"12\" cy=\"12\" r=\"11.3\"" in svg(c) and c.endswith("grabbing"), f"while dragging: the cursor filled ({kind(c)!r}, {c[-8:]!r})")
+    check('data-cue="mech on"' in svg(c) and c.endswith("grabbing"), f"while dragging: the cursor filled ({kind(c)!r}, {c[-8:]!r})")
     check(bool(m) and strong and mc is not None and abs(int(m.group(1)) - round(mc)) <= 1, f"the value at the cursor: {text!r} — ⚙ Mechanism says {mc}")
     check(abs(th - th0) > 3 and abs(x - expected(th)) < 0.05, f"dragged: θ {th0:.1f}° -> {th:.1f}°, the slider {x:.3f} mm, the formula {expected(th):.3f}")
     shot("cue_dragging", (at[0] + 48, at[1] + 60))

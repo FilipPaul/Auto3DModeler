@@ -123,6 +123,11 @@ Date: 2026-10-25. Written by the architect agent.
   dragging: the symbol filled and the value at the cursor ("↻ 37°", "↔ 12.5 mm"; a mechanism: its driver, as its
   slider); the first time, "Táhněte — pohne dílem / mechanismem" at the cursor (until the first drag). A fully held or
   📌 fixed part, a part not chosen, empty space: the normal cursor (the view turns). Tests: e2e_assembly_dragcue.
+  The cursor redrawn (2026-10-29, the owner: "ugly, does not fit the design"): the normal arrow stays, a round 17 px
+  badge at its lower right in the panel colour with an accent ring and a soft shadow holds the motion's icon drawn like
+  the app's 16 px stroke icons (a turn arc with its head, a two-headed arrow along the slide, linked joints for a
+  mechanism); dragging: the badge filled with the accent, the icon white. Hotspot at the arrow's tip, a 2× image via
+  image-set (HiDPI), `grab` fallback; the label is a small pill beside the badge. drag.js cueSvg.
 
 - **A snap point offers what it belongs to (2026-10-29)**: `pickSnap` puts `ownerItems` first — a round edge's centre /
   quadrant: ◎ Select the hole (a Hole step -> `suggestStep`; another round cut -> its cylinder face's table: `faceTable`,
