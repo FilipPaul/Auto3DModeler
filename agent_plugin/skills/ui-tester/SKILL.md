@@ -18,8 +18,20 @@ If the user added words after /uiTester ("only the sheet"), test only that.
 3. **A drawing sheet** — `sheet_open` of the test part: views, dimensions (`get_sheet`), a title (`sheet_edit
    {texts: {title: "UI test"}}`).
 
-## 2. For each feature you used: its GUI path
-For every step above (sketch, extrude, hole, pattern, fillet, insert, joint, sheet, title…):
+## 2. For each feature you used: its GUI path — suggestions first
+The app is meant to be worked through its **suggestions table** (about 90 % of the everyday work): select something,
+the table offers what fits it. Test that path first for every task:
+1. **Select** as the user would: `gui_action {pick: "F2:end"}` (a face; an assembly's part `"I2"`, its face
+   `"I2 F2:end"`), `{at: [x, y]}`, or a sheet's dimension `{control: <its n>}`.
+2. **Read the table**: `gui_state {where: "suggest"}` — `suggestions.title` / `about` must name what you selected;
+   `rows` are what the user sees top to bottom (`rank_pos` 1 = the most relevant), `more` / `all` what is under
+   ⋯ Show all. `get_screenshot {ui: true}` shows it as the user sees it (where it sits, whether it covers the part).
+3. **Run the expected row**: `gui_action {suggest: "<label>"}` (Czech or English, part of it) — its panel / command
+   opens; finish it (OK) and check the result with `get_model` / `get_assembly` / `get_sheet`.
+4. **Judge it**: the expected action not offered at all → `report_problem {kind: "ui"}` (or "tool request"); offered but
+   only under ⋯ Show all, or not in the top 3 for its obvious selection (a hole on a flat face, a joint for two
+   faces) → a ui report naming its `rank_pos`; a row whose label does not say what it does → a ui report.
+Then the toolbar path, for every step above (sketch, extrude, hole, pattern, fillet, insert, joint, sheet, title…):
 - **Exists and is reachable**: `gui_state {where: "tools"}` / `"panel"` / `"bar"` lists a control for it (label,
   tooltip, not greyed out when it should work). A command hidden in a menu counts if the menu's label says what is in it.
 - **Does what the tool does**: `gui_action {control: …}` opens its panel; set a value the way the user would
@@ -44,10 +56,10 @@ Undo your test clicks you do not need (`undo`) so the designs stay clean.
 ## 4. End with a summary table
 One short table to the user, a row per feature tested:
 
-| Feature | Tool | GUI path | Czech | Result |
-|---|---|---|---|---|
-| Hole | ok | ◎ Hole → face → OK: ok | ok | ✓ |
-| Pattern | ok | not found in the toolbar | — | ui report (new) |
+| Feature | Tool | Suggestion (rank) | GUI path | Czech | Result |
+|---|---|---|---|---|---|
+| Hole | ok | ◎ Hole here (3) | ◎ Hole → face → OK: ok | ok | ✓ |
+| Pattern | ok | under ⋯ Show all | not found in the toolbar | — | ui report (new) |
 
 Then one line: how many checked, how many problems (new reports / already known), and where the reports are
 (RealSWReports). Leave the test parts in the project (the user can delete them) unless they asked otherwise.

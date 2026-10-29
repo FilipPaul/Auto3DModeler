@@ -124,7 +124,7 @@ function pickRows(items, all) {
     if (sec) { rows.push(sec); sec = null; } // (a heading only above rows that show)
     rows.push({ ...it, i });
   });
-  return { rows, total: acts.length, over };
+  return { rows, total: acts.length, over, ranked: [...acts].sort((a, b) => a.r - b.r || a.i - b.i).map((a) => a.i) };
 }
 
 /** Show (or with no items: remove) the table in `viewport`: title (what is selected), items [{icon, label, title,
@@ -140,7 +140,8 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
     viewport.appendChild(box);
   }
   const again = () => showSuggest(viewport, title, items, hint, refs);
-  const all = showingAll(), { rows, total, over } = pickRows(items, all), setting = box.dataset.setting === '1';
+  const all = showingAll(), { rows, total, over, ranked } = pickRows(items, all), setting = box.dataset.setting === '1';
+  box.sg = { title, hint, refs, items, ranked, shown: rows.filter((it) => it.section === undefined).map((it) => it.i) }; // (for the AI: suggestTables)
   box.dataset.noI18n = '';
   const keep = box.contains(document.activeElement) && document.activeElement.dataset.sg; // (drawn again: the row in the keyboard's hand stays there)
   box.innerHTML = `<div class="vs-head"><button class="vs-pin" title="${esc(t('Dock it in the left panel — always in sight (or drag its header there)'))}">📌</button><b title="${esc(title)}">${esc(title)}</b><button class="vs-set${setting ? ' on' : ''}" title="${esc(t('How many suggestions show before ⋯ Show all — click to change'))}">${esc(t('Top {n}').replace('{n}', suggestLimit()))}</button>${refs && askAI ? `<button class="vs-ai" title="${esc(t('Ask the AI about it — what is selected goes into the chat'))}">✨</button>` : ''}</div>
@@ -172,6 +173,32 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
   leftDock.placeSuggest(box, viewport); // (floating: moved / resized / remembered; or docked in the left column)
   if (keep) box.querySelector(`[data-sg="${keep}"]`)?.focus();
   return box;
+}
+
+/** The suggestion tables the user sees now (floating, docked, a menu), for the AI: [{box, title, hint, refs, docked,
+ *  menu, rows: [{i, icon, label, title, section, rank_pos, shown}]} — every action, the ones under ⋯ Show all with
+ *  shown false; rank_pos 1 = the most relevant]. */
+export function suggestTables() {
+  return [...document.querySelectorAll('.view-suggest, .sg-menu')].filter((b) => b.sg && b.getClientRects().length && !b.classList.contains('lw-off') && (b.classList.contains('sg-menu') || b.parentElement?.offsetParent)).map((box) => {
+    const { title, hint, refs, items, ranked, shown } = box.sg, on = new Set(shown);
+    let sec = null;
+    const secOf = new Map();
+    items.forEach((it, i) => { if (it.section !== undefined) sec = it.section; else secOf.set(i, sec); });
+    return { box, title, hint, refs, docked: box.classList.contains('docked'), menu: box.classList.contains('sg-menu'),
+      rows: ranked.map((i, k) => ({ i, icon: items[i].icon || '', label: items[i].label, title: items[i].title || '', section: secOf.get(i) || undefined, rank_pos: k + 1, shown: on.has(i) })) };
+  });
+}
+
+/** Run the row `i` of a table from suggestTables as the user would: a row under ⋯ Show all shown first (then the
+ *  table goes back to its top rows, as the user had it). -> false when the row is not there. */
+export function runSuggestion(box, i) {
+  let row = box.querySelector(`[data-sg="${i}"]`), opened = false;
+  if (!row && box.querySelector('[data-sg-all]')) { box.querySelector('[data-sg-all]').click(); opened = true; row = box.querySelector(`[data-sg="${i}"]`); }
+  if (!row) return false;
+  row.dispatchEvent(new MouseEvent('mouseenter'));
+  row.click();
+  if (opened) setShowingAll(false);
+  return true;
 }
 
 // ---------------------------------------------------------------------------------------------- the keyboard
@@ -214,6 +241,7 @@ export function suggestMenu(at, title, items) {
   box.className = 'sg-menu';
   box.dataset.noI18n = '';
   box.setAttribute('role', 'menu');
+  box.sg = { title, hint: '', refs: '', items, ranked: items.map((it, i) => (it.section === undefined ? i : -1)).filter((i) => i >= 0), shown: items.map((_, i) => i) };
   box.innerHTML = `${title ? `<div class="vs-head"><b title="${esc(title)}">${esc(title)}</b></div>` : ''}<div class="vs-list">${items.map((it, i) => (it.section !== undefined
     ? `<div class="vs-sec">${esc(it.section)}</div>`
     : `<button data-sg="${i}" role="menuitem" class="${it.danger ? 'danger' : ''}" title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span>${it.key ? `<kbd class="vs-key">${esc(it.key)}</kbd>` : ''}</button>`)).join('')}</div>`;

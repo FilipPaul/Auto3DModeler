@@ -12,7 +12,7 @@ import { ChatPanel, startBridge, bridgeStats, CLIENT, keepChatClient } from './a
 import { AiHistory } from './aihistory.js';
 import { LibraryBrowser, saveToLibrary, libraryItems, matchScore, itemFromModel } from './library/browser.js';
 import { repaint } from './modeler/paint.js';
-import { moreHandlers, colouredGroups } from './agent_more.js';
+import { moreHandlers, colouredGroups, screenshotUI } from './agent_more.js';
 import { teachHandlers } from './agent_teach.js';
 import { buildPart, sizesOf, lengthsOf } from './library/build.js';
 import { Project } from './parts.js';
@@ -2500,6 +2500,7 @@ const ANYWHERE = new Set(['load', 'load_project', 'load_drawing', 'load_solid', 
 for (const [name, fn] of Object.entries(agentHandlers)) {
   if (ANYWHERE.has(name)) continue;
   agentHandlers[name] = async (...args) => {
+    if (name === 'get_screenshot' && args[0]?.ui) return screenshotUI(); // (the window as the user sees it: the table, panels)
     if (state.workspace === 'sheet' && name === 'get_screenshot') return sheetScreenshot();
     if (state.workspace === 'assembly') {
       if (name === 'get_screenshot') return assemblyScreenshot(...args);

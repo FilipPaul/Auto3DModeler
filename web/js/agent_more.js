@@ -9,6 +9,8 @@ import { parseScale, DEFAULT_TPL } from './sheet/sheet.js';
 import { tolText } from './sheet/sheetsuggest.js';
 import { propagates } from './sheet/tbedit.js';
 import { animState } from './assembly/anim.js';
+import { suggestTables, runSuggestion } from './suggest.js';
+import { t } from './i18n.js';
 
 const b64 = (s, T) => { if (typeof s !== 'string') return s; const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new T(u.buffer); };
 const r3 = (v) => +(+v).toFixed(3);
@@ -36,11 +38,12 @@ export function colouredGroups(body, { base = '#d9dee6', paint = [], matrix = nu
 }
 
 /** The controls the user sees now (buttons, sliders, boxes, choices; not the AI chat): [{n, kind, label, title,
- *  state, disabled, where, el}] — where: bar (the top bar), tools (the workspace's toolbar), panel (its side panels). */
+ *  state, disabled, where, el}] — where: bar (the top bar), tools (the workspace's toolbar), suggest (the suggestions
+ *  table: its rows, ⋯ Show all, its head), panel (its side panels). */
 export function guiControls(where = 'all') {
   const out = [], seen = new Set();
   const shown = (el) => { if (!el.offsetParent && getComputedStyle(el).position !== 'fixed') return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-  const area = (el) => (el.closest('.topbar, header') ? 'bar' : el.closest('.m-cmdbar, .cmdbar, [class*=toolbar]') ? 'tools' : 'panel');
+  const area = (el) => (el.closest('.topbar, header') ? 'bar' : el.closest('.view-suggest, .sg-menu') ? 'suggest' : el.closest('.m-cmdbar, .cmdbar, [class*=toolbar]') ? 'tools' : 'panel');
   for (const el of document.querySelectorAll('button, input, select, [data-jname], .chip, .as-list .mt-item, #modelLeft .mt-tree .mt-item')) {
     if (seen.has(el) || el.closest('#aiDrawer, #tab-ai, .ai-drawer') || !shown(el)) continue;
     if (el.tagName === 'INPUT' && el.type === 'hidden') continue;
@@ -80,6 +83,162 @@ export function guiControls(where = 'all') {
     out.push({ n: out.length + 1, kind, label: label.slice(0, 90), state: el.classList.contains('on') ? 'on' : undefined, where: 'view', el });
   }
   return where === 'all' ? out : out.filter((c) => c.where === where); // (n: one numbering for all)
+}
+
+// ---------------------------------------------------------------------------------------------- the suggestions table
+// The product works through it (select something -> the table offers what fits it): the AI reads it as the user sees
+// it — its title, what it is about, its rows in their order (with gui_action's numbers) and those under ⋯ Show all.
+
+/** A label as compared: no accents, no icons, lower case ("◎ Díra zde" -> "dira zde"). */
+const plain = (s) => String(s ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
+/** The suggestions table on screen (a menu opened over it first) for gui_state / gui_action, or null: {title, about
+ *  (what is selected), hint, where, rows: [{n, icon, label, section, rank_pos}] (as shown, top to bottom), more (rows
+ *  under ⋯ Show all), all (their labels, the most relevant first), show_all (its n)}. */
+export function suggestInfo(list = guiControls('all')) {
+  const tables = suggestTables(), s = tables.find((x) => x.menu) || tables[0];
+  if (!s) return null;
+  const nOf = (el) => (el ? list.find((c) => c.el === el)?.n : undefined);
+  const shown = s.rows.filter((r) => r.shown).sort((a, b) => a.i - b.i), hidden = s.rows.filter((r) => !r.shown);
+  const label = (r) => `${r.icon} ${r.label}`.trim();
+  return { title: s.title, about: s.refs || s.title, ...(s.hint ? { hint: s.hint } : {}),
+    where: s.menu ? 'a menu' : s.docked ? 'docked in the left panel' : 'floating over the view (bottom left)',
+    rows: shown.map((r) => ({ n: nOf(s.box.querySelector(`[data-sg="${r.i}"]`)), icon: r.icon, label: r.label, ...(r.section ? { section: r.section } : {}), rank_pos: r.rank_pos })),
+    more: hidden.length, ...(hidden.length ? { all: hidden.map(label), show_all: nOf(s.box.querySelector('[data-sg-all]')) } : {}),
+    run: 'gui_action {suggest: "<label or part of it>"} runs a row (one under ⋯ Show all too)' };
+}
+
+/** The table's row a label means (Czech or English, part of it, no accents needed): the closest match, the most
+ *  relevant of equals -> {box, row} or null. */
+function findSuggestion(tables, want) {
+  const w = String(want).trim(), keys = [...new Set([w, w[0]?.toUpperCase() + w.slice(1)].flatMap((x) => [plain(x), plain(t(x))]))].filter(Boolean); // (English: through its Czech text)
+  let best = null;
+  for (const s of tables) {
+    for (const r of s.rows) {
+      const l = plain(r.label), li = plain(`${r.icon} ${r.label}`);
+      const score = Math.max(...keys.map((k) => (l === k || li === k ? 4 : l.startsWith(k) ? 3 : ` ${l} `.includes(` ${k} `) ? 2 : l.includes(k) ? 1 : 0)));
+      if (score && (!best || score > best.score || (score === best.score && r.rank_pos < best.row.rank_pos))) best = { box: s.box, row: r, score };
+    }
+  }
+  return best;
+}
+
+/** A point of the view on screen where a named thing shows (as the user would aim at it): a face of the 3D model
+ *  ("F2:end", or a step's id: any of its faces), an assembly's part ("I2") or a face of it ("I2 F2:end") — the middle
+ *  of where it is seen, not under a panel or the table. -> [x, y] on the page, or null when it is not in sight. */
+function pointOf(state, modeler, assembly, what) {
+  const view = viewEl(), vr = view?.getBoundingClientRect(), want = String(what).trim();
+  if (!vr) throw new Error('No view on screen.');
+  const named = (f, n) => !!f && [f.name, ...(f.names || [])].some((q) => q === n || q?.startsWith(`${n}:`));
+  let test;
+  if (state.workspace === 'model') test = (x, y) => named(modeler.view.pick(x, y)?.face, want);
+  else if (state.workspace === 'assembly') {
+    const [inst, face] = want.split(/\s+/);
+    test = (x, y) => { const h = assembly.view.pickInst(x, y); return h?.inst === inst && (!face || named(h.face, face)); };
+  } else throw new Error('pick is for the 3D model or an assembly on screen — on a sheet use control (its dimensions, views, cells).');
+  const hits = [], N = 48;
+  for (let j = 1; j < N; j++) {
+    for (let i = 1; i < N; i++) {
+      const x = vr.left + (i / N) * vr.width, y = vr.top + (j / N) * vr.height;
+      if (document.elementFromPoint(x, y)?.tagName !== 'CANVAS') continue; // (a panel, the table, a label over it)
+      if (test(x, y)) hits.push([x, y]);
+    }
+  }
+  if (!hits.length) return null;
+  const mx = hits.reduce((a, p) => a + p[0], 0) / hits.length, my = hits.reduce((a, p) => a + p[1], 0) / hits.length;
+  return hits.reduce((a, p) => (Math.hypot(p[0] - mx, p[1] - my) < Math.hypot(a[0] - mx, a[1] - my) ? p : a));
+}
+
+/** The window as the user sees it, as a picture (the AI chat left out): the 3D view / the sheet as drawn on screen
+ *  and the page over it — the suggestions table, panels, labels, bars — drawn box by box from the page (backgrounds,
+ *  borders, text, the fields' values; no HTML-to-canvas library is in the app), at most 1400 px wide -> get_screenshot's
+ *  answer {text (where the table is on it), image}. */
+export async function screenshotUI() {
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const W = innerWidth, H = innerHeight, k = Math.min(1, 1400 / W), skip = '#aiDrawer, #tab-ai, .ai-drawer, script, style, link, template';
+  const c = document.createElement('canvas');
+  c.width = Math.round(W * k);
+  c.height = Math.round(H * k);
+  const ctx = c.getContext('2d');
+  ctx.scale(k, k);
+  ctx.fillStyle = getComputedStyle(document.body).backgroundColor || '#0d1117';
+  ctx.fillRect(0, 0, W, H);
+  // a drawing sheet (a big SVG): as a picture, loaded first (the rest is drawn at once, in the page's order)
+  const sheets = new Map();
+  for (const svg of document.querySelectorAll('section.viewport svg')) {
+    const r = svg.getBoundingClientRect();
+    if (r.width < 150 || r.height < 150 || svg.closest(skip)) continue;
+    const img = new Image(), url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' }));
+    await new Promise((ok) => { img.onload = ok; img.onerror = ok; img.src = url; });
+    if (img.naturalWidth || img.width) sheets.set(svg, img);
+  }
+  const seen = (col) => !!col && col !== 'transparent' && !/^rgba\(.*,\s*0\)$|\/\s*0\)$/.test(col); // (rgb(), color(srgb …) of color-mix: not fully transparent)
+  const cut = (a, r) => { const x0 = Math.max(a[0], r.left), y0 = Math.max(a[1], r.top), x1 = Math.min(a[2], r.right), y1 = Math.min(a[3], r.bottom); return [x0, y0, Math.max(x0, x1), Math.max(y0, y1)]; };
+  const text = (s, cs, r, clip) => {
+    if (r.right < clip[0] || r.left > clip[2] || r.bottom < clip[1] || r.top > clip[3]) return;
+    ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    ctx.fillStyle = cs.color;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(s, r.left, r.top + r.height / 2);
+  };
+  const later = []; // (what floats over the rest — z-index above 0: the table, panels over the view — drawn after it)
+  const walk = (el, clip, over = false) => {
+    if (el.matches(skip)) return;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || +cs.opacity === 0) return;
+    if (cs.position === 'fixed') clip = [0, 0, W, H];
+    if (!over && cs.position !== 'static' && +cs.zIndex > 0) { later.push([+cs.zIndex, el, clip]); return; }
+    const r = el.getBoundingClientRect(), vis = cs.visibility !== 'hidden', tag = el.tagName;
+    if (vis && r.width && r.height) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(clip[0], clip[1], clip[2] - clip[0], clip[3] - clip[1]);
+      ctx.clip();
+      if (seen(cs.backgroundColor)) { ctx.fillStyle = cs.backgroundColor; ctx.fillRect(r.left, r.top, r.width, r.height); }
+      if (parseFloat(cs.borderTopWidth) > 0 && seen(cs.borderTopColor) && tag !== 'CANVAS') { ctx.strokeStyle = cs.borderTopColor; ctx.lineWidth = 1; ctx.strokeRect(r.left + 0.5, r.top + 0.5, r.width - 1, r.height - 1); }
+      try {
+        if (tag === 'CANVAS' || (tag === 'IMG' && el.complete)) ctx.drawImage(el, r.left, r.top, r.width, r.height);
+        else if (sheets.has(el)) ctx.drawImage(sheets.get(el), r.left, r.top, r.width, r.height);
+      } catch { /* (a picture from elsewhere: left out) */ }
+      const val = tag === 'SELECT' ? el.selectedOptions[0]?.textContent : tag === 'TEXTAREA' || (tag === 'INPUT' && /^(text|number|search|)$/.test(el.type)) ? el.value || el.placeholder : null;
+      if (val) text(String(val).trim(), cs, { left: r.left + 4, right: r.right, top: r.top, bottom: r.bottom, height: r.height }, clip);
+      if (tag === 'INPUT' && el.type === 'checkbox' && el.checked) text('✓', cs, r, clip);
+      ctx.restore();
+    }
+    if (['CANVAS', 'IMG', 'INPUT', 'SELECT', 'TEXTAREA'].includes(tag) || sheets.has(el) || el instanceof SVGElement) return;
+    const inner = cs.overflow !== 'visible' && r.width ? cut(clip, r) : clip;
+    for (const n of el.childNodes) {
+      if (n.nodeType === 1) walk(n, inner, over);
+      else if (n.nodeType === 3 && vis && n.textContent.trim()) {
+        const range = document.createRange();
+        range.selectNodeContents(n);
+        const rects = [...range.getClientRects()].filter((q) => q.width);
+        if (!rects.length) continue;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(inner[0], inner[1], inner[2] - inner[0], inner[3] - inner[1]);
+        ctx.clip();
+        if (rects.length === 1) text(n.textContent.replace(/\s+/g, ' ').trim(), cs, rects[0], inner);
+        else { // (wrapped over lines: its words flowed into them)
+          ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+          const words = n.textContent.split(/\s+/).filter(Boolean);
+          for (const q of rects) {
+            let line = '';
+            while (words.length && ctx.measureText(`${line} ${words[0]}`.trim()).width <= q.width * 1.05 + 2) line = `${line} ${words.shift()}`.trim();
+            if (!line && words.length) line = words.shift();
+            text(line, cs, q, inner);
+          }
+        }
+        ctx.restore();
+      }
+    }
+  };
+  walk(document.body, [0, 0, W, H]);
+  for (const [, el, clip] of later.sort((a, b) => a[0] - b[0])) walk(el, clip, true);
+  const sg = suggestTables()[0], box = sg && !sg.box.classList.contains('lw-off') ? sg.box.getBoundingClientRect() : null;
+  const at = box ? { suggestions_box: [box.left, box.top, box.right, box.bottom].map((v) => Math.round(v * k)) } : {};
+  return { text: `The window as the user sees it (the AI chat left out), ${c.width} × ${c.height} px${box ? `; the suggestions table “${sg.title}” at ${at.suggestions_box.join(', ')} (left, top, right, bottom px) — gui_state lists its rows` : ''}. ${JSON.stringify(at)}`,
+    image: c.toDataURL('image/png').split(',')[1] };
 }
 
 /** The workspace's view on screen (the 3D view, the drawing, the sheet). */
@@ -281,7 +440,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
 
     // ---------------------------------------------------------------- the GUI as the user sees it
     gui_state: async ({ where = 'all' } = {}) => {
-      const list = guiControls(where);
+      const list = guiControls(where), sg = suggestInfo(guiControls('all'));
       // the 3D model's step tree as the user sees it: names, what each makes, turned off / failing / selected / being changed
       const rows = state.workspace === 'model' ? [...document.querySelectorAll('#modelLeft .mt-item')] : [];
       // (nested as shown: depth 1 = under its parent — a step's sketch under the step, a reference point under 'ref')
@@ -296,17 +455,37 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       const anim = state.workspace === 'assembly' ? animState(assembly?.mech) : null;
       // ⚙ Mechanism's rows (a sub-assembly's own ones too: `inside` — its placement)
       const mechs = state.workspace === 'assembly' && !assembly?.mech?.closed ? (assembly?.mech?.list || []).map((m) => ({ id: m.id, name: m.name, ...(m.inside ? { inside: m.inside } : {}) })) : [];
-      return ok({ workspace: state.workspace, controls: list.map(({ el, ...c }) => c), ...(steps ? { steps } : {}), ...(bar ? { rollback_bar: { under: above?.dataset.id || null } } : {}), ...(anim ? { animation: anim } : {}), ...(mechs.length ? { mechanisms: mechs } : {}),
+      if (where === 'suggest') return ok({ workspace: state.workspace, suggestions: sg || 'No suggestions table on screen — select something (gui_action at / pick) and it shows what fits it.', controls: list.map(({ el, ...c }) => c) });
+      return ok({ workspace: state.workspace, ...(sg ? { suggestions: sg } : {}), controls: list.map(({ el, ...c }) => c), ...(steps ? { steps } : {}), ...(bar ? { rollback_bar: { under: above?.dataset.id || null } } : {}), ...(anim ? { animation: anim } : {}), ...(mechs.length ? { mechanisms: mechs } : {}),
         toasts: [...document.querySelectorAll('.toast')].map((x) => x.textContent.trim()).slice(-3) });
     },
-    gui_action: async ({ control, click, value, key: keys, at, at_mm, drag_to, double } = {}) => {
-      const shown = () => ({ workspace: state.workspace, selected: state.workspace === 'assembly' ? assembly.sel || null : state.workspace === 'sheet' ? sheet.sel || null : undefined,
-        toasts: [...document.querySelectorAll('.toast')].map((x) => x.textContent.trim()).slice(-3) });
+    gui_action: async ({ control, click, value, key: keys, at, at_mm, drag_to, double, suggest, pick } = {}) => {
+      const shown = () => { const sg = suggestInfo(); return { workspace: state.workspace, selected: state.workspace === 'assembly' ? assembly.sel || null : state.workspace === 'sheet' ? sheet.sel || null : undefined,
+        toasts: [...document.querySelectorAll('.toast')].map((x) => x.textContent.trim()).slice(-3), ...(sg ? { suggestions: sg } : {}) }; };
       const settle = () => new Promise((r) => setTimeout(r, 400));
       // the controls changed by it (a part chosen: its panel): the list with their new numbers comes with the answer
       const sig = (list) => list.map((x) => `${x.kind}|${x.label}`).join('\n');
       const fresh = (was) => { const list = guiControls('all'); return sig(list) === was ? {} : { controls_changed: 'the controls on screen changed — their numbers now (gui_state\'s were before):', controls: list.map(({ el, title, ...x }) => x) }; };
       const before = sig(guiControls('all'));
+      // a row of the suggestions table, by its label (one under ⋯ Show all: that opened first, as the user would)
+      if (suggest !== undefined && suggest !== null && suggest !== '') {
+        const tables = suggestTables();
+        if (!tables.length) throw new Error('No suggestions table on screen — select something first (gui_action at / pick: a face, a part, a dimension), then gui_state shows what it offers.');
+        const hit = findSuggestion(tables, suggest);
+        if (!hit) throw new Error(`No suggestion “${suggest}” — the table “${tables[0].title}” offers: ${tables[0].rows.map((r) => `${r.icon} ${r.label}`.trim()).join(', ')}.`);
+        if (!runSuggestion(hit.box, hit.row.i)) throw new Error(`The row “${hit.row.label}” could not be clicked — gui_state for the table now.`);
+        await settle();
+        return ok({ done: `suggestion “${`${hit.row.icon} ${hit.row.label}`.trim()}” clicked${hit.row.shown ? '' : ' (it was under ⋯ Show all: that opened first)'}`, ...shown(), ...fresh(before) });
+      }
+      // a named face / part clicked where it shows on screen (the table then offers what fits it)
+      if (pick !== undefined && pick !== null && pick !== '') {
+        const p = pointOf(state, modeler, assembly, pick);
+        if (!p) throw new Error(`“${pick}” is not in sight in the view — find_refs / get_assembly give the names; set_view (another side) may show it.`);
+        const under = underAt(...p), vb = viewEl().getBoundingClientRect();
+        await gesture([p]);
+        await settle();
+        return ok({ done: `clicked ${pick} (${under})`, at: [r3((p[0] - vb.left) / vb.width), r3((p[1] - vb.top) / vb.height)], ...shown(), ...fresh(before) });
+      }
       let c = null;
       if (control !== undefined && control !== null && control !== '') {
         const list = guiControls('all'), want = String(control).trim().toLowerCase();

@@ -8,6 +8,13 @@ description: Use when the user asks how to do something in the app, where someth
 The user wants to learn the app, not only get a result. Point at the real controls on their screen, one at a time,
 and let them click. Do the step yourself only when they ask you to.
 
+0. **Suggestions first.** Most work in the app goes through the suggestions table: the user selects something (a
+   face, an edge, a part, a dimension) and a small table in the view's corner offers what fits it. Lead them that
+   way when it can be done there: show them what to click in the view (`gui_highlight {at: …}` — `gui_action {pick:
+   "F2:end"}` answers where that face is on screen, `at` — it clicks it, so `gui_action {key: "Escape"}` after it
+   leaves the click to the user), then, once the table shows, `gui_state {where: "suggest"}`
+   and `gui_highlight {control: <the row's n>, text: …}` on the row. A row under ⋯ Show all: highlight ⋯ Show all
+   first (its n is `show_all`). The toolbar is the second way — use it when nothing needs to be selected first.
 1. **Find the control**: `gui_state {where: "tools"}` (the workspace's toolbar), `"panel"`, `"bar"` (the top bar) or
    `"view"` — each control has its `n` and `label` (with its tooltip). If what you need is not listed, it is inside
    something closed (a menu ▾, a panel, another workspace): show the thing that opens it first.
@@ -20,7 +27,7 @@ and let them click. Do the step yourself only when they ask you to.
 4. **Look what changed** (`gui_state`, `get_screenshot`) and show the next step. The steps of a typical lead:
    - a new 3D model: ＋ New 3D model → ✏ Sketch → a plane (Top) → a shape tool → the size boxes → Finish sketch →
      ⬆ Extrude → its depth → OK;
-   - a hole: ◎ Hole → the face (`at:` on it) → the points → Ø → OK;
+   - a hole: the face (`at:` on it) → the table's ◎ Hole here → Ø → OK;
    - an assembly: ＋ Insert part ▾ → a part → 🔗 Joint → two faces → OK;
    - a drawing: 📄 Drawing sheet → a view / a dimension.
    Labels differ by workspace and language — always take them from `gui_state`, never from this list.
