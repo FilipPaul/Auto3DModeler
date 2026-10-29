@@ -239,7 +239,10 @@ Never report "works" without having run it; report failures with their output.
    the crank demo's parts, ＋ Nová sestava, ＋ Vložit díl ×4, each joint by real clicks — a hole's rim + Ctrl+click the
    pin -> "◎ Soustředně + dosednout · Ø10" first; the slider's top + Ctrl+click the base's top -> "⧉ Položit …"; the
    rod's second eye on the slider's pin closes the loop; ▭ Zarovnat on the placed slider keeps its offset (in line);
-   every face picked on the first click, ≤ 32 clicks; ⚙ Mechanismus 90 typed: the slider at the formula; ▶ plays.
+   every face picked on the first click, ≤ 32 clicks; ⚙ Mechanismus 90 typed: the slider at the formula; ▶ plays. The
+   helper: all but the last joint -> "Chybí jedna vazba … díra Ø8 (Ojnice) ↔ čep Ø8 (Smýkadlo)" in ⚙ Mechanismus (in the
+   slider's panel with the widget closed; none before the slider is placed or when complete), ➕ Přidat vazbu closes
+   the loop, Ctrl+Z takes it back.
    `tools/e2e_assembly_fixed.py <url> <dir>` covers 📌 fixed parts (the first part fixed, 📌 in the list; moving it
    refused; a joint from it moves the other part; the Lid's suggestions: unlock and edit here, fix; freed: it moves).
    `tools/e2e_planes.py <url> <dir>` covers the planes (faint on an empty model; ◫ Planes off: hidden, remembered;

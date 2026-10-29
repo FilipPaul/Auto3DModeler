@@ -893,8 +893,9 @@ export class Assembly {
         ${dof.unexplained > 0 ? `<p class="hint">${t2('…and {n} more way(s) that are not a plain move or turn.', { n: dof.unexplained })}</p>` : ''}`}
         <details class="as-free"><summary>Place it by hand (breaks its joints)</summary>${freePlace}</details>`
         : freePlace;
-      const inner = this.innerMotions(it);
+      const inner = this.innerMotions(it), miss = this.mech?.missing, missHere = miss && (!this.mech.list.length || this.mech.closed) && [miss.move.inst, miss.onto.inst].includes(it.id); // (no ⚙ widget: the line is here)
       box.innerHTML = `<h2 data-no-i18n>${esc(this.partName(it.part))}</h2><p class="hint">${it.id} — ${dof ? 'held by its joints.' : 'where its own origin is, and how it is turned.'}</p>
+        ${missHere ? this.mech.missingHtml() : ''}
         ${inner ? this.innerHtml(it, inner) : ''}
         ${place}
         ${this.editHtml(it)}
@@ -903,6 +904,7 @@ export class Assembly {
         <div class="row-actions wrap"><button class="btn small" data-a="joinThis">🔗 Join it to another part</button></div>
         ${this.hooks.duplicatePart ? '<div class="row-actions"><button class="btn small" data-a="ownPart" title="Copy its part as a new part of the project and use the copy here — then it can be changed alone (the other copies stay as they are)">⧉ Make it its own part</button></div>' : ''}
         <div class="row-actions">${this.hooks.openPart ? `<button class="btn small primary" data-a="openPart" title="Open its part in its own tab (to change it — the assembly follows)">${this.kindOf(it.part) === 'assembly' ? '◇' : '◆'} ${esc(t('Open its part'))}</button>` : ''}<button class="btn small ${it.fixed ? 'on' : ''}" data-a="fix" title="${it.fixed ? 'Fixed in place: it is not moved by hand, joints bring the other parts to it — click to free it' : 'Fix it in place: it is not moved by hand, joints bring the other parts to it'}">📌 ${esc(t(it.fixed ? 'Fixed' : 'Fix in place'))}</button><button class="btn small" data-a="reset" title="Back to its place in its own model">Reset its place</button><button class="btn small danger" data-a="del">✕ ${esc(t('Take it out'))}</button></div>`;
+      if (missHere) this.mech.bindMissing(box);
       for (const inp of box.querySelectorAll('input[data-k]')) {
         inp.addEventListener('change', () => this.setPos(inp.dataset.k, inp.value));
         inp.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') inp.blur(); });
@@ -1837,6 +1839,7 @@ export class Assembly {
       marks.push({ inst: m.move, faces: faceIds(m.move, m.face), color: 0x3fb950 }, { inst: m.onto, faces: faceIds(m.onto, m.ontoFace), color: 0x58a6ff });
     }
     for (const h of this.hoverCand?.holes || []) marks.push({ inst: h.inst, faces: faceIds(h.inst, h.name), color: 0xf2cc60 });
+    for (const q of this.hoverMissing ? [this.hoverMissing.hole, this.hoverMissing.pin] : []) marks.push({ inst: q.inst, faces: faceIds(q.inst, q.name), color: 0xf2cc60 }); // (➕ Add joint: its hole and pin)
     if (this.jointFrom?.face) marks.push({ inst: this.jointFrom.inst, faces: [this.jointFrom.face.id], color: 0x3fb950 });
     for (const [inst, set] of this.painting?.sel || []) marks.push({ inst, faces: [...set], color: 0xff9e64 });
     if (this.hoverFace) marks.push({ inst: this.hoverFace.inst, faces: [this.hoverFace.face.id], color: this.hoverFace.ok ? 0xf2cc60 : 0x8b95a3 });

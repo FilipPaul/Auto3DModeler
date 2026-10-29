@@ -853,8 +853,23 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   of the assembly see-through around it, in place; *◇ Back to the assembly* returns. It is **🔒 Locked** per part
   until you unlock it (🔓 Editable from here), so nothing is changed by accident.
 - **Joints with no tool on**: click a face (or a hole's / pin's rim) — it lights up and the Suggested table offers the
-  joints it can start; **Ctrl+click a face of another part** and it offers the joints that fit the two (two round
-  faces: ◎ Concentric; two flat: Touch, Flush, Gap, Parallel …; round and flat: Tangent) — one click makes it.
+  joints it can start; **Ctrl+click a face of another part** and it offers the joints that fit the two — one click
+  makes it. Ranked, the likely one first:
+  - **a hole and a pin**: *◎ Concentric + seat · Ø10* (on one axis and down on the face around the pin — Concentric +
+    Touch in one step, so each pivot of a mechanism is three clicks: the hole's rim, Ctrl+click the pin, this), then
+    *◎ Concentric only · Ø10* (the seat is offered while the moving part has no other joints);
+  - **two flat faces facing up** (a part's top, Ctrl+click the base's top): *⧉ Put Slider on Base* — its underside
+    goes onto the base, no turning the view to click a face you cannot see; then Touch, Flush …;
+  - **two side faces facing the same way**: ▭ Flush first; on a part that is joined already it keeps the offset as the
+    parts stand (a slider stays in line with the crank; type 0 in the panel to line the faces up).
+  A plain click on a small hole or pin, or on a thin side, picks the face — corners, edge middles and centres catch a
+  click only within 5 px there (📏 Measure: 10 px); a Ctrl+click beside the parts keeps the face picked first.
+- **"One joint is missing"**: when the parts almost make a closed loop — the crank and the rod on their pins, the
+  slider on the base, only the rod's second eye not on the slider's pin — ⚙ Mechanism (or the part's panel when the
+  widget is closed) shows one quiet line: *Chybí jedna vazba, aby se mechanismus uzavřel: díra Ø8 (Ojnice) ↔ čep Ø8
+  (Smýkadlo)* and **➕ Add joint**, which puts that pin in its hole (◎ Concentric; Ctrl+Z takes it back). The hole and
+  the pin are found by geometry: free (no concentric joint), the same Ø (the pin up to 0.6 mm smaller), parallel axes
+  near each other, both parts joined and still free to move. Nothing shows when nothing is near-closed.
 - **📌 Fixed in place**: the first part put in an assembly is fixed (📌 in the list): it is not moved by hand, and a
   joint made from it moves the other part. 📌 in a part's panel (or the Suggested table) fixes or frees any part.
   A chosen part's actions are in its panel only (the Suggested table leaves them out — each action once on screen);

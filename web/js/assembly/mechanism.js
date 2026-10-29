@@ -11,6 +11,7 @@
 import { t } from '../i18n.js';
 import { renameInPlace } from '../rename.js';
 import { leftDock } from '../leftdock.js';
+import { missingJoint } from './missing.js';
 
 const fmt = (v) => (+(+v).toFixed(2)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -138,6 +139,8 @@ export class MechanismPanel {
   /** The mechanisms found again and the widget drawn (or hidden: none, or closed). */
   render() {
     try { this.list = this.asm.active === false ? [] : mechanisms(this.asm); } catch { this.list = []; }
+    if (!this.playing) try { this.missing = this.asm.active === false ? null : missingJoint(this.asm); } catch { this.missing = null; } // (▶: the joints stay as they are)
+    if (!this.missing && this.asm.hoverMissing) { this.asm.hoverMissing = null; this.asm.drawMarks(); }
     if (this.playing && !this.list.some((m) => m.key === this.playing.key)) this.stop(false);
     const on = this.list.length > 0 && !this.closed;
     leftDock.show('mech', on);
@@ -149,11 +152,12 @@ export class MechanismPanel {
     if (part) { const m = this.list.find((x) => x.parts.includes(part)); if (m) this.more.add(m.key); }
     this.render();
     this.asm.renderBar();
+    if (this.missing) this.asm.renderProps(); // (the "missing joint" line: here now, not in the part panel)
     const row = part && this.box.querySelector(`[data-mckey="${CSS.escape(this.list.find((x) => x.parts.includes(part))?.key || '')}"]`);
     row?.scrollIntoView({ block: 'nearest' });
   }
 
-  close() { this.stop(); this.closed = true; leftDock.show('mech', false); this.asm.renderBar(); }
+  close() { this.stop(); this.closed = true; leftDock.show('mech', false); this.asm.renderBar(); if (this.missing) this.asm.renderProps(); }
   toggle() { if (this.closed || !this.list.length) this.open(); else this.close(); }
 
   rowHtml(m, k) {
@@ -187,8 +191,36 @@ export class MechanismPanel {
       <svg viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none"><polyline points="${pts}"/><line class="mc-now" x1="${X(at).toFixed(1)}" x2="${X(at).toFixed(1)}" y1="0" y2="${Hh}"/></svg></div>`;
   }
 
+  /** The quiet line "One joint is missing …" with ➕ Add joint (here, or in the part panel when this widget is not
+   *  shown) — '' when nothing is near-closed. */
+  missingHtml() {
+    const x = this.missing;
+    if (!x) return '';
+    const name = (q, what) => t2(what, { d: fmt(+q.d.toFixed(2)), part: this.asm.partName(this.asm.inst(q.inst)?.part) });
+    return `<div class="hint mc-miss" data-no-i18n>${esc(t2('One joint is missing to close the mechanism: {a} ↔ {b}', { a: name(x.hole, 'hole Ø{d} ({part})'), b: name(x.pin, 'pin Ø{d} ({part})') }))}
+      <button class="btn small" data-mcadd title="${esc(t('Add ◎ Concentric between them — the loop closes (Ctrl+Z: back)'))}">${esc(t('➕ Add joint'))}</button></div>`;
+  }
+
+  /** ➕ Add joint: the missing pin in its hole (◎ Concentric) — one undo step. */
+  addMissing() {
+    const x = this.missing;
+    if (!x) return;
+    this.stop(false);
+    this.asm.hoverMissing = null;
+    this.asm.joinRound([x.move, x.onto], false);
+  }
+
+  bindMissing(box) {
+    box.querySelector('[data-mcadd]')?.addEventListener('click', () => this.addMissing());
+    for (const el of box.querySelectorAll('.mc-miss')) {
+      el.addEventListener('mouseenter', () => { this.asm.hoverMissing = this.missing; this.asm.drawMarks(); });
+      el.addEventListener('mouseleave', () => { this.asm.hoverMissing = null; this.asm.drawMarks(); });
+    }
+  }
+
   draw() {
-    this.box.innerHTML = `<div class="mc-list">${this.list.map((m, k) => this.rowHtml(m, k)).join('')}</div>`;
+    this.box.innerHTML = `${this.missingHtml()}<div class="mc-list">${this.list.map((m, k) => this.rowHtml(m, k)).join('')}</div>`;
+    this.bindMissing(this.box);
     const asm = this.asm, row = (el, a) => this.list[+el.dataset[a]];
     for (const sl of this.box.querySelectorAll('[data-mcv]')) {
       const m = row(sl, 'mcv'), num = this.box.querySelector(`[data-mcn="${sl.dataset.mcv}"]`);

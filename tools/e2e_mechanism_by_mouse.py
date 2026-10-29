@@ -6,7 +6,9 @@ base's top -> "⧉ Položit Smýkadlo na Základna"; the rod's second eye, Ctrl+
 Ø8": the loop closes (one free motion); the slider's front side, Ctrl+click the base's front side -> "▭ Zarovnat"
 first, its offset kept (the slider stays in line) -> ⚙ Mechanismus: 90 typed — the slider at r·cosθ + √(L² − r²sin²θ)
 (r 25, L 100), as in e2e_assembly_loop; ▶ plays, the joints hold. Every face is picked on the first click; the clicks
-are counted.
+are counted. The helper: with all but the last joint, ⚙ Mechanismus shows "Chybí jedna vazba, aby se mechanismus
+uzavřel: díra Ø8 (Ojnice) ↔ čep Ø8 (Smýkadlo)" (not before the slider is placed, not when complete); ➕ Přidat vazbu
+closes the loop (the slider at the formula), Ctrl+Z takes it back.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_mechanism_by_mouse.py http://127.0.0.1:5199 <out dir>
 """
@@ -192,10 +194,41 @@ def pivots():
     check(pick("I3", rounds("I3", "hole")[0], "rim") and pick("I2", rounds("I2", "side")[0], "face", ctrl=True), "the rod's first eye, Ctrl+click the crank's pin: picked on the first click")
     choose("◎ Soustředně + dosednout · Ø8")
     check(mates()[2:] == [["axis", "I3", "I2"], ["touch", "I3", "I2"]] and not unheld(), f"the rod on the crank's pin, seated: {mates()[2:]}")
+    check(not hint(), f"nothing near-closed yet (the slider not placed): no 'missing joint' line {hint()}")
     check(pick("I4", "F2:end", "face") and pick("I1", "F2:end", "face", ctrl=True), "the slider's top, Ctrl+click the base's top: picked on the first click")
     choose("⧉ Položit Smýkadlo na Základna")
     check(mates()[4:] == [["touch", "I4", "I1"]] and not unheld(), f"the slider down on the base (its underside): {mates()[4:]}")
     print(f"  the two pivots and the slider: {clicks[0] - n} clicks")
+
+
+def hint():
+    return [" ".join(e.text.split()) for e in d.find_elements(By.CSS_SELECTOR, ".mc-miss") if e.is_displayed()]
+
+
+def helper():
+    """Built but for the last joint: ⚙ Mechanismus says which one is missing; ➕ Přidat vazbu closes the loop; Ctrl+Z: back."""
+    h = hint()
+    check(h == ["Chybí jedna vazba, aby se mechanismus uzavřel: díra Ø8 (Ojnice) ↔ čep Ø8 (Smýkadlo) ➕ Přidat vazbu"], f"the missing joint named in ⚙ Mechanismus: {h}")
+    d.save_screenshot(f"{OUT}/mouse_missing_hint.png")
+    # ⚙ Mechanismus closed (its ✕): the line is in the panel of the slider
+    press(d.find_element(By.CSS_SELECTOR, ".lw-widget[data-w=mech] .lw-close"))
+    check(pick("I4", "F2:end", "face"), "the slider's top clicked")
+    ph = [" ".join(e.text.split()) for e in d.find_elements(By.CSS_SELECTOR, "#asmRight .mc-miss")]
+    check(not hint() or ph, f"⚙ Mechanismus closed: the line in the slider's panel {ph}")
+    d.save_screenshot(f"{OUT}/mouse_missing_panel.png")
+    press(d.find_element(By.CSS_SELECTOR, "#asmViewport .m-cmdbar [data-a=mech]"))
+    check(len(hint()) == 1, f"⚙ Mechanismus open again (toolbar): the line there {hint()}")
+    n = len(mates())
+    press(d.find_element(By.CSS_SELECTOR, ".mc-miss [data-mcadd]"))
+    time.sleep(0.8)
+    lp = js(f"return ({A}.loops || []).map(l => [l.parts.join(','), l.closed])")
+    check(mates()[n:] == [["axis", "I3", "I4"]] and lp == [["I2,I3,I4", True]] and not unheld() and not hint(),
+          f"➕ Přidat vazbu: {mates()[n:]}, the loop {lp}, the line gone {hint()}")
+    th, x, y = geo()
+    check(abs(x - expected(th)) < 0.05, f"  the slider under the rod's eye: θ {th:.2f}°, {x:.3f} mm (the formula {expected(th):.3f}), {y:.3f} across")
+    ActionChains(d).key_down(Keys.CONTROL).send_keys("z").key_up(Keys.CONTROL).perform()
+    time.sleep(0.8)
+    check(len(mates()) == n and hint(), f"Ctrl+Z: the joint gone ({len(mates())} joints), the line back")
 
 
 def close_loop():
@@ -247,8 +280,12 @@ def drive():
 try:
     build()
     pivots()
+    k0 = clicks[0]
+    helper()
+    clicks[0] = k0  # (the helper tried and undone: the build by hand goes on)
     close_loop()
     line()
+    check(not hint(), f"the mechanism complete: no 'missing joint' line {hint()}")
     d.save_screenshot(f"{OUT}/mouse_mechanism.png")
     drive()
     print(f"  clicks from the new assembly to a playing mechanism: {clicks[0]}")

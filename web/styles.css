@@ -918,6 +918,9 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .as-mname.own { color: var(--text); font-weight: 600; }
 /* ⚙ Mechanism (mechanism.js): a row per mechanism — its name, one slider, ▶ and ⋯ */
 .mc-list { padding: 6px 8px 4px; }
+.mc-miss { margin: 6px 8px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.mc-miss .btn { flex: none; }
+.mp-body > .mc-miss { margin: 0 0 8px; }
 .mc-row { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
 .mc-row:last-child { border-bottom: 0; margin-bottom: 0; }
 .mc-row > label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

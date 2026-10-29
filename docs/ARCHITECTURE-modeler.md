@@ -7,6 +7,33 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **A mechanism built by mouse: the walkthrough, its fixes, "one joint is missing" done** (the owner: "how hard is it
+  for a user to make a mechanism?"). The crank – rod – slider put together with real clicks only (headless Edge, Czech,
+  1600×1000; the crank demo's parts; tools/e2e_mechanism_by_mouse.py replays it). Found and fixed, one commit each:
+  a small hole / pin seen from afar was all the snap circles of its centre (0 of ~170 spots picked a face, so
+  "◎ Soustředně" never showed) -> Assembly.idleSnap: on a round face or near its rim only a corner snaps; a Ctrl+click
+  beside the parts dropped the first pick -> kept; the empty assembly's steps and the two-part panel line were English
+  (and named the old 🧲 Snap) -> Czech, today's way; a thin side (7 px) was all corner / midpoint snaps -> a plain
+  click snaps within 5 px (📏 Measure 10); after ◎ Concentric the crank sat inside the base and its underside (for
+  Touch) could not be clicked from any view -> two round faces offer "◎ Soustředně + dosednout · Ø10" first
+  (Concentric + Touch of the faces around them: roundEnds / seatPair / joinRound, Solid Edge's Insert; the seat while
+  the moving part has no other joints and one is a pin), then "◎ Jen soustředně · Ø10"; the slider's underside onto
+  the base needed the view turned (4 drags still 0 spots) -> two flat faces facing up offer "⧉ Položit Smýkadlo na
+  Základna" (putOn: the moving part's face on the other side); ▭ Flush of the placed slider's side jumped it 15 mm off
+  its line (the crank turned −4.85°) -> a Flush on a part held already keeps the offset as it stands (keepOffset), two
+  faces facing the same way list ▭ Flush first. Now: 10 clicks for a new assembly with 4 parts, 3 per joint (a rim,
+  Ctrl+click, the first suggestion) — 18 for the five joints, 3 to type 90° and ▶: 28 in all, every face on the first
+  click. "One joint is missing": web/js/assembly/missing.js missingJoint(asm) — a free hole and a free pin (isPin: its
+  triangles face away from the axis) of a matching Ø (the pin up to 0.6 mm smaller), parallel axes within the parts'
+  size, both parts joined and still moving, not in one loop, the joint legal (no part hanging on the other) — the
+  nearest pair; ⚙ Mechanism (or the part panel of one of the two when the widget is closed) shows "Chybí jedna vazba,
+  aby se mechanismus uzavřel: díra Ø8 (Ojnice) ↔ čep Ø8 (Smýkadlo)" and "➕ Přidat vazbu" (joinRound: one undo step;
+  hovering the line lights the hole and the pin). Quiet before the slider is placed, when complete and on all three
+  demos; the four-bar without its last joint names "díra Ø6 (Spojnice) ↔ čep Ø6 (Vahadlo)". Tests:
+  e2e_mechanism_by_mouse (the build, the helper, Ctrl+Z, the formula at 90°, ▶), e2e_assembly_facepick (now exits 1).
+  Left out: the crank's motion is still named after its face ("Otočit kolem osy: stěna Extrude 2") until renamed; a
+  slider's line needs a Flush (no rail / slot in the demo's base).
+
 - **Widgets: two opacities, the project tree docked by default done:** a floating widget's panel opacity (background,
   border, header background: 0–100 %, 0 = only its content over the view; CSS color-mix with --pop) and its content's
   (rows, buttons, texts: 30–100 %, opacity on its children with --cop; the mouse over it: 100 %). Ctrl+wheel on the

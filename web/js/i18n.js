@@ -749,6 +749,8 @@ const CS = {
   '{name} — a copy of its own (change it without changing the original).': '{name} — samostatná kopie (měňte ji bez změny originálu).',
   '{inst} now has a part of its own: {name} — change it without changing the others.': '{inst} má teď vlastní díl: {name} — měňte ho bez změny ostatních.',
   '{name} (the copy made for it) is out of the project again.': '{name} (kopie pro něj vytvořená) je zase mimo projekt.',
+  'One joint is missing to close the mechanism: {a} ↔ {b}': 'Chybí jedna vazba, aby se mechanismus uzavřel: {a} ↔ {b}', 'hole Ø{d} ({part})': 'díra Ø{d} ({part})', 'pin Ø{d} ({part})': 'čep Ø{d} ({part})',
+  '➕ Add joint': '➕ Přidat vazbu', 'Add ◎ Concentric between them — the loop closes (Ctrl+Z: back)': 'Přidat mezi ně ◎ Soustředně — smyčka se uzavře (Ctrl+Z: zpět)',
   'Put {a} on {b}': 'Položit {a} na {b}', 'Its face on the other side (the underside) touches this face — no need to turn the view to click it': 'Jeho plocha na druhé straně (spodní) dosedne na tuto plochu — není třeba otáčet pohled, abyste na ni klikli',
   '{type} — the offset {gap} mm kept, as the parts stand (0 in the panel lines them up).': '{type} — odsazení {gap} mm ponecháno, jak díly stojí (0 v panelu je srovná).',
   'Concentric + seat': 'Soustředně + dosednout', 'Concentric only': 'Jen soustředně',
