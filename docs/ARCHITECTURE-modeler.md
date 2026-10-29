@@ -7,6 +7,17 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **D holes done** (left out of the standard holes before): hole_type "d_flat" — a hole for a D-shaft, its Ø d and
+  `flat`, the size across the flat (flat to far side, the D-shaft's own number: Ø5 D4.5); holes.D_FLATS (Ø3 / 4 / 5 /
+  6 / 8 -> 2.5 / 3.5 / 4.5 / 5.5 / 7.5, else 0.9 × d: the flat 0.8 × r from the centre; holes.js the same, test-checked).
+  kernel.dflat_face (an arc + the chord, its flat facing the frame's x turned `flat_angle`°; r < flat < d else an
+  issue; no teardrop, no head / thread); faces `<id>:hole:k` and `<id>:flat:k`. The Hole panel: Type "D (flat)" ->
+  Diameter + Across the flat (its slider r … d) + ⇄ (90° a click); no Size / Edit sizes / Teardrop; the flat follows
+  the Ø while it is the default. The drawing: callout "Ø5 D4.5 THRU" (sheet.callout / sheet.js calloutRest), the
+  flat's edge not dimensioned (_deco, the check), and a hole's arc of more than half a circle is a hole (Ø, ISO 129 —
+  was: only ≥ 270°, a teardrop). The AI: add_feature / edit_feature hole {hole_type: "d_flat", d, flat, flat_angle};
+  get_model's flat. tests/test_hole_dflat.py (circle − segment volumes, the flat's place both ways, watertight, STEP,
+  callouts, errors), tools/e2e_model_hole_dflat.py (15 checks), e2e_agent (the Ø5 D4.5 through 20).
 - **⛓ Fillet / chamfer tangent chains done:** OpenCASCADE's fillet and chamfer builders always round an edge's whole
   tangent chain (its contour) — one top edge of a box with rounded corners took all 8, but only that edge was shown
   picked and the 7 other new faces had no name. kernel.tangent_chains (the builder's own contours, Add without Build:

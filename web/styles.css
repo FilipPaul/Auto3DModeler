@@ -1005,6 +1005,7 @@ body.view-acts .toast-stack { bottom: 84px; }
 .seg.big button { padding: 9px 6px; font-weight: 600; }
 .field .unit { color: var(--muted); font-size: 12px; }
 .mp-body .field { grid-template-columns: 80px 1fr 26px; }
+.mp-body .field.m-dflat { grid-template-columns: 80px 1fr 26px 26px; } /* a D hole's flat: its size, mm, ⇄ turn it 90° */
 
 /* the Open menu: file inputs as menu items */
 .menu-list .menu-item { display: block; padding: 8px 10px; border-radius: 5px; cursor: pointer; white-space: nowrap; }

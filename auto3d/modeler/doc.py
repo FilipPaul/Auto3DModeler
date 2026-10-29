@@ -20,7 +20,8 @@ Part JSON (in the project file, `parts[].model`):
       "keep": "both" | "above" | "below"},   (both: two bodies; above: the side the plane's normal points to)
      {"id": "F6", "type": "hole", "plane": {"face": {"name": "F2:end"}, "frame": ...}, "points": [[u, v]], "d": 5,
       "through": true, "depth": 10},   (+ "teardrop": true: a sideways hole with a 45° point on top, printable)
-      (+ "hole_type": "clearance" | "counterbore" | "countersink" | "tapped", "standard": "M5": sized from holes.py)
+      (+ "hole_type": "clearance" | "counterbore" | "countersink" | "tapped", "standard": "M5": sized from holes.py;
+       "hole_type": "d_flat", "flat": 4.5, "flat_angle": 0: a D hole, its size across the flat, the flat facing +x)
      {"id": "F10", "type": "point", "at": {"vertex": {"faces": [...], "fp": [x, y, z]}} | {"centre": <edge ref>} |
       {"mid": <edge ref>} | {"xyz": [x, y, z]}}]}   (a reference point: a corner, a round edge's centre, an edge's middle)
 
@@ -135,6 +136,8 @@ def _holes(part):
                 h["thread"] = f["thread"]
             if f.get("fit"):
                 h["fit"] = f["fit"]
+            if f.get("hole_type") == "d_flat":
+                h["flat"] = _num(f, "flat", HOLES.d_flat(dia))
             if f.get("head") in ("cbore", "csk"):
                 h["head"] = f["head"]
                 h["head_d"], hdep = _head_sizes(f, dia)
@@ -444,13 +447,19 @@ def _apply(f, st: State, s):
         if tear and head == "csk":
             raise K.KernelError("A countersink cannot be a teardrop (its cone would hang over) — use a counterbore, or untick Teardrop.")
         prof = K.teardrop_face if tear else K.circle_face
+        if f.get("hole_type") == "d_flat":  # D: a shaft's flat on one side (its size across the flat, turned flat_angle)
+            if tear:
+                raise K.KernelError("A D hole cannot be a teardrop — untick Teardrop.")
+            flat, turn = _num(f, "flat", HOLES.d_flat(dia), what="size across the flat"), float(f.get("flat_angle") or 0)
+            prof = lambda fr_, u_, v_, d_: K.dflat_face(fr_, u_, v_, d_, flat, turn)  # noqa: E731
         if head in ("cbore", "csk"):
             _head_fits(f, fr, st, pts, dia, hd, hdep if head == "cbore" else None, None if f.get("through", True) else depth)
         for k, (u, v) in enumerate(pts):
             face, names = prof(fr, float(u), float(v), dia)
             tool = K.prism_body(face, names, -n * depth, fid)
             tool.names = {f"{fid}:hole:{k}": tool.names.get(f"{fid}:side:c", []), f"{fid}:bottom:{k}": tool.names.get(f"{fid}:end", []),
-                          **({f"{fid}:tear:{k}": tool.names.get(f"{fid}:side:t", [])} if tear else {})}
+                          **({f"{fid}:tear:{k}": tool.names.get(f"{fid}:side:t", [])} if tear else {}),
+                          **({f"{fid}:flat:{k}": tool.names.get(f"{fid}:side:f", [])} if f"{fid}:side:f" in tool.names else {})}
             _use(st, fid, tool, "cut")
             if head == "cbore":
                 face, names = prof(fr, float(u), float(v), hd)

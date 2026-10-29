@@ -603,7 +603,7 @@ export class SheetEditor {
   calloutRest(step) {
     const h = this.geo?.holes?.[step];
     if (!h) return '';
-    let out = h.through ? (h.thread || h.head ? '' : ` ${t('THRU')}`) : ` ↧ ${fmt(h.depth)}`;
+    let out = (h.flat ? ` D${fmt(h.flat)}` : '') + (h.through ? (h.thread || h.head ? '' : ` ${t('THRU')}`) : ` ↧ ${fmt(h.depth)}`); // (D: a D hole's size across the flat)
     if (h.head === 'cbore') out += ` ⌴ Ø${fmt(h.head_d)} ↧ ${fmt(h.head_depth)}`;
     if (h.head === 'csk') out += ` ⌵ Ø${fmt(h.head_d)} × ${fmt(h.head_angle)}°`;
     return out + (h.teardrop ? ' ▲' : '');
@@ -1479,7 +1479,7 @@ export class SheetEditor {
         } else if (!arcR.has(r2(c.r)) && !diaTold.has(`r${r2(c.r)}`)) { diaTold.add(`r${r2(c.r)}`); missing.push({ view: v, kind: 'rad', key: c.key, at: c.pm, what: `R${fmt(c.r)}` }); }
       }
       for (const ln of g.lines) {
-        if (/:round:|[:_]tear:/.test(ln.key) || deco(ln.key) || inCallout(ln.key)) continue; // where a rounding begins: its R gives it; a teardrop's point: its Ø; text / a picture: decoration; a head's edges: its callout
+        if (/:round:|[:_]tear:|:flat:/.test(ln.key) || deco(ln.key) || inCallout(ln.key)) continue; // where a rounding begins: its R gives it; a teardrop's point: its Ø; a D hole's flat: its callout; text / a picture: decoration; a head's edges: its callout
         if (Math.abs(ln.a[0] - ln.b[0]) < 1e-3) need(v, 0, ln.a[0], `${ln.key}#0`, [(ln.a[0] + ln.b[0]) / 2, (ln.a[1] + ln.b[1]) / 2], t('an edge'));
         if (Math.abs(ln.a[1] - ln.b[1]) < 1e-3) need(v, 1, ln.a[1], `${ln.key}#0`, [(ln.a[0] + ln.b[0]) / 2, (ln.a[1] + ln.b[1]) / 2], t('an edge'));
       }

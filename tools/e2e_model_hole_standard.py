@@ -89,7 +89,7 @@ try:
     js(f"{M}.cmd.feature.plane = {{ face: {{ name: 'F2:end' }}, frame: {{ o: [0, 0, 10], x: [1, 0, 0], n: [0, 0, 1] }} }}; {M}.cmd.feature.points = [[-8, 0]]; {M}.renderProps(); {M}.rebuild();")
     check(abs(volume() - round(8000 - math.pi * 6.25 * 10, 2)) < 0.05, "a simple Ø5 hole")
     types = [o.get_attribute("value") for o in Select(d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=hole_type]")).options]
-    check(types == ["", "clearance", "counterbore", "countersink", "tapped"], f"Type: {types}")
+    check(types == ["", "clearance", "counterbore", "countersink", "tapped", "d_flat"], f"Type: {types}")
     pick("hole_type", "counterbore")
     f = feature()
     check([f.get("standard"), f.get("d"), f.get("head"), f.get("head_d"), f.get("head_depth")] == ["M5", 5.5, "cbore", 10, 5.4], f"⌴ Counterbore: M5 from Ø5 -> {f.get('d')} ⌴ {f.get('head_d')} ↧ {f.get('head_depth')}")

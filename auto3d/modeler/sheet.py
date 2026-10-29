@@ -84,6 +84,8 @@ def callout(geo, dim, thru="THRU"):
     d = value(geo, dim)
     size = dim.get("thread") or f"Ø{_n(h.get('d', 0) if d is None else d)}"
     out = (f"{dim['count']}× " if dim.get("count", 1) > 1 else "") + size + (dim.get("post") or "")
+    if h.get("flat"):  # a D hole: its size across the flat
+        out += f" D{_n(h['flat'])}"
     if not h.get("through", True):
         out += f" ↧ {_n(h['depth'])}"
     elif not h.get("thread") and not h.get("head"):
@@ -96,8 +98,9 @@ def callout(geo, dim, thru="THRU"):
 
 
 def _deco(key):
-    """An edge no one dimensions: where a rounding begins (its R gives it), a teardrop hole's point (its Ø gives it)."""
-    return ":round:" in key or ":tear:" in key or "_tear:" in key
+    """An edge no one dimensions: where a rounding begins (its R gives it), a teardrop hole's point (its Ø gives it), a D
+    hole's flat (its callout gives it)."""
+    return ":round:" in key or ":tear:" in key or "_tear:" in key or ":flat:" in key
 
 
 def _scale(bb):
@@ -172,8 +175,9 @@ def geometry(body, views=None, iso=True, scale=None, from_mesh=False):
                 continue
             ax, lo = ci.Axis().Direction(), ci.Location()
             face = next((name(f) for f in fs if f in cyl), None)
-            # a teardrop hole's round part (270°, its top a point) is still a hole: dimensioned Ø d
-            tear = face is not None and t1 - t0 > 1.5 * math.pi - 1e-6 and (":hole:" in face or ":cbore:" in face)
+            # a teardrop hole's round part (270°, its top a point) is still a hole: dimensioned Ø d; a D hole's too
+            tear = face is not None and (t1 - t0 > 1.5 * math.pi - 1e-6 and (":hole:" in face or ":cbore:" in face)
+                                         or t1 - t0 > math.pi + 1e-6 and ":hole:" in face)  # (more than half: Ø, ISO 129)
             edges.append(("circle", (np.array([lo.X(), lo.Y(), lo.Z()]), np.array([ax.X(), ax.Y(), ax.Z()]), ci.Radius(),
                                      abs(t1 - t0 - 2 * math.pi) < 1e-6 or tear, P(t0), P(t1), P((t0 + t1) / 2)), key, face))
     out = {"bbox": [_r(v) for v in bb], "views": {}, "iso": _iso_view(body.shape, bool(simple)) if iso else []}

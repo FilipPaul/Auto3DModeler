@@ -209,6 +209,9 @@ TOOLS = [
                     "with a standard) / \"counterbore\" (+ ⌴ for an ISO 4762 socket head, M5: Ø10 ↧ 5.4) / \"countersink\" (+ ⌵ 90° for an ISO 10642 "
                     "flat head, M5: Ø11.2) / \"tapped\" (the thread at its tap drill) — no d / head needed (d, head_d, head_depth given change the "
                     "table's); edit_feature {standard: \"M6\"} resizes it, {hole_type: \"simple\"} makes it a plain Ø d hole; "
+                    "hole_type \"d_flat\" = a D hole for a shaft with a flat (no standard): d + flat (the size across the flat, from "
+                    "the flat to the far side: Ø5 -> 4.5 by default, Ø3 / 4 / 6 / 8 -> 2.5 / 3.5 / 5.5 / 7.5, else 0.9 × d), the flat "
+                    "facing the face's +x, flat_angle (degrees) turns it; the drawing says Ø5 D4.5; "
                     "head: \"cbore\" (a counterbore: head_d, head_depth — default 1.8 × d, d; d of a thread: its nominal Ø, M3: 3) or \"csk\" (a countersink: head_d, "
                     "head_angle — default 2 × d, 90°) for a screw's head; "
                     "thread: \"M5\" (ISO metric M2 … M20: drilled with its tap drill, labelled M5 on the drawing — no d needed); "
@@ -260,7 +263,8 @@ TOOLS = [
                           "sketches": {"type": "array"}, "profile": STR, "path": STR,
                           "text": STR, "h": NUM, "at": {}, "origin": {}, "fit": {"type": "string", "enum": ["H6", "H7", "H8", "H9"]},
                           "standard": {"type": "string", "enum": ["M2", "M2.5", "M3", "M4", "M5", "M6", "M8", "M10", "M12", "M16", "M20"]},
-                          "hole_type": {"type": "string", "enum": ["simple", "clearance", "counterbore", "countersink", "tapped"]},
+                          "hole_type": {"type": "string", "enum": ["simple", "clearance", "counterbore", "countersink", "tapped", "d_flat"]},
+                          "flat": NUM, "flat_angle": NUM,
                           "keep": {"type": "string", "enum": ["both", "above", "below"]}}, ["type"])},
     {"name": "edit_feature", "where": "browser",
      "description": "Change a step of the 3D model: id and fields (as in add_feature, e.g. {d: 15}, {r: 3}, {points: …}, a "

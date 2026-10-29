@@ -55,6 +55,8 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
      (a 45° point on top — prints without support).
      A hole for a screw: `standard: "M5", hole_type: "counterbore"` (or `"clearance"`, `"countersink"`, `"tapped"`)
      instead of `d` — the ISO sizes are filled in (M5 counterbore: Ø5.5 with ⌴ Ø10 ↧ 5.4; the drawing says so).
+     A hole for a D-shaft (a knob, a stepper motor's shaft): `hole_type: "d_flat", d: 5, flat: 4.5` (the size across
+     the flat; left out: the common D-shaft's — Ø5: 4.5); the flat faces the face's +x, `flat_angle: 90` turns it.
    - Pockets / bosses: a sketch with `plane: {face: "<face name>"}` (its origin is the face's centre), then
      extrude `op: "cut"` (pocket, `through: true` for a cut through) or `op: "add"` (boss).
      `upto_next: true` instead of `d` goes as far as the first face of the part across the whole sketch (a boss up to

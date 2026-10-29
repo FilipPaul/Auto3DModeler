@@ -391,6 +391,25 @@ def teardrop_face(fr, u, v, d):
     return BRepBuilderAPI_MakeFace(w, True).Face(), names
 
 
+def dflat_face(fr, u, v, d, flat, angle=0.0):
+    """A D hole at (u, v) of a plane frame: the circle Ø d with a flat `flat` from the far side (a D-shaft's size across
+    the flat), the flat facing the frame's x turned by `angle` degrees. Edges named "c" (the round part) and "f" (the
+    flat)."""
+    r = d / 2
+    a = flat - r  # (the flat's distance from the centre)
+    if not r < flat < d:
+        raise KernelError(f"The flat of a Ø{d:g} D hole must be between {r:g} and {d:g} across (from the flat to the far side).")
+    t = math.radians(float(angle or 0))
+    dr, side, c = np.array([math.cos(t), math.sin(t)]), np.array([-math.sin(t), math.cos(t)]), np.array([u, v], float)
+    h = math.sqrt(r * r - a * a)
+    p1, p2, far = c + a * dr - h * side, c + a * dr + h * side, c - r * dr
+    arc = BRepBuilderAPI_MakeEdge(GC_MakeArcOfCircle(to_3d(fr, *p2), to_3d(fr, *far), to_3d(fr, *p1)).Value()).Edge()
+    line = BRepBuilderAPI_MakeEdge(to_3d(fr, *p1), to_3d(fr, *p2)).Edge()
+    w = BRepBuilderAPI_MakeWire(arc, line).Wire()
+    names = [(e, "c" if BRepAdaptor_Curve(e).GetType() == GeomAbs_Circle else "f") for e in _wire_edges(w)]
+    return BRepBuilderAPI_MakeFace(w, True).Face(), names
+
+
 def countersink(fr, u, v, top_d, d, angle, name):
     """A countersink's cone at (u, v) of a plane frame: Ø top_d at the face narrowing at `angle` (90°: a flat-head
     screw's) into the face, down to Ø d; its cone named `name` (a hair above the face, so it cuts clean)."""
