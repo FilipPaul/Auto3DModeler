@@ -333,6 +333,88 @@ try:
     r = json.loads(tool("restore_version", id=first)[0])
     print(f"    restored: volume {json.loads(tool('get_model')[0])['body']['volume_mm3']} expected 1000 | undo: {r['undo']}")
     print("    a bad id:", tool("restore_version", id="../x")[0][:80])
+    # 🕘 back to main (switch_variant) and the taller one's part taken over (take_part): Versioned 10 × 10 × 30 there
+    tool("edit_feature", id="F2", fields={"d": 30})
+    tool("save_version", label="taller 30")
+    r = json.loads(tool("switch_variant", variant="main")[0])
+    tool("open_part", id="Versioned")
+    v_main = json.loads(tool("get_model")[0])["body"]["volume_mm3"]
+    print(f"    switch_variant: on {r['variant']['name']} | Versioned there {v_main} (not 3000: {abs(v_main - 3000) > 1})")
+    print("    take_part, no such part:", tool("take_part", variant="taller", part="Nothing")[0][:90])
+    tool("take_part", variant="taller", part="Versioned")
+    tool("open_part", id="Versioned")
+    v = json.loads(tool("get_model")[0])["body"]["volume_mm3"]
+    print(f"    take_part: Versioned {v} expected 3000 | match: {abs(v - 3000) < 0.01} | variant still main: "
+          f"{json.loads(tool('list_versions')[0])['variant']['name'] == 'main'}")
+    print("    switch_variant, no such one:", tool("switch_variant", variant="nope")[0][:90])
+    # ---- ▣ a solid from a file (add_feature type solid, path): a 20 cube written as STEP, joined into a new model
+    # (8000), a Ø10 hole through it, then the same file as a see-through reference (the volume stays) and cut out
+    tool("new_model", name="Cube file")
+    tool("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 20, "h": 20}}])
+    tool("add_feature", type="extrude", sketch="F1", d=20)
+    cube = str(Path(OUT) / "agent_cube.step")
+    tool("export", format="step", path=cube)
+    tool("new_model", name="From a file")
+    r = json.loads(tool("add_feature", type="solid", path=cube)[0])
+    top = json.loads(tool("find_refs", kind="face", normal=[0, 0, 1], extreme="max")[0])[0]["name"]
+    print(f"    solid add: ok {r.get('ok')} | volume {r['body']['volume_mm3']} expected 8000 | its top face {top} (F1:f…: {top.startswith('F1:f')})")
+    r = json.loads(tool("add_feature", type="hole", face=top, points=[[0, 0]], d=10)[0])
+    want = 8000 - math.pi * 25 * 20
+    print(f"    hole in it: {r['body']['volume_mm3']} expected {want:.3f} | match: {abs(r['body']['volume_mm3'] - want) < 0.01}")
+    r = json.loads(tool("add_feature", type="solid", path=cube)[0])
+    print(f"    the file again (a part there: op ref by default): {r.get('volume_change_mm3', 0)} expected 0 | op "
+          f"{next(s for s in json.loads(tool('get_model')[0])['steps'] if s['id'] == r['id']).get('op')}")
+    tool("export", format="step", path=str(Path(OUT) / "agent_from_file.step"))
+    print("    STEP of it:", (Path(OUT) / "agent_from_file.step").stat().st_size, "bytes")
+    print("    no such file:", tool("add_feature", type="solid", path=str(Path(OUT) / "nope.step"))[0][:80])
+    # ---- 🎬 demos (list_demos, open_demo) and a project file (open_file .a3d.json): the crank – rod – slider
+    rows = json.loads(tool("list_demos")[0])
+    print("    demos:", [x["file"] for x in rows])
+    tool("open_demo", name="crank")
+    parts = json.loads(tool("list_parts")[0])
+    asm = next(p for p in parts if p["kind"] == "assembly")
+    tool("open_part", id=asm["id"])
+    a = json.loads(tool("get_assembly")[0])
+    masses = [p.get("mass_g") for p in a["parts"]]
+    print(f"    crank demo: {len(parts)} parts | mechanisms {[m['name'] for m in a.get('mechanisms', [])]} | each part's mass {masses} | "
+          f"their sum is the assembly's {a.get('mass_g')}: {abs(sum(x or 0 for x in masses) - (a.get('mass_g') or -1)) < 0.05}")
+    # 📈 the slider's stroke over a full turn of the crank: about twice the crank's throw (its hole to its pin)
+    t, _ = tool("drive_mechanism", trace=True)
+    import re
+    pts = json.loads(re.search(r"\): (\[\[.*\]\])\.", t).group(1))
+    throw = json.loads(tool("measure", a={"part": "I2", "face": "F3:hole:0"}, b={"part": "I2", "face": "F5:side:c1"})[0])["axes_apart"]
+    stroke = max(y for _, y in pts) - min(y for _, y in pts)
+    print(f"    trace: {len(pts)} points, stroke {stroke:.3f} | 2 × throw {2 * throw:.3f} | match: {2 * throw * 0.98 < stroke < 2 * throw * 1.1}")
+    # ➕ the missing joint: the rod's pin joint to the slider taken away -> named, added back -> the mechanism again
+    rod_pin = next(j["id"] for j in a["joints"] if j["part"] == "I3" and j["onto"] == "I4")
+    tool("remove_joint", id=rod_pin)
+    a = json.loads(tool("get_assembly")[0])
+    print(f"    missing_joint: {a.get('missing_joint')} | mechanisms {len(a.get('mechanisms', []))}")
+    r = tool("add_missing_joint")[0]
+    a = json.loads(tool("get_assembly")[0])
+    print(f"    added: {r[:120]} | missing now {a.get('missing_joint')} | closed loop: {any(lp['closed'] for lp in a.get('loops', []))}")
+    print("    add_missing_joint, none missing:", tool("add_missing_joint")[0][:80])
+    # 📌 fixed in place: the base freed and fixed again; the crank hangs on its joints (refused)
+    tool("place_part", part="I1", fixed=False)
+    print("    I1 freed:", not next(p for p in json.loads(tool("get_assembly")[0])["parts"] if p["id"] == "I1").get("fixed"))
+    tool("place_part", part="I1", fixed=True)
+    print("    I1 fixed again:", next(p for p in json.loads(tool("get_assembly")[0])["parts"] if p["id"] == "I1").get("fixed"))
+    print("    I2 fixed (it hangs on its joints):", tool("place_part", part="I2", fixed=True)[0][:80])
+    # a saved project file opens the same way (the demo's own file)
+    t, _ = tool("open_file", path=str(ROOT / "demos" / "ctyrkloubovy-mechanismus.a3d.json"))
+    print(f"    project file: {t[:120]}")
+    # ... and the project on screen saved as one (export format project), then opened again: the same parts
+    proj = Path(OUT) / "agent_project.a3d.json"
+    tool("export", format="project", path=str(proj))
+    saved = json.loads(proj.read_text(encoding="utf-8"))
+    tool("open_file", path=str(proj))
+    again = [p["name"] for p in json.loads(tool("list_parts")[0])]
+    print(f"    export project: {saved['app']} v{saved['version']} {[p['name'] for p in saved['parts']]} | opened again the same: {again == [p['name'] for p in saved['parts']]}")
+    # every browser tool has its handler in the page (tests/test_agent_wiring.py reads the sources; this asks the page)
+    sys.path.insert(0, str(ROOT))
+    from auto3d.agent_tools import BROWSER_TOOLS
+    have = set(d.execute_script("return Object.keys(window.__app.agentHandlers)"))
+    print(f"    the page's handlers: {len(have)} | browser tools without one: {sorted(BROWSER_TOOLS - have)}")
     # teaching: a ring and a tip at a control (gone on clear), and the reports written so far
     tool("gui_highlight", control="Save project", text="Save your work here.", step="1/1")
     print("    highlighted:", d.execute_script("return document.querySelector('.teach-tip')?.textContent.replace(/\\s+/g, ' ').trim()"))

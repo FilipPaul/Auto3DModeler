@@ -464,7 +464,13 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       }
       return { ...base, features: of, kind: 'linear', dir: vec(spec.dir || 'x', 'dir'), count: spec.count ?? 3, spacing: spec.spacing ?? 10 };
     }
-    throw new Error('type is sketch, extrude, revolve, fillet, chamfer, hole, shell, pattern, loft, sweep, decal, mirror, draft, rib, point or split.');
+    if (type === 'solid') { // ▣ a solid from a file: the server read `path` into the blob store (server.py _solid_from_path)
+      if (!spec.blob) throw new Error('path: the STEP / IGES / STL / OBJ / 3MF file on disk.');
+      const op = ['add', 'cut', 'ref'].includes(spec.op) ? spec.op : (body() ? 'ref' : 'add');
+      if (op === 'cut' && !body()) throw new Error('There is nothing to cut it out of yet — make the part first, or op "ref".');
+      return { ...base, name: spec.name || String(spec.file || 'solid').replace(/\.[^.]+$/, ''), blob: spec.blob, file: spec.file || 'solid', op };
+    }
+    throw new Error('type is sketch, extrude, revolve, fillet, chamfer, hole, shell, pattern, loft, sweep, decal, mirror, draft, rib, point, split or solid.');
   };
 
   /** The part's corners, each with a ready ref for a point step: [{corner: [x, y, z], ref: {vertex: {faces, fp}}}]. */

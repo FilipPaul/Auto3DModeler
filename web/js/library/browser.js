@@ -53,12 +53,23 @@ export class LibraryBrowser {
     if (query) this.state.q = query; // a search asked for, else the last one
     q.value = this.state.q;
     q.addEventListener('input', () => { this.state.q = q.value; this.renderList(); });
-    q.addEventListener('keydown', (e) => e.stopPropagation());
+    q.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      // ↓ / ↑ in the search: the next / previous part in the list on the right at once (no mouse needed)
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      const ids = [...back.querySelectorAll('.lib-list [data-item]')].map((b) => b.dataset.item);
+      if (!ids.length) return;
+      e.preventDefault();
+      const i = ids.indexOf(this.state.item), n = i < 0 ? 0 : Math.max(0, Math.min(ids.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)));
+      this.select(ids[n]);
+      back.querySelector(`.lib-list [data-item="${CSS.escape(ids[n])}"]`)?.scrollIntoView({ block: 'nearest' });
+    });
     q.focus();
     try { this.items = await libraryItems(); } catch (e) { this.items = []; this.hooks.toast(e.message, 'error'); }
     this.renderList();
     const keep = this.items.find((i) => i.id === this.state.item);
     if (keep) this.select(keep.id, this.state.size, this.state.length);
+    else { const first = back.querySelector('.lib-list [data-item]'); if (first) this.select(first.dataset.item); } // (never an empty right half: the first part shown)
   }
 
   close() {

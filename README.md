@@ -274,6 +274,16 @@ the shapes keep their relations, and a locked size that would have to change ref
 lock. **⧉ Copy** puts a copy beside them, picked, ready to drag. Two parts — join them, measure, check for collisions.
 Esc (or another tool) closes it.
 
+**Suggestions on a drawing sheet (📄)**: click what you want to change and its table lists what can be done. On a
+**view**: all its sizes, ＋ a dimension, bigger / smaller (2:1, 1:2 …), add Section A–A, back to its place, rename,
+hide (also Delete). On an **edge**: dimension its length, or the distance / angle to another one. On a **circle**: its
+Ø or the hole callout ("4× Ø4 THRU"); if it has one already, that one is chosen. On a **dimension**: a tolerance
+(±0.1 or +0.2/−0.1), a fit (H7, h6 …), a reference dimension "(60)", the other side, delete. On the **title
+block**: name, drawing no., drawn by, note, the material (in the part), template, frame, paper, DXF. With **nothing
+chosen** you get the next steps: add the missing sizes, show a hidden view, ⬇ Export PDF, 🖨 Print. The
+**2D drawing** has a table too: with nothing chosen, as a sketch / as a quick part / measure / DXF; for the shapes
+chosen: all like it, change the size, only these as a sketch or a quick part, another layer, delete.
+
 **Construction lines**: **┄ Construction** in the sketch toolbar draws helper lines, circles and arcs (dashed
 amber) while it is on; with ⬚ Select it turns the selected shape into one (or back). They guide — a ⟳ Revolve takes
 a construction line as its axis by itself, ⇋ Mirror can mirror across one, dimensions and relations use them — but
@@ -1120,7 +1130,16 @@ can open them.
   `remove_joint`), `measure` between faces, the view for its screenshots (`set_view`: a section, explode, size labels;
   `get_screenshot` is a 1200 × 900 picture of the whole part or assembly however narrow the view is beside the chat,
   without your hover or picks, and `highlight` lights the faces of a step in orange),
-  parts renamed or deleted, and files: `export` stl / step / pdf / **3mf** / **bom** / **dxf**.
+  parts renamed or deleted, and files: `export` stl / step / pdf / **3mf** / **bom** / **dxf** / **project** (the
+  whole project as a .a3d.json, as *Save project*).
+- **Demos, project files, variants, mechanisms**: ask "open the crank demo, tell me its mass and save a GIF of it" —
+  the AI opens a 🎬 demo (`list_demos`, `open_demo`) or a saved project (`open_file` of a .a3d.json), reads each placed
+  part's mass, traces how the slider moves over a turn of the crank (`drive_mechanism {trace: true}`, the 📈 Trace),
+  adds the joint the *One joint is missing* line offers (`add_missing_joint`), fixes a part in place
+  (`place_part {fixed}`), switches 🕘 variants and takes a part from another one (`switch_variant`, `take_part`), and
+  puts a STEP / STL file into a 3D model as a step (`add_feature {type: "solid", path}`: ▣ Solid from a file).
+  [docs/AI-TOOLS-COVERAGE.md](docs/AI-TOOLS-COVERAGE.md) lists what the AI reaches in each workspace and what is left
+  to `gui_action` on purpose (layout, tools with many inputs).
 - **Problem reports**: when something in the app does not behave as expected, the AI writes a dated report
   (`report_problem`) into **RealSWReports/** next to `server.py`: what happened, what was expected, the steps, the
   workaround — a **bug**, a **tool request** (no tool fitted, so it worked around it: the tool it would want) or a

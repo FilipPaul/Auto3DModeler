@@ -59,14 +59,25 @@ TOOLS = [
                     "Excellon drill file, a .zip / .tgz with a Gerber set or an ODB++ job, or a folder of loose Gerber / drill "
                     "files (one board). as: \"part\" opens a DXF / DWG as a quick part's outline instead; as: \"assembly\" "
                     "opens a STEP assembly (from SolidWorks, CATIA, Solid Edge …) as an assembly: a 3D model part per different "
-                    "part, an instance per placement, sub-assemblies nested, the file's names and colours. For a photo use "
-                    "trace_picture.",
+                    "part, an instance per placement, sub-assemblies nested, the file's names and colours. A saved project "
+                    "(.a3d.json) opens as the project on screen (the one there is kept in 🕘 Recent projects; its version "
+                    "history too when it was saved with it) — only when the user asks. For a photo use trace_picture.",
      "inputSchema": _obj({"path": STR, "page": {"type": "integer", "description": "PDF page (0-based)"},
                           "as": {"type": "string", "enum": ["drawing", "part", "assembly"]}}, ["path"])},
     {"name": "open_sample", "where": "server",
      "description": "Open the app's built-in sample PDF drawing (initial draft.pdf) — ONLY when the user asks for "
                     "the sample (it opens as a new part tab).",
      "inputSchema": _obj({})},
+    {"name": "list_demos", "where": "server",
+     "description": "The app's 🎬 demo projects (Open ▾ → Demo projects…): ready-made assemblies that move as a whole "
+                    "(a crank – rod – slider, a four-bar linkage, a gearbox with a rack, a robot arm) — file, name (and Czech), "
+                    "what it shows, its parts. To show the user what the app does, or a mechanism to start from.",
+     "inputSchema": _obj({})},
+    {"name": "open_demo", "where": "server",
+     "description": "Open a demo project (list_demos: its file, name or words of it, e.g. \"crank\") as a new project — a copy, "
+                    "the demo stays as it is; the project that was on screen is kept in 🕘 Recent projects. Only when the user "
+                    "asks for a demo. Then list_parts / open_part, get_assembly, drive_mechanism, record_animation.",
+     "inputSchema": _obj({"name": STR}, ["name"])},
     {"name": "trace_picture", "where": "server",
      "description": "Find object outlines in a picture file (PNG / JPG …). Returns numbered candidates (most likely "
                     "first) and an image with them drawn in, so you can choose. Hints: seeds / bg_seeds = points "
@@ -146,8 +157,11 @@ TOOLS = [
                     "(for multi-material printing: AMS / MMU); bom: the assembly's bill of materials as CSV (qty, maker, part "
                     "number, mass); dxf: the shown layers of a 2D drawing, or a drawing sheet (📄) on screen — the paper 1:1 in mm, the views at the sheet's scale, real dimensions, the title block, a layer per kind (for AutoCAD, SolidWorks / Solid Edge drafting). path: file or folder (default: the user's Downloads "
                     "folder). Returns the written path. A 3D model rolled back (get_model rollback) exports as the bar stands — "
-                    "without the steps under it (rollback {to: \"end\"} first for every step); its assemblies and drawings too.",
-     "inputSchema": _obj({"format": {"type": "string", "enum": ["stl", "step", "iges", "glb", "obj", "pdf", "3mf", "bom", "dxf"]}, "path": STR}, ["format"])},
+                    "without the steps under it (rollback {to: \"end\"} first for every step); its assemblies and drawings too. "
+                    "project: the whole project as one .a3d.json (as Save project: every part, its imported files; history: true "
+                    "adds its 🕘 versions) — a copy for the user to keep or send; open_file opens it again.",
+     "inputSchema": _obj({"format": {"type": "string", "enum": ["stl", "step", "iges", "glb", "obj", "pdf", "3mf", "bom", "dxf", "project"]}, "path": STR,
+                          "history": {"type": "boolean"}}, ["format"])},
     {"name": "undo", "where": "browser", "description": "Undo the last change made through these tools.",
      "inputSchema": _obj({})},
 
@@ -266,12 +280,16 @@ TOOLS = [
                     "- point: a reference point (no geometry; it follows the part, sketches snap and dimension to it): at "
                     "{corner: [x, y, z]} (the corner nearest that place) / {centre: <a round edge's ref from find_refs>} / {mid: "
                     "<an edge's ref>: its middle} / a ref from find_refs kind \"point\".\n"
+                    "- solid: ▣ a solid from a file — path (a STEP / IGES / STL / OBJ / 3MF on disk; a mesh is sewn into a solid), "
+                    "op \"add\" (joined to the part; the default for an empty model), \"cut\" (cut out of it: a cavity it fits in) "
+                    "or \"ref\" (shown see-through to build around — a bought part's model, a board; the default when there is a "
+                    "part). It stays where the file has it (mm); its faces are named \"<id>:f0\" … for find_refs.\n"
                     "Numbers (d, d2, offset, draft, r, angle, t, depth, count, spacing, h, flat …) may be expressions of the "
                     "project's parameters (get_parameters / set_parameter): \"L / 2\", \"D + 0.2\" — the step keeps the "
                     "expression and follows when the parameter changes; \"L = 100\" makes (or sets) L at once.",
-     "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep", "decal", "mirror", "draft", "rib", "point", "split"]},
+     "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep", "decal", "mirror", "draft", "rib", "point", "solid", "split"]},
                           "name": STR, "plane": {}, "shapes": {"type": "array"}, "lock": {"type": "boolean"},
-                          "sketch": STR, "d": VAL, "op": {"type": "string", "enum": ["add", "cut"]}, "through": {"type": "boolean"},
+                          "sketch": STR, "d": VAL, "op": {"type": "string", "enum": ["add", "cut", "ref"]}, "through": {"type": "boolean"},
                           "symmetric": {"type": "boolean"}, "flip": {"type": "boolean"}, "axis": {}, "angle": VAL,
                           "face": STR, "points": {"type": "array"}, "depth": VAL, "edges": {"type": "array"}, "r": VAL, "chain": {"type": "boolean"},
                           "faces": {"type": "array"}, "t": VAL, "of": {}, "kind": {"type": "string", "enum": ["linear", "circular"]},
@@ -352,9 +370,18 @@ TOOLS = [
      "inputSchema": _obj({"a": STR, "b": STR}, ["a"])},
     {"name": "create_variant", "where": "browser",
      "description": "Make a variant (a branch with its own versions) of the project from version `from` (default: the "
-                    "newest) named `name`, and switch to it — to try another design without losing this one. The user "
-                    "switches back in 🕘 Versions; a part can be taken over from one variant into another there.",
+                    "newest) named `name`, and switch to it — to try another design without losing this one. Back: "
+                    "switch_variant; one part over from another variant: take_part.",
      "inputSchema": _obj({"from": STR, "name": STR}, ["name"])},
+    {"name": "switch_variant", "where": "browser",
+     "description": "Put another variant of the project on screen (🕘 Versions' Variant ▾): variant = its id or name from "
+                    "list_versions (the first one is \"main\"). The project as it is now is kept in its own variant first.",
+     "inputSchema": _obj({"variant": STR}, ["variant"])},
+    {"name": "take_part", "where": "browser",
+     "description": "Take one part over from another variant (🕘 Versions' \"Take a part from a variant…\"): variant (id or name), "
+                    "part (its id or name there) — as it is in that variant's newest version, into the project on screen (the "
+                    "same part replaced, else added); kept as a named version. Only when the user asked.",
+     "inputSchema": _obj({"variant": STR, "part": STR}, ["variant", "part"])},
     {"name": "sketch_trim", "where": "browser",
      "description": "✂ Trim in a sketch step (sketch): cut away the piece of shape (a line / circle / arc id from get_sketch) "
                     "around at [x, y] — up to where other shapes cross it; the new ends stay on the shapes that cut them.",
@@ -389,7 +416,7 @@ TOOLS = [
      "description": "Start a new, empty assembly (its own tab) to place 3D model parts of the project together. Then insert_part.",
      "inputSchema": _obj({"name": STR})},
     {"name": "get_assembly", "where": "browser",
-     "description": "The assembly on screen: its placed parts (id I1…, part, position, bounding box in mm), its joints (a joint that does not hold has `not_held`: how far off and which joint holds the part elsewhere — fix one of the two), its fasteners (one each: id K1…, text, its parts) and the parts list (qty placed here; `total`: how many in all, the ones inside its sub-assemblies counted in; material, mass); `mass_g` and `cog_mm`: the whole assembly's mass and centre of mass as the parts are placed now. A placed sub-assembly whose own joints leave its parts free has `inner`: those parts (\"I3/I2\") and how they can move inside it. Closed loops of joints (a rod joined to a crank and to a slider) are solved together: `loops` [{id, parts, closed, free_motions, drive}] — move_free one of its `drive` motions and the others follow (a part held only by the loop says `moves_with_loop`); closed false: it cannot close (a part too short / long for that place).",
+     "description": "The assembly on screen: its placed parts (id I1…, part, position, bounding box in mm, mass_g of the part; fixed: 📌 fixed in place), its joints (a joint that does not hold has `not_held`: how far off and which joint holds the part elsewhere — fix one of the two), its fasteners (one each: id K1…, text, its parts) and the parts list (qty placed here; `total`: how many in all, the ones inside its sub-assemblies counted in; material, mass); `mass_g` and `cog_mm`: the whole assembly's mass and centre of mass as the parts are placed now. A placed sub-assembly whose own joints leave its parts free has `inner`: those parts (\"I3/I2\") and how they can move inside it. Closed loops of joints (a rod joined to a crank and to a slider) are solved together: `loops` [{id, parts, closed, free_motions, drive}] — move_free one of its `drive` motions and the others follow (a part held only by the loop says `moves_with_loop`); closed false: it cannot close (a part too short / long for that place). `missing_joint` {hole, pin}: one pin in a hole would close a loop (the app's “One joint is missing” ➕ Add joint) — add_missing_joint adds it.",
      "inputSchema": _obj({})},
     {"name": "get_bom", "where": "browser",
      "description": "The bill of materials of an assembly (the one on screen, or any by id / name: a sub-assembly too), its whole "
@@ -425,8 +452,15 @@ TOOLS = [
      "inputSchema": _obj({"part": STR, "face": STR, "x": NUM, "y": NUM, "kind": {"type": "string", "enum": ["nut", "insert", "pin"]},
                           "size": {"type": "string", "enum": ["M2", "M2.5", "M3", "M4", "M5"]}, "through": NUM}, ["part", "face"])},
     {"name": "place_part", "where": "browser",
-     "description": "Position a placed part (id I…): x, y, z of its own origin in mm, and / or turn: \"x\" | \"y\" | \"z\" (or a list) — 90° each about its centre.",
-     "inputSchema": _obj({"part": STR, "x": NUM, "y": NUM, "z": NUM, "turn": {}}, ["part"])},
+     "description": "Position a placed part (id I…): x, y, z of its own origin in mm, and / or turn: \"x\" | \"y\" | \"z\" (or a list) — 90° each about its centre. "
+                    "fixed: true / false = 📌 fixed in place (as its panel's 📌: not moved by hand, joints bring the other parts to it; "
+                    "a part that hangs on its joints is not fixed itself — fix the one it is joined to).",
+     "inputSchema": _obj({"part": STR, "x": NUM, "y": NUM, "z": NUM, "turn": {}, "fixed": {"type": "boolean"}}, ["part"])},
+    {"name": "add_missing_joint", "where": "browser",
+     "description": "Add the joint get_assembly names as `missing_joint` (the app's \"One joint is missing\" ➕ Add joint): the free pin "
+                    "of one moving part in the free hole of the same Ø of another (◎ Concentric) — the loop closes and becomes a "
+                    "mechanism. One undo step. Answers the joint and the loops / mechanisms now.",
+     "inputSchema": _obj({})},
     {"name": "suggest_fasteners", "where": "browser",
      "description": "Where fasteners fit in the assembly on screen: holes on one axis through two parts -> suggestions (id C…, e.g. "
                     "\"M3×10 screw + M3 insert\": a clearance hole in the top part, an insert hole below; a screw alone; a pin where the "
@@ -490,8 +524,11 @@ TOOLS = [
                     "four-bar) or a part turning / sliding on its own. mechanism = its id, name or one of its parts (none: the first); "
                     "to = where its driver goes (degrees for a turn, 0 … 360 for a full turn; mm along a slide) — every part of it "
                     "follows, it stops at a dead point; driver = another of its `drivers` (\"I5 motion 0\" or {part, motion}); name = "
-                    "its own name (\"\": the default again); play = true / false: ▶ on and on / stop. It answers where its parts went.",
-     "inputSchema": _obj({"mechanism": STR, "to": NUM, "driver": {}, "name": STR, "play": {"type": "boolean"}})},
+                    "its own name (\"\": the default again); play = true / false: ▶ on and on / stop. It answers where its parts went. "
+                    "trace: true (or a number of steps, default 36) = the app's 📈 Trace: how another part of it (the first that "
+                    "slides, else turns) moves over the driver's whole travel — [[driver, follower], …] (a slider's stroke, a "
+                    "rocker's swing); the parts end where they were.",
+     "inputSchema": _obj({"mechanism": STR, "to": NUM, "driver": {}, "name": STR, "play": {"type": "boolean"}, "trace": {"type": ["boolean", "integer"]}})},
     {"name": "record_animation", "where": "browser",
      "description": "Save one full cycle of a mechanism's motion as an animation (the app's ⚙ Mechanism ⋯ → 🎬 Save animation): "
                     "a full turn of its driver, else there and back, from the 3D view as set_view left it (the 3D only, with the "
@@ -708,7 +745,7 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 - **Drawing sheets** (📄, of a 3D model part — its views and dimensions, made by a preset, edited by the user, following the part): sheet_open, get_sheet, sheet_edit; export {format: "pdf"} on a sheet writes it as drawn. Prefer a sheet over export pdf of the model when the user wants a drawing.
 - **2D drawings** (a DXF / DWG, or a PCB's Gerber / ODB++ opened as a 📐 drawing — open_file opens them, also a folder of loose Gerber files): get_drawing, drawing_find (shapes by filters), drawing_delete, drawing_add (lines, circles), drawing_units, drawing_layers (show / hide, colour, a new layer), drawing_set_size, drawing_use (as the sketch of a 3D model, or a quick part).
 - The GUI: gui_state lists what the user sees (buttons, sliders, their state; a sheet's dimensions / views / cells); gui_action clicks / slides one as the user would, clicks / drags at a point of the view (at, at_mm on a sheet) and presses keys (Delete, Enter, Escape, ctrl+z) — use them to tell the user where something is and to check the GUI behaves like the tools. gui_highlight points at a control (or a spot of the view) with a short tip and can wait until the user clicks it.
-- Assemblies also: edit_joint / remove_joint, measure (between faces), move_free, lock_motion (fix one free motion where it is); set_travel (a free motion's limits: a cylinder's stroke) and check_travel (collisions along it); drive_mechanism (a whole mechanism by its driver: a crank's turn, every part follows; ▶ play), record_animation (one cycle of it saved as a GIF / video) and name_motion (a motion's own name); the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, delete_part (only when asked). 🕘 Versions of the project: list_versions, save_version {label} (before a risky change), compare_versions {a, b}, restore_version (only when asked; it can be undone), create_variant {from, name} (a branch to try another design). Files: export stl / step / iges / glb / obj / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf.
+- Assemblies also: edit_joint / remove_joint, measure (between faces), move_free, lock_motion (fix one free motion where it is); set_travel (a free motion's limits: a cylinder's stroke) and check_travel (collisions along it); drive_mechanism (a whole mechanism by its driver: a crank's turn, every part follows; ▶ play), record_animation (one cycle of it saved as a GIF / video) and name_motion (a motion's own name); the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, duplicate_part (an independent copy to change), delete_part (only when asked), save_to_library (the 3D model kept in the user's library); list_demos / open_demo (🎬 ready-made mechanisms, only when asked; a saved project file: open_file). 🕘 Versions of the project: list_versions, save_version {label} (before a risky change), compare_versions {a, b}, restore_version (only when asked; it can be undone), create_variant {from, name} (a branch to try another design), switch_variant, take_part (one part from another variant). Files: export stl / step / iges / glb / obj / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf / project (the whole project as a .a3d.json file).
 - **The parts library** holds real, bought parts with their maker and part number (screws, nuts, washers, inserts, bearings, standoffs, panel parts, SMC pneumatics, SICK sensors, stepper motors, the user's own): library_search, library_add.
 - Both: get_screenshot, check_print, export, undo. Opening a file or tracing a picture adds a new quick part tab.
 
@@ -728,7 +765,7 @@ Rules: pick faces and edges with find_refs, never by guessing. Put fillets and c
 
 Photos: the user can attach photos to a message. You see them, and the message lists where each one was saved ("[Attached photo: <path>]") — to make a part from one, pass that path to trace_picture. Describing or measuring from a photo needs no tool.
 
-Never open a file or the sample on your own: work on the part that is open. If nothing is open, ask the user what to open or offer a new 3D model — do not open the sample unless they ask for it.
+Never open a file or the sample on your own: work on the part that is open. If nothing is open, ask the user what to open or offer a new 3D model — do not open the sample (open_sample) unless they ask for it.
 
 Smooth, round shapes (vases, knobs, handles, toys, bottles): draw the outline as a sketch `profile` with `{smooth: [...]}` parts and revolve it (or extrude it) — one clean smooth surface instead of many small faces. Colours: set_look (the whole part) and paint_faces (single faces) — the model keeps them, also in assemblies.
 
