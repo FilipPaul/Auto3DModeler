@@ -478,7 +478,18 @@ SolidWorks. It has only the tools that need almost no input.
    on smoothly into others — the outline of a box with rounded corners, a hole's rim — picks the **whole chain**
    (*Added a chain of 8 edges*; the hover shows it before you click), as a rounding cannot stop where edges meet
    without a corner anyway; untick *⛓ Whole chain* to pick one edge at a time. **◎ Hole** (H): click on a
-   flat face where a hole goes (click again for more holes on the same face), and type the diameter. While you move
+   flat face where a hole goes (click again for more holes on the same face), and type the diameter. **Esc ends the
+   placing and keeps the holes placed so far** (as OK — *Hole: 1 position(s) kept*; Ctrl+Z takes them back); with
+   none placed yet Esc cancels, and the **Cancel** button always throws them away. Fillet / Chamfer (edges) and Shell
+   (open faces) work the same; in a sketch Esc ends a ╱ line's chain and keeps the segments drawn. Choosing a hole
+   that is there (its row in the list, its wall, its rim) only chooses it: the suggestions start with **Type: ⌴
+   Counterbore ▾** (all six kinds, the current one ✓) and **Size: M5 ▾** (the two sizes below and above: M3 M4 ✓M5 M6 M8;
+   a plain hole: the next Ø steps, 0.5 mm up to 6 then 1 mm) — one click switches it in place, one undo step — then
+   ✎ Edit the hole, 📏 its Ø, ⁂ Pattern, ✕ Delete; the right panel shows that hole step's Type / Size / Through (changed
+   at once) with ✎ Edit the hole and ＋ Add position, and its row in the list is marked. (A round cut made by an
+   extrude is not a Hole step: its faces keep their usual suggestions.) **✎ Editing** it opens its panel without placing —
+   the mouse shows no new hole and a click adds none until **＋ Add position** (an edited text / picture: **⌖ Move by
+   clicking**). While you move
    the mouse the hole is shown where it would go, with its distances to the nearest edges, and it **snaps** like a
    sketch: onto the face's corners, edge midpoints, centre, round edges' centres, other holes and • reference points
    (the snap is named at the mouse), onto its edges, and **in line** with any of those — a dashed green guide; where
@@ -498,7 +509,10 @@ SolidWorks. It has only the tools that need almost no input.
    / 6 / 8: 2.5 / 3.5 / 5.5 / 7.5, else 0.9 × Ø — and it follows the Ø while you have not changed it); the flat faces
    the face's x direction, ⇄ turns it 90°. The drawing says *Ø5 D4.5 THRU*. A head that would not
    fit — wider than the face around the hole, or as deep as the part there (it would cut through) — is refused,
-   with the most that fits. The drawing's callout says it: *Ø5.5 ⌴ Ø10 ↧ 5.4*, *M5 ↧ 10*. Its thread is not drawn on the part unless you ask: click the
+   with the most that fits. The drawing's callout says it: *Ø5.5 ⌴ Ø10 ↧ 5.4*, *M5 ↧ 10*. **A new thread shows at
+   once as cosmetic lines** (a tapped hole made by the tool, its type switched, or the AI: the part's threads were
+   hidden -> cosmetic, a toast says so; the hole's panel has *🔩 Thread: Cosmetic / Real thread (slower)*); parts
+   opened keep their setting. To hide them or choose again: click the
    part (no tool on) and choose **🔩 Show all threads** under *The part*, then how: *Cosmetic (light)* draws a thin
    helix at the thread's pitch on each threaded hole's wall and a thin ring at its major Ø on the face (view only: the
    solid, its volume and exports stay as they are; quick, it may stay on). *Real geometry (slower)* cuts a true ISO
@@ -549,7 +563,12 @@ SolidWorks. It has only the tools that need almost no input.
    Mirror and copy** (the part and its mirror image) or **↦ Mirror only** (the part turned into its mirror image).
 
 **Pointing at and clicking the part.** The step under the mouse lights up (all its faces) and its name shows at
-the mouse. A click on a face pops up the tools for it — sketch on it, a hole or text there, round / bevel its edges,
+the mouse. A click on a **snap point** first offers what it belongs to: a round edge's centre or quadrant —
+**◎ Select the hole M5** (a ◎ Hole step: its Type / Size table; another round cut: *Select the round face Ø8*) and
+**◯ Select the circle Ø10** (its edge: fillet / chamfer it); an edge's middle — **⟋ Select the edge**; a corner — the
+edges that meet there; the point's own rows (reference point, measure from here) stay below. The same in a sketch (a
+circle's centre: *◯ Select the circle*) and in an assembly (a hole's centre on a part: *◎ Select the hole* — its
+round face chosen, Concentric and the other joints offered). A click on a face pops up the tools for it — sketch on it, a hole or text there, round / bevel its edges,
 hollow it out with it open, edit / turn off / delete its step — and shows that step's **sizes on the part** (the
 sketch's sizes on its plane, the height, Ø, R, the wall…). Click a size: a number and a **slider** — the part
 follows while you slide; Enter / OK keeps it (one undo step), Esc goes back. Every number in a tool's panel
@@ -557,9 +576,13 @@ follows while you slide; Enter / OK keeps it (one undo step), Esc goes back. Eve
 The sliders run only over the values that **work**: the kernel tries the step with the part as it is and finds the
 range (the biggest rounding the edges allow, a wall up to what the part can take, a blind hole up to the part's
 thickness, a pattern only as far as its copies still reach the part; a rounding's found to 1 %, shown *≈ 8.94*, as near a
-hole OpenCASCADE builds slowly right below its limit); the range shows under the slider, a typed
-value beyond it is held at the limit. When a step fails anyway, it says how much does fit (*at most 9.99 mm*) — or
-that no size works there and what to change.
+hole OpenCASCADE builds slowly right below its limit); the range shows under the slider. Where the limit is **real**
+(a rounding / chamfer / wall that cannot be built bigger, a hole as wide as the part, a blind hole or a cut deeper
+than through, a full turn, a draft under 45°) a typed value beyond it is held at the limit, saying why (*max 9.94 — a
+bigger rounding does not fit here*). Where the range is only a **suggestion** — shown with a *+* (*2 – 4+*): a
+pattern's count and spacing (the copies that still reach the part), an extrude's height — a bigger number typed is
+kept and the slider grows to take it (a pattern then warns *Only 4 of the copies reach the part*). When a step fails
+anyway, it says how much does fit (*at most 9.99 mm*) — or that no size works there and what to change.
 A click on a step in the **list** does the same as a click on the part: it is marked in 3D (a sketch's lines in
 gold, with the faces made from it) and its sizes show on the finished part — change a sketch's sizes there,
 looking at the result.

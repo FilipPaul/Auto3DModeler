@@ -35,6 +35,8 @@ const REPEATABLE = new Set(['extrude', 'revolve', 'hole', 'pattern', 'loft', 'sw
 const MIRROR_PLANES = { YZ: 'left ↔ right', XZ: 'front ↔ back', XY: 'top ↔ bottom' }; // the base planes to mirror across
 const AXES = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
 const USES_SKETCH = new Set(['extrude', 'revolve', 'loft', 'sweep', 'rib']);
+const PLACES = new Set(['hole', 'decal']);
+const HOLE_RANK = { holeType: -3, holeSize: -2.5, holeEdit: -2, holeMeasure: 4.8 }; // a chosen Hole step's rows: first // tools whose click in the view places (and, editing, only once asked)
 /** A sketch that is one open line (straight lines end to end, not closed — what ⊿ Rib takes). */
 const isOpenLine = (f) => {
   const es = (f?.entities || []).filter((e) => !e.construction), ends = {};
@@ -54,6 +56,13 @@ const fmt = (v) => (+(+v).toFixed(3)).toString();
 const TREE_OPEN_KEY = 'a3d.treeOpen'; // the step tree's rows folded open
 const SIZES_KEY = 'a3d.sizes', SIZE_MODES = ['all', 'locked', 'none'];
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+/** A slider's new top round a typed number past it (a soft range grows): 1.5× it, up to a round 1 / 2 / 5 × 10ⁿ. */
+const growTo = (v) => { const x = Math.abs(v) * 1.5, e = 10 ** Math.floor(Math.log10(x || 1)); return [1, 2, 5, 10].map((k) => k * e).find((k) => k >= x - 1e-9); };
+/** Why a number stops at its max (a real limit — the kernel cannot build more), by step type and field. */
+const LIMIT_WHY = { 'fillet.r': 'max {v} — a bigger rounding does not fit here', 'chamfer.d': 'max {v} — a bigger chamfer does not fit here',
+  'hole.d': 'max {v} — the part is not wider here', 'hole.depth': 'max {v} — deeper is the same as Through all',
+  'extrude.d': 'max {v} — deeper goes through the part anyway', 'shell.t': 'max {v} — a thicker wall does not fit here',
+  'revolve.angle': 'max {v}° — a full turn', 'draft.angle': 'A draft angle is less than 45° (either way).' };
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -796,10 +805,13 @@ export class Modeler {
     this.openTo(id); // (its row in the tree in sight: what it is under folded open)
     if (this.mode !== 'part' || this.cmd) { this.selected = id; this.renderTree(); return; }
     this.closeCtx();
+    const was = this.part.features.find((g) => g.id === this.selected);
     this.selected = id;
     const f = this.part.features.find((g) => g.id === id);
     this.view.setSelectedFaces(f ? this.stepFaceIds(id) : null);
     this.renderTree();
+    if (id) this.$(`.mt-tree .mt-item[data-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'nearest' }); // (its row in sight)
+    if (was?.type === 'hole' || f?.type === 'hole') this.renderProps(); // (a hole's own fields in the right panel — or the part's again)
     this.showOutlines();
     this.showStepDims(f || null);
   }
@@ -815,9 +827,10 @@ export class Modeler {
     Object.assign(el.style, { left: `${t.x - vr.left + 14}px`, top: `${t.y - vr.top + 14}px` });
   }
 
-  /** A snap point picked (no tool on): marked, and what to do with it suggested — measure from it, copy it, ask the AI;
-   *  an edge's middle (edge `ei` under it): round / bevel that edge first. */
-  pickSnap(sp, ei = -1) {
+  /** A snap point picked (no tool on): marked, and what to do with it suggested — what it belongs to first (a round
+   *  edge's centre / quadrant: ◎ Select the hole, ◯ Select the circle; an edge's middle or a corner: ⟋ Select the edge),
+   *  then measure from it, copy it, ask the AI; an edge's middle (edge `ei` under it): round / bevel that edge. */
+  pickSnap(sp, ei = -1, at = null) {
     const p = sp.point, xyz = [p.x, p.y, p.z].map((v) => fmt(+v.toFixed(3))).join(', ');
     const kind = sp.snap === 'point' ? sp.name : t({ corner: 'A corner', midpoint: 'An edge midpoint', centre: 'A centre', quadrant: 'A quadrant' }[sp.snap]);
     if (sp.snap === 'point') this.selectStep(sp.id); // a reference point: its step chosen
@@ -825,6 +838,7 @@ export class Modeler {
     const ref = ei >= 0 && this.edgeRef(ei);
     if (ref) this.view.setEdgeHighlight(-1, [ei]);
     const sg = showSuggest(this.els.viewport, `${kind} · ${xyz}`, [
+      ...this.ownerItems(sp, ei, at),
       ...(ref ? this.edgeItems([ref]) : []),
       ...(['corner', 'midpoint', 'centre'].includes(sp.snap) ? [{ icon: '•', label: t('Reference point here'), title: t('A point that stays on this place of the part when it changes — sketches and 📏 Measure snap to it'),
         run: () => { this.dropSuggest(); this.addPoint(sp); } }] : []),
@@ -838,6 +852,56 @@ export class Modeler {
       { icon: '⧉', label: t('Copy its coordinates'), run: () => { navigator.clipboard?.writeText(xyz).catch(() => {}); this.hooks.toast(`${t('Copied')}: ${xyz}`, 'info', 2500); } },
     ], t('No tool on: a click on a corner, an edge\'s middle or a centre picks it'), `${t('in the 3D model')}: ${t('the point')} (${xyz}) — ${kind.toLowerCase()} ${t('of the part')}`);
     if (sg) sg.dataset.from = 'face';
+  }
+
+  /** What a snap point belongs to, as rows that choose it (the table then becomes its): a round edge's centre or
+   *  quadrant -> ◎ Select the hole (a Hole step: the step; another round cut: its round face) and ◯ Select the circle;
+   *  an edge's middle -> ⟋ Select the edge; a corner -> the edges that meet there. */
+  ownerItems(sp, ei = -1, at = null) {
+    const b = this.result?.body, p = sp.point, out = [];
+    if (!b) return out;
+    const near = (q) => q.distanceTo(p) < 1e-5 * (1 + this.view.size);
+    const named = (e) => e.faces.length === 2 && e.faces.every((k) => b.faces[k]?.name);
+    if (sp.snap === 'centre' || sp.snap === 'quadrant') {
+      const rings = b.edges.map((e, i) => [e, i]).filter(([e]) => named(e) && snapPoints([e], null, { [sp.snap]: true }).some((q) => near(q.point)));
+      const holes = new Map(), walls = new Map();
+      for (const [e] of rings) {
+        for (const k of e.faces) {
+          const f = b.faces[k], step = this.part.features.find((g) => g.id === this.faceOwner({ name: f.name }));
+          if (step?.type === 'hole') holes.set(step.id, step);
+          else if (f.type === 'cylinder' && !walls.has(k)) walls.set(k, f);
+        }
+      }
+      for (const h of holes.values()) {
+        out.push({ icon: '◎', label: `${t('Select the hole')} ${this.holeSizeText(h)}`, rank: -6, title: t('The hole step: its type, size, ⁂ pattern, Ø'),
+          run: () => { this.dropSuggest(); this.selectStep(h.id); this.suggestStep(h.id); } });
+      }
+      if (!holes.size) {
+        for (const [k, f] of walls) {
+          out.push({ icon: '◎', label: `${t('Select the round face')} Ø${fmt(2 * (f.radius || 0))}`, rank: -6, title: t('Its round face: what can be done with it'),
+            run: () => { const fs = this.stepFaces(f); if (fs) this.faceTable({ face: this.view.face(k) || f, point: p.clone() }, fs, at || { clientX: 0, clientY: 0 }); } });
+        }
+      }
+      for (const [e, i] of rings) {
+        const r = this.edgeRef(i), sz = this.edgeSize(i);
+        if (!r || !sz) continue;
+        const full = Math.hypot(e.pts[0] - e.pts[e.pts.length - 3], e.pts[1] - e.pts[e.pts.length - 2], e.pts[2] - e.pts[e.pts.length - 1]) < 1e-6;
+        out.push({ icon: full ? '◯' : '◠', label: full ? `${t('Select the circle')} Ø${fmt(sz.d)}` : `${t('Select the arc')} R${fmt(sz.d / 2)}`, rank: -5,
+          title: t('The round edge: fillet / chamfer it, its size'), run: () => this.pickEdge(i, r) });
+      }
+    } else if (sp.snap === 'midpoint' && ei >= 0) {
+      const r = this.edgeRef(ei);
+      if (r) out.push({ icon: '⟋', label: t('Select the edge'), rank: -5, title: t('The edge: fillet / chamfer it, its length'), run: () => this.pickEdge(ei, r) });
+    } else if (sp.snap === 'corner') {
+      b.edges.forEach((e, i) => {
+        if (out.length >= 3 || !named(e) || e.pts.length < 6) return;
+        const n = e.pts.length, ends = [[e.pts[0], e.pts[1], e.pts[2]], [e.pts[n - 3], e.pts[n - 2], e.pts[n - 1]]];
+        if (!ends.some((q) => Math.hypot(q[0] - p.x, q[1] - p.y, q[2] - p.z) < 1e-5 * (1 + this.view.size))) return;
+        const r = this.edgeRef(i), sz = this.edgeSize(i);
+        if (r) out.push({ icon: '⟋', label: `${t('Select the edge')} · ${fmt(+sz.L.toFixed(2))} mm`, rank: -5 + out.length * 0.1, title: t('The edge: fillet / chamfer it, its length'), run: () => this.pickEdge(i, r) });
+      });
+    }
+    return out;
   }
 
   /** A snap point of the part -> what a point step keeps: the faces meeting at the corner, or the round / straight edge
@@ -922,11 +986,14 @@ export class Modeler {
     ];
   }
 
-  /** One edge clicked (no tool on): it is marked and ◜ Fillet / ◸ Chamfer it suggested first. */
+  /** One edge clicked (no tool on): it is marked and ◜ Fillet / ◸ Chamfer it suggested first; a Hole step's rim: that
+   *  hole chosen too, its Type / Size rows above. */
   pickEdge(i, ref) {
-    this.selectStep(null);
+    const hole = [ref.a, ref.b].map((n) => this.part.features.find((g) => g.id === this.faceOwner({ name: n }))).find((g) => g?.type === 'hole');
+    this.selectStep(hole ? hole.id : null);
     this.view.setEdgeHighlight(-1, [i]);
-    const sg = showSuggest(this.els.viewport, t('An edge'), this.edgeItems([ref]), t('Ctrl+click more edges: round them all at once'),
+    const items = [...(hole ? this.holeRows(hole).map(([key, icon, label, run, , title]) => ({ icon, label, title, rank: HOLE_RANK[key] - 10, run })) : []), ...this.edgeItems([ref])];
+    const sg = showSuggest(this.els.viewport, hole ? `${hole.name} · ${t('An edge')}` : t('An edge'), items, t('Ctrl+click more edges: round them all at once'),
       `${t('in the 3D model')}: ${t('the edge between faces')} ${ref.a} ${t('and')} ${ref.b}`);
     if (sg) sg.dataset.from = 'face';
   }
@@ -988,14 +1055,18 @@ export class Modeler {
     const used = new Set(this.part.features.flatMap(sketchesOf)), top = this.treeShapeNow?.top || [], k = top.indexOf(id);
     const items = [];
     const add = (icon, label, run, rank, o = {}) => items.push({ icon, label: t(label), rank, run: () => { this.dropSuggest(); run(); }, ...o });
+    const hole = f.type === 'hole';
+    if (hole) { // its type and size first, ✎ Edit the hole; ⁂, 📏, ✕ and ↑ / ↓ next (🏷, ◌, ⏮ under ⋯ Show all)
+      for (const [key, icon, label, run, , title] of this.holeRows(f)) items.push({ icon, label, title, rank: key === 'holeMeasure' ? 3.5 : HOLE_RANK[key] - 10, run });
+    }
     if (f.type === 'sketch' && !used.has(f.id)) {
       add('⬆', 'Extrude it', () => this.openExtrude(this.newExtrude(f.id), true), 0, { title: t('Give the sketch a height: add material or cut (E)') });
       add('⟳', 'Revolve it', () => this.startRevolve(), 5);
     }
-    add('✎', f.type === 'sketch' ? 'Edit the sketch' : 'Edit the step', () => this.edit(f.id), 1, { title: t('Change this step (or double-click it)') });
-    add('🏷', 'Rename', () => this.renameStep(f.id), 2);
+    if (f.type !== 'hole') add('✎', f.type === 'sketch' ? 'Edit the sketch' : 'Edit the step', () => this.edit(f.id), 1, { title: t('Change this step (or double-click it)') });
+    add('🏷', 'Rename', () => this.renameStep(f.id), hole ? 8.5 : 2);
     if (REPEATABLE.has(f.type) && f.type !== 'pattern' && this.result?.body && !f.suppressed) add('⁂', 'Pattern it', () => this.startPattern(f.id), 3, { title: t('Repeat this step in a row or around a circle') });
-    add(f.suppressed ? '●' : '◌', f.suppressed ? 'Turn it on' : 'Turn it off', () => this.toggleOff(f.id), 6);
+    add(f.suppressed ? '●' : '◌', f.suppressed ? 'Turn it on' : 'Turn it off', () => this.toggleOff(f.id), hole ? 8.7 : 6);
     if (k > 0) add('↑', 'Move up', () => this.moveStep(this.stepBlock(id), this.blockFirst(top[k - 1]), false), 7, { title: t('One place earlier in the list (refused when it would come before a step it uses)') });
     if (k >= 0 && k < top.length - 1) add('↓', 'Move down', () => this.moveStep(this.stepBlock(id), top[k + 1], true), 7.5, { title: t('One place later in the list') });
     const i = this.part.features.indexOf(f);
@@ -1004,6 +1075,111 @@ export class Modeler {
     const sg = showSuggest(this.els.viewport, f.name, items.sort((a, b) => a.rank - b.rank), '', `${t('in the 3D model')}: ${t('step')} ${f.id} “${f.name}”`);
     if (sg) sg.dataset.from = 'face';
     return sg;
+  }
+
+  /** A Hole step's own rows in the suggestions ([key, icon, label, run, cls, title], as clickFace's): Type ▾ and Size ▾
+   *  (each a choice — one undo step), ✎ Edit the hole (the whole panel), 📏 its Ø. Only steps made by ◎ Hole (a round
+   *  cut of an extrude is not one). */
+  holeRows(f) {
+    const kind = holeType(f), label = HOLE_TYPES.find(([v]) => v === kind)?.[1] || 'Simple';
+    return [
+      ['holeType', '◎', `${t('Type')}: ${t(label)} ▾`, () => this.chooseHoleType(f.id), '', t('Another kind of hole: simple, clearance, ⌴ counterbore, ⌵ countersink, tapped, D')],
+      ['holeSize', '⌀', `${t('Size')}: ${this.holeSizeText(f)} ▾`, () => this.chooseHoleSize(f.id), '', t('The sizes next to this one (all of them: ✎ Edit the hole)')],
+      ['holeEdit', '✎', t('Edit the hole'), () => { this.dropSuggest(); this.edit(f.id); }, '', t('All its settings — and ＋ Add position for more holes')],
+      ['holeMeasure', '📏', `${t('Measure it')}: Ø${fmt(f.d)}`, () => { this.dropSuggest(); this.hooks.toast(`${f.name}: Ø${fmt(f.d)}${f.head_d ? ` · ${t('Head Ø')} ${fmt(f.head_d)}` : ''}${f.through === false ? ` · ↧ ${fmt(f.depth)}` : ` · ${t('Through all')}`}`, 'info', 5000); }],
+    ];
+  }
+
+  /** "M5" (a screw's hole), else "Ø6". */
+  holeSizeText(f) {
+    const kind = holeType(f);
+    return kind && kind !== 'd_flat' && (f.standard || f.thread) ? f.standard || f.thread : `Ø${fmt(f.d)}`;
+  }
+
+  /** The sizes a hole's Size ▾ offers: the 2 below and the 2 above in the screw series (M2 … M20), or for a plain Ø
+   *  the next steps (0.5 mm up to 6, then 1 mm) -> [{value, label, on}]. */
+  holeSizes(f) {
+    const kind = holeType(f), std = kind && kind !== 'd_flat';
+    if (std) {
+      const S = Object.keys(HOLE_SIZES), cur = f.standard || f.thread;
+      let i = S.indexOf(cur);
+      if (i < 0) i = S.reduce((a, k, j) => (Math.abs(parseFloat(k.slice(1)) - f.d) < Math.abs(parseFloat(S[a].slice(1)) - f.d) ? j : a), 0);
+      return S.slice(Math.max(0, i - 2), i + 3).map((k) => ({ value: k, label: k, on: k === cur }));
+    }
+    const grid = [...Array.from({ length: 12 }, (_, j) => (j + 1) / 2), ...Array.from({ length: 94 }, (_, j) => j + 7)]; // 0.5 … 6, 7 … 100
+    const d = f.d, below = grid.filter((v) => v < d - 1e-9).slice(-2), above = grid.filter((v) => v > d + 1e-9).slice(0, 2);
+    return [...below, d, ...above].map((v) => ({ value: v, label: `Ø${fmt(v)}`, on: v === d }));
+  }
+
+  /** ◎ Type ▾ of a chosen hole: all the kinds, the current one ✓ — switched in place (one undo step). */
+  async chooseHoleType(id) {
+    const f = this.part.features.find((g) => g.id === id);
+    if (!f) return;
+    const kind = holeType(f);
+    const v = await choose(t('Hole type'), HOLE_TYPES.map(([k, l]) => ({ value: k || 'simple', label: `${k === kind ? '✓ ' : ''}${t(l)}`, primary: k === kind })));
+    if (v === null || (v === 'simple' ? '' : v) === kind) return;
+    const size = f.standard || f.thread, near = Object.keys(HOLE_SIZES).reduce((a, b) => (Math.abs(parseFloat(b.slice(1)) - f.d) < Math.abs(parseFloat(a.slice(1)) - f.d) ? b : a));
+    setHoleStandard(f, v === 'simple' ? '' : v, size in HOLE_SIZES ? size : this.lastHoleSize || near);
+    this.changedHole(f);
+  }
+
+  /** ⌀ Size ▾ of a chosen hole: the 2 sizes below and above, the current one ✓ (one undo step). */
+  async chooseHoleSize(id) {
+    const f = this.part.features.find((g) => g.id === id);
+    if (!f) return;
+    const opts = this.holeSizes(f);
+    const v = await choose(t('Hole size'), opts.map((o) => ({ value: o.value, label: `${o.on ? '✓ ' : ''}${o.label}`, primary: o.on })));
+    if (v === null || opts.find((o) => o.value === v)?.on) return;
+    const kind = holeType(f);
+    if (typeof v === 'string') setHoleStandard(f, kind, this.lastHoleSize = v);
+    else {
+      if (kind === 'd_flat' && (f.flat === undefined || f.flat === dFlat(f.d))) f.flat = dFlat(v); // (the flat follows the Ø while it is the default)
+      f.d = v;
+    }
+    this.changedHole(f);
+  }
+
+  /** A chosen hole changed from the suggestions / its panel: one undo step, built, its rows shown again. */
+  async changedHole(f) {
+    this.commit();
+    await this.rebuild();
+    if (this.selected === f.id && !this.cmd) { this.renderProps(); this.suggestStep(f.id); }
+  }
+
+  /** The right panel while a Hole step is chosen (no tool open): its type, size, through / depth — changed here at
+   *  once (one undo step each); ✎ Edit the hole for the rest, ＋ Add position for more holes. */
+  renderHoleStep(box, f) {
+    const kind = holeType(f), std = kind && kind !== 'd_flat', size = f.standard || f.thread || '', st = this.status(f.id);
+    box.innerHTML = `<h2 data-no-i18n>${esc(f.name)}</h2>
+      <p class="hint">${esc(t2('◎ Hole step · {n} hole(s) — changed here at once (Ctrl+Z takes a change back).', { n: f.points.length }))}</p>
+      <div class="field"><label>Type</label><select data-k="hole_type">${HOLE_TYPES.map(([v, l]) => `<option value="${v}" ${v === kind ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      ${std ? `<div class="field"><label>Size</label><select data-k="standard">${size in HOLE_SIZES ? '' : '<option value="" selected>—</option>'}${Object.keys(HOLE_SIZES).map((v) => `<option value="${v}" ${v === size ? 'selected' : ''}>${v}</option>`).join('')}</select></div>`
+        : `<div class="field"><label>Diameter</label><input type="number" step="any" min="0" data-k="d" value="${fmt(f.d)}"><span class="unit">mm</span></div>`}
+      <label class="check"><input type="checkbox" data-k="through" ${f.through !== false ? 'checked' : ''}> Through all</label>
+      ${f.through === false ? `<div class="field"><label>Depth</label><input type="number" step="any" min="0" data-k="depth" value="${fmt(f.depth)}"><span class="unit">mm</span></div>` : ''}
+      ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
+      <div class="row-actions wrap"><button class="btn small primary" data-a="editHole" title="${esc(t('All its settings — and ＋ Add position for more holes'))}">✎ ${esc(t('Edit the hole'))}</button>
+        <button class="btn small" data-a="addHolePos" title="${esc(t('Then click on the face where another hole goes (click again for more); click this again to stop'))}">＋ ${esc(t('Add position'))}</button></div>`;
+    box.querySelector('[data-k=hole_type]').addEventListener('change', (e) => {
+      const near = Object.keys(HOLE_SIZES).reduce((a, b) => (Math.abs(parseFloat(b.slice(1)) - f.d) < Math.abs(parseFloat(a.slice(1)) - f.d) ? b : a));
+      setHoleStandard(f, e.target.value, size in HOLE_SIZES ? size : this.lastHoleSize || near);
+      this.changedHole(f);
+    });
+    box.querySelector('[data-k=standard]')?.addEventListener('change', (e) => { if (e.target.value) { setHoleStandard(f, kind, this.lastHoleSize = e.target.value); this.changedHole(f); } });
+    for (const k of ['d', 'depth']) {
+      const el = box.querySelector(`[data-k=${k}]`);
+      el?.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') el.blur(); });
+      el?.addEventListener('change', () => {
+        const v = parseFloat(String(el.value).replace(',', '.'));
+        if (!(v > 0)) { el.value = fmt(f[k]); return; }
+        if (k === 'd' && kind === 'd_flat' && (f.flat === undefined || f.flat === dFlat(f.d))) f.flat = dFlat(v);
+        f[k] = v;
+        this.changedHole(f);
+      });
+    }
+    box.querySelector('[data-k=through]').addEventListener('change', (e) => { f.through = e.target.checked; if (!f.through && !(f.depth > 0)) f.depth = 10; this.changedHole(f); });
+    box.querySelector('[data-a=editHole]').addEventListener('click', () => this.edit(f.id));
+    box.querySelector('[data-a=addHolePos]').addEventListener('click', () => { this.edit(f.id); if (this.cmd?.feature.id === f.id) this.armPlace(); });
   }
 
   /** 🏷 Rename a step in its row of the list (typed in place). */
@@ -1036,12 +1212,18 @@ export class Modeler {
     if (more && pick && this.picks?.length) { this.addPick(pick); return; } // Ctrl+click: one more in the selection
     this.picks = pick ? [pick] : [];
     if (!this.cmd) this.view.setEdgeHighlight();
-    if (sp?.snap) { this.pickSnap(sp, eref ? ei : -1); return; } // a corner, an edge's middle, a centre
+    if (sp?.snap) { this.pickSnap(sp, eref ? ei : -1, { clientX: e.clientX, clientY: e.clientY }); return; } // a corner, an edge's middle, a centre
     if (pick?.kind === 'edge') { this.pickEdge(ei, eref); return; }
     if (!this.measuring) this.view.setMeasure([]);
     if (!fs) { this.selectStep(null); this.dropSuggest(); return; }
+    this.faceTable(h, fs, { clientX: e.clientX, clientY: e.clientY });
+  }
+
+  /** A face chosen (h: {face, point} — clicked, or chosen from a snap point; fs: its step): its step chosen and the
+   *  suggestions for it — this face, its edges, the part, the step. at: where the click was (the tools that start there). */
+  faceTable(h, fs, at) {
     this.selectStep(fs.step.id);
-    const flat = h.face.type === 'plane', at = { clientX: e.clientX, clientY: e.clientY };
+    const flat = h.face.type === 'plane';
     // [key, icon, label, do it] by section: this face, its edges, the whole part, the step it belongs to
     const sections = [
       [t('On this face'), [
@@ -1062,7 +1244,7 @@ export class Modeler {
         ['measure', '📏', t('Measure it'), () => { if (!this.measuring) this.toggleMeasure(); if (this.measuring) this.clickMeasure(at); }],
         ['paint', '🎨', t('Paint this face'), () => { if (!this.painting) this.togglePaint(); if (this.painting) { this.clickPaint(at); this.renderProps(); } }]]],
       [`${t('Step')} · ${fs.step.name}`, [
-        ['edit', '✎', t('Edit the step'), () => this.edit(fs.step.id)],
+        fs.step.type !== 'hole' && ['edit', '✎', t('Edit the step'), () => this.edit(fs.step.id)], // (a hole: ✎ Edit the hole, above)
         REPEATABLE.has(fs.step.type) && fs.step.type !== 'pattern' && !fs.step.suppressed && ['pattern', '⁂', t('Pattern it'), () => this.startPattern(fs.step.id)],
         ['rename', '🏷', t('Rename'), () => this.renameStep(fs.step.id)],
         ['off', fs.step.suppressed ? '●' : '◌', t(fs.step.suppressed ? 'Turn it on' : 'Turn it off'), () => this.toggleOff(fs.step.id)],
@@ -1073,9 +1255,10 @@ export class Modeler {
     // extrude it, a hole, round / bevel, edit; a round one — its edges, threads, edit
     // a hole's / a boss' face: ⁂ repeat it among the top rows
     const rep = fs.step.type === 'hole' || fs.step.op === 'cut';
+    if (fs.step.type === 'hole') sections.unshift([`${t('Hole')} · ${fs.step.name}`, this.holeRows(fs.step)]); // (a Hole step's: type, size, edit first)
     const RANK = { sketch: 0, faceup: 0.5, hole: 1, fillet: 2, chamfer: 3, edit: 4, pattern: rep ? 2.5 : 8.5, measure: 5.5, decal: 6.5, shell: 6, del: 7, mirror: 8, split: 9, rename: 9.5, paint: 9.8, off: 10, threads: flat ? 11 : 2.5 };
     const sg = showSuggest(this.els.viewport, `${fs.step.name} · ${face}`, sections.flatMap(([title, items]) => [{ section: title },
-      ...items.map(([key, icon, label, run, cls]) => ({ icon, label, rank: RANK[key], danger: cls === 'danger', run: () => { this.dropSuggest(); run(); } }))]), '',
+      ...items.map(([key, icon, label, run, cls, title]) => ({ icon, label, title, rank: RANK[key] ?? HOLE_RANK[key], danger: cls === 'danger', run: () => { if (!(key in HOLE_RANK)) this.dropSuggest(); run(); } }))]), '',
       `${t('in the 3D model')}: ${t('step')} ${fs.step.id} “${fs.step.name}”, ${t('face')} ${h.face.name}${h.face.type === 'plane' ? ` (${t('flat')})` : h.face.type === 'cylinder' ? ` (${t('round')}, Ø${fmt(2 * (h.face.radius || 0))})` : ''}`);
     if (sg) sg.dataset.from = 'face';
   }
@@ -1258,7 +1441,7 @@ export class Modeler {
       add(P3(fr, f.at[0], f.at[1]), `${fmt(f.h)} high`, num('h', 'Height', { min: 0.5 }));
     } else if (f.type === 'pattern') {
       const b = this.result?.body?.bbox, c = b ? [(b[0] + b[3]) / 2, (b[1] + b[4]) / 2, b[5]] : [0, 0, 0];
-      add(c, `${f.count}×`, num('count', 'How many', { min: 2, max: Math.max(20, f.count * 2), step: 1, int: true }));
+      add(c, `${f.count}×`, num('count', 'How many', { min: 2, max: Math.max(20, f.count * 2), soft: true, step: 1, int: true }));
       if (f.kind !== 'circular') add(c.map((v, i) => v + (i === 2 ? this.view.size * 0.05 : 0)), `${fmt(f.spacing)} apart`, num('spacing', 'Apart', { min: 0.1 }));
     }
     this.view.setTags(tags, lines);
@@ -1391,17 +1574,20 @@ export class Modeler {
     }
   }
 
-  /** The editor of one size: a number and a slider; the part follows while sliding; Enter / OK keeps it, Esc goes back. */
+  /** The editor of one size: a number and a slider; the part follows while sliding; Enter / OK keeps it, Esc goes back.
+   *  Its max is hard (edit.max, or the kernel's: past it is refused, saying why) or soft (none given, edit.soft, the
+   *  kernel's "_soft": a bigger number typed is taken and the slider grows round it). */
   openDimEdit(el, edit) {
     this.closeDimEdit();
     const before = structuredClone(this.part.features);
     const v0 = edit.get(), step = edit.step || (Math.abs(v0) >= 20 ? 0.5 : 0.1), ex0 = this.dimExpr(edit);
-    let lo = edit.min ?? 0.1, hi = edit.max ?? Math.max(10, Math.abs(v0) * 3);
+    let lo = edit.min ?? 0.1, hi = edit.max ?? Math.max(10, Math.abs(v0) * 3), soft = !!edit.soft || edit.max === undefined, shownHi = hi;
     const box = document.createElement('div');
     box.className = 'm-dimedit';
     box.innerHTML = `<div class="m-dimedit-t">${esc(t(edit.label || 'Size'))}</div>
       <div class="m-dimedit-row"><input type="text" class="px-in" autocomplete="off" spellcheck="false" step="${step}" value="${esc(ex0 ?? fmt(v0))}" title="${esc(t('A number — or an expression of the project’s parameters: L, L/2 + 5, =D. “L = 100” makes the parameter L.'))}"><span class="unit">${edit.unit || (edit.int ? '' : 'mm')}</span></div>
-      <input type="range" min="${edit.int ? lo : 0}" max="${hi}" step="${edit.int ? 1 : step}" value="${v0}">
+      <input type="range" min="${edit.int ? lo : 0}" max="${Math.max(hi, v0)}" step="${edit.int ? 1 : step}" value="${v0}">
+      <div class="m-dimedit-why mp-warn" hidden></div>
       <div class="m-dimedit-acts"><button class="btn small primary" data-a="ok">OK</button><button class="btn small" data-a="cancel">Cancel</button>
         <button class="btn small" data-a="restore" disabled title="${esc(t('Back to the size it had when this was opened'))}" data-no-i18n>↺ ${fmt(v0)}</button></div>`;
     const vr = this.els.viewport.getBoundingClientRect(), r = el.getBoundingClientRect();
@@ -1416,12 +1602,16 @@ export class Modeler {
         const r = lim[edit.field];
         if (!r || this.dimEdit !== box) return;
         const approx = (lim._approx || []).includes(edit.field); // (a rounding's max found to 1 %: a bit more may fit)
+        soft = (lim._soft || []).includes(edit.field);
         [lo, hi] = r;
-        Object.assign(slider, { min: String(lo), max: String(hi) });
+        const cur = parseFloat(slider.value);
+        Object.assign(slider, { min: String(lo), max: String(soft && cur > hi ? growTo(cur) : hi) });
         Object.assign(num, { min: String(lo), max: String(approx ? +(hi * 1.02).toFixed(2) : hi) });
         const tag = document.createElement('div');
         tag.className = 'mp-range';
-        tag.textContent = `${fmt(lo)} – ${approx ? '≈' : ''}${fmt(hi)}${edit.unit || (edit.int ? '' : ' mm')}`;
+        tag.textContent = `${fmt(lo)} – ${approx && !soft ? '≈' : ''}${fmt(hi)}${soft ? '+' : ''}${edit.unit || (edit.int ? '' : ' mm')}`;
+        tag.title = soft ? t('A suggestion — type a bigger number and the slider grows') : t('The most that can be built here');
+        shownHi = hi;
         if (approx) hi = +(hi * 1.02).toFixed(2);
         slider.after(tag);
       });
@@ -1438,7 +1628,13 @@ export class Modeler {
       }
       busy = false;
     };
-    const valid = (v) => Number.isFinite(v) && v <= hi && (edit.int ? Number.isInteger(v) && v >= lo : lo <= v || lo < 0);
+    const valid = (v) => Number.isFinite(v) && (soft || v <= hi) && (edit.int ? Number.isInteger(v) && v >= lo : lo <= v || lo < 0);
+    const whyBox = box.querySelector('.m-dimedit-why');
+    const why = (v) => { // past a hard max: why it stops there (the step's own reason, else in general)
+      if (!(Number.isFinite(v) && !soft && v > hi)) return '';
+      const st = this.part.features.find((g) => g.id === edit.stepId), k = LIMIT_WHY[`${st?.type}.${edit.field}`];
+      return k ? t2(k, { v: fmt(shownHi) }) : t2('{v} is the most that works here (with what is around it).', { v: fmt(shownHi) });
+    };
     // 𝑥 a number or an expression of the parameters (L / 2; "L = 100" makes L when it is kept)
     const read = (keep = false) => {
       try { const r = keep ? takeField(num.value) : readField(num.value, params.list); num.classList.remove('px-bad'); num.title = ''; return r; } catch (e) {
@@ -1448,13 +1644,22 @@ export class Modeler {
       }
     };
     const back = box.querySelector('[data-a=restore]'), moved = () => { back.disabled = Math.abs(read().value - v0) < 1e-9; };
-    num.addEventListener('input', () => { const v = read().value; moved(); if (valid(v)) { slider.value = v; preview(v); } });
+    num.addEventListener('input', () => {
+      const v = read().value, w = why(v);
+      moved();
+      whyBox.hidden = !w;
+      whyBox.textContent = w;
+      if (!valid(v)) return;
+      if (v > +slider.max) slider.max = String(growTo(v)); // (a soft range: it grows round what was typed)
+      slider.value = v;
+      preview(v);
+    });
     slider.addEventListener('input', () => { const v = Math.max(parseFloat(slider.value), edit.min > 0 ? edit.min : 0); num.value = fmt(v); moved(); preview(v); });
     back.addEventListener('click', () => { num.value = fmt(v0); slider.value = v0; moved(); preview(v0); num.focus(); num.select(); }); // (the editor stays open)
     const ok = async () => {
       const r0 = read();
       if (r0.error) { this.hooks.toast(r0.error, 'warning', 6000); return; }
-      if (!valid(r0.value)) { this.hooks.toast('That size does not fit here.', 'warning'); return; }
+      if (!valid(r0.value)) { this.hooks.toast(why(r0.value) || 'That size does not fit here.', 'warning'); return; }
       const r = read(true), v = r.value;
       while (busy) await new Promise((res) => setTimeout(res, 20));
       this.closeDimEdit();
@@ -1713,6 +1918,8 @@ export class Modeler {
       box.innerHTML = '<h2>New sketch</h2><p class="hint">Click a flat face of the part to sketch on it — holes, pockets and bosses go there. Or choose a plane in the bar above.</p>';
       return null;
     }
+    const chosen = this.mode === 'part' && this.selected && this.part.features.find((g) => g.id === this.selected);
+    if (chosen?.type === 'hole') { this.renderHoleStep(box, chosen); return null; }
     const b = this.result?.body;
     if (!this.part.features.length) {
       box.innerHTML = `<h2>New 3D model</h2><p class="hint">Start with a sketch: draw a rectangle or a circle, then give it a height with Extrude.</p>
@@ -1787,6 +1994,17 @@ export class Modeler {
       : real.pending ? `<p class="hint mp-thr-pending">⏳ ${esc(t2('{n} real threads being cut — shown as lines until then', { n: real.holes }))}</p>`
       : `<p class="hint mp-thr-real">${esc(t2('{n} real threads, cut in {s} s', { n: real.cut, s: fmt(real.seconds) }))}${real.warning ? ` — ${esc(t('the part may rebuild slowly'))}` : ''}</p>`) : '';
     return `<div class="field mp-threads"><label title="${esc(t('How the threads of its threaded holes show'))}">🔩 ${esc(t('Threads'))}</label><div class="seg">${b('hidden', 'Hidden', 'Plain holes at the tap drill (the threads are on the drawing)')}${b('cosmetic', 'Cosmetic', 'Thin helix lines on the holes — view only, quick')}${b('real', 'Real', 'The threads cut into the solid (ISO metric, 60°) — in STEP / STL / 3MF exports and the print split; slower')}</div></div>${note}`;
+  }
+
+  /** 🔩 A thread just made (a tapped hole new since the last undo step — the tools, a type switched, the AI) is seen at
+   *  once: threads hidden -> shown as cosmetic lines (in the same undo step), saying so; real ones stay one choice away
+   *  (🔩 Real thread in the hole's panel, 🔩 Threads in the Part panel). Parts as they were opened keep their setting. */
+  showNewThreads() {
+    if (this.part.threads === 'cosmetic' || this.part.threads === 'real') return;
+    const had = new Set((this.history.base?.features || []).filter((f) => f.type === 'hole' && f.thread).map((f) => f.id));
+    if (!this.part.features.some((f) => f.type === 'hole' && f.thread && !f.suppressed && !had.has(f.id))) return;
+    this.part.threads = 'cosmetic';
+    this.hooks.toast(t('🔩 The thread shows as light lines (cosmetic). A real, cut thread: 🔩 Real thread (slower) in the hole’s panel.'), 'info', 5000);
   }
 
   /** 🔩 Show all threads (the suggestions table): asked once — cosmetic lines or real geometry. */
@@ -2003,6 +2221,7 @@ export class Modeler {
   /** Record a step in the undo history and rebuild. */
   commit() {
     this.fixBar();
+    this.showNewThreads();
     this.history.commit();
     this.render();
     this.rebuild();
@@ -2376,7 +2595,10 @@ export class Modeler {
   }
 
   /** A slider under every number of a tool's panel: sliding types into the number (the part previews), typing
-   *  moves the slider. Its range: from the number's min (or below 0 when it may be negative) to about 3× the value. */
+   *  moves the slider. Its range: from the number's min (or below 0 when it may be negative) to about 3× the value.
+   *  Hard limits (the number's max: what the kernel can build, a full turn): a number past it is pulled back, saying
+   *  why. Soft ones (no max — only a suggested range, "_soft" from the kernel): a number past it is kept and the
+   *  slider grows round it. */
   addSliders(box) {
     // the ranges known for these very settings (not the ones from before e.g. a pattern went round)
     if (this.cmd?.limits && this.cmd.limitsKey === this.limitsKey(this.shown(), this.cmd.feature.id)) setTimeout(() => this.applyLimits(box, this.cmd.limits), 0);
@@ -2385,7 +2607,7 @@ export class Modeler {
       num.dataset.slider = '1';
       const v0 = parseFloat(num.value) || 0, int = num.step === '1', deg = /°/.test(num.parentElement?.textContent || '') || num.dataset.k === 'angle';
       const lo = num.dataset.lo !== undefined ? +num.dataset.lo : num.min !== '' ? parseFloat(num.min) : -Math.max(10, Math.abs(v0) * 3);
-      const hi = num.dataset.hi !== undefined ? +num.dataset.hi : deg ? 360 : int ? Math.max(20, v0 * 2) : Math.max(10, Math.abs(v0) * 3, lo + 1);
+      const hi = num.dataset.hi !== undefined ? +num.dataset.hi : num.max !== '' ? parseFloat(num.max) : deg ? 360 : int ? Math.max(20, v0 * 2) : Math.max(10, Math.abs(v0) * 3, lo + 1);
       const sl = document.createElement('input');
       Object.assign(sl, { type: 'range', min: String(Math.max(lo, int ? 2 : lo)), max: String(hi), step: num.dataset.step || (int ? '1' : hi > 50 ? '0.5' : '0.1'), value: String(v0) });
       sl.className = 'mp-slider';
@@ -2395,17 +2617,26 @@ export class Modeler {
         num.dispatchEvent(new Event('input', { bubbles: true }));
       });
       sl.addEventListener('change', () => num.dispatchEvent(new Event('change', { bubbles: true })));
-      num.addEventListener('input', () => {
-        const v = isPlain(num.value) ? parseFloat(num.value) : NaN, lo = num.min !== '' ? +num.min : -Infinity, hi = num.max !== '' ? +num.max : Infinity; // (an expression: held to the range once worked out)
-        if (Number.isFinite(v) && (v > (num.dataset.top ? +num.dataset.top : hi) || v < lo)) { // (≈ max: a little above it may fit)
-          num.value = fmt(Math.min(hi, Math.max(lo, v)));
-          this.hooks.toast(t2('{v} is the most that works here (with what is around it).', { v: num.value }), 'info', 2500);
-        }
+      const typed = () => [isPlain(num.value) ? parseFloat(num.value) : NaN, num.min !== '' ? +num.min : -Infinity, num.max !== '' ? +num.max : Infinity]; // (an expression: held to the range once worked out)
+      num.addEventListener('input', (e) => {
+        const [v, lo, hi] = typed();
+        if (Number.isFinite(v) && v > (num.dataset.top ? +num.dataset.top : hi)) { // (≈ max: a little above it may fit)
+          num.value = fmt(hi);
+          const why = LIMIT_WHY[`${this.cmd?.feature.type}.${num.dataset.k}`];
+          this.hooks.toast(why ? t2(why, { v: num.value }) : t2('{v} is the most that works here (with what is around it).', { v: num.value }), 'info', 3500);
+        } else if (Number.isFinite(v) && v < lo) e.stopImmediatePropagation(); // (half typed — "1" on the way to "10": not used; held to the min when done)
+      }, true);
+      num.addEventListener('change', () => {
+        const [v, lo] = typed();
+        if (!(Number.isFinite(v) && v < lo)) return;
+        num.value = fmt(lo);
+        this.hooks.toast(t2('{v} is the least that works here.', { v: num.value }), 'info', 3500);
+        num.dispatchEvent(new Event('input', { bubbles: true }));
       }, true);
       num.addEventListener('input', () => {
         const v = parseFloat(num.value);
         if (!Number.isFinite(v)) return;
-        if (v > +sl.max) sl.max = String(v * 1.5);
+        if (v > +sl.max) sl.max = String(growTo(v)); // (a soft range: it grows round what was typed)
         sl.value = String(v);
       });
       const row = num.closest('.field, .mp-hd, label') || num.parentElement;
@@ -2452,22 +2683,27 @@ export class Modeler {
   }
 
   /** Numbers and sliders held to their ranges; the range shown under the slider; a value outside is pulled in.
-   *  An approximate max (lim._approx: a rounding's, found to 1 %) shows "≈"; a number up to 2 % above it is left as typed. */
+   *  An approximate max (lim._approx: a rounding's, found to 1 %) shows "≈"; a number up to 2 % above it is left as typed.
+   *  A soft max (lim._soft: only how far the kernel looked, or a pattern's copies that reach the part) is no max: the
+   *  slider ends there (or round a bigger number typed) and grows when more is typed. */
   applyLimits(box, lim) {
     for (const [k, [lo, hi]] of Object.entries(lim || {}).filter(([q]) => !q.startsWith('_'))) {
-      const approx = (lim._approx || []).includes(k), top = approx ? +(hi * 1.02).toFixed(2) : hi;
+      const approx = (lim._approx || []).includes(k), soft = (lim._soft || []).includes(k), top = soft ? Infinity : approx ? +(hi * 1.02).toFixed(2) : hi;
       for (const num of box.querySelectorAll(`input[type=number][data-k="${k}"], input.px-in[data-k="${k}"]`)) {
         num.min = String(lo);
-        num.max = String(hi);
-        if (approx) num.dataset.top = String(top); else delete num.dataset.top; // (typed up to it: left as it is)
+        if (soft) num.removeAttribute('max'); else num.max = String(hi);
+        num.toggleAttribute('data-soft', soft);
+        if (approx && !soft) num.dataset.top = String(top); else delete num.dataset.top; // (typed up to it: left as it is)
         const sl = num.closest('.field, label, .mp-hd')?.nextElementSibling;
         if (sl?.classList.contains('mp-slider')) {
           const st = +sl.step || 0.1;
           sl.min = String(Math.floor(lo / st) * st); // on the step grid (0.01 would make 8 into 7.99); the number holds the min
-          sl.max = String(hi);
+          const cur = parseFloat(num.value);
+          sl.max = String(soft && cur > hi ? growTo(cur) : hi);
           let tag = sl.nextElementSibling;
           if (!tag?.classList.contains('mp-range')) { tag = document.createElement('div'); tag.className = 'mp-range'; sl.after(tag); }
-          tag.textContent = `${fmt(lo)} – ${approx ? '≈' : ''}${fmt(hi)}${k === 'count' ? '' : k === 'angle' ? '°' : ' mm'}`;
+          tag.textContent = `${fmt(lo)} – ${approx && !soft ? '≈' : ''}${fmt(hi)}${soft ? '+' : ''}${k === 'count' ? '' : k === 'angle' ? '°' : ' mm'}`;
+          tag.title = soft ? t('A suggestion — type a bigger number and the slider grows') : t('The most that can be built here');
         }
         const v = isPlain(num.value) ? parseFloat(num.value) : NaN;
         if (Number.isFinite(v) && (v > top || v < lo)) {
@@ -2505,6 +2741,39 @@ export class Modeler {
 
   cancelExtrude() { this.cancelCommand(); }
 
+  /** What a tool that places things one click after another has placed so far (holes, edges to round, faces left
+   *  open), as text to compare — null for the other tools. */
+  placed(f) {
+    const list = { hole: f.points, fillet: f.edges, chamfer: f.edges, shell: f.faces }[f.type];
+    return list ? JSON.stringify(list) : null;
+  }
+
+  /** ＋ Add position / ⌖ Move by clicking (an edited hole / text): a click in the view places from now on (the
+   *  mouse shows where); again: off. */
+  armPlace() {
+    if (!this.cmd) return;
+    this.cmd.place = !this.cmd.place;
+    if (!this.cmd.place) { this.showSpot(null); this.els.viewport.querySelector('canvas').style.cursor = ''; }
+    const hole = this.cmd.feature.type === 'hole';
+    this.hint(this.cmd.place ? (hole ? 'Click on the face where another hole goes (click again for more). Enter = OK.' : 'Click on a flat face where it goes. Enter = OK.') : '');
+    this.renderProps();
+  }
+
+  /** Esc in a tool: one that places things click after click and has placed some (new ones, or changed what an
+   *  edited step had) ends there and KEEPS them — as OK, saying so; nothing placed (or another tool): cancelled.
+   *  Cancel (the button) always throws it all away. Picking a hole's reference: Esc ends only that pick. */
+  escCommand() {
+    if (!this.cmd) return;
+    if (this.holePick) { this.holePick = null; this.hint(''); this.renderProps(); return; }
+    const f = this.cmd.feature, now = this.placed(f);
+    if (now === null || now === '[]' || now === this.cmd.placed0) { this.cancelCommand(); return; }
+    const n = JSON.parse(now).length;
+    const what = { hole: 'Hole: {n} position(s) kept (Ctrl+Z takes them back).', fillet: 'Fillet: {n} edge(s) kept (Ctrl+Z takes them back).',
+      chamfer: 'Chamfer: {n} edge(s) kept (Ctrl+Z takes them back).', shell: 'Shell: {n} open face(s) kept (Ctrl+Z takes them back).' }[f.type];
+    this.okCommand();
+    if (!this.cmd) this.hooks.toast(t2(what, { n }), 'ok', 3500); // (OK refused — a missing setting: the tool stays open)
+  }
+
   cancelCommand() {
     this.cmd = null; // (⬆ Extrude this face: its outline sketch goes with it — it was never a step)
     this.view.setPullArrow(null);
@@ -2541,11 +2810,13 @@ export class Modeler {
     this.closeDimEdit();
     this.view.setTags([]);
     if (this.measuring) this.toggleMeasure();
-    this.cmd = { feature, isNew };
+    // place: a click in the view places (a new hole / text); an edited one only after ＋ Add position / ⌖ Move by
+    // clicking — opening a step to change it never arms its placing (the mouse shows no new hole)
+    this.cmd = { feature, isNew, placed0: isNew ? '[]' : this.placed(feature), place: isNew || !PLACES.has(feature.type) }; // (Esc keeps what is placed past this)
     this.mode = 'part';
     this.selected = feature.id;
     this.hint(feature.type === 'revolve' ? 'Revolve — choose the axis and the angle; the preview is in the view. Enter = OK, Esc = Cancel.'
-      : feature.type === 'shell' ? 'Shell — click the face(s) to leave open, give the wall thickness. Enter = OK, Esc = Cancel.'
+      : feature.type === 'shell' ? 'Shell — click the face(s) to leave open, give the wall thickness. Enter / Esc = done (keeps them), Cancel = throw away.'
       : feature.type === 'decal' ? 'Text / picture — click on a flat face where it goes (click again to move it). Enter = OK, Esc = Cancel.'
       : feature.type === 'loft' ? 'Loft — choose the sketch it starts from and the one it goes to. Enter = OK, Esc = Cancel.'
       : feature.type === 'sweep' ? 'Sweep — choose the outline (profile) and the path it moves along. Enter = OK, Esc = Cancel.'
@@ -2553,8 +2824,10 @@ export class Modeler {
       : feature.type === 'mirror' ? 'Mirror — choose the plane, or click a flat face to mirror across it. Enter = OK, Esc = Cancel.'
       : feature.type === 'split' ? 'Split — choose a plane, or click a flat face to cut along it; keep both pieces or one side. Enter = OK, Esc = Cancel.'
       : feature.type === 'pattern' ? 'Pattern — how many and how far apart. Click an edge for the direction (or a round face for the axis). Enter = OK, Esc = Cancel.'
-      : feature.type === 'hole' ? 'Hole — click on a flat face where it goes (click again for more holes). Enter = OK, Esc = Cancel.'
-      : `${feature.type === 'fillet' ? 'Fillet' : 'Chamfer'} — click the edges (or a face: all its edges). Enter = OK, Esc = Cancel.`);
+      : feature.type === 'hole' && !isNew ? 'Hole — change its settings; ＋ Add position to click more holes. Enter = OK, Esc = Cancel.'
+      : feature.type === 'decal' && !isNew ? 'Text / picture — change it; ⌖ Move by clicking to put it elsewhere. Enter = OK, Esc = Cancel.'
+      : feature.type === 'hole' ? 'Hole — click on a flat face where it goes (click again for more holes). Enter / Esc = done (keeps them), Cancel = throw away.'
+      : `${feature.type === 'fillet' ? 'Fillet' : 'Chamfer'} — click the edges (or a face: all its edges). Enter / Esc = done (keeps them), Cancel = throw away.`);
     this.render();
     this.rebuild();
   }
@@ -2666,6 +2939,7 @@ export class Modeler {
   clickHole(e) {
     const f = this.cmd.feature, h = this.view.pick(e.clientX, e.clientY);
     if (this.holePick) { this.pickHoleRef(e); return; }
+    if (!this.cmd.place) { this.hooks.toast(t('To add a hole here, click ＋ Add position first.'), 'info', 3000); return; }
     if (!h?.face) return;
     if (h.face.type !== 'plane') { this.hooks.toast('Holes go on flat faces — click a flat face.', 'warning'); return; }
     if (f.plane && (f.plane.face?.name !== h.face.name || h.face.normal.some((v, k) => Math.abs(v - f.plane.frame.n[k]) > 1e-6))) {
@@ -2962,7 +3236,7 @@ export class Modeler {
       <p class="hint">The preview is in the 3D view. Enter = OK, Esc = Cancel.</p>`;
     const inp = box.querySelector(`[data-k=${k}]`);
     inp.addEventListener('input', () => { const v = parseFloat(inp.value); if (v > 0) { f[k] = v; this.rebuild(); } });
-    inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+    inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.escCommand(); });
     box.querySelector('[data-k=chain]').addEventListener('change', (e) => { if (e.target.checked) delete f.chain; else f.chain = false; this.rebuild(); });
     box.querySelector('[data-a=clear]')?.addEventListener('click', () => { f.edges = []; this.cmd.lastPick = null; this.renderProps(); this.rebuild(); });
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
@@ -2973,7 +3247,7 @@ export class Modeler {
     const f = this.cmd.feature, st = this.status(f.id), kind = holeType(f), size = f.standard || f.thread || '', dh = kind === 'd_flat';
     const std = kind && !dh; // (a screw's hole: sized from the table)
     box.innerHTML = `<h2>${esc(f.name)}</h2>
-      <p class="hint">Click on a flat face where a hole goes — click again for more holes on the same face. A click near the face's centre snaps to it.</p>
+      ${this.cmd.isNew ? '<p class="hint">Click on a flat face where a hole goes — click again for more holes on the same face. A click near the face\'s centre snaps to it.</p>' : ''}
       ${f.plane?.face ? `<div class="field m-holefrom"><label>From</label>${originSeg(f.plane, f.plane.origin ? originKey(f.plane.origin) : f.from?.some((x) => x?.x || x?.y) ? 'edges' : '', '', HOLE_ORIGINS)}</div>` : ''}
       <div class="field"><label>Type</label><select data-k="hole_type" title="A hole for a metric screw: its sizes from the ISO tables — clearance (ISO 273), ⌴ for a socket head, ⌵ for a flat head, tapped (a thread); D for a shaft with a flat">
         ${HOLE_TYPES.map(([v, l]) => `<option value="${v}" ${v === kind ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -2989,6 +3263,9 @@ export class Modeler {
         ${f.head ? `<div class="field"><label>Head Ø</label><input type="number" step="any" min="0" data-k="head_d" value="${fmt(f.head_d)}"><span class="unit">mm</span></div>` : ''}
         ${f.head === 'cbore' ? `<div class="field"><label>Head depth</label><input type="number" step="any" min="0" data-k="head_depth" value="${fmt(f.head_depth)}"><span class="unit">mm</span></div>` : ''}
       </details>` : ''}
+      ${kind === 'tapped' ? `<div class="field mp-thr-hole"><label title="${esc(t('How the threads of its threaded holes show'))}">🔩 ${esc(t('Thread'))}</label><div class="seg">
+        <button data-thr="cosmetic" class="${this.part.threads !== 'real' ? 'on' : ''}" title="${esc(t('Thin helix lines on the holes — view only, quick'))}">${esc(t('Cosmetic'))}</button>
+        <button data-thr="real" class="${this.part.threads === 'real' ? 'on' : ''}" title="${esc(t('The threads cut into the solid (ISO metric, 60°) — in STEP / STL / 3MF exports and the print split; slower'))}">${esc(t('Real thread (slower)'))}</button></div></div>` : ''}
       ${dh ? '' : this.teardropRow(f)}
       ${!std || f.fit ? `<div class="field"><label>Fit</label><select data-k="fit" title="An ISO 286 fit for the hole — shown on the 2D drawing (Ø8 H7 and its deviations); the model keeps the nominal size">
         ${['', 'H6', 'H7', 'H8', 'H9'].map((v) => `<option value="${v}" ${v === (f.fit || '') ? 'selected' : ''}>${v || '—'}</option>`).join('')}</select></div>` : ''}
@@ -2999,11 +3276,12 @@ export class Modeler {
           : f.plane?.origin ? 'The holes stay where these numbers put them, also when the part changes.'
           : 'Each hole keeps its distance from the edge it is measured from, also when the part changes. ⇄ measures from the other side.'}</p>`
         : '<p class="mp-count">No holes yet — click on a face.</p>'}
+      ${this.cmd.isNew ? '' : `<div class="row-actions"><button class="btn small ${this.cmd.place ? 'on' : ''}" data-a="addpos" title="${esc(t('Then click on the face where another hole goes (click again for more); click this again to stop'))}">＋ ${esc(t('Add position'))}</button></div>`}
       ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
     const num = (el, set) => {
       el.addEventListener('input', () => { const v = parseFloat(el.value); if (Number.isFinite(v)) { set(v); this.rebuild(); } });
-      el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+      el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.escCommand(); });
     };
     num(box.querySelector('[data-k=d]'), (v) => {
       if (!(v > 0)) return;
@@ -3014,6 +3292,8 @@ export class Modeler {
     if (fl) num(fl, (v) => { if (v > 0) f.flat = v; });
     box.querySelector('[data-a=turnflat]')?.addEventListener('click', () => { f.flat_angle = ((f.flat_angle || 0) + 90) % 360; if (!f.flat_angle) delete f.flat_angle; this.rebuild(); });
     box.querySelector('.m-holesizes')?.addEventListener('toggle', (e) => { this.holeSizesOpen = e.target.open; });
+    box.querySelector('[data-a=addpos]')?.addEventListener('click', () => this.armPlace());
+    for (const el of box.querySelectorAll('.mp-thr-hole [data-thr]')) el.addEventListener('click', () => { this.setThreads(el.dataset.thr).then(() => this.cmd && this.renderProps()); });
     const dep = box.querySelector('[data-k=depth]');
     if (dep) num(dep, (v) => { if (v > 0) f.depth = v; });
     box.querySelector('[data-k=through]').addEventListener('change', (e) => { f.through = e.target.checked; this.renderProps(); this.rebuild(); });
@@ -3122,7 +3402,7 @@ export class Modeler {
     box.querySelector('[data-k=sketch]')?.addEventListener('change', (e) => { f.sketch = e.target.value; f.axis = 'y'; changed(); });
     const a = box.querySelector('[data-k=angle]');
     a.addEventListener('input', () => { const v = parseFloat(a.value); if (v > 0 && v <= 360) { f.angle = v; this.rebuild(); } });
-    a.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+    a.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.escCommand(); });
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
   }
@@ -3138,7 +3418,7 @@ export class Modeler {
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
     const tIn = box.querySelector('[data-k=t]');
     tIn.addEventListener('input', () => { const v = parseFloat(tIn.value); if (v > 0) { f.t = v; this.rebuild(); } });
-    tIn.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+    tIn.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.escCommand(); });
     for (const el of box.querySelectorAll('[data-del]')) el.addEventListener('click', () => { f.faces.splice(+el.dataset.del, 1); this.renderProps(); this.rebuild(); });
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
@@ -3180,6 +3460,7 @@ export class Modeler {
 
   clickDecal(e) {
     const f = this.cmd.feature, h = this.view.pick(e.clientX, e.clientY);
+    if (!this.cmd.place) { this.hooks.toast(t('To move it by clicking, click ⌖ Move by clicking first.'), 'info', 3000); return; }
     if (!h?.face || h.face.type !== 'plane' || h.face.name?.startsWith(`${f.id}:`)) { this.hooks.toast('Click a flat face of the part.', 'info', 3000); return; }
     const same = f.plane && f.plane.face?.name === h.face.name;
     if (!same) f.plane = { face: h.face.ref || { name: h.face.name }, frame: h.face.frame };
@@ -3209,7 +3490,8 @@ export class Modeler {
       ${this.decalPlace(f)}
       <div class="seg"><button data-op="add" class="${f.op !== 'cut' ? 'on' : ''}">Raised</button><button data-op="cut" class="${f.op === 'cut' ? 'on' : ''}">Engraved</button></div>
       <div class="field"><label>Depth</label><input type="number" step="any" min="0" data-k="depth" value="${fmt(f.depth)}"><span class="unit">mm</span></div>
-      <p class="hint">${f.plane ? 'Click on the face again to move it — near the face\'s centre it snaps to it.' : 'Click on a flat face of the part where it goes.'}</p>
+      ${this.cmd.isNew ? `<p class="hint">${f.plane ? 'Click on the face again to move it — near the face\'s centre it snaps to it.' : 'Click on a flat face of the part where it goes.'}</p>`
+        : `<div class="row-actions"><button class="btn small ${this.cmd.place ? 'on' : ''}" data-a="movepos" title="${esc(t('Then click on a flat face where it goes; click this again to stop'))}">⌖ ${esc(t('Move by clicking'))}</button></div>`}
       ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
     const changed = () => { this.renderProps(); this.rebuild(); };
@@ -3222,11 +3504,12 @@ export class Modeler {
       });
     }
     for (const b of box.querySelectorAll('[data-op]')) b.addEventListener('click', () => { f.op = b.dataset.op; changed(); });
+    box.querySelector('[data-a=movepos]')?.addEventListener('click', () => this.armPlace());
     const txt = box.querySelector('[data-k=text]');
     if (txt) {
       let timer = null;
       txt.addEventListener('input', () => { f.text = txt.value; clearTimeout(timer); timer = setTimeout(() => this.traceDecal(), 350); });
-      txt.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+      txt.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.escCommand(); });
     }
     for (const inp of box.querySelectorAll('[data-at], [data-k=angle]')) { // where on the face, and turned
       inp.addEventListener('input', () => {
@@ -3235,12 +3518,12 @@ export class Modeler {
         if (inp.dataset.at !== undefined) { f.at = [...(f.at || [0, 0])]; f.at[+inp.dataset.at] = v; } else f.angle = v;
         this.rebuild();
       });
-      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.escCommand(); });
     }
     for (const k of ['h', 'depth']) {
       const inp = box.querySelector(`[data-k=${k}]`);
       inp.addEventListener('input', () => { const v = parseFloat(inp.value); if (v > 0) { f[k] = v; this.rebuild(); } });
-      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.escCommand(); });
     }
     box.querySelector('[data-a=pickPicture]')?.addEventListener('click', async () => {
       const o = await this.hooks.pickOutline?.();
@@ -3488,7 +3771,7 @@ export class Modeler {
       this.renderProps();
     });
     const off = box.querySelector('[data-k=offset]');
-    off.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') off.blur(); if (e.key === 'Escape') this.cancelCommand(); });
+    off.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') off.blur(); if (e.key === 'Escape') this.escCommand(); });
     off.addEventListener('change', () => {
       const v = parseFloat(String(off.value).replace(',', '.'));
       if (!Number.isFinite(v)) return;
@@ -3572,7 +3855,7 @@ export class Modeler {
     const f = this.cmd.feature, st = this.status(f.id), es = this.draftable(f.id);
     box.innerHTML = `<h2>${esc(f.name)}</h2>
       <div class="field"><label>Walls of</label><select data-k="of">${es.map((g) => `<option value="${g.id}" ${g.id === f.of ? 'selected' : ''} data-no-i18n>${esc(g.name)}</option>`).join('')}</select></div>
-      <div class="field"><label>Angle</label><input type="number" step="0.5" data-k="angle" value="${fmt(f.angle)}"><span class="unit">°</span></div>
+      <div class="field"><label>Angle</label><input type="number" step="0.5" min="-44.5" max="44.5" data-k="angle" value="${fmt(f.angle)}"><span class="unit">°</span></div>
       <p class="hint">${esc(t('Its side walls lean in going up from its base (negative: out) — or click a wall of another extrude.'))}</p>
       ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
@@ -3625,7 +3908,7 @@ export class Modeler {
       f.dir = d;
     }
     this.renderProps();
-    this.rebuild();
+    this.rebuild()?.then?.(() => { if (this.cmd?.feature === f) this.renderProps(); }); // (its warning — copies off the part — when built)
   }
 
   /** "x" | "y" | "z" when the direction (or the axis, through the origin) is a main axis, else null. */
@@ -3651,7 +3934,7 @@ export class Modeler {
       <div class="field"><label>${circ ? 'Around' : 'Direction'}</label><div class="seg">${Object.keys(AXES).map((a) => `<button data-ax="${a}" class="${ax === a ? 'on' : ''}">${a.toUpperCase()}</button>`).join('')}${circ ? '' : '<button data-a="flipDir" title="The other way">⇄</button>'}</div></div>
       <p class="hint">${circ ? (ax ? 'Evenly around the axis through the origin. Or click a round face (a hole, a shaft) to go around its axis.' : 'Evenly around the axis of the round face you clicked.')
         : (ax ? 'Or click a straight edge in the view to go along it.' : 'Along the edge you clicked.')}</p>
-      ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
+      <div data-st>${this.statusHtml(st)}</div>
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
     const changed = () => { this.renderProps(); this.rebuild(); };
     for (const b of box.querySelectorAll('[data-kind]')) {
@@ -3682,12 +3965,20 @@ export class Modeler {
       if (!inp) continue;
       inp.addEventListener('input', () => {
         const v = parseFloat(inp.value);
-        if (v > 0 && (k !== 'count' || (Number.isInteger(v) && v >= 2))) { f[k] = v; this.rebuild(); }
+        if (v > 0 && (k !== 'count' || (Number.isInteger(v) && v >= 2))) {
+          f[k] = v;
+          this.rebuild()?.then?.(() => { const el = box.querySelector('[data-st]'); if (el && this.cmd?.feature === f) el.innerHTML = this.statusHtml(this.status(f.id)); });
+        }
       });
-      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.escCommand(); });
     }
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
+  }
+
+  /** A step's problem (red) or warnings (yellow) for its panel. */
+  statusHtml(st) {
+    return st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : st?.warnings?.length ? `<p class="mp-warn">⚠ ${esc(st.warnings.join(' '))}</p>` : '';
   }
 
   // ------------------------------------------------------------------ 🎨 paint faces / bodies
@@ -3885,7 +4176,7 @@ export class Modeler {
           this.view.setHover(ok ? h.face.id : -1);
           cv.style.cursor = ok ? 'pointer' : '';
         } else if (f.type === 'decal' || (f.type === 'hole' && !this.holePick)) {
-          cv.style.cursor = this.showSpot(e) ? 'crosshair' : ''; // (snapped, with guides and the hole's preview)
+          cv.style.cursor = this.cmd.place && this.showSpot(e) ? 'crosshair' : ''; // (snapped, with guides and the hole's preview; editing: once asked)
         } else if (f.type === 'mirror' || f.type === 'split') {
           const h = this.view.pick(e.clientX, e.clientY), ok = h?.face?.type === 'plane' && !h.face.name?.startsWith(`${f.id}:`);
           this.view.setHover(ok ? h.face.id : -1);
@@ -3987,7 +4278,7 @@ export class Modeler {
     }
     if (this.mode === 'plane') { if (e.key === 'Escape') this.cancelPlane(); return; }
     if (this.cmd) {
-      if (e.key === 'Escape') this.cancelCommand();
+      if (e.key === 'Escape') this.escCommand();
       if (e.key === 'Enter') this.okCommand();
       return;
     }

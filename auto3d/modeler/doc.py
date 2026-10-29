@@ -572,9 +572,12 @@ def _apply(f, st: State, s):
         return
     if t == "pattern":
         before = K.volume(st.body.shape) if st.body is not None else 0
+        reach = _pattern_limits(f, st).get("count") if f.get("kind", "linear") != "circular" else None  # (before: the part as it was)
         _pattern(f, st)
         if st.body is not None and abs(K.volume(st.body.shape) - before) < 1e-6 * (1 + before):
             s["warnings"].append("The copies changed nothing — they may land outside the part or on top of each other. Check the direction and the spacing.")
+        elif reach and int(_num(f, "count", 2, what="count")) > reach[1]:  # (more were typed than reach the part: allowed)
+            s["warnings"].append(f"Only {reach[1]} of the copies reach the part — the ones past its end change nothing.")
         return
     if t == "point":
         _point(f, st, s)
@@ -1258,7 +1261,8 @@ def limits(features, fid):
     A field with no limit up to a generous size gets that size as its max. The search takes at most about
     SIZE_BUDGET s and a rounding's (fillet / chamfer) is found to 1 % (next to a hole its builds crawl near the
     limit): a range not found to 0.01 is the values known to work, its field listed in "_approx" (the true limit
-    may be a little further)."""
+    may be a little further). A max that is only the search's own size (it still worked there) or a suggestion (a
+    pattern's copies that still reach the part) is listed in "_soft": a bigger number may be typed."""
     i = next((k for k, f in enumerate(features) if f.get("id") == fid), None)
     if i is None:
         raise K.KernelError("No such step.")
@@ -1272,7 +1276,7 @@ def limits(features, fid):
     bb = K.bbox(st0.body.shape) if st0.body is not None else None
     size = max((bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2])) if bb else 100.0
     base_vol = K.volume(st0.body.shape) if st0.body is not None else 0.0
-    end, approx, slow = time.monotonic() + SIZE_BUDGET, set(), [False]
+    end, approx, soft, slow = time.monotonic() + SIZE_BUDGET, set(), set(), [False]
     rounding = f.get("type") in ("fillet", "chamfer")
 
     def works(field, v):
@@ -1336,16 +1340,25 @@ def limits(features, fid):
                     bad = mid
             return ok
 
-        hi = hi_cap if works(field, hi_cap) else edge(hi_cap, good)
+        if works(field, hi_cap):
+            hi = hi_cap
+            if field != "angle":  # (a full turn is a real limit; a size that still works is only how far it looked)
+                soft.add(field)
+        else:
+            hi = edge(hi_cap, good)
         lo = lo_cap if works(field, lo_cap) else edge(lo_cap, good)
         if integer:
             out[field] = [int(lo), int(hi)]
         else:
             out[field] = [round(math.ceil(lo * 100) / 100, 2), round(math.floor(hi * 100) / 100, 2)]
         slow[0] = False
+    capped = {k: list(v) for k, v in out.items()}
     _cap_by_thickness(f, st0, out)
+    soft = {k for k in soft if out.get(k) == capped.get(k)}  # (deeper than through the part: the same as through — a real max)
     if approx:
         out["_approx"] = sorted(approx)
+    if soft:
+        out["_soft"] = sorted(soft)
     _limit_cache[key] = out
     while len(_limit_cache) > CACHE_SIZE:
         _limit_cache.popitem(last=False)
@@ -1379,9 +1392,10 @@ def _cap_by_thickness(f, st0, out):
 
 
 def _pattern_limits(f, st0):
-    """A row: how many copies (at this spacing) and how far apart (with this count) they still reach the part."""
+    """A row: how many copies (at this spacing) and how far apart (with this count) they still reach the part. Only a
+    suggestion ("_soft"): more copies may be typed — those past the part change nothing (the step says so)."""
     if f.get("kind") == "circular":
-        return {"count": [2, 72]}
+        return {"count": [2, 72], "_soft": ["count"]}
     tools = [t for x in f.get("features") or [] for t, _ in st0.tools.get(x, [])]
     if not tools or st0.body is None:
         return {}
@@ -1397,6 +1411,8 @@ def _pattern_limits(f, st0):
         out["count"] = [2, max(2, min(200, int(math.floor(reach / spacing + 1e-9)) + 1))]
     if count > 1:
         out["spacing"] = [0.01, round(math.floor(reach / (count - 1) * 100) / 100, 2)]
+    if out:
+        out["_soft"] = sorted(out)
     return out
 
 

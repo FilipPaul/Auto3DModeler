@@ -1108,7 +1108,16 @@ class TestFeatures(unittest.TestCase):
         self.assertEqual(doc.limits(box() + [hole], "F1"), {"d": [0.01, 20], "depth": [0.01, 10]})  # through the 10 mm part
         h = {"id": "H1", "type": "hole", "plane": top, "points": [[-15, 0]], "d": 4, "through": True}
         pat = {"id": "F1", "type": "pattern", "features": ["H1"], "kind": "linear", "dir": [1, 0, 0], "count": 3, "spacing": 10}
-        self.assertEqual(doc.limits(box() + [h, pat], "F1"), {"count": [2, 4], "spacing": [0.01, 18.5]})
+        self.assertEqual(doc.limits(box() + [h, pat], "F1"), {"count": [2, 4], "spacing": [0.01, 18.5], "_soft": ["count", "spacing"]})
+        # only a suggestion: 6 copies (2 past the part's end) build, with the 4 that reach it cut, and a warning
+        r, v = vol(*box(), h, {**pat, "count": 6})
+        self.assertTrue(r["features"][-1]["ok"], r["features"][-1])
+        self.assertAlmostEqual(v, 40 * 20 * 10 - 4 * math.pi * 4 * 10, delta=0.5)
+        self.assertIn("Only 4 of the copies reach the part", " ".join(r["features"][-1]["warnings"]))
+        # an extrude's height has no limit but how far the search looked: soft; a cut's depth stops at the part: hard
+        ext = {"id": "F1", "type": "extrude", "sketch": "S1", "d": 10}
+        self.assertEqual(doc.limits(box()[:1] + [ext], "F1").get("_soft"), ["d"])
+        self.assertNotIn("_soft", doc.limits(box() + [hole], "F1"))
         # no wall works at all (a rounding next to the open face): said so, not "thinner"
         r, _ = vol(*box(), {**fil, "id": "R1"}, {**sh, "id": "S9"})
         self.assertIn("cannot be hollowed out", r["features"][-1]["issues"][0])

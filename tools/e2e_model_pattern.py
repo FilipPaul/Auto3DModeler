@@ -1,6 +1,7 @@
 """⁂ Pattern with REAL mouse input in headless Edge: a 60 x 20 x 5 plate with one Ø4 hole (built through the AI tools) ->
 ⁂ Pattern: the hole is chosen, "How many" 5, "Apart" 12 -> exact volume; a click on the plate's short (y) edge
-turns the row along y (its count and spacing pulled into the plate's range there); ◌ Around on a disc with one
+turns the row along y (its count and spacing kept — the range is only a suggestion —, the panel warns that copies
+run off the plate); ◌ Around on a disc with one
 hole: 6 around Z, then a click on a round face (the boss) for its axis; the AI's add_feature pattern; deleting the
 hole deletes the pattern too. Prints a check list and ALL OK / FAILED.
 
@@ -108,8 +109,8 @@ try:
     time.sleep(0.4)
     d.save_screenshot(f"{OUT}/pat1_row.png")
     # a click on the middle of the short top edge at x = 60 (the plate: x 0..60, y 0..20; the edge runs along y) turns
-    # the row; along y the plate is only 20 wide, so "How many" and "Apart" are pulled into their ranges there (the
-    # copies stay on the part). (In the iso view this edge is seen at a slant: the
+    # the row; along y the plate is only 20 wide: "How many" and "Apart" stay as typed (their ranges are only a
+    # suggestion), the panel says the copies past the plate change nothing. (In the iso view this edge is seen at a slant: the
     # pick once took it as hidden behind the top face and the click did nothing.)
     click_at(off_xyz([60, 10, 5]))
     settled()
@@ -118,7 +119,9 @@ try:
     check("a click on the short edge turns the row along y", along and abs(abs(along[1]) - 1) < 1e-6 and y_on)
     n, sp = js(f"return [{M}.cmd.feature.count, {M}.cmd.feature.spacing]")
     print("along y:", n, "x", sp, "mm apart")
-    check("along y the copies are held on the plate", n >= 2 and (n - 1) * sp <= 20)
+    warn = " ".join(e.text for e in d.find_elements(By.CSS_SELECTOR, "#modelRight .mp-warn"))
+    print("  warning:", warn)
+    check("along y the count and spacing stay, with a warning that copies run off the plate", n == 5 and sp == 12 and any(w in warn for w in ("reach the part", "changed nothing", "zasáhne", "nic nezm")))
     btn("#modelRight [data-ax=x]")
     settled()
     typed("count", 5)

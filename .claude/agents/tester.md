@@ -125,6 +125,21 @@ Never report "works" without having run it; report failures with their output.
    undo) and ↻ turning about a joint (caught at 90°, 30° typed).
    `tools/e2e_model_limits.py <url> <dir>` covers the value ranges (fillet R 0.01–9.99, 15 held at 9.99 and building;
    hole depth to the part's thickness; pattern count to what still reaches the part; the 3D size editor's range).
+   `tools/e2e_slider_grow.py <url> <dir>` covers soft vs hard ranges (pattern count 10 typed past its "2 – 4+": kept,
+   the slider grown, a warning, 10 holes' volume; the label editor takes 24; fillet 15 held at ≈ 9.94 saying why, in
+   the panel and the label editor; draft 50° held at 44.5°).
+   `tools/e2e_select_from_point.py <url> <dir>` covers a snap point offering what it belongs to (a hole's centre:
+   Select the hole M5 in the top 3 -> its Type / Size table, Select the circle -> the edge's; a pocket: the round face;
+   an edge's middle: Select the edge; a sketch circle's centre; an assembly hole's centre -> Concentric).
+   `tools/e2e_hole_suggest.py <url> <dir>` covers a chosen Hole step's suggestions and panel (wall clicked: Type ▾ /
+   Size ▾ on top, the step's fields on the right, its row marked; all 6 types; countersink and M6 exact volumes; sizes
+   exactly M3 M4 ✓M5 M6 M8; Ctrl+Z; the rim alike; an extrude's round pocket: no Type / Size).
+   `tools/e2e_thread_default.py <url> <dir>` covers a new thread shown at once as cosmetic (tapped M5 by the tool:
+   the plain Ø4.2 volume, the lines drawn, a toast, 🔩 Real thread (slower) in the panel; Ctrl+Z; the AI's tapped M4).
+   `tools/e2e_hole_select.py <url> <dir>` covers choosing / editing a hole without arming its placing (row clicked:
+   no tool, ◎ not lit, a click adds nothing; ✎ edit: no preview, no hole on a click until ＋ Add position; OK: 2 holes).
+   `tools/e2e_esc_keeps.py <url> <dir>` covers Esc keeping what was placed (sketch line: 2 segments stay; ◎ Hole: 1
+   click + Esc = a step with one hole, exact volume; Esc with nothing placed / the Cancel button: no step; Fillet alike).
    `tools/e2e_assembly_sub.py <url> <dir>` covers assemblies in assemblies (one body, joined, mass, STEP with every
    part, no assembly in itself).
    `tools/e2e_assembly_bolt.py <url> <dir>` covers a screw through parts with no holes (the click, the suggestion and

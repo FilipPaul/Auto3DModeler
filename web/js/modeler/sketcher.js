@@ -3065,7 +3065,11 @@ export class Sketcher {
     // Delete, the rest of the likeliest; then two shapes — the other relations, the kind, the edits; more shapes —
     // the edits, the kind, the relations
     top = top.filter(Boolean);
-    const first = [...top.map((x, k) => ({ ...x, rank: k < 4 ? k : k + 1 })), ...del.map((x) => ({ ...x, rank: Math.min(top.length, 4) }))];
+    // a circle's / an arc's centre picked: ◯ Select the circle (◠ the arc) first — the table then becomes the shape's
+    const centreOf = n === 1 && P[0].kind === 'point' ? this.f.entities.filter((e) => (e.t === 'circle' || e.t === 'arc') && e.c === P[0].id) : [];
+    const own = centreOf.map((e, k) => ({ icon: e.t === 'circle' ? '◯' : '◠', label: e.t === 'circle' ? `${t('Select the circle')} Ø${fmt(2 * e.r)}` : `${t('Select the arc')} R${fmt(this.arcR(e))}`, rank: -2 + k * 0.1,
+      title: t('The shape this is the centre of: its sizes and relations'), run: () => { this.picks = [this.pickOf(e)]; this.sel = { kind: 'entity', id: e.id }; this.sgMore = null; this.changed(); } }));
+    const first = [...own, ...top.map((x, k) => ({ ...x, rank: k < 4 ? k : k + 1 })), ...del.map((x) => ({ ...x, rank: Math.min(top.length, 4) }))];
     const order = n > 2 ? { Edit: 10, Kind: 20, Relations: 30 } : { Relations: 10, Kind: 20, Edit: 30 };
     const more = [['Edit', edit], ['Relations', rels], ['Kind', kind]].map(([s, its]) => [s, its.filter((x) => x && !top.includes(x)).map((x, k) => ({ ...x, rank: order[s] + k }))]).filter(([, its]) => its.length).sort((a, b) => order[a[0]] - order[b[0]]); // (the sections in that order too)
     return [...first, ...more.flatMap(([s, its]) => [{ section: t(s) }, ...its])];

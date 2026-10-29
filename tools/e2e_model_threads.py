@@ -1,5 +1,6 @@
 """🔩 Threads shown on the part, with REAL mouse input in headless Edge:
-1. A 40 x 20 x 12 block with two M6 holes (through). A click on its top face: the suggestions' "The part" offers
+1. A 40 x 20 x 12 block with two M6 holes (through): a new thread shows at once as cosmetic lines (the part's
+   threads were not set); hidden by hand. A click on its top face: the suggestions' "The part" offers
    🔩 Show all threads -> asked once: Cosmetic (light): helix lines drawn on both holes (the view's thread lines
    counted: 12 turns x 24 pieces + a 48-piece ring each), the volume unchanged; the Part panel's Threads says Cosmetic.
 2. A click on the part -> Hide all threads: no lines; Ctrl+Z: back to cosmetic.
@@ -155,7 +156,10 @@ try:
     settled()
     print("volume:", volume(), "| threaded holes:", [h["name"] for h in js(f"return {M}.threadHoles()")])
     check("two M6 holes, plain", abs(volume() - PLAIN) < 1e-3 and len(js(f"return {M}.threadHoles()")) == 2)
-    check("no thread lines yet", thread_lines() == 0)
+    check("the new threads show at once: cosmetic", js(f"return {M}.part.threads") == "cosmetic" and thread_lines() == LINES)
+    js(f"{M}.setThreads('hidden')")
+    settled()
+    check("hidden by hand: no thread lines", thread_lines() == 0)
 
     # 1. a click on the part -> 🔩 Show all threads
     click_top()

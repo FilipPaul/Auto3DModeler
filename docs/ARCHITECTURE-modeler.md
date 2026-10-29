@@ -24,6 +24,47 @@ Date: 2026-10-25. Written by the architect agent.
   slider); the first time, "Táhněte — pohne dílem / mechanismem" at the cursor (until the first drag). A fully held or
   📌 fixed part, a part not chosen, empty space: the normal cursor (the view turns). Tests: e2e_assembly_dragcue.
 
+- **A snap point offers what it belongs to (2026-10-29)**: `pickSnap` puts `ownerItems` first — a round edge's centre /
+  quadrant: ◎ Select the hole (a Hole step -> `suggestStep`; another round cut -> its cylinder face's table: `faceTable`,
+  factored out of `clickFace`) and ◯ Select the circle / ◠ the arc (`pickEdge`); an edge's middle: ⟋ Select the edge; a
+  corner: up to 3 edges that meet there. The sketch: a circle's / arc's centre picked -> ◯ Select the circle first.
+  The assembly: `roundAt` — a round edge's centre / quadrant on a part (seen away from the rim; on the rim or the wall
+  the click already takes the round face) -> ◎ Select the hole Øn -> that face in `facePicks` (Concentric …). A chosen
+  hole's Ø label sits on its centre: click elsewhere first. Tests: e2e_select_from_point (new).
+- **A chosen hole: its type and size at hand (2026-10-29)**: a Hole step chosen (its wall, its rim — `pickEdge` —,
+  its row) puts `holeRows` on top of the suggestions: *Type: ⌴ Counterbore ▾* (`chooseHoleType`: all of
+  `HOLE_TYPES`, the current ✓), *Size: M5 ▾* (`holeSizes`: ±2 in the M2…M20 series, a plain Ø: ±2 steps of 0.5 mm up
+  to 6, then 1 mm), ✎ Edit the hole, 📏 its Ø — each switch in place, one undo step (`changedHole`). The right panel
+  (no tool open) is `renderHoleStep`: Type / Size or Ø / Through / Depth changed at once, ✎ Edit the hole, ＋ Add
+  position (edit + `armPlace`); `selectStep` scrolls the step's row into sight. Only `hole` steps — an extrude's round
+  cut keeps its face rows. Tests: e2e_hole_suggest (new).
+- **A new thread is cosmetic and seen at once (2026-10-29)**: `commit()` -> `showNewThreads`: a hole step with a
+  thread that the last undo step did not have (the Hole tool's Tapped, a type switched, the AI's add / edit) turns
+  the part's threads from hidden to `cosmetic` in the same undo step, with a toast; real threads stay one choice away
+  (the tapped hole's panel: *🔩 Thread — Cosmetic / Real thread (slower)*, the Part panel's 🔩 Threads). Parts as
+  opened keep their setting. Tests: e2e_thread_default (new), e2e_model_threads (the new holes show cosmetic first).
+- **Choosing a hole never arms its placing (2026-10-29)**: an edited hole / text step (✎, double-click) opens its
+  panel with `cmd.place` off (`PLACES`): no preview at the mouse, a click places nothing (a notice says how) until
+  **＋ Add position** (a hole) / **⌖ Move by clicking** (a text / picture) — `armPlace`, a toggle; new ones place at
+  once as before. Choosing a step (its row, its faces) opened no tool already; sketches open only by ✎ (their own tool
+  bar), • reference points have nothing to place. Tests: e2e_hole_select (new).
+- **Soft / hard slider ranges (2026-10-29)**: `/api/model/limits` lists in `_soft` a max that is only how far the
+  search looked (it still built there: an extrude's height) or a suggestion (a pattern's count / spacing: the copies
+  that reach the part — decided soft, the pattern may run off the part; `_pattern` then warns *Only N of the copies
+  reach the part*); everything else is hard (a cut / blind hole capped at through, a hole as wide as the part, a full
+  turn, what OpenCASCADE cannot build). Soft numbers get no max: the slider grows round a bigger typed number (to a
+  round 1 / 2 / 5 × 10ⁿ), the range shows *2 – 4+*; hard ones are held saying why (`LIMIT_WHY`: *max 9.94 — a bigger
+  rounding does not fit here*), in the panel and the 3D label's editor (whose pattern count is soft too). A number
+  below its min is no longer forced up while typing ("1" on the way to "10" became 20): held to the min when done. The
+  draft angle is ±44.5°. Assembly sliders: the joint gap already grows (±50 mm, wider round a typed value); the turn
+  sliders (±180°) and travel limits are hard — unchanged. Tests: test_limits (+ `_soft`, 6 copies past the end build
+  with a warning), e2e_slider_grow (new), e2e_model_pattern (along y the count is kept, with the warning).
+- **Esc keeps what was placed (2026-10-29)**: in a tool that places things click after click — ◎ Hole (positions),
+  Fillet / Chamfer (edges), Shell (open faces) — Esc ends the placing and keeps them (`escCommand`: as OK, a toast
+  *Hole: 1 position(s) kept*); with nothing placed (or nothing changed in an edited step) it cancels; the Cancel button
+  always throws it away; Esc while picking a hole's reference edge ends only that pick. The sketch already kept a
+  ╱ line chain's segments on Esc; the assembly's tools place one thing each (🔩 a screw, a joint: Esc before it is
+  made = cancel), 🔩 Fasteners are added one click each — unchanged. Tests: e2e_esc_keeps (new).
 - **UX review leftovers (2026-10-29)**: Export ▾ in the top bar works on a 📄 drawing sheet (PDF, DXF, 🖨 Print —
   only those shown: styles.css hides the 3D formats there) and in a 📐 2D drawing (DXF of the shown layers); tests:
   e2e_ux_sheet. **/api/model/limits of a fillet next to a hole** (40 × 30 × 10, Ø10 4 mm from the edge) took > 120 s
