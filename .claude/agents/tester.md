@@ -185,8 +185,8 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_ux_sheet.py <url> <dir>` covers the drawing sheet's suggestions table in Czech with real clicks (a plate
    60 × 40 × 8, 4 holes Ø4, light: nothing chosen -> Doplnit chybějící kóty, Export PDF, Tisk; a view -> Větší (2:1),
    Ctrl+Z, Přidat řez A–A, the section's Skrýt pohled; Delete hides the top view, 👁 Ukázat pohled; an edge -> Okótovat
-   její délku (60); the dimension -> Tolerance… ±0.1, Referenční kóta "(60 ±0.1)", Na druhou stranu, Smazat; a hole ->
-   its callout (Jeho kóta), Uložení… H7; the title block -> Číslo výkresu… D-001, Šablona Moderní, Rámeček Úzký; the
+   její délku (60); the dimension -> the tolerance chip ±0.1, Referenční kóta "(60 ±0.1)", Na druhou stranu, Smazat; a hole ->
+   its callout (Jeho kóta), the fit chip H7; the title block -> Číslo výkresu… D-001, Šablona Moderní, Rámeček Úzký; the
    PDF has D-001 and H7; Tisk: a print frame; the view's table inside the view at 1280 × 800) and the 2D drawing's
    table in Czech (a DXF: nothing chosen -> Jako skicu…; a circle -> Všechny takové (3), Ø: změnit rozměr… 6, Smazat).
    Exits 1 on a failed check.
@@ -374,6 +374,11 @@ Never report "works" without having run it; report failures with their output.
    takes it, get_sheet / the DXF, the AI back to Modern) and the frame (Standard ISO 5457: the PDF's frame rect 20 mm
    from the left, zones A / 6; None: no frame line; Custom… 25 mm typed, Ctrl+Z; the template's ISO frame on all five
    pages of the set). Needs a server restarted after server.py changes. Run it in cs too.
+   `tools/e2e_sheet_tolerances.py <url> <dir>` covers the tolerance / fit / roughness lists on the sheet in Czech with
+   real clicks (the 60 dimension: the tolerance chips, ±0.05 -> "60 ±0.05" ✓; the Ø10 callout: H7 … p6 chips, H7's
+   tooltip "+0.015 / 0" -> "Ø10 H7"; the title block's Drsnost: the Ra list under its cell, Ra 1.6 from its chips; an
+   edge -> Drsnost povrchu Ra 3.2: the symbol on the edge, "Ra 1.6 (✓)", Výroba Obrobit, dragged along the edge; the
+   PDF and the DXF (layer symbols) have it; Delete, Ctrl+Z; the AI's sheet_edit roughness add / change / remove).
    `tools/e2e_sheet_fits.py <url> <dir>` covers fits on the sheet (a Ø8 pin's dimension: Fit h6 drawn "Ø8 h6" with
    0 / −0.009 told, — plain again, the AI's sheet_edit fits k6, a wrong class refused, Ctrl+Z).
    `tools/e2e_model_rib.py <url> <dir>` covers ⊿ Rib (an L bracket and a line from the wall to the plate on the Right

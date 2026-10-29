@@ -7,6 +7,23 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Tolerances, fits and roughness as lists on the drawing sheet (2026-10-29)** (the owner: "pro tolerance ve 2D
+  výkresu nabídni seznam tolerancí, to samé u drsností"). The suggestions table takes a row of value chips
+  (suggest.js `{chips: [{label, title, on, primary, run}]}`: inline, one click each, the current one ✓, no popup). A
+  dimension clicked: ± Tolerance ±0.01 ±0.02 ±0.05 **±0.1** ±0.2 ±0.5 +0.1/0 0/−0.1 +0.2/0 0/−0.2 (again: none),
+  "Obecná tolerance (ISO 2768-m)" (✓ while it has none of its own), "Vlastní…" (the typed one, as before); a Ø: Uložení —
+  díra **H7** H8 H9 H11 and — hřídel **h6** h7 g6 f7 k6 m6 p6, each chip's tooltip its limit deviations at that size
+  ("H7: +0.015 / 0 mm — kolík, uložení ložiska"; sheet/fits.js got H11 and h7). The title block's Drsnost: the Ra chips
+  0.4 0.8 1.6 3.2 6.3 12.5 25 µm in its suggestions and under its cell's text box while it is typed in (`.sh-ralist`).
+  **Surface roughness symbols** (sheet/rough.js, ISO 21920 / ISO 1302): an edge of a view clicked -> "✓ Drsnost povrchu"
+  with the same Ra chips places the check-mark symbol where the edge was clicked (on the edge when it is on top of the
+  view, else on a reference line with a leader and an arrowhead); "▸ Výroba" unfolds Libovolná / Obrobit (the bar) /
+  Bez úběru (the circle). A symbol is chosen by a click (its own table: Ra, Výroba, Smazat), dragged along its edge or
+  away (a leader), deleted with Delete, undone; sheet JSON `rough: [{id, view, edge, k, off, ra, proc}]`. The general
+  roughness in the title block reads "Ra 1.6 (✓)" while symbols exist. PDF as drawn; DXF: its own layer "symbols".
+  AI: sheet_edit `roughness [{view, edge, ra, process, at} | {id, ra, process} | {id, remove: true}]`, get_sheet lists
+  them; a one-sided tolerance "0/-0.1" writes "0/−0.1". Tests: e2e_sheet_tolerances (real mouse, Czech), e2e_ux_sheet
+  (the chips instead of the dialogs), test_exchange_formats (the symbol's layer).
 - **✂ Section view fixed and capped (2026-10-29)** (the AI's report: a revolved pump body cut at y = 0 showed whole, with
   a jagged ring at z = 0). Causes: a Y cut kept the half toward the iso / front cameras (x and z kept the far half), so
   the part looked uncut; a face lying in the cut (the bottom at z = 0) z-fought with the clip plane — the jagged ring;

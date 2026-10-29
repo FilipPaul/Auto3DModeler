@@ -385,7 +385,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       await sheet.ensure();
       return ok({ ...sheet.summary(), ...(points ? { [points]: sheet.pointsOf(points) } : {}) });
     },
-    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, dims, texts, all_sheets, complete, drop_twice, fits, scale, view_scales, view_names, template, template_all, save_template, frame, title_style, bom_style, all_pages } = {}) => {
+    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, dims, texts, all_sheets, complete, drop_twice, fits, scale, view_scales, view_names, template, template_all, save_template, frame, title_style, bom_style, all_pages, roughness } = {}) => {
       need('sheet', 'This is for a drawing sheet (📄) — sheet_open opens one');
       const ed = sheet, done = [];
       if (all_pages !== undefined) {
@@ -502,6 +502,10 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         if (o.ref !== undefined) props.ref = !!o.ref;
         ed.setDimProps(id, props);
         done.push(`${id} ${[o.tol !== undefined && (props.tol || 'no tolerance'), o.ref !== undefined && (o.ref ? 'a reference dimension' : 'not a reference')].filter(Boolean).join(', ')}`);
+      }
+      for (const r of [].concat(roughness || [])) { // ✓ surface roughness symbols: added on an edge, changed, removed
+        if (!r || typeof r !== 'object') throw new Error('roughness: [{view, edge, ra, process} (add) | {id, ra, process} (change) | {id, remove: true}].');
+        if (r.id && r.remove) { ed.removeRough(r.id); done.push(`roughness ${r.id} removed`); } else if (r.id) { ed.setRough(r.id, { ra: r.ra, proc: r.process }); done.push(`roughness ${r.id} Ra ${ed.roughOf(r.id).ra}`); } else done.push(`roughness Ra ${r.ra} on ${r.view} ${r.edge}: ${ed.addRough({ view: r.view, edge: r.edge, ra: r.ra, proc: r.process, k: r.at })}`);
       }
       const added = [].concat(add).map((spec) => ed.addFor(spec));
       if (added.length) done.push(`added ${added.join(', ')}`);

@@ -128,7 +128,8 @@ function pickRows(items, all) {
 }
 
 /** Show (or with no items: remove) the table in `viewport`: title (what is selected), items [{icon, label, title,
- *  run, danger, rank} or {section}], hint (a line under it), refs (what is selected, as the AI's tools name it: ✨ puts
+ *  run, danger, rank}, {section} or {icon, label, title, rank, chips: [{label, title, on, primary, run}]} (a row of
+ *  values to pick with one click — a tolerance, a roughness; on: the current one, ✓)], hint (a line under it), refs (what is selected, as the AI's tools name it: ✨ puts
  *  it in the chat). More rows than the user's limit (suggestLimit): the most relevant ones, then ⋯ Show all (n). */
 export function showSuggest(viewport, title, items, hint = '', refs = '') {
   let box = viewport.querySelector(':scope > .view-suggest');
@@ -146,11 +147,14 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
   box.innerHTML = `<div class="vs-head"><button class="vs-pin" title="${esc(t('Dock it in the left panel — always in sight (or drag its header there)'))}">📌</button><b title="${esc(title)}">${esc(title)}</b><button class="vs-set${setting ? ' on' : ''}" title="${esc(t('How many suggestions show before ⋯ Show all — click to change'))}">${esc(t('Top {n}').replace('{n}', suggestLimit()))}</button>${refs && askAI ? `<button class="vs-ai" title="${esc(t('Ask the AI about it — what is selected goes into the chat'))}">✨</button>` : ''}</div>
     ${setting ? `<label class="vs-top" title="${esc(t('The most relevant suggestions first; the rest under ⋯ Show all'))}">${esc(t('Show first'))} <input type="number" min="3" max="30" step="1" value="${suggestLimit()}"> ${esc(t('suggestions'))}</label>` : ''}
     <div class="vs-list">${rows.map((it) => (it.section !== undefined ? `<div class="vs-sec">${esc(it.section)}</div>` // (a heading: what the rows under it act on)
+      : it.chips ? `<div class="vs-chips" title="${esc(it.title || '')}">${it.label ? `<span class="vs-cl"><span class="vs-i">${it.icon || '•'}</span> ${esc(it.label)}</span>` : ''}<div class="vs-cg">${it.chips.map((c, j) => // (a row of values, one click each: the current one ✓)
+        `<button class="chip${c.on ? ' on' : ''}${c.primary ? ' vs-pri' : ''}" data-sgc="${it.i}:${j}" title="${esc(c.title || '')}">${c.on ? '✓ ' : ''}${esc(c.label)}</button>`).join('')}</div></div>`
       : `<button data-sg="${it.i}" class="${it.danger ? 'danger' : ''}" title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span></button>`)).join('')}${!over ? ''
       : all ? `<button class="vs-more" data-sg-fewer title="${esc(t('Only the most relevant suggestions'))}"><span class="vs-i">▴</span> <span>${esc(t('Fewer'))}</span></button>`
         : `<button class="vs-more" data-sg-all title="${esc(t('Everything that can be done with what is selected'))}"><span class="vs-i">⋯</span> <span>${esc(t('Show all'))} (${total})</span></button>`}</div>
     ${hint ? `<p class="vs-hint">${esc(hint)}</p>` : ''}`;
   for (const b of box.querySelectorAll('[data-sg]')) b.addEventListener('click', () => items[+b.dataset.sg].run());
+  for (const b of box.querySelectorAll('[data-sgc]')) b.addEventListener('click', () => { const [i, j] = b.dataset.sgc.split(':').map(Number); items[i].chips[j].run(); });
   box.querySelector('[data-sg-all]')?.addEventListener('click', () => { setShowingAll(true); again(); });
   box.querySelector('[data-sg-fewer]')?.addEventListener('click', () => { setShowingAll(false); again(); });
   box.querySelector('.vs-set').addEventListener('click', () => { // (the setting: a small number field under the head)

@@ -261,6 +261,21 @@ class TestSheetDxf(unittest.TestCase):
         self.assertEqual(dims[2].dxf.text, "Ø8 H7")  # a fit's text as written on the sheet
         self.assertAlmostEqual(dims[3].get_measurement(), 90, places=6)
 
+    def test_roughness_symbol_on_its_layer(self):
+        """A surface roughness symbol (sheet/rough.js: its legs, the bar of a machined surface, a leader with its arrow,
+        its Ra) on layer symbols — its text too; its place to click left out."""
+        from auto3d.modeler.sheetdxf import to_dxf
+        sym = ('<g data-rough="r1" class="sh-rough"><polyline points="58,90 60,92 64,84 75,84" fill="none" stroke="#1b3a8a" stroke-width="0.25"/>'
+               '<line x1="58" y1="88.5" x2="62" y2="88.5" stroke="#1b3a8a" stroke-width="0.25"/>'
+               '<text x="64.6" y="87" font-size="3.2" fill="#1b3a8a">Ra 3.2</text>'
+               '<path d="M60,100 L59.3,97.8 L60.7,97.8 Z" fill="#1b3a8a"/>'
+               '<rect x="56" y="83" width="21" height="10" fill="#fff" fill-opacity="0" class="sh-grab"/></g>')
+        doc = self.read(to_dxf(SHEET_SVG.replace("</svg>", sym + "</svg>"), [], 1.0))
+        self.assertIn("symbols", {ly.dxf.name for ly in doc.layers})
+        on = Counter(e.dxftype() for e in doc.modelspace().query("*[layer=='symbols']"))
+        self.assertEqual(on, {"LWPOLYLINE": 2, "LINE": 1, "TEXT": 1}, on)
+        self.assertEqual(doc.modelspace().query("TEXT[layer=='symbols']")[0].dxf.text, "Ra 3.2")
+
     def test_prefix_kept_and_broken_ones_left_out(self):
         from auto3d.modeler.sheetdxf import to_dxf
         dims = [{"kind": "linear", "dir": "h", "a": [50, 100], "b": [70, 100], "at": 108, "text": "3× 40", "value": 40},
