@@ -387,6 +387,12 @@ Date: 2026-10-25. Written by the architect agent.
   toast „Předchozí projekt „…“ je uložen — Otevřít ▾ › 🕘 Nedávné projekty" with ↶ Otevřít znovu (autosave.open: its
   own id). ⧉ Nový projekt v novém okně: window.open(?new). The window's title is the project's name (showProjectName).
   tests: tools/e2e_new_project.py.
+- **Mouse side buttons = Undo / Redo; Back stays in the app done** (the owner, 2026-10-30: "boční tlačítka na myši
+  … místo back na stránce, což v browseru zavře program"): web/js/mouseback.js — buttons 3 / 4 stopped on mousedown /
+  mouseup / auxclick (document, capture); on the press a Ctrl+Z / Ctrl+Y keydown on the body, so every workspace's own
+  key path runs (not over a text field). A guard entry ({a3dGuard}) pushed on load (after ?new is read), again on the
+  first trusted pointer / key (Chromium skips entries pushed without a user gesture) and on every popstate. No
+  beforeunload prompt: the autosave's pagehide beacon keeps the project. tests: tools/e2e_mouse_back.py.
 - **Assembly: suggestion-based and compact done** (the owner: "90 % základních věcí ze suggestions"; audit of 22 basic
   tasks: 8 → 20 doable from the Suggested table alone, the crank built from its four parts in 14 clicks instead of
   ≈ 27 with four Ctrl+clicks on small faces). assembly/smart.js: pinFits (a free round face of the chosen part and one

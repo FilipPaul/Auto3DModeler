@@ -41,6 +41,7 @@ import { showDemos } from './demos.js';
 import { Versions } from './versions.js';
 import { initStart, initWindowDrop } from './start.js';
 import { initNewProject } from './newproject.js';
+import { initMouseBack } from './mouseback.js';
 
 initI18n();  // Czech / English: translates the page as it is built
 initJobs(() => project.current?.name); // ⚙ N in the top bar: what is working now, with ✕ Stop
@@ -2630,6 +2631,7 @@ const newProject = initNewProject({
 });
 $('newProjectBtn').addEventListener('click', (e) => { $('openMenuWrap').classList.remove('open'); newProject.start(e.ctrlKey || e.metaKey || e.shiftKey); }); // (Ctrl+click: a new window)
 $('newProjectWinBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); newProject.start(true); });
+initMouseBack(); // the mouse's side buttons: Undo / Redo; the browser's Back stays in the app (after ?new is read)
 // 📄 New project in the top bar: a small box first — what happens to the project on screen, then here / a new window
 const npEsc = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 $('newProjTopBtn').addEventListener('click', (e) => {
