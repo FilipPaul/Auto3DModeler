@@ -170,7 +170,7 @@ export class Modeler {
       const onDatum = this.sk.f.plane?.datum;
       const nrm = onDatum ? datumFrame({ datum: onDatum }).n : null, k = nrm ? nrm.findIndex((c) => Math.abs(c) > 0.5) : -1;
       const plus = k >= 0 ? `${nrm[k] > 0 ? '+' : '−'}${'XYZ'[k]}` : ''; // (which way a positive offset moves it)
-      const offset = onDatum ? `<label class="chip m-offset" title="Move the sketch plane along its normal (e.g. 30 mm above the bed — for a loft's second profile); a positive offset moves it along the arrow">↕ Plane at
+      const offset = onDatum ? `<label class="chip m-offset" title="Move the sketch plane along its normal (e.g. 30 mm above the bed — for a loft's second profile); a positive offset moves it along the arrow"><span class="m-offl">↕ Plane at</span>
         <input type="number" step="any" data-k="planeOffset" value="${fmt(this.sk.f.plane.offset || 0)}"> mm <span class="m-plus" data-no-i18n>(+ = ${plus})</span></label><span class="sep"></span>` : '';
       this.planeArrowLabel = onDatum ? plus : null; // (drawn only while the ↕ Plane at chip is pointed at / its field typed in)
       this.view.setPlaneArrow(null);

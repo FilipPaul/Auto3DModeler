@@ -909,6 +909,10 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .m-cmdbar.cb-compact .chip.tool[data-icon], .m-cmdbar.cb-compact .chip[data-icon] { padding: 4px 7px; min-width: 30px; }
 .m-cmdbar.cb-compact .as-jbar button[data-icon] { padding: 3px 7px; }
 .m-cmdbar.cb-compact .as-jlabel[data-icon] { padding: 0 6px 0 3px; }
+/* ... and the sketch plane's offset chip: only ↕, the field and mm (its tooltip and the arrow on pointing say the rest) */
+.m-cmdbar.cb-compact .m-offl { font-size: 0; }
+.m-cmdbar.cb-compact .m-offl::before { content: '↕'; font-size: 13px; }
+.m-cmdbar.cb-compact .m-offset .m-plus { display: none; }
 body.view-acts .toast-stack { bottom: 84px; }
 /* the view cube (viewcube.js), top right of the 3D model's and the assembly's view, under the bar: the hint and the busy box keep clear of it */
 .view-cube { position: absolute; top: 50px; right: 8px; width: 88px; height: 88px; z-index: 4; user-select: none; }

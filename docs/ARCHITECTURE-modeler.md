@@ -419,6 +419,8 @@ Date: 2026-10-25. Written by the architect agent.
   Front) and ✓ Finish / ✕ Cancel keep their text; wider again: names and tooltips back. At 1280×800 the 3D model's bar
   129 -> 59 px, the sketch's 126 -> 64 px, the assembly's 159 -> 66 px (2 rows, English and Czech); at 1600×1000 the
   bars keep their 3 rows of names (95 / 94 / 98 px, as before — so the limit is 3 rows, not 2). tools/e2e_compact_bars.py.
+  Compact, the sketch's ↕ Plane at chip shows only ↕, its field and mm (its "(+ = +Z)" goes; the tooltip and the arrow
+  on pointing say which way): with ⊂⊃ Slot the Czech sketch bar had grown to 3 rows (95 px) at 1280×800, now 2 (64 px).
 - **Sketches and holes from a corner or the part's origin — step 1 (kernel, AI) done:** plane.origin on a face plane
   (sketch, hole, decal): "corner" (doc._origin: kernel.face_span — the exact box of the faces of that name in the
   frame's u / v — its (u0, v0), found again each rebuild, so it follows the corner), "world" (the world origin seen
