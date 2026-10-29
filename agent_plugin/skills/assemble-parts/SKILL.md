@@ -50,6 +50,12 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    in the app's ⚙ Mechanism, `driver` picks another driver). Name the motions in the user's words
    (`name_motion {part, motion, name: "Otáčení kliky"}`, `drive_mechanism {name}` for the mechanism) — the names show
    everywhere and work as `motion` in move_free / set_travel.
+   **Gears, belts, a rack**: two parts that each turn on their own pin are coupled by `snap_faces {type: "gear" |
+   "belt", move: {part, face: its rim}, onto: {part, face: the other rim}}` (the rims: the pitch circles; a gear pair
+   turns opposite ways, a belt the same way; `value` = the ratio, default Ø onto / Ø move), a pinion and a sliding rack
+   by `type: "rack"` (move = the pinion's rim, onto = the rack's flat side along its axis: π·Ø per turn). Then
+   move_free / drive_mechanism one of them — the other follows, the coupled parts are one mechanism. get_assembly
+   `couplings` (G…): `edit_joint {id, ratio, flip}`, `remove_joint {id}`.
    A joint with `not_held` is overridden by another joint of that part (it names it): change or `remove_joint` one
    of the two — never leave a joint that does not hold. Joining the same two faces again changes that joint.
    `remove_from_assembly` on a fastener's screw or nut takes out the whole fastener and the holes drilled for it.

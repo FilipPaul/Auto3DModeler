@@ -15,7 +15,8 @@
 //   "light": {"P3": true | false} — 🪶 a part shown simplified (true) or with full data (false); not said: a big
 //   imported part (thousands of faces) is simplified
 //   an instance's "moveNames": {"J3:turn": "crank"} — a free motion's own name (nameMotion); "mechs": the ⚙ Mechanism
-//   widget's names, drivers and speeds (mechanism.js)
+//   widget's names, drivers and speeds (mechanism.js); "couplings": ⚙ gear pairs, ⛓ belts, ▤ racks — one part's turn
+//   tied to another's by a ratio (couplings.js)
 import * as THREE from 'three';
 import { History } from '../history.js';
 import { t } from '../i18n.js';
@@ -44,6 +45,8 @@ import { openBomWindow } from './bomview.js';
 import { kindIcon, fromLibrary } from '../parts.js';
 import { MechanismPanel, driveTo } from './mechanism.js';
 import { startDrag } from './drag.js';
+import { isPin } from './missing.js';
+import { COUPLING_TYPES, couplingOptions, addCoupling, followCouplings, couplingsHtml, bindCouplingRows, couplingsSummary, ratioText, coupledWith } from './couplings.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -308,11 +311,12 @@ export class Assembly {
     this.jointType = 'touch';
     this.explode = 0;
     this.history = new History({
-      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [], ...(this.doc.mechs?.length ? { mechs: this.doc.mechs } : {}) }),
+      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [], ...(this.doc.mechs?.length ? { mechs: this.doc.mechs } : {}), ...(this.doc.couplings?.length ? { couplings: this.doc.couplings } : {}) }),
       restore: async (s) => {
         this.mech?.stop(false);
         this.doc.instances = s.instances; this.doc.mates = s.mates || []; this.doc.bolts = s.bolts || []; this.mode = 'idle'; this.bolt = null;
         if (s.mechs) this.doc.mechs = s.mechs; else delete this.doc.mechs;
+        if (s.couplings) this.doc.couplings = s.couplings; else delete this.doc.couplings;
         this.syncDrills(); // the holes drilled for bolts: back as they were
         this.tidyCopies(); // (⧉ its own part undone: its copy goes too)
         this.render();
@@ -355,16 +359,18 @@ export class Assembly {
     const done = () => { this.facePicks = []; this.renderSuggest(); this.drawMarks(); };
     if (fp.length === 2 && kindOf(fp[0]) === 'round' && kindOf(fp[1]) === 'round') { // a pin in a hole: ◎ first, with its Ø
       const dia = fp.map((q) => fmt(+(2 * (q.face.radius || 0)).toFixed(2))), d = dia[0] === dia[1] ? `Ø${dia[0]}` : `Ø${dia[0]} ↔ Ø${dia[1]}`;
-      const seat = this.seatPair(fp[0], fp[1]);
+      const seat = this.seatPair(fp[0], fp[1]), cpl = this.couplingItems(fp, done); // (⚙ two gears that turn: first)
       showSuggest(vp, `${what(fp[0])} ↔ ${what(fp[1])}`, [
+        ...cpl.filter((x) => x.rank < 0),
         ...(seat ? [{ icon: '◎', label: `${t('Concentric + seat')} · ${d}`, rank: 0, title: t('A pin in a hole: on one axis and down on the face around it (Concentric + Touch) — it can still turn'), run: () => { this.joinRound(fp, true); done(); } }] : []),
         { icon: '◎', label: `${t(seat ? 'Concentric only' : 'Concentric')} · ${d}`, rank: 1, title: t(JOINT_TYPES.axis.hint), run: () => { this.joinRound(fp, false); done(); } },
+        ...cpl.filter((x) => x.rank >= 0),
       ], t("A joint between the two faces — the first one's part moves"), refs);
       return;
     }
     if (fp.length === 2) {
       const same = fp[0].face.normal && fp[1].face.normal && fp[0].face.normal.dot(fp[1].face.normal) > 0.999; // (facing the same way: ▭ Flush first, as they stand)
-      const js = fits(kindOf(fp[0]), kindOf(fp[1])).sort(([a], [b]) => (same ? (b === 'flush') - (a === 'flush') : 0)), on = this.putOn(fp[0], fp[1]);
+      const js = fits(kindOf(fp[0]), kindOf(fp[1])).sort(([a], [b]) => (same ? (b === 'flush') - (a === 'flush') : 0)), on = this.putOn(fp[0], fp[1]), cpl = this.couplingItems(fp, done);
       const put = on ? [{ icon: '⧉', label: t2('Put {a} on {b}', { a: this.partName(this.inst(on.move.inst)?.part), b: this.partName(this.inst(on.onto.inst)?.part) }), rank: -1,
         title: t('Its face on the other side (the underside) touches this face — no need to turn the view to click it'), run: () => {
           this.jointType = 'touch';
@@ -374,14 +380,14 @@ export class Assembly {
           if (this.mode !== 'idle') this.cancelJoint();
           done();
         } }] : [];
-      showSuggest(vp, `${what(fp[0])} ↔ ${what(fp[1])}`, [...put, ...js.map(([type, j]) => ({ icon: j.icon, label: t(j.name), title: t(j.hint || ''), run: () => {
+      showSuggest(vp, `${what(fp[0])} ↔ ${what(fp[1])}`, [...put, ...cpl.filter((x) => x.rank < 0), ...js.map(([type, j]) => ({ icon: j.icon, label: t(j.name), title: t(j.hint || ''), run: () => {
         this.jointType = type; // (as if the two faces had been clicked with that joint)
         this.mode = 'joint-to';
         this.jointFrom = fp[0];
         this.clickJoint(fp[1]);
         if (this.mode !== 'idle') this.cancelJoint();
         done();
-      } }))], js.length ? t('A joint between the two faces — the first one\'s part moves') : t('No joint fits these two faces.'), refs);
+      } })), ...cpl.filter((x) => x.rank >= 0)], js.length ? t('A joint between the two faces — the first one\'s part moves') : t('No joint fits these two faces.'), refs);
       return;
     }
     const q = fp[0], js = fits(kindOf(q)), a = this.inst(q.inst);
@@ -401,6 +407,41 @@ export class Assembly {
       { icon: '◆', label: t('Select the whole part'), rank: 5, title: t('The part chosen, not its face: its moves and joints in the panel'), run: () => { this.facePicks = []; this.snapPick = null; this.view.setMeasure([]); this.choose(a.id); this.drawMarks(); } },
       ...this.partItems(a).map((x, k) => ({ ...after(x), rank: x.icon === '🔗' ? 20 : 8 + k })), // (joining: the face's own joints above)
     ], t('Ctrl+click a face of another part: the joints that fit the two'), refs);
+  }
+
+  /** Two picked faces of two parts that can be coupled (couplings.js): ⚙ a gear pair / ⛓ a belt (two round faces on
+   *  parallel axes, apart), ▤ a rack and pinion (a round face and a flat face along its axis) — first in the list when
+   *  both parts can move that way (turn about those axes; the rack: slide), with the ratio from their Ø. */
+  couplingItems(picks, done) {
+    if (picks.length !== 2 || picks[0].inst === picks[1].inst) return [];
+    let fp;
+    try { fp = picks.map((q) => ({ inst: q.inst, face: this.worldFace(q.inst, q.face.name) })); } catch { return []; } // (their axes in the world)
+    const can = (q, kind, dir) => {
+      let d = null;
+      try { d = this.motionsOf(q.inst); } catch { d = null; }
+      return !!d?.motions.some((mo) => mo.kind === kind && Math.abs(mo.dir.clone().normalize().dot(dir)) > (kind === 'turn' ? 0.999 : 0.9));
+    };
+    const pins = fp.map((q) => (q.face.type === 'cylinder' ? isPin(this.bodyOf(this.inst(q.inst))?.body, q.face.name) : null));
+    return couplingOptions(fp[0].face, fp[1].face, pins).map((o) => {
+      const ct = COUPLING_TYPES[o.type], cyl = fp.find((q) => q.face.type === 'cylinder'), flat = fp.find((q) => q.face.type === 'plane');
+      const moves = o.type === 'rack'
+        ? can(cyl, 'turn', cyl.face.axis.d) && can(flat, 'move', new THREE.Vector3().crossVectors(cyl.face.axis.d, flat.face.normal).normalize())
+        : fp.every((q) => can(q, 'turn', q.face.axis.d));
+      return { icon: ct.icon, label: `${t(ct.name)} · ${ratioText(o)}`, rank: (moves ? -1 : 6) + o.rank, title: t(ct.hint), run: () => { this.couple(fp[0], fp[1], o.type); done(); } };
+    });
+  }
+
+  /** ⚙ A coupling made between two picked faces (couplings.js addCoupling) — one undo step, a word on what it does. */
+  couple(qa, qb, type, ratio = null) {
+    let c;
+    try { c = addCoupling(this, qa, qb, type, ratio); } catch (e) { this.hooks.toast(e.message, 'warning', 5000); return null; }
+    this.sel = c.a;
+    this.sel2 = null;
+    this.applyMates();
+    this.hooks.toast(t2('{type} {id}: {a} ↔ {b}, {ratio} — turn either one, the other follows (⇄ in its row: the other way round; Ctrl+Z: back).', {
+      type: t(COUPLING_TYPES[type].name), id: c.id, a: this.partName(this.inst(c.a)?.part), b: this.partName(this.inst(c.b)?.part), ratio: ratioText(c) }), 'ok', 5000);
+    this.commit();
+    return c;
   }
 
   /** The flat faces a round face (a hole, a pin) ends on — across its axis, bigger than the round face's own end (a
@@ -900,7 +941,7 @@ export class Assembly {
         ${place}
         ${this.editHtml(it)}
         <h3>Look</h3>${this.lookHtml(it)}
-        ${this.jointsHtml(it.id)}
+        ${this.jointsHtml(it.id)}${couplingsHtml(this, it.id)}
         <div class="row-actions wrap"><button class="btn small" data-a="joinThis">🔗 Join it to another part</button></div>
         ${this.hooks.duplicatePart ? '<div class="row-actions"><button class="btn small" data-a="ownPart" title="Copy its part as a new part of the project and use the copy here — then it can be changed alone (the other copies stay as they are)">⧉ Make it its own part</button></div>' : ''}
         <div class="row-actions">${this.hooks.openPart ? `<button class="btn small primary" data-a="openPart" title="Open its part in its own tab (to change it — the assembly follows)">${this.kindOf(it.part) === 'assembly' ? '◇' : '◆'} ${esc(t('Open its part'))}</button>` : ''}<button class="btn small ${it.fixed ? 'on' : ''}" data-a="fix" title="${it.fixed ? 'Fixed in place: it is not moved by hand, joints bring the other parts to it — click to free it' : 'Fix it in place: it is not moved by hand, joints bring the other parts to it'}">📌 ${esc(t(it.fixed ? 'Fixed' : 'Fix in place'))}</button><button class="btn small" data-a="reset" title="Back to its place in its own model">Reset its place</button><button class="btn small danger" data-a="del">✕ ${esc(t('Take it out'))}</button></div>`;
@@ -925,6 +966,7 @@ export class Assembly {
       if (dof) this.bindMotions(box.querySelector('.as-motions') || box, it, dof);
       if (inner) this.bindInner(box, it, inner);
       this.bindJointRows(box);
+      bindCouplingRows(this, box, renameInPlace);
       this.bindLook(box, it);
       box.querySelector('[data-a=editHere]')?.addEventListener('click', () => this.editInPlace(it.id));
       box.querySelector('[data-a=editLock]')?.addEventListener('click', () => this.toggleEditable(it.part));
@@ -938,7 +980,7 @@ export class Assembly {
     }
     const rows = this.bom(), total = rows.reduce((s, r) => s + (r.mass || 0) * r.qty, 0);
     box.innerHTML = `<h2>Assembly</h2>
-      ${rows.length ? `${this.jointsHtml(null)}<h3>Parts list</h3><table class="as-bom"><tr><th>Part</th><th>Qty</th><th>Material</th><th>Mass</th></tr>
+      ${rows.length ? `${this.jointsHtml(null)}${couplingsHtml(this, null)}<h3>Parts list</h3><table class="as-bom"><tr><th>Part</th><th>Qty</th><th>Material</th><th>Mass</th></tr>
         ${rows.map((r) => `<tr><td data-no-i18n>${esc(r.name)}</td><td>${r.qty}</td><td>${esc(t(r.material))}</td><td>${r.mass === null ? '—' : `${fmt(+(r.mass * r.qty).toFixed(1))} g`}</td></tr>`).join('')}
         <tr class="as-total"><td>Total</td><td>${rows.reduce((s, r) => s + r.qty, 0)}</td><td></td><td>${fmt(+total.toFixed(1))} g</td></tr></table>
         ${rows.some((r) => r.lib?.pn) ? `<div class="as-pns">${rows.filter((r) => r.lib?.pn).map((r) => `<div><span data-no-i18n>${r.qty}× ${esc(r.lib.pn)}</span> <i data-no-i18n>${esc(r.lib.maker || '')}</i></div>`).join('')}</div>` : ''}
@@ -952,6 +994,7 @@ export class Assembly {
         <p class="hint">To print, open each part's tab and use 🖨 Prepare for 3D print there.</p>`
         : `<p class="hint">Insert parts of this project (3D models and quick parts) with ＋ Insert part, then join them with 🔗 Joint.</p>`}`;
     this.bindJointRows(box);
+    bindCouplingRows(this, box, renameInPlace);
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
     box.querySelector('[data-a=bomCsv]')?.addEventListener('click', () => this.exportBom());
     box.querySelector('[data-a=bomWin]')?.addEventListener('click', () => this.openBom());
@@ -1618,9 +1661,9 @@ export class Assembly {
     const p = m.type === 'axis' || !fA.normal ? fA.axis.o : fB.centroid;
     const R = new THREE.Matrix4().makeTranslation(p.x, p.y, p.z).multiply(new THREE.Matrix4().makeRotationAxis(dir, (deg * Math.PI) / 180))
       .multiply(new THREE.Matrix4().makeTranslation(-p.x, -p.y, -p.z));
-    const it = this.inst(m.move);
+    const it = this.inst(m.move), was = [...it.matrix];
     it.matrix = this.holdPart(m.move, R.multiply(new THREE.Matrix4().fromArray(it.matrix))).toArray();
-    this.applyMates();
+    this.applyMates(coupledWith(this, m.move).length ? { id: m.move, was, mo: { kind: 'turn', dir, point: p }, amount: deg } : null); // (⚙ coupled: the other part follows)
   }
 
   /** Each joint: does it hold where its part is now (jointMiss)? -> this.health: id -> {mm, deg, ok}. */
@@ -1838,6 +1881,7 @@ export class Assembly {
       if (!on) continue;
       marks.push({ inst: m.move, faces: faceIds(m.move, m.face), color: 0x3fb950 }, { inst: m.onto, faces: faceIds(m.onto, m.ontoFace), color: 0x58a6ff });
     }
+    for (const c of this.doc.couplings || []) if (this.hoverJoint === c.id) marks.push({ inst: c.a, faces: faceIds(c.a, c.aFace), color: 0x3fb950 }, { inst: c.b, faces: faceIds(c.b, c.bFace), color: 0x58a6ff }); // (⚙ a coupling's two faces)
     for (const h of this.hoverCand?.holes || []) marks.push({ inst: h.inst, faces: faceIds(h.inst, h.name), color: 0xf2cc60 });
     for (const q of this.hoverMissing ? [this.hoverMissing.hole, this.hoverMissing.pin] : []) marks.push({ inst: q.inst, faces: faceIds(q.inst, q.name), color: 0xf2cc60 }); // (➕ Add joint: its hole and pin)
     if (this.jointFrom?.face) marks.push({ inst: this.jointFrom.inst, faces: [this.jointFrom.face.id], color: 0x3fb950 });
@@ -2255,13 +2299,16 @@ export class Assembly {
 
   /** Place every joined part again: each part's joints in order, a part after the parts it hangs on (placeAll); then
    *  the closed loops together (closeLoops: a rod on a crank and a slider) and, when they moved, the parts on them.
-   *  drive: {id, was} — a part moved by a slider, ▶ or the AI (was: its matrix before): it stays where it was put. */
+   *  drive: {id, was} — a part moved by a slider, ▶ or the AI (was: its matrix before): it stays where it was put;
+   *  with {mo, amount}: by how much (the parts coupled to it follow exactly, a turn past 180° too). */
   applyMates(drive = null) {
     const mates = (this.doc.mates || []).filter((m) => this.inst(m.move) && this.inst(m.onto));
     this.doc.mates = mates;
+    if (this.doc.couplings) { this.doc.couplings = this.doc.couplings.filter((c) => this.inst(c.a) && this.inst(c.b)); if (!this.doc.couplings.length) delete this.doc.couplings; }
     const before = new Map(this.doc.instances.map((i) => [i.id, [...i.matrix]]));
     this.placeAll(mates);
     if (this.closeLoops(before, drive)) this.placeAll(mates);
+    if (this.doc.couplings && !this.owner) followCouplings(this, before, drive); // (⚙ a gear's turn turns the other one)
     this.checkJoints();
   }
 
@@ -2834,7 +2881,7 @@ export class Assembly {
     from = from || [...it.matrix];
     const M = motionMatrix(mo, mo.kind === 'turn' ? (amount * Math.PI) / 180 : amount).multiply(new THREE.Matrix4().fromArray(from)), was = [...it.matrix];
     it.matrix = this.holdPart(id, M).toArray();
-    this.applyMates({ id, was }); // (in a closed loop the others follow it from where it was)
+    this.applyMates({ id, was, mo, amount }); // (in a closed loop the others follow it from where it was)
     if (final) this.commit(); else if (!quiet) this.draw();
   }
 
@@ -3219,6 +3266,7 @@ export class Assembly {
       }),
       ...(this.loops?.some((l) => this.mechanismOf(l.parts[0])) ? { loops: this.loopsSummary() } : {}),
       ...(this.mech?.list.length ? { mechanisms: this.mech.summary() } : {}),
+      ...(this.doc.couplings?.length ? { couplings: couplingsSummary(this) } : {}),
       joints: (this.doc.mates || []).map((m) => ({ id: m.id, ...(m.name ? { name: m.name } : {}), type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
         ...(m.type === 'axis' ? { distance: Number.isFinite(m.dist) ? m.dist : null } : { gap: m.gap || 0 }), ...(m.type !== 'parallel' ? { rotation_locked: Number.isFinite(m.angle) } : {}), ...(m.broken ? { broken: true } : {}),
         ...(m.locked ? { locked: true } : {}), ...(this.inst(m.move)?.fastener ? { fastener: this.inst(m.move).fastener.id } : {}), ...(this.whyNot(m) ? { not_held: this.whyNot(m) } : {}) })),
@@ -3269,7 +3317,15 @@ export class Assembly {
       snap_faces: async ({ move, onto, type = 'touch', gap, value, lock_rotation, name }) => {
         need();
         await settle();
-        if (!JOINT_TYPES[type] || JOINT_TYPES[type].pick) throw new Error(`type is ${Object.keys(JOINT_TYPES).filter((k) => !JOINT_TYPES[k].pick).join(', ')} (screws and pins: suggest_fasteners / add_fasteners).`);
+        if (COUPLING_TYPES[type]) { // ⚙ a coupling: one part's turn tied to the other's (value: the ratio)
+          const c = addCoupling(this, { inst: move.part, face: this.worldFace(move.part, move.face) }, { inst: onto.part, face: this.worldFace(onto.part, onto.face) }, type, value ?? null);
+          if (name) c.name = String(name).trim();
+          this.sel = c.a;
+          this.applyMates();
+          this.commit();
+          return { text: `${c.id} ${type}: ${c.a} ↔ ${c.b}, ${ratioText(c)} — move_free / drive_mechanism one of them, the other follows. ${JSON.stringify(this.summary())}` };
+        }
+        if (!JOINT_TYPES[type] || JOINT_TYPES[type].pick) throw new Error(`type is ${[...Object.keys(JOINT_TYPES).filter((k) => !JOINT_TYPES[k].pick), ...Object.keys(COUPLING_TYPES)].join(', ')} (screws and pins: suggest_fasteners / add_fasteners).`);
         const from = { inst: move.part, face: this.worldFace(move.part, move.face) };
         const to = { inst: onto.part, face: this.worldFace(onto.part, onto.face) };
         if (from.inst === to.inst) throw new Error('Join a face of one part to a face of another part.');

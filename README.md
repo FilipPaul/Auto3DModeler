@@ -821,6 +821,17 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   part the closing rod is on); **⋯** picks another driver, the speed (½× 1× 2×), **⚠ Check the travel** (collisions over
   the whole turn) and **📈 Trace** (a curve: how the slider moves over the crank's turn). Nothing shows in an
   assembly without one.
+- **⚙ Gears, ⛓ belts, ▤ a rack — couplings**: two parts that each turn on their own pin can be tied by one number,
+  the ratio (*převod*). Click the rim of one wheel, Ctrl+click the rim of the other: when both can turn about
+  parallel axes the first suggestion is **⚙ Gear pair · i = 2:1** (the rims touching — the pitch circles; the ratio
+  from their Ø: the bigger one turns half as fast, the other way round; a ring gear round a pinion the same way) or
+  **⛓ Belt / chain · i = 1:2** (the rims apart: the same way). A wheel's rim and the flat side of a part that slides
+  gives **▤ Rack and pinion · 94.248 mm per turn** (π·Ø). Then turn either part — its slider, ⚙ Mechanism, ▶, a drag
+  in the view, the AI — and the other follows, through a whole train (a pinion → a wheel → a pulley → a rack); the
+  coupled parts are one mechanism with one slider. The part's panel lists its **Couplings**: the ratio to type, **⇄**
+  the other way round, ✕. A hole and a pin of the same Ø still offer ◎ Concentric first (a joint, not wheels). The
+  AI: `snap_faces {type: "gear" | "belt" | "rack", value: ratio}`, get_assembly `couplings`, `edit_joint {id: "G1",
+  ratio, flip}`, `remove_joint`. Gear teeth are not modelled: a wheel is its pitch circle (a disc).
 - **Drag a part in the view**: choose a joined part, then drag it in the 3D view (the cursor shows a hand): it moves
   the way its joints leave free — a crank turns round its shaft after the mouse, a slider slides along its line — and
   every part joined to it follows live (the rod and the slider of a crank; a forearm and its gripper on a turning

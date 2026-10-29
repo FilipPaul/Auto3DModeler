@@ -480,9 +480,17 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
     },
 
     // ---------------------------------------------------------------- joints and measuring (assembly)
-    edit_joint: async ({ id, gap, distance, lock_rotation, angle, flip, locked, name }) => {
+    edit_joint: async ({ id, gap, distance, lock_rotation, angle, flip, locked, name, ratio }) => {
       need('assembly', 'Joints are in an assembly');
-      const a = assembly, m = (a.doc.mates || []).find((x) => x.id === id);
+      const a = assembly, m = (a.doc.mates || []).find((x) => x.id === id), cp = (a.doc.couplings || []).find((x) => x.id === id);
+      if (cp) { // ⚙ a coupling: its ratio, the way round, its name
+        if (ratio !== undefined) { if (!(+ratio > 0)) throw new Error('ratio is a number above 0.'); cp.ratio = +ratio; }
+        if (flip !== undefined) { if (flip) cp.flip = !cp.flip; }
+        if (name !== undefined) { if (String(name || '').trim()) cp.name = String(name).trim(); else delete cp.name; }
+        a.commit();
+        return ok(a.summary().couplings.find((c) => c.id === id));
+      }
+      if (ratio !== undefined && m) throw new Error(`ratio is for a coupling (G…: gear / belt / rack); ${id} is a joint.`);
       if (!m) throw new Error(`No joint ${id} — get_assembly lists the joints.`);
       if (m.locked && locked !== false && [gap, distance, lock_rotation, angle, flip].some((v) => v !== undefined && v !== false)) {
         throw new Error(`Joint ${id} is locked 🔒 — edit_joint {id, locked: false} first (only when the user wants it).`);
@@ -504,6 +512,11 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
     remove_joint: async ({ id }) => {
       need('assembly', 'Joints are in an assembly');
       const a = assembly, m = (a.doc.mates || []).find((x) => x.id === id);
+      if (!m && (a.doc.couplings || []).some((c) => c.id === id)) { // ⚙ a coupling: the parts turn on their own again
+        a.doc.couplings = a.doc.couplings.filter((c) => c.id !== id);
+        a.commit();
+        return ok(`Coupling ${id} removed — its two parts move on their own again.`);
+      }
       if (!m) throw new Error(`No joint ${id} — get_assembly lists the joints.`);
       if (m.locked) throw new Error(`Joint ${id} is locked 🔒 — edit_joint {id, locked: false} first (only when the user wants it).`);
       a.doc.mates = a.doc.mates.filter((x) => x !== m);

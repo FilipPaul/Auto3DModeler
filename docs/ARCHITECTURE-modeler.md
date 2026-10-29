@@ -7,6 +7,31 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⚙ Couplings between motions — gears, belts, a rack done** (the owner: "couplings between motions in assemblies,
+  each one joint with ONE input"). web/js/assembly/couplings.js: assembly JSON `couplings` [{id G…, type gear | belt
+  | rack, a, aFace, b, bFace, ratio, inner, flip, name}] — gear / belt: ratio = turns of a per turn of b (Ø b / Ø a,
+  "i = 2:1"), a gear pair opposite ways (a ring gear round a pinion, `inner`, and a belt the same way); rack: a = the
+  pinion's round face, b = the rack's flat side along its axis, ratio = mm per turn (π·Ø). couplingOptions(fa, fb,
+  pins) infers what fits from the picked faces: two rims (isPin) on parallel axes apart — touching (Ø a + Ø b apart):
+  a gear first, further: a belt first; a hole + a pin: only a ring gear round it (else it is a joint to make: the
+  rod's eye on the slider's pin keeps ◎ Concentric first — e2e_mechanism_by_mouse); a rim + a flat face along its axis:
+  a rack. Assembly.couplingItems ranks them first (−1) when both parts can turn about those axes (the rack: slide),
+  else after the joints. Solving: Assembly.applyMates -> followCouplings(asm, before, drive) after placeAll /
+  closeLoops — each coupling whose one side moved (deltaOf: the turn about its rim's axis, the slide along the rack;
+  the exact amount from moveFree's drive {mo, amount}, so a turn past 180° counts) moves the other side's mover
+  (moverOf: itself or the shaft it is keyed on) by the coupled amount, then placeAll / closeLoops again (a loop on a
+  coupled part follows) — each part once, through a whole train, no back-and-forth. mechanisms(): coupled parts merge
+  into one mechanism (`train`; a gear keyed on a turning shaft joins the shaft's); drag.js turns a train's gear by
+  its own axis (a part of a closed loop still drives the loop's driver); the joint spin slider passes its turn on.
+  The part panel's "Couplings" rows (ratio — one input —, ⇄, ✕, a name by double-click, hover lights both faces),
+  the overview lists them; History keeps them. AI: snap_faces type gear / belt / rack (value = ratio), get_assembly
+  `couplings`, edit_joint {id G…, ratio, flip, name}, remove_joint; the assemble-parts skill; e2e_agent (refused on
+  flat faces). tools/e2e_assembly_gears.py (33 checks): the suggestions, 2:1 -> the wheel −45° for 90°, the belt the
+  same way ×2, the rack π·Ø per turn and driven back, one ⚙ Mechanism, ▶ with the ratios held to < 0.05°, ⚠ the
+  travel, a drag of the wheel, the ratio typed / ⇄ / ✕ / undo, saved and opened again, Czech. Left out: gear teeth
+  (no gear feature in the modeller: a wheel is its pitch circle, the ratio from its Ø), couplings inside a
+  sub-assembly's own engine, a planetary carrier (the turn is measured in the world, not against a moving carrier).
+
 - **A mechanism built by mouse: the walkthrough, its fixes, "one joint is missing" done** (the owner: "how hard is it
   for a user to make a mechanism?"). The crank – rod – slider put together with real clicks only (headless Edge, Czech,
   1600×1000; the crank demo's parts; tools/e2e_mechanism_by_mouse.py replays it). Found and fixed, one commit each:
