@@ -350,8 +350,11 @@ branch with its own timeline) from a version; **Variant: main ▾** on top switc
 a variant…** copies one part as it is in another variant into this one (there is no merge). Unchanged parts are stored
 once (each part's JSON under its SHA-256, zlib), so a version costs a few kB; old automatic versions are thinned (all of
 the last day, one an hour for a week, one a day after that; named ones and variants are kept). *Save project ▾ → with
-version history* puts the versions into the file, and opening it brings them back. The AI has list_versions,
-save_version, compare_versions, restore_version and create_variant.
+version history* puts the versions into the file, and opening it brings them back. A graph of the branches runs down
+the list's left side (a coloured lane per variant, a dot per version, the fork from the version it was made from);
+*All variants* shows every variant's versions together. Variant ▾ renames (or double-click the name) and deletes a
+variant (with its versions, after an inline confirmation). The AI has list_versions, save_version, compare_versions,
+restore_version, create_variant, rename_variant and delete_variant.
 
 **🎬 Demo projects** (Open ▾ → *Demo projects…*): ready-made projects that show whole mechanisms moving — a crank –
 rod – slider (*Klikový mechanismus*), a four-bar linkage (*Čtyřkloubový mechanismus*: the crank turns round, the

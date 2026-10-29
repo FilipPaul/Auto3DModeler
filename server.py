@@ -330,7 +330,8 @@ def _versions_call(fn):
 @app.get("/api/versions/<pid>")
 def api_versions_list(pid):
     """-> {current, variant, variants, versions (the newest first), base} — of ?variant= (default: the one on screen)."""
-    return _versions_call(lambda: versions.versions(VERSIONS, pid, request.args.get("variant") or None))
+    return _versions_call(lambda: versions.versions(VERSIONS, pid, request.args.get("variant") or None,
+                                                    request.args.get("all") == "1"))
 
 
 @app.post("/api/versions/<pid>")
@@ -380,6 +381,19 @@ def api_versions_variant_new(pid):
 @app.post("/api/versions/<pid>/variants/<var>/switch")
 def api_versions_variant_switch(pid, var):
     return _versions_call(lambda: versions.switch_variant(VERSIONS, pid, var))
+
+
+@app.post("/api/versions/<pid>/variants/<var>/rename")
+def api_versions_variant_rename(pid, var):
+    """{name} -> the variant."""
+    b = request.get_json(silent=True) or {}
+    return _versions_call(lambda: versions.rename_variant(VERSIONS, pid, var, b.get("name")))
+
+
+@app.post("/api/versions/<pid>/variants/<var>/delete")
+def api_versions_variant_delete(pid, var):
+    """The variant and its versions deleted -> {deleted, versions, objects, current, variants, project?}."""
+    return _versions_call(lambda: versions.delete_variant(VERSIONS, pid, var))
 
 
 @app.post("/api/versions/<pid>/take-part")

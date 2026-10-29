@@ -1393,17 +1393,39 @@ body.resizing-v, body.resizing-v * { cursor: row-resize !important; user-select:
 
 /* 🕘 Versions (versions.js): the widget, the preview's banner, Save project ▾ */
 .vr-box { padding: 4px 6px 6px; font-size: 12px; }
-.vr-top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.vr-top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-bottom: 4px; }
 .vr-varl { display: flex; align-items: center; gap: 4px; color: var(--muted); flex: 1 1 auto; min-width: 0; }
 .vr-var { min-width: 0; flex: 1 1 auto; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 5px; font-size: 12px; padding: 1px 4px; }
 .vr-ask, .vr-take { display: block; width: 100%; box-sizing: border-box; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 3px 6px; font-size: 12px; margin: 2px 0 4px; }
 .vr-take { margin-top: 6px; color: var(--muted); }
-.vr-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 6px; align-items: center; padding: 3px; border-radius: 6px; cursor: pointer; }
+.vr-list { position: relative; --vr-g: calc(var(--vr-lanes, 1) * 14px + 4px); }
+.vr-graph { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+.vr-graph .vr-ln { fill: none; stroke-width: 1.5; opacity: .5; }
+.vr-graph .vr-ln.cur { stroke-width: 2.5; opacity: 1; }
+.vr-graph .vr-dot { stroke-width: 1.5; opacity: .6; }
+.vr-graph .vr-dot.cur, .vr-graph .vr-dot.head { opacity: 1; }
+.vr-graph .vr-ring { fill: none; stroke-width: 2; }
+.vr-graph .vr-ring.look { stroke: #8ab4ff; stroke-width: 1.5; stroke-dasharray: 2 2; }
+.vr-chip { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: none; vertical-align: -1px; margin-right: 4px; }
+.vr-chip.big { width: 11px; height: 11px; margin-right: 0; cursor: default; }
+.vr-all.on { color: var(--text); border-color: var(--accent); background: #1f3a5f; }
+.vr-legend { display: flex; flex-wrap: wrap; gap: 2px 8px; margin: 0 0 4px; color: var(--muted); }
+.vr-lg { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; cursor: default; }
+.vr-lg.cur { color: var(--text); font-weight: 600; }
+.vr-lg small { color: var(--muted); font-weight: 400; font-size: 10px; margin-left: 2px; }
+.vr-lg .vr-x { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 2px; font-size: 10px; opacity: 0; }
+.vr-lg:hover .vr-x, .vr-lg .vr-x:focus-visible { opacity: 1; }
+.vr-lg .vr-x:hover { color: var(--err); }
+.vr-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 2px 0 6px; padding: 5px 7px; border: 1px solid var(--err); border-radius: 6px; background: #3a1d1d; outline: none; }
+.vr-confirm span { flex: 1 1 100%; }
+.vr-confirm [data-yes] { color: #ff8c84; border-color: var(--err); }
+.vr-confirm [data-yes]:hover { color: #fff; background: #6e2a2a; }
+.vr-graph .vr-stub { opacity: .8; }
+.vr-list > .vr-ask { margin-left: var(--vr-g); width: calc(100% - var(--vr-g)); }
+.vr-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 6px; align-items: center; padding: 3px 3px 3px var(--vr-g); border-radius: 6px; cursor: pointer; }
 .vr-row:hover, .vr-row:focus-visible { background: #2b3340; outline: none; }
 .vr-row.on { background: #1f3a5f; box-shadow: inset 0 0 0 1px var(--accent); }
 .vr-row.base { opacity: .75; border-top: 1px dashed var(--line); margin-top: 4px; }
-.vr-row.cur { box-shadow: inset 3px 0 0 #3fb950; } /* (the current version: a green edge) */
-.vr-row.cur.on { box-shadow: inset 3px 0 0 #3fb950, inset 0 0 0 1px var(--accent); }
 .vr-tag { margin-left: 6px; padding: 0 5px; border-radius: 8px; font-size: 10.5px; font-weight: 600; white-space: nowrap; }
 .vr-tag.cur { color: #3fb950; background: rgba(63, 185, 80, .12); }
 .vr-tag.look { color: #8ab4ff; background: rgba(88, 166, 255, .14); }
@@ -1416,7 +1438,7 @@ body.resizing-v, body.resizing-v * { cursor: row-resize !important; user-select:
 .vr-parts { color: var(--muted); font-size: 11px; }
 .vr-acts { display: flex; gap: 2px; opacity: 0; }
 .vr-row:hover .vr-acts, .vr-row:focus-within .vr-acts, .vr-row.on .vr-acts { opacity: 1; }
-.vr-diff { margin: 0 4px 6px 70px; padding: 3px 6px; border-left: 2px solid var(--accent); font-size: 11.5px; }
+.vr-diff { margin: 0 4px 6px calc(var(--vr-g, 0px) + 70px); padding: 3px 6px; border-left: 2px solid var(--accent); font-size: 11.5px; }
 .vr-diff .part { font-weight: 600; }
 .vr-diff .add { color: var(--ok); }
 .vr-diff .del { color: var(--err); }

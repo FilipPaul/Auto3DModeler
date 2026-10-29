@@ -281,20 +281,28 @@ def save(root, pid, project, label="", auto=False, thumb=None, volumes=None, for
     return m
 
 
-def versions(root, pid, variant=None) -> dict:
+def versions(root, pid, variant=None, every=False) -> dict:
     """The variants and the timeline of one (default: the one on screen), the newest first; base: the version (of
-    another variant) it was made from."""
+    another variant) it was made from. every: also `all`, every variant's versions (the newest first: the graph)."""
     folder = _folder(root, pid)
     st = _state(folder)
     var = _variant(st, _var(variant) if variant else st["current"])
-    out = [m for m in _manifests(folder) if m.get("variant") == var["id"]]
+    every_m = _manifests(folder)
+    out = [m for m in every_m if m.get("variant") == var["id"]]
+    count = {}
+    for m in every_m:
+        count[m.get("variant")] = count.get(m.get("variant"), 0) + 1
     base = None
     if var.get("base"):
         try:
             base = _manifest(folder, var["base"])
         except VersionError:
             base = None
-    return {"current": st["current"], "variant": var["id"], "variants": st["variants"], "versions": out, "base": base}
+    res = {"current": st["current"], "variant": var["id"], "versions": out, "base": base,
+           "variants": [{**v, "count": count.get(v["id"], 0)} for v in st["variants"]]}
+    if every:
+        res["all"] = every_m
+    return res
 
 
 def get(root, pid, vid) -> dict:
@@ -377,10 +385,41 @@ def rename_variant(root, pid, var, name) -> dict:
             v["name"] = ""
         elif not name:
             raise VersionError("A variant needs a name.")
+        elif any(x is not v and (x.get("name") or "").lower() == name.lower() for x in st["variants"]):
+            raise VersionError("A variant of that name is already there.")
         else:
             v["name"] = name
         _put_state(folder, st)
         return v
+
+
+def delete_variant(root, pid, var) -> dict:
+    """Variant `var` and its versions deleted (not the main one; not one another variant was made from), the objects
+    nobody uses any more too; the one on screen -> main. -> {deleted, versions: n, objects: n, current, variants,
+    project: main's head's project when the deleted one was on screen}."""
+    folder = _folder(root, pid)
+    with _lock(pid):
+        st = _state(folder)
+        v = _variant(st, _var(var))
+        if v["id"] == "main":
+            raise VersionError("The main variant cannot be deleted.")
+        mine = [m for m in _manifests(folder) if m.get("variant") == v["id"]]
+        ids = {m["id"] for m in mine}
+        if any(x is not v and x.get("base") in ids for x in st["variants"]):
+            raise VersionError("Another variant was made from this one — delete that one first.")
+        st["variants"].remove(v)
+        on_screen = st["current"] == v["id"]
+        if on_screen:
+            st["current"] = "main"
+        _put_state(folder, st)  # (first: a crash after it leaves only unused files, which the next gc takes)
+        for m in mine:
+            (folder / "versions" / f"{m['id']}.json").unlink(missing_ok=True)
+        out = {"deleted": v["id"], "versions": len(mine), "objects": _gc(folder), "current": st["current"],
+               "variants": st["variants"]}
+        if on_screen:
+            head = _variant(st, "main").get("head")
+            out["project"] = _project(folder, _manifest(folder, head)) if head else None
+        return out
 
 
 def take_part(root, pid, var, part) -> dict:

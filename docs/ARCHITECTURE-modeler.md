@@ -437,8 +437,27 @@ Date: 2026-10-25. Written by the architect agent.
   in 155 files (620 kB allocated at 4 kB clusters), 219 kB bundled into the project file.
   Left out: the two bodies overlaid in two colours (compare is text), a Ctrl+Z of a restore (↶ in its toast and the
   "Before restoring" version instead), versions of the quick part / drawing / sheet workspaces' own widget (the widget
-  is in the model and assembly workspaces; versions are of the whole project anyway), renaming / deleting a variant in
-  the UI (versions.rename_variant exists).
+  is in the model and assembly workspaces; versions are of the whole project anyway).
+- **🕘 Versions: a graph of the branches; rename / delete a variant done** (the owner: "a graph of the branches would
+  help, the history is unclear now"). versions.js draws one SVG over the list's left column (14 px a lane, from the
+  rows' measured positions: rows keep one height, a ResizeObserver draws it again when the widget is shown): a line per
+  variant in its colour (7 colours by the variant's place; the chip by Variant ▾ and the legend have it), a dot per
+  version, the fork a curve from the version a variant was made from into its lane, the variant on screen's lane bolder
+  (the others at half), its newest version ringed green (● current), other heads ringed in their colour, the previewed
+  one a dashed ring. Default: the variant on screen + the fork row (dashed, a hollow dot on the parent's lane); its
+  versions other variants were made from carry a small stub in their colour. "All variants" (a toggle by the switcher,
+  remembered; GET ?all=1 -> `all`: every manifest) interleaves every variant by time with a legend (name, number of
+  versions; double-click renames, ✕ deletes); another variant's version previewed: the banner names the variant and
+  offers ⑂ Go to this variant. Variant ▾ also has ✎ Rename this variant… / 🗑 Delete this variant… (double-click the chip
+  / label renames too); delete asks inline ("Smazat variantu „X“ i s jejími verzemi (n)? Nejde to vrátit.", Esc keeps
+  it). versions.delete_variant (not main, not one another variant was made from; the one on screen -> main's head; its
+  manifests deleted after state.json, then gc), rename_variant refuses a clashing name; the list's variants carry
+  `count`. Server: POST /variants/<var>/rename {name}, /variants/<var>/delete. AI: list_versions gives each version's
+  parent and variant and each variant's made_from / versions; rename_variant, delete_variant (only when asked).
+  Tests: test_versions (10: + rename clash, all, delete refused for main / a parent, its own objects collected, A's
+  kept), e2e_versions (46 checks; + 17 at 1280 × 800: 3 lanes, the forks at the dots of B and A, the bolder lane and the
+  ring, another variant's preview banner, rename by double-click, delete with the confirm and Zrušit, the default view
+  main only with the stub, list_versions' graph fields, rename_variant). Left out: merging variants.
   **Plan, not built: "Also save versions to Git"** (an option for users who use git). Mirror, never replace: the
   content store stays the truth (the frozen exe has no git). When on and `git` is on PATH (or dulwich, pure Python, if
   bundled), a repository per project under `<data>/versions/<pid>/git/` (or a folder the user picks); each manifest
