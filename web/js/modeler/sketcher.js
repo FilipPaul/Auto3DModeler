@@ -14,6 +14,8 @@ import { floatBox } from '../floatbox.js';
 import { roundAxes } from './axes.js';
 import { nextFrames } from '../frames.js';
 import { nearRelations, shapeName, roundValue, standardShapes } from './sketchauto.js';
+import { isPlain, exprText } from '../params.js';
+import { takeField, setExpr, exprLabel } from '../paramsui.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const nice = (x) => { const p = 10 ** Math.floor(Math.log10(x)); return [1, 2, 5, 10].map((k) => k * p).find((s) => s >= x); };
@@ -1189,6 +1191,24 @@ export class Sketcher {
     const p = this.endUV(a.a), q = this.endUV(a.b);
     if (!p || !q) return null;
     return Math.abs(p[1] - q[1]) < 1e-7 ? 'v' : Math.abs(p[0] - q[0]) < 1e-7 ? 'u' : null;
+  }
+
+  /** 𝑥 A size typed as an expression of the parameters (L / 2; "L = 100" makes L): locked at its value, the
+   *  expression kept beside it (a parameter changed later: the size follows). k: the factor the size is shown with. */
+  async setSizeExpr(spec, text, k = 1) {
+    let r;
+    try { r = takeField(text); } catch (e) { this.m.toast(e.message, 'warning', 6000); return; }
+    await this.setSize(spec, String(r.value / k));
+    this.keepExpr(spec, r.expr, k, r.value / k);
+  }
+
+  /** The expression kept on a size that took its value `want` (null: a plain number — one it had goes). */
+  keepExpr(spec, expr, k = 1, want = null) {
+    const d = this.findDim(spec);
+    if (!d || (expr && Math.abs(Math.abs(d.v) - Math.abs(want)) > 1e-6)) return; // (refused: nothing kept)
+    if (expr && k !== 1) setExpr(d, 'v', { x: expr, k });
+    else setExpr(d, 'v', expr && d.v < 0 ? `-(${expr})` : expr);
+    this.draw();
   }
 
   /** Without the solver: set the size directly (no locks). */
@@ -2829,7 +2849,7 @@ export class Sketcher {
     el.className = `sk-label edit${locked ? ' locked' : ''}${driven ? ' driven' : ''}`;
     // (a size the other sizes and relations set already is not "free": nothing to lock, shown with ＝)
     el.innerHTML = `<span class="sk-val"></span>${driven ? '<span class="sk-lock sk-driven">＝</span>' : '<button class="sk-lock"></button>'}`;
-    el.querySelector('.sk-val').textContent = text;
+    el.querySelector('.sk-val').textContent = exprLabel(text, this.dimExprText(spec)); // (𝑥 "L/2 = 50": set by a parameter)
     el.querySelector('.sk-val').title = `${title} — click to type it (that locks it)`;
     const lock = el.querySelector('.sk-lock');
     lock.textContent = locked ? '🔒' : driven ? '＝' : '🔓';
@@ -2864,7 +2884,7 @@ export class Sketcher {
     el.dataset.dim = d.id;
     el.innerHTML = '<span class="sk-val"></span><button class="sk-lock"></button><button class="sk-del" title="Delete this dimension">✕</button>';
     const shown = `${fmt(Math.abs(d.free ? this.measure(d) : d.v))}${d.t === 'ang' ? '°' : ''}`;
-    el.querySelector('.sk-val').textContent = `${{ dx: '↔', dy: '↕', dist: '⤢', ang: '∠', pl: '⊥' }[d.t]} ${d.free ? `(${shown})` : shown}`;
+    el.querySelector('.sk-val').textContent = `${{ dx: '↔', dy: '↕', dist: '⤢', ang: '∠', pl: '⊥' }[d.t]} ${d.free ? `(${shown})` : exprLabel(shown, this.dimExprText(d))}`;
     el.querySelector('.sk-val').title = d.free ? 'A reference dimension (it only measures: the other sizes drive it) — click to type a value and lock it' : 'Locked distance — click to type a new value';
     const lock = el.querySelector('.sk-lock');
     lock.textContent = d.free ? '🔓' : '🔒';
@@ -2876,11 +2896,18 @@ export class Sketcher {
     return { el, u, v };
   }
 
+  /** 𝑥 The parameters' expression a locked size is set by (as typed: without the minus of a size to the left). */
+  dimExprText(spec) {
+    const d = this.findDim(spec);
+    return d && !d.free && d.expr?.v ? exprText(d.expr.v).replace(/^-\((.*)\)$/, '$1') : null;
+  }
+
   editLabel(el, spec) {
     const inp = document.createElement('input');
     inp.className = 'sk-input';
     const k = this.shownFactor(spec);
-    inp.value = fmt(Math.abs(this.measure(spec)) * k);
+    inp.value = this.dimExprText(spec) ?? fmt(Math.abs(this.measure(spec)) * k);
+    inp.title = t('A number — or an expression of the project’s parameters: L, L/2 + 5, =D. “L = 100” makes the parameter L.');
     const r = el.getBoundingClientRect(), vr = this.m.els.viewport.getBoundingClientRect();
     Object.assign(inp.style, { left: `${r.left - vr.left}px`, top: `${r.top - vr.top - 2}px` });
     this.m.els.viewport.appendChild(inp);
@@ -2891,8 +2918,11 @@ export class Sketcher {
       if (done) return;
       done = true;
       inp.remove();
+      const text = inp.value.trim();
+      if (!ok || text === '') return;
+      if (spec.t !== 'bw' && !isPlain(text)) { this.setSizeExpr(spec, text, k); return; } // (𝑥 an expression of the parameters)
       const v = parseFloat(String(inp.value).replace(',', '.'));
-      if (ok && inp.value.trim() !== '') this.setSize(spec, Number.isFinite(v) && k !== 1 ? String(v / k) : inp.value);
+      this.setSize(spec, Number.isFinite(v) && k !== 1 ? String(v / k) : inp.value).then(() => this.keepExpr(spec, null));
     };
     inp.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') finish(true); if (ev.key === 'Escape') finish(false); });
     inp.addEventListener('blur', () => finish(true));

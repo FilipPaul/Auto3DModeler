@@ -384,6 +384,12 @@ Never report "works" without having run it; report failures with their output.
    tip dragged; 4 typed; ⇅ = a cut 4 in and back; Cancel leaves no step; OK = an outline sketch + an extrude, one undo
    step; the block made taller: it follows; the sketch opened draws the outline; the AI's add_feature extrude {face};
    "Vysunout tuto plochu" in Czech). Ends ALL OK / FAILED. Needs a server restarted after kernel changes.
+   `tools/e2e_parameters.py <url> <dir>` covers 𝑥 project parameters (the browser's parser against
+   tests/param_cases.json — the same cases as Python's; "L = 40" typed as an Extrude distance makes L, the step keeps d = L;
+   the 𝑥 Parameters widget appears; a sketch's width typed "L/2" on its size label (shown "L/2 = 20"); L = 60 in the
+   widget: the part on screen and the other part (rebuilt through /api/model/rebuild by its name) both follow; Ctrl+Z:
+   back; "L/" and a circle refused with the old values; an unknown name in a field marked, the number kept; "t + 3" kept;
+   saved and opened again; Czech "𝑥 Parametry" and messages). Ends ALL OK / FAILED.
    `tools/e2e_model_split.py <url> <dir>` covers ✂ Split (a click on a block's top -> "✂ Split here": midway to the
    bottom; Keep Both: two bodies 4000 + 4000 in two shades; This side: the top half; ↶ undo; Front through the middle,
    an offset past the part refused; ⧉ each piece its own part; the AI's add_feature split).

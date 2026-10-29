@@ -281,6 +281,7 @@ def _apply(f, st: State, s):
         fr = plane_frame(f.get("plane"), st)
         st.frames[fid] = fr
         f = _follow_refs(f, fr, st, s)
+        f = _param_dims(f, s)
         f = _face_outlines(f, fr, st, s)
         st.sketch_src[fid] = f
         try:
@@ -710,6 +711,35 @@ def _follow_refs(f, fr, st, s):
         else:
             s["warnings"].append("The sketch's sizes no longer fit the part's new shape — open the sketch and unlock one.")
     s["update"] = {"dims": f["dims"], "points": f.get("points"), "entities": f.get("entities")}
+    return f
+
+
+def _param_dims(f, s):
+    """Sizes set by 𝑥 project parameters (a locked dimension with "expr": the browser put the parameter's value in its
+    "v") — the sketch is solved again with them, so its shape follows a changed parameter (the parts not on screen
+    too); the new positions go back to the browser (s["update"])."""
+    if not any(d.get("expr") and not d.get("free") for d in f.get("dims") or []):
+        return f
+    from . import available
+    if not available("planegcs"):
+        return f
+    from .constraints import SketchError, solve
+    try:
+        r = solve(f)
+    except SketchError:
+        r = {"ok": False}
+    if not r["ok"]:
+        s["warnings"].append("The sketch's sizes from parameters do not fit together — check the parameters.")
+        return f
+    pts = {**(f.get("points") or {}), **r["points"]}
+    ents = [{**e, "r": r["radii"][e["id"]]} if e.get("id") in r["radii"] else e for e in f.get("entities") or []]
+    old = f.get("points") or {}
+    moved = any(k not in old or any(abs(a - b) > 1e-7 for a, b in zip(v, old[k])) for k, v in pts.items())
+    moved = moved or any(abs(float(e.get("r", 0)) - float(g.get("r", 0))) > 1e-7 for e, g in zip(ents, f.get("entities") or []))
+    if not moved:
+        return f
+    f = {**f, "points": pts, "entities": ents}
+    s["update"] = {**(s.get("update") or {}), "dims": f.get("dims"), "points": pts, "entities": ents}
     return f
 
 

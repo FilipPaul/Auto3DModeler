@@ -78,7 +78,7 @@ try:
     time.sleep(1.2)
     settled()
     print("slider 70 -> the part", js(f"return {M}.result.body.bbox"))
-    inp = box.find_element(By.CSS_SELECTOR, "input[type=number]")
+    inp = box.find_element(By.CSS_SELECTOR, ".m-dimedit-row input")
     inp.send_keys(Keys.CONTROL, "a")
     inp.send_keys("80", Keys.ENTER)
     time.sleep(1)

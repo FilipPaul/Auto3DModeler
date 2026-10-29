@@ -11,6 +11,8 @@ from auto3d.modeler.materials import NAMES as MATERIAL_NAMES
 NUM = {"type": "number"}
 STR = {"type": "string"}
 POINT = {"type": "array", "items": NUM, "minItems": 3, "maxItems": 3, "description": "[x, y, z] in the part's unit"}
+# a number of a 3D model step: also an expression of the project's 𝑥 parameters ("L / 2"; "L = 100" makes L)
+VAL = {"type": ["number", "string"]}
 
 
 def _obj(props: dict, required=(), extra=False) -> dict:
@@ -260,23 +262,27 @@ TOOLS = [
                     "is an issue.\n"
                     "- point: a reference point (no geometry; it follows the part, sketches snap and dimension to it): at "
                     "{corner: [x, y, z]} (the corner nearest that place) / {centre: <a round edge's ref from find_refs>} / {mid: "
-                    "<an edge's ref>: its middle} / a ref from find_refs kind \"point\".",
+                    "<an edge's ref>: its middle} / a ref from find_refs kind \"point\".\n"
+                    "Numbers (d, d2, offset, draft, r, angle, t, depth, count, spacing, h, flat …) may be expressions of the "
+                    "project's parameters (get_parameters / set_parameter): \"L / 2\", \"D + 0.2\" — the step keeps the "
+                    "expression and follows when the parameter changes; \"L = 100\" makes (or sets) L at once.",
      "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep", "decal", "mirror", "draft", "rib", "point", "split"]},
                           "name": STR, "plane": {}, "shapes": {"type": "array"}, "lock": {"type": "boolean"},
-                          "sketch": STR, "d": NUM, "op": {"type": "string", "enum": ["add", "cut"]}, "through": {"type": "boolean"},
-                          "symmetric": {"type": "boolean"}, "flip": {"type": "boolean"}, "axis": {}, "angle": NUM,
-                          "face": STR, "points": {"type": "array"}, "depth": NUM, "edges": {"type": "array"}, "r": NUM, "chain": {"type": "boolean"},
-                          "faces": {"type": "array"}, "t": NUM, "of": {}, "kind": {"type": "string", "enum": ["linear", "circular"]},
-                          "count": NUM, "spacing": NUM, "dir": {}, "up_to": STR, "offset": NUM, "upto_next": {"type": "boolean"}, "d2": NUM,
+                          "sketch": STR, "d": VAL, "op": {"type": "string", "enum": ["add", "cut"]}, "through": {"type": "boolean"},
+                          "symmetric": {"type": "boolean"}, "flip": {"type": "boolean"}, "axis": {}, "angle": VAL,
+                          "face": STR, "points": {"type": "array"}, "depth": VAL, "edges": {"type": "array"}, "r": VAL, "chain": {"type": "boolean"},
+                          "faces": {"type": "array"}, "t": VAL, "of": {}, "kind": {"type": "string", "enum": ["linear", "circular"]},
+                          "count": VAL, "spacing": VAL, "dir": {}, "up_to": STR, "offset": VAL, "upto_next": {"type": "boolean"}, "d2": VAL,
                           "sketches": {"type": "array"}, "profile": STR, "path": STR,
-                          "text": STR, "h": NUM, "at": {}, "origin": {}, "fit": {"type": "string", "enum": ["H6", "H7", "H8", "H9"]},
+                          "text": STR, "h": VAL, "at": {}, "origin": {}, "fit": {"type": "string", "enum": ["H6", "H7", "H8", "H9"]},
                           "standard": {"type": "string", "enum": ["M2", "M2.5", "M3", "M4", "M5", "M6", "M8", "M10", "M12", "M16", "M20"]},
                           "hole_type": {"type": "string", "enum": ["simple", "clearance", "counterbore", "countersink", "tapped", "d_flat"]},
-                          "flat": NUM, "flat_angle": NUM,
+                          "flat": VAL, "flat_angle": VAL,
                           "keep": {"type": "string", "enum": ["both", "above", "below"]}}, ["type"])},
     {"name": "edit_feature", "where": "browser",
-     "description": "Change a step of the 3D model: id and fields (as in add_feature, e.g. {d: 15}, {r: 3}, {points: …}, a "
-                    "sketch's {shapes: […]}). Later steps follow their faces.",
+     "description": "Change a step of the 3D model: id and fields (as in add_feature, e.g. {d: 15}, {r: 3}, {d: \"L / 2\"} — an "
+                    "expression of the project's parameters —, {points: …}, a sketch's {shapes: […]}). A plain number drops "
+                    "the expression the field had. Later steps follow their faces.",
      "inputSchema": _obj({"id": STR, "fields": _obj({}, extra=True)}, ["id", "fields"])},
     {"name": "delete_feature", "where": "browser",
      "description": "Delete a step of the 3D model. Steps that only stand on it (a sketch on its face, sizes from its edges, "
@@ -305,10 +311,23 @@ TOOLS = [
      "inputSchema": _obj({"id": STR, "round": {"type": "boolean"}}, ["id"])},
     {"name": "sketch_dim", "where": "browser",
      "description": "Set one dimension of a sketch step (id): dim = a dims id from get_sketch, or a shape's own size "
-                    "\"len:<line>\", \"dia:<circle>\", \"rad:<arc>\". value: lock it at that value (the sketch follows); "
+                    "\"len:<line>\", \"dia:<circle>\", \"rad:<arc>\". value: lock it at that value (the sketch follows) — "
+                    "or an expression of the project's parameters (\"W / 2\": it follows W); "
                     "locked: false frees it (a shape's size: no lock; a distance: a reference that only measures), true "
                     "locks it as it is. Refused (with the locks in the way) when it does not fit.",
-     "inputSchema": _obj({"id": STR, "dim": STR, "value": NUM, "locked": {"type": "boolean"}}, ["id", "dim"])},
+     "inputSchema": _obj({"id": STR, "dim": STR, "value": VAL, "locked": {"type": "boolean"}}, ["id", "dim"])},
+    {"name": "get_parameters", "where": "browser",
+     "description": "The project's 𝑥 parameters: named values (L = 100, t = L / 20) that numbers of 3D model steps, sketch "
+                    "sizes and assembly joints use as expressions — each with its expression, value (or error) and the parts "
+                    "that use it.",
+     "inputSchema": _obj({})},
+    {"name": "set_parameter", "where": "browser",
+     "description": "Make or change a project parameter: name (a letter first: L, D2, wall) and value — a number or an "
+                    "expression of the other parameters (\"L / 20\"; + - * / and brackets; mm / ° after a number are "
+                    "skipped). Every part that uses it is built again: the result lists them (ok, volume, issues). A bad "
+                    "expression or a circle (a = b + 1, b = a) is refused and nothing changes. delete: true removes it (the "
+                    "numbers that used it keep their values). Then use it: add_feature {d: \"L / 2\"}, sketch_dim {value: \"L\"}.",
+     "inputSchema": _obj({"name": STR, "value": VAL, "delete": {"type": "boolean"}}, ["name"])},
     {"name": "sketch_trim", "where": "browser",
      "description": "✂ Trim in a sketch step (sketch): cut away the piece of shape (a line / circle / arc id from get_sketch) "
                     "around at [x, y] — up to where other shapes cross it; the new ends stay on the shapes that cut them.",
@@ -654,7 +673,7 @@ SYSTEM_PROMPT = """You are the design assistant inside Auto3DModeler, a local ap
 
 The project holds parts, as tabs in the app's top bar (list_parts, open_part); the tools work on the part on screen.
 - **Quick parts** come from a PDF drawing (parametric: its dimensions drive it), an outline traced from a picture or read from a DXF (made into a cookie cutter, a solid shape or a custom stack of objects), or an imported STL / OBJ / STEP file. Tools: get_part, set_dimensions, set_make, set_part_options, add_object, add_shape, add_design_layer, add_dimension, update_item, remove_item. Coordinates: x right, y up, z up from the bed; the part's unit (PDF drawings may be cm).
-- **3D models** are built like in SolidWorks: sketches (rectangles, circles, polylines with locked sizes) turned into a solid by extrude / revolve, then holes, fillets, chamfers, shells — for mechanical parts. Tools: new_model, get_model, find_refs, add_feature, edit_feature, delete_feature, turn_off_feature, rollback, set_material, prepare_print. mm; the bed is the XY plane.
+- **3D models** are built like in SolidWorks: sketches (rectangles, circles, polylines with locked sizes) turned into a solid by extrude / revolve, then holes, fillets, chamfers, shells — for mechanical parts. Tools: new_model, get_model, find_refs, add_feature, edit_feature, delete_feature, turn_off_feature, rollback, set_material, prepare_print. mm; the bed is the XY plane. The project's 𝑥 parameters (get_parameters, set_parameter: L = 100, t = L / 20) may drive any number: d: "L / 2".
 - **Assemblies** place 3D model parts together: new_assembly, get_assembly, insert_part, snap_faces (joints: touch, gap, axis = concentric…), place_part, remove_from_assembly, check_collisions. get_assembly says for each joined part how it can still move (free) or that it is fully held.
 - **Drawing sheets** (📄, of a 3D model part — its views and dimensions, made by a preset, edited by the user, following the part): sheet_open, get_sheet, sheet_edit; export {format: "pdf"} on a sheet writes it as drawn. Prefer a sheet over export pdf of the model when the user wants a drawing.
 - **2D drawings** (a DXF / DWG, or a PCB's Gerber / ODB++ opened as a 📐 drawing — open_file opens them, also a folder of loose Gerber files): get_drawing, drawing_find (shapes by filters), drawing_delete, drawing_add (lines, circles), drawing_units, drawing_layers (show / hide, colour, a new layer), drawing_set_size, drawing_use (as the sketch of a 3D model, or a quick part).

@@ -162,6 +162,18 @@ whole face out 10 mm, its holes kept; type the distance, slide it, or drag the o
 direction* makes it a cut that deep into the part instead. OK leaves two ordinary steps — a sketch of the face's
 outline and its extrude; the outline follows the face when earlier steps change it. Cancel leaves nothing.
 
+**𝑥 Parameters — sizes by name**: any number you type for a size — an extrude's distance, a hole's Ø, a fillet's R, a
+pattern's count and spacing, a size label of a sketch (or on the part), an assembly joint's gap or angle — may also be
+an expression of the project's parameters: `L`, `L/2 + 5`, `=D`, `(L - 2*t) / 3` (+ − × ÷, brackets; `mm` / `°` after
+a number are skipped). Typing `L = 100` in such a field makes the parameter L (and uses it there). The field keeps the
+expression and shows it with its value (*L/2 = 50*); a sketch's size label shows *L/2 = 50* too. The **𝑥 Parameters**
+widget in the left column (3D model and assembly; there once the project has a parameter — dock, float or fold it like
+the others) lists them: `L = 100`, `t = L / 20 = 5`; change one there (Enter) and every part that uses it is built
+again — the one on screen at once, the others in the background (⚙ lists them by name), an open assembly places its
+parts again. Ctrl+Z takes the change back. A bad expression (*L/*), an unknown name or parameters that refer to each
+other in a circle (*L = t × 20* while *t = L / 20*) are refused with a message and the old value stays. ✕ deletes a
+parameter (the numbers that used it keep their values). The parameters are saved in the project file.
+
 **⟋ Draft**: tilts an extrude's side walls by a few degrees (they lean in going up from its base; negative: out) so a
 moulded or cast part comes out of its mould — choose the extrude (or click one of its walls) and the angle. (Or give
 the extrude its *Draft* right away in its panel.)
