@@ -982,7 +982,13 @@ body.view-acts .toast-stack { bottom: 84px; }
 .m-printcheck .hint { margin: 6px 0 0; }
 .vs-head .vs-ai { margin-left: 6px; background: none; border: 1px solid var(--line); border-radius: 6px; padding: 0 5px; cursor: pointer; font-size: 12px; }
 .vs-head .vs-ai:hover { border-color: var(--accent); }
-.vs-head span { flex: none; font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.vs-head span, .vs-head .vs-set { flex: none; font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.vs-head .vs-set { margin-left: auto; background: none; border: 0; padding: 0; font-family: inherit; cursor: pointer; }
+.vs-head .vs-set:hover, .vs-head .vs-set.on { color: var(--accent); }
+.view-suggest .vs-top { flex: none; display: flex; align-items: center; gap: 6px; padding: 5px 11px; font-size: 11.5px; color: var(--muted); border-bottom: 1px solid var(--line); }
+.view-suggest .vs-top input { width: 46px; }
+.vs-list button.vs-more, .vs-list button.vs-more .vs-i { color: var(--muted); }
+.vs-list button.vs-more:hover, .vs-list button.vs-more:hover .vs-i { color: var(--text); }
 .vs-list { display: flex; flex-direction: column; padding: 4px; }
 .vs-list button { display: flex; align-items: center; gap: 8px; text-align: left; background: none; border: 0; color: var(--text); padding: 5px 8px;
   border-radius: 6px; font: inherit; font-size: 12.5px; cursor: pointer; }

@@ -391,7 +391,10 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_suggest.py <url> <dir>` covers the suggestions table (a sketch line: its length, h, v, construction —
    bottom left; + a crossing line: angle, parallel, perpendicular, equal (Equal made); a line + a circle: tangent, from
    its centre; Esc: gone; an assembly part: open, join, simplified, own part, take out; + a second: join them (picking
-   faces, the table gone), measure, collisions).
+   faces, the table gone), measure, collisions). The short table: at most N rows (default 8) + "⋯ Show all (n)" (opens
+   all in sections, remembered for the session, ▴ Fewer), N set in the header ("Suggested" -> a number field, saved);
+   the top rows for two lines (the angle, then the nearest relation), a face (Sketch on it, Hole) and a placed part
+   (Join, Open its part). Exits 1 on a failed check.
    `tools/e2e_floatboxes.py <url> <dir>` covers the floating boxes with real mouse drags (the suggestions table, 🖨
    Print check, 📏 Measure, ✂ Section: dragged by the header / ⠿ strip they move; the corner grip resizes them; the
    section's Y button still works and the bar stays put; after a reload each opens where it was left, at its size;

@@ -1,10 +1,10 @@
 """Several sketch shapes at once, with REAL mouse input: a rectangle and a circle box-selected -> the short table
-(◆ Make it one outline, ✥ Move…, ⧉ Copy, ⇋ Mirror, ✕ Delete all, ⋯ More… — the rest in sections) -> the rectangle's edge dragged: both go by
+(◆ Make it one outline, ✥ Move…, ⧉ Copy, ⇋ Mirror, ✕ Delete all first, ⋯ Show all — the rest in sections) -> the rectangle's edge dragged: both go by
 the same vector (one undo step) -> ✥ Move with dx 10 typed: all exactly 10 -> the rectangle alone: ⧈ Offset,
 ◆ One outline, ⁂ Pattern first; ⟳ Rotate 90: its corners turned about its centre (H / V swapped) -> ⤢ Scale 2: its sizes doubled; with
 a locked width: refused, the toast names the lock -> ┄ construction toggles all -> ✕ Delete all, Ctrl+Z restores.
 Then the short lists: two lines nearly parallel (the angle, ∥ first), two at an angle, a line and a circle (the
-distance, ⌒ Tangent), two circles (the distance, ◎ / =), each at most 5 rows.
+distance, ⌒ Tangent), two circles (the distance, ◎ / =), each at most 8 rows (the table's limit).
 
   PYTHONIOENCODING=utf-8 py tools/e2e_sketch_multiselect.py http://127.0.0.1:5199 <out dir>
 """
@@ -158,9 +158,17 @@ def toasts():
     return [t.text for t in d.find_elements(By.CSS_SELECTOR, "#toasts .toast")]
 
 
-def short(tb, most=5):
-    rows = [r for r in tb[1:] if "More" not in r]
+def short(tb, most=8):
+    rows = [r for r in tb[1:] if not r.startswith(("⋯ Show all", "▴ Fewer"))]
     return len(rows) <= most
+
+
+def show_all():
+    """⋯ Show all (once opened it stays open for the session)."""
+    b = d.find_elements(By.CSS_SELECTOR, "#modelViewport .view-suggest [data-sg-all]")
+    if b:
+        b[0].click()
+        time.sleep(0.5)
 
 
 try:
@@ -178,17 +186,17 @@ try:
     _, rb = rect()
     print("drawn: the rectangle", rb, "| the circle", circle())
 
-    # --- a box round both: the short table, More… opens the rest in sections
+    # --- a box round both: the short table, ⋯ Show all opens the rest in sections
     got = box((rb[0] - 6, rb[1] - 6), (82, rb[3] + 6))
     tb = table()
     print("both box-selected:", got, "->", tb)
     check("box picks 4 lines and the circle", got == ["circle", "line", "line", "line", "line"])
     check("title says 5 shapes", tb and tb[0] == "5 shapes")
-    check("closed outlines (a rectangle round a circle): One outline, Move, Copy, Mirror, Delete all, More…",
-          tb and [r.split(" ", 1)[1] for r in tb[1:]] == ["Make it one outline", "Move…", "Copy", "Mirror", "Delete all", "More…"])
-    press("More")
-    print("  More…:", sections(), table()[1:])
-    check("More… shows the Edit / Relations / Kind sections", [s.lower() for s in sections()] == ["edit", "relations", "kind"])
+    check("closed outlines (a rectangle round a circle): One outline, Move, Copy, Mirror, Delete all first, ⋯ Show all last",
+          tb and [r.split(" ", 1)[1] for r in tb[1:6]] == ["Make it one outline", "Move…", "Copy", "Mirror", "Delete all"] and tb[-1].startswith("⋯ Show all") and short(tb))
+    show_all()
+    print("  ⋯ Show all:", sections(), table()[1:])
+    check("Show all shows the Edit / Kind / Relations sections", [s.lower() for s in sections()] == ["edit", "kind", "relations"])
     check("…with Rotate, Scale, Pattern, Equal, Fix, construction", all(any(x in r for r in table()) for x in ["Rotate…", "Scale…", "Pattern", "Fix — all their points", "Make it construction"]))
 
     # --- the rectangle's edge dragged: everything picked goes by the same vector, one undo step
@@ -221,8 +229,8 @@ try:
     got = box_around(rb)
     tb = table()
     print("the rectangle box-selected:", got, "->", tb)
-    check("a loop: Offset, One outline, Pattern, Move, Delete all, More…",
-          tb and [r.split(" ", 1)[1] for r in tb[1:]] == ["Offset", "Make it one outline", "Pattern", "Move…", "Delete all", "More…"])
+    check("a loop: Offset, One outline, Pattern, Move, Delete all first",
+          tb and [r.split(" ", 1)[1] for r in tb[1:6]] == ["Offset", "Make it one outline", "Pattern", "Move…", "Delete all"])
     # an unpicked shape (the circle) dragged: only it moves, the picks go
     (cc, cr), p0 = circle(), pts()
     ActionChains(d, duration=40).move_to_element_with_offset(canvas(), *off((cc[0] - cr, cc[1]))).click_and_hold().move_by_offset(-15, 0).move_by_offset(-15, 0).release().perform()
@@ -235,7 +243,7 @@ try:
         keys("z", ctrl=True)
     box_around(rb)
     n0 = js(f"return {SK}.undo.length")
-    press("More")
+    show_all()
     press("Rotate")
     print("  ⟳ box:", d.find_element(By.CSS_SELECTOR, ".sk-xform").text.replace("\n", " | "))
     time.sleep(0.6)
@@ -253,7 +261,7 @@ try:
     # --- ⤢ Scale 2 (nothing locked): sizes doubled
     _, rb = rect()
     box_around(rb)
-    press("More")
+    show_all()
     press("Scale")
     time.sleep(0.6)
     keys(Keys.ENTER)
@@ -270,7 +278,7 @@ try:
     check("the width is locked", js(f"return {SK}.f.dims.some(x => x.t === 'len')"))
     ps0, rb = rect()
     box_around(rb)
-    press("More")
+    show_all()
     press("Scale")
     time.sleep(0.6)
     keys(Keys.ENTER)
@@ -283,7 +291,7 @@ try:
 
     # --- ┄ construction for all, back; ✕ Delete all, Ctrl+Z
     everything()
-    press("More")
+    show_all()
     press("Make it construction")
     check("┄ all construction", js(f"return {SK}.f.entities.every(e => e.construction)"))
     keys("z", ctrl=True)
@@ -298,7 +306,8 @@ try:
     d.find_element(By.TAG_NAME, "body").send_keys(Keys.DELETE)
     time.sleep(0.6)
 
-    # --- the short lists
+    # --- the short lists (⋯ Show all closed again)
+    js("sessionStorage.removeItem('a3d.suggestAll')")
     tool("line")
     click_uv((0, 0 + 5))
     click_uv((40, 5))

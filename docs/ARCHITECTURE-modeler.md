@@ -86,6 +86,19 @@ Date: 2026-10-25. Written by the architect agent.
   the rod too short and back). Left: the loop solve is in the browser only (no Python tests — there is no JS
   runner); sub-assemblies' own loops solve in their engine (innerAsm) but a loop through a sub-assembly's moving
   part and this assembly's parts is not looked for.
+- **A short, ranked suggestions table done:** the owner asked for a clean table, the most relevant first. Every table
+  (a sketch's picks, a face of the 3D model, a placed part / a face in an assembly) goes through suggest.js
+  showSuggest, which now dedupes rows (same icon and label), keeps the N most relevant (a row's `rank`, else its place)
+  under their sections, and puts the rest behind a last row "⋯ Show all (n)" — it opens everything in sections in
+  place (remembered for the session, sessionStorage a3d.suggestAll; "▴ Fewer" closes it). N (3…30, default 8) is set
+  in the table's own header: "Suggested" opens a small number field (localStorage a3d.suggestTop). Ranks: a sketch —
+  the likeliest four (a size, the relation nearest to true), Delete, then for one / two shapes the other relations,
+  construction, the edits (for more shapes the edits first); the sketch's own "More…" is gone. A flat face — ✏ Sketch
+  on it, ◎ Hole, ◜ Fillet, ◸ Chamfer, ✎ Edit, text, shell, ✕ Delete (mirror, split, turn off, threads under Show
+  all); a round face — its edges, threads, edit. A placed part — 🔗 Join, ◆ Open its part, ✎ Edit here, 📌 Fix …; an
+  assembly face — its joints (touch / gap / flush / concentric / tangent) first, the part's actions under them.
+  e2e_suggest (14 checks), e2e_sketch_multiselect, e2e_model_split / threads updated. Not done: a drawing sheet has
+  no suggestions table (nothing to rank); "Extrude this face" is not a command yet.
 - **A threaded part's volume integrated once done:** kernel.volume keeps the last 4 shapes' volumes — the part with
   🔩 real threads was integrated after its cut (the check that something was cut) and again when meshed (the adaptive
   rule on helical faces: ~3 s). The 29-step model with 9 real threads (tools/e2e_perf.py model): its rebuild after a

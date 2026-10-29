@@ -81,8 +81,48 @@ function cornerPlace(box, viewport) {
   box.style.maxHeight = vr.height ? `${Math.max(150, vr.height - top - (parseFloat(getComputedStyle(box).bottom) || 34))}px` : '';
 }
 
+const TOP_KEY = 'a3d.suggestTop', ALL_KEY = 'a3d.suggestAll';
+/** How many suggestions show before ⋯ Show all (the user's setting, 3…30; default 8). */
+export function suggestLimit() {
+  let v = NaN;
+  try { v = parseInt(localStorage.getItem(TOP_KEY), 10); } catch { /* private window */ }
+  return Number.isFinite(v) && v >= 3 && v <= 30 ? v : 8;
+}
+export function setSuggestLimit(n) {
+  const v = Math.round(+n);
+  try { if (Number.isFinite(v)) localStorage.setItem(TOP_KEY, String(Math.min(30, Math.max(3, v)))); } catch { /* private window */ }
+}
+/** ⋯ Show all opened: every table shows everything until ▴ Fewer (for this session). */
+const showingAll = () => { try { return sessionStorage.getItem(ALL_KEY) === '1'; } catch { return false; } };
+const setShowingAll = (on) => { try { if (on) sessionStorage.setItem(ALL_KEY, '1'); else sessionStorage.removeItem(ALL_KEY); } catch { /* private window */ } };
+
+/** The rows to show: the same action twice (icon and label) once; more than the limit: only the most relevant ones
+ *  (rank: lower first — none: its place in the list), kept in the list's order, under their sections. */
+function pickRows(items, all) {
+  const seen = new Set(), acts = [];
+  items.forEach((it, i) => {
+    if (it.section !== undefined) return;
+    const key = `${it.icon || ''}|${it.label}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    acts.push({ i, r: Number.isFinite(it.rank) ? it.rank : i });
+  });
+  const over = acts.length > suggestLimit();
+  const keep = new Set((over && !all ? [...acts].sort((a, b) => a.r - b.r || a.i - b.i).slice(0, suggestLimit()) : acts).map((a) => a.i));
+  let sec = null;
+  const rows = [];
+  items.forEach((it, i) => {
+    if (it.section !== undefined) { sec = it; return; }
+    if (!keep.has(i)) return;
+    if (sec) { rows.push(sec); sec = null; } // (a heading only above rows that show)
+    rows.push({ ...it, i });
+  });
+  return { rows, total: acts.length, over };
+}
+
 /** Show (or with no items: remove) the table in `viewport`: title (what is selected), items [{icon, label, title,
- *  run, danger}], hint (a line under it), refs (what is selected, as the AI's tools name it: ✨ puts it in the chat). */
+ *  run, danger, rank} or {section}], hint (a line under it), refs (what is selected, as the AI's tools name it: ✨ puts
+ *  it in the chat). More rows than the user's limit (suggestLimit): the most relevant ones, then ⋯ Show all (n). */
 export function showSuggest(viewport, title, items, hint = '', refs = '') {
   let box = viewport.querySelector(':scope > .view-suggest');
   if (!items?.length) { box?.remove(); return null; }
@@ -92,12 +132,31 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
     for (const ev of ['pointerdown', 'pointerup', 'click', 'dblclick']) box.addEventListener(ev, (x) => x.stopPropagation());
     viewport.appendChild(box);
   }
+  const again = () => showSuggest(viewport, title, items, hint, refs);
+  const all = showingAll(), { rows, total, over } = pickRows(items, all), setting = box.dataset.setting === '1';
   box.dataset.noI18n = '';
-  box.innerHTML = `<div class="vs-head"><b>${esc(title)}</b><span>${esc(t('Suggested'))}</span>${refs && askAI ? `<button class="vs-ai" title="${esc(t('Ask the AI about it — what is selected goes into the chat'))}">✨</button>` : ''}</div>
-    <div class="vs-list">${items.map((it, i) => (it.section !== undefined ? `<div class="vs-sec">${esc(it.section)}</div>` // (a heading: what the rows under it act on)
-      : `<button data-sg="${i}" class="${it.danger ? 'danger' : ''}" title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span></button>`)).join('')}</div>
+  box.innerHTML = `<div class="vs-head"><b>${esc(title)}</b><button class="vs-set${setting ? ' on' : ''}" title="${esc(t('How many suggestions show before ⋯ Show all — click to change'))}">${esc(t('Suggested'))}</button>${refs && askAI ? `<button class="vs-ai" title="${esc(t('Ask the AI about it — what is selected goes into the chat'))}">✨</button>` : ''}</div>
+    ${setting ? `<label class="vs-top" title="${esc(t('The most relevant suggestions first; the rest under ⋯ Show all'))}">${esc(t('Show first'))} <input type="number" min="3" max="30" step="1" value="${suggestLimit()}"> ${esc(t('suggestions'))}</label>` : ''}
+    <div class="vs-list">${rows.map((it) => (it.section !== undefined ? `<div class="vs-sec">${esc(it.section)}</div>` // (a heading: what the rows under it act on)
+      : `<button data-sg="${it.i}" class="${it.danger ? 'danger' : ''}" title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span></button>`)).join('')}${!over ? ''
+      : all ? `<button class="vs-more" data-sg-fewer title="${esc(t('Only the most relevant suggestions'))}"><span class="vs-i">▴</span> <span>${esc(t('Fewer'))}</span></button>`
+        : `<button class="vs-more" data-sg-all title="${esc(t('Everything that can be done with what is selected'))}"><span class="vs-i">⋯</span> <span>${esc(t('Show all'))} (${total})</span></button>`}</div>
     ${hint ? `<p class="vs-hint">${esc(hint)}</p>` : ''}`;
   for (const b of box.querySelectorAll('[data-sg]')) b.addEventListener('click', () => items[+b.dataset.sg].run());
+  box.querySelector('[data-sg-all]')?.addEventListener('click', () => { setShowingAll(true); again(); });
+  box.querySelector('[data-sg-fewer]')?.addEventListener('click', () => { setShowingAll(false); again(); });
+  box.querySelector('.vs-set').addEventListener('click', () => { // (the setting: a small number field under the head)
+    box.dataset.setting = setting ? '' : '1';
+    again();
+    box.querySelector('.vs-top input')?.select();
+  });
+  const top = box.querySelector('.vs-top input');
+  top?.addEventListener('change', () => { setSuggestLimit(top.value); again(); box.querySelector('.vs-top input')?.focus(); });
+  top?.addEventListener('keydown', (e) => {
+    e.stopPropagation(); // (not the app's keys: Delete, Esc …)
+    if (e.key === 'Enter') { setSuggestLimit(top.value); box.dataset.setting = ''; again(); }
+    if (e.key === 'Escape') { box.dataset.setting = ''; again(); }
+  });
   box.querySelector('.vs-ai')?.addEventListener('click', (e) => { e.stopPropagation(); askAI(refs); });
   box.querySelector('.vs-ai')?.addEventListener('pointerdown', (e) => e.stopPropagation()); // (not a drag of the table)
   floatBox(box, viewport, { kind: 'suggest', handle: '.vs-head', min: [170, 90], onDefault: (b) => cornerPlace(b, viewport) }); // (moved / resized / remembered)
