@@ -16,8 +16,10 @@ Date: 2026-10-25. Written by the architect agent.
   — sheet.js baseOf: the part fixed 📌, else the one most joints are made onto, else the first (not a fastener); in
   sourceHash only when it is not the first (old sheets keep their revision). asmCheck asks for the mounting holes
   (each linked to base#x0 / base#y0 in its view: a pitch its row, a PCD its holes; "a mounting hole (Ø5)", ＋ from
-  base#x…). test_assembly_sheet_mounting_holes (4 holes, 2 pinned: 8 / 42, 64; base a pin: none; all filled: none);
-  tools/e2e_assembly_sheet.py (Mount).
+  base#x…). A view dragged or given its own scale: Sheet.replace() -> /api/sheet/place (sheet.place with lay.views
+  where the user put them and lay.vscale; _Paper.sc per view) — also after a rebuild when views are moved.
+  test_assembly_sheet_mounting_holes (4 holes, 2 pinned: 8 / 42, 64; base a pin: none; all filled: none),
+  test_place_for_moved_and_scaled_views, TestSheetRoutes.test_place_again; tools/e2e_assembly_sheet.py (Mount).
   Left out: a mounting hole's Ø (positions only — the base part's sheet gives it), a hole of a sub-assembly's part as
   the base, a hole half split into two faces.
 - **Hole positions drawn on the sheet done:** sheet.auto_dims places each hole step's holes of one size (a counterbore's

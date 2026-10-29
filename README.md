@@ -556,8 +556,8 @@ are one Ø and two pitches, not 400 dimensions). **Where the holes are** is draw
 measured from the part's left and bottom edge (ISO 129): a row / grid as its first hole and its pitch, holes evenly
 round a centre (⁂ Pattern around, a bolt circle) as their centre and one dash-dot pitch circle *PCD Ø60 · 6× 60°*, up
 to 3 holes each from the edges, more as **ordinates** (one row each way, the edge's *0*, the values moved apart where
-they would touch). They are placed clear of the other views, the frame, the title block and the other dimensions;
-drag / Del them like any dimension. Each hole step gets **one callout** in the view that shows its holes
+they would touch). They are placed clear of the other views, the frame, the title block and the other dimensions —
+placed again when you drag a view or give it its own scale; drag / Del them like any dimension. Each hole step gets **one callout** in the view that shows its holes
 round, with everything needed to make them (ISO 129 symbols): *4× Ø3.4 THRU*, *M5 ↧ 8* (a blind thread, its depth),
 *Ø3.4 ⌴ Ø6 ↧ 3.2* (a counterbore), *M3 ⌵ Ø5 × 90°* (a countersink), *Ø8 H7 THRU* (a fit), *Ø6 THRU ▲* (a teardrop) —
 the head's circle is not given again. Each size is given once on the sheet — a view whose sizes are all in

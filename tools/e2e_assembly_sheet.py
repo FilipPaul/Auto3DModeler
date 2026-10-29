@@ -8,7 +8,7 @@ Pages goes to it, a double-click opens a page to edit -> a dimension of the user
 drawing set (📄 Drawings (PDF)): its first page is this sheet, with the note -> the AI's sheet_open of an assembly ->
 Mount = Plate (4 corner holes) + 2 pins in two of them: the 2 free holes (mounting holes) dimensioned in the top view
 from the plate's edges (8 / 42, 64), none of the pins'; the check asks for them (the pitch removed: one missing, ＋ adds
-it from base#x0).
+it from base#x0) -> the Top view at 3:2: its dimensions placed again.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_assembly_sheet.py http://127.0.0.1:5199 <out dir>
 """
@@ -198,6 +198,15 @@ try:
     assert g3["check"]["fully_dimensioned"]
     js(f"{S}.sel = null; {S}.render()")
     d.save_screenshot(f"{OUT}/assembly_sheet_mounting.png")
+    # a view at its own scale: its dimensions placed clear again for it (sheet.place on the server)
+    before = js(f"return {S}.d.built.dims")
+    js(f"{S}.setViewScale('Top', [3, 2])")
+    time.sleep(1.5)
+    after = js(f"return {S}.d.built.dims")
+    moved = [a["id"] for a, b in zip(after, before) if {k: a.get(k) for k in ("side", "off", "ang", "len", "sh")} != {k: b.get(k) for k in ("side", "off", "ang", "len", "sh")}]
+    print("  Top at 3:2: placed again —", len(moved), "dimension(s) moved")
+    assert moved
+    d.save_screenshot(f"{OUT}/assembly_sheet_mounting_scaled.png")
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()

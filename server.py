@@ -903,6 +903,18 @@ def api_sheet_assembly():
     return _sheet_layout(data, body)
 
 
+@app.post("/api/sheet/place")
+def api_sheet_place():
+    """{geometry, layout (its views where the user moved them, vscale: {view: [a, b]}), dims} -> {dims} — the holes'
+    positions and callouts placed clear again after a view was moved or given its own scale (sheet.place)."""
+    from auto3d.modeler.sheet import place
+    body = request.get_json(force=True)
+    try:
+        return jsonify({"dims": place(body["geometry"], body["layout"], body.get("dims") or [])})
+    except (ValueError, TypeError, KeyError, IndexError) as exc:
+        return jsonify({"error": f"The dimensions could not be placed: {exc}"}), 400
+
+
 @app.post("/api/sheet/pdf")
 def api_sheet_pdf():
     """{svg | svgs: [...], name} -> the sheet (or a drawing set, a page each) as a PDF, drawn as the editor shows it."""

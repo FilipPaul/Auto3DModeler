@@ -626,10 +626,14 @@ class _Paper:
     def __init__(self, geo, lay):
         self.geo, self.s = geo, lay["scale"][0] / lay["scale"][1]
         self.at = {v: c for v, c in lay["views"].items() if v in geo["views"]}
+        self.vs = {v: s[0] / s[1] for v, s in (lay.get("vscale") or {}).items() if s and s[1]}  # (a view at its own scale)
+
+    def sc(self, v):
+        return self.vs.get(v, self.s)
 
     def P(self, v, p):
-        b, (cx, cy) = self.geo["views"][v]["box"], self.at[v]
-        return cx + (p[0] - (b[0] + b[2]) / 2) * self.s, cy - (p[1] - (b[1] + b[3]) / 2) * self.s
+        b, (cx, cy), s = self.geo["views"][v]["box"], self.at[v], self.sc(v)
+        return cx + (p[0] - (b[0] + b[2]) / 2) * s, cy - (p[1] - (b[1] + b[3]) / 2) * s
 
     def box(self, v):
         b = self.geo["views"][v]["box"]
@@ -670,7 +674,7 @@ class _Paper:
             return [(lo - 0.5, at - FS - 1, hi + 0.5, at + 0.6) if k == 0 else (at - FS - 1.2, lo - 0.5, at + 0.6, hi + 0.5)]
         if d["kind"] in ("dia", "pcd"):
             c = next((c for c in (g["circles"] if d["kind"] == "dia" else g.get("rings") or ()) if c["key"] == d["a"]), None)
-            C, R, a = self.P(v, c["c"]), c["r"] * self.s, math.radians(d.get("ang", 45))
+            C, R, a = self.P(v, c["c"]), c["r"] * self.sc(v), math.radians(d.get("ang", 45))
             u, ln = (math.cos(a), -math.sin(a)), d.get("len", 6)
             end, w = (C[0] + u[0] * (R + ln), C[1] + u[1] * (R + ln)), len(_text(self.geo, d, val)) * FS * 0.52 + 1
             x0, x1 = (end[0], end[0] + w) if u[0] >= 0 else (end[0] - w, end[0])
@@ -704,7 +708,8 @@ def place(geo, lay, dims):
     that would touch moved apart along it (sh, from the edge's 0 on); a view's hole positions on a side where they run
     into another view, the frame, the title block or other dimensions moved to the view's other side when they are
     clearer there (after its dimensions); a callout whose text is in the way turned / lengthened to the first clear
-    place, outside its own view when it can be. -> the dims (new dicts; the rest as they were)."""
+    place, outside its own view when it can be. lay.views: where the views are (moved by the user too), lay.vscale:
+    {view: [a, b]} a view's own scale. -> the dims (new dicts; the rest as they were)."""
     pp, dims = _Paper(geo, lay), [dict(d) for d in dims]
     for row in _rows([d for d in dims if d["view"] in pp.at]).values():
         k = 0 if row[0]["dir"] == "h" else 1

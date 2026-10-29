@@ -84,6 +84,18 @@ class TestSheetRoutes(unittest.TestCase):
         r = self.c.post("/api/sheet/assembly", json={"instances": []})
         self.assertEqual((r.status_code, r.get_json()["error"]), (422, "The assembly has no solids to draw."))
 
+    def test_place_again(self):
+        """/api/sheet/place: a sheet's dimensions placed for its views where the user put them (a dim back for each);
+        a broken request says why (400)."""
+        built = self.c.post("/api/sheet/build", json={"part": box(80, 50, 5)}).get_json()
+        lay = {**built["layout"], "vscale": {"Top": [3, 2]}}
+        r = self.c.post("/api/sheet/place", json={"geometry": built["geometry"], "layout": lay, "dims": built["dims"]})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual([d["id"] for d in r.get_json()["dims"]], [d["id"] for d in built["dims"]])
+        r = self.c.post("/api/sheet/place", json={"geometry": {}, "layout": lay, "dims": built["dims"]})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("could not be placed", r.get_json()["error"])
+
     def test_too_slow_exact_drawing_falls_back_to_the_mesh(self):
         """The exact drawing over its limit is stopped (the kernel process killed) and made again from the mesh."""
         pool, run, asked = self.server.MODEL_WORKER, self.server.MODEL_WORKER.run, []

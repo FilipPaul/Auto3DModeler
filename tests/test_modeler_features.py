@@ -1268,6 +1268,22 @@ class TestSheet(unittest.TestCase):
         self.assertTrue(any(d.get("sh") for d in r["dims"] if d.get("ord")))
         self.assertEqual(sheet.overlaps(r["geometry"], r["layout"], r["dims"]), [])
 
+    def test_place_for_moved_and_scaled_views(self):
+        """A view at its own scale (lay.vscale, 3:2 on a 1:1 sheet): drawn bigger (the paper's P), its hole positions
+        running into the frame there -> place() puts them clear again; a view moved (lay.views): placed for where it is."""
+        from auto3d.modeler import sheet
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [40, 25, 5], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        r = doc.sheet({"features": box(80, 50, 5) + [{"id": "H1", "type": "hole", "plane": top, "points": [[x, y] for x in (-32, 32) for y in (-17, 17)], "d": 5, "through": True}]}, "medium")
+        g, lay, dims = r["geometry"], r["layout"], r["dims"]
+        self.assertEqual(lay["scale"], [1, 1])
+        big = {**lay, "vscale": {"Top": [3, 2]}}
+        b0, b1 = sheet._Paper(g, lay).box("Top"), sheet._Paper(g, big).box("Top")
+        self.assertAlmostEqual((b1[2] - b1[0]) / (b0[2] - b0[0]), 1.5, places=3)
+        self.assertTrue(sheet.overlaps(g, big, dims))
+        self.assertEqual(sheet.overlaps(g, big, sheet.place(g, big, dims)), [])
+        moved = {**lay, "views": {**lay["views"], "Top": [lay["views"]["Top"][0], lay["views"]["Top"][1] - 10]}}
+        self.assertEqual(sheet.overlaps(g, moved, sheet.place(g, moved, dims)), [])
+
     def test_view_presets(self):
         """A view's own preset: the top medium while the sheet is light (the rest of the sheet stays light)."""
         light = doc.sheet(self.part, "light")["dims"]

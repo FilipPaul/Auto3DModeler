@@ -323,6 +323,7 @@ export class SheetEditor {
     this.busy = false;
     this.render();
     this.hooks.onChange?.();
+    if (!this.error && this.relaid()) this.replace(); // (made for the layout's places: the user's moved views placed for)
   }
 
   // ------------------------------------------------------------------ geometry on the paper
@@ -482,6 +483,28 @@ export class SheetEditor {
     if (s) vs[v] = s; else delete vs[v];
     this.d.vscale = vs;
     this.commit();
+    this.replace();
+  }
+
+  /** Has the user moved a view, or given one its own scale? (Then the server's placing is for another layout.) */
+  relaid() {
+    return Object.keys(this.d.vscale || {}).length > 0 || this.drawn().some((v) => this.d.views[v] && this.lay?.views[v] && Math.hypot(this.d.views[v][0] - this.lay.views[v][0], this.d.views[v][1] - this.lay.views[v][1]) > 0.01);
+  }
+
+  /** A view moved by hand or at its own scale: the holes' positions and callouts placed clear again where the views
+   *  are now (sheet.py place) — the automatic ones; a dimension the user moved stays where they put it. */
+  async replace() {
+    const b = this.d.built, G = this.geo;
+    if (!b?.dims?.some((d) => d.pos || d.kind === 'dia' || d.kind === 'pcd') || !G) return;
+    const views = Object.fromEntries(this.drawn().filter((v) => G.views[v] && this.centre(v)).map((v) => [v, this.centre(v)]));
+    const slim = { iso: this.isoBox ? 1 : 0, holes: G.holes || {}, views: Object.fromEntries(Object.keys(views).map((v) => [v, { box: G.views[v].box, points: G.views[v].points, circles: G.views[v].circles, rings: G.views[v].rings || [], lines: [] }])) };
+    const ib = this.isoBox, iso = ib ? [(ib[0] + ib[2]) / 2, (ib[1] + ib[3]) / 2, Math.max(ib[2] - ib[0], ib[3] - ib[1])] : null;
+    let r;
+    try { r = await post('/api/sheet/place', { geometry: slim, layout: { ...this.lay, views, iso, scale: this.scaleArr(), vscale: this.d.vscale || {} }, dims: b.dims }); } catch { return; }
+    if (this.d.built !== b) return; // (built again meanwhile)
+    b.dims = r.dims; // (an off view's: as they were)
+    this.render();
+    this.hooks.onChange?.();
   }
 
   /** Rename a view ('' or its standard name: back to that). */
@@ -1882,7 +1905,7 @@ export class SheetEditor {
     this.stage.addEventListener('pointerup', () => {
       const had = this.guides?.length;
       this.guides = null;
-      if (drag?.moved && drag.kind !== 'pan') this.commit(); else if (had) this.render();
+      if (drag?.moved && drag.kind !== 'pan') { this.commit(); if (drag.kind === 'view') this.replace(); } else if (had) this.render(); // (a view dropped: its dimensions placed clear again)
       drag = null;
     });
     this.stage.addEventListener('scroll', () => { if (this.setMode) this.markSeen(); });

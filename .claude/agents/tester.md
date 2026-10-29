@@ -189,7 +189,7 @@ Never report "works" without having run it; report failures with their output.
    Pages → Machine scrolls to the top, a double-click on page 3 opens it to edit; no presets / check; a dimension and a note of the user's; the Lid moved:
    Rev 2, the height 34, the note kept; the drawing set's first page has the note; the AI's sheet_open of an assembly;
    Mount = Plate with 4 holes + 2 pins in two: the 2 free mounting holes dimensioned from the plate's edges 8 / 42, 64,
-   the check asks for them, ＋ adds one from base#x0).
+   the check asks for them, ＋ adds one from base#x0; the Top view at 3:2: its dimensions placed again).
    `tools/e2e_sheet_edges.py <url> <dir>` covers ＋ Dimension by edges with real clicks (an edge lit under the mouse;
    twice: its length 40; left + right edges: 40 across; an edge + a hole's centre: 10 up; an edge + Enter: 20; two
    crossing edges refused).
