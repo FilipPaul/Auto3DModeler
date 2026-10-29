@@ -128,6 +128,8 @@ try:
     parts = js(f"return document.querySelector('{W} .vr-row[data-v=\"{row_of('B')['id']}\"] .vr-parts')?.textContent")
     check(parts == "Změněno: Kvádr", f"B says which part changed: {parts}")
     check("automaticky" in labels or len(labels) == 2, f"automatic versions are labelled “automaticky”: {labels}")
+    cur = js(f"return [...document.querySelectorAll('{W} .vr-row.cur')].map(r => r.dataset.v + ' ' + (r.querySelector('.vr-tag')?.textContent || ''))")
+    check(len(cur) == 1 and cur[0].startswith(r[0]["id"]) and "aktuální" in cur[0], f"the newest (B) is marked ● aktuální: {cur}")
     shot("timeline")
 
     # ---- ⇄ compare A with now
@@ -146,6 +148,8 @@ try:
     check(abs(v - 2000) < 1e-3, f"previewing A: the part is at 10 ({v})")
     check("Prohlížíte verzi z" in banner and "Zpět na aktuální" in banner and "Obnovit tuto verzi" in banner, f"the banner: {banner!r}")
     check(row_of("A")["on"], "A is marked in the timeline")
+    tags = js(f"return [...document.querySelectorAll('{W} .vr-tag')].map(x => x.textContent)")
+    check(any("prohlížíte" in x for x in tags) and any("aktuální" in x for x in tags), f"A says 👁 prohlížíte, B still ● aktuální: {tags}")
     shot("preview")
     d.find_element(By.ID, "newModelBtn").click()
     body = d.find_element(By.TAG_NAME, "body")

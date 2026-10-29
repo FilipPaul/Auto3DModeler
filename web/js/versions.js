@@ -281,10 +281,12 @@ export class Versions {
 
   row(m, { base = false } = {}) {
     const l = this.label(m), on = this.preview?.vid === m.id;
+    const cur = !base && m.id === this.data?.versions?.[0]?.id; // (the newest of this variant: what the project is now)
+    const tag = on ? `<span class="vr-tag look">👁 ${esc(t('viewing'))}</span>` : cur ? `<span class="vr-tag cur">● ${esc(t('current'))}</span>` : '';
     const parts = m.changed?.length ? t2('Changed: {parts}', { parts: m.changed.join(', ') }) : '';
     const thumb = m.thumb ? `<img class="vr-thumb" alt="" loading="lazy" src="${esc(this.url(`/v/${m.id}/thumb`))}">` : '<span class="vr-thumb none">🕘</span>';
-    return `<div class="vr-row${on ? ' on' : ''}${base ? ' base' : ''}" data-v="${esc(m.id)}" tabindex="0" title="${esc(t('Click: look at it (read only)'))}">${thumb}
-      <div class="vr-text"><span class="vr-when">${base ? '⑂ ' : ''}${esc(when(m.time))}</span>
+    return `<div class="vr-row${on ? ' on' : ''}${cur ? ' cur' : ''}${base ? ' base' : ''}" data-v="${esc(m.id)}" tabindex="0" title="${esc(cur ? t('The current version: the project is as this one (with the changes since)') : t('Click: look at it (read only)'))}">${thumb}
+      <div class="vr-text"><span class="vr-when">${base ? '⑂ ' : ''}${esc(when(m.time))}${tag}</span>
         <span class="vr-label${l.auto ? ' auto' : ''}"${l.own ? ' data-no-i18n' : ''}>${esc(l.text)}</span>
         ${parts ? `<span class="vr-parts" data-no-i18n>${esc(parts)}</span>` : ''}</div>
       <span class="vr-acts"><button class="mini" data-cmp title="${esc(t('Compare with current'))}">⇄</button><button class="mini" data-var title="${esc(t('Create a variant from this version'))}">⑂</button></span></div>
