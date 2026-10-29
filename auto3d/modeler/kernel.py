@@ -2396,6 +2396,20 @@ def interference(shapes, min_volume=1e-3, only=None, quick=False):
     return sorted(out, key=lambda c: -c["volume"])
 
 
+def min_distance(a, b):
+    """📏 The least distance between two placed shapes (a clearance) -> {distance (mm), a, b: the nearest points [x, y,
+    z] on each}; 0 when they touch or go into each other (then `overlap`: True when one goes into the other)."""
+    from OCP.BRepExtrema import BRepExtrema_DistShapeShape
+    d = BRepExtrema_DistShapeShape(a, b)
+    if not d.IsDone() or d.NbSolution() < 1:
+        raise KernelError("The distance between the parts could not be worked out.")
+    pa, pb = d.PointOnShape1(1), d.PointOnShape2(1)
+    out = {"distance": round(float(d.Value()), 6), "a": _round([pa.X(), pa.Y(), pa.Z()], 5), "b": _round([pb.X(), pb.Y(), pb.Z()], 5)}
+    if out["distance"] < 1e-6 and interference([("a", a), ("b", b)]):
+        out["overlap"] = True
+    return out
+
+
 def compound(shapes):
     from OCP.BRep import BRep_Builder
     from OCP.TopoDS import TopoDS_Compound

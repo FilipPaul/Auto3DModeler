@@ -1798,6 +1798,29 @@ class TestAssemblyClashes(unittest.TestCase):
         self.assertGreaterEqual(quick[0]["volume"], exact[0]["volume"] - 1e-6)  # an upper bound
         self.assertNotIn("approx", K.interference([a, b], quick=True)[0])  # (few enough: computed)
 
+    def test_clearance(self):
+        """📏 Two parts apart: the least distance between them and the nearest points; touching: 0; one into the
+        other: 0 and overlap."""
+        part = {"features": box(20, 20, 10)}
+        at = lambda x, y=0, z=0: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1]  # noqa: E731
+        r = doc.assembly_clearance([{"id": "I1", "part": part, "matrix": at(0)}, {"id": "I2", "part": part, "matrix": at(27.5, 5)}])
+        self.assertEqual((r["a"], r["b"]), ("I1", "I2"))
+        self.assertAlmostEqual(r["distance"], 7.5, places=4)
+        self.assertAlmostEqual(r["pa"][0], 20, places=4)
+        self.assertAlmostEqual(r["pb"][0], 27.5, places=4)
+        self.assertNotIn("overlap", r)
+        touch = doc.assembly_clearance([{"id": "I1", "part": part, "matrix": at(0)}, {"id": "I2", "part": part, "matrix": at(0, 0, 10)}])
+        self.assertAlmostEqual(touch["distance"], 0, places=6)
+        self.assertNotIn("overlap", touch)
+        into = doc.assembly_clearance([{"id": "I1", "part": part, "matrix": at(0)}, {"id": "I2", "part": part, "matrix": at(15, 5)}])
+        self.assertTrue(into["overlap"])
+        group = doc.assembly_clearance([{"id": "I1", "part": part, "matrix": at(0)}, {"id": "I3/I1", "part": part, "matrix": at(0, 0, 13)},
+                                        {"id": "I3/I2", "part": part, "matrix": at(30)}], a=["I3/I1", "I3/I2"])  # (a sub-assembly's two parts)
+        self.assertEqual(group["a"], "I3/I1")
+        self.assertAlmostEqual(group["distance"], 3, places=4)
+        with self.assertRaises(Exception):
+            doc.assembly_clearance([{"id": "I1", "part": part, "matrix": at(0)}])
+
     def test_sweep(self):
         """A block slid along X past a still one: it hits it only on the way; a clash of two still parts is not told."""
         part = {"features": box(20, 20, 10)}

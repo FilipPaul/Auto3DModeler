@@ -1755,6 +1755,23 @@ def assembly_clashes(instances, quick=False):
     return K.interference(shapes, quick=quick)
 
 
+def assembly_clearance(instances, a=None):
+    """📏 The clearance between two placed parts of an assembly: instances [{id, part: {features}, matrix: [16]}] (two;
+    or a sub-assembly's parts: a = the ids on one side, the rest on the other) -> {a, b (the ids of the two sides'
+    first parts), distance (mm), pa, pb (the nearest points), overlap?}."""
+    one = set(a) if a else {(instances or [{}])[0].get("id")}
+    sides = [[i for i in instances or [] if i.get("id") in one], [i for i in instances or [] if i.get("id") not in one]]
+    if len(instances or []) < 2 or not all(sides):
+        raise K.KernelError("The clearance is measured between two parts.")
+    shapes = []
+    for side in sides:
+        got = [K.placed(body_of(i.get("part"), threads=False).body.shape, i.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]) for i in side]
+        shapes.append(got[0] if len(got) == 1 else K.compound(got))
+    r = K.min_distance(*shapes)
+    return {"a": sides[0][0].get("id"), "b": sides[1][0].get("id"), "distance": r["distance"], "pa": r["a"], "pb": r["b"],
+            **({"overlap": True} if r.get("overlap") else {})}
+
+
 def assembly_sweep(instances, steps):
     """Collisions along a motion: instances as for assembly_clashes (where they are at the start), steps [{at,
     matrices: {id: [16]}}] (the parts that moved, where they are at that step) -> [{at, clashes}] — only the
