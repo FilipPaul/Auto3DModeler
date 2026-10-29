@@ -1999,6 +1999,7 @@ const assembly = new Assembly({ left: $('asmLeft'), viewport: $('asmViewport'), 
   editInPlace: async (id, ctx) => { await project.switchTo(id); if (project.active === id) modeler.setContext(ctx); },
   openPart: (id) => project.switchTo(id),
   openLibrary: () => library.open(), // (📚 From the library… in the Insert menu and the Suggested table)
+  openSheet: (id) => { const p = project.parts.find((q) => q.id === id); if (p) project.newSheet(id, `${p.name} — ${t('drawing')}`); }, // (📄 Drawing of the part: a placed part's sheet)
   drawingSet: () => drawingSetPdf(project.active),
   newSheet: () => { const p = project.current; if (p) project.newSheet(p.id, `${p.name} — ${t('drawing')}`); },
   selfId: () => project.active, // the assembly on screen (it may not go into itself)

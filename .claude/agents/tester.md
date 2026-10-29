@@ -248,7 +248,7 @@ Never report "works" without having run it; report failures with their output.
    its first suggestion ◎ Na čep Základna · Ø10 (seated) -> ＋ Ojnice: ◎ onto the crank's pin -> ＋ Smýkadlo: ⧉ Položit na
    Základna, ◎ Do díry v Ojnice — a closed loop, every joint holds -> 🏷 Přejmenovat (typed) -> Esc: the whole
    assembly's table: ⚙ Ovládat mechanismus, 💥 Rozložit / Složit zpět, ✂ Řez / Vypnout řez, ⚠ collisions (Esc closes
-   the list), 📏 Změřit vzdálenost, 📋 Kusovník, ✕ Vyjmout (Ctrl+Z), 📄 Výkres sestavy; the toolbar in ≤ 2 rows,
+   the list), 📏 Změřit vzdálenost, 📋 Kusovník, ✕ Vyjmout (Ctrl+Z), 📄 Výkres dílu (the crank's sheet), 📄 Výkres sestavy; the toolbar in ≤ 2 rows,
    🔗 Vazba ▾ (Esc closes it), the part panel's 🎨 Vzhled a úpravy and the overview's 🔗 Vazby (n) folded; the clicks per
    task printed. Exits 1 on a failed check.
    `tools/e2e_assembly_insert_view.py <url> <dir>` covers the view after an insert (the first part: iso, seen; zoomed

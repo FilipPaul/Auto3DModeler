@@ -18,7 +18,7 @@ Date: 2026-10-25. Written by the architect agent.
   ⚠ Ukázat kolize (n), 🔩 Přidat spojovací prvky (n) (findCandidates), ＋ the parts not placed yet, 💥 Rozložit / Složit
   zpět, ✂ Řez, 📏, 📋 Kusovník, 📄 Výkres sestavy …; cached by the parts' places and joints). partItems ranked: the pin /
   put-on / drive first, then join, open, ↻ Otočit o 90° / ⤵ Položit na bok (loose parts), 📌 (not on a joined part: a
-  dead end), ✕, 🏷 Přejmenovat, ⊕ Ještě jeden; 🪶 left the table (a property: in the panel). Esc: a menu, the
+  dead end), ✕, 🏷 Přejmenovat, 📄 Výkres dílu (hooks.openSheet; ⊕ one more copy stays in the list row); 🪶 left the table (a property: in the panel). Esc: a menu, the
   collisions / fasteners list, then the chosen part (back to the whole assembly's table). Toolbar in one row of
   names where it fits (data-max-rows 2 for compactbar.js: icons when more): 🔗 Vazba ▾ (the joint types and
   🔩 Šroub / kolík in a menu; the chip shows the active type), 💥 Rozložit ▾ (the slider and "Podle vazeb"); menus

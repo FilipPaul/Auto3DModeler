@@ -584,7 +584,8 @@ export class Assembly {
         : { icon: '🔓', label: t('Unlock and edit it here'), rank: 9, title: t('Its part can be changed from this assembly then'), run: () => { this.toggleEditable(a.part); this.editInPlace(a.id); } }] : []),
       ...(joined && !a.fixed ? [] : [{ icon: '📌', label: t(a.fixed ? 'Free it (not fixed)' : 'Fix in place'), rank: 5.5, title: t('A fixed part stays put: joints bring the other parts to it'), run: () => this.toggleFixed(a.id) }]), // (a joined part hangs on its joints: not fixed)
       { icon: '🏷', label: t('Rename'), rank: 8, title: t('Rename its part (its tab too)'), run: () => this.renameSel(a.id) },
-      { icon: '⊕', label: t('One more of it'), rank: 10, title: t('Another copy of this part, beside the others'), run: () => this.insert(a.part, a) },
+      ...(this.hooks.openSheet && !a.fastener ? [{ icon: '📄', label: t(this.kindOf(a.part) === 'assembly' ? 'Drawing of the assembly' : 'Drawing of the part'), rank: 6.5,
+        title: t('Its drawing sheet: views and dimensions, ready to print as PDF — it follows the part'), run: () => this.hooks.openSheet(a.part) }] : []), // (as 📄 Drawing in the bar does for the assembly)
       ...(this.hooks.duplicatePart ? [{ icon: '⧉', label: t('Make it its own part'), rank: 13, title: t('A copy of its part for this place only'), run: () => this.ownPart(a.id) }] : []),
       { icon: '✕', label: t('Take it out'), rank: 7, danger: true, title: t('Out of the assembly (Delete) — Ctrl+Z brings it back'), run: () => this.removeInst(a.id) },
     ];
@@ -659,7 +660,7 @@ export class Assembly {
     if (n > 1 && !clash) items.push({ icon: '⚠', label: t('Check for collisions'), rank: 5, title: t('Where parts overlap — the list, each one shown in the view'), run: () => this.toggleClashes() });
     items.push({ icon: '📏', label: t('Measure distances'), rank: 6, title: t('Click a spot, then another one — the distance'), run: () => this.toggleMeasure() });
     items.push({ icon: '📋', label: t('Bill of materials'), rank: 7, title: t('Every part with its quantity, material and mass'), run: () => this.openBom() });
-    if (this.hooks.newSheet) items.push({ icon: '📄', label: t('Drawing of the assembly'), rank: 8, title: t('Its views, parts list and balloons — it follows the assembly'), run: () => this.hooks.newSheet() });
+    if (this.hooks.newSheet) items.push({ icon: '📄', label: t('Drawing of the assembly'), rank: 3.5, title: t('Its views, parts list and balloons — it follows the assembly'), run: () => this.hooks.newSheet() });
     if (this.hooks.openLibrary) items.push({ icon: '📚', label: t('From the library…'), rank: 9, title: t('Standard parts (screws, bearings, motors …) — ⤵ Put into the assembly'), run: () => this.hooks.openLibrary() });
     if (n > 1) items.push({ icon: '🔩', label: t('Screw / pin through parts…'), rank: 10, title: t('Click where it goes in — the holes are drilled for it'), run: () => { this.fastenerPanel = false; this.startJoint('fastener'); this.render(); this.draw(); } });
     showSuggest(vp, title, items.map((x) => ({ ...x, run: async () => { await x.run(); this.renderSuggest(); } })), t('Click a part or a face: what fits it'));
