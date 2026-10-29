@@ -12,7 +12,7 @@ import { ChatPanel, startBridge, bridgeStats, CLIENT, keepChatClient } from './a
 import { AiHistory } from './aihistory.js';
 import { LibraryBrowser, saveToLibrary, libraryItems, matchScore, itemFromModel } from './library/browser.js';
 import { repaint } from './modeler/paint.js';
-import { moreHandlers, colouredGroups, screenshotUI } from './agent_more.js';
+import { moreHandlers, colouredGroups, screenshotUI, noteShot } from './agent_more.js';
 import { teachHandlers } from './agent_teach.js';
 import { buildPart, sizesOf, lengthsOf } from './library/build.js';
 import { Project } from './parts.js';
@@ -2469,7 +2469,8 @@ async function assemblyScreenshot({ view, fit = true, highlight } = {}) {
   if (view) assembly.view.setView({ side: 'right', back: 'front' }[view] || view);
   await nextFrames();
   const c = assembly.view.snapshot({ fit: fit !== false }); // (4:3, all of it — exploded too — in the picture, no hover glow)
-  return { text: `Assembly view (${view || 'current'})${assembly.explode ? `, exploded ${assembly.explode}` : ''}.`, image: c.toDataURL('image/png').split(',')[1] };
+  noteShot({ kind: 'view', view: assembly.view, ...assembly.view.shot }); // (gui_action's at: a point of this picture)
+  return { text: `Assembly view (${view || 'current'})${assembly.explode ? `, exploded ${assembly.explode}` : ''}, ${c.width} × ${c.height} px (gui_action / gui_highlight at = [x, y] are its pixels).`, image: c.toDataURL('image/png').split(',')[1] };
 }
 
 /** A drawing sheet on screen, as a picture (its SVG drawn on white). */
@@ -2487,7 +2488,8 @@ async function sheetScreenshot() {
   ctx.fillRect(0, 0, w, h);
   ctx.drawImage(img, 0, 0, w, h);
   URL.revokeObjectURL(url);
-  return { text: `Drawing sheet of ${project.current?.name || ''} (rev ${sheet.d?.rev || 1}).`, image: c.toDataURL('image/png').split(',')[1] };
+  noteShot({ kind: 'sheet', w, h, svg: () => sheet.svgEl });
+  return { text: `Drawing sheet of ${project.current?.name || ''} (rev ${sheet.d?.rev || 1}), ${w} × ${h} px (gui_action / gui_highlight at = [x, y] are its pixels).`, image: c.toDataURL('image/png').split(',')[1] };
 }
 
 // 𝑥 the project's parameters: the widget, number fields with expressions, the parts following a change
@@ -2509,6 +2511,7 @@ for (const [name, fn] of Object.entries(agentHandlers)) {
       throw new Error(`${name} is not for assemblies — use get_assembly, insert_part, snap_faces, place_part, or open_part a part.`);
     }
     if (state.workspace === 'model') {
+      if (name === 'get_screenshot') { const r = await MODEL.model_screenshot(...args); noteShot({ kind: 'view', view: modeler.view, ...modeler.view.shot }); return r; }
       if (SHARED[name]) return MODEL[SHARED[name]](...args);
       if (name === 'get_part') {
         const r = await MODEL.get_model();
@@ -2516,6 +2519,7 @@ for (const [name, fn] of Object.entries(agentHandlers)) {
       }
       throw new Error(`${name} is for quick parts (drawings, pictures, imports) — the part on screen is a 3D model: use add_feature / edit_feature / find_refs, or open_part another part.`);
     }
+    if (name === 'get_screenshot') noteShot(null); // (a quick part's picture: at is of the view again)
     return fn(...args);
   };
 }

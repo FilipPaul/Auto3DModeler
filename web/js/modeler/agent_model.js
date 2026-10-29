@@ -817,7 +817,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       await nextFrames();
       const c = m.view.snapshot({ fit: fit !== false, faces: lit.map((f) => f.id), over: drawLabels });
       const said = lit.length ? ` Lit in orange: ${[...new Set(lit.map((f) => f.name))].slice(0, 12).join(', ')}${lit.length > 12 ? ' …' : ''}.` : '';
-      return { text: `3D view (${view || 'current'}).${said} ${JSON.stringify(summary())}`, image: c.toDataURL('image/png').split(',')[1] };
+      return { text: `3D view (${view || 'current'}), ${c.width} × ${c.height} px (gui_action / gui_highlight at = [x, y] are its pixels).${said} ${JSON.stringify(summary())}`, image: c.toDataURL('image/png').split(',')[1] };
     },
     model_body: async () => { needModel(); return { text: 'ok', body: { model_part: m.payload(), name: project.current?.name } }; },
     model_undo: async () => { needModel(); const ok = await m.history.go(-1); await settle(); return { text: ok ? `Undone. ${JSON.stringify(summary())}` : 'Nothing to undo.' }; },

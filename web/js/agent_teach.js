@@ -2,7 +2,7 @@
 // speech-bubble tip, the rest of the screen dimmed lightly. It never blocks anything: the ring and the dimming let
 // every click through. It stays until the user clicks the highlighted thing, presses Escape or ✕, or the AI shows
 // the next one (or clears it); with wait the tool answers when the user did it, so the AI can lead step by step.
-import { guiControls } from './agent_more.js';
+import { guiControls, shotSpace } from './agent_more.js';
 
 const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const PAD = 5, SPOT = 26;            // px around a control; a view spot's ring radius
@@ -23,8 +23,9 @@ export function teachHandlers() {
 
   const close = (outcome) => { if (cur) cur.finish(outcome); };
 
-  /** Show a tip at a control ({el, label}) or a spot of the view ([x, y] 0 … 1). */
-  function show({ c, at, text, step }) {
+  /** Show a tip at a control ({el, label}) or a spot of the view (at: [x, y] of the AI's last picture; spot() -> where
+   *  it is on the page now). */
+  function show({ c, at, spot, text, step }) {
     const ring = document.createElement('div'), tip = document.createElement('div');
     ring.className = `teach-ring${at ? ' spot' : ''}`;
     tip.className = 'teach-tip';
@@ -34,9 +35,9 @@ export function teachHandlers() {
     let el = c?.el || null, label = c?.label || '', raf = 0, lost = 0;
     const box = () => {
       if (at) {
-        const v = viewEl()?.getBoundingClientRect();
-        if (!v) return null;
-        const x = v.left + at[0] * v.width, y = v.top + at[1] * v.height;
+        const p = viewEl() && spot();
+        if (!p) return null;
+        const [x, y] = p;
         return { left: x - SPOT, top: y - SPOT, width: 2 * SPOT, height: 2 * SPOT };
       }
       if (!el?.isConnected && Date.now() - lost > 400) { // (the panel was drawn anew: the same control again)
@@ -71,7 +72,7 @@ export function teachHandlers() {
     const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish('closed'); } };
     let resolve;
     const done = new Promise((r) => { resolve = r; });
-    const t = { ring, tip, done, what: at ? `the spot [${at.map((v) => +(+v).toFixed(3)).join(', ')}] of the view` : `“${label}”`, finish: null };
+    const t = { ring, tip, done, what: at ? `the spot [${at.map((v) => +(+v).toFixed(3)).join(', ')}] in the view` : `“${label}”`, finish: null };
     function finish(outcome) {
       if (t.ended) return;
       t.ended = outcome;
@@ -107,17 +108,17 @@ export function teachHandlers() {
         return { text: had ? `Removed the tip at ${had}.` : `No tip was shown. ${lastLine()}`.trim() };
       }
       const hasControl = control !== undefined && control !== null && control !== '';
-      if (!hasControl && !at) throw new Error('control (its n or label from gui_state) or at = [x, y] (0 … 1 across and down the view), and text — or clear: true.');
+      if (!hasControl && !at) throw new Error('control (its n or label from gui_state) or at = [x, y] (a point of the get_screenshot picture: its pixels, or 0 … 1 of it), and text — or clear: true.');
       if (!String(text).trim()) throw new Error('text: a short tip for the user (what to do there), in their language.');
-      let c = null;
+      let c = null, spot = null;
       if (hasControl) {
         c = findControl(control);
         if (!c) throw new Error(`No control “${control}” on screen — gui_state lists what is shown (a control in a closed menu or panel: highlight what opens it first).`);
-      } else if (!Array.isArray(at) || at.length !== 2 || !at.every((v) => Number.isFinite(+v))) throw new Error('at: [x, y], 0 … 1 across and down the view.');
-      else if (!viewEl()) throw new Error('No view on screen for at.');
+      } else if (!viewEl()) throw new Error('No view on screen for at.');
+      else { spot = shotSpace().spot(at, 'at'); } // (a point of get_screenshot's picture: where it shows now)
       close('replaced');
       const before = lastLine();
-      const t = show({ c, at: at ? at.map(Number) : null, text: String(text).slice(0, 300), step: step !== undefined && step !== null && step !== '' ? String(step).slice(0, 12) : '' });
+      const t = show({ c, at: at ? at.map(Number) : null, spot, text: String(text).slice(0, 300), step: step !== undefined && step !== null && step !== '' ? String(step).slice(0, 12) : '' });
       const where = `${t.what}${c?.disabled ? ' (it is greyed out now — say what makes it usable)' : ''}`;
       if (!wait) return { text: `Shown at ${where} with your tip; it stays until the user clicks it, presses Esc or you show the next one. ${before}`.trim() };
       const s = Math.max(1, Math.min(MAX_WAIT_S, +timeout || WAIT_S));
