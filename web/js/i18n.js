@@ -1284,6 +1284,7 @@ const CS = {
   'Locked 🔒 — unlock the joint to change it': 'Zamčeno 🔒 — vazbu odemkněte, chcete-li ji změnit',
   'The angle its turn is locked at, against the other part — to turn both, use Moves of the part they are on': 'Úhel, na kterém je otočení zamčené vůči druhému dílu — oba otočíte v Pohybech dílu, na kterém jsou',
   'reading the 2D drawing': 'čte 2D výkres', 'finding shapes': 'hledá tvary', 'setting the layers': 'nastavuje hladiny', 'sizing shapes': 'mění velikost tvarů', 'making something of the drawing': 'dělá něco z výkresu', 'measuring': 'měří', 'setting the view': 'nastavuje pohled', 'renaming a part': 'přejmenovává díl', 'deleting a part': 'maže díl', 'changing a joint': 'mění vazbu', 'removing a joint': 'odebírá vazbu', 'bolting parts together': 'sešroubovává díly',
+  'path: a STEP / IGES / STL / OBJ / 3MF file.': 'path: soubor STEP / IGES / STL / OBJ / 3MF.', 'No project to save.': 'Není co uložit — žádný projekt.',
   'looking at the demo projects': 'prohlíží demo projekty', 'opening a demo project': 'otevírá demo projekt',
   'adding the missing joint': 'přidává chybějící vazbu',
   'switching the variant': 'přepíná variantu', 'taking a part from a variant': 'přebírá díl z varianty',
@@ -1728,6 +1729,7 @@ const CS_PATTERNS = [
   ['Slicing {} / {}', 'Řezání {1} / {2}'], ['Uploading {}…', 'Nahrávám {1}…'], ['Reading {}', 'Čtu {1}'], ['Reading the assembly of {}', 'Čtu sestavu {1}'], ['Reading the STEP file (tessellating)', 'Čtu soubor STEP (triangulace)'],
   ['Drawing read with {} — review the highlighted dimensions.', 'Výkres načten s {1} — zkontrolujte zvýrazněné rozměry.'],
   ['The count is {} … {}.', 'Počet je {1} … {2}.'],
+  ['No demo “{}”. The demos: {}', 'Demo „{1}“ neexistuje. Demo projekty: {2}'], ['{} is not a project file: {}', '{1} není soubor projektu: {2}'],
   ['{} error(s)', '{1} chyb(a)'], ['{} warning(s)', '{1} varování'], ['{} error(s) and {} warning(s)', '{1} chyb(a) a {2} varování'],
   // a PDF with several views (GD&T sheets): the reader is unsure of its outline
   ["No closed outline found in the drawing. It looks like a dimensioned drawing with several views ({} shape(s) of its thick lines do not close, {} curve(s)) — this reader takes one closed outline of straight lines. Trace the view you want from a picture of it (📂 Open ▾ → Picture — trace an outline…), or draw it in a 3D model's sketch.",
