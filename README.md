@@ -455,7 +455,10 @@ SolidWorks. It has only the tools that need almost no input.
    bottom — so it is in the volume and mass, the STEP / IGES / STL / 3MF exports and 🖨 the print split. It costs
    time and triangles (an M5 × 10: about 0.45 s and 6 000 triangles; eight M6 × 12: about 3.7 s and 49 000); the
    Part panel says how long the cut took and warns when there are many. While a tool or a sketch is open the real
-   threads show as cosmetic lines, so editing stays quick. Drawings keep showing the thread the standard way: the
+   threads show as cosmetic lines, so editing stays quick. After a change the part shows at once with thread lines
+   (the Part panel: *⏳ 9 real threads being cut*; ⚙ lists *Cutting real threads*, with ✕ Stop) and you can go on
+   working; the real threads swap in by themselves when they are cut (a change that leaves the solid as it was, or
+   an undo, finds the cut it made before). Exports always carry them. Drawings keep showing the thread the standard way: the
    hole's callout (*2× M6*) and a thin ¾ circle at the major Ø. *Hide all threads* takes them away; the Part panel's
    *🔩 Threads* row (Hidden / Cosmetic / Real, shown when the part has threaded holes) switches it too, and placed
    parts in an assembly show their part's choice. *Teardrop (print sideways)*, offered on a hole that goes

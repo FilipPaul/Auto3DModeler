@@ -302,6 +302,8 @@ def scenario_model():
         settled_model()
     print(f"   steps {n}, ok {ok}, issues {issues}, faces", js(f"return {M}.result.body.faces.length"), "triangles", js(f"return {M}.result.body.face_ids.length"))
     feats = js(f"return structuredClone({M}.part)")
+    with open(os.path.join(OUT, "perf_model.json"), "w", encoding="utf-8") as fh:  # (the part, to time it on the server alone)
+        json.dump(feats, fh)
     fresh()
     call("new_model", name="Perf block again")
     with measure("model", "open (rebuild, kernel kept)"):
@@ -309,10 +311,24 @@ def scenario_model():
         settled_model()
     js(f"{M}.view.setView('iso')")
     frames()
-    with measure("model", "edit a dimension (F2 d 20 -> 22)"):
+    with measure("model", "edit a dimension (F2 d 20 -> 22)"):  # (the AI's edit: it waits for the threads' cut too)
         call("edit_feature", id="F2", fields={"d": 22})
         settled_model()
+        wait(f"return !{M}.threading", 300)
     vp = rect_of("#modelViewport canvas")
+    # 🔩 an edit in the panel: the part shows at once with thread lines, the real threads come when cut (cutThreads)
+    for label, fid, k, v in (("edit a later step (F29 text depth)", "F29", "depth", 0.6), ("edit a thread (F21 M6 -> M8)", "F21", "thread", "M8")):
+        with measure("model", label + ": shown"):
+            js(f"const f = {M}.part.features.find(g => g.id === arguments[0]); f[arguments[1]] = arguments[2]; {M}.commit()", fid, k, v)
+            settled_model()
+        print("    threads pending:", js(f"return !!{M}.result.threads?.real?.pending"), "| the Part panel:", js("return document.querySelector('#modelRight .mp-thr-pending')?.textContent"), "| jobs:",
+              js("return fetch('/api/jobs').then(r => r.json()).then(j => (j.jobs || j).map(x => x.kind))") if js(f"return !!{M}.threading") else "-")
+        if js(f"return !!{M}.threading"):
+            with measure("model", "  hover 40 moves while the threads cut"):
+                sweep(vp, 40)
+        with measure("model", "  … the real threads in"):
+            wait(f"return !{M}.threading", 300)
+        print("    real:", js(f"return {M}.result.threads.real"), "| triangles", js(f"return {M}.result.body.face_ids.length"))
     with measure("model", "hover 80 moves"):
         sweep(vp, 80)
     with measure("model", "orbit (40 moves)"):

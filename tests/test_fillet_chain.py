@@ -77,6 +77,39 @@ class TestTangentChain(unittest.TestCase):
         r, _ = vol(*box(), {**ch, "chain": False})
         self.assertEqual(r["features"][-1]["warnings"], [])
 
+    def test_chains_as_the_fillet_builder_finds_them(self):
+        """tangent_chains gives the fillet builder only the edges that meet another nearly in line (_smooth_ends) —
+        the same chains as giving it every edge: the rounded box with a hole through it, and with a bevelled top."""
+        from OCP.BRepFilletAPI import BRepFilletAPI_MakeFillet
+        from OCP.TopoDS import TopoDS
+
+        def every_edge(shape, em, adj):
+            mk = BRepFilletAPI_MakeFillet(shape)
+            for ei in range(1, em.Extent() + 1):
+                e = TopoDS.Edge(em.FindKey(ei))
+                if len(adj.get(ei, ())) == 2 and not mk.Contour(e):
+                    try:
+                        mk.Add(1.0, e)
+                    except Exception:  # noqa: BLE001 — (a smooth edge)
+                        pass
+            return [sorted(em.FindIndex(mk.Edge(ic, j)) for j in range(1, mk.NbEdges(ic) + 1)) for ic in range(1, mk.NbContours() + 1) if mk.NbEdges(ic) > 1]
+
+        def groups(ch):
+            out = {}
+            for ei, k in ch.items():
+                out.setdefault(k, []).append(ei)
+            return sorted(sorted(g) for g in out.values())
+
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        parts = [box() + [CORNERS, {"id": "H", "type": "hole", "plane": top, "points": [[8, 0]], "d": 5, "through": True}],
+                 box() + [CORNERS, {"id": "B", "type": "chamfer", "edges": [TOP_FRONT], "d": 1}]]
+        for features in parts:
+            st, _ = doc.evaluate(features)
+            _, em, adj = K._adjacency(st.body.shape)
+            got = groups(K.tangent_chains(st.body.shape, em, adj))
+            self.assertTrue(got)
+            self.assertEqual(got, sorted(every_edge(st.body.shape, em, adj)))
+
 
 if __name__ == "__main__":
     unittest.main()

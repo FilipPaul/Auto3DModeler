@@ -11,6 +11,10 @@
 5. The sheet still says M6 (its callout), a thin ¾ circle at Ø6 on each hole, and the same lines with or without real
    threads (no helix clutter).
 6. Cosmetic again, the part placed in a new assembly: its thread lines drawn there too.
+Between 3 and 4, edits with real threads on (timed): a fillet on a corner (a later step that leaves the holes as they
+are) and the thread M6 -> M5 — each shows at once with thread lines (threads.real.pending, the Part panel says the
+threads are being cut, ⚙ lists "Cutting real threads"), then the real threads come in by themselves: the volume
+against the analytic one; Ctrl+Z twice: the first part back (its cut kept); the part opened again: its first paint.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
   PYTHONIOENCODING=utf-8 py tools/e2e_model_threads.py http://127.0.0.1:5199 <out dir>
@@ -61,8 +65,23 @@ def wait(script, t=60):
 
 def settled():
     time.sleep(0.4)
-    wait(f"return !{M}.inflight")
+    wait(f"return !{M}.inflight && !{M}.threading", 120)  # (🔩 real threads: their cut, left for later, too)
     time.sleep(0.4)
+
+
+def timed_edit(what, script, *args):
+    """Run a change in the page; -> (s until the part shows, s until its real threads are in, pending when shown)."""
+    t0 = time.time()
+    js(script, *args)
+    time.sleep(0.05)
+    wait(f"return !{M}.inflight", 120)
+    shown, pending = time.time() - t0, js(f"return !!{M}.result.threads?.real?.pending")
+    lines, note = thread_lines(), js("return document.querySelector('#modelRight .mp-thr-pending')?.textContent")
+    jobs = js("return fetch('/api/jobs').then(r => r.json()).then(j => j.jobs.map(x => x.kind))") if pending else []
+    wait(f"return !{M}.threading", 120)
+    done = time.time() - t0
+    print(f"{what}: shown in {shown:.2f} s (threads pending {pending}, lines {lines}, panel {note!r}, jobs {jobs}) | real threads in {done:.2f} s | volume {volume()}")
+    return shown, done, pending, lines, note, jobs
 
 
 def call(tool_name, **args):
@@ -221,6 +240,33 @@ try:
     settled()
     print("Ctrl+Z:", volume(), js(f"return {M}.part.threads"), js(f"return {M}.result.threads.real"))
     check("undo: real again (cut once, kept)", abs(volume() - REAL) < 0.01 and js(f"return {M}.part.threads") == "real")
+
+    # 3b. edits with real threads on: shown at once with lines, the threads come in by themselves
+    fil = {"id": "G1", "type": "fillet", "r": 2, "edges": [{"a": "F2:side:l1", "b": "F2:side:l2", "fp": [40, 0, 6]}]}
+    shown, done, pending, lines, note, jobs = timed_edit("a fillet on a corner", f"{M}.part.features.push(arguments[0]); {M}.commit()", fil)
+    check("a later step: shown with thread lines before the cut", pending and lines == LINES and note and "being cut" in note)
+    check("the jobs list says Cutting real threads", "Cutting real threads" in jobs)
+    check("then the real threads (volume: minus the fillet's (4 − π) × 12)", abs(volume() - (REAL - (4 - math.pi) * 12)) < 0.02 and thread_lines() == 0)
+    M5 = 40 * 20 * 12 - 2 * math.pi * 2.1 ** 2 * 12 - (4 - math.pi) * 12
+    r, r0 = 2.5, 2.1
+    g5 = 2 * math.pi * (0.8 / 8 * (r * r - r0 * r0) / 2 + 2 * T30 * (r * (r * r - r0 * r0) / 2 - (r ** 3 - r0 ** 3) / 3)) * 12 / 0.8
+    shown5, done5, pending5, *_ = timed_edit("the thread M6 -> M5", f"{M}.part.features.find(f => f.id === 'F3').thread = 'M5'; {M}.commit()")
+    print(f"M5: expected {M5 - 2 * g5:.3f}")
+    check("a thread edit: shown first, then its new threads", pending5 and abs(volume() - (M5 - 2 * g5)) < 0.02)
+    for _ in range(2):
+        ActionChains(d).move_to_element(canvas()).perform()
+        ActionChains(d).key_down(Keys.CONTROL).send_keys("z").key_up(Keys.CONTROL).perform()
+        settled()
+    check("Ctrl+Z twice: the first part, real (its cut kept)", abs(volume() - REAL) < 0.01 and len(js(f"return {M}.part.features")) == 3)
+    t0 = time.time()
+    part = js(f"return {M}.payload()")
+    js(f"{M}.load(arguments[0])", part)
+    time.sleep(0.05)
+    wait(f"return !{M}.inflight && !!{M}.result?.body", 120)
+    first = time.time() - t0
+    wait(f"return !{M}.threading", 120)
+    print(f"opened again: first paint {first:.2f} s, real threads in {time.time() - t0:.2f} s, volume {volume()}")
+    check("opened again: the real part", abs(volume() - REAL) < 0.01)
 
     # 3. the AI
     t = call("set_look", threads="real")

@@ -2,8 +2,9 @@
 within ~2 s, its text never goes back to Building, the kernel process doing the job is stopped (no process of the
 server keeps working), and the page does not send the job again:
 1. the 44 MB board imported (Open → CAD / 3D file) → Cancel in the busy box;
-2. a heavy rebuild (a 120 × 40 × 20 block, 12 M6 holes as real threads) → Cancel in the 3D model's box: the part keeps
-   its last result, the box says "Cancelled — ↻ Rebuild"; then a normal edit builds as usual (the analytic volume);
+2. a heavy rebuild (a 120 × 40 × 20 block, 12 M6 holes as real threads): the part shows at once with thread lines
+   while the threads are cut in the background (⚙: Cutting real threads) → ✕ Stop there: the part keeps its plain
+   body, the Part panel says the threads were not cut; then a normal edit builds as usual (the analytic volume);
 3. the MIT E-Vent assembly's drawing sheet (📄 Drawing in the assembly's bar) → Cancel: the sheet says Cancelled, not
    made again on its own; ↻ Try again starts it again.
 Also (1b) the top bar's ⚙ N: idle nothing; the board imported again → "⚙ 1", its list shows the import with the file's
@@ -45,6 +46,8 @@ def check(what, ok):
 
 # ------------------------------------------------------------------ the server's kernel processes (Windows)
 def server_pid():
+    """The server's process id, or None: its socket not seen (a sandbox hides other processes' sockets and ids) —
+    the kernel's CPU is then not checked (said so)."""
     out = subprocess.run(["netstat", "-ano"], capture_output=True, text=True).stdout
     for line in out.splitlines():
         p = line.split()
@@ -72,6 +75,9 @@ def kernel_cpu():
 
 def idle_kernel(what, secs=2.0):
     """No kernel process works for `secs` (each gains < 0.3 s of CPU)."""
+    if SPID is None:
+        print(f"SKIP {what}: the kernel's CPU (no server process seen)")
+        return
     a = kernel_cpu()
     time.sleep(secs)
     b = kernel_cpu()
@@ -182,8 +188,8 @@ try:
     idle_kernel("after ✕ Stop")
     check("no 3D model was opened", js("return window.__app.state.workspace") != "model")
 
-    # ---- 2. a heavy rebuild (12 real threads) -> Cancel; then a normal edit
-    print("2. a part with 12 real threads, Cancel in the 3D model's box")
+    # ---- 2. a heavy rebuild (12 real threads): shown at once, the cut stopped from ⚙; then a normal edit
+    print("2. a part with 12 real threads: shown at once, its cut stopped from the ⚙ jobs list")
     call("new_model", name="Threads")
     call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 120, "h": 40}}])
     call("add_feature", type="extrude", sketch="F1", d=20)
@@ -194,21 +200,32 @@ try:
     v0 = js(f"return {M}.result.body.volume")
     check(f"12 M6 holes, plain ({v0:.1f} mm³)", abs(v0 - plain) < 1e-3)
     js(LOG)
+    t0 = time.time()
     js(f"{M}.part.threads = 'real'; {M}.rebuild()")
-    wait(f"return !document.querySelector('#modelViewport .m-busy').hidden", 30)
-    time.sleep(2)
-    check("the real threads are still being built", js(f"return !!{M}.inflight"))
-    t = cancel_click("#modelViewport .m-busy [data-a=stop]")
-    note = wait(f"return !{M}.inflight && /Cancelled/.test(document.querySelector('#modelViewport .m-busy').textContent) && window.__blogAt()", 10) - t
-    texts = after_cancel(log(), t, 1)
-    print("   the 3D model's box after the click:", texts, f"| ended after {note / 1000:.2f} s")
-    check("the rebuild ended within 2 s", note < 2000)
-    check("its text: Cancelling…, then Cancelled — never Building again", texts == ["Cancelling…", "Cancelled —"])
-    check("↻ Rebuild offered", js("return !document.querySelector('#modelViewport .m-busy [data-a=again]').hidden"))
-    check("the part keeps its last result", abs(js(f"return {M}.result.body.volume") - v0) < 1e-6)
-    idle_kernel("after the rebuild's Cancel")
+    wait(f"return !{M}.inflight && !!{M}.result?.threads?.real?.pending", 30)
+    print(f"   shown in {time.time() - t0:.2f} s, the threads being cut:", js("return document.querySelector('#modelRight .mp-thr-pending')?.textContent"))
+    check("the part shows at once with thread lines, as it was", abs(js(f"return {M}.result.body.volume") - v0) < 1e-6 and js(f"return {M}.view.threadCount") == 12)
+    wait("return !document.getElementById('jobsBtn').hidden", 15)
+    time.sleep(1.5)
+    check("the real threads are still being cut", js(f"return !!{M}.threading"))
+    d.find_element(By.ID, "jobsBtn").click()
+    wait("return !document.getElementById('jobsList').hidden && document.querySelectorAll('#jobsList .jobs-row').length", 5)
+    row = next(r for r in d.find_elements(By.CSS_SELECTOR, "#jobsList .jobs-row") if "Cutting real threads" in r.text)
+    print("   the list:", row.text.replace("\n", " · "))
+    check("⚙ lists the cut with its part", "Threads" in row.text)
+    t = time.time()
+    row.find_element(By.CSS_SELECTOR, "[data-stop]").click()
+    wait(f"return !{M}.threading", 10)
+    print(f"   the cut ended {time.time() - t:.2f} s after ✕ Stop")
+    check("✕ Stop ends the cut within 2 s", time.time() - t < 2)
+    stopped = js("return document.querySelector('#modelRight .mp-bad')?.textContent")
+    print("   the Part panel:", stopped)
+    check("the Part panel says the threads were not cut", stopped is not None and "not cut" in stopped)
+    check("the part keeps its plain body (and the lines)", abs(js(f"return {M}.result.body.volume") - v0) < 1e-6 and js(f"return {M}.view.threadCount") == 12)
+    check("the 3D model's box stayed hidden", js("return document.querySelector('#modelViewport .m-busy').hidden"))
+    idle_kernel("after ✕ Stop of the cut")
     sent = [u for _, u in js("return window.__sent") if "rebuild" in u]
-    check(f"the rebuild was not sent again ({len(sent)} sent)", len(sent) == 1)
+    check(f"nothing was sent again (the part and its cut: {len(sent)} sent)", len(sent) == 2)
     d.save_screenshot(os.path.join(OUT, "cancel_rebuild.png"))
     # a normal edit: a fresh build as usual (threads hidden, the block 25 high)
     js(f"{M}.part.threads = null; {M}.part.features[1].d = 25; {M}.commit()")

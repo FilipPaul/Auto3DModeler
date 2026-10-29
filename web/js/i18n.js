@@ -907,6 +907,8 @@ const CS = {
   'Show the threads as': 'Zobrazit závity jako', 'Cosmetic (light)': 'Kosmetické (lehké)', 'Real geometry (slower)': 'Skutečná geometrie (pomalejší)',
   'Thin helix lines — view only, quick': 'Tenké šroubovice — jen pro zobrazení, rychlé', 'Cut into the solid: exports and 3D print': 'Vyříznuté do tělesa: exporty i 3D tisk',
   '{n} real threads, cut in {s} s': '{n} skutečných závitů, vyříznuto za {s} s', 'the part may rebuild slowly': 'díl se může přestavovat pomalu',
+  '{n} real threads being cut — shown as lines until then': '{n} skutečných závitů se řeže — do té doby jsou zobrazeny jako čáry',
+  'The threads were not cut (stopped) — the next change cuts them.': 'Závity nebyly vyříznuty (zastaveno) — vyříznou se při další změně.',
   Rib: 'Žebro', '⊿ Rib': '⊿ Žebro',
   'A rib (a gusset): draw a line from a wall to the plate in a sketch, give the thickness — it fills up to the part': 'Žebro (výztuha): v náčrtu nakreslete úsečku od stěny k desce, zadejte tloušťku — vyplní se až k dílu',
   "Draw the rib's line first: a sketch on a plane across the corner, one line from the wall to the plate.": 'Nejdřív nakreslete čáru žebra: náčrt v rovině napříč rohem, jedna úsečka od stěny k desce.',
@@ -1478,7 +1480,7 @@ const CS = {
   Working: 'Pracuji', 'Building a part': 'Sestavení dílu', 'Building a quick part': 'Sestavení rychlého dílu', Exporting: 'Export',
   'Exporting an assembly': 'Export sestavy', 'Checking collisions': 'Kontrola kolizí', 'Checking a motion': 'Kontrola pohybu',
   'Making a drawing': 'Tvorba výkresu', 'Working out limits': 'Výpočet mezí', 'Importing a file': 'Import souboru',
-  'Reading an assembly': 'Čtení sestavy', 'Splitting for print': 'Dělení pro tisk',
+  'Reading an assembly': 'Čtení sestavy', 'Splitting for print': 'Dělení pro tisk', 'Cutting real threads': 'Řezání skutečných závitů',
   // messages from the server / kernel (issues, refusals, warnings; tests/test_i18n_messages.py checks each has Czech)
   'The app is not open in a browser — open it so the part can be changed.': 'Aplikace není otevřená v prohlížeči — otevřete ji, aby šlo díl měnit.',
   'Claude Code was not found. Install it (claude.com/claude-code) and sign in once, or set AUTO3D_CLAUDE to the path of the claude executable.': 'Claude Code nebyl nalezen. Nainstalujte ho (claude.com/claude-code) a jednou se přihlaste, nebo nastavte AUTO3D_CLAUDE na cestu k programu claude.',

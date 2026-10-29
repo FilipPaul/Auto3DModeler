@@ -212,7 +212,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
   };
   const settle = async () => {
     await new Promise((r) => setTimeout(r, 30));
-    while (m.inflight) await m.inflight;
+    while (m.inflight || m.threading) await (m.inflight || m.threading); // (🔩 real threads: their cut too)
   };
   const body = () => m.result?.body;
   const faceOf = (name) => {

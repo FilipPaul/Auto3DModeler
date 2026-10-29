@@ -1411,6 +1411,8 @@ def _packed_mesh(body, light=False, colours=None, rid=None):
 
 _HOLE_FACE = re.compile(r"(?:^|:)([^:]+):hole:(\d+)$")
 _threads_cache: OrderedDict = OrderedDict()  # features' key -> {"holes": [...], "real": (Body, info) once cut}
+_cuts: list = []  # [((the part before its threads, its holes' key), (Body, info))]: the same solid with the same holes
+# (a step that left the solid as it was: a sketch, a point, a step turned off) is not cut again
 
 
 def thread_mode(part):
@@ -1459,6 +1461,8 @@ def _real_threads(features, st):
     wall with thread for hole ("F3:thread:0"). A thread that cannot be cut: the part without threads and an issue."""
     import time
     entry = _thread_entry(features, st)
+    if "real" not in entry and _cut_of(st.body, entry["holes"]):
+        entry["real"] = _cut_of(st.body, entry["holes"])
     if "real" in entry:
         return entry["real"]
     holes, t0 = entry["holes"], time.time()
@@ -1487,19 +1491,37 @@ def _real_threads(features, st):
             info["warning"] = f"{info['cut']} real threads — the part may rebuild slowly."
     info["seconds"] = round(time.time() - t0, 3)
     entry["real"] = (body, info)
+    _cuts.insert(0, ((st.body.shape, json.dumps(holes, sort_keys=True)), entry["real"]))
+    del _cuts[4:]
     return entry["real"]
+
+
+def _cut_of(body, holes):
+    """The kept cut of these threaded holes into this very solid (_cuts), or None."""
+    key = json.dumps(holes, sort_keys=True)
+    return next((v for (shape, k), v in _cuts if k == key and shape.IsSame(body.shape)), None)
+
+
+def _cut_kept(features, st):
+    """Is the built part's 🔩 real threads' cut kept (no cut needed to show them)?"""
+    entry = _thread_entry(features, st)
+    return "real" in entry or _cut_of(st.body, entry["holes"]) is not None
 
 
 def rebuild(part, binary=False):
     """The part -> what the browser shows: the body's mesh, faces (with names) and edges, every feature's
     status, the sketch frames, its threaded holes {mode, holes (thread_holes), real?: what the cut took}. binary: the
-    meshes as packed.Mesh (for packed.pack, the browser's binary answer)."""
+    meshes as packed.Mesh (for packed.pack, the browser's binary answer). part["_later"]: 🔩 real threads not cut yet
+    are left for later — the part as it is (the browser draws them as lines) and real {holes, pending: true}; the
+    browser then asks for the cut by itself (worker "threads_bin"), so an edit shows in a second, not after the cut."""
     features = (part or {}).get("features") or []
     st, status = evaluate(features)
     out = {"ok": all(s["ok"] for s in status), "features": status, "frames": st.frames, "body": None}
     mode = thread_mode(part)
     out["threads"] = {"mode": mode, "holes": _thread_entry(features, st)["holes"] if st.body is not None else []}
-    if mode == "real" and out["threads"]["holes"]:
+    if mode == "real" and out["threads"]["holes"] and (part or {}).get("_later") and not _cut_kept(features, st):
+        out["threads"]["real"] = {"holes": len(out["threads"]["holes"]), "pending": True}
+    elif mode == "real" and out["threads"]["holes"]:
         st = st.copy()
         st.body, out["threads"]["real"] = _real_threads(features, st)
     if st.body is not None:
