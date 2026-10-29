@@ -40,7 +40,7 @@ def call(tool_name, **args):
 
 
 def select(inst):
-    js(f"{A}.sel = arguments[0]; {A}.render(); {A}.draw()", inst)
+    js(f"{A}.sel = arguments[0]; {A}.moreOpen = true; {A}.render(); {A}.draw()", inst)  # (🎨 Look and editing: open)
     time.sleep(0.3)
 
 

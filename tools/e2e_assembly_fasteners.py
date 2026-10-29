@@ -79,6 +79,7 @@ try:
         ActionChains(d).click().perform()
         time.sleep(0.6)
     time.sleep(0.2)
+    d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=joints]").click()  # (🔗 Joint ▾: its menu)
     d.find_element(By.CSS_SELECTOR, "#asmViewport [data-joint=fastener]").click()
     time.sleep(0.3)
     click_on("I2", [6 - 1.25, 34 + 1.15, 3.6])  # the lid's hole at (6, 34): its far wall, near the top

@@ -92,6 +92,7 @@ try:
     time.sleep(0.6)
 
     time.sleep(0.2)
+    d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=joints]").click()  # (🔗 Joint ▾: its menu)
     d.find_element(By.CSS_SELECTOR, "#asmViewport [data-joint=axis]").click()
     time.sleep(0.3)
     click("I2", [15, 19, 2])  # the upper plate's hole wall (its far side)

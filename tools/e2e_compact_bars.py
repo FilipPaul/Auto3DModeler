@@ -153,7 +153,7 @@ try:
         b = bar(d, "#asmViewport")
         print(f"[{L}] assembly bar at 1280x800: {b['h']} px, {b['rows']} rows, compact={b['compact']}")
         check(f"[{L}] the assembly bar takes at most 2 rows", b["rows"] <= 2)
-        j = next(x for x in b["tools"] if x[3] == "touch")
+        j = next(x for x in b["tools"] if x[3] == "joints")  # (🔗 Joint ▾: the joint types in its menu)
         print(f"[{L}]   a joint button: {j}")
         d.save_screenshot(f"{OUT}/compact_assembly_1280_{L}.png")
     lang(d, False)

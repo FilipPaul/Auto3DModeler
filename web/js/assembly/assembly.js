@@ -49,6 +49,7 @@ import { MechanismPanel, driveTo, traceOf } from './mechanism.js';
 import { saveAnimation } from './anim.js';
 import { startDrag } from './drag.js';
 import { isPin } from './missing.js';
+import { pinFits, restOn } from './smart.js';
 import { COUPLING_TYPES, couplingOptions, addCoupling, followCouplings, couplingsHtml, bindCouplingRows, couplingsSummary, ratioText, coupledWith } from './couplings.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -338,8 +339,8 @@ export class Assembly {
   build() {
     const { left, viewport, right } = this.els;
     left.innerHTML = `<div class="mt-head"><b>Assembly</b><span class="mt-sub">its parts</span></div><div class="as-list"></div>
-      <div class="mt-start as-start" hidden><p><b>Put parts together</b></p><ol><li><b>＋ Insert part</b> — a 3D model of this project</li>
-      <li><b>🔗 Join</b> — click a face of one part, Ctrl+click a face of the other, pick the joint (a pin in a hole: ◎ Concentric)</li>
+      <div class="mt-start as-start" hidden><p><b>Put parts together</b></p><ol><li><b>＋ A part</b> — click it in Suggested (bottom left) or use ＋ Insert part</li>
+      <li><b>◎ Where it goes</b> — the part just put in suggests it: into a hole, onto a pin, on the base (or click a face, Ctrl+click another)</li>
       <li><b>⚙ Mechanism</b> — shows by itself once the joints let the parts move</li></ol></div>`;
     viewport.innerHTML = `<div class="m-cmdbar"></div><div class="m-hint" hidden></div><div class="m-view"></div><div class="m-status"></div>`;
     right.innerHTML = '<div class="mp-body"></div>';
@@ -527,14 +528,18 @@ export class Assembly {
   /** The suggestions table (bottom left of the view) for the chosen part — or the two chosen with Ctrl+click. */
   renderSuggest() {
     const vp = this.els.viewport, a = this.inst(this.sel), b = this.inst(this.sel2);
-    if (!a || this.mode !== 'idle' || this.measuring || this.painting || this.bolt) { showSuggest(vp, '', []); return; }
+    if (this.mode !== 'idle' || this.measuring || this.painting || this.bolt || (!a && (this.clashPanel || this.fastenerPanel))) { showSuggest(vp, '', []); return; }
+    if (!a) { this.suggestAssembly(vp); return; } // (nothing chosen: what to do next with the whole assembly)
     const fp = (this.facePicks || []).filter((q) => this.inst(q.inst));
     if (fp.length) { this.suggestFaces(vp, fp); return; }
     const name = (it) => `${this.partName(it.part)} ${it.id}`;
     const refs = `${t('in the assembly')} “${this.hooks.safeName?.() || ''}”: ${[a, b].filter(Boolean).map((x) => `${t('part')} ${x.id} “${this.partName(x.part)}”`).join(', ')}`;
     const show = (title, items, hint) => showSuggest(vp, title, items.map((x) => ({ ...x, run: async () => { await x.run(); this.renderSuggest(); } })), hint, refs); // (an action started: the table follows)
     if (b) {
+      const pins = pinFits(this, a.id, 3).filter((f) => f.hole === b.id || f.pin === b.id), on = restOn(this, a.id, b.id) || restOn(this, b.id, a.id);
       show( `${this.partName(a.part)} ↔ ${this.partName(b.part)}`, [
+        ...pins.slice(0, 1).map((f) => this.pinItem(f, -2)),
+        ...(on ? [this.restItem(on, -1)] : []),
         { icon: '🔗', label: t('Join them'), title: t('Pick a face of each — touch, gap, flush, a pin in a hole …'), run: () => this.startJoint('touch', a.id) },
         { icon: '📏', label: t('Measure between them'), run: () => this.toggleMeasure() },
         { icon: '⚠', label: t('Check for collisions'), run: () => this.checkClashes() },
@@ -563,19 +568,112 @@ export class Assembly {
   /** What can be done with a placed part: open / edit its part, join, simplified, fix, its own part, take it out. */
   partItems(a) {
     const joined = (this.doc.mates || []).some((m) => m.move === a.id), model = this.kindOf(a.part) === 'model';
-    const light = this.bodies[a.part]?.body?.light;
-    return [ // (the most relevant first: join it, open / edit its part, fix it)
-      { icon: '🔗', label: t(joined ? 'Join it to one more part' : 'Join it to another part'), run: () => this.startJoint('touch', a.id) },
-      ...(this.mech?.list.some((m) => m.parts.includes(a.id)) ? [{ icon: '⚙', label: t('Drive the mechanism'), title: t('One slider moves the whole mechanism — ▶ plays it'), run: () => this.mech.open(a.id) }] : []),
-      ...(this.hooks.openPart ? [{ icon: this.kindOf(a.part) === 'assembly' ? '◇' : '◆', label: t('Open its part'), title: t('Change it in its own tab (the assembly follows)'), run: () => this.hooks.openPart(a.part) }] : []),
+    const free = !joined && !a.fixed && !a.fastener, inMech = this.mech?.list.some((m) => m.parts.includes(a.id));
+    let pins = [], on = null;
+    try { pins = pinFits(this, a.id); on = restOn(this, a.id); } catch { /* (a body not there yet) */ }
+    return [ // (ranked — lower first: what it most likely needs next — a pin into a hole, put down, drive it; then join, open, fix)
+      ...pins.map((f, k) => this.pinItem(f, k ? 2 : 0)),
+      ...(on ? [this.restItem(on, 1)] : []),
+      ...(inMech ? [{ icon: '⚙', label: t('Drive the mechanism'), rank: 0, title: t('One slider moves the whole mechanism — ▶ plays it'), run: () => this.mech.open(a.id) }] : []),
+      { icon: '🔗', label: t(joined ? 'Join it to one more part' : 'Join it to another part'), rank: 3, title: t('Click a face of it, then a face of the other part — the joints that fit the two'), run: () => this.startJoint('touch', a.id) },
+      ...(this.hooks.openPart ? [{ icon: this.kindOf(a.part) === 'assembly' ? '◇' : '◆', label: t('Open its part'), rank: 4, title: t('Change it in its own tab (the assembly follows)'), run: () => this.hooks.openPart(a.part) }] : []),
+      ...(free ? [{ icon: '↻', label: t('Turn it 90°'), rank: 5, title: t('About the up axis (Z), through its middle — or slide ↻ in the panel'), run: () => this.turn('z') },
+        { icon: '⤵', label: t('Lay it on its side'), rank: 11, title: t('Turn it 90° about X, through its middle'), run: () => this.turn('x') }] : []),
       ...(this.hooks.editInPlace && model ? [this.editable(a.part)
-        ? { icon: '✎', label: t('Edit it here'), title: t('Change its part here, the rest of the assembly see-through around it'), run: () => this.editInPlace(a.id) }
-        : { icon: '🔓', label: t('Unlock and edit it here'), title: t('Its part can be changed from this assembly then'), run: () => { this.toggleEditable(a.part); this.editInPlace(a.id); } }] : []),
-      { icon: '📌', label: t(a.fixed ? 'Free it (not fixed)' : 'Fix in place'), run: () => this.toggleFixed(a.id) },
-      ...(model ? [{ icon: '🪶', label: t(light ? 'Show it in full' : 'Show it simplified'), title: t('Simplified: a coarser mesh and less data — quicker to load and show'), run: async () => { this.doc.light = { ...(this.doc.light || {}), [a.part]: !light }; await this.refresh(); this.commit(); } }] : []),
-      ...(this.hooks.duplicatePart ? [{ icon: '⧉', label: t('Make it its own part'), title: t('A copy of its part for this place only'), run: () => this.ownPart(a.id) }] : []),
-      { icon: '✕', label: t('Take it out'), danger: true, run: () => this.removeInst(a.id) },
+        ? { icon: '✎', label: t('Edit it here'), rank: 6, title: t('Change its part here, the rest of the assembly see-through around it'), run: () => this.editInPlace(a.id) }
+        : { icon: '🔓', label: t('Unlock and edit it here'), rank: 9, title: t('Its part can be changed from this assembly then'), run: () => { this.toggleEditable(a.part); this.editInPlace(a.id); } }] : []),
+      ...(joined && !a.fixed ? [] : [{ icon: '📌', label: t(a.fixed ? 'Free it (not fixed)' : 'Fix in place'), rank: 5.5, title: t('A fixed part stays put: joints bring the other parts to it'), run: () => this.toggleFixed(a.id) }]), // (a joined part hangs on its joints: not fixed)
+      { icon: '🏷', label: t('Rename'), rank: 8, title: t('Rename its part (its tab too)'), run: () => this.renameSel(a.id) },
+      { icon: '⊕', label: t('One more of it'), rank: 10, title: t('Another copy of this part, beside the others'), run: () => this.insert(a.part, a) },
+      ...(this.hooks.duplicatePart ? [{ icon: '⧉', label: t('Make it its own part'), rank: 13, title: t('A copy of its part for this place only'), run: () => this.ownPart(a.id) }] : []),
+      { icon: '✕', label: t('Take it out'), rank: 7, danger: true, title: t('Out of the assembly (Delete) — Ctrl+Z brings it back'), run: () => this.removeInst(a.id) },
     ];
+  }
+
+  /** ◎ A pin-in-hole suggestion (smart.js pinFits): one click — Concentric (+ seated on the face around it). */
+  pinItem(f, rank) {
+    const mv = this.partName(this.inst(f.move.inst)?.part), on = this.partName(this.inst(f.onto.inst)?.part), d = `Ø${fmt(+f.d.toFixed(2))}`;
+    let seat = false;
+    try { seat = !!this.seatPair(f.move, f.onto); } catch { seat = false; }
+    return { icon: '◎', label: f.move.inst === f.pin ? t2('Into the hole of {b} · {d}', { b: on, d }) : t2('Onto the pin of {b} · {d}', { b: on, d }), rank,
+      title: t2(seat ? '{a} goes on the axis of the round face of {b} and sits down on the face around it (Concentric + Touch) — it can still turn'
+        : '{a} goes on the axis of the round face of {b} (Concentric) — it can still turn and slide along it', { a: mv, b: on }),
+      run: () => { this.joinRound([f.move, f.onto], seat); } };
+  }
+
+  /** ⧉ Put a part down on another one (smart.js restOn): its underside touches the other's top. */
+  restItem(on, rank) {
+    return { icon: '⧉', label: t2('Put it on {b}', { b: this.partName(this.inst(on.onto.inst)?.part) }), rank,
+      title: t('Its underside touches the top of the other part (a Touch joint) — it can still slide and turn on it'), run: () => {
+        this.jointType = 'touch';
+        this.mode = 'joint-to';
+        this.jointFrom = on.move;
+        this.clickJoint(on.onto);
+        if (this.mode !== 'idle') this.cancelJoint();
+      } };
+  }
+
+  /** 🏷 Rename a placed part's part in the list (as its 🏷 there). */
+  renameSel(id) {
+    const it = this.inst(id), el = this.$(`.as-list .mt-item[data-inst="${id}"] .mt-name`);
+    if (!it || !el) return;
+    renameInPlace(el, (n) => { this.hooks.renamePart?.(it.part, n); this.render(); this.hooks.onChange?.(); });
+  }
+
+  /** The Suggested table with nothing chosen: what to do next with the whole assembly — insert its first parts; a pin
+   *  that fits a hole, ⚙ drive the mechanism, 🔩 fasteners where holes line up, collisions; then explode, section,
+   *  measure, the BOM and the drawing (the most relevant first; the rest under ⋯ Show all). */
+  suggestAssembly(vp) {
+    const n = this.doc.instances.length, parts = this.modelParts(), title = this.partName(this.hooks.selfId?.()) || t('Assembly');
+    const items = [];
+    if (!n) {
+      [...parts].sort((p, q) => (p.kind === 'assembly') - (q.kind === 'assembly')).slice(0, 6).forEach((p, k) => items.push({ icon: '＋', label: p.name, rank: k, title: t('Insert this part of the project'), run: () => this.insert(p.id) }));
+      if (this.hooks.openLibrary) items.push({ icon: '📚', label: t('From the library…'), rank: 7, title: t('Standard parts (screws, bearings, motors …) — ⤵ Put into the assembly'), run: () => this.hooks.openLibrary() });
+      if (this.hooks.importFile) items.push({ icon: '📂', label: t('From a file…'), rank: 8, title: t('STEP / STL / OBJ / 3MF'), run: () => this.insertFile() });
+      showSuggest(vp, title, items, parts.length ? t('The first part stays fixed; the next ones are joined to it') : t('Make a part first: ＋ New 3D model'));
+      return;
+    }
+    const ready = this.doc.instances.every((it) => this.bodyOf(it)?.body);
+    const key = `${this.doc.instances.map((it) => `${it.id}${it.fixed ? '!' : ''}:${it.matrix.join(',')}`).join('|')}#${(this.doc.mates || []).length}`;
+    if (this._smart?.key !== key) this._smart = null;
+    if (ready && !this._smart) { // (the geometry: once per change of the parts or joints)
+      const pins = [];
+      for (const it of this.doc.instances) {
+        if (it.fixed || it.fastener || (this.doc.mates || []).some((m) => m.move === it.id)) continue; // (a loose part)
+        try { pins.push(...pinFits(this, it.id, 1)); } catch { /* (no body) */ }
+      }
+      let fast = [];
+      try { fast = n > 1 ? findCandidates(this) : []; } catch { fast = []; }
+      this._smart = { key, pins: pins.sort((p, q) => p.score - q.score).slice(0, 2), fast };
+    }
+    const sm = this._smart || { pins: [], fast: [] }, mech = this.mech?.list.length, clash = this.clashes?.length;
+    sm.pins.forEach((f, k) => items.push({ ...this.pinItem(f, k), label: `${this.partName(this.inst(f.move.inst)?.part)}: ${this.pinItem(f, k).label}` }));
+    if (mech) items.push({ icon: '⚙', label: t('Drive the mechanism'), rank: 0.5, title: t('One slider moves the whole mechanism — ▶ plays it'), run: () => this.mech.open(this.mech.list[0].parts[0]) });
+    if (clash) items.push({ icon: '⚠', label: t2('Show {n} collision(s)', { n: clash }), rank: 0.2, title: t('Where parts go into each other — each one shown in the view'), run: () => this.toggleClashes() });
+    if (sm.fast.length) items.push({ icon: '🔩', label: t2('Add fasteners ({n})', { n: sm.fast.length }), rank: 1, title: t('Screws, inserts and pins where holes line up through two parts — added with one click'), run: () => this.addFasteners(sm.fast) });
+    const placed = new Set(this.doc.instances.map((it) => it.part)); // (the project's parts not in it yet: one click each)
+    parts.filter((p) => !placed.has(p.id) && p.kind !== 'assembly').slice(0, 3).forEach((p, k) => items.push({ icon: '＋', label: p.name, rank: 1.5 + k / 10, title: t('Insert this part of the project'), run: () => this.insert(p.id) }));
+    items.push({ icon: '＋', label: t('Insert a part…'), rank: 2, title: t('A part of this project, from the library or from a file'), run: () => { this.$('.as-insert')?.classList.add('open'); } });
+    if (n > 1) items.push({ icon: '💥', label: t(this.explode > 0 ? 'Put it back together' : 'Explode'), rank: 3, title: t('Pull the parts apart to see them (the placement does not change)'), run: () => this.setExplode(this.explode > 0 ? 0 : 0.6) });
+    items.push({ icon: '✂', label: t(this.section ? 'Section off' : 'Section'), rank: 4, title: t('Look inside: cut the view along X, Y or Z'), run: () => this.toggleSection() });
+    if (n > 1 && !clash) items.push({ icon: '⚠', label: t('Check for collisions'), rank: 5, title: t('Where parts overlap — the list, each one shown in the view'), run: () => this.toggleClashes() });
+    items.push({ icon: '📏', label: t('Measure distances'), rank: 6, title: t('Click a spot, then another one — the distance'), run: () => this.toggleMeasure() });
+    items.push({ icon: '📋', label: t('Bill of materials'), rank: 7, title: t('Every part with its quantity, material and mass'), run: () => this.openBom() });
+    if (this.hooks.newSheet) items.push({ icon: '📄', label: t('Drawing of the assembly'), rank: 8, title: t('Its views, parts list and balloons — it follows the assembly'), run: () => this.hooks.newSheet() });
+    if (this.hooks.openLibrary) items.push({ icon: '📚', label: t('From the library…'), rank: 9, title: t('Standard parts (screws, bearings, motors …) — ⤵ Put into the assembly'), run: () => this.hooks.openLibrary() });
+    if (n > 1) items.push({ icon: '🔩', label: t('Screw / pin through parts…'), rank: 10, title: t('Click where it goes in — the holes are drilled for it'), run: () => { this.fastenerPanel = false; this.startJoint('fastener'); this.render(); this.draw(); } });
+    showSuggest(vp, title, items.map((x) => ({ ...x, run: async () => { await x.run(); this.renderSuggest(); } })), t('Click a part or a face: what fits it'));
+  }
+
+  /** 💥 The explode amount (0 = together), the bar's slider following. */
+  setExplode(v) {
+    this.explode = v;
+    this.exDirs = null;
+    const r = this.$('.as-explode input');
+    if (r) r.value = v;
+    this.$('.as-list')?.classList.toggle('exploding', v > 0);
+    this.renderBar();
+    this.draw();
   }
 
   /** The parts that can go in: 3D models, and quick parts (drawings, pictures, imports) with a shape. */
@@ -630,48 +728,70 @@ export class Assembly {
   renderBar() {
     const bar = this.$('.m-cmdbar');
     const btn = (a, label, title, cls = '') => `<button class="chip ${cls} ${toolGroup(a)}" data-a="${a}" title="${esc(title)}">${label}</button>`;
-    const parts = this.modelParts();
+    const parts = this.modelParts(), jt = this.bolt ? 'fastener' : this.mode !== 'idle' ? this.jointType : null, jOn = jt && JOINT_TYPES[jt];
+    // one row: ＋ Insert ▾ · 🔗 Joint ▾ (its types in a menu — the faces' suggestions make most joints) · the tools · ↶ ↷
     bar.innerHTML = `
       <div class="menu as-insert">${btn('insert', '＋ Insert part ▾', parts.length ? 'Add a part of this project: a 3D model ◆, a quick part ▤ (drawing, picture, import) or another assembly ◇ (as one unit)' : 'Make a part first (＋ New 3D model, or open a drawing / picture)', 'tool')}
         <div class="menu-list">${parts.map((p) => `<button data-part="${p.id}" data-no-i18n>${p.kind === 'classic' ? '▤' : p.kind === 'assembly' ? '◇' : '◆'} ${esc(p.name)}</button>`).join('') || '<div class="hint">No parts yet</div>'}
-          ${this.hooks.importFile ? '<div class="menu-sep"></div><button data-a="fromFile">📂 From a file (STEP / STL / OBJ / 3MF)…</button>' : ''}</div></div>
-      <div class="as-jbar ${toolGroup('joint')}" title="${esc(t('Hold a part against another one: choose how, then click a face of the part to move and the face it goes to (S = touch)'))}"><span class="as-jlabel">🔗 ${esc(t('Joint'))}</span>
-        ${Object.entries(JOINT_TYPES).map(([k, j]) => `<button class="${(k === 'fastener' ? this.bolt : this.mode !== 'idle' && this.jointType === k) ? 'on' : ''}" data-joint="${k}" title="${esc(`${t(j.name)}: ${t(j.hint)}`)}">${j.icon} <span>${esc(t(j.name))}</span></button>`).join('')}</div>
+          ${this.hooks.openLibrary || this.hooks.importFile ? '<div class="menu-sep"></div>' : ''}${this.hooks.openLibrary ? `<button data-a="fromLib" title="${esc(t('Standard parts (screws, bearings, motors …) — ⤵ Put into the assembly'))}">📚 ${esc(t('From the library…'))}</button>` : ''}
+          ${this.hooks.importFile ? '<button data-a="fromFile">📂 From a file (STEP / STL / OBJ / 3MF)…</button>' : ''}</div></div>
+      <div class="menu as-jmenu">${btn('joints', jOn ? `${jOn.icon} ${esc(t(jOn.name))} ▾` : '🔗 Joint ▾', 'Hold a part against another one: choose how, then click a face of the part to move and the face it goes to (S = touch). Quicker: click a face, Ctrl+click the other one — the joints that fit them are suggested', `tool ${jOn ? 'on' : ''}`)}
+        <div class="menu-list as-jlist">${Object.entries(JOINT_TYPES).map(([k, j]) => `${k === 'fastener' ? '<div class="menu-sep"></div>' : ''}<button class="${k === jt ? 'on' : ''}" data-joint="${k}" title="${esc(t(j.hint))}">${j.icon} ${esc(t(j.name))}</button>`).join('')}</div></div>
       ${btn('measure', '📏 Measure', 'Measure: click a spot (a face, a corner), then another one — the distance; two parallel flat faces: the gap between them; two round faces: how far apart their axes are', `tool ${this.measuring ? 'on' : ''}`)}
-      ${btn('paint', '🎨 Paint', 'Colour faces of the placed parts, or whole parts — in this assembly: click them (Ctrl+click: more), then pick a colour', `tool ${this.painting ? 'on' : ''}`)}
       ${btn('section', '✂ Section', 'Look inside: cut the view along X, Y or Z', `tool ${this.section ? 'on' : ''}`)}
+      <div class="menu as-exmenu">${btn('explodeMenu', '💥 Explode ▾', 'Pull the parts apart to see them (the placement does not change) — 💥 in the list chooses which parts move', `tool ${this.explode > 0 ? 'on' : ''}`)}
+        <div class="menu-list as-exlist"><label class="as-explode" title="${esc(t('Pull the parts apart to see them (the placement does not change)'))}">💥 <input type="range" min="0" max="1" step="0.01" value="${this.explode}"></label>
+          <label class="check as-exrespect" title="Explode along the joints: a joined part moves only the ways its joints leave free (a pin out of its hole along the axis), and goes along with the part it is on"><input type="checkbox" data-a="exRespect" ${this.explodeRespect ? 'checked' : ''}> Respect joints</label>
+          <p class="hint">${esc(t('💥 in the parts list: which parts move'))}</p></div></div>
       ${btn('clashes', this.clashLabel(), 'Where parts overlap (go into each other) — checked after every change; click: the list, each one shown in the view', `tool ${this.clashPanel ? 'on' : ''} ${this.clashes?.length ? 'bad' : this.clashes ? 'good' : ''}`)}
       ${btn('fasteners', '🔩 Fasteners', 'Screws, heat-set inserts and pins where holes line up across parts — suggested, added with one click', `tool ${this.fastenerPanel ? 'on' : ''}`)}
       ${this.mech?.list.length ? btn('mech', '⚙ Mechanism', 'The mechanisms of this assembly: one slider each moves all of its parts, ▶ plays it', `tool ${this.mech.closed ? '' : 'on'}`) : ''}
       ${this.hooks.newSheet ? btn('sheet', '📄 Drawing', 'The assembly\'s drawing sheet to edit: its views, overall sizes, parts list and balloons — it follows the assembly; 📄 Drawings (PDF) in the panel makes the whole set', 'tool') : ''}
+      ${btn('paint', '🎨 Paint', 'Colour faces of the placed parts, or whole parts — in this assembly: click them (Ctrl+click: more), then pick a colour', `tool ${this.painting ? 'on' : ''}`)}
       <span class="sep"></span>
-      <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
-      <span class="sep"></span>
-      <label class="chip as-explode" title="Pull the parts apart to see them (the placement does not change) — 💥 in the list chooses which parts move">Explode <input type="range" min="0" max="1" step="0.01" value="${this.explode}"></label>
-      <label class="chip as-exrespect" title="Explode along the joints: a joined part moves only the ways its joints leave free (a pin out of its hole along the axis), and goes along with the part it is on"><input type="checkbox" data-a="exRespect" ${this.explodeRespect ? 'checked' : ''}> Respect joints</label>`; // (the views: the view cube, top right)
-    bar.querySelector('[data-a=insert]').disabled = !parts.length && !this.hooks.importSolid;
-    for (const b of bar.querySelectorAll('[data-joint]')) b.disabled = this.doc.instances.length < 2;
+      <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>`; // (the views: the view cube, top right)
+    bar.querySelector('[data-a=insert]').disabled = !parts.length && !this.hooks.importSolid && !this.hooks.openLibrary;
+    bar.querySelector('[data-a=joints]').disabled = this.doc.instances.length < 2 && !jOn;
     for (const a of ['paint', 'section']) bar.querySelector(`[data-a=${a}]`).disabled = !this.doc.instances.length;
+    bar.querySelector('[data-a=explodeMenu]').disabled = this.doc.instances.length < 2;
     bar.querySelector('[data-a=clashes]').disabled = this.doc.instances.length < 2;
+    bar.querySelector('[data-a=fasteners]').disabled = this.doc.instances.length < 2 && !this.fastenerPanel;
     const shb = bar.querySelector('[data-a=sheet]');
     if (shb) shb.disabled = !this.doc.instances.length;
+    const menu = (sel) => bar.querySelector(sel), shut = () => { for (const m of bar.querySelectorAll('.menu.open')) m.classList.remove('open'); };
+    const opener = (a, sel) => bar.querySelector(`[data-a=${a}]`).addEventListener('click', (e) => { e.stopPropagation(); const was = menu(sel).classList.contains('open'); shut(); menu(sel).classList.toggle('open', !was); });
+    opener('insert', '.as-insert');
+    opener('joints', '.as-jmenu');
+    opener('explodeMenu', '.as-exmenu');
+    if (!this.menuWatch) { // (a click anywhere else closes the bar's menus)
+      this.menuWatch = true;
+      document.addEventListener('click', (e) => { if (!e.target.closest?.('.m-cmdbar .menu')) for (const m of this.els.viewport.querySelectorAll('.m-cmdbar .menu.open')) m.classList.remove('open'); });
+    }
     for (const b of bar.querySelectorAll('[data-joint]')) {
       b.addEventListener('click', () => {
-        if (b.classList.contains('on')) { if (b.dataset.joint === 'fastener') this.cancelBolt(); else this.cancelJoint(); return; } // (the one on: off again)
+        shut();
+        if (b.classList.contains('on')) { if (b.dataset.joint === 'fastener') this.cancelBolt(); else this.cancelJoint(); this.renderBar(); return; } // (the one on: off again)
         if (this.mode !== 'idle') this.cancelJoint();
         if (b.dataset.joint === 'fastener') { this.fastenerPanel = true; this.sel = null; this.sel2 = null; } // (one place for them: the panel, and the click goes on)
         this.startJoint(b.dataset.joint);
+        this.renderBar();
         if (b.dataset.joint === 'fastener') { this.render(); this.draw(); } else this.renderSuggest(); // (picking faces: the table goes)
       });
     }
-    bar.querySelector('[data-a=insert]').addEventListener('click', (e) => { e.stopPropagation(); bar.querySelector('.as-insert').classList.toggle('open'); });
-    for (const b of bar.querySelectorAll('[data-part]')) b.addEventListener('click', () => { bar.querySelector('.as-insert').classList.remove('open'); this.insert(b.dataset.part); });
-    bar.querySelector('[data-a=fromFile]')?.addEventListener('click', () => { bar.querySelector('.as-insert').classList.remove('open'); this.insertFile(); });
-    for (const b of bar.querySelectorAll('[data-a]:not([data-a=insert]):not([data-a=fromFile]):not([data-a=exRespect])')) b.addEventListener('click', () => this.action(b.dataset.a));
+    for (const b of bar.querySelectorAll('[data-part]')) b.addEventListener('click', () => { shut(); this.insert(b.dataset.part); });
+    bar.querySelector('[data-a=fromFile]')?.addEventListener('click', () => { shut(); this.insertFile(); });
+    bar.querySelector('[data-a=fromLib]')?.addEventListener('click', () => { shut(); this.hooks.openLibrary(); });
+    for (const b of bar.querySelectorAll('[data-a]:not([data-a=insert]):not([data-a=joints]):not([data-a=explodeMenu]):not([data-a=fromFile]):not([data-a=fromLib]):not([data-a=exRespect])')) b.addEventListener('click', () => this.action(b.dataset.a));
     bar.querySelector('[data-a=exRespect]').addEventListener('change', (e) => { this.explodeRespect = e.target.checked; this.exDirs = null; this.draw(); });
     const r = bar.querySelector('.as-explode input');
-    r.addEventListener('input', () => { this.explode = +r.value; this.$('.as-list')?.classList.toggle('exploding', this.explode > 0); this.draw(); });
+    r.addEventListener('input', () => {
+      this.explode = +r.value;
+      this.$('.as-list')?.classList.toggle('exploding', this.explode > 0);
+      bar.querySelector('[data-a=explodeMenu]')?.classList.toggle('on', this.explode > 0);
+      this.draw();
+    });
     this.updateUndo();
+    bar.dataset.maxRows = '2'; // (more than 2 rows of names: its icons only — the Suggested table names the tasks)
     fitBar(bar); // (icons only when the names do not fit)
   }
 
@@ -712,6 +832,7 @@ export class Assembly {
       const b = this.bodies[it.part];
       const row = document.createElement('div');
       row.className = `mt-item${it.id === this.sel || it.id === this.sel2 ? ' on' : ''}${b?.error ? ' bad' : ''}`;
+      row.dataset.inst = it.id;
       row.innerHTML = `<span class="mt-icon">${this.partIcon(it.part)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>
         ${b?.error ? '<span class="mt-warn">⚠</span>' : ''}
         <span class="mt-acts"><button class="mini" data-a="rename" title="Rename its part (its tab too)">🏷</button><button class="mini" data-a="dup" title="One more of this part">⧉</button><button class="mini danger" data-a="del" title="Take it out of the assembly">✕</button></span>
@@ -921,6 +1042,15 @@ export class Assembly {
     this.draw();
   }
 
+  /** The overview's joints and couplings under one folded line ("Joints (7)"; open when one does not hold). */
+  jointsFold() {
+    const html = `${this.jointsHtml(null)}${couplingsHtml(this, null)}`;
+    if (!html) return '';
+    const n = (this.doc.mates || []).filter((m) => this.inst(m.move) && this.inst(m.onto)).length + (this.doc.couplings || []).length;
+    const bad = (this.doc.mates || []).some((m) => m.broken || this.health?.get(m.id)?.ok === false);
+    return `<details class="as-jfold" ${this.jointsOpen || bad ? 'open' : ''}><summary title="${esc(t('Every joint and coupling — a part clicked shows only its own'))}">🔗 ${esc(t2('Joints ({n})', { n }))}${bad ? ' <span class="as-jbad">⚠</span>' : ''}</summary>${html}</details>`;
+  }
+
   renderPair(box) {
     const a = this.inst(this.sel), b = this.inst(this.sel2), js = this.shownJoints();
     box.innerHTML = `<h2><span data-no-i18n>${esc(this.partName(a.part))}</span> ↔ <span data-no-i18n>${esc(this.partName(b.part))}</span></h2>
@@ -954,30 +1084,31 @@ export class Assembly {
       const freePlace = `${row('x', p.x)}${row('y', p.y)}${row('z', p.z)}
         <h3>Turn</h3><datalist id="as-ticks"><option value="-180"></option><option value="-90"></option><option value="0"></option><option value="90"></option><option value="180"></option></datalist>
         ${rot('x')}${rot('y')}${rot('z')}
-        <p class="hint">Slide to any angle — it catches at 0, ±90 and ±180°. Type an exact one in the box.</p>`;
+        <p class="hint">Slide to any angle — it catches at 0, ±90 and ±180°. Type an exact one in the box.</p>
+        <div class="row-actions"><button class="btn small" data-a="reset" title="Back to its place in its own model">Reset its place</button></div>`;
       const dof = this.motionsOf(it.id), lp = this.mechanismOf(it.id);
       this.dof = dof;
       const loopHint = !lp ? '' : `<p class="hint as-loop ${lp.closed ? '' : 'bad'}">${esc(lp.closed ? t2('In a closed loop with {parts}: they move together, {n} way(s) for all of them — move one, the others follow.', { parts: lp.parts.filter((x) => x !== it.id).join(', '), n: lp.free ?? '?' })
         : t2('⚠ The closed loop {parts} cannot close here — a part is too short or too long for this place.', { parts: lp.parts.join('–') }))}</p>`;
       const place = dof ? `<h3>Moves</h3>${loopHint}${dof.count === 0 ? (lp?.free ? '' : '<p class="mp-count">🔒 Fully held — its joints fix it, it cannot move.</p>')
-        : `<p class="hint">${dof.via ? t2('It is fixed on {part} — it moves with it: drive it here, {part} goes along.', { part: this.partName(this.inst(dof.via)?.part) })
-          : t2('It can still move {n} way(s) — the ways its joints leave free. Slide, then let go: it stays there.', { n: dof.count })}</p>
+        : `${lp && !dof.via ? '' : `<p class="hint">${dof.via ? t2('It is fixed on {part} — it moves with it: drive it here, {part} goes along.', { part: this.partName(this.inst(dof.via)?.part) })
+          : t2('It can still move {n} way(s) — the ways its joints leave free. Slide, then let go: it stays there.', { n: dof.count })}</p>`}
         <div class="as-motions">${dof.motions.map((mo, i) => this.motionHtml(it, mo, i, dof.size)).join('')}</div>
         ${dof.unexplained > 0 ? `<p class="hint">${t2('…and {n} more way(s) that are not a plain move or turn.', { n: dof.unexplained })}</p>` : ''}`}
         <details class="as-free"><summary>Place it by hand (breaks its joints)</summary>${freePlace}</details>`
         : freePlace;
       const inner = this.innerMotions(it), miss = this.mech?.missing, missHere = miss && (!this.mech.list.length || this.mech.closed) && [miss.move.inst, miss.onto.inst].includes(it.id); // (no ⚙ widget: the line is here)
-      box.innerHTML = `<h2 data-no-i18n>${esc(this.partName(it.part))}</h2><p class="hint">${it.id} — ${dof ? 'held by its joints.' : 'where its own origin is, and how it is turned.'}</p>
+      // the panel: what it is and how it stands (the actions: the Suggested table) — its look and editing folded
+      box.innerHTML = `<h2 data-no-i18n>${esc(this.partName(it.part))}</h2>
+        <p class="hint">${it.id} — ${dof ? 'held by its joints.' : 'where its own origin is, and how it is turned.'}</p>
+        <div class="row-actions wrap as-pacts">${this.hooks.openPart ? `<button class="btn small primary" data-a="openPart" title="Open its part in its own tab (to change it — the assembly follows)">${this.kindOf(it.part) === 'assembly' ? '◇' : '◆'} ${esc(t('Open its part'))}</button>` : ''}${it.fixed || !(this.doc.mates || []).some((m) => m.move === it.id) ? `<button class="btn small ${it.fixed ? 'on' : ''}" data-a="fix"title="${it.fixed ? 'Fixed in place: it is not moved by hand, joints bring the other parts to it — click to free it' : 'Fix it in place: it is not moved by hand, joints bring the other parts to it'}">📌 ${esc(t(it.fixed ? 'Fixed' : 'Fix in place'))}</button>` : ''}<button class="btn small danger" data-a="del" title="${esc(t('Take it out'))} (Delete)">✕ ${esc(t('Take it out'))}</button></div>
         ${missHere ? this.mech.missingHtml() : ''}
         ${this.rolledHtml(it.part)}
         ${inner ? this.innerHtml(it, inner) : ''}
         ${place}
-        ${this.editHtml(it)}
-        <h3>Look</h3>${this.lookHtml(it)}
         ${this.jointsHtml(it.id)}${couplingsHtml(this, it.id)}
-        <div class="row-actions wrap"><button class="btn small" data-a="joinThis">🔗 Join it to another part</button></div>
-        ${this.hooks.duplicatePart ? '<div class="row-actions"><button class="btn small" data-a="ownPart" title="Copy its part as a new part of the project and use the copy here — then it can be changed alone (the other copies stay as they are)">⧉ Make it its own part</button></div>' : ''}
-        <div class="row-actions">${this.hooks.openPart ? `<button class="btn small primary" data-a="openPart" title="Open its part in its own tab (to change it — the assembly follows)">${this.kindOf(it.part) === 'assembly' ? '◇' : '◆'} ${esc(t('Open its part'))}</button>` : ''}<button class="btn small ${it.fixed ? 'on' : ''}" data-a="fix" title="${it.fixed ? 'Fixed in place: it is not moved by hand, joints bring the other parts to it — click to free it' : 'Fix it in place: it is not moved by hand, joints bring the other parts to it'}">📌 ${esc(t(it.fixed ? 'Fixed' : 'Fix in place'))}</button><button class="btn small" data-a="reset" title="Back to its place in its own model">Reset its place</button><button class="btn small danger" data-a="del">✕ ${esc(t('Take it out'))}</button></div>`;
+        <details class="as-more" ${this.moreOpen ? 'open' : ''}><summary title="${esc(t('Its colour, see-through, simplified, and editing it from here'))}">🎨 ${esc(t('Look and editing'))}</summary>
+          ${this.editHtml(it)}${this.lookHtml(it)}</details>`;
       if (missHere) this.mech.bindMissing(box);
       for (const inp of box.querySelectorAll('input[data-k]')) {
         inp.addEventListener('change', () => this.setPos(inp.dataset.k, inp.value));
@@ -1003,17 +1134,16 @@ export class Assembly {
       this.bindLook(box, it);
       box.querySelector('[data-a=editHere]')?.addEventListener('click', () => this.editInPlace(it.id));
       box.querySelector('[data-a=editLock]')?.addEventListener('click', () => this.toggleEditable(it.part));
-      box.querySelector('[data-a=joinThis]').addEventListener('click', () => this.startJoint('touch', it.id));
-      box.querySelector('[data-a=ownPart]')?.addEventListener('click', () => this.ownPart(it.id));
+      box.querySelector('.as-more')?.addEventListener('toggle', (e) => { this.moreOpen = e.target.open; });
       box.querySelector('[data-a=fix]')?.addEventListener('click', () => this.toggleFixed(it.id));
-      box.querySelector('[data-a=reset]').addEventListener('click', () => { if (!this.mayMove(it.id)) return; it.matrix = ID(); this.applyMates(); this.commit(); });
+      box.querySelector('[data-a=reset]')?.addEventListener('click', () => { if (!this.mayMove(it.id)) return; it.matrix = ID(); this.applyMates(); this.commit(); });
       box.querySelector('[data-a=del]').addEventListener('click', () => this.removeInst(it.id));
       box.querySelector('[data-a=openPart]')?.addEventListener('click', () => this.hooks.openPart(it.part));
       return;
     }
     const rows = this.bom(), total = rows.reduce((s, r) => s + (r.mass || 0) * r.qty, 0), mp = this.massProps();
     box.innerHTML = `<h2>Assembly</h2>
-      ${rows.length ? `${this.jointsHtml(null)}${couplingsHtml(this, null)}<h3>Parts list</h3><table class="as-bom"><tr><th>Part</th><th>Qty</th><th>Material</th><th>Mass</th></tr>
+      ${rows.length ? `${this.jointsFold()}<h3>Parts list</h3><table class="as-bom"><tr><th>Part</th><th>Qty</th><th>Material</th><th>Mass</th></tr>
         ${rows.map((r) => `<tr><td data-no-i18n>${esc(r.name)}</td><td>${r.qty}</td><td>${esc(t(r.material))}</td><td>${r.mass === null ? '—' : `${fmt(+(r.mass * r.qty).toFixed(1))} g`}</td></tr>`).join('')}
         <tr class="as-total"><td>Total</td><td>${rows.reduce((s, r) => s + r.qty, 0)}</td><td></td><td>${fmt(+total.toFixed(1))} g</td></tr></table>
         ${mp.cog ? `<div class="mp-facts as-mass"><span title="${esc(t('Centre of mass (centre of gravity) of the placed parts, in the assembly\'s coordinates — it follows them as they move'))}">CoG</span><b class="mp-cog"><span class="as-cogv" data-no-i18n>${cogText(mp.cog)} mm</span>
@@ -1025,7 +1155,6 @@ export class Assembly {
         <button class="btn small" data-x="step" title="All parts as separate bodies in one STEP file">STEP</button>
         <button class="btn small" data-x="iges" title="Every part placed in one IGES file (names, colours) — for CAD programs that ask for IGES; it has no assembly tree">IGES</button>
         <button class="btn small" data-x="glb" title="glTF for viewers and rendering: a node per placed part with its name, the colours and materials">GLB</button>
-        ${this.hooks.newSheet ? '<button class="btn small" data-a="sheetHere" title="The assembly\'s drawing sheet to edit (views, parts list, balloons, your dimensions and texts)">📄 Drawing sheet</button>' : ''}
         ${this.hooks.drawingSet ? '<button class="btn small primary" data-a="drawingSet" title="One PDF: this assembly (its views, parts list and balloons), then each sub-assembly with its parts, then its own made parts — their drawing sheets when they have one">📄 Drawings (PDF)</button>' : ''}</div>
         <p class="hint">To print, open each part's tab and use 🖨 Prepare for 3D print there.</p>`
         : `<p class="hint">Insert parts of this project (3D models and quick parts) with ＋ Insert part, then join them with 🔗 Joint.</p>`}`;
@@ -1036,7 +1165,8 @@ export class Assembly {
     box.querySelector('[data-a=bomWin]')?.addEventListener('click', () => this.openBom());
     box.querySelector('[data-a=cog]')?.addEventListener('click', () => this.toggleCog());
     box.querySelector('[data-a=drawingSet]')?.addEventListener('click', () => this.hooks.drawingSet());
-    box.querySelector('[data-a=sheetHere]')?.addEventListener('click', () => this.hooks.newSheet());
+    const jf = box.querySelector('.as-jfold'), jfWas = jf?.open; // (opened by itself for a joint that does not hold: not the user's choice)
+    jf?.addEventListener('toggle', (e) => { if (e.target.open !== jfWas) this.jointsOpen = e.target.open; });
   }
 
   /** A part inside a placed sub-assembly (chosen in the list): where it is, its moves inside the sub-assembly here
@@ -1128,6 +1258,7 @@ export class Assembly {
     b.textContent = this.clashLabel();
     b.classList.toggle('bad', !!this.clashes?.length);
     b.classList.toggle('good', !!this.clashes && !this.clashes.length);
+    if (!this.sel && this.mode === 'idle') this.renderSuggest(); // (the table's ⚠ count)
   }
 
   /** Checked again a moment after a change (the ⚠ button counts them, the list when it is open). */
@@ -1327,6 +1458,7 @@ export class Assembly {
     this.hint(this.measuring ? 'Measure — click a spot, then another one (corners snap). Esc ends.' : '');
     if (!this.measuring) this.$('.m-measure')?.remove();
     this.renderBar();
+    this.renderSuggest(); // (measuring: the table goes; done: it is back)
   }
 
   measureBox(html) {
@@ -1581,9 +1713,9 @@ export class Assembly {
   editHtml(it) {
     if (!this.hooks.editInPlace || this.kindOf(it.part) !== 'model') return '';
     const ed = this.editable(it.part);
-    return `<h3>Edit</h3><div class="row-actions wrap"><button class="btn small ${ed ? 'primary' : ''}" data-a="editHere" ${ed ? '' : 'disabled'} title="Change its part in the 3D modeler, the rest of the assembly see-through around it (or double-click it)">✎ Edit it here</button>
+    return `<div class="row-actions wrap as-editrow"><button class="btn small ${ed ? 'primary' : ''}" data-a="editHere" ${ed ? '' : 'disabled'} title="Change its part in the 3D modeler, the rest of the assembly see-through around it (or double-click it)">✎ Edit it here</button>
       <button class="btn small ${ed ? 'on' : ''}" data-a="editLock" title="${ed ? 'Lock it: its part cannot be changed from this assembly' : 'Unlock it to change its part from this assembly'}">${ed ? '🔓 Editable from here' : '🔒 Locked'}</button></div>
-      <p class="hint">${ed ? 'Every copy of its part changes (here and in other assemblies).' : 'Unlock it to change its part from here — locked, it cannot be changed by accident.'}</p>`;
+      <span class="hint">${ed ? 'Every copy of its part changes (here and in other assemblies).' : 'Unlock it to change its part from here — locked, it cannot be changed by accident.'}</span>`;
   }
 
   /** Open a placed part's model in the 3D modeler, in place: the other parts shown see-through around it. */
@@ -3238,6 +3370,14 @@ export class Assembly {
     if (e.key === 'Escape' && this.painting) { this.togglePaint(); return; }
     if (e.key === 'Escape' && this.mode !== 'idle') { this.cancelJoint(); return; }
     if (e.key === 'Escape' && this.bolt) { this.cancelBolt(); return; }
+    if (e.key === 'Escape') { // (a menu, a list panel, then what is chosen — back to the whole assembly's suggestions)
+      const menus = this.els.viewport.querySelectorAll('.m-cmdbar .menu.open');
+      if (menus.length) { for (const m of menus) m.classList.remove('open'); return; }
+      if (this.clashPanel) { this.toggleClashes(); return; }
+      if (this.fastenerPanel) { this.fastenerPanel = false; this.hoverCand = null; this.render(); this.draw(); return; }
+      if (this.sel || this.facePicks?.length) { this.facePicks = []; this.snapPick = null; this.choose(null); this.drawMarks(); }
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y')) { e.preventDefault(); this.history.go(k === 'y' || e.shiftKey ? 1 : -1); return; }
     if (k === 's' && !e.ctrlKey) this.startJoint('touch', this.sel);
     if (e.key === 'Delete' && this.sel) this.removeInst(this.sel);

@@ -675,6 +675,8 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 /* a joint: its kind, value and buttons on top; what holds what on a full line under them; the turn slider last */
 .as-jrow[data-jrow] { grid-template-columns: 1fr auto auto; }
 .as-jrow[data-jrow] > .as-jw { grid-column: 1 / -1; grid-row: 2; }
+.as-jrow[data-crow] { grid-template-columns: 1fr auto auto; } /* (a coupling: its name, ratio and buttons; the parts under them) */
+.as-jrow[data-crow] > .as-jw { grid-column: 1 / -1; grid-row: 2; }
 .as-jrow[data-jrow] > .as-jspin { grid-row: 4; }
 .as-jrow[data-jrow] > .as-jspin.as-jgap { grid-row: 3; }
 .as-bolt-msg.bad { color: var(--warn); }
@@ -767,9 +769,16 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 #asmLeft { padding: 10px 10px 14px; }
 #asmRight { padding: 12px 14px; }
 #asmViewport { position: relative; overflow: hidden; background: radial-gradient(ellipse at 50% 40%, #1f2630, #0e1115); }
-.as-insert .menu-list { left: 0; right: auto; }
-.as-explode { display: inline-flex; align-items: center; gap: 6px; }
-.as-explode input { width: 90px; }
+.as-insert .menu-list, .as-jmenu .menu-list, .as-exmenu .menu-list { left: 0; right: auto; }
+.as-jlist { min-width: 190px; }
+.as-jlist button { padding: 6px 10px; }
+.as-jlist button.on { background: #6e40c9; color: #fff; }
+.as-exlist { padding: 8px 10px; min-width: 230px; }
+.as-exlist .hint { margin: 6px 0 0; }
+.as-explode { display: flex; align-items: center; gap: 8px; }
+.as-explode input { flex: 1; min-width: 120px; }
+.as-exlist .as-exrespect { margin-top: 6px; }
+#asmViewport > .m-cmdbar:has(.menu.open) { z-index: 9; } /* (an open menu over the Suggested table) */
 .as-bom { width: 100%; border-collapse: collapse; font-size: 12px; }
 .as-bom th, .as-bom td { text-align: left; padding: 3px 4px; border-bottom: 1px solid var(--line); }
 .as-bom th { color: var(--muted); font-weight: 500; }
@@ -903,6 +912,14 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .as-innerpart { font-size: 12px; font-weight: 600; margin: 6px 0 2px; }
 .as-free { margin: 6px 0 10px; }
 .as-free summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+.as-pacts { margin: 0 0 4px; }
+/* folded parts of the assembly's panel: the look and editing of a part; the overview's joints */
+.as-more, .as-jfold { margin: 14px 0 6px; padding-top: 10px; border-top: 1px solid var(--line); }
+.as-more > summary, .as-jfold > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text); }
+.as-more[open] > summary, .as-jfold[open] > summary { margin-bottom: 8px; }
+.as-jfold > h3:first-of-type, .as-jfold > h3 { margin-top: 8px; padding-top: 0; border-top: 0; font-size: 12px; color: var(--muted); }
+.as-editrow { align-items: center; margin-bottom: 8px; }
+.as-editrow .hint { flex-basis: 100%; margin: 0; }
 .as-dof label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
 .as-dofrow { display: flex; align-items: center; gap: 6px; }
 .as-dofrow input[type=range] { flex: 1; min-width: 0; } /* (shrinks: the number and its buttons stay in the panel) */
@@ -1013,8 +1030,6 @@ input.px-in.px-bad, .px-box input.px-bad { border-color: #f0883e !important; out
 .m-cmdbar.cb-compact [data-icon] { font-size: 0 !important; gap: 0; }
 .m-cmdbar.cb-compact [data-icon]::before { content: attr(data-icon); font-size: 14px; line-height: 1.25; }
 .m-cmdbar.cb-compact .chip.tool[data-icon], .m-cmdbar.cb-compact .chip[data-icon] { padding: 4px 7px; min-width: 30px; }
-.m-cmdbar.cb-compact .as-jbar button[data-icon] { padding: 3px 7px; }
-.m-cmdbar.cb-compact .as-jlabel[data-icon] { padding: 0 6px 0 3px; }
 /* ... and the sketch plane's offset chip: only ↕, the field and mm (its tooltip and the arrow on pointing say the rest) */
 .m-cmdbar.cb-compact .m-offl { font-size: 0; }
 .m-cmdbar.cb-compact .m-offl::before { content: '↕'; font-size: 13px; }
@@ -1082,13 +1097,6 @@ body.view-acts .toast-stack { bottom: 84px; }
 .view-suggest .vs-head, .view-suggest .vs-hint { flex: none; }
 .vs-head { cursor: move; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 9px 6px 11px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
 .vs-head b { font-size: 12.5px; flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* (one line: a long name ends in …, whole in its tooltip) */
-/* the assembly's joints, each a button of its own (one click starts it; lit while its faces are picked) */
-.as-jbar { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px; padding: 2px 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); }
-.as-jbar .as-jlabel { font-size: 12px; color: var(--muted); padding: 0 8px 0 4px; margin-right: 2px; border-right: 1px solid var(--line); white-space: nowrap; } /* (a label, not a button) */
-.as-jbar button { display: inline-flex; align-items: center; gap: 4px; background: none; border: 1px solid transparent; border-radius: 6px; color: var(--text); padding: 3px 7px; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
-.as-jbar button:hover:not(:disabled) { background: #2b3440; }
-.m-cmdbar .as-jbar button.on { background: #6e40c9; border-color: #8957e5; color: #fff; } /* (as the bar's other tools that are on) */
-.as-jbar button:disabled { opacity: 0.45; cursor: default; }
 .view-suggest .vs-sec { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding: 6px 6px 2px; border-top: 1px solid var(--line); }
 .view-suggest .vs-sec:first-child { border-top: 0; padding-top: 2px; }
 .m-offset .m-plus { color: var(--muted); font-size: 11px; }

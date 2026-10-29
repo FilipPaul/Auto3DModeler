@@ -57,7 +57,7 @@ try:
     time.sleep(1)
     full = body("I2")
     print("the Lid, full:", full)
-    js(f"{A}.choose('I2')")
+    js(f"{A}.moreOpen = true; {A}.choose('I2')")  # (🎨 Look and editing: open)
     time.sleep(0.4)
     box = d.find_element(By.CSS_SELECTOR, "#asmRight [data-look=light]")
     print("its 🪶 box:", box.is_selected())

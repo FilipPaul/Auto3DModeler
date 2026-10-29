@@ -90,7 +90,7 @@ try:
     print("bolt:", ai("bolt_parts", part="I2", face="F2:end", x=20, y=10, kind="nut", size="M3")[:60])
     s = summary()
     print("fasteners:", s["fasteners"], "| joints:", len(s["joints"]), "| not held:", [j["id"] for j in s["joints"] if j.get("not_held")])
-    js(f"{A}.sel = null; {A}.render(); {A}.draw()")
+    js(f"{A}.sel = null; {A}.jointsOpen = true; {A}.render(); {A}.draw()")  # (🔗 Joints (n) unfolded)
     time.sleep(0.4)
     print("rows:", [r.text.replace("\n", " | ") for r in d.find_elements(By.CSS_SELECTOR, "#asmRight .as-joints > .as-jrow")])
     d.save_screenshot(f"{OUT}/health_bolt.png")
@@ -104,6 +104,7 @@ try:
 
     # 🔩 in the Joint menu: the Fasteners panel
     time.sleep(0.3)
+    d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=joints]").click()  # (🔗 Joint ▾: its menu)
     d.find_element(By.CSS_SELECTOR, "#asmViewport [data-joint=fastener]").click()
     time.sleep(0.4)
     print("Joint ▾ 🔩:", d.find_element(By.CSS_SELECTOR, "#asmRight h2").text, "| mode:", js(f"return {A}.mode"))

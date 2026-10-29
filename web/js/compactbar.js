@@ -49,7 +49,7 @@ function fit(bar) {
   if (!bar.isConnected || !bar.offsetWidth) return;
   const was = bar.classList.contains('cb-compact'), before = bar.offsetHeight;
   setCompact(bar, false);
-  const on = barRows(bar) > MAX_ROWS;
+  const on = barRows(bar) > (+bar.dataset.maxRows || MAX_ROWS); // (a bar may ask for fewer rows: the assembly's, 2)
   if (on) setCompact(bar, true);
   if (on === was && bar.offsetHeight === before) return;
   const h = bar.parentElement?.querySelector(':scope > .m-hint'); // (under the bar)
