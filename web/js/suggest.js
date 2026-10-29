@@ -1,8 +1,8 @@
 // The suggestions table: what can be done with what is selected (one shape or part, or several with Ctrl+click),
 // in the bottom-left corner of the view — small, out of the way, gone when nothing is selected. Its header drags it
-// elsewhere in the view; that place is remembered.
+// elsewhere in the view (that place is remembered) or into the left panel, where it stays docked (📌 too) — leftdock.js.
 import { t } from './i18n.js';
-import { floatBox } from './floatbox.js';
+import { leftDock } from './leftdock.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let askAI = null; // (the app: what is selected, into the AI chat)
@@ -135,7 +135,7 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
   const again = () => showSuggest(viewport, title, items, hint, refs);
   const all = showingAll(), { rows, total, over } = pickRows(items, all), setting = box.dataset.setting === '1';
   box.dataset.noI18n = '';
-  box.innerHTML = `<div class="vs-head"><b>${esc(title)}</b><button class="vs-set${setting ? ' on' : ''}" title="${esc(t('How many suggestions show before ⋯ Show all — click to change'))}">${esc(t('Suggested'))}</button>${refs && askAI ? `<button class="vs-ai" title="${esc(t('Ask the AI about it — what is selected goes into the chat'))}">✨</button>` : ''}</div>
+  box.innerHTML = `<div class="vs-head"><button class="vs-pin" title="${esc(t('Dock it in the left panel — always in sight (or drag its header there)'))}">📌</button><b>${esc(title)}</b><button class="vs-set${setting ? ' on' : ''}" title="${esc(t('How many suggestions show before ⋯ Show all — click to change'))}">${esc(t('Suggested'))}</button>${refs && askAI ? `<button class="vs-ai" title="${esc(t('Ask the AI about it — what is selected goes into the chat'))}">✨</button>` : ''}</div>
     ${setting ? `<label class="vs-top" title="${esc(t('The most relevant suggestions first; the rest under ⋯ Show all'))}">${esc(t('Show first'))} <input type="number" min="3" max="30" step="1" value="${suggestLimit()}"> ${esc(t('suggestions'))}</label>` : ''}
     <div class="vs-list">${rows.map((it) => (it.section !== undefined ? `<div class="vs-sec">${esc(it.section)}</div>` // (a heading: what the rows under it act on)
       : `<button data-sg="${it.i}" class="${it.danger ? 'danger' : ''}" title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span></button>`)).join('')}${!over ? ''
@@ -159,6 +159,8 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
   });
   box.querySelector('.vs-ai')?.addEventListener('click', (e) => { e.stopPropagation(); askAI(refs); });
   box.querySelector('.vs-ai')?.addEventListener('pointerdown', (e) => e.stopPropagation()); // (not a drag of the table)
-  floatBox(box, viewport, { kind: 'suggest', handle: '.vs-head', min: [170, 90], onDefault: (b) => cornerPlace(b, viewport) }); // (moved / resized / remembered)
+  box.querySelector('.vs-pin')?.addEventListener('click', (e) => { e.stopPropagation(); leftDock.dock('suggest'); for (const b of document.querySelectorAll('.view-suggest')) leftDock.placeSuggest(b, b.parentElement); });
+  box.sgOpts = { kind: 'suggest', handle: '.vs-head', min: [170, 90], onDefault: (b) => cornerPlace(b, viewport) };
+  leftDock.placeSuggest(box, viewport); // (floating: moved / resized / remembered; or docked in the left column)
   return box;
 }
