@@ -7,6 +7,10 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⚙ Mechanism tall enough at first done**: its default height 150 -> 230 px (mechanism.js addWidget h), so the
+  crank demo's two motion rows and the "Chybí jedna vazba…" line with ➕ Přidat vazbu show without scrolling.
+  e2e_mechanism_by_mouse checks the widget does not scroll at that step.
+
 - **The assembly view follows an insert only when it has to done** (the mouse walkthrough: every ＋ Vložit díl reset
   the view to iso, the user's zoom lost): the first part -> iso; a new part outside the camera's view -> all fitted,
   seen from where the camera looks now (ModelView.fit); a part already in view -> the camera stays (Assembly.inView:

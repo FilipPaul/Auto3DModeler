@@ -133,7 +133,7 @@ export class MechanismPanel {
     this.notes = {}; // mechanism key -> {text, bad} (⚠ the travel)
     this.traces = {}; // mechanism key -> a trace (📈)
     this.more = new Set(); // the mechanisms whose ⋯ is open
-    this.box = leftDock.addWidget('mech', 'assembly', { title: '⚙ Mechanism', h: 150, close: () => this.close() });
+    this.box = leftDock.addWidget('mech', 'assembly', { title: '⚙ Mechanism', h: 230, close: () => this.close() });
   }
 
   /** The mechanisms found again and the widget drawn (or hidden: none, or closed). */

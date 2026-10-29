@@ -210,6 +210,8 @@ def helper():
     h = hint()
     check(h == ["Chybí jedna vazba, aby se mechanismus uzavřel: díra Ø8 (Ojnice) ↔ čep Ø8 (Smýkadlo) ➕ Přidat vazbu"], f"the missing joint named in ⚙ Mechanismus: {h}")
     d.save_screenshot(f"{OUT}/mouse_missing_hint.png")
+    sh, ch = d.execute_script("const b = document.querySelector('.lw-widget[data-w=mech] .lw-body'); return [b.scrollHeight, b.clientHeight]")
+    check(sh <= ch + 1, f"⚙ Mechanismus tall enough for its rows and the 'missing joint' line, no scrolling: {sh} <= {ch} px")
     # ⚙ Mechanismus closed (its ✕): the line is in the panel of the slider
     press(d.find_element(By.CSS_SELECTOR, ".lw-widget[data-w=mech] .lw-close"))
     check(pick("I4", "F2:end", "face"), "the slider's top clicked")
