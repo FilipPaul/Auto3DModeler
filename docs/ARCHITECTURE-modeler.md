@@ -7,6 +7,16 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **🎬 Save animation of a mechanism done** (⚙ Mechanism ⋯): one cycle of the driver (a full turn / there and back,
+  ▶'s speed) from the current view -> a looping GIF (default) or a video. The page draws the frames
+  (`view.snapshot`, fit: false; the 3D only, an optional name caption; ≤ 1280 px across) one at a time (the page stays
+  responsive); GIF: PNG frames posted to /api/anim/<id>/frame/<n>, made into one GIF by `auto3d/animation.py` (Pillow,
+  one median-cut palette from frames across the cycle, no dither: no flicker; a progress job, cancellable) — chosen
+  over a GIF encoder vendored into web/ because Pillow is already a dependency, the file must be in the data folder for
+  the AI anyway, and the encoding runs off the page. Video: MediaRecorder on a canvas' captureStream (MP4 where the
+  browser can — Edge / Chrome now can —, else WebM), paced at 25 fps, the file posted to the data folder. Code in
+  web/js/assembly/anim.js (mechanism.js: one hook). AI: record_animation {mechanism, format}; gui_state `animation`.
+  tests/test_animation.py, tools/e2e_mechanism_anim.py.
 - **A mechanism built by mouse: the walkthrough, its fixes, "one joint is missing" done** (the owner: "how hard is it
   for a user to make a mechanism?"). The crank – rod – slider put together with real clicks only (headless Edge, Czech,
   1600×1000; the crank demo's parts; tools/e2e_mechanism_by_mouse.py replays it). Found and fixed, one commit each:

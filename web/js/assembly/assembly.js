@@ -43,6 +43,7 @@ import { bomOf, bomCsv, instanceTree } from './bom.js';
 import { openBomWindow } from './bomview.js';
 import { kindIcon, fromLibrary } from '../parts.js';
 import { MechanismPanel, driveTo } from './mechanism.js';
+import { saveAnimation } from './anim.js';
 import { startDrag } from './drag.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -3376,6 +3377,16 @@ export class Assembly {
         if (play === true) this.mech.play(m); else if (play === false) this.mech.stop();
         const s = this.mech.summary().find((x) => x.id === m.id), where = this.summary().parts.filter((x) => m.parts.includes(x.id)).map((x) => ({ id: x.id, name: x.name, position: x.position, ...(x.at ? { at: x.at } : {}) }));
         return { text: `${m.id} “${m.name}”, driven by ${m.driver.part} — ${m.driver.mo.label}: at ${s.at} ${m.turn ? '°' : 'mm'} (${m.min} … ${m.max}${m.full ? ', a full turn' : ''})${r?.stopped ? ' — stopped: it cannot go further that way (a dead point or its end)' : ''}${this.mech.playing?.key === m.key ? '; ▶ playing (play: false stops it)' : ''}. Its parts: ${JSON.stringify(where)}` };
+      },
+      record_animation: async ({ mechanism, format = 'gif', caption = true } = {}) => {
+        need();
+        await settle();
+        this.mech.render();
+        const m = this.mech.find(mechanism);
+        if (!['gif', 'video'].includes(format)) throw new Error('format: gif or video.');
+        const r = await saveAnimation(this.mech, m, { format, caption, download: false });
+        if (!r) return { text: `The recording of ${m.id} “${m.name}” was cancelled.` };
+        return { text: `${m.id} “${m.name}”: one ${m.full ? 'full turn' : 'cycle there and back'} saved as ${r.format.toUpperCase()} — ${r.path} (${r.frames} frames, ${r.width} × ${r.height} px, ${r.bytes} bytes; the user downloads it from ${r.url}).` };
       },
       name_motion: async ({ part, motion = 0, name = '' } = {}) => {
         need();

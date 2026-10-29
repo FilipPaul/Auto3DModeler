@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { paintedFaces } from './modeler/paint.js';
 import { sectionMiddle } from './modeler/sectionbar.js';
 import { parseScale, DEFAULT_TPL } from './sheet/sheet.js';
+import { animState } from './assembly/anim.js';
 
 const b64 = (s, T) => { if (typeof s !== 'string') return s; const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new T(u.buffer); };
 const r3 = (v) => +(+v).toFixed(3);
@@ -286,7 +287,9 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         ...(r.dataset.parent ? { parent: r.dataset.parent, depth: +r.dataset.depth || 1 } : {}), ...(r.hidden ? { folded: true } : {}),
         ...(r.classList.contains('off') ? { off: true } : {}), ...(r.classList.contains('bad') ? { failed: r.title || true } : {}),
         ...(r.classList.contains('on') ? { selected: true } : {}), ...(r.classList.contains('editing') ? { editing: true } : {}) })) : undefined;
-      return ok({ workspace: state.workspace, controls: list.map(({ el, ...c }) => c), ...(steps ? { steps } : {}),
+      // 🎬 an animation being recorded (its progress) or the last one saved (its file)
+      const anim = state.workspace === 'assembly' ? animState(assembly?.mech) : null;
+      return ok({ workspace: state.workspace, controls: list.map(({ el, ...c }) => c), ...(steps ? { steps } : {}), ...(anim ? { animation: anim } : {}),
         toasts: [...document.querySelectorAll('.toast')].map((x) => x.textContent.trim()).slice(-3) });
     },
     gui_action: async ({ control, click, value, key: keys, at, at_mm, drag_to, double } = {}) => {

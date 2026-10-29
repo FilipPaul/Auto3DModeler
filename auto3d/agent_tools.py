@@ -436,6 +436,14 @@ TOOLS = [
                     "follows, it stops at a dead point; driver = another of its `drivers` (\"I5 motion 0\" or {part, motion}); name = "
                     "its own name (\"\": the default again); play = true / false: ▶ on and on / stop. It answers where its parts went.",
      "inputSchema": _obj({"mechanism": STR, "to": NUM, "driver": {}, "name": STR, "play": {"type": "boolean"}})},
+    {"name": "record_animation", "where": "browser",
+     "description": "Save one full cycle of a mechanism's motion as an animation (the app's ⚙ Mechanism ⋯ → 🎬 Save animation): "
+                    "a full turn of its driver, else there and back, from the 3D view as set_view left it (the 3D only, with the "
+                    "mechanism's name in a corner; caption: false leaves it out), at most 1280 px across. mechanism = its id, name "
+                    "or one of its parts (none: the first); format gif (default: a looping GIF, plays everywhere) or video (MP4 or "
+                    "WebM, as the browser can record). It answers the file's path in the app's data folder, its frames and size; "
+                    "the parts end where they were.",
+     "inputSchema": _obj({"mechanism": STR, "format": {"type": "string", "enum": ["gif", "video"]}, "caption": {"type": "boolean"}})},
     {"name": "name_motion", "where": "browser",
      "description": "Give a free motion of a joined part its own name (e.g. \"Otáčení kliky\"): part = I…, motion = its number or words "
                     "of its name (as for move_free), name (\"\": its own words again). The name shows in get_assembly (`free`, "
@@ -644,7 +652,7 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 - **Drawing sheets** (📄, of a 3D model part — its views and dimensions, made by a preset, edited by the user, following the part): sheet_open, get_sheet, sheet_edit; export {format: "pdf"} on a sheet writes it as drawn. Prefer a sheet over export pdf of the model when the user wants a drawing.
 - **2D drawings** (a DXF / DWG, or a PCB's Gerber / ODB++ opened as a 📐 drawing — open_file opens them, also a folder of loose Gerber files): get_drawing, drawing_find (shapes by filters), drawing_delete, drawing_add (lines, circles), drawing_units, drawing_layers (show / hide, colour, a new layer), drawing_set_size, drawing_use (as the sketch of a 3D model, or a quick part).
 - The GUI: gui_state lists what the user sees (buttons, sliders, their state; a sheet's dimensions / views / cells); gui_action clicks / slides one as the user would, clicks / drags at a point of the view (at, at_mm on a sheet) and presses keys (Delete, Enter, Escape, ctrl+z) — use them to tell the user where something is and to check the GUI behaves like the tools. gui_highlight points at a control (or a spot of the view) with a short tip and can wait until the user clicks it.
-- Assemblies also: edit_joint / remove_joint, measure (between faces), move_free, lock_motion (fix one free motion where it is); set_travel (a free motion's limits: a cylinder's stroke) and check_travel (collisions along it); drive_mechanism (a whole mechanism by its driver: a crank's turn, every part follows; ▶ play) and name_motion (a motion's own name); the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, delete_part (only when asked). Files: export stl / step / iges / glb / obj / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf.
+- Assemblies also: edit_joint / remove_joint, measure (between faces), move_free, lock_motion (fix one free motion where it is); set_travel (a free motion's limits: a cylinder's stroke) and check_travel (collisions along it); drive_mechanism (a whole mechanism by its driver: a crank's turn, every part follows; ▶ play), record_animation (one cycle of it saved as a GIF / video) and name_motion (a motion's own name); the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, delete_part (only when asked). Files: export stl / step / iges / glb / obj / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf.
 - **The parts library** holds real, bought parts with their maker and part number (screws, nuts, washers, inserts, bearings, standoffs, panel parts, SMC pneumatics, SICK sensors, stepper motors, the user's own): library_search, library_add.
 - Both: get_screenshot, check_print, export, undo. Opening a file or tracing a picture adds a new quick part tab.
 

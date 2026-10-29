@@ -295,6 +295,7 @@ try:
     tool("get_bom", assembly="Pair", mode="structured")
     # ⚙ a mechanism: none in a rack of loose parts (refused, it says why); a loose part's motion cannot be named
     print("    drive_mechanism, no mechanism:", tool("drive_mechanism", to=90)[0][:100])
+    print("    record_animation, no mechanism:", tool("record_animation", format="gif")[0][:100])
     print("    name_motion, not joined:", tool("name_motion", part="I1", motion=0, name="Turn")[0][:100])
     tool("open_part", id="Flange")
     tool("prepare_print")

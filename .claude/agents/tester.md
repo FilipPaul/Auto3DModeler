@@ -519,6 +519,12 @@ Never report "works" without having run it; report failures with their output.
    get_assembly, the part panel, gui_state, undo / redo, the project saved and opened again —; drive_mechanism to /
    driver / name, name_motion; ✕ and the toolbar button; ⋯ drivers, 📈 trace, ⚠ the travel; Czech labels; a plain
    assembly: no widget, no button). Prints ALL OK / FAILED, exit code 1 on a failure.
+   `tools/e2e_mechanism_anim.py <url> <dir>` covers 🎬 Save animation (the crank demo: ⋯ shows it with GIF / video and
+   the name caption; a GIF saved — the progress line counts the frames, the page answers meanwhile, ≥ 20 frames of the
+   view's size, looping, each frame differs from the one before, the parts back where they were, gui_state
+   `animation`; Cancel halfway; a video when headless Edge records one (else skipped, said so); record_animation's
+   path in the data folder, an unknown mechanism refused; Czech labels; no console errors; one GIF kept as
+   <dir>/crank.gif). Prints ALL OK / FAILED, exit code 1 on a failure.
    `tools/e2e_demos.py <url> <dir>` covers the 🎬 demo projects (Open ▾ → Demo projects… lists them, Czech too; each
    opened from the menu as a new project, the demo files unchanged; ▶: every moving part moves, every joint holds —
    worstMiss < 0.05 mm —; the crank – rod – slider against r·cosθ + √(L² − r²sin²θ), the four-bar's rocker pin against

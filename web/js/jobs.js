@@ -5,10 +5,10 @@
 import { t } from './i18n.js';
 import { cancelRid } from './progressbox.js';
 
-const SKIP = /\/api\/(progress|jobs|agent|projects|chat|kernel|title-templates|printers|joints|library|windows)/; // (quick or long-polled)
+const SKIP = /\/api\/(progress|jobs|agent|projects|chat|kernel|title-templates|printers|joints|library|windows|anim\/[\w-]+\/frame)/; // (quick or long-polled; 🎬 an animation's frames)
 const URL_KINDS = [[/\/api\/(model\/)?import\/assembly/, 'Reading an assembly'], [/\/api\/(model\/)?import/, 'Importing a file'],
   [/\/api\/solve/, 'Building a quick part'], [/\/api\/model\/rebuild/, 'Building a part'], [/\/api\/sheet\/(build|assembly)/, 'Making a drawing'],
-  [/\/api\/assembly\/clashes/, 'Checking collisions'], [/\/api\/print\/plan/, 'Splitting for print'], [/export|\/api\/sheet\/pdf/, 'Exporting']];
+  [/\/api\/anim\//, 'Making an animation'], [/\/api\/assembly\/clashes/, 'Checking collisions'], [/\/api\/print\/plan/, 'Splitting for print'], [/export|\/api\/sheet\/pdf/, 'Exporting']];
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 const pending = new Map(); // this page's request id -> {url, kind, rid, at, abort}

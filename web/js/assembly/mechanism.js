@@ -2,9 +2,9 @@
 // its parts' free motions (the crank's turn by default: the others follow, the loop solver of loops.js), or a part's
 // own turn / slide on its own (a hinge, a wheel, a slide with limits). ▶ plays it on and on: a full turn round and
 // round, else to and fro — back at a dead point (a slider pushing a crank). ⋯: another driver, the speed, ⚠ the travel
-// checked for collisions and 📈 a trace (how a follower moves over the driver's travel). A widget of the left column
-// (leftdock.js: docked or floating), there only while the assembly has a mechanism; ✕ closes it, ⚙ Mechanism in the
-// toolbar opens it again.
+// checked for collisions, 📈 a trace (how a follower moves over the driver's travel) and 🎬 an animation saved (anim.js).
+// A widget of the left column (leftdock.js: docked or floating), there only while the assembly has a mechanism; ✕
+// closes it, ⚙ Mechanism in the toolbar opens it again.
 //   Assembly JSON: "mechs": [{"parts": ["I2", "I3", …], "name": "the user's", "drive": {"part": "I3", "key": "J3:turn"},
 //   "speed": 2}] — found again by the parts they share; a free motion's own name: an instance's
 //   "moveNames": {"J3:turn": "crank"} (Assembly.nameMotion; shown wherever the motion is).
@@ -12,6 +12,7 @@ import { t } from '../i18n.js';
 import { renameInPlace } from '../rename.js';
 import { leftDock } from '../leftdock.js';
 import { missingJoint } from './missing.js';
+import { animHtml, bindAnim } from './anim.js';
 
 const fmt = (v) => (+(+v).toFixed(2)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -178,6 +179,7 @@ export class MechanismPanel {
         <div class="mc-acts"><select class="as-dspeed" data-mcspeed="${k}" title="${esc(t('How fast ▶ plays'))}">${SPEEDS.map(([v, l]) => `<option value="${v}" ${m.speed === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
           <button class="btn small" data-mccheck="${k}" title="${esc(t('Move it over its whole travel in small steps and check for collisions on the way'))}">${esc(t('⚠ Check the travel'))}</button>
           ${m.parts.length > 1 ? `<button class="btn small ${tr ? 'on' : ''}" data-mctrace="${k}" title="${esc(t('How another part of it moves over the travel: a curve'))}">📈 ${esc(t('Trace'))}</button>` : ''}</div>
+        ${animHtml(this, m, k)}
         ${note ? `<p class="mp-count as-dofnote ${note.bad ? 'bad' : ''}" data-no-i18n>${esc(note.text)}</p>` : ''}
         ${tr ? this.traceSvg(m, tr, at) : ''}</div>` : ''}</div>`;
   }
@@ -221,6 +223,7 @@ export class MechanismPanel {
   draw() {
     this.box.innerHTML = `${this.missingHtml()}<div class="mc-list">${this.list.map((m, k) => this.rowHtml(m, k)).join('')}</div>`;
     this.bindMissing(this.box);
+    bindAnim(this);
     const asm = this.asm, row = (el, a) => this.list[+el.dataset[a]];
     for (const sl of this.box.querySelectorAll('[data-mcv]')) {
       const m = row(sl, 'mcv'), num = this.box.querySelector(`[data-mcn="${sl.dataset.mcv}"]`);

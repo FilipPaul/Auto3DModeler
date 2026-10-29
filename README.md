@@ -821,6 +821,15 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   part the closing rod is on); **⋯** picks another driver, the speed (½× 1× 2×), **⚠ Check the travel** (collisions over
   the whole turn) and **📈 Trace** (a curve: how the slider moves over the crank's turn). Nothing shows in an
   assembly without one.
+- **🎬 Save animation** (⚙ Mechanism ⋯, *"Uložit animaci"*): one click records one full cycle of the mechanism — a
+  full turn of its driver, else there and back, at the speed ▶ plays it — from the view as it is, and downloads it.
+  **GIF** by default (loops, plays everywhere — phones, chats, e-mail; 20 frames a second) or **Video** (MP4 or WebM,
+  whichever the browser can record; 25 frames a second, smaller and smoother). The 3D only — no labels, sizes or
+  marks — at the view's shape, at most 1280 px across; **Name** puts the mechanism's name in a corner. A line in the
+  row counts the frames (Cancel stops it); the parts end where they were. The files are also kept in the app's data
+  folder (`data/animations/`); the GIF is made there by the server (Pillow, one palette for all frames: no flicker),
+  a ⚙ job you can stop. The AI: `record_animation {mechanism, format: gif | video}` (it answers the file's path);
+  gui_state shows a recording under way or the last one saved.
 - **Drag a part in the view**: choose a joined part, then drag it in the 3D view (the cursor shows a hand): it moves
   the way its joints leave free — a crank turns round its shaft after the mouse, a slider slides along its line — and
   every part joined to it follows live (the rod and the slider of a crank; a forearm and its gripper on a turning

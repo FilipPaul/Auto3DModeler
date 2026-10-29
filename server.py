@@ -29,6 +29,7 @@ from auto3d import library as parts_library
 from auto3d import title_templates
 from auto3d import autosave
 from auto3d import demos
+from auto3d import animation
 from auto3d.agent_tools import BROWSER_TOOLS, TOOL_NAMES
 from auto3d.bend import bend_info, bend_solid
 from auto3d.design import profile_polygon, trace_image
@@ -994,7 +995,62 @@ def api_assembly_sweep():
     return jsonify({"steps": data})
 
 
-ASSEMBLY_FILES = {"step": ("model/step", "step"), "iges": ("model/iges", "igs"), "glb": ("model/gltf-binary", "glb")}  # format -> (mime, extension)
+ANIMATIONS = DATA / "animations"  # 🎬 the mechanisms' animations saved (auto3d/animation.py)
+
+
+@app.post("/api/anim/<aid>/frame/<int:n>")
+def api_anim_frame(aid, n):
+    """A frame (the raw PNG) of the animation `aid` being recorded -> {frames: how many it has}."""
+    try:
+        return jsonify({"frames": animation.add_frame(ANIMATIONS, aid, n, request.get_data())})
+    except animation.AnimationError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.post("/api/anim/<aid>/gif")
+def api_anim_gif(aid):
+    """{name, fps, rid} -> the frames of `aid` made into a looping GIF in the data folder: {file, path, url, frames,
+    width, height, bytes, fps} — a job of the ⚙ list (rid: its progress, Cancel)."""
+    body = request.get_json(force=True)
+    with progress.operation(body.get("rid"), "Making an animation"):
+        try:
+            res = animation.write_gif(ANIMATIONS, aid, body.get("name") or "", float(body.get("fps") or 20))
+        except progress.Cancelled:
+            animation.discard(ANIMATIONS, aid)
+            return jsonify({"cancelled": True})
+        except animation.AnimationError as e:
+            return jsonify({"error": str(e)}), 400
+    return jsonify({**res, "url": f"/api/anim/file/{res['file']}"})
+
+
+@app.post("/api/anim/<aid>/video/<kind>")
+def api_anim_video(aid, kind):
+    """A video the browser recorded (the raw WebM / MP4; ?name= the mechanism's) kept in the data folder -> {file,
+    path, url, bytes}."""
+    try:
+        animation.discard(ANIMATIONS, aid)
+        res = animation.save_file(ANIMATIONS, request.args.get("name") or "", kind, request.get_data())
+    except animation.AnimationError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({**res, "url": f"/api/anim/file/{res['file']}"})
+
+
+@app.delete("/api/anim/<aid>")
+def api_anim_discard(aid):
+    """A recording cancelled: its frames gone."""
+    try:
+        animation.discard(ANIMATIONS, aid)
+    except animation.AnimationError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"ok": True})
+
+
+@app.get("/api/anim/file/<name>")
+def api_anim_file(name):
+    return send_from_directory(ANIMATIONS, name, as_attachment=True)
+
+
+ASSEMBLY_FILES = {"step":("model/step", "step"), "iges": ("model/iges", "igs"), "glb": ("model/gltf-binary", "glb")}  # format -> (mime, extension)
 
 
 @app.post("/api/assembly/export/<fmt>")
