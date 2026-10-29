@@ -156,9 +156,9 @@ function geoItems(ed, refs) {
 
 // ---------------------------------------------------------------- the title block
 function titleItems(ed, refs) {
-  const X = ed.d.texts || {}, items = [], [setRow, setPdf] = setRows(ed, 0.5, 9.5);
+  const X = ed.textsOf(), items = [], [setRow, setPdf] = setRows(ed, 0.5, 9.5);
   if (setRow) items.push(setRow); // (first: the set this sheet is a page of)
-  const field = (k, icon, label, rank) => items.push({ icon, label: X[k] ? `${t(label)}: ${X[k]}` : `${t(label)}…`, title: t('Type it — it shows in the title block'), rank, run: () => editText(ed, k, label) });
+  const field = (k, icon, label, rank) => items.push({ icon, label: X[k] ? `${t(label)}: ${X[k]}` : `${t(label)}…`, title: t('Type it straight into its cell of the title block'), rank, run: () => editText(ed, k, label) });
   field('title', '✎', 'Title', 0);
   field('number', '№', 'Drawing no.', 1);
   field('drawn', '👤', 'Drawn by', 2);
@@ -172,15 +172,17 @@ function titleItems(ed, refs) {
   if (setPdf) items.push(setPdf);
   items.push({ icon: '💾', label: t('Save as template…'), title: t('Keep this title block (layout, fields, company, address, drawn by, note, tolerance standard, logo, frame) as a template for all your projects'), rank: 7, run: () => ed.saveTemplate().catch((e) => ed.hooks.toast?.(e.message, 'error', 6000)) });
   items.push({ icon: '🏢', label: t('Company, logo and fields'), title: t('Company, address, tolerance standard, logo, layout and the fields shown'), rank: 8, run: () => ed.openTitleMore() });
-  return { title: `▤ ${t('Title block')}`, items, hint: t('Double-click a cell: its field in the panel.'), refs: `${refs}, ${t('title block')}` };
+  return { title: `▤ ${t('Title block')}`, items, hint: t('Click a cell and type: Enter keeps it, Tab goes to the next, Esc goes back.'), refs: `${refs}, ${t('title block')}` };
 }
 
 // ---------------------------------------------------------------- the one value a row asks for
+/** A title-block text: typed in its own cell on the sheet (sheet.js editCell); a field the title block does not show
+ *  (its style leaves it out): asked for. */
 async function editText(ed, k, label) {
-  const X = ed.d.texts || {}, v = await ask(t(label), X[k] || (k === 'title' ? ed.hooks.partName(ed.d.source) || '' : ''), { ok: 'OK' });
+  if (ed.editCell(k)) return;
+  const v = await ask(t(label), ed.cellValue(k), { ok: 'OK' });
   if (v === null) return;
-  ed.d.texts = { ...X, [k]: v };
-  ed.commit();
+  ed.typed(k, v);
 }
 
 async function askTol(ed, dim) {

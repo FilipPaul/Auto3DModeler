@@ -3,7 +3,7 @@ the table's rows: a plate 60 × 40 × 8 with 4 holes Ø4 -> 📄 Drawing sheet (
 (Doplnit chybějící kóty -> fully dimensioned) -> a view: Větší (2:1), Ctrl+Z; Přidat řez A–A; the section: Skrýt pohled
 -> the top view hidden (Delete), 👁 Ukázat pohled brings it back -> an edge: Okótovat její délku (60 mm) -> the new
 dimension: Tolerance… ±0.1, Referenční kóta "(60 ±0.1)", Na druhou stranu, Smazat -> a hole: its callout chosen
-(Jeho kóta), Uložení… H7 -> the title block: Číslo výkresu… D-001, Šablona (Modern), Rámeček… Úzký -> Esc: Export PDF
+(Jeho kóta), Uložení… H7 -> the title block: Číslo výkresu… (its cell's text box) D-001, Šablona (Modern), Rámeček… Úzký -> Esc: Export PDF
 (the PDF has D-001), Tisk (a print frame with the PDF); Export ▾ in the top bar offers PDF, DXF, Tisk (its DXF saved). Screenshots at 1600 × 1000 and the view's table at 1280 × 800.
 Then the 2D drawing's table (drawing2d/drawsuggest.js): a DXF plate with 3 holes opened -> nothing chosen: Jako skicu
 nového 3D modelu …, Export ▾ offers only DXF (saved); a circle clicked -> Všechny takové (3 chosen), Ø: změnit rozměr… 6 (all three), Smazat.
@@ -229,8 +229,11 @@ try:
     click_paper(tb)
     check("a click on the title block chooses it", js(f"return {S}.selTitle") and title() == "▤ Rohové razítko", title())
     d.save_screenshot(f"{OUT}/ux_sheet_7_title.png")
-    row("Číslo výkresu…")
-    answer("D-001")
+    row("Číslo výkresu…")  # (its cell's text box on the sheet, no dialog)
+    inp = wait("const i = document.querySelector('#shViewport .sh-tbedit[data-tbedit=number]'); return document.activeElement === i ? i : null", 5)
+    inp.send_keys("D-001")
+    inp.send_keys(Keys.ENTER)
+    time.sleep(0.5)
     check("Číslo výkresu D-001 in the title block", js(f"return {S}.d.texts?.number") == "D-001" and "D-001" in js(f"return {S}.svgEl.querySelector('.sh-title').textContent"))
     row("Šablona:")
     pick("Moderní")

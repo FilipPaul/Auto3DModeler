@@ -335,6 +335,12 @@ Never report "works" without having run it; report failures with their output.
    "B — ISO 7200" brings its ISO frame; all 36 title / list pairs at A4 and A3: no view box over the list or the title
    block, a view dragged onto the list stays with ⚠; the AI's title_style / bom_style, a wrong one refused; the DXF's texts).
    Screenshots styles_<lang>_<pair>.png and _pdf.png. Run it in cs and en.
+   `tools/e2e_title_inline.py <url> <dir>` covers typing straight into the title block, in Czech with a real mouse and
+   keys (Base + Lid in "Machine", the Base's sheet: a click on a cell lays a text box over it in its font; D-100 +
+   Enter on the sheet and in the PDF, the drawing no. not asked about; Esc keeps nothing; Tab goes to Kontroloval and
+   "Přepsat i ve všech listech sestavy „Machine“? (3 listů)" shows; Ano -> every page of the set's PDF has F. Paul;
+   the mass cell is computed (no box, its tooltip); the suggestions' row opens the box; the panel still works; the
+   AI's sheet_edit texts + all_sheets; every style A … E, Modern, strip). Screenshots title_inline_*.png.
    `tools/e2e_sheet_views_templates.py <url> <dir> [cs]` covers the modern title block (inside the frame, black / grey
    only, the name large) and sheet views renamed, moved and scaled with the mouse
    (a double-click on the Front label -> "Side A", Ctrl+Z / Ctrl+Y; the Top view dragged snaps under Front, Shift: free;

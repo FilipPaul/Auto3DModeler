@@ -1907,6 +1907,25 @@ const CS = {
   'Tolerances for the 2D drawing, see-through': 'Tolerance pro 2D výkres, průhlednost',
   // (a face's kind in the suggestions' title: "Extrude 1 · top")
   top: 'horní plocha', bottom: 'spodní plocha', 'a wall': 'stěna', 'a hole': 'díra', 'a rounding': 'zaoblení', 'cut face': 'plocha řezu', 'a face': 'plocha',
+  // typing straight into the title block (sheet/tbedit.js) and "all sheets of the assembly?"
+  'click and type': 'klikněte a pište', 'Enter keeps it, Esc goes back, Tab: the next field': 'Enter uloží, Esc vrátí, Tab: další pole',
+  'Material — from the part\'s model: open the part to change it (each part keeps its own)': 'Materiál — z modelu dílu: změníte ho v dílu (každý díl má svůj)',
+  'Mass — computed from the part\'s volume and material': 'Hmotnost — spočítaná z objemu a materiálu dílu',
+  'Scale — the sheet\'s: change it with Scale in the panel': 'Měřítko — listu: změníte ho v panelu (Měřítko)',
+  'Paper — change it with Paper in the panel': 'Formát — změníte ho v panelu (Papír)',
+  'Sheet — this page\'s number in the drawing set': 'List — číslo této stránky v sadě výkresů',
+  'Revision — goes up by itself when the part changes': 'Revize — zvýší se sama, když se díl změní',
+  'Date — of the last change of the part': 'Datum — poslední změny dílu',
+  'Created — the day the sheet was made': 'Vytvořeno — den, kdy list vznikl',
+  'Changed · Rev — the last change of the part and its revision': 'Změněno · Rev — poslední změna dílu a jeho revize',
+  'Overwrite it on all sheets of the assembly “{asm}” too?': 'Přepsat i ve všech listech sestavy „{asm}“?', '({n} sheets)': '({n} listů)',
+  'the parts keep the material of their own models': 'díly si nechají materiál ze svých modelů',
+  'Every sheet of the drawing set shows this text — also the pages that have no sheet of their own yet': 'Tento text bude na všech listech sady výkresů — i na stránkách, které ještě nemají vlastní list',
+  Yes: 'Ano', 'Only here': 'Jen tady', 'Only this drawing says it': 'Jen tento výkres',
+  'This field\'s answer is kept until the app is closed': 'Odpověď pro toto pole platí, dokud aplikaci nezavřete',
+  'don\'t ask again': 'neptat se znovu', '{fields} on all {n} sheets of {asm}.': '{fields}: ve všech {n} listech sestavy {asm}.',
+  'Type it straight into its cell of the title block': 'Napište ho rovnou do jeho buňky v razítku',
+  'Click a cell and type: Enter keeps it, Tab goes to the next, Esc goes back.': 'Klikněte do buňky a pište: Enter uloží, Tab přejde na další, Esc vrátí.',
 };
 
 // ---------------------------------------------------------------------------- texts with values ({} = a value; {1}, {2} … in the Czech text)

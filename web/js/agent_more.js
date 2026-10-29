@@ -7,6 +7,7 @@ import { paintedFaces } from './modeler/paint.js';
 import { sectionMiddle } from './modeler/sectionbar.js';
 import { parseScale, DEFAULT_TPL } from './sheet/sheet.js';
 import { tolText } from './sheet/sheetsuggest.js';
+import { propagates } from './sheet/tbedit.js';
 import { animState } from './assembly/anim.js';
 
 const b64 = (s, T) => { if (typeof s !== 'string') return s; const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new T(u.buffer); };
@@ -382,7 +383,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       await sheet.ensure();
       return ok({ ...sheet.summary(), ...(points ? { [points]: sheet.pointsOf(points) } : {}) });
     },
-    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, dims, texts, complete, drop_twice, fits, scale, view_scales, view_names, template, template_all, save_template, frame, title_style, bom_style, all_pages } = {}) => {
+    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, dims, texts, all_sheets, complete, drop_twice, fits, scale, view_scales, view_names, template, template_all, save_template, frame, title_style, bom_style, all_pages } = {}) => {
       need('sheet', 'This is for a drawing sheet (📄) — sheet_open opens one');
       const ed = sheet, done = [];
       if (all_pages !== undefined) {
@@ -455,10 +456,17 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       }
       if (restore) { ed.d.hidden = []; done.push('the deleted ones back'); }
       for (const [k, v] of Object.entries(texts || {})) {
-        if (!['title', 'number', 'drawn', 'note', 'company', 'address', 'tolstd', 'surface', 'checked', 'approved'].includes(k)) throw new Error('texts: {title, number, drawn, note, company, address, tolstd, surface, checked, approved} — the title block\'s own texts.');
+        if (!['title', 'number', 'drawn', 'note', 'company', 'address', 'tolstd', 'surface', 'checked', 'approved', 'material'].includes(k)) throw new Error('texts: {title, number, drawn, note, company, address, tolstd, surface, checked, approved, material (an assembly\'s sheet)} — the title block\'s own texts.');
         ed.d.texts = { ...(ed.d.texts || {}) };
         if (String(v ?? '').trim()) ed.d.texts[k] = String(v).trim(); else delete ed.d.texts[k];
         done.push(`${k}: ${v || '—'}`);
+      }
+      if (texts && all_sheets) { // the project-wide ones on every sheet of the assembly's drawing set (sheet/tbedit.js says which)
+        const asm = !!ed.d.asm && !ed.d.bom, go = Object.fromEntries(Object.entries(texts).filter(([k]) => propagates(k, asm)));
+        const kept = Object.keys(texts).filter((k) => !(k in go));
+        if (!ed.rootOf(ed.d.source)) done.push('all_sheets: this sheet is not in an assembly\'s drawing set');
+        else if (Object.keys(go).length) done.push(`${Object.keys(go).join(', ')} on all ${ed.setTextsAll(go)} sheets of the set`);
+        if (kept.length) done.push(`${kept.join(', ')} kept on this sheet only (each drawing's own)`);
       }
       const ids = new Set(ed.allDims().map((d) => d.id).concat(ed.d.hidden, ed.d.user.map((d) => d.id)));
       for (const id of [].concat(remove)) {

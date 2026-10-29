@@ -5,6 +5,7 @@
 // Any title block goes with any parts list (a template's titleStyle and bomStyle). The fonts are in web/fonts (OFL);
 // every text says its font (data-ff), so auto3d/modeler/sheet.py pdf() writes it with the same font file.
 import { t, getLang } from '../i18n.js';
+import { hitRect } from './tbedit.js';
 
 /** The fonts: data-ff -> the CSS family (web/fonts/fonts.css; the PDF: auto3d/modeler/sheet.py FONT_FILES). */
 export const FAMILY = { plexc: 'IBM Plex Sans Condensed', plex: 'IBM Plex Sans', barlow: 'Barlow', inter: 'Inter' };
@@ -67,8 +68,8 @@ class Pen {
 
   rect(x, y, w, h, fill = 'none', stroke = 'none', sw = 0) { this.g.push(`<rect x="${n2(x)}" y="${n2(y)}" width="${n2(w)}" height="${n2(h)}" fill="${fill}"${stroke !== 'none' ? ` stroke="${stroke}" stroke-width="${sw}"` : ''}/>`); }
 
-  /** A place to double-click (the sheet's panel field of that text). */
-  hit(key, x, y, w, h) { this.g.push(`<rect x="${n2(x)}" y="${n2(y)}" width="${n2(w)}" height="${n2(h)}" fill="#fff" fill-opacity="0" stroke="none" data-tcell="${key}" class="sh-tcell"/>`); }
+  /** A cell to click and type into (tbedit.js; a computed one: its tooltip says where it comes from). */
+  hit(key, x, y, w, h) { this.g.push(hitRect(key, x, y, w, h, this.ro)); }
 
   /** The first-angle projection symbol (ISO 5456-2): the cone's side (its big end at x) and its end view, H high. */
   projection(x, cy, H, col = INK, sw = 0.24) {
@@ -86,9 +87,11 @@ function mark(f) { const w = String(f.company || '').trim().split(/[\s,]+/)[0].r
 
 /** A style's title block with its top-left corner at (x, y). f: the fields as text (sheet.js tbFields): name, kind,
  *  number, rev, material, mass, scale, paper, sheet, tol, surface, drawn, date, dateShort, checked, approved,
- *  company, address [lines], logo, keys {title, number, drawn, company} (the places to double-click). */
+ *  company, address [lines], logo, ro (a Set: the cells computed on this sheet — the material of a part's). Each
+ *  field's cell is a place to click and type (data-tcell, tbedit.js). */
 export function titleBlock(style, x, y, f) {
   const S = TB[style], P = new Pen(S.ff), { w: W, h: H } = S;
+  P.ro = f.ro;
   const label = (lx, ly, s, o = {}) => P.text(lx, ly, up(s), { fs: 1.8, fill: MUTED, ls: 0.12, ...o });
   const dash = (v) => (v === undefined || v === null || v === '' ? '—' : String(v));
   if (style === 'D') { P.rect(x, y, W, H, '#fff'); P.line(x, y, x + W, y, INK, 0.4); }
@@ -110,13 +113,20 @@ export function titleBlock(style, x, y, f) {
     label(x + 27.2, y + 4.2, t('Name'));
     P.text(x + 27.2, y + 12.5, f.name, { fs: 6, w: 700, max: 52.4, shrink: 3.6 });
     P.text(x + 27.2, y + 18.4, [f.drawn ? `${t('Drawn by')} ${f.drawn}` : '', f.date, f.tol].filter(Boolean).join(' · '), { fs: 2.4, fill: SUB, max: 52.4 });
-    P.hit(f.keys?.title || 'title', x + 24.4, y, 58, H);
+    P.hit('title', x + 24.4, y, 58, 14.2);
+    P.hit('drawn', x + 24.4, y + 14.2, 58, H - 14.2);
     cell(2, t('Drawing no.'), f.number, f.mass ? `${t('Mass')} ${f.mass}` : '', 2.4);
-    P.hit('number', x + 82.4, y, 30, H);
+    P.hit('number', x + 82.4, y, 30, 14.2);
+    P.hit('mass', x + 82.4, y + 14.2, 30, H - 14.2);
     cell(3, t('Material'), f.material, f.surface || '', 2.4);
+    P.hit('material', x + 112.4, y, 30, 14.2);
+    P.hit('surface', x + 112.4, y + 14.2, 30, H - 14.2);
     cell(4, t('Scale'), f.scale, f.paper, 1.6);
+    P.hit('scale', x + 142.4, y, 12, H);
     cell(5, t('Sheet'), f.sheet, '', 1.6);
+    P.hit('sheet', x + 154.4, y, 13, H);
     cell(6, t('Revision'), f.rev, '', 1.6);
+    P.hit('rev', x + 167.4, y, W - 167.4, H);
   } else if (style === 'B') { // ISO 7200: company + projection | a 2 × 4 grid of facts | the name over drawing no., rev, scale, sheet
     P.line(x + 34.4, y + 0.2, x + 34.4, y + H);
     P.line(x + 110.4, y + 0.2, x + 110.4, y + H);
@@ -126,19 +136,20 @@ export function titleBlock(style, x, y, f) {
     const addr = [f.company, ...(f.address || [])].filter(Boolean).slice(0, f.logo ? 2 : 3);
     if (!addr.length) addr.push(t('Dimensions in mm'));
     addr.forEach((ln, i) => P.text(x + 3.2, y + 12.2 + 3.24 * i, ln, { fs: 2.4, fill: SUB, max: 28.8 }));
-    P.hit('company', x, y, 34.4, 24.4);
+    P.hit('company', x, y, 34.4, 13.4);
+    P.hit('address', x, y + 13.4, 34.4, 11);
     P.projection(x + 3.2, y + 32.2, 3.2, INK, 0.28);
     P.text(x + 15.96, y + 32.86, t('Projection'), { fs: 2.4, fill: SUB, max: 17.6 });
     P.text(x + 15.96, y + 36.1, t('ISO first angle'), { fs: 2.4, fill: SUB, max: 17.6 });
-    const grid = [[t('Drawn by'), f.drawn, 'drawn'], [t('Date'), f.date], [t('Checked'), f.checked], [t('Approved'), f.approved],
-      [t('Material'), f.material], [t('Mass'), f.mass], [t('Tolerances'), f.tol], [t('Roughness'), f.surface]];
+    const grid = [[t('Drawn by'), f.drawn, 'drawn'], [t('Date'), f.date, 'date'], [t('Checked'), f.checked, 'checked'], [t('Approved'), f.approved, 'approved'],
+      [t('Material'), f.material, 'material'], [t('Mass'), f.mass, 'mass'], [t('Tolerances'), f.tol, 'tolstd'], [t('Roughness'), f.surface, 'surface']];
     for (let r = 1; r < 4; r++) P.line(x + 34.4, y + 0.4 + 9.9 * r, x + 110.4, y + 0.4 + 9.9 * r, HAIR);
     P.line(x + 72.4, y + 0.4, x + 72.4, y + H, HAIR);
     grid.forEach(([lab, val, key], i) => {
       const cx = x + (i % 2 ? 74.3 : 36.4), top = y + 0.4 + 9.9 * Math.floor(i / 2);
       label(cx, top + 3.0, lab, { max: 34 });
       P.text(cx, top + 6.4, dash(val), { fs: 3, w: 500, max: 34 });
-      if (key) P.hit(key, cx - 2, top, 38, 9.9);
+      if (key) P.hit(key, cx - 1.9, top, 38, 9.9);
     });
     label(x + 113.6, y + 4.6, t('Name'));
     P.text(x + 113.6, y + 13.7, f.name, { fs: 6.8, w: 700, max: 63.2, shrink: 3.6 });
@@ -153,6 +164,7 @@ export function titleBlock(style, x, y, f) {
       P.text(cx, y + 36.8, dash(val), { fs: 4, w: 700, max: cw, shrink: 2.6 });
     });
     P.hit('number', x + 110.4, y + 22.8, 30, 17.2);
+    ['rev', 'scale', 'sheet'].forEach((k, i) => P.hit(k, x + X[i + 1], y + 22.8, X[i + 2] - X[i + 1], 17.2));
   } else if (style === 'C') { // a black band (the name, what it is; drawing no., rev) over the mark and five pairs of facts
     P.rect(x + 0.2, y + 0.2, W - 0.2, 12.2, BAND);
     const right = x + 176.4, revW = measure(`${t('rev.')} ${f.rev}`, 3, 'barlow');
@@ -170,8 +182,8 @@ export function titleBlock(style, x, y, f) {
     else word(x + 3.2, y + 18.2, 3.4, 22.4);
     P.projection(x + 3.6, y + 29.4, 2.8, INK, 0.26);
     P.hit('company', x, y + 12.4, 28.4, 21.6);
-    const pairs = [[[t('Material'), f.material], [t('Mass'), f.mass]], [[t('Tolerances'), f.tol], [t('Roughness'), f.surface]], [[t('Drawn by'), f.drawn, 'drawn'], [t('Date'), f.date]],
-      [[t('Checked'), f.checked], [t('Sheet size'), f.paper]], [[t('Scale'), f.scale], [t('Sheet'), f.sheet]]];
+    const pairs = [[[t('Material'), f.material, 'material'], [t('Mass'), f.mass, 'mass']], [[t('Tolerances'), f.tol, 'tolstd'], [t('Roughness'), f.surface, 'surface']], [[t('Drawn by'), f.drawn, 'drawn'], [t('Date'), f.date, 'date']],
+      [[t('Checked'), f.checked, 'checked'], [t('Sheet size'), f.paper, 'paper']], [[t('Scale'), f.scale, 'scale'], [t('Sheet'), f.sheet, 'sheet']]];
     pairs.forEach((pr, i) => pr.forEach(([lab, val, key], j) => {
       const cx = x + X[i + 1] + 2.4, cw = X[i + 2] - X[i + 1] - 4.4, big = i === 4;
       P.text(cx, y + (j ? 26.4 : 15.6), up(lab), { fs: 2, fill: MUTED, ls: 0.12, max: cw });
@@ -189,8 +201,8 @@ export function titleBlock(style, x, y, f) {
     P.text(x + 3.6 + (nw ? nw + 2.8 : 0), y + 24.2, `${t('rev.')} ${f.rev} · ${t('Sheet').toLocaleLowerCase()} ${f.sheet}`, { fs: 3, fill: MUTED, max: 66 - nw });
     P.hit('number', x, y + 18, 74, 10);
     P.rect(x + 82, y + 3.6, 0.2, 21.6, '#d3d7dc');
-    const facts = [[t('Material'), f.material], [t('Scale'), [f.scale, f.paper].filter(Boolean).join(' · ')], [t('Drawn by'), f.drawn, 'drawn'],
-      [t('Tolerances'), f.tol], [t('Mass'), f.mass], [t('Date'), f.date]];
+    const facts = [[t('Material'), f.material, 'material'], [t('Scale'), [f.scale, f.paper].filter(Boolean).join(' · '), 'scale'], [t('Drawn by'), f.drawn, 'drawn'],
+      [t('Tolerances'), f.tol, 'tolstd'], [t('Mass'), f.mass, 'mass'], [t('Date'), f.date, 'date']];
     facts.forEach(([lab, val, key], i) => {
       const cx = x + 85.8 + 28.07 * (i % 3), top = i < 3 ? 0 : 11.8;
       P.text(cx, y + 5.6 + top, up(lab), { fs: 2, fill: MUTED, ls: 0.16, max: 24.4 });
@@ -219,8 +231,8 @@ export function titleBlock(style, x, y, f) {
         if (key) P.hit(key, cx, y + top, cw, 14);
       });
     };
-    row(28.4, [[t('Material'), f.material], [t('Tolerances'), f.tol], [t('Mass'), f.mass]]);
-    row(42.4, [[t('Drawn by'), f.drawn, 'drawn'], [t('Date'), f.dateShort], [t('Scale'), f.scale], [t('Sheet'), f.sheet]]);
+    row(28.4, [[t('Material'), f.material, 'material'], [t('Tolerances'), f.tol, 'tolstd'], [t('Mass'), f.mass, 'mass']]);
+    row(42.4, [[t('Drawn by'), f.drawn, 'drawn'], [t('Date'), f.dateShort, 'date'], [t('Scale'), f.scale, 'scale'], [t('Sheet'), f.sheet, 'sheet']]);
   }
   return `<g class="sh-title" data-style="${style}">${P.g.join('')}</g>`;
 }
