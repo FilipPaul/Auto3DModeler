@@ -1004,6 +1004,10 @@ const CS = {
   'Join it to another part': 'Spojit s jiným dílem', 'Show it in full': 'Zobrazit celý', 'Show it simplified': 'Zobrazit zjednodušeně',
   'Simplified: a coarser mesh and less data — quicker to load and show': 'Zjednodušeně: hrubší síť a méně dat — rychlejší načtení a zobrazení',
   'Make it its own part': 'Udělat z něj vlastní díl', 'A copy of its part for this place only': 'Kopie jeho dílu jen pro toto místo',
+  'From the library…': 'Z knihovny…', 'Standard parts (screws, bearings, motors …) — ⤵ Put into the assembly': 'Normalizované díly (šrouby, ložiska, motory …) — ⤵ Vložit do sestavy',
+  'Hold a part against another one: choose how, then click a face of the part to move and the face it goes to (S = touch). Quicker: click a face, Ctrl+click the other one — the joints that fit them are suggested':
+    'Přidržet díl u jiného: zvolte jak, pak klikněte na plochu dílu, který se pohne, a na plochu, ke které jde (S = dotyk). Rychleji: klikněte na plochu, Ctrl+klik na druhou — nabídnou se vazby, které na ně sedí',
+  '💥 Explode ▾': '💥 Rozložit ▾', '💥 in the parts list: which parts move': '💥 v seznamu dílů: které díly se pohnou',
   'Ctrl+click another part: what fits the two': 'Ctrl+klik na další díl: co se hodí pro oba', 'A line': 'Úsečka', 'A circle': 'Kružnice', 'An arc': 'Oblouk', 'A point': 'Bod', '{n} selected': 'Vybráno: {n}', Selected: 'Vybráno',
   'Ctrl+click another shape: what fits the two': 'Ctrl+klik na další tvar: co se hodí pro oba', 'Its length': 'Jeho délka', 'Its diameter': 'Její průměr', 'Its radius': 'Jeho poloměr',
   'Make it construction': 'Udělat konstrukční', 'Part of the outline again': 'Zase součást obrysu', 'Construction shapes guide (an axis, a mirror line) but are not part of the outline': 'Konstrukční tvary vedou (osa, osa zrcadlení), ale nejsou součástí obrysu',

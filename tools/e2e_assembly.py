@@ -94,6 +94,7 @@ try:
 
     # 🔗 Joint ▾ Touch: the pin's top face (its own z 20) onto the plate's top (z 5)
     time.sleep(0.2)
+    d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=joints]").click()  # (🔗 Joint ▾: its menu)
     d.find_element(By.CSS_SELECTOR, "#asmViewport [data-joint=touch]").click()
     time.sleep(0.3)
     click_at(screen_of("I2", [1.5, 1.5, 20]))

@@ -630,48 +630,70 @@ export class Assembly {
   renderBar() {
     const bar = this.$('.m-cmdbar');
     const btn = (a, label, title, cls = '') => `<button class="chip ${cls} ${toolGroup(a)}" data-a="${a}" title="${esc(title)}">${label}</button>`;
-    const parts = this.modelParts();
+    const parts = this.modelParts(), jt = this.bolt ? 'fastener' : this.mode !== 'idle' ? this.jointType : null, jOn = jt && JOINT_TYPES[jt];
+    // one row: ＋ Insert ▾ · 🔗 Joint ▾ (its types in a menu — the faces' suggestions make most joints) · the tools · ↶ ↷
     bar.innerHTML = `
       <div class="menu as-insert">${btn('insert', '＋ Insert part ▾', parts.length ? 'Add a part of this project: a 3D model ◆, a quick part ▤ (drawing, picture, import) or another assembly ◇ (as one unit)' : 'Make a part first (＋ New 3D model, or open a drawing / picture)', 'tool')}
         <div class="menu-list">${parts.map((p) => `<button data-part="${p.id}" data-no-i18n>${p.kind === 'classic' ? '▤' : p.kind === 'assembly' ? '◇' : '◆'} ${esc(p.name)}</button>`).join('') || '<div class="hint">No parts yet</div>'}
-          ${this.hooks.importFile ? '<div class="menu-sep"></div><button data-a="fromFile">📂 From a file (STEP / STL / OBJ / 3MF)…</button>' : ''}</div></div>
-      <div class="as-jbar ${toolGroup('joint')}" title="${esc(t('Hold a part against another one: choose how, then click a face of the part to move and the face it goes to (S = touch)'))}"><span class="as-jlabel">🔗 ${esc(t('Joint'))}</span>
-        ${Object.entries(JOINT_TYPES).map(([k, j]) => `<button class="${(k === 'fastener' ? this.bolt : this.mode !== 'idle' && this.jointType === k) ? 'on' : ''}" data-joint="${k}" title="${esc(`${t(j.name)}: ${t(j.hint)}`)}">${j.icon} <span>${esc(t(j.name))}</span></button>`).join('')}</div>
+          ${this.hooks.openLibrary || this.hooks.importFile ? '<div class="menu-sep"></div>' : ''}${this.hooks.openLibrary ? `<button data-a="fromLib" title="${esc(t('Standard parts (screws, bearings, motors …) — ⤵ Put into the assembly'))}">📚 ${esc(t('From the library…'))}</button>` : ''}
+          ${this.hooks.importFile ? '<button data-a="fromFile">📂 From a file (STEP / STL / OBJ / 3MF)…</button>' : ''}</div></div>
+      <div class="menu as-jmenu">${btn('joints', jOn ? `${jOn.icon} ${esc(t(jOn.name))} ▾` : '🔗 Joint ▾', 'Hold a part against another one: choose how, then click a face of the part to move and the face it goes to (S = touch). Quicker: click a face, Ctrl+click the other one — the joints that fit them are suggested', `tool ${jOn ? 'on' : ''}`)}
+        <div class="menu-list as-jlist">${Object.entries(JOINT_TYPES).map(([k, j]) => `${k === 'fastener' ? '<div class="menu-sep"></div>' : ''}<button class="${k === jt ? 'on' : ''}" data-joint="${k}" title="${esc(t(j.hint))}">${j.icon} ${esc(t(j.name))}</button>`).join('')}</div></div>
       ${btn('measure', '📏 Measure', 'Measure: click a spot (a face, a corner), then another one — the distance; two parallel flat faces: the gap between them; two round faces: how far apart their axes are', `tool ${this.measuring ? 'on' : ''}`)}
-      ${btn('paint', '🎨 Paint', 'Colour faces of the placed parts, or whole parts — in this assembly: click them (Ctrl+click: more), then pick a colour', `tool ${this.painting ? 'on' : ''}`)}
       ${btn('section', '✂ Section', 'Look inside: cut the view along X, Y or Z', `tool ${this.section ? 'on' : ''}`)}
+      <div class="menu as-exmenu">${btn('explodeMenu', '💥 Explode ▾', 'Pull the parts apart to see them (the placement does not change) — 💥 in the list chooses which parts move', `tool ${this.explode > 0 ? 'on' : ''}`)}
+        <div class="menu-list as-exlist"><label class="as-explode" title="${esc(t('Pull the parts apart to see them (the placement does not change)'))}">💥 <input type="range" min="0" max="1" step="0.01" value="${this.explode}"></label>
+          <label class="check as-exrespect" title="Explode along the joints: a joined part moves only the ways its joints leave free (a pin out of its hole along the axis), and goes along with the part it is on"><input type="checkbox" data-a="exRespect" ${this.explodeRespect ? 'checked' : ''}> Respect joints</label>
+          <p class="hint">${esc(t('💥 in the parts list: which parts move'))}</p></div></div>
       ${btn('clashes', this.clashLabel(), 'Where parts overlap (go into each other) — checked after every change; click: the list, each one shown in the view', `tool ${this.clashPanel ? 'on' : ''} ${this.clashes?.length ? 'bad' : this.clashes ? 'good' : ''}`)}
       ${btn('fasteners', '🔩 Fasteners', 'Screws, heat-set inserts and pins where holes line up across parts — suggested, added with one click', `tool ${this.fastenerPanel ? 'on' : ''}`)}
       ${this.mech?.list.length ? btn('mech', '⚙ Mechanism', 'The mechanisms of this assembly: one slider each moves all of its parts, ▶ plays it', `tool ${this.mech.closed ? '' : 'on'}`) : ''}
       ${this.hooks.newSheet ? btn('sheet', '📄 Drawing', 'The assembly\'s drawing sheet to edit: its views, overall sizes, parts list and balloons — it follows the assembly; 📄 Drawings (PDF) in the panel makes the whole set', 'tool') : ''}
+      ${btn('paint', '🎨 Paint', 'Colour faces of the placed parts, or whole parts — in this assembly: click them (Ctrl+click: more), then pick a colour', `tool ${this.painting ? 'on' : ''}`)}
       <span class="sep"></span>
-      <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>
-      <span class="sep"></span>
-      <label class="chip as-explode" title="Pull the parts apart to see them (the placement does not change) — 💥 in the list chooses which parts move">Explode <input type="range" min="0" max="1" step="0.01" value="${this.explode}"></label>
-      <label class="chip as-exrespect" title="Explode along the joints: a joined part moves only the ways its joints leave free (a pin out of its hole along the axis), and goes along with the part it is on"><input type="checkbox" data-a="exRespect" ${this.explodeRespect ? 'checked' : ''}> Respect joints</label>`; // (the views: the view cube, top right)
-    bar.querySelector('[data-a=insert]').disabled = !parts.length && !this.hooks.importSolid;
-    for (const b of bar.querySelectorAll('[data-joint]')) b.disabled = this.doc.instances.length < 2;
+      <button class="chip" data-a="undo" title="Undo (Ctrl+Z)">↶</button><button class="chip" data-a="redo" title="Redo (Ctrl+Y)">↷</button>`; // (the views: the view cube, top right)
+    bar.querySelector('[data-a=insert]').disabled = !parts.length && !this.hooks.importSolid && !this.hooks.openLibrary;
+    bar.querySelector('[data-a=joints]').disabled = this.doc.instances.length < 2 && !jOn;
     for (const a of ['paint', 'section']) bar.querySelector(`[data-a=${a}]`).disabled = !this.doc.instances.length;
+    bar.querySelector('[data-a=explodeMenu]').disabled = this.doc.instances.length < 2;
     bar.querySelector('[data-a=clashes]').disabled = this.doc.instances.length < 2;
+    bar.querySelector('[data-a=fasteners]').disabled = this.doc.instances.length < 2 && !this.fastenerPanel;
     const shb = bar.querySelector('[data-a=sheet]');
     if (shb) shb.disabled = !this.doc.instances.length;
+    const menu = (sel) => bar.querySelector(sel), shut = () => { for (const m of bar.querySelectorAll('.menu.open')) m.classList.remove('open'); };
+    const opener = (a, sel) => bar.querySelector(`[data-a=${a}]`).addEventListener('click', (e) => { e.stopPropagation(); const was = menu(sel).classList.contains('open'); shut(); menu(sel).classList.toggle('open', !was); });
+    opener('insert', '.as-insert');
+    opener('joints', '.as-jmenu');
+    opener('explodeMenu', '.as-exmenu');
+    if (!this.menuWatch) { // (a click anywhere else closes the bar's menus)
+      this.menuWatch = true;
+      document.addEventListener('click', (e) => { if (!e.target.closest?.('.m-cmdbar .menu')) for (const m of this.els.viewport.querySelectorAll('.m-cmdbar .menu.open')) m.classList.remove('open'); });
+    }
     for (const b of bar.querySelectorAll('[data-joint]')) {
       b.addEventListener('click', () => {
-        if (b.classList.contains('on')) { if (b.dataset.joint === 'fastener') this.cancelBolt(); else this.cancelJoint(); return; } // (the one on: off again)
+        shut();
+        if (b.classList.contains('on')) { if (b.dataset.joint === 'fastener') this.cancelBolt(); else this.cancelJoint(); this.renderBar(); return; } // (the one on: off again)
         if (this.mode !== 'idle') this.cancelJoint();
         if (b.dataset.joint === 'fastener') { this.fastenerPanel = true; this.sel = null; this.sel2 = null; } // (one place for them: the panel, and the click goes on)
         this.startJoint(b.dataset.joint);
+        this.renderBar();
         if (b.dataset.joint === 'fastener') { this.render(); this.draw(); } else this.renderSuggest(); // (picking faces: the table goes)
       });
     }
-    bar.querySelector('[data-a=insert]').addEventListener('click', (e) => { e.stopPropagation(); bar.querySelector('.as-insert').classList.toggle('open'); });
-    for (const b of bar.querySelectorAll('[data-part]')) b.addEventListener('click', () => { bar.querySelector('.as-insert').classList.remove('open'); this.insert(b.dataset.part); });
-    bar.querySelector('[data-a=fromFile]')?.addEventListener('click', () => { bar.querySelector('.as-insert').classList.remove('open'); this.insertFile(); });
-    for (const b of bar.querySelectorAll('[data-a]:not([data-a=insert]):not([data-a=fromFile]):not([data-a=exRespect])')) b.addEventListener('click', () => this.action(b.dataset.a));
+    for (const b of bar.querySelectorAll('[data-part]')) b.addEventListener('click', () => { shut(); this.insert(b.dataset.part); });
+    bar.querySelector('[data-a=fromFile]')?.addEventListener('click', () => { shut(); this.insertFile(); });
+    bar.querySelector('[data-a=fromLib]')?.addEventListener('click', () => { shut(); this.hooks.openLibrary(); });
+    for (const b of bar.querySelectorAll('[data-a]:not([data-a=insert]):not([data-a=joints]):not([data-a=explodeMenu]):not([data-a=fromFile]):not([data-a=fromLib]):not([data-a=exRespect])')) b.addEventListener('click', () => this.action(b.dataset.a));
     bar.querySelector('[data-a=exRespect]').addEventListener('change', (e) => { this.explodeRespect = e.target.checked; this.exDirs = null; this.draw(); });
     const r = bar.querySelector('.as-explode input');
-    r.addEventListener('input', () => { this.explode = +r.value; this.$('.as-list')?.classList.toggle('exploding', this.explode > 0); this.draw(); });
+    r.addEventListener('input', () => {
+      this.explode = +r.value;
+      this.$('.as-list')?.classList.toggle('exploding', this.explode > 0);
+      bar.querySelector('[data-a=explodeMenu]')?.classList.toggle('on', this.explode > 0);
+      this.draw();
+    });
     this.updateUndo();
+    bar.dataset.maxRows = '2'; // (more than 2 rows of names: its icons only — the Suggested table names the tasks)
     fitBar(bar); // (icons only when the names do not fit)
   }
 

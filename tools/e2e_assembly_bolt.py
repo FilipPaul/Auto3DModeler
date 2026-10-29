@@ -92,7 +92,8 @@ try:
 
     # 🔗 Joint ▾ 🔩 Screw / pin, then a click on the plate's top
     time.sleep(0.2)
-    print("joint menu:", [b.text for b in d.find_elements(By.CSS_SELECTOR, "#asmViewport .as-jbar [data-joint]")])
+    print("joint menu:", [b.get_attribute("textContent") for b in d.find_elements(By.CSS_SELECTOR, "#asmViewport .as-jlist [data-joint]")])
+    d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=joints]").click()  # (🔗 Joint ▾: its menu)
     d.find_element(By.CSS_SELECTOR, "#asmViewport [data-joint=fastener]").click()
     time.sleep(0.3)
     print("hint:", js("return document.querySelector('#asmViewport .m-hint').textContent"))
