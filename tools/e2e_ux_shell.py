@@ -248,7 +248,7 @@ try:
     d.find_element(By.CSS_SELECTOR, ".st-card[data-start=demo]").click()
     wait("return document.querySelectorAll('.demos [data-open]').length > 0")
     d.find_element(By.CSS_SELECTOR, ".demos [data-open]").click()
-    wait("return window.__app.state.workspace === 'assembly' && window.__app.project.parts.length >= 4", 60)
+    wait("return window.__app.state.workspace === 'assembly' && window.__app.project.parts.length >= 4", 150)  # (the first open after a server start also starts its kernel processes)
     check("🎬 Demo: the mechanism opens (an assembly and its parts)", not start_open())
     time.sleep(1)
     d.set_window_size(1600, 1000)

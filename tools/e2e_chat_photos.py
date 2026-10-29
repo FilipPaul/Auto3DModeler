@@ -41,7 +41,7 @@ def thumbs():
 try:
     d.get(URL)
     wait("return !!window.__app")
-    d.find_element(By.CSS_SELECTOR, "[data-tab=ai]").click()
+    d.find_element(By.ID, "aiBtn").click()  # (✨ AI in the top bar: the start screen covers the tabs of an empty app)
     time.sleep(0.3)
 
     # 📎: the real file input
