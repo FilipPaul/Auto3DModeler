@@ -5,7 +5,9 @@
 // checked for collisions, 📈 a trace (how a follower moves over the driver's travel) and 🎬 an animation saved (anim.js).
 // A widget of the left column (leftdock.js: docked or floating), there only while the assembly has a mechanism; ✕
 // closes it, ⚙ Mechanism in the toolbar opens it again. Parts coupled by gears, a belt or a rack (couplings.js) are one
-// mechanism: its driver turns them all.
+// mechanism: its driver turns them all. A ⚙ moving sub-assembly's own mechanisms are listed too ("Crank (in Drive)"),
+// driven in the assembly's flat engine (Assembly.flatAsm: its parts "I3/I2" with both levels' joints) — the parts
+// here joined to them follow, a loop through both levels is solved together.
 //   Assembly JSON: "mechs": [{"parts": ["I2", "I3", …], "name": "the user's", "drive": {"part": "I3", "key": "J3:turn"},
 //   "speed": 2}] — found again by the parts they share; a free motion's own name: an instance's
 //   "moveNames": {"J3:turn": "crank"} (Assembly.nameMotion; shown wherever the motion is).
@@ -23,11 +25,35 @@ const SPEEDS = [[0.5, '½×'], [1, '1×'], [2, '2×']];
 const wrap = (a) => ((((a + 180) % 360) + 360) % 360) - 180; // (a turn the short way round)
 
 /** The mechanisms of assembly `asm` -> [{id: "M1", key, parts, closed, drivers: [{part, mo}], driver, rec, name, min, max,
- *  full (round and round), turn}]. A closed loop with free motions is one (its closing part — joined onto two of its
- *  parts — does not drive it); a part outside loops that turns about an axis, slides along one, or has limits set on a
- *  motion is one on its own (fasteners and 📌 fixed parts are not); parts tied by a coupling (⚙ gears, ⛓ a belt, ▤ a
- *  rack — couplings.js) are one together (`train`). */
+ *  full (round and round), turn, flat, inside}]. A closed loop with free motions is one (its closing part — joined onto
+ *  two of its parts — does not drive it); a part outside loops that turns about an axis, slides along one, or has
+ *  limits set on a motion is one on its own (fasteners and 📌 fixed parts are not); parts tied by a coupling (⚙ gears,
+ *  ⛓ a belt, ▤ a rack — couplings.js) are one together (`train`). Those with parts inside a ⚙ moving sub-assembly
+ *  ("I3/I2") come from its flat engine (`flat`; all inside one: `inside` — its placement, "(in <it>)" after the name). */
 export function mechanisms(asm) {
+  let out = listOf(asm);
+  const fl = asm.flatAsm?.();
+  if (fl) {
+    const deep = listOf(fl).filter((m) => m.parts.some((x) => String(x).includes('/')));
+    for (const m of deep) {
+      const tops = [...new Set(m.parts.map((x) => String(x).split('/')[0]))];
+      m.flat = true;
+      if (tops.length === 1 && m.parts.every((x) => String(x).includes('/'))) {
+        m.inside = tops[0];
+        if (!m.rec?.name || m.rec._sub || m.rec.of) m.name = t2('{name} (in {sub})', { name: m.name, sub: asm.partName(asm.inst(tops[0])?.part) }); // (its name here: as given here)
+      }
+    }
+    const taken = new Set(deep.flatMap((m) => m.parts));
+    out = [...out.filter((m) => !m.parts.some((x) => taken.has(x))), ...deep];
+  }
+  return out.map((m, k) => ({ ...m, id: `M${k + 1}` }));
+}
+
+/** The engine a mechanism moves in: with parts inside a sub-assembly, the assembly's flat one (Assembly.flatAsm). */
+export const engOf = (asm, m) => (m?.flat && !asm.flatOf ? asm.flatAsm() || asm : asm);
+
+/** The mechanisms of one engine (mechanisms). */
+function listOf(asm) {
   const out = [], seen = new Set();
   const own = (x) => { let d = null; try { d = asm.motionsOf(x, true); } catch { d = null; } return d?.count ? d.motions.map((mo) => ({ part: x, mo })) : []; };
   for (const l of asm.loops || []) {
@@ -62,7 +88,7 @@ export function mechanisms(asm) {
   return out.filter((m) => m.drivers.length || !m.closed).map((m, k) => {
     const rec = recOf(asm, m.parts), rank = (d) => {
       const lim = asm.limitsOf(asm.inst(d.part), d.mo), turn = d.mo.kind === 'turn', axis = /:turn$/.test(d.mo.key || '');
-      const grounded = (asm.doc.mates || []).some((j) => j.move === d.part && j.type === 'axis' && asm.inst(j.onto)?.fixed); // (a crank: on a pin of the fixed base)
+      const grounded = (asm.doc.mates || []).some((j) => j.move === d.part && j.type === 'axis' && (asm.inst(j.onto)?.fixed || String(d.part).startsWith(`${j.onto}/`))); // (a crank: on a pin of the fixed base — inside a sub-assembly: of its base)
       return lim && turn && lim.max - lim.min >= FULL ? 0 : turn && axis && grounded ? 1 : turn && axis && m.onClosing.has(d.part) ? 1.5 : turn && axis ? 2 : lim ? 3 : 4;
     };
     const best = [...m.drivers].sort((a, b) => rank(a) - rank(b))[0];
@@ -73,10 +99,12 @@ export function mechanisms(asm) {
   });
 }
 
-/** The record of a mechanism with these parts in doc.mechs (the one sharing most of them) — made when `make`. */
+/** The record of a mechanism with these parts in doc.mechs (the one sharing most of them) — made when `make` (a
+ *  sub-assembly's own one, `_sub`, taken over as this assembly's). */
 function recOf(asm, parts, make = false) {
   const list = asm.doc.mechs || [], share = (r) => (r.parts || []).filter((x) => parts.includes(x)).length;
   let rec = list.filter((r) => share(r) > 0).sort((a, b) => share(b) - share(a))[0] || null;
+  if (rec?._sub && make) { const { _sub, ...mine } = rec; rec = { ...mine, of: _sub }; asm.doc.mechs = [...list, rec]; } // (`of`: its name still the sub-assembly's)
   if (!rec && make) { rec = { parts: [...parts] }; asm.doc.mechs = [...list, rec]; }
   if (rec && make) rec.parts = [...parts];
   return rec;
@@ -95,6 +123,7 @@ function rangeOf(asm, d) {
 
 /** Where a mechanism's driver is (degrees 0 … 360 for a full turn without limits; mm). */
 export function posOf(asm, m) {
+  asm = engOf(asm, m);
   let p = asm.motionPos(m.driver.part, m.driver.mo);
   if (m.full && !m.lim) p = ((p % 360) + 360) % 360;
   return p;
@@ -103,6 +132,7 @@ export function posOf(asm, m) {
 /** A mechanism's driver moved to v (the others follow) -> {at: where it got, stopped: a dead point / its end held it}.
  *  final: an undo step; quiet: not drawn (a sweep). */
 export function driveTo(asm, m, v, final = false, quiet = false) {
+  asm = engOf(asm, m);
   if (!m.full) v = Math.max(m.min, Math.min(m.max, v));
   const p = posOf(asm, m), a = m.full ? wrap(v - p) : v - p;
   asm.moveFree(m.driver.part, m.driver.mo, a, null, final, quiet);
@@ -115,6 +145,7 @@ export function driveTo(asm, m, v, final = false, quiet = false) {
  *  its place at n + 1 steps -> {label, unit, xs, ys} or null. The parts end where they were. */
 export function traceOf(asm, m, n = 36) {
   if (m.parts.length < 2 || !m.closed) return null;
+  asm = engOf(asm, m);
   let f = null;
   for (const kind of ['move', 'turn']) {
     for (const x of m.parts.filter((y) => y !== m.driver.part)) {
@@ -169,11 +200,12 @@ export class MechanismPanel {
 
   open(part = null) {
     this.closed = false;
-    if (part) { const m = this.list.find((x) => x.parts.includes(part)); if (m) this.more.add(m.key); }
+    const of = (x) => x.parts.includes(part) || x.inside === part; // (a sub-assembly: the mechanisms inside it)
+    if (part) { const m = this.list.find(of); if (m) this.more.add(m.key); }
     this.render();
     this.asm.renderBar();
     if (this.missing) this.asm.renderProps(); // (the "missing joint" line: here now, not in the part panel)
-    const row = part && this.box.querySelector(`[data-mckey="${CSS.escape(this.list.find((x) => x.parts.includes(part))?.key || '')}"]`);
+    const row = part && this.box.querySelector(`[data-mckey="${CSS.escape(this.list.find(of)?.key || '')}"]`);
     row?.scrollIntoView({ block: 'nearest' });
   }
 
@@ -181,9 +213,9 @@ export class MechanismPanel {
   toggle() { if (this.closed || !this.list.length) this.open(); else this.close(); }
 
   rowHtml(m, k) {
-    const dbl = esc(t('Double-click: give it your own name')), dblM = esc(t('Double-click: give this motion your own name'));
+    const e = engOf(this.asm, m), dbl = esc(t('Double-click: give it your own name')), dblM = esc(t('Double-click: give this motion your own name'));
     const head = `<label><span class="mc-name ${m.own ? 'own' : ''}" data-mcname="${k}" title="${dbl}" data-no-i18n>⚙ ${esc(m.name)}</span>${m.driver
-      ? ` <span class="mc-what" data-mcmo="${k}" title="${dblM}" data-no-i18n>· ${m.turn ? '↻' : '↔'} ${esc(m.driver.mo.label)}</span>` : ''}</label>`;
+      ? ` <span class="mc-what" ${m.flat ? '' : `data-mcmo="${k}" title="${dblM}"`} data-no-i18n>· ${m.turn ? '↻' : '↔'} ${esc(m.driver.mo.label)}</span>` : ''}</label>`;
     if (!m.closed) return `<div class="as-dof mc-row bad" data-mckey="${esc(m.key)}">${head}<p class="mp-count bad">${esc(t2('⚠ The closed loop {parts} cannot close here — a part is too short or too long for this place.', { parts: m.parts.join('–') }))}</p></div>`;
     let at = 0;
     try { at = posOf(this.asm, m); } catch { at = 0; }
@@ -194,7 +226,7 @@ export class MechanismPanel {
         <button class="mini mc-play ${play ? 'on' : ''}" data-mcplay="${k}" title="${esc(t(play ? 'Pause: it stays where it is' : 'Play: the whole mechanism moves, on and on'))}">${play ? '⏸' : '▶'}</button>
         <button class="mini mc-moreb ${open ? 'on' : ''}" data-mcmore="${k}" title="${esc(t('More: what drives it, how fast, ⚠ check the travel, 📈 trace'))}">⋯</button></div>
       ${open ? `<div class="mc-more">
-        ${m.drivers.length > 1 ? `<label class="mc-drv">${esc(t('Driven by'))} <select data-mcdrv="${k}">${m.drivers.map((d, i) => `<option value="${i}" ${d === m.driver ? 'selected' : ''} data-no-i18n>${esc(this.asm.partName(this.asm.inst(d.part)?.part))} ${d.part} · ${d.mo.kind === 'turn' ? '↻' : '↔'} ${esc(d.mo.label)}</option>`).join('')}</select></label>` : ''}
+        ${m.drivers.length > 1 ? `<label class="mc-drv">${esc(t('Driven by'))} <select data-mcdrv="${k}">${m.drivers.map((d, i) => `<option value="${i}" ${d === m.driver ? 'selected' : ''} data-no-i18n>${esc(e.partName(e.inst(d.part)?.part))} ${d.part} · ${d.mo.kind === 'turn' ? '↻' : '↔'} ${esc(d.mo.label)}</option>`).join('')}</select></label>` : ''}
         <div class="mc-acts"><select class="as-dspeed" data-mcspeed="${k}" title="${esc(t('How fast ▶ plays'))}">${SPEEDS.map(([v, l]) => `<option value="${v}" ${m.speed === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
           <button class="btn small" data-mccheck="${k}" title="${esc(t('Move it over its whole travel in small steps and check for collisions on the way'))}">${esc(t('⚠ Check the travel'))}</button>
           ${m.parts.length > 1 ? `<button class="btn small ${tr ? 'on' : ''}" data-mctrace="${k}" title="${esc(t('How another part of it moves over the travel: a curve'))}">📈 ${esc(t('Trace'))}</button>` : ''}</div>
@@ -257,7 +289,7 @@ export class MechanismPanel {
     for (const b of this.box.querySelectorAll('[data-mcmore]')) b.addEventListener('click', () => { const m = row(b, 'mcmore'); if (this.more.has(m.key)) this.more.delete(m.key); else this.more.add(m.key); this.draw(); });
     for (const s of this.box.querySelectorAll('[data-mcdrv]')) {
       s.addEventListener('change', () => {
-        const m = row(s, 'mcdrv'), d = m.drivers[+s.value], rec = recOf(asm, m.parts, true);
+        const m = row(s, 'mcdrv'), d = m.drivers[+s.value], rec = recOf(engOf(asm, m), m.parts, true);
         this.stop(false);
         rec.drive = { part: d.part, key: d.mo.key };
         delete this.traces[m.key];
@@ -265,7 +297,7 @@ export class MechanismPanel {
       });
     }
     for (const s of this.box.querySelectorAll('[data-mcspeed]')) {
-      s.addEventListener('change', () => { const m = row(s, 'mcspeed'), rec = recOf(asm, m.parts, true), v = +s.value; if (v === 1) delete rec.speed; else rec.speed = v; if (this.playing?.key === m.key) this.playing.speed = v; asm.history.commit(); this.render(); });
+      s.addEventListener('change', () => { const m = row(s, 'mcspeed'), rec = recOf(engOf(asm, m), m.parts, true), v = +s.value; if (v === 1) delete rec.speed; else rec.speed = v; if (this.playing?.key === m.key) this.playing.speed = v; asm.history.commit(); this.render(); });
     }
     for (const b of this.box.querySelectorAll('[data-mccheck]')) b.addEventListener('click', () => this.check(row(b, 'mccheck')).catch(() => {}));
     for (const b of this.box.querySelectorAll('[data-mctrace]')) {
@@ -291,13 +323,15 @@ export class MechanismPanel {
     }
   }
 
-  /** A mechanism's record in the assembly (doc.mechs: its name, driver, speed) — made when it has none. */
-  recFor(m) { return recOf(this.asm, m.parts, true); }
+  /** A mechanism's record in the assembly (doc.mechs: its name, driver, speed) — made when it has none (one inside a
+   *  sub-assembly: its own record taken over, its name kept). */
+  recFor(m) { return recOf(engOf(this.asm, m), m.parts, true); }
 
   /** A mechanism's own name (empty: its default again). */
   rename(m, name) {
-    const rec = recOf(this.asm, m.parts, true), v = String(name || '').trim();
+    const rec = recOf(engOf(this.asm, m), m.parts, true), v = String(name || '').trim();
     if (v) rec.name = v; else delete rec.name;
+    delete rec.of; // (a name given here: as it is)
     this.asm.commit();
   }
 
@@ -353,8 +387,8 @@ export class MechanismPanel {
     this.more.add(m.key);
     this.draw();
     try {
-      const r = await this.asm.checkTravel(m.driver.part, m.driver.mo, 24, { min: m.full ? 0 : m.min, max: m.full ? 360 : m.max });
-      const note = this.asm.travelNote;
+      const e = engOf(this.asm, m), r = await e.checkTravel(m.driver.part, m.driver.mo, 24, { min: m.full ? 0 : m.min, max: m.full ? 360 : m.max });
+      const note = e.travelNote;
       this.notes[m.key] = { text: `${name}: ${note?.text || (r.free ? '✓' : '⚠')}`, bad: !r.free };
       this.render();
       return r;
@@ -370,8 +404,8 @@ export class MechanismPanel {
     return this.list.map((m) => {
       let at = null;
       try { at = m.driver ? +posOf(this.asm, m).toFixed(2) : null; } catch { at = null; }
-      const idx = (d) => { let x = null; try { x = this.asm.motionsOf(d.part, true)?.motions.findIndex((q) => q.key === d.mo.key); } catch { x = null; } return x; };
-      return { id: m.id, name: m.name, parts: m.parts, ...(m.closed ? {} : { closed: false }),
+      const e = engOf(this.asm, m), idx = (d) => { let x = null; try { x = e.motionsOf(d.part, true)?.motions.findIndex((q) => q.key === d.mo.key); } catch { x = null; } return x; };
+      return { id: m.id, name: m.name, parts: m.parts, ...(m.inside ? { inside: m.inside } : {}), ...(m.closed ? {} : { closed: false }),
         ...(m.driver ? { driver: { part: m.driver.part, motion: idx(m.driver), label: m.driver.mo.label }, at, min: m.min, max: m.max, unit: m.turn ? 'deg' : 'mm', ...(m.full ? { full_turn: true } : {}),
           drivers: m.drivers.map((d) => `${d.part} motion ${idx(d)}: ${d.mo.label}`) } : {}) };
     });
@@ -382,7 +416,7 @@ export class MechanismPanel {
     if (!this.list.length) throw new Error('This assembly has no mechanism: no closed loop of joints that moves, no part turning or sliding on an axis.');
     if (which === undefined || which === null || which === '') return this.list[0];
     const w = String(which).toLowerCase(), m = this.list.find((x) => x.id.toLowerCase() === w || x.name.toLowerCase() === w || x.parts.includes(String(which)))
-      || this.list.find((x) => x.name.toLowerCase().includes(w));
+      || this.list.find((x) => x.inside === String(which)) || this.list.find((x) => x.name.toLowerCase().includes(w)); // (a sub-assembly: the first inside it)
     if (!m) throw new Error(`No mechanism “${which}” — get_assembly lists them (mechanisms): ${this.list.map((x) => `${x.id} “${x.name}”`).join(', ')}.`);
     return m;
   }

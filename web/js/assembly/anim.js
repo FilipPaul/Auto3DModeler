@@ -6,7 +6,7 @@
 // Cancel; a frame at a time, so the page stays responsive. The parts end where they were.
 import { t } from '../i18n.js';
 import { newRid, cancelRid } from '../progressbox.js';
-import { driveTo, posOf } from './mechanism.js';
+import { driveTo, posOf, engOf } from './mechanism.js';
 
 const GIF_FPS = 20, VIDEO_FPS = 25, MAX_W = 1280;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -80,7 +80,7 @@ export async function recordAnimation(asm, m, { format = 'gif', caption = true, 
   const video = format === 'video' ? videoKind() : null;
   if (format === 'video' && !video) throw new Error(t('This browser cannot record a video — save a GIF.'));
   const { w, h } = frameSize(asm), aid = newRid('a'), fps = video ? VIDEO_FPS : GIF_FPS, cap = caption ? m.name : null;
-  const snap = asm.doc.instances.map((x) => [x.id, [...x.matrix], structuredClone(x.hang)]);
+  const eng = engOf(asm, m), snap = eng.doc.instances.map((x) => [x.id, [...x.matrix], structuredClone(x.hang)]); // (inside a sub-assembly: its parts as the flat engine has them)
   const gone = () => job.cancel || !document.body.classList.contains('ws-assembly') || asm.active === false;
   const sent = []; // (frames on their way)
   let rec = null, chunks = [], ctx = null, track = null, res = null, frames = 0;
@@ -143,9 +143,9 @@ export async function recordAnimation(asm, m, { format = 'gif', caption = true, 
   } finally {
     if (rec && rec.state !== 'inactive') try { rec.stop(); } catch { /* (gone) */ }
     if (!res) Promise.allSettled(sent).then(() => fetch(`/api/anim/${aid}`, { method: 'DELETE' })).catch(() => {}); // (after the last frame got there)
-    for (const [iid, mat, hang] of snap) { const x = asm.inst(iid); if (x) { x.matrix = mat; x.hang = hang; } }
-    asm.checkJoints();
-    asm.draw();
+    for (const [iid, mat, hang] of snap) { const x = eng.inst(iid); if (x) { x.matrix = mat; x.hang = hang; } }
+    eng.checkJoints();
+    eng.draw();
   }
   if (download) {
     const a = document.createElement('a');

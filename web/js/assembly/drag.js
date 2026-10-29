@@ -1,8 +1,10 @@
 // A part dragged in the assembly's view: the chosen part moves the way its joints leave free — a turn follows the
 // mouse round its axis, a slide along its line — and every part joined to it follows (Assembly.moveFree: the parts on
 // it go along, a closed loop is solved, coupled gears turn). A part of a closed loop drives the loop's driver
-// (mechanism.js); a gear of a train turns by its own axis. The cue: over the chosen part that can move, the cursor is
-// the motion's symbol (↻ / ↔ / ⚙), the part and the parts that go with it glow; while dragging, the value at the cursor.
+// (mechanism.js); a gear of a train turns by its own axis. A part inside a ⚙ moving sub-assembly (the sub-assembly
+// chosen, the part grabbed) moves by its own joints there, in the assembly's flat engine (Assembly.flatAsm). The cue:
+// over the chosen part that can move, the cursor is the motion's symbol (↻ / ↔ / ⚙), the part and the parts that go
+// with it glow; while dragging, the value at the cursor.
 import * as THREE from 'three';
 import { t } from '../i18n.js';
 import { posOf } from './mechanism.js';
@@ -19,12 +21,13 @@ export function dragPlan(asm, id) {
   return plan;
 }
 
-function planOf(asm, id) {
+/** eng: the assembly, or its flat engine for a part inside a moving sub-assembly (Assembly.flatAsm). */
+function planOf(asm, id, eng = asm) {
   const mk = (asm.mech?.list || []).find((x) => x.parts.includes(id) && x.closed && x.driver && x.parts.length > 1) || null;
-  const m = mk && (!mk.train || (asm.loops || []).some((l) => l.parts.includes(id))) ? mk : null; // (⚙ a gear of a train: its own turn, the others follow)
+  const m = mk && (!mk.train || (eng.loops || []).some((l) => l.parts.includes(id))) ? mk : null; // (⚙ a gear of a train: its own turn, the others follow)
   if (m) return { part: m.driver.part, mo: m.driver.mo, mech: mk, drives: true };
   let d = null;
-  try { d = asm.motionsOf(id); } catch { d = null; }
+  try { d = eng.motionsOf(id); } catch { d = null; }
   const mo = d?.count ? d.motions.find((q) => q.kind === 'turn' && /:turn$/.test(q.key || '')) || d.motions.find((q) => /:along$/.test(q.key || '')) || d.motions[0] : null;
   return mo ? { part: id, mo, mech: mk, drives: false } : null;
 }
@@ -35,7 +38,8 @@ function planOf(asm, id) {
 export function startDrag(asm, id, e) {
   const hit = asm.view.ray(e.clientX, e.clientY).intersectObjects(asm.view.meshes || [], false)[0];
   if (!hit || hit.object.userData.inst !== id) return null;
-  const plan = dragPlan(asm, id);
+  const inner = asm.innerPartAt?.(id, hit), eng = inner?.eng || asm; // (a part moving inside a sub-assembly: "I3/I2", both levels' joints)
+  const plan = inner ? planOf(asm, inner.id, eng) : dragPlan(asm, id);
   if (!plan) return null;
   const { part, mo, mech: mk } = plan;
   const P0 = hit.point.clone(), n = mo.dir.clone().normalize(), o = mo.point ? mo.point.clone() : null;
@@ -61,15 +65,15 @@ export function startDrag(asm, id, e) {
     move(ev) {
       const a = amountAt(ev);
       if (a === null || Math.abs(a - done) < 1e-3) return;
-      const lim = asm.limitsOf(asm.inst(mo.via || part), mo);
+      const lim = eng.limitsOf(eng.inst(mo.via || part), mo);
       let step = a - done;
-      if (lim) { const p = asm.motionPos(part, mo); step = Math.max(lim.min, Math.min(lim.max, p + step)) - p; }
-      asm.moveFree(part, mo, step, null, false);
+      if (lim) { const p = eng.motionPos(part, mo); step = Math.max(lim.min, Math.min(lim.max, p + step)) - p; }
+      eng.moveFree(part, mo, step, null, false);
       done = a;
       moved = true;
       if (mk) asm.mech.mark(asm.mech.list.find((x) => x.key === mk.key) || mk);
     },
-    end() { if (moved) asm.commit(); return moved; },
+    end() { if (moved) eng.commit(); return moved; },
   };
 }
 
