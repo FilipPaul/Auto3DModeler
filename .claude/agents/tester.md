@@ -496,6 +496,11 @@ Never report "works" without having run it; report failures with their output.
    get_assembly, the part panel, gui_state, undo / redo, the project saved and opened again —; drive_mechanism to /
    driver / name, name_motion; ✕ and the toolbar button; ⋯ drivers, 📈 trace, ⚠ the travel; Czech labels; a plain
    assembly: no widget, no button). Prints ALL OK / FAILED, exit code 1 on a failure.
+   `tools/e2e_demos.py <url> <dir>` covers the 🎬 demo projects (Open ▾ → Demo projects… lists them, Czech too; each
+   opened from the menu as a new project, the demo files unchanged; ▶: every moving part moves, every joint holds —
+   worstMiss < 0.05 mm —; the crank – rod – slider against r·cosθ + √(L² − r²sin²θ), the four-bar's rocker pin against
+   the closed form on one branch with the crank all the way round; the robot arm's forearm and gripper go along; the
+   crank / arm dragged in the 3D view moves the others). Prints ALL OK / FAILED, exit code 1 on a failure.
    `tools/e2e_assembly_flexsub.py <url> <dir>` covers flexible sub-assemblies (a lever on a pin placed twice in a
    parent: get_assembly `inner` "I2/I2", the panel's "Moves inside Lever" slider turns it in the parent only — kept
    on that placement's `inner`, the other placement and Lever's own document unchanged —, move_free "I2/I2", undo /

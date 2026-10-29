@@ -1,0 +1,88 @@
+"""🎬 The demo projects (demos/*.a3d.json, auto3d/demos.py): each opens as a valid project with its assembly ready —
+joints between its placed parts, Czech motion names, a named mechanism — and the server serves them read-only."""
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from auto3d import demos
+
+ROOT = Path(__file__).resolve().parent.parent
+DEMOS = ROOT / "demos"
+
+
+class TestDemoFiles(unittest.TestCase):
+    def test_listing(self):
+        lst = demos.listing(DEMOS)
+        self.assertGreaterEqual(len(lst), 3)
+        self.assertEqual([d["file"] for d in lst][:3], ["klikovy-mechanismus.a3d.json", "ctyrkloubovy-mechanismus.a3d.json", "roboticke-rameno.a3d.json"])
+        for d in lst:
+            self.assertTrue(d["name"] and d["name_cs"] and d["text"] and d["text_cs"], d)
+            self.assertNotEqual(d["name"], d["name_cs"])
+
+    def test_each_loads_with_its_mechanism(self):
+        for d in demos.listing(DEMOS):
+            with self.subTest(demo=d["file"]):
+                proj = demos.load(DEMOS, d["file"])
+                self.assertEqual(proj["version"], 3)
+                parts = {p["id"]: p for p in proj["parts"]}
+                active = parts[proj["active"]["part"]]
+                self.assertEqual(active["kind"], "assembly")  # (it opens on its assembly)
+                asm = active["assembly"]
+                ids = {i["id"] for i in asm["instances"]}
+                for i in asm["instances"]:
+                    self.assertEqual(parts[i["part"]]["kind"], "model")
+                    self.assertTrue(parts[i["part"]]["model"]["features"])  # (made of steps: small files)
+                    self.assertEqual(len(i["matrix"]), 16)
+                self.assertTrue(any(i.get("fixed") for i in asm["instances"]))
+                self.assertTrue(asm["mates"])
+                for m in asm["mates"]:
+                    self.assertIn(m["move"], ids)
+                    self.assertIn(m["onto"], ids)
+                names = [n for i in asm["instances"] for n in (i.get("moveNames") or {}).values()]
+                self.assertTrue(names and any(c in "".join(names) for c in "áčďéěíňóřšťúůýž"), names)  # (Czech)
+                self.assertTrue(asm.get("mechs") and all(r.get("name") for r in asm["mechs"]), asm.get("mechs"))
+                self.assertLess((DEMOS / d["file"]).stat().st_size, 50_000)
+
+    def test_crank_slider_closes_its_loop(self):
+        asm = next(p for p in demos.load(DEMOS, "klikovy-mechanismus.a3d.json")["parts"] if p["kind"] == "assembly")["assembly"]
+        rod = [m for m in asm["mates"] if m["move"] == "I3" and m["type"] == "axis"]
+        self.assertEqual({m["onto"] for m in rod}, {"I2", "I4"})  # (the rod on the crank's pin and on the slider's pin)
+
+    def test_four_bar_closes_its_loop(self):
+        asm = next(p for p in demos.load(DEMOS, "ctyrkloubovy-mechanismus.a3d.json")["parts"] if p["kind"] == "assembly")["assembly"]
+        coupler = [m for m in asm["mates"] if m["move"] == "I3" and m["type"] == "axis"]
+        self.assertEqual({m["onto"] for m in coupler}, {"I2", "I4"})
+        self.assertEqual(sorted(m["onto"] for m in asm["mates"] if m["move"] in ("I2", "I4") and m["type"] == "axis"), ["I1", "I1"])
+
+    def test_bad_names_refused(self):
+        for bad in ("../server.py", "nope.a3d.json", "klikovy-mechanismus.json", "sub/x.a3d.json", None):
+            with self.subTest(name=bad), self.assertRaises(demos.DemoError):
+                demos.load(DEMOS, bad)
+
+    def test_a_folder_without_demos(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(demos.listing(tmp), [])
+            self.assertEqual(demos.listing(Path(tmp) / "none"), [])
+            (Path(tmp) / "broken.a3d.json").write_text("{not json", encoding="utf-8")
+            self.assertEqual(demos.listing(tmp), [])
+            (Path(tmp) / "x.a3d.json").write_text(json.dumps({"app": "nope"}), encoding="utf-8")
+            with self.assertRaises(demos.DemoError):
+                demos.load(tmp, "x.a3d.json")
+
+
+class TestDemoRoutes(unittest.TestCase):
+    def test_served_read_only(self):
+        import server
+        c = server.app.test_client()
+        lst = c.get("/api/demos").get_json()["demos"]
+        self.assertGreaterEqual(len(lst), 3)
+        proj = c.get(f"/api/demos/{lst[0]['file']}").get_json()
+        self.assertEqual(proj["version"], 3)
+        self.assertEqual(c.get("/api/demos/..%2Fserver.py").status_code, 404)
+        self.assertEqual(c.get("/api/demos/nope.a3d.json").status_code, 404)
+        self.assertIn(c.post(f"/api/demos/{lst[0]['file']}", json={}).status_code, (405,))  # (no writing)
+
+
+if __name__ == "__main__":
+    unittest.main()

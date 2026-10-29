@@ -267,6 +267,13 @@ the kept projects to open again (✕ forgets one; **🧹 Clean up empty projects
 nothing in it that still has the name the app gave it — the one on screen stays); when the app starts empty, the last one is offered in a strip under the top bar (it goes once a part is opened or made).
 *Save project* still writes a file to keep or send.
 
+**🎬 Demo projects** (Open ▾ → *Demo projects…*): ready-made projects that show whole mechanisms moving — a crank –
+rod – slider (*Klikový mechanismus*), a four-bar linkage (*Čtyřkloubový mechanismus*: the crank turns round, the
+rocker swings) and a robot arm (*Robotické rameno*: an open chain — turn the arm and the forearm and gripper go
+along). Each is listed with what it shows (in Czech or English) and opens as a new project — a copy, the demo stays
+as it is — on its assembly with ⚙ Mechanism ready (Czech motion names, ▶). The files are in `demos/` (built through
+the app by `tools/make_demos.py`) and go into the Windows build.
+
 **Panels**: drag the edge between a side panel and the view (or the AI chat's left edge) to make it wider or narrower;
 the widths are remembered, a double-click on an edge gives the usual width again.
 

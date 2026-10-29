@@ -7,6 +7,20 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **🎬 Demo projects done** (the owner: "make demo projects, e.g. a simple crank, where all parts can be seen moving
+  right; let the app load them"): demos/ klikovy-mechanismus (r 25, L 100), ctyrkloubovy-mechanismus (a crank–rocker:
+  20 / 70 / 50 on a 60 mm base, the loop closed elbow-up) and roboticke-rameno (an open chain: arm on a column, forearm
+  on its pin with limits ±135°, a gripper with its turn locked) — 7–8 kB each, 3D models of sketches / extrudes /
+  holes, built through the app by tools/make_demos.py (the same tools as the AI: snap_faces, move_free, name_motion,
+  drive_mechanism, lock_motion, set_travel), Czech part, joint and motion names, each with a "demo" record {name,
+  name_cs, text, text_cs, order} and opening on its assembly. auto3d/demos.py listing / load (only a file of the
+  folder, migrated), server /api/demos and /api/demos/<file> (read-only), web/js/demos.js (Open ▾ → 🎬 Demo projects…:
+  the names and texts in the app's language; Open -> app.js openLoaded: a new project, a fresh autosave record).
+  tools/build/auto3d.spec takes demos/, smoke.py opens one. tests/test_demos.py (each valid, its loop's joints, Czech
+  names, small, bad names refused, the routes), tools/e2e_demos.py.
+  The owner's own project (data/projects/db8d0297…, "Klikový mechanismus") was left as it is; a copy with J9 back is in
+  the scratchpad of the job (not a demo: it has two copies of the crank, sheets and a second assembly).
+
 - **A part dragged in the 3D view moves its whole mechanism done** (the owner: "the parts move as a whole, by their
   joints"): there was no way to move a part with the mouse — a drag always turned the view. web/js/assembly/drag.js
   startDrag(asm, id, press): the chosen part under the mouse (a capture listener on the viewport, before the view's

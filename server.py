@@ -28,6 +28,7 @@ from auto3d.ai_history import HistoryError, delete_state, list_states, load_stat
 from auto3d import library as parts_library
 from auto3d import title_templates
 from auto3d import autosave
+from auto3d import demos
 from auto3d.agent_tools import BROWSER_TOOLS, TOOL_NAMES
 from auto3d.bend import bend_info, bend_solid
 from auto3d.design import profile_polygon, trace_image
@@ -172,6 +173,22 @@ def api_project_migrate():
         return jsonify(migrate_project(request.get_json(force=True, silent=True)))
     except ProjectError as e:
         return jsonify({"error": str(e)}), 400
+
+
+DEMOS = ROOT / "demos"  # 🎬 ready-made projects (auto3d/demos.py): read-only, opened as a copy
+
+
+@app.get("/api/demos")
+def api_demos():
+    return jsonify({"demos": demos.listing(DEMOS)})
+
+
+@app.get("/api/demos/<name>")
+def api_demo(name):
+    try:
+        return jsonify(demos.load(DEMOS, name))
+    except demos.DemoError as e:
+        return jsonify({"error": str(e)}), 404
 
 
 LIBRARY_APP = ROOT / "library"            # 📚 the app's parts library (auto3d/library.py)

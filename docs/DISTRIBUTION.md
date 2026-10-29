@@ -10,7 +10,7 @@ Czech) is at the end — copy it into an e-mail or next to the download.
 | --- | --- |
 | Python 3.13 + the packages of `requirements.txt` and `requirements-modeler.txt` (Flask, OpenCV, PyMuPDF, shapely, ezdxf, cascadio, the OpenCASCADE kernel `cadquery-ocp-novtk`, the sketch solver `planegcs`, openpyxl) | PyInstaller collects them into `_internal/`; the versions are pinned in `tools/build/constraints.txt` |
 | `server.py`, `auto3d/` | compiled into the exe's archive |
-| `web/` (the page, its fonts and vendored three.js), `library/` (the parts library), `agent_plugin/` (the AI's skills), `initial draft.pdf` (the sample drawing) | data files in `_internal/` |
+| `web/` (the page, its fonts and vendored three.js), `library/` (the parts library), `agent_plugin/` (the AI's skills), `demos/` (the 🎬 demo projects, read-only: opened as a copy), `initial draft.pdf` (the sample drawing) | data files in `_internal/`; smoke.py checks `/api/demos` lists and opens them |
 | The CAD kernel's processes (`auto3d/modeler/worker.py`, multiprocessing "spawn") | the same exe started again: `tools/build/Auto3DModeler.py` calls `multiprocessing.freeze_support()` first |
 | The AI chat's MCP server (`auto3d/mcp_server.py`) | the same exe: `Auto3DModeler.exe --mcp-server --url …` (`auto3d/agent.py` uses it when built) |
 | The user's data | `%LOCALAPPDATA%\Auto3DModeler` — never the install folder (see below) |
