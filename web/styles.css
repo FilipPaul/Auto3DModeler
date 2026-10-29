@@ -703,6 +703,8 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .as-jrow[data-jrow] > .as-jw { grid-column: 1 / -1; grid-row: 2; }
 .as-jrow[data-crow] { grid-template-columns: 1fr auto auto; } /* (a coupling: its name, ratio and buttons; the parts under them) */
 .as-jrow[data-crow] > .as-jw { grid-column: 1 / -1; grid-row: 2; }
+.as-jrow[data-srow] { grid-template-columns: 1fr auto auto; } /* (a spring: its name, k and ✕; the parts and its length under them) */
+.as-jrow[data-srow] > .as-jw { grid-column: 1 / -1; grid-row: 2; }
 .as-jrow[data-jrow] > .as-jspin { grid-row: 4; }
 .as-jrow[data-jrow] > .as-jspin.as-jgap { grid-row: 3; }
 .as-bolt-msg.bad { color: var(--warn); }

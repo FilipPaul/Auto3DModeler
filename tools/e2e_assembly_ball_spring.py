@@ -239,6 +239,79 @@ try:
     sug = js("return [...document.querySelectorAll('#asmViewport .view-suggest [data-sg]')].map(e => e.textContent.trim())")
     check(any("🔗" in x and ("Fix" in x or "Pevně" in x) for x in sug), f"two parts chosen: 🔗 Fix … to … suggested {sug[:5]}")
 
+    # 〰 a spring between a plate and a piston on a pin: drawn as long as it reaches
+    must("new_model", name="Plate")
+    must("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": -30, "y": -30, "w": 60, "h": 60}}])
+    must("add_feature", type="extrude", sketch="F1", d=5)
+    must("add_feature", type="sketch", plane={"face": "F2:end"}, shapes=[{"circle": {"x": 0, "y": 0, "d": 6}}])
+    must("add_feature", type="extrude", sketch="F3", d=40)
+    must("new_model", name="Piston")
+    must("add_feature", type="sketch", plane="XY", shapes=[{"circle": {"x": 0, "y": 0, "d": 20}}])
+    must("add_feature", type="extrude", sketch="F1", d=5)
+    must("add_feature", type="hole", face="F2:end", points=[[0, 0]], d=6)
+    must("new_model", name="Spring")
+    must("add_feature", type="sketch", plane="XY", shapes=[{"circle": {"x": 0, "y": 0, "d": 16}}, {"circle": {"x": 0, "y": 0, "d": 8}}])
+    must("add_feature", type="extrude", sketch="F1", d=20)
+    must("new_assembly", name="Pump")
+    for p in ("Plate", "Spring", "Piston"):
+        must("insert_part", part=p)
+    wait(f"return {A}.doc.instances.length === 3 && {A}.doc.instances.every(i => {A}.bodies[i.part]?.body)")
+    js(f"{A}.inst('I1').fixed = true")
+    must("place_part", part="I2", x=0, y=0, z=5)
+    must("place_part", part="I3", x=0, y=0, z=25)
+    pin = js(f"""const b = {A}.bodies[{A}.inst('I1').part].body; return b.faces.find(f => f.type === 'cylinder' && Math.abs(f.radius - 3) < 1e-6).name""")
+    must("snap_faces", move={"part": "I2", "face": face("I2", "cylinder")}, onto={"part": "I1", "face": pin}, type="axis")
+    must("snap_faces", move={"part": "I2", "face": "F2:start"}, onto={"part": "I1", "face": "F2:end"}, type="touch")
+    must("snap_faces", move={"part": "I3", "face": face("I3", "cylinder")}, onto={"part": "I1", "face": pin}, type="axis", lock_rotation=True)
+    js(f"""const a = {A}; a.choose('I2'); a.facePicks = [{{inst: 'I2', face: a.worldFace('I2', 'F2:end')}}, {{inst: 'I3', face: a.worldFace('I3', 'F2:start')}}];
+      a.renderSuggest()""")
+    time.sleep(0.4)
+    sug = js("return [...document.querySelectorAll('#asmViewport .view-suggest [data-sg]')].map(e => e.textContent.trim())")
+    check(bool(sug) and "〰" in sug[0], f"two flat faces, a part called Spring: 〰 first {sug[:3]}")
+    js(f"{A}.facePicks = []; {A}.renderSuggest()")
+    r = must("snap_faces", move={"part": "I2", "face": "F2:end"}, onto={"part": "I3", "face": "F2:start"}, type="spring", value=0.5)
+    check("spring" in r and '"free_mm":20' in r and '"compressed_mm":0' in r, f"〰 spring by the AI: free 20 mm, not compressed — {r[:160]}")
+    k = js(f"return {A}.motionsOf('I3').motions.findIndex(m => /:along$/.test(m.key))")
+    at = float(js(f"const a = {A}, mo = a.motionsOf('I3').motions[{k}]; return a.motionPos('I3', mo)"))
+    down = 1 if js(f"return {A}.motionsOf('I3').motions[{k}].dir.z") < 0 else -1  # (the way along the pin that goes down)
+    must("set_travel", part="I3", motion=k, min=min(at, at + 8 * down), max=max(at, at + 8 * down))
+
+    def scale_now():
+        """The spring as drawn: its length along Z (its mesh's matrix) and the distance plate top – piston bottom / 20."""
+        return js(f"""const a = {A}, m = a.view.meshes.find(x => x.userData.inst === 'I2').matrix.elements;
+          const z = Math.hypot(m[8], m[9], m[10]), dist = a.worldFace('I3', 'F2:start').centroid.z - a.worldFace('I1', 'F2:end').centroid.z;
+          return [z, dist / 20]""")
+    s0 = scale_now()
+    check(abs(s0[0] - 1) < 1e-6 and abs(s0[1] - 1) < 1e-6, f"at rest: drawn at its free length {s0}")
+    must("drive_mechanism", mechanism="I3", to=at + 4 * down)
+    s1 = scale_now()
+    check(abs(s1[0] - 0.8) < 1e-4 and abs(s1[0] - s1[1]) < 1e-6, f"the piston 4 mm down: the spring drawn 0.8 long {s1}")
+    sp = js(f"return {A}.summary().springs[0]")
+    check(abs(sp["now_mm"] - 16) < 1e-3 and abs(sp["compressed_mm"] - 4) < 1e-3 and abs(sp["force_n"] - 2) < 1e-3, f"get_assembly springs: now 16, compressed 4, 2 N ({sp})")
+    js(f"{A}.choose('I2')")
+    time.sleep(0.4)
+    row = js("return document.querySelector('#asmRight .as-sstate')?.textContent || ''")
+    check("20" in row and "16" in row and "4" in row and "2 N" in row, f"its row: {row}")
+    d.save_screenshot(str(OUT / "spring_compressed.png"))
+    # ▶ the piston's mechanism plays: the spring follows it all the way
+    must("drive_mechanism", mechanism="I3", play=True)
+    seen = []
+    for _ in range(12):
+        time.sleep(0.15)
+        seen.append(scale_now())
+    must("drive_mechanism", mechanism="I3", play=False)
+    spread = max(x[0] for x in seen) - min(x[0] for x in seen)
+    check(all(abs(a - b) < 1e-3 for a, b in seen) and spread > 0.05, f"▶ playing: drawn length = distance / free length every frame (scales {[round(x[0], 3) for x in seen]})")
+    # no collision between the spring and the piston it is pressed by (the kernel has it at its free length)
+    must("drive_mechanism", mechanism="I3", to=at + 6 * down)
+    raw = js(f"""return fetch('/api/assembly/clashes', {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({{instances: {A}.flatParts()}})}})
+      .then(r => r.json()).then(r => r.clashes.map(c => [c.a, c.b].sort().join('-')))""")
+    check("I2-I3" in raw, f"(the kernel, the spring at its free length: it overlaps the piston {raw})")
+    cl = must("check_collisions")
+    check("I2" not in cl, f"check_collisions: the compressed spring is no collision ({cl[:120]})")
+    tr = must("check_travel", part="I3", motion=k)
+    check("free all the way" in tr, f"check_travel of the piston: {tr[:140]}")
+
     logs = [x for x in d.get_log("browser") if x["level"] == "SEVERE"]
     check(not logs, f"no errors in the console {logs[:3]}")
 finally:

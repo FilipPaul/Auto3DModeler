@@ -18,7 +18,7 @@
 //   imported part (thousands of faces) is simplified
 //   an instance's "moveNames": {"J3:turn": "crank"} — a free motion's own name (nameMotion); "mechs": the ⚙ Mechanism
 //   widget's names, drivers and speeds (mechanism.js); "couplings": ⚙ gear pairs, ⛓ belts, ▤ racks — one part's turn
-//   tied to another's by a ratio (couplings.js)
+//   tied to another's by a ratio (couplings.js); "springs": 〰 a spring part drawn as long as it reaches (springs.js)
 import * as THREE from 'three';
 import { History } from '../history.js';
 import { t } from '../i18n.js';
@@ -52,6 +52,7 @@ import { saveAnimation } from './anim.js';
 import { startDrag, dragCue, dragValue, cueLabel, firstTip, tipSeen } from './drag.js';
 import { isPin } from './missing.js';
 import { pinFits, restOn } from './smart.js';
+import { springMatrix, addSpring, springIgnores, springsHtml, bindSpringRows, updateSpringRows, springsSummary } from './springs.js';
 import { COUPLING_TYPES, couplingOptions, addCoupling, followCouplings, couplingsHtml, bindCouplingRows, couplingsSummary, ratioText, coupledWith } from './couplings.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -317,12 +318,13 @@ export class Assembly {
     this.jointType = 'touch';
     this.explode = 0;
     this.history = new History({
-      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [], ...(this.doc.mechs?.length ? { mechs: this.doc.mechs } : {}), ...(this.doc.couplings?.length ? { couplings: this.doc.couplings } : {}) }),
+      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [], ...(this.doc.mechs?.length ? { mechs: this.doc.mechs } : {}), ...(this.doc.couplings?.length ? { couplings: this.doc.couplings } : {}), ...(this.doc.springs?.length ? { springs: this.doc.springs } : {}) }),
       restore: async (s) => {
         this.mech?.stop(false);
         this.doc.instances = s.instances; this.doc.mates = s.mates || []; this.doc.bolts = s.bolts || []; this.mode = 'idle'; this.bolt = null;
         if (s.mechs) this.doc.mechs = s.mechs; else delete this.doc.mechs;
         if (s.couplings) this.doc.couplings = s.couplings; else delete this.doc.couplings;
+        if (s.springs) this.doc.springs = s.springs; else delete this.doc.springs;
         this.syncDrills(); // the holes drilled for bolts: back as they were
         this.tidyCopies(); // (⧉ its own part undone: its copy goes too)
         this.render();
@@ -396,7 +398,8 @@ export class Assembly {
     }
     if (fp.length === 2) {
       const same = fp[0].face.normal && fp[1].face.normal && fp[0].face.normal.dot(fp[1].face.normal) > 0.999; // (facing the same way: ▭ Flush first, as they stand)
-      const js = fits(kindOf(fp[0]), kindOf(fp[1])).sort(([a], [b]) => (same ? (b === 'flush') - (a === 'flush') : 0)), on = this.putOn(fp[0], fp[1]), cpl = this.couplingItems(fp, done);
+      const springy = fp.some((q) => /spring|pru[žz]in/i.test(this.partName(this.inst(q.inst)?.part) || '')); // (a part called a spring: 〰 first)
+      const js = fits(kindOf(fp[0]), kindOf(fp[1])).sort(([a], [b]) => (springy ? (b === 'spring') - (a === 'spring') : 0) || (same ? (b === 'flush') - (a === 'flush') : 0)), on = this.putOn(fp[0], fp[1]), cpl = this.couplingItems(fp, done);
       const put = on ? [{ icon: '⧉', label: t2('Put {a} on {b}', { a: this.partName(this.inst(on.move.inst)?.part), b: this.partName(this.inst(on.onto.inst)?.part) }), rank: -1,
         title: t('Its face on the other side (the underside) touches this face — no need to turn the view to click it'), run: () => {
           this.jointType = 'touch';
@@ -562,6 +565,18 @@ export class Assembly {
     this.hooks.toast(t2('{a} is fixed to {b}: it goes with it, it has no motion of its own (✕ the joint frees it; Ctrl+Z: back).', { a: this.partName(this.inst(nj.move)?.part), b: this.partName(this.inst(nj.onto)?.part) }), 'ok', 5000);
     this.commit();
     return nj;
+  }
+
+  /** 〰 A spring: the spring part's end face ({inst, face}) reaches face b of another part (springs.js) — one undo step,
+   *  a word on what it does -> the record or null. */
+  makeSpring(a, b, k = null) {
+    let s;
+    try { s = addSpring(this, a, b, k); } catch (e) { this.hooks.toast(e.message, 'warning', 6000); return null; }
+    this.sel = s.part;
+    this.sel2 = null;
+    this.hooks.toast(t2('{a} is a spring to {b}: it is drawn as long as it reaches — its free length, length now and force in its row (Ctrl+Z: back).', { a: this.partName(this.inst(s.part)?.part), b: this.partName(this.inst(s.onto)?.part) }), 'ok', 5000);
+    this.commit();
+    return s;
   }
 
   /** The suggestions table (bottom left of the view) for the chosen part — or the two chosen with Ctrl+click. */
@@ -1094,9 +1109,9 @@ export class Assembly {
 
   /** The overview's joints and couplings under one folded line ("Joints (7)"; open when one does not hold). */
   jointsFold() {
-    const html = `${this.jointsHtml(null)}${couplingsHtml(this, null)}`;
+    const html = `${this.jointsHtml(null)}${couplingsHtml(this, null)}${springsHtml(this, null)}`;
     if (!html) return '';
-    const n = (this.doc.mates || []).filter((m) => this.inst(m.move) && this.inst(m.onto)).length + (this.doc.couplings || []).length;
+    const n = (this.doc.mates || []).filter((m) => this.inst(m.move) && this.inst(m.onto)).length + (this.doc.couplings || []).length + (this.doc.springs || []).length;
     const bad = (this.doc.mates || []).some((m) => m.broken || this.health?.get(m.id)?.ok === false);
     return `<details class="as-jfold" ${this.jointsOpen || bad ? 'open' : ''}><summary title="${esc(t('Every joint and coupling — a part clicked shows only its own'))}">🔗 ${esc(t2('Joints ({n})', { n }))}${bad ? ' <span class="as-jbad">⚠</span>' : ''}</summary>${html}</details>`;
   }
@@ -1157,7 +1172,7 @@ export class Assembly {
         ${this.flexHtml(it)}
         ${inner ? this.innerHtml(it, inner) : ''}
         ${place}
-        ${this.jointsHtml(it.id)}${couplingsHtml(this, it.id)}
+        ${this.jointsHtml(it.id)}${couplingsHtml(this, it.id)}${springsHtml(this, it.id)}
         <details class="as-more" ${this.moreOpen ? 'open' : ''}><summary title="${esc(t('Its colour, see-through, simplified, and editing it from here'))}">🎨 ${esc(t('Look and editing'))}</summary>
           ${this.editHtml(it)}${this.lookHtml(it)}</details>`;
       if (missHere) this.mech.bindMissing(box);
@@ -1183,6 +1198,7 @@ export class Assembly {
       if (inner) this.bindInner(box, it, inner);
       this.bindJointRows(box);
       bindCouplingRows(this, box, renameInPlace);
+      bindSpringRows(this, box, renameInPlace);
       this.bindLook(box, it);
       box.querySelector('[data-a=editHere]')?.addEventListener('click', () => this.editInPlace(it.id));
       box.querySelector('[data-a=editLock]')?.addEventListener('click', () => this.toggleEditable(it.part));
@@ -1212,6 +1228,7 @@ export class Assembly {
         : `<p class="hint">Insert parts of this project (3D models and quick parts) with ＋ Insert part, then join them with 🔗 Joint.</p>`}`;
     this.bindJointRows(box);
     bindCouplingRows(this, box, renameInPlace);
+    bindSpringRows(this, box, renameInPlace);
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
     box.querySelector('[data-a=bomCsv]')?.addEventListener('click', () => this.exportBom());
     box.querySelector('[data-a=bomWin]')?.addEventListener('click', () => this.openBom());
@@ -1357,7 +1374,7 @@ export class Assembly {
       if (this.clashRid === rid) this.clashRid = null;
       if (r.cancelled || wasCancelled(rid)) { this.clashBusy = false; this.updateClashButton(); if (this.clashPanel) this.renderProps(); return; } // (✕ Stop: the last result stays)
       if (!res.ok) throw new Error(r.error || res.statusText);
-      this.clashes = r.clashes;
+      this.clashes = r.clashes.filter((c) => !springIgnores(this, c.a, c.b)); // (〰 a spring is compressed in the view only)
     } catch (e) {
       if (run !== this.clashRun) return;
       this.clashes = null;
@@ -1373,6 +1390,9 @@ export class Assembly {
 
   /** The placed part (top level) a clash's id is in: 'I3/I1' -> 'I3'. */
   topOf(id) { return String(id).split('/')[0]; }
+
+  /** A clash of parts x and y that is only a 〰 spring drawn compressed against its parts (springs.js)? */
+  springIgnores(x, y) { return springIgnores(this, x, y); }
 
   renderClashes(box) {
     this.hoverClash = null; // the rows are drawn anew (a row under the mouse goes without a mouseleave)
@@ -2124,6 +2144,7 @@ export class Assembly {
       if (!on) continue;
       marks.push({ inst: m.move, faces: faceIds(m.move, m.face), color: 0x3fb950 }, { inst: m.onto, faces: faceIds(m.onto, m.ontoFace), color: 0x58a6ff });
     }
+    for (const x of this.doc.springs || []) if (this.hoverJoint === x.id) marks.push({ inst: x.part, faces: faceIds(x.part, x.face), color: 0x3fb950 }, { inst: x.onto, faces: faceIds(x.onto, x.ontoFace), color: 0x58a6ff }); // (〰 a spring's end and the face it reaches)
     for (const c of this.doc.couplings || []) if (this.hoverJoint === c.id) marks.push({ inst: c.a, faces: faceIds(c.a, c.aFace), color: 0x3fb950 }, { inst: c.b, faces: faceIds(c.b, c.bFace), color: 0x58a6ff }); // (⚙ a coupling's two faces)
     for (const h of this.hoverCand?.holes || []) marks.push({ inst: h.inst, faces: faceIds(h.inst, h.name), color: 0xf2cc60 });
     for (const q of this.hoverMissing ? [this.hoverMissing.hole, this.hoverMissing.pin] : []) marks.push({ inst: q.inst, faces: faceIds(q.inst, q.name), color: 0xf2cc60 }); // (➕ Add joint: its hole and pin)
@@ -2294,13 +2315,14 @@ export class Assembly {
       const look = this.lookOf(it);
       if (focus && !clashing.has(it.id)) look.opacity = Math.min(look.opacity ?? 1, 0.12); // the rest see-through
       const lit = this.innerLit(it);
-      return { id: it.id, body: this.bodyOf(it)?.body, matrix: it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part), ...look, threads: this.hooks.partData(it.part)?.threads,
+      return { id: it.id, body: this.bodyOf(it)?.body, matrix: (this.doc.springs && springMatrix(this, it)) || it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part), ...look, threads: this.hooks.partData(it.part)?.threads,
         ...(lit ? { lit } : {}), selected: (it.id === this.sel && !lit) || it.id === this.sel2 || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst, moving: !!this.cueParts?.includes(it.id), clash: clashing.has(it.id),
         explode: along ? along.get(it.id)?.toArray() || null : this.explode && c ? away(c).multiplyScalar(this.explode * 1.2).toArray() : null };
     }));
     this.drawMarks();
     this.drawJointTags();
     this.showCog();
+    if (this.doc.springs) updateSpringRows(this, this.$('.mp-body')); // (〰 its length now, while the parts move)
   }
 
   /** The faces' prefix of the inner part chosen in the list ("I2/") when `it` is its placement, else null. */
@@ -2570,6 +2592,7 @@ export class Assembly {
     const mates = (this.doc.mates || []).filter((m) => this.inst(m.move) && this.inst(m.onto));
     this.doc.mates = mates;
     if (this.doc.couplings) { this.doc.couplings = this.doc.couplings.filter((c) => this.inst(c.a) && this.inst(c.b)); if (!this.doc.couplings.length) delete this.doc.couplings; }
+    if (this.doc.springs) { this.doc.springs = this.doc.springs.filter((x) => this.inst(x.part) && this.inst(x.onto)); if (!this.doc.springs.length) delete this.doc.springs; }
     const before = new Map(this.doc.instances.map((i) => [i.id, [...i.matrix]]));
     this.placeAll(mates);
     if (this.closeLoops(before, drive)) this.placeAll(mates);
@@ -3269,7 +3292,7 @@ export class Assembly {
     r.steps.forEach((s, k) => {
       const moving = new Set(Object.keys(steps[k].matrices));
       for (const c of s.clashes) {
-        if (moving.has(c.a) && moving.has(c.b)) continue;
+        if ((moving.has(c.a) && moving.has(c.b)) || springIgnores(this, c.a, c.b)) continue;
         const other = this.topOf(moving.has(c.a) ? c.b : c.a), h = hits.get(other) || { with: other, from: s.at, to: s.at, volume: 0 };
         h.from = Math.min(h.from, s.at);
         h.to = Math.max(h.to, s.at);
@@ -3441,6 +3464,15 @@ export class Assembly {
     }
     const type = this.jointType;
     if (type === 'fastener') { this.fastenerAt(this.jointFrom, h); return; }
+    if (type === 'spring') { // 〰 a spring's end to the face it pushes on
+      const from = this.jointFrom;
+      this.mode = 'idle';
+      this.jointFrom = null;
+      this.hoverFace = null;
+      this.hint('');
+      this.makeSpring(from, h);
+      return;
+    }
     if (type === 'rigid') { // 🔗 fixed together, as they are
       const from = this.jointFrom;
       this.mode = 'idle';
@@ -3724,6 +3756,7 @@ export class Assembly {
       ...(this.mech?.list.length ? { mechanisms: this.mech.summary() } : {}),
       ...(this.mech?.missing ? { missing_joint: this.missingSummary() } : {}),
       ...(this.doc.couplings?.length ? { couplings: couplingsSummary(this) } : {}),
+      ...(this.doc.springs?.length ? { springs: springsSummary(this) } : {}),
       joints: (this.doc.mates || []).map((m) => ({ id: m.id, ...(m.name ? { name: m.name } : {}), type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
         ...(m.type === 'axis' ? { distance: Number.isFinite(m.dist) ? m.dist : null } : { gap: m.gap || 0 }), ...(m.type !== 'parallel' ? { rotation_locked: Number.isFinite(m.angle) } : {}), ...(m.broken ? { broken: true } : {}),
         ...(m.slides?.length || (m.rot && m.type !== 'rigid') ? { locked_motions: (m.slides?.length || 0) + (m.rot && m.type !== 'rigid' ? 1 : 0) } : {}),
@@ -3788,6 +3821,12 @@ export class Assembly {
           this.applyMates();
           this.commit();
           return { text: `${c.id} ${type}: ${c.a} ↔ ${c.b}, ${ratioText(c)} — move_free / drive_mechanism one of them, the other follows. ${JSON.stringify(this.summary())}` };
+        }
+        if (type === 'spring') { // 〰 move: the spring's end face, onto: the face it reaches; value: k (N/mm)
+          const s = addSpring(this, { inst: move.part, face: this.worldFace(move.part, move.face) }, { inst: onto.part, face: this.worldFace(onto.part, onto.face) }, value ?? null);
+          if (name) s.name = String(name).trim();
+          this.commit();
+          return { text: `${s.id} 〰 spring: ${s.part} reaches ${s.onto} — drawn as long as it reaches (drive_mechanism / move_free: it follows). ${JSON.stringify(springsSummary(this).find((x) => x.id === s.id))}` };
         }
         if (type === 'rigid') { // 🔗 fixed together as they are: faces not needed
           const nj = this.fixTogether(move?.part, onto?.part, move?.face || null, onto?.face || null);

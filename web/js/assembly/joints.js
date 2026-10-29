@@ -34,6 +34,8 @@ export const JOINT_TYPES = {
   ball: { icon: '●', name: 'Ball joint', faces: 'ball', hint: "a ball's centre on an axis (a hole, a cone: it slides along it and turns any way) or on another ball's centre (it only turns)" },
   seat: { icon: '◉', name: 'Ball in seat', faces: 'ball', hint: 'a ball sitting in a conical seat or on the edge of a hole — on its axis, touching it' },
   rigid: { icon: '🔗', name: 'Fixed together', faces: 'part', hint: 'the first part goes with the other one as they are now — it has no motion of its own' },
+  // not a joint that holds: a spring part reaching to another part's face, drawn as long as it is (springs.js)
+  spring: { icon: '〰', name: 'Spring', faces: 'plane', hint: "a spring's end face to the face it pushes on: it is drawn as long as the distance (compressed, stretched)" },
   // not a joint of its own: a screw (+ nut / insert) or pin through the parts — the holes drilled for it, or ones there
   fastener: { icon: '🔩', name: 'Screw / pin', faces: 'any', hint: 'click where it goes in: a flat face (the holes are drilled for it, through the parts below) or a hole that is there', pick: true },
 };

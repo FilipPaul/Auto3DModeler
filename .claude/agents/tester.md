@@ -643,7 +643,9 @@ Never report "works" without having run it; report failures with their output.
    suggestions for a ball + a hole put ◉ / ● first; a flat face refused), 🔗 fixed together (snap_faces "rigid"
    without faces: the flag stays where it was, has 0 own motions, follows the pin's slide and turn; 🔗 Fix … to … for
    two chosen parts), 🔒 a touch's slides locked one by one (3 → 2 → 1 ways, not moved, no new joint, pushed back,
-   ✕ in the row frees them) and a ball's slide / turns.
+   ✕ in the row frees them) and a ball's slide / turns, 〰 a spring (snap_faces "spring" k 0.5: drawn at distance /
+   free length at rest, 4 mm down and every frame of ▶; get_assembly and its row 16 mm / 4 mm / 2 N; its overlap with
+   the piston dropped from check_collisions and check_travel).
    `tools/e2e_assembly_health.py <url> <dir>` covers joints that do not hold (the same faces joined again as a Gap:
    one joint changed; a Flush fighting it: the Gap red with "9 mm off: J2 (Flush) holds Lid elsewhere", ⚠ tag, status
    count, get_assembly not_held; one removed: all hold), a screw + nut as one 🔩 row whose ✕ takes the screw, nut and

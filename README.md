@@ -871,6 +871,12 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   broken: the part cannot be moved by hand while it holds; moving a part held by unlocked joints asks first.
   **Double-click a joint's name** to give it your own (e.g. *ložisko na tyč*); it is shown in the list, over its
   symbol in the view and to the AI.
+- **〰 Spring**: pick the spring's end face and the face it pushes on (Ctrl+click; a part called *spring* / *pružina*
+  puts 〰 first in the suggestions, or 〰 Spring in Joint ▾). The spring part is drawn as long as it reaches — scaled
+  along its axis, its other end where it sits — while the parts move (sliders, dragging, ⚙ ▶, the 🎬 animation,
+  screenshots); its model stays as it is, its free length is its modelled length. Its row: *free 20 mm · now 16 mm ·
+  compressed 4 mm*, and with its stiffness **k** (N/mm, the one input) the force (*2 N*). Collisions between the spring
+  and the parts it is joined to are not counted.
 - **🔒 Lock a motion where it is**: 🔒 by a motion in the part's Moves keeps it — a joint's turn or distance, a new
   flush / gap / parallel joint where faces line up, else **its own joint keeps it** (a touch's slides on the face one
   by one, a ball's slide along its axis; a ball's turn locks all three of its turns). The joint's row says

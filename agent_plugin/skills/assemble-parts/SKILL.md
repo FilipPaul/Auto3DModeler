@@ -24,7 +24,9 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    a revolved half circle — with its centre on the axis of a hole or a cone: it slides along it and turns; onto another
    ball: a ball joint, 3 turns), `seat` (the ball seated in a conical seat or on the edge of a smaller hole: a valve
    ball — on the axis, touching), `rigid` (🔗 fixed together as they are now: `{move: {part}, onto: {part}}`, no faces —
-   a part that rides on another one, e.g. a ball carried by a piston). A part's joints apply in order: `axis` first, then
+   a part that rides on another one, e.g. a ball carried by a piston), `spring` (〰 a spring part — keep it its own part,
+   joined where it sits — from its end face `move` to the face it pushes on `onto`, `value` = k N/mm: it is drawn as long
+   as it reaches while the mechanism moves; get_assembly `springs`: free / now / compressed, force). A part's joints apply in order: `axis` first, then
    `touch` from the head to the face it sits on, seats a pin. Joints hold: the part follows when the other one moves
    or changes size (`get_assembly` lists the `joints`); `place_part` on a joined part removes its joints.
 4. Fine-tune with `place_part {part, x, y, z}` (its origin in mm) and `turn: "x" | "y" | "z"` (90° about its

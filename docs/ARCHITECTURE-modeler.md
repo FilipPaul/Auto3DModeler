@@ -7,6 +7,19 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Assembly: 〰 springs (2026-10-29)** (the app's AI, report 2026-10-29-203234: in a pump's mechanism the spring was a
+  rigid part, the piston passed through it). assembly/springs.js: `springs: [{id, part, face (its end that reaches),
+  onto, ontoFace, k?}]` — not a joint that holds (its part is held by its own joints). Free length: its modelled length
+  between its end face and the flat face across it (springEnds); now: from that base to the face it reaches, along its
+  axis; Assembly.draw gives its mesh the matrix scaled along the axis about its base (springMatrix) — so sliders, a
+  drag, ⚙ ▶, the 🎬 animation and screenshots show it compressing; the row (part panel, overview) "volná · teď ·
+  stlačení" + k (N/mm, the one input) → the force, updated while the parts move. Clashes (the panel, check_collisions,
+  ⚠ the travel) between a spring and the parts it is joined to / reaches are dropped (the kernel has it at its free
+  length). 〰 Spring in Joint ▾ (two flat faces); two flat faces picked: 〰 first when a part is called spring /
+  pružina. AI: snap_faces type "spring" (value = k), get_assembly `springs`. Tests: e2e_assembly_ball_spring (scale =
+  distance / free length at rest, 4 mm down and every frame of ▶; 16 / 4 mm / 2 N in get_assembly and the row; the
+  kernel's overlap dropped from check_collisions and check_travel).
+
 - **Assembly: 🔒 a touch's slides lockable (2026-10-29)** (the same report: after a touch the ball still slid in X / Y,
   lock_motion said "Nenašla se vazba…"). lockMotion tries as before (the joint's angle / distance, a new flush / gap /
   parallel joint), then keeps the motion on its own joint: a slide as `slides: [{d (in the other part's frame), at}]`

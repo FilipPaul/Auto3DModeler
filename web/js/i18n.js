@@ -1200,6 +1200,14 @@ const CS = {
   'Fix {a} to {b}': 'Pevně spojit {a} s {b}', 'as they are': 'jak jsou',
   'Fixed together, as they are now: it goes with the other part and has no motion of its own': 'Pevně spojené tak, jak jsou teď: jde s druhým dílem a nemá vlastní pohyb',
   '{a} is fixed to {b}: it goes with it, it has no motion of its own (✕ the joint frees it; Ctrl+Z: back).': '{a} je pevně spojen s {b}: jde s ním, nemá vlastní pohyb (✕ u vazby ho uvolní; Ctrl+Z: zpět).',
+  // 〰 springs (assembly/springs.js)
+  Spring: 'Pružina', Springs: 'Pružiny', "a spring's end face to the face it pushes on: it is drawn as long as the distance (compressed, stretched)": 'konec pružiny k ploše, na kterou tlačí: kreslí se tak dlouhá, jaká je vzdálenost (stlačená, natažená)',
+  'A spring reaches from one part to another.': 'Pružina vede od jednoho dílu ke druhému.',
+  'A spring joins a flat end face of the spring (with its other end across it) to the face it pushes on.': 'Pružina spojuje rovnou koncovou plochu pružiny (s druhým koncem naproti) s plochou, na kterou tlačí.',
+  'free {free} mm · now {now} mm · compressed {c} mm': 'volná {free} mm · teď {now} mm · stlačení {c} mm', 'force {f} N': 'síla {f} N', 'its end face is gone': 'její koncová plocha zmizela',
+  'Its stiffness: how many newtons per mm it is compressed — empty: no force shown': 'Její tuhost: kolik newtonů na mm stlačení — prázdné: síla se neukazuje',
+  'Remove this spring (the part stays as it is modelled)': 'Odebrat tuto pružinu (díl zůstane, jak je vymodelovaný)',
+  '{a} is a spring to {b}: it is drawn as long as it reaches — its free length, length now and force in its row (Ctrl+Z: back).': '{a} je pružina k {b}: kreslí se tak dlouhá, kam dosáhne — volná délka, délka teď a síla v jejím řádku (Ctrl+Z: zpět).',
   // 🔒 a motion locked on its own joint (lockMotion)
   '{id}: {what} locked where it is': '{id}: {what} — zamčeno tam, kde je', '{id}: its turns locked where they are': '{id}: jeho otáčení zamčeno tam, kde je',
   'Motions of the part locked on this joint where they were (🔒 by a motion in Moves) — ✕ frees them': 'Pohyby dílu zamčené na této vazbě tam, kde byly (🔒 u pohybu v Pohybech) — ✕ je uvolní',
