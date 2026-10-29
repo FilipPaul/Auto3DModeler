@@ -33,6 +33,21 @@ Date: 2026-10-25. Written by the architect agent.
   out — they go to Claude. tools/e2e_i18n.py: a rib with nothing to close against and a ⟋ Draft too steep shown
   in Czech in their panels, texts with values through t(). Left out: several issues joined into one line (each
   is translated only when shown alone), texts of OCCT / library exceptions passed through as they are.
+- **Mounting holes on an assembly sheet done:** sheet._mounting (in _assembly, the base part given): the base part's
+  free holes (_free_holes: its round faces with the axis outside the part and no other placed part at ¼ / ½ / ¾ of
+  the way along it — a pin's / screw's hole left out) matched to the assembly view's circles, then auto_dims "medium"
+  on a geometry of only those circles, view by view, with box#x0 / box#y0 the base part's corners -> the same row /
+  grid, PCD and ordinate rules; renamed base#x0 / base#y0 (points added to the views), rings "mnt:pcd:…";
+  geometry.mount [{view, keys}]; build_assembly runs place() when there are some. The base: doc.assembly_sheet(base=)
+  — sheet.js baseOf: the part fixed 📌, else the one most joints are made onto, else the first (not a fastener); in
+  sourceHash only when it is not the first (old sheets keep their revision). asmCheck asks for the mounting holes
+  (each linked to base#x0 / base#y0 in its view: a pitch its row, a PCD its holes; "a mounting hole (Ø5)", ＋ from
+  base#x…). A view dragged or given its own scale: Sheet.replace() -> /api/sheet/place (sheet.place with lay.views
+  where the user put them and lay.vscale; _Paper.sc per view) — also after a rebuild when views are moved.
+  test_assembly_sheet_mounting_holes (4 holes, 2 pinned: 8 / 42, 64; base a pin: none; all filled: none),
+  test_place_for_moved_and_scaled_views, TestSheetRoutes.test_place_again; tools/e2e_assembly_sheet.py (Mount).
+  Left out: a mounting hole's Ø (positions only — the base part's sheet gives it), a hole of a sub-assembly's part as
+  the base, a hole half split into two faces.
 - **Hole positions drawn on the sheet done:** sheet.auto_dims places each hole step's holes of one size (a counterbore's
   circles left to its holes) in the view showing them round, from box#x0 / box#y0 (ISO 129): a row / grid its first
   one + its pitch (as before), a bolt circle (sheet._ring: least-squares circle through the centres, equal angles — all

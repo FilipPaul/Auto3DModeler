@@ -1268,6 +1268,22 @@ class TestSheet(unittest.TestCase):
         self.assertTrue(any(d.get("sh") for d in r["dims"] if d.get("ord")))
         self.assertEqual(sheet.overlaps(r["geometry"], r["layout"], r["dims"]), [])
 
+    def test_place_for_moved_and_scaled_views(self):
+        """A view at its own scale (lay.vscale, 3:2 on a 1:1 sheet): drawn bigger (the paper's P), its hole positions
+        running into the frame there -> place() puts them clear again; a view moved (lay.views): placed for where it is."""
+        from auto3d.modeler import sheet
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [40, 25, 5], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        r = doc.sheet({"features": box(80, 50, 5) + [{"id": "H1", "type": "hole", "plane": top, "points": [[x, y] for x in (-32, 32) for y in (-17, 17)], "d": 5, "through": True}]}, "medium")
+        g, lay, dims = r["geometry"], r["layout"], r["dims"]
+        self.assertEqual(lay["scale"], [1, 1])
+        big = {**lay, "vscale": {"Top": [3, 2]}}
+        b0, b1 = sheet._Paper(g, lay).box("Top"), sheet._Paper(g, big).box("Top")
+        self.assertAlmostEqual((b1[2] - b1[0]) / (b0[2] - b0[0]), 1.5, places=3)
+        self.assertTrue(sheet.overlaps(g, big, dims))
+        self.assertEqual(sheet.overlaps(g, big, sheet.place(g, big, dims)), [])
+        moved = {**lay, "views": {**lay["views"], "Top": [lay["views"]["Top"][0], lay["views"]["Top"][1] - 10]}}
+        self.assertEqual(sheet.overlaps(g, moved, sheet.place(g, moved, dims)), [])
+
     def test_view_presets(self):
         """A view's own preset: the top medium while the sheet is light (the rest of the sheet stays light)."""
         light = doc.sheet(self.part, "light")["dims"]
@@ -1321,6 +1337,36 @@ class TestAssemblySheet(unittest.TestCase):
         self.assertEqual(r["marks"]["I2"]["Front"], [10, 15])
         self.assertEqual(len(r["dims"]), 3)  # its overall sizes
         self.assertIn("Iso", r["marks"]["I1"])
+
+    def test_assembly_sheet_mounting_holes(self):
+        """A base plate with 4 corner holes, pins in 2 of them: the 2 free ones (the mounting holes) dimensioned in the
+        top view from the plate's own edges (8 / 42 to the first, the pitch 64), none of the pins' holes; the pins
+        lower than the plate (the assembly's box is not the plate's). The base fixed elsewhere (a pin): none; all 4
+        filled: none (the overall sizes only)."""
+        from auto3d.modeler import sheet
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [40, 25, 5], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        corners = [[x, y] for x in (-32, 32) for y in (-17, 17)]
+        plate = {"features": box(80, 50, 5) + [{"id": "H1", "type": "hole", "plane": top, "points": corners, "d": 5, "through": True}]}
+        pin = {"features": [{"id": "S1", "type": "sketch", "plane": {"datum": "XY"}, "points": {"c": [0, 0]}, "entities": [{"id": "k", "t": "circle", "c": "c", "r": 2.5}]},
+                            {"id": "E1", "type": "extrude", "sketch": "S1", "op": "add", "d": 12}]}
+        at = lambda x, y=0, z=0: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1]  # noqa: E731
+        inst = [{"id": "I1", "part": plate, "matrix": at(0), "fixed": True}, {"id": "I2", "part": pin, "matrix": at(8, 8, -3)},
+                {"id": "I3", "part": pin, "matrix": at(72, 8, -3)}]
+        r = doc.assembly_sheet(inst)
+        g = r["geometry"]
+        pos = [d for d in r["dims"] if d.get("pos")]
+        self.assertEqual(sorted((d["view"], d["a"], d.get("pre", ""), sheet.value(g, d)) for d in pos),
+                         [("Top", "#8#c", "", 64), ("Top", "base#x0", "", 8), ("Top", "base#y0", "", 42)])
+        self.assertEqual((g["views"]["Top"]["points"]["base#x0"], g["views"]["Top"]["points"]["base#y0"]), ([0, 0], [80, 0]))
+        self.assertEqual([(m["view"], len(m["keys"])) for m in g["mount"]], [("Top", 2)])
+        self.assertEqual(len(r["dims"]) - len(pos), 3)  # (the overall sizes as before)
+        self.assertEqual(sheet.value(g, next(d for d in r["dims"] if d["view"] == "Front" and d["dir"] == "v")), 12)  # (the pins stick out)
+        self.assertEqual(sheet.overlaps(g, r["layout"], r["dims"]), [])
+        # the base: a pin (fixed in place) -> its holes, none; all four filled -> none
+        self.assertFalse([d for d in doc.assembly_sheet(inst, base="I2")["dims"] if d.get("pos")])
+        full = inst + [{"id": f"I{4 + i}", "part": pin, "matrix": at(x, 42, -3)} for i, x in enumerate((8, 72))]
+        r = doc.assembly_sheet(full)
+        self.assertEqual((len(r["dims"]), r["geometry"].get("mount")), (3, None))
 
     def test_balloon_spot_on_a_bare_face(self):
         """A rod lying across the middle of a base plate: the plate's middle is under the rod in the iso view, so its

@@ -252,7 +252,19 @@ export class SheetEditor {
     if (this.hooks.kindOf?.(id) !== 'assembly') return partHash(data);
     seen.add(id);
     const inside = (data.instances || []).map((it) => [it.part, it.matrix, seen.has(it.part) ? '' : this.sourceHash(it.part, seen), ...(it.inner ? [it.inner] : [])]);
-    return partHash({ features: inside });
+    const base = this.baseOf(id); // (another base part: other mounting holes; the first one's sheets keep their hash)
+    return partHash({ features: inside, ...(base && base !== data.instances?.[0]?.id ? { base } : {}) });
+  }
+
+  /** The part an assembly stands on — its free holes are dimensioned (the mounting holes): the one fixed in place 📌,
+   *  else the one most joints are made onto, else the first placed (not a screw / pin) -> its instance id or null. */
+  baseOf(aid) {
+    const data = this.hooks.partData(aid) || {}, insts = (data.instances || []).filter((it) => !it.fastener);
+    const fixed = insts.find((it) => it.fixed);
+    if (fixed) return fixed.id;
+    const n = new Map();
+    for (const m of data.mates || []) n.set(m.onto, (n.get(m.onto) || 0) + 1);
+    return insts.reduce((a, it) => (!a || (n.get(it.id) || 0) > (n.get(a.id) || 0) ? it : a), null)?.id ?? null;
   }
 
   async ensure(force = false) {
@@ -311,6 +323,7 @@ export class SheetEditor {
     this.busy = false;
     this.render();
     this.hooks.onChange?.();
+    if (!this.error && this.relaid()) this.replace(); // (made for the layout's places: the user's moved views placed for)
   }
 
   // ------------------------------------------------------------------ geometry on the paper
@@ -470,6 +483,28 @@ export class SheetEditor {
     if (s) vs[v] = s; else delete vs[v];
     this.d.vscale = vs;
     this.commit();
+    this.replace();
+  }
+
+  /** Has the user moved a view, or given one its own scale? (Then the server's placing is for another layout.) */
+  relaid() {
+    return Object.keys(this.d.vscale || {}).length > 0 || this.drawn().some((v) => this.d.views[v] && this.lay?.views[v] && Math.hypot(this.d.views[v][0] - this.lay.views[v][0], this.d.views[v][1] - this.lay.views[v][1]) > 0.01);
+  }
+
+  /** A view moved by hand or at its own scale: the holes' positions and callouts placed clear again where the views
+   *  are now (sheet.py place) — the automatic ones; a dimension the user moved stays where they put it. */
+  async replace() {
+    const b = this.d.built, G = this.geo;
+    if (!b?.dims?.some((d) => d.pos || d.kind === 'dia' || d.kind === 'pcd') || !G) return;
+    const views = Object.fromEntries(this.drawn().filter((v) => G.views[v] && this.centre(v)).map((v) => [v, this.centre(v)]));
+    const slim = { iso: this.isoBox ? 1 : 0, holes: G.holes || {}, views: Object.fromEntries(Object.keys(views).map((v) => [v, { box: G.views[v].box, points: G.views[v].points, circles: G.views[v].circles, rings: G.views[v].rings || [], lines: [] }])) };
+    const ib = this.isoBox, iso = ib ? [(ib[0] + ib[2]) / 2, (ib[1] + ib[3]) / 2, Math.max(ib[2] - ib[0], ib[3] - ib[1])] : null;
+    let r;
+    try { r = await post('/api/sheet/place', { geometry: slim, layout: { ...this.lay, views, iso, scale: this.scaleArr(), vscale: this.d.vscale || {} }, dims: b.dims }); } catch { return; }
+    if (this.d.built !== b) return; // (built again meanwhile)
+    b.dims = r.dims; // (an off view's: as they were)
+    this.render();
+    this.hooks.onChange?.();
   }
 
   /** Rename a view ('' or its standard name: back to that). */
@@ -782,7 +817,7 @@ export class SheetEditor {
     }
     for (const v of this.drawn()) {
       for (const [k, p] of Object.entries(this.geo.views[v].points)) {
-        if (k.startsWith('box#')) continue;
+        if (/^(box|base)#/.test(k)) continue;
         const q = this.P(v, p), first = !this.pick?.edge && this.pick?.view === v && this.pick.key === k;
         out.push(`<circle cx="${q[0]}" cy="${q[1]}" r="${first ? 1.2 : 0.6}" fill="${first ? '#1f6feb' : '#f59e0b'}" opacity="${first ? 1 : 0.7}"/>`);
       }
@@ -1065,7 +1100,7 @@ export class SheetEditor {
     });
     const insts = this.hooks.partData(aid)?.instances || [];
     if (!insts.length) throw new Error(t('The assembly has no parts to draw.'));
-    const r = await post('/api/sheet/assembly', { instances: flatten(aid), explode, ...(sd ? { paper: sd.paper || null, ...this.layReq(sd) } : {}), ...(rid ? { rid } : {}) }); // (explode: the iso view pulled apart)
+    const r = await post('/api/sheet/assembly', { instances: flatten(aid), explode, base: this.baseOf(aid), ...(sd ? { paper: sd.paper || null, ...this.layReq(sd) } : {}), ...(rid ? { rid } : {}) }); // (explode: the iso view pulled apart)
     const groups = new Map();
     for (const it of insts) { if (!groups.has(it.part)) groups.set(it.part, []); groups.get(it.part).push(it.id); }
     const nums = this.itemNumbers(this.rootOf(aid) || aid); // (the set's numbers: the same part, the same number)
@@ -1532,7 +1567,8 @@ export class SheetEditor {
   }
 
   /** An assembly's sheet asks only for its own sizes: its overall length, width and height, each by a dimension in a
-   *  view shown (the parts' holes, radii and edges belong on their own sheets; a bought part's never) -> as check(). */
+   *  view shown, and where its base part's mounting holes are (its free holes, geometry.mount; none: not asked) — the
+   *  parts' holes, radii and edges belong on their own sheets, a bought part's never -> as check(). */
   asmCheck() {
     const G = this.geo, AX = { Front: ['x', 'z'], Top: ['x', 'y'], Right: ['y', 'z'] }, r2 = (v) => Math.round(v * 100) / 100;
     const shown = VIEWS.filter((v) => !this.d.off[v] && G.views[v]), dims = this.allDims(), have = new Set(), seen = new Map(), dup = new Set();
@@ -1550,6 +1586,34 @@ export class SheetEditor {
       if (!v) continue; // (no view shows it: nothing to dimension it in)
       const k = AX[v].indexOf(ax), g = G.views[v];
       missing.push({ view: v, dir: k ? 'v' : 'h', key: k ? 'box#y1' : 'box#x1', at: k ? [g.box[2], g.box[3]] : [g.box[2], g.box[1]], what: what[ax], ax });
+    }
+    // the base part's mounting holes (geometry.mount: its holes no screw / pin of the assembly is in): each linked by
+    // dimensions to the base part's left / bottom edge (a pitch "3× 20" its whole row, a bolt circle its holes)
+    for (const m of G.mount || []) {
+      if (!shown.includes(m.view)) continue;
+      const g = G.views[m.view], uf = [new Map(), new Map()];
+      const find = (k, v) => { const u = uf[k]; let x = String(r2(v)); while (u.has(x) && u.get(x) !== x) x = u.get(x); if (!u.has(x)) u.set(x, x); return x; };
+      const join = (k, a, b) => { const p = find(k, a), q = find(k, b); if (p !== q) uf[k].set(p, q); };
+      for (const d of dims) {
+        if (d.view !== m.view || this.value(d) === null) continue;
+        if (d.kind === 'linear') {
+          const k = d.dir === 'h' ? 0 : 1, a = g.points[d.a][k], b = g.points[d.b][k], n = parseInt(d.pre, 10);
+          join(k, a, b);
+          if (n > 1) for (let i = 1; i < n; i++) join(k, a + i * (b - a), a + (i + 1) * (b - a)); // (the rest of the row)
+        }
+        const rg = d.kind === 'pcd' && this.circleOf(d.view, d.a);
+        if (rg) for (const c of g.circles) if (rg.keys.includes(c.key)) for (const k of [0, 1]) join(k, rg.c[k], c.c[k]);
+      }
+      const told = new Set();
+      for (const c of g.circles) {
+        if (!m.keys.includes(c.key)) continue;
+        for (const k of [0, 1]) {
+          const from = k ? 'base#y0' : 'base#x0', id = `${k}:${r2(c.c[k])}`;
+          if (told.has(id) || find(k, c.c[k]) === find(k, g.points[from][k])) continue;
+          told.add(id);
+          missing.push({ view: m.view, dir: k ? 'v' : 'h', key: `${c.key}#c`, from, at: c.c, what: tv('a mounting hole (Ø{d})', { d: fmt(2 * c.r) }), ax: AX[m.view][k] });
+        }
+      }
     }
     return { missing, dup, over: new Set(), ok: !missing.length && !dup.size, assembly: true };
   }
@@ -1630,7 +1694,7 @@ export class SheetEditor {
     if (co) { this.addUser(co); return; }
     if (m.kind === 'dia' || m.kind === 'rad') { this.addUser({ view: m.view, kind: m.kind, a: m.key, count: 1, ang: m.kind === 'dia' ? 45 : 0, len: 6 }); return; }
     const n = this.d.user.filter((d) => d.view === m.view && d.dir === m.dir).length;
-    this.addUser({ view: m.view, kind: 'linear', a: m.dir === 'h' ? 'box#x0' : 'box#y0', b: m.key, dir: m.dir, side: m.dir === 'h' ? 'b' : 'l', off: 20 + 7 * n });
+    this.addUser({ view: m.view, kind: 'linear', a: m.from || (m.dir === 'h' ? 'box#x0' : 'box#y0'), b: m.key, dir: m.dir, side: m.dir === 'h' ? 'b' : 'l', off: 20 + 7 * n });
   }
 
   // ------------------------------------------------------------------ editing
@@ -1676,7 +1740,7 @@ export class SheetEditor {
     let best = null;
     for (const v of this.drawn()) {
       for (const [k, q] of Object.entries(this.geo.views[v].points)) {
-        if (k.startsWith('box#') || k.endsWith('#m')) continue;
+        if (/^(box|base)#/.test(k) || k.endsWith('#m')) continue;
         const a = this.P(v, q), dist = Math.hypot(a[0] - p[0], a[1] - p[1]);
         if (dist < reach && (!best || dist < best.dist)) best = { view: v, key: k, at: a, dist };
       }
@@ -1841,7 +1905,7 @@ export class SheetEditor {
     this.stage.addEventListener('pointerup', () => {
       const had = this.guides?.length;
       this.guides = null;
-      if (drag?.moved && drag.kind !== 'pan') this.commit(); else if (had) this.render();
+      if (drag?.moved && drag.kind !== 'pan') { this.commit(); if (drag.kind === 'view') this.replace(); } else if (had) this.render(); // (a view dropped: its dimensions placed clear again)
       drag = null;
     });
     this.stage.addEventListener('scroll', () => { if (this.setMode) this.markSeen(); });
@@ -1986,7 +2050,7 @@ export class SheetEditor {
   /** For the AI: the sheet's dimensions with their values. */
   summary() {
     const ck = this.check();
-    return { check: ck ? { fully_dimensioned: ck.ok && !ck.over.size, missing: ck.missing.map((m) => `${m.view}: ${m.what}${m.ax ? ` (${m.ax})` : ''} [${m.key}]`).slice(0, 30), twice: [...ck.dup, ...ck.over], ...(ck.assembly ? { asks_for: 'an assembly sheet: only its overall sizes (length, width, height) — each part\'s details belong on its own sheet, a bought part\'s nowhere' } : {}) } : null,
+    return { check: ck ? { fully_dimensioned: ck.ok && !ck.over.size, missing: ck.missing.map((m) => `${m.view}: ${m.what}${m.ax ? ` (${m.ax})` : ''} [${m.key}]`).slice(0, 30), twice: [...ck.dup, ...ck.over], ...(ck.assembly ? { asks_for: 'an assembly sheet: only its overall sizes (length, width, height) and where its base part\'s mounting holes are (its holes no screw / pin of the assembly is in) — each part\'s details belong on its own sheet, a bought part\'s nowhere' } : {}) } : null,
       part: this.hooks.partName(this.d.source), ...(Object.keys(this.d.texts || {}).length ? { texts: this.d.texts } : {}), preset: this.d.preset, ...(Object.keys(this.d.vpreset || {}).length ? { view_presets: this.d.vpreset } : {}), paper: this.lay?.paper, rev: this.d.rev, changed: this.d.changed,
       views: [...VIEWS, 'Iso'].filter((v) => !this.d.off[v]),
       scale: `${scaleText(this.scaleArr())}${this.d.scale ? '' : ' (auto)'}`,

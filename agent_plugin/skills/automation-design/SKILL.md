@@ -36,7 +36,9 @@ maker numbers.
   dimension the preset left out, `sheet_edit {remove: [...]}` for clutter; then `export {format: "pdf"}` on the sheet (and `"dxf"` when the
   user's drafting program — AutoCAD, SolidWorks, Solid Edge — should take it: the paper 1:1, real dimensions).
   Say the material and the finish (e.g. "AlMg3, anodised").
-  The assembly's sheet: its check asks only for the overall sizes (no part details — those are on the parts' sheets);
+  The assembly's sheet: its check asks only for the overall sizes and where the base part's mounting holes are (its
+  free holes — the ones no screw / pin of the assembly fills; dimensioned automatically from the base part's edges)
+  — no part details, those are on the parts' sheets;
   `get_sheet` lists its balloons (each parts_list row's balloon: the copy it points at, where its leader ends) and
   checks them (balloons: ok, problems — a pos given twice, a qty that is not what this level places, an item without one).
   The title block: `get_sheet` reports its `template` and the ones there are; on the assembly's sheet

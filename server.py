@@ -893,12 +893,26 @@ def _sheet_layout(data, body):
 
 @app.post("/api/sheet/assembly")
 def api_sheet_assembly():
-    """{instances (placed, as for clashes), paper, scale, frame, rid} -> {geometry, layout, dims, marks} — an assembly's drawing sheet."""
+    """{instances (placed, as for clashes), paper, scale, frame, base (the id of the part it stands on: its free holes
+    dimensioned), rid} -> {geometry, layout, dims, marks} — an assembly's drawing sheet."""
     body = request.get_json(force=True)
-    data, err = _sheet_call("assembly_sheet", {"instances": body.get("instances") or [], "paper": body.get("paper"), "explode": body.get("explode") or 0}, body)
+    data, err = _sheet_call("assembly_sheet", {"instances": body.get("instances") or [], "paper": body.get("paper"), "explode": body.get("explode") or 0,
+                                               "base": body.get("base")}, body)
     if err:
         return err
     return _sheet_layout(data, body)
+
+
+@app.post("/api/sheet/place")
+def api_sheet_place():
+    """{geometry, layout (its views where the user moved them, vscale: {view: [a, b]}), dims} -> {dims} — the holes'
+    positions and callouts placed clear again after a view was moved or given its own scale (sheet.place)."""
+    from auto3d.modeler.sheet import place
+    body = request.get_json(force=True)
+    try:
+        return jsonify({"dims": place(body["geometry"], body["layout"], body.get("dims") or [])})
+    except (ValueError, TypeError, KeyError, IndexError) as exc:
+        return jsonify({"error": f"The dimensions could not be placed: {exc}"}), 400
 
 
 @app.post("/api/sheet/pdf")
