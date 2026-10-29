@@ -507,7 +507,13 @@ SolidWorks. It has only the tools that need almost no input.
    off. A hole placed in line with another hole of the step is measured from that hole, so it stays in line. A hole
    put on the face's centre, or on a middle line (in line with two edge midpoints), stays **in the middle** when the
    part changes size — its row says *↔ in the middle of the left and right edges*; 🎯 measures it from an edge instead.
-   *Aa Text / picture* snaps the same way. It goes through all by default, or untick *Through all* and give a depth.
+   *Aa Text / picture* snaps the same way. **A made hole is moved by dragging it** (no tool on): over it the mouse
+   shows ✥ and *drag to move the hole*; hold the left button and it follows the mouse on its face, snapped the same
+   way (a green ring where it goes, the snap named, its distances live); let go — its place changes in one undo step;
+   Esc while dragging puts it back. Only the hole under the mouse moves, not the other holes of its step; a plain click
+   still picks it, and a drag beside the part still turns the view. A distance you **typed is locked 🔒** (its tag on
+   the part shows 🔒; the 🔒 / 🔓 beside its row in the Hole panel locks or frees it): the hole then moves only the
+   other way, and with both locked it does not move (*🔒 dimension locked* at the mouse). It goes through all by default, or untick *Through all* and give a depth.
    *Type* makes it a hole for a metric screw, sized from the ISO tables by one *Size* choice (M2 … M20; the size
    nearest the hole's Ø is picked first, then the one you used last): *Clearance hole* (ISO 273 medium, M5: Ø5.5),
    *⌴ Counterbore* (that hole + room for an ISO 4762 socket head, M5: Ø10, 5.4 deep), *⌵ Countersink* (+ a 90° cone

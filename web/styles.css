@@ -805,6 +805,9 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .m-hrow label.check { margin: 0; }
 .sk-label.hole-dim.edit { pointer-events: auto; cursor: text; } /* a placed hole's numbers (not while placing): click to type */
 .sk-label.hole-dim.edit:hover { border-color: #d2a8ff; color: #fff; }
+.sk-label.hole-dim.locked::before { content: '🔒 '; font-size: 9px; } /* a locked distance: kept when the hole is dragged */
+.mp-hole .mp-hd .mp-lock { padding: 0 3px; opacity: 0.55; }
+.mp-hole .mp-hd .mp-lock.on { opacity: 1; }
 body.chat-open .layout { margin-right: min(var(--chat-w, 440px), 100vw); }
 body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var(--right-w, 310px)); }
 .ai-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--line); }

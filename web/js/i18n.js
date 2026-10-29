@@ -478,6 +478,12 @@ const CS = {
   'Click to type the distance (from this edge)': 'Klikněte a napište vzdálenost (od této hrany)',
   'Type a distance: it is then measured from the left edge': 'Napište vzdálenost: pak se měří od levé hrany',
   'Type a distance: it is then measured from the lower edge': 'Napište vzdálenost: pak se měří od dolní hrany',
+  // a made hole dragged on its face (holedrag.js)
+  '✥ drag to move the hole': '✥ tažením posunete díru', '↔ drag to move the hole (↕ locked)': '↔ tažením posunete díru (↕ zamčená)',
+  '↕ drag to move the hole (↔ locked)': '↕ tažením posunete díru (↔ zamčená)', '🔒 dimension locked': '🔒 kóta zamčená',
+  'Locked: dragging the hole on the part keeps this distance — click to free it': 'Zamčená: při tažení díry na dílu tato vzdálenost zůstane — kliknutím ji uvolníte',
+  'Free: drag the hole on the part to change it — click to lock it': 'Volná: změníte ji tažením díry na dílu — kliknutím ji zamknete',
+  'click to type it (it is then locked)': 'klikněte a napište ji (pak je zamčená)',
   '◎ Hole step · {n} hole(s) — changed here at once (Ctrl+Z takes a change back).': '◎ Krok díra · děr: {n} — změny se projeví hned (Ctrl+Z změnu vrátí).',
   // a new thread: cosmetic, shown at once
   '🔩 The thread shows as light lines (cosmetic). A real, cut thread: 🔩 Real thread (slower) in the hole’s panel.': '🔩 Závit je zobrazen lehkými čarami (kosmetický). Skutečný vyříznutý závit: 🔩 Skutečný závit (pomalejší) v panelu díry.',

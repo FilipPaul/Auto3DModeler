@@ -20,6 +20,7 @@ import { roundAxes, axisOf } from './axes.js';
 import { fetchRebuild } from './packed.js';
 import { newRid, cancelRid, wasCancelled } from '../progressbox.js';
 import { snapOnFace, snapDrawing, toFace } from './facesnap.js';
+import { holeUnder, holeHint, holeLocked, setHoleLock, HoleDrag } from './holedrag.js';
 import { HOLE_SIZES, HOLE_SHAPES, THREADS, dFlat, holeSpec, setHole, nearestSize } from './holes.js';
 import { stepIcon, stepKind, stepGroup, treeIcon, treeShape, rollbackNote } from './steptree.js';
 import { dimIcons, setExtrude } from './dimicons.js';
@@ -1501,10 +1502,11 @@ export class Modeler {
           if (r && c !== null && c !== undefined && c !== false) {
             const q = k === 0 ? [c, p[1]] : [p[0], c], dist = r.mid ? Math.abs(p[k] - c) : Math.abs(r.d);
             lines.push([P3(fr, ...q), at]);
-            add(P3(fr, (q[0] + p[0]) / 2, (q[1] + p[1]) / 2), `${k ? '↕' : '↔'} ${fmt(dist)}`, {
+            const on = holeLocked(f, i, axis);
+            add(P3(fr, (q[0] + p[0]) / 2, (q[1] + p[1]) / 2), `${on ? '🔒 ' : ''}${k ? '↕' : '↔'} ${fmt(dist)}`, {
               label: 'Distance', min: 0, get: () => dist,
               set: (v) => this.setHoleDist(f, i, axis, v, r.mid ? r.mid[0] : null),
-            });
+            }, `${f.name}: ${on ? 'locked' : 'click to type it (it is then locked)'}`);
           }
         }
       });
@@ -3053,8 +3055,21 @@ export class Modeler {
     f.from = f.from || [];
     const i = f.points.length - 1;
     if (!f.plane.origin) f.from[i] = this.nearestEdges(f, [u, v]);
+    this.holeKeyRefs(f, i, at.s);
+    this.spotKey = null;
+    this.renderProps();
+    this.rebuild();
+  }
+
+  /** Hole i placed (or dragged — holedrag.js) onto snap s: what a coordinate came from becomes what it is measured
+   *  from — the face's centre / a middle line: kept in the middle; another hole of this step: from it; a round edge:
+   *  from its centre. axes: only those ('x', 'y'). */
+  holeKeyRefs(f, i, s, axes = ['x', 'y']) {
+    const [u, v] = f.points[i];
+    f.from = f.from || [];
     for (const [axis, k] of [['x', 0], ['y', 1]]) {
-      const key = at.s.keys?.[axis];
+      if (!axes.includes(axis)) continue;
+      const key = s.keys?.[axis];
       const mid = (key?.kind === 'face' || key?.kind === 'midpoint') && this.midEdges(f, [u, v], k);
       if (mid) f.from[i] = { ...(f.from[i] || {}), [axis]: mid }; // (the face's centre, the middle line: kept in the middle)
       else if (key?.hole !== undefined) f.from[i] = { ...(f.from[i] || {}), [axis]: { hole: key.hole, d: 0, round: true } };
@@ -3063,9 +3078,6 @@ export class Modeler {
         if (c) f.from[i] = { ...(f.from[i] || {}), [axis]: { edge: c.ref, d: +([u, v][k] - c.c).toFixed(6), round: true } };
       }
     }
-    this.spotKey = null;
-    this.renderProps();
-    this.rebuild();
   }
 
   /** The spot on a flat face under the mouse, snapped (facesnap.js) — for f a hole (on its face only) or a text /
@@ -3266,7 +3278,7 @@ export class Modeler {
           const a = k === 0 ? [c, p[1]] : [p[0], c];
           lines.push([a, p, C]);
           const el = document.createElement('div');
-          el.className = 'sk-label hole-dim';
+          el.className = `sk-label hole-dim${holeLocked(f, i, axis) ? ' locked' : ''}`; // (🔒 before it: CSS)
           el.textContent = fmt(r.mid ? Math.abs(p[k] - c) : Math.abs(r.d));
           editable(el, { label: 'Distance', get: () => (r.mid ? Math.abs(p[k] - c) : Math.abs(r.d)), set: (v) => this.setHoleDist(f, i, axis, v, r.mid ? r.mid[j] : null) },
             'Click to type the distance (from this edge)');
@@ -3295,11 +3307,13 @@ export class Modeler {
     this.view.setSketch(fr, { lines, circles, dots, labels, grid: 0 });
   }
 
-  /** A hole's distance along axis typed (≥ 0; it stays on its side of what it is measured from): the hole moves.
-   *  edge: a hole kept in the middle typed from one of its two edges — from now on measured from that edge. */
+  /** A hole's distance along axis typed (≥ 0; it stays on its side of what it is measured from): the hole moves, the
+   *  distance is locked 🔒 (dragging the hole keeps it). edge: a hole kept in the middle typed from one of its two
+   *  edges — from now on measured from that edge. */
   setHoleDist(f, i, axis, v, edge = null) {
     const k = axis === 'x' ? 0 : 1, r = f.from?.[i]?.[axis], p = f.points[i];
     if (!r || !(v >= 0)) return;
+    setHoleLock(f, i, axis, true);
     if (r.mid) {
       const c = this.edgeCoord(f, edge || r.mid[0], k);
       if (c === null) return;
@@ -3336,15 +3350,17 @@ export class Modeler {
     for (const el of box.querySelectorAll('[data-v]')) if (document.activeElement !== el) el.value = fmt(f.points[+el.dataset.v][1]);
   }
 
-  /** One row of a hole's position: "↔ 12 mm from the left edge ⇄", or x / y from the face's centre (no edge there). */
+  /** One row of a hole's position: "↔ 12 mm from the left edge ⇄", or x / y from the face's centre (no edge there);
+   *  its 🔒: a locked distance stays when the hole is dragged on the part (typed: locked). */
   holeDimRow(f, i, axis, k) {
-    const r = f.from?.[i]?.[axis], p = f.points[i];
+    const r = f.from?.[i]?.[axis], p = f.points[i], on = holeLocked(f, i, axis);
+    const lock = `<button type="button" class="mini mp-lock ${on ? 'on' : ''}" data-lockhd="${i}:${axis}" title="${esc(t(on ? 'Locked: dragging the hole on the part keeps this distance — click to free it' : 'Free: drag the hole on the part to change it — click to lock it'))}">${on ? '🔒' : '🔓'}</button>`;
     if (r?.mid && !r.d) { // midway between two edges: its distance from the left / lower one — typed, it is measured from that edge
       const c = this.edgeCoord(f, r.mid[0], k), dist = c === null ? '' : fmt(Math.abs(p[k] - c));
       return `<label class="mp-hd">${k ? '↕' : '↔'} <input type="number" step="any" min="0" data-hd="${i}:${axis}" value="${dist}" title="${esc(t(k ? 'Type a distance: it is then measured from the lower edge' : 'Type a distance: it is then measured from the left edge'))}"> <span>mm ${k ? 'in the middle of the lower and upper edges' : 'in the middle of the left and right edges'}</span>
-        <button type="button" class="mini ${this.holePick?.i === i && this.holePick?.axis === axis ? 'on' : ''}" data-pickref="${i}:${axis}" title="Measure from another edge, hole or round face (its axis): click it in the view">🎯</button></label>`;
+        <button type="button" class="mini ${this.holePick?.i === i && this.holePick?.axis === axis ? 'on' : ''}" data-pickref="${i}:${axis}" title="Measure from another edge, hole or round face (its axis): click it in the view">🎯</button>${lock}</label>`;
     }
-    if (!r) return `<label class="mp-hd">${axis} <input type="number" step="any" data-${k ? 'v' : 'u'}="${i}" value="${fmt(p[k])}"> <span class="hint">${FROM_TEXT[originKey(f.plane?.origin)] || 'from the reference point'}</span></label>`;
+    if (!r) return `<label class="mp-hd">${axis} <input type="number" step="any" data-${k ? 'v' : 'u'}="${i}" value="${fmt(p[k])}"> <span class="hint">${FROM_TEXT[originKey(f.plane?.origin)] || 'from the reference point'}</span>${lock}</label>`;
     const side = r.mid ? (k === 0 ? (r.d >= 0 ? 'right of the middle' : 'left of the middle') : (r.d >= 0 ? 'above the middle' : 'below the middle'))
       : r.axis ? (k === 0 ? (r.d >= 0 ? 'right of the axis' : 'left of the axis') : (r.d >= 0 ? 'above the axis' : 'below the axis'))
       : r.round ? (k === 0 ? (r.d >= 0 ? 'right of the hole' : 'left of the hole') : (r.d >= 0 ? 'above the hole' : 'below the hole'))
@@ -3352,7 +3368,7 @@ export class Modeler {
     const picking = this.holePick?.i === i && this.holePick?.axis === axis;
     return `<label class="mp-hd">${k ? '↕' : '↔'} <input type="number" step="any" min="0" data-hd="${i}:${axis}" value="${fmt(Math.abs(r.d))}"> <span>mm ${side}</span>
       ${r.mid ? '' : `<button type="button" class="mini" data-flip="${i}:${axis}" title="Measure from the edge on the other side">⇄</button>`}
-      <button type="button" class="mini ${picking ? 'on' : ''}" data-pickref="${i}:${axis}" title="Measure from another edge, hole or round face (its axis): click it in the view">🎯</button></label>`;
+      <button type="button" class="mini ${picking ? 'on' : ''}" data-pickref="${i}:${axis}" title="Measure from another edge, hole or round face (its axis): click it in the view">🎯</button>${lock}</label>`;
   }
 
   /** ▲ Teardrop: offered when the hole goes sideways (its axis level with the print bed, square to Z) — else greyed,
@@ -3433,8 +3449,17 @@ export class Modeler {
     box.querySelector('[data-k=fit]')?.addEventListener('change', (e) => { if (e.target.value) f.fit = e.target.value; else delete f.fit; this.renderProps(); });
     box.querySelector('[data-k=teardrop]')?.addEventListener('change', (e) => { if (e.target.checked) f.teardrop = true; else delete f.teardrop; this.rebuild(); });
     for (const k of ['head_d', 'head_depth']) { const el = box.querySelector(`[data-k=${k}]`); if (el) num(el, (v) => { if (v > 0) f[k] = v; }); }
-    for (const el of box.querySelectorAll('[data-u]')) num(el, (v) => { f.points[+el.dataset.u][0] = v; });
-    for (const el of box.querySelectorAll('[data-v]')) num(el, (v) => { f.points[+el.dataset.v][1] = v; });
+    for (const el of box.querySelectorAll('[data-u]')) num(el, (v) => { f.points[+el.dataset.u][0] = v; setHoleLock(f, +el.dataset.u, 'x', true); });
+    for (const el of box.querySelectorAll('[data-v]')) num(el, (v) => { f.points[+el.dataset.v][1] = v; setHoleLock(f, +el.dataset.v, 'y', true); });
+    for (const el of box.querySelectorAll('[data-lockhd]')) { // 🔒 / 🔓: a distance kept (or not) when the hole is dragged on the part
+      el.addEventListener('click', (e) => {
+        e.preventDefault(); // (in its row's label: not the number field)
+        const [i, axis] = el.dataset.lockhd.split(':');
+        setHoleLock(f, +i, axis, !holeLocked(f, +i, axis));
+        this.renderProps();
+        this.drawHoleDims();
+      });
+    }
     // a distance from an edge: typed as a positive number, the hole stays on its side of the edge
     for (const el of box.querySelectorAll('[data-hd]')) {
       const [i, axis] = el.dataset.hd.split(':'), k = axis === 'x' ? 0 : 1;
@@ -3463,6 +3488,7 @@ export class Modeler {
         const gone = +el.dataset.del;
         f.points.splice(gone, 1);
         f.from?.splice(gone, 1);
+        f.lock?.splice(gone, 1);
         for (const spec of f.from || []) {
           for (const axis of ['x', 'y']) {
             const r = spec?.[axis];
@@ -4248,6 +4274,16 @@ export class Modeler {
       cv.title = '';
       if (this.measuring) { this.view.clearHoverMarks(); this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); return; } // (where a click measures from)
       this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); // (a corner, an edge's middle, a centre: it can be picked)
+      // a made hole: it can be dragged on its face (holedrag.js) — said at the mouse, its step lit
+      const hd = !this.painting && holeUnder(this, e.clientX, e.clientY);
+      if (hd) {
+        const fs = this.stepFaces({ name: `${hd.f.id}:` });
+        this.view.setHover(-1, fs?.ids || null);
+        this.hoverMarks(e, fs);
+        this.tip({ x: e.clientX, y: e.clientY, text: holeHint(hd) });
+        cv.style.cursor = hd.free.x || hd.free.y ? 'move' : 'pointer';
+        return;
+      }
       // the step under the mouse: all its faces light up, its name at the mouse
       const h = this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
       this.view.setHover(h?.face ? h.face.id : -1, fs?.ids || null);
@@ -4269,9 +4305,30 @@ export class Modeler {
         down.drag = this.sk.down(e);
         if (down.drag) cv.setPointerCapture(e.pointerId);
       }
+      if (this.mode === 'part' && !this.cmd && !this.measuring && !this.painting && !e.shiftKey && !e.ctrlKey && !e.metaKey) { // a made hole: dragged once the mouse goes (a click still chooses it)
+        const g = holeUnder(this, e.clientX, e.clientY);
+        if (g && (g.free.x || g.free.y)) {
+          down.hole = g;
+          this.view.controls.enabled = false; // (not the camera)
+          cv.setPointerCapture(e.pointerId);
+        }
+      }
     });
     cv.addEventListener('pointermove', (e) => {
       if (down?.pull) { this.pullTo(e); return; }
+      if (down?.hole) { // a hole held: past a few pixels it moves (Esc: back where it was)
+        if (!this.holeDrag && !down.hole.done && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) {
+          this.holeDrag = new HoleDrag(this, down.hole);
+          down.hole.done = true; // (one drag per press: after Esc it does not start again)
+          this.view.controls.enabled = false;
+          this.view.clearHoverMarks();
+          this.view.setSnapMark(null);
+          this.view.setHover(-1);
+          cv.style.cursor = 'move';
+        }
+        this.holeDrag?.move(e);
+        return;
+      }
       if (this.mode === 'part' && this.cmd?.feature.type === 'extrude' && !down && this.view.pullHit(e.clientX, e.clientY)) { cv.style.cursor = 'grab'; return; }
       if (this.mode === 'plane') {
         const h = this.view.pick(e.clientX, e.clientY, { datums: true });
@@ -4330,6 +4387,15 @@ export class Modeler {
       const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4;
       const drag = down.drag;
       if (down.pull) { down = null; this.view.controls.enabled = true; return; } // (the pull arrow let go)
+      if (down.hole) {
+        const g = down.hole;
+        down = null;
+        this.view.controls.enabled = true;
+        if (this.holeDrag) { this.holeDrag.drop(); return; } // (let go: the hole goes there)
+        if (g.done) return; // (Esc'd)
+        if (!moved) this.clickFace(e); // a plain click: the hole chosen, as ever
+        return;
+      }
       down = null;
       if (drag) { this.sk?.up(drag); if (drag.moved || moved) return; }
       if (moved) return; // the camera was moved
@@ -4386,6 +4452,7 @@ export class Modeler {
     if (!this.active || e.target.closest?.('input,select,textarea,[contenteditable]')) return;
     if (document.querySelector('.wizard, .lightbox')) return;
     const k = e.key.toLowerCase();
+    if (this.holeDrag) { if (e.key === 'Escape') this.holeDrag.cancel(); return; } // (a hole being dragged: Esc puts it back)
     if (this.ctx && e.key === 'Escape') { this.closeCtx(); return; }
     if (this.mode === 'sketch') {
       if (e.key === 'Enter') { this.finishSketch(); return; }

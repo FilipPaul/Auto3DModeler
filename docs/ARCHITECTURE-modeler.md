@@ -21,6 +21,23 @@ Date: 2026-10-25. Written by the architect agent.
   the text giving the table's box. No separate get_suggestions tool: pick + gui_state answer "what would the table
   offer here". The prompt and the skills (ui-tester: suggestion-first, rank_pos judged; teach-the-user: lead through the
   table's rows; model-a-part, assemble-parts) teach it. Tests: test_agent (schemas), e2e_ai_suggest.
+- **A made hole dragged on its face (2026-10-29)** (the owner: "dovol mi u děr ji pokud nemá uzamčenou kotu chytit a
+  s držením levého tlačítka myši posunout … na snapping pointy dané face"). web/js/modeler/holedrag.js: `holeUnder`
+  (no tool on: a Hole step's position under the mouse — the mouse ray on the hole's face plane within its Ø (≥ 6 px),
+  the face seen from the front, not behind the part), `HoleDrag` (started past 4 px with the left button down, the
+  camera held: snapped by facesnap's `snapOnFace` like the Hole tool — the step's own edges skipped, its other holes as
+  keys but not one measured from this hole; a green ring (and head), the snap drawn, the distances as live labels and
+  at the mouse; let go: `moveHole` — the point moved, each moved distance re-referenced (a middle -> the nearest edge,
+  an edge it went past -> the nearest edge, else the same reference with the new d; a snap onto the face's centre /
+  a middle line / a hole / a round edge -> that, through `holeKeyRefs`, split out of clickHole), the step chosen, one
+  `commit` (undo step); Esc: `cancel`, nothing changed). Locks: `f.lock[i] = {x, y}` (front-end only; the kernel
+  ignores it) — set when a distance is typed (setHoleDist: tag, tool label, panel field; the x / y fields), the
+  🔒 / 🔓 button in each row of the Hole panel toggles it; a locked one shows 🔒 on its tag (the tool's label: CSS
+  ::before). Locked one way: the drag keeps that coordinate (a snap off that line drops to the grid); both: no drag,
+  "🔒 dimension locked" at the mouse. A plain click still goes to clickFace (the hole's centre picked, ◎ Select the
+  hole); empty space still turns the view. Left out: moving a hole of a ⁂ pattern / ⇋ mirror copy (only the Hole
+  step's own positions), dragging while a tool is open (the tool's own fields / labels do it there). Tests:
+  e2e_hole_drag.
 - **A hole's properties each on its own (2026-10-29)** (the owner: "typ díry … a to, jestli má nebo nemá závit, by
   mělo být nesloučené"): a hole step is `shape` (plain | counterbore | countersink | d_flat) + `thread` (absent /
   "M5"; the AI may give true or {standard, kind: cosmetic | real} — kind sets the part's 🔩 threads, which stay one
