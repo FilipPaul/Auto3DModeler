@@ -87,6 +87,7 @@ const CS = {
   '＋ Dimension': '＋ Kóta', 'Measure between two points on the part (M)': 'Měřit mezi dvěma body na dílu (M)', '📏 Measure': '📏 Měřit',
   'Show the part unbent (to edit masks and dimensions)': 'Zobrazit díl neohnutý (pro úpravu masek a kót)', 'Flat view': 'Rovný pohled',
   'Building 3D…': 'Sestavuji 3D…', 'Stop this (the part stays as it was)': 'Zastavit (díl zůstane, jak byl)', 'Apply and close (Enter)': 'Použít a zavřít (Enter)', 'Close without changing anything (Esc)': 'Zavřít beze změny (Esc)', Cancel: 'Zrušit', 'Cancelling…': 'Ruším…',
+  'Right mouse button = OK': 'Pravé tlačítko myši = OK',
   "Drop a PDF, DXF / DWG, STL / OBJ / 3MF / STEP or a picture here (Shift = trace a picture's outline)": 'Přetáhněte sem PDF, DXF / DWG, STL / OBJ / 3MF / STEP nebo obrázek (Shift = obkreslit obrys obrázku)',
   'Building the part': 'Sestavuji díl', 'Building the 3D view': 'Sestavuji 3D pohled', 'Starting…': 'Spouštím…',
   // right tabs

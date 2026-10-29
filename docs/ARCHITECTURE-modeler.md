@@ -232,6 +232,20 @@ Date: 2026-10-25. Written by the architect agent.
   draft angle is ±44.5°. Assembly sliders: the joint gap already grows (±50 mm, wider round a typed value); the turn
   sliders (±180°) and travel limits are hard — unchanged. Tests: test_limits (+ `_soft`, 6 copies past the end build
   with a warning), e2e_slider_grow (new), e2e_model_pattern (along y the count is kept, with the warning).
+- **Right-click = OK, with a hint at the cursor (2026-10-29)** (as in SolidWorks): a right-click in the view presses the
+  primary button of the bottom-right action dock — OK of a step, ✓ Finish sketch, Done (🎨 paint) — or a panel button
+  marked `data-rclick-ok` (🔩 the assembly's screw: Add); the very same click, so the same undo step and rules
+  (web/js/actiondock.js). Only a click: a right press moved < 4 px and let go within 400 ms; a right drag still pans
+  (FreeControls: right = pan). Only on the view's picture (canvas / svg), not on its labels, fields, buttons or
+  floating boxes; the panels keep the browser's menu (copy / paste in a field) — chosen so a right-click in the panel
+  never confirms by surprise. Nothing to confirm: nothing happens. The primary button's tooltip gets "Right mouse button
+  = OK". While the mouse is over the view, a small muted hint below-right of the cursor (a snap label sits above-right)
+  says it: a mouse icon with its right button lit + the button's word ("OK", "Dokončit skicu", "Hotovo"), and what Esc
+  does where the workspace says it (Modeler.escMeaning): "Esc Zrušit" in red when Esc throws the command away (a new
+  panel, a placing tool with nothing placed, Sketch on… choosing a plane), "Esc Hotovo" muted when Esc keeps what was
+  placed; left out where Esc only ends a sketch tool or a hole's reference pick. Hidden while dragging and with no
+  command. Joints in the assembly are made on the second pick (no OK) — nothing to confirm there. Tests: e2e_rclick_ok
+  (new).
 - **Esc keeps what was placed (2026-10-29)**: in a tool that places things click after click — ◎ Hole (positions),
   Fillet / Chamfer (edges), Shell (open faces) — Esc ends the placing and keeps them (`escCommand`: as OK, a toast
   *Hole: 1 position(s) kept*); with nothing placed (or nothing changed in an edited step) it cancels; the Cancel button

@@ -1650,7 +1650,7 @@ export class Assembly {
         <span class="as-jw"><b data-no-i18n>${esc(this.partName(p.part))}</b> <i>${p.inst}</i> · ${fmt(p.tout - p.tin)} mm</span></label>`).join('')}</div>` : ''}
       ${plan.error ? `<p class="mp-count as-bolt-msg bad">⚠ ${esc(t2(plan.errorKey, plan.errorVars))}</p>`
         : `<p class="mp-count as-bolt-msg">✓ <b data-no-i18n>${esc(plan.text)}</b></p><p class="hint as-bolt-holes" data-no-i18n>${esc(t('Holes'))}: ${plan.holes.map(holeText).join('; ')}</p>`}
-      <div class="row-actions"><button class="btn small primary" data-a="addBolt" ${plan.error ? 'disabled' : ''}>Add</button><button class="btn small" data-a="cancelBolt">Cancel</button></div>`;
+      <div class="row-actions"><button class="btn small primary" data-a="addBolt" data-rclick-ok ${plan.error ? 'disabled' : ''}>Add</button><button class="btn small" data-a="cancelBolt">Cancel</button></div>`;
     for (const el of box.querySelectorAll('[data-b]')) {
       el.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') el.blur(); });
       el.addEventListener('change', () => {

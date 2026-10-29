@@ -2779,6 +2779,16 @@ export class Modeler {
     if (!this.cmd) this.hooks.toast(t2(what, { n }), 'ok', 3500); // (OK refused — a missing setting: the tool stays open)
   }
 
+  /** What Esc does now (the hint at the cursor says it): 'cancel', 'keep' (it ends a tool that keeps what is placed)
+   *  or null (something smaller, e.g. it ends a sketch tool or a hole's reference pick). */
+  escMeaning() {
+    if (!this.active || this.ctx) return null;
+    if (this.mode === 'plane') return 'cancel';
+    if (this.mode !== 'part' || !this.cmd || this.holePick) return null;
+    const now = this.placed(this.cmd.feature);
+    return now === null || now === '[]' || now === this.cmd.placed0 ? 'cancel' : 'keep';
+  }
+
   cancelCommand() {
     this.cmd = null; // (⬆ Extrude this face: its outline sketch goes with it — it was never a step)
     this.view.setPullArrow(null);
