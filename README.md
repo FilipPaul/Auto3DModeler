@@ -325,6 +325,12 @@ the kept projects to open again (✕ forgets one; **🧹 Clean up empty projects
 nothing in it that still has the name the app gave it — the one on screen stays); when the app starts empty, the last one is offered in a strip under the top bar (it goes once a part is opened or made).
 *Save project* still writes a file to keep or send.
 
+**📄 New project** (**Open ▾ → 📄 New project**, **Ctrl+Alt+N** — Ctrl+N is the browser's own new window — or the
+project widget's **⋯** menu; also a row of the suggestions with nothing selected): the project on screen is kept (it is
+in 🕘 Recent projects) and the window starts again with an empty one — the start screen. A message says where the
+previous one is, and its **↶ Open it again** brings it back. **⧉ New project in a new window** starts the empty one in
+a window of its own, side by side with this one. The window's title is the project's name, so windows are told apart.
+
 **🕘 Versions** (a widget in the left column of the 3D model and the assembly, folded until you open it): the project's
 earlier states, kept on the server without git (`data/versions/<project>/`). Versions come by themselves as you work
 (with the autosave, at most one every 3 minutes; a part added or removed at once) and with *Save project*;

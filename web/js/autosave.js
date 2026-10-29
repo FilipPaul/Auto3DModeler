@@ -25,6 +25,14 @@ export class Autosave {
   /** A project opened from a file is a project of its own (its own id); one opened from the recent ones keeps its id. */
   fresh(id = null) { this.id = id || newId(); this.last = ''; this.hooks.onId?.(this.id); }
 
+  /** The project on screen is kept on the server as it is now (nothing to keep: true too). */
+  kept() {
+    if (this.paused) return true; // (🕘 a version previewed: the project itself was kept before)
+    let proj;
+    try { proj = this.hooks.project(); } catch { return false; }
+    return !proj?.parts?.length || JSON.stringify(proj) === this.last;
+  }
+
   schedule() { clearTimeout(this.timer); this.timer = setTimeout(() => this.saveNow(), this.delay); }
 
   async saveNow({ beacon = false } = {}) {
