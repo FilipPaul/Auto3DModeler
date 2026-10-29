@@ -421,9 +421,15 @@ TOOLS = [
                     "name, inputs, what it returns); \"ui\" — something in the app is not intuitive for the user (they could not "
                     "find it, or it did what they did not expect). title (short), what (what happened / what is missing), "
                     "expected (what should have happened / how it should work), steps (the tool calls / what you did), "
-                    "workaround (what you did instead, if anything).",
+                    "workaround (what you did instead, if anything). A report whose title says the same as one written before is "
+                    "not written again — you get the similar one(s) instead; again: true only when yours is really another problem.",
      "inputSchema": _obj({"title": STR, "what": STR, "kind": {"type": "string", "enum": ["bug", "tool request", "ui"]}, "expected": STR, "steps": STR,
-                          "workaround": STR}, ["title", "what"])},
+                          "workaround": STR, "again": {"type": "boolean"}}, ["title", "what"])},
+    {"name": "list_reports", "where": "server",
+     "description": "The problem reports written so far (RealSWReports, newest first): their title, kind and date — all, those of "
+                    "a kind (bug / tool request / ui), or those about `search` (words of a title, the most alike first). Look "
+                    "before you report or suggest something, so nothing is filed twice.",
+     "inputSchema": _obj({"search": STR, "kind": {"type": "string", "enum": ["bug", "tool request", "ui"]}})},
     {"name": "get_drawing", "where": "browser",
      "description": "The 2D drawing on screen (a DXF / DWG, or a PCB: Gerber / ODB++ opened as a 📐 drawing): its layers (shown, "
                     "how many shapes, PCB kind), the kinds of shapes, its size in mm, the selection and the filters.",
@@ -526,6 +532,16 @@ TOOLS = [
      "inputSchema": _obj({"control": {}, "value": {}, "click": {"type": "boolean"}, "at": {"type": "array", "items": NUM},
                           "at_mm": {"type": "array", "items": NUM}, "drag_to": {"type": "array", "items": NUM},
                           "double": {"type": "boolean"}, "key": STR})},
+    {"name": "gui_highlight", "where": "browser",
+     "description": "Show the user where to click — to teach and lead them: a pulsing ring around a control (control = its n or "
+                    "label from gui_state, as gui_action takes it) or a spot of the view (at = [x, y], 0 … 1 across and down it), "
+                    "with your short tip (text, in the user's language; step e.g. \"2/4\"), the rest of the screen dimmed lightly. "
+                    "Nothing is blocked: the user clicks the control itself. The tip stays until they click it, press Esc or ✕, "
+                    "or you show the next one; clear: true removes it. wait: true answers when the user has clicked it (or closed "
+                    "the tip; timeout s, 60 by default, 120 at most) — lead step by step: show, wait, look what changed, show "
+                    "the next. Without wait it answers at once (and says what happened to the tip before).",
+     "inputSchema": _obj({"control": {}, "at": {"type": "array", "items": NUM}, "text": STR, "step": {},
+                          "wait": {"type": "boolean"}, "timeout": NUM, "clear": {"type": "boolean"}})},
     {"name": "remove_joint", "where": "browser", "description": "Remove a joint (id J…) of the assembly on screen; the part stays where it is.",
      "inputSchema": _obj({"id": STR}, ["id"])},
     {"name": "measure", "where": "browser",
@@ -555,10 +571,12 @@ TOOLS = [
                     "change-a-model, assemble-parts, mechanical-design (how a good designer works: bought parts first, fits, fasteners, "
                     "printable parts), automation-design (made to be manufactured; pneumatics, sensors, motors, panels), fits-and-tolerances "
                     "(ISO 286 fits, ISO 2768, holes, threads), print-functional (strong printed parts), print-graphics (decorative prints), "
-                    "use-a-drawing (a DXF / Gerber: find shapes, sizes, make a part of it). Read it before such a task when your skills are not available.",
+                    "use-a-drawing (a DXF / Gerber: find shapes, sizes, make a part of it), teach-the-user (show where things are, "
+                    "step by step with gui_highlight), ui-tester (/uiTester: test the app's GUI and report), suggest-features "
+                    "(/suggest: propose new features). Read it before such a task when your skills are not available.",
      "inputSchema": _obj({"topic": {"type": "string", "enum": ["start-a-design", "model-a-part", "from-picture", "print-prep", "change-a-model", "assemble-parts",
                                                               "mechanical-design", "automation-design", "fits-and-tolerances", "print-functional", "print-graphics",
-                                                              "use-a-drawing"]}}, ["topic"])},
+                                                              "use-a-drawing", "teach-the-user", "ui-tester", "suggest-features"]}}, ["topic"])},
 ]
 
 TOOL_NAMES = {t["name"] for t in TOOLS}
@@ -579,7 +597,7 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 - **Assemblies** place 3D model parts together: new_assembly, get_assembly, insert_part, snap_faces (joints: touch, gap, axis = concentric…), place_part, remove_from_assembly, check_collisions. get_assembly says for each joined part how it can still move (free) or that it is fully held.
 - **Drawing sheets** (📄, of a 3D model part — its views and dimensions, made by a preset, edited by the user, following the part): sheet_open, get_sheet, sheet_edit; export {format: "pdf"} on a sheet writes it as drawn. Prefer a sheet over export pdf of the model when the user wants a drawing.
 - **2D drawings** (a DXF / DWG, or a PCB's Gerber / ODB++ opened as a 📐 drawing — open_file opens them, also a folder of loose Gerber files): get_drawing, drawing_find (shapes by filters), drawing_delete, drawing_add (lines, circles), drawing_units, drawing_layers (show / hide, colour, a new layer), drawing_set_size, drawing_use (as the sketch of a 3D model, or a quick part).
-- The GUI: gui_state lists what the user sees (buttons, sliders, their state; a sheet's dimensions / views / cells); gui_action clicks / slides one as the user would, clicks / drags at a point of the view (at, at_mm on a sheet) and presses keys (Delete, Enter, Escape, ctrl+z) — use them to tell the user where something is and to check the GUI behaves like the tools.
+- The GUI: gui_state lists what the user sees (buttons, sliders, their state; a sheet's dimensions / views / cells); gui_action clicks / slides one as the user would, clicks / drags at a point of the view (at, at_mm on a sheet) and presses keys (Delete, Enter, Escape, ctrl+z) — use them to tell the user where something is and to check the GUI behaves like the tools. gui_highlight points at a control (or a spot of the view) with a short tip and can wait until the user clicks it.
 - Assemblies also: edit_joint / remove_joint, measure (between faces), move_free, lock_motion (fix one free motion where it is); set_travel (a free motion's limits: a cylinder's stroke) and check_travel (collisions along it); the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, delete_part (only when asked). Files: export stl / step / iges / glb / obj / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf.
 - **The parts library** holds real, bought parts with their maker and part number (screws, nuts, washers, inserts, bearings, standoffs, panel parts, SMC pneumatics, SICK sensors, stepper motors, the user's own): library_search, library_add.
 - Both: get_screenshot, check_print, export, undo. Opening a file or tracing a picture adds a new quick part tab.
@@ -587,6 +605,10 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 **Before a new design** (a new part, device or assembly) load auto3d:start-a-design and, for what the user has not said yet, ask with ask_user (buttons in the chat, your recommendation first): what it is for — automation / a machine (made to be manufactured, standard, library parts), a functional 3D-printed part, or a graphic / decorative 3D model; whether it is 3D printed; and whether it must be easy for a person to edit (simple sketches, few sizes each) or may be built any way that reaches the goal. Then load the skills that brief asks for.
 
 Before modelling, changing a 3D model, making a part from a picture, preparing a print or assembling parts, load the matching skill (auto3d:model-a-part, auto3d:change-a-model, auto3d:from-picture, auto3d:print-prep, auto3d:assemble-parts, auto3d:use-a-drawing) — or call get_guide(topic) if skills are not available. For any design of a device, a mechanism, a bracket for bought parts or a machine, load auto3d:mechanical-design first; for automation also auto3d:automation-design and auto3d:fits-and-tolerances; for a functional printed part auto3d:print-functional; for a graphic / decorative print auto3d:print-graphics.
+
+**Teach, do not only describe:** when the user asks how to do something, where something is, or says "show me", load auto3d:teach-the-user and lead them with gui_highlight step by step (gui_state to find the control, gui_highlight {control, text, step, wait: true}, then the next) — do not do it for them unless they ask you to.
+
+**Slash commands:** a message "/uiTester" means: load auto3d:ui-tester and test the app's GUI as it says; "/suggest" means: load auto3d:suggest-features.
 
 **When you are not sure** which way the user wants (a choice with several sensible answers that changes what you build), do not guess and do not ask in a long text: call ask_user with 2–4 options and your recommended one first.
 
@@ -600,6 +622,6 @@ Never open a file or the sample on your own: work on the part that is open. If n
 
 Smooth, round shapes (vases, knobs, handles, toys, bottles): draw the outline as a sketch `profile` with `{smooth: [...]}` parts and revolve it (or extrude it) — one clean smooth surface instead of many small faces. Colours: set_look (the whole part) and paint_faces (single faces) — the model keeps them, also in assemblies.
 
-If something does not behave as expected — a tool fails although your call was right, a result is wrong (sizes, positions, a joint, a colour that does not show) — call report_problem {kind: "bug"} at once with what happened, what you expected and the steps, then tell the user and carry on (or work around it). When no tool fits your work and you have to find a workaround (several calls for one thing, guessing, asking the user to click for you), write report_problem {kind: "tool request"}: the tool you would want — its name, inputs and what it returns — and the workaround you used. When the user cannot find something in the app, or a control did what they did not expect, write report_problem {kind: "ui"}: what they tried and how it should work. Do not report your own mistakes that you could fix yourself.
+If something does not behave as expected — a tool fails although your call was right, a result is wrong (sizes, positions, a joint, a colour that does not show) — call report_problem {kind: "bug"} at once with what happened, what you expected and the steps, then tell the user and carry on (or work around it). When no tool fits your work and you have to find a workaround (several calls for one thing, guessing, asking the user to click for you), write report_problem {kind: "tool request"}: the tool you would want — its name, inputs and what it returns — and the workaround you used. When the user cannot find something in the app, or a control did what they did not expect, write report_problem {kind: "ui"}: what they tried and how it should work. Do not report your own mistakes that you could fix yourself. Report each thing once: list_reports {search} shows what is reported already (report_problem also refuses a title like an earlier one and names it).
 
 Answer in the user's language, briefly. You can only use the tools listed — no files or shell."""

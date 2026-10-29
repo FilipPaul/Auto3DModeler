@@ -27,3 +27,8 @@ description: Use when the user has a 2D drawing (a DXF / DWG, or a PCB's Gerber 
    `{op: "join"}` (each chain one smooth curve — teeth, a cam) or `{op: "outline"}` (one rigid outline); check that
    area_mm2 stayed the same.
 6. Save it: `export {format: "dxf"}` writes the shown layers (in mm).
+
+**Missing a tool?** When no tool fits and you work around it (several calls for one thing, guessing, asking the user
+to click for you), file it at once: `list_reports {search: "<the words>"}`, and if it is not there
+`report_problem {kind: "tool request", …}` (the tool you would want: name, inputs, result; your workaround) —
+then tell the user in one line and carry on. A wrong result is `{kind: "bug"}`; each thing reported once.

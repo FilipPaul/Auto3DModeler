@@ -7,6 +7,20 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **The AI teaches, tests the GUI and suggests done:** the owner asked that the AI show the user what to do, test the
+  UI on /uiTester and report missing features. New browser tool gui_highlight {control (n / label as gui_action) or
+  at (a view spot), text, step, wait, timeout, clear} (web/js/agent_teach.js): a pulsing ring + a speech-bubble tip,
+  the rest dimmed by the ring's shadow; pointer-events none, so the click goes on to the control; a capture
+  pointerdown / click on it ends the tip ("clicked"), Esc (consumed) or ✕ "closed", the next tip "replaced", clear;
+  wait answers then (timeout 60 s, ≤ 120). Follows the control each frame (found again by its label when the panel
+  is drawn anew), z-index above floating boxes and menus. Skills teach-the-user, ui-tester (test parts, the GUI path
+  of each feature, Czech, report once, a summary table), suggest-features; a "Missing a tool?" line in the six
+  workflow skills. Chat slash commands (auto3d/agent.py expand_command: /uiTester, /suggest -> the skill's
+  instruction; the chat shows what was typed). report_problem refuses a title like an earlier one (auto3d/reports.py:
+  words without endings, Jaccard / cover; no false pair among the 26 real reports) unless again: true; list_reports
+  {search, kind}. tests: test_report_problem_once, test_report_titles_alike, test_slash_commands, test_tool_schemas;
+  tools/e2e_ai_teach.py (26 checks), e2e_agent (gui_highlight + list_reports through MCP), e2e_ai_gui.
+
 - **A threaded part's volume integrated once done:** kernel.volume keeps the last 4 shapes' volumes — the part with
   🔩 real threads was integrated after its cut (the check that something was cut) and again when meshed (the adaptive
   rule on helical faces: ~3 s). The 29-step model with 9 real threads (tools/e2e_perf.py model): its rebuild after a
