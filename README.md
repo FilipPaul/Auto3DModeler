@@ -931,6 +931,15 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   A joint of this assembly on such a moving part (e.g. the lever's side parallel to the frame) holds that part inside
   the sub-assembly — the turn it locks is gone from the sliders — as long as the sub-assembly is held otherwise too
   (another joint, or 📌); a sub-assembly held only by that one joint moves as one piece, as before.
+- **A sub-assembly's mechanisms work in the assembly it is in**: its own mechanisms (a crank loop, gears with a rack,
+  a part turning on its own) are in **⚙ Mechanism** too, named *Klikový mechanismus (v Pohon)* — drive them by the
+  slider, ▶ play them, ⚠ check their travel; choose the sub-assembly and **drag one of its parts** in the view (its
+  crank turns, the rest follows). The parts move inside its placement; parts of this assembly joined to them follow,
+  and a loop through both levels (a rod of this assembly on its crank's pin) is solved together. The moves are kept
+  on this placement only — the sub-assembly's own tab stays as it is. **⚙ Moving sub-assembly** in its panel (on by
+  default) switches it: off, it is 🧱 rigid — one body, no inner motion (offered back in its suggestions). The AI:
+  get_assembly / gui_state `mechanisms` with `inside: "I3"`, `drive_mechanism {mechanism: "I3"}`, `move_free
+  {part: "I3/I2"}`, `place_part {part: "I3", rigid: true}`.
   A part on a face is centred on it once, when the joint is made; after that it keeps where it slid, and goes along
   with the part it hangs on.
 - **🔒 Lock a motion**: the 🔒 next to a free way fixes it where the part is — its joint's turn or distance along the

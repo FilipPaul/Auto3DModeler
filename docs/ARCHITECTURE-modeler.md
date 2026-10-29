@@ -1090,6 +1090,26 @@ Date: 2026-10-25. Written by the architect agent.
   as before. holdPart / motionsOf of the sub-assembly leave such joints out; applyMates places it, then settleInner;
   innerAsm(it, outer) adds them to its engine with the parts they join as fixed stand-ins ("^I1", joint "^J3", in
   its frame) — so its Moves inside lose what they hold. e2e_assembly_flexsub (a parallel joint locks the lever's turn).
+- **Flexible sub-assemblies, step 3 (fully functional mechanisms) done (2026-10-29)** (the owner: "with assemblies
+  inside each other I cannot move the mechanisms — a sub-assembly should be fully functional"). Assembly.flatAsm: one
+  engine (Object.create, as innerAsm) whose instances are this assembly's plus each ⚙ moving sub-assembly's joined,
+  not-📌 parts as "I3/I2" (placed in the world; travel / moveNames keys and its joints' ids prefixed "I3/J1"), its
+  joints onto its parts that stay go onto the placement "I3" with the face "I1/…" (the merged body), this assembly's
+  joints and couplings with a face "I2/…" on a moving part go onto "I3/I2" — so placeAll / closeLoops /
+  followCouplings / motionsOf work through both levels (a loop through both is found and solved together; the parts
+  here on an inner part go along). doc.mechs: this one's + the sub-assembly's own (`_sub`, taken over by recOf when
+  renamed / redriven here). Kept while flatSig (matrices, inner, rigid, joints) is the same; keepFlat writes the
+  places back (this assembly's matrices, the placement's `inner`, its body merged again), draw / commit as usual.
+  mechanism.js mechanisms(): this one's + the flat engine's with an "I3/…" part (`flat`; all inside one: `inside`,
+  "<name> (in <sub>)"), engOf routes posOf / driveTo / traceOf / ⚠ check / 🎬 to it; drag.js: innerPartAt (the hit
+  face's "I2/…" on the chosen sub-assembly) -> that part in the flat engine. innerAsm now has the sub-assembly's
+  couplings (followCouplings no longer skipped in an engine with an owner). `rigid: true` on a placement (🧱): no
+  inner motions, insideMate / innerMotions / flatAsm leave it out; its panel's ⚙ Moving sub-assembly checkbox, the
+  suggestions' ⚙ Moving sub-assembly / 🧱 Make it rigid. AI: get_assembly / gui_state `mechanisms` `inside`,
+  drive_mechanism {mechanism: "I3" | "I3/I2", driver "I3/I2 motion 0"}, move_free "I3/I2" (the flat engine),
+  place_part {rigid}. tools/e2e_subassembly_mechanism.py (crank demo as a sub-assembly: formula at 90°, a flag
+  follows, drag, ▶, ⚠, a loop through both levels, rigid; the gearbox demo: 2:1, π·Ø). Left out: deeper nesting (a
+  sub-assembly's sub-assembly's parts stay with it), naming an inner motion from the parent's ⚙ Mechanism.
 - **Hover marks, quadrants, hover filters done:** view.js snapPoints(edges, matrix, kinds) (snapNear uses it; a round
   edge's ◔ quadrants: along the world axis lying best in its plane, and across), ModelView.edgeAt (pickEdge over
   placed edge lists, hidden ones not taken), setHoverEdges / setHoverSnaps (the snap dots the camera sees: one ray

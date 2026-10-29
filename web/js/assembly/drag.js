@@ -1,7 +1,8 @@
 // A part dragged in the assembly's view: the chosen part moves the way its joints leave free — a turn follows the
 // mouse round its axis, a slide along its line — and every part joined to it follows (Assembly.moveFree: the parts on
 // it go along, a closed loop is solved, coupled gears turn). A part of a closed loop drives the loop's driver
-// (mechanism.js); a gear of a train turns by its own axis.
+// (mechanism.js); a gear of a train turns by its own axis. A part inside a ⚙ moving sub-assembly (the sub-assembly
+// chosen, the part grabbed) moves by its own joints there, in the assembly's flat engine (Assembly.flatAsm).
 import * as THREE from 'three';
 
 /** The chosen part dragged in the view the way it can move: a turn follows the mouse round its axis, a slide along
@@ -11,13 +12,15 @@ import * as THREE from 'three';
 export function startDrag(asm, id, e) {
   const hit = asm.view.ray(e.clientX, e.clientY).intersectObjects(asm.view.meshes || [], false)[0];
   if (!hit || hit.object.userData.inst !== id) return null;
+  const inner = asm.innerPartAt?.(id, hit), eng = inner?.eng || asm; // (a part moving inside a sub-assembly: "I3/I2", both levels' joints)
+  if (inner) id = inner.id;
   let part = id, mo = null;
   const mk = (asm.mech?.list || []).find((x) => x.parts.includes(id) && x.closed && x.driver && x.parts.length > 1);
-  const m = mk && (!mk.train || (asm.loops || []).some((l) => l.parts.includes(id))) ? mk : null; // (⚙ a gear of a train: its own turn, the others follow)
+  const m = mk && (!mk.train || (eng.loops || []).some((l) => l.parts.includes(id))) ? mk : null; // (⚙ a gear of a train: its own turn, the others follow)
   if (m) ({ part, mo } = m.driver);
   else {
     let d = null;
-    try { d = asm.motionsOf(id); } catch { d = null; }
+    try { d = eng.motionsOf(id); } catch { d = null; }
     if (d?.count) mo = d.motions.find((q) => q.kind === 'turn' && /:turn$/.test(q.key || '')) || d.motions.find((q) => /:along$/.test(q.key || '')) || d.motions[0];
   }
   if (!mo) return null;
@@ -44,14 +47,14 @@ export function startDrag(asm, id, e) {
     move(ev) {
       const a = amountAt(ev);
       if (a === null || Math.abs(a - done) < 1e-3) return;
-      const lim = asm.limitsOf(asm.inst(mo.via || part), mo);
+      const lim = eng.limitsOf(eng.inst(mo.via || part), mo);
       let step = a - done;
-      if (lim) { const p = asm.motionPos(part, mo); step = Math.max(lim.min, Math.min(lim.max, p + step)) - p; }
-      asm.moveFree(part, mo, step, null, false);
+      if (lim) { const p = eng.motionPos(part, mo); step = Math.max(lim.min, Math.min(lim.max, p + step)) - p; }
+      eng.moveFree(part, mo, step, null, false);
       done = a;
       moved = true;
       if (mk) asm.mech.mark(asm.mech.list.find((x) => x.key === mk.key) || mk);
     },
-    end() { if (moved) asm.commit(); return moved; },
+    end() { if (moved) eng.commit(); return moved; },
   };
 }

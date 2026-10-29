@@ -11,7 +11,9 @@
 //    "bolts": [{"id": "B1", "text": "M3×20 screw + M3 nut", "holes": [{"part": "P2", "feature": {the hole step drilled}}]}]}
 //   an instance's "travel": {"J2:along": {"min": 0, "max": 25}} — the limits of a free motion (motionsOf keys)
 //   a placed sub-assembly's "inner": {"I2": [16 numbers]} — its parts moved inside it by its own joints, in this
-//   placement only (in the sub-assembly's frame; innerAsm / keepInner); its own document stays as it is
+//   placement only (in the sub-assembly's frame; innerAsm / keepInner); its own document stays as it is; "rigid": true
+//   — 🧱 it moves as one body here, its own mechanisms do not (not said: ⚙ a moving sub-assembly — they work here too,
+//   driven, dragged, played as this assembly's own: flatAsm)
 //   "light": {"P3": true | false} — 🪶 a part shown simplified (true) or with full data (false); not said: a big
 //   imported part (thousands of faces) is simplified
 //   an instance's "moveNames": {"J3:turn": "crank"} — a free motion's own name (nameMotion); "mechs": the ⚙ Mechanism
@@ -568,13 +570,16 @@ export class Assembly {
   /** What can be done with a placed part: open / edit its part, join, simplified, fix, its own part, take it out. */
   partItems(a) {
     const joined = (this.doc.mates || []).some((m) => m.move === a.id), model = this.kindOf(a.part) === 'model';
-    const free = !joined && !a.fixed && !a.fastener, inMech = this.mech?.list.some((m) => m.parts.includes(a.id));
+    const free = !joined && !a.fixed && !a.fastener, inMech = this.mech?.list.some((m) => m.parts.includes(a.id) || m.inside === a.id);
+    const flex = this.kindOf(a.part) === 'assembly' && this.flexOf(a).size > 0; // (its parts can move inside it)
     let pins = [], on = null;
     try { pins = pinFits(this, a.id); on = restOn(this, a.id); } catch { /* (a body not there yet) */ }
     return [ // (ranked — lower first: what it most likely needs next — a pin into a hole, put down, drive it; then join, open, fix)
       ...pins.map((f, k) => this.pinItem(f, k ? 2 : 0)),
       ...(on ? [this.restItem(on, 1)] : []),
       ...(inMech ? [{ icon: '⚙', label: t('Drive the mechanism'), rank: 0, title: t('One slider moves the whole mechanism — ▶ plays it'), run: () => this.mech.open(a.id) }] : []),
+      ...(flex ? [a.rigid ? { icon: '⚙', label: t('Moving sub-assembly'), rank: 0.8, title: t('Its own mechanisms work here too — ⚙ Mechanism, dragging its parts, ▶'), run: () => this.setRigid(a.id, false) }
+        : { icon: '🧱', label: t('Make it rigid'), rank: 9.5, title: t('It moves as one body, its parts stay where they are in it'), run: () => this.setRigid(a.id, true) }] : []),
       { icon: '🔗', label: t(joined ? 'Join it to one more part' : 'Join it to another part'), rank: 3, title: t('Click a face of it, then a face of the other part — the joints that fit the two'), run: () => this.startJoint('touch', a.id) },
       ...(this.hooks.openPart ? [{ icon: this.kindOf(a.part) === 'assembly' ? '◇' : '◆', label: t('Open its part'), rank: 4, title: t('Change it in its own tab (the assembly follows)'), run: () => this.hooks.openPart(a.part) }] : []),
       ...(free ? [{ icon: '↻', label: t('Turn it 90°'), rank: 5, title: t('About the up axis (Z), through its middle — or slide ↻ in the panel'), run: () => this.turn('z') },
@@ -1105,12 +1110,14 @@ export class Assembly {
         <div class="row-actions wrap as-pacts">${this.hooks.openPart ? `<button class="btn small primary" data-a="openPart" title="Open its part in its own tab (to change it — the assembly follows)">${this.kindOf(it.part) === 'assembly' ? '◇' : '◆'} ${esc(t('Open its part'))}</button>` : ''}${it.fixed || !(this.doc.mates || []).some((m) => m.move === it.id) ? `<button class="btn small ${it.fixed ? 'on' : ''}" data-a="fix"title="${it.fixed ? 'Fixed in place: it is not moved by hand, joints bring the other parts to it — click to free it' : 'Fix it in place: it is not moved by hand, joints bring the other parts to it'}">📌 ${esc(t(it.fixed ? 'Fixed' : 'Fix in place'))}</button>` : ''}<button class="btn small danger" data-a="del" title="${esc(t('Take it out'))} (Delete)">✕ ${esc(t('Take it out'))}</button></div>
         ${missHere ? this.mech.missingHtml() : ''}
         ${this.rolledHtml(it.part)}
+        ${this.flexHtml(it)}
         ${inner ? this.innerHtml(it, inner) : ''}
         ${place}
         ${this.jointsHtml(it.id)}${couplingsHtml(this, it.id)}
         <details class="as-more" ${this.moreOpen ? 'open' : ''}><summary title="${esc(t('Its colour, see-through, simplified, and editing it from here'))}">🎨 ${esc(t('Look and editing'))}</summary>
           ${this.editHtml(it)}${this.lookHtml(it)}</details>`;
       if (missHere) this.mech.bindMissing(box);
+      box.querySelector('[data-a=flexsub]')?.addEventListener('change', (ev) => this.setRigid(it.id, !ev.target.checked));
       for (const inp of box.querySelectorAll('input[data-k]')) {
         inp.addEventListener('change', () => this.setPos(inp.dataset.k, inp.value));
         inp.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') inp.blur(); });
@@ -2104,6 +2111,7 @@ export class Assembly {
   // ------------------------------------------------------------------ bodies of the parts
   async refresh() {
     this.flexCache = null;
+    this.flatCache = null;
     const need = [...new Set(this.doc.instances.map((i) => i.part))];
     // sub-assemblies: their own parts first, then them as one body each
     const subs = need.filter((pid) => this.kindOf(pid) === 'assembly');
@@ -2504,7 +2512,7 @@ export class Assembly {
     const before = new Map(this.doc.instances.map((i) => [i.id, [...i.matrix]]));
     this.placeAll(mates);
     if (this.closeLoops(before, drive)) this.placeAll(mates);
-    if (this.doc.couplings && !this.owner) followCouplings(this, before, drive); // (⚙ a gear's turn turns the other one)
+    if (this.doc.couplings) followCouplings(this, before, drive); // (⚙ a gear's turn turns the other one — inside a sub-assembly too)
     this.checkJoints();
   }
 
@@ -2676,7 +2684,7 @@ export class Assembly {
         mates.push({ ...structuredClone(m), id: `^${m.id}`, move: k, face, onto: `^${y.id}`, centred: true });
       }
     }
-    Object.assign(sub, { doc: { instances: list, mates }, owner: it, _via: null, health: null, whyCache: null, travelNote: null, playing: null, flexCache: null });
+    Object.assign(sub, { doc: { instances: list, mates, ...(data.couplings?.length ? { couplings: structuredClone(data.couplings) } : {}) }, owner: it, _via: null, health: null, whyCache: null, travelNote: null, playing: null, flexCache: null });
     sub.draw = () => this.keepInner(it, sub, false);
     sub.commit = () => this.keepInner(it, sub, true);
     return sub;
@@ -2725,9 +2733,9 @@ export class Assembly {
    *  that part inside it — when the sub-assembly is held otherwise too (another joint, or 📌 fixed); alone, it places
    *  the whole sub-assembly as before. */
   insideMate(m) {
-    if (this.owner) return false; // (in a sub-assembly's engine: its own joints)
+    if (this.owner || this.flatOf) return false; // (in a sub-assembly's engine: its own joints; in the flat one: all as they are)
     const it = this.inst(m.move), k = String(m.face).split('/')[0];
-    if (!it || !String(m.face).includes('/') || this.kindOf(it.part) !== 'assembly') return false;
+    if (!it || it.rigid || !String(m.face).includes('/') || this.kindOf(it.part) !== 'assembly') return false;
     const flex = this.flexOf(it);
     if (!flex.has(k)) return false;
     return !!it.fixed || (this.doc.mates || []).some((x) => x.move === it.id && x !== m && !flex.has(String(x.face).split('/')[0]));
@@ -2736,6 +2744,7 @@ export class Assembly {
   /** The ways a placed sub-assembly's parts can still move inside it, by its own joints -> {sub (its engine), parts:
    *  [{id, d (as motionsOf)}]} or null. A part fixed on another one that moves goes along: that one is driven. */
   innerMotions(it) {
+    if (it?.rigid) return null; // (🧱 rigid: it moves as one body)
     const sub = this.innerAsm(it);
     if (!sub) return null;
     const parts = [];
@@ -2745,6 +2754,126 @@ export class Assembly {
       if (d?.count && !d.via && d.motions.length) parts.push({ id, d });
     }
     return parts.length ? { sub, parts } : null;
+  }
+
+  // ------------------------------------------------------------------ mechanisms through both levels
+  /** This assembly with the parts that move inside its ⚙ moving (not 🧱 rigid) sub-assemblies taken in as parts of
+   *  its own ("I3/I2", placed in the world) — one engine (holdPart, applyMates, motionsOf, moveFree … as they are)
+   *  with both levels' joints: a sub-assembly's own (onto its parts that stay: its placement "I3", their faces
+   *  "I1/…"), this one's on its moving parts, and both levels' couplings. So a mechanism inside it is driven, dragged
+   *  and played here, the parts of this assembly joined to one of its parts follow, and a loop through both levels is
+   *  solved together. Its draw / commit keep the places on the placements (keepFlat: `inner`, as keepInner does).
+   *  -> it (kept while nothing here changed) or null (no sub-assembly here moves inside). */
+  flatAsm() {
+    if (this.owner || this.flatOf) return null;
+    const sig = this.flatSig();
+    if (this.flatCache?.sig === sig) return this.flatCache.eng;
+    this.flatCache = { sig, eng: null };
+    const subs = this.doc.instances.filter((it) => !it.rigid && this.kindOf(it.part) === 'assembly' && this.bodyOf(it)?.body && this.flexOf(it).size);
+    if (!subs.length) return null;
+    const Mat = (a) => new THREE.Matrix4().fromArray(a), movers = new Map(), list = [], mates = [], couplings = [], mechs = [];
+    for (const it of subs) { // its parts that move inside it: joined, not 📌 (the rest stays with its placement)
+      const data = this.hooks.partData(it.part), own = data.instances || [];
+      movers.set(it.id, new Set((data.mates || []).map((m) => m.move).filter((x) => own.some((i) => i.id === x && !i.fixed))));
+    }
+    const at = (id, face) => { // a face of this assembly's on a part moving inside a sub-assembly: that part's own
+      const mov = movers.get(id), [k, rest] = String(face).split(/\/(.*)/s);
+      return mov?.has(k) && rest !== undefined ? [`${id}/${k}`, rest] : [id, face];
+    };
+    for (const it of this.doc.instances) { const x = structuredClone(it); if (movers.has(it.id)) delete x.inner; list.push(x); } // (its body: the parts that stay are where they are)
+    for (const it of subs) {
+      const data = this.hooks.partData(it.part), mov = movers.get(it.id), S = Mat(it.matrix), P = (x) => `${it.id}/${x}`;
+      const keys = (o) => (o ? Object.fromEntries(Object.entries(o).map(([k, v]) => [P(k), structuredClone(v)])) : undefined); // (its limits and motion names: by its joints' ids)
+      for (const i of this.innerList(it).filter((q) => mov.has(q.id))) {
+        list.push({ ...structuredClone(i), id: P(i.id), matrix: S.clone().multiply(Mat(i.matrix)).toArray(), travel: keys(i.travel), moveNames: keys(i.moveNames), flat: [it.id, i.id] });
+      }
+      const side = (y, f) => (mov.has(y) ? [P(y), f] : [it.id, `${y}/${f}`]);
+      for (const m of (data.mates || []).filter((x) => mov.has(x.move))) {
+        const [onto, ontoFace] = side(m.onto, m.ontoFace);
+        mates.push({ ...structuredClone(m), id: P(m.id), move: P(m.move), onto, ontoFace });
+      }
+      for (const c of (data.couplings || []).filter((x) => mov.has(x.a) && mov.has(x.b))) couplings.push({ ...structuredClone(c), id: P(c.id), a: P(c.a), b: P(c.b) });
+      for (const r of data.mechs || []) mechs.push({ ...structuredClone(r), parts: (r.parts || []).map(P), ...(r.drive ? { drive: { part: P(r.drive.part), key: P(r.drive.key) } } : {}), _sub: it.id }); // (its names and drivers)
+    }
+    for (const m of this.doc.mates || []) {
+      const [move, face] = this.insideMate(m) ? at(m.move, m.face) : [m.move, m.face], [onto, ontoFace] = at(m.onto, m.ontoFace);
+      mates.push({ ...structuredClone(m), move, face, onto, ontoFace });
+    }
+    for (const c of this.doc.couplings || []) { const [a, aFace] = at(c.a, c.aFace), [b, bFace] = at(c.b, c.bFace); couplings.push({ ...structuredClone(c), a, aFace, b, bFace }); }
+    for (const x of list) { const m0 = mates.find((m) => m.move === x.id), on = m0 && list.find((q) => q.id === m0.onto); if (on) x.hang = { on: on.id, m: [...on.matrix] }; else delete x.hang; } // (as they stand: none goes along)
+    const self = this, fl = Object.create(this);
+    const doc = { instances: list, mates, ...(couplings.length ? { couplings } : {}),
+      get mechs() { return [...(self.doc.mechs || []), ...mechs]; }, // (a name given here is this assembly's; its own the sub-assembly's)
+      set mechs(v) { self.doc.mechs = v.filter((r) => !r._sub); } };
+    Object.assign(fl, { doc, flatOf: this, loops: null, _via: null, health: null, whyCache: null, travelNote: null, playing: null });
+    fl.draw = () => this.keepFlat(fl, false);
+    fl.commit = () => this.keepFlat(fl, true);
+    for (const k of ['render', 'renderProps', 'renderBar', 'renderList']) fl[k] = (...a) => this[k](...a);
+    fl.flatParts = () => { this.keepFlat(fl, null); return this.flatParts(); }; // (⚠ the travel: the kernel gets the parts as this assembly has them)
+    const snap = list.map((x) => [x, [...x.matrix], structuredClone(x.hang)]);
+    try { fl.applyMates(); } catch { /* (not built) */ } // (its loops known; where they are stays this assembly's)
+    for (const [x, m, hang] of snap) { x.matrix = m; x.hang = hang; }
+    this.flatCache.eng = fl;
+    return fl;
+  }
+
+  /** What the flat engine (flatAsm) is made of: kept while it is the same. */
+  flatSig() { return JSON.stringify([this.doc.instances.map((i) => [i.id, i.matrix, i.inner || 0, i.rigid || 0, i.travel || 0, i.moveNames || 0]), this.doc.mates || [], this.doc.couplings || []]); }
+
+  /** The places of the flat engine's parts (flatAsm) kept: this assembly's parts where it put them, a sub-assembly's
+   *  moving parts on its placement (`inner`; its body merged again). final: an undo step; false: a live preview; null:
+   *  only kept. */
+  keepFlat(fl, final) {
+    for (const x of fl.doc.instances) {
+      const it = !x.flat && this.inst(x.id);
+      if (it && x.matrix.some((v, q) => Math.abs(v - it.matrix[q]) > 1e-9)) it.matrix = tidy(x.matrix);
+    }
+    for (const it of this.doc.instances) {
+      const mine = fl.doc.instances.filter((x) => x.flat?.[0] === it.id);
+      if (!mine.length) continue;
+      const Si = new THREE.Matrix4().fromArray(it.matrix).invert(), own = new Map((this.hooks.partData(it.part)?.instances || []).map((i) => [i.id, i.matrix]));
+      const was = JSON.stringify(it.inner || null), inner = { ...(it.inner || {}) };
+      for (const x of mine) {
+        const m = tidy(Si.clone().multiply(new THREE.Matrix4().fromArray(x.matrix)).toArray()), m0 = own.get(x.flat[1]);
+        if (m0 && m.some((v, q) => Math.abs(v - m0[q]) > 1e-7)) inner[x.flat[1]] = m; else delete inner[x.flat[1]];
+      }
+      if (Object.keys(inner).length) it.inner = inner; else delete it.inner;
+      if (JSON.stringify(it.inner || null) !== was) this.mergeAssembly(it.part, new Set(), it);
+    }
+    if (this.flatCache?.eng === fl) this.flatCache.sig = this.flatSig(); // (moved by it: still the same engine)
+    if (final === null) return;
+    this.exDirs = null;
+    this.checkJoints();
+    if (final) this.commit(); else this.draw();
+  }
+
+  /** The part under the mouse (a hit on a placed sub-assembly `id`) when it moves inside it, here -> {eng (flatAsm),
+   *  id: "I3/I2"} or null. */
+  innerPartAt(id, hit) {
+    const it = this.inst(id);
+    if (!it || it.rigid || this.kindOf(it.part) !== 'assembly') return null;
+    const { faceIds, body } = hit.object.userData, fid = faceIds?.[hit.faceIndex], f = body?.faces?.find((x) => x.id === fid);
+    const k = f && String(f.name).split('/')[0], fl = k ? this.flatAsm() : null;
+    return fl?.inst(`${id}/${k}`) ? { eng: fl, id: `${id}/${k}` } : null;
+  }
+
+  /** 🧱 A placed sub-assembly rigid (on: it moves as one body, its parts stay where they are in it) or ⚙ moving (its
+   *  own mechanisms work here too). One undo step. */
+  setRigid(id, on) {
+    const it = this.inst(id);
+    if (!it || this.kindOf(it.part) !== 'assembly') throw new Error(`${id} is not a sub-assembly.`);
+    if (on) it.rigid = true; else delete it.rigid;
+    this.applyMates();
+    this.commit();
+  }
+
+  /** ⚙ Moving sub-assembly — on: its own mechanisms work here (⚙ Mechanism, dragging its parts, ▶); off: 🧱 rigid,
+   *  one body. Only for a sub-assembly whose parts can move inside it. */
+  flexHtml(it) {
+    if (this.kindOf(it.part) !== 'assembly' || !this.flexOf(it).size) return '';
+    const name = this.partName(it.part);
+    return `<label class="as-flexsub" title="${esc(t('On: its own mechanisms work here too — ⚙ Mechanism, dragging its parts, ▶. Off: rigid, it moves as one body.'))}"><input type="checkbox" data-a="flexsub" ${it.rigid ? '' : 'checked'}> ${esc(t('⚙ Moving sub-assembly'))}</label>
+      <p class="hint">${esc(t2(it.rigid ? '🧱 Rigid: {sub} moves as one body, its parts stay where they are in it.' : 'Its own mechanisms work here: drive them in ⚙ Mechanism, drag its parts, ▶ play — {sub} itself stays as it is.', { sub: name }))}</p>`;
   }
 
   /** The Moves inside a sub-assembly: a slider per free motion of its parts (only in this placement). */
@@ -3473,7 +3602,7 @@ export class Assembly {
         const mg = b?.sub ? b.mass_g : this.massOf(it.part); // (as the ⊕ centre of mass weighs it)
         return { id: it.id, part: it.part, name: this.partName(it.part), ...(it.fixed ? { fixed: true } : {}), position: new THREE.Vector3().setFromMatrixPosition(m).toArray().map((v) => +v.toFixed(3)),
           bbox: bb ? [...bb.min.toArray(), ...bb.max.toArray()].map((v) => +v.toFixed(3)) : null, ...(Number.isFinite(mg) ? { mass_g: +mg.toFixed(2) } : {}),
-          error: this.bodies[it.part]?.error, ...this.freeOf(it.id), ...this.innerOf(it) };
+          error: this.bodies[it.part]?.error, ...this.freeOf(it.id), ...this.innerOf(it), ...(it.rigid && this.kindOf(it.part) === 'assembly' ? { rigid: true } : {}) };
       }),
       ...(() => { const mp = this.massProps(); return mp.cog ? { mass_g: mp.mass_g, cog_mm: mp.cog, ...(mp.unknown ? { parts_without_mass: mp.unknown } : {}) } : {}; })(),
       ...(this.loops?.some((l) => this.mechanismOf(l.parts[0])) ? { loops: this.loopsSummary() } : {}),
@@ -3567,11 +3696,12 @@ export class Assembly {
         this.commit();
         return { text: JSON.stringify(this.summary()) };
       },
-      place_part: async ({ part, x, y, z, turn, fixed }) => {
+      place_part: async ({ part, x, y, z, turn, fixed, rigid }) => {
         need();
         const it = this.inst(part);
         if (!it) throw new Error(`No part ${part} in the assembly.`);
         this.sel = it.id;
+        if (rigid !== undefined && rigid !== null && !!rigid !== !!it.rigid) this.setRigid(it.id, !!rigid); // (🧱 / ⚙ a sub-assembly)
         if (fixed !== undefined && fixed !== null && !!fixed !== !!it.fixed) { // 📌 as its panel's: a part that hangs on its joints is not fixed itself
           if (fixed && (this.doc.mates || []).some((m) => m.move === it.id)) throw new Error(`${part} hangs on its joints — fix the part it is joined to instead (get_assembly joints).`);
           this.toggleFixed(it.id);
@@ -3651,11 +3781,11 @@ export class Assembly {
         const again = () => { this.mech.render(); return this.mech.find(m.parts[0]); }; // (found again: its driver / name changed)
         if (driver !== undefined && driver !== null) { // {part, motion} or "I3 motion 0"
           const [p, k] = typeof driver === 'object' ? [driver.part, driver.motion ?? 0] : String(driver).split(/\s+motion\s+/);
-          const { it, mo } = this.motionFor(p, k ?? 0);
+          const { it, mo } = this.motionFor(p, k ?? 0, String(p).includes('/'));
           if (!m.drivers.some((d) => d.part === it.id && d.mo.key === mo.key)) throw new Error(`${it.id} — ${mo.label} does not drive ${m.id}; its drivers: ${m.drivers.map((d) => `${d.part} “${d.mo.label}”`).join(', ')}.`);
           this.mech.recFor(m).drive = { part: it.id, key: mo.key };
         }
-        if (name !== undefined && name !== null) { const v = String(name).trim(), rec = this.mech.recFor(m); if (v) rec.name = v; else delete rec.name; }
+        if (name !== undefined && name !== null) { const v = String(name).trim(), rec = this.mech.recFor(m); if (v) rec.name = v; else delete rec.name; delete rec.of; }
         if ((driver !== undefined && driver !== null) || (name !== undefined && name !== null)) { this.commit(); m = again(); }
         if (!m.closed) throw new Error(`${m.id} “${m.name}” cannot close where its parts are — a part is too short or too long (get_assembly loops).`);
         let r = null;
@@ -3711,7 +3841,12 @@ export class Assembly {
     };
     if (String(part).includes('/')) { // a part inside a sub-assembly: its own joints move it, in this placement
       const [top, id] = String(part).split('/'), r = this.innerMotions(this.inst(top)), p = r?.parts.find((x) => x.id === id);
+      if (this.inst(top)?.rigid) throw new Error(`${top} is a rigid sub-assembly — its parts do not move here (place_part {part: "${top}", rigid: false}: its mechanisms work here).`);
       if (!inside) throw new Error(`${part} is inside a sub-assembly: move_free moves it here; its limits and locks are its own assembly's (open_part it).`);
+      const fl = this.flatAsm(), fi = fl?.inst(String(part));
+      let fd = null;
+      try { fd = fi ? fl.motionsOf(fi.id) : null; } catch { fd = null; }
+      if (fd?.count) return { it: fi, mo: pick(fd), eng: fl }; // (both levels' joints: a loop in it, the parts here on it follow)
       if (!p) throw new Error(`${part} cannot move inside ${top} — get_assembly lists what can as \`inner\` of a sub-assembly.`);
       return { it: r.sub.inst(id), mo: pick(p.d), eng: r.sub };
     }

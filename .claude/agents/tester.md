@@ -605,6 +605,13 @@ Never report "works" without having run it; report failures with their output.
    on that placement's `inner`, the other placement and Lever's own document unchanged —, move_free "I2/I2", undo /
    redo, flatParts see it, ↺ As in Lever, the project file keeps it; a parallel joint of the parent on the arm turns
    it inside and locks its turn, the placement stays, ✕ frees it again; prints ALL OK or the failed checks).
+   `tools/e2e_subassembly_mechanism.py <url> <dir>` covers a sub-assembly's mechanisms in its parent (Czech: the crank
+   demo's assembly as "Pohon", turned and shifted in "Stroj": ⚙ Mechanism lists "Klikový mechanismus (v Pohon)", its
+   slider to 90° puts the inner slider at the formula in Pohon's frame, a flag of Stroj on the inner slider's pin
+   follows, undo, the inner crank dragged in the view, ▶, ⚠ the travel, drive_mechanism {mechanism: "I2"} / move_free
+   "I2/I2", get_assembly / gui_state `inside`; a loop through both levels (a rod and a slider of Stroj on the inner
+   crank) by the formula; 🧱 rigid in its panel: no inner mechanism, move_free refused, a drag does nothing, the
+   suggestion turns it back; the gearbox demo as a sub-assembly: 2:1 and π·Ø per turn; exit code 1 on a failure).
    `tools/e2e_assembly_lockmotion.py <url> <dir>` covers 🔒 lock a motion (a pin in a hole: its turn -> the joint's
    angle, its slide -> the joint's distance, fully held and not moved; a lid on a base: Along X -> a new Flush joint
    of side faces, not moved; the AI's lock_motion, and on a held part refused).

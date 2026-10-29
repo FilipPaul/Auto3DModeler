@@ -39,7 +39,10 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    its limits (where along it: get_assembly `at`), then `check_travel {part, motion}` tells whether it hits anything
    on the way; `move_free {part, motion, to}` puts it at a position (it stops at the limits).
    A sub-assembly placed in this one keeps its own motions: get_assembly lists them in its `inner` (part "I3/I2");
-   `move_free {part: "I3/I2", …}` moves that part here only — the sub-assembly's own tab stays as it is.
+   `move_free {part: "I3/I2", …}` moves that part here only — the sub-assembly's own tab stays as it is. Its own
+   mechanisms (a crank loop, gears) are in get_assembly `mechanisms` too (`inside: "I3"`, parts "I3/I2"):
+   `drive_mechanism {mechanism: "I3", to}` drives the first inside it; the parts here joined to its parts follow and
+   a loop through both levels is solved together. `place_part {part: "I3", rigid: true}` = 🧱 one body, no inner motion.
    A closed loop (a crank – rod – slider: the rod joined to the crank's pin and to the slider's pin) is solved as one
    mechanism: get_assembly `loops` gives its parts, `free_motions` (1 for a crank-slider) and the motions that
    `drive` it — move_free the crank (or the slider), set_travel 0 … 360 + check_travel it: the rest follows. Place

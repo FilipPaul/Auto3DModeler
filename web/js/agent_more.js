@@ -293,7 +293,9 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       const above = bar && [...document.querySelectorAll('#modelLeft .mt-tree > *')].slice(0, [...bar.parentNode.children].indexOf(bar)).reverse().find((r) => r.matches('.mt-item[data-depth="0"]'));
       // 🎬 an animation being recorded (its progress) or the last one saved (its file)
       const anim = state.workspace === 'assembly' ? animState(assembly?.mech) : null;
-      return ok({ workspace: state.workspace, controls: list.map(({ el, ...c }) => c), ...(steps ? { steps } : {}), ...(bar ? { rollback_bar: { under: above?.dataset.id || null } } : {}), ...(anim ? { animation: anim } : {}),
+      // ⚙ Mechanism's rows (a sub-assembly's own ones too: `inside` — its placement)
+      const mechs = state.workspace === 'assembly' && !assembly?.mech?.closed ? (assembly?.mech?.list || []).map((m) => ({ id: m.id, name: m.name, ...(m.inside ? { inside: m.inside } : {}) })) : [];
+      return ok({ workspace: state.workspace, controls: list.map(({ el, ...c }) => c), ...(steps ? { steps } : {}), ...(bar ? { rollback_bar: { under: above?.dataset.id || null } } : {}), ...(anim ? { animation: anim } : {}), ...(mechs.length ? { mechanisms: mechs } : {}),
         toasts: [...document.querySelectorAll('.toast')].map((x) => x.textContent.trim()).slice(-3) });
     },
     gui_action: async ({ control, click, value, key: keys, at, at_mm, drag_to, double } = {}) => {

@@ -454,8 +454,10 @@ TOOLS = [
     {"name": "place_part", "where": "browser",
      "description": "Position a placed part (id I…): x, y, z of its own origin in mm, and / or turn: \"x\" | \"y\" | \"z\" (or a list) — 90° each about its centre. "
                     "fixed: true / false = 📌 fixed in place (as its panel's 📌: not moved by hand, joints bring the other parts to it; "
-                    "a part that hangs on its joints is not fixed itself — fix the one it is joined to).",
-     "inputSchema": _obj({"part": STR, "x": NUM, "y": NUM, "z": NUM, "turn": {}, "fixed": {"type": "boolean"}}, ["part"])},
+                    "a part that hangs on its joints is not fixed itself — fix the one it is joined to). "
+                    "rigid: true / false = a placed sub-assembly 🧱 moves as one body (its parts stay where they are in it) / ⚙ "
+                    "moves inside too (the default: its own mechanisms work here — drive_mechanism, move_free \"I3/I2\").",
+     "inputSchema": _obj({"part": STR, "x": NUM, "y": NUM, "z": NUM, "turn": {}, "fixed": {"type": "boolean"}, "rigid": {"type": "boolean"}}, ["part"])},
     {"name": "add_missing_joint", "where": "browser",
      "description": "Add the joint get_assembly names as `missing_joint` (the app's \"One joint is missing\" ➕ Add joint): the free pin "
                     "of one moving part in the free hole of the same Ø of another (◎ Concentric) — the loop closes and becomes a "
@@ -521,7 +523,9 @@ TOOLS = [
     {"name": "drive_mechanism", "where": "browser",
      "description": "Drive a whole mechanism of the assembly on screen (the app's ⚙ Mechanism widget): get_assembly `mechanisms` "
                     "[{id M1…, name, parts, driver, at, min, max, unit, full_turn, drivers}] — a closed loop (a crank – rod – slider, a "
-                    "four-bar) or a part turning / sliding on its own. mechanism = its id, name or one of its parts (none: the first); "
+                    "four-bar) or a part turning / sliding on its own; a sub-assembly's own mechanisms too (`inside`: its placement I…, "
+                    "parts \"I3/I2\" — the parts here joined to them follow, a loop through both levels is solved together). "
+                    "mechanism = its id, name or one of its parts (a sub-assembly's I…: the first inside it; none: the first); "
                     "to = where its driver goes (degrees for a turn, 0 … 360 for a full turn; mm along a slide) — every part of it "
                     "follows, it stops at a dead point; driver = another of its `drivers` (\"I5 motion 0\" or {part, motion}); name = "
                     "its own name (\"\": the default again); play = true / false: ▶ on and on / stop. It answers where its parts went. "
