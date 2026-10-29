@@ -150,6 +150,14 @@ add_feature {type: "fillet", edges: [<4 refs>], r: 3}
 get_model, get_screenshot
 ```
 
+## What the user sees: the suggestions table
+
+The user works mostly by clicking: they select a face, an edge or a step and a small **suggestions table** in the
+view's corner offers what fits it (✏ Sketch on this face, ◎ Hole here, ◜ Round its edges …), the most relevant rows
+first, the rest under ⋯ Show all. When you tell them how to change the part themselves, name the row they will see
+there (`gui_action {pick: "F2:end"}` selects that face as their click would, `gui_state {where: "suggest"}` lists the
+rows) and point at it with `gui_highlight {control: <its n>}` — not at a toolbar button.
+
 ## Pitfalls
 
 - A revolve profile must lie on one side of its axis.

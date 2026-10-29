@@ -80,6 +80,11 @@ try:
     act(at=[0.02, 0.98])
     row = next(c for c in json.loads(call("gui_state", where="panel"))["controls"] if c["kind"] == "part" and "I2" in c["label"])
     r = act(control=row["n"])
+    if any("Make it its own part" in x for x in r["suggestions"].get("all", [])):  # (a row the user reaches by ⋯ Show all)
+        print("  ⧉ Make it its own part is under ⋯ Show all (of", r["suggestions"]["more"], "): opened, n", r["suggestions"]["show_all"])
+        sel = r["selected"]
+        r = act(control=r["suggestions"]["show_all"])
+        r["selected"] = r["selected"] or sel
     own = next((c for c in r.get("controls", []) if "Make it its own part" in c["label"]), None)
     print("the Lid chosen in the list:", r["selected"], "| fresh controls:", len(r.get("controls", [])), "| its own part button: n", own and own["n"])
     assert r["selected"] == "I2" and own

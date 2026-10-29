@@ -29,6 +29,10 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    as it reaches while the mechanism moves; get_assembly `springs`: free / now / compressed, force). A part's joints apply in order: `axis` first, then
    `touch` from the head to the face it sits on, seats a pin. Joints hold: the part follows when the other one moves
    or changes size (`get_assembly` lists the `joints`); `place_part` on a joined part removes its joints.
+   The user does the same by clicking: a part or a face selected, the **suggestions table** in the view's corner
+   offers its joints (Touch…, Gap…, Concentric…), two faces picked offer what joins them. To show them how, select it
+   (`gui_action {pick: "I2"}` or `{pick: "I2 F2:end"}`), read `gui_state {where: "suggest"}` and point at the row
+   with `gui_highlight {control: <its n>}`.
 4. Fine-tune with `place_part {part, x, y, z}` (its origin in mm) and `turn: "x" | "y" | "z"` (90° about its
    centre). Check the bounding boxes from `get_assembly` and look with `get_screenshot`.
 5. **Fasteners through parts with no holes**: join the parts so they touch, then `bolt_parts {part, face, x, y, kind,

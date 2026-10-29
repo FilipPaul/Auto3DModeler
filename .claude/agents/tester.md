@@ -594,6 +594,12 @@ Never report "works" without having run it; report failures with their output.
    next call says "the user clicked it"), Escape closes it without cancelling the sketch, a new tip replaces the old,
    clear, wait: true through /api/agent/call answers after the click, a 1 s timeout keeps it, a view spot (at) clicked,
    refusals, an assembly in Czech (✕ tooltip, the tip's own text kept) above floating boxes.
+   `tools/e2e_ai_suggest.py <url> <dir>` covers the AI and the suggestions table (in Czech): gui_action pick F2:end ->
+   gui_state.suggestions (title, about the face, 8 rows with n and rank_pos, more = the ⋯ Show all count and its
+   labels), where: suggest; suggest "Díra" opens the hole command; a hidden row named in English ("turn it off")
+   reached through ⋯ Show all (the table back to its top rows); an unknown label refused with the offered rows;
+   get_screenshot {ui: true} draws the table where it is (its box differs from the view with the table hidden); an
+   assembly's part picked (its table, a row run); a sheet's dimension (its table, the ui screenshot names it).
    `tools/e2e_ai_gui.py <url> <dir>` covers the AI's GUI testing: gui_action at a point of the 3D view (the lid
    picked, an empty corner: none), Delete / ctrl+z keys, gui_state on a sheet (dims, views, cells), a dimension
    clicked + Delete + ctrl+z, a view dragged 20 mm by at_mm / drag_to, a double-click on the title cell (its field

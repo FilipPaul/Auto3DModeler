@@ -49,9 +49,11 @@ TOOLS = [
                     "the view is, fitted to the whole of it — exploded too; fit: false keeps the view as set_view left it — a "
                     "zoomed section), or a drawing sheet as drawn. view: iso (default), front (top-down onto the front face), back, "
                     "side. The mouse's hover, picks and the chosen step are not tinted in it; highlight: [face names or step ids "
-                    "(all faces a step made)] lights those faces in orange (3D model) — to check one feature.",
+                    "(all faces a step made)] lights those faces in orange (3D model) — to check one feature. ui: true = the whole "
+                    "window as the user sees it instead (the AI chat left out): the view as it is on screen with the suggestions "
+                    "table, panels, size labels and bars drawn over it (the text says where the table is) — to see what the user sees.",
      "inputSchema": _obj({"view": {"type": "string", "enum": ["iso", "front", "back", "side"]}, "fit": {"type": "boolean"},
-                          "highlight": {"type": "array", "items": STR}})},
+                          "highlight": {"type": "array", "items": STR}, "ui": {"type": "boolean"}})},
     {"name": "open_file", "where": "server",
      "description": "Open a file from disk as a new part (its own tab; the parts already open stay): a PDF drawing, an STL / "
                     "OBJ / 3MF / STEP 3D file (STL / OBJ / 3MF: a quick part of the mesh), an IGES (.igs / .iges: a 3D model part with its solid — surfaces are sewn into one; "
@@ -684,9 +686,12 @@ TOOLS = [
                     "where: bar (top bar), tools (the workspace's toolbar), panel (side panels), view or all; in the 3D model also its step "
                     "tree (steps: id, name, what it makes, off / failed / selected / editing; parent / depth when shown under another "
                     "step — a sketch under the step made from it, a reference point under 'ref' — and folded when its row is "
-                    "folded away). Use it to tell the user exactly "
+                    "folded away). When something is selected, `suggestions`: the suggestions table the user sees (the app's main way to "
+                    "work: select -> it offers what fits) — title, about (what is selected: a face of a step, a part, a dimension), "
+                    "rows top to bottom {n, icon, label, section, rank_pos (1 = most relevant)}, more (how many are under ⋯ Show all) "
+                    "and all (their labels); where: suggest = only the table. Use it to tell the user exactly "
                     "where something is, and with gui_action to check the GUI does what the tools do.",
-     "inputSchema": _obj({"where": {"type": "string", "enum": ["all", "bar", "tools", "panel", "view"]}})},
+     "inputSchema": _obj({"where": {"type": "string", "enum": ["all", "bar", "tools", "panel", "view", "suggest"]}})},
     {"name": "gui_action", "where": "browser",
      "description": "Do what the user's mouse and keys do. On a control from gui_state (its n, or its label / part of it): a "
                     "click on a button / checkbox / a sheet's dim, view or cell, or a slider / box / choice set to `value` (as dragged "
@@ -695,11 +700,14 @@ TOOLS = [
                     "sheet; get_screenshot shows it), or at_mm = [x, y] on a drawing sheet's paper (mm from its top left) — a click "
                     "there (picks a face, a part, a dimension…), double = true a double-click, drag_to = [x, y] (same kind of point) a "
                     "drag. key = a key pressed after it, or alone on what has the focus: Delete, Enter, Escape, ctrl+z … -> what was "
-                    "done, what was under the mouse, what is selected and the messages shown. Then get_assembly / gui_state / "
-                    "get_screenshot tell what changed.",
+                    "done, what was under the mouse, what is selected, the suggestions table now and the messages shown. pick = "
+                    "a named thing clicked where it shows in the view: a 3D model's face (\"F2:end\" from find_refs, or a step id), "
+                    "an assembly's part (\"I2\") or its face (\"I2 F2:end\") — the table then offers what fits it. suggest = a "
+                    "row of the suggestions table run by its label (Czech or English, part of it: \"Díra\", \"hole\"); a row under "
+                    "⋯ Show all is reached through it. Then get_assembly / gui_state / get_screenshot tell what changed.",
      "inputSchema": _obj({"control": {}, "value": {}, "click": {"type": "boolean"}, "at": {"type": "array", "items": NUM},
                           "at_mm": {"type": "array", "items": NUM}, "drag_to": {"type": "array", "items": NUM},
-                          "double": {"type": "boolean"}, "key": STR})},
+                          "double": {"type": "boolean"}, "key": STR, "suggest": STR, "pick": STR})},
     {"name": "gui_highlight", "where": "browser",
      "description": "Show the user where to click — to teach and lead them: a pulsing ring around a control (control = its n or "
                     "label from gui_state, as gui_action takes it) or a spot of the view (at = [x, y], 0 … 1 across and down it), "
@@ -766,7 +774,8 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 - **Assemblies** place 3D model parts together: new_assembly, get_assembly, insert_part, snap_faces (joints: touch, gap, axis = concentric…), place_part, remove_from_assembly, check_collisions. get_assembly says for each joined part how it can still move (free) or that it is fully held.
 - **Drawing sheets** (📄, of a 3D model part — its views and dimensions, made by a preset, edited by the user, following the part): sheet_open, get_sheet, sheet_edit; export {format: "pdf"} on a sheet writes it as drawn. Prefer a sheet over export pdf of the model when the user wants a drawing.
 - **2D drawings** (a DXF / DWG, or a PCB's Gerber / ODB++ opened as a 📐 drawing — open_file opens them, also a folder of loose Gerber files): get_drawing, drawing_find (shapes by filters), drawing_delete, drawing_add (lines, circles), drawing_units, drawing_layers (show / hide, colour, a new layer), drawing_set_size, drawing_use (as the sketch of a 3D model, or a quick part).
-- The GUI: gui_state lists what the user sees (buttons, sliders, their state; a sheet's dimensions / views / cells); gui_action clicks / slides one as the user would, clicks / drags at a point of the view (at, at_mm on a sheet) and presses keys (Delete, Enter, Escape, ctrl+z) — use them to tell the user where something is and to check the GUI behaves like the tools. gui_highlight points at a control (or a spot of the view) with a short tip and can wait until the user clicks it.
+- The GUI: gui_state lists what the user sees (buttons, sliders, their state; a sheet's dimensions / views / cells); gui_action clicks / slides one as the user would, clicks / drags at a point of the view (at, at_mm on a sheet) and presses keys (Delete, Enter, Escape, ctrl+z) — use them to tell the user where something is and to check the GUI behaves like the tools. gui_highlight points at a control (or a spot of the view) with a short tip and can wait until the user clicks it. get_screenshot {ui: true} shows the window as the user sees it (the table, panels, labels).
+- **The suggestions table** is how the user works: they select something (a face, an edge, a part, a dimension) and a small table in the view's corner offers what fits it, the most relevant rows first, the rest under ⋯ Show all. gui_state returns it as `suggestions` (title, what it is about, rows with their n, more = hidden rows); gui_action {pick: "F2:end"} selects a face (an assembly's part: "I2") as a click would, gui_action {suggest: "<label>"} runs a row. When you tell the user how to do something, point at the row they will see (gui_highlight its n) rather than at a toolbar button.
 - Assemblies also: edit_joint / remove_joint, measure (between faces), move_free, lock_motion (fix one free motion where it is); set_travel (a free motion's limits: a cylinder's stroke) and check_travel (collisions along it); drive_mechanism (a whole mechanism by its driver: a crank's turn, every part follows; ▶ play), record_animation (one cycle of it saved as a GIF / video) and name_motion (a motion's own name); the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, duplicate_part (an independent copy to change), delete_part (only when asked), save_to_library (the 3D model kept in the user's library); list_demos / open_demo (🎬 ready-made mechanisms, only when asked; a saved project file: open_file). 🕘 Versions of the project: list_versions, save_version {label} (before a risky change), compare_versions {a, b}, restore_version (only when asked; it can be undone), create_variant {from, name} (a branch to try another design), switch_variant, take_part (one part from another variant). Files: export stl / step / iges / glb / obj / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf / project (the whole project as a .a3d.json file).
 - **The parts library** holds real, bought parts with their maker and part number (screws, nuts, washers, inserts, bearings, standoffs, panel parts, SMC pneumatics, SICK sensors, stepper motors, the user's own): library_search, library_add.
 - Both: get_screenshot, check_print, export, undo. Opening a file or tracing a picture adds a new quick part tab.

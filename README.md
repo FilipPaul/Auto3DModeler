@@ -1236,7 +1236,11 @@ can open them.
   does — so it can check the app behaves like its tools. It also clicks, double-clicks or drags **at a point** of the
   view (picking a part or a face in 3D, a dimension, view or title cell on a drawing sheet — `at_mm` on the paper) and
   presses **keys** (Delete, Enter, Escape, ctrl+z). A value given to a button is refused (nothing clicked), and when
-  the controls on screen change (a part chosen: its panel) the answer lists them with their new numbers; a sheet's dimensions, views and title cells are listed too. A **locked 🔒 joint** is greyed out in the panel (only 🔒
+  the controls on screen change (a part chosen: its panel) the answer lists them with their new numbers; a sheet's dimensions, views and title cells are listed too.
+  The AI sees the **suggestions table** as you do: its title, what it is about, its rows in order and how many are
+  under ⋯ Show all; it can select a face or a part by name (`pick`) and run a row by its label (`suggest`), and
+  `get_screenshot {ui: true}` gives it a picture of the whole window with the table and panels — so it can point you at
+  the row to click and test the app the way you use it. A **locked 🔒 joint** is greyed out in the panel (only 🔒
   unlocks it) and the AI cannot change it either.
 - **The AI shows you where**: ask "how do I add a hole?", "where is the pattern?" or "show me" and Claude leads you
   through the app's own buttons step by step (`gui_highlight`): a pulsing ring around the control (or a spot of the 3D

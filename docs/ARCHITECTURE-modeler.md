@@ -7,6 +7,21 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **The AI sees the suggestions table (2026-10-29)** (the owner: "zdá se mi, že agent nevidí suggestion table"). It
+  did not: gui_state listed the table's rows as plain buttons among the rest (where: panel, no title, no order, nothing
+  marking them), the rows under ⋯ Show all not at all, and get_screenshot drew the 3D only. Now suggest.js keeps each
+  table's rows on its box (`suggestTables()`: title, refs, every row with its section and rank, shown or hidden;
+  `runSuggestion()` opens ⋯ Show all for a hidden row, then back to the top rows) and agent_more.js gives the AI:
+  gui_state `suggestions` {title, about (what is selected, as the ✨ refs name it), hint, where, rows [{n, icon, label,
+  section, rank_pos}], more, all, show_all} and `where: "suggest"`; gui_action `suggest` (a row by its label — Czech or
+  English, part of it, no accents needed) and `pick` (a face "F2:end" / a part "I2" / "I2 F2:end" clicked where it
+  shows on screen: the middle of where a scan of the view hits it, not under a panel); every gui_action answer has the
+  table now. get_screenshot {ui: true}: the window as the user sees it, drawn box by box from the page (no HTML-to-canvas
+  library: backgrounds, borders, text, fields' values, the view's canvas and the sheet's SVG; z-index overlays last),
+  the text giving the table's box. No separate get_suggestions tool: pick + gui_state answer "what would the table
+  offer here". The prompt and the skills (ui-tester: suggestion-first, rank_pos judged; teach-the-user: lead through the
+  table's rows; model-a-part, assemble-parts) teach it. Tests: test_agent (schemas), e2e_ai_suggest.
+
 - **✂ Section view fixed and capped (2026-10-29)** (the AI's report: a revolved pump body cut at y = 0 showed whole, with
   a jagged ring at z = 0). Causes: a Y cut kept the half toward the iso / front cameras (x and z kept the far half), so
   the part looked uncut; a face lying in the cut (the bottom at z = 0) z-fought with the clip plane — the jagged ring;
