@@ -354,12 +354,47 @@ class TestFeatures(unittest.TestCase):
         r, v = vol(*box(d=5), *wall, ln, {"id": "R1", "type": "rib", "sketch": "S3", "t": 4})
         self.assertTrue(r["ok"], r["features"])
         self.assertAlmostEqual(v - v0, 0.5 * 15 * 20 * 4, delta=0.01)
-        names = {n for f in r["body"]["faces"] for n in f.get("names") or [f.get("name")] if n}
+        self.assertTrue(watertight(r["body"]))
+        names ={n for f in r["body"]["faces"] for n in f.get("names") or [f.get("name")] if n}
         self.assertTrue({"R1:side:k1", "R1:start", "R1:end"} <= names, names)
         # a line in the air (nothing to close against): refused
         air = {**ln, "points": {"r1": [15, 60], "r2": [0, 45]}}
         r, _ = vol(*box(d=5), *wall, air, {"id": "R1", "type": "rib", "sketch": "S3", "t": 4})
         self.assertFalse(r["ok"])
+
+    def test_rib_flip(self):
+        """⇅ A rib's other side: a 40 cube with a bore Ø20 along X (centre y 20, z 20); on the Right plane through its
+        middle a line across the bore at z 25 (ends in the material). Both sides close: by itself the smaller piece
+        (the circle's segment above the line, r² acos(d / r) − d √(r² − d²), 4 thick), flipped the larger one; in the
+        L bracket flipped there is nothing to close against. Watertight, the same volume back from STEP."""
+        from auto3d.modeler import kernel as K
+        from test_modeler_kernel import watertight
+        bore = [{"id": "S2", "type": "sketch", "plane": {"datum": "YZ"}, "points": {"c": [20, 20]},
+                 "entities": [{"id": "c1", "t": "circle", "c": "c", "r": 10}]},
+                {"id": "E2", "type": "extrude", "sketch": "S2", "op": "cut", "d": 100, "symmetric": True}]
+        ln = {"id": "S3", "type": "sketch", "plane": {"datum": "YZ", "offset": 20}, "points": {"r1": [5, 25], "r2": [35, 25]},
+              "entities": [{"id": "k1", "t": "line", "a": "r1", "b": "r2"}]}
+        rib = {"id": "R1", "type": "rib", "sketch": "S3", "t": 4}
+        seg = 100 * math.acos(0.5) - 5 * math.sqrt(75)
+        _, v0 = vol(*box(40, 40, 40), *bore)
+        r, v = vol(*box(40, 40, 40), *bore, ln, rib)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v - v0, 4 * seg, delta=1e-3)
+        flipped = [*box(40, 40, 40), *bore, ln, {**rib, "flip": True}]
+        r, v = vol(*flipped)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v - v0, 4 * (math.pi * 100 - seg), delta=1e-3)
+        self.assertTrue(watertight(r["body"]))
+        st, _ = doc.evaluate(flipped)
+        self.assertAlmostEqual(K.volume(K.from_step(K.to_step(st.body.shape))), v, delta=v * 1e-6)
+        # the L bracket's rib flipped: above the line it is open — refused, with the way back
+        pts = {"q1": [0, 15], "q2": [40, 15], "q3": [40, 20], "q4": [0, 20]}
+        lines = [{"id": f"m{i + 1}", "t": "line", "a": f"q{i + 1}", "b": f"q{(i + 1) % 4 + 1}"} for i in range(4)]
+        wall = [{"id": "S2", "type": "sketch", "plane": {"datum": "XY"}, "points": pts, "entities": lines},
+                {"id": "E2", "type": "extrude", "sketch": "S2", "op": "add", "d": 30}]
+        gusset = {**ln, "points": {"r1": [15, 25], "r2": [0, 5]}}
+        r, _ = vol(*box(d=5), *wall, gusset, {**rib, "flip": True})
+        self.assertIn("flip it back", r["features"][-1]["issues"][0])
 
     def test_draft(self):
         """⟋ Draft: a 40 × 20 × 10 block's walls leaning in 5° — a frustum (top 2 × 10·tan 5° smaller each way)."""
@@ -368,10 +403,62 @@ class TestFeatures(unittest.TestCase):
         k = 10 * math.tan(math.radians(5))
         a0, a1 = 40 * 20, (40 - 2 * k) * (20 - 2 * k)
         self.assertAlmostEqual(v, 10 / 3 * (a0 + a1 + math.sqrt(a0 * a1)), delta=1)
+        self.assertEqual(sorted(f.get("name") for f in r["body"]["faces"])[1:], ["E1:side:l1", "E1:side:l2", "E1:side:l3", "E1:side:l4", "E1:start"])
         r, _ = vol(*box(), {"id": "D1", "type": "draft", "of": "E1", "angle": 50})
         self.assertFalse(r["ok"])
         r, _ = vol(*box(), {"id": "D1", "type": "draft", "of": "NOPE", "angle": 5})
         self.assertIn("walls", r["features"][-1]["issues"][0])
+
+    def test_extrude_draft(self):
+        """An extrude's draft: a 40 × 20 block 10 tall, its walls leaning in 5° — a prismatoid (top 2 · 10 · tan 5°
+        smaller each way); negative leans out; Both sides: each half tapers away from the sketch plane; a pocket cut
+        4 deep with 5° narrows going down. Watertight, and the same volume back from STEP."""
+        from auto3d.modeler import kernel as K
+        from test_modeler_kernel import watertight
+
+        def prismatoid(h, w, d, a):  # h · (A0 + 4 Am + A1) / 6, the walls k = h · tan a in
+            k = h * math.tan(math.radians(a))
+            return h / 6 * (w * d + 4 * (w - k) * (d - k) + (w - 2 * k) * (d - 2 * k))
+        b = box()
+        b[1]["draft"] = 5
+        r, v = vol(*b)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, prismatoid(10, 40, 20, 5), delta=0.01)
+        self.assertTrue(watertight(r["body"]))
+        names = {f.get("name") for f in r["body"]["faces"]}
+        self.assertTrue({"E1:start", "E1:end", "E1:side:l1"} <= names, names)  # (the walls keep their names)
+        st, _ = doc.evaluate(b)
+        self.assertAlmostEqual(K.volume(K.from_step(K.to_step(st.body.shape))), v, delta=v * 1e-6)
+        b[1]["draft"] = -5
+        _, v = vol(*b)
+        self.assertAlmostEqual(v, prismatoid(10, 40, 20, -5), delta=0.01)
+        b[1].update(draft=5, symmetric=True)
+        r, v = vol(*b)
+        self.assertAlmostEqual(v, 2 * prismatoid(5, 40, 20, 5), delta=0.01)
+        self.assertEqual([round(c, 6) for c in r["body"]["bbox"]], [0, 0, -5, 40, 20, 5])
+        b[1].update(symmetric=False, d2=4)
+        _, v = vol(*b)
+        self.assertAlmostEqual(v, prismatoid(10, 40, 20, 5) + prismatoid(4, 40, 20, 5), delta=0.01)
+        # a pocket 20 × 10 cut 4 deep from the top
+        pts = {"c1": [10, 5], "c2": [30, 5], "c3": [30, 15], "c4": [10, 15]}
+        lines = [{"id": f"n{i + 1}", "t": "line", "a": f"c{i + 1}", "b": f"c{i % 4 + 2 if i < 3 else 1}"} for i in range(4)]
+        sk = {"id": "S2", "type": "sketch", "plane": {"datum": "XY", "offset": 10}, "points": pts, "entities": lines}
+        cut = {"id": "E2", "type": "extrude", "sketch": "S2", "op": "cut", "d": 4, "draft": 5}
+        r, v = vol(*box(), sk, cut)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(v, 8000 - prismatoid(4, 20, 10, 5), delta=0.01)
+        self.assertTrue(watertight(r["body"]))
+        # refused: through all, 45° or more, more than the walls can lean (the most that fits is told)
+        r, _ = vol(*box(), sk, {**cut, "through": True})
+        self.assertIn("Through all", r["features"][-1]["issues"][0])
+        b = box()
+        b[1]["draft"] = 45
+        r, _ = vol(*b)
+        self.assertIn("45°", r["features"][-1]["issues"][0])
+        b = box(w=10, h=10, d=40)
+        b[1]["draft"] = 20
+        r, _ = vol(*b)
+        self.assertIn("at most", r["features"][-1]["issues"][0])
 
     def test_revolve(self):
         # a 10 x 20 rectangle beside the vertical axis (x 5..15) spun a full turn: a tube

@@ -139,10 +139,13 @@ k6 / m6 / p6 for a shaft (a pin, a boss, an axle); it is drawn *Ø8 h6* and the 
 
 **⊿ Rib**: a gusset in a corner — draw one line in a sketch across the corner (e.g. on the Right plane through the
 plate and the wall, from the wall to the plate), then ⊿ Rib and its thickness: the side of the line that closes
-against the part is filled, half the thickness each side of the sketch plane.
+against the part is filled, half the thickness each side of the sketch plane. When both sides close (a line across a
+bore), the smaller piece is filled; *⇅ Flip direction* takes the other. A click on such a line in the view (or on its
+sketch in the list) suggests *⊿ Rib from this line*.
 
 **⟋ Draft**: tilts an extrude's side walls by a few degrees (they lean in going up from its base; negative: out) so a
-moulded or cast part comes out of its mould — choose the extrude (or click one of its walls) and the angle.
+moulded or cast part comes out of its mould — choose the extrude (or click one of its walls) and the angle. (Or give
+the extrude its *Draft* right away in its panel.)
 
 **✂ Split**: cuts the part in two along a plane — by default across its longest side, in the middle. Choose Top /
 Front / Right (through the part's middle; Offset moves it) or click a flat face: a face inside the part (a step's
@@ -354,6 +357,9 @@ SolidWorks. It has only the tools that need almost no input.
      in the way, the panel says so (*⇅ Flip direction* turns it).
    - Tick **＋ Other side** to extrude also a distance to the other side of the sketch (5 mm to start with; type
      another). It is the other way of going both ways to *Both sides*: ticking one unticks the other.
+   - **Draft** (0° to start with) tapers the side walls: they lean in going away from the sketch (negative: out), for
+     a boss or a pocket that comes out of a mould. With *Both sides* / *＋ Other side* each side tapers away from the
+     sketch; not with *Through all* or *Up to next*.
    - OK, or Enter, adds the step.
 3. **✏ Sketch** again and **click a flat face** of the part to sketch on it. On a face, Extrude starts as
    **Cut**, ready for holes and pockets.

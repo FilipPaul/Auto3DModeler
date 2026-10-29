@@ -21,6 +21,22 @@ Date: 2026-10-25. Written by the architect agent.
   the PCD; get_sheet's dims {hole_position, ordinate}; "PCD" -> "rozteč". test_hole_positions (4 corners, a row of 5,
   6 around a bore, 6 anywhere: no overlaps), test_bolt_circles_and_crowded_ordinates; tools/e2e_sheet_hole_positions.py.
   Left out: a jogged ordinate's own DXF jog (the leader is ezdxf's), positions on an assembly sheet (only overall sizes).
+- **⊿ Rib's other side and its suggestion done:** a rib's `flip` (kernel.rib keeps the closing piece of each side of
+  the line: by itself the smaller, flipped the other side's; that side open: "⇅ flip it back"). The Rib panel's
+  ⇅ Flip direction; a sketch of one open line (isOpenLine) chosen in the list or clicked in the view suggests
+  ⊿ Rib from this line (rank 0), Edit the sketch, Delete (suggestSketch); startRib(id) takes that sketch. AI:
+  add_feature rib {flip}. test_rib_flip (a chord across a bore: both segments' volumes, watertight, STEP round trip;
+  the L bracket flipped refused); tools/e2e_model_draft_rib.py; e2e_agent.
+
+- **Draft angle on extrudes done:** an extrude's `draft` (degrees, under 45; negative: out): each prism tool tapered
+  by kernel.draft before it is added or cut (the neutral plane the sketch; Both sides with a draft = two halves, each
+  tapering away from the sketch, as ＋ Other side; d2's piece too; up to a face too; Through all / Up to next refused);
+  too much for the walls: the most that fits is told (_sized). kernel.draft now names the tilted walls by
+  ModifiedShape (Modified was empty for them — the ⟋ Draft step lost its walls' names too). The Extrude panel's small
+  Draft field (no slider; hidden and dropped with Through all / Up to next), the step's text "· draft 5°";
+  add_feature / edit_feature extrude {draft} (0 takes it off), get_model shows it. test_extrude_draft (prismatoid
+  volumes, symmetric, d2, a pocket, watertight, STEP round trip, refusals); tools/e2e_model_draft_rib.py; e2e_agent.
+
 - **The AI's screenshots whole and clean (RealSWReports 2026-10-29 01:55:47, 2026-10-28 04:30:30 / 04:30:48) done:**
   with the chat beside it the view was a 339 × 900 strip and the picture too — an assembly 240 mm long cut off.
   ModelView.snapshot({w, h, fit, faces, over}): the renderer and the label layer set to 1200 × 900 for one frame (the
@@ -1410,6 +1426,8 @@ Date: 2026-10-25. Written by the architect agent.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); ~~dimensions of hole positions drawn on the 2D drawing (not only listed)~~ (done); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.
+  round faces (a shaft's axis)~~ (done); dimensions of hole positions drawn on the 2D drawing (not only listed); joint types in
+  assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; ~~draft angle on extrudes~~ (done).
 
 ## 0. Summary
 

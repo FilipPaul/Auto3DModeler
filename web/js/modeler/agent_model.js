@@ -324,7 +324,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       return type === 'extrude'
         ? { ...base, sketch: sk, op: spec.op === 'cut' ? 'cut' : 'add', d: spec.d ?? 10, through: !!spec.through, symmetric: !!spec.symmetric, flip: !!spec.flip,
           ...(spec.up_to ? { upto: { name: faceOf(spec.up_to).name, fp: faceOf(spec.up_to).centroid }, offset: spec.offset || 0 } : {}),
-          ...(spec.upto_next && !spec.up_to ? { upto_next: true } : {}), ...(spec.d2 && !spec.symmetric ? { d2: +spec.d2 } : {}) }
+          ...(spec.upto_next && !spec.up_to ? { upto_next: true } : {}), ...(spec.d2 && !spec.symmetric ? { d2: +spec.d2 } : {}), ...(+spec.draft ? { draft: +spec.draft } : {}) }
         : { ...base, sketch: sk, op: spec.op === 'cut' ? 'cut' : 'add', axis: spec.axis || 'y', angle: spec.angle ?? 360 };
     }
     if (type === 'fillet' || type === 'chamfer') {
@@ -358,7 +358,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
     if (type === 'rib') {
       const sk = spec.sketch || [...m.sketches()].pop()?.id;
       if (!m.part.features.some((f) => f.id === sk && f.type === 'sketch')) throw new Error('sketch: the id of the sketch with the rib\'s line (from get_model).');
-      return { ...base, sketch: sk, t: spec.t ?? 3 };
+      return { ...base, sketch: sk, t: spec.t ?? 3, ...(spec.flip ? { flip: true } : {}) };
     }
     if (type === 'shell') {
       const faces = (spec.faces || []).map((n) => { const f = faceOf(typeof n === 'string' ? n : n.name); return { name: f.name, fp: f.centroid }; });
@@ -526,7 +526,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
           out.shapes = (f.entities || []).map((e) => e.t).reduce((a, t) => ({ ...a, [t]: (a[t] || 0) + 1 }), {});
           out.locked_sizes = (f.dims || []).filter((d) => !d.free).length;
         }
-        if (f.type === 'extrude') Object.assign(out, { sketch: f.sketch, op: f.op, d: f.d, through: !!f.through, symmetric: !!f.symmetric });
+        if (f.type === 'extrude') Object.assign(out, { sketch: f.sketch, op: f.op, d: f.d, through: !!f.through, symmetric: !!f.symmetric, ...(f.draft ? { draft: f.draft } : {}) });
         if (f.type === 'revolve') Object.assign(out, { sketch: f.sketch, op: f.op, axis: f.axis, angle: f.angle });
         if (f.type === 'fillet') Object.assign(out, { r: f.r, edges: f.edges.length });
         if (f.type === 'chamfer') Object.assign(out, { d: f.d, edges: f.edges.length });
@@ -668,7 +668,9 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
           if (!next.upto_next) delete f.upto_next;
           if (fields.upto_next || ('up_to' in fields && !fields.up_to)) delete f.upto;
           if (!next.d2) delete f.d2;
+          if (!next.draft) delete f.draft; // (draft 0: straight walls again)
         }
+        if (f.type === 'rib' && !next.flip) delete f.flip; // (flip: false — its own side again)
       }
       return commitAnd(id);
     },

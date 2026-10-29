@@ -31,6 +31,13 @@ const REPEATABLE = new Set(['extrude', 'revolve', 'hole', 'pattern', 'loft', 'sw
 const MIRROR_PLANES = { YZ: 'left ↔ right', XZ: 'front ↔ back', XY: 'top ↔ bottom' }; // the base planes to mirror across
 const AXES = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
 const USES_SKETCH = new Set(['extrude', 'revolve', 'loft', 'sweep', 'rib']);
+/** A sketch that is one open line (straight lines end to end, not closed — what ⊿ Rib takes). */
+const isOpenLine = (f) => {
+  const es = (f?.entities || []).filter((e) => !e.construction), ends = {};
+  if (!es.length || es.some((e) => e.t !== 'line')) return false;
+  for (const e of es) for (const p of [e.a, e.b]) ends[p] = (ends[p] || 0) + 1;
+  return Object.values(ends).some((c) => c === 1) && Object.values(ends).every((c) => c <= 2);
+};
 /** The sketches a step is made from. */
 const sketchesOf = (f) => (f.type === 'loft' ? f.sketches || [] : f.type === 'sweep' ? [f.profile, f.path] : USES_SKETCH.has(f.type) ? [f.sketch] : []).filter(Boolean);
 // densities for the mass (g/cm³), common 3D-printing materials
@@ -370,6 +377,7 @@ export class Modeler {
           return null;
         }
         this.selectStep(f.id);
+        this.suggestSketch(f.id);
         return null;
       });
       row.addEventListener('dblclick', () => this.edit(f.id));
@@ -407,6 +415,7 @@ export class Modeler {
   whatText(f) {
     const n = (k) => (f[k] || []).length;
     if (f.type === 'sketch') return this.planeText(f);
+    if (f.type === 'extrude' && f.draft) return `${this.whatText({ ...f, draft: 0 })} · draft ${fmt(f.draft)}°`;
     if (f.type === 'extrude' && f.d2 && !f.symmetric) return `${this.whatText({ ...f, d2: 0 })} · other side ${fmt(f.d2)} mm`;
     if (f.type === 'extrude' && f.upto_next) return f.op === 'cut' ? 'cut up to next' : 'up to next';
     if (f.type === 'extrude' && f.upto) return `${f.op === 'cut' ? 'cut ' : ''}up to a face${f.offset ? ` ${f.offset > 0 ? '+' : ''}${fmt(f.offset)} mm` : ''}`;
@@ -420,7 +429,7 @@ export class Modeler {
     if (f.type === 'loft') return `${(f.sketches || []).length} sketches${f.op === 'cut' ? ' · cut' : ''}`;
     if (f.type === 'sweep') return `along ${this.part.features.find((g) => g.id === f.path)?.name || '?'}${f.op === 'cut' ? ' · cut' : ''}`;
     if (f.type === 'draft') return `${fmt(f.angle)}° · ${this.part.features.find((g) => g.id === f.of)?.name || '?'}`;
-    if (f.type === 'rib') return `${fmt(f.t)} mm · ${this.part.features.find((g) => g.id === f.sketch)?.name || '?'}`;
+    if (f.type === 'rib') return `${fmt(f.t)} mm · ${this.part.features.find((g) => g.id === f.sketch)?.name || '?'}${f.flip ? ' · ⇅' : ''}`;
     if (f.type === 'point') {
       const p = this.result?.points?.[f.id], at = f.at || {};
       const on = at.vertex ? 'a corner' : at.centre ? 'a centre' : at.mid ? 'an edge middle' : 'a fixed place';
@@ -565,6 +574,8 @@ export class Modeler {
    *  in sections: on this face, its edges, the part, the step. */
   clickFace(e) {
     this.closeCtx();
+    const line = !(e.ctrlKey || e.metaKey) && this.view.pickOutline(e.clientX, e.clientY);
+    if (line && isOpenLine(this.part.features.find((f) => f.id === line))) { this.picks = []; this.selectStep(line); this.suggestSketch(line); return; } // (an open line: ⊿ Rib)
     const sp = this.view.measurePoint(e.clientX, e.clientY), more = e.ctrlKey || e.metaKey;
     const h = sp?.snap ? null : this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
     const pick = sp?.snap ? { kind: 'point', point: sp.point.clone(), snap: sp.snap } : fs ? { kind: 'face', step: fs.step, face: h.face, point: h.point.clone() } : null;
@@ -604,6 +615,21 @@ export class Modeler {
       ...items.map(([key, icon, label, run, cls]) => ({ icon, label, rank: RANK[key], danger: cls === 'danger', run: () => { this.dropSuggest(); run(); } }))]), '',
       `${t('in the 3D model')}: ${t('step')} ${fs.step.id} “${fs.step.name}”, ${t('face')} ${h.face.name}${h.face.type === 'plane' ? ` (${t('flat')})` : h.face.type === 'cylinder' ? ` (${t('round')}, Ø${fmt(2 * (h.face.radius || 0))})` : ''}`);
     if (sg) sg.dataset.from = 'face';
+  }
+
+  /** A sketch of one open line chosen: what it is for suggested — ⊿ Rib from it first. Others: nothing. */
+  suggestSketch(id) {
+    const f = this.part.features.find((g) => g.id === id);
+    if (this.mode !== 'part' || this.cmd || !isOpenLine(f)) return null;
+    const RANK = { rib: 0, edit: 1, del: 2 };
+    const items = [
+      this.result?.body && ['rib', '⊿', t('Rib from this line'), () => this.startRib(f.id)],
+      ['edit', '✎', t('Edit the sketch'), () => this.edit(f.id)],
+      ['del', '✕', t('Delete the step'), () => this.remove(f.id), 'danger']].filter(Boolean);
+    const sg = showSuggest(this.els.viewport, `${f.name} · ${t('an open line')}`, items.map(([key, icon, label, run, cls]) => ({ icon, label, rank: RANK[key], danger: cls === 'danger', run: () => { this.dropSuggest(); run(); } })),
+      '', `${t('in the 3D model')}: ${t('step')} ${f.id} “${f.name}” (${t('an open line')})`);
+    if (sg) sg.dataset.from = 'face';
+    return sg;
   }
 
   closeCtx() { this.ctx?.remove(); this.ctx = null; }
@@ -1622,6 +1648,7 @@ export class Modeler {
       <div class="row-actions"><button class="btn small" data-k="flip" title="Extrude to the other side of the sketch">⇅ Flip direction</button></div>`}
       <label class="check" title="Also extrude a distance to the other side of the sketch"><input type="checkbox" data-k="other" ${f.d2 ? 'checked' : ''}> ＋ Other side</label>
       ${f.d2 ? `<div class="field"><label>Other side</label><input type="number" step="any" min="0" data-k="d2" value="${fmt(f.d2)}"><span class="unit">mm</span></div>` : ''}
+      ${f.upto_next || f.through ? '' : `<div class="field" title="Taper the side walls: they lean in going away from the sketch (negative: out) — so a moulded or cast part comes out"><label>Draft</label><input type="number" step="0.5" min="-44" max="44" data-k="draft" data-slider="1" value="${fmt(f.draft || 0)}"><span class="unit">°</span></div>`}
       ${sks.length > 1 ? `<div class="field"><label>Sketch</label><select data-k="sketch">${sks.map((s) => `<option value="${s.id}" ${s.id === f.sketch ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></div>` : ''}
       <p class="mp-bad" ${st && !st.ok ? '' : 'hidden'}>${st && !st.ok ? `⚠ ${esc(st.issues.join(' '))}` : ''}</p>
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>
@@ -1638,7 +1665,7 @@ export class Modeler {
     for (const b of box.querySelectorAll('[data-upto]')) {
       b.addEventListener('click', () => {
         if (b.dataset.upto === '1') { f.upto = f.upto || { name: null }; f.through = false; this.hint('Up to a face — click a flat face of the part. Enter = OK, Esc = Cancel.'); } else delete f.upto;
-        if (b.dataset.upto === 'next') { f.upto_next = true; f.through = false; f.symmetric = false; } else delete f.upto_next;
+        if (b.dataset.upto === 'next') { f.upto_next = true; f.through = false; f.symmetric = false; delete f.draft; } else delete f.upto_next;
         changed();
       });
     }
@@ -1649,7 +1676,10 @@ export class Modeler {
       });
       d.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okExtrude(); if (e.key === 'Escape') this.cancelExtrude(); });
     }
-    box.querySelector('[data-k=through]')?.addEventListener('change', (e) => { f.through = e.target.checked; changed(); });
+    const dr = box.querySelector('[data-k=draft]'); // (0: straight walls — the field off the step)
+    dr?.addEventListener('input', () => { const v = parseFloat(String(dr.value).replace(',', '.')); if (Number.isFinite(v) && Math.abs(v) < 45) { if (v) f.draft = v; else delete f.draft; rebuild(); } });
+    dr?.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okExtrude(); if (e.key === 'Escape') this.cancelExtrude(); });
+    box.querySelector('[data-k=through]')?.addEventListener('change', (e) => { f.through = e.target.checked; if (f.through) delete f.draft; changed(); });
     // ＋ Other side and Both sides (symmetric) are two ways of the same thing: one unticks the other
     box.querySelector('[data-k=symmetric]')?.addEventListener('change', (e) => { f.symmetric = e.target.checked; if (f.symmetric) delete f.d2; changed(); });
     box.querySelector('[data-k=other]')?.addEventListener('change', (e) => {
@@ -2767,10 +2797,10 @@ export class Modeler {
   }
 
   // ------------------------------------------------------------------ Rib
-  startRib() {
+  startRib(id = null) {
     if (this.mode !== 'part' || this.cmd || !this.result?.body) return;
     const used = new Set(this.part.features.flatMap(sketchesOf)), sks = this.sketches();
-    const sk = [...sks].reverse().find((s) => !used.has(s.id) && (s.entities || []).some((e) => e.t === 'line' && !e.construction));
+    const sk = sks.find((s) => s.id === id) || [...sks].reverse().find((s) => !used.has(s.id) && (s.entities || []).some((e) => e.t === 'line' && !e.construction));
     if (!sk) { this.hooks.toast('Draw the rib\'s line first: a sketch on a plane across the corner, one line from the wall to the plate.', 'warning', 6000); return; }
     this.openCommand({ id: this.newId(), type: 'rib', name: this.nextName('rib', sk.id), sketch: sk.id, t: 3 }, true);
   }
@@ -2780,6 +2810,7 @@ export class Modeler {
     box.innerHTML = `<h2>${esc(f.name)}</h2>
       <div class="field"><label>Sketch</label><select data-k="sketch">${sks.map((g) => `<option value="${g.id}" ${g.id === f.sketch ? 'selected' : ''} data-no-i18n>${esc(g.name)}</option>`).join('')}</select></div>
       <div class="field"><label>Thickness</label><input type="number" step="any" min="0" data-k="t" value="${fmt(f.t)}"><span class="unit">mm</span></div>
+      <div class="row-actions"><button class="btn small ${f.flip ? 'on' : ''}" data-k="flip" title="Fill the other side of the line (when both sides close against the part, e.g. across a bore)">⇅ Flip direction</button></div>
       <p class="hint">${esc(t('Its line is filled up to the part, on the side where it closes, half the thickness each side of the sketch plane.'))}</p>
       ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
@@ -2788,6 +2819,7 @@ export class Modeler {
     const th = box.querySelector('[data-k=t]');
     th.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') th.blur(); });
     th.addEventListener('change', () => { const v = parseFloat(String(th.value).replace(',', '.')); if (v > 0) { f.t = v; changed(); } });
+    box.querySelector('[data-k=flip]').addEventListener('click', () => { if (f.flip) delete f.flip; else f.flip = true; this.renderProps(); changed(); });
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
   }
