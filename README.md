@@ -80,8 +80,13 @@ right edge sets its width. The project tree starts docked on top (☰ folds it; 
 A floating widget moves and resizes like the other boxes and has two opacities: its **panel** (background, border,
 header — at 0 % only its content floats over the view; **Ctrl+wheel** on its header) and its **content** (rows,
 buttons, text — 30 % at least, whole while the mouse is over it; **Ctrl+Shift+wheel**), also as two sliders in its
-**⋯** menu. The layout is remembered per workspace; **⋯ › ↺ Default
-layout** puts everything back. A double-click on a row of the project tree renames the part.
+**⋯** menu. **The right panel works the same way**: a workspace's properties (**Properties** — the part, the step
+being edited, the selected part of an assembly, the sheet…) and the parts of it that stand on their own — a 3D
+model's **Export / 3D print**, an assembly's **Parts list and export**, a sheet's **Title block** — are widgets too:
+drag any header into the left or the right panel or onto the view, so everything can go anywhere (⋯ › 📌 Dock in the
+left / right panel does it too). A panel with nothing left in it shrinks to a thin strip (drop a widget there to
+fill it again) and the view takes the room; the right panel's left edge sets its width. The layout is remembered per
+workspace; **⋯ › ↺ Default layout** puts everything back. A double-click on a row of the project tree renames the part.
 
 **Snap and Select filters** (the row at the bottom of a sketch, remembered): **Snap:** *Points, Midpoints, Centres,
 Origin, On shapes, Guides, Grid* — where a point you draw (or drag) lands; *Grid* off puts it exactly

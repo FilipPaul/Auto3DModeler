@@ -663,6 +663,22 @@ Date: 2026-10-25. Written by the architect agent.
   the rest per workspace; ⋯ › ↺ Default layout clears it, the lw-* / suggest box places and the column width
   (splitters.resetWidth). tools/e2e_left_pins.py (55 checks). Left out: floating a widget outside the browser window;
   dragging the right panel (it stays as it is).
+- **Right column a dock too done** (the owner, 2026-10-29: "like the left panel, the right one customizable — drag and
+  drop widgets anywhere"): leftdock.js now runs two columns, `#leftCol` and `#rightCol` (`.lw-col`, grid columns
+  `--lcol` / `--rcol` on body), the same mechanics in both (header drag with a drop line in either column or onto the
+  view, splitters, ▾, ⋯, two opacities). Modes: 'dock' (left, as before), 'right', 'float', 'popup'. Each workspace's
+  right panel (#modelRight, #asmRight, #dwgRight, #shRight, the quick part's) is the body of a widget `props`
+  ("Properties"), so every `#modelRight …` lookup still works wherever it is. Sections that stand on their own are
+  widgets of their own (SECTIONS): the workspace marks them `data-dock="<name>"` in its render and a MutationObserver
+  moves them into the widget's box (`#modelExport` — Export / 3D print, `#asmBom` — the assembly's parts list and
+  export, `#shTitle` — the sheet's title block); the widget shows while the panel has it, sized to its content; the
+  panel element's querySelector also searches those boxes (the workspaces' `$()` find them). Kept out of the split
+  (live updates, many selectors): an assembly part's joints / moves, the sketch and step panels. Persistence: the same
+  key a3d.leftDock, now `v: 2` — a v1 state reads as it was (its order kept, 'props' added; ws[<ws>].props: its mode);
+  ↺ Default layout resets both columns and both widths. An empty column is a 6 px strip (`lw-empty` / `rw-empty`,
+  `.col-empty`; dropping a widget there docks it). gui_state's area() calls any widget control 'panel' wherever it is
+  (unchanged). tools/e2e_dock_both.py (35 checks; real drags; the tests looking up moved controls now use #modelExport
+  / #asmBom / #shTitle).
 
 - **Nested step tree done** (SolidWorks / Solid Edge style; owner's request 2026-10-29): steptree.js — treeShape (a
   sketch under the first step made from it, a later one made from it too / a pattern's / a mirror's steps as links, the

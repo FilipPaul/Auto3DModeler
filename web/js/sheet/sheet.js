@@ -1494,7 +1494,7 @@ export class SheetEditor {
       <div class="mp-facts"><span>Rev</span><b data-no-i18n>${this.d.rev}</b><span>${esc(t('Changed'))}</span><b data-no-i18n>${esc(when(this.d.changed))}</b><span>${esc(t('Created'))}</span><b data-no-i18n>${esc(when(this.d.created))}</b></div>
       <div class="field"><label>Paper</label><select data-k="paper">${[['', 'Auto'], ['A4', 'A4'], ['A3', 'A3']].map(([v, l]) => `<option value="${v}" ${(this.d.paper || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="field"><label>${esc(t('Scale'))}</label>${this.scaleSelect('data-k="scale"', this.d.scale, this.d.scale ? t('Auto') : `${t('Auto')} (${scaleText(this.lay?.scale || [1, 1])})`, t('The sheet\'s scale: Auto fits the views on the paper; or a standard one, or your own (Custom…, e.g. 1:2522). Dimensions always show the real sizes.'))}</div>
-      ${d ? '' : this.titlePanel()}
+      ${d ? '' : `<div data-dock="stitle">${this.titlePanel()}</div>`}
       ${this.d.asm ? `<label class="check"><input type="checkbox" data-k="exploded" ${this.d.exploded ? 'checked' : ''}> ${esc(t('Iso view exploded'))}</label>` : ''}
       ${this.d.asm ? this.bomPanel() : ''}
       ${d ? '' : this.framePanel()}
@@ -2017,7 +2017,7 @@ export class SheetEditor {
     this.clearSel();
     this.tbOpen = true;
     this.render();
-    this.$('.sh-props .sh-tbmore')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    setTimeout(() => this.$('.sh-tbmore')?.scrollIntoView({ block: 'start', behavior: 'smooth' })); // (in the 📄 Title block widget by then — leftdock.js)
   }
 
   /** 🖨 Print: the sheet's PDF (the paper size it is drawn for) printed from a hidden frame. */

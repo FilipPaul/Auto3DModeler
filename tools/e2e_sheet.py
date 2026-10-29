@@ -71,7 +71,7 @@ try:
     call("set_material", material="aluminium", tolerance="m")
     wait(f"return !!{M}.result?.body && !{M}.inflight")
     js(f"{M}.renderProps()")
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=newSheet]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelExport [data-a=newSheet]").click()
     wait(f"return !!{S}.svgEl", 60)
     call("sheet_edit", template="Modern")  # (this test checks the Modern title block; the default is B — ISO 7200)
     wait(f"return !{S}.busy", 60)
@@ -160,7 +160,7 @@ try:
     # own texts in the title block: typed in the panel; a double-click on a cell goes to its field
     js(f"{S}.sel = null; {S}.render()")
     for k, v in (("number", "D-0042"), ("drawn", "F. Paul"), ("note", "Break edges 0.5")):
-        el = d.find_element(By.CSS_SELECTOR, f"#shRight [data-text={k}]")
+        el = d.find_element(By.CSS_SELECTOR, f"#shTitle [data-text={k}]")
         el.clear()
         el.send_keys(v)
         el.send_keys(Keys.ENTER)

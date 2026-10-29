@@ -1174,7 +1174,7 @@ export class Assembly {
     }
     const rows = this.bom(), total = rows.reduce((s, r) => s + (r.mass || 0) * r.qty, 0), mp = this.massProps();
     box.innerHTML = `<h2>Assembly</h2>
-      ${rows.length ? `${this.jointsFold()}<h3>Parts list</h3><table class="as-bom"><tr><th>Part</th><th>Qty</th><th>Material</th><th>Mass</th></tr>
+      ${rows.length ? `${this.jointsFold()}<div data-dock="abom"><h3>Parts list</h3><table class="as-bom"><tr><th>Part</th><th>Qty</th><th>Material</th><th>Mass</th></tr>
         ${rows.map((r) => `<tr><td data-no-i18n>${esc(r.name)}</td><td>${r.qty}</td><td>${esc(t(r.material))}</td><td>${r.mass === null ? '—' : `${fmt(+(r.mass * r.qty).toFixed(1))} g`}</td></tr>`).join('')}
         <tr class="as-total"><td>Total</td><td>${rows.reduce((s, r) => s + r.qty, 0)}</td><td></td><td>${fmt(+total.toFixed(1))} g</td></tr></table>
         ${mp.cog ? `<div class="mp-facts as-mass"><span title="${esc(t('Centre of mass (centre of gravity) of the placed parts, in the assembly\'s coordinates — it follows them as they move'))}">CoG</span><b class="mp-cog"><span class="as-cogv" data-no-i18n>${cogText(mp.cog)} mm</span>
@@ -1187,7 +1187,7 @@ export class Assembly {
         <button class="btn small" data-x="iges" title="Every part placed in one IGES file (names, colours) — for CAD programs that ask for IGES; it has no assembly tree">IGES</button>
         <button class="btn small" data-x="glb" title="glTF for viewers and rendering: a node per placed part with its name, the colours and materials">GLB</button>
         ${this.hooks.drawingSet ? '<button class="btn small primary" data-a="drawingSet" title="One PDF: this assembly (its views, parts list and balloons), then each sub-assembly with its parts, then its own made parts — their drawing sheets when they have one">📄 Drawings (PDF)</button>' : ''}</div>
-        <p class="hint">To print, open each part's tab and use 🖨 Prepare for 3D print there.</p>`
+        <p class="hint">To print, open each part's tab and use 🖨 Prepare for 3D print there.</p></div>`
         : `<p class="hint">Insert parts of this project (3D models and quick parts) with ＋ Insert part, then join them with 🔗 Joint.</p>`}`;
     this.bindJointRows(box);
     bindCouplingRows(this, box, renameInPlace);

@@ -1260,6 +1260,13 @@ const CS = {
   Opacity: 'Krytí', 'How much of the view shows through it — also Ctrl+wheel on its header': 'Kolik pohledu jím prosvítá — také Ctrl+kolečko na jeho záhlaví',
   'Default layout': 'Výchozí rozložení',
   "Every widget back to its usual place and size: the project tree behind ☰, the panels in the left panel, the suggestions in the view's corner": 'Všechny panely zpět na obvyklé místo a velikost: strom projektu pod ☰, panely v levém sloupci, návrhy v rohu pohledu',
+  // the right column a dock too (leftdock.js)
+  "Every widget back to its usual place and size: the project tree and the workspace's panel on the left, its properties on the right, the suggestions in the view's corner": 'Všechny panely zpět na obvyklé místo a velikost: strom projektu a panel prostředí vlevo, jeho vlastnosti vpravo, návrhy v rohu pohledu',
+  "Drag: move it — into the left or right panel to dock it · Ctrl+wheel: the panel's opacity, Ctrl+Shift+wheel: its content's · double-click: back to its place": 'Tažením přesunout — do levého či pravého panelu ho ukotvíte · Ctrl+kolečko: krytí panelu, Ctrl+Shift+kolečko: krytí obsahu · dvojklik: zpět na jeho místo',
+  'Drag the header: up or down, into the other side panel, or onto the view to float it there': 'Táhněte za záhlaví: nahoru či dolů, do druhého bočního panelu, nebo do pohledu, kde bude plavat',
+  'Dock in the right panel': 'Ukotvit v pravém panelu', 'Into the right panel, always in sight (or drag its header there)': 'Do pravého panelu, stále na očích (nebo tam přetáhněte jeho záhlaví)',
+  "Empty — drag a widget's header here to dock it": 'Prázdné — přetáhněte sem záhlaví panelu a ukotvíte ho tu',
+  Properties: 'Vlastnosti', 'Export / 3D print': 'Export / 3D tisk', 'Parts list and export': 'Kusovník a export',
   'Dock it in the left panel — always in sight (or drag its header there)': 'Ukotvit v levém panelu — stále na očích (nebo tam přetáhněte jeho záhlaví)',
   'Drag the header into the left panel to dock it there, or onto the view to float it': 'Přetáhněte záhlaví do levého panelu a ukotvíte ho tam, nebo do pohledu, kde bude plavat',
   'Dock it in the left panel — always in sight, in every workspace (or drag its header there)': 'Ukotvit v levém panelu — stále na očích, ve všech prostředích (nebo tam přetáhněte jeho záhlaví)',

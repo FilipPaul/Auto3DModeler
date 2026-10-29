@@ -1950,7 +1950,7 @@ export class Modeler {
           <div class="row-actions"><button class="btn small primary" data-a="saveBack">📚 ${esc(t('Save back to the library'))}</button></div></div>` : ''}
         <div class="row-actions wrap">${this.hooks.saveToLibrary && this.part.features.length ? '<button class="btn small" data-a="saveToLibrary" title="Keep this 3D model in your parts library (on the server) — to use it again in any project">📚 Save to the library</button>' : ''}
         ${this.hooks.duplicatePart ? '<button class="btn small" data-a="duplicatePart" title="A copy of this 3D model as a new part of its own (its own tab) — change it without changing this one">⧉ Duplicate as a new part</button>' : ''}</div>
-        ${b && this.hooks.toPrint ? `<h3>3D print</h3>
+        ${b ? '<div data-dock="mexport">' : ''}${b && this.hooks.toPrint ? `<h3>3D print</h3>
           <div class="row-actions"><button class="btn small primary" data-a="toPrint" title="Check it fits your printer, split it into exact pieces with joints — in a printing copy of this part">🖨 Prepare for 3D print</button></div>${rbNote}` : ''}
         ${b ? `<h3>Export</h3>${rbNote}<div class="row-actions wrap"><button class="btn small" data-x="stl" title="For 3D printing">STL</button>
           <button class="btn small" data-x="step" title="For other CAD programs (exact circles and faces)">STEP</button>
@@ -1958,7 +1958,7 @@ export class Modeler {
           <button class="btn small" data-x="glb" title="glTF for viewers and rendering: its colour and material (metal / plastic)">GLB</button>
           <button class="btn small" data-x="obj" title="A mesh for 3D programs and renderers that take OBJ (mm)">OBJ</button>
           <button class="btn small" data-x="pdf" title="A 2D drawing: front, top and right views, sizes, holes, title block">📐 Drawing (PDF)</button></div>
-          ${this.hooks.newSheet ? '<div class="row-actions"><button class="btn small primary" data-a="newSheet" title="A drawing sheet of this part to edit: its views and dimensions (light / medium / full), moved, deleted, added — it follows the part when it changes">📄 Drawing sheet</button></div>' : ''}` : ''}`;
+          ${this.hooks.newSheet ? '<div class="row-actions"><button class="btn small primary" data-a="newSheet" title="A drawing sheet of this part to edit: its views and dimensions (light / medium / full), moved, deleted, added — it follows the part when it changes">📄 Drawing sheet</button></div>' : ''}</div>` : ''}`; // (data-dock: its own widget — leftdock.js)
     }
     for (const el of box.querySelectorAll('[data-a]')) el.addEventListener('click', () => (el.dataset.a === 'newSheet' ? this.hooks.newSheet() : this.action(el.dataset.a)));
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));

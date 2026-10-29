@@ -133,7 +133,7 @@ try:
     wait(f"return !!{S}.svgEl && !{S}.busy && !!{S}.d.asm", 60)
     js(f"{S}.addFor({{view: 'Front', a: 'box#y0', b: 'box#y1', dir: 'v'}})")
     js(f"{S}.sel = null; {S}.render()")
-    el = d.find_element(By.CSS_SELECTOR, "#shRight [data-text=note]")
+    el = d.find_element(By.CSS_SELECTOR, "#shTitle [data-text=note]")
     el.send_keys("Assemble dry")
     el.send_keys(Keys.ENTER)
     time.sleep(0.4)

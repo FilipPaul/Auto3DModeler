@@ -370,14 +370,14 @@ try:
     print("the 3D model's panel floats too")
     d.find_element(By.CSS_SELECTOR, "#leftCol .lw-widget[data-w=project] .lw-menu").click()  # (the tree floats first: nothing left docked then)
     time.sleep(0.3)
-    next(b for b in d.find_elements(By.CSS_SELECTOR, ".lw-pop button") if "⧉" in b.text).click()
+    d.find_element(By.CSS_SELECTOR, ".lw-pop button[data-a=float]").click()
     time.sleep(0.4)
     vp = rect("#modelViewport")
     c0 = rect("#modelViewport canvas")["w"]
     drag_to(d.find_element(By.CSS_SELECTOR, "#leftCol .lw-widget[data-w=panel].model-only .lw-head"), vp["x"] + 200, vp["y"] + 150)
     time.sleep(0.4)
     check(js("return !!document.querySelector('#modelViewport > .lw-widget.floating #modelLeft')"), "the step tree floats over the view")
-    check(js("return document.body.classList.contains('lw-empty')") and rect("#leftCol")["w"] < 2, "nothing docked: no left column")
+    check(js("return document.body.classList.contains('lw-empty')") and rect("#leftCol")["w"] < 8, "nothing docked: only a thin strip to drop on")
     c1 = rect("#modelViewport canvas")["w"]
     check(c1 > c0 + 300, f"the 3D view takes its room: {c0:.0f} -> {c1:.0f}")
     js(f"{P}.switchTo({P}.parts.find(p => p.name === 'Pair').id)")
@@ -406,7 +406,7 @@ try:
     d.find_element(By.CSS_SELECTOR, "#leftCol .lw-widget[data-w=project] .lw-menu").click()
     time.sleep(0.3)
     items = [b.text for b in d.find_elements(By.CSS_SELECTOR, ".lw-pop button")]
-    check(items == ["⧉ Plovoucí nad pohledem", "☰ Zpět pod tlačítko ☰", "↺ Výchozí rozložení"], f"the menu: {items}")
+    check(items[-4:] == ["📌 Ukotvit v pravém panelu", "⧉ Plovoucí nad pohledem", "☰ Zpět pod tlačítko ☰", "↺ Výchozí rozložení"], f"the menu: {items}")
     tips = js("return [document.querySelector('#leftCol .lw-split')?.title, document.querySelector('#leftCol .lw-head').title, document.querySelector('.lw-fold').title]")
     check(all(t and "the" not in t for t in tips), f"the tooltips: {tips}")
     shot("lp11_cs")

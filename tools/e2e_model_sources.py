@@ -127,7 +127,7 @@ try:
     d.save_screenshot(f"{OUT}/b3_boss.png")
 
     # 🖨 Prepare for 3D print -> a printing copy (a Quick part from the STL), on the 3D print tab
-    btn("#modelRight [data-a=toPrint]")
+    btn("#modelExport [data-a=toPrint]")
     wait("return !document.body.classList.contains('ws-model') && window.__app.state.model?.kind === 'mesh' && window.__app.state.solution", 90)
     time.sleep(1)
     print("print copy:", tabs(), "| 3D print tab active:", js("return document.querySelector('.rtab.active')?.dataset.rtab"),

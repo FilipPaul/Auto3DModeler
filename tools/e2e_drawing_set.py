@@ -101,7 +101,7 @@ try:
     time.sleep(1)
     js(f"{A}.sel = null; {A}.render()")
     time.sleep(0.4)
-    btn = d.find_element(By.CSS_SELECTOR, "#asmRight [data-a=drawingSet]")
+    btn = d.find_element(By.CSS_SELECTOR, "#asmBom [data-a=drawingSet]")
     print("the button:", btn.text)
     # the PDF as the button makes it (the download is caught in the page)
     res = js("""return window.__app.sheet.drawingSet(window.__app.project.active, {
