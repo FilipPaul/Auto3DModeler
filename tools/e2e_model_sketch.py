@@ -23,6 +23,9 @@ opts.set_capability("ms:loggingPrefs", {"browser": "ALL"})
 d = webdriver.Edge(options=opts)
 js = d.execute_script
 M = "window.__app.modeler"
+# the step tree shows a sketch under the step made from it (folded): every row opened, the row of part.features[i]
+STEP_ROW = ("const m = window.__app.modeler; m.part.features.forEach(f => m.openTo(f.id)); m.renderTree(); "
+            "return document.querySelector(`#modelLeft .mt-item[data-id=\"${m.part.features[arguments[0]].id}\"]`)")
 SK = f"{M}.sk"
 
 
@@ -197,8 +200,8 @@ try:
     d.save_screenshot(f"{OUT}/s3_extruded.png")
 
     # reopen the sketch: locks are still there
-    d.find_elements(By.CSS_SELECTOR, ".mt-item")[0].click()
-    ActionChains(d).double_click(d.find_elements(By.CSS_SELECTOR, ".mt-item")[0]).perform()
+    js(STEP_ROW, 0).click()
+    ActionChains(d).double_click(js(STEP_ROW, 0)).perform()
     wait(f"return {M}.mode === 'sketch'")
     time.sleep(0.8)
     print("reopened sketch: locks", js(f"return {SK}.f.dims.length"), "| dof", js(f"return {SK}.dof"))

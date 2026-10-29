@@ -120,7 +120,7 @@ try:
     check(abs(volume() - cbore(5.5, 10, 5.4)) < 0.05, "⌴ again: M5 counterbore")
     d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=ok]").click()
     time.sleep(1)
-    step = js(r"return [...document.querySelectorAll('#modelLeft .mt-item')].map(r => r.textContent.replace(/\s+/g, ' ').trim()).slice(-1)[0]")
+    step = js(r"return [...document.querySelectorAll('#modelLeft .mt-item:not([data-parent])')].map(r => r.textContent.replace(/\s+/g, ' ').trim()).slice(-1)[0]")
     check("M5 Ø5.5 ⌴Ø10×5.4" in step, f"the step: {step}")
     # a tapped hole, 10 deep
     js(f"{M}.action('hole')")

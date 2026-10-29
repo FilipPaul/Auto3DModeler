@@ -26,6 +26,9 @@ d = webdriver.Edge(options=opts)
 js = d.execute_script
 H = "window.__app.agentHandlers"
 M = "window.__app.modeler"
+# the step tree shows a sketch under the step made from it (folded): every row opened, the row of part.features[i]
+STEP_ROW = ("const m = window.__app.modeler; m.part.features.forEach(f => m.openTo(f.id)); m.renderTree(); "
+            "return document.querySelector(`#modelLeft .mt-item[data-id=\"${m.part.features[arguments[0]].id}\"]`)")
 fails = []
 
 
@@ -68,7 +71,7 @@ def lang(cs):  # (the 🌐 button: switched live)
 
 
 def last_step():
-    return js(r"return [...document.querySelectorAll('#modelLeft .mt-item')].map(r => r.textContent.replace(/\s+/g, ' ').trim()).slice(-1)[0]")
+    return js(r"return [...document.querySelectorAll('#modelLeft .mt-item:not([data-parent])')].map(r => r.textContent.replace(/\s+/g, ' ').trim()).slice(-1)[0]")
 
 
 try:
@@ -143,7 +146,7 @@ try:
     check(bool(rows) and "Rib from this line" in rows[0], f"a click on the line: “{head}” suggests {rows}")
     check(js(f"return {M}.selected") == "F5", "its sketch is the chosen step")
     # the same from the list (the sketch's row), then ⊿ Rib from this line
-    js(r"document.querySelectorAll('#modelLeft .mt-item')[4].click()")
+    js(STEP_ROW, 4).click()
     time.sleep(0.4)
     d.find_element(By.XPATH, "//*[@id='modelViewport']//div[contains(@class,'view-suggest')]//button[contains(., 'Rib from this line')]").click()
     wait(f"return {M}.cmd?.feature?.type === 'rib'")
@@ -181,7 +184,7 @@ try:
     check(js(f"return {M}.part.features.find(f => f.id === 'F6').flip") is None and abs(r["volume_change_mm3"] + 4 * (math.pi * 100 - 2 * seg)) < 0.01, "flip: false — its own side again")
     # in Czech: the suggestion
     lang(True)
-    js(r"document.querySelectorAll('#modelLeft .mt-item')[4].click()")
+    js(STEP_ROW, 4).click()
     time.sleep(0.4)
     rows = js("return [...document.querySelectorAll('#modelViewport .view-suggest .vs-list [data-sg]')].map(b => b.textContent.trim())")
     check(bool(rows) and "Žebro z této čáry" in rows[0], f"in Czech: {rows}")

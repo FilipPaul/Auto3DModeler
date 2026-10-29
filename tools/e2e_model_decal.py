@@ -126,7 +126,7 @@ try:
     slide("[data-at='0']", 0)
     btn("#modelViewport .view-actions [data-a=ok]")
     settled()
-    print("tree:", js("return [...document.querySelectorAll('#modelLeft .mt-item')].map(e => e.textContent.trim().split(/\\s{2,}/)[0])")[-1])
+    print("tree:", js("return [...document.querySelectorAll('#modelLeft .mt-item:not([data-parent])')].map(e => e.textContent.trim().split(/\\s{2,}/)[0])")[-1])
     call("edit_feature", id="F2", fields={"d": 8})
     settled()
     print("plate 8 thick -> still engraved on top:", body()["bbox"][5] == 8, "| ok", js(f"return {M}.result.ok"))

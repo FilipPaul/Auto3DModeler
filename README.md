@@ -156,8 +156,18 @@ mass and STEP see both), This side (where the arrow points) or Other side. On a 
 part's steps up to the split and one piece kept. The cut faces are named `<step>:cut:0` / `:1`, so later steps
 (a sketch on the cut, a lid's lip) follow them.
 
-**Reorder steps**: drag a step up or down the step list. A move that would put a step before one it uses is refused
-(it says which), and one after which the model no longer builds is taken back; Ctrl+Z undoes a move.
+**The step tree** (left, like SolidWorks / Solid Edge): one line a step, a small icon coloured by what it does — green
+adds material (Extrude, Revolve, Loft, Rib…), red cuts (cut, Hole), blue rounds edges (Fillet, Chamfer), teal changes
+faces (Shell, Draft, Split), purple repeats (Pattern, Mirror), grey-blue a sketch, yellow a reference. A step shows the
+sketch it is made from under itself (**▸** opens it, **▾** folds it; remembered); a second step made from the same
+sketch, and what a Pattern / Mirror repeats, show as lighter **links** (🔗 — a click goes to the step). **Reference** at
+the top holds the Top / Front / Right planes (✏ or a double-click: a sketch on it) and the reference points. A click on
+the part (or on a sketch's lines) chooses its step in the tree — folded rows open, the row scrolls into sight; a click
+on a row tints its faces (a sketch: its outline lit), the mouse on a row lights them lightly.
+
+**Reorder steps**: drag a step up or down the step list (a step with its sketch: both move). A move that would put a
+step before one it uses is refused (it says which), and one after which the model no longer builds is taken back;
+Ctrl+Z undoes a move.
 
 **A click on a face of a 3D model** chooses its step and shows its tools in the Suggested table (bottom left) — the
 table can be **dragged by its header** anywhere in the view, and stays there (a double-click on the header: back).

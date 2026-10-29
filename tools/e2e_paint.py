@@ -22,6 +22,9 @@ opts.set_capability("ms:loggingPrefs", {"browser": "ALL"})
 d = webdriver.Edge(options=opts)
 js = d.execute_script
 M = "window.__app.modeler"
+# the step tree shows a sketch under the step made from it (folded): every row opened, the row of part.features[i]
+STEP_ROW = ("const m = window.__app.modeler; m.part.features.forEach(f => m.openTo(f.id)); m.renderTree(); "
+            "return document.querySelector(`#modelLeft .mt-item[data-id=\"${m.part.features[arguments[0]].id}\"]`)")
 A = "window.__app.assembly"
 H = "window.__app.agentHandlers"
 
@@ -102,7 +105,7 @@ try:
     print("Ctrl+Y: painted faces", len(js(f"return {M}.part.paint || []")))
 
     # 🏷 a step
-    row = d.find_elements(By.CSS_SELECTOR, "#modelLeft .mt-item")[1]
+    row = js(STEP_ROW, 1)
     js("arguments[0].querySelector('[data-a=rename]').click()", row)
     time.sleep(0.2)
     name = row.find_element(By.CSS_SELECTOR, ".mt-name")

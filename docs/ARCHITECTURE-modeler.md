@@ -7,6 +7,17 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Nested step tree done** (SolidWorks / Solid Edge style; owner's request 2026-10-29): steptree.js — treeShape (a
+  sketch under the first step made from it, a later one made from it too / a pattern's / a mirror's steps as links, the
+  point steps in a "Reference" group with the Top / Front / Right planes) and a 16×16 stroke icon per kind (like
+  parts.js kindIcon) coloured by group: add green, cut red, edge blue, face teal, pattern purple, sketch grey-blue,
+  ref yellow; failed red, off greyed. modeler.renderTree: one-line 22 px rows, 12 px a level, ▸ / ▾ per row
+  (localStorage a3d.treeOpen; folded at first), all rows stay in the DOM (folded: hidden). selectStep opens the rows
+  above (openTo) and scrolls the row into sight; a click on a sketch's lines in the view chooses the sketch (was: only
+  an open line); the mouse on a row lights its faces (view.setHover(-1, ids)); a link row goes to its step; a plane
+  row's ✏ / double-click sketches on it. moveStep takes a list (a step dragged with its sketch). gui_state's steps:
+  parent / depth / folded. tools/e2e_model_tree.py (30 checks). Left out: a rollback bar (none yet), dragging a point
+  inside Reference, datum planes / axes as their own steps (none exist yet).
 - **Hole positions drawn on the sheet done:** sheet.auto_dims places each hole step's holes of one size (a counterbore's
   circles left to its holes) in the view showing them round, from box#x0 / box#y0 (ISO 129): a row / grid its first
   one + its pitch (as before), a bolt circle (sheet._ring: least-squares circle through the centres, equal angles — all

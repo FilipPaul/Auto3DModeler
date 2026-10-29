@@ -46,6 +46,7 @@ def call(tool_name, **args):
 
 
 def row(name):
+    js(f"{M}.part.features.forEach(f => {M}.openTo(f.id)); {M}.renderTree()")  # (a sketch is shown under its step, folded)
     return next(r for r in d.find_elements(By.CSS_SELECTOR, "#modelLeft .mt-item") if r.find_element(By.CSS_SELECTOR, ".mt-name").text == name)
 
 

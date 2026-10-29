@@ -136,7 +136,7 @@ try:
     d.save_screenshot(f"{OUT}/custom2_upto.png")
     btn("#modelViewport .view-actions [data-a=ok]")
     settled()
-    print("tree:", js("return [...document.querySelectorAll('#modelLeft .mt-item')].map(e => e.innerText.replace(/\\n/g, ' '))")[-1])
+    print("tree:", js("return [...document.querySelectorAll('#modelLeft .mt-item:not([data-parent])')].map(e => e.innerText.replace(/\\n/g, ' '))")[-1])
     v0 = js(f"return {M}.result.body.volume")
     print("volume:", round(v0, 3))
     call("edit_feature", id="F2", fields={"d": 20})

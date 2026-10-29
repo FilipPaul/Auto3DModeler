@@ -23,6 +23,9 @@ opts.set_capability("ms:loggingPrefs", {"browser": "ALL"})
 d = webdriver.Edge(options=opts)
 js = d.execute_script
 M = "window.__app.modeler"
+# the step tree shows a sketch under the step made from it (folded): every row opened, the row of part.features[i]
+STEP_ROW = ("const m = window.__app.modeler; m.part.features.forEach(f => m.openTo(f.id)); m.renderTree(); "
+            "return document.querySelector(`#modelLeft .mt-item[data-id=\"${m.part.features[arguments[0]].id}\"]`)")
 
 
 def wait(script, t=30):
@@ -124,7 +127,7 @@ try:
     print("steps:", js(f"return {M}.part.features.map(f => f.name + ' ' + {M}.whatText(f))"))
 
     # the box taller: double-click Extrude 1, 15 mm -> the rounding follows
-    ActionChains(d).double_click(d.find_elements(By.CSS_SELECTOR, ".mt-item")[1]).perform()
+    ActionChains(d).double_click(js(STEP_ROW, 1)).perform()
     wait(f"return {M}.cmd")
     typed("#modelRight input[data-k=d]", 15)
     print(f"taller: {vol():.4f} expected {12000 - (4 - math.pi) * 15:.4f} | issues", js(f"return {M}.result.features.filter(s => !s.ok || s.warnings.length)"))

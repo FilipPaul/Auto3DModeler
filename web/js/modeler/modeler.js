@@ -21,8 +21,8 @@ import { fetchRebuild } from './packed.js';
 import { newRid, cancelRid, wasCancelled } from '../progressbox.js';
 import { snapOnFace, snapDrawing, toFace } from './facesnap.js';
 import { HOLE_SIZES, HOLE_TYPES, dFlat, holeType, setHoleStandard } from './holes.js';
+import { stepIcon, stepKind, stepGroup, treeIcon, treeShape } from './steptree.js';
 
-const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa', mirror: '⇋', draft: '⟋', rib: '⊿', point: '•', split: '✂' };
 const TYPE_NAME = { point: 'Point', rib: 'Rib', draft: 'Draft', sketch: 'Sketch', extrude: 'Extrude', revolve: 'Revolve', fillet: 'Fillet', chamfer: 'Chamfer', hole: 'Hole', shell: 'Shell', pattern: 'Pattern',
   loft: 'Loft', sweep: 'Sweep', solid: 'Solid', decal: 'Decoration', mirror: 'Mirror', split: 'Split' };
 const LIMIT_FIELDS = { extrude: ['d', 'offset'], revolve: ['angle'], fillet: ['r'], chamfer: ['d'], hole: ['d', 'depth'], shell: ['t'],
@@ -47,6 +47,7 @@ import { floatBox } from '../floatbox.js';
 export { MATERIALS }; // g/cm³ (materials.js: grouped, with their colours)
 const DATUM_NAME = { XY: 'Top', XZ: 'Front', YZ: 'Right' };
 const fmt = (v) => (+(+v).toFixed(3)).toString();
+const TREE_OPEN_KEY = 'a3d.treeOpen'; // the step tree's rows folded open
 const SIZES_KEY = 'a3d.sizes', SIZE_MODES = ['all', 'locked', 'none'];
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
@@ -349,60 +350,179 @@ export class Modeler {
 
   renderTree() {
     const tree = this.$('.mt-tree');
-    const fs = this.part.features;
+    const fs = this.part.features, byId = new Map(fs.map((f) => [f.id, f]));
     this.$('.mt-start').hidden = fs.length > 0;
     tree.innerHTML = '';
-    for (const f of fs) {
-      const st = this.status(f.id);
-      const row = document.createElement('div');
-      const editing = (this.sk && this.sk.f.id === f.id) || (this.cmd && this.cmd.feature.id === f.id);
-      const warn = st && st.ok && st.warnings?.length;
-      row.className = `mt-item${f.id === this.selected ? ' on' : ''}${st && !st.ok ? ' bad' : ''}${warn ? ' warned' : ''}${editing ? ' editing' : ''}${f.suppressed ? ' off' : ''}`;
-      row.dataset.id = f.id;
-      const icon = f.type === 'extrude' ? ICON[f.op === 'cut' ? 'cut' : 'extrude'] : ICON[f.type] || '•';
-      row.innerHTML = `<span class="mt-icon">${icon}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>
-        ${st && !st.ok ? '<span class="mt-warn">⚠</span>' : warn ? '<span class="mt-warn soft">⚠</span>' : ''}
-        <span class="mt-acts"><button class="mini" data-a="off" title="${f.suppressed ? 'Turn this step on again' : 'Turn this step off for now (it is kept)'}">${f.suppressed ? '◌' : '●'}</button><button class="mini" data-a="rename" title="Rename this step">🏷</button><button class="mini" data-a="edit" title="Change this step (or double-click it)">✎</button><button class="mini danger" data-a="del" title="Delete this step">✕</button></span>`;
-      row.querySelector('.mt-name').textContent = f.name;
-      row.querySelector('.mt-what').textContent = f.suppressed ? 'off' : this.whatText(f);
-      if (st && !st.ok) row.title = st.issues.join(' ');
-      else if (warn) row.title = st.warnings.join(' ');
-      row.addEventListener('click', (e) => {
-        const a = e.target.closest('[data-a]')?.dataset.a;
-        if (a === 'edit') return this.edit(f.id);
-        if (a === 'del') return this.remove(f.id);
-        if (a === 'off') return this.toggleOff(f.id);
-        if (a === 'rename') {
-          renameInPlace(row.querySelector('.mt-name'), (n) => { f.name = n; this.history.commit(); this.render(); this.hooks.onChange?.(); });
-          return null;
-        }
-        this.selectStep(f.id);
-        this.suggestSketch(f.id);
-        return null;
-      });
-      row.addEventListener('dblclick', () => this.edit(f.id));
-      if (!editing && this.mode === 'part' && !this.cmd) { // dragged up or down the list: the step moves (if what it uses stays before it)
-        row.draggable = true;
-        row.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/a3d-step', f.id); e.dataTransfer.effectAllowed = 'move'; row.classList.add('dragging'); });
-        row.addEventListener('dragend', () => row.classList.remove('dragging'));
-        row.addEventListener('dragover', (e) => {
-          if (!e.dataTransfer.types.includes('text/a3d-step')) return;
-          e.preventDefault();
-          const r = row.getBoundingClientRect(), after = e.clientY > r.top + r.height / 2;
-          row.classList.toggle('drop-before', !after);
-          row.classList.toggle('drop-after', after);
-        });
-        row.addEventListener('dragleave', () => row.classList.remove('drop-before', 'drop-after'));
-        row.addEventListener('drop', (e) => {
-          e.preventDefault();
-          row.classList.remove('drop-before', 'drop-after');
-          const r = row.getBoundingClientRect();
-          this.moveStep(e.dataTransfer.getData('text/a3d-step'), f.id, e.clientY > r.top + r.height / 2);
-        });
+    // the tree's shape: a step with the sketch it is made from under it, pattern / mirror with links to what they
+    // repeat, the reference points in "Reference" at the top (each row's fold remembered; folded at first)
+    const shape = this.treeShapeNow = treeShape(fs, sketchesOf);
+    for (const id of [this.selected, this.sk?.f.id, this.cmd?.feature.id]) this.openTo(id);
+    if (fs.length) this.refGroup(tree, shape, byId);
+    const addRow = (f, depth, hidden, parentId) => {
+      const kids = (shape.kids.get(f.id) || []).filter((k) => byId.has(k.id)), open = this.treeOpen.has(f.id);
+      const row = this.stepRow(f, depth, parentId, kids.length ? open : null, shape);
+      row.hidden = hidden;
+      tree.appendChild(row);
+      for (const k of kids) {
+        if (!k.link) { addRow(byId.get(k.id), depth + 1, hidden || !open, f.id); continue; }
+        const l = this.linkRow(byId.get(k.id), k.why, depth + 1, shape);
+        l.hidden = hidden || !open;
+        tree.appendChild(l);
       }
+    };
+    for (const id of shape.top) addRow(byId.get(id), 0, false, null);
+    if (this.selected && this.selected !== this.treeScrolled) { // chosen (also by a click on the part): its row in sight
+      const row = tree.querySelector(`.mt-item[data-id="${CSS.escape(this.selected)}"]`);
+      if (row && !row.hidden) row.scrollIntoView({ block: 'nearest' });
+    }
+    this.treeScrolled = this.selected;
+    this.showPoints();
+  }
+
+  /** The rows folded open (remembered): the Reference group 'ref' and the steps with something under them. */
+  get treeOpen() {
+    if (!this._treeOpen) { try { this._treeOpen = new Set(JSON.parse(localStorage.getItem(TREE_OPEN_KEY) || '[]')); } catch { this._treeOpen = new Set(); } }
+    return this._treeOpen;
+  }
+
+  saveTreeOpen() { try { localStorage.setItem(TREE_OPEN_KEY, JSON.stringify([...this.treeOpen].slice(-200))); } catch { /* private mode */ } }
+
+  /** The rows above a step folded open (it was chosen, or is being changed): its row can be seen. */
+  openTo(id) {
+    const par = this.treeShapeNow?.parent;
+    let p = id && par?.get(id), changed = false;
+    for (let n = 0; p && n < 20; n++, p = par.get(p)) if (!this.treeOpen.has(p)) { this.treeOpen.add(p); changed = true; }
+    if (changed) this.saveTreeOpen();
+  }
+
+  toggleFold(id) {
+    if (this.treeOpen.has(id)) this.treeOpen.delete(id); else this.treeOpen.add(id);
+    this.saveTreeOpen();
+    this.renderTree();
+  }
+
+  /** ▸ / ▾ in front of a row that has something under it (open: true / false), else an empty place of its width. */
+  twist(open, what) {
+    if (open === null || open === undefined) return '<span class="mt-tw"></span>';
+    return `<span class="mt-tw" data-a="twist" title="${open ? `Hide ${what}` : `Show ${what}`}">${open ? '▾' : '▸'}</span>`;
+  }
+
+  /** The faces of a step lit lightly while the mouse is on its row (a sketch: the faces made from it). */
+  hoverRow(row, id) {
+    row.addEventListener('mouseenter', () => { if (this.mode === 'part' && this.result?.body) this.view.setHover(-1, this.stepFaceIds(id)); });
+    row.addEventListener('mouseleave', () => { if (this.mode === 'part') this.view.setHover(-1, null); });
+  }
+
+  /** The Reference group at the top: the Top / Front / Right planes (✏ or a double-click: sketch on one) and the
+   *  reference points. */
+  refGroup(tree, shape, byId) {
+    const open = this.treeOpen.has('ref'), free = this.mode === 'part' && !this.cmd;
+    const head = document.createElement('div');
+    head.className = 'mt-row mt-group';
+    head.dataset.group = 'ref';
+    head.title = 'The base planes and the reference points the part is built on';
+    head.innerHTML = `${this.twist(open, 'the planes and points')}<span class="mt-icon">${treeIcon('plane', 'ref')}</span><span class="mt-name">Reference</span>`;
+    head.addEventListener('click', () => this.toggleFold('ref'));
+    tree.appendChild(head);
+    for (const k of ['XY', 'XZ', 'YZ']) {
+      const row = document.createElement('div');
+      row.className = 'mt-row mt-plane';
+      row.dataset.datum = k;
+      row.hidden = !open;
+      row.style.setProperty('--d', 1);
+      row.title = 'Double-click: sketch on this plane';
+      row.innerHTML = `${this.twist(null)}<span class="mt-icon">${treeIcon('plane', 'ref')}</span><span class="mt-name"></span><span class="mt-what">${k}</span>
+        <span class="mt-acts"><button class="mini" data-a="sketchOn" title="Sketch on the ${DATUM_NAME[k]} plane (${k})">✏</button></span>`;
+      row.querySelector('.mt-name').textContent = DATUM_NAME[k];
+      const go = () => { if (free) this.enterSketch({ datum: k }); };
+      row.addEventListener('click', (e) => { if (e.target.closest('[data-a=sketchOn]')) go(); });
+      row.addEventListener('dblclick', go);
       tree.appendChild(row);
     }
-    this.showPoints();
+    for (const id of shape.refs) {
+      const row = this.stepRow(byId.get(id), 1, 'ref', null, shape);
+      row.hidden = !open;
+      tree.appendChild(row);
+    }
+  }
+
+  /** A link to a step shown elsewhere in the tree (a sketch a second step is made from too, what a pattern / mirror
+   *  repeats): lighter; a click goes to it. */
+  linkRow(g, why, depth, shape) {
+    const row = document.createElement('div');
+    row.className = 'mt-row mt-link';
+    row.dataset.link = g.id;
+    row.dataset.why = why;
+    row.style.setProperty('--d', depth);
+    const at = this.part.features.find((x) => x.id === shape.parent.get(g.id));
+    row.title = why === 'repeats' ? `Repeats “${g.name}” — click to go to it` : why === 'mirrors' ? `Mirrors “${g.name}” — click to go to it`
+      : `Made from “${g.name}” too (it is under “${at?.name || '?'}”) — click to go to it`;
+    row.innerHTML = `${this.twist(null)}<span class="mt-icon">${stepIcon(g)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span><span class="mt-lnk">${treeIcon('link', 'link')}</span>`;
+    row.querySelector('.mt-name').textContent = g.name;
+    row.addEventListener('click', () => { this.treeScrolled = null; this.selectStep(g.id); });
+    this.hoverRow(row, g.id);
+    return row;
+  }
+
+  /** A step's row: ▸ (its sketch under it), icon, name, what it makes; ● 🏷 ✎ ✕ on hover; dragged up or down: it
+   *  moves with its sketch. */
+  stepRow(f, depth, parentId, open, shape) {
+    const st = this.status(f.id);
+    const row = document.createElement('div');
+    const editing = (this.sk && this.sk.f.id === f.id) || (this.cmd && this.cmd.feature.id === f.id);
+    const warn = st && st.ok && st.warnings?.length;
+    row.className = `mt-row mt-item${f.id === this.selected ? ' on' : ''}${st && !st.ok ? ' bad' : ''}${warn ? ' warned' : ''}${editing ? ' editing' : ''}${f.suppressed ? ' off' : ''}`;
+    row.dataset.id = f.id;
+    row.dataset.kind = stepKind(f);
+    row.dataset.group = stepGroup(f);
+    row.dataset.depth = depth;
+    if (parentId) row.dataset.parent = parentId;
+    row.style.setProperty('--d', depth);
+    row.innerHTML = `${this.twist(open, f.type === 'pattern' || f.type === 'mirror' ? 'what it repeats' : 'its sketch')}<span class="mt-icon">${stepIcon(f)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>
+      ${st && !st.ok ? '<span class="mt-warn">⚠</span>' : warn ? '<span class="mt-warn soft">⚠</span>' : ''}
+      <span class="mt-acts"><button class="mini" data-a="off" title="${f.suppressed ? 'Turn this step on again' : 'Turn this step off for now (it is kept)'}">${f.suppressed ? '◌' : '●'}</button><button class="mini" data-a="rename" title="Rename this step">🏷</button><button class="mini" data-a="edit" title="Change this step (or double-click it)">✎</button><button class="mini danger" data-a="del" title="Delete this step">✕</button></span>`;
+    row.querySelector('.mt-name').textContent = f.name;
+    row.querySelector('.mt-what').textContent = f.suppressed ? 'off' : this.whatText(f);
+    if (st && !st.ok) row.title = st.issues.join(' ');
+    else if (warn) row.title = st.warnings.join(' ');
+    row.addEventListener('click', (e) => {
+      const a = e.target.closest('[data-a]')?.dataset.a;
+      if (a === 'twist') return this.toggleFold(f.id);
+      if (a === 'edit') return this.edit(f.id);
+      if (a === 'del') return this.remove(f.id);
+      if (a === 'off') return this.toggleOff(f.id);
+      if (a === 'rename') {
+        renameInPlace(row.querySelector('.mt-name'), (n) => { f.name = n; this.history.commit(); this.render(); this.hooks.onChange?.(); });
+        return null;
+      }
+      this.selectStep(f.id);
+      this.suggestSketch(f.id);
+      return null;
+    });
+    row.addEventListener('dblclick', (e) => { if (!e.target.closest('[data-a=twist]')) this.edit(f.id); });
+    this.hoverRow(row, f.id);
+    if (!editing && this.mode === 'part' && !this.cmd && depth === 0) { // dragged up or down the list: the step moves with its sketch (if what it uses stays before it)
+      const block = (id) => [...(shape.kids.get(id) || []).filter((k) => !k.link).map((k) => k.id), id];
+      const first = (id) => { const ids = new Set(block(id)); return this.part.features.find((x) => ids.has(x.id))?.id || id; };
+      row.draggable = true;
+      row.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/a3d-step', f.id); e.dataTransfer.effectAllowed = 'move'; row.classList.add('dragging'); });
+      row.addEventListener('dragend', () => row.classList.remove('dragging'));
+      row.addEventListener('dragover', (e) => {
+        if (!e.dataTransfer.types.includes('text/a3d-step')) return;
+        e.preventDefault();
+        const r = row.getBoundingClientRect(), after = e.clientY > r.top + r.height / 2;
+        row.classList.toggle('drop-before', !after);
+        row.classList.toggle('drop-after', after);
+      });
+      row.addEventListener('dragleave', () => row.classList.remove('drop-before', 'drop-after'));
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        row.classList.remove('drop-before', 'drop-after');
+        const r = row.getBoundingClientRect(), after = e.clientY > r.top + r.height / 2, id = e.dataTransfer.getData('text/a3d-step');
+        if (id && id !== f.id) this.moveStep(block(id), after ? f.id : first(f.id), after);
+      });
+    }
+    return row;
   }
 
   /** The reference points (point steps) in the 3D view: a dot and its name each, the chosen one lit. */
@@ -490,6 +610,7 @@ export class Modeler {
   /** A step chosen (in the list, or by a click on the part): it is marked in the 3D view and its sizes show on the
    *  finished part, to change them there (a sketch's sizes on its plane). */
   selectStep(id) {
+    this.openTo(id); // (its row in the tree in sight: what it is under folded open)
     if (this.mode !== 'part' || this.cmd) { this.selected = id; this.renderTree(); return; }
     this.closeCtx();
     this.selected = id;
@@ -575,7 +696,7 @@ export class Modeler {
   clickFace(e) {
     this.closeCtx();
     const line = !(e.ctrlKey || e.metaKey) && this.view.pickOutline(e.clientX, e.clientY);
-    if (line && isOpenLine(this.part.features.find((f) => f.id === line))) { this.picks = []; this.selectStep(line); this.suggestSketch(line); return; } // (an open line: ⊿ Rib)
+    if (line) { this.picks = []; this.selectStep(line); if (!this.suggestSketch(line)) this.dropSuggest(); return; } // a sketch's lines: the sketch chosen (in the tree too; an open line: ⊿ Rib)
     const sp = this.view.measurePoint(e.clientX, e.clientY), more = e.ctrlKey || e.metaKey;
     const h = sp?.snap ? null : this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
     const pick = sp?.snap ? { kind: 'point', point: sp.point.clone(), snap: sp.snap } : fs ? { kind: 'face', step: fs.step, face: h.face, point: h.point.clone() } : null;
@@ -1035,13 +1156,13 @@ export class Modeler {
   /** A step dragged to another place in the list (before / after `toId`): refused when it would come before a step it
    *  uses (or after one that uses it); taken back when the model no longer builds there. -> moved */
   async moveStep(id, toId, after = false) {
-    const fs = this.part.features, f = fs.find((x) => x.id === id), to = fs.find((x) => x.id === toId);
-    if (!f || !to || f === to || this.mode !== 'part' || this.cmd) return false;
-    const order = fs.filter((x) => x !== f);
-    order.splice(order.indexOf(to) + (after ? 1 : 0), 0, f);
+    const fs = this.part.features, ids = new Set([].concat(id)), moving = fs.filter((x) => ids.has(x.id)), to = fs.find((x) => x.id === toId);
+    if (!moving.length || !to || ids.has(toId) || this.mode !== 'part' || this.cmd) return false;
+    const order = fs.filter((x) => !ids.has(x.id));
+    order.splice(order.indexOf(to) + (after ? 1 : 0), 0, ...moving);
     if (order.every((x, i) => x === fs[i])) return false;
     const at = new Map(order.map((x, i) => [x.id, i]));
-    for (const a of order) { // what uses a step must stay after it
+    for (const a of [...order].reverse()) { // what uses a step must stay after it (the nearest one named: a step, not its sketch)
       for (const b of this.dependents(a.id, false).gone) {
         if (b !== a.id && at.get(b) < at.get(a.id)) {
           this.hooks.toast(t2('“{b}” uses “{a}” — it has to stay after it.', { a: a.name, b: fs.find((x) => x.id === b)?.name || b }), 'warning', 6000);

@@ -183,7 +183,7 @@ try:
     settled()
     d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=ok]").click()
     settled()
-    print("tree:", js("return [...document.querySelectorAll('#modelLeft .mt-item')].map(e => e.textContent.trim().replace(/\\s+/g, ' '))")[-1])
+    print("tree:", js("return [...document.querySelectorAll('#modelLeft .mt-item:not([data-parent])')].map(e => e.textContent.trim().replace(/\\s+/g, ' '))")[-1])
     js(f"{M}.view.setView('iso')")
     time.sleep(0.4)
     d.save_screenshot(f"{OUT}/mirror3.png")
