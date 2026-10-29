@@ -591,8 +591,10 @@ Never report "works" without having run it; report failures with their output.
    dragged left; the sheet's Title block widget; ↕ Automatic height on the project tree: 3 -> 12 parts, it grows, no
    inner scrolling, the splitter turns it off; Rows 5: 5 rows + ⋯ More (7) -> 12 + ▴ Fewer -> 5; the floating
    suggestions' ⋯: Rows shared with the old Top 8 (-> 5, a3d.suggestTop), opacities panel 0 % / content 60 %
-   (computed); a reload keeps them, ↺ resets them; Czech headers / menu / tooltips / Rows; 1600×1000; no horizontal
-   scroll).
+   (computed); a reload keeps them, ↺ resets them; ✕ closes the suggestions: 💡 Suggestions (n) bottom left above
+   the filter row, said once, a selection does not open it but the count follows, gui_state closed: true, the button
+   opens it, Automatically on: opens on a selection, a reload keeps it closed, Space opens / closes; Czech headers /
+   menu / tooltips / Rows / the 💡 button; 1600×1000; no horizontal scroll).
    `tools/e2e_tabs.py <url> <dir>` covers the part tabs (9 long names: their own row under the top bar, 2 rows, 5
    letters readable on each, the one on screen and one being renamed wider, a tab dragged before the first, all
    closed: "No part open", ☰ opens one again).

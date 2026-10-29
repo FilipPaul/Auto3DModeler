@@ -479,10 +479,24 @@ class LeftDock {
 
   fold(w, on) {
     on ??= !this.folded(w);
-    const f = this.my().fold;
+    const me = this.my(), f = me.fold;
     if (on === !!this.extra[w]?.folded) delete f[w]; else f[w] = on; // (kept: only what differs from how it starts)
+    if (w === 'suggest' && inCol(this.st.suggest)) { if (on) me.sgClosed = true; else delete me.sgClosed; } // (docked: closed = folded)
     this.save();
     this.apply();
+  }
+
+  /** The suggestions table of the workspace on screen: {closed (✕: a 💡 button in the view's corner instead — docked:
+   *  folded), auto (opens on a selection by itself — as at first)}. */
+  sgState(ws = this.ws()) { const me = this.my(ws); return { closed: !!me.sgClosed, auto: me.sgAuto !== false }; }
+  setSg({ closed, auto }, ws = this.ws()) {
+    const me = this.my(ws);
+    if (auto !== undefined) { if (auto) delete me.sgAuto; else me.sgAuto = false; }
+    if (closed !== undefined) {
+      if (closed) me.sgClosed = true; else delete me.sgClosed;
+      if (inCol(this.st.suggest)) { this.fold('suggest', !!closed); return; }
+    }
+    this.save();
   }
 
   /** A floating widget's opacity, k: 'pop' (the panel) or 'cop' (its content), 0…1. */
@@ -846,6 +860,7 @@ class LeftDock {
     if (m !== 'right') items.push(['right', `📌 ${t('Dock in the right panel')}`, t('Into the right panel, always in sight (or drag its header there)')]);
     if (m !== 'float') items.push(['float', `⧉ ${t('Float over the view')}`, t('A box over the view — drag its header where you want it')]);
     if (w === 'project') items.push(['popup', `☰ ${t('Back behind the ☰ button')}`, t('The project tree opens from the ☰ button again')]);
+    if (w === 'suggest') items.push(['sgauto', `💡 ${t('Open by itself')}${this.sgState().auto ? ' ✓' : ''}`, t('On: the suggestions open when you select something and close when nothing is selected. Off: they stay closed until you click 💡 in the view\'s bottom-left corner')]);
     const own = w === 'project' ? this.projectMenu?.() || [] : []; // (the app's: 📄 New project …)
     pop.innerHTML = `${own.map(([i, l, tip], k) => `<button data-own="${k}" title="${tip}">${i} ${l}</button>`).join('')}${own.length ? '<div class="menu-sep"></div>' : ''}
       ${items.map(([k, l, tip]) => `<button data-a="${k}" title="${tip}">${l}</button>`).join('')}
@@ -862,6 +877,7 @@ class LeftDock {
         if (a === 'popup') this.unpin();
         if (a === 'reset') this.reset();
         if (a === 'auto') this.setAuto(w, !this.isAuto(w));
+        if (a === 'sgauto') { const on = !this.sgState().auto; this.setSg(on ? { auto: true, closed: false } : { auto: false }); window.dispatchEvent(new CustomEvent('a3d:suggest-rows')); }
         if (w === 'project') this.onProject?.();
       });
     }

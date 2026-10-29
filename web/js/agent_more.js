@@ -102,7 +102,7 @@ export function suggestInfo(list = guiControls('all')) {
   const shown = s.rows.filter((r) => r.shown).sort((a, b) => a.i - b.i), hidden = s.rows.filter((r) => !r.shown);
   const label = (r) => `${r.icon} ${r.label}`.trim();
   return { title: s.title, about: s.refs || s.title, ...(s.hint ? { hint: s.hint } : {}),
-    where: s.menu ? 'a menu' : s.docked ? 'docked in the left panel' : 'floating over the view (bottom left)',
+    where: s.menu ? 'a menu' : s.docked ? 'docked in a side panel' : 'floating over the view (bottom left)', ...(s.closed ? { closed: true } : {}), // (closed: 💡 bottom left — gui_action {suggest} opens it)
     rows: shown.map((r) => ({ n: nOf(s.box.querySelector(`[data-sg="${r.i}"]`)), icon: r.icon, label: r.label, ...(r.section ? { section: r.section } : {}), rank_pos: r.rank_pos })),
     more: hidden.length, ...(hidden.length ? { all: hidden.map(label), show_all: nOf(s.box.querySelector('[data-sg-all]')) } : {}),
     run: 'gui_action {suggest: "<label or part of it>"} runs a row (one under ⋯ Show all too)' };

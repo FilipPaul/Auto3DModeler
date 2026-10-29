@@ -229,6 +229,11 @@ on a plane…; a sketch not used yet — ⬆ Extrude it; after a hole — ⁂ Pa
 chosen; Ctrl+click more edges), a click on a **step in the list** ✎ Edit, 🏷 Rename, ⁂ Pattern it, ✕ Delete, ↑ / ↓ Move,
 ⏮ Roll back here. In a sketch, with nothing picked: ✓ Finish — then extrude, 🪄 Auto-dimension, ⬚ Pick a shape,
 ↔ Dimension, ◯ Circle. Esc clears the choice.
+**✕ closes the table** (in every workspace): a small **💡 Suggestions (n)** button takes its place in the view's
+bottom-left corner — n is how many there are for what is selected — and a selection no longer pops the table up
+until you click the button (or press **Space**). The button's **Automatically** switch (also in the table's ⋯ menu)
+brings back the usual way: the table opens on a selection by itself. Docked, ✕ folds it to its header. Remembered
+per workspace; ↺ Default layout opens it again.
 
 **A click on a face of a 3D model** chooses its step and shows its tools in the Suggested table (bottom left) — the
 table can be **dragged by its header** anywhere in the view, and stays there (a double-click on the header: back).

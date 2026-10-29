@@ -839,6 +839,12 @@ Date: 2026-10-25. Written by the architect agent.
   old a3d.suggestTop, which is still written). The floating suggestions table has the same ⋯ menu (dock, float, the
   two opacity sliders, autosize, Rows); its scrollers and every widget body use floatbox's scrollFade (no scrollbar).
   All per workspace in a3d.leftDock; ↺ Default layout resets them. tools/e2e_dock_both.py (+17 checks, 52).
+- **Suggestions closable done** (the owner: "close the suggestion table any time; closed it is a button bottom left;
+  an auto switch"): ✕ in the table's head (or Space outside boxes and buttons) -> leftDock.setSg({closed, auto}) per
+  workspace (me.sgClosed, me.sgAuto); the box is still drawn but `.vs-closed` (so the AI sees it: suggestTables /
+  suggestInfo report `closed: true`, runSuggestion opens it first), and a `.vs-pill` "💡 Suggestions (n)" with an
+  Automatically checkbox sits at the table's anchor above the filter row. ✕ with auto on turns auto off and says so
+  once (a3d.sgToldClose). Docked: closed = folded (fold('suggest') keeps them in step). ↺ Default layout: open, auto. e2e_dock_both +11 checks (63).
 
 - **Nested step tree done** (SolidWorks / Solid Edge style; owner's request 2026-10-29): steptree.js — treeShape (a
   sketch under the first step made from it, a later one made from it too / a pattern's / a mirror's steps as links, the

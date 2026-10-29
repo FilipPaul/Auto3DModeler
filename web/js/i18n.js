@@ -1330,6 +1330,13 @@ const CS = {
   "Empty — drag a widget's header here to dock it": 'Prázdné — přetáhněte sem záhlaví panelu a ukotvíte ho tu',
   Properties: 'Vlastnosti', 'Export / 3D print': 'Export / 3D tisk', 'Parts list and export': 'Kusovník a export',
   // ↕ Automatic height and Rows in each widget's ⋯ menu (leftdock.js)
+  // the suggestions closed: 💡 button bottom left, Automatically (suggest.js)
+  Suggestions: 'Návrhy', Automatically: 'Automaticky', 'Open by itself': 'Otevírat automaticky',
+  'The suggestions no longer open by themselves — turn them on with the button in the bottom-left corner': 'Návrhy se teď samy neotevřou — zapnete je tlačítkem vlevo dole',
+  'Open the suggestions for what is selected (Space)': 'Otevřít návrhy k vybranému (mezerník)',
+  'On: the suggestions open by themselves when you select something, and close when nothing is selected': 'Zapnuto: návrhy se samy otevřou, když něco vyberete, a zavřou, když nic vybráno není',
+  "Close the suggestions — 💡 in the view's bottom-left corner opens them again (Space)": 'Zavřít návrhy — 💡 vlevo dole v pohledu je znovu otevře (mezerník)',
+  "On: the suggestions open when you select something and close when nothing is selected. Off: they stay closed until you click 💡 in the view's bottom-left corner": 'Zapnuto: návrhy se otevřou, když něco vyberete, a zavřou, když nic vybráno není. Vypnuto: zůstanou zavřené, dokud neklepnete na 💡 vlevo dole v pohledu',
   'Automatic height': 'Automatická výška', Rows: 'Počet řádků', all: 'vše', 'Show every row': 'Ukázat všechny řádky',
   'Grow or shrink to show all of it, with no scrolling — as far as there is room; dragging its size by hand turns it off': 'Zvětší se nebo zmenší tak, aby bylo vidět vše bez posouvání — kam až je místo; ruční změna velikosti ji vypne',
   'Only this many rows, then ⋯ More — empty: all of them': 'Jen tolik řádků, pak ⋯ Další — prázdné: všechny',
