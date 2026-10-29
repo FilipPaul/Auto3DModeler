@@ -7,6 +7,12 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Esc keeps what was placed (2026-10-29)**: in a tool that places things click after click — ◎ Hole (positions),
+  Fillet / Chamfer (edges), Shell (open faces) — Esc ends the placing and keeps them (`escCommand`: as OK, a toast
+  *Hole: 1 position(s) kept*); with nothing placed (or nothing changed in an edited step) it cancels; the Cancel button
+  always throws it away; Esc while picking a hole's reference edge ends only that pick. The sketch already kept a
+  ╱ line chain's segments on Esc; the assembly's tools place one thing each (🔩 a screw, a joint: Esc before it is
+  made = cancel), 🔩 Fasteners are added one click each — unchanged. Tests: e2e_esc_keeps (new).
 - **UX review leftovers (2026-10-29)**: Export ▾ in the top bar works on a 📄 drawing sheet (PDF, DXF, 🖨 Print —
   only those shown: styles.css hides the 3D formats there) and in a 📐 2D drawing (DXF of the shown layers); tests:
   e2e_ux_sheet. **/api/model/limits of a fillet next to a hole** (40 × 30 × 10, Ø10 4 mm from the edge) took > 120 s

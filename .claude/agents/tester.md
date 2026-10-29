@@ -122,6 +122,8 @@ Never report "works" without having run it; report failures with their output.
    undo) and ↻ turning about a joint (caught at 90°, 30° typed).
    `tools/e2e_model_limits.py <url> <dir>` covers the value ranges (fillet R 0.01–9.99, 15 held at 9.99 and building;
    hole depth to the part's thickness; pattern count to what still reaches the part; the 3D size editor's range).
+   `tools/e2e_esc_keeps.py <url> <dir>` covers Esc keeping what was placed (sketch line: 2 segments stay; ◎ Hole: 1
+   click + Esc = a step with one hole, exact volume; Esc with nothing placed / the Cancel button: no step; Fillet alike).
    `tools/e2e_assembly_sub.py <url> <dir>` covers assemblies in assemblies (one body, joined, mass, STEP with every
    part, no assembly in itself).
    `tools/e2e_assembly_bolt.py <url> <dir>` covers a screw through parts with no holes (the click, the suggestion and

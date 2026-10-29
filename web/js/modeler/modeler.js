@@ -2428,6 +2428,28 @@ export class Modeler {
 
   cancelExtrude() { this.cancelCommand(); }
 
+  /** What a tool that places things one click after another has placed so far (holes, edges to round, faces left
+   *  open), as text to compare — null for the other tools. */
+  placed(f) {
+    const list = { hole: f.points, fillet: f.edges, chamfer: f.edges, shell: f.faces }[f.type];
+    return list ? JSON.stringify(list) : null;
+  }
+
+  /** Esc in a tool: one that places things click after click and has placed some (new ones, or changed what an
+   *  edited step had) ends there and KEEPS them — as OK, saying so; nothing placed (or another tool): cancelled.
+   *  Cancel (the button) always throws it all away. Picking a hole's reference: Esc ends only that pick. */
+  escCommand() {
+    if (!this.cmd) return;
+    if (this.holePick) { this.holePick = null; this.hint(''); this.renderProps(); return; }
+    const f = this.cmd.feature, now = this.placed(f);
+    if (now === null || now === '[]' || now === this.cmd.placed0) { this.cancelCommand(); return; }
+    const n = JSON.parse(now).length;
+    const what = { hole: 'Hole: {n} position(s) kept (Ctrl+Z takes them back).', fillet: 'Fillet: {n} edge(s) kept (Ctrl+Z takes them back).',
+      chamfer: 'Chamfer: {n} edge(s) kept (Ctrl+Z takes them back).', shell: 'Shell: {n} open face(s) kept (Ctrl+Z takes them back).' }[f.type];
+    this.okCommand();
+    if (!this.cmd) this.hooks.toast(t2(what, { n }), 'ok', 3500); // (OK refused — a missing setting: the tool stays open)
+  }
+
   cancelCommand() {
     this.cmd = null; // (⬆ Extrude this face: its outline sketch goes with it — it was never a step)
     this.view.setPullArrow(null);
@@ -2464,11 +2486,11 @@ export class Modeler {
     this.closeDimEdit();
     this.view.setTags([]);
     if (this.measuring) this.toggleMeasure();
-    this.cmd = { feature, isNew };
+    this.cmd = { feature, isNew, placed0: isNew ? '[]' : this.placed(feature) }; // (Esc keeps what is placed past this)
     this.mode = 'part';
     this.selected = feature.id;
     this.hint(feature.type === 'revolve' ? 'Revolve — choose the axis and the angle; the preview is in the view. Enter = OK, Esc = Cancel.'
-      : feature.type === 'shell' ? 'Shell — click the face(s) to leave open, give the wall thickness. Enter = OK, Esc = Cancel.'
+      : feature.type === 'shell' ? 'Shell — click the face(s) to leave open, give the wall thickness. Enter / Esc = done (keeps them), Cancel = throw away.'
       : feature.type === 'decal' ? 'Text / picture — click on a flat face where it goes (click again to move it). Enter = OK, Esc = Cancel.'
       : feature.type === 'loft' ? 'Loft — choose the sketch it starts from and the one it goes to. Enter = OK, Esc = Cancel.'
       : feature.type === 'sweep' ? 'Sweep — choose the outline (profile) and the path it moves along. Enter = OK, Esc = Cancel.'
@@ -2476,8 +2498,8 @@ export class Modeler {
       : feature.type === 'mirror' ? 'Mirror — choose the plane, or click a flat face to mirror across it. Enter = OK, Esc = Cancel.'
       : feature.type === 'split' ? 'Split — choose a plane, or click a flat face to cut along it; keep both pieces or one side. Enter = OK, Esc = Cancel.'
       : feature.type === 'pattern' ? 'Pattern — how many and how far apart. Click an edge for the direction (or a round face for the axis). Enter = OK, Esc = Cancel.'
-      : feature.type === 'hole' ? 'Hole — click on a flat face where it goes (click again for more holes). Enter = OK, Esc = Cancel.'
-      : `${feature.type === 'fillet' ? 'Fillet' : 'Chamfer'} — click the edges (or a face: all its edges). Enter = OK, Esc = Cancel.`);
+      : feature.type === 'hole' ? 'Hole — click on a flat face where it goes (click again for more holes). Enter / Esc = done (keeps them), Cancel = throw away.'
+      : `${feature.type === 'fillet' ? 'Fillet' : 'Chamfer'} — click the edges (or a face: all its edges). Enter / Esc = done (keeps them), Cancel = throw away.`);
     this.render();
     this.rebuild();
   }
@@ -2885,7 +2907,7 @@ export class Modeler {
       <p class="hint">The preview is in the 3D view. Enter = OK, Esc = Cancel.</p>`;
     const inp = box.querySelector(`[data-k=${k}]`);
     inp.addEventListener('input', () => { const v = parseFloat(inp.value); if (v > 0) { f[k] = v; this.rebuild(); } });
-    inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+    inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.escCommand(); });
     box.querySelector('[data-k=chain]').addEventListener('change', (e) => { if (e.target.checked) delete f.chain; else f.chain = false; this.rebuild(); });
     box.querySelector('[data-a=clear]')?.addEventListener('click', () => { f.edges = []; this.cmd.lastPick = null; this.renderProps(); this.rebuild(); });
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
@@ -2926,7 +2948,7 @@ export class Modeler {
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
     const num = (el, set) => {
       el.addEventListener('input', () => { const v = parseFloat(el.value); if (Number.isFinite(v)) { set(v); this.rebuild(); } });
-      el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+      el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.escCommand(); });
     };
     num(box.querySelector('[data-k=d]'), (v) => {
       if (!(v > 0)) return;
@@ -3045,7 +3067,7 @@ export class Modeler {
     box.querySelector('[data-k=sketch]')?.addEventListener('change', (e) => { f.sketch = e.target.value; f.axis = 'y'; changed(); });
     const a = box.querySelector('[data-k=angle]');
     a.addEventListener('input', () => { const v = parseFloat(a.value); if (v > 0 && v <= 360) { f.angle = v; this.rebuild(); } });
-    a.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+    a.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.escCommand(); });
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
   }
@@ -3061,7 +3083,7 @@ export class Modeler {
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
     const tIn = box.querySelector('[data-k=t]');
     tIn.addEventListener('input', () => { const v = parseFloat(tIn.value); if (v > 0) { f.t = v; this.rebuild(); } });
-    tIn.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+    tIn.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.escCommand(); });
     for (const el of box.querySelectorAll('[data-del]')) el.addEventListener('click', () => { f.faces.splice(+el.dataset.del, 1); this.renderProps(); this.rebuild(); });
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
@@ -3149,7 +3171,7 @@ export class Modeler {
     if (txt) {
       let timer = null;
       txt.addEventListener('input', () => { f.text = txt.value; clearTimeout(timer); timer = setTimeout(() => this.traceDecal(), 350); });
-      txt.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+      txt.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.escCommand(); });
     }
     for (const inp of box.querySelectorAll('[data-at], [data-k=angle]')) { // where on the face, and turned
       inp.addEventListener('input', () => {
@@ -3158,12 +3180,12 @@ export class Modeler {
         if (inp.dataset.at !== undefined) { f.at = [...(f.at || [0, 0])]; f.at[+inp.dataset.at] = v; } else f.angle = v;
         this.rebuild();
       });
-      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.escCommand(); });
     }
     for (const k of ['h', 'depth']) {
       const inp = box.querySelector(`[data-k=${k}]`);
       inp.addEventListener('input', () => { const v = parseFloat(inp.value); if (v > 0) { f[k] = v; this.rebuild(); } });
-      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.escCommand(); });
     }
     box.querySelector('[data-a=pickPicture]')?.addEventListener('click', async () => {
       const o = await this.hooks.pickOutline?.();
@@ -3411,7 +3433,7 @@ export class Modeler {
       this.renderProps();
     });
     const off = box.querySelector('[data-k=offset]');
-    off.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') off.blur(); if (e.key === 'Escape') this.cancelCommand(); });
+    off.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') off.blur(); if (e.key === 'Escape') this.escCommand(); });
     off.addEventListener('change', () => {
       const v = parseFloat(String(off.value).replace(',', '.'));
       if (!Number.isFinite(v)) return;
@@ -3607,7 +3629,7 @@ export class Modeler {
         const v = parseFloat(inp.value);
         if (v > 0 && (k !== 'count' || (Number.isInteger(v) && v >= 2))) { f[k] = v; this.rebuild(); }
       });
-      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.escCommand(); });
     }
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
@@ -3910,7 +3932,7 @@ export class Modeler {
     }
     if (this.mode === 'plane') { if (e.key === 'Escape') this.cancelPlane(); return; }
     if (this.cmd) {
-      if (e.key === 'Escape') this.cancelCommand();
+      if (e.key === 'Escape') this.escCommand();
       if (e.key === 'Enter') this.okCommand();
       return;
     }
