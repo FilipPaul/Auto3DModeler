@@ -22,6 +22,17 @@ Date: 2026-10-25. Written by the architect agent.
   watertight, STEP round trip, a missing face an issue); tools/e2e_model_face_extrude.py; e2e_suggest; e2e_agent.
   Left out: an outline entity cannot be mirrored / patterned / offset in the sketcher (it is the face's; draw over it).
 
+- **Server / kernel messages in Czech done:** every message the server sends to the page (issues of steps,
+  refusals as JSON "error", warnings, notes — KernelError / ValueError / … texts, issue(…) helpers, {"message": …}
+  dicts, `_sized` words) has a Czech entry in web/js/i18n.js: 161 exact texts, 110 patterns ({} = a value; a value
+  that may be "" like " (hole 2)" gives both forms). i18n.t(): a mark in front ("⚠ …") is kept and the message
+  after it translated; a pattern whose Czech starts with a translated value gets a capital ("Úhel 30 ° se sem
+  nevejde…"). tests/test_i18n_messages.py reads the sources with ast (f-string values -> {}, both sides of a
+  conditional, names given a text) and i18n.js's CS / CS_PATTERNS, and fails on a message without Czech (`py
+  tests/test_i18n_messages.py` lists them); MCP-tool answers (server tool_*, mcp_server, agent_tools) are left
+  out — they go to Claude. tools/e2e_i18n.py: a rib with nothing to close against and a ⟋ Draft too steep shown
+  in Czech in their panels, texts with values through t(). Left out: several issues joined into one line (each
+  is translated only when shown alone), texts of OCCT / library exceptions passed through as they are.
 - **Hole positions drawn on the sheet done:** sheet.auto_dims places each hole step's holes of one size (a counterbore's
   circles left to its holes) in the view showing them round, from box#x0 / box#y0 (ISO 129): a row / grid its first
   one + its pitch (as before), a bolt circle (sheet._ring: least-squares circle through the centres, equal angles — all
