@@ -450,6 +450,16 @@ const CS = {
   'Hole — click on a flat face where it goes (click again for more holes). Enter / Esc = done (keeps them), Cancel = throw away.': 'Díra — klikněte na rovnou plochu, kam patří (dalším kliknutím přidáte další). Enter / Esc = hotovo (ponechá je), Zrušit = zahodit.',
   'Fillet — click the edges (or a face: all its edges). Enter / Esc = done (keeps them), Cancel = throw away.': 'Zaoblení — klikněte na hrany (nebo na plochu: všechny její hrany). Enter / Esc = hotovo (ponechá je), Zrušit = zahodit.',
   'Chamfer — click the edges (or a face: all its edges). Enter / Esc = done (keeps them), Cancel = throw away.': 'Zkosení — klikněte na hrany (nebo na plochu: všechny její hrany). Enter / Esc = hotovo (ponechá je), Zrušit = zahodit.',
+  // an edited hole / text places by click only once asked
+  'Hole — change its settings; ＋ Add position to click more holes. Enter = OK, Esc = Cancel.': 'Díra — změňte její nastavení; ＋ Přidat pozici a kliknutím přidáte další díry. Enter = OK, Esc = Zrušit.',
+  'Text / picture — change it; ⌖ Move by clicking to put it elsewhere. Enter = OK, Esc = Cancel.': 'Text / obrázek — upravte ho; ⌖ Přesunout kliknutím a dáte ho jinam. Enter = OK, Esc = Zrušit.',
+  'To add a hole here, click ＋ Add position first.': 'Chcete-li sem přidat díru, klikněte nejdřív na ＋ Přidat pozici.',
+  'To move it by clicking, click ⌖ Move by clicking first.': 'Chcete-li ho přesunout kliknutím, klikněte nejdřív na ⌖ Přesunout kliknutím.',
+  'Add position': 'Přidat pozici', 'Move by clicking': 'Přesunout kliknutím',
+  'Then click on the face where another hole goes (click again for more); click this again to stop': 'Pak klikněte na plochu, kam patří další díra (dalším kliknutím další); dalším kliknutím sem přidávání ukončíte',
+  'Then click on a flat face where it goes; click this again to stop': 'Pak klikněte na rovnou plochu, kam patří; dalším kliknutím sem to ukončíte',
+  'Click on the face where another hole goes (click again for more). Enter = OK.': 'Klikněte na plochu, kam patří další díra (dalším kliknutím další). Enter = OK.',
+  'Click on a flat face where it goes. Enter = OK.': 'Klikněte na rovnou plochu, kam patří. Enter = OK.',
   // Esc in a tool that places things click after click: what was placed is kept
   'Hole: {n} position(s) kept (Ctrl+Z takes them back).': 'Díra: uloženo pozic: {n} (Ctrl+Z je vrátí).',
   'Fillet: {n} edge(s) kept (Ctrl+Z takes them back).': 'Zaoblení: uloženo hran: {n} (Ctrl+Z je vrátí).',

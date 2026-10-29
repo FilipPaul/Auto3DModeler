@@ -34,6 +34,7 @@ const REPEATABLE = new Set(['extrude', 'revolve', 'hole', 'pattern', 'loft', 'sw
 const MIRROR_PLANES = { YZ: 'left ↔ right', XZ: 'front ↔ back', XY: 'top ↔ bottom' }; // the base planes to mirror across
 const AXES = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
 const USES_SKETCH = new Set(['extrude', 'revolve', 'loft', 'sweep', 'rib']);
+const PLACES = new Set(['hole', 'decal']); // tools whose click in the view places (and, editing, only once asked)
 /** A sketch that is one open line (straight lines end to end, not closed — what ⊿ Rib takes). */
 const isOpenLine = (f) => {
   const es = (f?.entities || []).filter((e) => !e.construction), ends = {};
@@ -2481,6 +2482,17 @@ export class Modeler {
     return list ? JSON.stringify(list) : null;
   }
 
+  /** ＋ Add position / ⌖ Move by clicking (an edited hole / text): a click in the view places from now on (the
+   *  mouse shows where); again: off. */
+  armPlace() {
+    if (!this.cmd) return;
+    this.cmd.place = !this.cmd.place;
+    if (!this.cmd.place) { this.showSpot(null); this.els.viewport.querySelector('canvas').style.cursor = ''; }
+    const hole = this.cmd.feature.type === 'hole';
+    this.hint(this.cmd.place ? (hole ? 'Click on the face where another hole goes (click again for more). Enter = OK.' : 'Click on a flat face where it goes. Enter = OK.') : '');
+    this.renderProps();
+  }
+
   /** Esc in a tool: one that places things click after click and has placed some (new ones, or changed what an
    *  edited step had) ends there and KEEPS them — as OK, saying so; nothing placed (or another tool): cancelled.
    *  Cancel (the button) always throws it all away. Picking a hole's reference: Esc ends only that pick. */
@@ -2532,7 +2544,9 @@ export class Modeler {
     this.closeDimEdit();
     this.view.setTags([]);
     if (this.measuring) this.toggleMeasure();
-    this.cmd = { feature, isNew, placed0: isNew ? '[]' : this.placed(feature) }; // (Esc keeps what is placed past this)
+    // place: a click in the view places (a new hole / text); an edited one only after ＋ Add position / ⌖ Move by
+    // clicking — opening a step to change it never arms its placing (the mouse shows no new hole)
+    this.cmd = { feature, isNew, placed0: isNew ? '[]' : this.placed(feature), place: isNew || !PLACES.has(feature.type) }; // (Esc keeps what is placed past this)
     this.mode = 'part';
     this.selected = feature.id;
     this.hint(feature.type === 'revolve' ? 'Revolve — choose the axis and the angle; the preview is in the view. Enter = OK, Esc = Cancel.'
@@ -2544,6 +2558,8 @@ export class Modeler {
       : feature.type === 'mirror' ? 'Mirror — choose the plane, or click a flat face to mirror across it. Enter = OK, Esc = Cancel.'
       : feature.type === 'split' ? 'Split — choose a plane, or click a flat face to cut along it; keep both pieces or one side. Enter = OK, Esc = Cancel.'
       : feature.type === 'pattern' ? 'Pattern — how many and how far apart. Click an edge for the direction (or a round face for the axis). Enter = OK, Esc = Cancel.'
+      : feature.type === 'hole' && !isNew ? 'Hole — change its settings; ＋ Add position to click more holes. Enter = OK, Esc = Cancel.'
+      : feature.type === 'decal' && !isNew ? 'Text / picture — change it; ⌖ Move by clicking to put it elsewhere. Enter = OK, Esc = Cancel.'
       : feature.type === 'hole' ? 'Hole — click on a flat face where it goes (click again for more holes). Enter / Esc = done (keeps them), Cancel = throw away.'
       : `${feature.type === 'fillet' ? 'Fillet' : 'Chamfer'} — click the edges (or a face: all its edges). Enter / Esc = done (keeps them), Cancel = throw away.`);
     this.render();
@@ -2657,6 +2673,7 @@ export class Modeler {
   clickHole(e) {
     const f = this.cmd.feature, h = this.view.pick(e.clientX, e.clientY);
     if (this.holePick) { this.pickHoleRef(e); return; }
+    if (!this.cmd.place) { this.hooks.toast(t('To add a hole here, click ＋ Add position first.'), 'info', 3000); return; }
     if (!h?.face) return;
     if (h.face.type !== 'plane') { this.hooks.toast('Holes go on flat faces — click a flat face.', 'warning'); return; }
     if (f.plane && (f.plane.face?.name !== h.face.name || h.face.normal.some((v, k) => Math.abs(v - f.plane.frame.n[k]) > 1e-6))) {
@@ -2964,7 +2981,7 @@ export class Modeler {
     const f = this.cmd.feature, st = this.status(f.id), kind = holeType(f), size = f.standard || f.thread || '', dh = kind === 'd_flat';
     const std = kind && !dh; // (a screw's hole: sized from the table)
     box.innerHTML = `<h2>${esc(f.name)}</h2>
-      <p class="hint">Click on a flat face where a hole goes — click again for more holes on the same face. A click near the face's centre snaps to it.</p>
+      ${this.cmd.isNew ? '<p class="hint">Click on a flat face where a hole goes — click again for more holes on the same face. A click near the face\'s centre snaps to it.</p>' : ''}
       ${f.plane?.face ? `<div class="field m-holefrom"><label>From</label>${originSeg(f.plane, f.plane.origin ? originKey(f.plane.origin) : f.from?.some((x) => x?.x || x?.y) ? 'edges' : '', '', HOLE_ORIGINS)}</div>` : ''}
       <div class="field"><label>Type</label><select data-k="hole_type" title="A hole for a metric screw: its sizes from the ISO tables — clearance (ISO 273), ⌴ for a socket head, ⌵ for a flat head, tapped (a thread); D for a shaft with a flat">
         ${HOLE_TYPES.map(([v, l]) => `<option value="${v}" ${v === kind ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -2990,6 +3007,7 @@ export class Modeler {
           : f.plane?.origin ? 'The holes stay where these numbers put them, also when the part changes.'
           : 'Each hole keeps its distance from the edge it is measured from, also when the part changes. ⇄ measures from the other side.'}</p>`
         : '<p class="mp-count">No holes yet — click on a face.</p>'}
+      ${this.cmd.isNew ? '' : `<div class="row-actions"><button class="btn small ${this.cmd.place ? 'on' : ''}" data-a="addpos" title="${esc(t('Then click on the face where another hole goes (click again for more); click this again to stop'))}">＋ ${esc(t('Add position'))}</button></div>`}
       ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
     const num = (el, set) => {
@@ -3005,6 +3023,7 @@ export class Modeler {
     if (fl) num(fl, (v) => { if (v > 0) f.flat = v; });
     box.querySelector('[data-a=turnflat]')?.addEventListener('click', () => { f.flat_angle = ((f.flat_angle || 0) + 90) % 360; if (!f.flat_angle) delete f.flat_angle; this.rebuild(); });
     box.querySelector('.m-holesizes')?.addEventListener('toggle', (e) => { this.holeSizesOpen = e.target.open; });
+    box.querySelector('[data-a=addpos]')?.addEventListener('click', () => this.armPlace());
     const dep = box.querySelector('[data-k=depth]');
     if (dep) num(dep, (v) => { if (v > 0) f.depth = v; });
     box.querySelector('[data-k=through]').addEventListener('change', (e) => { f.through = e.target.checked; this.renderProps(); this.rebuild(); });
@@ -3171,6 +3190,7 @@ export class Modeler {
 
   clickDecal(e) {
     const f = this.cmd.feature, h = this.view.pick(e.clientX, e.clientY);
+    if (!this.cmd.place) { this.hooks.toast(t('To move it by clicking, click ⌖ Move by clicking first.'), 'info', 3000); return; }
     if (!h?.face || h.face.type !== 'plane' || h.face.name?.startsWith(`${f.id}:`)) { this.hooks.toast('Click a flat face of the part.', 'info', 3000); return; }
     const same = f.plane && f.plane.face?.name === h.face.name;
     if (!same) f.plane = { face: h.face.ref || { name: h.face.name }, frame: h.face.frame };
@@ -3200,7 +3220,8 @@ export class Modeler {
       ${this.decalPlace(f)}
       <div class="seg"><button data-op="add" class="${f.op !== 'cut' ? 'on' : ''}">Raised</button><button data-op="cut" class="${f.op === 'cut' ? 'on' : ''}">Engraved</button></div>
       <div class="field"><label>Depth</label><input type="number" step="any" min="0" data-k="depth" value="${fmt(f.depth)}"><span class="unit">mm</span></div>
-      <p class="hint">${f.plane ? 'Click on the face again to move it — near the face\'s centre it snaps to it.' : 'Click on a flat face of the part where it goes.'}</p>
+      ${this.cmd.isNew ? `<p class="hint">${f.plane ? 'Click on the face again to move it — near the face\'s centre it snaps to it.' : 'Click on a flat face of the part where it goes.'}</p>`
+        : `<div class="row-actions"><button class="btn small ${this.cmd.place ? 'on' : ''}" data-a="movepos" title="${esc(t('Then click on a flat face where it goes; click this again to stop'))}">⌖ ${esc(t('Move by clicking'))}</button></div>`}
       ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
     const changed = () => { this.renderProps(); this.rebuild(); };
@@ -3213,6 +3234,7 @@ export class Modeler {
       });
     }
     for (const b of box.querySelectorAll('[data-op]')) b.addEventListener('click', () => { f.op = b.dataset.op; changed(); });
+    box.querySelector('[data-a=movepos]')?.addEventListener('click', () => this.armPlace());
     const txt = box.querySelector('[data-k=text]');
     if (txt) {
       let timer = null;
@@ -3884,7 +3906,7 @@ export class Modeler {
           this.view.setHover(ok ? h.face.id : -1);
           cv.style.cursor = ok ? 'pointer' : '';
         } else if (f.type === 'decal' || (f.type === 'hole' && !this.holePick)) {
-          cv.style.cursor = this.showSpot(e) ? 'crosshair' : ''; // (snapped, with guides and the hole's preview)
+          cv.style.cursor = this.cmd.place && this.showSpot(e) ? 'crosshair' : ''; // (snapped, with guides and the hole's preview; editing: once asked)
         } else if (f.type === 'mirror' || f.type === 'split') {
           const h = this.view.pick(e.clientX, e.clientY), ok = h?.face?.type === 'plane' && !h.face.name?.startsWith(`${f.id}:`);
           this.view.setHover(ok ? h.face.id : -1);

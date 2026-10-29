@@ -7,6 +7,11 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Choosing a hole never arms its placing (2026-10-29)**: an edited hole / text step (✎, double-click) opens its
+  panel with `cmd.place` off (`PLACES`): no preview at the mouse, a click places nothing (a notice says how) until
+  **＋ Add position** (a hole) / **⌖ Move by clicking** (a text / picture) — `armPlace`, a toggle; new ones place at
+  once as before. Choosing a step (its row, its faces) opened no tool already; sketches open only by ✎ (their own tool
+  bar), • reference points have nothing to place. Tests: e2e_hole_select (new).
 - **Soft / hard slider ranges (2026-10-29)**: `/api/model/limits` lists in `_soft` a max that is only how far the
   search looked (it still built there: an extrude's height) or a suggestion (a pattern's count / spacing: the copies
   that reach the part — decided soft, the pattern may run off the part; `_pattern` then warns *Only N of the copies

@@ -468,7 +468,10 @@ SolidWorks. It has only the tools that need almost no input.
    flat face where a hole goes (click again for more holes on the same face), and type the diameter. **Esc ends the
    placing and keeps the holes placed so far** (as OK — *Hole: 1 position(s) kept*; Ctrl+Z takes them back); with
    none placed yet Esc cancels, and the **Cancel** button always throws them away. Fillet / Chamfer (edges) and Shell
-   (open faces) work the same; in a sketch Esc ends a ╱ line's chain and keeps the segments drawn. While you move
+   (open faces) work the same; in a sketch Esc ends a ╱ line's chain and keeps the segments drawn. Choosing a hole
+   that is there (its row in the list, its faces) only chooses it; **✎ editing** it opens its panel without placing —
+   the mouse shows no new hole and a click adds none until **＋ Add position** (an edited text / picture: **⌖ Move by
+   clicking**). While you move
    the mouse the hole is shown where it would go, with its distances to the nearest edges, and it **snaps** like a
    sketch: onto the face's corners, edge midpoints, centre, round edges' centres, other holes and • reference points
    (the snap is named at the mouse), onto its edges, and **in line** with any of those — a dashed green guide; where
