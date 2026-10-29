@@ -3,6 +3,10 @@ the final assembly "Machine" (Base + Lid unit + a bought screw from the library)
 with a dimension of the user's. -> 📄 Drawings (PDF) in the Machine's panel -> pages in order: Machine (its views, the
 parts list with Base, ◇ Lid unit, the screw as bought, balloons), Lid unit (Lid, Pin ×2), Lid, Pin, Base (with the
 user's dimension); the parts numbered once for the whole set (Machine 1–3, the Lid unit's go on: 4, 5); every page names itself, what it is in and "Sheet n / N" -> the AI's export pdf: the same set.
+Then in Czech, from the sheets' suggestions tables (sheet/sheetsuggest.js): the Machine's sheet with a BOM page -> nothing
+chosen: "📑 Všechny listy sestavy (6)" in the top rows (also in the title block's table, with "⤓ PDF všech listů") -> a
+click: all 6 sheets on screen (5 drawings + the BOM page) and the table goes from sheet to sheet (▼ Další list) and back;
+get_sheet's drawing_set; the Base's sheet: "📑 Listy sestavy „Machine“" -> the set, the Base's page in sight.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_drawing_set.py http://127.0.0.1:5199 <out dir>
 """
@@ -24,6 +28,37 @@ opts.set_capability("ms:loggingPrefs", {"browser": "ALL"})
 d = webdriver.Edge(options=opts)
 js = d.execute_script
 A = "window.__app.assembly"
+S = "window.__app.sheet"
+fails = []
+
+
+def check(name, ok, info=""):
+    print(("OK  " if ok else "FAIL"), name, info)
+    if not ok:
+        fails.append(name)
+
+
+def wait(script, t=90):
+    end = time.time() + t
+    while time.time() < end:
+        v = js(script)
+        if v:
+            return v
+        time.sleep(0.2)
+    raise TimeoutError(script)
+
+
+def rows():
+    return js("return [...document.querySelectorAll('#shViewport .view-suggest .vs-list button')].map(b => b.textContent.replace(/\\s+/g, ' ').trim())") or []
+
+
+def row(label):
+    for b in d.find_elements(By.CSS_SELECTOR, "#shViewport .view-suggest .vs-list button"):
+        if label in b.text:
+            b.click()
+            time.sleep(0.6)
+            return
+    raise AssertionError(f"no row {label!r} in {rows()}")
 
 
 def ai(tool, **args):
@@ -90,6 +125,64 @@ try:
     d.save_screenshot(f"{OUT}/drawing_set.png")
     page1 = fitz.open(path)[0]
     page1.get_pixmap(dpi=60).save(f"{OUT}/drawing_set_p1.png")
+
+    # ---- the sheets' suggestions: 📑 all sheets of the assembly (in Czech)
+    d.find_element(By.ID, "langBtn").click()
+    time.sleep(0.5)
+    js("localStorage.removeItem('a3d.box.suggest'); localStorage.removeItem('a3d.leftDock'); sessionStorage.removeItem('a3d.suggestAll')")
+    ai("sheet_open", part="Machine")
+    wait(f"return !{S}.busy && !!{S}.svgEl")
+    js(f"{S}.d.bomPage = 'summary'; {S}.commit()")  # (a BOM page after the assembly's)
+    wait(f"return !{S}.busy && !!{S}.svgEl")
+    js(f"{S}.clearSel(); {S}.render()")
+    time.sleep(0.6)
+    r = rows()
+    top = r[:3]
+    check("assembly sheet: 📑 Všechny listy sestavy (6) in the top rows", any("Všechny listy sestavy (6)" in x for x in top), str(r))
+    check("assembly sheet: ⤓ PDF všech listů offered", any("PDF všech listů" in x for x in r), str(r))
+    gs = json.loads(ai("get_sheet"))["drawing_set"]
+    check("get_sheet drawing_set: Machine, 6 sheets, 5 drawings", gs["assembly"] == "Machine" and gs["sheets"] == 6 and len(gs["pages"]) == 5, str(gs)[:200])
+    d.save_screenshot(f"{OUT}/drawing_set_suggest.png")
+    js(f"{S}.clearSel(); {S}.selTitle = true; {S}.render()")
+    time.sleep(0.5)
+    r = rows()
+    check("title block's table: 📑 Všechny listy sestavy first", "Všechny listy sestavy (6)" in r[0], str(r))
+    js(f"{S}.clearSel(); {S}.render()")
+    time.sleep(0.5)
+    row("Všechny listy sestavy")
+    n = wait(f"const n = document.querySelectorAll('#shViewport .sh-sheetpage').length; return n > 1 && n", 120)
+    check("the row opens all sheets: 6 (Machine, BOM, Lid unit, Lid, Pin, Base)", n == 6 and js(f"return {S}.setMode"), f"{n} pages")
+    r = rows()
+    check("in All pages: ▼ Další list: Lid unit, ↩ Zpět na tento list", any("Další list: Lid unit" in x for x in r) and any("Zpět na tento list" in x for x in r), str(r))
+    d.save_screenshot(f"{OUT}/drawing_set_all.png")
+    row("Další list")
+    time.sleep(1.2)
+    check("▼ Další list scrolls to the Lid unit's sheet", js(f"return {S}.seen") == js("return window.__app.project.parts.find(q => q.name === 'Lid unit').id"), js(f"return {S}.seen"))
+    check("then the table offers ▲ Předchozí list: Machine", any("Předchozí list: Machine" in x for x in rows()), str(rows()))
+    d.save_screenshot(f"{OUT}/drawing_set_next.png")
+    row("Zpět na tento list")
+    check("↩ back to the Machine's sheet alone", not js(f"return {S}.setMode") and wait(f"return !!{S}.svgEl", 30), "")
+    # a part's sheet in the assembly: 📑 Listy sestavy „Machine“
+    ai("sheet_open", part="Base")
+    wait(f"return !{S}.busy && !!{S}.svgEl && window.__app.project.parts.find(q => q.id === {S}.d.source)?.name === 'Base'")
+    js(f"{S}.clearSel(); {S}.render()")
+    time.sleep(0.5)
+    r = rows()
+    check("part sheet: 📑 Listy sestavy „Machine“ in the top rows", any("Listy sestavy „Machine“" in x for x in r[:3]), str(r))
+    row("Listy sestavy „Machine“")
+    n = wait(f"const n = document.querySelectorAll('#shViewport .sh-sheetpage').length; return n > 1 && n", 120)
+    time.sleep(1)
+    base = js("return window.__app.project.parts.find(q => q.name === 'Base').id")
+    st = js(f"const s = {S}.stage, p = s.querySelector('[data-pageid=\"' + arguments[0] + '\"]'); return p && p.getBoundingClientRect().top < s.getBoundingClientRect().top + s.clientHeight / 3", base)  # (the last page: as high as the scroll goes)
+    check("…goes to the set (6 sheets), the Base's page in sight", n == 6 and st, f"{n} pages, in sight {st}")
+    d.save_screenshot(f"{OUT}/drawing_set_part.png")
+    print("AI all_pages:", ai("sheet_edit", all_pages=False)[:120])
+    check("sheet_edit all_pages false: this sheet alone", not js(f"return {S}.setMode"))
 finally:
-    print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
+    errs = [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"]
+    print("console errors:", errs)
+    if errs:
+        fails.append("console errors")
+    print(f"{len(fails)} failed" + (f": {fails}" if fails else " — all OK"))
     d.quit()
+sys.exit(1 if fails else 0)

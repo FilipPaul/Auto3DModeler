@@ -23,7 +23,7 @@ import { itemNumbers as numbersOf, bomOf, makeBuy } from '../assembly/bom.js';
 import { MATERIALS } from '../modeler/materials.js';
 import { stepsAtBar, rolledText } from '../modeler/steptree.js';
 import { showSuggest } from '../suggest.js';
-import { sheetSuggest, tolText } from './sheetsuggest.js';
+import { sheetSuggest, tolText, setOf } from './sheetsuggest.js';
 import { TITLE_STYLES, BOM_STYLES, STYLE_TIPS, isStyle, isBomStyle, titleSize, titleBlock, partsList, bomWidth, bomHeight, bomRowsIn, grams, fontsReady } from './tbstyles.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -1752,6 +1752,7 @@ export class SheetEditor {
     if (!seen || seen === this.seen) return;
     this.seen = seen;
     for (const b of this.$('.sh-left').querySelectorAll('.sh-page')) b.classList.toggle('on', b.dataset.page === seen);
+    this.renderSuggest(); // (▼ Next / ▲ Previous sheet from the one in sight)
   }
 
   /** ＋ a missing size: from the part's lowest place in that view to it (a Ø / R on its circle). */
@@ -2227,6 +2228,7 @@ export class SheetEditor {
       ...(Object.keys(this.d.vscale || {}).length ? { view_scales: Object.fromEntries(Object.entries(this.d.vscale).map(([v, s]) => [v, scaleText(s)])) } : {}),
       ...(Object.keys(this.d.viewNames || {}).length ? { view_names: this.d.viewNames } : {}),
       ...(this.outside().length ? { past_the_frame: this.outside() } : {}),
+      ...((s) => (s ? { drawing_set: { assembly: s.name, assembly_id: s.root, sheets: s.n, all_pages_shown: !!this.setMode, pages: s.pages.map((p) => ({ id: p.id, name: p.name, kind: p.kind, ...(p.id === this.d.source ? { this: true } : {}) })) } } : {}))(setOf(this)),
       dims: this.allDims().map((d) => ({ id: d.id, view: d.view, kind: d.kind, text: this.value(d) === null ? null : this.dimText(d, this.value(d)), auto: !!d.auto, ...(this.value(d) === null ? { lost: true } : {}),
         ...(d.pos ? { hole_position: d.pos } : {}), ...(d.ord ? { ordinate: true } : {}), ...(d.tol ? { tol: d.tol } : {}), ...(d.ref ? { ref: true } : {}) })),
       deleted_auto: this.d.hidden.length,

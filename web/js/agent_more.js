@@ -382,9 +382,14 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       await sheet.ensure();
       return ok({ ...sheet.summary(), ...(points ? { [points]: sheet.pointsOf(points) } : {}) });
     },
-    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, dims, texts, complete, drop_twice, fits, scale, view_scales, view_names, template, template_all, save_template, frame, title_style, bom_style } = {}) => {
+    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, dims, texts, complete, drop_twice, fits, scale, view_scales, view_names, template, template_all, save_template, frame, title_style, bom_style, all_pages } = {}) => {
       need('sheet', 'This is for a drawing sheet (📄) — sheet_open opens one');
       const ed = sheet, done = [];
+      if (all_pages !== undefined) {
+        if (all_pages && !ed.rootOf(ed.d.source)) throw new Error('This sheet is not in an assembly — it has no drawing set.');
+        if (!!all_pages !== !!ed.setMode) ed.action('setview');
+        done.push(all_pages ? 'all the sheets of the drawing set shown, one below the other' : 'this sheet alone again');
+      }
       if (template !== undefined) {
         await ed.loadTemplates();
         ed.useTemplate(template || DEFAULT_TPL.name);
