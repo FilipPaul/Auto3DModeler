@@ -9,7 +9,7 @@ const newId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toS
 
 export class Autosave {
   /** hooks: {project() -> the project file or null (nothing to keep), restore(project) (opens it), toast, status(el),
-   *  saved() (kept: 🕘 an automatic version may follow)}. paused: nothing kept (🕘 a version previewed is on screen). */
+   *  saved() (kept: 🕘 an automatic version may follow), elsewhere() -> Set of the project ids open in other windows}. paused: nothing kept (🕘 a version previewed is on screen). */
   constructor(hooks, { delay = 3000 } = {}) {
     this.hooks = hooks;
     this.delay = delay;
@@ -88,11 +88,12 @@ export class Autosave {
   }
 
   /** The app started empty: the last project is offered (Open / Recent… / ✕) in a strip under the top bar (in the
-   *  page's flow, so it covers no button; it goes when a part is opened or made). */
+   *  page's flow, so it covers no button; it goes when a part is opened or made) — the last one not open in another
+   *  window (a second window: not the same project again). */
   async offerLast() {
-    let list;
-    try { list = await this.recent(); } catch { return; }
-    const last = list[0];
+    let list, open;
+    try { [list, open] = await Promise.all([this.recent(), this.hooks.elsewhere?.() || new Set()]); } catch { return; }
+    const last = list.find((p) => !open.has(p.id));
     if (!last || this.hooks.project()?.parts?.length) return;
     const bar = document.createElement('div');
     bar.className = 'restore-bar';
@@ -123,9 +124,10 @@ export class Autosave {
     document.body.appendChild(back);
     const render = async () => {
       const box = back.querySelector('.aih-list'), list = await this.recent().catch(() => []);
+      const open = await (this.hooks.elsewhere?.() || new Set()); // (open in another window: said on its row)
       if (!list.length) { box.innerHTML = '<p class="hint">Nothing kept yet.</p>'; return; }
       box.innerHTML = list.map((p) => `<div class="aih-row" data-id="${esc(p.id)}"><div class="aih-text">
-          <span class="aih-when"><span data-no-i18n>${esc(when(p.time))}</span>${p.id === this.id ? ' · <b>on screen</b>' : ''}</span>
+          <span class="aih-when"><span data-no-i18n>${esc(when(p.time))}</span>${p.id === this.id ? ' · <b>on screen</b>' : open.has(p.id) ? ' · <b>open in another window</b>' : ''}</span>
           <span class="aih-prompt" data-no-i18n>${esc(p.name)}</span><span class="aih-parts" data-no-i18n>${esc(p.parts.map((x) => x.name).join(', '))}</span></div>
         <span class="aih-acts"><button class="btn small primary" data-open ${p.id === this.id ? 'disabled' : ''}>Open</button>
           <button class="mini danger" data-del title="Forget it (the file on the server is deleted)">✕</button></span></div>`).join('');

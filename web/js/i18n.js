@@ -1381,7 +1381,7 @@ const CS = {
   'The project could not be kept on the server (see “⚠ Not saved”). Start a new project anyway? Its last changes would be lost.': 'Projekt se nepodařilo uložit na server (viz „⚠ Neuloženo“). Přesto začít nový projekt? Jeho poslední změny by se ztratily.',
   'The previous project “{name}” is kept — Open ▾ › 🕘 Recent projects.': 'Předchozí projekt „{name}“ je uložen — Otevřít ▾ › 🕘 Nedávné projekty.',
   'Open it again': 'Otevřít znovu', 'Back to the previous project (this empty one is not kept)': 'Zpět k předchozímu projektu (tento prázdný se neukládá)',
-  'Recent projects': 'Nedávné projekty', '🕘 Recent projects…': '🕘 Nedávné projekty…', 'Nothing kept yet.': 'Zatím nic uloženo.', 'on screen': 'na obrazovce',
+  'Recent projects': 'Nedávné projekty', '🕘 Recent projects…': '🕘 Nedávné projekty…', 'Nothing kept yet.': 'Zatím nic uloženo.', 'on screen': 'na obrazovce', 'open in another window': 'otevřen v jiném okně',
   'Every project is kept on the server a few seconds after each change (data/projects/). Open one to go on with it.': 'Každý projekt se ukládá na server pár sekund po každé změně (data/projects/). Otevřete ho a pokračujte.',
   'Forget it (the file on the server is deleted)': 'Zapomenout (soubor na serveru se smaže)', 'Forget “{name}”? Its file on the server is deleted.': 'Zapomenout „{name}“? Jeho soubor na serveru se smaže.',
   '“{name}” is open again.': '„{name}“ je znovu otevřen.', 'The projects kept on the server (autosaved a few seconds after each change)': 'Projekty uložené na serveru (ukládají se samy pár sekund po každé změně)',

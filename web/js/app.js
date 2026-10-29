@@ -2551,6 +2551,7 @@ var autosave = new Autosave({
     showProjectName();
   },
   onId: (id) => { windows?.connect(id); versions?.changed(); },
+  elsewhere: () => windows.openElsewhere(), // (the projects open in the app's other windows)
 });
 
 // OK / Cancel, ✓ Finish sketch, Done: in the bottom-right corner of each view
@@ -2620,7 +2621,7 @@ const newProject = initNewProject({
   empty: () => !project.parts.length,
   keepChat: keepChatClient, // (this window's AI chat goes on in the new project)
 });
-$('newProjectBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); newProject.start(); });
+$('newProjectBtn').addEventListener('click', (e) => { $('openMenuWrap').classList.remove('open'); newProject.start(e.ctrlKey || e.metaKey || e.shiftKey); }); // (Ctrl+click: a new window)
 $('newProjectWinBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); newProject.start(true); });
 leftDock.projectMenu = () => [
   ['📄', t('New project'), t('Start a new, empty project in this window — the one on screen is kept (🕘 Recent projects opens it again) (Ctrl+Alt+N)'), () => newProject.start()],

@@ -2,7 +2,9 @@
 screen with an empty project (a new autosave id, the window's title back to the app's), the toast says where the
 previous one is; the previous project is in 🕘 Recent projects and ↶ in the toast opens it again (its parts and steps)
 -> Ctrl+Alt+N does the same; the project widget's ⋯ menu has it too; an empty project: nothing happens but a note ->
-⧉ New project in a new window: a second window with the start screen, the first one as it was. The AI with two
+⧉ New project in a new window: a second window with the start screen, the first one as it was. A second start of the
+app (a plain new window): the start screen, "continue" offers the last project not open in another window, 🕘 Recent
+marks the one open elsewhere, the titles tell the windows apart. The AI with two
 browser windows (two projects): each window's chat (the MCP server with --client <the window's id>, as the chat starts
 it) reads and changes its own window's project only (a reload and 📄 New project keep the window's chat, a new window has
 its own); a call for no window goes to the window in use; the second window
@@ -170,6 +172,27 @@ try:
         d.close()
         d.switch_to.window(handles[0])
     check("the first window kept its project", js("return window.__app.autosave.id") == here and js("return window.__app.project.parts.length") == 1)
+
+    # a second start of the app (a plain new window of it): the start screen, and "continue" offers the last project
+    # that is NOT open in another window — not a second copy of this one; 🕘 Recent marks the one open elsewhere
+    first = d.current_window_handle
+    d.switch_to.new_window("window")
+    d.get(URL)
+    ready()
+    check("a second start: the start screen, an empty project", js("return document.body.classList.contains('start-open') && !window.__app.project.parts.length"))
+    bar = wait("return document.querySelector('.restore-bar')?.textContent || ''", 10)
+    check(f"… 'continue' offers the last project not open elsewhere: {bar.strip()[:70]!r}", "Konzola" in bar and "Deska" not in bar)
+    check(f"windows told apart by their titles: {d.title!r}", "Deska" not in d.title)
+    d.find_element(By.ID, "openBtn").click()
+    time.sleep(0.2)
+    d.find_element(By.ID, "recentBtn").click()
+    rows = wait("const r = [...document.querySelectorAll('.aih-row')].map(x => x.textContent.replace(/\\s+/g, ' ')); return r.length >= 2 && r", 10)
+    deska = next((r for r in rows if "Deska" in r), "")
+    check(f"🕘 Recent marks the project open in another window: {deska[:60]!r}", "otevřen v jiném okně" in deska)
+    d.save_screenshot(str(Path(OUT) / "np_second_start.png"))
+    d.close()
+    d.switch_to.window(first)
+    check(f"the first window's title: {d.title!r}", d.title.startswith("Deska"))
 
     # the AI with two windows: each window's chat acts in its own window (the MCP server as its chat starts it:
     # --client <the window's id>), never in the other; a window closed -> its chat's calls fail, saying so

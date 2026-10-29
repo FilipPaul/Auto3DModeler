@@ -7,6 +7,12 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Several windows / starts done**: a second start of the exe (launcher: unchanged — Edge --app with the same
+  profile opens a new window of the running server, a fresh page) or ⧉ / Ctrl+click on 📄 Nový projekt -> the start
+  screen with a project of its own. windows.js answers on a BroadcastChannel "a3d-windows" which project is open
+  there (openElsewhere): autosave.offerLast offers the last project NOT open in another window, 🕘 Nedávné projekty
+  marks such a one "otevřen v jiném okně" (opening it is allowed: the windows of a project sync). The title is the
+  project's name. tests: tools/e2e_new_project.py (a second window of the app).
 - **✨ AI: a chat per window done** (the owner: "jak to funguje, pokud program spustím víckrát? … A bude fungovat
   agent?"). Decided: (a) each window its own chat — server.CHATS {client id: ChatSession}, made at the window's first
   chat request, its Claude Code process only with its first message (a window that never chats costs nothing; ended

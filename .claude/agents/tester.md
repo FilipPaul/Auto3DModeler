@@ -545,7 +545,8 @@ Never report "works" without having run it; report failures with their output.
    open -> the start screen, an empty project under a new autosave id, the title back to the app's, the toast naming the
    previous one, which is in 🕘 Recent and comes back by ↶ Otevřít znovu (its id, part and steps); Ctrl+Alt+N; an empty
    project: only a note; the project widget's ⋯ menu and the docked suggestions' row; ⧉ in a new window: a second
-   window starts empty, the first keeps its project. Then the AI with two browsers (two projects): an MCP server per
+   window starts empty, the first keeps its project. A second start (a plain new window): the start screen, "continue"
+   offers the last project not open in another window, 🕘 Recent marks that one, the titles differ. Then the AI with two browsers (two projects): an MCP server per
    window (--client <window id>, as its chat starts it) lists and changes only its own window's project; a call for
    no window goes to the window in use; the second window closed: its chat's call fails at once ("… was closed"),
    the first one's still works; a reload and 📄 New project keep the window's chat id, a new window has its own.
