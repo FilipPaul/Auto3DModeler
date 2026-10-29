@@ -20,7 +20,9 @@ Date: 2026-10-25. Written by the architect agent.
   the part: the plate's own bottom sketch picked from its top face); the sketch chosen in the tree only right on its
   line (~0.4 % of the part), a sketch not extruded yet as before; tests: e2e_model_tree. **Hole panel at 1280 × 800**:
   a position's row cut its ✕ off (nowrap words); now its words wrap (minmax grid column), the number and ⇄ 🎯 stay
-  whole; tests: e2e_ux_model.
+  whole; tests: e2e_ux_model. **AI: a dimension's tolerance / reference**: sheet_edit {dims: {<id>: {tol: "±0.1" /
+  "+0.2/-0.1" / null, ref: true / false}}} (tolText checks it, a Ø is told to take a fit; stored as the panel does:
+  d.dims[id] for an automatic one, on the user's own dimension), get_sheet's dims show tol / ref; tests: e2e_agent.
 - **Assembly: suggestion-based and compact done** (the owner: "90 % základních věcí ze suggestions"; audit of 22 basic
   tasks: 8 → 20 doable from the Suggested table alone, the crank built from its four parts in 14 clicks instead of
   ≈ 27 with four Ctrl+clicks on small faces). assembly/smart.js: pinFits (a free round face of the chosen part and one

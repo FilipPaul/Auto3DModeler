@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { paintedFaces } from './modeler/paint.js';
 import { sectionMiddle } from './modeler/sectionbar.js';
 import { parseScale, DEFAULT_TPL } from './sheet/sheet.js';
+import { tolText } from './sheet/sheetsuggest.js';
 import { animState } from './assembly/anim.js';
 
 const b64 = (s, T) => { if (typeof s !== 'string') return s; const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new T(u.buffer); };
@@ -381,7 +382,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       await sheet.ensure();
       return ok({ ...sheet.summary(), ...(points ? { [points]: sheet.pointsOf(points) } : {}) });
     },
-    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, texts, complete, drop_twice, fits, scale, view_scales, view_names, template, template_all, save_template, frame, title_style, bom_style } = {}) => {
+    sheet_edit: async ({ preset, view_presets, paper, views, remove = [], restore, add = [], move = {}, dims, texts, complete, drop_twice, fits, scale, view_scales, view_names, template, template_all, save_template, frame, title_style, bom_style } = {}) => {
       need('sheet', 'This is for a drawing sheet (📄) — sheet_open opens one');
       const ed = sheet, done = [];
       if (template !== undefined) {
@@ -472,6 +473,21 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       }
       if (Object.keys(move || {}).length) done.push(`${Object.keys(move).length} moved`);
       for (const [id, f] of Object.entries(fits || {})) { ed.setFit(id, f || ''); done.push(`${id} ${f || 'no fit'}`); }
+      for (const [id, o] of Object.entries(dims || {})) { // a dimension's tolerance (±0.1, +0.2/−0.1) and reference (in brackets)
+        const d = ed.allDims().find((x) => x.id === id);
+        if (!d) throw new Error(`No dimension ${id} — get_sheet lists them.`);
+        if (!o || typeof o !== 'object') throw new Error(`dims: {${id}: {tol: "±0.1" | "+0.2/-0.1" | null, ref: true | false}}.`);
+        const props = {};
+        if (o.tol !== undefined) {
+          if (o.tol && (d.kind === 'pcd' || (d.kind === 'dia' && !d.thread))) throw new Error(`${id} is a Ø — give it a fit (fits {${id}: "H7"}), not a tolerance.`);
+          const v = tolText(o.tol || '');
+          if (v === null) throw new Error(`tol of ${id}: write it as "±0.1" or "+0.2/-0.1" (null: none).`);
+          props.tol = v || undefined;
+        }
+        if (o.ref !== undefined) props.ref = !!o.ref;
+        ed.setDimProps(id, props);
+        done.push(`${id} ${[o.tol !== undefined && (props.tol || 'no tolerance'), o.ref !== undefined && (o.ref ? 'a reference dimension' : 'not a reference')].filter(Boolean).join(', ')}`);
+      }
       const added = [].concat(add).map((spec) => ed.addFor(spec));
       if (added.length) done.push(`added ${added.join(', ')}`);
       if (drop_twice) { const ck = ed.check(); const ids = [...ck.dup, ...ck.over]; for (const id of ids) ed.remove(id); done.push(`${ids.length} given twice removed`); }

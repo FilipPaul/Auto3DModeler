@@ -415,6 +415,20 @@ try:
     from auto3d.agent_tools import BROWSER_TOOLS
     have = set(d.execute_script("return Object.keys(window.__app.agentHandlers)"))
     print(f"    the page's handlers: {len(have)} | browser tools without one: {sorted(BROWSER_TOOLS - have)}")
+    # 📄 a dimension's own tolerance and a reference dimension on a part's sheet (sheet_edit dims), shown by get_sheet
+    tool("new_model", name="Toleranced")
+    tool("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 60, "h": 40}}])
+    tool("add_feature", type="extrude", sketch="F1", d=8)
+    tool("sheet_open")
+    sh = json.loads(tool("get_sheet")[0])
+    lin = [x["id"] for x in sh["dims"] if x["kind"] == "linear"][:2]
+    t, _ = tool("sheet_edit", dims={lin[0]: {"tol": "+0.2/-0.1"}, lin[1]: {"tol": "±0.05", "ref": True}})
+    got = {x["id"]: x for x in json.loads(t)["dims"]}
+    print(f"    tol / ref: {got[lin[0]].get('tol')} {got[lin[0]]['text']} | {got[lin[1]].get('tol')} ref {got[lin[1]].get('ref')} {got[lin[1]]['text']}"
+          f" | ok: {got[lin[0]].get('tol') == '+0.2/−0.1' and got[lin[1]].get('ref') is True and got[lin[1]]['text'].startswith('(')}")
+    t, _ = tool("sheet_edit", dims={lin[1]: {"tol": None, "ref": False}})
+    got = {x["id"]: x for x in json.loads(t)["dims"]}
+    print(f"    cleared: {'tol' not in got[lin[1]] and 'ref' not in got[lin[1]]} | a bad tolerance refused:", tool("sheet_edit", dims={lin[0]: {"tol": "abc"}})[0][:90])
     # teaching: a ring and a tip at a control (gone on clear), and the reports written so far
     tool("gui_highlight", control="Save project", text="Save your work here.", step="1/1")
     print("    highlighted:", d.execute_script("return document.querySelector('.teach-tip')?.textContent.replace(/\\s+/g, ' ').trim()"))

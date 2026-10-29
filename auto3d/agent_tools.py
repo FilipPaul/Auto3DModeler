@@ -608,7 +608,7 @@ TOOLS = [
      "inputSchema": _obj({"part": STR})},
     {"name": "get_sheet", "where": "browser",
      "description": "The drawing sheet on screen: its part, preset, paper, scale, title-block template (and the templates there are), revision, views and dimensions [{id, view, kind (linear / dia / rad / ang / pcd), "
-                    "text (as drawn, e.g. \"8× Ø3 H7\"; a hole step's callout \"4× M3 ⌵ Ø5 × 90°\", \"Ø3.4 ⌴ Ø6 ↧ 3.2\", \"M5 ↧ 8\", \"Ø3.4 THRU\"), auto (made by the preset) or the user's, lost (its points are gone), "
+                    "text (as drawn, e.g. \"8× Ø3 H7\", \"(60 ±0.1)\"; a hole step's callout \"4× M3 ⌵ Ø5 × 90°\", \"Ø3.4 ⌴ Ø6 ↧ 3.2\", \"M5 ↧ 8\", \"Ø3.4 THRU\"), auto (made by the preset) or the user's, lost (its points are gone), tol (its tolerance), ref (a reference dimension, in brackets), "
                     "hole_position (a hole step's place from the part's left / bottom edge: a pitch \"4× 15\", a bolt circle kind pcd \"PCD Ø60 · 6× 60°\", "
                     "ordinate: true — one row each way from the edge's 0)}]. "
                     "points: a view's name (Front / Top / Right) — also its points (keys: a hole's centre \"H1:hole:0#c\", a line's ends "
@@ -633,11 +633,12 @@ TOOLS = [
                     "title_style \"A\" | \"B\" | \"C\" | \"D\" | \"E\" | \"block\" | \"strip\" (the title block's look: A strip 180 × 21, B ISO 7200 180 × 40, C dark band 180 × 34, D minimal 170 × 28, E column 90 × 56; block / strip the app's Modern) and bom_style \"A\" … \"E\" | \"modern\" (the parts list's and the BOM pages' look) — any two together; the app's templates \"A — Strip\", \"B — ISO 7200\", \"C — Dark band\", \"D — Minimal\", \"E — Column\" pair each with its own; "
                     "save_template \"<name>\" (this title block — its styles, fields, company / address / drawn by / note / tolerance standard / roughness, logo, frame — kept as a template for all projects; with template_all: on the whole set), "
                     "frame \"simple\" (10 mm) / \"iso\" (ISO 5457: 20 mm left, zones, centring marks) / \"narrow\" (5 mm) / \"none\" / {m: [left, top, right, bottom] mm, line, zones, marks} / null (the template's — a template carries its frame to the whole set), scale \"1:2\" / \"2:1\" / \"1:2522\" / null (the sheet's own scale; null: fitted automatically), "
-                    "view_scales {Front | Top | Right | Iso | Section: \"2:1\" / null} (a view's own scale — its label says it, e.g. \"Top (2:1)\"), view_names {Front | …: \"name\" / null} (rename a view's label) — fits {<a Ø dimension's id>: \"H7\" (a hole: H6 … H9) / \"h6\" (a shaft: f7, g6, h6, k6, m6, p6) or null} — values are always measured from the part. Do what the user cannot do in a click.",
+                    "view_scales {Front | Top | Right | Iso | Section: \"2:1\" / null} (a view's own scale — its label says it, e.g. \"Top (2:1)\"), view_names {Front | …: \"name\" / null} (rename a view's label) — fits {<a Ø dimension's id>: \"H7\" (a hole: H6 … H9) / \"h6\" (a shaft: f7, g6, h6, k6, m6, p6) or null}, "
+                    "dims {<dimension id>: {tol: \"±0.1\" / \"+0.2/-0.1\" / null (a tolerance after the size; a Ø takes a fit instead), ref: true / false (a reference dimension, in brackets: not to be checked)}} — values are always measured from the part. Do what the user cannot do in a click.",
      "inputSchema": _obj({"preset": {"type": "string", "enum": ["light", "medium", "full"]}, "view_presets": {"type": "object"}, "paper": {"type": ["string", "null"]}, "views": {"type": "object"},
                           "remove": {"type": "array", "items": STR}, "restore": {"type": "boolean"}, "move": {"type": "object"},
                           "add": {"type": "array", "items": {"type": "object"}}, "texts": {"type": "object"}, "complete": {"type": "boolean"}, "drop_twice": {"type": "boolean"},
-                          "fits": {"type": "object"}, "scale": {"type": ["string", "null"]}, "view_scales": {"type": "object"}, "view_names": {"type": "object"},
+                          "fits": {"type": "object"}, "dims": {"type": "object"}, "scale": {"type": ["string", "null"]}, "view_scales": {"type": "object"}, "view_names": {"type": "object"},
                           "template": {"type": ["string", "null"]}, "template_all": {"type": "boolean"}, "save_template": STR,
                           "frame": {"type": ["string", "object", "null"]},
                           "title_style": {"type": ["string", "null"], "enum": ["A", "B", "C", "D", "E", "block", "strip", None]},

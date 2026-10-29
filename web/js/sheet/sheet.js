@@ -2228,7 +2228,7 @@ export class SheetEditor {
       ...(Object.keys(this.d.viewNames || {}).length ? { view_names: this.d.viewNames } : {}),
       ...(this.outside().length ? { past_the_frame: this.outside() } : {}),
       dims: this.allDims().map((d) => ({ id: d.id, view: d.view, kind: d.kind, text: this.value(d) === null ? null : this.dimText(d, this.value(d)), auto: !!d.auto, ...(this.value(d) === null ? { lost: true } : {}),
-        ...(d.pos ? { hole_position: d.pos } : {}), ...(d.ord ? { ordinate: true } : {}) })),
+        ...(d.pos ? { hole_position: d.pos } : {}), ...(d.ord ? { ordinate: true } : {}), ...(d.tol ? { tol: d.tol } : {}), ...(d.ref ? { ref: true } : {}) })),
       deleted_auto: this.d.hidden.length,
       ...(this.d.asm?.rows ? { parts_list: this.d.asm.rows.map((r) => ({ pos: r.pos, name: r.name, part: r.part, qty: r.qty, ...(r.instances ? { instances: r.instances } : {}),
         balloon: this.balloonAt?.[r.pos] ? { at_mm: this.balloonAt[r.pos].at, leader_to_mm: this.balloonAt[r.pos].end, points_to: r.at || r.instances?.[0] || null } : null })),
