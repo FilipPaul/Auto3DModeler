@@ -53,6 +53,13 @@ const fmt = (v) => (+(+v).toFixed(3)).toString();
 const TREE_OPEN_KEY = 'a3d.treeOpen'; // the step tree's rows folded open
 const SIZES_KEY = 'a3d.sizes', SIZE_MODES = ['all', 'locked', 'none'];
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+/** A slider's new top round a typed number past it (a soft range grows): 1.5× it, up to a round 1 / 2 / 5 × 10ⁿ. */
+const growTo = (v) => { const x = Math.abs(v) * 1.5, e = 10 ** Math.floor(Math.log10(x || 1)); return [1, 2, 5, 10].map((k) => k * e).find((k) => k >= x - 1e-9); };
+/** Why a number stops at its max (a real limit — the kernel cannot build more), by step type and field. */
+const LIMIT_WHY = { 'fillet.r': 'max {v} — a bigger rounding does not fit here', 'chamfer.d': 'max {v} — a bigger chamfer does not fit here',
+  'hole.d': 'max {v} — the part is not wider here', 'hole.depth': 'max {v} — deeper is the same as Through all',
+  'extrude.d': 'max {v} — deeper goes through the part anyway', 'shell.t': 'max {v} — a thicker wall does not fit here',
+  'revolve.angle': 'max {v}° — a full turn', 'draft.angle': 'A draft angle is less than 45° (either way).' };
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -1252,7 +1259,7 @@ export class Modeler {
       add(P3(fr, f.at[0], f.at[1]), `${fmt(f.h)} high`, num('h', 'Height', { min: 0.5 }));
     } else if (f.type === 'pattern') {
       const b = this.result?.body?.bbox, c = b ? [(b[0] + b[3]) / 2, (b[1] + b[4]) / 2, b[5]] : [0, 0, 0];
-      add(c, `${f.count}×`, num('count', 'How many', { min: 2, max: Math.max(20, f.count * 2), step: 1, int: true }));
+      add(c, `${f.count}×`, num('count', 'How many', { min: 2, max: Math.max(20, f.count * 2), soft: true, step: 1, int: true }));
       if (f.kind !== 'circular') add(c.map((v, i) => v + (i === 2 ? this.view.size * 0.05 : 0)), `${fmt(f.spacing)} apart`, num('spacing', 'Apart', { min: 0.1 }));
     }
     this.view.setTags(tags, lines);
@@ -1312,17 +1319,20 @@ export class Modeler {
     }
   }
 
-  /** The editor of one size: a number and a slider; the part follows while sliding; Enter / OK keeps it, Esc goes back. */
+  /** The editor of one size: a number and a slider; the part follows while sliding; Enter / OK keeps it, Esc goes back.
+   *  Its max is hard (edit.max, or the kernel's: past it is refused, saying why) or soft (none given, edit.soft, the
+   *  kernel's "_soft": a bigger number typed is taken and the slider grows round it). */
   openDimEdit(el, edit) {
     this.closeDimEdit();
     const before = structuredClone(this.part.features);
     const v0 = edit.get(), step = edit.step || (Math.abs(v0) >= 20 ? 0.5 : 0.1), ex0 = this.dimExpr(edit);
-    let lo = edit.min ?? 0.1, hi = edit.max ?? Math.max(10, Math.abs(v0) * 3);
+    let lo = edit.min ?? 0.1, hi = edit.max ?? Math.max(10, Math.abs(v0) * 3), soft = !!edit.soft || edit.max === undefined, shownHi = hi;
     const box = document.createElement('div');
     box.className = 'm-dimedit';
     box.innerHTML = `<div class="m-dimedit-t">${esc(t(edit.label || 'Size'))}</div>
       <div class="m-dimedit-row"><input type="text" class="px-in" autocomplete="off" spellcheck="false" step="${step}" value="${esc(ex0 ?? fmt(v0))}" title="${esc(t('A number — or an expression of the project’s parameters: L, L/2 + 5, =D. “L = 100” makes the parameter L.'))}"><span class="unit">${edit.unit || (edit.int ? '' : 'mm')}</span></div>
-      <input type="range" min="${edit.int ? lo : 0}" max="${hi}" step="${edit.int ? 1 : step}" value="${v0}">
+      <input type="range" min="${edit.int ? lo : 0}" max="${Math.max(hi, v0)}" step="${edit.int ? 1 : step}" value="${v0}">
+      <div class="m-dimedit-why mp-warn" hidden></div>
       <div class="m-dimedit-acts"><button class="btn small primary" data-a="ok">OK</button><button class="btn small" data-a="cancel">Cancel</button>
         <button class="btn small" data-a="restore" disabled title="${esc(t('Back to the size it had when this was opened'))}" data-no-i18n>↺ ${fmt(v0)}</button></div>`;
     const vr = this.els.viewport.getBoundingClientRect(), r = el.getBoundingClientRect();
@@ -1337,12 +1347,16 @@ export class Modeler {
         const r = lim[edit.field];
         if (!r || this.dimEdit !== box) return;
         const approx = (lim._approx || []).includes(edit.field); // (a rounding's max found to 1 %: a bit more may fit)
+        soft = (lim._soft || []).includes(edit.field);
         [lo, hi] = r;
-        Object.assign(slider, { min: String(lo), max: String(hi) });
+        const cur = parseFloat(slider.value);
+        Object.assign(slider, { min: String(lo), max: String(soft && cur > hi ? growTo(cur) : hi) });
         Object.assign(num, { min: String(lo), max: String(approx ? +(hi * 1.02).toFixed(2) : hi) });
         const tag = document.createElement('div');
         tag.className = 'mp-range';
-        tag.textContent = `${fmt(lo)} – ${approx ? '≈' : ''}${fmt(hi)}${edit.unit || (edit.int ? '' : ' mm')}`;
+        tag.textContent = `${fmt(lo)} – ${approx && !soft ? '≈' : ''}${fmt(hi)}${soft ? '+' : ''}${edit.unit || (edit.int ? '' : ' mm')}`;
+        tag.title = soft ? t('A suggestion — type a bigger number and the slider grows') : t('The most that can be built here');
+        shownHi = hi;
         if (approx) hi = +(hi * 1.02).toFixed(2);
         slider.after(tag);
       });
@@ -1359,7 +1373,13 @@ export class Modeler {
       }
       busy = false;
     };
-    const valid = (v) => Number.isFinite(v) && v <= hi && (edit.int ? Number.isInteger(v) && v >= lo : lo <= v || lo < 0);
+    const valid = (v) => Number.isFinite(v) && (soft || v <= hi) && (edit.int ? Number.isInteger(v) && v >= lo : lo <= v || lo < 0);
+    const whyBox = box.querySelector('.m-dimedit-why');
+    const why = (v) => { // past a hard max: why it stops there (the step's own reason, else in general)
+      if (!(Number.isFinite(v) && !soft && v > hi)) return '';
+      const st = this.part.features.find((g) => g.id === edit.stepId), k = LIMIT_WHY[`${st?.type}.${edit.field}`];
+      return k ? t2(k, { v: fmt(shownHi) }) : t2('{v} is the most that works here (with what is around it).', { v: fmt(shownHi) });
+    };
     // 𝑥 a number or an expression of the parameters (L / 2; "L = 100" makes L when it is kept)
     const read = (keep = false) => {
       try { const r = keep ? takeField(num.value) : readField(num.value, params.list); num.classList.remove('px-bad'); num.title = ''; return r; } catch (e) {
@@ -1369,13 +1389,22 @@ export class Modeler {
       }
     };
     const back = box.querySelector('[data-a=restore]'), moved = () => { back.disabled = Math.abs(read().value - v0) < 1e-9; };
-    num.addEventListener('input', () => { const v = read().value; moved(); if (valid(v)) { slider.value = v; preview(v); } });
+    num.addEventListener('input', () => {
+      const v = read().value, w = why(v);
+      moved();
+      whyBox.hidden = !w;
+      whyBox.textContent = w;
+      if (!valid(v)) return;
+      if (v > +slider.max) slider.max = String(growTo(v)); // (a soft range: it grows round what was typed)
+      slider.value = v;
+      preview(v);
+    });
     slider.addEventListener('input', () => { const v = Math.max(parseFloat(slider.value), edit.min > 0 ? edit.min : 0); num.value = fmt(v); moved(); preview(v); });
     back.addEventListener('click', () => { num.value = fmt(v0); slider.value = v0; moved(); preview(v0); num.focus(); num.select(); }); // (the editor stays open)
     const ok = async () => {
       const r0 = read();
       if (r0.error) { this.hooks.toast(r0.error, 'warning', 6000); return; }
-      if (!valid(r0.value)) { this.hooks.toast('That size does not fit here.', 'warning'); return; }
+      if (!valid(r0.value)) { this.hooks.toast(why(r0.value) || 'That size does not fit here.', 'warning'); return; }
       const r = read(true), v = r.value;
       while (busy) await new Promise((res) => setTimeout(res, 20));
       this.closeDimEdit();
@@ -2299,7 +2328,10 @@ export class Modeler {
   }
 
   /** A slider under every number of a tool's panel: sliding types into the number (the part previews), typing
-   *  moves the slider. Its range: from the number's min (or below 0 when it may be negative) to about 3× the value. */
+   *  moves the slider. Its range: from the number's min (or below 0 when it may be negative) to about 3× the value.
+   *  Hard limits (the number's max: what the kernel can build, a full turn): a number past it is pulled back, saying
+   *  why. Soft ones (no max — only a suggested range, "_soft" from the kernel): a number past it is kept and the
+   *  slider grows round it. */
   addSliders(box) {
     // the ranges known for these very settings (not the ones from before e.g. a pattern went round)
     if (this.cmd?.limits && this.cmd.limitsKey === this.limitsKey(this.shown(), this.cmd.feature.id)) setTimeout(() => this.applyLimits(box, this.cmd.limits), 0);
@@ -2308,7 +2340,7 @@ export class Modeler {
       num.dataset.slider = '1';
       const v0 = parseFloat(num.value) || 0, int = num.step === '1', deg = /°/.test(num.parentElement?.textContent || '') || num.dataset.k === 'angle';
       const lo = num.dataset.lo !== undefined ? +num.dataset.lo : num.min !== '' ? parseFloat(num.min) : -Math.max(10, Math.abs(v0) * 3);
-      const hi = num.dataset.hi !== undefined ? +num.dataset.hi : deg ? 360 : int ? Math.max(20, v0 * 2) : Math.max(10, Math.abs(v0) * 3, lo + 1);
+      const hi = num.dataset.hi !== undefined ? +num.dataset.hi : num.max !== '' ? parseFloat(num.max) : deg ? 360 : int ? Math.max(20, v0 * 2) : Math.max(10, Math.abs(v0) * 3, lo + 1);
       const sl = document.createElement('input');
       Object.assign(sl, { type: 'range', min: String(Math.max(lo, int ? 2 : lo)), max: String(hi), step: num.dataset.step || (int ? '1' : hi > 50 ? '0.5' : '0.1'), value: String(v0) });
       sl.className = 'mp-slider';
@@ -2318,17 +2350,26 @@ export class Modeler {
         num.dispatchEvent(new Event('input', { bubbles: true }));
       });
       sl.addEventListener('change', () => num.dispatchEvent(new Event('change', { bubbles: true })));
-      num.addEventListener('input', () => {
-        const v = isPlain(num.value) ? parseFloat(num.value) : NaN, lo = num.min !== '' ? +num.min : -Infinity, hi = num.max !== '' ? +num.max : Infinity; // (an expression: held to the range once worked out)
-        if (Number.isFinite(v) && (v > (num.dataset.top ? +num.dataset.top : hi) || v < lo)) { // (≈ max: a little above it may fit)
-          num.value = fmt(Math.min(hi, Math.max(lo, v)));
-          this.hooks.toast(t2('{v} is the most that works here (with what is around it).', { v: num.value }), 'info', 2500);
-        }
+      const typed = () => [isPlain(num.value) ? parseFloat(num.value) : NaN, num.min !== '' ? +num.min : -Infinity, num.max !== '' ? +num.max : Infinity]; // (an expression: held to the range once worked out)
+      num.addEventListener('input', (e) => {
+        const [v, lo, hi] = typed();
+        if (Number.isFinite(v) && v > (num.dataset.top ? +num.dataset.top : hi)) { // (≈ max: a little above it may fit)
+          num.value = fmt(hi);
+          const why = LIMIT_WHY[`${this.cmd?.feature.type}.${num.dataset.k}`];
+          this.hooks.toast(why ? t2(why, { v: num.value }) : t2('{v} is the most that works here (with what is around it).', { v: num.value }), 'info', 3500);
+        } else if (Number.isFinite(v) && v < lo) e.stopImmediatePropagation(); // (half typed — "1" on the way to "10": not used; held to the min when done)
+      }, true);
+      num.addEventListener('change', () => {
+        const [v, lo] = typed();
+        if (!(Number.isFinite(v) && v < lo)) return;
+        num.value = fmt(lo);
+        this.hooks.toast(t2('{v} is the least that works here.', { v: num.value }), 'info', 3500);
+        num.dispatchEvent(new Event('input', { bubbles: true }));
       }, true);
       num.addEventListener('input', () => {
         const v = parseFloat(num.value);
         if (!Number.isFinite(v)) return;
-        if (v > +sl.max) sl.max = String(v * 1.5);
+        if (v > +sl.max) sl.max = String(growTo(v)); // (a soft range: it grows round what was typed)
         sl.value = String(v);
       });
       const row = num.closest('.field, .mp-hd, label') || num.parentElement;
@@ -2375,22 +2416,27 @@ export class Modeler {
   }
 
   /** Numbers and sliders held to their ranges; the range shown under the slider; a value outside is pulled in.
-   *  An approximate max (lim._approx: a rounding's, found to 1 %) shows "≈"; a number up to 2 % above it is left as typed. */
+   *  An approximate max (lim._approx: a rounding's, found to 1 %) shows "≈"; a number up to 2 % above it is left as typed.
+   *  A soft max (lim._soft: only how far the kernel looked, or a pattern's copies that reach the part) is no max: the
+   *  slider ends there (or round a bigger number typed) and grows when more is typed. */
   applyLimits(box, lim) {
     for (const [k, [lo, hi]] of Object.entries(lim || {}).filter(([q]) => !q.startsWith('_'))) {
-      const approx = (lim._approx || []).includes(k), top = approx ? +(hi * 1.02).toFixed(2) : hi;
+      const approx = (lim._approx || []).includes(k), soft = (lim._soft || []).includes(k), top = soft ? Infinity : approx ? +(hi * 1.02).toFixed(2) : hi;
       for (const num of box.querySelectorAll(`input[type=number][data-k="${k}"], input.px-in[data-k="${k}"]`)) {
         num.min = String(lo);
-        num.max = String(hi);
-        if (approx) num.dataset.top = String(top); else delete num.dataset.top; // (typed up to it: left as it is)
+        if (soft) num.removeAttribute('max'); else num.max = String(hi);
+        num.toggleAttribute('data-soft', soft);
+        if (approx && !soft) num.dataset.top = String(top); else delete num.dataset.top; // (typed up to it: left as it is)
         const sl = num.closest('.field, label, .mp-hd')?.nextElementSibling;
         if (sl?.classList.contains('mp-slider')) {
           const st = +sl.step || 0.1;
           sl.min = String(Math.floor(lo / st) * st); // on the step grid (0.01 would make 8 into 7.99); the number holds the min
-          sl.max = String(hi);
+          const cur = parseFloat(num.value);
+          sl.max = String(soft && cur > hi ? growTo(cur) : hi);
           let tag = sl.nextElementSibling;
           if (!tag?.classList.contains('mp-range')) { tag = document.createElement('div'); tag.className = 'mp-range'; sl.after(tag); }
-          tag.textContent = `${fmt(lo)} – ${approx ? '≈' : ''}${fmt(hi)}${k === 'count' ? '' : k === 'angle' ? '°' : ' mm'}`;
+          tag.textContent = `${fmt(lo)} – ${approx && !soft ? '≈' : ''}${fmt(hi)}${soft ? '+' : ''}${k === 'count' ? '' : k === 'angle' ? '°' : ' mm'}`;
+          tag.title = soft ? t('A suggestion — type a bigger number and the slider grows') : t('The most that can be built here');
         }
         const v = isPlain(num.value) ? parseFloat(num.value) : NaN;
         if (Number.isFinite(v) && (v > top || v < lo)) {
@@ -3517,7 +3563,7 @@ export class Modeler {
     const f = this.cmd.feature, st = this.status(f.id), es = this.draftable(f.id);
     box.innerHTML = `<h2>${esc(f.name)}</h2>
       <div class="field"><label>Walls of</label><select data-k="of">${es.map((g) => `<option value="${g.id}" ${g.id === f.of ? 'selected' : ''} data-no-i18n>${esc(g.name)}</option>`).join('')}</select></div>
-      <div class="field"><label>Angle</label><input type="number" step="0.5" data-k="angle" value="${fmt(f.angle)}"><span class="unit">°</span></div>
+      <div class="field"><label>Angle</label><input type="number" step="0.5" min="-44.5" max="44.5" data-k="angle" value="${fmt(f.angle)}"><span class="unit">°</span></div>
       <p class="hint">${esc(t('Its side walls lean in going up from its base (negative: out) — or click a wall of another extrude.'))}</p>
       ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
@@ -3570,7 +3616,7 @@ export class Modeler {
       f.dir = d;
     }
     this.renderProps();
-    this.rebuild();
+    this.rebuild()?.then?.(() => { if (this.cmd?.feature === f) this.renderProps(); }); // (its warning — copies off the part — when built)
   }
 
   /** "x" | "y" | "z" when the direction (or the axis, through the origin) is a main axis, else null. */
@@ -3596,7 +3642,7 @@ export class Modeler {
       <div class="field"><label>${circ ? 'Around' : 'Direction'}</label><div class="seg">${Object.keys(AXES).map((a) => `<button data-ax="${a}" class="${ax === a ? 'on' : ''}">${a.toUpperCase()}</button>`).join('')}${circ ? '' : '<button data-a="flipDir" title="The other way">⇄</button>'}</div></div>
       <p class="hint">${circ ? (ax ? 'Evenly around the axis through the origin. Or click a round face (a hole, a shaft) to go around its axis.' : 'Evenly around the axis of the round face you clicked.')
         : (ax ? 'Or click a straight edge in the view to go along it.' : 'Along the edge you clicked.')}</p>
-      ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
+      <div data-st>${this.statusHtml(st)}</div>
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
     const changed = () => { this.renderProps(); this.rebuild(); };
     for (const b of box.querySelectorAll('[data-kind]')) {
@@ -3627,12 +3673,20 @@ export class Modeler {
       if (!inp) continue;
       inp.addEventListener('input', () => {
         const v = parseFloat(inp.value);
-        if (v > 0 && (k !== 'count' || (Number.isInteger(v) && v >= 2))) { f[k] = v; this.rebuild(); }
+        if (v > 0 && (k !== 'count' || (Number.isInteger(v) && v >= 2))) {
+          f[k] = v;
+          this.rebuild()?.then?.(() => { const el = box.querySelector('[data-st]'); if (el && this.cmd?.feature === f) el.innerHTML = this.statusHtml(this.status(f.id)); });
+        }
       });
       inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.escCommand(); });
     }
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
+  }
+
+  /** A step's problem (red) or warnings (yellow) for its panel. */
+  statusHtml(st) {
+    return st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : st?.warnings?.length ? `<p class="mp-warn">⚠ ${esc(st.warnings.join(' '))}</p>` : '';
   }
 
   // ------------------------------------------------------------------ 🎨 paint faces / bodies

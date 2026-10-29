@@ -547,9 +547,13 @@ follows while you slide; Enter / OK keeps it (one undo step), Esc goes back. Eve
 The sliders run only over the values that **work**: the kernel tries the step with the part as it is and finds the
 range (the biggest rounding the edges allow, a wall up to what the part can take, a blind hole up to the part's
 thickness, a pattern only as far as its copies still reach the part; a rounding's found to 1 %, shown *≈ 8.94*, as near a
-hole OpenCASCADE builds slowly right below its limit); the range shows under the slider, a typed
-value beyond it is held at the limit. When a step fails anyway, it says how much does fit (*at most 9.99 mm*) — or
-that no size works there and what to change.
+hole OpenCASCADE builds slowly right below its limit); the range shows under the slider. Where the limit is **real**
+(a rounding / chamfer / wall that cannot be built bigger, a hole as wide as the part, a blind hole or a cut deeper
+than through, a full turn, a draft under 45°) a typed value beyond it is held at the limit, saying why (*max 9.94 — a
+bigger rounding does not fit here*). Where the range is only a **suggestion** — shown with a *+* (*2 – 4+*): a
+pattern's count and spacing (the copies that still reach the part), an extrude's height — a bigger number typed is
+kept and the slider grows to take it (a pattern then warns *Only 4 of the copies reach the part*). When a step fails
+anyway, it says how much does fit (*at most 9.99 mm*) — or that no size works there and what to change.
 A click on a step in the **list** does the same as a click on the part: it is marked in 3D (a sketch's lines in
 gold, with the faces made from it) and its sizes show on the finished part — change a sketch's sizes there,
 looking at the result.

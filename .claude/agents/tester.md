@@ -122,6 +122,9 @@ Never report "works" without having run it; report failures with their output.
    undo) and ↻ turning about a joint (caught at 90°, 30° typed).
    `tools/e2e_model_limits.py <url> <dir>` covers the value ranges (fillet R 0.01–9.99, 15 held at 9.99 and building;
    hole depth to the part's thickness; pattern count to what still reaches the part; the 3D size editor's range).
+   `tools/e2e_slider_grow.py <url> <dir>` covers soft vs hard ranges (pattern count 10 typed past its "2 – 4+": kept,
+   the slider grown, a warning, 10 holes' volume; the label editor takes 24; fillet 15 held at ≈ 9.94 saying why, in
+   the panel and the label editor; draft 50° held at 44.5°).
    `tools/e2e_esc_keeps.py <url> <dir>` covers Esc keeping what was placed (sketch line: 2 segments stay; ◎ Hole: 1
    click + Esc = a step with one hole, exact volume; Esc with nothing placed / the Cancel button: no step; Fillet alike).
    `tools/e2e_assembly_sub.py <url> <dir>` covers assemblies in assemblies (one body, joined, mass, STEP with every

@@ -7,6 +7,17 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Soft / hard slider ranges (2026-10-29)**: `/api/model/limits` lists in `_soft` a max that is only how far the
+  search looked (it still built there: an extrude's height) or a suggestion (a pattern's count / spacing: the copies
+  that reach the part — decided soft, the pattern may run off the part; `_pattern` then warns *Only N of the copies
+  reach the part*); everything else is hard (a cut / blind hole capped at through, a hole as wide as the part, a full
+  turn, what OpenCASCADE cannot build). Soft numbers get no max: the slider grows round a bigger typed number (to a
+  round 1 / 2 / 5 × 10ⁿ), the range shows *2 – 4+*; hard ones are held saying why (`LIMIT_WHY`: *max 9.94 — a bigger
+  rounding does not fit here*), in the panel and the 3D label's editor (whose pattern count is soft too). A number
+  below its min is no longer forced up while typing ("1" on the way to "10" became 20): held to the min when done. The
+  draft angle is ±44.5°. Assembly sliders: the joint gap already grows (±50 mm, wider round a typed value); the turn
+  sliders (±180°) and travel limits are hard — unchanged. Tests: test_limits (+ `_soft`, 6 copies past the end build
+  with a warning), e2e_slider_grow (new), e2e_model_pattern (along y the count is kept, with the warning).
 - **Esc keeps what was placed (2026-10-29)**: in a tool that places things click after click — ◎ Hole (positions),
   Fillet / Chamfer (edges), Shell (open faces) — Esc ends the placing and keeps them (`escCommand`: as OK, a toast
   *Hole: 1 position(s) kept*); with nothing placed (or nothing changed in an edited step) it cancels; the Cancel button
