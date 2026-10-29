@@ -3,7 +3,7 @@ the hole's rim: its face picked (lit), the Suggested table offers the joints it 
 round face: the joints that fit two round faces (Concentric) -> a click on it: the pin is concentric in the hole ->
 a click on the Base's top and Ctrl+click on the pin's end: two flat faces — Touch, Flush, Gap … -> the view zoomed out
 (the wheel): a click on the small pin's round face and on the hole's rim pick the faces, not the snap of their centres
-(the hole's centre is a few px away; the Concentric undone first).
+(the hole's centre is a few px away; the Concentric undone first); a Ctrl+click beside the parts keeps the face picked first.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_assembly_facepick.py http://127.0.0.1:5199 <out dir>
 """
@@ -131,6 +131,13 @@ try:
     click("I1", [hx + 3, hy, bb[5]], ctrl=True)  # + the hole's rim
     picks = js(f"return ({A}.facePicks || []).map(q => [q.inst, q.face.type])")
     check(picks == [["I2", "cylinder"], ["I1", "cylinder"]], f"+ Ctrl+click on the hole's rim: both round faces {picks} | the table: {table()}")
+    click("I2", [-3, 0, 17])
+    cvh = js("return arguments[0].getBoundingClientRect().height", cv)
+    ActionChains(d, duration=30).move_to_element_with_offset(cv, 0, int(cvh / 2) - 60).perform()
+    ActionChains(d).key_down(Keys.CONTROL).click().key_up(Keys.CONTROL).perform()
+    time.sleep(0.5)
+    picks = js(f"return ({A}.facePicks || []).map(q => [q.inst, q.face.type])")
+    check(picks == [["I2", "cylinder"]], f"a Ctrl+click beside the parts: the pin's face stays picked {picks}")
     d.save_screenshot(f"{OUT}/assembly_facepick_far.png")
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])

@@ -233,7 +233,8 @@ Never report "works" without having run it; report failures with their output.
    server restarted after server / autosave changes.
    `tools/e2e_assembly_facepick.py <url> <dir>` covers faces picked with no tool on (a hole's rim: the joints it can
    start; + Ctrl+click the pin's round face: Concentric, made — the pin on the hole's axis; two flat faces: Touch …; zoomed
-   out: the small pin's side and the hole's rim picked as faces, not the snaps of their centres). Exits 1 on a failed check.
+   out: the small pin's side and the hole's rim picked as faces, not the snaps of their centres; a Ctrl+click beside
+   the parts keeps the face picked first). Exits 1 on a failed check.
    `tools/e2e_assembly_fixed.py <url> <dir>` covers 📌 fixed parts (the first part fixed, 📌 in the list; moving it
    refused; a joint from it moves the other part; the Lid's suggestions: unlock and edit here, fix; freed: it moves).
    `tools/e2e_planes.py <url> <dir>` covers the planes (faint on an empty model; ◫ Planes off: hidden, remembered;

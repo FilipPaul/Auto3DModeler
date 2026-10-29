@@ -2992,6 +2992,7 @@ export class Assembly {
       const f = this.snapPick ? null : this.view.roundEdgeAt(e.clientX, e.clientY) || (h?.face ? h : null); // a face, or a hole's / pin's rim
       const pick = f && { inst: f.inst, face: f.face };
       const had = this.facePicks || [];
+      if (more && !pick && had.length && !h) return; // (a Ctrl+click beside the parts: the face picked first stays)
       this.facePicks = !pick ? [] : more && had.length === 1 && had[0].inst !== pick.inst ? [had[0], pick] : [pick]; // (Ctrl: the other part's face)
       this.choose(this.snapPick ? sp.inst : h?.inst || pick?.inst || null, more);
       this.drawMarks();
