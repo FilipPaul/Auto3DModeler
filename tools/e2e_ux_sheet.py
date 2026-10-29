@@ -5,6 +5,8 @@ the table's rows: a plate 60 × 40 × 8 with 4 holes Ø4 -> 📄 Drawing sheet (
 dimension: Tolerance… ±0.1, Referenční kóta "(60 ±0.1)", Na druhou stranu, Smazat -> a hole: its callout chosen
 (Jeho kóta), Uložení… H7 -> the title block: Číslo výkresu… D-001, Šablona (Modern), Rámeček… Úzký -> Esc: Export PDF
 (the PDF has D-001), Tisk (a print frame with the PDF). Screenshots at 1600 × 1000 and the view's table at 1280 × 800.
+Then the 2D drawing's table (drawing2d/drawsuggest.js): a DXF plate with 3 holes opened -> nothing chosen: Jako skicu
+nového 3D modelu …; a circle clicked -> Všechny takové (3 chosen), Ø: změnit rozměr… 6 (all three), Smazat.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_ux_sheet.py http://127.0.0.1:5199 <out dir>
 """
@@ -260,6 +262,55 @@ try:
     click_paper(view_mid("Front"))
     check("1280 × 800: the view's table fits the view", js("const b = document.querySelector('#shViewport .view-suggest').getBoundingClientRect(), v = document.getElementById('shViewport').getBoundingClientRect(); return b.top >= v.top && b.bottom <= v.bottom + 1"))
     d.save_screenshot(f"{OUT}/ux_sheet_9_1280.png")
+    d.set_window_size(1600, 1000)
+    time.sleep(0.5)
+
+    # the 2D drawing workspace: a DXF opened -> its table; a circle clicked -> all like it, its size, delete
+    import os
+    import ezdxf
+    doc = ezdxf.new("R2010")
+    doc.header["$INSUNITS"] = 4
+    msp = doc.modelspace()
+    msp.add_lwpolyline([(0, 0), (100, 0), (100, 60), (0, 60)], close=True)
+    for x in (20, 50, 80):
+        msp.add_circle((x, 30), 4)
+    dxf = os.path.abspath(os.path.join(OUT, "ux_plate.dxf"))
+    doc.saveas(dxf)
+    D = "window.__app.drawing2d"
+    d.find_element(By.ID, "cadInput").send_keys(dxf)
+    wait("return window.__app.state.workspace === 'drawing'")
+    time.sleep(0.8)
+    tbl = lambda: d.find_elements(By.CSS_SELECTOR, "#dwgViewport .view-suggest")
+    names = lambda: [b.text.replace("\n", " ") for b in tbl()[0].find_elements(By.CSS_SELECTOR, ".vs-list button")] if tbl() else []
+    check("2D drawing: a table with nothing chosen", bool(tbl()) and any("Jako skicu nového 3D modelu" in r for r in names()), str(names()))
+    d.save_screenshot(f"{OUT}/ux_draw_1_nothing.png")
+    s = js(f"return {D}.toScreen([24, 30])")
+    cv = d.find_element(By.CSS_SELECTOR, "#dwgViewport canvas")
+    w, h = js("const r = arguments[0].getBoundingClientRect(); return [r.width, r.height]", cv)
+    ActionChains(d).move_to_element_with_offset(cv, round(s[0] - w / 2), round(s[1] - h / 2)).click().perform()
+    time.sleep(0.5)
+    t2 = tbl()[0].find_element(By.CSS_SELECTOR, ".vs-head b").text if tbl() else None
+    check("2D drawing: a circle chosen, its table", t2 == "Kruh Ø8", f"{t2} {names()}")
+    d.save_screenshot(f"{OUT}/ux_draw_2_circle.png")
+    for b in tbl()[0].find_elements(By.CSS_SELECTOR, ".vs-list button"):
+        if "Všechny takové" in b.text:
+            ActionChains(d).move_to_element(b).click().perform()
+            break
+    time.sleep(0.5)
+    check("2D drawing: all like it chosen (3 circles)", js(f"return {D}.sel.size") == 3, f"{js(f'return {D}.sel.size')} {names()}")
+    for b in tbl()[0].find_elements(By.CSS_SELECTOR, ".vs-list button"):
+        if "změnit rozměr" in b.text:
+            ActionChains(d).move_to_element(b).click().perform()
+            break
+    answer("6")
+    check("2D drawing: all three Ø6 now", js(f"return {D}.d.entities.filter(e => e.t === 'circle').map(e => 2 * e.r).join(',')") == "6,6,6")
+    for b in tbl()[0].find_elements(By.CSS_SELECTOR, ".vs-list button"):
+        if "Smazat" in b.text:
+            ActionChains(d).move_to_element(b).click().perform()
+            break
+    time.sleep(0.4)
+    check("2D drawing: deleted from the table", js(f"return {D}.d.entities.filter(e => e.t === 'circle').length") == 0)
+    d.save_screenshot(f"{OUT}/ux_draw_3_done.png")
 finally:
     errs = [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"]
     print("console errors:", errs)

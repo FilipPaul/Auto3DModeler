@@ -1769,6 +1769,16 @@ const CS = {
   'Its dimension: {t}': 'Jeho kóta: {t}', 'It has one already — choose it (tolerance, fit, delete …)': 'Už ji má — vyberte ji (tolerance, uložení, smazat …)',
   'Fit (ISO 286): H7 a hole, h6 a sliding shaft, k6 a push fit, p6 a press fit': 'Uložení (ISO 286): H7 díra, h6 posuvný hřídel, k6 nasunutí, p6 nalisování',
   'Dimension Ø{d}': 'Okótovat Ø{d}', 'Dimension R{r}': 'Okótovat R{r}', 'Dimension its length ({l} mm)': 'Okótovat její délku ({l} mm)',
+  // 📐 the 2D drawing's suggestions table (drawing2d/drawsuggest.js)
+  'Click a shape: what to do with it (Ctrl+click: more).': 'Klikněte na tvar: nabídne se, co s ním (Ctrl+klik: další).',
+  'Delete the chosen shapes (Delete; Ctrl+Z brings them back)': 'Smazat vybrané tvary (Delete; Ctrl+Z je vrátí)',
+  'Move the chosen shapes to another layer': 'Přesunout vybrané tvary do jiné hladiny',
+  'Only the chosen shapes as a clean sketch of a new 3D model': 'Jen vybrané tvary jako čistou skicu nového 3D modelu',
+  "Only the chosen shapes' closed outlines as a quick part": 'Jen uzavřené obrysy vybraných tvarů jako rychlý díl',
+  'The shown layers as a clean sketch: ends welded, lines and arcs joined — then extrude it': 'Zobrazené hladiny jako čistá skica: konce svařené, úsečky a oblouky spojené — pak ji vysuňte',
+  'The closed outlines of the shown layers as a quick part: thickness, holes, 3D print': 'Uzavřené obrysy zobrazených hladin jako rychlý díl: tloušťka, díry, 3D tisk',
+  'These as a quick part': 'Vybrané jako rychlý díl', 'These as a sketch': 'Vybrané jako skicu', 'To another layer…': 'Do jiné hladiny…',
+  'To which layer?': 'Do které hladiny?', 'in the 2D drawing': 've 2D výkresu', '{what}: change the size…': '{what}: změnit rozměr…',
   'Čeština / English': 'Čeština / English',
 };
 

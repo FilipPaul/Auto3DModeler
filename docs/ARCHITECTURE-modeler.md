@@ -7,6 +7,12 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **📐 Suggestions in the 2D drawing done**: web/js/drawing2d/drawsuggest.js (showSuggest). With nothing chosen:
+  ✏ as a sketch of a new 3D model, ▤ as a quick part, 📏 measure, ⬇ DXF. For the shapes chosen: ≡ all like this, Ø / R
+  / length: change the size… (one value, all of them change), only these as a sketch / a quick part (no question:
+  DrawingEditor.useShapes), to another layer…, ✕ delete. Esc with shapes chosen: nothing chosen. No table while
+  drawing or measuring. tools/e2e_ux_sheet.py (2D part, 4 checks).
+  Left out: merge / simplify as a command (it happens when the drawing becomes a sketch), lasting dimensions.
 - **📄 Suggestions on the drawing sheet done** (the owner: "suggestion based — 90 % of the basic things from
   suggestions"; before, the sheet had no table, and a click on a view, an edge or the title block did nothing
   visible). web/js/sheet/sheetsuggest.js builds the table from what is chosen. SheetEditor has selView, selGeo

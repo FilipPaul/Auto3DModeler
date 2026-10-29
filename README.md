@@ -272,7 +272,9 @@ hide (also Delete). On an **edge**: dimension its length, or the distance / angl
 Ø or the hole callout ("4× Ø4 THRU"); if it has one already, that one is chosen. On a **dimension**: a tolerance
 (±0.1 or +0.2/−0.1), a fit (H7, h6 …), a reference dimension "(60)", the other side, delete. On the **title
 block**: name, drawing no., drawn by, note, the material (in the part), template, frame, paper, DXF. With **nothing
-chosen** you get the next steps: add the missing sizes, show a hidden view, ⬇ Export PDF, 🖨 Print.
+chosen** you get the next steps: add the missing sizes, show a hidden view, ⬇ Export PDF, 🖨 Print. The
+**2D drawing** has a table too: with nothing chosen, as a sketch / as a quick part / measure / DXF; for the shapes
+chosen: all like it, change the size, only these as a sketch or a quick part, another layer, delete.
 
 **Construction lines**: **┄ Construction** in the sketch toolbar draws helper lines, circles and arcs (dashed
 amber) while it is on; with ⬚ Select it turns the selected shape into one (or back). They guide — a ⟳ Revolve takes

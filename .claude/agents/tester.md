@@ -169,7 +169,8 @@ Never report "works" without having run it; report failures with their output.
    Ctrl+Z, Přidat řez A–A, the section's Skrýt pohled; Delete hides the top view, 👁 Ukázat pohled; an edge -> Okótovat
    její délku (60); the dimension -> Tolerance… ±0.1, Referenční kóta "(60 ±0.1)", Na druhou stranu, Smazat; a hole ->
    its callout (Jeho kóta), Uložení… H7; the title block -> Číslo výkresu… D-001, Šablona Moderní, Rámeček Úzký; the
-   PDF has D-001 and H7; Tisk: a print frame; the view's table inside the view at 1280 × 800).
+   PDF has D-001 and H7; Tisk: a print frame; the view's table inside the view at 1280 × 800) and the 2D drawing's
+   table in Czech (a DXF: nothing chosen -> Jako skicu…; a circle -> Všechny takové (3), Ø: změnit rozměr… 6, Smazat).
    Exits 1 on a failed check.
    `tools/e2e_assembly_light.py <url> <dir>` covers 🪶 Simplified (the Lid ticked: light, no edges, fewer triangles,
    kept in doc.light; a joint onto it still made; unticked: full again, as before).
