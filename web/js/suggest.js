@@ -54,7 +54,9 @@ export function showSnapFilters(viewport, on = true, opts = viewport.snapOpts ||
   }
   const k = snapKinds(), F = [['corner', '⌜', 'Corners'], ['midpoint', '⊹', 'Edge midpoints'], ['centre', '◎', 'Centres'], ['quadrant', '◔', 'Quadrants'], ['guides', '┆', 'Guides']];
   const hk = hoverKinds(), HV = [['edges', '⟋', 'Edges'], ['points', '•', 'Snap points']];
-  const sk = showKinds(), SH = [['joints', '🔗', 'Joints', "the joints' symbols in the view — click to hide or show them"]];
+  const sk = { ...showKinds(), ...(opts.isOn ? Object.fromEntries((opts.show || []).map((key) => [key, opts.isOn(key)])) : {}) };
+  const SH = [['joints', '🔗', 'Joints', "the joints' symbols in the view — click to hide or show them"],
+    ['dims', '📏', 'Dimensions', "the part's sizes on the view — click to hide or show them (as Sizes: All / None)"]];
   bar.innerHTML = `<span class="skf-t">${esc(t('Snap'))}:</span>${F.map(([key, i, l]) => `<button class="${k[key] ? 'on' : ''}" data-snap="${key}" title="${esc(`${t(l)}: ${t(key === 'guides' ? 'Line up a hole or a text with corners, midpoints and centres while placing it — click to switch' : 'What 📏 Measure and a click catch — click to switch')}`)}">${i} <span class="skf-l">${esc(t(l))}</span></button>`).join('')}
     <span class="sep"></span><span class="skf-t">${esc(t('Hover'))}:</span>${HV.map(([key, i, l]) => `<button class="${hk[key] ? 'on' : ''}" data-hover="${key}" title="${esc(`${t(l)}: ${t(key === 'edges' ? 'Light up the edge under the mouse (a line or a circle) — click to switch' : 'Show the snap points of the step / face under the mouse — click to switch')}`)}">${i} <span class="skf-l">${esc(t(l))}</span></button>`).join('')}${
     opts.show?.length ? `<span class="sep"></span><span class="skf-t">${esc(t('Show'))}:</span>${SH.filter(([key]) => opts.show.includes(key)).map(([key, i, l, w]) => `<button class="${sk[key] ? 'on' : ''}" data-show="${key}" title="${esc(`${t(l)}: ${t(w)}`)}">${i} <span class="skf-l">${esc(t(l))}</span></button>`).join('')}` : ''}`;
@@ -65,7 +67,10 @@ export function showSnapFilters(viewport, on = true, opts = viewport.snapOpts ||
   };
   for (const b of bar.querySelectorAll('[data-snap]')) b.addEventListener('click', () => flip(SNAP_KEY, snapKinds, b.dataset.snap));
   for (const b of bar.querySelectorAll('[data-hover]')) b.addEventListener('click', () => flip(HOVER_KEY, hoverKinds, b.dataset.hover));
-  for (const b of bar.querySelectorAll('[data-show]')) b.addEventListener('click', () => { flip(SHOW_KEY, showKinds, b.dataset.show); opts.onShow?.(); });
+  for (const b of bar.querySelectorAll('[data-show]')) b.addEventListener('click', () => {
+    if (opts.toggle) { opts.toggle(b.dataset.show); showSnapFilters(viewport); } else flip(SHOW_KEY, showKinds, b.dataset.show); // (a view keeping the state itself)
+    opts.onShow?.();
+  });
   fitSnapFilters(viewport);
   if (!viewport.snapFit && window.ResizeObserver) (viewport.snapFit = new ResizeObserver(() => fitSnapFilters(viewport))).observe(viewport);
 }

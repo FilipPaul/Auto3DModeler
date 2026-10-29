@@ -1882,6 +1882,7 @@ const CS = {
   'Copy one part as it is in another variant into this one': 'Zkopírovat jeden díl, jak je v jiné variantě, do této',
   'Take a part from a variant…': 'Převzít díl z varianty…', 'Click: look at it (read only)': 'Klik: prohlédnout (jen pro čtení)',
   'Compare with current': 'Porovnat s aktuální', 'Create a variant from this version': 'Vytvořit variantu z této verze',
+  "the part's sizes on the view — click to hide or show them (as Sizes: All / None)": 'kóty dílu v pohledu — kliknutím je skryjete nebo zobrazíte (jako Rozměry: Vše / Žádné)',
   "the joints' symbols in the view — click to hide or show them": 'značky vazeb v pohledu — kliknutím je skryjete nebo zobrazíte',
   current: 'aktuální', viewing: 'prohlížíte', 'The current version: the project is as this one (with the changes since)': 'Aktuální verze: projekt je jako tato (plus změny od té doby)',
   'Before restoring': 'Před obnovením', 'Restored: {what}': 'Obnoveno: {what}', automatic: 'automaticky', 'Changed: {parts}': 'Změněno: {parts}',

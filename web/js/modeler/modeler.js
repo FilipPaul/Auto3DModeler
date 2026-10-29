@@ -234,7 +234,9 @@ export class Modeler {
     } else {
       this.els.viewport.querySelector(':scope > .view-suggest[data-from=sketch]')?.remove(); // (the sketch's suggestions)
       this.view.setPlaneArrow(this.cmd?.feature.type === 'split' ? this.splitFrame() : null, t('this side'), false); // (✂ Split: which side is "this side")
-      showSnapFilters(this.els.viewport, !!this.result?.body && (!this.cmd || ['hole', 'decal'].includes(this.cmd.feature.type))); // (what 📏 Measure catches, and a hole / text placed on a face — not while other features are made)
+      showSnapFilters(this.els.viewport, !!this.result?.body && (!this.cmd || ['hole', 'decal'].includes(this.cmd.feature.type)), { // (📏 Show: Dimensions = Sizes All / None)
+        show: ['dims'], isOn: () => this.sizeMode !== 'none',
+        toggle: () => { if (this.sizeMode === 'none') this.setSizeMode(this.sizesBefore || 'all'); else { this.sizesBefore = this.sizeMode; this.setSizeMode('none'); } } }); // (what 📏 Measure catches, and a hole / text placed on a face — not while other features are made)
       if (this.cmd || this.measuring || this.painting) this.dropSuggest(); // (a tool at work: not the face's)
       const canExtrude = this.sketches().length > 0;
       bar.innerHTML = `
@@ -1362,6 +1364,7 @@ export class Modeler {
     this.sizeMode = SIZE_MODES.includes(m) ? m : 'all';
     try { localStorage.setItem(SIZES_KEY, this.sizeMode); } catch { /* ignore */ }
     for (const b of document.querySelectorAll('.m-sizes [data-sz]')) b.classList.toggle('on', b.dataset.sz === this.sizeMode);
+    if (this.els.viewport.querySelector(':scope > .snap-filters')) showSnapFilters(this.els.viewport); // (📏 in the bottom row: on / off with it)
     if (this.mode === 'sketch' && this.sk) { this.sk.draw(); if (!this.cmd) this.renderProps(); }
     else if (this.mode === 'part' && !this.cmd) this.showStepDims(this.part.features.find((f) => f.id === this.dimStep) || null);
   }
