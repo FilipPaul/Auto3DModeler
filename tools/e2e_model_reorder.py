@@ -1,7 +1,7 @@
 """Steps reordered by dragging in the step list, in headless Edge: a plate (sketch + extrude), a second sketch on the Top
-plane and a boss extruded from it, a fillet on the plate -> the second sketch dragged to the top of the list: moved (it
-uses nothing) -> the boss dragged above its own sketch: refused, "it uses it" -> the fillet dragged above the plate:
-refused -> the body the same as before the moves.
+plane and a boss extruded from it, a fillet on the plate -> the boss dragged to the top of the list: moved with its
+sketch (the tree shows each sketch under its step) -> the plate dragged below the fillet: refused, "it uses it" -> the
+fillet dragged above the plate: refused -> the body the same as before the moves.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_model_reorder.py http://127.0.0.1:5199 <out dir>
 """
@@ -68,11 +68,11 @@ try:
     vol0 = js(f"return +{M}.result.body.volume.toFixed(2)")
     names = order()
     print("the steps:", names, "| volume", vol0)
-    drag(names[2], names[0])
-    print("the second sketch dragged to the top:", order())
-    drag(names[3], names[2])
-    print("the boss above its own sketch:", order(), "|", toasts())
-    drag(names[4], names[0])
+    drag(names[3], names[1])  # (the tree shows each sketch under its extrude: the boss's row brings its sketch along)
+    print("the boss (with its sketch) dragged to the top:", order())
+    drag(names[1], names[4], True)
+    print("the plate dragged below the fillet:", order(), "|", toasts())
+    drag(names[4], names[1])
     print("the fillet above the plate:", order(), "|", toasts())
     print("the body the same:", js(f"return +{M}.result.body.volume.toFixed(2)") == vol0, "| all built:", js(f"return {M}.result.features.every(s => s.ok)"))
     js(f"{M}.history.go(-1)")

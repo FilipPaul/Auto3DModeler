@@ -9,6 +9,9 @@ const CONTROLS = 'button, input, select, textarea, a, label, [contenteditable]';
 const watched = new WeakSet(); // (the views whose size is watched)
 
 const keyOf = (kind) => `a3d.box.${kind}`;
+let dockHook = null; // (leftdock.js: a box with `dock` dragged over the left column docks there)
+/** hook: {move(name, event), drop(name, event) -> true when it took the box}. */
+export const setDockHook = (h) => { dockHook = h; };
 const load = (kind) => { try { return JSON.parse(localStorage.getItem(keyOf(kind)) || 'null'); } catch { return null; } };
 const store = (kind, v) => { try { if (v) localStorage.setItem(keyOf(kind), JSON.stringify(v)); else localStorage.removeItem(keyOf(kind)); } catch { /* private window */ } };
 
@@ -21,24 +24,26 @@ function topMin(vp) {
 /** Make `box` (absolutely placed in `viewport`, already in it) a floating box; call it again after its content is
  *  re-rendered. Options: kind (the memory key), handle (a selector of its header; none: a ⠿ strip is added on top),
  *  remember ('all', or 'size' for a box that opens by the mouse — it keeps its size but opens where it was asked for),
- *  min [w, h], onDefault(box) (the box at its default place: what the caller does there). */
+ *  min [w, h], onDefault(box) (the box at its default place: what the caller does there), dock (a widget's name: dragged
+ *  over the left column it docks there — leftdock.js). */
 export function floatBox(box, viewport, opts = {}) {
   const o = { remember: 'all', min: [120, 40], ...opts };
   if (!box.fb) {
     box.fb = { def: box.getAttribute('style') || '' }; // (its default place: the caller's own inline style, or the CSS)
-    box.addEventListener('pointerdown', (e) => down(box, viewport, e), true);
+    box.addEventListener('pointerdown', (e) => { if (box.classList.contains('fb-box')) down(box, box.fb.vp, e); }, true); // (a widget docked in the left column: not a floating box now)
     box.addEventListener('dblclick', (e) => {
-      if (!e.target.closest('.fb-handle') || e.target.closest(CONTROLS)) return;
+      if (!box.classList.contains('fb-box') || !e.target.closest('.fb-handle') || e.target.closest(CONTROLS)) return;
       e.stopPropagation();
       store(box.fb.o.kind, null);
-      apply(box, viewport);
+      apply(box, box.fb.vp);
     });
     box.addEventListener('scroll', () => { const g = box.querySelector(':scope > .fb-size'); if (g) g.style.transform = `translate(${box.scrollLeft}px, ${box.scrollTop}px)`; });
-    if (!watched.has(viewport) && window.ResizeObserver) {
-      watched.add(viewport);
-      new ResizeObserver(() => { for (const b of viewport.querySelectorAll(':scope > .fb-box')) if (b.fb) (b.fb.o.remember === 'all' ? apply : fit)(b, viewport); }).observe(viewport); // (a remembered box back at its side of the view)
-    }
   }
+  if (!watched.has(viewport) && window.ResizeObserver) {
+    watched.add(viewport);
+    new ResizeObserver(() => { for (const b of viewport.querySelectorAll(':scope > .fb-box')) if (b.fb) (b.fb.o.remember === 'all' ? apply : fit)(b, viewport); }).observe(viewport); // (a remembered box back at its side of the view)
+  }
+  box.fb.vp = viewport; // (a widget may float over another workspace's view later)
   box.fb.o = o;
   box.classList.add('fb-box');
   let head = o.handle ? box.querySelector(o.handle) : null;
@@ -118,13 +123,15 @@ function down(box, vp, e) {
   document.body.classList.add(grip ? 'fb-resizing' : 'fb-moving');
   const move = (m) => {
     const dx = m.clientX - e.clientX, dy = m.clientY - e.clientY;
+    if (!grip && box.fb.o.dock) dockHook?.move(box.fb.o.dock, m);
     if (grip) size(box, Math.max(mw, Math.min(r0.w + dx, vw - r0.x - PAD)), Math.max(mh, Math.min(r0.h + dy, vh - r0.y - PAD)));
     else pin(box, Math.max(PAD, Math.min(r0.x + dx, vw - r0.w - PAD)), Math.max(top, Math.min(r0.y + dy, vh - r0.h - PAD)));
   };
-  const up = () => {
+  const up = (u) => {
     window.removeEventListener('pointermove', move, true);
     window.removeEventListener('pointerup', up, true);
     document.body.classList.remove('fb-resizing', 'fb-moving');
+    if (!grip && box.fb.o.dock && dockHook?.drop(box.fb.o.dock, u)) return; // (docked in the left column)
     save(box, vp);
   };
   window.addEventListener('pointermove', move, true);

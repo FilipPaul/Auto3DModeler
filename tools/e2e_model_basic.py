@@ -27,6 +27,9 @@ opts.set_capability("ms:loggingPrefs", {"browser": "ALL"})
 d = webdriver.Edge(options=opts)
 js = d.execute_script
 M = "window.__app.modeler"
+# the step tree shows a sketch under the step made from it (folded): every row opened, the row of part.features[i]
+STEP_ROW = ("const m = window.__app.modeler; m.part.features.forEach(f => m.openTo(f.id)); m.renderTree(); "
+            "return document.querySelector(`#modelLeft .mt-item[data-id=\"${m.part.features[arguments[0]].id}\"]`)")
 
 
 def wait(script, t=60):
@@ -170,8 +173,7 @@ try:
     print("Ctrl+Y:", body()["volume"])
 
     # change the first extrude: double-click it in the tree, 20 mm -> the hole stays through
-    rows = d.find_elements(By.CSS_SELECTOR, ".mt-item")
-    ActionChains(d).double_click(rows[1]).perform()
+    ActionChains(d).double_click(js(STEP_ROW, 1)).perform()
     wait(f"return {M}.cmd")
     dist = d.find_element(By.CSS_SELECTOR, "#modelRight input[data-k=d]")
     dist.send_keys(Keys.CONTROL, "a")

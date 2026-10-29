@@ -223,7 +223,7 @@ try:
     st = json.loads(call("gui_state", where="panel"))
     steps = st.get("steps") or []
     print("gui_state steps:", steps)
-    check("gui_state lists the steps by name", [s["name"] for s in steps][:2] == ["Deska", "Extrude – Deska"] and len(steps) == 6, str([s["name"] for s in steps]))
+    check("gui_state lists the steps by name", [s["name"] for s in steps][:2] == ["Extrude – Deska", "Deska"] and steps[1].get("parent") == steps[0]["id"] and len(steps) == 6, str([s["name"] for s in steps]))
     check("gui_state shows a step turned off", any(s["id"] == "F5" and s.get("off") for s in steps))
     js(f"{M}.toggleOff('F5')")
     settled()

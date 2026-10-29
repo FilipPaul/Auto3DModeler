@@ -2,6 +2,7 @@
 written into the AI's problem reports and shown by /api/version, so a report says which build it came from."""
 from __future__ import annotations
 
+import json
 import subprocess
 from functools import lru_cache
 from pathlib import Path
@@ -20,7 +21,15 @@ def _git(*args: str) -> str:
 
 @lru_cache(maxsize=1)
 def build() -> dict:
-    """{version, commit, date, branch, dirty} — the commit fields empty when git is not there."""
+    """{version, commit, date, branch, dirty} — the commit fields empty when git is not there. The built app
+    (tools/build) has no git: its BUILD.json, written by the build, says which commit it was made from."""
+    stamp = ROOT / "BUILD.json"
+    if stamp.exists():
+        try:
+            return {"version": VERSION, "commit": "", "date": "", "branch": "", "dirty": False,
+                    **json.loads(stamp.read_text(encoding="utf-8"))}
+        except (OSError, ValueError):
+            pass
     commit = _git("rev-parse", "--short", "HEAD")
     return {"version": VERSION, "commit": commit, "date": _git("log", "-1", "--format=%cs") if commit else "",
             "branch": _git("rev-parse", "--abbrev-ref", "HEAD") if commit else "",

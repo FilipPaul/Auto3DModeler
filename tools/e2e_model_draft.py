@@ -61,7 +61,7 @@ try:
     print("5°: volume", round(js(f"return {M}.result.body.volume"), 1), "| a frustum:", round(10 / 3 * (a0 + a1 + math.sqrt(a0 * a1)), 1))
     d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=ok]").click()
     wait(f"return !{M}.cmd && !{M}.inflight")
-    print("the step:", js("return [...document.querySelectorAll('#modelLeft .mt-item')].map(r => r.textContent.replace(/\s+/g, ' ').trim()).slice(-1)[0]"))
+    print("the step:", js("return [...document.querySelectorAll('#modelLeft .mt-item:not([data-parent])')].map(r => r.textContent.replace(/\s+/g, ' ').trim()).slice(-1)[0]"))
     js(f"{M}.edit('F3')")
     wait(f"return {M}.cmd?.feature?.type === 'draft'")
     angle(60)

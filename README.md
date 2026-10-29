@@ -72,6 +72,13 @@ library shows the **library icon** (📚) until it is changed. A **middle click*
 open it (the tree stays), ⧉ opens it in a new window, ✕ deletes it from the project at once — **↶ Undo** in the
 tree's header brings it back (for half a minute). Parts made for an assembly (fasteners) are added without a tab. The **＋**
 next to the tabs offers the usual ways to open a file.
+**Arrange the left panel as you like** — the project tree, the workspace's own panel (the steps, the assembly's
+parts…) and the **suggestions** table are widgets: **drag a header** into the left panel to dock it there (a line shows
+where it goes; the 📌 in the ☰ tree or on the suggestions does it at once), or onto the view to let it **float** over
+the drawing. Docked widgets share the height (drag the line between them), **▾** folds one to its header, the panel's
+right edge sets its width. A floating widget moves and resizes like the other boxes and can be see-through
+(**Ctrl+wheel** on its header, or the slider in its **⋯** menu). The layout is remembered per workspace; **⋯ › ↺ Default
+layout** puts everything back. A double-click on a row of the project tree renames the part.
 
 **Snap and Select filters** (the row at the bottom of a sketch, remembered): **Snap:** *Points, Midpoints, Centres,
 Origin, On shapes, Guides, Grid* — where a point you draw (or drag) lands; *Grid* off puts it exactly
@@ -165,8 +172,18 @@ mass and STEP see both), This side (where the arrow points) or Other side. On a 
 part's steps up to the split and one piece kept. The cut faces are named `<step>:cut:0` / `:1`, so later steps
 (a sketch on the cut, a lid's lip) follow them.
 
-**Reorder steps**: drag a step up or down the step list. A move that would put a step before one it uses is refused
-(it says which), and one after which the model no longer builds is taken back; Ctrl+Z undoes a move.
+**The step tree** (left, like SolidWorks / Solid Edge): one line a step, a small icon coloured by what it does — green
+adds material (Extrude, Revolve, Loft, Rib…), red cuts (cut, Hole), blue rounds edges (Fillet, Chamfer), teal changes
+faces (Shell, Draft, Split), purple repeats (Pattern, Mirror), grey-blue a sketch, yellow a reference. A step shows the
+sketch it is made from under itself (**▸** opens it, **▾** folds it; remembered); a second step made from the same
+sketch, and what a Pattern / Mirror repeats, show as lighter **links** (🔗 — a click goes to the step). **Reference** at
+the top holds the Top / Front / Right planes (✏ or a double-click: a sketch on it) and the reference points. A click on
+the part (or on a sketch's lines) chooses its step in the tree — folded rows open, the row scrolls into sight; a click
+on a row tints its faces (a sketch: its outline lit), the mouse on a row lights them lightly.
+
+**Reorder steps**: drag a step up or down the step list (a step with its sketch: both move). A move that would put a
+step before one it uses is refused (it says which), and one after which the model no longer builds is taken back;
+Ctrl+Z undoes a move.
 
 **A click on a face of a 3D model** chooses its step and shows its tools in the Suggested table (bottom left) — the
 table can be **dragged by its header** anywhere in the view, and stays there (a double-click on the header: back).
@@ -935,6 +952,13 @@ can open them.
   `AUTO3D_CLAUDE_MODEL` to choose a model. The app never sees your credentials (Claude Code signs in through
   Anthropic's own flow); usage counts against your own plan. If you give the app to others, each of them signs in
   with their own account.
+- **Set it up at any time, no restart**: when Claude Code is missing, not signed in, or its key was refused, the ✨ AI
+  panel shows **Set up the AI assistant** instead of the chat — the install command (no Node, no admin), **Sign in
+  with Claude** (runs Claude Code's own sign-in in a window; the screen follows it and the chat comes back by itself),
+  or an **API key** field (checked with Anthropic first; kept encrypted with Windows DPAPI in `data/ai/key.bin` — in
+  the installed app `%LOCALAPPDATA%\Auto3DModeler\ai` — and only ever sent to Anthropic). **🔑 Access** in the chat's
+  top bar shows who is connected and **Sign out / change the key**. A key that stops working (a chat turn refused)
+  brings the screen back with a clear message. The rest of the app never depends on it.
 - Claude gets **only the app's tools** ([auto3d/agent_tools.py](auto3d/agent_tools.py)), through the app's own MCP
   server ([auto3d/mcp_server.py](auto3d/mcp_server.py)): read the part, look at the 3D view, open files / the
   sample, trace a picture and use an outline, set dimensions, choose what to make, add / change / remove 3D
@@ -1311,6 +1335,16 @@ embossed design this is reported instead. Integral joints make pieces longer, wh
 accounts for.
 
 Projects (model, edited/added dimensions, design layers) can be saved/loaded as `.a3d.json`.
+
+## Windows program for customers (no Python)
+
+`py tools/build/build.py` builds `dist/Auto3DModeler/Auto3DModeler.exe` (PyInstaller, one folder, ≈ 445 MB with the CAD
+kernel), a portable zip (≈ 160 MB) and — with Inno Setup 6 installed — a per-user installer, then smoke-tests the
+result. The exe starts the server on a free port and opens the app in its own window (Edge app mode); a second start
+only opens the window, closing it quits, a tray icon has Open / Logs / Quit. The customer's data lives in
+`%LOCALAPPDATA%\Auto3DModeler` (logs in `logs\`), never in the install folder. The AI chat is optional and needs the
+customer's own Claude Code. Building, installing, updating, code signing and a short Czech guide for the customer
+("Instalace"): [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).
 
 ## Tests
 

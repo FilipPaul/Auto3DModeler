@@ -70,7 +70,7 @@ def press(css):
 
 
 def tree_last():
-    return js("return [...document.querySelectorAll('#modelLeft .mt-item')].map(e => e.textContent.trim().replace(/\\s+/g, ' '))")[-1]
+    return js("return [...document.querySelectorAll('#modelLeft .mt-item:not([data-parent])')].map(e => e.textContent.trim().replace(/\\s+/g, ' '))")[-1]
 
 
 try:

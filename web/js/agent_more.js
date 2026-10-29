@@ -281,7 +281,9 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       const list = guiControls(where);
       // the 3D model's step tree as the user sees it: names, what each makes, turned off / failing / selected / being changed
       const rows = state.workspace === 'model' ? [...document.querySelectorAll('#modelLeft .mt-item')] : [];
+      // (nested as shown: depth 1 = under its parent — a step's sketch under the step, a reference point under 'ref')
       const steps = rows.length ? rows.map((r) => ({ id: r.dataset.id, name: r.querySelector('.mt-name')?.textContent || '', what: r.querySelector('.mt-what')?.textContent || '',
+        ...(r.dataset.parent ? { parent: r.dataset.parent, depth: +r.dataset.depth || 1 } : {}), ...(r.hidden ? { folded: true } : {}),
         ...(r.classList.contains('off') ? { off: true } : {}), ...(r.classList.contains('bad') ? { failed: r.title || true } : {}),
         ...(r.classList.contains('on') ? { selected: true } : {}), ...(r.classList.contains('editing') ? { editing: true } : {}) })) : undefined;
       return ok({ workspace: state.workspace, controls: list.map(({ el, ...c }) => c), ...(steps ? { steps } : {}),

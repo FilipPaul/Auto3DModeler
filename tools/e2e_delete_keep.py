@@ -23,6 +23,9 @@ opts.set_capability("ms:loggingPrefs", {"browser": "ALL"})
 d = webdriver.Edge(options=opts)
 js = d.execute_script
 M = "window.__app.modeler"
+# the step tree shows a sketch under the step made from it (folded): every row opened, the row of part.features[i]
+STEP_ROW = ("const m = window.__app.modeler; m.part.features.forEach(f => m.openTo(f.id)); m.renderTree(); "
+            "return document.querySelector(`#modelLeft .mt-item[data-id=\"${m.part.features[arguments[0]].id}\"]`)")
 H = "window.__app.agentHandlers"
 
 
@@ -78,7 +81,7 @@ try:
     sk = js(f"return {M}.part.features[1]")
     pts0 = sk["points"]
 
-    row = d.find_elements(By.CSS_SELECTOR, "#modelLeft .mt-item")[0]
+    row = js(STEP_ROW, 0)
     js("arguments[0].querySelector('[data-a=del]').click()", row)
     wait("return !!document.querySelector('.choose')", 10)
     print("dialog:", d.find_element(By.CSS_SELECTOR, ".choose p").text)
@@ -93,7 +96,7 @@ try:
     ActionChains(d).key_down(Keys.CONTROL).send_keys("z").key_up(Keys.CONTROL).perform()
     settled()
     print("Ctrl+Z:", steps())
-    row = d.find_elements(By.CSS_SELECTOR, "#modelLeft .mt-item")[0]
+    row = js(STEP_ROW, 0)
     js("arguments[0].querySelector('[data-a=del]').click()", row)
     wait("return !!document.querySelector('.choose')", 10)
     d.find_element(By.CSS_SELECTOR, ".choose-opts .btn.danger").click()

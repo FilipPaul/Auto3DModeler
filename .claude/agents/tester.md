@@ -40,7 +40,10 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_agent.py` drives every AI tool through the real MCP server process (no model needed), incl. the 3D model
    tools (the plate from the model-a-part guide: exact volume, find_refs, edit / off / delete / undo, STEP, prepare_print);
    `tools/e2e_chat.py <url> <dir> "message"` sends a real chat message through the installed Claude Code —
-   it uses the Claude account Claude Code is signed in with, so run it sparingly. `tools/e2e_history.py` covers
+   it uses the Claude account Claude Code is signed in with, so run it sparingly.
+   `tools/e2e_ai_access.py <url> <dir>` covers the AI's set-up screen (no sign-in, no key: Sign in with Claude, the key
+   field, the links; not a key / a fake key refused by Anthropic, nothing kept; in Czech; a 3D model still builds) — start
+   its server with `CLAUDE_CONFIG_DIR=<an empty dir>` so it sees no Claude sign-in. `tools/e2e_history.py` covers
    Ctrl+Z / Ctrl+Y, selecting objects by clicking them in 3D, Delete, and deleting dimensions from their label.
    `tools/e2e_progress.py <url> <curved .stl> <dir>` covers the progress bar + Cancel, the automatic slice height,
    the feature-aware measure (holes / cylinders / faces) and rename + the Save dialog. `tools/e2e_i18n.py <url> <dir>`
@@ -375,6 +378,11 @@ Never report "works" without having run it; report failures with their output.
    3D print: a STEP copy, the hints say exact -> Bambu Lab P1S split: 2 pieces of 3 faces, ~800 triangles each against
    28 000 sliced, fitting the bed, volumes adding up; dowels: the pockets exact; the STL / STEP zips). Exits 1 on a
    failed check. Needs a server restarted after kernel changes.
+   `tools/e2e_model_tree.py <url> <dir>` covers the nested step tree at 1280×800 (a plate, a cut and a boss from one
+   sketch, a fillet, a pattern, a point: sketches under their steps, links, the Reference group, icon kinds / colours,
+   22 px rows 12 px a level; ▸ / ▾ remembered; a click on a face / a sketch outline -> its row chosen, opened, in sight;
+   a row -> its faces tinted, hover lights them; rename / off / on; gui_state parent / depth; a step dragged with its
+   sketch; Czech).
    `tools/e2e_model_reorder.py <url> <dir>` covers reordering steps by dragging (a free sketch moved to the top; a boss
    above its sketch and a fillet above the plate refused with the reason; the body the same; Ctrl+Z).
    `tools/e2e_measure_snap.py <url> <dir>` covers 📏 Measure's snap points (a block with a hole: near an edge's middle
@@ -447,6 +455,13 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_project_tree.py <url> <dir>` covers ☰ the project tree (over the left panel: Machine › Base › its sheet,
    Lid unit › Lid, Pin ×2, then Spare; a click opens a part, marked, the tree stays; a part put in the Machine shows at
    once; ✕ closes, ☰ opens, remembered).
+   `tools/e2e_left_pins.py <url> <dir>` covers the widgets of the left column at 1280×800 with real drags (☰'s header
+   dragged into the column: docked on top of the step tree, the same rows / icons / ⧉ / ✕, a double-click renames; in
+   the sketch and the assembly too; the splitter between widgets: heights per workspace; ▾ folds; the column wider ->
+   the 3D view narrower; the suggestions' 📌 docks them under the panel, "Nothing selected" line; the tree dragged onto
+   the view floats, Ctrl+wheel / ⋯ slider opacity; a reload: the same layout; back into the column; ☰ Back behind the
+   button; ↺ Default layout; the 3D model's panel floats -> no column, the view wider, the assembly's stays; Czech
+   headers / menu / tooltips; no horizontal scroll).
    `tools/e2e_tabs.py <url> <dir>` covers the part tabs (9 long names: their own row under the top bar, 2 rows, 5
    letters readable on each, the one on screen and one being renamed wider, a tab dragged before the first, all
    closed: "No part open", ☰ opens one again).

@@ -138,7 +138,7 @@ try:
     d.find_element(By.CSS_SELECTOR, "#modelViewport").screenshot(f"{OUT}/teardrop1.png")
     btn("#modelViewport .view-actions [data-a=ok]")
     settled()
-    step = js(r"return [...document.querySelectorAll('#modelLeft .mt-item')].map(r => r.textContent.replace(/\s+/g, ' ').trim()).slice(-1)[0]")
+    step = js(r"return [...document.querySelectorAll('#modelLeft .mt-item:not([data-parent])')].map(r => r.textContent.replace(/\s+/g, ' ').trim()).slice(-1)[0]")
     print("the step:", step)
     check("the step says teardrop", "teardrop" in step)
 

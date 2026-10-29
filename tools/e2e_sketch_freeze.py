@@ -26,6 +26,9 @@ d = webdriver.Edge(options=opts)
 d.set_script_timeout(30)
 js = d.execute_script
 M = "window.__app.modeler"
+# the step tree shows a sketch under the step made from it (folded): every row opened, the row of part.features[i]
+STEP_ROW = ("const m = window.__app.modeler; m.part.features.forEach(f => m.openTo(f.id)); m.renderTree(); "
+            "return document.querySelector(`#modelLeft .mt-item[data-id=\"${m.part.features[arguments[0]].id}\"]`)")
 SK = f"{M}.sk"
 H = "window.__app.agentHandlers"
 PROFILE = {"points": [[-20, -30], [45, -30], [45, -14], {"arc": [66.5497, 0.9621]}, [60.06341, 26.38085], [30.06341, 52.38085],
@@ -63,7 +66,7 @@ try:
     wait(f"return !!{M}.result?.body && !{M}.inflight")
     vol0 = js(f"return {M}.result.body.volume")
     print("volume", vol0)
-    row = d.find_elements(By.CSS_SELECTOR, "#modelLeft .mt-item")[0]
+    row = js(STEP_ROW, 0)
     t0 = time.time()
     ActionChains(d).double_click(row).perform()
     wait(f"return {M}.mode === 'sketch' && {SK}?.dof !== null && !!{SK}?.free", 10)
