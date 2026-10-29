@@ -9,7 +9,8 @@
 // Sheet JSON (a project part of kind "sheet"):
 //   {source: "<part id>", preset: "light" | "medium" | "full", vpreset: {Top: "full"} (a view's own), paper: null | "A4" | "A3", views: {Front: [x, y]} (moved),
 //    off: {Iso: true} (views not shown), dims: {<id>: {side, off, ang, len}} (automatic ones moved), hidden: [<ids>],
-//    user: [<dimension>], texts: {title, number, drawn, note} (typed into the title block),
+//    user: [<dimension>], texts: {title, number, drawn, note, …} (typed into the title block), setTexts: {drawn, …}
+//    (an assembly's sheet: the texts its whole drawing set shows — tbedit.js says which may go there),
 //    viewNames: {Front: "Side A"} (renamed views), scale: null | [a, b] (the sheet's own, else the fit's),
 //    vscale: {Top: [2, 1]} (a view's own scale, its label says it: "Top (2:1)"),
 //    built: {geometry, layout, dims} (from the server), hash (of the part it was built from),
@@ -24,6 +25,7 @@ import { MATERIALS } from '../modeler/materials.js';
 import { stepsAtBar, rolledText } from '../modeler/steptree.js';
 import { showSuggest } from '../suggest.js';
 import { sheetSuggest, tolText } from './sheetsuggest.js';
+import { TB_EDIT, TB_COMPUTED, hitRect, propagates, remembered } from './tbedit.js';
 import { TITLE_STYLES, BOM_STYLES, STYLE_TIPS, isStyle, isBomStyle, titleSize, titleBlock, partsList, bomWidth, bomHeight, bomRowsIn, grams, fontsReady } from './tbstyles.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -117,7 +119,7 @@ export class SheetEditor {
     this.pick = null;    // the first point of a new dimension {view, key}
     this.zoom = { k: 1, x: 0, y: 0 };
     this.history = new History({
-      capture: () => ({ section: !!this.d?.section, balloons: this.d?.balloons, views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper, texts: this.d?.texts, exploded: !!this.d?.exploded, viewNames: this.d?.viewNames, scale: this.d?.scale ?? null, vscale: this.d?.vscale, template: this.d?.template, tb: this.d?.tb, frame: this.d?.frame, bomPage: this.d?.bomPage }),
+      capture: () => ({ section: !!this.d?.section, balloons: this.d?.balloons, views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper, texts: this.d?.texts, setTexts: this.d?.setTexts, exploded: !!this.d?.exploded, viewNames: this.d?.viewNames, scale: this.d?.scale ?? null, vscale: this.d?.vscale, template: this.d?.template, tb: this.d?.tb, frame: this.d?.frame, bomPage: this.d?.bomPage }),
       restore: (s) => { const ex = !!this.d.exploded, sec = !!this.d.section; Object.assign(this.d, structuredClone(s)); if (!this.d.exploded) delete this.d.exploded; if (!this.d.section) delete this.d.section; if (!this.d.bomPage) delete this.d.bomPage; if (ex !== !!this.d.exploded || sec !== !!this.d.section || this.d.built?.preset !== this.d.preset || this.d.built?.vp !== JSON.stringify(this.d.vpreset || {}) || this.layKey() !== this.builtKey()) this.ensure(true); else this.render(); },
       onChange: () => this.renderBar(),
     });
@@ -227,6 +229,8 @@ export class SheetEditor {
 
   // ------------------------------------------------------------------ the sheet as a project part
   async load(data) {
+    this.endEdit(false);
+    this.dropAsk();
     this.d = structuredClone(data || {});
     this.d.preset = this.d.preset || 'medium';
     this.d.views = this.d.views || {};
@@ -864,12 +868,37 @@ export class SheetEditor {
   /** The title block's width (mm): 150 on A4, 180 (ISO 7200's) on A3; a style's own (A, B, C 180, D 170, E 90). */
   titleW() { return titleSize(this.tb().style)?.[0] ?? ((this.lay?.size?.[0] || 297) >= 400 ? 180 : 150); }
 
+  /** The texts the title block of sheet `d` shows: its template's, then its drawing set's (the top assembly's sheet's
+   *  setTexts — "Ano" of the question after an edit), then its own. */
+  textsOf(d = this.d) { return { ...this.tbOf(d).texts, ...(d._set || this.setTextsOf(d)), ...(d.texts || {}) }; }
+
+  /** The drawing set's texts for sheet `d` (the top assembly's sheet's setTexts) — {} outside a set. */
+  setTextsOf(d = this.d) {
+    const root = d?.source && this.hooks.drawingCtx ? this.rootOf(d.source) : null;
+    if (!root) return {};
+    if (this.d?.source === root) return this.d.setTexts || {};
+    return this.sheetsOf(new Set([root]))[0]?.setTexts || {};
+  }
+
+  /** The sheets (their data; the one on screen: this.d) of the project whose part is one of `ids`. */
+  sheetsOf(ids) {
+    return (this.hooks.parts?.() || []).filter((q) => q.kind === 'sheet').map((q) => (q.data === 'live' ? this.d : q.data))
+      .filter((d) => d && typeof d === 'object' && ids.has(d.source));
+  }
+
+  /** The material a sheet shows: an assembly's typed one, else the part's (an assembly: its parts' are in its list). */
+  matOf(F) {
+    const src = this.hooks.partData(this.d.source) || {}, T = this.d.title || {}, asm = !!this.d.asm && !this.d.bom;
+    if (asm && F.material) return F.material;
+    return T.material ?? (this.d.asm ? (src.material ? t(src.material) : '—') : t(src.material || 'PLA'));
+  }
+
   /** The title block's fields as text, for the styles A … E (tbstyles.js titleBlock): what the sheet and its part
-   *  say, its own texts over its template's; — where nothing is known. */
+   *  say, its own texts over its set's and its template's; — where nothing is known. */
   tbFields() {
-    const src = this.hooks.partData(this.d.source) || {}, T = this.d.title || {}, X = this.d.texts || {}, tb = this.tb(), F = { ...tb.texts, ...X };
+    const src = this.hooks.partData(this.d.source) || {}, T = this.d.title || {}, X = this.d.texts || {}, tb = this.tb(), F = this.textsOf();
     const cs = getLang() === 'cs', d0 = this.d.changed ? new Date(this.d.changed) : null, p2 = (v) => String(v).padStart(2, '0');
-    const asm = !!this.d.asm, bom = !!this.d.bom, mat = T.material ?? (asm ? (src.material ? t(src.material) : '—') : t(src.material || 'PLA'));
+    const asm = !!this.d.asm, bom = !!this.d.bom, mat = this.matOf(F);
     const what = [T.kind || (asm ? t('Assembly') : t('Part')), T.of ? `${t('in')} ${T.of}` : '', T.pos ? `${t('Pos.')} ${T.pos}` : ''].filter(Boolean);
     if (!bom) what.push(t(asm ? 'assembly drawing' : 'production drawing'));
     let mass = null;
@@ -884,6 +913,7 @@ export class SheetEditor {
       address: String(F.address || '').split(/\s*[\n;]\s*|,\s+(?=\d)/).filter(Boolean), logo: tb.logo,
       date: d0 ? (cs ? `${d0.getDate()}. ${d0.getMonth() + 1}. ${d0.getFullYear()}` : `${d0.getFullYear()}-${p2(d0.getMonth() + 1)}-${p2(d0.getDate())}`) : '',
       dateShort: d0 ? (cs ? `${d0.getDate()}.${d0.getMonth() + 1}.${String(d0.getFullYear()).slice(2)}` : `${d0.getFullYear()}-${p2(d0.getMonth() + 1)}-${p2(d0.getDate())}`) : '',
+      ro: new Set(asm && !bom ? [] : ['material']),
     };
   }
 
@@ -897,16 +927,16 @@ export class SheetEditor {
   titleSvg(pw, ph, m, th) {
     const L = this.lay, [, , mr, mb] = this.frameOf().m, W = this.titleW(), x0 = pw - mr - W, y0 = ph - mb - th;
     if (isStyle(this.tb().style)) return titleBlock(this.tb().style, x0, y0, this.tbFields()); // (A … E: as the owner's designs)
-    const src = this.hooks.partData(this.d.source) || {}, T = this.d.title || {}, X = this.d.texts || {}, tb = this.tb(), F = { ...tb.texts, ...X };
-    const on = (f) => !tb.hide.has(f), INK = '#000', MUTED = '#555', THIN = 0.13;
+    const src = this.hooks.partData(this.d.source) || {}, T = this.d.title || {}, X = this.d.texts || {}, tb = this.tb(), F = this.textsOf();
+    const on = (f) => !tb.hide.has(f), INK = '#000', MUTED = '#555', THIN = 0.13, ro = new Set(this.d.asm && !this.d.bom ? [] : ['material']);
     const fit = (s, w, fs) => { s = String(s ?? ''); const n = Math.max(1, Math.floor(w / (fs * 0.53))); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
     const tol = src.tolerance ? `${(F.tolstd || 'ISO 2768').replace(/-[a-z]+$/i, '')}-${src.tolerance}` : F.tolstd || '—';
     const day = (iso) => (iso ? new Date(iso).toISOString().slice(0, 10) : '—');
     const name = X.title || T.part || this.hooks.partName(this.d.source) || '—';
-    const mat = T.material ?? (this.d.asm ? (src.material ? t(src.material) : '—') : t(src.material || 'PLA')); // (an assembly: its parts' are in its parts list)
+    const mat = this.matOf(F);
     const what = [T.kind || (this.d.asm ? t('Assembly') : t('Part')), T.of ? `${t('in')} ${T.of}` : '', T.pos ? `${t('Pos.')} ${T.pos}` : ''].filter(Boolean).join(' · ');
     const g = [`<g class="sh-title"><rect x="${x0}" y="${y0}" width="${W}" height="${th}" fill="#fff" stroke="${INK}" stroke-width="0.35"/>`];
-    const hit = (key, x, y, w, h) => g.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fff" fill-opacity="0" stroke="none" data-tcell="${key}" class="sh-tcell"/>`);
+    const hit = (key, x, y, w, h) => g.push(hitRect(key, x, y, w, h, ro));
     const cell = (label, value, x, y, w, h, fs = 2.9, key = null, bold = false) => {
       g.push(`<text x="${x + 1.6}" y="${y + 3.4}" font-size="1.75" fill="${MUTED}">${esc(label)}</text>`);
       g.push(`<text x="${x + 1.6}" y="${y + h - 2.2}" font-size="${fs}" fill="${INK}"${bold ? ' font-weight="bold"' : ''}>${esc(fit(value, w - 3, fs))}</text>`);
@@ -924,9 +954,9 @@ export class SheetEditor {
     };
     const appLine = 'Auto3DModeler · mm';
     if (tb.layout === 'strip') { // one row: name, material, scale, paper, drawing no., rev, sheet
-      row(y0, th, x0, W, [[what, name, 2.6, 'title', 3.6, true], ...(on('material') ? [[t('Material'), mat, 1.3]] : []),
-        [t('Scale'), this.d.bom ? '—' : scaleText(this.scaleArr()), 0.8], ...(on('paper') ? [[t('Paper'), L.paper, 0.6]] : []),
-        ...(on('number') ? [[t('Drawing no.'), F.number || '', 1.3, 'number']] : []), ['Rev', `${this.d.rev}`, 0.5], ...(T.sheet ? [[t('Sheet'), T.sheet, 0.8]] : [])]);
+      row(y0, th, x0, W, [[what, name, 2.6, 'title', 3.6, true], ...(on('material') ? [[t('Material'), mat, 1.3, 'material']] : []),
+        [t('Scale'), this.d.bom ? '—' : scaleText(this.scaleArr()), 0.8, 'scale'], ...(on('paper') ? [[t('Paper'), L.paper, 0.6, 'paper']] : []),
+        ...(on('number') ? [[t('Drawing no.'), F.number || '', 1.3, 'number']] : []), ['Rev', `${this.d.rev}`, 0.5, 'rev'], ...(T.sheet ? [[t('Sheet'), T.sheet, 0.8, 'sheet']] : [])]);
       g.push(`<text x="${x0 + W - 1.2}" y="${y0 - 1.2}" font-size="1.6" fill="${MUTED}" text-anchor="end">${esc(appLine)}</text>`);
       g.push('</g>');
       return g.join('');
@@ -941,7 +971,7 @@ export class SheetEditor {
       for (const ln of String(F.address || '').split(/\s*[\n;]\s*|,\s+(?=\d)/).filter(Boolean).slice(0, tb.logo ? 2 : 4)) { g.push(`<text x="${x0 + 2}" y="${y + 2.4}" font-size="1.9" fill="${MUTED}">${esc(fit(ln, C - 4, 1.9))}</text>`); y += 2.8; }
       if (F.company || tb.logo) g.push(`<text x="${x0 + 2}" y="${y0 + th - 2.2}" font-size="1.7" fill="${MUTED}">${esc(appLine)}</text>`);
       g.push(`<line x1="${xm}" y1="${y0}" x2="${xm}" y2="${y0 + th}" stroke="${INK}" stroke-width="${THIN}"/>`);
-      if (on('company')) hit('company', x0, y0, C, th);
+      if (on('company')) { hit('company', x0, y0, C, th * 0.4); hit('address', x0, y0 + th * 0.4, C, th * 0.6); }
     }
     // the part: its name large; the drawing number on its right
     const hA = th * 0.44, hB = (th - hA) / 2, dn = on('number') ? M * 0.3 : 0;
@@ -955,11 +985,11 @@ export class SheetEditor {
       if (!C) g.push(`<text x="${x0 + W - 1.2}" y="${y0 - 1.2}" font-size="1.6" fill="${MUTED}" text-anchor="end">${esc(appLine)}</text>`);
     }
     g.push(`<line x1="${xm}" y1="${y0 + hA}" x2="${x0 + W}" y2="${y0 + hA}" stroke="${INK}" stroke-width="${THIN}"/>`);
-    row(y0 + hA, hB, xm, M, [...(on('material') ? [[t('Material'), mat, 1.35]] : []), [t('Scale'), this.d.bom ? '—' : scaleText(this.scaleArr()), 0.8],
-      ...(on('paper') ? [[t('Paper'), L.paper, 0.65]] : []), ...(on('tolerances') ? [[t('Tolerances'), tol, 1.3]] : []), ...(T.sheet ? [[t('Sheet'), T.sheet, 0.85]] : [])]);
+    row(y0 + hA, hB, xm, M, [...(on('material') ? [[t('Material'), mat, 1.35, 'material']] : []), [t('Scale'), this.d.bom ? '—' : scaleText(this.scaleArr()), 0.8, 'scale'],
+      ...(on('paper') ? [[t('Paper'), L.paper, 0.65, 'paper']] : []), ...(on('tolerances') ? [[t('Tolerances'), tol, 1.3, 'tolstd']] : []), ...(T.sheet ? [[t('Sheet'), T.sheet, 0.85, 'sheet']] : [])]);
     g.push(`<line x1="${xm}" y1="${y0 + hA + hB}" x2="${x0 + W}" y2="${y0 + hA + hB}" stroke="${INK}" stroke-width="${THIN}"/>`);
-    row(y0 + hA + hB, hB, xm, M, [...(on('drawn') ? [[t('Drawn by'), F.drawn || '', 1.1, 'drawn']] : []), ...(on('created') ? [[t('Created'), day(this.d.created), 0.95]] : []),
-      ...(on('changed') ? [[`${t('Changed')} · Rev`, `${day(this.d.changed)} · ${this.d.rev}`, 1.25]] : []), ...(on('note') ? [[t('Note'), F.note || '', 1.7, 'note', 2.6]] : [])]);
+    row(y0 + hA + hB, hB, xm, M, [...(on('drawn') ? [[t('Drawn by'), F.drawn || '', 1.1, 'drawn']] : []), ...(on('created') ? [[t('Created'), day(this.d.created), 0.95, 'created']] : []),
+      ...(on('changed') ? [[`${t('Changed')} · Rev`, `${day(this.d.changed)} · ${this.d.rev}`, 1.25, 'changed']] : []), ...(on('note') ? [[t('Note'), F.note || '', 1.7, 'note', 2.6]] : [])]);
     g.push('</g>');
     return g.join('');
   }
@@ -1042,8 +1072,8 @@ export class SheetEditor {
 
   /** A sheet that is not on screen drawn (a page of a drawing set): its data with `built`. */
   svgOf(d) {
-    const keep = this.d, at = this.balloonAt, template = this.tplName(d); // (its set's template found while the sheet on screen is this.d)
-    this.d = { views: {}, off: {}, dims: {}, hidden: [], user: [], rev: 1, ...d, template };
+    const keep = this.d, at = this.balloonAt, template = this.tplName(d), _set = this.setTextsOf(d); // (its set's template and texts found while the sheet on screen is this.d)
+    this.d = { views: {}, off: {}, dims: {}, hidden: [], user: [], rev: 1, ...d, template, _set };
     try { return this.svg(true); } finally { this.d = keep; this.isoMap = null; this.balloonAt = at; }
   }
 
@@ -1375,7 +1405,8 @@ export class SheetEditor {
   titlePanel() {
     const tp = this.tplOf(), tb = this.tbOf(), X = this.d.texts || {}, root = this.hooks.drawingCtx ? this.rootOf(this.d.source) : null;
     const from = !this.d.template && tp.name !== DEFAULT_TPL.name ? this.hooks.partName(root) : null;
-    const field = ([k, l]) => `<div class="field"><label>${esc(t(l))}</label><input type="text" data-text="${k}" value="${esc(X[k] || '')}" placeholder="${esc(k === 'title' ? this.hooks.partName(this.d.source) || '' : k === 'tolstd' ? tp.texts?.tolstd || 'ISO 2768' : tp.texts?.[k] || '')}"></div>`;
+    const inh = { ...tb.texts, ...this.setTextsOf() };
+    const field = ([k, l]) => `<div class="field"><label>${esc(t(l))}</label><input type="text" data-text="${k}" value="${esc(X[k] || '')}" placeholder="${esc(k === 'title' ? this.hooks.partName(this.d.source) || '' : k === 'tolstd' ? inh.tolstd || 'ISO 2768' : inh[k] || '')}"></div>`;
     return `<h3>${esc(t('Title block'))}</h3>
       <div class="field"><label>${esc(t('Template'))}</label><select data-k="tpl" title="${esc(t('The title block\'s template: its layout, fields, company, logo and frame — Modern is the app\'s clean default'))}">${this.tpls.map((x) => `<option value="${esc(x.name)}" ${x.name === tp.name ? 'selected' : ''} data-no-i18n>${esc(x.builtin ? t(x.name) : x.name)}</option>`).join('')}</select></div>
       ${from ? `<p class="hint">${esc(tv('From the drawing set of {asm}.', { asm: from }))}</p>` : ''}
@@ -1478,7 +1509,7 @@ export class SheetEditor {
       ${name ? `<div class="row-actions"><button class="btn small" data-a="part">◆ ${esc(tv('Open {part}', { part: name }))}</button></div>` : ''}`;
     for (const el of box.querySelectorAll('[data-text]')) {
       el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') el.blur(); });
-      el.addEventListener('change', () => { const x = { ...(this.d.texts || {}) }; if (el.value.trim()) x[el.dataset.text] = el.value.trim(); else delete x[el.dataset.text]; this.d.texts = x; this.commit(); });
+      el.addEventListener('change', () => this.typed(el.dataset.text, el.value));
     }
     this.bindTitlePanel(box);
     this.bindFramePanel(box);
@@ -1776,6 +1807,150 @@ export class SheetEditor {
 
   hint(text) { const h = this.$('.sh-hint'); h.hidden = !text; h.textContent = text; }
 
+  // ------------------------------------------------------------------ typing straight into the title block (tbedit.js)
+  /** What the text box of title-block cell `k` starts with: the text the cell shows (typed, the set's, the template's). */
+  cellValue(k) {
+    const F = this.textsOf();
+    if (k === 'title') return this.d.texts?.title || this.d.title?.part || this.hooks.partName(this.d.source) || '';
+    if (k === 'tolstd') return F.tolstd || (this.hooks.partData(this.d.source)?.tolerance ? 'ISO 2768' : '');
+    return F[k] || '';
+  }
+
+  /** A cell's tooltip text: where a computed one comes from, an editable one's name. */
+  cellTip(k) { return t(TB_COMPUTED[k] || TB_EDIT[k]?.label || k); }
+
+  /** The cells to type into on the sheet in their order (Tab goes along them). */
+  cellKeys() { return [...new Set([...(this.svgEl?.querySelectorAll('.sh-title [data-tcell]:not([data-ro])') || [])].map((el) => el.dataset.tcell))]; }
+
+  /** A text box over title-block cell `k`, in its place, at its size and in its font: Enter or a click elsewhere keeps
+   *  the text, Esc leaves the cell as it was, Tab / Shift+Tab go to the next / previous cell -> whether it is shown. */
+  editCell(k) {
+    if (this.editing) this.endEdit(true);
+    const cell = this.svgEl?.querySelector(`.sh-title [data-tcell="${k}"]:not([data-ro])`);
+    if (!cell || !TB_EDIT[k] || !this.lay) return false;
+    const vp = this.els.viewport, R = vp.getBoundingClientRect(), r = cell.getBoundingClientRect();
+    const px = this.svgEl.getBoundingClientRect().width / this.lay.size[0]; // (screen px a paper mm)
+    const b = cell.getBBox(), inside = [...this.svgEl.querySelectorAll('.sh-title text')].filter((el) => {
+      const q = el.getBBox(), cx = q.x + q.width / 2, cy = q.y + q.height / 2;
+      return cx >= b.x && cx <= b.x + b.width && cy >= b.y && cy <= b.y + b.height;
+    });
+    const big = inside.sort((a, c) => (+c.getAttribute('font-size') || 0) - (+a.getAttribute('font-size') || 0))[0]; // (its value, under a small label)
+    const fs = Math.max(12, Math.min(40, (+big?.getAttribute('font-size') || 3) * px)), br = big?.getBoundingClientRect();
+    const h = Math.min(r.height, Math.max(fs * 1.55, 20)), mid = br ? br.top + br.height / 2 : r.top + r.height / 2;
+    const input = document.createElement('input');
+    input.className = 'sh-tbedit';
+    input.dataset.tbedit = k;
+    input.value = this.cellValue(k);
+    input.placeholder = t(TB_EDIT[k].label);
+    input.title = `${t(TB_EDIT[k].label)} — ${t('Enter keeps it, Esc goes back, Tab: the next field')}`;
+    Object.assign(input.style, {
+      left: `${r.left - R.left}px`, width: `${Math.max(r.width, 90)}px`, height: `${h}px`,
+      top: `${Math.max(r.top, Math.min(r.bottom - h, mid - h / 2)) - R.top}px`, fontSize: `${fs.toFixed(1)}px`,
+      fontFamily: big ? getComputedStyle(big).fontFamily : 'Helvetica, Arial, sans-serif', fontWeight: big ? getComputedStyle(big).fontWeight : '400',
+      paddingLeft: `${Math.max(2, (br ? br.left : r.left + 4) - r.left - 1.5)}px`,
+    });
+    vp.appendChild(input);
+    const ed = { k, input, was: input.value };
+    this.editing = ed;
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation(); // (the sheet's own keys: Delete, Esc, Ctrl+Z are the text's here)
+      if (e.key === 'Enter') { e.preventDefault(); this.endEdit(true); } else if (e.key === 'Escape') { e.preventDefault(); this.endEdit(false); } else if (e.key === 'Tab') {
+        e.preventDefault();
+        const keys = this.cellKeys(), i = keys.indexOf(k), next = keys[(i + (e.shiftKey ? -1 : 1) + keys.length) % keys.length];
+        this.endEdit(true);
+        if (next) this.editCell(next);
+      }
+    });
+    input.addEventListener('blur', () => { if (this.editing === ed) this.endEdit(true); });
+    input.focus();
+    input.select();
+    return true;
+  }
+
+  /** The cell's text box closed: its text kept (keep) or not. */
+  endEdit(keep) {
+    const ed = this.editing;
+    if (!ed) return;
+    this.editing = null;
+    ed.input.remove();
+    if (keep && ed.input.value.trim() !== ed.was.trim()) this.typed(ed.k, ed.input.value);
+  }
+
+  /** A title-block text typed (in its cell or in the panel): this sheet's own — then, for a project-wide one on a
+   *  sheet of an assembly's drawing set, the question whether every sheet of the set should say it too. */
+  typed(k, v) {
+    v = String(v ?? '').trim();
+    const x = { ...(this.d.texts || {}) }, inh = { ...this.tbOf().texts, ...this.setTextsOf() };
+    if (k === 'title' ? !v || v === (this.d.title?.part || this.hooks.partName(this.d.source)) : v === (inh[k] || '')) delete x[k]; // (as it would be anyway)
+    else x[k] = v; // ('' over a template's / the set's text: empty here)
+    this.d.texts = x;
+    this.commit();
+    this.askAll(k, v);
+  }
+
+  /** "Přepsat i ve všech listech sestavy?" — next to the title block, not in the way: Ano / Jen tady, and "neptat se
+   *  znovu" (this field's answer kept for the session). Only for the fields tbedit.js TB_EDIT lets go to the set. */
+  askAll(k, v) {
+    this.dropAsk();
+    const asm = !!this.d.asm && !this.d.bom, root = this.hooks.drawingCtx ? this.rootOf(this.d.source) : null;
+    if (!root || !propagates(k, asm)) return;
+    const n = this.pagesOf(root).filter((p) => TB_EDIT[k].propagate === true || p.kind === 'assembly').length;
+    if (n < 2) return;
+    const was = remembered.get(k);
+    if (was === 'here') return;
+    if (was === 'all') { this.setTextsAll({ [k]: v }); return; }
+    const vp = this.els.viewport, R = vp.getBoundingClientRect(), tb = this.svgEl?.querySelector('.sh-title')?.getBoundingClientRect();
+    const cell = this.svgEl?.querySelector(`.sh-title [data-tcell="${k}"]`)?.getBoundingClientRect(), box = document.createElement('div');
+    box.className = 'sh-tbask';
+    box.innerHTML = `<p><b>${esc(tv('Overwrite it on all sheets of the assembly “{asm}” too?', { asm: this.hooks.partName(root) || root }))}</b> <span class="muted">${esc(tv('({n} sheets)', { n }))}</span></p>
+      <p class="hint">${esc(t(TB_EDIT[k].label))}: <b data-no-i18n>${esc(v || '—')}</b>${TB_EDIT[k].propagate === 'typed' ? ` · ${esc(t('the parts keep the material of their own models'))}` : ''}</p>
+      <div class="row-actions"><button class="btn small primary" data-a="all" title="${esc(t('Every sheet of the drawing set shows this text — also the pages that have no sheet of their own yet'))}">${esc(t('Yes'))}</button>
+        <button class="btn small" data-a="here" title="${esc(t('Only this drawing says it'))}">${esc(t('Only here'))}</button>
+        <label class="check" title="${esc(t('This field\'s answer is kept until the app is closed'))}"><input type="checkbox" data-k="remember"> ${esc(t('don\'t ask again'))}</label></div>`;
+    vp.appendChild(box);
+    const at = cell || tb;
+    if (at) {
+      const w = box.offsetWidth, top = (tb || at).top - R.top - box.offsetHeight - 8;
+      Object.assign(box.style, { left: `${Math.max(8, Math.min(R.width - w - 8, at.left - R.left))}px`, top: `${Math.max(54, top)}px` });
+    }
+    box.addEventListener('pointerdown', (e) => { if (!e.target.closest('input')) e.preventDefault(); }); // (the text being typed keeps its focus)
+    const answer = (all) => {
+      if (box.querySelector('[data-k=remember]').checked) remembered.set(k, all ? 'all' : 'here');
+      this.dropAsk();
+      if (all) this.setTextsAll({ [k]: v });
+    };
+    box.querySelector('[data-a=all]').addEventListener('click', () => answer(true));
+    box.querySelector('[data-a=here]').addEventListener('click', () => answer(false));
+    this.asking = box;
+  }
+
+  dropAsk() { this.asking?.remove(); this.asking = null; }
+
+  /** Texts {field: value} on every sheet of this sheet's drawing set: kept as the set's (setTexts of the top assembly's
+   *  sheet — made when it has none, as for a template — so the pages without a sheet of their own show them too), each
+   *  sheet's own text of them taken away -> how many pages show them. Only the fields TB_EDIT lets go to the set. */
+  setTextsAll(vals) {
+    const root = this.rootOf(this.d.source), asm = !!this.d.asm && !this.d.bom;
+    if (!root) return 0;
+    vals = Object.fromEntries(Object.entries(vals).filter(([k]) => propagates(k, asm || k !== 'material')).map(([k, v]) => [k, String(v ?? '').trim()]));
+    if (!Object.keys(vals).length) return 0;
+    const pages = this.pagesOf(root), ids = new Set(pages.map((p) => p.id));
+    if (!this.sheetsOf(new Set([root])).length) this.hooks.applyTemplate?.(root, this.tplName({ source: root }), [root]); // (the set's template stays as it was)
+    const rs = this.sheetsOf(new Set([root]))[0];
+    for (const d of this.sheetsOf(ids)) {
+      const x = { ...(d.texts || {}) };
+      for (const [k, v] of Object.entries(vals)) if (rs) delete x[k]; else x[k] = v;
+      d.texts = x;
+    }
+    if (rs) rs.setTexts = { ...(rs.setTexts || {}), ...vals };
+    this.history.commit();
+    this.render();
+    this.hooks.onChange?.();
+    const n = pages.filter((p) => Object.keys(vals).some((k) => TB_EDIT[k].propagate === true) || p.kind === 'assembly').length;
+    this.hooks.toast?.(tv('{fields} on all {n} sheets of {asm}.', { fields: Object.keys(vals).map((k) => t(TB_EDIT[k].label)).join(', '), n, asm: this.hooks.partName(root) || root }), 'ok', 5000);
+    return n;
+  }
+
   // ------------------------------------------------------------------ what is chosen, and its suggestions
   clearSel() { this.sel = null; this.selView = null; this.selGeo = null; this.selTitle = false; }
 
@@ -1981,16 +2156,9 @@ export class SheetEditor {
       const p = this.paperAt(e);
       if (this.tool === 'dim') { this.clickDim(p); return; }
       const dimEl = e.target.closest('[data-dim]'), viewEl = e.target.closest('[data-view]'), cell = e.target.closest('[data-tcell]');
-      const twice = cell && this.lastCell?.key === cell.dataset.tcell && performance.now() - this.lastCell.at < 400; // (a pointerdown has no click count)
-      this.lastCell = cell ? { key: cell.dataset.tcell, at: performance.now() } : null;
-      if (twice) { // a double-click on a title-block cell: its field in the panel
-        e.preventDefault(); // (the mouse's own focus change would take it away again)
-        this.sel = null;
-        this.renderProps();
-        const inp = this.$(`.sh-props [data-text=${cell.dataset.tcell}]`);
-        setTimeout(() => { inp?.focus(); inp?.select(); }, 0);
-        return;
-      }
+      this.dropAsk(); // (a click elsewhere: the question not answered — the text stays this sheet's)
+      if (this.editing) this.endEdit(true); // (a click elsewhere: the typed text kept)
+      if (cell) e.preventDefault(); // (the mouse's own focus change would take the cell's text box away again)
       const lab = e.target.closest('[data-vlabel]');
       const again = lab && this.lastLabel?.v === lab.dataset.vlabel && performance.now() - this.lastLabel.at < 400;
       this.lastLabel = lab ? { v: lab.dataset.vlabel, at: performance.now() } : null;
@@ -2005,7 +2173,7 @@ export class SheetEditor {
         const v = viewEl.dataset.view;
         drag = { kind: 'view', v, p, start: p, from: v === 'Iso' ? (this.d.views.Iso || this.lay.iso.slice(0, 2)) : this.centre(v), moved: false };
       } else {
-        drag = { kind: 'pan', start: [e.clientX, e.clientY], from: { ...this.zoom }, moved: false, title: !!e.target.closest('.sh-title') };
+        drag = { kind: 'pan', start: [e.clientX, e.clientY], from: { ...this.zoom }, moved: false, title: !!e.target.closest('.sh-title'), cell: cell?.dataset.tcell, ro: !!cell?.dataset.ro };
       }
       this.stage.setPointerCapture(e.pointerId);
       this.render();
@@ -2070,6 +2238,8 @@ export class SheetEditor {
     this.stage.addEventListener('wheel', (e) => {
       if (this.setMode) return; // (it scrolls)
       e.preventDefault();
+      if (this.editing) this.endEdit(true);
+      this.dropAsk();
       const r = this.stage.getBoundingClientRect(), f = e.deltaY < 0 ? 1.15 : 1 / 1.15, k = Math.min(12, Math.max(0.3, this.zoom.k * f));
       const mx = e.clientX - r.left - r.width / 2, my = e.clientY - r.top - r.height / 2; // the SVG scales about the stage's middle
       this.zoom.x = mx - (mx - this.zoom.x) * (k / this.zoom.k);
@@ -2090,6 +2260,15 @@ export class SheetEditor {
       else this.selView = v;
     } else if (drag.title) this.selTitle = true;
     this.render();
+    if (drag.cell && !drag.ro) this.editCell(drag.cell); // a cell of the title block: type into it right there
+    else if (drag.cell) this.cellHint(this.cellTip(drag.cell));
+  }
+
+  /** A computed cell clicked: where its value comes from, in the hint for a few seconds. */
+  cellHint(text) {
+    this.hint(text);
+    clearTimeout(this.tipT);
+    this.tipT = setTimeout(() => { if (this.$('.sh-hint').textContent === text) this.hint(''); }, 4000);
   }
 
   /** A view dragged to `at` (its centre, paper mm): in line with the views it is projected from / to — Top under (or
@@ -2114,6 +2293,7 @@ export class SheetEditor {
 
   key(e) {
     if (e.key === 'Escape' && document.querySelector('#shLeft .sh-vmenu.open')) { this.closeViewMenus(); e.preventDefault(); return; }
+    if (e.key === 'Escape' && this.asking && !e.target.closest?.('input,select,textarea')) { this.dropAsk(); e.preventDefault(); return; }
     if (!this.active || e.target.closest?.('input,select,textarea,[contenteditable]')) return;
     if (e.key === 'Enter' && this.tool === 'dim' && this.pick?.edge) { this.edgeLength(this.pick.view, this.pick.edge); e.preventDefault(); return; } // its length
     if (e.key === 'Escape' && this.tool === 'dim') { if (this.pick) { this.pick = null; this.render(); } else this.action('dim'); e.preventDefault(); }

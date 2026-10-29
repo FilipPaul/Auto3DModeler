@@ -2021,6 +2021,24 @@ Date: 2026-10-25. Written by the architect agent.
   step smaller; an own scale stays. An iso view not moved by the user follows the new layout (isoLaid); one the user
   dragged onto the list stays and gets ⚠ past the frame (outside). tests/test_sheet_views.py TestLayoutKeepOut;
   tools/e2e_sheet_styles.py 1b (all 36 title / list pairs at A4 and A3, 5 parts: no view box over the list or title).
+- **Typing straight into the title block done (the owner: "mělo by jít psát přímo do razítka"):** a click on a cell of
+  any title block (A … E, Modern, Modern strip) lays a text box over it — its place, size and font (SheetEditor.editCell;
+  the cell's biggest text gives the font); Enter or a click elsewhere keeps it, Esc not, Tab / Shift+Tab go along the
+  cells. Cells to type into have a text cursor and a light blue outline on hover; computed ones (data-ro: material of
+  a part — from its model —, mass, scale, paper, sheet n / N, revision, dates) take no text, their tooltip / the hint
+  says where the value comes from. web/js/sheet/tbedit.js holds the table: TB_EDIT {field: propagate} — drawn,
+  checked, approved, company, address, tolstd, surface: yes; title, number, note: never; material: only typed on an
+  assembly's sheet — and TB_COMPUTED; hitRect() makes every style's cells. After a project-wide field on a sheet of an
+  assembly's drawing set (the assembly's or a part's in it), a small question over the title block, not modal:
+  "Přepsat i ve všech listech sestavy „X“? (n listů)" Ano / Jen tady, "neptat se znovu" (the field's answer kept for
+  the session). Ano keeps it as the set's (setTexts on the top assembly's sheet — made when it has none, as for a
+  template — so pages without a sheet of their own show it; every sheet's own text of it taken away); a sheet's own
+  text still wins (textsOf: template, set, own). The suggestions' title-block rows open the cell's text box (a field
+  the style does not show: the old dialog); the panel fields stay (their placeholder: the set's / template's text)
+  and ask the same. AI: sheet_edit texts {…, material} with all_sheets true (only the project-wide ones go; the rest
+  "kept on this sheet only"). tools/e2e_title_inline.py (Czech, real mouse / keys: the box over the cell in its font,
+  D-100 on the sheet and in the PDF and not asked, Esc, Tab -> Kontroloval and the question, Ano -> all 3 pages of the
+  set's PDF say F. Paul, D-100 on one; the mass cell computed; the suggestion row; the panel; the AI; every style).
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); ~~dimensions of hole positions drawn on the 2D drawing (not only listed)~~ (done); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.
