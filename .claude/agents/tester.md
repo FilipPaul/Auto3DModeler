@@ -488,6 +488,12 @@ Never report "works" without having run it; report failures with their output.
    note). Exits 1.
    `tools/e2e_measure_snap.py <url> <dir>` covers 📏 Measure's snap points (a block with a hole: near an edge's middle
    "midpoint", a corner "corner", the hole's centre "centre"; the Snap filters: Corners off — not caught; corner -> centre 22.361; the same in an assembly).
+   `tools/e2e_measure_table.py <url> <dir>` covers the 📏 Measurements table (Czech, 1280 × 800, real mouse; a block
+   with a hole and a boss: two corners 28.284 with ΔX ΔY ΔZ, an edge L 20, the hole's rim Ø6, parallel tops 5 apart,
+   90° between two faces — each a row that stays; hovering a row lights its mark; ✕ removes one; a row's copy value;
+   12 rows tidy (22 px, nothing sticks out; screenshot measure_table_12.png); Esc keeps the table; another part and
+   back keeps it; 🗑 clears and ↶ brings them back; the assembly: Díly -> clearance 5, Prvky -> parallel faces).
+   Exits 1.
    `tools/e2e_model_hole_guides.py <url> <dir>` covers guides when placing on a face (a 40 × 40 block, ◎ Hole: near
    the middle line one guide, x = 20; near the centre two guides, (20, 20); on it "centre of the face"; a click: exact;
    a second hole in line with the first: from {hole: 0}; Shift: free; Corners off: no corner; Guides off: no guide;

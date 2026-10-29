@@ -115,7 +115,7 @@ const TOOL_LABEL = {
   switch_variant: 'switching the variant', take_part: 'taking a part from a variant', rename_variant: 'renaming a variant', delete_variant: 'deleting a variant',
   add_missing_joint: 'adding the missing joint',
   list_demos: 'looking at the demo projects', open_demo: 'opening a demo project',
-  get_drawing: 'reading the 2D drawing', drawing_find: 'finding shapes', drawing_layers: 'setting the layers', drawing_set_size: 'sizing shapes', drawing_use: 'making something of the drawing', measure: 'measuring', set_view: 'setting the view', rename_part: 'renaming a part', delete_part: 'deleting a part', edit_joint: 'changing a joint', remove_joint: 'removing a joint', bolt_parts: 'bolting parts together',
+  get_drawing: 'reading the 2D drawing', drawing_find: 'finding shapes', drawing_layers: 'setting the layers', drawing_set_size: 'sizing shapes', drawing_use: 'making something of the drawing', measure: 'measuring', list_measurements: 'reading the measurements', clear_measurements: 'clearing the measurements', set_view: 'setting the view', rename_part: 'renaming a part', delete_part: 'deleting a part', edit_joint: 'changing a joint', remove_joint: 'removing a joint', bolt_parts: 'bolting parts together',
 };
 
 const MAX_PHOTOS = 5, PHOTO_EDGE = 2400; // a longer side than this is scaled down (Claude sees ~1600 px anyway)

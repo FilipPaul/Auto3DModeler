@@ -979,6 +979,15 @@ def api_assembly_clashes():
     return jsonify({"clashes": data})
 
 
+@app.post("/api/assembly/clearance")
+def api_assembly_clearance():
+    """📏 {instances: [{id, part: {features}, matrix: [16]}], a: [the ids on one side] (none: the first)} -> {a, b,
+    distance (mm), pa, pb, overlap?} — the least distance between two placed parts (their clearance)."""
+    body = request.get_json(force=True)
+    data, err = _model_call("assembly_clearance", {"instances": body.get("instances") or [], "a": body.get("a")}, timeout=60)
+    return err or jsonify(data)
+
+
 EXACT_SHEET_TIMEOUT = 150  # s: the exact hidden-line drawing; longer (it can hang on some shapes): drawn from the mesh
 SHEET_TIMEOUT = 600  # s: the drawing from the mesh (MIT E-Vent's 41 placements: ~25 s); the page can Cancel either
 

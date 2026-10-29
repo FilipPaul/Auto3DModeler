@@ -58,6 +58,11 @@ def click(view, sel, p, nudge=(4, -3)):
     time.sleep(0.5)
 
 
+def last_row(ws):
+    """📏 The newest row of the measurements table (measure.js) as text."""
+    return js(f"return [...document.querySelectorAll('[data-w=measure-{ws}] .ms-row')].at(-1)?.innerText.replace(/\\s+/g, ' ')")
+
+
 try:
     d.get(URL)
     wait("return !!window.__app")
@@ -80,7 +85,7 @@ try:
     next(b for b in d.find_elements(By.CSS_SELECTOR, "#modelViewport .view-suggest .vs-list button") if "Measure" in b.text).click()
     time.sleep(0.4)
     click(M, cv, [mx, my, z1], (3, 2))
-    print("  measured from it to the hole's centre:", " ".join(d.find_element(By.CSS_SELECTOR, "#modelViewport .m-measure").text.split())[:40])
+    print("  measured from it to the hole's centre:", last_row("model"))
     js(f"{M}.action('measure')")
     time.sleep(0.3)
     js(f"{M}.action('measure')")
@@ -97,7 +102,7 @@ try:
     time.sleep(0.3)
     click(M, cv, [x0, y0, z1])
     click(M, cv, [mx, my, z1], (3, 2))
-    box = d.find_element(By.CSS_SELECTOR, "#modelViewport .m-measure").text.replace("\n", " ")
+    box = last_row("model")
     print("corner -> centre:", box[:80], "| expected", round(math.hypot(20, 10), 3))
     d.save_screenshot(f"{OUT}/measure_snap.png")
     js(f"{M}.action('measure')")
@@ -116,7 +121,7 @@ try:
     print("assembly — near the edge's middle:", hover(A, cv, [mx, y0, z1]), "| the hole's centre:", hover(A, cv, [mx, my, z1], (3, 2)))
     click(A, cv, [x1, y0, z1])
     click(A, cv, [mx, my, z1], (3, 2))
-    print("  corner -> centre:", d.find_element(By.CSS_SELECTOR, "#asmViewport .m-measure").text.replace("\n", " ")[:80])
+    print("  corner -> centre:", last_row("assembly"))
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()

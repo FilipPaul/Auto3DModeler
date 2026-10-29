@@ -1247,12 +1247,34 @@ body.view-acts .toast-stack { bottom: 84px; }
 
 .sk-label.hover { color: #aff5b4; border-color: #2ea04366; background: #0d2016e0; pointer-events: none; }
 
-/* model: measure box, section control */
-.m-measure { position: absolute; right: 12px; bottom: 34px; z-index: 5; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
-  padding: 8px 12px; min-width: 200px; box-shadow: 0 8px 24px #0008; }
-.mm-rows { display: grid; grid-template-columns: 70px 1fr; gap: 3px 10px; font-size: 12px; }
-.mm-rows > b:first-child { grid-column: 1 / -1; color: #f2cc60; }
-.mm-rows span { color: var(--muted); }
+/* 📏 the measurements table (measure.js: a left-column widget) and its marks in the view; section control */
+.ms-box { font-size: 11.5px; display: flex; flex-direction: column; }
+.ms-bar { display: flex; gap: 6px; padding: 4px 6px 2px; flex: none; }
+.ms-bar .seg { margin: 0; flex: none; }
+.ms-bar .seg button { flex: none; padding: 1px 8px; font-size: 11px; }
+.ms-th, .ms-row { display: grid; grid-template-columns: 18px 14px minmax(40px, 1fr) 70px minmax(0, 1fr) 14px; align-items: center; column-gap: 5px; padding: 0 4px 0 6px; }
+.ms-th { flex: none; height: 18px; color: var(--muted); font-size: 10.5px; border-bottom: 1px solid var(--line); }
+.ms-th .ms-u { text-align: right; }
+.ms-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.ms-row { height: 22px; cursor: pointer; border-bottom: 1px solid #2a313b66; }
+.ms-row:hover, .ms-row.hot { background: #58a6ff1a; }
+.ms-row.sel { background: #58a6ff2e; box-shadow: inset 2px 0 0 var(--dim); }
+.ms-row.pend .ms-what { font-style: italic; }
+.ms-row.off .ms-v, .ms-row.off .ms-what { opacity: .5; }
+.ms-n { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.ms-i { color: #f2cc60; text-align: center; font-size: 11px; }
+.ms-what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.ms-v { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; color: #f2cc60; }
+.ms-v small, .ms-mark small { font-weight: 400; font-size: 9.5px; color: var(--muted); margin-left: 1px; }
+.ms-tail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.ms-x { background: none; border: 0; padding: 0; color: var(--muted); cursor: pointer; opacity: 0; font-size: 10px; }
+.ms-row:hover .ms-x, .ms-row.sel .ms-x { opacity: 1; }
+.ms-x:hover { color: var(--err); }
+.ms-box .ms-empty { margin: 6px 8px; }
+.lw-head .ms-act { font-size: 11px; }
+.ms-mark { font-size: 10.5px; color: #f2cc60; background: #161a20d8; border: 1px solid #6b5a2a; border-radius: 4px; padding: 0 4px; white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }
+.ms-mark i { font-style: normal; color: var(--muted); margin-right: 3px; }
+.ms-mark.on { color: #fff; background: #1f3b5c; border-color: var(--dim); z-index: 2; }
 .m-section { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 8px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
 .m-section .seg { margin: 0; }

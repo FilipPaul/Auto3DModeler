@@ -223,7 +223,7 @@ chosen; Ctrl+click more edges), a click on a **step in the list** ✎ Edit, 🏷
 
 **A click on a face of a 3D model** chooses its step and shows its tools in the Suggested table (bottom left) — the
 table can be **dragged by its header** anywhere in the view, and stays there (a double-click on the header: back).
-The same goes for every box floating over a view — 🖨 Print check, 📏 Measure, the ✂ Section bar, the size editor and
+The same goes for every box floating over a view — 🖨 Print check, the ✂ Section bar, the size editor and
 the sketch's small boxes: drag the header (or the **⠿** strip), **resize** with the grip in the bottom-right corner;
 the place and size are remembered, and a double-click on the header puts the box back where it started.
 Its **✨** puts what is selected into the AI chat — as the AI's tools name it (a step and a face, sketch shapes,
@@ -234,6 +234,19 @@ corners, edge midpoints, centres. With **no tool on**, the snap point under the 
 round edge's centre when earlier steps change. Sketches snap to it and ↔ Dimension measures from it (seen square onto
 the sketch), 📏 Measure snaps to it; it can be turned off, renamed and deleted like any step. When its corner is gone
 the step says so and keeps its last place.
+
+**📏 Measure** (3D model and assembly, key M) works out what to measure from what you click — no mode menu: a corner
+(two corners: the distance with ΔX ΔY ΔZ), an edge (its length; a circle Ø, an arc R — a hole's rim says *Hole*), a
+face (its area; a round one Ø and its axis), and between two things: a point and a face (square to it), two flat faces
+(the gap when parallel, else the angle), two edges or axes (how far apart when parallel — two holes: their axes, the
+*min* chip the gap between their walls — else the angle). In an assembly the **Parts** chip measures the **clearance**
+between two whole parts (the kernel's least distance). Each result is a row of the **📏 Measurements** table (a widget
+of the left column — dock it or float it) and stays marked in the view (a thin line and a small label); the tool stays
+on for the next one (a click on empty space starts anew), Esc ends it and the table stays — saved with the part /
+assembly. One line a row: #, icon, what (*F4 ↔ F7*, *Edge E5*, *Hole E16*), the value bold (mm in the header), the
+rest muted; the mouse on a row lights its mark, a click offers copy / hide / delete; 👁 all marks, 📋 copy all (paste
+into a spreadsheet), 🗑 clear (↶ in the toast brings them back). The AI's `measure` adds a row too; it can
+`list_measurements` / `clear_measurements`.
 Everything for the clicked face is in that table, in sections — *On this face*, *Its edges*, *The part*, *Step* — so
 there is no right-click menu: the right button only pans.
 

@@ -2064,6 +2064,28 @@ const CS = {
   'don\'t ask again': 'neptat se znovu', '{fields} on all {n} sheets of {asm}.': '{fields}: ve všech {n} listech sestavy {asm}.',
   'Type it straight into its cell of the title block': 'Napište ho rovnou do jeho buňky v razítku',
   'Click a cell and type: Enter keeps it, Tab goes to the next, Esc goes back.': 'Klikněte do buňky a pište: Enter uloží, Tab přejde na další, Esc vrátí.',
+  // 📏 the measurements table (measure.js)
+  '📏 Measurements': '📏 Měření', "Show or hide all the measurements' marks in the view": 'Zobrazit nebo skrýt značky všech měření v pohledu',
+  'Copy all the measurements (as a table: paste into a spreadsheet or a text)': 'Kopírovat všechna měření (jako tabulku: vložte do tabulkového procesoru nebo textu)',
+  'Delete all the measurements': 'Smazat všechna měření', hole: 'díra', 'round face': 'válcová plocha', Parts: 'Díly', Items: 'Prvky',
+  'Click a second part: the clearance': 'Klikněte na druhý díl: vůle', 'measuring…': 'měřím…', 'they go into each other': 'zasahují do sebe',
+  touching: 'dotýkají se', 'clearance (the least distance)': 'vůle (nejmenší vzdálenost)', 'click: measure to it': 'klik: změřit k němu',
+  'Measurement deleted.': 'Měření smazáno.', 'Measurements cleared.': 'Měření vymazána.', 'Bring it back': 'Vrátit zpět', 'between the axes': 'mezi osami', min: 'min',
+  Unit: 'Jednotka', Details: 'Podrobnosti', 'centre–centre': 'střed–střed',
+  'What a click picks: an edge, a face or a point — or a whole part (the clearance between two parts)': 'Co klik vybere: hranu, plochu nebo bod — nebo celý díl (vůle mezi dvěma díly)',
+  'Two round things (holes, pins): how far apart their axes are, or the least gap between their surfaces': 'Dvě kulaté věci (díry, čepy): jak daleko jsou jejich osy, nebo nejmenší mezera mezi jejich povrchy',
+  'Click another item: the distance or angle to it — or empty space for a new measurement. Esc ends.': 'Klikněte na další prvek: vzdálenost nebo úhel k němu — nebo do prázdna pro nové měření. Esc ukončí.',
+  'Click two parts: the clearance between them. Esc ends.': 'Klikněte na dva díly: vůle mezi nimi. Esc ukončí.',
+  'Click an edge, a face or a corner — then another one for the distance or angle. Esc ends.': 'Klikněte na hranu, plochu nebo roh — pak na další pro vzdálenost nebo úhel. Esc ukončí.',
+  'Nothing measured yet — click two parts.': 'Zatím nic změřeno — klikněte na dva díly.',
+  'Nothing measured yet — click an edge, a face or a corner of the part.': 'Zatím nic změřeno — klikněte na hranu, plochu nebo roh dílu.',
+  'Delete this measurement': 'Smazat toto měření', 'Click: copy, hide or delete it': 'Klik: kopírovat, skrýt nebo smazat',
+  'Copy the value': 'Kopírovat hodnotu', 'Copy the row': 'Kopírovat řádek', 'Show its mark': 'Zobrazit jeho značku', 'Hide its mark': 'Skrýt jeho značku',
+  'Delete the measurement': 'Smazat měření', 'square to the face': 'kolmo k ploše', 'square to the edge': 'kolmo k hraně', 'to the centre': 'ke středu',
+  'to the axis': 'k ose', 'centres, on one axis': 'středy na jedné ose', parallel: 'rovnoběžné', 'parallel to the face': 'rovnoběžně s plochou',
+  'parallel faces': 'rovnoběžné plochy', 'clicked spots': 'kliknutá místa', 'axis to the face': 'osa k ploše',
+  'That part has no solid to measure.': 'Ten díl nemá těleso k měření.', 'The clearance is measured between two parts.': 'Vůle se měří mezi dvěma díly.',
+  'The distance between the parts could not be worked out.': 'Vzdálenost mezi díly se nepodařilo zjistit.', 'Measuring a clearance': 'Měřím vůli', 'reading the measurements': 'čte měření', 'clearing the measurements': 'maže měření',
 };
 
 // ---------------------------------------------------------------------------- texts with values ({} = a value; {1}, {2} … in the Czech text)
@@ -2333,6 +2355,7 @@ const CS_PATTERNS = [
   ['Unknown format {}', 'Neznámý formát {1}'],
   ['The model is invalid and cannot be exported: {}', 'Model je neplatný a nejde exportovat: {1}'],
   ['Fix the design layers first: {}', 'Nejdřív opravte vrstvy designu: {1}'],
+  ['axis {}', 'osa {1}'], ['apart {}', 'vzdálenost {1}'], // (📏 a measurement's details)
   // catch-alls, used only when a part of them is a known text
   ['{} — {}', '{1} — {2}'], ['{}: {}', '{1}: {2}'], ['{} · {}', '{1} · {2}'], ['{} ({})', '{1} ({2})'],
 ];

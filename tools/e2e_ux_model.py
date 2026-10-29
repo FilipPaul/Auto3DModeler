@@ -307,8 +307,8 @@ try:
     print("10. measure a face")
     click_xyz([(0, 10, 10), (-2, 11, 10), (3, 12, 10)])
     suggest("measure", "Změřit ji")
-    check("the measure box says the face's area", "Plocha" in (js("return document.querySelector('#modelViewport .m-measure')?.textContent") or ""),
-          js("return document.querySelector('#modelViewport .m-measure')?.textContent"))
+    row = js("return [...document.querySelectorAll('[data-w=measure-model] .ms-row')].at(-1)?.textContent || ''")  # (📏 the table's newest row)
+    check("the measurements table says the face's area", "Plocha" in row and "mm²" in row, row)
     d.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
     time.sleep(0.4)
 

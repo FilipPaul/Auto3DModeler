@@ -139,7 +139,7 @@ try:
     time.sleep(0.8)
     left |= set(js(LEFT))
     # fillet and hole panels
-    js("const m = window.__app.modeler; m.toggleMeasure(); m.measureBox('<div class=\"mm-rows\"><b>Flat face</b><span>Area</span><b>1</b></div><p class=\"hint\">Click a second spot for the distance.</p>'); m.toggleSection();")
+    js("const m = window.__app.modeler, f = m.result.body.faces.find((x) => x.type === 'plane'); m.toggleMeasure(); m.ms.addPair({ kind: 'face', face: f, id: 'F1', at: f.centroid }); m.toggleSection();")  # (📏 a row of the table)
     time.sleep(0.5)
     left |= set(js(LEFT))
     js("const m = window.__app.modeler; m.toggleMeasure(); m.toggleSection();")

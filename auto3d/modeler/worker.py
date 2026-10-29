@@ -32,7 +32,7 @@ _seq = itertools.count(1)  # every job's sequence number (its reply carries it b
 
 # what each job is, in plain words (the jobs list in the top bar)
 KINDS = {"rebuild": "Building a part", "rebuild_bin": "Building a part", "threads_bin": "Cutting real threads", "export": "Exporting", "assembly_step": "Exporting an assembly",
-         "assembly_clashes": "Checking collisions", "assembly_sweep": "Checking a motion", "sheet": "Making a drawing",
+         "assembly_clashes": "Checking collisions", "assembly_clearance": "Measuring a clearance", "assembly_sweep": "Checking a motion", "sheet": "Making a drawing",
          "assembly_sheet": "Making a drawing", "limits": "Working out limits", "import_solid": "Importing a file",
          "import_assembly": "Reading an assembly", "print_pieces": "Splitting for print"}
 
@@ -66,6 +66,7 @@ def _main(conn):
            "assembly_step": lambda a: doc.assembly_step(a.get("instances"), a.get("tree"), a.get("name") or "assembly", a.get("fmt") or "step"),
            "assembly_clashes": lambda a: doc.assembly_clashes(a["instances"], bool(a.get("quick"))),
            "assembly_sweep": lambda a: doc.assembly_sweep(a["instances"], a["steps"]),
+           "assembly_clearance": lambda a: doc.assembly_clearance(a["instances"], a.get("a")),
            "sheet": lambda a: doc.sheet(a["part"], a.get("preset") or "medium", a.get("paper"), a.get("per_view"), bool(a.get("section")), bool(a.get("simple"))),
            "assembly_sheet": lambda a: doc.assembly_sheet(a["instances"], a.get("paper"), a.get("explode") or 0, bool(a.get("simple")), a.get("base")),
            "limits": lambda a: doc.limits(a["features"], a["id"]), "import_solid": doc.import_solid,
@@ -316,7 +317,7 @@ def part_key(op, arg):
         return _of_part(arg.get("part"))
     if op == "limits":
         return _of_part({"features": arg.get("features")})
-    if op in ("assembly_clashes", "assembly_sweep", "assembly_sheet"):
+    if op in ("assembly_clashes", "assembly_sweep", "assembly_sheet", "assembly_clearance"):
         return "asm:" + _digest(sorted(str(i.get("id")) for i in arg.get("instances") or []))
     if op == "import_solid":
         return f"blob:{arg.get('blob')}"  # (its part's steps read the file this one keeps)
