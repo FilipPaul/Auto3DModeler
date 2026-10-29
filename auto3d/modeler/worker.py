@@ -66,7 +66,7 @@ def _main(conn):
            "assembly_clashes": lambda a: doc.assembly_clashes(a["instances"], bool(a.get("quick"))),
            "assembly_sweep": lambda a: doc.assembly_sweep(a["instances"], a["steps"]),
            "sheet": lambda a: doc.sheet(a["part"], a.get("preset") or "medium", a.get("paper"), a.get("per_view"), bool(a.get("section")), bool(a.get("simple"))),
-           "assembly_sheet": lambda a: doc.assembly_sheet(a["instances"], a.get("paper"), a.get("explode") or 0, bool(a.get("simple"))),
+           "assembly_sheet": lambda a: doc.assembly_sheet(a["instances"], a.get("paper"), a.get("explode") or 0, bool(a.get("simple")), a.get("base")),
            "limits": lambda a: doc.limits(a["features"], a["id"]), "import_solid": doc.import_solid,
            "import_assembly": doc.import_assembly, "print_pieces": printsplit.pieces}
     while True:

@@ -869,17 +869,103 @@ class _Placed:
         self.shape, self.names = shape, {}
 
 
-def build_assembly(placed, paper=None, iso_placed=None, key=None, simple=False):
-    """An assembly's sheet: placed [(id, shape placed)] -> {geometry, layout, dims (its overall sizes), marks: {id:
-    {Front, Top, Right, Iso: [x, y]} (the middle of each placed part; in the iso view, for its balloon, a spot on its
-    own faces the others leave bare), seen (how much of it shows there, mm²)}}. iso_placed: the same parts
-    pulled apart — the iso view drawn exploded (the other views as assembled). key: the placed parts' hash (kept, see
-    _cached). simple: drawn from the mesh (so is one over ASSEMBLY_EXACT_FACES faces)."""
-    out = _cached((key, "assembly", bool(simple)), lambda: _assembly(placed, iso_placed, simple))
-    return {**out, "layout": layout(out["geometry"], paper)}
+def build_assembly(placed, paper=None, iso_placed=None, key=None, simple=False, base=None):
+    """An assembly's sheet: placed [(id, shape placed)] -> {geometry, layout, dims (its overall sizes; the base part's
+    mounting holes' positions), marks: {id: {Front, Top, Right, Iso: [x, y]} (the middle of each placed part; in the iso
+    view, for its balloon, a spot on its own faces the others leave bare), seen (how much of it shows there, mm²)}}.
+    iso_placed: the same parts pulled apart — the iso view drawn exploded (the other views as assembled). key: the
+    placed parts' hash (kept, see _cached). simple: drawn from the mesh (so is one over ASSEMBLY_EXACT_FACES faces).
+    base: the id of the part the assembly stands on (see _mounting)."""
+    out = _cached((key, "assembly", bool(simple), base), lambda: _assembly(placed, iso_placed, simple, base))
+    lay = layout(out["geometry"], paper)
+    return {**out, "layout": lay, "dims": place(out["geometry"], lay, out["dims"]) if out["geometry"].get("mount") else out["dims"]}
 
 
-def _assembly(placed, iso_placed, simple=False):
+def _free_holes(shape, others):
+    """A part's holes no other part is in (a free mounting hole): its round faces with their axis outside the part,
+    none of `others` (placed shapes) at a quarter, half or three quarters of the way along it -> [(centre (at half
+    way), axis, r)]."""
+    from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+    from OCP.TopAbs import TopAbs_FACE, TopAbs_IN
+    from OCP.TopExp import TopExp_Explorer
+    from OCP.gp import gp_Pnt
+    near = [(s, K.bbox(s)) for s in others]
+    cls, out, ex = {}, [], TopExp_Explorer(shape, TopAbs_FACE)
+
+    def inside(i, s, p):
+        if i not in cls:
+            cls[i] = BRepClass3d_SolidClassifier(s)
+        cls[i].Perform(gp_Pnt(*map(float, p)), 1e-6)
+        return cls[i].State() == TopAbs_IN
+
+    while ex.More():
+        s = BRepAdaptor_Surface(TopoDS.Face(ex.Current()))
+        ex.Next()
+        if s.GetType() != GeomAbs_Cylinder:
+            continue
+        ax, r = s.Cylinder().Axis(), s.Cylinder().Radius()
+        o, d = np.array([ax.Location().X(), ax.Location().Y(), ax.Location().Z()]), np.array([ax.Direction().X(), ax.Direction().Y(), ax.Direction().Z()])
+        v0, v1 = s.FirstVParameter(), s.LastVParameter()
+        ps = [o + d * (v0 + (v1 - v0) * t) for t in (0.25, 0.5, 0.75)]
+        if inside("base", shape, ps[1]):  # (a boss, a round outside: its axis in the part)
+            continue
+        if any(b and all(b[k] - TOL <= p[k] <= b[k + 3] + TOL for k in range(3)) and inside(i, s2, p) for i, (s2, b) in enumerate(near) for p in ps):
+            continue  # (a pin, a screw in it)
+        out.append((ps[1], d, r))
+    return out
+
+
+def _mounting(geo, base, others):
+    """The base part's free holes (no screw / pin of the assembly in them: where the assembly is mounted) dimensioned
+    from the base part's own left / bottom edge in the view showing them round, as a part's sheet places its holes
+    (auto_dims: a row / grid its first one and pitch, a bolt circle, a few from the edges, more as ordinates) -> those
+    dims (pos "Ø6.6"). Adds to geo: each view's base#x0 / base#y0 (the base part's corners, as box#x0 / box#y0) and
+    the holes' bolt circles ("mnt:pcd:…"); geo.mount [{view, keys}] (the circles, for the sheet's check)."""
+    holes, bb = _free_holes(base, others), K.bbox(base)
+    if not holes or not bb:
+        return []
+    corners = np.array([[x, y, z] for x in (bb[0], bb[3]) for y in (bb[1], bb[4]) for z in (bb[2], bb[5])])
+    sub, mine = {}, {}
+    for vname, (look, right, up) in VIEWS.items():
+        g = geo["views"].get(vname)
+        if not g:
+            continue
+        L, R, U = (np.asarray(v, float) for v in (look, right, up))
+        free = {}
+        for c3, d, r in holes:
+            if abs(float(d @ L)) < 0.999:
+                continue
+            p = (float(c3 @ R), float(c3 @ U))
+            c = next((c for c in g["circles"] if c["full"] and abs(c["r"] - r) < 1e-3 and math.dist(c["c"], p) < 0.01), None)
+            if c:
+                free[c["key"]] = c
+        x0, x1 = _r((corners @ R).min()), _r((corners @ R).max())
+        y0 = _r((corners @ U).min())
+        rings = [{**rg, "key": f"mnt:{rg['key']}"} for rg in _rings(list(free.values()))]
+        pts = {**g["points"], "box#x0": [x0, y0], "box#y0": [x1, y0], **{f"{rg['key']}#c": rg["c"] for rg in rings}}
+        sub[vname] = {**g, "circles": list(free.values()), "lines": [], "rings": rings, "points": pts}
+        mine[vname] = (x0, x1, y0, rings)
+    to = {"box#x0": "base#x0", "box#y0": "base#y0"}
+    dims, mount = [], []
+    for vname, (x0, x1, y0, rings) in mine.items():
+        if not sub[vname]["circles"]:
+            continue
+        # (each view on its own: holes of one size in two directions positioned in both views)
+        alone = {w: g if w == vname else {**g, "circles": [], "rings": []} for w, g in sub.items()}
+        ds = [{**d, "id": _id("mount", d["id"]), "a": to.get(d["a"], d["a"]), **({"b": to.get(d["b"], d["b"])} if "b" in d else {})}
+              for d in auto_dims({**geo, "views": alone}, "medium") if d.get("pos")]
+        if not ds:
+            continue
+        dims += ds
+        g = geo["views"][vname]
+        g["points"].update({"base#x0": [x0, y0], "base#y0": [x1, y0], **{f"{rg['key']}#c": rg["c"] for rg in rings}})
+        g["rings"] = (g.get("rings") or []) + rings
+        mount.append({"view": vname, "keys": sorted(c["key"] for c in sub[vname]["circles"])})
+    geo["mount"] = mount
+    return dims
+
+
+def _assembly(placed, iso_placed, simple=False, base=None):
     shapes = [s for _, s in placed]
     if not shapes:
         raise K.KernelError("The assembly has no solids to draw.")
@@ -890,6 +976,9 @@ def _assembly(placed, iso_placed, simple=False):
         geo["iso"] = _iso_view(K.compound([s for _, s in iso_placed]), "simple" in geo)
     iso_at = dict(iso_placed or [])
     dims = [d for d in auto_dims(geo, "light") if d["kind"] == "linear" and d["a"].startswith("box#")]
+    at = dict(placed)
+    if base in at:  # (its mounting holes: where the assembly is fastened down)
+        dims += _mounting(geo, at[base], [s for k, s in placed if k != base])
     spots = {} if simple else _shown_spots(iso_placed or placed)  # (a big one: the middles, quickly)
     marks = {}
     for key, s in placed:

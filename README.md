@@ -612,7 +612,11 @@ texts, **drag the balloons** where you want them (they start spread round the vi
 part: a new revision). Each part is one item of its level's parts list (two of the same screw: one item, qty 2; a
 sub-assembly: one item, its parts on its own page) with **one balloon**, on the copy that shows most — its leader ends
 on a face of that part no other part hides, apart from the other leaders. Its size check asks only for the assembly's
-overall sizes; the parts' details belong on their own sheets. Its **Pages** list — on every page of the set, the part's sheets too — shows the whole set
+overall sizes and where it is **mounted**: the base part's free holes (the base: the part fixed in place 📌, else the
+one most joints are made onto, else the first placed; free: no screw or pin of the assembly in it) are dimensioned
+from the base part's edges in the view that shows them round — a row with its pitch, a bolt circle as PCD, more as
+ordinates, as on a part's sheet. Holes filled by the assembly's screws and pins are left out; the parts' details
+belong on their own sheets. Its **Pages** list — on every page of the set, the part's sheets too — shows the whole set
 (the assembly, its sub-assemblies, their parts) with this page marked; a click opens that page's drawing sheet (made
 when it has none). **📚 All pages** shows the set one page below the other to scroll through, like a PDF: Pages marks
 the page in sight, a click in Pages goes to it, a double-click on a page opens it to edit. The drawing set below uses these sheets.

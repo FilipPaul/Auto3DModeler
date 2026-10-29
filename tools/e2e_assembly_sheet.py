@@ -5,7 +5,10 @@ the parts with their balloons: the Lid's one balloon on the Lid that shows, ball
 overall sizes — one removed: just that one missing) -> Pages: Machine, Base, Lid; the Lid's page opens its sheet and shows the
 same Pages (Lid marked) -> 📚 All pages: 3 pages one below the other, scrolling marks the page in sight, a click in
 Pages goes to it, a double-click opens a page to edit -> a dimension of the user's and a note typed -> back in the assembly the Lid moved -> the sheet again: Rev 2 -> the
-drawing set (📄 Drawings (PDF)): its first page is this sheet, with the note -> the AI's sheet_open of an assembly.
+drawing set (📄 Drawings (PDF)): its first page is this sheet, with the note -> the AI's sheet_open of an assembly ->
+Mount = Plate (4 corner holes) + 2 pins in two of them: the 2 free holes (mounting holes) dimensioned in the top view
+from the plate's edges (8 / 42, 64), none of the pins'; the check asks for them (the pitch removed: one missing, ＋ adds
+it from base#x0).
 
   PYTHONIOENCODING=utf-8 py tools/e2e_assembly_sheet.py http://127.0.0.1:5199 <out dir>
 """
@@ -156,6 +159,45 @@ try:
     print("  page 1 has the note:", "Assemble dry" in p1, "| parts list:", "Part number" in p1)
     s = json.loads(ai("sheet_open", part=asm))
     print("the AI's sheet_open of the assembly:", s["part"], "| dims:", [x["text"] for x in s["dims"]])
+
+    # the base part's mounting holes: a plate with 4 corner holes, pins in 2 of them -> the 2 free ones dimensioned
+    # from the plate's edges (8 / 42 to the first, 64 to the next), none of the pins'; asked for by the check
+    ai("new_model", name="Plate")
+    ai("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 80, "h": 50}}])
+    ai("add_feature", type="extrude", sketch="F1", d=5)
+    ai("add_feature", type="hole", face="F2:end", points=[[x, y] for x in (-32, 32) for y in (-17, 17)], d=5)
+    ai("new_model", name="Pin")
+    ai("add_feature", type="sketch", plane="XY", shapes=[{"circle": {"x": 0, "y": 0, "d": 5}}])
+    ai("add_feature", type="extrude", sketch="F1", d=12)
+    ai("new_assembly", name="Mount")
+    ai("insert_part", part="Plate")
+    ai("insert_part", part="Pin")
+    ai("insert_part", part="Pin")
+    ai("place_part", part="I2", x=8, y=8, z=-3)
+    ai("place_part", part="I3", x=72, y=8, z=-3)
+    time.sleep(1)
+    mount = js("return window.__app.project.active")
+    print("Mount: the base", js(f"return {S}.baseOf(arguments[0])", mount))
+    g = json.loads(ai("sheet_open", part=mount))
+    time.sleep(0.6)
+    g = json.loads(js("return window.__app.agentHandlers.get_sheet({}).then(r => r.text)"))
+    pos = [x for x in g["dims"] if x.get("hole_position")]
+    print("  mounting holes:", [(x["view"], x["text"], x["hole_position"]) for x in pos], "| check:", g["check"]["fully_dimensioned"], g["check"]["missing"])
+    assert sorted(x["text"] for x in pos) == ["42", "64", "8"] and all(x["view"] == "Top" for x in pos), pos
+    assert g["check"]["fully_dimensioned"] and "mounting" in g["check"]["asks_for"]
+    print("  drawn:", js(f"return [...{S}.svgEl.querySelectorAll('g[data-dim]')].filter(e => {S}.allDims().find(x => x.id === e.dataset.dim)?.pos).length"), "position dimensions on the sheet")
+    js(f"{S}.remove(arguments[0])", next(x["id"] for x in pos if x["text"] == "64"))
+    time.sleep(0.3)
+    g2 = json.loads(js("return window.__app.agentHandlers.get_sheet({}).then(r => r.text)"))
+    print("  the pitch removed:", g2["check"]["fully_dimensioned"], g2["check"]["missing"])
+    assert not g2["check"]["fully_dimensioned"] and len(g2["check"]["missing"]) == 1 and "mounting hole" in g2["check"]["missing"][0]
+    js(f"const m = {S}.check().missing[0]; {S}.addMissing(m)")
+    time.sleep(0.3)
+    g3 = json.loads(js("return window.__app.agentHandlers.get_sheet({}).then(r => r.text)"))
+    print("  ＋ added from the plate's edge:", g3["check"]["fully_dimensioned"], js(f"return {S}.d.user.map(u => [u.a, {S}.value(u)])"))
+    assert g3["check"]["fully_dimensioned"]
+    js(f"{S}.sel = null; {S}.render()")
+    d.save_screenshot(f"{OUT}/assembly_sheet_mounting.png")
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()

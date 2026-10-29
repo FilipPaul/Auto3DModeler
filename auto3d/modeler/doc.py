@@ -1542,9 +1542,10 @@ def _exploded(placed, k):
     return out
 
 
-def assembly_sheet(instances, paper=None, explode=0, simple=False):
+def assembly_sheet(instances, paper=None, explode=0, simple=False, base=None):
     """An assembly's drawing sheet: instances as for assembly_clashes (placed) -> sheet.build_assembly. explode
-    (0 … 1): its iso view drawn with the parts pulled apart; simple: drawn from the mesh."""
+    (0 … 1): its iso view drawn with the parts pulled apart; simple: drawn from the mesh. base: the id of the part it
+    stands on (its free holes dimensioned: the mounting holes) — None: the fixed one (fixed: true), else the first."""
     from . import sheet as S
     placed = []
     for inst in instances or []:
@@ -1554,7 +1555,9 @@ def assembly_sheet(instances, paper=None, explode=0, simple=False):
             continue
         placed.append((inst.get("id"), K.placed(st.body.shape, inst.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])))
     key = _key([float(explode or 0)] + [[i.get("id"), (i.get("part") or {}).get("features") or [], i.get("matrix")] for i in instances or []])
-    return S.build_assembly(placed, paper, _exploded(placed, float(explode)) if explode else None, key=key, simple=simple)
+    if base is None:
+        base = next((i.get("id") for i in instances or [] if i.get("fixed")), (instances or [{}])[0].get("id"))
+    return S.build_assembly(placed, paper, _exploded(placed, float(explode)) if explode else None, key=key, simple=simple, base=base)
 
 
 def assembly_clashes(instances, quick=False):

@@ -893,9 +893,11 @@ def _sheet_layout(data, body):
 
 @app.post("/api/sheet/assembly")
 def api_sheet_assembly():
-    """{instances (placed, as for clashes), paper, scale, frame, rid} -> {geometry, layout, dims, marks} — an assembly's drawing sheet."""
+    """{instances (placed, as for clashes), paper, scale, frame, base (the id of the part it stands on: its free holes
+    dimensioned), rid} -> {geometry, layout, dims, marks} — an assembly's drawing sheet."""
     body = request.get_json(force=True)
-    data, err = _sheet_call("assembly_sheet", {"instances": body.get("instances") or [], "paper": body.get("paper"), "explode": body.get("explode") or 0}, body)
+    data, err = _sheet_call("assembly_sheet", {"instances": body.get("instances") or [], "paper": body.get("paper"), "explode": body.get("explode") or 0,
+                                               "base": body.get("base")}, body)
     if err:
         return err
     return _sheet_layout(data, body)

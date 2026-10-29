@@ -1155,7 +1155,7 @@ const CS = {
   '{n} size(s) missing (orange ? on the drawing):': 'Chybí rozměrů: {n} (oranžové ? ve výkrese):', "Add it (from the part's edge)": 'Přidat (od okraje dílu)',
   'Add all missing': 'Přidat všechny chybějící', '{n} dimension(s) give a size twice (marked ⧉ below).': 'Kót, které dávají rozměr dvakrát: {n} (označené ⧉ níže).',
   'Remove them': 'Odebrat je', 'Sizes missing in this view': 'V tomto pohledu chybí rozměry', 'an edge': 'hrana', 'the far end': 'druhý konec', 'the top': 'vršek',
-  'the overall length': 'celková délka', 'the overall width': 'celková šířka', 'the overall height': 'celková výška',
+  'the overall length': 'celková délka', 'the overall width': 'celková šířka', 'the overall height': 'celková výška', 'a mounting hole (Ø{d})': 'montážní otvor (Ø{d})',
   THRU: 'PRŮCHOZÍ', PCD: 'rozteč', "the countersink's angle ({id})": 'úhel záhlubení ({id})', "the counterbore's depth ({id})": 'hloubka zahloubení ({id})',
   "the hole's depth ({id})": 'hloubka díry ({id})', "the thread's depth ({id})": 'hloubka závitu ({id})',
   "the countersink's Ø{d} ({id})": 'Ø{d} záhlubení ({id})', "the counterbore's Ø{d} ({id})": 'Ø{d} zahloubení ({id})',
