@@ -946,7 +946,11 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   click a face of the part to move and the face it goes to (the face under the mouse is marked). For round faces a
   click on (or near) a **circle** — a hole's or a pin's edge — is enough: its round face is taken (a hole seen from the
   front, whose wall is hard to hit). A part can have
-  several joints, applied in order: *Concentric* + *Touch* seats a pin in its hole, head on the face. Joints
+  several joints, applied in order: *Concentric* + *Touch* seats a pin in its hole, head on the face; a later joint
+  only turns it the way the earlier ones leave free — **∥ Parallel** on a part already on a pin (*Concentric*, free to
+  turn) turns it about that pin, the way round the faces stand (facing each other or the same way), as little as
+  needed, and the part stays on the pin; when no such turn makes the faces parallel (⟂ / ∠ the same), the joint is
+  not added and a message says which joint leaves the part only that turn. Joints
   **hold**: when the other part moves or a part changes size in its own tab, the joined part follows. The panel
   lists the joints (hovering one marks its two faces, the copies are told apart: I1, I2…), with the gap / offset to
   type, ⇅ to turn it round, **↕ a slider for the gap** (a flat joint's gap; a concentric joint's distance once it is set; it catches at 0), **↻ a slider to turn the part about the joint** (a pin about its hole's axis, a part on

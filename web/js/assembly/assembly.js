@@ -64,6 +64,7 @@ const fmt = (v) => (+(+v).toFixed(3)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const ID = () => new THREE.Matrix4().identity().toArray();
+const facingAway = (a, b) => !!(a.face?.normal && b.face?.normal && a.face.normal.dot(b.face.normal) < 0); // (two picked faces: {face} each)
 const tidy = (a) => a.map((v) => (Math.abs(v - Math.round(v)) < 1e-9 ? Math.round(v) : +v.toFixed(9))); // (a matrix: whole numbers kept whole)
 const COLORS = [0xd9dee6, 0x9ecbff, 0xffd8a8, 0xb5f5c5, 0xe2c6ff, 0xffc2c2, 0xfff3b0];
 
@@ -2577,14 +2578,30 @@ export class Assembly {
       const was = t((JOINT_TYPES[same.type || 'touch'] || JOINT_TYPES.touch).name), now = t(JOINT_TYPES[type].name);
       if (same.locked) { this.hooks.toast(t2('These two faces are joined already by {id} ({type}), locked 🔒 — unlock it to change it.', { id: same.id, type: was }), 'warning', 5000); return false; }
       for (const k of ['flip', 'value', 'dist', 'side', 'angle', 'rot', 'pos', 'slides']) delete same[k];
-      Object.assign(same, { type, gap: +gap || 0 });
+      Object.assign(same, { type, gap: +gap || 0 }, type === 'parallel' && facingAway(from, to) ? { flip: true } : {});
       this.hooks.toast(t2('These two faces were joined already ({id}, {was}) — that joint is now {type}, not a second one.', { id: same.id, was, type: now }), 'info', 5000);
       return same;
     }
     const n = Math.max(0, ...(this.doc.mates || []).map((m) => parseInt(String(m.id || '').slice(1), 10) || 0)) + 1;
     const m = { id: `J${n}`, type, move: from.inst, face: fromName, onto: to.inst, ontoFace: toName, gap: +gap || 0 };
+    if (type === 'parallel' && facingAway(from, to)) m.flip = true; // (∥ the way round they stand: the smaller turn)
     this.doc.mates = [...(this.doc.mates || []), m];
     return m;
+  }
+
+  /** A new ∥ / ⟂ / ∠ joint (only turns) on a part its other joints leave one turn (a pin in a hole: about the axis):
+   *  when that turn cannot bring the faces there, the joint is taken out again and the parts go back where they were
+   *  (was: id -> matrix), rather than it pulling the part off its other joints -> why (a text), or null (it holds). */
+  turnOnlyRefused(nj, was) {
+    if (!['parallel', 'perp', 'angle'].includes(nj.type) || this.health?.get(nj.id)?.ok !== false) return null;
+    const other = (this.doc.mates || []).find((m) => m.move === nj.move && m.id !== nj.id);
+    if (!other) return null;
+    const off = this.health.get(nj.id).deg;
+    this.doc.mates = this.doc.mates.filter((m) => m !== nj);
+    for (const it of this.doc.instances) if (was.has(it.id)) it.matrix = was.get(it.id);
+    this.applyMates();
+    return t2('{type} not added: {part} can only turn as {id} ({held}) lets it — no such turn puts these faces like that ({off}° off). Pick other faces, or change {id}.',
+      { type: t(JOINT_TYPES[nj.type].name), part: this.partName(this.inst(nj.move)?.part), id: other.id, held: t((JOINT_TYPES[other.type || 'touch'] || JOINT_TYPES.touch).name), off: fmt(+off.toFixed(1)) });
   }
 
   /** Kept for the first-version name of a snap. */
@@ -3583,7 +3600,8 @@ export class Assembly {
       return;
     }
     const mover = this.inst(this.jointFrom.inst)?.fixed ? h.inst : this.jointFrom.inst, placed = (this.doc.mates || []).some((m) => m.move === mover);
-    const before = new Set(this.unmet().map((m) => m.id)), had = new Set((this.doc.mates || []).map((m) => m.id)), nj = this.addJoint(this.jointFrom, h, type, type === 'gap' ? 5 : 0);
+    const before = new Set(this.unmet().map((m) => m.id)), had = new Set((this.doc.mates || []).map((m) => m.id)), was = new Map(this.doc.instances.map((i) => [i.id, [...i.matrix]]));
+    const nj = this.addJoint(this.jointFrom, h, type, type === 'gap' ? 5 : 0);
     let kept = null;
     if (nj && type === 'flush' && placed && !had.has(nj.id)) kept = this.keepOffset(nj); // (a part held already: it does not jump)
     if (nj) {
@@ -3594,8 +3612,9 @@ export class Assembly {
       }
       this.applyMates();
       this.sel = this.jointFrom.inst;
-      const fights = this.unmet().filter((m) => !before.has(m.id));
-      if (fights.length) this.hooks.toast(t2('{type} added, but it fights another joint: {ids} no longer hold — see the red joint(s) in the panel.', { type: t(JOINT_TYPES[type].name), ids: fights.map((m) => m.id).join(', ') }), 'warning', 7000);
+      const refused = had.has(nj.id) ? null : this.turnOnlyRefused(nj, was), fights = this.unmet().filter((m) => !before.has(m.id));
+      if (refused) this.hooks.toast(refused, 'warning', 8000);
+      else if (fights.length) this.hooks.toast(t2('{type} added, but it fights another joint: {ids} no longer hold — see the red joint(s) in the panel.', { type: t(JOINT_TYPES[type].name), ids: fights.map((m) => m.id).join(', ') }), 'warning', 7000);
       else if (kept !== null && kept !== 0) this.hooks.toast(t2('{type} — the offset {gap} mm kept, as the parts stand (0 in the panel lines them up).', { type: t(JOINT_TYPES[type].name), gap: fmt(kept) }), 'ok', 5000);
       else if (nj.id === this.doc.mates[this.doc.mates.length - 1].id) this.hooks.toast(`${JOINT_TYPES[type].name} — it now holds (change it or ✕ it in the panel).`, 'ok', 3000);
     }
@@ -3950,6 +3969,7 @@ export class Assembly {
         } else if (want === 'mixed') {
           if (new Set([from.face.type, to.face.type, 'plane', 'cylinder']).size !== 2 || from.face.type === to.face.type) throw new Error('Tangent joins a round face and a flat face.');
         } else if (from.face.type !== want || to.face.type !== want) throw new Error(`${JOINT_TYPES[type].name} joins two ${want === 'cylinder' ? 'round' : 'flat'} faces.`);
+        const had = new Set((this.doc.mates || []).map((m) => m.id)), was = new Map(this.doc.instances.map((i) => [i.id, [...i.matrix]]));
         const nj = this.addJoint(from, to, type, type === 'axis' ? 0 : gap || 0);
         if (!nj) throw new Error('Not joined: the other part already hangs on this one (or the joint on these faces is locked).');
         if (type === 'axis' && Number.isFinite(+gap) && gap !== undefined && gap !== null) {
@@ -3961,6 +3981,8 @@ export class Assembly {
         if (name) nj.name = String(name).trim();
         if (type === 'angle') nj.value = Number.isFinite(+value) ? +value : Math.round((from.face.normal.angleTo(to.face.normal) * 180) / Math.PI);
         this.applyMates();
+        const refused = had.has(nj.id) ? null : this.turnOnlyRefused(nj, was);
+        if (refused) throw new Error(refused);
         this.sel = from.inst;
         this.commit();
         return { text: JSON.stringify(this.summary()) };
