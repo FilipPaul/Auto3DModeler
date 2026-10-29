@@ -15,8 +15,8 @@
 // along a direction of the other part kept at a distance, `rot` — the part's turn against the other part kept (a ball's
 // three turns at once); with `pos` too that is a 🔗 rigid joint: the part fixed to the other one as they were.
 // A part's joints are applied in order: the first one places it freely; the later ones only turn it about the
-// direction fixed before, and only move it along their own direction — so "pin in hole" + "touch" = the pin in
-// the hole, down to the face. A flat face put onto another one is centred on it once (when the joint is made); then
+// direction fixed before (about the axis itself, when an axis fixed it: the pin stays in its hole), and only move it
+// along their own direction — so "pin in hole" + "touch" = the pin in the hole, down to the face. A flat face put onto another one is centred on it once (when the joint is made); then
 // it may slide on it. jointMiss tells how far a joint is from holding (another joint of the part may hold it elsewhere).
 // A part joined onto two parts that move closes a loop (a rod on a crank and on a slider): loops.js places those parts
 // together, bringing their joints' jointResidual to 0.
@@ -84,6 +84,10 @@ function turnAbout(M, centre, q) {
 }
 
 const shift = (M, d) => new THREE.Matrix4().makeTranslation(d.x, d.y, d.z).multiply(M);
+
+/** The point a later joint turns the part about: on the axis an earlier joint put it on (a pin in a hole: turned about
+ *  that axis it stays in the hole), else `p` (its own face's). */
+const pivotOf = (fixed, first, p) => (!first && fixed?.o ? V(fixed.o) : p);
 
 /** How far (degrees) the moving part is turned about a joint's direction, from the other part: the angle between
  *  their own x directions (or y, when x runs along it) seen along `dir`. */
@@ -324,7 +328,7 @@ function placeJoint(M, j, faceAt, fA, first, fixed, centre = first) {
     if (fA.type !== 'cylinder' || fB.type !== 'cylinder') throw new Error('Pin in hole joins two round faces.');
     const dA = V(fA.axis.d).normalize(), dB = V(fB.axis.d).normalize();
     const target = Math.sign(dB.dot(dA) || 1) > 0 ? dA : dA.clone().negate(); // the way round it is (⇅ turns it over once)
-    M = turnAbout(M, V(fB.axis.o), turnFor(dB, target, first ? null : fixed));
+    M = turnAbout(M, pivotOf(fixed, first, V(fB.axis.o)), turnFor(dB, target, first ? null : fixed));
     fB = faceAt(M);
     const v = V(fB.axis.o).sub(V(fA.axis.o)), perp = v.clone().sub(dA.clone().multiplyScalar(v.dot(dA)));
     M = shift(M, perp.negate());
@@ -334,7 +338,7 @@ function placeJoint(M, j, faceAt, fA, first, fixed, centre = first) {
       M = shift(M, dA.clone().multiplyScalar(side > 0 ? a[1] + j.dist - b[0] : a[0] - j.dist - b[1]));
     }
     if (Number.isFinite(j.angle)) M = spinTo(M, faceAt, fA, fA.axis.o, dA, j.angle); // turned about the axis
-    return { M, fixed: { dir: dA, flippable: true } };
+    return { M, fixed: { dir: dA, flippable: true, o: V(fA.axis.o) } }; // (o: a later joint turns it about this axis)
   }
   if (type === 'tangent') {
     const cyl = fB.type === 'cylinder' ? fB : fA, pl = fB.type === 'cylinder' ? fA : fB;
@@ -342,7 +346,7 @@ function placeJoint(M, j, faceAt, fA, first, fixed, centre = first) {
     const side = j.flip ? -1 : 1;
     if (fB.type === 'cylinder') { // a roller onto a plate: its axis along the plate, r out from it
       const nA = V(fA.normal).normalize();
-      M = turnAbout(M, V(fB.axis.o), turnToAngle(V(fB.axis.d), nA, 90, first ? null : fixed));
+      M = turnAbout(M, pivotOf(fixed, first, V(fB.axis.o)), turnToAngle(V(fB.axis.d), nA, 90, first ? null : fixed));
       fB = faceAt(M);
       const s = V(fB.axis.o).sub(V(fA.centroid)).dot(nA);
       M = shift(M, nA.clone().multiplyScalar(side * fB.radius - s));
@@ -351,7 +355,7 @@ function placeJoint(M, j, faceAt, fA, first, fixed, centre = first) {
     }
     // a plate onto a roller: the plate along the axis, the axis r out from its face
     const dA = V(fA.axis.d).normalize();
-    M = turnAbout(M, V(fB.centroid), turnToAngle(V(fB.normal), dA, 90, first ? null : fixed));
+    M = turnAbout(M, pivotOf(fixed, first, V(fB.centroid)), turnToAngle(V(fB.normal), dA, 90, first ? null : fixed));
     fB = faceAt(M);
     const nB = V(fB.normal).normalize(), s = V(fA.axis.o).sub(V(fB.centroid)).dot(nB);
     M = shift(M, nB.clone().multiplyScalar(s - side * fA.radius));
@@ -360,13 +364,13 @@ function placeJoint(M, j, faceAt, fA, first, fixed, centre = first) {
   if (fA.type !== 'plane' || fB.type !== 'plane') throw new Error(`${JOINT_TYPES[type]?.name || type} joins two flat faces.`);
   if (type === 'perp' || type === 'angle') { // turns only: the faces' directions at the angle
     const nA = V(fA.normal).normalize(), deg = type === 'perp' ? 90 : j.flip ? 180 - (+j.value || 0) : +j.value || 0;
-    M = turnAbout(M, V(fB.centroid), turnToAngle(V(fB.normal), nA, deg, first ? null : fixed));
+    M = turnAbout(M, pivotOf(fixed, first, V(fB.centroid)), turnToAngle(V(fB.normal), nA, deg, first ? null : fixed));
     if (Number.isFinite(j.angle)) M = spinTo(M, faceAt, fA, faceAt(M).centroid, nA, j.angle);
     return { M, fixed: { dir: nA } };
   }
   const nA = V(fA.normal).normalize(), cA = V(fA.centroid);
   const target = type === 'touch' || type === 'gap' ? nA.clone().negate() : j.flip ? nA.clone().negate() : nA.clone();
-  M = turnAbout(M, V(fB.centroid), turnFor(V(fB.normal), target, first ? null : fixed));
+  M = turnAbout(M, pivotOf(fixed, first, V(fB.centroid)), turnFor(V(fB.normal), target, first ? null : fixed));
   if (type === 'parallel') return { M, fixed: { dir: nA } };
   fB = faceAt(M);
   const cB = V(fB.centroid), goal = cA.clone().addScaledVector(nA, +j.gap || 0);

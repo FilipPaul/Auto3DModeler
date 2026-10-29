@@ -57,6 +57,29 @@ Date: 2026-10-25. Written by the architect agent.
   gui_highlight `at` follows the 3D point there. No picture of what is on screen: 0 … 1 of the view, as before.
   Test: e2e_ai_gui.py — a block's vertical edge projected with the picture's camera, clicked in ◜ Fillet at
   1600 × 800 and in a narrow view: that very edge picked (the old fractions: none / another).
+- **Two-face joints in either order; ∥ ⟂ ∠ ranked up; Esc (2026-10-30)** (the AI's report: the parent's face first,
+  then the child's -> "join them the other way round"). addJoint now swaps the two when `to` (through others) hangs
+  on `from`: the child moves; it refuses only when neither can move. Two flat faces list Touch, ∥, ⟂, ∠, Gap, Flush
+  (Flush / 〰 first as before when they face the same way / a spring); one flat face ranks ∥ and ⟂ right after Flush
+  (∠, Tangent, 〰 under ⋯ Show all). Esc in the assembly also works with a slider / check box focused (it was
+  ignored as typing). Esc with the view focused already cleared a two-face pick (also through gui_action key) — not
+  reproduced; covered by the test now. Test: e2e_assembly_twoface.
+
+- **A click picks what is in sight (2026-10-29)** (the AI's report: a click on a thin plate's side face picked a hole
+  hidden behind it). The assembly's `roundEdgeAt` (a click near a circle takes its round face) and the snap points
+  (`snapNear`: corners, middles, centres) did not look at depth: a hole's rim inside a 4 mm plate, a few px from the
+  click on its side, won. Now AsmView.sees(point) casts a ray to the point (a surface before it: hidden), roundEdgeAt
+  takes the nearest circle in sight, and snapNear takes a `seen` test (measurePoint passes it). Test:
+  e2e_assembly_thinside.
+
+- **∥ on a part held by a pin keeps it on the pin (2026-10-29)** (the AI's report: a ∥ joint on a sub-assembly hanging
+  on a ◎ concentric joint moved it 24.7 mm off its axis). joints.js turned a later joint's part about its own face's
+  centroid — about the right direction, but off the axis line; and ∥ always wanted the faces facing the same way, so
+  faces 2° off facing away turned 178°. Now an axis joint's `fixed` carries its point (`o`) and later joints turn about
+  that line (`pivotOf`); a new ∥ is made the way round the faces stand (`flip`); a new ∥ / ⟂ / ∠ that the part's free
+  turn cannot satisfy is taken out again with a reason (`turnOnlyRefused`: a toast, snap_faces an error). Test:
+  e2e_assembly_parallel_axis (the solver alone in one pass, and the assembly).
+
 - **The AI sees the suggestions table (2026-10-29)** (the owner: "zdá se mi, že agent nevidí suggestion table"). It
   did not: gui_state listed the table's rows as plain buttons among the rest (where: panel, no title, no order, nothing
   marking them), the rows under ⋯ Show all not at all, and get_screenshot drew the 3D only. Now suggest.js keeps each

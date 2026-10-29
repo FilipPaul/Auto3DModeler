@@ -962,8 +962,13 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   *🔗 Fix A to B* in the suggestions when two parts are chosen), or **🔩 Screw / pin** — then
   click a face of the part to move and the face it goes to (the face under the mouse is marked). For round faces a
   click on (or near) a **circle** — a hole's or a pin's edge — is enough: its round face is taken (a hole seen from the
-  front, whose wall is hard to hit). A part can have
-  several joints, applied in order: *Concentric* + *Touch* seats a pin in its hole, head on the face. Joints
+  front, whose wall is hard to hit); only a circle in sight counts — a click on the thin side of a plate picks that
+  side, not a hole hidden behind it (nor a hidden hole's centre as a snap point). A part can have
+  several joints, applied in order: *Concentric* + *Touch* seats a pin in its hole, head on the face; a later joint
+  only turns it the way the earlier ones leave free — **∥ Parallel** on a part already on a pin (*Concentric*, free to
+  turn) turns it about that pin, the way round the faces stand (facing each other or the same way), as little as
+  needed, and the part stays on the pin; when no such turn makes the faces parallel (⟂ / ∠ the same), the joint is
+  not added and a message says which joint leaves the part only that turn. Joints
   **hold**: when the other part moves or a part changes size in its own tab, the joined part follows. The panel
   lists the joints (hovering one marks its two faces, the copies are told apart: I1, I2…), with the gap / offset to
   type, ⇅ to turn it round, **↕ a slider for the gap** (a flat joint's gap; a concentric joint's distance once it is set; it catches at 0), **↻ a slider to turn the part about the joint** (a pin about its hole's axis, a part on
@@ -1097,7 +1102,12 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   - **two flat faces facing up** (a part's top, Ctrl+click the base's top): *⧉ Put Slider on Base* — its underside
     goes onto the base, no turning the view to click a face you cannot see; then Touch, Flush …;
   - **two side faces facing the same way**: ▭ Flush first; on a part that is joined already it keeps the offset as the
-    parts stand (a slider stays in line with the crank; type 0 in the panel to line the faces up).
+    parts stand (a slider stays in line with the crank; type 0 in the panel to line the faces up);
+  - **other two flat faces**: Touch, then ∥ Parallel, ⟂ Perpendicular, ∠ Angle, Gap, Flush (one flat face alone: ∥ and
+    ⟂ are among its first rows too).
+  The order of the two clicks does not matter: the part that moves is the first one's, unless the other one already
+  hangs on it (then that one — the child — moves); only when neither can move (one 📌 fixed, the other hanging on it)
+  it says so. **Esc** unpicks the faces (one or two) and the part — also with a panel's slider in the keyboard's hand.
   A plain click on a small hole or pin, or on a thin side, picks the face — corners, edge middles and centres catch a
   click only within 5 px there (📏 Measure: 10 px); a Ctrl+click beside the parts keeps the face picked first.
 - **"One joint is missing"**: when the parts almost make a closed loop — the crank and the rod on their pins, the

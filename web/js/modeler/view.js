@@ -79,8 +79,9 @@ function pointsOf(edges, matrix, kinds) {
 }
 
 /** The measure tool's snap points near the mouse (within px on the screen): an edge's end (corner), the middle of an
- *  edge (midpoint), the centre of a round edge (centre) — list: [{edges, matrix?, inst?}] -> {point, kind, inst} or null. */
-export function snapNear(list, camera, rect, clientX, clientY, px = 10, kinds = null) {
+ *  edge (midpoint), the centre of a round edge (centre) — list: [{edges, matrix?, inst?}] -> {point, kind, inst} or null.
+ *  seen(point): only points it says are in sight (not hidden behind a surface) are taken. */
+export function snapNear(list, camera, rect, clientX, clientY, px = 10, kinds = null, seen = null) {
   let best = null, bd = px;
   const cam = camKey(camera, rect);
   for (const { edges, matrix, inst } of list) {
@@ -102,7 +103,7 @@ export function snapNear(list, camera, rect, clientX, clientY, px = 10, kinds = 
     for (let k = 0; k < pts.length; k++) {
       if (scr[k * 3 + 2] > 1) continue; // (behind the camera)
       const d = Math.hypot(scr[k * 3] - clientX, scr[k * 3 + 1] - clientY);
-      if (d < bd) { bd = d; best = { point: pts[k].point.clone(), kind: pts[k].kind, inst }; }
+      if (d < bd && (!seen || seen(pts[k].point))) { bd = d; best = { point: pts[k].point.clone(), kind: pts[k].kind, inst }; }
     }
   }
   return best;
