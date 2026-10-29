@@ -14,6 +14,7 @@
 //    viewNames: {Front: "Side A"} (renamed views), scale: null | [a, b] (the sheet's own, else the fit's),
 //    vscale: {Top: [2, 1]} (a view's own scale, its label says it: "Top (2:1)"),
 //    built: {geometry, layout, dims} (from the server), hash (of the part it was built from),
+//    rough: [{id, view, edge, k, off, ra, proc}] (surface roughness symbols on edges — rough.js),
 //    rev, created, changed}
 import { History } from '../history.js';
 import { t, getLang } from '../i18n.js';
@@ -27,6 +28,7 @@ import { stepsAtBar, rolledText } from '../modeler/steptree.js';
 import { showSuggest } from '../suggest.js';
 import { sheetSuggest, tolText, setOf } from './sheetsuggest.js';
 import { TB_EDIT, TB_COMPUTED, hitRect, propagates, remembered } from './tbedit.js';
+import { RA_LIST, PROCS, raText, raValue, roughPlace, roughSvg, onEdge } from './rough.js';
 import { TITLE_STYLES, BOM_STYLES, STYLE_TIPS, isStyle, isBomStyle, titleSize, titleBlock, partsList, bomWidth, bomHeight, bomRowsIn, grams, fontsReady } from './tbstyles.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -116,11 +118,12 @@ export class SheetEditor {
     this.selView = null; // the chosen view (a click on it), or
     this.selGeo = null;  // the chosen edge / circle of a view {view, edge | c}, or
     this.selTitle = false; // the title block — each with its row of suggestions (sheetsuggest.js)
+    this.selRough = null; // a roughness symbol's id (rough.js)
     this.tool = 'select'; // or 'dim' (＋ Dimension)
     this.pick = null;    // the first point of a new dimension {view, key}
     this.zoom = { k: 1, x: 0, y: 0 };
     this.history = new History({
-      capture: () => ({ section: !!this.d?.section, balloons: this.d?.balloons, views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper, texts: this.d?.texts, setTexts: this.d?.setTexts, exploded: !!this.d?.exploded, viewNames: this.d?.viewNames, scale: this.d?.scale ?? null, vscale: this.d?.vscale, template: this.d?.template, tb: this.d?.tb, frame: this.d?.frame, bomPage: this.d?.bomPage }),
+      capture: () => ({ section: !!this.d?.section, balloons: this.d?.balloons, views: this.d?.views, off: this.d?.off, dims: this.d?.dims, hidden: this.d?.hidden, user: this.d?.user, preset: this.d?.preset, vpreset: this.d?.vpreset, paper: this.d?.paper, texts: this.d?.texts, setTexts: this.d?.setTexts, rough: this.d?.rough, exploded: !!this.d?.exploded, viewNames: this.d?.viewNames, scale: this.d?.scale ?? null, vscale: this.d?.vscale, template: this.d?.template, tb: this.d?.tb, frame: this.d?.frame, bomPage: this.d?.bomPage }),
       restore: (s) => { const ex = !!this.d.exploded, sec = !!this.d.section; Object.assign(this.d, structuredClone(s)); if (!this.d.exploded) delete this.d.exploded; if (!this.d.section) delete this.d.section; if (!this.d.bomPage) delete this.d.bomPage; if (ex !== !!this.d.exploded || sec !== !!this.d.section || this.d.built?.preset !== this.d.preset || this.d.built?.vp !== JSON.stringify(this.d.vpreset || {}) || this.layKey() !== this.builtKey()) this.ensure(true); else this.render(); },
       onChange: () => this.renderBar(),
     });
@@ -725,6 +728,10 @@ export class SheetEditor {
     if (!forPrint) out.push(this.selSvg());
     this.zeros = new Set(); // (an ordinate row's 0: drawn once)
     for (const d of this.allDims()) out.push(this.dimSvg(d, forPrint));
+    for (const r of this.roughs()) { // surface roughness symbols (ISO 21920) on their edges
+      const at = this.roughAt(r), on = !forPrint && this.selRough === r.id;
+      if (at) out.push(`<g data-rough="${esc(r.id)}" class="sh-rough${on ? ' on' : ''}">${roughSvg(r, at, on ? '#1f6feb' : '#1b3a8a', !forPrint)}</g>`);
+    }
     if (this.d.asm) out.push(this.asmSvg(pw, ph, m, th));
     if (this.d.bom) out.push(this.bomSvg(pw, ph, th));
     if (!forPrint && this.tool === 'dim') out.push(this.snapMarks());
@@ -909,7 +916,7 @@ export class SheetEditor {
     return {
       name: X.title || T.part || this.hooks.partName(this.d.source) || '—', kind: what.join(' · '), number: F.number || '', rev: `${this.d.rev}`,
       material: mat, mass: mass ? grams(mass) : '', scale: bom ? '' : scaleText(this.scaleArr()), paper: this.lay?.paper || '', sheet: T.sheet || '1 / 1',
-      tol: src.tolerance ? `${(F.tolstd || 'ISO 2768').replace(/-[a-z]+$/i, '')}-${src.tolerance}` : F.tolstd || '', surface: F.surface || '',
+      tol: src.tolerance ? `${(F.tolstd || 'ISO 2768').replace(/-[a-z]+$/i, '')}-${src.tolerance}` : F.tolstd || '', surface: F.surface ? `${raText(F.surface)}${this.roughs().some((r) => this.roughAt(r)) ? ' (✓)' : ''}` : '', // (✓): the surfaces with a symbol of their own differ (ISO 21920)
       drawn: F.drawn || '', checked: F.checked || '', approved: F.approved || '', company: F.company || '',
       address: String(F.address || '').split(/\s*[\n;]\s*|,\s+(?=\d)/).filter(Boolean), logo: tb.logo,
       date: d0 ? (cs ? `${d0.getDate()}. ${d0.getMonth() + 1}. ${d0.getFullYear()}` : `${d0.getFullYear()}-${p2(d0.getMonth() + 1)}-${p2(d0.getDate())}`) : '',
@@ -1864,9 +1871,23 @@ export class SheetEditor {
       }
     });
     input.addEventListener('blur', () => { if (this.editing === ed) this.endEdit(true); });
+    if (k === 'surface') ed.list = this.raList(input, vp); // (the roughness: the Ra values to click, under the box)
     input.focus();
     input.select();
     return true;
+  }
+
+  /** The Ra values under the title block's roughness text box: a click puts one in and keeps it. */
+  raList(input, vp) {
+    const box = document.createElement('div'), now = raText(input.value);
+    box.className = 'sh-ralist';
+    box.title = t('The general surface roughness (ISO 21920) — click one, or type your own');
+    box.innerHTML = RA_LIST.map((v) => `<button class="chip${raText(v) === now ? ' on' : ''}" data-ra="${v}" title="${esc(tv('Ra {ra} µm', { ra: v }))}">${raText(v) === now ? '✓ ' : ''}${esc(raText(v))}</button>`).join('');
+    Object.assign(box.style, { left: input.style.left, top: `${parseFloat(input.style.top) + input.offsetHeight + 3}px` });
+    box.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); }); // (the text box keeps its focus)
+    for (const b of box.querySelectorAll('[data-ra]')) b.addEventListener('click', (e) => { e.stopPropagation(); input.value = raText(b.dataset.ra); this.endEdit(true); });
+    vp.appendChild(box);
+    return box;
   }
 
   /** The cell's text box closed: its text kept (keep) or not. */
@@ -1875,6 +1896,7 @@ export class SheetEditor {
     if (!ed) return;
     this.editing = null;
     ed.input.remove();
+    ed.list?.remove();
     if (keep && ed.input.value.trim() !== ed.was.trim()) this.typed(ed.k, ed.input.value);
   }
 
@@ -1954,7 +1976,67 @@ export class SheetEditor {
   }
 
   // ------------------------------------------------------------------ what is chosen, and its suggestions
-  clearSel() { this.sel = null; this.selView = null; this.selGeo = null; this.selTitle = false; }
+  clearSel() { this.sel = null; this.selView = null; this.selGeo = null; this.selTitle = false; this.selRough = null; }
+
+  // ------------------------------------------------------------------ surface roughness symbols (rough.js)
+  /** The roughness symbols of views on the sheet. */
+  roughs() { return (this.d?.rough || []).filter((r) => !this.d.off?.[r.view] && this.geo?.views[r.view]); }
+
+  roughOf(id) { return (this.d?.rough || []).find((r) => r.id === id) || null; }
+
+  /** Where symbol r is on the paper ({A, T, n, on}), or null (its edge is gone: the part changed). */
+  roughAt(r) {
+    const g = this.geo?.views[r.view], line = g?.lines.find((x) => x.key === r.edge);
+    if (!line) return null;
+    const pb = this.paperBox(r.view);
+    return roughPlace(r, line, (p) => this.P(r.view, p), [(pb[0] + pb[2]) / 2, (pb[1] + pb[3]) / 2]);
+  }
+
+  /** ✓ A roughness symbol on an edge of a view ({view, edge, ra, proc, k}; k: where along it, else where the edge was
+   *  clicked, else its middle) -> its id; it is chosen. */
+  addRough({ view, edge, ra, proc = 'any', k }) {
+    const g = this.geo?.views[view], key = String(edge ?? '').replace(/#[01m]$/, ''), line = g?.lines.find((x) => x.key === key);
+    if (!line) throw new Error(`No edge ${edge} in ${view} — get_sheet {points: "${view}"} lists its points (an edge's ends are <edge>#0 / #1).`);
+    const v = raValue(ra);
+    if (v === null) throw new Error(`ra: a roughness in µm, e.g. ${RA_LIST.join(', ')}.`);
+    if (!PROCS[proc || 'any']) throw new Error('process: "any", "remove" (machined) or "keep" (no material removed).');
+    if (k === undefined && this.selGeo?.edge?.key === key && this.selGeo.p) k = onEdge(this.selGeo.p, line, (p) => this.P(view, p), [0, 0]).k;
+    const id = `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+    this.d.rough = [...(this.d.rough || []), { id, view, edge: key, k: +(+(k ?? 0.5)).toFixed(3), ra: v, proc: proc || 'any' }];
+    this.clearSel();
+    this.selRough = id;
+    this.commit();
+    return id;
+  }
+
+  /** A symbol's Ra / process / place changed. */
+  setRough(id, props) {
+    const r = this.roughOf(id);
+    if (!r) throw new Error(`No roughness symbol ${id} — get_sheet lists them.`);
+    if (props.ra !== undefined) { const v = raValue(props.ra); if (v === null) throw new Error(`ra: a roughness in µm, e.g. ${RA_LIST.join(', ')}.`); r.ra = v; }
+    if (props.proc !== undefined) { if (!PROCS[props.proc]) throw new Error('process: "any", "remove" or "keep".'); r.proc = props.proc; }
+    this.d.rough = [...this.d.rough];
+    this.commit();
+  }
+
+  removeRough(id) {
+    if (!this.roughOf(id)) throw new Error(`No roughness symbol ${id} — get_sheet lists them.`);
+    this.d.rough = this.d.rough.filter((r) => r.id !== id);
+    if (!this.d.rough.length) delete this.d.rough;
+    if (this.selRough === id) this.selRough = null;
+    this.commit();
+  }
+
+  /** A symbol dragged: its tip to p (paper) — near the edge on its outside (an edge on top): standing on it, moved
+   *  along it; elsewhere: on a reference line with a leader. */
+  dragRough(r, p) {
+    const at = this.roughAt(r), line = this.geo.views[r.view].lines.find((x) => x.key === r.edge);
+    if (!at) return;
+    const e = onEdge(p, line, (q) => this.P(r.view, q), at.n);
+    if (at.sits && e.out && e.dist < 2.5) { r.k = +e.k.toFixed(3); r.off = [0, 0]; return; }
+    if (!at.sits && e.dist < 1.5) { r.k = +e.k.toFixed(3); return; } // (along the edge: the leader's arrow moves)
+    r.off = [+(p[0] - at.A[0]).toFixed(2), +(p[1] - at.A[1]).toFixed(2)];
+  }
 
   /** The suggestions table (bottom left of the sheet) for what is chosen — or the sheet's next steps. */
   renderSuggest() {
@@ -2165,6 +2247,16 @@ export class SheetEditor {
       const again = lab && this.lastLabel?.v === lab.dataset.vlabel && performance.now() - this.lastLabel.at < 400;
       this.lastLabel = lab ? { v: lab.dataset.vlabel, at: performance.now() } : null;
       if (again) { e.preventDefault(); this.lastLabel = null; this.renameOnSheet(lab.dataset.vlabel); return; } // a double-click on a view's name: rename it
+      const rough = e.target.closest('[data-rough]');
+      if (rough) { // a roughness symbol: chosen, dragged
+        this.clearSel();
+        this.selRough = rough.dataset.rough;
+        const r = this.roughOf(this.selRough), at = r && this.roughAt(r);
+        drag = { kind: 'rough', r, grab: at ? [p[0] - at.T[0], p[1] - at.T[1]] : [0, 0], moved: false };
+        this.stage.setPointerCapture(e.pointerId);
+        this.render();
+        return;
+      }
       const balloon = e.target.closest('[data-balloon]');
       if (balloon) { drag = { kind: 'balloon', pos: balloon.dataset.balloon, moved: false }; this.stage.setPointerCapture(e.pointerId); return; }
       if (dimEl) {
@@ -2196,7 +2288,9 @@ export class SheetEditor {
       }
       const p = this.paperAt(e);
       drag.moved = true;
-      if (drag.kind === 'balloon') {
+      if (drag.kind === 'rough') {
+        if (drag.r) this.dragRough(drag.r, [p[0] - drag.grab[0], p[1] - drag.grab[1]]);
+      } else if (drag.kind === 'balloon') {
         this.d.balloons = { ...(this.d.balloons || {}), [drag.pos]: [+p[0].toFixed(2), +p[1].toFixed(2)] };
       } else if (drag.kind === 'view') {
         this.d.views[drag.v] = this.snapView(drag.v, [drag.from[0] + p[0] - drag.start[0], drag.from[1] + p[1] - drag.start[1]], e.shiftKey);
@@ -2253,12 +2347,12 @@ export class SheetEditor {
 
   /** A click (no drag): a view's edge or circle under it, else the view; the title block; empty paper: nothing. */
   clickSelect(drag) {
-    if (drag.kind === 'dim' || drag.kind === 'balloon') { this.render(); return; }
+    if (drag.kind === 'dim' || drag.kind === 'balloon' || drag.kind === 'rough') { this.render(); return; }
     this.clearSel();
     if (drag.kind === 'view') {
       const v = drag.v, c = v !== 'Iso' ? this.circleAt(drag.p, 1.2) : null, ed = v !== 'Iso' && !c ? this.edgeAt(drag.p, 1) : null;
       if (c?.view === v) this.selGeo = { view: v, c: c.c };
-      else if (ed?.view === v) this.selGeo = { view: v, edge: ed.edge };
+      else if (ed?.view === v) this.selGeo = { view: v, edge: ed.edge, p: drag.p }; // (p: where — a roughness symbol goes there)
       else this.selView = v;
     } else if (drag.title) this.selTitle = true;
     this.render();
@@ -2299,8 +2393,9 @@ export class SheetEditor {
     if (!this.active || e.target.closest?.('input,select,textarea,[contenteditable]')) return;
     if (e.key === 'Enter' && this.tool === 'dim' && this.pick?.edge) { this.edgeLength(this.pick.view, this.pick.edge); e.preventDefault(); return; } // its length
     if (e.key === 'Escape' && this.tool === 'dim') { if (this.pick) { this.pick = null; this.render(); } else this.action('dim'); e.preventDefault(); }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && this.selRough) { this.removeRough(this.selRough); e.preventDefault(); return; }
     if ((e.key === 'Delete' || e.key === 'Backspace') && this.sel) { this.remove(this.sel); e.preventDefault(); } else if ((e.key === 'Delete' || e.key === 'Backspace') && this.selView) { this.hideView(this.selView); e.preventDefault(); }
-    if (e.key === 'Escape' && this.tool === 'select' && (this.sel || this.selView || this.selGeo || this.selTitle)) { this.clearSel(); this.render(); e.preventDefault(); }
+    if (e.key === 'Escape' && this.tool === 'select' && (this.sel || this.selView || this.selGeo || this.selTitle || this.selRough)) { this.clearSel(); this.render(); e.preventDefault(); }
     if (e.ctrlKey && e.key.toLowerCase() === 'z') { this.history.go(-1); e.preventDefault(); }
     if (e.ctrlKey && e.key.toLowerCase() === 'y') { this.history.go(1); e.preventDefault(); }
   }
@@ -2413,6 +2508,7 @@ export class SheetEditor {
       dims: this.allDims().map((d) => ({ id: d.id, view: d.view, kind: d.kind, text: this.value(d) === null ? null : this.dimText(d, this.value(d)), auto: !!d.auto, ...(this.value(d) === null ? { lost: true } : {}),
         ...(d.pos ? { hole_position: d.pos } : {}), ...(d.ord ? { ordinate: true } : {}), ...(d.tol ? { tol: d.tol } : {}), ...(d.ref ? { ref: true } : {}) })),
       deleted_auto: this.d.hidden.length,
+      ...(this.d.rough?.length ? { roughness: this.d.rough.map((r) => ({ id: r.id, view: r.view, edge: r.edge, ra: r.ra, process: r.proc || 'any', ...(this.roughAt(r) ? {} : { lost: true }) })) } : {}),
       ...(this.d.asm?.rows ? { parts_list: this.d.asm.rows.map((r) => ({ pos: r.pos, name: r.name, part: r.part, qty: r.qty, ...(r.instances ? { instances: r.instances } : {}),
         balloon: this.balloonAt?.[r.pos] ? { at_mm: this.balloonAt[r.pos].at, leader_to_mm: this.balloonAt[r.pos].end, points_to: r.at || r.instances?.[0] || null } : null })),
       balloons: this.balloonCheck() } : {}) };

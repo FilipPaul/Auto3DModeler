@@ -3,8 +3,8 @@
 The paper in true size (mm, 1:1: an A4 sheet is 297 × 210 in the DXF), the views where they are on the sheet, drawn
 at the sheet's scale. Everything but the dimensions comes from the SVG the editor draws (the same one the PDF is made
 of: web/js/sheet/sheet.js svg(true)) — lines, polylines, circles, rectangles, simple paths, texts — on a layer per
-kind: visible, hidden (dashed as on the sheet), hatch, text (view names, title block, parts list) and frame (the border, the title
-block's and parts list's cells, the section's cutting line). The dimensions are real DXF dimensions (layer dims),
+kind: visible, hidden (dashed as on the sheet), hatch, text (view names, title block, parts list), symbols (the surface
+roughness symbols with their Ra) and frame (the border, the title block's and parts list's cells, the section's cutting line). The dimensions are real DXF dimensions (layer dims),
 from the editor's list (SheetEditor.dxfDims): they measure the paper and show the part's size (DIMLFAC = 1 / the
 sheet's scale), so a drafter can move them and they stay right.
 """
@@ -17,7 +17,8 @@ import xml.etree.ElementTree as ET
 
 # layer -> (ACI colour, line weight in 1/100 mm, line type)
 LAYERS = {"visible": (7, 50, "CONTINUOUS"), "hidden": (8, 25, "HIDDEN"), "dims": (5, 18, "CONTINUOUS"),
-          "hatch": (8, 13, "CONTINUOUS"), "text": (7, 18, "CONTINUOUS"), "frame": (7, 35, "CONTINUOUS")}
+          "hatch": (8, 13, "CONTINUOUS"), "text": (7, 18, "CONTINUOUS"), "frame": (7, 35, "CONTINUOUS"),
+          "symbols": (5, 25, "CONTINUOUS")}
 WEIGHTS = (0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211)
 CAP = 0.7  # a DXF text's height is its capital letters'; an SVG font-size is the whole em
 
@@ -47,6 +48,8 @@ def _weight(sw):
 def _kind(el, ctx):
     """Which layer an SVG element goes on: by the group it is in and how it is drawn."""
     t = _tag(el)
+    if ctx == "symbols":
+        return "symbols"  # (a roughness symbol: its lines and its Ra together)
     if t == "text":
         return "text"
     if ctx == "view":
@@ -117,7 +120,7 @@ def to_dxf(svg: str, dims=(), scale: float = 1.0) -> bytes:
             if el.get("data-dim") is not None:
                 return  # (dimensions: from the list, as DXF dimensions)
             cls = el.get("class") or ""
-            ctx = "view" if "sh-view" in cls else "balloons" if "sh-balloon" in cls else ctx
+            ctx = "view" if "sh-view" in cls else "balloons" if "sh-balloon" in cls else "symbols" if "sh-rough" in cls else ctx
             for ch in el:
                 walk(ch, ctx)
             return

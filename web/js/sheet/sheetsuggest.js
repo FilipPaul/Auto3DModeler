@@ -4,7 +4,8 @@
 // a value asks for one (a tolerance, a text) — never more.
 import { t } from '../i18n.js';
 import { choose, ask } from '../choose.js';
-import { HOLE_FITS, SHAFT_FITS } from './fits.js';
+import { FIT_LIST, deviationText } from './fits.js';
+import { RA_LIST, PROCS, raText } from './rough.js';
 
 const fmt = (v) => (+(+v).toFixed(2)).toString();
 const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
@@ -21,9 +22,12 @@ export function tolText(s) {
   if (m) return `±${fmt(m[1])}`;
   m = /^([+-]?\d*\.?\d+)\s*[/ ;]\s*([+-]?\d*\.?\d+)$/.exec(v);
   if (!m) return null;
-  const sg = (x) => (+x >= 0 ? `+${fmt(Math.abs(x))}` : `−${fmt(Math.abs(x))}`), [a, b] = [+m[1], +m[2]].sort((x, y) => y - x);
+  const sg = (x) => (+x === 0 ? '0' : +x > 0 ? `+${fmt(Math.abs(x))}` : `−${fmt(Math.abs(x))}`), [a, b] = [+m[1], +m[2]].sort((x, y) => y - x);
   return a === -b ? `±${fmt(a)}` : `${sg(a)}/${sg(b)}`;
 }
+
+/** The tolerances the sheet offers on a dimension, one click each (as tolText writes them): symmetric, then one-sided. */
+export const TOL_LIST = ['±0.01', '±0.02', '±0.05', '±0.1', '±0.2', '±0.5', '+0.1/0', '0/−0.1', '+0.2/0', '0/−0.2'];
 
 /** The table for the sheet editor `ed` (a SheetEditor) -> {title, items, hint, refs} or null (no table). */
 export function sheetSuggest(ed) {
@@ -32,6 +36,7 @@ export function sheetSuggest(ed) {
   if (!d || !ed.geo || ed.tool !== 'select') return null;
   const refs = `${t('on the drawing sheet of')} “${ed.hooks.partName(d.source) || ''}”`;
   if (ed.sel) return dimItems(ed, refs);
+  if (ed.selRough) return roughItems(ed, refs);
   if (ed.selGeo) return geoItems(ed, refs);
   if (ed.selView) return viewItems(ed, refs);
   if (ed.selTitle) return titleItems(ed, refs);
@@ -124,13 +129,23 @@ function dimItems(ed, refs) {
   if (!dim) return null;
   const v = ed.value(dim), items = [];
   const label = v === null ? '⚠ ?' : ed.dimText(dim, v);
+  if (dim.kind === 'dia' && !dim.thread) { // a Ø: its fit (ISO 286), a hole's and a shaft's — the deviations in the tooltip
+    const now = (dim.post || '').trim(), chip = (f) => ({ label: f, on: f === now, primary: f === 'H7' || f === 'h6', title: fitTip(f, v), run: () => ed.setFit(dim.id, f === now ? '' : f) });
+    items.push({ icon: '⌀', label: t('Fit — hole'), title: t('An ISO 286 fit of a hole: H7 the usual one (a pin, a bearing seat), H11 a loose one'), rank: 0, chips: FIT_LIST.hole.map(chip) });
+    items.push({ icon: '⌀', label: t('Fit — shaft'), title: t('An ISO 286 fit of a shaft: h6 sliding, g6 / f7 running, k6 / m6 a push fit, p6 a press fit'), rank: 0.1, chips: FIT_LIST.shaft.map(chip) });
+    items.push({ icon: now ? '○' : '✓', label: t('General tolerance (ISO 2768-m)'), title: t('No fit of its own: the general tolerance in the title block applies'), rank: 0.2, run: () => { if (now) ed.setFit(dim.id, ''); } });
+  } else if (dim.kind !== 'pcd') { // a size: the common tolerances, one click each; Custom… types another
+    const chip = (x) => ({ label: x, on: x === dim.tol, primary: x === '±0.1', title: tv('{t} mm after the size — click again: none', { t: x }), run: () => ed.setDimProps(dim.id, { tol: x === dim.tol ? undefined : x }) });
+    items.push({ icon: '±', label: t('Tolerance'), title: t('A tolerance after the size (mm): symmetric ±, or one-sided'), rank: 0, chips: TOL_LIST.map(chip) });
+    items.push({ icon: dim.tol ? '○' : '✓', label: t('General tolerance (ISO 2768-m)'), title: t('No tolerance of its own: the general tolerance in the title block applies'), rank: 0.2, run: () => { if (dim.tol) ed.setDimProps(dim.id, { tol: undefined }); } });
+    const own = dim.tol && !TOL_LIST.includes(dim.tol);
+    items.push({ icon: own ? '✓' : '✎', label: own ? tv('Custom: {t}', { t: dim.tol }) : t('Custom…'), title: t('Type another tolerance: ±0.03, or +0.2/−0.1'), rank: 0.3, run: () => askTol(ed, dim) });
+  }
+  items.push({ icon: '( )', label: t(dim.ref ? 'Not a reference dimension' : 'Reference dimension'), title: t('A reference dimension is in brackets: for information only, not to be checked'), rank: 1, run: () => ed.setDimProps(dim.id, { ref: !dim.ref }) });
   if (dim.kind === 'linear' && !dim.ord) {
     const other = { t: 'b', b: 't', l: 'r', r: 'l' }[dim.side || (dim.dir === 'h' ? 'b' : 'r')];
     items.push({ icon: '⇅', label: t('To the other side'), title: t('The dimension on the other side of the view'), rank: 2, run: () => ed.setDimProps(dim.id, { side: other }) });
   }
-  if (dim.kind === 'dia' && !dim.thread) items.push({ icon: '⌀', label: t('Fit…'), title: t('An ISO 286 fit: H for a hole, a small letter for a shaft (h6 a sliding fit, k6 / m6 a push fit, p6 a press fit)'), rank: 0, run: () => pickFit(ed, dim) });
-  else if (dim.kind !== 'pcd') items.push({ icon: '±', label: dim.tol ? tv('Tolerance {t}', { t: dim.tol }) : t('Tolerance…'), title: t('A tolerance after the size: ±0.1, or +0.2/−0.1'), rank: 0, run: () => askTol(ed, dim) });
-  items.push({ icon: '( )', label: t(dim.ref ? 'Not a reference dimension' : 'Reference dimension'), title: t('A reference dimension is in brackets: for information only, not to be checked'), rank: 1, run: () => ed.setDimProps(dim.id, { ref: !dim.ref }) });
   items.push({ icon: '✕', label: t('Delete'), title: t(dim.auto ? 'Delete it (Delete) — ↺ Bring back deleted ones brings an automatic one back' : 'Delete it (Delete)'), danger: true, rank: 4, run: () => ed.remove(dim.id) });
   return { title: `⟷ ${label}`, items, hint: t('Drag the dimension to move it; its value comes from the part.'), refs: `${refs}, ${t('dimension')} ${dim.id} (${label})` };
 }
@@ -151,7 +166,31 @@ function geoItems(ed, refs) {
   const L = Math.hypot(edge.b[0] - edge.a[0], edge.b[1] - edge.a[1]);
   items.push({ icon: '↔', label: tv('Dimension its length ({l} mm)', { l: fmt(L) }), title: t('Its length as a dimension, measured from the part'), rank: 0, run: () => ed.addGeoDim() });
   items.push({ icon: '⟷', label: t('Distance or angle to…'), title: t('Then click another edge (parallel: the distance; meeting at an angle: the angle) or a point'), rank: 1, run: () => ed.startDimFrom() });
+  if (view !== 'Iso') items.push(roughRow(ed, null, (ra) => ed.addRough({ view, edge: edge.key, ra, proc: ed.roughProc })), ...procRows(ed, null));
   return { title: `⟋ ${t('Edge')} ${fmt(L)} mm · ${ed.viewName(view)}`, items, hint: '', refs: `${refs}, ${t('view')} ${view}, ${t('edge')} ${edge.key}` };
+}
+
+// ---------------------------------------------------------------- a roughness symbol (ISO 21920 / ISO 1302) on an edge
+/** A row of the Ra values: on a chosen surface's symbol (sym) its own Ra ✓; on an edge: placing one (put(ra)). */
+function roughRow(ed, sym, put) {
+  return { icon: '✓', label: sym ? t('Roughness Ra (µm)') : t('Surface roughness'), title: t('The ISO 21920 roughness symbol on this surface with its Ra in µm: 0.8 ground, 1.6 finely machined, 3.2 machined, 6.3 rough machined, 12.5 / 25 rough'), rank: 1.5,
+    chips: RA_LIST.map((ra) => ({ label: raText(ra), on: sym?.ra === ra, primary: ra === 3.2, title: tv('Ra {ra} µm', { ra }), run: () => put(ra) })) };
+}
+
+/** Material removal (folded: one row until opened): any process / required (machined) / not allowed. */
+function procRows(ed, sym) {
+  const now = sym?.proc || ed.roughProc || 'any', tip = t('Whether material must be removed (machined) or must not be — the symbol shows it');
+  if (!ed.roughMore) return [{ icon: '▸', label: tv('Process: {p}', { p: t(PROCS[now][0]) }), title: tip, rank: 1.6, run: () => { ed.roughMore = true; ed.renderSuggest(); } }];
+  return [{ icon: '▾', label: t('Process'), title: tip, rank: 1.6,
+    chips: Object.entries(PROCS).map(([k, [label, hint]]) => ({ label: t(label), title: t(hint), on: k === now, run: () => { ed.roughProc = k; if (sym) ed.setRough(sym.id, { proc: k }); else ed.renderSuggest(); } })) }];
+}
+
+function roughItems(ed, refs) {
+  const sym = ed.roughOf(ed.selRough);
+  if (!sym) return null;
+  const items = [roughRow(ed, sym, (ra) => ed.setRough(sym.id, { ra })), ...procRows(ed, sym)];
+  items.push({ icon: '✕', label: t('Delete'), title: t('Delete it (Delete)'), danger: true, rank: 4, run: () => ed.removeRough(sym.id) });
+  return { title: `✓ ${raText(sym.ra)} · ${ed.viewName(sym.view)}`, items, hint: t('Drag the symbol along its surface, or away from it (a leader line).'), refs: `${refs}, ${t('roughness symbol')} ${sym.id} (${raText(sym.ra)})` };
 }
 
 // ---------------------------------------------------------------- the title block
@@ -163,6 +202,9 @@ function titleItems(ed, refs) {
   field('number', '№', 'Drawing no.', 1);
   field('drawn', '👤', 'Drawn by', 2);
   field('note', '🗒', 'Note', 4);
+  const ra = raText(ed.textsOf().surface);
+  items.push({ icon: '✓', label: t('Roughness (Ra)'), title: t('The general surface roughness in the title block (ISO 21920): the surfaces with no symbol of their own'), rank: 3.5,
+    chips: RA_LIST.map((v) => ({ label: raText(v), on: ra === raText(v), primary: v === 3.2, title: tv('Ra {ra} µm', { ra: v }), run: () => ed.typed('surface', raText(v)) })) });
   items.push({ icon: '🧱', label: t('Material (in the part)'), title: t('The material comes from the part — open it and choose one; the drawing follows'), rank: 3, run: () => ed.hooks.openPart?.(ed.d.source) });
   items.push({ icon: '▤', label: tv('Template: {n}', { n: ed.tplOf().builtin ? t(ed.tplName()) : ed.tplName() }), title: t('The title block\'s template: its layout, fields, company, logo and frame'), rank: 5, run: () => pickTemplate(ed) });
   items.push({ icon: '▭', label: t('Frame…'), title: t('The border line and the margins of the paper'), rank: 6, run: () => pickFrame(ed) });
@@ -191,12 +233,10 @@ async function askTol(ed, dim) {
   ed.setDimProps(dim.id, { tol: tolText(v) || undefined });
 }
 
-async function pickFit(ed, dim) {
-  const now = (dim.post || '').trim(), fits = [...HOLE_FITS.filter((f) => ['H7', 'H8'].includes(f)), ...SHAFT_FITS.filter((f) => ['h6', 'g6', 'k6', 'p6'].includes(f))];
-  const opts = [...fits.map((f) => ({ value: f, label: f, primary: f === now })), ...(now ? [{ value: '', label: t('No fit') }] : []), { value: null, label: 'Cancel' }];
-  const f = await choose(t('Fit (ISO 286): H7 a hole, h6 a sliding shaft, k6 a push fit, p6 a press fit'), opts);
-  if (f === null) return;
-  ed.setFit(dim.id, f);
+/** A fit's tooltip: its limit deviations at this size and what it is for ("H7: +0.015 / 0 mm — a pin, a bearing seat"). */
+function fitTip(f, size) {
+  const dev = size ? deviationText(f, size) : '', use = { H7: 'a pin, a bearing seat', H8: 'a looser hole', H9: 'a loose hole', H11: 'a very loose hole', h6: 'a sliding shaft', h7: 'a shaft, looser', g6: 'a running shaft, close', f7: 'a running shaft', k6: 'a push fit', m6: 'a push fit, tighter', p6: 'a press fit' }[f];
+  return `${f}${dev ? `: ${dev} mm` : ''}${use ? ` — ${t(use)}` : ''}`;
 }
 
 async function pickTemplate(ed) {

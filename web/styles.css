@@ -549,6 +549,10 @@ body:not(.ws-model):not(.ws-assembly):not(.ws-drawing):not(.ws-sheet) .not-quick
 .sh-tbedit { position: absolute; z-index: 30; box-sizing: border-box; margin: 0; padding: 0 4px; border: 1.5px solid #1f6feb; border-radius: 3px;
   background: #fff; color: #111418; box-shadow: 0 0 0 3px #1f6feb33, 0 4px 14px #0006; outline: none; }
 .sh-tbedit::placeholder { color: #9aa1ab; font-weight: 400; }
+/* the Ra values under the title block's roughness cell while it is typed in */
+.sh-ralist { position: absolute; z-index: 31; display: flex; flex-wrap: wrap; gap: 3px; max-width: 260px; padding: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 14px #0007; }
+.sh-ralist .chip { padding: 1px 7px; font-size: 11.5px; border-radius: 10px; color: var(--text); }
+.sh-ralist .chip.on { background: #1f6feb33; }
 /* "Přepsat i ve všech listech sestavy?" — next to the title block, not modal */
 .sh-tbask { position: absolute; z-index: 31; max-width: 380px; padding: 9px 12px; background: var(--panel-2); border: 1px solid var(--accent);
   border-radius: 8px; box-shadow: 0 8px 26px #000a; font-size: 12.5px; }
@@ -1192,6 +1196,16 @@ body.view-acts .toast-stack { bottom: 84px; }
 .vs-list .vs-i { width: 18px; flex: none; text-align: center; color: var(--accent); }
 .vs-list button.danger, .vs-list button.danger .vs-i { color: #ff8c84; }
 .vs-hint { margin: 0; padding: 0 11px 8px; font-size: 11px; color: var(--muted); }
+/* a row of values in the suggestions (a tolerance, a fit, a roughness): one click each, no popup */
+.vs-chips { padding: 3px 6px 4px; }
+.vs-chips .vs-cl { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); padding: 1px 2px 3px; }
+.vs-chips .vs-cl .vs-i { width: 18px; flex: none; text-align: center; color: var(--accent); }
+.vs-chips .vs-cg { display: flex; flex-wrap: wrap; gap: 3px; padding-left: 4px; }
+.vs-list .vs-chips button.chip { display: inline-block; padding: 1px 7px; font-size: 11.5px; line-height: 17px; border: 1px solid var(--line); border-radius: 10px; background: #161a20; color: var(--text); font-variant-numeric: tabular-nums; }
+.vs-list .vs-chips button.chip:hover { border-color: var(--accent); background: #2b3440; }
+.vs-list .vs-chips button.chip.vs-pri:not(.on) { border-color: #4a5868; font-weight: 600; }
+.vs-list .vs-chips button.chip.on { border-color: var(--accent); background: #1f6feb40; color: #cfe2ff; }
+.vs-list .vs-chips button.chip:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--accent); }
 .m-offset { display: inline-flex; align-items: center; gap: 5px; cursor: default; }
 .m-offset input { width: 62px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; color: inherit; padding: 2px 5px; font: inherit; }
 .seg.big button { padding: 9px 6px; font-weight: 600; }

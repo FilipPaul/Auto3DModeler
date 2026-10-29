@@ -2,8 +2,8 @@
 the table's rows: a plate 60 × 40 × 8 with 4 holes Ø4 -> 📄 Drawing sheet (light) -> nothing chosen: the next steps
 (Doplnit chybějící kóty -> fully dimensioned) -> a view: Větší (2:1), Ctrl+Z; Přidat řez A–A; the section: Skrýt pohled
 -> the top view hidden (Delete), 👁 Ukázat pohled brings it back -> an edge: Okótovat její délku (60 mm) -> the new
-dimension: Tolerance… ±0.1, Referenční kóta "(60 ±0.1)", Na druhou stranu, Smazat -> a hole: its callout chosen
-(Jeho kóta), Uložení… H7 -> the title block: Číslo výkresu… (its cell's text box) D-001, Šablona (Modern), Rámeček… Úzký -> Esc: Export PDF
+dimension: the tolerance chip ±0.1, Referenční kóta "(60 ±0.1)", Na druhou stranu, Smazat -> a hole: its callout chosen
+(Jeho kóta), the fit chip H7 -> the title block: Číslo výkresu… (its cell's text box) D-001, Šablona (Modern), Rámeček… Úzký -> Esc: Export PDF
 (the PDF has D-001), Tisk (a print frame with the PDF); Export ▾ in the top bar offers PDF, DXF, Tisk (its DXF saved). Screenshots at 1600 × 1000 and the view's table at 1280 × 800.
 Then the 2D drawing's table (drawing2d/drawsuggest.js): a DXF plate with 3 holes opened -> nothing chosen: Jako skicu
 nového 3D modelu …, Export ▾ offers only DXF (saved); a circle clicked -> Všechny takové (3 chosen), Ø: změnit rozměr… 6 (all three), Smazat.
@@ -82,6 +82,16 @@ def row(label):
             time.sleep(0.5)
             return True
     raise AssertionError(f"no row {label!r} in {rows()}")
+
+
+def chip(label):
+    """Click the table's value chip `label` (a tolerance, a fit — a real mouse click)."""
+    for b in table().find_elements(By.CSS_SELECTOR, ".vs-chips .chip"):
+        if b.text.replace("✓ ", "") == label:
+            ActionChains(d).move_to_element(b).click().perform()
+            time.sleep(0.5)
+            return True
+    raise AssertionError(f"no chip {label!r}")
 
 
 def screen(pt):
@@ -190,8 +200,7 @@ try:
     new = js(f"return {S}.d.user.slice(-1)[0]")
     check("Okótovat její délku: a new 60 dimension, chosen", js(f"return {S}.d.user.length") == n0 + 1 and js(f"return {S}.value({S}.d.user.slice(-1)[0])") == 60 and js(f"return {S}.sel") == new["id"])
     check("the dimension's table", (title() or "").startswith("⟷ 60"), str(rows()))
-    row("Tolerance…")
-    answer("0.1")
+    chip("±0.1")  # (the tolerance list: one click)
     row("Referenční kóta")
     txt = js(f"const x = {S}.allDims().find(q => q.id === '{new['id']}'); return {S}.dimText(x, {S}.value(x))")
     check("tolerance and reference: (60 ±0.1) on the sheet", txt == "(60 ±0.1)" and "(60 ±0.1)" in js(f"return {S}.svgEl.querySelector('[data-dim=\"{new['id']}\"]').textContent"), txt)
@@ -219,8 +228,7 @@ try:
     else:
         row("Popis díry")
     check("the hole's callout chosen", js(f"const x = {S}.allDims().find(q => q.id === {S}.sel); return !!x && x.kind === 'dia'"))
-    row("Uložení…")
-    pick("H7")
+    chip("H7")  # (the fit list: one click)
     txt = js(f"const x = {S}.allDims().find(q => q.id === {S}.sel); return {S}.dimText(x, {S}.value(x))")
     check("Uložení H7 on the callout", "H7" in txt, txt)
 
