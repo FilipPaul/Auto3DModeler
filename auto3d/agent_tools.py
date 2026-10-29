@@ -328,6 +328,28 @@ TOOLS = [
                     "expression or a circle (a = b + 1, b = a) is refused and nothing changes. delete: true removes it (the "
                     "numbers that used it keep their values). Then use it: add_feature {d: \"L / 2\"}, sketch_dim {value: \"L\"}.",
      "inputSchema": _obj({"name": STR, "value": VAL, "delete": {"type": "boolean"}}, ["name"])},
+    {"name": "list_versions", "where": "browser",
+     "description": "🕘 The project's versions (kept on the server: automatic ones while working, named ones) in the variant "
+                    "on screen, the newest first — each with its id, time, label (or \"automatic\") and the parts it changed; "
+                    "the variants (branches) with their newest version.",
+     "inputSchema": _obj({})},
+    {"name": "save_version", "where": "browser",
+     "description": "Keep the project as it is now as a named version (label: a short description, e.g. \"before the "
+                    "bigger holes\") — do it before a risky change the user may want to go back from.",
+     "inputSchema": _obj({"label": STR})},
+    {"name": "restore_version", "where": "browser",
+     "description": "Put the whole project back as version id (list_versions) was. The state now is kept as a version "
+                    "first (the answer names it: restore_version with that id undoes it). Only when the user asked for it.",
+     "inputSchema": _obj({"id": STR}, ["id"])},
+    {"name": "compare_versions", "where": "browser",
+     "description": "What changed from version a to b (an id, or \"current\": the project now, the default): parts and "
+                    "steps added / removed, changed values (\"Extrude 1: 10 → 15 mm\"), the volume before → after.",
+     "inputSchema": _obj({"a": STR, "b": STR}, ["a"])},
+    {"name": "create_variant", "where": "browser",
+     "description": "Make a variant (a branch with its own versions) of the project from version `from` (default: the "
+                    "newest) named `name`, and switch to it — to try another design without losing this one. The user "
+                    "switches back in 🕘 Versions; a part can be taken over from one variant into another there.",
+     "inputSchema": _obj({"from": STR, "name": STR}, ["name"])},
     {"name": "sketch_trim", "where": "browser",
      "description": "✂ Trim in a sketch step (sketch): cut away the piece of shape (a line / circle / arc id from get_sketch) "
                     "around at [x, y] — up to where other shapes cross it; the new ends stay on the shapes that cut them.",
@@ -681,7 +703,7 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 - **Drawing sheets** (📄, of a 3D model part — its views and dimensions, made by a preset, edited by the user, following the part): sheet_open, get_sheet, sheet_edit; export {format: "pdf"} on a sheet writes it as drawn. Prefer a sheet over export pdf of the model when the user wants a drawing.
 - **2D drawings** (a DXF / DWG, or a PCB's Gerber / ODB++ opened as a 📐 drawing — open_file opens them, also a folder of loose Gerber files): get_drawing, drawing_find (shapes by filters), drawing_delete, drawing_add (lines, circles), drawing_units, drawing_layers (show / hide, colour, a new layer), drawing_set_size, drawing_use (as the sketch of a 3D model, or a quick part).
 - The GUI: gui_state lists what the user sees (buttons, sliders, their state; a sheet's dimensions / views / cells); gui_action clicks / slides one as the user would, clicks / drags at a point of the view (at, at_mm on a sheet) and presses keys (Delete, Enter, Escape, ctrl+z) — use them to tell the user where something is and to check the GUI behaves like the tools. gui_highlight points at a control (or a spot of the view) with a short tip and can wait until the user clicks it.
-- Assemblies also: edit_joint / remove_joint, measure (between faces), move_free, lock_motion (fix one free motion where it is); set_travel (a free motion's limits: a cylinder's stroke) and check_travel (collisions along it); drive_mechanism (a whole mechanism by its driver: a crank's turn, every part follows; ▶ play), record_animation (one cycle of it saved as a GIF / video) and name_motion (a motion's own name); the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, delete_part (only when asked). Files: export stl / step / iges / glb / obj / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf.
+- Assemblies also: edit_joint / remove_joint, measure (between faces), move_free, lock_motion (fix one free motion where it is); set_travel (a free motion's limits: a cylinder's stroke) and check_travel (collisions along it); drive_mechanism (a whole mechanism by its driver: a crank's turn, every part follows; ▶ play), record_animation (one cycle of it saved as a GIF / video) and name_motion (a motion's own name); the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, delete_part (only when asked). 🕘 Versions of the project: list_versions, save_version {label} (before a risky change), compare_versions {a, b}, restore_version (only when asked; it can be undone), create_variant {from, name} (a branch to try another design). Files: export stl / step / iges / glb / obj / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf.
 - **The parts library** holds real, bought parts with their maker and part number (screws, nuts, washers, inserts, bearings, standoffs, panel parts, SMC pneumatics, SICK sensors, stepper motors, the user's own): library_search, library_add.
 - Both: get_screenshot, check_print, export, undo. Opening a file or tracing a picture adds a new quick part tab.
 

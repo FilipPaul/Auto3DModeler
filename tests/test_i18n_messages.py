@@ -19,7 +19,7 @@ SKIP_FILES = {"mcp_server.py", "agent_tools.py"}
 FOR_CLAUDE = re.compile(r"^(tool_|_mcp|_file$)")
 # errors whose text the server shows (raised, then sent as {"error": str(e)} or as an issue of a step)
 ERRORS = {"KernelError", "KernelFailed", "ValueError", "ImportError_", "TemplateError", "SketchError", "ProjectError",
-          "LibraryError", "HistoryError", "AutosaveError", "RuntimeError"}
+          "LibraryError", "HistoryError", "AutosaveError", "VersionError", "RuntimeError"}
 # small helpers that add an issue: issue(sev, msg), err(msg), self.issue(sev, code, msg); _sized(…, what, unit, why)
 HELPERS = {"issue", "err", "_issue", "_sized"}
 KEYS = {"message", "error", "warning", "note", "issue"}  # {"error": "…"} and the like

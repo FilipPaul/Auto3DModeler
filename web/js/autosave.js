@@ -8,7 +8,8 @@ const when = (s) => new Date(s * 1000).toLocaleString(undefined, { day: 'numeric
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
 
 export class Autosave {
-  /** hooks: {project() -> the project file or null (nothing to keep), restore(project) (opens it), toast, status(el)} */
+  /** hooks: {project() -> the project file or null (nothing to keep), restore(project) (opens it), toast, status(el),
+   *  saved() (kept: 🕘 an automatic version may follow)}. paused: nothing kept (🕘 a version previewed is on screen). */
   constructor(hooks, { delay = 3000 } = {}) {
     this.hooks = hooks;
     this.delay = delay;
@@ -28,6 +29,7 @@ export class Autosave {
 
   async saveNow({ beacon = false } = {}) {
     clearTimeout(this.timer);
+    if (this.paused) return null;
     let proj;
     try { proj = this.hooks.project(); } catch { return null; }
     if (!proj?.parts?.length) return null;
@@ -42,6 +44,7 @@ export class Autosave {
       this.last = text;
       this.savedAt = r.time;
       this.showStatus();
+      this.hooks.saved?.();
       return r;
     } catch (e) {
       this.showStatus(e.message);
