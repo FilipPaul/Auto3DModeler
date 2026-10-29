@@ -23,6 +23,13 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 
 URL, OUT, BOARD = sys.argv[1], sys.argv[2], sys.argv[3]
+# the board opened before comes from the server's cache in a second (filecache) — nothing to cancel: a copy of it with
+# one more line at its end, a file the cache has not seen (a cancelled import is never kept)
+with open(BOARD, "rb") as fh:
+    data = fh.read()
+BOARD = os.path.join(OUT, os.path.basename(BOARD))
+with open(BOARD, "wb") as fh:
+    fh.write(data.rstrip() + b"\n/* e2e_cancel: not kept */\n")
 EVENT = sys.argv[4] if len(sys.argv) > 4 else os.path.join(os.path.dirname(__file__), "..", "samples", "ToImportToOurApp", "freecad-library", "MIT E Vent Pre Production Model.step")
 PORT = int(re.search(r":(\d+)", URL.split("//")[1]).group(1))
 M = "window.__app.modeler"
@@ -41,8 +48,14 @@ def server_pid():
     out = subprocess.run(["netstat", "-ano"], capture_output=True, text=True).stdout
     for line in out.splitlines():
         p = line.split()
-        if len(p) >= 5 and p[1].endswith(f":{PORT}") and p[3] == "LISTENING":
+        if len(p) >= 5 and p[1].endswith(f":{PORT}") and p[3] == "LISTENING" and int(p[4]):
             return int(p[4])
+    # (netstat shows no owner — pid 0 — from a sandboxed shell: the Python running server.py --port <PORT>)
+    ps = (f"Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object {{ $_.CommandLine -match "
+          f"'server.py --port {PORT}( |$)' }} | ForEach-Object {{ $_.ProcessId }}")
+    pids = subprocess.run(["powershell", "-NoProfile", "-c", ps], capture_output=True, text=True).stdout.split()
+    if pids:
+        return int(pids[0])
     raise RuntimeError(f"no server on port {PORT}")
 
 

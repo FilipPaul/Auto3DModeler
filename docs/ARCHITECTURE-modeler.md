@@ -7,6 +7,37 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Big STEP files open fast done:** the 44 MB board (126 062 faces, 5237 solids) took ~50 s to open (cold server):
+  profiled in the kernel process — STEP read 15–19 s (ReadFile 1.7 s, the XCAF transfer 10.5 s: C++, no parallel
+  option in OCCT 8.0; the colours / turned_out walk ~3 s), import's volume 2.3 s, then tessellate 25–27 s: BRepMesh
+  only 2.7 s (already parallel), the rest Python per face — triangles 5.4 s, face info 8.3 s (box centres 4.5 s),
+  edges 1.8 s, adjacency 2.1 s, the volume again 2.5 s (solid_body's compound of the solids missed volume's cache).
+  The board is 19 382 different faces placed 126 062 times (49 475 edges of 303 387). Now: auto3d/modeler/filecache.py
+  keeps a big file (> MIN_FACES 3000) in the data folder's cache/models by its blob hash — <sha>.brep (the shape as
+  read, BinTools binary B-rep: exact, the same faces in the same order; read in 0.3 s), <sha>.json (its colours and
+  import_solid's answer), <sha>.<step>-<solid|ref>-<full|light>.mesh (tessellate's answer, marshal); each entry
+  stamped with VERSION, the code's hash (kernel.py, doc.py, filecache.py) and the blob's size and time, else made
+  again; damaged -> read again; the folder under LIMIT_MB 4096, least used first. doc._solid_shape / import_solid read
+  it first; a solid step's body carries src (blob, id, ref) so doc._tessellated finds its mesh. kernel (import /
+  meshing path only): tessellate's heavy path — _face_meshes (a placed face's mesh read once, moved by its place's
+  matrix; the same position bytes as before), _surface_of / _moved_surface (a placed face's surface asked once),
+  _box_centres (all flat faces' box centres at once), _heavy_edges (an edge placed many times divided once; its faces
+  from MapShapesAndAncestors — the list's ends, not walked from Python: 0.5 ms each), read_brep / write_brep,
+  loose_faces kept for its shape, solid_body passes the file's volume on. Measured (cold server, localhost; this
+  machine shared with other jobs, ±15 %), before -> after: first open (import + rebuild) 51.7 s -> 35.4 s (import
+  23 -> 21.8 s, rebuild 28.7 -> 13.5 s; tessellate alone 27.5 -> 13.9 s, 🪶 light 20.9 -> 11.4 s); second open in a
+  new server (the cache) 51.7 -> 4.5 s (import 1.5 s, rebuild 3.0 s); time to the first picture (e2e_big_part_load:
+  import + shown) 24.1 + 27.2 s -> 21.0 + 14.0 s cold, 1.5 + 3.1 s from the cache; the kernel process's peak memory
+  1171 -> 1273 MB cold (the mesh written), 969 MB from the cache; the cache 92 MB for the board (19 MB B-rep, 71 MB
+  mesh, 2.5 MB colours). Faces' frames from the new box centres differ from before by < 2e-5 mm (12 677 of 126 037,
+  rounding), all else the same. tests/test_filecache.py (a hit reads and meshes nothing, the same answer, mesh,
+  colours, an exact STEP export; a file changed in place / other code / a damaged entry read again; small files not
+  kept; the size limit; a part placed three times meshed as three copies made apart). tools/e2e_cancel.py imports a
+  copy of the board with one more line (the board itself comes from the cache in a second: nothing to cancel), and
+  finds its server by its command line when netstat shows no owner. Left out: a coarse first mesh refined later (the
+  time is in reading the STEP and in Python per face, not in BRepMesh — a coarser mesh saves ~1 s), meshing across
+  the kernel pool (BRepMesh is already parallel; shapes would have to go through B-rep files), skipping tiny faces
+  (every face must stay pickable by its id).
 - **A mechanism built by mouse: the walkthrough, its fixes, "one joint is missing" done** (the owner: "how hard is it
   for a user to make a mechanism?"). The crank – rod – slider put together with real clicks only (headless Edge, Czech,
   1600×1000; the crank demo's parts; tools/e2e_mechanism_by_mouse.py replays it). Found and fixed, one commit each:
