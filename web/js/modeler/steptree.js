@@ -3,6 +3,8 @@
 // a step shows the sketch it is made from under itself, a pattern / mirror the steps it repeats as links, and the
 // reference points sit in a "Reference" group at the top with the Top / Front / Right planes.
 
+import { t } from '../i18n.js';
+
 // 16×16, drawn with strokes like parts.js kindIcon
 const PATH = {
   sketch: '<path d="M3 13l.9-3.1 7.3-7.3 2.2 2.2-7.3 7.3z"/><path d="M9.9 3.9l2.2 2.2"/><path d="M2 14.6h5" opacity=".6"/>', // a pencil
@@ -69,4 +71,32 @@ export function treeShape(features, sketchesOf) {
   for (const id of refs) parent.set(id, 'ref');
   const top = features.filter((f) => !owner.has(f.id) && f.type !== 'point').map((f) => f.id);
   return { top, refs, kids, parent, owner };
+}
+
+// ------------------------------------------------------------------ ⏮ the rollback bar, for whatever uses the part
+// (the server builds the same: auto3d/modeler/doc.py at_bar — exports, the print copy, assemblies and drawings follow
+// the bar, as in SolidWorks)
+/** A part's steps as its rollback bar stands (part.rollback: the id of the step it is under; absent or not there: all). */
+export function stepsAtBar(part) {
+  const fs = part?.features || [], i = part?.rollback ? fs.findIndex((f) => f.id === part.rollback) : -1;
+  return i >= 0 ? fs.slice(0, i + 1) : fs;
+}
+
+/** The steps under the bar (none when it is at the end). */
+export const rolledSteps = (part) => (part?.features || []).slice(stepsAtBar(part).length);
+
+/** What the bar leaves out, in plain words — "without the last 2 steps (Extrude 2, Extrude 3)" — or '' at the end. The
+ *  sketches of the steps left out are not counted (the user sees the steps); up to four names. */
+export function rolledText(part) {
+  const all = rolledSteps(part), main = all.filter((f) => f.type !== 'sketch'), list = main.length ? main : all;
+  if (!list.length) return '';
+  const names = list.slice(0, 4).map((f) => f.name || f.id).join(', ') + (list.length > 4 ? ', …' : '');
+  return list.length === 1 ? t('without the last step ({names})').replace('{names}', names)
+    : t('without the last {n} steps ({names})').replace('{n}', list.length).replace('{names}', names);
+}
+
+/** The note an export / the print copy shows while the bar is up: "⏮ As the history bar stands: without …" ('' at the end). */
+export function rollbackNote(part) {
+  const s = rolledText(part);
+  return s ? `⏮ ${t('As the history bar stands')}: ${s}` : '';
 }

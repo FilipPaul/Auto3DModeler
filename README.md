@@ -205,8 +205,13 @@ two steps and the part shows its state after that step — the steps under it ar
 not built), and a new step (a sketch, a hole …) goes in right at the bar. Drag it back down, double-click it, or
 **⤓ To the end** (under the tree) and every step is built again. A right-click on a step: **⏮ Roll back to here**. The
 keys ↑ / ↓ / Home / End move a focused bar. Its place is saved with the part and is one undo step; the status line says
-"Rolled back after …". Steps above (and under) the bar can still be changed. Exports and assemblies always use every
-step. The AI sees it in get_model (rollback) and moves it with `rollback {to: step id | "end"}`.
+"Rolled back after …". Steps above (and under) the bar can still be changed. As in SolidWorks, the part is used **as
+the bar stands** everywhere: the Export menu (STL, STEP, IGES, GLB, OBJ, 3MF, PDF), 🖨 Prepare for 3D print (and its
+split), assemblies and drawing sheets leave out the steps under it. So it never surprises you, it is said: the Part
+panel and the Export menu show "⏮ As the history bar stands: without the last 2 steps (Extrude 2, Extrude 3)" (the menu's
+items get a ⏮ mark), the export's message repeats it, the printing copy's 3D print tab keeps the note, and an assembly's
+part panel and a drawing sheet say "⚠ The part is rolled back in its history". Put the bar at the end (⤓ To the end) to
+export the whole part. The AI sees it in get_model (rollback) and moves it with `rollback {to: step id | "end"}`.
 
 **A click on a face of a 3D model** chooses its step and shows its tools in the Suggested table (bottom left) — the
 table can be **dragged by its header** anywhere in the view, and stays there (a double-click on the header: back).

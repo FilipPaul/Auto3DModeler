@@ -43,6 +43,7 @@ import { exprField } from '../paramsui.js';
 import { stepTree } from './stepfile.js';
 import { bomOf, bomCsv, instanceTree } from './bom.js';
 import { openBomWindow } from './bomview.js';
+import { stepsAtBar, rolledText } from '../modeler/steptree.js';
 import { kindIcon, fromLibrary } from '../parts.js';
 import { MechanismPanel, driveTo } from './mechanism.js';
 import { saveAnimation } from './anim.js';
@@ -602,10 +603,11 @@ export class Assembly {
     return kindIcon(lib ? 'library' : kind);
   }
 
-  /** A part's steps for the CAD kernel: a 3D model's own; a quick part as one solid (its STEP export). */
+  /** A part's steps for the CAD kernel: a 3D model's own — ⏮ as its rollback bar stands (as SolidWorks shows a rolled-back
+   *  part in its assemblies); a quick part as one solid (its STEP export). */
   async partFeatures(pid, data) {
     const p = this.hooks.parts().find((q) => q.id === pid);
-    if (p?.kind !== 'classic') return data.features || [];
+    if (p?.kind !== 'classic') return stepsAtBar(data);
     const res = await fetch('/api/export/step', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: data.model, values: data.values, layers: data.layers, bends: data.bends }) });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'The quick part could not be made solid.');
@@ -967,6 +969,7 @@ export class Assembly {
       const inner = this.innerMotions(it), miss = this.mech?.missing, missHere = miss && (!this.mech.list.length || this.mech.closed) && [miss.move.inst, miss.onto.inst].includes(it.id); // (no ⚙ widget: the line is here)
       box.innerHTML = `<h2 data-no-i18n>${esc(this.partName(it.part))}</h2><p class="hint">${it.id} — ${dof ? 'held by its joints.' : 'where its own origin is, and how it is turned.'}</p>
         ${missHere ? this.mech.missingHtml() : ''}
+        ${this.rolledHtml(it.part)}
         ${inner ? this.innerHtml(it, inner) : ''}
         ${place}
         ${this.editHtml(it)}
@@ -1150,7 +1153,7 @@ export class Assembly {
       for (const it of list) {
         const M = parent.clone().multiply(new THREE.Matrix4().fromArray(it.matrix)), id = pre ? `${pre}/${it.id}` : it.id;
         if (this.kindOf(it.part) === 'assembly') expand(this.innerList(it), M, id);
-        else flat.push({ id, part: { features: this.bodies[it.part]?.features || this.hooks.partData(it.part)?.features || [], threads: this.hooks.partData(it.part)?.threads }, matrix: M.toArray() });
+        else flat.push({ id, part: { features: this.bodies[it.part]?.features || stepsAtBar(this.hooks.partData(it.part)), threads: this.hooks.partData(it.part)?.threads }, matrix: M.toArray() });
       }
     };
     expand(this.doc.instances, new THREE.Matrix4(), '');
@@ -1567,6 +1570,12 @@ export class Assembly {
     this.doc.editable = ed;
     this.render();
     this.hooks.onChange?.();
+  }
+
+  /** ⏮ Its 3D model is rolled back (the bar up in its step tree): placed, exported and drawn as the bar stands — said. */
+  rolledHtml(pid) {
+    const s = this.kindOf(pid) === 'model' ? rolledText(this.hooks.partData(pid)) : '';
+    return s ? `<p class="mp-count as-rb-note" data-no-i18n>⚠ ${esc(t('The part is rolled back in its history'))}: ${esc(s)}</p>` : '';
   }
 
   editHtml(it) {
@@ -2041,7 +2050,7 @@ export class Assembly {
       const data = this.hooks.partData(pid);
       if (!data) { this.bodies[pid] = { error: 'This part is no longer in the project.' }; return; }
       const lod = this.doc.light?.[pid] === true ? 'light' : this.doc.light?.[pid] === false ? 'full' : 'auto'; // 🪶
-      const key = JSON.stringify([data.features || { model: data.model, values: data.values, layers: data.layers, bends: data.bends }, lod, data.threads]);
+      const key = JSON.stringify([data.features || { model: data.model, values: data.values, layers: data.layers, bends: data.bends }, lod, data.threads, data.rollback || null]);
       if (this.bodies[pid]?.key === key) return;
       // the part's newest build wins: the kernel's processes may answer an older one later
       const want = (this.wanted ||= {});

@@ -5,6 +5,7 @@
 import { t } from '../i18n.js';
 import { choose } from '../choose.js';
 import { lookColor } from '../modeler/materials.js';
+import { stepsAtBar } from '../modeler/steptree.js';
 
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const BIG = 150; // more parts + sub-assemblies than this (an ECAD board holds hundreds): one body is the first choice
@@ -66,7 +67,7 @@ export function stepTree(asm, rootId, rootName, rootInstances) {
         if (!assemblies[ref]) add(ref, it.inner ? `${asm.partName(it.part)} (${it.id})` : asm.partName(it.part), asm.innerList(it));
       } else if (!parts[ref]) {
         const data = asm.hooks.partData(ref) || {};
-        parts[ref] = { name: asm.partName(ref), features: asm.bodies[ref]?.features || data.features || [], colour: lookColor(data) || undefined,
+        parts[ref] = { name: asm.partName(ref), features: asm.bodies[ref]?.features || stepsAtBar(data), colour: lookColor(data) || undefined,
           material: data.material || undefined, threads: data.threads, ...(data.paint?.length ? { paint: data.paint } : {}) }; // (the material: a GLB's metal / plastic look; 🔩 real threads cut; 🎨 painted faces)
       }
       assemblies[key].instances.push({ ref, matrix: it.matrix, ...(it.colour ? { colour: it.colour } : {}) });

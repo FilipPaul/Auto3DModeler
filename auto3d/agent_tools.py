@@ -136,14 +136,17 @@ TOOLS = [
                     "(default: the one selected in the app): does it fit, how many pieces when split. printer: id from the "
                     "result's printer list. A 3D model: check it as it lies on the bed (its lowest z): faces hanging over "
                     "more than overhang° (default 45; they need supports) and walls thinner than min_wall mm (default 1.2) "
-                    "-> areas (mm²), a box round each, the thinnest wall, ok. Marked on the user's screen (red / orange).",
+                    "-> areas (mm²), a box round each, the thinnest wall, ok. Marked on the user's screen (red / orange). "
+                    "A model rolled back (get_model rollback) is checked, copied and printed as the bar stands — the copy's "
+                    "check_print says rolled_back.",
      "inputSchema": _obj({"printer": STR, "split": {"type": "boolean"}, "min_wall": NUM, "overhang": NUM})},
     {"name": "export", "where": "server",
      "description": "Export to a file: stl / step (mm) — the part (an assembly as step: a STEP assembly — a product per part, placed instances, sub-assemblies nested — that SolidWorks / CATIA / Solid Edge open as an assembly tree); iges: a 3D model part or an assembly as one IGES (B-rep solids, mm; for CAD programs that ask for IGES — STEP is better when they take it); glb: a 3D model part or an assembly as a binary glTF for viewers and rendering (a node per placed part with its name, colours, metal / plastic materials; metres, Y up); obj: a 3D model part as a mesh (mm); pdf: the drawing sheet (📄) on screen as drawn, for an assembly its drawing set (one PDF: the assembly with its parts list and balloons, each sub-assembly, then the made parts — every part once, by its own sheet when it has one), or for a 3D model a 2D drawing (front / top / right "
                     "views, sizes, holes, title block); 3mf: the 3D model or the whole assembly in its colours, an object per colour "
                     "(for multi-material printing: AMS / MMU); bom: the assembly's bill of materials as CSV (qty, maker, part "
                     "number, mass); dxf: the shown layers of a 2D drawing, or a drawing sheet (📄) on screen — the paper 1:1 in mm, the views at the sheet's scale, real dimensions, the title block, a layer per kind (for AutoCAD, SolidWorks / Solid Edge drafting). path: file or folder (default: the user's Downloads "
-                    "folder). Returns the written path.",
+                    "folder). Returns the written path. A 3D model rolled back (get_model rollback) exports as the bar stands — "
+                    "without the steps under it (rollback {to: \"end\"} first for every step); its assemblies and drawings too.",
      "inputSchema": _obj({"format": {"type": "string", "enum": ["stl", "step", "iges", "glb", "obj", "pdf", "3mf", "bom", "dxf"]}, "path": STR}, ["format"])},
     {"name": "undo", "where": "browser", "description": "Undo the last change made through these tools.",
      "inputSchema": _obj({})},
@@ -294,7 +297,9 @@ TOOLS = [
     {"name": "rollback", "where": "browser",
      "description": "Move the 3D model's rollback bar (as in SolidWorks): to = a step id -> the model is shown and measured as "
                     "after that step, later steps are kept but not built, and new steps (add_feature) go in right under it; "
-                    "to = \"end\" -> every step again. Saved with the part; exports always use every step.",
+                    "to = \"end\" -> every step again. Saved with the part. Like SolidWorks, the part is used as the bar stands "
+                    "everywhere: exports, the print copy (prepare_print / check_print), assemblies and drawing sheets — the user "
+                    "sees a ⏮ note; put it at the end before exporting the finished part.",
      "inputSchema": _obj({"to": STR}, ["to"])},
     {"name": "get_sketch", "where": "browser",
      "description": "Read one sketch step (id): its points {id: [x, y]}, shapes (lines from / to, circles centre + d, arcs centre "

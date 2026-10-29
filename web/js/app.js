@@ -18,6 +18,7 @@ import { buildPart, sizesOf, lengthsOf } from './library/build.js';
 import { Project } from './parts.js';
 import { Modeler } from './modeler/modeler.js';
 import { modelHandlers } from './modeler/agent_model.js';
+import { rollbackNote } from './modeler/steptree.js';
 import { Assembly } from './assembly/assembly.js';
 import { askHowToOpen, addTree, treeSize } from './assembly/stepfile.js';
 import { DrawingEditor, drawingToCleanSketch } from './drawing2d/editor.js';
@@ -1645,7 +1646,17 @@ canvas.addEventListener('pointerup', endDrag);
 canvas.addEventListener('pointercancel', endDrag);
 
 // ------------------------------------------------------------------ export / projects
-$('exportBtn').addEventListener('click', (e) => { e.stopPropagation(); $('exportBtn').parentElement.classList.toggle('open'); });
+$('exportBtn').addEventListener('click', (e) => { e.stopPropagation(); markExportMenu(); $('exportBtn').parentElement.classList.toggle('open'); });
+/** ⏮ A 3D model rolled back: the Export menu's items marked, the note on top — its files are the part as the bar stands. */
+function markExportMenu() {
+  const note = state.workspace === 'model' ? rollbackNote(modeler.part) : '', menu = $('exportMenu');
+  menu.classList.toggle('rolled', !!note);
+  menu.querySelector('.menu-note')?.remove();
+  if (!note) return;
+  const el = Object.assign(document.createElement('div'), { className: 'menu-note', textContent: note });
+  el.setAttribute('data-no-i18n', '');
+  menu.prepend(el);
+}
 $('openBtn').addEventListener('click', (e) => { e.stopPropagation(); $('openMenuWrap').classList.toggle('open'); });
 // a choice closes the menu (the file dialog opens from the label)
 $('openMenu').addEventListener('click', (e) => { if (e.target.closest('.menu-item, button')) setTimeout(() => $('openMenuWrap').classList.remove('open'), 0); });
@@ -1678,7 +1689,8 @@ async function export3mf() {
     const r = await agentHandlers.export_data({ format: '3mf' });
     const res = await fetch('/api/export/3mf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(r.data) });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
-    if (await download(await res.blob(), `${safeName()}.3mf`)) toast(t2('Exported 3MF: {n} coloured object(s) — give each its filament in the slicer.', { n: r.data.groups.length }), 'ok', 6000);
+    const note = state.workspace === 'model' ? rollbackNote(modeler.part) : ''; // (⏮ the model as its bar stands)
+    if (await download(await res.blob(), `${safeName()}.3mf`)) toast(`${t2('Exported 3MF: {n} coloured object(s) — give each its filament in the slicer.', { n: r.data.groups.length })}${note ? ` ${note}` : ''}`, note ? 'warning' : 'ok', note ? 8000 : 6000);
   } catch (e) { toast(`Export failed: ${e.message}`, 'error'); }
 }
 
@@ -1792,10 +1804,12 @@ const modeler = new Modeler({ left: $('modelLeft'), viewport: $('modelViewport')
     toast(t('Each piece is a part of its own now — the part you split keeps both.'), 'ok', 5000);
   },
   newSheet: () => { const p = project.current; if (p) project.newSheet(p.id, `${p.name} — ${t('drawing')}`); },
-  // a printing copy of a model part: its STEP as a Quick part, on the 3D print tab (split exactly: printexact.py)
-  async toPrint(blob) {
+  // a printing copy of a model part: its STEP as a Quick part, on the 3D print tab (split exactly: printexact.py);
+  // note: ⏮ the model was rolled back — the copy keeps the note (its print panel shows it)
+  async toPrint(blob, note = '') {
     const name = `${project.current?.name || safeName()} (print).step`;
     await openImport(new File([blob], name, { type: 'model/step' }));
+    if (note && state.model) { state.model.rollback_note = note; printPanel.render(); toast(note, 'warning', 8000); }
     if (state.workspace === 'quick' && isMesh()) switchRTab('print');
   },
 });
@@ -2390,7 +2404,7 @@ const agentHandlers = {
       printer: p, margin: printPanel.margin, split: !!split, joint: printPanel.jointRequest() })).json();
     const pr = printPanel.printers.find((q) => q.id === p);
     const pieces = (res.pieces || []).map((q) => `piece ${q.index}: ${(q.size_mm || []).map((v) => r3(v)).join(' × ')} mm${q.orientation === 'too big' ? ' (too big!)' : ''}`);
-    return { text: JSON.stringify({ printer: pr?.name || p, part_mm: (res.size_mm || []).map(r3), usable_bed_mm: (res.usable_mm || []).map(r3), fits_whole: res.fits,
+    return { text: JSON.stringify({ printer: pr?.name || p, ...(state.model?.rollback_note ? { rolled_back: state.model.rollback_note } : {}), part_mm: (res.size_mm || []).map(r3), usable_bed_mm: (res.usable_mm || []).map(r3), fits_whole: res.fits,
       pieces: split ? pieces.length : undefined, details: split ? pieces.slice(0, 12) : undefined, issues: (res.issues || []).map((i) => i.message),
       printers: printPanel.printers.map((q) => ({ id: q.id, name: q.name, x: q.x, y: q.y, z: q.z })) }) };
   },

@@ -130,6 +130,9 @@ body.none-open .no-part b { color: var(--text); font-size: 16px; }
 .menu.open .menu-list { display: block; }
 .menu-list button { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 8px 10px; border-radius: 5px; cursor: pointer; }
 .menu-list button:hover { background: #2b3340; }
+/* ⏮ a 3D model rolled back: its files are the part as the bar stands — a mark on each item, the note on top */
+.menu-list .menu-note { max-width: 300px; padding: 6px 10px 8px; font-size: 12px; color: var(--warn); border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+#exportMenu.rolled button::after { content: ' ⏮'; color: var(--warn); }
 
 .layout { display: grid; grid-template-columns: var(--left-w, 340px) minmax(0, 1fr) var(--right-w, 310px); flex: 1; min-height: 0; position: relative; }
 .panel { background: var(--panel); overflow-y: auto; }
@@ -885,6 +888,7 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .mt-ctx button { padding: 5px 10px; font-size: 12.5px; }
 .mt-ctx button:disabled { opacity: .45; cursor: default; background: none; }
 .m-rb-note { margin-left: 10px; color: var(--warn); }
+.mp-rb-note, .as-rb-note, .sh-rb-note { color: var(--warn) !important; }
 .as-boom { display: none; }
 /* the assembly's list as a tree: a placed sub-assembly folds open to its own parts */
 .as-twist { width: 18px; height: 18px; padding: 0; line-height: 1; margin-right: -4px; flex: none; font-size: 12px; }

@@ -5,15 +5,24 @@ line and "⤓ Na konec" say it -> a hole added: inserted at position 3 (under th
 the fillet changed (AI; a panel's OK): rebuilt, still rolled back; a step under the bar opened: shown up to it ->
 the page reloaded (autosave, Open): the bar where it was -> right-click a row: "Vrátit se sem" -> ↓ key, double-click
 -> dragged to the end: every step, the volume of all minus the hole -> Ctrl+Z puts the bar back -> the AI's rollback
-{to}. Prints a check list and ALL OK / FAILED; screenshots in <out dir>.
+{to} -> under the plate, exports follow the bar (as SolidWorks): the part panel's "⏮ Podle posuvníku historie: bez
+posledních 4 kroků (…)", the Export menu's note and ⏮ marks, the STL and 3MF (Save dialog answered by the test) of the
+plate's volume with the note in the toast, 🖨 the print copy (its print panel's note, check_print rolled_back, the exact
+pieces' volume), an assembly and a drawing sheet of the plate with "⚠ Díl je vrácený v historii" -> the bar at the end:
+every step in the STL, the assembly and the sheet, no note anywhere. Prints a check list and ALL OK / FAILED; screenshots in <out dir>.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_model_rollback.py http://127.0.0.1:5199 <out dir>
 """
+import base64
+import io
 import json
 import math
+import re
+import struct
 import sys
 import time
 import traceback
+import zipfile
 
 from selenium import webdriver
 from selenium.webdriver.common.action_chains import ActionChains
@@ -82,6 +91,43 @@ def bar():
 
 def row(rid):
     return d.find_element(By.CSS_SELECTOR, f'#modelLeft .mt-item[data-id="{rid}"]')
+
+
+def catch_saves():
+    """The Save dialog answered by the test: each saved file kept as [name, base64]."""
+    js("""window.__saved = []; window.showSaveFilePicker = async (o) => ({ name: o.suggestedName,
+      createWritable: async () => ({ write: async (b) => { const u = new Uint8Array(await b.arrayBuffer()); let s = '';
+        for (let i = 0; i < u.length; i += 8192) s += String.fromCharCode(...u.subarray(i, i + 8192));
+        window.__saved.push([o.suggestedName, btoa(s)]); }, close: async () => {} }) });""")
+
+
+def saved(n):
+    """The n-th saved file's bytes (waited for), also written to OUT."""
+    wait(f"return window.__saved.length >= {n}", 120)
+    name, b64 = js(f"return window.__saved[{n - 1}]")
+    data = base64.b64decode(b64)
+    with open(f"{OUT}/{name}", "wb") as fh:
+        fh.write(data)
+    return data
+
+
+def tri_volume(tris):
+    return sum(a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0]) for a, b, c in tris) / 6
+
+
+def stl_volume(data):
+    n = struct.unpack("<I", data[80:84])[0]
+    return tri_volume([[struct.unpack("<3f", data[84 + 50 * i + 12 + 12 * k: 84 + 50 * i + 24 + 12 * k]) for k in range(3)] for i in range(n)])
+
+
+def mf_volume(data):
+    """The volume of every object of a 3MF (its vertices and triangles)."""
+    xml = zipfile.ZipFile(io.BytesIO(data)).read("3D/3dmodel.model").decode()
+    total = 0.0
+    for obj in re.findall(r"<object .*?</object>", xml, re.S):
+        vs = [tuple(float(v) for v in m) for m in re.findall(r'<vertex x="([^"]+)" y="([^"]+)" z="([^"]+)"', obj)]
+        total += tri_volume([[vs[int(i)] for i in m] for m in re.findall(r'<triangle v1="(\d+)" v2="(\d+)" v3="(\d+)"', obj)])
+    return total
 
 
 def drag_bar_to(rid, below=False):
@@ -223,8 +269,102 @@ try:
     # ---- the AI: rollback {to}
     r = json.loads(call("rollback", to="F2"))
     check("AI rollback to F2", r.get("rolled_back_after") == "F2" and top_rows()[:2] == ["F2", "|"], r)
+    v_plate = vol()
+
+    # ---- ⏮ exports follow the bar (as SolidWorks): the plate alone, said in Czech
+    catch_saves()
+    note = js("return document.querySelector('#modelRight .mp-rb-note')?.textContent || ''")
+    print("panel note:", note)
+    check("the part panel says it (Czech, the steps left out)",
+          note.startswith("⏮ Podle posuvníku historie: bez posledních 4 kroků (") and "Zaoblení 1" in note and "Vysunutí 3" in note, note)
+    d.find_element(By.ID, "exportBtn").click()
+    time.sleep(0.3)
+    menu = js("const m = document.getElementById('exportMenu'); return {rolled: m.classList.contains('rolled'), note: m.querySelector('.menu-note')?.textContent,"
+              " mark: getComputedStyle(m.querySelector('[data-fmt=stl]'), '::after').content}")
+    print("export menu:", menu)
+    check("the Export menu: the note on top, each item marked ⏮", menu["rolled"] and (menu["note"] or "").startswith("⏮ Podle posuvníku historie") and "⏮" in menu["mark"], menu)
+    d.save_screenshot(f"{OUT}/rb6_export_menu.png")
+    d.find_element(By.CSS_SELECTOR, "#exportMenu [data-fmt=stl]").click()
+    v_stl = stl_volume(saved(1))
+    toast = wait("return [...document.querySelectorAll('.toast')].map(t => t.textContent).find(t => t.includes('Podle posuvníku')) || ''", 20)
+    print("STL volume", round(v_stl, 1), "| plate", v_plate, "| toast:", toast)
+    check("STL export = the rolled-back volume", abs(v_stl - v_plate) < 0.5, (v_stl, v_plate))
+    check("the export's toast says it (Czech)", toast.startswith("Exportováno") and "⏮ Podle posuvníku historie: bez posledních 4 kroků" in toast, toast)
+    d.find_element(By.ID, "exportBtn").click()
+    time.sleep(0.2)
+    d.find_element(By.CSS_SELECTOR, "#exportMenu [data-fmt='3mf']").click()
+    v_3mf = mf_volume(saved(2))
+    check("3MF export = the rolled-back volume", abs(v_3mf - v_plate) < 0.5, (v_3mf, v_plate))
+
+    # ---- the print copy: the plate alone, its print panel says so; check_print too
+    model_id = js("return window.__app.project.current.id")
+    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=toPrint]").click()
+    wait("return window.__app.state.workspace === 'quick' && window.__app.state.solution && document.querySelector('#rtab-print [data-a=split]')", 90)
+    time.sleep(0.5)
+    pnote = js("return document.querySelector('#rtab-print .print-rb-note')?.textContent || ''")
+    print("print panel:", pnote)
+    check("the print panel says the copy is rolled back (Czech)", pnote.startswith("⏮ Podle posuvníku historie: bez posledních 4 kroků"), pnote)
+    cp = json.loads(call("check_print"))
+    check("check_print: rolled_back, 10 mm high (no boss)", cp.get("rolled_back", "").startswith("⏮") and abs(cp["part_mm"][2] - 10) < 0.01, cp)
+    d.save_screenshot(f"{OUT}/rb7_print_copy.png")
+    d.find_element(By.CSS_SELECTOR, "#rtab-print [data-a=split]").click()
+    wait("return window.__app.printPanel.pieces && !window.__app.printPanel.busy", 120)
+    v_print = js("return window.__app.printPanel.pieces.reduce((s, p) => s + (p.exact?.volume || 0), 0)")
+    check("the print copy's exact pieces = the rolled-back volume", abs(v_print - v_plate) < 0.5, (v_print, v_plate))
+
+    # ---- an assembly shows the part as its bar stands (as SolidWorks), its panel says so
+    call("new_assembly", name="RB asm")
+    call("insert_part", part=model_id)
+    wait("return window.__app.assembly.doc.instances.length && window.__app.assembly.bodyOf(window.__app.assembly.doc.instances[0])?.body", 60)
+    v_asm = js("return window.__app.assembly.bodyOf(window.__app.assembly.doc.instances[0]).body.volume")
+    check("the assembly places the rolled-back part", abs(v_asm - v_plate) < 0.5, (v_asm, v_plate))
+    js("const a = window.__app.assembly; a.sel = a.doc.instances[0].id; a.renderProps()")
+    anote = js("return document.querySelector('.as-rb-note')?.textContent || ''")
+    print("assembly panel:", anote)
+    check("the assembly part's panel: ⚠ Díl je vrácený v historii", anote.startswith("⚠ Díl je vrácený v historii: bez posledních 4 kroků"), anote)
+    js("return window.__app.project.switchTo(arguments[0])", model_id)
+    wait(f"return window.__app.state.workspace === 'model' && !!{M}.result?.body", 30)
+    settled()
+    # ---- a drawing sheet of it: drawn as the bar stands, its panel says so
+    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=newSheet]").click()
+    wait("return window.__app.state.workspace === 'sheet' && window.__app.sheet.d?.built", 90)
+    time.sleep(0.5)
+    snote = js("return document.querySelector('.sh-rb-note')?.textContent || ''")
+    v_sheet = js("return window.__app.sheet.d.built.volume")
+    print("sheet:", v_sheet, "|", snote)
+    check("the drawing sheet: the plate, ⚠ Díl je vrácený v historii", abs(v_sheet - v_plate) < 0.5 and snote.startswith("⚠ Díl je vrácený v historii: bez posledních 4 kroků"), (v_sheet, snote))
+    d.save_screenshot(f"{OUT}/rb8_sheet.png")
+    js("return window.__app.project.switchTo(arguments[0])", model_id)
+    wait(f"return window.__app.state.workspace === 'model' && !!{M}.result?.body", 30)
+    settled()
+
+    # ---- the bar at the end: every step, no note
     r = json.loads(call("rollback", to="end"))
     check("AI rollback to the end", "rollback" in r and abs(vol() - (v4 - HOLE + dF)) < 1, r)
+    v_all = vol()
+    d.find_element(By.ID, "exportBtn").click()
+    time.sleep(0.3)
+    menu = js("const m = document.getElementById('exportMenu'); return {rolled: m.classList.contains('rolled'), note: !!m.querySelector('.menu-note')}")
+    check("at the end: no note, no marks in the Export menu", not menu["rolled"] and not menu["note"], menu)
+    js("document.querySelectorAll('.toast').forEach(t => t.remove())")
+    d.find_element(By.CSS_SELECTOR, "#exportMenu [data-fmt=stl]").click()
+    v_stl = stl_volume(saved(3))
+    time.sleep(0.3)
+    toasts = js("return [...document.querySelectorAll('.toast')].map(t => t.textContent)")
+    check("STL export at the end = every step", abs(v_stl - v_all) < 2, (v_stl, v_all))  # (a mesh: the hole facetted)
+    check("no note in its toast, none in the part panel", toasts and not any("posuvníku" in t for t in toasts) and not d.find_elements(By.CSS_SELECTOR, ".mp-rb-note"), toasts)
+    js("return window.__app.assembly && window.__app.project.switchTo(window.__app.project.parts.find(p => p.kind === 'assembly').id)")
+    wait("return window.__app.state.workspace === 'assembly'", 30)
+    wait(f"return Math.abs(window.__app.assembly.bodyOf(window.__app.assembly.doc.instances[0])?.body?.volume - {v_all}) < 0.5", 60)
+    js("const a = window.__app.assembly; a.sel = a.doc.instances[0].id; a.renderProps()")
+    check("the assembly follows: every step, no ⚠ note", not d.find_elements(By.CSS_SELECTOR, ".as-rb-note"))
+    js("return window.__app.project.switchTo(window.__app.project.parts.find(p => p.kind === 'sheet').id)")
+    wait(f"return window.__app.state.workspace === 'sheet' && Math.abs(window.__app.sheet.d.built?.volume - {v_all}) < 0.5", 90)
+    time.sleep(0.3)
+    check("the drawing sheet follows: every step, no ⚠ note", not d.find_elements(By.CSS_SELECTOR, ".sh-rb-note"))
+    js("return window.__app.project.switchTo(arguments[0])", model_id)
+    wait(f"return window.__app.state.workspace === 'model' && !!{M}.result?.body", 30)
+    settled()
     check("AI: a wrong id refused", call("rollback", to="F99").startswith("ERROR"))
     time.sleep(0.3)
     d.save_screenshot(f"{OUT}/rb5_final.png")

@@ -21,6 +21,7 @@ import { renameInPlace } from '../rename.js';
 import { HOLE_FITS, SHAFT_FITS, deviationText } from './fits.js';
 import { itemNumbers as numbersOf, bomOf, makeBuy } from '../assembly/bom.js';
 import { MATERIALS } from '../modeler/materials.js';
+import { stepsAtBar, rolledText } from '../modeler/steptree.js';
 import { TITLE_STYLES, BOM_STYLES, STYLE_TIPS, isStyle, isBomStyle, titleSize, titleBlock, partsList, bomWidth, bomHeight, bomRowsIn, grams, fontsReady } from './tbstyles.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -93,7 +94,7 @@ async function logoData(file) {
 
 /** A short hash of what a sheet is made from: the part's steps, material and tolerances. */
 export function partHash(data) {
-  const s = JSON.stringify({ f: data?.features || [], m: data?.material || '', t: data?.tolerance || '' });
+  const s = JSON.stringify({ f: stepsAtBar(data), m: data?.material || '', t: data?.tolerance || '' }); // (⏮ drawn as its rollback bar stands)
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
   return h.toString(16);
@@ -1096,7 +1097,7 @@ export class SheetEditor {
     const flatten = (id, M = ID4, pre = '', inner = null) => (this.hooks.partData(id)?.instances || []).flatMap((it) => { // (inner: a sub-assembly's parts moved in this placement)
       const W = mul4(M, inner?.[it.id] || it.matrix || ID4), key = pre ? `${pre}/${it.id}` : it.id;
       if (ctx.kindOf(it.part) === 'assembly') return flatten(it.part, W, key, it.inner);
-      return [{ id: key, part: { features: this.hooks.partData(it.part)?.features || [] }, matrix: W }];
+      return [{ id: key, part: { features: stepsAtBar(this.hooks.partData(it.part)) }, matrix: W }]; // (⏮ as its rollback bar stands)
     });
     const insts = this.hooks.partData(aid)?.instances || [];
     if (!insts.length) throw new Error(t('The assembly has no parts to draw.'));
@@ -1394,12 +1395,34 @@ export class SheetEditor {
     file?.addEventListener('change', async () => { const f = file.files?.[0]; if (f) { try { tbSet('logo', await logoData(f)); } catch (e) { fail(e); } } });
   }
 
+  /** ⏮ Drawn as the rollback bar stands (as SolidWorks does): its part rolled back in its history, or an assembly's
+   *  parts that are — the line that says so, or ''. */
+  rolledNote() {
+    const id = this.d.source;
+    if (this.hooks.kindOf?.(id) !== 'assembly') {
+      const s = rolledText(this.hooks.partData(id));
+      return s ? `⚠ ${t('The part is rolled back in its history')}: ${s}` : '';
+    }
+    const names = new Set(), seen = new Set();
+    const walk = (aid) => {
+      if (seen.has(aid)) return;
+      seen.add(aid);
+      for (const it of this.hooks.partData(aid)?.instances || []) {
+        if (this.hooks.kindOf?.(it.part) === 'assembly') walk(it.part);
+        else if (rolledText(this.hooks.partData(it.part))) names.add(this.hooks.partName(it.part) || it.part);
+      }
+    };
+    walk(id);
+    return names.size ? `⚠ ${t('Parts rolled back in their history')}: ${[...names].join(', ')}` : '';
+  }
+
   renderProps() {
     const box = this.$('.sh-props');
     if (!box || !this.d) return;
     const d = this.sel && this.allDims().find((x) => x.id === this.sel), name = this.hooks.partName(this.d.source);
     box.innerHTML = `<h2>📄 ${esc(t('Drawing'))}</h2>
       <p class="hint">${esc(tv('Of {part} — it follows the part: change the part, the drawing is made again (a new revision).', { part: name || '?' }))}</p>
+      ${this.rolledNote() ? `<p class="hint sh-rb-note" data-no-i18n>${esc(this.rolledNote())}</p>` : ''}
       <div class="mp-facts"><span>Rev</span><b data-no-i18n>${this.d.rev}</b><span>${esc(t('Changed'))}</span><b data-no-i18n>${esc(when(this.d.changed))}</b><span>${esc(t('Created'))}</span><b data-no-i18n>${esc(when(this.d.created))}</b></div>
       ${d ? '' : this.titlePanel()}
       ${this.d.asm ? `<label class="check"><input type="checkbox" data-k="exploded" ${this.d.exploded ? 'checked' : ''}> ${esc(t('Iso view exploded'))}</label>` : ''}

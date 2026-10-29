@@ -32,6 +32,8 @@ longer), the sketch moves with it. Its 0, 0 is the face's centre (the middle of 
 face's lower-left corner in its u / v, following it), "world" (the part's origin) or {point: <a point step>}.
 An edge is stored as the two faces it joins (+ where it was).
 Features are evaluated in order; one that fails gets an issue and is skipped, the rest still build.
+"rollback": "F4" (⏮ the step tree's rollback bar under F4): the part is built — shown, exported, printed, drawn —
+from the steps up to F4 (at_bar); absent or an unknown id: every step.
 """
 from __future__ import annotations
 
@@ -1508,13 +1510,26 @@ def _cut_kept(features, st):
     return "real" in entry or _cut_of(st.body, entry["holes"]) is not None
 
 
+def at_bar(part):
+    """⏮ The part as its rollback bar stands: the steps up to the one the bar is under (part["rollback"], a step id) —
+    as the browser builds it; the same part when the bar is at the end (no rollback, or a step that is not there)."""
+    part = part or {}
+    r, fs = part.get("rollback"), part.get("features") or []
+    i = next((k for k, f in enumerate(fs) if f.get("id") == r), None) if r else None
+    if i is None:
+        return part
+    return {**{k: v for k, v in part.items() if k != "rollback"}, "features": fs[: i + 1]}
+
+
 def rebuild(part, binary=False):
     """The part -> what the browser shows: the body's mesh, faces (with names) and edges, every feature's
     status, the sketch frames, its threaded holes {mode, holes (thread_holes), real?: what the cut took}. binary: the
     meshes as packed.Mesh (for packed.pack, the browser's binary answer). part["_later"]: 🔩 real threads not cut yet
     are left for later — the part as it is (the browser draws them as lines) and real {holes, pending: true}; the
-    browser then asks for the cut by itself (worker "threads_bin"), so an edit shows in a second, not after the cut."""
-    features = (part or {}).get("features") or []
+    browser then asks for the cut by itself (worker "threads_bin"), so an edit shows in a second, not after the cut.
+    ⏮ Rolled back: the steps above the bar (at_bar)."""
+    part = at_bar(part)
+    features = part.get("features") or []
     st, status = evaluate(features)
     out = {"ok": all(s["ok"] for s in status), "features": status, "frames": st.frames, "body": None}
     mode = thread_mode(part)
@@ -1538,8 +1553,9 @@ def rebuild(part, binary=False):
 def body_of(part, threads=True):
     """The built part; threads: with its 🔩 real threads cut when it has them (exports, the print split, assemblies) —
     False: drawings (a thread is drawn as its callout, not as a helix). Threads that cannot be cut: without them (the
-    model's view says why)."""
-    features = (part or {}).get("features") or []
+    model's view says why). ⏮ Rolled back: the steps above the bar (at_bar)."""
+    part = at_bar(part)
+    features = part.get("features") or []
     st, _ = evaluate(features)
     if st.body is None:
         raise K.KernelError("The model has no solid yet — sketch a shape and extrude it.")
@@ -1581,6 +1597,8 @@ def face_colours(st, paint=None):
 
 
 def export(part, fmt, name="part"):
+    """The part as a file (STEP, IGES, STL, OBJ, GLB, a PDF drawing) — ⏮ as its rollback bar stands (at_bar)."""
+    part = at_bar(part)
     st = body_of(part, threads=fmt != "pdf")
     if fmt == "pdf":  # a 2D drawing: three views, sizes, title block
         from . import drawing
@@ -1606,8 +1624,9 @@ def export(part, fmt, name="part"):
 
 def sheet(part, preset="medium", paper=None, per_view=None, section=False, simple=False):
     """A drawing sheet of the part: its views, the points to dimension, the automatic dimensions of the preset, the
-    layout (sheet.py). simple: drawn from its mesh (the exact drawing took too long)."""
+    layout (sheet.py). simple: drawn from its mesh (the exact drawing took too long). ⏮ As its rollback bar stands."""
     from . import sheet as S
+    part = at_bar(part)
     fs = [f for f in (part or {}).get("features") or [] if not (f.get("off") or f.get("suppressed"))]
     if fs and all(f.get("type") == "solid" and f.get("op") == "ref" for f in fs):
         raise K.KernelError("This part is only a reference body (surfaces that do not close into a solid) — there is no "

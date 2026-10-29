@@ -21,7 +21,7 @@ import { fetchRebuild } from './packed.js';
 import { newRid, cancelRid, wasCancelled } from '../progressbox.js';
 import { snapOnFace, snapDrawing, toFace } from './facesnap.js';
 import { HOLE_SIZES, HOLE_TYPES, dFlat, holeType, setHoleStandard } from './holes.js';
-import { stepIcon, stepKind, stepGroup, treeIcon, treeShape } from './steptree.js';
+import { stepIcon, stepKind, stepGroup, treeIcon, treeShape, rollbackNote } from './steptree.js';
 import { params, isPlain, exprText, readField } from '../params.js';
 import { exprField, takeField, setExpr } from '../paramsui.js';
 
@@ -536,7 +536,8 @@ export class Modeler {
 
   // ------------------------------------------------------------------ ⏮ the rollback bar (SolidWorks / Solid Edge)
   /** How many steps are built: all, or those above the rollback bar (part.rollback: the id of the step it is under;
-   *  saved with the part, one undo step each move). Exports and assemblies use every step. */
+   *  saved with the part, one undo step each move). Exports, the print copy, assemblies and drawings follow it too (the
+   *  server builds the part as the bar stands: doc.at_bar; steptree.js stepsAtBar). */
   barAt() {
     const r = this.part.rollback, i = r ? this.part.features.findIndex((f) => f.id === r) : -1;
     return i >= 0 ? i + 1 : this.part.features.length;
@@ -1471,6 +1472,7 @@ export class Modeler {
         <div class="row-actions"><button class="btn primary" data-a="sketch">✏ Start a sketch</button></div>`;
     } else {
       const bad = (this.result?.features || []).filter((s) => !s.ok);
+      const rb = rollbackNote(this.part), rbNote = rb ? `<p class="hint mp-rb-note" data-no-i18n>${esc(rb)}</p>` : ''; // (⏮ the bar is up: print and export follow it)
       box.innerHTML = `<h2>Part</h2>
         ${b ? `<div class="mp-facts"><span>Size</span><b>${fmt(b.bbox[3] - b.bbox[0])} × ${fmt(b.bbox[4] - b.bbox[1])} × ${fmt(b.bbox[5] - b.bbox[2])} mm</b>
           <span>Volume</span><b>${fmt(b.volume / 1000)} cm³</b>
@@ -1496,8 +1498,8 @@ export class Modeler {
         ${this.hooks.saveToLibrary && this.part.features.length ? '<div class="row-actions"><button class="btn small" data-a="saveToLibrary" title="Keep this 3D model in your parts library (on the server) — to use it again in any project">📚 Save to the library</button></div>' : ''}
         ${this.hooks.duplicatePart ? '<div class="row-actions"><button class="btn small" data-a="duplicatePart" title="A copy of this 3D model as a new part of its own (its own tab) — change it without changing this one">⧉ Duplicate as a new part</button></div>' : ''}
         ${b && this.hooks.toPrint ? `<h3>3D print</h3><p class="hint">Check it fits your printer, split it into exact pieces with joints — in a printing copy of this part.</p>
-          <div class="row-actions"><button class="btn small primary" data-a="toPrint">🖨 Prepare for 3D print</button></div>` : ''}
-        ${b ? `<h3>Export</h3><div class="row-actions"><button class="btn small" data-x="stl" title="For 3D printing">STL</button>
+          <div class="row-actions"><button class="btn small primary" data-a="toPrint">🖨 Prepare for 3D print</button></div>${rbNote}` : ''}
+        ${b ? `<h3>Export</h3>${rbNote}<div class="row-actions"><button class="btn small" data-x="stl" title="For 3D printing">STL</button>
           <button class="btn small" data-x="step" title="For other CAD programs (exact circles and faces)">STEP</button>
           <button class="btn small" data-x="iges" title="For CAD programs that ask for IGES (exact solid, mm) — STEP is better where it is read">IGES</button>
           <button class="btn small" data-x="glb" title="glTF for viewers and rendering: its colour and material (metal / plastic)">GLB</button>
@@ -3800,7 +3802,9 @@ export class Modeler {
       body: JSON.stringify({ part: this.part, name: this.hooks.safeName() }) });
     if (!res.ok) { this.hooks.toast(`Export failed: ${(await res.json()).error}`, 'error'); return; }
     if (await this.hooks.download(await res.blob(), `${this.hooks.safeName()}.${{ iges: 'igs' }[fmtName] || fmtName}`)) {
-      this.hooks.toast(fmtName === 'pdf' ? 'Exported the drawing (PDF).' : fmtName === 'glb' ? 'Exported GLB (glTF: metres, Y up, its colours and material).' : `Exported ${fmtName.toUpperCase()} (in mm).`, 'ok');
+      const said = fmtName === 'pdf' ? 'Exported the drawing (PDF).' : fmtName === 'glb' ? 'Exported GLB (glTF: metres, Y up, its colours and material).' : `Exported ${fmtName.toUpperCase()} (in mm).`;
+      const note = rollbackNote(this.part); // (⏮ the bar is up: the file is the part as it stands — said, so it never surprises)
+      this.hooks.toast(note ? `${t(said)} ${note}` : said, note ? 'warning' : 'ok', note ? 8000 : undefined);
     }
   }
 
@@ -3824,11 +3828,11 @@ export class Modeler {
   }
 
   /** A printing copy of this part: its STEP opened as a Quick part (printer fit, splitting, joints) — the pieces of a
-   * split are cut from the exact solid, so curved walls stay smooth. */
+   * split are cut from the exact solid, so curved walls stay smooth. ⏮ As the rollback bar stands (the copy keeps the note). */
   async toPrint() {
     const res = await fetch('/api/model/export/step', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ part: this.part, name: this.hooks.safeName() }) });
     if (!res.ok) { this.hooks.toast(`Export failed: ${(await res.json()).error}`, 'error'); return; }
-    await this.hooks.toPrint(await res.blob());
+    await this.hooks.toPrint(await res.blob(), rollbackNote(this.part));
   }
 }

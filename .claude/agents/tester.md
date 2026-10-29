@@ -407,7 +407,11 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_model_rollback.py <url> <dir>` covers the ⏮ rollback bar (Czech, real mouse: 4 steps -> the 6 px bar
    dragged above step 3: the 2-step volume, later rows greyed, gui_state / get_model say rolled_back; a hole inserted at
    position 3, the bar under it; an earlier step edited, a step under the bar opened; a reload keeps it; right-click ⏮
-   Vrátit se sem, Esc; ↓ key; double-click / dragged to the end: every step; Ctrl+Z; the AI's rollback {to}). Exits 1.
+   Vrátit se sem, Esc; ↓ key; double-click / dragged to the end: every step; Ctrl+Z; the AI's rollback {to}; under the
+   plate: the part panel's / Export menu's "⏮ Podle posuvníku historie: bez posledních 4 kroků (…)" and ⏮ marks, STL and
+   3MF of the plate's volume with the note in the toast, the print copy's note, check_print rolled_back and exact pieces'
+   volume, an assembly and a drawing sheet of the plate with "⚠ Díl je vrácený v historii"; at the end: every step, no
+   note). Exits 1.
    `tools/e2e_measure_snap.py <url> <dir>` covers 📏 Measure's snap points (a block with a hole: near an edge's middle
    "midpoint", a corner "corner", the hole's centre "centre"; the Snap filters: Corners off — not caught; corner -> centre 22.361; the same in an assembly).
    `tools/e2e_model_hole_guides.py <url> <dir>` covers guides when placing on a face (a 40 × 40 block, ◎ Hole: near

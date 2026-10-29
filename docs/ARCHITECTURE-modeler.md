@@ -7,6 +7,27 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⏮ Print and export as the rollback bar stands done** (the owner: "Chci tisknout podle aktuálního umístění
+  posuvníku" — as SolidWorks): one place on the server, doc.at_bar(part) — the steps up to part.rollback (absent or a
+  step that is not there: all) — used by rebuild, body_of, export (STEP / IGES / STL / OBJ / GLB / PDF) and sheet, so
+  the browser's Export menu, 🖨 Prepare for 3D print (its STEP; the split cuts that copy), the AI's export /
+  prepare_print / check_print and a part's drawing sheet all get the rolled-back part; 3MF is made from the body on
+  screen (already rolled back). In the browser steptree.js stepsAtBar / rolledText / rollbackNote (the same rule);
+  **assemblies and drawing sheets follow the bar too** (consistent with SolidWorks): Assembly.partFeatures (its
+  bodies, clashes, STEP / IGES / GLB tree via stepfile.js, the BOM's volumes) and the sheet's partHash / assembly
+  page send stepsAtBar. Said so it never surprises: the Part panel's 3D print and Export sections and the Export
+  menu's top line "⏮ Podle posuvníku historie: bez posledních 2 kroků (Vysunutí 2, Vysunutí 3)" (sketches of the
+  left-out steps not counted, ≤ 4 names), each menu item a ⏮ mark (#exportMenu.rolled), the export's toast (a
+  warning) with the note; the print copy keeps it (state.model.rollback_note: a line on top of its 3D print tab,
+  check_print `rolled_back`); an assembly's part panel and a drawing sheet's panel "⚠ Díl je vrácený v historii: …"
+  (an assembly's sheet: "Díly vrácené v historii: <names>"). AI tool texts (rollback, export, check_print, get_model's
+  note, prepare_print's answer) and the change-a-model skill say it. Tests: tests/test_model_rollback_export.py (a
+  block + boss + hole: the bar under the block -> the STEP read back / STL / IGES = 8000 mm³, watertight; under the
+  boss = 8500; at the end or under the last step = 8500 − the hole; rebuild and the sheet; the HTTP export);
+  tools/e2e_model_rollback.py (+ 16 checks: the panel / menu / toast notes in Czech, STL and 3MF volumes, the print
+  copy's note, check_print and exact pieces, an assembly and a drawing sheet of the plate with their ⚠ notes; at the end: all, no note).
+  Left out: thumbnails in the project tree and the parts library still show every step.
+
 - **⚙ Mechanism tall enough at first done**: its default height 150 -> 230 px (mechanism.js addWidget h), so the
   crank demo's two motion rows and the "Chybí jedna vazba…" line with ➕ Přidat vazbu show without scrolling.
   e2e_mechanism_by_mouse checks the widget does not scroll at that step.
@@ -48,8 +69,8 @@ Date: 2026-10-25. Written by the architect agent.
   "Potlačeno do konce: n krok(ů)" + ⤓ Na konec under the tree, the status line "⏮ Vráceno za krok „…“". A right-click
   on a row: ⏮ Vrátit se sem / ⤓ Na konec / ✎ Upravit krok / ✕ Smazat krok (stepMenu; Esc closes). Rebuilds are fast:
   doc.evaluate's prefix cache already holds the state after each step, so a rolled-back rebuild builds nothing
-  (tests/test_modeler_kernel test_rollback_reuses_the_cached_prefix). Exports / assemblies / the print use every step
-  (the server ignores part.rollback). AI: get_model `rollback {after, name, rolled_back}` and each step `rolled_back`;
+  (tests/test_modeler_kernel test_rollback_reuses_the_cached_prefix). Exports / assemblies / the print follow the bar
+  since 2026-10-29 (the entry above). AI: get_model `rollback {after, name, rolled_back}` and each step `rolled_back`;
   a tool `rollback {to: step id | "end"}`; gui_state steps `state: "rolled_back"` and `rollback_bar {under}`.
   tools/e2e_model_rollback.py (33 checks: 4 steps -> the bar dragged above step 3 = the 2-step volume, greyed rows; a
   hole inserted at position 3; edits above / under the bar; a reload keeps it; the menu, keys, double-click, Ctrl+Z;

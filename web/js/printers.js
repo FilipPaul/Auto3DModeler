@@ -212,7 +212,9 @@ export class PrintPanel {
       </div>
       <button class="btn small" data-a="back">← Back to whole model</button>` : '';
 
+    const rolled = this.getBody()?.model?.rollback_note; // (⏮ a 3D model's printing copy made while its bar was up)
     r.innerHTML = `
+      ${rolled ? `<div class="fit-note warning print-rb-note" data-no-i18n>${esc(rolled)}</div>` : ''}
       <div class="field"><label>Printer</label><select data-a="printer">${opts}</select></div>
       <div class="row-actions">
         <button class="btn small" data-a="new">+ New printer</button>

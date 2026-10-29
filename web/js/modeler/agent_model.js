@@ -564,7 +564,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       });
       const n = m.barAt(), fs = m.part.features;
       const rollback = n < fs.length ? { after: fs[n - 1].id, name: fs[n - 1].name, rolled_back: fs.slice(n).map((f) => f.id),
-        note: 'The view, body and new steps are as after this step (new steps go in under it); exports use all steps. rollback {to: "end"} brings them back.' } : undefined;
+        note: 'The view, body and new steps are as after this step (new steps go in under it); exports, the print copy, assemblies and drawings are the part as the bar stands too. rollback {to: "end"} brings them back.' } : undefined;
       return { text: JSON.stringify({ name: project.current?.name, unit: 'mm', steps, ...(rollback ? { rollback } : {}), body: summary() }) };
     },
 
@@ -792,8 +792,9 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       needModel();
       await settle();
       if (!body()) throw new Error('The model has no solid yet.');
+      const rolled = m.rolledBack() && m.part.rollback; // (⏮ the copy is the part as its rollback bar stands)
       await m.toPrint();
-      return { text: 'A printing copy is open as a quick part on the 3D print tab — use check_print (and export) on it now.' };
+      return { text: `A printing copy is open as a quick part on the 3D print tab — use check_print (and export) on it now.${rolled ? ` Rolled back: it is the part as after step ${rolled} (the print tab says so to the user); rollback {to: "end"} on the model and prepare_print again for every step.` : ''}` };
     },
 
     // the model versions of shared tools

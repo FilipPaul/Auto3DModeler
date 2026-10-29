@@ -1675,6 +1675,12 @@ const CS = {
   'Show the part as it was after this step — the steps under it are kept but not built; new steps go in under it': 'Ukázat díl, jak vypadal po tomto kroku — kroky pod ním zůstanou, ale nesestaví se; nové kroky se vloží pod něj',
   'Rolled back after “{name}”': 'Vráceno za krok „{name}“',
   'moving the rollback bar': 'posouvá pruh vrácení',
+  // ⏮ exports, the print copy, assemblies and drawings follow the rollback bar
+  'As the history bar stands': 'Podle posuvníku historie',
+  'without the last step ({names})': 'bez posledního kroku ({names})',
+  'without the last {n} steps ({names})': 'bez posledních {n} kroků ({names})',
+  'The part is rolled back in its history': 'Díl je vrácený v historii',
+  'Parts rolled back in their history': 'Díly vrácené v historii',
   'Čeština / English': 'Čeština / English',
 };
 
