@@ -12,6 +12,18 @@ if (lang !== 'en' && lang !== 'cs') lang = (navigator.language || '').toLowerCas
 const CS = {
   // top bar
   'No drawing loaded': 'Není otevřen žádný výkres',
+  'Click to close it': 'Kliknutím zavřete',
+  'Printer settings': 'Nastavení tiskárny',
+  'Split it anyway — joints': 'Přesto rozdělit — spoje',
+  'The printer\'s build volume, the margin kept free on the bed, the build volume shown in 3D': 'Tiskový prostor tiskárny, volný okraj podložky, tiskový prostor zobrazený ve 3D',
+  'How the pieces of a part split to fit the printer join again: the joint, its sizes, glue': 'Jak se díly rozdělené pro tiskárnu znovu spojí: spoj, jeho rozměry, lepidlo',
+  'Bearings': 'Ložiska',
+  'Fasteners': 'Spojovací materiál',
+  'Inserts': 'Zálisky',
+  'Motors': 'Motory',
+  'Pneumatics': 'Pneumatika',
+  'Sensors': 'Senzory',
+  'Standoffs': 'Distanční sloupky',
   'Top {n}': 'Prvních {n}',
   'Middle click': 'Prostřední tlačítko',
   'Close the tab': 'Zavřít záložku',

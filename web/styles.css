@@ -199,7 +199,9 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 3px; }
 .viewport canvas { display: block; }
 .viewport.drag-over .drop-hint { display: flex; }
 .drop-hint { display: none; position: absolute; inset: 16px; border: 2px dashed var(--accent); border-radius: 12px; align-items: center; justify-content: center; font-size: 18px; background: #0f121680; z-index: 5; pointer-events: none; }
-.view-tools { position: absolute; top: 10px; left: 10px; display: flex; gap: 4px; z-index: 3; align-items: center; }
+.view-tools { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; flex-wrap: wrap; gap: 4px; z-index: 3; align-items: center; pointer-events: none; }
+.view-tools > * { pointer-events: auto; } /* (the row spans the view: its empty end is the view's) */
+.view-tools .chip { white-space: nowrap; }
 .chip { background: #161a20d0; border: 1px solid var(--line); border-radius: 14px; padding: 4px 11px; cursor: pointer; font-size: 12px; }
 .chip:hover { border-color: #44505f; }
 .chip.toggle.on { border-color: var(--accent); color: #cfe2ff; }
@@ -236,7 +238,7 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 3px; }
 .icon-btn:hover { color: var(--err); }
 
 .toast-stack { position: fixed; bottom: 18px; right: 310px; display: flex; flex-direction: column; gap: 8px; z-index: 50; max-width: 420px; }
-.toast { background: var(--panel-2); border: 1px solid var(--line); border-left: 4px solid var(--dim); border-radius: 8px; padding: 10px 14px; box-shadow: 0 8px 24px #0009; line-height: 1.4; animation: slide .2s; }
+.toast { background: var(--panel-2); border: 1px solid var(--line); border-left: 4px solid var(--dim); border-radius: 8px; padding: 10px 14px; box-shadow: 0 8px 24px #0009; line-height: 1.4; animation: slide .2s; cursor: pointer; }
 .toast.error { border-left-color: var(--err); }
 .toast.warning { border-left-color: var(--warn); }
 .toast.ok { border-left-color: var(--ok); }
@@ -1373,3 +1375,10 @@ body.file-over::after { content: ""; position: fixed; inset: 6px; border: 2px da
 body.file-over.start-open .st-card[data-start=open] { border-color: var(--accent); background: var(--panel-2); }
 .menu-list button.menu-strong { font-weight: 600; display: flex; align-items: center; gap: 12px; }
 .menu-key { margin-left: auto; font-weight: 400; font-size: 11px; color: var(--muted); }
+/* the 3D print tab: the fit answer first; the printer's settings and the joints of split pieces folded (open when it
+   does not fit) */
+details.pr-more { margin: 10px 0 4px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--panel-2); }
+details.pr-more summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+details.pr-more summary:hover { color: var(--text); }
+details.pr-more[open] summary { margin-bottom: 8px; color: var(--text); }
+#rtab-print .fit { margin-top: 10px; }

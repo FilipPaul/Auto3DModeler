@@ -594,6 +594,7 @@ export class Project {
       row.addEventListener('mouseleave', () => this.hidePreview());
       list.appendChild(row);
     }
+    if (!popup) leftDock.fitContent('project', 26 + 16 + (box.querySelector('.tr-undo-row')?.offsetHeight || 0) + (list.offsetHeight || rows.length * 26)); // (docked: as tall as its rows — head, padding, the list)
   }
 
   /** A double-click on a row in the tree: its name in a field (Enter keeps it, Esc not), once the part is open. */

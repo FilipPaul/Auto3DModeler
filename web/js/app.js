@@ -164,7 +164,11 @@ function toast(msg, kind = 'info', ms = 4500) {
   const t = document.createElement('div');
   t.className = `toast ${kind}`;
   t.textContent = msg;
-  $('toasts').appendChild(t);
+  t.title = 'Click to close it';
+  t.addEventListener('click', (e) => { if (!e.target.closest('button, a')) t.remove(); }); // (its own buttons — ↶ — still work)
+  const stack = $('toasts');
+  stack.appendChild(t);
+  while (stack.children.length > 4) stack.firstElementChild.remove(); // (a calm corner: the 4 newest)
   setTimeout(() => t.remove(), ms);
   return t;
 }
