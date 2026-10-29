@@ -36,6 +36,7 @@ import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss } from './joints.j
 import { snapNear, snapPoints } from '../modeler/view.js';
 import { showSuggest, showSnapFilters, snapKinds, hoverKinds } from '../suggest.js';
 import { floatBox } from '../floatbox.js';
+import { MeasureTool, snapWins } from '../measure.js';
 import { freeMotions, motionMatrix } from './dof.js';
 import { findLoops, solveLoop, loopFreedom, worstMiss, screwBetween, stepsBetween } from './loops.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
@@ -333,6 +334,9 @@ export class Assembly {
     this.build();
     this.view = new AsmView(this.els.view, { cube: true });
     this.mech = new MechanismPanel(this); // (⚙ Mechanism: a widget of the left column while there is one)
+    this.ms = new MeasureTool({ ws: 'assembly', view: () => this.view, viewport: this.els.viewport, list: (make) => (make ? (this.doc.measures ||= []) : this.doc.measures),
+      pick: (e, mode) => this.measurePick(e, mode), hint: (s) => this.hint(s), clearance: (a, b) => this.clearanceOf(a, b),
+      changed: () => this.hooks.onChange?.(), stop: () => { if (this.measuring) this.toggleMeasure(); }, toast: (...a) => this.hooks.toast(...a) });
     this.bindPointer();
     this.render();
     window.addEventListener('a3d:lang', () => this.render()); // (texts built with t(): in the new language)
@@ -559,9 +563,7 @@ export class Assembly {
         { icon: '📏', label: t('Measure from here'), title: xyz, run: () => {
           this.snapPick = null;
           if (!this.measuring) this.toggleMeasure();
-          this.measuring.a = { point: p, face: null, inst: a.id };
-          this.view.setMeasure([p]);
-          this.measureBox(`<div class="mm-rows"><b>${esc(kind)}</b><span>Of</span><b data-no-i18n>${esc(this.partName(a.part))} ${a.id}</b><span>${esc(t('Point'))}</span><b>${xyz}</b></div><p class="hint">${esc(t('Click a second spot for the distance.'))}</p>`);
+          this.ms.from({ kind: 'point', p: p.clone(), snap: sp.snap, inst: a.id });
         } },
         { icon: '⧉', label: t('Copy its coordinates'), title: xyz, run: () => { navigator.clipboard?.writeText(xyz).catch(() => {}); this.hooks.toast(`${t('Copied')}: ${xyz}`, 'info', 2500); } },
         { section: name(a) }] : []),
@@ -1483,55 +1485,47 @@ export class Assembly {
   // ------------------------------------------------------------------ 📏 measure
   toggleMeasure() {
     this.measuring = this.measuring ? null : { a: null };
-    if (this.measuring) { this.cancelJoint(); if (this.bolt) this.cancelBolt(); if (this.painting) this.togglePaint(); }
-    else this.view.setSnapMark(null);
-    this.view.setMeasure();
-    this.hint(this.measuring ? 'Measure — click a spot, then another one (corners snap). Esc ends.' : '');
-    if (!this.measuring) this.$('.m-measure')?.remove();
+    if (this.measuring) { this.cancelJoint(); if (this.bolt) this.cancelBolt(); if (this.painting) this.togglePaint(); this.ms.start(); }
+    else { this.ms.stop(); this.hint(''); this.view.setSnapMark(null); }
     this.renderBar();
     this.renderSuggest(); // (measuring: the table goes; done: it is back)
   }
 
-  measureBox(html) {
-    let box = this.$('.m-measure');
-    if (!box) {
-      box = document.createElement('div');
-      box.className = 'm-measure';
-      this.els.viewport.appendChild(box);
+  /** 📏 What a measure click takes (measure.js): mode 'parts' — the part under the mouse; else a corner near the mouse,
+   *  else an edge under it (its middle and a round edge's centre only when the mouse is right on them), else the face. */
+  measurePick(e, mode = 'items') {
+    const v = this.view;
+    if (mode === 'parts') {
+      const h = v.pickInst(e.clientX, e.clientY), it = h?.inst && this.inst(h.inst);
+      return it ? { kind: 'part', inst: it.id, id: it.id, at: h.point?.clone(), tip: this.partName(it.part) } : null;
     }
-    box.innerHTML = html;
-    floatBox(box, this.els.viewport, { kind: 'measure', min: [180, 60] });
+    const mp = v.measurePoint(e.clientX, e.clientY);
+    const eh = snapWins(v, mp, e) ? null : v.edgeAt((v.meshes || []).map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), e.clientX, e.clientY, 6, v.meshes);
+    if (mp?.snap && !eh) return { kind: 'point', p: mp.point.clone(), snap: mp.snap, inst: mp.inst };
+    if (eh) {
+      const body = (v.meshes || []).find((m) => m.userData.inst === eh.inst)?.userData.body, names = eh.edge.faces.map((k) => body?.faces[k]?.name || '');
+      const n = eh.edge.pts.length / 3, k = 3 * Math.floor(n / 2), mid = new THREE.Vector3(eh.edge.pts[k], eh.edge.pts[k + 1], eh.edge.pts[k + 2]).applyMatrix4(eh.matrix);
+      return { kind: 'edge', pts: eh.edge.pts, matrix: eh.matrix, inst: eh.inst, id: `${eh.inst}·E${eh.i + 1}`, at: mp?.point?.clone() || mid,
+        hole: names.some((x) => x.includes(':hole')), tip: this.partName(this.inst(eh.inst)?.part) };
+    }
+    if (!mp?.face || !mp.inst) return null;
+    let face;
+    try { face = this.worldFace(mp.inst, mp.face.name); } catch { return null; }
+    const body = this.bodyOf(this.inst(mp.inst))?.body, i = body ? body.faces.findIndex((f) => f.id === mp.face.id) : -1;
+    return { kind: 'face', face, id: `${mp.inst}·F${(i >= 0 ? i : mp.face.id) + 1}`, inst: mp.inst, at: mp.point.clone(), hole: String(mp.face.name).includes(':hole'), tip: this.partName(this.inst(mp.inst)?.part) };
   }
 
-  clickMeasure(e) {
-    const ms = this.measuring, mp = this.view.measurePoint(e.clientX, e.clientY);
-    if (!mp) return;
-    const f3 = (p) => `${fmt(+p.x.toFixed(3))}, ${fmt(+p.y.toFixed(3))}, ${fmt(+p.z.toFixed(3))}`;
-    const face = mp.face && !mp.corner ? this.worldFace(mp.inst, mp.face.name) : null;
-    const who = esc(this.partName(this.inst(mp.inst)?.part));
-    if (!ms.a) {
-      ms.a = { point: mp.point, face, inst: mp.inst };
-      this.view.setMeasure([mp.point]);
-      const what = face ? `<b>${face.type === 'cylinder' ? 'Round face' : face.type === 'plane' ? 'Flat face' : 'Face'}</b><span>Of</span><b data-no-i18n>${who} ${mp.inst}</b>
-        <span>Area</span><b>${fmt(+face.area.toFixed(2))} mm²</b>${face.radius ? `<span>Ø</span><b>${fmt(+(2 * face.radius).toFixed(3))} mm</b>` : ''}`
-        : `<b>${{ corner: 'Corner', midpoint: 'Midpoint', centre: 'Centre' }[mp.snap] || 'Point'}</b><span>Of</span><b data-no-i18n>${who} ${mp.inst}</b>`;
-      this.measureBox(`<div class="mm-rows">${what}<span>Point</span><b>${f3(mp.point)}</b></div><p class="hint">Click a second spot for the distance.</p>`);
-      return;
-    }
-    const a = ms.a, p = mp.point, dist = a.point.distanceTo(p);
-    let extra = '';
-    const fa = a.face, fb = face;
-    if (fa?.normal && fb?.normal && Math.abs(fa.normal.dot(fb.normal)) > 0.9999) { // parallel flat faces: the gap between them
-      extra = `<span>Faces apart</span><b>${fmt(+Math.abs(fb.centroid.clone().sub(fa.centroid).dot(fa.normal)).toFixed(3))} mm</b>`;
-    } else if (fa?.axis && fb?.axis && Math.abs(fa.axis.d.dot(fb.axis.d)) > 0.9999) { // two round faces: their axes
-      const v = fb.axis.o.clone().sub(fa.axis.o), off = v.clone().sub(fa.axis.d.clone().multiplyScalar(v.dot(fa.axis.d))).length();
-      extra = `<span>Axes apart</span><b>${fmt(+off.toFixed(3))} mm</b>`;
-    }
-    this.view.setMeasure([a.point, p], `${fmt(+dist.toFixed(3))} mm`);
-    this.measureBox(`<div class="mm-rows"><b>Distance</b><span></span><b>${fmt(+dist.toFixed(3))} mm</b>${extra}
-      <span>Δx</span><b>${fmt(+Math.abs(p.x - a.point.x).toFixed(3))}</b><span>Δy</span><b>${fmt(+Math.abs(p.y - a.point.y).toFixed(3))}</b><span>Δz</span><b>${fmt(+Math.abs(p.z - a.point.z).toFixed(3))}</b></div>
-      <p class="hint">Click again to measure from a new spot.</p>`);
-    ms.a = null;
+  clickMeasure(e) { this.ms.click(e); }
+
+  /** ⇹ The clearance between two placed parts (a sub-assembly: all its parts) — the kernel's least distance. */
+  async clearanceOf(A, B) {
+    const flat = this.flatParts(), of = (id) => flat.filter((f) => f.id === id || f.id.startsWith(`${id}/`));
+    const a = of(A.inst), b = of(B.inst);
+    if (!a.length || !b.length) throw new Error(t('That part has no solid to measure.'));
+    const res = await fetch('/api/assembly/clearance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instances: [...a, ...b], a: a.map((x) => x.id) }) });
+    const r = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(r.error || res.statusText);
+    return r;
   }
 
   // ------------------------------------------------------------------ a new bolt: through the parts, holes drilled
@@ -3471,7 +3465,7 @@ export class Assembly {
       const e = this.hoverEv;
       this.hoverEv = null;
       if (!e || down) return;
-      if (this.measuring) { this.view.clearHoverMarks(); this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); return; } // (where a click measures from)
+      if (this.measuring) { this.view.setHoverSnaps([]); this.ms.hover(e); return; } // (what a click measures: lit, named)
       const h0 = this.view.pickInst(e.clientX, e.clientY), h = this.jointPick(e, h0);
       if (this.mode === 'idle') this.hoverMarks(e, h0);
       else this.view.clearHoverMarks();
@@ -3495,6 +3489,7 @@ export class Assembly {
     cv.addEventListener('pointerleave', () => {
       this.hoverEv = null;
       this.view.clearHoverMarks();
+      if (this.measuring) this.ms.hover(null);
       if (this.dragging) return;
       cueLabel(vp, null, '');
       if (this.cueParts) { this.cueParts = null; this.hoverInst = null; this.draw(); }
@@ -3902,6 +3897,7 @@ export class Assembly {
     this.mode = 'idle';
     this.explode = 0;
     this.history.reset();
+    this.ms.reset(); // (its measurements: this assembly's)
     this.render();
     await this.refresh();
     this.view.setView('iso');

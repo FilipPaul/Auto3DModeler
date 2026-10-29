@@ -1,5 +1,5 @@
 """Floating boxes over the 3D view (web/js/floatbox.js), with REAL mouse drags: the suggestions table, 🖨 Print check,
-📏 Measure's result and the ✂ Section bar — each: dragged by its header (or ⠿ strip) it moves; the corner grip resizes
+the ✂ Section bar (📏 Measure: a left-column widget now — e2e_measure_table) — each: dragged by its header (or ⠿ strip) it moves; the corner grip resizes
 it; a drag far out stops at the view's edge (under the toolbar); after a reload it opens where it was left, at the size
 it was given; a double-click on the header puts it back; a button inside it still works (the section's Y axis).
 
@@ -26,7 +26,6 @@ VP = "#modelViewport"
 BOXES = {  # kind: (the box, its handle)
     "suggest": (".view-suggest", ".vs-head"),
     "printcheck": (".m-printcheck", ".mpc-head"),
-    "measure": (".m-measure", ".fb-strip"),
     "section": (".m-section", ".fb-strip"),
 }
 fails = []
@@ -193,17 +192,17 @@ try:
     r = rect("suggest")
     check(r["x"] < 40 and r["y"] + r["h"] > r["vh"] - 120, f"suggest: at its default place bottom left ({r['x']}, {r['y'] + r['h']} of {r['vh']})")
     # a smaller window: a box at the right is pulled back in
-    open_box("measure")
-    drag(handle("measure"), 2500, 0)
+    open_box("section")
+    drag(handle("section"), 2500, 0)
     d.set_window_size(1250, 900)
     time.sleep(0.8)
-    r = rect("measure")
-    check(r["x"] + r["w"] <= r["vw"], f"measure: the window smaller — still in the view ({r['x'] + r['w']} ≤ {r['vw']})")
+    r = rect("section")
+    check(r["x"] + r["w"] <= r["vw"], f"section: the window smaller — still in the view ({r['x'] + r['w']} ≤ {r['vw']})")
     d.find_element(By.CSS_SELECTOR, VP).screenshot(f"{OUT}/floatbox-small-window.png")
     # Czech tooltips (the language switch)
     d.find_element(By.ID, "langBtn").click()
     time.sleep(0.5)
-    tip = js(f"return [document.querySelector('{VP} > .m-measure .fb-handle')?.title, document.querySelector('{VP} > .m-measure > .fb-size')?.title]")
+    tip = js(f"return [document.querySelector('{VP} > .m-section .fb-handle')?.title, document.querySelector('{VP} > .m-section > .fb-size')?.title]")
     check(tip[0].startswith("Tažením přesunete") and tip[1].startswith("Tažením změníte velikost"), f"in Czech: {tip}")
     d.find_element(By.CSS_SELECTOR, VP).screenshot(f"{OUT}/floatbox-cs.png")
     d.find_element(By.ID, "langBtn").click()

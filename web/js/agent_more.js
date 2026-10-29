@@ -562,7 +562,12 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       return ok(`Joint ${id} removed — ${m.move} stays where it is (held by its other joints, if any).`);
     },
     measure: async ({ a: A, b: B }) => {
-      if (state.workspace === 'model') return ok(measureModel(modeler, A, B)); // (two faces of the 3D model on screen)
+      // (📏 also a row of the measurements table, as the user's: its main value as the table shows it)
+      const row = (host, fa, fb, na, nb) => { const r = host.ms.addPair({ kind: 'face', face: fa, id: na, at: fa.centroid }, { kind: 'face', face: fb, id: nb, at: fb.centroid }), s = host.ms.summary().at(-1); return { table_row: s.n, value: s.value, unit: s.unit, kind: r.kind, details: s.details }; };
+      if (state.workspace === 'model') { // (two faces of the 3D model on screen)
+        const out = measureModel(modeler, A, B), f = (x) => modeler.result.body.faces.find((q) => q.name === (x?.face ?? x) || (q.names || []).includes(x?.face ?? x));
+        return ok({ ...row(modeler, f(A), f(B), A?.face ?? A, B?.face ?? B), ...out });
+      }
       need('assembly', 'Measuring between faces is in a 3D model or an assembly');
       const fa = assembly.worldFace(A.part, A.face), fb = assembly.worldFace(B.part, B.face);
       const out = { centres_apart: r3(fa.centroid.distanceTo(fb.centroid)) };
@@ -576,7 +581,19 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         if (Math.abs(Math.abs(d.dot(fb.axis.d.clone().normalize())) - 1) < 1e-4) out.axes_apart = r3(off.sub(d.multiplyScalar(off.dot(d))).length());
         out.diameters = [r3(2 * fa.radius), r3(2 * fb.radius)];
       }
-      return ok(out);
+      return ok({ ...row(assembly, fa, fb, `${A.part}·${A.face}`, `${B.part}·${B.face}`), ...out });
+    },
+    list_measurements: async () => {
+      const host = state.workspace === 'model' ? modeler : state.workspace === 'assembly' ? assembly : null;
+      if (!host) throw new Error('The 📏 measurements are kept in a 3D model or an assembly — open_part one.');
+      return ok({ measurements: host.ms.summary() });
+    },
+    clear_measurements: async () => {
+      const host = state.workspace === 'model' ? modeler : state.workspace === 'assembly' ? assembly : null;
+      if (!host) throw new Error('The 📏 measurements are kept in a 3D model or an assembly — open_part one.');
+      const n = host.ms.rows().length;
+      host.ms.clear();
+      return ok(`${n} measurement(s) cleared (↶ in the toast brings them back).`);
     },
 
     // ---------------------------------------------------------------- the view (then get_screenshot)

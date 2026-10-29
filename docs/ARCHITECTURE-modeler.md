@@ -7,6 +7,25 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **📏 Measurements table done (2026-10-29)** (the owner: measure more kinds, keep the results in a compact table).
+  web/js/measure.js — one MeasureTool per workspace (3D model, assembly), hooked in by toggleMeasure / measurePick /
+  clickMeasure: what a click picks decides the kind (no mode menu): a corner / reference point (a round edge's centre
+  or an edge's middle only within 6 px — snapWins — else the edge itself), an edge (a line: L; a circle: Ø; an arc: R,
+  by its points), a face (area; a round one Ø and its axis), a part (the assembly's Prvky | Díly chip). Two picks:
+  point–point (distance, ΔX ΔY ΔZ), point–face / edge / axis (square to it), parallel flat faces (the gap), else the
+  angle (acute, 180 − a in the tail), parallel edges / axes (apart; round ones also `alt`: the gap between their
+  surfaces — the střed–střed | min chip), part–part: the clearance from the kernel (POST /api/assembly/clearance ->
+  doc.assembly_clearance -> kernel.min_distance, BRepExtrema_DistShapeShape; a sub-assembly: its parts as one side;
+  `overlap` when they go into each other). The first click adds a row, the second turns it into the pair's; empty
+  space starts anew; the tool stays on, Esc ends it. Rows live in the doc (part.measures / assembly.measures: saved
+  with it, kept across tab switches and reloads; not in undo) with their marks (lines, dots, a label) drawn in the
+  view (view.msGroup). The table: a left-dock widget (`measure-model` / `measure-assembly`) — #, icon, what, value
+  (tabular, 70 px, mm in the header), muted tail, ✕; 22 px rows; hover lights the mark, a click suggests copy value /
+  row, hide its mark, delete; head 👁 📋 (tab separated) 🗑 (↶ in the toast). The old floating .m-measure box is gone.
+  AI: measure also adds a row (table_row, value); list_measurements / clear_measurements. Tests: test_clearance,
+  e2e_measure_table (Czech, 1280 × 800, real mouse: 28.284, L 20, Ø6, 5 apart, 90°, hover, ✕, 12 rows, Esc, tab
+  switch, 🗑 + ↶, the assembly's clearance 5); e2e_measure_snap / e2e_assembly_measure / e2e_model_inspect /
+  e2e_ux_model / e2e_floatboxes / e2e_i18n read the table now.
 - **✂ Section view fixed and capped (2026-10-29)** (the AI's report: a revolved pump body cut at y = 0 showed whole, with
   a jagged ring at z = 0). Causes: a Y cut kept the half toward the iso / front cameras (x and z kept the far half), so
   the part looked uncut; a face lying in the cut (the bottom at z = 0) z-fought with the clip plane — the jagged ring;
