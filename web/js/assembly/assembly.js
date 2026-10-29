@@ -47,7 +47,7 @@ import { stepsAtBar, rolledText } from '../modeler/steptree.js';
 import { kindIcon, fromLibrary } from '../parts.js';
 import { MechanismPanel, driveTo, traceOf } from './mechanism.js';
 import { saveAnimation } from './anim.js';
-import { startDrag } from './drag.js';
+import { startDrag, dragCue, dragValue, cueLabel, firstTip, tipSeen } from './drag.js';
 import { isPin } from './missing.js';
 import { pinFits, restOn } from './smart.js';
 import { COUPLING_TYPES, couplingOptions, addCoupling, followCouplings, couplingsHtml, bindCouplingRows, couplingsSummary, ratioText, coupledWith } from './couplings.js';
@@ -95,7 +95,7 @@ class AsmView extends ModelView {
       // a chosen part keeps its own colours and painted faces: it glows blue (it was drawn all blue — its look hidden)
       const fin = it.finish || { metalness: 0.05, roughness: 0.55 }; // (a metal part: metallic)
       const mat = new THREE.MeshStandardMaterial({ color: it.colour || COLORS[it.color % COLORS.length], roughness: fin.roughness, metalness: fin.metalness, envMapIntensity: fin.metalness > 0.5 ? 1 : 0.35,
-        side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, emissive: it.clash ? 0x6a0d0d : it.selected ? 0x1e4f86 : it.hover ? 0x1b2a44 : 0x000000,
+        side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, emissive: it.clash ? 0x6a0d0d : it.selected ? (it.moving ? 0x2f6fc4 : 0x1e4f86) : it.hover ? 0x1b2a44 : it.moving ? 0x18304f : 0x000000, // (moving: a drag here moves it — drag.js dragCue)
         transparent: o < 1, opacity: o, depthWrite: o >= 1, clippingPlanes: this.clip || [] });
       const painted = paintedFaces(it.body.faces, it.paint || []);
       const fromFile = !it.ownColour ? it.body.faces.filter((f) => f.color) : [];
@@ -1039,6 +1039,10 @@ export class Assembly {
     this.selInner = null;
     if (more && this.sel && id && id !== this.sel) this.sel2 = this.sel2 === id ? null : id;
     else { this.sel = id || null; this.sel2 = null; }
+    this.cueParts = null; // (the drag cue: found again at the next mouse move, for what is chosen now)
+    cueLabel(this.els.viewport, null, '');
+    const cv = this.view?.renderer?.domElement;
+    if (cv && /^url\(/.test(cv.style.cursor)) cv.style.cursor = '';
     this.render();
     this.draw();
   }
@@ -2231,7 +2235,7 @@ export class Assembly {
       if (focus && !clashing.has(it.id)) look.opacity = Math.min(look.opacity ?? 1, 0.12); // the rest see-through
       const lit = this.innerLit(it);
       return { id: it.id, body: this.bodyOf(it)?.body, matrix: it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part), ...look, threads: this.hooks.partData(it.part)?.threads,
-        ...(lit ? { lit } : {}), selected: (it.id === this.sel && !lit) || it.id === this.sel2 || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst, clash: clashing.has(it.id),
+        ...(lit ? { lit } : {}), selected: (it.id === this.sel && !lit) || it.id === this.sel2 || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst, moving: !!this.cueParts?.includes(it.id), clash: clashing.has(it.id),
         explode: along ? along.get(it.id)?.toArray() || null : this.explode && c ? away(c).multiplyScalar(this.explode * 1.2).toArray() : null };
     }));
     this.drawMarks();
@@ -3290,13 +3294,17 @@ export class Assembly {
       if (!drag) return;
       this.mech?.stop(false);
       this.view.controls.enabled = false;
-      cv.style.cursor = 'grabbing';
-      const move = (ev) => drag.move(ev), up = () => {
+      cv.style.cursor = dragCue(this, this.sel, true)?.cursor || 'grabbing'; // (the motion's symbol, filled: it is moving)
+      this.dragging = true;
+      cueLabel(vp, e, dragValue(this, drag.plan), true);
+      const move = (ev) => { drag.move(ev); cueLabel(vp, ev, dragValue(this, drag.plan), true); }, up = (ev) => {
         window.removeEventListener('pointermove', move, true);
         window.removeEventListener('pointerup', up, true);
         this.view.controls.enabled = true;
-        cv.style.cursor = '';
-        drag.end();
+        this.dragging = false;
+        cueLabel(vp, ev, '');
+        cv.style.cursor = dragCue(this, this.sel)?.cursor || '';
+        if (drag.end()) tipSeen(); // (dragged once: the first-time hint is not needed any more)
       };
       window.addEventListener('pointermove', move, true);
       window.addEventListener('pointerup', up, true);
@@ -3329,12 +3337,20 @@ export class Assembly {
         cv.style.cursor = h?.face && this.faceFits(h) ? 'crosshair' : '';
         return;
       }
-      const id = h?.inst || null;
-      if (id !== this.hoverInst) { this.hoverInst = id; this.draw(); }
+      const id = h?.inst || null, cue = dragCue(this, id); // (the chosen part that can move: a drag moves it — the same check as the press)
+      const moving = cue ? cue.parts : null;
+      if (id !== this.hoverInst || String(moving || '') !== String(this.cueParts || '')) { this.hoverInst = id; this.cueParts = moving; this.draw(); } // (it and the parts that go with it glow)
       this.view.setSnapMark(this.idleSnap(e, h)); // (a corner, an edge's middle, a centre: it can be picked)
-      cv.style.cursor = !h ? '' : h.inst === this.sel && (this.dof?.count || this.mech?.list.some((m) => m.parts.includes(h.inst))) ? 'grab' : 'pointer'; // (the chosen part that can move: drag it)
+      cv.style.cursor = cue ? cue.cursor : !h ? '' : 'pointer';
+      cueLabel(vp, e, cue ? firstTip(cue) : '');
     };
-    cv.addEventListener('pointerleave', () => { this.hoverEv = null; this.view.clearHoverMarks(); });
+    cv.addEventListener('pointerleave', () => {
+      this.hoverEv = null;
+      this.view.clearHoverMarks();
+      if (this.dragging) return;
+      cueLabel(vp, null, '');
+      if (this.cueParts) { this.cueParts = null; this.hoverInst = null; this.draw(); }
+    });
     cv.addEventListener('dblclick', (e) => { // a part double-clicked: edit it here (when unlocked)
       if (this.mode !== 'idle' || this.measuring || this.bolt) return;
       const h = this.view.pickInst(e.clientX, e.clientY);

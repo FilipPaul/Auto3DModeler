@@ -256,6 +256,11 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_assembly_insert_view.py <url> <dir>` covers the view after an insert (the first part: iso, seen; zoomed
    in, a Block put in by the AI and one dragged from the project tree land outside -> the view fits, each seen;
    zoomed out, one more already seen -> the camera stays).
+   `tools/e2e_assembly_dragcue.py <url> <dir>` covers the drag cue (Czech): over the chosen part a drag moves, the
+   cursor is the motion's symbol (↻ a pin in a hole, ↔ a lid on a base, ⚙ the crank demo's crank) and the parts that
+   move glow; nothing chosen, the 📌 fixed base, a fully held part, a part not chosen: the normal cursor; the first-time
+   hint "Táhněte — pohne mechanismem"; dragging: the filled cursor and "↻ 3°" at the cursor (= ⚙ Mechanism's value),
+   the slider at the formula; screenshots with the cursor drawn in and the cursors 4× (cue_icons.png).
    `tools/e2e_mechanism_by_mouse.py <url> <dir>` replays building the crank – rod – slider by mouse only (Czech, 1600×1000):
    the crank demo's parts, ＋ Nová sestava, ＋ Vložit díl ×4, each joint by real clicks — a hole's rim + Ctrl+click the
    pin -> "◎ Soustředně + dosednout · Ø10" first; the slider's top + Ctrl+click the base's top -> "⧉ Položit …"; the
