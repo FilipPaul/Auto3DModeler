@@ -6,6 +6,10 @@
 // state before as a version first, so it can be undone); ⇄ compares it with the project now (steps added, removed,
 // values "Extrude 1: 10 → 15 mm", the volume); ⑂ makes a variant (a branch, with its own timeline) from it. The
 // variant switcher on top; "Take a part from a variant…" copies one part of another variant's newest version here.
+// A graph of the branches on the rows' left: a coloured lane per variant (the chip by the switcher has its colour),
+// a dot per version, a fork curve from the version a variant was made from; "All variants" shows every variant's
+// versions interleaved by time. A variant is renamed (double-click its name / the switcher's ✎) or deleted (✕ / 🗑,
+// confirmed inline: its versions go with it).
 import { t, getLang } from './i18n.js';
 import { leftDock } from './leftdock.js';
 
@@ -16,6 +20,8 @@ const fmt = (v) => (v === null || v === undefined ? '—' : typeof v === 'number
 const GAP = 180; // s: the server's AUTO_GAP — no thumbnail made for an automatic version it would not keep
 const VID = /^[0-9]{8}-[0-9]{6}-[0-9a-f]{6}(-[0-9]+)?$/; // a version's id (as auto3d/versions.py makes them)
 const WS = ['model', 'assembly'];
+const LW = 14; // px: a lane of the graph of the branches
+const LANE = ['#58a6ff', '#e3a008', '#a371f7', '#3fc1c9', '#f778ba', '#7ee787', '#ff8c5a']; // the variants' colours, in order
 
 async function call(url, body) {
   const res = await fetch(url, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -36,13 +42,17 @@ export class Versions {
     this.lastParts = '';
     this.open = null;      // the version whose comparison is shown
     this.diffs = {};
-    this.ask = null;       // {kind: 'save' | 'variant', vid}: the one field shown
+    this.ask = null;       // {kind: 'save' | 'variant' | 'rename' | 'delete', vid | var}: the one field shown
+    this.all = false;      // every variant's versions together (the graph of the branches), else the one on screen
+    try { this.all = localStorage.getItem('a3d.versionsAll') === '1'; } catch { /* private window */ }
     this.boxes = WS.map((ws) => {
       const w = `versions-${ws}`, box = leftDock.addWidget(w, ws, { title: '🕘 Versions', h: 220, folded: true });
       box.classList.add('vr-box');
       leftDock.show(w, true);
       return box;
     });
+    const ro = new ResizeObserver((es) => { for (const e of es) this.graph(e.target); }); // (shown, unfolded, resized: drawn again)
+    for (const box of this.boxes) ro.observe(box);
     window.addEventListener('a3d:lang', () => this.render());
     this.guard();
   }
@@ -56,7 +66,7 @@ export class Versions {
     const id = this.hooks.id();
     if (!id) return null;
     try {
-      this.data = await call(this.url());
+      this.data = await call(this.url(this.all ? '?all=1' : ''));
       this.open = null; // (a comparison with the project as it was: gone)
       this.pid = id;
       const head = this.data.versions[0];
@@ -176,9 +186,12 @@ export class Versions {
       b.setAttribute('role', 'status');
       (document.querySelector('main.layout') || document.body).appendChild(b);
     }
-    const m = this.preview.m;
-    b.innerHTML = `<span>🕘 ${esc(t2('Viewing the version of {when}', { when: when(m.time) }))}${m.label ? ` — <b data-no-i18n>${esc(m.label)}</b>` : ''} · ${esc(t('read only'))}</span>
-      <button class="btn small" data-vb="back">↩ ${esc(t('Back to current'))}</button><button class="btn small primary" data-vb="restore">⤺ ${esc(t('Restore this version'))}</button>`;
+    const m = this.preview.m, d = this.data;
+    const other = m.variant && d && m.variant !== d.current ? d.variants.find((v) => v.id === m.variant) : null;
+    b.innerHTML = `<span>🕘 ${esc(t2('Viewing the version of {when}', { when: when(m.time) }))}${m.label ? ` — <b data-no-i18n>${esc(m.label)}</b>` : ''}${other
+      ? ` · <i class="vr-chip" style="background:${this.color(other.id)}"></i>${esc(t('variant'))} <b data-no-i18n>${esc(this.varName(other))}</b>` : ''} · ${esc(t('read only'))}</span>
+      <button class="btn small" data-vb="back">↩ ${esc(t('Back to current'))}</button>${other ? `<button class="btn small" data-vb="switch" title="${esc(t('Put this variant on screen (its newest version)'))}">⑂ ${esc(t('Go to this variant'))}</button>` : ''}<button class="btn small primary" data-vb="restore" title="${esc(other ? t('Into the variant on screen') : t('Restore this version'))}">⤺ ${esc(t('Restore this version'))}</button>`;
+    b.querySelector('[data-vb=switch]')?.addEventListener('click', () => this.switchVariant(other.id).catch((e) => this.hooks.toast(e.message, 'error')));
     b.querySelector('[data-vb=back]').addEventListener('click', () => this.back().catch((e) => this.hooks.toast(e.message, 'error')));
     b.querySelector('[data-vb=restore]').addEventListener('click', () => this.restore(this.preview.vid).catch((e) => this.hooks.toast(e.message, 'error')));
   }
@@ -259,6 +272,34 @@ export class Versions {
 
   varName(v) { return v?.name || t('main'); }
 
+  async renameVariant(id, name) {
+    const v = await call(this.url(`/variants/${encodeURIComponent(id)}/rename`), { name });
+    await this.refresh();
+    return v;
+  }
+
+  /** The variant and its versions deleted (not main); the one on screen -> main's newest version on screen. */
+  async deleteVariant(id) {
+    if (this.preview) await this.back();
+    const v = this.data?.variants.find((x) => x.id === id), name = this.varName(v);
+    const r = await call(this.url(`/variants/${encodeURIComponent(id)}/delete`), {});
+    if (r.project) {
+      await this.hooks.load(r.project, { preview: false });
+      await this.hooks.autosave?.saveNow();
+    }
+    await this.refresh();
+    this.hooks.toast(t2('Variant “{name}” deleted with its versions ({n}).', { name, n: r.versions }), 'ok', 6000);
+    return r;
+  }
+
+  /** Every variant's versions together (the graph) or only the one on screen's. */
+  async showAll(on) {
+    this.all = !!on;
+    try { localStorage.setItem('a3d.versionsAll', this.all ? '1' : '0'); } catch { /* private window */ }
+    if (this.all && this.data && !this.data.all) await this.refresh();
+    else this.render();
+  }
+
   /** The parts of the other variants' newest versions: [{variant, name, part, partName}]. */
   async otherParts() {
     const out = [];
@@ -279,13 +320,38 @@ export class Versions {
     return { text: t('automatic'), auto: true };
   }
 
-  row(m, { base = false } = {}) {
-    const l = this.label(m), on = this.preview?.vid === m.id;
-    const cur = !base && m.id === this.data?.versions?.[0]?.id; // (the newest of this variant: what the project is now)
+  /** A variant's colour: its place among the variants (the same in the graph, the chip and the legend). */
+  color(id) {
+    const i = Math.max(0, (this.data?.variants || []).findIndex((v) => v.id === id));
+    return LANE[i % LANE.length];
+  }
+
+  /** The rows shown and their lanes -> {rows: [{m, lane, base}], lanes: [variant ids, left to right]}. Only the
+   *  variant on screen (and the version it was made from), or every variant interleaved by time (this.all). */
+  layout() {
+    const d = this.data;
+    if (!d) return { rows: [], lanes: ['main'] };
+    if (this.all && d.all) {
+      const lanes = d.variants.map((v) => v.id);
+      return { rows: d.all.map((m) => ({ m, lane: Math.max(0, lanes.indexOf(m.variant)) })), lanes };
+    }
+    const lanes = d.base && (d.base.variant || 'main') !== d.current ? [d.base.variant || 'main', d.current] : [d.current];
+    const rows = d.versions.map((m) => ({ m, lane: lanes.length - 1 }));
+    if (d.base) rows.push({ m: d.base, lane: 0, base: true });
+    return { rows, lanes };
+  }
+
+  row(m, { base = false, lane = 0 } = {}) {
+    const d = this.data, l = this.label(m), on = this.preview?.vid === m.id;
+    const curVar = d?.variants?.find((v) => v.id === d.current);
+    const cur = !base && m.id === curVar?.head && (m.variant || 'main') === d.current; // (the newest of the variant on screen: what the project is now)
+    const other = !base && m.variant && m.variant !== d?.current ? d.variants.find((v) => v.id === m.variant) : null;
     const tag = on ? `<span class="vr-tag look">👁 ${esc(t('viewing'))}</span>` : cur ? `<span class="vr-tag cur">● ${esc(t('current'))}</span>` : '';
     const parts = m.changed?.length ? t2('Changed: {parts}', { parts: m.changed.join(', ') }) : '';
     const thumb = m.thumb ? `<img class="vr-thumb" alt="" loading="lazy" src="${esc(this.url(`/v/${m.id}/thumb`))}">` : '<span class="vr-thumb none">🕘</span>';
-    return `<div class="vr-row${on ? ' on' : ''}${cur ? ' cur' : ''}${base ? ' base' : ''}" data-v="${esc(m.id)}" tabindex="0" title="${esc(cur ? t('The current version: the project is as this one (with the changes since)') : t('Click: look at it (read only)'))}">${thumb}
+    const tip = cur ? t('The current version: the project is as this one (with the changes since)')
+      : other ? t2('Variant “{name}” — click: look at it (read only)', { name: this.varName(other) }) : t('Click: look at it (read only)');
+    return `<div class="vr-row${on ? ' on' : ''}${cur ? ' cur' : ''}${base ? ' base' : ''}${other ? ' other' : ''}" data-v="${esc(m.id)}" data-lane="${lane}" data-var="${esc(m.variant || 'main')}" tabindex="0" title="${esc(tip)}">${thumb}
       <div class="vr-text"><span class="vr-when">${base ? '⑂ ' : ''}${esc(when(m.time))}${tag}</span>
         <span class="vr-label${l.auto ? ' auto' : ''}"${l.own ? ' data-no-i18n' : ''}>${esc(l.text)}</span>
         ${parts ? `<span class="vr-parts" data-no-i18n>${esc(parts)}</span>` : ''}</div>
@@ -294,16 +360,34 @@ export class Versions {
       ${this.ask?.kind === 'variant' && this.ask.vid === m.id ? `<input class="vr-ask" data-ask="variant" placeholder="${esc(t('Name of the variant — Enter'))}" maxlength="60">` : ''}`;
   }
 
+  /** The variant switcher, ⑂ All variants, 💾 Save version…; the legend (all variants), the rename field, the delete
+   *  confirmation. */
+  top(vars) {
+    const d = this.data, cur = d?.current || 'main', a = this.ask;
+    const legend = this.all && vars.length > 1 ? `<div class="vr-legend">${vars.map((v) => `<span class="vr-lg${v.id === cur ? ' cur' : ''}" data-var="${esc(v.id)}" title="${esc(t('Double-click: rename'))}">
+        <i class="vr-chip" style="background:${this.color(v.id)}"></i><span class="vr-lgn"${v.name ? ' data-no-i18n' : ''}>${esc(this.varName(v))}</span><small>${v.count ?? ''}</small>${v.id === 'main' ? ''
+        : `<button class="vr-x" data-del="${esc(v.id)}" title="${esc(t('Delete this variant…'))}">✕</button>`}</span>`).join('')}</div>` : '';
+    const delV = a?.kind === 'delete' ? vars.find((v) => v.id === a.var) : null;
+    return `<div class="vr-top"><i class="vr-chip big" style="background:${this.color(cur)}" title="${esc(t('The variant\'s colour in the graph — double-click: rename'))}"></i>
+      <label class="vr-varl">${esc(t('Variant:'))} <select class="vr-var" title="${esc(t('Variants of the project — each with its own versions'))}">${vars.map((v) =>
+        `<option value="${esc(v.id)}"${v.id === cur ? ' selected' : ''}${v.name ? ' data-no-i18n' : ''}>${esc(this.varName(v))}</option>`).join('')}
+        <option disabled>──────</option><option value="@rename">✎ ${esc(t('Rename this variant…'))}</option>${cur !== 'main' ? `<option value="@delete">🗑 ${esc(t('Delete this variant…'))}</option>` : ''}</select></label>
+      ${vars.length > 1 ? `<button class="mini vr-all${this.all ? ' on' : ''}" aria-pressed="${this.all}" title="${esc(t('Show the versions of every variant together, as a graph of the branches'))}">${esc(t('All variants'))}</button>` : ''}
+      <button class="mini vr-save" title="${esc(t('Keep the project as it is now as a named version'))}">💾 ${esc(t('Save version…'))}</button></div>
+      ${legend}
+      ${a?.kind === 'save' ? `<input class="vr-ask" data-ask="save" placeholder="${esc(t('A short description — Enter'))}" maxlength="120">` : ''}
+      ${a?.kind === 'rename' ? `<input class="vr-ask" data-ask="rename" data-no-i18n value="${esc(vars.find((v) => v.id === a.var)?.name || '')}" placeholder="${esc(t('New name of the variant — Enter'))}" maxlength="60">` : ''}
+      ${delV ? `<div class="vr-confirm" role="alertdialog" tabindex="-1"><span>${esc(t2('Delete variant “{name}” with its versions ({n})? It cannot be undone.', { name: this.varName(delV), n: delV.count ?? 0 }))}</span>
+        <button class="mini danger" data-yes title="${esc(t('Delete the variant and all its versions'))}">🗑 ${esc(t('Delete'))}</button><button class="mini" data-no title="${esc(t('Keep the variant (Esc)'))}">${esc(t('Cancel'))}</button></div>` : ''}`;
+  }
+
   render() {
     const d = this.data;
     const vars = d?.variants || [{ id: 'main', name: '' }];
-    const list = d?.versions || [];
-    const html = `<div class="vr-top"><label class="vr-varl">${esc(t('Variant:'))} <select class="vr-var" title="${esc(t('Variants of the project — each with its own versions'))}">${vars.map((v) =>
-      `<option value="${esc(v.id)}"${v.id === d?.current ? ' selected' : ''}>${esc(this.varName(v))}</option>`).join('')}</select></label>
-      <button class="mini vr-save" title="${esc(t('Keep the project as it is now as a named version'))}">💾 ${esc(t('Save version…'))}</button></div>
-      ${this.ask?.kind === 'save' ? `<input class="vr-ask" data-ask="save" placeholder="${esc(t('A short description — Enter'))}" maxlength="120">` : ''}
-      <div class="vr-list">${list.map((m) => this.row(m)).join('') || `<p class="hint">${esc(t('No versions yet — they come by themselves as you work, or 💾 Save version…'))}</p>`}
-      ${d?.base ? this.row(d.base, { base: true }) : ''}</div>
+    const lay = this.lay = this.layout();
+    const html = `${this.top(vars)}
+      <div class="vr-list" style="--vr-lanes:${lay.lanes.length}"><svg class="vr-graph" aria-hidden="true"></svg>${lay.rows.map((r) => this.row(r.m, r)).join('')
+        || `<p class="hint">${esc(t('No versions yet — they come by themselves as you work, or 💾 Save version…'))}</p>`}</div>
       ${vars.length > 1 ? `<select class="vr-take" title="${esc(t('Copy one part as it is in another variant into this one'))}"><option value="">${esc(t('Take a part from a variant…'))}</option></select>` : ''}`;
     for (const box of this.boxes) {
       if (box.contains(document.activeElement) && document.activeElement.matches('.vr-ask')) continue; // (being typed in)
@@ -311,13 +395,72 @@ export class Versions {
       box.innerHTML = html;
       box.scrollTop = top;
       this.wire(box);
+      this.graph(box);
     }
+  }
+
+  /** The graph of the branches, drawn over the rows' left column: a line per variant (the one on screen bolder), a
+   *  dot per version, the fork a curve from the version a variant was made from into its lane; the newest version of
+   *  the variant on screen a ringed dot (● current). */
+  graph(box) {
+    const list = box.querySelector('.vr-list'), svg = list?.querySelector('.vr-graph');
+    if (!svg || !list.offsetParent || !this.lay) return; // (folded / the other workspace: drawn when shown)
+    const d = this.data, lanes = this.lay.lanes, X = (l) => 8 + l * LW;
+    const rows = [...list.querySelectorAll('.vr-row')].map((r) => ({ id: r.dataset.v, lane: +r.dataset.lane, base: r.classList.contains('base'),
+      y: Math.round(r.offsetTop + r.offsetHeight / 2), h: r.offsetHeight }));
+    const at = {};
+    for (const r of rows) at[r.id] = r;
+    let lines = '', dots = '';
+    lanes.forEach((vid, l) => {
+      const v = d?.variants?.find((x) => x.id === vid), c = this.color(vid), cur = vid === (d?.current || 'main');
+      const mine = rows.filter((r) => r.lane === l && !r.base), b = v?.base && at[v.base];
+      const cls = `vr-ln${cur ? ' cur' : ''}`;
+      if (mine.length > 1) lines += `<path class="${cls}" data-lane="${l}" data-var="${esc(vid)}" stroke="${c}" d="M${X(l)} ${mine[0].y}V${mine.at(-1).y}"/>`;
+      if (b && b.lane !== l) { // the fork: from the base version's dot up into this lane
+        const y0 = mine.length ? mine.at(-1).y : Math.max(3, b.y - b.h / 2), xb = X(b.lane), xl = X(l);
+        lines += `<path class="${cls} vr-fork" data-from="${esc(b.id)}" data-var="${esc(vid)}" stroke="${c}" d="M${xl} ${y0}V${Math.max(y0, b.y - 18)}C${xl} ${b.y - 6} ${xb} ${b.y - 12} ${xb} ${b.y}"/>`;
+      }
+    });
+    for (const v of d?.variants || []) { // (one variant shown: the others made from its versions, a stub of their colour)
+      const b = !lanes.includes(v.id) && v.base && at[v.base];
+      if (b) lines += `<path class="vr-ln vr-stub" data-from="${esc(b.id)}" data-var="${esc(v.id)}" stroke="${this.color(v.id)}" d="M${X(b.lane)} ${b.y}C${X(b.lane)} ${b.y - 7} ${X(b.lane) + 8} ${b.y - 6} ${X(b.lane) + 8} ${b.y - 14}"/>`;
+    }
+    for (const r of rows) {
+      const vid = lanes[r.lane], v = d?.variants?.find((x) => x.id === vid), c = this.color(vid);
+      const cur = vid === (d?.current || 'main'), head = !r.base && v?.head === r.id;
+      const look = this.preview?.vid === r.id;
+      const cls = `vr-dot${cur ? ' cur' : ''}${head ? ' head' : ''}${r.base ? ' base' : ''}`;
+      const ring = head && cur ? `<circle class="vr-ring" cx="${X(r.lane)}" cy="${r.y}" r="6.5" stroke="#3fb950"/>`
+        : head ? `<circle class="vr-ring" cx="${X(r.lane)}" cy="${r.y}" r="6.5" stroke="${c}"/>` : '';
+      dots += `${ring}${look ? `<circle class="vr-ring look" cx="${X(r.lane)}" cy="${r.y}" r="8"/>` : ''}<circle class="${cls}" data-v="${esc(r.id)}" data-lane="${r.lane}" cx="${X(r.lane)}" cy="${r.y}" r="${head ? 4.5 : 3.5}" fill="${r.base ? 'var(--panel)' : c}" stroke="${c}"/>`;
+    }
+    svg.setAttribute('width', String(lanes.length * LW + 4));
+    svg.setAttribute('height', String(list.scrollHeight));
+    svg.innerHTML = lines + dots;
   }
 
   wire(box) {
     const err = (e) => this.hooks.toast(e.message, 'error', 7000);
-    box.querySelector('.vr-var').addEventListener('change', (e) => this.switchVariant(e.target.value).catch(err));
+    const sel = box.querySelector('.vr-var'), cur = this.data?.current || 'main';
+    sel.addEventListener('change', (e) => {
+      const v = e.target.value;
+      if (v === '@rename' || v === '@delete') { sel.value = cur; this.ask = { kind: v.slice(1), var: cur }; this.render(); this.focusAsk(box); return; }
+      this.switchVariant(v).catch(err);
+    });
+    const rename = (id) => { this.ask = { kind: 'rename', var: id }; this.render(); this.focusAsk(box); };
+    box.querySelector('.vr-top .vr-chip').addEventListener('dblclick', () => rename(cur));
+    box.querySelector('.vr-varl').addEventListener('dblclick', (e) => { if (e.target !== sel) rename(cur); });
+    for (const lg of box.querySelectorAll('.vr-lg')) lg.addEventListener('dblclick', (e) => { if (!e.target.closest('button')) rename(lg.dataset.var); });
+    for (const x of box.querySelectorAll('.vr-x')) x.addEventListener('click', () => { this.ask = { kind: 'delete', var: x.dataset.del }; this.render(); this.focusAsk(box); });
+    box.querySelector('.vr-all')?.addEventListener('click', () => this.showAll(!this.all).catch(err));
     box.querySelector('.vr-save').addEventListener('click', () => { this.ask = this.ask?.kind === 'save' ? null : { kind: 'save' }; this.render(); this.focusAsk(box); });
+    const conf = box.querySelector('.vr-confirm');
+    if (conf) {
+      const id = this.ask.var, no = () => { this.ask = null; this.render(); };
+      conf.querySelector('[data-yes]').addEventListener('click', () => { this.ask = null; this.deleteVariant(id).catch(err); });
+      conf.querySelector('[data-no]').addEventListener('click', no);
+      conf.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); no(); } });
+    }
     for (const row of box.querySelectorAll('.vr-row')) {
       const vid = row.dataset.v;
       row.addEventListener('click', (e) => { if (!e.target.closest('button')) this.previewVersion(vid).catch(err); });
@@ -331,13 +474,14 @@ export class Versions {
     const ask = box.querySelector('.vr-ask');
     ask?.addEventListener('keydown', (e) => {
       e.stopPropagation();
-      if (e.key === 'Escape') { this.ask = null; this.render(); return; }
+      if (e.key === 'Escape') { this.ask = null; ask.blur(); this.render(); return; }
       if (e.key !== 'Enter') return;
       const text = ask.value.trim(), a = this.ask;
-      if (a.kind === 'variant' && !text) return;
+      if ((a.kind === 'variant' || (a.kind === 'rename' && a.var !== 'main')) && !text) return;
       this.ask = null;
       ask.blur();
       if (a.kind === 'save') this.save(text || t('Saved by hand')).then((m) => m && this.hooks.toast(t2('Version “{label}” saved.', { label: m.label }), 'ok')).catch(err);
+      else if (a.kind === 'rename') this.renameVariant(a.var, text).catch(err);
       else this.createVariant(a.vid, text).catch(err);
     });
     const take = box.querySelector('.vr-take');
@@ -355,11 +499,12 @@ export class Versions {
     }
   }
 
-  focusAsk(box) { setTimeout(() => box.querySelector('.vr-ask')?.focus(), 0); }
+  focusAsk(box) { setTimeout(() => box.querySelector('.vr-ask, .vr-confirm [data-no]')?.focus(), 0); }
 
   // ------------------------------------------------------------------------------------------ the AI's tools
   handlers() {
-    const brief = (m) => ({ id: m.id, time: new Date(m.time * 1000).toISOString(), label: this.label(m).text, auto: !!m.auto, changed: m.changed || [], ...(m.note ? { note: m.note.what } : {}) });
+    const brief = (m) => ({ id: m.id, time: new Date(m.time * 1000).toISOString(), label: this.label(m).text, auto: !!m.auto, changed: m.changed || [],
+      parent: m.parent || null, variant: m.variant || 'main', ...(m.note ? { note: m.note.what } : {}) });
     const need = async () => { if (!this.data || this.pid !== this.hooks.id()) await this.refresh(); if (!this.data) throw new Error('No versions here yet — save_version keeps one.'); };
     const variantOf = (which) => { // its id or name (list_versions variants)
       const w = String(which ?? '').trim().toLowerCase(), vs = this.data.variants;
@@ -372,7 +517,7 @@ export class Versions {
         await need();
         const d = this.data;
         return { text: JSON.stringify({ variant: { id: d.current, name: this.varName(d.variants.find((v) => v.id === d.current)) },
-          variants: d.variants.map((v) => ({ id: v.id, name: this.varName(v), head: v.head })), versions: d.versions.map(brief), ...(d.base ? { made_from: brief(d.base) } : {}),
+          variants: d.variants.map((v) => ({ id: v.id, name: this.varName(v), head: v.head, made_from: v.base || null, versions: v.count ?? null })), versions: d.versions.map(brief), ...(d.base ? { made_from: brief(d.base) } : {}),
           previewing: this.preview?.vid || null }) };
       },
       save_version: async ({ label } = {}) => {
@@ -403,6 +548,18 @@ export class Versions {
         if (v.id === this.data.current) return { text: `“${this.varName(v)}” is the variant on screen already.` };
         await this.switchVariant(v.id);
         return { text: JSON.stringify({ variant: { id: v.id, name: this.varName(v) }, parts: (this.hooks.project()?.parts || []).map((p) => p.name) }) };
+      },
+      rename_variant: async ({ variant, name } = {}) => {
+        await need();
+        const v = variantOf(variant);
+        const r = await this.renameVariant(v.id, String(name ?? '').trim());
+        return { text: JSON.stringify({ variant: { id: r.id, name: this.varName(r) } }) };
+      },
+      delete_variant: async ({ variant } = {}) => {
+        await need();
+        const v = variantOf(variant);
+        const r = await this.deleteVariant(v.id);
+        return { text: JSON.stringify({ deleted: { id: v.id, name: this.varName(v) }, versions_deleted: r.versions, on_screen: this.varName(this.data.variants.find((x) => x.id === r.current)) }) };
       },
       take_part: async ({ variant, part } = {}) => {
         await need();

@@ -441,8 +441,11 @@ Never report "works" without having run it; report failures with their output.
    10 -> 15, "B"; both with thumbnails; ⇄ "Vysunutí 1: 10 → 15 mm" and "Objem: 2000 → 3000 mm³"; a click on A: the
    banner, 10, read only — ＋ New 3D model, Ctrl+Z, Delete do nothing, no autosave; ↩ back: 15; ⤺ restore A: 10, B and
    "Před obnovením" listed, ↶ in the toast; ⑂ variant "delší" from B: its own empty timeline, 40; switched to hlavní: 10;
-   the part taken from "delší": 40; reload keeps it all; Save project with the history -> opened: the versions back).
-   Screenshots versions_*.png. Ends ALL OK / FAILED.
+   the part taken from "delší": 40; reload keeps it all; Save project with the history -> opened: the versions back;
+   at 1280×800 the graph of the branches: "kratší" from A alone = its lane + the fork row, Všechny varianty = 3 lanes,
+   the forks at B's and A's dots, the lane on screen bolder and its head ringed; C of "delší" previewed: the banner names
+   the variant; rename by double-click in the legend; delete with the inline confirm (Zrušit keeps it); the default view
+   main only with a stub at B). Screenshots versions_*.png (versions_graph_all*.png: the graph). Ends ALL OK / FAILED.
    `tools/e2e_ux_shell.py <url> <dir>` covers the app's shell for a new user, in Czech at 1280×800 (it clears the
    server's recent projects first): the start screen (✏ Nový díl, 📂 Otevřít soubor, 🎬 Demo, ✨ Zeptat se AI; ≤ 14
    controls in sight, no quick-part panels, → between the cards); ✨ opens the chat beside it; ✏ makes a 3D model (the
