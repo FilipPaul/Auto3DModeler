@@ -245,9 +245,9 @@ class AsmView extends ModelView {
 
   /** For 📏 Measure: the spot under the mouse — a corner of a part's edge when one is near (10 px), else the point on
    *  the face — with that face (world) and the part: {point, corner, face, inst} or null. */
-  measurePoint(clientX, clientY) {
+  measurePoint(clientX, clientY, px = 10) {
     const h = this.pickInst(clientX, clientY), r = this.renderer.domElement.getBoundingClientRect();
-    const s = snapNear((this.meshes || []).map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), this.camera, r, clientX, clientY, 10, snapKinds());
+    const s = snapNear((this.meshes || []).map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), this.camera, r, clientX, clientY, px, snapKinds());
     if (!s && !h?.point) return null;
     return { point: s ? s.point : h.point.clone(), corner: s?.kind === 'corner', snap: s?.kind || null, face: s ? null : h?.face || null, inst: s ? s.inst : h.inst };
   }
@@ -2830,11 +2830,11 @@ export class Assembly {
     if (key !== v.hoverSnapKey) v.setHoverSnaps(snapPoints(body.edges.filter((ed) => ed.faces.includes(fi)), mesh.matrix, kinds), key);
   }
 
-  /** The snap point a plain click (no tool on) takes: a corner, an edge's middle, a centre — but on a hole's or pin's
-   *  round face, or near its rim, only a corner: the click picks that round face then (a small hole or pin seen from
-   *  afar is mostly the snap circles of its centre and its seam's middle; joining wants the face). */
+  /** The snap point a plain click (no tool on) takes: a corner, an edge's middle, a centre within 5 px (📏 Measure: 10)
+   *  — but on a hole's or pin's round face, or near its rim, only a corner: the click picks that face then (a thin side
+   *  or a small pin seen from afar would be all snap circles; joining wants the face). */
   idleSnap(e, h) {
-    const sp = this.view.measurePoint(e.clientX, e.clientY);
+    const sp = this.view.measurePoint(e.clientX, e.clientY, 5);
     if (sp?.snap && sp.snap !== 'corner' && (h?.face?.type === 'cylinder' || this.view.roundEdgeAt(e.clientX, e.clientY))) return null;
     return sp;
   }
