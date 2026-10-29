@@ -1171,12 +1171,14 @@ export class Modeler {
       this.limitsFor(this.part.features, edit.stepId).then((lim) => {
         const r = lim[edit.field];
         if (!r || this.dimEdit !== box) return;
+        const approx = (lim._approx || []).includes(edit.field); // (a rounding's max found to 1 %: a bit more may fit)
         [lo, hi] = r;
         Object.assign(slider, { min: String(lo), max: String(hi) });
-        Object.assign(num, { min: String(lo), max: String(hi) });
+        Object.assign(num, { min: String(lo), max: String(approx ? +(hi * 1.02).toFixed(2) : hi) });
         const tag = document.createElement('div');
         tag.className = 'mp-range';
-        tag.textContent = `${fmt(lo)} – ${fmt(hi)}${edit.unit || (edit.int ? '' : ' mm')}`;
+        tag.textContent = `${fmt(lo)} – ${approx ? '≈' : ''}${fmt(hi)}${edit.unit || (edit.int ? '' : ' mm')}`;
+        if (approx) hi = +(hi * 1.02).toFixed(2);
         slider.after(tag);
       });
     }
@@ -2158,7 +2160,7 @@ export class Modeler {
       sl.addEventListener('change', () => num.dispatchEvent(new Event('change', { bubbles: true })));
       num.addEventListener('input', () => {
         const v = isPlain(num.value) ? parseFloat(num.value) : NaN, lo = num.min !== '' ? +num.min : -Infinity, hi = num.max !== '' ? +num.max : Infinity; // (an expression: held to the range once worked out)
-        if (Number.isFinite(v) && (v > hi || v < lo)) {
+        if (Number.isFinite(v) && (v > (num.dataset.top ? +num.dataset.top : hi) || v < lo)) { // (≈ max: a little above it may fit)
           num.value = fmt(Math.min(hi, Math.max(lo, v)));
           this.hooks.toast(t2('{v} is the most that works here (with what is around it).', { v: num.value }), 'info', 2500);
         }
@@ -2212,12 +2214,15 @@ export class Modeler {
     this.applyLimits(this.$('.mp-body'), lim);
   }
 
-  /** Numbers and sliders held to their ranges; the range shown under the slider; a value outside is pulled in. */
+  /** Numbers and sliders held to their ranges; the range shown under the slider; a value outside is pulled in.
+   *  An approximate max (lim._approx: a rounding's, found to 1 %) shows "≈"; a number up to 2 % above it is left as typed. */
   applyLimits(box, lim) {
-    for (const [k, [lo, hi]] of Object.entries(lim || {})) {
+    for (const [k, [lo, hi]] of Object.entries(lim || {}).filter(([q]) => !q.startsWith('_'))) {
+      const approx = (lim._approx || []).includes(k), top = approx ? +(hi * 1.02).toFixed(2) : hi;
       for (const num of box.querySelectorAll(`input[type=number][data-k="${k}"], input.px-in[data-k="${k}"]`)) {
         num.min = String(lo);
         num.max = String(hi);
+        if (approx) num.dataset.top = String(top); else delete num.dataset.top; // (typed up to it: left as it is)
         const sl = num.closest('.field, label, .mp-hd')?.nextElementSibling;
         if (sl?.classList.contains('mp-slider')) {
           const st = +sl.step || 0.1;
@@ -2225,10 +2230,10 @@ export class Modeler {
           sl.max = String(hi);
           let tag = sl.nextElementSibling;
           if (!tag?.classList.contains('mp-range')) { tag = document.createElement('div'); tag.className = 'mp-range'; sl.after(tag); }
-          tag.textContent = `${fmt(lo)} – ${fmt(hi)}${k === 'count' ? '' : k === 'angle' ? '°' : ' mm'}`;
+          tag.textContent = `${fmt(lo)} – ${approx ? '≈' : ''}${fmt(hi)}${k === 'count' ? '' : k === 'angle' ? '°' : ' mm'}`;
         }
         const v = isPlain(num.value) ? parseFloat(num.value) : NaN;
-        if (Number.isFinite(v) && (v > hi || v < lo)) {
+        if (Number.isFinite(v) && (v > top || v < lo)) {
           num.value = fmt(Math.min(hi, Math.max(lo, v)));
           num.dispatchEvent(new Event('input', { bubbles: true }));
         }

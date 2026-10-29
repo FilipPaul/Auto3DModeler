@@ -9,7 +9,13 @@ Date: 2026-10-25. Written by the architect agent.
 
 - **UX review leftovers (2026-10-29)**: Export ▾ in the top bar works on a 📄 drawing sheet (PDF, DXF, 🖨 Print —
   only those shown: styles.css hides the 3D formats there) and in a 📐 2D drawing (DXF of the shown layers); tests:
-  e2e_ux_sheet.
+  e2e_ux_sheet. **/api/model/limits of a fillet next to a hole** (40 × 30 × 10, Ø10 4 mm from the edge) took > 120 s
+  and gave a 500: each failing trial ran _sized's own 18-step search, and OpenCASCADE builds radii just below the
+  limit (8.98 of 8.985) for 10–18 s each. Now limits' trials only need a no (doc._explain), a rounding's range is
+  found to 1 % (marked "_approx": the panel shows "≈ 8.94" and lets a typed value up to 2 % above it stand), every
+  search stops after SIZE_BUDGET 2 s or a trial slower than 0.4 s (also _sized's "at most": that plate's r 9 now
+  ~11 s, was ~60 s); the endpoint answers {_error} instead of a 500 (timeout 30 s). That plate: 0.08 s in-process,
+  1.4 s over HTTP; tests: test_limits_of_a_rounding_next_to_a_hole_answer_fast, e2e_model_limits.
 - **Assembly: suggestion-based and compact done** (the owner: "90 % základních věcí ze suggestions"; audit of 22 basic
   tasks: 8 → 20 doable from the Suggested table alone, the crank built from its four parts in 14 clicks instead of
   ≈ 27 with four Ctrl+clicks on small faces). assembly/smart.js: pinFits (a free round face of the chosen part and one

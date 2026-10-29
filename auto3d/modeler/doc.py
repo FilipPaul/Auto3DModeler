@@ -41,6 +41,7 @@ import hashlib
 import math
 import json
 import re
+import time
 from collections import OrderedDict
 
 import numpy as np
@@ -877,15 +878,25 @@ def _hole_from_edges(f, fr, st, s):
     return pts
 
 
+# Trying sizes: OpenCASCADE's fillet fails fast when a radius is too big, but right below the biggest one that works
+# (a rounding next to a hole: 8.98 of 8.985 mm) it may crawl for 15 s and succeed — so a search stops there.
+SIZE_BUDGET = 2.0  # s: the trial builds of one search (_sized's "at most", limits()); past it: the best found so far
+SLOW_TRIAL = 0.4  # s: a trial build this slow is next to the limit — no closer
+_explain = [True]  # _sized looks for the most that fits (False: limits() is trying sizes itself, it only needs a no)
+
+
 def _sized(make, v, what, unit, impossible):
     """make(v) -> a body; when it fails, say why: no size works at all, or this one is too big (and the most that
-    works, found by trying)."""
+    works, found by trying — within SIZE_BUDGET)."""
     try:
         return make(v)
     except K.KernelError:
-        pass
+        if not _explain[0]:
+            raise
+    end, slow = time.monotonic() + SIZE_BUDGET, [False]
 
     def ok(x):
+        t0 = time.monotonic()
         try:
             make(x)
             return True
@@ -893,11 +904,15 @@ def _sized(make, v, what, unit, impossible):
             return False
         except Exception:  # noqa: BLE001
             return False
+        finally:
+            slow[0] = time.monotonic() - t0 > SLOW_TRIAL
     small = min(v, 0.05)
     if not ok(small):
         raise K.KernelError(impossible) from None
     lo, hi = small, v
     for _ in range(18):
+        if slow[0] or time.monotonic() > end or hi - lo < 0.005:
+            break
         mid = (lo + hi) / 2
         if ok(mid):
             lo = mid
@@ -1240,7 +1255,10 @@ _limit_cache: OrderedDict = OrderedDict()
 def limits(features, fid):
     """The range each number of step `fid` can take with the steps before it as they are: {field: [min, max]}.
     Found by building the step at trial values (it fails, or — a pattern — changes nothing, outside the range).
-    A field with no limit up to a generous size gets that size as its max."""
+    A field with no limit up to a generous size gets that size as its max. The search takes at most about
+    SIZE_BUDGET s and a rounding's (fillet / chamfer) is found to 1 % (next to a hole its builds crawl near the
+    limit): a range not found to 0.01 is the values known to work, its field listed in "_approx" (the true limit
+    may be a little further)."""
     i = next((k for k, f in enumerate(features) if f.get("id") == fid), None)
     if i is None:
         raise K.KernelError("No such step.")
@@ -1254,13 +1272,20 @@ def limits(features, fid):
     bb = K.bbox(st0.body.shape) if st0.body is not None else None
     size = max((bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2])) if bb else 100.0
     base_vol = K.volume(st0.body.shape) if st0.body is not None else 0.0
+    end, approx, slow = time.monotonic() + SIZE_BUDGET, set(), [False]
+    rounding = f.get("type") in ("fillet", "chamfer")
 
     def works(field, v):
         st, s = st0.copy(), {"warnings": [], "issues": []}
+        t0 = time.monotonic()
+        _explain[0] = False  # (a no is enough: not _sized's own search for the most that fits)
         try:
             _apply({**f, field: v}, st, s)
         except Exception:  # noqa: BLE001 — any failure: this value does not work
             return False
+        finally:
+            _explain[0] = True
+            slow[0] = slow[0] or time.monotonic() - t0 > SLOW_TRIAL
         if st.body is None:
             return False
         if f.get("type") == "pattern" and abs(K.volume(st.body.shape) - base_vol) < 1e-9:
@@ -1293,8 +1318,16 @@ def limits(features, fid):
             continue
 
         def edge(bad, ok):  # the last value that works between ok (works) and bad (does not)
+            slow[0] = False
             for _ in range(16 if not integer else 12):
                 if integer and abs(bad - ok) <= 1:
+                    break
+                if not integer and abs(bad - ok) < (max(0.005, abs(ok) * 0.01) if rounding else 0.005):
+                    if abs(bad - ok) > 0.01:  # (a rounding to 1 %: closer, its builds may crawl — see SIZE_BUDGET)
+                        approx.add(field)
+                    break
+                if slow[0] or time.monotonic() > end:  # (out of time, or next to the limit: what works so far)
+                    approx.add(field)
                     break
                 mid = (ok + bad) // 2 if integer else (ok + bad) / 2
                 if works(field, mid):
@@ -1309,7 +1342,10 @@ def limits(features, fid):
             out[field] = [int(lo), int(hi)]
         else:
             out[field] = [round(math.ceil(lo * 100) / 100, 2), round(math.floor(hi * 100) / 100, 2)]
+        slow[0] = False
     _cap_by_thickness(f, st0, out)
+    if approx:
+        out["_approx"] = sorted(approx)
     _limit_cache[key] = out
     while len(_limit_cache) > CACHE_SIZE:
         _limit_cache.popitem(last=False)

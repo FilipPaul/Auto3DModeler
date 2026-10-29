@@ -4,6 +4,7 @@ the same edge when an earlier size changes. Skipped without the CAD kernel.
 Run:  python -m unittest discover -s tests -v
 """
 import math
+import time
 import unittest
 
 import numpy as np
@@ -1097,8 +1098,11 @@ class TestFeatures(unittest.TestCase):
     def test_limits(self):
         top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
         fil = {"id": "F1", "type": "fillet", "edges": [{"a": "E1:end", "b": "E1:side:l1", "fp": [20, 0, 10]}], "r": 2}
-        self.assertEqual(doc.limits(box() + [fil], "F1"), {"r": [0.01, 9.99]})  # a 10 mm high edge
-        sh = {"id": "F1", "type": "shell", "faces": [{"name": "E1:end", "fp": [20, 10, 10]}], "t": 2}
+        lim = doc.limits(box() + [fil], "F1")  # a 10 mm high edge: a rounding's max found to 1 %, said to be approximate
+        self.assertEqual(lim["r"][0], 0.01)
+        self.assertTrue(9.9 <= lim["r"][1] <= 9.99, lim)
+        self.assertEqual(lim["_approx"], ["r"])
+        sh ={"id": "F1", "type": "shell", "faces": [{"name": "E1:end", "fp": [20, 10, 10]}], "t": 2}
         self.assertEqual(doc.limits(box() + [sh], "F1"), {"t": [0.01, 4.99]})
         hole = {"id": "F1", "type": "hole", "plane": top, "points": [[0, 0]], "d": 5, "through": False, "depth": 4}
         self.assertEqual(doc.limits(box() + [hole], "F1"), {"d": [0.01, 20], "depth": [0.01, 10]})  # through the 10 mm part
@@ -1110,6 +1114,25 @@ class TestFeatures(unittest.TestCase):
         self.assertIn("cannot be hollowed out", r["features"][-1]["issues"][0])
         r, _ = vol(*box(), {**sh, "t": 7})
         self.assertIn("at most 4.99 mm", r["features"][-1]["issues"][0])
+
+    def test_limits_of_a_rounding_next_to_a_hole_answer_fast(self):
+        # a 40 × 30 × 10 plate, a Ø10 hole 4 mm from the front edge, that edge rounded: OpenCASCADE builds radii right
+        # below the most that fits (≈ 8.985 mm) for 10–18 s each — the search used to take over 120 s (a 500)
+        top = {"face": {"name": "E1:end"}, "frame": {"o": [20, 15, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}
+        hole = {"id": "H1", "type": "hole", "plane": top, "points": [[0, -6]], "d": 10, "through": True}
+        fil = {"id": "F1", "type": "fillet", "edges": [{"a": "E1:end", "b": "E1:side:l1", "fp": [20, 0, 10]}], "r": 2}
+        feats = box(40, 30, 10) + [hole, fil]
+        r, v = vol(*feats)
+        self.assertTrue(r["features"][-1]["ok"], r["features"][-1])
+        self.assertLess(v, 40 * 30 * 10 - math.pi * 25 * 10)  # rounded: less than the plate with its hole
+        t0 = time.monotonic()
+        lim = doc.limits(feats, "F1")
+        self.assertLess(time.monotonic() - t0, 5)
+        lo, hi = lim["r"]
+        self.assertEqual(lo, 0.01)
+        self.assertTrue(8.8 <= hi <= 8.98, lim)  # a radius that works, within 1 % of the most
+        r, _ = vol(*box(40, 30, 10), hole, {**fil, "r": hi})
+        self.assertTrue(r["features"][-1]["ok"], r["features"][-1])
 
 
 @unittest.skipUnless(OCC, "OCP not installed")

@@ -1196,9 +1196,12 @@ def api_model_sketch_solve():
 
 @app.post("/api/model/limits")
 def api_model_limits():
-    """{part: {features}, id} -> {field: [min, max]}: the values each number of that step can take."""
+    """{part: {features}, id} -> {field: [min, max], _approx: [field…]}: the values each number of that step can take.
+    Only a hint for the sliders: a kernel failure (or a search past 30 s) gives no ranges ({_error}), not a 500."""
     body = request.get_json(force=True)
-    data, err = _model_call("limits", {"features": (body.get("part") or {}).get("features") or [], "id": body.get("id")})
+    data, err = _model_call("limits", {"features": (body.get("part") or {}).get("features") or [], "id": body.get("id")}, timeout=30)
+    if err and err[1] == 500:
+        return jsonify({"_error": err[0].get_json().get("error")})
     if err:
         return err
     return jsonify(data)

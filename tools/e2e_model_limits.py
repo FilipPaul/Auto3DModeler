@@ -1,5 +1,5 @@
 """Value ranges in the 3D tools, in headless Edge: a 40 x 20 x 10 box -> Fillet on a top edge: its slider runs 0.01 –
-9.99 (what OpenCASCADE can build there; the range shows under it), typing 15 is held at 9.99 (a notice) and the step
+≈ 9.94 (what OpenCASCADE can build there, found to 1 %; the range shows under it), typing 15 is held at 9.94 (a notice) and the step
 builds (no "does not fit" warning) -> Shell next to that rounding: no wall works, and the panel says why -> Hole (blind): depth up to the box's 10 -> Pattern:
 count up to what still reaches the part -> the R label on the part (3D size editor): the same range.
 
