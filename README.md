@@ -799,6 +799,11 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   part the closing rod is on); **⋯** picks another driver, the speed (½× 1× 2×), **⚠ Check the travel** (collisions over
   the whole turn) and **📈 Trace** (a curve: how the slider moves over the crank's turn). Nothing shows in an
   assembly without one.
+- **Drag a part in the view**: choose a joined part, then drag it in the 3D view (the cursor shows a hand): it moves
+  the way its joints leave free — a crank turns round its shaft after the mouse, a slider slides along its line — and
+  every part joined to it follows live (the rod and the slider of a crank; a forearm and its gripper on a turning
+  arm). Grabbing any part of a closed loop (the rod) turns the loop's driver. Elsewhere a drag turns the view as
+  always.
 - **Name the motions**: double-click a motion's name in the part's panel or in ⚙ Mechanism (*"Dvojklik: dát mu
   vlastní název"*) — "Otáčení kliky" instead of "Turn about the axis of …"; double-click a mechanism's name for its
   own. The names are kept in the assembly (undo, save and open again) and show everywhere: the panel, the widget, the

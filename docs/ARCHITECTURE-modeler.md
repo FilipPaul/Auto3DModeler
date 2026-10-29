@@ -7,6 +7,18 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **A part dragged in the 3D view moves its whole mechanism done** (the owner: "the parts move as a whole, by their
+  joints"): there was no way to move a part with the mouse — a drag always turned the view. web/js/assembly/drag.js
+  startDrag(asm, id, press): the chosen part under the mouse (a capture listener on the viewport, before the view's
+  controls; their `enabled` off while it drags) — a part of a closed-loop mechanism drives the loop's driver, else
+  its own motion (an axis turn first, else a slide along an axis, else the first); a turn follows the angle of the
+  mouse's ray on the plane across the axis through the grabbed point (unwrapped past ±180°), a slide the nearest
+  point of its line to the ray; each move Assembly.moveFree by the change (limits kept), so placeAll carries the
+  parts hanging on it (an open chain) and closeLoops solves the loop; one undo step when let go. The cursor: a hand
+  over the chosen part that can move. Assembly.refresh renders ⚙ Mechanism and the toolbar once the loops are known
+  (an opened project showed none until the next change). Checked: the crank dragged ~90° — the slider at the formula
+  (e2e_assembly_mechanism), the demos' crank, four-bar crank and robot arm (e2e_demos).
+
 - **⚙ Mechanism widget and named motions done** (the owner: "a slider should set the motions of all the parts, not
   one — for simulating whole systems"; "let the motions be named"). The owner's project "Klikový mechanismus" had lost
   its closing joint J9 (the rod's second eye on the slider's pin — the AI removed it, report 2026-10-29 01:51:11);

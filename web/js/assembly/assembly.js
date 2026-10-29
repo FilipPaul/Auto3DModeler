@@ -43,6 +43,7 @@ import { bomOf, bomCsv, instanceTree } from './bom.js';
 import { openBomWindow } from './bomview.js';
 import { kindIcon, fromLibrary } from '../parts.js';
 import { MechanismPanel, driveTo } from './mechanism.js';
+import { startDrag } from './drag.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -2908,6 +2909,25 @@ export class Assembly {
       if (!this.modelParts().some((q) => q.id === pid)) { this.hooks.toast(t('That part cannot go into this assembly (a drawing, or the assembly itself).'), 'warning', 5000); return; }
       await this.insert(pid);
     });
+    // the chosen part dragged: it moves the way its joints let it (a crank turns, the rod and slider follow) — before
+    // the view's own turning sees the press (capture); elsewhere a drag turns the view as always
+    vp.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || e.target !== cv || !this.sel || this.mode !== 'idle' || this.measuring || this.painting || this.bolt || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      const drag = startDrag(this, this.sel, e);
+      if (!drag) return;
+      this.mech?.stop(false);
+      this.view.controls.enabled = false;
+      cv.style.cursor = 'grabbing';
+      const move = (ev) => drag.move(ev), up = () => {
+        window.removeEventListener('pointermove', move, true);
+        window.removeEventListener('pointerup', up, true);
+        this.view.controls.enabled = true;
+        cv.style.cursor = '';
+        drag.end();
+      };
+      window.addEventListener('pointermove', move, true);
+      window.addEventListener('pointerup', up, true);
+    }, true);
     let down = null;
     cv.addEventListener('pointerdown', (e) => {
       if (this.hoverEv) hoverNow(); // (a move not shown yet: as it came, before the press)
@@ -2939,7 +2959,7 @@ export class Assembly {
       const id = h?.inst || null;
       if (id !== this.hoverInst) { this.hoverInst = id; this.draw(); }
       this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); // (a corner, an edge's middle, a centre: it can be picked)
-      cv.style.cursor = h ? 'pointer' : '';
+      cv.style.cursor = !h ? '' : h.inst === this.sel && (this.dof?.count || this.mech?.list.some((m) => m.parts.includes(h.inst))) ? 'grab' : 'pointer'; // (the chosen part that can move: drag it)
     };
     cv.addEventListener('pointerleave', () => { this.hoverEv = null; this.view.clearHoverMarks(); });
     cv.addEventListener('dblclick', (e) => { // a part double-clicked: edit it here (when unlocked)

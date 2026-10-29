@@ -2,7 +2,7 @@
 the left column with the crank as its driver -> its slider to 90°: the slider's pin at x = r·cosθ + √(L² − r²·sin²θ)
 -> ▶ plays (the parts move, the formula holds), ⏸ stops it where it is -> the mechanism and the crank's motion named by a
 double-click (get_assembly, the part panel, undo / redo, the project saved and opened again) -> the AI's
-drive_mechanism / name_motion -> ✕ closes the
+drive_mechanism / name_motion -> the crank dragged round in the 3D view: the rod and the slider follow -> ✕ closes the
 widget, ⚙ Mechanism in the toolbar opens it -> Czech labels -> a plain assembly (two plates touching): no widget, no
 button.
 
@@ -234,6 +234,37 @@ try:
     check(abs(x - 110) < 0.05 and mech()["driver"]["part"] == "I4", f"the slider at 110 mm: {x:.3f}")
     r = call("drive_mechanism", driver="I2 motion 0", name="Klikový mechanismus")
     check(mech()["name"] == "Klikový mechanismus" and mech()["driver"]["part"] == "I2", "drive_mechanism: renamed, the crank drives again")
+
+    # the crank dragged round in the view: the rod and the slider follow
+    call("drive_mechanism", to=0)
+    js(f"{A}.choose('I2'); {A}.view.setView('top')")
+    time.sleep(0.8)
+    cv = js(f"return {A}.view.renderer.domElement")
+    scr = lambda p: js(f"const r = arguments[0].getBoundingClientRect(), v = new window.__THREE.Vector3(...arguments[1]).project({A}.view.camera); return [(v.x + 1) / 2 * r.width - r.width / 2, (1 - v.y) / 2 * r.height - r.height / 2]", cv, p)  # noqa: E731
+    js(f"window.__THREE = {{ Vector3: {A}.view.camera.position.constructor }}")  # (three.js' Vector3: the screen place of a point)
+    o = js(f"return {A}.worldFace('I2', arguments[0]).axis.o.toArray()", hole("I2", 0))
+    pin = js(f"return {A}.worldFace('I2', 'F5:side:c1').axis.o.toArray()")
+    bb = js(f"return {A}.bodies[{A}.inst('I2').part].body.bbox")
+    top = bb[5] - 0.1 + js(f"return {A}.inst('I2').matrix[14]")
+    grab = [(o[0] + pin[0]) / 2 + (pin[0] - o[0]) * 0.1, (o[1] + pin[1]) / 2, top]  # on the crank's top, toward the pin
+    rr = math.hypot(grab[0] - o[0], grab[1] - o[1])
+    th0, x0 = state()
+    gx, gy = scr(grab)
+    act = ActionChains(d, duration=20).move_to_element_with_offset(cv, int(gx), int(gy)).click_and_hold()
+    path = []
+    for k in range(1, 13):
+        a_ = math.radians(7.5 * k)
+        p = [o[0] + rr * math.cos(a_), o[1] + rr * math.sin(a_), top]
+        sx, sy = scr(p)
+        path.append((sx, sy))
+        act = act.move_to_element_with_offset(cv, int(sx), int(sy))
+    act.release().perform()
+    time.sleep(0.6)
+    th1, x1 = state()
+    print(f"  dragged: θ {th0:.1f}° -> {th1:.1f}°, slider {x0:.2f} -> {x1:.2f}")
+    check(abs(th1 - th0) > 45 and abs(x1 - x0) > 1, f"the crank dragged ~90° in the view: θ {th0:.1f}° -> {th1:.1f}°, the slider {x0:.2f} -> {x1:.2f} mm")
+    at_formula("after the drag")
+    d.save_screenshot(f"{OUT}/mechanism_dragged.png")
 
     # ✕ closes it, ⚙ Mechanism opens it again
     widget().find_element(By.CSS_SELECTOR, ".lw-close").click()
