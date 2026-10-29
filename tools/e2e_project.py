@@ -147,7 +147,7 @@ try:
           "| still in the project:", js("return window.__app.project.parts.map(p => p.name + (p.closed ? ' (closed)' : ''))"))
     d.save_screenshot(f"{OUT}/p2_after_close.png")
     # ☰ Parts: every part — the closed one opens again (a tab), the state is saved with the project
-    d.find_element(By.CSS_SELECTOR, "#partTabs .pt-all").click()
+    js("if (!document.querySelector('#projTree .pt-row')?.offsetParent) document.querySelector('#partTabs .pt-all').click()")  # (☰: the tree in sight — docked at first, or its popup)
     time.sleep(0.2)
     print("☰ Parts:", [r.text for r in d.find_elements(By.CSS_SELECTOR, "#projTree .pt-row")],
           "| closed ones:", len(d.find_elements(By.CSS_SELECTOR, "#projTree .pt-row.closed")))

@@ -444,11 +444,13 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_project_tree.py <url> <dir>` covers ☰ the project tree (over the left panel: Machine › Base › its sheet,
    Lid unit › Lid, Pin ×2, then Spare; a click opens a part, marked, the tree stays; a part put in the Machine shows at
    once; ✕ closes, ☰ opens, remembered).
-   `tools/e2e_left_pins.py <url> <dir>` covers the widgets of the left column at 1280×800 with real drags (☰'s header
+   `tools/e2e_left_pins.py <url> <dir>` covers the widgets of the left column at 1280×800 with real drags (at first
+   the project tree docked on top, compact: 5–8 rows; ☰ folds / unfolds it; ⋯ ☰ back behind the button; ☰'s header
    dragged into the column: docked on top of the step tree, the same rows / icons / ⧉ / ✕, a double-click renames; in
    the sketch and the assembly too; the splitter between widgets: heights per workspace; ▾ folds; the column wider ->
    the 3D view narrower; the suggestions' 📌 docks them under the panel, "Nothing selected" line; the tree dragged onto
-   the view floats, Ctrl+wheel / ⋯ slider opacity; a reload: the same layout; back into the column; ☰ Back behind the
+   the view floats; two opacities — panel (Ctrl+wheel, slider; 0 %: no background / border / header) and content
+   (Ctrl+Shift+wheel, slider, 60 %; the mouse over it: whole), computed styles checked; a reload: the same layout; back into the column; ☰ Back behind the
    button; ↺ Default layout; the 3D model's panel floats -> no column, the view wider, the assembly's stays; Czech
    headers / menu / tooltips; no horizontal scroll).
    `tools/e2e_tabs.py <url> <dir>` covers the part tabs (9 long names: their own row under the top bar, 2 rows, 5

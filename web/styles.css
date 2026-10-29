@@ -1158,11 +1158,23 @@ body.lw-empty .split-left { display: none; }
 .lw-widget.floating { position: absolute; left: 12px; top: 56px; width: 290px; height: min(60%, 520px); z-index: 7; border: 1px solid var(--line);
   border-radius: 8px; box-shadow: 0 8px 24px #0008; overflow: hidden; }
 .lw-widget.floating.fb-sized { overflow: hidden; }
+.lw-widget.floating[data-w=panel] { left: 314px; } /* (by default beside a floating project tree, not on it) */
 .lw-widget.floating.folded { height: auto !important; }
 .lw-widget.floating > .lw-head { cursor: move; border-radius: 8px 8px 0 0; }
-.lw-widget.floating[data-w=project] { opacity: var(--op-project, 1); }
-.lw-widget.floating[data-w=panel] { opacity: var(--op-panel, 1); }
-.view-suggest:not(.docked) { opacity: var(--op-suggest, 1); }
+.lw-widget.floating[data-w=project] { --pop: var(--pop-project, 1); --cop: var(--cop-project, 1); }
+.lw-widget.floating[data-w=panel] { --pop: var(--pop-panel, 1); --cop: var(--cop-panel, 1); }
+.view-suggest:not(.docked) { --pop: var(--pop-suggest, 1); --cop: var(--cop-suggest, 1); }
+/* two opacities (leftdock.js): the panel — background, border, header (0: only its content over the view) — and its
+   content (at least 30 %); the mouse over the widget shows the content whole */
+.lw-widget.floating, .view-suggest:not(.docked) { background: color-mix(in srgb, var(--panel) calc(var(--pop) * 100%), transparent);
+  border-color: color-mix(in srgb, var(--line) calc(var(--pop) * 100%), transparent); box-shadow: 0 8px 24px color-mix(in srgb, #000 calc(var(--pop) * 53%), transparent); }
+.lw-widget.floating > .lw-head, .view-suggest:not(.docked) > .vs-head { background: color-mix(in srgb, var(--panel-2) calc(var(--pop) * 100%), transparent);
+  border-bottom-color: color-mix(in srgb, var(--line) calc(var(--pop) * 100%), transparent); }
+.lw-widget.floating > .panel, .lw-widget.floating > .proj-tree { background: transparent; }
+.lw-widget.floating > :not(.lw-head):not(.fb-size), .lw-widget.floating > .lw-head > *,
+.view-suggest:not(.docked) > :not(.vs-head):not(.fb-size), .view-suggest:not(.docked) > .vs-head > * { opacity: var(--cop); transition: opacity .15s; }
+.lw-widget.floating:hover > :not(.lw-head):not(.fb-size), .lw-widget.floating:hover > .lw-head > *,
+.view-suggest:not(.docked):hover > :not(.vs-head):not(.fb-size), .view-suggest:not(.docked):hover > .vs-head > * { opacity: 1; }
 .vs-head .vs-pin { background: none; border: 0; padding: 0; margin-right: -4px; cursor: pointer; font-size: 11px; opacity: .55; } /* (left of the title: the head's middle stays free to drag) */
 .vs-head .vs-pin:hover { opacity: 1; }
 .vs-head[data-op]::after { content: attr(data-op); font-size: 11px; color: var(--accent); }
@@ -1188,5 +1200,6 @@ body.resizing-v, body.resizing-v * { cursor: row-resize !important; user-select:
 .lw-pop button { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 7px 10px; border-radius: 5px; cursor: pointer; color: var(--text); font: inherit; font-size: 12.5px; }
 .lw-pop button:hover { background: #2b3340; }
 .lw-opl { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 12px; color: var(--muted); }
+.lw-opn { width: 52px; }
 .lw-opl input { flex: 1; min-width: 80px; }
 .lw-opv { width: 38px; text-align: right; }

@@ -455,8 +455,9 @@ export class Project {
   }
 
   /** ☰ The project's tree on / off (remembered); docked or floating (a widget — leftdock.js): folded / unfolded. */
-  toggleTree(on = !this.treeOpen) {
-    if (leftDock.project !== 'popup' && this.parts.length) { leftDock.fold('project'); this.render(); return; }
+  toggleTree(on) {
+    if (leftDock.project !== 'popup' && this.parts.length) { leftDock.fold('project', on === undefined ? undefined : !on); this.render(); return; }
+    on ??= !this.treeOpen;
     this.treeOpen = on;
     try { localStorage.setItem('a3d.tree', on ? '1' : ''); } catch { /* private window */ }
     this.render();

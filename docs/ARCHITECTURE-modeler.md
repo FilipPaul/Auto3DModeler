@@ -7,6 +7,18 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Widgets: two opacities, the project tree docked by default done:** a floating widget's panel opacity (background,
+  border, header background: 0–100 %, 0 = only its content over the view; CSS color-mix with --pop) and its content's
+  (rows, buttons, texts: 30–100 %, opacity on its children with --cop; the mouse over it: 100 %). Ctrl+wheel on the
+  header: the panel's, Ctrl+Shift+wheel: the content's (the tooltip names both); the ⋯ menu's two sliders Panel /
+  Content (Obsah). State ws.<ws>.pop / .cop per widget (an older single `op` becomes the content's); ↺ Default
+  layout clears them; docked widgets are never see-through. A first install (and ↺ Default layout): the project
+  tree docked on top of the column in every workspace, compact (34 % of the column, 150–230 px: ~6 rows at
+  1280×800); ☰ folds / unfolds it (toggleTree(on) with on given: unfolds / folds), or opens the popup once
+  unpinned; a saved layout stays as it was. A floating panel opens beside a floating tree (left 314 px), not on it.
+  e2e_left_pins (66 checks), e2e_project_tree starts with the tree behind ☰ (its subject), e2e_project / e2e_tabs open
+  ☰ only when the tree is not in sight.
+
 - **⬆ Extrude this face done:** a new sketch entity `{t: "outline", face: {name, fp}}` — a flat face's edges as
   projected edges: doc._face_outlines finds the face again each rebuild (kernel.find_faces), kernel.face_loops copies
   its wires (outer loop + holes) onto the sketch plane, counter-clockwise, with [u, v] rings for "what is inside what";

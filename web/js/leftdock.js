@@ -1,7 +1,8 @@
 // Widgets: the ☰ project tree, the workspace's own panel (the step tree, the assembly's parts …) and the suggestions
 // table. Each is docked in the left column (stacked, a splitter between two to share the height, ▾ folds one to its
 // header) or floats over the view (moved / resized like the other floating boxes — floatbox.js — with its own
-// opacity: Ctrl+wheel on its header or the slider in its ⋯ menu). Everything by dragging the header: into the left
+// two opacities: the panel's — its background, border, header — and its content's: Ctrl+wheel / Ctrl+Shift+wheel on
+// its header or the two sliders in its ⋯ menu; the mouse over it shows the content whole). Everything by dragging the header: into the left
 // column (a line shows where it goes) to dock it, onto the view to float it. The project tree also stays behind the
 // ☰ button (as it was) until it is docked; 📌 docks it at once. The column's width is the left splitter's
 // (splitters.js); a column with nothing docked goes away (the view takes its room).
@@ -21,9 +22,13 @@ const WS_CLASS = { quick: 'quick-only', model: 'model-only', assembly: 'asm-only
 const TITLES = { quick: 'Quick part', model: '3D model', assembly: 'Assembly', drawing: '2D drawing', sheet: 'Drawing sheet' };
 const MIN_H = 60; // a docked widget's least height (px, its header included)
 const CONTROLS = 'button, input, select, textarea, a, label, [contenteditable]';
-const OP_TIP = 'Drag: move it — into the left panel to dock it · Ctrl+wheel: opacity · double-click: back to its place';
+const OP_TIP = 'Drag: move it — into the left panel to dock it · Ctrl+wheel: the panel\'s opacity, Ctrl+Shift+wheel: its content\'s · double-click: back to its place';
+// the two opacities: the panel (its background, border, header — 0: only its content floats over the view) and its
+// content (rows, buttons, text — at least 30 %: it stays usable)
+const OPS = { pop: { min: 0, label: 'Panel', tip: 'The panel\'s background, border and header — 0 %: only its content floats over the view (also Ctrl+wheel on its header)' },
+  cop: { min: 0.3, label: 'Content', tip: 'Its rows, buttons and texts — at least 30 %, they stay usable; the mouse over it shows them whole (also Ctrl+Shift+wheel on its header)' } };
 
-const fresh = () => ({ project: 'popup', suggest: 'float', order: ['project', 'panel', 'suggest'], ws: {} });
+const fresh = () => ({ project: 'dock', suggest: 'float', order: ['project', 'panel', 'suggest'], ws: {} });
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY));
@@ -55,7 +60,8 @@ class LeftDock {
   /** The workspace's own record (its panel's place, heights, folded widgets, opacities). */
   my(ws = this.ws()) {
     const r = this.st.ws[ws] || (this.st.ws[ws] = {});
-    r.h ||= {}; r.fold ||= {}; r.op ||= {};
+    r.h ||= {}; r.fold ||= {}; r.pop ||= {}; r.cop ||= {};
+    if (r.op) { Object.assign(r.cop, r.op); delete r.op; } // (one opacity before: now the content's)
     return r;
   }
 
@@ -103,7 +109,7 @@ class LeftDock {
     }
     window.addEventListener('resize', () => this.sync());
     window.addEventListener('a3d:lang', () => this.titles());
-    // Ctrl+wheel on a floating widget's header: its opacity
+    // Ctrl+wheel on a floating widget's header: the panel's opacity; Ctrl+Shift+wheel: its content's
     window.addEventListener('wheel', (e) => {
       if (!e.ctrlKey) return;
       const head = e.target.closest?.('.lw-widget.floating > .lw-head, .view-suggest:not(.docked) > .vs-head');
@@ -111,7 +117,8 @@ class LeftDock {
       e.preventDefault();
       e.stopPropagation();
       const w = head.classList.contains('vs-head') ? 'suggest' : head.parentElement.dataset.w;
-      this.setOpacity(w, this.opacity(w) + (e.deltaY < 0 ? 0.05 : -0.05), head);
+      const k = e.shiftKey ? 'cop' : 'pop', dv = e.deltaY || e.deltaX; // (Shift+wheel: the browser may turn it sideways)
+      this.setOpacity(w, k, this.opacity(w, k) + (dv < 0 ? 0.05 : -0.05), head);
     }, { passive: false, capture: true });
     document.addEventListener('pointerdown', (e) => { if (this.pop && !e.target.closest('.lw-pop, .lw-menu')) this.closeMenu(); }, true);
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.pop) { e.stopPropagation(); this.closeMenu(); } }, true);
@@ -125,7 +132,7 @@ class LeftDock {
     el.dataset.w = w;
     if (ws) el.dataset.ws = ws;
     el.innerHTML = `<div class="lw-head"><span class="lw-grip" aria-hidden="true">⠿</span><b></b><span class="lw-op" hidden></span>
-      <button class="mini lw-fold" title="${t('Fold or unfold it (its header stays)')}">▾</button><button class="mini lw-menu" title="${t('Layout: dock it, float it over the view, its opacity, ↺ Default layout')}">⋯</button></div>`;
+      <button class="mini lw-fold" title="${t('Fold or unfold it (its header stays)')}">▾</button><button class="mini lw-menu" title="${t('Layout: dock it, float it over the view, its opacities, ↺ Default layout')}">⋯</button></div>`;
     const head = el.firstElementChild;
     head.querySelector('.lw-fold').addEventListener('click', (e) => { e.stopPropagation(); this.fold(w); });
     head.querySelector('.lw-menu').addEventListener('click', (e) => { e.stopPropagation(); this.menu(w, e.currentTarget); });
@@ -189,31 +196,36 @@ class LeftDock {
   /** The project tree back behind the ☰ button (open there: parts.js onUnpin). */
   unpin() { this.st.project = 'popup'; this.save(); this.onUnpin?.(); this.apply(); this.onProject?.(); }
 
-  fold(w, on = !this.folded(w)) {
+  fold(w, on) {
+    on ??= !this.folded(w);
     const f = this.my().fold;
     if (on) f[w] = true; else delete f[w];
     this.save();
     this.apply();
   }
 
-  opacity(w) { return this.my().op[w] ?? 1; }
-  setOpacity(w, v, head) {
-    v = Math.round(clamp(v, 0.3, 1) * 100) / 100;
-    if (v >= 1) delete this.my().op[w]; else this.my().op[w] = v;
+  /** A floating widget's opacity, k: 'pop' (the panel) or 'cop' (its content), 0…1. */
+  opacity(w, k) { return this.my()[k][w] ?? 1; }
+  setOpacity(w, k, v, head) {
+    v = Math.round(clamp(v, OPS[k].min, 1) * 100) / 100;
+    if (v >= 1) delete this.my()[k][w]; else this.my()[k][w] = v;
     this.save();
     this.applyOpacity();
-    const badge = head?.querySelector('.lw-op');
-    if (badge) { badge.textContent = `${Math.round(v * 100)} %`; badge.hidden = false; clearTimeout(badge.timer); badge.timer = setTimeout(() => { badge.hidden = true; }, 1200); }
-    else if (head) { head.dataset.op = `${Math.round(v * 100)} %`; clearTimeout(head.opTimer); head.opTimer = setTimeout(() => { delete head.dataset.op; }, 1200); }
-    const r = this.pop?.querySelector('input[type=range]');
-    if (r && this.pop.dataset.w === w) { r.value = Math.round(v * 100); this.pop.querySelector('.lw-opv').textContent = `${r.value} %`; }
+    const say = `${t(OPS[k].label)} ${Math.round(v * 100)} %`, badge = head?.querySelector('.lw-op');
+    if (badge) { badge.textContent = say; badge.hidden = false; clearTimeout(badge.timer); badge.timer = setTimeout(() => { badge.hidden = true; }, 1200); }
+    else if (head) { head.dataset.op = say; clearTimeout(head.opTimer); head.opTimer = setTimeout(() => { delete head.dataset.op; }, 1200); }
+    const r = this.pop?.dataset.w === w && this.pop.querySelector(`input[data-k=${k}]`);
+    if (r) { r.value = Math.round(v * 100); r.nextElementSibling.textContent = `${r.value} %`; }
   }
 
+  /** The opacities of the workspace on screen: CSS variables --pop-<widget> / --cop-<widget> (styles.css). */
   applyOpacity() {
-    const s = document.body.style, op = this.my().op;
-    for (const w of ['project', 'panel', 'suggest']) {
-      const v = op[w] !== undefined ? String(op[w]) : '';
-      if (s.getPropertyValue(`--op-${w}`) !== v) { if (v) s.setProperty(`--op-${w}`, v); else s.removeProperty(`--op-${w}`); }
+    const s = document.body.style, me = this.my();
+    for (const k of ['pop', 'cop']) {
+      for (const w of ['project', 'panel', 'suggest']) {
+        const v = me[k][w] !== undefined ? String(me[k][w]) : '';
+        if (s.getPropertyValue(`--${k}-${w}`) !== v) { if (v) s.setProperty(`--${k}-${w}`, v); else s.removeProperty(`--${k}-${w}`); }
+      }
     }
   }
 
@@ -318,7 +330,7 @@ class LeftDock {
     this.sync();
   }
 
-  defHeight(w, H) { return w === 'project' ? Math.round((H || 600) * 0.38) : w === 'suggest' ? 200 : Math.round((H || 600) * 0.5); }
+  defHeight(w, H) { return w === 'project' ? clamp(Math.round((H || 600) * 0.34), 150, 230) : w === 'suggest' ? 200 : Math.round((H || 600) * 0.5); }
 
   /** The splitter between docked widgets a (above) and b: dragged, the one of them that is not the stretching one
    *  gets taller or shorter; a double-click: the usual heights. */
@@ -495,7 +507,7 @@ class LeftDock {
     if (m !== 'float') items.push(['float', `⧉ ${t('Float over the view')}`, t('A box over the view — drag its header where you want it')]);
     if (w === 'project') items.push(['popup', `☰ ${t('Back behind the ☰ button')}`, t('The project tree opens from the ☰ button again')]);
     pop.innerHTML = `${items.map(([k, l, tip]) => `<button data-a="${k}" title="${tip}">${l}</button>`).join('')}
-      ${m === 'float' ? `<label class="lw-opl" title="${t('How much of the view shows through it — also Ctrl+wheel on its header')}">${t('Opacity')} <input type="range" min="30" max="100" step="5" value="${Math.round(this.opacity(w) * 100)}"><span class="lw-opv">${Math.round(this.opacity(w) * 100)} %</span></label>` : ''}
+      ${m === 'float' ? Object.entries(OPS).map(([k, o]) => { const v = Math.round(this.opacity(w, k) * 100); return `<label class="lw-opl" title="${t(o.tip)}"><span class="lw-opn">${t(o.label)}</span><input type="range" data-k="${k}" min="${o.min * 100}" max="100" step="5" value="${v}"><span class="lw-opv">${v} %</span></label>`; }).join('') : ''}
       <div class="menu-sep"></div><button data-a="reset" title="${t('Every widget back to its usual place and size: the project tree behind ☰, the panels in the left panel, the suggestions in the view\'s corner')}">↺ ${t('Default layout')}</button>`;
     for (const b of pop.querySelectorAll('[data-a]')) {
       b.addEventListener('click', () => {
@@ -508,8 +520,7 @@ class LeftDock {
         if (w === 'project') this.onProject?.();
       });
     }
-    const r = pop.querySelector('input[type=range]');
-    r?.addEventListener('input', () => this.setOpacity(w, r.value / 100, this.widgetEl(w)?.querySelector('.lw-head')));
+    for (const r of pop.querySelectorAll('input[type=range]')) r.addEventListener('input', () => this.setOpacity(w, r.dataset.k, r.value / 100, this.widgetEl(w)?.querySelector('.lw-head')));
     document.body.appendChild(pop);
     const br = btn.getBoundingClientRect(), pw = pop.offsetWidth;
     Object.assign(pop.style, { left: `${Math.round(clamp(br.right - pw, 4, innerWidth - pw - 4))}px`, top: `${Math.round(Math.min(br.bottom + 4, innerHeight - pop.offsetHeight - 4))}px` });
