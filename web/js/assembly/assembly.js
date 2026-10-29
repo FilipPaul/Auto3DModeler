@@ -2829,6 +2829,15 @@ export class Assembly {
     if (key !== v.hoverSnapKey) v.setHoverSnaps(snapPoints(body.edges.filter((ed) => ed.faces.includes(fi)), mesh.matrix, kinds), key);
   }
 
+  /** The snap point a plain click (no tool on) takes: a corner, an edge's middle, a centre — but on a hole's or pin's
+   *  round face, or near its rim, only a corner: the click picks that round face then (a small hole or pin seen from
+   *  afar is mostly the snap circles of its centre and its seam's middle; joining wants the face). */
+  idleSnap(e, h) {
+    const sp = this.view.measurePoint(e.clientX, e.clientY);
+    if (sp?.snap && sp.snap !== 'corner' && (h?.face?.type === 'cylinder' || this.view.roundEdgeAt(e.clientX, e.clientY))) return null;
+    return sp;
+  }
+
   jointPick(e, h) {
     if (this.faceFits(h) || this.mode === 'idle') return h;
     const want = JOINT_TYPES[this.jointType]?.faces;
@@ -2958,7 +2967,7 @@ export class Assembly {
       }
       const id = h?.inst || null;
       if (id !== this.hoverInst) { this.hoverInst = id; this.draw(); }
-      this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); // (a corner, an edge's middle, a centre: it can be picked)
+      this.view.setSnapMark(this.idleSnap(e, h)); // (a corner, an edge's middle, a centre: it can be picked)
       cv.style.cursor = !h ? '' : h.inst === this.sel && (this.dof?.count || this.mech?.list.some((m) => m.parts.includes(h.inst))) ? 'grab' : 'pointer'; // (the chosen part that can move: drag it)
     };
     cv.addEventListener('pointerleave', () => { this.hoverEv = null; this.view.clearHoverMarks(); });
@@ -2977,7 +2986,7 @@ export class Assembly {
       if (this.painting) { this.clickPaint(h, e.ctrlKey || e.metaKey); return; }
       if (this.mode !== 'idle') { this.clickJoint(this.jointPick(e, h)); return; }
       if (this.bolt) { if (h?.face?.type === 'plane') this.startBolt(h); return; } // another point for the bolt
-      const sp = this.view.measurePoint(e.clientX, e.clientY), more = e.ctrlKey || e.metaKey;
+      const sp = this.idleSnap(e, h), more = e.ctrlKey || e.metaKey;
       this.snapPick = sp?.snap ? sp : null; // (a corner, an edge's middle, a centre: picked with its part)
       this.view.setMeasure(this.snapPick ? [sp.point] : []);
       const f = this.snapPick ? null : this.view.roundEdgeAt(e.clientX, e.clientY) || (h?.face ? h : null); // a face, or a hole's / pin's rim

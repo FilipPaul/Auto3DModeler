@@ -1,7 +1,9 @@
 """Faces picked with no tool on in an assembly, with REAL mouse input: a Base with a Ø6 hole and a Ø6 Pin -> a click on
 the hole's rim: its face picked (lit), the Suggested table offers the joints it can start -> Ctrl+click on the pin's
 round face: the joints that fit two round faces (Concentric) -> a click on it: the pin is concentric in the hole ->
-a click on the Base's top and Ctrl+click on the pin's end: two flat faces — Touch, Flush, Gap …
+a click on the Base's top and Ctrl+click on the pin's end: two flat faces — Touch, Flush, Gap … -> the view zoomed out
+(the wheel): a click on the small pin's round face and on the hole's rim pick the faces, not the snap of their centres
+(the hole's centre is a few px away; the Concentric undone first).
 
   PYTHONIOENCODING=utf-8 py tools/e2e_assembly_facepick.py http://127.0.0.1:5199 <out dir>
 """
@@ -13,7 +15,16 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
+from selenium.webdriver.common.actions.wheel_input import ScrollOrigin
+
 URL, OUT = sys.argv[1], sys.argv[2]
+bad = []
+
+
+def check(ok, what):
+    print(("  ok  " if ok else "  FAIL") + " " + what)
+    if not ok:
+        bad.append(what)
 opts = webdriver.EdgeOptions()
 opts.add_argument("--headless=new")
 opts.add_argument("--window-size=1600,1000")
@@ -43,14 +54,19 @@ def world(inst, p):
 
 
 def click(inst, p, ctrl=False):
-    o = js(f"""const v = {A}.view, V = v.camera.position.constructor, [sx, sy] = v.toScreen(new V(...arguments[0])), r = v.renderer.domElement.getBoundingClientRect();
-      return [Math.round(sx - Math.floor(r.left + r.width / 2)), Math.round(sy - Math.floor(r.top + r.height / 2))];""", world(inst, p))
+    o = at(inst, p)
     cv = d.find_element(By.CSS_SELECTOR, "#asmViewport canvas")
     ActionChains(d, duration=30).move_to_element_with_offset(cv, *o).perform()
     time.sleep(0.2)
     ch = ActionChains(d)
     (ch.key_down(Keys.CONTROL).click().key_up(Keys.CONTROL) if ctrl else ch.click()).perform()
     time.sleep(0.6)
+
+
+def at(inst, p):
+    """A point of a placed part on the screen, from the canvas' middle (px)."""
+    return js(f"""const v = {A}.view, V = v.camera.position.constructor, [sx, sy] = v.toScreen(new V(...arguments[0])), r = v.renderer.domElement.getBoundingClientRect();
+      return [Math.round(sx - Math.floor(r.left + r.width / 2)), Math.round(sy - Math.floor(r.top + r.height / 2))];""", world(inst, p))
 
 
 def table():
@@ -96,6 +112,28 @@ try:
     time.sleep(0.4)
     print("two flat faces:", table())
     d.save_screenshot(f"{OUT}/assembly_facepick.png")
+
+    # seen from afar: the small pin and hole are mostly the snap circles of their centres — a click picks the face
+    js(f"{A}.facePicks = []; {A}.choose(null); {A}.render()")
+    ActionChains(d).key_down(Keys.CONTROL).send_keys("z").key_up(Keys.CONTROL).perform()  # (the pin out of the hole again)
+    wait(f"return !{A}.doc.mates.length")
+    cv = d.find_element(By.CSS_SELECTOR, "#asmViewport canvas")
+    for _ in range(4):
+        ActionChains(d).scroll_from_origin(ScrollOrigin.from_element(cv, 0, 0), 0, 240).perform()
+        time.sleep(0.15)
+    time.sleep(0.5)
+    o, top = at("I2", [0, 0, 20]), at("I2", [3, 0, 20])
+    print("  the pin's top on the screen: r", round(((top[0] - o[0]) ** 2 + (top[1] - o[1]) ** 2) ** 0.5, 1), "px")
+    near = js(f"return {A}.view.measurePoint(...arguments)?.snap || null", *[v + c for v, c in zip(at("I2", [-3, 0, 17]), js("const r = arguments[0].getBoundingClientRect(); return [Math.floor(r.left + r.width / 2), Math.floor(r.top + r.height / 2)]", cv))])
+    click("I2", [-3, 0, 17])  # the pin's side, near its top: the top's centre snap is near
+    picks = js(f"return ({A}.facePicks || []).map(q => [q.inst, q.face.type])")
+    check(picks == [["I2", "cylinder"]], f"from afar, the pin's side clicked (the snap there: {near}): its round face picked {picks}, snap {js(f'return {A}.snapPick?.snap || null')}")
+    click("I1", [hx + 3, hy, bb[5]], ctrl=True)  # + the hole's rim
+    picks = js(f"return ({A}.facePicks || []).map(q => [q.inst, q.face.type])")
+    check(picks == [["I2", "cylinder"], ["I1", "cylinder"]], f"+ Ctrl+click on the hole's rim: both round faces {picks} | the table: {table()}")
+    d.save_screenshot(f"{OUT}/assembly_facepick_far.png")
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()
+print("FAILED:" if bad else "ALL OK", bad if bad else "")
+sys.exit(1 if bad else 0)
