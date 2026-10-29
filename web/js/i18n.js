@@ -12,6 +12,13 @@ if (lang !== 'en' && lang !== 'cs') lang = (navigator.language || '').toLowerCas
 const CS = {
   // top bar
   'No drawing loaded': 'Není otevřen žádný výkres',
+  'Top {n}': 'Prvních {n}',
+  'Middle click': 'Prostřední tlačítko',
+  'Close the tab': 'Zavřít záložku',
+  'Open in a new window': 'Otevřít v novém okně',
+  'A copy of this part as a new part of its own — change it without changing the original': 'Kopie dílu jako nový samostatný díl — změníte ji, aniž by se změnil originál',
+  'Type a new name (also: double-click the tab)': 'Napište nový název (také: dvojklik na záložku)',
+  'Rename': 'Přejmenovat',
   '{name}: not a file the app opens — STEP, STL, DXF, PDF, a picture or a project.': '{name}: tento soubor aplikace neotevře — STEP, STL, DXF, PDF, obrázek nebo projekt.',
   'Any file the app reads: STEP, IGES, STL, OBJ, 3MF, DXF / DWG, PCB data, a PDF drawing, a picture or a saved project (Ctrl+O)': 'Jakýkoli soubor, který aplikace čte: STEP, IGES, STL, OBJ, 3MF, DXF / DWG, data DPS, výkres PDF, obrázek nebo uložený projekt (Ctrl+O)',
   '📂 File…': '📂 Soubor…',

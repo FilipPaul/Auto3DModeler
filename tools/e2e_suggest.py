@@ -141,7 +141,8 @@ try:
     d.find_element(By.CSS_SELECTOR, "#modelViewport .view-suggest [data-sg-fewer]").click()
     time.sleep(0.4)
     check("▴ Fewer: the short table again", len(rows(table())) == 8 and (more_row() or "").startswith("⋯ Show all"))
-    # N set in the header: "Suggested" -> a number field
+    # N set in the header: "Top 8" (with the mouse over the table) -> a number field
+    ActionChains(d).move_to_element(d.find_element(By.CSS_SELECTOR, "#modelViewport .view-suggest .vs-head b")).pause(0.2).perform()  # (the setting shows with the mouse over the table)
     d.find_element(By.CSS_SELECTOR, "#modelViewport .view-suggest .vs-set").click()
     time.sleep(0.3)
     inp = d.find_element(By.CSS_SELECTOR, "#modelViewport .view-suggest .vs-top input")
@@ -152,6 +153,7 @@ try:
     print("  N = 5:", tb, "| stored", js("return localStorage.getItem('a3d.suggestTop')"))
     check("N = 5: five rows + Show all, stored", len(rows(tb)) == 5 and (more_row() or "").startswith("⋯ Show all") and js("return localStorage.getItem('a3d.suggestTop')") == "5")
     check("…the field closed after Enter", not d.find_elements(By.CSS_SELECTOR, "#modelViewport .view-suggest .vs-top"))
+    ActionChains(d).move_to_element(d.find_element(By.CSS_SELECTOR, "#modelViewport .view-suggest .vs-head b")).pause(0.2).perform()  # (the setting shows with the mouse over the table)
     d.find_element(By.CSS_SELECTOR, "#modelViewport .view-suggest .vs-set").click()
     time.sleep(0.3)
     d.save_screenshot(f"{OUT}/suggest_setting.png")
