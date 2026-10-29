@@ -312,7 +312,9 @@ def main(argv=None) -> int:
     if frozen() or sys.stdout is None:  # no console: the log is where print and errors go
         sys.stdout = sys.stderr = open_log(data)
     _lock, first = take_lock(data)
-    url = running_url(data) or (None if first else wait_for_running(data))
+    # (holding the mutex: no other copy runs on this folder — an old instance.json whose port another program now
+    # answers on is not ours; without a mutex (not Windows) instance.json is all there is)
+    url = (None if _lock else running_url(data)) if first else wait_for_running(data)
     if url:  # already running: only its window
         print(f"Already running at {url}: opening its window.", flush=True)
         if not args.no_browser:

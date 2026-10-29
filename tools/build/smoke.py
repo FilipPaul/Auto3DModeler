@@ -52,6 +52,13 @@ def main():
     port = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3].isdigit() else 5194
     keep = "--keep" in sys.argv
     url = f"http://127.0.0.1:{port}"
+    try:  # (someone else on that port — another server, an agent's — would answer for us: a wrong pass)
+        other = json.loads(get(f"{url}/api/version", 1))
+        raise SystemExit(f"FAIL: port {port} is taken ({other.get('text')}) — pick a free one")
+    except OSError:
+        pass
+    stamp = Path(exe).parent / "_internal" / "BUILD.json"
+    want = json.loads(stamp.read_text(encoding="utf-8")).get("commit") if stamp.exists() else None
     env = {**os.environ, "A3D_DATA": data}
     t0 = time.time()
     proc = subprocess.Popen([exe, "--port", str(port), "--no-browser", "--no-tray"], env=env)
@@ -69,6 +76,7 @@ def main():
             raise SystemExit("FAIL: no answer within 120 s")
         started = time.time() - t0
         print(f"up in {started:.1f} s: version {ver.get('text')}")
+        assert not want or ver.get("commit") == want, f"another server answered: {ver.get('text')}, not {want}"
         kernel = json.loads(get(f"{url}/api/kernel"))
         print(f"kernel: occ {kernel['occ']}, planegcs {kernel['planegcs']}, workers {kernel['workers']}")
         assert kernel["ready"], "the CAD kernel or the sketch solver is missing"

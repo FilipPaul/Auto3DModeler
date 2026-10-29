@@ -103,12 +103,27 @@ class TestOneCopy(unittest.TestCase):
     def test_second_start_opens_the_window(self):
         """A second start finds the running copy and only opens its window: no server, exit code 0."""
         with mock.patch.dict(os.environ, {"A3D_DATA": str(self.data)}), \
-                mock.patch.object(L, "running_url", return_value="http://127.0.0.1:1"), \
+                mock.patch.object(L, "take_lock", return_value=(None, False)), \
+                mock.patch.object(L, "wait_for_running", return_value="http://127.0.0.1:1"), \
                 mock.patch.object(L, "open_window") as opened, mock.patch.object(L, "App") as app, \
                 mock.patch.object(L, "frozen", return_value=False):
             self.assertEqual(L.main([]), 0)
         opened.assert_called_once_with("http://127.0.0.1:1", self.data, False)
         app.assert_not_called()
+
+    def test_stale_instance_file_with_the_lock(self):
+        """The first copy (it holds the folder's mutex) starts its own server even when an old instance.json names a
+        port some other program answers on — that was a smoke test's leftover pointing at another server."""
+        with mock.patch.dict(os.environ, {"A3D_DATA": str(self.data)}), \
+                mock.patch.object(L, "take_lock", return_value=(1, True)), \
+                mock.patch.object(L, "running_url", return_value="http://127.0.0.1:1") as asked, \
+                mock.patch.object(L, "open_window") as opened, mock.patch.object(L, "App") as app, \
+                mock.patch.object(L, "frozen", return_value=False):
+            app.return_value.wait.return_value = 0
+            L.main(["--no-browser"])
+        asked.assert_not_called()
+        opened.assert_not_called()
+        app.assert_called_once()
 
 
 class TestWindowAndLogs(unittest.TestCase):
