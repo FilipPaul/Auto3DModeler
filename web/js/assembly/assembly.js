@@ -36,7 +36,7 @@ import { newRid, trackProgress, cancelRid, wasCancelled } from '../progressbox.j
 import { threadSegments } from '../modeler/view.js';
 import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss, frameNow, slideNow } from './joints.js';
 import { snapNear, snapPoints } from '../modeler/view.js';
-import { showSuggest, showSnapFilters, snapKinds, hoverKinds } from '../suggest.js';
+import { showSuggest, showSnapFilters, snapKinds, hoverKinds, showKinds } from '../suggest.js';
 import { floatBox } from '../floatbox.js';
 import { freeMotions, motionMatrix } from './dof.js';
 import { findLoops, solveLoop, loopFreedom, worstMiss, screwBetween, stepsBetween } from './loops.js';
@@ -354,7 +354,7 @@ export class Assembly {
     this.$ = (s) => viewport.querySelector(s) || left.querySelector(s) || right.querySelector(s);
   }
 
-  render() { this.mech?.render(); this.renderBar(); this.renderList(); this.renderProps(); this.renderStatus(); this.renderSuggest(); showSnapFilters(this.els.viewport, this.doc.instances.length > 0); }
+  render() { this.mech?.render(); this.renderBar(); this.renderList(); this.renderProps(); this.renderStatus(); this.renderSuggest(); showSnapFilters(this.els.viewport, this.doc.instances.length > 0, { show: ['joints'], onShow: () => this.drawJointTags() }); }
 
   /** The suggestions for faces picked with no tool on: one face — the joints it can start (then a face of another
    *  part); two faces of two parts (Ctrl+click) — the joints that fit them (two round: concentric; two flat: touch,
@@ -2179,7 +2179,7 @@ export class Assembly {
   drawJointTags() {
     if (!this.view?.setTags) return;
     const tags = [];
-    if (this.mode === 'idle' && !this.painting && !this.measuring) {
+    if (this.mode === 'idle' && !this.painting && !this.measuring && showKinds().joints) { // (🔗 Show: Joints off in the bottom row: none)
       for (const m of this.shownJoints()) {
         let a, b;
         try { a = this.worldFace(m.move, m.face).centroid; b = this.worldFace(m.onto, m.ontoFace).centroid; } catch { continue; }

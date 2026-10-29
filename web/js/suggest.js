@@ -12,7 +12,13 @@ let askAI = null; // (the app: what is selected, into the AI chat)
 /** How ✨ hands the selection to the AI chat: fn(refs text). */
 export const setAskAI = (fn) => { askAI = fn; };
 
-const SNAP_KEY = 'a3d.snap3d', HOVER_KEY = 'a3d.hover3d';
+const SNAP_KEY = 'a3d.snap3d', HOVER_KEY = 'a3d.hover3d', SHOW_KEY = 'a3d.show3d';
+/** What the view shows besides the parts: {joints} — an assembly's joint symbols (remembered). */
+export function showKinds() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(SHOW_KEY) || 'null'); } catch { saved = null; }
+  return { joints: true, ...(saved || {}) };
+}
 /** The hover filters: what lights up under the mouse with no tool on — {edges, points} (remembered). */
 export function hoverKinds() {
   let saved = null;
@@ -34,7 +40,9 @@ export function setSnapKind(key, on) {
 }
 
 /** The row of 3D snap filters in the bottom-left corner of a view (the Suggested table above it). */
-export function showSnapFilters(viewport, on = true) {
+/** opts.show: the "Show:" group's keys for this view (an assembly: ['joints']); opts.onShow: called after a switch. */
+export function showSnapFilters(viewport, on = true, opts = viewport.snapOpts || {}) {
+  viewport.snapOpts = opts;
   let bar = viewport.querySelector(':scope > .snap-filters');
   if (!on) { bar?.remove(); return; }
   if (!bar) {
@@ -45,8 +53,10 @@ export function showSnapFilters(viewport, on = true) {
   }
   const k = snapKinds(), F = [['corner', '⌜', 'Corners'], ['midpoint', '⊹', 'Edge midpoints'], ['centre', '◎', 'Centres'], ['quadrant', '◔', 'Quadrants'], ['guides', '┆', 'Guides']];
   const hk = hoverKinds(), HV = [['edges', '⟋', 'Edges'], ['points', '•', 'Snap points']];
+  const sk = showKinds(), SH = [['joints', '🔗', 'Joints', "the joints' symbols in the view — click to hide or show them"]];
   bar.innerHTML = `<span class="skf-t">${esc(t('Snap'))}:</span>${F.map(([key, i, l]) => `<button class="${k[key] ? 'on' : ''}" data-snap="${key}" title="${esc(`${t(l)}: ${t(key === 'guides' ? 'Line up a hole or a text with corners, midpoints and centres while placing it — click to switch' : 'What 📏 Measure and a click catch — click to switch')}`)}">${i} <span class="skf-l">${esc(t(l))}</span></button>`).join('')}
-    <span class="sep"></span><span class="skf-t">${esc(t('Hover'))}:</span>${HV.map(([key, i, l]) => `<button class="${hk[key] ? 'on' : ''}" data-hover="${key}" title="${esc(`${t(l)}: ${t(key === 'edges' ? 'Light up the edge under the mouse (a line or a circle) — click to switch' : 'Show the snap points of the step / face under the mouse — click to switch')}`)}">${i} <span class="skf-l">${esc(t(l))}</span></button>`).join('')}`;
+    <span class="sep"></span><span class="skf-t">${esc(t('Hover'))}:</span>${HV.map(([key, i, l]) => `<button class="${hk[key] ? 'on' : ''}" data-hover="${key}" title="${esc(`${t(l)}: ${t(key === 'edges' ? 'Light up the edge under the mouse (a line or a circle) — click to switch' : 'Show the snap points of the step / face under the mouse — click to switch')}`)}">${i} <span class="skf-l">${esc(t(l))}</span></button>`).join('')}${
+    opts.show?.length ? `<span class="sep"></span><span class="skf-t">${esc(t('Show'))}:</span>${SH.filter(([key]) => opts.show.includes(key)).map(([key, i, l, w]) => `<button class="${sk[key] ? 'on' : ''}" data-show="${key}" title="${esc(`${t(l)}: ${t(w)}`)}">${i} <span class="skf-l">${esc(t(l))}</span></button>`).join('')}` : ''}`;
   const flip = (store, read, key) => {
     const now = { ...read(), [key]: !read()[key] };
     try { localStorage.setItem(store, JSON.stringify(now)); } catch { /* private window */ }
@@ -54,6 +64,7 @@ export function showSnapFilters(viewport, on = true) {
   };
   for (const b of bar.querySelectorAll('[data-snap]')) b.addEventListener('click', () => flip(SNAP_KEY, snapKinds, b.dataset.snap));
   for (const b of bar.querySelectorAll('[data-hover]')) b.addEventListener('click', () => flip(HOVER_KEY, hoverKinds, b.dataset.hover));
+  for (const b of bar.querySelectorAll('[data-show]')) b.addEventListener('click', () => { flip(SHOW_KEY, showKinds, b.dataset.show); opts.onShow?.(); });
   fitSnapFilters(viewport);
   if (!viewport.snapFit && window.ResizeObserver) (viewport.snapFit = new ResizeObserver(() => fitSnapFilters(viewport))).observe(viewport);
 }
