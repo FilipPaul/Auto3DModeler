@@ -95,7 +95,7 @@ try:
     wait(f"return !!{M}.result?.body && !{M}.inflight")
     js(f"{M}.renderProps()")
     time.sleep(0.4)
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=newSheet]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelExport [data-a=newSheet]").click()
     wait(f"return !{S}.busy && !!{S}.svgEl", 90)
     time.sleep(0.5)
     check("front, top and right views on the sheet", {"Front", "Top", "Right"} <= set(js(f"return {S}.drawn()")), str(js(f"return {S}.drawn()")))
