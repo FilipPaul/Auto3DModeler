@@ -275,8 +275,8 @@ Never report "works" without having run it; report failures with their output.
    in, a Block put in by the AI and one dragged from the project tree land outside -> the view fits, each seen;
    zoomed out, one more already seen -> the camera stays).
    `tools/e2e_assembly_dragcue.py <url> <dir>` covers the drag cue (Czech): over the chosen part a drag moves, the
-   cursor is the motion's symbol (↻ a pin in a hole, ↔ a lid on a base, ⚙ the crank demo's crank) and the parts that
-   move glow; nothing chosen, the 📌 fixed base, a fully held part, a part not chosen: the normal cursor; the first-time
+   cursor is the arrow with the motion's badge (↻ a pin in a hole, ↔ a lid on a base, ⚙ the crank demo's crank; the
+   svg's data-cue, the hotspot 1 1 at the arrow's tip) and the parts that move glow; nothing chosen, the 📌 fixed base, a fully held part, a part not chosen: the normal cursor; the first-time
    hint "Táhněte — pohne mechanismem"; dragging: the filled cursor and "↻ 3°" at the cursor (= ⚙ Mechanism's value),
    the slider at the formula; screenshots with the cursor drawn in and the cursors 4× (cue_icons.png).
    `tools/e2e_new_project_btn.py <url> <dir>` covers 📄 Nový projekt in the top bar next to ＋ Nový 3D model (Czech): its box

@@ -3,7 +3,7 @@
 // it go along, a closed loop is solved, coupled gears turn). A part of a closed loop drives the loop's driver
 // (mechanism.js); a gear of a train turns by its own axis. A part inside a ⚙ moving sub-assembly (the sub-assembly
 // chosen, the part grabbed) moves by its own joints there, in the assembly's flat engine (Assembly.flatAsm). The cue:
-// over the chosen part that can move, the cursor is the motion's symbol (↻ / ↔ / ⚙), the part and the parts that go
+// over the chosen part that can move, the arrow carries a badge with the motion (↻ / ↔ / ⚙), the part and the parts that go
 // with it glow; while dragging, the value at the cursor.
 import * as THREE from 'three';
 import { t } from '../i18n.js';
@@ -78,26 +78,39 @@ export function startDrag(asm, id, e) {
 }
 
 // ------------------------------------------------------------------ the cue: "a drag here moves the part"
-// The cursor: the motion's symbol, 32 px — the accent colour on a white outline (it reads on the dark background and
-// on light parts), ↻ a turn, ↔ a slide (turned along its line as seen on screen), ⚙ with an arrow a mechanism (the
-// others follow); while dragging, white on an accent disc. `grab` where SVG cursors are not shown.
-const ICON = {
-  turn: '<path d="M18.4 8A7.5 7.5 0 1 0 19.5 13.5"/><path d="M19.5 3.5V8.5H14.5"/>',
-  slide: '<path d="M3.5 12H20.5"/><path d="M7.5 7.5L3 12L7.5 16.5"/><path d="M16.5 7.5L21 12L16.5 16.5"/>',
-  mech: '<circle cx="9.5" cy="9.5" r="3"/><path d="M9.5 2.5V4.5M9.5 14.5V16.5M2.5 9.5H4.5M14.5 9.5H16.5M4.6 4.6L6 6M13 13L14.4 14.4M4.6 14.4L6 13M13 6L14.4 4.6"/><path d="M21 13.5A7.5 7.5 0 0 1 13.5 21"/><path d="M21 18.5V13.5H16"/>',
+// The cursor: the normal arrow (the user still sees where they point) with a round badge at its lower right — the
+// panel's colour, an accent ring, a soft shadow — holding the motion's icon drawn like the app's 16 px icons (stroke,
+// round joins): ↻ a turn, ↔ a slide (turned along its line as seen on screen), linked joints a mechanism (the others
+// follow). While dragging the badge fills with the accent and the icon turns white. 32 px SVG, the hotspot at the
+// arrow's tip, a 2× image through image-set (crisp on HiDPI) where the browser takes it; `grab` where SVG cursors are
+// not shown. data-cue on the drawing names it (tests).
+const ICON = { // (16 × 16, the app's icon grid)
+  turn: '<path d="M13.2 8A5.2 5.2 0 1 1 11.6 4.2"/><path d="M12.3 1.3V4.8H8.8"/>',
+  slide: '<path d="M2.2 8H13.8"/><path d="M5 5.2 2.2 8 5 10.8M11 5.2 13.8 8 11 10.8"/>',
+  mech: '<path d="M3.6 12.2 6.4 4.4 12.6 10"/><circle cx="3.6" cy="12.2" r="1.6" fill="currentColor"/><circle cx="6.4" cy="4.4" r="1.6" fill="currentColor"/><circle cx="12.6" cy="10" r="1.6" fill="currentColor"/>',
 };
-const ACCENT = '#3b82f6', cache = new Map();
+const ACCENT = '#3b82f6', PANEL = '#1d222a', ICON_OFF = '#7fb2ff', BX = 22.4, BR = 8.8, HOT = '1 1', cache = new Map();
+const ARROW = '<path d="M1.5 1.5V17.6L5.4 13.9L8.1 20.2L10.9 19L8.3 12.8H13.8Z" fill="#fff" stroke="#0f1216" stroke-width="1.2" stroke-linejoin="round"/>';
+let imageSet; // (does the browser take image-set() in a cursor?)
+
+/** The cursor's drawing (an SVG) for `kind`, the icon turned `deg`, `px` wide (32: 1×, 64: 2×); on: while dragging. */
+export function cueSvg(kind, deg = 0, on = false, px = 32) {
+  const k = 0.8, col = on ? '#fff' : ICON_OFF;
+  const ico = `<g color="${col}" transform="rotate(${deg} ${BX} ${BX}) translate(${BX - 8 * k} ${BX - 8 * k}) scale(${k})" fill="none" stroke="${col}" stroke-width="${(1.5 / k).toFixed(3)}" stroke-linecap="round" stroke-linejoin="round">${ICON[kind]}</g>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" data-cue="${kind}${on ? ' on' : ''}" width="${px}" height="${px}" viewBox="0 0 32 32">${ARROW}`
+    + `<circle cx="${BX}" cy="${BX + 1}" r="${BR + 0.6}" fill="#000" opacity=".45"/>`
+    + `<circle cx="${BX}" cy="${BX}" r="${BR}" fill="${on ? ACCENT : PANEL}" stroke="${on ? '#a9c9ff' : ACCENT}" stroke-width="1.2"/>${ico}</svg>`;
+}
 
 /** The CSS cursor for a drag of `kind` ('turn' | 'slide' | 'mech'), a slide's arrow turned `deg` on screen; on: while
  *  dragging. */
 export function moveCursor(kind, deg = 0, on = false) {
   const key = `${kind}|${deg}|${on}`;
   if (!cache.has(key)) {
-    const g = `<g transform="rotate(${deg} 12 12) translate(1.32 1.32) scale(.89)">${ICON[kind]}</g>`; // (its outline inside the 24 × 24)
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">${on
-      ? `<circle cx="12" cy="12" r="11.3" fill="${ACCENT}" stroke="#fff" stroke-width="1.2"/><g stroke="#fff" stroke-width="2.2">${g}</g>`
-      : `<g stroke="#0f1216" stroke-opacity=".6" stroke-width="6.4">${g}</g><g stroke="#fff" stroke-width="4.6">${g}</g><g stroke="${ACCENT}" stroke-width="2.4">${g}</g>`}</svg>`;
-    cache.set(key, `url("data:image/svg+xml,${encodeURIComponent(svg)}") 16 16, ${on ? 'grabbing' : 'grab'}`);
+    const url = (px) => `url("data:image/svg+xml,${encodeURIComponent(cueSvg(kind, deg, on, px))}")`;
+    imageSet ??= typeof CSS !== 'undefined' && CSS.supports('cursor', 'image-set(url("a.svg") 1x, url("b.svg") 2x) 1 1, grab');
+    const img = imageSet ? `image-set(${url(32)} 1x, ${url(64)} 2x)` : url(32);
+    cache.set(key, `${img} ${HOT}, ${on ? 'grabbing' : 'grab'}`);
   }
   return cache.get(key);
 }
@@ -154,8 +167,8 @@ export function cueLabel(viewport, ev, text, strong = false) {
   const r = viewport.getBoundingClientRect();
   el.classList.toggle('strong', strong);
   el.textContent = text;
-  el.style.left = `${ev.clientX - r.left + 20}px`;
-  el.style.top = `${ev.clientY - r.top + 20}px`;
+  el.style.left = `${ev.clientX - r.left + 34}px`; // (right of the cursor's badge)
+  el.style.top = `${ev.clientY - r.top + 13}px`;
 }
 
 /** The first-time hint for the cue ("Drag — moves the part / the mechanism") — until the user has dragged once. */
