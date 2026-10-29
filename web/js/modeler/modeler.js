@@ -96,7 +96,7 @@ export class Modeler {
       <div class="m-cmdbar"></div>
       <div class="m-hint" hidden></div>
       <div class="m-view"></div>
-      <div class="m-busy" hidden><span>Building the 3D model…</span><button class="mini" data-a="stop" title="Stop this (the part stays as it was)">Cancel</button><button class="mini" data-a="again" hidden title="Build the part again as it is now">↻ Rebuild</button></div>
+      <div class="m-busy" hidden><span>Building the 3D model…</span><button class="mini" data-a="stop" title="Stop this (the part stays as it was)">✕ Stop</button><button class="mini" data-a="again" hidden title="Build the part again as it is now">↻ Rebuild</button></div>
       <div class="m-install" hidden></div>
       <div class="m-status"></div>`;
     right.innerHTML = '<div class="mp-body"></div>';
@@ -241,6 +241,7 @@ export class Modeler {
       for (const a of ['fillet', 'chamfer', 'hole', 'shell', 'pattern', 'decal', 'mirror', 'split', 'draft', 'rib']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body || !!this.cmd;
       bar.querySelector('[data-a=revolve]').disabled = !canExtrude || !!this.cmd;
       for (const a of ['loft', 'sweep']) bar.querySelector(`[data-a=${a}]`).disabled = this.sketches().length < 2 || !!this.cmd;
+      bar.querySelector('[data-a=solidFile]').disabled = !!this.cmd;
       for (const a of ['measure', 'section', 'paint']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body;
     }
     for (const b of bar.querySelectorAll('[data-a]:not([data-a=relate])')) b.addEventListener('click', () => this.action(b.dataset.a));
@@ -1885,18 +1886,23 @@ export class Modeler {
       const k = f.edges.findIndex((r) => this.sameRef(r, ref));
       if (k >= 0) f.edges.splice(k, 1);
       else f.edges.push(ref);
+      // what the click did, in words (the panel says it): the edge's two faces
+      this.cmd.lastPick = `${k >= 0 ? 'Dropped' : 'Added'} the edge between ${this.faceLabel(ref.a)} and ${this.faceLabel(ref.b)}.`;
     } else {
       // a face: all of its edges (that are not picked yet)
       const h = this.view.pick(e.clientX, e.clientY);
       if (!h?.face) return null;
+      let n = 0;
       this.result.body.edges.forEach((ed, j) => {
         if (!ed.faces.includes(h.face.id)) return;
         const ref = this.edgeRef(j);
-        if (ref && !f.edges.some((r) => this.sameRef(r, ref))) f.edges.push(ref);
+        if (ref && !f.edges.some((r) => this.sameRef(r, ref))) { f.edges.push(ref); n++; }
       });
+      const what = this.faceLabel(h.face.name);
+      this.cmd.lastPick = n ? `Added ${n} edge(s) of ${what}.` : `All edges of ${what} are picked already.`;
     }
     this.renderProps();
-    this.rebuild();
+    this.rebuild()?.then?.(() => { if (this.cmd?.feature === f) this.renderProps(); }); // (its result shown when built, not the last one's)
     return null;
   }
 
@@ -2208,6 +2214,7 @@ export class Modeler {
       <p class="hint">${fillet ? 'Click the edges to round' : 'Click the edges to bevel'} — click a face to take all of its edges, click a picked edge again to drop it.</p>
       <div class="field"><label>${fillet ? 'Radius' : 'Size'}</label><input type="number" step="any" min="0" data-k="${k}" value="${fmt(f[k])}"><span class="unit">mm</span></div>
       <p class="mp-count">${f.edges.length ? `${f.edges.length} edge(s) picked` : 'No edges picked yet'}</p>
+      ${this.cmd.lastPick ? `<p class="hint mp-last" title="${esc(t('What your last click in the view picked'))}">${esc(this.cmd.lastPick)}</p>` : ''}
       ${f.edges.length ? '<div class="row-actions"><button class="btn small" data-a="clear">Drop all edges</button></div>' : ''}
       ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : st?.warnings?.length ? `<p class="mp-warn">⚠ ${esc(st.warnings.join(' '))}</p>` : ''}
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>
@@ -2215,7 +2222,7 @@ export class Modeler {
     const inp = box.querySelector(`[data-k=${k}]`);
     inp.addEventListener('input', () => { const v = parseFloat(inp.value); if (v > 0) { f[k] = v; this.rebuild(); } });
     inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
-    box.querySelector('[data-a=clear]')?.addEventListener('click', () => { f.edges = []; this.renderProps(); this.rebuild(); });
+    box.querySelector('[data-a=clear]')?.addEventListener('click', () => { f.edges = []; this.cmd.lastPick = null; this.renderProps(); this.rebuild(); });
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
   }
@@ -2591,6 +2598,7 @@ export class Modeler {
     const f = this.cmd.feature, h = this.view.pick(e.clientX, e.clientY);
     if (!h?.face || h.face.type !== 'plane' || h.face.name?.startsWith(`${f.id}:`)) { this.hooks.toast('Click a flat face — it mirrors across it.', 'info', 3000); return; }
     f.plane = { face: h.face.ref || { name: h.face.name }, frame: h.face.frame };
+    this.cmd.facePick = false;
     this.renderProps();
     this.rebuild();
   }
@@ -2602,15 +2610,29 @@ export class Modeler {
     box.innerHTML = `<h2>${esc(f.name)}</h2>
       <div class="field"><label>Mirror</label><select data-k="of"><option value="body" ${body ? 'selected' : ''}>The whole part</option>
         ${rs.map((g) => `<option value="${g.id}" ${g.id === f.of ? 'selected' : ''} data-no-i18n>${esc(g.name)}</option>`).join('')}</select></div>
-      <div class="field"><label>Across</label><div class="seg">${Object.entries(MIRROR_PLANES).map(([k, v]) => `<button data-pl="${k}" class="${f.plane?.datum === k ? 'on' : ''}" title="${esc(t(v))}">${k}</button>`).join('')}</div></div>
-      <p class="hint">${f.plane?.datum ? `${esc(t(MIRROR_PLANES[f.plane.datum]))} — ${esc(t('or click a flat face to mirror across it.'))}` : esc(t('Across the face you clicked (click another one to change it).'))}</p>
+      <div class="field"><label>Across</label><div class="seg">${Object.entries(MIRROR_PLANES).map(([k, v]) => `<button data-pl="${k}" class="${f.plane?.datum === k && !this.cmd.facePick ? 'on' : ''}" title="${esc(t(v))}">${k}</button>`).join('')}<button data-pl="face" class="${!f.plane?.datum || this.cmd.facePick ? 'on' : ''}" title="${esc(t('Mirror across a flat face of the part: click this, then the face in the view'))}">▱ ${esc(t('Face'))}</button></div></div>
+      ${this.cmd.facePick ? `<p class="mp-count">${esc(t('Click a flat face of the part in the view.'))}</p>`
+        : f.plane?.datum ? `<p class="hint">${esc(t(MIRROR_PLANES[f.plane.datum]))} — ${esc(t('or click a flat face to mirror across it.'))}</p>`
+        : `<p class="mp-count">Across the face <b>${esc(this.faceLabel(f.plane?.face?.name || ''))}</b></p><p class="hint">${esc(t('Click another face to change it.'))}</p>`}
       ${body ? `<div class="seg big"><button data-copy="1" class="${f.copy !== false ? 'on' : ''}">⇋ Mirror and copy</button><button data-copy="0" class="${f.copy === false ? 'on' : ''}">↦ Mirror only</button></div>
         <p class="hint">${f.copy !== false ? 'The part and its mirror image, joined.' : 'The part turned into its mirror image.'}</p>` : '<p class="hint">The step is copied to the other side (holes stay holes).</p>'}
       ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}${st?.warnings?.length ? `<p class="mp-warn">${esc(st.warnings.join(' '))}</p>` : ''}
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>`;
     const changed = () => { this.renderProps(); this.rebuild(); };
     box.querySelector('[data-k=of]').addEventListener('change', (e) => { f.of = e.target.value; if (f.of !== 'body') f.copy = true; changed(); });
-    for (const b of box.querySelectorAll('[data-pl]')) b.addEventListener('click', () => { f.plane = { datum: b.dataset.pl }; changed(); });
+    for (const b of box.querySelectorAll('[data-pl]')) {
+      b.addEventListener('click', () => {
+        if (b.dataset.pl === 'face') { // (the face comes with the next click in the view)
+          this.cmd.facePick = true;
+          this.hint('Mirror — click a flat face of the part: it mirrors across it. Enter = OK, Esc = Cancel.');
+          this.renderProps();
+          return;
+        }
+        this.cmd.facePick = false;
+        f.plane = { datum: b.dataset.pl };
+        changed();
+      });
+    }
     for (const b of box.querySelectorAll('[data-copy]')) b.addEventListener('click', () => { f.copy = b.dataset.copy === '1'; changed(); });
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
@@ -2865,7 +2887,9 @@ export class Modeler {
     const ax = this.axisLabel(f);
     box.innerHTML = `<h2>${esc(f.name)}</h2>
       <div class="seg big"><button data-kind="linear" class="${!circ ? 'on' : ''}">▦ In a row</button><button data-kind="circular" class="${circ ? 'on' : ''}">◌ Around</button></div>
-      <div class="field"><label>Repeat</label><select data-k="of">${rs.map((g) => `<option value="${g.id}" ${g.id === f.features[0] ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></div>
+      <div class="mp-of"><div class="mp-of-t">${esc(t('Repeat'))} <span class="mp-count">${esc(t2('{n} step(s)', { n: f.features.length }))}</span></div>
+        <div class="mp-checks">${[...rs].reverse().map((g) => `<label class="check" title="${esc(t('Tick it to repeat this step too'))}"><input type="checkbox" data-of="${g.id}" ${f.features.includes(g.id) ? 'checked' : ''}> <span data-no-i18n>${esc(g.name)}</span></label>`).join('')}</div>
+        <p class="hint">${esc(t('Tick more steps to repeat them together (e.g. a boss and its hole).'))}</p></div>
       <div class="field"><label>How many</label><input type="number" step="1" min="2" data-k="count" value="${f.count}"></div>
       ${circ ? '' : `<div class="field"><label>Apart</label><input type="number" step="any" min="0" data-k="spacing" value="${fmt(f.spacing)}"><span class="unit">mm</span></div>`}
       <div class="field"><label>${circ ? 'Around' : 'Direction'}</label><div class="seg">${Object.keys(AXES).map((a) => `<button data-ax="${a}" class="${ax === a ? 'on' : ''}">${a.toUpperCase()}</button>`).join('')}${circ ? '' : '<button data-a="flipDir" title="The other way">⇄</button>'}</div></div>
@@ -2889,7 +2913,14 @@ export class Modeler {
       });
     }
     box.querySelector('[data-a=flipDir]')?.addEventListener('click', () => { f.dir = f.dir.map((v) => (v ? -v : 0)); changed(); });
-    box.querySelector('[data-k=of]').addEventListener('change', (e) => { f.features = [e.target.value]; changed(); });
+    for (const c of box.querySelectorAll('[data-of]')) {
+      c.addEventListener('change', () => {
+        const on = rs.filter((g) => (g.id === c.dataset.of ? c.checked : f.features.includes(g.id))).map((g) => g.id); // (in the order of the steps)
+        if (!on.length) { c.checked = true; this.hooks.toast('A pattern repeats at least one step.', 'info', 2500); return; }
+        f.features = on;
+        changed();
+      });
+    }
     for (const k of ['count', 'spacing']) {
       const inp = box.querySelector(`[data-k=${k}]`);
       if (!inp) continue;
