@@ -1,6 +1,7 @@
 // A part dragged in the assembly's view: the chosen part moves the way its joints leave free — a turn follows the
 // mouse round its axis, a slide along its line — and every part joined to it follows (Assembly.moveFree: the parts on
-// it go along, a closed loop is solved). A part of a closed loop drives the loop's driver (mechanism.js).
+// it go along, a closed loop is solved, coupled gears turn). A part of a closed loop drives the loop's driver
+// (mechanism.js); a gear of a train turns by its own axis.
 import * as THREE from 'three';
 
 /** The chosen part dragged in the view the way it can move: a turn follows the mouse round its axis, a slide along
@@ -11,7 +12,8 @@ export function startDrag(asm, id, e) {
   const hit = asm.view.ray(e.clientX, e.clientY).intersectObjects(asm.view.meshes || [], false)[0];
   if (!hit || hit.object.userData.inst !== id) return null;
   let part = id, mo = null;
-  const m = (asm.mech?.list || []).find((x) => x.parts.includes(id) && x.closed && x.driver && x.parts.length > 1);
+  const mk = (asm.mech?.list || []).find((x) => x.parts.includes(id) && x.closed && x.driver && x.parts.length > 1);
+  const m = mk && (!mk.train || (asm.loops || []).some((l) => l.parts.includes(id))) ? mk : null; // (⚙ a gear of a train: its own turn, the others follow)
   if (m) ({ part, mo } = m.driver);
   else {
     let d = null;
@@ -48,7 +50,7 @@ export function startDrag(asm, id, e) {
       asm.moveFree(part, mo, step, null, false);
       done = a;
       moved = true;
-      if (m) asm.mech.mark(asm.mech.list.find((x) => x.key === m.key) || m);
+      if (mk) asm.mech.mark(asm.mech.list.find((x) => x.key === mk.key) || mk);
     },
     end() { if (moved) asm.commit(); return moved; },
   };

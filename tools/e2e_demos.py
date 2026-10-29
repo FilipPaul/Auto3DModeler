@@ -244,6 +244,34 @@ try:
     moved = drag_turn("I2", ax("I1", rounds("I1", "side")[0]))
     check({"I2", "I3", "I4"} <= moved and worst() < 0.05, f"the arm dragged in the view: {sorted(moved)} moved")
 
+    # 4. gears and a rack: couplings — the pinion turns the wheel (i = 2:1, the other way) and moves the rack (π·30 a turn)
+    f = open_demo(3)
+    a = json.loads(call("get_assembly"))
+    m = a["mechanisms"][0]
+    cs = {c["type"]: c for c in a.get("couplings", [])}
+    print("  mechanism:", m["name"], "·", m["driver"]["label"], "| couplings:", [(c["id"], c["type"], c["ratio"]) for c in cs.values()])
+    check(f == "prevodovka-s-hrebenem.a3d.json" and len(a["mechanisms"]) == 1 and m["name"] == "Převodovka s hřebenem" and m["driver"]["label"] == "Otáčení pastorku"
+          and sorted(m["parts"]) == ["I2", "I3", "I4"], f"{f}: one ⚙ {m['name']} of {m['parts']}, driven by “{m['driver']['label']}”")
+    check(cs.get("gear", {}).get("ratio") == 2 and cs["gear"].get("way") == "opposite" and abs(cs.get("rack", {}).get("ratio", 0) - math.pi * 30) < 1e-3, "its couplings: a gear pair 2:1 and a rack π·30 mm per turn")
+
+    def gears():
+        g = js(f"return ['I2', 'I3', 'I4'].map(i => {A}.inst(i).matrix)")
+        return math.degrees(math.atan2(g[0][1], g[0][0])), math.degrees(math.atan2(g[1][1], g[1][0])), g[2][13]
+    g0, gr = gears(), {"off": 0}
+
+    def ratios():
+        p, w, y = gears()
+        turned = math.degrees(-(y - g0[2]) / 15)  # (the pinion's turn, unwrapped, from where the rack is: 15 mm a radian)
+        gr["off"] = max(gr["off"], abs((p - g0[0] - turned + 180) % 360 - 180), abs((w - g0[1] + turned / 2 + 180) % 360 - 180))
+    moved, w, n = play(0, look=ratios)
+    check(moved == {"I2", "I3", "I4"} and w < 0.05 and gr["off"] < 0.05 and n > 5, f"▶: {sorted(moved)} moved, joints off {w:.4f} mm, the ratios off {gr['off']:.4f}° ({n} looks)")
+    d.save_screenshot(f"{OUT}/demo_gears.png")
+    g0 = gears()
+    moved = drag_turn("I3", ax("I1", rounds("I1", "side")[1]), deg=40)
+    gr["off"] = 0
+    ratios()
+    check({"I2", "I3", "I4"} <= moved and gr["off"] < 0.05, f"the wheel dragged in the view: {sorted(moved)} moved, the ratios held ({gr['off']:.4f}°)")
+
     # the demo files did not change; Czech
     after = {x["file"]: demo_bytes(x["file"]) for x in listing}
     check(after == before, "the demo files on the server are as they were")

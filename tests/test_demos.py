@@ -1,6 +1,7 @@
 """🎬 The demo projects (demos/*.a3d.json, auto3d/demos.py): each opens as a valid project with its assembly ready —
 joints between its placed parts, Czech motion names, a named mechanism — and the server serves them read-only."""
 import json
+import math
 import tempfile
 import unittest
 from pathlib import Path
@@ -54,6 +55,20 @@ class TestDemoFiles(unittest.TestCase):
         coupler = [m for m in asm["mates"] if m["move"] == "I3" and m["type"] == "axis"]
         self.assertEqual({m["onto"] for m in coupler}, {"I2", "I4"})
         self.assertEqual(sorted(m["onto"] for m in asm["mates"] if m["move"] in ("I2", "I4") and m["type"] == "axis"), ["I1", "I1"])
+
+    def test_gearbox_couples_its_wheels(self):
+        asm = next(p for p in demos.load(DEMOS, "prevodovka-s-hrebenem.a3d.json")["parts"] if p["kind"] == "assembly")["assembly"]
+        ids = {i["id"] for i in asm["instances"]}
+        cs = {c["type"]: c for c in asm["couplings"]}
+        self.assertEqual(set(cs), {"gear", "rack"})
+        for c in cs.values():
+            self.assertIn(c["a"], ids)
+            self.assertIn(c["b"], ids)
+            self.assertNotEqual(c["a"], c["b"])
+        self.assertEqual(cs["gear"]["ratio"], 2)  # (Ø60 / Ø30: the wheel turns half as fast)
+        self.assertFalse(cs["gear"].get("inner") or cs["gear"].get("flip"))  # (in mesh: opposite ways)
+        self.assertAlmostEqual(cs["rack"]["ratio"], math.pi * 30, places=4)  # (π·Ø mm per turn)
+        self.assertEqual(cs["rack"]["a"], cs["gear"]["a"])  # (the pinion drives both)
 
     def test_bad_names_refused(self):
         for bad in ("../server.py", "nope.a3d.json", "klikovy-mechanismus.json", "sub/x.a3d.json", None):

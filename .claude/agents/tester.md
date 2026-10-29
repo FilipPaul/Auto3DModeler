@@ -543,10 +543,17 @@ Never report "works" without having run it; report failures with their output.
    `animation`; Cancel halfway; a video when headless Edge records one (else skipped, said so); record_animation's
    path in the data folder, an unknown mechanism refused; Czech labels; no console errors; one GIF kept as
    <dir>/crank.gif). Prints ALL OK / FAILED, exit code 1 on a failure.
+   `tools/e2e_assembly_gears.py <url> <dir>` covers ⚙ couplings (a pinion Ø30, a wheel Ø60, a pulley Ø30 and a rack
+   on a base: two rims Ctrl+clicked -> "⚙ Gear pair · i = 2:1" first, rims apart -> "⛓ Belt / chain · i = 1:2" first,
+   rim + the rack's side -> "▤ Rack and pinion · 94.248 mm per turn" first; the pinion 90° -> the wheel −45°, the
+   pulley twice the wheel the same way, the rack π·Ø per turn and driven back; one ⚙ Mechanism for the train: its
+   value, ▶ with the ratios held, ⚠ the travel; the wheel dragged in the view; the panel's ratio typed, ⇄, ✕, undo;
+   wrong faces refused; saved and opened again; Czech). Prints ALL OK / FAILED, exit code 1 on a failure.
    `tools/e2e_demos.py <url> <dir>` covers the 🎬 demo projects (Open ▾ → Demo projects… lists them, Czech too; each
    opened from the menu as a new project, the demo files unchanged; ▶: every moving part moves, every joint holds —
    worstMiss < 0.05 mm —; the crank – rod – slider against r·cosθ + √(L² − r²sin²θ), the four-bar's rocker pin against
    the closed form on one branch with the crank all the way round; the robot arm's forearm and gripper go along; the
+   gearbox's wheel and rack keep 2:1 and π·30 mm a turn while ▶ plays and when the wheel is dragged; the
    crank / arm dragged in the 3D view moves the others). Prints ALL OK / FAILED, exit code 1 on a failure.
    `tools/e2e_assembly_flexsub.py <url> <dir>` covers flexible sub-assemblies (a lever on a pin placed twice in a
    parent: get_assembly `inner` "I2/I2", the panel's "Moves inside Lever" slider turns it in the parent only — kept

@@ -94,6 +94,46 @@ Date: 2026-10-25. Written by the architect agent.
   than mm / °, functions (sin, sqrt…), the sketcher's own panels (offset distance, pattern count / spacing in a
   sketch, move / rotate boxes), the mechanism / DOF sliders' numbers, a second window of the project (parameters are
   not sent to it live).
+- **🎬 A 4th demo: gears and a rack done** — demos/prevodovka-s-hrebenem.a3d.json (6 kB, "Převodovka s hřebenem"):
+  a base with two pins, Pastorek Ø30 and Kolo Ø60 in mesh (⚙ G1, i = 2:1), a Hřeben sliding beside the pinion (▤ G2,
+  π·30 mm a turn), a hole off each wheel's middle to see it turn, colours; one ⚙ Mechanism driven by "Otáčení
+  pastorku" over −120 … 120°. tools/make_demos.py builds it through the AI's tools (snap_faces type gear / rack) and
+  now takes the names of the demos to build (`… - prevodovka-s-hrebenem`: the others stay as they are).
+  tests/test_demos.py (its couplings: 2:1 in mesh, π·30, the pinion drives both); e2e_demos opens it: one mechanism of
+  three parts, ▶ with the ratios held, the wheel dragged in the view.
+
+- **Readable motion names by default done** (the walkthrough's "left out": the crank's motion was "Otočit kolem osy:
+  stěna Extrude 2" until renamed). Assembly.motionsOf names each free motion by its part and kind: "Turn: Crank" /
+  "Slide: Slider" (Czech "Otáčení: Klika" / "Posuv: Smýkadlo"); two motions of one kind add how, in brackets ("Slide:
+  Lid (along X)", "(along the axis)", "(on the face)" …: each candidate's `how`); the joint's own words stay as
+  `detail` (the motion row's tooltip); a part fixed on a turning one shows that part's motion ("Turn: Bearing", the
+  hint says it goes along). The user's names (moveNames) still win. e2e_assembly_lockmotion / lever / loop /
+  mechanism and make_demos find the motions by the new words.
+
+- **⚙ Couplings between motions — gears, belts, a rack done** (the owner: "couplings between motions in assemblies,
+  each one joint with ONE input"). web/js/assembly/couplings.js: assembly JSON `couplings` [{id G…, type gear | belt
+  | rack, a, aFace, b, bFace, ratio, inner, flip, name}] — gear / belt: ratio = turns of a per turn of b (Ø b / Ø a,
+  "i = 2:1"), a gear pair opposite ways (a ring gear round a pinion, `inner`, and a belt the same way); rack: a = the
+  pinion's round face, b = the rack's flat side along its axis, ratio = mm per turn (π·Ø). couplingOptions(fa, fb,
+  pins) infers what fits from the picked faces: two rims (isPin) on parallel axes apart — touching (Ø a + Ø b apart):
+  a gear first, further: a belt first; a hole + a pin: only a ring gear round it (else it is a joint to make: the
+  rod's eye on the slider's pin keeps ◎ Concentric first — e2e_mechanism_by_mouse); a rim + a flat face along its axis:
+  a rack. Assembly.couplingItems ranks them first (−1) when both parts can turn about those axes (the rack: slide),
+  else after the joints. Solving: Assembly.applyMates -> followCouplings(asm, before, drive) after placeAll /
+  closeLoops — each coupling whose one side moved (deltaOf: the turn about its rim's axis, the slide along the rack;
+  the exact amount from moveFree's drive {mo, amount}, so a turn past 180° counts) moves the other side's mover
+  (moverOf: itself or the shaft it is keyed on) by the coupled amount, then placeAll / closeLoops again (a loop on a
+  coupled part follows) — each part once, through a whole train, no back-and-forth. mechanisms(): coupled parts merge
+  into one mechanism (`train`; a gear keyed on a turning shaft joins the shaft's); drag.js turns a train's gear by
+  its own axis (a part of a closed loop still drives the loop's driver); the joint spin slider passes its turn on.
+  The part panel's "Couplings" rows (ratio — one input —, ⇄, ✕, a name by double-click, hover lights both faces),
+  the overview lists them; History keeps them. AI: snap_faces type gear / belt / rack (value = ratio), get_assembly
+  `couplings`, edit_joint {id G…, ratio, flip, name}, remove_joint; the assemble-parts skill; e2e_agent (refused on
+  flat faces). tools/e2e_assembly_gears.py (33 checks): the suggestions, 2:1 -> the wheel −45° for 90°, the belt the
+  same way ×2, the rack π·Ø per turn and driven back, one ⚙ Mechanism, ▶ with the ratios held to < 0.05°, ⚠ the
+  travel, a drag of the wheel, the ratio typed / ⇄ / ✕ / undo, saved and opened again, Czech. Left out: gear teeth
+  (no gear feature in the modeller: a wheel is its pitch circle, the ratio from its Ø), couplings inside a
+  sub-assembly's own engine, a planetary carrier (the turn is measured in the world, not against a moving carrier).
 
 - **A mechanism built by mouse: the walkthrough, its fixes, "one joint is missing" done** (the owner: "how hard is it
   for a user to make a mechanism?"). The crank – rod – slider put together with real clicks only (headless Edge, Czech,

@@ -32,8 +32,8 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    **Fasteners in holes that are there**: make matching holes in both parts (M3: Ø3.4 clearance in the top part, Ø4.0 insert hole about 6 deep
    below; M2…M5 alike; equal holes for a dowel pin), join the parts, then `suggest_fasteners` and `add_fasteners`
    (all, or the ids) — screws, inserts and pins are put in as standard parts, held by joints.
-6. Check it: `get_assembly` tells for each joined part how it can still move (`free`: e.g. "Along the axis of …",
-   "Turn about …") or that it is `fully_held` — a hinge or slide keeps its one way free, the rest is held.
+6. Check it: `get_assembly` tells for each joined part how it can still move (`free`: e.g. "Turn: Crank",
+   "Slide: Slider" — two of a kind say how: "Slide: Lid (along X)") or that it is `fully_held` — a hinge or slide keeps its one way free, the rest is held.
    `check_collisions` lists parts that go into each other (fix the made part: a hole, a pocket).
    A part that moves (a cylinder's rod, a slide, a door): `set_travel {part, motion, min, max}` gives its free motion
    its limits (where along it: get_assembly `at`), then `check_travel {part, motion}` tells whether it hits anything
@@ -51,6 +51,12 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    (`name_motion {part, motion, name: "Otáčení kliky"}`, `drive_mechanism {name}` for the mechanism) — the names show
    everywhere and work as `motion` in move_free / set_travel. To show it moving: `set_view` as it should be seen, then
    `record_animation {mechanism, format: "gif" | "video"}` saves one full cycle in the data folder (it answers the path).
+   **Gears, belts, a rack**: two parts that each turn on their own pin are coupled by `snap_faces {type: "gear" |
+   "belt", move: {part, face: its rim}, onto: {part, face: the other rim}}` (the rims: the pitch circles; a gear pair
+   turns opposite ways, a belt the same way; `value` = the ratio, default Ø onto / Ø move), a pinion and a sliding rack
+   by `type: "rack"` (move = the pinion's rim, onto = the rack's flat side along its axis: π·Ø per turn). Then
+   move_free / drive_mechanism one of them — the other follows, the coupled parts are one mechanism. get_assembly
+   `couplings` (G…): `edit_joint {id, ratio, flip}`, `remove_joint {id}`.
    A joint with `not_held` is overridden by another joint of that part (it names it): change or `remove_joint` one
    of the two — never leave a joint that does not hold. Joining the same two faces again changes that joint.
    `remove_from_assembly` on a fastener's screw or nut takes out the whole fastener and the holes drilled for it.

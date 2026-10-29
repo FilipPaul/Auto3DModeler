@@ -304,8 +304,9 @@ nothing in it that still has the name the app gave it — the one on screen stay
 
 **🎬 Demo projects** (Open ▾ → *Demo projects…*): ready-made projects that show whole mechanisms moving — a crank –
 rod – slider (*Klikový mechanismus*), a four-bar linkage (*Čtyřkloubový mechanismus*: the crank turns round, the
-rocker swings) and a robot arm (*Robotické rameno*: an open chain — turn the arm and the forearm and gripper go
-along). Each is listed with what it shows (in Czech or English) and opens as a new project — a copy, the demo stays
+rocker swings), a robot arm (*Robotické rameno*: an open chain — turn the arm and the forearm and gripper go
+along) and gears with a rack (*Převodovka s hřebenem*: a pinion Ø30 turns a wheel Ø60 at i = 2:1 and moves a rack
+π·30 mm a turn — ⚙ couplings). Each is listed with what it shows (in Czech or English) and opens as a new project — a copy, the demo stays
 as it is — on its assembly with ⚙ Mechanism ready (Czech motion names, ▶). The files are in `demos/` (built through
 the app by `tools/make_demos.py`) and go into the Windows build.
 
@@ -851,16 +852,28 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   folder (`data/animations/`); the GIF is made there by the server (Pillow, one palette for all frames: no flicker),
   a ⚙ job you can stop. The AI: `record_animation {mechanism, format: gif | video}` (it answers the file's path);
   gui_state shows a recording under way or the last one saved.
+- **⚙ Gears, ⛓ belts, ▤ a rack — couplings**: two parts that each turn on their own pin can be tied by one number,
+  the ratio (*převod*). Click the rim of one wheel, Ctrl+click the rim of the other: when both can turn about
+  parallel axes the first suggestion is **⚙ Gear pair · i = 2:1** (the rims touching — the pitch circles; the ratio
+  from their Ø: the bigger one turns half as fast, the other way round; a ring gear round a pinion the same way) or
+  **⛓ Belt / chain · i = 1:2** (the rims apart: the same way). A wheel's rim and the flat side of a part that slides
+  gives **▤ Rack and pinion · 94.248 mm per turn** (π·Ø). Then turn either part — its slider, ⚙ Mechanism, ▶, a drag
+  in the view, the AI — and the other follows, through a whole train (a pinion → a wheel → a pulley → a rack); the
+  coupled parts are one mechanism with one slider. The part's panel lists its **Couplings**: the ratio to type, **⇄**
+  the other way round, ✕. A hole and a pin of the same Ø still offer ◎ Concentric first (a joint, not wheels). The
+  AI: `snap_faces {type: "gear" | "belt" | "rack", value: ratio}`, get_assembly `couplings`, `edit_joint {id: "G1",
+  ratio, flip}`, `remove_joint`. Gear teeth are not modelled: a wheel is its pitch circle (a disc).
 - **Drag a part in the view**: choose a joined part, then drag it in the 3D view (the cursor shows a hand): it moves
   the way its joints leave free — a crank turns round its shaft after the mouse, a slider slides along its line — and
   every part joined to it follows live (the rod and the slider of a crank; a forearm and its gripper on a turning
   arm). Grabbing any part of a closed loop (the rod) turns the loop's driver. Elsewhere a drag turns the view as
   always.
-- **Name the motions**: double-click a motion's name in the part's panel or in ⚙ Mechanism (*"Dvojklik: dát mu
-  vlastní název"*) — "Otáčení kliky" instead of "Turn about the axis of …"; double-click a mechanism's name for its
-  own. The names are kept in the assembly (undo, save and open again) and show everywhere: the panel, the widget, the
-  AI's get_assembly / gui_state. The AI: get_assembly `mechanisms`, `drive_mechanism {mechanism, to, driver, name,
-  play}` and `name_motion {part, motion, name}`.
+- **Name the motions**: a free motion is named by its part — *Turn: Crank*, *Slide: Slider* (*Otáčení: Klika*,
+  *Posuv: Smýkadlo*; two of a kind say how: *Slide: Lid (along X)*; the joint it comes from is in its tooltip).
+  Double-click a motion's name in the part's panel or in ⚙ Mechanism (*"Dvojklik: dát mu vlastní název"*) for your
+  own — "Otáčení kliky"; double-click a mechanism's name for its own. The names are kept in the assembly (undo, save
+  and open again) and show everywhere: the panel, the widget, the AI's get_assembly / gui_state. The AI: get_assembly
+  `mechanisms`, `drive_mechanism {mechanism, to, driver, name, play}` and `name_motion {part, motion, name}`.
 - **A sub-assembly keeps its own motions**: choose a placed sub-assembly — **Moves inside <it>** shows a slider for
   each way its own joints leave its parts free (a lever on its pin). Slide: the lever turns here, in this placement
   only — the sub-assembly's own tab stays as it is, and a second placement of it can stand differently. Parts joined

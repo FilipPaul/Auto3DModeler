@@ -1,6 +1,6 @@
 """A lever on a bearing on a shaft, in headless Edge (the AI's reports of 2026-10-27): the bearing turns on the shaft
 (concentric + touch), the arm is fixed on the bearing (concentric, turn locked + flush) -> the arm is not "fully
-held": it moves with the bearing ("Turn about … — with Bearing"), its slider / move_free turn the bearing and the arm
+held": it moves with the bearing ("Turn: Bearing"), its slider / move_free turn the bearing and the arm
 goes along -> 🔓 free / 🔒 locked on a flat joint: locked, the bearing is fully held; free again -> the ↻ slider of a free turn
 turns the bearing and it stays free (also on a locked joint) -> ⇅ on a concentric joint turns it over once (its two
 ways stay; it was turned over at every hold before) -> gui_state lists the parts -> turn limits up to a full turn (0 … 270°, to 250 and back; more than a turn is cut to one) -> a joint named by
@@ -175,7 +175,7 @@ try:
     pick("I3")
     sp = next(c for c in json.loads(call("gui_state", where="panel"))["controls"] if c["kind"] == "slider" and "J3" in c["label"] or c["kind"] == "slider" and "↻" in c["label"] and c.get("disabled"))
     print("  a greyed slider:", sp["label"][:50], "->", call("gui_action", control=sp["n"], value=20)[:60])
-    drive = next(c for c in json.loads(call("gui_state", where="panel"))["controls"] if c["kind"] == "slider" and "with Bearing" in c["label"])
+    drive = next(c for c in json.loads(call("gui_state", where="panel"))["controls"] if c["kind"] == "slider" and "Turn: Bearing" in c["label"])
     m1 = js(f"return {A}.inst('I2').matrix.map(v => +v.toFixed(2))")
     print("  the drive slider:", drive["label"][:60], "|", json.loads(call("gui_action", control=drive["n"], value=float(drive["state"]) + 5))["done"][:60],
           "| the bearing moved:", js(f"return {A}.inst('I2').matrix.map(v => +v.toFixed(2))") != m1)

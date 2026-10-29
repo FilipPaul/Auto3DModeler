@@ -313,6 +313,8 @@ try:
     print("    drive_mechanism, no mechanism:", tool("drive_mechanism", to=90)[0][:100])
     print("    record_animation, no mechanism:", tool("record_animation", format="gif")[0][:100])
     print("    name_motion, not joined:", tool("name_motion", part="I1", motion=0, name="Turn")[0][:100])
+    # ⚙ a coupling (snap_faces type gear / belt / rack): flat faces refused, it says why
+    print("    snap_faces gear, flat faces:", tool("snap_faces", type="gear", move={"part": "I3", "face": "F2:end"}, onto={"part": "I1", "face": "I1/F2:start"})[0][:100])
     tool("open_part", id="Flange")
     tool("prepare_print")
     tool("check_print")

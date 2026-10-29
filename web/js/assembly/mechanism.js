@@ -4,7 +4,8 @@
 // round, else to and fro — back at a dead point (a slider pushing a crank). ⋯: another driver, the speed, ⚠ the travel
 // checked for collisions, 📈 a trace (how a follower moves over the driver's travel) and 🎬 an animation saved (anim.js).
 // A widget of the left column (leftdock.js: docked or floating), there only while the assembly has a mechanism; ✕
-// closes it, ⚙ Mechanism in the toolbar opens it again.
+// closes it, ⚙ Mechanism in the toolbar opens it again. Parts coupled by gears, a belt or a rack (couplings.js) are one
+// mechanism: its driver turns them all.
 //   Assembly JSON: "mechs": [{"parts": ["I2", "I3", …], "name": "the user's", "drive": {"part": "I3", "key": "J3:turn"},
 //   "speed": 2}] — found again by the parts they share; a free motion's own name: an instance's
 //   "moveNames": {"J3:turn": "crank"} (Assembly.nameMotion; shown wherever the motion is).
@@ -24,7 +25,8 @@ const wrap = (a) => ((((a + 180) % 360) + 360) % 360) - 180; // (a turn the shor
 /** The mechanisms of assembly `asm` -> [{id: "M1", key, parts, closed, drivers: [{part, mo}], driver, rec, name, min, max,
  *  full (round and round), turn}]. A closed loop with free motions is one (its closing part — joined onto two of its
  *  parts — does not drive it); a part outside loops that turns about an axis, slides along one, or has limits set on a
- *  motion is one on its own (fasteners and 📌 fixed parts are not). */
+ *  motion is one on its own (fasteners and 📌 fixed parts are not); parts tied by a coupling (⚙ gears, ⛓ a belt, ▤ a
+ *  rack — couplings.js) are one together (`train`). */
 export function mechanisms(asm) {
   const out = [], seen = new Set();
   const own = (x) => { let d = null; try { d = asm.motionsOf(x, true); } catch { d = null; } return d?.count ? d.motions.map((mo) => ({ part: x, mo })) : []; };
@@ -41,6 +43,22 @@ export function mechanisms(asm) {
     const ds = own(it.id).filter(({ mo }) => /:(turn|along)$/.test(mo.key || '') || asm.limitsOf(it, mo));
     if (ds.length) out.push({ parts: [it.id], closed: true, drivers: ds, onClosing: new Set() });
   }
+  for (const c of asm.doc.couplings || []) { // ⚙ coupled parts (gears, a belt, a rack): one mechanism, moved by one value
+    const ensure = (x) => {
+      const on = (asm.doc.mates || []).filter((j) => j.move === x).map((j) => j.onto); // (a gear keyed on a shaft: the shaft's)
+      let m = out.find((q) => q.parts.includes(x)) || out.find((q) => on.some((y) => q.parts.includes(y)));
+      if (!m && asm.inst(x) && !asm.inst(x).fixed) { m = { parts: [x], closed: true, drivers: own(x), onClosing: new Set() }; out.push(m); }
+      return m;
+    };
+    const A = ensure(c.a), B = ensure(c.b);
+    if (!A || !B || A === B) continue;
+    A.parts.push(...B.parts.filter((x) => !A.parts.includes(x)));
+    A.drivers.push(...B.drivers);
+    A.closed = A.closed && B.closed;
+    B.onClosing.forEach((x) => A.onClosing.add(x));
+    A.train = true;
+    out.splice(out.indexOf(B), 1);
+  }
   return out.filter((m) => m.drivers.length || !m.closed).map((m, k) => {
     const rec = recOf(asm, m.parts), rank = (d) => {
       const lim = asm.limitsOf(asm.inst(d.part), d.mo), turn = d.mo.kind === 'turn', axis = /:turn$/.test(d.mo.key || '');
@@ -50,7 +68,7 @@ export function mechanisms(asm) {
     const driver = (rec?.drive && m.drivers.find((d) => d.part === rec.drive.part && d.mo.key === rec.drive.key)) || best;
     const one = m.parts.length === 1, name = rec?.name || (driver ? (one ? asm.partName(asm.inst(driver.part)?.part)
       : t2('{part} and {n} more', { part: asm.partName(asm.inst(driver.part)?.part), n: m.parts.length - 1 })) : m.parts.join('–'));
-    return { id: `M${k + 1}`, key: m.parts.join(','), parts: m.parts, closed: m.closed, drivers: m.drivers, driver, rec, name, own: !!rec?.name, speed: rec?.speed || 1, ...(driver ? rangeOf(asm, driver) : {}) };
+    return { id: `M${k + 1}`, key: m.parts.join(','), parts: m.parts, closed: m.closed, drivers: m.drivers, driver, rec, name, train: !!m.train, own: !!rec?.name, speed: rec?.speed || 1, ...(driver ? rangeOf(asm, driver) : {}) };
   });
 }
 

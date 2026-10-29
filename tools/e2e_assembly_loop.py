@@ -116,7 +116,7 @@ try:
     print("the crank at", round(th, 2), "° | the rod's eyes", hole("I3", 0), hole("I3", 1))
     # the slider under the rod's second eye (as the report: placed first, both joints agree at 0°)
     sl = json.loads(call("get_assembly"))
-    along = next(i for i, m in enumerate(next(p for p in sl["parts"] if p["id"] == "I4")["free"]) if "X" in m)
+    along = next(i for i, m in enumerate(next(p for p in sl["parts"] if p["id"] == "I4")["free"]) if m.startswith("Slide"))
     qx = axis("I4", "F4:side:c1")[0]
     ex = axis("I3", hole("I3", 1))[0]
     print("move_free the slider:", call("move_free", part="I4", motion=along, amount=ex - qx)[:60])

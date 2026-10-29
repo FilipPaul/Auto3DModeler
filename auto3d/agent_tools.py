@@ -381,9 +381,12 @@ TOOLS = [
                     "apart), \"flush\" (flat faces in one plane, gap = offset), \"axis\" (concentric: two round faces on one axis, a pin in a hole; gap = the distance along the axis between the facing ends of the two round faces — two plates with holes 30 mm apart: gap 30; lock_rotation: true keeps its turn), "
                     "\"parallel\", \"perp\" (perpendicular), \"angle\" (value = degrees between the faces' directions), \"tangent\" "
                     "(a round face touching a flat one). A part's joints apply in order: e.g. axis (pin shaft → hole) then touch (head → plate top) seats a "
-                    "pin. Face names come from find_refs in the part's own model (\"F2:end\" = the top of the first extrude). name: the user's own name of the joint (e.g. \"bearing on the shaft\"); lock_rotation also on flat joints (its turn on the face).",
+                    "pin. Face names come from find_refs in the part's own model (\"F2:end\" = the top of the first extrude). name: the user's own name of the joint (e.g. \"bearing on the shaft\"); lock_rotation also on flat joints (its turn on the face). "
+                    "Couplings between two parts that each turn (or slide) on their own joints: \"gear\" (two round faces — the gears' pitch circles — on parallel axes: they turn opposite ways, a ring gear round the other the same way), \"belt\" (two pulleys / sprockets: the same way), "
+                    "\"rack\" (move = the pinion's round face, onto = the rack's flat face along its axis: the rack slides π·Ø per turn); value = the ratio (gear / belt: turns of move's part per one turn of onto's, default Ø onto / Ø move; rack: mm per turn, default π·Ø). "
+                    "Turning one (move_free, drive_mechanism) turns the other; the coupled parts are one mechanism. get_assembly lists them as `couplings` (ids G…; edit_joint {id, ratio, flip} / remove_joint).",
      "inputSchema": _obj({"move": _obj({"part": STR, "face": STR}, ["part", "face"]), "onto": _obj({"part": STR, "face": STR}, ["part", "face"]),
-                          "type": {"type": "string", "enum": ["touch", "gap", "flush", "axis", "parallel", "perp", "angle", "tangent"]}, "gap": NUM,
+                          "type": {"type": "string", "enum": ["touch", "gap", "flush", "axis", "parallel", "perp", "angle", "tangent", "gear", "belt", "rack"]}, "gap": NUM,
                           "value": NUM, "lock_rotation": {"type": "boolean"}, "name": STR}, ["move", "onto"])},
     {"name": "bolt_parts", "where": "browser",
      "description": "Fasten parts that have no holes yet: a screw goes in at a point of a flat face of a placed part (part = I…, face = its "
@@ -580,9 +583,9 @@ TOOLS = [
                     "the axis for a concentric joint, null = it slides freely), lock_rotation (true / false), angle (degrees: the "
                     "turn about the joint, or for an angle joint the angle), flip (true: the other way round), locked (true: "
                     "moving by hand cannot break it), name (the user's own name of the joint, e.g. \"bearing on the shaft\"; "
-                    "empty: none).",
+                    "empty: none). A coupling (id G…: gear / belt / rack): ratio (its number), flip (true: the other way round), name.",
      "inputSchema": _obj({"id": STR, "gap": NUM, "distance": {"type": ["number", "null"]}, "lock_rotation": {"type": "boolean"}, "angle": NUM,
-                          "flip": {"type": "boolean"}, "locked": {"type": "boolean"}, "name": STR}, ["id"])},
+                          "flip": {"type": "boolean"}, "locked": {"type": "boolean"}, "name": STR, "ratio": NUM}, ["id"])},
     {"name": "ask_user", "where": "browser",
      "description": "Ask the user a question with options shown as buttons in the app's chat: question, options [{label, description}] "
                     "(2–5, short labels; the user can also type something else), recommended = the number of the option you "
@@ -622,7 +625,7 @@ TOOLS = [
                     "the next. Without wait it answers at once (and says what happened to the tip before).",
      "inputSchema": _obj({"control": {}, "at": {"type": "array", "items": NUM}, "text": STR, "step": {},
                           "wait": {"type": "boolean"}, "timeout": NUM, "clear": {"type": "boolean"}})},
-    {"name": "remove_joint", "where": "browser", "description": "Remove a joint (id J…) of the assembly on screen; the part stays where it is.",
+    {"name": "remove_joint", "where": "browser", "description": "Remove a joint (id J…) or a coupling (id G…: gear / belt / rack) of the assembly on screen; the part stays where it is.",
      "inputSchema": _obj({"id": STR}, ["id"])},
     {"name": "measure", "where": "browser",
      "description": "Measure between two faces — of placed parts of an assembly: a = {part: I…, face}, b = {part, face}; of the 3D "
