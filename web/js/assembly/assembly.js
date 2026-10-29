@@ -39,6 +39,7 @@ import { lookColor, finishOf } from '../modeler/materials.js';
 import { stepTree } from './stepfile.js';
 import { bomOf, bomCsv, instanceTree } from './bom.js';
 import { openBomWindow } from './bomview.js';
+import { kindIcon, fromLibrary } from '../parts.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -445,6 +446,14 @@ export class Assembly {
 
   kindOf(pid) { return this.hooks.parts().find((p) => p.id === pid)?.kind; }
 
+  /** A part's icon in the tree: the project tree's (a library part as it came: the library's). */
+  partIcon(pid) {
+    const kind = this.kindOf(pid);
+    let lib = false;
+    try { lib = kind === 'model' && fromLibrary(this.hooks.partData(pid)); } catch { /* (no data yet) */ }
+    return kindIcon(lib ? 'library' : kind);
+  }
+
   /** A part's steps for the CAD kernel: a 3D model's own; a quick part as one solid (its STEP export). */
   async partFeatures(pid, data) {
     const p = this.hooks.parts().find((q) => q.id === pid);
@@ -551,7 +560,7 @@ export class Assembly {
       const b = this.bodies[it.part];
       const row = document.createElement('div');
       row.className = `mt-item${it.id === this.sel || it.id === this.sel2 ? ' on' : ''}${b?.error ? ' bad' : ''}`;
-      row.innerHTML = `<span class="mt-icon">${this.kindOf(it.part) === 'assembly' ? '◇' : this.kindOf(it.part) === 'classic' ? '▤' : '◆'}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>
+      row.innerHTML = `<span class="mt-icon">${this.partIcon(it.part)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>
         ${b?.error ? '<span class="mt-warn">⚠</span>' : ''}
         <span class="mt-acts"><button class="mini" data-a="rename" title="Rename its part (its tab too)">🏷</button><button class="mini" data-a="dup" title="One more of this part">⧉</button><button class="mini danger" data-a="del" title="Take it out of the assembly">✕</button></span>
         <button class="mini as-boom${it.stay ? ' off' : ''}" data-a="boom" title="${it.stay ? 'Stays in place when exploded — click to let it move' : 'Moves when exploded — click to keep it in place (Ctrl+click: only this one moves)'}">💥</button>`;
@@ -605,7 +614,7 @@ export class Assembly {
       row.className = `mt-item as-inner-row${this.sel === top.id && this.selInner?.top === top.id && this.selInner.path === inner ? ' on' : ''}`;
       row.style.setProperty('--depth', depth);
       row.dataset.path = n.path;
-      row.innerHTML = `<span class="mt-icon">${n.kind === 'assembly' ? '◇' : n.kind === 'classic' ? '▤' : '◆'}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>`;
+      row.innerHTML = `<span class="mt-icon">${this.partIcon(n.part)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>`;
       row.querySelector('.mt-name').textContent = this.partName(n.part);
       row.querySelector('.mt-what').textContent = n.id;
       row.title = t2('In {sub} — a click shows it in the view', { sub: this.partName(top.part) });

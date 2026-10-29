@@ -813,6 +813,7 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .mt-item.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
 .mt-item.bad .mt-name { color: var(--err); }
 .mt-icon { width: 18px; text-align: center; color: #a371f7; }
+.mt-icon .ico { display: block; margin: 0 auto; }
 .mt-name { font-weight: 600; white-space: nowrap; }
 .mt-what { color: var(--muted); font-size: 12px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mt-warn { color: var(--err); }
