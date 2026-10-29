@@ -212,7 +212,7 @@ try:
     js(f"{M}.selectStep(null); {M}.selectStep('F3'); {M}.suggestStep('F3')")
     time.sleep(0.8)
     sc = js("""const b = document.querySelector('#modelViewport .view-suggest'), l = b.querySelector('.vs-list'), h = b.querySelector('.vs-head'), vr = b.parentElement.getBoundingClientRect(), br = b.getBoundingClientRect();
-      return { sh: l.scrollHeight, ch: l.clientHeight, bar: l.offsetWidth - l.clientWidth, fadeB: l.classList.contains('fade-b'), head: h.getBoundingClientRect().top >= vr.top && h.getBoundingClientRect().bottom <= vr.bottom,
+      return { sh: l.scrollHeight, ch: l.clientHeight, bar: l.offsetWidth - l.clientWidth, fadeB: l.classList.contains('fade-bottom'), head: h.getBoundingClientRect().top >= vr.top && h.getBoundingClientRect().bottom <= vr.bottom,
         inside: br.top >= vr.top - 1 && br.bottom <= vr.bottom + 1, rows: l.querySelectorAll('button[data-sg]').length, pinned: l.querySelectorAll('.vs-pin-row').length };""")
     print("1280 × 800:", sc)
     check("1280 × 800: the rows scroll inside the table, the head in sight", sc["sh"] > sc["ch"] + 5 and sc["head"] and sc["inside"])
@@ -221,7 +221,7 @@ try:
     d.save_screenshot(f"{OUT}/hole_suggest_small.png")
     js("const l = document.querySelector('#modelViewport .view-suggest .vs-list'); l.scrollTop = l.scrollHeight")
     time.sleep(0.4)
-    check("scrolled down: the fade at the top", js("return document.querySelector('#modelViewport .view-suggest .vs-list').classList.contains('fade-t')"))
+    check("scrolled down: the fade at the top", js("return document.querySelector('#modelViewport .view-suggest .vs-list').classList.contains('fade-top')"))
     d.save_screenshot(f"{OUT}/hole_suggest_small_end.png")
 finally:
     errs = [e["message"] for e in d.get_log("browser") if e["level"] == "SEVERE"]
