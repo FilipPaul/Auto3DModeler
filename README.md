@@ -357,7 +357,8 @@ save_version, compare_versions, restore_version and create_variant.
 rod – slider (*Klikový mechanismus*), a four-bar linkage (*Čtyřkloubový mechanismus*: the crank turns round, the
 rocker swings), a robot arm (*Robotické rameno*: an open chain — turn the arm and the forearm and gripper go
 along) and gears with a rack (*Převodovka s hřebenem*: a pinion Ø30 turns a wheel Ø60 at i = 2:1 and moves a rack
-π·30 mm a turn — ⚙ couplings). Each is listed with what it shows (in Czech or English) and opens as a new project — a copy, the demo stays
+π·30 mm a turn — ⚙ couplings) and a pump (*Pumpička*: press the button — the piston compresses the 〰 spring, the
+outlet ball lifts and the inlet ball sits on its seat; let go: the other way round — ↕ check valves). Each is listed with what it shows (in Czech or English) and opens as a new project — a copy, the demo stays
 as it is — on its assembly with ⚙ Mechanism ready (Czech motion names, ▶). The files are in `demos/` (built through
 the app by `tools/make_demos.py`) and go into the Windows build.
 
@@ -881,7 +882,11 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   **↕ distance** is the gap along the axis between the facing ends of the two round faces — two plates with holes
   joined this way get it filled in (touching) and you type e.g. 30; empty = it slides),
   **Parallel**, **Perpendicular**, **Angle** (two flat faces at the angle you type), **Tangent** (a round face on a
-  flat one), or **🔩 Screw / pin** — then
+  flat one), **● Ball joint** (a ball — a revolved half circle — with its centre on the axis of a hole or a cone: it
+  slides along the axis and turns any way; onto another ball: one centre, it only turns), **◉ Ball in seat** (a valve
+  ball seated in a conical seat, or on the edge of a hole smaller than it: on the axis, touching it), **🔗 Fixed
+  together** (a part fixed to another one as they are now: it goes with it and has no motion of its own — also
+  *🔗 Fix A to B* in the suggestions when two parts are chosen), or **🔩 Screw / pin** — then
   click a face of the part to move and the face it goes to (the face under the mouse is marked). For round faces a
   click on (or near) a **circle** — a hole's or a pin's edge — is enough: its round face is taken (a hole seen from the
   front, whose wall is hard to hit). A part can have
@@ -895,6 +900,22 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   broken: the part cannot be moved by hand while it holds; moving a part held by unlocked joints asks first.
   **Double-click a joint's name** to give it your own (e.g. *ložisko na tyč*); it is shown in the list, over its
   symbol in the view and to the AI.
+- **〰 Spring**: pick the spring's end face and the face it pushes on (Ctrl+click; a part called *spring* / *pružina*
+  puts 〰 first in the suggestions, or 〰 Spring in Joint ▾). The spring part is drawn as long as it reaches — scaled
+  along its axis, its other end where it sits — while the parts move (sliders, dragging, ⚙ ▶, the 🎬 animation,
+  screenshots); its model stays as it is, its free length is its modelled length. Its row: *free 20 mm · now 16 mm ·
+  compressed 4 mm*, and with its stiffness **k** (N/mm, the one input) the force (*2 N*). Collisions between the spring
+  and the parts it is joined to are not counted.
+- **↕ By the driver's direction** (a check valve's ball, a pawl): a part with one slide between two limits (⇤⇥ — its
+  stops, e.g. seated / lifted) gets **↕ By the driver's direction** in its motion's row: one click and it goes by the
+  piston (the mechanism's driver sliding along it) — while the piston goes forward it sits at one stop, going back at
+  the other (*Piston forward → at max / at min* chooses which). It moves with the piston's ⚙ mechanism (its slider, ▶,
+  a drag), and 📈 Trace goes there and back, so both stops show. Not for a crank turning round and round (it always
+  goes forward).
+- **🔒 Lock a motion where it is**: 🔒 by a motion in the part's Moves keeps it — a joint's turn or distance, a new
+  flush / gap / parallel joint where faces line up, else **its own joint keeps it** (a touch's slides on the face one
+  by one, a ball's slide along its axis; a ball's turn locks all three of its turns). The joint's row says
+  *🔒 2 locked* and ✕ there frees them again.
 - **A part fixed on a moving part moves with it**: a lever fixed on a bearing (its turn locked) that turns on a
   shaft is not "fully held" — its Moves are the bearing's (*Turn about … — with Bearing*): drive the lever, the
   bearing turns and the lever goes along.

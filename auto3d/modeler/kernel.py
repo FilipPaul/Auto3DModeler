@@ -2071,15 +2071,25 @@ def _edge_len(c):
 
 def _surface_of(f):
     """What a face's surface is to the viewer: ("plane", its normal as the surface's own), ("cylinder", radius, a point
-    of the axis, its direction) or ("other",)."""
+    of the axis, its direction), ("sphere", radius, its centre), ("cone", its half angle (degrees), its apex, the
+    direction it opens to) or ("other",) — a ball and a conical seat for the assembly's ● ball joints."""
+    from OCP.GeomAbs import GeomAbs_Cone, GeomAbs_Sphere
     s = BRepAdaptor_Surface(f, True)
     pln = flat_plane(f, s)
     if pln is not None:
         return ("plane", pln.Axis().Direction().Coord())
-    if s.GetType() == GeomAbs_Cylinder:
+    kind = s.GetType()
+    if kind == GeomAbs_Cylinder:
         cyl = s.Cylinder()
         a = cyl.Axis()
         return ("cylinder", cyl.Radius(), a.Location().Coord(), a.Direction().Coord())
+    if kind == GeomAbs_Sphere:
+        sph = s.Sphere()
+        return ("sphere", sph.Radius(), sph.Location().Coord())
+    if kind == GeomAbs_Cone:
+        cone = s.Cone()
+        semi, d = cone.SemiAngle(), cone.Axis().Direction().Coord()
+        return ("cone", abs(math.degrees(semi)), cone.Apex().Coord(), d if semi > 0 else tuple(-v for v in d))
     return ("other",)
 
 
@@ -2099,11 +2109,17 @@ def _moved_surface(surf, m):
         ln = length(d) or 1.0
         return ("cylinder", surf[1] * ln / (length(surf[3]) or 1.0), tuple(a + m[i][3] for i, a in enumerate(turn(surf[2]))),
                 tuple(x / ln for x in d))
+    if surf[0] == "sphere":
+        return ("sphere", surf[1] * length(turn((1.0, 0.0, 0.0))), tuple(a + m[i][3] for i, a in enumerate(turn(surf[2]))))
+    if surf[0] == "cone":
+        d = turn(surf[3])
+        return ("cone", surf[1], tuple(a + m[i][3] for i, a in enumerate(turn(surf[2]))), tuple(x / (length(d) or 1.0) for x in d))
     return surf
 
 
 def _face_info(f, fi, rev, rough=None, tris=None, centre=True, surf=None):
-    """A face for the viewer: {id, area, centroid, type, normal + frame (flat) / radius + axis (a cylinder)}. rough:
+    """A face for the viewer: {id, area, centroid, type, normal + frame (flat) / radius + axis (a cylinder) / radius +
+    centre (a sphere) / cone {apex, d (the way it opens), half} (a cone)}. rough:
     (area, centre) from the mesh; centre False: a flat face's frame keeps the centroid (_box_centres sets it); surf:
     its _surface_of when known (a face placed again)."""
     if rough:  # (area, centre) from the mesh
@@ -2132,6 +2148,13 @@ def _face_info(f, fi, rev, rough=None, tris=None, centre=True, surf=None):
         info["type"] = "cylinder"
         info["radius"] = round(surf[1], 6)
         info["axis"] = {"o": _round(surf[2]), "d": _round(surf[3])}
+    elif surf[0] == "sphere":  # (a ball: its centre and radius)
+        info["type"] = "sphere"
+        info["radius"] = round(surf[1], 6)
+        info["centre"] = _round(surf[2])
+    elif surf[0] == "cone":  # (a conical seat or tip: its apex, the way it opens, its half angle — not an "axis": the
+        info["type"] = "cone"  # sketch's axis references stay the holes' and shafts')
+        info["cone"] = {"apex": _round(surf[2]), "d": _round(surf[3]), "half": round(surf[1], 6)}
     else:
         info["type"] = "other"
     return info

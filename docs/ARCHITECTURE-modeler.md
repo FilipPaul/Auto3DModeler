@@ -43,6 +43,69 @@ Date: 2026-10-25. Written by the architect agent.
   be offset as a whole even without the bite (no shell back; likely its 1 mm lip at the neck, gone at 2 mm), so it
   gets that issue — the AI's
   workaround (shell first, then the bite and a plug) stays the way. Tests: test_shell_after_a_side_bite.
+- **🎬 Demo "Pumpička" (2026-10-29)**: the AI's pump rebuilt as a stand-in (tools/make_demos.py pumpicka): a turned
+  body (an inlet Ø4 with a 45° seat under a bore Ø20, see-through), a piston with a hollow rod and a 45° seat for the
+  outlet ball (concentric in the bore, its turn locked, 6 mm stroke "Zmáčknutí tlačítka"), a 〰 spring Ø18/12 × 20 from
+  the bore's bottom to the piston (k 0.3 N/mm), two Ø6 balls ● on their seats' axes with 2.5 mm lifts going ↕ by the
+  piston's direction (the inlet lifts going up, the outlet going down) — one ⚙ "Pumpička", no collisions. Tests:
+  test_demos (its spring and valve rules), e2e_demos (▶: the piston and both balls move, the spring drawn at the
+  piston every frame).
+
+- **Assembly: ↕ by the driver's direction — check valves (2026-10-29)** (report 2026-10-29-203234: the pump's balls
+  could not move by the stroke's direction). A motion's limits may carry `follow: {part, key?, at: "max" | "min"}`:
+  Assembly.moveFree measures the moved part's position along that motion before and after (any move: a slider, ▶,
+  a drag, the AI) and followDirection puts each follower at `at` when it went forward, at the other end when it went
+  back (still: stays). mechanism.js lists a follower in its driver's mechanism, not as one of its own; traceOf goes
+  there and back for it (the curve drawn in order: a loop showing both stops). The row of a slide with limits:
+  "↕ Podle směru pohonu" (the driver: the mechanism whose driver slides most nearly along it) and "<driver> vpřed → na
+  max / na min". AI: set_travel `follow` ({part, motion?, at} | null), get_assembly `at[].follows`. Left out: a
+  keyframe table (the driver's position → the part's) — not needed for valves; a crank's full turn only goes forward,
+  so a valve on a crank-driven piston follows the crank, not the piston (the rule takes the driver's own motion).
+  Tests: e2e_assembly_ball_spring (one click picks the piston; forward → max, back → min; the AI's rule at min; ▶ only
+  at the stops, both seen; the trace has both; null takes it off).
+
+- **Assembly: 〰 springs (2026-10-29)** (the app's AI, report 2026-10-29-203234: in a pump's mechanism the spring was a
+  rigid part, the piston passed through it). assembly/springs.js: `springs: [{id, part, face (its end that reaches),
+  onto, ontoFace, k?}]` — not a joint that holds (its part is held by its own joints). Free length: its modelled length
+  between its end face and the flat face across it (springEnds); now: from that base to the face it reaches, along its
+  axis; Assembly.draw gives its mesh the matrix scaled along the axis about its base (springMatrix) — so sliders, a
+  drag, ⚙ ▶, the 🎬 animation and screenshots show it compressing; the row (part panel, overview) "volná · teď ·
+  stlačení" + k (N/mm, the one input) → the force, updated while the parts move. Clashes (the panel, check_collisions,
+  ⚠ the travel) between a spring and the parts it is joined to / reaches are dropped (the kernel has it at its free
+  length). 〰 Spring in Joint ▾ (two flat faces); two flat faces picked: 〰 first when a part is called spring /
+  pružina. AI: snap_faces type "spring" (value = k), get_assembly `springs`. Tests: e2e_assembly_ball_spring (scale =
+  distance / free length at rest, 4 mm down and every frame of ▶; 16 / 4 mm / 2 N in get_assembly and the row; the
+  kernel's overlap dropped from check_collisions and check_travel).
+
+- **Assembly: 🔒 a touch's slides lockable (2026-10-29)** (the same report: after a touch the ball still slid in X / Y,
+  lock_motion said "Nenašla se vazba…"). lockMotion tries as before (the joint's angle / distance, a new flush / gap /
+  parallel joint), then keeps the motion on its own joint: a slide as `slides: [{d (in the other part's frame), at}]`
+  — the anchor (a ball's centre, else the face's centroid) kept at that distance along d —, a turn of a ball joint as
+  `rot` (all three turns: one turn alone of three is not kept). joints.js applies them after the joint's own kind and
+  counts them in jointMiss / jointResidual (closed loops). The row: "🔒 2 locked" with ✕; get_assembly joints
+  `locked_motions`. Tests: e2e_assembly_ball_spring (a disc on a top: 3 → 2 → 1 ways, not moved, pushed back by its
+  joint, ✕ frees; a ball on an axis: its slide, then its turns), e2e_assembly_lockmotion as before.
+
+- **Assembly: 🔗 fixed together (2026-10-29)** (the same report: "fix part A to part B as they are now"). A `rigid`
+  joint keeps the part's own directions and its anchor face's place in the other part's frame (`rot`, `pos`, from
+  joints.frameNow); its faces only anchor it (the clicked ones, else each part's biggest). It is applied last of the
+  part's joints (it has the last word); the part has no motion of its own, its Moves are the other part's (*— with
+  …*). 🔗 Fixed together in Joint ▾ (any face of each part), *🔗 Fix A to B* in the suggestions for two chosen parts
+  (a 📌 fixed one is the one it goes to); its row names the two parts "as they are". AI: snap_faces type "rigid", no
+  faces needed. Tests: e2e_assembly_ball_spring (a flag fixed to a pin follows its slide and turn, 0 own motions).
+
+- **Assembly: ● ball joints (2026-10-29)** (the app's AI, report 2026-10-29-202947: a valve ball could not be joined —
+  tangent refused a sphere, concentric wants a cylinder). The kernel's face info tells a sphere (`type: "sphere"`,
+  radius, centre) and a cone (`type: "cone"`, `cone: {apex, d (the way it opens), half}` — not an `axis`, so the
+  sketch's axis references stay the holes' and shafts'), also for faces placed again (_moved_surface). joints.js:
+  **● ball** — a ball's centre on the other part's axis (a hole, a cone: it slides along it and turns any way, 4 ways)
+  or on another ball's centre (3 turns); **◉ seat** — the ball in a conical seat (its centre r / sin half from the
+  apex) or on the edge of a hole smaller than it (√(R² − r²) out of the hole's end, on its side). Both are pure shifts
+  (either part may be the ball); a part's later joints are followed by its ball joints again (holdPart). A ball's
+  turns about X / Y / Z through its centre are its motions (after the axis' slide and turn). A ball + a hole / cone /
+  ball picked as two faces with no tool on: ◉ and ● first in the suggestions; one ball face: ● / ◉ … first. AI:
+  snap_faces type "ball" / "seat" (anything else refused, it says why). Tests: test_modeler_features
+  (test_ball_and_cone_faces: volumes, apex / half angle, moved, STEP round trip), e2e_assembly_ball_spring.
 
 - **Icons at an extrude's height (2026-10-29)** (the owner: "u kliknutí na dimenzi vysunutí … pár ikonek … směr, k
   ploše a další ploše"): clicking the "↕ 10" label on the part opens the size editor with one line of 16 px stroke

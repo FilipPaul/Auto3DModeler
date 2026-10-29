@@ -70,7 +70,7 @@ TOOLS = [
      "inputSchema": _obj({})},
     {"name": "list_demos", "where": "server",
      "description": "The app's 🎬 demo projects (Open ▾ → Demo projects…): ready-made assemblies that move as a whole "
-                    "(a crank – rod – slider, a four-bar linkage, a gearbox with a rack, a robot arm) — file, name (and Czech), "
+                    "(a crank – rod – slider, a four-bar linkage, a gearbox with a rack, a robot arm, a pump with a spring and check valves) — file, name (and Czech), "
                     "what it shows, its parts. To show the user what the app does, or a mechanism to start from.",
      "inputSchema": _obj({})},
     {"name": "open_demo", "where": "server",
@@ -434,13 +434,20 @@ TOOLS = [
                     "onto = {part, face}. type: \"touch\" (flat faces meet, centred — the default), \"gap\" (flat faces facing, gap mm "
                     "apart), \"flush\" (flat faces in one plane, gap = offset), \"axis\" (concentric: two round faces on one axis, a pin in a hole; gap = the distance along the axis between the facing ends of the two round faces — two plates with holes 30 mm apart: gap 30; lock_rotation: true keeps its turn), "
                     "\"parallel\", \"perp\" (perpendicular), \"angle\" (value = degrees between the faces' directions), \"tangent\" "
-                    "(a round face touching a flat one). A part's joints apply in order: e.g. axis (pin shaft → hole) then touch (head → plate top) seats a "
+                    "(a round face touching a flat one), \"ball\" (a ball's spherical face — e.g. a revolved half circle — with its centre on "
+                    "the axis of a hole / a cone of the other part: it slides along that axis and turns any way; onto another ball: one centre, "
+                    "a ball joint that only turns), \"seat\" (a ball seated in a conical seat, or on the edge of a hole smaller than it: on "
+                    "its axis, touching it — a check valve's ball; the ball part or the seat part may move), \"rigid\" (🔗 fixed together: move's part goes "
+                    "with onto's part as they are now, no motion of its own — faces not needed: {part} is enough), \"spring\" (〰 move = a spring part's flat end face, onto = the face it "
+                    "pushes on: the spring is drawn as long as it reaches — scaled along its axis in the view, the animation and screenshots, its "
+                    "model unchanged; free length = its modelled length; value = its stiffness k in N/mm for the force; get_assembly `springs` says "
+                    "free / now / compressed mm and force; collisions between it and its parts are not counted). A part's joints apply in order: e.g. axis (pin shaft → hole) then touch (head → plate top) seats a "
                     "pin. Face names come from find_refs in the part's own model (\"F2:end\" = the top of the first extrude). name: the user's own name of the joint (e.g. \"bearing on the shaft\"); lock_rotation also on flat joints (its turn on the face). "
                     "Couplings between two parts that each turn (or slide) on their own joints: \"gear\" (two round faces — the gears' pitch circles — on parallel axes: they turn opposite ways, a ring gear round the other the same way), \"belt\" (two pulleys / sprockets: the same way), "
                     "\"rack\" (move = the pinion's round face, onto = the rack's flat face along its axis: the rack slides π·Ø per turn); value = the ratio (gear / belt: turns of move's part per one turn of onto's, default Ø onto / Ø move; rack: mm per turn, default π·Ø). "
                     "Turning one (move_free, drive_mechanism) turns the other; the coupled parts are one mechanism. get_assembly lists them as `couplings` (ids G…; edit_joint {id, ratio, flip} / remove_joint).",
-     "inputSchema": _obj({"move": _obj({"part": STR, "face": STR}, ["part", "face"]), "onto": _obj({"part": STR, "face": STR}, ["part", "face"]),
-                          "type": {"type": "string", "enum": ["touch", "gap", "flush", "axis", "parallel", "perp", "angle", "tangent", "gear", "belt", "rack"]}, "gap": NUM,
+     "inputSchema": _obj({"move": _obj({"part": STR, "face": STR}, ["part"]), "onto": _obj({"part": STR, "face": STR}, ["part"]),
+                          "type": {"type": "string", "enum": ["touch", "gap", "flush", "axis", "parallel", "perp", "angle", "tangent", "ball", "seat", "rigid", "spring", "gear", "belt", "rack"]}, "gap": NUM,
                           "value": NUM, "lock_rotation": {"type": "boolean"}, "name": STR}, ["move", "onto"])},
     {"name": "bolt_parts", "where": "browser",
      "description": "Fasten parts that have no holes yet: a screw goes in at a point of a flat face of a placed part (part = I…, face = its "
@@ -513,12 +520,19 @@ TOOLS = [
     {"name": "set_travel", "where": "browser",
      "description": "Limits of a free motion of a joined part (a cylinder's stroke, a slide's ends, a door's swing): part = I…, motion "
                     "= its number or words of its name (as for move_free), min and max = where along it (mm, or degrees: −360 … 360, up to a full turn "
-                    "for a turn; get_assembly `at` says where it is now). min / max null: no limits. The part is put inside them. speed (0.25 … 4, 1 = about 3 s there and back) and loop (true: again and again) set how the app's ▶ plays it.",
-     "inputSchema": _obj({"part": STR, "motion": {}, "min": {"type": ["number", "null"]}, "max": {"type": ["number", "null"]}, "speed": NUM, "loop": {"type": "boolean"}}, ["part"])},
+                    "for a turn; get_assembly `at` says where it is now). min / max null: no limits. The part is put inside them. speed (0.25 … 4, 1 = about 3 s there and back) and loop (true: again and again) set how the app's ▶ plays it. "
+                    "follow = ↕ a check valve's ball / a pawl: it sits at one of its two stops by the direction another part is driven — {part: the driver (a piston; "
+                    "none: the mechanism's driver sliding along it), motion: its motion (optional), at: \"max\" | \"min\" (where it sits while the driver moves "
+                    "forward — its value grows; going back it sits at the other end)}; null takes it off. The part then moves with the driver's mechanism "
+                    "(drive_mechanism, ▶, a drag; trace goes there and back).",
+     "inputSchema": _obj({"part": STR, "motion": {}, "min": {"type": ["number", "null"]}, "max": {"type": ["number", "null"]}, "speed": NUM, "loop": {"type": "boolean"},
+                          "follow": {"type": ["object", "null"], "properties": {"part": STR, "motion": {}, "at": {"type": "string", "enum": ["max", "min"]}}}}, ["part"])},
     {"name": "lock_motion", "where": "browser",
      "description": "Lock one free motion of a joined part where it is now (the app's 🔒 by a motion): part = I…, motion = its "
                     "number or words of its name (as for move_free). Its joint's turn or distance along the axis is fixed, else a "
-                    "new joint is added (flush / gap faces across a move, parallel faces for a turn). It says which joint did it.",
+                    "new joint is added (flush / gap faces across a move, parallel faces for a turn), else its own joint keeps it where it "
+                    "is (a touch's slides on the face one by one, a ball's slide along its axis; a ball's turn locks all three of its "
+                    "turns) — get_assembly joints say `locked_motions`. It says which joint did it.",
      "inputSchema": _obj({"part": STR, "motion": {}}, ["part"])},
     {"name": "drive_mechanism", "where": "browser",
      "description": "Drive a whole mechanism of the assembly on screen (the app's ⚙ Mechanism widget): get_assembly `mechanisms` "

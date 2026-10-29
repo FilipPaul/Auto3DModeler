@@ -2772,6 +2772,7 @@ const libraryTools = {
     const r = await res.json();
     if (!res.ok) throw new Error(r.error || res.statusText);
     const name = (id) => `${assembly.partName(assembly.inst(assembly.topOf(id))?.part)} ${id}`;
+    r.clashes = r.clashes.filter((c) => !assembly.springIgnores(c.a, c.b)); // (〰 a spring compressed in the view only)
     return { text: r.clashes.length ? JSON.stringify(r.clashes.map((c) => ({ a: c.a, b: c.b, parts: `${name(c.a)} ↔ ${name(c.b)}`, overlap_mm3: c.volume, overlap_box: c.bbox })))
       : 'No parts overlap (touching faces are fine).' };
   },
