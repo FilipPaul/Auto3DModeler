@@ -7,6 +7,14 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Two-face joints in either order; ∥ ⟂ ∠ ranked up; Esc (2026-10-30)** (the AI's report: the parent's face first,
+  then the child's -> "join them the other way round"). addJoint now swaps the two when `to` (through others) hangs
+  on `from`: the child moves; it refuses only when neither can move. Two flat faces list Touch, ∥, ⟂, ∠, Gap, Flush
+  (Flush / 〰 first as before when they face the same way / a spring); one flat face ranks ∥ and ⟂ right after Flush
+  (∠, Tangent, 〰 under ⋯ Show all). Esc in the assembly also works with a slider / check box focused (it was
+  ignored as typing). Esc with the view focused already cleared a two-face pick (also through gui_action key) — not
+  reproduced; covered by the test now. Test: e2e_assembly_twoface.
+
 - **A click picks what is in sight (2026-10-29)** (the AI's report: a click on a thin plate's side face picked a hole
   hidden behind it). The assembly's `roundEdgeAt` (a click near a circle takes its round face) and the snap points
   (`snapNear`: corners, middles, centres) did not look at depth: a hole's rim inside a 4 mm plate, a few px from the

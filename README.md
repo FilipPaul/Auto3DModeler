@@ -1085,7 +1085,12 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   - **two flat faces facing up** (a part's top, Ctrl+click the base's top): *⧉ Put Slider on Base* — its underside
     goes onto the base, no turning the view to click a face you cannot see; then Touch, Flush …;
   - **two side faces facing the same way**: ▭ Flush first; on a part that is joined already it keeps the offset as the
-    parts stand (a slider stays in line with the crank; type 0 in the panel to line the faces up).
+    parts stand (a slider stays in line with the crank; type 0 in the panel to line the faces up);
+  - **other two flat faces**: Touch, then ∥ Parallel, ⟂ Perpendicular, ∠ Angle, Gap, Flush (one flat face alone: ∥ and
+    ⟂ are among its first rows too).
+  The order of the two clicks does not matter: the part that moves is the first one's, unless the other one already
+  hangs on it (then that one — the child — moves); only when neither can move (one 📌 fixed, the other hanging on it)
+  it says so. **Esc** unpicks the faces (one or two) and the part — also with a panel's slider in the keyboard's hand.
   A plain click on a small hole or pin, or on a thin side, picks the face — corners, edge middles and centres catch a
   click only within 5 px there (📏 Measure: 10 px); a Ctrl+click beside the parts keeps the face picked first.
 - **"One joint is missing"**: when the parts almost make a closed loop — the crank and the rod on their pins, the

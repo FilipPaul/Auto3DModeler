@@ -421,7 +421,8 @@ export class Assembly {
     if (fp.length === 2) {
       const same = fp[0].face.normal && fp[1].face.normal && fp[0].face.normal.dot(fp[1].face.normal) > 0.999; // (facing the same way: ▭ Flush first, as they stand)
       const springy = fp.some((q) => /spring|pru[žz]in/i.test(this.partName(this.inst(q.inst)?.part) || '')); // (a part called a spring: 〰 first)
-      const js = fits(kindOf(fp[0]), kindOf(fp[1])).sort(([a], [b]) => (springy ? (b === 'spring') - (a === 'spring') : 0) || (same ? (b === 'flush') - (a === 'flush') : 0)), on = this.putOn(fp[0], fp[1]), cpl = this.couplingItems(fp, done);
+      const order = ['touch', 'parallel', 'perp', 'angle', 'gap', 'flush'], at = (k) => (order.includes(k) ? order.indexOf(k) : order.length); // (∥ ⟂ ∠ high: two faces picked, what they make)
+      const js = fits(kindOf(fp[0]), kindOf(fp[1])).sort(([a], [b]) => (springy ? (b === 'spring') - (a === 'spring') : 0) || (same ? (b === 'flush') - (a === 'flush') : 0) || at(a) - at(b)), on = this.putOn(fp[0], fp[1]), cpl = this.couplingItems(fp, done);
       const put = on ? [{ icon: '⧉', label: t2('Put {a} on {b}', { a: this.partName(this.inst(on.move.inst)?.part), b: this.partName(this.inst(on.onto.inst)?.part) }), rank: -1,
         title: t('Its face on the other side (the underside) touches this face — no need to turn the view to click it'), run: () => {
           this.jointType = 'touch';
@@ -445,7 +446,7 @@ export class Assembly {
     const after = (x) => ({ ...x, run: async () => { await x.run(); this.renderSuggest(); } });
     showSuggest(vp, what(q), [ // (the face's joints first, then its part: the table shows the top ones, the rest under ⋯ Show all)
       { section: t('This face') },
-      ...js.map(([type, j], k) => ({ icon: j.icon, label: `${t(j.name)}…`, rank: ['parallel', 'perp', 'angle'].includes(type) || (j.faces === 'ball' && q.face.type !== 'sphere') ? 10 + k : j.faces === 'ball' ? k - 5 : k, title: t('Then click a face of the other part'), run: () => {
+      ...js.map(([type, j], k) => ({ icon: j.icon, label: `${t(j.name)}…`, rank: ['angle', 'tangent', 'spring'].includes(type) || (j.faces === 'ball' && q.face.type !== 'sphere') ? 10 + k : j.faces === 'ball' ? k - 5 : k, title: t('Then click a face of the other part'), run: () => {
         this.startJoint(type);
         this.jointFrom = q;
         this.mode = 'joint-to';
@@ -2565,7 +2566,8 @@ export class Assembly {
   unlink(id) { this.unjoinMoving(id); }
   mateOf(id) { return (this.doc.mates || []).find((m) => m.move === id); }
 
-  /** Add a joint: part `from.inst` (face from.face) is held against `to.inst` (face to.face). */
+  /** Add a joint: part `from.inst` (face from.face) is held against `to.inst` (face to.face) — or the other way round
+   *  when `to` is the one that can move (📌 `from` fixed, or `to` hanging on `from` already: the child moves). */
   addJoint(from, to, type = 'touch', gap = 0) {
     if (this.inst(from.inst)?.fixed) { // 📌 a fixed part stays: the other one goes to it
       if (this.inst(to.inst)?.fixed) { this.hooks.toast(t('Both parts are fixed in place 📌 — free one of them to join them.'), 'warning', 5000); return false; }
@@ -2573,15 +2575,22 @@ export class Assembly {
     }
     const fromName = from.face?.name, toName = to.face?.name;
     if (!fromName || !toName) return false;
-    // no circles: the other part may not (through others) hang on this one
+    // no circles: when the other part (through others) hangs on this one, it is the one that moves (either order works)
     const holdsOn = (x) => (this.doc.mates || []).filter((m) => m.move === x).map((m) => m.onto);
-    const seen = new Set(), stack = [to.inst];
-    while (stack.length) {
-      const x = stack.pop();
-      if (x === from.inst) { this.hooks.toast('Not joined: the other part already hangs on this one — join them the other way round.', 'warning', 5000); return false; }
-      if (seen.has(x)) continue;
-      seen.add(x);
-      stack.push(...holdsOn(x));
+    const hangsOn = (a, b) => {
+      const seen = new Set(), stack = [a];
+      while (stack.length) {
+        const x = stack.pop();
+        if (x === b) return true;
+        if (seen.has(x)) continue;
+        seen.add(x);
+        stack.push(...holdsOn(x));
+      }
+      return false;
+    };
+    if (hangsOn(to.inst, from.inst)) {
+      if (this.inst(to.inst)?.fixed || hangsOn(from.inst, to.inst)) { this.hooks.toast(t('Not joined: neither part can move — one is fixed 📌 and the other hangs on it.'), 'warning', 5000); return false; }
+      [from, to] = [to, from];
     }
     const same = (this.doc.mates || []).find((m) => (m.move === from.inst && m.face === fromName && m.onto === to.inst && m.ontoFace === toName)
       || (m.move === to.inst && m.face === toName && m.onto === from.inst && m.ontoFace === fromName));
@@ -3610,11 +3619,11 @@ export class Assembly {
       this.fixTogether(from.inst, h.inst, from.face?.name, h.face?.name);
       return;
     }
-    const mover = this.inst(this.jointFrom.inst)?.fixed ? h.inst : this.jointFrom.inst, placed = (this.doc.mates || []).some((m) => m.move === mover);
+    const held = new Set((this.doc.mates || []).map((m) => m.move)); // (the parts held already: a flush on one keeps its offset)
     const before = new Set(this.unmet().map((m) => m.id)), had = new Set((this.doc.mates || []).map((m) => m.id)), was = new Map(this.doc.instances.map((i) => [i.id, [...i.matrix]]));
     const nj = this.addJoint(this.jointFrom, h, type, type === 'gap' ? 5 : 0);
     let kept = null;
-    if (nj && type === 'flush' && placed && !had.has(nj.id)) kept = this.keepOffset(nj); // (a part held already: it does not jump)
+    if (nj && type === 'flush' && held.has(nj.move) && !had.has(nj.id)) kept = this.keepOffset(nj); // (a part held already: it does not jump)
     if (nj) {
       if (type === 'axis' && /:hole:/.test(this.jointFrom.face.name) && /:hole:/.test(h.face.name)) this.autoDistance(nj);
       if (type === 'angle') { // it starts at the angle the faces make now (rounded), then it holds
@@ -3622,7 +3631,7 @@ export class Assembly {
         nj.value = a && b ? Math.round((a.angleTo(b) * 180) / Math.PI) : 45;
       }
       this.applyMates();
-      this.sel = this.jointFrom.inst;
+      this.sel = nj.move; // (the part that moved: the first one's, or the other one when that hangs on it)
       const refused = had.has(nj.id) ? null : this.turnOnlyRefused(nj, was), fights = this.unmet().filter((m) => !before.has(m.id));
       if (refused) this.hooks.toast(refused, 'warning', 8000);
       else if (fights.length) this.hooks.toast(t2('{type} added, but it fights another joint: {ids} no longer hold — see the red joint(s) in the panel.', { type: t(JOINT_TYPES[type].name), ids: fights.map((m) => m.id).join(', ') }), 'warning', 7000);
@@ -3770,7 +3779,8 @@ export class Assembly {
   }
 
   key(e) {
-    if (!this.active || e.target.closest?.('input,select,textarea,[contenteditable]')) return;
+    const field = e.target.closest?.('input,select,textarea,[contenteditable]');
+    if (!this.active || (field && !(e.key === 'Escape' && /^(range|checkbox|radio|button)$/.test(field.type || '')))) return; // (Esc on a slider: what is chosen goes)
     if (this.harnessTool.key(e)) return; // (🔌 Esc / Enter: done; Delete: its point)
     const k = e.key.toLowerCase();
     if (e.key === 'Escape' && this.measuring) { this.toggleMeasure(); return; }
@@ -3982,7 +3992,7 @@ export class Assembly {
         } else if (from.face.type !== want || to.face.type !== want) throw new Error(`${JOINT_TYPES[type].name} joins two ${want === 'cylinder' ? 'round' : 'flat'} faces.`);
         const had = new Set((this.doc.mates || []).map((m) => m.id)), was = new Map(this.doc.instances.map((i) => [i.id, [...i.matrix]]));
         const nj = this.addJoint(from, to, type, type === 'axis' ? 0 : gap || 0);
-        if (!nj) throw new Error('Not joined: the other part already hangs on this one (or the joint on these faces is locked).');
+        if (!nj) throw new Error('Not joined: neither part can move (one is 📌 fixed and the other hangs on it), or the joint on these faces is locked.');
         if (type === 'axis' && Number.isFinite(+gap) && gap !== undefined && gap !== null) {
           this.applyMates();
           nj.side = axialGap(this.worldFace(nj.move, nj.face), this.worldFace(nj.onto, nj.ontoFace))?.side || 1;
@@ -3994,7 +4004,7 @@ export class Assembly {
         this.applyMates();
         const refused = had.has(nj.id) ? null : this.turnOnlyRefused(nj, was);
         if (refused) throw new Error(refused);
-        this.sel = from.inst;
+        this.sel = nj.move;
         this.commit();
         return { text: JSON.stringify(this.summary()) };
       },

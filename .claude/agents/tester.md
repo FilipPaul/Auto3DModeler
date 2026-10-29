@@ -805,6 +805,9 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_assembly_thinside.py <url> <dir>` covers picking with real clicks: a 4 mm plate with two holes, its
    side face clicked in front of each hole (close and zoomed out, the side 8 px tall) — the flat side picked, not a
    hidden hole's round face or centre; a hole's rim on the top (in sight) still picks the hole.
+   `tools/e2e_assembly_twoface.py <url> <dir>` covers two faces picked with real clicks in the "wrong" order (the
+   parent's side, Ctrl+click the child's): ∥ / ⟂ / ∠ in the table's top rows, ∥ joins them (the child moves, not
+   refused), one face: ∥ in the rows shown; Esc unpicks two faces, also with a table row or a panel slider focused.
    `tools/e2e_assembly_concentric.py <url> <dir>` covers ◎ Concentric with a distance (two plates' holes: filled in
    touching, typed 30 -> 30 apart, still 30 when the lower plate thickens, cleared -> free), ↻🔒 the rotation lock
    (45° typed) and the AI's snap_faces axis with gap + lock_rotation.

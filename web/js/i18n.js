@@ -756,7 +756,7 @@ const CS = {
   'Slide to any angle — it catches at 0, ±90 and ±180°. Type an exact one in the box.': 'Posuňte na libovolný úhel — chytá se na 0, ±90 a ±180°. Přesný úhel napište do políčka.',
   '🔗 Join it to another part': '🔗 Spojit s jiným dílem', 'Not joined to anything — it stays where you put it.': 'Není s ničím spojený — zůstává, kam jste ho dali.',
   'Turn it the other way round': 'Otočit opačně', 'Remove this joint (the part stays where it is)': 'Odebrat vazbu (díl zůstane, kde je)',
-  'Not joined: the other part already hangs on this one — join them the other way round.': 'Nespojeno: druhý díl už visí na tomto — spojte je obráceně.',
+  'Not joined: neither part can move — one is fixed 📌 and the other hangs on it.': 'Nespojeno: žádný z dílů se nemůže pohnout — jeden je ukotvený 📌 a druhý na něm visí.',
   '{type} not added: {part} can only turn as {id} ({held}) lets it — no such turn puts these faces like that ({off}° off). Pick other faces, or change {id}.': '{type} nepřidáno: {part} se může natočit jen tak, jak dovolí {id} ({held}) — žádné takové natočení tyto plochy takto nepostaví (odchylka {off}°). Vyberte jiné plochy, nebo změňte {id}.',
   'Moved by hand — its joints are removed (the parts joined onto it still follow it).': 'Posunuto rukou — jeho vazby jsou odebrány (díly spojené s ním ho dál následují).',
   'Now a face of the other part.': 'Teď plochu druhého dílu.', 'Click a round face (a hole, a pin).': 'Klikněte na válcovou plochu (díru, čep).', 'Click a flat face.': 'Klikněte na rovnou plochu.',
