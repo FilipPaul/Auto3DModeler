@@ -95,7 +95,8 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
    `from: [{x: {mid: [<left edge ref>, <right edge ref>]}, y: {mid: [<front edge ref>, <back edge ref>]}}]` (edge refs
    from find_refs; one axis alone = on the middle line).
 7. **Check**: `get_model` — every step `ok: true` (read `issues` / `warnings` and fix them),
-   `get_screenshot {view: "iso"}` and another view. Report the size and the steps the user can change
+   `get_screenshot {view: "iso"}` and another view (`highlight: ["F7"]` lights a step's faces — or face names — in
+   orange, to see one feature). Report the size and the steps the user can change
    (double-click a step in the list, or ask you).
 
 ## Changing it later

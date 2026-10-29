@@ -13,6 +13,7 @@ import { accelerate } from './bvh.js';
 
 const BODY = new THREE.Color(0xd9dee6), HOVER = new THREE.Color(0x6cb6ff), PICKED = new THREE.Color(0x4f8cff);
 const FEATURE = new THREE.Color(0xa9cdf5), SELECTED = new THREE.Color(0xf2cc60); // the step under the mouse / the chosen step
+const MARK = new THREE.Color(0xff7b54); // faces the AI asked to see lit in its picture (get_screenshot highlight)
 const SHADES = [new THREE.Color(0x9ec5ef), new THREE.Color(0xf0b77a)]; // ✂ Split's preview: one shade per body
 const DATUM_COLORS = { XY: 0x4f8cff, XZ: 0x7ee787, YZ: 0xffa657 };
 export const DATUMS = {
@@ -421,7 +422,7 @@ export class ModelView {
 
   /** A face's colour now: under the mouse, picked, of the hovered step, of the chosen step, painted … */
   colorOf(f) {
-    return f === this.hover ? HOVER : this.picked.has(f) ? PICKED : this.hoverSet?.has(f) ? FEATURE : this.selSet?.has(f) ? SELECTED
+    return this.markSet?.has(f) ? MARK : f === this.hover ? HOVER : this.picked.has(f) ? PICKED : this.hoverSet?.has(f) ? FEATURE : this.selSet?.has(f) ? SELECTED
       : this.shades ? SHADES[(this.body.faces[f]?.solid || 0) % SHADES.length]
         : this.faceColor?.get(f) || this.fileColor?.get(f) || this.bodyColor || BODY;
   }
@@ -639,15 +640,67 @@ export class ModelView {
     this.invalidate();
   }
 
-  /** All of it in the view, seen from where the camera looks now. */
+  /** All of it in the view, seen from where the camera looks now: the ball round its box inside the narrower of the
+   *  view's two angles (a view narrower than high: farther, so the sides are in it too), a little room round it. */
   fit() {
     const box = this.fitBox(), c = box.getCenter(new THREE.Vector3()), s = Math.max(box.getSize(new THREE.Vector3()).length(), 1);
     const dir = this.camera.position.clone().sub(this.controls.target);
     if (dir.lengthSq() < 1e-12) dir.set(0.55, -0.9, 0.7);
-    this.camera.position.copy(c).addScaledVector(dir.normalize(), s * 1.6);
+    const half = Math.atan(Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) * Math.min(1, this.camera.aspect || 1));
+    this.camera.position.copy(c).addScaledVector(dir.normalize(), (s / 2 / Math.sin(half)) * 1.05);
     this.controls.target.copy(c);
     this.controls.update();
     this.invalidate();
+  }
+
+  /** A picture of the view for the AI, w × h px whatever the panel's shape (a chat beside it made it a narrow strip):
+   *  fitted when asked, without the mouse's hover, the picks or the chosen step's tint — only `faces` (ids) lit in
+   *  orange. over(ctx, layer) draws on it while the labels sit where this camera puts them (layer: their box on
+   *  the page, w × h). The view on screen is put back as it was (fitted to its own shape when fit). -> a canvas. */
+  snapshot({ w = 1200, h = 900, fit = true, faces = null, over = null, background = '#161b22' } = {}) {
+    const { clientWidth: sw, clientHeight: sh } = this.container;
+    const tint = [this.hover, this.hoverSet, this.picked, this.selSet, this.markSet];
+    Object.assign(this, { hover: -1, hoverSet: null, picked: new Set(), selSet: null, markSet: faces?.length ? new Set(faces) : null });
+    // an assembly's chosen / hovered part glows: not in the picture (a clash's red stays)
+    const glow = (this.meshes || []).map((m) => [m.material, m.material.emissive?.getHex()]).filter(([, hex]) => hex !== undefined && hex !== 0x6a0d0d);
+    for (const [mat] of glow) mat.emissive.setHex(0x000000);
+    const marks = this.markGroup?.visible;
+    if (this.markGroup) this.markGroup.visible = false;
+    const own = !!this.faceIds; // (a part's faces are painted one by one; an assembly's parts are not)
+    if (own) this.paint();
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    try {
+      this.renderer.setSize(w, h, false);
+      this.labels.setSize(w, h);
+      this.camera.aspect = w / h;
+      this.camera.updateProjectionMatrix();
+      if (fit) this.fit();
+      this.updatePlaneArrow?.();
+      this.renderer.render(this.scene, this.camera);
+      this.labels.render(this.scene, this.camera);
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = background;
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(this.renderer.domElement, 0, 0, w, h);
+      over?.(ctx, this.labels.domElement.getBoundingClientRect());
+    } finally {
+      [this.hover, this.hoverSet, this.picked, this.selSet, this.markSet] = tint;
+      for (const [mat, hex] of glow) mat.emissive.setHex(hex);
+      if (this.markGroup) this.markGroup.visible = marks;
+      if (own) this.paint();
+      if (sw && sh) {
+        this.renderer.setSize(sw, sh);
+        this.labels.setSize(sw, sh);
+        this.camera.aspect = sw / sh;
+        this.camera.updateProjectionMatrix();
+      }
+      if (fit) this.fit();
+      this.labels.render(this.scene, this.camera);
+      this.invalidate();
+    }
+    return c;
   }
 
   /** Look straight at a sketch plane (its y axis up). */

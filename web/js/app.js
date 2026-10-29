@@ -2387,21 +2387,12 @@ const agentHandlers = {
   undo: async () => aiUndo(),
 };
 
-async function assemblyScreenshot({ view, fit = true } = {}) {
+async function assemblyScreenshot({ view, fit = true, highlight } = {}) {
+  if (highlight?.length) throw new Error('highlight lights faces of a 3D model — open_part the part, or look at the assembly without it.');
   if (view) assembly.view.setView({ side: 'right', back: 'front' }[view] || view);
-  if (fit !== false) assembly.view.fit?.(); // (all of it in the picture)
   await nextFrames();
-  const v = assembly.view;
-  v.renderer.render(v.scene, v.camera);
-  const src = v.renderer.domElement, k = Math.min(1, 900 / Math.max(src.width, src.height));
-  const c = document.createElement('canvas');
-  c.width = Math.round(src.width * k);
-  c.height = Math.round(src.height * k);
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = '#161b22';
-  ctx.fillRect(0, 0, c.width, c.height);
-  ctx.drawImage(src, 0, 0, c.width, c.height);
-  return { text: `Assembly view (${view || 'current'}).`, image: c.toDataURL('image/png').split(',')[1] };
+  const c = assembly.view.snapshot({ fit: fit !== false }); // (4:3, all of it — exploded too — in the picture, no hover glow)
+  return { text: `Assembly view (${view || 'current'})${assembly.explode ? `, exploded ${assembly.explode}` : ''}.`, image: c.toDataURL('image/png').split(',')[1] };
 }
 
 /** A drawing sheet on screen, as a picture (its SVG drawn on white). */

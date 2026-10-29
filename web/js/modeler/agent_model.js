@@ -177,9 +177,9 @@ export function sketchFromShapes(shapes, lock = true, axisAt = null) {
 }
 
 /** The size labels shown over the 3D view (page elements, not part of the WebGL picture) drawn onto a screenshot of
- *  it: ctx the picture's 2D context, src the view's canvas, k the picture's scale. */
-function drawLabels(ctx, src, k) {
-  const box = src.getBoundingClientRect(), sx = (src.width / (box.width || 1)) * k, sy = (src.height / (box.height || 1)) * k;
+ *  it: ctx the picture's 2D context, box the label layer's box on the page (as big as the picture's render). */
+function drawLabels(ctx, box) {
+  const sx = ctx.canvas.width / (box.width || 1), sy = ctx.canvas.height / (box.height || 1);
   ctx.font = `${Math.round(11 * sx)}px sans-serif`;
   ctx.textBaseline = 'middle';
   for (const el of document.querySelectorAll('#modelViewport .sk-label, #modelViewport .m-dimtag')) {
@@ -198,7 +198,7 @@ const KIND = { model: '3D model', assembly: 'assembly', drawing: '2D drawing', s
 const FITS = ['H6', 'H7', 'H8', 'H9'];
 /** A hole's fit as written ("h7", "H7") -> "H7", or null (none / unknown: refused by the caller's check). */
 const fitOf = (v) => { if (!v) return null; const f = String(v).toUpperCase(); if (!FITS.includes(f)) throw new Error(`fit: one of ${FITS.join(', ')} (ISO 286 holes), not ${v}.`); return f; };
-const MATERIAL_NAME = Object.fromEntries(Object.keys(MATERIALS).map((k) => [k.toLowerCase(), k])); // (any case)
+const MATERIAL_NAME =Object.fromEntries(Object.keys(MATERIALS).map((k) => [k.toLowerCase(), k])); // (any case)
 
 export function modelHandlers({ modeler: m, project, getWorkspace }) {
   const needModel = () => {
@@ -720,25 +720,20 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
     },
 
     // the model versions of shared tools
-    model_screenshot: async ({ view, fit = true }) => {
+    model_screenshot: async ({ view, fit = true, highlight }) => {
       needModel();
       await settle();
       if (view) m.view.setView({ front: 'front', back: 'front', side: 'right', top: 'top' }[view] || 'iso');
-      if (fit !== false) m.view.fit(); // (the whole part in the picture)
+      // highlight: face names or step ids (all the faces it made) -> lit in orange; the hover, picks and chosen step are not
+      const want = (Array.isArray(highlight) ? highlight : highlight ? [highlight] : []).map(String);
+      const named = (f, n) => [f.name, ...(f.names || [])].some((q) => q === n || q?.startsWith(`${n}:`));
+      const lit = (body()?.faces || []).filter((f) => want.some((n) => named(f, n)));
+      const missing = want.filter((n) => !lit.some((f) => named(f, n)));
+      if (missing.length) throw new Error(`highlight: no face named ${missing.map((n) => `“${n}”`).join(', ')} — find_refs lists face names; a step's id lights all its faces.`);
       await nextFrames();
-      const v = m.view;
-      v.renderer.render(v.scene, v.camera);
-      v.labels?.render(v.scene, v.camera); // (the size labels where this camera puts them)
-      const src = v.renderer.domElement, k = Math.min(1, 900 / Math.max(src.width, src.height));
-      const c = document.createElement('canvas');
-      c.width = Math.round(src.width * k);
-      c.height = Math.round(src.height * k);
-      const ctx = c.getContext('2d');
-      ctx.fillStyle = '#161b22';
-      ctx.fillRect(0, 0, c.width, c.height);
-      ctx.drawImage(src, 0, 0, c.width, c.height);
-      drawLabels(ctx, src, k);
-      return { text: `3D view (${view || 'current'}). ${JSON.stringify(summary())}`, image: c.toDataURL('image/png').split(',')[1] };
+      const c = m.view.snapshot({ fit: fit !== false, faces: lit.map((f) => f.id), over: drawLabels });
+      const said = lit.length ? ` Lit in orange: ${[...new Set(lit.map((f) => f.name))].slice(0, 12).join(', ')}${lit.length > 12 ? ' …' : ''}.` : '';
+      return { text: `3D view (${view || 'current'}).${said} ${JSON.stringify(summary())}`, image: c.toDataURL('image/png').split(',')[1] };
     },
     model_body: async () => { needModel(); return { text: 'ok', body: { model_part: m.payload(), name: project.current?.name } }; },
     model_undo: async () => { needModel(); const ok = await m.history.go(-1); await settle(); return { text: ok ? `Undone. ${JSON.stringify(summary())}` : 'Nothing to undo.' }; },

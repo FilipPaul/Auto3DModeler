@@ -119,12 +119,14 @@ try:
     shot = call("get_screenshot")
     png = base64.b64decode(shot["image"])
     open(f"{OUT}/ai_sketch_labels.png", "wb").write(png)
-    labels_drawn = js("""return new Promise((done) => { const img = new Image(); img.onload = () => {
+    # (the picture is 1200 × 900 with its own camera, not the view's shape: the violet boxes counted anywhere in it)
+    violet = js("""return new Promise((done) => { const img = new Image(); img.onload = () => {
         const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const x = c.getContext('2d'); x.drawImage(img, 0, 0);
-        const r = [...document.querySelectorAll('#modelViewport .sk-label.locked')][0].getBoundingClientRect(), v = document.querySelector('#modelViewport canvas').getBoundingClientRect();
-        const k = img.width / v.width, px = x.getImageData(Math.round((r.left - v.left + 2) * k), Math.round((r.top - v.top + r.height / 2) * k), 1, 1).data;
-        done([px[0], px[1], px[2]]); }; img.src = 'data:image/png;base64,' + arguments[0]; })""", shot["image"])
-    check("get_screenshot: the locked labels are in the picture (their violet box)", abs(labels_drawn[0] - 0x2a) < 20 and abs(labels_drawn[2] - 0x45) < 25, labels_drawn)
+        const px = x.getImageData(0, 0, img.width, img.height).data; let n = 0;
+        for (let i = 0; i < px.length; i += 4) if (Math.abs(px[i] - 0x2a) < 8 && Math.abs(px[i + 1] - 0x1d) < 8 && Math.abs(px[i + 2] - 0x45) < 8) n++;
+        done(n); }; img.src = 'data:image/png;base64,' + arguments[0]; })""", shot["image"])
+    nlocked = js("return document.querySelectorAll('#modelViewport .sk-label.locked').length")
+    check("get_screenshot: the locked labels are in the picture (their violet boxes)", violet > nlocked * 300, f"{violet} px for {nlocked} labels")
     print("ALL OK")
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])

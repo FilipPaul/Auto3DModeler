@@ -920,7 +920,9 @@ can open them.
   Gerber set or ODB++ job (.zip / .tgz) or a folder of loose Gerber files as a 📐 drawing — (`get_drawing`,
   `drawing_find` by filters, `drawing_delete`, `drawing_add` lines and circles, `drawing_units`, `drawing_layers`:
   show / hide, colour, a new layer; `drawing_set_size`, `drawing_use` as a sketch or a quick part), joints changed or removed (`edit_joint`,
-  `remove_joint`), `measure` between faces, the view for its screenshots (`set_view`: a section, explode, size labels),
+  `remove_joint`), `measure` between faces, the view for its screenshots (`set_view`: a section, explode, size labels;
+  `get_screenshot` is a 1200 × 900 picture of the whole part or assembly however narrow the view is beside the chat,
+  without your hover or picks, and `highlight` lights the faces of a step in orange),
   parts renamed or deleted, and files: `export` stl / step / pdf / **3mf** / **bom** / **dxf**.
 - **Problem reports**: when something in the app does not behave as expected, the AI writes a dated report
   (`report_problem`) into **RealSWReports/** next to `server.py`: what happened, what was expected, the steps, the

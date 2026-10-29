@@ -43,10 +43,13 @@ TOOLS = [
                     "z levels of its flat faces, volume and open issues. Call this first and after changes.",
      "inputSchema": _obj({})},
     {"name": "get_screenshot", "where": "browser",
-     "description": "A picture of what is on screen, to check your work: the 3D model or assembly (fitted to the whole of it; "
-                    "fit: false keeps the view as set_view left it — a zoomed section), or a drawing sheet as drawn. view: iso "
-                    "(default), front (top-down onto the front face), back, side.",
-     "inputSchema": _obj({"view": {"type": "string", "enum": ["iso", "front", "back", "side"]}, "fit": {"type": "boolean"}})},
+     "description": "A picture of what is on screen, to check your work: the 3D model or assembly (1200 × 900 px however narrow "
+                    "the view is, fitted to the whole of it — exploded too; fit: false keeps the view as set_view left it — a "
+                    "zoomed section), or a drawing sheet as drawn. view: iso (default), front (top-down onto the front face), back, "
+                    "side. The mouse's hover, picks and the chosen step are not tinted in it; highlight: [face names or step ids "
+                    "(all faces a step made)] lights those faces in orange (3D model) — to check one feature.",
+     "inputSchema": _obj({"view": {"type": "string", "enum": ["iso", "front", "back", "side"]}, "fit": {"type": "boolean"},
+                          "highlight": {"type": "array", "items": STR}})},
     {"name": "open_file", "where": "server",
      "description": "Open a file from disk as a new part (its own tab; the parts already open stay): a PDF drawing, an STL / "
                     "OBJ / 3MF / STEP 3D file (STL / OBJ / 3MF: a quick part of the mesh), an IGES (.igs / .iges: a 3D model part with its solid — surfaces are sewn into one; "

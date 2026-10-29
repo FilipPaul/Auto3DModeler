@@ -7,6 +7,20 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **The AI's screenshots whole and clean (RealSWReports 2026-10-29 01:55:47, 2026-10-28 04:30:30 / 04:30:48) done:**
+  with the chat beside it the view was a 339 × 900 strip and the picture too — an assembly 240 mm long cut off.
+  ModelView.snapshot({w, h, fit, faces, over}): the renderer and the label layer set to 1200 × 900 for one frame (the
+  camera's aspect too), fitted, drawn, put back in the same task (nothing flashes); the hover, picks, the chosen step's
+  tint and an assembly part's glow (a clash's red stays) left out of it; `faces` lit orange (MARK). fit() now puts the
+  ball round the box inside the narrower of the two view angles (+5 %) — a narrow view backs off. get_screenshot
+  {highlight: [face names or step ids]} (a 3D model; wrong names refused, the lit faces named in the text; refused in
+  an assembly); the size labels drawn where the picture's camera puts them. tools/e2e_ai_screenshot.py; e2e_ai_sketch counts the label boxes anywhere in the picture.
+  Already done before (skipped): fit / section off / sheet screenshots, went + volume_change, flush faces merged,
+  find_refs of_step, measure in models, the sheet check's decal edges and keys, steps named after their sketch.
+  Left out of the wishlist (more than ~2 inputs, or a new feature type): an extrude dir "into_body" / world direction,
+  a D-flat hole (head cbore / csk and thread "M5" exist as hole options), a sketch on a face in world coordinates
+  (exists: origin "world" / "corner"), a rib feature from an open line, check_model (check_print does min_wall /
+  overhang on a 3D model).
 - **A threaded part's volume integrated once done:** kernel.volume keeps the last 4 shapes' volumes — the part with
   🔩 real threads was integrated after its cut (the check that something was cut) and again when meshed (the adaptive
   rule on helical faces: ~3 s). The 29-step model with 9 real threads (tools/e2e_perf.py model): its rebuild after a
