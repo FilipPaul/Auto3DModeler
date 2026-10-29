@@ -141,6 +141,25 @@ class TestModelKernel(unittest.TestCase):
         doc.rebuild({"features": f2})
         self.assertEqual(len(doc._cache), 4)  # only the two new steps were built and added
 
+    def test_rollback_reuses_the_cached_prefix(self):
+        """⏮ The rollback bar: the browser sends the steps above it; after the whole part was built that is a cache
+        hit — nothing is built again — and it is the part as it was after that step."""
+        from unittest import mock
+        doc._cache.clear()
+        fs = [sketch("S1", [RECT]), extrude("E1", "S1", 10),
+              sketch("S2", [{"id": "c", "t": "circle", "cx": 0, "cy": 0, "d": 4}],
+                     {"face": {"feature": "E1", "role": "end"}, "frame": {"o": [20, 10, 10], "x": [1, 0, 0], "n": [0, 0, 1]}}),
+              extrude("E2", "S2", 3, "cut")]
+        full = doc.rebuild({"features": fs})
+        with mock.patch.object(doc, "_apply", wraps=doc._apply) as built:
+            rolled = doc.rebuild({"features": fs[:2], "rollback": "E1"})
+            self.assertEqual(built.call_count, 0)  # the prefix came from the cache
+            again = doc.rebuild({"features": fs})
+            self.assertEqual(built.call_count, 0)  # and back to the end too
+        self.assertAlmostEqual(rolled["body"]["volume"], 8000, delta=1e-3)
+        self.assertAlmostEqual(again["body"]["volume"], full["body"]["volume"], delta=1e-6)
+        self.assertLess(full["body"]["volume"], 8000)
+
 
 @unittest.skipUnless(OCC, "OCP not installed")
 class TestModelServer(unittest.TestCase):

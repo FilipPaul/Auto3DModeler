@@ -16,6 +16,8 @@ description: Use when the user wants to change an existing 3D model part (make i
 3. New details: find faces / edges with `find_refs` (top face: `{kind: "face", normal: [0, 0, 1], extreme:
    "max"}`; its edges: `{kind: "edge", of_face: "<name>"}`), then `add_feature`.
 4. Remove: `delete_feature {id}` (steps that need it go too) or keep it but `turn_off_feature {id}`.
+   Rolled back (get_model shows `rollback`): the body is as after that step and add_feature inserts there — to insert
+   a step before a later one, `rollback {to: "<id>"}`, add it, then `rollback {to: "end"}`.
 5. If a step shows a warning that an edge was "found again by its position only", look at a screenshot and
    re-pick the edges with `edit_feature {id, fields: {edges: [...]}}`.
 6. Check `get_model` (all ok) and `get_screenshot`. Everything can be undone (`undo`).

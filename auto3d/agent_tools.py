@@ -164,7 +164,8 @@ TOOLS = [
     {"name": "get_model", "where": "browser",
      "description": "The 3D model on screen: its steps in order (id, type, values, ok / issues / warnings), the body's "
                     "size, volume, surface area, mass (its material) and centre of mass (cog_mm, the part's coordinates). "
-                    "Call it first and after changes.",
+                    "Call it first and after changes. When the user rolled the tree back: rollback {after, "
+                    "rolled_back: [ids]} and those steps rolled_back: true — the body is as after that step.",
      "inputSchema": _obj({})},
     {"name": "find_refs", "where": "browser",
      "description": "Find faces or edges of the 3D model by description (never guess names). Faces: normal [x, y, z] "
@@ -284,6 +285,11 @@ TOOLS = [
      "inputSchema": _obj({"id": STR, "keep_dependents": {"type": "boolean"}}, ["id"])},
     {"name": "turn_off_feature", "where": "browser", "description": "Turn a step off (off true) or on again (off false); it is kept.",
      "inputSchema": _obj({"id": STR, "off": {"type": "boolean"}}, ["id"])},
+    {"name": "rollback", "where": "browser",
+     "description": "Move the 3D model's rollback bar (as in SolidWorks): to = a step id -> the model is shown and measured as "
+                    "after that step, later steps are kept but not built, and new steps (add_feature) go in right under it; "
+                    "to = \"end\" -> every step again. Saved with the part; exports always use every step.",
+     "inputSchema": _obj({"to": STR}, ["to"])},
     {"name": "get_sketch", "where": "browser",
      "description": "Read one sketch step (id): its points {id: [x, y]}, shapes (lines from / to, circles centre + d, arcs centre "
                     "+ r + from / to counter-clockwise, curves; each with state free / done / bad), relations (tangent, equal, "
@@ -640,7 +646,7 @@ SYSTEM_PROMPT = """You are the design assistant inside Auto3DModeler, a local ap
 
 The project holds parts, as tabs in the app's top bar (list_parts, open_part); the tools work on the part on screen.
 - **Quick parts** come from a PDF drawing (parametric: its dimensions drive it), an outline traced from a picture or read from a DXF (made into a cookie cutter, a solid shape or a custom stack of objects), or an imported STL / OBJ / STEP file. Tools: get_part, set_dimensions, set_make, set_part_options, add_object, add_shape, add_design_layer, add_dimension, update_item, remove_item. Coordinates: x right, y up, z up from the bed; the part's unit (PDF drawings may be cm).
-- **3D models** are built like in SolidWorks: sketches (rectangles, circles, polylines with locked sizes) turned into a solid by extrude / revolve, then holes, fillets, chamfers, shells — for mechanical parts. Tools: new_model, get_model, find_refs, add_feature, edit_feature, delete_feature, turn_off_feature, set_material, prepare_print. mm; the bed is the XY plane.
+- **3D models** are built like in SolidWorks: sketches (rectangles, circles, polylines with locked sizes) turned into a solid by extrude / revolve, then holes, fillets, chamfers, shells — for mechanical parts. Tools: new_model, get_model, find_refs, add_feature, edit_feature, delete_feature, turn_off_feature, rollback, set_material, prepare_print. mm; the bed is the XY plane.
 - **Assemblies** place 3D model parts together: new_assembly, get_assembly, insert_part, snap_faces (joints: touch, gap, axis = concentric…), place_part, remove_from_assembly, check_collisions. get_assembly says for each joined part how it can still move (free) or that it is fully held.
 - **Drawing sheets** (📄, of a 3D model part — its views and dimensions, made by a preset, edited by the user, following the part): sheet_open, get_sheet, sheet_edit; export {format: "pdf"} on a sheet writes it as drawn. Prefer a sheet over export pdf of the model when the user wants a drawing.
 - **2D drawings** (a DXF / DWG, or a PCB's Gerber / ODB++ opened as a 📐 drawing — open_file opens them, also a folder of loose Gerber files): get_drawing, drawing_find (shapes by filters), drawing_delete, drawing_add (lines, circles), drawing_units, drawing_layers (show / hide, colour, a new layer), drawing_set_size, drawing_use (as the sketch of a 3D model, or a quick part).
