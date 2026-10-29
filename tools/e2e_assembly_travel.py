@@ -44,7 +44,7 @@ def pick(inst):
 def along():
     """The row of the pin's move along the hole's axis."""
     rows = d.find_elements(By.CSS_SELECTOR, "#asmRight .as-dof")
-    return next(r for r in rows if r.find_element(By.CSS_SELECTOR, "label").text.startswith("↔") and "axis" in r.text)
+    return next(r for r in rows if r.find_element(By.CSS_SELECTOR, "label").text.startswith("↔"))  # (its one slide, named by the part: "↔ Slide: Pin")
 
 
 def z_of(inst):

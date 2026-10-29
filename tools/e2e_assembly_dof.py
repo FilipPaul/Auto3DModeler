@@ -95,7 +95,7 @@ try:
     pick("I2")
     print("pin, distance free, turn free:", moves())
     z0 = pos("I2")[2]
-    i_axis = [k for k, t in enumerate(moves()) if "axis" in t and t.startswith("↔")][0]
+    i_axis = [k for k, t in enumerate(moves()) if t.startswith("↔")]  # (the pin's one slide: "↔ Slide: Pin" — motions are named by their part)[0]
     slide(i_axis, 5)
     p = pos("I2")
     print("slid 5 along the axis: z", z0, "->", p[2], "| still on the hole's axis (x, y):", p[:2])
