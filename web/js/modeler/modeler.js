@@ -31,6 +31,7 @@ const TYPE_NAME = { point: 'Point', rib: 'Rib', draft: 'Draft', sketch: 'Sketch'
 const LIMIT_FIELDS = { extrude: ['d', 'offset'], revolve: ['angle'], fillet: ['r'], chamfer: ['d'], hole: ['d', 'depth'], shell: ['t'],
   pattern: ['count', 'spacing'], decal: ['h', 'depth'] }; // the numbers the kernel finds ranges for (doc.LIMIT_FIELDS)
 const NEXT_ROWS = 6; // ✨ Next step (nothing chosen): its rows — few, it stays up over the part
+const ROUND_PICK_PX = 16; // ◜ / ◸: a click this near an edge takes that edge, not all the edges of the face under it
 const REPEATABLE = new Set(['extrude', 'revolve', 'hole', 'pattern', 'loft', 'sweep', 'decal', 'mirror']);
 const MIRROR_PLANES = { YZ: 'left ↔ right', XZ: 'front ↔ back', XY: 'top ↔ bottom' }; // the base planes to mirror across
 const AXES = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
@@ -2885,7 +2886,7 @@ export class Modeler {
     if (f.type === 'draft') return this.clickDraft(e);
     if (f.type === 'split') return this.clickSplit(e);
     if (f.type === 'revolve') return null;
-    const i = this.view.pickEdge(e.clientX, e.clientY);
+    const i = this.view.pickEdge(e.clientX, e.clientY, ROUND_PICK_PX); // (a click just beside an edge: that edge, not the whole face)
     if (i >= 0) {
       const ref = this.edgeRef(i);
       if (!ref) return null;
@@ -4198,7 +4199,7 @@ export class Modeler {
           this.view.setHover(h?.face ? h.face.id : -1);
           cv.style.cursor = h?.face ? 'pointer' : '';
         } else {
-          const i = this.view.pickEdge(e.clientX, e.clientY), ok = i >= 0 && this.edgeRef(i);
+          const i = this.view.pickEdge(e.clientX, e.clientY, ROUND_PICK_PX), ok = i >= 0 && this.edgeRef(i); // (as the click)
           this.view.setEdgeHighlight(ok ? this.chainOf(i) : -1, this.refEdges(f.edges));
           const h = ok ? null : this.view.pick(e.clientX, e.clientY);
           this.view.setHover(h?.face ? h.face.id : -1);

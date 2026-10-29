@@ -792,7 +792,10 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_model_features.py <url> <dir>` covers ◜ Fillet (click an edge, exact volume, the rounding follows when
    the box gets taller, a face click takes all its edges), ◎ Hole (snaps to the face centre, through all), turning a
    step off / on, ◸ Chamfer, Ctrl+Z, ⟳ Revolve on the Front plane and ▢ Shell. Unit tests: tests/test_modeler_features.py
-   (named faces, fillet / chamfer / hole / revolve / shell volumes, errors). Start the server from a normal
+   (named faces, fillet / chamfer / hole / revolve / shell volumes, errors).
+   `tools/e2e_fillet_disc.py <url> <dir>` covers ◜ Fillet on a Ø70 disc with a hole (the AI's report): a click just
+   inside the top outer edge takes that edge, not the face's two (R2: 1 edge, the Pappus volume); a click on the
+   edge: that edge; in the face's middle: both rims. Unit test: tests/test_fillet_chain.py. Start the server from a normal
    shell or rely on the app removing Claude Code session variables (CLAUDECODE, CLAUDE_CODE_*).
 3. Outline-detection quality: `tools/eval_outlines.py` benchmarks `detect_outlines` on ECSSD (1000
    natural photos with ground-truth masks; download URLs in the script, unzip under `data/ecssd/`,

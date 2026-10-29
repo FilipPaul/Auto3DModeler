@@ -475,11 +475,13 @@ SolidWorks. It has only the tools that need almost no input.
    **Cut**, ready for holes and pockets.
    - A sketch on the top or bottom face of an extrude follows that face when the extrude changes.
 
-4. **◜ Fillet** (F) rounds edges and **◸ Chamfer** bevels them. Click the edges (a click on a face takes all of its
-   edges; a picked edge is dropped by clicking it again), then type the radius or size. A click on an edge that goes
+4. **◜ Fillet** (F) rounds edges and **◸ Chamfer** bevels them. Click the edges (a click on a face, away from its
+   edges, takes all of its edges — one just beside an edge takes that edge; a picked edge is dropped by clicking it
+   again), then type the radius or size. A click on an edge that goes
    on smoothly into others — the outline of a box with rounded corners, a hole's rim — picks the **whole chain**
    (*Added a chain of 8 edges*; the hover shows it before you click), as a rounding cannot stop where edges meet
-   without a corner anyway; untick *⛓ Whole chain* to pick one edge at a time. **◎ Hole** (H): click on a
+   without a corner anyway; untick *⛓ Whole chain* to pick one edge at a time. Edges that only lie side by side —
+   a disc's rim and a hole's rim — are not a chain. **◎ Hole** (H): click on a
    flat face where a hole goes (click again for more holes on the same face), and type the diameter. **Esc ends the
    placing and keeps the holes placed so far** (as OK — *Hole: 1 position(s) kept*; Ctrl+Z takes them back); with
    none placed yet Esc cancels, and the **Cancel** button always throws them away. Fillet / Chamfer (edges) and Shell
