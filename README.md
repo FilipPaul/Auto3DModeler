@@ -550,7 +550,12 @@ SolidWorks. It has only the tools that need almost no input.
    Mirror and copy** (the part and its mirror image) or **↦ Mirror only** (the part turned into its mirror image).
 
 **Pointing at and clicking the part.** The step under the mouse lights up (all its faces) and its name shows at
-the mouse. A click on a face pops up the tools for it — sketch on it, a hole or text there, round / bevel its edges,
+the mouse. A click on a **snap point** first offers what it belongs to: a round edge's centre or quadrant —
+**◎ Select the hole M5** (a ◎ Hole step: its Type / Size table; another round cut: *Select the round face Ø8*) and
+**◯ Select the circle Ø10** (its edge: fillet / chamfer it); an edge's middle — **⟋ Select the edge**; a corner — the
+edges that meet there; the point's own rows (reference point, measure from here) stay below. The same in a sketch (a
+circle's centre: *◯ Select the circle*) and in an assembly (a hole's centre on a part: *◎ Select the hole* — its
+round face chosen, Concentric and the other joints offered). A click on a face pops up the tools for it — sketch on it, a hole or text there, round / bevel its edges,
 hollow it out with it open, edit / turn off / delete its step — and shows that step's **sizes on the part** (the
 sketch's sizes on its plane, the height, Ø, R, the wall…). Click a size: a number and a **slider** — the part
 follows while you slide; Enter / OK keeps it (one undo step), Esc goes back. Every number in a tool's panel

@@ -7,6 +7,13 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **A snap point offers what it belongs to (2026-10-29)**: `pickSnap` puts `ownerItems` first — a round edge's centre /
+  quadrant: ◎ Select the hole (a Hole step -> `suggestStep`; another round cut -> its cylinder face's table: `faceTable`,
+  factored out of `clickFace`) and ◯ Select the circle / ◠ the arc (`pickEdge`); an edge's middle: ⟋ Select the edge; a
+  corner: up to 3 edges that meet there. The sketch: a circle's / arc's centre picked -> ◯ Select the circle first.
+  The assembly: `roundAt` — a round edge's centre / quadrant on a part (seen away from the rim; on the rim or the wall
+  the click already takes the round face) -> ◎ Select the hole Øn -> that face in `facePicks` (Concentric …). A chosen
+  hole's Ø label sits on its centre: click elsewhere first. Tests: e2e_select_from_point (new).
 - **A chosen hole: its type and size at hand (2026-10-29)**: a Hole step chosen (its wall, its rim — `pickEdge` —,
   its row) puts `holeRows` on top of the suggestions: *Type: ⌴ Counterbore ▾* (`chooseHoleType`: all of
   `HOLE_TYPES`, the current ✓), *Size: M5 ▾* (`holeSizes`: ±2 in the M2…M20 series, a plain Ø: ±2 steps of 0.5 mm up

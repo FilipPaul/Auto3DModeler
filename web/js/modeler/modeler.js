@@ -826,9 +826,10 @@ export class Modeler {
     Object.assign(el.style, { left: `${t.x - vr.left + 14}px`, top: `${t.y - vr.top + 14}px` });
   }
 
-  /** A snap point picked (no tool on): marked, and what to do with it suggested — measure from it, copy it, ask the AI;
-   *  an edge's middle (edge `ei` under it): round / bevel that edge first. */
-  pickSnap(sp, ei = -1) {
+  /** A snap point picked (no tool on): marked, and what to do with it suggested — what it belongs to first (a round
+   *  edge's centre / quadrant: ◎ Select the hole, ◯ Select the circle; an edge's middle or a corner: ⟋ Select the edge),
+   *  then measure from it, copy it, ask the AI; an edge's middle (edge `ei` under it): round / bevel that edge. */
+  pickSnap(sp, ei = -1, at = null) {
     const p = sp.point, xyz = [p.x, p.y, p.z].map((v) => fmt(+v.toFixed(3))).join(', ');
     const kind = sp.snap === 'point' ? sp.name : t({ corner: 'A corner', midpoint: 'An edge midpoint', centre: 'A centre', quadrant: 'A quadrant' }[sp.snap]);
     if (sp.snap === 'point') this.selectStep(sp.id); // a reference point: its step chosen
@@ -836,6 +837,7 @@ export class Modeler {
     const ref = ei >= 0 && this.edgeRef(ei);
     if (ref) this.view.setEdgeHighlight(-1, [ei]);
     const sg = showSuggest(this.els.viewport, `${kind} · ${xyz}`, [
+      ...this.ownerItems(sp, ei, at),
       ...(ref ? this.edgeItems([ref]) : []),
       ...(['corner', 'midpoint', 'centre'].includes(sp.snap) ? [{ icon: '•', label: t('Reference point here'), title: t('A point that stays on this place of the part when it changes — sketches and 📏 Measure snap to it'),
         run: () => { this.dropSuggest(); this.addPoint(sp); } }] : []),
@@ -849,6 +851,56 @@ export class Modeler {
       { icon: '⧉', label: t('Copy its coordinates'), run: () => { navigator.clipboard?.writeText(xyz).catch(() => {}); this.hooks.toast(`${t('Copied')}: ${xyz}`, 'info', 2500); } },
     ], t('No tool on: a click on a corner, an edge\'s middle or a centre picks it'), `${t('in the 3D model')}: ${t('the point')} (${xyz}) — ${kind.toLowerCase()} ${t('of the part')}`);
     if (sg) sg.dataset.from = 'face';
+  }
+
+  /** What a snap point belongs to, as rows that choose it (the table then becomes its): a round edge's centre or
+   *  quadrant -> ◎ Select the hole (a Hole step: the step; another round cut: its round face) and ◯ Select the circle;
+   *  an edge's middle -> ⟋ Select the edge; a corner -> the edges that meet there. */
+  ownerItems(sp, ei = -1, at = null) {
+    const b = this.result?.body, p = sp.point, out = [];
+    if (!b) return out;
+    const near = (q) => q.distanceTo(p) < 1e-5 * (1 + this.view.size);
+    const named = (e) => e.faces.length === 2 && e.faces.every((k) => b.faces[k]?.name);
+    if (sp.snap === 'centre' || sp.snap === 'quadrant') {
+      const rings = b.edges.map((e, i) => [e, i]).filter(([e]) => named(e) && snapPoints([e], null, { [sp.snap]: true }).some((q) => near(q.point)));
+      const holes = new Map(), walls = new Map();
+      for (const [e] of rings) {
+        for (const k of e.faces) {
+          const f = b.faces[k], step = this.part.features.find((g) => g.id === this.faceOwner({ name: f.name }));
+          if (step?.type === 'hole') holes.set(step.id, step);
+          else if (f.type === 'cylinder' && !walls.has(k)) walls.set(k, f);
+        }
+      }
+      for (const h of holes.values()) {
+        out.push({ icon: '◎', label: `${t('Select the hole')} ${this.holeSizeText(h)}`, rank: -6, title: t('The hole step: its type, size, ⁂ pattern, Ø'),
+          run: () => { this.dropSuggest(); this.selectStep(h.id); this.suggestStep(h.id); } });
+      }
+      if (!holes.size) {
+        for (const [k, f] of walls) {
+          out.push({ icon: '◎', label: `${t('Select the round face')} Ø${fmt(2 * (f.radius || 0))}`, rank: -6, title: t('Its round face: what can be done with it'),
+            run: () => { const fs = this.stepFaces(f); if (fs) this.faceTable({ face: this.view.face(k) || f, point: p.clone() }, fs, at || { clientX: 0, clientY: 0 }); } });
+        }
+      }
+      for (const [e, i] of rings) {
+        const r = this.edgeRef(i), sz = this.edgeSize(i);
+        if (!r || !sz) continue;
+        const full = Math.hypot(e.pts[0] - e.pts[e.pts.length - 3], e.pts[1] - e.pts[e.pts.length - 2], e.pts[2] - e.pts[e.pts.length - 1]) < 1e-6;
+        out.push({ icon: full ? '◯' : '◠', label: full ? `${t('Select the circle')} Ø${fmt(sz.d)}` : `${t('Select the arc')} R${fmt(sz.d / 2)}`, rank: -5,
+          title: t('The round edge: fillet / chamfer it, its size'), run: () => this.pickEdge(i, r) });
+      }
+    } else if (sp.snap === 'midpoint' && ei >= 0) {
+      const r = this.edgeRef(ei);
+      if (r) out.push({ icon: '⟋', label: t('Select the edge'), rank: -5, title: t('The edge: fillet / chamfer it, its length'), run: () => this.pickEdge(ei, r) });
+    } else if (sp.snap === 'corner') {
+      b.edges.forEach((e, i) => {
+        if (out.length >= 3 || !named(e) || e.pts.length < 6) return;
+        const n = e.pts.length, ends = [[e.pts[0], e.pts[1], e.pts[2]], [e.pts[n - 3], e.pts[n - 2], e.pts[n - 1]]];
+        if (!ends.some((q) => Math.hypot(q[0] - p.x, q[1] - p.y, q[2] - p.z) < 1e-5 * (1 + this.view.size))) return;
+        const r = this.edgeRef(i), sz = this.edgeSize(i);
+        if (r) out.push({ icon: '⟋', label: `${t('Select the edge')} · ${fmt(+sz.L.toFixed(2))} mm`, rank: -5 + out.length * 0.1, title: t('The edge: fillet / chamfer it, its length'), run: () => this.pickEdge(i, r) });
+      });
+    }
+    return out;
   }
 
   /** A snap point of the part -> what a point step keeps: the faces meeting at the corner, or the round / straight edge
@@ -1159,12 +1211,18 @@ export class Modeler {
     if (more && pick && this.picks?.length) { this.addPick(pick); return; } // Ctrl+click: one more in the selection
     this.picks = pick ? [pick] : [];
     if (!this.cmd) this.view.setEdgeHighlight();
-    if (sp?.snap) { this.pickSnap(sp, eref ? ei : -1); return; } // a corner, an edge's middle, a centre
+    if (sp?.snap) { this.pickSnap(sp, eref ? ei : -1, { clientX: e.clientX, clientY: e.clientY }); return; } // a corner, an edge's middle, a centre
     if (pick?.kind === 'edge') { this.pickEdge(ei, eref); return; }
     if (!this.measuring) this.view.setMeasure([]);
     if (!fs) { this.selectStep(null); this.dropSuggest(); return; }
+    this.faceTable(h, fs, { clientX: e.clientX, clientY: e.clientY });
+  }
+
+  /** A face chosen (h: {face, point} — clicked, or chosen from a snap point; fs: its step): its step chosen and the
+   *  suggestions for it — this face, its edges, the part, the step. at: where the click was (the tools that start there). */
+  faceTable(h, fs, at) {
     this.selectStep(fs.step.id);
-    const flat = h.face.type === 'plane', at = { clientX: e.clientX, clientY: e.clientY };
+    const flat = h.face.type === 'plane';
     // [key, icon, label, do it] by section: this face, its edges, the whole part, the step it belongs to
     const sections = [
       [t('On this face'), [

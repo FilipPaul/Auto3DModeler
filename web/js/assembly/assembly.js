@@ -552,6 +552,8 @@ export class Assembly {
     show(sp ? `${name(a)} · ${kind}` : name(a), [
       ...(sp ? [
         { section: kind },
+        ...this.roundAt(sp).map(({ face, hole }) => ({ icon: '◎', label: `${t(hole ? 'Select the hole' : 'Select the round face')} Ø${fmt(+(2 * (face.radius || 0)).toFixed(2))}`, rank: -3,
+          title: t('Its round face chosen: the joints that fit it (concentric …)'), run: () => { this.snapPick = null; this.facePicks = [{ inst: a.id, face }]; this.choose(a.id); this.drawMarks(); } })),
         { icon: '📏', label: t('Measure from here'), title: xyz, run: () => {
           this.snapPick = null;
           if (!this.measuring) this.toggleMeasure();
@@ -563,6 +565,22 @@ export class Assembly {
         { section: name(a) }] : []),
       ...this.partItems(a), // (the owner's choice: a click shows its actions in the table, as everywhere)
     ], t('Ctrl+click another part: what fits the two'));
+  }
+
+  /** A round edge's centre / quadrant picked on a part (sp: {point, snap, inst}) -> the round faces those edges bound
+   *  [{face (world coordinates, as pickInst's), hole}] — a hole's first; hole: a face of a Hole step (named :hole). */
+  roundAt(sp) {
+    if (sp.snap !== 'centre' && sp.snap !== 'quadrant') return [];
+    const mesh = (this.view.meshes || []).find((m) => m.userData.inst === sp.inst);
+    if (!mesh) return [];
+    const { body } = mesh.userData, m = mesh.matrix, nm = new THREE.Matrix3().getNormalMatrix(m), out = new Map();
+    for (const e of body.edges || []) {
+      const cyl = (e.faces || []).map((i) => body.faces[i]).find((f) => f?.type === 'cylinder');
+      if (!cyl || out.has(cyl.id) || !snapPoints([e], m, { [sp.snap]: true }).some((q) => q.point.distanceTo(sp.point) < 1e-4)) continue;
+      out.set(cyl.id, { face: { ...cyl, centroid: new THREE.Vector3(...cyl.centroid).applyMatrix4(m), normal: cyl.normal ? new THREE.Vector3(...cyl.normal).applyMatrix3(nm).normalize() : null },
+        hole: /:hole\b/.test(cyl.name || '') });
+    }
+    return [...out.values()].sort((x, y) => y.hole - x.hole).slice(0, 2);
   }
 
   /** What can be done with a placed part: open / edit its part, join, simplified, fix, its own part, take it out. */

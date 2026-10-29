@@ -450,6 +450,13 @@ const CS = {
   'Hole — click on a flat face where it goes (click again for more holes). Enter / Esc = done (keeps them), Cancel = throw away.': 'Díra — klikněte na rovnou plochu, kam patří (dalším kliknutím přidáte další). Enter / Esc = hotovo (ponechá je), Zrušit = zahodit.',
   'Fillet — click the edges (or a face: all its edges). Enter / Esc = done (keeps them), Cancel = throw away.': 'Zaoblení — klikněte na hrany (nebo na plochu: všechny její hrany). Enter / Esc = hotovo (ponechá je), Zrušit = zahodit.',
   'Chamfer — click the edges (or a face: all its edges). Enter / Esc = done (keeps them), Cancel = throw away.': 'Zkosení — klikněte na hrany (nebo na plochu: všechny její hrany). Enter / Esc = hotovo (ponechá je), Zrušit = zahodit.',
+  // a snap point: what it belongs to, chosen from it
+  'Select the hole': 'Vybrat díru', 'Select the round face': 'Vybrat válcovou plochu', 'Select the circle': 'Vybrat kružnici', 'Select the arc': 'Vybrat oblouk',
+  'Select the edge': 'Vybrat hranu', 'The hole step: its type, size, ⁂ pattern, Ø': 'Krok díra: její typ, velikost, ⁂ pole, Ø',
+  'Its round face: what can be done with it': 'Její válcová plocha: co s ní jde udělat', 'The round edge: fillet / chamfer it, its size': 'Kruhová hrana: zaoblit / zkosit ji, její velikost',
+  'The edge: fillet / chamfer it, its length': 'Hrana: zaoblit / zkosit ji, její délka',
+  'The shape this is the centre of: its sizes and relations': 'Tvar, jehož je to střed: jeho rozměry a vazby',
+  'Its round face chosen: the joints that fit it (concentric …)': 'Vybere se její válcová plocha: vazby, které k ní pasují (soustředná …)',
   // a chosen Hole step: its type and size in the suggestions, its fields in the right panel
   'Another kind of hole: simple, clearance, ⌴ counterbore, ⌵ countersink, tapped, D': 'Jiný druh díry: jednoduchá, průchozí, ⌴ válcové zahloubení, ⌵ kuželové zahloubení, se závitem, D',
   'The sizes next to this one (all of them: ✎ Edit the hole)': 'Velikosti vedle této (všechny: ✎ Upravit díru)',
