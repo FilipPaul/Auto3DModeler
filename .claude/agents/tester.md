@@ -646,7 +646,8 @@ Never report "works" without having run it; report failures with their output.
    ✕ in the row frees them) and a ball's slide / turns, 〰 a spring (snap_faces "spring" k 0.5: drawn at distance /
    free length at rest, 4 mm down and every frame of ▶; get_assembly and its row 16 mm / 4 mm / 2 N; its overlap with
    the piston dropped from check_collisions and check_travel), ↕ a check valve (a ball between two stops: one click
-   picks the piston, forward → max, back → min, the AI's follow at min, ▶ only at its stops, 📈 both stops).
+   picks the piston, forward → max, back → min, the AI's follow at min, ▶ only at its stops, 📈 both stops); the
+   🎬 Pumpička demo in e2e_demos (▶ moves the piston and both valve balls, the spring drawn at the piston).
    `tools/e2e_assembly_health.py <url> <dir>` covers joints that do not hold (the same faces joined again as a Gap:
    one joint changed; a Flush fighting it: the Gap red with "9 mm off: J2 (Flush) holds Lid elsewhere", ⚠ tag, status
    count, get_assembly not_held; one removed: all hold), a screw + nut as one 🔩 row whose ✕ takes the screw, nut and

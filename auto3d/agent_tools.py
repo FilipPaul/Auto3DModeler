@@ -70,7 +70,7 @@ TOOLS = [
      "inputSchema": _obj({})},
     {"name": "list_demos", "where": "server",
      "description": "The app's 🎬 demo projects (Open ▾ → Demo projects…): ready-made assemblies that move as a whole "
-                    "(a crank – rod – slider, a four-bar linkage, a gearbox with a rack, a robot arm) — file, name (and Czech), "
+                    "(a crank – rod – slider, a four-bar linkage, a gearbox with a rack, a robot arm, a pump with a spring and check valves) — file, name (and Czech), "
                     "what it shows, its parts. To show the user what the app does, or a mechanism to start from.",
      "inputSchema": _obj({})},
     {"name": "open_demo", "where": "server",

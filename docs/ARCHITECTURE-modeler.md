@@ -7,6 +7,14 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **🎬 Demo "Pumpička" (2026-10-29)**: the AI's pump rebuilt as a stand-in (tools/make_demos.py pumpicka): a turned
+  body (an inlet Ø4 with a 45° seat under a bore Ø20, see-through), a piston with a hollow rod and a 45° seat for the
+  outlet ball (concentric in the bore, its turn locked, 6 mm stroke "Zmáčknutí tlačítka"), a 〰 spring Ø18/12 × 20 from
+  the bore's bottom to the piston (k 0.3 N/mm), two Ø6 balls ● on their seats' axes with 2.5 mm lifts going ↕ by the
+  piston's direction (the inlet lifts going up, the outlet going down) — one ⚙ "Pumpička", no collisions. Tests:
+  test_demos (its spring and valve rules), e2e_demos (▶: the piston and both balls move, the spring drawn at the
+  piston every frame).
+
 - **Assembly: ↕ by the driver's direction — check valves (2026-10-29)** (report 2026-10-29-203234: the pump's balls
   could not move by the stroke's direction). A motion's limits may carry `follow: {part, key?, at: "max" | "min"}`:
   Assembly.moveFree measures the moved part's position along that motion before and after (any move: a slider, ▶,

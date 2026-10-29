@@ -70,6 +70,23 @@ class TestDemoFiles(unittest.TestCase):
         self.assertAlmostEqual(cs["rack"]["ratio"], math.pi * 30, places=4)  # (π·Ø mm per turn)
         self.assertEqual(cs["rack"]["a"], cs["gear"]["a"])  # (the pinion drives both)
 
+    def test_pump_has_a_spring_and_two_valves(self):
+        """🎬 Pumpička: a 〰 spring from the body's bore to the piston, two balls ● on their seats' axes going ↕ by the
+        piston's direction — one opening while the piston goes up, the other while it goes down."""
+        asm = next(p for p in demos.load(DEMOS, "pumpicka.a3d.json")["parts"] if p["kind"] == "assembly")["assembly"]
+        inst = {i["id"]: i for i in asm["instances"]}
+        (s,) = asm["springs"]
+        self.assertEqual((s["part"], s["onto"]), ("I3", "I2"))
+        self.assertGreater(s["k"], 0)
+        self.assertEqual(sorted(m["move"] for m in asm["mates"] if m["type"] == "ball"), ["I4", "I5"])
+        rules = {}
+        for b in ("I4", "I5"):
+            (lim,) = inst[b]["travel"].values()
+            self.assertAlmostEqual(lim["max"] - lim["min"], 2.5, places=6)  # (seated … lifted)
+            self.assertEqual(lim["follow"]["part"], "I2")
+            rules[b] = lim["follow"]["at"]
+        self.assertNotEqual(rules["I4"], rules["I5"])  # (both seats open upwards: the inlet lifts going up, the outlet going down)
+
     def test_bad_names_refused(self):
         for bad in ("../server.py", "nope.a3d.json", "klikovy-mechanismus.json", "sub/x.a3d.json", None):
             with self.subTest(name=bad), self.assertRaises(demos.DemoError):

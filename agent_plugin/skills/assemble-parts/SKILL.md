@@ -69,7 +69,7 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    (`name_motion {part, motion, name: "Otáčení kliky"}`, `drive_mechanism {name}` for the mechanism) — the names show
    everywhere and work as `motion` in move_free / set_travel. To show it moving: `set_view` as it should be seen, then
    `record_animation {mechanism, format: "gif" | "video"}` saves one full cycle in the data folder (it answers the path).
-   Ready-made mechanisms (a crank – rod – slider, a four-bar, gears with a rack, a robot arm) to show or start from:
+   Ready-made mechanisms (a crank – rod – slider, a four-bar, gears with a rack, a robot arm, a pump: a spring and check valves) to show or start from:
    `list_demos`, `open_demo {name: "crank"}` — only when the user asks (a new project; the one on screen is kept in
    🕘 Recent projects). A saved project file (.a3d.json) opens with `open_file {path}` the same way.
    **Gears, belts, a rack**: two parts that each turn on their own pin are coupled by `snap_faces {type: "gear" |
