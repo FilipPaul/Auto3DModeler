@@ -7,6 +7,24 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **One size, every view it can go in (2026-10-29)** (the owner: the sheet's suggestions only ever offered the front
+  and the top view, never the right one — the check took the first view a size was found in). sheet.py `places(geo)`
+  (sent as geometry.places; a sheet built before it is built again once): per axis of the part and place along it, the
+  views that show that place as a point a dimension hangs on — an edge across the axis (visible "e" / hidden "h",
+  from the view's visible polylines), a full circle's centre ("c"), the view's box ("b") — in views whose right / up
+  is that axis (`_axis`: never the iso view; Section A–A as the right view). Computed on the server because it has the
+  projections and is unit-tested there; the browser's check (sheet.js) still decides what is missing. Each missing size
+  is one item (id "z:30", "Ø6", "R3") with `cands` — web/js/sheet/dimcandidates.js `withViews`: the views
+  drawn that show it, ranked (ISO 129: round 3 > box 2.5 > visible edge 2 > hidden 0, −0.4 a line its extension line
+  crosses, +0.5 a dimension of the same step there, then front / top / right); the item's view is the best one.
+  Suggestions: "↕ Height 30 (2 views)" rows (suggest.js rows may have `hover(on)`); hovering a row, a Check row or
+  the orange ? shows dashed accent ghosts (dimSvg recoloured) in every candidate view; a click on the row adds it in
+  the best view, on a ghost in that one (`candDim`: from the view's lowest place, on the outer side with room — not
+  into the gap to the next view —, past the dimensions there); "⇄ Move to another view" on a linear dimension
+  (`otherViews`: both ends seen in that view), one ↶ step. The AI: get_sheet check.missing [{id, what, views (best
+  first), key}], sheet_edit add {missing: id, view?}. Tests: test_sheet_dim_views (a block with a hole and a step:
+  height in front + right, depth in top + right, the hole's place only in the top, the step's floor hidden in the
+  front / seen in the right, the section), e2e_sheet_dim_views.
 - **✂ Section view fixed and capped (2026-10-29)** (the AI's report: a revolved pump body cut at y = 0 showed whole, with
   a jagged ring at z = 0). Causes: a Y cut kept the half toward the iso / front cameras (x and z kept the far half), so
   the part looked uncut; a face lying in the cut (the bottom at z = 0) z-fought with the clip plane — the jagged ring;

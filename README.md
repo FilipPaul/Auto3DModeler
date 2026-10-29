@@ -280,7 +280,8 @@ hide (also Delete). On an **edge**: dimension its length, or the distance / angl
 Ø or the hole callout ("4× Ø4 THRU"); if it has one already, that one is chosen. On a **dimension**: a tolerance
 (±0.1 or +0.2/−0.1), a fit (H7, h6 …), a reference dimension "(60)", the other side, delete. On the **title
 block**: name, drawing no., drawn by, note, the material (in the part), template, frame, paper, DXF. With **nothing
-chosen** you get the next steps: add the missing sizes, show a hidden view, ⬇ Export PDF, 🖨 Print. The
+chosen** you get the next steps: add the missing sizes, each missing size once (*↕ Height 30 (2 views)*), show a
+hidden view, ⬇ Export PDF, 🖨 Print. The
 **2D drawing** has a table too: with nothing chosen, as a sketch / as a quick part / measure / DXF; for the shapes
 chosen: all like it, change the size, only these as a sketch or a quick part, another layer, delete.
 
@@ -716,6 +717,14 @@ blind depth (*the countersink's angle (H1)*) — listed with **＋** (add that o
 missing**, and marked with an orange **?** on the drawing (not in the PDF); dimensions that give a size twice are
 marked ⧉ (*✕ Remove them*). A known circle gives its own edges (a tangent side, a boss), a pitch *4× 10* its row,
 a pitch circle its holes.
+**One size, every view it can go in**: a missing size is offered once with all the views it can be dimensioned in —
+the part's height in the front *and* the right view, its depth in the top and the right, a hole's place where the hole
+is seen round, a section's too (never the iso view: its sizes are foreshortened). The best view comes first (ISO 129:
+where the feature's shape shows — round, a visible edge rather than a hidden one, few lines to cross, next to its
+other dimensions). **Hover** its row (the suggestions or the Check list) or its orange **?**: a dashed orange ghost of
+the dimension shows in every one of those views, where it would go; **click the row** to add it in the best view,
+**click a ghost** to add it in that view (one ↶ step). A chosen dimension offers **⇄ Move to another view: Right** —
+the same size in a view that shows both its ends (hover: its ghost there).
 **Views**: double-click a view's name (on the sheet or in the Views list) to **rename** it (*Side A*); drag a view to
 move it — it **snaps in line** with the front view (Top under it, Right beside it; a dashed guide shows it), Shift
 moves it freely. **Scale**: the sheet's *Scale* is *Auto* (fitted to the paper) or one you choose — 10:1 … 1:100 or

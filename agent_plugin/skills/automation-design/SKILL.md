@@ -33,7 +33,8 @@ maker numbers.
   "4× M3 ⌵ Ø5 × 90°" — keep it, the check needs a countersink's angle / a counterbore's depth; the holes' places are
   drawn from the part's left / bottom edge — a row's pitch, a bolt circle "PCD Ø60 · 6× 60°", many as ordinates —
   get_sheet marks them hole_position); `get_sheet {points: "Top"}` and `sheet_edit {add: [...]}` for a
-  dimension the preset left out, `sheet_edit {remove: [...]}` for clutter, `sheet_edit {dims: {<id>: {tol: "±0.1"}}}` for a
+  dimension the preset left out — a size the check misses: `sheet_edit {add: [{missing: "<id>", view}]}` (its `views`:
+  every view it can go in, the best first; the user's view when they name one, e.g. the right view), `sheet_edit {remove: [...]}` for clutter, `sheet_edit {dims: {<id>: {tol: "±0.1"}}}` for a
   size that needs its own tolerance (`ref: true`: a reference dimension, in brackets; a Ø takes `fits` instead); then `export {format: "pdf"}` on the sheet (and `"dxf"` when the
   user's drafting program — AutoCAD, SolidWorks, Solid Edge — should take it: the paper 1:1, real dimensions).
   Say the material and the finish (e.g. "AlMg3, anodised").
