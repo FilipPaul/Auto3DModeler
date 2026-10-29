@@ -1535,7 +1535,7 @@ class TestThreads(unittest.TestCase):
         cut = doc.body_of(part).body.shape
         self.assertEqual(r["threads"]["real"]["cut"], 2)
         self.assertEqual(sum(s is cut for s in calls), 1)
-        self.assertEqual(r["body"]["volume"], real(cut))
+        self.assertEqual(r["body"]["volume"], real(cut)[0])  # (_volume: the volume and the centre of mass, one integral)
         self.assertLess(r["body"]["volume"], 40 * 20 * 12 - 2 * math.pi * 2.1 ** 2 * 12)  # (the grooves cut into the tap drill)
 
 

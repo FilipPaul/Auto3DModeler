@@ -163,7 +163,8 @@ TOOLS = [
      "inputSchema": _obj({"name": STR})},
     {"name": "get_model", "where": "browser",
      "description": "The 3D model on screen: its steps in order (id, type, values, ok / issues / warnings), the body's "
-                    "size and volume. Call it first and after changes.",
+                    "size, volume, surface area, mass (its material) and centre of mass (cog_mm, the part's coordinates). "
+                    "Call it first and after changes.",
      "inputSchema": _obj({})},
     {"name": "find_refs", "where": "browser",
      "description": "Find faces or edges of the 3D model by description (never guess names). Faces: normal [x, y, z] "
@@ -336,7 +337,7 @@ TOOLS = [
      "description": "Start a new, empty assembly (its own tab) to place 3D model parts of the project together. Then insert_part.",
      "inputSchema": _obj({"name": STR})},
     {"name": "get_assembly", "where": "browser",
-     "description": "The assembly on screen: its placed parts (id I1…, part, position, bounding box in mm), its joints (a joint that does not hold has `not_held`: how far off and which joint holds the part elsewhere — fix one of the two), its fasteners (one each: id K1…, text, its parts) and the parts list (qty placed here; `total`: how many in all, the ones inside its sub-assemblies counted in; material, mass). A placed sub-assembly whose own joints leave its parts free has `inner`: those parts (\"I3/I2\") and how they can move inside it. Closed loops of joints (a rod joined to a crank and to a slider) are solved together: `loops` [{id, parts, closed, free_motions, drive}] — move_free one of its `drive` motions and the others follow (a part held only by the loop says `moves_with_loop`); closed false: it cannot close (a part too short / long for that place).",
+     "description": "The assembly on screen: its placed parts (id I1…, part, position, bounding box in mm), its joints (a joint that does not hold has `not_held`: how far off and which joint holds the part elsewhere — fix one of the two), its fasteners (one each: id K1…, text, its parts) and the parts list (qty placed here; `total`: how many in all, the ones inside its sub-assemblies counted in; material, mass); `mass_g` and `cog_mm`: the whole assembly's mass and centre of mass as the parts are placed now. A placed sub-assembly whose own joints leave its parts free has `inner`: those parts (\"I3/I2\") and how they can move inside it. Closed loops of joints (a rod joined to a crank and to a slider) are solved together: `loops` [{id, parts, closed, free_motions, drive}] — move_free one of its `drive` motions and the others follow (a part held only by the loop says `moves_with_loop`); closed false: it cannot close (a part too short / long for that place).",
      "inputSchema": _obj({})},
     {"name": "get_bom", "where": "browser",
      "description": "The bill of materials of an assembly (the one on screen, or any by id / name: a sub-assembly too), its whole "

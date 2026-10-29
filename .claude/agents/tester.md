@@ -405,6 +405,10 @@ Never report "works" without having run it; report failures with their output.
    restarted after doc.py changes.
    `tools/e2e_materials.py <url> <dir>` covers materials (4 groups, 37; brass: its colour and mass; set_material
    titanium: its colour, the same in an assembly). Needs a server restarted after materials.py changes.
+   `tools/e2e_mass.py <url> <dir>` covers ⚖ mass properties (Czech; an L of two extrudes: the Part panel's volume,
+   mass, Plocha 19 cm², Těžiště (15; 10; 2.5) mm; ⊕ marker on / off at the centre; brass: 25.5 g; get_model cog_mm /
+   area_mm2; the crank demo: the Assembly panel's CoG, ⊕, get_assembly mass_g = get_bom's, ▶: the marker and the
+   panel's CoG follow the parts). Needs a server restarted after kernel.py changes.
    `tools/e2e_tree_more.py <url> <dir>` covers the tree / tabs more (a library screw: the library icon, changed: its own;
    a hover on a row: a picture; a row dropped on the assembly's view: one more Base; a middle click closes a tab).
    `tools/e2e_sketch_snaps.py <url> <dir>` covers the sketch's Snap filters with real mouse input (the row: 7 Snap

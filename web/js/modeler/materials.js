@@ -40,3 +40,6 @@ export const printed = (material) => MATERIAL_GROUPS[0][1].some(([n]) => n === (
 
 /** A part's colour as shown: its own, else its material's (when one was chosen), else none (the default). */
 export const lookColor = (part) => part?.color || (part?.material && MATERIAL_COLOR[part.material]) || null;
+
+/** ⚖ A centre of mass as text: "(x; y; z)" in mm, to 0.1 mm. */
+export const cogText = (c) => `(${c.map((v) => (+(+v).toFixed(1) || 0).toString()).join('; ')})`;

@@ -1125,6 +1125,24 @@ export class ModelView {
     this.snapGroup.add(dot, lab);
   }
 
+  /** ⚖ The centre of mass marked: ⊕ at p ([x, y, z]; null: none), over the parts, with a short label. Made once and
+   *  only moved after (an assembly's moves it on every frame while a mechanism plays). */
+  setCog(p, label = '') {
+    if (!p) { if (this.cog) { this.cog.visible = false; this.invalidate(); } return; }
+    if (!this.cog) {
+      const el = document.createElement('div');
+      el.className = 'm-cog';
+      el.innerHTML = '<i>⊕</i><span></span>';
+      this.cog = new CSS2DObject(el);
+      this.scene.add(this.cog);
+    }
+    this.cog.visible = true;
+    this.cog.position.set(...p);
+    const s = this.cog.element.querySelector('span');
+    if (s.textContent !== label) s.textContent = label;
+    this.invalidate();
+  }
+
   /** The measure overlay: points and a line between them, with a label. */
   setMeasure(points = [], text = '') {
     if (!this.measureGroup) { this.measureGroup = new THREE.Group(); this.scene.add(this.measureGroup); }

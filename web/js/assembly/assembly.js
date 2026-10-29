@@ -37,7 +37,7 @@ import { freeMotions, motionMatrix } from './dof.js';
 import { findLoops, solveLoop, loopFreedom, worstMiss, screwBetween, stepsBetween } from './loops.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
-import { lookColor, finishOf } from '../modeler/materials.js';
+import { lookColor, finishOf, cogText } from '../modeler/materials.js';
 import { stepTree } from './stepfile.js';
 import { bomOf, bomCsv, instanceTree } from './bom.js';
 import { openBomWindow } from './bomview.js';
@@ -781,11 +781,39 @@ export class Assembly {
     return { partData: (id) => (id === self && !this.owner ? this.doc : this.hooks.partData(id)), kindOf: (id) => this.kindOf(id), partName: (id) => this.partName(id), massOf: (id) => this.massOf(id) };
   }
 
-  /** A part's mass (g, each) from its body as last built (its own mass, else volume × its material), or null. */
+  /** A part's mass (g, each): a mass of its own (mass_g: a bought part's, from its maker), else its body as last built
+   *  (volume × its material; a library part without one: none), or null. */
   massOf(pid) {
     const b = this.bodies[pid]?.body, data = this.hooks.partData(pid) || {}, mat = data.material || (data.library ? '' : 'PLA');
-    if (!b || b.sub) return null;
+    if (b?.sub) return null;
+    const own = +(data.mass_g ?? data.library?.mass_g);
+    if (own > 0) return own;
+    if (!b) return null;
     return b.mass_g ?? (b.volume && MATERIALS[mat] ? (b.volume / 1000) * MATERIALS[mat] : null);
+  }
+
+  /** ⚖ The assembly's mass and centre of mass, from each placed part's (the kernel's, once per part) moved by its
+   *  placement -> {mass_g, cog: [x, y, z] | null, unknown: placed parts without a mass}. Cheap: run on every frame of ▶. */
+  massProps() {
+    let m = 0, unknown = 0;
+    const c = new THREE.Vector3(), p = new THREE.Vector3(), M = new THREE.Matrix4();
+    for (const it of this.doc.instances) {
+      const b = this.bodyOf(it)?.body, mi = b?.sub ? b.mass_g : this.massOf(it.part);
+      if (!b?.cog || !(mi > 0)) { unknown++; continue; }
+      c.addScaledVector(p.set(...b.cog).applyMatrix4(M.fromArray(it.matrix)), mi);
+      m += mi;
+    }
+    return { mass_g: +m.toFixed(2), cog: m > 0 ? c.multiplyScalar(1 / m).toArray().map((v) => +v.toFixed(3)) : null, unknown };
+  }
+
+  /** ⚖ The assembly's centre of mass marked in the view (⊕ in the Assembly panel) or not. */
+  toggleCog() { this.cogOn = !this.cogOn; this.render(); this.draw(); }
+
+  /** The ⊕ marker and the panel's CoG where the parts are now (draw: while they move too). */
+  showCog() {
+    const el = this.$?.('.as-cogv'), mp = this.cogOn || el ? this.massProps() : null;
+    this.view.setCog(this.cogOn ? mp.cog : null, this.cogOn && mp.cog ? t('Centre of mass') : '');
+    if (el && mp.cog) el.textContent = `${cogText(mp.cog)} mm`;
   }
 
   /** The assembly whose drawing set numbers this one's positions (the top one it is in), so the BOM and the balloons agree. */
@@ -823,9 +851,9 @@ export class Assembly {
       const data = this.hooks.partData(it.part);
       r.lib = data?.library || null;
       r.material = data?.material || 'PLA';
-      const b = this.bodies[it.part]?.body, v = b?.volume;
+      const b = this.bodies[it.part]?.body;
       if (b?.sub) r.material = '—';
-      r.mass = b?.mass_g ?? (v ? (v / 1000) * MATERIALS[r.material] : null);
+      r.mass = b?.sub ? b.mass_g ?? null : this.massOf(it.part); // (as the BOM's: bom.js)
     }
     return Object.values(rows);
   }
@@ -936,11 +964,14 @@ export class Assembly {
       box.querySelector('[data-a=openPart]')?.addEventListener('click', () => this.hooks.openPart(it.part));
       return;
     }
-    const rows = this.bom(), total = rows.reduce((s, r) => s + (r.mass || 0) * r.qty, 0);
+    const rows = this.bom(), total = rows.reduce((s, r) => s + (r.mass || 0) * r.qty, 0), mp = this.massProps();
     box.innerHTML = `<h2>Assembly</h2>
       ${rows.length ? `${this.jointsHtml(null)}<h3>Parts list</h3><table class="as-bom"><tr><th>Part</th><th>Qty</th><th>Material</th><th>Mass</th></tr>
         ${rows.map((r) => `<tr><td data-no-i18n>${esc(r.name)}</td><td>${r.qty}</td><td>${esc(t(r.material))}</td><td>${r.mass === null ? '—' : `${fmt(+(r.mass * r.qty).toFixed(1))} g`}</td></tr>`).join('')}
         <tr class="as-total"><td>Total</td><td>${rows.reduce((s, r) => s + r.qty, 0)}</td><td></td><td>${fmt(+total.toFixed(1))} g</td></tr></table>
+        ${mp.cog ? `<div class="mp-facts as-mass"><span title="${esc(t('Centre of mass (centre of gravity) of the placed parts, in the assembly\'s coordinates — it follows them as they move'))}">CoG</span><b class="mp-cog"><span class="as-cogv" data-no-i18n>${cogText(mp.cog)} mm</span>
+          <button class="btn small ${this.cogOn ? 'on' : ''}" data-a="cog" title="${esc(t('Show the centre of mass in the view (⊕)'))}">⊕</button></b>
+          ${mp.unknown ? `<span></span><span class="mp-sub">${esc(t2('{n} part(s) without a mass left out', { n: mp.unknown }))}</span>` : ''}</div>` : ''}
         ${rows.some((r) => r.lib?.pn) ? `<div class="as-pns">${rows.filter((r) => r.lib?.pn).map((r) => `<div><span data-no-i18n>${r.qty}× ${esc(r.lib.pn)}</span> <i data-no-i18n>${esc(r.lib.maker || '')}</i></div>`).join('')}</div>` : ''}
         <div class="row-actions"><button class="btn small primary" data-a="bomWin" title="The bill of materials: every part with its total quantity from all levels (sub-assemblies counted in), material, mass, maker and part number — as a summary or as the assembly tree">📋 BOM</button><button class="btn small" data-a="bomCsv" title="The bill of materials as a CSV file (Excel): every part with its quantity, maker, part number, order numbers and mass — the parts inside sub-assemblies too">⬇ BOM (CSV)</button></div>
         <h3>Export</h3><div class="row-actions"><button class="btn small" data-x="stl" title="All parts in one STL, as placed">STL</button>
@@ -955,6 +986,7 @@ export class Assembly {
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
     box.querySelector('[data-a=bomCsv]')?.addEventListener('click', () => this.exportBom());
     box.querySelector('[data-a=bomWin]')?.addEventListener('click', () => this.openBom());
+    box.querySelector('[data-a=cog]')?.addEventListener('click', () => this.toggleCog());
     box.querySelector('[data-a=drawingSet]')?.addEventListener('click', () => this.hooks.drawingSet());
     box.querySelector('[data-a=sheetHere]')?.addEventListener('click', () => this.hooks.newSheet());
   }
@@ -1916,6 +1948,7 @@ export class Assembly {
     if (this.bodies[at]?.key === key) return this.bodies[at];
     const pos = [], ids = [], faces = [], edges = [];
     let vol = 0, mass = 0, box = null, off = 0;
+    const cog = new THREE.Vector3();
     for (const it of list) {
       const sub = this.kindOf(it.part) === 'assembly' ? this.mergeAssembly(it.part, new Set(seen), it.inner ? it : null) : this.bodies[it.part];
       const b = sub?.body;
@@ -1938,13 +1971,15 @@ export class Assembly {
       }
       off += Math.max(0, ...b.faces.map((f) => f.id)) + 1;
       vol += b.volume;
-      mass += b.mass_g ?? (b.volume / 1000) * (MATERIALS[this.hooks.partData(it.part)?.material || 'PLA'] || 1.24);
+      const mi = (b.sub ? b.mass_g : this.massOf(it.part)) ?? (b.volume / 1000) * (MATERIALS[this.hooks.partData(it.part)?.material || 'PLA'] || 1.24);
+      mass += mi;
+      if (b.cog) cog.addScaledVector(new THREE.Vector3(...b.cog).applyMatrix4(M), mi);
       const bb = new THREE.Box3(new THREE.Vector3(...b.bbox.slice(0, 3)), new THREE.Vector3(...b.bbox.slice(3))).applyMatrix4(M);
       box = box ? box.union(bb) : bb;
     }
     const enc = (arr, T) => { const u = new Uint8Array(new T(arr).buffer); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s); };
     this.bodies[at] = box ? { key, body: { positions: enc(pos, Float32Array), face_ids: enc(ids, Uint32Array), faces, edges, volume: vol, mass_g: mass,
-      bbox: [...box.min.toArray(), ...box.max.toArray()], sub: true } } : { key, error: 'This assembly has no parts with a solid yet.' };
+      ...(mass > 0 ? { cog: cog.multiplyScalar(1 / mass).toArray() } : {}), bbox: [...box.min.toArray(), ...box.max.toArray()], sub: true } } : { key, error: 'This assembly has no parts with a solid yet.' };
     return this.bodies[at];
   }
 
@@ -2009,6 +2044,7 @@ export class Assembly {
     }));
     this.drawMarks();
     this.drawJointTags();
+    this.showCog();
   }
 
   /** The faces' prefix of the inner part chosen in the list ("I2/") when `it` is its placement, else null. */
@@ -3217,6 +3253,7 @@ export class Assembly {
         return { id: it.id, part: it.part, name: this.partName(it.part), ...(it.fixed ? { fixed: true } : {}), position: new THREE.Vector3().setFromMatrixPosition(m).toArray().map((v) => +v.toFixed(3)),
           bbox: bb ? [...bb.min.toArray(), ...bb.max.toArray()].map((v) => +v.toFixed(3)) : null, error: this.bodies[it.part]?.error, ...this.freeOf(it.id), ...this.innerOf(it) };
       }),
+      ...(() => { const mp = this.massProps(); return mp.cog ? { mass_g: mp.mass_g, cog_mm: mp.cog, ...(mp.unknown ? { parts_without_mass: mp.unknown } : {}) } : {}; })(),
       ...(this.loops?.some((l) => this.mechanismOf(l.parts[0])) ? { loops: this.loopsSummary() } : {}),
       ...(this.mech?.list.length ? { mechanisms: this.mech.summary() } : {}),
       joints: (this.doc.mates || []).map((m) => ({ id: m.id, ...(m.name ? { name: m.name } : {}), type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,

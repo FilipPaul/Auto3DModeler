@@ -43,6 +43,12 @@ DENSITY = {
 
 NAMES = list(DENSITY)
 
+
+def mass_g(volume_mm3, material=None):
+    """⚖ The mass (g) of a solid of volume_mm3 (mm³) in a material: volume × its density (none chosen: PLA; one not
+    listed: PLA's density too — as the drawing's title block)."""
+    return volume_mm3 / 1000 * DENSITY.get(material or "PLA", DENSITY["PLA"])
+
 COLOR = {
     "PLA": "#d6dbe3", "PETG": "#9cc7d6", "ABS": "#ece6d6", "ASA": "#dcdcd4", "TPU": "#3d3d3d", "PA": "#ece4d2", "PA-CF": "#2e2e2e",
     "PC": "#cfd8dc", "PP": "#f0eee4", "POM": "#f4f4ef", "PE-HD": "#f2f2ea", "PA6-GF30": "#2b2b2b", "PTFE": "#f8f8f6", "PEEK": "#c9ab72",

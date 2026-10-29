@@ -7,6 +7,19 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⚖ Mass properties done** (M6's "materials and mass" finished): kernel.centre(shape) — the centre of mass from the
+  same integral as the volume (_volume now gives (volume, centre), kept together in `_volumes`: asking both costs one;
+  several solids weighted by their volumes); tessellate's mesh has `cog` and `area` (the solids' faces: a file's loose
+  faces left out). materials.py mass_g(volume, material) (the drawing's title block uses it). Part panel: Plocha
+  (cm²) and Těžiště (x; y; z) mm with ⊕ (Modeler.toggleCog / showCog -> ModelView.setCog: a ⊕ CSS2D marker over the
+  part, made once and moved). Assembly: massProps() — each placed part's mass (massOf: a part's own `mass_g` / its
+  library item's first, else volume × material; the panel's parts list now uses massOf too, as the BOM) at its cog
+  moved by its matrix; a ◇ sub-assembly's merged body carries its cog. The Assembly panel's CoG with ⊕; draw() moves
+  the marker and the panel's value (▶ a mechanism, a drag: every frame, no kernel call). AI: get_model body
+  area_mm2 / cog_mm, get_assembly mass_g / cog_mm (parts_without_mass). tests/test_mass_props.py (block, L by the
+  area formula, an off-centre hole, two solids, STEP round trip, the packed message), tools/e2e_mass.py.
+  Left out: a mass of its own typed in the UI (only the `mass_g` field is read), moments of inertia.
+
 - **A mechanism built by mouse: the walkthrough, its fixes, "one joint is missing" done** (the owner: "how hard is it
   for a user to make a mechanism?"). The crank – rod – slider put together with real clicks only (headless Edge, Czech,
   1600×1000; the crank demo's parts; tools/e2e_mechanism_by_mouse.py replays it). Found and fixed, one commit each:
