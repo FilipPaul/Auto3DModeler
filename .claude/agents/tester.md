@@ -131,13 +131,20 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_select_from_point.py <url> <dir>` covers a snap point offering what it belongs to (a hole's centre:
    Select the hole M5 in the top 3 -> its Type / Size table, Select the circle -> the edge's; a pocket: the round face;
    an edge's middle: Select the edge; a sketch circle's centre; an assembly hole's centre -> Concentric).
-   `tools/e2e_hole_suggest.py <url> <dir>` covers a chosen Hole step's suggestions and panel (wall clicked: Type ▾ /
-   Size ▾ on top, the step's fields on the right, its row marked; all 6 types; countersink and M6 exact volumes; sizes
-   exactly M3 M4 ✓M5 M6 M8; Ctrl+Z; the rim alike; an extrude's round pocket: no Type / Size).
+   `tools/e2e_hole_suggest.py <url> <dir>` covers a chosen Hole step's suggestions and panel (wall clicked: the Shape
+   section's 4 rows, one Depth row and the Size section's exactly M3 M4 ✓M5 M6 M8, no popup, 24 px rows; the step's
+   fields on the right, its row marked; one click countersink and M6 exact volumes; Ctrl+Z; the rim alike; an extrude's
+   round pocket: no Shape / Size; 🔩 Add thread M5 -> a threaded countersink, shown, Thread: hide; the depth row both
+   ways; at 1280 × 800 the rows scroll inside the table — no scrollbar, a fade at the hidden edge, the head in sight,
+   all 13 choices shown past the top N).
    `tools/e2e_thread_default.py <url> <dir>` covers a new thread shown at once as cosmetic (tapped M5 by the tool:
    the plain Ø4.2 volume, the lines drawn, a toast, 🔩 Real thread (slower) in the panel; Ctrl+Z; the AI's tapped M4).
    `tools/e2e_hole_select.py <url> <dir>` covers choosing / editing a hole without arming its placing (row clicked:
    no tool, ◎ not lit, a click adds nothing; ✎ edit: no preview, no hole on a click until ＋ Add position; OK: 2 holes).
+   `tools/e2e_hole_dims.py <url> <dir>` covers a hole's dimensions typed (a new hole: its distances typed in the
+   panel -> centre at (8, 6), its labels out of the mouse's way while placing; editing: its ↔ label on the part typed,
+   its ↕ field, its Ø label -> at (20, 15), Ø7 volume; chosen: its Ø tag typed; a hole kept in the middle: its field
+   shows 20, typed 12 -> measured from the left edge).
    `tools/e2e_esc_keeps.py <url> <dir>` covers Esc keeping what was placed (sketch line: 2 segments stay; ◎ Hole: 1
    click + Esc = a step with one hole, exact volume; Esc with nothing placed / the Cancel button: no step; Fillet alike).
    `tools/e2e_rclick_ok.py <url> <dir>` covers right-click = OK with real mouse, in Czech (a sketch's rectangle: a
@@ -399,10 +406,11 @@ Never report "works" without having run it; report failures with their output.
    "cbore", get_model shows it, edit_feature head null takes it off; a wrong head refused; Type Tapped M5: the tap drill
    4.2 greyed, the step says M5, the sheet's hole size M5; a wrong thread refused). Needs a server restarted after
    kernel changes.
-   `tools/e2e_model_hole_standard.py <url> <dir>` covers standard holes with asserts (Type ⌴ Counterbore on a Ø5 hole:
-   M5 Ø5.5 ⌴ Ø10 ↧ 5.4, M6, Edit sizes folded / depth 4, ⌵ Countersink keeps M5, the step "M5 Ø5.5 ⌴Ø10×5.4"; Tapped
-   M5 10 deep with the tap drill greyed; the Czech labels; the sheet's callouts "Ø5.5 ⌴ Ø10 ↧ 5.4" and "M5 ↧ 10"; the
-   AI's edit_feature hole_type simple). Needs a server restarted after kernel changes.
+   `tools/e2e_model_hole_standard.py <url> <dir>` covers standard holes with asserts (the 4 property rows; Shape ⌴ on a
+   Ø5 hole: M5 Ø5.5 ⌴ Ø10 ↧ 5.4, M6, Edit sizes folded / depth 4, ⌵ Countersink keeps M5, the step "M5 Ø5.5 ⌴Ø10×5.4";
+   Threaded M5 To a depth 10 with the tap drill greyed; the Czech labels; ⌴ on it too: a threaded counterbore's volume;
+   the sheet's callouts "Ø5.5 ⌴ Ø10 ↧ 5.4" and "M5 ↧ 10 ⌴ Ø10 ↧ 5.4"; the AI's {shape, thread, standard} threaded M3
+   countersink; the AI's edit_feature hole_type simple). Needs a server restarted after kernel changes.
    `tools/e2e_model_hole_dflat.py <url> <dir>` covers D holes with asserts (Type "D (flat)" on a Ø5 hole: 4.5 across the
    flat, no Size / Teardrop, the volume = circle − segment, the flat facing x; ⇄ turns it to y; Ø8: the flat follows to
    7.5; Czech labels; the step "Ø8 D7.5"; the sheet's callout "Ø8 D7.5 THRU"; the AI's add_feature d_flat and edit d 6:

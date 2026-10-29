@@ -798,6 +798,19 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .mp-hole .mp-hd span { color: var(--muted); flex: 1 1 0; min-width: 0; line-height: 1.2; overflow-wrap: anywhere; }
 .mp-hole .mp-hd .mini { flex: none; }
 .sk-label.hole-dim { color: #d2a8ff; border-color: #6e40c9; pointer-events: none; }
+/* a hole's properties, one short row each: shape icons, thread, depth, size */
+.field.m-hprop { margin-bottom: 6px; align-items: start; }
+.field.m-hprop > label { padding-top: 4px; }
+.field.m-hprop > .seg, .field.m-hprop > .m-hrow { grid-column: 2 / -1; justify-self: start; }
+.m-hprop .seg { margin: 0; flex: none; }
+.m-hprop .seg button { flex: none; padding: 3px 8px; font-size: 12px; white-space: nowrap; }
+.m-hshape .seg button { min-width: 32px; font-size: 14px; padding: 1px 6px; }
+.m-hrow { display: flex; align-items: center; gap: 4px 6px; flex-wrap: wrap; min-width: 0; justify-self: stretch !important; }
+.m-hrow input[type=number], .m-hrow input.px-in { width: 64px; flex: none; } /* (a number becomes a text field taking expressions) */
+.m-hrow select { width: auto; flex: 1 1 70px; }
+.m-hrow label.check { margin: 0; }
+.sk-label.hole-dim.edit { pointer-events: auto; cursor: text; } /* a placed hole's numbers (not while placing): click to type */
+.sk-label.hole-dim.edit:hover { border-color: #d2a8ff; color: #fff; }
 body.chat-open .layout { margin-right: min(var(--chat-w, 440px), 100vw); }
 body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var(--right-w, 310px)); }
 .ai-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--line); }
@@ -1188,6 +1201,10 @@ body.view-acts .toast-stack { bottom: 84px; }
 .vs-list button { display: flex; align-items: center; gap: 8px; text-align: left; background: none; border: 0; color: var(--text); padding: 5px 8px;
   border-radius: 6px; font: inherit; font-size: 12.5px; cursor: pointer; }
 .vs-list button:hover { background: #2b3440; }
+/* rows that always show (a chosen hole's types / sizes): compact, the current one ticked */
+.vs-list button.vs-pin-row { padding: 3px 8px; min-height: 24px; box-sizing: border-box; }
+.vs-list button.on { color: var(--accent); }
+.vs-list button .vs-on { margin-left: auto; color: var(--accent); font-weight: 600; }
 .vs-list button:focus-visible { outline: none; background: #2b3440; box-shadow: inset 2px 0 0 var(--accent); } /* (the row the keyboard is on) */
 /* suggestMenu: the same rows as a small menu at a place (a tab's right-click) */
 .sg-menu { position: fixed; z-index: 60; min-width: 200px; max-width: 320px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px #0009; overflow: hidden; }

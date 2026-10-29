@@ -68,7 +68,7 @@ try:
     time.sleep(1.5)
     base = 8000 - math.pi * 9 * 10
     print("the hole:", volume(), "| expected", round(base, 2))
-    Select(d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=hole_type]")).select_by_value("counterbore")
+    d.find_element(By.CSS_SELECTOR, "#modelRight [data-shape=counterbore]").click()
     time.sleep(1.5)
     f = js(f"return {M}.cmd.feature")
     m6 = 8000 - math.pi * 3.3 ** 2 * 10
@@ -78,13 +78,13 @@ try:
     typed("head_d", 10)
     typed("head_depth", 4)
     print("Edit sizes Ø6, Ø10 × 4:", volume(), "| expected", round(base - math.pi * 16 * 4, 2))
-    Select(d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=hole_type]")).select_by_value("countersink")
+    d.find_element(By.CSS_SELECTOR, "#modelRight [data-shape=countersink]").click()
     time.sleep(1.5)
     f = js(f"return {M}.cmd.feature")
     h, R, r = (13.4 - 6.6) / 2, 6.7, 3.3
     print("⌵ Countersink: Ø", f.get("head_d"), "| depth field:", bool(d.find_elements(By.CSS_SELECTOR, "#modelRight [data-k=head_depth]")),
           "| volume", volume(), "| expected", round(m6 - (math.pi * h / 3 * (R * R + R * r + r * r) - math.pi * r * r * h), 2))
-    print("the panel's types:", [o.text for o in Select(d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=hole_type]")).options])
+    print("the panel's shapes:", [b.get_attribute("title") for b in d.find_elements(By.CSS_SELECTOR, "#modelRight [data-shape]")])
     d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=ok]").click()
     time.sleep(1)
     print("the step:", js(r"return [...document.querySelectorAll('#modelLeft .mt-item:not([data-parent])')].map(r => r.textContent.replace(/\s+/g, ' ').trim()).slice(-1)[0]"))
@@ -100,7 +100,7 @@ try:
     time.sleep(0.4)
     js(f"{M}.cmd.feature.plane = {{ face: {{ name: 'F2:end' }}, frame: {{ o: [0, 0, 10], x: [1, 0, 0], n: [0, 0, 1] }} }}; {M}.cmd.feature.points = [[-14, 5]]; {M}.renderProps(); {M}.rebuild();")
     time.sleep(1)
-    Select(d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=hole_type]")).select_by_value("tapped")
+    d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=threaded]").click()
     time.sleep(0.8)
     Select(d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=standard]")).select_by_value("M5")
     time.sleep(1.2)

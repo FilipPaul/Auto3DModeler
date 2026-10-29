@@ -77,7 +77,7 @@ try:
 
     js(f"{M}.action('hole')")
     time.sleep(0.4)
-    Select(d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=hole_type]")).select_by_value("tapped")
+    d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=threaded]").click()
     time.sleep(0.3)
     Select(d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=standard]")).select_by_value("M5")
     time.sleep(0.3)

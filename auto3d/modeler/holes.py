@@ -1,5 +1,8 @@
-"""Standard holes for metric screws — a hole step's `hole_type` + `standard` ("counterbore", "M5") fill its sizes from
-ISO tables (the Hole panel's Type and Size; web/js/modeler/holes.js has the same table):
+"""Standard holes for metric screws. A hole step has independent properties, as in SolidWorks / Solid Edge: its
+`shape` (plain, ⌴ counterbore, ⌵ countersink, D), its `thread` (none, or "M5" / {standard, kind}), its depth (`through`
+or `depth`) and its size (`standard` "M5", or a plain Ø `d`) — they fill its sizes from ISO tables (the Hole panel;
+web/js/modeler/holes.js has the same table). The old single `hole_type` (clearance = plain M5 without a thread, tapped
+= plain M5 with one …) is still read. The sizes:
   clearance    Ø per ISO 273 medium (M5: Ø5.5)
   counterbore  that hole + a counterbore for an ISO 4762 socket head (DIN 974-1: M5 Ø10 × 5.4)
   countersink  that hole + a 90° countersink for an ISO 10642 flat head (its theoretical head Ø dk: M5 Ø11.2)
@@ -58,27 +61,80 @@ def preset(kind: str, size: str) -> dict:
     return out
 
 
+# the hole's shape — a property of its own, as its thread, its depth (through / blind) and its size are
+SHAPES = ("plain", "counterbore", "countersink", "d_flat")
+# the old single "hole_type" -> (shape, threaded); files and AI calls that give it keep working
+OLD_TYPES = {"simple": ("plain", False), "clearance": ("plain", False), "counterbore": ("counterbore", False),
+             "countersink": ("countersink", False), "tapped": ("plain", True), "d_flat": ("d_flat", False)}
+
+
+def spec(f: dict):
+    """A hole step's properties -> (shape, threaded, standard or None, thread kind or None) — from the new fields
+    (shape, thread: false | "M5" | {standard, kind: cosmetic | real}, standard) or the old hole_type; None: a step from
+    before either (its d / head / thread as they are). ValueError: an unknown shape / type."""
+    thr = f.get("thread")
+    if f.get("shape") is not None:
+        shape = f["shape"]
+        if shape not in SHAPES:
+            raise ValueError(f"Unknown hole shape “{shape}” — one of {', '.join(SHAPES)}.")
+        if isinstance(thr, dict):
+            return shape, True, thr.get("standard") or f.get("standard"), thr.get("kind")
+        return shape, bool(thr), f.get("standard") or (thr if isinstance(thr, str) and thr else None), None
+    kind = f.get("hole_type")
+    if not kind:
+        return None
+    if kind not in OLD_TYPES:
+        raise ValueError(f"Unknown hole type “{kind}” — one of {', '.join(OLD_TYPES)}.")
+    shape, threaded = OLD_TYPES[kind]
+    if kind == "simple":
+        return shape, False, None, None
+    return shape, threaded, f.get("standard") or (thr if threaded and isinstance(thr, str) else None), None
+
+
+def preset_for(shape: str, threaded: bool, size: str) -> dict:
+    """The fields of a standard hole of these properties: {d, head?, head_d?, head_depth?, head_angle?, thread?} — the
+    hole the tap drill when threaded, else the clearance Ø (ISO 273 medium); the head the size's."""
+    if size not in SIZES:
+        raise ValueError(f"Unknown size “{size}” — one of {', '.join(SIZES)}.")
+    s = SIZES[size]
+    out = {"d": THREADS[size], "thread": size} if threaded else {"d": s["clearance"]}
+    if shape == "counterbore":
+        out.update(head="cbore", head_d=s["cbore_d"], head_depth=s["cbore_depth"])
+    elif shape == "countersink":
+        out.update(head="csk", head_d=s["csk_d"], head_angle=90)
+    return out
+
+
 def resolve(f: dict) -> dict:
     """A hole step with its standard's sizes filled in (the step's own d / head_d / head_depth / head_angle kept); its
-    head and thread are the type's. A step with no hole_type: as it is. ValueError: an unknown type / size."""
-    kind = f.get("hole_type")
-    if not kind or kind == "simple":
+    head and thread are its shape's and thread's — as the kernel and the drawing read them (thread "M5", head
+    "cbore" / "csk"; a D hole hole_type "d_flat"). A step with neither the new fields nor a hole_type: as it is.
+    ValueError: an unknown shape / type / size, or a screw's hole with no size."""
+    sp = spec(f)
+    if sp is None:
         return f
-    if kind == "d_flat":  # (no screw size: its Ø and flat; no head, no thread)
-        out = {k: v for k, v in f.items() if k not in ("head", "head_d", "head_depth", "head_angle", "thread", "standard")}
+    shape, threaded, size, _ = sp
+    drop = ("head", "head_d", "head_depth", "head_angle", "thread", "standard", "hole_type")
+    if shape == "d_flat":  # (no screw size: its Ø and flat; no head, no thread)
+        out = {k: v for k, v in f.items() if k not in drop}
+        out["hole_type"] = "d_flat"
         if out.get("flat") is None and isinstance(out.get("d", 5), (int, float)):
             out["flat"] = d_flat(float(out.get("d", 5)))
         return out
-    if not f.get("standard"):
-        raise ValueError(f"A {kind} hole needs a size (standard: one of {', '.join(SIZES)}).")
-    p = preset(kind, f["standard"])
+    if not size:
+        if shape == "plain" and not threaded:  # (a plain Ø d hole)
+            return {k: v for k, v in f.items() if k not in drop}
+        what = "threaded" if threaded else shape
+        raise ValueError(f"A {what} hole needs a size (standard: one of {', '.join(SIZES)}).")
+    p = preset_for(shape, threaded, size)
     out = {k: v for k, v in f.items() if k not in ("head", "thread")}
+    out["standard"] = size
     for k, v in p.items():
-        if k in ("head", "thread") or out.get(k) is None or kind == "tapped" and k == "d":
+        if k in ("head", "thread") or out.get(k) is None or threaded and k == "d":
             out[k] = v
-    if kind == "countersink":
+    if shape == "countersink":
         out.pop("head_depth", None)
-    elif kind != "counterbore":
+    elif shape != "counterbore":
         for k in ("head_d", "head_depth", "head_angle"):
             out.pop(k, None)
     return out

@@ -84,11 +84,11 @@ try:
     time.sleep(0.4)
     js(f"{M}.cmd.feature.plane = {{ face: {{ name: 'F2:end' }}, frame: {{ o: [0, 0, 10], x: [1, 0, 0], n: [0, 0, 1] }} }}; {M}.cmd.feature.points = [[-8, 0]]; {M}.renderProps(); {M}.rebuild();")
     check(abs(volume() - round(8000 - math.pi * 6.25 * 10, 2)) < 0.05, "a simple Ø5 hole")
-    Select(d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=hole_type]")).select_by_value("d_flat")
+    d.find_element(By.CSS_SELECTOR, "#modelRight [data-shape=d_flat]").click()
     time.sleep(0.6)
     f = js(f"return {M}.cmd.feature")
     fl = d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=flat]")
-    check([f.get("hole_type"), f.get("d"), f.get("flat"), fl.get_attribute("value")] == ["d_flat", 5, 4.5, "4.5"], f"D: Ø{f.get('d')} across the flat {f.get('flat')}")
+    check([f.get("shape"), f.get("d"), f.get("flat"), fl.get_attribute("value")] == ["d_flat", 5, 4.5, "4.5"], f"D: Ø{f.get('d')} across the flat {f.get('flat')}")
     check(not d.find_elements(By.CSS_SELECTOR, "#modelRight [data-k=standard], #modelRight [data-k=teardrop], #modelRight .m-holesizes"), "no Size, Teardrop or Edit sizes")
     v, want = volume(), round(8000 - 10 * d_area(5, 4.5), 2)
     check(abs(v - want) < 0.05, f"its volume {v} = {want}")
@@ -106,7 +106,7 @@ try:
     d.find_element(By.ID, "langBtn").click()
     time.sleep(0.6)
     panel = d.find_element(By.CSS_SELECTOR, "#modelRight").text
-    check("Přes plochu" in panel and "D (s plochou)" in js("return document.querySelector('#modelRight [data-k=hole_type]').textContent")
+    check("Přes plochu" in panel and "D (s plochou)" == js("return document.querySelector('#modelRight [data-shape=d_flat]').title")
           and js("return document.querySelector('#modelRight [data-a=turnflat]').title") == "Otočit plochu o 90°", "Czech: D (s plochou), Přes plochu, ⇄'s tip")
     d.save_screenshot(os.path.join(OUT, "hole-dflat-panel.png"))
     d.find_element(By.ID, "langBtn").click()
@@ -126,7 +126,7 @@ try:
     before = json.loads(call("get_model"))["body"]["volume_mm3"]
     r = json.loads(call("add_feature", type="hole", face="F2:end", points=[[10, 0]], hole_type="d_flat", d=5, flat=4.5))
     s = json.loads(call("get_model"))["steps"][-1]
-    check(r["ok"] and s.get("hole_type") == "d_flat" and s.get("flat") == 4.5 and abs(r["body"]["volume_mm3"] - (before - 10 * d_area(5, 4.5))) < 0.05,
+    check(r["ok"] and s.get("shape") == "d_flat" and s.get("flat") == 4.5 and abs(r["body"]["volume_mm3"] - (before - 10 * d_area(5, 4.5))) < 0.05,
           f"the AI's D hole: {s.get('what')} | {r['body']['volume_mm3']}")
     r = json.loads(call("edit_feature", id=s["id"], fields={"d": 6}))
     s = json.loads(call("get_model"))["steps"][-1]

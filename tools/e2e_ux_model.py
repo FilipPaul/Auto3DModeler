@@ -131,7 +131,8 @@ def suggest(task, label, clicks=None):
     tb = table()
     rows = (tb or {}).get("rows", [])
     k = next((i for i, r in enumerate(rows) if label in r), -1)
-    check(f"{task}: “{label}” in the top {limit()} rows (row {k + 1})", 0 <= k < limit(), tb)
+    pin = js("return document.querySelectorAll('#modelViewport .view-suggest .vs-list .vs-pin-row').length")  # (a hole's types / sizes: always shown, above the ranked rows)
+    check(f"{task}: “{label}” in the top {limit()} rows (row {k + 1}{f', past {pin} always shown' if pin else ''})", 0 <= k - pin < limit(), tb)
     if k < 0:
         raise RuntimeError(f"no row {label}")
     d.find_elements(By.CSS_SELECTOR, "#modelViewport .view-suggest .vs-list button:not(.vs-more)")[k].click()

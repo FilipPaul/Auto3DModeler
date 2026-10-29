@@ -1,4 +1,6 @@
-// Standard holes for metric screws — the Hole panel's Type and Size fill a hole's sizes from this table (as
+// Standard holes for metric screws. A hole has independent properties, as in SolidWorks / Solid Edge: its shape (plain,
+// ⌴ counterbore, ⌵ countersink, D), its thread (none / "M5"), its depth (through / to a depth) and its size (M5, or a
+// plain Ø) — they fill its sizes from this table (as
 // auto3d/modeler/holes.py SIZES: clearance ISO 273 medium, counterbore for an ISO 4762 socket head, 90° countersink
 // for an ISO 10642 flat head, tapped at the ISO 2306 tap drill).
 
@@ -51,5 +53,48 @@ export function setHoleStandard(f, kind, size) {
   if (kind === 'd_flat') return Object.assign(f, { hole_type: kind, flat: dFlat(f.d) }); // (its Ø kept)
   const p = kind && holePreset(kind, size);
   if (p) Object.assign(f, { hole_type: kind, standard: size }, p);
+  return f;
+}
+
+// the hole's shape: [value, label, icon]
+export const HOLE_SHAPES = [['plain', 'Plain', '○'], ['counterbore', '⌴ Counterbore', '⌴'], ['countersink', '⌵ Countersink', '⌵'], ['d_flat', 'D (flat)', 'D']];
+// the old single hole_type -> [shape, threaded] (files and the AI may still give it)
+const OLD_TYPES = { simple: ['plain', false], clearance: ['plain', false], counterbore: ['counterbore', false], countersink: ['countersink', false], tapped: ['plain', true], d_flat: ['d_flat', false] };
+
+/** A hole step's properties -> {shape, threaded, standard (or null: a plain Ø)} — from its shape / thread / standard,
+ *  the old hole_type, or (a step from before either) its head and thread. */
+export function holeSpec(f) {
+  const thr = f.thread, size = typeof thr === 'string' && thr ? thr : thr?.standard;
+  if (f.shape) return { shape: f.shape, threaded: !!thr, standard: f.standard || size || null };
+  const old = OLD_TYPES[f.hole_type];
+  if (old) return { shape: old[0], threaded: old[1], standard: f.hole_type === 'simple' || f.hole_type === 'd_flat' ? null : f.standard || (old[1] ? size : null) || null };
+  return { shape: f.head === 'cbore' ? 'counterbore' : f.head === 'csk' ? 'countersink' : 'plain', threaded: !!thr, standard: size || null };
+}
+
+/** The sizes of a standard hole of these properties: the tap drill when threaded, else the clearance Ø (ISO 273
+ *  medium); the head the size's -> {d, thread?, head?, head_d?, head_depth?, head_angle?}, or null (no such size). */
+export function presetFor(shape, threaded, size) {
+  const s = HOLE_SIZES[size];
+  if (!s) return null;
+  return { ...(threaded ? { d: THREADS[size], thread: size } : { d: s.clearance }),
+    ...(shape === 'counterbore' ? { head: 'cbore', head_d: s.cbore_d, head_depth: s.cbore_depth } : {}),
+    ...(shape === 'countersink' ? { head: 'csk', head_d: s.csk_d, head_angle: 90 } : {}) };
+}
+
+/** The size nearest to Ø d (M2 … M20, by the nominal Ø). */
+export function nearestSize(d) {
+  return Object.keys(HOLE_SIZES).reduce((a, b) => (Math.abs(parseFloat(b.slice(1)) - d) < Math.abs(parseFloat(a.slice(1)) - d) ? b : a));
+}
+
+/** Set a hole step's properties (written in the new form — shape, standard, thread "M5" — its old hole_type, head and
+ *  sizes dropped and filled again from the table). A screw's head or a thread needs a size: none given, the nearest to
+ *  its Ø. A plain hole with no size keeps its Ø; a D hole has no thread. */
+export function setHole(f, { shape, threaded, standard }) {
+  const flat = f.flat, turn = f.flat_angle;
+  for (const k of ['head', 'head_d', 'head_depth', 'head_angle', 'thread', 'hole_type', 'standard', 'flat', 'flat_angle']) delete f[k];
+  f.shape = shape;
+  if (shape === 'd_flat') return Object.assign(f, { flat: flat ?? dFlat(f.d), ...(turn ? { flat_angle: turn } : {}) });
+  const size = standard in HOLE_SIZES ? standard : threaded || shape !== 'plain' ? nearestSize(f.d || 5) : null;
+  if (size) Object.assign(f, { standard: size }, presetFor(shape, threaded, size));
   return f;
 }
