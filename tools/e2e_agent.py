@@ -333,6 +333,20 @@ try:
     r = json.loads(tool("restore_version", id=first)[0])
     print(f"    restored: volume {json.loads(tool('get_model')[0])['body']['volume_mm3']} expected 1000 | undo: {r['undo']}")
     print("    a bad id:", tool("restore_version", id="../x")[0][:80])
+    # 🕘 back to main (switch_variant) and the taller one's part taken over (take_part): Versioned 10 × 10 × 30 there
+    tool("edit_feature", id="F2", fields={"d": 30})
+    tool("save_version", label="taller 30")
+    r = json.loads(tool("switch_variant", variant="main")[0])
+    tool("open_part", id="Versioned")
+    v_main = json.loads(tool("get_model")[0])["body"]["volume_mm3"]
+    print(f"    switch_variant: on {r['variant']['name']} | Versioned there {v_main} (not 3000: {abs(v_main - 3000) > 1})")
+    print("    take_part, no such part:", tool("take_part", variant="taller", part="Nothing")[0][:90])
+    tool("take_part", variant="taller", part="Versioned")
+    tool("open_part", id="Versioned")
+    v = json.loads(tool("get_model")[0])["body"]["volume_mm3"]
+    print(f"    take_part: Versioned {v} expected 3000 | match: {abs(v - 3000) < 0.01} | variant still main: "
+          f"{json.loads(tool('list_versions')[0])['variant']['name'] == 'main'}")
+    print("    switch_variant, no such one:", tool("switch_variant", variant="nope")[0][:90])
     # ---- 🎬 demos (list_demos, open_demo) and a project file (open_file .a3d.json): the crank – rod – slider
     rows = json.loads(tool("list_demos")[0])
     print("    demos:", [x["file"] for x in rows])
