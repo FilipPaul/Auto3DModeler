@@ -146,6 +146,18 @@ try:
     t, _ = tool("add_feature", type="hole", face="F2:end", points=[[0, 0]], d=4, teardrop=True)
     print(f"    teardrop on the top refused: {'sideways' in t}")
     tool("undo")
+    # ---- a standard hole in one go: M5 counterbore (ISO 273 Ø5.5 through the 20 block, ⌴ Ø10 ↧ 5.4); edited to M6
+    r = json.loads(tool("add_feature", type="hole", face="F2:end", points=[[0, 12]], standard="M5", hole_type="counterbore")[0])
+    want = -math.pi * (2.75 ** 2 * 20 + (25 - 2.75 ** 2) * 5.4)
+    print(f"    M5 counterbore: ok {r.get('ok')} | {r.get('volume_change_mm3')} expected {want:.3f} | match: {abs(r.get('volume_change_mm3', 0) - want) < 0.05}")
+    step = next(s for s in json.loads(tool("get_model")[0])["steps"] if s["id"] == r["id"])
+    print(f"    get_model: {step.get('hole_type')} {step.get('standard')} Ø{step.get('d')} ⌴ Ø{step.get('head_d')} ↧ {step.get('head_depth')}")
+    tool("edit_feature", id=r["id"], fields={"standard": "M6"})
+    step = next(s for s in json.loads(tool("get_model")[0])["steps"] if s["id"] == r["id"])
+    print(f"    edited to M6: Ø{step.get('d')} ⌴ Ø{step.get('head_d')} ↧ {step.get('head_depth')} | match: {[step.get('d'), step.get('head_d'), step.get('head_depth')] == [6.6, 11, 6.4]}")
+    t, _ = tool("add_feature", type="hole", face="F2:end", points=[[0, 0]], standard="M7", hole_type="tapped")
+    print(f"    an unknown size refused: {'standard' in t}")
+    tool("delete_feature", id=r["id"])
     # ---- a second hole on a face with a hole in it lands where asked (the face's centre: the middle of its box, not of
     # its area); a slice cut off the side (the face's box moves), then an edit of only d: the hole stays; a field next to
     # fields instead of in it: refused

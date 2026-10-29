@@ -1,7 +1,8 @@
-"""⌴ / ⌵ hole heads, in headless Edge: a 40 × 20 × 10 block, ◎ Hole Ø6 on its top -> Head ⌴ Counterbore: Ø10.8 × 6 by
-default, the volume less the counterbore; Head Ø 10, depth 4: exact -> ⌵ Countersink: Ø12 (2 × d) at 90° -> OK; the AI's
-add_feature hole with head "cbore" and edit_feature head null (taken off) -> Thread M5:
-the diameter its tap drill 4.2 (greyed), the step says M5, the sheet's hole size M5; a wrong thread refused.
+"""⌴ / ⌵ hole heads, in headless Edge: a 40 × 20 × 10 block, ◎ Hole Ø6 on its top -> Type ⌴ Counterbore: M6 (the nearest
+size) Ø6.6 ⌴ Ø11 × 6.4 from the table, the volume less the counterbore; Edit sizes: Head Ø 10, depth 4: exact -> ⌵
+Countersink: M6 Ø13.4 at 90° -> OK; the AI's add_feature hole with head "cbore" and edit_feature head null (taken off)
+-> Type Tapped M5: the tap drill 4.2 (greyed), the step says M5, the sheet's hole size M5; a wrong thread refused.
+(tools/e2e_model_hole_standard.py checks the Type / Size choices with asserts.)
 
   PYTHONIOENCODING=utf-8 py tools/e2e_model_hole_head.py http://127.0.0.1:5199 <out dir>
 """
@@ -67,19 +68,23 @@ try:
     time.sleep(1.5)
     base = 8000 - math.pi * 9 * 10
     print("the hole:", volume(), "| expected", round(base, 2))
-    Select(d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=head]")).select_by_value("cbore")
+    Select(d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=hole_type]")).select_by_value("counterbore")
     time.sleep(1.5)
     f = js(f"return {M}.cmd.feature")
-    print("⌴ Counterbore: Ø", f.get("head_d"), "×", f.get("head_depth"), "| volume", volume(), "| expected", round(base - math.pi * (10.8 ** 2 / 4 - 9) * 6, 2))
+    m6 = 8000 - math.pi * 3.3 ** 2 * 10
+    print("⌴ Counterbore:", f.get("standard"), "Ø", f.get("d"), "⌴ Ø", f.get("head_d"), "×", f.get("head_depth"), "| volume", volume(), "| expected", round(m6 - math.pi * (5.5 ** 2 - 3.3 ** 2) * 6.4, 2))
+    d.find_element(By.CSS_SELECTOR, "#modelRight .m-holesizes summary").click()
+    typed("d", 6)
     typed("head_d", 10)
     typed("head_depth", 4)
-    print("Ø10 × 4:", volume(), "| expected", round(base - math.pi * 16 * 4, 2))
-    Select(d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=head]")).select_by_value("csk")
+    print("Edit sizes Ø6, Ø10 × 4:", volume(), "| expected", round(base - math.pi * 16 * 4, 2))
+    Select(d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=hole_type]")).select_by_value("countersink")
     time.sleep(1.5)
     f = js(f"return {M}.cmd.feature")
+    h, R, r = (13.4 - 6.6) / 2, 6.7, 3.3
     print("⌵ Countersink: Ø", f.get("head_d"), "| depth field:", bool(d.find_elements(By.CSS_SELECTOR, "#modelRight [data-k=head_depth]")),
-          "| volume", volume(), "| expected", round(base - (math.pi * 3 / 3 * (36 + 9 + 18) - math.pi * 9 * 3), 2))
-    print("the panel's head choices:", [o.text for o in Select(d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=head]")).options])
+          "| volume", volume(), "| expected", round(m6 - (math.pi * h / 3 * (R * R + R * r + r * r) - math.pi * r * r * h), 2))
+    print("the panel's types:", [o.text for o in Select(d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=hole_type]")).options])
     d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=ok]").click()
     time.sleep(1)
     print("the step:", js(r"return [...document.querySelectorAll('#modelLeft .mt-item')].map(r => r.textContent.replace(/\s+/g, ' ').trim()).slice(-1)[0]"))
@@ -95,10 +100,12 @@ try:
     time.sleep(0.4)
     js(f"{M}.cmd.feature.plane = {{ face: {{ name: 'F2:end' }}, frame: {{ o: [0, 0, 10], x: [1, 0, 0], n: [0, 0, 1] }} }}; {M}.cmd.feature.points = [[-14, 5]]; {M}.renderProps(); {M}.rebuild();")
     time.sleep(1)
-    Select(d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=thread]")).select_by_value("M5")
+    Select(d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=hole_type]")).select_by_value("tapped")
+    time.sleep(0.8)
+    Select(d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=standard]")).select_by_value("M5")
     time.sleep(1.2)
     dia = d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=d]")
-    print("Thread M5: Ø", dia.get_attribute("value"), "| disabled", not dia.is_enabled())
+    print("Tapped M5: Ø", dia.get_attribute("value"), "| disabled", not dia.is_enabled())
     d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=ok]").click()
     time.sleep(1)
     print("  the step:", js(r"return [...document.querySelectorAll('#modelLeft .mt-item')].map(r => r.textContent.replace(/\s+/g, ' ').trim()).slice(-1)[0]"))

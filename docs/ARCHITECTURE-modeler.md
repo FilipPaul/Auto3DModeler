@@ -7,6 +7,22 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Standard holes done:** auto3d/modeler/holes.py — per size M2 … M20 the clearance Ø (ISO 273 medium), a counterbore
+  for an ISO 4762 socket head (DIN 974-1: M5 Ø10 × 5.4), a 90° countersink for an ISO 10642 head (its dk: M5 Ø11.2) and
+  the tap drill (THREADS / PITCH moved here from doc.py); a hole step's `hole_type` (clearance / counterbore /
+  countersink / tapped) + `standard` "M5": holes.resolve fills d / head / head_d / head_depth / thread from the table
+  (the step's own sizes win, the type sets head and thread) — in the build, the callouts (_holes), _threads and
+  thread_holes (cosmetic / real threads), so the callouts are the existing ones ("Ø5.5 ⌴ Ø10 ↧ 5.4", "M5 ↧ 10").
+  The Hole panel: Type (Simple / Clearance hole / ⌴ / ⌵ / Tapped) and Size replace the Thread and Head choices;
+  web/js/modeler/holes.js (the same table, test-checked) writes the sizes on the step (setHoleStandard), the first
+  size the nearest to the hole's Ø, then the last one used; the sizes folded under Edit sizes (details.m-holesizes);
+  Fit shown for a simple hole. A step made before (thread / head, no type) shows as Tapped / ⌴ / ⌵ with Size "—".
+  The AI: add_feature / edit_feature hole {standard, hole_type} (a new size or type: the table's sizes again; "simple"
+  keeps the Ø). tests/test_hole_standard.py (the table, resolve, M5 counterbore / countersink / tapped / M4 clearance
+  volumes vs. formulas, watertight, STEP round trip, callouts, errors); tools/e2e_model_hole_standard.py,
+  e2e_model_hole_head.py (the new choices), e2e_agent.py (M5 counterbore, M6 edit). Left out: the D-flat hole (a
+  shaft's flat is a profile, not one more size). The callout keeps the drawing's order "Ø5.5 ⌴ Ø10 ↧ 5.4" (hole first,
+  as the existing callouts and their tests), not "⌴ Ø10 ↧ 5.4 / Ø5.5".
 - **A threaded part's volume integrated once done:** kernel.volume keeps the last 4 shapes' volumes — the part with
   🔩 real threads was integrated after its cut (the check that something was cut) and again when meshed (the adaptive
   rule on helical faces: ~3 s). The 29-step model with 9 real threads (tools/e2e_perf.py model): its rebuild after a

@@ -370,12 +370,15 @@ SolidWorks. It has only the tools that need almost no input.
    off. A hole placed in line with another hole of the step is measured from that hole, so it stays in line. A hole
    put on the face's centre, or on a middle line (in line with two edge midpoints), stays **in the middle** when the
    part changes size — its row says *↔ in the middle of the left and right edges*; 🎯 measures it from an edge instead.
-   *Aa Text / picture* snaps the same way. It goes through all by default, or untick *Through all* and give a depth. *Head* adds room
-   for a screw's head: ⌴ a counterbore (Ø 1.8 × the hole, as deep as the hole is wide) or ⌵ a countersink (Ø 2 × the
-   hole, 90°; a threaded hole's from its size, M3: Ø6) — change the head's Ø / depth if needed. A head that would not
+   *Aa Text / picture* snaps the same way. It goes through all by default, or untick *Through all* and give a depth.
+   *Type* makes it a hole for a metric screw, sized from the ISO tables by one *Size* choice (M2 … M20; the size
+   nearest the hole's Ø is picked first, then the one you used last): *Clearance hole* (ISO 273 medium, M5: Ø5.5),
+   *⌴ Counterbore* (that hole + room for an ISO 4762 socket head, M5: Ø10, 5.4 deep), *⌵ Countersink* (+ a 90° cone
+   for an ISO 10642 flat head, M5: Ø11.2) or *Tapped* (a threaded hole: drilled with its tap drill, M5: Ø4.2, and
+   labelled M5 on the drawing). The sizes are folded under *Edit sizes* — change the hole's or the head's Ø / depth
+   there; *Simple* is a plain hole of the Ø you type. A head that would not
    fit — wider than the face around the hole, or as deep as the part there (it would cut through) — is refused,
-   with the most that fits. *Thread* (M2 … M20) makes it a threaded hole: drilled with its
-   tap drill (M5: Ø4.2) and labelled M5 on the drawing. Its thread is not drawn on the part unless you ask: click the
+   with the most that fits. The drawing's callout says it: *Ø5.5 ⌴ Ø10 ↧ 5.4*, *M5 ↧ 10*. Its thread is not drawn on the part unless you ask: click the
    part (no tool on) and choose **🔩 Show all threads** under *The part*, then how: *Cosmetic (light)* draws a thin
    helix at the thread's pitch on each threaded hole's wall and a thin ring at its major Ø on the face (view only: the
    solid, its volume and exports stay as they are; quick, it may stay on). *Real geometry (slower)* cuts a true ISO

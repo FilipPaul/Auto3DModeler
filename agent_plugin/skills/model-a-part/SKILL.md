@@ -53,6 +53,8 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
      from the face's centre (the middle of its outline, also with holes in it) along the face's own x / y (on a top face: world x / y). Through all by default;
      `through: false, depth: 6` for blind holes. A hole into a side face (across Z) of a printed part: `teardrop: true`
      (a 45° point on top — prints without support).
+     A hole for a screw: `standard: "M5", hole_type: "counterbore"` (or `"clearance"`, `"countersink"`, `"tapped"`)
+     instead of `d` — the ISO sizes are filled in (M5 counterbore: Ø5.5 with ⌴ Ø10 ↧ 5.4; the drawing says so).
    - Pockets / bosses: a sketch with `plane: {face: "<face name>"}` (its origin is the face's centre), then
      extrude `op: "cut"` (pocket, `through: true` for a cut through) or `op: "add"` (boss).
      `upto_next: true` instead of `d` goes as far as the first face of the part across the whole sketch (a boss up to
