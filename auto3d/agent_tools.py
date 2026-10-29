@@ -469,9 +469,12 @@ TOOLS = [
                     "points: a view's name (Front / Top / Right) — also its points (keys: a hole's centre \"H1:hole:0#c\", a line's ends "
                     "\"<faces>#0\" / \"#1\", the view box \"box#x0\" / \"box#x1\" / \"box#y0\" / \"box#y1\") and circles, to add dimensions. "
                     "check: is it fully dimensioned — the sizes missing (each place linked by dimensions to the part's edge, every Ø / R, a hole's countersink angle / counterbore depth / blind depth unless its callout gives them; [its point key or circle] for sheet_edit add; text and pictures on faces left out) and the "
-                    "dimensions that give a size twice. An assembly's sheet also has parts_list [{pos, name, part, qty, instances (its "
-                    "placed parts), balloon {at_mm, points_to (the placed part it points at)} or null}] — one balloon per item; a "
-                    "sub-assembly is one item (its parts are on its own page).",
+                    "dimensions that give a size twice. An assembly's sheet: its check asks only for the overall sizes (length, width, "
+                    "height — part details belong on the parts' own sheets); parts_list [{pos, name, part, qty (on this level), instances (its "
+                    "placed parts), balloon {at_mm, leader_to_mm (where its leader ends: on a face of that part no other part hides), "
+                    "points_to (the copy that shows most)} or null}] — one item per part per level, one balloon per item; a "
+                    "sub-assembly is one item (its parts are on its own page); balloons {count, ok, problems (a pos given twice, a qty "
+                    "that is not what this level places, an item with no balloon)}.",
      "inputSchema": _obj({"points": {"type": "string", "enum": ["Front", "Top", "Right"]}})},
     {"name": "sheet_edit", "where": "browser",
      "description": "Change the drawing sheet on screen: preset light / medium / full (the automatic dimensions), view_presets {Front | Top | "

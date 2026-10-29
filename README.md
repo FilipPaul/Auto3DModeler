@@ -588,7 +588,10 @@ offer in a click.
 **📄 Drawing** in an assembly's toolbar (or *📄 Drawing sheet* in its panel) opens the **assembly's own drawing sheet**
 to edit: its front, top and iso views, overall sizes, parts list and balloons — move them, add your dimensions and
 texts, **drag the balloons** where you want them (they start spread round the view); it follows the assembly (a moved
-part: a new revision). Its **Pages** list — on every page of the set, the part's sheets too — shows the whole set
+part: a new revision). Each part is one item of its level's parts list (two of the same screw: one item, qty 2; a
+sub-assembly: one item, its parts on its own page) with **one balloon**, on the copy that shows most — its leader ends
+on a face of that part no other part hides, apart from the other leaders. Its size check asks only for the assembly's
+overall sizes; the parts' details belong on their own sheets. Its **Pages** list — on every page of the set, the part's sheets too — shows the whole set
 (the assembly, its sub-assemblies, their parts) with this page marked; a click opens that page's drawing sheet (made
 when it has none). **📚 All pages** shows the set one page below the other to scroll through, like a PDF: Pages marks
 the page in sight, a click in Pages goes to it, a double-click on a page opens it to edit. The drawing set below uses these sheets.

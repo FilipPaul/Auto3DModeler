@@ -611,7 +611,8 @@ class _Placed:
 
 def build_assembly(placed, paper=None, iso_placed=None, key=None, simple=False):
     """An assembly's sheet: placed [(id, shape placed)] -> {geometry, layout, dims (its overall sizes), marks: {id:
-    {Front, Top, Right, Iso: [x, y]} (the middle of each placed part, for its balloon)}}. iso_placed: the same parts
+    {Front, Top, Right, Iso: [x, y]} (the middle of each placed part; in the iso view, for its balloon, a spot on its
+    own faces the others leave bare), seen (how much of it shows there, mm²)}}. iso_placed: the same parts
     pulled apart — the iso view drawn exploded (the other views as assembled). key: the placed parts' hash (kept, see
     _cached). simple: drawn from the mesh (so is one over ASSEMBLY_EXACT_FACES faces)."""
     out = _cached((key, "assembly", bool(simple)), lambda: _assembly(placed, iso_placed, simple))
@@ -629,6 +630,7 @@ def _assembly(placed, iso_placed, simple=False):
         geo["iso"] = _iso_view(K.compound([s for _, s in iso_placed]), "simple" in geo)
     iso_at = dict(iso_placed or [])
     dims = [d for d in auto_dims(geo, "light") if d["kind"] == "linear" and d["a"].startswith("box#")]
+    spots = {} if simple else _shown_spots(iso_placed or placed)  # (a big one: the middles, quickly)
     marks = {}
     for key, s in placed:
         bb = K.bbox(s)
@@ -640,8 +642,77 @@ def _assembly(placed, iso_placed, simple=False):
             ib = K.bbox(iso_at[key])
             c = np.array([(ib[0] + ib[3]) / 2, (ib[1] + ib[4]) / 2, (ib[2] + ib[5]) / 2]) if ib else c
         m["Iso"] = [_r(c @ np.asarray(ISO_VIEW[1], float)), _r(c @ np.asarray(ISO_VIEW[2], float))]
+        if key in spots:  # (on a face of its own the others leave bare; else the middle)
+            m["Iso"], m["seen"] = spots[key]
         marks[key] = m
     return {"geometry": geo, "dims": dims, "marks": marks}
+
+
+SPOT_GRID = 220  # cells across the iso view, for where each part shows
+
+
+def _shown_spots(placed):
+    """Where each placed part shows in the iso view, for its balloon's leader: placed [(id, shape)] -> {id: ([x, y] —
+    inside the largest patch of its own faces that no other part hides, apart from the other parts' spots), mm² of
+    it seen)}. A depth buffer of points strewn over the parts' coarse triangles; a part hidden all over is left out."""
+    R, U = np.asarray(ISO_VIEW[1], float), np.asarray(ISO_VIEW[2], float)
+    T = -np.asarray(ISO_VIEW[0], float) / np.linalg.norm(ISO_VIEW[0])  # (towards the viewer)
+    tris, own = [], []
+    for k, (_, s) in enumerate(placed):
+        bb = K.bbox(s)
+        if not bb:
+            continue
+        t = K.view_triangles(s, max(math.dist(bb[:3], bb[3:]) / 150, 0.02))
+        if len(t):
+            tris.append(t)
+            own.append(np.full(len(t), k))
+    if not tris:
+        return {}
+    tri, owner = np.concatenate(tris), np.concatenate(own)
+    P, Z = np.stack([tri @ R, tri @ U], -1), tri @ T
+    lo, hi = P.reshape(-1, 2).min(0), P.reshape(-1, 2).max(0)
+    cell = max(float((hi - lo).max()) / SPOT_GRID, 1e-6)
+    W, H = int((hi[0] - lo[0]) / cell) + 1, int((hi[1] - lo[1]) / cell) + 1
+    # about 3 points in each cell a triangle covers (one at least); the nearest one in a cell wins it
+    e1, e2 = P[:, 1] - P[:, 0], P[:, 2] - P[:, 0]
+    n = np.clip(np.ceil(np.abs(e1[:, 0] * e2[:, 1] - e1[:, 1] * e2[:, 0]) / 2 / cell ** 2 * 3).astype(int), 1, 4000)
+    ti = np.repeat(np.arange(len(tri)), n)
+    rng = np.random.default_rng(0)
+    a, b = rng.random(len(ti)), rng.random(len(ti))
+    out = a + b > 1
+    a[out], b[out] = 1 - a[out], 1 - b[out]
+    w = np.stack([1 - a - b, a, b], -1)
+    xy, z = np.einsum("nk,nkd->nd", w, P[ti]), np.einsum("nk,nk->n", w, Z[ti])
+    cx = np.clip(((xy[:, 0] - lo[0]) / cell).astype(int), 0, W - 1)
+    cy = np.clip(((xy[:, 1] - lo[1]) / cell).astype(int), 0, H - 1)
+    flat = cy * W + cx
+    order = np.lexsort((z, flat))
+    top = order[np.r_[flat[order][1:] != flat[order][:-1], True]]
+    grid = np.full(H * W, -1)
+    grid[flat[top]] = owner[ti[top]]
+    grid = grid.reshape(H, W)
+    seen = {int(k): int(c) for k, c in zip(*np.unique(grid[grid >= 0], return_counts=True))}
+    spots, taken = {}, []
+    for k in sorted(seen, key=seen.get):  # (the least seen first: they have the least room)
+        ys, xs = np.nonzero(grid == k)
+        y0, x0 = ys.min(), xs.min()
+        mask = np.pad(grid[y0:ys.max() + 1, x0:xs.max() + 1] == k, 1)
+        depth, cur = np.zeros(mask.shape), mask
+        for _ in range(12):  # how far inside its patch each cell is (cells, up to 12)
+            cur = cur & np.roll(cur, 1, 0) & np.roll(cur, -1, 0) & np.roll(cur, 1, 1) & np.roll(cur, -1, 1)
+            if not cur.any():
+                break
+            depth += cur
+        gy, gx = np.mgrid[0:mask.shape[0], 0:mask.shape[1]]
+        gx, gy = gx + x0 - 1, gy + y0 - 1
+        apart = np.full(mask.shape, 40.0)
+        for q in taken:
+            apart = np.minimum(apart, np.hypot(gx - q[0], gy - q[1]))
+        score = np.where(mask, np.minimum(depth, 6) + 0.15 * apart, -1)
+        j = np.unravel_index(int(np.argmax(score)), score.shape)
+        taken.append((gx[j], gy[j]))
+        spots[placed[k][0]] = ([_r(lo[0] + (gx[j] + 0.5) * cell), _r(lo[1] + (gy[j] + 0.5) * cell)], _r(seen[k] * cell ** 2, 1))
+    return spots
 
 
 def value(geo, dim):

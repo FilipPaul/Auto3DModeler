@@ -7,6 +7,18 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Assembly sheet: balloons on a bare face, checked; only overall sizes asked done** (AI reports 2026-10-28-042725,
+  2026-10-29-015608): a balloon's leader ended at the middle of its part's box — a base plate's under the rod lying on
+  it, next to the rod's own. sheet._shown_spots: a depth buffer of the iso view (points strewn over each part's coarse
+  triangles, kernel.view_triangles; 220 cells across), each part's spot inside its largest patch no other part hides,
+  apart from the spots taken before (the least seen first) -> marks[id].Iso and .seen (mm² seen); a big assembly drawn
+  from its mesh keeps the middles. sheet.js: an item's one balloon on its copy that shows most (a sub-assembly: on its
+  part that shows most). get_sheet: parts_list[].balloon {at_mm, leader_to_mm, points_to} and balloons {count, ok,
+  problems: a pos twice, a qty not what the level places, an item with no balloon}. check() on an assembly sheet
+  (asmCheck): only the overall length / width / height (a part's holes, radii and edges belong on its own sheet).
+  test_balloon_spot_on_a_bare_face, test_assembly_sheet_exploded; tools/e2e_assembly_sheet.py (2 Lids: one item, qty
+  2, its balloon on the visible one; an overall size removed: just that one missing).
+
 - **A threaded part's volume integrated once done:** kernel.volume keeps the last 4 shapes' volumes — the part with
   🔩 real threads was integrated after its cut (the check that something was cut) and again when meshed (the adaptive
   rule on helical faces: ~3 s). The 29-step model with 9 real threads (tools/e2e_perf.py model): its rebuild after a

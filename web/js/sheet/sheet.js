@@ -933,7 +933,7 @@ export class SheetEditor {
           }
         }
         placed.push(b);
-        this.balloonAt[r.pos] = b.map((v) => +v.toFixed(1));
+        this.balloonAt[r.pos] = { at: b.map((v) => +v.toFixed(1)), end: p.map((v) => +v.toFixed(1)) }; // (the balloon, where its leader ends)
         const D = Math.hypot(b[0] - p[0], b[1] - p[1]) || 1, u = [(b[0] - p[0]) / D, (b[1] - p[1]) / D];
         g.push(`<line x1="${p[0]}" y1="${p[1]}" x2="${b[0] - u[0] * 3.4}" y2="${b[1] - u[1] * 3.4}" stroke="#1b3a8a" stroke-width="0.2"/><circle cx="${p[0]}" cy="${p[1]}" r="0.5" fill="#1b3a8a"/>`);
         g.push(`<g data-balloon="${r.pos}" class="sh-balloon"><circle cx="${b[0]}" cy="${b[1]}" r="3.4" fill="#fff" stroke="#1b3a8a" stroke-width="0.3"/><text x="${b[0]}" y="${b[1] + 1.2}" font-size="3.4" text-anchor="middle" fill="#1b3a8a">${r.pos}</text></g>`);
@@ -1043,11 +1043,19 @@ export class SheetEditor {
     const groups = new Map();
     for (const it of insts) { if (!groups.has(it.part)) groups.set(it.part, []); groups.get(it.part).push(it.id); }
     const nums = this.itemNumbers(this.rootOf(aid) || aid); // (the set's numbers: the same part, the same number)
+    // one balloon per item, on the copy that shows most (a sub-assembly: on the one of its parts that shows most), its
+    // leader ending on a face of that part no other part hides (the server's spot; else the part's middle)
+    const shows = (id) => {
+      const ms = Object.entries(r.marks).filter(([k]) => k === id || k.startsWith(`${id}/`)).map(([, m]) => m);
+      if (!ms.length) return null;
+      const best = ms.reduce((a, m) => ((m.seen || 0) > (a.seen || 0) ? m : a));
+      return { seen: ms.reduce((s, m) => s + (m.seen || 0), 0), iso: best.seen ? best.Iso : [ms.reduce((s, m) => s + m.Iso[0], 0) / ms.length, ms.reduce((s, m) => s + m.Iso[1], 0) / ms.length] };
+    };
     const rows = [...groups].map(([part, ids], i) => {
       const pd = this.hooks.partData(part) || {}, kind = ctx.kindOf(part), nm = this.hooks.partName(part) || part;
-      const iso = Object.entries(r.marks).filter(([k]) => k === ids[0] || k.startsWith(`${ids[0]}/`)).map(([, m]) => m.Iso); // (the first one of them: one balloon per item)
+      const on = ids.map((id) => ({ id, s: shows(id) })).filter((x) => x.s).reduce((a, x) => (!a || x.s.seen > a.s.seen ? x : a), null);
       return { pos: nums.get(part) ?? i + 1, part, name: nm, qty: ids.length, instances: ids, kind, material: kind === 'assembly' ? '—' : pd.material || 'PLA', pn: pd.library?.pn || '',
-        bought: kind !== 'assembly' && (!!pd.library || ctx.bought(pd, nm)), iso: iso.length ? [iso.reduce((s, q) => s + q[0], 0) / iso.length, iso.reduce((s, q) => s + q[1], 0) / iso.length] : null };
+        bought: kind !== 'assembly' && (!!pd.library || ctx.bought(pd, nm)), iso: on?.s.iso || null, at: on?.id || null };
     }).sort((a, b) => a.pos - b.pos);
     return { built: { ...r, preset: 'light' }, rows };
   }
@@ -1415,6 +1423,7 @@ export class SheetEditor {
   check() {
     const G = this.geo;
     if (!G) return null;
+    if (this.d.asm) return this.asmCheck();
     const AX = { Front: ['x', 'z'], Top: ['x', 'y'], Right: ['y', 'z'] }, r2 = (v) => Math.round(v * 100) / 100;
     const uf = { x: new Map(), y: new Map(), z: new Map() };
     const find = (ax, v) => { const m = uf[ax]; let k = String(r2(v)); while (m.has(k) && m.get(k) !== k) k = m.get(k); if (!m.has(k)) m.set(k, k); return k; };
@@ -1489,6 +1498,29 @@ export class SheetEditor {
       for (const what of lack) missing.push({ view: at.view, kind: 'hole', hole: id, key: at.c.key, at: [at.c.c[0] + at.c.r * 0.7, at.c.c[1] - at.c.r * 0.7], what });
     }
     return { missing, dup, over, ok: !missing.length && !dup.size };
+  }
+
+  /** An assembly's sheet asks only for its own sizes: its overall length, width and height, each by a dimension in a
+   *  view shown (the parts' holes, radii and edges belong on their own sheets; a bought part's never) -> as check(). */
+  asmCheck() {
+    const G = this.geo, AX = { Front: ['x', 'z'], Top: ['x', 'y'], Right: ['y', 'z'] }, r2 = (v) => Math.round(v * 100) / 100;
+    const shown = VIEWS.filter((v) => !this.d.off[v] && G.views[v]), dims = this.allDims(), have = new Set(), seen = new Map(), dup = new Set();
+    for (const d of dims) {
+      if (d.kind !== 'linear' || !shown.includes(d.view) || this.value(d) === null) continue;
+      const g = G.views[d.view], k = d.dir === 'h' ? 0 : 1, size = r2(g.box[k + 2] - g.box[k]), ax = AX[d.view][k];
+      if (Math.abs(r2(this.value(d)) - size) > 0.01) continue;
+      if (seen.has(`${ax}:${d.view}`)) dup.add(d.id); else seen.set(`${ax}:${d.view}`, d.id);
+      have.add(ax);
+    }
+    const what = { x: t('the overall length'), y: t('the overall width'), z: t('the overall height') }, missing = [];
+    for (const ax of ['x', 'y', 'z']) {
+      if (have.has(ax)) continue;
+      const v = shown.find((w) => AX[w].includes(ax));
+      if (!v) continue; // (no view shows it: nothing to dimension it in)
+      const k = AX[v].indexOf(ax), g = G.views[v];
+      missing.push({ view: v, dir: k ? 'v' : 'h', key: k ? 'box#y1' : 'box#x1', at: k ? [g.box[2], g.box[3]] : [g.box[2], g.box[1]], what: what[ax], ax });
+    }
+    return { missing, dup, over: new Set(), ok: !missing.length && !dup.size, assembly: true };
   }
 
   /** The pages of a drawing set from an assembly down (the assembly, each sub-assembly then its parts, its own made
@@ -1916,7 +1948,7 @@ export class SheetEditor {
   /** For the AI: the sheet's dimensions with their values. */
   summary() {
     const ck = this.check();
-    return { check: ck ? { fully_dimensioned: ck.ok && !ck.over.size, missing: ck.missing.map((m) => `${m.view}: ${m.what}${m.ax ? ` (${m.ax})` : ''} [${m.key}]`).slice(0, 30), twice: [...ck.dup, ...ck.over] } : null,
+    return { check: ck ? { fully_dimensioned: ck.ok && !ck.over.size, missing: ck.missing.map((m) => `${m.view}: ${m.what}${m.ax ? ` (${m.ax})` : ''} [${m.key}]`).slice(0, 30), twice: [...ck.dup, ...ck.over], ...(ck.assembly ? { asks_for: 'an assembly sheet: only its overall sizes (length, width, height) — each part\'s details belong on its own sheet, a bought part\'s nowhere' } : {}) } : null,
       part: this.hooks.partName(this.d.source), ...(Object.keys(this.d.texts || {}).length ? { texts: this.d.texts } : {}), preset: this.d.preset, ...(Object.keys(this.d.vpreset || {}).length ? { view_presets: this.d.vpreset } : {}), paper: this.lay?.paper, rev: this.d.rev, changed: this.d.changed,
       views: [...VIEWS, 'Iso'].filter((v) => !this.d.off[v]),
       scale: `${scaleText(this.scaleArr())}${this.d.scale ? '' : ' (auto)'}`,
@@ -1930,6 +1962,27 @@ export class SheetEditor {
       dims: this.allDims().map((d) => ({ id: d.id, view: d.view, kind: d.kind, text: this.value(d) === null ? null : this.dimText(d, this.value(d)), auto: !!d.auto, ...(this.value(d) === null ? { lost: true } : {}) })),
       deleted_auto: this.d.hidden.length,
       ...(this.d.asm?.rows ? { parts_list: this.d.asm.rows.map((r) => ({ pos: r.pos, name: r.name, part: r.part, qty: r.qty, ...(r.instances ? { instances: r.instances } : {}),
-        balloon: this.balloonAt?.[r.pos] ? { at_mm: this.balloonAt[r.pos], points_to: r.instances?.[0] || null } : null })) } : {}) };
+        balloon: this.balloonAt?.[r.pos] ? { at_mm: this.balloonAt[r.pos].at, leader_to_mm: this.balloonAt[r.pos].end, points_to: r.at || r.instances?.[0] || null } : null })),
+      balloons: this.balloonCheck() } : {}) };
+  }
+
+  /** For the AI: do an assembly sheet's balloons agree with its parts list? One item per part on this level (a
+   *  sub-assembly one item), its qty the copies placed here, one balloon each, pointing at one of its copies ->
+   *  {count, ok, problems: [text]}. */
+  balloonCheck() {
+    const rows = this.d.asm?.rows || [], out = [], here = new Map(), drawn = !this.d.off.Iso && !!this.isoMap;
+    for (const it of this.hooks.partData(this.d.source)?.instances || []) here.set(it.part, (here.get(it.part) || 0) + 1);
+    const pos = new Map();
+    for (const r of rows) pos.set(r.pos, [...(pos.get(r.pos) || []), r.name]);
+    for (const [p, names] of pos) if (names.length > 1) out.push(`pos ${p} is given to ${names.length} items (${names.join(', ')})`);
+    for (const r of rows) {
+      const n = here.get(r.part) ?? r.instances?.length ?? r.qty;
+      if (+r.qty !== n) out.push(`pos ${r.pos} ${r.name}: qty ${r.qty} but ${n} placed on this level`);
+      const b = this.balloonAt?.[r.pos];
+      if (drawn && !b) out.push(`pos ${r.pos} ${r.name}: no balloon (no copy of it shows in the iso view)`);
+      if (b && r.at && !(r.instances || []).includes(r.at)) out.push(`pos ${r.pos} ${r.name}: its balloon points at ${r.at}, not one of its copies`);
+    }
+    for (const p of here.keys()) if (!rows.some((r) => r.part === p)) out.push(`${this.hooks.partName(p) || p}: placed but not in the parts list (the sheet is older — it is made again when the assembly changes)`);
+    return { count: Object.keys(this.balloonAt || {}).length, ok: !out.length, ...(drawn ? {} : { note: 'the iso view is off: no balloons' }), problems: out };
   }
 }
