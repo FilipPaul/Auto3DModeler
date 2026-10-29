@@ -94,6 +94,9 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_model_extrude_more.py <url> <dir>` covers Extrude "Up to next" (a boss filling the gap between two
    plates, exact volume, it follows; flipped: the issue shown) and "＋ Other side" (5 mm, exact volume, unticks Both
    sides), Ctrl+Z / Ctrl+Y.
+   `tools/e2e_dim_icons.py <url> <dir>` covers the icons at an extrude's height on the part, by mouse, in Czech (flip
+   -> below the sketch, both sides -> centred, Esc / a click away close them, Ctrl+Z one step; up to next fills the
+   gap between two plates, add ↔ cut, through all only for a cut, Up to a face… opens the panel; a revolve's half turn).
    `tools/e2e_assembly_quick.py <url> <dir>` covers quick parts in assemblies (a PDF part + a model pin, snapped, STEP).
    `tools/e2e_model_loft.py <url> <dir>` covers ⧫ Loft (a frustum, exact volume) and 〰 Sweep (a bent rod, swapped
    profile / path refused), the AI's loft.

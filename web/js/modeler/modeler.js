@@ -22,6 +22,7 @@ import { newRid, cancelRid, wasCancelled } from '../progressbox.js';
 import { snapOnFace, snapDrawing, toFace } from './facesnap.js';
 import { HOLE_SIZES, HOLE_TYPES, dFlat, holeType, setHoleStandard } from './holes.js';
 import { stepIcon, stepKind, stepGroup, treeIcon, treeShape, rollbackNote } from './steptree.js';
+import { dimIcons, setExtrude } from './dimicons.js';
 import { params, isPlain, exprText, readField } from '../params.js';
 import { exprField, takeField, setExpr } from '../paramsui.js';
 
@@ -1196,6 +1197,7 @@ export class Modeler {
     if (!keepEdit) this.closeDimEdit();
     if (!step || this.mode !== 'part' || this.sizeMode === 'none') { this.view.setTags([]); return; }
     const tags = [], lines = [];
+    this.dimTagEls = []; // ([label, its size] — the editor opens again on it after an icon's change)
     const add = (p, text, edit, title = '') => {
       const el = document.createElement('div');
       el.className = 'm-dimtag';
@@ -1204,6 +1206,7 @@ export class Modeler {
       for (const t of ['pointerdown', 'pointerup']) el.addEventListener(t, (ev) => ev.stopPropagation());
       el.addEventListener('click', (ev) => { ev.stopPropagation(); this.openDimEdit(el, edit); });
       tags.push({ p, el });
+      this.dimTagEls.push([el, edit]);
     };
     const P3 = (fr, u, v) => { const y = cross(fr.n, fr.x); return [0, 1, 2].map((i) => fr.o[i] + u * fr.x[i] + v * y[i]); };
     const f = step, num = (k, label, o = {}) => ({ get: () => f[k], set: (v) => { f[k] = v; }, label, field: k, stepId: f.id, ...o });
@@ -1213,13 +1216,16 @@ export class Modeler {
       const sk = skOf(f.sketch), fr = frameOf(sk);
       if (sk && fr) {
         this.sketchTags(sk, fr, add, P3);
-        if (f.type === 'extrude' && !f.upto && !f.upto_next && !f.through) {
-          const s = (f.op === 'cut' ? -1 : 1) * (f.flip ? -1 : 1), c = this.sketchCorner(sk);
-          const a = P3(fr, c[0], c[1]), b = a.map((v, i) => v + fr.n[i] * f.d * s * (f.symmetric ? 0.5 : 1));
+        if (f.type === 'extrude') { // its height — or how far it goes (up to a face / next, through all): the ⇅ ⇕ icons at it
+          const s = (f.op === 'cut' ? -1 : 1) * (f.flip ? -1 : 1), c = this.sketchCorner(sk), dist = !f.upto && !f.upto_next && !f.through;
+          const a = P3(fr, c[0], c[1]), dir = fr.n.map((v) => v * s), L = dist ? f.d * (f.symmetric ? 0.5 : 1) : this.wentLength(f, a, dir);
+          const b = a.map((v, i) => v + dir[i] * L);
           lines.push([a, b]);
-          add(b.map((v, i) => v + fr.n[i] * this.view.size * 0.02), `↕ ${fmt(f.d)}`, num('d', 'Height', { min: 0.1 }), `${f.name}: the height`);
+          const mode = f.upto_next ? 'up to next' : f.upto ? 'up to the face' : f.through ? 'through all' : null;
+          add(b.map((v, i) => v + dir[i] * this.view.size * 0.02), mode ? `↕ ${t(mode)}` : `↕ ${fmt(f.d)}`,
+            num('d', 'Height', { min: 0.1, icons: true, set: (v) => { if (dist || Math.abs(v - f.d) > 1e-9) { setExtrude(f, 'distance'); f.through = false; } f.d = v; } }), `${f.name}: the height`);
         }
-        if (f.type === 'revolve') add(P3(fr, 0, 0), `${fmt(f.angle)}°`, num('angle', 'Angle', { min: 1, max: 360, unit: '°' }));
+        if (f.type === 'revolve') add(P3(fr, 0, 0), `${fmt(f.angle)}°`, num('angle', 'Angle', { min: 1, max: 360, unit: '°', icons: true }));
       }
     } else if (f.type === 'sketch') {
       const fr = frameOf(f);
@@ -1256,6 +1262,79 @@ export class Modeler {
       if (f.kind !== 'circular') add(c.map((v, i) => v + (i === 2 ? this.view.size * 0.05 : 0)), `${fmt(f.spacing)} apart`, num('spacing', 'Apart', { min: 0.1 }));
     }
     this.view.setTags(tags, lines);
+  }
+
+  /** How far extrude f went from point a (on its sketch) along dir — up to a face / next, through all: from where the
+   *  kernel says it went (along an axis); else its height. */
+  wentLength(f, a, dir) {
+    const w = this.status(f.id)?.went, k = typeof w?.along === 'string' ? 'xyz'.indexOf(w.along[1]) : -1;
+    if (k >= 0 && w.range && Math.abs(dir[k]) > 0.999) {
+      const L = ((w.along[0] === '+' ? w.range[1] : w.range[0]) - a[k]) * Math.sign(dir[k]);
+      if (L > 1e-6) return L;
+    }
+    return f.d || 10;
+  }
+
+  /** The size editor's icons (an extrude's height, a revolve's angle): one click changes how the step goes — an undo
+   *  step, the part follows; the editor opens again on the size's new label. Up to a face… opens the Extrude panel to
+   *  click the face. Up to next is offered once the kernel finds a face that way (asked in the background). */
+  dimIconRow(box, edit, before, settle) {
+    const f = this.part.features.find((g) => g.id === edit.stepId);
+    if (!f || (f.type !== 'extrude' && f.type !== 'revolve')) return;
+    const i = this.part.features.indexOf(f), solidBefore = this.part.features.slice(0, i).some((g) => !g.suppressed && !['sketch', 'point'].includes(g.type));
+    const row = document.createElement('div');
+    row.className = `m-dimicons g-${f.op === 'cut' ? 'cut' : 'add'}`;
+    const draw = (canNext) => {
+      row.innerHTML = dimIcons(f, { canUpto: solidBefore, canNext }).map((x) => `<button type="button" data-ic="${x.key}" class="${x.on ? 'on' : ''}" title="${esc(t(x.title))}">${x.html}</button>`).join('');
+      for (const b of row.querySelectorAll('[data-ic]')) b.addEventListener('click', () => this.dimIcon(f.id, b.dataset.ic, b.classList.contains('on'), edit, before, settle));
+    };
+    draw(false);
+    box.querySelector('.m-dimedit-row').after(row);
+    if (f.type === 'extrude' && solidBefore && !f.upto_next) this.canGoNext(f).then((ok) => { if (ok && this.dimEdit === box) draw(true); });
+  }
+
+  /** Would extrude f, up to next, find a face (the steps before it as they are)? Asked the kernel once per setting. */
+  async canGoNext(f) {
+    const fs = this.shown(), i = fs.findIndex((g) => g.id === f.id);
+    if (i < 0) return false;
+    const g = structuredClone(f);
+    setExtrude(g, 'next');
+    const features = [...fs.slice(0, i), g], key = JSON.stringify(features);
+    this.nextCache = this.nextCache || new Map();
+    if (!this.nextCache.has(key)) {
+      this.nextCache.set(key, fetchRebuild({ features }, newRid('m'), 'Checking Up to next').then(({ res, r }) => !!(res.ok && r.features?.find((s) => s.id === f.id)?.ok)).catch(() => false));
+    }
+    return this.nextCache.get(key);
+  }
+
+  /** An icon of the size editor clicked: the step changed (on: the lit one — clicked again it goes back to a typed
+   *  distance / is turned off), one undo step; the editor opens again on the size. */
+  async dimIcon(id, key, on, edit, before, settle) {
+    await settle(); // (a preview still building first)
+    let f = this.part.features.find((g) => g.id === id);
+    if (!f) return;
+    this.closeDimEdit();
+    if (key === 'upto' && !on) { // the face is clicked in the Extrude panel (OK / Cancel there)
+      this.part.features = before;
+      f = this.part.features.find((g) => g.id === id);
+      const g = structuredClone(f);
+      setExtrude(g, 'upto');
+      this.view.setTags([]);
+      this.openExtrude(g, false);
+      this.hint('Up to a face — click a flat face of the part. Enter = OK, Esc = Cancel.');
+      return;
+    }
+    if (f.type === 'revolve') { if (key === 'op') f.op = f.op === 'cut' ? 'add' : 'cut'; else f.angle = key === 'full' ? 360 : 180; }
+    else if (key === 'flip') setExtrude(f, 'flip', true, this.isFaceExtrude(f));
+    else if (key === 'symmetric' || key === 'through') setExtrude(f, key, !on);
+    else if (key === 'op') setExtrude(f, 'op');
+    else setExtrude(f, on ? 'distance' : key);
+    this.commit();
+    await this.inflight;
+    this.reshowDims();
+    await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res))); // (the labels placed first: it opens by its label)
+    const tag = (this.dimTagEls || []).find(([, e]) => e.stepId === id && e.field === edit.field);
+    if (tag) this.openDimEdit(...tag);
   }
 
   /** The sketch's front-right corner (largest x, smallest y): where the height is shown, on a visible edge. */
@@ -1326,7 +1405,7 @@ export class Modeler {
       <div class="m-dimedit-acts"><button class="btn small primary" data-a="ok">OK</button><button class="btn small" data-a="cancel">Cancel</button>
         <button class="btn small" data-a="restore" disabled title="${esc(t('Back to the size it had when this was opened'))}" data-no-i18n>↺ ${fmt(v0)}</button></div>`;
     const vr = this.els.viewport.getBoundingClientRect(), r = el.getBoundingClientRect();
-    Object.assign(box.style, { left: `${Math.min(r.left - vr.left, vr.width - 220)}px`, top: `${Math.min(r.bottom - vr.top + 6, vr.height - 140)}px` });
+    Object.assign(box.style, { left: `${Math.min(r.left - vr.left, vr.width - 220)}px`, top: `${Math.min(r.bottom - vr.top + 6, vr.height - (edit.icons ? 172 : 140))}px` });
     for (const t2 of ['pointerdown', 'pointerup']) box.addEventListener(t2, (ev) => ev.stopPropagation());
     this.els.viewport.appendChild(box);
     floatBox(box, this.els.viewport, { kind: 'dimedit', handle: '.m-dimedit-t', remember: 'size', min: [170, 100] }); // (opens by the size clicked)
@@ -1382,6 +1461,7 @@ export class Modeler {
       if (await this.applyDim(edit, v, true, r.expr) === false) { this.part.features = before; this.rebuild(); }
     };
     const cancel = async () => { while (busy) await new Promise((res) => setTimeout(res, 20)); this.closeDimEdit(); this.part.features = before; await this.rebuild(); this.reshowDims(); };
+    if (edit.icons) this.dimIconRow(box, edit, before, async () => { while (busy) await new Promise((res) => setTimeout(res, 20)); });
     num.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') ok(); if (e.key === 'Escape') cancel(); });
     box.querySelector('[data-a=ok]').addEventListener('click', ok);
     box.querySelector('[data-a=cancel]').addEventListener('click', cancel);
@@ -2261,11 +2341,12 @@ export class Modeler {
     };
     const rebuild = () => this.rebuild().then(issue);
     const changed = () => { this.renderExtrude(box); rebuild(); };
-    for (const b of box.querySelectorAll('[data-op]')) b.addEventListener('click', () => { f.op = b.dataset.op; if (f.op === 'add') f.through = false; changed(); });
+    // (how it goes: setExtrude — the same as the icons at its height on the part)
+    for (const b of box.querySelectorAll('[data-op]')) b.addEventListener('click', () => { if ((f.op === 'cut') !== (b.dataset.op === 'cut')) setExtrude(f, 'op'); changed(); });
     for (const b of box.querySelectorAll('[data-upto]')) {
       b.addEventListener('click', () => {
-        if (b.dataset.upto === '1') { f.upto = f.upto || { name: null }; f.through = false; this.hint('Up to a face — click a flat face of the part. Enter = OK, Esc = Cancel.'); } else delete f.upto;
-        if (b.dataset.upto === 'next') { f.upto_next = true; f.through = false; f.symmetric = false; delete f.draft; } else delete f.upto_next;
+        setExtrude(f, { 1: 'upto', next: 'next' }[b.dataset.upto] || 'distance');
+        if (f.upto) this.hint('Up to a face — click a flat face of the part. Enter = OK, Esc = Cancel.');
         changed();
       });
     }
@@ -2279,19 +2360,15 @@ export class Modeler {
     const dr = box.querySelector('[data-k=draft]'); // (0: straight walls — the field off the step)
     dr?.addEventListener('input', () => { const v = parseFloat(String(dr.value).replace(',', '.')); if (Number.isFinite(v) && Math.abs(v) < 45) { if (v) f.draft = v; else delete f.draft; rebuild(); } });
     dr?.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okExtrude(); if (e.key === 'Escape') this.cancelExtrude(); });
-    box.querySelector('[data-k=through]')?.addEventListener('change', (e) => { f.through = e.target.checked; if (f.through) delete f.draft; changed(); });
+    box.querySelector('[data-k=through]')?.addEventListener('change', (e) => { setExtrude(f, 'through', e.target.checked); changed(); });
     // ＋ Other side and Both sides (symmetric) are two ways of the same thing: one unticks the other
-    box.querySelector('[data-k=symmetric]')?.addEventListener('change', (e) => { f.symmetric = e.target.checked; if (f.symmetric) delete f.d2; changed(); });
+    box.querySelector('[data-k=symmetric]')?.addEventListener('change', (e) => { setExtrude(f, 'symmetric', e.target.checked); changed(); });
     box.querySelector('[data-k=other]')?.addEventListener('change', (e) => {
       if (e.target.checked) { f.d2 = 5; f.symmetric = false; } else delete f.d2;
       changed();
       if (f.d2) setTimeout(() => { const i = box.querySelector('[data-k=d2]'); i?.focus(); i?.select(); }, 0);
     });
-    box.querySelector('[data-k=flip]')?.addEventListener('click', () => {
-      if (this.isFaceExtrude(f) && !f.upto && !f.upto_next) { f.op = f.op === 'cut' ? 'add' : 'cut'; f.flip = false; if (f.op === 'add') f.through = false; } // (out of the part, or a cut into it)
-      else f.flip = !f.flip;
-      changed();
-    });
+    box.querySelector('[data-k=flip]')?.addEventListener('click', () => { setExtrude(f, 'flip', true, this.isFaceExtrude(f)); changed(); }); // (a face's outline: out of the part, or a cut into it)
     box.querySelector('[data-k=sketch]')?.addEventListener('change', (e) => { f.sketch = e.target.value; changed(); });
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okExtrude());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelExtrude());

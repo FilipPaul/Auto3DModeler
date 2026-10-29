@@ -654,6 +654,17 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .m-dimedit-row input { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; color: inherit; padding: 3px 6px; }
 .m-dimedit input[type=range] { width: 100%; margin: 0; box-sizing: border-box; }
 .m-dimedit-acts { display: flex; gap: 6px; }
+/* the size editor's icons (an extrude's height: ⇅ / both sides / up to a face / next / through all / add ↔ cut): one
+   line, the mode that is on lit in the step's colour (the tree's add green / cut red), the others grey */
+.m-dimicons { display: flex; gap: 3px; }
+.m-dimicons button { flex: none; width: 25px; height: 23px; padding: 0; display: grid; place-items: center; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; color: var(--muted); cursor: pointer; }
+.m-dimicons button:hover { color: var(--text); border-color: #6e40c9; }
+.m-dimicons button .ico-step { color: var(--muted); }
+.m-dimicons button:hover .ico-step { color: inherit; }
+.m-dimicons button:hover .ico-step.g-add { color: #6fc28b; }
+.m-dimicons button:hover .ico-step.g-cut { color: #e8846a; }
+.m-dimicons.g-add button.on { color: #6fc28b; border-color: #6fc28b; background: #6fc28b26; }
+.m-dimicons.g-cut button.on { color: #e8846a; border-color: #e8846a; background: #e8846a26; }
 .as-rot { display: grid; grid-template-columns: 26px 1fr 62px auto; align-items: center; gap: 6px; margin: 3px 0; font-size: 12px; }
 .as-rot input[type=number] { width: 100%; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; color: inherit; padding: 2px 4px; }
 .as-joints { display: flex; flex-direction: column; gap: 4px; }

@@ -7,6 +7,15 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Icons at an extrude's height (2026-10-29)** (the owner: "u kliknutí na dimenzi vysunutí … pár ikonek … směr, k
+  ploše a další ploše"): clicking the "↕ 10" label on the part opens the size editor with one line of 16 px stroke
+  icons (web/js/modeler/dimicons.js, drawn like the step tree's): ⇅ flip, both sides, up to a face… (opens the Extrude
+  panel to click the face), up to next (offered only once a background rebuild finds a face that way), through all
+  (cuts only), add ↔ cut. The mode that is on is lit in the tree's add green / cut red, clicked again it goes back to a
+  typed distance; each click is one undo step and the editor opens again by the label. The label stays in up to /
+  through modes ("↕ k další ploše", placed from the kernel's `went`); typing a number goes back to a distance. A
+  revolve's angle gets full turn / half turn / add ↔ cut. setExtrude() is the one code path for the Extrude panel and
+  the icons. Tests: e2e_dim_icons.
 - **UX review leftovers (2026-10-29)**: Export ▾ in the top bar works on a 📄 drawing sheet (PDF, DXF, 🖨 Print —
   only those shown: styles.css hides the 3D formats there) and in a 📐 2D drawing (DXF of the shown layers); tests:
   e2e_ux_sheet. **/api/model/limits of a fillet next to a hole** (40 × 30 × 10, Ø10 4 mm from the edge) took > 120 s
