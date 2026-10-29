@@ -517,6 +517,8 @@ def _apply(f, st: State, s):
         shape, cols = _solid_shape(f)
         op = f.get("op") or "add"
         body = K.solid_body(shape, fid, whole=op == "ref")
+        if f.get("blob"):  # (the file's solid as it is: its mesh is kept on disk with it — filecache)
+            body.src = (f["blob"], fid, op == "ref")
         if f.get("colours", True):  # the file's own colours (off: the part's colour)
             st.colours.update({f"{fid}:f{k}": c for k, c in cols.items()})
         bb = K.bbox(body.shape)
@@ -945,7 +947,7 @@ def _keep(sha, shape, cols):
 
 def _solid_shape(f):
     import base64
-    from . import blobs
+    from . import blobs, filecache
     if f.get("blob"):
         sha = f["blob"]
         if sha not in _shapes:
@@ -953,7 +955,10 @@ def _solid_shape(f):
                 data = blobs.get(sha)
             except blobs.Missing:
                 raise K.KernelError(f"BLOB_MISSING {sha} — the file of this step is not here; open the project file again.") from None
-            _keep(sha, *K.read_step_colours(data))
+            hit = filecache.shape(sha)  # (a big file read before: its exact shape in 0.3 s, not its STEP again)
+            _keep(sha, *(hit or K.read_step_colours(data)))
+            if hit is None:
+                filecache.keep(sha, *_shapes[sha])
         _shapes.move_to_end(sha)
         return _shapes[sha][:2]
     try:
@@ -1000,13 +1005,23 @@ def import_solid(a):
     they close; else op "ref": a reference body, with a warning); a mesh is made a solid (its triangles sewn) and kept
     as a STEP — a tessellated STEP too (faceted: true). files {name: blob} instead of blob: several files picked together
     (an assembly STEP and the part files it refers to): the top one opens with them, as one STEP (name: which)."""
-    from . import blobs
+    from . import blobs, filecache
     from .. import importers
     if not a.get("blob") and a.get("files"):  # several files picked together: the assembly and the part files it refers to
         a = {**a, **_main_file(a["files"])}
     sha, name = a["blob"], a.get("name") or "part"
     data = blobs.get(sha)
     ext = name.lower().rsplit(".", 1)[-1]
+    kept = filecache.info(sha) if ext in ("step", "stp") and not a.get("files") else None
+    if kept:  # a big STEP opened before: its shape and answer kept (filecache) — not read again
+        if sha not in _shapes:
+            hit = filecache.shape(sha)
+            if hit is None:
+                kept = None
+            else:
+                _keep(sha, *hit)
+        if kept:
+            return kept
     if ext in ("step", "stp"):
         refs, note = K.external_refs(data), None
         if refs:  # an assembly whose parts are files of their own (CATIA): made one file with them, when they are here
@@ -1062,7 +1077,10 @@ def import_solid(a):
     if K.face_count(shape) == 0:
         raise K.KernelError("The file has no solid in it.")
     bb = K.bbox(shape)
-    return {**out, "faces": K.face_count(shape), "bbox": [round(v, 3) for v in bb] if bb else None, "volume": round(K.volume(shape), 3)}
+    out = {**out, "faces": K.face_count(shape), "bbox": [round(v, 3) for v in bb] if bb else None, "volume": round(K.volume(shape), 3)}
+    if out["blob"] == sha and ext in ("step", "stp") and not a.get("files"):  # (a big STEP as it is: opened again in a second)
+        filecache.keep(sha, *_shapes[sha][:2], out["faces"], out)
+    return out
 
 
 def import_assembly(a):
@@ -1348,10 +1366,16 @@ _tess: list = []  # [((body, light), mesh)]: a body that did not change (a sketc
 
 
 def _tessellated(body, light=False):
+    from . import filecache
     for (b, lt), mesh in _tess:
         if b is body and lt == light:
             return dict(mesh)
-    mesh = K.tessellate(body, light)
+    src = getattr(body, "src", None)  # (an imported file's solid as it is: its mesh from disk when it was made before)
+    mesh = filecache.mesh(src, light) if src else None
+    if mesh is None:
+        mesh = K.tessellate(body, light)
+        if src:
+            filecache.keep_mesh(src, light, mesh)
     _tess.insert(0, ((body, light), mesh))
     del _tess[6:]
     return dict(mesh)

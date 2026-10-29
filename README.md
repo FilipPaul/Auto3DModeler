@@ -706,6 +706,12 @@ why on the paper — *The drawing could not be made: …* (a reference body has 
 Big parts also load faster: the model comes to the browser as raw arrays, not text, and an unchanged body is not sent
 through the kernel again — the 44 MB board is shown again in about half a second instead of two and a half, first
 built in 18 s of meshing instead of 25.
+Big STEP files open fast the second time: a file of more than ~3000 faces, once read and meshed, is kept in the data
+folder (`cache/models`, by the file's hash; under 4 GB, the least used dropped first) — opened again, even after a
+restart, the 44 MB board (126 000 faces) is on screen in about 4½ s instead of 50. What is kept is the exact solid
+(OpenCASCADE's own B-rep), so measurements and STEP exports are as from the file; a changed file or a newer app
+version reads the file again. The first open is quicker too (about 35 s instead of 50): a part placed many times —
+a board's thousands of resistors — is meshed once and moved into each place.
 
 **Fits and tolerances**: a Hole step has a **Fit** (H6 / H7 / H8 / H9, ISO 286) — the drawing labels it *Ø8 H7* and
 lists it with its deviations (*Ø8 H7 (+0.015 / 0)*); the part's **Tolerances** (ISO 2768-f / m / c) go into the

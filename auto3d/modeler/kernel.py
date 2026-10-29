@@ -41,7 +41,7 @@ from OCP.gp import gp_Ax1, gp_Ax2, gp_Circ, gp_Dir, gp_Pln, gp_Pnt, gp_Trsf, gp_
 from OCP.IFSelect import IFSelect_RetDone
 from OCP.Interface import Interface_Static
 from OCP.STEPControl import STEPControl_AsIs, STEPControl_Reader
-from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE, TopAbs_REVERSED, TopAbs_SOLID, TopAbs_VERTEX
+from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE, TopAbs_FORWARD, TopAbs_REVERSED, TopAbs_SOLID, TopAbs_VERTEX
 from OCP.TopExp import TopExp, TopExp_Explorer
 from OCP.TopLoc import TopLoc_Location
 from OCP.TopoDS import TopoDS
@@ -1633,7 +1633,14 @@ def tessellate(body, light=False):
     shape = body.shape
     bb = bbox(shape) or [0, 0, 0, 1, 1, 1]
     size = max(bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2], 1e-6)
-    fm, em, adj = _adjacency(shape)
+    # a big imported model (thousands of faces): a coarser mesh, and only the edges that show at this size —
+    # millions of triangles would freeze the browser (and take minutes here)
+    fm = _face_map(shape)
+    heavy = light or fm.Extent() > HEAVY_FACES
+    if heavy:  # (the faces an edge joins: found for the edges drawn only, see _heavy_edges)
+        em, adj = _edges_of(shape), None
+    else:
+        fm, em, adj = _adjacency(shape)
     # which solid each face belongs to (an imported file can hold several bodies: they can be coloured apart)
     solid_of, ex, k = {}, TopExp_Explorer(shape, TopAbs_SOLID), 0
     while ex.More():
@@ -1643,9 +1650,6 @@ def tessellate(body, light=False):
             fx.Next()
         k += 1
         ex.Next()
-    # a big imported model (thousands of faces): a coarser mesh, and only the edges that show at this size —
-    # millions of triangles would freeze the browser (and take minutes here)
-    heavy = light or fm.Extent() > HEAVY_FACES
     if light:  # a mesh finer than wanted is kept by OCCT: cleared first
         from OCP.BRepTools import BRepTools
         BRepTools.Clean_s(shape)
@@ -1655,13 +1659,9 @@ def tessellate(body, light=False):
     names = _face_names(body, fm)
     # every face's triangles as arrays, then all of them at once (a Python step per triangle took most of the time on
     # a big model: 900 000 triangles)
-    nf, mesh = fm.Extent(), []
-    for fi in range(nf):
-        f = TopoDS.Face(fm.FindKey(fi + 1))
-        rev = f.Orientation() == TopAbs_REVERSED
-        mesh.append((f, rev, _face_triangles(f)))
-    tris = np.concatenate([t for _, _, t in mesh]) if nf else np.zeros((0, 3, 3))
-    ids = np.repeat(np.arange(nf), [len(t) for _, _, t in mesh])
+    nf, mesh = fm.Extent(), _face_meshes(fm)
+    tris = np.concatenate([t for _, _, t, _ in mesh]) if nf else np.zeros((0, 3, 3))
+    ids = np.repeat(np.arange(nf), [len(t) for _, _, t, _ in mesh])
     if heavy:  # the faces' areas and middles from their triangles (the exact ones take long on 100 000 faces)
         ar = np.linalg.norm(np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0]), axis=1) / 2
         mid, n_tri = tris.mean(axis=1), np.bincount(ids, minlength=nf)
@@ -1671,15 +1671,20 @@ def tessellate(body, light=False):
             w = np.bincount(ids, ar * mid[:, c], minlength=nf)
             m = np.bincount(ids, mid[:, c], minlength=nf)
             cms[:, c] = np.where(area > 0, w / np.where(area > 0, area, 1), m / np.maximum(n_tri, 1))
-    faces, cls = [], {}  # (cls: the solid's classifier, set up once for all its flat faces)
-    for fi, (f, rev, t) in enumerate(mesh):
-        on_face = t[0].mean(axis=0) if len(t) else None  # a point on the face (a triangle's middle — a ring's centre is not on it)
-        if heavy:
-            info = _face_info(f, fi, rev, (float(area[fi]), cms[fi]), t)
+    faces, cls, surfs = [], {}, {}  # (cls: the solid's classifier, set up once for all its flat faces)
+    for fi, (f, rev, t, place) in enumerate(mesh):
+        if heavy:  # (a face placed again: its surface asked once, moved; the flat faces' centres all at once: _box_centres)
+            surf = None
+            if place is not None:
+                k, bare, m = place
+                if k not in surfs:
+                    surfs[k] = _surface_of(TopoDS.Face(bare))
+                surf = _moved_surface(surfs[k], m.tolist())
+            info = _face_info(f, fi, rev, (float(area[fi]), cms[fi]), centre=False, surf=surf)
         else:
             info = _face_info(f, fi, rev)
-        if info.get("type") == "plane" and on_face is not None and not heavy:
-            _outward(shape, info, on_face, size, cls)
+        if info.get("type") == "plane" and len(t) and not heavy:
+            _outward(shape, info, t[0].mean(axis=0), size, cls)  # (a point on the face: a triangle's middle — a ring's centre is not on it)
         if fi in solid_of:
             info["solid"] = solid_of[fi]
         nm = names.get(fi, [])
@@ -1697,15 +1702,19 @@ def tessellate(body, light=False):
                 f.pop("names", None)
             f["area"] = round(f.get("area", 0), 3)
             f["centroid"] = r3(f["centroid"])
+    elif heavy:
+        _box_centres(faces, tris, ids)
+    if heavy:  # (🪶: no edges)
+        edges = [] if light else _heavy_edges(shape, fm, em, size)
+        return {"positions": tris.astype(np.float32).tobytes(), "face_ids": ids.astype(np.uint32).tobytes(),
+                "faces": faces, "edges": edges, "bbox": bb, "volume": volume(shape), "solids": solids(shape), **({"light": True} if light else {})}
     edges = []
-    chains = {} if heavy else tangent_chains(shape, em, adj)  # (⛓ a click on a fillet's edge takes its chain)
-    for ei in range(1, 0 if light else em.Extent() + 1):  # (🪶: no edges)
+    chains = tangent_chains(shape, em, adj)  # (⛓ a click on a fillet's edge takes its chain)
+    for ei in range(1, em.Extent() + 1):
         e = TopoDS.Edge(em.FindKey(ei))
         try:
             c = BRepAdaptor_Curve(e)
-            if heavy and _edge_len(c) < size * 0.01:
-                continue
-            d = GCPnts_TangentialDeflection(c, 0.5 if heavy else 0.2, max(size * (0.004 if heavy else 0.001), 0.002))
+            d = GCPnts_TangentialDeflection(c, 0.2, max(size * 0.001, 0.002))
             pts = [d.Value(i) for i in range(1, d.NbPoints() + 1)]
         except Exception:  # noqa: BLE001 — a degenerate edge: nothing to draw
             continue
@@ -1733,6 +1742,109 @@ def _face_triangles(f):
         nodes = np.array([tri.Node(i).Transformed(tr).Coord() for i in range(1, tri.NbNodes() + 1)], float)
     k = np.array([tri.Triangle(i).Get() for i in range(1, tri.NbTriangles() + 1)], np.int64) - 1
     return nodes[k[:, [0, 2, 1]] if f.Orientation() == TopAbs_REVERSED else k]
+
+
+def _matrix(loc):
+    """A location's transformation as a 3 × 4 matrix (rotation and scale | shift)."""
+    tr = loc.Transformation()
+    return np.array([[tr.Value(r, c) for c in range(1, 5)] for r in range(1, 4)])
+
+
+def _face_meshes(fm):
+    """Every meshed face of the face map -> [(face, reversed, its triangles (n, 3, 3) wound outward, place)]. A face
+    placed many times (one part used again and again: a board's 126 000 faces are 19 000 faces placed) is read from its
+    mesh once and moved into each place (a Python step per node of each face took 5 s on that board). place: None (where
+    it is), else (k, the face without its place, the place's 3 × 4 matrix) — k the same for each placing of one face."""
+    out, bare, local = [], ShapeMap(), {}
+    here, last = TopLoc_Location(), (None, None)  # (last: the place before and its matrix — a part's faces come together)
+    for fi in range(fm.Extent()):
+        f = TopoDS.Face(fm.FindKey(fi + 1))
+        rev, loc = f.Orientation() == TopAbs_REVERSED, f.Location()
+        if loc.IsIdentity():
+            out.append((f, rev, _face_triangles(f), None))
+            continue
+        k = bare.Add(f.Located(here))
+        if k not in local:  # its mesh where its part has it (without the placement), its triangles' corners unwound
+            t = _face_triangles(TopoDS.Face(bare.FindKey(k).Oriented(TopAbs_FORWARD)))
+            local[k] = (t.reshape(-1, 3), len(t))
+        if last[0] is None or not loc.IsEqual(last[0]):
+            last = (loc, _matrix(loc))
+        (p, n), m = local[k], last[1]
+        place = (k, bare.FindKey(k), m)
+        if not n:
+            out.append((f, rev, np.zeros((0, 3, 3)), place))
+            continue
+        t = (p @ m[:, :3].T + m[:, 3]).reshape(n, 3, 3)
+        out.append((f, rev, t[:, [0, 2, 1]] if rev else t, place))
+    return out
+
+
+def _box_centres(faces, tris, ids):
+    """_box_centre of every flat face of a big model from its triangles, all at once (one by one: 4 s for the 73 000
+    flat faces of a board). faces: _face_info's, in face order; tris, ids: the triangles and their faces' ids."""
+    flat = [f for f in faces if "frame" in f]
+    if not flat or not len(tris):
+        return
+    nf = len(faces)
+    o, x, n = (np.zeros((nf, 3)) for _ in range(3))
+    at = np.array([f["id"] for f in flat])
+    o[at] = [f["frame"]["o"] for f in flat]
+    x[at] = [f["frame"]["x"] for f in flat]
+    n[at] = [f["frame"]["n"] for f in flat]
+    y = np.cross(n, x)  # (frame_y)
+    vid = np.repeat(ids, 3)  # each triangle corner's face (in face order: the faces' corners one after another)
+    p = tris.reshape(-1, 3) - o[vid]
+    u, v = np.einsum("ij,ij->i", p, x[vid]), np.einsum("ij,ij->i", p, y[vid])
+    count = np.bincount(vid, minlength=nf)
+    start = np.concatenate([[0], np.cumsum(count)[:-1]])
+    has = count > 0
+    lo_u, hi_u = np.full(nf, np.nan), np.full(nf, np.nan)
+    lo_v, hi_v = np.full(nf, np.nan), np.full(nf, np.nan)
+    for lo, hi, w in ((lo_u, hi_u, u), (lo_v, hi_v, v)):
+        lo[has] = np.minimum.reduceat(w, start[has])
+        hi[has] = np.maximum.reduceat(w, start[has])
+    c = o + ((lo_u + hi_u) / 2)[:, None] * x + ((lo_v + hi_v) / 2)[:, None] * y
+    for f in flat:
+        if has[f["id"]]:
+            f["frame"]["o"] = _round(c[f["id"]])
+
+
+def _heavy_edges(shape, fm, em, size):
+    """The edges of a big model that show at its size (longer than 1 % of it), coarsely: [{pts, faces, mid}] in the
+    edge map's order. An edge placed many times (a board's parts) is measured and divided once, then moved into each
+    place; the faces each joins are looked up only for those drawn."""
+    anc = _C.IndexedDataMap_TopoDS_Shape_List_TopoDS_Shape_TopTools_ShapeMapHasher()
+    TopExp.MapShapesAndAncestors_s(shape, TopAbs_EDGE, TopAbs_FACE, anc)
+    bare, local, here, out = ShapeMap(), {}, TopLoc_Location(), []
+    for ei in range(1, em.Extent() + 1):
+        e = TopoDS.Edge(em.FindKey(ei))
+        k = bare.Add(e.Located(here))
+        if k not in local:  # its points where its part has it: None when too short, degenerate or a single point
+            local[k] = None
+            try:
+                c = BRepAdaptor_Curve(TopoDS.Edge(bare.FindKey(k)))
+                if _edge_len(c) >= size * 0.01:
+                    d = GCPnts_TangentialDeflection(c, 0.5, max(size * 0.004, 0.002))
+                    pts = np.array([d.Value(i).Coord() for i in range(1, d.NbPoints() + 1)], float).reshape(-1, 3)
+                    if len(pts) >= 2:
+                        local[k] = (pts, _edge_mid(TopoDS.Edge(bare.FindKey(k))))
+            except Exception:  # noqa: BLE001 — a degenerate edge: nothing to draw
+                pass
+        if local[k] is None:
+            continue
+        pts, mid = local[k]
+        if not e.Location().IsIdentity():
+            m = _matrix(e.Location())
+            pts, mid = pts @ m[:, :3].T + m[:, 3], m[:, :3] @ mid + m[:, 3]
+        j, faces = anc.FindIndex(e), set()
+        fl = anc.FindFromIndex(j) if j else None
+        n = fl.Size() if fl is not None else 0  # (a list walked from Python takes 0.5 ms: its ends, an edge has two faces)
+        for f in (() if not n else (fl.First(), fl.Last()) if n <= 2 else list(fl)):
+            i = fm.FindIndex(f)
+            if i:
+                faces.add(i - 1)
+        out.append({"pts": [round(float(v), 5) for v in pts.ravel()], "faces": sorted(faces), "mid": _round(mid, 5)})
+    return out
 
 
 def _outward(shape, info, point, size, cls=None):
@@ -1766,8 +1878,43 @@ def _edge_len(c):
     return a.Distance(m) + m.Distance(b)
 
 
-def _face_info(f, fi, rev, rough=None, tris=None):
+def _surface_of(f):
+    """What a face's surface is to the viewer: ("plane", its normal as the surface's own), ("cylinder", radius, a point
+    of the axis, its direction) or ("other",)."""
     s = BRepAdaptor_Surface(f, True)
+    pln = flat_plane(f, s)
+    if pln is not None:
+        return ("plane", pln.Axis().Direction().Coord())
+    if s.GetType() == GeomAbs_Cylinder:
+        cyl = s.Cylinder()
+        a = cyl.Axis()
+        return ("cylinder", cyl.Radius(), a.Location().Coord(), a.Direction().Coord())
+    return ("other",)
+
+
+def _moved_surface(surf, m):
+    """_surface_of's answer for a face placed by the 3 × 4 matrix m (rows as lists: its part's place) — plain floats:
+    numpy per face took a second on a board."""
+    def turn(v):
+        return [m[i][0] * v[0] + m[i][1] * v[1] + m[i][2] * v[2] for i in range(3)]
+
+    def length(v):
+        return math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+    if surf[0] == "plane":
+        n = turn(surf[1])
+        return ("plane", tuple(x / (length(n) or 1.0) for x in n))
+    if surf[0] == "cylinder":
+        d = turn(surf[3])
+        ln = length(d) or 1.0
+        return ("cylinder", surf[1] * ln / (length(surf[3]) or 1.0), tuple(a + m[i][3] for i, a in enumerate(turn(surf[2]))),
+                tuple(x / ln for x in d))
+    return surf
+
+
+def _face_info(f, fi, rev, rough=None, tris=None, centre=True, surf=None):
+    """A face for the viewer: {id, area, centroid, type, normal + frame (flat) / radius + axis (a cylinder)}. rough:
+    (area, centre) from the mesh; centre False: a flat face's frame keeps the centroid (_box_centres sets it); surf:
+    its _surface_of when known (a face placed again)."""
     if rough:  # (area, centre) from the mesh
         info = {"id": fi, "area": rough[0], "centroid": _round(tuple(rough[1]))}
     else:
@@ -1775,10 +1922,9 @@ def _face_info(f, fi, rev, rough=None, tris=None):
         BRepGProp.SurfaceProperties_s(f, p)
         c = p.CentreOfMass()
         info = {"id": fi, "area": p.Mass(), "centroid": _round((c.X(), c.Y(), c.Z()))}
-    kind = s.GetType()
-    pln = flat_plane(f, s)
-    if pln is not None:
-        n = pln.Axis().Direction().Coord()
+    surf = surf or _surface_of(f)
+    if surf[0] == "plane":
+        n = surf[1]
         if rev:
             n = tuple(-v for v in n)
         info["type"] = "plane"
@@ -1789,13 +1935,12 @@ def _face_info(f, fi, rev, rough=None, tris=None):
         x = [(1.0 if i == k else 0.0) - n[k] * n[i] for i in range(3)]
         ln = math.sqrt(x[0] * x[0] + x[1] * x[1] + x[2] * x[2])
         info["frame"] = {"o": info["centroid"], "x": _round(v / ln for v in x), "n": _round(n)}
-        info["frame"]["o"] = _box_centre(f, info["frame"], tris if rough else None)
-    elif kind == GeomAbs_Cylinder:
+        if centre:  # (else the caller sets it: _box_centres)
+            info["frame"]["o"] = _box_centre(f, info["frame"], tris if rough else None)
+    elif surf[0] == "cylinder":
         info["type"] = "cylinder"
-        cyl = s.Cylinder()
-        info["radius"] = round(cyl.Radius(), 6)
-        a = cyl.Axis()
-        info["axis"] = {"o": _round((a.Location().X(), a.Location().Y(), a.Location().Z())), "d": _round((a.Direction().X(), a.Direction().Y(), a.Direction().Z()))}
+        info["radius"] = round(surf[1], 6)
+        info["axis"] = {"o": _round(surf[2]), "d": _round(surf[3])}
     else:
         info["type"] = "other"
     return info
@@ -2222,16 +2367,25 @@ def read_iges(data: bytes):
     return compound(got + left), {}, "partly"
 
 
+_loose: list = []  # [(shape, its loose faces)]: one file's asked twice (solid_body, then its step: 0.6 s on a board)
+
+
 def loose_faces(shape):
     """The faces of a shape that belong to no solid (a STEP's reference surfaces beside its solid, an IGES's surfaces
     that do not close) as one compound, or None. They take no part in the volume, the mass or the booleans."""
+    for s, out in _loose:
+        if s is shape:
+            return out
     if not solids(shape):
         return None
     inside = ShapeMap()
     for s in _subshapes(shape, TopAbs_SOLID):
         TopExp.MapShapes_s(s, TopAbs_FACE, inside)
     out = [f for f in _subshapes(shape, TopAbs_FACE) if not inside.Contains(f)]
-    return compound(out) if out else None
+    out = compound(out) if out else None
+    _loose.insert(0, (shape, out))
+    del _loose[2:]
+    return out
 
 
 def solid_body(shape, fid, whole=False):
@@ -2245,6 +2399,10 @@ def solid_body(shape, fid, whole=False):
         return Body(shape, names)
     solid_list = list(_subshapes(shape, TopAbs_SOLID))
     body = solid_list[0] if len(solid_list) == 1 else compound(solid_list)
+    known = next((v for s, v in _volumes if s is shape), None)
+    if known is not None:  # (its volume is the file's — loose faces count for nothing: not integrated again, 2.5 s on a board)
+        _volumes.insert(0, (body, known))
+        del _volumes[4:]
     inside = _face_map(body)
     return Body(body, {n: fs for n, fs in names.items() if inside.Contains(fs[0])})
 
@@ -2288,6 +2446,23 @@ def from_step(data: bytes):
         return turned_out(r.OneShape())
     finally:
         os.unlink(path)
+
+
+def write_brep(shape, path):
+    """The shape to a file in OpenCASCADE's binary B-rep (exact; no mesh): a big file read once (filecache)."""
+    from OCP.BinTools import BinTools, BinTools_FormatVersion
+    if not BinTools.Write_s(shape, str(path), False, False, BinTools_FormatVersion.BinTools_FormatVersion_CURRENT):
+        raise OSError(f"could not write {path}")
+
+
+def read_brep(path):
+    """A shape from write_brep's file: the same faces in the same order (0.3 s for a board whose STEP takes 15 s)."""
+    from OCP.BinTools import BinTools
+    from OCP.TopoDS import TopoDS_Shape
+    shape = TopoDS_Shape()
+    if not BinTools.Read_s(shape, str(path)) or shape.IsNull():
+        raise OSError(f"could not read {path}")  # (filecache's own file: read the STEP again, nothing to tell)
+    return shape
 
 
 def _read_xcaf(data: bytes, kind="step", files=None):
