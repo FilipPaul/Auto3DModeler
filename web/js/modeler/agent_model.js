@@ -10,7 +10,7 @@ import { roundAxes, axisOf } from './axes.js';
 import { datumFrame } from './view.js';
 import { nextFrames } from '../frames.js';
 import { sketchHandlers } from './agent_sketch.js';
-import { HOLE_SIZES, HOLE_TYPES, holePreset } from './holes.js';
+import { HOLE_SIZES, HOLE_TYPES, dFlat, holePreset } from './holes.js';
 
 const r3 = (v) => +(+v).toFixed(3);
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -328,9 +328,17 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         : { ...base, sketch: sk, op: spec.op === 'cut' ? 'cut' : 'add', axis: spec.axis || 'y', angle: spec.angle ?? 360 };
     }
     if (type === 'fillet' || type === 'chamfer') {
-      const edges = (spec.edges || []).map((e) => (e.ref || e));
+      let edges = (spec.edges || []).map((e) => (e.ref || e));
       if (!edges.length || edges.some((e) => !e.a || !e.b || !e.fp)) throw new Error('edges: edge refs {a, b, fp} from find_refs.');
-      return { ...base, edges, ...(type === 'fillet' ? { r: spec.r ?? 1 } : { d: spec.d ?? 1 }) };
+      if (spec.chain !== false && !spec.keepEdges) { // ⛓ as a click in the panel: each edge with its tangent chain
+        const all = [];
+        for (const e of edges) {
+          const [i] = m.refEdges([e]);
+          for (const x of i === undefined ? [e] : m.chainOf(i, {}).map((j) => m.edgeRef(j) || e)) if (!all.some((y) => m.sameRef(x, y))) all.push(x);
+        }
+        edges = all;
+      }
+      return { ...base, edges, ...(type === 'fillet' ? { r: spec.r ?? 1 } : { d: spec.d ?? 1 }), ...(spec.chain === false ? { chain: false } : {}) };
     }
     if (type === 'hole') {
       const headOf = (x, d) => { // ⌴ / ⌵ room for a screw head (sized from the hole — a thread's nominal Ø, M3: 3 — unless given)
@@ -345,10 +353,12 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       const points = (spec.points || [[0, 0]]).map((p) => (W ? W.uv(p) : p));
       // a standard hole (M5 counterbore): its sizes from the table, a size given wins (not a tapped hole's drill)
       const kind = spec.hole_type && spec.hole_type !== 'simple' ? spec.hole_type : spec.standard && spec.hole_type !== 'simple' ? 'clearance' : null;
-      if (kind && !HOLE_TYPES.some(([v]) => v && v === kind)) throw new Error('hole_type: "clearance", "counterbore", "countersink", "tapped" or "simple".');
-      const std = kind && holePreset(kind, spec.standard);
-      if (kind && !std) throw new Error(`standard: the screw's size — ${Object.keys(HOLE_SIZES).join(', ')}.`);
-      const sizes = std ? { hole_type: kind, standard: spec.standard, ...std, ...(spec.d && kind !== 'tapped' ? { d: spec.d } : {}),
+      if (kind && !HOLE_TYPES.some(([v]) => v && v === kind)) throw new Error('hole_type: "clearance", "counterbore", "countersink", "tapped", "d_flat" or "simple".');
+      const dh = kind === 'd_flat'; // (a D hole: its Ø and the size across its flat, no screw size)
+      if (dh && (spec.thread || spec.head)) throw new Error('A D hole (hole_type "d_flat") has no thread or head — give d and flat.');
+      const std = kind && !dh && holePreset(kind, spec.standard);
+      if (kind && !dh && !std) throw new Error(`standard: the screw's size — ${Object.keys(HOLE_SIZES).join(', ')}.`);
+      const sizes = dh ? { hole_type: kind, d: spec.d ?? 5, flat: spec.flat ?? dFlat(spec.d ?? 5), ...(+spec.flat_angle ? { flat_angle: +spec.flat_angle } : {}) } : std ? { hole_type: kind, standard: spec.standard, ...std, ...(spec.d && kind !== 'tapped' ? { d: spec.d } : {}),
         ...(std.head && spec.head_d ? { head_d: spec.head_d } : {}), ...(std.head === 'cbore' && spec.head_depth ? { head_depth: spec.head_depth } : {}) }
         : { d: spec.d ?? 5, ...(spec.thread ? { thread: spec.thread } : {}), ...headOf(spec, spec.thread ? parseFloat(spec.thread.slice(1)) : spec.d ?? 5) };
       return { ...base, plane, points, ...sizes,
@@ -528,11 +538,11 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         }
         if (f.type === 'extrude') Object.assign(out, { sketch: f.sketch, op: f.op, d: f.d, through: !!f.through, symmetric: !!f.symmetric, ...(f.draft ? { draft: f.draft } : {}) });
         if (f.type === 'revolve') Object.assign(out, { sketch: f.sketch, op: f.op, axis: f.axis, angle: f.angle });
-        if (f.type === 'fillet') Object.assign(out, { r: f.r, edges: f.edges.length });
-        if (f.type === 'chamfer') Object.assign(out, { d: f.d, edges: f.edges.length });
+        if (f.type === 'fillet') Object.assign(out, { r: f.r, edges: f.edges.length, ...(f.chain === false ? { chain: false } : {}) });
+        if (f.type === 'chamfer') Object.assign(out, { d: f.d, edges: f.edges.length, ...(f.chain === false ? { chain: false } : {}) });
         if (f.plane?.origin) out.origin = f.plane.origin;
         const W = f.type === 'hole' && f.plane?.origin === 'world' ? worldToUV(f.plane.frame) : null; // (as given: world X / Y)
-        if (f.type === 'hole') Object.assign(out, { face: f.plane?.face?.name, ...(f.hole_type ? { hole_type: f.hole_type, standard: f.standard } : {}), d: f.d, ...(f.thread ? { thread: f.thread } : {}), points: W ? f.points.map(([u, v]) => [u, W.flip ? -v : v]) : f.points, through: f.through !== false, depth: f.depth, ...(f.fit ? { fit: f.fit } : {}),
+        if (f.type === 'hole') Object.assign(out, { face: f.plane?.face?.name, ...(f.hole_type ? { hole_type: f.hole_type, standard: f.standard } : {}), ...(f.hole_type === 'd_flat' ? { flat: f.flat, ...(f.flat_angle ? { flat_angle: f.flat_angle } : {}) } : {}), d: f.d, ...(f.thread ? { thread: f.thread } : {}), points: W ? f.points.map(([u, v]) => [u, W.flip ? -v : v]) : f.points, through: f.through !== false, depth: f.depth, ...(f.fit ? { fit: f.fit } : {}),
           ...(f.head ? { head: f.head, head_d: f.head_d, ...(f.head_depth ? { head_depth: f.head_depth } : {}), ...(f.head_angle ? { head_angle: f.head_angle } : {}) } : {}), ...(f.teardrop ? { teardrop: true } : {}) });
         if (f.type === 'shell') Object.assign(out, { t: f.t, open_faces: f.faces.map((x) => x.name) });
         if (f.type === 'loft') Object.assign(out, { sketches: f.sketches, op: f.op });
@@ -587,7 +597,8 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
           let L = 0;
           for (let k = 3; k < e.pts.length; k += 3) L += Math.hypot(e.pts[k] - e.pts[k - 3], e.pts[k + 1] - e.pts[k - 2], e.pts[k + 2] - e.pts[k - 1]);
           const c = circleOf(e.pts);
-          return { ref: { a: fa, b: fb, fp: e.mid }, between: [fa, fb], mid: e.mid, length: r3(L), ...(c ? { circle: c } : {}) };
+          const run = e.chain === undefined ? 0 : b.edges.filter((x) => x.chain === e.chain).length; // (⛓ the edges a fillet of it takes)
+          return { ref: { a: fa, b: fb, fp: e.mid }, between: [fa, fb], mid: e.mid, length: r3(L), ...(c ? { circle: c } : {}), ...(run ? { chain: run } : {}) };
         }).filter((x) => x.ref.a && x.ref.b && (circular === undefined || !!x.circle === !!circular));
         if (near) info.sort((a, c) => len(sub(a.mid, near)) - len(sub(c.mid, near)));
         return { text: JSON.stringify(info.slice(0, limit)) };
@@ -648,10 +659,11 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         // a hole's new type / size: its sizes from the table again (those given in fields kept), a simple hole keeps its Ø
         const restd = f.type === 'hole' && ('hole_type' in fields || 'standard' in fields);
         const kind = restd && ('hole_type' in fields ? fields.hole_type : f.hole_type), simple = !kind || kind === 'simple';
-        const drop = restd ? ['thread', 'head', 'head_d', 'head_depth', 'head_angle', 'hole_type', 'standard', ...(simple ? [] : ['d'])] : [];
+        const drop = restd ? ['thread', 'head', 'head_d', 'head_depth', 'head_angle', 'hole_type', 'standard', ...(simple || kind === 'd_flat' ? [] : ['d']), ...(kind === 'd_flat' ? [] : ['flat', 'flat_angle'])] : [];
         const was = Object.fromEntries(Object.entries(f).filter(([k]) => !drop.includes(k)));
+        if (f.hole_type === 'd_flat' && 'd' in fields && !('flat' in fields) && f.flat === dFlat(f.d)) delete was.flat; // (the default flat follows the Ø)
         if (restd && !simple) Object.assign(was, { hole_type: kind, standard: fields.standard ?? f.standard });
-        const next = build({ ...was, ...fields, type: f.type, origin: 'origin' in fields ? fields.origin : f.plane?.origin, uv: !fields.points, of: fields.of || f.features, name: fields.name || f.name, face: fields.face || f.plane?.face?.name, faces: fields.faces || f.faces?.map((x) => x.name), sketch: fields.sketch || f.sketch });
+        const next = build({ ...was, ...fields, keepEdges: !('edges' in fields), type: f.type, origin: 'origin' in fields ? fields.origin : f.plane?.origin, uv: !fields.points, of: fields.of || f.features, name: fields.name || f.name, face: fields.face || f.plane?.face?.name, faces: fields.faces || f.faces?.map((x) => x.name), sketch: fields.sketch || f.sketch });
         // on the same face from the same origin: the stored frame stays (picked again, the face's centre may have moved —
         // holes cut into it since — and the step with it)
         const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
@@ -664,6 +676,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         if ('thread' in fields && !fields.thread) delete f.thread; // (its thread taken off)
         if ('head' in fields && !fields.head) for (const k of ['head', 'head_d', 'head_depth', 'head_angle']) delete f[k]; // (its head taken off)
         if ('teardrop' in fields && !fields.teardrop) delete f.teardrop; // (round again)
+        if ('chain' in fields && fields.chain !== false) delete f.chain; // (⛓ on again: the default)
         if (f.type === 'extrude') { // up to next / up to a face / a distance: one at a time; d2 off (or symmetric on): no other side
           if (!next.upto_next) delete f.upto_next;
           if (fields.upto_next || ('up_to' in fields && !fields.up_to)) delete f.upto;

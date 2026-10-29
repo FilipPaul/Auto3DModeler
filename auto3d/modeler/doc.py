@@ -10,6 +10,8 @@ Part JSON (in the project file, `parts[].model`):
      {"id": "F3", "type": "sketch", "plane": {"face": {"name": "F2:end"}, "frame": {"o", "x", "n"}}, ...},
      {"id": "F4", "type": "fillet", "edges": [{"a": "F2:end", "b": "F2:side:l1", "fp": [x, y, z]}], "r": 2},
      {"id": "F5", "type": "chamfer", "edges": [...], "d": 1},
+      (a fillet / chamfer rounds each edge's whole tangent chain — OpenCASCADE's way; "chain": false (⛓ off) only
+      tells the panel a click picks one edge, and the step warns when the rounding goes on past the picked edges)
      {"id": "F7", "type": "revolve", "sketch": "F1", "axis": "y" | "x" | <a line of the sketch>, "angle": 360, "op": "add"},
      {"id": "F8", "type": "shell", "faces": [{"name": "F2:end", "fp": [x, y, z]}], "t": 2},
      {"id": "F9", "type": "mirror", "of": "body" | <a step's id>, "plane": {"datum": "YZ"} | {"face": ..., "frame": ...},
@@ -18,7 +20,8 @@ Part JSON (in the project file, `parts[].model`):
       "keep": "both" | "above" | "below"},   (both: two bodies; above: the side the plane's normal points to)
      {"id": "F6", "type": "hole", "plane": {"face": {"name": "F2:end"}, "frame": ...}, "points": [[u, v]], "d": 5,
       "through": true, "depth": 10},   (+ "teardrop": true: a sideways hole with a 45° point on top, printable)
-      (+ "hole_type": "clearance" | "counterbore" | "countersink" | "tapped", "standard": "M5": sized from holes.py)
+      (+ "hole_type": "clearance" | "counterbore" | "countersink" | "tapped", "standard": "M5": sized from holes.py;
+       "hole_type": "d_flat", "flat": 4.5, "flat_angle": 0: a D hole, its size across the flat, the flat facing +x)
      {"id": "F10", "type": "point", "at": {"vertex": {"faces": [...], "fp": [x, y, z]}} | {"centre": <edge ref>} |
       {"mid": <edge ref>} | {"xyz": [x, y, z]}}]}   (a reference point: a corner, a round edge's centre, an edge's middle)
 
@@ -133,6 +136,8 @@ def _holes(part):
                 h["thread"] = f["thread"]
             if f.get("fit"):
                 h["fit"] = f["fit"]
+            if f.get("hole_type") == "d_flat":
+                h["flat"] = _num(f, "flat", HOLES.d_flat(dia))
             if f.get("head") in ("cbore", "csk"):
                 h["head"] = f["head"]
                 h["head_d"], hdep = _head_sizes(f, dia)
@@ -418,6 +423,10 @@ def _apply(f, st: State, s):
         st.body = _sized(lambda v: K.round_edges(body, edges, v, fid, chamfer=t == "chamfer"), size, "radius" if t == "fillet" else "size", "mm", why)
         if guessed:
             s["warnings"].append(f"{guessed} edge(s) were found again by their position only — check that the right edges are {'rounded' if t == 'fillet' else 'bevelled'}.")
+        more = K.chain_size(body, edges) - len(edges) if f.get("chain") is False else 0  # (⛓ off: one edge per click)
+        if more > 0:
+            s["warnings"].append(f"It goes on along {more} more edge(s) that join the picked ones smoothly — a "
+                                 f"{'rounding' if t == 'fillet' else 'bevel'} cannot stop where edges meet without a corner.")
         return
     if t == "hole":
         if st.body is None:
@@ -452,13 +461,19 @@ def _apply(f, st: State, s):
         if tear and head == "csk":
             raise K.KernelError("A countersink cannot be a teardrop (its cone would hang over) — use a counterbore, or untick Teardrop.")
         prof = K.teardrop_face if tear else K.circle_face
+        if f.get("hole_type") == "d_flat":  # D: a shaft's flat on one side (its size across the flat, turned flat_angle)
+            if tear:
+                raise K.KernelError("A D hole cannot be a teardrop — untick Teardrop.")
+            flat, turn = _num(f, "flat", HOLES.d_flat(dia), what="size across the flat"), float(f.get("flat_angle") or 0)
+            prof = lambda fr_, u_, v_, d_: K.dflat_face(fr_, u_, v_, d_, flat, turn)  # noqa: E731
         if head in ("cbore", "csk"):
             _head_fits(f, fr, st, pts, dia, hd, hdep if head == "cbore" else None, None if f.get("through", True) else depth)
         for k, (u, v) in enumerate(pts):
             face, names = prof(fr, float(u), float(v), dia)
             tool = K.prism_body(face, names, -n * depth, fid)
             tool.names = {f"{fid}:hole:{k}": tool.names.get(f"{fid}:side:c", []), f"{fid}:bottom:{k}": tool.names.get(f"{fid}:end", []),
-                          **({f"{fid}:tear:{k}": tool.names.get(f"{fid}:side:t", [])} if tear else {})}
+                          **({f"{fid}:tear:{k}": tool.names.get(f"{fid}:side:t", [])} if tear else {}),
+                          **({f"{fid}:flat:{k}": tool.names.get(f"{fid}:side:f", [])} if f"{fid}:side:f" in tool.names else {})}
             _use(st, fid, tool, "cut")
             if head == "cbore":
                 face, names = prof(fr, float(u), float(v), hd)

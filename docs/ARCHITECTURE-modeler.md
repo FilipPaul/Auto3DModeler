@@ -37,6 +37,28 @@ Date: 2026-10-25. Written by the architect agent.
   add_feature / edit_feature extrude {draft} (0 takes it off), get_model shows it. test_extrude_draft (prismatoid
   volumes, symmetric, d2, a pocket, watertight, STEP round trip, refusals); tools/e2e_model_draft_rib.py; e2e_agent.
 
+- **D holes done** (left out of the standard holes before): hole_type "d_flat" — a hole for a D-shaft, its Ø d and
+  `flat`, the size across the flat (flat to far side, the D-shaft's own number: Ø5 D4.5); holes.D_FLATS (Ø3 / 4 / 5 /
+  6 / 8 -> 2.5 / 3.5 / 4.5 / 5.5 / 7.5, else 0.9 × d: the flat 0.8 × r from the centre; holes.js the same, test-checked).
+  kernel.dflat_face (an arc + the chord, its flat facing the frame's x turned `flat_angle`°; r < flat < d else an
+  issue; no teardrop, no head / thread); faces `<id>:hole:k` and `<id>:flat:k`. The Hole panel: Type "D (flat)" ->
+  Diameter + Across the flat (its slider r … d) + ⇄ (90° a click); no Size / Edit sizes / Teardrop; the flat follows
+  the Ø while it is the default. The drawing: callout "Ø5 D4.5 THRU" (sheet.callout / sheet.js calloutRest), the
+  flat's edge not dimensioned (_deco, the check), and a hole's arc of more than half a circle is a hole (Ø, ISO 129 —
+  was: only ≥ 270°, a teardrop). The AI: add_feature / edit_feature hole {hole_type: "d_flat", d, flat, flat_angle};
+  get_model's flat. tests/test_hole_dflat.py (circle − segment volumes, the flat's place both ways, watertight, STEP,
+  callouts, errors), tools/e2e_model_hole_dflat.py (15 checks), e2e_agent (the Ø5 D4.5 through 20).
+- **⛓ Fillet / chamfer tangent chains done:** OpenCASCADE's fillet and chamfer builders always round an edge's whole
+  tangent chain (its contour) — one top edge of a box with rounded corners took all 8, but only that edge was shown
+  picked and the 7 other new faces had no name. kernel.tangent_chains (the builder's own contours, Add without Build:
+  < 1 ms on a box) -> each tessellated edge's `chain` (heavy models: none); round_edges names every face of the
+  contour `<id>:round:k` / `bevel:k`; chain_size. The panel's ⛓ Whole chain (on by default; off stored as
+  `chain: false`): the hover lights the chain, a click picks / drops all of it ("Added a chain of 3 edges."); off, a
+  click takes one edge and the step warns "It goes on along 2 more edge(s) …" (the rounding cannot stop there). The
+  AI: add_feature fillet / chamfer {chain} (default true: each given edge with its chain, as a click), find_refs
+  edges `chain: n`, get_model `chain: false`. tests/test_fillet_chain.py (Pappus volumes of R1 / chamfer 1 round a
+  rounded outline, all faces named, watertight, STEP, the 8 refs = the 1 ref, the warning); e2e_model_features
+  (⛓ off / on clicks), e2e_agent (chamfer from one edge: 8 edges, −24.225 mm³).
 - **The AI's screenshots whole and clean (RealSWReports 2026-10-29 01:55:47, 2026-10-28 04:30:30 / 04:30:48) done:**
   with the chat beside it the view was a 339 × 900 strip and the picture too — an assembly 240 mm long cut off.
   ModelView.snapshot({w, h, fit, faces, over}): the renderer and the label layer set to 1200 × 900 for one frame (the

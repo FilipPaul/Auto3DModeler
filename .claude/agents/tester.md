@@ -322,6 +322,10 @@ Never report "works" without having run it; report failures with their output.
    M5 Ø5.5 ⌴ Ø10 ↧ 5.4, M6, Edit sizes folded / depth 4, ⌵ Countersink keeps M5, the step "M5 Ø5.5 ⌴Ø10×5.4"; Tapped
    M5 10 deep with the tap drill greyed; the Czech labels; the sheet's callouts "Ø5.5 ⌴ Ø10 ↧ 5.4" and "M5 ↧ 10"; the
    AI's edit_feature hole_type simple). Needs a server restarted after kernel changes.
+   `tools/e2e_model_hole_dflat.py <url> <dir>` covers D holes with asserts (Type "D (flat)" on a Ø5 hole: 4.5 across the
+   flat, no Size / Teardrop, the volume = circle − segment, the flat facing x; ⇄ turns it to y; Ø8: the flat follows to
+   7.5; Czech labels; the step "Ø8 D7.5"; the sheet's callout "Ø8 D7.5 THRU"; the AI's add_feature d_flat and edit d 6:
+   flat 5.5). Needs a server restarted after kernel changes.
    `tools/e2e_model_teardrop.py <url> <dir>` covers ▲ teardrop holes with real clicks (a 40 × 20 × 20 block, 🖨 on: a
    Ø6 hole clicked on the front face shows an overhang at its top; Teardrop ticked: the exact volume, no overhang, faces
    hole / tear; the step says ▲ teardrop; on the top face greyed with its tooltip; the sheet says Ø6, no R; Ctrl+Z).

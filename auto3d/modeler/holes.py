@@ -4,7 +4,10 @@ ISO tables (the Hole panel's Type and Size; web/js/modeler/holes.js has the same
   counterbore  that hole + a counterbore for an ISO 4762 socket head (DIN 974-1: M5 Ø10 × 5.4)
   countersink  that hole + a 90° countersink for an ISO 10642 flat head (its theoretical head Ø dk: M5 Ø11.2)
   tapped       the thread (ISO 261 coarse) drilled at its tap drill (ISO 2306: M5 Ø4.2)
-A size given on the step (d, head_d, head_depth — the panel's "Edit sizes") wins over the table."""
+A size given on the step (d, head_d, head_depth — the panel's "Edit sizes") wins over the table.
+A D hole ("d_flat": for a D-shaft) is no screw size: its Ø d and `flat`, the size across the flat (from the flat to the
+far side, a D-shaft's: Ø5 -> 4.5), default from D_FLATS (else 0.9 × d: the flat 0.8 × r from the centre); the flat
+faces the face's +x, turned by `flat_angle` degrees."""
 from __future__ import annotations
 
 # ISO metric coarse threads: the tap drill a threaded hole is drilled with (ISO 2306)
@@ -28,13 +31,20 @@ SIZES = {
     "M20": {"clearance": 22, "cbore_d": 33, "cbore_depth": 20.6, "csk_d": 40.3},
 }
 TYPES = ("clearance", "counterbore", "countersink", "tapped")  # (none: a simple hole, sized by its d)
+# D-shafts (stepper motors, knobs): Ø -> the size across the flat
+D_FLATS = {3: 2.5, 4: 3.5, 5: 4.5, 6: 5.5, 8: 7.5}
+
+
+def d_flat(d: float) -> float:
+    """The size across a D hole's flat for Ø d: a common D-shaft's, else 0.9 × d (the flat 0.8 × r from the centre)."""
+    return D_FLATS.get(d, round(0.9 * d, 2))
 
 
 def preset(kind: str, size: str) -> dict:
     """The fields a standard hole gets: {d, head?, head_d?, head_depth?, head_angle?, thread?} — ValueError for an
     unknown type or size."""
     if kind not in TYPES:
-        raise ValueError(f"Unknown hole type “{kind}” — one of simple, {', '.join(TYPES)}.")
+        raise ValueError(f"Unknown hole type “{kind}” — one of simple, {', '.join(TYPES)}, d_flat.")
     if size not in SIZES:
         raise ValueError(f"Unknown size “{size}” — one of {', '.join(SIZES)}.")
     s = SIZES[size]
@@ -54,6 +64,11 @@ def resolve(f: dict) -> dict:
     kind = f.get("hole_type")
     if not kind or kind == "simple":
         return f
+    if kind == "d_flat":  # (no screw size: its Ø and flat; no head, no thread)
+        out = {k: v for k, v in f.items() if k not in ("head", "head_d", "head_depth", "head_angle", "thread", "standard")}
+        if out.get("flat") is None and isinstance(out.get("d", 5), (int, float)):
+            out["flat"] = d_flat(float(out.get("d", 5)))
+        return out
     if not f.get("standard"):
         raise ValueError(f"A {kind} hole needs a size (standard: one of {', '.join(SIZES)}).")
     p = preset(kind, f["standard"])

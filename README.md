@@ -366,7 +366,10 @@ SolidWorks. It has only the tools that need almost no input.
    - A sketch on the top or bottom face of an extrude follows that face when the extrude changes.
 
 4. **◜ Fillet** (F) rounds edges and **◸ Chamfer** bevels them. Click the edges (a click on a face takes all of its
-   edges; a picked edge is dropped by clicking it again), then type the radius or size. **◎ Hole** (H): click on a
+   edges; a picked edge is dropped by clicking it again), then type the radius or size. A click on an edge that goes
+   on smoothly into others — the outline of a box with rounded corners, a hole's rim — picks the **whole chain**
+   (*Added a chain of 8 edges*; the hover shows it before you click), as a rounding cannot stop where edges meet
+   without a corner anyway; untick *⛓ Whole chain* to pick one edge at a time. **◎ Hole** (H): click on a
    flat face where a hole goes (click again for more holes on the same face), and type the diameter. While you move
    the mouse the hole is shown where it would go, with its distances to the nearest edges, and it **snaps** like a
    sketch: onto the face's corners, edge midpoints, centre, round edges' centres, other holes and • reference points
@@ -382,7 +385,10 @@ SolidWorks. It has only the tools that need almost no input.
    *⌴ Counterbore* (that hole + room for an ISO 4762 socket head, M5: Ø10, 5.4 deep), *⌵ Countersink* (+ a 90° cone
    for an ISO 10642 flat head, M5: Ø11.2) or *Tapped* (a threaded hole: drilled with its tap drill, M5: Ø4.2, and
    labelled M5 on the drawing). The sizes are folded under *Edit sizes* — change the hole's or the head's Ø / depth
-   there; *Simple* is a plain hole of the Ø you type. A head that would not
+   there; *Simple* is a plain hole of the Ø you type. *D (flat)* is a hole for a D-shaft (a knob on a motor's shaft):
+   its Ø and the size *Across the flat* (from the flat to the far side; a common D-shaft's by default — Ø5: 4.5, Ø3 / 4
+   / 6 / 8: 2.5 / 3.5 / 5.5 / 7.5, else 0.9 × Ø — and it follows the Ø while you have not changed it); the flat faces
+   the face's x direction, ⇄ turns it 90°. The drawing says *Ø5 D4.5 THRU*. A head that would not
    fit — wider than the face around the hole, or as deep as the part there (it would cut through) — is refused,
    with the most that fits. The drawing's callout says it: *Ø5.5 ⌴ Ø10 ↧ 5.4*, *M5 ↧ 10*. Its thread is not drawn on the part unless you ask: click the
    part (no tool on) and choose **🔩 Show all threads** under *The part*, then how: *Cosmetic (light)* draws a thin

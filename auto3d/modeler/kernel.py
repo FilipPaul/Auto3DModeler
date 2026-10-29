@@ -391,6 +391,25 @@ def teardrop_face(fr, u, v, d):
     return BRepBuilderAPI_MakeFace(w, True).Face(), names
 
 
+def dflat_face(fr, u, v, d, flat, angle=0.0):
+    """A D hole at (u, v) of a plane frame: the circle Ø d with a flat `flat` from the far side (a D-shaft's size across
+    the flat), the flat facing the frame's x turned by `angle` degrees. Edges named "c" (the round part) and "f" (the
+    flat)."""
+    r = d / 2
+    a = flat - r  # (the flat's distance from the centre)
+    if not r < flat < d:
+        raise KernelError(f"The flat of a Ø{d:g} D hole must be between {r:g} and {d:g} across (from the flat to the far side).")
+    t = math.radians(float(angle or 0))
+    dr, side, c = np.array([math.cos(t), math.sin(t)]), np.array([-math.sin(t), math.cos(t)]), np.array([u, v], float)
+    h = math.sqrt(r * r - a * a)
+    p1, p2, far = c + a * dr - h * side, c + a * dr + h * side, c - r * dr
+    arc = BRepBuilderAPI_MakeEdge(GC_MakeArcOfCircle(to_3d(fr, *p2), to_3d(fr, *far), to_3d(fr, *p1)).Value()).Edge()
+    line = BRepBuilderAPI_MakeEdge(to_3d(fr, *p1), to_3d(fr, *p2)).Edge()
+    w = BRepBuilderAPI_MakeWire(arc, line).Wire()
+    names = [(e, "c" if BRepAdaptor_Curve(e).GetType() == GeomAbs_Circle else "f") for e in _wire_edges(w)]
+    return BRepBuilderAPI_MakeFace(w, True).Face(), names
+
+
 def countersink(fr, u, v, top_d, d, angle, name):
     """A countersink's cone at (u, v) of a plane frame: Ø top_d at the face narrowing at `angle` (90°: a flat-head
     screw's) into the face, down to Ø d; its cone named `name` (a hair above the face, so it cuts clean)."""
@@ -1289,12 +1308,59 @@ def round_edges(body, edges, r, fid, chamfer=False):
     res = mk.Shape()
     names = _carry(mk, body.names, res)
     kind = "bevel" if chamfer else "round"
-    rm = _face_map(res)
-    for k, e in enumerate(edges):
-        for f in mk.Generated(e):
-            if rm.Contains(f):
-                names.setdefault(f"{fid}:{kind}:{k}", []).append(f)
+    rm, done = _face_map(res), set()
+    for k, e in enumerate(edges):  # (OpenCASCADE rounds the whole tangent chain of an edge: its faces all get the name)
+        for x in _run(mk, e):
+            for f in mk.Generated(x):
+                i = rm.FindIndex(f)
+                if i and i not in done:
+                    done.add(i)
+                    names.setdefault(f"{fid}:{kind}:{k}", []).append(f)
     return Body(res, names)
+
+
+def _run(mk, e):
+    """The edges a fillet / chamfer builder rounds for edge e: its contour — e and the edges that go on smoothly
+    (tangent) from it."""
+    ic = mk.Contour(e)
+    return [mk.Edge(ic, j) for j in range(1, mk.NbEdges(ic) + 1)] if ic else [e]
+
+
+def tangent_chains(shape, em=None, adj=None):
+    """⛓ The tangent chains of a shape: edge index (1-based in the edge map) -> chain number, for every edge that
+    goes on smoothly into another (a rounded box's top outline, a hole's two half circles) — as OpenCASCADE's fillet
+    finds them (it always rounds a chain whole). Edges alone in their chain are left out."""
+    if em is None or adj is None:
+        _, em, adj = _adjacency(shape)
+    mk, out = BRepFilletAPI_MakeFillet(shape), {}
+    for ei in range(1, em.Extent() + 1):
+        e = TopoDS.Edge(em.FindKey(ei))
+        if len(adj.get(ei, ())) != 2 or mk.Contour(e):
+            continue
+        try:
+            mk.Add(1.0, e)  # (only the contour is built here, no rounding)
+        except Exception:  # noqa: BLE001 — an edge it cannot take (a smooth one): no chain
+            continue
+    for ic in range(1, mk.NbContours() + 1):
+        if mk.NbEdges(ic) > 1:
+            for j in range(1, mk.NbEdges(ic) + 1):
+                out[em.FindIndex(mk.Edge(ic, j))] = ic - 1
+    return out
+
+
+def chain_size(body, edges):
+    """How many edges rounding `edges` takes: each with its whole tangent chain."""
+    mk, seen = BRepFilletAPI_MakeFillet(body.shape), []
+    for e in edges:
+        if not mk.Contour(e):
+            try:
+                mk.Add(1.0, e)
+            except Exception:  # noqa: BLE001 — (counted alone)
+                pass
+        for x in _run(mk, e):
+            if not any(x.IsSame(u) for u in seen):
+                seen.append(x)
+    return len(seen)
 
 
 FLAT_TOL = 1e-5  # mm: a free-form face (a B-spline) this close to a plane counts as flat
@@ -1571,6 +1637,7 @@ def tessellate(body, light=False):
             f["area"] = round(f.get("area", 0), 3)
             f["centroid"] = r3(f["centroid"])
     edges = []
+    chains = {} if heavy else tangent_chains(shape, em, adj)  # (⛓ a click on a fillet's edge takes its chain)
     for ei in range(1, 0 if light else em.Extent() + 1):  # (🪶: no edges)
         e = TopoDS.Edge(em.FindKey(ei))
         try:
@@ -1584,7 +1651,7 @@ def tessellate(body, light=False):
         if len(pts) < 2:
             continue
         edges.append({"pts": [round(v, 5) for p in pts for v in (p.X(), p.Y(), p.Z())], "faces": sorted(adj.get(ei, ())),
-                      "mid": _round(_edge_mid(e), 5)})
+                      "mid": _round(_edge_mid(e), 5), **({"chain": chains[ei]} if ei in chains else {})})
     return {"positions": tris.astype(np.float32).tobytes(), "face_ids": ids.astype(np.uint32).tobytes(),
             "faces": faces, "edges": edges, "bbox": bb, "volume": volume(shape), "solids": solids(shape), **({"light": True} if light else {})}
 

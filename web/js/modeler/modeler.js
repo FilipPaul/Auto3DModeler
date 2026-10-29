@@ -20,7 +20,7 @@ import { roundAxes, axisOf } from './axes.js';
 import { fetchRebuild } from './packed.js';
 import { newRid, cancelRid, wasCancelled } from '../progressbox.js';
 import { snapOnFace, snapDrawing, toFace } from './facesnap.js';
-import { HOLE_SIZES, HOLE_TYPES, holeType, setHoleStandard } from './holes.js';
+import { HOLE_SIZES, HOLE_TYPES, dFlat, holeType, setHoleStandard } from './holes.js';
 
 const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa', mirror: '⇋', draft: '⟋', rib: '⊿', point: '•', split: '✂' };
 const TYPE_NAME = { point: 'Point', rib: 'Rib', draft: 'Draft', sketch: 'Sketch', extrude: 'Extrude', revolve: 'Revolve', fillet: 'Fillet', chamfer: 'Chamfer', hole: 'Hole', shell: 'Shell', pattern: 'Pattern',
@@ -422,7 +422,7 @@ export class Modeler {
     if (f.type === 'extrude') return f.op === 'cut' ? (f.through ? 'cut through all' : `cut ${fmt(f.d)} mm`) : `${fmt(f.d)} mm`;
     if (f.type === 'fillet') return `R ${fmt(f.r)} · ${n('edges')} edge(s)`;
     if (f.type === 'chamfer') return `${fmt(f.d)} mm · ${n('edges')} edge(s)`;
-    if (f.type === 'hole') return `${f.standard && !f.thread ? `${f.standard} ` : ''}${f.thread || `Ø${fmt(f.d)}`}${f.fit ? ` ${f.fit}` : ''}${f.head === 'cbore' ? ` ⌴Ø${fmt(f.head_d)}×${fmt(f.head_depth)}` : f.head === 'csk' ? ` ⌵Ø${fmt(f.head_d)}` : ''}${f.teardrop ? ' ▲ teardrop' : ''} · ${n('points')} hole(s)${f.through === false ? ` · ${fmt(f.depth)} deep` : ''}`;
+    if (f.type === 'hole') return `${f.standard && !f.thread ? `${f.standard} ` : ''}${f.thread || `Ø${fmt(f.d)}`}${f.hole_type === 'd_flat' ? ` D${fmt(f.flat ?? dFlat(f.d))}` : ''}${f.fit ? ` ${f.fit}` : ''}${f.head === 'cbore' ? ` ⌴Ø${fmt(f.head_d)}×${fmt(f.head_depth)}` : f.head === 'csk' ? ` ⌵Ø${fmt(f.head_d)}` : ''}${f.teardrop ? ' ▲ teardrop' : ''} · ${n('points')} hole(s)${f.through === false ? ` · ${fmt(f.depth)} deep` : ''}`;
     if (f.type === 'revolve') return `${fmt(f.angle)}°${f.op === 'cut' ? ' cut' : ''}`;
     if (f.type === 'shell') return `wall ${fmt(f.t)} mm · ${n('faces')} open`;
     if (f.type === 'decal') return `${f.source === 'text' ? `“${f.text}”` : 'picture'} · ${fmt(f.h)} mm${f.op === 'cut' ? ' · engraved' : ' · raised'}`;
@@ -1875,8 +1875,19 @@ export class Modeler {
     if (!e || e.faces.length !== 2) return null;
     const [fa, fb] = e.faces.map((k) => b.faces[k]?.name);
     if (!fa || !fb) return null;
-    if (fa.startsWith(`${this.cmd.feature.id}:`) || fb.startsWith(`${this.cmd.feature.id}:`)) return null; // made by this very step
+    const own = this.cmd && `${this.cmd.feature.id}:`;
+    if (own && (fa.startsWith(own) || fb.startsWith(own))) return null; // made by this very step
     return { a: fa, b: fb, fp: e.mid };
+  }
+
+  /** ⛓ The edges a click on edge i picks: its tangent chain (the edges that go on smoothly from it — a fillet rounds
+   *  them all anyway) while the panel's "Whole chain" is on, else the edge alone. */
+  chainOf(i, f = this.cmd?.feature) {
+    const b = this.result?.body, k = b?.edges[i]?.chain;
+    if (k === undefined || f?.chain === false) return [i];
+    const out = [];
+    b.edges.forEach((e, j) => { if (e.chain === k && this.edgeRef(j)) out.push(j); });
+    return out.length ? out : [i];
   }
 
   /** The edges of the shown body that the command's references point at (for the blue highlight). */
@@ -1915,11 +1926,18 @@ export class Modeler {
     if (i >= 0) {
       const ref = this.edgeRef(i);
       if (!ref) return null;
-      const k = f.edges.findIndex((r) => this.sameRef(r, ref));
-      if (k >= 0) f.edges.splice(k, 1);
-      else f.edges.push(ref);
-      // what the click did, in words (the panel says it): the edge's two faces
-      this.cmd.lastPick = `${k >= 0 ? 'Dropped' : 'Added'} the edge between ${this.faceLabel(ref.a)} and ${this.faceLabel(ref.b)}.`;
+      const k = f.edges.findIndex((r) => this.sameRef(r, ref)), run = this.chainOf(i);
+      if (run.length > 1) { // ⛓ the whole chain: picked again -> all of it dropped
+        const refs = run.map((j) => this.edgeRef(j));
+        if (k >= 0) f.edges = f.edges.filter((r) => !refs.some((x) => this.sameRef(r, x)));
+        else for (const x of refs) if (!f.edges.some((r) => this.sameRef(r, x))) f.edges.push(x);
+        this.cmd.lastPick = `${k >= 0 ? 'Dropped' : 'Added'} a chain of ${run.length} edges.`;
+      } else {
+        if (k >= 0) f.edges.splice(k, 1);
+        else f.edges.push(ref);
+        // what the click did, in words (the panel says it): the edge's two faces
+        this.cmd.lastPick = `${k >= 0 ? 'Dropped' : 'Added'} the edge between ${this.faceLabel(ref.a)} and ${this.faceLabel(ref.b)}.`;
+      }
     } else {
       // a face: all of its edges (that are not picked yet)
       const h = this.view.pick(e.clientX, e.clientY);
@@ -2245,6 +2263,7 @@ export class Modeler {
     box.innerHTML = `<h2>${esc(f.name)}</h2>
       <p class="hint">${fillet ? 'Click the edges to round' : 'Click the edges to bevel'} — click a face to take all of its edges, click a picked edge again to drop it.</p>
       <div class="field"><label>${fillet ? 'Radius' : 'Size'}</label><input type="number" step="any" min="0" data-k="${k}" value="${fmt(f[k])}"><span class="unit">mm</span></div>
+      <label class="check" title="${esc(t('On: a click picks the edge and the edges that go on smoothly from it (tangent) — they are rounded together anyway'))}"><input type="checkbox" data-k="chain" ${f.chain !== false ? 'checked' : ''}> ⛓ Whole chain</label>
       <p class="mp-count">${f.edges.length ? `${f.edges.length} edge(s) picked` : 'No edges picked yet'}</p>
       ${this.cmd.lastPick ? `<p class="hint mp-last" title="${esc(t('What your last click in the view picked'))}">${esc(this.cmd.lastPick)}</p>` : ''}
       ${f.edges.length ? '<div class="row-actions"><button class="btn small" data-a="clear">Drop all edges</button></div>' : ''}
@@ -2254,30 +2273,34 @@ export class Modeler {
     const inp = box.querySelector(`[data-k=${k}]`);
     inp.addEventListener('input', () => { const v = parseFloat(inp.value); if (v > 0) { f[k] = v; this.rebuild(); } });
     inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+    box.querySelector('[data-k=chain]').addEventListener('change', (e) => { if (e.target.checked) delete f.chain; else f.chain = false; this.rebuild(); });
     box.querySelector('[data-a=clear]')?.addEventListener('click', () => { f.edges = []; this.cmd.lastPick = null; this.renderProps(); this.rebuild(); });
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
   }
 
   renderHole(box) {
-    const f = this.cmd.feature, st = this.status(f.id), kind = holeType(f), size = f.standard || f.thread || '';
+    const f = this.cmd.feature, st = this.status(f.id), kind = holeType(f), size = f.standard || f.thread || '', dh = kind === 'd_flat';
+    const std = kind && !dh; // (a screw's hole: sized from the table)
     box.innerHTML = `<h2>${esc(f.name)}</h2>
       <p class="hint">Click on a flat face where a hole goes — click again for more holes on the same face. A click near the face's centre snaps to it.</p>
       ${f.plane?.face ? `<div class="field m-holefrom"><label>From</label>${originSeg(f.plane, f.plane.origin ? originKey(f.plane.origin) : f.from?.some((x) => x?.x || x?.y) ? 'edges' : '', '', HOLE_ORIGINS)}</div>` : ''}
-      <div class="field"><label>Type</label><select data-k="hole_type" title="A hole for a metric screw: its sizes from the ISO tables — clearance (ISO 273), ⌴ for a socket head, ⌵ for a flat head, tapped (a thread)">
+      <div class="field"><label>Type</label><select data-k="hole_type" title="A hole for a metric screw: its sizes from the ISO tables — clearance (ISO 273), ⌴ for a socket head, ⌵ for a flat head, tapped (a thread); D for a shaft with a flat">
         ${HOLE_TYPES.map(([v, l]) => `<option value="${v}" ${v === kind ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-      ${kind ? `<div class="field"><label>Size</label><select data-k="standard" title="The screw's size — the hole's sizes are filled from the table">
+      ${std ? `<div class="field"><label>Size</label><select data-k="standard" title="The screw's size — the hole's sizes are filled from the table">
         ${size in HOLE_SIZES ? '' : '<option value="" selected>—</option>'}${Object.keys(HOLE_SIZES).map((v) => `<option value="${v}" ${v === size ? 'selected' : ''}>${v}</option>`).join('')}</select></div>`
         : `<div class="field"><label>Diameter</label><input type="number" step="any" min="0" data-k="d" value="${fmt(f.d)}"><span class="unit">mm</span></div>`}
+      ${dh ? `<div class="field m-dflat"><label>Across the flat</label><input type="number" step="any" min="0" data-k="flat" value="${fmt(f.flat ?? dFlat(f.d))}" data-lo="${fmt(f.d / 2 + 0.05)}" data-hi="${fmt(f.d - 0.05)}" data-step="0.05" title="${esc(t('From the flat to the far side of the hole — a D-shaft’s size (Ø5: 4.5)'))}"><span class="unit">mm</span>
+        <button class="mini" data-a="turnflat" title="${esc(t('Turn the flat by 90°'))}">⇄</button></div>` : ''}
       <label class="check"><input type="checkbox" data-k="through" ${f.through !== false ? 'checked' : ''}> Through all</label>
       ${f.through === false ? `<div class="field"><label>Depth</label><input type="number" step="any" min="0" data-k="depth" value="${fmt(f.depth)}"><span class="unit">mm</span></div>` : ''}
-      ${kind ? `<details class="m-holesizes" ${this.holeSizesOpen || !(size in HOLE_SIZES) ? 'open' : ''}><summary>Edit sizes</summary>
+      ${std ? `<details class="m-holesizes" ${this.holeSizesOpen || !(size in HOLE_SIZES) ? 'open' : ''}><summary>Edit sizes</summary>
         <div class="field"><label>${kind === 'tapped' ? 'Tap drill Ø' : 'Hole Ø'}</label><input type="number" step="any" min="0" data-k="d" value="${fmt(f.d)}" ${kind === 'tapped' ? 'disabled' : ''}><span class="unit">mm</span></div>
         ${f.head ? `<div class="field"><label>Head Ø</label><input type="number" step="any" min="0" data-k="head_d" value="${fmt(f.head_d)}"><span class="unit">mm</span></div>` : ''}
         ${f.head === 'cbore' ? `<div class="field"><label>Head depth</label><input type="number" step="any" min="0" data-k="head_depth" value="${fmt(f.head_depth)}"><span class="unit">mm</span></div>` : ''}
       </details>` : ''}
-      ${this.teardropRow(f)}
-      ${!kind || f.fit ? `<div class="field"><label>Fit</label><select data-k="fit" title="An ISO 286 fit for the hole — shown on the 2D drawing (Ø8 H7 and its deviations); the model keeps the nominal size">
+      ${dh ? '' : this.teardropRow(f)}
+      ${!std || f.fit ? `<div class="field"><label>Fit</label><select data-k="fit" title="An ISO 286 fit for the hole — shown on the 2D drawing (Ø8 H7 and its deviations); the model keeps the nominal size">
         ${['', 'H6', 'H7', 'H8', 'H9'].map((v) => `<option value="${v}" ${v === (f.fit || '') ? 'selected' : ''}>${v || '—'}</option>`).join('')}</select></div>` : ''}
       ${f.points.length ? `<h3>Holes</h3><div class="mp-holes">${f.points.map((p, i) => `<div class="mp-hole">
         <span>${i + 1}</span><div class="mp-hole-dims">${['x', 'y'].map((axis, k) => this.holeDimRow(f, i, axis, k)).join('')}</div>
@@ -2292,13 +2315,20 @@ export class Modeler {
       el.addEventListener('input', () => { const v = parseFloat(el.value); if (Number.isFinite(v)) { set(v); this.rebuild(); } });
       el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
     };
-    num(box.querySelector('[data-k=d]'), (v) => { if (v > 0) f.d = v; });
+    num(box.querySelector('[data-k=d]'), (v) => {
+      if (!(v > 0)) return;
+      if (dh && (f.flat === undefined || f.flat === dFlat(f.d))) { f.flat = dFlat(v); box.querySelector('[data-k=flat]').value = fmt(f.flat); } // (the flat follows the Ø while it is the default)
+      f.d = v;
+    });
+    const fl = box.querySelector('[data-k=flat]');
+    if (fl) num(fl, (v) => { if (v > 0) f.flat = v; });
+    box.querySelector('[data-a=turnflat]')?.addEventListener('click', () => { f.flat_angle = ((f.flat_angle || 0) + 90) % 360; if (!f.flat_angle) delete f.flat_angle; this.rebuild(); });
     box.querySelector('.m-holesizes')?.addEventListener('toggle', (e) => { this.holeSizesOpen = e.target.open; });
     const dep = box.querySelector('[data-k=depth]');
     if (dep) num(dep, (v) => { if (v > 0) f.depth = v; });
     box.querySelector('[data-k=through]').addEventListener('change', (e) => { f.through = e.target.checked; this.renderProps(); this.rebuild(); });
     box.querySelector('[data-k=fit]')?.addEventListener('change', (e) => { if (e.target.value) f.fit = e.target.value; else delete f.fit; this.renderProps(); });
-    box.querySelector('[data-k=teardrop]').addEventListener('change', (e) => { if (e.target.checked) f.teardrop = true; else delete f.teardrop; this.rebuild(); });
+    box.querySelector('[data-k=teardrop]')?.addEventListener('change', (e) => { if (e.target.checked) f.teardrop = true; else delete f.teardrop; this.rebuild(); });
     box.querySelector('[data-k=hole_type]').addEventListener('change', (e) => { // (sized from the table: its size kept, else the last one, else the nearest to its Ø)
       const near = Object.keys(HOLE_SIZES).reduce((a, b) => (Math.abs(parseFloat(b.slice(1)) - f.d) < Math.abs(parseFloat(a.slice(1)) - f.d) ? b : a));
       setHoleStandard(f, e.target.value, size in HOLE_SIZES ? size : this.lastHoleSize || near);
@@ -3180,7 +3210,7 @@ export class Modeler {
           cv.style.cursor = h?.face ? 'pointer' : '';
         } else {
           const i = this.view.pickEdge(e.clientX, e.clientY), ok = i >= 0 && this.edgeRef(i);
-          this.view.setEdgeHighlight(ok ? i : -1, this.refEdges(f.edges));
+          this.view.setEdgeHighlight(ok ? this.chainOf(i) : -1, this.refEdges(f.edges));
           const h = ok ? null : this.view.pick(e.clientX, e.clientY);
           this.view.setHover(h?.face ? h.face.id : -1);
           cv.style.cursor = ok || h?.face ? 'pointer' : '';

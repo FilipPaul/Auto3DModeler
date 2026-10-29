@@ -171,7 +171,8 @@ TOOLS = [
                     "(part of a face name), near [x, y, z], of_step (a step's id: the faces it made). Edges: of_face (a face name), "
                     "of_step (all the edges of a step's faces — to round them at once), between_steps [id, id] (where two steps "
                     "meet, e.g. a rib and its plate), circular true / false, near. A face merged from two steps (flush) has names. "
-                    "Edges come with a ready ref {a, b, fp} for fillet / chamfer. Points (kind \"point\"): the reference points "
+                    "Edges come with a ready ref {a, b, fp} for fillet / chamfer (chain: n = it goes on smoothly into "
+                    "other edges, n in all — a fillet of it takes them all). Points (kind \"point\"): the reference points "
                     "(point steps: {point: id, name, xyz}), then the part's corners {corner: [x, y, z], ref} (of_face, of_step, near) — "
                     "a ref is the `at` of add_feature point. Axes (kind \"axis\"): the round faces' axes (shafts, holes, bosses: "
                     "{axis: <the face's name>, radius, through, direction}; name, of_step, near) — to measure a sketch shape or a "
@@ -210,6 +211,9 @@ TOOLS = [
                     "with a standard) / \"counterbore\" (+ ⌴ for an ISO 4762 socket head, M5: Ø10 ↧ 5.4) / \"countersink\" (+ ⌵ 90° for an ISO 10642 "
                     "flat head, M5: Ø11.2) / \"tapped\" (the thread at its tap drill) — no d / head needed (d, head_d, head_depth given change the "
                     "table's); edit_feature {standard: \"M6\"} resizes it, {hole_type: \"simple\"} makes it a plain Ø d hole; "
+                    "hole_type \"d_flat\" = a D hole for a shaft with a flat (no standard): d + flat (the size across the flat, from "
+                    "the flat to the far side: Ø5 -> 4.5 by default, Ø3 / 4 / 6 / 8 -> 2.5 / 3.5 / 5.5 / 7.5, else 0.9 × d), the flat "
+                    "facing the face's +x, flat_angle (degrees) turns it; the drawing says Ø5 D4.5; "
                     "head: \"cbore\" (a counterbore: head_d, head_depth — default 1.8 × d, d; d of a thread: its nominal Ø, M3: 3) or \"csk\" (a countersink: head_d, "
                     "head_angle — default 2 × d, 90°) for a screw's head; "
                     "thread: \"M5\" (ISO metric M2 … M20: drilled with its tap drill, labelled M5 on the drawing — no d needed); "
@@ -221,7 +225,10 @@ TOOLS = [
                     "name, find_refs kind \"axis\">, d} = from that face's axis (square to the face, or running straight across x / y), "
                     "or {mid: [<edge ref>, <edge ref>]} = midway between two parallel straight edges of that face (the middle "
                     "line: it stays in the middle when the part gets wider; both x and y = the face's centre).\n"
-                    "- fillet: edges [refs from find_refs], r. chamfer: edges, d.\n"
+                    "- fillet: edges [refs from find_refs], r. chamfer: edges, d. chain (default true, the panel's ⛓ Whole "
+                    "chain): each edge comes with the edges that go on smoothly (tangent) from it — one edge of a rounded "
+                    "outline or of a hole's rim picks all of it; OpenCASCADE rounds a tangent chain whole anyway, so chain: "
+                    "false only stores the edges as given (the step then warns that it goes on).\n"
                     "- shell: faces [names of the faces left open], t (wall).\n"
                     "- rib: sketch (one open line — or lines end to end — across a corner, e.g. on a plane through the plate and "
                     "the wall, from the wall to the plate), t (thickness, half each side of the sketch plane): filled up to the part "
@@ -253,13 +260,14 @@ TOOLS = [
                           "name": STR, "plane": {}, "shapes": {"type": "array"}, "lock": {"type": "boolean"},
                           "sketch": STR, "d": NUM, "op": {"type": "string", "enum": ["add", "cut"]}, "through": {"type": "boolean"},
                           "symmetric": {"type": "boolean"}, "flip": {"type": "boolean"}, "axis": {}, "angle": NUM,
-                          "face": STR, "points": {"type": "array"}, "depth": NUM, "edges": {"type": "array"}, "r": NUM,
+                          "face": STR, "points": {"type": "array"}, "depth": NUM, "edges": {"type": "array"}, "r": NUM, "chain": {"type": "boolean"},
                           "faces": {"type": "array"}, "t": NUM, "of": {}, "kind": {"type": "string", "enum": ["linear", "circular"]},
                           "count": NUM, "spacing": NUM, "dir": {}, "up_to": STR, "offset": NUM, "upto_next": {"type": "boolean"}, "d2": NUM,
                           "sketches": {"type": "array"}, "profile": STR, "path": STR,
                           "text": STR, "h": NUM, "at": {}, "origin": {}, "fit": {"type": "string", "enum": ["H6", "H7", "H8", "H9"]},
                           "standard": {"type": "string", "enum": ["M2", "M2.5", "M3", "M4", "M5", "M6", "M8", "M10", "M12", "M16", "M20"]},
-                          "hole_type": {"type": "string", "enum": ["simple", "clearance", "counterbore", "countersink", "tapped"]},
+                          "hole_type": {"type": "string", "enum": ["simple", "clearance", "counterbore", "countersink", "tapped", "d_flat"]},
+                          "flat": NUM, "flat_angle": NUM,
                           "keep": {"type": "string", "enum": ["both", "above", "below"]}}, ["type"])},
     {"name": "edit_feature", "where": "browser",
      "description": "Change a step of the 3D model: id and fields (as in add_feature, e.g. {d: 15}, {r: 3}, {points: …}, a "

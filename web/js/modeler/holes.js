@@ -19,8 +19,15 @@ export const HOLE_SIZES = {
   "M20": {"clearance": 22, "cbore_d": 33, "cbore_depth": 20.6, "csk_d": 40.3},
 };
 
-// the Type choice: [value, label] ('' a simple hole, sized by its Ø)
-export const HOLE_TYPES = [['', 'Simple'], ['clearance', 'Clearance hole'], ['counterbore', '⌴ Counterbore'], ['countersink', '⌵ Countersink'], ['tapped', 'Tapped']];
+// the Type choice: [value, label] ('' a simple hole, sized by its Ø; 'd_flat' a D hole for a shaft with a flat — no
+// screw size)
+export const HOLE_TYPES = [['', 'Simple'], ['clearance', 'Clearance hole'], ['counterbore', '⌴ Counterbore'], ['countersink', '⌵ Countersink'], ['tapped', 'Tapped'], ['d_flat', 'D (flat)']];
+
+// D-shafts (as holes.py D_FLATS): Ø -> the size across the flat
+export const D_FLATS = { 3: 2.5, 4: 3.5, 5: 4.5, 6: 5.5, 8: 7.5 };
+
+/** A D hole's size across the flat for Ø d: a common D-shaft's, else 0.9 × d (the flat 0.8 × r from the centre). */
+export function dFlat(d) { return D_FLATS[d] ?? +(0.9 * d).toFixed(2); }
 
 /** The fields of a standard hole (as holes.py preset): {d, head?, head_d?, head_depth?, head_angle?, thread?}. */
 export function holePreset(kind, size) {
@@ -40,7 +47,8 @@ export function holeType(f) {
 /** Set a hole step's type and size: the table's sizes written on it (its earlier head / thread / sizes dropped);
  *  '' a simple hole (its Ø kept). */
 export function setHoleStandard(f, kind, size) {
-  for (const k of ['head', 'head_d', 'head_depth', 'head_angle', 'thread', 'hole_type', 'standard']) delete f[k];
+  for (const k of ['head', 'head_d', 'head_depth', 'head_angle', 'thread', 'hole_type', 'standard', 'flat', 'flat_angle']) delete f[k];
+  if (kind === 'd_flat') return Object.assign(f, { hole_type: kind, flat: dFlat(f.d) }); // (its Ø kept)
   const p = kind && holePreset(kind, size);
   if (p) Object.assign(f, { hole_type: kind, standard: size }, p);
   return f;
