@@ -14,7 +14,9 @@ Date: 2026-10-25. Written by the architect agent.
   tint and an assembly part's glow (a clash's red stays) left out of it; `faces` lit orange (MARK). fit() now puts the
   ball round the box inside the narrower of the two view angles (+5 %) — a narrow view backs off. get_screenshot
   {highlight: [face names or step ids]} (a 3D model; wrong names refused, the lit faces named in the text; refused in
-  an assembly); the size labels drawn where the picture's camera puts them. tools/e2e_ai_screenshot.py; e2e_ai_sketch counts the label boxes anywhere in the picture.
+  an assembly); the size labels drawn where the picture's camera puts them. add_feature / edit_feature: an extrude /
+  revolve / loft / sweep add that adds nothing warns "It adds nothing — it lies inside the part (⇅ flip)" (a cut
+  already did). tools/e2e_ai_screenshot.py; e2e_ai_sketch counts the label boxes anywhere in the picture.
   Already done before (skipped): fit / section off / sheet screenshots, went + volume_change, flush faces merged,
   find_refs of_step, measure in models, the sheet check's decal edges and keys, steps named after their sketch.
   Left out of the wishlist (more than ~2 inputs, or a new feature type): an extrude dir "into_body" / world direction,

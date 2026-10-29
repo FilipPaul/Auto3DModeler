@@ -2,7 +2,7 @@
 the report's bracket (a wall from {datum XZ, offset 20} flipped: its front flush with the plate's: one face, both
 names) -> the picture is 1200 × 900 and the whole part is in it (nothing at its borders); a hover, picks and the
 chosen step's tint left on screen are not in it (the same picture as without); highlight ["F4"] lights the step's
-faces in orange, a wrong name is refused -> an assembly of
+faces in orange, a wrong name is refused; an extrude inside the part warns that it adds nothing -> an assembly of
 three parts in a row, exploded -> 1200 × 900, all of it in the picture; highlight refused there.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_ai_screenshot.py http://127.0.0.1:5199 <out dir>
@@ -108,6 +108,12 @@ try:
     check("highlight F4: named in the text", "Lit in orange: F4:" in text, text[:100])
     text, _ = shot("model_badhl", highlight=["F9:end"])
     check("highlight a wrong name: refused", text.startswith("ERROR") and "F9:end" in text, text[:90])
+
+    call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": -10, "y": -10, "w": 20, "h": 10}}])
+    r = json.loads(call("add_feature", type="extrude", sketch="F5", d=3))
+    check("an extrude inside the part: warns it adds nothing", any("adds nothing" in w for w in r["warnings"]), r["warnings"], r.get("volume_change_mm3"))
+    r = json.loads(call("edit_feature", id="F6", fields={"flip": True}))
+    check("flipped: it adds, no warning", r["volume_change_mm3"] > 0 and not any("adds nothing" in w for w in r["warnings"]), r["volume_change_mm3"])
 
     # an assembly 240 mm long: three parts in a row, exploded
     call("new_model", name="Bar")

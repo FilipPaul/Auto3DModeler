@@ -183,7 +183,7 @@ TOOLS = [
     {"name": "add_feature", "where": "browser",
      "description": "Add a step to the 3D model (it rebuilds; the result says ok / issues, volume_change_mm3, and for an "
                     "extrude where it went: went {along \"+z\" / \"-y\" …, range [from, to] mm} — check it went the way you "
-                    "meant, else flip: true). type:\n"
+                    "meant, else flip: true; an add that adds nothing or a cut that removes nothing says so in warnings). type:\n"
                     "- sketch: plane \"XY\" (top, the bed) / \"XZ\" (front) / \"YZ\" (right) / {datum: \"XY\", offset: 30} (moved along its "
                     "normal) / {face: <name>} (origin = the face's "
                     "centre; {face, origin: \"corner\"} = the face's corner with the smallest u and v (u along the world axis "

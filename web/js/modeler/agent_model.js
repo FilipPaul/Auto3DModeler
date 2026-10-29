@@ -198,6 +198,7 @@ const KIND = { model: '3D model', assembly: 'assembly', drawing: '2D drawing', s
 const FITS = ['H6', 'H7', 'H8', 'H9'];
 /** A hole's fit as written ("h7", "H7") -> "H7", or null (none / unknown: refused by the caller's check). */
 const fitOf = (v) => { if (!v) return null; const f = String(v).toUpperCase(); if (!FITS.includes(f)) throw new Error(`fit: one of ${FITS.join(', ')} (ISO 286 holes), not ${v}.`); return f; };
+const ADDS = new Set(['extrude', 'revolve', 'loft', 'sweep']); // (steps that add a solid unless op: cut)
 const MATERIAL_NAME =Object.fromEntries(Object.keys(MATERIALS).map((k) => [k.toLowerCase(), k])); // (any case)
 
 export function modelHandlers({ modeler: m, project, getWorkspace }) {
@@ -272,6 +273,9 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
     await settle();
     const r = stepResult(id), dv = (body()?.volume ?? 0) - v0;
     if (r.ok && r.body) r.volume_change_mm3 = r3(dv); // (an add that adds nothing, a cut that cuts nothing: the wrong way?)
+    const f = m.part.features.find((x) => x.id === id);
+    if (r.ok && r.body && v0 > 0 && ADDS.has(f?.type) && (f.op || 'add') === 'add' && Math.abs(dv) < 1e-6 * (1 + v0)) // (the kernel says it of a cut)
+      r.warnings = [...r.warnings, 'It adds nothing — it lies inside the part (⇅ flip: true sends it the other way).'];
     return { text: JSON.stringify(r) };
   };
   const ready = () => { if (m.mode !== 'part' || m.cmd) m.closeAll?.(); m.cmd = null; m.mode = 'part'; m.render(); };

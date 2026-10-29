@@ -332,7 +332,7 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_ai_screenshot.py <url> <dir>` covers get_screenshot in a narrow window (760 px: the view a strip): a 3D
    model's picture 1200 × 900 with all of the part in it, the view on screen put back; a hover, picks and the chosen
    step's tint not in it (the same pixels); highlight ["F4"] lights the wall orange and names its faces, a wrong name
-   refused; an assembly of three 80 mm bars exploded
+   refused; an extrude inside the part warns "adds nothing", flipped it adds; an assembly of three 80 mm bars exploded
    0.6: 1200 × 900, all of it in the picture, a chosen part's glow not in it, highlight refused. Exits 1 on a failure.
    `tools/e2e_model_draft.py <url> <dir>` covers ⟋ Draft (5° on a block: the frustum's volume; the step's text; 60°
    refused with the most that fits; the AI's add_feature draft). Needs a server restarted after kernel changes.
