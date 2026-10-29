@@ -418,7 +418,8 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_ai_screenshot.py <url> <dir>` covers get_screenshot in a narrow window (760 px: the view a strip): a 3D
    model's picture 1200 × 900 with all of the part in it, the view on screen put back; a hover, picks and the chosen
    step's tint not in it (the same pixels); highlight ["F4"] lights the wall orange and names its faces, a wrong name
-   refused; an extrude inside the part warns "adds nothing", flipped it adds; an assembly of three 80 mm bars exploded
+   refused; view front / back / front + highlight: three different pictures (back mirrored left to right), faces lit
+   but seen edge-on: the text says none shows; an extrude inside the part warns "adds nothing", flipped it adds; an assembly of three 80 mm bars exploded
    0.6: 1200 × 900, all of it in the picture, a chosen part's glow not in it, highlight refused. Exits 1 on a failure.
    `tools/e2e_section_revolved.py <url> <dir>` covers ✂ Section on a revolved part (a flanged tube with a Ø10 bore):
    the toolbar's Y cut at 0 removes the half toward the camera and caps the cut (one cap, 720 mm² = the profile twice,

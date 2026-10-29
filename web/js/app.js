@@ -2466,7 +2466,7 @@ const agentHandlers = {
 
 async function assemblyScreenshot({ view, fit = true, highlight } = {}) {
   if (highlight?.length) throw new Error('highlight lights faces of a 3D model — open_part the part, or look at the assembly without it.');
-  if (view) assembly.view.setView({ side: 'right', back: 'front' }[view] || view);
+  if (view) assembly.view.setView({ side: 'right' }[view] || view);
   await nextFrames();
   const c = assembly.view.snapshot({ fit: fit !== false }); // (4:3, all of it — exploded too — in the picture, no hover glow)
   return { text: `Assembly view (${view || 'current'})${assembly.explode ? `, exploded ${assembly.explode}` : ''}.`, image: c.toDataURL('image/png').split(',')[1] };

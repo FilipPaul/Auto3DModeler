@@ -1206,7 +1206,8 @@ can open them.
   show / hide, colour, a new layer; `drawing_set_size`, `drawing_use` as a sketch or a quick part), joints changed or removed (`edit_joint`,
   `remove_joint`), `measure` between faces, the view for its screenshots (`set_view`: a section, explode, size labels;
   `get_screenshot` is a 1200 × 900 picture of the whole part or assembly however narrow the view is beside the chat,
-  without your hover or picks, and `highlight` lights the faces of a step in orange),
+  without your hover or picks, seen from iso, front, back (the front's mirror image) or the side, and `highlight`
+  lights the faces of a step in orange — it says when none of them shows from that side),
   parts renamed or deleted, and files: `export` stl / step / pdf / **3mf** / **bom** / **dxf** / **project** (the
   whole project as a .a3d.json, as *Save project*).
 - **Demos, project files, variants, mechanisms**: ask "open the crank demo, tell me its mass and save a GIF of it" —

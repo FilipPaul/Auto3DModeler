@@ -2,8 +2,11 @@
 the report's bracket (a wall from {datum XZ, offset 20} flipped: its front flush with the plate's: one face, both
 names) -> the picture is 1200 × 900 and the whole part is in it (nothing at its borders); a hover, picks and the
 chosen step's tint left on screen are not in it (the same picture as without); highlight ["F4"] lights the step's
-faces in orange, a wrong name is refused; an extrude inside the part warns that it adds nothing -> an assembly of
-three parts in a row, exploded -> 1200 × 900, all of it in the picture; highlight refused there.
+faces in orange, a wrong name is refused; view front / back / front + highlight (the AI's report: all three the same
+picture): back is not front, its outline the front's mirrored left to right, the highlighted one differs from the plain one;
+lit faces seen edge-on (the right sides, from the front): the picture is the plain one and the text says so; an
+extrude inside the part warns that it adds nothing -> an assembly of three parts in a row, exploded -> 1200 × 900, all
+of it in the picture; back is not front there either; highlight refused there.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_ai_screenshot.py http://127.0.0.1:5199 <out dir>
 """
@@ -109,6 +112,22 @@ try:
     text, _ = shot("model_badhl", highlight=["F9:end"])
     check("highlight a wrong name: refused", text.startswith("ERROR") and "F9:end" in text, text[:90])
 
+    # front / back / front + highlight: three different pictures (the report: all the same, stale)
+    _, fr = shot("model_front", view="front")
+    _, bk = shot("model_back", view="back")
+    text, frh = shot("model_front_hl", view="front", highlight=["F4"])
+    check("front and back differ", fr and bk and list(fr.getdata()) != list(bk.getdata()))
+    fb, bb = drawn_box(fr), drawn_box(bk)
+    check("back: the front's outline mirrored left to right", fb and bb and abs(fb[0] - (fr.width - bb[2])) <= 3 and abs(fb[2] - (fr.width - bb[0])) <= 3,
+          fb, bb)  # (not up and down: in perspective the wall nearer the camera shows taller)
+    check("front + highlight F4: not the plain front, orange", frh and list(frh.getdata()) != list(fr.getdata()) and orange(frh) > 2000 and orange(fr) < 200,
+          orange(frh), orange(fr), text[:80])
+    right = [f["name"] for f in json.loads(call("find_refs", kind="face", normal=[1, 0, 0]))]
+    text, edge_on = shot("model_front_edgeon", view="front", highlight=right)
+    check("lit faces seen edge-on: (nearly) the plain picture, and said", edge_on and orange(edge_on) < 200 and "None of them shows" in text, right, text[:160])
+    text, _ = shot("model_iso_hl", view="iso", highlight=["F4"])
+    check("lit faces in sight: nothing said", "None of them shows" not in text, text[:120])
+
     call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": -10, "y": -10, "w": 20, "h": 10}}])
     r = json.loads(call("add_feature", type="extrude", sketch="F5", d=3))
     check("an extrude inside the part: warns it adds nothing", any("adds nothing" in w for w in r["warnings"]), r["warnings"], r.get("volume_change_mm3"))
@@ -134,6 +153,9 @@ try:
     _, img5 = shot("asm_chosen")
     check("assembly: a chosen part's glow not in the picture", img5 and list(img5.getdata()) == list(img4.getdata()))
     check("assembly: highlight refused", call("get_screenshot", highlight=["F2:end"]).startswith("ERROR highlight"))
+    _, af = shot("asm_front", view="front")
+    _, ab = shot("asm_back", view="back")
+    check("assembly: front and back differ", af and ab and list(af.getdata()) != list(ab.getdata()))
 finally:
     errs = [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"]
     print("console errors:", errs)
