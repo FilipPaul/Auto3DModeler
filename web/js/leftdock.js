@@ -52,6 +52,7 @@ class LeftDock {
     this.shown = false; // a project with parts: the project widget has something to show
     this.lastWs = null;
     this.extra = {}; // a workspace's own widgets: w -> {ws, el, title, h, on}
+    this.fits = {}; // how tall a widget's content is (fitContent)
   }
 
   /** The workspace on screen (body.ws-*; none of them: the quick part). */
@@ -384,7 +385,20 @@ class LeftDock {
     this.sync();
   }
 
-  defHeight(w, H) { return this.extra[w] ? this.extra[w].h : w === 'project' ? clamp(Math.round((H || 600) * 0.34), 150, 230) : w === 'suggest' ? 200 : Math.round((H || 600) * 0.5); }
+  defHeight(w, H) {
+    if (this.extra[w]) return this.extra[w].h;
+    if (w === 'project') return Math.min(clamp(Math.round((H || 600) * 0.34), 150, 230), this.fits.project ? Math.max(80, this.fits.project) : 1e9); // (no taller than its rows)
+    return w === 'suggest' ? 200 : Math.round((H || 600) * 0.5);
+  }
+
+  /** A docked widget's content is `px` tall: its first height follows (a project of 2 parts: a short tree, the panel
+   *  under it gets the room) until the user sets one with the splitter. */
+  fitContent(w, px) {
+    px = Math.round(px);
+    if (!px || this.fits[w] === px) return;
+    this.fits[w] = px;
+    if (this.my().h[w] === undefined && this.docked().includes(w)) this.apply();
+  }
 
   /** The splitter between docked widgets a (above) and b: dragged, the one of them that is not the stretching one
    *  gets taller or shorter; a double-click: the usual heights. */

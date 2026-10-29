@@ -164,6 +164,14 @@ Never report "works" without having run it; report failures with their output.
    and "3× 10"; light fewer, full more; Del + ↺; a dimension dragged 8 -> 16; ＋ Dimension by two hole centres (30)
    and a circle (Ø3); the part 15 thick -> Rev 2, Changed later, the height 15, the moves kept; the PDF has the texts).
    Restart the server after changes to sheet.py (the kernel worker keeps old code).
+   `tools/e2e_ux_sheet.py <url> <dir>` covers the drawing sheet's suggestions table in Czech with real clicks (a plate
+   60 × 40 × 8, 4 holes Ø4, light: nothing chosen -> Doplnit chybějící kóty, Export PDF, Tisk; a view -> Větší (2:1),
+   Ctrl+Z, Přidat řez A–A, the section's Skrýt pohled; Delete hides the top view, 👁 Ukázat pohled; an edge -> Okótovat
+   její délku (60); the dimension -> Tolerance… ±0.1, Referenční kóta "(60 ±0.1)", Na druhou stranu, Smazat; a hole ->
+   its callout (Jeho kóta), Uložení… H7; the title block -> Číslo výkresu… D-001, Šablona Moderní, Rámeček Úzký; the
+   PDF has D-001 and H7; Tisk: a print frame; the view's table inside the view at 1280 × 800) and the 2D drawing's
+   table in Czech (a DXF: nothing chosen -> Jako skicu…; a circle -> Všechny takové (3), Ø: změnit rozměr… 6, Smazat).
+   Exits 1 on a failed check.
    `tools/e2e_assembly_light.py <url> <dir>` covers 🪶 Simplified (the Lid ticked: light, no edges, fewer triangles,
    kept in doc.light; a joint onto it still made; unticked: full again, as before).
    `tools/e2e_big_part_load.py <url> <dir> [<a big .step>]` covers loading big parts (a plate with 171 holes, the 44 MB
@@ -398,6 +406,14 @@ Never report "works" without having run it; report failures with their output.
    "Před obnovením" listed, ↶ in the toast; ⑂ variant "delší" from B: its own empty timeline, 40; switched to hlavní: 10;
    the part taken from "delší": 40; reload keeps it all; Save project with the history -> opened: the versions back).
    Screenshots versions_*.png. Ends ALL OK / FAILED.
+   `tools/e2e_ux_shell.py <url> <dir>` covers the app's shell for a new user, in Czech at 1280×800 (it clears the
+   server's recent projects first): the start screen (✏ Nový díl, 📂 Otevřít soubor, 🎬 Demo, ✨ Zeptat se AI; ≤ 14
+   controls in sight, no quick-part panels, → between the cards); ✨ opens the chat beside it; ✏ makes a 3D model (the
+   project widget ≤ 90 px with one part); a tab right-clicked: Přejmenovat / Duplikovat / okno / Zavřít, ↓ Enter
+   renames, Esc closes; Ctrl+S = Save project; Export ▾ with STL / STEP; a face's suggestions: "Prvních 8" in the head,
+   ↓ into the table, ↓ ↑, Enter = a sketch on the face; an STL dropped on a 3D model's view opens; ✨ AI in the quick
+   part's top bar (its AI tab); every tab closed: the start screen + "Žádný díl" + the tree; a STEP through 📂 opens;
+   🎬 Demo opens the mechanism. Screenshots ux_*.png (1280 and 1600 wide). Ends all checks OK / FAILED.
    `tools/e2e_parameters.py <url> <dir>` covers 𝑥 project parameters (the browser's parser against
    tests/param_cases.json — the same cases as Python's; "L = 40" typed as an Extrude distance makes L, the step keeps d = L;
    the 𝑥 Parameters widget appears; a sketch's width typed "L/2" on its size label (shown "L/2 = 20"); L = 60 in the

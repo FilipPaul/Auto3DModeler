@@ -359,6 +359,12 @@ export class Versions {
   handlers() {
     const brief = (m) => ({ id: m.id, time: new Date(m.time * 1000).toISOString(), label: this.label(m).text, auto: !!m.auto, changed: m.changed || [], ...(m.note ? { note: m.note.what } : {}) });
     const need = async () => { if (!this.data || this.pid !== this.hooks.id()) await this.refresh(); if (!this.data) throw new Error('No versions here yet — save_version keeps one.'); };
+    const variantOf = (which) => { // its id or name (list_versions variants)
+      const w = String(which ?? '').trim().toLowerCase(), vs = this.data.variants;
+      const v = vs.find((x) => x.id === which || this.varName(x).toLowerCase() === w) || vs.find((x) => w && this.varName(x).toLowerCase().includes(w));
+      if (!v) throw new Error(`No variant “${which ?? ''}” — the variants: ${vs.map((x) => `${x.id} “${this.varName(x)}”`).join(', ')}.`);
+      return v;
+    };
     return {
       list_versions: async () => {
         await need();
@@ -388,6 +394,23 @@ export class Versions {
         if (!src) throw new Error('No version to start the variant from — save_version first.');
         const r = await this.createVariant(src, String(name));
         return { text: JSON.stringify({ variant: { id: r.variant.id, name: r.variant.name }, from: src }) };
+      },
+      switch_variant: async ({ variant } = {}) => {
+        await need();
+        const v = variantOf(variant);
+        if (v.id === this.data.current) return { text: `“${this.varName(v)}” is the variant on screen already.` };
+        await this.switchVariant(v.id);
+        return { text: JSON.stringify({ variant: { id: v.id, name: this.varName(v) }, parts: (this.hooks.project()?.parts || []).map((p) => p.name) }) };
+      },
+      take_part: async ({ variant, part } = {}) => {
+        await need();
+        const v = variantOf(variant);
+        if (v.id === this.data.current) throw new Error(`“${this.varName(v)}” is the variant on screen — take_part takes a part from another one.`);
+        const there = (await this.otherParts()).filter((o) => o.variant === v.id), w = String(part ?? '').toLowerCase();
+        const o = there.find((x) => x.part === part || x.name.toLowerCase() === w) || there.find((x) => w && x.name.toLowerCase().includes(w));
+        if (!o) throw new Error(`No part “${part}” in variant “${this.varName(v)}” — its parts: ${there.map((x) => `${x.part} “${x.name}”`).join(', ') || 'none saved'}.`);
+        const r = await this.takePart(v.id, o.part);
+        return { text: `“${r.part.name}” taken from variant “${this.varName(v)}” (as it is in its newest version) into the project on screen — kept as a named version.` };
       },
     };
   }

@@ -184,6 +184,7 @@ export class PrintPanel {
     const p = this.printer();
     const plan = this.plan;
     const opts = this.printers.map((q) => `<option value="${q.id}" ${q.id === this.selected ? 'selected' : ''}>${esc(q.name)}${q.builtin ? '' : ' (custom)'}</option>`).join('');
+    this.open ||= {}; // (the folded sections the user opened / shut: printer, join)
     let status = '<div class="empty small">Load a drawing to check printability.</div>';
     if (plan?.error) status = `<div class="fit bad">${esc(plan.error)}</div>`;
     else if (plan && p) {
@@ -230,12 +231,12 @@ export class PrintPanel {
             <input name="z" type="number" min="10" step="1" required placeholder="Z" value="${this.editing === 'edit' ? p.z : ''}"></div>
           <div class="row-actions"><button type="button" class="btn small" data-a="cancel">Cancel</button><button class="btn small primary">Save printer</button></div>
         </form>` : ''}
-      ${p ? `<p class="hint">Build volume ${p.x} × ${p.y} × ${p.z} mm</p>` : ''}
+      ${status}
+      <details class="pr-more" data-d="printer" ${this.open.printer ? 'open' : ''}><summary title="The printer's build volume, the margin kept free on the bed, the build volume shown in 3D">${p ? `Build volume ${p.x} × ${p.y} × ${p.z} mm` : 'Printer settings'}</summary>
       <div class="field"><label>Bed margin (mm)</label><input type="number" min="0" step="1" data-a="margin" value="${this.margin}"></div>
       <label class="check"><input type="checkbox" data-a="vol" ${this.showVolume ? 'checked' : ''}> Show build volume in 3D</label>
-      <h3>Fit check</h3>
-      ${status}
-      <h3>Joining split pieces</h3>
+      </details>
+      ${plan && !plan.error && !this.pieces ? `<details class="pr-more" data-d="join" ${this.open.join ?? !plan.fits ? 'open' : ''}><summary title="How the pieces of a part split to fit the printer join again: the joint, its sizes, glue">${plan.fits ? 'Split it anyway — joints' : 'Joining split pieces'}</summary>
       <div class="field"><label>Joint</label><select data-a="joint">${this.joints.map((j) =>
         `<option value="${j.id}" ${j.id === this.joint.type ? 'selected' : ''}>${esc(j.name)}</option>`).join('')}</select></div>
       <p class="hint">${esc(JOINT_HELP[this.joint.type] || '')}</p>
@@ -248,11 +249,12 @@ export class PrintPanel {
         if (k === 'port' && (this.joint.glue ?? this.jointSpec().params.glue) !== 'ports') return '';
         if (k === 'face') return `<div class="field"><label>${label}</label><select data-jp="${k}"><option value="top" ${v === 'top' ? 'selected' : ''}>Front (top)</option><option value="bottom" ${v === 'bottom' ? 'selected' : ''}>Back (bottom)</option></select></div>`;
         return `<div class="field"><label>${label}</label><input type="number" step="${k === 'clearance' ? 0.05 : k === 'count' ? 1 : 0.5}" min="0" data-jp="${k}" value="${v}"></div>`;
-      }).join('')}</div>
+      }).join('')}</div></details>` : ''}
       ${plan && !plan.error && !this.pieces && this.exactModel() ? '<p class="hint exact-hint">The pieces are cut from the exact 3D model — curved walls stay smooth.</p>' : ''}
       ${plan && !plan.error && !this.pieces ? `<button class="btn ${plan.fits ? '' : 'primary'} split-btn" data-a="split" ${this.busy ? 'disabled' : ''}>${this.busy ? 'Splitting…' : plan.fits ? 'Split anyway' : 'Split to fit this printer'}</button>` : ''}
       ${piecesHtml}`;
 
+    for (const dt of r.querySelectorAll('details[data-d]')) dt.addEventListener('toggle', () => { this.open[dt.dataset.d] = dt.open; }); // (kept open / shut while it is drawn again)
     const on = (a, ev, fn) => r.querySelector(`[data-a="${a}"]`)?.addEventListener(ev, fn);
     on('printer', 'change', (e) => { this.selected = e.target.value; this.persist(); this.exitSplit(false); this.check(); });
     on('new', 'click', () => { this.editing = 'new'; this.render(); });

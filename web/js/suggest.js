@@ -1,6 +1,8 @@
 // The suggestions table: what can be done with what is selected (one shape or part, or several with Ctrl+click),
 // in the bottom-left corner of the view — small, out of the way, gone when nothing is selected. Its header drags it
 // elsewhere in the view (that place is remembered) or into the left panel, where it stays docked (📌 too) — leftdock.js.
+// The keyboard: ↓ / ↑ into it and between its rows, Enter runs one, Esc leaves it. suggestMenu: the same rows as a
+// small menu at a place (a tab's right-click).
 import { t } from './i18n.js';
 import { leftDock } from './leftdock.js';
 
@@ -140,7 +142,8 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
   const again = () => showSuggest(viewport, title, items, hint, refs);
   const all = showingAll(), { rows, total, over } = pickRows(items, all), setting = box.dataset.setting === '1';
   box.dataset.noI18n = '';
-  box.innerHTML = `<div class="vs-head"><button class="vs-pin" title="${esc(t('Dock it in the left panel — always in sight (or drag its header there)'))}">📌</button><b>${esc(title)}</b><button class="vs-set${setting ? ' on' : ''}" title="${esc(t('How many suggestions show before ⋯ Show all — click to change'))}">${esc(t('Suggested'))}</button>${refs && askAI ? `<button class="vs-ai" title="${esc(t('Ask the AI about it — what is selected goes into the chat'))}">✨</button>` : ''}</div>
+  const keep = box.contains(document.activeElement) && document.activeElement.dataset.sg; // (drawn again: the row in the keyboard's hand stays there)
+  box.innerHTML = `<div class="vs-head"><button class="vs-pin" title="${esc(t('Dock it in the left panel — always in sight (or drag its header there)'))}">📌</button><b title="${esc(title)}">${esc(title)}</b><button class="vs-set${setting ? ' on' : ''}" title="${esc(t('How many suggestions show before ⋯ Show all — click to change'))}">${esc(t('Top {n}').replace('{n}', suggestLimit()))}</button>${refs && askAI ? `<button class="vs-ai" title="${esc(t('Ask the AI about it — what is selected goes into the chat'))}">✨</button>` : ''}</div>
     ${setting ? `<label class="vs-top" title="${esc(t('The most relevant suggestions first; the rest under ⋯ Show all'))}">${esc(t('Show first'))} <input type="number" min="3" max="30" step="1" value="${suggestLimit()}"> ${esc(t('suggestions'))}</label>` : ''}
     <div class="vs-list">${rows.map((it) => (it.section !== undefined ? `<div class="vs-sec">${esc(it.section)}</div>` // (a heading: what the rows under it act on)
       : `<button data-sg="${it.i}" class="${it.danger ? 'danger' : ''}" title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span></button>`)).join('')}${!over ? ''
@@ -167,5 +170,61 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
   box.querySelector('.vs-pin')?.addEventListener('click', (e) => { e.stopPropagation(); leftDock.dock('suggest'); for (const b of document.querySelectorAll('.view-suggest')) leftDock.placeSuggest(b, b.parentElement); });
   box.sgOpts = { kind: 'suggest', handle: '.vs-head', min: [170, 90], onDefault: (b) => cornerPlace(b, viewport) };
   leftDock.placeSuggest(box, viewport); // (floating: moved / resized / remembered; or docked in the left column)
+  if (keep) box.querySelector(`[data-sg="${keep}"]`)?.focus();
+  return box;
+}
+
+// ---------------------------------------------------------------------------------------------- the keyboard
+// ↓ / ↑ with nothing being typed: into the suggestions table on screen (its first / last row), then from row to row;
+// Enter runs the row (and nothing else that listens for Enter); Esc leaves the table (the app's Esc follows: the
+// selection goes, and with it the table). Home / End: the first / last row. A menu (suggestMenu) the same way.
+const ROWS = '.vs-list button';
+const shownTables = () => [...document.querySelectorAll('.sg-menu, .view-suggest')].filter((b) => b.getClientRects().length && b.querySelector(ROWS));
+function onKeys(e) {
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+  const a = document.activeElement, box = a?.closest?.('.view-suggest, .sg-menu');
+  const free = !a || a === document.body || a.tagName === 'CANVAS'; // (no field, no list of its own in the keyboard's hand)
+  const nav = { ArrowDown: 1, ArrowUp: -1, Home: 'first', End: 'last' }[e.key];
+  if (nav !== undefined && (box || (free && typeof nav === 'number'))) {
+    const tb = box || shownTables()[0];
+    const rows = tb ? [...tb.querySelectorAll(ROWS)] : [];
+    if (!rows.length) return;
+    const i = rows.indexOf(a);
+    const n = nav === 'first' ? 0 : nav === 'last' ? rows.length - 1 : i < 0 ? (nav > 0 ? 0 : rows.length - 1) : (i + nav + rows.length) % rows.length;
+    e.preventDefault();
+    e.stopPropagation();
+    rows[n].focus();
+    return;
+  }
+  if (!box || !a.matches(ROWS)) return;
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); a.click(); }
+  else if (e.key === 'Escape') {
+    a.blur();
+    if (box.classList.contains('sg-menu')) { e.stopPropagation(); box.close?.(); }
+  }
+}
+window.addEventListener('keydown', onKeys, true);
+
+/** A small menu of suggestions at a place (a tab right-clicked, long-pressed): the table's look and keys. at: an element
+ *  (under it) or {x, y}; items as showSuggest's ({icon, label, title, run, danger} or {section}). Closes on a pick, a
+ *  click elsewhere, Esc. -> the menu element. */
+export function suggestMenu(at, title, items) {
+  document.querySelector('.sg-menu')?.close();
+  const box = document.createElement('div');
+  box.className = 'sg-menu';
+  box.dataset.noI18n = '';
+  box.setAttribute('role', 'menu');
+  box.innerHTML = `${title ? `<div class="vs-head"><b title="${esc(title)}">${esc(title)}</b></div>` : ''}<div class="vs-list">${items.map((it, i) => (it.section !== undefined
+    ? `<div class="vs-sec">${esc(it.section)}</div>`
+    : `<button data-sg="${i}" role="menuitem" class="${it.danger ? 'danger' : ''}" title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span>${it.key ? `<kbd class="vs-key">${esc(it.key)}</kbd>` : ''}</button>`)).join('')}</div>`;
+  const off = (e) => { if (!box.contains(e.target)) box.close(); };
+  box.close = () => { document.removeEventListener('pointerdown', off, true); box.remove(); };
+  for (const b of box.querySelectorAll('[data-sg]')) b.addEventListener('click', () => { box.close(); items[+b.dataset.sg].run(); });
+  document.body.appendChild(box);
+  const r = at instanceof Element ? at.getBoundingClientRect() : { left: at.x, bottom: at.y }, w = box.offsetWidth, h = box.offsetHeight;
+  box.style.left = `${Math.max(4, Math.min(innerWidth - w - 4, r.left))}px`;
+  box.style.top = `${Math.max(4, r.bottom + h + 4 > innerHeight ? r.bottom - h - 4 : r.bottom + 2)}px`;
+  setTimeout(() => document.addEventListener('pointerdown', off, true), 0);
+  box.querySelector(ROWS)?.focus();
   return box;
 }

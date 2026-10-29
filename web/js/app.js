@@ -39,6 +39,7 @@ import { initJobs } from './jobs.js';
 import { initParams, paramHandlers } from './paramsui.js';
 import { showDemos } from './demos.js';
 import { Versions } from './versions.js';
+import { initStart, initWindowDrop } from './start.js';
 
 initI18n();  // Czech / English: translates the page as it is built
 initJobs(() => project.current?.name); // ⚙ N in the top bar: what is working now, with ✕ Stop
@@ -163,7 +164,11 @@ function toast(msg, kind = 'info', ms = 4500) {
   const t = document.createElement('div');
   t.className = `toast ${kind}`;
   t.textContent = msg;
-  $('toasts').appendChild(t);
+  t.title = 'Click to close it';
+  t.addEventListener('click', (e) => { if (!e.target.closest('button, a')) t.remove(); }); // (its own buttons — ↶ — still work)
+  const stack = $('toasts');
+  stack.appendChild(t);
+  while (stack.children.length > 4) stack.firstElementChild.remove(); // (a calm corner: the 4 newest)
   setTimeout(() => t.remove(), ms);
   return t;
 }
@@ -594,20 +599,27 @@ vp.addEventListener('dragleave', () => vp.classList.remove('drag-over'));
 vp.addEventListener('drop', (e) => {
   e.preventDefault();
   vp.classList.remove('drag-over');
-  const f = e.dataTransfer.files[0], all = [...e.dataTransfer.files];
+  openFiles([...e.dataTransfer.files], { shift: e.shiftKey, onView: state.workspace === 'quick' && !document.body.classList.contains('start-open') });
+});
+/** Files dropped or picked (📂 Open › File…, the start screen): each kind where it opens — a project, a PDF drawing,
+ *  a 3D file, a DXF / PCB drawing, a picture (onView: dropped on a quick part's view — a picture becomes its design
+ *  layer; shift: a 3D / DXF file straight to a quick part, a picture traced). */
+function openFiles(all, { shift = false, onView = false } = {}) {
+  const f = all[0];
   if (!f) return;
   if (all.length > 1 && all.every((x) => /\.(step|stp)$/i.test(x.name))) { openSolid(f, all.slice(1)); return; } // (an assembly and its part files)
+  if (all.length > 1 && all.every((x) => DRAWING_RE.test(x.name) || /\.txt$/i.test(x.name))) { openDrawing(f, all.slice(1)); return; } // (a Gerber set)
   if (/\.json$/i.test(f.name)) openProject(f);
   else if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') openPdf(f);
-  else if (OPEN_SOLID_RE.test(f.name) && !e.shiftKey) openSolid(f); // Shift: a sliced quick part, as before
-  else if (DRAWING_RE.test(f.name) && !e.shiftKey) openDrawing(f); // Shift: straight to a quick part, as before
+  else if (OPEN_SOLID_RE.test(f.name) && !shift) openSolid(f); // Shift: a sliced quick part, as before
+  else if (DRAWING_RE.test(f.name) && !shift) openDrawing(f); // Shift: straight to a quick part, as before
   else if (IMPORT_RE.test(f.name)) openImport(f);
-  else if (f.type.startsWith('image/')) {
-    // with a part loaded a picture becomes a design layer; Shift+drop (or no part) traces its outline
-    if (state.solution && !e.shiftKey) addImageLayer(f);
+  else if (f.type.startsWith('image/') || /\.(png|jpe?g|webp|bmp|gif)$/i.test(f.name)) {
+    // with a part loaded a picture dropped on it becomes a design layer; Shift+drop (or no part) traces its outline
+    if (onView && state.solution && !shift) addImageLayer(f);
     else openImage(f);
-  } else toast('Please drop a PDF, DXF / DWG, STL / OBJ / 3MF / STEP or a picture.', 'warning');
-});
+  } else toast(t2('{name}: not a file the app opens — STEP, STL, DXF, PDF, a picture or a project.', { name: f.name }), 'warning', 6000);
+}
 
 // ------------------------------------------------------------------ solving
 let inflight = null, queued = null;
@@ -1698,7 +1710,7 @@ async function export3mf() {
 function showProjectName() {
   const el = $('fileName');
   el.toggleAttribute('data-no-i18n', !!state.projectName);  // the user's own name
-  el.textContent = state.projectName || 'No drawing loaded';
+  el.textContent = state.projectName || ''; // (nothing yet: the start screen says what to do)
   el.title = state.model ? `Project “${state.projectName}” from ${state.model.source} — click to rename` : state.projectName ? 'Click to rename the project' : '';
   el.classList.toggle('editable', !!(state.model || state.projectName));
 }
@@ -2013,7 +2025,7 @@ function setWorkspace(ws) {
 
 // the AI chat: a tab of the quick-part panel; in the 3D model and assembly workspaces the ✨ AI button opens it in a drawer
 function placeChat() {
-  const el = $('tab-ai'), drawer = $('aiDrawer'), quick = state.workspace === 'quick';
+  const el = $('tab-ai'), drawer = $('aiDrawer'), quick = state.workspace === 'quick' && !document.body.classList.contains('start-open'); // (the start screen: in the drawer)
   if (quick && el.parentElement === drawer) document.querySelector('.panel.left.quick-only').insertBefore(el, $('tab-drawing'));
   if (!quick && el.parentElement !== drawer) drawer.appendChild(el);
   drawer.hidden = quick || !state.chatOpen;
@@ -2029,7 +2041,12 @@ function toggleChat(open = !state.chatOpen) {
   placeChat();
   if (open) $('aiDrawer').querySelector('textarea')?.focus();
 }
-$('aiBtn').addEventListener('click', () => toggleChat());
+$('aiBtn').addEventListener('click', () => {
+  if (state.workspace === 'quick' && !document.body.classList.contains('start-open')) { // (the quick part: the chat is its left panel's ✨ AI tab)
+    switchTab('ai');
+    $('tab-ai').querySelector('textarea')?.focus();
+  } else toggleChat();
+});
 // ✨ in the Suggested table: what is selected goes into the chat (the AI's tools know these ids)
 setAskAI((refs) => {
   toggleChat(true);
@@ -2265,6 +2282,15 @@ const agentHandlers = {
     const names = Object.values(r.tree.parts).map((p) => p.name);
     return { text: `Opened ${name} as the assembly “${r.top.name}”: ${r.parts} different parts (${names.slice(0, 12).join(', ')}${names.length > 12 ? ' …' : ''}), ${r.placements} placements, ${r.subs} sub-assemblies; each part is a 3D model of the project (a solid step). get_assembly lists the placed parts.` };
   },
+  load_project: async ({ project: proj, versions: hist }) => { // a project file / a 🎬 demo from the server (open_file, open_demo)
+    await openLoaded(proj);
+    if (hist) { // 🕘 saved with its version history: into the new project's store
+      await api(`/api/versions/${encodeURIComponent(autosave.id)}/bundle`, { versions: hist }).catch((e) => toast(e.message, 'warning', 7000));
+      await versions?.changed();
+    }
+    const kinds = { model: '3D model', assembly: 'assembly' };
+    return { text: `Opened the project “${state.projectName || project.current?.name || ''}”: ${project.parts.length} part(s) — ${project.parts.map((p) => `${p.name} (${kinds[p.kind] || 'quick part'})`).join(', ')}; on screen: ${project.current?.name}.` };
+  },
   load: async ({ data, editor }) => {
     await loadParsed(data);
     if (editor) state.outlineEditor = editor;
@@ -2461,7 +2487,7 @@ initParams({ project, modeler, assembly, toast });
 // 3D model parts: their own tools; the shared ones (screenshot, export, undo, get_part) follow the part on screen
 const MODEL = modelHandlers({ modeler, project, getWorkspace: () => state.workspace });
 const SHARED = { get_screenshot: 'model_screenshot', get_body: 'model_body', undo: 'model_undo' };
-const ANYWHERE = new Set(['load', 'load_drawing', 'load_solid', 'load_step_assembly', 'ask_user', 'sheet_open', 'get_sheet', 'sheet_edit', 'export_data', 'list_parts', 'open_part', 'duplicate_part', 'new_model', 'new_assembly']);
+const ANYWHERE = new Set(['load', 'load_project', 'load_drawing', 'load_solid', 'load_step_assembly', 'ask_user', 'sheet_open', 'get_sheet', 'sheet_edit', 'export_data', 'list_parts', 'open_part', 'duplicate_part', 'new_model', 'new_assembly']);
 for (const [name, fn] of Object.entries(agentHandlers)) {
   if (ANYWHERE.has(name)) continue;
   agentHandlers[name] = async (...args) => {
@@ -2581,6 +2607,25 @@ $('saveWithVersions').addEventListener('change', (e) => { try { localStorage.set
 $('recentBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); autosave.showRecent(); });
 $('demoBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); showDemos({ open: openLoaded, toast }); }); // 🎬 (demos.js)
 if (!opened.has('sample') && !opened.has('project')) setTimeout(() => autosave.offerLast(), 600);
+
+// ------------------------------------------------------------------ the start screen and files dropped anywhere
+initStart({
+  project,
+  newPart: () => project.newModel(),
+  openFiles: (files) => openFiles(files),
+  demos: () => showDemos({ open: openLoaded, toast }),
+  askAI: () => toggleChat(true),
+  onChange: () => { placeChat(); updateTopButtons(); },
+});
+initWindowDrop((files, { shift }) => openFiles(files, { shift }));
+$('openAnyBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); $('anyInput').click(); });
+// Ctrl+O: open a file · Ctrl+S: save the project (not while typing)
+window.addEventListener('keydown', (e) => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.target.closest?.('input,select,textarea,[contenteditable=true]')) return;
+  const k = e.key.toLowerCase();
+  if (k === 'o') { e.preventDefault(); $('anyInput').click(); }
+  if (k === 's') { e.preventDefault(); if (!$('saveBtn').disabled) $('saveBtn').click(); }
+});
 
 // 🕘 the project after each AI turn that ran tools here, kept by the server; loaded back like a project file
 const aiHistory = new AiHistory({
@@ -2711,6 +2756,9 @@ const libraryTools = {
 Object.assign(agentHandlers, libraryTools);
 Object.assign(agentHandlers, moreHandlers({ state, project, modeler, assembly, drawing2d, sheet, drawingSet: (aid) => sheet.drawingSet(aid, drawingCtx()), t2 }));
 Object.assign(agentHandlers, teachHandlers()); // gui_highlight: the AI shows the user where to click
+const exportData = agentHandlers.export_data; // (+ the project file, as Save project writes it: export {format: "project"})
+agentHandlers.export_data = async (args = {}) => (args.format === 'project'
+  ? { text: 'ok', data: { name: safeName(), project: await savedProject({ history: !!args.history }) } } : exportData(args));
 
 // the AI and the look of parts: the whole part's colour / see-through, single faces; a joined part moved its free ways;
 // the model on screen kept in the library

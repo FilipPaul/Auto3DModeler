@@ -34,7 +34,7 @@ try:
         if st != last:
             print(f"  {time.time() - t0:5.0f}s  {st}")
             last = st
-        busy = js("return document.querySelector('.ai-panel').classList.contains('busy')")
+        busy = js("return document.querySelector('.ai-panel').classList.contains('ai-busy')")  # (not 'busy': the floating badge's)
         if not busy and time.time() - t0 > 5:
             break
     print(f"finished after {time.time() - t0:.0f}s")

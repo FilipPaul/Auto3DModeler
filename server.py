@@ -1331,6 +1331,8 @@ def tool_open_file(args):
         return {"text": _load_drawing({**read_gerber_set(files), "source": raw.name}, raw.name)}
     p = _file(args["path"])
     ext = p.suffix.lower()
+    if p.name.lower().endswith(".a3d.json"):  # a saved project: on screen as a new project (the one there is kept)
+        return {"text": _open_project_file(p)}
     if ext in (".igs", ".iges"):  # IGES (older CAD exchange): a 3D model part with the file's solid
         from auto3d.modeler import blobs
         res = RELAY.call("load_solid", {"blob": blobs.put(p.read_bytes()), "name": p.name}, timeout=600)
@@ -1351,6 +1353,55 @@ def tool_open_file(args):
         return {"text": _load_drawing(read_drawing(p.read_bytes(), p.name), re.sub(r"\.(tar\.gz|[^.]+)$", "", p.name, flags=re.I))}
     data = _pdf_data(p.read_bytes(), int(args.get("page") or 0), p.name) if ext == ".pdf" else _import_data(p.read_bytes(), p.name)
     return {"text": _load_in_page(data)}
+
+
+def _load_project(proj: dict, versions=None) -> str:
+    res = RELAY.call("load_project", {"project": proj, **({"versions": versions} if versions else {})}, timeout=600)
+    if res.get("error"):
+        raise ValueError(res.get("text") or "The page could not open it.")
+    return res.get("text", "Opened.")
+
+
+def _open_project_file(p: Path) -> str:
+    """A project file (.a3d.json, as Save project writes it): its imported files back into the blob store, then the
+    project (any version -> 3) on screen; its 🕘 version history too when it was saved with it."""
+    from auto3d.modeler import blobs
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8"))
+    except ValueError as e:
+        raise ValueError(f"{p.name} is not a project file: {e}") from e
+    for b in (raw.pop("blobs", None) or {}).values():
+        blobs.put(base64.b64decode(b))
+    versions = raw.pop("versions", None)
+    try:
+        proj = migrate_project(raw)
+    except ProjectError as e:
+        raise ValueError(str(e)) from e
+    return _load_project(proj, versions)
+
+
+def _demo_named(name: str) -> dict:
+    """A demo by its file name, its name (English or Czech) or words of it."""
+    rows = demos.listing(DEMOS)
+    w = str(name or "").strip().lower()
+    hit = next((d for d in rows if w in (d["file"].lower(), d["name"].lower(), d["name_cs"].lower())), None) or next(
+        (d for d in rows if w and (w in d["name"].lower() or w in d["name_cs"].lower() or w in d["file"].lower())), None)
+    if not hit:
+        raise ValueError(f"No demo “{name}”. The demos: " + "; ".join(f"{d['file']} ({d['name']})" for d in rows))
+    return hit
+
+
+def tool_list_demos(args):
+    rows = demos.listing(DEMOS)
+    return {"text": json.dumps([{"file": d["file"], "name": d["name"], "name_cs": d["name_cs"], "shows": d["text"], "parts": d["parts"]}
+                                for d in rows], ensure_ascii=False) if rows else "No demo projects here."}
+
+
+def tool_open_demo(args):
+    d = _demo_named(args.get("name", ""))
+    text = _load_project(demos.load(DEMOS, d["file"]))
+    return {"text": f"Demo “{d['name']}” ({d['name_cs']}) opened as a new project (a copy; the project that was on screen is kept in "
+                    f"🕘 Recent projects). {text}"}
 
 
 def tool_open_sample(args):
@@ -1455,8 +1506,23 @@ def _from_page(fmt):
 
 def tool_export(args):
     fmt = args.get("format", "stl")
-    if fmt not in ("stl", "step", "iges", "glb", "obj", "pdf", "3mf", "bom", "dxf"):
-        raise ValueError("format: stl, step, iges, glb (glTF with colours), obj, pdf (a 2D drawing of a 3D model), 3mf (with colours), bom (an assembly's CSV) or dxf (a 2D drawing or a sheet)")
+    if fmt not in ("stl", "step", "iges", "glb", "obj", "pdf", "3mf", "bom", "dxf", "project"):
+        raise ValueError("format: stl, step, iges, glb (glTF with colours), obj, pdf (a 2D drawing of a 3D model), 3mf (with colours), bom (an assembly's CSV), dxf (a 2D drawing or a sheet) or project (the .a3d.json)")
+    if fmt == "project":  # the whole project as Save project writes it (its imported files in it; its 🕘 history when asked)
+        res = RELAY.call("export_data", {"format": "project", "history": bool(args.get("history"))}, timeout=600)
+        if res.get("error"):
+            raise ValueError(res.get("text") or "No project to save.")
+        d = res.get("data") or {}
+        p = d.get("project") or {}
+        data = json.dumps(p, ensure_ascii=False).encode("utf-8")
+        name = re.sub(r'[\\/:*?"<>|]+', "_", d.get("name") or "project").strip() or "project"
+        target = Path(args["path"]).expanduser() if args.get("path") else Path.home() / "Downloads"
+        if target.is_dir() or not target.suffix:
+            target.mkdir(parents=True, exist_ok=True)
+            target = target / f"{name}.a3d.json"
+        target.write_bytes(data)
+        return {"text": f"Saved the project ({len(p.get('parts') or [])} parts{', with its version history' if p.get('versions') else ''}; "
+                        f"{max(1, len(data) // 1024)} kB) to {target} — open_file opens it again."}
     if fmt == "pdf":  # a drawing sheet on screen: the sheet as it is drawn
         res = RELAY.call("export_data", {"format": "pdf"})
         if not res.get("error") and ((res.get("data") or {}).get("svg") or (res.get("data") or {}).get("svgs")):
@@ -1561,8 +1627,25 @@ def tool_list_reports(args):
     return {"text": json.dumps([{"title": r["title"], "kind": r["kind"], "date": r["date"]} for r in rows], ensure_ascii=False)}
 
 
+def _solid_from_path(args: dict) -> dict:
+    """add_feature {type: "solid", path}: the file read as ▣ Solid from a file reads it (/api/model/import) — into the
+    blob store, a mesh / IGES made a STEP — and handed to the page as the step's blob and file name."""
+    from auto3d.modeler import blobs
+    p = _file(args["path"])
+    if p.suffix.lower() not in (".step", ".stp", ".igs", ".iges", ".stl", ".obj", ".3mf"):
+        raise ValueError("path: a STEP / IGES / STL / OBJ / 3MF file.")
+    res, err = _model_call("import_solid", {"blob": blobs.put(p.read_bytes()), "name": p.name}, timeout=600)
+    if err:
+        raise ValueError(err[0].get_json().get("error") or "The file could not be read.")
+    out = {k: v for k, v in args.items() if k != "path"}
+    out.update({"blob": res["blob"], "file": p.name, **({"warning": res["warning"]} if res.get("warning") else {})})
+    if res.get("op") == "ref":  # (an IGES whose surfaces do not close: a reference body only)
+        out["op"] = "ref"
+    return out
+
+
 SERVER_TOOLS = {"open_file": tool_open_file, "report_problem": tool_report_problem, "list_reports": tool_list_reports, "open_sample": tool_open_sample, "trace_picture": tool_trace_picture,
-                "use_outline": tool_use_outline, "export": tool_export}
+                "use_outline": tool_use_outline, "export": tool_export, "list_demos": tool_list_demos, "open_demo": tool_open_demo}
 
 
 @app.get("/api/version")
@@ -1580,6 +1663,8 @@ def api_agent_call():
     if tool not in TOOL_NAMES:
         return jsonify(_mcp_result(f"Unknown tool {tool}.", error=True))
     try:
+        if tool == "add_feature" and args.get("type") == "solid" and args.get("path"):
+            args = _solid_from_path(args)
         res = RELAY.call(tool, args) if tool in BROWSER_TOOLS else SERVER_TOOLS[tool](args)
     except Exception as exc:  # report to the agent instead of failing the call
         return jsonify(_mcp_result(f"{tool} failed: {exc}", error=True))

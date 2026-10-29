@@ -1,5 +1,6 @@
 import { t } from './i18n.js';
 import { leftDock } from './leftdock.js';
+import { suggestMenu } from './suggest.js';
 import { params } from './params.js';
 import { loadParams } from './paramsui.js';
 
@@ -63,6 +64,7 @@ export class Project {
     this.next = 1;
     this.busy = false;
     document.addEventListener('click', () => { for (const m of this.el.querySelectorAll('.part-add, .part-all')) m.classList.remove('open'); });
+    window.addEventListener('a3d:lang', () => { if (this.parts.length) this.render(); }); // (the tree's tooltips are made with t(): drawn again in the new language)
     // a tab dragged in from another window of this project (onto the tab row, not onto a tab): it opens here
     el.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('text/a3d-part')) e.preventDefault(); });
     el.addEventListener('drop', (e) => {
@@ -451,6 +453,15 @@ export class Project {
       }
       tab.addEventListener('click', () => this.switchTo(p.id));
       tab.addEventListener('dblclick', (e) => { e.preventDefault(); this.editName(p, name); });
+      // right-click (or a long press): what can be done with the tab, as suggestions
+      tab.addEventListener('contextmenu', (e) => { e.preventDefault(); this.tabMenu(p, tab, name); });
+      tab.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse') return;
+        clearTimeout(this.pressTimer);
+        this.pressTimer = setTimeout(() => this.tabMenu(p, tab, name), 550);
+        const stop = () => { clearTimeout(this.pressTimer); for (const ev of ['pointerup', 'pointercancel', 'pointermove']) tab.removeEventListener(ev, stop); };
+        for (const ev of ['pointerup', 'pointercancel', 'pointermove']) tab.addEventListener(ev, stop);
+      });
       el.appendChild(tab);
     }
     const add = document.createElement('div');
@@ -472,6 +483,18 @@ export class Project {
       b.addEventListener('click', () => { add.classList.remove('open'); document.getElementById(b.dataset.open).click(); });
     }
     el.appendChild(add);
+  }
+
+  /** A tab's menu (right-click, long press): rename, duplicate, a window of its own, close — the suggestions' look and
+   *  keys (↑ ↓ Enter Esc). */
+  tabMenu(p, tab, name) {
+    const items = [
+      { icon: '✎', label: t('Rename'), title: t('Type a new name (also: double-click the tab)'), run: () => this.editName(p, name) },
+      { icon: '⧉', label: t('Duplicate'), title: t('A copy of this part as a new part of its own — change it without changing the original'), run: () => this.duplicate(p.id) },
+      ...(this.hooks.openWindow ? [{ icon: '↗', label: t('Open in a new window'), title: t(WIN_TIP), run: () => this.hooks.openWindow(p.id) }] : []),
+      { icon: '✕', label: t('Close the tab'), title: t(CLOSE_TIP), key: t('Middle click'), run: () => this.close(p.id) },
+    ];
+    suggestMenu(tab, p.name || '', items);
   }
 
   /** ☰ The project's tree on / off (remembered); docked or floating (a widget — leftdock.js): folded / unfolded. */
@@ -571,6 +594,7 @@ export class Project {
       row.addEventListener('mouseleave', () => this.hidePreview());
       list.appendChild(row);
     }
+    if (!popup) leftDock.fitContent('project', 26 + 16 + (box.querySelector('.tr-undo-row')?.offsetHeight || 0) + (list.offsetHeight || rows.length * 26)); // (docked: as tall as its rows — head, padding, the list)
   }
 
   /** A double-click on a row in the tree: its name in a field (Enter keeps it, Esc not), once the part is open. */

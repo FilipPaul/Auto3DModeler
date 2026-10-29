@@ -30,8 +30,9 @@ description: Use when the user wants to change an existing 3D model part (make i
 `save_version {label: "before <what>"}`; `list_versions` lists them (newest first), `compare_versions {a: "<id>"}`
 says what changed since (steps, values "Extrude 1: 10 → 15 mm", the volume). `restore_version {id}` puts the whole
 project back — only when the user asks; the answer names the version that undoes it. To try another design without
-losing this one: `create_variant {name: "longer"}` (a branch with its own versions; the user switches back in 🕘
-Versions and can take one part over from a variant there).
+losing this one: `create_variant {name: "longer"}` (a branch with its own versions). `switch_variant {variant:
+"main"}` goes back; `take_part {variant, part}` takes one part over from another variant (only when asked) — the
+user does the same in 🕘 Versions.
 
 **Missing a tool?** When no tool fits and you work around it (several calls for one thing, guessing, asking the user
 to click for you), file it at once: `list_reports {search: "<the words>"}`, and if it is not there

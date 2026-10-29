@@ -44,13 +44,19 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    mechanism: get_assembly `loops` gives its parts, `free_motions` (1 for a crank-slider) and the motions that
    `drive` it — move_free the crank (or the slider), set_travel 0 … 360 + check_travel it: the rest follows. Place
    the parts near where they go before the last joint (it closes the loop the shortest way). `closed: false` /
-   "cannot close": a part is too short or too long for that place.
+   "cannot close": a part is too short or too long for that place. get_assembly `missing_joint` {hole, pin}: the
+   parts almost make a loop and one pin in a hole would close it — `add_missing_joint` adds that ◎ Concentric.
+   How a follower moves over the driver's travel (a slider's stroke, a rocker's swing): `drive_mechanism {mechanism,
+   trace: true}` -> [[driver, follower], …] (the app's 📈 Trace). `place_part {part, fixed: true}` = 📌 fixed in place.
    The whole mechanism by one value: get_assembly `mechanisms` (each with its driver — a crank's full turn by default —
    where it is and its travel) -> `drive_mechanism {mechanism, to}` (every part follows; `play: true` runs it on and on
    in the app's ⚙ Mechanism, `driver` picks another driver). Name the motions in the user's words
    (`name_motion {part, motion, name: "Otáčení kliky"}`, `drive_mechanism {name}` for the mechanism) — the names show
    everywhere and work as `motion` in move_free / set_travel. To show it moving: `set_view` as it should be seen, then
    `record_animation {mechanism, format: "gif" | "video"}` saves one full cycle in the data folder (it answers the path).
+   Ready-made mechanisms (a crank – rod – slider, a four-bar, gears with a rack, a robot arm) to show or start from:
+   `list_demos`, `open_demo {name: "crank"}` — only when the user asks (a new project; the one on screen is kept in
+   🕘 Recent projects). A saved project file (.a3d.json) opens with `open_file {path}` the same way.
    **Gears, belts, a rack**: two parts that each turn on their own pin are coupled by `snap_faces {type: "gear" |
    "belt", move: {part, face: its rim}, onto: {part, face: the other rim}}` (the rims: the pitch circles; a gear pair
    turns opposite ways, a belt the same way; `value` = the ratio, default Ø onto / Ø move), a pinion and a sliding rack
@@ -64,7 +70,7 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    get_assembly), take one away with `remove_joint {id}`; `measure {a: {part, face}, b: {part, face}}` gives gaps and
    axis distances; `set_view {view, section, explode}` before `get_screenshot` to look inside or pull it apart.
 7. `get_assembly` gives the parts list (quantity, material, mass, maker and part number of bought parts; `total`: how many in
-   all, the ones inside sub-assemblies counted in), and `mass_g` / `cog_mm`: the whole assembly's mass and centre of mass
+   all, the ones inside sub-assemblies counted in), each placed part's `mass_g`, and `mass_g` / `cog_mm`: the whole assembly's mass and centre of mass
    where the parts are now (it moves with a mechanism: drive it and ask again). The whole BOM: `get_bom {assembly, mode}` — any assembly of the
    hierarchy, summary (a row per part: total, pos = the drawings' balloon number, make_buy, `from`: where the count
    comes from) or structured (the tree: qty_per_parent, total). Screws placed both in the assembly and in a

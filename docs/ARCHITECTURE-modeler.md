@@ -28,6 +28,70 @@ Date: 2026-10-25. Written by the architect agent.
   folded into "🎨 Vzhled a úpravy" (assembly.moreOpen); a coupling's row laid out as a joint's. ⚙ Mechanism: a crank on
   a pin of the fixed part is the driver first (also when the slider, not the rod, closes the loop). tests:
   tools/e2e_ux_assembly.py; e2e tests that clicked a joint type open 🔗 Vazba ▾ first.
+- **AI tool coverage checked (2026-10-29)** (the owner: "checkni, jestli AI agent má přístup ke všem toolům"):
+  docs/AI-TOOLS-COVERAGE.md — 90 GUI capabilities against the tools: before ok 54 / partial 14 / gui only 21, now
+  ok 64 / partial 13 / gui 12 (layout, rare, many-input tools). tests/test_agent_wiring.py: the page's handlers (read
+  from the JS: the blocks that build agentHandlers) ↔ TOOLS both ways, SERVER_TOOLS, the MCP tools/list, the chat's
+  TOOL_LABEL (12 were missing) and a skill / the system prompt naming each tool (3 were not); e2e_agent asks the page
+  for its handlers too. Added: list_demos / open_demo and open_file of a .a3d.json (server -> load_project ->
+  openLoaded, blobs and version history), export format "project" (savedProject), get_assembly parts' mass_g and
+  missing_joint + add_missing_joint, drive_mechanism trace, place_part fixed, switch_variant / take_part, add_feature
+  type "solid" with a path (server: import_solid into the blob store). The real chat (tools/e2e_chat.py, fixed to wait
+  for the whole turn: ai-busy) ran "open the crank demo, its mass, the slider's stroke, a GIF, save the project":
+  open_demo, get_assembly, drive_mechanism trace, record_animation, export project — 203.6 g, 50 mm.
+  Left to gui_action: layout (widgets, windows, language, planes / ⊕ shown, explode per part, simplified look),
+  sketch extend / construction / mirror / offset, step reorder, split pieces as parts, bending, print split joints.
+- **The shell for a new user done** (the owner: "maximální intuitivnost… suggestion based"; an audit at 1280×800 and
+  1600×1000 in Czech). **Start screen** (web/js/start.js): a project with no part, or every tab closed
+  (body.start-open; start-fresh when there are no parts), shows only "Co chcete vytvořit?" and four cards — ✏ Nový díl
+  (project.newModel), 📂 Otevřít soubor (#anyInput: any kind, routed by its extension — openFiles in app.js, also behind
+  Open ▾ › 📂 Soubor… and Ctrl+O), 🎬 Demo (showDemos), ✨ Zeptat se AI (the chat in the drawer beside it); ← → between
+  the cards; the quick part's panels hidden behind it (12 controls in sight instead of ~35); "No part open" above the
+  cards when tabs were closed, the project tree beside it. No tour. **Files dropped anywhere** (initWindowDrop): a dashed
+  frame over the window; a drop no view took (the quick part's view, the assembly's, the chat keep theirs) opens as
+  from 📂. **Top bar**: ✨ AI in every workspace (the quick part: its left AI tab), no "No drawing loaded", Ctrl+S saves.
+  **Suggestions core** (suggest.js, API unchanged): the head one line (the title ends in … with a tooltip), its setting
+  "Top 8" / "Prvních 8" shows with the mouse over the table (or while open), not in the title's way; keyboard — ↓ with
+  no field focused goes into the table on screen, ↓ ↑ Home End move, Enter runs (and nothing else that listens for it),
+  Esc leaves; **suggestMenu(at, title, items)**: the same rows as a small menu at a place — a part tab's right-click /
+  long-press: ✎ Přejmenovat, ⧉ Duplikovat, ↗ Otevřít v novém okně, ✕ Zavřít záložku. **Less bulk**: the docked project
+  widget as tall as its rows (leftDock.fitContent; one part 80 px, was ~200), the quick part's view chips one line each
+  (the row wraps, nothing cut off at 1280), toasts close on a click and at most 4 stay, the 3D print tab answers first
+  (fits / does not fit right under the printer; the build volume settings and the joints of split pieces folded — open
+  when it does not fit), the library shows its first part at once (↑ ↓ in the search walk the list; categories in Czech).
+  Tests: tools/e2e_ux_shell.py (32 checks, Czech, 1280×800 + 1600×1000 screenshots); e2e_suggest's setting click hovers
+  the table first. Left out: the "continue where you left off" strip stays above the start screen; the outline wizard
+  unchanged (dense but each control relevant).
+- **📐 Suggestions in the 2D drawing done**: web/js/drawing2d/drawsuggest.js (showSuggest). With nothing chosen:
+  ✏ as a sketch of a new 3D model, ▤ as a quick part, 📏 measure, ⬇ DXF. For the shapes chosen: ≡ all like this, Ø / R
+  / length: change the size… (one value, all of them change), only these as a sketch / a quick part (no question:
+  DrawingEditor.useShapes), to another layer…, ✕ delete. Esc with shapes chosen: nothing chosen. No table while
+  drawing or measuring. tools/e2e_ux_sheet.py (2D part, 4 checks).
+  Left out: merge / simplify as a command (it happens when the drawing becomes a sketch), lasting dimensions.
+- **📄 Suggestions on the drawing sheet done** (the owner: "suggestion based — 90 % of the basic things from
+  suggestions"; before, the sheet had no table, and a click on a view, an edge or the title block did nothing
+  visible). web/js/sheet/sheetsuggest.js builds the table from what is chosen. SheetEditor has selView, selGeo
+  {view, edge | c} and selTitle, set by a click without a drag (clickSelect: a circle or an edge under the mouse,
+  else the view), and marked in blue, not printed (selSvg; the title block framed).
+  - View: its missing sizes, all its sizes / as the sheet, ＋ a dimension, bigger / smaller (the next ISO 5455
+    scale) / as the sheet, add Section A–A, back to its place, rename, hide (also Delete).
+  - Edge: dimension its length, or distance / angle to… (the ＋ Dimension tool with the edge as its first pick).
+  - Circle: Ø / R, or the hole callout; when it has a dimension already, "Its dimension: …" chooses that one.
+  - Dimension: tolerance… (tolText: ±0.1 or +0.2/−0.1, d.tol), fit… (H7, H8, h6, g6, k6, p6), reference
+    dimension (d.ref: "(60 ±0.1)"; check() leaves it out of "given twice"), to the other side, delete. Both are kept
+    like a moved place: d.dims[id] for an automatic dimension, on the user's dimension itself (setDimProps); the
+    text (dimText = dimCore + tol, in brackets) also goes to the PDF, the DXF and get_sheet.
+  - Title block: title / drawing no. / drawn by / note… (one field), material (opens the part), template…, frame…,
+    paper A3 / A4, save as template…, company, logo and fields, export DXF.
+  - Nothing chosen (kept short so it covers little of the paper): add the missing sizes, remove sizes given twice,
+    remove lost dimensions, show a hidden view, ⬇ Export PDF, 🖨 Print (printPdf: the sheet's PDF printed from a
+    hidden frame), add BOM page (an assembly).
+  - Also fixed: a view's label under a hole callout's text (leaderEnd); the left panel's double line and gap above
+    Views; Paper and Scale above the title block in the right panel; Tolerance and Reference as fields in the
+    dimension's panel.
+  - Tests: tools/e2e_ux_sheet.py (30 checks, Czech, real clicks).
+  - Left out: a detail view (more than 2 inputs); the top bar's Export ▾ on a sheet (shell); `sheet_edit` setting
+    tol / ref (AI tools).
 - **⏮ Print and export as the rollback bar stands done** (the owner: "Chci tisknout podle aktuálního umístění
   posuvníku" — as SolidWorks): one place on the server, doc.at_bar(part) — the steps up to part.rollback (absent or a
   step that is not there: all) — used by rebuild, body_of, export (STEP / IGES / STL / OBJ / GLB / PDF) and sheet, so
