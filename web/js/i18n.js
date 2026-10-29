@@ -1561,6 +1561,11 @@ const CS = {
   'Each piece is a part of its own now — the part you split keeps both.': 'Každý kus je teď samostatný díl — rozdělený díl si ponechá oba.',
   'There is no solid yet to split.': 'Zatím není co rozdělit.', 'The part could not be split here.': 'Díl tady nejde rozdělit.',
   'The plane does not cross the part — move it (Offset), or pick a plane or face through the part.': 'Rovina neprochází dílem — posuňte ji (Odsazení), nebo vyberte rovinu či plochu skrz díl.',
+  // drawing sheets: one missing size, every view it can go in (sheet/dimcandidates.js)
+  '{n} views': '{n} pohledy', 'Click: add it in this view ({v})': 'Klik: přidat kótu v tomto pohledu ({v})',
+  'Hover: where it can go ({views}); click: added in {v}': 'Najeďte myší: kde všude může být ({views}); klik: přidá se v pohledu {v}',
+  'Move to another view: {v}': 'Přesunout do jiného pohledu: {v}',
+  'The same size in that view — this one goes (hover: where it would be)': 'Stejný rozměr v tom pohledu — tahle kóta zmizí (najeďte myší: kde by byla)',
   // drawing sheets: views renamed, moved and scaled
   'Custom…': 'Vlastní…', 'Show this view on the sheet': 'Zobrazit tento pohled na listu',
   'Double-click to rename the view': 'Dvojklikem pohled přejmenujete',

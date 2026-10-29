@@ -27,6 +27,7 @@ import { MATERIALS } from '../modeler/materials.js';
 import { stepsAtBar, rolledText } from '../modeler/steptree.js';
 import { showSuggest } from '../suggest.js';
 import { sheetSuggest, tolText, setOf } from './sheetsuggest.js';
+import { withViews, candDim, addMissingIn, missLabel, ghostSvg, hoverGhosts, bindGhosts } from './dimcandidates.js';
 import { TB_EDIT, TB_COMPUTED, hitRect, propagates, remembered } from './tbedit.js';
 import { RA_LIST, PROCS, raText, raValue, roughPlace, roughSvg, onEdge } from './rough.js';
 import { TITLE_STYLES, BOM_STYLES, STYLE_TIPS, isStyle, isBomStyle, titleSize, titleBlock, partsList, bomWidth, bomHeight, bomRowsIn, grams, fontsReady } from './tbstyles.js';
@@ -227,6 +228,7 @@ export class SheetEditor {
     this.$ = (s) => viewport.querySelector(s) || left.querySelector(s) || right.querySelector(s);
     this.stage = this.$('.sh-stage');
     this.bind();
+    bindGhosts(this); // (a missing size's ghosts on the drawing: hovered, clicked)
     window.addEventListener('keydown', (e) => this.key(e));
     document.addEventListener('click', (e) => { if (!e.target.closest?.('.sh-vmenu')) this.closeViewMenus(); });
   }
@@ -287,7 +289,7 @@ export class SheetEditor {
     const asm = this.hooks.kindOf?.(this.d.source) === 'assembly';
     const h = this.sourceHash(this.d.source);
     const vp = JSON.stringify(this.d.vpreset || {});
-    if (!force && this.d.built && !this.d.built.stale && this.d.hash === h && !!this.d.built.section === !!this.d.section && this.d.built.preset === this.d.preset && this.d.built.vp === vp && (this.d.built.paper ?? null) === (this.d.paper ?? null) && this.builtKey() === this.layKey()) return;
+    if (!force && this.d.built && !this.d.built.stale && (asm || this.d.built.geometry?.places) && this.d.hash === h && !!this.d.built.section === !!this.d.section && this.d.built.preset === this.d.preset && this.d.built.vp === vp && (this.d.built.paper ?? null) === (this.d.paper ?? null) && this.builtKey() === this.layKey()) return;
     // the same drawing already being made: wait for it (not a second job); cancelled: not made again on its own —
     // ↻ Try again or a change makes it
     const want = JSON.stringify([this.d.source, h, this.d.preset, vp, this.d.paper ?? null, !!this.d.section, this.layKey(), !!this.d.exploded]);
@@ -735,10 +737,11 @@ export class SheetEditor {
     if (this.d.asm) out.push(this.asmSvg(pw, ph, m, th));
     if (this.d.bom) out.push(this.bomSvg(pw, ph, th));
     if (!forPrint && this.tool === 'dim') out.push(this.snapMarks());
-    if (!forPrint && this.checked) for (const m of this.checked.missing) { // what is missing: an orange ?
+    if (!forPrint && this.checked) for (const [i, m] of this.checked.missing.entries()) { // what is missing: an orange ? (in its best view; hovered: its ghosts in every view it can go in)
       const q = this.P(m.view, m.at);
-      out.push(`<g class="sh-miss"><circle cx="${q[0]}" cy="${q[1]}" r="2" fill="#f59e0b" opacity="0.85"/><text x="${q[0]}" y="${q[1] + 1.1}" font-size="2.8" text-anchor="middle" fill="#fff">?</text></g>`);
+      out.push(`<g class="sh-miss" data-missmark="${i}"><circle cx="${q[0]}" cy="${q[1]}" r="2" fill="#f59e0b" opacity="0.85"/><text x="${q[0]}" y="${q[1] + 1.1}" font-size="2.8" text-anchor="middle" fill="#fff">?</text></g>`);
     }
+    if (!forPrint) out.push(ghostSvg(this));
     out.push(this.titleSvg(pw, ph, m, th));
     out.push('</svg>');
     return out.join('').replace(/<text (?!data-ff)/g, '<text font-family="Helvetica" '); // (the PDF's converter does not inherit a font; a style's texts say theirs)
@@ -1351,8 +1354,8 @@ export class SheetEditor {
       ${this.d.asm ? `<p class="hint">${esc(t('An assembly drawing: its views, overall sizes and parts list — each part has its own drawing for its sizes.'))}</p>` : ''}
       ${this.geo?.simple ? `<p class="hint sh-simple">${esc(!this.geo.simple.left_out ? t('A big part: drawn from its mesh, without hidden lines.') : tv('A big part: drawn from its mesh, without hidden lines; {n} pieces smaller than {mm} mm are left out (too small to see at this scale).', { n: this.geo.simple.left_out, mm: this.geo.simple.under }))}</p>` : ''}
       <h3 ${this.d.asm ? 'hidden' : ''}>Check</h3>${this.d.asm ? '' : ck.ok && !ck.over.size ? `<p class="mp-count sh-ok">✓ ${esc(t('Fully dimensioned — every place and size is given once.'))}</p>` : ''}
-      ${ck.missing.length ? `<p class="hint">${esc(tv('{n} size(s) missing (orange ? on the drawing):', { n: ck.missing.length }))}</p><div class="sh-miss-list">${ck.missing.slice(0, 40).map((m, i) => `<div class="sh-mrow">
-        <span data-no-i18n>${esc(t(m.view))}: ${esc(m.what)}${m.ax ? ` <i>${m.ax}</i>` : ''}</span><button class="mini" data-miss="${i}" title="${esc(t('Add it (from the part\'s edge)'))}">＋</button></div>`).join('')}</div>
+      ${ck.missing.length ? `<p class="hint">${esc(tv('{n} size(s) missing (orange ? on the drawing):', { n: ck.missing.length }))}</p><div class="sh-miss-list">${ck.missing.slice(0, 40).map((m, i) => `<div class="sh-mrow" data-mrow="${i}">
+        <span data-no-i18n>${esc(missLabel(this, m).icon)} ${esc(missLabel(this, m).label)} <i>${esc((m.cands || [m]).map((c) => this.viewName(c.view)).join(' · '))}</i></span><button class="mini" data-miss="${i}" title="${esc(t('Add it (from the part\'s edge)'))}">＋</button></div>`).join('')}</div>
         <div class="row-actions"><button class="btn small" data-a="allMissing">＋ ${esc(t('Add all missing'))}</button></div>` : ''}
       ${ck.dup.size || ck.over.size ? `<p class="hint">${esc(tv('{n} dimension(s) give a size twice (marked ⧉ below).', { n: ck.dup.size + ck.over.size }))}</p>
         <div class="row-actions"><button class="btn small" data-a="dropTwice">✕ ${esc(t('Remove them'))}</button></div>` : ''}
@@ -1385,7 +1388,11 @@ export class SheetEditor {
         if (b.dataset.page !== this.d.source) this.hooks.openSheet?.(b.dataset.page);
       });
     }
-    for (const b of box.querySelectorAll('[data-miss]')) b.addEventListener('click', () => this.addMissing(ck.missing[+b.dataset.miss]));
+    for (const b of box.querySelectorAll('[data-miss]')) b.addEventListener('click', () => addMissingIn(this, ck.missing[+b.dataset.miss]));
+    for (const r of box.querySelectorAll('[data-mrow]')) { // (hovered: the size's ghosts in every view it can go in)
+      r.addEventListener('mouseenter', () => hoverGhosts(this, ck.missing[+r.dataset.mrow], true));
+      r.addEventListener('mouseleave', () => hoverGhosts(this, null, false));
+    }
     box.querySelector('[data-a=allMissing]')?.addEventListener('click', () => this.addAllMissing());
     box.querySelector('[data-a=dropTwice]')?.addEventListener('click', () => { for (const id of [...ck.dup, ...ck.over]) this.remove(id); });
   }
@@ -1628,7 +1635,7 @@ export class SheetEditor {
       const ax = AX[v][k], id = `${ax}:${r2(value)}`;
       if (told.has(id) || find(ax, value) === find(ax, lowest[ax])) return;
       told.add(id);
-      missing.push({ view: v, dir: k ? 'v' : 'h', at, key, what, ax });
+      missing.push({ id, view: v, dir: k ? 'v' : 'h', at, key, what, ax, v: r2(value), size: Math.abs(r2(value - lowest[ax])) }); // (v: its place along the axis — the other views showing it are its candidates)
     };
 
     const decals = new Set((this.hooks.partData(this.d.source)?.features || []).filter((f) => f.type === 'decal').map((f) => f.id));
@@ -1646,8 +1653,8 @@ export class SheetEditor {
           for (const k of [0, 1]) need(v, k, c.c[k], `${c.key}#c`, c.c, `Ø${fmt(2 * c.r)}`);
           if (h && called.has(st[0])) continue; // (its callout gives it)
           const what = !h ? `Ø${fmt(2 * c.r)}` : st[1] === 'head' ? tv(h.head === 'csk' ? "the countersink's Ø{d} ({id})" : "the counterbore's Ø{d} ({id})", { d: fmt(2 * c.r), id: st[0] }) : `${h.thread || `Ø${fmt(2 * c.r)}`} (${st[0]})`;
-          if (!fullR.has(r2(c.r)) && !diaTold.has(`d${r2(c.r)}`)) { diaTold.add(`d${r2(c.r)}`); missing.push({ view: v, kind: 'dia', key: c.key, at: c.pm, what, ...(h ? { hole: st[0] } : {}) }); }
-        } else if (!arcR.has(r2(c.r)) && !diaTold.has(`r${r2(c.r)}`)) { diaTold.add(`r${r2(c.r)}`); missing.push({ view: v, kind: 'rad', key: c.key, at: c.pm, what: `R${fmt(c.r)}` }); }
+          if (!fullR.has(r2(c.r)) && !diaTold.has(`d${r2(c.r)}`)) { diaTold.add(`d${r2(c.r)}`); missing.push({ id: `Ø${fmt(2 * c.r)}`, view: v, kind: 'dia', key: c.key, at: c.pm, what, ...(h ? { hole: st[0] } : {}) }); }
+        } else if (!arcR.has(r2(c.r)) && !diaTold.has(`r${r2(c.r)}`)) { diaTold.add(`r${r2(c.r)}`); missing.push({ id: `R${fmt(c.r)}`, view: v, kind: 'rad', key: c.key, at: c.pm, what: `R${fmt(c.r)}` }); }
       }
       for (const ln of g.lines) {
         if (/:round:|[:_]tear:|:flat:/.test(ln.key) || deco(ln.key) || inCallout(ln.key)) continue; // where a rounding begins: its R gives it; a teardrop's point: its Ø; a D hole's flat: its callout; text / a picture: decoration; a head's edges: its callout
@@ -1666,8 +1673,9 @@ export class SheetEditor {
       if (h.head === 'csk' && !gives(id, 'csk', 'ang')) lack.push(tv("the countersink's angle ({id})", { id }));
       if (h.head === 'cbore' && !gives(id, 'cbore_floor', 'linear')) lack.push(tv("the counterbore's depth ({id})", { id }));
       if (!h.through && !gives(id, 'bottom', 'linear')) lack.push(tv(h.thread ? "the thread's depth ({id})" : "the hole's depth ({id})", { id }));
-      for (const what of lack) missing.push({ view: at.view, kind: 'hole', hole: id, key: at.c.key, at: [at.c.c[0] + at.c.r * 0.7, at.c.c[1] - at.c.r * 0.7], what });
+      lack.forEach((what, n) => missing.push({ id: `${id}:${n}`, view: at.view, kind: 'hole', hole: id, key: at.c.key, at: [at.c.c[0] + at.c.r * 0.7, at.c.c[1] - at.c.r * 0.7], what }));
     }
+    withViews(this, missing, (key) => deco(key) || inCallout(key) || /:round:|[:_]tear:|:flat:/.test(key)); // (each size once, with every view it can go in — the best first)
     return { missing, dup, over, ok: !missing.length && !dup.size };
   }
 
@@ -1690,7 +1698,7 @@ export class SheetEditor {
       const v = shown.find((w) => AX[w].includes(ax));
       if (!v) continue; // (no view shows it: nothing to dimension it in)
       const k = AX[v].indexOf(ax), g = G.views[v];
-      missing.push({ view: v, dir: k ? 'v' : 'h', key: k ? 'box#y1' : 'box#x1', at: k ? [g.box[2], g.box[3]] : [g.box[2], g.box[1]], what: what[ax], ax });
+      missing.push({ id: ax, view: v, dir: k ? 'v' : 'h', key: k ? 'box#y1' : 'box#x1', at: k ? [g.box[2], g.box[3]] : [g.box[2], g.box[1]], what: what[ax], ax, v: r2(g.box[k + 2]), size: r2(g.box[k + 2] - g.box[k]) });
     }
     // the base part's mounting holes (geometry.mount: its holes no screw / pin of the assembly is in): each linked by
     // dimensions to the base part's left / bottom edge (a pitch "3× 20" its whole row, a bolt circle its holes)
@@ -1716,10 +1724,11 @@ export class SheetEditor {
           const from = k ? 'base#y0' : 'base#x0', id = `${k}:${r2(c.c[k])}`;
           if (told.has(id) || find(k, c.c[k]) === find(k, g.points[from][k])) continue;
           told.add(id);
-          missing.push({ view: m.view, dir: k ? 'v' : 'h', key: `${c.key}#c`, from, at: c.c, what: tv('a mounting hole (Ø{d})', { d: fmt(2 * c.r) }), ax: AX[m.view][k] });
+          missing.push({ id: `${c.key}:${k}`, view: m.view, dir: k ? 'v' : 'h', key: `${c.key}#c`, from, at: c.c, what: tv('a mounting hole (Ø{d})', { d: fmt(2 * c.r) }), ax: AX[m.view][k] });
         }
       }
     }
+    withViews(this, missing);
     return { missing, dup, over: new Set(), ok: !missing.length && !dup.size, assembly: true };
   }
 
@@ -1794,14 +1803,9 @@ export class SheetEditor {
     this.renderSuggest(); // (▼ Next / ▲ Previous sheet from the one in sight)
   }
 
-  /** ＋ a missing size: from the part's lowest place in that view to it (a Ø / R on its circle). */
-  addMissing(m) {
-    const co = m.hole && this.calloutFor(m.view, m.key); // (a hole step's size, head, depth: its callout gives them all)
-    if (co) { this.addUser(co); return; }
-    if (m.kind === 'dia' || m.kind === 'rad') { this.addUser({ view: m.view, kind: m.kind, a: m.key, count: 1, ang: m.kind === 'dia' ? 45 : 0, len: 6 }); return; }
-    const n = this.d.user.filter((d) => d.view === m.view && d.dir === m.dir).length;
-    this.addUser({ view: m.view, kind: 'linear', a: m.from || (m.dir === 'h' ? 'box#x0' : 'box#y0'), b: m.key, dir: m.dir, side: m.dir === 'h' ? 'b' : 'l', off: 20 + 7 * n });
-  }
+  /** ＋ a missing size in its best view (dimcandidates.js candDim): from the part's lowest place there to it, on the side
+   *  with room (a Ø / R on its circle; a hole step's size, head, depth: its callout gives them all). */
+  addMissing(m) { this.addUser(candDim(this, m)); }
 
   // ------------------------------------------------------------------ editing
   action(a) {
@@ -2466,6 +2470,13 @@ export class SheetEditor {
   /** For the AI: a dimension added — {view, a, b, dir?} (two point keys; dir "h" / "v", else by the points) or
    *  {view, circle: key} (its Ø, or R of an arc; a hole step's circle: its callout "M3 ⌵ Ø5 × 90°") -> its id. */
   addFor(spec) {
+    if (spec.missing !== undefined) { // a size the check misses, by its id: in `view` (one of its views), else its best
+      const ck = this.check(), m = ck?.missing.find((x) => x.id === String(spec.missing));
+      if (!m) throw new Error(`No missing size ${spec.missing} — get_sheet check.missing lists them (id, views).`);
+      if (spec.view && !m.cands?.some((c) => c.view === spec.view)) throw new Error(`${spec.missing} cannot be dimensioned in ${spec.view} — its views: ${(m.cands || [m]).map((c) => c.view).join(', ')}.`);
+      addMissingIn(this, m, spec.view || null);
+      return this.sel;
+    }
     const g = this.geo?.views[spec.view];
     if (!g) throw new Error(`view is one of ${VIEWS.join(', ')}.`);
     if (spec.circle) {
@@ -2493,7 +2504,7 @@ export class SheetEditor {
   /** For the AI: the sheet's dimensions with their values. */
   summary() {
     const ck = this.check();
-    return { check: ck ? { fully_dimensioned: ck.ok && !ck.over.size, missing: ck.missing.map((m) => `${m.view}: ${m.what}${m.ax ? ` (${m.ax})` : ''} [${m.key}]`).slice(0, 30), twice: [...ck.dup, ...ck.over], ...(ck.assembly ? { asks_for: 'an assembly sheet: only its overall sizes (length, width, height) and where its base part\'s mounting holes are (its holes no screw / pin of the assembly is in) — each part\'s details belong on its own sheet, a bought part\'s nowhere' } : {}) } : null,
+    return { check: ck ? { fully_dimensioned: ck.ok && !ck.over.size, missing: ck.missing.slice(0, 30).map((m) => ({ id: m.id, what: `${m.what}${m.ax ? ` (${m.ax})` : ''}${m.size !== undefined ? ` ${fmt(m.size)}` : ''}`, views: (m.cands || [m]).map((c) => c.view), key: m.key })), twice: [...ck.dup, ...ck.over], ...(ck.assembly ? { asks_for: 'an assembly sheet: only its overall sizes (length, width, height) and where its base part\'s mounting holes are (its holes no screw / pin of the assembly is in) — each part\'s details belong on its own sheet, a bought part\'s nowhere' } : {}) } : null,
       part: this.hooks.partName(this.d.source), ...(Object.keys(this.d.texts || {}).length ? { texts: this.d.texts } : {}), preset: this.d.preset, ...(Object.keys(this.d.vpreset || {}).length ? { view_presets: this.d.vpreset } : {}), paper: this.lay?.paper, rev: this.d.rev, changed: this.d.changed,
       views: [...VIEWS, 'Iso'].filter((v) => !this.d.off[v]),
       scale: `${scaleText(this.scaleArr())}${this.d.scale ? '' : ' (auto)'}`,

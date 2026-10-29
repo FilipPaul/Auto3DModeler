@@ -114,7 +114,7 @@ try:
     clear("flange")
     d.save_screenshot(f"{OUT}/hole_positions_flange.png")
     r = json.loads(ai("sheet_edit", remove=[pcd[0]["id"]]))
-    miss = r["check"]["missing"]
+    miss = [f"{m['what']} [{m['key']}]" for m in r["check"]["missing"]]  # (a missing size: what it is, its point in its best view)
     print("the PCD deleted:", miss[:4])
     check(not r["check"]["fully_dimensioned"] and any("Ø6" in m and ":hole:" in m for m in miss), "the PCD deleted: its holes' places missing")
     r = json.loads(ai("sheet_edit", restore=True))

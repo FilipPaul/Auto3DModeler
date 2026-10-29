@@ -367,6 +367,11 @@ Never report "works" without having run it; report failures with their output.
    the pitches 64 / 34; a ⁂ row "4× 15"; 6 around a bore "PCD Ø60 · 6× 60°" with its pitch circle, deleted: the holes'
    places missing, restored ✓; 6 anywhere: 12 ordinates, the edges' 0 once, ✓, the DXF's 14 ordinate dimensions, one
    moved; no dimension text over another or another view; the PDF's PCD text). Needs a server restarted after sheet.py changes.
+   `tools/e2e_sheet_dim_views.py <url> <dir>` covers one missing size in every view it can go in (Czech, a real mouse:
+   a block with a hole and a step; the front height deleted: "↕ Výška 30 (2 pohledy)" once, hovering it 2 dashed
+   ghosts in the front and the right view, the right one clicked: added there, the row and ghosts gone, ↶ / ↷ one step;
+   "⇄ Přesunout do jiného pohledu: Zepředu" with its ghost moves it; the step's floor offered best in the right view;
+   the AI's missing views and add {missing, view}). Needs a server restarted after sheet.py changes.
    `tools/e2e_sheet_styles.py <url> <dir> [cs]` covers the title-block / parts-list styles A–E (an AI-built "Stand":
    a plate, 2 lids, a bracket, 3 pins, a bought ISO 4762 screw; each style picked in the panel: the block's size at
    the frame's corner, the list right on it, the labels in the UI's language, the font on screen and in the PDF; a

@@ -789,8 +789,62 @@ def build(body, preset="medium", fits=None, paper=None, per_view=None, threads=N
     if section:
         geo["views"]["Section"] = _cached((key, "section"), lambda: section_view(body))
     vol = _cached((key, "volume"), lambda: K.volume(getattr(body, "shape", body)))  # (mm³: the title block's mass, with the part's material)
+    geo["places"] = places(geo)
     lay = layout(geo, paper)
     return {"geometry": geo, "layout": lay, "dims": place(geo, lay, auto_dims(geo, preset, fits, per_view, threads, holes)), "volume": round(vol, 3)}
+
+
+PLACE_HOW = {"c": 3, "b": 2.5, "e": 2, "h": 0}  # how well a view shows a place: round (its centre), the view's edge, a visible edge, a hidden one
+
+
+def _axis(v):
+    """A view's right / up vector -> (the part's axis 0 / 1 / 2, its sign), or None (slanted: no axis of the part lies
+    along it — the iso view)."""
+    i = int(np.argmax(np.abs(v)))
+    return (i, 1 if v[i] > 0 else -1) if abs(abs(v[i]) - 1) < 1e-9 else None
+
+
+def places(geo):
+    """Where each place of the part can be dimensioned from: per axis of the part, per place along it (mm), the views that
+    show it as a point a dimension hangs on — an edge across that axis, a circle's centre (seen round), the view's box —
+    with the measuring direction in the view's plane and true length (a view whose right / up is that axis; never the
+    iso view) -> {"x" | "y" | "z": [[at, [[view, point key, dir (h / v), how]…]]…]}; how: "c" a circle's centre, "b" the
+    view's box, "e" a visible edge, "h" a hidden edge — one entry a view (its best). The sheet editor offers a missing
+    size in each of these views (a part's height in the front and the right, a hole's place where it is seen round)."""
+    out = {a: {} for a in "xyz"}
+    for vname, g in geo["views"].items():
+        axes = [_axis(np.asarray(g.get("right") or (0, 0, 0), float)), _axis(np.asarray(g.get("up") or (0, 0, 0), float))]
+        seen = [{}, {}]  # (the view's visible segments across each direction: at -> [(lo, hi)…])
+        for pl in g.get("visible") or ():
+            for p, q in zip(pl, pl[1:]):
+                for k in (0, 1):
+                    if abs(p[k] - q[k]) < TOL:
+                        seen[k].setdefault(round(p[k], 2), []).append((min(p[1 - k], q[1 - k]) - TOL, max(p[1 - k], q[1 - k]) + TOL))
+
+        def put(k, at, key, how):
+            if not axes[k]:
+                return
+            i, s = axes[k]
+            here = out["xyz"[i]].setdefault(round(s * at, 2) + 0.0, {})
+            if vname not in here or PLACE_HOW[how] > PLACE_HOW[here[vname][2]]:
+                here[vname] = [key, "hv"[k], how]
+        for ln in g["lines"]:
+            if _deco(ln["key"]):
+                continue
+            for k in (0, 1):
+                if abs(ln["a"][k] - ln["b"][k]) < TOL:  # (across axis k: a place along it)
+                    mid = (ln["a"][1 - k] + ln["b"][1 - k]) / 2
+                    vis = any(lo <= mid <= hi for lo, hi in seen[k].get(round(ln["a"][k], 2), ()))
+                    put(k, ln["a"][k], f"{ln['key']}#0", "e" if vis else "h")
+        for c in g["circles"]:
+            if c["full"]:
+                for k in (0, 1):
+                    put(k, c["c"][k], f"{c['key']}#c", "c")
+        b = g["box"]
+        for k, key0, key1 in ((0, "box#x0", "box#x1"), (1, "box#y0", "box#y1")):
+            put(k, b[k], key0, "b")
+            put(k, b[k + 2], key1, "b")
+    return {a: [[at, [[v, *e] for v, e in vs.items()]] for at, vs in sorted(m.items())] for a, m in out.items()}
 
 
 def _wire_points(w, n=24):

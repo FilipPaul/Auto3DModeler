@@ -83,7 +83,7 @@ try:
     d.save_screenshot(f"{OUT}/sheet_hole_callout.png")
 
     r = json.loads(ai("sheet_edit", remove=[co[0]["id"]]))
-    miss = r["check"]["missing"]
+    miss = [f"{m['what']} [{m['key']}]" for m in r["check"]["missing"]]  # (a missing size: what it is, its point in its best view)
     print("the callout deleted:", miss)
     angle = [m for m in miss if f"the countersink's angle ({hid})" in m]
     check(not r["check"]["fully_dimensioned"] and len(angle) == 1 and f"[{hid}:hole:0]" in angle[0], "the check lists the countersink's angle with its key")
@@ -121,7 +121,7 @@ try:
     check({"Ø3.4 ⌴ Ø6 ↧ 3.2", "2× M4 ↧ 6", "Ø2 THRU"} <= set(texts(g)), "a counterbore, a blind thread, a plain hole: their callouts")
     check(g["check"]["fully_dimensioned"], f"✓ fully dimensioned {g['check']['missing']}")
     r = json.loads(ai("sheet_edit", remove=[x["id"] for x in g["dims"] if "⌴" in x["text"] or "↧ 6" in x["text"]]))
-    miss = r["check"]["missing"]
+    miss = [f"{m['what']} [{m['key']}]" for m in r["check"]["missing"]]  # (a missing size: what it is, its point in its best view)
     print("the two deleted:", miss)
     check(any("the counterbore's depth" in m for m in miss) and any("the thread's depth" in m for m in miss), "the check lists the counterbore's and the thread's depth")
     r = json.loads(ai("sheet_edit", complete=True))

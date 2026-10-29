@@ -147,7 +147,7 @@ function pickRows(items, all) {
 }
 
 /** Show (or with no items: remove) the table in `viewport`: title (what is selected), items [{icon, label, title,
- *  run, danger, rank, always (shown past the limit), on (the current choice: ✓)}, {section} or {icon, label, title, rank, chips: [{label, title, on, primary, run}]} (a row of
+ *  run, danger, rank, always (shown past the limit), on (the current choice: ✓), hover?: (on) => … (shows what it would do)}, {section} or {icon, label, title, rank, chips: [{label, title, on, primary, run}]} (a row of
  *  values to pick with one click — a tolerance, a roughness; on: the current one, ✓)], hint (a line under it), refs (what is selected, as the AI's tools name it: ✨ puts
  *  it in the chat). More rows than the user's limit (suggestLimit): the most relevant ones, then ⋯ Show all (n). */
 export function showSuggest(viewport, title, items, hint = '', refs = '') {
@@ -175,6 +175,14 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
     ${hint ? `<p class="vs-hint">${esc(hint)}</p>` : ''}`;
   for (const b of box.querySelectorAll('[data-sg]')) b.addEventListener('click', () => items[+b.dataset.sg].run());
   for (const b of box.querySelectorAll('[data-sgc]')) b.addEventListener('click', () => { const [i, j] = b.dataset.sgc.split(':').map(Number); items[i].chips[j].run(); });
+  for (const b of box.querySelectorAll('[data-sg]')) { // a row with hover(on): shows what it would do while the mouse (or the keyboard) is on it
+    const it = items[+b.dataset.sg];
+    if (!it.hover) continue;
+    b.addEventListener('mouseenter', () => it.hover(true));
+    b.addEventListener('mouseleave', () => it.hover(false));
+    b.addEventListener('focus', () => it.hover(true));
+    b.addEventListener('blur', () => it.hover(false));
+  }
   box.querySelector('[data-sg-all]')?.addEventListener('click', () => { setShowingAll(true); again(); });
   box.querySelector('[data-sg-fewer]')?.addEventListener('click', () => { setShowingAll(false); again(); });
   box.querySelector('.vs-set').addEventListener('click', () => { // (the setting: a small number field under the head)

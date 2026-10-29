@@ -6,6 +6,7 @@ import { t } from '../i18n.js';
 import { choose, ask } from '../choose.js';
 import { FIT_LIST, deviationText } from './fits.js';
 import { RA_LIST, PROCS, raText } from './rough.js';
+import { missRows, moveRows } from './dimcandidates.js';
 
 const fmt = (v) => (+(+v).toFixed(2)).toString();
 const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
@@ -49,6 +50,7 @@ function sheetItems(ed, refs) {
   const d = ed.d, ck = ed.checked, items = [], hidden = ['Front', 'Top', 'Right', 'Iso'].filter((v) => d.off[v] && !(v === 'Right' && d.section));
   const lost = ed.allDims().filter((x) => ed.value(x) === null);
   if (ck?.missing.length) items.push({ icon: '📐', label: tv('Add the missing sizes ({n})', { n: ck.missing.length }), title: t('Every size the check misses, each from the part\'s edge (the orange ? marks)'), rank: 0, run: () => { ed.addAllMissing(); ed.clearSel(); ed.render(); } });
+  items.push(...missRows(ed)); // (each missing size once: hovered, its ghosts in every view it can go in)
   if (ck && (ck.dup.size || ck.over.size)) items.push({ icon: '⧉', label: tv('Remove sizes given twice ({n})', { n: ck.dup.size + ck.over.size }), title: t('Dimensions that give a size another one gives already'), rank: 1, run: () => { for (const id of [...ck.dup, ...ck.over]) ed.remove(id); } });
   if (lost.length) items.push({ icon: '⚠', label: tv('Remove lost dimensions ({n})', { n: lost.length }), title: t('Dimensions whose points are gone — the part changed'), rank: 1, run: () => { for (const x of lost) ed.remove(x.id); } });
   const [setRow, setPdf] = setRows(ed, 0.5, 3.5); // (the drawing set: right after the fixes — the rows show in this order)
@@ -145,6 +147,7 @@ function dimItems(ed, refs) {
   if (dim.kind === 'linear' && !dim.ord) {
     const other = { t: 'b', b: 't', l: 'r', r: 'l' }[dim.side || (dim.dir === 'h' ? 'b' : 'r')];
     items.push({ icon: '⇅', label: t('To the other side'), title: t('The dimension on the other side of the view'), rank: 2, run: () => ed.setDimProps(dim.id, { side: other }) });
+    items.push(...moveRows(ed, dim)); // (⇄ the same size in another view)
   }
   items.push({ icon: '✕', label: t('Delete'), title: t(dim.auto ? 'Delete it (Delete) — ↺ Bring back deleted ones brings an automatic one back' : 'Delete it (Delete)'), danger: true, rank: 4, run: () => ed.remove(dim.id) });
   return { title: `⟷ ${label}`, items, hint: t('Drag the dimension to move it; its value comes from the part.'), refs: `${refs}, ${t('dimension')} ${dim.id} (${label})` };
