@@ -10,6 +10,8 @@ Part JSON (in the project file, `parts[].model`):
      {"id": "F3", "type": "sketch", "plane": {"face": {"name": "F2:end"}, "frame": {"o", "x", "n"}}, ...},
      {"id": "F4", "type": "fillet", "edges": [{"a": "F2:end", "b": "F2:side:l1", "fp": [x, y, z]}], "r": 2},
      {"id": "F5", "type": "chamfer", "edges": [...], "d": 1},
+      (a fillet / chamfer rounds each edge's whole tangent chain — OpenCASCADE's way; "chain": false (⛓ off) only
+      tells the panel a click picks one edge, and the step warns when the rounding goes on past the picked edges)
      {"id": "F7", "type": "revolve", "sketch": "F1", "axis": "y" | "x" | <a line of the sketch>, "angle": 360, "op": "add"},
      {"id": "F8", "type": "shell", "faces": [{"name": "F2:end", "fp": [x, y, z]}], "t": 2},
      {"id": "F9", "type": "mirror", "of": "body" | <a step's id>, "plane": {"datum": "YZ"} | {"face": ..., "frame": ...},
@@ -404,6 +406,10 @@ def _apply(f, st: State, s):
         st.body = _sized(lambda v: K.round_edges(body, edges, v, fid, chamfer=t == "chamfer"), size, "radius" if t == "fillet" else "size", "mm", why)
         if guessed:
             s["warnings"].append(f"{guessed} edge(s) were found again by their position only — check that the right edges are {'rounded' if t == 'fillet' else 'bevelled'}.")
+        more = K.chain_size(body, edges) - len(edges) if f.get("chain") is False else 0  # (⛓ off: one edge per click)
+        if more > 0:
+            s["warnings"].append(f"It goes on along {more} more edge(s) that join the picked ones smoothly — a "
+                                 f"{'rounding' if t == 'fillet' else 'bevel'} cannot stop where edges meet without a corner.")
         return
     if t == "hole":
         if st.body is None:

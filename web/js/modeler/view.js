@@ -978,7 +978,8 @@ export class ModelView {
       this.edgeGroup.add(dots);
     };
     add(selected, 0x4f8cff);
-    if (hover >= 0) add([hover], 0xf2cc60);
+    const hv = [].concat(hover).filter((i) => i >= 0); // (one edge, or a ⛓ chain of them)
+    if (hv.length) add(hv, 0xf2cc60);
   }
 
   // ------------------------------------------------------------------ section view

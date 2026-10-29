@@ -171,7 +171,8 @@ TOOLS = [
                     "(part of a face name), near [x, y, z], of_step (a step's id: the faces it made). Edges: of_face (a face name), "
                     "of_step (all the edges of a step's faces — to round them at once), between_steps [id, id] (where two steps "
                     "meet, e.g. a rib and its plate), circular true / false, near. A face merged from two steps (flush) has names. "
-                    "Edges come with a ready ref {a, b, fp} for fillet / chamfer. Points (kind \"point\"): the reference points "
+                    "Edges come with a ready ref {a, b, fp} for fillet / chamfer (chain: n = it goes on smoothly into "
+                    "other edges, n in all — a fillet of it takes them all). Points (kind \"point\"): the reference points "
                     "(point steps: {point: id, name, xyz}), then the part's corners {corner: [x, y, z], ref} (of_face, of_step, near) — "
                     "a ref is the `at` of add_feature point. Axes (kind \"axis\"): the round faces' axes (shafts, holes, bosses: "
                     "{axis: <the face's name>, radius, through, direction}; name, of_step, near) — to measure a sketch shape or a "
@@ -219,7 +220,10 @@ TOOLS = [
                     "name, find_refs kind \"axis\">, d} = from that face's axis (square to the face, or running straight across x / y), "
                     "or {mid: [<edge ref>, <edge ref>]} = midway between two parallel straight edges of that face (the middle "
                     "line: it stays in the middle when the part gets wider; both x and y = the face's centre).\n"
-                    "- fillet: edges [refs from find_refs], r. chamfer: edges, d.\n"
+                    "- fillet: edges [refs from find_refs], r. chamfer: edges, d. chain (default true, the panel's ⛓ Whole "
+                    "chain): each edge comes with the edges that go on smoothly (tangent) from it — one edge of a rounded "
+                    "outline or of a hole's rim picks all of it; OpenCASCADE rounds a tangent chain whole anyway, so chain: "
+                    "false only stores the edges as given (the step then warns that it goes on).\n"
                     "- shell: faces [names of the faces left open], t (wall).\n"
                     "- rib: sketch (one open line — or lines end to end — across a corner, e.g. on a plane through the plate and "
                     "the wall, from the wall to the plate), t (thickness, half each side of the sketch plane): filled up to the part.\n"
@@ -250,7 +254,7 @@ TOOLS = [
                           "name": STR, "plane": {}, "shapes": {"type": "array"}, "lock": {"type": "boolean"},
                           "sketch": STR, "d": NUM, "op": {"type": "string", "enum": ["add", "cut"]}, "through": {"type": "boolean"},
                           "symmetric": {"type": "boolean"}, "flip": {"type": "boolean"}, "axis": {}, "angle": NUM,
-                          "face": STR, "points": {"type": "array"}, "depth": NUM, "edges": {"type": "array"}, "r": NUM,
+                          "face": STR, "points": {"type": "array"}, "depth": NUM, "edges": {"type": "array"}, "r": NUM, "chain": {"type": "boolean"},
                           "faces": {"type": "array"}, "t": NUM, "of": {}, "kind": {"type": "string", "enum": ["linear", "circular"]},
                           "count": NUM, "spacing": NUM, "dir": {}, "up_to": STR, "offset": NUM, "upto_next": {"type": "boolean"}, "d2": NUM,
                           "sketches": {"type": "array"}, "profile": STR, "path": STR,

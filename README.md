@@ -360,7 +360,10 @@ SolidWorks. It has only the tools that need almost no input.
    - A sketch on the top or bottom face of an extrude follows that face when the extrude changes.
 
 4. **◜ Fillet** (F) rounds edges and **◸ Chamfer** bevels them. Click the edges (a click on a face takes all of its
-   edges; a picked edge is dropped by clicking it again), then type the radius or size. **◎ Hole** (H): click on a
+   edges; a picked edge is dropped by clicking it again), then type the radius or size. A click on an edge that goes
+   on smoothly into others — the outline of a box with rounded corners, a hole's rim — picks the **whole chain**
+   (*Added a chain of 8 edges*; the hover shows it before you click), as a rounding cannot stop where edges meet
+   without a corner anyway; untick *⛓ Whole chain* to pick one edge at a time. **◎ Hole** (H): click on a
    flat face where a hole goes (click again for more holes on the same face), and type the diameter. While you move
    the mouse the hole is shown where it would go, with its distances to the nearest edges, and it **snaps** like a
    sketch: onto the face's corners, edge midpoints, centre, round edges' centres, other holes and • reference points

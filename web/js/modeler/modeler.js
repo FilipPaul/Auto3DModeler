@@ -1845,8 +1845,19 @@ export class Modeler {
     if (!e || e.faces.length !== 2) return null;
     const [fa, fb] = e.faces.map((k) => b.faces[k]?.name);
     if (!fa || !fb) return null;
-    if (fa.startsWith(`${this.cmd.feature.id}:`) || fb.startsWith(`${this.cmd.feature.id}:`)) return null; // made by this very step
+    const own = this.cmd && `${this.cmd.feature.id}:`;
+    if (own && (fa.startsWith(own) || fb.startsWith(own))) return null; // made by this very step
     return { a: fa, b: fb, fp: e.mid };
+  }
+
+  /** ⛓ The edges a click on edge i picks: its tangent chain (the edges that go on smoothly from it — a fillet rounds
+   *  them all anyway) while the panel's "Whole chain" is on, else the edge alone. */
+  chainOf(i, f = this.cmd?.feature) {
+    const b = this.result?.body, k = b?.edges[i]?.chain;
+    if (k === undefined || f?.chain === false) return [i];
+    const out = [];
+    b.edges.forEach((e, j) => { if (e.chain === k && this.edgeRef(j)) out.push(j); });
+    return out.length ? out : [i];
   }
 
   /** The edges of the shown body that the command's references point at (for the blue highlight). */
@@ -1885,11 +1896,18 @@ export class Modeler {
     if (i >= 0) {
       const ref = this.edgeRef(i);
       if (!ref) return null;
-      const k = f.edges.findIndex((r) => this.sameRef(r, ref));
-      if (k >= 0) f.edges.splice(k, 1);
-      else f.edges.push(ref);
-      // what the click did, in words (the panel says it): the edge's two faces
-      this.cmd.lastPick = `${k >= 0 ? 'Dropped' : 'Added'} the edge between ${this.faceLabel(ref.a)} and ${this.faceLabel(ref.b)}.`;
+      const k = f.edges.findIndex((r) => this.sameRef(r, ref)), run = this.chainOf(i);
+      if (run.length > 1) { // ⛓ the whole chain: picked again -> all of it dropped
+        const refs = run.map((j) => this.edgeRef(j));
+        if (k >= 0) f.edges = f.edges.filter((r) => !refs.some((x) => this.sameRef(r, x)));
+        else for (const x of refs) if (!f.edges.some((r) => this.sameRef(r, x))) f.edges.push(x);
+        this.cmd.lastPick = `${k >= 0 ? 'Dropped' : 'Added'} a chain of ${run.length} edges.`;
+      } else {
+        if (k >= 0) f.edges.splice(k, 1);
+        else f.edges.push(ref);
+        // what the click did, in words (the panel says it): the edge's two faces
+        this.cmd.lastPick = `${k >= 0 ? 'Dropped' : 'Added'} the edge between ${this.faceLabel(ref.a)} and ${this.faceLabel(ref.b)}.`;
+      }
     } else {
       // a face: all of its edges (that are not picked yet)
       const h = this.view.pick(e.clientX, e.clientY);
@@ -2215,6 +2233,7 @@ export class Modeler {
     box.innerHTML = `<h2>${esc(f.name)}</h2>
       <p class="hint">${fillet ? 'Click the edges to round' : 'Click the edges to bevel'} — click a face to take all of its edges, click a picked edge again to drop it.</p>
       <div class="field"><label>${fillet ? 'Radius' : 'Size'}</label><input type="number" step="any" min="0" data-k="${k}" value="${fmt(f[k])}"><span class="unit">mm</span></div>
+      <label class="check" title="${esc(t('On: a click picks the edge and the edges that go on smoothly from it (tangent) — they are rounded together anyway'))}"><input type="checkbox" data-k="chain" ${f.chain !== false ? 'checked' : ''}> ⛓ Whole chain</label>
       <p class="mp-count">${f.edges.length ? `${f.edges.length} edge(s) picked` : 'No edges picked yet'}</p>
       ${this.cmd.lastPick ? `<p class="hint mp-last" title="${esc(t('What your last click in the view picked'))}">${esc(this.cmd.lastPick)}</p>` : ''}
       ${f.edges.length ? '<div class="row-actions"><button class="btn small" data-a="clear">Drop all edges</button></div>' : ''}
@@ -2224,6 +2243,7 @@ export class Modeler {
     const inp = box.querySelector(`[data-k=${k}]`);
     inp.addEventListener('input', () => { const v = parseFloat(inp.value); if (v > 0) { f[k] = v; this.rebuild(); } });
     inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
+    box.querySelector('[data-k=chain]').addEventListener('change', (e) => { if (e.target.checked) delete f.chain; else f.chain = false; this.rebuild(); });
     box.querySelector('[data-a=clear]')?.addEventListener('click', () => { f.edges = []; this.cmd.lastPick = null; this.renderProps(); this.rebuild(); });
     box.querySelector('[data-a=ok]').addEventListener('click', () => this.okCommand());
     box.querySelector('[data-a=cancel]').addEventListener('click', () => this.cancelCommand());
@@ -3148,7 +3168,7 @@ export class Modeler {
           cv.style.cursor = h?.face ? 'pointer' : '';
         } else {
           const i = this.view.pickEdge(e.clientX, e.clientY), ok = i >= 0 && this.edgeRef(i);
-          this.view.setEdgeHighlight(ok ? i : -1, this.refEdges(f.edges));
+          this.view.setEdgeHighlight(ok ? this.chainOf(i) : -1, this.refEdges(f.edges));
           const h = ok ? null : this.view.pick(e.clientX, e.clientY);
           this.view.setHover(h?.face ? h.face.id : -1);
           cv.style.cursor = ok || h?.face ? 'pointer' : '';

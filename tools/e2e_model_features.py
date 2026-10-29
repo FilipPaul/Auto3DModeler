@@ -1,7 +1,7 @@
 """Fillet, chamfer, hole, revolve, shell and turning steps off, with REAL mouse input in headless Edge: a 40 x 20 x 10 box ->
 ◜ Fillet: click a vertical edge, radius 2 -> exact volume; the box gets taller -> the rounding follows its edge;
 a click on a face picks all its edges; ◎ Hole: a click near the top face's centre snaps to it, Ø5 through all;
-● / ◌ turns a step off and on; ◸ Chamfer on a top edge; volumes checked.
+● / ◌ turns a step off and on; ◸ Chamfer on a top edge (⛓ Whole chain off: that edge; on: its tangent chain of 3); volumes checked.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
   PYTHONIOENCODING=utf-8 py tools/e2e_model_features.py http://127.0.0.1:5199 <out dir>
@@ -158,9 +158,22 @@ try:
     settled()
     print("hole on again:", abs(vol() - v_hole) < 1e-6)
 
-    # ◸ Chamfer the front top edge (y 0, z 15), 1 mm
+    # ◸ Chamfer the front top edge (y 0, z 15), 1 mm. ⛓ It goes on smoothly over the rounding into the right top edge:
+    # with ⛓ Whole chain off a click takes that edge alone (the step warns it goes on), on (the default) all 3
+    picked = lambda: js(f"return [{M}.cmd.feature.edges.length, {M}.cmd.lastPick, {M}.cmd.feature.chain]")  # noqa: E731
+    btn(".m-cmdbar [data-a=chamfer]")
+    btn("#modelRight input[data-k=chain]")
+    click_at(off_xyz([12, 0, 15]))
+    settled()
+    p1, warn = picked(), d.find_element(By.CSS_SELECTOR, "#modelRight .mp-warn").text
+    btn("#modelViewport .view-actions [data-a=cancel]")
+    settled()
     btn(".m-cmdbar [data-a=chamfer]")
     click_at(off_xyz([12, 0, 15]))
+    settled()
+    p2 = picked()
+    print("chain:", p1, warn, p2, "| ok:", p1[0] == 1 and p1[2] is False and p1[1].startswith("Added the edge") and "2 more edge(s)" in warn
+          and p2 == [3, "Added a chain of 3 edges.", None] and js("return document.querySelector('#modelRight input[data-k=chain]').checked"))
     print("chamfer edges:", js(f"return {M}.cmd.feature.edges"))
     typed("#modelRight input[data-k=d]", 1, enter=False)
     btn("#modelViewport .view-actions [data-a=ok]")

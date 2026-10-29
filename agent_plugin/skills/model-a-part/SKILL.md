@@ -65,7 +65,9 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
      hole at world (30, 10) on a top face is `points: [[30, 10]]`), or `origin: {point: "<point step>"}` — on a hole
      step, or in a sketch's plane `{face, origin}`. Prefer these to working out offsets from the centre.
 6. **Roundings and bevels last**: `{type: "fillet", edges: [<ref from find_refs>…], r: 2}`,
-   `{type: "chamfer", edges: [...], d: 1}`. Prefer a chamfer on edges that touch the bed (no overhang).
+   `{type: "chamfer", edges: [...], d: 1}`. Prefer a chamfer on edges that touch the bed (no overhang). One edge of a
+   smooth run (a rounded outline, a hole's rim — find_refs says `chain: n`) takes the whole run (`chain: true`, the
+   default, as the panel's ⛓ Whole chain).
    **Shell** (hollow out, e.g. a cup or a box): `{type: "shell", faces: ["<open face name>"], t: 2}`.
    **Text on a face**: `{type: "decal", face: "<flat face name>", text: "AB-12", h: 6, op: "add" | "cut", depth: 0.8}`
    (`at: [u, v]` from the face's centre). Strokes ≥ 0.6 mm wide print well — h ≥ 5 mm for bold text.

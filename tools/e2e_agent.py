@@ -99,6 +99,14 @@ try:
     print(f"    model volume {v} expected {exp:.3f} | match: {abs(v - exp) < 0.01}")
     holes = json.loads(tool("find_refs", kind="edge", of_face=top, circular=True)[0])
     print("    round edges on the top:", len(holes), "| radius", holes[0]["circle"]["radius"] if holes else None)
+    # ⛓ one edge of the rounded top outline: the chamfer takes its whole chain (8 edges), ½ d² swept round it
+    e = json.loads(tool("find_refs", kind="edge", near=[30, 0, 5], limit=1)[0])[0]
+    t, _ = tool("add_feature", type="chamfer", edges=[e["ref"]], d=0.5)
+    st = next(s for s in json.loads(tool("get_model")[0])["steps"] if s["type"] == "chamfer")
+    want = 0.125 * (2 * 54 + 2 * 34 + 2 * math.pi * (3 - 0.5 / 3))
+    print(f"    chain: find_refs says {e.get('chain')} | the chamfer has {st['edges']} edges | -{-json.loads(t).get('volume_change_mm3', 0):.3f} "
+          f"expected {want:.3f} | match: {e.get('chain') == 8 and st['edges'] == 8 and abs(json.loads(t).get('volume_change_mm3', 0) + want) < 0.01}")
+    tool("delete_feature", id=st["id"])
     tool("edit_feature", id="F2", fields={"d": 8})
     m = json.loads(tool("get_model")[0])
     print("    after the plate got 8 thick:", m["body"]["size_mm"], "| all ok:", all(s["ok"] for s in m["steps"]))
