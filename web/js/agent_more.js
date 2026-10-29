@@ -237,7 +237,8 @@ export async function screenshotUI() {
   for (const [, el, clip] of later.sort((a, b) => a[0] - b[0])) walk(el, clip, true);
   const sg = suggestTables()[0], box = sg && !sg.box.classList.contains('lw-off') ? sg.box.getBoundingClientRect() : null;
   const at = box ? { suggestions_box: [box.left, box.top, box.right, box.bottom].map((v) => Math.round(v * k)) } : {};
-  return { text: `The window as the user sees it (the AI chat left out), ${c.width} × ${c.height} px${box ? `; the suggestions table “${sg.title}” at ${at.suggestions_box.join(', ')} (left, top, right, bottom px) — gui_state lists its rows` : ''}. ${JSON.stringify(at)}`,
+  noteShot({ kind: 'ui', w: c.width, h: c.height, k }); // (gui_action's at: a point of this picture)
+  return { text: `The window as the user sees it (the AI chat left out), ${c.width} × ${c.height} px (gui_action / gui_highlight at = [x, y] are its pixels)${box ? `; the suggestions table “${sg.title}” at ${at.suggestions_box.join(', ')} (left, top, right, bottom px) — gui_state lists its rows` : ''}. ${JSON.stringify(at)}`,
     image: c.toDataURL('image/png').split(',')[1] };
 }
 
@@ -272,6 +273,94 @@ function measureModel(modeler, A, B) {
 
 function viewEl() { return [...document.querySelectorAll('section.viewport')].find((v) => v.offsetParent && v.getBoundingClientRect().width > 0); }
 
+// ---------------------------------------------------------------------------------------------- the AI's last picture
+// get_screenshot's picture is 1200 × 900 (or the window, or the sheet) whatever the view's shape on screen: a point the
+// AI reads off it (gui_action / gui_highlight at) is a point of that picture, aimed through what drew it.
+let lastShot = null;
+
+/** Remember get_screenshot's picture: {kind: 'view' (a 3D view: view, w, h and the camera that drew it — as
+ *  view.cameraState()), 'ui' (the window: w, h, k — picture px per page px) or 'sheet' (w, h, svg: () => the sheet's)}. */
+export function noteShot(s) { lastShot = s; }
+
+/** Where points the AI gives (at / drag_to) are on the page: [x, y] of the last get_screenshot picture — its pixels, or
+ *  0 … 1 across and down it (both at most 1: fractions) — when it shows what is on screen; else 0 … 1 across and down
+ *  the view. -> {page(p, what) -> [x, y] on the page (for gui_action: exact while aim() holds), aim() (a 3D picture: its
+ *  camera put on the view, the view not drawn — a click there hits what the picture shows at that point, whatever the
+ *  view's shape on screen; -> a function putting the view's own back), spot(p, what) -> () => [x, y] (the same point
+ *  on the view as it is drawn: through the 3D point there, for a ring that follows it), toShot(x, y) (a page point ->
+ *  [x, y] of the picture, or null), space (in words)}. */
+export function shotSpace() {
+  const s = lastShot, view = viewEl(), vr = view?.getBoundingClientRect();
+  const v3 = s?.kind === 'view' && view?.contains(s.view.renderer.domElement) ? s.view : null;
+  const svg = s?.kind === 'sheet' ? s.svg() : null;
+  const kind = v3 ? 'view' : s?.kind === 'ui' ? 'ui' : svg?.isConnected && view?.contains(svg) ? 'sheet' : null;
+  const frac = (p, what) => {
+    if (!Array.isArray(p) || p.length !== 2 || !p.every((v) => Number.isFinite(+v))) throw new Error(`${what}: [x, y] — pixels of get_screenshot's picture, or 0 … 1 across and down it.`);
+    if (!p.some((v) => Math.abs(+v) > 1)) return [+p[0], +p[1]];
+    if (!kind) throw new Error(`${what}: pixels of get_screenshot's picture — take one of what is on screen first (or give 0 … 1 across and down the view).`);
+    return [+p[0] / s.w, +p[1] / s.h];
+  };
+  const box = () => (v3 ? v3.renderer.domElement : viewEl())?.getBoundingClientRect();
+  const page = (p, what) => {
+    const [fx, fy] = frac(p, what);
+    if (kind === 'ui') return [fx * innerWidth, fy * innerHeight];
+    if (kind === 'sheet') {
+      const vb = svg.viewBox.baseVal, q = svg.createSVGPoint();
+      [q.x, q.y] = [vb.x + fx * vb.width, vb.y + fy * vb.height];
+      const m = q.matrixTransform(svg.getScreenCTM());
+      return [m.x, m.y];
+    }
+    const r = box();
+    if (!r) throw new Error('No view on screen.');
+    return [r.left + fx * r.width, r.top + fy * r.height];
+  };
+  // the picture's camera, on its own (to aim through it without touching the view)
+  const cam = v3 && (() => {
+    const c = new THREE.PerspectiveCamera(s.fov, s.aspect, s.near, s.far);
+    c.position.copy(s.position);
+    c.quaternion.copy(s.quaternion);
+    c.zoom = s.zoom;
+    c.updateProjectionMatrix();
+    c.updateMatrixWorld();
+    return c;
+  })();
+  const solids = () => [v3.mesh, ...(v3.meshes || [])].filter(Boolean);
+  return {
+    space: kind === 'view' ? `pixels of the last get_screenshot (${s.w} × ${s.h}) or 0 … 1 of it` : kind === 'ui' ? `pixels of the last get_screenshot {ui: true} (${s.w} × ${s.h}) or 0 … 1 of it`
+      : kind === 'sheet' ? `pixels of the last get_screenshot of the sheet (${s.w} × ${s.h}) or 0 … 1 of it` : '0 … 1 across and down the view (no get_screenshot of it yet)',
+    page,
+    aim: () => {
+      if (!v3) return () => {};
+      const own = v3.cameraState();
+      v3.held = true;
+      v3.setCamera(s);
+      return () => {
+        const c = v3.camera, moved = c.position.distanceTo(s.position) > 1e-6 || c.quaternion.angleTo(s.quaternion) > 1e-6;
+        if (moved) Object.assign(c, { aspect: own.aspect, fov: own.fov, zoom: own.zoom }); // (a drag turned it: kept, its shape the view's)
+        if (moved) c.updateProjectionMatrix(); else v3.setCamera(own);
+        v3.held = false;
+        v3.invalidate();
+      };
+    },
+    spot: (p, what) => {
+      if (!v3) { page(p, what); return () => page(p, what); } // (checked once; then where it is now: the sheet panned too)
+      const [fx, fy] = frac(p, what), ray = new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2(fx * 2 - 1, 1 - fy * 2), cam);
+      const hit = ray.intersectObjects(solids(), false)[0]?.point // (nothing there: the point as far as the target)
+        || ray.ray.at(s.position.distanceTo(s.target), new THREE.Vector3());
+      return () => v3.toScreen(hit);
+    },
+    toShot: (x, y) => {
+      if (kind === 'ui') return [Math.round(x * s.k), Math.round(y * s.k)];
+      if (kind !== 'view') return kind || !vr ? null : [r3((x - vr.left) / vr.width), r3((y - vr.top) / vr.height)];
+      const hit = v3.ray(x, y).intersectObjects(solids(), false)[0]?.point;
+      if (!hit) return null;
+      const q = hit.clone().project(cam);
+      return [Math.round(((q.x + 1) / 2) * s.w), Math.round(((1 - q.y) / 2) * s.h)];
+    },
+  };
+}
+
 /** What is at a point of the screen, in words (for the AI). */
 function underAt(x, y) {
   const el = document.elementFromPoint(x, y);
@@ -284,15 +373,16 @@ function underAt(x, y) {
   return el.tagName === 'CANVAS' ? 'the 3D view' : el.tagName.toLowerCase();
 }
 
-/** A mouse press / drag / double-click as the user's, at screen points: pointer + mouse events on what is there. A
- *  pointer capture asked for (a drag) gets the rest, as in the browser (what was pressed may be drawn anew). */
-async function gesture(path, { double = false } = {}) {
+/** A mouse press / drag / double-click as the user's, at screen points: pointer + mouse events on what is there, with
+ *  the keys held (mods: {ctrlKey, shiftKey, altKey, metaKey}). A pointer capture asked for (a drag) gets the rest, as
+ *  in the browser (what was pressed may be drawn anew). */
+async function gesture(path, { double = false, mods = {} } = {}) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const [x0, y0] = path[0], end = path[path.length - 1];
   if (!document.elementFromPoint(x0, y0)) throw new Error('That point is off the screen.');
   let captured = null;
   const ev = (el, type, [x, y], buttons) => {
-    const o = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, button: 0, buttons, pointerId: 1, pointerType: 'mouse', isPrimary: true, detail: 1 };
+    const o = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, button: 0, buttons, pointerId: 1, pointerType: 'mouse', isPrimary: true, detail: 1, ...mods };
     el.dispatchEvent(type.startsWith('pointer') ? new PointerEvent(type, o) : new MouseEvent(type, o));
   };
   const to = (p) => captured || document.elementFromPoint(...p) || document.body;
@@ -459,7 +549,13 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       return ok({ workspace: state.workspace, ...(sg ? { suggestions: sg } : {}), controls: list.map(({ el, ...c }) => c), ...(steps ? { steps } : {}), ...(bar ? { rollback_bar: { under: above?.dataset.id || null } } : {}), ...(anim ? { animation: anim } : {}), ...(mechs.length ? { mechanisms: mechs } : {}),
         toasts: [...document.querySelectorAll('.toast')].map((x) => x.textContent.trim()).slice(-3) });
     },
-    gui_action: async ({ control, click, value, key: keys, at, at_mm, drag_to, double, suggest, pick } = {}) => {
+    gui_action: async ({ control, click, value, key: keys, at, at_mm, drag_to, double, suggest, pick, mods } = {}) => {
+      // keys held during the click (Ctrl+click: one more in the selection) -> the events' ctrlKey / shiftKey / altKey / metaKey
+      const held = (Array.isArray(mods) ? mods : mods ? [mods] : []).map((m) => String(m).trim().toLowerCase());
+      const bad = held.filter((m) => !['ctrl', 'control', 'shift', 'alt', 'meta', 'cmd'].includes(m));
+      if (bad.length) throw new Error(`mods: ["ctrl" | "shift" | "alt" | "meta"] — not ${bad.join(', ')}.`);
+      const keysHeld = { ctrlKey: held.includes('ctrl') || held.includes('control'), shiftKey: held.includes('shift'), altKey: held.includes('alt'), metaKey: held.includes('meta') || held.includes('cmd') };
+      const withKeys = held.length ? ` with ${held.join('+')}` : '';
       const shown = () => { const sg = suggestInfo(); return { workspace: state.workspace, selected: state.workspace === 'assembly' ? assembly.sel || null : state.workspace === 'sheet' ? sheet.sel || null : undefined,
         toasts: [...document.querySelectorAll('.toast')].map((x) => x.textContent.trim()).slice(-3), ...(sg ? { suggestions: sg } : {}) }; };
       const settle = () => new Promise((r) => setTimeout(r, 400));
@@ -481,10 +577,10 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       if (pick !== undefined && pick !== null && pick !== '') {
         const p = pointOf(state, modeler, assembly, pick);
         if (!p) throw new Error(`“${pick}” is not in sight in the view — find_refs / get_assembly give the names; set_view (another side) may show it.`);
-        const under = underAt(...p), vb = viewEl().getBoundingClientRect();
-        await gesture([p]);
+        const under = underAt(...p), sp = shotSpace(), at = sp.toShot(...p); // (where it is in the AI's last picture)
+        await gesture([p], { mods: keysHeld });
         await settle();
-        return ok({ done: `clicked ${pick} (${under})`, at: [r3((p[0] - vb.left) / vb.width), r3((p[1] - vb.top) / vb.height)], ...shown(), ...fresh(before) });
+        return ok({ done: `clicked ${pick}${withKeys} (${under})`, ...(at ? { at, at_is: sp.space } : {}), ...shown(), ...fresh(before) });
       }
       let c = null;
       if (control !== undefined && control !== null && control !== '') {
@@ -493,13 +589,9 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         if (!c) throw new Error(`No control “${control}” on screen — gui_state lists them (n or label).`);
         if (c.disabled) throw new Error(`“${c.label}” is greyed out (disabled)${c.title ? `: ${c.title}` : ''}.`);
       }
-      // a point: of the view (at: [x, y] 0 … 1 across / down it), of the sheet's paper (at_mm), or a drawn thing's middle
-      const view = viewEl(), vr = view?.getBoundingClientRect();
-      const ofView = (p, what) => {
-        if (!vr) throw new Error('No view on screen.');
-        if (!Array.isArray(p) || p.length !== 2 || !p.every((v) => Number.isFinite(+v))) throw new Error(`${what}: [x, y], 0 … 1 across and down the view.`);
-        return [vr.left + +p[0] * vr.width, vr.top + +p[1] * vr.height];
-      };
+      // a point: of the AI's last picture (at: [x, y] its pixels or 0 … 1 of it — through the camera that drew it), of
+      // the sheet's paper (at_mm), or a drawn thing's middle
+      const sp = shotSpace(), ofView = sp.page;
       const ofPaper = (p) => {
         if (state.workspace !== 'sheet' || !sheet.svgEl) throw new Error('at_mm is a point on a drawing sheet\'s paper (mm from its top left) — open the sheet first.');
         const q = sheet.svgEl.createSVGPoint();
@@ -513,10 +605,11 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       else if (c && (['dim', 'cell', 'view'].includes(c.kind) || drag_to || double)) { const r = c.el.getBoundingClientRect(); from = [r.left + r.width / 2, r.top + r.height / 2]; }
       if (from) {
         const under = underAt(...from), to = drag_to ? (at_mm ? ofPaper(drag_to) : ofView(drag_to, 'drag_to')) : null;
-        await gesture(to ? [from, to] : [from], { double: !!double });
+        const back = at && !at_mm ? sp.aim() : () => {};
+        try { await gesture(to ? [from, to] : [from], { double: !!double, mods: keysHeld }); } finally { back(); }
         if (keys) press(keys);
         await settle();
-        return ok({ done: `${double ? 'double-clicked' : to ? 'dragged' : 'clicked'} ${under}${to ? ` to ${underAt(...to)}` : ''}${keys ? `, then ${keys}` : ''}`, ...shown(), ...fresh(before) });
+        return ok({ done: `${double ? 'double-clicked' : to ? 'dragged' : 'clicked'}${withKeys} ${under}${to ? ` to ${underAt(...to)}` : ''}${keys ? `, then ${keys}` : ''}`, ...shown(), ...fresh(before) });
       }
       if (!c) {
         if (!keys) throw new Error('control (from gui_state), a point (at / at_mm) or a key.');
@@ -542,10 +635,11 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         el.dispatchEvent(new Event('change', { bubbles: true }));
       } else if (click !== false) {
         el.dispatchEvent(new MouseEvent('mouseenter'));
-        el.click();
+        if (held.length) el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window, detail: 1, ...keysHeld }));
+        else el.click();
       }
       await settle();
-      return ok({ done: `${c.kind} “${c.label}”${given ? ` = ${value}` : ' clicked'}`, ...shown(), ...fresh(before) });
+      return ok({ done: `${c.kind} “${c.label}”${given ? ` = ${value}` : ` clicked${withKeys}`}`, ...shown(), ...fresh(before) });
     },
 
     // ---------------------------------------------------------------- drawing sheets (📄)

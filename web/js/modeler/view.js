@@ -225,7 +225,7 @@ export class ModelView {
     const loop = () => {
       requestAnimationFrame(loop);
       this.controls.update();
-      if (!this.dirty) return;
+      if (!this.dirty || this.held) return; // (held: the AI's click aimed through its picture's camera — not drawn)
       this.dirty = false;
       this.updatePlaneArrow(); // (end-on or from the side: the camera may have turned)
       this.updateCaps();
@@ -656,6 +656,26 @@ export class ModelView {
     this.invalidate();
   }
 
+  /** The camera as it is now: {position, quaternion, up, fov, zoom, aspect, near, far, target} (setCamera puts it back). */
+  cameraState() {
+    const c = this.camera;
+    return { position: c.position.clone(), quaternion: c.quaternion.clone(), up: c.up.clone(), fov: c.fov, zoom: c.zoom,
+      aspect: c.aspect, near: c.near, far: c.far, target: this.controls.target.clone() };
+  }
+
+  /** Put a camera from cameraState() on the view (its shape too: a picture's 4:3 on a wider view is stretched). */
+  setCamera(s) {
+    const c = this.camera;
+    c.position.copy(s.position);
+    c.quaternion.copy(s.quaternion);
+    c.up.copy(s.up);
+    Object.assign(c, { fov: s.fov, zoom: s.zoom, aspect: s.aspect, near: s.near, far: s.far });
+    c.updateProjectionMatrix();
+    c.updateMatrixWorld();
+    this.controls.target.copy(s.target);
+    this.invalidate();
+  }
+
   /** A picture of the view for the AI, w × h px whatever the panel's shape (a chat beside it made it a narrow strip):
    *  fitted when asked, without the mouse's hover, the picks or the chosen step's tint — only `faces` (ids) lit in
    *  orange. over(ctx, layer) draws on it while the labels sit where this camera puts them (layer: their box on
@@ -684,6 +704,7 @@ export class ModelView {
       this.updateCaps();
       this.renderer.render(this.scene, this.camera);
       this.labels.render(this.scene, this.camera);
+      this.shot = { w, h, ...this.cameraState() }; // (the camera that drew it: a point of the picture is aimed through it)
       const ctx = c.getContext('2d');
       ctx.fillStyle = background;
       ctx.fillRect(0, 0, w, h);

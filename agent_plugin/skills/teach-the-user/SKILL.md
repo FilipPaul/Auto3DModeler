@@ -21,7 +21,7 @@ and let them click. Do the step yourself only when they ask you to.
 2. **Show it**: `gui_highlight {control: "<label or n>", text: "<what to do there, one short sentence>", step: "1/3",
    wait: true}` — a pulsing ring around it with your tip, the rest dimmed. Write the tip in the user's language and
    say what will happen ("Click ✏ Sketch to start a drawing on a plane."). A spot of the 3D view or a drawing:
-   `at: [x, y]` (0 … 1 across and down the view; `get_screenshot` shows where — e.g. a face to pick).
+   `at: [x, y]` — the pixels of the spot in your last `get_screenshot` picture (e.g. a face to pick).
 3. **Wait for them**: with `wait: true` the call answers when the user clicked it ("the user clicked it"), closed
    the tip (Esc / ✕ — ask whether to go on) or did not click in time (show it again, or explain it another way).
 4. **Look what changed** (`gui_state`, `get_screenshot`) and show the next step. The steps of a typical lead:

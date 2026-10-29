@@ -1297,7 +1297,9 @@ can open them.
   `remove_joint`), `measure` between faces, the view for its screenshots (`set_view`: a section, explode, size labels;
   `get_screenshot` is a 1200 × 900 picture of the whole part or assembly however narrow the view is beside the chat,
   without your hover or picks, seen from iso, front, back (the front's mirror image) or the side, and `highlight`
-  lights the faces of a step in orange — it says when none of them shows from that side),
+  lights the faces of a step in orange — it says when none of them shows from that side; a point the AI reads off that
+  picture — its pixels — is what `gui_action` / `gui_highlight` `at` take, clicked through the camera that drew it, so
+  an edge aimed at in the picture is the edge picked however the view on screen is shaped),
   parts renamed or deleted, and files: `export` stl / step / pdf / **3mf** / **bom** / **dxf** / **project** (the
   whole project as a .a3d.json, as *Save project*).
 - **Demos, project files, variants, mechanisms**: ask "open the crank demo, tell me its mass and save a GIF of it" —
@@ -1328,7 +1330,8 @@ can open them.
   out or not) so the AI can tell you exactly where something is; `gui_action` clicks or slides one the way the mouse
   does — so it can check the app behaves like its tools. It also clicks, double-clicks or drags **at a point** of the
   view (picking a part or a face in 3D, a dimension, view or title cell on a drawing sheet — `at_mm` on the paper) and
-  presses **keys** (Delete, Enter, Escape, ctrl+z). A value given to a button is refused (nothing clicked), and when
+  presses **keys** (Delete, Enter, Escape, ctrl+z); a click can hold keys (`mods: ["ctrl"]` — your Ctrl+click
+  that adds one more face or part to the selection). A value given to a button is refused (nothing clicked), and when
   the controls on screen change (a part chosen: its panel) the answer lists them with their new numbers; a sheet's dimensions, views and title cells are listed too.
   The AI sees the **suggestions table** as you do: its title, what it is about, its rows in order and how many are
   under ⋯ Show all; it can select a face or a part by name (`pick`) and run a row by its label (`suggest`), and

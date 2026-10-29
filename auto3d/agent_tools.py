@@ -53,7 +53,9 @@ TOOLS = [
                     "faces in orange (3D model) — to check one feature; the text says when none of them shows from that side "
                     "(seen edge-on: a cut along the view). ui: true = the whole "
                     "window as the user sees it instead (the AI chat left out): the view as it is on screen with the suggestions "
-                    "table, panels, size labels and bars drawn over it (the text says where the table is) — to see what the user sees.",
+                    "table, panels, size labels and bars drawn over it (the text says where the table is) — to see what the user sees. "
+                    "A point you read off the picture (its pixels: x right, y down from its top left) is what gui_action / "
+                    "gui_highlight at take — aimed through the camera that drew it, however the view on screen is shaped.",
      "inputSchema": _obj({"view": {"type": "string", "enum": ["iso", "front", "back", "side"]}, "fit": {"type": "boolean"},
                           "highlight": {"type": "array", "items": STR}, "ui": {"type": "boolean"}})},
     {"name": "open_file", "where": "server",
@@ -750,21 +752,27 @@ TOOLS = [
      "description": "Do what the user's mouse and keys do. On a control from gui_state (its n, or its label / part of it): a "
                     "click on a button / checkbox / a sheet's dim, view or cell, or a slider / box / choice set to `value` (as dragged "
                     "or typed, then let go; a value for a button is refused, nothing clicked — a checkbox takes true / false). When the "
-                    "controls on screen change (a part chosen: its panel), the answer has `controls` with their new numbers. At a point: at = [x, y], 0 … 1 across and down the view (the 3D view, the drawing, the "
-                    "sheet; get_screenshot shows it), or at_mm = [x, y] on a drawing sheet's paper (mm from its top left) — a click "
+                    "controls on screen change (a part chosen: its panel), the answer has `controls` with their new numbers. At a point: at = [x, y] of your last get_screenshot picture — its pixels as you read them off it "
+                    "(e.g. [600, 450] = the middle of a 1200 × 900 one; or 0 … 1 across and down it), clicked through the camera "
+                    "that drew it, so it hits what the picture shows there whatever the view's shape on screen (no picture of "
+                    "what is on screen yet: 0 … 1 across and down the view) — or at_mm = [x, y] on a drawing sheet's paper (mm from its top left) — a click "
                     "there (picks a face, a part, a dimension…), double = true a double-click, drag_to = [x, y] (same kind of point) a "
                     "drag. key = a key pressed after it, or alone on what has the focus: Delete, Enter, Escape, ctrl+z … -> what was "
                     "done, what was under the mouse, what is selected, the suggestions table now and the messages shown. pick = "
                     "a named thing clicked where it shows in the view: a 3D model's face (\"F2:end\" from find_refs, or a step id), "
-                    "an assembly's part (\"I2\") or its face (\"I2 F2:end\") — the table then offers what fits it. suggest = a "
+                    "an assembly's part (\"I2\") or its face (\"I2 F2:end\") — the table then offers what fits it (`at` in the answer: "
+                    "where it is in your last picture). suggest = a "
                     "row of the suggestions table run by its label (Czech or English, part of it: \"Díra\", \"hole\"); a row under "
-                    "⋯ Show all is reached through it. Then get_assembly / gui_state / get_screenshot tell what changed.",
+                    "⋯ Show all is reached through it. mods = keys held during the click: [\"ctrl\"] (the user's Ctrl+click: one "
+                    "more in the selection — e.g. face A clicked, then face B with ctrl, for a two-face command), \"shift\", "
+                    "\"alt\", \"meta\". Then get_assembly / gui_state / get_screenshot tell what changed.",
      "inputSchema": _obj({"control": {}, "value": {}, "click": {"type": "boolean"}, "at": {"type": "array", "items": NUM},
                           "at_mm": {"type": "array", "items": NUM}, "drag_to": {"type": "array", "items": NUM},
-                          "double": {"type": "boolean"}, "key": STR, "suggest": STR, "pick": STR})},
+                          "double": {"type": "boolean"}, "key": STR, "suggest": STR, "pick": STR,
+                          "mods": {"type": "array", "items": {"type": "string", "enum": ["ctrl", "shift", "alt", "meta"]}}})},
     {"name": "gui_highlight", "where": "browser",
      "description": "Show the user where to click — to teach and lead them: a pulsing ring around a control (control = its n or "
-                    "label from gui_state, as gui_action takes it) or a spot of the view (at = [x, y], 0 … 1 across and down it), "
+                    "label from gui_state, as gui_action takes it) or a spot of the view (at = [x, y] of your last get_screenshot picture, as gui_action takes it), "
                     "with your short tip (text, in the user's language; step e.g. \"2/4\"), the rest of the screen dimmed lightly. "
                     "Nothing is blocked: the user clicks the control itself. The tip stays until they click it, press Esc or ✕, "
                     "or you show the next one; clear: true removes it. wait: true answers when the user has clicked it (or closed "

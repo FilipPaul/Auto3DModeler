@@ -275,6 +275,18 @@ class TestMcpServer(unittest.TestCase):
         self.assertIn("gui_state {where: \"suggest\"}", g["ui-tester"])
         self.assertIn("rank_pos", g["ui-tester"])
 
+    def test_gui_action_aims_through_the_picture_and_holds_keys(self):
+        """gui_action / gui_highlight `at` are pixels of get_screenshot's picture (the AI reads them off it; the page
+        aims them through the picture's camera), and a click can hold keys — mods ["ctrl"]: the user's Ctrl+click
+        (the page's side: tools/e2e_ai_gui.py)."""
+        schema = {t["name"]: t["inputSchema"]["properties"] for t in TOOLS}
+        desc = {t["name"]: t["description"] for t in TOOLS}
+        self.assertEqual(schema["gui_action"]["mods"]["items"]["enum"], ["ctrl", "shift", "alt", "meta"])
+        self.assertIn("Ctrl+click", desc["gui_action"])
+        self.assertIn("last get_screenshot picture", desc["gui_action"])
+        self.assertIn("camera that drew it", desc["get_screenshot"])
+        self.assertIn("last get_screenshot picture", desc["gui_highlight"])
+
 
 class TestRelay(unittest.TestCase):
     def test_round_trip_and_not_connected(self):

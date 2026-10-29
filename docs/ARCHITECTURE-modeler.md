@@ -42,6 +42,21 @@ Date: 2026-10-25. Written by the architect agent.
   series and item numbers; INGUN shop link. Tests: test_library_probes (each entry built by the kernel to its sizes
   within 0.01 mm, catalogue numbers, links, searches), e2e_library_probes, e2e_library_build (253 builds).
 
+- **gui_action `mods` (2026-10-29)** (an app report: the AI could not test Ctrl+click multi-select): mods = ["ctrl" |
+  "shift" | "alt" | "meta"] held during a click — at / pick / at_mm / a drawn thing (the pointer + mouse events carry
+  ctrlKey …) or a control (its click event). Test: e2e_ai_gui.py — F2:end, then the front face with ctrl: both
+  selected; a plain click: one; a wrong key refused.
+- **gui_action `at` = a point of the AI's picture (2026-10-29)** (an app report: a fillet click meant for an edge
+  landed on the face). get_screenshot is 1200 × 900 whatever the view's shape, but `at` was 0 … 1 of the view on
+  screen (another aspect, and a narrow view fitted from farther): a point read off the picture missed by tens of px.
+  Now view.snapshot keeps the camera that drew it (`view.shot`, `cameraState` / `setCamera`); every get_screenshot is
+  noted (agent_more `noteShot`: a 3D view's camera, the window's scale for ui, the sheet's paper). gui_action `at` /
+  `drag_to` are its pixels (or 0 … 1 of it): while the click is dispatched the view holds the picture's camera (not
+  drawn: `view.held`), so picks and edge snapping see exactly what the picture showed; the view's own camera is put
+  back after (a drag that turned it: kept, its shape the view's). `pick` answers `at` in the picture's pixels;
+  gui_highlight `at` follows the 3D point there. No picture of what is on screen: 0 … 1 of the view, as before.
+  Test: e2e_ai_gui.py — a block's vertical edge projected with the picture's camera, clicked in ◜ Fillet at
+  1600 × 800 and in a narrow view: that very edge picked (the old fractions: none / another).
 - **The AI sees the suggestions table (2026-10-29)** (the owner: "zdá se mi, že agent nevidí suggestion table"). It
   did not: gui_state listed the table's rows as plain buttons among the rest (where: panel, no title, no order, nothing
   marking them), the rows under ⋯ Show all not at all, and get_screenshot drew the 3D only. Now suggest.js keeps each
