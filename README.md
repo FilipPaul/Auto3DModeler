@@ -467,7 +467,8 @@ SolidWorks. It has only the tools that need almost no input.
      another). It is the other way of going both ways to *Both sides*: ticking one unticks the other.
    - **Draft** (0° to start with) tapers the side walls: they lean in going away from the sketch (negative: out), for
      a boss or a pocket that comes out of a mould. With *Both sides* / *＋ Other side* each side tapers away from the
-     sketch; not with *Through all* or *Up to next*.
+     sketch; not with *Through all* or *Up to next*. A profile of small round bumps drafts too (its corners come out
+     rounded); an angle so steep that the walls would meet before the far end is refused with the most that fits.
    - OK, or Enter, adds the step.
 3. **✏ Sketch** again and **click a flat face** of the part to sketch on it. On a face, Extrude starts as
    **Cut**, ready for holes and pockets.
@@ -547,7 +548,9 @@ SolidWorks. It has only the tools that need almost no input.
    of its lines, a full turn or any angle. Draw half the shape beside the axis, e.g. half a vase on the **Front**
    plane. A new, empty sketch can be moved to Front / Right with the buttons in the bar, and a sketch on a base plane
    can be moved along it with **Offset** (e.g. 30 mm above the bed). **▢ Shell** hollows the
-   part out: click the face(s) to leave open (the top of a cup) and type the wall thickness.
+   part out: click the face(s) to leave open (the top of a cup) and type the wall thickness. A cut into the side
+   before it gets a wall bent round it inside; when the walls cannot be made all over the part, the step says so
+   (hollow it out before that cut) rather than leave most of it solid.
 6. **⧫ Loft** makes a shape from one outline to another — e.g. a square base to a round top: two sketches one above
    the other (give the second sketch an *Offset*), choose *From* and *To*. **〰 Sweep** moves an outline along a
    path — pipes, handles, rails: a closed profile across the path's start, and a path of lines and arcs (an open

@@ -16,6 +16,34 @@ Date: 2026-10-25. Written by the architect agent.
   unfilled), nests them (even-odd: holes) and triangulates them — brick red, an assembly's a little toward the part's
   colour; remade when the cut, a part or its placement changes, and before get_screenshot's picture. Tests:
   e2e_section_revolved.
+- **Kernel bugs from the AI's reports (2026-10-29)** (RealSWReports, an apple bottle: a spline profile revolved,
+  shelled, bitten from the side). **CoG of a revolved spline body off its axis** (cog_mm [8.8, 0, 59] of a Ø75 × 72
+  bottle): a part with a long B-spline edge gets its volume from Gauss-Kronrod (`_volume`), and GK leaves the centre
+  unintegrated unless asked (CGFlag) — what it gave was not a centre. Asking costs 1–3 s, so the centre now comes from
+  the quick rule when its volume is within CENTRE_TOL 0.5 % of GK's (it integrates the moments too), else from GK with
+  CGFlag. The bottle: [0, 0, 31.67]. Tests: test_mass_props (a hemisphere at 3r/8, as arcs and as a 13-point spline;
+  a shelled hemisphere at 3/8·(R⁴ − r⁴)/(R³ − r³); a spline cup solid and shelled against its mesh's centroid).
+  **A drafted cut of 14 small arcs removed nothing** (25°, 11 deep): BRepOffsetAPI_DraftAngle tilts each wall as it is
+  and came back "done" with no valid solid (BRepCheck fails from 10° there; at 10–17° it was valid-looking but cut the
+  wrong amount). `kernel.draft` now refuses a result that is not a valid solid, and an extrude's draft then builds
+  one drafted prism with LocOpe_DPrism (`kernel.drafted_prism`: the profile offset along the height, rounded where
+  walls part; the height passed along the slanted wall, d / cos a; refused when the walls meet before the far end).
+  The plain draft stays first (sharp corners, the prismatoid tests). A loft to the offset wire was not taken: the
+  offset of this profile changes its edges (the scallops vanish), which a ruled loft cannot follow. The report's
+  bite at 25° × 11 mm: "at most 23.14°" (the scallops close up past that); 5 mm deep at 25° cuts / adds
+  ∫ area(profile shrunk by h·tan 25°) dh. Tests: test_extrude_draft_of_round_scallops (cut and add, STEP, refused
+  when too steep). **A shell after a side cut left the body mostly solid, "ok"** (182 000 mm³ where 2 mm walls are
+  35 000): MakeThickSolid comes back "done" with no valid solid when a cut's floor lies near the inner wall (even a
+  Ø20 bite 3 mm into a Ø60 cylinder; join type, Intersection mode and tolerance changed nothing). `kernel.shell` now
+  checks the result (`_thin_wall`: BRepCheck valid and the volume at most THIN_WALL 1.5 × the outside it keeps × t);
+  else `_hollowed`: the body offset t in as a whole (MakeOffsetShape with intersections) is the cavity, opened at
+  each flat open face by the cavity moved 1.5 t out through it within that face's slab, and cut from the body (the
+  cylinder: its wall bends round the bite). Neither: `Unsizable` "The shell could not be made all over the part — …"
+  (Czech added; `_sized` passes an Unsizable on without its search for the most that fits). The report's apple cannot
+  be offset as a whole even without the bite (no shell back; likely its 1 mm lip at the neck, gone at 2 mm), so it
+  gets that issue — the AI's
+  workaround (shell first, then the bite and a plug) stays the way. Tests: test_shell_after_a_side_bite.
+
 - **Icons at an extrude's height (2026-10-29)** (the owner: "u kliknutí na dimenzi vysunutí … pár ikonek … směr, k
   ploše a další ploše"): clicking the "↕ 10" label on the part opens the size editor with one line of 16 px stroke
   icons (web/js/modeler/dimicons.js, drawn like the step tree's): ⇅ flip, both sides, up to a face… (opens the Extrude

@@ -529,7 +529,8 @@ const CS = {
   'A face it uses is no longer there — change this step and pick the faces again.': 'Plocha, kterou krok používá, už neexistuje — upravte krok a vyberte plochy znovu.',
   'The wall thickness must be greater than zero.': 'Tloušťka stěny musí být větší než nula.', 'Click the face(s) to leave open (e.g. the top of a cup).': 'Klikněte na plochy, které zůstanou otevřené (např. horní stranu hrnku).',
   'The wall is too thick for this part — at most half its smallest size.': 'Stěna je pro tento díl moc tlustá — nejvýše polovina jeho nejmenšího rozměru.',
-  'The walls could not be made this thick here — try a thinner wall.': 'Stěny tu nejdou udělat tak tlusté — zkuste tenčí stěnu.', 'The angle must be greater than zero.': 'Úhel musí být větší než nula.',
+  'The walls could not be made this thick here — try a thinner wall.': 'Stěny tu nejdou udělat tak tlusté — zkuste tenčí stěnu.',
+  'The shell could not be made all over the part — try another wall thickness, or hollow it out before the cuts in its side.': 'Skořepinu se nepodařilo vytvořit po celém dílu — zkuste jinou tloušťku stěny, nebo díl vydutěte před výřezy v jeho boku.', 'The angle must be greater than zero.': 'Úhel musí být větší než nula.',
   // outlines in 3D models, printing copies
   '◆ To 3D model': '◆ Do 3D modelu', "Make a 3D model from this part's outline: a new model tab with the outline as its first sketch (then extrude it, add holes, roundings…)":
     'Udělat 3D model z obrysu tohoto dílu: nová záložka modelu s obrysem jako první skicou (pak ho vysuňte, přidejte díry, zaoblení…)',
@@ -1668,7 +1669,7 @@ const CS = {
   'origin: "centre", "corner", "world" or {point: <a point step>}.': 'origin: "centre", "corner", "world" nebo {point: <krok bodu>}.',
   'Its sketch has no closed shape to extrude.': 'Jeho skica nemá žádný uzavřený tvar k vysunutí.',
   'draft angle': 'úhel úkosu',
-  'The walls could not be tilted by that angle here — try a smaller angle.': 'Stěny tu nešlo o tento úhel naklonit — zkuste menší úhel.',
+  'A draft cannot be made for this profile — try a smaller angle or no draft.': 'Úkos se pro tento profil nedá vytvořit — zkuste menší úhel nebo bez úkosu.',
   'Its sketch has no closed shape to revolve.': 'Jeho skica nemá žádný uzavřený tvar k rotaci.',
   'A loft goes through at least two sketches — choose them.': 'Šablonování prochází aspoň dvěma skicami — vyberte je.',
   'A sketch of the loft is missing or has a problem.': 'Některá skica šablonování chybí nebo má problém.',

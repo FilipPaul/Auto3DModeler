@@ -325,20 +325,29 @@ def _apply(f, st: State, s):
         if not faces:
             raise K.KernelError("Its sketch has no closed shape to extrude.")
 
-        def tapered(b):
+        def tapered(face, names, v, start=None):
             if not draft:
-                return b
-            return _sized(lambda v: K.draft(b, fid, math.copysign(v, draft), fid), abs(draft), "draft angle", "°",
-                          "The walls could not be tilted by that angle here — try a smaller angle.")
+                return K.prism_body(face, names, v, fid, start)
+
+            def make(a):  # the straight prism's walls tilted (sharp corners); when OCCT cannot, one drafted prism
+                try:
+                    return K.draft(K.prism_body(face, names, v, fid), fid, a, fid)
+                except K.KernelError:
+                    b = K.drafted_prism(face, names, v, a, fid)
+                    if b is None:
+                        raise
+                    return b
+            return _sized(lambda a: make(math.copysign(a, draft)), abs(draft), "draft angle", "°",
+                          "A draft cannot be made for this profile — try a smaller angle or no draft.")
         before = K.volume(st.body.shape) if op == "cut" and st.body is not None else None
         body0 = st.body
         for face, names in faces:
-            _use(st, fid, K.prism_up_to_next(face, names, vec, body0, fid, op) if nxt else tapered(K.prism_body(face, names, vec, fid, start)), op)
+            _use(st, fid, K.prism_up_to_next(face, names, vec, body0, fid, op) if nxt else tapered(face, names, vec, start), op)
         main = [t for t, _ in st.tools.get(fid, [])]
         if d2:
             back = -vec / float(np.linalg.norm(vec)) * d2
             for face, names in faces:
-                b = tapered(K.prism_body(face, names, back, fid))
+                b = tapered(face, names, back)
                 b.names[f"{fid}:start"] = b.names.pop(f"{fid}:end")  # (its far face starts the extrude; the one on the plane is inside)
                 _use(st, fid, b, op)
         _cut_check(s, st, before)
@@ -890,9 +899,11 @@ _explain = [True]  # _sized looks for the most that fits (False: limits() is try
 
 def _sized(make, v, what, unit, impossible):
     """make(v) -> a body; when it fails, say why: no size works at all, or this one is too big (and the most that
-    works, found by trying — within SIZE_BUDGET)."""
+    works, found by trying — within SIZE_BUDGET). K.Unsizable: no size would do, its own words."""
     try:
         return make(v)
+    except K.Unsizable:
+        raise
     except K.KernelError:
         if not _explain[0]:
             raise
