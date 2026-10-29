@@ -235,6 +235,9 @@ Never report "works" without having run it; report failures with their output.
    start; + Ctrl+click the pin's round face: Concentric, made — the pin on the hole's axis; two flat faces: Touch …; zoomed
    out: the small pin's side and the hole's rim picked as faces, not the snaps of their centres; a Ctrl+click beside
    the parts keeps the face picked first). Exits 1 on a failed check.
+   `tools/e2e_assembly_insert_view.py <url> <dir>` covers the view after an insert (the first part: iso, seen; zoomed
+   in, a Block put in by the AI and one dragged from the project tree land outside -> the view fits, each seen;
+   zoomed out, one more already seen -> the camera stays).
    `tools/e2e_mechanism_by_mouse.py <url> <dir>` replays building the crank – rod – slider by mouse only (Czech, 1600×1000):
    the crank demo's parts, ＋ Nová sestava, ＋ Vložit díl ×4, each joint by real clicks — a hole's rim + Ctrl+click the
    pin -> "◎ Soustředně + dosednout · Ø10" first; the slider's top + Ctrl+click the base's top -> "⧉ Položit …"; the

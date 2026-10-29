@@ -2096,7 +2096,19 @@ export class Assembly {
     }
     this.sel = it.id;
     this.commit();
-    if (this.doc.instances.length === 1 || !like) this.view.setView('iso');
+    // the view follows only when it has to: the first part -> iso; a new one outside the view -> all fitted (seen from
+    // where the camera looks now); one the user can already see -> the view stays (zoomed in on something: kept)
+    if (this.doc.instances.length === 1) this.view.setView('iso');
+    else if (b && !this.inView(new THREE.Box3(new THREE.Vector3(...b.bbox.slice(0, 3)), new THREE.Vector3(...b.bbox.slice(3))).applyMatrix4(new THREE.Matrix4().fromArray(it.matrix)))) this.view.fit();
+  }
+
+  /** Is all of this box (world) inside the camera's view? */
+  inView(box) {
+    const cam = this.view.camera;
+    cam.updateMatrixWorld();
+    const f = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+    return [0, 1, 2, 3, 4, 5, 6, 7].every((k) =>
+      f.containsPoint(new THREE.Vector3(k & 1 ? box.max.x : box.min.x, k & 2 ? box.max.y : box.min.y, k & 4 ? box.max.z : box.min.z)));
   }
 
   /** A placed part gets a part of its own: its part copied as a new part, this one uses the copy (joints stay). */

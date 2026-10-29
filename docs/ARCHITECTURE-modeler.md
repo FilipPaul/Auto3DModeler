@@ -7,6 +7,12 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **The assembly view follows an insert only when it has to done** (the mouse walkthrough: every ＋ Vložit díl reset
+  the view to iso, the user's zoom lost): the first part -> iso; a new part outside the camera's view -> all fitted,
+  seen from where the camera looks now (ModelView.fit); a part already in view -> the camera stays (Assembly.inView:
+  the 8 corners of its box in the frustum). The same for ＋ Vložit díl, a drag from the project tree, the AI's
+  insert_part and "one more of this part". Test: e2e_assembly_insert_view.
+
 - **✕ in the project tree asks by turning red, not by a dialog done** (the mouse walkthrough: one click removed a whole
   part): the first click turns ✕ into a red "Smazat?" for 3 s, a second click (or Enter / Space) deletes, moving the
   pointer or the focus away or waiting puts the ✕ back; ↶ Zpět still restores it (parts.js armDelete). The only
