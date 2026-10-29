@@ -173,5 +173,29 @@ class TestProjectTools(unittest.TestCase):
             self.assertIn("not a project file", text)
 
 
+class TestSolidFromAFile(TestProjectTools):
+    """add_feature {type: "solid", path}: the server reads the file as ▣ Solid from a file does and hands the page the
+    step's blob (the page's side, with volumes: tools/e2e_agent.py)."""
+    test_demos = test_open_a_project_file = None
+
+    @unittest.skipUnless(__import__("auto3d.modeler", fromlist=["available"]).available("occ"), "OCP not installed")
+    def test_path_becomes_a_blob(self):
+        from auto3d.modeler import blobs
+        step = ROOT / "samples" / "ExportFromOurApp" / "part_base_plate.step"
+        text, err = self.call("add_feature", type="solid", path=str(step), op="cut")
+        self.assertFalse(err, text)
+        cmd, args = self.sent[-1]
+        self.assertEqual(cmd, "add_feature")
+        self.assertEqual((args["type"], args["file"], args["op"]), ("solid", "part_base_plate.step", "cut"))
+        self.assertNotIn("path", args)
+        self.assertTrue(blobs.get(args["blob"]).startswith(b"ISO-10303-21"))  # (a STEP kept by its hash)
+        n = len(self.sent)
+        for bad, why in ((ROOT / "nope.step", "No such file"), (ROOT / "README.md", "STEP / IGES")):
+            text, err = self.call("add_feature", type="solid", path=str(bad))
+            self.assertTrue(err)
+            self.assertIn(why, text)
+        self.assertEqual(len(self.sent), n)  # (nothing sent to the page)
+
+
 if __name__ == "__main__":
     unittest.main()

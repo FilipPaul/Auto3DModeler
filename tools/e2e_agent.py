@@ -347,6 +347,26 @@ try:
     print(f"    take_part: Versioned {v} expected 3000 | match: {abs(v - 3000) < 0.01} | variant still main: "
           f"{json.loads(tool('list_versions')[0])['variant']['name'] == 'main'}")
     print("    switch_variant, no such one:", tool("switch_variant", variant="nope")[0][:90])
+    # ---- ▣ a solid from a file (add_feature type solid, path): a 20 cube written as STEP, joined into a new model
+    # (8000), a Ø10 hole through it, then the same file as a see-through reference (the volume stays) and cut out
+    tool("new_model", name="Cube file")
+    tool("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 20, "h": 20}}])
+    tool("add_feature", type="extrude", sketch="F1", d=20)
+    cube = str(Path(OUT) / "agent_cube.step")
+    tool("export", format="step", path=cube)
+    tool("new_model", name="From a file")
+    r = json.loads(tool("add_feature", type="solid", path=cube)[0])
+    top = json.loads(tool("find_refs", kind="face", normal=[0, 0, 1], extreme="max")[0])[0]["name"]
+    print(f"    solid add: ok {r.get('ok')} | volume {r['body']['volume_mm3']} expected 8000 | its top face {top} (F1:f…: {top.startswith('F1:f')})")
+    r = json.loads(tool("add_feature", type="hole", face=top, points=[[0, 0]], d=10)[0])
+    want = 8000 - math.pi * 25 * 20
+    print(f"    hole in it: {r['body']['volume_mm3']} expected {want:.3f} | match: {abs(r['body']['volume_mm3'] - want) < 0.01}")
+    r = json.loads(tool("add_feature", type="solid", path=cube)[0])
+    print(f"    the file again (a part there: op ref by default): {r.get('volume_change_mm3', 0)} expected 0 | op "
+          f"{next(s for s in json.loads(tool('get_model')[0])['steps'] if s['id'] == r['id']).get('op')}")
+    tool("export", format="step", path=str(Path(OUT) / "agent_from_file.step"))
+    print("    STEP of it:", (Path(OUT) / "agent_from_file.step").stat().st_size, "bytes")
+    print("    no such file:", tool("add_feature", type="solid", path=str(Path(OUT) / "nope.step"))[0][:80])
     # ---- 🎬 demos (list_demos, open_demo) and a project file (open_file .a3d.json): the crank – rod – slider
     rows = json.loads(tool("list_demos")[0])
     print("    demos:", [x["file"] for x in rows])

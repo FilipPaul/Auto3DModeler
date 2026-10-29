@@ -277,12 +277,16 @@ TOOLS = [
                     "- point: a reference point (no geometry; it follows the part, sketches snap and dimension to it): at "
                     "{corner: [x, y, z]} (the corner nearest that place) / {centre: <a round edge's ref from find_refs>} / {mid: "
                     "<an edge's ref>: its middle} / a ref from find_refs kind \"point\".\n"
+                    "- solid: ▣ a solid from a file — path (a STEP / IGES / STL / OBJ / 3MF on disk; a mesh is sewn into a solid), "
+                    "op \"add\" (joined to the part; the default for an empty model), \"cut\" (cut out of it: a cavity it fits in) "
+                    "or \"ref\" (shown see-through to build around — a bought part's model, a board; the default when there is a "
+                    "part). It stays where the file has it (mm); its faces are named \"<id>:f0\" … for find_refs.\n"
                     "Numbers (d, d2, offset, draft, r, angle, t, depth, count, spacing, h, flat …) may be expressions of the "
                     "project's parameters (get_parameters / set_parameter): \"L / 2\", \"D + 0.2\" — the step keeps the "
                     "expression and follows when the parameter changes; \"L = 100\" makes (or sets) L at once.",
-     "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep", "decal", "mirror", "draft", "rib", "point", "split"]},
+     "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep", "decal", "mirror", "draft", "rib", "point", "solid", "split"]},
                           "name": STR, "plane": {}, "shapes": {"type": "array"}, "lock": {"type": "boolean"},
-                          "sketch": STR, "d": VAL, "op": {"type": "string", "enum": ["add", "cut"]}, "through": {"type": "boolean"},
+                          "sketch": STR, "d": VAL, "op": {"type": "string", "enum": ["add", "cut", "ref"]}, "through": {"type": "boolean"},
                           "symmetric": {"type": "boolean"}, "flip": {"type": "boolean"}, "axis": {}, "angle": VAL,
                           "face": STR, "points": {"type": "array"}, "depth": VAL, "edges": {"type": "array"}, "r": VAL, "chain": {"type": "boolean"},
                           "faces": {"type": "array"}, "t": VAL, "of": {}, "kind": {"type": "string", "enum": ["linear", "circular"]},

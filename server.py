@@ -1612,6 +1612,23 @@ def tool_list_reports(args):
     return {"text": json.dumps([{"title": r["title"], "kind": r["kind"], "date": r["date"]} for r in rows], ensure_ascii=False)}
 
 
+def _solid_from_path(args: dict) -> dict:
+    """add_feature {type: "solid", path}: the file read as ▣ Solid from a file reads it (/api/model/import) — into the
+    blob store, a mesh / IGES made a STEP — and handed to the page as the step's blob and file name."""
+    from auto3d.modeler import blobs
+    p = _file(args["path"])
+    if p.suffix.lower() not in (".step", ".stp", ".igs", ".iges", ".stl", ".obj", ".3mf"):
+        raise ValueError("path: a STEP / IGES / STL / OBJ / 3MF file.")
+    res, err = _model_call("import_solid", {"blob": blobs.put(p.read_bytes()), "name": p.name}, timeout=600)
+    if err:
+        raise ValueError(err[0].get_json().get("error") or "The file could not be read.")
+    out = {k: v for k, v in args.items() if k != "path"}
+    out.update({"blob": res["blob"], "file": p.name, **({"warning": res["warning"]} if res.get("warning") else {})})
+    if res.get("op") == "ref":  # (an IGES whose surfaces do not close: a reference body only)
+        out["op"] = "ref"
+    return out
+
+
 SERVER_TOOLS = {"open_file": tool_open_file, "report_problem": tool_report_problem, "list_reports": tool_list_reports, "open_sample": tool_open_sample, "trace_picture": tool_trace_picture,
                 "use_outline": tool_use_outline, "export": tool_export, "list_demos": tool_list_demos, "open_demo": tool_open_demo}
 
@@ -1631,6 +1648,8 @@ def api_agent_call():
     if tool not in TOOL_NAMES:
         return jsonify(_mcp_result(f"Unknown tool {tool}.", error=True))
     try:
+        if tool == "add_feature" and args.get("type") == "solid" and args.get("path"):
+            args = _solid_from_path(args)
         res = RELAY.call(tool, args) if tool in BROWSER_TOOLS else SERVER_TOOLS[tool](args)
     except Exception as exc:  # report to the agent instead of failing the call
         return jsonify(_mcp_result(f"{tool} failed: {exc}", error=True))
