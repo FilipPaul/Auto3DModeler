@@ -113,6 +113,17 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
    orange, to see one feature). Report the size and the steps the user can change
    (double-click a step in the list, or ask you).
 
+## Parameters (sizes several steps or parts share)
+
+When a size drives several steps or parts (a plate's length that a slot, a hole pattern and the lid follow), make it a
+project parameter: `set_parameter {name: "L", value: 100}` (`get_parameters` lists them), then give the numbers as
+expressions: `add_feature {type: "extrude", sketch: "F1", d: "L / 4"}`, `sketch_dim {id: "F1", dim: "len:l1", value:
+"L"}`, `edit_feature {id: "F5", fields: {spacing: "L / 5"}}` — the step keeps the expression. Later
+`set_parameter {name: "L", value: 120}` rebuilds every part that uses it (the result lists them with their volumes).
+Expressions: + - * / and brackets, other parameters (`t = L / 20`); `"L = 100"` given as a number makes L at once.
+A plain number given later drops the expression. Do not make parameters the user did not ask for unless sizes are
+shared.
+
 ## Changing it later
 
 `edit_feature {id, fields}` (e.g. `{d: 15}` for an extrude, `{r: 3}`, `{shapes: [...]}` for a sketch),

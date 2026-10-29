@@ -6,6 +6,12 @@ const clone = (x) => (x === undefined || x === null ? x : structuredClone(x));
 export const changed = () => window.dispatchEvent(new Event('a3d:changed'));
 
 export class History {
+  // Hooks for a history all the workspaces share (the project's 𝑥 parameters, params.js): first(dir, history, probe)
+  // takes an undo / redo of `history` when its own step is the last one (-> a promise; probe: only whether it would);
+  // committed(history): a step was recorded.
+  static first = null;
+  static committed = null;
+
   /** capture(): the state to record; restore(snapshot): put it back; onChange(): update the buttons. */
   constructor({ capture, restore, onChange = () => {}, limit = 100 }) {
     Object.assign(this, { capture, restore, onChange, limit });
@@ -25,6 +31,12 @@ export class History {
 
   /** Record the current state as a step (nothing happens when it did not change). */
   commit() {
+    const did = this.record();
+    if (did) History.committed?.(this);
+    return did;
+  }
+
+  record() {
     const cur = clone(this.capture()), k = JSON.stringify(cur);
     if (k === this.baseKey) return false;
     if (this.base !== null) this.undo.push(this.base);
@@ -37,10 +49,12 @@ export class History {
     return true;
   }
 
-  canUndo() { return this.undo.length > 0; }
-  canRedo() { return this.redo.length > 0; }
+  canUndo() { return this.undo.length > 0 || !!History.first?.(-1, this, true); }
+  canRedo() { return this.redo.length > 0 || !!History.first?.(1, this, true); }
 
   async go(dir) {
+    const other = History.first?.(dir, this, false); // (a 𝑥 parameter changed last: that goes back first — params.js)
+    if (other) return other;
     const from = dir < 0 ? this.undo : this.redo, to = dir < 0 ? this.redo : this.undo;
     const snap = from.pop();
     if (!snap) return false;

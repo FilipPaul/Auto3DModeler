@@ -135,9 +135,9 @@ try:
     back.click()
     time.sleep(1.2)
     settled()
-    print("  ↺ restored -> preview size:", js(f"return {M}.result.body.bbox"), "| field", box.find_element(By.CSS_SELECTOR, "input[type=number]").get_attribute("value"),
+    print("  ↺ restored -> preview size:", js(f"return {M}.result.body.bbox"), "| field", box.find_element(By.CSS_SELECTOR, ".m-dimedit-row input").get_attribute("value"),
           "| still open:", bool(d.find_elements(By.CSS_SELECTOR, ".m-dimedit")), "| button greyed:", not back.is_enabled())
-    inp = box.find_element(By.CSS_SELECTOR, "input[type=number]")
+    inp = box.find_element(By.CSS_SELECTOR, ".m-dimedit-row input")
     inp.send_keys(Keys.CONTROL, "a")
     inp.send_keys("80", Keys.ENTER)
     time.sleep(1.2)
@@ -152,7 +152,7 @@ try:
     print("hole sizes:", tags())
     tag("Ø6").click()
     time.sleep(0.3)
-    inp = d.find_element(By.CSS_SELECTOR, ".m-dimedit input[type=number]")
+    inp = d.find_element(By.CSS_SELECTOR, ".m-dimedit .m-dimedit-row input")
     inp.send_keys(Keys.CONTROL, "a")
     inp.send_keys("8", Keys.ENTER)
     time.sleep(1)

@@ -49,7 +49,7 @@ def ranges():
 
 
 def slider_range(k):
-    return js(f"""const n = document.querySelector('#modelRight input[type=number][data-k="{k}"]'), s = n.closest('.field, label, .mp-hd').nextElementSibling;
+    return js(f"""const n = document.querySelector('#modelRight input[data-k="{k}"]:not([type=checkbox])'), s = n.closest('.field, label, .mp-hd').nextElementSibling;
       return [n.min, n.max, s.min, s.max]""")
 
 

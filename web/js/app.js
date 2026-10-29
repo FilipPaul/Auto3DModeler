@@ -35,6 +35,7 @@ import { changed as projectChanged } from './history.js';
 import { nextFrames } from './frames.js';
 import { trackProgress, newRid } from './progressbox.js'; // (slow requests: the busy box with Cancel)
 import { initJobs } from './jobs.js';
+import { initParams, paramHandlers } from './paramsui.js';
 import { showDemos } from './demos.js';
 
 initI18n();  // Czech / English: translates the page as it is built
@@ -2423,6 +2424,9 @@ async function sheetScreenshot() {
   return { text: `Drawing sheet of ${project.current?.name || ''} (rev ${sheet.d?.rev || 1}).`, image: c.toDataURL('image/png').split(',')[1] };
 }
 
+// 𝑥 the project's parameters: the widget, number fields with expressions, the parts following a change
+initParams({ project, modeler, assembly, toast });
+
 // 3D model parts: their own tools; the shared ones (screenshot, export, undo, get_part) follow the part on screen
 const MODEL = modelHandlers({ modeler, project, getWorkspace: () => state.workspace });
 const SHARED = { get_screenshot: 'model_screenshot', get_body: 'model_body', undo: 'model_undo' };
@@ -2448,6 +2452,7 @@ for (const [name, fn] of Object.entries(agentHandlers)) {
     return fn(...args);
   };
 }
+Object.assign(agentHandlers, paramHandlers()); // (get_parameters / set_parameter: in every workspace)
 const BOTH = new Set(['check_print']); // a tool of both kinds: on a quick part (a printing copy) the quick part's
 for (const [name, fn] of Object.entries(MODEL)) {
   if (SHARED[name] || Object.values(SHARED).includes(name)) continue;

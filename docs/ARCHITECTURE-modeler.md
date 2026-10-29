@@ -7,6 +7,35 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **𝑥 Project parameters done** (the owner: named values of the project that any typed size can use): `L = 100`,
+  `D = 8`, `t = L / 20` — web/js/params.js: a small parser of our own (numbers, 2,5 too; names; + − × ÷; brackets; mm /
+  ° after a number skipped; no eval), evaluateAll (any order, circles and references to a bad one are errors of each
+  parameter), readField (a field's text: a number, an expression or "name = expression"), resolveIn (every object with
+  `expr` gets its numbers again, deep), the store (its own History; History.first / History.committed in history.js:
+  Ctrl+Z / ↶ in any workspace takes a parameter change back when it was the last step). The place it is resolved: the
+  **browser** — a number keeps its expression beside it (`{"d": 50, "expr": {"d": "L/2"}}`; a sketch size shown as a
+  radius: `{"v": {"x": "D", "k": 0.5}}`), the number is always the value, so the kernel, exports, drawings and older code
+  read numbers as before; auto3d/modeler/params.py is the same in Python (project.migrate puts the numbers as the file's
+  `parameters` say: a file edited by hand); tests/param_cases.json holds the cases both must agree on. The server:
+  doc._param_dims — a sketch whose locked size has an expression is solved again (planegcs) and its new points go back
+  (`update`), so a part not on screen follows a changed parameter too. web/js/paramsui.js: exprField (a tool panel's
+  number becomes a text field that also takes an expression: the panel's own listeners get a plain number as before —
+  the expression worked out and handed to them, kept when they took it; shown "L/2 = 50" while not typed in; a bad one
+  red with the reason, the number kept; ↑ / ↓ step a plain number), the 𝑥 Parameters widget (leftdock addWidget, model
+  and assembly; hidden while there are none; name = expression = value ✕, "New: L = 100"), follow() (every model part
+  and assembly re-resolved; the one on screen rebuilt, the others through /api/model/rebuild by name — the ⚙ jobs list
+  —, an assembly on screen refreshed; a part's undo snapshot re-resolved on restore). Fields: every number of the tool
+  panels (modeler.addSliders), the on-model size editor (openDimEdit / applyDim), the sketch's size labels (editLabel →
+  setSizeExpr / keepExpr; labels "L/2 = 50"), the assembly joints' gap / distance / angle. Project file: `parameters`
+  [{name, expr}] (Project.toJSON / loadAll). AI: get_parameters, set_parameter {name, value | delete} (lists the parts
+  rebuilt with their volumes), add_feature / edit_feature numbers and sketch_dim value may be expressions (get_model
+  `expressions`, get_sketch dims `expression`); model-a-part skill. tests/test_params.py (precedence, references, units,
+  errors, circles, no eval, resolve, migrate; d = L / 2 and a sketch width W follow -> volumes, watertight, STEP round
+  trip), tools/e2e_parameters.py, e2e_agent. Left out: renaming a parameter (its uses are not renamed), units other
+  than mm / °, functions (sin, sqrt…), the sketcher's own panels (offset distance, pattern count / spacing in a
+  sketch, move / rotate boxes), the mechanism / DOF sliders' numbers, a second window of the project (parameters are
+  not sent to it live).
+
 - **A mechanism built by mouse: the walkthrough, its fixes, "one joint is missing" done** (the owner: "how hard is it
   for a user to make a mechanism?"). The crank – rod – slider put together with real clicks only (headless Edge, Czech,
   1600×1000; the crank demo's parts; tools/e2e_mechanism_by_mouse.py replays it). Found and fixed, one commit each:

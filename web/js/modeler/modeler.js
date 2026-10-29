@@ -22,6 +22,8 @@ import { newRid, cancelRid, wasCancelled } from '../progressbox.js';
 import { snapOnFace, snapDrawing, toFace } from './facesnap.js';
 import { HOLE_SIZES, HOLE_TYPES, dFlat, holeType, setHoleStandard } from './holes.js';
 import { stepIcon, stepKind, stepGroup, treeIcon, treeShape } from './steptree.js';
+import { params, isPlain, exprText, readField } from '../params.js';
+import { exprField, takeField, setExpr } from '../paramsui.js';
 
 const TYPE_NAME = { point: 'Point', rib: 'Rib', draft: 'Draft', sketch: 'Sketch', extrude: 'Extrude', revolve: 'Revolve', fillet: 'Fillet', chamfer: 'Chamfer', hole: 'Hole', shell: 'Shell', pattern: 'Pattern',
   loft: 'Loft', sweep: 'Sweep', solid: 'Solid', decal: 'Decoration', mirror: 'Mirror', split: 'Split' };
@@ -974,12 +976,12 @@ export class Modeler {
   openDimEdit(el, edit) {
     this.closeDimEdit();
     const before = structuredClone(this.part.features);
-    const v0 = edit.get(), step = edit.step || (Math.abs(v0) >= 20 ? 0.5 : 0.1);
+    const v0 = edit.get(), step = edit.step || (Math.abs(v0) >= 20 ? 0.5 : 0.1), ex0 = this.dimExpr(edit);
     let lo = edit.min ?? 0.1, hi = edit.max ?? Math.max(10, Math.abs(v0) * 3);
     const box = document.createElement('div');
     box.className = 'm-dimedit';
     box.innerHTML = `<div class="m-dimedit-t">${esc(t(edit.label || 'Size'))}</div>
-      <div class="m-dimedit-row"><input type="number" step="${step}" value="${fmt(v0)}"><span class="unit">${edit.unit || (edit.int ? '' : 'mm')}</span></div>
+      <div class="m-dimedit-row"><input type="text" class="px-in" autocomplete="off" spellcheck="false" step="${step}" value="${esc(ex0 ?? fmt(v0))}" title="${esc(t('A number — or an expression of the project’s parameters: L, L/2 + 5, =D. “L = 100” makes the parameter L.'))}"><span class="unit">${edit.unit || (edit.int ? '' : 'mm')}</span></div>
       <input type="range" min="${edit.int ? lo : 0}" max="${hi}" step="${edit.int ? 1 : step}" value="${v0}">
       <div class="m-dimedit-acts"><button class="btn small primary" data-a="ok">OK</button><button class="btn small" data-a="cancel">Cancel</button>
         <button class="btn small" data-a="restore" disabled title="${esc(t('Back to the size it had when this was opened'))}" data-no-i18n>↺ ${fmt(v0)}</button></div>`;
@@ -989,7 +991,7 @@ export class Modeler {
     this.els.viewport.appendChild(box);
     floatBox(box, this.els.viewport, { kind: 'dimedit', handle: '.m-dimedit-t', remember: 'size', min: [170, 100] }); // (opens by the size clicked)
     this.dimEdit = box;
-    const num = box.querySelector('input[type=number]'), slider = box.querySelector('input[type=range]');
+    const num = box.querySelector('.m-dimedit-row input'), slider = box.querySelector('input[type=range]');
     if (edit.field && edit.stepId) { // the real range of this number of the step
       this.limitsFor(this.part.features, edit.stepId).then((lim) => {
         const r = lim[edit.field];
@@ -1016,16 +1018,26 @@ export class Modeler {
       busy = false;
     };
     const valid = (v) => Number.isFinite(v) && v <= hi && (edit.int ? Number.isInteger(v) && v >= lo : lo <= v || lo < 0);
-    const back = box.querySelector('[data-a=restore]'), moved = () => { back.disabled = Math.abs(parseFloat(num.value) - v0) < 1e-9; };
-    num.addEventListener('input', () => { const v = parseFloat(num.value); moved(); if (valid(v)) { slider.value = v; preview(v); } });
+    // 𝑥 a number or an expression of the parameters (L / 2; "L = 100" makes L when it is kept)
+    const read = (keep = false) => {
+      try { const r = keep ? takeField(num.value) : readField(num.value, params.list); num.classList.remove('px-bad'); num.title = ''; return r; } catch (e) {
+        num.classList.add('px-bad');
+        num.title = `⚠ ${e.message}`;
+        return { value: NaN, error: e.message };
+      }
+    };
+    const back = box.querySelector('[data-a=restore]'), moved = () => { back.disabled = Math.abs(read().value - v0) < 1e-9; };
+    num.addEventListener('input', () => { const v = read().value; moved(); if (valid(v)) { slider.value = v; preview(v); } });
     slider.addEventListener('input', () => { const v = Math.max(parseFloat(slider.value), edit.min > 0 ? edit.min : 0); num.value = fmt(v); moved(); preview(v); });
     back.addEventListener('click', () => { num.value = fmt(v0); slider.value = v0; moved(); preview(v0); num.focus(); num.select(); }); // (the editor stays open)
     const ok = async () => {
-      const v = parseFloat(num.value);
-      if (!valid(v)) { this.hooks.toast('That size does not fit here.', 'warning'); return; }
+      const r0 = read();
+      if (r0.error) { this.hooks.toast(r0.error, 'warning', 6000); return; }
+      if (!valid(r0.value)) { this.hooks.toast('That size does not fit here.', 'warning'); return; }
+      const r = read(true), v = r.value;
       while (busy) await new Promise((res) => setTimeout(res, 20));
       this.closeDimEdit();
-      if (await this.applyDim(edit, v, true) === false) { this.part.features = before; this.rebuild(); }
+      if (await this.applyDim(edit, v, true, r.expr) === false) { this.part.features = before; this.rebuild(); }
     };
     const cancel = async () => { while (busy) await new Promise((res) => setTimeout(res, 20)); this.closeDimEdit(); this.part.features = before; await this.rebuild(); this.reshowDims(); };
     num.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') ok(); if (e.key === 'Escape') cancel(); });
@@ -1036,8 +1048,20 @@ export class Modeler {
 
   closeDimEdit() { this.dimEdit?.remove(); this.dimEdit = null; }
 
-  /** Put a size in: a step's own number, or a sketch's size (solved, with its locks). final = an undo step. */
-  async applyDim(edit, v, final) {
+  /** 𝑥 The expression a size in the view is set by (a step's number, a sketch's locked size), or null. */
+  dimExpr(edit) {
+    if (edit.sketch) {
+      const sk = this.part.features.find((g) => g.id === edit.sketch.id);
+      const d = sk && new Sketcher(this, structuredClone(upgradeSketch(sk)), false).findDim(edit.sketch.spec);
+      return d?.expr?.v ? exprText(d.expr.v) : null;
+    }
+    const e = edit.stepId && this.part.features.find((g) => g.id === edit.stepId)?.expr?.[edit.field];
+    return e ? exprText(e) : null;
+  }
+
+  /** Put a size in: a step's own number, or a sketch's size (solved, with its locks). final = an undo step. expr: the
+   *  parameters' expression it comes from (null: a plain number — an expression it had goes; undefined: kept). */
+  async applyDim(edit, v, final, expr) {
     if (edit.sketch) {
       const sk = this.part.features.find((g) => g.id === edit.sketch.id);
       if (!sk) return false;
@@ -1047,6 +1071,7 @@ export class Modeler {
       if ((spec.t === 'dx' || spec.t === 'dy') && cur < 0) value = -Math.abs(v);
       const d = S.findDim(spec);
       if (d) { d.v = value; delete d.free; } else f.dims.push({ id: S.newId('d'), ...spec, v: value });
+      if (expr !== undefined) setExpr(S.findDim(spec), 'v', expr && value < 0 ? `-(${expr})` : expr);
       let hold = null;
       if (spec.t === 'len') { const e = S.ent(spec.e); if (e.a !== 'O') hold = { [e.a]: S.P(e.a) }; }
       else if (spec.t === 'dia' || spec.t === 'rad') { const e = S.ent(spec.e); if (e.c !== 'O') hold = { [e.c]: S.P(e.c) }; }
@@ -1058,7 +1083,10 @@ export class Modeler {
       }
       S.apply(r);
       Object.assign(sk, { points: f.points, entities: f.entities, dims: f.dims });
-    } else edit.set(edit.int ? Math.round(v) : v);
+    } else {
+      edit.set(edit.int ? Math.round(v) : v);
+      if (expr !== undefined && edit.field) setExpr(this.part.features.find((g) => g.id === edit.stepId), edit.field, expr);
+    }
     if (final) { this.commit(); await this.inflight; } else await this.rebuild();
     this.reshowDims(!final);
     return true;
@@ -1893,7 +1921,7 @@ export class Modeler {
       });
       sl.addEventListener('change', () => num.dispatchEvent(new Event('change', { bubbles: true })));
       num.addEventListener('input', () => {
-        const v = parseFloat(num.value), lo = num.min !== '' ? +num.min : -Infinity, hi = num.max !== '' ? +num.max : Infinity;
+        const v = isPlain(num.value) ? parseFloat(num.value) : NaN, lo = num.min !== '' ? +num.min : -Infinity, hi = num.max !== '' ? +num.max : Infinity; // (an expression: held to the range once worked out)
         if (Number.isFinite(v) && (v > hi || v < lo)) {
           num.value = fmt(Math.min(hi, Math.max(lo, v)));
           this.hooks.toast(t2('{v} is the most that works here (with what is around it).', { v: num.value }), 'info', 2500);
@@ -1908,6 +1936,8 @@ export class Modeler {
       const row = num.closest('.field, .mp-hd, label') || num.parentElement;
       row.after(sl);
     }
+    // 𝑥 the step's numbers also take an expression of the project's parameters (L / 2), kept in its expr
+    for (const num of box.querySelectorAll('input[type=number][data-k]')) exprField(num, { owner: () => this.cmd?.feature, key: num.dataset.k });
   }
 
   // ------------------------------------------------------------------ the range each number can take
@@ -1949,7 +1979,7 @@ export class Modeler {
   /** Numbers and sliders held to their ranges; the range shown under the slider; a value outside is pulled in. */
   applyLimits(box, lim) {
     for (const [k, [lo, hi]] of Object.entries(lim || {})) {
-      for (const num of box.querySelectorAll(`input[type=number][data-k="${k}"]`)) {
+      for (const num of box.querySelectorAll(`input[type=number][data-k="${k}"], input.px-in[data-k="${k}"]`)) {
         num.min = String(lo);
         num.max = String(hi);
         const sl = num.closest('.field, label, .mp-hd')?.nextElementSibling;
@@ -1961,7 +1991,7 @@ export class Modeler {
           if (!tag?.classList.contains('mp-range')) { tag = document.createElement('div'); tag.className = 'mp-range'; sl.after(tag); }
           tag.textContent = `${fmt(lo)} – ${fmt(hi)}${k === 'count' ? '' : k === 'angle' ? '°' : ' mm'}`;
         }
-        const v = parseFloat(num.value);
+        const v = isPlain(num.value) ? parseFloat(num.value) : NaN;
         if (Number.isFinite(v) && (v > hi || v < lo)) {
           num.value = fmt(Math.min(hi, Math.max(lo, v)));
           num.dispatchEvent(new Event('input', { bubbles: true }));

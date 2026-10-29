@@ -142,6 +142,22 @@ try:
     print(f"    draft 5°: volume {v} expected {exp:.3f} | match: {abs(v - exp) < 0.01} | step: {json.loads(tool('get_model')[0])['steps'][-1].get('draft')}")
     t, _ = tool("edit_feature", id="F2", fields={"draft": 0})
     print(f"    draft 0: volume {json.loads(t)['body']['volume_mm3']} expected 8000")
+    # ---- 𝑥 project parameters: L = 40; a block 30 × 20 with d = "L / 4" and its width "L / 2" (a sketch size);
+    # L = 60 -> 30 × 20 × 15 (rebuilt, listed); a circle refused, L kept; get_parameters says where it is used
+    tool("set_parameter", name="L", value=40)
+    tool("new_model", name="Param block")
+    tool("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 30, "h": 20}}])
+    t, _ = tool("add_feature", type="extrude", sketch="F1", d="L / 4")
+    print(f"    d = L / 4: volume {json.loads(t)['body']['volume_mm3']} expected 6000")
+    w = next(x for x in json.loads(tool("get_sketch", id="F1")[0])["dims"] if x["kind"] == "len" and abs(x["value"] - 30) < 1e-6)
+    tool("sketch_dim", id="F1", dim=w["id"], value="L / 2")
+    t, _ = tool("set_parameter", name="L", value=60)
+    r = json.loads(t)
+    print(f"    L = 60: rebuilt {[(x['part'], round(x.get('volume') or 0, 3)) for x in r['rebuilt']]} expected Param block 30 × 20 × 15 = 9000")
+    print("    a circle:", tool("set_parameter", name="L", value="L + 1")[0][:110])
+    print("    get_parameters:", tool("get_parameters")[0][:200])
+    print("    edit_feature d = \"Q\":", tool("edit_feature", id="F2", fields={"d": "Q"})[0][:110])
+    tool("set_parameter", name="L", delete=True)
     # ---- ⊿ a rib across a bore: a 40 cube, a bore Ø20 along X, a line across it at z 25 — the small segment, flipped
     # the large one (4 thick)
     tool("new_model", name="Bore rib")

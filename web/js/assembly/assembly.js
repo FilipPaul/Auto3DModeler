@@ -38,6 +38,7 @@ import { findLoops, solveLoop, loopFreedom, worstMiss, screwBetween, stepsBetwee
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
 import { lookColor, finishOf } from '../modeler/materials.js';
+import { exprField } from '../paramsui.js';
 import { stepTree } from './stepfile.js';
 import { bomOf, bomCsv, instanceTree } from './bom.js';
 import { openBomWindow } from './bomview.js';
@@ -1775,6 +1776,10 @@ export class Assembly {
         this.applyMates();
         this.commit();
       });
+    }
+    // 𝑥 a joint's gap / distance / angle also takes an expression of the project's parameters (kept in its expr)
+    for (const [attr, key] of [['jgap', 'gap'], ['jdist', 'dist'], ['jval', 'value']]) {
+      for (const el of box.querySelectorAll(`[data-${attr}]`)) exprField(el, { owner: () => this.doc.mates.find((x) => x.id === el.dataset[attr]), key });
     }
     for (const el of box.querySelectorAll('[data-jflip]')) {
       el.addEventListener('click', () => { this.flipJoint(this.doc.mates.find((x) => x.id === el.dataset.jflip)); this.commit(); });

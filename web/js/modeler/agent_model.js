@@ -11,6 +11,10 @@ import { datumFrame } from './view.js';
 import { nextFrames } from '../frames.js';
 import { sketchHandlers } from './agent_sketch.js';
 import { HOLE_SIZES, HOLE_TYPES, dFlat, holePreset } from './holes.js';
+import { exprArgs, keepExprs } from '../paramsui.js';
+
+// 𝑥 the numbers of a step the AI may give as an expression of the project's parameters ("L / 2")
+const EXPR_KEYS = ['d', 'd2', 'offset', 'draft', 'r', 'angle', 't', 'depth', 'count', 'spacing', 'h', 'flat', 'flat_angle', 'head_d', 'head_depth', 'head_angle'];
 
 const r3 = (v) => +(+v).toFixed(3);
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -538,6 +542,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
           const of = (f.entities || []).filter((e) => e.t === 'outline').map((e) => e.face?.name); // (⬆ a face's outline: which face)
           if (of.length) out.outline_of = of;
         }
+        if (f.expr) out.expressions = f.expr; // (𝑥 numbers set by the project's parameters)
         if (f.type === 'extrude') Object.assign(out, { sketch: f.sketch, op: f.op, d: f.d, through: !!f.through, symmetric: !!f.symmetric, ...(f.draft ? { draft: f.draft } : {}) });
         if (f.type === 'revolve') Object.assign(out, { sketch: f.sketch, op: f.op, axis: f.axis, angle: f.angle });
         if (f.type === 'fillet') Object.assign(out, { r: f.r, edges: f.edges.length, ...(f.chain === false ? { chain: false } : {}) });
@@ -643,8 +648,12 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         m.part.features.push(sk);
         spec = { ...spec, sketch: sk.id, flip: false };
       }
-      let f;
-      try { f = await build(spec); } catch (e) { if (sk) m.part.features = m.part.features.filter((g) => g !== sk); throw e; }
+      let f, ex;
+      try {
+        ex = exprArgs(spec, EXPR_KEYS);
+        f = await build(ex.args);
+      } catch (e) { if (sk) m.part.features = m.part.features.filter((g) => g !== sk); throw e; }
+      keepExprs(f, ex);
       m.part.features.push(f);
       return commitAnd(f.id);
     },
@@ -657,6 +666,8 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       ready();
       const f = m.part.features.find((x) => x.id === id);
       if (!f) throw new Error(`No step ${id} — see get_model.`);
+      const ex = exprArgs(fields, EXPR_KEYS); // (𝑥 "L / 2": its value in, the expression kept below)
+      fields = ex.args;
       if (f.type === 'sketch' && (fields.shapes || fields.plane)) {
         if (fields.shapes) { // (a new plane alone keeps the shapes)
           for (const k of ['place', 'rd', 'hidden']) delete f[k]; // (they named the old shapes' ids — new shapes reuse them)
@@ -695,6 +706,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
           if (!next.draft) delete f.draft; // (draft 0: straight walls again)
         }
         if (f.type === 'rib' && !next.flip) delete f.flip; // (flip: false — its own side again)
+        keepExprs(f, ex);
       }
       return commitAnd(id);
     },

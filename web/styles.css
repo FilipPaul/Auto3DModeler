@@ -917,6 +917,19 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .as-mname { cursor: text; }
 .as-mname.own { color: var(--text); font-weight: 600; }
 /* ⚙ Mechanism (mechanism.js): a row per mechanism — its name, one slider, ▶ and ⋯ */
+/* 𝑥 project parameters: the widget's rows (name = expression = value ✕) and number fields with an expression */
+.px-box { padding: 4px 8px 6px; }
+.px-row { display: grid; grid-template-columns: auto auto 1fr auto auto; align-items: center; gap: 4px; margin-bottom: 3px; }
+.px-row .px-name { font-weight: 600; color: var(--text); max-width: 90px; overflow: hidden; text-overflow: ellipsis; cursor: help; }
+.px-row .px-eq { color: var(--muted); }
+.px-row .px-expr, .px-box .px-new { min-width: 0; width: 100%; background-color: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 2px 5px; font-size: 12px; }
+.px-row .px-res { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+.px-row.bad .px-res, .px-row.bad .px-name { color: #f0883e; }
+.px-box .px-new { margin-top: 2px; }
+.px-del { opacity: .6; }
+.px-row:hover .px-del { opacity: 1; }
+input.px-in.px-on { color: #d2a8ff; }
+input.px-in.px-bad, .px-box input.px-bad { border-color: #f0883e !important; outline-color: #f0883e; }
 .mc-list { padding: 6px 8px 4px; }
 .mc-miss { margin: 6px 8px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .mc-miss .btn { flex: none; }

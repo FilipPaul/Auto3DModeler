@@ -4,6 +4,7 @@
 // undo step in the model); one that is open stays open. What the sketcher says in toasts comes back as `messages`.
 
 import { Sketcher } from './sketcher.js';
+import { isPlain, readField, params, exprText } from '../params.js';
 
 const r4 = (v) => +(+v).toFixed(4);
 const KIND = { len: 'length', dia: 'diameter', rad: 'radius', dx: 'distance along x', dy: 'distance along y', dist: 'distance', ang: 'angle', pl: 'distance from a line', bw: 'outline width' };
@@ -66,7 +67,7 @@ export function sketchHandlers({ modeler: m, needModel, settle }) {
     const dims = f.dims.map((d) => {
       const v = d.free ? sk.measure(d) : d.v;
       return { id: d.id, kind: d.t, name: ['len', 'dist', 'pl', 'bw'].includes(d.t) ? `${KIND[d.t]} ${sk.dimName({ ...d, v })}` : sk.dimName({ ...d, v }), // ("length 65", "x -20", "R23")
-        kind_name: KIND[d.t] || d.t, value: r4(v), locked: !d.free,
+        kind_name: KIND[d.t] || d.t, value: r4(v), locked: !d.free, ...(d.expr?.v && !d.free ? { expression: exprText(d.expr.v) } : {}), // (𝑥 set by a parameter)
         between: d.e ? [d.e, ...(d.e2 ? [d.e2] : []), ...(d.a ? [endOf(d.a)] : [])] : [endOf(d.a), endOf(d.b)] };
     });
     const rules = f.constraints.map((k) => ({ id: k.id, t: k.t, name: sk.ruleNames([k.id])[0] || k.t,
@@ -105,7 +106,10 @@ export function sketchHandlers({ modeler: m, needModel, settle }) {
       if (value === undefined && locked === undefined) throw new Error('Give value (it locks the dimension at it) and / or locked (true / false).');
       const { said, state } = await withSketch(id, async (sk) => {
         const { spec, d } = dimOf(sk, dim);
-        if (value !== undefined && locked !== false) await sk.setSize(spec, value);
+        if (typeof value === 'string' && !isPlain(value) && locked !== false) { // (𝑥 an expression of the project's parameters)
+          try { readField(value, params.list); } catch (e) { throw new Error(`value: ${e.en || e.message} (get_parameters lists the parameters)`); }
+          await sk.setSizeExpr(spec, value);
+        } else if (value !== undefined && locked !== false) { await sk.setSize(spec, value); sk.keepExpr(spec, null); }
         else if (locked === false && d && !d.free) await sk.toggleLock(d);
         else if (locked === true && (!d || d.free)) await sk.toggleLock(d || spec);
       });

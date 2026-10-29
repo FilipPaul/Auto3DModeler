@@ -74,7 +74,7 @@ try:
 
     # Extrude: the distance's slider
     open_edit("F2")
-    print("extrude sliders:", len(sliders()), "| panel numbers:", len(d.find_elements(By.CSS_SELECTOR, "#modelRight input[type=number]")))
+    print("extrude sliders:", len(sliders()), "| panel numbers:", len(d.find_elements(By.CSS_SELECTOR, "#modelRight input[type=number], #modelRight input.px-in")))
     v0 = vol()
     slide(sliders()[0], 15)
     print("extrude slider 15 -> height", js(f"return {M}.result.body.bbox[5]"), "| number box", d.find_element(By.CSS_SELECTOR, "#modelRight [data-k=d]").get_attribute("value"))

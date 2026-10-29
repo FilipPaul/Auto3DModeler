@@ -8,6 +8,8 @@ held, so the browser loads it with the same code. 3D model parts and assemblies 
 Older files (version 1, 2 or none) hold one part; `migrate` wraps it as part P1.
 """
 
+from auto3d.modeler.params import apply_project
+
 VERSION = 3
 APP = "Auto3DModeler"
 
@@ -48,6 +50,8 @@ def migrate(proj):
                "assemblies": []}
     out.setdefault("assets", {})
     out.setdefault("assemblies", [])
+    if not isinstance(out.setdefault("parameters", []), list):
+        raise ProjectError("The project's parameters are not a list.")
     parts = out.get("parts")
     if not isinstance(parts, list) or not parts:
         raise ProjectError("The project file has no part in it.")
@@ -81,4 +85,5 @@ def migrate(proj):
     act = (out.get("active") or {}).get("part")
     if act not in seen:
         out["active"] = {"part": parts[0]["id"]}
+    apply_project(out)  # (its numbers as its 𝑥 parameters say)
     return out
