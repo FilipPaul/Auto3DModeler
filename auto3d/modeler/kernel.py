@@ -35,7 +35,7 @@ from OCP.BRepTools import BRepTools_WireExplorer
 from OCP.GC import GC_MakeArcOfCircle
 from OCP.Bnd import Bnd_Box
 from OCP.GCPnts import GCPnts_TangentialDeflection
-from OCP.GeomAbs import GeomAbs_Circle, GeomAbs_Cylinder, GeomAbs_Plane
+from OCP.GeomAbs import GeomAbs_Circle, GeomAbs_Cylinder, GeomAbs_Line, GeomAbs_Plane
 from OCP.GProp import GProp_GProps
 from OCP.gp import gp_Ax1, gp_Ax2, gp_Circ, gp_Dir, gp_Pln, gp_Pnt, gp_Trsf, gp_Vec
 from OCP.IFSelect import IFSelect_RetDone
@@ -227,6 +227,44 @@ def _mixed_wire(fr, ring, owners, arcs, splines=None):
     return w, list(zip(_wire_edges(w), names))
 
 
+def face_loops(face, fr, per=24):
+    """⬆ A flat face of the part -> its loops (the outer one and its holes) on the sketch plane fr: [(wire, ring)] —
+    each wire a copy of the face's edges (moved square onto the plane when the face lies off it), counter-clockwise
+    seen along fr's normal; ring its [u, v] points (a straight edge its two ends, a curve `per` points)."""
+    from OCP.TopAbs import TopAbs_WIRE
+    face = TopoDS.Face(face)
+    pl = plane_of(face)
+    n = _v(fr["n"])
+    if pl is None or abs(abs(float(pl[1] @ n)) - 1) > 1e-6:
+        raise KernelError("Its face is not flat and parallel to the sketch any more — pick the face again.")
+    t = gp_Trsf()
+    t.SetTranslation(gp_Vec(*map(float, -float((pl[0] - _v(fr["o"])) @ n) * n)))
+    o, x, y = _v(fr["o"]), _v(fr["x"]), frame_y(fr)
+    out = []
+    ex = TopExp_Explorer(face, TopAbs_WIRE)
+    while ex.More():
+        w = TopoDS.Wire(BRepBuilderAPI_Transform(ex.Current(), t, True).Shape())  # (a copy: the part's own edges stay its own)
+        ring = []
+        for e in _wire_edges(w):
+            c = BRepAdaptor_Curve(e)
+            k = 1 if c.GetType() == GeomAbs_Line else per
+            us = [c.FirstParameter() + (c.LastParameter() - c.FirstParameter()) * i / k for i in range(k + 1)]
+            pts = [c.Value(u) for u in us]
+            uv = [(float((np.array([q.X(), q.Y(), q.Z()]) - o) @ x), float((np.array([q.X(), q.Y(), q.Z()]) - o) @ y)) for q in pts]
+            if e.Orientation() == TopAbs_REVERSED:
+                uv.reverse()
+            ring += uv[:-1]
+        if len(ring) >= 2:
+            area = sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(ring, ring[1:] + ring[:1]))
+            if area < 0:  # (clockwise: a hole's wire, or the face turned away from the sketch)
+                w, ring = TopoDS.Wire(w.Reversed()), ring[::-1]
+            out.append((w, ring))
+        ex.Next()
+    if not out:
+        raise KernelError("Its face has no outline to use.")
+    return out
+
+
 def _outline(e, n=96):
     if e["t"] == "rect":
         hw, hh = e["w"] / 2, e["h"] / 2
@@ -271,6 +309,11 @@ def _loops(sk):
                     nm = [f"{e.get('id', 'b')}:{ring_no}:{i}" for i in range(len(ring))]
                     loops.append((Polygon(ring), lambda fr, ring=ring, nm=nm: _poly_wire(fr, ring, nm)))
                     ring_no += 1
+        elif t == "outline":
+            # ⬆ the outline of a face of the part (its loops found by doc._face_outlines this rebuild): the face's own
+            # edges, each named "<id>:<loop>:<k>"
+            for j, (w, ring) in enumerate(e.get("_loops") or []):
+                loops.append((Polygon(ring), lambda fr, w=w, j=j, i=e.get("id", "o"): (w, [(ed, f"{i}:{j}:{k}") for k, ed in enumerate(_wire_edges(w))])))
         elif t == "arc":
             c, a, b = end(e.get("c")), end(e.get("a")), end(e.get("b"))
             if c is None or a is None or b is None or (a[0] == b[0] and a[1] == b[1]):

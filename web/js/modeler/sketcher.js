@@ -638,7 +638,7 @@ export class Sketcher {
   pointsOfSel(sel = this.sel) {
     if (!sel) return [];
     if (sel.kind === 'point') return [sel.id];
-    if (sel.kind === 'entity' && this.ent(sel.id)?.t === 'block') return [];
+    if (sel.kind === 'entity' && ['block', 'outline'].includes(this.ent(sel.id)?.t)) return [];
     const es = sel.kind === 'group' ? this.f.entities.filter((e) => e.g === sel.id) : [this.ent(sel.id)].filter(Boolean);
     return [...new Set(es.flatMap((e) => (e.t === 'line' ? [e.a, e.b] : e.t === 'arc' ? [e.a, e.b, e.c] : e.t === 'spline' ? e.pts : [e.c])))].filter((p) => p !== ORIGIN);
   }
@@ -670,8 +670,8 @@ export class Sketcher {
       }
     }
     for (const e of this.f.entities) {
-      if (e.t !== 'block') continue;
-      for (const r of this.blockRings(e)) {
+      if (e.t !== 'block' && e.t !== 'outline') continue;
+      for (const r of e.t === 'outline' ? this.outlineRings(e) : this.blockRings(e)) {
         for (let i = 0; i < r.length; i++) {
           const a = r[i], b = r[(i + 1) % r.length], dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy || 1;
           const t = Math.max(0, Math.min(1, ((uv[0] - a[0]) * dx + (uv[1] - a[1]) * dy) / L));
@@ -2435,6 +2435,10 @@ export class Sketcher {
 
 
 
+  /** ⬆ A face's outline (its edges, found again each rebuild): its rings in sketch coordinates, as the last rebuild
+   *  that built this sketch found them. */
+  outlineRings(e) { return this.m.faceOutlines?.[this.f.id]?.[e.id] || []; }
+
   // ------------------------------------------------------------------ blocks (outlines from other parts)
   /** The rings of a block in sketch coordinates. */
   blockRings(e) {
@@ -3474,6 +3478,8 @@ export class Sketcher {
         dimLine(a, b, a2, b2, this.findDim(spec) ? DIM_ON : DIM_FREE); // (a locked size stronger, a free one faint)
         labels.push(this.movable(this.label(spec, (a2[0] + b2[0]) / 2, (a2[1] + b2[1]) / 2, fmt(L), 'Length'), key,
           (uv) => (uv[0] - a[0]) * nx + (uv[1] - a[1]) * ny, { lines: [[a, b]] }, [[a2, b2]]));
+      } else if (e.t === 'outline') { // ⬆ a face's edges: fixed (they follow the face)
+        for (const r of this.outlineRings(e)) for (let i = 0; i < r.length; i++) lines.push([r[i], r[(i + 1) % r.length], isSel(e) ? SEL : NORM]);
       } else if (e.t === 'block') {
         for (const r of this.blockRings(e)) for (let i = 0; i < r.length; i++) lines.push([r[i], r[(i + 1) % r.length], isSel(e) ? SEL : NORM]);
         const k = e.scale || 1, [au, av] = e.at;

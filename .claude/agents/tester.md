@@ -360,6 +360,11 @@ Never report "works" without having run it; report failures with their output.
    the first suggestions -> its rib 4 thick: + ½ · 15 · 20 · 4; ⇅ flipped: refused, back: OK; a line across a bore:
    the AI's rib and rib {flip} = the two segments; Czech).
    Ends ALL OK / FAILED. Needs a server restarted after kernel changes.
+   `tools/e2e_model_face_extrude.py <url> <dir>` covers ⬆ Extrude this face (a block with a Ø6 hole: a click on its
+   top -> "⬆ Extrude this face" second in the suggestions -> the panel 10 mm out, the hole goes on up; the pull arrow's
+   tip dragged; 4 typed; ⇅ = a cut 4 in and back; Cancel leaves no step; OK = an outline sketch + an extrude, one undo
+   step; the block made taller: it follows; the sketch opened draws the outline; the AI's add_feature extrude {face};
+   "Vysunout tuto plochu" in Czech). Ends ALL OK / FAILED. Needs a server restarted after kernel changes.
    `tools/e2e_model_split.py <url> <dir>` covers ✂ Split (a click on a block's top -> "✂ Split here": midway to the
    bottom; Keep Both: two bodies 4000 + 4000 in two shades; This side: the top half; ↶ undo; Front through the middle,
    an offset past the part refused; ⧉ each piece its own part; the AI's add_feature split).

@@ -535,6 +535,8 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
           out.plane = f.plane?.datum || f.plane?.face?.name;
           out.shapes = (f.entities || []).map((e) => e.t).reduce((a, t) => ({ ...a, [t]: (a[t] || 0) + 1 }), {});
           out.locked_sizes = (f.dims || []).filter((d) => !d.free).length;
+          const of = (f.entities || []).filter((e) => e.t === 'outline').map((e) => e.face?.name); // (⬆ a face's outline: which face)
+          if (of.length) out.outline_of = of;
         }
         if (f.type === 'extrude') Object.assign(out, { sketch: f.sketch, op: f.op, d: f.d, through: !!f.through, symmetric: !!f.symmetric, ...(f.draft ? { draft: f.draft } : {}) });
         if (f.type === 'revolve') Object.assign(out, { sketch: f.sketch, op: f.op, axis: f.axis, angle: f.angle });
@@ -633,7 +635,16 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       needModel();
       ready();
       await settle();
-      const f = await build(spec);
+      let sk = null;
+      if (spec.type === 'extrude' && spec.face && !spec.sketch) { // ⬆ a face extruded: its outline sketch first, as the GUI's Extrude this face
+        const g = faceOf(spec.face);
+        if (g.type !== 'plane') throw new Error(`The face “${spec.face}” is not flat — only a flat face can be extruded.`);
+        sk = m.faceSketch(g);
+        m.part.features.push(sk);
+        spec = { ...spec, sketch: sk.id, flip: false };
+      }
+      let f;
+      try { f = await build(spec); } catch (e) { if (sk) m.part.features = m.part.features.filter((g) => g !== sk); throw e; }
       m.part.features.push(f);
       return commitAnd(f.id);
     },

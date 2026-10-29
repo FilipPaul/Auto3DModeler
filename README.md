@@ -143,6 +143,11 @@ against the part is filled, half the thickness each side of the sketch plane. Wh
 bore), the smaller piece is filled; *⇅ Flip direction* takes the other. A click on such a line in the view (or on its
 sketch in the list) suggests *⊿ Rib from this line*.
 
+**⬆ Extrude this face**: click a flat face of the part — *⬆ Extrude this face* (second in the suggestions) pulls the
+whole face out 10 mm, its holes kept; type the distance, slide it, or drag the orange arrow's tip in the view. *⇅ Flip
+direction* makes it a cut that deep into the part instead. OK leaves two ordinary steps — a sketch of the face's
+outline and its extrude; the outline follows the face when earlier steps change it. Cancel leaves nothing.
+
 **⟋ Draft**: tilts an extrude's side walls by a few degrees (they lean in going up from its base; negative: out) so a
 moulded or cast part comes out of its mould — choose the extrude (or click one of its walls) and the angle. (Or give
 the extrude its *Draft* right away in its panel.)
