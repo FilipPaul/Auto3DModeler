@@ -93,6 +93,7 @@ try:
     once = {w: (sum(w in s for s in inpanel), sum(w in s for s in intable)) for w in acts}
     print("  each action (panel, table):", once, "| the suggestions table:", intable)
     assert all(p <= 1 and t <= 1 and p + t >= 1 for p, t in once.values())
+    assert not [s for s in inpanel + intable if "Ukotvit na místě" in s]
     assert not [s for s in intable if any(w in s for w in ("Open its part", "Fix in place", "Take it out", "Make it its own part"))]
     motions = texts("#asmRight .as-dof > label")
     print("  its motions:", motions)

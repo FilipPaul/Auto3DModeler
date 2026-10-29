@@ -235,6 +235,14 @@ Never report "works" without having run it; report failures with their output.
    start; + Ctrl+click the pin's round face: Concentric, made — the pin on the hole's axis; two flat faces: Touch …; zoomed
    out: the small pin's side and the hole's rim picked as faces, not the snaps of their centres; a Ctrl+click beside
    the parts keeps the face picked first). Exits 1 on a failed check.
+   `tools/e2e_ux_assembly.py <url> <dir>` covers the assembly's basic tasks done only from the Suggested table, in Czech,
+   real clicks, 1280×800: the crank demo's parts in a new empty assembly (it lists them: ＋ Základna, fixed) -> ＋ Klika,
+   its first suggestion ◎ Na čep Základna · Ø10 (seated) -> ＋ Ojnice: ◎ onto the crank's pin -> ＋ Smýkadlo: ⧉ Položit na
+   Základna, ◎ Do díry v Ojnice — a closed loop, every joint holds -> 🏷 Přejmenovat (typed) -> Esc: the whole
+   assembly's table: ⚙ Ovládat mechanismus, 💥 Rozložit / Složit zpět, ✂ Řez / Vypnout řez, ⚠ collisions (Esc closes
+   the list), 📏 Změřit vzdálenost, 📋 Kusovník, ✕ Vyjmout (Ctrl+Z), 📄 Výkres sestavy; the toolbar in ≤ 2 rows,
+   🔗 Vazba ▾ (Esc closes it), the part panel's 🎨 Vzhled a úpravy and the overview's 🔗 Vazby (n) folded; the clicks per
+   task printed. Exits 1 on a failed check.
    `tools/e2e_assembly_insert_view.py <url> <dir>` covers the view after an insert (the first part: iso, seen; zoomed
    in, a Block put in by the AI and one dragged from the project tree land outside -> the view fits, each seen;
    zoomed out, one more already seen -> the camera stays).
