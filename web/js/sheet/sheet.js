@@ -21,6 +21,7 @@ import { ask } from '../choose.js';
 import { renameInPlace } from '../rename.js';
 import { HOLE_FITS, SHAFT_FITS, deviationText } from './fits.js';
 import { itemNumbers as numbersOf, bomOf, makeBuy } from '../assembly/bom.js';
+import { harnessSolids } from '../assembly/harness.js';
 import { MATERIALS } from '../modeler/materials.js';
 import { stepsAtBar, rolledText } from '../modeler/steptree.js';
 import { showSuggest } from '../suggest.js';
@@ -1163,7 +1164,7 @@ export class SheetEditor {
       const W = mul4(M, inner?.[it.id] || it.matrix || ID4), key = pre ? `${pre}/${it.id}` : it.id;
       if (ctx.kindOf(it.part) === 'assembly') return flatten(it.part, W, key, it.inner);
       return [{ id: key, part: { features: stepsAtBar(this.hooks.partData(it.part)) }, matrix: W }]; // (⏮ as its rollback bar stands)
-    });
+    }).concat(harnessSolids(this.hooks.partData(id), M).map((x) => ({ ...x, id: pre ? `${pre}/${x.id}` : x.id }))); // (🔌 its harnesses drawn too)
     const insts = this.hooks.partData(aid)?.instances || [];
     if (!insts.length) throw new Error(t('The assembly has no parts to draw.'));
     const r = await post('/api/sheet/assembly', { instances: flatten(aid), explode, base: this.baseOf(aid), ...(sd ? { paper: sd.paper || null, ...this.layReq(sd) } : {}), ...(rid ? { rid } : {}) }); // (explode: the iso view pulled apart)

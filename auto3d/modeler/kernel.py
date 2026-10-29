@@ -725,6 +725,50 @@ def path_wire(fr, sk):
     return mk.Wire()
 
 
+def pipe_body(segments, profiles, fid):
+    """🔌 A cable harness (harness.py): profiles swept along a route of lines and arcs. segments [("line", a, b) |
+    ("arc", a, m, b)] (points [x, y, z]); profiles at the route's start [("circle", centre, direction, r) | ("rect",
+    centre, direction, x, w, h)]. One solid per profile, kept apart in one compound (wires side by side are not fused).
+    Faces: <fid>:start, <fid>:end, <fid>:side; several profiles also <fid>:w<k>:start … (each wire's own)."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_TransitionMode
+    from OCP.BRepOffsetAPI import BRepOffsetAPI_MakePipeShell
+
+    P = lambda p: gp_Pnt(*map(float, p))  # noqa: E731
+    mk = BRepBuilderAPI_MakeWire()
+    for s in segments:
+        mk.Add(BRepBuilderAPI_MakeEdge(P(s[1]), P(s[2])).Edge() if s[0] == "line"
+               else BRepBuilderAPI_MakeEdge(GC_MakeArcOfCircle(P(s[1]), P(s[2]), P(s[3])).Value()).Edge())
+        if not mk.IsDone():
+            raise KernelError("The harness's route does not join up.")
+    path = mk.Wire()
+    solids, names = [], {}
+    for pr in profiles:
+        if pr[0] == "circle":
+            prof = BRepBuilderAPI_MakeWire(BRepBuilderAPI_MakeEdge(gp_Circ(gp_Ax2(P(pr[1]), gp_Dir(*map(float, pr[2]))), float(pr[3]))).Edge()).Wire()
+        else:
+            c, t, x = (np.asarray(v, float) for v in pr[1:4])
+            w, h = float(pr[4]), float(pr[5])
+            y = np.cross(t, x)
+            poly = BRepBuilderAPI_MakePolygon()
+            for u, v in ((-w / 2, -h / 2), (w / 2, -h / 2), (w / 2, h / 2), (-w / 2, h / 2)):
+                poly.Add(P(c + x * u + y * v))
+            poly.Close()
+            prof = poly.Wire()
+        pipe = BRepOffsetAPI_MakePipeShell(path)
+        pipe.SetTransitionMode(BRepBuilderAPI_TransitionMode.BRepBuilderAPI_RightCorner)
+        pipe.Add(prof)
+        pipe.Build()
+        if not pipe.IsDone() or not pipe.MakeSolid():
+            raise KernelError("The harness could not be made solid — are its bends wide enough for its Ø?")
+        side = [g for e in _wire_edges(prof) for g in pipe.Generated(e) if g.ShapeType() == TopAbs_FACE]
+        for pre in [fid] + ([f"{fid}:w{len(solids)}"] if len(profiles) > 1 else []):  # (a wire's own: its colour)
+            names.setdefault(f"{pre}:start", []).append(pipe.FirstShape())
+            names.setdefault(f"{pre}:end", []).append(pipe.LastShape())
+            names.setdefault(f"{pre}:side", []).extend(side)
+        solids.append(pipe.Shape())
+    return Body(solids[0] if len(solids) == 1 else compound(solids), names)
+
+
 def revolve_body(face, edge_names, origin, direction, angle_deg, fid):
     """Spin a face around an axis: faces named side:<sketch name> (and start / end when not a full turn)."""
     full = abs(angle_deg) >= 360 - 1e-9

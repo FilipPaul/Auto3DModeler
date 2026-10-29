@@ -315,6 +315,14 @@ try:
     print("    name_motion, not joined:", tool("name_motion", part="I1", motion=0, name="Turn")[0][:100])
     # ⚙ a coupling (snap_faces type gear / belt / rack): flat faces refused, it says why
     print("    snap_faces gear, flat faces:", tool("snap_faces", type="gear", move={"part": "I3", "face": "F2:end"}, onto={"part": "I1", "face": "I1/F2:start"})[0][:100])
+    # 🔌 a cable harness: 3 loose wires from the flange's top up to a point in space (its length), changed to 2, a
+    # wrong id refused, listed by get_assembly
+    t, _ = tool("add_harness", type="wires", count=3, points=[{"part": "I3", "face": "F2:end"}, {"xyz": [0, 0, 120]}])
+    print("    add_harness:", t[:100])
+    print("    edit_harness, no such id:", tool("edit_harness", id="H9", count=2)[0][:80])
+    tool("edit_harness", id="H1", count=2, color="red")
+    hs = json.loads(tool("get_assembly")[0]).get("harnesses", [])
+    print(f"    harnesses: {[(h['id'], len(h['wires']), h['length_mm']) for h in hs]} | 2 wires: {len(hs) == 1 and len(hs[0]['wires']) == 2}")
     tool("open_part", id="Flange")
     tool("prepare_print")
     tool("check_print")

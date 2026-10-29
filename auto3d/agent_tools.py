@@ -416,7 +416,7 @@ TOOLS = [
      "description": "Start a new, empty assembly (its own tab) to place 3D model parts of the project together. Then insert_part.",
      "inputSchema": _obj({"name": STR})},
     {"name": "get_assembly", "where": "browser",
-     "description": "The assembly on screen: its placed parts (id I1…, part, position, bounding box in mm, mass_g of the part; fixed: 📌 fixed in place), its joints (a joint that does not hold has `not_held`: how far off and which joint holds the part elsewhere — fix one of the two), its fasteners (one each: id K1…, text, its parts) and the parts list (qty placed here; `total`: how many in all, the ones inside its sub-assemblies counted in; material, mass); `mass_g` and `cog_mm`: the whole assembly's mass and centre of mass as the parts are placed now. A placed sub-assembly whose own joints leave its parts free has `inner`: those parts (\"I3/I2\") and how they can move inside it. Closed loops of joints (a rod joined to a crank and to a slider) are solved together: `loops` [{id, parts, closed, free_motions, drive}] — move_free one of its `drive` motions and the others follow (a part held only by the loop says `moves_with_loop`); closed false: it cannot close (a part too short / long for that place). `missing_joint` {hole, pin}: one pin in a hole would close a loop (the app's “One joint is missing” ➕ Add joint) — add_missing_joint adds it.",
+     "description": "The assembly on screen: its placed parts (id I1…, part, position, bounding box in mm, mass_g of the part; fixed: 📌 fixed in place), its joints (a joint that does not hold has `not_held`: how far off and which joint holds the part elsewhere — fix one of the two), its fasteners (one each: id K1…, text, its parts) and the parts list (qty placed here; `total`: how many in all, the ones inside its sub-assemblies counted in; material, mass); `mass_g` and `cog_mm`: the whole assembly's mass and centre of mass as the parts are placed now. A placed sub-assembly whose own joints leave its parts free has `inner`: those parts (\"I3/I2\") and how they can move inside it. Closed loops of joints (a rod joined to a crank and to a slider) are solved together: `loops` [{id, parts, closed, free_motions, drive}] — move_free one of its `drive` motions and the others follow (a part held only by the loop says `moves_with_loop`); closed false: it cannot close (a part too short / long for that place). `missing_joint` {hole, pin}: one pin in a hole would close a loop (the app's “One joint is missing” ➕ Add joint) — add_missing_joint adds it. `harnesses`: its 🔌 cable harnesses (add_harness) with their lengths.",
      "inputSchema": _obj({})},
     {"name": "get_bom", "where": "browser",
      "description": "The bill of materials of an assembly (the one on screen, or any by id / name: a sub-assembly too), its whole "
@@ -550,6 +550,31 @@ TOOLS = [
      "description": "Move a part with limits (set_travel) from min to max in small steps and check for collisions on the way (the parts "
                     "on it go along): free all the way, or which part it hits and between which positions. It ends where it was.",
      "inputSchema": _obj({"part": STR, "motion": {}}, ["part"])},
+    {"name": "add_harness", "where": "browser",
+     "description": "🔌 Route a cable harness through points in the assembly on screen (the app's 🔌 Cable harness): type \"wires\" (loose "
+                    "wires: count + wire_d, or wires [{color, d}] — IEC colours black, brown, red, orange, yellow, green, blue, violet, "
+                    "grey, white, pink, green-yellow; the bundle's Ø from their circle packing), \"cable\" (d, color), \"ribbon\" (count × "
+                    "pitch, default 1.27) or \"sleeve\" (d: a corrugated hose). points (2 or more, in order): {part: I…, face: its name} "
+                    "(lying on the middle of that face, Ø/2 + 0.5 mm off it; a round face: through the hole's centre), {part, point: [x, y, "
+                    "z] in the part's own coordinates}, or {xyz: [x, y, z]} (in space, mm). Points on a part move with it. r_min: the "
+                    "minimum bend radius in mm (default 5 × Ø; null: that rule) — every corner is rounded to it; reserve: % added to "
+                    "the BOM lengths (default 5). Answers its id H…, length, Ø, `bends_too_tight` (corners whose legs leave no room "
+                    "for r_min: spread the points) and `through_parts` (parts its centre line goes through).",
+     "inputSchema": _obj({"type": {"type": "string", "enum": ["wires", "cable", "ribbon", "sleeve"]},
+                          "points": {"type": "array", "minItems": 2, "items": _obj({"part": STR, "face": STR, "point": POINT, "xyz": POINT})},
+                          "count": {"type": "integer", "minimum": 1, "maximum": 60}, "wire_d": NUM,
+                          "wires": {"type": "array", "items": _obj({"color": STR, "d": NUM})}, "d": NUM, "color": STR,
+                          "r_min": {"type": ["number", "null"]}, "pitch": NUM, "reserve": NUM, "name": STR}, ["points"])},
+    {"name": "edit_harness", "where": "browser",
+     "description": "Change a cable harness of the assembly on screen (id H… from get_assembly `harnesses` or add_harness): any field of "
+                    "add_harness (type, count, wire_d, wires, d, color, r_min, pitch, reserve, name); points replaces its points, "
+                    "add_points appends to them; remove: true deletes it. One undo step; answers it as add_harness does.",
+     "inputSchema": _obj({"id": STR, "type": {"type": "string", "enum": ["wires", "cable", "ribbon", "sleeve"]},
+                          "points": {"type": "array", "items": _obj({"part": STR, "face": STR, "point": POINT, "xyz": POINT})},
+                          "add_points": {"type": "array", "items": _obj({"part": STR, "face": STR, "point": POINT, "xyz": POINT})},
+                          "count": {"type": "integer", "minimum": 1, "maximum": 60}, "wire_d": NUM,
+                          "wires": {"type": "array", "items": _obj({"color": STR, "d": NUM})}, "d": NUM, "color": STR,
+                          "r_min": {"type": ["number", "null"]}, "pitch": NUM, "reserve": NUM, "name": STR, "remove": {"type": "boolean"}}, ["id"])},
     {"name": "save_to_library", "where": "browser",
      "description": "Keep the 3D model on screen in the user's parts library (to use again in any project); a library part being "
                     "changed (opened with ✎ Edit in the library) is saved back over itself when no name is given: name, category (e.g. "

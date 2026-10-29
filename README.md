@@ -1049,6 +1049,24 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   when the parts change. In the joints list a fastener is **one row** — *🔩 M3×16 screw + M3 nut · through Lid, Base*
   — not its four joints; its **✕** (or *Take it out* on the screw or the nut) takes out the screw, the nut / insert
   and the holes that were drilled for it.
+- **🔌 Cable harness** (*Kabelový svazek* in the toolbar; *🔌 Route a cable from here* on a clicked face or snap
+  point, *🔌 Route a cable between them* with two parts chosen): choose what runs — **Cable** (its Ø and colour),
+  **Loose wires** (how many, each one's Ø, default 1.5 mm, and IEC colour; the bundle's Ø from how round wires pack:
+  1, 3, 7 wires = 1, 2.155, 3 × Ø), **Ribbon cable** (wires × pitch 1.27) or **Sleeve** (a corrugated hose, its Ø) —
+  and the **minimum bend radius** (empty: the rule of thumb, 5 × Ø; a sleeve 3 × Ø), then **click the points it
+  passes**: on a part's face it lies on that face (Ø/2 + 0.5 mm off), a hole's centre takes it through, a click in
+  space puts a point there (in the plane facing you, through the last point). A live preview follows the mouse with
+  the length (*Délka 1 284 mm*). **Esc / Enter / ✓ Done** keeps the points. Points on a part **stick to it**: they
+  follow when it moves (a mechanism, a drag, 💥 Explode). Afterwards *✎ Edit points*: drag a point (onto another face
+  or in space), click the cable to put a point there, click a point and press Delete. The route is straight lines
+  with every corner rounded to the minimum radius; a corner whose legs are too short for it gets the largest radius
+  that fits and is **marked red with ⚠ *ohyb R 6 mm < min 15 mm*** in the view and the panel — never bent tighter
+  silently. *⚠ Goes through Motor I3* when its centre line passes through a part. It is drawn as tubes (loose wires
+  twisted round the centre line in their colours, a ribbon flat, a sleeve corrugated), listed in the assembly tree
+  (*🔌 Svazek 1 · 4 × Ø1,5 · 1 284 mm*), in the **BOM** a line per wire or cable with its length + a reserve (5 %, under
+  *More*) rounded up to 10 mm — *Vodič Ø1,5 mm hnědý — 1 350 mm* — and in the **STEP / GLB / IGES** exports (a part
+  per harness, each wire a solid in its colour: a circle swept along the route) and the assembly's drawing sheet.
+  The AI routes them with `add_harness` / `edit_harness`; get_assembly lists them with their lengths.
 - **⚠ Collisions** finds where parts go into each other (touching faces are fine). It is checked a moment after
   every change, so the button itself says it: **⚠ 2 collision(s)** in red, or **✓ No collisions** in green. Click it
   for the list — each pair and how much (mm³), the parts glowing red and the overlap boxed in red; hover a row for
