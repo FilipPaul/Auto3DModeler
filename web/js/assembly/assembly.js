@@ -4136,6 +4136,7 @@ export class Assembly {
   // ------------------------------------------------------------------ the assembly as a project tab
   async load(data) {
     this.mech?.stop(false);
+    if (this.section) this.toggleSection(); // (another assembly: not cut where the last one was)
     this.doc = structuredClone(data || { instances: [] });
     this.doc.instances = this.doc.instances || [];
     this.doc.mates = (this.doc.mates || []).map((m, i) => ({ id: m.id || `J${i + 1}`, type: m.type || 'touch', gap: m.gap || 0, ...m }));

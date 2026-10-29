@@ -47,9 +47,11 @@ TOOLS = [
     {"name": "get_screenshot", "where": "browser",
      "description": "A picture of what is on screen, to check your work: the 3D model or assembly (1200 × 900 px however narrow "
                     "the view is, fitted to the whole of it — exploded too; fit: false keeps the view as set_view left it — a "
-                    "zoomed section), or a drawing sheet as drawn. view: iso (default), front (top-down onto the front face), back, "
-                    "side. The mouse's hover, picks and the chosen step are not tinted in it; highlight: [face names or step ids "
-                    "(all faces a step made)] lights those faces in orange (3D model) — to check one feature. ui: true = the whole "
+                    "zoomed section), or a drawing sheet as drawn. view: iso (default), front (onto the front face, looking along "
+                    "+Y), back (from behind: the front's mirror image), side (from the right). The mouse's hover, picks and the "
+                    "chosen step are not tinted in it; highlight: [face names or step ids (all faces a step made)] lights those "
+                    "faces in orange (3D model) — to check one feature; the text says when none of them shows from that side "
+                    "(seen edge-on: a cut along the view). ui: true = the whole "
                     "window as the user sees it instead (the AI chat left out): the view as it is on screen with the suggestions "
                     "table, panels, size labels and bars drawn over it (the text says where the table is) — to see what the user sees.",
      "inputSchema": _obj({"view": {"type": "string", "enum": ["iso", "front", "back", "side"]}, "fit": {"type": "boolean"},

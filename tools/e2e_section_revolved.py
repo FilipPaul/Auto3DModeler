@@ -5,13 +5,18 @@ at z = 0), in headless Edge: a flanged tube revolved 360° (a Ø10 bore, walls 7
 - the AI's set_view {view: front, section: {axis: y, offset: 0}} + get_screenshot: the cap's brick red on both walls
   of the tube with the bore open between them (7 : 10 : 7), and on the flange (15 : 10 : 15); flipped: no cap seen;
 - top view cut at z = 25: a ring; cut at z = 0 (on the bottom face): nothing left, no flickering ring;
-- an assembly of two of them: set_view section y: both cut and capped (four walls on a row); its ✂ button too.
+- the AI's report (a pink cap ring of an old part left in a new model's view): cut, rolled back to the sketch (no
+  solid), a new model -> no section, no cap mesh in the scene; a disc extruded there: none, none in its picture; cut
+  and set_view section off: the caps gone at once; cut, then another part opened: none; the old part not cut;
+- an assembly of two of them: set_view section y: both cut and capped (four walls on a row); its ✂ button too;
+  another assembly opened: not cut.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_section_revolved.py http://127.0.0.1:5199 <out dir>
 """
 import base64
 import io
 import json
+import math
 import sys
 import time
 
@@ -108,6 +113,11 @@ def near(got, want, tol=0.04):
     return len(got) == len(want) and all(abs(g - w) <= tol for g, w in zip(got, want))
 
 
+def caps_in_scene(host):
+    """The cap meshes in the scene now (not remade first: a stale one counts)."""
+    return js(f"let n = 0; {host}.view.scene.traverse(o => {{ if (o.userData?.cap) n++; }}); return n")
+
+
 def caps(host):
     """The caps drawn: [[x0, y0, z0, x1, y1, z1], area]."""
     return js(f"""{host}.view.updateCaps(); const g = {host}.view.capGroup; if (!g) return [];
@@ -183,6 +193,38 @@ try:
     call("set_view", section=None)
     check("set_view section off", js(f"return {M}.section") is None and caps(M) == [])
 
+    # the report: the cap of an old part left in a new model's view
+    call("set_view", view="front", section={"axis": "y", "offset": 0})
+    time.sleep(0.4)
+    check("cut again: one cap mesh in the scene", caps_in_scene(M) == 1, caps_in_scene(M))
+    call("rollback", to="F1")
+    wait(f"return !{M}.inflight && {M}.result && !{M}.result.body")
+    call("new_model", name="Disc")
+    time.sleep(0.4)
+    check("rolled back to the sketch, a new model: no section, no cap mesh", js(f"return {M}.section") is None
+          and js(f"return {M}.view.material.clippingPlanes.length") == 0 and caps_in_scene(M) == 0 and not js("return !!document.querySelector('.m-section')"),
+          js(f"return {M}.section"), caps_in_scene(M))
+    call("add_feature", type="sketch", plane="XY", shapes=[{"circle": {"x": 0, "y": 0, "d": 70}}])
+    call("add_feature", type="extrude", sketch="F1", d=10)
+    wait(f"return !!{M}.result?.body && !{M}.inflight")
+    time.sleep(0.4)
+    img = shot("disc_after", view="iso")
+    check("the disc extruded: no cap mesh, none in its picture, not cut", caps_in_scene(M) == 0 and cap_box(img)[1] < 100  # (a few shaded pixels)
+          and abs(js(f"return {M}.result.body.volume") - math.pi * 35 ** 2 * 10) < 1, caps_in_scene(M), cap_box(img)[1])
+    call("set_view", section={"axis": "y", "offset": 0})
+    time.sleep(0.4)
+    n_on = caps_in_scene(M)
+    t = call("set_view", section="off")
+    check("the disc cut, then set_view section off: its cap gone at once", n_on == 1 and caps_in_scene(M) == 0 and "cut along" not in t, n_on, caps_in_scene(M), t)
+    call("set_view", section={"axis": "y", "offset": 0})
+    time.sleep(0.4)
+    call("open_part", id="Pump body")
+    wait(f"return !!{M}.result && !{M}.inflight")  # (rolled back to its sketch: no solid)
+    time.sleep(0.4)
+    check("cut, another part opened: no section, no cap mesh", js(f"return {M}.section") is None and caps_in_scene(M) == 0, js(f"return {M}.section"), caps_in_scene(M))
+    call("rollback", to="end")
+    wait(f"return !!{M}.result?.body && !{M}.inflight")
+
     # an assembly of two
     time.sleep(1)
     call("new_assembly", name="Two pumps")
@@ -205,6 +247,9 @@ try:
     time.sleep(0.6)
     check("assembly ✂ button: y at the middle, both capped", js(f"return {A}.section?.axis") == "y" and len(caps(A)) == 2, js(f"return {A}.section"), caps(A))
     d.save_screenshot(f"{OUT}/asm_gui_section.png")
+    call("new_assembly", name="Empty")
+    time.sleep(0.6)
+    check("cut, another assembly opened: not cut, no cap mesh", js(f"return {A}.section") is None and caps_in_scene(A) == 0, js(f"return {A}.section"), caps_in_scene(A))
 finally:
     errs = [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"]
     print("console errors:", errs)

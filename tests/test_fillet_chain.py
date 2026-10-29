@@ -77,6 +77,34 @@ class TestTangentChain(unittest.TestCase):
         r, _ = vol(*box(), {**ch, "chain": False})
         self.assertEqual(r["features"][-1]["warnings"], [])
 
+    def test_a_disc_and_its_hole_are_not_one_chain(self):
+        """The AI's report: a Ø70 × 10 disc with a Ø9.5 hole through at (6, 13) — the top outer circle and the hole's
+        top rim are not joined, so neither is in a chain; R2 on the outer edge rounds that edge alone: (4 − π) turned
+        round the axis at 35 − its centroid's distance from the wall (Pappus); one face F:round:0, watertight, no
+        warning with ⛓ off either, STEP round trip. The rounded box's top outline still is one chain of 8."""
+        disc = [{"id": "S1", "type": "sketch", "plane": {"datum": "XY"}, "points": {"c": [0, 0]}, "entities": [{"id": "k", "t": "circle", "c": "c", "r": 35}]},
+                {"id": "E1", "type": "extrude", "sketch": "S1", "op": "add", "d": 10},
+                {"id": "H", "type": "hole", "plane": {"face": {"name": "E1:end"}, "frame": {"o": [0, 0, 10], "x": [1, 0, 0], "n": [0, 0, 1]}},
+                 "points": [[6, 13]], "d": 9.5, "through": True}]
+        r, v0 = vol(*disc)
+        self.assertAlmostEqual(v0, math.pi * (35 ** 2 - 4.75 ** 2) * 10, delta=1e-3)
+        self.assertFalse([e for e in r["body"]["edges"] if "chain" in e])
+        fil = {"id": "F", "type": "fillet", "edges": [{"a": "E1:end", "b": "E1:side:k", "fp": [-35, 0, 10]}], "r": 2}
+        r, v = vol(*disc, fil)
+        self.assertTrue(r["ok"], r["features"])
+        xbar = 2 * (10 - 3 * math.pi) / (12 - 3 * math.pi)
+        self.assertAlmostEqual(v, v0 - (4 - math.pi) * 2 * math.pi * (35 - xbar), delta=1e-2)
+        self.assertEqual(sum(1 for f in r["body"]["faces"] if f.get("name") == "F:round:0"), 1)
+        self.assertTrue(watertight(r["body"]))
+        self.assertEqual(r["features"][-1]["warnings"], [])
+        r, _ = vol(*disc, {**fil, "chain": False})
+        self.assertEqual(r["features"][-1]["warnings"], [])
+        self.assertAlmostEqual(K.volume(K.from_step(doc.export({"features": [*disc, fil]}, "step"))), v, delta=0.05)
+        r, _ = vol(*box(), CORNERS)
+        top = [e for e in r["body"]["edges"] if "chain" in e and abs(e["mid"][2] - 10) < 1e-6]
+        self.assertEqual(len(top), 8)
+        self.assertEqual(len({e["chain"] for e in top}), 1)
+
     def test_chains_as_the_fillet_builder_finds_them(self):
         """tangent_chains gives the fillet builder only the edges that meet another nearly in line (_smooth_ends) —
         the same chains as giving it every edge: the rounded box with a hole through it, and with a bevelled top."""

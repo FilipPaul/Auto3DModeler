@@ -823,7 +823,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
     model_screenshot: async ({ view, fit = true, highlight }) => {
       needModel();
       await settle();
-      if (view) m.view.setView({ front: 'front', back: 'front', side: 'right', top: 'top' }[view] || 'iso');
+      if (view) m.view.setView({ front: 'front', back: 'back', side: 'right', top: 'top' }[view] || 'iso'); // (back: the front's mirror image)
       // highlight: face names or step ids (all the faces it made) -> lit in orange; the hover, picks and chosen step are not
       const want = (Array.isArray(highlight) ? highlight : highlight ? [highlight] : []).map(String);
       const named = (f, n) => [f.name, ...(f.names || [])].some((q) => q === n || q?.startsWith(`${n}:`));
@@ -832,11 +832,23 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       if (missing.length) throw new Error(`highlight: no face named ${missing.map((n) => `“${n}”`).join(', ')} — find_refs lists face names; a step's id lights all its faces.`);
       await nextFrames();
       const c = m.view.snapshot({ fit: fit !== false, faces: lit.map((f) => f.id), over: drawLabels });
-      const said = lit.length ? ` Lit in orange: ${[...new Set(lit.map((f) => f.name))].slice(0, 12).join(', ')}${lit.length > 12 ? ' …' : ''}.` : '';
+      // lit faces seen edge-on or behind the part from this side: the picture is the plain one — said, not left to guess
+      const unseen = lit.length && changedPixels(c, m.view.snapshot({ fit: fit !== false, over: drawLabels })) < 40; // (a few: a rim's antialiasing)
+      const said = lit.length ? ` Lit in orange: ${[...new Set(lit.map((f) => f.name))].slice(0, 12).join(', ')}${lit.length > 12 ? ' …' : ''}.${unseen
+        ? ' None of them shows from this side (seen edge-on or hidden behind the part) — try another view (iso, back, side).' : ''}` : '';
       return { text: `3D view (${view || 'current'}).${said} ${JSON.stringify(summary())}`, image: c.toDataURL('image/png').split(',')[1] };
     },
     model_body: async () => { needModel(); return { text: 'ok', body: { model_part: m.payload(), name: project.current?.name } }; },
     model_undo: async () => { needModel(); const ok = await m.history.go(-1); await settle(); return { text: ok ? `Undone. ${JSON.stringify(summary())}` : 'Nothing to undo.' }; },
     ...sketchHandlers({ modeler: m, needModel, settle }), // (get_sketch, sketch_auto_dims, sketch_dim, sketch_trim, sketch_union)
   };
+}
+
+/** How many pixels of two canvases of one size differ clearly (get_screenshot: did the highlight light anything?). */
+function changedPixels(a, b) {
+  if (a.width !== b.width || a.height !== b.height) return Infinity;
+  const p = a.getContext('2d').getImageData(0, 0, a.width, a.height).data, q = b.getContext('2d').getImageData(0, 0, b.width, b.height).data;
+  let n = 0;
+  for (let i = 0; i < p.length; i += 4) if (Math.abs(p[i] - q[i]) + Math.abs(p[i + 1] - q[i + 1]) + Math.abs(p[i + 2] - q[i + 2]) > 48) n++;
+  return n;
 }

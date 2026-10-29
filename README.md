@@ -508,11 +508,13 @@ SolidWorks. It has only the tools that need almost no input.
    **Cut**, ready for holes and pockets.
    - A sketch on the top or bottom face of an extrude follows that face when the extrude changes.
 
-4. **◜ Fillet** (F) rounds edges and **◸ Chamfer** bevels them. Click the edges (a click on a face takes all of its
-   edges; a picked edge is dropped by clicking it again), then type the radius or size. A click on an edge that goes
+4. **◜ Fillet** (F) rounds edges and **◸ Chamfer** bevels them. Click the edges (a click on a face, away from its
+   edges, takes all of its edges — one just beside an edge takes that edge; a picked edge is dropped by clicking it
+   again), then type the radius or size. A click on an edge that goes
    on smoothly into others — the outline of a box with rounded corners, a hole's rim — picks the **whole chain**
    (*Added a chain of 8 edges*; the hover shows it before you click), as a rounding cannot stop where edges meet
-   without a corner anyway; untick *⛓ Whole chain* to pick one edge at a time. **◎ Hole** (H): click on a
+   without a corner anyway; untick *⛓ Whole chain* to pick one edge at a time. Edges that only lie side by side —
+   a disc's rim and a hole's rim — are not a chain. **◎ Hole** (H): click on a
    flat face where a hole goes (click again for more holes on the same face), and type the diameter. **Esc ends the
    placing and keeps the holes placed so far** (as OK — *Hole: 1 position(s) kept*; Ctrl+Z takes them back); with
    none placed yet Esc cancels, and the **Cancel** button always throws them away. Fillet / Chamfer (edges) and Shell
@@ -643,7 +645,7 @@ yellow ⚠.
   behind the part are not picked.
 - **✂ Section** cuts the view along X, Y or Z with a slider, to look inside (⇄ shows the other side): the half toward
   you is taken away and the cut faces are filled in brick red, so bores, seats and channels show (also in the AI's
-  screenshots).
+  screenshots). Opening another part or model turns the cut off.
 - The Part panel shows the size, volume and **mass** for the chosen **material** (PLA, PETG, ABS, ASA, TPU, PA;
   solid, no infill), its **surface area** and its **centre of mass** (CoG, in the part's coordinates); **⊕** next to
   it marks the centre of mass in the view.
@@ -1271,7 +1273,8 @@ can open them.
   show / hide, colour, a new layer; `drawing_set_size`, `drawing_use` as a sketch or a quick part), joints changed or removed (`edit_joint`,
   `remove_joint`), `measure` between faces, the view for its screenshots (`set_view`: a section, explode, size labels;
   `get_screenshot` is a 1200 × 900 picture of the whole part or assembly however narrow the view is beside the chat,
-  without your hover or picks, and `highlight` lights the faces of a step in orange),
+  without your hover or picks, seen from iso, front, back (the front's mirror image) or the side, and `highlight`
+  lights the faces of a step in orange — it says when none of them shows from that side),
   parts renamed or deleted, and files: `export` stl / step / pdf / **3mf** / **bom** / **dxf** / **project** (the
   whole project as a .a3d.json, as *Save project*).
 - **Demos, project files, variants, mechanisms**: ask "open the crank demo, tell me its mass and save a GIF of it" —
