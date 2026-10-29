@@ -20,6 +20,7 @@ import { roundAxes, axisOf } from './axes.js';
 import { fetchRebuild } from './packed.js';
 import { newRid, cancelRid, wasCancelled } from '../progressbox.js';
 import { snapOnFace, snapDrawing, toFace } from './facesnap.js';
+import { HOLE_SIZES, HOLE_TYPES, holeType, setHoleStandard } from './holes.js';
 
 const ICON = { sketch: '✏', extrude: '⬆', cut: '⬇', revolve: '⟳', fillet: '◜', chamfer: '◸', hole: '◎', shell: '▢', pattern: '⁂', loft: '⧫', sweep: '〰', solid: '▣', decal: 'Aa', mirror: '⇋', draft: '⟋', rib: '⊿', point: '•', split: '✂' };
 const TYPE_NAME = { point: 'Point', rib: 'Rib', draft: 'Draft', sketch: 'Sketch', extrude: 'Extrude', revolve: 'Revolve', fillet: 'Fillet', chamfer: 'Chamfer', hole: 'Hole', shell: 'Shell', pattern: 'Pattern',
@@ -31,8 +32,6 @@ const MIRROR_PLANES = { YZ: 'left ↔ right', XZ: 'front ↔ back', XY: 'top ↔
 const AXES = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
 const USES_SKETCH = new Set(['extrude', 'revolve', 'loft', 'sweep', 'rib']);
 /** The sketches a step is made from. */
-// ISO metric coarse threads -> their tap drill (as auto3d/modeler/doc.py THREADS)
-const THREADS = { M2: 1.6, 'M2.5': 2.05, M3: 2.5, M4: 3.3, M5: 4.2, M6: 5, M8: 6.8, M10: 8.5, M12: 10.2, M16: 14, M20: 17.5 };
 const sketchesOf = (f) => (f.type === 'loft' ? f.sketches || [] : f.type === 'sweep' ? [f.profile, f.path] : USES_SKETCH.has(f.type) ? [f.sketch] : []).filter(Boolean);
 // densities for the mass (g/cm³), common 3D-printing materials
 import { MATERIALS, MATERIAL_GROUPS, MATERIAL_COLOR, lookColor } from './materials.js';
@@ -414,7 +413,7 @@ export class Modeler {
     if (f.type === 'extrude') return f.op === 'cut' ? (f.through ? 'cut through all' : `cut ${fmt(f.d)} mm`) : `${fmt(f.d)} mm`;
     if (f.type === 'fillet') return `R ${fmt(f.r)} · ${n('edges')} edge(s)`;
     if (f.type === 'chamfer') return `${fmt(f.d)} mm · ${n('edges')} edge(s)`;
-    if (f.type === 'hole') return `${f.thread || `Ø${fmt(f.d)}`}${f.fit ? ` ${f.fit}` : ''}${f.head === 'cbore' ? ` ⌴Ø${fmt(f.head_d)}×${fmt(f.head_depth)}` : f.head === 'csk' ? ` ⌵Ø${fmt(f.head_d)}` : ''}${f.teardrop ? ' ▲ teardrop' : ''} · ${n('points')} hole(s)${f.through === false ? ` · ${fmt(f.depth)} deep` : ''}`;
+    if (f.type === 'hole') return `${f.standard && !f.thread ? `${f.standard} ` : ''}${f.thread || `Ø${fmt(f.d)}`}${f.fit ? ` ${f.fit}` : ''}${f.head === 'cbore' ? ` ⌴Ø${fmt(f.head_d)}×${fmt(f.head_depth)}` : f.head === 'csk' ? ` ⌵Ø${fmt(f.head_d)}` : ''}${f.teardrop ? ' ▲ teardrop' : ''} · ${n('points')} hole(s)${f.through === false ? ` · ${fmt(f.depth)} deep` : ''}`;
     if (f.type === 'revolve') return `${fmt(f.angle)}°${f.op === 'cut' ? ' cut' : ''}`;
     if (f.type === 'shell') return `wall ${fmt(f.t)} mm · ${n('faces')} open`;
     if (f.type === 'decal') return `${f.source === 'text' ? `“${f.text}”` : 'picture'} · ${fmt(f.h)} mm${f.op === 'cut' ? ' · engraved' : ' · raised'}`;
@@ -2228,22 +2227,25 @@ export class Modeler {
   }
 
   renderHole(box) {
-    const f = this.cmd.feature, st = this.status(f.id);
+    const f = this.cmd.feature, st = this.status(f.id), kind = holeType(f), size = f.standard || f.thread || '';
     box.innerHTML = `<h2>${esc(f.name)}</h2>
       <p class="hint">Click on a flat face where a hole goes — click again for more holes on the same face. A click near the face's centre snaps to it.</p>
       ${f.plane?.face ? `<div class="field m-holefrom"><label>From</label>${originSeg(f.plane, f.plane.origin ? originKey(f.plane.origin) : f.from?.some((x) => x?.x || x?.y) ? 'edges' : '', '', HOLE_ORIGINS)}</div>` : ''}
-      <div class="field"><label>Thread</label><select data-k="thread" title="A threaded hole: drilled with its tap drill (M5: Ø4.2), labelled M5 on the drawing">
-        ${['', ...Object.keys(THREADS)].map((v) => `<option value="${v}" ${v === (f.thread || '') ? 'selected' : ''}>${v || '—'}</option>`).join('')}</select></div>
-      <div class="field"><label>Diameter</label><input type="number" step="any" min="0" data-k="d" value="${fmt(f.d)}" ${f.thread ? 'disabled' : ''}><span class="unit">mm</span></div>
+      <div class="field"><label>Type</label><select data-k="hole_type" title="A hole for a metric screw: its sizes from the ISO tables — clearance (ISO 273), ⌴ for a socket head, ⌵ for a flat head, tapped (a thread)">
+        ${HOLE_TYPES.map(([v, l]) => `<option value="${v}" ${v === kind ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      ${kind ? `<div class="field"><label>Size</label><select data-k="standard" title="The screw's size — the hole's sizes are filled from the table">
+        ${size in HOLE_SIZES ? '' : '<option value="" selected>—</option>'}${Object.keys(HOLE_SIZES).map((v) => `<option value="${v}" ${v === size ? 'selected' : ''}>${v}</option>`).join('')}</select></div>`
+        : `<div class="field"><label>Diameter</label><input type="number" step="any" min="0" data-k="d" value="${fmt(f.d)}"><span class="unit">mm</span></div>`}
       <label class="check"><input type="checkbox" data-k="through" ${f.through !== false ? 'checked' : ''}> Through all</label>
       ${f.through === false ? `<div class="field"><label>Depth</label><input type="number" step="any" min="0" data-k="depth" value="${fmt(f.depth)}"><span class="unit">mm</span></div>` : ''}
-      <div class="field"><label>Head</label><select data-k="head" title="Room for a screw's head: ⌴ a counterbore (a socket head sunk in), ⌵ a countersink (a flat head flush with the face)">
-        ${[['', '—'], ['cbore', '⌴ Counterbore'], ['csk', '⌵ Countersink']].map(([v, l]) => `<option value="${v}" ${v === (f.head || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-      ${f.head ? `<div class="field"><label>Head Ø</label><input type="number" step="any" min="0" data-k="head_d" value="${fmt(f.head_d)}"><span class="unit">mm</span></div>` : ''}
-      ${f.head === 'cbore' ? `<div class="field"><label>Head depth</label><input type="number" step="any" min="0" data-k="head_depth" value="${fmt(f.head_depth)}"><span class="unit">mm</span></div>` : ''}
+      ${kind ? `<details class="m-holesizes" ${this.holeSizesOpen || !(size in HOLE_SIZES) ? 'open' : ''}><summary>Edit sizes</summary>
+        <div class="field"><label>${kind === 'tapped' ? 'Tap drill Ø' : 'Hole Ø'}</label><input type="number" step="any" min="0" data-k="d" value="${fmt(f.d)}" ${kind === 'tapped' ? 'disabled' : ''}><span class="unit">mm</span></div>
+        ${f.head ? `<div class="field"><label>Head Ø</label><input type="number" step="any" min="0" data-k="head_d" value="${fmt(f.head_d)}"><span class="unit">mm</span></div>` : ''}
+        ${f.head === 'cbore' ? `<div class="field"><label>Head depth</label><input type="number" step="any" min="0" data-k="head_depth" value="${fmt(f.head_depth)}"><span class="unit">mm</span></div>` : ''}
+      </details>` : ''}
       ${this.teardropRow(f)}
-      <div class="field"><label>Fit</label><select data-k="fit" title="An ISO 286 fit for the hole — shown on the 2D drawing (Ø8 H7 and its deviations); the model keeps the nominal size">
-        ${['', 'H6', 'H7', 'H8', 'H9'].map((v) => `<option value="${v}" ${v === (f.fit || '') ? 'selected' : ''}>${v || '—'}</option>`).join('')}</select></div>
+      ${!kind || f.fit ? `<div class="field"><label>Fit</label><select data-k="fit" title="An ISO 286 fit for the hole — shown on the 2D drawing (Ø8 H7 and its deviations); the model keeps the nominal size">
+        ${['', 'H6', 'H7', 'H8', 'H9'].map((v) => `<option value="${v}" ${v === (f.fit || '') ? 'selected' : ''}>${v || '—'}</option>`).join('')}</select></div>` : ''}
       ${f.points.length ? `<h3>Holes</h3><div class="mp-holes">${f.points.map((p, i) => `<div class="mp-hole">
         <span>${i + 1}</span><div class="mp-hole-dims">${['x', 'y'].map((axis, k) => this.holeDimRow(f, i, axis, k)).join('')}</div>
         <button class="mini danger" data-del="${i}" title="Remove this hole">✕</button></div>`).join('')}</div>
@@ -2258,21 +2260,20 @@ export class Modeler {
       el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okCommand(); if (e.key === 'Escape') this.cancelCommand(); });
     };
     num(box.querySelector('[data-k=d]'), (v) => { if (v > 0) f.d = v; });
+    box.querySelector('.m-holesizes')?.addEventListener('toggle', (e) => { this.holeSizesOpen = e.target.open; });
     const dep = box.querySelector('[data-k=depth]');
     if (dep) num(dep, (v) => { if (v > 0) f.depth = v; });
     box.querySelector('[data-k=through]').addEventListener('change', (e) => { f.through = e.target.checked; this.renderProps(); this.rebuild(); });
-    box.querySelector('[data-k=fit]').addEventListener('change', (e) => { if (e.target.value) f.fit = e.target.value; else delete f.fit; });
+    box.querySelector('[data-k=fit]')?.addEventListener('change', (e) => { if (e.target.value) f.fit = e.target.value; else delete f.fit; this.renderProps(); });
     box.querySelector('[data-k=teardrop]').addEventListener('change', (e) => { if (e.target.checked) f.teardrop = true; else delete f.teardrop; this.rebuild(); });
-    box.querySelector('[data-k=thread]').addEventListener('change', (e) => { // (its tap drill as the diameter)
-      if (e.target.value) Object.assign(f, { thread: e.target.value, d: THREADS[e.target.value] }); else delete f.thread;
+    box.querySelector('[data-k=hole_type]').addEventListener('change', (e) => { // (sized from the table: its size kept, else the last one, else the nearest to its Ø)
+      const near = Object.keys(HOLE_SIZES).reduce((a, b) => (Math.abs(parseFloat(b.slice(1)) - f.d) < Math.abs(parseFloat(a.slice(1)) - f.d) ? b : a));
+      setHoleStandard(f, e.target.value, size in HOLE_SIZES ? size : this.lastHoleSize || near);
       this.renderProps();
       this.rebuild();
     });
-    box.querySelector('[data-k=head]').addEventListener('change', (e) => { // (a screw head's room, sized from the hole: ISO 4762 / 10642-like)
-      const h = e.target.value;
-      delete f.head; delete f.head_d; delete f.head_depth;
-      const d = f.thread ? parseFloat(f.thread.slice(1)) : +f.d; // (a thread: its nominal Ø, M3: 3 — not its tap drill)
-      if (h) Object.assign(f, { head: h, head_d: +(d * (h === 'cbore' ? 1.8 : 2)).toFixed(1) }, h === 'cbore' ? { head_depth: +d.toFixed(1) } : {});
+    box.querySelector('[data-k=standard]')?.addEventListener('change', (e) => {
+      setHoleStandard(f, kind, this.lastHoleSize = e.target.value);
       this.renderProps();
       this.rebuild();
     });

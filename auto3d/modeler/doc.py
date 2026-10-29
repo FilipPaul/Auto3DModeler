@@ -18,6 +18,7 @@ Part JSON (in the project file, `parts[].model`):
       "keep": "both" | "above" | "below"},   (both: two bodies; above: the side the plane's normal points to)
      {"id": "F6", "type": "hole", "plane": {"face": {"name": "F2:end"}, "frame": ...}, "points": [[u, v]], "d": 5,
       "through": true, "depth": 10},   (+ "teardrop": true: a sideways hole with a 45° point on top, printable)
+      (+ "hole_type": "clearance" | "counterbore" | "countersink" | "tapped", "standard": "M5": sized from holes.py)
      {"id": "F10", "type": "point", "at": {"vertex": {"faces": [...], "fp": [x, y, z]}} | {"centre": <edge ref>} |
       {"mid": <edge ref>} | {"xyz": [x, y, z]}}]}   (a reference point: a corner, a round edge's centre, an edge's middle)
 
@@ -37,7 +38,9 @@ from collections import OrderedDict
 
 import numpy as np
 
+from . import holes as HOLES
 from . import kernel as K
+from .holes import PITCH, THREADS  # (ISO metric coarse threads: the tap drill, the pitch)
 
 DATUMS = {
     "XY": {"o": [0, 0, 0], "x": [1, 0, 0], "n": [0, 0, 1]},   # Top
@@ -54,21 +57,27 @@ def _key(features):
     return hashlib.sha1(json.dumps(features, sort_keys=True).encode()).hexdigest()
 
 
-# ISO metric coarse threads: the tap drill a threaded hole is drilled with (ISO 2306)
-THREADS = {"M2": 1.6, "M2.5": 2.05, "M3": 2.5, "M4": 3.3, "M5": 4.2, "M6": 5.0, "M8": 6.8, "M10": 8.5, "M12": 10.2,
-           "M16": 14.0, "M20": 17.5}
-PITCH = {"M2": 0.4, "M2.5": 0.45, "M3": 0.5, "M4": 0.7, "M5": 0.8, "M6": 1.0, "M8": 1.25, "M10": 1.5, "M12": 1.75,
-         "M16": 2.0, "M20": 2.5}  # (ISO 261, coarse)
 # 🔩 part.threads: how its threaded holes show — "hidden" (the tap drill only), "cosmetic" (helix lines in the view,
 # the solid unchanged), "real" (the thread cut into the solid: in exports and the print split too)
 THREAD_MODES = ("hidden", "cosmetic", "real")
 MANY_THREADS = 8  # more real threads than this: the part may rebuild slowly (warned)
 
 
+def _hole_steps(features):
+    """The hole steps that are on, a standard hole's sizes filled in (holes.resolve; an unknown size left out)."""
+    out = []
+    for f in features or []:
+        if f.get("type") == "hole" and not (f.get("off") or f.get("suppressed")):
+            try:
+                out.append(HOLES.resolve(f))
+            except ValueError:
+                pass
+    return out
+
+
 def _threads(part):
     """{tap drill Ø: "M5"} of the part's threaded holes (the drawing labels them M5, not Ø4.2)."""
-    return {THREADS[f["thread"]]: f["thread"] for f in (part or {}).get("features") or []
-            if f.get("type") == "hole" and f.get("thread") in THREADS and not (f.get("off") or f.get("suppressed"))}
+    return {THREADS[f["thread"]]: f["thread"] for f in _hole_steps((part or {}).get("features")) if f.get("thread") in THREADS}
 
 
 def _head_sizes(f, dia):
@@ -114,9 +123,7 @@ def _holes(part):
     """{step id: {d, thread, through, depth, head, head_d, head_depth, head_angle, fit, teardrop}} of the part's hole
     steps — what the drawing's hole callout says ("4× M3 ⌵ Ø5 × 90°", sheet.callout)."""
     out = {}
-    for f in (part or {}).get("features") or []:
-        if f.get("type") != "hole" or f.get("off") or f.get("suppressed"):
-            continue
+    for f in _hole_steps((part or {}).get("features")):
         try:
             dia = THREADS[f["thread"]] if f.get("thread") in THREADS else _num(f, "d", 5)
             h = {"d": dia, "through": bool(f.get("through", True)), "teardrop": bool(f.get("teardrop"))}
@@ -403,6 +410,10 @@ def _apply(f, st: State, s):
             raise K.KernelError("There is no solid yet to drill into.")
         if not (f.get("plane") or {}).get("frame") or not f.get("points"):
             raise K.KernelError("Click on a face where the hole goes.")
+        try:
+            f = HOLES.resolve(f)  # (a standard hole — M5 counterbore —: its sizes from the table)
+        except ValueError as e:
+            raise K.KernelError(str(e)) from None
         fr = plane_frame(f.get("plane"), st)
         st.frames[fid] = fr
         pts = f.get("points") or []
@@ -1317,7 +1328,7 @@ def thread_holes(features, st):
     "<step>:hole:k", "P1:2:<step>:hole:k"): [{name (its wall), thread "M6", at [x, y, z] (on the axis where it starts,
     on the face it goes in from), axis (unit, into the part), depth (mm), major (Ø), minor (the tap drill), pitch,
     through}] — what 🔩 cosmetic threads draw and real ones cut."""
-    steps = {f["id"]: f["thread"] for f in features if f.get("type") == "hole" and f.get("thread") in THREADS and not (f.get("off") or f.get("suppressed"))}
+    steps = {f["id"]: f["thread"] for f in _hole_steps(features) if f.get("thread") in THREADS}
     if not steps or st.body is None:
         return []
     out = []

@@ -309,10 +309,15 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_model_rib.py <url> <dir>` covers ⊿ Rib (an L bracket and a line from the wall to the plate on the Right
    plane: the toolbar's Rib picks that sketch, 3 thick +450, 4 thick +600; the step's text; the AI's rib on a line in
    the air refused). Needs a server restarted after kernel changes.
-   `tools/e2e_model_hole_head.py <url> <dir>` covers ⌴ / ⌵ hole heads (a Ø6 hole: ⌴ Counterbore by default Ø10.8 × 6,
-   then Ø10 × 4, ⌵ Countersink Ø12 at 90° — exact volumes; the step's text; the AI's head "cbore", get_model shows it,
-   edit_feature head null takes it off; a wrong head refused; Thread M5: the diameter 4.2 greyed, the step says M5,
-   the sheet's hole size M5; a wrong thread refused). Needs a server restarted after kernel changes.
+   `tools/e2e_model_hole_head.py <url> <dir>` covers ⌴ / ⌵ hole heads (a Ø6 hole: Type ⌴ Counterbore picks M6, Ø6.6
+   ⌴ Ø11 × 6.4, Edit sizes Ø6 ⌴ Ø10 × 4, ⌵ Countersink M6 Ø13.4 at 90° — exact volumes; the step's text; the AI's head
+   "cbore", get_model shows it, edit_feature head null takes it off; a wrong head refused; Type Tapped M5: the tap drill
+   4.2 greyed, the step says M5, the sheet's hole size M5; a wrong thread refused). Needs a server restarted after
+   kernel changes.
+   `tools/e2e_model_hole_standard.py <url> <dir>` covers standard holes with asserts (Type ⌴ Counterbore on a Ø5 hole:
+   M5 Ø5.5 ⌴ Ø10 ↧ 5.4, M6, Edit sizes folded / depth 4, ⌵ Countersink keeps M5, the step "M5 Ø5.5 ⌴Ø10×5.4"; Tapped
+   M5 10 deep with the tap drill greyed; the Czech labels; the sheet's callouts "Ø5.5 ⌴ Ø10 ↧ 5.4" and "M5 ↧ 10"; the
+   AI's edit_feature hole_type simple). Needs a server restarted after kernel changes.
    `tools/e2e_model_teardrop.py <url> <dir>` covers ▲ teardrop holes with real clicks (a 40 × 20 × 20 block, 🖨 on: a
    Ø6 hole clicked on the front face shows an overhang at its top; Teardrop ticked: the exact volume, no overhang, faces
    hole / tear; the step says ▲ teardrop; on the top face greyed with its tooltip; the sheet says Ø6, no R; Ctrl+Z).

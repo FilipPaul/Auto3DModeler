@@ -10,6 +10,7 @@ import { roundAxes, axisOf } from './axes.js';
 import { datumFrame } from './view.js';
 import { nextFrames } from '../frames.js';
 import { sketchHandlers } from './agent_sketch.js';
+import { HOLE_SIZES, HOLE_TYPES, holePreset } from './holes.js';
 
 const r3 = (v) => +(+v).toFixed(3);
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -342,9 +343,17 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
       const plane = planeOf({ face: spec.face, origin: spec.origin });
       const W = plane.origin === 'world' && !spec.uv ? worldToUV(plane.frame) : null; // (spec.uv: the stored places, an edit)
       const points = (spec.points || [[0, 0]]).map((p) => (W ? W.uv(p) : p));
-      return { ...base, plane, points, d: spec.d ?? 5, ...(spec.thread ? { thread: spec.thread } : {}),
+      // a standard hole (M5 counterbore): its sizes from the table, a size given wins (not a tapped hole's drill)
+      const kind = spec.hole_type && spec.hole_type !== 'simple' ? spec.hole_type : spec.standard && spec.hole_type !== 'simple' ? 'clearance' : null;
+      if (kind && !HOLE_TYPES.some(([v]) => v && v === kind)) throw new Error('hole_type: "clearance", "counterbore", "countersink", "tapped" or "simple".');
+      const std = kind && holePreset(kind, spec.standard);
+      if (kind && !std) throw new Error(`standard: the screw's size — ${Object.keys(HOLE_SIZES).join(', ')}.`);
+      const sizes = std ? { hole_type: kind, standard: spec.standard, ...std, ...(spec.d && kind !== 'tapped' ? { d: spec.d } : {}),
+        ...(std.head && spec.head_d ? { head_d: spec.head_d } : {}), ...(std.head === 'cbore' && spec.head_depth ? { head_depth: spec.head_depth } : {}) }
+        : { d: spec.d ?? 5, ...(spec.thread ? { thread: spec.thread } : {}), ...headOf(spec, spec.thread ? parseFloat(spec.thread.slice(1)) : spec.d ?? 5) };
+      return { ...base, plane, points, ...sizes,
         through: spec.through !== false, depth: spec.depth ?? 10, ...(spec.from ? { from: holeFrom(spec.from) } : {}), ...(fitOf(spec.fit) ? { fit: fitOf(spec.fit) } : {}),
-        ...headOf(spec, spec.thread ? parseFloat(spec.thread.slice(1)) : spec.d ?? 5), ...(spec.teardrop ? { teardrop: true } : {}) };
+        ...(spec.teardrop ? { teardrop: true } : {}) };
     }
     if (type === 'rib') {
       const sk = spec.sketch || [...m.sketches()].pop()?.id;
@@ -523,7 +532,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         if (f.type === 'chamfer') Object.assign(out, { d: f.d, edges: f.edges.length });
         if (f.plane?.origin) out.origin = f.plane.origin;
         const W = f.type === 'hole' && f.plane?.origin === 'world' ? worldToUV(f.plane.frame) : null; // (as given: world X / Y)
-        if (f.type === 'hole') Object.assign(out, { face: f.plane?.face?.name, d: f.d, ...(f.thread ? { thread: f.thread } : {}), points: W ? f.points.map(([u, v]) => [u, W.flip ? -v : v]) : f.points, through: f.through !== false, depth: f.depth, ...(f.fit ? { fit: f.fit } : {}),
+        if (f.type === 'hole') Object.assign(out, { face: f.plane?.face?.name, ...(f.hole_type ? { hole_type: f.hole_type, standard: f.standard } : {}), d: f.d, ...(f.thread ? { thread: f.thread } : {}), points: W ? f.points.map(([u, v]) => [u, W.flip ? -v : v]) : f.points, through: f.through !== false, depth: f.depth, ...(f.fit ? { fit: f.fit } : {}),
           ...(f.head ? { head: f.head, head_d: f.head_d, ...(f.head_depth ? { head_depth: f.head_depth } : {}), ...(f.head_angle ? { head_angle: f.head_angle } : {}) } : {}), ...(f.teardrop ? { teardrop: true } : {}) });
         if (f.type === 'shell') Object.assign(out, { t: f.t, open_faces: f.faces.map((x) => x.name) });
         if (f.type === 'loft') Object.assign(out, { sketches: f.sketches, op: f.op });
@@ -636,13 +645,20 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
           f.plane = planeOf(fields.origin && !pl.datum ? { ...pl, origin: fields.origin } : pl);
         }
       } else {
-        const next = build({ ...f, ...fields, type: f.type, origin: 'origin' in fields ? fields.origin : f.plane?.origin, uv: !fields.points, of: fields.of || f.features, name: fields.name || f.name, face: fields.face || f.plane?.face?.name, faces: fields.faces || f.faces?.map((x) => x.name), sketch: fields.sketch || f.sketch });
+        // a hole's new type / size: its sizes from the table again (those given in fields kept), a simple hole keeps its Ø
+        const restd = f.type === 'hole' && ('hole_type' in fields || 'standard' in fields);
+        const kind = restd && ('hole_type' in fields ? fields.hole_type : f.hole_type), simple = !kind || kind === 'simple';
+        const drop = restd ? ['thread', 'head', 'head_d', 'head_depth', 'head_angle', 'hole_type', 'standard', ...(simple ? [] : ['d'])] : [];
+        const was = Object.fromEntries(Object.entries(f).filter(([k]) => !drop.includes(k)));
+        if (restd && !simple) Object.assign(was, { hole_type: kind, standard: fields.standard ?? f.standard });
+        const next = build({ ...was, ...fields, type: f.type, origin: 'origin' in fields ? fields.origin : f.plane?.origin, uv: !fields.points, of: fields.of || f.features, name: fields.name || f.name, face: fields.face || f.plane?.face?.name, faces: fields.faces || f.faces?.map((x) => x.name), sketch: fields.sketch || f.sketch });
         // on the same face from the same origin: the stored frame stays (picked again, the face's centre may have moved —
         // holes cut into it since — and the step with it)
         const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
         if (next.plane?.face && f.plane?.frame && next.plane.face.name === f.plane.face?.name && same(next.plane.mid?.name, f.plane.mid?.name) && same(next.plane.origin, f.plane.origin)) {
           next.plane = { ...next.plane, frame: f.plane.frame };
         }
+        for (const k of drop) delete f[k];
         Object.assign(f, { ...next, id: f.id, name: fields.name || f.name });
         if ('fit' in fields && !fields.fit) delete f.fit; // (a hole's fit taken off)
         if ('thread' in fields && !fields.thread) delete f.thread; // (its thread taken off)

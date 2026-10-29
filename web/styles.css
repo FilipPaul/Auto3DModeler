@@ -798,6 +798,9 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .seg.m-origin button { flex: none; white-space: nowrap; padding: 3px 7px; font-size: 12px; }
 .m-holefrom .seg.m-origin { flex: 1; }
 .m-holefrom .seg.m-origin button { flex: 1; padding: 3px 3px; }
+/* a standard hole's sizes, folded (the Hole panel's Edit sizes) */
+.m-holesizes { margin: 2px 0 6px; }
+.m-holesizes summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-bottom: 4px; }
 .sk-fold summary { cursor: pointer; font-weight: 600; margin: 10px 0 6px; }
 .mt-tree { display: flex; flex-direction: column; gap: 2px; }
 .mt-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
