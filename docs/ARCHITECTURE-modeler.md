@@ -7,6 +7,41 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **🔗 Library parts that go with each other (2026-10-29)** (the owner: "i u šroubů napáruj matice + podložky … a
+  projdi knihovnu, jestli tam nejsou další věci k párování"). An item's `pairs` [{ref, role, back, size: "same" | a
+  key, qty}], written on one side; auto3d/library.py link_pairs mirrors them (`mirror`, `from_size`) and drops a
+  pair to a missing item; check_item checks them. Added: the six machine screws ↔ ISO 4032 / DIN 985 / DIN 562 nuts,
+  ISO 7089 washer (not the countersunk ISO 10642), ruthex insert — same thread; standoff M/F ↔ ISO 4032 nut and ISO 4762
+  screw; Würth WA-SSTII M3 ↔ ISO 4762 M3 (qty 2); INGUN GKS-100 ↔ KS-100, GKS-050 ↔ KS-050; SMC CDQ2B ↔ D-M9 — 43
+  written, 86 links both ways. Not added (not in the library, or not certain): DIN 471 / 472 circlips, shafts / collars,
+  ISO 7090 / 7092 / 7091 / DIN 127 washers, T-slot nuts, KQ2 fittings to cylinder ports, CDJ2 + D-M9 (needs a band).
+  web/js/library/pairs.js: companions / goesWith (a size the other has), pairRows (the assembly's table for a placed
+  library part: ＋ Nut M5, ＋ Washer M5, the rest under ⋯; a screw: ＋ Set: nut + 2 washers), addCompanion (built,
+  put in once as a part, placed on the host's Z axis: a washer under the head — the screw's touch joint lifted by it
+  —, the second washer and the nut under the parts the screw holds (fasteners.js partsAlong, standard parts and
+  companions skipped; nothing held: under the head), a screw with its head on a nut / washer / insert / standoff, a
+  probe at the receptacle's zp, a receptacle under a probe — it then holds the probe, 📌 moved to it; joined Concentric
+  on the closest round faces; a probe's along slide limited to its max. stroke and named Stroke). Instances keep
+  `pair` {host, role, slot}. The 📚 window: *Goes with* (show it / ⤵＋ both into the assembly). AI: library_search
+  `goes_with`, library_pair {part, role | item | set}. Tests: test_library TestPairs (two ways, threads equal, a
+  washer's hole over the screw), e2e_library_probes (probe ↔ receptacle seat and stroke, M5 set stack, library_pair).
+
+- **📚 Test probes and receptacles (2026-10-29)** (the owner, an ICT / FCT tester maker: "knihovny pouzder a jehel od
+  INGUN, ECT a KESACON … pokud si nejsi jistý rozměry, tak je do knihovny nepřidávej"). library/probes.json: INGUN
+  GKS-100 / GKS-075 / GKS-050 probes (17 items by series and head style, 45 variants by exact order code + INGUN item
+  no., spring force, preload, current), INGUN KS-100 (30, 30 05, 30 25, 30 40, 30 93) and KS-050 30 E08 receptacles,
+  KESACON MPI100 / MPI075 / MPI050 flat-tip probes (12 variants). Sizes from the INGUN product pages and datasheet
+  drawings (length, barrel / plunger / head Ø, plunger and head lengths, head angle), each checked against INGUN's free
+  STEP model read with the app's importer (a STEP that disagrees: the part left out); a receptacle's collar thickness
+  and solder cup from the STEP; the probe's seat from the maker's installation-height lists (the bore: the probe's
+  barrel down to it). KESACON: its 2025 catalogue (pp. 11, 14, 18). Left out: ECT (no tip sizes, no inner sizes of
+  receptacles), KESACON receptacles and INGUN KS-075 (seat or collar not certain), heads with two angles (daggers 291
+  / 297, 207, 238, 319, 222, 225, 289) and the GKS-050 214 / 297 (STEP ≠ datasheet). Fields: accuracy "catalogue"
+  (📐 Dimensions per catalogue), name_cs / description_cs, datasheet / cad / page links (no vendor files in the repo).
+  The 📚 window lists a three-level category under its maker's heading (closed until clicked), searches Czech words,
+  series and item numbers; INGUN shop link. Tests: test_library_probes (each entry built by the kernel to its sizes
+  within 0.01 mm, catalogue numbers, links, searches), e2e_library_probes, e2e_library_build (253 builds).
+
 - **The AI sees the suggestions table (2026-10-29)** (the owner: "zdá se mi, že agent nevidí suggestion table"). It
   did not: gui_state listed the table's rows as plain buttons among the rest (where: panel, no title, no order, nothing
   marking them), the rows under ⋯ Show all not at all, and get_screenshot drew the 3D only. Now suggest.js keeps each

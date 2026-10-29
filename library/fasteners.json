@@ -4,6 +4,7 @@
   "items": [
     {
       "id": "iso4762", "category": "Fasteners / Screws", "name": "Socket head cap screw", "standard": "ISO 4762 (DIN 912)",
+      "pairs": [{"ref": "iso4032", "role": "nut", "back": "screw", "size": "same"}, {"ref": "din985", "role": "nut", "back": "screw", "size": "same"}, {"ref": "din562", "role": "nut", "back": "screw", "size": "same"}, {"ref": "iso7089", "role": "washer", "back": "screw", "size": "same"}, {"ref": "ruthex", "role": "insert", "back": "screw", "size": "same"}],
       "title": "ISO 4762 {size}×{L}", "pn": "ISO 4762 {size}x{L}", "description": "Socket head cap screw ISO 4762 (DIN 912) {size}×{L} mm, steel 8.8 or A2",
       "color": "#9aa3ad", "material": "steel",
       "sizes": {
@@ -21,6 +22,7 @@
     },
     {
       "id": "iso7380", "category": "Fasteners / Screws", "name": "Button head screw", "standard": "ISO 7380-1",
+      "pairs": [{"ref": "iso4032", "role": "nut", "back": "screw", "size": "same"}, {"ref": "din985", "role": "nut", "back": "screw", "size": "same"}, {"ref": "din562", "role": "nut", "back": "screw", "size": "same"}, {"ref": "iso7089", "role": "washer", "back": "screw", "size": "same"}, {"ref": "ruthex", "role": "insert", "back": "screw", "size": "same"}],
       "title": "ISO 7380 {size}×{L}", "pn": "ISO 7380 {size}x{L}", "description": "Hexagon socket button head screw ISO 7380-1 {size}×{L} mm, steel 10.9 or A2",
       "color": "#9aa3ad", "material": "steel",
       "sizes": {
@@ -35,6 +37,7 @@
     },
     {
       "id": "iso10642", "category": "Fasteners / Screws", "name": "Countersunk screw", "standard": "ISO 10642 (DIN 7991)",
+      "pairs": [{"ref": "iso4032", "role": "nut", "back": "screw", "size": "same"}, {"ref": "din985", "role": "nut", "back": "screw", "size": "same"}, {"ref": "din562", "role": "nut", "back": "screw", "size": "same"}, {"ref": "ruthex", "role": "insert", "back": "screw", "size": "same"}],
       "title": "ISO 10642 {size}×{L}", "pn": "ISO 10642 {size}x{L}", "description": "Hexagon socket countersunk screw ISO 10642 (DIN 7991) {size}×{L} mm (length with the head), 90° head, steel 8.8 or A2",
       "color": "#9aa3ad", "material": "steel",
       "sizes": {
@@ -49,6 +52,7 @@
     },
     {
       "id": "iso7045", "category": "Fasteners / Screws", "name": "Pan head screw, cross (PH)", "standard": "ISO 7045 (DIN 7985)",
+      "pairs": [{"ref": "iso4032", "role": "nut", "back": "screw", "size": "same"}, {"ref": "din985", "role": "nut", "back": "screw", "size": "same"}, {"ref": "din562", "role": "nut", "back": "screw", "size": "same"}, {"ref": "iso7089", "role": "washer", "back": "screw", "size": "same"}, {"ref": "ruthex", "role": "insert", "back": "screw", "size": "same"}],
       "title": "ISO 7045 {size}×{L}", "pn": "ISO 7045 {size}x{L} H", "description": "Cross recessed pan head screw ISO 7045 (DIN 7985) {size}×{L} mm, PH, steel 4.8 or A2",
       "color": "#9aa3ad", "material": "steel",
       "sizes": {
@@ -66,6 +70,7 @@
     },
     {
       "id": "din84", "category": "Fasteners / Screws", "name": "Slotted cheese head screw (from M1)", "standard": "ISO 1207 (DIN 84)",
+      "pairs": [{"ref": "iso4032", "role": "nut", "back": "screw", "size": "same"}, {"ref": "din985", "role": "nut", "back": "screw", "size": "same"}, {"ref": "din562", "role": "nut", "back": "screw", "size": "same"}, {"ref": "iso7089", "role": "washer", "back": "screw", "size": "same"}, {"ref": "ruthex", "role": "insert", "back": "screw", "size": "same"}],
       "title": "DIN 84 {size}×{L}", "pn": "DIN 84 {size}x{L}", "description": "Slotted cheese head screw ISO 1207 (DIN 84) {size}×{L} mm, steel 4.8 or A2 — the small sizes M1 to M1.4 too",
       "color": "#9aa3ad", "material": "steel",
       "sizes": {
@@ -84,6 +89,7 @@
     },
     {
       "id": "iso4017", "category": "Fasteners / Screws", "name": "Hex head screw", "standard": "ISO 4017 (DIN 933)",
+      "pairs": [{"ref": "iso4032", "role": "nut", "back": "screw", "size": "same"}, {"ref": "din985", "role": "nut", "back": "screw", "size": "same"}, {"ref": "din562", "role": "nut", "back": "screw", "size": "same"}, {"ref": "iso7089", "role": "washer", "back": "screw", "size": "same"}, {"ref": "ruthex", "role": "insert", "back": "screw", "size": "same"}],
       "title": "ISO 4017 {size}×{L}", "pn": "ISO 4017 {size}x{L}", "description": "Hexagon head screw ISO 4017 (DIN 933) {size}×{L} mm, fully threaded, steel 8.8 or A2",
       "color": "#9aa3ad", "material": "steel",
       "sizes": {

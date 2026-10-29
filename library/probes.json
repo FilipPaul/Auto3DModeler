@@ -1,0 +1,2622 @@
+{
+ "library": "Test probes and receptacles",
+ "about": "Spring-loaded ICT / FCT test probes (pogo pins) and their receptacles — INGUN (datasheets and the free STEP models on ingun.com: links per part, the files are not copied here) and KESACON (test probe catalogue 2025). Only parts whose drawn sizes all come from the maker's data.",
+ "items": [
+  {
+   "id": "ingun-gks100-201",
+   "category": "Test probes / INGUN / GKS-100 (2.54 mm)",
+   "name": "INGUN GKS-100 201 — 30° needle tip, self-cleaning",
+   "name_cs": "INGUN GKS-100 201 — jehlový hrot 30°, samočisticí",
+   "maker": "INGUN",
+   "series": "GKS-100",
+   "kind": "probe",
+   "title": "INGUN {pn}",
+   "pn": "{pn}",
+   "description": "INGUN {pn} (item {art}) — spring-loaded ICT / FCT test probe for a {grid} mm grid (100 mil): 30° needle tip, self-cleaning, tip Ø{tip} mm; total length {L} mm, barrel Ø{D} mm, plunger Ø{d} mm; working stroke {ws} mm (max. {ms} mm); spring force {F} N at the working stroke (preload {F0} N, ≈ {k} N/mm); {I} A; tip {mat}, gold plated. Receptacle KS-100. Dimensions per catalogue (INGUN datasheet); the head is drawn as a solid of revolution. needle spear point jehla hrot",
+   "description_cs": "INGUN {pn} (č. {art}) — pérová testovací jehla ICT / FCT pro rastr {grid} mm: jehlový hrot 30°, samočisticí, hrot Ø{tip} mm; celková délka {L} mm, pouzdro jehly Ø{D} mm, píst Ø{d} mm; pracovní zdvih {ws} mm (max. {ms} mm); síla pružiny {F} N při pracovním zdvihu (předpětí {F0} N, ≈ {k} N/mm); {I} A; hrot {mat_cs}, zlacený. Pouzdro KS-100. Rozměry podle katalogu (datasheet INGUN); hlava kreslena jako rotační těleso.",
+   "accuracy": "catalogue",
+   "datasheet": "{ds}",
+   "cad": "{cad}",
+   "page": "{page}",
+   "order": {
+    "ingun": "{art}"
+   },
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 2.54,
+    "L": 33.4,
+    "D": 1.37,
+    "d": 0.9,
+    "Lb": 25.0,
+    "s": 6.4,
+    "h": 2.0,
+    "ws": 4.3,
+    "ms": 6.35
+   },
+   "sizes": {
+    "Ø0.9 · 1.5 N": {
+     "pn": "GKS-100 201 090 A 1500",
+     "art": "GKS-100-0123",
+     "t": 0.9,
+     "tip": 0.9,
+     "a": 30,
+     "F": 1.5,
+     "F0": 0.49,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.3488,
+     "ds": "https://ingun.com/media/5f/ae/27/1752238863/INGUN_GKS-100_201_090_A_1500_GKS-100-0123_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/d6/47/e5/1752238831/INGUN_GKS-100_201_090_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0123"
+    },
+    "Ø0.9 · 2 N": {
+     "pn": "GKS-100 201 090 A 2000",
+     "art": "GKS-100-0010",
+     "t": 0.9,
+     "tip": 0.9,
+     "a": 30,
+     "F": 2.0,
+     "F0": 0.66,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/4d/5b/c8/1752238832/INGUN_GKS-100_201_090_A_2000_GKS-100-0010_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/d6/47/e5/1752238831/INGUN_GKS-100_201_090_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0010"
+    },
+    "Ø0.9 · 4 N": {
+     "pn": "GKS-100 201 090 A 4000",
+     "art": "GKS-100-0407",
+     "t": 0.9,
+     "tip": 0.9,
+     "a": 30,
+     "F": 4.0,
+     "F0": 1.18,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.9302,
+     "ds": "https://ingun.com/media/fb/39/9a/1752239130/INGUN_GKS-100_201_090_A_4000_GKS-100-0407_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/d6/47/e5/1752238831/INGUN_GKS-100_201_090_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0407"
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "L - t/2/tan(a*pi/360)"
+      ],
+      [
+       0,
+       "L"
+      ]
+     ]
+    }
+   ],
+   "pairs": [
+    {
+     "ref": "ingun-ks100",
+     "role": "receptacle",
+     "back": "probe"
+    }
+   ]
+  },
+  {
+   "id": "ingun-gks100-204",
+   "category": "Test probes / INGUN / GKS-100 (2.54 mm)",
+   "name": "INGUN GKS-100 204 — 4-point crown",
+   "name_cs": "INGUN GKS-100 204 — 4hrotá korunka",
+   "maker": "INGUN",
+   "series": "GKS-100",
+   "kind": "probe",
+   "title": "INGUN {pn}",
+   "pn": "{pn}",
+   "description": "INGUN {pn} (item {art}) — spring-loaded ICT / FCT test probe for a {grid} mm grid (100 mil): 4-point crown, tip Ø{tip} mm; total length {L} mm, barrel Ø{D} mm, plunger Ø{d} mm; working stroke {ws} mm (max. {ms} mm); spring force {F} N at the working stroke (preload {F0} N, ≈ {k} N/mm); {I} A; tip {mat}, gold plated. Receptacle KS-100. Dimensions per catalogue (INGUN datasheet); the head is drawn as a solid of revolution. crown korunka",
+   "description_cs": "INGUN {pn} (č. {art}) — pérová testovací jehla ICT / FCT pro rastr {grid} mm: 4hrotá korunka, hrot Ø{tip} mm; celková délka {L} mm, pouzdro jehly Ø{D} mm, píst Ø{d} mm; pracovní zdvih {ws} mm (max. {ms} mm); síla pružiny {F} N při pracovním zdvihu (předpětí {F0} N, ≈ {k} N/mm); {I} A; hrot {mat_cs}, zlacený. Pouzdro KS-100. Rozměry podle katalogu (datasheet INGUN); hlava kreslena jako rotační těleso.",
+   "accuracy": "catalogue",
+   "datasheet": "{ds}",
+   "cad": "{cad}",
+   "page": "{page}",
+   "order": {
+    "ingun": "{art}"
+   },
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 2.54,
+    "L": 33.4,
+    "D": 1.37,
+    "d": 0.9,
+    "Lb": 25.0,
+    "s": 6.4,
+    "h": 2.0,
+    "ws": 4.3,
+    "ms": 6.35
+   },
+   "sizes": {
+    "Ø1.3 · 2 N": {
+     "pn": "GKS-100 204 130 A 2000",
+     "art": "GKS-100-0038",
+     "t": 1.3,
+     "tip": 1.3,
+     "a": 78,
+     "F": 2.0,
+     "F0": 0.66,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/65/e4/ec/1752239364/INGUN_GKS-100_204_130_A_2000_GKS-100-0038_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/24/82/76/1752238164/INGUN_GKS-100_204_130_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0038"
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "L"
+      ],
+      [
+       0,
+       "L - t/2/tan(a*pi/360)"
+      ]
+     ]
+    }
+   ],
+   "pairs": [
+    {
+     "ref": "ingun-ks100",
+     "role": "receptacle",
+     "back": "probe"
+    }
+   ]
+  },
+  {
+   "id": "ingun-gks100-214",
+   "category": "Test probes / INGUN / GKS-100 (2.54 mm)",
+   "name": "INGUN GKS-100 214 — 4-point crown, self-cleaning",
+   "name_cs": "INGUN GKS-100 214 — 4hrotá korunka, samočisticí",
+   "maker": "INGUN",
+   "series": "GKS-100",
+   "kind": "probe",
+   "title": "INGUN {pn}",
+   "pn": "{pn}",
+   "description": "INGUN {pn} (item {art}) — spring-loaded ICT / FCT test probe for a {grid} mm grid (100 mil): 4-point crown, self-cleaning, tip Ø{tip} mm; total length {L} mm, barrel Ø{D} mm, plunger Ø{d} mm; working stroke {ws} mm (max. {ms} mm); spring force {F} N at the working stroke (preload {F0} N, ≈ {k} N/mm); {I} A; tip {mat}, gold plated. Receptacle KS-100. Dimensions per catalogue (INGUN datasheet); the head is drawn as a solid of revolution. crown korunka",
+   "description_cs": "INGUN {pn} (č. {art}) — pérová testovací jehla ICT / FCT pro rastr {grid} mm: 4hrotá korunka, samočisticí, hrot Ø{tip} mm; celková délka {L} mm, pouzdro jehly Ø{D} mm, píst Ø{d} mm; pracovní zdvih {ws} mm (max. {ms} mm); síla pružiny {F} N při pracovním zdvihu (předpětí {F0} N, ≈ {k} N/mm); {I} A; hrot {mat_cs}, zlacený. Pouzdro KS-100. Rozměry podle katalogu (datasheet INGUN); hlava kreslena jako rotační těleso.",
+   "accuracy": "catalogue",
+   "datasheet": "{ds}",
+   "cad": "{cad}",
+   "page": "{page}",
+   "order": {
+    "ingun": "{art}"
+   },
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 2.54,
+    "L": 33.4,
+    "D": 1.37,
+    "d": 0.9,
+    "Lb": 25.0,
+    "s": 6.4,
+    "h": 2.0,
+    "ws": 4.3,
+    "ms": 6.35
+   },
+   "sizes": {
+    "Ø0.5 · 2 N": {
+     "pn": "GKS-100 214 050 A 2000",
+     "art": "GKS-100-0039",
+     "t": 0.5,
+     "tip": 0.5,
+     "a": 89,
+     "F": 2.0,
+     "F0": 0.66,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/ca/45/e9/1752239380/INGUN_GKS-100_214_050_A_2000_GKS-100-0039_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/92/3e/77/1752239380/INGUN_GKS-100_214_050_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0039"
+    },
+    "Ø0.5 · 3 N": {
+     "pn": "GKS-100 214 050 A 3000",
+     "art": "GKS-100-0043",
+     "t": 0.5,
+     "tip": 0.5,
+     "a": 89,
+     "F": 3.0,
+     "F0": 0.78,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.6977,
+     "ds": "https://ingun.com/media/68/a3/2d/1752238179/INGUN_GKS-100_214_050_A_3000_GKS-100-0043_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/92/3e/77/1752239380/INGUN_GKS-100_214_050_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0043"
+    },
+    "Ø0.8 · 2 N": {
+     "pn": "GKS-100 214 080 A 2000",
+     "art": "GKS-100-0090",
+     "t": 0.8,
+     "tip": 0.8,
+     "a": 81,
+     "F": 2.0,
+     "F0": 0.66,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/d1/1a/6a/1752239241/INGUN_GKS-100_214_080_A_2000_GKS-100-0090_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/7e/61/b7/1752241922/INGUN_GKS-100_214_080_A_xx00_C.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0090"
+    },
+    "Ø1.3 · 1.5 N": {
+     "pn": "GKS-100 214 130 A 1500",
+     "art": "GKS-100-0053",
+     "t": 1.3,
+     "tip": 1.3,
+     "a": 87,
+     "F": 1.5,
+     "F0": 0.49,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.3488,
+     "ds": "https://ingun.com/media/19/da/d9/1752238615/INGUN_GKS-100_214_130_A_1500_GKS-100-0053_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/b7/5f/8b/1752238673/INGUN_GKS-100_214_130_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0053"
+    },
+    "Ø1.3 · 2 N": {
+     "pn": "GKS-100 214 130 A 2000",
+     "art": "GKS-100-0008",
+     "t": 1.3,
+     "tip": 1.3,
+     "a": 87,
+     "F": 2.0,
+     "F0": 0.66,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/15/a7/80/1752238805/INGUN_GKS-100_214_130_A_2000_GKS-100-0008_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/b7/5f/8b/1752238673/INGUN_GKS-100_214_130_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0008"
+    },
+    "Ø1.3 · 3 N": {
+     "pn": "GKS-100 214 130 A 3000",
+     "art": "GKS-100-0021",
+     "t": 1.3,
+     "tip": 1.3,
+     "a": 87,
+     "F": 3.0,
+     "F0": 0.78,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.6977,
+     "ds": "https://ingun.com/media/3d/fa/08/1752239093/INGUN_GKS-100_214_130_A_3000_GKS-100-0021_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/b7/5f/8b/1752238673/INGUN_GKS-100_214_130_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0021"
+    },
+    "Ø1.5 · 2 N": {
+     "pn": "GKS-100 214 150 A 2000",
+     "art": "GKS-100-0014",
+     "t": 1.5,
+     "tip": 1.5,
+     "a": 90,
+     "F": 2.0,
+     "F0": 0.66,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/7f/1c/71/1752238885/INGUN_GKS-100_214_150_A_2000_GKS-100-0014_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/f9/b2/f3/1752238884/INGUN_GKS-100_214_150_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0014"
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "L"
+      ],
+      [
+       0,
+       "L - t/2/tan(a*pi/360)"
+      ]
+     ]
+    }
+   ],
+   "pairs": [
+    {
+     "ref": "ingun-ks100",
+     "role": "receptacle",
+     "back": "probe"
+    }
+   ]
+  },
+  {
+   "id": "ingun-gks100-217",
+   "category": "Test probes / INGUN / GKS-100 (2.54 mm)",
+   "name": "INGUN GKS-100 217 — hexagonal pyramid with cutting edges, self-cleaning",
+   "name_cs": "INGUN GKS-100 217 — šestiboký jehlan s břity, samočisticí",
+   "maker": "INGUN",
+   "series": "GKS-100",
+   "kind": "probe",
+   "title": "INGUN {pn}",
+   "pn": "{pn}",
+   "description": "INGUN {pn} (item {art}) — spring-loaded ICT / FCT test probe for a {grid} mm grid (100 mil): hexagonal pyramid with cutting edges, self-cleaning, tip Ø{tip} mm; total length {L} mm, barrel Ø{D} mm, plunger Ø{d} mm; working stroke {ws} mm (max. {ms} mm); spring force {F} N at the working stroke (preload {F0} N, ≈ {k} N/mm); {I} A; tip {mat}, gold plated. Receptacle KS-100. Dimensions per catalogue (INGUN datasheet); the head is drawn as a solid of revolution. pyramid jehlan",
+   "description_cs": "INGUN {pn} (č. {art}) — pérová testovací jehla ICT / FCT pro rastr {grid} mm: šestiboký jehlan s břity, samočisticí, hrot Ø{tip} mm; celková délka {L} mm, pouzdro jehly Ø{D} mm, píst Ø{d} mm; pracovní zdvih {ws} mm (max. {ms} mm); síla pružiny {F} N při pracovním zdvihu (předpětí {F0} N, ≈ {k} N/mm); {I} A; hrot {mat_cs}, zlacený. Pouzdro KS-100. Rozměry podle katalogu (datasheet INGUN); hlava kreslena jako rotační těleso.",
+   "accuracy": "catalogue",
+   "datasheet": "{ds}",
+   "cad": "{cad}",
+   "page": "{page}",
+   "order": {
+    "ingun": "{art}"
+   },
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 2.54,
+    "L": 33.4,
+    "D": 1.37,
+    "d": 0.9,
+    "Lb": 25.0,
+    "s": 6.4,
+    "h": 2.0,
+    "ws": 4.3,
+    "ms": 6.35
+   },
+   "sizes": {
+    "Ø1.7 · 1 N": {
+     "pn": "GKS-100 217 170 A 1000",
+     "art": "GKS-100-0142",
+     "t": 1.7,
+     "tip": 1.7,
+     "a": 60,
+     "F": 1.0,
+     "F0": 0.35,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.2326,
+     "ds": "https://ingun.com/media/e4/e9/7a/1752239239/INGUN_GKS-100_217_170_A_1000_GKS-100-0142_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/1b/2b/4b/1752239307/INGUN_GKS-100_217_170_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0142"
+    },
+    "Ø1.7 · 1.5 N": {
+     "pn": "GKS-100 217 170 A 1500",
+     "art": "GKS-100-0107",
+     "t": 1.7,
+     "tip": 1.7,
+     "a": 60,
+     "F": 1.5,
+     "F0": 0.49,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.3488,
+     "ds": "https://ingun.com/media/ef/d1/4f/1752238605/INGUN_GKS-100_217_170_A_1500_GKS-100-0107_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/1b/2b/4b/1752239307/INGUN_GKS-100_217_170_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0107"
+    },
+    "Ø1.7 · 2 N": {
+     "pn": "GKS-100 217 170 A 2000",
+     "art": "GKS-100-0033",
+     "t": 1.7,
+     "tip": 1.7,
+     "a": 60,
+     "F": 2.0,
+     "F0": 0.66,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/c3/fb/5b/1752239308/INGUN_GKS-100_217_170_A_2000_GKS-100-0033_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/1b/2b/4b/1752239307/INGUN_GKS-100_217_170_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0033"
+    },
+    "Ø1.7 · 3 N": {
+     "pn": "GKS-100 217 170 A 3000",
+     "art": "GKS-100-0084",
+     "t": 1.7,
+     "tip": 1.7,
+     "a": 60,
+     "F": 3.0,
+     "F0": 0.78,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.6977,
+     "ds": "https://ingun.com/media/14/a1/33/1752239154/INGUN_GKS-100_217_170_A_3000_GKS-100-0084_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/1b/2b/4b/1752239307/INGUN_GKS-100_217_170_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0084"
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "L - t/2/tan(a*pi/360)"
+      ],
+      [
+       0,
+       "L"
+      ]
+     ]
+    }
+   ],
+   "pairs": [
+    {
+     "ref": "ingun-ks100",
+     "role": "receptacle",
+     "back": "probe"
+    }
+   ]
+  },
+  {
+   "id": "ingun-gks100-277",
+   "category": "Test probes / INGUN / GKS-100 (2.54 mm)",
+   "name": "INGUN GKS-100 277 — dagger, aggressive version",
+   "name_cs": "INGUN GKS-100 277 — dýka, agresivní provedení",
+   "maker": "INGUN",
+   "series": "GKS-100",
+   "kind": "probe",
+   "title": "INGUN {pn}",
+   "pn": "{pn}",
+   "description": "INGUN {pn} (item {art}) — spring-loaded ICT / FCT test probe for a {grid} mm grid (100 mil): dagger, aggressive version, tip Ø{tip} mm; total length {L} mm, barrel Ø{D} mm, plunger Ø{d} mm; working stroke {ws} mm (max. {ms} mm); spring force {F} N at the working stroke (preload {F0} N, ≈ {k} N/mm); {I} A; tip {mat}, gold plated. Receptacle KS-100. Dimensions per catalogue (INGUN datasheet); the head is drawn as a solid of revolution. dagger dyka",
+   "description_cs": "INGUN {pn} (č. {art}) — pérová testovací jehla ICT / FCT pro rastr {grid} mm: dýka, agresivní provedení, hrot Ø{tip} mm; celková délka {L} mm, pouzdro jehly Ø{D} mm, píst Ø{d} mm; pracovní zdvih {ws} mm (max. {ms} mm); síla pružiny {F} N při pracovním zdvihu (předpětí {F0} N, ≈ {k} N/mm); {I} A; hrot {mat_cs}, zlacený. Pouzdro KS-100. Rozměry podle katalogu (datasheet INGUN); hlava kreslena jako rotační těleso.",
+   "accuracy": "catalogue",
+   "datasheet": "{ds}",
+   "cad": "{cad}",
+   "page": "{page}",
+   "order": {
+    "ingun": "{art}"
+   },
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 2.54,
+    "L": 33.4,
+    "D": 1.37,
+    "d": 0.9,
+    "Lb": 25.0,
+    "s": 6.4,
+    "h": 2.0,
+    "ws": 4.3,
+    "ms": 6.35
+   },
+   "sizes": {
+    "Ø0.9 · 2 N": {
+     "pn": "GKS-100 277 090 A 2000",
+     "art": "GKS-100-0456",
+     "t": 0.9,
+     "tip": 0.9,
+     "a": 15,
+     "F": 2.0,
+     "F0": 0.66,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/2e/b3/2f/1752238848/INGUN_GKS-100_277_090_A_2000_GKS-100-0456_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/f2/d8/46/1752241950/INGUN_GKS-100_277_090_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0456"
+    },
+    "Ø0.9 · 2.25 N": {
+     "pn": "GKS-100 277 090 A 2200",
+     "art": "GKS-100-0464",
+     "t": 0.9,
+     "tip": 0.9,
+     "a": 15,
+     "F": 2.25,
+     "F0": 0.74,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.5233,
+     "ds": "https://ingun.com/media/e5/44/ab/1752239098/INGUN_GKS-100_277_090_A_2200_GKS-100-0464_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/f2/d8/46/1752241950/INGUN_GKS-100_277_090_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0464"
+    },
+    "Ø0.9 · 3 N": {
+     "pn": "GKS-100 277 090 A 3000",
+     "art": "GKS-100-0724",
+     "t": 0.9,
+     "tip": 0.9,
+     "a": 15,
+     "F": 3.0,
+     "F0": 0.78,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.6977,
+     "ds": "https://ingun.com/media/2b/f5/d2/1752239583/INGUN_GKS-100_277_090_A_3000_GKS-100-0724_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/f2/d8/46/1752241950/INGUN_GKS-100_277_090_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0724"
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "L"
+      ],
+      [
+       0,
+       "L"
+      ]
+     ]
+    },
+    {
+     "extrude": {
+      "polyline": [
+       [
+        "-t/2-0.1",
+        "L+0.1/tan(a*pi/180)"
+       ],
+       [
+        "t/2+0.1",
+        "L-(t+0.1)/tan(a*pi/180)"
+       ],
+       [
+        "t/2+0.1",
+        "L+1"
+       ],
+       [
+        "-t/2-0.1",
+        "L+1"
+       ]
+      ]
+     },
+     "plane": "XZ",
+     "z": -1,
+     "h": 2,
+     "op": "cut"
+    }
+   ],
+   "pairs": [
+    {
+     "ref": "ingun-ks100",
+     "role": "receptacle",
+     "back": "probe"
+    }
+   ]
+  },
+  {
+   "id": "ingun-gks100-288",
+   "category": "Test probes / INGUN / GKS-100 (2.54 mm)",
+   "name": "INGUN GKS-100 288 — 8-point crown, self-cleaning",
+   "name_cs": "INGUN GKS-100 288 — 8hrotá korunka, samočisticí",
+   "maker": "INGUN",
+   "series": "GKS-100",
+   "kind": "probe",
+   "title": "INGUN {pn}",
+   "pn": "{pn}",
+   "description": "INGUN {pn} (item {art}) — spring-loaded ICT / FCT test probe for a {grid} mm grid (100 mil): 8-point crown, self-cleaning, tip Ø{tip} mm; total length {L} mm, barrel Ø{D} mm, plunger Ø{d} mm; working stroke {ws} mm (max. {ms} mm); spring force {F} N at the working stroke (preload {F0} N, ≈ {k} N/mm); {I} A; tip {mat}, gold plated. Receptacle KS-100. Dimensions per catalogue (INGUN datasheet); the head is drawn as a solid of revolution. crown korunka",
+   "description_cs": "INGUN {pn} (č. {art}) — pérová testovací jehla ICT / FCT pro rastr {grid} mm: 8hrotá korunka, samočisticí, hrot Ø{tip} mm; celková délka {L} mm, pouzdro jehly Ø{D} mm, píst Ø{d} mm; pracovní zdvih {ws} mm (max. {ms} mm); síla pružiny {F} N při pracovním zdvihu (předpětí {F0} N, ≈ {k} N/mm); {I} A; hrot {mat_cs}, zlacený. Pouzdro KS-100. Rozměry podle katalogu (datasheet INGUN); hlava kreslena jako rotační těleso.",
+   "accuracy": "catalogue",
+   "datasheet": "{ds}",
+   "cad": "{cad}",
+   "page": "{page}",
+   "order": {
+    "ingun": "{art}"
+   },
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 2.54,
+    "L": 33.4,
+    "D": 1.37,
+    "d": 0.9,
+    "Lb": 25.0,
+    "s": 6.4,
+    "h": 2.0,
+    "ws": 4.3,
+    "ms": 6.35
+   },
+   "sizes": {
+    "Ø1.5 · 2 N": {
+     "pn": "GKS-100 288 150 A 2000",
+     "art": "GKS-100-0195",
+     "t": 1.5,
+     "tip": 1.5,
+     "a": 90,
+     "F": 2.0,
+     "F0": 0.66,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/76/dd/92/1752239206/INGUN_GKS-100_288_150_A_2000_GKS-100-0195_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/fd/2c/1d/1757085909/INGUN_GKS-100_288_150_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0195"
+    },
+    "Ø1.5 · 3 N": {
+     "pn": "GKS-100 288 150 A 3000",
+     "art": "GKS-100-0237",
+     "t": 1.5,
+     "tip": 1.5,
+     "a": 90,
+     "F": 3.0,
+     "F0": 0.78,
+     "I": 5.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.6977,
+     "ds": "https://ingun.com/media/a2/a1/e7/1752239085/INGUN_GKS-100_288_150_A_3000_GKS-100-0237_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/fd/2c/1d/1757085909/INGUN_GKS-100_288_150_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-100-series/GKS-100-0237"
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "L"
+      ],
+      [
+       0,
+       "L - t/2/tan(a*pi/360)"
+      ]
+     ]
+    }
+   ],
+   "pairs": [
+    {
+     "ref": "ingun-ks100",
+     "role": "receptacle",
+     "back": "probe"
+    }
+   ]
+  },
+  {
+   "id": "ingun-gks075-201",
+   "category": "Test probes / INGUN / GKS-075 (1.91 mm)",
+   "name": "INGUN GKS-075 201 — 30° needle tip, self-cleaning",
+   "name_cs": "INGUN GKS-075 201 — jehlový hrot 30°, samočisticí",
+   "maker": "INGUN",
+   "series": "GKS-075",
+   "kind": "probe",
+   "title": "INGUN {pn}",
+   "pn": "{pn}",
+   "description": "INGUN {pn} (item {art}) — spring-loaded ICT / FCT test probe for a {grid} mm grid (75 mil): 30° needle tip, self-cleaning, tip Ø{tip} mm; total length {L} mm, barrel Ø{D} mm, plunger Ø{d} mm; working stroke {ws} mm (max. {ms} mm); spring force {F} N at the working stroke (preload {F0} N, ≈ {k} N/mm); {I} A; tip {mat}, gold plated. Receptacle KS-075 (not in the library: its fit height is not certain). Dimensions per catalogue (INGUN datasheet); the head is drawn as a solid of revolution. needle spear point jehla hrot",
+   "description_cs": "INGUN {pn} (č. {art}) — pérová testovací jehla ICT / FCT pro rastr {grid} mm: jehlový hrot 30°, samočisticí, hrot Ø{tip} mm; celková délka {L} mm, pouzdro jehly Ø{D} mm, píst Ø{d} mm; pracovní zdvih {ws} mm (max. {ms} mm); síla pružiny {F} N při pracovním zdvihu (předpětí {F0} N, ≈ {k} N/mm); {I} A; hrot {mat_cs}, zlacený. Pouzdro KS-075 (v knihovně není: jeho montážní výška není jistá). Rozměry podle katalogu (datasheet INGUN); hlava kreslena jako rotační těleso.",
+   "accuracy": "catalogue",
+   "datasheet": "{ds}",
+   "cad": "{cad}",
+   "page": "{page}",
+   "order": {
+    "ingun": "{art}"
+   },
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 1.91,
+    "L": 33.1,
+    "D": 1.02,
+    "d": 0.63,
+    "Lb": 25.4,
+    "s": 6.4,
+    "h": 1.3,
+    "ws": 4.3,
+    "ms": 6.35
+   },
+   "sizes": {
+    "Ø0.64 · 1.5 N": {
+     "pn": "GKS-075 201 064 A 1500",
+     "art": "GKS-075-0063",
+     "t": 0.63,
+     "tip": 0.64,
+     "a": 30,
+     "F": 1.5,
+     "F0": 0.6,
+     "I": 3.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.3488,
+     "ds": "https://ingun.com/media/89/3c/7b/1752236420/INGUN_GKS-075_201_064_A_1500_GKS-075-0063_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/e0/a7/e2/1752235690/INGUN_GKS-075_201_064_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-075-series/GKS-075-0063"
+    },
+    "Ø0.64 · 2 N": {
+     "pn": "GKS-075 201 064 A 2000",
+     "art": "GKS-075-0022",
+     "t": 0.63,
+     "tip": 0.64,
+     "a": 30,
+     "F": 2.0,
+     "F0": 0.72,
+     "I": 3.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/20/e9/b7/1752235691/INGUN_GKS-075_201_064_A_2000_GKS-075-0022_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/e0/a7/e2/1752235690/INGUN_GKS-075_201_064_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-075-series/GKS-075-0022"
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "L - t/2/tan(a*pi/360)"
+      ],
+      [
+       0,
+       "L"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ingun-gks075-204",
+   "category": "Test probes / INGUN / GKS-075 (1.91 mm)",
+   "name": "INGUN GKS-075 204 — 4-point crown",
+   "name_cs": "INGUN GKS-075 204 — 4hrotá korunka",
+   "maker": "INGUN",
+   "series": "GKS-075",
+   "kind": "probe",
+   "title": "INGUN {pn}",
+   "pn": "{pn}",
+   "description": "INGUN {pn} (item {art}) — spring-loaded ICT / FCT test probe for a {grid} mm grid (75 mil): 4-point crown, tip Ø{tip} mm; total length {L} mm, barrel Ø{D} mm, plunger Ø{d} mm; working stroke {ws} mm (max. {ms} mm); spring force {F} N at the working stroke (preload {F0} N, ≈ {k} N/mm); {I} A; tip {mat}, gold plated. Receptacle KS-075 (not in the library: its fit height is not certain). Dimensions per catalogue (INGUN datasheet); the head is drawn as a solid of revolution. crown korunka",
+   "description_cs": "INGUN {pn} (č. {art}) — pérová testovací jehla ICT / FCT pro rastr {grid} mm: 4hrotá korunka, hrot Ø{tip} mm; celková délka {L} mm, pouzdro jehly Ø{D} mm, píst Ø{d} mm; pracovní zdvih {ws} mm (max. {ms} mm); síla pružiny {F} N při pracovním zdvihu (předpětí {F0} N, ≈ {k} N/mm); {I} A; hrot {mat_cs}, zlacený. Pouzdro KS-075 (v knihovně není: jeho montážní výška není jistá). Rozměry podle katalogu (datasheet INGUN); hlava kreslena jako rotační těleso.",
+   "accuracy": "catalogue",
+   "datasheet": "{ds}",
+   "cad": "{cad}",
+   "page": "{page}",
+   "order": {
+    "ingun": "{art}"
+   },
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 1.91,
+    "L": 33.1,
+    "D": 1.02,
+    "d": 0.63,
+    "Lb": 25.4,
+    "s": 6.4,
+    "h": 1.3,
+    "ws": 4.3,
+    "ms": 6.35
+   },
+   "sizes": {
+    "Ø1.15 · 2 N": {
+     "pn": "GKS-075 204 115 A 2000",
+     "art": "GKS-075-0217",
+     "t": 1.15,
+     "tip": 1.15,
+     "a": 78,
+     "F": 2.0,
+     "F0": 0.72,
+     "I": 3.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/54/3c/9c/1752237011/INGUN_GKS-075_204_115_A_2000_GKS-075-0217_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/f2/d9/a4/1757085455/INGUN_GKS-075_204_115_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-075-series/GKS-075-0217"
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "L"
+      ],
+      [
+       0,
+       "L - t/2/tan(a*pi/360)"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ingun-gks075-214",
+   "category": "Test probes / INGUN / GKS-075 (1.91 mm)",
+   "name": "INGUN GKS-075 214 — 4-point crown, self-cleaning",
+   "name_cs": "INGUN GKS-075 214 — 4hrotá korunka, samočisticí",
+   "maker": "INGUN",
+   "series": "GKS-075",
+   "kind": "probe",
+   "title": "INGUN {pn}",
+   "pn": "{pn}",
+   "description": "INGUN {pn} (item {art}) — spring-loaded ICT / FCT test probe for a {grid} mm grid (75 mil): 4-point crown, self-cleaning, tip Ø{tip} mm; total length {L} mm, barrel Ø{D} mm, plunger Ø{d} mm; working stroke {ws} mm (max. {ms} mm); spring force {F} N at the working stroke (preload {F0} N, ≈ {k} N/mm); {I} A; tip {mat}, gold plated. Receptacle KS-075 (not in the library: its fit height is not certain). Dimensions per catalogue (INGUN datasheet); the head is drawn as a solid of revolution. crown korunka",
+   "description_cs": "INGUN {pn} (č. {art}) — pérová testovací jehla ICT / FCT pro rastr {grid} mm: 4hrotá korunka, samočisticí, hrot Ø{tip} mm; celková délka {L} mm, pouzdro jehly Ø{D} mm, píst Ø{d} mm; pracovní zdvih {ws} mm (max. {ms} mm); síla pružiny {F} N při pracovním zdvihu (předpětí {F0} N, ≈ {k} N/mm); {I} A; hrot {mat_cs}, zlacený. Pouzdro KS-075 (v knihovně není: jeho montážní výška není jistá). Rozměry podle katalogu (datasheet INGUN); hlava kreslena jako rotační těleso.",
+   "accuracy": "catalogue",
+   "datasheet": "{ds}",
+   "cad": "{cad}",
+   "page": "{page}",
+   "order": {
+    "ingun": "{art}"
+   },
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 1.91,
+    "L": 33.1,
+    "D": 1.02,
+    "d": 0.63,
+    "Lb": 25.4,
+    "s": 6.4,
+    "h": 1.3,
+    "ws": 4.3,
+    "ms": 6.35
+   },
+   "sizes": {
+    "Ø0.5 · 2 N": {
+     "pn": "GKS-075 214 050 A 2000",
+     "art": "GKS-075-0011",
+     "t": 0.5,
+     "tip": 0.5,
+     "a": 85,
+     "F": 2.0,
+     "F0": 0.72,
+     "I": 3.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/2a/a2/g0/1752236385/INGUN_GKS-075_214_050_A_2000_GKS-075-0011_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/53/59/23/1752236037/INGUN_GKS-075_214_050_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-075-series/GKS-075-0011"
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "L"
+      ],
+      [
+       0,
+       "L - t/2/tan(a*pi/360)"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ingun-gks075-217",
+   "category": "Test probes / INGUN / GKS-075 (1.91 mm)",
+   "name": "INGUN GKS-075 217 — hexagonal pyramid with cutting edges, self-cleaning",
+   "name_cs": "INGUN GKS-075 217 — šestiboký jehlan s břity, samočisticí",
+   "maker": "INGUN",
+   "series": "GKS-075",
+   "kind": "probe",
+   "title": "INGUN {pn}",
+   "pn": "{pn}",
+   "description": "INGUN {pn} (item {art}) — spring-loaded ICT / FCT test probe for a {grid} mm grid (75 mil): hexagonal pyramid with cutting edges, self-cleaning, tip Ø{tip} mm; total length {L} mm, barrel Ø{D} mm, plunger Ø{d} mm; working stroke {ws} mm (max. {ms} mm); spring force {F} N at the working stroke (preload {F0} N, ≈ {k} N/mm); {I} A; tip {mat}, gold plated. Receptacle KS-075 (not in the library: its fit height is not certain). Dimensions per catalogue (INGUN datasheet); the head is drawn as a solid of revolution. pyramid jehlan",
+   "description_cs": "INGUN {pn} (č. {art}) — pérová testovací jehla ICT / FCT pro rastr {grid} mm: šestiboký jehlan s břity, samočisticí, hrot Ø{tip} mm; celková délka {L} mm, pouzdro jehly Ø{D} mm, píst Ø{d} mm; pracovní zdvih {ws} mm (max. {ms} mm); síla pružiny {F} N při pracovním zdvihu (předpětí {F0} N, ≈ {k} N/mm); {I} A; hrot {mat_cs}, zlacený. Pouzdro KS-075 (v knihovně není: jeho montážní výška není jistá). Rozměry podle katalogu (datasheet INGUN); hlava kreslena jako rotační těleso.",
+   "accuracy": "catalogue",
+   "datasheet": "{ds}",
+   "cad": "{cad}",
+   "page": "{page}",
+   "order": {
+    "ingun": "{art}"
+   },
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 1.91,
+    "L": 33.1,
+    "D": 1.02,
+    "d": 0.63,
+    "Lb": 25.4,
+    "s": 6.4,
+    "h": 1.3,
+    "ws": 4.3,
+    "ms": 6.35
+   },
+   "sizes": {
+    "Ø1.2 · 2 N": {
+     "pn": "GKS-075 217 120 A 2000",
+     "art": "GKS-075-0016",
+     "t": 1.2,
+     "tip": 1.2,
+     "a": 90,
+     "F": 2.0,
+     "F0": 0.72,
+     "I": 3.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/8f/88/e8/1752236448/INGUN_GKS-075_217_120_A_2000_GKS-075-0016_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/5c/bc/5e/1752235721/INGUN_GKS-075_217_120_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-075-series/GKS-075-0016"
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "L - t/2/tan(a*pi/360)"
+      ],
+      [
+       0,
+       "L"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ingun-gks075-277",
+   "category": "Test probes / INGUN / GKS-075 (1.91 mm)",
+   "name": "INGUN GKS-075 277 — dagger, aggressive version",
+   "name_cs": "INGUN GKS-075 277 — dýka, agresivní provedení",
+   "maker": "INGUN",
+   "series": "GKS-075",
+   "kind": "probe",
+   "title": "INGUN {pn}",
+   "pn": "{pn}",
+   "description": "INGUN {pn} (item {art}) — spring-loaded ICT / FCT test probe for a {grid} mm grid (75 mil): dagger, aggressive version, tip Ø{tip} mm; total length {L} mm, barrel Ø{D} mm, plunger Ø{d} mm; working stroke {ws} mm (max. {ms} mm); spring force {F} N at the working stroke (preload {F0} N, ≈ {k} N/mm); {I} A; tip {mat}, gold plated. Receptacle KS-075 (not in the library: its fit height is not certain). Dimensions per catalogue (INGUN datasheet); the head is drawn as a solid of revolution. dagger dyka",
+   "description_cs": "INGUN {pn} (č. {art}) — pérová testovací jehla ICT / FCT pro rastr {grid} mm: dýka, agresivní provedení, hrot Ø{tip} mm; celková délka {L} mm, pouzdro jehly Ø{D} mm, píst Ø{d} mm; pracovní zdvih {ws} mm (max. {ms} mm); síla pružiny {F} N při pracovním zdvihu (předpětí {F0} N, ≈ {k} N/mm); {I} A; hrot {mat_cs}, zlacený. Pouzdro KS-075 (v knihovně není: jeho montážní výška není jistá). Rozměry podle katalogu (datasheet INGUN); hlava kreslena jako rotační těleso.",
+   "accuracy": "catalogue",
+   "datasheet": "{ds}",
+   "cad": "{cad}",
+   "page": "{page}",
+   "order": {
+    "ingun": "{art}"
+   },
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 1.91,
+    "L": 33.1,
+    "D": 1.02,
+    "d": 0.63,
+    "Lb": 25.4,
+    "s": 6.4,
+    "h": 1.3,
+    "ws": 4.3,
+    "ms": 6.35
+   },
+   "sizes": {
+    "Ø0.64 · 2 N": {
+     "pn": "GKS-075 277 064 A 2000",
+     "art": "GKS-075-0130",
+     "t": 0.63,
+     "tip": 0.64,
+     "a": 15,
+     "F": 2.0,
+     "F0": 0.72,
+     "I": 3.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/30/ca/c7/1752236513/INGUN_GKS-075_277_064_A_2000_GKS-075-0130_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/02/d6/98/1757085380/INGUN_GKS-075_277_064_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-075-series/GKS-075-0130"
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "L"
+      ],
+      [
+       0,
+       "L"
+      ]
+     ]
+    },
+    {
+     "extrude": {
+      "polyline": [
+       [
+        "-t/2-0.1",
+        "L+0.1/tan(a*pi/180)"
+       ],
+       [
+        "t/2+0.1",
+        "L-(t+0.1)/tan(a*pi/180)"
+       ],
+       [
+        "t/2+0.1",
+        "L+1"
+       ],
+       [
+        "-t/2-0.1",
+        "L+1"
+       ]
+      ]
+     },
+     "plane": "XZ",
+     "z": -1,
+     "h": 2,
+     "op": "cut"
+    }
+   ]
+  },
+  {
+   "id": "ingun-gks075-303",
+   "category": "Test probes / INGUN / GKS-075 (1.91 mm)",
+   "name": "INGUN GKS-075 303 — inverse cone (cup)",
+   "name_cs": "INGUN GKS-075 303 — obrácený kužel (miska)",
+   "maker": "INGUN",
+   "series": "GKS-075",
+   "kind": "probe",
+   "title": "INGUN {pn}",
+   "pn": "{pn}",
+   "description": "INGUN {pn} (item {art}) — spring-loaded ICT / FCT test probe for a {grid} mm grid (75 mil): inverse cone (cup), tip Ø{tip} mm; total length {L} mm, barrel Ø{D} mm, plunger Ø{d} mm; working stroke {ws} mm (max. {ms} mm); spring force {F} N at the working stroke (preload {F0} N, ≈ {k} N/mm); {I} A; tip {mat}, gold plated. Receptacle KS-075 (not in the library: its fit height is not certain). Dimensions per catalogue (INGUN datasheet); the head is drawn as a solid of revolution. cup concave miska",
+   "description_cs": "INGUN {pn} (č. {art}) — pérová testovací jehla ICT / FCT pro rastr {grid} mm: obrácený kužel (miska), hrot Ø{tip} mm; celková délka {L} mm, pouzdro jehly Ø{D} mm, píst Ø{d} mm; pracovní zdvih {ws} mm (max. {ms} mm); síla pružiny {F} N při pracovním zdvihu (předpětí {F0} N, ≈ {k} N/mm); {I} A; hrot {mat_cs}, zlacený. Pouzdro KS-075 (v knihovně není: jeho montážní výška není jistá). Rozměry podle katalogu (datasheet INGUN); hlava kreslena jako rotační těleso.",
+   "accuracy": "catalogue",
+   "datasheet": "{ds}",
+   "cad": "{cad}",
+   "page": "{page}",
+   "order": {
+    "ingun": "{art}"
+   },
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 1.91,
+    "L": 33.1,
+    "D": 1.02,
+    "d": 0.63,
+    "Lb": 25.4,
+    "s": 6.4,
+    "h": 1.3,
+    "ws": 4.3,
+    "ms": 6.35
+   },
+   "sizes": {
+    "Ø1.2 · 1 N": {
+     "pn": "GKS-075 303 120 A 1000",
+     "art": "GKS-075-0109",
+     "t": 1.2,
+     "tip": 1.2,
+     "a": 90,
+     "F": 1.0,
+     "F0": 0.4,
+     "I": 3.0,
+     "mat": "CuBe",
+     "mat_cs": "CuBe",
+     "k": 0.2326,
+     "ds": "https://ingun.com/media/5f/87/c6/1752236364/INGUN_GKS-075_303_120_A_1000_GKS-075-0109_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/0a/b6/ab/1752238063/INGUN_GKS-075_303_120_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-075-series/GKS-075-0109"
+    },
+    "Ø1.2 · 1.5 N": {
+     "pn": "GKS-075 303 120 A 1500",
+     "art": "GKS-075-0070",
+     "t": 1.2,
+     "tip": 1.2,
+     "a": 90,
+     "F": 1.5,
+     "F0": 0.6,
+     "I": 3.0,
+     "mat": "CuBe",
+     "mat_cs": "CuBe",
+     "k": 0.3488,
+     "ds": "https://ingun.com/media/b1/94/e6/1752235708/INGUN_GKS-075_303_120_A_1500_GKS-075-0070_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/0a/b6/ab/1752238063/INGUN_GKS-075_303_120_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-075-series/GKS-075-0070"
+    },
+    "Ø1.2 · 2 N": {
+     "pn": "GKS-075 303 120 A 2000",
+     "art": "GKS-075-0052",
+     "t": 1.2,
+     "tip": 1.2,
+     "a": 90,
+     "F": 2.0,
+     "F0": 0.72,
+     "I": 4.0,
+     "mat": "CuBe",
+     "mat_cs": "CuBe",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/75/16/24/1752236149/INGUN_GKS-075_303_120_A_2000_GKS-075-0052_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/0a/b6/ab/1752238063/INGUN_GKS-075_303_120_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-075-series/GKS-075-0052"
+    },
+    "Ø1.2 · 2.8 N": {
+     "pn": "GKS-075 303 120 A 2800",
+     "art": "GKS-075-0170",
+     "t": 1.2,
+     "tip": 1.2,
+     "a": 90,
+     "F": 2.8,
+     "F0": 0.86,
+     "I": 4.0,
+     "mat": "CuBe",
+     "mat_cs": "CuBe",
+     "k": 0.6512,
+     "ds": "https://ingun.com/media/eb/11/98/1752236511/INGUN_GKS-075_303_120_A_2800_GKS-075-0170_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/0a/b6/ab/1752238063/INGUN_GKS-075_303_120_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-075-series/GKS-075-0170"
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "L"
+      ],
+      [
+       0,
+       "L - t/2/tan(a*pi/360)"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ingun-gks075-306",
+   "category": "Test probes / INGUN / GKS-075 (1.91 mm)",
+   "name": "INGUN GKS-075 306 — serrated",
+   "name_cs": "INGUN GKS-075 306 — zoubkovaná hlava",
+   "maker": "INGUN",
+   "series": "GKS-075",
+   "kind": "probe",
+   "title": "INGUN {pn}",
+   "pn": "{pn}",
+   "description": "INGUN {pn} (item {art}) — spring-loaded ICT / FCT test probe for a {grid} mm grid (75 mil): serrated, tip Ø{tip} mm; total length {L} mm, barrel Ø{D} mm, plunger Ø{d} mm; working stroke {ws} mm (max. {ms} mm); spring force {F} N at the working stroke (preload {F0} N, ≈ {k} N/mm); {I} A; tip {mat}, gold plated. Receptacle KS-075 (not in the library: its fit height is not certain). Dimensions per catalogue (INGUN datasheet); the head is drawn as a solid of revolution. serrated zoubkovana",
+   "description_cs": "INGUN {pn} (č. {art}) — pérová testovací jehla ICT / FCT pro rastr {grid} mm: zoubkovaná hlava, hrot Ø{tip} mm; celková délka {L} mm, pouzdro jehly Ø{D} mm, píst Ø{d} mm; pracovní zdvih {ws} mm (max. {ms} mm); síla pružiny {F} N při pracovním zdvihu (předpětí {F0} N, ≈ {k} N/mm); {I} A; hrot {mat_cs}, zlacený. Pouzdro KS-075 (v knihovně není: jeho montážní výška není jistá). Rozměry podle katalogu (datasheet INGUN); hlava kreslena jako rotační těleso.",
+   "accuracy": "catalogue",
+   "datasheet": "{ds}",
+   "cad": "{cad}",
+   "page": "{page}",
+   "order": {
+    "ingun": "{art}"
+   },
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 1.91,
+    "L": 33.1,
+    "D": 1.02,
+    "d": 0.63,
+    "Lb": 25.4,
+    "s": 6.4,
+    "h": 1.3,
+    "ws": 4.3,
+    "ms": 6.35
+   },
+   "sizes": {
+    "Ø1 · 2 N": {
+     "pn": "GKS-075 306 100 A 2000",
+     "art": "GKS-075-0009",
+     "t": 1.0,
+     "tip": 1.0,
+     "a": 60,
+     "F": 2.0,
+     "F0": 0.72,
+     "I": 4.0,
+     "mat": "CuBe",
+     "mat_cs": "CuBe",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/73/29/41/1752236373/INGUN_GKS-075_306_100_A_2000_GKS-075-0009_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/09/e3/30/1752236027/INGUN_GKS-075_306_100_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-075-series/GKS-075-0009"
+    },
+    "Ø1.2 · 1 N": {
+     "pn": "GKS-075 306 120 A 1000",
+     "art": "GKS-075-0066",
+     "t": 1.2,
+     "tip": 1.2,
+     "a": 60,
+     "F": 1.0,
+     "F0": 0.4,
+     "I": 3.0,
+     "mat": "CuBe",
+     "mat_cs": "CuBe",
+     "k": 0.2326,
+     "ds": "https://ingun.com/media/59/79/80/1752236459/INGUN_GKS-075_306_120_A_1000_GKS-075-0066_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/18/33/e8/1763305484/INGUN_GKS-075_306_120_A_xx00_C.STEP",
+     "page": "https://ingun.com/en/products/GKS-075-series/GKS-075-0066"
+    },
+    "Ø1.2 · 1.5 N": {
+     "pn": "GKS-075 306 120 A 1500",
+     "art": "GKS-075-0072",
+     "t": 1.2,
+     "tip": 1.2,
+     "a": 60,
+     "F": 1.5,
+     "F0": 0.6,
+     "I": 3.0,
+     "mat": "CuBe",
+     "mat_cs": "CuBe",
+     "k": 0.3488,
+     "ds": "https://ingun.com/media/a0/d4/f2/1752235732/INGUN_GKS-075_306_120_A_1500_GKS-075-0072_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/18/33/e8/1763305484/INGUN_GKS-075_306_120_A_xx00_C.STEP",
+     "page": "https://ingun.com/en/products/GKS-075-series/GKS-075-0072"
+    },
+    "Ø1.2 · 2 N": {
+     "pn": "GKS-075 306 120 A 2000",
+     "art": "GKS-075-0029",
+     "t": 1.2,
+     "tip": 1.2,
+     "a": 60,
+     "F": 2.0,
+     "F0": 0.72,
+     "I": 4.0,
+     "mat": "CuBe",
+     "mat_cs": "CuBe",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/48/4a/2d/1752235757/INGUN_GKS-075_306_120_A_2000_GKS-075-0029_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/18/33/e8/1763305484/INGUN_GKS-075_306_120_A_xx00_C.STEP",
+     "page": "https://ingun.com/en/products/GKS-075-series/GKS-075-0029"
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "L"
+      ],
+      [
+       0,
+       "L - t/2/tan(a*pi/360)"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ingun-gks050-201",
+   "category": "Test probes / INGUN / GKS-050 (1.27 mm)",
+   "name": "INGUN GKS-050 201 — 30° needle tip, self-cleaning",
+   "name_cs": "INGUN GKS-050 201 — jehlový hrot 30°, samočisticí",
+   "maker": "INGUN",
+   "series": "GKS-050",
+   "kind": "probe",
+   "title": "INGUN {pn}",
+   "pn": "{pn}",
+   "description": "INGUN {pn} (item {art}) — spring-loaded ICT / FCT test probe for a {grid} mm grid (50 mil): 30° needle tip, self-cleaning, tip Ø{tip} mm; total length {L} mm, barrel Ø{D} mm, plunger Ø{d} mm; working stroke {ws} mm (max. {ms} mm); spring force {F} N at the working stroke (preload {F0} N, ≈ {k} N/mm); {I} A; tip {mat}, gold plated. Receptacle KS-050. Dimensions per catalogue (INGUN datasheet); the head is drawn as a solid of revolution. needle spear point jehla hrot",
+   "description_cs": "INGUN {pn} (č. {art}) — pérová testovací jehla ICT / FCT pro rastr {grid} mm: jehlový hrot 30°, samočisticí, hrot Ø{tip} mm; celková délka {L} mm, pouzdro jehly Ø{D} mm, píst Ø{d} mm; pracovní zdvih {ws} mm (max. {ms} mm); síla pružiny {F} N při pracovním zdvihu (předpětí {F0} N, ≈ {k} N/mm); {I} A; hrot {mat_cs}, zlacený. Pouzdro KS-050. Rozměry podle katalogu (datasheet INGUN); hlava kreslena jako rotační těleso.",
+   "accuracy": "catalogue",
+   "datasheet": "{ds}",
+   "cad": "{cad}",
+   "page": "{page}",
+   "order": {
+    "ingun": "{art}"
+   },
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 1.27,
+    "L": 43.2,
+    "D": 0.78,
+    "d": 0.5,
+    "Lb": 36.3,
+    "s": 6.35,
+    "h": 0.55,
+    "ws": 4.3,
+    "ms": 6.35
+   },
+   "sizes": {
+    "Ø0.5 · 1 N": {
+     "pn": "GKS-050 201 050 A 1000",
+     "art": "GKS-050-0095",
+     "t": 0.5,
+     "tip": 0.5,
+     "a": 30,
+     "F": 1.0,
+     "F0": 0.44,
+     "I": 2.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.2326,
+     "ds": "https://ingun.com/media/eb/58/f2/1752227979/INGUN_GKS-050_201_050_A_1000_GKS-050-0095_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/20/1d/ca/1752227978/INGUN_GKS-050_201_050_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-050-series/GKS-050-0095"
+    },
+    "Ø0.5 · 1.5 N": {
+     "pn": "GKS-050 201 050 A 1500",
+     "art": "GKS-050-0252",
+     "t": 0.5,
+     "tip": 0.5,
+     "a": 30,
+     "F": 1.5,
+     "F0": 0.58,
+     "I": 2.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.3488,
+     "ds": "https://ingun.com/media/d0/af/f3/1752228485/INGUN_GKS-050_201_050_A_1500_GKS-050-0252_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/20/1d/ca/1752227978/INGUN_GKS-050_201_050_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-050-series/GKS-050-0252"
+    },
+    "Ø0.5 · 2 N": {
+     "pn": "GKS-050 201 050 A 2000",
+     "art": "GKS-050-0079",
+     "t": 0.5,
+     "tip": 0.5,
+     "a": 30,
+     "F": 2.0,
+     "F0": 0.55,
+     "I": 2.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/a2/48/63/1752228477/INGUN_GKS-050_201_050_A_2000_GKS-050-0079_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/20/1d/ca/1752227978/INGUN_GKS-050_201_050_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-050-series/GKS-050-0079"
+    },
+    "Ø0.5 · 2 N (C)": {
+     "pn": "GKS-050 201 050 A 2000 C",
+     "art": "GKS-050-0270",
+     "t": 0.5,
+     "tip": 0.5,
+     "a": 30,
+     "F": 2.0,
+     "F0": 0.81,
+     "I": 2.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/96/4a/63/1752227975/INGUN_GKS-050_201_050_A_2000_C_GKS-050-0270_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/20/1d/ca/1752227978/INGUN_GKS-050_201_050_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-050-series/GKS-050-0270"
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "L - t/2/tan(a*pi/360)"
+      ],
+      [
+       0,
+       "L"
+      ]
+     ]
+    }
+   ],
+   "pairs": [
+    {
+     "ref": "ingun-ks050",
+     "role": "receptacle",
+     "back": "probe"
+    }
+   ]
+  },
+  {
+   "id": "ingun-gks050-277",
+   "category": "Test probes / INGUN / GKS-050 (1.27 mm)",
+   "name": "INGUN GKS-050 277 — dagger, aggressive version",
+   "name_cs": "INGUN GKS-050 277 — dýka, agresivní provedení",
+   "maker": "INGUN",
+   "series": "GKS-050",
+   "kind": "probe",
+   "title": "INGUN {pn}",
+   "pn": "{pn}",
+   "description": "INGUN {pn} (item {art}) — spring-loaded ICT / FCT test probe for a {grid} mm grid (50 mil): dagger, aggressive version, tip Ø{tip} mm; total length {L} mm, barrel Ø{D} mm, plunger Ø{d} mm; working stroke {ws} mm (max. {ms} mm); spring force {F} N at the working stroke (preload {F0} N, ≈ {k} N/mm); {I} A; tip {mat}, gold plated. Receptacle KS-050. Dimensions per catalogue (INGUN datasheet); the head is drawn as a solid of revolution. dagger dyka",
+   "description_cs": "INGUN {pn} (č. {art}) — pérová testovací jehla ICT / FCT pro rastr {grid} mm: dýka, agresivní provedení, hrot Ø{tip} mm; celková délka {L} mm, pouzdro jehly Ø{D} mm, píst Ø{d} mm; pracovní zdvih {ws} mm (max. {ms} mm); síla pružiny {F} N při pracovním zdvihu (předpětí {F0} N, ≈ {k} N/mm); {I} A; hrot {mat_cs}, zlacený. Pouzdro KS-050. Rozměry podle katalogu (datasheet INGUN); hlava kreslena jako rotační těleso.",
+   "accuracy": "catalogue",
+   "datasheet": "{ds}",
+   "cad": "{cad}",
+   "page": "{page}",
+   "order": {
+    "ingun": "{art}"
+   },
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 1.27,
+    "L": 43.2,
+    "D": 0.78,
+    "d": 0.5,
+    "Lb": 36.3,
+    "s": 6.35,
+    "h": 0.55,
+    "ws": 4.3,
+    "ms": 6.35
+   },
+   "sizes": {
+    "Ø0.5 · 2 N": {
+     "pn": "GKS-050 277 050 A 2000",
+     "art": "GKS-050-0099",
+     "t": 0.5,
+     "tip": 0.5,
+     "a": 15,
+     "F": 2.0,
+     "F0": 0.55,
+     "I": 2.0,
+     "mat": "steel",
+     "mat_cs": "ocel",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/e6/8a/0f/1752228020/INGUN_GKS-050_277_050_A_2000_GKS-050-0099_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/b4/f5/fc/1752228019/INGUN_GKS-050_277_050_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-050-series/GKS-050-0099"
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "L"
+      ],
+      [
+       0,
+       "L"
+      ]
+     ]
+    },
+    {
+     "extrude": {
+      "polyline": [
+       [
+        "-t/2-0.1",
+        "L+0.1/tan(a*pi/180)"
+       ],
+       [
+        "t/2+0.1",
+        "L-(t+0.1)/tan(a*pi/180)"
+       ],
+       [
+        "t/2+0.1",
+        "L+1"
+       ],
+       [
+        "-t/2-0.1",
+        "L+1"
+       ]
+      ]
+     },
+     "plane": "XZ",
+     "z": -1,
+     "h": 2,
+     "op": "cut"
+    }
+   ],
+   "pairs": [
+    {
+     "ref": "ingun-ks050",
+     "role": "receptacle",
+     "back": "probe"
+    }
+   ]
+  },
+  {
+   "id": "ingun-gks050-303",
+   "category": "Test probes / INGUN / GKS-050 (1.27 mm)",
+   "name": "INGUN GKS-050 303 — inverse cone (cup)",
+   "name_cs": "INGUN GKS-050 303 — obrácený kužel (miska)",
+   "maker": "INGUN",
+   "series": "GKS-050",
+   "kind": "probe",
+   "title": "INGUN {pn}",
+   "pn": "{pn}",
+   "description": "INGUN {pn} (item {art}) — spring-loaded ICT / FCT test probe for a {grid} mm grid (50 mil): inverse cone (cup), tip Ø{tip} mm; total length {L} mm, barrel Ø{D} mm, plunger Ø{d} mm; working stroke {ws} mm (max. {ms} mm); spring force {F} N at the working stroke (preload {F0} N, ≈ {k} N/mm); {I} A; tip {mat}, gold plated. Receptacle KS-050. Dimensions per catalogue (INGUN datasheet); the head is drawn as a solid of revolution. cup concave miska",
+   "description_cs": "INGUN {pn} (č. {art}) — pérová testovací jehla ICT / FCT pro rastr {grid} mm: obrácený kužel (miska), hrot Ø{tip} mm; celková délka {L} mm, pouzdro jehly Ø{D} mm, píst Ø{d} mm; pracovní zdvih {ws} mm (max. {ms} mm); síla pružiny {F} N při pracovním zdvihu (předpětí {F0} N, ≈ {k} N/mm); {I} A; hrot {mat_cs}, zlacený. Pouzdro KS-050. Rozměry podle katalogu (datasheet INGUN); hlava kreslena jako rotační těleso.",
+   "accuracy": "catalogue",
+   "datasheet": "{ds}",
+   "cad": "{cad}",
+   "page": "{page}",
+   "order": {
+    "ingun": "{art}"
+   },
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 1.27,
+    "L": 43.2,
+    "D": 0.78,
+    "d": 0.5,
+    "Lb": 36.3,
+    "s": 6.35,
+    "h": 0.55,
+    "ws": 4.3,
+    "ms": 6.35
+   },
+   "sizes": {
+    "Ø0.9 · 1.5 N": {
+     "pn": "GKS-050 303 090 A 1500",
+     "art": "GKS-050-0050",
+     "t": 0.9,
+     "tip": 0.9,
+     "a": 90,
+     "F": 1.5,
+     "F0": 0.58,
+     "I": 3.0,
+     "mat": "CuBe",
+     "mat_cs": "CuBe",
+     "k": 0.3488,
+     "ds": "https://ingun.com/media/6d/ba/02/1752228045/INGUN_GKS-050_303_090_A_1500_GKS-050-0050_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/3b/c0/d3/1752228013/INGUN_GKS-050_303_090_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-050-series/GKS-050-0050"
+    },
+    "Ø0.9 · 2 N": {
+     "pn": "GKS-050 303 090 A 2000",
+     "art": "GKS-050-0098",
+     "t": 0.9,
+     "tip": 0.9,
+     "a": 90,
+     "F": 2.0,
+     "F0": 0.55,
+     "I": 3.0,
+     "mat": "CuBe",
+     "mat_cs": "CuBe",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/e7/7a/2c/1752228014/INGUN_GKS-050_303_090_A_2000_GKS-050-0098_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/3b/c0/d3/1752228013/INGUN_GKS-050_303_090_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-050-series/GKS-050-0098"
+    },
+    "Ø0.9 · 2 N (C)": {
+     "pn": "GKS-050 303 090 A 2000 C",
+     "art": "GKS-050-0086",
+     "t": 0.9,
+     "tip": 0.9,
+     "a": 90,
+     "F": 2.0,
+     "F0": 0.81,
+     "I": 3.0,
+     "mat": "CuBe",
+     "mat_cs": "CuBe",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/82/6c/d0/1752235612/INGUN_GKS-050_303_090_A_2000_C_GKS-050-0086_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/3b/c0/d3/1752228013/INGUN_GKS-050_303_090_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-050-series/GKS-050-0086"
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "L"
+      ],
+      [
+       0,
+       "L - t/2/tan(a*pi/360)"
+      ]
+     ]
+    }
+   ],
+   "pairs": [
+    {
+     "ref": "ingun-ks050",
+     "role": "receptacle",
+     "back": "probe"
+    }
+   ]
+  },
+  {
+   "id": "ingun-gks050-306",
+   "category": "Test probes / INGUN / GKS-050 (1.27 mm)",
+   "name": "INGUN GKS-050 306 — serrated",
+   "name_cs": "INGUN GKS-050 306 — zoubkovaná hlava",
+   "maker": "INGUN",
+   "series": "GKS-050",
+   "kind": "probe",
+   "title": "INGUN {pn}",
+   "pn": "{pn}",
+   "description": "INGUN {pn} (item {art}) — spring-loaded ICT / FCT test probe for a {grid} mm grid (50 mil): serrated, tip Ø{tip} mm; total length {L} mm, barrel Ø{D} mm, plunger Ø{d} mm; working stroke {ws} mm (max. {ms} mm); spring force {F} N at the working stroke (preload {F0} N, ≈ {k} N/mm); {I} A; tip {mat}, gold plated. Receptacle KS-050. Dimensions per catalogue (INGUN datasheet); the head is drawn as a solid of revolution. serrated zoubkovana",
+   "description_cs": "INGUN {pn} (č. {art}) — pérová testovací jehla ICT / FCT pro rastr {grid} mm: zoubkovaná hlava, hrot Ø{tip} mm; celková délka {L} mm, pouzdro jehly Ø{D} mm, píst Ø{d} mm; pracovní zdvih {ws} mm (max. {ms} mm); síla pružiny {F} N při pracovním zdvihu (předpětí {F0} N, ≈ {k} N/mm); {I} A; hrot {mat_cs}, zlacený. Pouzdro KS-050. Rozměry podle katalogu (datasheet INGUN); hlava kreslena jako rotační těleso.",
+   "accuracy": "catalogue",
+   "datasheet": "{ds}",
+   "cad": "{cad}",
+   "page": "{page}",
+   "order": {
+    "ingun": "{art}"
+   },
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 1.27,
+    "L": 43.2,
+    "D": 0.78,
+    "d": 0.5,
+    "Lb": 36.3,
+    "s": 6.35,
+    "h": 0.55,
+    "ws": 4.3,
+    "ms": 6.35
+   },
+   "sizes": {
+    "Ø0.9 · 1 N": {
+     "pn": "GKS-050 306 090 A 1000",
+     "art": "GKS-050-0017",
+     "t": 0.9,
+     "tip": 0.9,
+     "a": 60,
+     "F": 1.0,
+     "F0": 0.44,
+     "I": 2.0,
+     "mat": "CuBe",
+     "mat_cs": "CuBe",
+     "k": 0.2326,
+     "ds": "https://ingun.com/media/08/eb/7f/1752228490/INGUN_GKS-050_306_090_A_1000_GKS-050-0017_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/86/e4/78/1752228301/INGUN_GKS-050_306_090_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-050-series/GKS-050-0017"
+    },
+    "Ø0.9 · 1.5 N": {
+     "pn": "GKS-050 306 090 A 1500",
+     "art": "GKS-050-0007",
+     "t": 0.9,
+     "tip": 0.9,
+     "a": 60,
+     "F": 1.5,
+     "F0": 0.58,
+     "I": 3.0,
+     "mat": "CuBe",
+     "mat_cs": "CuBe",
+     "k": 0.3488,
+     "ds": "https://ingun.com/media/d7/0f/6e/1752228395/INGUN_GKS-050_306_090_A_1500_GKS-050-0007_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/86/e4/78/1752228301/INGUN_GKS-050_306_090_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-050-series/GKS-050-0007"
+    },
+    "Ø0.9 · 2 N": {
+     "pn": "GKS-050 306 090 A 2000",
+     "art": "GKS-050-0008",
+     "t": 0.9,
+     "tip": 0.9,
+     "a": 60,
+     "F": 2.0,
+     "F0": 0.55,
+     "I": 3.0,
+     "mat": "CuBe",
+     "mat_cs": "CuBe",
+     "k": 0.4651,
+     "ds": "https://ingun.com/media/31/97/74/1752228405/INGUN_GKS-050_306_090_A_2000_GKS-050-0008_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/86/e4/78/1752228301/INGUN_GKS-050_306_090_A_xx00.STEP",
+     "page": "https://ingun.com/en/products/GKS-050-series/GKS-050-0008"
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "Lb+s"
+      ],
+      [
+       "t/2",
+       "L"
+      ],
+      [
+       0,
+       "L - t/2/tan(a*pi/360)"
+      ]
+     ]
+    }
+   ],
+   "pairs": [
+    {
+     "ref": "ingun-ks050",
+     "role": "receptacle",
+     "back": "probe"
+    }
+   ]
+  },
+  {
+   "id": "ingun-ks100",
+   "category": "Receptacles / INGUN / KS-100 (2.54 mm)",
+   "name": "INGUN KS-100 receptacle (for GKS-100)",
+   "name_cs": "Pouzdro INGUN KS-100 (pro GKS-100)",
+   "maker": "INGUN",
+   "series": "KS-100",
+   "kind": "receptacle",
+   "title": "INGUN {pn}",
+   "pn": "{pn}",
+   "description": "INGUN {pn} (item {art}) — receptacle for the GKS-100 test probes, 2.54 mm grid: length {L} mm, outer Ø{Do} mm, collar Ø{Dc} mm {hc} mm below the top; mounting hole in FR4 Ø{hole}; solder cup, gold plated. With a GKS-100 probe the tip is {H} mm above the plate (installation height). Dimensions per catalogue (INGUN datasheet); the collar's thickness and the solder cup from the maker's STEP model; the bore drawn as the probe's barrel down to where the probe sits.",
+   "description_cs": "INGUN {pn} (č. {art}) — pouzdro pro testovací jehly GKS-100, rastr 2.54 mm: délka {L} mm, vnější Ø{Do} mm, límec Ø{Dc} mm {hc} mm pod horním koncem; montážní otvor ve FR4 Ø{hole}; pájecí očko, zlacené. S jehlou GKS-100 je hrot {H} mm nad deskou (montážní výška). Rozměry podle katalogu (datasheet INGUN); tloušťka límce a pájecí očko podle STEP modelu výrobce; vnitřní otvor kreslen jako pouzdro jehly až po místo, kde jehla sedí.",
+   "accuracy": "catalogue",
+   "datasheet": "{ds}",
+   "cad": "{cad}",
+   "order": {
+    "ingun": "{art}"
+   },
+   "color": "#c9a44c",
+   "material": "brass",
+   "vars": {
+    "grid": 2.54,
+    "rb": 0.685,
+    "Lp": 33.4,
+    "zp": "L - hc + H - Lp"
+   },
+   "sizes": {
+    "KS-100 30": {
+     "pn": "KS-100 30",
+     "art": "KS-10030",
+     "L": 32.0,
+     "Do": 1.67,
+     "Dc": 1.8,
+     "hc": 5.5,
+     "tc": 0.2,
+     "cup": 1.15,
+     "lcup": 9.05,
+     "H": 16.0,
+     "hole": "1.69 - 1.7 mm",
+     "ds": "https://ingun.com/media/e4/be/d4/1752273532/INGUN_KS-100_30_KS-10030_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/15/74/13/1757092500/INGUN_KS-100_30.STEP"
+    },
+    "KS-100 30 05": {
+     "pn": "KS-100 30 05",
+     "art": "KS-1003005",
+     "L": 27.7,
+     "Do": 1.67,
+     "Dc": 1.8,
+     "hc": 0.2,
+     "tc": 0.2,
+     "cup": 0,
+     "lcup": 0,
+     "H": 10.5,
+     "hole": "1.69 - 1.7 mm",
+     "ds": "https://ingun.com/media/22/d7/b7/1752273998/INGUN_KS-100_30_05_KS-1003005_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/81/ea/94/1757092622/INGUN_KS-100_30_05.STEP"
+    },
+    "KS-100 30 25": {
+     "pn": "KS-100 30 25",
+     "art": "KS-1003025",
+     "L": 26.9,
+     "Do": 1.67,
+     "Dc": 1.8,
+     "hc": 2.5,
+     "tc": 0.2,
+     "cup": 0,
+     "lcup": 0,
+     "H": 13.0,
+     "hole": "1.69 - 1.7 mm",
+     "ds": "https://ingun.com/media/03/46/ed/1752274033/INGUN_KS-100_30_25_KS-1003025_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/f7/2d/26/1757092627/INGUN_KS-100_30_25.STEP"
+    },
+    "KS-100 30 40": {
+     "pn": "KS-100 30 40",
+     "art": "KS-1003040",
+     "L": 26.9,
+     "Do": 1.67,
+     "Dc": 1.8,
+     "hc": 4.0,
+     "tc": 0.2,
+     "cup": 0,
+     "lcup": 0,
+     "H": 14.5,
+     "hole": "1.69 - 1.7 mm",
+     "ds": "https://ingun.com/media/2c/22/ba/1752274047/INGUN_KS-100_30_40_KS-1003040_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/2b/88/6d/1757092628/INGUN_KS-100_30_40.STEP"
+    },
+    "KS-100 30 93": {
+     "pn": "KS-100 30 93",
+     "art": "KS-1003093",
+     "L": 27.7,
+     "Do": 1.67,
+     "Dc": 1.8,
+     "hc": 0.2,
+     "tc": 0.2,
+     "cup": 0,
+     "lcup": 0,
+     "H": 11.0,
+     "hole": "1.69 - 1.7 mm",
+     "ds": "https://ingun.com/media/5b/02/f9/1752274058/INGUN_KS-100_30_93_KS-1003093_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/ce/6a/86/1757092630/INGUN_KS-100_30_93.STEP"
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "Do/2",
+       0
+      ],
+      [
+       "Do/2",
+       "L"
+      ],
+      [
+       0,
+       "L"
+      ]
+     ]
+    },
+    {
+     "revolve": [
+      [
+       "Do/2-0.05",
+       "L-hc"
+      ],
+      [
+       "Dc/2",
+       "L-hc"
+      ],
+      [
+       "Dc/2",
+       "L-hc+tc"
+      ],
+      [
+       "Do/2-0.05",
+       "L-hc+tc"
+      ]
+     ]
+    },
+    {
+     "revolve": [
+      [
+       "cup/2",
+       -1
+      ],
+      [
+       "Do",
+       -1
+      ],
+      [
+       "Do",
+       "lcup"
+      ],
+      [
+       "cup/2",
+       "lcup"
+      ]
+     ],
+     "op": "cut",
+     "when": "lcup"
+    },
+    {
+     "revolve": [
+      [
+       0,
+       "zp"
+      ],
+      [
+       "rb",
+       "zp"
+      ],
+      [
+       "rb",
+       "L+1"
+      ],
+      [
+       0,
+       "L+1"
+      ]
+     ],
+     "op": "cut"
+    }
+   ]
+  },
+  {
+   "id": "ingun-ks050",
+   "category": "Receptacles / INGUN / KS-050 (1.27 mm)",
+   "name": "INGUN KS-050 receptacle (for GKS-050)",
+   "name_cs": "Pouzdro INGUN KS-050 (pro GKS-050)",
+   "maker": "INGUN",
+   "series": "KS-050",
+   "kind": "receptacle",
+   "title": "INGUN {pn}",
+   "pn": "{pn}",
+   "description": "INGUN {pn} (item {art}) — receptacle for the GKS-050 test probes, 1.27 mm grid: length {L} mm, outer Ø{Do} mm, collar Ø{Dc} mm {hc} mm below the top; mounting hole in FR4 Ø{hole}; solder cup, gold plated. With a GKS-050 probe the tip is {H} mm above the plate (installation height). Dimensions per catalogue (INGUN datasheet); the collar's thickness and the solder cup from the maker's STEP model; the bore drawn as the probe's barrel down to where the probe sits.",
+   "description_cs": "INGUN {pn} (č. {art}) — pouzdro pro testovací jehly GKS-050, rastr 1.27 mm: délka {L} mm, vnější Ø{Do} mm, límec Ø{Dc} mm {hc} mm pod horním koncem; montážní otvor ve FR4 Ø{hole}; pájecí očko, zlacené. S jehlou GKS-050 je hrot {H} mm nad deskou (montážní výška). Rozměry podle katalogu (datasheet INGUN); tloušťka límce a pájecí očko podle STEP modelu výrobce; vnitřní otvor kreslen jako pouzdro jehly až po místo, kde jehla sedí.",
+   "accuracy": "catalogue",
+   "datasheet": "{ds}",
+   "cad": "{cad}",
+   "order": {
+    "ingun": "{art}"
+   },
+   "color": "#c9a44c",
+   "material": "brass",
+   "vars": {
+    "grid": 1.27,
+    "rb": 0.39,
+    "Lp": 43.2,
+    "zp": "L - hc + H - Lp"
+   },
+   "sizes": {
+    "KS-050 30 E08": {
+     "pn": "KS-050 30 E08",
+     "art": "KS-05030E08",
+     "L": 40.6,
+     "Do": 0.95,
+     "Dc": 1.04,
+     "hc": 7.9,
+     "tc": 0.5,
+     "cup": 0.7,
+     "lcup": 5.43,
+     "H": 16.0,
+     "hole": "0.98 - 1 mm",
+     "ds": "https://ingun.com/media/b6/b1/dd/1752274094/INGUN_KS-050_30_E08_KS-05030E08_EN_Datasheet.pdf",
+     "cad": "https://ingun.com/media/7f/69/bd/1757092635/INGUN_KS-050_30_E08.STEP"
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "Do/2",
+       0
+      ],
+      [
+       "Do/2",
+       "L"
+      ],
+      [
+       0,
+       "L"
+      ]
+     ]
+    },
+    {
+     "revolve": [
+      [
+       "Do/2-0.05",
+       "L-hc"
+      ],
+      [
+       "Dc/2",
+       "L-hc"
+      ],
+      [
+       "Dc/2",
+       "L-hc+tc"
+      ],
+      [
+       "Do/2-0.05",
+       "L-hc+tc"
+      ]
+     ]
+    },
+    {
+     "revolve": [
+      [
+       "cup/2",
+       -1
+      ],
+      [
+       "Do",
+       -1
+      ],
+      [
+       "Do",
+       "lcup"
+      ],
+      [
+       "cup/2",
+       "lcup"
+      ]
+     ],
+     "op": "cut",
+     "when": "lcup"
+    },
+    {
+     "revolve": [
+      [
+       0,
+       "zp"
+      ],
+      [
+       "rb",
+       "zp"
+      ],
+      [
+       "rb",
+       "L+1"
+      ],
+      [
+       0,
+       "L+1"
+      ]
+     ],
+     "op": "cut"
+    }
+   ]
+  },
+  {
+   "id": "kesacon-mpi100-f",
+   "category": "Test probes / KESACON / MPI100 (2.54 mm)",
+   "name": "KESACON MPI100-F — flat tip Ø0.9",
+   "name_cs": "KESACON MPI100-F — plochý hrot Ø0.9",
+   "maker": "KESACON",
+   "series": "MPI100",
+   "kind": "probe",
+   "title": "KESACON {pn}",
+   "pn": "MPI100-F-090-{Fc}-BG",
+   "description": "KESACON {pn} — spring-loaded ICT / FCT test probe for a 2.54 mm grid (100 mil): flat straight-shaft tip (F) Ø0.9 mm, BeCu, gold plated; total length 33.3 mm, barrel Ø1.37 × 25 mm, plunger Ø0.9 mm; working stroke 4.3 mm (max. 6.35 mm); spring force {F} N at the working stroke (≈ {k} N/mm); 5 A. Receptacle R100 (not in the library: its inner sizes and the probe's fit height are not in the catalogue). Dimensions per catalogue (KESACON test probe catalogue 2025, page 18). flat plochy",
+   "description_cs": "KESACON {pn} — pérová testovací jehla ICT / FCT pro rastr 2.54 mm: plochý hrot na pístu (F) Ø0.9 mm, BeCu, zlacený; celková délka 33.3 mm, pouzdro jehly Ø1.37 × 25 mm, píst Ø0.9 mm; pracovní zdvih 4.3 mm (max. 6.35 mm); síla pružiny {F} N při pracovním zdvihu (≈ {k} N/mm); 5 A. Pouzdro R100 (v knihovně není: vnitřní rozměry a montážní výška v katalogu nejsou). Rozměry podle katalogu (KESACON test probe catalogue 2025, str. 18).",
+   "accuracy": "catalogue",
+   "datasheet": "https://www.kesacon.com/katalogus/KESACON-Test-Probe-Catalogue-2025.pdf",
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 2.54,
+    "L": 33.3,
+    "D": 1.37,
+    "d": 0.9,
+    "Lb": 25.0,
+    "ws": 4.3,
+    "ms": 6.35,
+    "t": 0.9
+   },
+   "sizes": {
+    "60 cN": {
+     "Fc": 60,
+     "F": 0.6,
+     "k": 0.1395
+    },
+    "100 cN": {
+     "Fc": 100,
+     "F": 1.0,
+     "k": 0.2326
+    },
+    "150 cN": {
+     "Fc": 150,
+     "F": 1.5,
+     "k": 0.3488
+    },
+    "200 cN": {
+     "Fc": 200,
+     "F": 2.0,
+     "k": 0.4651
+    },
+    "300 cN": {
+     "Fc": 300,
+     "F": 3.0,
+     "k": 0.6977
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "L"
+      ],
+      [
+       0,
+       "L"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "kesacon-mpi075-f",
+   "category": "Test probes / KESACON / MPI075 (1.91 mm)",
+   "name": "KESACON MPI075-F — flat tip Ø0.64",
+   "name_cs": "KESACON MPI075-F — plochý hrot Ø0.64",
+   "maker": "KESACON",
+   "series": "MPI075",
+   "kind": "probe",
+   "title": "KESACON {pn}",
+   "pn": "MPI075-F-064-{Fc}-BG",
+   "description": "KESACON {pn} — spring-loaded ICT / FCT test probe for a 1.91 mm grid (75 mil): flat straight-shaft tip (F) Ø0.64 mm, BeCu, gold plated; total length 33.1 mm, barrel Ø1.02 × 25.3 mm, plunger Ø0.64 mm; working stroke 4.3 mm (max. 6.35 mm); spring force {F} N at the working stroke (≈ {k} N/mm); 3 A. Receptacle R075 (not in the library: its inner sizes and the probe's fit height are not in the catalogue). Dimensions per catalogue (KESACON test probe catalogue 2025, page 14). flat plochy",
+   "description_cs": "KESACON {pn} — pérová testovací jehla ICT / FCT pro rastr 1.91 mm: plochý hrot na pístu (F) Ø0.64 mm, BeCu, zlacený; celková délka 33.1 mm, pouzdro jehly Ø1.02 × 25.3 mm, píst Ø0.64 mm; pracovní zdvih 4.3 mm (max. 6.35 mm); síla pružiny {F} N při pracovním zdvihu (≈ {k} N/mm); 3 A. Pouzdro R075 (v knihovně není: vnitřní rozměry a montážní výška v katalogu nejsou). Rozměry podle katalogu (KESACON test probe catalogue 2025, str. 14).",
+   "accuracy": "catalogue",
+   "datasheet": "https://www.kesacon.com/katalogus/KESACON-Test-Probe-Catalogue-2025.pdf",
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 1.91,
+    "L": 33.1,
+    "D": 1.02,
+    "d": 0.64,
+    "Lb": 25.3,
+    "ws": 4.3,
+    "ms": 6.35,
+    "t": 0.64
+   },
+   "sizes": {
+    "100 cN": {
+     "Fc": 100,
+     "F": 1.0,
+     "k": 0.2326
+    },
+    "150 cN": {
+     "Fc": 150,
+     "F": 1.5,
+     "k": 0.3488
+    },
+    "200 cN": {
+     "Fc": 200,
+     "F": 2.0,
+     "k": 0.4651
+    },
+    "280 cN": {
+     "Fc": 280,
+     "F": 2.8,
+     "k": 0.6512
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "L"
+      ],
+      [
+       0,
+       "L"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "kesacon-mpi050-f",
+   "category": "Test probes / KESACON / MPI050 (1.27 mm)",
+   "name": "KESACON MPI050-F — flat tip Ø0.5",
+   "name_cs": "KESACON MPI050-F — plochý hrot Ø0.5",
+   "maker": "KESACON",
+   "series": "MPI050",
+   "kind": "probe",
+   "title": "KESACON {pn}",
+   "pn": "MPI050-F-050-{Fc}-BG",
+   "description": "KESACON {pn} — spring-loaded ICT / FCT test probe for a 1.27 mm grid (50 mil): flat straight-shaft tip (F) Ø0.5 mm, BeCu, gold plated; total length 43.2 mm, barrel Ø0.78 × 36.3 mm, plunger Ø0.5 mm; working stroke 4.2 mm (max. 6 mm); spring force {F} N at the working stroke (≈ {k} N/mm); 2 A. Receptacle R050 (not in the library: its inner sizes and the probe's fit height are not in the catalogue). Dimensions per catalogue (KESACON test probe catalogue 2025, page 11). flat plochy",
+   "description_cs": "KESACON {pn} — pérová testovací jehla ICT / FCT pro rastr 1.27 mm: plochý hrot na pístu (F) Ø0.5 mm, BeCu, zlacený; celková délka 43.2 mm, pouzdro jehly Ø0.78 × 36.3 mm, píst Ø0.5 mm; pracovní zdvih 4.2 mm (max. 6 mm); síla pružiny {F} N při pracovním zdvihu (≈ {k} N/mm); 2 A. Pouzdro R050 (v knihovně není: vnitřní rozměry a montážní výška v katalogu nejsou). Rozměry podle katalogu (KESACON test probe catalogue 2025, str. 11).",
+   "accuracy": "catalogue",
+   "datasheet": "https://www.kesacon.com/katalogus/KESACON-Test-Probe-Catalogue-2025.pdf",
+   "color": "#d4a72c",
+   "material": "brass",
+   "vars": {
+    "grid": 1.27,
+    "L": 43.2,
+    "D": 0.78,
+    "d": 0.5,
+    "Lb": 36.3,
+    "ws": 4.2,
+    "ms": 6.0,
+    "t": 0.5
+   },
+   "sizes": {
+    "100 cN": {
+     "Fc": 100,
+     "F": 1.0,
+     "k": 0.2381
+    },
+    "150 cN": {
+     "Fc": 150,
+     "F": 1.5,
+     "k": 0.3571
+    },
+    "200 cN": {
+     "Fc": 200,
+     "F": 2.0,
+     "k": 0.4762
+    }
+   },
+   "shape": [
+    {
+     "revolve": [
+      [
+       0,
+       0
+      ],
+      [
+       "D/2",
+       0
+      ],
+      [
+       "D/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "Lb"
+      ],
+      [
+       "d/2",
+       "L"
+      ],
+      [
+       0,
+       "L"
+      ]
+     ]
+    }
+   ]
+  }
+ ]
+}

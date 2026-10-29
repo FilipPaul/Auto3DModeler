@@ -425,6 +425,15 @@
      "z": 0,
      "h": "L"
     }
+   ],
+   "pairs": [
+    {
+     "ref": "iso4762",
+     "role": "screw",
+     "back": "standoff",
+     "size": "M3",
+     "qty": 2
+    }
    ]
   },
   {
@@ -494,6 +503,20 @@
      },
      "z": 0,
      "h": "-t"
+    }
+   ],
+   "pairs": [
+    {
+     "ref": "iso4032",
+     "role": "nut",
+     "back": "standoff",
+     "size": "same"
+    },
+    {
+     "ref": "iso4762",
+     "role": "screw",
+     "back": "standoff",
+     "size": "same"
     }
    ]
   }

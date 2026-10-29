@@ -1,13 +1,17 @@
 // 📚 The parts library window: search and browse the real parts (by category), choose the size (and length), see it in
 // 3D with its maker, part number and shop links — then open it as a new 3D model or put it into the assembly on screen.
-import { t } from '../i18n.js';
+import { t, getLang } from '../i18n.js';
 import { ModelView } from '../modeler/view.js';
 import { fetchRebuild } from '../modeler/packed.js';
 import { buildPart, sizesOf, lengthsOf, shopLinks, fill, varsOf, modelKey } from './build.js';
+import { goesWith } from './pairs.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+/** An item's name / a part's description in the language shown (the Czech one when the item has it). */
+export const nameOf = (it) => (getLang() === 'cs' && it.name_cs) || it.name;
+const descOf = (lib) => (getLang() === 'cs' && lib.description_cs) || lib.description;
 
 /** The items, fetched once per open. */
 export async function libraryItems() {
@@ -20,12 +24,12 @@ export function matchScore(item, query) {
   const words = norm(query).split(/\s+/).filter(Boolean);
   if (!words.length) return 1;
   const sizes = sizesOf(item);
-  const hay = norm([item.name, item.category, item.maker, item.standard, item.pn, item.description, item.id,
-    ...sizes.map((s) => `${s.key} ${s.pn || ''}`)].join(' '));
+  const hay = norm([item.name, item.name_cs, item.category, item.maker, item.series, item.standard, item.pn, item.description, item.description_cs, item.id,
+    ...sizes.map((s) => `${s.key} ${s.pn || ''} ${s.art || ''}`)].join(' '));
   let score = 0;
   for (const w of words) {
     if (!hay.includes(w)) return 0;
-    score += norm(item.name).includes(w) ? 3 : 1;
+    score += norm(`${item.name} ${item.name_cs || ''}`).includes(w) ? 3 : 1;
   }
   return score;
 }
@@ -33,7 +37,7 @@ export function matchScore(item, query) {
 export class LibraryBrowser {
   /** hooks: {toast, canInsert() (an assembly on screen), openAsModel(name, data), insertIntoAssembly(name, data),
    *  importSolid(file) -> {blob, name} (a STEP read and stored on the server)} */
-  constructor(hooks) { this.hooks = hooks; this.state = { q: '', item: null, size: null, length: null }; }
+  constructor(hooks) { this.hooks = hooks; this.state = { q: '', item: null, size: null, length: null, open: new Set() }; }
 
   async open(query = '') {
     this.close();
@@ -94,10 +98,32 @@ export class LibraryBrowser {
       if (!groups.has(g)) groups.set(g, []);
       groups.get(g).push(it);
     }
+    const row = (it, skip = 1) => `<button class="lib-item${it.id === this.state.item ? ' on' : ''}" data-item="${esc(it.id)}">
+        <span class="lib-iname" data-no-i18n>${esc(nameOf(it))}</span><span class="lib-isub" data-no-i18n>${esc([it.maker, it.standard, it.category.split(' / ').slice(skip).join(' / ')].filter(Boolean).join(' · '))}${it.source === 'user' ? ' · ★' : ''}</span></button>`;
+    // a category of three levels (Test probes / INGUN / GKS-100 …): its makers as headings that open — closed until
+    // clicked (or holding the chosen part); a search lists everything it found
+    const nested = (g, list) => {
+      if (q || !list.every((it) => it.category.split(' / ').length > 2)) return list.map((it) => row(it)).join('');
+      const subs = new Map();
+      for (const it of list) { const m = it.category.split(' / ')[1]; if (!subs.has(m)) subs.set(m, []); subs.get(m).push(it); }
+      return [...subs].map(([m, items]) => {
+        const key = `${g}|${m}`, open = this.state.open.has(key) || items.some((it) => it.id === this.state.item);
+        return `<button class="lib-sub${open ? ' open' : ''}" data-sub="${esc(key)}" aria-expanded="${open}"><span class="lib-tw">${open ? '▾' : '▸'}</span> <span data-no-i18n>${esc(m)}</span> <span class="lib-n">${items.length}</span></button>
+          ${open ? `<div class="lib-subitems">${items.map((it) => row(it, 2)).join('')}</div>` : ''}`;
+      }).join('');
+    };
     box.innerHTML = [...groups].map(([g, list]) => `<div class="lib-group"><div class="lib-gname">${esc(g)} <span>${list.length}</span></div>
-      ${list.map((it) => `<button class="lib-item${it.id === this.state.item ? ' on' : ''}" data-item="${esc(it.id)}">
-        <span class="lib-iname" data-no-i18n>${esc(it.name)}</span><span class="lib-isub" data-no-i18n>${esc([it.maker, it.standard, it.category.split(' / ').slice(1).join(' / ')].filter(Boolean).join(' · '))}${it.source === 'user' ? ' · ★' : ''}</span></button>`).join('')}</div>`).join('');
+      ${nested(g, list)}</div>`).join('');
     for (const b of box.querySelectorAll('[data-item]')) b.addEventListener('click', () => this.select(b.dataset.item));
+    for (const b of box.querySelectorAll('[data-sub]')) b.addEventListener('click', () => {
+      const k = b.dataset.sub;
+      if (b.classList.contains('open')) {
+        this.state.open.delete(k);
+        const [g, m] = k.split('|'), cur = this.items.find((x) => x.id === this.state.item);
+        if (cur && cur.category.split(' / ')[0] === g && cur.category.split(' / ')[1] === m) this.state.item = null; // (closed: its part is not held open)
+      } else this.state.open.add(k);
+      this.renderList();
+    });
   }
 
   select(id, size = null, length = null) {
@@ -122,18 +148,23 @@ export class LibraryBrowser {
     if (!cur) return;
     const { it, built } = cur, lib = built.data.library, sizes = sizesOf(it), ls = lengthsOf(it, this.state.size);
     const order = Object.entries(lib.order || {}).filter(([, v]) => v);
-    const asm = this.hooks.canInsert();
+    const asm = this.hooks.canInsert(), pairs = goesWith(this.items, it, this.state.size); // (🔗 the parts that go with it)
     box.innerHTML = `<h2 data-no-i18n>${esc(built.name)}</h2>
       ${lib.approx ? `<p class="lib-approx" title="${esc(t('Drawn as its outline from the catalogue sizes — check the maker\'s drawing before you rely on it.'))}">≈ ${esc(t('outline'))}</p>` : ''}
       <div class="lib-choose">${sizes.length > 1 || sizes[0]?.key ? `<label>${esc(t('Size'))} <select data-k="size">${sizes.map((s) => `<option value="${esc(s.key)}" ${s.key === this.state.size ? 'selected' : ''}>${esc(s.key)}</option>`).join('')}</select></label>` : ''}
         ${ls ? `<label>${esc(t(ls.name))} <select data-k="length">${ls.values.map((v) => `<option value="${v}" ${v === this.state.length ? 'selected' : ''}>${v} ${esc(ls.unit)}</option>`).join('')}</select></label>` : ''}</div>
       <div class="lib-view"></div>
-      <p class="lib-desc" data-no-i18n>${esc(lib.description)}</p>
+      ${lib.accuracy === 'catalogue' ? `<p class="lib-acc" title="${esc(t('Every drawn size is from the maker\'s datasheet or catalogue'))}">📐 ${esc(t('Dimensions per catalogue'))}</p>` : ''}
+      <p class="lib-desc" data-no-i18n>${esc(descOf(lib))}</p>
+      ${lib.links ? `<div class="lib-links">${[['datasheet', '📄', 'Datasheet'], ['cad', '⬇', 'The maker\'s 3D model (STEP)'], ['page', '🔗', 'Product page']]
+    .filter(([k]) => lib.links[k]).map(([k, i, label]) => `<a href="${esc(lib.links[k])}" target="_blank" rel="noopener" data-link="${k}">${i} ${esc(t(label))}</a>`).join(' · ')}</div>` : ''}
       <div class="lib-facts">${lib.maker ? `<span>${esc(t('Maker'))}</span><b data-no-i18n>${esc(lib.maker)}</b>` : ''}
         ${lib.pn ? `<span>${esc(t('Part number'))}</span><b data-no-i18n>${esc(lib.pn)}</b>` : ''}
         ${lib.standard ? `<span>${esc(t('Standard'))}</span><b data-no-i18n>${esc(lib.standard)}</b>` : ''}
         ${order.map(([k, v]) => `<span>${esc(k.toUpperCase())}</span><b data-no-i18n>${esc(v)}</b>`).join('')}</div>
       ${lib.pn ? `<div class="lib-shops">${esc(t('Find it at'))} ${shopLinks(lib.pn, lib).map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.shop)}</a>`).join(' · ')}</div>` : ''}
+      ${pairs.length ? `<div class="lib-pairs"><span>${esc(t('Goes with'))}:</span> ${pairs.map((c, k) => `<span class="lib-pair"><a href="#" data-goto="${k}" title="${esc(t('Show it in the library'))}" data-no-i18n>${esc(nameOf(c.item))} ${esc(c.size)}</a><button class="mini" data-pair="${k}" ${asm ? '' : 'disabled'}
+        title="${esc(asm ? t('Put both into the assembly: this part, and that one on its axis where it goes') : t('Open an assembly first (＋ New assembly)'))}">⤵＋</button></span>`).join('')}</div>` : ''}
       <div class="lib-real">${lib.real ? `<span class="lib-realon">✓ ${esc(t('The maker\'s model'))}: <b data-no-i18n>${esc(lib.real)}</b></span>
           <button class="btn small" data-a="unreal" title="${esc(t('Use the drawn model again for this size'))}">✕</button>`
         : `<label class="btn small" title="${esc(t('Download the maker\'s 3D model (STEP) for this part number, then choose it here — the library uses it (its own colours) for this size from now on'))}">📎 ${esc(t('Use the maker\'s model (STEP)…'))}<input type="file" data-a="real" accept=".step,.stp,.STEP,.STP" hidden></label>`}</div>
@@ -167,6 +198,12 @@ export class LibraryBrowser {
     });
     box.querySelector('[data-a=unreal]')?.addEventListener('click', () => setModel(null, '').catch((err) => this.hooks.toast(err.message, 'error')));
     box.querySelector('[data-a=insert]').addEventListener('click', async () => { const c = this.current(); this.close(); await this.hooks.insertIntoAssembly(c.built.name, c.built.data); });
+    for (const a of box.querySelectorAll('[data-goto]')) a.addEventListener('click', (e) => { e.preventDefault(); const c = pairs[+a.dataset.goto]; this.select(c.item.id, c.size); this.renderList(); });
+    for (const b of box.querySelectorAll('[data-pair]')) b.addEventListener('click', async () => {
+      const c = this.current(), comp = pairs[+b.dataset.pair];
+      this.close();
+      try { await this.hooks.insertPair(c.built.name, c.built.data, comp); } catch (e) { this.hooks.toast(e.message, 'error', 7000); }
+    });
     box.querySelector('[data-a=model]').addEventListener('click', async () => { const c = this.current(); this.close(); await this.hooks.openAsModel(c.built.name, c.built.data); });
     box.querySelector('[data-a=libEdit]')?.addEventListener('click', async () => {
       const c = this.current();

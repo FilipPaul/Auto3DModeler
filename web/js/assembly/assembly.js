@@ -21,7 +21,9 @@
 //   an instance's "moveNames": {"J3:turn": "crank"} — a free motion's own name (nameMotion); "mechs": the ⚙ Mechanism
 //   widget's names, drivers and speeds (mechanism.js); "couplings": ⚙ gear pairs, ⛓ belts, ▤ racks — one part's turn
 //   tied to another's by a ratio (couplings.js); "springs": 〰 a spring part drawn as long as it reaches (springs.js)
-//   tied to another's by a ratio (couplings.js); "harnesses": 🔌 cable harnesses routed through points (harness.js)
+//   "harnesses": 🔌 cable harnesses routed through points (harness.js)
+//   an instance's "pair": {"host": "I3", "role": "nut", "slot": "nut"} — 🔗 a library companion put onto that part
+//   (library/pairs.js: a screw's nut / washers, a probe in its receptacle)
 import * as THREE from 'three';
 import { History } from '../history.js';
 import { t } from '../i18n.js';
@@ -661,6 +663,7 @@ export class Assembly {
     return [ // (ranked — lower first: what it most likely needs next — a pin into a hole, put down, drive it; then join, open, fix)
       ...pins.map((f, k) => this.pinItem(f, k ? 2 : 0)),
       ...(on ? [this.restItem(on, 1)] : []),
+      ...(a.fastener ? [] : this.hooks.pairItems?.(a) || []), // (🔗 a library part's companions: a screw's nut and washers, a probe's receptacle)
       ...(inMech ? [{ icon: '⚙', label: t('Drive the mechanism'), rank: 0, title: t('One slider moves the whole mechanism — ▶ plays it'), run: () => this.mech.open(a.id) }] : []),
       ...(flex ? [a.rigid ? { icon: '⚙', label: t('Moving sub-assembly'), rank: 0.8, title: t('Its own mechanisms work here too — ⚙ Mechanism, dragging its parts, ▶'), run: () => this.setRigid(a.id, false) }
         : { icon: '🧱', label: t('Make it rigid'), rank: 9.5, title: t('It moves as one body, its parts stay where they are in it'), run: () => this.setRigid(a.id, true) }] : []),

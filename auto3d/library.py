@@ -35,6 +35,9 @@ def check_item(item: dict) -> list:
     for k, step in enumerate(shape or []):
         if not isinstance(step, dict) or not any(s in step for s in STEP_KINDS):
             bad.append(f"shape step {k + 1}: revolve or extrude.")
+    pairs = item.get("pairs")
+    if pairs is not None and (not isinstance(pairs, list) or not all(isinstance(p, dict) and p.get("ref") and p.get("role") for p in pairs)):
+        bad.append("pairs: a list of {ref (an item id), role} — the parts that go with it.")
     return bad
 
 
@@ -102,7 +105,32 @@ def load(app_dir: Path, user_dir: Path) -> dict:
     for it in items:
         if models.get(it["id"]):
             it["models"] = models[it["id"]]
+    link_pairs(items)
     return {"items": items, "broken": broken}
+
+
+def link_pairs(items: list) -> list:
+    """🔗 The parts that go with each other, both ways: an item's `pairs` [{ref (an item id), role (what that item is
+    to this one: "nut", "washer", "receptacle" …), back (what this one is to it: "screw", "probe" …), size ("same": the
+    same size key, e.g. M5; or one size key), qty}] get their mirror on the other item (ref -> this item, role <-> back,
+    `mirror: true`). A pair to an item that is not there is dropped. -> the items."""
+    by_id = {it["id"]: it for it in items}
+    for it in items:
+        it["pairs"] = [dict(p) for p in it.get("pairs") or [] if isinstance(p, dict) and p.get("ref") in by_id and p.get("ref") != it["id"]]
+    for it in items:
+        for p in [p for p in it["pairs"] if not p.get("mirror")]:
+            other = by_id[p["ref"]]
+            back = {"ref": it["id"], "role": p.get("back") or "part", "back": p.get("role") or "part", "mirror": True}
+            if p.get("size") == "same":
+                back["size"] = "same"
+            elif p.get("size"):
+                back["from_size"] = p["size"]  # (only that size of it goes with this one)
+            if not any(q["ref"] == it["id"] and q.get("role") == back["role"] for q in other["pairs"]):
+                other["pairs"].append(back)
+    for it in items:
+        if not it["pairs"]:
+            del it["pairs"]
+    return items
 
 
 def save_user_item(user_dir: Path, item: dict) -> dict:

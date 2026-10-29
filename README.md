@@ -879,7 +879,24 @@ changed back.
   (Würth WA-SSTII M3, brass M/F);
 - **panel parts** (APEM Q8 LEDs, Eaton M22 push buttons and E-stop, Neutrik D-size USB / RJ45 feed-throughs);
 - **automation**: SMC CJ2 cylinders and CQ2 compact cylinders (CDQ2B ø12–ø50, bore and stroke), D-M9 auto switches for
-  them, KQ2 fittings, an SY3000 valve; SICK IME12 / IME18 inductive sensors; NEMA 17 / 23 stepper motors.
+  them, KQ2 fittings, an SY3000 valve; SICK IME12 / IME18 inductive sensors; NEMA 17 / 23 stepper motors;
+- **test probes (pogo pins) and receptacles** for ICT / FCT fixtures: INGUN GKS-100 (2.54 mm), GKS-075 (1.91 mm) and
+  GKS-050 (1.27 mm) in their common head styles (needle, crowns, pyramid, dagger, cup, serrated), each variant by its
+  exact order code and INGUN item number with its spring force and stroke; INGUN KS-100 / KS-050 receptacles (with the
+  installation height of their probe); KESACON MPI100 / MPI075 / MPI050 flat-tip probes. Under **Testovací jehly
+  (pogo pins)** and **Pouzdra (receptacles)**, by maker (a heading that opens). Each says **📐 Dimensions per
+  catalogue** — every drawn size is from the maker's datasheet (INGUN) or catalogue (KESACON) — and links the
+  datasheet, the maker's free STEP model and the product page (the files are not copied into the app: the maker's).
+  The heads are drawn as solids of revolution (a crown as its ring and cone).
+
+**🔗 Parts that go with each other.** A library part knows its companions: a screw its nuts (ISO 4032, DIN 985,
+DIN 562), washer (ISO 7089) and heat-set insert of the same thread; a standoff its screw / nut; a test probe its
+receptacle and back; an SMC CQ2 cylinder its D-M9 auto switch. The library window shows them under *Goes with*
+(click: show it; ⤵＋: both into the assembly). A placed library part offers them in its table — **＋ Nut M5**,
+**＋ Washer M5**, **＋ Set: nut + 2 washers** — and puts each on its axis where it goes: a washer under the head, the
+nut (and its washer) under the parts the screw holds (nothing held: right under the head — slide it along the axis);
+a probe seated in its receptacle at the maker's installation height, its slide named *Stroke* and limited to the
+probe's stroke (⚙ Mechanism shows it pushed in). Each is joined Concentric.
 
 Search (e.g. *M3*, *608*, *SMC*, *SICK*), choose the size (and length or stroke), and see it in 3D. Then **⤵ Put into
 the assembly** on screen (the same part is used again when you put it in twice) or **◆ Open as a new 3D model**.

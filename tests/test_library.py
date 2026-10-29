@@ -32,6 +32,59 @@ class TestAppLibrary(unittest.TestCase):
         self.assertEqual(items["wurth-sstii-m3"]["pn"].replace("{LL}", items["wurth-sstii-m3"]["sizes"]["10"]["LL"]), "970100321")
 
 
+class TestPairs(unittest.TestCase):
+    """🔗 The parts that go with each other: both ways, and their sizes fit (the same thread, a washer's hole over the
+    screw, a receptacle's bore the probe's barrel)."""
+
+    def setUp(self):
+        self.items = {it["id"]: it for it in L.load(APP, Path("/nonexistent"))["items"]}
+
+    def test_two_way(self):
+        n = 0
+        for it in self.items.values():
+            for p in it.get("pairs", []):
+                other = self.items[p["ref"]]
+                back = [q for q in other.get("pairs", []) if q["ref"] == it["id"] and q["role"] == p["back"] and q["back"] == p["role"]]
+                self.assertEqual(len(back), 1, (it["id"], p))
+                n += 1
+        self.assertGreater(n, 60)
+        nut = self.items["iso4032"]
+        self.assertEqual({q["ref"] for q in nut["pairs"] if q["role"] == "screw"}, {"iso4762", "iso7380", "iso10642", "iso7045", "din84", "iso4017"})
+        self.assertEqual([q["ref"] for q in nut["pairs"] if q["role"] == "standoff"], ["standoff-mf"])
+        self.assertNotIn("iso7089", [q["ref"] for q in self.items["iso10642"]["pairs"]])  # (a countersunk head: no washer under it)
+        self.assertEqual([q["ref"] for q in self.items["smc-d-m9"]["pairs"]], ["smc-cdq2b"])
+        self.assertEqual({q["ref"] for q in self.items["ingun-ks100"]["pairs"]}, {k for k in self.items if k.startswith("ingun-gks100-")})
+
+    def test_sizes_fit(self):
+        def size(item, key):
+            return self.items[item]["sizes"].get(key)
+        checked = 0
+        for it in self.items.values():
+            for p in it.get("pairs", []):
+                if p.get("size") != "same" or p.get("mirror"):
+                    continue
+                for key, mine in it["sizes"].items():
+                    theirs = size(p["ref"], key)
+                    if not theirs:
+                        continue
+                    d = mine.get("d")
+                    if p["role"] in ("nut", "insert", "screw"):
+                        self.assertEqual(theirs.get("d"), d, (it["id"], p["ref"], key))  # the same thread
+                    elif p["role"] == "washer":
+                        self.assertTrue(d < theirs["d1"] < d * 1.2 and theirs["d2"] > d * 1.7, (it["id"], key, theirs))  # over the screw
+                    checked += 1
+        self.assertGreater(checked, 80)
+        # a fixed size: the Würth M3 standoff takes an M3 screw (only that size of the screw goes with it)
+        w = next(q for q in self.items["iso4762"]["pairs"] if q["ref"] == "wurth-sstii-m3")
+        self.assertEqual((w["role"], w["from_size"]), ("standoff", "M3"))
+
+    def test_link_pairs_drops_unknown(self):
+        items = L.link_pairs([{"id": "a", "pairs": [{"ref": "b", "role": "nut", "back": "screw", "size": "same"}, {"ref": "zz", "role": "x"}]}, {"id": "b"}])
+        self.assertEqual(items[0]["pairs"], [{"ref": "b", "role": "nut", "back": "screw", "size": "same"}])
+        self.assertEqual(items[1]["pairs"], [{"ref": "a", "role": "screw", "back": "nut", "mirror": True, "size": "same"}])
+        self.assertIn("pairs", " ".join(L.check_item({"id": "a", "name": "a", "category": "c", "features": [1], "pairs": [{"role": "x"}]})))
+
+
 class TestUserLibrary(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

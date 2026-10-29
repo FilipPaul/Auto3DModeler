@@ -8,6 +8,14 @@ description: Use when the user wants several parts put together — an assembly,
 Only 3D model parts go into an assembly (quick parts do not). Build each made part first (skill model-a-part);
 **bought parts come from the library**: `library_add {item, size, length, to: "assembly"}` (find them with
 `library_search {query}`) — screws, nuts, inserts, bearings, standoffs, cylinders, sensors, motors, with their part numbers.
+Test fixtures (ICT / FCT): spring-loaded **test probes** and their **receptacles** are there too — INGUN GKS-100 /
+GKS-075 / GKS-050, KS-100 / KS-050, KESACON MPI — found by maker, grid (`"probe 1.27"`), head style (`"crown"`,
+`"korunka"`) or order code (`"GKS-100 214 130 A 2000"`, `"GKS-100-0008"`); each size is an exact order code, all its
+sizes per the maker's datasheet.
+**What goes with a library part** (library_search's `goes_with`): `library_pair {part: "I3", role: "nut"}` (or
+`"washer"`, `"insert"`, `"screw"`, `"receptacle"`, `"probe"`), `{part, set: true}` = a nut and two washers for a screw —
+each put on the part's axis where it goes (a washer under the head, the nut under the parts the screw holds; a probe
+seated in its receptacle, its stroke as its slide's limits), joined Concentric.
 
 1. `list_parts` — the 3D model parts there are. `new_assembly {name}` opens an empty assembly tab
    (or `open_part` an existing assembly). An assembly from SolidWorks, CATIA or Solid Edge comes as a STEP:

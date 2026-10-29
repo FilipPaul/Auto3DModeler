@@ -529,6 +529,13 @@
      "op": "cut",
      "color": "#e8ebef"
     }
+   ],
+   "pairs": [
+    {
+     "ref": "smc-d-m9",
+     "role": "auto switch",
+     "back": "cylinder"
+    }
    ]
   },
   {

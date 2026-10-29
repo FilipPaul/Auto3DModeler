@@ -761,6 +761,16 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .lib-item:hover { background: #2b3340; }
 .lib-item.on { border-color: var(--accent); background: #1c2a3d; }
 .lib-isub { font-size: 11px; color: var(--muted); }
+.lib-sub { display: flex; align-items: center; gap: 4px; width: 100%; text-align: left; padding: 5px 8px; border: none; border-radius: 6px; background: none; color: var(--text); font-weight: 600; cursor: pointer; }
+.lib-sub:hover { background: #2b3340; }
+.lib-sub .lib-n { color: var(--muted); font-weight: normal; font-size: 11px; }
+.lib-tw { width: 12px; color: var(--muted); }
+.lib-subitems { margin-left: 12px; border-left: 1px solid var(--line); padding-left: 4px; }
+.lib-acc { display: inline-block; font-size: 11px; color: #7ee787; border: 1px solid #2f6b3a; border-radius: 10px; padding: 1px 8px; margin: 0 0 6px; }
+.lib-links { font-size: 12px; margin: 0 0 8px; }
+.lib-pairs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12px; margin: 0 0 8px; }
+.lib-pairs > span:first-child { color: var(--muted); }
+.lib-pair { display: inline-flex; align-items: center; gap: 3px; }
 .lib-detail { overflow-y: auto; padding-right: 4px; }
 .lib-detail h2 { margin: 0 0 6px; font-size: 16px; }
 .lib-choose { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }

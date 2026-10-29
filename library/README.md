@@ -39,6 +39,17 @@ A file holds `{"items": [ … ]}` (or one item on its own). An item:
   (`{"M3": […], …}`).
 - **title / pn / description / order**: texts where `{name}` is replaced by the value.
 - **approx**: `true` marks the part ≈ outline.
+- **accuracy**: `"catalogue"` marks a part whose every drawn size is from the maker's datasheet or catalogue (shown as
+  📐 *Dimensions per catalogue*).
+- **name_cs / description_cs**: the Czech name and description (shown when the app is in Czech).
+- **datasheet / cad / page**: links (texts with `{…}`, `https://` only) to the maker's datasheet, its own 3D model
+  (STEP) and product page for the choice — links only, the maker's files are not copied here.
+- A category of three levels (`Test probes / INGUN / GKS-100 (2.54 mm)`) is listed under its maker's heading.
+- **pairs**: the parts that go with it — `[{"ref": "iso4032", "role": "nut", "back": "screw", "size": "same"}]`: `ref`
+  the other item's id, `role` what it is to this one, `back` what this one is to it, `size` `"same"` (the same size
+  key: M5 with M5) or one size key, `qty` how many. Write it on one side only: the library mirrors it on the other
+  (`mirror: true`). The window shows them as *Goes with*, a placed part offers them (＋ Nut M5, ＋ Set …) and puts them
+  on its axis where they go (library/pairs.js).
 - **shape**: the steps, in order. A number may be a formula: `"L + k"`, `"dk / 2"`, `"max(d*0.2, 0.3)"`
   (`+ - * / ^ ( )`, `min max sqrt sin cos tan abs round`, `pi`).
   - `{"revolve": [[r, z], …]}`: a half-section, r out from the Z axis and z up, turned all the way round. Add
