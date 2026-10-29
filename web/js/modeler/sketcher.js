@@ -9,7 +9,7 @@
 // outline taken from a picture / DXF / PDF part {t: 'block', polys, w0, h0, at, scale}: rigid, moved by
 // dragging, sized by its width.
 import { t } from '../i18n.js';
-import { showSuggest, fitFilterRow } from '../suggest.js';
+import { showSuggest, fitFilterRow, snapKinds as partSnapKinds, setSnapKind } from '../suggest.js';
 import { floatBox } from '../floatbox.js';
 import { roundAxes } from './axes.js';
 import { nextFrames } from '../frames.js';
@@ -337,7 +337,9 @@ function circleOf(a, b, c) {
 }
 
 /** A translated text with {name} values filled in. */
-export const BIG_SKETCH = 200; // a sketch of more shapes (e.g. from a PCB) labels only its locked sizes
+export const BIG_SKETCH = 200;
+const DRAWING = new Set(['line', 'rect', 'circle', 'slot', 'spline', 'arc']); // (the tools that draw: points snap, the Snap groups are the ones in use)
+const PART_SNAP = 0x4e9a5c; // the part's snap points near the mouse while drawing (the one caught: bright green) // a sketch of more shapes (e.g. from a PCB) labels only its locked sizes
 const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 
 export class Sketcher {
@@ -519,8 +521,9 @@ export class Sketcher {
   // ------------------------------------------------------------------ geometry helpers
   mpp() { return this.view.mmPerPixel(this.frame()); }
 
-  /** Snap (what the Snap filters at the bottom allow — snapKinds): existing points / ends (they get connected),
-   *  centres and the origin, a line's middle, the part's corners and centres, then a place on a sketch line / circle /
+  /** Snap (what the Snap filters at the bottom allow — snapKinds, and for the part under the sketch the 3D view's
+   *  own Snap filters, shared: partSnapKinds): existing points / ends (they get connected), centres and the origin, a
+   *  line's middle, the part's corners / edge middles / centres / quadrants, then a place on a sketch line / circle /
    *  arc (the new point stays on it) or on an edge of the part, then the guides, then the grid (off: just where the
    *  mouse is). Alt = no snapping. skip: a point (or a Set of points: a selection dragged together) not snapped to. */
   snap(uv, free = false, skip = null) {
@@ -543,12 +546,12 @@ export class Sketcher {
       }
     }
     if (best) return best;
-    const R = S.part || S.centre ? this.refs() : { points: [], circles: [], lines: [] };
-    for (const r of [...(S.part ? R.points : []), ...(S.centre ? R.circles.map((q) => q.c) : [])]) { // (the part's corners; its holes' centres)
-      const d = Math.hypot(r[0] - uv[0], r[1] - uv[1]);
-      if (d < tol && (!best || d < best.d)) best = { d, uv: [...r], ref: true };
+    for (const q of this.partSnaps()) { // (the part's corners, edge middles, centres, quadrants — what its filters allow)
+      const d = Math.hypot(q.uv[0] - uv[0], q.uv[1] - uv[1]);
+      if (d < tol && (!best || d < best.d)) best = { d, uv: [...q.uv], ref: true, refKind: q.kind };
     }
     if (best) return best;
+    const R = S.edges ? this.refs() : { circles: [], lines: [] };
     const foot = (a, b) => { // the nearest place on a segment
       const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy || 1, k = Math.max(0, Math.min(1, ((uv[0] - a[0]) * dx + (uv[1] - a[1]) * dy) / L));
       return [a[0] + k * dx, a[1] + k * dy];
@@ -570,12 +573,12 @@ export class Sketcher {
       }
     }
     if (best) return best;
-    for (const [a, b] of S.part ? R.lines : []) { // on a straight edge of the part
+    for (const [a, b] of R.lines) { // on a straight edge of the part
       const p = foot(a, b), d = Math.hypot(p[0] - uv[0], p[1] - uv[1]);
       if (d < tol * 0.8 && (!best || d < best.d)) best = { d, uv: p.map((v) => +v.toFixed(6)), ref: true, edge: true };
     }
     if (best) return best;
-    for (const q of S.part ? R.circles : []) { // on a round edge of the part: the nearest point of it
+    for (const q of R.circles) { // on a round edge of the part: the nearest point of it
       const d = Math.hypot(uv[0] - q.c[0], uv[1] - q.c[1]);
       if (d > 1e-9 && Math.abs(d - q.r) < tol && (!best || Math.abs(d - q.r) < best.d)) {
         best = { d: Math.abs(d - q.r), uv: [q.c[0] + ((uv[0] - q.c[0]) * q.r) / d, q.c[1] + ((uv[1] - q.c[1]) * q.r) / d].map((v) => +v.toFixed(6)), ref: true, onCircle: q };
@@ -620,6 +623,21 @@ export class Sketcher {
   }
 
   gridStep() { return nice(this.mpp() * 12); }
+
+  /** The part's points a drawn point can snap to, as the part's Snap filters allow (shared with the 3D view: turned
+   *  off there, off here too): [{uv, kind: corner | midpoint | centre | quadrant}]. */
+  partSnaps(K = partSnapKinds()) {
+    const R = this.refs(), key = `${this._refsKey}|${K.corner}${K.midpoint}${K.centre}${K.quadrant}`;
+    if (this._partSnapsKey === key) return this._partSnaps;
+    const out = [];
+    if (K.corner) for (const p of R.points) out.push({ uv: p, kind: 'corner' });
+    if (K.midpoint) for (const [a, b] of R.lines) out.push({ uv: [+((a[0] + b[0]) / 2).toFixed(6), +((a[1] + b[1]) / 2).toFixed(6)], kind: 'midpoint' });
+    if (K.centre) for (const q of [...R.circles, ...R.arcs]) out.push({ uv: q.c, kind: 'centre' });
+    if (K.quadrant) for (const q of R.circles) for (const [x, y] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) out.push({ uv: [+(q.c[0] + x * q.r).toFixed(6), +(q.c[1] + y * q.r).toFixed(6)], kind: 'quadrant' });
+    this._partSnapsKey = key;
+    this._partSnaps = out;
+    return out;
+  }
 
   /** A new point at a snapped place; on the origin it is locked there (shown as x 0 / y 0 🔒, can be freed). */
   pointAt(s) {
@@ -881,7 +899,8 @@ export class Sketcher {
     if (!this._snapKinds) {
       let saved = null;
       try { saved = JSON.parse(localStorage.getItem('a3d.sksnap') || 'null'); } catch { saved = null; }
-      this._snapKinds = { ends: true, mid: true, centre: true, origin: true, on: true, part: true, guides: true, grid: true, ...(saved || {}) };
+      this._snapKinds = { ends: true, mid: true, centre: true, origin: true, on: true, edges: true, guides: true, grid: true, ...(saved || {}) };
+      delete this._snapKinds.part; // (one toggle for the whole part before: now the part's own kinds)
     }
     return this._snapKinds;
   }
@@ -890,7 +909,7 @@ export class Sketcher {
    *  toggles, remembered; fitted to the view (suggest.js fitFilterRow). */
   renderFilters() {
     const vp = this.m.els.viewport;
-    let bar = vp.querySelector(':scope > .sk-filters');
+    let bar = vp.querySelector(':scope > .sk-filters:not(.snap-filters)'); // (not the 3D view's row: it goes when a sketch opens)
     if (!bar) {
       bar = document.createElement('div');
       bar.className = 'sk-filters';
@@ -899,21 +918,42 @@ export class Sketcher {
     }
     const SN = [['ends', '•', 'Points', "Snap to the sketch's points: line ends, corners (a new line joins them). Click to switch"],
       ['mid', '⊹', 'Midpoints', 'Snap to the middle of a line (the point stays there). Click to switch'],
-      ['centre', '◎', 'Centres', "Snap to the centre of a circle or arc, also of the part's holes. Click to switch"],
+      ['centre', '◎', 'Centres', 'Snap to the centre of a circle or arc of the sketch. Click to switch'],
       ['origin', '⊕', 'Origin', 'Snap to the origin (0, 0). Click to switch'],
       ['on', '⟋', 'On shapes', 'Snap anywhere on a line, circle or arc of the sketch (the point stays on it). Click to switch'],
-      ['part', '⌜', 'Part edges', 'Snap to the corners and edges of the part under the sketch. Click to switch'],
       ['guides', '┆', 'Guides', "Catch in line with a point or on a line's extension (dashed green lines). Click to switch"],
       ['grid', '▦', 'Grid', 'Snap to the grid; off: a point lands exactly where you click. Click to switch']];
+    const PK = partSnapKinds(), PT = [['corner', '⌜', 'Corners', "Snap to the part's corners"],
+      ['midpoint', '⊹', 'Edge midpoints', "Snap to the middle of the part's straight edges"],
+      ['centre', '◎', 'Centres', "Snap to the centres of the part's holes, round edges and arcs"],
+      ['quadrant', '◔', 'Quadrants', "Snap to the 4 quadrant points of the part's round edges (right, top, left, bottom)"],
+      ['edges', '⟋', 'Edges', 'Snap anywhere on an edge of the part (the point lands on it)']];
+    const onPart = !!this.m.result?.body, alt = t('hold Alt for no snapping');
     const F = [['points', '•', 'Points'], ['mid', '⊹', 'Midpoints'], ['origin', '⊕', 'Origin'], ['lines', '╱', 'Lines'], ['round', '◯', 'Circles / arcs'], ['edges', '┅', 'Part edges']];
-    const drawing = ['line', 'rect', 'circle', 'slot', 'spline', 'arc'].includes(this.tool);
-    bar.innerHTML = `<span class="skf-g skf-snap${drawing ? ' active' : ''}"><span class="skf-t" title="${t('Where a point you draw lands — hold Alt for no snapping at all')}">${t('Snap')}:</span>${SN.map(([k, i, l, w]) => `<button class="${this.snapKinds[k] ? 'on' : ''}" data-sksnap="${k}" title="${t(l)}: ${t(w)}">${i} <span class="skf-l">${t(l)}</span></button>`).join('')}</span>
+    const drawing = DRAWING.has(this.tool);
+    bar.innerHTML = `<span class="skf-g skf-snap${drawing ? ' active' : ''}"><span class="skf-t" title="${t('Where a point you draw lands — hold Alt for no snapping at all')}">${t('Snap')}:</span>${SN.map(([k, i, l, w]) => `<button class="${this.snapKinds[k] ? 'on' : ''}" data-sksnap="${k}" title="${t(l)}: ${t(w)} (${alt})">${i} <span class="skf-l">${t(l)}</span></button>`).join('')}</span>
+      ${onPart ? `<span class="sep"></span><span class="skf-g skf-part${drawing ? ' active' : ''}"><span class="skf-t" title="${t("The part under the sketch: what a drawn point snaps to on it — the same choice as the 3D view's Snap row")}">${t('On the part')}:</span>${PT.map(([k, i, l, w]) => {
+    const on = k === 'edges' ? this.snapKinds.edges : PK[k];
+    return `<button class="${on ? 'on' : ''}" data-skpart="${k}" title="${t(l)}: ${t(w)} — ${t('click to switch')} (${alt})">${i} <span class="skf-l">${t(l)}</span></button>`;
+  }).join('')}</span>` : ''}
       <span class="sep"></span><span class="skf-g skf-pick${drawing ? '' : ' active'}"><span class="skf-t" title="${t('What a click takes in ⬚ Select, ↔ Dimension and ⟂ Relations')}">${t('Select')}:</span>${F.map(([k, i, l]) => `<button class="${this.pickable[k] ? 'on' : ''}" data-f="${k}" title="${t(l)}: ${t('Click to pick these — or not')}">${i} <span class="skf-l">${t(l)}</span></button>`).join('')}</span>`;
     for (const b of bar.querySelectorAll('[data-f]')) {
       b.addEventListener('click', () => {
         this.pickable[b.dataset.f] = !this.pickable[b.dataset.f];
         try { localStorage.setItem('a3d.skpick', JSON.stringify(this.pickable)); } catch { /* private window */ }
         this.hover = null;
+        this.renderFilters();
+        this.draw();
+      });
+    }
+    for (const b of bar.querySelectorAll('[data-skpart]')) {
+      b.addEventListener('click', () => {
+        const k = b.dataset.skpart;
+        if (k === 'edges') {
+          this.snapKinds.edges = !this.snapKinds.edges;
+          try { localStorage.setItem('a3d.sksnap', JSON.stringify(this.snapKinds)); } catch { /* private window */ }
+        } else setSnapKind(k, !partSnapKinds()[k]); // (the 3D view's choice too)
+        this.cursor = null;
         this.renderFilters();
         this.draw();
       });
@@ -1368,7 +1408,7 @@ export class Sketcher {
       : this.tool === 'dim' || this.tool === 'relate' ? this.pickTarget(uv)
       : this.tool === 'select' ? ((h) => (h?.kind === 'point' ? { kind: 'point', end: h.id, uv: this.P(h.id) } : h))(this.hit(uv))
       : this.cursor.id || this.cursor.ref || this.cursor.on ? { kind: 'point', end: this.cursor.ref ? { ref: this.cursor.uv } : this.cursor.id || null, uv: this.cursor.uv,
-        ...(this.cursor.mid ? { mid: this.cursor.mid } : this.cursor.on ? { onShape: this.ent(this.cursor.on)?.t } : this.cursor.edge ? { onShape: 'edge' } : {}) } : null;
+        ...(this.cursor.mid ? { mid: this.cursor.mid } : this.cursor.on ? { onShape: this.ent(this.cursor.on)?.t } : this.cursor.edge || this.cursor.onCircle ? { onShape: 'edge' } : this.cursor.refKind ? { refKind: this.cursor.refKind } : {}) } : null;
     const key = hv?.key || JSON.stringify(hv && { ...hv, d: undefined });
     const changed = key !== this.hoverKey;
     this.hover = hv;
@@ -2494,7 +2534,7 @@ export class Sketcher {
     if (this._refsKey === key) return this._refs;
     // lines / points: [u, v] in the sketch; lineIds / pointIds: which edge / corner of the part they are (by the
     // names of its faces), so a dimension from them follows the part when earlier steps change
-    const out = { lines: [], curves: [], points: [], lineIds: [], pointIds: [], circles: [], axes: [] };
+    const out = { lines: [], curves: [], points: [], lineIds: [], pointIds: [], circles: [], arcs: [], axes: [] };
     if (body) {
       const o = fr.o, x = fr.x, n = fr.n, y = [n[1] * x[2] - n[2] * x[1], n[2] * x[0] - n[0] * x[2], n[0] * x[1] - n[1] * x[0]];
       const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -2549,6 +2589,15 @@ export class Sketcher {
         if (!round) continue;
         const d = [c3.c[0] - o[0], c3.c[1] - o[1], c3.c[2] - o[2]], c = [+dot(d, x).toFixed(5), +dot(d, y).toFixed(5)], r = +c3.r.toFixed(5);
         if (!out.circles.some((q) => Math.hypot(q.c[0] - c[0], q.c[1] - c[1]) < 1e-4 && Math.abs(q.r - r) < 1e-4)) out.circles.push({ c, r });
+      }
+      // the part's arcs in the plane (a rounded corner, a slot's end): their centres, to snap to
+      for (const uv of out.curves) {
+        const m = uv.length;
+        if (m < 4) continue;
+        const g = circleOf([...uv[0], 0], [...uv[Math.floor(m / 2)], 0], [...uv[m - 1], 0]);
+        if (!g || !uv.every((p) => Math.abs(Math.hypot(p[0] - g.c[0], p[1] - g.c[1]) - g.r) < g.r * 0.01 + 1e-6)) continue;
+        const c = [+g.c[0].toFixed(5), +g.c[1].toFixed(5)];
+        if (!out.arcs.some((q) => Math.hypot(q.c[0] - c[0], q.c[1] - c[1]) < 1e-4) && !out.circles.some((q) => Math.hypot(q.c[0] - c[0], q.c[1] - c[1]) < 1e-4)) out.arcs.push({ c, r: +g.r.toFixed(5) });
       }
       // the round faces' axes: square to the sketch they name the circles' centres there (a size from one follows
       // it), else a line to measure from (a shaft lying along the plane, a cross hole under it)
@@ -3691,6 +3740,7 @@ export class Sketcher {
         if (hv.circle) { const c = this.ent(hv.circle); circles.push([this.P(c.c), c.r, HL]); name = 'circle (its centre)'; }
         else if (hv.arc) { const ps = this.arcOf(this.ent(hv.arc)); for (let i = 0; i + 1 < ps.length; i++) lines.push([ps[i], ps[i + 1], HL]); name = 'arc (its centre)'; }
         else name = hv.mid ? 'midpoint' : hv.onShape ? { line: 'on the line', circle: 'on the circle', arc: 'on the arc', edge: 'on the edge of the part' }[hv.onShape] || 'on it'
+          : hv.refKind ? { corner: 'corner of the part', midpoint: "middle of the part's edge", centre: 'centre on the part', quadrant: 'quadrant on the part' }[hv.refKind]
           : hv.corner ? 'corner' : hv.end === ORIGIN ? 'origin' : hv.end?.axis ? 'axis of the round face' : hv.end && typeof hv.end === 'object' ? 'corner of the part' : 'point';
         at = hv.uv;
       } else if (hv.kind === 'piece') {
@@ -3759,6 +3809,11 @@ export class Sketcher {
       el.className = 'sk-label live';
       el.textContent = live.text;
       labels.push({ el, u: live.u, v: live.v });
+    }
+    this.partMarks = 0; // (how many are shown: for the tests)
+    if (cur && DRAWING.has(this.tool)) { // the part's snap points near the mouse (what its Snap filters allow): where a point can be caught
+      const reach = mpp * 220;
+      for (const q of this.partSnaps()) if (Math.abs(q.uv[0] - cur[0]) < reach && Math.abs(q.uv[1] - cur[1]) < reach) { dots.push([q.uv, PART_SNAP]); this.partMarks++; }
     }
     if (cur && this.tool !== 'select' && this.tool !== 'dim') dots.push([cur, this.cursor.id || this.cursor.ref ? 0x7ee787 : SEL]); // green = joins / snaps to that point
     this.view.setSketch(this.frame(), { lines, circles, dots, labels, grid: this.gridStep() });

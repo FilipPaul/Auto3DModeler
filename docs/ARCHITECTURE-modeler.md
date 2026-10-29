@@ -578,6 +578,17 @@ Date: 2026-10-25. Written by the architect agent.
   ⬚ Select / ↔ Dimension / ⟂ Relations take — kept apart, as snapping used to follow it). suggest.js fitFilterRow:
   names on one line; the group the tool does not use as icons; a group a line; icons — up to the Finish / Cancel dock,
   its height (--skf-h) lifting the suggestions / size box. tools/e2e_sketch_snaps.py.
+- **Snap filters for the part under a sketch done (2026-10-29):** the owner missed the sketch's filter row on a part —
+  it never showed there: Sketcher.renderFilters took the 3D view's row (.sk-filters.snap-filters, there whenever the
+  part has a body) as its own and modeler.render then removed it with showSnapFilters(false); on an empty model it
+  showed. Now it takes only `.sk-filters:not(.snap-filters)`. The one ⌜ Part edges toggle is a group of its own, "On
+  the part:" (only with a body): ⌜ Corners, ⊹ Edge midpoints, ◎ Centres, ◔ Quadrants — the 3D view's Snap choice
+  (suggest.js snapKinds / setSnapKind, a3d.snap3d: off in 3D = off on the sketch, quadrants off by default) — and ⟋
+  Edges (on an edge, sketch-only: a3d.sksnap.edges; the old `part` key dropped). Sketcher.partSnaps lists the part's
+  points per those (refs() has arcs too: the in-plane arcs' centres); snap() catches them with refKind, the label
+  names it (roh dílu, střed hrany dílu, střed na dílu, kvadrant na dílu); the sketch's ◎ Centres is its own circles'
+  only. While a drawing tool is on, the allowed part points within ~220 px of the mouse are marked (dim green dots).
+  Every snap tooltip says Alt = no snapping. tools/e2e_sketch_snap_filters.py.
 - **The offset arrow only on demand done:** the arrow (and its ⊙ / ⊗ / "+ +Z" tag) is drawn only while the mouse is
   over the ↕ Plane at chip or its field has focus (Modeler.showPlaneArrow; planeArrowLabel kept by renderCmdBar) —
   a sketch starts without it, so it is not in the way of drawing. tools/e2e_sketch_slot.py.

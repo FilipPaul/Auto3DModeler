@@ -1,5 +1,5 @@
 """The sketch's Snap filters, with REAL mouse input: the row at the bottom of a sketch — "Snap: Points / ends,
-Midpoints, Centres, Origin, On lines / curves, Part edges / corners, Guides, Grid | Select: …" -> a line drawn ->
+Midpoints, Centres, Origin, On lines / curves, Guides, Grid (on a part also "On the part: …") | Select: …" -> a line drawn ->
 Midpoints off: a click near its middle does not snap there (on: it does, a `mid` rule) -> Grid off: a click lands
 off the grid (on: on it) -> Guides off: beside a corner no dashed guide (on: one) -> reloaded: the choices kept.
 The row clear of the suggestions table, the quick size box and Finish / Cancel at 1600×1000 and 1280×800, in
@@ -144,7 +144,7 @@ try:
     new_sketch()
     bar = d.find_element(By.CSS_SELECTOR, "#modelViewport .sk-filters")
     print("the row:", bar.text.replace("\n", " "))
-    check("Snap group with 8 toggles, all on", js("return [...document.querySelectorAll('#modelViewport .sk-filters [data-sksnap]')].filter(b => b.classList.contains('on')).length") == 8)
+    check("Snap group with 7 toggles, all on (the part's own: e2e_sketch_snap_filters)", js("return [...document.querySelectorAll('#modelViewport .sk-filters [data-sksnap]')].filter(b => b.classList.contains('on')).length") == 7)
     check("Select group kept (6 toggles)", len(bar.find_elements(By.CSS_SELECTOR, "[data-f]")) == 6)
     check("drawing: the Snap group is the active one", "active" in bar.find_element(By.CSS_SELECTOR, ".skf-snap").get_attribute("class"))
     # a line from (10, 10) to (50, 10)
@@ -212,7 +212,7 @@ try:
     new_sketch()
     st = js("return Object.fromEntries([...document.querySelectorAll('#modelViewport .sk-filters [data-sksnap]')].map(b => [b.dataset.sksnap, b.classList.contains('on')]))")
     print("after a reload:", st)
-    check("after a reload: Midpoints, Grid, Guides still off, the rest on", st == {"ends": True, "mid": False, "centre": True, "origin": True, "on": True, "part": True, "guides": False, "grid": False})
+    check("after a reload: Midpoints, Grid, Guides still off, the rest on", st == {"ends": True, "mid": False, "centre": True, "origin": True, "on": True, "guides": False, "grid": False})
     for k in ("mid", "grid", "guides"):
         snap(k)
     # the row's place at both sizes, English and Czech

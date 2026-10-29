@@ -389,11 +389,17 @@ Never report "works" without having run it; report failures with their output.
    titanium: its colour, the same in an assembly). Needs a server restarted after materials.py changes.
    `tools/e2e_tree_more.py <url> <dir>` covers the tree / tabs more (a library screw: the library icon, changed: its own;
    a hover on a row: a picture; a row dropped on the assembly's view: one more Base; a middle click closes a tab).
-   `tools/e2e_sketch_snaps.py <url> <dir>` covers the sketch's Snap filters with real mouse input (the row: 8 Snap
+   `tools/e2e_sketch_snaps.py <url> <dir>` covers the sketch's Snap filters with real mouse input (the row: 7 Snap
    toggles + the 6 Select ones; Midpoints on: a click near a line's middle lands there with a mid rule, off: on the
    line, no mid rule; Grid on: on the grid, off: off it; Guides off: no dashed guide; kept after a reload; the row
    clear of the suggestions table, the quick size box and Finish / Cancel, no scrollbar, at 1600×1000 and 1280×800,
    English and Czech — tooltips too). Exits 1 on a failed check.
+   `tools/e2e_sketch_snap_filters.py <url> <dir>` covers the snap filters of a sketch on a part's face, in Czech, real
+   mouse (the row shows there — it did not; "Na dílu": corners / edge midpoints / centres / quadrants / edges; Rohy on:
+   a part corner caught and labelled "roh dílu", the part's points near the mouse marked; Rohy off: not caught nor
+   marked, the hole's centre still caught; Kvadranty on: a quadrant caught; Alt: nothing; a drawn line off the corner,
+   on the centre; the 3D view's Snap row has Corners off too; kept after a reload; at 1600×1000 and 1280×800 clear of
+   Finish / Cancel, no scrollbar, tooltips in Czech). Exits 1 on a failed check.
    `tools/e2e_sketch_multiselect.py <url> <dir>` covers several sketch shapes at once with real mouse input (a
    rectangle and a circle box-selected: the short table ✥ Move…, ⧉ Copy, ⇋ Mirror, ✕ Delete all, ⋯ More… with Edit /
    Relations / Kind; the rectangle's edge dragged: all go by one vector, one undo step, still picked; an unpicked circle dragged: only it,
