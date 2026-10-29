@@ -1508,10 +1508,10 @@ def export(part, fmt, name="part"):
     st = body_of(part, threads=fmt != "pdf")
     if fmt == "pdf":  # a 2D drawing: three views, sizes, title block
         from . import drawing
-        from .materials import DENSITY as mats  # g / cm³, as in the browser
+        from .materials import mass_g  # (volume × density, as in the browser)
         mat = (part or {}).get("material") or "PLA"
         fits = {f["d"]: f["fit"] for f in (part or {}).get("features") or [] if f.get("type") == "hole" and f.get("fit") and not (f.get("off") or f.get("suppressed"))}
-        return drawing.pdf(st.body, name=name, material=mat, mass_g=K.volume(st.body.shape) / 1000 * mats.get(mat, 1.24), fits=fits,
+        return drawing.pdf(st.body, name=name, material=mat, mass_g=mass_g(K.volume(st.body.shape), mat), fits=fits,
                            tolerance=(part or {}).get("tolerance"))
     from .materials import finish_of, look_colour
     if fmt == "step":  # named, in its colour, its faces' own colours (an imported file's, 🎨 painted)

@@ -500,7 +500,8 @@ yellow ⚠.
   behind the part are not picked.
 - **✂ Section** cuts the view along X, Y or Z with a slider, to look inside (⇄ shows the other side).
 - The Part panel shows the size, volume and **mass** for the chosen **material** (PLA, PETG, ABS, ASA, TPU, PA;
-  solid, no infill).
+  solid, no infill), its **surface area** and its **centre of mass** (CoG, in the part's coordinates); **⊕** next to
+  it marks the centre of mass in the view.
 
 **From the other parts of the app:**
 - **◆ To 3D model** (in the Quick part's 3D toolbar) makes a new model tab from the part's outline: a picture
@@ -924,7 +925,9 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   assembly, undoable. **Respect joints** (next to the slider): a joined part moves only the ways its joints leave
   free — a pin comes out of its hole along the axis, a bearing slides off its shaft — and goes along with the part it
   is on; a part held fast stays on it.
-- The **parts list** shows each part, how many, its material and mass, and the total. **Export** gives STL (all
+- The **parts list** shows each part, how many, its material and mass, and the total; under it the assembly's
+  **centre of mass** (CoG) from its placed parts — **⊕** marks it in the view, and it moves with the parts while a
+  mechanism plays or a part is dragged. A bought part with a mass of its own (`mass_g`) counts with that mass. **Export** gives STL (all
   parts as placed, in one file) or STEP — a **STEP assembly** (AP214) that SolidWorks, CATIA and Solid Edge open as an
   assembly tree: a product per part (named as the part, in its colour; a part placed twice is one product placed twice,
   "Pin-1", "Pin-2"), each placement where it is, sub-assemblies nested as sub-assemblies (a sub-assembly whose parts

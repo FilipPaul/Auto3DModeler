@@ -1509,7 +1509,7 @@ HEAVY_FACES = 3000  # an imported model with more faces than this is handled mor
 _QUICK = (GeomAbs_Plane, GeomAbs_Cylinder)  # the surfaces the quick (fixed Gauss) volume rule gets right
 
 
-_volumes: list = []  # [(shape, volume)]: the same shape asked again is not integrated again (real threads: 2.5 s)
+_volumes: list = []  # [(shape, (volume, centre))]: the same shape asked again is not integrated again (real threads: 2.5 s)
 
 
 def volume(shape):
@@ -1518,6 +1518,16 @@ def volume(shape):
     integrated adaptively: the quick fixed rule was hundreds of mm³ off on a B-spline balloon (a cut "raised" its
     volume) and 214 mm³ on the spherical head of CATIA's S1. The last few shapes' volumes are kept (a part with real
     threads: checked after the cut, then again when it is meshed)."""
+    return _mass_props(shape)[0]
+
+
+def centre(shape):
+    """⚖ The centre of mass [x, y, z] of the shape's solids (of a uniform material), or None when it has no volume.
+    It comes from the same integral as its volume (kept with it: asking both costs one)."""
+    return _mass_props(shape)[1]
+
+
+def _mass_props(shape):
     for s, v in _volumes:
         if s is shape:
             return v
@@ -1527,19 +1537,27 @@ def volume(shape):
     return v
 
 
+def _mass_centre(p):
+    m, c = p.Mass(), p.CentreOfMass()
+    return m, ([c.X(), c.Y(), c.Z()] if abs(m) > 1e-12 else None)
+
+
 def _volume(shape):
+    """(volume, centre) of the shape's solids (see volume)."""
     solid_list = list(_subshapes(shape, TopAbs_SOLID))
     if len(solid_list) > 1:  # (the solids only, without the loose faces beside them)
         if sum(face_count(s) for s in solid_list) > HEAVY_FACES:  # a big model: the quick rule (exact enough there, 3 x quicker)
             p = GProp_GProps()
             BRepGProp.VolumeProperties_s(compound(solid_list), p)
-            return p.Mass()
-        return sum(_volume(s) for s in solid_list)  # (each on its own: the adaptive rule's error is relative to what it sums)
+            return _mass_centre(p)
+        each = [_volume(s) for s in solid_list]  # (each on its own: the adaptive rule's error is relative to what it sums)
+        m = sum(v for v, _ in each)
+        return m, ([sum(v * c[i] for v, c in each if c) / m for i in range(3)] if abs(m) > 1e-12 else None)
     whole = solid_list[0] if solid_list else shape
     if face_count(whole) > HEAVY_FACES:
         p = GProp_GProps()
         BRepGProp.VolumeProperties_s(whole, p)
-        return p.Mass()
+        return _mass_centre(p)
     other, ex = False, TopExp_Explorer(whole, TopAbs_FACE)
     while ex.More() and not other:
         f = TopoDS.Face(ex.Current())
@@ -1553,7 +1571,7 @@ def _volume(shape):
         BRepGProp.VolumeProperties_s(whole, p, 1e-7, False)
     else:
         BRepGProp.VolumeProperties_s(whole, p)
-    return p.Mass()
+    return _mass_centre(p)
 
 
 LONG_SPLINE = 8  # knots: a B-spline edge with more is integrated span by span (volume)
@@ -1696,7 +1714,10 @@ def tessellate(body, light=False):
         edges.append({"pts": [round(v, 5) for p in pts for v in (p.X(), p.Y(), p.Z())], "faces": sorted(adj.get(ei, ())),
                       "mid": _round(_edge_mid(e), 5), **({"chain": chains[ei]} if ei in chains else {})})
     return {"positions": tris.astype(np.float32).tobytes(), "face_ids": ids.astype(np.uint32).tobytes(),
-            "faces": faces, "edges": edges, "bbox": bb, "volume": volume(shape), "solids": solids(shape), **({"light": True} if light else {})}
+            "faces": faces, "edges": edges, "bbox": bb, "volume": volume(shape), "solids": solids(shape), **({"light": True} if light else {}),
+            # ⚖ the solids' surface area (their faces': a file's loose faces left out) and centre of mass
+            "area": round(sum(f["area"] for f in faces if "solid" in f or not solid_of), 3),
+            "cog": _round(centre(shape) or [(bb[i] + bb[i + 3]) / 2 for i in range(3)], 4)}
 
 
 def _face_triangles(f):

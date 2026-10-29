@@ -1020,6 +1020,13 @@ body.view-acts .toast-stack { bottom: 84px; }
 .sk-box { position: absolute; z-index: 6; border: 1px solid #58a6ff; background: #58a6ff1a; pointer-events: none; }
 .sk-box.crossing { border: 1px dashed #7ee787; background: #7ee78714; }
 .m-snap { font-size: 10.5px; color: #0d1117; background: #7ee787; border-radius: 4px; padding: 0 5px; transform: translate(10px, -14px); pointer-events: none; }
+/* ⚖ the centre of mass: ⊕ on the point (its box centred there), the label beside it */
+.m-cog { position: relative; width: 20px; height: 20px; pointer-events: none; }
+.m-cog i { position: absolute; inset: 0; font: 700 20px/20px system-ui, sans-serif; font-style: normal; text-align: center; color: #ff7b72; text-shadow: 0 0 3px #0d1117, 0 0 2px #0d1117; }
+.m-cog span { position: absolute; left: 22px; top: 2px; font-size: 10.5px; color: #0d1117; background: #ff7b72; border-radius: 4px; padding: 0 5px; white-space: nowrap; }
+.m-cog span:empty { display: none; }
+.mp-cog { display: flex; align-items: center; gap: 6px; }
+.mp-cog button { padding: 0 6px; line-height: 18px; font-size: 13px; }
 .m-pt { font-size: 10.5px; color: #e9d8ff; background: #2a1f3dd8; border: 1px solid #6e40c9; border-radius: 4px; padding: 0 5px; transform: translate(10px, 4px); pointer-events: none; white-space: nowrap; }
 .m-pt.on { color: #0d1117; background: #f2cc60; border-color: #f2cc60; }
 .m-pt.bad { border-color: #da3633; }

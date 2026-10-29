@@ -57,7 +57,8 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    get_assembly), take one away with `remove_joint {id}`; `measure {a: {part, face}, b: {part, face}}` gives gaps and
    axis distances; `set_view {view, section, explode}` before `get_screenshot` to look inside or pull it apart.
 7. `get_assembly` gives the parts list (quantity, material, mass, maker and part number of bought parts; `total`: how many in
-   all, the ones inside sub-assemblies counted in). The whole BOM: `get_bom {assembly, mode}` — any assembly of the
+   all, the ones inside sub-assemblies counted in), and `mass_g` / `cog_mm`: the whole assembly's mass and centre of mass
+   where the parts are now (it moves with a mechanism: drive it and ask again). The whole BOM: `get_bom {assembly, mode}` — any assembly of the
    hierarchy, summary (a row per part: total, pos = the drawings' balloon number, make_buy, `from`: where the count
    comes from) or structured (the tree: qty_per_parent, total). Screws placed both in the assembly and in a
    sub-assembly are counted in both; the user sees the same in 📋 BOM (⬇ CSV / Excel) and can add a BOM page to the

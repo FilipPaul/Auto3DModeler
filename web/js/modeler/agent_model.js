@@ -261,7 +261,8 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
   const summary = () => {
     const b = body();
     return b ? { size_mm: [r3(b.bbox[3] - b.bbox[0]), r3(b.bbox[4] - b.bbox[1]), r3(b.bbox[5] - b.bbox[2])], bbox: b.bbox.map(r3), volume_mm3: r3(b.volume),
-      material: m.part.material || 'PLA', mass_g_solid: m.massGrams(), faces: b.faces.length, ...(b.solids > 1 ? { solids: b.solids } : {}) } : null;
+      material: m.part.material || 'PLA', mass_g_solid: m.massGrams(), ...(Number.isFinite(b.area) ? { area_mm2: r3(b.area) } : {}), ...(b.cog ? { cog_mm: b.cog.map(r3) } : {}),
+      faces: b.faces.length, ...(b.solids > 1 ? { solids: b.solids } : {}) } : null;
   };
   const stepResult = (id) => {
     const st = m.status(id);

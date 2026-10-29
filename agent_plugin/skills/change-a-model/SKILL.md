@@ -19,6 +19,8 @@ description: Use when the user wants to change an existing 3D model part (make i
 5. If a step shows a warning that an edge was "found again by its position only", look at a screenshot and
    re-pick the edges with `edit_feature {id, fields: {edges: [...]}}`.
 6. Check `get_model` (all ok) and `get_screenshot`. Everything can be undone (`undo`).
+   Mass, area and the centre of mass (balance, a stand that must not tip): `get_model`'s body has `mass_g_solid`,
+   `area_mm2` and `cog_mm` (`set_material` first for a metal).
 
 **Missing a tool?** When no tool fits and you work around it (several calls for one thing, guessing, asking the user
 to click for you), file it at once: `list_reports {search: "<the words>"}`, and if it is not there

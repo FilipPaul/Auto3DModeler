@@ -483,6 +483,11 @@ const CS = {
   'Click a second spot for the distance.': 'Klikněte na druhé místo pro vzdálenost.', 'Click again to measure from a new spot.': 'Dalším kliknutím měříte od nového místa.',
   'Show the other side': 'Zobrazit druhou stranu', 'No section': 'Bez řezu', Mass: 'Hmotnost', '(solid)': '(plný)', Material: 'Materiál',
   'setting the material': 'nastavuje materiál',
+  // ⚖ mass properties: the Part panel, the Assembly panel, the ⊕ marker
+  Area: 'Plocha', CoG: 'Těžiště', 'Centre of mass': 'Těžiště', 'Show the centre of mass in the view (⊕)': 'Ukázat těžiště v pohledu (⊕)',
+  "Centre of mass (centre of gravity) of the solid, in the part's coordinates": 'Těžiště tělesa (střed hmotnosti) v souřadnicích dílu',
+  "Centre of mass (centre of gravity) of the placed parts, in the assembly's coordinates — it follows them as they move": 'Těžiště umístěných dílů (střed hmotnosti) v souřadnicích sestavy — pohybuje se s nimi',
+  '{n} part(s) without a mass left out': 'bez {n} dílů, které nemají hmotnost',
   // assemblies
   Assembly: 'Sestava', '＋ New assembly': '＋ Nová sestava', 'its parts': 'její díly', 'Put parts together': 'Sestavení dílů',
   '＋ Insert part ▾': '＋ Vložit díl ▾', 'Add a 3D model part of this project': 'Přidat 3D model z tohoto projektu', 'Make a 3D model part first (＋ New 3D model)': 'Nejprve udělejte 3D model (＋ Nový 3D model)',

@@ -41,7 +41,7 @@ const isOpenLine = (f) => {
 /** The sketches a step is made from. */
 const sketchesOf = (f) => (f.type === 'loft' ? f.sketches || [] : f.type === 'sweep' ? [f.profile, f.path] : USES_SKETCH.has(f.type) ? [f.sketch] : []).filter(Boolean);
 // densities for the mass (g/cm³), common 3D-printing materials
-import { MATERIALS, MATERIAL_GROUPS, MATERIAL_COLOR, lookColor } from './materials.js';
+import { MATERIALS, MATERIAL_GROUPS, MATERIAL_COLOR, lookColor, cogText } from './materials.js';
 import { showSuggest, showSnapFilters, snapKinds, hoverKinds } from '../suggest.js';
 import { floatBox } from '../floatbox.js';
 export { MATERIALS }; // g/cm³ (materials.js: grouped, with their colours)
@@ -305,6 +305,7 @@ export class Modeler {
     if (a === 'section') return this.toggleSection();
     if (a === 'planes') return this.togglePlanes();
     if (a === 'printcheck') return this.togglePrintCheck();
+    if (a === 'cog') return this.toggleCog();
     if (a === 'shell') return this.startShell();
     if (a === 'pattern') return this.mode === 'sketch' ? this.sk.startPattern() : this.startPattern();
     if (a === 'draft') return this.startDraft();
@@ -1272,7 +1273,10 @@ export class Modeler {
       box.innerHTML = `<h2>Part</h2>
         ${b ? `<div class="mp-facts"><span>Size</span><b>${fmt(b.bbox[3] - b.bbox[0])} × ${fmt(b.bbox[4] - b.bbox[1])} × ${fmt(b.bbox[5] - b.bbox[2])} mm</b>
           <span>Volume</span><b>${fmt(b.volume / 1000)} cm³</b>
-          <span>Mass</span><b>${fmt(+(b.volume / 1000 * (MATERIALS[this.part.material || 'PLA'])).toFixed(1))} g <span class="mp-sub">(solid)</span></b></div>
+          <span>Mass</span><b>${fmt(+(b.volume / 1000 * (MATERIALS[this.part.material || 'PLA'])).toFixed(1))} g <span class="mp-sub">(solid)</span></b>
+          ${Number.isFinite(b.area) ? `<span>Area</span><b>${fmt(+(b.area / 100).toFixed(2))} cm²</b>` : ''}
+          ${b.cog ? `<span title="${esc(t("Centre of mass (centre of gravity) of the solid, in the part's coordinates"))}">CoG</span><b class="mp-cog"><span data-no-i18n>${cogText(b.cog)} mm</span>
+            <button class="btn small ${this.cogOn ? 'on' : ''}" data-a="cog" title="${esc(t('Show the centre of mass in the view (⊕)'))}">⊕</button></b>` : ''}</div>
           <div class="field"><label>Material</label><select data-k="material">${MATERIAL_GROUPS.map(([g, ms]) => `<optgroup label="${esc(t(g))}">${ms.map(([k, rho]) => `<option value="${k}" ${k === (this.part.material || 'PLA') ? 'selected' : ''}>${esc(t(k))} — ${rho} g/cm³</option>`).join('')}</optgroup>`).join('')}</select></div>
           <div class="field"><label>Tolerances</label><select data-k="tolerance" title="The general tolerances (ISO 2768) for sizes without their own — on the 2D drawing">
             ${[['', '—'], ['f', 'ISO 2768-f (fine)'], ['m', 'ISO 2768-m (medium)'], ['c', 'ISO 2768-c (coarse)']].map(([v, l]) => `<option value="${v}" ${v === (this.part.tolerance || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -1445,6 +1449,7 @@ export class Modeler {
         this.view.setShades(this.cmd?.feature.type === 'split'); // (✂ Split's preview: the pieces in two shades)
         this.view.setRefs(r.refs || []);
         this.showThreads();
+        this.showCog();
         if (this.printChk) this.runPrintCheck(); // (it follows the part)
         if (first && this.mode === 'part') this.view.setView('iso');
         const gone = (r.features || []).flatMap((s) => s.issues || []).find((x) => /^BLOB_MISSING/.test(x));
@@ -3541,6 +3546,11 @@ export class Modeler {
   }
 
   hasBody() { return !!this.result?.body; }
+
+  /** ⚖ The centre of mass marked in the view (⊕ in the Part panel) or not. */
+  toggleCog() { this.cogOn = !this.cogOn; this.showCog(); this.renderProps(); }
+
+  showCog() { const c = this.cogOn && this.result?.body?.cog; this.view.setCog(c || null, c ? t('Centre of mass') : ''); }
 
   /** The body's mass in grams (solid), with the part's material. */
   massGrams() { const b = this.result?.body; return b ? +(b.volume / 1000 * MATERIALS[this.part.material || 'PLA']).toFixed(2) : null; }
