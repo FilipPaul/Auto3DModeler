@@ -1,7 +1,8 @@
 """⁂ Pattern with REAL mouse input in headless Edge: a 60 x 20 x 5 plate with one Ø4 hole (built through the AI tools) ->
 ⁂ Pattern: the hole is chosen, "How many" 5, "Apart" 12 -> exact volume; a click on the plate's short (y) edge
-turns the row along y; ◌ Around on a disc with one hole: 6 around Z, then a click on a round face (the boss) for
-its axis; the AI's add_feature pattern; deleting the hole deletes the pattern too.
+turns the row along y (its count and spacing pulled into the plate's range there); ◌ Around on a disc with one
+hole: 6 around Z, then a click on a round face (the boss) for its axis; the AI's add_feature pattern; deleting the
+hole deletes the pattern too. Prints a check list and ALL OK / FAILED.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
   PYTHONIOENCODING=utf-8 py tools/e2e_model_pattern.py http://127.0.0.1:5199 <out dir>
@@ -24,6 +25,12 @@ d = webdriver.Edge(options=opts)
 js = d.execute_script
 M = "window.__app.modeler"
 H = "window.__app.agentHandlers"
+ok = []
+
+
+def check(name, cond):
+    ok.append(bool(cond))
+    print(f"  {name}: {'OK' if cond else 'FAIL'}")
 
 
 def wait(script, t=30):
@@ -89,32 +96,47 @@ try:
     settled()
     one = 6000 - math.pi * 4 * 5
     print("plate with one hole:", round(vol(), 3), "| expected", round(one, 3))
+    check("the plate with one hole", abs(vol() - one) < 0.01)
 
     btn("#modelViewport [data-a=pattern]")
     print("panel:", d.find_element(By.CSS_SELECTOR, "#modelRight .mp-body").text.replace("\n", " | "))
     typed("count", 5)
     typed("spacing", 12)
     print("5 holes, 12 apart:", round(vol(), 3), "| expected", round(6000 - 5 * math.pi * 4 * 5, 3))
+    check("5 holes, 12 apart", abs(vol() - (6000 - 5 * math.pi * 4 * 5)) < 0.01)
     js(f"{M}.view.setView('iso')")
     time.sleep(0.4)
     d.save_screenshot(f"{OUT}/pat1_row.png")
-    # a click on the short edge at x = 60 (along y) turns the row: with 12 apart along y the holes leave the plate
+    # a click on the middle of the short top edge at x = 60 (the plate: x 0..60, y 0..20; the edge runs along y) turns
+    # the row; along y the plate is only 20 wide, so "How many" and "Apart" are pulled into their ranges there (the
+    # copies stay on the part). (In the iso view this edge is seen at a slant: the
+    # pick once took it as hidden behind the top face and the click did nothing.)
     click_at(off_xyz([60, 10, 5]))
     settled()
-    print("direction from the edge:", js(f"return {M}.cmd.feature.dir"), "| Y button on:", js("return !!document.querySelector('#modelRight [data-ax=y].on')"))
+    along, y_on = js(f"return {M}.cmd.feature.dir"), js("return !!document.querySelector('#modelRight [data-ax=y].on')")
+    print("direction from the edge:", along, "| Y button on:", y_on)
+    check("a click on the short edge turns the row along y", along and abs(abs(along[1]) - 1) < 1e-6 and y_on)
+    n, sp = js(f"return [{M}.cmd.feature.count, {M}.cmd.feature.spacing]")
+    print("along y:", n, "x", sp, "mm apart")
+    check("along y the copies are held on the plate", n >= 2 and (n - 1) * sp <= 20)
     btn("#modelRight [data-ax=x]")
     settled()
+    typed("count", 5)
+    typed("spacing", 12)
     btn("#modelViewport .view-actions [data-a=ok]")
     settled()
     print("tree:", js(f"return [...document.querySelectorAll('#modelLeft .mt-item')].map(e => e.innerText.replace(/\\n/g, ' '))"))
     print("volume:", round(vol(), 3), "| ok:", js(f"return {M}.result.ok"))
+    check("back along x and OK: 5 holes", abs(vol() - (6000 - 5 * math.pi * 4 * 5)) < 0.01 and js(f"return {M}.result.ok"))
 
     # delete the hole: the pattern needs it and goes too
     js("window.confirm = () => true")
     hole = js(f"return {M}.part.features.find(f => f.type === 'hole').id")
     js(f"{M}.remove(arguments[0])", hole)
     settled()
-    print("after deleting the hole:", [f["type"] for f in js(f"return {M}.part.features")], round(vol(), 3))
+    left = [f["type"] for f in js(f"return {M}.part.features")]
+    print("after deleting the hole:", left, round(vol(), 3))
+    check("deleting the hole deletes the pattern too", left == ["sketch", "extrude"] and abs(vol() - 6000) < 0.01)
 
     # around: a disc Ø60 with a boss Ø10 in the middle, one hole at 20 from the centre
     call("new_model", name="Flange")
@@ -129,13 +151,17 @@ try:
     btn("#modelRight [data-kind=circular]")
     settled()
     print("around Z, 6:", round(vol(), 3), "| expected", round(base - 6 * math.pi * 9 * 5, 3))
+    check("6 around Z", abs(vol() - (base - 6 * math.pi * 9 * 5)) < 0.01)
     typed("count", 4)
     js(f"{M}.view.setView('iso')")
     time.sleep(0.4)
     # a click on the boss's round side: around its axis (the same Z axis here, so the volume stays)
     click_at(off_xyz([0, -5, 10]))
     settled()
-    print("axis from the boss:", js(f"return {M}.cmd.feature.axis"), "| 4 around:", round(vol(), 3), "| expected", round(base - 4 * math.pi * 9 * 5, 3))
+    axis = js(f"return {M}.cmd.feature.axis")
+    print("axis from the boss:", axis, "| 4 around:", round(vol(), 3), "| expected", round(base - 4 * math.pi * 9 * 5, 3))
+    check("the boss's round face gives the axis (Z), 4 around", isinstance(axis, dict) and abs(abs(axis["d"][2]) - 1) < 1e-6
+          and abs(vol() - (base - 4 * math.pi * 9 * 5)) < 0.01)
     d.save_screenshot(f"{OUT}/pat2_around.png")
     btn("#modelViewport .view-actions [data-a=ok]")
     settled()
@@ -143,10 +169,15 @@ try:
     # the AI's way
     r = call("add_feature", type="pattern", of=["F5"], kind="circular", axis="z", count=3)
     print("AI pattern of the hole, 3 around:", r[:160])
+    check("the AI's pattern, 3 around", '"ok":true' in r)
     r = call("add_feature", type="pattern", of=["F5"], dir="y", count=2, spacing=50)
     print("AI pattern out of the part:", r[:200])
-    print("AI bad of:", call("add_feature", type="pattern", of=["F1"], count=3))
+    r = call("add_feature", type="pattern", of=["F1"], count=3)
+    print("AI bad of:", r)
+    check("the AI's pattern of a sketch is refused", r.startswith("ERROR"))
     print("get_model pattern:", [s for s in json.loads(call("get_model"))["steps"] if s["type"] == "pattern"][:1])
 finally:
-    print("console errors:", [e["message"] for e in d.get_log("browser") if e["level"] == "SEVERE"])
+    errs = [e["message"] for e in d.get_log("browser") if e["level"] == "SEVERE"]
+    print("console errors:", errs)
     d.quit()
+print("ALL OK" if ok and all(ok) and not errs else f"FAILED ({ok.count(False)} of {len(ok)})")

@@ -849,7 +849,8 @@ export class ModelView {
     const r = this.renderer.domElement.getBoundingClientRect();
     const mx = clientX - r.left, my = clientY - r.top, v = new THREE.Vector3();
     // an edge hidden behind the part is not pickable: it must not be farther than the surface under the mouse
-    const hit = solids.length ? this.ray(clientX, clientY).intersectObjects(solids, false)[0] : null;
+    const mray = this.ray(clientX, clientY), hit = solids.length ? mray.intersectObjects(solids, false)[0] : null;
+    const q = new THREE.Vector3();
     const cam = this.camera.position, slack = this.size * 0.01, ck = camKey(this.camera, r);
     let best = null, bestD = maxPx, bestZ = Infinity;
     for (const { edges, matrix, inst } of list) {
@@ -866,7 +867,10 @@ export class ModelView {
           const t = Math.max(0, Math.min(1, ((mx - px) * dx + (my - py) * dy) / L));
           const d = Math.hypot(px + t * dx - mx, py + t * dy - my), z = pz + t * (scr[j + 2] - pz);
           if (d < maxPx && hit) {
-            const a = W(p, k - 3).clone(), q = a.lerp(W(p, k), t);
+            // (the piece's point nearest the mouse ray — not the screen's t lerped in 3D, which a perspective view
+            // shifts along an edge seen at a slant, far enough to call a visible edge hidden)
+            const a = W(p, k - 3).clone();
+            mray.ray.distanceSqToSegment(a, W(p, k), undefined, q);
             if (q.distanceTo(cam) > hit.distance + slack) continue;
           }
           if (d < bestD - 2 || (d < bestD + 2 && d < maxPx && z < bestZ)) { best = { edge: e, i, matrix, inst }; bestD = Math.min(d, bestD); bestZ = z; }

@@ -307,6 +307,10 @@ Date: 2026-10-25. Written by the architect agent.
   skill assemble-parts; tools/e2e_assembly_ai.py.
 - **Pattern done:** ⁂ Pattern (in a row / around; repeats extrudes, revolves, holes and patterns by their tool
   solids, names "<id>:<k>:<name>"); AI `add_feature {type: "pattern"}`; tools/e2e_model_pattern.py.
+  Edge picks in a perspective view (view.edgeAt): whether an edge is hidden behind the part is judged at the edge's
+  point nearest the mouse ray (Ray.distanceSqToSegment), not at the screen's t lerped in 3D — that point slid along an
+  edge seen at a slant (the plate's short edge in iso: 0.65 mm farther than the surface, over the slack) and a visible
+  edge was refused (⁂ Pattern's "click an edge" did nothing there). e2e_model_pattern.py now asserts (10 checks).
 - **Arcs done:** ◠ Arc (3 clicks: start, end, bend), R dimension (planegcs arcs), true circular edges in the kernel,
   AI shape {slot}; tools/e2e_model_arc.py.
 - **Dimensions follow the part done:** sketch dimension ends to the part store {vertex: {faces, fp}} or
