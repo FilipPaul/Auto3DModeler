@@ -55,7 +55,7 @@ DATUMS = {
     "XZ": {"o": [0, 0, 0], "x": [1, 0, 0], "n": [0, -1, 0]},  # Front
     "YZ": {"o": [0, 0, 0], "x": [0, 1, 0], "n": [1, 0, 0]},   # Right
 }
-FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell", "pattern", "solid", "loft", "sweep", "decal", "mirror", "draft", "rib", "point", "split")
+FEATURE_TYPES = ("sketch", "extrude", "revolve", "fillet", "chamfer", "hole", "shell", "pattern", "solid", "loft", "sweep", "decal", "mirror", "draft", "rib", "point", "split", "harness")
 
 _cache: OrderedDict = OrderedDict()  # prefix hash -> state after that feature (only in the worker process)
 CACHE_SIZE = 48
@@ -397,6 +397,10 @@ def _apply(f, st: State, s):
         wire = K.path_wire(st.frames[f["path"]], path)
         for face, names in prof[1]:
             _use(st, fid, K.sweep_body(face, names, wire, fid), f.get("op", "add"))
+        return
+    if t == "harness":  # 🔌 a cable / loose wires / a ribbon / a sleeve along its route (an assembly's harness exported)
+        from .harness import solid as harness_solid
+        _use(st, fid, harness_solid(f, fid), "add")
         return
     if t == "rib":  # a gusset: an open line of a sketch filled up to the part, t thick about its plane
         src = st.sketch_src.get(f.get("sketch"))

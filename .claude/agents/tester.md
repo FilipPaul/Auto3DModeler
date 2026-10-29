@@ -628,6 +628,14 @@ Never report "works" without having run it; report failures with their output.
    its slider; set_travel 0 … 360 + check_travel; ▶ play checked against the formula; the slider pushed past its
    dead point stops at r + L; the second eye joined again 12 mm off closes by itself; the rod too short ("cannot
    close", closed false) and back). Prints ALL OK / FAILED, exit code 1 on a failure.
+   `tools/e2e_harness.py <url> <dir>` covers 🔌 Cable harness with a real mouse, in Czech (a box, a PCB, a motor: a
+   click on the PCB -> *🔌 Vést kabel odsud* -> Volné dráty 4× -> a hover shows the next point and the length -> three
+   more points on the PCB, the box, the motor -> Esc keeps them; the length equals auto3d/modeler/harness.py's route of
+   the same points, the points Ø/2 + 0.5 off their faces; the tree row; BOM lines *Vodič Ø1,5 mm červený — N mm* (+5 %,
+   up to 10 mm) in get_bom and the 📋 window; the motor moved / 💥 explode: its points follow; a point dragged onto
+   another face; R 80: ⚠ in the view and the panel, R empty: 5 × Ø; a point clicked + Delete, Ctrl+Z, Enter; STEP export
+   with 3 parts + 4 wire solids; add_harness / edit_harness / get_assembly). Prints ALL OK / FAILED, exit code 1 on a
+   failure.
    `tools/e2e_assembly_mechanism.py <url> <dir>` covers ⚙ Mechanism (the same crank – rod – slider: the widget shows
    by itself with the crank driving a full turn, its slider to 90°: the slider part at the formula; ▶ moves every
    part with the formula held, ⏸ stops where it is; the mechanism and the crank's motion renamed by a double-click —

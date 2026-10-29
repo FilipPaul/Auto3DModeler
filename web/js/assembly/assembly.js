@@ -21,6 +21,7 @@
 //   an instance's "moveNames": {"J3:turn": "crank"} — a free motion's own name (nameMotion); "mechs": the ⚙ Mechanism
 //   widget's names, drivers and speeds (mechanism.js); "couplings": ⚙ gear pairs, ⛓ belts, ▤ racks — one part's turn
 //   tied to another's by a ratio (couplings.js); "springs": 〰 a spring part drawn as long as it reaches (springs.js)
+//   tied to another's by a ratio (couplings.js); "harnesses": 🔌 cable harnesses routed through points (harness.js)
 import * as THREE from 'three';
 import { History } from '../history.js';
 import { t } from '../i18n.js';
@@ -55,6 +56,7 @@ import { startDrag, dragCue, dragValue, cueLabel, firstTip, tipSeen } from './dr
 import { isPin } from './missing.js';
 import { pinFits, restOn } from './smart.js';
 import { springMatrix, addSpring, springIgnores, springsHtml, bindSpringRows, updateSpringRows, springsSummary } from './springs.js';
+import { HarnessTool, harnessHandlers, harnessFacts, withHarnesses } from './harness.js';
 import { COUPLING_TYPES, couplingOptions, addCoupling, followCouplings, couplingsHtml, bindCouplingRows, couplingsSummary, ratioText, coupledWith } from './couplings.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -320,13 +322,14 @@ export class Assembly {
     this.jointType = 'touch';
     this.explode = 0;
     this.history = new History({
-      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [], ...(this.doc.mechs?.length ? { mechs: this.doc.mechs } : {}), ...(this.doc.couplings?.length ? { couplings: this.doc.couplings } : {}), ...(this.doc.springs?.length ? { springs: this.doc.springs } : {}) }),
+      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [], ...(this.doc.mechs?.length ? { mechs: this.doc.mechs } : {}), ...(this.doc.couplings?.length ? { couplings: this.doc.couplings } : {}), ...(this.doc.springs?.length ? { springs: this.doc.springs } : {}), ...(this.doc.harnesses?.length ? { harnesses: this.doc.harnesses } : {}) }),
       restore: async (s) => {
         this.mech?.stop(false);
         this.doc.instances = s.instances; this.doc.mates = s.mates || []; this.doc.bolts = s.bolts || []; this.mode = 'idle'; this.bolt = null;
         if (s.mechs) this.doc.mechs = s.mechs; else delete this.doc.mechs;
         if (s.couplings) this.doc.couplings = s.couplings; else delete this.doc.couplings;
         if (s.springs) this.doc.springs = s.springs; else delete this.doc.springs;
+        if (s.harnesses) this.doc.harnesses = s.harnesses; else delete this.doc.harnesses;
         this.syncDrills(); // the holes drilled for bolts: back as they were
         this.tidyCopies(); // (⧉ its own part undone: its copy goes too)
         this.render();
@@ -337,6 +340,7 @@ export class Assembly {
     this.build();
     this.view = new AsmView(this.els.view, { cube: true });
     this.mech = new MechanismPanel(this); // (⚙ Mechanism: a widget of the left column while there is one)
+    this.harnessTool = new HarnessTool(this); // (🔌 cable harnesses: its press on a point comes before the part's drag)
     this.bindPointer();
     this.render();
     window.addEventListener('a3d:lang', () => this.render()); // (texts built with t(): in the new language)
@@ -434,6 +438,7 @@ export class Assembly {
         this.drawMarks();
       } })),
       { icon: '📏', label: t('Measure from here'), rank: 7, run: () => { done(); this.toggleMeasure(); } },
+      ...[this.harnessTool.fromHere(this.lastClick?.p?.inst === q.inst ? this.lastClick : null)].filter(Boolean),
       { section: `${this.partName(a.part)} ${a.id}` },
       { icon: '◆', label: t('Select the whole part'), rank: 5, title: t('The part chosen, not its face: its moves and joints in the panel'), run: () => { this.facePicks = []; this.snapPick = null; this.view.setMeasure([]); this.choose(a.id); this.drawMarks(); } },
       ...this.partItems(a).map((x, k) => ({ ...after(x), rank: x.icon === '🔗' ? 20 : 8 + k })), // (joining: the face's own joints above)
@@ -585,6 +590,7 @@ export class Assembly {
   renderSuggest() {
     const vp = this.els.viewport, a = this.inst(this.sel), b = this.inst(this.sel2);
     if (this.mode !== 'idle' || this.measuring || this.painting || this.bolt || (!a && (this.clashPanel || this.fastenerPanel))) { showSuggest(vp, '', []); return; }
+    if (this.harnessTool.suggest(vp, showSuggest)) return; // (🔌 a harness edited or chosen)
     if (!a) { this.suggestAssembly(vp); return; } // (nothing chosen: what to do next with the whole assembly)
     const fp = (this.facePicks || []).filter((q) => this.inst(q.inst));
     if (fp.length) { this.suggestFaces(vp, fp); return; }
@@ -596,6 +602,7 @@ export class Assembly {
       show( `${this.partName(a.part)} ↔ ${this.partName(b.part)}`, [
         ...pins.slice(0, 1).map((f) => this.pinItem(f, -2)),
         ...(on ? [this.restItem(on, -1)] : []),
+        { icon: '🔌', label: t('Route a cable between them'), title: t('A cable harness: click its points on the two parts (and between them)'), run: () => this.harnessTool.start() },
         { icon: '🔗', label: t('Join them'), title: t('Pick a face of each — touch, gap, flush, a pin in a hole …'), run: () => this.startJoint('touch', a.id) },
         ...(a.fixed && b.fixed ? [] : [{ icon: '🔗', label: t2('Fix {a} to {b}', { a: this.partName((a.fixed ? b : a).part), b: this.partName((a.fixed ? a : b).part) }), rank: 0.5,
           title: t('Fixed together, as they are now: it goes with the other part and has no motion of its own'), run: () => this.fixTogether(a.id, b.id) }]),
@@ -619,6 +626,7 @@ export class Assembly {
           this.view.setMeasure([p]);
           this.measureBox(`<div class="mm-rows"><b>${esc(kind)}</b><span>Of</span><b data-no-i18n>${esc(this.partName(a.part))} ${a.id}</b><span>${esc(t('Point'))}</span><b>${xyz}</b></div><p class="hint">${esc(t('Click a second spot for the distance.'))}</p>`);
         } },
+        ...[this.harnessTool.fromHere({ inst: a.id, point: p }, 1)].filter(Boolean),
         { icon: '⧉', label: t('Copy its coordinates'), title: xyz, run: () => { navigator.clipboard?.writeText(xyz).catch(() => {}); this.hooks.toast(`${t('Copied')}: ${xyz}`, 'info', 2500); } },
         { section: name(a) }] : []),
       ...this.partItems(a), // (the owner's choice: a click shows its actions in the table, as everywhere)
@@ -742,6 +750,7 @@ export class Assembly {
     if (this.hooks.newSheet) items.push({ icon: '📄', label: t('Drawing of the assembly'), rank: 3.5, title: t('Its views, parts list and balloons — it follows the assembly'), run: () => this.hooks.newSheet() });
     if (this.hooks.openLibrary) items.push({ icon: '📚', label: t('From the library…'), rank: 9, title: t('Standard parts (screws, bearings, motors …) — ⤵ Put into the assembly'), run: () => this.hooks.openLibrary() });
     if (this.hooks.newProject) items.push({ icon: '📄', label: t('New project'), rank: 20, title: t('Start a new, empty project in this window — the one on screen is kept (🕘 Recent projects opens it again) (Ctrl+Alt+N)'), run: () => this.hooks.newProject() });
+    items.push({ icon: '🔌', label: t('Cable harness…'), rank: 9.5, title: t('A cable or loose wires through points you click — its length, the bends, the BOM'), run: () => this.harnessTool.start() });
     if (n > 1) items.push({ icon: '🔩', label: t('Screw / pin through parts…'), rank: 10, title: t('Click where it goes in — the holes are drilled for it'), run: () => { this.fastenerPanel = false; this.startJoint('fastener'); this.render(); this.draw(); } });
     showSuggest(vp, title, items.map((x) => ({ ...x, run: async () => { await x.run(); this.renderSuggest(); } })), t('Click a part or a face: what fits it'));
   }
@@ -826,6 +835,7 @@ export class Assembly {
           <p class="hint">${esc(t('💥 in the parts list: which parts move'))}</p></div></div>
       ${btn('clashes', this.clashLabel(), 'Where parts overlap (go into each other) — checked after every change; click: the list, each one shown in the view', `tool ${this.clashPanel ? 'on' : ''} ${this.clashes?.length ? 'bad' : this.clashes ? 'good' : ''}`)}
       ${btn('fasteners', '🔩 Fasteners', 'Screws, heat-set inserts and pins where holes line up across parts — suggested, added with one click', `tool ${this.fastenerPanel ? 'on' : ''}`)}
+      ${btn('harness', '🔌 Cable harness', 'Cable harness: a cable, loose wires, a ribbon or a sleeve — choose its Ø and bend radius, click the points it passes (on parts, through holes, in space)', `tool ${this.harnessTool?.busy ? 'on' : ''}`)}
       ${this.mech?.list.length ? btn('mech', '⚙ Mechanism', 'The mechanisms of this assembly: one slider each moves all of its parts, ▶ plays it', `tool ${this.mech.closed ? '' : 'on'}`) : ''}
       ${this.hooks.newSheet ? btn('sheet', '📄 Drawing', 'The assembly\'s drawing sheet to edit: its views, overall sizes, parts list and balloons — it follows the assembly; 📄 Drawings (PDF) in the panel makes the whole set', 'tool') : ''}
       ${btn('paint', '🎨 Paint', 'Colour faces of the placed parts, or whole parts — in this assembly: click them (Ctrl+click: more), then pick a colour', `tool ${this.painting ? 'on' : ''}`)}
@@ -890,6 +900,7 @@ export class Assembly {
     if (a === 'section') return this.toggleSection();
     if (a === 'sheet') { this.hooks.newSheet?.(); return null; }
     if (a === 'mech') { this.mech.toggle(); return null; }
+    if (a === 'harness') { if (this.harnessTool.busy) this.harnessTool.finish(); else this.harnessTool.start(); return null; }
     if (a === 'fasteners') { this.fastenerPanel = !this.fastenerPanel; this.sel = null; this.render(); this.draw(); return null; }
     if (a === 'undo') return this.history.go(-1);
     if (a === 'redo') return this.history.go(1);
@@ -941,6 +952,7 @@ export class Assembly {
       list.appendChild(row);
       if (kids && open.has(it.id)) this.innerRows(list, it, kids, 1, open);
     }
+    this.harnessTool.rows(list); // (🔌 its harnesses under the parts)
   }
 
   /** ▸ / ▾ on a sub-assembly's row; folded: how many parts are in it (all levels). */
@@ -1117,6 +1129,7 @@ export class Assembly {
   /** A part clicked: chosen alone, or (Ctrl) as the second one — the joints between the two are shown. */
   choose(id, more = false) {
     this.selInner = null;
+    if (id && this.harnessTool) this.harnessTool.sel = null; // (a part chosen: not the harness)
     if (more && this.sel && id && id !== this.sel) this.sel2 = this.sel2 === id ? null : id;
     else { this.sel = id || null; this.sel2 = null; }
     this.cueParts = null; // (the drag cue: found again at the next mouse move, for what is chosen now)
@@ -1152,6 +1165,7 @@ export class Assembly {
   renderProps() {
     const box = this.$('.mp-body'), it = this.inst(this.sel);
     this.drawJointTags();
+    if (this.harnessTool.panel(box)) return; // (🔌 a harness edited or chosen)
     if (this.painting) { this.renderPaint(box); return; }
     if (this.clashPanel && !it) { this.renderClashes(box); return; }
     if (this.sel2 && it && this.inst(this.sel2) && !this.bolt && this.mode === 'idle') { this.renderPair(box); return; }
@@ -2343,6 +2357,7 @@ export class Assembly {
     this.drawJointTags();
     this.showCog();
     if (this.doc.springs) updateSpringRows(this, this.$('.mp-body')); // (〰 its length now, while the parts move)
+    this.harnessTool.draw(); // (🔌 the harnesses: their points on the parts as drawn now)
   }
 
   /** The faces' prefix of the inner part chosen in the list ("I2/") when `it` is its placement, else null. */
@@ -3670,6 +3685,7 @@ export class Assembly {
       this.hoverEv = null;
       if (!e || down) return;
       if (this.measuring) { this.view.clearHoverMarks(); this.view.setSnapMark(this.view.measurePoint(e.clientX, e.clientY)); return; } // (where a click measures from)
+      if (this.harnessTool.hoverAt(e)) return; // (🔌 clicking a harness's points: the next one shown)
       const h0 = this.view.pickInst(e.clientX, e.clientY), h = this.jointPick(e, h0);
       if (this.mode === 'idle') this.hoverMarks(e, h0);
       else this.view.clearHoverMarks();
@@ -3707,7 +3723,9 @@ export class Assembly {
       const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4;
       down = null;
       if (moved) return;
+      if (this.harnessTool.click(e)) return; // (🔌 a point of a harness, or a harness chosen)
       const h = this.view.pickInst(e.clientX, e.clientY);
+      this.lastClick = h?.face ? this.harnessTool.candidate(e) : null; // (🔌 Route a cable from here: that spot, lying on its face)
       if (this.measuring) { this.clickMeasure(e); return; }
       if (this.painting) { this.clickPaint(h, e.ctrlKey || e.metaKey); return; }
       if (this.mode !== 'idle') { this.clickJoint(this.jointPick(e, h)); return; }
@@ -3728,6 +3746,7 @@ export class Assembly {
 
   key(e) {
     if (!this.active || e.target.closest?.('input,select,textarea,[contenteditable]')) return;
+    if (this.harnessTool.key(e)) return; // (🔌 Esc / Enter: done; Delete: its point)
     const k = e.key.toLowerCase();
     if (e.key === 'Escape' && this.measuring) { this.toggleMeasure(); return; }
     if (e.key === 'Escape' && this.painting) { this.togglePaint(); return; }
@@ -3848,6 +3867,7 @@ export class Assembly {
       ...(this.mech?.missing ? { missing_joint: this.missingSummary() } : {}),
       ...(this.doc.couplings?.length ? { couplings: couplingsSummary(this) } : {}),
       ...(this.doc.springs?.length ? { springs: springsSummary(this) } : {}),
+      ...(this.doc.harnesses?.length ? { harnesses: this.doc.harnesses.map((h) => harnessFacts(this, h)) } : {}),
       joints: (this.doc.mates || []).map((m) => ({ id: m.id, ...(m.name ? { name: m.name } : {}), type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
         ...(m.type === 'axis' ? { distance: Number.isFinite(m.dist) ? m.dist : null } : { gap: m.gap || 0 }), ...(m.type !== 'parallel' ? { rotation_locked: Number.isFinite(m.angle) } : {}), ...(m.broken ? { broken: true } : {}),
         ...(m.slides?.length || (m.rot && m.type !== 'rigid') ? { locked_motions: (m.slides?.length || 0) + (m.rot && m.type !== 'rigid' ? 1 : 0) } : {}),
@@ -4082,6 +4102,7 @@ export class Assembly {
         const { it, mo } = this.motionFor(part, motion), v = this.nameMotion(it.id, mo, name);
         return { text: v ? `${mo.via || it.id}: the motion “${mo.auto || mo.label}” is called “${v}” now (get_assembly, its panel and ⚙ Mechanism show it).` : `${mo.via || it.id}: the motion has its own words again (“${mo.auto || mo.label}”).` };
       },
+      ...harnessHandlers(this), // (🔌 add_harness, edit_harness)
       check_travel: async ({ part, motion = 0 }) => {
         need();
         await settle();
@@ -4126,6 +4147,7 @@ export class Assembly {
     this.sel = null;
     this.mode = 'idle';
     this.explode = 0;
+    Object.assign(this.harnessTool, { edit: null, sel: null, pt: null, hover: null });
     this.history.reset();
     this.render();
     await this.refresh();
@@ -4134,7 +4156,7 @@ export class Assembly {
 
   payload() { return structuredClone(this.doc); }
   /** This assembly as a STEP tree (stepfile.js) for /api/assembly/export/step. */
-  stepTree() { return stepTree(this, this.hooks.selfId?.() || 'root', this.hooks.safeName(), this.doc.instances); }
+  stepTree() { return withHarnesses(this, stepTree(this, this.hooks.selfId?.() || 'root', this.hooks.safeName(), this.doc.instances)); } // (🔌 a part per harness)
   hasBody() { return this.doc.instances.some((i) => this.bodies[i.part]?.body); }
 
   async export(fmtName) {

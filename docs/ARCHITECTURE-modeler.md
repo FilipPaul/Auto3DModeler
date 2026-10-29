@@ -22,6 +22,27 @@ Date: 2026-10-25. Written by the architect agent.
   offer here". The prompt and the skills (ui-tester: suggestion-first, rank_pos judged; teach-the-user: lead through the
   table's rows; model-a-part, assemble-parts) teach it. Tests: test_agent (schemas), e2e_ai_suggest.
 
+- **🔌 Cable harness in the assembly (2026-10-29)** (the owner: "simulovat kabelové svazky … zvolím tloušťku kabelu,
+  minimální radius a pak jen naklikám body"). web/js/assembly/harness.js (HarnessTool; assembly.js only hooks it:
+  toolbar, suggestions, panel, tree, draw, pointer, keys, history, summary, handlers, stepTree): assembly JSON
+  `harnesses` [{id H…, kind cable | wires | ribbon | sleeve, d, color, wires [{d, color}], pitch, r_min (none: 5 × Ø),
+  reserve %, points [{inst, at (in the part), n (its face's normal: lies on it, Ø/2 + 0.5 off; none: a hole's centre)} |
+  {xyz}]}] — a point on a part follows it (the drawn mesh's matrix: mechanisms, drags, explode). The route: the
+  polyline with each corner rounded to r_min where its legs leave room (a leg shared by two corners split by what each
+  wants), else the largest radius that fits — flagged, red + ⚠ "ohyb R 6 mm < min 15 mm"; lines + arcs, its length
+  live. Drawn as TubeGeometry along a by-length curve (wires twisted round the centre, a ribbon flat — ExtrudeGeometry
+  turned level at its start —, a sleeve corrugated); ⚠ through a part: the centre line's samples tested by ray parity
+  against the parts' meshes. BOM (bom.js): a line per wire / cable "Vodič Ø1,5 mm hnědý — 1 350 mm" (+ reserve, up to
+  10 mm), kind harness, no position. Export: a part per harness with one step {type: "harness"} (doc.py ->
+  auto3d/modeler/harness.py, the same math in Python; kernel.pipe_body: circles / a ribbon's rectangle swept with
+  MakePipeShell along lines + arcs, one solid per wire, faces <id>:w<k>:… painted their colours) — STEP / IGES / GLB
+  and the assembly's drawing sheet (sheet.js flatten). AI: add_harness / edit_harness, get_assembly `harnesses`
+  (length, bends_too_tight, through_parts); the assemble-parts skill. Demo *Řídicí box s motorem*. Tests:
+  tests/test_harness.py (straight, L = straight parts + πR/2, a tight corner flagged, bundle Ø 1 / 3 / 7, cable volume
+  π(d/2)²·L + watertight + STEP round trip, 4 wire solids, ribbon / sleeve, errors), tools/e2e_harness.py.
+  Left out: a sleeve is solid in STEP (not hollow); wires are laid side by side in STEP (twisted only on screen); the
+  through-a-part check tests the centre line, not the Ø; a point on a part inside a moved sub-assembly is on the
+  sub-assembly as a whole.
 - **✂ Section view fixed and capped (2026-10-29)** (the AI's report: a revolved pump body cut at y = 0 showed whole, with
   a jagged ring at z = 0). Causes: a Y cut kept the half toward the iso / front cameras (x and z kept the far half), so
   the part looked uncut; a face lying in the cut (the bottom at z = 0) z-fought with the clip plane — the jagged ring;

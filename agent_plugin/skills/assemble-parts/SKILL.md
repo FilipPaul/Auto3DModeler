@@ -96,6 +96,17 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    sub-assembly are counted in both; the user sees the same in 📋 BOM (⬇ CSV / Excel) and can add a BOM page to the
    assembly's drawing (📋 Add BOM page). To change a part, `open_part` it — every
    assembly that uses it follows. The user exports the assembly (STL or STEP) from its Export buttons.
+8. **Cables and wires** (🔌 Cable harness): `add_harness {type, points, …}` routes one through points — `{part: "I2",
+   face: "F2:end"}` (it lies on that face's middle, Ø/2 off it; a round face: through the hole's centre), `{part, point:
+   [x, y, z]}` (the part's own coordinates) or `{xyz: [x, y, z]}` (in space, to lead it round things). type `"wires"`
+   (loose wires: `count` + `wire_d`, or `wires: [{color, d}]` — IEC colours black, brown, red, orange, yellow, green,
+   blue, violet, grey, white, pink, green-yellow), `"cable"` (`d`, `color`), `"ribbon"` (`count` × `pitch`) or
+   `"sleeve"` (`d`). `r_min` (mm) is the minimum bend radius (default 5 × Ø): every corner is rounded to it; a corner
+   whose legs are too short for it is reported (`bends_too_tight`: add a point further out or lower r_min), and
+   `through_parts` names parts its centre line goes through (add a point round them). Points on a part move with it.
+   The answer and get_assembly `harnesses` give its length; get_bom lists a line per wire with its length + the
+   reserve (5 %). `edit_harness {id, …}` changes any of these (`points` replaces them, `add_points` appends, `remove:
+   true` deletes it). STEP / GLB exports and the assembly drawing include it.
 
 Files for the user: `export {format: "step"}` (the whole assembly as a STEP assembly — SolidWorks, CATIA and Solid
 Edge open it as an assembly tree, a product per part, sub-assemblies nested), `"iges"` (every part placed in one IGES —

@@ -6,6 +6,7 @@
 // ctx: {partData(id), kindOf(id) ('model' | 'classic' | 'assembly' …), partName(id), massOf?(id) -> g each or null}.
 import { isStandard } from './fasteners.js';
 import { printed } from '../modeler/materials.js';
+import { harnessBom } from './harness.js';
 
 /** Make or buy, by the part's library facts and its material (the one place the browser decides it; the server's
  *  auto3d/modeler/materials.made_how is the same rule): a library or standard part (screws, nuts, inserts, pins) is
@@ -70,14 +71,16 @@ export function bomOf(ctx, aid, { mode = 'summary', numbering = null } = {}) {
     return [...groups].map(([part, qty]) => {
       const f = fact(part), total = qty * times;
       return { pos: nums.get(part) ?? null, ...f, qty, total, in: id, children: f.kind === 'assembly' ? level(part, total, inner) : null };
-    }).sort((a, b) => (a.pos ?? 1e9) - (b.pos ?? 1e9));
+    }).sort((a, b) => (a.pos ?? 1e9) - (b.pos ?? 1e9)).concat(harnessBom(ctx.partData(id)).map((w) => ({ // 🔌 a line per wire / cable, after the parts
+      pos: null, part: `🔌${id}|${w.key}`, name: w.name, kind: 'harness', material: '', maker: '', pn: '', description: w.harness_name, order: {}, library: false,
+      buy: true, how: 'bought', mass_g: null, length_mm: w.length_mm, colour: w.colour, qty: w.qty, total: w.qty * times, in: id, children: null })));
   };
   const tree = level(aid, 1, new Set());
   const rows = new Map();
   const add = (nodes) => {
     for (const n of nodes) {
       if (n.children) { add(n.children); continue; }
-      const r = rows.get(n.part) || { ...fact(n.part), pos: n.pos, qty: 0, in: [] };
+      const r = rows.get(n.part) || { ...(n.kind === 'harness' ? { ...n, children: undefined } : fact(n.part)), pos: n.pos, qty: 0, in: [] };
       r.qty += n.total;
       r.in.push({ assembly: ctx.partName(n.in) || n.in, qty: n.qty, times: n.total / n.qty });
       rows.set(n.part, r);
@@ -91,7 +94,7 @@ export function bomOf(ctx, aid, { mode = 'summary', numbering = null } = {}) {
   return {
     assembly: { id: aid, name: ctx.partName(aid) || aid }, mode, tree, rows: list, lines: mode === 'structured' ? flat : list,
     pieces: list.reduce((s, r) => s + r.qty, 0), kinds: list.length,
-    mass_g: +list.reduce((s, r) => s + (r.mass_total_g || 0), 0).toFixed(2), mass_unknown: list.filter((r) => r.mass_g === null).length,
+    mass_g: +list.reduce((s, r) => s + (r.mass_total_g || 0), 0).toFixed(2), mass_unknown: list.filter((r) => r.mass_g === null && r.kind !== 'harness').length,
   };
 }
 
