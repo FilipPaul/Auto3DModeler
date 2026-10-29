@@ -1492,6 +1492,78 @@ class TestThreads(unittest.TestCase):
         self.assertEqual(r["body"]["volume"], real(cut))
         self.assertLess(r["body"]["volume"], 40 * 20 * 12 - 2 * math.pi * 2.1 ** 2 * 12)  # (the grooves cut into the tap drill)
 
+    def test_real_thread_cut_kept(self):
+        """The cut is kept per (the solid before it, its holes): a step that leaves the solid as it was (a sketch added
+        after the hole) is not cut again — the same body, volume and STEP; a thread edited (M6 -> M5) is cut anew, its
+        volume the grooves' analytic one; going back finds the first cut (no cut)."""
+        from auto3d.modeler import kernel as K
+        feats = box(40, 20, 12) + [self.hole(points=[[-9, 0], [9, 0]])]
+        sk = {"id": "S9", "type": "sketch", "plane": {"datum": "XY"}, "points": {"a": [0, 0], "b": [5, 0]}, "entities": [{"id": "l", "t": "line", "a": "a", "b": "b"}]}
+        cuts, real = [], K.cut_threads
+        K.cut_threads = lambda *a: cuts.append(1) or real(*a)
+        try:
+            r1 = doc.rebuild({"features": feats, "threads": "real"})
+            r2 = doc.rebuild({"features": feats + [sk], "threads": "real"})
+            self.assertEqual(len(cuts), 1)  # (a hit: the sketch changed nothing)
+            self.assertEqual(r2["body"]["volume"], r1["body"]["volume"])
+            self.assertEqual(r2["threads"]["real"], r1["threads"]["real"])
+            self.assertIs(doc.body_of({"features": feats + [sk], "threads": "real"}).body, doc.body_of({"features": feats, "threads": "real"}).body)
+            m5 = [*feats[:-1], self.hole(points=[[-9, 0], [9, 0]], thread="M5")]
+            r3 = doc.rebuild({"features": m5, "threads": "real"})
+            self.assertEqual(len(cuts), 2)  # (a miss: the thread changed)
+            plain5 = 40 * 20 * 12 - 2 * math.pi * 2.1 ** 2 * 12
+            self.assertAlmostEqual(r3["body"]["volume"], plain5 - 2 * self.groove(5, 4.2, 0.8, 12), delta=0.01)
+            r4 = doc.rebuild({"features": feats + [sk], "threads": "real"})
+            self.assertEqual(len(cuts), 2)
+            self.assertEqual(r4["body"]["volume"], r1["body"]["volume"])
+        finally:
+            K.cut_threads = real
+        self.assertTrue(watertight(r2["body"]))
+        self.assertAlmostEqual(K.volume(K.from_step(doc.export({"features": feats + [sk], "threads": "real"}, "step"))), r1["body"]["volume"], delta=1e-3)
+
+    def test_real_threads_later(self):
+        """part._later (the browser's edits): real threads not cut yet are left for later — the part as it is, real
+        {holes, pending}; the cut (a rebuild without it) then gives them, and once cut _later shows them at once.
+        Exports never wait: they cut."""
+        from auto3d.modeler import kernel as K
+        feats = box(40, 20, 12) + [self.hole(points=[[-7, 0], [7, 0]])]
+        plain = 40 * 20 * 12 - 2 * math.pi * 2.5 ** 2 * 12
+        quick = doc.rebuild({"features": feats, "threads": "real", "_later": True})
+        self.assertEqual(quick["threads"]["mode"], "real")
+        self.assertEqual(quick["threads"]["real"], {"holes": 2, "pending": True})
+        self.assertEqual(len(quick["threads"]["holes"]), 2)
+        self.assertAlmostEqual(quick["body"]["volume"], plain, delta=1e-3)
+        self.assertFalse(any(":thread:" in n for f in quick["body"]["faces"] for n in f.get("names", [])))
+        cut = doc.rebuild({"features": feats, "threads": "real"})
+        self.assertEqual(cut["threads"]["real"]["cut"], 2)
+        self.assertAlmostEqual(cut["body"]["volume"], plain - 2 * self.groove(6, 5, 1, 12), delta=0.01)
+        again = doc.rebuild({"features": feats, "threads": "real", "_later": True})
+        self.assertNotIn("pending", again["threads"]["real"])
+        self.assertEqual(again["body"]["volume"], cut["body"]["volume"])
+        self.assertTrue(watertight(again["body"]))
+        self.assertAlmostEqual(K.volume(K.from_step(doc.export({"features": feats, "threads": "real", "_later": True}, "step"))), cut["body"]["volume"], delta=1e-3)
+        # cosmetic / hidden are not touched by it
+        self.assertNotIn("real", doc.rebuild({"features": feats, "threads": "cosmetic", "_later": True})["threads"])
+
+    def test_threaded_mesh_as_before(self):
+        """The threaded part's mesh with its shortcuts (flat faces checked against the part before the cut, the grooves'
+        edges in no ⛓ chain) is the mesh without them: the same triangles, faces (normals, frames), edges; the chains
+        the same but for edges along a groove."""
+        from auto3d.modeler import kernel as K
+        b = doc.body_of({"features": box(40, 20, 12) + [self.hole(thread="M5")], "threads": "real"}).body
+        self.assertTrue(b.grooves and b.plain is not None)
+        new, old = K.tessellate(b), K.tessellate(K.Body(b.shape, b.names))
+        for k in ("positions", "face_ids", "faces", "bbox", "volume"):
+            self.assertEqual(new[k], old[k], k)
+        groove = {i for i, f in enumerate(new["faces"]) if any(":thread:" in n for n in f.get("names", []))}
+        self.assertTrue(groove)
+        for a, c in zip(new["edges"], old["edges"]):
+            self.assertEqual({k: v for k, v in a.items() if k != "chain"}, {k: v for k, v in c.items() if k != "chain"})
+            if set(a["faces"]) & groove:
+                self.assertNotIn("chain", a)
+        ch = lambda m: sorted(sorted(i for i, e in enumerate(m["edges"]) if e.get("chain") == k) for k in {e["chain"] for e in m["edges"] if "chain" in e and not set(e["faces"]) & groove})  # noqa: E731
+        self.assertEqual(ch(new), ch(old))
+
 
 class TestFits(unittest.TestCase):
     """ISO 286 deviations by size range, and the labels on the drawing."""

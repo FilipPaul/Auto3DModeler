@@ -1207,6 +1207,8 @@ export class Modeler {
     if (!n) return '';
     const b = (k, label, title) => `<button data-thr="${k}" class="${mode === k ? 'on' : ''}" title="${esc(t(title))}">${esc(t(label))}</button>`;
     const note = mode === 'real' && real ? (real.issue ? `<p class="mp-bad">⚠ ${esc(real.issue)}</p>`
+      : real.stopped ? `<p class="mp-bad">⚠ ${esc(t('The threads were not cut (stopped) — the next change cuts them.'))}</p>`
+      : real.pending ? `<p class="hint mp-thr-pending">⏳ ${esc(t2('{n} real threads being cut — shown as lines until then', { n: real.holes }))}</p>`
       : `<p class="hint mp-thr-real">${esc(t2('{n} real threads, cut in {s} s', { n: real.cut, s: fmt(real.seconds) }))}${real.warning ? ` — ${esc(t('the part may rebuild slowly'))}` : ''}</p>`) : '';
     return `<div class="field mp-threads"><label title="${esc(t('How the threads of its threaded holes show'))}">🔩 ${esc(t('Threads'))}</label><div class="seg">${b('hidden', 'Hidden', 'Plain holes at the tap drill (the threads are on the drawing)')}${b('cosmetic', 'Cosmetic', 'Thin helix lines on the holes — view only, quick')}${b('real', 'Real', 'The threads cut into the solid (ISO metric, 60°) — in STEP / STL / 3MF exports and the print split; slower')}</div></div>${note}`;
   }
@@ -1234,6 +1236,7 @@ export class Modeler {
     this.showThreads();
     this.renderProps();
     await this.rebuild();
+    await this.threading; // (🔩 real: the cut, when it was left for later)
     const real = this.result?.threads?.real;
     if (mode === 'real' && real) {
       if (real.issue) this.hooks.toast(real.issue, 'error', 8000);
@@ -1242,8 +1245,48 @@ export class Modeler {
     return this.result;
   }
 
-  /** Cosmetic threads drawn on the part (not while sketching; real ones while a tool is open). */
-  showThreads() { this.view.setThreads(this.mode === 'part' && (this.result?.threads?.mode ?? this.part.threads) === 'cosmetic' && this.part.threads ? this.threadHoles() : null); }
+  /** Cosmetic threads drawn on the part (not while sketching; real ones while a tool is open, or not cut yet). */
+  showThreads() {
+    const mode = this.result?.threads?.mode ?? this.part.threads, lines = mode === 'cosmetic' || (mode === 'real' && this.result?.threads?.real?.pending);
+    this.view.setThreads(this.mode === 'part' && lines && this.part.threads ? this.threadHoles() : null);
+  }
+
+  /** 🔩 The real threads of the part on screen (a rebuild left them for later: threads.real.pending), cut by the
+   *  kernel in a process of its own (the ⚙ jobs list: Cutting real threads) while the part shows with thread lines and
+   *  can be edited on — swapped in when they come, unless the part has changed since (then its own cut follows). One at
+   *  a time; this.threading: until the last one is in. */
+  cutThreads(features) {
+    this.cutQueued = features;
+    if (!this.threading) this.threading = this.cutPump().finally(() => { this.threading = null; });
+    return this.threading;
+  }
+
+  async cutPump() {
+    while (this.cutQueued) {
+      const features = this.cutQueued, key = JSON.stringify([features, 'real']);
+      this.cutQueued = null;
+      const rid = newRid('t');
+      try {
+        const { res, r } = await fetchRebuild({ features, threads: 'real' }, rid, undefined, { cut: true });
+        if (key !== this.resultKey || this.cutQueued) continue; // (the part changed meanwhile)
+        if (r.cancelled || wasCancelled(rid)) { // (✕ Stop in the jobs list: lines until the next change)
+          if (this.result?.threads?.real) this.result.threads.real.stopped = true;
+        } else if (!res.ok) throw new Error(r.error || res.statusText);
+        else {
+          this.result = r;
+          this.view.setBody(r.body);
+          this.view.setLook({ ...this.part, color: lookColor(this.part) });
+          this.view.setRefs(r.refs || []);
+          this.showThreads();
+          if (this.printChk) this.runPrintCheck();
+          this.renderStatus();
+        }
+        if (!this.cmd && this.mode === 'part') this.renderProps();
+      } catch (e) {
+        this.hooks.toast(e.message, 'error', 7000);
+      }
+    }
+  }
 
   nextHint() {
     const used = new Set(this.part.features.flatMap(sketchesOf));
@@ -1309,11 +1352,15 @@ export class Modeler {
       const timer = setTimeout(() => { if (this.cancelling !== rid) this.busyBox('Building the 3D model…'); }, 350);
       let cancelled = false;
       try {
-        const { res, r } = await fetchRebuild({ features, threads: this.threadsShown() }, rid);
+        const threads = this.threadsShown(), key = JSON.stringify([features, threads]);
+        // (🔩 real threads not cut yet: the part first, with thread lines — the cut follows by itself, cutThreads)
+        const { res, r } = await fetchRebuild({ features, threads }, rid, undefined, { later: true });
         if (res.status === 501) { this.showInstall(r.error); continue; }
         if (r.cancelled || wasCancelled(rid)) { cancelled = true; continue; } // (not sent again: the last result stays)
         if (!res.ok) throw new Error(r.error || res.statusText);
         this.result = r;
+        this.resultKey = key;
+        if (r.threads?.real?.pending) this.cutThreads(features);
         this.applyUpdates(r);
         this.frames = { ...this.frames, ...r.frames }; // also while rolled back before an open sketch
         const first = !this.view.body && r.body;

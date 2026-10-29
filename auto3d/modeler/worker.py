@@ -31,7 +31,7 @@ _seq = itertools.count(1)  # every job's sequence number (its reply carries it b
 
 
 # what each job is, in plain words (the jobs list in the top bar)
-KINDS = {"rebuild": "Building a part", "rebuild_bin": "Building a part", "export": "Exporting", "assembly_step": "Exporting an assembly",
+KINDS = {"rebuild": "Building a part", "rebuild_bin": "Building a part", "threads_bin": "Cutting real threads", "export": "Exporting", "assembly_step": "Exporting an assembly",
          "assembly_clashes": "Checking collisions", "assembly_sweep": "Checking a motion", "sheet": "Making a drawing",
          "assembly_sheet": "Making a drawing", "limits": "Working out limits", "import_solid": "Importing a file",
          "import_assembly": "Reading an assembly", "print_pieces": "Splitting for print"}
@@ -61,6 +61,7 @@ def _main(conn):
     from . import doc, packed, printsplit
     from .kernel import KernelError
     ops = {"rebuild": doc.rebuild, "rebuild_bin": lambda a: packed.pack(doc.rebuild(a, True)),  # (the browser's: packed.py)
+           "threads_bin": lambda a: packed.pack(doc.rebuild(a, True)),  # (🔩 a part's real threads, cut while it is edited)
            "export": lambda a: doc.export(a["part"], a["fmt"], a.get("name") or "part"),
            "assembly_step": lambda a: doc.assembly_step(a.get("instances"), a.get("tree"), a.get("name") or "assembly", a.get("fmt") or "step"),
            "assembly_clashes": lambda a: doc.assembly_clashes(a["instances"], bool(a.get("quick"))),
@@ -309,6 +310,8 @@ def part_key(op, arg):
     arg = arg or {}
     if op in ("rebuild", "rebuild_bin"):
         return _of_part(arg)
+    if op == "threads_bin":  # (its own process when there are more: the part's edits are not held up by the cut)
+        return "threads:" + _of_part(arg)
     if op in ("export", "sheet"):
         return _of_part(arg.get("part"))
     if op == "limits":

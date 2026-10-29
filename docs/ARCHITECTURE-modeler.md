@@ -7,6 +7,34 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Quick edits of a part with 🔩 real threads done:** an edit waited for the threads' cut and the mesh of the grooves
+  (the 29-step tools/e2e_perf.py model, 9 threads: ~17–27 s an edit). Measured where the time went (its full rebuild,
+  32.6 s on a loaded machine): the cut 9.7 s, the mesh 15.6 s — of it kernel.tangent_chains 7.5 s (the fillet builder
+  given every edge, ~4 ms each: 7 s on the part without threads too) and _outward 4.9 s (the classifier past the
+  helical faces). Now: tangent_chains gives the builder only edges that meet another within 20° at a vertex
+  (_smooth_ends; the same chains on the perf model and 13 NIST / OCCT / FreeCAD files: 8 s -> 0.1 s, Schenkel.stp
+  7.5 -> 0.5 s) and skips the grooves' edges (no step can round them); cut_threads' Body carries `plain` (the part
+  before the cut: flat faces' outward side classified against it — the same flat faces) and `grooves`. The mesh is
+  the same (positions, faces, edges; chains but on the grooves: test_threaded_mesh_as_before). doc._cuts keeps the
+  last 4 cuts per (the solid before them — IsSame —, their holes): a step that leaves the solid as it was (a sketch, a
+  point, a step turned off) is not cut again. The browser's rebuild asks `later` (with more than one kernel process):
+  real threads not cut yet come back as threads.real {holes, pending} on the plain part, drawn as cosmetic lines, the
+  Part panel "⏳ 9 real threads being cut — shown as lines until then"; modeler.cutThreads then asks for the cut
+  (POST /api/model/rebuild {cut}: worker op threads_bin, part key "threads:<part>" — a process of its own, so the
+  part's next edits are not held up; ⚙ lists "Cutting real threads" with ✕ Stop -> "The threads were not cut
+  (stopped)"), one at a time, swapped in when it comes unless the part changed since (resultKey). The AI's settle,
+  setThreads and the tests wait for it (this.threading); exports, volumes, the print split and assemblies cut as
+  before (identical STEP volume / STL). Measured (same loaded machine, before -> after): the perf model's edit of a
+  later step 32.6 s -> shown 2.1 s (in the browser 2.3 s, hover while cutting 40 moves 206 ms main thread, the real
+  threads in after 16.6 s), a thread edit 32.3 s -> shown 2.7 s, its full rebuild with the cut 32.6 -> 15.2 s, the
+  AI's dimension edit (waits for the cut) 27.7 -> 21.5 s; an M8 through + M6 × 20 blind part: 1.47 s -> shown 0.02 s
+  (the cut 0.7 s after). test_real_thread_cut_kept, test_real_threads_later, test_threaded_mesh_as_before,
+  test_chains_as_the_fillet_builder_finds_them; tools/e2e_model_threads.py (a fillet / the thread M6 -> M5 / reopened:
+  shown with lines first, the analytic volumes after), e2e_cancel.py 2 (the cut stopped from ⚙), e2e_perf.py (the
+  part saved to perf_model.json, edits timed: shown / threads in / hover meanwhile). Left out: a coarser mesh of the
+  helical faces (the browser holds 236 000 triangles), the cut itself (9.5 s for 9 threads: one OCCT boolean, not
+  incremental); a threaded part meshes not watertight at some sizes (e.g. a 44 × 20 × 12 block, M6 at x 14 / 30 —
+  BRepMesh on the grooves, before this change too).
 - **Hole positions drawn on the sheet done:** sheet.auto_dims places each hole step's holes of one size (a counterbore's
   circles left to its holes) in the view showing them round, from box#x0 / box#y0 (ISO 129): a row / grid its first
   one + its pitch (as before), a bolt circle (sheet._ring: least-squares circle through the centres, equal angles — all

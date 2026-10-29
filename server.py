@@ -587,13 +587,20 @@ def _model_call(op, arg, timeout=120):
 
 @app.post("/api/model/rebuild")
 def api_model_rebuild():
-    """{part, rid, bin} -> the body (mesh with one face id per triangle, faces, edges), each feature's status.
+    """{part, rid, bin, later, cut} -> the body (mesh with one face id per triangle, faces, edges), each feature's status.
     bin: one binary message (auto3d/modeler/packed.py: the arrays as they are, a big body encoded once), else JSON
-    with the arrays in base64."""
+    with the arrays in base64. later: 🔩 real threads not cut yet are left for later (threads.real.pending) — when the
+    kernel has more than one process, so the cut can run beside the part's next edits; cut (with bin): that cut, in
+    a process of its own (the jobs list: Cutting real threads)."""
     body = request.get_json(force=True)
+    part, op = body.get("part") or {}, "rebuild_bin" if body.get("bin") else "rebuild"
+    if body.get("later") and MODEL_WORKER.n > 1:
+        part = {**part, "_later": True}
+    if body.get("cut") and body.get("bin"):
+        op = "threads_bin"
     try:
-        with progress.operation(body.get("rid"), "Building a part"):
-            res, err = _model_call("rebuild_bin" if body.get("bin") else "rebuild", body.get("part") or {})
+        with progress.operation(body.get("rid"), "Cutting real threads" if op == "threads_bin" else "Building a part"):
+            res, err = _model_call(op, part)
     except progress.Cancelled:
         return jsonify({"cancelled": True})
     if err:

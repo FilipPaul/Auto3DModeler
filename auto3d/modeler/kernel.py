@@ -1072,7 +1072,9 @@ def cut_threads(body, tools):
         fm = _face_map(s)
         for n, fs in _carry(mk, {name: [fm.FindKey(i) for i in range(1, fm.Extent() + 1)]}, res).items():
             names.setdefault(n, []).extend(fs)
-    return Body(res, names)
+    out = Body(res, names)
+    out.plain, out.grooves = body.shape, sorted({name for _, name in tools})  # (for its mesh: tessellate)
+    return out
 
 
 # ------------------------------------------------------------------ printing: exact pieces (printsplit.py)
@@ -1326,16 +1328,20 @@ def _run(mk, e):
     return [mk.Edge(ic, j) for j in range(1, mk.NbEdges(ic) + 1)] if ic else [e]
 
 
-def tangent_chains(shape, em=None, adj=None):
+def tangent_chains(shape, em=None, adj=None, skip=frozenset()):
     """⛓ The tangent chains of a shape: edge index (1-based in the edge map) -> chain number, for every edge that
     goes on smoothly into another (a rounded box's top outline, a hole's two half circles) — as OpenCASCADE's fillet
-    finds them (it always rounds a chain whole). Edges alone in their chain are left out."""
+    finds them (it always rounds a chain whole). Edges alone in their chain are left out. Only an edge that meets
+    another one nearly in line (_smooth_ends) is given to the fillet builder (each takes it ~4 ms: 7 s of the 1 800 edges
+    of a 29-step part, most of them sharp corners). skip: face indices (0-based) whose edges are not looked at (🔩 real
+    threads' grooves: no step can round them — they are cut after all the steps)."""
     if em is None or adj is None:
         _, em, adj = _adjacency(shape)
     mk, out = BRepFilletAPI_MakeFillet(shape), {}
-    for ei in range(1, em.Extent() + 1):
+    smooth = _smooth_ends(em, [ei for ei in range(1, em.Extent() + 1) if len(adj.get(ei, ())) == 2 and not adj[ei] & skip])
+    for ei in smooth:
         e = TopoDS.Edge(em.FindKey(ei))
-        if len(adj.get(ei, ())) != 2 or mk.Contour(e):
+        if mk.Contour(e):
             continue
         try:
             mk.Add(1.0, e)  # (only the contour is built here, no rounding)
@@ -1346,6 +1352,31 @@ def tangent_chains(shape, em=None, adj=None):
             for j in range(1, mk.NbEdges(ic) + 1):
                 out[em.FindIndex(mk.Edge(ic, j))] = ic - 1
     return out
+
+
+SMOOTH_COS = math.cos(math.radians(20))  # two edges meeting more in line than this may be one tangent chain
+
+
+def _smooth_ends(em, edges):
+    """Of the edges (indices in em), those that at one of their ends meet another of them nearly in line (their
+    tangents within 20°: a superset of what a tangent chain joins) — in their order."""
+    at, vm = {}, ShapeMap()  # vertex index -> [(edge, unit tangent there)]
+    for ei in edges:
+        e = TopoDS.Edge(em.FindKey(ei))
+        c = BRepAdaptor_Curve(e)
+        for t, v in ((c.FirstParameter(), TopExp.FirstVertex_s(e)), (c.LastParameter(), TopExp.LastVertex_s(e))):  # (not
+            # cumulating the edge's orientation: its first vertex is at the curve's first parameter)
+            p, d = gp_Pnt(), gp_Vec()
+            c.D1(t, p, d)
+            n = d.Magnitude()
+            at.setdefault(vm.Add(v) if not v.IsNull() else -ei, []).append((ei, (d.X() / n, d.Y() / n, d.Z() / n) if n > 1e-12 else None))
+    keep = set()
+    for ends in at.values():
+        for i, (a, ta) in enumerate(ends):
+            for b, tb in ends[i + 1:]:
+                if a != b and (ta is None or tb is None or abs(ta[0] * tb[0] + ta[1] * tb[1] + ta[2] * tb[2]) > SMOOTH_COS):
+                    keep.update((a, b))
+    return [ei for ei in edges if ei in keep]
 
 
 def chain_size(body, edges):
@@ -1568,7 +1599,9 @@ def _round(a, k=6):
 def tessellate(body, light=False):
     """Triangles for the viewer with one face id per triangle, every face (name, plane frame for sketching),
     and every edge (polyline, the two faces it joins, its middle). light: 🪶 simplified — a coarse mesh, the faces'
-    sizes from it, no edges (a big imported part in an assembly: quick to send and to show)."""
+    sizes from it, no edges (a big imported part in an assembly: quick to send and to show). A body with 🔩 real
+    threads (cut_threads) has its flat faces' outward side checked against the part before the cut (the same flat
+    faces; classifying past the helical faces took 5 s of 9 threads) and its grooves' edges in no ⛓ chain."""
     shape = body.shape
     bb = bbox(shape) or [0, 0, 0, 1, 1, 1]
     size = max(bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2], 1e-6)
@@ -1611,6 +1644,7 @@ def tessellate(body, light=False):
             m = np.bincount(ids, mid[:, c], minlength=nf)
             cms[:, c] = np.where(area > 0, w / np.where(area > 0, area, 1), m / np.maximum(n_tri, 1))
     faces, cls = [], {}  # (cls: the solid's classifier, set up once for all its flat faces)
+    plain = getattr(body, "plain", None) or shape
     for fi, (f, rev, t) in enumerate(mesh):
         on_face = t[0].mean(axis=0) if len(t) else None  # a point on the face (a triangle's middle — a ring's centre is not on it)
         if heavy:
@@ -1618,7 +1652,7 @@ def tessellate(body, light=False):
         else:
             info = _face_info(f, fi, rev)
         if info.get("type") == "plane" and on_face is not None and not heavy:
-            _outward(shape, info, on_face, size, cls)
+            _outward(plain, info, on_face, size, cls)
         if fi in solid_of:
             info["solid"] = solid_of[fi]
         nm = names.get(fi, [])
@@ -1637,7 +1671,8 @@ def tessellate(body, light=False):
             f["area"] = round(f.get("area", 0), 3)
             f["centroid"] = r3(f["centroid"])
     edges = []
-    chains = {} if heavy else tangent_chains(shape, em, adj)  # (⛓ a click on a fillet's edge takes its chain)
+    grooves = {fm.FindIndex(f) - 1 for n in getattr(body, "grooves", ()) for f in body.faces_of(n)}
+    chains = {} if heavy else tangent_chains(shape, em, adj, grooves)  # (⛓ a click on a fillet's edge takes its chain)
     for ei in range(1, 0 if light else em.Extent() + 1):  # (🪶: no edges)
         e = TopoDS.Edge(em.FindKey(ei))
         try:
