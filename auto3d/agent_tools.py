@@ -520,7 +520,8 @@ TOOLS = [
     {"name": "gui_action", "where": "browser",
      "description": "Do what the user's mouse and keys do. On a control from gui_state (its n, or its label / part of it): a "
                     "click on a button / checkbox / a sheet's dim, view or cell, or a slider / box / choice set to `value` (as dragged "
-                    "or typed, then let go). At a point: at = [x, y], 0 … 1 across and down the view (the 3D view, the drawing, the "
+                    "or typed, then let go; a value for a button is refused, nothing clicked — a checkbox takes true / false). When the "
+                    "controls on screen change (a part chosen: its panel), the answer has `controls` with their new numbers. At a point: at = [x, y], 0 … 1 across and down the view (the 3D view, the drawing, the "
                     "sheet; get_screenshot shows it), or at_mm = [x, y] on a drawing sheet's paper (mm from its top left) — a click "
                     "there (picks a face, a part, a dimension…), double = true a double-click, drag_to = [x, y] (same kind of point) a "
                     "drag. key = a key pressed after it, or alone on what has the focus: Delete, Enter, Escape, ctrl+z … -> what was "

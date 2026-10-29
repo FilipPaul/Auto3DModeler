@@ -7,6 +7,13 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **gui_action safe with changed panels; ⧉ its own part undone takes the copy done** (AI report 2026-10-29-015635):
+  the AI gave a value to control n 63 — a slider in its last gui_state, a button after a part was chosen — and the
+  button was clicked (a copy made). Now a value for a button (or anything but a slider / box / choice; a checkbox takes
+  true / false) is refused, nothing done; every gui_action answer whose controls changed has `controls` with their new
+  numbers. Undo of ⧉ Make it its own part: Assembly.tidyCopies after each undo / redo takes the copy out of the project
+  (project.take) while no assembly uses it and it is unchanged; a redo puts it back (putBack). tools/e2e_ai_gui.py.
+
 - **Assembly sheet: balloons on a bare face, checked; only overall sizes asked done** (AI reports 2026-10-28-042725,
   2026-10-29-015608): a balloon's leader ended at the middle of its part's box — a base plate's under the rod lying on
   it, next to the rod's own. sheet._shown_spots: a depth buffer of the iso view (points strewn over each part's coarse

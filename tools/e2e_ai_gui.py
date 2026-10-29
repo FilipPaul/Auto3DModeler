@@ -1,6 +1,8 @@
 """The AI testing the GUI as the user, in headless Edge: an assembly (Base + Lid) -> gui_action at a point of the 3D
 view where the lid is: the lid picked -> at an empty corner: nothing picked -> Delete on the lid: taken out -> ctrl+z:
-back -> a drawing sheet of the Base: gui_state lists its dimensions, views, title cells -> gui_action on a dimension:
+back -> the Lid chosen in the parts list: the answer has the panel's new controls -> a value given to its "⧉ Make it
+its own part" button: refused, nothing made -> clicked: a copy -> ctrl+z: the copy out of the project too -> redo: back
+-> a drawing sheet of the Base: gui_state lists its dimensions, views, title cells -> gui_action on a dimension:
 selected -> Delete: gone -> ctrl+z: back -> at_mm on the view, drag_to 20 mm right: the view moved -> a double-click on
 the title's cell: its field has the focus -> no control / point / key: refused.
 
@@ -73,6 +75,33 @@ try:
     print("Delete:", r["done"], "| parts", js(f"return {A}.doc.instances.length"))
     r = act(key="ctrl+z")
     print("ctrl+z:", r["done"], "| parts", js(f"return {A}.doc.instances.length"))
+
+    # a part chosen in the list: the panel changes -> the answer has the controls' new numbers
+    act(at=[0.02, 0.98])
+    row = next(c for c in json.loads(call("gui_state", where="panel"))["controls"] if c["kind"] == "part" and "I2" in c["label"])
+    r = act(control=row["n"])
+    own = next((c for c in r.get("controls", []) if "Make it its own part" in c["label"]), None)
+    print("the Lid chosen in the list:", r["selected"], "| fresh controls:", len(r.get("controls", [])), "| its own part button: n", own and own["n"])
+    assert r["selected"] == "I2" and own
+    count = lambda: len(json.loads(call("list_parts")))  # noqa: E731
+    n0 = count()
+    r = act(control=own["n"], value=90)
+    print("a value given to that button:", r[:110], "| parts", n0, "->", count())
+    assert r.startswith("ERROR") and "button" in r and count() == n0
+    r = act(control=own["n"])
+    time.sleep(0.5)
+    print("clicked:", r["done"], "| parts", n0, "->", count(), "| I2's part:", js(f"return {A}.inst('I2').part"))
+    assert count() == n0 + 1
+    r = act(key="ctrl+z")
+    time.sleep(0.5)
+    print("ctrl+z: the copy gone too — parts", count(), "| I2's part:", js(f"return {A}.inst('I2').part"), "| toasts", r["toasts"][-1:])
+    assert count() == n0
+    js(f"return {A}.history.go(1)")
+    time.sleep(0.8)
+    print("redo: the copy back — parts", count(), "| I2's part:", js(f"return {A}.inst('I2').part"), "| it is in the project:", js(f"return window.__app.project.parts.some(p => p.id === {A}.inst('I2').part)"))
+    assert count() == n0 + 1
+    js(f"return {A}.history.go(-1)")
+    time.sleep(0.8)
 
     print("sheet_open:", json.loads(call("sheet_open", part="Base"))["preset"])
     wait(f"return !!{S}.svgEl")

@@ -773,8 +773,8 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
 - **📏 Measure** (assembly): click a spot, then another — the distance and Δx / Δy / Δz (corners snap); two parallel
   flat faces also give the gap between them, two round faces how far apart their axes are.
 - **⧉ Duplicate as a new part** (a 3D model's *Part* panel) copies it into a new, independent part (its own tab);
-  in an assembly **⧉ Make it its own part** gives a placed part a copy of its own, to change it alone. The AI:
-  `duplicate_part`.
+  in an assembly **⧉ Make it its own part** gives a placed part a copy of its own, to change it alone (↶ undo
+  takes the copy out of the project again while nothing else uses it and it was not changed). The AI: `duplicate_part`.
 - **A STEP file's colours** (of its components, bodies and faces) come with it — in the modeler and in assemblies;
   your own 🎨 paint goes over them, and *Keep the file's colours* (in its solid step) turns them off.
 - **Deleting a step others stand on** (e.g. an imported model you sketched on): *Keep them where they are* leaves a
@@ -945,7 +945,8 @@ can open them.
   out or not) so the AI can tell you exactly where something is; `gui_action` clicks or slides one the way the mouse
   does — so it can check the app behaves like its tools. It also clicks, double-clicks or drags **at a point** of the
   view (picking a part or a face in 3D, a dimension, view or title cell on a drawing sheet — `at_mm` on the paper) and
-  presses **keys** (Delete, Enter, Escape, ctrl+z); a sheet's dimensions, views and title cells are listed too. A **locked 🔒 joint** is greyed out in the panel (only 🔒
+  presses **keys** (Delete, Enter, Escape, ctrl+z). A value given to a button is refused (nothing clicked), and when
+  the controls on screen change (a part chosen: its panel) the answer lists them with their new numbers; a sheet's dimensions, views and title cells are listed too. A **locked 🔒 joint** is greyed out in the panel (only 🔒
   unlocks it) and the AI cannot change it either.
 - **Library first**: Claude designs like a mechanical engineer. Every bought part (screws, nuts, inserts, bearings,
   standoffs, panel parts, SMC pneumatics, SICK sensors, motors) comes from the 📚 parts library (`library_search`,

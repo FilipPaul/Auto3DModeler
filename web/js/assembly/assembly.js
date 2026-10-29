@@ -305,6 +305,7 @@ export class Assembly {
       restore: async (s) => {
         this.doc.instances = s.instances; this.doc.mates = s.mates || []; this.doc.bolts = s.bolts || []; this.mode = 'idle'; this.bolt = null;
         this.syncDrills(); // the holes drilled for bolts: back as they were
+        this.tidyCopies(); // (⧉ its own part undone: its copy goes too)
         this.render();
         await this.refresh();
       },
@@ -1956,11 +1957,27 @@ export class Assembly {
     if (!it || !this.hooks.duplicatePart) return null;
     const id = await this.hooks.duplicatePart(it.part);
     if (!id) return null;
+    this.copies = { ...(this.copies || {}), [id]: { asm: this.hooks.selfId?.(), data: JSON.stringify(this.hooks.partData(id)) } }; // (an undo takes it away again)
     it.part = id;
     await this.refresh();
     this.commit();
     this.hooks.toast(t2('{inst} now has a part of its own: {name} — change it without changing the others.', { inst: instId, name: this.partName(id) }), 'ok', 5000);
     return id;
+  }
+
+  /** After an undo / redo: a copy ⧉ Make it its own part made goes out of the project when nothing uses it any more and
+   *  it was not changed; a redo brings it back. */
+  tidyCopies() {
+    const self = this.hooks.selfId?.();
+    for (const [id, c] of Object.entries(this.copies || {})) {
+      if (c.asm !== self) continue;
+      const used = this.doc.instances.some((i) => i.part === id);
+      if (used && c.taken) { this.hooks.putPartBack?.(c.taken); c.taken = null; continue; }
+      if (used || c.taken || JSON.stringify(this.hooks.partData(id)) !== c.data) continue;
+      const name = this.partName(id);
+      c.taken = this.hooks.takePart?.(id) || null;
+      if (c.taken) this.hooks.toast(t2('{name} (the copy made for it) is out of the project again.', { name }), 'info', 4000);
+    }
   }
 
   /** ＋ Insert part ▾ From a file (or a file dropped on the view): a STEP / IGES / STL / OBJ becomes a 3D model part of the

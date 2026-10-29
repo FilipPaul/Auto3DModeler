@@ -713,6 +713,7 @@ const CS = {
   'Copy its part as a new part of the project and use the copy here — then it can be changed alone (the other copies stay as they are)': 'Zkopírovat jeho díl jako nový díl projektu a použít kopii zde — pak jde měnit samostatně (ostatní kopie zůstanou)',
   '{name} — a copy of its own (change it without changing the original).': '{name} — samostatná kopie (měňte ji bez změny originálu).',
   '{inst} now has a part of its own: {name} — change it without changing the others.': '{inst} má teď vlastní díl: {name} — měňte ho bez změny ostatních.',
+  '{name} (the copy made for it) is out of the project again.': '{name} (kopie pro něj vytvořená) je zase mimo projekt.',
   'Measure: click a spot (a face, a corner), then another one — the distance; two parallel flat faces: the gap between them; two round faces: how far apart their axes are': 'Měření: klikněte na místo (plochu, roh), pak na další — vzdálenost; dvě rovnoběžné rovné plochy: mezera mezi nimi; dvě válcové plochy: vzdálenost jejich os',
   'Measure — click a spot, then another one (corners snap). Esc ends.': 'Měření — klikněte na místo, pak na další (rohy se chytají). Esc končí.',
   Of: 'Díl', Corner: 'Roh', 'Faces apart': 'Plochy od sebe', 'Axes apart': 'Osy od sebe',
