@@ -529,6 +529,7 @@ Never report "works" without having run it; report failures with their output.
    opened from the menu as a new project, the demo files unchanged; ▶: every moving part moves, every joint holds —
    worstMiss < 0.05 mm —; the crank – rod – slider against r·cosθ + √(L² − r²sin²θ), the four-bar's rocker pin against
    the closed form on one branch with the crank all the way round; the robot arm's forearm and gripper go along; the
+   gearbox's wheel and rack keep 2:1 and π·30 mm a turn while ▶ plays and when the wheel is dragged; the
    crank / arm dragged in the 3D view moves the others). Prints ALL OK / FAILED, exit code 1 on a failure.
    `tools/e2e_assembly_flexsub.py <url> <dir>` covers flexible sub-assemblies (a lever on a pin placed twice in a
    parent: get_assembly `inner` "I2/I2", the panel's "Moves inside Lever" slider turns it in the parent only — kept

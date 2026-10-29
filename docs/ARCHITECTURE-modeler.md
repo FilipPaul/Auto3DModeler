@@ -7,6 +7,14 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **🎬 A 4th demo: gears and a rack done** — demos/prevodovka-s-hrebenem.a3d.json (6 kB, "Převodovka s hřebenem"):
+  a base with two pins, Pastorek Ø30 and Kolo Ø60 in mesh (⚙ G1, i = 2:1), a Hřeben sliding beside the pinion (▤ G2,
+  π·30 mm a turn), a hole off each wheel's middle to see it turn, colours; one ⚙ Mechanism driven by "Otáčení
+  pastorku" over −120 … 120°. tools/make_demos.py builds it through the AI's tools (snap_faces type gear / rack) and
+  now takes the names of the demos to build (`… - prevodovka-s-hrebenem`: the others stay as they are).
+  tests/test_demos.py (its couplings: 2:1 in mesh, π·30, the pinion drives both); e2e_demos opens it: one mechanism of
+  three parts, ▶ with the ratios held, the wheel dragged in the view.
+
 - **Readable motion names by default done** (the walkthrough's "left out": the crank's motion was "Otočit kolem osy:
   stěna Extrude 2" until renamed). Assembly.motionsOf names each free motion by its part and kind: "Turn: Crank" /
   "Slide: Slider" (Czech "Otáčení: Klika" / "Posuv: Smýkadlo"); two motions of one kind add how, in brackets ("Slide:

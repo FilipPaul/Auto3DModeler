@@ -284,8 +284,9 @@ nothing in it that still has the name the app gave it — the one on screen stay
 
 **🎬 Demo projects** (Open ▾ → *Demo projects…*): ready-made projects that show whole mechanisms moving — a crank –
 rod – slider (*Klikový mechanismus*), a four-bar linkage (*Čtyřkloubový mechanismus*: the crank turns round, the
-rocker swings) and a robot arm (*Robotické rameno*: an open chain — turn the arm and the forearm and gripper go
-along). Each is listed with what it shows (in Czech or English) and opens as a new project — a copy, the demo stays
+rocker swings), a robot arm (*Robotické rameno*: an open chain — turn the arm and the forearm and gripper go
+along) and gears with a rack (*Převodovka s hřebenem*: a pinion Ø30 turns a wheel Ø60 at i = 2:1 and moves a rack
+π·30 mm a turn — ⚙ couplings). Each is listed with what it shows (in Czech or English) and opens as a new project — a copy, the demo stays
 as it is — on its assembly with ⚙ Mechanism ready (Czech motion names, ▶). The files are in `demos/` (built through
 the app by `tools/make_demos.py`) and go into the Windows build.
 
