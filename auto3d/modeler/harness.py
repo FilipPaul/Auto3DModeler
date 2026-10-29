@@ -8,7 +8,8 @@ rectangle) swept along the route (kernel.pipe_body). The browser does the same m
 A harness as a step of a part (an assembly's export makes one part per harness, placed where it is):
   {"id": "H1", "type": "harness", "kind": "cable" | "wires" | "ribbon" | "sleeve", "points": [[x, y, z], …] (the
    route's centre line), "d": Ø of a cable / sleeve, "wires": [{"d": 1.5, "color": "brown"}] (loose wires, a ribbon's
-   count), "pitch": 1.27 (a ribbon's wire spacing), "r_min": 15}
+   count), "pitch": 1.27 (a ribbon's wire spacing), "r_min": 15, "length": 400 (🔒 its locked length: the slack sags,
+   see shape)}
 """
 import math
 
@@ -167,6 +168,105 @@ def route(points, r_min):
     return {"segments": segs, "length": length, "bends": bends, "start": U[0], "station": station}
 
 
+def _sag(a, b, before=None, after=None):
+    """Which way a span's slack bows (square to it): out of the corners at its ends — the way the cable comes in
+    (before: the leg before it), away from where it goes on (after: the leg after it) —, so the bow leaves its ends
+    without a sharp turn; with little of that (an end span, a straight run), down (−z) as it hangs; a vertical span
+    with nothing to go by: along x."""
+    u = (b - a) / np.linalg.norm(b - a)
+    sq = lambda g: g - (g @ u) * u  # noqa: E731  (the part of g square to the span)
+    n = np.zeros(3)
+    if before is not None:
+        n += sq(before / np.linalg.norm(before))
+    if after is not None:
+        n -= sq(after / np.linalg.norm(after))
+    n += 0.25 * sq(np.array([0, 0, -1.0]))
+    if np.linalg.norm(n) > 0.05:
+        return n / np.linalg.norm(n)
+    for g in (np.array([0, 0, -1.0]), np.array([1.0, 0, 0]), np.array([0, 1.0, 0])):
+        n = sq(g)
+        if np.linalg.norm(n) > 1e-3:
+            return n / np.linalg.norm(n)
+
+
+def _bowed(P, h, r_min):
+    """The points with each span k bowed h[k] mm (0: straight): two points put in, at the span's middle ± r_min (a
+    short span: ± a quarter of it) and h off it the way it hangs (_sag) — a flat-bottomed bow the corners round at
+    r_min -> (points, where each point of P went)."""
+    out, where = [P[0]], [0]
+    for k in range(len(P) - 1):
+        a, b = P[k], P[k + 1]
+        if h[k] > 1e-9:
+            L, n = float(np.linalg.norm(b - a)), _sag(a, b, P[k] - P[k - 1] if k > 0 else None, P[k + 2] - P[k + 1] if k + 2 < len(P) else None)
+            u, w = (b - a) / L, min(r_min, L / 4) if r_min > 0 else L / 4
+            out += [a + u * (L / 2 - w) + n * h[k], a + u * (L / 2 + w) + n * h[k]]
+        out.append(b)
+        where.append(len(out) - 1)
+    return out, where
+
+
+def shape(points, r_min, spans=None, total=None):
+    """The route with slack: a span (the cable between points k and k + 1) given its own length gets a bow that hangs
+    the way gravity pulls (_bowed), as deep as makes it that long (its length: from corner to corner, each corner's
+    place the middle of its arc — they add up to the whole); the whole cable given a length (total) bows all its spans
+    alike (each as deep as it is long) — the spans' own lengths win when both are given. Too short for its ends: the
+    span (the cable) straight, taut, reported with how much it is short.
+    spans: {k: length} -> route(…) + {"spans": [length of each span], "taut": [{"span": k | None, "short": mm}],
+    "total_ignored": spans and total both given}."""
+    P = [np.asarray(p, float) for p in points]
+    keep = [k for k, p in enumerate(P) if k == 0 or np.linalg.norm(p - P[k - 1]) > 1e-6]
+    P = [P[k] for k in keep]
+    r_min = max(0.0, float(r_min or 0))
+    want = {keep.index(k): float(v) for k, v in (spans or {}).items() if k in keep and keep.index(k) < len(P) - 1 and v and float(v) > 0}
+
+    def run(h):
+        Q, where = _bowed(P, h, r_min)
+        r = route(Q, r_min)
+        st = r.get("station") or [0.0] * len(Q)
+        r["spans"] = [st[where[k + 1]] - st[where[k]] for k in range(len(P) - 1)] if len(Q) > 1 else []
+        r["where"] = where
+        return r
+
+    h, taut = [0.0] * max(0, len(P) - 1), []
+    if len(P) >= 2 and want:
+        base = run(h)["spans"]
+        for k, v in want.items():
+            if base[k] > v + 0.5:
+                taut.append({"span": keep[k], "short": base[k] - v})
+        for _ in range(4):  # (a span's bow turns its ends' corners, the next span's length with them: again)
+            for k, v in want.items():
+                if base[k] > v + 0.5:
+                    continue
+                h[k] = _solve(lambda x: run(h[:k] + [x] + h[k + 1:])["spans"][k], v, float(np.linalg.norm(P[k + 1] - P[k])))
+    elif len(P) >= 2 and total and float(total) > 0:
+        legs = [float(np.linalg.norm(P[k + 1] - P[k])) for k in range(len(P) - 1)]
+        L0 = run(h)["length"]
+        if L0 > float(total) + 0.5:
+            taut.append({"span": None, "short": L0 - float(total)})
+        else:
+            lam = _solve(lambda x: run([x * g for g in legs])["length"], float(total), 1.0)
+            h = [lam * g for g in legs]
+    r = run(h)
+    r["bends"] = [dict(b, at=keep[max(i for i, w in enumerate(r["where"]) if w <= b["at"])]) for b in r["bends"]]
+    r["taut"], r["total_ignored"] = taut, bool(want and total)
+    return r
+
+
+def _solve(f, target, scale):
+    """The x ≥ 0 that makes f(x) = target (f growing from f(0) ≤ target): doubled until past it, then bisected."""
+    lo, hi = 0.0, max(scale, 1e-3) * 0.05
+    for _ in range(60):
+        if f(hi) >= target:
+            break
+        lo, hi = hi, hi * 2
+    for _ in range(50):
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if f(mid) < target else (lo, mid)
+        if hi - lo < 1e-6 * scale:
+            break
+    return (lo + hi) / 2
+
+
 def _start_frame(t):
     """The route's first direction t and two directions across it (x: the most level one)."""
     x = np.cross(t, [0, 0, 1.0])
@@ -185,7 +285,8 @@ def solid(f, fid):
     pts = f.get("points") or []
     if len(pts) < 2:
         raise K.KernelError("A harness needs at least two points.")
-    r = route(pts, f.get("r_min") or 0)
+    spans = {int(s["from"]): float(s["length"]) for s in f.get("spans") or [] if s.get("length")}
+    r = shape(pts, f.get("r_min") or 0, spans, f.get("length"))
     if any(b["r"] <= 1e-9 for b in r["bends"]):
         raise K.KernelError("The harness turns back on itself at a point — move that point.")
     if not r["segments"] or r["length"] < 1e-6:

@@ -34,7 +34,13 @@ Date: 2026-10-25. Written by the architect agent.
   / spread, the same in Python and JS); only what nothing fixes (a short end leg, a U narrower than 2 r_min) gets the
   largest radius that fits (a leg shared by two corners split by what each wants) and a quiet amber note on the spot
   "R 6 mm — na 15 není místo" (no red overlay; none while the corner hangs on the point under the mouse); lines +
-  arcs, its length live. Drawn as TubeGeometry along a by-length curve (wires twisted round the centre, a ribbon flat — ExtrudeGeometry
+  arcs, its length live. 🔒 Locked length (`length_locked` mm; the panel's button by the length, the suggestions,
+  edit_harness length_locked / length): shape(points, r_min, spans, total) bows every span alike — two points put in
+  each span (its middle ± r_min, h off it, _bowed) out of the corners at its ends (_sag: the incoming leg's direction
+  minus the outgoing one's, square to the span, + a little −z), h = λ × the span's length, λ bisected until the
+  shaped length is the locked one —, the fillet routing above rounds them; shorter than the straight route: straight,
+  `taut` {short} — drawn red, a note in the view and the panel, a toast once (as a collision), get_assembly `taut`.
+  The step's `length` gives STEP / GLB the same. Drawn as TubeGeometry along a by-length curve (wires twisted round the centre, a ribbon flat — ExtrudeGeometry
   turned level at its start —, a sleeve corrugated); ⚠ through a part: the centre line's samples tested by ray parity
   against the parts' meshes. BOM (bom.js): a line per wire / cable "Vodič Ø1,5 mm hnědý — 1 350 mm" (+ reserve, up to
   10 mm), kind harness, no position. Export: a part per harness with one step {type: "harness"} (doc.py ->
@@ -43,7 +49,8 @@ Date: 2026-10-25. Written by the architect agent.
   and the assembly's drawing sheet (sheet.js flatten). AI: add_harness / edit_harness, get_assembly `harnesses`
   (length, bends_too_tight, through_parts); the assemble-parts skill. Demo *Řídicí box s motorem*. Tests:
   tests/test_harness.py (straight, L = straight parts + πR/2, an L sampled G1 with curvature radius ≥ R, a Z / two
-  45° turns shaped to R, only a U turn flagged, bundle Ø 1 / 3 / 7, cable volume
+  45° turns shaped to R, only a U turn flagged, 🔒 400 mm kept ± 0.5 with the ends moved closer (curvature ≥ R,
+  sagging), taut with the shortfall moved apart, a locked cable's solid π(d/2)²·L + STEP, bundle Ø 1 / 3 / 7, cable volume
   π(d/2)²·L + watertight + STEP round trip, 4 wire solids, ribbon / sleeve, errors), tools/e2e_harness.py.
   Left out: a sleeve is solid in STEP (not hollow); wires are laid side by side in STEP (twisted only on screen); the
   through-a-part check tests the centre line, not the Ø; a point on a part inside a moved sub-assembly is on the

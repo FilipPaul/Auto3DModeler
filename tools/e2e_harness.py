@@ -5,7 +5,9 @@ kernel's math has it (auto3d/modeler/harness.py from the same points), the tree'
 lengths (+5 %, rounded up to 10 mm) -> the motor moved: its point follows (and on 💥 Explode) -> a point dragged with
 the mouse -> a corner with no room for the radius: a quiet ⚠ note in the view and the panel (no red over the cable) ->
 a Z clicked with two sharp corners 6 mm apart: shaped to the radius, no note, the drawn tube's centre on arcs of R
--> a point deleted (Delete) -> undo -> STEP export holds
+-> a point deleted (Delete) -> undo -> 🔒 its length locked (the panel's button): the motor moved closer, the cable
+keeps its length (the slack sags, as harness.py's shape), moved far away: taut, red, "Kabel je napnutý — krátký o …"
+-> STEP export holds
 the four wires -> the AI's add_harness / edit_harness / get_assembly.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
@@ -103,7 +105,7 @@ try:
     wait("return !!window.__app")
     js("""import('/js/assembly/harness.js').then((m) => {
       window.__hnPoint = (h, p) => m.pointAt(window.__app.assembly, h, p);
-      window.__hnLength = (id) => { const h = window.__app.assembly.harnessTool.get(id); return m.route(h.points.map((p) => m.pointAt(window.__app.assembly, h, p)).filter(Boolean), m.rMinOf(h)).length; };
+      window.__hnLength = (id) => { const h = window.__app.assembly.harnessTool.get(id); return m.routeOf(h, h.points.map((p) => m.pointAt(window.__app.assembly, h, p)).filter(Boolean)).length; };
       window.__hn = m; })""")
     wait("return !!window.__hn")
     call("new_model", name="Krabice")
@@ -258,6 +260,41 @@ try:
     ActionChains(d).send_keys(Keys.ENTER).perform()
     time.sleep(0.4)
     check("Enter: done", not js(f"return {T}.edit"))
+
+    # 7b. 🔒 its length locked with the panel's button; the motor moved closer: the cable keeps its length (the slack
+    # sags), as the kernel's math has it; moved far away: taut — red, a note in the view and the panel
+    js(f"{T}.sel = 'H1'; {A}.render(); {A}.draw()")
+    time.sleep(0.3)
+    L0 = page_length()
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-hx=lock]").click()
+    time.sleep(0.5)
+    locked = js(f"return {T}.get('H1').length_locked")
+    check("🔒 the panel's button locks its length as it is", locked and abs(locked - L0) < 0.06 and "🔒" in d.find_element(By.CSS_SELECTOR, "#asmRight [data-hx=lock]").text, (locked, L0))
+    call("place_part", part="I3", x=105, y=20, z=10)
+    time.sleep(0.6)
+    pts_c = world_points()
+    Lc, py_c = page_length(), HM.shape(world_points(), r_min, total=locked)
+    check("the motor moved closer: the cable keeps its length (± 0.5 mm)", abs(Lc - locked) <= 0.5 and HM.route(pts_c, r_min)["length"] < locked - 20, (Lc, locked))
+    check("…as harness.py's shape (slack sagging), no bend under R", abs(Lc - py_c["length"]) < 1e-3 and all(b["ok"] for b in py_c["bends"]), (Lc, py_c["length"], [round(b["r"], 2) for b in py_c["bends"]]))
+    check("…not taut", not d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-taut"))
+    d.save_screenshot(f"{OUT}/harness_6b_slack.png")
+    call("place_part", part="I3", x=400, y=10, z=10)
+    time.sleep(0.6)
+    short = HM.route(world_points(), r_min)["length"] - locked
+    taut_v = [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-taut")]
+    taut_p = [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-taut")]
+    check("pulled too far: taut, noted in the view", any("Kabel je napnutý" in w for w in taut_v), taut_v)
+    check("…and in the panel with how much it is short", any(f"krátký o {round(short):,}".replace(",", " ") in w or "krátký o" in w for w in taut_p) and short > 0, (taut_p, short))
+    check("…drawn red", js(f"return {T}.group.children.some(o => o.userData.harness === 'H1' && o.material?.color?.getHex() === 0xd0312d)"))
+    check("…get_assembly says taut", json.loads(call("get_assembly"))["harnesses"][0].get("taut", {}).get("short_mm", 0) > 0)
+    d.save_screenshot(f"{OUT}/harness_6c_taut.png")
+    call("place_part", part="I3", x=135, y=10, z=10)
+    time.sleep(0.4)
+    js(f"{T}.sel = 'H1'; {A}.render(); {A}.draw()")
+    time.sleep(0.3)
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-hx=lock]").click()
+    time.sleep(0.4)
+    check("🔓 unlocked again", not js(f"return {T}.get('H1').length_locked"))
 
     # 8. STEP export: the four wires in it (as solids of their own part "Svazek 1")
     tree = js(f"return {A}.stepTree()")

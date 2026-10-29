@@ -1144,7 +1144,12 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   you clicked. Only where nothing fits (a short leg at an end of the cable, a U turn narrower than 2 × R) it bends
   with the largest radius that does, and a small quiet note sits on that spot (*⚠ R 6 mm — na 15 není místo*, the
   panel: *Bod 3: na R 15 mm není místo, ohnuto R 6 mm*) — never bent tighter silently. The length (panel, tree,
-  BOM) is the shaped path's. *⚠ Goes through Motor I3* when its centre line passes through a part. It is drawn as tubes (loose wires
+  BOM) is the shaped path's.
+  **🔒 Lock its length** (the button by *Délka …* in the panel, or *Zamknout délku* in its suggestions) to test moving
+  parts with a real cable: when its ends move (a part dragged, ▶ a mechanism, a slider) the cable keeps that length —
+  the slack sags in a bow out of its corners (down where nothing else decides), still at the bend radius; pulled
+  further than it reaches it goes straight and **red**, with *⚠ Kabel je napnutý — krátký o 12 mm* in the view, the
+  panel and a message, like a collision. *⚠ Goes through Motor I3* when its centre line passes through a part. It is drawn as tubes (loose wires
   twisted round the centre line in their colours, a ribbon flat, a sleeve corrugated), listed in the assembly tree
   (*🔌 Svazek 1 · 4 × Ø1,5 · 1 284 mm*), in the **BOM** a line per wire or cable with its length + a reserve (5 %, under
   *More*) rounded up to 10 mm — *Vodič Ø1,5 mm hnědý — 1 350 mm* — and in the **STEP / GLB / IGES** exports (a part

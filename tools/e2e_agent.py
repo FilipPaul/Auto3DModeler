@@ -328,6 +328,10 @@ try:
     tool("edit_harness", id="H1", count=2, color="red")
     hs = json.loads(tool("get_assembly")[0]).get("harnesses", [])
     print(f"    harnesses: {[(h['id'], len(h['wires']), h['length_mm']) for h in hs]} | 2 wires: {len(hs) == 1 and len(hs[0]['wires']) == 2}")
+    # 🔒 its length locked longer than the route: the slack sags, the length held; locked shorter: reported taut
+    print("    edit_harness length 400 (slack, not taut):", "taut" not in tool("edit_harness", id="H1", length=400)[0])
+    print("    edit_harness length 10 (taut):", "taut" in tool("edit_harness", id="H1", length=10)[0])
+    tool("edit_harness", id="H1", length=None)
     tool("open_part", id="Flange")
     tool("prepare_print")
     tool("check_print")

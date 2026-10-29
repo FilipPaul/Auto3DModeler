@@ -118,6 +118,26 @@ class TestRoute(unittest.TestCase):
         self.assertAlmostEqual(r["bends"][0]["r"], 5)
         self.assertFalse(r["bends"][0]["ok"])
 
+    def test_locked_length(self):
+        """🔒 A cable locked at 400 mm: its ends moved closer, it keeps 400 (± 0.5) — the slack sags down, every bend
+        still ≥ R (sampled), its ends where they were; moved farther than it reaches: straight, taut, short by the gap."""
+        R, pts = 15, [[0, 0, 100], [120, 0, 100], [120, 0, 180], [200, 40, 180]]
+        for moved in (pts, [[40, 0, 100]] + pts[1:], [[60, 0, 100]] + pts[1:3] + [[150, 20, 180]]):
+            r = H.shape(moved, R, total=400)
+            self.assertAlmostEqual(r["length"], 400, delta=0.5)
+            self.assertEqual(r["taut"], [])
+            self.assertTrue(all(b["ok"] for b in r["bends"]), r["bends"])
+            s = sample(r, 1500)
+            self.assertGreaterEqual(min(circum_r(*s[k - 1:k + 2]) for k in range(1, len(s) - 1)), R * (1 - 1e-3))
+            self.assertLess(math.dist(s[0], moved[0]) + math.dist(s[-1], moved[-1]), 1e-9)
+            self.assertLess(min(q[2] for q in s), 100)  # (it sags: below its lowest point)
+        far = [[-300, 0, 100]] + pts[1:]
+        straight = H.route(far, R)["length"]
+        r = H.shape(far, R, total=400)
+        self.assertAlmostEqual(r["length"], straight)
+        self.assertEqual(len(r["taut"]), 1)
+        self.assertAlmostEqual(r["taut"][0]["short"], straight - 400)
+
     def test_bundle(self):
         for n, k in ((1, 1), (3, 2.155), (7, 3)):
             self.assertAlmostEqual(H.bundle_d(n, 1.5), k * 1.5, places=2)
@@ -149,6 +169,18 @@ class TestSolid(unittest.TestCase):
         self.assertAlmostEqual(K.volume(K.from_step(K.to_step(st.body.shape))), v, delta=v * 1e-3)
         names = {f["name"] for f in r["body"]["faces"]}
         self.assertTrue({"H1:start", "H1:end", "H1:side"} <= names, names)
+
+    def test_locked_length_solid(self):
+        """🔒 A cable locked at 300 mm: the solid is that long — volume π(d/2)²·300 —, watertight, read back from STEP."""
+        d = 6
+        f = {"id": "H1", "type": "harness", "kind": "cable", "points": self.L_ROUTE, "d": d, "r_min": 30, "length": 300}
+        r = doc.rebuild({"features": [f]})
+        self.assertTrue(r["ok"], r["features"])
+        v = math.pi * (d / 2) ** 2 * 300
+        self.assertAlmostEqual(r["body"]["volume"], v, delta=v * 2e-3)
+        self.assertTrue(watertight(r["body"]))
+        st, _ = doc.evaluate([f])
+        self.assertAlmostEqual(K.volume(K.from_step(K.to_step(st.body.shape))), v, delta=v * 2e-3)
 
     def test_loose_wires(self):
         wires = [{"d": 1.5, "color": c} for c in ("red", "black", "blue", "brown")]

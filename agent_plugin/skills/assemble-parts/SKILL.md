@@ -106,7 +106,10 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    `through_parts` names parts its centre line goes through (add a point round them). Points on a part move with it.
    The answer and get_assembly `harnesses` give its length; get_bom lists a line per wire with its length + the
    reserve (5 %). `edit_harness {id, …}` changes any of these (`points` replaces them, `add_points` appends, `remove:
-   true` deletes it). STEP / GLB exports and the assembly drawing include it.
+   true` deletes it). Corners are shaped to r_min (two close corners moved apart), so `bends_too_tight` is only the
+   exception. To test moving parts with a real cable, lock its length: `edit_harness {id, length_locked: true}` (as it
+   is now) or `{length: 400}` — then drag / drive_mechanism: the slack sags, and a cable pulled too far is reported
+   `taut: {short_mm}` (a limit of the motion). STEP / GLB exports and the assembly drawing include it.
 
 Files for the user: `export {format: "step"}` (the whole assembly as a STEP assembly — SolidWorks, CATIA and Solid
 Edge open it as an assembly tree, a product per part, sub-assemblies nested), `"iges"` (every part placed in one IGES —
