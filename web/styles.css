@@ -790,6 +790,8 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .mp-hole .mp-hd span { color: var(--muted); flex: 1 1 0; min-width: 0; line-height: 1.2; overflow-wrap: anywhere; }
 .mp-hole .mp-hd .mini { flex: none; }
 .sk-label.hole-dim { color: #d2a8ff; border-color: #6e40c9; pointer-events: none; }
+.sk-label.hole-dim.edit { pointer-events: auto; cursor: text; } /* a placed hole's numbers (not while placing): click to type */
+.sk-label.hole-dim.edit:hover { border-color: #d2a8ff; color: #fff; }
 body.chat-open .layout { margin-right: min(var(--chat-w, 440px), 100vw); }
 body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var(--right-w, 310px)); }
 .ai-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--line); }

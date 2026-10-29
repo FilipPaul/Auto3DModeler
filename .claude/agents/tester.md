@@ -140,6 +140,10 @@ Never report "works" without having run it; report failures with their output.
    the plain Ø4.2 volume, the lines drawn, a toast, 🔩 Real thread (slower) in the panel; Ctrl+Z; the AI's tapped M4).
    `tools/e2e_hole_select.py <url> <dir>` covers choosing / editing a hole without arming its placing (row clicked:
    no tool, ◎ not lit, a click adds nothing; ✎ edit: no preview, no hole on a click until ＋ Add position; OK: 2 holes).
+   `tools/e2e_hole_dims.py <url> <dir>` covers a hole's dimensions typed (a new hole: its distances typed in the
+   panel -> centre at (8, 6), its labels out of the mouse's way while placing; editing: its ↔ label on the part typed,
+   its ↕ field, its Ø label -> at (20, 15), Ø7 volume; chosen: its Ø tag typed; a hole kept in the middle: its field
+   shows 20, typed 12 -> measured from the left edge).
    `tools/e2e_esc_keeps.py <url> <dir>` covers Esc keeping what was placed (sketch line: 2 segments stay; ◎ Hole: 1
    click + Esc = a step with one hole, exact volume; Esc with nothing placed / the Cancel button: no step; Fillet alike).
    `tools/e2e_assembly_sub.py <url> <dir>` covers assemblies in assemblies (one body, joined, mass, STEP with every

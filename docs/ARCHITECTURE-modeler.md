@@ -7,6 +7,16 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **A hole's dimensions typed again (2026-10-29)** (the owner: "nemůžu nyní v 3D návrhu zadávat kóty k dírám"). Cause:
+  since 0e17470 an edited hole opens without placing, and in the tool its numbers on the part were display-only
+  (`.hole-dim` pointer-events none; the chosen step's clickable tags are hidden while a tool is open), so a click on
+  a distance only said "click ＋ Add position first" — the panel fields were the only way; and a hole snapped to a
+  face's middle ({mid}) had no number to type at all (only 🎯). Now: the hole tool's labels (each half of a {mid}
+  too) and its Ø / ↓ depth labels open the size editor when not placing (`openDimEdit` with `edit.tool`: `applyDim`
+  previews into `cmd.feature`, no undo step, Cancel puts the step back; while placing they stay out of the mouse's
+  way — the panel takes the numbers); `setHoleDist` is the one path (panel field, tool label, chosen step's tag): a
+  {mid} typed becomes {edge: its left / lower edge, d}. The panel's {mid} row has a number too; a chosen hole's
+  {mid} gets its ↔ / ↕ tag. Tests: e2e_hole_dims (new).
 - **A chosen hole's choices inline (2026-10-29)** (the owner: "velikosti a typy díry … v další vyskakovací tabulce …
   ukaž všechny možnosti … jen když jich bude moc, tak scroll"; "u díry mi v suggestion chybí zobrazit závit"; "nikdy
   nezobrazuj scroll bar"): `holeItems` replaces the Type ▾ / Size ▾ rows (and their `choose` popups) with sections of

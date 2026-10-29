@@ -492,7 +492,9 @@ SolidWorks. It has only the tools that need almost no input.
    at once) with ✎ Edit the hole and ＋ Add position, and its row in the list is marked. (A round cut made by an
    extrude is not a Hole step: its faces keep their usual suggestions.) **✎ Editing** it opens its panel without placing —
    the mouse shows no new hole and a click adds none until **＋ Add position** (an edited text / picture: **⌖ Move by
-   clicking**). While you move
+   clicking**). Its numbers on the part — each ↔ / ↕ distance, its Ø and depth — are **typed by a click** (a number
+   and a slider, the part follows; OK of the tool keeps it), also a hole kept in the middle of a face (typed, it is
+   measured from the left / lower edge). While you move
    the mouse the hole is shown where it would go, with its distances to the nearest edges, and it **snaps** like a
    sketch: onto the face's corners, edge midpoints, centre, round edges' centres, other holes and • reference points
    (the snap is named at the mouse), onto its edges, and **in line** with any of those — a dashed green guide; where

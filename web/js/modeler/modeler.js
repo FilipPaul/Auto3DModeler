@@ -1446,13 +1446,13 @@ export class Modeler {
         const at = P3(fr, p[0], p[1]);
         if (i === 0) add(at, `Ø${fmt(f.d)}`, num('d', 'Diameter', { min: 0.2 }), `${f.name}: the diameter`);
         for (const [axis, k] of [['x', 0], ['y', 1]]) {
-          const r = f.from?.[i]?.[axis], c = r && !(r.mid && !r.d) && this.refCoord(f, r, k); // (in the middle: nothing to type)
+          const r = f.from?.[i]?.[axis], c = r && (r.mid ? this.edgeCoord(f, r.mid[0], k) : this.refCoord(f, r, k)); // (in the middle: from its left / lower edge)
           if (r && c !== null && c !== undefined && c !== false) {
-            const q = k === 0 ? [c, p[1]] : [p[0], c];
+            const q = k === 0 ? [c, p[1]] : [p[0], c], dist = r.mid ? Math.abs(p[k] - c) : Math.abs(r.d);
             lines.push([P3(fr, ...q), at]);
-            add(P3(fr, (q[0] + p[0]) / 2, (q[1] + p[1]) / 2), `${k ? '↕' : '↔'} ${fmt(Math.abs(r.d))}`, {
-              label: 'Distance', min: 0, get: () => Math.abs(r.d),
-              set: (v) => { r.d = (Math.sign(r.d) || 1) * v; f.points[i][k] = +(c + r.d).toFixed(6); },
+            add(P3(fr, (q[0] + p[0]) / 2, (q[1] + p[1]) / 2), `${k ? '↕' : '↔'} ${fmt(dist)}`, {
+              label: 'Distance', min: 0, get: () => dist,
+              set: (v) => this.setHoleDist(f, i, axis, v, r.mid ? r.mid[0] : null),
             });
           }
         }
@@ -1606,7 +1606,7 @@ export class Modeler {
    *  kernel's "_soft": a bigger number typed is taken and the slider grows round it). */
   openDimEdit(el, edit) {
     this.closeDimEdit();
-    const before = structuredClone(this.part.features);
+    const before = structuredClone(this.part.features), toolBefore = edit.tool && this.cmd ? structuredClone(this.cmd.feature) : null;
     const v0 = edit.get(), step = edit.step || (Math.abs(v0) >= 20 ? 0.5 : 0.1), ex0 = this.dimExpr(edit);
     let lo = edit.min ?? 0.1, hi = edit.max ?? Math.max(10, Math.abs(v0) * 3), soft = !!edit.soft || edit.max === undefined, shownHi = hi;
     const box = document.createElement('div');
@@ -1692,7 +1692,12 @@ export class Modeler {
       this.closeDimEdit();
       if (await this.applyDim(edit, v, true, r.expr) === false) { this.part.features = before; this.rebuild(); }
     };
-    const cancel = async () => { while (busy) await new Promise((res) => setTimeout(res, 20)); this.closeDimEdit(); this.part.features = before; await this.rebuild(); this.reshowDims(); };
+    const cancel = async () => {
+      while (busy) await new Promise((res) => setTimeout(res, 20));
+      this.closeDimEdit();
+      if (toolBefore) { if (this.cmd) { Object.assign(this.cmd.feature, toolBefore); this.renderProps(); await this.rebuild(); } return; } // (the open tool's step as it was)
+      this.part.features = before; await this.rebuild(); this.reshowDims();
+    };
     if (edit.icons) this.dimIconRow(box, edit, before, async () => { while (busy) await new Promise((res) => setTimeout(res, 20)); });
     num.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') ok(); if (e.key === 'Escape') cancel(); });
     box.querySelector('[data-a=ok]').addEventListener('click', ok);
@@ -1716,6 +1721,13 @@ export class Modeler {
   /** Put a size in: a step's own number, or a sketch's size (solved, with its locks). final = an undo step. expr: the
    *  parameters' expression it comes from (null: a plain number — an expression it had goes; undefined: kept). */
   async applyDim(edit, v, final, expr) {
+    if (edit.tool) { // a size of the open tool's step (a hole's distance on the part): its preview; OK of the tool keeps it
+      if (!this.cmd) return false;
+      edit.set(v);
+      if (final) this.renderProps();
+      await this.rebuild();
+      return true;
+    }
     if (edit.sketch) {
       const sk = this.part.features.find((g) => g.id === edit.sketch.id);
       if (!sk) return false;
@@ -2744,6 +2756,7 @@ export class Modeler {
   okExtrude() { this.okCommand(); }
 
   okCommand() {
+    this.closeDimEdit();
     const { feature: f, isNew } = this.cmd;
     if (f.type === 'extrude' && f.upto && !f.upto.name) { this.hooks.toast('Click the face to go up to first.', 'warning'); return; }
     if (f.type === 'extrude' && !f.upto && !f.upto_next && !f.through && !(f.d > 0)) { this.hooks.toast('The distance must be greater than zero.', 'error'); return; }
@@ -2782,6 +2795,7 @@ export class Modeler {
     this.cmd.place = !this.cmd.place;
     if (!this.cmd.place) { this.showSpot(null); this.els.viewport.querySelector('canvas').style.cursor = ''; }
     const hole = this.cmd.feature.type === 'hole';
+    if (hole) this.drawHoleDims(); // (its numbers on the part: to click while not placing)
     this.hint(this.cmd.place ? (hole ? 'Click on the face where another hole goes (click again for more). Enter = OK.' : 'Click on a flat face where it goes. Enter = OK.') : '');
     this.renderProps();
   }
@@ -2802,6 +2816,7 @@ export class Modeler {
   }
 
   cancelCommand() {
+    this.closeDimEdit();
     this.cmd = null; // (⬆ Extrude this face: its outline sketch goes with it — it was never a step)
     this.view.setPullArrow(null);
     this.holePick = null;
@@ -2966,6 +2981,7 @@ export class Modeler {
   clickHole(e) {
     const f = this.cmd.feature, h = this.view.pick(e.clientX, e.clientY);
     if (this.holePick) { this.pickHoleRef(e); return; }
+    if (this.dimEdit) { this.closeDimEdit(); return; } // (a size being typed: the click ends that, it keeps what is shown)
     if (!this.cmd.place) { this.hooks.toast(t('To add a hole here, click ＋ Add position first.'), 'info', 3000); return; }
     if (!h?.face) return;
     if (h.face.type !== 'plane') { this.hooks.toast('Holes go on flat faces — click a flat face.', 'warning'); return; }
@@ -3165,6 +3181,15 @@ export class Modeler {
     if (!f || f.type !== 'hole' || (!f.plane?.frame && !at)) { this.view.setSketch(null); return; }
     const g = f.plane ? f : { ...f, plane: { face: at.h.face.ref || null, frame: at.h.face.frame } }; // (the first hole: on the face under the mouse)
     const fr = this.holeFrame(g), lines = [], labels = [], circles = [], dots = [], C = 0xd2a8ff, mpp = this.view.mmPerPixel(fr);
+    // a placed hole's number: click it to type it (number + slider, as a chosen step's sizes; OK of the tool keeps it) —
+    // not while placing (the labels would stand in the way of the mouse there: the panel's fields take the numbers)
+    const editable = (el, edit, title) => {
+      if (this.cmd.place) return;
+      el.classList.add('edit');
+      el.title = t(title);
+      for (const ev of ['pointerdown', 'pointerup']) el.addEventListener(ev, (x) => x.stopPropagation());
+      el.addEventListener('click', (x) => { x.stopPropagation(); this.openDimEdit(el, { tool: true, min: 0, ...edit }); });
+    };
     if (at) {
       const p = at.s.uv, near = this.nearestEdges(g, p), draw = snapDrawing(at.s, mpp);
       circles.push([p, (f.d || 5) / 2, 0x7ee787]);
@@ -3185,18 +3210,57 @@ export class Modeler {
         const r = f.from?.[i]?.[axis];
         if (!r) continue;
         const cs = r.mid ? r.mid.map((e) => this.edgeCoord(f, e, k)) : [this.refCoord(f, r, k)]; // (midway: from both edges)
-        for (const c of cs) {
-          if (c === null) continue;
+        cs.forEach((c, j) => {
+          if (c === null) return;
           const a = k === 0 ? [c, p[1]] : [p[0], c];
           lines.push([a, p, C]);
           const el = document.createElement('div');
           el.className = 'sk-label hole-dim';
           el.textContent = fmt(r.mid ? Math.abs(p[k] - c) : Math.abs(r.d));
+          editable(el, { label: 'Distance', get: () => (r.mid ? Math.abs(p[k] - c) : Math.abs(r.d)), set: (v) => this.setHoleDist(f, i, axis, v, r.mid ? r.mid[j] : null) },
+            'Click to type the distance (from this edge)');
           labels.push({ el, u: (a[0] + p[0]) / 2 + (k === 1 ? mpp * 12 : 0), v: (a[1] + p[1]) / 2 + (k === 0 ? mpp * 10 : 0) });
-        }
+        });
       }
     });
+    if (f.points.length && f.plane?.frame) { // its Ø (and depth): typed on the part too
+      const [u, v] = f.points[0], r = (f.d || 5) / 2, kind = holeType(f);
+      const el = document.createElement('div');
+      el.className = 'sk-label hole-dim hole-size';
+      el.textContent = `Ø${fmt(f.d)}`;
+      if (kind !== 'tapped') {
+        editable(el, { label: 'Diameter', min: 0.2, get: () => f.d, set: (x) => { if (!(x > 0)) return; if (kind === 'd_flat' && (f.flat === undefined || f.flat === dFlat(f.d))) f.flat = dFlat(x); f.d = x; } },
+          'Click to type the hole’s diameter');
+      }
+      labels.push({ el, u: u + r * 0.75 + mpp * 18, v: v + r * 0.75 + mpp * 10 });
+      if (f.through === false) {
+        const de = document.createElement('div');
+        de.className = 'sk-label hole-dim hole-size';
+        de.textContent = `↓ ${fmt(f.depth)}`;
+        editable(de, { label: 'Depth', min: 0.1, get: () => f.depth, set: (x) => { if (x > 0) f.depth = x; } }, 'Click to type how deep it goes');
+        labels.push({ el: de, u: u + r * 0.75 + mpp * 18, v: v + r * 0.75 - mpp * 12 });
+      }
+    }
     this.view.setSketch(fr, { lines, circles, dots, labels, grid: 0 });
+  }
+
+  /** A hole's distance along axis typed (≥ 0; it stays on its side of what it is measured from): the hole moves.
+   *  edge: a hole kept in the middle typed from one of its two edges — from now on measured from that edge. */
+  setHoleDist(f, i, axis, v, edge = null) {
+    const k = axis === 'x' ? 0 : 1, r = f.from?.[i]?.[axis], p = f.points[i];
+    if (!r || !(v >= 0)) return;
+    if (r.mid) {
+      const c = this.edgeCoord(f, edge || r.mid[0], k);
+      if (c === null) return;
+      const sgn = Math.sign(p[k] - c) || 1;
+      f.from[i][axis] = { edge: edge || r.mid[0], d: +(sgn * v).toFixed(6) };
+      p[k] = +(c + sgn * v).toFixed(6);
+      return;
+    }
+    const c = this.refCoord(f, r, k);
+    if (c === null || c === undefined || c === false) return;
+    r.d = (Math.sign(r.d) || 1) * v;
+    p[k] = +(c + r.d).toFixed(6);
   }
 
   /** The spot under the mouse while a hole / text / picture is being placed: snapped, the guides and (a hole) its
@@ -3224,8 +3288,9 @@ export class Modeler {
   /** One row of a hole's position: "↔ 12 mm from the left edge ⇄", or x / y from the face's centre (no edge there). */
   holeDimRow(f, i, axis, k) {
     const r = f.from?.[i]?.[axis], p = f.points[i];
-    if (r?.mid && !r.d) { // midway between two edges (no number to type: 🎯 measures from an edge instead)
-      return `<label class="mp-hd">${k ? '↕' : '↔'} <span>${k ? 'in the middle of the lower and upper edges' : 'in the middle of the left and right edges'}</span>
+    if (r?.mid && !r.d) { // midway between two edges: its distance from the left / lower one — typed, it is measured from that edge
+      const c = this.edgeCoord(f, r.mid[0], k), dist = c === null ? '' : fmt(Math.abs(p[k] - c));
+      return `<label class="mp-hd">${k ? '↕' : '↔'} <input type="number" step="any" min="0" data-hd="${i}:${axis}" value="${dist}" title="${esc(t(k ? 'Type a distance: it is then measured from the lower edge' : 'Type a distance: it is then measured from the left edge'))}"> <span>mm ${k ? 'in the middle of the lower and upper edges' : 'in the middle of the left and right edges'}</span>
         <button type="button" class="mini ${this.holePick?.i === i && this.holePick?.axis === axis ? 'on' : ''}" data-pickref="${i}:${axis}" title="Measure from another edge, hole or round face (its axis): click it in the view">🎯</button></label>`;
     }
     if (!r) return `<label class="mp-hd">${axis} <input type="number" step="any" data-${k ? 'v' : 'u'}="${i}" value="${fmt(p[k])}"> <span class="hint">${FROM_TEXT[originKey(f.plane?.origin)] || 'from the reference point'}</span></label>`;
@@ -3343,13 +3408,7 @@ export class Modeler {
     // a distance from an edge: typed as a positive number, the hole stays on its side of the edge
     for (const el of box.querySelectorAll('[data-hd]')) {
       const [i, axis] = el.dataset.hd.split(':'), k = axis === 'x' ? 0 : 1;
-      num(el, (v) => {
-        const r = f.from[+i][axis], c = this.refCoord(f, r, k);
-        if (v < 0 || c === null) return;
-        r.d = (Math.sign(r.d) || 1) * v;
-        f.points[+i][k] = +(c + r.d).toFixed(6);
-        this.drawHoleDims();
-      });
+      num(el, (v) => { this.setHoleDist(f, +i, axis, v); this.drawHoleDims(); });
     }
     for (const el of box.querySelectorAll('[data-pickref]')) {
       el.addEventListener('click', () => {
