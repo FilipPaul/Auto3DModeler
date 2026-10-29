@@ -1498,6 +1498,11 @@ const CS = {
   'Ready-made projects to try — each opens as a new copy, the demo itself stays as it is.': 'Hotové projekty na vyzkoušení — každý se otevře jako nová kopie, demo samo zůstane, jak je.',
   'Demo “{name}” opened as a new project — try ⚙ Mechanism ▶.': 'Demo „{name}“ je otevřeno jako nový projekt — vyzkoušejte ⚙ Mechanismus ▶.',
   // 📄 New project (newproject.js)
+  'Start a new, empty project — the one on screen is kept': 'Začít nový, prázdný projekt — ten otevřený zůstane uložený',
+  'Add a new 3D model (a part) to this project: sketch a rectangle or a circle, then extrude it': 'Přidat do tohoto projektu nový 3D model (díl): nakreslete obdélník nebo kruh a vysuňte ho',
+  'This project is empty — a new one starts here.': 'Tento projekt je prázdný — nový začne tady.',
+  'The project “{name}” on screen is saved and stays in Open ▾ › 🕘 Recent projects — nothing is lost.': 'Otevřený projekt „{name}“ se uloží a zůstane v Otevřít ▾ › 🕘 Nedávné projekty — nic se neztratí.',
+  'New project here': 'Nový projekt tady', 'In a new window (this one stays open)': 'V novém okně (tento zůstane otevřený)',
   'New project': 'Nový projekt', '📄 New project': '📄 Nový projekt', '⧉ New project in a new window': '⧉ Nový projekt v novém okně', 'New project in a new window': 'Nový projekt v novém okně',
   'Start a new, empty project in this window — the one on screen is kept (🕘 Recent projects opens it again) (Ctrl+Alt+N)': 'Začít nový, prázdný projekt v tomto okně — ten na obrazovce zůstane uložen (🕘 Nedávné projekty ho znovu otevřou) (Ctrl+Alt+N)',
   'A new, empty project in a window of its own — this one stays as it is, side by side': 'Nový, prázdný projekt ve vlastním okně — tento zůstane, jak je, vedle sebe',

@@ -2627,6 +2627,22 @@ const newProject = initNewProject({
 });
 $('newProjectBtn').addEventListener('click', (e) => { $('openMenuWrap').classList.remove('open'); newProject.start(e.ctrlKey || e.metaKey || e.shiftKey); }); // (Ctrl+click: a new window)
 $('newProjectWinBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); newProject.start(true); });
+// 📄 New project in the top bar: a small box first — what happens to the project on screen, then here / a new window
+const npEsc = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+$('newProjTopBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const wrap = $('newProjWrap'), pop = $('newProjPop');
+  if (wrap.classList.toggle('open')) {
+    const name = state.projectName || project.current?.name || t('Project'), empty = !project.parts.length;
+    pop.innerHTML = `<div class="np-say">${empty ? npEsc(t('This project is empty — a new one starts here.'))
+      : t2('The project “{name}” on screen is saved and stays in Open ▾ › 🕘 Recent projects — nothing is lost.', { name: npEsc(name) })}</div>
+      <button data-np="here" title="${npEsc(t('Start a new, empty project in this window — the one on screen is kept (🕘 Recent projects opens it again) (Ctrl+Alt+N)'))}">📄 ${npEsc(t('New project here'))} <span class="menu-key">Ctrl+Alt+N</span></button>
+      <button data-np="win" title="${npEsc(t('A new, empty project in a window of its own — this one stays as it is, side by side'))}">⧉ ${npEsc(t('In a new window (this one stays open)'))}</button>`;
+    pop.querySelector('[data-np=here]').addEventListener('click', () => { wrap.classList.remove('open'); newProject.start(); });
+    pop.querySelector('[data-np=win]').addEventListener('click', () => { wrap.classList.remove('open'); newProject.start(true); });
+  }
+});
+document.addEventListener('click', (e) => { if (!e.target.closest('#newProjWrap')) $('newProjWrap').classList.remove('open'); });
 leftDock.projectMenu = () => [
   ['📄', t('New project'), t('Start a new, empty project in this window — the one on screen is kept (🕘 Recent projects opens it again) (Ctrl+Alt+N)'), () => newProject.start()],
   ['⧉', t('New project in a new window'), t('A new, empty project in a window of its own — this one stays as it is, side by side'), () => newProject.start(true)],

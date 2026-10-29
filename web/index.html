@@ -24,7 +24,11 @@
       <span class="jobs"><button class="jobs-btn" id="jobsBtn" hidden title="Working now — click: what runs, with ✕ Stop">⚙ <b>0</b></button><div class="jobs-list" id="jobsList" hidden></div></span>
     </div>
     <div class="actions">
-      <button class="btn accent2" id="newModelBtn" title="Start a 3D model from scratch: sketch a rectangle or a circle, then extrude it">＋ New 3D model</button>
+      <div class="menu" id="newProjWrap">
+        <button class="btn" id="newProjTopBtn" title="Start a new, empty project — the one on screen is kept">📄 New project</button>
+        <div class="menu-list np-pop" id="newProjPop"></div>
+      </div>
+      <button class="btn accent2" id="newModelBtn" title="Add a new 3D model (a part) to this project: sketch a rectangle or a circle, then extrude it">＋ New 3D model</button>
       <div class="menu" id="openMenuWrap">
         <button class="btn primary" id="openBtn" title="Open a drawing, a picture, a CAD / 3D file or a saved project — each file becomes its own part tab">📂 Open ▾</button>
         <div class="menu-list" id="openMenu">

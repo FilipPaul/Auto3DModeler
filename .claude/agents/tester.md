@@ -279,6 +279,8 @@ Never report "works" without having run it; report failures with their output.
    move glow; nothing chosen, the 📌 fixed base, a fully held part, a part not chosen: the normal cursor; the first-time
    hint "Táhněte — pohne mechanismem"; dragging: the filled cursor and "↻ 3°" at the cursor (= ⚙ Mechanism's value),
    the slider at the formula; screenshots with the cursor drawn in and the cursors 4× (cue_icons.png).
+   `tools/e2e_new_project_btn.py <url> <dir>` covers 📄 Nový projekt in the top bar next to ＋ Nový 3D model (Czech): its box
+   says the open project is saved and stays in 🕘 Recent projects (by name), offers here / a new window -> the start screen.
    `tools/e2e_joint_toggle.py <url> <dir>` covers 🔗 Show: Joints in the assembly's bottom row (Czech): the crank demo's
    joint symbols shown -> switched off: none -> after a reload still off (remembered) -> on again: back.
    `tools/e2e_mechanism_by_mouse.py <url> <dir>` replays building the crank – rod – slider by mouse only (Czech, 1600×1000):
