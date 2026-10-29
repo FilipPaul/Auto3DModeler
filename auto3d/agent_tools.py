@@ -620,7 +620,9 @@ TOOLS = [
                     "placed parts), balloon {at_mm, leader_to_mm (where its leader ends: on a face of that part no other part hides), "
                     "points_to (the copy that shows most)} or null}] — one item per part per level, one balloon per item; a "
                     "sub-assembly is one item (its parts are on its own page); balloons {count, ok, problems (a pos given twice, a qty "
-                    "that is not what this level places, an item with no balloon)}.",
+                    "that is not what this level places, an item with no balloon)}. drawing_set (a sheet of an assembly or of a part in one): "
+                    "{assembly, assembly_id, sheets (the assembly's, each sub-assembly's, each made part's, the BOM pages), all_pages_shown, "
+                    "pages [{id, name, kind, this}]} — sheet_edit all_pages shows them all; export pdf in that assembly writes them as one PDF.",
      "inputSchema": _obj({"points": {"type": "string", "enum": ["Front", "Top", "Right"]}})},
     {"name": "sheet_edit", "where": "browser",
      "description": "Change the drawing sheet on screen: preset light / medium / full (the automatic dimensions), view_presets {Front | Top | "
@@ -633,11 +635,11 @@ TOOLS = [
                     "title_style \"A\" | \"B\" | \"C\" | \"D\" | \"E\" | \"block\" | \"strip\" (the title block's look: A strip 180 × 21, B ISO 7200 180 × 40, C dark band 180 × 34, D minimal 170 × 28, E column 90 × 56; block / strip the app's Modern) and bom_style \"A\" … \"E\" | \"modern\" (the parts list's and the BOM pages' look) — any two together; the app's templates \"A — Strip\", \"B — ISO 7200\", \"C — Dark band\", \"D — Minimal\", \"E — Column\" pair each with its own; "
                     "save_template \"<name>\" (this title block — its styles, fields, company / address / drawn by / note / tolerance standard / roughness, logo, frame — kept as a template for all projects; with template_all: on the whole set), "
                     "frame \"simple\" (10 mm) / \"iso\" (ISO 5457: 20 mm left, zones, centring marks) / \"narrow\" (5 mm) / \"none\" / {m: [left, top, right, bottom] mm, line, zones, marks} / null (the template's — a template carries its frame to the whole set), scale \"1:2\" / \"2:1\" / \"1:2522\" / null (the sheet's own scale; null: fitted automatically), "
-                    "view_scales {Front | Top | Right | Iso | Section: \"2:1\" / null} (a view's own scale — its label says it, e.g. \"Top (2:1)\"), view_names {Front | …: \"name\" / null} (rename a view's label) — fits {<a Ø dimension's id>: \"H7\" (a hole: H6 … H9) / \"h6\" (a shaft: f7, g6, h6, k6, m6, p6) or null} — values are always measured from the part. Do what the user cannot do in a click.",
+                    "view_scales {Front | Top | Right | Iso | Section: \"2:1\" / null} (a view's own scale — its label says it, e.g. \"Top (2:1)\"), view_names {Front | …: \"name\" / null} (rename a view's label), all_pages true / false (the whole drawing set of the sheet's assembly on screen, one sheet below the other / this sheet alone) — fits {<a Ø dimension's id>: \"H7\" (a hole: H6 … H9) / \"h6\" (a shaft: f7, g6, h6, k6, m6, p6) or null} — values are always measured from the part. Do what the user cannot do in a click.",
      "inputSchema": _obj({"preset": {"type": "string", "enum": ["light", "medium", "full"]}, "view_presets": {"type": "object"}, "paper": {"type": ["string", "null"]}, "views": {"type": "object"},
                           "remove": {"type": "array", "items": STR}, "restore": {"type": "boolean"}, "move": {"type": "object"},
                           "add": {"type": "array", "items": {"type": "object"}}, "texts": {"type": "object"}, "complete": {"type": "boolean"}, "drop_twice": {"type": "boolean"},
-                          "fits": {"type": "object"}, "scale": {"type": ["string", "null"]}, "view_scales": {"type": "object"}, "view_names": {"type": "object"},
+                          "fits": {"type": "object"}, "scale": {"type": ["string", "null"]}, "view_scales": {"type": "object"}, "view_names": {"type": "object"}, "all_pages": {"type": "boolean"},
                           "template": {"type": ["string", "null"]}, "template_all": {"type": "boolean"}, "save_template": STR,
                           "frame": {"type": ["string", "object", "null"]},
                           "title_style": {"type": ["string", "null"], "enum": ["A", "B", "C", "D", "E", "block", "strip", None]},

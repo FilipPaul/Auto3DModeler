@@ -1915,6 +1915,7 @@ const sheet = new SheetEditor({ left: $('shLeft'), viewport: $('shViewport'), ri
   partName: (id) => project.parts.find((q) => q.id === id)?.name || null,
   kindOf: (id) => project.parts.find((q) => q.id === id)?.kind,
   drawingCtx: () => drawingCtx(),
+  setPdf: (root) => drawingSetPdf(root), // (⤓ PDF of all sheets: the assembly's whole drawing set)
   parts: () => project.parts,
   openSheet: (id) => { const p = project.parts.find((q) => q.id === id); if (p) project.newSheet(id, `${p.name} — ${t('drawing')}`); },
   openPart: (id) => project.switchTo(id),

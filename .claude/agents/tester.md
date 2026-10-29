@@ -211,7 +211,9 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_drawing_set.py <url> <dir>` covers an assembly's drawing set (Machine = Base + sub-assembly Lid unit (Lid +
    2 Pins) + a bought ISO 4762 screw; the Base's own sheet with a dimension "MY"): 5 pages in order Machine, Lid unit,
    Lid, Pin, Base; the parts list with ◇ Lid unit and the screw; "Sheet n / N" on each; MY on the Base's page; the AI's
-   export pdf writes the same set.
+   export pdf writes the same set. Then in Czech: 📑 Všechny listy sestavy (6) first in the assembly sheet's tables (also ⤓
+   PDF všech listů) -> 6 sheets on screen, ▼ Další list / ▲ Předchozí list / ↩ Zpět na tento list; the Base's sheet:
+   📑 Listy sestavy „Machine“ -> the set, the Base's page in sight; get_sheet's drawing_set; sheet_edit all_pages.
    `tools/e2e_assembly_openpart.py <url> <dir>` covers ◆ Open its part in a placed part's panel (it opens that part's
    tab; back in the assembly, the other one).
    `tools/e2e_ai_sheet.py <url> <dir>` covers the AI's sheet tools (export pdf of a model still the plain drawing;

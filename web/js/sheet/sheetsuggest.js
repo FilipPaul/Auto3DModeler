@@ -28,7 +28,8 @@ export function tolText(s) {
 /** The table for the sheet editor `ed` (a SheetEditor) -> {title, items, hint, refs} or null (no table). */
 export function sheetSuggest(ed) {
   const d = ed.d;
-  if (!d || !ed.geo || ed.setMode || ed.tool !== 'select') return null;
+  if (d && ed.setMode) return setItems(ed);
+  if (!d || !ed.geo || ed.tool !== 'select') return null;
   const refs = `${t('on the drawing sheet of')} “${ed.hooks.partName(d.source) || ''}”`;
   if (ed.sel) return dimItems(ed, refs);
   if (ed.selGeo) return geoItems(ed, refs);
@@ -45,12 +46,52 @@ function sheetItems(ed, refs) {
   if (ck?.missing.length) items.push({ icon: '📐', label: tv('Add the missing sizes ({n})', { n: ck.missing.length }), title: t('Every size the check misses, each from the part\'s edge (the orange ? marks)'), rank: 0, run: () => { ed.addAllMissing(); ed.clearSel(); ed.render(); } });
   if (ck && (ck.dup.size || ck.over.size)) items.push({ icon: '⧉', label: tv('Remove sizes given twice ({n})', { n: ck.dup.size + ck.over.size }), title: t('Dimensions that give a size another one gives already'), rank: 1, run: () => { for (const id of [...ck.dup, ...ck.over]) ed.remove(id); } });
   if (lost.length) items.push({ icon: '⚠', label: tv('Remove lost dimensions ({n})', { n: lost.length }), title: t('Dimensions whose points are gone — the part changed'), rank: 1, run: () => { for (const x of lost) ed.remove(x.id); } });
+  const [setRow, setPdf] = setRows(ed, 0.5, 3.5); // (the drawing set: right after the fixes — the rows show in this order)
+  if (setRow) items.push(setRow);
   for (const v of hidden.slice(0, 2)) items.push({ icon: '👁', label: tv('Show view: {v}', { v: ed.viewName(v) }), title: t('Show this view on the sheet'), rank: 4, run: () => { delete d.off[v]; ed.commit(); } });
   items.push({ icon: '⬇', label: t('Export PDF'), title: t('The sheet as a PDF — as you see it'), rank: 2, run: () => ed.exportPdf() });
   items.push({ icon: '🖨', label: t('Print'), title: t('Print the sheet (its PDF, on the paper size it is drawn for)'), rank: 3, run: () => ed.printPdf() });
+  if (setPdf) items.push(setPdf);
   if (d.asm && !d.bomPage) items.push({ icon: '📋', label: t('Add BOM page'), title: t('A page with the bill of materials of this assembly after this page'), rank: 5, run: () => { d.bomPage = 'summary'; ed.commit(); } });
   const done = ck && ck.ok && !ck.over.size;
   return { title: `📄 ${ed.hooks.partName(d.source) || t('Drawing')}`, items, hint: done ? `✓ ${t('Fully dimensioned. Click a view, a dimension or the title block for more.')}` : t('Click a view, a dimension, an edge or the title block: what to do with it.'), refs };
+}
+
+// ---------------------------------------------------------------- the drawing set (an assembly, its parts, BOM pages)
+/** The drawing set this sheet is a page of -> {root, name, n, pages} (n: its sheets — the assemblies, the made parts,
+ *  a BOM page per assembly sheet that has one) or null (not in an assembly). */
+export function setOf(ed) {
+  const root = ed.hooks.drawingCtx ? ed.rootOf(ed.d.source) : null;
+  if (!root) return null;
+  const ctx = ed.hooks.drawingCtx(), pages = ed.pagesOf(root);
+  const bom = pages.filter((p) => p.kind === 'assembly' && (p.id === ed.d.source ? ed.d.bomPage : ctx.sheetOf(p.id)?.bomPage)).length;
+  return { root, name: ed.hooks.partName(root) || root, n: pages.length + bom, pages };
+}
+
+const PDF_ALL = 'The whole drawing set as one PDF: the assembly, each part\'s sheet, the BOM page';
+
+/** 📑 the whole set on screen (📚 All pages) and ⤓ its PDF — an assembly's sheet; a part's: 📑 its assembly's sheets. */
+function setRows(ed, rank, pdfRank) {
+  const set = setOf(ed);
+  if (!set) return [];
+  const asm = ed.hooks.kindOf?.(ed.d.source) === 'assembly', out = [];
+  out.push(asm ? { icon: '📑', label: tv('All sheets of the assembly ({n})', { n: set.n }), title: t('The assembly\'s sheet, each part\'s sheet and the BOM page, one below the other — scroll or jump between them; double-click one to edit it'), rank, run: () => ed.action('setview') }
+    : { icon: '📑', label: tv('Sheets of the assembly “{a}”', { a: set.name }), title: tv('The whole drawing set of “{a}” ({n} sheets), this part\'s sheet in sight — scroll or jump between them', { a: set.name, n: set.n }), rank, run: () => ed.action('setview') });
+  if (asm && ed.hooks.setPdf) out.push({ icon: '⤓', label: t('PDF of all sheets'), title: t(PDF_ALL), rank: pdfRank, run: () => ed.hooks.setPdf(set.root) });
+  return out;
+}
+
+/** 📚 All pages on screen: from sheet to sheet, the set's PDF, back to this sheet. */
+function setItems(ed) {
+  const set = setOf(ed);
+  if (!set) return null;
+  const ids = set.pages.map((p) => p.id), at = Math.max(0, ids.indexOf(ed.seen || ed.d.source)), items = [];
+  const go = (i) => ed.stage.querySelector(`[data-pageid="${ids[i]}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (at < ids.length - 1) items.push({ icon: '▼', label: tv('Next sheet: {p}', { p: set.pages[at + 1].name }), title: t('Scroll to the next sheet of the set'), rank: 0, run: () => go(at + 1) });
+  if (at > 0) items.push({ icon: '▲', label: tv('Previous sheet: {p}', { p: set.pages[at - 1].name }), title: t('Scroll to the sheet before'), rank: 1, run: () => go(at - 1) });
+  if (ed.hooks.setPdf) items.push({ icon: '⤓', label: t('PDF of all sheets'), title: t(PDF_ALL), rank: 2, run: () => ed.hooks.setPdf(set.root) });
+  items.push({ icon: '↩', label: t('Back to this sheet'), title: t('Only this sheet again, to edit it (or double-click a sheet: edit that one)'), rank: 3, run: () => ed.action('setview') });
+  return { title: `📑 ${set.name} (${set.n})`, items, hint: t('The Pages list on the left jumps to a sheet too.'), refs: `${t('the drawing set of')} “${set.name}”` };
 }
 
 // ---------------------------------------------------------------- a view
@@ -115,7 +156,8 @@ function geoItems(ed, refs) {
 
 // ---------------------------------------------------------------- the title block
 function titleItems(ed, refs) {
-  const X = ed.d.texts || {}, items = [];
+  const X = ed.d.texts || {}, items = [], [setRow, setPdf] = setRows(ed, 0.5, 9.5);
+  if (setRow) items.push(setRow); // (first: the set this sheet is a page of)
   const field = (k, icon, label, rank) => items.push({ icon, label: X[k] ? `${t(label)}: ${X[k]}` : `${t(label)}…`, title: t('Type it — it shows in the title block'), rank, run: () => editText(ed, k, label) });
   field('title', '✎', 'Title', 0);
   field('number', '№', 'Drawing no.', 1);
@@ -127,6 +169,7 @@ function titleItems(ed, refs) {
   const paper = ed.lay?.paper || 'A4', other = paper === 'A3' ? 'A4' : 'A3';
   items.push({ icon: '📄', label: tv('Paper {p}', { p: other }), title: tv('Draw the sheet on {p} (now {now}) — the views placed again', { p: other, now: paper }), rank: 6.5, run: () => ed.setPaper(other) });
   items.push({ icon: '⬇', label: t('Export DXF'), title: t('The sheet as a DXF for AutoCAD, SolidWorks or Solid Edge drafting: the paper in true size (mm), real dimensions'), rank: 9, run: () => ed.exportDxf() });
+  if (setPdf) items.push(setPdf);
   items.push({ icon: '💾', label: t('Save as template…'), title: t('Keep this title block (layout, fields, company, address, drawn by, note, tolerance standard, logo, frame) as a template for all your projects'), rank: 7, run: () => ed.saveTemplate().catch((e) => ed.hooks.toast?.(e.message, 'error', 6000)) });
   items.push({ icon: '🏢', label: t('Company, logo and fields'), title: t('Company, address, tolerance standard, logo, layout and the fields shown'), rank: 8, run: () => ed.openTitleMore() });
   return { title: `▤ ${t('Title block')}`, items, hint: t('Double-click a cell: its field in the panel.'), refs: `${refs}, ${t('title block')}` };

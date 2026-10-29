@@ -104,6 +104,14 @@ Date: 2026-10-25. Written by the architect agent.
     Views; Paper and Scale above the title block in the right panel; Tolerance and Reference as fields in the
     dimension's panel.
   - Tests: tools/e2e_ux_sheet.py (30 checks, Czech, real clicks).
+  - **The drawing set from the table** (the owner: "zobraz všechny listy sestavy"): an assembly's sheet offers
+    📑 All sheets of the assembly (n) right after the fixes (nothing chosen) and first in the title block's table,
+    n = its assemblies + made parts + BOM pages (sheetsuggest setOf), and ⤓ PDF of all sheets (the hooks' setPdf =
+    the assembly's drawingSetPdf); a part's sheet in an assembly: 📑 Sheets of the assembly “…”. Both open 📚 All
+    pages (the set one sheet below the other, this one in sight); there the table goes ▼ Next / ▲ Previous sheet
+    (from the one in sight — markSeen redraws it), ⤓ PDF, ↩ Back to this sheet. AI: get_sheet's drawing_set
+    {assembly, sheets, pages, all_pages_shown}, sheet_edit all_pages. Tests: tools/e2e_drawing_set.py (12 checks,
+    Czech: 6 sheets on screen, next / previous, the part's sheet goes to its page).
   - Left out: a detail view (more than 2 inputs); the top bar's Export ▾ on a sheet (shell); `sheet_edit` setting
     tol / ref (AI tools).
 - **Assembly: suggestion-based and compact done** (the owner: "90 % základních věcí ze suggestions"; audit of 22 basic
