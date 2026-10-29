@@ -522,6 +522,8 @@ details.ol-clean[open] summary { margin-bottom: 6px; }
 /* ------------------------------------------------------------------ workspaces: Quick part | 3D model */
 body:not(.ws-model) .model-only, body.ws-model .quick-only, body.ws-assembly .quick-only, body:not(.ws-assembly) .asm-only,
 body.ws-drawing .quick-only, body:not(.ws-drawing) .dwg-only, body.ws-sheet .quick-only, body:not(.ws-sheet) .sheet-only { display: none !important; }
+/* Export ▾ on a drawing sheet / a 2D drawing: only its own formats (not the 3D ones) */
+body.ws-sheet #exportMenu > button:not(.sheet-only), body.ws-drawing #exportMenu > button:not(.dwg-only) { display: none !important; }
 body:not(.ws-model):not(.ws-assembly) #exportMenu [data-fmt=iges] { display: none; }
 body:not(.ws-model):not(.ws-assembly):not(.ws-drawing):not(.ws-sheet) .not-quick { display: none !important; }
 /* the drawing sheet (📄) */

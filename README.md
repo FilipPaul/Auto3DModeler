@@ -1034,7 +1034,8 @@ the app exchanges with them — and with Inventor, Fusion, Creo, NX, FreeCAD, On
 
 - **In**: *📂 Open ▾ → CAD / PCB / 3D file*, a file dropped on the view, *▣ Solid from a file* in a 3D model, or
   *＋ Insert part ▾ → From a file* in an assembly. The AI's `open_file` opens them too.
-- **Out**: the *Export ▾* menu (or the Export buttons in the 3D model's / assembly's panel); the AI's `export
+- **Out**: the *Export ▾* menu (or the Export buttons in the 3D model's / assembly's panel; on a drawing sheet it offers
+  PDF, DXF and 🖨 Print, in a 📐 2D drawing the DXF of the shown layers); the AI's `export
   {format: "step" | "iges" | "glb" | "obj"}`; on a drawing sheet `export {format: "dxf" | "pdf"}`.
 - In SolidWorks: *File → Open*, file type STEP / IGES (an assembly STEP opens as an assembly with its parts). CATIA:
   *File → Open* (STEP AP214 / IGES). Solid Edge: *Open*, file type STEP / IGES (the import wizard keeps the assembly).

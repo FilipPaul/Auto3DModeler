@@ -4,9 +4,9 @@ the table's rows: a plate 60 × 40 × 8 with 4 holes Ø4 -> 📄 Drawing sheet (
 -> the top view hidden (Delete), 👁 Ukázat pohled brings it back -> an edge: Okótovat její délku (60 mm) -> the new
 dimension: Tolerance… ±0.1, Referenční kóta "(60 ±0.1)", Na druhou stranu, Smazat -> a hole: its callout chosen
 (Jeho kóta), Uložení… H7 -> the title block: Číslo výkresu… D-001, Šablona (Modern), Rámeček… Úzký -> Esc: Export PDF
-(the PDF has D-001), Tisk (a print frame with the PDF). Screenshots at 1600 × 1000 and the view's table at 1280 × 800.
+(the PDF has D-001), Tisk (a print frame with the PDF); Export ▾ in the top bar offers PDF, DXF, Tisk (its DXF saved). Screenshots at 1600 × 1000 and the view's table at 1280 × 800.
 Then the 2D drawing's table (drawing2d/drawsuggest.js): a DXF plate with 3 holes opened -> nothing chosen: Jako skicu
-nového 3D modelu …; a circle clicked -> Všechny takové (3 chosen), Ø: změnit rozměr… 6 (all three), Smazat.
+nového 3D modelu …, Export ▾ offers only DXF (saved); a circle clicked -> Všechny takové (3 chosen), Ø: změnit rozměr… 6 (all three), Smazat.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_ux_sheet.py http://127.0.0.1:5199 <out dir>
 """
@@ -253,6 +253,16 @@ try:
     row("Tisk")
     wait("return !!document.querySelector('iframe.sh-print')?.src", 30)
     check("Tisk: a print frame with the PDF", js("return document.querySelector('iframe.sh-print').src.startsWith('blob:')"))
+    # Export ▾ in the top bar: the sheet's own formats (PDF, DXF, Tisk), not the 3D ones
+    check("Export ▾ enabled on a sheet", js("return !document.getElementById('exportBtn').disabled"))
+    d.find_element(By.ID, "exportBtn").click()
+    time.sleep(0.3)
+    fm = [b.text for b in d.find_elements(By.CSS_SELECTOR, "#exportMenu button") if b.is_displayed()]
+    check("Export ▾ on a sheet: PDF, DXF and Tisk only", len(fm) == 3 and fm[0].startswith("PDF") and fm[1].startswith("DXF") and "Tisk" in fm[2], str(fm))
+    js("window.__dl = null")
+    d.find_element(By.CSS_SELECTOR, "#exportMenu [data-fmt=dxf].sheet-only").click()
+    wait("return !!window.__dl", 30)
+    check("Export ▾ -> DXF: the sheet's DXF", js("return window.__dl.name").endswith(".dxf"), js("return window.__dl.name"))
     d.save_screenshot(f"{OUT}/ux_sheet_8_done.png")
 
     # the view's table at 1280 × 800
@@ -284,6 +294,15 @@ try:
     names = lambda: [b.text.replace("\n", " ") for b in tbl()[0].find_elements(By.CSS_SELECTOR, ".vs-list button")] if tbl() else []
     check("2D drawing: a table with nothing chosen", bool(tbl()) and any("Jako skicu nového 3D modelu" in r for r in names()), str(names()))
     d.save_screenshot(f"{OUT}/ux_draw_1_nothing.png")
+    check("Export ▾ enabled in a 2D drawing", js("return !document.getElementById('exportBtn').disabled"))
+    d.find_element(By.ID, "exportBtn").click()
+    time.sleep(0.3)
+    fm = [b.text for b in d.find_elements(By.CSS_SELECTOR, "#exportMenu button") if b.is_displayed()]
+    check("Export ▾ in a 2D drawing: DXF only", len(fm) == 1 and fm[0].startswith("DXF"), str(fm))
+    js(f"window.__dl2 = null; {D}.hooks.download = async (blob, name) => {{ window.__dl2 = {{ name, size: blob.size }}; return true; }}")
+    d.find_element(By.CSS_SELECTOR, "#exportMenu [data-fmt=dxf].dwg-only").click()
+    wait("return !!window.__dl2", 30)
+    check("Export ▾ -> DXF: the drawing's DXF", js("return window.__dl2.name").endswith(".dxf") and js("return window.__dl2.size") > 100, str(js("return window.__dl2")))
     s = js(f"return {D}.toScreen([24, 30])")
     cv = d.find_element(By.CSS_SELECTOR, "#dwgViewport canvas")
     w, h = js("const r = arguments[0].getBoundingClientRect(); return [r.width, r.height]", cv)

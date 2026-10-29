@@ -1680,6 +1680,8 @@ $('exportMenu').addEventListener('click', async (e) => {
   if (fmtName === '3mf' && (state.workspace === 'model' || state.workspace === 'assembly')) { $('exportBtn').parentElement.classList.remove('open'); export3mf(); return; }
   if (fmtName && state.workspace === 'model') { $('exportBtn').parentElement.classList.remove('open'); modeler.export(fmtName); return; }
   if (fmtName && state.workspace === 'assembly') { $('exportBtn').parentElement.classList.remove('open'); assembly.export(fmtName); return; }
+  if (fmtName && state.workspace === 'sheet') { $('exportBtn').parentElement.classList.remove('open'); ({ pdf: () => sheet.exportPdf(), dxf: () => sheet.exportDxf(), print: () => sheet.printPdf() })[fmtName]?.(); return; }
+  if (fmtName && state.workspace === 'drawing') { $('exportBtn').parentElement.classList.remove('open'); if (fmtName === 'dxf') drawing2d.exportDxf(); return; }
   if (!fmtName || !state.solution) return;
   const base = safeName();
   const open = state.model.issues.filter((i) => (i.severity !== 'info') && !(RESOLVABLE.has(i.code) && i.params.every((p) => state.userSet.has(p) || !param(p))));
@@ -2061,10 +2063,10 @@ $('aiClose').addEventListener('click', () => toggleChat(false));
 function updateTopButtons() {
   if (state.workspace === 'sheet') {
     $('saveBtn').disabled = false;
-    $('exportBtn').disabled = true;
+    $('exportBtn').disabled = !sheet.d; // (PDF, DXF, Print)
   } else if (state.workspace === 'drawing') {
     $('saveBtn').disabled = false;
-    $('exportBtn').disabled = true;
+    $('exportBtn').disabled = false; // (DXF of the shown layers — it says so when none is shown)
   } else if (state.workspace === 'assembly') {
     $('saveBtn').disabled = false;
     $('exportBtn').disabled = !assembly.hasBody();

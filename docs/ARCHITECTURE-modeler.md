@@ -7,6 +7,9 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **UX review leftovers (2026-10-29)**: Export ▾ in the top bar works on a 📄 drawing sheet (PDF, DXF, 🖨 Print —
+  only those shown: styles.css hides the 3D formats there) and in a 📐 2D drawing (DXF of the shown layers); tests:
+  e2e_ux_sheet.
 - **Assembly: suggestion-based and compact done** (the owner: "90 % základních věcí ze suggestions"; audit of 22 basic
   tasks: 8 → 20 doable from the Suggested table alone, the crank built from its four parts in 14 clicks instead of
   ≈ 27 with four Ctrl+clicks on small faces). assembly/smart.js: pinFits (a free round face of the chosen part and one

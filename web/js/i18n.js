@@ -649,6 +649,8 @@ const CS = {
   'Keep it where it is, but no longer follow': 'Nechat ho na místě, ale už nenásledovat',
   '📐 Drawing (PDF)': '📐 Výkres (PDF)', 'A 2D drawing: front, top and right views, sizes, holes, title block': '2D výkres: pohled zepředu, shora a zprava, rozměry, díry, rohové razítko',
   'PDF — 2D drawing (views, sizes)': 'PDF — 2D výkres (pohledy, rozměry)', 'Exported the drawing (PDF).': 'Výkres exportován (PDF).',
+  'PDF — the drawing sheet': 'PDF — výkresový list', 'DXF — the sheet for CAD drafting (mm)': 'DXF — list pro CAD výkresy (mm)',
+  '🖨 Print…': '🖨 Tisk…', 'DXF — the shown layers (mm)': 'DXF — zobrazené hladiny (mm)',
   '✏ Sketch on this face': '✏ Skica na této ploše', '◎ Hole here': '◎ Díra sem', 'Aa Text / picture here': 'Aa Text / obrázek sem',
   '◜ Round its edges': '◜ Zaoblit její hrany', '◸ Bevel its edges': '◸ Zkosit její hrany', '▢ Hollow out, open here': '▢ Vydutit, otevřít zde',
   '● Turn it on': '● Zapnout', '◌ Turn it off': '◌ Vypnout',
