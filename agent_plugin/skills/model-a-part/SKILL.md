@@ -59,7 +59,8 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
      extrude `op: "cut"` (pocket, `through: true` for a cut through) or `op: "add"` (boss).
      `upto_next: true` instead of `d` goes as far as the first face of the part across the whole sketch (a boss up to
      the plate above it, a cut through the first wall only — it follows the part); `d2: 5` also extrudes 5 mm to the
-     other side of the sketch (`went.other_side` says where).
+     other side of the sketch (`went.other_side` says where). `draft: 3` tapers the walls 3° (in going away from the
+     sketch, negative: out — a moulded / cast part, a pocket that releases); with a distance or `up_to`, add or cut.
    - **Measure from a corner or the part's origin** instead of the face's centre: `origin: "corner"` (the face's
      min-u min-v corner, followed when the part changes) or `origin: "world"` (points / shapes in world X / Y / Z: a
      hole at world (30, 10) on a top face is `points: [[30, 10]]`), or `origin: {point: "<point step>"}` — on a hole

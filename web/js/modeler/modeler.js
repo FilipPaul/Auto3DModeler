@@ -407,6 +407,7 @@ export class Modeler {
   whatText(f) {
     const n = (k) => (f[k] || []).length;
     if (f.type === 'sketch') return this.planeText(f);
+    if (f.type === 'extrude' && f.draft) return `${this.whatText({ ...f, draft: 0 })} · draft ${fmt(f.draft)}°`;
     if (f.type === 'extrude' && f.d2 && !f.symmetric) return `${this.whatText({ ...f, d2: 0 })} · other side ${fmt(f.d2)} mm`;
     if (f.type === 'extrude' && f.upto_next) return f.op === 'cut' ? 'cut up to next' : 'up to next';
     if (f.type === 'extrude' && f.upto) return `${f.op === 'cut' ? 'cut ' : ''}up to a face${f.offset ? ` ${f.offset > 0 ? '+' : ''}${fmt(f.offset)} mm` : ''}`;
@@ -1622,6 +1623,7 @@ export class Modeler {
       <div class="row-actions"><button class="btn small" data-k="flip" title="Extrude to the other side of the sketch">⇅ Flip direction</button></div>`}
       <label class="check" title="Also extrude a distance to the other side of the sketch"><input type="checkbox" data-k="other" ${f.d2 ? 'checked' : ''}> ＋ Other side</label>
       ${f.d2 ? `<div class="field"><label>Other side</label><input type="number" step="any" min="0" data-k="d2" value="${fmt(f.d2)}"><span class="unit">mm</span></div>` : ''}
+      ${f.upto_next || f.through ? '' : `<div class="field" title="Taper the side walls: they lean in going away from the sketch (negative: out) — so a moulded or cast part comes out"><label>Draft</label><input type="number" step="0.5" min="-44" max="44" data-k="draft" data-slider="1" value="${fmt(f.draft || 0)}"><span class="unit">°</span></div>`}
       ${sks.length > 1 ? `<div class="field"><label>Sketch</label><select data-k="sketch">${sks.map((s) => `<option value="${s.id}" ${s.id === f.sketch ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></div>` : ''}
       <p class="mp-bad" ${st && !st.ok ? '' : 'hidden'}>${st && !st.ok ? `⚠ ${esc(st.issues.join(' '))}` : ''}</p>
       <div class="mp-actions"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>
@@ -1638,7 +1640,7 @@ export class Modeler {
     for (const b of box.querySelectorAll('[data-upto]')) {
       b.addEventListener('click', () => {
         if (b.dataset.upto === '1') { f.upto = f.upto || { name: null }; f.through = false; this.hint('Up to a face — click a flat face of the part. Enter = OK, Esc = Cancel.'); } else delete f.upto;
-        if (b.dataset.upto === 'next') { f.upto_next = true; f.through = false; f.symmetric = false; } else delete f.upto_next;
+        if (b.dataset.upto === 'next') { f.upto_next = true; f.through = false; f.symmetric = false; delete f.draft; } else delete f.upto_next;
         changed();
       });
     }
@@ -1649,7 +1651,10 @@ export class Modeler {
       });
       d.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okExtrude(); if (e.key === 'Escape') this.cancelExtrude(); });
     }
-    box.querySelector('[data-k=through]')?.addEventListener('change', (e) => { f.through = e.target.checked; changed(); });
+    const dr = box.querySelector('[data-k=draft]'); // (0: straight walls — the field off the step)
+    dr?.addEventListener('input', () => { const v = parseFloat(String(dr.value).replace(',', '.')); if (Number.isFinite(v) && Math.abs(v) < 45) { if (v) f.draft = v; else delete f.draft; rebuild(); } });
+    dr?.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') this.okExtrude(); if (e.key === 'Escape') this.cancelExtrude(); });
+    box.querySelector('[data-k=through]')?.addEventListener('change', (e) => { f.through = e.target.checked; if (f.through) delete f.draft; changed(); });
     // ＋ Other side and Both sides (symmetric) are two ways of the same thing: one unticks the other
     box.querySelector('[data-k=symmetric]')?.addEventListener('change', (e) => { f.symmetric = e.target.checked; if (f.symmetric) delete f.d2; changed(); });
     box.querySelector('[data-k=other]')?.addEventListener('change', (e) => {

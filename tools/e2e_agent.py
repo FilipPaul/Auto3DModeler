@@ -124,6 +124,16 @@ try:
     t, _ = tool("edit_feature", id="F2", fields={"d2": 4})
     r = json.loads(t)
     print(f"    d2 4: went {r.get('went')} | +{r.get('volume_change_mm3')} expected 6400")
+    # ---- an extrude's draft: a 40 × 20 block 10 tall, its walls 5° in (a prismatoid); draft 0: the block again
+    tool("new_model", name="Mould")
+    tool("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 40, "h": 20}}])
+    t, _ = tool("add_feature", type="extrude", sketch="F1", d=10, draft=5)
+    k = 10 * math.tan(math.radians(5))
+    exp = 10 / 6 * (800 + 4 * (40 - k) * (20 - k) + (40 - 2 * k) * (20 - 2 * k))
+    v = json.loads(t)["body"]["volume_mm3"]
+    print(f"    draft 5°: volume {v} expected {exp:.3f} | match: {abs(v - exp) < 0.01} | step: {json.loads(tool('get_model')[0])['steps'][-1].get('draft')}")
+    t, _ = tool("edit_feature", id="F2", fields={"draft": 0})
+    print(f"    draft 0: volume {json.loads(t)['body']['volume_mm3']} expected 8000")
     # ---- distances from a round face's axis: a block with a cross hole, a sketch circle and a hole measured from it;
     # the cross hole moves 10 -> both go along
     tool("new_model", name="Cross")

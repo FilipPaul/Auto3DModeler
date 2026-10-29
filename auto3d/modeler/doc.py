@@ -302,17 +302,31 @@ def _apply(f, st: State, s):
             start = -vec / 2 if f.get("symmetric") else None
         # ＋ Other side: d2 more on the other side of the sketch plane (not with symmetric)
         d2 = _num(f, "d2", what="other side's distance") if f.get("d2") and not f.get("symmetric") else 0
+        # a draft angle: the walls lean in going away from the sketch plane (negative: out) — add or cut alike
+        draft = _num(f, "draft", 0, positive=False, what="draft angle") if f.get("draft") else 0
+        if draft and not abs(draft) < 45:
+            raise K.KernelError("A draft angle is less than 45° (either way).")
+        if draft and (through or nxt):
+            raise K.KernelError("A draft angle goes with a distance or up to a face — not with Through all / Up to next.")
+        if draft and f.get("symmetric"):  # (each half tapers away from the sketch plane: two halves, as ＋ Other side)
+            vec, start, d2 = vec / 2, None, float(np.linalg.norm(vec)) / 2
         if not faces:
             raise K.KernelError("Its sketch has no closed shape to extrude.")
+
+        def tapered(b):
+            if not draft:
+                return b
+            return _sized(lambda v: K.draft(b, fid, math.copysign(v, draft), fid), abs(draft), "draft angle", "°",
+                          "The walls could not be tilted by that angle here — try a smaller angle.")
         before = K.volume(st.body.shape) if op == "cut" and st.body is not None else None
         body0 = st.body
         for face, names in faces:
-            _use(st, fid, K.prism_up_to_next(face, names, vec, body0, fid, op) if nxt else K.prism_body(face, names, vec, fid, start), op)
+            _use(st, fid, K.prism_up_to_next(face, names, vec, body0, fid, op) if nxt else tapered(K.prism_body(face, names, vec, fid, start)), op)
         main = [t for t, _ in st.tools.get(fid, [])]
         if d2:
             back = -vec / float(np.linalg.norm(vec)) * d2
             for face, names in faces:
-                b = K.prism_body(face, names, back, fid)
+                b = tapered(K.prism_body(face, names, back, fid))
                 b.names[f"{fid}:start"] = b.names.pop(f"{fid}:end")  # (its far face starts the extrude; the one on the plane is inside)
                 _use(st, fid, b, op)
         _cut_check(s, st, before)

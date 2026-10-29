@@ -804,7 +804,20 @@ def draft(body, of, angle, fid):
     if not ok:
         raise KernelError("The walls could not be tilted by that angle here — try a smaller angle, or draft before rounding the edges.")
     res = mk.Shape()
-    return Body(res, _carry(mk, body.names, res))
+    # (a tilted wall is not in Modified's history — ModifiedShape has every face, tilted or not)
+    rm, names = _face_map(res), {}
+    for n, fs in body.names.items():
+        new = []
+        for f in fs:
+            try:
+                g = mk.ModifiedShape(f)
+            except Exception:  # noqa: BLE001 — a face the draft did not see
+                continue
+            if rm.Contains(g):
+                new.append(g)
+        if new:
+            names[n] = new
+    return Body(res, names)
 
 
 def open_chain(sk):
