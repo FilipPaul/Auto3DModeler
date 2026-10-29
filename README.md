@@ -213,6 +213,14 @@ items get a ⏮ mark), the export's message repeats it, the printing copy's 3D p
 part panel and a drawing sheet say "⚠ The part is rolled back in its history". Put the bar at the end (⤓ To the end) to
 export the whole part. The AI sees it in get_model (rollback) and moves it with `rollback {to: step id | "end"}`.
 
+**Suggestion-based**: most basic tasks of the 3D model are a click on something and a row of the Suggested table.
+With **nothing chosen** it says the **next step** (a few rows, ranked by what you just did: an empty model — ✏ Sketch
+on a plane…; a sketch not used yet — ⬆ Extrude it; after a hole — ⁂ Pattern the last hole; else a sketch on a face, 📄 Drawing,
+◎ Hole, ◜ / ◸ edges …). A click on an **edge** offers ◜ Fillet / ◸ Chamfer this edge first (the command opens with it
+chosen; Ctrl+click more edges), a click on a **step in the list** ✎ Edit, 🏷 Rename, ⁂ Pattern it, ✕ Delete, ↑ / ↓ Move,
+⏮ Roll back here. In a sketch, with nothing picked: ✓ Finish — then extrude, 🪄 Auto-dimension, ⬚ Pick a shape,
+↔ Dimension, ◯ Circle. Esc clears the choice.
+
 **A click on a face of a 3D model** chooses its step and shows its tools in the Suggested table (bottom left) — the
 table can be **dragged by its header** anywhere in the view, and stays there (a double-click on the header: back).
 The same goes for every box floating over a view — 🖨 Print check, 📏 Measure, the ✂ Section bar, the size editor and

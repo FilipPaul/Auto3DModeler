@@ -37,6 +37,20 @@ Date: 2026-10-25. Written by the architect agent.
   folded into "🎨 Vzhled a úpravy" (assembly.moreOpen); a coupling's row laid out as a joint's. ⚙ Mechanism: a crank on
   a pin of the fixed part is the driver first (also when the slider, not the rod, closes the loop). tests:
   tools/e2e_ux_assembly.py; e2e tests that clicked a joint type open 🔗 Vazba ▾ first.
+- **✨ Suggestion-based 3D model and sketch done** (the owner, 2026-10-29: "90 % základních věcí … z chytrých a
+  relevantních suggestions"; audit of ~20 basic tasks: 55 % → 90 % through the table's top rows): nothing chosen in the
+  3D model -> "Další krok" (≤ 6 rows, ranked by context: an empty model ✏ Skica na rovině…; an unused sketch ⬆ Vysunout
+  skicu „…“; after a hole ⁂ Pole z poslední díry; else ✏ sketch on a face, ◎ hole, ◜ / ◸ edges, 📄 Výkres — the drawing sheet …); a click on an EDGE
+  (lit on hover) -> ◜ Zaoblit / ◸ Zkosit tuto hranu first, the command opening with it chosen (Ctrl+click: several);
+  a step's row (or a sketch's outline) -> ✎ edit, 🏷 rename, ⁂ pattern it, ✕ delete, ◌ off, ↑ / ↓ move, ⏮ roll back
+  here (a click on a row no longer leaves the previous table up); a face also 📏 Změřit ji, 🎨, ⁂ for a hole's face;
+  Esc clears the choice; OK / Cancel leave nothing chosen. The sketch: "Další krok" with nothing picked (≤ 5 rows over
+  the drawing: ✓ Hotovo — pak vysunout, 🪄, ⬚ Vybrat tvar, ↔ Kóta, ◯ Kruh; none in an empty sketch); a line clicked in
+  its middle gets the line's suggestions (its length …), not an empty table. Compact panels: the Part panel's "Next"
+  block (a hint + buttons repeating the toolbar) gone, Tolerances / See-through under "Další…", the sketch panel without
+  the second 🏷 Sizes switch and the repeated hint, its Tips folded. Fixed: a click on a sketch size label left its
+  drag running (the label stopped pointerup) — the label wandered with the mouse and, after the sketch, every move threw
+  a console error. tools/e2e_ux_model.py does the tasks only through the suggestions.
 - **AI tool coverage checked (2026-10-29)** (the owner: "checkni, jestli AI agent má přístup ke všem toolům"):
   docs/AI-TOOLS-COVERAGE.md — 90 GUI capabilities against the tools: before ok 54 / partial 14 / gui only 21, now
   ok 64 / partial 13 / gui 12 (layout, rare, many-input tools). tests/test_agent_wiring.py: the page's handlers (read

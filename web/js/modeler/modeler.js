@@ -29,6 +29,7 @@ const TYPE_NAME = { point: 'Point', rib: 'Rib', draft: 'Draft', sketch: 'Sketch'
   loft: 'Loft', sweep: 'Sweep', solid: 'Solid', decal: 'Decoration', mirror: 'Mirror', split: 'Split' };
 const LIMIT_FIELDS = { extrude: ['d', 'offset'], revolve: ['angle'], fillet: ['r'], chamfer: ['d'], hole: ['d', 'depth'], shell: ['t'],
   pattern: ['count', 'spacing'], decal: ['h', 'depth'] }; // the numbers the kernel finds ranges for (doc.LIMIT_FIELDS)
+const NEXT_ROWS = 6; // ✨ Next step (nothing chosen): its rows — few, it stays up over the part
 const REPEATABLE = new Set(['extrude', 'revolve', 'hole', 'pattern', 'loft', 'sweep', 'decal', 'mirror']);
 const MIRROR_PLANES = { YZ: 'left ↔ right', XZ: 'front ↔ back', XY: 'top ↔ bottom' }; // the base planes to mirror across
 const AXES = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
@@ -215,6 +216,7 @@ export class Modeler {
         ${btn('datum-XY', 'Top', 'Sketch on the Top plane (XY)')}${btn('datum-XZ', 'Front', 'Sketch on the Front plane (XZ)')}${btn('datum-YZ', 'Right', 'Sketch on the Right plane (YZ)')}
         <span class="sep"></span>${btn('midPlane', '⇳ Midway', 'Sketch midway between two parallel flat faces (e.g. a rib in the middle of a part): click one face, then the other — the sketch stays in the middle when they move', this.midPick ? 'on' : '')}
         <div class="mp-actions">${btn('cancelPlane', '✕ Cancel', 'Do not start a sketch (Esc)')}</div>`;
+      this.showNext(); // (✨ Next: not while a plane is chosen)
     } else {
       this.els.viewport.querySelector(':scope > .view-suggest[data-from=sketch]')?.remove(); // (the sketch's suggestions)
       this.view.setPlaneArrow(this.cmd?.feature.type === 'split' ? this.splitFrame() : null, t('this side'), false); // (✂ Split: which side is "this side")
@@ -253,6 +255,7 @@ export class Modeler {
       for (const a of ['loft', 'sweep']) bar.querySelector(`[data-a=${a}]`).disabled = this.sketches().length < 2 || !!this.cmd;
       bar.querySelector('[data-a=solidFile]').disabled = !!this.cmd;
       for (const a of ['measure', 'section', 'paint']) bar.querySelector(`[data-a=${a}]`).disabled = !this.result?.body;
+      this.showNext(); // (nothing chosen: what usually comes next, in the suggestions table)
     }
     for (const b of bar.querySelectorAll('[data-a]:not([data-a=relate])')) b.addEventListener('click', () => this.action(b.dataset.a));
     for (const b of bar.querySelectorAll('[data-origin]')) b.addEventListener('click', () => this.setSketchOrigin(b.dataset.origin));
@@ -504,8 +507,10 @@ export class Modeler {
         renameInPlace(row.querySelector('.mt-name'), (n) => { f.name = n; this.history.commit(); this.render(); this.hooks.onChange?.(); });
         return null;
       }
+      this.picks = [];
+      if (!this.cmd) this.view.setEdgeHighlight();
       this.selectStep(f.id);
-      this.suggestSketch(f.id);
+      if (!this.suggestStep(f.id)) this.dropSuggest(); // (what can be done with it: edit, rename, move, delete …)
       return null;
     });
     row.addEventListener('dblclick', (e) => { if (!e.target.closest('[data-a=twist]')) this.edit(f.id); });
@@ -809,13 +814,17 @@ export class Modeler {
     Object.assign(el.style, { left: `${t.x - vr.left + 14}px`, top: `${t.y - vr.top + 14}px` });
   }
 
-  /** A snap point picked (no tool on): marked, and what to do with it suggested — measure from it, copy it, ask the AI. */
-  pickSnap(sp) {
+  /** A snap point picked (no tool on): marked, and what to do with it suggested — measure from it, copy it, ask the AI;
+   *  an edge's middle (edge `ei` under it): round / bevel that edge first. */
+  pickSnap(sp, ei = -1) {
     const p = sp.point, xyz = [p.x, p.y, p.z].map((v) => fmt(+v.toFixed(3))).join(', ');
     const kind = sp.snap === 'point' ? sp.name : t({ corner: 'A corner', midpoint: 'An edge midpoint', centre: 'A centre', quadrant: 'A quadrant' }[sp.snap]);
     if (sp.snap === 'point') this.selectStep(sp.id); // a reference point: its step chosen
     this.view.setMeasure([p]);
+    const ref = ei >= 0 && this.edgeRef(ei);
+    if (ref) this.view.setEdgeHighlight(-1, [ei]);
     const sg = showSuggest(this.els.viewport, `${kind} · ${xyz}`, [
+      ...(ref ? this.edgeItems([ref]) : []),
       ...(['corner', 'midpoint', 'centre'].includes(sp.snap) ? [{ icon: '•', label: t('Reference point here'), title: t('A point that stays on this place of the part when it changes — sketches and 📏 Measure snap to it'),
         run: () => { this.dropSuggest(); this.addPoint(sp); } }] : []),
       { icon: '📏', label: t('Measure from here'), run: () => {
@@ -865,21 +874,169 @@ export class Modeler {
     return f;
   }
 
-  /** The suggestions table of the 3D model (a face's tools) gone. */
-  dropSuggest() { const b = this.els.viewport.querySelector(':scope > .view-suggest[data-from=face]'); b?.remove(); if (!this.measuring) this.view.setMeasure([]); }
+  /** The suggestions table of the 3D model (a face's tools) gone — the ✨ Next table in its place (nothing chosen). */
+  dropSuggest() {
+    const b = this.els.viewport.querySelector(':scope > .view-suggest[data-from=face]');
+    b?.remove();
+    if (!this.measuring) this.view.setMeasure([]);
+    if (b) this.picks = []; // (the table gone: so is what it was for)
+    if (b && !this.cmd) this.view.setEdgeHighlight(); // (picked edges: no longer marked)
+    this.showNext();
+  }
+
+  /** ◜ / ◸ for picked edges (refs {a, b, fp}): the command open with them chosen (and their tangent chains). */
+  roundPicked(type, refs) {
+    this.picks = [];
+    this.startRound(type);
+    const f = this.cmd?.feature;
+    if (!f) return;
+    for (const i of this.refEdges(refs)) for (const j of this.chainOf(i, f)) { const r = this.edgeRef(j); if (r && !f.edges.some((x) => this.sameRef(x, r))) f.edges.push(r); }
+    this.cmd.lastPick = t2('{n} edge(s) chosen — click more, or OK.', { n: f.edges.length });
+    this.renderProps();
+    this.rebuild();
+  }
+
+  /** An edge's size: its length, or (a full circle) its diameter -> {round, d, L}. */
+  edgeSize(i) {
+    const ed = this.result?.body?.edges[i];
+    if (!ed) return null;
+    let L = 0;
+    for (let k = 3; k < ed.pts.length; k += 3) L += Math.hypot(ed.pts[k] - ed.pts[k - 3], ed.pts[k + 1] - ed.pts[k - 2], ed.pts[k + 2] - ed.pts[k - 1]);
+    const P = [];
+    for (let k = 0; k < ed.pts.length; k += 3) P.push(ed.pts.slice(k, k + 3));
+    if (P.length > 2 && Math.hypot(...P[0].map((x, j) => x - P[P.length - 1][j])) < 1e-6) P.pop(); // a closed loop: its first point twice
+    const c = P.reduce((s, p) => s.map((x, j) => x + p[j] / P.length), [0, 0, 0]);
+    const rs = P.map((p) => Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2])), r0 = rs.reduce((s, x) => s + x, 0) / rs.length;
+    const round = P.length > 8 && rs.every((x) => Math.abs(x - r0) < r0 * 0.01 + 1e-6) && Math.abs(L - 2 * Math.PI * r0) < L * 0.02;
+    return { round, d: 2 * r0, L };
+  }
+
+  /** The suggestions for picked edges (refs): ◜ Fillet and ◸ Chamfer first — a single edge: its size too. */
+  edgeItems(refs) {
+    const one = refs.length === 1, idx = one ? this.refEdges(refs)[0] : -1, sz = idx >= 0 ? this.edgeSize(idx) : null;
+    return [
+      { icon: '◜', label: t(one ? 'Fillet this edge' : 'Fillet these edges'), rank: 0, title: t('Round it off — the radius in the panel, the preview in the view'), run: () => { this.dropSuggest(); this.roundPicked('fillet', refs); } },
+      { icon: '◸', label: t(one ? 'Chamfer this edge' : 'Chamfer these edges'), rank: 1, title: t('Bevel it — the size in the panel, the preview in the view'), run: () => { this.dropSuggest(); this.roundPicked('chamfer', refs); } },
+      ...(sz ? [{ icon: '📏', label: sz.round ? `Ø ${fmt(sz.d)} mm` : `${t('Length')} ${fmt(sz.L)} mm`, rank: 2.5, title: t('Its size — 📏 Measure for more'), run: () => this.hooks.toast(sz.round ? `Ø ${fmt(sz.d)} mm` : `${t('Length')} ${fmt(sz.L)} mm`, 'info', 3000) }] : []),
+    ];
+  }
+
+  /** One edge clicked (no tool on): it is marked and ◜ Fillet / ◸ Chamfer it suggested first. */
+  pickEdge(i, ref) {
+    this.selectStep(null);
+    this.view.setEdgeHighlight(-1, [i]);
+    const sg = showSuggest(this.els.viewport, t('An edge'), this.edgeItems([ref]), t('Ctrl+click more edges: round them all at once'),
+      `${t('in the 3D model')}: ${t('the edge between faces')} ${ref.a} ${t('and')} ${ref.b}`);
+    if (sg) sg.dataset.from = 'face';
+  }
+
+  /** ✨ Next: with nothing chosen (no tool on), what usually comes next — the obvious next step first: a new model:
+   *  ✏ a sketch; a sketch not used yet: ⬆ Extrude it; a solid: a sketch on it, ◎ a hole, ◜ / ◸ its edges … (ranked by
+   *  the last step made). The rest of the 3D model's tools stay in the bar above. */
+  showNext() {
+    const vp = this.els.viewport, box = vp.querySelector(':scope > .view-suggest');
+    const on = this.mode === 'part' && !this.cmd && !this.measuring && !this.painting && !this.selected && !this.$('.m-install:not([hidden])');
+    if (!on) { if (box?.dataset.from === 'next') box.remove(); return; }
+    if (box && box.dataset.from !== 'next') return; // (a face's / a step's table is up)
+    const fs = this.part.features, body = this.result?.body, used = new Set(fs.flatMap(sketchesOf));
+    const free = this.sketches().filter((s) => !used.has(s.id)).at(-1), last = this.builtSteps().filter((f) => f.type !== 'point').at(-1);
+    const items = [];
+    const add = (key, icon, label, title, run, rank) => items.push({ key, icon, label: t(label), title: t(title), rank, run: () => { this.dropSuggest(); run(); } });
+    if (free) {
+      if (isOpenLine(free)) { if (body) items.push({ icon: '⊿', label: `${t('Rib from')} „${free.name}“`, rank: 0, title: t('A rib from the open line: give the thickness — it fills up to the part'), run: () => { this.dropSuggest(); this.startRib(free.id); } }); }
+      else {
+        items.push({ icon: '⬆', label: `${t('Extrude the sketch')} „${free.name}“`, rank: 0, title: t('Give the sketch a height: add material or cut (E)'), run: () => { this.dropSuggest(); this.openExtrude(this.newExtrude(free.id), true); } });
+        items.push({ icon: '⟳', label: `${t('Revolve the sketch')} „${free.name}“`, rank: 3, title: t('Spin a sketch around an axis (vases, knobs, wheels)'), run: () => { this.dropSuggest(); this.startRevolve(); } });
+      }
+      add('editsk', '✎', 'Edit the sketch', 'Change the sketch that is not used yet', () => this.edit(free.id), 4);
+    }
+    if (!body) {
+      add('sketch', '✏', 'Sketch on a plane…', 'Start a sketch on the Top plane (another plane: in the bar of the sketch) — then ⬆ Extrude it', () => this.startSketch(), free ? 1 : 0);
+      add('solid', '▣', 'Solid from a file…', 'Start from a STEP / STL / OBJ / 3MF solid', () => this.pickSolid(), 5);
+    } else {
+      // ranked by what was made last: a hole -> repeat it; a solid -> a sketch on it, a hole, its edges
+      const R = last?.type === 'hole' ? { pattern: 0, mirror: 1, hole: 2, sketch: 3, fillet: 4, chamfer: 5, shell: 6, measure: 7 }
+        : last?.type === 'fillet' || last?.type === 'chamfer' ? { sketch: 0, hole: 1, fillet: 2, chamfer: 3, print: 4, measure: 5, shell: 6, pattern: 7 }
+          : { sketch: 0, hole: 1, fillet: 2, chamfer: 3, shell: 4, pattern: 5, mirror: 6, measure: 7 };
+      const off = free ? 1 : 0; // (⬆ the free sketch first)
+      add('sketch', '✏', 'Sketch on a face or plane…', 'Click a flat face of the part (pockets, bosses, holes) — or choose Top / Front / Right', () => this.startSketch(), (R.sketch ?? 8) + off);
+      add('hole', '◎', 'Hole…', 'Drill holes: click on a flat face where they go (standard sizes, threads)', () => this.startHole(), (R.hole ?? 8) + off);
+      add('fillet', '◜', 'Fillet edges…', 'Round edges: click the edges (or a face: all its edges), give the radius', () => this.startRound('fillet'), (R.fillet ?? 8) + off);
+      add('chamfer', '◸', 'Chamfer edges…', 'Bevel edges: click the edges, give the size', () => this.startRound('chamfer'), (R.chamfer ?? 8) + off);
+      add('shell', '▢', 'Shell…', 'Hollow the part out: click the face(s) to leave open, give the wall thickness', () => this.startShell(), (R.shell ?? 9) + off);
+      if (this.repeatable().length) add('pattern', '⁂', last?.type === 'hole' ? 'Pattern the last hole' : 'Pattern…', 'Repeat a step (holes, a boss, a cut) in a row or around a circle', () => this.startPattern(last?.type === 'hole' ? last.id : null), (R.pattern ?? 9) + off);
+      add('mirror', '⇋', 'Mirror…', 'Mirror the part across a base plane or a flat face', () => this.startMirror(), (R.mirror ?? 10) + off);
+      add('measure', '📏', 'Measure', 'Click a face or an edge (its size), or two spots (the distance between them) (M)', () => this.toggleMeasure(), (R.measure ?? 10) + off);
+      if (this.hooks.toPrint) add('print', '🖨', 'Prepare for 3D print', 'Check it fits your printer, split it into exact pieces with joints — in a printing copy of this part', () => this.toPrint(), (R.print ?? 11) + off);
+      add('paint', '🎨', 'Paint faces', 'Colour faces: click them, then pick a colour', () => this.togglePaint(), 12);
+      if (this.hooks.newSheet) add('sheet', '📄', 'Drawing', 'A drawing sheet of this part to edit: its views and dimensions (light / medium / full), moved, deleted, added — it follows the part when it changes', () => this.hooks.newSheet(), (R.sheet ?? 4.5) + off);
+    }
+    // short (it stays up while nothing is chosen — over the part): the likeliest few; the rest are in the bar above
+    const top = [...items].sort((a, b) => a.rank - b.rank).slice(0, NEXT_ROWS);
+    const sg = showSuggest(vp, fs.length ? t('Next step') : t('New part'), top,
+      body && fs.length <= 2 ? t('Or click a face, an edge or a step: what fits it is offered') : '', `${t('in the 3D model')}: ${t('nothing selected')}`);
+    if (sg) sg.dataset.from = 'next';
+  }
+
+  /** A step chosen in the list: what can be done with it — ✎ Edit first (a sketch not used yet: ⬆ Extrude it), then
+   *  rename, turn off, move up / down, delete; a hole or a boss: ⁂ repeat it. */
+  suggestStep(id) {
+    const f = this.part.features.find((g) => g.id === id);
+    if (this.mode !== 'part' || this.cmd || !f) return null;
+    if (isOpenLine(f)) return this.suggestSketch(id);
+    const used = new Set(this.part.features.flatMap(sketchesOf)), top = this.treeShapeNow?.top || [], k = top.indexOf(id);
+    const items = [];
+    const add = (icon, label, run, rank, o = {}) => items.push({ icon, label: t(label), rank, run: () => { this.dropSuggest(); run(); }, ...o });
+    if (f.type === 'sketch' && !used.has(f.id)) {
+      add('⬆', 'Extrude it', () => this.openExtrude(this.newExtrude(f.id), true), 0, { title: t('Give the sketch a height: add material or cut (E)') });
+      add('⟳', 'Revolve it', () => this.startRevolve(), 5);
+    }
+    add('✎', f.type === 'sketch' ? 'Edit the sketch' : 'Edit the step', () => this.edit(f.id), 1, { title: t('Change this step (or double-click it)') });
+    add('🏷', 'Rename', () => this.renameStep(f.id), 2);
+    if (REPEATABLE.has(f.type) && f.type !== 'pattern' && this.result?.body && !f.suppressed) add('⁂', 'Pattern it', () => this.startPattern(f.id), 3, { title: t('Repeat this step in a row or around a circle') });
+    add(f.suppressed ? '●' : '◌', f.suppressed ? 'Turn it on' : 'Turn it off', () => this.toggleOff(f.id), 6);
+    if (k > 0) add('↑', 'Move up', () => this.moveStep(this.stepBlock(id), this.blockFirst(top[k - 1]), false), 7, { title: t('One place earlier in the list (refused when it would come before a step it uses)') });
+    if (k >= 0 && k < top.length - 1) add('↓', 'Move down', () => this.moveStep(this.stepBlock(id), top[k + 1], true), 7.5, { title: t('One place later in the list') });
+    const i = this.part.features.indexOf(f);
+    if (i !== this.barAt() - 1) add('⏮', 'Roll back to here', () => this.setRollback(f.id), 8, { title: t('Show the part as it was after this step — the steps under it are kept but not built; new steps go in under it') });
+    add('✕', 'Delete the step', () => this.remove(f.id), 4, { danger: true });
+    const sg = showSuggest(this.els.viewport, f.name, items.sort((a, b) => a.rank - b.rank), '', `${t('in the 3D model')}: ${t('step')} ${f.id} “${f.name}”`);
+    if (sg) sg.dataset.from = 'face';
+    return sg;
+  }
+
+  /** 🏷 Rename a step in its row of the list (typed in place). */
+  renameStep(id) {
+    const f = this.part.features.find((g) => g.id === id);
+    this.openTo(id);
+    this.renderTree();
+    const el = f && this.$(`.mt-tree .mt-item[data-id="${CSS.escape(id)}"] .mt-name`);
+    if (el) renameInPlace(el, (n) => { f.name = n; this.history.commit(); this.render(); this.hooks.onChange?.(); });
+  }
+
+  /** A top step of the list and the sketches under it (they move together). */
+  stepBlock(id) { return [...(this.treeShapeNow?.kids.get(id) || []).filter((k) => !k.link).map((k) => k.id), id]; }
+
+  /** The first step of a block in the list (its sketch, before it). */
+  blockFirst(id) { const ids = new Set(this.stepBlock(id)); return this.part.features.find((x) => ids.has(x.id))?.id || id; }
 
   /** A click on the part: its step is chosen (its sizes show) and everything for that face is suggested (bottom left),
    *  in sections: on this face, its edges, the part, the step. */
   clickFace(e) {
     this.closeCtx();
     const line = !(e.ctrlKey || e.metaKey) && this.view.pickOutline(e.clientX, e.clientY);
-    if (line) { this.picks = []; this.selectStep(line); if (!this.suggestSketch(line)) this.dropSuggest(); return; } // a sketch's lines: the sketch chosen (in the tree too; an open line: ⊿ Rib)
+    if (line) { this.picks = []; this.view.setEdgeHighlight(); this.selectStep(line); if (!this.suggestStep(line)) this.dropSuggest(); return; } // a sketch's lines: the sketch chosen (in the tree too; not used yet: ⬆ Extrude it; an open line: ⊿ Rib)
     const sp = this.view.measurePoint(e.clientX, e.clientY), more = e.ctrlKey || e.metaKey;
+    // an edge under the mouse (lit while hovered): ◜ / ◸ it — also on its middle (a snap point there too)
+    const ei = (!sp?.snap || sp.snap === 'midpoint') && hoverKinds().edges ? this.view.pickEdge(e.clientX, e.clientY, 7) : -1, eref = ei >= 0 ? this.edgeRef(ei) : null;
     const h = sp?.snap ? null : this.view.pick(e.clientX, e.clientY), fs = h?.face && this.stepFaces(h.face);
-    const pick = sp?.snap ? { kind: 'point', point: sp.point.clone(), snap: sp.snap } : fs ? { kind: 'face', step: fs.step, face: h.face, point: h.point.clone() } : null;
+    const pick = eref && (more || !sp?.snap) ? { kind: 'edge', ref: eref, point: (sp?.point || h?.point)?.clone() || null }
+      : sp?.snap ? { kind: 'point', point: sp.point.clone(), snap: sp.snap } : fs ? { kind: 'face', step: fs.step, face: h.face, point: h.point.clone() } : null;
     if (more && pick && this.picks?.length) { this.addPick(pick); return; } // Ctrl+click: one more in the selection
     this.picks = pick ? [pick] : [];
-    if (sp?.snap) { this.pickSnap(sp); return; } // a corner, an edge's middle, a centre
+    if (!this.cmd) this.view.setEdgeHighlight();
+    if (sp?.snap) { this.pickSnap(sp, eref ? ei : -1); return; } // a corner, an edge's middle, a centre
+    if (pick?.kind === 'edge') { this.pickEdge(ei, eref); return; }
     if (!this.measuring) this.view.setMeasure([]);
     if (!fs) { this.selectStep(null); this.dropSuggest(); return; }
     this.selectStep(fs.step.id);
@@ -900,16 +1057,22 @@ export class Modeler {
         flat && ['split', '✂', t('Split here'), () => this.startSplit(this.splitPlane(h.face))],
         this.threadHoles().length && (this.part.threads && this.part.threads !== 'hidden'
           ? ['threads', '🔩', t('Hide all threads'), () => this.setThreads('hidden')]
-          : ['threads', '🔩', t('Show all threads'), () => this.askThreads()])]],
+          : ['threads', '🔩', t('Show all threads'), () => this.askThreads()]),
+        ['measure', '📏', t('Measure it'), () => { if (!this.measuring) this.toggleMeasure(); if (this.measuring) this.clickMeasure(at); }],
+        ['paint', '🎨', t('Paint this face'), () => { if (!this.painting) this.togglePaint(); if (this.painting) { this.clickPaint(at); this.renderProps(); } }]]],
       [`${t('Step')} · ${fs.step.name}`, [
         ['edit', '✎', t('Edit the step'), () => this.edit(fs.step.id)],
+        REPEATABLE.has(fs.step.type) && fs.step.type !== 'pattern' && !fs.step.suppressed && ['pattern', '⁂', t('Pattern it'), () => this.startPattern(fs.step.id)],
+        ['rename', '🏷', t('Rename'), () => this.renameStep(fs.step.id)],
         ['off', fs.step.suppressed ? '●' : '◌', t(fs.step.suppressed ? 'Turn it on' : 'Turn it off'), () => this.toggleOff(fs.step.id)],
         ['del', '✕', t('Delete the step'), () => this.remove(fs.step.id), 'danger']]],
     ].map(([title, items]) => [title, items.filter(Boolean)]).filter(([, items]) => items.length);
     const face = t(this.faceLabel(h.face.name).replace(/ of .*$/, '').replace(/^the /, ''));
     // the most relevant first (the table shows the top ones, the rest under ⋯ Show all): a flat face — sketch on it,
     // extrude it, a hole, round / bevel, edit; a round one — its edges, threads, edit
-    const RANK = { sketch: 0, faceup: 0.5, hole: 1, fillet: 2, chamfer: 3, edit: 4, decal: 5, shell: 6, del: 7, mirror: 8, split: 9, off: 10, threads: flat ? 11 : 2.5 };
+    // a hole's / a boss' face: ⁂ repeat it among the top rows
+    const rep = fs.step.type === 'hole' || fs.step.op === 'cut';
+    const RANK = { sketch: 0, faceup: 0.5, hole: 1, fillet: 2, chamfer: 3, edit: 4, pattern: rep ? 2.5 : 8.5, measure: 5.5, decal: 6.5, shell: 6, del: 7, mirror: 8, split: 9, rename: 9.5, paint: 9.8, off: 10, threads: flat ? 11 : 2.5 };
     const sg = showSuggest(this.els.viewport, `${fs.step.name} · ${face}`, sections.flatMap(([title, items]) => [{ section: title },
       ...items.map(([key, icon, label, run, cls]) => ({ icon, label, rank: RANK[key], danger: cls === 'danger', run: () => { this.dropSuggest(); run(); } }))]), '',
       `${t('in the 3D model')}: ${t('step')} ${fs.step.id} “${fs.step.name}”, ${t('face')} ${h.face.name}${h.face.type === 'plane' ? ` (${t('flat')})` : h.face.type === 'cylinder' ? ` (${t('round')}, Ø${fmt(2 * (h.face.radius || 0))})` : ''}`);
@@ -935,7 +1098,7 @@ export class Modeler {
 
   /** Ctrl+click: a face (its step) or a snap point more in the selection — or, chosen already, taken out of it. */
   addPick(pick) {
-    const same = (a, b) => a.kind === b.kind && (a.kind === 'face' ? a.step.id === b.step.id && a.face.id === b.face.id : a.point.distanceTo(b.point) < 1e-6);
+    const same = (a, b) => a.kind === b.kind && (a.kind === 'face' ? a.step.id === b.step.id && a.face.id === b.face.id : a.kind === 'edge' ? this.sameRef(a.ref, b.ref) : a.point.distanceTo(b.point) < 1e-6);
     const i = this.picks.findIndex((q) => same(q, pick));
     if (i >= 0) this.picks.splice(i, 1); else this.picks.push(pick);
     this.showPicks();
@@ -944,17 +1107,19 @@ export class Modeler {
   /** Several things chosen (Ctrl+click): all marked — their steps' faces, the points — and what fits them suggested:
    *  the distance between two (the gap between two parallel flat faces), turning their steps off, deleting them. */
   showPicks() {
-    const ps = (this.picks || []).filter((q) => q.kind === 'point' || this.part.features.includes(q.step));
+    const ps = (this.picks || []).filter((q) => q.kind === 'point' || q.kind === 'edge' || this.part.features.includes(q.step));
     this.picks = ps;
-    if (!ps.length) { this.selectStep(null); this.dropSuggest(); this.view.setMeasure([]); return; }
+    if (!ps.length) { this.selectStep(null); this.view.setEdgeHighlight(); this.dropSuggest(); this.view.setMeasure([]); return; }
     const steps = [...new Map(ps.filter((q) => q.kind === 'face').map((q) => [q.step.id, q.step])).values()];
     this.selectStep(null);
     this.view.setSelectedFaces(steps.flatMap((s) => this.stepFaceIds(s.id)));
-    const pts = ps.filter((q) => q.kind === 'point').map((q) => q.point);
+    const pts = ps.filter((q) => q.kind === 'point').map((q) => q.point), edges = ps.filter((q) => q.kind === 'edge').map((q) => q.ref);
     this.view.setMeasure(pts);
+    this.view.setEdgeHighlight(-1, this.refEdges(edges));
     const dot = (u, v) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2], xyz = (p) => [p.x, p.y, p.z].map((v) => fmt(+v.toFixed(3))).join(', ');
     const items = [];
-    if (ps.length === 2) {
+    if (edges.length) items.push({ section: `${t('Edges')} (${edges.length})` }, ...this.edgeItems(edges)); // (◜ / ◸ first)
+    if (ps.length === 2 && !edges.length) {
       const [a, b] = ps, d = a.point.distanceTo(b.point), fa = a.kind === 'face' && a.face.type === 'plane' && a.face.frame, fb = b.kind === 'face' && b.face.type === 'plane' && b.face.frame;
       const gap = fa && fb && Math.abs(Math.abs(dot(fa.n, fb.n)) - 1) < 1e-6 ? Math.abs(dot(fb.o.map((v, k) => v - fa.o[k]), fa.n)) : null;
       const show = (text) => { this.view.setMeasure([a.point, b.point], text); this.hooks.toast(text, 'info', 3000); };
@@ -973,7 +1138,7 @@ export class Modeler {
         } },
         { icon: '✕', label: t(one ? 'Delete the step' : 'Delete them'), danger: true, run: () => this.removeSteps(steps.map((s) => s.id)) });
     }
-    const refs = `${t('in the 3D model')}: ${ps.map((q) => (q.kind === 'face' ? `${t('step')} ${q.step.id} “${q.step.name}” ${t('face')} ${q.face.name}` : `${t('the point')} (${xyz(q.point)})`)).join('; ')}`;
+    const refs = `${t('in the 3D model')}: ${ps.map((q) => (q.kind === 'face' ? `${t('step')} ${q.step.id} “${q.step.name}” ${t('face')} ${q.face.name}` : q.kind === 'edge' ? `${t('the edge between faces')} ${q.ref.a} ${t('and')} ${q.ref.b}` : `${t('the point')} (${xyz(q.point)})`)).join('; ')}`;
     const sg = showSuggest(this.els.viewport, `${ps.length} ${t('selected')}`, items, t('Ctrl+click: add more, or take one away'), refs);
     if (sg) sg.dataset.from = 'face';
   }
@@ -1483,25 +1648,24 @@ export class Modeler {
           ${b.cog ? `<span title="${esc(t("Centre of mass (centre of gravity) of the solid, in the part's coordinates"))}">CoG</span><b class="mp-cog"><span data-no-i18n>${cogText(b.cog)} mm</span>
             <button class="btn small ${this.cogOn ? 'on' : ''}" data-a="cog" title="${esc(t('Show the centre of mass in the view (⊕)'))}">⊕</button></b>` : ''}</div>
           <div class="field"><label>Material</label><select data-k="material">${MATERIAL_GROUPS.map(([g, ms]) => `<optgroup label="${esc(t(g))}">${ms.map(([k, rho]) => `<option value="${k}" ${k === (this.part.material || 'PLA') ? 'selected' : ''}>${esc(t(k))} — ${rho} g/cm³</option>`).join('')}</optgroup>`).join('')}</select></div>
+          <div class="field"><label>Colour</label><input type="color" data-k="color" value="${lookColor(this.part) || '#d9dee6'}" title="Its colour here and in assemblies (without one: its material's)"></div>
+          <details class="mp-more"${this.moreOpen ? ' open' : ''}><summary title="Tolerances for the 2D drawing, see-through">More…</summary>
           <div class="field"><label>Tolerances</label><select data-k="tolerance" title="The general tolerances (ISO 2768) for sizes without their own — on the 2D drawing">
             ${[['', '—'], ['f', 'ISO 2768-f (fine)'], ['m', 'ISO 2768-m (medium)'], ['c', 'ISO 2768-c (coarse)']].map(([v, l]) => `<option value="${v}" ${v === (this.part.tolerance || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-          <div class="field"><label>Colour</label><input type="color" data-k="color" value="${lookColor(this.part) || '#d9dee6'}" title="Its colour here and in assemblies (without one: its material's)"></div>
           <div class="field mp-look"><label>See-through</label><input type="range" min="0" max="90" step="5" data-k="clear" value="${Math.round((1 - (this.part.opacity ?? 1)) * 100)}"><span class="unit">${Math.round((1 - (this.part.opacity ?? 1)) * 100)} %</span></div>
+          </details>
           ${this.threadsHtml()}`
       : '<p class="hint">No solid yet — extrude a sketch.</p>'}
         ${bad.length ? `<p class="mp-bad">⚠ ${bad.length} step(s) could not be built — point at ⚠ in the list to see why.</p>` : ''}
-        <h3>Next</h3><p class="hint">${esc(this.nextHint())}</p>
-        <div class="row-actions wrap"><button class="btn small" data-a="sketch">✏ Sketch</button>
-        ${this.sketches().length ? '<button class="btn small" data-a="extrude">⬆ Extrude</button>' : ''}</div>
         ${libraryFactsHtml(this.part.library)}
         ${this.part.libEdit && this.hooks.saveBackToLibrary ? `<div class="mp-libedit"><b>📚 ${esc(t('Library part'))}</b> <span data-no-i18n>${esc(this.part.libEdit.name || '')}</span>
           <p class="hint">${esc(t('You are changing a part of your library. Save it back to keep the change there — parts already in projects stay as they were.'))}</p>
           <div class="row-actions"><button class="btn small primary" data-a="saveBack">📚 ${esc(t('Save back to the library'))}</button></div></div>` : ''}
-        ${this.hooks.saveToLibrary && this.part.features.length ? '<div class="row-actions"><button class="btn small" data-a="saveToLibrary" title="Keep this 3D model in your parts library (on the server) — to use it again in any project">📚 Save to the library</button></div>' : ''}
-        ${this.hooks.duplicatePart ? '<div class="row-actions"><button class="btn small" data-a="duplicatePart" title="A copy of this 3D model as a new part of its own (its own tab) — change it without changing this one">⧉ Duplicate as a new part</button></div>' : ''}
-        ${b && this.hooks.toPrint ? `<h3>3D print</h3><p class="hint">Check it fits your printer, split it into exact pieces with joints — in a printing copy of this part.</p>
-          <div class="row-actions"><button class="btn small primary" data-a="toPrint">🖨 Prepare for 3D print</button></div>${rbNote}` : ''}
-        ${b ? `<h3>Export</h3>${rbNote}<div class="row-actions"><button class="btn small" data-x="stl" title="For 3D printing">STL</button>
+        <div class="row-actions wrap">${this.hooks.saveToLibrary && this.part.features.length ? '<button class="btn small" data-a="saveToLibrary" title="Keep this 3D model in your parts library (on the server) — to use it again in any project">📚 Save to the library</button>' : ''}
+        ${this.hooks.duplicatePart ? '<button class="btn small" data-a="duplicatePart" title="A copy of this 3D model as a new part of its own (its own tab) — change it without changing this one">⧉ Duplicate as a new part</button>' : ''}</div>
+        ${b && this.hooks.toPrint ? `<h3>3D print</h3>
+          <div class="row-actions"><button class="btn small primary" data-a="toPrint" title="Check it fits your printer, split it into exact pieces with joints — in a printing copy of this part">🖨 Prepare for 3D print</button></div>${rbNote}` : ''}
+        ${b ? `<h3>Export</h3>${rbNote}<div class="row-actions wrap"><button class="btn small" data-x="stl" title="For 3D printing">STL</button>
           <button class="btn small" data-x="step" title="For other CAD programs (exact circles and faces)">STEP</button>
           <button class="btn small" data-x="iges" title="For CAD programs that ask for IGES (exact solid, mm) — STEP is better where it is read">IGES</button>
           <button class="btn small" data-x="glb" title="glTF for viewers and rendering: its colour and material (metal / plastic)">GLB</button>
@@ -1512,6 +1676,7 @@ export class Modeler {
     for (const el of box.querySelectorAll('[data-a]')) el.addEventListener('click', () => (el.dataset.a === 'newSheet' ? this.hooks.newSheet() : this.action(el.dataset.a)));
     for (const el of box.querySelectorAll('[data-x]')) el.addEventListener('click', () => this.export(el.dataset.x));
     box.querySelector('[data-k=material]')?.addEventListener('change', (e) => this.setMaterial(e.target.value));
+    box.querySelector('.mp-more')?.addEventListener('toggle', (e) => { this.moreOpen = e.target.open; }); // (open stays open while the panel is drawn again)
     box.querySelector('[data-k=tolerance]')?.addEventListener('change', (e) => { if (e.target.value) this.part.tolerance = e.target.value; else delete this.part.tolerance; this.history.commit(); });
     const col = box.querySelector('[data-k=color]'), clr = box.querySelector('[data-k=clear]');
     col?.addEventListener('input', () => { this.part.color = col.value; this.view.setLook({ ...this.part, color: lookColor(this.part) }); });
@@ -1617,13 +1782,6 @@ export class Modeler {
         this.hooks.toast(e.message, 'error', 7000);
       }
     }
-  }
-
-  nextHint() {
-    const used = new Set(this.part.features.flatMap(sketchesOf));
-    if (this.sketches().some((s) => !used.has(s.id))) return 'A sketch is not used yet (bright lines in the view) — Extrude it, or double-click its lines to change it.';
-    if (!this.result?.body) return 'Extrude a sketch to make the solid.';
-    return 'Click ✏ Sketch, then a flat face of the part, to add a pocket or a boss — or ◎ Hole, ◜ Fillet, ◸ Chamfer. Double-click a step to change it.';
   }
 
   renderStatus() {
@@ -1915,6 +2073,7 @@ export class Modeler {
     if (!this.sk.isNew) this.rebuild(); // show the part as it was before this sketch
     this.sk.draw();
     this.sk.init();
+    this.sk.renderSuggest(); // (the sketch's own table in place of the part's: what to draw / do next)
   }
 
   /** A new, empty sketch: put it on another base plane. */
@@ -1982,6 +2141,7 @@ export class Modeler {
       this.openExtrude(this.newExtrude(f.id), true); // the obvious next step, ready to go
       return;
     }
+    this.selected = null;
     this.render();
     this.rebuild();
     this.view.setView('iso');
@@ -2262,6 +2422,7 @@ export class Modeler {
     this.view.setHover(-1);
     this.view.setSketch(null);
     this.hint('');
+    this.selected = null; // (done: ✨ Next offers what usually follows)
     this.commit();
   }
 
@@ -2276,6 +2437,7 @@ export class Modeler {
     this.view.setEdgeHighlight();
     this.view.setHover(-1);
     this.hint('');
+    this.selected = null;
     this.render();
     this.rebuild();
   }
@@ -3349,12 +3511,12 @@ export class Modeler {
   // ------------------------------------------------------------------ Pattern
   repeatable() { return this.part.features.slice(0, this.usable()).filter((f) => REPEATABLE.has(f.type) && !f.suppressed); }
 
-  startPattern() {
+  startPattern(of = null) {
     if (this.mode !== 'part' || this.cmd || !this.result?.body) return;
     const rs = this.repeatable();
     if (!rs.length) { this.hooks.toast('Make something to repeat first — a hole, a boss or a cut.', 'warning'); return; }
-    // the newest hole or cut is the usual thing to repeat, else the newest step
-    const last = [...rs].reverse().find((f) => f.type === 'hole' || f.op === 'cut') || rs[rs.length - 1];
+    // the step asked for (a suggestion), else the newest hole or cut — the usual thing to repeat —, else the newest step
+    const last = rs.find((f) => f.id === of) || [...rs].reverse().find((f) => f.type === 'hole' || f.op === 'cut') || rs[rs.length - 1];
     this.openCommand({ id: this.newId(), type: 'pattern', name: this.nextName('pattern'), features: [last.id], kind: 'linear', dir: [1, 0, 0], count: 3, spacing: 10 }, true);
   }
 
@@ -3761,6 +3923,7 @@ export class Modeler {
     if (k === 'f') this.startRound('fillet');
     if (k === 'h') this.startHole();
     if (e.key === 'Delete' && this.selected) this.remove(this.selected);
+    if (e.key === 'Escape' && (this.selected || this.picks?.length)) { this.picks = []; this.view.setEdgeHighlight(); this.selectStep(null); this.dropSuggest(); } // (nothing chosen: ✨ Next)
   }
 
   // ------------------------------------------------------------------ the part as a project tab

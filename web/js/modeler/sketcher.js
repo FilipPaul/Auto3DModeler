@@ -340,6 +340,7 @@ function circleOf(a, b, c) {
 
 /** A translated text with {name} values filled in. */
 export const BIG_SKETCH = 200;
+const IDLE_ROWS = 5; // the sketch's "Next step" table (nothing picked): its rows — few, it is over the drawing
 const DRAWING = new Set(['line', 'rect', 'circle', 'slot', 'spline', 'arc']); // (the tools that draw: points snap, the Snap groups are the ones in use)
 const PART_SNAP = 0x4e9a5c; // the part's snap points near the mouse while drawing (the one caught: bright green) // a sketch of more shapes (e.g. from a PCB) labels only its locked sizes
 const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
@@ -403,14 +404,14 @@ export class Sketcher {
       };
       const up = () => {
         window.removeEventListener('pointermove', move);
-        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointerup', up, true);
         if (!moved) return;
         this.sizeDrag = null;
         this.noClickUntil = performance.now() + 300; // (the click that ends a drag does not open the value)
         this.changed();
       };
       window.addEventListener('pointermove', move);
-      window.addEventListener('pointerup', up);
+      window.addEventListener('pointerup', up, true); // (capture: the label itself stops pointerup — a plain click must end it too)
     });
     return lab;
   }
@@ -443,6 +444,7 @@ export class Sketcher {
       const { colours, dof } = this.takeState(r);
       if (colours) this.draw();
       if (dof) this.m.renderProps();
+      if (dof && !this.picks?.length) this.renderSuggest(); // (nothing picked: 🪄 offered while sizes are free)
     }, 120);
   }
 
@@ -2957,11 +2959,14 @@ export class Sketcher {
    *  a short list, the likeliest first — a dimension, the relation that is nearly true already, Delete —; the rest
    *  under ⋯ More… (in sections). */
   suggestions() {
-    const P = this.picks || [], n = P.length;
-    if (this.tool !== 'select' || this.xf || this.mg) return [];
+    let P = this.picks || [];
+    const n = P.length;
+    if (this.xf || this.mg) return [];
+    if (this.tool !== 'select') return n ? [] : this.idleItems();
     const MG = this.mergeItems(P);
     if (this.merging) return n ? [MG.join, MG.simplify, MG.outline].filter(Boolean) : [MG.whole]; // (⛓ Merge: what it does, nothing else)
-    if (!n) return [];
+    if (!n) return this.idleItems();
+    if (n === 1 && P[0].kind === 'mid' && this.ent(P[0].id)?.t === 'line') P = [{ ...P[0], kind: 'line' }]; // (a click on a line's middle: the line)
     const round = (p) => p.kind === 'circle' || p.kind === 'arc';
     const rel = (type, ...ps) => ({ icon: RELATIONS[type].icon, label: t(RELATIONS[type].name), title: t(RELATIONS[type].hint || ''), run: () => this.addRelation(type, ps) });
     const at = () => { const b = this.m.els.viewport.querySelector('.view-suggest')?.getBoundingClientRect(); return { clientX: (b?.right || 300) + 8, clientY: b?.top || 300 }; };
@@ -3066,6 +3071,22 @@ export class Sketcher {
     return [...first, ...more.flatMap(([s, its]) => [{ section: t(s) }, ...its])];
   }
 
+  /** Nothing picked (no shape being drawn): what comes next — short (it stays up while drawing, over the sketch): ✓ Finish
+   *  (a new sketch: then ⬆ Extrude) first, 🪄 the sizes still free, ⬚ pick a shape (its sizes and relations), ↔ Dimension,
+   *  ◯ a circle (a hole in the outline). An empty sketch: none — ▭ Rectangle is on, the hint says where to click. */
+  idleItems() {
+    if (!this.f.entities.length || this.start || this.chain || this.spl || this.arcEnd || this.slotEnd || this.dimA || this.pat || this.mirLine || this.merging) return [];
+    const tool = (k, icon, label, title, rank) => ({ icon, label: t(label), title: t(title), rank, run: () => this.m.action(k) });
+    const items = [
+      { icon: '✓', label: t(this.isNew ? 'Finish — then extrude' : 'Finish sketch'), title: t('Done drawing — next: Extrude (Enter)'), rank: 0, run: () => this.m.action('finish') },
+      ...(this.dof > 0 && this.solver ? [{ icon: '🪄', label: t('Auto-dimension'), title: t('Lock the sizes the sketch still needs to be fully defined'), rank: 1, run: () => this.autoDimension() }] : []),
+      ...(this.tool !== 'select' ? [tool('select', '⬚', 'Pick a shape', 'Click a shape: its sizes and relations are offered here', 2)] : []),
+      ...(this.tool !== 'dim' ? [tool('dim', '↔', 'Dimension', 'Click a line or a circle for its size — or two things for the distance between them (D)', 3)] : []),
+      ...(this.tool !== 'circle' ? [tool('circle', '◯', 'Circle', 'Draw a circle: click the centre, then the edge (C)', 4)] : []),
+    ];
+    return items.slice(0, IDLE_ROWS);
+  }
+
   /** The suggestions table (bottom left) for what is picked. */
   renderSuggest() {
     const items = this.suggestions(), P = this.picks || [], n = P.length, ns = this.pickShapes(P).length;
@@ -3078,9 +3099,11 @@ export class Sketcher {
       return `${{ line: t('line'), circle: t('circle'), arc: t('arc'), spline: t('curve') }[q.kind] || q.kind} ${q.id}${e?.t === 'circle' ? ` (Ø${fmt(2 * e.r)})` : e?.t === 'line' ? ` (${fmt(this.measure({ t: 'len', e: e.id }))} mm)` : ''}`;
     });
     const count = (k, one, many) => (k === 1 ? t(one) : tv(many, { n: k }));
-    const title = this.merging && !n ? `⛓ ${t('Merge')}` : n === 1 ? t(kind || 'Selected') : [ns && count(ns, '1 shape', '{n} shapes'), n - ns && count(n - ns, '1 point', '{n} points')].filter(Boolean).join(', ');
+    const idle = !n && !this.merging, empty = !this.f.entities.length;
+    const title = this.merging && !n ? `⛓ ${t('Merge')}` : idle ? t('Next step') : n === 1 ? t(kind || 'Selected') : [ns && count(ns, '1 shape', '{n} shapes'), n - ns && count(n - ns, '1 point', '{n} points')].filter(Boolean).join(', ');
     const sg = showSuggest(this.m.els.viewport, title, items,
-      this.merging ? t('Click or drag a box over the shapes to merge — each click adds one') : n === 1 ? t('Ctrl+click another shape: what fits the two') : ns ? t('Drag one of them: they all move together') : '', `${t('in the sketch')} ${this.f.id} “${this.f.name || ''}”: ${what.join(', ')}`);
+      this.merging ? t('Click or drag a box over the shapes to merge — each click adds one') : idle ? (empty || this.tool !== 'select' ? '' : t('Click a shape: its sizes and relations are offered here')) : n === 1 ? t('Ctrl+click another shape: what fits the two') : ns ? t('Drag one of them: they all move together') : '',
+      idle ? `${t('in the sketch')} ${this.f.id} “${this.f.name || ''}”` : `${t('in the sketch')} ${this.f.id} “${this.f.name || ''}”: ${what.join(', ')}`);
     if (sg) sg.dataset.from = 'sketch';
   }
 
@@ -3908,10 +3931,11 @@ export class Sketcher {
     const bigNote = big ? `<p class="hint sk-big">${this.m.bigAll?.has(this.f.id)
       ? `${tv('Every size of the {n} shapes is shown.', { n })} <button class="btn small" data-a="bigAll">Show only the locked ones</button>`
       : `${tv('A big sketch ({n} shapes): only the locked sizes are shown.', { n })} <button class="btn small" data-a="bigAll">Show them all anyway</button>`}</p>` : '';
-    return `<h2>Sketch</h2><p class="hint">${this.hint()}</p>${st}${this.stateHtml()}${this.m.sizesHtml?.() || ''}${bigNote}${what}${list}${relList}
-      <h3>Tips</h3><p class="hint">A shape inside another one becomes a hole. Lines that meet at a point are joined; click the
+    // (what to do now: the hint over the view; which sizes show: 🏷 in the step list — not again here)
+    return `<h2>Sketch</h2>${st}${this.stateHtml()}${bigNote}${what}${list}${relList}
+      <details class="sk-tips"><summary>Tips</summary><p class="hint">A shape inside another one becomes a hole. Lines that meet at a point are joined; click the
       first point again to close a shape. 🔒 = locked size (it stays when other sizes change). ↔ Dimension adds a distance
-      between two points, circles or edges (also the part's edges, dashed). Right mouse button pans, wheel zooms, Ctrl+Z undoes.</p>`;
+      between two points, circles or edges (also the part's edges, dashed). Right mouse button pans, wheel zooms, Ctrl+Z undoes.</p></details>`;
   }
 
   /** Under the free count: what does not fit and why (red on the shapes), 🪄 at rounded values while sizes are free
