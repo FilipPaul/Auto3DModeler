@@ -2,12 +2,17 @@
 screen with an empty project (a new autosave id, the window's title back to the app's), the toast says where the
 previous one is; the previous project is in 🕘 Recent projects and ↶ in the toast opens it again (its parts and steps)
 -> Ctrl+Alt+N does the same; the project widget's ⋯ menu has it too; an empty project: nothing happens but a note ->
-⧉ New project in a new window: a second window with the start screen, the first one as it was.
+⧉ New project in a new window: a second window with the start screen, the first one as it was. The AI with two
+browser windows (two projects): each window's chat (the MCP server with --client <the window's id>, as the chat starts
+it) reads and changes its own window's project only (a reload and 📄 New project keep the window's chat, a new window has
+its own); a call for no window goes to the window in use; the second window
+closed: its chat's call fails at once with "… was closed", the first one's still works.
 
   A3D_DATA=<a scratch folder> py server.py --port 5199 --no-browser
   PYTHONIOENCODING=utf-8 py tools/e2e_new_project.py http://127.0.0.1:5199 <out dir>
 """
 import json
+import subprocess
 import sys
 import time
 import urllib.request
@@ -19,6 +24,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
 URL, OUT = sys.argv[1], sys.argv[2]
+ROOT = Path(__file__).resolve().parent.parent
 Path(OUT).mkdir(parents=True, exist_ok=True)
 H = "window.__app.agentHandlers"
 M = "window.__app.modeler"
@@ -33,6 +39,7 @@ def browser():
 
 
 d = browser()
+d2 = None
 js = d.execute_script
 
 
@@ -89,6 +96,7 @@ try:
     ready()
     make_block("Konzola")
     old_id = js("return window.__app.autosave.id")
+    chat_id = js("return window.__app.client")
     check(f"the window's title names the project: {d.title!r}", "Konzola" in d.title)
     d.find_element(By.ID, "openBtn").click()
     time.sleep(0.2)
@@ -102,6 +110,7 @@ try:
     check("the start screen with an empty project", js("return document.body.classList.contains('start-open') && window.__app.project.parts.length === 0"))
     new_id = js("return window.__app.autosave.id")
     check("a new autosave id", new_id != old_id)
+    check("this window's AI chat goes on (the same chat id)", js("return window.__app.client") == chat_id)
     check(f"the window's title is the app's again: {d.title!r}", "Konzola" not in d.title)
     check("no ?new left in the address", "new" not in js("return location.search"))
     check("no 'continue where you left off' bar (a new project was asked for)", not d.find_elements(By.CSS_SELECTOR, ".restore-bar"))
@@ -157,14 +166,68 @@ try:
         ready()
         check("… with the start screen and an empty project", js("return document.body.classList.contains('start-open') && !window.__app.project.parts.length"))
         check("… a project of its own", js("return window.__app.autosave.id") != here)
+        check("… and a chat of its own", js("return window.__app.client") != chat_id)
         d.close()
         d.switch_to.window(handles[0])
     check("the first window kept its project", js("return window.__app.autosave.id") == here and js("return window.__app.project.parts.length") == 1)
+
+    # the AI with two windows: each window's chat acts in its own window (the MCP server as its chat starts it:
+    # --client <the window's id>), never in the other; a window closed -> its chat's calls fail, saying so
+    d2 = browser()
+    d2.get(URL)
+    ready(d2)
+    make_block("Beta", drv=d2)
+    ca, cb = js("return window.__app.client"), d2.execute_script("return window.__app.client")
+    check(f"each window has its own chat id ({ca[:8]}…, {cb[:8]}…)", bool(ca and cb and ca != cb))
+    mcps = {}
+    for name, cid in (("A", ca), ("B", cb)):
+        mcps[name] = subprocess.Popen([sys.executable, str(ROOT / "auto3d" / "mcp_server.py"), "--url", URL, "--client", cid],
+                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    ids = iter(range(1, 1000))
+
+    def tool(who, tname, **args):
+        p = mcps[who]
+        p.stdin.write((json.dumps({"jsonrpc": "2.0", "id": next(ids), "method": "tools/call", "params": {"name": tname, "arguments": args}}) + "\n").encode())
+        p.stdin.flush()
+        r = json.loads(p.stdout.readline().decode())["result"]
+        return r["content"][0]["text"], bool(r.get("isError"))
+
+    ta, _ = tool("A", "list_parts")
+    tb, _ = tool("B", "list_parts")
+    check(f"A's chat sees A's project: {ta[:80]!r}", "Deska" in ta and "Beta" not in ta)
+    check(f"B's chat sees B's project: {tb[:80]!r}", "Beta" in tb and "Deska" not in tb)
+    tool("B", "new_model", name="Gama")
+    wait("return window.__app.project.parts.some(p => p.name === 'Gama')", drv=d2)
+    time.sleep(0.5)
+    check("B's chat made a part in B", d2.execute_script("return window.__app.project.parts.map(p => p.name)") == ["Beta", "Gama"])
+    check("… and nothing in A", js("return window.__app.project.parts.map(p => p.name)") == ["Deska"])
+    # without a window (an MCP client of its own, as e2e_agent): the window in use, as before
+    with urllib.request.urlopen(urllib.request.Request(f"{URL}/api/agent/call", data=json.dumps({"tool": "list_parts", "args": {}}).encode(),
+                                                       headers={"Content-Type": "application/json"})) as r:
+        anyw = json.loads(r.read())["content"][0]["text"]
+    check(f"a call for no window goes to a window in use: {anyw[:60]!r}", "Deska" in anyw or "Beta" in anyw)
+    d2.get("about:blank")  # (the page goes as when its window is closed: its goodbye)
+    d2.quit()
+    d2 = None
+    time.sleep(12)  # (past the grace a reload has to come back in)
+    t0 = time.time()
+    tb, err = tool("B", "list_parts")
+    check(f"B closed: its chat's call fails, saying so ({tb[:90]!r}, {time.time() - t0:.1f} s)", err and "was closed" in tb)
+    ta, err = tool("A", "list_parts")
+    check("A's chat still works in A", not err and "Deska" in ta)
+    d.refresh()
+    ready()
+    check("a reload keeps the window's chat", js("return window.__app.client") == chat_id)
+    for p in mcps.values():
+        p.stdin.close()
+        p.wait(10)
 finally:
     errs = [e["message"] for e in d.get_log("browser") if e["level"] == "SEVERE" and "favicon" not in e["message"]]
     if errs:
         print("browser errors:", errs[:5])
     d.quit()
+    if d2:
+        d2.quit()
 
 print("FAILS:", FAILS if FAILS else "none")
 sys.exit(1 if FAILS else 0)

@@ -7,6 +7,19 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **✨ AI: a chat per window done** (the owner: "jak to funguje, pokud program spustím víckrát? … A bude fungovat
+  agent?"). Decided: (a) each window its own chat — server.CHATS {client id: ChatSession}, made at the window's first
+  chat request, its Claude Code process only with its first message (a window that never chats costs nothing; ended
+  10 min after its window closed); (b) one shared chat aimed at the last-typed window was rejected: two projects' talk
+  in one conversation, and a call could still land in the wrong window between two messages. The window's id
+  (agent.js CLIENT: sessionStorage — kept by a reload and 📄 New project, new in a new window) goes with every chat
+  request; ChatSession starts its MCP server with --client <id>, which sends it with each tool call; /api/agent/call
+  sets agent.ROUTE (a ContextVar: server tools such as open_file relay with it too); Relay.call(to=…) is taken by that
+  window's poll only. Closed: the page's pagehide beacon (/api/agent/bye) -> calls fail with GONE_TEXT after a 10 s
+  grace (a reload polls again first); no beacon (a killed browser) -> not seen for 90 s (a long call says
+  /api/agent/alive every 10 s). Calls without a client (an MCP client of its own, e2e_agent) go to the window in use as
+  before. launcher.stop -> server.stop_chats(). tests: test_agent (routing, closed, no goodbye, server, --client),
+  tools/e2e_new_project.py (two browsers, two projects).
 - **📄 New project done** (the owner, 2026-10-29: "Nevím jak intuitivně založit nový projekt, pokud mám zrovna nějaký
   projekt otevřený"): web/js/newproject.js — Otevřít ▾ › 📄 Nový projekt (Ctrl+Alt+N by the key's place, e.code KeyN:
   Ctrl+N is the browser's, and Ctrl+Alt is AltGr on a Czech keyboard), the project widget's ⋯ menu (leftDock.projectMenu),

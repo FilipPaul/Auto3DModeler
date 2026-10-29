@@ -23,7 +23,7 @@ import numpy as np
 from flask import Flask, Response, jsonify, request, send_file, send_from_directory, stream_with_context
 
 from auto3d import progress
-from auto3d.agent import ChatSession, Relay, find_claude
+from auto3d.agent import ROUTE, ChatSession, Relay, find_claude
 from auto3d.ai_history import HistoryError, delete_state, list_states, load_state, save_state
 from auto3d import library as parts_library
 from auto3d import title_templates
@@ -1271,17 +1271,36 @@ def _export_bytes(body: dict, fmt: str):
 
 # --------------------------------------------------------------------------- AI agent (MCP tools + chat)
 RELAY = Relay()
-CHAT: ChatSession | None = None
+CHATS: dict[str, ChatSession] = {}  # the app window's client id ("": none given) -> its chat
+CHAT_IDLE_GONE = 600  # s: the chat of a window closed this long ago ends (its Claude Code process)
 APP_URL = "http://127.0.0.1:5173"
 LAST_TRACE: dict = {}
 PICTURE_FORMATS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff"}
 
 
-def _chat() -> ChatSession:
-    global CHAT
-    if CHAT is None:
-        CHAT = ChatSession(APP_URL)
-    return CHAT
+def _client() -> str:
+    """The app window a chat request comes from (?client= or {"client"}): each window has its own chat."""
+    body = request.get_json(silent=True) if request.is_json else None
+    return str(request.args.get("client") or (body or {}).get("client") or "")[:64]
+
+
+def _chat(client: str = "") -> ChatSession:
+    """The chat of the window `client` (made at its first use; its tool calls act in that window). The chats of
+    windows closed for CHAT_IDLE_GONE seconds, not answering now, end."""
+    now = time.time()
+    for cid, chat in list(CHATS.items()):
+        if cid in RELAY.seen and cid != client and not chat.busy and not chat.subscribers and now - RELAY.seen[cid] > CHAT_IDLE_GONE:
+            chat.stop()
+            del CHATS[cid]
+    if client not in CHATS:
+        CHATS[client] = ChatSession(APP_URL, client or None)
+    return CHATS[client]
+
+
+def stop_chats():
+    """Every window's chat ends (the app quits; the AI's access changed: the next message starts afresh)."""
+    for chat in list(CHATS.values()):
+        chat.stop()
 
 
 def _mcp_result(text: str, image: str | None = None, error: bool = False) -> dict:
@@ -1657,17 +1676,21 @@ def api_version():
 
 @app.post("/api/agent/call")
 def api_agent_call():
-    """An MCP tool call (from auto3d/mcp_server.py)."""
+    """An MCP tool call (from auto3d/mcp_server.py). {client}: the window whose chat made it — what it does to the
+    page (also through a server tool: open_file …) goes to that window only."""
     body = request.get_json(force=True)
     tool, args = body.get("tool", ""), body.get("args") or {}
     if tool not in TOOL_NAMES:
         return jsonify(_mcp_result(f"Unknown tool {tool}.", error=True))
+    route = ROUTE.set(str(body.get("client") or "") or None)
     try:
         if tool == "add_feature" and args.get("type") == "solid" and args.get("path"):
             args = _solid_from_path(args)
         res = RELAY.call(tool, args) if tool in BROWSER_TOOLS else SERVER_TOOLS[tool](args)
     except Exception as exc:  # report to the agent instead of failing the call
         return jsonify(_mcp_result(f"{tool} failed: {exc}", error=True))
+    finally:
+        ROUTE.reset(route)
     return jsonify(_mcp_result(res.get("text", ""), res.get("image"), bool(res.get("error"))))
 
 
@@ -1676,6 +1699,23 @@ def api_agent_poll():
     """The page long-polls for tool calls to apply."""
     cmd = RELAY.poll(20.0, request.args.get("client") or None, request.args.get("active", "1") == "1")
     return jsonify(cmd) if cmd else ("", 204)
+
+
+@app.post("/api/agent/bye")
+def api_agent_bye():
+    """?client=: the window is closing (a beacon from the page) — its chat's calls fail from now on unless it comes
+    back at once (a reload)."""
+    if request.args.get("client"):
+        RELAY.bye(request.args["client"])
+    return jsonify({"ok": True})
+
+
+@app.post("/api/agent/alive")
+def api_agent_alive():
+    """?client=: the window is there — running a long tool call, it does not poll meanwhile."""
+    if request.args.get("client"):
+        RELAY.alive(request.args["client"])
+    return jsonify({"ok": True})
 
 
 @app.post("/api/agent/result")
@@ -1687,7 +1727,7 @@ def api_agent_result():
 
 @app.get("/api/chat/status")
 def api_chat_status():
-    chat = _chat()
+    chat = _chat(_client())
     return jsonify({"claude": find_claude(), "running": chat.running(), "busy": chat.busy})
 
 
@@ -1711,7 +1751,7 @@ def api_ai_key():
     if got == "invalid":
         return jsonify({"error": "Anthropic refused this key (wrong, revoked or expired).", "code": "invalid"}), 400
     ai_access.save_key(key)
-    _chat().stop()
+    stop_chats()
     return jsonify({**ai_access.state(), "checked": got == "ok"})
 
 
@@ -1726,7 +1766,7 @@ def api_ai_login():
         ai_access.start_login(exe, bool((request.get_json(silent=True) or {}).get("console")))
     except OSError as exc:
         return jsonify({"error": f"The sign-in could not start ({exc})."}), 500
-    _chat().stop()
+    stop_chats()
     return jsonify(ai_access.state())
 
 
@@ -1738,7 +1778,7 @@ def api_ai_logout():
     exe = find_claude()
     if exe and (request.get_json(silent=True) or {}).get("claude"):
         ai_access.logout_claude(exe)
-    _chat().stop()
+    stop_chats()
     return jsonify(ai_access.state())
 
 
@@ -1780,7 +1820,7 @@ def api_chat_send():
     if not text and not photos:
         return jsonify({"error": "Empty message."}), 400
     try:
-        _chat().send(text, photos)
+        _chat(_client()).send(text, photos)
     except RuntimeError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify({"ok": True})
@@ -1788,20 +1828,20 @@ def api_chat_send():
 
 @app.post("/api/chat/stop")
 def api_chat_stop():
-    _chat().stop()
+    _chat(_client()).stop()
     return jsonify({"ok": True})
 
 
 @app.post("/api/chat/reset")
 def api_chat_reset():
-    _chat().reset()
+    _chat(_client()).reset()
     return jsonify({"ok": True})
 
 
 @app.get("/api/chat/events")
 def api_chat_events():
     """Server-Sent Events: the chat (history first, then live)."""
-    chat = _chat()
+    chat = _chat(_client())
     q = chat.subscribe()
 
     def gen():

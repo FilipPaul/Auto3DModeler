@@ -281,8 +281,7 @@ class App:
         clear_instance(self.data)
         try:
             import server
-            if server.CHAT is not None:  # the chat's Claude Code
-                server.CHAT.stop()
+            server.stop_chats()  # the chats' Claude Code (one per window that chatted)
             from auto3d.modeler.worker import WORKER
             WORKER.close()
         except Exception:  # noqa: BLE001 — quitting anyway

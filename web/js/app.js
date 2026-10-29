@@ -8,7 +8,7 @@ import { BendsPanel } from './bends.js';
 import { OutlineWizard } from './outline.js';
 import { OutlinePanel, shapeRings, hitShape } from './outlinepanel.js';
 import { openLightbox } from './lightbox.js';
-import { ChatPanel, startBridge, bridgeStats } from './agent.js';
+import { ChatPanel, startBridge, bridgeStats, CLIENT, keepChatClient } from './agent.js';
 import { AiHistory } from './aihistory.js';
 import { LibraryBrowser, saveToLibrary, libraryItems, matchScore, itemFromModel } from './library/browser.js';
 import { repaint } from './modeler/paint.js';
@@ -2618,6 +2618,7 @@ const newProject = initNewProject({
   autosave, toast,
   name: () => state.projectName || project.current?.name || '',
   empty: () => !project.parts.length,
+  keepChat: keepChatClient, // (this window's AI chat goes on in the new project)
 });
 $('newProjectBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); newProject.start(); });
 $('newProjectWinBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); newProject.start(true); });
@@ -2854,4 +2855,4 @@ Object.assign(agentHandlers, {
   },
 });
 
-window.__app = { state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, library, autosave, versions, savedProject, windows, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d, sheet };
+window.__app = { client: CLIENT, state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, library, autosave, versions, savedProject, windows, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d, sheet };

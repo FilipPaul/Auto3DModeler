@@ -1563,6 +1563,7 @@ const CS = {
   'Making a drawing': 'Tvorba výkresu', 'Working out limits': 'Výpočet mezí', 'Importing a file': 'Import souboru',
   'Reading an assembly': 'Čtení sestavy', 'Splitting for print': 'Dělení pro tisk', 'Cutting real threads': 'Řezání skutečných závitů',
   // messages from the server / kernel (issues, refusals, warnings; tests/test_i18n_messages.py checks each has Czech)
+  'The app window this chat belongs to was closed — nothing was changed. Open the project again and ask in the chat of its window.': 'Okno aplikace, ke kterému tento chat patří, bylo zavřeno — nic se nezměnilo. Otevřete projekt znovu a ptejte se v chatu jeho okna.',
   'The app is not open in a browser — open it so the part can be changed.': 'Aplikace není otevřená v prohlížeči — otevřete ji, aby šlo díl měnit.',
   'Claude Code was not found. Install it (claude.com/claude-code) and sign in once, or set AUTO3D_CLAUDE to the path of the claude executable.': 'Claude Code nebyl nalezen. Nainstalujte ho (claude.com/claude-code) a jednou se přihlaste, nebo nastavte AUTO3D_CLAUDE na cestu k programu claude.',
   'No such state.': 'Takový stav neexistuje.',

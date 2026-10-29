@@ -4,15 +4,18 @@ through the app's MCP server.
 * `find_claude()` – the Claude Code executable: $AUTO3D_CLAUDE, PATH, ~/.local/bin, or the newest copy
   bundled with the VS Code / Cursor extension.
 * `Relay` – tool calls that act on the part are queued for the browser page, which long-polls for them,
-  applies them and posts the result back (the app state lives in the page).
+  applies them and posts the result back (the app state lives in the page). A call made for a window (its client
+  id, `ROUTE` – set by the server from the chat's MCP server) goes to that window only; closed: the call fails.
 * `ChatSession` – one `claude -p` process per chat, kept open with stream-json input, restricted to the
   app's MCP tools (no built-in file / shell tools, no user hooks or settings). Its output is turned into
-  chat events for the page (Server-Sent Events).
+  chat events for the page (Server-Sent Events). Each app window has its own chat (and process, started with its
+  first message), whose tool calls act in that window.
 
 The app never sees the user's Claude credentials: Claude Code signs in through Anthropic's own flow.
 """
 from __future__ import annotations
 
+import contextvars
 import glob
 import itertools
 import json
@@ -70,6 +73,12 @@ def clean_env() -> dict:
 
 
 # --------------------------------------------------------------------------- browser relay
+# the window a tool call is for (its client id): set by the server for the request of a chat's MCP call
+ROUTE: contextvars.ContextVar[str | None] = contextvars.ContextVar("route", default=None)
+GONE_TEXT = ("The app window this chat belongs to was closed — nothing was changed. Open the project again and ask in "
+             "the chat of its window.")
+
+
 class Relay:
     """Server <-> page: commands queued for the page, results waited for.
 
@@ -77,27 +86,53 @@ class Relay:
     tab — its pending long-poll still takes the command), it is handed out again after `lease` seconds.
     The page ignores a command id it has already run (and posts that result again).
 
-    With several pages open, commands go to the one the user works in (the last page that polled while
-    visible: the owner); other pages get them only when the owner has not polled for `owner_timeout`."""
+    A command for a window (`to`: its client id — the chat of that window, ROUTE) is taken by that window only. The
+    window closed (it said goodbye and did not come back within `grace` seconds — a reload comes back —, or it has not
+    polled for `gone_after` seconds — while it runs a long call it says it is there, `alive`): the call fails with
+    GONE_TEXT, it never goes to another window. A command for no window in particular (an MCP client of its own) goes to the one the user works in (the
+    last page that polled while visible: the owner); other pages get it only when the owner has not polled for
+    `owner_timeout`."""
 
-    def __init__(self, lease: float = 10.0):
-        self.outbox: dict[str, dict] = {}   # id -> {"cmd", "args", "taken": time | None}
+    def __init__(self, lease: float = 10.0, grace: float = 10.0, gone_after: float = 90.0):
+        self.outbox: dict[str, dict] = {}   # id -> {"cmd", "args", "to": client | None, "taken": time | None}
         self.order: list[str] = []
         self.results: dict[str, dict] = {}
         self.cv = threading.Condition()
-        self.lease = lease
+        self.lease, self.grace, self.gone_after = lease, grace, gone_after
         self.last_poll = 0.0
         self.owner, self.owner_seen, self.owner_timeout = None, 0.0, 30.0
+        self.seen: dict[str, float] = {}    # client -> when it last polled
+        self.left: dict[str, float] = {}    # client -> when it said goodbye (its page closed or reloaded)
 
     def connected(self) -> bool:
         return time.time() - self.last_poll < 45
 
-    def call(self, cmd: str, args: dict | None = None, timeout: float = 150.0) -> dict:
-        if not self.connected():
+    def gone(self, client: str) -> bool:
+        """True when the window `client` is closed (or was never open)."""
+        now = time.time()
+        if client in self.left and now - self.left[client] > self.grace:
+            return True
+        return client not in self.seen or now - self.seen[client] > self.gone_after
+
+    def alive(self, client: str):
+        """The window `client` is there (running a long call: it does not poll meanwhile)."""
+        self.seen[client] = time.time()
+
+    def bye(self, client: str):
+        """The window `client` is closing (or reloading: it polls again at once and is back)."""
+        with self.cv:
+            self.left[client] = time.time()
+            self.cv.notify_all()
+
+    def call(self, cmd: str, args: dict | None = None, timeout: float = 150.0, client: str | None = None) -> dict:
+        to = client or ROUTE.get()
+        if to and self.gone(to):
+            raise RuntimeError(GONE_TEXT)
+        if not to and not self.connected():
             raise RuntimeError("The app is not open in a browser — open it so the part can be changed.")
         cid = uuid.uuid4().hex
         with self.cv:
-            self.outbox[cid] = {"id": cid, "cmd": cmd, "args": args or {}, "taken": None}
+            self.outbox[cid] = {"id": cid, "cmd": cmd, "args": args or {}, "to": to, "taken": None}
             self.order.append(cid)
             self.cv.notify_all()
             end = time.time() + timeout
@@ -106,6 +141,8 @@ class Relay:
                     left = end - time.time()
                     if left <= 0:
                         raise TimeoutError(f"The page did not answer '{cmd}' within {int(timeout)} s.")
+                    if to and self.gone(to):
+                        raise RuntimeError(GONE_TEXT)
                     self.cv.wait(min(left, 1.0))
                 return self.results.pop(cid)
             finally:
@@ -113,11 +150,14 @@ class Relay:
                 if cid in self.order:
                     self.order.remove(cid)
 
-    def _next(self):
+    def _next(self, client=None, anyone=True):
+        """The next command `client` may take: its own window's; the others' (for no window) when `anyone`."""
         now = time.time()
         for cid in self.order:
             c = self.outbox.get(cid)
-            if c and (c["taken"] is None or now - c["taken"] > self.lease):
+            if not c or (c["to"] != client if c["to"] else not anyone):
+                continue
+            if c["taken"] is None or now - c["taken"] > self.lease:
                 c["taken"] = now
                 return {k: c[k] for k in ("id", "cmd", "args")}
         return None
@@ -130,6 +170,9 @@ class Relay:
         self.last_poll = time.time()
         end = self.last_poll + timeout
         with self.cv:
+            if client:
+                self.seen[client] = self.last_poll
+                self.left.pop(client, None)  # (back after a reload)
             if client and (active or self.owner is None):
                 if client != self.owner:
                     self.cv.notify_all()  # the previous owner's waiting poll stops taking commands
@@ -138,12 +181,14 @@ class Relay:
                 self.owner_seen = time.time()
             try:
                 while True:
-                    c = self._next() if self._may_take(client) else None
+                    c = self._next(client, self._may_take(client))
                     if c or time.time() >= end:
                         return c
                     self.cv.wait(min(end - time.time(), 1.0))
             finally:
                 self.last_poll = time.time()
+                if client:
+                    self.seen[client] = self.last_poll
                 if client == self.owner:
                     self.owner_seen = time.time()
 
@@ -178,10 +223,12 @@ def expand_command(text: str) -> str:
 
 # --------------------------------------------------------------------------- chat session
 class ChatSession:
-    """One Claude Code process for the chat; events fan out to all subscribed pages."""
+    """One Claude Code process for the chat; events fan out to all subscribed pages. client: the app window it
+    belongs to (its MCP server sends its tool calls there), None: any (the window in use)."""
 
-    def __init__(self, app_url: str):
+    def __init__(self, app_url: str, client: str | None = None):
         self.app_url = app_url
+        self.client = client
         self.proc: subprocess.Popen | None = None
         self.subscribers: list[queue.Queue] = []
         self.history: list[dict] = []      # events of this chat (replayed to a page that reconnects)
@@ -221,7 +268,8 @@ class ChatSession:
         # (the built app has no Python: its own exe is the MCP server, auto3d/launcher.py)
         script = ["--mcp-server"] if getattr(sys, "frozen", False) else [str(MCP_SCRIPT)]
         mcp = {"mcpServers": {"auto3d": {"type": "stdio", "command": sys.executable,
-                                         "args": [*script, "--url", self.app_url]}}}
+                                         "args": [*script, "--url", self.app_url,
+                                                  *(["--client", self.client] if self.client else [])]}}}
         cmd = [exe, "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
                "--include-partial-messages",
                "--mcp-config", json.dumps(mcp), "--strict-mcp-config",

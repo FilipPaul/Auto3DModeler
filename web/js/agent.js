@@ -30,11 +30,33 @@ export const bridgeStats = { calls: 0 };
 
 const CALL_BUDGET_S = 140; // a tool call's most time here (the server waits 150 s for it)
 
+// This window's id: its chat is its own (the server keeps one per window) and the chat's tool calls act here only.
+// A reload keeps it (sessionStorage: this window's), as does 📄 New project (keepChatClient); a new window — also one
+// opened from here, which gets a copy of the sessionStorage — has its own.
+const CLIENT_KEY = 'a3d.chatClient', KEEP_KEY = 'a3d.chatKeep';
+function windowClient() {
+  const fresh = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`);
+  try {
+    const nav = performance.getEntriesByType?.('navigation')?.[0]?.type, keep = sessionStorage.getItem(KEEP_KEY) === '1';
+    sessionStorage.removeItem(KEEP_KEY);
+    let id = nav === 'reload' || keep ? sessionStorage.getItem(CLIENT_KEY) : null;
+    if (!id) { id = fresh(); sessionStorage.setItem(CLIENT_KEY, id); }
+    return id;
+  } catch { return fresh(); } // (no sessionStorage: a new chat after a reload)
+}
+export const CLIENT = windowClient();
+/** The next page load in this window (📄 New project) goes on with this window's chat. */
+export function keepChatClient() { try { sessionStorage.setItem(KEEP_KEY, '1'); } catch { /* private window */ } }
+const withClient = (url) => `${url}${url.includes('?') ? '&' : '?'}client=${encodeURIComponent(CLIENT)}`;
+
 /** Run tool calls from the server: handlers = {tool: async (args) => ({text, image?, error?, body?})}. */
 export function startBridge(handlers) {
   let alive = true;
-  // with several app tabs open the server sends the AI's tool calls to the one in use (visible)
-  const client = Math.random().toString(36).slice(2);
+  // the calls of this window's chat come here only; an AI of its own (an MCP client without a window) works in the
+  // window in use (visible)
+  const client = CLIENT;
+  // closing: its chat's calls fail at once instead of waiting (a reload is back within seconds)
+  window.addEventListener('pagehide', () => navigator.sendBeacon?.(withClient('/api/agent/bye')));
   let poller = null;
   const repoll = () => poller?.abort();
   document.addEventListener('visibilitychange', repoll);
@@ -47,7 +69,7 @@ export function startBridge(handlers) {
       try {
         poller = new AbortController();
         const active = document.visibilityState === 'visible' ? 1 : 0;
-        const res = await fetch(`/api/agent/poll?client=${client}&active=${active}`, { signal: poller.signal });
+        const res = await fetch(`/api/agent/poll?client=${encodeURIComponent(client)}&active=${active}`, { signal: poller.signal });
         if (res.status === 200) cmd = await res.json();
       } catch (e) {
         if (e.name !== 'AbortError') await new Promise((r) => setTimeout(r, 2000));
@@ -55,6 +77,8 @@ export function startBridge(handlers) {
       }
       if (!cmd) continue;
       let result = done.get(cmd.id);
+      // (a long call: the server hears every 10 s that this window is still there — not closed)
+      const alive = setInterval(() => fetch(withClient('/api/agent/alive'), { method: 'POST' }).catch(() => {}), 10000);
       if (!result) try {
         const fn = handlers[cmd.cmd];
         // (a call that never ends must not stop this loop: the page would stop asking for calls and look closed)
@@ -66,6 +90,7 @@ export function startBridge(handlers) {
       } catch (e) {
         result = { text: `${cmd.cmd} failed: ${e.message || e}`, error: true };
       }
+      clearInterval(alive);
       done.set(cmd.id, result);
       if (done.size > 100) done.delete(done.keys().next().value);
       try {
@@ -172,8 +197,8 @@ export class ChatPanel {
       const files = [...e.dataTransfer.files].filter((f) => f.type.startsWith('image/'));
       if (files.length) { e.preventDefault(); e.stopPropagation(); this.addPhotos(files); }
     });
-    this.$('.ai-stop').addEventListener('click', () => fetch('/api/chat/stop', { method: 'POST' }));
-    this.$('.ai-new').addEventListener('click', () => fetch('/api/chat/reset', { method: 'POST' }));
+    this.$('.ai-stop').addEventListener('click', () => fetch(withClient('/api/chat/stop'), { method: 'POST' }));
+    this.$('.ai-new').addEventListener('click', () => fetch(withClient('/api/chat/reset'), { method: 'POST' }));
     this.$('.ai-undo').addEventListener('click', () => this.onUndo());
     this.$('.ai-hist').addEventListener('click', () => onHistory?.());
     this.$('.ai-key').addEventListener('click', () => this.showAccess(true));
@@ -184,7 +209,7 @@ export class ChatPanel {
 
   async checkStatus() {
     try {
-      const s = await (await fetch('/api/chat/status')).json();
+      const s = await (await fetch(withClient('/api/chat/status'))).json();
       this.setStatus(s.claude ? (s.running ? 'Claude Code connected' : 'Claude Code ready — send a message to start') : 'Claude Code not found',
         s.claude ? '' : 'err');
       this.setBusy(s.busy);
@@ -374,7 +399,7 @@ export class ChatPanel {
     this.renderPhotos();
     this.setBusy(true);
     try {
-      const res = await fetch('/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, photos }) });
+      const res = await fetch('/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, photos, client: CLIENT }) });
       if (!res.ok) throw new Error((await res.json()).error || res.statusText);
     } catch (e) {
       this.setBusy(false);
@@ -383,7 +408,7 @@ export class ChatPanel {
   }
 
   connect() {
-    this.es = new EventSource('/api/chat/events');
+    this.es = new EventSource(withClient('/api/chat/events'));
     this.es.onmessage = (m) => {
       const ev = JSON.parse(m.data);
       if (ev.seq <= this.lastSeq) {

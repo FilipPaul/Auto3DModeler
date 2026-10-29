@@ -1198,6 +1198,13 @@ can open them.
   and out, streamed to the page as Server-Sent Events) → the MCP server → `POST /api/agent/call` → tools that change
   the part are relayed to the open page (long-poll), applied there like a user edit and answered; reading files,
   tracing pictures and writing exports run on the server.
+- **Several windows**: each app window has **its own chat** (its own conversation and Claude Code process, started
+  with its first message), and what the AI does goes to **that window only** — the chat's MCP server is started with
+  `--client <the window's id>`, every tool call carries it, and the relay hands it to that window, never to another
+  one (also when another window is the one in front). A reload and 📄 New project keep the window's chat; a new
+  window starts a new one. When the window is closed, its chat's calls fail at once with *"The app window this chat
+  belongs to was closed — nothing was changed"*; its Claude Code ends 10 minutes later. An MCP client of its own
+  (below, no `--client`) works in the window in use, as before.
 
 The same MCP server works from **Claude Desktop or Claude Code** directly (the app must be running and open in a
 browser) — e.g. in a Claude Code / Desktop MCP configuration:
