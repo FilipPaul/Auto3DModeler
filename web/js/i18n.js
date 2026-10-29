@@ -462,6 +462,10 @@ const CS = {
   'The sizes next to this one (all of them: ✎ Edit the hole)': 'Velikosti vedle této (všechny: ✎ Upravit díru)',
   'Edit the hole': 'Upravit díru', 'All its settings — and ＋ Add position for more holes': 'Všechna její nastavení — a ＋ Přidat pozici pro další díry',
   'Hole type': 'Typ díry', 'Hole size': 'Velikost díry',
+  // a chosen Hole step's thread rows
+  'Thread: show': 'Závit: zobrazit', 'Thread: hide': 'Závit: skrýt', 'Cosmetic thread': 'Kosmetický závit', 'Add thread': 'Přidat závit',
+  'Show the threads of the part’s threaded holes as light lines — or hide them (plain holes at the tap drill)': 'Zobrazit závity závitových děr dílu lehkými čarami — nebo je skrýt (prosté díry o průměru vrtáku pro závit)',
+  'Make it a tapped hole of this size (its Ø becomes the tap drill’s)': 'Udělat z ní závitovou díru této velikosti (její Ø bude Ø vrtáku pro závit)',
   '◎ Hole step · {n} hole(s) — changed here at once (Ctrl+Z takes a change back).': '◎ Krok díra · děr: {n} — změny se projeví hned (Ctrl+Z změnu vrátí).',
   // a new thread: cosmetic, shown at once
   '🔩 The thread shows as light lines (cosmetic). A real, cut thread: 🔩 Real thread (slower) in the hole’s panel.': '🔩 Závit je zobrazen lehkými čarami (kosmetický). Skutečný vyříznutý závit: 🔩 Skutečný závit (pomalejší) v panelu díry.',

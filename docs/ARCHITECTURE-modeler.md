@@ -7,6 +7,17 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **A chosen hole's choices inline (2026-10-29)** (the owner: "velikosti a typy díry … v další vyskakovací tabulce …
+  ukaž všechny možnosti … jen když jich bude moc, tak scroll"; "u díry mi v suggestion chybí zobrazit závit"; "nikdy
+  nezobrazuj scroll bar"): `holeItems` replaces the Type ▾ / Size ▾ rows (and their `choose` popups) with sections of
+  rows — Type (the six kinds, icon + short name), Size (`holeSizes`, ±2), Thread (a tapped hole: Thread: show / hide,
+  Real thread ↔ Cosmetic — `setThreads`, the table shown again; else 🔩 Add thread M… — `threadFor`: its screw size,
+  else the M size whose tap drill is nearest its Ø), the current one ✓; one click = `setHoleType` / `setHoleSize`, one
+  undo step. suggest.js: a row with `always` shows past the top N (not counted), `on` ticks it (.vs-pin-row: 24 px
+  rows); a table's rows scroll with no scrollbar (`scrollbar-width: none`), `scrollFades` puts a fade at the edge
+  where rows are hidden (.fade-t / .fade-b; the table grows to the view's height first, no fixed height). Tests:
+  e2e_hole_suggest (rewritten: 6 + 5 rows without a popup, one click countersink / M6 exact volumes, Add thread M5,
+  Thread: hide; 1280 × 800: scrolls inside, no scrollbar, the fades), e2e_ux_model / e2e_select_from_point updated.
 - **✂ Section view fixed and capped (2026-10-29)** (the AI's report: a revolved pump body cut at y = 0 showed whole, with
   a jagged ring at z = 0). Causes: a Y cut kept the half toward the iso / front cameras (x and z kept the far half), so
   the part looked uncut; a face lying in the cut (the bottom at z = 0) z-fought with the clip plane — the jagged ring;

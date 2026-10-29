@@ -1130,7 +1130,12 @@ body.view-acts .toast-stack { bottom: 84px; }
 .sk-filters button:hover { border-color: var(--accent); }
 .view-suggest { position: absolute; left: 12px; bottom: 34px; z-index: 6; width: 236px; background: var(--panel); border: 1px solid var(--line);
   border-radius: 10px; box-shadow: 0 8px 24px #0008; overflow: hidden; display: flex; flex-direction: column; max-height: calc(100% - 120px); }
-.view-suggest .vs-list { overflow-y: auto; min-height: 0; } /* (a long table in a low view: its rows scroll, the head stays) */
+.view-suggest .vs-list { overflow-y: auto; min-height: 0; scrollbar-width: none; } /* (a long table in a low view: its rows scroll, the head stays) */
+/* no scrollbar in a suggestions table (the wheel / a touch drag still scroll it): a fade at the edge where rows are hidden */
+.view-suggest .vs-list::-webkit-scrollbar { display: none; }
+.view-suggest .vs-list.fade-b { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent); }
+.view-suggest .vs-list.fade-t { -webkit-mask-image: linear-gradient(to top, #000 calc(100% - 26px), transparent); mask-image: linear-gradient(to top, #000 calc(100% - 26px), transparent); }
+.view-suggest .vs-list.fade-t.fade-b { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 26px, #000 calc(100% - 26px), transparent); mask-image: linear-gradient(to bottom, transparent, #000 26px, #000 calc(100% - 26px), transparent); }
 .view-suggest .vs-head, .view-suggest .vs-hint { flex: none; }
 .vs-head { cursor: move; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 9px 6px 11px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
 .vs-head b { font-size: 12.5px; flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* (one line: a long name ends in …, whole in its tooltip) */
@@ -1160,6 +1165,10 @@ body.view-acts .toast-stack { bottom: 84px; }
 .vs-list button { display: flex; align-items: center; gap: 8px; text-align: left; background: none; border: 0; color: var(--text); padding: 5px 8px;
   border-radius: 6px; font: inherit; font-size: 12.5px; cursor: pointer; }
 .vs-list button:hover { background: #2b3440; }
+/* rows that always show (a chosen hole's types / sizes): compact, the current one ticked */
+.vs-list button.vs-pin-row { padding: 3px 8px; min-height: 24px; box-sizing: border-box; }
+.vs-list button.on { color: var(--accent); }
+.vs-list button .vs-on { margin-left: auto; color: var(--accent); font-weight: 600; }
 .vs-list button:focus-visible { outline: none; background: #2b3440; box-shadow: inset 2px 0 0 var(--accent); } /* (the row the keyboard is on) */
 /* suggestMenu: the same rows as a small menu at a place (a tab's right-click) */
 .sg-menu { position: fixed; z-index: 60; min-width: 200px; max-width: 320px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px #0009; overflow: hidden; }

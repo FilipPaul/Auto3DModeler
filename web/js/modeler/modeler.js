@@ -20,7 +20,7 @@ import { roundAxes, axisOf } from './axes.js';
 import { fetchRebuild } from './packed.js';
 import { newRid, cancelRid, wasCancelled } from '../progressbox.js';
 import { snapOnFace, snapDrawing, toFace } from './facesnap.js';
-import { HOLE_SIZES, HOLE_TYPES, dFlat, holeType, setHoleStandard } from './holes.js';
+import { HOLE_SIZES, HOLE_TYPES, THREADS, dFlat, holeType, setHoleStandard } from './holes.js';
 import { stepIcon, stepKind, stepGroup, treeIcon, treeShape, rollbackNote } from './steptree.js';
 import { dimIcons, setExtrude } from './dimicons.js';
 import { params, isPlain, exprText, readField } from '../params.js';
@@ -35,8 +35,8 @@ const REPEATABLE = new Set(['extrude', 'revolve', 'hole', 'pattern', 'loft', 'sw
 const MIRROR_PLANES = { YZ: 'left ↔ right', XZ: 'front ↔ back', XY: 'top ↔ bottom' }; // the base planes to mirror across
 const AXES = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
 const USES_SKETCH = new Set(['extrude', 'revolve', 'loft', 'sweep', 'rib']);
-const PLACES = new Set(['hole', 'decal']);
-const HOLE_RANK = { holeType: -3, holeSize: -2.5, holeEdit: -2, holeMeasure: 4.8 }; // a chosen Hole step's rows: first // tools whose click in the view places (and, editing, only once asked)
+const PLACES = new Set(['hole', 'decal']); // tools whose click in the view places (and, editing, only once asked)
+const HOLE_ICONS = { '': '○', clearance: '◎', counterbore: '⌴', countersink: '⌵', tapped: '🔩', d_flat: 'D' }; // a hole type's row
 /** A sketch that is one open line (straight lines end to end, not closed — what ⊿ Rib takes). */
 const isOpenLine = (f) => {
   const es = (f?.entities || []).filter((e) => !e.construction), ends = {};
@@ -992,7 +992,7 @@ export class Modeler {
     const hole = [ref.a, ref.b].map((n) => this.part.features.find((g) => g.id === this.faceOwner({ name: n }))).find((g) => g?.type === 'hole');
     this.selectStep(hole ? hole.id : null);
     this.view.setEdgeHighlight(-1, [i]);
-    const items = [...(hole ? this.holeRows(hole).map(([key, icon, label, run, , title]) => ({ icon, label, title, rank: HOLE_RANK[key] - 10, run })) : []), ...this.edgeItems([ref])];
+    const items = [...(hole ? [...this.holeItems(hole), { section: t('An edge') }] : []), ...this.edgeItems([ref])];
     const sg = showSuggest(this.els.viewport, hole ? `${hole.name} · ${t('An edge')}` : t('An edge'), items, t('Ctrl+click more edges: round them all at once'),
       `${t('in the 3D model')}: ${t('the edge between faces')} ${ref.a} ${t('and')} ${ref.b}`);
     if (sg) sg.dataset.from = 'face';
@@ -1056,9 +1056,7 @@ export class Modeler {
     const items = [];
     const add = (icon, label, run, rank, o = {}) => items.push({ icon, label: t(label), rank, run: () => { this.dropSuggest(); run(); }, ...o });
     const hole = f.type === 'hole';
-    if (hole) { // its type and size first, ✎ Edit the hole; ⁂, 📏, ✕ and ↑ / ↓ next (🏷, ◌, ⏮ under ⋯ Show all)
-      for (const [key, icon, label, run, , title] of this.holeRows(f)) items.push({ icon, label, title, rank: key === 'holeMeasure' ? 3.5 : HOLE_RANK[key] - 10, run });
-    }
+    if (hole) items.push(...this.holeItems(f)); // its types, sizes, thread (all shown), ✎ Edit the hole; ⁂, 📏, ✕ and ↑ / ↓ next (🏷, ◌, ⏮ under ⋯ Show all)
     if (f.type === 'sketch' && !used.has(f.id)) {
       add('⬆', 'Extrude it', () => this.openExtrude(this.newExtrude(f.id), true), 0, { title: t('Give the sketch a height: add material or cut (E)') });
       add('⟳', 'Revolve it', () => this.startRevolve(), 5);
@@ -1072,22 +1070,79 @@ export class Modeler {
     const i = this.part.features.indexOf(f);
     if (i !== this.barAt() - 1) add('⏮', 'Roll back to here', () => this.setRollback(f.id), 8, { title: t('Show the part as it was after this step — the steps under it are kept but not built; new steps go in under it') });
     add('✕', 'Delete the step', () => this.remove(f.id), 4, { danger: true });
-    const sg = showSuggest(this.els.viewport, f.name, items.sort((a, b) => a.rank - b.rank), '', `${t('in the 3D model')}: ${t('step')} ${f.id} “${f.name}”`);
+    const sg = showSuggest(this.els.viewport, f.name, hole ? items : items.sort((a, b) => a.rank - b.rank), '', `${t('in the 3D model')}: ${t('step')} ${f.id} “${f.name}”`); // (a hole's: in its sections, ranked by the table)
     if (sg) sg.dataset.from = 'face';
     return sg;
   }
 
-  /** A Hole step's own rows in the suggestions ([key, icon, label, run, cls, title], as clickFace's): Type ▾ and Size ▾
-   *  (each a choice — one undo step), ✎ Edit the hole (the whole panel), 📏 its Ø. Only steps made by ◎ Hole (a round
-   *  cut of an extrude is not one). */
-  holeRows(f) {
-    const kind = holeType(f), label = HOLE_TYPES.find(([v]) => v === kind)?.[1] || 'Simple';
-    return [
-      ['holeType', '◎', `${t('Type')}: ${t(label)} ▾`, () => this.chooseHoleType(f.id), '', t('Another kind of hole: simple, clearance, ⌴ counterbore, ⌵ countersink, tapped, D')],
-      ['holeSize', '⌀', `${t('Size')}: ${this.holeSizeText(f)} ▾`, () => this.chooseHoleSize(f.id), '', t('The sizes next to this one (all of them: ✎ Edit the hole)')],
-      ['holeEdit', '✎', t('Edit the hole'), () => { this.dropSuggest(); this.edit(f.id); }, '', t('All its settings — and ＋ Add position for more holes')],
-      ['holeMeasure', '📏', `${t('Measure it')}: Ø${fmt(f.d)}`, () => { this.dropSuggest(); this.hooks.toast(`${f.name}: Ø${fmt(f.d)}${f.head_d ? ` · ${t('Head Ø')} ${fmt(f.head_d)}` : ''}${f.through === false ? ` · ↧ ${fmt(f.depth)}` : ` · ${t('Through all')}`}`, 'info', 5000); }],
-    ];
+  /** A Hole step's own rows in the suggestions: every type and the sizes next to its own (a section each, the current
+   *  one ✓ — one click switches it in place, one undo step), its thread (🔩 show / hide, real / cosmetic; a hole without
+   *  one: 🔩 Add thread M…), then ✎ Edit the hole and 📏 its Ø. The choices always show (past the table's top N); the
+   *  table scrolls when they do not fit. Only steps made by ◎ Hole (a round cut of an extrude is not one). */
+  holeItems(f) {
+    const kind = holeType(f), id = f.id, out = [];
+    out.push({ section: t('Type') });
+    HOLE_TYPES.forEach(([k, l], j) => out.push({ icon: HOLE_ICONS[k] || '•', label: t(l).replace(/^[⌴⌵]\s*/, ''), on: k === kind, always: true, rank: -30 + j,
+      title: t('Another kind of hole: simple, clearance, ⌴ counterbore, ⌵ countersink, tapped, D'), run: () => this.setHoleType(id, k) }));
+    out.push({ section: t('Size') });
+    this.holeSizes(f).forEach((o, j) => out.push({ icon: '⌀', label: o.label, on: o.on, always: true, rank: -20 + j,
+      title: t('The sizes next to this one (all of them: ✎ Edit the hole)'), run: () => this.setHoleSize(id, o.value) }));
+    if (kind !== 'd_flat') {
+      out.push({ section: t('Thread') });
+      if (kind === 'tapped') {
+        const mode = this.part.threads || 'hidden';
+        out.push({ icon: '🔩', label: mode === 'hidden' ? t('Thread: show') : t('Thread: hide'), always: true, rank: -14,
+          title: t('Show the threads of the part’s threaded holes as light lines — or hide them (plain holes at the tap drill)'),
+          run: () => this.holeThreads(id, mode === 'hidden' ? 'cosmetic' : 'hidden') });
+        out.push(mode === 'real'
+          ? { icon: '🔩', label: t('Cosmetic thread'), always: true, rank: -13, title: t('Thin helix lines on the holes — view only, quick'), run: () => this.holeThreads(id, 'cosmetic') }
+          : { icon: '🔩', label: t('Real thread (slower)'), always: true, rank: -13, title: t('The threads cut into the solid (ISO metric, 60°) — in STEP / STL / 3MF exports and the print split; slower'), run: () => this.holeThreads(id, 'real') });
+      } else {
+        const m = this.threadFor(f);
+        out.push({ icon: '🔩', label: `${t('Add thread')} ${m}`, always: true, rank: -14, title: t('Make it a tapped hole of this size (its Ø becomes the tap drill’s)'), run: () => this.setHoleType(id, 'tapped', m) });
+      }
+    }
+    out.push({ section: `${t('Hole')} · ${f.name}` });
+    out.push({ icon: '✎', label: t('Edit the hole'), rank: -2, title: t('All its settings — and ＋ Add position for more holes'), run: () => { this.dropSuggest(); this.edit(id); } });
+    out.push({ icon: '📏', label: `${t('Measure it')}: Ø${fmt(f.d)}`, rank: 3.5, run: () => { this.dropSuggest(); this.hooks.toast(`${f.name}: Ø${fmt(f.d)}${f.head_d ? ` · ${t('Head Ø')} ${fmt(f.head_d)}` : ''}${f.through === false ? ` · ↧ ${fmt(f.depth)}` : ` · ${t('Through all')}`}`, 'info', 5000); } });
+    return out;
+  }
+
+  /** The thread a hole without one would get: its screw size (a clearance / counterbore … for M5: M5), else the size whose
+   *  tap drill its Ø is (Ø4.2: M5) or the nearest such. */
+  threadFor(f) {
+    const size = f.standard || f.thread;
+    if (size in THREADS) return size;
+    return Object.keys(THREADS).reduce((a, b) => (Math.abs(THREADS[b] - f.d) < Math.abs(THREADS[a] - f.d) ? b : a));
+  }
+
+  /** 🔩 The thread rows of a chosen hole: how the part's threads show; the table shown again with the new state. */
+  async holeThreads(id, mode) {
+    await this.setThreads(mode);
+    if (this.selected === id && !this.cmd) this.suggestStep(id);
+  }
+
+  /** A chosen hole's type switched in place (one undo step): sized from the table — `size`, else its size kept, the
+   *  last one used, the nearest to its Ø. */
+  setHoleType(id, kind, size = null) {
+    const f = this.part.features.find((g) => g.id === id);
+    if (!f || (kind === holeType(f) && !size)) return;
+    const cur = f.standard || f.thread, near = Object.keys(HOLE_SIZES).reduce((a, b) => (Math.abs(parseFloat(b.slice(1)) - f.d) < Math.abs(parseFloat(a.slice(1)) - f.d) ? b : a));
+    setHoleStandard(f, kind, size || (cur in HOLE_SIZES ? cur : this.lastHoleSize || near));
+    this.changedHole(f);
+  }
+
+  /** A chosen hole's size switched in place (one undo step): "M6" (a screw's hole) or a Ø (mm). */
+  setHoleSize(id, v) {
+    const f = this.part.features.find((g) => g.id === id);
+    if (!f || this.holeSizes(f).find((o) => o.value === v)?.on) return;
+    const kind = holeType(f);
+    if (typeof v === 'string') setHoleStandard(f, kind, this.lastHoleSize = v);
+    else {
+      if (kind === 'd_flat' && (f.flat === undefined || f.flat === dFlat(f.d))) f.flat = dFlat(v); // (the flat follows the Ø while it is the default)
+      f.d = v;
+    }
+    this.changedHole(f);
   }
 
   /** "M5" (a screw's hole), else "Ø6". */
@@ -1109,34 +1164,6 @@ export class Modeler {
     const grid = [...Array.from({ length: 12 }, (_, j) => (j + 1) / 2), ...Array.from({ length: 94 }, (_, j) => j + 7)]; // 0.5 … 6, 7 … 100
     const d = f.d, below = grid.filter((v) => v < d - 1e-9).slice(-2), above = grid.filter((v) => v > d + 1e-9).slice(0, 2);
     return [...below, d, ...above].map((v) => ({ value: v, label: `Ø${fmt(v)}`, on: v === d }));
-  }
-
-  /** ◎ Type ▾ of a chosen hole: all the kinds, the current one ✓ — switched in place (one undo step). */
-  async chooseHoleType(id) {
-    const f = this.part.features.find((g) => g.id === id);
-    if (!f) return;
-    const kind = holeType(f);
-    const v = await choose(t('Hole type'), HOLE_TYPES.map(([k, l]) => ({ value: k || 'simple', label: `${k === kind ? '✓ ' : ''}${t(l)}`, primary: k === kind })));
-    if (v === null || (v === 'simple' ? '' : v) === kind) return;
-    const size = f.standard || f.thread, near = Object.keys(HOLE_SIZES).reduce((a, b) => (Math.abs(parseFloat(b.slice(1)) - f.d) < Math.abs(parseFloat(a.slice(1)) - f.d) ? b : a));
-    setHoleStandard(f, v === 'simple' ? '' : v, size in HOLE_SIZES ? size : this.lastHoleSize || near);
-    this.changedHole(f);
-  }
-
-  /** ⌀ Size ▾ of a chosen hole: the 2 sizes below and above, the current one ✓ (one undo step). */
-  async chooseHoleSize(id) {
-    const f = this.part.features.find((g) => g.id === id);
-    if (!f) return;
-    const opts = this.holeSizes(f);
-    const v = await choose(t('Hole size'), opts.map((o) => ({ value: o.value, label: `${o.on ? '✓ ' : ''}${o.label}`, primary: o.on })));
-    if (v === null || opts.find((o) => o.value === v)?.on) return;
-    const kind = holeType(f);
-    if (typeof v === 'string') setHoleStandard(f, kind, this.lastHoleSize = v);
-    else {
-      if (kind === 'd_flat' && (f.flat === undefined || f.flat === dFlat(f.d))) f.flat = dFlat(v); // (the flat follows the Ø while it is the default)
-      f.d = v;
-    }
-    this.changedHole(f);
   }
 
   /** A chosen hole changed from the suggestions / its panel: one undo step, built, its rows shown again. */
@@ -1255,10 +1282,10 @@ export class Modeler {
     // extrude it, a hole, round / bevel, edit; a round one — its edges, threads, edit
     // a hole's / a boss' face: ⁂ repeat it among the top rows
     const rep = fs.step.type === 'hole' || fs.step.op === 'cut';
-    if (fs.step.type === 'hole') sections.unshift([`${t('Hole')} · ${fs.step.name}`, this.holeRows(fs.step)]); // (a Hole step's: type, size, edit first)
     const RANK = { sketch: 0, faceup: 0.5, hole: 1, fillet: 2, chamfer: 3, edit: 4, pattern: rep ? 2.5 : 8.5, measure: 5.5, decal: 6.5, shell: 6, del: 7, mirror: 8, split: 9, rename: 9.5, paint: 9.8, off: 10, threads: flat ? 11 : 2.5 };
-    const sg = showSuggest(this.els.viewport, `${fs.step.name} · ${face}`, sections.flatMap(([title, items]) => [{ section: title },
-      ...items.map(([key, icon, label, run, cls, title]) => ({ icon, label, title, rank: RANK[key] ?? HOLE_RANK[key], danger: cls === 'danger', run: () => { if (!(key in HOLE_RANK)) this.dropSuggest(); run(); } }))]), '',
+    const sg = showSuggest(this.els.viewport, `${fs.step.name} · ${face}`, [...(fs.step.type === 'hole' ? this.holeItems(fs.step) : []), // (a Hole step's: its types, sizes, thread first)
+      ...sections.flatMap(([title, items]) => [{ section: title },
+        ...items.map(([key, icon, label, run, cls, title]) => ({ icon, label, title, rank: RANK[key], danger: cls === 'danger', run: () => { this.dropSuggest(); run(); } }))])], '',
       `${t('in the 3D model')}: ${t('step')} ${fs.step.id} “${fs.step.name}”, ${t('face')} ${h.face.name}${h.face.type === 'plane' ? ` (${t('flat')})` : h.face.type === 'cylinder' ? ` (${t('round')}, Ø${fmt(2 * (h.face.radius || 0))})` : ''}`);
     if (sg) sg.dataset.from = 'face';
   }
