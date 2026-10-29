@@ -23,6 +23,17 @@ Date: 2026-10-25. Written by the architect agent.
   a D-flat hole (head cbore / csk and thread "M5" exist as hole options), a sketch on a face in world coordinates
   (exists: origin "world" / "corner"), a rib feature from an open line, check_model (check_print does min_wall /
   overhang on a 3D model).
+- **The AI's GUI audit (2026-10-28) done:** checked each item first — the duplicate Cancel (a feature panel's Cancel
+  plus the rebuild's) and the greyed toolbar after it, ⊂⊃ Slot in the sketch bar, the "↕ Plane at" arrow (+ = …),
+  sketch names and an unused sketch in ⬆ Extrude, the last hole / cut in ⁂ Pattern, hole position / head / thread
+  fields and "Measure catches" only where a click snaps had been fixed by later work. Now: the rebuild's button is
+  ✕ Stop (one Cancel on screen), OK / Cancel in the view's corner get tooltips (actiondock.js, by data-a), ▣ Solid from
+  a file is greyed while a step is open; ⁂ Pattern's Repeat is a checklist of steps by name (several repeated
+  together, at least one kept); ⇋ Mirror has ▱ Face (then a click on a flat face: "Across the face …"); ◜ Fillet /
+  ◸ Chamfer say what the last click picked ("Added the edge between … and …", "Added 4 edge(s) of …") and show the
+  step's state once built; face labels ("the top of …") in Czech; gui_state lists the 3D model's step tree (id, name,
+  what, off / failed / selected / editing). tools/e2e_model_gui_audit.py. Default step names were another job's.
+
 - **A threaded part's volume integrated once done:** kernel.volume keeps the last 4 shapes' volumes — the part with
   🔩 real threads was integrated after its cut (the check that something was cut) and again when meshed (the adaptive
   rule on helical faces: ~3 s). The 29-step model with 9 real threads (tools/e2e_perf.py model): its rebuild after a

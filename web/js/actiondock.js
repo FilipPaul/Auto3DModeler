@@ -3,6 +3,8 @@
 // row; the row is moved here and a hidden placeholder keeps its place, so a panel drawn again brings its own row
 // (and the old one goes).
 
+const TIPS = { ok: 'Apply and close (Enter)', cancel: 'Close without changing anything (Esc)' };
+
 export function actionDock(viewport, sources) {
   const dock = document.createElement('div');
   dock.className = 'view-actions';
@@ -18,6 +20,10 @@ export function actionDock(viewport, sources) {
         at.hidden = true;
         row.replaceWith(at);
         held.set(at, row);
+        for (const b of row.querySelectorAll('button:not([title])')) { // (every button says what it does)
+          const tip = TIPS[b.dataset.a]; // (by its action: its text may be translated already)
+          if (tip) b.title = tip;
+        }
       }
     }
     for (const [at, row] of held) if (!at.isConnected) { held.delete(at); row.remove(); }

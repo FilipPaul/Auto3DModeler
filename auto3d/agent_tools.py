@@ -514,7 +514,8 @@ TOOLS = [
      "description": "What the user sees on screen now: every visible control (buttons, sliders, boxes, choices, joint names, list "
                     "rows — not the AI chat) with its number n, label, tooltip, state (on / a value / checked) and whether it is greyed "
                     "out; on a drawing sheet also its dimensions (kind dim), views (view) and title-block cells (cell), where: view; "
-                    "where: bar (top bar), tools (the workspace's toolbar), panel (side panels), view or all. Use it to tell the user exactly "
+                    "where: bar (top bar), tools (the workspace's toolbar), panel (side panels), view or all; in the 3D model also its step "
+                    "tree (steps: id, name, what it makes, off / failed / selected / editing). Use it to tell the user exactly "
                     "where something is, and with gui_action to check the GUI does what the tools do.",
      "inputSchema": _obj({"where": {"type": "string", "enum": ["all", "bar", "tools", "panel", "view"]}})},
     {"name": "gui_action", "where": "browser",

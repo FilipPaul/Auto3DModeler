@@ -276,7 +276,12 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
     // ---------------------------------------------------------------- the GUI as the user sees it
     gui_state: async ({ where = 'all' } = {}) => {
       const list = guiControls(where);
-      return ok({ workspace: state.workspace, controls: list.map(({ el, ...c }) => c),
+      // the 3D model's step tree as the user sees it: names, what each makes, turned off / failing / selected / being changed
+      const rows = state.workspace === 'model' ? [...document.querySelectorAll('#modelLeft .mt-item')] : [];
+      const steps = rows.length ? rows.map((r) => ({ id: r.dataset.id, name: r.querySelector('.mt-name')?.textContent || '', what: r.querySelector('.mt-what')?.textContent || '',
+        ...(r.classList.contains('off') ? { off: true } : {}), ...(r.classList.contains('bad') ? { failed: r.title || true } : {}),
+        ...(r.classList.contains('on') ? { selected: true } : {}), ...(r.classList.contains('editing') ? { editing: true } : {}) })) : undefined;
+      return ok({ workspace: state.workspace, controls: list.map(({ el, ...c }) => c), ...(steps ? { steps } : {}),
         toasts: [...document.querySelectorAll('.toast')].map((x) => x.textContent.trim()).slice(-3) });
     },
     gui_action: async ({ control, click, value, key: keys, at, at_mm, drag_to, double } = {}) => {

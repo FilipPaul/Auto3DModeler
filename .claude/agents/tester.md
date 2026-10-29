@@ -69,6 +69,11 @@ Never report "works" without having run it; report failures with their output.
    another (turned and centred), nudge / turn / undo, explode, parts list with masses, STL / STEP export, save -> reopen.
    `tools/e2e_model_pattern.py <url> <dir>` covers ⁂ Pattern (a row of holes: count / spacing typed, direction from a
    clicked edge; around Z and around a clicked round face; the AI's pattern; deleting the original deletes it).
+   `tools/e2e_model_gui_audit.py <url> <dir>` covers the AI's GUI audit (2026-10-28): ⬆ Extrude picks the unused sketch,
+   lists sketches by name; one Cancel (with a tooltip; the rebuild's button is ✕ Stop) and a real click on it frees the
+   toolbar; ⁂ Pattern repeats the last hole by default and several ticked steps (volume); ⇋ Mirror's ▱ Face then a face
+   click; ◜ Fillet says what a click picked (an edge / a face's N edges); gui_state's step tree (names, off); ⊂⊃ Slot
+   and ↕ Plane at (+ = …) in the sketch bar; the panels in Czech.
    `tools/e2e_chat_drawer.py <url> <dir>` covers the AI chat in every workspace (tab on quick parts, ✨ AI drawer in a
    3D model / assembly, same conversation, no shortcuts while typing).
    `tools/e2e_model_arc.py <url> <dir>` covers ◠ Arc (3 clicks, R typed / undone, the dimension tool on an arc, exact
