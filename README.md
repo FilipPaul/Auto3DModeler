@@ -922,6 +922,13 @@ can open them.
   `AUTO3D_CLAUDE_MODEL` to choose a model. The app never sees your credentials (Claude Code signs in through
   Anthropic's own flow); usage counts against your own plan. If you give the app to others, each of them signs in
   with their own account.
+- **Set it up at any time, no restart**: when Claude Code is missing, not signed in, or its key was refused, the ✨ AI
+  panel shows **Set up the AI assistant** instead of the chat — the install command (no Node, no admin), **Sign in
+  with Claude** (runs Claude Code's own sign-in in a window; the screen follows it and the chat comes back by itself),
+  or an **API key** field (checked with Anthropic first; kept encrypted with Windows DPAPI in `data/ai/key.bin` — in
+  the installed app `%LOCALAPPDATA%\Auto3DModeler\ai` — and only ever sent to Anthropic). **🔑 Access** in the chat's
+  top bar shows who is connected and **Sign out / change the key**. A key that stops working (a chat turn refused)
+  brings the screen back with a clear message. The rest of the app never depends on it.
 - Claude gets **only the app's tools** ([auto3d/agent_tools.py](auto3d/agent_tools.py)), through the app's own MCP
   server ([auto3d/mcp_server.py](auto3d/mcp_server.py)): read the part, look at the 3D view, open files / the
   sample, trace a picture and use an outline, set dimensions, choose what to make, add / change / remove 3D

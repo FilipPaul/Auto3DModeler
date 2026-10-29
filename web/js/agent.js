@@ -3,6 +3,8 @@
 // the user would (visible at once, undoable) and posts the result back. The chat itself streams from
 // the server as Server-Sent Events.
 
+import { t } from './i18n.js';
+
 const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /** Minimal markdown for chat replies: paragraphs, lists, **bold**, `code`. */
@@ -120,8 +122,10 @@ export class ChatPanel {
           <button class="mini ai-undo" title="Undo the last change (Ctrl+Z) — the AI's changes are steps in the app's undo history">↶ Undo</button>
           <button class="mini ai-hist" title="The project after each change Claude made — browse it and load one back">🕘 History</button>
           <button class="mini ai-new" title="Start a new conversation">New chat</button>
+          <button class="mini ai-key" title="Sign in, change the API key or sign out">🔑 Access</button>
         </span>
       </div>
+      <div class="ai-access" hidden></div>
       <div class="ai-log"><div class="ai-empty">
         <p><b>Describe what you want</b> — Claude works on the part in the app: opens drawings, traces pictures, sets
         sizes, adds holes, text and objects, checks the printer and exports.</p>
@@ -168,6 +172,7 @@ export class ChatPanel {
     this.$('.ai-new').addEventListener('click', () => fetch('/api/chat/reset', { method: 'POST' }));
     this.$('.ai-undo').addEventListener('click', () => this.onUndo());
     this.$('.ai-hist').addEventListener('click', () => onHistory?.());
+    this.$('.ai-key').addEventListener('click', () => this.showAccess(true));
     this.updateUndo();
     this.checkStatus();
     this.connect();
@@ -178,9 +183,102 @@ export class ChatPanel {
       const s = await (await fetch('/api/chat/status')).json();
       this.setStatus(s.claude ? (s.running ? 'Claude Code connected' : 'Claude Code ready — send a message to start') : 'Claude Code not found',
         s.claude ? '' : 'err');
-      if (!s.claude) this.note('Claude Code is not installed (or not found). Install it from claude.com/claude-code and sign in once; or set AUTO3D_CLAUDE to the path of claude.exe and restart the app.', 'err');
       this.setBusy(s.busy);
+      await this.showAccess(false);
     } catch { this.setStatus('The app server is not reachable', 'err'); }
+  }
+
+  // ------------------------------------------------------------------ access: set up the AI at any time (auto3d/ai_access.py)
+  /** The set-up screen when the AI cannot run yet (Claude Code not installed, not signed in, a refused key) — or
+   *  always (force: 🔑 Access) to change the key or sign out. It follows a sign-in by itself; the chat comes back once
+   *  it works, without a restart. */
+  async showAccess(force, why = '') {
+    let s;
+    try { s = await (await fetch('/api/ai/access')).json(); } catch { return; }
+    this.access = s;
+    const open = force || s.state !== 'ok' || !!why;
+    const box = this.$('.ai-access');
+    box.hidden = !open;
+    this.log.hidden = open;
+    this.$('.ai-form').hidden = open;
+    this.root.classList.toggle('ai-setup', open);
+    clearTimeout(this.accessTimer);
+    if (!open) return;
+    if (s.state !== 'ok') this.setStatus(s.state === 'no_claude' ? 'Claude Code not found' : 'The AI is not set up yet', 'warn');
+    box.innerHTML = this.accessHtml(s, why);
+    this.wireAccess(box, s);
+    // signing in (a browser page) or installing: look again every 2 s until it works
+    if (s.state !== 'ok' && (s.logging_in || this.waitingLogin)) this.accessTimer = setTimeout(() => this.showAccess(false, why), 2000);
+    if (s.state === 'ok' && this.waitingLogin) { this.waitingLogin = false; this.toast('The AI is connected — you can write to Claude now.', 'success'); this.showAccess(false); }
+  }
+
+  accessHtml(s, why) {
+    const link = (url, text) => `<a href="${url}" target="_blank" rel="noopener">${text}</a>`;
+    const msg = why || (s.state === 'invalid' ? 'The API key was refused (wrong, revoked or expired). Enter another one or sign in with your Claude account.' : '');
+    let html = `<h3>Set up the AI assistant</h3>
+      <p>The rest of the app works without it. The assistant is Claude (by Anthropic) — it needs Claude Code on this computer and a Claude account or an API key. You can set it up now or any time later, without restarting.</p>`;
+    if (msg) html += `<p class="ai-acc-msg err">${escapeHtml(msg)}</p>`;
+    if (s.state === 'no_claude') {
+      return `${html}<p class="ai-acc-msg warn">Claude Code is not installed on this computer — the assistant runs through it.</p>
+        <ol class="ai-acc-steps"><li><span>Install it: open PowerShell and run this command (no administrator rights needed):</span>
+          <div><code data-no-i18n>${escapeHtml(s.install_cmd)}</code></div>${link(s.links.install, 'Instructions: claude.com/claude-code')}</li>
+        <li>Then click Check again — no restart needed.</li></ol>
+        <div class="ai-acc-row"><button type="button" class="btn small primary ai-recheck">Check again</button></div>`;
+    }
+    if (s.state === 'ok') {
+      const who = s.method === 'key' ? `an API key (…${escapeHtml(s.key_end || '')})` : `the Claude account ${escapeHtml(s.email || '')}`;
+      html += `<p class="ai-acc-msg ok">Connected through ${who}.</p>
+        <div class="ai-acc-row"><button type="button" class="btn small primary ai-back">Back to the chat</button>
+        <button type="button" class="btn small ai-logout">${s.method === 'key' ? 'Sign out / change the key' : 'Sign out'}</button></div>`;
+      if (s.method !== 'key') return html;
+    }
+    if (s.state !== 'ok') {
+      html += `<div class="ai-way"><b>Claude account</b> <span class="hint">(Claude Pro or Max subscription)</span>
+          <div class="ai-acc-row"><button type="button" class="btn small primary ai-signin">Sign in with Claude</button>
+          ${link(s.links.register, 'No account? Register at claude.ai')}</div>
+          ${s.logging_in || this.waitingLogin ? '<p class="hint ai-acc-wait">Finish the sign-in in the window and the browser page that opened — this screen updates by itself.</p>' : ''}</div>`;
+    }
+    html += `<div class="ai-way"><b>API key</b> <span class="hint">(pay per use, from the Anthropic Console)</span>
+        <div class="ai-acc-row"><input type="password" class="ai-keyin" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" data-no-i18n>
+        <button type="button" class="btn small ai-usekey">Use this key</button></div>
+        <div>${link(s.links.console, 'Get a key at console.anthropic.com')}</div>
+        <div class="hint">The key is kept encrypted for your Windows user only and is only ever sent to Anthropic.</div></div>`;
+    if (s.state !== 'ok' && s.state !== 'no_claude') html += '<div class="ai-acc-row"><button type="button" class="btn small ai-recheck">Check again</button></div>';
+    return html;
+  }
+
+  wireAccess(box, s) {
+    const on = (sel, fn) => box.querySelector(sel)?.addEventListener('click', fn);
+    const post = async (url, body) => {
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out.error || res.statusText);
+      return out;
+    };
+    on('.ai-recheck', () => this.showAccess(false));
+    on('.ai-back', () => this.showAccess(false));
+    on('.ai-signin', async () => {
+      try { await post('/api/ai/login'); this.waitingLogin = true; this.showAccess(true); } catch (e) { this.toast(e.message, 'error'); }
+    });
+    const useKey = async () => {
+      const key = box.querySelector('.ai-keyin').value.trim();
+      if (!key) return;
+      const btn = box.querySelector('.ai-usekey');
+      btn.disabled = true;
+      btn.textContent = 'Checking…';
+      try {
+        const r = await post('/api/ai/key', { key });
+        this.toast(r.checked ? 'The key works — you can write to Claude now.' : 'The key is kept, but it could not be checked now (no connection?).', r.checked ? 'success' : 'warning');
+        this.showAccess(false);
+      } catch (e) { this.showAccess(true, e.message); }
+    };
+    on('.ai-usekey', useKey);
+    box.querySelector('.ai-keyin')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') useKey(); });
+    on('.ai-logout', async () => {
+      const claude = s.method !== 'key';
+      if (claude && !confirm(t('Sign Claude Code out on this computer? (Also its use outside this app.)'))) return;
+      try { await post('/api/ai/logout', { claude }); this.showAccess(true); } catch (e) { this.toast(e.message, 'error'); }
+    });
   }
 
   setStatus(text, cls = '') {
@@ -265,6 +363,7 @@ export class ChatPanel {
     const ta = this.$('textarea');
     const text = ta.value.trim();
     if ((!text && !this.photos.length) || this.busy) return;
+    if (this.access && this.access.state !== 'ok') { this.showAccess(true); return; } // (set it up first: the typed text stays)
     const photos = this.photos;
     ta.value = '';
     this.photos = [];
@@ -381,6 +480,7 @@ export class ChatPanel {
         this.setBusy(false);
         this.setStatus('Claude Code connected', 'ok');
         if (ev.error) this.note(ev.text || 'Claude stopped with an error.', 'err');
+        if (ev.auth) this.showAccess(true, 'Claude refused the access — the key is wrong or expired, or you were signed out. Sign in again or enter another key.');
         this.updateUndo();
         this.onTurnDone?.({ prompt: this.turnPrompt });
         break;
@@ -390,6 +490,7 @@ export class ChatPanel {
         if (ev.code) {
           this.setStatus('Claude Code stopped', 'warn');
           if (ev.stderr) this.note(ev.stderr, 'err');
+          if (ev.auth) this.showAccess(true, 'Claude refused the access — the key is wrong or expired, or you were signed out. Sign in again or enter another key.');
         } else this.setStatus('Claude Code ready — send a message to start');
         break;
       default:

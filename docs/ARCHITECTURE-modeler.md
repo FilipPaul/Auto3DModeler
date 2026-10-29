@@ -7,6 +7,17 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **AI set up at any time while the app runs done (the owner, for customers without AI access yet):**
+  auto3d/ai_access.py — state() no_claude / signed_out / invalid / ok (Claude Code found? a kept key — refused in this
+  run? else `claude auth status --json`, asked at most every 5 s); an API key checked with Anthropic (/v1/models: 401 /
+  403 refused, else offline) and kept with Windows DPAPI in <data>/ai/key.bin, given to the chat as ANTHROPIC_API_KEY
+  (ai_access.chat_env); "Sign in with Claude" = `claude auth login` in its own console window. Routes /api/ai/access,
+  /key, /login, /logout (the chat restarts with the new access). agent.py: a turn / exit refused for the access
+  (auth_error) -> `auth: true` on done / exit, the key marked invalid. agent.js: the set-up screen in place of the chat
+  (install command + Check again; Sign in + register link; key field + console link; polls every 2 s while signing
+  in), 🔑 Access (who is connected, Sign out / change the key), the screen back on an `auth` event; Czech in i18n.js.
+  tests/test_ai_access.py, tools/e2e_ai_access.py; docs/DISTRIBUTION.md "AI".
+
 - **A Windows program for customers done (docs/DISTRIBUTION.md):** tools/build/build.py — a clean venv (versions
   pinned in tools/build/constraints.txt), PyInstaller one-folder (tools/build/auto3d.spec: web/, library/,
   agent_plugin/, the delvewheel DLL folders of OCP / planegcs / cascadio, BUILD.json with the commit), the portable zip,
