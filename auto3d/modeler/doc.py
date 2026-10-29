@@ -896,9 +896,11 @@ _explain = [True]  # _sized looks for the most that fits (False: limits() is try
 
 def _sized(make, v, what, unit, impossible):
     """make(v) -> a body; when it fails, say why: no size works at all, or this one is too big (and the most that
-    works, found by trying — within SIZE_BUDGET)."""
+    works, found by trying — within SIZE_BUDGET). K.Unsizable: no size would do, its own words."""
     try:
         return make(v)
+    except K.Unsizable:
+        raise
     except K.KernelError:
         if not _explain[0]:
             raise

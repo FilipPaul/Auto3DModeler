@@ -6,6 +6,7 @@ Run:  python -m unittest discover -s tests -v
 import math
 import time
 import unittest
+from unittest import mock
 
 import numpy as np
 
@@ -599,6 +600,54 @@ class TestFeatures(unittest.TestCase):
         self.assertIn("leave open", r["features"][-1]["issues"][0])
         r, _ = vol(*box(), {"id": "SH", "type": "shell", "faces": top, "t": 30})
         self.assertFalse(r["features"][-1]["ok"])
+
+    def test_shell_after_a_side_bite(self):
+        """🐛 A revolved body bitten from the side, then shelled 2 mm open at its top: OpenCASCADE came back "done" with
+        the body mostly solid (the AI's apple bottle: 182 000 mm³, 2 mm walls are 35 000). A Ø60 × 60 cylinder with a
+        Ø20 bite 3 mm into its wall: MakeThickSolid fails so, the cavity cut out of it instead (its inside offset 2 mm in)
+        gives the walls all over — π(30² − 28²)·60 + π·28²·2 without the bite, and about as much with it (the wall bends
+        in round the bite), watertight, its inner faces named, the same through STEP. A body neither way can hollow:
+        an issue, never ok with a mostly solid body."""
+        from auto3d.modeler import kernel as K
+        from test_modeler_kernel import watertight
+
+        def turned(pts):  # a profile on XZ revolved a full turn about z
+            keys = [f"p{i + 1}" for i in range(len(pts))]
+            ents = [{"id": f"l{i + 1}", "t": "line", "a": keys[i], "b": keys[(i + 1) % len(pts)]} for i in range(len(pts))]
+            return [{"id": "F1", "type": "sketch", "plane": {"datum": "XZ"}, "points": dict(zip(keys, pts)), "entities": ents},
+                    {"id": "F2", "type": "revolve", "sketch": "F1", "axis": "y", "angle": 360, "op": "add"}]
+        bite = [{"id": "C1", "type": "sketch", "plane": {"datum": "YZ", "offset": 35}, "points": {"c": [0, 30]},
+                 "entities": [{"id": "k1", "t": "circle", "c": "c", "r": 10}]},
+                {"id": "F7", "type": "extrude", "sketch": "C1", "op": "cut", "d": 8}]
+        shell = {"id": "F3", "type": "shell", "faces": [{"name": "F2:side:l3", "fp": [0, 0, 60]}], "t": 2}
+        cyl = turned([[0, 0], [30, 0], [30, 60], [0, 60]])
+        plain = math.pi * (30 ** 2 - 28 ** 2) * 60 + math.pi * 28 ** 2 * 2
+        r, v = vol(*cyl, shell)
+        self.assertAlmostEqual(v, plain, delta=1e-3)
+        r, v = vol(*cyl, *bite, shell)
+        self.assertTrue(r["ok"], r["features"])
+        self.assertTrue(plain * 0.97 < v < plain * 1.05, v)
+        self.assertTrue(watertight(r["body"]))
+        names = {f.get("name") for f in r["body"]["faces"]}
+        self.assertTrue({"F3:inner:0", "F2:side:l2", "F2:side:l1"} <= names, names)
+        self.assertNotIn("F2:side:l3", names)  # (the open face is gone; its rim is a new face)
+        st, _ = doc.evaluate([*cyl, *bite, shell])
+        self.assertAlmostEqual(K.volume(K.from_step(K.to_step(st.body.shape))), v, delta=v * 1e-6)
+        # MakeThickSolid's mostly solid body is seen: without the other way, an issue — not ok
+        with mock.patch.object(K, "_hollowed", lambda *a: None):
+            doc._cache.clear()
+            r, v = vol(*cyl, *bite, shell)
+        doc._cache.clear()
+        self.assertFalse(r["ok"])
+        self.assertIn("all over the part", r["features"][-1]["issues"][0])
+        # a lip round the top (1 mm, thinner than the wall) and the bite: neither way — the issue, the body as before
+        lip = turned([[0, 0], [30, 0], [30, 57], [31, 57], [31, 59], [30, 59], [30, 60], [0, 60]])
+        top = {**shell, "faces": [{"name": "F2:side:l7", "fp": [0, 0, 60]}]}
+        r, v = vol(*lip, *bite, top)
+        self.assertFalse(r["ok"])
+        self.assertIn("all over the part", r["features"][-1]["issues"][0])
+        _, v0 = vol(*lip, *bite)
+        self.assertAlmostEqual(v, v0, delta=1e-6)
 
     def test_mirror(self):
         # the box (0..40 in x) mirrored across YZ: a copy at -40..0, joined -> twice the volume, 80 wide

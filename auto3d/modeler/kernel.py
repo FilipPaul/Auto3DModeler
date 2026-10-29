@@ -53,6 +53,11 @@ class KernelError(Exception):
     """A modelling step that cannot be built (shown to the user as the feature's issue)."""
 
 
+class Unsizable(KernelError):
+    """A step that no other size of it would build either: shown as it is (doc._sized does not look for the most that
+    fits)."""
+
+
 # ------------------------------------------------------------------ booleans (on all cores)
 PARALLEL = os.environ.get("A3D_PARALLEL_BOOL", "1").strip().lower() not in ("0", "false", "no", "off")
 """OpenCASCADE's booleans run their intersections on all cores; A3D_PARALLEL_BOOL=0 runs them on one (the results
@@ -858,6 +863,14 @@ def shell(body, faces, t, fid):
     v0, v1 = volume(body.shape), volume(res)
     if not (0 < v1 < v0):
         raise KernelError("The walls could not be made this thick here — try a thinner wall.")
+    if not _thin_wall(body, faces, res, t):
+        # OCCT came back "done" with a body that is no wall all over (an apple bottle bitten from the side: 182 000 mm³
+        # where 2 mm walls are 35 000, its inside face a fifth of the outside): the cavity cut out of it instead
+        alt = _hollowed(body, faces, t, fid)
+        if alt is None:
+            raise Unsizable("The shell could not be made all over the part — try another wall thickness, or hollow it out "
+                            "before the cuts in its side.")
+        return alt
     names = _carry(mk, body.names, res)
     rm = _face_map(res)
     k = 0
@@ -868,6 +881,85 @@ def shell(body, faces, t, fid):
                     names.setdefault(f"{fid}:inner:{k}", []).append(g)
                     k += 1
     return Body(res, names)
+
+
+THIN_WALL = 1.5  # a shell's volume at most this × (the outside it keeps) × t: more is a part left solid (_thin_wall)
+
+
+def _area(shape):
+    p = GProp_GProps()
+    BRepGProp.SurfaceProperties_s(shape, p)
+    return p.Mass()
+
+
+def _thin_wall(body, faces, res, t):
+    """Is res (body hollowed out, open at faces) a wall about t thick all over: a valid solid, no bigger than its
+    outside's area × t (THIN_WALL × that: a wall inside a dent is longer than the outside over it)."""
+    from OCP.BRepCheck import BRepCheck_Analyzer
+    outside = _area(body.shape) - sum(_area(f) for f in faces)
+    return volume(res) <= THIN_WALL * outside * t and BRepCheck_Analyzer(res).IsValid()
+
+
+def _hollowed(body, faces, t, fid):
+    """The other way to shell: the body less its inside — the whole body offset t in (MakeOffsetShape, with its walls'
+    intersections worked out) — opened at the flat faces: the inside moved t·1.5 out through each, kept within that
+    face's slab t·1.5 deep. Inner walls named inner:k. None when that is no thin wall either (_thin_wall)."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeSolid
+    from OCP.BRepOffset import BRepOffset_Skin
+    from OCP.BRepOffsetAPI import BRepOffsetAPI_MakeOffsetShape
+    from OCP.GeomAbs import GeomAbs_Arc
+    from OCP.ShapeFix import ShapeFix_Solid
+    from OCP.TopAbs import TopAbs_SHELL
+    sides = [plane_of(f) for f in faces]
+    if any(s is None for s in sides):
+        return None
+    mo = BRepOffsetAPI_MakeOffsetShape()
+    try:
+        mo.PerformByJoin(body.shape, -float(t), 1e-3, BRepOffset_Skin, True, False, GeomAbs_Arc)
+        shells = list(_subshapes(mo.Shape(), TopAbs_SHELL)) if mo.IsDone() else []
+        if len(shells) != 1:
+            return None
+        fix = ShapeFix_Solid(BRepBuilderAPI_MakeSolid(TopoDS.Shell(shells[0])).Solid())
+        fix.Perform()
+        inside = fix.Solid()
+        if volume(inside) < 0:
+            inside = inside.Reversed()
+        if not 0 < volume(inside) < volume(body.shape):
+            return None
+        cavity = inside
+        for f, (_, n) in zip(faces, sides):
+            out = gp_Vec(*map(float, n * t * 1.5))
+            moved = BRepBuilderAPI_Transform(inside, _translation(out), True).Shape()
+            slab = BRepPrimAPI_MakePrism(TopoDS.Face(f), out.Reversed(), True).Shape()
+            cavity = bop("fuse", cavity, bop("common", moved, slab).Shape()).Shape()
+        mk = bop("cut", body.shape, cavity)
+        if not mk.IsDone():
+            return None
+    except Exception:  # noqa: BLE001 — OpenCASCADE throws when the inside cannot be offset
+        return None
+    res = mk.Shape()
+    if not 0 < volume(res) < volume(body.shape) or not _thin_wall(body, faces, res, t):
+        return None
+    names = _carry(mk, body.names, res)
+    for f in faces:  # (the open faces are gone, as with MakeThickSolid: what is left of them is the rim)
+        for n in [n for n, fs in names.items() if n in body.names and any(f.IsSame(g) for g in body.names[n])]:
+            names.pop(n)
+    named, k = ShapeMap(), 0
+    for fs in names.values():
+        for g in fs:
+            named.Add(g)
+    for g in _subshapes(res, TopAbs_FACE):
+        if not named.Contains(g):
+            names[f"{fid}:inner:{k}"] = [g]
+            named.Add(g)
+            k += 1
+    return Body(res, names)
+
+
+def _translation(v):
+    tr = gp_Trsf()
+    tr.SetTranslation(v)
+    return tr
 
 
 def _centroid(face):

@@ -23,7 +23,17 @@ Date: 2026-10-25. Written by the architect agent.
   offset of this profile changes its edges (the scallops vanish), which a ruled loft cannot follow. The report's
   bite at 25° × 11 mm: "at most 23.14°" (the scallops close up past that); 5 mm deep at 25° cuts / adds
   ∫ area(profile shrunk by h·tan 25°) dh. Tests: test_extrude_draft_of_round_scallops (cut and add, STEP, refused
-  when too steep).
+  when too steep). **A shell after a side cut left the body mostly solid, "ok"** (182 000 mm³ where 2 mm walls are
+  35 000): MakeThickSolid comes back "done" with no valid solid when a cut's floor lies near the inner wall (even a
+  Ø20 bite 3 mm into a Ø60 cylinder; join type, Intersection mode and tolerance changed nothing). `kernel.shell` now
+  checks the result (`_thin_wall`: BRepCheck valid and the volume at most THIN_WALL 1.5 × the outside it keeps × t);
+  else `_hollowed`: the body offset t in as a whole (MakeOffsetShape with intersections) is the cavity, opened at
+  each flat open face by the cavity moved 1.5 t out through it within that face's slab, and cut from the body (the
+  cylinder: its wall bends round the bite). Neither: `Unsizable` "The shell could not be made all over the part — …"
+  (Czech added; `_sized` passes an Unsizable on without its search for the most that fits). The report's apple cannot
+  be offset as a whole even without the bite (no shell back; likely its 1 mm lip at the neck, gone at 2 mm), so it
+  gets that issue — the AI's
+  workaround (shell first, then the bite and a plug) stays the way. Tests: test_shell_after_a_side_bite.
 
 - **Icons at an extrude's height (2026-10-29)** (the owner: "u kliknutí na dimenzi vysunutí … pár ikonek … směr, k
   ploše a další ploše"): clicking the "↕ 10" label on the part opens the size editor with one line of 16 px stroke
