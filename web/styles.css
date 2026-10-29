@@ -1060,6 +1060,14 @@ input.px-in.px-bad, .px-box input.px-bad { border-color: #f0883e !important; out
 /* the actions of a step / mode, in the bottom-right corner of the view (actiondock.js) */
 .view-actions { position: absolute; right: 14px; bottom: 14px; z-index: 6; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .view-actions[hidden] { display: none; }
+/* by the cursor over the view: "🖱 OK · Esc Cancel" — what a right-click / Esc does now (small, muted: a snap label's size) */
+.rc-hint { position: absolute; z-index: 7; pointer-events: none; display: flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 11px; line-height: 15px; color: var(--muted); background: #0d1117b0; border-radius: 4px; padding: 0 5px; opacity: 0.85; }
+.rc-hint[hidden] { display: none; }
+.rc-hint b { font-weight: 500; color: #c9d1d9; }
+.rc-hint i { font-style: normal; opacity: 0.6; }
+.rc-hint .rc-mouse { flex: none; }
+.rc-hint kbd { font: inherit; font-size: 9.5px; border: 1px solid currentColor; border-radius: 3px; padding: 0 2px; opacity: 0.85; }
+.rc-hint .rc-esc.cancel { color: #f47067; }
 .view-actions .mp-actions { margin: 0; padding: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px #0008; }
 .view-actions .mp-actions .btn, .view-actions .mp-actions .chip { flex: none; min-width: 92px; padding: 7px 16px; font-size: 13px; border-radius: 8px; }
 .view-actions .chip.primary { background: var(--accent); border-color: var(--accent); color: white; font-weight: 600; }

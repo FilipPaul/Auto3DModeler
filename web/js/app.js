@@ -2557,8 +2557,11 @@ var autosave = new Autosave({
   elsewhere: () => windows.openElsewhere(), // (the projects open in the app's other windows)
 });
 
-// OK / Cancel, ✓ Finish sketch, Done: in the bottom-right corner of each view
-for (const [vp, right] of [['modelViewport', 'modelRight'], ['asmViewport', 'asmRight'], ['shViewport', 'shRight'], ['dwgViewport', 'dwgRight']]) actionDock($(vp), [$(vp), $(right)]);
+// OK / Cancel, ✓ Finish sketch, Done: in the bottom-right corner of each view; a right-click in the view = its OK
+// (a hint by the cursor says it, and what Esc does in the 3D model)
+for (const [vp, right] of [['modelViewport', 'modelRight'], ['asmViewport', 'asmRight'], ['shViewport', 'shRight'], ['dwgViewport', 'dwgRight']]) {
+  actionDock($(vp), [$(vp), $(right)], vp === 'modelViewport' ? { esc: () => modeler.escMeaning() } : {});
+}
 
 // ⧉ a part in a window of its own (another monitor): every window has the project, a change in one goes to the others
 var windows = new Windows({

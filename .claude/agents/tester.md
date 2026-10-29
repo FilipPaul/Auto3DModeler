@@ -140,6 +140,10 @@ Never report "works" without having run it; report failures with their output.
    no tool, ◎ not lit, a click adds nothing; ✎ edit: no preview, no hole on a click until ＋ Add position; OK: 2 holes).
    `tools/e2e_esc_keeps.py <url> <dir>` covers Esc keeping what was placed (sketch line: 2 segments stay; ◎ Hole: 1
    click + Esc = a step with one hole, exact volume; Esc with nothing placed / the Cancel button: no step; Fillet alike).
+   `tools/e2e_rclick_ok.py <url> <dir>` covers right-click = OK with real mouse, in Czech (a sketch's rectangle: a
+   right-click finishes it; the Extrude panel: a right-click adds the step; ◎ Hole with 1 position: kept; a right-click
+   in a panel field and a right-drag (pans) confirm nothing; no command: nothing) and the cursor hint ("🖱 Dokončit
+   skicu"; "OK · Esc Zrušit" red; "OK · Esc Hotovo" once a hole is placed; hidden while dragging / with no command).
    `tools/e2e_assembly_sub.py <url> <dir>` covers assemblies in assemblies (one body, joined, mass, STEP with every
    part, no assembly in itself).
    `tools/e2e_assembly_bolt.py <url> <dir>` covers a screw through parts with no holes (the click, the suggestion and
