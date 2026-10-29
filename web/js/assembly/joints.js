@@ -10,6 +10,8 @@
 // direction fixed before, and only move it along their own direction — so "pin in hole" + "touch" = the pin in
 // the hole, down to the face. A flat face put onto another one is centred on it once (when the joint is made); then
 // it may slide on it. jointMiss tells how far a joint is from holding (another joint of the part may hold it elsewhere).
+// A part joined onto two parts that move closes a loop (a rod on a crank and on a slider): loops.js places those parts
+// together, bringing their joints' jointResidual to 0.
 import * as THREE from 'three';
 
 export const JOINT_TYPES = {
@@ -140,6 +142,43 @@ export function jointMiss(j, fB, fA) {
   }
   if (Number.isFinite(j.angle) && dir && deg < 0.1) deg = Math.max(deg, wrap(spinOf(fB, fA, dir) - j.angle)); // its turn locked
   return { mm, deg, ok: mm < 0.05 && deg < 0.1 };
+}
+
+/** How far a joint is from holding, as numbers that are all 0 when it holds and change smoothly as the parts move
+ *  (mm; a direction's miss times S mm) — what the closed-loop solve (loops.js) brings to 0 for several joints at
+ *  once. The same faces as jointMiss; [] when the faces are not of its kind. */
+export function jointResidual(j, fB, fA, S = 50) {
+  const type = j.type || 'touch', out = [], vec = (v, k = 1) => out.push(v.x * k, v.y * k, v.z * k);
+  const cross = (a, b) => new THREE.Vector3().crossVectors(V(a).normalize(), V(b).normalize());
+  let dir = null;
+  if (type === 'axis') {
+    if (!fA.axis || !fB.axis) return out;
+    const dA = V(fA.axis.d).normalize();
+    vec(V(fB.axis.o).sub(V(fA.axis.o)).projectOnPlane(dA)); // the axes apart
+    vec(cross(fB.axis.d, dA), S); // … and askew (either way along is fine)
+    const e = Number.isFinite(j.dist) ? axialEnds(fB, fA) : null;
+    if (e) { const side = j.side || (e.b[0] + e.b[1] >= e.a[0] + e.a[1] ? 1 : -1); out.push((side > 0 ? e.b[0] - e.a[1] : e.a[0] - e.b[1]) - j.dist); }
+    dir = dA;
+  } else if (type === 'tangent') {
+    const cyl = fB.type === 'cylinder' ? fB : fA, pl = cyl === fB ? fA : fB;
+    if (!cyl.axis || !pl.normal || !cyl.radius) return out;
+    const n = V(pl.normal).normalize();
+    out.push(Math.abs(V(cyl.axis.o).sub(V(pl.centroid)).dot(n)) - cyl.radius, V(cyl.axis.d).normalize().dot(n) * S);
+  } else {
+    if (!fA.normal || !fB.normal) return out;
+    const nA = V(fA.normal).normalize(), nB = V(fB.normal).normalize();
+    if (type === 'perp' || type === 'angle') {
+      const deg = type === 'perp' ? 90 : j.flip ? 180 - (+j.value || 0) : +j.value || 0;
+      out.push((nB.dot(nA) - Math.cos((deg * Math.PI) / 180)) * S);
+    } else vec(nB.clone().addScaledVector(nA, type === 'touch' || type === 'gap' || j.flip ? 1 : -1), S); // facing / the same way
+    if (type === 'touch' || type === 'gap' || type === 'flush') out.push(V(fB.centroid).sub(V(fA.centroid)).dot(nA) - (+j.gap || 0));
+    dir = nA;
+  }
+  if (Number.isFinite(j.angle) && dir) { // its turn locked
+    const w = ((((spinOf(fB, fA, dir) - j.angle + 180) % 360) + 360) % 360) - 180;
+    out.push(((w * Math.PI) / 180) * S);
+  }
+  return out;
 }
 
 /** One joint: the moving part's matrix M (THREE.Matrix4) and its face fB (world, as placed by M) against the other

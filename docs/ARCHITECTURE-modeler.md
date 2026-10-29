@@ -7,6 +7,29 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Closed loops of joints solved together done (RealSWReports 2026-10-29 crank–rod–slider):** a part joined onto
+  two parts that move (the rod's second eye on the slider's pin) made its first joint "not held" — a part's joints
+  were applied one after another, the last one won. Now web/js/assembly/loops.js: findLoops (a part with joints onto
+  ≥ 2 parts + the parts between them down to the parts all hang on; 📌 fixed parts and parts without joints stay;
+  loops sharing a part merged), solveLoop (damped least squares — Levenberg–Marquardt — over a small move of each
+  free part, 6 numbers each; the misses from joints.jointResidual: smooth, 0 when a joint holds, for every joint
+  type, a locked turn and an axial distance too; the damping keeps the least move, so a way left free is not taken),
+  loopFreedom (the rank of the misses' Jacobian -> how many ways the loop moves: 1 for a crank-slider) and
+  screwBetween / stepsBetween (a driven part's move from where it was as a screw, in ≤ 10° / L/10 steps).
+  Assembly.applyMates(drive) = placeAll (as before) -> closeLoops -> placeAll again when a loop moved (the parts on
+  it go along). The driven part ({id, was}: moveFree — the motion sliders and move_free —, ▶ playTravel, ⚠
+  checkTravel) stays where it was put and is followed step by step; past a dead point it stops at the last place
+  that closes (bisected; move_free says "stopped … a dead point"); a loop that cannot close keeps the parts as
+  placed and says why on its joints (whyNot: "the closed loop I2–I3–I4 cannot close here …") and in the panel.
+  Open chains are not touched (a loop is solved only when its joints miss by > 1e-5 mm). get_assembly: `loops`
+  [{id, parts, closed, free_motions, stopped, drive}], a part's `loop` / `moves_with_loop`; the panel's hint "In a
+  closed loop with …". A placed crank-slider: 0.1 ms to place all again, 0.6 ms a 3° turn followed, 12 ms when it
+  cannot close. tools/e2e_assembly_loop.py (r 25, L 100: the slider at r·cosθ + √(L² − r²sin²θ) to 0.05 mm at
+  0 / 30 / 60 / 90 / 180 / 45 / −115° — 90°, 135° and −200° in one move_free —, driven by the slider, by the panel's
+  slider, ▶ played, check_travel over 0 … 360, the dead point, the loop closed by itself when joined 12 mm off,
+  the rod too short and back). Left: the loop solve is in the browser only (no Python tests — there is no JS
+  runner); sub-assemblies' own loops solve in their engine (innerAsm) but a loop through a sub-assembly's moving
+  part and this assembly's parts is not looked for.
 - **A threaded part's volume integrated once done:** kernel.volume keeps the last 4 shapes' volumes — the part with
   🔩 real threads was integrated after its cut (the check that something was cut) and again when meshed (the adaptive
   rule on helical faces: ~3 s). The 29-step model with 9 real threads (tools/e2e_perf.py model): its rebuild after a
