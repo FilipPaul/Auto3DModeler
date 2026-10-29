@@ -16,6 +16,14 @@ Date: 2026-10-25. Written by the architect agent.
   through modes ("↕ k další ploše", placed from the kernel's `went`); typing a number goes back to a distance. A
   revolve's angle gets full turn / half turn / add ↔ cut. setExtrude() is the one code path for the Extrude panel and
   the icons. Tests: e2e_dim_icons.
+- **Assembly: the drag cue (2026-10-29)** (the owner: a chosen part can be dragged, but the cursor hardly showed it).
+  assembly/drag.js dragPlan decides what a drag of the chosen part moves (the press and the cursor both ask it, so they
+  agree); over that part the cursor is the motion's symbol, 32 px, the accent colour on a white outline — ↻ a turn,
+  ↔ a slide (along its line on screen), ⚙ with an arrow a mechanism — and it and the parts that go with it glow;
+  dragging: the symbol filled and the value at the cursor ("↻ 37°", "↔ 12.5 mm"; a mechanism: its driver, as its
+  slider); the first time, "Táhněte — pohne dílem / mechanismem" at the cursor (until the first drag). A fully held or
+  📌 fixed part, a part not chosen, empty space: the normal cursor (the view turns). Tests: e2e_assembly_dragcue.
+
 - **UX review leftovers (2026-10-29)**: Export ▾ in the top bar works on a 📄 drawing sheet (PDF, DXF, 🖨 Print —
   only those shown: styles.css hides the 3D formats there) and in a 📐 2D drawing (DXF of the shown layers); tests:
   e2e_ux_sheet. **/api/model/limits of a fillet next to a hole** (40 × 30 × 10, Ø10 4 mm from the edge) took > 120 s

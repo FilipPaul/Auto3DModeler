@@ -998,6 +998,9 @@ input.px-in.px-bad, .px-box input.px-bad { border-color: #f0883e !important; out
 .mc-miss { margin: 6px 8px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .mc-miss .btn { flex: none; }
 .mp-body > .mc-miss { margin: 0 0 8px; }
+/* the drag cue's label at the cursor (assembly/drag.js): the first-time hint; while dragging the value, stronger */
+.as-dragtip { position: absolute; z-index: 30; pointer-events: none; padding: 3px 8px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--accent); color: var(--text); font-size: 12px; white-space: nowrap; box-shadow: 0 2px 8px #0008; }
+.as-dragtip.strong { background: var(--accent); border-color: #fff; color: #fff; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .mc-row { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
 .mc-row:last-child { border-bottom: 0; margin-bottom: 0; }
 .mc-row > label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
