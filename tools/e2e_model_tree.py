@@ -178,6 +178,7 @@ try:
     # a click on the cut's sketch outline (the circle's rim at x 10 + 3): the sketch chosen, its step folded open
     js("const s = new Set(JSON.parse(localStorage.getItem('a3d.treeOpen') || '[]')); s.delete('F4');" + f" {M}._treeOpen = s; {M}.renderTree();")
     check("(the cut folded first)", js("return document.querySelector('#modelLeft .mt-item[data-id=\"F3\"]').hidden"))
+    js("document.querySelector('#modelViewport .view-suggest')?.remove()")  # (the face's table: not over the spot clicked next)
     click_at(off_xyz([10, 13, 10]))
     settled()
     check("a click on a sketch's outline: the sketch chosen, its row shown", js(f"return {M}.selected") == "F3" and in_sight("F3"), js(f"return {M}.selected"))

@@ -91,9 +91,10 @@ try:
     time.sleep(0.6)
     print("Show them all anyway:", labels(), "| note:", js("return document.querySelector('.mp-body .sk-big')?.textContent.trim()"))
     d.save_screenshot(f"{OUT}/sizes_all.png")
-    js("document.querySelector('.mp-body .m-sizes [data-sz=locked]').click()")
+    js(f"{M}.els.left.querySelector('.m-sizes [data-sz=locked]').click()")
     time.sleep(0.4)
-    print("🔒 Locked (from the sketch panel):", labels(), "| the left panel follows:", js(f"return {M}.els.left.querySelector('.m-sizes .on').dataset.sz"))
+    print("🔒 Locked (one 🏷 switch, in the step list — not again in the sketch panel):", labels(), "| sketch panel without it:",
+          not js("return !!document.querySelector('.mp-body .m-sizes')"))
     mode("none")
     print("None:", labels())
     d.save_screenshot(f"{OUT}/sizes_none.png")
