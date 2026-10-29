@@ -25,7 +25,8 @@ Part JSON (in the project file, `parts[].model`):
       (+ "shape": "plain" | "counterbore" | "countersink" | "d_flat", "thread": false | "M5" | {"standard", "kind"},
        "standard": "M5": sized from holes.py — threaded: the tap drill, else the clearance Ø; the old "hole_type":
        "clearance" | "counterbore" | "countersink" | "tapped" is still read; a D hole: "flat": 4.5, "flat_angle": 0,
-       its size across the flat, the flat facing +x)
+       its size across the flat, the flat facing +x; "lock": [{"x": true}, …] per hole: the browser's 🔒 — a drag on
+       the part keeps that distance; not used here)
      {"id": "F10", "type": "point", "at": {"vertex": {"faces": [...], "fp": [x, y, z]}} | {"centre": <edge ref>} |
       {"mid": <edge ref>} | {"xyz": [x, y, z]}}]}   (a reference point: a corner, a round edge's centre, an edge's middle)
 

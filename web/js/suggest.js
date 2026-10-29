@@ -206,7 +206,7 @@ function pickRows(items, all) {
     if (sec) { rows.push(sec); sec = null; } // (a heading only above rows that show)
     rows.push({ ...it, i });
   });
-  return { rows, total: acts.length + pinned.length, over, ranked: [...acts].sort((a, b) => a.r - b.r || a.i - b.i).map((a) => a.i) };
+  return { rows, total: acts.length + pinned.length, over, ranked: [...pinned, ...[...acts].sort((a, b) => a.r - b.r || a.i - b.i).map((a) => a.i)] };
 }
 
 /** Show (or with no items: remove) the table in `viewport`: title (what is selected), items [{icon, label, title,
