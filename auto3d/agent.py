@@ -31,7 +31,7 @@ from .agent_tools import SYSTEM_PROMPT
 from .guides import PLUGIN_DIR
 
 MCP_SCRIPT = Path(__file__).resolve().parent / "mcp_server.py"
-WORKDIR = Path(__file__).resolve().parent.parent / "data" / "agent"
+WORKDIR = Path(os.environ.get("A3D_DATA") or Path(__file__).resolve().parent.parent / "data") / "agent"
 
 
 # --------------------------------------------------------------------------- Claude Code
@@ -218,8 +218,10 @@ class ChatSession:
         return self.proc is not None and self.proc.poll() is None
 
     def command(self, exe: str) -> list[str]:
+        # (the built app has no Python: its own exe is the MCP server, auto3d/launcher.py)
+        script = ["--mcp-server"] if getattr(sys, "frozen", False) else [str(MCP_SCRIPT)]
         mcp = {"mcpServers": {"auto3d": {"type": "stdio", "command": sys.executable,
-                                         "args": [str(MCP_SCRIPT), "--url", self.app_url]}}}
+                                         "args": [*script, "--url", self.app_url]}}}
         cmd = [exe, "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
                "--include-partial-messages",
                "--mcp-config", json.dumps(mcp), "--strict-mcp-config",
@@ -243,8 +245,10 @@ class ChatSession:
         WORKDIR.mkdir(parents=True, exist_ok=True)  # an empty folder: no project CLAUDE.md / .mcp.json
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         self.stderr_tail = []
+        from . import ai_access
         self.proc = subprocess.Popen(self.command(exe), cwd=WORKDIR, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                     stderr=subprocess.PIPE, creationflags=flags, bufsize=0, env=clean_env())
+                                     stderr=subprocess.PIPE, creationflags=flags, bufsize=0,
+                                     env=ai_access.chat_env(clean_env()))  # (the API key set up in the ✨ AI panel)
         self.emit({"type": "status", "text": "Starting Claude Code…", "exe": exe})
         threading.Thread(target=self._read_out, args=(self.proc,), daemon=True).start()
         threading.Thread(target=self._read_err, args=(self.proc,), daemon=True).start()
@@ -304,11 +308,24 @@ class ChatSession:
             for ev in translate(msg):
                 if ev["type"] == "done":
                     self.busy = False
+                    if ev.get("auth"):
+                        self._access_refused()
                 self.emit(ev)
         code = proc.wait()
         self.busy = False
         if proc is self.proc:
-            self.emit({"type": "exit", "code": code, "stderr": "\n".join(self.stderr_tail[-6:])})
+            stderr = "\n".join(self.stderr_tail[-6:])
+            auth = bool(code) and ai_access_error(stderr)
+            if auth:
+                self._access_refused()
+            self.emit({"type": "exit", "code": code, "stderr": stderr, "auth": auth})
+
+    def _access_refused(self):
+        """Claude refused the access (a bad / expired key, signed out): the stored key is marked invalid, so the
+        ✨ AI panel shows its set-up screen; the next message starts a fresh process (with the new access)."""
+        from . import ai_access
+        ai_access.mark_invalid(ai_access.load_key())
+        ai_access._status_cache.clear()
 
 
 def translate(msg: dict) -> list[dict]:
@@ -345,9 +362,15 @@ def translate(msg: dict) -> list[dict]:
                 out.append({"type": "tool_result", "error": bool(b.get("is_error")), "text": text[:400]})
         return out
     if t == "result":
-        return [{"type": "done", "error": bool(msg.get("is_error")), "text": msg.get("result") if msg.get("is_error") else None,
+        text = msg.get("result") if msg.get("is_error") else None
+        return [{"type": "done", "error": bool(msg.get("is_error")), "text": text, "auth": ai_access_error(text),
                  "cost": msg.get("total_cost_usd"), "ms": msg.get("duration_ms")}]
     return []
+
+
+def ai_access_error(text) -> bool:
+    from .ai_access import auth_error
+    return auth_error(text)
 
 
 def _short(name: str) -> str:

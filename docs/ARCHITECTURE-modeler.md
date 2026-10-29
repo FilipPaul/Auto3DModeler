@@ -48,6 +48,31 @@ Date: 2026-10-25. Written by the architect agent.
   test_place_for_moved_and_scaled_views, TestSheetRoutes.test_place_again; tools/e2e_assembly_sheet.py (Mount).
   Left out: a mounting hole's Ø (positions only — the base part's sheet gives it), a hole of a sub-assembly's part as
   the base, a hole half split into two faces.
+- **AI set up at any time while the app runs done (the owner, for customers without AI access yet):**
+  auto3d/ai_access.py — state() no_claude / signed_out / invalid / ok (Claude Code found? a kept key — refused in this
+  run? else `claude auth status --json`, asked at most every 5 s); an API key checked with Anthropic (/v1/models: 401 /
+  403 refused, else offline) and kept with Windows DPAPI in <data>/ai/key.bin, given to the chat as ANTHROPIC_API_KEY
+  (ai_access.chat_env); "Sign in with Claude" = `claude auth login` in its own console window. Routes /api/ai/access,
+  /key, /login, /logout (the chat restarts with the new access). agent.py: a turn / exit refused for the access
+  (auth_error) -> `auth: true` on done / exit, the key marked invalid. agent.js: the set-up screen in place of the chat
+  (install command + Check again; Sign in + register link; key field + console link; polls every 2 s while signing
+  in), 🔑 Access (who is connected, Sign out / change the key), the screen back on an `auth` event; Czech in i18n.js.
+  tests/test_ai_access.py, tools/e2e_ai_access.py; docs/DISTRIBUTION.md "AI".
+
+- **A Windows program for customers done (docs/DISTRIBUTION.md):** tools/build/build.py — a clean venv (versions
+  pinned in tools/build/constraints.txt), PyInstaller one-folder (tools/build/auto3d.spec: web/, library/,
+  agent_plugin/, the delvewheel DLL folders of OCP / planegcs / cascadio, BUILD.json with the commit), the portable zip,
+  the Inno Setup installer (tools/build/installer.iss: per user, no admin; only when ISCC is installed — it is not on
+  the build machine yet: the owner's call) and tools/build/smoke.py on the result. auto3d/launcher.py (the exe's start;
+  `py -m auto3d.launcher` from a checkout): the data in %LOCALAPPDATA%\Auto3DModeler (A3D_DATA), port 5173 or a free one
+  (--port / A3D_PORT), one copy per data folder (mutex + instance.json probed), Edge --app window with its own profile
+  (closing it quits), pystray tray (Open / Logs / Quit, Czech on a Czech Windows), logs in data\logs, a message box when
+  it cannot start. The kernel processes run frozen (freeze_support in tools/build/Auto3DModeler.py); the chat's MCP
+  server is the exe (`--mcp-server`, auto3d/agent.py when frozen); agent.WORKDIR, meshpart.STORE and the AI's
+  RealSWReports (frozen) follow A3D_DATA; version.build reads BUILD.json. tests/test_launcher.py; checked on the built
+  exe: smoke (kernel + 4 workers, 8000 mm³ block, STEP), e2e_model_features, e2e_exchange_formats, a real e2e_chat.
+  Left out: code signing (unsigned: SmartScreen warning; options in the doc), an update check.
+
 - **Hole positions drawn on the sheet done:** sheet.auto_dims places each hole step's holes of one size (a counterbore's
   circles left to its holes) in the view showing them round, from box#x0 / box#y0 (ISO 129): a row / grid its first
   one + its pitch (as before), a bolt circle (sheet._ring: least-squares circle through the centres, equal angles — all

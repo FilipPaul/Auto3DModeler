@@ -40,7 +40,10 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_agent.py` drives every AI tool through the real MCP server process (no model needed), incl. the 3D model
    tools (the plate from the model-a-part guide: exact volume, find_refs, edit / off / delete / undo, STEP, prepare_print);
    `tools/e2e_chat.py <url> <dir> "message"` sends a real chat message through the installed Claude Code —
-   it uses the Claude account Claude Code is signed in with, so run it sparingly. `tools/e2e_history.py` covers
+   it uses the Claude account Claude Code is signed in with, so run it sparingly.
+   `tools/e2e_ai_access.py <url> <dir>` covers the AI's set-up screen (no sign-in, no key: Sign in with Claude, the key
+   field, the links; not a key / a fake key refused by Anthropic, nothing kept; in Czech; a 3D model still builds) — start
+   its server with `CLAUDE_CONFIG_DIR=<an empty dir>` so it sees no Claude sign-in. `tools/e2e_history.py` covers
    Ctrl+Z / Ctrl+Y, selecting objects by clicking them in 3D, Delete, and deleting dimensions from their label.
    `tools/e2e_progress.py <url> <curved .stl> <dir>` covers the progress bar + Cancel, the automatic slice height,
    the feature-aware measure (holes / cylinders / faces) and rename + the Save dialog. `tools/e2e_i18n.py <url> <dir>`

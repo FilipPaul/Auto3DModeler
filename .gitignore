@@ -14,3 +14,10 @@ data/
 
 # files from other programs to import (samples/ToImportToOurApp/README.md: sources and licences)
 !samples/ToImportToOurApp/**
+
+# the Windows build (tools/build/build.py): its venv, PyInstaller output, the zip and the installer
+/build/
+/dist/
+*.exe
+*.msi
+*-portable.zip

@@ -1338,7 +1338,7 @@ def tool_export(args):
     return {"text": f"Exported {len(data) // 1024} kB to {target}"}
 
 
-REPORTS = ROOT / "RealSWReports"  # the AI's reports of things that did not behave as expected
+REPORTS = (DATA if getattr(__import__("sys"), "frozen", False) else ROOT) / "RealSWReports"  # the AI's reports of things that did not behave as expected (the built app: in the user's data)
 
 
 def tool_report_problem(args):
@@ -1424,6 +1424,57 @@ def api_agent_result():
 def api_chat_status():
     chat = _chat()
     return jsonify({"claude": find_claude(), "running": chat.running(), "busy": chat.busy})
+
+
+@app.get("/api/ai/access")
+def api_ai_access():
+    """How the chat reaches Claude (auto3d/ai_access.py): no_claude / signed_out / invalid / ok — the ✨ AI panel's
+    set-up screen, at any time while the app runs."""
+    from auto3d import ai_access
+    return jsonify(ai_access.state())
+
+
+@app.post("/api/ai/key")
+def api_ai_key():
+    """{key}: an Anthropic API key, checked with Anthropic first; kept (DPAPI) when it works or cannot be checked
+    (offline), refused when Anthropic refuses it. The chat restarts with it at the next message."""
+    from auto3d import ai_access
+    key = str((request.get_json(force=True) or {}).get("key") or "").strip()
+    if not ai_access.looks_like_key(key):
+        return jsonify({"error": "This is not an Anthropic API key (it starts with sk-ant-).", "code": "invalid"}), 400
+    got = ai_access.check_key(key)
+    if got == "invalid":
+        return jsonify({"error": "Anthropic refused this key (wrong, revoked or expired).", "code": "invalid"}), 400
+    ai_access.save_key(key)
+    _chat().stop()
+    return jsonify({**ai_access.state(), "checked": got == "ok"})
+
+
+@app.post("/api/ai/login")
+def api_ai_login():
+    """Claude Code's sign-in in a window of its own ({console: true}: the Anthropic Console's); poll /api/ai/access."""
+    from auto3d import ai_access
+    exe = find_claude()
+    if not exe:
+        return jsonify({"error": "Claude Code is not installed.", "code": "no_claude"}), 400
+    try:
+        ai_access.start_login(exe, bool((request.get_json(silent=True) or {}).get("console")))
+    except OSError as exc:
+        return jsonify({"error": f"The sign-in could not start ({exc})."}), 500
+    _chat().stop()
+    return jsonify(ai_access.state())
+
+
+@app.post("/api/ai/logout")
+def api_ai_logout():
+    """Forget the stored key; {claude: true}: also sign Claude Code out (all its uses on this computer)."""
+    from auto3d import ai_access
+    ai_access.forget_key()
+    exe = find_claude()
+    if exe and (request.get_json(silent=True) or {}).get("claude"):
+        ai_access.logout_claude(exe)
+    _chat().stop()
+    return jsonify(ai_access.state())
 
 
 CHAT_PHOTOS = DATA / "agent" / "photos"
