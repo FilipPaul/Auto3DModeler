@@ -7,6 +7,13 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **✕ in the project tree asks by turning red, not by a dialog done** (the mouse walkthrough: one click removed a whole
+  part): the first click turns ✕ into a red "Smazat?" for 3 s, a second click (or Enter / Space) deletes, moving the
+  pointer or the focus away or waiting puts the ✕ back; ↶ Zpět still restores it (parts.js armDelete). The only
+  one-click delete of a whole part; an assembly's "✕ Vyjmout" stays one click — Ctrl+Z / ↶ undoes it (one history
+  step) and the part stays in the project. Test: e2e_project_tree (one click keeps it, 3 s disarm, Enter twice
+  deletes, ↶ back).
+
 - **A mechanism built by mouse: the walkthrough, its fixes, "one joint is missing" done** (the owner: "how hard is it
   for a user to make a mechanism?"). The crank – rod – slider put together with real clicks only (headless Edge, Czech,
   1600×1000; the crank demo's parts; tools/e2e_mechanism_by_mouse.py replays it). Found and fixed, one commit each:

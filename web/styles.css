@@ -96,6 +96,7 @@ body.none-open .no-part b { color: var(--text); font-size: 16px; }
 .pt-row .tr-qty { color: var(--muted); font-style: normal; font-size: 11px; }
 .pt-row .pt-win, .pt-row .pt-del { opacity: .3; flex: none; }
 .pt-row:hover .pt-win, .pt-row:hover .pt-del { visibility: visible; }
+.pt-row .pt-del.armed { opacity: 1; visibility: visible; color: #fff; background: var(--err); border-color: var(--err); font-weight: 600; }
 .pt-row.closed .pt-rname { color: var(--muted); }
 .pt-row.on { background: var(--panel-2); box-shadow: inset 2px 0 0 var(--accent); }
 .pt-row.on .pt-rname { font-weight: 600; }

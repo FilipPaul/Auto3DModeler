@@ -1,7 +1,8 @@
 """☰ The project's tree, in headless Edge: Base, Lid, Pin, a sub-assembly "Lid unit" (Lid + 2 Pins), "Machine" (Base +
 Lid unit), a drawing sheet of the Base, a loose part "Spare" -> ☰: the tree over the left panel — Machine, in it the
 Base (its sheet under it) and the Lid unit (Lid, Pin ×2), then Spare -> a click on the Pin opens it (marked, the tree
-stays) -> a part put in the Machine shows in the tree at once -> ✕ closes the tree, ☰ again opens it (remembered after
+stays) -> a part put in the Machine shows in the tree at once -> its ✕ arms a red "Delete?" (3 s; a second click or
+Enter deletes, ↶ Undo brings it back) -> ✕ closes the tree, ☰ again opens it (remembered after
 a reload).
 
   PYTHONIOENCODING=utf-8 py tools/e2e_project_tree.py http://127.0.0.1:5199 <out dir>
@@ -10,7 +11,9 @@ import sys
 import time
 
 from selenium import webdriver
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 
 URL, OUT = sys.argv[1], sys.argv[2]
 opts = webdriver.EdgeOptions()
@@ -71,9 +74,21 @@ try:
     js("window.__asked = 0; window.confirm = () => { window.__asked++; return true; }")
     n = js(f"return {P}.parts.length")
     spare = next(r for r in d.find_elements(By.CSS_SELECTOR, "#projTree .pt-row") if r.find_element(By.CSS_SELECTOR, ".pt-rname").text == "Spare")
-    js("arguments[0].click()", spare.find_element(By.CSS_SELECTOR, ".pt-del"))
+    x = spare.find_element(By.CSS_SELECTOR, ".pt-del")
+    js("arguments[0].click()", x)
+    time.sleep(0.3)
+    print("✕ on Spare, 1st click: armed:", x.text, "armed" in x.get_attribute("class"), "| kept:", js(f"return {P}.parts.length") == n)
+    ActionChains(d).move_to_element(spare.find_element(By.CSS_SELECTOR, ".pt-open")).perform()
+    d.save_screenshot(f"{OUT}/project_tree_armed.png")
+    time.sleep(3.3)
+    print("  after 3 s: back to", x.text, "| kept:", js(f"return {P}.parts.length") == n)
+    js("arguments[0].focus()", x)
+    x.send_keys(Keys.ENTER)
+    time.sleep(0.2)
+    print("  Enter: armed:", x.text, "| kept:", js(f"return {P}.parts.length") == n)
+    x.send_keys(Keys.ENTER)
     time.sleep(0.5)
-    print("✕ on Spare: deleted at once:", n, "->", js(f"return {P}.parts.length"), "| asked:", js("return window.__asked"),
+    print("  Enter again: deleted:", n, "->", js(f"return {P}.parts.length"), "| asked:", js("return window.__asked"),
           "| ↶:", d.find_element(By.CSS_SELECTOR, "#projTree .tr-undo").text)
     d.find_element(By.CSS_SELECTOR, "#projTree .tr-undo").click()
     time.sleep(0.5)

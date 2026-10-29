@@ -917,6 +917,7 @@ const CS = {
   "A joint between the two faces — the first one's part moves": 'Vazba mezi oběma plochami — pohne se díl té první', 'No joint fits these two faces.': 'Na tyto dvě plochy se žádná vazba nehodí.',
   'Then click a face of the other part': 'Pak klikněte na plochu druhého dílu', 'Ctrl+click a face of another part: the joints that fit the two': 'Ctrl+klik na plochu jiného dílu: vazby, které se hodí na obě',
   Undo: 'Zpět', 'Bring back the part deleted last': 'Vrátit naposledy smazaný díl', 'Delete it from the project (↶ Undo brings it back)': 'Smazat z projektu (↶ Zpět ho vrátí)',
+  'Delete?': 'Smazat?', 'Click again to delete it (↶ Undo brings it back)': 'Klikněte znovu a smaže se (↶ Zpět ho vrátí)',
   'A corner': 'Roh', 'An edge midpoint': 'Střed hrany', 'A centre': 'Střed', 'Measure from here': 'Měřit odtud', 'Copy its coordinates': 'Kopírovat souřadnice', Copied: 'Zkopírováno',
   'Reference point here': 'Referenční bod sem', 'No corner, edge middle or centre of the part here.': 'Tady není roh, střed hrany ani střed dílu.',
   'A point that stays on this place of the part when it changes — sketches and 📏 Measure snap to it': 'Bod, který zůstane na tomto místě dílu, i když se díl změní — skici a 📏 Měření se k němu přichytí',

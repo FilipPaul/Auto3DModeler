@@ -34,6 +34,22 @@ export const fromLibrary = (data) => !!data?.library && (!data.library.steps || 
 
 export const kindIcon = (kind) => `<svg class="ico ico-${ICON_PATH[kind] ? kind : 'classic'}" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${ICON_PATH[kind] || ICON_PATH.classic}</svg>`;
 
+/** A one-click ✕ made safe without a dialog: the first click turns it into a red "Delete?" for 3 s, a second
+ *  click (or Enter / Space) runs `run`; moving the pointer or the focus away, or waiting, puts the ✕ back. */
+export function armDelete(btn, run) {
+  const label = btn.textContent, tip = btn.title;
+  let timer = 0;
+  const disarm = () => { clearTimeout(timer); timer = 0; btn.classList.remove('armed'); btn.textContent = label; btn.title = tip; };
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (timer) { disarm(); run(); return; }
+    btn.classList.add('armed'); btn.textContent = t('Delete?'); btn.title = t('Click again to delete it (↶ Undo brings it back)');
+    timer = setTimeout(disarm, 3000);
+  });
+  btn.addEventListener('pointerleave', () => { if (timer) disarm(); });
+  btn.addEventListener('blur', () => { if (timer) disarm(); });
+}
+
 export class Project {
   /** hooks: {payload(kind), load(payload, {switching, kind}), settle(), getHistory(kind), setHistory(h, kind),
    *  newModel(), toast(msg, kind)} */
@@ -541,7 +557,8 @@ export class Project {
       row.querySelector('.pt-rname').textContent = p.name || '…';
       row.querySelector('.pt-open').addEventListener('click', () => this.switchTo(p.id));
       row.querySelector('.pt-win')?.addEventListener('click', (e) => { e.stopPropagation(); this.hooks.openWindow(p.id); });
-      row.querySelector('.pt-del')?.addEventListener('click', (e) => { e.stopPropagation(); this.remove(p.id, false); }); // (at once: ↶ undoes it)
+      const del = row.querySelector('.pt-del');
+      if (del) armDelete(del, () => this.remove(p.id, false)); // (a second click deletes; ↶ undoes it)
       if (p.kind !== 'sheet' && p.kind !== 'drawing') { // dragged into an assembly's view: it goes in
         row.draggable = true;
         row.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/a3d-insert', p.id); e.dataTransfer.effectAllowed = 'copy'; this.hidePreview(); });

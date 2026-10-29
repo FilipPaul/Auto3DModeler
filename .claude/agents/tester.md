@@ -464,7 +464,8 @@ Never report "works" without having run it; report failures with their output.
    slanted side -> its distance). Needs a server restarted after constraints.py changes.
    `tools/e2e_project_tree.py <url> <dir>` covers ☰ the project tree (over the left panel: Machine › Base › its sheet,
    Lid unit › Lid, Pin ×2, then Spare; a click opens a part, marked, the tree stays; a part put in the Machine shows at
-   once; ✕ closes, ☰ opens, remembered).
+   once; its ✕ arms a red "Delete?" for 3 s, a second click / Enter deletes, ↶ Undo brings it back; ✕ closes, ☰ opens,
+   remembered).
    `tools/e2e_left_pins.py <url> <dir>` covers the widgets of the left column at 1280×800 with real drags (at first
    the project tree docked on top, compact: 5–8 rows; ☰ folds / unfolds it; ⋯ ☰ back behind the button; ☰'s header
    dragged into the column: docked on top of the step tree, the same rows / icons / ⧉ / ✕, a double-click renames; in
