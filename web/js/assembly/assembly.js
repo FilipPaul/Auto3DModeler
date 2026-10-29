@@ -1672,6 +1672,18 @@ export class Assembly {
       <input type="number" step="any" data-jgapn="${m.id}" value="${+v.toFixed(3)}">mm</label>`;
   }
 
+  /** A Flush made on a part that is held already (by other joints, a loop) with the faces parallel: its offset as the
+   *  parts stand now (rounded to 0.5 mm), so the part does not jump (a slider in line with a crank keeps its line)
+   *  -> the offset (mm) or null (not parallel). */
+  keepOffset(m) {
+    try {
+      const fB = this.worldFace(m.move, m.face), fA = this.worldFace(m.onto, m.ontoFace);
+      if (!fA.normal || !fB.normal || fA.normal.dot(fB.normal) < 0.999) return null;
+      m.gap = Math.round(fB.centroid.clone().sub(fA.centroid).dot(fA.normal) * 2) / 2 || 0;
+      return m.gap;
+    } catch { return null; }
+  }
+
   /** Two holes made concentric: the distance between them along the axis is set (as it is once on the axis,
    *  rounded to 0.5 mm, not below 0 — overlapping parts end up touching), so it can be typed. */
   autoDistance(m) {
@@ -2960,7 +2972,10 @@ export class Assembly {
     }
     const type = this.jointType;
     if (type === 'fastener') { this.fastenerAt(this.jointFrom, h); return; }
-    const before = new Set(this.unmet().map((m) => m.id)), nj = this.addJoint(this.jointFrom, h, type, type === 'gap' ? 5 : 0);
+    const mover = this.inst(this.jointFrom.inst)?.fixed ? h.inst : this.jointFrom.inst, placed = (this.doc.mates || []).some((m) => m.move === mover);
+    const before = new Set(this.unmet().map((m) => m.id)), had = new Set((this.doc.mates || []).map((m) => m.id)), nj = this.addJoint(this.jointFrom, h, type, type === 'gap' ? 5 : 0);
+    let kept = null;
+    if (nj && type === 'flush' && placed && !had.has(nj.id)) kept = this.keepOffset(nj); // (a part held already: it does not jump)
     if (nj) {
       if (type === 'axis' && /:hole:/.test(this.jointFrom.face.name) && /:hole:/.test(h.face.name)) this.autoDistance(nj);
       if (type === 'angle') { // it starts at the angle the faces make now (rounded), then it holds
@@ -2971,6 +2986,7 @@ export class Assembly {
       this.sel = this.jointFrom.inst;
       const fights = this.unmet().filter((m) => !before.has(m.id));
       if (fights.length) this.hooks.toast(t2('{type} added, but it fights another joint: {ids} no longer hold — see the red joint(s) in the panel.', { type: t(JOINT_TYPES[type].name), ids: fights.map((m) => m.id).join(', ') }), 'warning', 7000);
+      else if (kept !== null && kept !== 0) this.hooks.toast(t2('{type} — the offset {gap} mm kept, as the parts stand (0 in the panel lines them up).', { type: t(JOINT_TYPES[type].name), gap: fmt(kept) }), 'ok', 5000);
       else if (nj.id === this.doc.mates[this.doc.mates.length - 1].id) this.hooks.toast(`${JOINT_TYPES[type].name} — it now holds (change it or ✕ it in the panel).`, 'ok', 3000);
     }
     this.mode = 'idle';

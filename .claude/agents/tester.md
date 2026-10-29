@@ -235,6 +235,11 @@ Never report "works" without having run it; report failures with their output.
    start; + Ctrl+click the pin's round face: Concentric, made — the pin on the hole's axis; two flat faces: Touch …; zoomed
    out: the small pin's side and the hole's rim picked as faces, not the snaps of their centres; a Ctrl+click beside
    the parts keeps the face picked first). Exits 1 on a failed check.
+   `tools/e2e_mechanism_by_mouse.py <url> <dir>` replays building the crank – rod – slider by mouse only (Czech, 1600×1000):
+   the crank demo's parts, ＋ Nová sestava, ＋ Vložit díl ×4, each joint by real clicks — a hole's rim + Ctrl+click the
+   pin -> "◎ Soustředně + dosednout · Ø10" first; the slider's top + Ctrl+click the base's top -> "⧉ Položit …"; the
+   rod's second eye on the slider's pin closes the loop; ▭ Zarovnat on the placed slider keeps its offset (in line);
+   every face picked on the first click, ≤ 32 clicks; ⚙ Mechanismus 90 typed: the slider at the formula; ▶ plays.
    `tools/e2e_assembly_fixed.py <url> <dir>` covers 📌 fixed parts (the first part fixed, 📌 in the list; moving it
    refused; a joint from it moves the other part; the Lid's suggestions: unlock and edit here, fix; freed: it moves).
    `tools/e2e_planes.py <url> <dir>` covers the planes (faint on an empty model; ◫ Planes off: hidden, remembered;
