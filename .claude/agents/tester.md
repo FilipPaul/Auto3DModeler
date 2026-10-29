@@ -498,7 +498,7 @@ Never report "works" without having run it; report failures with their output.
    (Czech UI, REAL mouse): each action must be in the table's top N rows and must work — an empty model "Nový díl":
    ✏ Skica na rovině…; the sketch's "Další krok" (none in an empty sketch): ◯ Kruh, ⬚ Vybrat tvar, ✓ Hotovo — pak
    vysunout; a circle's Ø, a line's length (clicked in its middle), = two circles; Extrude; "Další krok" with nothing
-   chosen (≤ 6 rows, 📄 Výkres); a face: ✏ Skica na této ploše -> a cut, ◎ Díra sem; after a hole ⁂ Pole z poslední díry first; an
+   chosen (≤ 6 rows, 📄 Výkres); a face: ✏ Skica na této ploše -> a cut, ◎ Díra sem (each position's ✕ in the panel at 1280); after a hole ⁂ Pole z poslední díry first; an
    edge: ◜ Zaoblit / ◸ Zkosit tuto hranu first (the command opens with the edge chosen); 📏 Změřit ji; a step's row:
    ✎ Upravit krok, 🏷 Přejmenovat, ↓ Posunout dolů, ✕ Smazat krok; no console errors. Exits 1 on a failed check.
    its centre; Esc: gone; an assembly part chosen: no table — its panel has its actions, each once; + a second: join

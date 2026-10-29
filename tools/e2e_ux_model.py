@@ -285,6 +285,12 @@ try:
     suggest("a hole", "Díra sem")
     wait(f"return {M}.cmd && {M}.cmd.feature.type === 'hole' && {M}.cmd.feature.points.length")
     shot("07_hole")
+    # each hole position's row fits the right panel: its ✕ in sight, not cut off (the panel's own width, 1280 × 800)
+    fit = js("""const p = document.getElementById('modelRight').getBoundingClientRect();
+      return [...document.querySelectorAll('#modelRight .mp-hole')].map((r) => { const x = r.querySelector('[data-del]').getBoundingClientRect(), b = r.getBoundingClientRect();
+        return { x: [Math.round(x.left), Math.round(x.right)], row: Math.round(b.right), panel: [Math.round(p.left), Math.round(p.right)], wide: r.scrollWidth <= r.clientWidth + 1,
+          hit: document.elementFromPoint(x.left + x.width / 2, x.top + x.height / 2) === r.querySelector('[data-del]') }; });""")
+    check("the hole panel's rows fit: each position's ✕ in sight", bool(fit) and all(f["x"][1] <= f["panel"][1] - 4 and f["wide"] and f["hit"] for f in fit), fit)
     ok()
     v2 = volume()
     check("the hole made", v2 < v1 - 1 and js(f"return {M}.part.features.some(f => f.type === 'hole')"), (v1, v2))
