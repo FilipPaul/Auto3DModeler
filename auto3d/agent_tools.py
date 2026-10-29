@@ -231,11 +231,15 @@ TOOLS = [
                     "- revolve: sketch, axis \"y\" (the sketch's vertical axis) / \"x\" / a line id, angle (360), op.\n"
                     "- hole: face (name), points [[u, v]] from the face's centre — or origin \"corner\" / \"world\" (points in world "
                     "coordinates: [x, y] on a top face, or [x, y, z]) / {point: <id>} as for a sketch —, d, through (default) or depth, fit (ISO 286 H6 / H7 / H8 / H9: shown on the 2D drawing as Ø8 H7; model the nominal d); "
-                    "a hole for a metric screw in one go: standard \"M5\" (M2 … M20) + hole_type \"clearance\" (ISO 273 medium, M5: Ø5.5; the default "
-                    "with a standard) / \"counterbore\" (+ ⌴ for an ISO 4762 socket head, M5: Ø10 ↧ 5.4) / \"countersink\" (+ ⌵ 90° for an ISO 10642 "
-                    "flat head, M5: Ø11.2) / \"tapped\" (the thread at its tap drill) — no d / head needed (d, head_d, head_depth given change the "
-                    "table's); edit_feature {standard: \"M6\"} resizes it, {hole_type: \"simple\"} makes it a plain Ø d hole; "
-                    "hole_type \"d_flat\" = a D hole for a shaft with a flat (no standard): d + flat (the size across the flat, from "
+                    "a hole for a metric screw in one go — independent properties, as in SolidWorks: standard \"M5\" (M2 … M20; its size), "
+                    "shape \"plain\" (default) / \"counterbore\" (+ ⌴ for an ISO 4762 socket head, M5: Ø10 ↧ 5.4) / \"countersink\" (+ ⌵ 90° for an "
+                    "ISO 10642 flat head, M5: Ø11.2) / \"d_flat\", thread false (default: the hole is the ISO 273 medium clearance, M5: Ø5.5) / "
+                    "true or \"M5\" or {standard, kind: \"cosmetic\" | \"real\"} (threaded: the hole is the tap drill, M5: Ø4.2; any shape but D — a "
+                    "threaded counterbore too), through true / false + depth — no d / head needed (d, head_d, head_depth given change the table's); "
+                    "edit_feature {standard: \"M6\"} resizes it, {thread: true} threads it, {shape: \"countersink\"} changes its head; "
+                    "{shape: \"plain\", thread: false} with no standard is a plain Ø d hole. (The old hole_type \"clearance\" / \"counterbore\" / "
+                    "\"countersink\" / \"tapped\" / \"simple\" / \"d_flat\" is still taken.) "
+                    "shape \"d_flat\" = a D hole for a shaft with a flat (no standard, no thread): d + flat (the size across the flat, from "
                     "the flat to the far side: Ø5 -> 4.5 by default, Ø3 / 4 / 6 / 8 -> 2.5 / 3.5 / 5.5 / 7.5, else 0.9 × d), the flat "
                     "facing the face's +x, flat_angle (degrees) turns it; the drawing says Ø5 D4.5; "
                     "head: \"cbore\" (a counterbore: head_d, head_depth — default 1.8 × d, d; d of a thread: its nominal Ø, M3: 3) or \"csk\" (a countersink: head_d, "
@@ -297,6 +301,8 @@ TOOLS = [
                           "sketches": {"type": "array"}, "profile": STR, "path": STR,
                           "text": STR, "h": VAL, "at": {}, "origin": {}, "fit": {"type": "string", "enum": ["H6", "H7", "H8", "H9"]},
                           "standard": {"type": "string", "enum": ["M2", "M2.5", "M3", "M4", "M5", "M6", "M8", "M10", "M12", "M16", "M20"]},
+                          "shape": {"type": "string", "enum": ["plain", "counterbore", "countersink", "d_flat"]},
+                          "thread": {"description": "a hole's thread: false (none), true / \"M5\" (its size), or {standard, kind: cosmetic | real}"},
                           "hole_type": {"type": "string", "enum": ["simple", "clearance", "counterbore", "countersink", "tapped", "d_flat"]},
                           "flat": VAL, "flat_angle": VAL,
                           "keep": {"type": "string", "enum": ["both", "above", "below"]}}, ["type"])},

@@ -1,10 +1,10 @@
 """A chosen Hole step: its types and sizes as rows of the suggestions, its fields in the right panel, in headless Edge
 with real mouse clicks: a 60 × 40 × 10 block, an M5 ⌴ counterbore hole (◎ Hole) and a Ø8 round pocket cut by an
-extrude -> a click on the hole's wall: the sections Type (all 6, ⌴ Counterbore ✓) and Size (exactly M3 M4 ✓M5 M6 M8)
-and Thread (🔩 Add thread M5) as compact rows, no popup; the right panel shows the hole step, its row in the list marked
+extrude -> a click on the hole's wall: its properties each a section of compact rows, no popup — Shape (the 4, ⌴
+Counterbore ✓), Thread (🔩 Add thread M5), Depth (through all ⇄ to a depth), Size (exactly M3 M4 ✓M5 M6 M8); the right panel shows the hole step, its row in the list marked
 -> one click ⌵ Countersink: its exact volume -> one click M6: the M6 countersink's volume -> Ctrl+Z: M5 again -> its
-rim: the same rows above the edge's -> the pocket's wall: no Type / Size -> 🔩 Add thread M5: tapped, shown; Thread:
-hide -> hidden -> at 1280 × 800 the table scrolls inside (no scrollbar, a fade at the hidden edge), its head in sight,
+rim: the same rows above the edge's -> the pocket's wall: no Shape / Size -> 🔩 Add thread M5: a threaded countersink,
+shown; Thread: hide -> hidden; the depth row both ways -> at 1280 × 800 the table scrolls inside (no scrollbar, a fade at the hidden edge), its head in sight,
 all the choices shown past the top N.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
@@ -126,8 +126,10 @@ try:
     click_off(o)
     t = table()
     print("table:", t[:4])
-    check("Type is the first section: all 6 types as rows, ⌴ Counterbore ✓", t and t[0][0] in ("Type", "Typ") and len(t[0][1]) == 6
+    check("Shape is the first section: the 4 shapes as rows, ⌴ Counterbore ✓", t and t[0][0] in ("Shape", "Tvar") and len(t[0][1]) == 4
           and [x for x, on in t[0][1] if on] and "Counterbore" in [x for x, on in t[0][1] if on][0] and sum(on for _, on in t[0][1]) == 1)
+    dep = dict(t).get("Depth") or dict(t).get("Hloubka") or []
+    check("Depth: one row, through all ⇄ to a depth", len(dep) == 1 and "⇄" in dep[0][0])
     sizes = dict(t).get("Size") or dict(t).get("Velikost") or []
     check("Size: exactly M3 M4 ✓M5 M6 M8 as rows", [x.split()[-1].rstrip("✓") for x, _ in sizes] == ["M3", "M4", "M5", "M6", "M8"] and [on for _, on in sizes] == [False, False, True, False, False])
     thr = dict(t).get("Thread") or dict(t).get("Závit") or []
@@ -136,9 +138,9 @@ try:
     h = js("return [...document.querySelectorAll('#modelViewport .view-suggest .vs-pin-row')].map(b => b.getBoundingClientRect().height)")
     check(f"compact rows (~24 px: {sorted(set(round(x) for x in h))})", h and all(22 <= x <= 27 for x in h))
     check("the hole step chosen, no tool open", js(f"return {M}.selected") == "F3" and js(f"return !{M}.cmd"))
-    panel = js("return [document.querySelector('#modelRight h2')?.textContent, !!document.querySelector('#modelRight [data-k=hole_type]'), document.querySelector('#modelRight [data-k=standard]')?.value]")
+    panel = js("return [document.querySelector('#modelRight h2')?.textContent, document.querySelector('#modelRight .m-hshape [data-shape].on')?.dataset.shape, document.querySelector('#modelRight [data-k=standard]')?.value]")
     print("right panel:", panel)
-    check("the right panel shows the hole step (its Type, Size M5)", panel[0] == "Hole 1" and panel[1] and panel[2] == "M5")
+    check("the right panel shows the hole step (its shape ⌴, Size M5)", panel == ["Hole 1", "counterbore", "M5"])
     check("its row in the list is marked", js("return !!document.querySelector('#modelLeft .mt-item.on[data-id=F3]')"))
     d.save_screenshot(f"{OUT}/hole_suggest.png")
 
@@ -170,7 +172,7 @@ try:
     click_off(o)
     t = table()
     print("rim table:", [s for s, _ in t])
-    check("its rim: the hole chosen, Type / Size above Fillet", js(f"return {M}.selected") == "F3" and t and t[0][0] in ("Type", "Typ")
+    check("its rim: the hole chosen, Shape / Size above Fillet", js(f"return {M}.selected") == "F3" and t and t[0][0] in ("Shape", "Tvar")
           and any("Fillet" in x or "Zaobl" in x for _, rs in t for x, _ in rs))
 
     # ---- the pocket's wall: not a Hole step
@@ -179,8 +181,8 @@ try:
     click_off(o)
     t = table()
     print("pocket sections:", [s for s, _ in t])
-    check("the round pocket: no Type / Size rows", t and not any(s in ("Type", "Typ", "Size", "Velikost") for s, _ in t))
-    check("the right panel is the part's again", js("return !document.querySelector('#modelRight [data-k=hole_type]')"))
+    check("the round pocket: no Shape / Size rows", t and not any(s in ("Shape", "Tvar", "Size", "Velikost") for s, _ in t))
+    check("the right panel is the part's again", js("return !document.querySelector('#modelRight .m-hshape')"))
 
     # ---- 🔩 a thread: added, then shown / hidden
     js(f"{M}.selectStep('F3'); {M}.suggestStep('F3')")
@@ -190,12 +192,19 @@ try:
     f3 = js(f"return {M}.part.features.find(f => f.id === 'F3')")
     thr = dict(table()).get("Thread") or dict(table()).get("Závit") or []
     print("thread rows:", thr, "| threads:", js(f"return {M}.part.threads"))
-    check("🔩 Add thread M5: a tapped M5 hole, shown (cosmetic)", f3.get("thread") == "M5" and js(f"return {M}.part.threads") == "cosmetic")
-    check("its rows: Thread: hide · Real thread", len(thr) == 2 and any("hide" in x or "skrýt" in x for x, _ in thr) and any("Real" in x or "Skutečný" in x for x, _ in thr))
+    check("🔩 Add thread M5: a threaded M5 countersink (the tap drill), shown (cosmetic)", f3.get("thread") == "M5" and f3.get("shape") == "countersink" and f3.get("d") == 4.2
+          and js(f"return {M}.part.threads") == "cosmetic")
+    check("its rows: With thread M5 ✓ · Thread: hide · Real thread", len(thr) == 3 and thr[0][1] and "M5" in thr[0][0] and any("hide" in x or "skrýt" in x for x, _ in thr) and any("Real" in x or "Skutečný" in x for x, _ in thr))
     row(["Thread: hide", "Závit: skrýt"]).click()
     settled()
     thr = dict(table()).get("Thread") or dict(table()).get("Závit") or []
     check("Thread: hide -> hidden, the row says show", not js(f"return {M}.part.threads") and any("show" in x or "zobrazit" in x for x, _ in thr))
+    row(["Through all", "Skrz vše"]).click()
+    settled()
+    check("the depth row: to a depth (10)", js(f"return {M}.part.features.find(f => f.id === 'F3').through") is False)
+    row(["To a depth", "Do hloubky"]).click()
+    settled()
+    check("…and through all again", js(f"return {M}.part.features.find(f => f.id === 'F3').through") is True)
 
     # ---- a small window: the table scrolls inside (no scrollbar, a fade), its head stays
     d.set_window_size(1280, 800)

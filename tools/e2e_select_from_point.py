@@ -1,7 +1,7 @@
 """A snap point clicked offers what it belongs to, in headless Edge with real mouse clicks:
 1. 3D model: a 60 × 40 × 10 block, an M5 ⌴ counterbore hole (◎ Hole) and a Ø8 pocket cut by an extrude. The hole's
    centre clicked: "◎ Select the hole M5" in the top 3 rows, "◯ Select the circle Ø…" too, the point's own rows below
-   -> Select the hole: the hole's table (its Type / Size rows), the step chosen -> the centre again, Select the circle: the
+   -> Select the hole: the hole's table (its Shape / Size rows), the step chosen -> the centre again, Select the circle: the
    edge's table (Fillet this edge) -> the pocket's centre: "Select the round face Ø8" (not a Hole step: no "hole") ->
    its table -> an edge's middle: "⟋ Select the edge" -> the edge's table.
 2. Sketch: a circle drawn, its centre clicked with ⬚ Select: "◯ Select the circle Ø…" first -> the circle picked.
@@ -107,7 +107,7 @@ try:
     press(["Select the hole", "Vybrat díru"])
     r = rows()
     print("  -> the hole's table:", head(), "|", r[:4])
-    check("Select the hole: the hole's table (Type / Size), the step chosen", js(f"return {M}.selected") == "F3" and js("return document.querySelector('#modelViewport .view-suggest .vs-sec')?.textContent") in ("Type", "Typ"))
+    check("Select the hole: the hole's table (Shape / Size), the step chosen", js(f"return {M}.selected") == "F3" and js("return document.querySelector('#modelViewport .view-suggest .vs-sec')?.textContent") in ("Shape", "Tvar"))
 
     js(f"{M}.selectStep(null); {M}.dropSuggest()")  # (chosen, the hole's Ø label sits on its centre)
     click(CV, off(M, [15, 20, 10]))

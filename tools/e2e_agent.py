@@ -215,7 +215,7 @@ try:
     want = -math.pi * (2.75 ** 2 * 20 + (25 - 2.75 ** 2) * 5.4)
     print(f"    M5 counterbore: ok {r.get('ok')} | {r.get('volume_change_mm3')} expected {want:.3f} | match: {abs(r.get('volume_change_mm3', 0) - want) < 0.05}")
     step = next(s for s in json.loads(tool("get_model")[0])["steps"] if s["id"] == r["id"])
-    print(f"    get_model: {step.get('hole_type')} {step.get('standard')} Ø{step.get('d')} ⌴ Ø{step.get('head_d')} ↧ {step.get('head_depth')}")
+    print(f"    get_model: {step.get('shape')} {step.get('standard')} Ø{step.get('d')} ⌴ Ø{step.get('head_d')} ↧ {step.get('head_depth')}")
     tool("edit_feature", id=r["id"], fields={"standard": "M6"})
     step = next(s for s in json.loads(tool("get_model")[0])["steps"] if s["id"] == r["id"])
     print(f"    edited to M6: Ø{step.get('d')} ⌴ Ø{step.get('head_d')} ↧ {step.get('head_depth')} | match: {[step.get('d'), step.get('head_d'), step.get('head_depth')] == [6.6, 11, 6.4]}")

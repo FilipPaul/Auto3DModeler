@@ -7,6 +7,24 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **A hole's properties each on its own (2026-10-29)** (the owner: "typ díry … a to, jestli má nebo nemá závit, by
+  mělo být nesloučené"): a hole step is `shape` (plain | counterbore | countersink | d_flat) + `thread` (absent /
+  "M5"; the AI may give true or {standard, kind: cosmetic | real} — kind sets the part's 🔩 threads, which stay one
+  setting per part) + `through` / `depth` + `standard` (or a plain `d`). Threaded: the hole is the tap drill, else the
+  ISO 273 clearance Ø; the head the size's — so a threaded counterbore, a threaded countersink work. Old files: the
+  single `hole_type` (clearance = plain M5, tapped = plain threaded M5 …) is still read — holes.py `spec` / `resolve`
+  (Python) and holes.js `holeSpec` read both, `setHole` writes the new form (no migration needed: the old one builds
+  the same solid, test_old_files_build_the_same). The kernel and the drawing take resolve's output (thread "M5", head
+  cbore / csk, hole_type d_flat) unchanged; the callout of a threaded counterbore is "M5 ↧ 10 ⌴ Ø10 ↧ 5.4" (ISO
+  order: size, depth, head — as before for any head). UI: `holePropsHtml` / `bindHoleProps` — 4 short rows (Shape:
+  4 icons, Thread: Threaded + Cosmetic / Real, Depth: Through all / To a depth + mm, Size: M2…M20 or Custom Ø) in the
+  Hole panel and the chosen step's panel; the suggestions: Shape (4), Thread (With thread M5 ✓ / Add thread M5, show /
+  hide, real / cosmetic), Depth (one row), Size (±2). AI: add_feature / edit_feature hole {shape, thread, standard}
+  (agent_tools schema, model-a-part skill), the old hole_type still taken. Left out: a thread depth of its own (the
+  thread runs the hole's depth), a fine / coarse clearance choice (none existed). Tests: test_hole_standard
+  (test_properties, test_old_files_build_the_same, test_combinations), e2e_model_hole_standard (rewritten: shape
+  icons, Threaded, To a depth, a threaded counterbore's volume and callout, the AI's threaded M3 countersink),
+  e2e_hole_suggest, e2e_model_hole_dflat / _head, e2e_thread_default, e2e_select_from_point updated.
 - **A hole's dimensions typed again (2026-10-29)** (the owner: "nemůžu nyní v 3D návrhu zadávat kóty k dírám"). Cause:
   since 0e17470 an edited hole opens without placing, and in the tool its numbers on the part were display-only
   (`.hole-dim` pointer-events none; the chosen step's clickable tags are hidden while a tool is open), so a click on

@@ -1,4 +1,5 @@
-"""Standard holes (auto3d/modeler/holes.py): a hole step's hole_type + standard fill its sizes from the ISO tables —
+"""Standard holes (auto3d/modeler/holes.py): a hole step's shape + thread + standard (or the old hole_type) fill its
+sizes from the ISO tables —
 the table itself (and the browser's copy in web/js/modeler/holes.js), then the solids: an M5 counterbore, countersink
 and tapped hole against their formulas, watertight, read back from STEP, and their drawing callouts.
 
@@ -53,6 +54,28 @@ class TestHoleTable(unittest.TestCase):
         with self.assertRaises(ValueError):
             holes.resolve({"hole_type": "counterbore"})
 
+    def test_properties(self):
+        """The new independent properties: shape + thread + size resolve as the old types did (clearance = plain M5
+        without a thread, tapped = plain M5 with one …); a thread given as {standard, kind}; combinations the old types
+        could not say (a threaded counterbore); a screw's hole with no size, an unknown shape refused."""
+        same = {"clearance": {"shape": "plain"}, "counterbore": {"shape": "counterbore"}, "countersink": {"shape": "countersink"},
+                "tapped": {"shape": "plain", "thread": "M5"}}
+        for old, new in same.items():
+            a, b = holes.resolve({"hole_type": old, "standard": "M5"}), holes.resolve({**new, "standard": "M5"})
+            keys = ("d", "head", "head_d", "head_depth", "head_angle", "thread")
+            self.assertEqual({k: a.get(k) for k in keys}, {k: b.get(k) for k in keys}, old)
+        self.assertEqual(holes.spec({"hole_type": "tapped", "standard": "M6"}), ("plain", True, "M6", None))
+        self.assertEqual(holes.spec({"shape": "plain", "thread": {"standard": "M4", "kind": "real"}}), ("plain", True, "M4", "real"))
+        self.assertEqual(holes.spec({"shape": "plain", "thread": False, "d": 6}), ("plain", False, None, None))
+        r = holes.resolve({"shape": "counterbore", "thread": {"standard": "M5"}})
+        self.assertEqual({k: r[k] for k in ("d", "head", "head_d", "head_depth", "thread", "standard")},
+                         {"d": 4.2, "head": "cbore", "head_d": 10, "head_depth": 5.4, "thread": "M5", "standard": "M5"})
+        self.assertEqual(holes.resolve({"shape": "plain", "thread": False, "d": 6, "head": "cbore"}), {"shape": "plain", "d": 6})
+        self.assertEqual(holes.resolve({"shape": "d_flat", "d": 5})["hole_type"], "d_flat")
+        for bad in ({"shape": "counterbore"}, {"shape": "plain", "thread": True}, {"shape": "spot", "standard": "M5"}):
+            with self.assertRaises(ValueError):
+                holes.resolve(bad)
+
     def test_browser_table_matches(self):
         """web/js/modeler/holes.js has the same sizes and tap drills."""
         text = JS.read_text(encoding="utf-8")
@@ -98,6 +121,29 @@ class TestStandardHoles(unittest.TestCase):
         self.check(f, 8000 - math.pi * 2.1 ** 2 * 8, "M5 ↧ 8")
         r = doc.rebuild({"features": [*box(), f], "threads": "cosmetic"})
         self.assertEqual([(h["thread"], h["minor"]) for h in r["threads"]["holes"]], [("M5", 4.2)])
+
+    def test_old_files_build_the_same(self):
+        """Every old hole_type builds exactly the solid of its new properties (shape / thread / size)."""
+        pairs = [({"hole_type": "clearance", "standard": "M5"}, {"shape": "plain", "standard": "M5"}),
+                 ({"hole_type": "counterbore", "standard": "M5"}, {"shape": "counterbore", "standard": "M5"}),
+                 ({"hole_type": "countersink", "standard": "M5"}, {"shape": "countersink", "standard": "M5"}),
+                 ({"hole_type": "tapped", "standard": "M5"}, {"shape": "plain", "thread": "M5", "standard": "M5"}),
+                 ({"hole_type": "simple", "d": 6}, {"shape": "plain", "d": 6}),
+                 ({"hole_type": "d_flat", "d": 5}, {"shape": "d_flat", "d": 5})]
+        for old, new in pairs:
+            _, a = vol(*box(), self.hole(**old))
+            _, b = vol(*box(), self.hole(**new))
+            self.assertAlmostEqual(a, b, delta=1e-6, msg=str(old))
+
+    def test_combinations(self):
+        """A threaded counterbore (the M5 tap drill Ø4.2 + the M5 head Ø10 ↧ 5.4) and a threaded hole through: their
+        volumes and callouts; both listed as threaded holes."""
+        cb = self.hole(shape="counterbore", thread="M5", standard="M5")
+        self.check(cb, 8000 - math.pi * (2.1 ** 2 * 10 + (25 - 2.1 ** 2) * 5.4), "M5 ⌴ Ø10 ↧ 5.4")
+        th = self.hole(shape="plain", thread={"standard": "M6", "kind": "cosmetic"}, through=True)
+        self.check(th, 8000 - math.pi * 2.5 ** 2 * 10, "M6")
+        r = doc.rebuild({"features": [*box(), cb], "threads": "cosmetic"})
+        self.assertEqual([h["thread"] for h in r["threads"]["holes"]], ["M5"])
 
     def test_clearance_and_errors(self):
         """M4 clearance: Ø4.5 through "Ø4.5 THRU"; an unknown size or a type without one is an issue, the part kept."""

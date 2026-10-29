@@ -53,9 +53,11 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
      from the face's centre (the middle of its outline, also with holes in it) along the face's own x / y (on a top face: world x / y). Through all by default;
      `through: false, depth: 6` for blind holes. A hole into a side face (across Z) of a printed part: `teardrop: true`
      (a 45° point on top — prints without support).
-     A hole for a screw: `standard: "M5", hole_type: "counterbore"` (or `"clearance"`, `"countersink"`, `"tapped"`)
-     instead of `d` — the ISO sizes are filled in (M5 counterbore: Ø5.5 with ⌴ Ø10 ↧ 5.4; the drawing says so).
-     A hole for a D-shaft (a knob, a stepper motor's shaft): `hole_type: "d_flat", d: 5, flat: 4.5` (the size across
+     A hole for a screw: `standard: "M5"` + its own properties instead of `d` — `shape: "plain"` (default) /
+     `"counterbore"` / `"countersink"`, `thread: true` for a threaded hole (the tap drill Ø4.2; without: the clearance
+     Ø5.5), `through` or `depth` — the ISO sizes are filled in (M5 counterbore: Ø5.5 with ⌴ Ø10 ↧ 5.4; threaded:
+     Ø4.2 with the same head; the drawing says so). (The old `hole_type: "clearance" | "tapped" | …` still works.)
+     A hole for a D-shaft (a knob, a stepper motor's shaft): `shape: "d_flat", d: 5, flat: 4.5` (the size across
      the flat; left out: the common D-shaft's — Ø5: 4.5); the flat faces the face's +x, `flat_angle: 90` turns it.
    - Pockets / bosses: a sketch with `plane: {face: "<face name>"}` (its origin is the face's centre), then
      extrude `op: "cut"` (pocket, `through: true` for a cut through) or `op: "add"` (boss).

@@ -483,12 +483,14 @@ SolidWorks. It has only the tools that need almost no input.
    none placed yet Esc cancels, and the **Cancel** button always throws them away. Fillet / Chamfer (edges) and Shell
    (open faces) work the same; in a sketch Esc ends a ╱ line's chain and keeps the segments drawn. Choosing a hole
    that is there (its row in the list, its wall, its rim) only chooses it: the suggestions start with all its
-   choices as rows — **Type** (all six kinds, the current one ✓), **Size** (the two sizes below and above: M3 M4 ✓M5 M6
-   M8; a plain hole: the next Ø steps, 0.5 mm up to 6 then 1 mm) and **Thread** (🔩 Thread: show / hide and Real thread
-   (slower) ↔ Cosmetic thread; a hole without one: 🔩 Add thread M5 — its size from its screw size, else its tap drill
-   Ø) — one click switches it in place, one undo step; these always show, past the table's top N (a table taller than
+   properties as rows, each on its own as in SolidWorks — **Shape** (plain, ⌴ counterbore, ⌵ countersink, D; the
+   current one ✓), **Thread** (🔩 With thread M5 ✓ — a click takes it off — or 🔩 Add thread M5; threaded: Thread:
+   show / hide and Real thread (slower) ↔ Cosmetic thread), **Depth** (through all ⇄ to a depth) and **Size** (the two
+   sizes below and above: M3 M4 ✓M5 M6 M8; a plain Ø: the next Ø steps, 0.5 mm up to 6 then 1 mm) — one click switches
+   it in place, one undo step. A threaded M5 is the tap drill Ø4.2, without a thread the clearance Ø5.5; a counterbore
+   can be threaded too ("M5 ↧ 10 ⌴ Ø10 ↧ 5.4" on the drawing). The Hole panel has the same four short rows; these always show, past the table's top N (a table taller than
    the view scrolls with the wheel, no scrollbar, a fade at the hidden edge); then ✎ Edit the hole, 📏 its Ø, ⁂ Pattern,
-   ✕ Delete; the right panel shows that hole step's Type / Size / Through (changed
+   ✕ Delete; the right panel shows that hole step's Shape / Thread / Depth / Size (changed
    at once) with ✎ Edit the hole and ＋ Add position, and its row in the list is marked. (A round cut made by an
    extrude is not a Hole step: its faces keep their usual suggestions.) **✎ Editing** it opens its panel without placing —
    the mouse shows no new hole and a click adds none until **＋ Add position** (an edited text / picture: **⌖ Move by
