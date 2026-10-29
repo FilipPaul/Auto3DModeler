@@ -72,7 +72,7 @@ try:
     wait(f"return {A}.doc.instances.length === 2 && Object.values({A}.bodies).every(b => b.body)")
     time.sleep(0.5)
     print("assembly, as the part:", mats())
-    js(f"{A}.sel = 'I2'; {A}.render(); {A}.draw()")
+    js(f"{A}.sel = 'I2'; {A}.moreOpen = true; {A}.render(); {A}.draw()")  # (🎨 Look and editing: open)
     time.sleep(0.3)
     print("panel says:", d.find_element(By.CSS_SELECTOR, "#asmRight .mp-look + p.hint").text)
     set_input("#asmRight [data-look=colour]", "#34c759")

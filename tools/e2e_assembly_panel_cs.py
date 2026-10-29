@@ -83,15 +83,21 @@ try:
     print("the arm's panel buttons:", panel[:300])
     print("  English left:", english)
     assert not english
-    acts = ("Otevřít jeho díl", "Ukotvit na místě", "Udělat z něj vlastní díl", "Vyjmout", "Spojit s jiným dílem")
+    # each action once at most in the panel and in the table (⋯ Show all opened: all of them), and somewhere; a joined
+    # part offers no 📌 Fix (it hangs on its joints)
+    js("document.querySelector('#asmViewport .view-suggest [data-sg-all]')?.click()")
+    time.sleep(0.3)
+    acts = ("Otevřít jeho díl", "Udělat z něj vlastní díl", "Vyjmout", "Spojit s dalším dílem")
     inpanel, intable = texts("#asmRight button"), texts("#asmViewport .view-suggest button")
+    js("sessionStorage.removeItem('a3d.suggestAll')")
     once = {w: (sum(w in s for s in inpanel), sum(w in s for s in intable)) for w in acts}
     print("  each action (panel, table):", once, "| the suggestions table:", intable)
-    assert all(p == 1 and t <= 1 for p, t in once.values())
+    assert all(p <= 1 and t <= 1 and p + t >= 1 for p, t in once.values())
     assert not [s for s in intable if any(w in s for w in ("Open its part", "Fix in place", "Take it out", "Make it its own part"))]
     motions = texts("#asmRight .as-dof > label")
     print("  its motions:", motions)
-    assert any("Ø22" in m for m in motions) and not any("F2" in m or "Extrude" in m or "Vysunutí" in m for m in motions)
+    # (a free motion is named by its part since be31b73: "Otáčení: Arm", not by its face)
+    assert any("Arm" in m for m in motions) and not any("F2" in m or "Extrude" in m or "Vysunutí" in m for m in motions)
     tips = set(js("return [...document.querySelectorAll('#asmRight [data-jname]')].map(e => e.title)"))
     print("  the joint names' tooltips:", tips)
 
@@ -101,7 +107,9 @@ try:
     motions = texts("#asmRight .as-dof > label")
     tips = set(js("return [...document.querySelectorAll('#asmRight [data-jname]')].map(e => e.title)"))
     print("the joint named:", motions, "| tooltips:", tips)
-    assert any("čep ramene" in m for m in motions) and tips == {"Dvojklik: dát jí vlastní název"}
+    how = js("return [...document.querySelectorAll('#asmRight .as-dof .as-mname')].map(e => e.title)")  # (the joint's words: the motion's tooltip)
+    print("  the motion's tooltip:", how)
+    assert any("čep ramene" in m for m in how) and tips == {"Dvojklik: dát jí vlastní název"}
 
     pick("I1")
     js("const s = document.querySelector('#asmRight details.as-free'); if (s) s.open = true")  # (the base has no joint of its own to move it: as placed)

@@ -1007,6 +1007,8 @@ const CS = {
   'From the library…': 'Z knihovny…', 'Standard parts (screws, bearings, motors …) — ⤵ Put into the assembly': 'Normalizované díly (šrouby, ložiska, motory …) — ⤵ Vložit do sestavy',
   'Hold a part against another one: choose how, then click a face of the part to move and the face it goes to (S = touch). Quicker: click a face, Ctrl+click the other one — the joints that fit them are suggested':
     'Přidržet díl u jiného: zvolte jak, pak klikněte na plochu dílu, který se pohne, a na plochu, ke které jde (S = dotyk). Rychleji: klikněte na plochu, Ctrl+klik na druhou — nabídnou se vazby, které na ně sedí',
+  'Joints ({n})': 'Vazby ({n})', 'Every joint and coupling — a part clicked shows only its own': 'Všechny vazby a převody — kliknutý díl ukáže jen své',
+  'Look and editing': 'Vzhled a úpravy', 'Its colour, see-through, simplified, and editing it from here': 'Jeho barva, průhlednost, zjednodušení a úpravy odsud',
   '💥 Explode ▾': '💥 Rozložit ▾', '💥 in the parts list: which parts move': '💥 v seznamu dílů: které díly se pohnou',
   'Ctrl+click another part: what fits the two': 'Ctrl+klik na další díl: co se hodí pro oba', 'A line': 'Úsečka', 'A circle': 'Kružnice', 'An arc': 'Oblouk', 'A point': 'Bod', '{n} selected': 'Vybráno: {n}', Selected: 'Vybráno',
   'Ctrl+click another shape: what fits the two': 'Ctrl+klik na další tvar: co se hodí pro oba', 'Its length': 'Jeho délka', 'Its diameter': 'Její průměr', 'Its radius': 'Jeho poloměr',

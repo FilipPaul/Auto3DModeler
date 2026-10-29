@@ -943,6 +943,15 @@ export class Assembly {
     this.draw();
   }
 
+  /** The overview's joints and couplings under one folded line ("Joints (7)"; open when one does not hold). */
+  jointsFold() {
+    const html = `${this.jointsHtml(null)}${couplingsHtml(this, null)}`;
+    if (!html) return '';
+    const n = (this.doc.mates || []).filter((m) => this.inst(m.move) && this.inst(m.onto)).length + (this.doc.couplings || []).length;
+    const bad = (this.doc.mates || []).some((m) => m.broken || this.health?.get(m.id)?.ok === false);
+    return `<details class="as-jfold" ${this.jointsOpen || bad ? 'open' : ''}><summary title="${esc(t('Every joint and coupling — a part clicked shows only its own'))}">🔗 ${esc(t2('Joints ({n})', { n }))}${bad ? ' <span class="as-jbad">⚠</span>' : ''}</summary>${html}</details>`;
+  }
+
   renderPair(box) {
     const a = this.inst(this.sel), b = this.inst(this.sel2), js = this.shownJoints();
     box.innerHTML = `<h2><span data-no-i18n>${esc(this.partName(a.part))}</span> ↔ <span data-no-i18n>${esc(this.partName(b.part))}</span></h2>
@@ -976,30 +985,31 @@ export class Assembly {
       const freePlace = `${row('x', p.x)}${row('y', p.y)}${row('z', p.z)}
         <h3>Turn</h3><datalist id="as-ticks"><option value="-180"></option><option value="-90"></option><option value="0"></option><option value="90"></option><option value="180"></option></datalist>
         ${rot('x')}${rot('y')}${rot('z')}
-        <p class="hint">Slide to any angle — it catches at 0, ±90 and ±180°. Type an exact one in the box.</p>`;
+        <p class="hint">Slide to any angle — it catches at 0, ±90 and ±180°. Type an exact one in the box.</p>
+        <div class="row-actions"><button class="btn small" data-a="reset" title="Back to its place in its own model">Reset its place</button></div>`;
       const dof = this.motionsOf(it.id), lp = this.mechanismOf(it.id);
       this.dof = dof;
       const loopHint = !lp ? '' : `<p class="hint as-loop ${lp.closed ? '' : 'bad'}">${esc(lp.closed ? t2('In a closed loop with {parts}: they move together, {n} way(s) for all of them — move one, the others follow.', { parts: lp.parts.filter((x) => x !== it.id).join(', '), n: lp.free ?? '?' })
         : t2('⚠ The closed loop {parts} cannot close here — a part is too short or too long for this place.', { parts: lp.parts.join('–') }))}</p>`;
       const place = dof ? `<h3>Moves</h3>${loopHint}${dof.count === 0 ? (lp?.free ? '' : '<p class="mp-count">🔒 Fully held — its joints fix it, it cannot move.</p>')
-        : `<p class="hint">${dof.via ? t2('It is fixed on {part} — it moves with it: drive it here, {part} goes along.', { part: this.partName(this.inst(dof.via)?.part) })
-          : t2('It can still move {n} way(s) — the ways its joints leave free. Slide, then let go: it stays there.', { n: dof.count })}</p>
+        : `${lp && !dof.via ? '' : `<p class="hint">${dof.via ? t2('It is fixed on {part} — it moves with it: drive it here, {part} goes along.', { part: this.partName(this.inst(dof.via)?.part) })
+          : t2('It can still move {n} way(s) — the ways its joints leave free. Slide, then let go: it stays there.', { n: dof.count })}</p>`}
         <div class="as-motions">${dof.motions.map((mo, i) => this.motionHtml(it, mo, i, dof.size)).join('')}</div>
         ${dof.unexplained > 0 ? `<p class="hint">${t2('…and {n} more way(s) that are not a plain move or turn.', { n: dof.unexplained })}</p>` : ''}`}
         <details class="as-free"><summary>Place it by hand (breaks its joints)</summary>${freePlace}</details>`
         : freePlace;
       const inner = this.innerMotions(it), miss = this.mech?.missing, missHere = miss && (!this.mech.list.length || this.mech.closed) && [miss.move.inst, miss.onto.inst].includes(it.id); // (no ⚙ widget: the line is here)
-      box.innerHTML = `<h2 data-no-i18n>${esc(this.partName(it.part))}</h2><p class="hint">${it.id} — ${dof ? 'held by its joints.' : 'where its own origin is, and how it is turned.'}</p>
+      // the panel: what it is and how it stands (the actions: the Suggested table) — its look and editing folded
+      box.innerHTML = `<h2 data-no-i18n>${esc(this.partName(it.part))}</h2>
+        <p class="hint">${it.id} — ${dof ? 'held by its joints.' : 'where its own origin is, and how it is turned.'}</p>
+        <div class="row-actions wrap as-pacts">${this.hooks.openPart ? `<button class="btn small primary" data-a="openPart" title="Open its part in its own tab (to change it — the assembly follows)">${this.kindOf(it.part) === 'assembly' ? '◇' : '◆'} ${esc(t('Open its part'))}</button>` : ''}${it.fixed || !(this.doc.mates || []).some((m) => m.move === it.id) ? `<button class="btn small ${it.fixed ? 'on' : ''}" data-a="fix"title="${it.fixed ? 'Fixed in place: it is not moved by hand, joints bring the other parts to it — click to free it' : 'Fix it in place: it is not moved by hand, joints bring the other parts to it'}">📌 ${esc(t(it.fixed ? 'Fixed' : 'Fix in place'))}</button>` : ''}<button class="btn small danger" data-a="del" title="${esc(t('Take it out'))} (Delete)">✕ ${esc(t('Take it out'))}</button></div>
         ${missHere ? this.mech.missingHtml() : ''}
         ${this.rolledHtml(it.part)}
         ${inner ? this.innerHtml(it, inner) : ''}
         ${place}
-        ${this.editHtml(it)}
-        <h3>Look</h3>${this.lookHtml(it)}
         ${this.jointsHtml(it.id)}${couplingsHtml(this, it.id)}
-        <div class="row-actions wrap"><button class="btn small" data-a="joinThis">🔗 Join it to another part</button></div>
-        ${this.hooks.duplicatePart ? '<div class="row-actions"><button class="btn small" data-a="ownPart" title="Copy its part as a new part of the project and use the copy here — then it can be changed alone (the other copies stay as they are)">⧉ Make it its own part</button></div>' : ''}
-        <div class="row-actions">${this.hooks.openPart ? `<button class="btn small primary" data-a="openPart" title="Open its part in its own tab (to change it — the assembly follows)">${this.kindOf(it.part) === 'assembly' ? '◇' : '◆'} ${esc(t('Open its part'))}</button>` : ''}<button class="btn small ${it.fixed ? 'on' : ''}" data-a="fix" title="${it.fixed ? 'Fixed in place: it is not moved by hand, joints bring the other parts to it — click to free it' : 'Fix it in place: it is not moved by hand, joints bring the other parts to it'}">📌 ${esc(t(it.fixed ? 'Fixed' : 'Fix in place'))}</button><button class="btn small" data-a="reset" title="Back to its place in its own model">Reset its place</button><button class="btn small danger" data-a="del">✕ ${esc(t('Take it out'))}</button></div>`;
+        <details class="as-more" ${this.moreOpen ? 'open' : ''}><summary title="${esc(t('Its colour, see-through, simplified, and editing it from here'))}">🎨 ${esc(t('Look and editing'))}</summary>
+          ${this.editHtml(it)}${this.lookHtml(it)}</details>`;
       if (missHere) this.mech.bindMissing(box);
       for (const inp of box.querySelectorAll('input[data-k]')) {
         inp.addEventListener('change', () => this.setPos(inp.dataset.k, inp.value));
@@ -1025,17 +1035,16 @@ export class Assembly {
       this.bindLook(box, it);
       box.querySelector('[data-a=editHere]')?.addEventListener('click', () => this.editInPlace(it.id));
       box.querySelector('[data-a=editLock]')?.addEventListener('click', () => this.toggleEditable(it.part));
-      box.querySelector('[data-a=joinThis]').addEventListener('click', () => this.startJoint('touch', it.id));
-      box.querySelector('[data-a=ownPart]')?.addEventListener('click', () => this.ownPart(it.id));
+      box.querySelector('.as-more')?.addEventListener('toggle', (e) => { this.moreOpen = e.target.open; });
       box.querySelector('[data-a=fix]')?.addEventListener('click', () => this.toggleFixed(it.id));
-      box.querySelector('[data-a=reset]').addEventListener('click', () => { if (!this.mayMove(it.id)) return; it.matrix = ID(); this.applyMates(); this.commit(); });
+      box.querySelector('[data-a=reset]')?.addEventListener('click', () => { if (!this.mayMove(it.id)) return; it.matrix = ID(); this.applyMates(); this.commit(); });
       box.querySelector('[data-a=del]').addEventListener('click', () => this.removeInst(it.id));
       box.querySelector('[data-a=openPart]')?.addEventListener('click', () => this.hooks.openPart(it.part));
       return;
     }
     const rows = this.bom(), total = rows.reduce((s, r) => s + (r.mass || 0) * r.qty, 0), mp = this.massProps();
     box.innerHTML = `<h2>Assembly</h2>
-      ${rows.length ? `${this.jointsHtml(null)}${couplingsHtml(this, null)}<h3>Parts list</h3><table class="as-bom"><tr><th>Part</th><th>Qty</th><th>Material</th><th>Mass</th></tr>
+      ${rows.length ? `${this.jointsFold()}<h3>Parts list</h3><table class="as-bom"><tr><th>Part</th><th>Qty</th><th>Material</th><th>Mass</th></tr>
         ${rows.map((r) => `<tr><td data-no-i18n>${esc(r.name)}</td><td>${r.qty}</td><td>${esc(t(r.material))}</td><td>${r.mass === null ? '—' : `${fmt(+(r.mass * r.qty).toFixed(1))} g`}</td></tr>`).join('')}
         <tr class="as-total"><td>Total</td><td>${rows.reduce((s, r) => s + r.qty, 0)}</td><td></td><td>${fmt(+total.toFixed(1))} g</td></tr></table>
         ${mp.cog ? `<div class="mp-facts as-mass"><span title="${esc(t('Centre of mass (centre of gravity) of the placed parts, in the assembly\'s coordinates — it follows them as they move'))}">CoG</span><b class="mp-cog"><span class="as-cogv" data-no-i18n>${cogText(mp.cog)} mm</span>
@@ -1047,7 +1056,6 @@ export class Assembly {
         <button class="btn small" data-x="step" title="All parts as separate bodies in one STEP file">STEP</button>
         <button class="btn small" data-x="iges" title="Every part placed in one IGES file (names, colours) — for CAD programs that ask for IGES; it has no assembly tree">IGES</button>
         <button class="btn small" data-x="glb" title="glTF for viewers and rendering: a node per placed part with its name, the colours and materials">GLB</button>
-        ${this.hooks.newSheet ? '<button class="btn small" data-a="sheetHere" title="The assembly\'s drawing sheet to edit (views, parts list, balloons, your dimensions and texts)">📄 Drawing sheet</button>' : ''}
         ${this.hooks.drawingSet ? '<button class="btn small primary" data-a="drawingSet" title="One PDF: this assembly (its views, parts list and balloons), then each sub-assembly with its parts, then its own made parts — their drawing sheets when they have one">📄 Drawings (PDF)</button>' : ''}</div>
         <p class="hint">To print, open each part's tab and use 🖨 Prepare for 3D print there.</p>`
         : `<p class="hint">Insert parts of this project (3D models and quick parts) with ＋ Insert part, then join them with 🔗 Joint.</p>`}`;
@@ -1058,7 +1066,8 @@ export class Assembly {
     box.querySelector('[data-a=bomWin]')?.addEventListener('click', () => this.openBom());
     box.querySelector('[data-a=cog]')?.addEventListener('click', () => this.toggleCog());
     box.querySelector('[data-a=drawingSet]')?.addEventListener('click', () => this.hooks.drawingSet());
-    box.querySelector('[data-a=sheetHere]')?.addEventListener('click', () => this.hooks.newSheet());
+    const jf = box.querySelector('.as-jfold'), jfWas = jf?.open; // (opened by itself for a joint that does not hold: not the user's choice)
+    jf?.addEventListener('toggle', (e) => { if (e.target.open !== jfWas) this.jointsOpen = e.target.open; });
   }
 
   /** A part inside a placed sub-assembly (chosen in the list): where it is, its moves inside the sub-assembly here
@@ -1603,9 +1612,9 @@ export class Assembly {
   editHtml(it) {
     if (!this.hooks.editInPlace || this.kindOf(it.part) !== 'model') return '';
     const ed = this.editable(it.part);
-    return `<h3>Edit</h3><div class="row-actions wrap"><button class="btn small ${ed ? 'primary' : ''}" data-a="editHere" ${ed ? '' : 'disabled'} title="Change its part in the 3D modeler, the rest of the assembly see-through around it (or double-click it)">✎ Edit it here</button>
+    return `<div class="row-actions wrap as-editrow"><button class="btn small ${ed ? 'primary' : ''}" data-a="editHere" ${ed ? '' : 'disabled'} title="Change its part in the 3D modeler, the rest of the assembly see-through around it (or double-click it)">✎ Edit it here</button>
       <button class="btn small ${ed ? 'on' : ''}" data-a="editLock" title="${ed ? 'Lock it: its part cannot be changed from this assembly' : 'Unlock it to change its part from this assembly'}">${ed ? '🔓 Editable from here' : '🔒 Locked'}</button></div>
-      <p class="hint">${ed ? 'Every copy of its part changes (here and in other assemblies).' : 'Unlock it to change its part from here — locked, it cannot be changed by accident.'}</p>`;
+      <span class="hint">${ed ? 'Every copy of its part changes (here and in other assemblies).' : 'Unlock it to change its part from here — locked, it cannot be changed by accident.'}</span>`;
   }
 
   /** Open a placed part's model in the 3D modeler, in place: the other parts shown see-through around it. */

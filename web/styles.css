@@ -678,6 +678,8 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 /* a joint: its kind, value and buttons on top; what holds what on a full line under them; the turn slider last */
 .as-jrow[data-jrow] { grid-template-columns: 1fr auto auto; }
 .as-jrow[data-jrow] > .as-jw { grid-column: 1 / -1; grid-row: 2; }
+.as-jrow[data-crow] { grid-template-columns: 1fr auto auto; } /* (a coupling: its name, ratio and buttons; the parts under them) */
+.as-jrow[data-crow] > .as-jw { grid-column: 1 / -1; grid-row: 2; }
 .as-jrow[data-jrow] > .as-jspin { grid-row: 4; }
 .as-jrow[data-jrow] > .as-jspin.as-jgap { grid-row: 3; }
 .as-bolt-msg.bad { color: var(--warn); }
@@ -913,6 +915,14 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .as-innerpart { font-size: 12px; font-weight: 600; margin: 6px 0 2px; }
 .as-free { margin: 6px 0 10px; }
 .as-free summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+.as-pacts { margin: 0 0 4px; }
+/* folded parts of the assembly's panel: the look and editing of a part; the overview's joints */
+.as-more, .as-jfold { margin: 14px 0 6px; padding-top: 10px; border-top: 1px solid var(--line); }
+.as-more > summary, .as-jfold > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text); }
+.as-more[open] > summary, .as-jfold[open] > summary { margin-bottom: 8px; }
+.as-jfold > h3:first-of-type, .as-jfold > h3 { margin-top: 8px; padding-top: 0; border-top: 0; font-size: 12px; color: var(--muted); }
+.as-editrow { align-items: center; margin-bottom: 8px; }
+.as-editrow .hint { flex-basis: 100%; margin: 0; }
 .as-dof label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
 .as-dofrow { display: flex; align-items: center; gap: 6px; }
 .as-dofrow input[type=range] { flex: 1; min-width: 0; } /* (shrinks: the number and its buttons stay in the panel) */
