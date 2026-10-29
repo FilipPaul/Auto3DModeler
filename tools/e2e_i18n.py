@@ -1,5 +1,6 @@
 """Czech / English: the language switch translates the whole page live (panels, the outline wizard, checks,
-toasts), lists texts that stay in English, and switching back restores the originals — in headless Edge.
+toasts), lists texts that stay in English, and switching back restores the originals — in headless Edge. Messages from
+the server in Czech: a rib with nothing to close against, a ⟋ Draft step too steep (their panels), texts with values.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
   PYTHONIOENCODING=utf-8 py tools/e2e_i18n.py http://127.0.0.1:5199 <out dir>
@@ -175,6 +176,50 @@ try:
     js("const n = document.querySelector('.param .name'); n && (n.focus(), n.blur());")
     time.sleep(0.3)
     print("param names unchanged:", names == js("return window.__app.state.model.params.map(p => p.name)"), names[:3])
+
+    # messages from the server / kernel in Czech: a refused rib, a ⟋ Draft step too steep, texts with values
+    def call(tool, **args):
+        return js("return window.__app.agentHandlers[arguments[0]](arguments[1]).then(r => r.text).catch(e => 'ERROR ' + e.message)", tool, args)
+
+    def step_issue(fid):  # the step's panel: its ⚠ line, as the page shows it
+        js("window.__app.modeler.edit(arguments[0])", fid)
+        wait("return document.querySelector('#modelRight .mp-bad')", 30)
+        time.sleep(0.4)
+        text = js("return document.querySelector('#modelRight .mp-bad').textContent.trim()")
+        js("window.__app.modeler.cancelCommand()")
+        time.sleep(0.4)
+        return text
+
+    server_ok = []
+    call("new_model", name="Bracket")
+    call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 40, "h": 20}}])
+    call("add_feature", type="extrude", sketch="F1", d=30)
+    call("add_feature", type="sketch", plane={"datum": "YZ", "offset": 20}, shapes=[{"path": {"points": [[5, 40], [15, 50]]}}])
+    call("add_feature", type="rib", sketch="F3", t=4)    # a line in the air: nothing to close against
+    call("add_feature", type="draft", of="F2", angle=30)  # the walls 30 tall, 20 apart: they meet at 18.4°
+    wait("return !window.__app.modeler.inflight && window.__app.modeler.result")
+    time.sleep(0.8)
+    for fid, en, cs in (("F4", "The rib does not close against the part", "Žebro se neuzavře o díl"),
+                        ("F5", "does not fit here", "⚠ Úhel 30 ° se sem nevejde — nejvýš 18.")):
+        shown = step_issue(fid)
+        print(f"{fid} issue in Czech:", shown)
+        server_ok.append(cs in shown and en not in shown and shown.startswith("⚠ "))
+    # texts with values, as they come from the server (the patterns; a value that is a known word translated too)
+    samples = js("""return import('/js/i18n.js').then(({ t }) => [
+        'The draft angle 50 ° does not fit here — at most 12.5 °.',
+        'The countersink Ø12 would be 3.50 deep — deeper than the part here (3) (hole 2), it would cut through: at most Ø9.8.',
+        'Could not read part.stl: not a valid STL file',
+        '⚠ A draft angle is between 0 and 45°.',
+        'Some x-positions are not connected to the rest of the sketch.',
+      ].map(t))""")
+    for s in samples:
+        print("   ", s)
+    server_ok.append(samples[0].startswith("Úhel úkosu 50 ° se sem nevejde — nejvýš 12.5 °"))
+    server_ok.append("(díra 2)" in samples[1] and samples[1].startswith("Kuželové zahloubení"))
+    server_ok.append(samples[2] == "part.stl se nepodařilo přečíst: neplatný soubor STL")
+    server_ok.append(samples[3] == "⚠ Úhel úkosu je mezi 0 a 45°.")
+    print("server messages in Czech:", "OK" if all(server_ok) else f"FAILED {server_ok}")
+    d.save_screenshot(f"{OUT}/i6_server_msgs_cz.png")
 
     d.find_element(By.ID, "langBtn").click()
     time.sleep(0.5)

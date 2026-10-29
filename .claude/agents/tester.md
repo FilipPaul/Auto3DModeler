@@ -45,7 +45,8 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_progress.py <url> <curved .stl> <dir>` covers the progress bar + Cancel, the automatic slice height,
    the feature-aware measure (holes / cylinders / faces) and rename + the Save dialog. `tools/e2e_i18n.py <url> <dir>`
    switches to Czech, walks every panel and the outline wizard, lists texts still in English (add them to
-   `web/js/i18n.js`), and checks that switching back leaves no Czech behind. `tools/e2e_project.py <url> <dir>` covers
+   `web/js/i18n.js`), and checks that switching back leaves no Czech behind; it also shows server messages (a refused rib, a ⟋ Draft too
+   steep) in Czech. `tests/test_i18n_messages.py` fails when a server / kernel message has no Czech. `tools/e2e_project.py <url> <dir>` covers
    several parts in one project (tabs, switching keeps edits + undo, rename, Save v3 → reopen, old v2 files; ✕ closes
    the tab only, ☰ Parts reopens it, the closed state is saved, ✕ in ☰ deletes).
    `tools/e2e_chat_photos.py <url> <dir>` covers photos in the AI chat (📎, drop, thumbnails, ✕, the sent request).

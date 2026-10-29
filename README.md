@@ -39,7 +39,9 @@ is remembered; the first time, the app uses the browser's language. Your own tex
 messages, the names you type) is never translated. Dimension names that come from a drawing are only shown
 translated; the project file keeps the originals. Translations live in `web/js/i18n.js`. Exact texts go in
 `CS`. Texts with values go in `CS_PATTERNS`, where `{}` is a value; values that are known texts are translated
-too. Text with markup goes in `CS_HTML`.
+too. Text with markup goes in `CS_HTML`. Messages from the server and the CAD kernel (a refused step, an import
+error, a warning) are shown in Czech too: `tests/test_i18n_messages.py` collects every message text from the
+Python sources (an f-string's values as `{}`) and fails when one has no Czech entry, so add it with the message.
 
 **Long work shows progress**: importing or rebuilding a large 3D file, making a drawing sheet, building an
 assembly's parts or splitting a part for printing shows a progress box with **Cancel** (in whichever workspace is on
