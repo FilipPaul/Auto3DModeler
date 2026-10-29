@@ -1142,7 +1142,9 @@ body.view-acts .toast-stack { bottom: 84px; }
 .sk-filters button:hover { border-color: var(--accent); }
 .view-suggest { position: absolute; left: 12px; bottom: 34px; z-index: 6; width: 236px; background: var(--panel); border: 1px solid var(--line);
   border-radius: 10px; box-shadow: 0 8px 24px #0008; overflow: hidden; display: flex; flex-direction: column; max-height: calc(100% - 120px); }
-.view-suggest .vs-list { overflow-y: auto; min-height: 0; } /* (a long table in a low view: its rows scroll, the head stays) */
+.view-suggest .vs-list { overflow-y: auto; min-height: 0; scrollbar-width: none; } /* (a long table in a low view: its rows scroll, the head stays — no scrollbar: a fade, .fb-fade) */
+.view-suggest .vs-list::-webkit-scrollbar { display: none; }
+.view-suggest.fb-box .vs-list { padding: 4px 6px; } /* (floating: its rows clear of the 6 px resize edges) */
 .view-suggest .vs-head, .view-suggest .vs-hint { flex: none; }
 .vs-head { cursor: move; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 9px 6px 11px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
 .vs-head b { font-size: 12.5px; flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* (one line: a long name ends in …, whole in its tooltip) */
@@ -1256,7 +1258,8 @@ body.view-acts .toast-stack { bottom: 84px; }
 .m-section .seg { margin: 0; }
 .m-section input[type=range] { width: 220px; flex: 1 1 auto; min-width: 60px; }
 
-/* floating boxes (floatbox.js): a header / ⠿ strip moves them, the corner grip resizes them, the one in hand on top */
+/* floating boxes (floatbox.js): a header / ⠿ strip moves them, any edge or corner resizes them (invisible zones, 6 px
+   along the edges, 10 px at the corners; the bottom-right one a visible grip), the one in hand on top */
 .fb-box .fb-handle { cursor: move; touch-action: none; user-select: none; }
 .fb-box.fb-front { z-index: 10 !important; }
 .fb-box.fb-sized { overflow: auto; }
@@ -1265,11 +1268,26 @@ body.view-acts .toast-stack { bottom: 84px; }
 .fb-strip::before { content: '⠿'; font-size: 11px; line-height: 1; letter-spacing: 2px; opacity: .7; }
 .fb-strip:hover { background: #ffffff0d; color: var(--text); }
 .m-section > .fb-strip { height: auto; align-self: stretch; margin: -6px 0 -6px -6px; padding: 0 2px; border-radius: 6px 0 0 6px; } /* (a bar: the handle on its left end) */
-.fb-size { position: absolute; right: 0; bottom: 0; width: 13px; height: 13px; cursor: nwse-resize; touch-action: none; z-index: 1; border-radius: 0 0 8px 0; }
+.fb-edge { display: none; position: absolute; z-index: 2; touch-action: none; }
+.fb-box > .fb-edge { display: block; } /* (docked: no zones) */
+.fb-edge[data-dir=n], .fb-edge[data-dir=s] { left: 10px; right: 10px; height: 6px; cursor: ns-resize; }
+.fb-edge[data-dir=e], .fb-edge[data-dir=w] { top: 10px; bottom: 10px; width: 6px; cursor: ew-resize; }
+.fb-edge[data-dir=n] { top: 0; } .fb-edge[data-dir=s] { bottom: 0; } .fb-edge[data-dir=w] { left: 0; } .fb-edge[data-dir=e] { right: 0; }
+.fb-edge[data-dir=nw], .fb-edge[data-dir=ne], .fb-edge[data-dir=sw] { width: 10px; height: 10px; z-index: 3; }
+.fb-edge[data-dir=nw] { left: 0; top: 0; cursor: nwse-resize; } .fb-edge[data-dir=ne] { right: 0; top: 0; cursor: nesw-resize; }
+.fb-edge[data-dir=sw] { left: 0; bottom: 0; cursor: nesw-resize; }
+.fb-size { right: 0; bottom: 0; width: 13px; height: 13px; cursor: nwse-resize; z-index: 3; border-radius: 0 0 8px 0; }
 .fb-size::after { content: ''; position: absolute; right: 3px; bottom: 3px; width: 7px; height: 7px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); opacity: .45; }
 .fb-size:hover::after { opacity: 1; border-color: var(--accent); }
 body.fb-moving, body.fb-moving * { cursor: move !important; user-select: none; }
-body.fb-resizing, body.fb-resizing * { cursor: nwse-resize !important; user-select: none; }
+body.fb-resizing, body.fb-resizing * { cursor: var(--fb-cur, nwse-resize) !important; user-select: none; }
+/* a scroll container with no scrollbar (the suggestions' rows): the wheel / touch still scroll it, a soft fade at the
+   edge where more is hidden (floatbox.js scrollFade) says: scroll, or make the box bigger */
+.fb-fade { scrollbar-width: none; }
+.fb-fade::-webkit-scrollbar { display: none; }
+.fb-fade.fade-bottom { -webkit-mask-image: linear-gradient(#000 calc(100% - 22px), #0000); mask-image: linear-gradient(#000 calc(100% - 22px), #0000); }
+.fb-fade.fade-top { -webkit-mask-image: linear-gradient(#0000, #000 22px); mask-image: linear-gradient(#0000, #000 22px); }
+.fb-fade.fade-top.fade-bottom { -webkit-mask-image: linear-gradient(#0000, #000 22px, #000 calc(100% - 22px), #0000); mask-image: linear-gradient(#0000, #000 22px, #000 calc(100% - 22px), #0000); }
 .mp-sub { color: var(--muted); font-weight: 400; font-size: 11px; }
 
 /* the AI teaching (agent_teach.js): a pulsing ring around a control, the rest dimmed lightly, a tip next to it —

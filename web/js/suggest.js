@@ -5,6 +5,7 @@
 // small menu at a place (a tab's right-click).
 import { t } from './i18n.js';
 import { leftDock } from './leftdock.js';
+import { scrollFade } from './floatbox.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let askAI = null; // (the app: what is selected, into the AI chat)
@@ -182,6 +183,7 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
   box.querySelector('.vs-pin')?.addEventListener('click', (e) => { e.stopPropagation(); leftDock.dock('suggest'); for (const b of document.querySelectorAll('.view-suggest')) leftDock.placeSuggest(b, b.parentElement); });
   box.sgOpts = { kind: 'suggest', handle: '.vs-head', min: [170, 90], onDefault: (b) => cornerPlace(b, viewport) };
   leftDock.placeSuggest(box, viewport); // (floating: moved / resized / remembered; or docked in the left column)
+  scrollFade(box.querySelector('.vs-list')); // (no scrollbar: a fade where rows are hidden)
   if (keep) box.querySelector(`[data-sg="${keep}"]`)?.focus();
   return box;
 }
