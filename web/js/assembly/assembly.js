@@ -665,6 +665,7 @@ export class Assembly {
       ...(on ? [this.restItem(on, 1)] : []),
       ...(a.fastener ? [] : this.hooks.pairItems?.(a) || []), // (🔗 a library part's companions: a screw's nut and washers, a probe's receptacle)
       ...(inMech ? [{ icon: '⚙', label: t('Drive the mechanism'), rank: 0, title: t('One slider moves the whole mechanism — ▶ plays it'), run: () => this.mech.open(a.id) }] : []),
+      ...this.limitItems(a),
       ...(flex ? [a.rigid ? { icon: '⚙', label: t('Moving sub-assembly'), rank: 0.8, title: t('Its own mechanisms work here too — ⚙ Mechanism, dragging its parts, ▶'), run: () => this.setRigid(a.id, false) }
         : { icon: '🧱', label: t('Make it rigid'), rank: 9.5, title: t('It moves as one body, its parts stay where they are in it'), run: () => this.setRigid(a.id, true) }] : []),
       { icon: '🔗', label: t(joined ? 'Join it to one more part' : 'Join it to another part'), rank: 3, title: t('Click a face of it, then a face of the other part — the joints that fit the two'), run: () => this.startJoint('touch', a.id) },
@@ -680,6 +681,28 @@ export class Assembly {
         title: t('Its drawing sheet: views and dimensions, ready to print as PDF — it follows the part'), run: () => this.hooks.openSheet(a.part) }] : []), // (as 📄 Drawing in the bar does for the assembly)
       ...(this.hooks.duplicatePart ? [{ icon: '⧉', label: t('Make it its own part'), rank: 13, title: t('A copy of its part for this place only'), run: () => this.ownPart(a.id) }] : []),
       { icon: '✕', label: t('Take it out'), rank: 7, danger: true, title: t('Out of the assembly (Delete) — Ctrl+Z brings it back'), run: () => this.removeInst(a.id) },
+    ];
+  }
+
+  /** ⇤⇥ A chosen part's limits in the Suggested table: its motion's min / max fields (switched on, focused); once it
+   *  has them, ⇤ Min here / Max here ⇥ (where it is now). The motion: the one it drives its mechanism by, else one
+   *  with limits, else its turn or slide on an axis, else its first. */
+  limitItems(a) {
+    let dof = null;
+    try { dof = a.fastener ? null : this.motionsOf(a.id); } catch { dof = null; }
+    const ms = (dof?.motions || []).filter((mo) => mo.key);
+    if (!ms.length) return [];
+    const drv = this.mech?.list.find((m) => m.driver?.part === a.id && !m.flat)?.driver.mo;
+    const mo = ms.find((x) => x.key === drv?.key) || ms.find((x) => this.limitsOf(a, x)) || ms.find((x) => /:(turn|along)$/.test(x.key)) || ms[0];
+    const i = dof.motions.indexOf(mo), lim = this.limitsOf(a, mo), what = `${mo.kind === 'turn' ? '↻' : '↔'} ${mo.label}`;
+    const fields = () => {
+      if (!this.limitsOf(a, mo)) this.setTravel(a.id, mo, this.firstLimits(a.id, mo));
+      requestAnimationFrame(() => { const el = this.$(`.as-motions [data-dmin="${i}"]`); el?.scrollIntoView({ block: 'nearest' }); el?.focus(); el?.select?.(); });
+    };
+    return [
+      { icon: '⇤⇥', label: t('Limits of its motion…'), rank: 2.5, title: `${what} — ${t(lim ? 'Its min and max: type them in the part panel' : 'How far it may go each way: min and max around where it is, then type them')}`, run: fields },
+      ...(lim ? [{ icon: '⇤', label: t('Min here'), rank: 2.6, title: `${what} — ${t('Min where it is now: move it there first (the slider, or drag it), then click')}`, run: () => this.limitHere(a.id, mo, 'min') },
+        { icon: '⇥', label: t('Max here'), rank: 2.7, title: `${what} — ${t('Max where it is now: move it there first (the slider, or drag it), then click')}`, run: () => this.limitHere(a.id, mo, 'max') }] : []),
     ];
   }
 
@@ -3066,10 +3089,12 @@ export class Assembly {
     return `<div class="as-dof" data-dofrow="${i}"><label>${turn ? '↻' : '↔'} <span class="as-mname ${mo.name ? 'own' : ''}" data-mname="${i}" title="${esc(`${mo.detail ? `${mo.detail} · ` : ''}${t('Double-click: give this motion your own name')}`)}" ${mo.name ? 'data-no-i18n' : ''}>${esc(mo.label)}</span></label>
       <div class="as-dofrow"><input type="range" data-dof="${i}" min="${lo}" max="${hi}" step="${turn ? 1 : 0.5}" value="${pos}">
       <input type="number" step="any" data-dofn="${i}" value="${fmt(pos)}"><span class="unit">${u}</span>${only ? '</div></div>' : `
-      <button class="mini ${lim ? 'on' : ''}" data-dlim="${i}" title="${esc(lim ? 'Its limits — click to take them off (it moves freely again)' : 'Limits: how far it may go each way (a cylinder\'s stroke, a slide\'s ends, a door\'s swing)')}">⇤⇥</button>
+      <button class="mini as-dlim ${lim ? 'on' : ''}" data-dlim="${i}" title="${esc(t(lim ? 'Its limits — click to take them off (it moves freely again)' : 'Limits: how far it may go each way (a cylinder\'s stroke, a slide\'s ends, a door\'s swing)'))}">${esc(t('⇤⇥ Limits'))}</button>
       <button class="mini" data-dlock="${i}" title="Lock it where it is: a joint holds this motion (its joint's turn or distance, or a new flush / gap / parallel joint)">🔒</button></div>
       ${lim ? `<div class="as-doflim"><label>min <input type="number" step="any" data-dmin="${i}" value="${fmt(lim.min)}"></label>
         <label>max <input type="number" step="any" data-dmax="${i}" value="${fmt(lim.max)}"></label><span class="unit">${u}</span>
+        <button class="mini" data-dhere="${i}:min" title="${esc(t('Min where it is now: move it there first (the slider, or drag it), then click'))}">${esc(t('⇤ here'))}</button>
+        <button class="mini" data-dhere="${i}:max" title="${esc(t('Max where it is now: move it there first (the slider, or drag it), then click'))}">${esc(t('here ⇥'))}</button>
         <button class="mini ${this.playing?.key === mo.key ? 'on' : ''}" data-dplay="${i}" title="Play: from min to max and back">${this.playing?.key === mo.key ? '■' : '▶'}</button>
         <select class="as-dspeed" data-dspeed="${i}" title="How fast ▶ plays">${[[0.25, '¼×'], [0.5, '½×'], [1, '1×'], [2, '2×'], [4, '4×']].map(([v, l]) => `<option value="${v}" ${(lim.speed || 1) === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
         <button class="mini ${lim.loop ? 'on' : ''}" data-dloop="${i}" title="${lim.loop ? 'It plays again and again (■ stops it) — click: once' : 'Play once — click: again and again, until ■'}">↻</button>
@@ -3114,11 +3139,11 @@ export class Assembly {
     }
     for (const b of box.querySelectorAll('[data-dlim]')) {
       b.addEventListener('click', () => {
-        const mo = dof.motions[+b.dataset.dlim], turn = mo.kind === 'turn', p = Math.round(this.motionPos(it.id, mo));
-        if (this.limitsOf(it, mo)) this.setTravel(it.id, mo, null);
-        else this.setTravel(it.id, mo, turn ? { min: Math.max(-180, p - 90), max: Math.min(180, p + 90) } : { min: p - 10, max: p + 10 });
+        const mo = dof.motions[+b.dataset.dlim];
+        this.setTravel(it.id, mo, this.limitsOf(it, mo) ? null : this.firstLimits(it.id, mo));
       });
     }
+    for (const b of box.querySelectorAll('[data-dhere]')) b.addEventListener('click', () => { const [i, end] = b.dataset.dhere.split(':'); this.limitHere(it.id, dof.motions[+i], end); });
     for (const el of box.querySelectorAll('[data-dmin], [data-dmax]')) {
       el.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') el.blur(); });
       el.addEventListener('change', () => {
@@ -3169,6 +3194,22 @@ export class Assembly {
     const p = this.motionPos(id, mo), into = Math.max(min, Math.min(max, p));
     if (Math.abs(into - p) > 1e-6) { this.moveFree(id, mo, this.stepTo(mo, p, into, it.travel[mo.key]), [...it.matrix], true); } else this.commit();
     return it.travel[mo.key];
+  }
+
+  /** ⇤⇥ The limits a motion starts with when they are switched on: around where it is — a turn ±90° (within ±180°), a
+   *  slide ±10 mm. */
+  firstLimits(id, mo) {
+    const p = Math.round(this.motionPos(id, mo));
+    return mo.kind === 'turn' ? { min: Math.max(-180, p - 90), max: Math.min(180, p + 90) } : { min: p - 10, max: p + 10 };
+  }
+
+  /** ⇤ / ⇥ One end of a motion's limits set where it is now (end: 'min' | 'max'; the part moved or slid there first);
+   *  without limits the other end starts where firstLimits has it (past this one: as far again). -> the limits. */
+  limitHere(id, mo, end) {
+    const p = +this.motionPos(id, mo).toFixed(3), lim = this.limitsOf(this.inst(id), mo), d = mo.kind === 'turn' ? 90 : 10;
+    let { min, max } = lim || this.firstLimits(id, mo);
+    if (end === 'min') { min = p; if (max <= p) max = p + d; } else { max = p; if (min >= p) min = p - d; }
+    return this.setTravel(id, mo, { min, max });
   }
 
   /** 🔒 One free motion locked where the part is now: its joint's turn (angle) or distance along the axis (dist) set,

@@ -7,6 +7,16 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⇤⇥ Limits where the owner looks (2026-10-30)** (the owner: "v mechanismech chybí nastavení min max limitů").
+  mechanism.js: under each row's slider limHtml — "⇤ min … max ° ⇥" as borderless inputs (typed in place, Enter / Tab
+  sets, Esc as it was), "full turn", or "no limits" + ⇤⇥ Limits (MechanismPanel.firstLimits: the free stretch around
+  the driver from the last ⚠ Check the travel — `checked[key]` {min, max, n, hits}, a full turn wrapping past 0 —,
+  else Assembly.firstLimits ±90° / ±10 mm); ✕ off; ⋯ ⇤ Set min here / Set max here ⇥ (Assembly.limitHere: one end at
+  motionPos, the other kept or as far again). Not for a driver inside a ⚙ moving sub-assembly (shown, not editable).
+  assembly.js: the part panel's button reads "⇤⇥ Limits" (translated tooltips), ⇤ here / here ⇥ next to min / max;
+  partItems → limitItems (the driving motion, else one with limits, else a turn / slide on an axis): Limits of its
+  motion… (on + the panel's min focused), Min here / Max here. No new AI tool (set_travel). tools/e2e_mech_limits.py.
+
 - **🔗 Library parts that go with each other (2026-10-29)** (the owner: "i u šroubů napáruj matice + podložky … a
   projdi knihovnu, jestli tam nejsou další věci k párování"). An item's `pairs` [{ref, role, back, size: "same" | a
   key, qty}], written on one side; auto3d/library.py link_pairs mirrors them (`mirror`, `from_size`) and drops a
