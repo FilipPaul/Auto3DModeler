@@ -7,6 +7,26 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⏺ Recording of moves (2026-10-30)** (the owner: "the AI should see what I do — look what I'm doing, this is the
+  problem"). web/js/recorder.js: the top bar's ⏺ (#recBtn) or the AI's start_recording {reason} starts it; it runs until
+  stopped (■ Stop in the pill, ⏺, stop_recording), across workspaces / parts and a reload (sessionStorage a3d.rec: the
+  newest 2000 events, a `reload` event). The pill: fixed, at the top centre of the visible view under its toolbar and
+  hint, red, a slow pulsing dot, the time, "(started by the AI)". Hooked centrally: document pointer events (capture) —
+  a click {button, keys, at 0 … 1 of the view, px of get_screenshot {ui: true}, on: what is under it as the tools name
+  it (modeler view.pick / pickEdge -> edgeRef / measurePoint snaps, a sketch point [u, v], assembly pickInst, a sheet's
+  [data-dim] …)}, a held button: one `drag` event with its path sampled every 50 ms / 8 px, of view / object (the
+  view's controls on or off), from / to; no plain movement —, `click` (a control's label; a suggestions row: `suggest`
+  {row, table, about}), keydown (named keys and shortcuts, not typing), input / change (`value`, once per value),
+  wheel (`view` zoom, merged), History.watchers (new in history.js: undo / redo, and the snapshots diffed: steps,
+  parts, joints, couplings, harnesses added / changed (field: old → new) / deleted), `a3d:select` (suggest.js
+  showSuggest: what is selected, its refs), a MutationObserver on #toasts (every message, level + text). Screenshots
+  (agent_more screenshotUI, 800 px PNG, the clicks of the last 5 s / the drag drawn in red) at an error / warning toast
+  and a step done, at most one every 5 s each, 12 kept. AI: start_recording, stop_recording, get_recording {since, last,
+  paths}, get_recording_screenshot {id} (agent_tools.py, the system prompt's "Watching the user", teach-the-user
+  skill); the chat (agent.js): 📎 Attach the recording (n events) on a stopped one -> its events as lines with the next
+  message. Tests: test_agent_wiring (recorder.js handlers), tools/e2e_recording.py (29 checks), e2e_agent. Left out:
+  saving a recording to the data folder; a sketch's shapes are diffed as "shapes: n → m items", not shape by shape.
+
 - **The AI sees the suggestions table (2026-10-29)** (the owner: "zdá se mi, že agent nevidí suggestion table"). It
   did not: gui_state listed the table's rows as plain buttons among the rest (where: panel, no title, no order, nothing
   marking them), the rows under ⋯ Show all not at all, and get_screenshot drew the 3D only. Now suggest.js keeps each

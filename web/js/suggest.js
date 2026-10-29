@@ -214,6 +214,7 @@ function pickRows(items, all) {
  *  values to pick with one click — a tolerance, a roughness; on: the current one, ✓)], hint (a line under it), refs (what is selected, as the AI's tools name it: ✨ puts
  *  it in the chat). More rows than the user's limit (suggestLimit): the most relevant ones, then ⋯ Show all (n). */
 export function showSuggest(viewport, title, items, hint = '', refs = '') {
+  window.dispatchEvent(new CustomEvent('a3d:select', { detail: { title, refs, n: items?.length || 0 } })); // (⏺ the recording: what is selected)
   let box = viewport.querySelector(':scope > .view-suggest');
   const closed = leftDock.sgState().closed && !leftDock.suggestDocked; // (docked: folded instead — leftdock.js)
   pill(viewport, closed, items?.length ? pickRows(items, true).total : 0);

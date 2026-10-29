@@ -14,6 +14,7 @@ import { LibraryBrowser, saveToLibrary, libraryItems, matchScore, itemFromModel 
 import { repaint } from './modeler/paint.js';
 import { moreHandlers, colouredGroups, screenshotUI } from './agent_more.js';
 import { teachHandlers } from './agent_teach.js';
+import { recorder, recordHandlers } from './recorder.js';
 import { buildPart, sizesOf, lengthsOf } from './library/build.js';
 import { Project } from './parts.js';
 import { Modeler } from './modeler/modeler.js';
@@ -2800,6 +2801,8 @@ const libraryTools = {
 Object.assign(agentHandlers, libraryTools);
 Object.assign(agentHandlers, moreHandlers({ state, project, modeler, assembly, drawing2d, sheet, drawingSet: (aid) => sheet.drawingSet(aid, drawingCtx()), t2 }));
 Object.assign(agentHandlers, teachHandlers()); // gui_highlight: the AI shows the user where to click
+recorder.init({ state, project, modeler, assembly }); // ⏺ the recording of moves: the top bar's ⏺, the indicator, the hooks
+Object.assign(agentHandlers, recordHandlers()); // (start_recording, stop_recording, get_recording, get_recording_screenshot)
 const exportData = agentHandlers.export_data; // (+ the project file, as Save project writes it: export {format: "project"})
 agentHandlers.export_data = async (args = {}) => (args.format === 'project'
   ? { text: 'ok', data: { name: safeName(), project: await savedProject({ history: !!args.history }) } } : exportData(args));

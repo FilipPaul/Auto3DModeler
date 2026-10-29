@@ -761,6 +761,37 @@ TOOLS = [
                     "the next. Without wait it answers at once (and says what happened to the tip before).",
      "inputSchema": _obj({"control": {}, "at": {"type": "array", "items": NUM}, "text": STR, "step": {},
                           "wait": {"type": "boolean"}, "timeout": NUM, "clear": {"type": "boolean"}})},
+    {"name": "start_recording", "where": "browser",
+     "description": "⏺ Start recording the user's moves — ONLY when the user asks you to watch (\"look what I'm doing\", \"podívej se, "
+                    "co dělám\"). The user sees a red “⏺ Recording moves (started by the AI) · ■ Stop” at the top of the view and can "
+                    "stop it any time; it runs until stopped (stop_recording or the user), across workspaces, parts and a reload. "
+                    "reason: a few words why (shown in its tooltip). Then tell them to go ahead and say when they are done.",
+     "inputSchema": _obj({"reason": STR})},
+    {"name": "stop_recording", "where": "browser", "description": "Stop the recording of the user's moves (start_recording) — when they say they are done; get_recording reads it.",
+     "inputSchema": _obj({})},
+    {"name": "get_recording", "where": "browser",
+     "description": "The recording of the user's moves (the user's ⏺ in the top bar, or start_recording): running, who started it, "
+                    "seconds, and its events in order (the newest 2000 are kept; dropped = the first index still there) — each "
+                    "{i (index), t (s from the start), kind, where (workspace · part (id) · the step being made, given when it "
+                    "changed)}. Kinds: click {button left / right / middle, keys held [ctrl, shift, alt], at [x, y] 0 … 1 across "
+                    "and down the view (as gui_action's at; none outside the view), px (the pixels of get_screenshot {ui: true}), "
+                    "on: what was under it as the tools name it (face F2:end, edge F2:end|F1:side:0, corner / midpoint / centre "
+                    "snaps, part I2 face …, a sketch point [u, v], dimension …, button …), double; a control clicked: control "
+                    "(its label)}, suggest {row, table, about (what was selected)} — a suggestions row run, drag {button, of: view "
+                    "(orbit / pan) or object (a part, a dimension, a hole, a sketch shape), from / to (under the press / the "
+                    "release), path [[x, y] …] and path_px (sampled every 50 ms / 8 px)}, view {zoom: wheel steps}, key {key: "
+                    "Escape, Enter, Delete, ctrl+z …}, value {field, value} (typed / chosen), select {what (as ✨ names it: a face "
+                    "of a step, a part, a dimension; null: nothing)}, undo / redo, step added / changed (changes: field: old → "
+                    "new) / deleted, part / joint / coupling added …, switch {to}, toast {level error / warning / info / ok, text} "
+                    "(the app's messages — errors and refusals: what went wrong for the user), start / stop / reload. shot: a "
+                    "screenshot's id (get_recording_screenshot). since: from that event index (the next one you have not "
+                    "read: `next` of the last answer); last: only the last n; paths: false leaves the drags' points out.",
+     "inputSchema": _obj({"since": {"type": "integer", "minimum": 0}, "last": {"type": "integer", "minimum": 1}, "paths": {"type": "boolean"}})},
+    {"name": "get_recording_screenshot", "where": "browser",
+     "description": "A small screenshot the recording took at a key moment (an error message, a step done; at most one every 5 s): "
+                    "id from get_recording's shots / an event's shot (\"S1\"). The window as the user saw it, their clicks of the "
+                    "5 s before as red rings and a drag as a red line ending in a dot.",
+     "inputSchema": _obj({"id": STR}, ["id"])},
     {"name": "remove_joint", "where": "browser", "description": "Remove a joint (id J…) or a coupling (id G…: gear / belt / rack) of the assembly on screen; the part stays where it is.",
      "inputSchema": _obj({"id": STR}, ["id"])},
     {"name": "measure", "where": "browser",
@@ -833,6 +864,8 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 Before modelling, changing a 3D model, making a part from a picture, preparing a print or assembling parts, load the matching skill (auto3d:model-a-part, auto3d:change-a-model, auto3d:from-picture, auto3d:print-prep, auto3d:assemble-parts, auto3d:use-a-drawing) — or call get_guide(topic) if skills are not available. For any design of a device, a mechanism, a bracket for bought parts or a machine, load auto3d:mechanical-design first; for automation also auto3d:automation-design and auto3d:fits-and-tolerances; for a functional printed part auto3d:print-functional; for a graphic / decorative print auto3d:print-graphics.
 
 **Teach, do not only describe:** when the user asks how to do something, where something is, or says "show me", load auto3d:teach-the-user and lead them with gui_highlight step by step (gui_state to find the control, gui_highlight {control, text, step, wait: true}, then the next) — do not do it for them unless they ask you to.
+
+**Watching the user:** when the user says "look what I'm doing" / "watch me" / "podívej se, co dělám", call start_recording and tell them to go ahead; when they say they are done, get_recording (stop_recording if it still runs; get_recording_screenshot for its shots) and answer from what they did — the toasts' texts and the last clicks before them are usually the problem. A message may come with a recording attached (its events as lines). Never start it unasked.
 
 **Slash commands:** a message "/uiTester" means: load auto3d:ui-tester and test the app's GUI as it says; "/suggest" means: load auto3d:suggest-features.
 

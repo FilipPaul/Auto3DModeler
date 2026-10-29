@@ -447,6 +447,14 @@ try:
     print("    highlighted:", d.execute_script("return document.querySelector('.teach-tip')?.textContent.replace(/\\s+/g, ' ').trim()"))
     tool("gui_highlight", clear=True)
     print("    cleared:", d.execute_script("return !document.querySelector('.teach-ring')"))
+    # ⏺ the recording of moves: the AI starts it (the pill says so), reads it, stops it
+    tool("start_recording", reason="the user asked: watch me")
+    print("    the pill:", d.execute_script("const p = document.querySelector('.rec-pill'); return p && !p.hidden && p.textContent"))
+    t, _ = tool("get_recording", last=5, paths=False)
+    print(f"    running: {json.loads(t)['running']} | first event: {json.loads(t)['events'][0]['kind']}")
+    tool("stop_recording")
+    print("    stopped, the pill gone:", d.execute_script("return document.querySelector('.rec-pill').hidden"))
+    print("    an unknown shot:", tool("get_recording_screenshot", id="S9")[1].get("isError"))
     tool("list_reports", search="sketch")
 finally:
     print("console errors:", [e["message"] for e in d.get_log("browser") if e["level"] == "SEVERE"])

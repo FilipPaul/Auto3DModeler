@@ -2162,6 +2162,18 @@ const CS = {
   'parallel faces': 'rovnoběžné plochy', 'clicked spots': 'kliknutá místa', 'axis to the face': 'osa k ploše',
   'That part has no solid to measure.': 'Ten díl nemá těleso k měření.', 'The clearance is measured between two parts.': 'Vůle se měří mezi dvěma díly.',
   'The distance between the parts could not be worked out.': 'Vzdálenost mezi díly se nepodařilo zjistit.', 'Measuring a clearance': 'Měřím vůli', 'reading the measurements': 'čte měření', 'clearing the measurements': 'maže měření',
+  // ⏺ the recording of moves (recorder.js): the top bar's switch, the pill in the view, the chat's 📎
+  '⏺ Recording of moves: the AI sees what you do (clicks, commands, values, errors) — click to start, click again to stop':
+    '⏺ Záznam pohybů: AI uvidí, co děláte (kliky, příkazy, hodnoty, chyby) — kliknutím spustíte, dalším kliknutím zastavíte',
+  'Recording your moves for the AI — click to stop': 'Nahrávám vaše pohyby pro AI — kliknutím zastavíte',
+  'Recording moves': 'Nahrávám pohyby', 'Stop the recording — the AI can read it then': 'Zastavit záznam — AI si ho pak přečte',
+  'started by the AI': 'spustila AI', 'Started by the AI': 'Spustila AI',
+  'Your clicks, commands, values and the app\'s messages are kept for the AI (not plain mouse movement)': 'Vaše kliky, příkazy, hodnoty a hlášení aplikace se ukládají pro AI (ne pouhý pohyb myši)',
+  'Click: the recording does not go with the message': 'Kliknutím záznam ke zprávě nepřiložíte', 'The recording goes with the message': 'Záznam se pošle se zprávou',
+  'Your recorded moves go with the next message — the AI reads what you did': 'Vaše nahrané pohyby se pošlou s další zprávou — AI si přečte, co jste dělali',
+  'Attach the recording ({n} events)': 'Přiložit záznam ({n} událostí)', 'Look at what I did.': 'Podívej se, co jsem dělal(a).', Attach: 'Přiložit',
+  'starting to record your moves': 'spouští záznam vašich pohybů', 'stopping the recording': 'zastavuje záznam', 'reading your recorded moves': 'čte vaše nahrané pohyby',
+  'looking at a recorded screenshot': 'prohlíží snímek ze záznamu',
 };
 
 // ---------------------------------------------------------------------------- texts with values ({} = a value; {1}, {2} … in the Czech text)

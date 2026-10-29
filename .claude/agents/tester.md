@@ -657,6 +657,13 @@ Never report "works" without having run it; report failures with their output.
    reached through ⋯ Show all (the table back to its top rows); an unknown label refused with the offered rows;
    get_screenshot {ui: true} draws the table where it is (its box differs from the view with the table hidden); an
    assembly's part picked (its table, a row run); a sheet's dimension (its table, the ui screenshot names it).
+   `tools/e2e_recording.py <url> <dir>` covers ⏺ the recording of moves (in Czech, real mouse): the top bar's ⏺ ->
+   the red pill at the top centre of the 3D view; a block made through the table (a line's length typed 0: the error
+   toast, ✓ Hotovo, the extrude's 10, OK), the top face clicked, ◎ Díra sem, Esc, Ctrl+Z, a drag with the button held;
+   an assembly: the pill there too; get_recording (handler and /api/agent/call) has them in order — the click's place
+   (at 0 … 1, px) and face, the row's table and what was selected, the toast's text with a screenshot, the drag as one
+   event with its points (paths: false: without them), last / since; get_recording_screenshot; ■ Zastavit hides it;
+   the chat's 📎 Přiložit záznam (n událostí); start_recording: "(spustila AI)"; a reload goes on; no console errors.
    `tools/e2e_ai_gui.py <url> <dir>` covers the AI's GUI testing: gui_action at a point of the 3D view (the lid
    picked, an empty corner: none), Delete / ctrl+z keys, gui_state on a sheet (dims, views, cells), a dimension
    clicked + Delete + ctrl+z, a view dragged 20 mm by at_mm / drag_to, a double-click on the title cell (its field
