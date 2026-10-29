@@ -4,6 +4,7 @@ import { t, getLang } from '../i18n.js';
 import { ModelView } from '../modeler/view.js';
 import { fetchRebuild } from '../modeler/packed.js';
 import { buildPart, sizesOf, lengthsOf, shopLinks, fill, varsOf, modelKey } from './build.js';
+import { goesWith } from './pairs.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
@@ -147,7 +148,7 @@ export class LibraryBrowser {
     if (!cur) return;
     const { it, built } = cur, lib = built.data.library, sizes = sizesOf(it), ls = lengthsOf(it, this.state.size);
     const order = Object.entries(lib.order || {}).filter(([, v]) => v);
-    const asm = this.hooks.canInsert();
+    const asm = this.hooks.canInsert(), pairs = goesWith(this.items, it, this.state.size); // (🔗 the parts that go with it)
     box.innerHTML = `<h2 data-no-i18n>${esc(built.name)}</h2>
       ${lib.approx ? `<p class="lib-approx" title="${esc(t('Drawn as its outline from the catalogue sizes — check the maker\'s drawing before you rely on it.'))}">≈ ${esc(t('outline'))}</p>` : ''}
       <div class="lib-choose">${sizes.length > 1 || sizes[0]?.key ? `<label>${esc(t('Size'))} <select data-k="size">${sizes.map((s) => `<option value="${esc(s.key)}" ${s.key === this.state.size ? 'selected' : ''}>${esc(s.key)}</option>`).join('')}</select></label>` : ''}
@@ -162,6 +163,8 @@ export class LibraryBrowser {
         ${lib.standard ? `<span>${esc(t('Standard'))}</span><b data-no-i18n>${esc(lib.standard)}</b>` : ''}
         ${order.map(([k, v]) => `<span>${esc(k.toUpperCase())}</span><b data-no-i18n>${esc(v)}</b>`).join('')}</div>
       ${lib.pn ? `<div class="lib-shops">${esc(t('Find it at'))} ${shopLinks(lib.pn, lib).map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.shop)}</a>`).join(' · ')}</div>` : ''}
+      ${pairs.length ? `<div class="lib-pairs"><span>${esc(t('Goes with'))}:</span> ${pairs.map((c, k) => `<span class="lib-pair"><a href="#" data-goto="${k}" title="${esc(t('Show it in the library'))}" data-no-i18n>${esc(nameOf(c.item))} ${esc(c.size)}</a><button class="mini" data-pair="${k}" ${asm ? '' : 'disabled'}
+        title="${esc(asm ? t('Put both into the assembly: this part, and that one on its axis where it goes') : t('Open an assembly first (＋ New assembly)'))}">⤵＋</button></span>`).join('')}</div>` : ''}
       <div class="lib-real">${lib.real ? `<span class="lib-realon">✓ ${esc(t('The maker\'s model'))}: <b data-no-i18n>${esc(lib.real)}</b></span>
           <button class="btn small" data-a="unreal" title="${esc(t('Use the drawn model again for this size'))}">✕</button>`
         : `<label class="btn small" title="${esc(t('Download the maker\'s 3D model (STEP) for this part number, then choose it here — the library uses it (its own colours) for this size from now on'))}">📎 ${esc(t('Use the maker\'s model (STEP)…'))}<input type="file" data-a="real" accept=".step,.stp,.STEP,.STP" hidden></label>`}</div>
@@ -195,6 +198,12 @@ export class LibraryBrowser {
     });
     box.querySelector('[data-a=unreal]')?.addEventListener('click', () => setModel(null, '').catch((err) => this.hooks.toast(err.message, 'error')));
     box.querySelector('[data-a=insert]').addEventListener('click', async () => { const c = this.current(); this.close(); await this.hooks.insertIntoAssembly(c.built.name, c.built.data); });
+    for (const a of box.querySelectorAll('[data-goto]')) a.addEventListener('click', (e) => { e.preventDefault(); const c = pairs[+a.dataset.goto]; this.select(c.item.id, c.size); this.renderList(); });
+    for (const b of box.querySelectorAll('[data-pair]')) b.addEventListener('click', async () => {
+      const c = this.current(), comp = pairs[+b.dataset.pair];
+      this.close();
+      try { await this.hooks.insertPair(c.built.name, c.built.data, comp); } catch (e) { this.hooks.toast(e.message, 'error', 7000); }
+    });
     box.querySelector('[data-a=model]').addEventListener('click', async () => { const c = this.current(); this.close(); await this.hooks.openAsModel(c.built.name, c.built.data); });
     box.querySelector('[data-a=libEdit]')?.addEventListener('click', async () => {
       const c = this.current();

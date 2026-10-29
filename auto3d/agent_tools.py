@@ -497,6 +497,15 @@ TOOLS = [
                     "placed, one part) or \"model\" (a new 3D model tab). In an assembly it returns the placed id (I…) and its flat / "
                     "round faces for snap_faces.",
      "inputSchema": _obj({"item": STR, "size": STR, "length": NUM, "to": {"type": "string", "enum": ["assembly", "model"]}}, ["item"])},
+    {"name": "library_pair", "where": "browser",
+     "description": "Put in what goes with a placed library part (library_search lists it as goes_with): a screw's nut / washer / "
+                    "heat-set insert (the same thread), a standoff's screw, a test probe's receptacle or a receptacle's probe, a "
+                    "cylinder's auto switch. part: the placed id (I…); role (\"nut\", \"washer\", \"insert\", \"screw\", "
+                    "\"receptacle\", \"probe\", \"auto switch\") and / or item (an id from goes_with); set: true = a nut and two "
+                    "washers for a screw. Each goes on the part's axis where it belongs (a washer under the head, the nut under the "
+                    "parts the screw holds; a probe seated in its receptacle with its stroke as its slide's limits), joined "
+                    "Concentric. -> the placed ids and joints.",
+     "inputSchema": _obj({"part": STR, "role": STR, "item": STR, "set": {"type": "boolean"}}, ["part"])},
     {"name": "check_collisions", "where": "browser",
      "description": "Where parts of the assembly on screen go into each other (touching faces are fine): the pairs, the overlap volume "
                     "(mm³) and its box. Check after joining parts; an overlap usually means a missing hole or a wrong joint.",

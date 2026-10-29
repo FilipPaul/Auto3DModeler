@@ -15,6 +15,7 @@ import { repaint } from './modeler/paint.js';
 import { moreHandlers, colouredGroups, screenshotUI } from './agent_more.js';
 import { teachHandlers } from './agent_teach.js';
 import { buildPart, sizesOf, lengthsOf } from './library/build.js';
+import { addCompanion, pairRows, goesWith, companions } from './library/pairs.js';
 import { Project } from './parts.js';
 import { Modeler } from './modeler/modeler.js';
 import { modelHandlers } from './modeler/agent_model.js';
@@ -2006,6 +2007,7 @@ const assembly = new Assembly({ left: $('asmLeft'), viewport: $('asmViewport'), 
   editInPlace: async (id, ctx) => { await project.switchTo(id); if (project.active === id) modeler.setContext(ctx); },
   openPart: (id) => project.switchTo(id),
   openLibrary: () => library.open(), // (📚 From the library… in the Insert menu and the Suggested table)
+  pairItems: (a) => libPairRows(a), // (🔗 a library part's companions: ＋ Nut M5, ＋ Washer M5, ＋ Set …, ＋ Receptacle)
   newProject: () => newProject.start(), // (📄 New project: the last row of the table with nothing chosen)
   openSheet: (id) => { const p = project.parts.find((q) => q.id === id); if (p) project.newSheet(id, `${p.name} — ${t('drawing')}`); }, // (📄 Drawing of the part: a placed part's sheet)
   drawingSet: () => drawingSetPdf(project.active),
@@ -2685,6 +2687,26 @@ window.__leftDock = leftDock;
 // 📚 the parts library: a part opens as a new 3D model, or goes into the assembly on screen (the same library part
 // once in the project, placed as often as wanted)
 const libKey = (d) => (d?.library ? JSON.stringify([d.library.id, d.library.size, d.library.length ?? null]) : null);
+/** A library part as a part of the project (the same choice again: the part that is there) -> its id. */
+const libPart = (name, data) => project.parts.find((p) => p.kind === 'model' && typeof p.data === 'object' && libKey(p.data) === libKey(data))?.id
+  || project.addBackground(name, structuredClone(data));
+// 🔗 the library's items, kept for the assembly's suggestions (a placed library part offers its companions)
+let libCache = [];
+const loadLibCache = () => libraryItems().then((items) => { libCache = items; assembly.renderSuggest?.(); }).catch(() => {});
+loadLibCache();
+/** Companions in, one after another, onto the placed part `hostId` -> the results (pairs.js addCompanion). */
+async function addPairs(hostId, list) {
+  const out = [];
+  for (const c of list) out.push(await addCompanion(assembly, libCache, hostId, c, { addPart: libPart }));
+  const names = list.map((c) => buildPart(c.item, c.size).name);
+  toast(t2('{what} — on the axis of {part}, where it goes (Concentric: it can slide along it to its place).', { what: [...new Set(names)].join(' + '), part: assembly.partName(assembly.inst(hostId)?.part) }), 'ok', 5000);
+  return out;
+}
+function libPairRows(a) {
+  const data = assembly.hooks.partData(a.part);
+  if (!data?.library || !libCache.length) return [];
+  return pairRows(libCache, data, (list) => addPairs(a.id, list).catch((e) => toast(e.message, 'error', 7000)));
+}
 const library = new LibraryBrowser({
   toast,
   importSolid: (file) => importSolid(file),
@@ -2701,11 +2723,17 @@ const library = new LibraryBrowser({
     toast(t2('{name} — your library part, to change. 📚 Save back to the library keeps the change.', { name: item.name }), 'ok', 6000);
   },
   async insertIntoAssembly(name, data) {
-    const same = project.parts.find((p) => p.kind === 'model' && typeof p.data === 'object' && libKey(p.data) === libKey(data));
-    const id = same?.id || project.addBackground(name, structuredClone(data));
-    await assembly.insert(id);
+    await assembly.insert(libPart(name, data));
     toast(t2('{name} is in the assembly — join it with 🔗 Joint.', { name }), 'ok', 5000);
   },
+  /** 🔗 Goes with: this part and its companion put in together, the companion on its axis where it goes. */
+  async insertPair(name, data, comp) {
+    const before = new Set(assembly.doc.instances.map((i) => i.id));
+    await assembly.insert(libPart(name, data));
+    const host = assembly.doc.instances.find((i) => !before.has(i.id));
+    if (host) await addPairs(host.id, [comp]);
+  },
+  libraryChanged: () => loadLibCache(),
 });
 $('libBtn').addEventListener('click', () => library.open());
 
@@ -2738,6 +2766,7 @@ const libraryTools = {
       const first = (sizes.find((s) => words.includes(plain(s.key))) || sizes[0])?.key, ls = lengthsOf(it, first), sample = buildPart(it, first, ls?.values[0]);
       return { item: it.id, name: it.name, category: it.category, maker: it.maker || undefined, standard: it.standard || undefined, outline_only: it.approx || undefined,
         sizes: sizes.map((s) => s.key).slice(0, 40), [ls ? (ls.name === 'Stroke' ? 'strokes' : 'lengths') : 'no_length']: ls ? (Array.isArray(it.lengths.values) ? ls.values : `per size, e.g. ${first}: ${ls.values.join(', ')}`) : true,
+        ...(it.pairs?.length ? { goes_with: goesWith(items, it, first).map((c) => ({ item: c.item.id, role: c.role, size: c.size })) } : {}),
         example: { size: first, ...(ls ? { length: ls.values[0] } : {}), name: sample.name, pn: sample.data.library.pn, description: sample.data.library.description } };
     })) };
   },
@@ -2765,6 +2794,28 @@ const libraryTools = {
     }
     await library.hooks.openAsModel(built.name, built.data);
     return { text: JSON.stringify({ ...facts, part: project.current?.id, on_screen: true, hint: 'A 3D model of its own now: get_model / find_refs; insert_part it into an assembly.' }) };
+  },
+  library_pair: async ({ part, role = '', item = '', set = false }) => {
+    if (state.workspace !== 'assembly') throw new Error('No assembly on screen.');
+    const it = assembly.inst(part), data = it && assembly.hooks.partData(it.part);
+    if (!it) throw new Error(`No placed part “${part}” (I…, from get_assembly or library_add).`);
+    if (!data?.library) throw new Error(`${part} is not a library part — library_pair puts in what goes with a library part.`);
+    if (!libCache.length) libCache = await libraryItems();
+    const host = libCache.find((x) => x.id === data.library.id), list = host ? companions(libCache, host, data.library.size) : [];
+    if (!list.length) throw new Error(`Nothing in the library goes with ${data.library.pn || data.library.item}.`);
+    let pick;
+    if (set) {
+      const w = list.find((c) => c.role === 'washer'), n = list.find((c) => c.role === 'nut');
+      if (!w || !n) throw new Error('A set is a nut and two washers — this part has no washer or no nut in the library.');
+      pick = [w, w, n];
+    } else {
+      const c = list.find((x) => (!item || x.item.id === item) && (!role || x.role === role));
+      if (!c) throw new Error(`Goes with it: ${list.map((x) => `${x.role} ${x.item.id} ${x.size}`).join('; ')} — role / item one of these.`);
+      pick = [c];
+    }
+    const res = await addPairs(it.id, pick);
+    return { text: JSON.stringify({ placed: res.map((r, k) => ({ id: r.inst, role: pick[k].role, item: pick[k].item.id, size: pick[k].size, joint: r.joint, ...(r.travel ? { stroke_limits: r.travel } : {}) })),
+      hint: 'Each is on the part\'s axis (a Concentric joint, its slide along the axis free: move_free / set_travel); a probe in its receptacle has its stroke as its slide\'s limits.' }) };
   },
   check_collisions: async () => {
     if (state.workspace !== 'assembly') throw new Error('No assembly on screen.');

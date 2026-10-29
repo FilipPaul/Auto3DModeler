@@ -687,11 +687,14 @@ Never report "works" without having run it; report failures with their output.
    put into an assembly as that solid with its part number; stroke 20 still drawn; ✕ -> drawn again) and a drawn
    part's own colours per step (the rod).
    `tools/e2e_library_build.py <url> <dir>` builds EVERY library part in every size (shortest and longest length) in
-   the kernel — run it after changing library/*.json (192 builds with the test probes; catalogue sizes spot-checked).
+   the kernel — run it after changing library/*.json (253 builds with the test probes; catalogue sizes spot-checked).
    `tools/e2e_library_probes.py <url> <dir>` covers the test probes in Czech (📚 Knihovna -> Testovací jehly (pogo
    pins) -> the INGUN heading opens -> GKS-100 214 130 A 2000: Czech description, Rozměry podle katalogu, datasheet /
-   STEP links, preview Ø1.37 × 33.4 -> into an assembly; search "1.27" finds the 50-mil ones only, "korunka 2.54", an
-   INGUN item no.).
+   STEP links, preview Ø1.37 × 33.4, Patří k: its receptacle -> into an assembly -> its table: ＋ Pouzdro KS-100 30 ->
+   seated (bottom 9.1 above the receptacle's), Concentric, its slide Zdvih limited to 6.35, no collision; an M5×20
+   screw: ＋ Matice M5 / ＋ Podložka M5 / ＋ Sada -> washer 19–20, washer 18–19, nut 13.3–18 on its axis; AI
+   library_search goes_with, library_pair a GKS-050 probe into KS-050 with its stroke; search "1.27" finds the 50-mil
+   ones only, "korunka 2.54", an INGUN item no.).
    `tools/e2e_library.py <url> <dir>` covers the 📚 Library window (search 608 -> 608-2Z, preview, shop links, open as
    a 3D model with its facts; an M3×10 put into an assembly twice = one part, a SICK sensor; part numbers in the parts
    list; ⬇ BOM CSV with the UTF-8 mark; Save to the library -> found, then deleted; opened 18 times: the 3D view keeps

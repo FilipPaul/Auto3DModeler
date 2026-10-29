@@ -755,6 +755,9 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .lib-subitems { margin-left: 12px; border-left: 1px solid var(--line); padding-left: 4px; }
 .lib-acc { display: inline-block; font-size: 11px; color: #7ee787; border: 1px solid #2f6b3a; border-radius: 10px; padding: 1px 8px; margin: 0 0 6px; }
 .lib-links { font-size: 12px; margin: 0 0 8px; }
+.lib-pairs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12px; margin: 0 0 8px; }
+.lib-pairs > span:first-child { color: var(--muted); }
+.lib-pair { display: inline-flex; align-items: center; gap: 3px; }
 .lib-detail { overflow-y: auto; padding-right: 4px; }
 .lib-detail h2 { margin: 0 0 6px; font-size: 16px; }
 .lib-choose { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }
