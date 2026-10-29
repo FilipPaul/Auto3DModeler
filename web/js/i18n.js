@@ -1329,6 +1329,11 @@ const CS = {
   'Dock in the right panel': 'Ukotvit v pravém panelu', 'Into the right panel, always in sight (or drag its header there)': 'Do pravého panelu, stále na očích (nebo tam přetáhněte jeho záhlaví)',
   "Empty — drag a widget's header here to dock it": 'Prázdné — přetáhněte sem záhlaví panelu a ukotvíte ho tu',
   Properties: 'Vlastnosti', 'Export / 3D print': 'Export / 3D tisk', 'Parts list and export': 'Kusovník a export',
+  // ↕ Automatic height and Rows in each widget's ⋯ menu (leftdock.js)
+  'Automatic height': 'Automatická výška', Rows: 'Počet řádků', all: 'vše', 'Show every row': 'Ukázat všechny řádky',
+  'Grow or shrink to show all of it, with no scrolling — as far as there is room; dragging its size by hand turns it off': 'Zvětší se nebo zmenší tak, aby bylo vidět vše bez posouvání — kam až je místo; ruční změna velikosti ji vypne',
+  'Only this many rows, then ⋯ More — empty: all of them': 'Jen tolik řádků, pak ⋯ Další — prázdné: všechny',
+  "Only the first rows (⋯ Rows in the widget's ⋯ menu)": 'Jen první řádky (⋯ Počet řádků v nabídce ⋯ panelu)',
   'Dock it in the left panel — always in sight (or drag its header there)': 'Ukotvit v levém panelu — stále na očích (nebo tam přetáhněte jeho záhlaví)',
   'Drag the header into the left panel to dock it there, or onto the view to float it': 'Přetáhněte záhlaví do levého panelu a ukotvíte ho tam, nebo do pohledu, kde bude plavat',
   'Dock it in the left panel — always in sight, in every workspace (or drag its header there)': 'Ukotvit v levém panelu — stále na očích, ve všech prostředích (nebo tam přetáhněte jeho záhlaví)',

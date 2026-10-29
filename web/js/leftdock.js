@@ -20,7 +20,7 @@
 // the first one is also the row of the suggestions widget with nothing selected.
 import { t } from './i18n.js';
 import { resetWidth } from './splitters.js';
-import { floatBox, setDockHook } from './floatbox.js';
+import { floatBox, setDockHook, scrollFade } from './floatbox.js';
 
 const KEY = 'a3d.leftDock'; // (both columns now: the old left-only layout is read as it was, the right panels added)
 const WS = ['quick', 'model', 'assembly', 'drawing', 'sheet'];
@@ -28,6 +28,11 @@ const PANEL = { quick: '.panel.left.quick-only', model: '#modelLeft', assembly: 
 const RPANEL = { quick: '.panel.right.quick-only', model: '#modelRight', assembly: '#asmRight', drawing: '#dwgRight', sheet: '#shRight' };
 // the parts of a right panel that are widgets of their own: [name (data-dock), title, the id of its box]
 const SECTIONS = { model: [['mexport', 'Export / 3D print', 'modelExport']], assembly: [['abom', 'Parts list and export', 'asmBom']], sheet: [['stitle', 'Title block', 'shTitle']] };
+// the rows of a list-type widget (its ⋯ Rows: the first N, then ⋯ More (k) / ▴ Fewer) — a widget may name its own
+// (addWidget's rows); the suggestions table counts its own (suggest.js: suggestLimit)
+const ROWS = { project: '.pt-row', 'panel:model': '.mt-tree > .mt-row', 'panel:assembly': '.as-list > .mt-item', mech: '.mc-list > *',
+  'versions-': '.vr-row', 'params-': '.px-row', 'measure-': '.ms-row', suggest: '.vs-list > [data-sg]' };
+const SUGGEST_ROWS = 8; // (the suggestions' first N — as before: "Top 8")
 const SIDES = ['dock', 'right']; // (docked: in the left column — 'dock', as before — or in the right one)
 const inCol = (m) => m === 'dock' || m === 'right';
 const VIEW = { quick: '#viewport', model: '#modelViewport', assembly: '#asmViewport', drawing: '#dwgViewport', sheet: '#shViewport' };
@@ -79,7 +84,7 @@ class LeftDock {
   /** The workspace's own record (its panel's place, heights, folded widgets, opacities). */
   my(ws = this.ws()) {
     const r = this.st.ws[ws] || (this.st.ws[ws] = {});
-    r.h ||= {}; r.fold ||= {}; r.pop ||= {}; r.cop ||= {};
+    r.h ||= {}; r.fold ||= {}; r.pop ||= {}; r.cop ||= {}; r.auto ||= {}; r.rows ||= {};
     if (r.op) { Object.assign(r.cop, r.op); delete r.op; } // (one opacity before: now the content's)
     return r;
   }
@@ -228,7 +233,157 @@ class LeftDock {
     for (const ev of ['pointerdown', 'pointerup', 'pointermove', 'mousedown', 'mouseup', 'click', 'dblclick', 'contextmenu']) {
       el.addEventListener(ev, (e) => { if (el.classList.contains('floating')) e.stopPropagation(); });
     }
+    // its grip / edges dragged while floating: a size of the user's own — ↕ Automatic height off
+    el.addEventListener('pointerdown', (e) => { if (el.classList.contains('floating') && e.target.closest('.fb-size, .fb-edge, [data-edge]')) this.autoOff(w); }, true);
+    this.watch(el, w);
     return el;
+  }
+
+  /** Watch widget element `el` (name w): its content changed -> its rows cut again, ↕ Automatic height follows. */
+  watch(el, w) {
+    if (!window.MutationObserver) return;
+    const mo = new MutationObserver((recs) => {
+      const own = (n) => n.nodeType === 1 && n.classList.contains('lw-more');
+      if (recs.every((r) => [...r.addedNodes, ...r.removedNodes].every(own))) return; // (its own ⋯ More row)
+      this.later(w);
+    });
+    mo.observe(el, { childList: true, subtree: true, characterData: true });
+  }
+
+  /** Once the content settles (a frame later): widget w's rows cut, the ↕ Automatic heights fitted. */
+  later(w) {
+    (this.due ||= new Set()).add(w);
+    if (this.raf) return;
+    this.raf = requestAnimationFrame(() => {
+      this.raf = 0;
+      const ws = this.ws(), due = [...this.due];
+      this.due.clear();
+      for (const x of due) this.cutRows(x, ws);
+      this.autoFit();
+      for (const x of due) this.fades(x, ws);
+    });
+  }
+
+  // ---------------------------------------------------------------------------------------------- rows and heights
+
+  /** The rows selector of list-type widget w in workspace ws (none: a form — no ⋯ Rows). */
+  rowSel(w, ws = this.ws()) {
+    if (this.extra[w]?.rows) return this.extra[w].rows;
+    if (w === 'panel' || w === 'props') return ROWS[`${w}:${ws}`] || null;
+    return ROWS[w] || Object.entries(ROWS).find(([k]) => k.endsWith('-') && w.startsWith(k))?.[1] || null;
+  }
+
+  /** Widget w's ⋯ Rows: how many show (0: all). The suggestions: 8 at first (or the old "Top N" setting). */
+  rowsLimit(w, ws = this.ws()) {
+    const v = this.my(ws).rows[w];
+    if (Number.isFinite(v)) return v;
+    if (w !== 'suggest') return 0;
+    let old = NaN;
+    try { old = parseInt(localStorage.getItem('a3d.suggestTop'), 10); } catch { /* private window */ }
+    return Number.isFinite(old) && old >= 1 ? old : SUGGEST_ROWS;
+  }
+
+  /** Widget w's ⋯ Rows set (n: a number ≥ 1, else all). */
+  setRows(w, n, ws = this.ws()) {
+    const v = Math.round(+n);
+    this.my(ws).rows[w] = Number.isFinite(v) && v >= 1 ? Math.min(999, v) : 0;
+    if (w === 'suggest') { try { if (v >= 1) localStorage.setItem('a3d.suggestTop', String(v)); else localStorage.removeItem('a3d.suggestTop'); } catch { /* private window */ } }
+    this.save();
+    if (w === 'suggest') window.dispatchEvent(new CustomEvent('a3d:suggest-rows'));
+    this.later(w);
+  }
+
+  /** List widget w: only its first N rows shown, then a row ⋯ More (k) (▴ Fewer once opened). */
+  cutRows(w, ws = this.ws()) {
+    const sel = this.rowSel(w, ws), el = w === 'suggest' ? null : this.widgetEl(w, ws);
+    if (!sel || !el) return;
+    for (const b of el.querySelectorAll('.lw-more')) b.remove();
+    for (const r of el.querySelectorAll('.lw-cut')) r.classList.remove('lw-cut');
+    const n = this.rowsLimit(w, ws), rows = [...el.querySelectorAll(sel)].filter((r) => r.offsetParent || getComputedStyle(r).display !== 'none');
+    if (!n || rows.length <= n) return;
+    this.opened ||= {};
+    const open = !!this.opened[`${w}:${ws}`];
+    if (!open) for (const r of rows.slice(n)) r.classList.add('lw-cut');
+    const b = document.createElement('button');
+    b.className = 'lw-more';
+    b.textContent = open ? `▴ ${t('Fewer')}` : `⋯ ${t('More')} (${rows.length - n})`;
+    b.title = t(open ? 'Only the first rows (⋯ Rows in the widget\'s ⋯ menu)' : 'Show every row');
+    b.addEventListener('click', (e) => { e.stopPropagation(); this.opened[`${w}:${ws}`] = !open; this.cutRows(w, ws); this.autoFit(); });
+    b.addEventListener('pointerdown', (e) => e.stopPropagation());
+    const last = open ? rows[rows.length - 1] : rows[n - 1];
+    last.after(b);
+  }
+
+  /** How tall widget element el would be with all its content shown (its inner scrolling boxes opened too). */
+  natural(el) {
+    const st = el.style, keep = { flex: st.flex, minHeight: st.minHeight, height: st.height, maxHeight: st.maxHeight };
+    Object.assign(st, { flex: '0 0 auto', minHeight: '0', height: 'auto', maxHeight: 'none' });
+    let h = el.offsetHeight;
+    for (const x of el.querySelectorAll('*')) { // (a box inside that scrolls: what it hides)
+      if (x.scrollHeight > x.clientHeight + 1 && x.clientHeight > 0 && /auto|scroll/.test(getComputedStyle(x).overflowY)) h += x.scrollHeight - x.clientHeight;
+    }
+    Object.assign(st, keep);
+    return Math.ceil(h);
+  }
+
+  /** The docked suggestions' height as their content asks (they are shown over their widget: suggest.js). */
+  suggestNatural() {
+    const box = [...document.querySelectorAll('.view-suggest.docked')].find((b) => !b.classList.contains('lw-off'));
+    if (!box) return null;
+    let h = 26 + 2;
+    for (const c of box.children) h += c.classList.contains('vs-list') ? c.scrollHeight : c.offsetHeight;
+    return Math.ceil(h);
+  }
+
+  /** ↕ Automatic height on? (widget w, the workspace on screen) */
+  isAuto(w, me = this.my()) { return !!me.auto[w]; }
+  setAuto(w, on) {
+    const me = this.my();
+    if (on) me.auto[w] = true; else delete me.auto[w];
+    if (on) delete me.h[w];
+    this.save();
+    this.nat = {};
+    this.apply();
+  }
+  /** A size of the user's own (a splitter, a floating box's grip): ↕ Automatic height off for w. */
+  autoOff(w) {
+    const me = this.my();
+    if (!me.auto[w]) return;
+    delete me.auto[w];
+    this.save();
+  }
+
+  /** The ↕ Automatic heights of the workspace on screen fitted to their content: docked — the column laid out again
+   *  when one changed; floating — as tall as its content, at most the view's height. */
+  autoFit() {
+    if (!this.layout) return;
+    const ws = this.ws(), me = this.my(ws);
+    this.nat ||= {};
+    let again = false;
+    for (const w of Object.keys(me.auto)) {
+      if (!me.auto[w]) continue;
+      const m = this.mode(w, ws);
+      if (inCol(m)) {
+        if (!this.docked(ws, m).includes(w) || this.isFold(me, w)) continue;
+        const el = this.widgetEl(w, ws), h = w === 'suggest' ? this.suggestNatural() : this.natural(el);
+        if (h && Math.abs((this.nat[w] || 0) - h) > 1) { this.nat[w] = h; again = true; }
+      } else if (m === 'float') {
+        const el = w === 'suggest' ? document.querySelector(`${VIEW[ws]} > .view-suggest`) : this.widgetEl(w, ws);
+        if (!el?.offsetParent) continue;
+        const vp = el.parentElement, top = el.offsetTop, max = Math.max(80, vp.clientHeight - top - 8);
+        el.style.height = 'auto';
+        el.style.maxHeight = 'none';
+        const h = Math.min(max, this.natural(el));
+        Object.assign(el.style, { height: `${h}px`, maxHeight: `${max}px` });
+      }
+    }
+    if (again) this.apply();
+  }
+
+  /** The widget's scrolling boxes: no scrollbar, a fade at the edge that has more (as the suggestions table). */
+  fades(w, ws = this.ws()) {
+    const el = w === 'suggest' ? null : this.widgetEl(w, ws);
+    for (const x of el ? el.querySelectorAll(':scope > :not(.lw-head):not(.fb-size), :scope > .panel .mt-tree, :scope > .panel .as-list') : []) scrollFade(x);
   }
 
   /** A widget of workspace `ws` only (w: its name, e.g. 'mech'), docked under the others at first; hidden until
@@ -364,10 +519,13 @@ class LeftDock {
     this.st = fresh();
     this.save();
     try {
-      for (const k of Object.keys(localStorage)) if (k.startsWith('a3d.box.lw-') || k === 'a3d.box.suggest') localStorage.removeItem(k);
+      for (const k of Object.keys(localStorage)) if (k.startsWith('a3d.box.lw-') || k === 'a3d.box.suggest' || k === 'a3d.suggestTop') localStorage.removeItem(k);
     } catch { /* private window */ }
     resetWidth('left');
     resetWidth('right');
+    this.opened = {};
+    this.nat = {};
+    window.dispatchEvent(new CustomEvent('a3d:suggest-rows'));
     for (const el of this.layout.querySelectorAll('.lw-widget')) el.dataset.place = '';
     this.apply();
     for (const b of document.querySelectorAll('.view-suggest')) this.placeSuggest(b, b.parentElement, true);
@@ -460,6 +618,7 @@ class LeftDock {
     this.titles();
     this.applyOpacity();
     this.sync();
+    if (Object.values(me.auto).some(Boolean)) this.later('');
   }
 
   /** Column `side` of workspace `ws`: its docked widgets in order, a splitter between two, the heights. -> how many. */
@@ -469,8 +628,9 @@ class LeftDock {
     const splits = this.splits[side] ||= [];
     splits.forEach((sp, i) => { sp.hidden = i >= docked.length - 1; }); // (kept: one may be in the hand now)
     const H = col.clientHeight;
-    const open = docked.filter((w) => !this.isFold(me, w));
-    const flex = open.includes('panel') ? 'panel' : open.includes('props') ? 'props' : open[open.length - 1];
+    const open = docked.filter((w) => !this.isFold(me, w)), free = open.filter((w) => !this.isAuto(w, me)); // (↕ Automatic height: as tall as its content)
+    const flex = free.includes('panel') ? 'panel' : free.includes('props') ? 'props' : free[free.length - 1];
+    this.nat ||= {};
     docked.forEach((w, i) => {
       const el = this.widgetEl(w, ws);
       el.style.order = String(i * 2);
@@ -479,6 +639,7 @@ class LeftDock {
       if (f.textContent !== caret) f.textContent = caret;
       el.style.minHeight = w === flex ? '110px' : ''; // (the stretching one keeps some room: the others give way)
       if (this.isFold(me, w)) el.style.flex = '0 0 auto';
+      else if (this.isAuto(w, me)) el.style.flex = `0 1 ${Math.round(Math.max(MIN_H, this.nat[w] ?? this.defHeight(w, H)))}px`;
       else if (w === flex) el.style.flex = '1 1 0';
       else el.style.flex = `0 1 ${Math.round(clamp(me.h[w] ?? this.defHeight(w, H), MIN_H, Math.max(MIN_H, H - MIN_H)))}px`;
       if (i) { const sp = this.splitter(i - 1, side); sp.dataset.a = docked[i - 1]; sp.dataset.b = w; sp.style.order = String(i * 2 - 1); }
@@ -518,7 +679,7 @@ class LeftDock {
       const w = fa ? b : a, el = fa ? eb : ea, h0 = el.getBoundingClientRect().height, y0 = e.clientY, sign = fa ? -1 : 1;
       document.body.classList.add('resizing-v');
       sp.classList.add('on');
-      const move = (ev) => { me.h[w] = Math.round(Math.max(MIN_H, h0 + sign * (ev.clientY - y0))); if (this.isFold(me, w)) me.fold[w] = false; this.apply(); };
+      const move = (ev) => { if (me.auto[w]) delete me.auto[w]; me.h[w] = Math.round(Math.max(MIN_H, h0 + sign * (ev.clientY - y0))); if (this.isFold(me, w)) me.fold[w] = false; this.apply(); };
       const up = () => {
         sp.removeEventListener('pointermove', move);
         document.body.classList.remove('resizing-v');
@@ -539,6 +700,7 @@ class LeftDock {
   /** The suggestions table of view `vp` (suggest.js): in the left column (over its place there) or floating. */
   placeSuggest(box, vp, again = false) {
     if (!box || !vp) return;
+    if (this.layout) this.later("suggest"); // (its rows changed: ↕ Automatic height follows)
     box.sgOpts ||= {};
     if (inCol(this.st.suggest)) {
       if (!box.classList.contains('docked')) {
@@ -688,6 +850,8 @@ class LeftDock {
     pop.innerHTML = `${own.map(([i, l, tip], k) => `<button data-own="${k}" title="${tip}">${i} ${l}</button>`).join('')}${own.length ? '<div class="menu-sep"></div>' : ''}
       ${items.map(([k, l, tip]) => `<button data-a="${k}" title="${tip}">${l}</button>`).join('')}
       ${m === 'float' ? Object.entries(OPS).map(([k, o]) => { const v = Math.round(this.opacity(w, k) * 100); return `<label class="lw-opl" title="${t(o.tip)}"><span class="lw-opn">${t(o.label)}</span><input type="range" data-k="${k}" min="${o.min * 100}" max="100" step="5" value="${v}"><span class="lw-opv">${v} %</span></label>`; }).join('') : ''}
+      <div class="menu-sep"></div><button data-a="auto" class="lw-auto${this.isAuto(w) ? ' on' : ''}" title="${t('Grow or shrink to show all of it, with no scrolling — as far as there is room; dragging its size by hand turns it off')}">↕ ${t('Automatic height')}<span class="lw-tick">${this.isAuto(w) ? ' ✓' : ''}</span></button>
+      ${this.rowSel(w) ? `<label class="lw-rows" title="${t('Only this many rows, then ⋯ More — empty: all of them')}"><span class="lw-rown">${t('Rows')}</span><input type="number" min="1" max="999" step="1" placeholder="${t('all')}" value="${this.rowsLimit(w) || ''}"></label>` : ''}
       <div class="menu-sep"></div><button data-a="reset" title="${t('Every widget back to its usual place and size: the project tree and the workspace\'s panel on the left, its properties on the right, the suggestions in the view\'s corner')}">↺ ${t('Default layout')}</button>`;
     for (const b of pop.querySelectorAll('[data-a]')) {
       b.addEventListener('click', () => {
@@ -697,11 +861,16 @@ class LeftDock {
         if (a === 'float') this.float(w);
         if (a === 'popup') this.unpin();
         if (a === 'reset') this.reset();
+        if (a === 'auto') this.setAuto(w, !this.isAuto(w));
         if (w === 'project') this.onProject?.();
       });
     }
     for (const b of pop.querySelectorAll('[data-own]')) b.addEventListener('click', () => { this.closeMenu(); own[+b.dataset.own][3](); });
-    for (const r of pop.querySelectorAll('input[type=range]')) r.addEventListener('input', () => this.setOpacity(w, r.dataset.k, r.value / 100, this.widgetEl(w)?.querySelector('.lw-head')));
+    const head = () => (w === 'suggest' && this.mode(w) === 'float' ? document.querySelector(`${VIEW[this.ws()]} > .view-suggest > .vs-head`) : this.widgetEl(w)?.querySelector('.lw-head'));
+    for (const r of pop.querySelectorAll('input[type=range]')) r.addEventListener('input', () => this.setOpacity(w, r.dataset.k, r.value / 100, head()));
+    const rows = pop.querySelector('.lw-rows input');
+    rows?.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { this.setRows(w, rows.value); this.closeMenu(); } });
+    rows?.addEventListener('change', () => this.setRows(w, rows.value));
     document.body.appendChild(pop);
     const br = btn.getBoundingClientRect(), pw = pop.offsetWidth;
     Object.assign(pop.style, { left: `${Math.round(clamp(br.right - pw, 4, innerWidth - pw - 4))}px`, top: `${Math.round(Math.min(br.bottom + 4, innerHeight - pop.offsetHeight - 4))}px` });

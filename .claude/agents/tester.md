@@ -588,7 +588,11 @@ Never report "works" without having run it; report failures with their output.
    print on the right; Properties dragged left still works — material changed; the project tree dragged right; Export
    floated over the view; a reload keeps it all; the right column emptied -> a thin strip, the view wider; dropped on
    the strip: docked; the right edge wider -> the view follows; ↺ Default layout; the assembly's Parts list and export
-   dragged left; the sheet's Title block widget; Czech headers / menu / tooltips; 1600×1000; no horizontal scroll).
+   dragged left; the sheet's Title block widget; ↕ Automatic height on the project tree: 3 -> 12 parts, it grows, no
+   inner scrolling, the splitter turns it off; Rows 5: 5 rows + ⋯ More (7) -> 12 + ▴ Fewer -> 5; the floating
+   suggestions' ⋯: Rows shared with the old Top 8 (-> 5, a3d.suggestTop), opacities panel 0 % / content 60 %
+   (computed); a reload keeps them, ↺ resets them; Czech headers / menu / tooltips / Rows; 1600×1000; no horizontal
+   scroll).
    `tools/e2e_tabs.py <url> <dir>` covers the part tabs (9 long names: their own row under the top bar, 2 rows, 5
    letters readable on each, the one on screen and one being renamed wider, a tab dragged before the first, all
    closed: "No part open", ☰ opens one again).

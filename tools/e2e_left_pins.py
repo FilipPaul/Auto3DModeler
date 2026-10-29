@@ -406,7 +406,7 @@ try:
     d.find_element(By.CSS_SELECTOR, "#leftCol .lw-widget[data-w=project] .lw-menu").click()
     time.sleep(0.3)
     items = [b.text for b in d.find_elements(By.CSS_SELECTOR, ".lw-pop button")]
-    check(items[-4:] == ["📌 Ukotvit v pravém panelu", "⧉ Plovoucí nad pohledem", "☰ Zpět pod tlačítko ☰", "↺ Výchozí rozložení"], f"the menu: {items}")
+    check(items[-5:] == ["📌 Ukotvit v pravém panelu", "⧉ Plovoucí nad pohledem", "☰ Zpět pod tlačítko ☰", "↕ Automatická výška", "↺ Výchozí rozložení"], f"the menu: {items}")
     tips = js("return [document.querySelector('#leftCol .lw-split')?.title, document.querySelector('#leftCol .lw-head').title, document.querySelector('.lw-fold').title]")
     check(all(t and "the" not in t for t in tips), f"the tooltips: {tips}")
     shot("lp11_cs")

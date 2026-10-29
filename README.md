@@ -85,8 +85,12 @@ being edited, the selected part of an assembly, the sheet…) and the parts of i
 model's **Export / 3D print**, an assembly's **Parts list and export**, a sheet's **Title block** — are widgets too:
 drag any header into the left or the right panel or onto the view, so everything can go anywhere (⋯ › 📌 Dock in the
 left / right panel does it too). A panel with nothing left in it shrinks to a thin strip (drop a widget there to
-fill it again) and the view takes the room; the right panel's left edge sets its width. The layout is remembered per
-workspace; **⋯ › ↺ Default layout** puts everything back. A double-click on a row of the project tree renames the part.
+fill it again) and the view takes the room; the right panel's left edge sets its width. Every widget's **⋯** menu
+also has **↕ Automatic height** (it grows or shrinks with its content, no scrolling, as far as there is room — a
+height you drag by hand turns it off) and, for lists (the project tree, the steps, the assembly's parts, versions,
+measurements, the mechanism, parameters, the suggestions), **Rows**: only the first N show, then **⋯ More (k)** /
+**▴ Fewer** (the suggestions start at 8 — the same number as their "Top 8"). Where a widget still scrolls, it has no
+scrollbar, only a fade. The layout is remembered per workspace; **⋯ › ↺ Default layout** puts everything back. A double-click on a row of the project tree renames the part.
 
 **Snap and Select filters** (the row at the bottom of a sketch, remembered): **Snap:** *Points, Midpoints, Centres,
 Origin, On shapes, Guides, Grid* — where a point you draw (or drag) lands; *Grid* off puts it exactly

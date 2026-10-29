@@ -829,6 +829,16 @@ Date: 2026-10-25. Written by the architect agent.
   `.col-empty`; dropping a widget there docks it). gui_state's area() calls any widget control 'panel' wherever it is
   (unchanged). tools/e2e_dock_both.py (35 checks; real drags; the tests looking up moved controls now use #modelExport
   / #asmBom / #shTitle).
+- **Widget autosize and rows done** (the owner: "autosize … to have all fields visible; for each widget the number of
+  lines, a more button"): each widget's ⋯ menu has ↕ Automatic height (me.auto[w]: docked — flex-basis its natural
+  height, never the stretching one; floating — height to its content, at most the view; a MutationObserver per widget
+  + rAF re-measures, `natural()` opens inner scrollers; the splitter / a floating grip or edge turns it off) and, for
+  list widgets (ROWS selectors: project .pt-row, the step tree's top rows, the assembly's parts, ⚙ mechanism,
+  versions, parameters, measurements, or addWidget's `rows`), Rows N (me.rows[w], 0 = all): rows past N get .lw-cut
+  and a `⋯ More (k)` / `▴ Fewer` row. The suggestions' N is the same setting (suggestLimit reads it; default 8 or the
+  old a3d.suggestTop, which is still written). The floating suggestions table has the same ⋯ menu (dock, float, the
+  two opacity sliders, autosize, Rows); its scrollers and every widget body use floatbox's scrollFade (no scrollbar).
+  All per workspace in a3d.leftDock; ↺ Default layout resets them. tools/e2e_dock_both.py (+17 checks, 52).
 
 - **Nested step tree done** (SolidWorks / Solid Edge style; owner's request 2026-10-29): steptree.js — treeShape (a
   sketch under the first step made from it, a later one made from it too / a pattern's / a mirror's steps as links, the

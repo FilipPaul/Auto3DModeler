@@ -27,7 +27,7 @@ M = "window.__app.modeler"
 H = "window.__app.agentHandlers"
 VP = "#modelViewport"
 BOXES = {  # kind: (the box, its handle)
-    "suggest": (".view-suggest", ".vs-head"),
+    "suggest": (".view-suggest", ".vs-head > b"),  # (its title: the head also holds ✨, ⋯, ✕ and, on hover, Top 8)
     "printcheck": (".m-printcheck", ".mpc-head"),
     "section": (".m-section", ".fb-strip"),
 }
