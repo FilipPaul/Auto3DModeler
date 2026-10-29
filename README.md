@@ -574,7 +574,9 @@ yellow ⚠.
   Ø). Then click a second spot for the distance with Δx / Δy / Δz. It snaps to the part's **corners, edge midpoints and the centres of round edges** (holes, pins) — the point it will
   take shows green with its name while the mouse is near (in assemblies too) — and edges hidden
   behind the part are not picked.
-- **✂ Section** cuts the view along X, Y or Z with a slider, to look inside (⇄ shows the other side).
+- **✂ Section** cuts the view along X, Y or Z with a slider, to look inside (⇄ shows the other side): the half toward
+  you is taken away and the cut faces are filled in brick red, so bores, seats and channels show (also in the AI's
+  screenshots).
 - The Part panel shows the size, volume and **mass** for the chosen **material** (PLA, PETG, ABS, ASA, TPU, PA;
   solid, no infill), its **surface area** and its **centre of mass** (CoG, in the part's coordinates); **⊕** next to
   it marks the centre of mass in the view.
@@ -1031,7 +1033,8 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   *⤢ Show all* to go back); ↗ chooses the two parts (their joints and moves). Slide a part and see it clear. Big imported parts (a whole assembled PCB) are checked quickly: two of them overlapping in many places show an estimate (**≈**) after a change — *↻ Check again* computes it exactly.
 - **🎨 Paint** colours faces of the placed parts (▢ Faces) or whole parts (◆ Whole parts) in this assembly: click
   them, Ctrl+click for more, pick a colour. The parts keep their own colours in their tabs and other assemblies.
-- **✂ Section** cuts every part along X, Y or Z (a slider moves the cut, ⇄ shows the other side).
+- **✂ Section** cuts every part along X, Y or Z (a slider moves the cut, ⇄ shows the other side); each part's cut
+  faces are filled.
 - **Explode** pulls the parts apart to look at them; their placement does not change. **💥** on a part in the list
   (shown while exploded) chooses whether it moves: off, it stays in place and the others move away from the parts
   that stay (a lid lifts off its box); **Ctrl+click** — only this one moves (again: all of them). Saved with the

@@ -403,6 +403,12 @@ Never report "works" without having run it; report failures with their output.
    step's tint not in it (the same pixels); highlight ["F4"] lights the wall orange and names its faces, a wrong name
    refused; an extrude inside the part warns "adds nothing", flipped it adds; an assembly of three 80 mm bars exploded
    0.6: 1200 × 900, all of it in the picture, a chosen part's glow not in it, highlight refused. Exits 1 on a failure.
+   `tools/e2e_section_revolved.py <url> <dir>` covers ✂ Section on a revolved part (a flanged tube with a Ø10 bore):
+   the toolbar's Y cut at 0 removes the half toward the camera and caps the cut (one cap, 720 mm² = the profile twice,
+   in the part's box), X too, ✕ no caps; the AI's set_view front + section y 0 + get_screenshot: brick-red walls
+   7 : 10 : 7 with the bore open, the flange 15 : 10 : 15, no oversized cap; flipped: no cap seen; z 25 from the top:
+   a ring of π(12² − 5²); z 0 on the bottom face: nothing left, no flickering ring; an assembly of two: both capped,
+   four walls on a row, its ✂ button too. Exits 1 on a failure.
    `tools/e2e_model_draft.py <url> <dir>` covers ⟋ Draft (5° on a block: the frustum's volume; the step's text; 60°
    refused with the most that fits; the AI's add_feature draft). Needs a server restarted after kernel changes.
    `tools/e2e_model_draft_rib.py <url> <dir>` covers an extrude's Draft field (5° on a block: the prismatoid's

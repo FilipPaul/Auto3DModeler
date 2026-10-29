@@ -706,7 +706,8 @@ TOOLS = [
      "inputSchema": _obj({"a": _obj({"part": STR, "face": STR}, ["face"]), "b": _obj({"part": STR, "face": STR}, ["face"])}, ["a", "b"])},
     {"name": "set_view", "where": "browser",
      "description": "Set the 3D view (model or assembly) before get_screenshot: view iso / top / front / right; section {axis x / y / "
-                    "z, offset mm, flip} to look inside (null or \"off\": no cut); explode 0 … 1 (an assembly pulled apart); sizes all / "
+                    "z, offset mm, flip} to look inside — the half toward the iso / front / right / top camera goes, the cut "
+                    "faces are filled brick red (null or \"off\": no cut); explode 0 … 1 (an assembly pulled apart); sizes all / "
                     "locked / none (the size labels).",
      "inputSchema": _obj({"view": {"type": "string", "enum": ["iso", "top", "front", "right"]}, "section": {}, "explode": NUM,
                           "sizes": {"type": "string", "enum": ["all", "locked", "none"]}})},

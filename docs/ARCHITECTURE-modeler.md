@@ -7,6 +7,15 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **✂ Section view fixed and capped (2026-10-29)** (the AI's report: a revolved pump body cut at y = 0 showed whole, with
+  a jagged ring at z = 0). Causes: a Y cut kept the half toward the iso / front cameras (x and z kept the far half), so
+  the part looked uncut; a face lying in the cut (the bottom at z = 0) z-fought with the clip plane — the jagged ring;
+  the cut was hollow (no caps). Now (view.js setSection) X / Z keep below, Y behind the cut (⇄ the other side), the
+  plane sits 1e-4 × the part's size into the kept side (a face in the cut goes whole), and updateCaps fills the cut:
+  web/js/modeler/sectioncap.js slices each part's triangles by the plane into closed outlines (an open one is left
+  unfilled), nests them (even-odd: holes) and triangulates them — brick red, an assembly's a little toward the part's
+  colour; remade when the cut, a part or its placement changes, and before get_screenshot's picture. Tests:
+  e2e_section_revolved.
 - **Icons at an extrude's height (2026-10-29)** (the owner: "u kliknutí na dimenzi vysunutí … pár ikonek … směr, k
   ploše a další ploše"): clicking the "↕ 10" label on the part opens the size editor with one line of 16 px stroke
   icons (web/js/modeler/dimicons.js, drawn like the step tree's): ⇅ flip, both sides, up to a face… (opens the Extrude
