@@ -1784,6 +1784,7 @@ const CS_PATTERNS = [
   ['Unsupported file type {} (PDF, DXF, DWG, STL, OBJ, 3MF, STEP).', 'Nepodporovaný typ souboru {1} (PDF, DXF, DWG, STL, OBJ, 3MF, STEP).'],
   ['The sheet\'s layout could not be made: {}', 'Rozvržení listu nešlo vytvořit: {1}'],
   ['The sheet could not be made a PDF: {}', 'Z listu nešlo udělat PDF: {1}'],
+  ['The dimensions could not be placed: {}', 'Kóty nešlo rozmístit: {1}'],
   ['The BOM could not be written as Excel: {}', 'Kusovník nešlo zapsat jako Excel: {1}'],
   ['The sheet could not be made a DXF: {}', 'Z listu nešlo udělat DXF: {1}'],
   ['Unknown format {}', 'Neznámý formát {1}'],
