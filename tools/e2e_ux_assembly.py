@@ -4,7 +4,7 @@ assembly's table, chosen: ◎ Onto the pin of Základna · Ø10 first (one click
 the crank's pin -> ＋ Smýkadlo: ⧉ Put it on Základna, ◎ Into the hole of Ojnice: a closed loop, every joint holds ->
 🏷 Rename it (typed) -> Esc: the whole assembly's table: ⚙ Drive the mechanism, 💥 Explode / Put it back together,
 ✂ Section on / off, ⚠ collisions (the list), 📏 Measure distances, 📋 Bill of materials (its window), ✕ Take it out
-(Ctrl+Z back), 📄 Drawing of the assembly (its sheet) — each task's clicks counted. Also: the toolbar in at most 2
+(Ctrl+Z back), 📄 Výkres dílu (the crank's sheet), 📄 Drawing of the assembly (its sheet) — each task's clicks counted. Also: the toolbar in at most 2
 rows at 1280, 🔗 Joint ▾ menu (Esc closes it), the part panel's look folded, the overview's joints folded.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_ux_assembly.py http://127.0.0.1:5199 <out dir>
@@ -215,9 +215,19 @@ try:
     time.sleep(0.4)
     check(js("const m = document.querySelector('#asmRight .as-more'); return !!m && !m.open"), "the part's look and editing folded")
     d.save_screenshot(f"{OUT}/ux_asm_7_part.png")
+
+    # 9 a placed part's drawing: its sheet opens (then back to the assembly)
+    asm_id = js("return window.__app.project.active")
+    suggest("drawing of a part", "📄 Výkres dílu")
+    wait("return window.__app.state.workspace === 'sheet'", 20)
+    sheet = js("return window.__app.project.current?.name || ''")
+    check("Klika" in sheet, f"📄 Výkres dílu: the crank's drawing sheet ({sheet})")
+    js("return window.__app.project.switchTo(arguments[0])", asm_id)
+    wait(f"return window.__app.state.workspace === 'assembly' && {A}.doc.instances.length === 4", 20)
+    time.sleep(0.6)
     esc()
 
-    # 9 the drawing of the assembly (last: it opens its sheet)
+    # 10 the drawing of the assembly (last: it opens its sheet)
     suggest("drawing", "Výkres sestavy")
     wait("return window.__app.state.workspace !== 'assembly'", 20)
     check(True, f"📄 the assembly's drawing sheet: {js('return window.__app.state.workspace')}")

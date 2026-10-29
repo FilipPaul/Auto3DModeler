@@ -7,6 +7,27 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Assembly: suggestion-based and compact done** (the owner: "90 % základních věcí ze suggestions"; audit of 22 basic
+  tasks: 8 → 20 doable from the Suggested table alone, the crank built from its four parts in 14 clicks instead of
+  ≈ 27 with four Ctrl+clicks on small faces). assembly/smart.js: pinFits (a free round face of the chosen part and one
+  of another part that fit — a pin as big as the hole or ≤ 0.6 mm smaller; the fixed / joined target and the nearest
+  first) -> ◎ "Do díry v Základna · Ø6" / "Na čep Klika · Ø8" (joinRound, seated when a face around it fits), restOn
+  (its lowest face looking down onto the top of the fixed part, or of the other chosen one) -> ⧉ "Položit na Základna".
+  Assembly.suggestAssembly: nothing chosen -> the whole assembly's table (empty: the project's parts, 3D models
+  first, 📚 Z knihovny… (hooks.openLibrary), 📂 Ze souboru…; then a loose pin that fits a hole, ⚙ Ovládat mechanismus,
+  ⚠ Ukázat kolize (n), 🔩 Přidat spojovací prvky (n) (findCandidates), ＋ the parts not placed yet, 💥 Rozložit / Složit
+  zpět, ✂ Řez, 📏, 📋 Kusovník, 📄 Výkres sestavy …; cached by the parts' places and joints). partItems ranked: the pin /
+  put-on / drive first, then join, open, ↻ Otočit o 90° / ⤵ Položit na bok (loose parts), 📌 (not on a joined part: a
+  dead end), ✕, 🏷 Přejmenovat, 📄 Výkres dílu (hooks.openSheet; ⊕ one more copy stays in the list row); 🪶 left the table (a property: in the panel). Esc: a menu, the
+  collisions / fasteners list, then the chosen part (back to the whole assembly's table). Toolbar in one row of
+  names where it fits (data-max-rows 2 for compactbar.js: icons when more): 🔗 Vazba ▾ (the joint types and
+  🔩 Šroub / kolík in a menu; the chip shows the active type), 💥 Rozložit ▾ (the slider and "Podle vazeb"); menus
+  close on a click elsewhere and over the Suggested table. Right panel: nothing chosen — the joints and couplings
+  folded into "🔗 Vazby (n)" (open by itself when one does not hold), the duplicate 📄 Výkres gone; a part — Open /
+  📌 / ✕ under its name (Join, Make it its own part: the table), Reset its place inside "Umístit ručně", Úpravy + Vzhled
+  folded into "🎨 Vzhled a úpravy" (assembly.moreOpen); a coupling's row laid out as a joint's. ⚙ Mechanism: a crank on
+  a pin of the fixed part is the driver first (also when the slider, not the rod, closes the loop). tests:
+  tools/e2e_ux_assembly.py; e2e tests that clicked a joint type open 🔗 Vazba ▾ first.
 - **AI tool coverage checked (2026-10-29)** (the owner: "checkni, jestli AI agent má přístup ke všem toolům"):
   docs/AI-TOOLS-COVERAGE.md — 90 GUI capabilities against the tools: before ok 54 / partial 14 / gui only 21, now
   ok 64 / partial 13 / gui 12 (layout, rare, many-input tools). tests/test_agent_wiring.py: the page's handlers (read
