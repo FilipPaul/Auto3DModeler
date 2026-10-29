@@ -1838,7 +1838,7 @@ export class Assembly {
     if (!all.length) return id === null ? '' : '<p class="hint">Not joined to anything — it stays where you put it.</p>';
     const fast = (m) => this.inst(m.move)?.fastener?.id, groups = [...new Set(all.map(fast).filter(Boolean))];
     const js = all.filter((m) => !fast(m)), bad = all.filter((m) => this.health?.get(m.id)?.ok === false).length;
-    const dbl = esc(t('Double-click: give it your own name')), asThey = esc(t('as they are')); // (translated here: a joint's own name is not, nor its tooltip then)
+    const dbl = esc(t('Double-click: give it your own name')), asThey = esc(t('as they are')), lockTip = esc(t('Motions of the part locked on this joint where they were (🔒 by a motion in Moves) — ✕ frees them')); // (translated here: a joint's own name is not, nor its tooltip then)
     const fRow = (gid) => {
       const f = this.doc.instances.find((i) => i.fastener?.id === gid).fastener, mine = (this.doc.mates || []).filter((m) => fast(m) === gid);
       const into = [...new Set(mine.map((m) => m.onto).filter((x) => !this.inst(x)?.fastener))].map((x) => this.partName(this.inst(x)?.part));
@@ -1861,6 +1861,7 @@ export class Assembly {
         <span class="as-jw"><b data-no-i18n>${esc(this.partName(a?.part))}</b> <i>${m.move}</i>${m.type === 'rigid' ? '' : ` · ${esc(this.faceText(m.move, m.face))}`} → <b data-no-i18n>${esc(this.partName(b?.part))}</b> <i>${m.onto}</i>${m.type === 'rigid' ? ` · ${asThey}` : ` · ${esc(this.faceText(m.onto, m.ontoFace))}`}${m.broken ? ' — ⚠ a face is gone' : ''}</span>
         ${why ? `<span class="as-jwhy" data-no-i18n>⚠ ${esc(why)}</span>` : ''}
         ${val}<span class="as-jbtn"><button class="mini ${m.locked ? 'on' : ''}" data-jlock="${m.id}" title="${m.locked ? 'Locked: moving the part by hand cannot break it — click to unlock' : 'Lock it: then it cannot be broken by moving the part'}">${m.locked ? '🔒' : '🔓'}</button><button class="mini danger" data-jdel="${m.id}" title="Remove this joint (the part stays where it is)" ${m.locked ? 'disabled' : ''}>✕</button></span>
+        ${m.slides?.length || (m.rot && m.type !== 'rigid') ? `<span class="as-jv as-jlocks" title="${lockTip}">🔒 ${esc(t2('{n} locked', { n: (m.slides?.length || 0) + (m.rot && m.type !== 'rigid' ? 1 : 0) }))} <button class="mini" data-junlock="${m.id}" ${m.locked ? 'disabled' : ''}>✕</button></span>` : ''}
         ${this.gapSlider(m)}
         ${turns ? `<label class="as-jspin" title="${rot ? 'The angle its turn is locked at, against the other part — to turn both, use Moves of the part they are on' : 'Turn the part about this joint (about the axis, or on the face) — it stays free to turn'}">↻ <input type="range" min="-180" max="180" step="1" list="as-ticks" data-jspin="${m.id}" value="${spin}">
         <input type="number" step="any" data-jspinn="${m.id}" value="${spin}">°<button class="mini as-jrot ${rot ? 'on' : ''}" data-jrot="${m.id}" title="${rot ? 'Its turn is locked here — click to let it turn freely' : 'It may turn freely — click to lock its turn where it is now'}">${rot ? '🔒 locked' : '🔓 free'}</button></label>` : ''}</div>`;
@@ -2027,6 +2028,15 @@ export class Assembly {
         const m = this.doc.mates.find((x) => x.id === el.dataset.jname);
         if (!m.name) el.textContent = '';
         renameInPlace(el, (n) => { const v = String(n || '').trim(); if (v) m.name = v; else delete m.name; this.commit(); });
+      });
+    }
+    for (const el of box.querySelectorAll('[data-junlock]')) {
+      el.addEventListener('click', () => {
+        const m = this.doc.mates.find((x) => x.id === el.dataset.junlock);
+        delete m.slides;
+        if (m.type !== 'rigid') delete m.rot;
+        this.applyMates();
+        this.commit();
       });
     }
     for (const el of box.querySelectorAll('[data-jrot]')) {
@@ -3152,6 +3162,21 @@ export class Assembly {
       const r = tried(t2('{id} added: {type} {face} – {other}', { id: j.id, type: t(JOINT_TYPES[j.type].name), face: this.faceText(id, j.face), other: this.faceText(p.onto, j.ontoFace) }));
       if (r) return r;
     }
+    // else its joint keeps it where it is: a slide along its direction (a touch's in-plane slides, a ball along its axis),
+    // a ball's turns (all three at once)
+    const cur = (this.doc.mates || []).filter((x) => x.move === id && !x.locked && x.type !== 'rigid'); // (as they are now: a failed try put back copies)
+    const jo = cur.find((x) => x.id === m?.id) || cur[0];
+    let fB = null, fA = null;
+    try { fB = jo && this.worldFace(id, jo.face); fA = jo && this.worldFace(jo.onto, jo.ontoFace); } catch { fB = null; }
+    if (fB && mo.kind === 'move') {
+      jo.slides = [...(jo.slides || []), slideNow(fB, fA, dir)];
+      const r = tried(t2('{id}: {what} locked where it is', { id: jo.id, what: mo.label }));
+      if (r) return r;
+    } else if (fB && !jo.rot) {
+      jo.rot = frameNow(fB, fA).rot;
+      const r = tried(t2('{id}: its turns locked where they are', { id: jo.id }));
+      if (r) return r;
+    }
     throw new Error(t('No joint found that locks this motion — join it by hand (🔗 Join it to another part).'));
   }
 
@@ -3701,6 +3726,7 @@ export class Assembly {
       ...(this.doc.couplings?.length ? { couplings: couplingsSummary(this) } : {}),
       joints: (this.doc.mates || []).map((m) => ({ id: m.id, ...(m.name ? { name: m.name } : {}), type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
         ...(m.type === 'axis' ? { distance: Number.isFinite(m.dist) ? m.dist : null } : { gap: m.gap || 0 }), ...(m.type !== 'parallel' ? { rotation_locked: Number.isFinite(m.angle) } : {}), ...(m.broken ? { broken: true } : {}),
+        ...(m.slides?.length || (m.rot && m.type !== 'rigid') ? { locked_motions: (m.slides?.length || 0) + (m.rot && m.type !== 'rigid' ? 1 : 0) } : {}),
         ...(m.locked ? { locked: true } : {}), ...(this.inst(m.move)?.fastener ? { fastener: this.inst(m.move).fastener.id } : {}), ...(this.whyNot(m) ? { not_held: this.whyNot(m) } : {}) })),
       fasteners: [...new Map(this.doc.instances.filter((i) => i.fastener).map((i) => [i.fastener.id, i.fastener])).values()].map((f) => ({ id: f.id, text: f.text,
         parts: this.doc.instances.filter((i) => i.fastener?.id === f.id).map((i) => i.id), ...(f.bolt ? { drilled_holes: true } : {}) })),

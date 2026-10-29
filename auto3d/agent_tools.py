@@ -522,7 +522,9 @@ TOOLS = [
     {"name": "lock_motion", "where": "browser",
      "description": "Lock one free motion of a joined part where it is now (the app's 🔒 by a motion): part = I…, motion = its "
                     "number or words of its name (as for move_free). Its joint's turn or distance along the axis is fixed, else a "
-                    "new joint is added (flush / gap faces across a move, parallel faces for a turn). It says which joint did it.",
+                    "new joint is added (flush / gap faces across a move, parallel faces for a turn), else its own joint keeps it where it "
+                    "is (a touch's slides on the face one by one, a ball's slide along its axis; a ball's turn locks all three of its "
+                    "turns) — get_assembly joints say `locked_motions`. It says which joint did it.",
      "inputSchema": _obj({"part": STR, "motion": {}}, ["part"])},
     {"name": "drive_mechanism", "where": "browser",
      "description": "Drive a whole mechanism of the assembly on screen (the app's ⚙ Mechanism widget): get_assembly `mechanisms` "

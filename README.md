@@ -871,6 +871,10 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   broken: the part cannot be moved by hand while it holds; moving a part held by unlocked joints asks first.
   **Double-click a joint's name** to give it your own (e.g. *ložisko na tyč*); it is shown in the list, over its
   symbol in the view and to the AI.
+- **🔒 Lock a motion where it is**: 🔒 by a motion in the part's Moves keeps it — a joint's turn or distance, a new
+  flush / gap / parallel joint where faces line up, else **its own joint keeps it** (a touch's slides on the face one
+  by one, a ball's slide along its axis; a ball's turn locks all three of its turns). The joint's row says
+  *🔒 2 locked* and ✕ there frees them again.
 - **A part fixed on a moving part moves with it**: a lever fixed on a bearing (its turn locked) that turns on a
   shaft is not "fully held" — its Moves are the bearing's (*Turn about … — with Bearing*): drive the lever, the
   bearing turns and the lever goes along.

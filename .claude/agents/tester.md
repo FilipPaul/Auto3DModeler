@@ -642,7 +642,8 @@ Never report "works" without having run it; report failures with their output.
    cannot leave the axis; ball in ball: 3 turns; ◉ seated in a 45° cone and on a hole's edge at the formula; the
    suggestions for a ball + a hole put ◉ / ● first; a flat face refused), 🔗 fixed together (snap_faces "rigid"
    without faces: the flag stays where it was, has 0 own motions, follows the pin's slide and turn; 🔗 Fix … to … for
-   two chosen parts).
+   two chosen parts), 🔒 a touch's slides locked one by one (3 → 2 → 1 ways, not moved, no new joint, pushed back,
+   ✕ in the row frees them) and a ball's slide / turns.
    `tools/e2e_assembly_health.py <url> <dir>` covers joints that do not hold (the same faces joined again as a Gap:
    one joint changed; a Flush fighting it: the Gap red with "9 mm off: J2 (Flush) holds Lid elsewhere", ⚠ tag, status
    count, get_assembly not_held; one removed: all hold), a screw + nut as one 🔩 row whose ✕ takes the screw, nut and

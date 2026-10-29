@@ -1200,6 +1200,10 @@ const CS = {
   'Fix {a} to {b}': 'Pevně spojit {a} s {b}', 'as they are': 'jak jsou',
   'Fixed together, as they are now: it goes with the other part and has no motion of its own': 'Pevně spojené tak, jak jsou teď: jde s druhým dílem a nemá vlastní pohyb',
   '{a} is fixed to {b}: it goes with it, it has no motion of its own (✕ the joint frees it; Ctrl+Z: back).': '{a} je pevně spojen s {b}: jde s ním, nemá vlastní pohyb (✕ u vazby ho uvolní; Ctrl+Z: zpět).',
+  // 🔒 a motion locked on its own joint (lockMotion)
+  '{id}: {what} locked where it is': '{id}: {what} — zamčeno tam, kde je', '{id}: its turns locked where they are': '{id}: jeho otáčení zamčeno tam, kde je',
+  'Motions of the part locked on this joint where they were (🔒 by a motion in Moves) — ✕ frees them': 'Pohyby dílu zamčené na této vazbě tam, kde byly (🔒 u pohybu v Pohybech) — ✕ je uvolní',
+  '{n} locked': 'zamčeno: {n}',
   'Turn about {axis} (the ball)': 'Otáčení kolem {axis} (koule)', 'Click a ball and a hole, a cone or another ball.': 'Klikněte na kouli a díru, kužel nebo jinou kouli.',
   'The ratio is a number above 0.': 'Převod je číslo větší než 0.', Couplings: 'Převody', Ratio: 'Převod', 'mm per turn': 'mm na otáčku',
   'it slides as the pinion turns': 'posouvá se, jak se pastorek točí', 'opposite ways': 'opačně', 'the same way': 'stejně',

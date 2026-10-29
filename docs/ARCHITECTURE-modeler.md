@@ -7,6 +7,15 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Assembly: 🔒 a touch's slides lockable (2026-10-29)** (the same report: after a touch the ball still slid in X / Y,
+  lock_motion said "Nenašla se vazba…"). lockMotion tries as before (the joint's angle / distance, a new flush / gap /
+  parallel joint), then keeps the motion on its own joint: a slide as `slides: [{d (in the other part's frame), at}]`
+  — the anchor (a ball's centre, else the face's centroid) kept at that distance along d —, a turn of a ball joint as
+  `rot` (all three turns: one turn alone of three is not kept). joints.js applies them after the joint's own kind and
+  counts them in jointMiss / jointResidual (closed loops). The row: "🔒 2 locked" with ✕; get_assembly joints
+  `locked_motions`. Tests: e2e_assembly_ball_spring (a disc on a top: 3 → 2 → 1 ways, not moved, pushed back by its
+  joint, ✕ frees; a ball on an axis: its slide, then its turns), e2e_assembly_lockmotion as before.
+
 - **Assembly: 🔗 fixed together (2026-10-29)** (the same report: "fix part A to part B as they are now"). A `rigid`
   joint keeps the part's own directions and its anchor face's place in the other part's frame (`rot`, `pos`, from
   joints.frameNow); its faces only anchor it (the clicked ones, else each part's biggest). It is applied last of the
