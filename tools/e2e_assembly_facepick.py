@@ -1,7 +1,8 @@
 """Faces picked with no tool on in an assembly, with REAL mouse input: a Base with a Ø6 hole and a Ø6 Pin -> a click on
 the hole's rim: its face picked (lit), the Suggested table offers the joints it can start -> Ctrl+click on the pin's
 round face: the joints that fit two round faces (◎ Concentric · Ø6 first) -> a click on it: the pin is concentric in the hole ->
-a click on the Base's top and Ctrl+click on the pin's end: two flat faces — Touch, Flush, Gap … -> the view zoomed out
+a click on the Base's top and Ctrl+click on the pin's end: two flat faces facing up — ⧉ Put Pin on Base first (its
+underside onto the top: no turning the view to click it), Touch, Flush, Gap … -> the view zoomed out
 (the wheel): a click on the small pin's round face and on the hole's rim pick the faces, not the snap of their centres
 (the hole's centre is a few px away; the Concentric undone first); a Ctrl+click beside the parts keeps the face picked first.
 
@@ -112,7 +113,9 @@ try:
     # … and the pin's end (a small face: set as the click would)
     js(f"const a = {A}; a.facePicks = [a.facePicks[0], {{ inst: 'I2', face: a.worldFace('I2', 'F2:end') }}]; a.sel2 = 'I2'; a.render()")
     time.sleep(0.4)
-    print("two flat faces:", table())
+    tb = table() or ["", ""]
+    print("two flat faces:", tb)
+    check(tb[1] == "⧉ Put Pin on Base" and "⧉ Touch" in tb, f"two flat faces facing up: ⧉ Put Pin on Base first (its underside onto the top), then Touch …: {tb[1:3]}")
     d.save_screenshot(f"{OUT}/assembly_facepick.png")
 
     # seen from afar: the small pin and hole are mostly the snap circles of their centres — a click picks the face

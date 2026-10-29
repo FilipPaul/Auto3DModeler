@@ -364,15 +364,24 @@ export class Assembly {
     }
     if (fp.length === 2) {
       const same = fp[0].face.normal && fp[1].face.normal && fp[0].face.normal.dot(fp[1].face.normal) > 0.999; // (facing the same way: ▭ Flush first, as they stand)
-      const js = fits(kindOf(fp[0]), kindOf(fp[1])).sort(([a], [b]) => (same ? (b === 'flush') - (a === 'flush') : 0));
-      showSuggest(vp, `${what(fp[0])} ↔ ${what(fp[1])}`, js.map(([type, j]) => ({ icon: j.icon, label: t(j.name), title: t(j.hint || ''), run: () => {
+      const js = fits(kindOf(fp[0]), kindOf(fp[1])).sort(([a], [b]) => (same ? (b === 'flush') - (a === 'flush') : 0)), on = this.putOn(fp[0], fp[1]);
+      const put = on ? [{ icon: '⧉', label: t2('Put {a} on {b}', { a: this.partName(this.inst(on.move.inst)?.part), b: this.partName(this.inst(on.onto.inst)?.part) }), rank: -1,
+        title: t('Its face on the other side (the underside) touches this face — no need to turn the view to click it'), run: () => {
+          this.jointType = 'touch';
+          this.mode = 'joint-to';
+          this.jointFrom = on.move;
+          this.clickJoint(on.onto);
+          if (this.mode !== 'idle') this.cancelJoint();
+          done();
+        } }] : [];
+      showSuggest(vp, `${what(fp[0])} ↔ ${what(fp[1])}`, [...put, ...js.map(([type, j]) => ({ icon: j.icon, label: t(j.name), title: t(j.hint || ''), run: () => {
         this.jointType = type; // (as if the two faces had been clicked with that joint)
         this.mode = 'joint-to';
         this.jointFrom = fp[0];
         this.clickJoint(fp[1]);
         if (this.mode !== 'idle') this.cancelJoint();
         done();
-      } })), js.length ? t('A joint between the two faces — the first one\'s part moves') : t('No joint fits these two faces.'), refs);
+      } }))], js.length ? t('A joint between the two faces — the first one\'s part moves') : t('No joint fits these two faces.'), refs);
       return;
     }
     const q = fp[0], js = fits(kindOf(q)), a = this.inst(q.inst);
@@ -427,6 +436,27 @@ export class Assembly {
       }
     }
     return best && { move: best.move, onto: best.onto };
+  }
+
+  /** Two flat faces facing up the same way (a part's top and the base's top): the moving part's face on its other side
+   *  (its underside — hard to click without turning the view) can touch the other face -> {move: {inst, face},
+   *  onto: {inst, face}} or null. The moving part: the first one's, unless it is 📌 fixed. */
+  putOn(qa, qb) {
+    let [a, b] = [qa, qb];
+    if (this.inst(a.inst)?.fixed) [a, b] = [b, a];
+    if (this.inst(a.inst)?.fixed || a.inst === b.inst || a.face.type !== 'plane' || b.face.type !== 'plane' || !a.face.normal || !b.face.normal) return null;
+    const n = a.face.normal;
+    if (n.dot(b.face.normal) < 0.999 || n.z < 0.7) return null; // (faces up: a part put down on it, as on a table)
+    const body = this.bodyOf(this.inst(a.inst))?.body;
+    let best = null;
+    for (const name of new Set((body?.faces || []).filter((f) => f.type === 'plane').map((f) => f.name))) {
+      let f;
+      try { f = this.worldFace(a.inst, name); } catch { continue; }
+      if (f.normal.dot(n) > -0.999) continue;
+      const depth = f.centroid.dot(n), key = depth - f.area * 1e-9; // (the farthest one back; the larger of two at the same depth)
+      if (!best || key < best.key) best = { key, face: f };
+    }
+    return best && { move: { inst: a.inst, face: best.face }, onto: { inst: b.inst, face: b.face } };
   }
 
   /** ◎ Two round faces joined: Concentric — with `seat`, also Touch on the faces around them (a pin in a hole sits down

@@ -749,6 +749,7 @@ const CS = {
   '{name} — a copy of its own (change it without changing the original).': '{name} — samostatná kopie (měňte ji bez změny originálu).',
   '{inst} now has a part of its own: {name} — change it without changing the others.': '{inst} má teď vlastní díl: {name} — měňte ho bez změny ostatních.',
   '{name} (the copy made for it) is out of the project again.': '{name} (kopie pro něj vytvořená) je zase mimo projekt.',
+  'Put {a} on {b}': 'Položit {a} na {b}', 'Its face on the other side (the underside) touches this face — no need to turn the view to click it': 'Jeho plocha na druhé straně (spodní) dosedne na tuto plochu — není třeba otáčet pohled, abyste na ni klikli',
   'Concentric + seat': 'Soustředně + dosednout', 'Concentric only': 'Jen soustředně',
   'A pin in a hole: on one axis and down on the face around it (Concentric + Touch) — it can still turn': 'Čep v díře: na jedné ose a dosedne na plochu kolem (Soustředně + Dotyk) — dál se může otáčet',
   '{a} + {b}: {part} sits on the face around the pin and can still turn (Ctrl+Z: back).': '{a} + {b}: {part} dosedá na plochu kolem čepu a dál se může otáčet (Ctrl+Z: zpět).',
