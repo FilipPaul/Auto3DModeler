@@ -263,39 +263,50 @@ class AsmView extends ModelView {
    *  the face — with that face (world) and the part: {point, corner, face, inst} or null. */
   measurePoint(clientX, clientY, px = 10) {
     const h = this.pickInst(clientX, clientY), r = this.renderer.domElement.getBoundingClientRect();
-    const s = snapNear((this.meshes || []).map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), this.camera, r, clientX, clientY, px, snapKinds());
+    const s = snapNear((this.meshes || []).map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), this.camera, r, clientX, clientY, px, snapKinds(), (p) => this.sees(p));
     if (!s && !h?.point) return null;
     return { point: s ? s.point : h.point.clone(), corner: s?.kind === 'corner', snap: s?.kind || null, face: s ? null : h?.face || null, inst: s ? s.inst : h.inst };
   }
 
-  /** A round edge near the mouse (within px): the edge of a hole or of a pin, seen as a circle — -> {inst, face: the
-   *  round face it bounds (world coordinates), px} or null. Joints that want a round face take it (as in CAD: click
-   *  the circle). */
+  /** A round edge near the mouse (within px) and in sight (not behind a part's surface: a hole inside a thin plate seen
+   *  from its side is not taken): the edge of a hole or of a pin, seen as a circle — -> {inst, face: the round face it
+   *  bounds (world coordinates), px} or null. Joints that want a round face take it (as in CAD: click the circle). */
   roundEdgeAt(clientX, clientY, px = 12) {
     const r = this.renderer.domElement.getBoundingClientRect(), v = new THREE.Vector3();
     const screen = (x, y, z, m) => { v.set(x, y, z).applyMatrix4(m).project(this.camera); return [(v.x + 1) / 2 * r.width + r.left, (1 - v.y) / 2 * r.height + r.top, v.z]; };
-    let best = null;
+    const near = []; // (each round edge's nearest spot to the mouse: the nearest one in sight wins)
     for (const mesh of this.meshes || []) {
       const { inst, body } = mesh.userData, m = mesh.matrix;
       for (const e of body.edges || []) {
         const cyl = (e.faces || []).map((i) => body.faces[i]).find((f) => f?.type === 'cylinder');
         if (!cyl) continue;
         const p = e.pts;
-        let prev = screen(p[0], p[1], p[2], m);
+        let prev = screen(p[0], p[1], p[2], m), mine = null;
         for (let k = 3; k + 2 < p.length; k += 3) {
           const cur = screen(p[k], p[k + 1], p[k + 2], m);
           const dx = cur[0] - prev[0], dy = cur[1] - prev[1], L = dx * dx + dy * dy || 1;
           const tt = Math.max(0, Math.min(1, ((clientX - prev[0]) * dx + (clientY - prev[1]) * dy) / L));
           const d = Math.hypot(prev[0] + tt * dx - clientX, prev[1] + tt * dy - clientY);
-          if (d < px && cur[2] < 1 && (!best || d < best.px)) best = { inst, body, cyl, m, px: d };
+          if (d < px && cur[2] < 1 && (!mine || d < mine.px)) mine = { inst, body, cyl, m, px: d, at: new THREE.Vector3(p[k - 3], p[k - 2], p[k - 1]).lerp(new THREE.Vector3(p[k], p[k + 1], p[k + 2]), tt).applyMatrix4(m) };
           prev = cur;
         }
+        if (mine) near.push(mine);
       }
     }
+    const best = near.sort((a, b) => a.px - b.px).find((c) => this.sees(c.at));
     if (!best) return null;
     const nm = new THREE.Matrix3().getNormalMatrix(best.m);
     return { inst: best.inst, px: best.px, face: { ...best.cyl, centroid: new THREE.Vector3(...best.cyl.centroid).applyMatrix4(best.m),
       normal: best.cyl.normal ? new THREE.Vector3(...best.cyl.normal).applyMatrix3(nm).normalize() : null }, edge: true };
+  }
+
+  /** A point (world) in sight: no part's surface on the line of sight before it (a hole's rim or centre inside a thin
+   *  plate seen from its side is not) — the point itself on a surface counts as seen. */
+  sees(p) {
+    const q = p.clone().project(this.camera), ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(q.x, q.y), this.camera);
+    const at = p.clone().sub(ray.ray.origin).dot(ray.ray.direction), hit = ray.intersectObjects(this.meshes || [], false)[0];
+    return !hit || hit.distance >= at - Math.max(0.02, at * 1e-3);
   }
 
   /** What is under the mouse: {inst, face (in world coordinates)} or null. */

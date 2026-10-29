@@ -945,7 +945,8 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   *🔗 Fix A to B* in the suggestions when two parts are chosen), or **🔩 Screw / pin** — then
   click a face of the part to move and the face it goes to (the face under the mouse is marked). For round faces a
   click on (or near) a **circle** — a hole's or a pin's edge — is enough: its round face is taken (a hole seen from the
-  front, whose wall is hard to hit). A part can have
+  front, whose wall is hard to hit); only a circle in sight counts — a click on the thin side of a plate picks that
+  side, not a hole hidden behind it (nor a hidden hole's centre as a snap point). A part can have
   several joints, applied in order: *Concentric* + *Touch* seats a pin in its hole, head on the face; a later joint
   only turns it the way the earlier ones leave free — **∥ Parallel** on a part already on a pin (*Concentric*, free to
   turn) turns it about that pin, the way round the faces stand (facing each other or the same way), as little as

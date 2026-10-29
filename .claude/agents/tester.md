@@ -802,6 +802,9 @@ Never report "works" without having run it; report failures with their output.
    turn): the solver alone (joints.js, one pass: both hold, facing away / the same way, a 178° turn too), then a
    plate on a pin 2° off ∥ the base's side — it turns about the pin only, both joints hold, the hole stays on the
    axis; ∥ that no turn about the pin can make is refused (snap_faces error, a toast on the clicked path), nothing moves.
+   `tools/e2e_assembly_thinside.py <url> <dir>` covers picking with real clicks: a 4 mm plate with two holes, its
+   side face clicked in front of each hole (close and zoomed out, the side 8 px tall) — the flat side picked, not a
+   hidden hole's round face or centre; a hole's rim on the top (in sight) still picks the hole.
    `tools/e2e_assembly_concentric.py <url> <dir>` covers ◎ Concentric with a distance (two plates' holes: filled in
    touching, typed 30 -> 30 apart, still 30 when the lower plate thickens, cleared -> free), ↻🔒 the rotation lock
    (45° typed) and the AI's snap_faces axis with gap + lock_rotation.

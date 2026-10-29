@@ -7,6 +7,13 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **A click picks what is in sight (2026-10-29)** (the AI's report: a click on a thin plate's side face picked a hole
+  hidden behind it). The assembly's `roundEdgeAt` (a click near a circle takes its round face) and the snap points
+  (`snapNear`: corners, middles, centres) did not look at depth: a hole's rim inside a 4 mm plate, a few px from the
+  click on its side, won. Now AsmView.sees(point) casts a ray to the point (a surface before it: hidden), roundEdgeAt
+  takes the nearest circle in sight, and snapNear takes a `seen` test (measurePoint passes it). Test:
+  e2e_assembly_thinside.
+
 - **∥ on a part held by a pin keeps it on the pin (2026-10-29)** (the AI's report: a ∥ joint on a sub-assembly hanging
   on a ◎ concentric joint moved it 24.7 mm off its axis). joints.js turned a later joint's part about its own face's
   centroid — about the right direction, but off the axis line; and ∥ always wanted the faces facing the same way, so
