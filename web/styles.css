@@ -832,6 +832,41 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .mt-warn { color: var(--err); }
 .mt-acts { display: none; gap: 3px; }
 .mt-item:hover .mt-acts { display: flex; }
+/* the 3D model's step tree: one-line rows (22 px), nested 12 px a level (a step's sketch under it), a drawn icon
+   coloured by what the step does; ● 🏷 ✎ ✕ over the row's end on hover */
+.mt-tree { gap: 0; }
+.mt-tree .mt-row { position: relative; display: flex; align-items: center; gap: 4px; height: 22px; padding: 0 4px 0 calc(2px + var(--d, 0) * 12px);
+  border-radius: 4px; border: 1px solid transparent; cursor: pointer; font-size: 12.5px; white-space: nowrap; }
+.mt-tree .mt-row:hover { background: var(--panel-2); }
+.mt-tree .mt-row[style*="--d: 1"]::before, .mt-tree .mt-row[style*="--d: 2"]::before { content: ''; position: absolute; top: 0; bottom: 0;
+  left: calc(var(--d) * 12px - 4px); border-left: 1px solid #ffffff1c; }
+.mt-tw { flex: none; width: 12px; text-align: center; color: var(--muted); font-size: 10px; line-height: 20px; }
+.mt-tw[data-a]:hover { color: var(--text); }
+.mt-tree .mt-icon { flex: none; width: 14px; height: 14px; }
+.mt-tree .mt-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 3em; }
+.mt-tree .mt-what { font-size: 11px; flex: 1 1 0; min-width: 0; }
+.mt-tree .mt-warn { flex: none; font-size: 11px; }
+.mt-tree .mt-acts { position: absolute; right: 1px; top: 1px; bottom: 1px; align-items: center; gap: 2px; padding-left: 6px; border-radius: 4px;
+  background: linear-gradient(90deg, transparent, var(--panel-2) 6px); }
+.mt-tree .mt-item.on .mt-acts { background: linear-gradient(90deg, transparent, #1c2a3d 6px); }
+.mt-tree .mt-row:hover .mt-acts { display: flex; }
+.mt-tree .mt-acts .mini { padding: 0 4px; line-height: 16px; }
+.ico-step.g-add { color: #6fc28b; }
+.ico-step.g-cut { color: #e8846a; }
+.ico-step.g-edge { color: #6cb6ff; }
+.ico-step.g-face { color: #4fc1b5; }
+.ico-step.g-pattern { color: #b99af0; }
+.ico-step.g-sketch { color: #8fa3bf; }
+.ico-step.g-ref { color: #d6b65a; }
+.ico-step.g-link { color: var(--muted); }
+.mt-tree .mt-item.bad .ico-step { color: var(--err); }
+.mt-tree .mt-item.off .mt-icon { opacity: .4; filter: grayscale(1); }
+.mt-tree .mt-link { opacity: .62; }
+.mt-tree .mt-link:hover { opacity: 1; }
+.mt-tree .mt-link .mt-name { font-style: italic; font-weight: 400; }
+.mt-lnk { flex: none; display: flex; }
+.mt-tree .mt-group .mt-name, .mt-tree .mt-plane .mt-name { font-weight: 500; color: var(--muted); }
+.mt-tree .mt-group { margin-bottom: 1px; }
 .as-boom { display: none; }
 /* the assembly's list as a tree: a placed sub-assembly folds open to its own parts */
 .as-twist { width: 18px; height: 18px; padding: 0; line-height: 1; margin-right: -4px; flex: none; font-size: 12px; }

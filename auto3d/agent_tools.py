@@ -547,7 +547,9 @@ TOOLS = [
                     "rows — not the AI chat) with its number n, label, tooltip, state (on / a value / checked) and whether it is greyed "
                     "out; on a drawing sheet also its dimensions (kind dim), views (view) and title-block cells (cell), where: view; "
                     "where: bar (top bar), tools (the workspace's toolbar), panel (side panels), view or all; in the 3D model also its step "
-                    "tree (steps: id, name, what it makes, off / failed / selected / editing). Use it to tell the user exactly "
+                    "tree (steps: id, name, what it makes, off / failed / selected / editing; parent / depth when shown under another "
+                    "step — a sketch under the step made from it, a reference point under 'ref' — and folded when its row is "
+                    "folded away). Use it to tell the user exactly "
                     "where something is, and with gui_action to check the GUI does what the tools do.",
      "inputSchema": _obj({"where": {"type": "string", "enum": ["all", "bar", "tools", "panel", "view"]}})},
     {"name": "gui_action", "where": "browser",

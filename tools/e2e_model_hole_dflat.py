@@ -113,7 +113,7 @@ try:
     time.sleep(0.6)
     d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=ok]").click()
     time.sleep(1)
-    step = js(r"return [...document.querySelectorAll('#modelLeft .mt-item')].map(r => r.textContent.replace(/\s+/g, ' ').trim()).slice(-1)[0]")
+    step = js(r"return [...document.querySelectorAll('#modelLeft .mt-item:not([data-parent])')].map(r => r.textContent.replace(/\s+/g, ' ').trim()).slice(-1)[0]")
     check("Ø8 D7.5" in step, f"the step: {step}")
     print("  sheet_open:", json.loads(call("sheet_open", part="Knob"))["preset"])
     wait("return !!window.__app.sheet.svgEl")

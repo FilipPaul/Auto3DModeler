@@ -26,6 +26,9 @@ d = webdriver.Edge(options=opts)
 d.set_script_timeout(120)
 js = d.execute_script
 M = "window.__app.modeler"
+# the step tree shows a sketch under the step made from it (folded): every row opened, the row of part.features[i]
+STEP_ROW = ("const m = window.__app.modeler; m.part.features.forEach(f => m.openTo(f.id)); m.renderTree(); "
+            "return document.querySelector(`#modelLeft .mt-item[data-id=\"${m.part.features[arguments[0]].id}\"]`)")
 H = "window.__app.agentHandlers"
 
 
@@ -107,7 +110,7 @@ try:
     check("sketch_trim: the circle's top cut away -> an arc", not any(x["t"] == "circle" for x in s["shapes"]) and any(x["t"] == "arc" for x in s["shapes"]), t["shapes"])
 
     # the sketch open in the editor: gui_state lists its dimensions with values; the screenshot shows them
-    ActionChains(d).double_click(d.find_elements(By.CSS_SELECTOR, "#modelLeft .mt-item")[0]).perform()
+    ActionChains(d).double_click(js(STEP_ROW, 0)).perform()
     wait(f"return {M}.mode === 'sketch' && {M}.sk?.dof !== null", 10)
     time.sleep(0.6)
     g = json.loads(call("gui_state")["text"])

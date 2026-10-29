@@ -27,6 +27,9 @@ d = webdriver.Edge(options=opts)
 d.set_script_timeout(60)
 js = d.execute_script
 M = "window.__app.modeler"
+# the step tree shows a sketch under the step made from it (folded): every row opened, the row of part.features[i]
+STEP_ROW = ("const m = window.__app.modeler; m.part.features.forEach(f => m.openTo(f.id)); m.renderTree(); "
+            "return document.querySelector(`#modelLeft .mt-item[data-id=\"${m.part.features[arguments[0]].id}\"]`)")
 SK = f"{M}.sk"
 H = "window.__app.agentHandlers"
 
@@ -82,7 +85,7 @@ def model(name, sketch=None, shapes=None):
 
 
 def open_sketch():
-    ActionChains(d).double_click(d.find_elements(By.CSS_SELECTOR, "#modelLeft .mt-item")[0]).perform()
+    ActionChains(d).double_click(js(STEP_ROW, 0)).perform()
     wait(f"return {M}.mode === 'sketch' && {SK}?.dof !== null && ({SK}.free || {SK}.conflicts?.length)", 10)
     time.sleep(0.5)
 

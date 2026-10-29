@@ -378,6 +378,11 @@ Never report "works" without having run it; report failures with their output.
    3D print: a STEP copy, the hints say exact -> Bambu Lab P1S split: 2 pieces of 3 faces, ~800 triangles each against
    28 000 sliced, fitting the bed, volumes adding up; dowels: the pockets exact; the STL / STEP zips). Exits 1 on a
    failed check. Needs a server restarted after kernel changes.
+   `tools/e2e_model_tree.py <url> <dir>` covers the nested step tree at 1280×800 (a plate, a cut and a boss from one
+   sketch, a fillet, a pattern, a point: sketches under their steps, links, the Reference group, icon kinds / colours,
+   22 px rows 12 px a level; ▸ / ▾ remembered; a click on a face / a sketch outline -> its row chosen, opened, in sight;
+   a row -> its faces tinted, hover lights them; rename / off / on; gui_state parent / depth; a step dragged with its
+   sketch; Czech).
    `tools/e2e_model_reorder.py <url> <dir>` covers reordering steps by dragging (a free sketch moved to the top; a boss
    above its sketch and a fillet above the plate refused with the reason; the body the same; Ctrl+Z).
    `tools/e2e_measure_snap.py <url> <dir>` covers 📏 Measure's snap points (a block with a hole: near an edge's middle

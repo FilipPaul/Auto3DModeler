@@ -66,7 +66,7 @@ try:
     print("  4 thick:", round(settled_volume() - v0, 2), "| expected", 0.5 * 15 * 20 * 4)
     d.find_element(By.CSS_SELECTOR, "#modelViewport .view-actions [data-a=ok]").click()
     time.sleep(1)
-    print("the step:", js(r"return [...document.querySelectorAll('#modelLeft .mt-item')].map(r => r.textContent.replace(/\s+/g, ' ').trim()).slice(-1)[0]"))
+    print("the step:", js(r"return [...document.querySelectorAll('#modelLeft .mt-item:not([data-parent])')].map(r => r.textContent.replace(/\s+/g, ' ').trim()).slice(-1)[0]"))
     call("add_feature", type="sketch", plane={"datum": "YZ", "offset": 10}, shapes=[{"path": {"points": [[15, 60], [0, 45]]}}])
     r = json.loads(call("add_feature", type="rib", t=3))
     print("the AI's rib in the air:", r["ok"], "|", (r["issues"] or [""])[0][:70])
