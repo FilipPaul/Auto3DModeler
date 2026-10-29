@@ -7,6 +7,14 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Kernel bugs from the AI's reports (2026-10-29)** (RealSWReports, an apple bottle: a spline profile revolved,
+  shelled, bitten from the side). **CoG of a revolved spline body off its axis** (cog_mm [8.8, 0, 59] of a Ø75 × 72
+  bottle): a part with a long B-spline edge gets its volume from Gauss-Kronrod (`_volume`), and GK leaves the centre
+  unintegrated unless asked (CGFlag) — what it gave was not a centre. Asking costs 1–3 s, so the centre now comes from
+  the quick rule when its volume is within CENTRE_TOL 0.5 % of GK's (it integrates the moments too), else from GK with
+  CGFlag. The bottle: [0, 0, 31.67]. Tests: test_mass_props (a hemisphere at 3r/8, as arcs and as a 13-point spline;
+  a shelled hemisphere at 3/8·(R⁴ − r⁴)/(R³ − r³); a spline cup solid and shelled against its mesh's centroid).
+
 - **Icons at an extrude's height (2026-10-29)** (the owner: "u kliknutí na dimenzi vysunutí … pár ikonek … směr, k
   ploše a další ploše"): clicking the "↕ 10" label on the part opens the size editor with one line of 16 px stroke
   icons (web/js/modeler/dimicons.js, drawn like the step tree's): ⇅ flip, both sides, up to a face… (opens the Extrude

@@ -1596,8 +1596,19 @@ def _volume(shape):
         ex.Next()
     p = GProp_GProps()
     if other and _long_spline(whole):  # Gauss-Kronrod over each B-spline span: a plane bounded by one long smooth
-        # curve (a joined sketch curve: hundreds of spans, one interval of continuity) was 8 % off with the adaptive rule
+        # curve (a joined sketch curve: hundreds of spans, one interval of continuity) was 8 % off with the adaptive rule.
+        # GK integrates the centre only when asked (CGFlag) and that costs 1–3 s: without it the centre it gives is not
+        # one (a revolved spline bottle's CoG came out 9 mm off its axis). So the volume from GK, the centre from the
+        # quick rule — when that rule's volume agrees with GK's (it integrates the moments as well as the volume)
         BRepGProp.VolumePropertiesGK_s(whole, p, 1e-6, False, True)
+        q = GProp_GProps()
+        BRepGProp.VolumeProperties_s(whole, q)
+        m = p.Mass()
+        if abs(m) > 1e-12 and abs(q.Mass() - m) <= CENTRE_TOL * abs(m):
+            return m, _mass_centre(q)[1]
+        p = GProp_GProps()  # the quick rule is off on this one: the centre from GK (slow, exact)
+        BRepGProp.VolumePropertiesGK_s(whole, p, 1e-4, False, True, True)
+        return m, _mass_centre(p)[1]
     elif other:  # (the whole solid so: its planes, trimmed by the other faces' curved edges, need it as well)
         BRepGProp.VolumeProperties_s(whole, p, 1e-7, False)
     else:
@@ -1606,6 +1617,7 @@ def _volume(shape):
 
 
 LONG_SPLINE = 8  # knots: a B-spline edge with more is integrated span by span (volume)
+CENTRE_TOL = 0.005  # the quick rule's volume this close to GK's: its centre of mass is good (_volume)
 
 
 def _long_spline(shape):
