@@ -34,7 +34,8 @@ const REPEATABLE = new Set(['extrude', 'revolve', 'hole', 'pattern', 'loft', 'sw
 const MIRROR_PLANES = { YZ: 'left ↔ right', XZ: 'front ↔ back', XY: 'top ↔ bottom' }; // the base planes to mirror across
 const AXES = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
 const USES_SKETCH = new Set(['extrude', 'revolve', 'loft', 'sweep', 'rib']);
-const PLACES = new Set(['hole', 'decal']); // tools whose click in the view places (and, editing, only once asked)
+const PLACES = new Set(['hole', 'decal']);
+const HOLE_RANK = { holeType: -3, holeSize: -2.5, holeEdit: -2, holeMeasure: 4.8 }; // a chosen Hole step's rows: first // tools whose click in the view places (and, editing, only once asked)
 /** A sketch that is one open line (straight lines end to end, not closed — what ⊿ Rib takes). */
 const isOpenLine = (f) => {
   const es = (f?.entities || []).filter((e) => !e.construction), ends = {};
@@ -803,10 +804,13 @@ export class Modeler {
     this.openTo(id); // (its row in the tree in sight: what it is under folded open)
     if (this.mode !== 'part' || this.cmd) { this.selected = id; this.renderTree(); return; }
     this.closeCtx();
+    const was = this.part.features.find((g) => g.id === this.selected);
     this.selected = id;
     const f = this.part.features.find((g) => g.id === id);
     this.view.setSelectedFaces(f ? this.stepFaceIds(id) : null);
     this.renderTree();
+    if (id) this.$(`.mt-tree .mt-item[data-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'nearest' }); // (its row in sight)
+    if (was?.type === 'hole' || f?.type === 'hole') this.renderProps(); // (a hole's own fields in the right panel — or the part's again)
     this.showOutlines();
     this.showStepDims(f || null);
   }
@@ -929,11 +933,14 @@ export class Modeler {
     ];
   }
 
-  /** One edge clicked (no tool on): it is marked and ◜ Fillet / ◸ Chamfer it suggested first. */
+  /** One edge clicked (no tool on): it is marked and ◜ Fillet / ◸ Chamfer it suggested first; a Hole step's rim: that
+   *  hole chosen too, its Type / Size rows above. */
   pickEdge(i, ref) {
-    this.selectStep(null);
+    const hole = [ref.a, ref.b].map((n) => this.part.features.find((g) => g.id === this.faceOwner({ name: n }))).find((g) => g?.type === 'hole');
+    this.selectStep(hole ? hole.id : null);
     this.view.setEdgeHighlight(-1, [i]);
-    const sg = showSuggest(this.els.viewport, t('An edge'), this.edgeItems([ref]), t('Ctrl+click more edges: round them all at once'),
+    const items = [...(hole ? this.holeRows(hole).map(([key, icon, label, run, , title]) => ({ icon, label, title, rank: HOLE_RANK[key] - 10, run })) : []), ...this.edgeItems([ref])];
+    const sg = showSuggest(this.els.viewport, hole ? `${hole.name} · ${t('An edge')}` : t('An edge'), items, t('Ctrl+click more edges: round them all at once'),
       `${t('in the 3D model')}: ${t('the edge between faces')} ${ref.a} ${t('and')} ${ref.b}`);
     if (sg) sg.dataset.from = 'face';
   }
@@ -995,14 +1002,18 @@ export class Modeler {
     const used = new Set(this.part.features.flatMap(sketchesOf)), top = this.treeShapeNow?.top || [], k = top.indexOf(id);
     const items = [];
     const add = (icon, label, run, rank, o = {}) => items.push({ icon, label: t(label), rank, run: () => { this.dropSuggest(); run(); }, ...o });
+    const hole = f.type === 'hole';
+    if (hole) { // its type and size first, ✎ Edit the hole; ⁂, 📏, ✕ and ↑ / ↓ next (🏷, ◌, ⏮ under ⋯ Show all)
+      for (const [key, icon, label, run, , title] of this.holeRows(f)) items.push({ icon, label, title, rank: key === 'holeMeasure' ? 3.5 : HOLE_RANK[key] - 10, run });
+    }
     if (f.type === 'sketch' && !used.has(f.id)) {
       add('⬆', 'Extrude it', () => this.openExtrude(this.newExtrude(f.id), true), 0, { title: t('Give the sketch a height: add material or cut (E)') });
       add('⟳', 'Revolve it', () => this.startRevolve(), 5);
     }
-    add('✎', f.type === 'sketch' ? 'Edit the sketch' : 'Edit the step', () => this.edit(f.id), 1, { title: t('Change this step (or double-click it)') });
-    add('🏷', 'Rename', () => this.renameStep(f.id), 2);
+    if (f.type !== 'hole') add('✎', f.type === 'sketch' ? 'Edit the sketch' : 'Edit the step', () => this.edit(f.id), 1, { title: t('Change this step (or double-click it)') });
+    add('🏷', 'Rename', () => this.renameStep(f.id), hole ? 8.5 : 2);
     if (REPEATABLE.has(f.type) && f.type !== 'pattern' && this.result?.body && !f.suppressed) add('⁂', 'Pattern it', () => this.startPattern(f.id), 3, { title: t('Repeat this step in a row or around a circle') });
-    add(f.suppressed ? '●' : '◌', f.suppressed ? 'Turn it on' : 'Turn it off', () => this.toggleOff(f.id), 6);
+    add(f.suppressed ? '●' : '◌', f.suppressed ? 'Turn it on' : 'Turn it off', () => this.toggleOff(f.id), hole ? 8.7 : 6);
     if (k > 0) add('↑', 'Move up', () => this.moveStep(this.stepBlock(id), this.blockFirst(top[k - 1]), false), 7, { title: t('One place earlier in the list (refused when it would come before a step it uses)') });
     if (k >= 0 && k < top.length - 1) add('↓', 'Move down', () => this.moveStep(this.stepBlock(id), top[k + 1], true), 7.5, { title: t('One place later in the list') });
     const i = this.part.features.indexOf(f);
@@ -1011,6 +1022,111 @@ export class Modeler {
     const sg = showSuggest(this.els.viewport, f.name, items.sort((a, b) => a.rank - b.rank), '', `${t('in the 3D model')}: ${t('step')} ${f.id} “${f.name}”`);
     if (sg) sg.dataset.from = 'face';
     return sg;
+  }
+
+  /** A Hole step's own rows in the suggestions ([key, icon, label, run, cls, title], as clickFace's): Type ▾ and Size ▾
+   *  (each a choice — one undo step), ✎ Edit the hole (the whole panel), 📏 its Ø. Only steps made by ◎ Hole (a round
+   *  cut of an extrude is not one). */
+  holeRows(f) {
+    const kind = holeType(f), label = HOLE_TYPES.find(([v]) => v === kind)?.[1] || 'Simple';
+    return [
+      ['holeType', '◎', `${t('Type')}: ${t(label)} ▾`, () => this.chooseHoleType(f.id), '', t('Another kind of hole: simple, clearance, ⌴ counterbore, ⌵ countersink, tapped, D')],
+      ['holeSize', '⌀', `${t('Size')}: ${this.holeSizeText(f)} ▾`, () => this.chooseHoleSize(f.id), '', t('The sizes next to this one (all of them: ✎ Edit the hole)')],
+      ['holeEdit', '✎', t('Edit the hole'), () => { this.dropSuggest(); this.edit(f.id); }, '', t('All its settings — and ＋ Add position for more holes')],
+      ['holeMeasure', '📏', `${t('Measure it')}: Ø${fmt(f.d)}`, () => { this.dropSuggest(); this.hooks.toast(`${f.name}: Ø${fmt(f.d)}${f.head_d ? ` · ${t('Head Ø')} ${fmt(f.head_d)}` : ''}${f.through === false ? ` · ↧ ${fmt(f.depth)}` : ` · ${t('Through all')}`}`, 'info', 5000); }],
+    ];
+  }
+
+  /** "M5" (a screw's hole), else "Ø6". */
+  holeSizeText(f) {
+    const kind = holeType(f);
+    return kind && kind !== 'd_flat' && (f.standard || f.thread) ? f.standard || f.thread : `Ø${fmt(f.d)}`;
+  }
+
+  /** The sizes a hole's Size ▾ offers: the 2 below and the 2 above in the screw series (M2 … M20), or for a plain Ø
+   *  the next steps (0.5 mm up to 6, then 1 mm) -> [{value, label, on}]. */
+  holeSizes(f) {
+    const kind = holeType(f), std = kind && kind !== 'd_flat';
+    if (std) {
+      const S = Object.keys(HOLE_SIZES), cur = f.standard || f.thread;
+      let i = S.indexOf(cur);
+      if (i < 0) i = S.reduce((a, k, j) => (Math.abs(parseFloat(k.slice(1)) - f.d) < Math.abs(parseFloat(S[a].slice(1)) - f.d) ? j : a), 0);
+      return S.slice(Math.max(0, i - 2), i + 3).map((k) => ({ value: k, label: k, on: k === cur }));
+    }
+    const grid = [...Array.from({ length: 12 }, (_, j) => (j + 1) / 2), ...Array.from({ length: 94 }, (_, j) => j + 7)]; // 0.5 … 6, 7 … 100
+    const d = f.d, below = grid.filter((v) => v < d - 1e-9).slice(-2), above = grid.filter((v) => v > d + 1e-9).slice(0, 2);
+    return [...below, d, ...above].map((v) => ({ value: v, label: `Ø${fmt(v)}`, on: v === d }));
+  }
+
+  /** ◎ Type ▾ of a chosen hole: all the kinds, the current one ✓ — switched in place (one undo step). */
+  async chooseHoleType(id) {
+    const f = this.part.features.find((g) => g.id === id);
+    if (!f) return;
+    const kind = holeType(f);
+    const v = await choose(t('Hole type'), HOLE_TYPES.map(([k, l]) => ({ value: k || 'simple', label: `${k === kind ? '✓ ' : ''}${t(l)}`, primary: k === kind })));
+    if (v === null || (v === 'simple' ? '' : v) === kind) return;
+    const size = f.standard || f.thread, near = Object.keys(HOLE_SIZES).reduce((a, b) => (Math.abs(parseFloat(b.slice(1)) - f.d) < Math.abs(parseFloat(a.slice(1)) - f.d) ? b : a));
+    setHoleStandard(f, v === 'simple' ? '' : v, size in HOLE_SIZES ? size : this.lastHoleSize || near);
+    this.changedHole(f);
+  }
+
+  /** ⌀ Size ▾ of a chosen hole: the 2 sizes below and above, the current one ✓ (one undo step). */
+  async chooseHoleSize(id) {
+    const f = this.part.features.find((g) => g.id === id);
+    if (!f) return;
+    const opts = this.holeSizes(f);
+    const v = await choose(t('Hole size'), opts.map((o) => ({ value: o.value, label: `${o.on ? '✓ ' : ''}${o.label}`, primary: o.on })));
+    if (v === null || opts.find((o) => o.value === v)?.on) return;
+    const kind = holeType(f);
+    if (typeof v === 'string') setHoleStandard(f, kind, this.lastHoleSize = v);
+    else {
+      if (kind === 'd_flat' && (f.flat === undefined || f.flat === dFlat(f.d))) f.flat = dFlat(v); // (the flat follows the Ø while it is the default)
+      f.d = v;
+    }
+    this.changedHole(f);
+  }
+
+  /** A chosen hole changed from the suggestions / its panel: one undo step, built, its rows shown again. */
+  async changedHole(f) {
+    this.commit();
+    await this.rebuild();
+    if (this.selected === f.id && !this.cmd) { this.renderProps(); this.suggestStep(f.id); }
+  }
+
+  /** The right panel while a Hole step is chosen (no tool open): its type, size, through / depth — changed here at
+   *  once (one undo step each); ✎ Edit the hole for the rest, ＋ Add position for more holes. */
+  renderHoleStep(box, f) {
+    const kind = holeType(f), std = kind && kind !== 'd_flat', size = f.standard || f.thread || '', st = this.status(f.id);
+    box.innerHTML = `<h2 data-no-i18n>${esc(f.name)}</h2>
+      <p class="hint">${esc(t2('◎ Hole step · {n} hole(s) — changed here at once (Ctrl+Z takes a change back).', { n: f.points.length }))}</p>
+      <div class="field"><label>Type</label><select data-k="hole_type">${HOLE_TYPES.map(([v, l]) => `<option value="${v}" ${v === kind ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      ${std ? `<div class="field"><label>Size</label><select data-k="standard">${size in HOLE_SIZES ? '' : '<option value="" selected>—</option>'}${Object.keys(HOLE_SIZES).map((v) => `<option value="${v}" ${v === size ? 'selected' : ''}>${v}</option>`).join('')}</select></div>`
+        : `<div class="field"><label>Diameter</label><input type="number" step="any" min="0" data-k="d" value="${fmt(f.d)}"><span class="unit">mm</span></div>`}
+      <label class="check"><input type="checkbox" data-k="through" ${f.through !== false ? 'checked' : ''}> Through all</label>
+      ${f.through === false ? `<div class="field"><label>Depth</label><input type="number" step="any" min="0" data-k="depth" value="${fmt(f.depth)}"><span class="unit">mm</span></div>` : ''}
+      ${st && !st.ok ? `<p class="mp-bad">⚠ ${esc(st.issues.join(' '))}</p>` : ''}
+      <div class="row-actions wrap"><button class="btn small primary" data-a="editHole" title="${esc(t('All its settings — and ＋ Add position for more holes'))}">✎ ${esc(t('Edit the hole'))}</button>
+        <button class="btn small" data-a="addHolePos" title="${esc(t('Then click on the face where another hole goes (click again for more); click this again to stop'))}">＋ ${esc(t('Add position'))}</button></div>`;
+    box.querySelector('[data-k=hole_type]').addEventListener('change', (e) => {
+      const near = Object.keys(HOLE_SIZES).reduce((a, b) => (Math.abs(parseFloat(b.slice(1)) - f.d) < Math.abs(parseFloat(a.slice(1)) - f.d) ? b : a));
+      setHoleStandard(f, e.target.value, size in HOLE_SIZES ? size : this.lastHoleSize || near);
+      this.changedHole(f);
+    });
+    box.querySelector('[data-k=standard]')?.addEventListener('change', (e) => { if (e.target.value) { setHoleStandard(f, kind, this.lastHoleSize = e.target.value); this.changedHole(f); } });
+    for (const k of ['d', 'depth']) {
+      const el = box.querySelector(`[data-k=${k}]`);
+      el?.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') el.blur(); });
+      el?.addEventListener('change', () => {
+        const v = parseFloat(String(el.value).replace(',', '.'));
+        if (!(v > 0)) { el.value = fmt(f[k]); return; }
+        if (k === 'd' && kind === 'd_flat' && (f.flat === undefined || f.flat === dFlat(f.d))) f.flat = dFlat(v);
+        f[k] = v;
+        this.changedHole(f);
+      });
+    }
+    box.querySelector('[data-k=through]').addEventListener('change', (e) => { f.through = e.target.checked; if (!f.through && !(f.depth > 0)) f.depth = 10; this.changedHole(f); });
+    box.querySelector('[data-a=editHole]').addEventListener('click', () => this.edit(f.id));
+    box.querySelector('[data-a=addHolePos]').addEventListener('click', () => { this.edit(f.id); if (this.cmd?.feature.id === f.id) this.armPlace(); });
   }
 
   /** 🏷 Rename a step in its row of the list (typed in place). */
@@ -1069,7 +1185,7 @@ export class Modeler {
         ['measure', '📏', t('Measure it'), () => { if (!this.measuring) this.toggleMeasure(); if (this.measuring) this.clickMeasure(at); }],
         ['paint', '🎨', t('Paint this face'), () => { if (!this.painting) this.togglePaint(); if (this.painting) { this.clickPaint(at); this.renderProps(); } }]]],
       [`${t('Step')} · ${fs.step.name}`, [
-        ['edit', '✎', t('Edit the step'), () => this.edit(fs.step.id)],
+        fs.step.type !== 'hole' && ['edit', '✎', t('Edit the step'), () => this.edit(fs.step.id)], // (a hole: ✎ Edit the hole, above)
         REPEATABLE.has(fs.step.type) && fs.step.type !== 'pattern' && !fs.step.suppressed && ['pattern', '⁂', t('Pattern it'), () => this.startPattern(fs.step.id)],
         ['rename', '🏷', t('Rename'), () => this.renameStep(fs.step.id)],
         ['off', fs.step.suppressed ? '●' : '◌', t(fs.step.suppressed ? 'Turn it on' : 'Turn it off'), () => this.toggleOff(fs.step.id)],
@@ -1080,9 +1196,10 @@ export class Modeler {
     // extrude it, a hole, round / bevel, edit; a round one — its edges, threads, edit
     // a hole's / a boss' face: ⁂ repeat it among the top rows
     const rep = fs.step.type === 'hole' || fs.step.op === 'cut';
+    if (fs.step.type === 'hole') sections.unshift([`${t('Hole')} · ${fs.step.name}`, this.holeRows(fs.step)]); // (a Hole step's: type, size, edit first)
     const RANK = { sketch: 0, faceup: 0.5, hole: 1, fillet: 2, chamfer: 3, edit: 4, pattern: rep ? 2.5 : 8.5, measure: 5.5, decal: 6.5, shell: 6, del: 7, mirror: 8, split: 9, rename: 9.5, paint: 9.8, off: 10, threads: flat ? 11 : 2.5 };
     const sg = showSuggest(this.els.viewport, `${fs.step.name} · ${face}`, sections.flatMap(([title, items]) => [{ section: title },
-      ...items.map(([key, icon, label, run, cls]) => ({ icon, label, rank: RANK[key], danger: cls === 'danger', run: () => { this.dropSuggest(); run(); } }))]), '',
+      ...items.map(([key, icon, label, run, cls, title]) => ({ icon, label, title, rank: RANK[key] ?? HOLE_RANK[key], danger: cls === 'danger', run: () => { if (!(key in HOLE_RANK)) this.dropSuggest(); run(); } }))]), '',
       `${t('in the 3D model')}: ${t('step')} ${fs.step.id} “${fs.step.name}”, ${t('face')} ${h.face.name}${h.face.type === 'plane' ? ` (${t('flat')})` : h.face.type === 'cylinder' ? ` (${t('round')}, Ø${fmt(2 * (h.face.radius || 0))})` : ''}`);
     if (sg) sg.dataset.from = 'face';
   }
@@ -1663,6 +1780,8 @@ export class Modeler {
       box.innerHTML = '<h2>New sketch</h2><p class="hint">Click a flat face of the part to sketch on it — holes, pockets and bosses go there. Or choose a plane in the bar above.</p>';
       return null;
     }
+    const chosen = this.mode === 'part' && this.selected && this.part.features.find((g) => g.id === this.selected);
+    if (chosen?.type === 'hole') { this.renderHoleStep(box, chosen); return null; }
     const b = this.result?.body;
     if (!this.part.features.length) {
       box.innerHTML = `<h2>New 3D model</h2><p class="hint">Start with a sketch: draw a rectangle or a circle, then give it a height with Extrude.</p>

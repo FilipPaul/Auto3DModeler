@@ -7,6 +7,13 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **A chosen hole: its type and size at hand (2026-10-29)**: a Hole step chosen (its wall, its rim — `pickEdge` —,
+  its row) puts `holeRows` on top of the suggestions: *Type: ⌴ Counterbore ▾* (`chooseHoleType`: all of
+  `HOLE_TYPES`, the current ✓), *Size: M5 ▾* (`holeSizes`: ±2 in the M2…M20 series, a plain Ø: ±2 steps of 0.5 mm up
+  to 6, then 1 mm), ✎ Edit the hole, 📏 its Ø — each switch in place, one undo step (`changedHole`). The right panel
+  (no tool open) is `renderHoleStep`: Type / Size or Ø / Through / Depth changed at once, ✎ Edit the hole, ＋ Add
+  position (edit + `armPlace`); `selectStep` scrolls the step's row into sight. Only `hole` steps — an extrude's round
+  cut keeps its face rows. Tests: e2e_hole_suggest (new).
 - **A new thread is cosmetic and seen at once (2026-10-29)**: `commit()` -> `showNewThreads`: a hole step with a
   thread that the last undo step did not have (the Hole tool's Tapped, a type switched, the AI's add / edit) turns
   the part's threads from hidden to `cosmetic` in the same undo step, with a toast; real threads stay one choice away

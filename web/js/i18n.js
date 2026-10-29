@@ -450,6 +450,12 @@ const CS = {
   'Hole — click on a flat face where it goes (click again for more holes). Enter / Esc = done (keeps them), Cancel = throw away.': 'Díra — klikněte na rovnou plochu, kam patří (dalším kliknutím přidáte další). Enter / Esc = hotovo (ponechá je), Zrušit = zahodit.',
   'Fillet — click the edges (or a face: all its edges). Enter / Esc = done (keeps them), Cancel = throw away.': 'Zaoblení — klikněte na hrany (nebo na plochu: všechny její hrany). Enter / Esc = hotovo (ponechá je), Zrušit = zahodit.',
   'Chamfer — click the edges (or a face: all its edges). Enter / Esc = done (keeps them), Cancel = throw away.': 'Zkosení — klikněte na hrany (nebo na plochu: všechny její hrany). Enter / Esc = hotovo (ponechá je), Zrušit = zahodit.',
+  // a chosen Hole step: its type and size in the suggestions, its fields in the right panel
+  'Another kind of hole: simple, clearance, ⌴ counterbore, ⌵ countersink, tapped, D': 'Jiný druh díry: jednoduchá, průchozí, ⌴ válcové zahloubení, ⌵ kuželové zahloubení, se závitem, D',
+  'The sizes next to this one (all of them: ✎ Edit the hole)': 'Velikosti vedle této (všechny: ✎ Upravit díru)',
+  'Edit the hole': 'Upravit díru', 'All its settings — and ＋ Add position for more holes': 'Všechna její nastavení — a ＋ Přidat pozici pro další díry',
+  'Hole type': 'Typ díry', 'Hole size': 'Velikost díry',
+  '◎ Hole step · {n} hole(s) — changed here at once (Ctrl+Z takes a change back).': '◎ Krok díra · děr: {n} — změny se projeví hned (Ctrl+Z změnu vrátí).',
   // a new thread: cosmetic, shown at once
   '🔩 The thread shows as light lines (cosmetic). A real, cut thread: 🔩 Real thread (slower) in the hole’s panel.': '🔩 Závit je zobrazen lehkými čarami (kosmetický). Skutečný vyříznutý závit: 🔩 Skutečný závit (pomalejší) v panelu díry.',
   'Thread': 'Závit', 'Real thread (slower)': 'Skutečný závit (pomalejší)',
