@@ -658,6 +658,20 @@ body:not(.ws-model):not(.ws-assembly):not(.ws-drawing):not(.ws-sheet) .not-quick
 .dw-filter select, .dw-filter input { min-width: 0; background-color: var(--bg); color: inherit; border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; font-size: 12px; }
 .dw-fcount { align-self: center; }
 .ai-btn.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+/* ⏺ the recording of moves: the top bar's switch, the red pill at the top centre of the view while it runs */
+.rec-btn { color: var(--err); padding-left: 9px; padding-right: 9px; }
+.rec-btn.on { background: var(--err); color: #fff; border-color: var(--err); }
+.rec-pill { position: fixed; z-index: 45; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 3px 4px 3px 10px;
+  border-radius: 999px; background: rgba(200, 30, 30, 0.92); color: #fff; font-size: 12px; white-space: nowrap; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
+.rec-pill b { font-weight: 600; }
+.rec-pill .rec-time { font-variant-numeric: tabular-nums; }
+.rec-pill .rec-by { opacity: 0.85; }
+.rec-dot { width: 8px; height: 8px; border-radius: 50%; background: #fff; animation: recPulse 1.6s ease-in-out infinite; }
+@keyframes recPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+.rec-pill .rec-stop { border: 0; border-radius: 999px; padding: 2px 9px; background: rgba(255, 255, 255, 0.95); color: #b01b1b; font-weight: 600; font-size: 12px; cursor: pointer; }
+.rec-pill .rec-stop:hover { background: #fff; }
+.ai-rec { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; }
+.ai-rec button.on { border-color: var(--err); color: var(--err); }
 .ai-drawer { position: fixed; top: 48px; right: 0; bottom: 0; width: min(440px, 100vw); z-index: 40; display: flex; flex-direction: column;
   background: var(--panel); border-left: 1px solid var(--line); box-shadow: -8px 0 24px rgba(0, 0, 0, 0.35); }
 .ai-drawer { width: min(var(--chat-w, 440px), 100vw); }

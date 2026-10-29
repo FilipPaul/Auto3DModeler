@@ -1352,6 +1352,18 @@ can open them.
   through the app's own buttons step by step (`gui_highlight`): a pulsing ring around the control (or a spot of the 3D
   view) with a short tip, the rest of the screen dimmed a little. Nothing is blocked — you click the control itself;
   the tip goes when you click it, press **Esc** or ✕, and Claude waits for your click before it shows the next step.
+- **⏺ Recording of moves — "look what I'm doing"**: the **⏺** in the top bar (or the AI, when you ask it to watch:
+  `start_recording`) records what you do, so the AI sees the problem instead of you describing it. While it runs, a
+  small red pill at the top of the view says **⏺ Recording moves · 0:42 · ■ Stop** (with "(started by the AI)" when the
+  AI started it) — in every workspace; it goes on across parts, workspaces and a reload until you (■ Stop, ⏺) or the AI
+  stop it. It keeps a compact log in the browser session (the newest 2000 events): your clicks — where (in the view
+  and on the screenshot), which button and keys, and what was under the mouse as the AI's tools name it (face F2:end,
+  an edge, a part I2, a dimension) —, drags as one event with their path (sampled; no plain mouse movement), keys
+  (Esc, Enter, Ctrl+Z …), values typed, suggestion rows run, what is selected, undo / redo, steps added / changed /
+  deleted, joints added, workspace and part switches, and every message the app shows (errors and refusals with their
+  text). At an error and when a step is done it takes a small screenshot (at most one every 5 s) with your last clicks
+  marked. The AI reads it with `get_recording` (`since`, `last`, `paths: false`) and `get_recording_screenshot`; in
+  the chat a stopped recording goes with your next message in one click: **📎 Attach the recording (n events)**.
 - **/uiTester and /suggest** in the AI chat: **/uiTester** makes Claude the app's tester — it designs a few test parts
   (sketch, extrude, hole, pattern, fillet; an assembly with joints; a drawing sheet), checks for every feature that
   its button exists, is reachable, does what the tool does and is in Czech, writes a report for each problem and ends

@@ -11,6 +11,9 @@ export class History {
   // committed(history): a step was recorded.
   static first = null;
   static committed = null;
+  // Who else hears of every step, in every workspace: fn(history, dir) — dir 0: recorded, -1: undone, +1: redone (⏺ the
+  // recording of moves, recorder.js).
+  static watchers = new Set();
 
   /** capture(): the state to record; restore(snapshot): put it back; onChange(): update the buttons. */
   constructor({ capture, restore, onChange = () => {}, limit = 100 }) {
@@ -32,7 +35,7 @@ export class History {
   /** Record the current state as a step (nothing happens when it did not change). */
   commit() {
     const did = this.record();
-    if (did) History.committed?.(this);
+    if (did) { History.committed?.(this); for (const fn of History.watchers) fn(this, 0); }
     return did;
   }
 
@@ -64,6 +67,7 @@ export class History {
     await this.restore(clone(snap));
     this.onChange();
     changed();
+    for (const fn of History.watchers) fn(this, dir);
     return true;
   }
 

@@ -34,6 +34,12 @@ and let them click. Do the step yourself only when they ask you to.
 5. **End**: `gui_highlight {clear: true}` if a tip is still shown, then one line of what they learned and the
    shortcut, if any.
 
+**Watching instead of showing:** when the user says "look what I'm doing" / "podívej se, co dělám" (a problem they
+want you to see), `start_recording {reason}` and tell them to go ahead; when they say they are done,
+`get_recording` (`stop_recording` if it still runs; `get_recording_screenshot {id}` for a shot) — the clicks, picks,
+values and toasts in order; the toast texts and the moves just before them usually show the problem. Then lead them
+the right way as above. Never start a recording unasked.
+
 Rules
 - One control per step; keep the tip under ~15 words. Do not click for the user (`gui_action`) while teaching,
   except to undo a wrong turn when they ask.

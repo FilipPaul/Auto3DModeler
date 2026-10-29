@@ -4,6 +4,7 @@
 // the server as Server-Sent Events.
 
 import { t } from './i18n.js';
+import { recorder } from './recorder.js';
 
 const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -114,6 +115,7 @@ const TOOL_LABEL = {
   get_assembly: 'reading the assembly', add_harness: 'routing a cable', edit_harness: 'changing a cable', get_bom: 'reading the bill of materials', insert_part: 'inserting a part', library_search: 'searching the parts library', set_look: 'colouring a part', paint_faces: 'painting faces', move_free: 'moving a part', sheet_open: 'opening a drawing', get_sheet: 'reading the drawing', sheet_edit: 'editing the drawing', ask_user: 'asking you', gui_state: 'looking at the screen', gui_action: 'clicking in the app', gui_highlight: 'showing you where', list_reports: 'reading the problem reports', drawing_delete: 'deleting shapes', drawing_add: 'drawing shapes', drawing_units: 'setting the drawing units', set_travel: 'setting a motion\'s limits', check_travel: 'checking a motion for collisions', lock_motion: 'locking a motion', drive_mechanism: 'driving a mechanism', record_animation: 'recording an animation', name_motion: 'naming a motion', save_to_library: 'saving to the library', report_problem: 'writing a problem report', library_add: 'adding a library part', library_pair: 'adding what goes with a part', check_collisions: 'checking for collisions', snap_faces: 'snapping parts together', place_part: 'placing a part', remove_from_assembly: 'taking a part out', get_guide: 'reading a guide', Skill: 'reading a guide',
   switch_variant: 'switching the variant', take_part: 'taking a part from a variant', rename_variant: 'renaming a variant', delete_variant: 'deleting a variant',
   add_missing_joint: 'adding the missing joint',
+  start_recording: 'starting to record your moves', stop_recording: 'stopping the recording', get_recording: 'reading your recorded moves', get_recording_screenshot: 'looking at a recorded screenshot',
   list_demos: 'looking at the demo projects', open_demo: 'opening a demo project',
   get_drawing: 'reading the 2D drawing', drawing_find: 'finding shapes', drawing_layers: 'setting the layers', drawing_set_size: 'sizing shapes', drawing_use: 'making something of the drawing', measure: 'measuring', list_measurements: 'reading the measurements', clear_measurements: 'clearing the measurements', set_view: 'setting the view', rename_part: 'renaming a part', delete_part: 'deleting a part', edit_joint: 'changing a joint', remove_joint: 'removing a joint', bolt_parts: 'bolting parts together',
 };
@@ -170,6 +172,7 @@ export class ChatPanel {
       </div></div>
       <form class="ai-form">
         <div class="ai-photos" hidden></div>
+        <div class="ai-rec" hidden data-no-i18n></div>
         <textarea rows="3" placeholder="Message Claude… (Enter = send, Shift+Enter = new line)"></textarea>
         <div class="ai-send">
           <label class="btn small ai-attach" title="Attach photos — or paste (Ctrl+V) or drop them here. Claude sees them and can trace one into a part.">📎 Photo<input type="file" accept="image/*" multiple hidden></label>
@@ -205,6 +208,23 @@ export class ChatPanel {
     this.updateUndo();
     this.checkStatus();
     this.connect();
+    recorder.listen(() => this.renderRec()); // (⏺ a stopped recording: 📎 attached to the next message with one click)
+    window.addEventListener('a3d:lang', () => this.renderRec());
+    this.renderRec();
+  }
+
+  /** 📎 Attach the recording (n events): a stopped recording of moves goes with the next message (a click; again: not). */
+  renderRec() {
+    const box = this.$('.ai-rec'), n = recorder.attachable();
+    if (!n) this.recOn = false;
+    const key = n ? `${n}|${this.recOn}|${t('Attach')}` : '';
+    if (key === box.dataset.key) return;
+    box.dataset.key = key;
+    box.hidden = !n;
+    box.innerHTML = !n ? '' : this.recOn
+      ? `<button type="button" class="btn small on" title="${escapeHtml(t('Click: the recording does not go with the message'))}">📎 ${escapeHtml(t('The recording goes with the message'))} ✕</button>`
+      : `<button type="button" class="btn small" title="${escapeHtml(t('Your recorded moves go with the next message — the AI reads what you did'))}">📎 ${escapeHtml(t('Attach the recording ({n} events)').replace('{n}', n))}</button>`;
+    box.querySelector('button')?.addEventListener('click', () => { this.recOn = !this.recOn; this.renderRec(); this.$('textarea').focus(); });
   }
 
   async checkStatus() {
@@ -390,10 +410,13 @@ export class ChatPanel {
 
   async send() {
     const ta = this.$('textarea');
-    const text = ta.value.trim();
-    if ((!text && !this.photos.length) || this.busy) return;
+    let text = ta.value.trim();
+    if ((!text && !this.photos.length && !this.recOn) || this.busy) return;
     if (this.access && this.access.state !== 'ok') { this.showAccess(true); return; } // (set it up first: the typed text stays)
     const photos = this.photos;
+    if (this.recOn) { text = `${text || t('Look at what I did.')}
+
+${recorder.forChat()}`; this.recOn = false; } // (⏺ the recording with it)
     ta.value = '';
     this.photos = [];
     this.renderPhotos();
