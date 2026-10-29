@@ -7,6 +7,20 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **✨ Suggestion-based 3D model and sketch done** (the owner, 2026-10-29: "90 % základních věcí … z chytrých a
+  relevantních suggestions"; audit of ~20 basic tasks: 55 % → 90 % through the table's top rows): nothing chosen in the
+  3D model -> "Další krok" (≤ 6 rows, ranked by context: an empty model ✏ Skica na rovině…; an unused sketch ⬆ Vysunout
+  skicu „…“; after a hole ⁂ Pole z poslední díry; else ✏ sketch on a face, ◎ hole, ◜ / ◸ edges, 📄 Výkres — the drawing sheet …); a click on an EDGE
+  (lit on hover) -> ◜ Zaoblit / ◸ Zkosit tuto hranu first, the command opening with it chosen (Ctrl+click: several);
+  a step's row (or a sketch's outline) -> ✎ edit, 🏷 rename, ⁂ pattern it, ✕ delete, ◌ off, ↑ / ↓ move, ⏮ roll back
+  here (a click on a row no longer leaves the previous table up); a face also 📏 Změřit ji, 🎨, ⁂ for a hole's face;
+  Esc clears the choice; OK / Cancel leave nothing chosen. The sketch: "Další krok" with nothing picked (≤ 5 rows over
+  the drawing: ✓ Hotovo — pak vysunout, 🪄, ⬚ Vybrat tvar, ↔ Kóta, ◯ Kruh; none in an empty sketch); a line clicked in
+  its middle gets the line's suggestions (its length …), not an empty table. Compact panels: the Part panel's "Next"
+  block (a hint + buttons repeating the toolbar) gone, Tolerances / See-through under "Další…", the sketch panel without
+  the second 🏷 Sizes switch and the repeated hint, its Tips folded. Fixed: a click on a sketch size label left its
+  drag running (the label stopped pointerup) — the label wandered with the mouse and, after the sketch, every move threw
+  a console error. tools/e2e_ux_model.py does the tasks only through the suggestions.
 - **⏮ Print and export as the rollback bar stands done** (the owner: "Chci tisknout podle aktuálního umístění
   posuvníku" — as SolidWorks): one place on the server, doc.at_bar(part) — the steps up to part.rollback (absent or a
   step that is not there: all) — used by rebuild, body_of, export (STEP / IGES / STL / OBJ / GLB / PDF) and sheet, so
