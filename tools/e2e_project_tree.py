@@ -35,6 +35,9 @@ def tree():
 try:
     d.get(URL)
     time.sleep(2)
+    js("localStorage.setItem('a3d.leftDock', JSON.stringify({project: 'popup'}))")  # (this test: the tree behind ☰ — docked is the default: e2e_left_pins)
+    d.get(URL)
+    time.sleep(2)
     for name in ("Base", "Lid", "Pin", "Spare"):
         call("new_model", name=name)
         call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 40, "h": 30}}])

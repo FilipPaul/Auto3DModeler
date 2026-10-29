@@ -66,7 +66,7 @@ try:
     print("all closed:", len(tabs()), "tabs | No part open:", js("return document.body.classList.contains('none-open')"),
           d.find_element(By.CSS_SELECTOR, ".no-part").text[:20])
     d.save_screenshot(f"{OUT}/tabs_none.png")
-    d.find_element(By.CSS_SELECTOR, ".pt-all").click()
+    js("if (!document.querySelector('#projTree .pt-row')?.offsetParent) document.querySelector('#partTabs .pt-all').click()")  # (☰: the tree in sight — docked at first, or its popup)
     time.sleep(0.3)
     d.find_element(By.CSS_SELECTOR, "#projTree .pt-row .pt-open").click()
     time.sleep(1)

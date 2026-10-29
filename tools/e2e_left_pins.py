@@ -1,11 +1,13 @@
 """Widgets in the left column, in headless Edge at 1280×800 with real mouse drags: two parts "Base", "Lid" and an
-assembly -> ☰ opens the project tree as before -> its header dragged into the left column docks it on top of the 3D
+assembly -> at first (a first install) the project tree is docked on top of the column, compact (5–8 rows) -> ⋯ ☰
+Back behind the button: ☰ opens it as before -> its header dragged into the left column docks it on top of the 3D
 model's step tree (the same rows, icons, ⧉ / ✕; a double-click renames a part) -> it stays in the sketch, the
 assembly and the 3D model again -> the splitter between the two widgets dragged: their heights change -> ▾ folds the
 tree to its header -> the left column's edge makes it wider (the 3D view narrower) -> a face clicked: the suggestions
 float in the view; their 📌 docks them under the panel (over their place in the column), nothing selected: a quiet
-line -> the tree's header dragged onto the view: it floats there; Ctrl+wheel on its header and the ⋯ slider set its
-opacity -> a reload: the same layout (docked suggestions, floating tree, its opacity, the heights, the width) -> the
+line -> the tree's header dragged onto the view: it floats there; two opacities — the panel (Ctrl+wheel, its ⋯
+slider; 0 %: no background, border, header) and the content (Ctrl+Shift+wheel, its slider; the mouse over it: whole)
+-> a reload: the same layout (docked suggestions, floating tree, its opacities, the heights, the width) -> the
 floating tree dragged back into the column -> ⋯ ☰ Back behind the ☰ button -> ↺ Default layout -> in Czech: the
 headers, the menu and the tooltips; no horizontal page scroll; no console errors.
 
@@ -62,11 +64,13 @@ def rect(sel):
     return js("const e = document.querySelector(arguments[0]); if (!e) return null; const r = e.getBoundingClientRect(); return {x: r.left, y: r.top, w: r.width, h: r.height, b: r.bottom, r: r.right}", sel)
 
 
-def drag_to(el, x, y):
-    """Press on `el` (its left part, away from its buttons) and let go at the page point (x, y), in steps."""
+def drag_to(el, x, y, at=40):
+    """Press on `el` (`at` px from its left, away from its buttons; negative: from its right) and let go at the page
+    point (x, y), in steps."""
     r = el.rect
-    sx, sy = r["x"] + 40, r["y"] + r["height"] / 2
-    a = ActionChains(d, duration=40).move_to_element_with_offset(el, 40 - r["width"] / 2, 0).click_and_hold()
+    at = at if at >= 0 else r["width"] + at
+    sx, sy = r["x"] + at, r["y"] + r["height"] / 2
+    a = ActionChains(d, duration=40).move_to_element_with_offset(el, at - r["width"] / 2, 0).click_and_hold()
     for k in range(1, 6):
         a.move_by_offset(round((x - sx) / 5), round((y - sy) / 5))
     a.release().perform()
@@ -96,6 +100,19 @@ def face_click():
     time.sleep(0.7)
 
 
+def looks(sel):
+    """A widget's [background alpha, border alpha, header background alpha, its content's opacity]."""
+    return js("""const w = document.querySelector(arguments[0]), a = (c) => { const m = c.match(/[\\d.]+/g).map(Number);
+        return c.includes('/') || c.startsWith('rgba') ? m[m.length - 1] : 1; };
+      const h = w.querySelector(':scope > .lw-head'), body = w.querySelector(':scope > :not(.lw-head):not(.fb-size)');
+      return [a(getComputedStyle(w).backgroundColor), a(getComputedStyle(w).borderTopColor), a(getComputedStyle(h).backgroundColor), +getComputedStyle(body).opacity];""", sel)
+
+
+def mouse_away():
+    ActionChains(d).move_to_element(d.find_element(By.CSS_SELECTOR, ".brand")).perform()
+    time.sleep(0.3)
+
+
 def no_hscroll():
     return js("return document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1")
 
@@ -117,9 +134,27 @@ try:
     time.sleep(1)
     settled()
 
-    print("☰ the popup, as before")
+    print("at first: the project tree docked on top")
+    check(state() == {} and js("return document.querySelector('#projTree').closest('#leftCol') !== null"), "a first install: the tree in the column")
+    order = js("return [...document.querySelectorAll('#leftCol > .lw-widget')].filter(e => e.offsetHeight).sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top).map(e => e.dataset.w)")
+    check(order == ["project", "panel"], f"on top of the step tree: {order}")
+    th, rh = rect("#leftCol .lw-widget[data-w=project]")["h"], rect("#leftCol #projTree .pt-row")["h"]
+    rows_fit = (th - 26 - 12) / rh
+    check(5 <= rows_fit <= 8.5, f"compact: {th:.0f} px, {rows_fit:.1f} rows before it scrolls")
+    check(rect("#modelLeft")["h"] > 300, f"the step tree keeps room: {rect('#modelLeft')['h']:.0f} px")
+    shot("lp0_default")
     d.find_element(By.CSS_SELECTOR, "#partTabs .pt-all").click()
+    time.sleep(0.3)
+    check(rect("#leftCol .lw-widget[data-w=project]")["h"] < 32, "☰ folds the docked tree")
+    d.find_element(By.CSS_SELECTOR, "#partTabs .pt-all").click()
+    time.sleep(0.3)
+    check(abs(rect("#leftCol .lw-widget[data-w=project]")["h"] - th) < 3, "☰ again unfolds it")
+    d.find_element(By.CSS_SELECTOR, "#leftCol .lw-widget[data-w=project] .lw-menu").click()
+    time.sleep(0.3)
+    next(b for b in d.find_elements(By.CSS_SELECTOR, ".lw-pop button") if "☰" in b.text).click()
     time.sleep(0.4)
+
+    print("☰ the popup, as before")
     check(js("return document.querySelector('#projTree').classList.contains('open') && document.querySelector('#projTree').parentElement.matches('main.layout')"), "☰ opens the tree over the left panel")
     check(bool(d.find_elements(By.CSS_SELECTOR, "#projTree .tr-head .tr-pin")), "its header has 📌")
     shot("lp1_popup")
@@ -229,23 +264,37 @@ try:
     check(fl and abs(fl["x"] - (vp["x"] + 260)) < 30 and abs(fl["y"] - (vp["y"] + 190)) < 30, f"where it was let go: {fl}")
     check(sorted(tree_rows("#modelViewport")) == ["Base plate", "Lid", "Pair"], "its rows")
     head = d.find_element(By.CSS_SELECTOR, "#modelViewport > .lw-widget[data-w=project] .lw-head")
+    FW = "#modelViewport > .lw-widget[data-w=project]"
     for _ in range(4):
         js("arguments[0].dispatchEvent(new WheelEvent('wheel', {deltaY: 100, ctrlKey: true, bubbles: true, cancelable: true}))", head)
-    time.sleep(0.2)
-    op = js("return getComputedStyle(document.querySelector('#modelViewport > .lw-widget[data-w=project]')).opacity")
-    check(abs(float(op) - 0.8) < 0.01, f"Ctrl+wheel: opacity {op}")
-    check("Ctrl+wheel" in head.get_attribute("title"), "its tooltip tells how")
-    d.find_element(By.CSS_SELECTOR, "#modelViewport > .lw-widget[data-w=project] .lw-menu").click()
+    for _ in range(2):
+        js("arguments[0].dispatchEvent(new WheelEvent('wheel', {deltaY: 100, ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true}))", head)
+    mouse_away()
+    lk = looks(FW)
+    check(abs(lk[0] - 0.8) < 0.02 and abs(lk[2] - 0.8) < 0.02, f"Ctrl+wheel: the panel 80 % (background, header): {lk}")
+    check(abs(lk[3] - 0.9) < 0.01, f"Ctrl+Shift+wheel: the content 90 %: {lk[3]}")
+    tip = head.get_attribute("title")
+    check("Ctrl+wheel" in tip and "Ctrl+Shift+wheel" in tip, "its tooltip names both")
+    d.find_element(By.CSS_SELECTOR, f"{FW} .lw-menu").click()
     time.sleep(0.3)
-    rng = d.find_element(By.CSS_SELECTOR, ".lw-pop input[type=range]")
-    js("arguments[0].value = 60; arguments[0].dispatchEvent(new Event('input'))", rng)
+    labels = [e.text for e in d.find_elements(By.CSS_SELECTOR, ".lw-pop .lw-opn")]
+    check(labels == ["Panel", "Content"], f"two sliders: {labels}")
+    for k, v in (("pop", 0), ("cop", 60)):
+        js("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('input'))", d.find_element(By.CSS_SELECTOR, f".lw-pop input[data-k={k}]"), v)
     time.sleep(0.2)
     shot("lp7_float_menu")
-    op = js("return getComputedStyle(document.querySelector('#modelViewport > .lw-widget[data-w=project]')).opacity")
-    check(abs(float(op) - 0.6) < 0.01, f"the slider: opacity {op}")
     d.find_element(By.TAG_NAME, "body").send_keys("")  # Esc closes the menu
     time.sleep(0.2)
     check(not d.find_elements(By.CSS_SELECTOR, ".lw-pop"), "Esc closes the menu")
+    mouse_away()
+    lk = looks(FW)
+    check(lk[0] == 0 and lk[1] == 0 and lk[2] == 0, f"the panel 0 %: no background, border, header background: {lk}")
+    check(abs(lk[3] - 0.6) < 0.01, f"the content 60 %: {lk[3]}")
+    shot("lp7b_panel_0")
+    ActionChains(d).move_to_element(d.find_element(By.CSS_SELECTOR, f"{FW} .pt-row")).perform()
+    time.sleep(0.4)
+    check(looks(FW)[3] == 1, "the mouse over it: the content whole")
+    mouse_away()
     order = js("return [...document.querySelectorAll('#leftCol > .lw-widget')].filter(e => e.offsetHeight).map(e => e.dataset.w)")
     check(sorted(order) == ["panel", "suggest"], f"the column keeps the rest: {order}")
     face_click()
@@ -266,8 +315,9 @@ try:
     check(state() == layout, "the same state")
     fl2 = rect("#modelViewport > .lw-widget[data-w=project]")
     check(fl2 and abs(fl2["x"] - fl["x"]) < 3 and abs(fl2["y"] - fl["y"]) < 3, f"the tree floats where it was: {fl2}")
-    op = js("return getComputedStyle(document.querySelector('#modelViewport > .lw-widget[data-w=project]')).opacity")
-    check(abs(float(op) - 0.6) < 0.01, f"its opacity: {op}")
+    mouse_away()
+    lk = looks("#modelViewport > .lw-widget[data-w=project]")
+    check(lk[0] == 0 and abs(lk[3] - 0.6) < 0.01, f"its opacities: the panel 0 %, the content 60 %: {lk}")
     check(abs(rect("#leftCol")["w"] - width) < 2, "the column's width")
     check(js("return !document.querySelector('#leftCol .lw-widget[data-w=suggest]').hidden"), "the suggestions docked")
     shot("lp9_reloaded")
@@ -278,7 +328,8 @@ try:
     check(state().get("project") == "dock", "docked again")
     order = js("return [...document.querySelectorAll('#leftCol > .lw-widget')].filter(e => e.offsetHeight).sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top).map(e => e.dataset.w)")
     check(order == ["project", "panel", "suggest"], f"dropped on top: {order}")
-    check(js("return getComputedStyle(document.querySelector('#leftCol .lw-widget[data-w=project]')).opacity") == "1", "docked: not see-through")
+    lk = looks("#leftCol .lw-widget[data-w=project]")
+    check(lk[0] == 1 and lk[3] == 1, f"docked: not see-through: {lk}")
 
     print("☰ back behind the button")
     d.find_element(By.CSS_SELECTOR, "#leftCol .lw-widget[data-w=project] .lw-menu").click()
@@ -300,12 +351,17 @@ try:
     next(b for b in d.find_elements(By.CSS_SELECTOR, ".lw-pop button") if "↺" in b.text).click()
     time.sleep(0.5)
     s = state()
-    check(s.get("project") == "popup" and s.get("suggest") == "float" and not s.get("ws"), f"the usual layout: {s}")
+    check(s.get("project") == "dock" and s.get("suggest") == "float" and not s.get("ws"), f"the usual layout: {s}")
     check(abs(rect("#leftCol")["w"] - 340) < 2, f"the usual width: {rect('#leftCol')['w']}")
-    order = js("return [...document.querySelectorAll('#leftCol > .lw-widget')].filter(e => e.offsetHeight).map(e => e.dataset.w)")
-    check(order == ["panel"], f"only the panel: {order}")
+    order = js("return [...document.querySelectorAll('#leftCol > .lw-widget')].filter(e => e.offsetHeight).sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top).map(e => e.dataset.w)")
+    check(order == ["project", "panel"], f"the tree docked on top, then the panel: {order}")
+    check(not js("return [...document.body.style].some(p => /^--[pc]op-/.test(p))"), "no opacities left")
 
     print("the 3D model's panel floats too")
+    d.find_element(By.CSS_SELECTOR, "#leftCol .lw-widget[data-w=project] .lw-menu").click()  # (the tree floats first: nothing left docked then)
+    time.sleep(0.3)
+    next(b for b in d.find_elements(By.CSS_SELECTOR, ".lw-pop button") if "⧉" in b.text).click()
+    time.sleep(0.4)
     vp = rect("#modelViewport")
     c0 = rect("#modelViewport canvas")["w"]
     drag_to(d.find_element(By.CSS_SELECTOR, "#leftCol .lw-widget[data-w=panel].model-only .lw-head"), vp["x"] + 200, vp["y"] + 150)
@@ -324,16 +380,16 @@ try:
     settled()
     shot("lp10_panel_float")
     lr = rect("main.layout")
-    drag_to(d.find_element(By.CSS_SELECTOR, "#modelViewport > .lw-widget.floating .lw-head"), lr["x"] + 15, lr["y"] + 200)
+    drag_to(d.find_element(By.CSS_SELECTOR, "#modelViewport > .lw-widget.floating[data-w=panel] .lw-head"), lr["x"] + 15, lr["y"] + 200, at=-70)  # (its right part: the floating tree overlaps its left)
     check(js("return document.querySelector('#modelLeft').closest('.lw-widget').parentElement.id") == "leftCol" and rect("#leftCol")["w"] > 300,
           "dropped at the left edge: docked again, the column back")
+    d.find_element(By.CSS_SELECTOR, "#modelViewport > .lw-widget[data-w=project] .lw-menu").click()
+    time.sleep(0.3)
+    next(b for b in d.find_elements(By.CSS_SELECTOR, ".lw-pop button") if "↺" in b.text).click()
+    time.sleep(0.5)
 
     print("Czech")
     d.find_element(By.ID, "langBtn").click()
-    time.sleep(0.4)
-    d.find_element(By.CSS_SELECTOR, "#partTabs .pt-all").click()
-    time.sleep(0.3)
-    d.find_element(By.CSS_SELECTOR, "#projTree .tr-pin").click()
     time.sleep(0.4)
     heads = js("return [...document.querySelectorAll('#leftCol > .lw-widget')].filter(e => e.offsetHeight).sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top).map(e => e.querySelector('.lw-head b').textContent)")
     check(heads == ["☰ Projekt", "3D model"], f"the headers: {heads}")

@@ -76,8 +76,11 @@ next to the tabs offers the usual ways to open a file.
 parts…) and the **suggestions** table are widgets: **drag a header** into the left panel to dock it there (a line shows
 where it goes; the 📌 in the ☰ tree or on the suggestions does it at once), or onto the view to let it **float** over
 the drawing. Docked widgets share the height (drag the line between them), **▾** folds one to its header, the panel's
-right edge sets its width. A floating widget moves and resizes like the other boxes and can be see-through
-(**Ctrl+wheel** on its header, or the slider in its **⋯** menu). The layout is remembered per workspace; **⋯ › ↺ Default
+right edge sets its width. The project tree starts docked on top (☰ folds it; ⋯ › ☰ puts it back behind the button).
+A floating widget moves and resizes like the other boxes and has two opacities: its **panel** (background, border,
+header — at 0 % only its content floats over the view; **Ctrl+wheel** on its header) and its **content** (rows,
+buttons, text — 30 % at least, whole while the mouse is over it; **Ctrl+Shift+wheel**), also as two sliders in its
+**⋯** menu. The layout is remembered per workspace; **⋯ › ↺ Default
 layout** puts everything back. A double-click on a row of the project tree renames the part.
 
 **Snap and Select filters** (the row at the bottom of a sketch, remembered): **Snap:** *Points, Midpoints, Centres,
