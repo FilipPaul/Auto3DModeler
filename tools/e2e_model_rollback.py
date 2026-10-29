@@ -273,7 +273,7 @@ try:
 
     # ---- ⏮ exports follow the bar (as SolidWorks): the plate alone, said in Czech
     catch_saves()
-    note = js("return document.querySelector('#modelRight .mp-rb-note')?.textContent || ''")
+    note = js("return document.querySelector('#modelExport .mp-rb-note')?.textContent || ''")
     print("panel note:", note)
     check("the part panel says it (Czech, the steps left out)",
           note.startswith("⏮ Podle posuvníku historie: bez posledních 4 kroků (") and "Zaoblení 1" in note and "Vysunutí 3" in note, note)
@@ -298,7 +298,7 @@ try:
 
     # ---- the print copy: the plate alone, its print panel says so; check_print too
     model_id = js("return window.__app.project.current.id")
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=toPrint]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelExport [data-a=toPrint]").click()
     wait("return window.__app.state.workspace === 'quick' && window.__app.state.solution && document.querySelector('#rtab-print [data-a=split]')", 90)
     time.sleep(0.5)
     pnote = js("return document.querySelector('#rtab-print .print-rb-note')?.textContent || ''")
@@ -326,7 +326,7 @@ try:
     wait(f"return window.__app.state.workspace === 'model' && !!{M}.result?.body", 30)
     settled()
     # ---- a drawing sheet of it: drawn as the bar stands, its panel says so
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=newSheet]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelExport [data-a=newSheet]").click()
     wait("return window.__app.state.workspace === 'sheet' && window.__app.sheet.d?.built", 90)
     time.sleep(0.5)
     snote = js("return document.querySelector('.sh-rb-note')?.textContent || ''")

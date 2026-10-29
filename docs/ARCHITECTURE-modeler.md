@@ -906,6 +906,38 @@ Date: 2026-10-25. Written by the architect agent.
   the rest per workspace; ⋯ › ↺ Default layout clears it, the lw-* / suggest box places and the column width
   (splitters.resetWidth). tools/e2e_left_pins.py (55 checks). Left out: floating a widget outside the browser window;
   dragging the right panel (it stays as it is).
+- **Right column a dock too done** (the owner, 2026-10-29: "like the left panel, the right one customizable — drag and
+  drop widgets anywhere"): leftdock.js now runs two columns, `#leftCol` and `#rightCol` (`.lw-col`, grid columns
+  `--lcol` / `--rcol` on body), the same mechanics in both (header drag with a drop line in either column or onto the
+  view, splitters, ▾, ⋯, two opacities). Modes: 'dock' (left, as before), 'right', 'float', 'popup'. Each workspace's
+  right panel (#modelRight, #asmRight, #dwgRight, #shRight, the quick part's) is the body of a widget `props`
+  ("Properties"), so every `#modelRight …` lookup still works wherever it is. Sections that stand on their own are
+  widgets of their own (SECTIONS): the workspace marks them `data-dock="<name>"` in its render and a MutationObserver
+  moves them into the widget's box (`#modelExport` — Export / 3D print, `#asmBom` — the assembly's parts list and
+  export, `#shTitle` — the sheet's title block); the widget shows while the panel has it, sized to its content; the
+  panel element's querySelector also searches those boxes (the workspaces' `$()` find them). Kept out of the split
+  (live updates, many selectors): an assembly part's joints / moves, the sketch and step panels. Persistence: the same
+  key a3d.leftDock, now `v: 2` — a v1 state reads as it was (its order kept, 'props' added; ws[<ws>].props: its mode);
+  ↺ Default layout resets both columns and both widths. An empty column is a 6 px strip (`lw-empty` / `rw-empty`,
+  `.col-empty`; dropping a widget there docks it). gui_state's area() calls any widget control 'panel' wherever it is
+  (unchanged). tools/e2e_dock_both.py (35 checks; real drags; the tests looking up moved controls now use #modelExport
+  / #asmBom / #shTitle).
+- **Widget autosize and rows done** (the owner: "autosize … to have all fields visible; for each widget the number of
+  lines, a more button"): each widget's ⋯ menu has ↕ Automatic height (me.auto[w]: docked — flex-basis its natural
+  height, never the stretching one; floating — height to its content, at most the view; a MutationObserver per widget
+  + rAF re-measures, `natural()` opens inner scrollers; the splitter / a floating grip or edge turns it off) and, for
+  list widgets (ROWS selectors: project .pt-row, the step tree's top rows, the assembly's parts, ⚙ mechanism,
+  versions, parameters, measurements, or addWidget's `rows`), Rows N (me.rows[w], 0 = all): rows past N get .lw-cut
+  and a `⋯ More (k)` / `▴ Fewer` row. The suggestions' N is the same setting (suggestLimit reads it; default 8 or the
+  old a3d.suggestTop, which is still written). The floating suggestions table has the same ⋯ menu (dock, float, the
+  two opacity sliders, autosize, Rows); its scrollers and every widget body use floatbox's scrollFade (no scrollbar).
+  All per workspace in a3d.leftDock; ↺ Default layout resets them. tools/e2e_dock_both.py (+17 checks, 52).
+- **Suggestions closable done** (the owner: "close the suggestion table any time; closed it is a button bottom left;
+  an auto switch"): ✕ in the table's head (or Space outside boxes and buttons) -> leftDock.setSg({closed, auto}) per
+  workspace (me.sgClosed, me.sgAuto); the box is still drawn but `.vs-closed` (so the AI sees it: suggestTables /
+  suggestInfo report `closed: true`, runSuggestion opens it first), and a `.vs-pill` "💡 Suggestions (n)" with an
+  Automatically checkbox sits at the table's anchor above the filter row. ✕ with auto on turns auto off and says so
+  once (a3d.sgToldClose). Docked: closed = folded (fold('suggest') keeps them in step). ↺ Default layout: open, auto. e2e_dock_both +11 checks (63).
 
 - **Nested step tree done** (SolidWorks / Solid Edge style; owner's request 2026-10-29): steptree.js — treeShape (a
   sketch under the first step made from it, a later one made from it too / a pattern's / a mirror's steps as links, the

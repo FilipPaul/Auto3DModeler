@@ -130,7 +130,14 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 3px; }
 .menu-list .menu-note { max-width: 300px; padding: 6px 10px 8px; font-size: 12px; color: var(--warn); border-bottom: 1px solid var(--line); margin-bottom: 4px; }
 #exportMenu.rolled button::after { content: ' ⏮'; color: var(--warn); }
 
-.layout { display: grid; grid-template-columns: var(--left-w, 340px) minmax(0, 1fr) var(--right-w, 310px); flex: 1; min-height: 0; position: relative; }
+.layout { display: grid; grid-template-columns: var(--lcol) minmax(0, 1fr) var(--rcol); grid-template-rows: minmax(0, 1fr); flex: 1; min-height: 0; position: relative; }
+/* the two side columns (leftdock.js): as wide as their splitters say; one with nothing docked: a thin strip to drop on */
+body { --lcol: var(--left-w, 340px); --rcol: var(--right-w, 310px); }
+body.lw-empty { --lcol: 6px; }
+body.rw-empty { --rcol: 6px; }
+.layout > .left-col { grid-column: 1; grid-row: 1; }
+.layout > .viewport { grid-column: 2; grid-row: 1; }
+.layout > .right-col { grid-column: 3; grid-row: 1; }
 .panel { background: var(--panel); overflow-y: auto; }
 .panel.left { border-right: 1px solid var(--line); display: flex; flex-direction: column; }
 .panel.right { border-left: 1px solid var(--line); padding: 12px 14px; }
@@ -318,7 +325,7 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 3px; }
 .mini.danger:hover { color: var(--err); border-color: var(--err); }
 .badge.added { color: var(--user); }
 .dim-label.added { border-color: var(--user); color: #e2d4ff; }
-.toast-stack { right: calc(var(--right-w, 310px) + 20px); }
+.toast-stack { right: calc(var(--rcol, 310px) + 20px); }
 .promote-box { grid-column: 1 / -1; padding: 8px; border: 1px solid var(--line); border-radius: 6px; margin-top: 6px; }
 .promote-box select { width: 100%; background-color: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 4px 24px 4px 6px; margin-bottom: 6px; }
 .piece.connector { border-left-color: #f2cc60; }
@@ -812,7 +819,7 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .sk-label.hole-dim.edit { pointer-events: auto; cursor: text; } /* a placed hole's numbers (not while placing): click to type */
 .sk-label.hole-dim.edit:hover { border-color: #d2a8ff; color: #fff; }
 body.chat-open .layout { margin-right: min(var(--chat-w, 440px), 100vw); }
-body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var(--right-w, 310px)); }
+body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var(--rcol, 310px)); }
 .ai-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--line); }
 .ai-drawer .ai-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 8px 10px 10px; }
 #asmLeft { padding: 10px 10px 14px; }
@@ -1371,14 +1378,19 @@ body.fb-resizing, body.fb-resizing * { cursor: var(--fb-cur, nwse-resize) !impor
 
 /* the left column: widgets one above another (the ☰ project tree, the workspace's panel, the suggestions), each with
    a header to drag it (up or down here, onto the view to float it), ▾ to fold it, ⋯ for the rest — leftdock.js */
-.left-col { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; position: relative; z-index: 6;
-  background: var(--panel); border-right: 1px solid var(--line); }
-body.lw-empty .layout { grid-template-columns: 0 minmax(0, 1fr) var(--right-w, 310px); }
-body.lw-empty .left-col { border-right: 0; }
-body.lw-empty .split-left { display: none; }
+.lw-col { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; position: relative; z-index: 6; background: var(--panel); }
+.left-col { border-right: 1px solid var(--line); }
+.right-col { border-left: 1px solid var(--line); }
+.lw-col.col-empty { background: var(--panel-2); }
+body.lw-empty .split-left, body.rw-empty .split-right { display: none; }
 .lw-widget { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--panel); }
 .lw-widget[hidden] { display: none !important; }
-.lw-widget > .panel.left { flex: 1 1 auto; min-height: 0; border-right: 0; }
+.lw-widget > .panel { flex: 1 1 auto; min-height: 0; border-left: 0; border-right: 0; }
+.lw-sec { padding: 10px 14px; }
+.lw-sec > [data-dock] > h3:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.lw-sec .row-actions { flex-wrap: wrap; justify-content: flex-start; }
+.lw-widget.floating[data-w=props], .lw-widget.floating.rside { left: auto; right: 12px; } /* (a right panel floats at the view's right side at first) */
+.lw-widget.floating[data-w=props] { --pop: var(--pop-props, 1); --cop: var(--cop-props, 1); }
 .lw-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .lw-head { flex: none; display: flex; align-items: center; gap: 4px; height: 26px; padding: 0 4px 0 6px; box-sizing: border-box; background: var(--panel-2);
   border-bottom: 1px solid var(--line); cursor: grab; user-select: none; touch-action: none; font-size: 11.5px; }
@@ -1386,7 +1398,7 @@ body.lw-empty .split-left { display: none; }
 .lw-head:hover b { color: var(--text); }
 .lw-grip { color: var(--muted); opacity: .55; font-size: 11px; letter-spacing: -1px; }
 .lw-head .mini { padding: 0 5px; line-height: 16px; font-size: 12px; background: none; border-color: transparent; }
-.left-col > .lw-widget:not(.folded) { min-height: 60px; }
+.lw-col > .lw-widget:not(.folded) { min-height: 60px; }
 .lw-head .mini:hover { border-color: var(--line); color: var(--text); }
 .lw-op { font-size: 11px; color: var(--accent); }
 .lw-op[hidden] { display: none; }
@@ -1436,11 +1448,11 @@ body.lw-empty .split-left { display: none; }
 .lw-widget[data-w=suggest] .lw-empty-sg .vs-list { padding: 0; }
 .lw-widget[data-w=suggest].has-sg .lw-empty-sg { visibility: hidden; }
 /* dragging a widget: where it would go */
-.lw-mark { position: absolute; left: 0; width: var(--left-w, 340px); height: 4px; background: var(--accent); z-index: 31; pointer-events: none; border-radius: 2px;
+.lw-mark { position: absolute; left: 0; width: var(--lcol); height: 4px; background: var(--accent); z-index: 31; pointer-events: none; border-radius: 2px;
   box-shadow: 0 0 8px var(--accent); }
-.lw-mark.zone { top: 0 !important; bottom: 0; width: 40px; height: auto; opacity: .35; }
+.lw-mark.zone { top: 0 !important; bottom: 0; height: auto; opacity: .35; }
 .lw-mark[hidden] { display: none; }
-body.lw-dragging .left-col { outline: 1px dashed var(--accent); outline-offset: -2px; }
+body.lw-dragging .lw-col { outline: 1px dashed var(--accent); outline-offset: -2px; }
 .lw-ghost { position: fixed; z-index: 70; pointer-events: none; background: var(--panel-2); border: 1px solid var(--accent); border-radius: 6px; padding: 3px 8px;
   font-size: 12px; box-shadow: 0 6px 18px #0009; white-space: nowrap; }
 .lw-ghost.none { border-color: var(--line); opacity: .6; }
@@ -1453,6 +1465,29 @@ body.resizing-v, body.resizing-v * { cursor: row-resize !important; user-select:
 .lw-opn { width: 52px; }
 .lw-opl input { flex: 1; min-width: 80px; }
 .lw-opv { width: 38px; text-align: right; }
+/* ↕ Automatic height and Rows in a widget's ⋯ menu; a list cut to its first N rows: ⋯ More (k) / ▴ Fewer */
+.lw-pop .lw-tick { color: var(--accent); }
+.lw-rows { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 12px; color: var(--muted); }
+.lw-rows .lw-rown { flex: 1; }
+.lw-rows input { width: 70px; flex: none; }
+.lw-cut { display: none !important; }
+.lw-more { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 4px 10px; margin: 1px 0; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; border-radius: 5px; }
+.lw-more:hover { color: var(--text); background: #2b3340; }
+.vs-head .vs-menu { flex: none; margin-left: -3px; background: none; border: 1px solid transparent; border-radius: 5px; padding: 0 3px; cursor: pointer; font-size: 12px; color: var(--muted); line-height: 16px; }
+.vs-head .vs-menu:hover { border-color: var(--line); color: var(--text); }
+.view-suggest.docked .vs-menu { display: none; } /* (docked: its widget's header has the ⋯) */
+.vs-head .vs-x { flex: none; margin-left: -5px; background: none; border: 1px solid transparent; border-radius: 5px; padding: 0 3px; cursor: pointer; font-size: 11px; color: var(--muted); line-height: 16px; }
+.vs-head .vs-x:hover { border-color: var(--line); color: var(--text); }
+/* the suggestions closed (✕): a 💡 button where the table was, with its Automatically switch (suggest.js) */
+.view-suggest.vs-closed { display: none !important; }
+.vs-pill { position: absolute; left: 12px; bottom: 34px; z-index: 6; display: flex; align-items: center; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; box-shadow: 0 4px 14px #0007; font-size: 12px; }
+.viewport:has(> .sk-filters) .vs-pill { bottom: calc(34px + var(--skf-h, 28px)); }
+.vs-pill .vs-open { display: flex; align-items: center; gap: 5px; background: none; border: 0; color: var(--text); padding: 4px 9px; border-radius: 7px 0 0 7px; cursor: pointer; font: inherit; }
+.vs-pill .vs-open:hover { background: #2b3440; }
+.vs-pill .vs-auto { display: flex; align-items: center; gap: 4px; padding: 4px 9px 4px 7px; border-left: 1px solid var(--line); color: var(--muted); cursor: pointer; user-select: none; }
+.vs-pill .vs-auto:hover { color: var(--text); }
+.vs-pill .vs-auto input { margin: 0; }
 
 /* 🕘 Versions (versions.js): the widget, the preview's banner, Save project ▾ */
 .vr-box { padding: 4px 6px 6px; font-size: 12px; }
@@ -1507,7 +1542,7 @@ body.resizing-v, body.resizing-v * { cursor: row-resize !important; user-select:
 .vr-diff .del { color: var(--err); }
 .vr-diff .vol { color: var(--muted); }
 .vr-banner { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 40; display: flex; gap: 8px; align-items: center; padding: 6px 10px; background: #3b2f12f2; border: 1px solid var(--warn); border-radius: 8px; box-shadow: 0 6px 18px #0008; font-size: 13px; white-space: nowrap; }
-body.vr-preview #partTabs, body.vr-preview .topbar .actions > :not(#langBtn), body.vr-preview .panel.right, body.vr-preview .left-col .lw-widget:not([data-w^=versions]) { opacity: .5; }
+body.vr-preview #partTabs, body.vr-preview .topbar .actions > :not(#langBtn), body.vr-preview .panel.right, body.vr-preview .lw-col .lw-widget:not([data-w^=versions]) { opacity: .5; }
 .save-menu .caret { padding-left: 5px; padding-right: 5px; margin-left: -4px; }
 .save-menu .menu-item input { vertical-align: middle; margin-right: 4px; }
 .toast .vr-undo { margin-left: 6px; }
@@ -1518,9 +1553,9 @@ body.vr-preview #partTabs, body.vr-preview .topbar .actions > :not(#langBtn), bo
 body.start-open .start-screen { display: flex; position: absolute; inset: 0; z-index: 5; align-items: center; justify-content: center;
   padding: 24px; pointer-events: none; }
 body.start-open:not(.start-fresh) .start-screen { left: var(--left-w, 340px); } /* (the project tree beside it) */
-body.start-open .layout > :not(.start-screen):not(.proj-tree):not(.left-col):not(.ai-drawer), body.start-open .left-col > :not([data-w=project]) { visibility: hidden; }
-body.start-open .left-col { background: none; border-color: transparent; }
-body.start-fresh .left-col { visibility: hidden; }
+body.start-open .layout > :not(.start-screen):not(.proj-tree):not(.lw-col):not(.ai-drawer), body.start-open .lw-col > :not([data-w=project]) { visibility: hidden; }
+body.start-open .lw-col { background: none; border-color: transparent; }
+body.start-fresh .lw-col { visibility: hidden; }
 .st-box { pointer-events: auto; display: flex; flex-direction: column; align-items: center; gap: 16px; max-width: 720px; width: 100%; }
 .st-title { margin: 0; font-size: 20px; font-weight: 600; color: var(--text); }
 .st-box .no-part { display: none; }

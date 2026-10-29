@@ -166,7 +166,7 @@ try:
     call("place_part", part="I2", x=100, y=0, z=0)
     check(js("return getComputedStyle(document.querySelector('#exportMenu [data-fmt=iges]')).display") != "none", "IGES in the Export menu of an assembly")
     js(f"{A}.sel = null; {A}.render()")  # (nothing chosen: the assembly's panel with its Export buttons)
-    d.find_element(By.CSS_SELECTOR, "#asmRight [data-x=iges]").click()
+    d.find_element(By.CSS_SELECTOR, "#asmBom [data-x=iges]").click()
     _, data = saved(2, "Pair.igs")
     shape, _, _ = K.read_iges(data)
     check(K.solids(shape) == 2 and abs(K.volume(shape) - (PLATE_HOLE + 3000)) < 1e-2 and all(abs(a - b) < 1e-3 for a, b in zip(K.bbox(shape), world_box())),

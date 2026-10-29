@@ -27,7 +27,7 @@ M = "window.__app.modeler"
 H = "window.__app.agentHandlers"
 VP = "#modelViewport"
 BOXES = {  # kind: (the box, its handle)
-    "suggest": (".view-suggest", ".vs-head"),
+    "suggest": (".view-suggest", ".vs-head > b"),  # (its title: the head also holds ✨, ⋯, ✕ and, on hover, Top 8)
     "printcheck": (".m-printcheck", ".mpc-head"),
     "section": (".m-section", ".fb-strip"),
 }
@@ -179,7 +179,8 @@ try:
         drag(handle(kind), -2500, -2500)
         r = rect(kind)
         check(r["x"] >= 0 and r["y"] >= r["barBottom"], f"{kind}: dragged far up-left it stays in the view, under the toolbar ({r['x']}, {r['y']}; the bar ends at {r['barBottom']})")
-        drag(handle(kind), 2500, 2500)
+        r = rect(kind)  # (the pointer stays over the view, 10 px in: past it, in the right panel, a box with a widget's header docks there — leftdock.js)
+        drag(handle(kind), r["vw"] - 10 - (r["x"] + r["w"] // 2), 2500)
         r = rect(kind)
         check(r["x"] + r["w"] <= r["vw"] and r["y"] + r["h"] <= r["vh"], f"{kind}: dragged far down-right it stays in the view ({r['x'] + r['w']} ≤ {r['vw']}, {r['y'] + r['h']} ≤ {r['vh']})")
         ActionChains(d).double_click(handle(kind)).perform()

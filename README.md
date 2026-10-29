@@ -80,8 +80,17 @@ right edge sets its width. The project tree starts docked on top (☰ folds it; 
 A floating widget moves and resizes like the other boxes and has two opacities: its **panel** (background, border,
 header — at 0 % only its content floats over the view; **Ctrl+wheel** on its header) and its **content** (rows,
 buttons, text — 30 % at least, whole while the mouse is over it; **Ctrl+Shift+wheel**), also as two sliders in its
-**⋯** menu. The layout is remembered per workspace; **⋯ › ↺ Default
-layout** puts everything back. A double-click on a row of the project tree renames the part.
+**⋯** menu. **The right panel works the same way**: a workspace's properties (**Properties** — the part, the step
+being edited, the selected part of an assembly, the sheet…) and the parts of it that stand on their own — a 3D
+model's **Export / 3D print**, an assembly's **Parts list and export**, a sheet's **Title block** — are widgets too:
+drag any header into the left or the right panel or onto the view, so everything can go anywhere (⋯ › 📌 Dock in the
+left / right panel does it too). A panel with nothing left in it shrinks to a thin strip (drop a widget there to
+fill it again) and the view takes the room; the right panel's left edge sets its width. Every widget's **⋯** menu
+also has **↕ Automatic height** (it grows or shrinks with its content, no scrolling, as far as there is room — a
+height you drag by hand turns it off) and, for lists (the project tree, the steps, the assembly's parts, versions,
+measurements, the mechanism, parameters, the suggestions), **Rows**: only the first N show, then **⋯ More (k)** /
+**▴ Fewer** (the suggestions start at 8 — the same number as their "Top 8"). Where a widget still scrolls, it has no
+scrollbar, only a fade. The layout is remembered per workspace; **⋯ › ↺ Default layout** puts everything back. A double-click on a row of the project tree renames the part.
 
 **Snap and Select filters** (the row at the bottom of a sketch, remembered): **Snap:** *Points, Midpoints, Centres,
 Origin, On shapes, Guides, Grid* — where a point you draw (or drag) lands; *Grid* off puts it exactly
@@ -220,6 +229,11 @@ on a plane…; a sketch not used yet — ⬆ Extrude it; after a hole — ⁂ Pa
 chosen; Ctrl+click more edges), a click on a **step in the list** ✎ Edit, 🏷 Rename, ⁂ Pattern it, ✕ Delete, ↑ / ↓ Move,
 ⏮ Roll back here. In a sketch, with nothing picked: ✓ Finish — then extrude, 🪄 Auto-dimension, ⬚ Pick a shape,
 ↔ Dimension, ◯ Circle. Esc clears the choice.
+**✕ closes the table** (in every workspace): a small **💡 Suggestions (n)** button takes its place in the view's
+bottom-left corner — n is how many there are for what is selected — and a selection no longer pops the table up
+until you click the button (or press **Space**). The button's **Automatically** switch (also in the table's ⋯ menu)
+brings back the usual way: the table opens on a selection by itself. Docked, ✕ folds it to its header. Remembered
+per workspace; ↺ Default layout opens it again.
 
 **A click on a face of a 3D model** chooses its step and shows its tools in the Suggested table (bottom left) — the
 table can be **dragged by its header** anywhere in the view, and stays there (a double-click on the header: back).

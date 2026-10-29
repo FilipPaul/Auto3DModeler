@@ -609,6 +609,18 @@ Never report "works" without having run it; report failures with their output.
    (Ctrl+Shift+wheel, slider, 60 %; the mouse over it: whole), computed styles checked; a reload: the same layout; back into the column; ☰ Back behind the
    button; ↺ Default layout; the 3D model's panel floats -> no column, the view wider, the assembly's stays; Czech
    headers / menu / tooltips; no horizontal scroll).
+   `tools/e2e_dock_both.py <url> <dir>` covers both side columns as docks at 1280×800 with real drags (an old
+   left-only a3d.leftDock read as it was, the right panels added; at first the 3D model's Properties and Export / 3D
+   print on the right; Properties dragged left still works — material changed; the project tree dragged right; Export
+   floated over the view; a reload keeps it all; the right column emptied -> a thin strip, the view wider; dropped on
+   the strip: docked; the right edge wider -> the view follows; ↺ Default layout; the assembly's Parts list and export
+   dragged left; the sheet's Title block widget; ↕ Automatic height on the project tree: 3 -> 12 parts, it grows, no
+   inner scrolling, the splitter turns it off; Rows 5: 5 rows + ⋯ More (7) -> 12 + ▴ Fewer -> 5; the floating
+   suggestions' ⋯: Rows shared with the old Top 8 (-> 5, a3d.suggestTop), opacities panel 0 % / content 60 %
+   (computed); a reload keeps them, ↺ resets them; ✕ closes the suggestions: 💡 Suggestions (n) bottom left above
+   the filter row, said once, a selection does not open it but the count follows, gui_state closed: true, the button
+   opens it, Automatically on: opens on a selection, a reload keeps it closed, Space opens / closes; Czech headers /
+   menu / tooltips / Rows / the 💡 button; 1600×1000; no horizontal scroll).
    `tools/e2e_tabs.py <url> <dir>` covers the part tabs (9 long names: their own row under the top bar, 2 rows, 5
    letters readable on each, the one on screen and one being renamed wider, a tab dragged before the first, all
    closed: "No part open", ☰ opens one again).

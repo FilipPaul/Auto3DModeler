@@ -59,7 +59,7 @@ try:
     js("""window.__saved = []; window.showSaveFilePicker = async (o) => ({ name: o.suggestedName,
       createWritable: async () => ({ write: async (b) => { const r = new FileReader(); await new Promise(res => { r.onload = res; r.readAsDataURL(b); });
         window.__saved.push([o.suggestedName, r.result.split(',')[1]]); }, close: async () => {} }) });""")
-    btn = d.find_element(By.CSS_SELECTOR, "#modelRight [data-x=pdf]")
+    btn = d.find_element(By.CSS_SELECTOR, "#modelExport [data-x=pdf]")
     print("button:", btn.text)
     btn.click()
     wait("return window.__saved.length === 1")

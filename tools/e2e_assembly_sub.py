@@ -92,7 +92,7 @@ try:
       createWritable: async () => ({ write: async (b) => { window.__saved.push([o.suggestedName, await b.text()]); }, close: async () => {} }) });""")
     js(f"{A}.sel = null; {A}.render()")
     time.sleep(0.3)
-    d.find_element(By.CSS_SELECTOR, "#asmRight [data-x=step]").click()
+    d.find_element(By.CSS_SELECTOR, "#asmBom [data-x=step]").click()
     wait("return window.__saved.length === 1", 90)
     name, text = js("return window.__saved[0]")
     print("STEP:", name, "| solids:", text.count("MANIFOLD_SOLID_BREP"))

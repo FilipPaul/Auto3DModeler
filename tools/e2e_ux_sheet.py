@@ -144,7 +144,7 @@ try:
     wait(f"return !!{M}.result?.body && !{M}.inflight")
     js(f"{M}.renderProps()")
     time.sleep(0.4)
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=newSheet]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelExport [data-a=newSheet]").click()
     built()
     js(f"{S}.hooks.download = async (blob, name) => {{ window.__dl = {{ name, size: blob.size, b64: btoa(String.fromCharCode(...new Uint8Array(await blob.arrayBuffer()))) }}; return true; }}")
     d.find_element(By.CSS_SELECTOR, "#shViewport [data-preset=light]").click()

@@ -80,7 +80,7 @@ def boxes():
 
 
 def pick(sel, value):
-    Select(d.find_element(By.CSS_SELECTOR, f"#shRight select[data-k={sel}]")).select_by_value(value)
+    Select(d.find_element(By.CSS_SELECTOR, f"#shRight select[data-k={sel}], #shTitle select[data-k={sel}]")).select_by_value(value)
     time.sleep(0.3)
     wait(f"return !{S}.busy")
     time.sleep(0.5)
@@ -120,7 +120,7 @@ try:
     js(f"{S}.sel = null; {S}.render()")
     time.sleep(0.4)
     check(js(f"return {S}.tplName()") == "B — ISO 7200" and js(f"return {S}.tb().style") == "B", "a new sheet gets the default title block B — ISO 7200")
-    names = js("return [...document.querySelectorAll('#shRight select[data-k=tbstyle] option')].map(o => o.textContent)")
+    names = js("return [...document.querySelectorAll('#shTitle select[data-k=tbstyle] option')].map(o => o.textContent)")
     check(("A — Pruh" if CS else "A — Strip") in names and ("E — Sloupec" if CS else "E — Column") in names, f"Title block style ▾: {names}")
 
     print("1. each style pair, picked in the panel")
@@ -188,11 +188,11 @@ try:
     pick("bomstyle", "C")
     b = boxes()
     check(abs(b["bom"][2] - b["title"][2]) < 0.3 and b["bom"][0] < b["title"][0] - 9, f"the 180 mm list and the 170 mm block aligned right: {[round(v, 1) for v in b['bom']]} on {[round(v, 1) for v in b['title']]}")
-    hint = js("return [...document.querySelectorAll('#shRight .hint')].map(e => e.textContent).join(' | ')")
+    hint = js("return [...document.querySelectorAll('#shRight .hint, #shTitle .hint')].map(e => e.textContent).join(' | ')")
     check(("tohoto výkresu" if CS else "this drawing's") in hint, "the panel says the mix is this drawing's until saved")
     d.save_screenshot(f"{OUT}/styles_{LANG}_DC.png")
     corner_png(pdf_of(f"{{svg: {S}.svg(true)}}"), f"styles_{LANG}_DC_pdf.png")
-    d.find_element(By.CSS_SELECTOR, "#shRight [data-a=saveTpl]").click()
+    d.find_element(By.CSS_SELECTOR, "#shTitle [data-a=saveTpl]").click()
     inp = wait("return document.querySelector('.choose.ask .ask-in')", 5)
     inp.send_keys(Keys.CONTROL, "a")
     inp.send_keys(TPL, Keys.ENTER)
@@ -207,7 +207,7 @@ try:
     time.sleep(0.6)
     js(f"{S}.setMode = false; {S}.render()")
     wait(f"return !{S}.busy")
-    d.find_element(By.CSS_SELECTOR, "#shRight [data-a=tplSet]").click()
+    d.find_element(By.CSS_SELECTOR, "#shTitle [data-a=tplSet]").click()
     time.sleep(1.5)
     sheets = js("return window.__app.project.parts.filter(p => p.kind === 'sheet').map(p => p.data === 'live' ? window.__app.sheet.d.template : p.data.template)")
     check(sheets and all(s == TPL for s in sheets), f"every drawing of the set uses {TPL}: {sheets}")
@@ -229,7 +229,7 @@ try:
     pdf[len(allt) - 1].get_pixmap(dpi=70).save(f"{OUT}/styles_{LANG}_lastpage.png")
 
     print("4. the app's template B — ISO 7200 (its frame too), the AI's styles, the DXF")
-    Select(d.find_element(By.CSS_SELECTOR, "#shRight select[data-k=tpl]")).select_by_value("B — ISO 7200")
+    Select(d.find_element(By.CSS_SELECTOR, "#shTitle select[data-k=tpl]")).select_by_value("B — ISO 7200")
     wait(f"return !{S}.busy && {S}.lay.margins[0] === 20", 60)
     check(js(f"return {S}.tb().style === 'B' && {S}.tb().bomStyle === 'B' && {S}.frameOf().preset === 'iso'"), "B — ISO 7200: its title block, its list, the ISO frame")
     res = json.loads(ai("sheet_edit", title_style="E", bom_style="A"))

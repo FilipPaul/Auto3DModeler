@@ -176,7 +176,7 @@ try:
         time.sleep(0.3)
 
     # 6. the panel's field still works
-    el = d.find_element(By.CSS_SELECTOR, "#shRight [data-text=note]")
+    el = d.find_element(By.CSS_SELECTOR, "#shTitle [data-text=note]")
     el.clear()
     el.send_keys("Hrany srazit 0,5")
     el.send_keys(Keys.ENTER)

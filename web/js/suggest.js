@@ -105,17 +105,80 @@ function cornerPlace(box, viewport) {
   box.style.maxHeight = vr.height ? `${Math.max(150, vr.height - top - (parseFloat(getComputedStyle(box).bottom) || 34))}px` : '';
 }
 
-const TOP_KEY = 'a3d.suggestTop', ALL_KEY = 'a3d.suggestAll';
-/** How many suggestions show before ⋯ Show all (the user's setting, 3…30; default 8). */
+const ALL_KEY = 'a3d.suggestAll';
+/** How many suggestions show before ⋯ Show all: the suggestions widget's ⋯ Rows (leftdock.js — per workspace; 8 at
+ *  first, or the old a3d.suggestTop; empty: all of them). */
 export function suggestLimit() {
-  let v = NaN;
-  try { v = parseInt(localStorage.getItem(TOP_KEY), 10); } catch { /* private window */ }
-  return Number.isFinite(v) && v >= 3 && v <= 30 ? v : 8;
+  const n = leftDock.rowsLimit('suggest');
+  return n >= 1 ? n : Infinity;
 }
 export function setSuggestLimit(n) {
   const v = Math.round(+n);
-  try { if (Number.isFinite(v)) localStorage.setItem(TOP_KEY, String(Math.min(30, Math.max(3, v)))); } catch { /* private window */ }
+  if (Number.isFinite(v)) leftDock.setRows('suggest', Math.min(30, Math.max(3, v)));
 }
+const topLabel = () => (Number.isFinite(suggestLimit()) ? t('Top {n}').replace('{n}', suggestLimit()) : t('All'));
+// the ⋯ Rows changed (its ⋯ menu, ↺ Default layout), opened / closed: the tables on screen drawn again
+const redraw = () => { for (const b of document.querySelectorAll('.view-suggest')) b.again?.(); };
+window.addEventListener('a3d:suggest-rows', redraw);
+window.addEventListener('a3d:lang', redraw); // (the 💡 button's texts: its own)
+
+// ✕ closes the table: a 💡 Suggestions (n) button in the view's bottom-left corner instead, until it is clicked (or
+// Space); its "Automatically" switch (also the table's ⋯ menu): the table opens on a selection by itself, as at first.
+// Docked: closed = folded to its header. Per workspace, in the layout (leftdock.js sgState).
+/** The suggestions opened again (the 💡 button, Space, the AI running a row). */
+export function openSuggest() { leftDock.setSg({ closed: false }); redraw(); }
+/** ✕: closed — and no longer opening by itself (said once). */
+export function closeSuggest() {
+  const was = leftDock.sgState().auto;
+  leftDock.setSg({ closed: true, auto: false });
+  redraw();
+  let told = false;
+  try { told = localStorage.getItem('a3d.sgToldClose') === '1'; localStorage.setItem('a3d.sgToldClose', '1'); } catch { /* private window */ }
+  if (was && !told) {
+    const tst = document.createElement('div');
+    tst.className = 'toast info';
+    tst.textContent = t('The suggestions no longer open by themselves — turn them on with the button in the bottom-left corner');
+    tst.addEventListener('click', () => tst.remove());
+    document.getElementById('toasts')?.appendChild(tst);
+    setTimeout(() => tst.remove(), 6000);
+  }
+}
+const isClosed = (b) => b.classList.contains('vs-closed') || (b.classList.contains('docked') && leftDock.folded('suggest'));
+
+/** The 💡 button in the view's corner while the table is closed: how many suggestions there are for what is
+ *  selected (n), the Automatically switch. */
+function pill(vp, on, n) {
+  let p = vp.querySelector(':scope > .vs-pill');
+  if (!on) { p?.remove(); return; }
+  if (!p) {
+    p = document.createElement('div');
+    p.className = 'vs-pill';
+    p.dataset.noI18n = '';
+    p.innerHTML = '<button class="vs-open"><span class="vs-i">💡</span> <span class="vs-n"></span></button><label class="vs-auto"><input type="checkbox"> <span></span></label>';
+    for (const ev of ['pointerdown', 'pointerup', 'click', 'dblclick']) p.addEventListener(ev, (x) => x.stopPropagation());
+    p.querySelector('.vs-open').addEventListener('click', () => openSuggest());
+    const cb = p.querySelector('input');
+    cb.addEventListener('change', () => { leftDock.setSg(cb.checked ? { auto: true, closed: false } : { auto: false }); redraw(); });
+    vp.appendChild(p);
+  }
+  const b = p.querySelector('.vs-open'), l = p.querySelector('.vs-auto');
+  b.querySelector('.vs-n').textContent = `${t('Suggestions')} (${n})`;
+  b.title = t('Open the suggestions for what is selected (Space)');
+  l.lastElementChild.textContent = t('Automatically');
+  l.title = t('On: the suggestions open by themselves when you select something, and close when nothing is selected');
+  l.querySelector('input').checked = leftDock.sgState().auto;
+}
+
+// Space (not in a box or on a button): the table opened / closed
+document.addEventListener('keydown', (e) => {
+  if (e.key !== ' ' || e.ctrlKey || e.altKey || e.metaKey || e.repeat || document.querySelector('.wz-stage')) return;
+  const a = document.activeElement;
+  if (a && a !== document.body && a.closest('input, textarea, select, button, a, [contenteditable]')) return;
+  const vp = [...document.querySelectorAll('.viewport')].find((v) => v.offsetParent && v.querySelector(':scope > .view-suggest, :scope > .vs-pill'));
+  if (!vp) return;
+  e.preventDefault();
+  if (leftDock.sgState().closed) openSuggest(); else closeSuggest();
+});
 /** ⋯ Show all opened: every table shows everything until ▴ Fewer (for this session). */
 const showingAll = () => { try { return sessionStorage.getItem(ALL_KEY) === '1'; } catch { return false; } };
 const setShowingAll = (on) => { try { if (on) sessionStorage.setItem(ALL_KEY, '1'); else sessionStorage.removeItem(ALL_KEY); } catch { /* private window */ } };
@@ -152,6 +215,8 @@ function pickRows(items, all) {
  *  it in the chat). More rows than the user's limit (suggestLimit): the most relevant ones, then ⋯ Show all (n). */
 export function showSuggest(viewport, title, items, hint = '', refs = '') {
   let box = viewport.querySelector(':scope > .view-suggest');
+  const closed = leftDock.sgState().closed && !leftDock.suggestDocked; // (docked: folded instead — leftdock.js)
+  pill(viewport, closed, items?.length ? pickRows(items, true).total : 0);
   if (!items?.length) { box?.remove(); return null; }
   if (!box) {
     box = document.createElement('div');
@@ -160,12 +225,14 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
     viewport.appendChild(box);
   }
   const again = () => showSuggest(viewport, title, items, hint, refs);
+  box.again = again;
   const all = showingAll(), { rows, total, over, ranked } = pickRows(items, all), setting = box.dataset.setting === '1';
   box.sg = { title, hint, refs, items, ranked, shown: rows.filter((it) => it.section === undefined).map((it) => it.i) }; // (for the AI: suggestTables)
   box.dataset.noI18n = '';
+  box.classList.toggle('vs-closed', closed);
   const keep = box.contains(document.activeElement) && document.activeElement.dataset.sg; // (drawn again: the row in the keyboard's hand stays there)
-  box.innerHTML = `<div class="vs-head"><button class="vs-pin" title="${esc(t('Dock it in the left panel — always in sight (or drag its header there)'))}">📌</button><b title="${esc(title)}">${esc(title)}</b><button class="vs-set${setting ? ' on' : ''}" title="${esc(t('How many suggestions show before ⋯ Show all — click to change'))}">${esc(t('Top {n}').replace('{n}', suggestLimit()))}</button>${refs && askAI ? `<button class="vs-ai" title="${esc(t('Ask the AI about it — what is selected goes into the chat'))}">✨</button>` : ''}</div>
-    ${setting ? `<label class="vs-top" title="${esc(t('The most relevant suggestions first; the rest under ⋯ Show all'))}">${esc(t('Show first'))} <input type="number" min="3" max="30" step="1" value="${suggestLimit()}"> ${esc(t('suggestions'))}</label>` : ''}
+  box.innerHTML = `<div class="vs-head"><button class="vs-pin" title="${esc(t('Dock it in the left panel — always in sight (or drag its header there)'))}">📌</button><b title="${esc(title)}">${esc(title)}</b><button class="vs-set${setting ? ' on' : ''}" title="${esc(t('How many suggestions show before ⋯ Show all — click to change'))}">${esc(topLabel())}</button>${refs && askAI ? `<button class="vs-ai" title="${esc(t('Ask the AI about it — what is selected goes into the chat'))}">✨</button>` : ''}<button class="vs-menu lw-menu" title="${esc(t('Layout: dock it, float it over the view, its opacities, ↺ Default layout'))}">⋯</button><button class="vs-x" title="${esc(t('Close the suggestions — 💡 in the view\'s bottom-left corner opens them again (Space)'))}">✕</button></div>
+    ${setting ? `<label class="vs-top" title="${esc(t('The most relevant suggestions first; the rest under ⋯ Show all'))}">${esc(t('Show first'))} <input type="number" min="3" max="30" step="1" value="${Number.isFinite(suggestLimit()) ? suggestLimit() : ''}"> ${esc(t('suggestions'))}</label>` : ''}
     <div class="vs-list">${rows.map((it) => (it.section !== undefined ? `<div class="vs-sec">${esc(it.section)}</div>` // (a heading: what the rows under it act on)
       : it.chips ? `<div class="vs-chips" title="${esc(it.title || '')}">${it.label ? `<span class="vs-cl"><span class="vs-i">${it.icon || '•'}</span> ${esc(it.label)}</span>` : ''}<div class="vs-cg">${it.chips.map((c, j) => // (a row of values, one click each: the current one ✓)
         `<button class="chip${c.on ? ' on' : ''}${c.primary ? ' vs-pri' : ''}" data-sgc="${it.i}:${j}" title="${esc(c.title || '')}">${c.on ? '✓ ' : ''}${esc(c.label)}</button>`).join('')}</div></div>`
@@ -199,6 +266,9 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
   });
   box.querySelector('.vs-ai')?.addEventListener('click', (e) => { e.stopPropagation(); askAI(refs); });
   box.querySelector('.vs-ai')?.addEventListener('pointerdown', (e) => e.stopPropagation()); // (not a drag of the table)
+  const mb = box.querySelector('.vs-menu'); // (⋯: its place, opacities, ↕ Automatic height, Rows — as every widget's)
+  mb.addEventListener('click', (e) => { e.stopPropagation(); leftDock.menu('suggest', mb); });
+  box.querySelector('.vs-x').addEventListener('click', (e) => { e.stopPropagation(); closeSuggest(); });
   box.querySelector('.vs-pin')?.addEventListener('click', (e) => { e.stopPropagation(); leftDock.dock('suggest'); for (const b of document.querySelectorAll('.view-suggest')) leftDock.placeSuggest(b, b.parentElement); });
   box.sgOpts = { kind: 'suggest', handle: '.vs-head', min: [170, 90], onDefault: (b) => cornerPlace(b, viewport) };
   leftDock.placeSuggest(box, viewport); // (floating: moved / resized / remembered; or docked in the left column)
@@ -211,12 +281,13 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
  *  menu, rows: [{i, icon, label, title, section, rank_pos, shown}]} — every action, the ones under ⋯ Show all with
  *  shown false; rank_pos 1 = the most relevant]. */
 export function suggestTables() {
-  return [...document.querySelectorAll('.view-suggest, .sg-menu')].filter((b) => b.sg && b.getClientRects().length && !b.classList.contains('lw-off') && (b.classList.contains('sg-menu') || b.parentElement?.offsetParent)).map((box) => {
+  return [...document.querySelectorAll('.view-suggest, .sg-menu')].filter((b) => b.sg && (b.classList.contains('sg-menu') || b.parentElement?.offsetParent)
+    && (isClosed(b) || (b.getClientRects().length && !b.classList.contains('lw-off')))).map((box) => { // (closed by the user: there too, closed)
     const { title, hint, refs, items, ranked, shown } = box.sg, on = new Set(shown);
     let sec = null;
     const secOf = new Map();
     items.forEach((it, i) => { if (it.section !== undefined) sec = it.section; else secOf.set(i, sec); });
-    return { box, title, hint, refs, docked: box.classList.contains('docked'), menu: box.classList.contains('sg-menu'),
+    return { box, title, hint, refs, docked: box.classList.contains('docked'), menu: box.classList.contains('sg-menu'), closed: isClosed(box),
       rows: ranked.map((i, k) => ({ i, icon: items[i].icon || '', label: items[i].label, title: items[i].title || '', section: secOf.get(i) || undefined, rank_pos: k + 1, shown: on.has(i) })) };
   });
 }
@@ -224,6 +295,7 @@ export function suggestTables() {
 /** Run the row `i` of a table from suggestTables as the user would: a row under ⋯ Show all shown first (then the
  *  table goes back to its top rows, as the user had it). -> false when the row is not there. */
 export function runSuggestion(box, i) {
+  if (isClosed(box)) openSuggest(); // (closed by the user: opened first, as they would)
   let row = box.querySelector(`[data-sg="${i}"]`), opened = false;
   if (!row && box.querySelector('[data-sg-all]')) { box.querySelector('[data-sg-all]').click(); opened = true; row = box.querySelector(`[data-sg="${i}"]`); }
   if (!row) return false;

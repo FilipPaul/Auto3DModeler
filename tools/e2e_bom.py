@@ -125,7 +125,7 @@ try:
     # 📋 BOM in the panel
     js(f"{A}.sel = null; {A}.render()")
     time.sleep(0.3)
-    d.find_element(By.CSS_SELECTOR, "#asmRight [data-a=bomWin]").click()
+    d.find_element(By.CSS_SELECTOR, "#asmBom [data-a=bomWin]").click()
     wait("return document.querySelectorAll('.bom-win tbody tr').length === 5")
     rows = table()
     print("📋 Summary:", [r[:3] for r in rows])

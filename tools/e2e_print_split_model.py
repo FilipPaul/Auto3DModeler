@@ -71,9 +71,9 @@ try:
     check("the bar", abs(vol - 3.14159265359 * 40 * 40 * 400) < 1e-3, round(vol, 3), b["bbox"])
 
     # 🖨 Prepare for 3D print -> a STEP printing copy on the 3D print tab
-    hint = js("return document.querySelector('#modelRight [data-a=toPrint]')?.closest('div').previousElementSibling?.textContent")
+    hint = js("return document.querySelector('#modelExport [data-a=toPrint]')?.closest('div').previousElementSibling?.textContent")
     check("the model's hint says exact", "exact" in (hint or ""), hint)
-    d.find_element(By.CSS_SELECTOR, "#modelRight [data-a=toPrint]").click()
+    d.find_element(By.CSS_SELECTOR, "#modelExport [data-a=toPrint]").click()
     wait("return !document.body.classList.contains('ws-model') && window.__app.state.model?.kind === 'mesh' && window.__app.state.solution", 90)
     time.sleep(1)
     m = js("return {source: window.__app.state.model.source, mesh_id: window.__app.state.model.mesh_id, tab: document.querySelector('.rtab.active')?.dataset.rtab, sliced: window.__app.state.solution.mesh?.count}")
