@@ -577,7 +577,8 @@ yellow ⚠.
   the model.
 
 Sketches show as lines in the 3D view: bright while not extruded yet, faint once used. Double-click a sketch's lines to
-change it. The steps are listed on the left. Double-click a step (or ✎) to change it; ● / ◌ turns a step off and on (it is kept); ✕ deletes it, together with the
+change it. Over the part, a click goes to the face, not to a used sketch's faint lines on it or under it — choose that
+sketch in the list first, then a click right on its lit line keeps it. The steps are listed on the left. Double-click a step (or ✎) to change it; ● / ◌ turns a step off and on (it is kept); ✕ deletes it, together with the
 steps that need it. A step that cannot be built shows ⚠ with the reason, and the others still build. Ctrl+Z /
 Ctrl+Y undo and redo whole steps, and each model tab keeps its own history.
 

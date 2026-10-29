@@ -429,7 +429,9 @@ Never report "works" without having run it; report failures with their output.
    failed check. Needs a server restarted after kernel changes.
    `tools/e2e_model_tree.py <url> <dir>` covers the nested step tree at 1280×800 (a plate, a cut and a boss from one
    sketch, a fillet, a pattern, a point: sketches under their steps, links, the Reference group, icon kinds / colours,
-   22 px rows 12 px a level; ▸ / ▾ remembered; a click on a face / a sketch outline -> its row chosen, opened, in sight;
+   22 px rows 12 px a level; ▸ / ▾ remembered; a click on a face -> its row chosen, opened, in sight; a face over a
+   used sketch's faint outline (under it or on it) -> the face, not the sketch; the sketch chosen in the tree, a click
+   right on its line -> it stays chosen;
    a row -> its faces tinted, hover lights them; rename / off / on; gui_state parent / depth; a step dragged with its
    sketch; Czech).
    `tools/e2e_model_reorder.py <url> <dir>` covers reordering steps by dragging (a free sketch moved to the top; a boss

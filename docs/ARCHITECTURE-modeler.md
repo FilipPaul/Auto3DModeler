@@ -15,7 +15,10 @@ Date: 2026-10-25. Written by the architect agent.
   found to 1 % (marked "_approx": the panel shows "≈ 8.94" and lets a typed value up to 2 % above it stand), every
   search stops after SIZE_BUDGET 2 s or a trial slower than 0.4 s (also _sized's "at most": that plate's r 9 now
   ~11 s, was ~60 s); the endpoint answers {_error} instead of a 500 (timeout 30 s). That plate: 0.08 s in-process,
-  1.4 s over HTTP; tests: test_limits_of_a_rounding_next_to_a_hole_answer_fast, e2e_model_limits.
+  1.4 s over HTTP; tests: test_limits_of_a_rounding_next_to_a_hole_answer_fast, e2e_model_limits. **Picking**: the
+  view's pickOutline gives a face under the mouse priority over a used sketch's faint lines (the ray met them through
+  the part: the plate's own bottom sketch picked from its top face); the sketch chosen in the tree only right on its
+  line (~0.4 % of the part), a sketch not extruded yet as before; tests: e2e_model_tree.
 - **Assembly: suggestion-based and compact done** (the owner: "90 % základních věcí ze suggestions"; audit of 22 basic
   tasks: 8 → 20 doable from the Suggested table alone, the crank built from its four parts in 14 clicks instead of
   ≈ 27 with four Ctrl+clicks on small faces). assembly/smart.js: pinFits (a free round face of the chosen part and one

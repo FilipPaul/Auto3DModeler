@@ -821,17 +821,27 @@ export class ModelView {
       const seg = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({
         color: sk.sel ? 0xf2cc60 : sk.dim ? 0x5a8f9a : 0x39d0d8, transparent: true, opacity: sk.dim ? 0.55 : 1, depthTest: !!sk.dim && !sk.sel }));
       seg.renderOrder = 4;
-      seg.userData.sketch = sk.id;
+      Object.assign(seg.userData, { sketch: sk.id, dim: !!sk.dim, sel: !!sk.sel });
       this.outlineGroup.add(seg);
     }
   }
 
-  /** The sketch whose lines are under the mouse (within ~6 px), or null. */
+  /** The sketch whose lines are under the mouse (within ~6 px), or null. Over a face of the part, the face comes first:
+   *  a used sketch's faint lines (on it, or under it seen through) are not picked there, and the chosen sketch's
+   *  only right on its line (~2 px); a sketch not extruded yet (bright, the next step) still is. */
   pickOutline(clientX, clientY) {
-    const ray = this.ray(clientX, clientY);
+    const ray = this.ray(clientX, clientY), face = this.mesh && ray.intersectObject(this.mesh, false)[0];
     ray.params.Line = { threshold: this.size * 0.012 };
-    const h = ray.intersectObjects(this.outlineGroup.children, false)[0];
-    return h?.object.userData.sketch || null;
+    for (const h of ray.intersectObjects(this.outlineGroup.children, false)) {
+      const { sketch, dim, sel } = h.object.userData;
+      if (!face) return sketch;
+      if (dim) continue;
+      if (!sel) return sketch;
+      const near = this.ray(clientX, clientY);
+      near.params.Line = { threshold: this.size * 0.004 };
+      if (near.intersectObject(h.object, false).length) return sketch;
+    }
+    return null;
   }
 
   // ------------------------------------------------------------------ edges (Fillet / Chamfer)

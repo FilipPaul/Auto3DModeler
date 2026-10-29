@@ -3,8 +3,9 @@ extrude), a sketch on its top -> a cut and a boss from the same sketch, a fillet
 point -> the tree: each extrude with its sketch under it (folded), the boss with a link to the sketch it shares, the
 pattern with a link to the cut, the point in the folded Reference group with the Top / Front / Right planes; drawn icons
 coloured by group; rows one line (≤ 24 px), 12 px a level. ▸ opens / ▾ folds (remembered after a reload). A click on
-the fillet's face in the view -> its row chosen and in sight; a click on the cut's sketch outline -> the sketch chosen,
-its step folded open; a click on a row -> its faces tinted in the view, a sketch's outline lit; the mouse on a row ->
+the fillet's face in the view -> its row chosen and in sight; the top face clicked over the plate's faint (used) sketch
+-> the face, not the sketch; the cut's sketch outline on a face -> the face; chosen in the tree, a click right on its line
+-> the sketch stays chosen, its step folded open; a click on a row -> its faces tinted in the view, a sketch's outline lit; the mouse on a row ->
 its faces lit lightly; a link row -> its step. Rename and turn off / on from the row; gui_state's steps with parent /
 depth; dragging the boss moves its sketch along. Czech texts. Prints a check list and ALL OK / FAILED.
 
@@ -175,13 +176,26 @@ try:
     settled()
     check("a click on the fillet face: its row chosen and in sight", js(f"return {M}.selected") == "F5" and in_sight("F5")
           and js("return document.querySelector('#modelLeft .mt-item[data-id=\"F5\"]').classList.contains('on')"), js(f"return {M}.selected"))
-    # a click on the cut's sketch outline (the circle's rim at x 10 + 3): the sketch chosen, its step folded open
+    # the top face clicked where the plate's own sketch (F1, used: faint, on the bottom) shows through: the face, not F1
+    js(f"{M}.selectStep(null)")
+    js("document.querySelector('#modelViewport .view-suggest')?.remove()")
+    click_at(off_xyz([40, 20, 0]))  # (its back edge, seen through the top face at about x 48, y 7)
+    settled()
+    check("the top face over a used sketch's faint line: the face's step and table, not the sketch", js(f"return {M}.selected") == "F2"
+          and js("return document.querySelector('#modelViewport .view-suggest')?.dataset.from") == "face", js(f"return {M}.selected"))
+    # a click on the cut's sketch outline on the top face (the circle's rim at 45°, clear of its middle's snap): the face
+    # comes first; with the sketch chosen in the tree, a click right on its (lit) line keeps it chosen, its step open
     js("const s = new Set(JSON.parse(localStorage.getItem('a3d.treeOpen') || '[]')); s.delete('F4');" + f" {M}._treeOpen = s; {M}.renderTree();")
     check("(the cut folded first)", js("return document.querySelector('#modelLeft .mt-item[data-id=\"F3\"]').hidden"))
     js("document.querySelector('#modelViewport .view-suggest')?.remove()")  # (the face's table: not over the spot clicked next)
-    click_at(off_xyz([10, 13, 10]))
+    click_at(off_xyz([12.12, 12.12, 10]))
     settled()
-    check("a click on a sketch's outline: the sketch chosen, its row shown", js(f"return {M}.selected") == "F3" and in_sight("F3"), js(f"return {M}.selected"))
+    check("a used sketch's faint outline on a face: the face chosen, not the sketch", js(f"return {M}.selected") not in ("F3", None), js(f"return {M}.selected"))
+    js(f"{M}.selectStep('F3')")
+    js("document.querySelector('#modelViewport .view-suggest')?.remove()")
+    click_at(off_xyz([12.12, 12.12, 10]))
+    settled()
+    check("the chosen sketch's line clicked: the sketch stays chosen, its row shown", js(f"return {M}.selected") == "F3" and in_sight("F3"), js(f"return {M}.selected"))
     lit = js(f"return {M}.view.outlineGroup.children.filter(c => c.userData.sketch === 'F3').map(c => c.material.color.getHex())")
     check("its outline lit", 0xF2CC60 in lit, lit)
     d.save_screenshot(f"{OUT}/tree3_from_view.png")
