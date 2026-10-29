@@ -62,7 +62,8 @@ export function mechanisms(asm) {
   return out.filter((m) => m.drivers.length || !m.closed).map((m, k) => {
     const rec = recOf(asm, m.parts), rank = (d) => {
       const lim = asm.limitsOf(asm.inst(d.part), d.mo), turn = d.mo.kind === 'turn', axis = /:turn$/.test(d.mo.key || '');
-      return lim && turn && lim.max - lim.min >= FULL ? 0 : turn && axis && m.onClosing.has(d.part) ? 1 : turn && axis ? 2 : lim ? 3 : 4;
+      const grounded = (asm.doc.mates || []).some((j) => j.move === d.part && j.type === 'axis' && asm.inst(j.onto)?.fixed); // (a crank: on a pin of the fixed base)
+      return lim && turn && lim.max - lim.min >= FULL ? 0 : turn && axis && grounded ? 1 : turn && axis && m.onClosing.has(d.part) ? 1.5 : turn && axis ? 2 : lim ? 3 : 4;
     };
     const best = [...m.drivers].sort((a, b) => rank(a) - rank(b))[0];
     const driver = (rec?.drive && m.drivers.find((d) => d.part === rec.drive.part && d.mo.key === rec.drive.key)) || best;
