@@ -12,6 +12,10 @@ const SIDES = {
 
 function load() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } }
 function save(w) { try { localStorage.setItem(KEY, JSON.stringify(w)); } catch { /* ignore */ } }
+let resetSide = null; // (initSplitters: a panel back to its usual width)
+
+/** A panel back to its usual width (↺ Default layout). */
+export function resetWidth(side) { resetSide?.(side); }
 
 /** layout: the main grid; drawer: the AI chat drawer. */
 export function initSplitters(layout, drawer) {
@@ -47,10 +51,11 @@ export function initSplitters(layout, drawer) {
       h.addEventListener('pointerup', up, { once: true });
       h.addEventListener('pointercancel', up, { once: true });
     });
-    h.addEventListener('dblclick', () => { delete widths[side]; save(widths); apply(side, undefined); });
+    h.addEventListener('dblclick', () => resetSide(side));
     parent.appendChild(h);
     return h;
   };
+  resetSide = (side) => { delete widths[side]; save(widths); apply(side, undefined); };
   handle('left', layout);
   handle('right', layout);
   if (drawer) handle('chat', drawer);

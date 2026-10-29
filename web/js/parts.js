@@ -1,4 +1,5 @@
 import { t } from './i18n.js';
+import { leftDock } from './leftdock.js';
 
 // A project holds several parts; the open ones are tabs in the top bar (like browser tabs). Every file you open
 // becomes a part; click a tab to switch, double-click to rename, ✕ to close the tab (the part stays in the project:
@@ -363,7 +364,7 @@ export class Project {
     el.innerHTML = '';
     // ☰: the project's tree in the left panel (every part, open or not) — click to open, ⧉ a window, ✕ to delete
     const all = document.createElement('button');
-    all.className = `pt-all${this.treeOpen ? ' on' : ''}`;
+    all.className = `pt-all${(leftDock.project === 'popup' ? this.treeOpen : !leftDock.folded('project')) ? ' on' : ''}`;
     all.title = 'The project: all its parts, as they go together — open one, open it in a new window, or delete it';
     all.innerHTML = `☰ <span data-no-i18n>${this.parts.length}</span>`;
     all.addEventListener('click', (e) => { e.stopPropagation(); el.querySelector('.part-add')?.classList.remove('open'); this.toggleTree(); });
@@ -453,8 +454,9 @@ export class Project {
     el.appendChild(add);
   }
 
-  /** ☰ The project's tree on / off (remembered). */
+  /** ☰ The project's tree on / off (remembered); docked or floating (a widget — leftdock.js): folded / unfolded. */
   toggleTree(on = !this.treeOpen) {
+    if (leftDock.project !== 'popup' && this.parts.length) { leftDock.fold('project'); this.render(); return; }
     this.treeOpen = on;
     try { localStorage.setItem('a3d.tree', on ? '1' : ''); } catch { /* private window */ }
     this.render();
@@ -478,14 +480,24 @@ export class Project {
       this.tree.id = 'projTree';
       document.querySelector('main.layout')?.appendChild(this.tree);
       try { this.treeOpen = this.treeOpen ?? localStorage.getItem('a3d.tree') === '1'; } catch { this.treeOpen = false; }
+      // a double-click on a row: its name to edit (the part opens with the first click)
+      this.tree.addEventListener('dblclick', (e) => { const r = e.target.closest('.pt-row'); if (r && !e.target.closest('.pt-win, .pt-del')) this.renameInTree(r.dataset.part); });
+      // the header dragged: into the left column (docked) or onto the view (floating) — leftdock.js
+      this.tree.addEventListener('pointerdown', (e) => { const h = e.target.closest('.tr-head'); if (h) leftDock.dragStart('project', e, h); });
+      leftDock.onProject = () => this.render();
+      leftDock.onUnpin = () => this.toggleTree(true); // (unpinned: there as the ☰ popup, ✕ closes it)
       window.addEventListener('a3d:changed', () => { // (what is in an assembly changes as it is edited)
-        if (!this.treeOpen) return;
+        if (!this.treeOpen && leftDock.project === 'popup') return;
         clearTimeout(this.treeTimer);
         this.treeTimer = setTimeout(() => this.renderTree(), 400);
       });
     }
     const box = this.tree;
-    box.classList.toggle('open', !!this.treeOpen && this.parts.length > 0);
+    if (box.querySelector('.tr-rename')) return; // (a name being typed: not now)
+    const popup = leftDock.project === 'popup';
+    leftDock.setShown(this.parts.length > 0);
+    box.classList.toggle('open', (!popup || !!this.treeOpen) && this.parts.length > 0);
+    box.classList.toggle('in-widget', !popup);
     if (!box.classList.contains('open')) { box.innerHTML = ''; return; }
     const data = new Map(this.parts.map((p) => { try { return [p.id, this.dataOf(p)]; } catch { return [p.id, null]; } }));
     const byId = new Map(this.parts.map((p) => [p.id, p])), used = new Set(), sheets = new Map(), kids = new Map();
@@ -511,9 +523,11 @@ export class Project {
     const top = this.parts.filter((p) => !used.has(p.id) && !(p.kind === 'sheet' && byId.has(data.get(p.id)?.source)));
     for (const p of [...top.filter((q) => q.kind === 'assembly'), ...top.filter((q) => q.kind !== 'assembly')]) add(p, 0, 1, new Set());
     const undo = this.lastDeleted ? `<button class="btn small tr-undo" title="${t('Bring back the part deleted last')}">↶ ${t('Undo')}: <span data-no-i18n></span></button>` : '';
-    box.innerHTML = `<div class="tr-head"><b>☰ ${t('Project')}</b>${undo}<button class="mini tr-x" title="${t('Close the project tree')}">✕</button></div>
-      <p class="hint">${t('Click a part to open it — ⧉ in a new window, ✕ deletes it from the project.')}</p><div class="tr-list"></div>`;
-    box.querySelector('.tr-x').addEventListener('click', () => this.toggleTree(false));
+    box.innerHTML = popup ? `<div class="tr-head" title="${t('Drag the header into the left panel to dock it there, or onto the view to float it')}"><b>☰ ${t('Project')}</b>${undo}<button class="mini tr-pin" title="${t('Dock it in the left panel — always in sight, in every workspace (or drag its header there)')}">📌</button><button class="mini tr-x" title="${t('Close the project tree')}">✕</button></div>
+      <p class="hint">${t('Click a part to open it — ⧉ in a new window, ✕ deletes it from the project.')}</p><div class="tr-list"></div>`
+      : `${undo ? `<div class="tr-undo-row">${undo}</div>` : ''}<div class="tr-list"></div>`;
+    box.querySelector('.tr-x')?.addEventListener('click', () => this.toggleTree(false));
+    box.querySelector('.tr-pin')?.addEventListener('click', () => { leftDock.dock('project'); this.render(); });
     const ub = box.querySelector('.tr-undo');
     if (ub) { ub.querySelector('span').textContent = this.lastDeleted.p.name || ''; ub.addEventListener('click', () => this.undoDelete()); }
     const list = box.querySelector('.tr-list');
@@ -522,7 +536,7 @@ export class Project {
       row.className = `pt-row tr-row ${p.kind}${p.id === this.active && !this.none ? ' on' : ''}${p.closed ? ' closed' : ''}`;
       row.dataset.part = p.id;
       row.style.paddingLeft = `${4 + 14 * depth}px`;
-      row.innerHTML = `<button class="pt-open" title="${t(p.closed ? 'Open it (a tab)' : 'Show it')}"><span class="pt-kind">${kindIcon(this.libraryPart(p) ? 'library' : p.kind)}</span><span class="pt-rname" data-no-i18n></span>${qty > 1 ? `<i class="tr-qty" data-no-i18n>×${qty}</i>` : ''}</button>${this.hooks.openWindow ? `<button class="mini pt-win" title="${t(WIN_TIP)}">⧉</button>` : ''}${this.parts.length > 1 ? `<button class="mini danger pt-del" title="${t('Delete it from the project (↶ Undo brings it back)')}">✕</button>` : ''}`;
+      row.innerHTML = `<button class="pt-open" title="${t(p.closed ? 'Open it (a tab) — double-click: rename it' : 'Show it — double-click: rename it')}"><span class="pt-kind">${kindIcon(this.libraryPart(p) ? 'library' : p.kind)}</span><span class="pt-rname" data-no-i18n></span>${qty > 1 ? `<i class="tr-qty" data-no-i18n>×${qty}</i>` : ''}</button>${this.hooks.openWindow ? `<button class="mini pt-win" title="${t(WIN_TIP)}">⧉</button>` : ''}${this.parts.length > 1 ? `<button class="mini danger pt-del" title="${t('Delete it from the project (↶ Undo brings it back)')}">✕</button>` : ''}`;
       row.querySelector('.pt-rname').textContent = p.name || '…';
       row.querySelector('.pt-open').addEventListener('click', () => this.switchTo(p.id));
       row.querySelector('.pt-win')?.addEventListener('click', (e) => { e.stopPropagation(); this.hooks.openWindow(p.id); });
@@ -535,6 +549,41 @@ export class Project {
       row.addEventListener('mouseleave', () => this.hidePreview());
       list.appendChild(row);
     }
+  }
+
+  /** A double-click on a row in the tree: its name in a field (Enter keeps it, Esc not), once the part is open. */
+  renameInTree(id) {
+    const go = () => {
+      if (this.busy) { setTimeout(go, 80); return; }
+      const p = this.parts.find((q) => q.id === id), row = this.tree?.querySelector(`.pt-row[data-part="${CSS.escape(id)}"]`);
+      if (!p || !row || row.querySelector('.tr-rename')) return;
+      this.hidePreview();
+      const btn = row.querySelector('.pt-open'), inp = document.createElement('input');
+      inp.className = 'tr-rename';
+      inp.value = p.name || '';
+      inp.title = t('Enter: rename it — Esc: keep the name');
+      btn.hidden = true;
+      row.insertBefore(inp, btn.nextSibling);
+      inp.focus();
+      inp.select();
+      let finished = false;
+      const done = (keep) => {
+        if (finished) return;
+        finished = true;
+        const n = inp.value.trim();
+        inp.remove();
+        btn.hidden = false;
+        if (keep && n && n !== p.name) { p.name = n; this.hooks.toast(`Part renamed to “${n}”.`, 'ok'); }
+        this.render();
+      };
+      inp.addEventListener('keydown', (e) => {
+        e.stopPropagation(); // (not the app's keys: Delete, Ctrl+Z …)
+        if (e.key === 'Enter') { e.preventDefault(); done(true); }
+        if (e.key === 'Escape') { e.preventDefault(); done(false); }
+      });
+      inp.addEventListener('blur', () => done(true), { once: true });
+    };
+    go();
   }
 
   /** A picture of what is in a part, beside its row in the tree (after a moment on it). */

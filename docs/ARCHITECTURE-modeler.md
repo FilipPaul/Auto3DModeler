@@ -72,6 +72,24 @@ Date: 2026-10-25. Written by the architect agent.
   RealSWReports (frozen) follow A3D_DATA; version.build reads BUILD.json. tests/test_launcher.py; checked on the built
   exe: smoke (kernel + 4 workers, 8000 mm³ block, STEP), e2e_model_features, e2e_exchange_formats, a real e2e_chat.
   Left out: code signing (unsigned: SmartScreen warning; options in the doc), an update check.
+- **Left-column widgets done** (the owner: pin the project tree, the suggestions; drag-and-drop docking; floating with
+  opacity; remembered): web/js/leftdock.js. main.layout's first column is now `#leftCol` (flex column) holding widgets
+  `.lw-widget[data-w=project|panel|suggest]`, each with an `.lw-head` (⠿ title, ▾ fold, ⋯ menu); the five workspace
+  panels are wrapped (their ws class copied, so one shows). Order and the splitters (`.lw-split`, kept while dragged)
+  by CSS `order`; the stretching one is the panel (else the last open one), the others `flex: 0 1 <h>px`. A docked
+  header dragged (dragStart: ghost + `.lw-mark` drop line) -> the column at that place, or the view -> floating there;
+  a floating one is a floatBox (kind `lw-<w>-<ws>`; floatbox.js got `dock` + setDockHook so a floating box dragged
+  over the column docks, and box.fb.vp so a box can float over another workspace's view). The suggestions docked stay
+  in their view (all the code finding `:scope > .view-suggest` keeps working) as `.docked` position: fixed over their
+  place in the column (sync on resize / apply); suggest.js calls leftDock.placeSuggest instead of floatBox, 📌 in its
+  head. The project tree: 'popup' (as before, ☰), 'dock' or 'float' (parts.js renders it without its own head then;
+  its head in the popup has 📌 and is draggable; a double-click on a row renames: renameInTree). Opacity: Ctrl+wheel on
+  a floating header / the ⋯ slider (30–100 %, CSS vars --op-<w> per workspace). Nothing docked: `body.lw-empty`, the
+  column 0 wide (a drag shows a drop zone at the left edge). localStorage a3d.leftDock {project, suggest, order, ws:
+  {<ws>: {panel, h, fold, op}}} — the project tree's and the suggestions' place and the order the same everywhere,
+  the rest per workspace; ⋯ › ↺ Default layout clears it, the lw-* / suggest box places and the column width
+  (splitters.resetWidth). tools/e2e_left_pins.py (55 checks). Left out: floating a widget outside the browser window;
+  dragging the right panel (it stays as it is).
 
 - **Hole positions drawn on the sheet done:** sheet.auto_dims places each hole step's holes of one size (a counterbore's
   circles left to its holes) in the view showing them round, from box#x0 / box#y0 (ISO 129): a row / grid its first

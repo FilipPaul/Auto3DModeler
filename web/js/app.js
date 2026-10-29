@@ -24,6 +24,7 @@ import { DrawingEditor, drawingToCleanSketch } from './drawing2d/editor.js';
 import { SheetEditor, partHash } from './sheet/sheet.js';
 import { isStandard } from './assembly/fasteners.js';
 import { initSplitters } from './splitters.js';
+import { leftDock } from './leftdock.js';
 import { Autosave } from './autosave.js';
 import { Windows } from './windows.js';
 import { actionDock } from './actiondock.js';
@@ -2538,6 +2539,8 @@ const chat = new ChatPanel($('tab-ai'), { toast,
 window.__chat = chat;
 startBridge(agentHandlers);
 initSplitters(document.querySelector('main.layout'), $('aiDrawer'));
+leftDock.init(document.querySelector('main.layout')); // (the left column: docked widgets — the project tree, the panel, the suggestions)
+window.__leftDock = leftDock;
 
 // 📚 the parts library: a part opens as a new 3D model, or goes into the assembly on screen (the same library part
 // once in the project, placed as often as wanted)
