@@ -1208,6 +1208,13 @@ const CS = {
   'Its stiffness: how many newtons per mm it is compressed — empty: no force shown': 'Její tuhost: kolik newtonů na mm stlačení — prázdné: síla se neukazuje',
   'Remove this spring (the part stays as it is modelled)': 'Odebrat tuto pružinu (díl zůstane, jak je vymodelovaný)',
   '{a} is a spring to {b}: it is drawn as long as it reaches — its free length, length now and force in its row (Ctrl+Z: back).': '{a} je pružina k {b}: kreslí se tak dlouhá, kam dosáhne — volná délka, délka teď a síla v jejím řádku (Ctrl+Z: zpět).',
+  // ↕ by the driver's direction (a check valve: Assembly.followDirection)
+  "By the driver's direction": 'Podle směru pohonu', 'Where it sits while the driver goes forward': 'Kde je, když pohon jde vpřed',
+  "By the driver's direction (a check valve, a pawl): while the driver goes forward it sits at one stop, while it goes back at the other": 'Podle směru pohonu (zpětný ventil, západka): když pohon jde vpřed, je na jednom dorazu, když jde zpět, na druhém',
+  '{part} forward → at max': '{part} vpřed → na max', '{part} forward → at min': '{part} vpřed → na min',
+  'Set its limits first (⇤⇥): the two stops it goes between.': 'Nejdřív nastavte meze (⇤⇥): dva dorazy, mezi kterými se pohybuje.',
+  'Nothing drives it: it goes by the direction of a part that moves (a piston) — make that one move first.': 'Nic ho nepohání: řídí se směrem dílu, který se pohybuje (pístu) — nejdřív rozpohybujte ten.',
+  'It goes by the direction of another part that moves.': 'Řídí se směrem jiného dílu, který se pohybuje.',
   // 🔒 a motion locked on its own joint (lockMotion)
   '{id}: {what} locked where it is': '{id}: {what} — zamčeno tam, kde je', '{id}: its turns locked where they are': '{id}: jeho otáčení zamčeno tam, kde je',
   'Motions of the part locked on this joint where they were (🔒 by a motion in Moves) — ✕ frees them': 'Pohyby dílu zamčené na této vazbě tam, kde byly (🔒 u pohybu v Pohybech) — ✕ je uvolní',

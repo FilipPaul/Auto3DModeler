@@ -11,6 +11,7 @@ AI's tools (as the app's AI met them in a pump: a valve ball, a spring, the ball
 
   PYTHONIOENCODING=utf-8 py tools/e2e_assembly_ball_spring.py http://127.0.0.1:5199 <out dir>
 """
+import json
 import math
 import sys
 import time
@@ -311,6 +312,55 @@ try:
     check("I2" not in cl, f"check_collisions: the compressed spring is no collision ({cl[:120]})")
     tr = must("check_travel", part="I3", motion=k)
     check("free all the way" in tr, f"check_travel of the piston: {tr[:140]}")
+
+    # ↕ a check valve: a ball on a hole's axis between two stops goes by the piston's direction
+    must("insert_part", part="Body")
+    must("insert_part", part="Ball")
+    wait(f"return {A}.doc.instances.length === 5 && {A}.doc.instances.every(i => {A}.bodies[i.part]?.body)")
+    must("place_part", part="I4", x=60, y=0, z=0)
+    must("place_part", part="I4", fixed=True)
+    must("place_part", part="I5", x=60, y=0, z=40)
+    must("snap_faces", move={"part": "I5", "face": face("I5", "sphere")}, onto={"part": "I4", "face": face("I4", "cylinder")}, type="ball")
+    kb = js(f"return {A}.motionsOf('I5').motions.findIndex(m => /:along$/.test(m.key))")
+    pb = float(js(f"const a = {A}; return a.motionPos('I5', a.motionsOf('I5').motions[{kb}])"))
+    must("set_travel", part="I5", motion=kb, min=pb, max=pb + 3)
+    js(f"{A}.choose('I5')")
+    time.sleep(0.4)
+    js(f"document.querySelector('#asmRight [data-dfollow=\"{kb}\"]').click()")
+    time.sleep(0.4)
+    key = js(f"return {A}.motionsOf('I5').motions[{kb}].key")
+    rule = js(f"return {A}.inst('I5').travel[arguments[0]].follow", key)
+    check(rule and rule["part"] == "I3" and rule["at"] == "max", f"↕ by the driver's direction, one click: it goes by the piston ({rule})")
+    mech = json.loads(must("get_assembly"))["mechanisms"]
+    pm = next(m for m in mech if "I3" in m["parts"])
+    check("I5" in pm["parts"] and not any(m["parts"] == ["I5"] for m in mech), f"the ball moves with the piston's mechanism {pm['parts']}, not on its own")
+
+    def ball():
+        return round(float(js(f"const a = {A}; return a.motionPos('I5', a.motionsOf('I5').motions[{kb}])")), 4)
+    must("drive_mechanism", mechanism="I3", to=pm["max"])
+    b1 = ball()
+    must("drive_mechanism", mechanism="I3", to=pm["min"])
+    b2 = ball()
+    check(abs(b1 - (pb + 3)) < 1e-3 and abs(b2 - pb) < 1e-3, f"the piston forward: the ball at max ({b1}); back: at min ({b2})")
+    r = must("set_travel", part="I5", motion=kb, follow={"part": "I3", "at": "min"})
+    must("drive_mechanism", mechanism="I3", to=pm["max"])
+    b3 = ball()
+    check("↕" in r and abs(b3 - pb) < 1e-3, f"the AI's rule at min: forward -> the ball at min ({b3}) — {r[:120]}")
+    must("set_travel", part="I5", motion=kb, follow={"part": "I3", "at": "max"})
+    # ▶: the ball at one stop or the other, both on the way
+    must("drive_mechanism", mechanism="I3", play=True)
+    seen = set()
+    for _ in range(25):
+        time.sleep(0.12)
+        seen.add(ball())
+    must("drive_mechanism", mechanism="I3", play=False)
+    check(seen <= {round(pb, 4), round(pb + 3, 4)} and len(seen) == 2, f"▶: the ball only at its stops, both seen {sorted(seen)}")
+    tr = must("drive_mechanism", mechanism="I3", trace=True)
+    pts = json.loads(tr.split("): ", 1)[1].rstrip(".")) if "📈 Trace of" in tr else []
+    check("Ball" in tr and {round(p[1], 3) for p in pts} == {round(pb, 3), round(pb + 3, 3)}, f"📈 the trace goes there and back: the ball at both stops ({tr[:110]})")
+    # a pawl that does not move: the mechanism's turn of the spring is not a driver for it — unset
+    must("set_travel", part="I5", motion=kb, follow=None)
+    check(not js(f"return !!{A}.inst('I5').travel[arguments[0]].follow", key), "follow: null takes the rule off")
 
     logs = [x for x in d.get_log("browser") if x["level"] == "SEVERE"]
     check(not logs, f"no errors in the console {logs[:3]}")

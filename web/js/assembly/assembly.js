@@ -9,7 +9,9 @@
 //               "move": "I2", "face": "F2:start", "onto": "I1", "ontoFace": "F2:end", "gap": 0, "value": 30, "flip": false,
 //               "angle": 0 (its turn locked there), "name": "bearing on the shaft" (the user's own)}],
 //    "bolts": [{"id": "B1", "text": "M3×20 screw + M3 nut", "holes": [{"part": "P2", "feature": {the hole step drilled}}]}]}
-//   an instance's "travel": {"J2:along": {"min": 0, "max": 25}} — the limits of a free motion (motionsOf keys)
+//   an instance's "travel": {"J2:along": {"min": 0, "max": 25}} — the limits of a free motion (motionsOf keys); with
+//   "follow": {"part": "I3", "key": "J4:along", "at": "max"} ↕ it goes by that part's direction (a check valve's ball):
+//   at max while I3 moves forward along that motion, at min while it goes back (followDirection)
 //   a placed sub-assembly's "inner": {"I2": [16 numbers]} — its parts moved inside it by its own joints, in this
 //   placement only (in the sub-assembly's frame; innerAsm / keepInner); its own document stays as it is; "rigid": true
 //   — 🧱 it moves as one body here, its own mechanisms do not (not said: ⚙ a moving sub-assembly — they work here too,
@@ -3041,8 +3043,18 @@ export class Assembly {
         <button class="mini ${this.playing?.key === mo.key ? 'on' : ''}" data-dplay="${i}" title="Play: from min to max and back">${this.playing?.key === mo.key ? '■' : '▶'}</button>
         <select class="as-dspeed" data-dspeed="${i}" title="How fast ▶ plays">${[[0.25, '¼×'], [0.5, '½×'], [1, '1×'], [2, '2×'], [4, '4×']].map(([v, l]) => `<option value="${v}" ${(lim.speed || 1) === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
         <button class="mini ${lim.loop ? 'on' : ''}" data-dloop="${i}" title="${lim.loop ? 'It plays again and again (■ stops it) — click: once' : 'Play once — click: again and again, until ■'}">↻</button>
-        <button class="btn small" data-dcheck="${i}" title="Move it from min to max in small steps and check for collisions on the way">⚠ Check the travel</button></div>` : ''}
+        <button class="btn small" data-dcheck="${i}" title="Move it from min to max in small steps and check for collisions on the way">⚠ Check the travel</button></div>
+      ${this.followHtml(it, mo, i, lim)}` : ''}
       ${note ? `<p class="mp-count as-dofnote ${note.bad ? 'bad' : ''}" data-no-i18n>${esc(note.text)}</p>` : ''}</div>`}`;
+  }
+
+  /** ↕ A motion's "by the driver's direction" line (a slide with limits): the toggle, and which end it sits at while the
+   *  driver goes forward. */
+  followHtml(it, mo, i, lim) {
+    if (mo.kind !== 'move' || mo.via) return '';
+    const f = lim.follow, by = f && this.partName(this.inst(f.part)?.part);
+    return `<div class="as-doflim as-follow"><button class="mini ${f ? 'on' : ''}" data-dfollow="${i}" title="${esc(t('By the driver\'s direction (a check valve, a pawl): while the driver goes forward it sits at one stop, while it goes back at the other'))}">↕ ${esc(t('By the driver\'s direction'))}</button>
+      ${f ? `<select data-dfollowat="${i}" title="${esc(t('Where it sits while the driver goes forward'))}"><option value="max" ${f.at === 'max' ? 'selected' : ''}>${esc(t2('{part} forward → at max', { part: by }))}</option><option value="min" ${f.at === 'min' ? 'selected' : ''}>${esc(t2('{part} forward → at min', { part: by }))}</option></select>` : ''}</div>`;
   }
 
   bindMotions(box, it, dof) {
@@ -3095,6 +3107,15 @@ export class Assembly {
     for (const el of box.querySelectorAll('[data-dspeed]')) el.addEventListener('change', () => this.setPlay(it.id, dof.motions[+el.dataset.dspeed], { speed: +el.value }));
     for (const b of box.querySelectorAll('[data-dloop]')) b.addEventListener('click', () => { const mo = dof.motions[+b.dataset.dloop]; this.setPlay(it.id, mo, { loop: !this.limitsOf(it, mo)?.loop }); });
     for (const b of box.querySelectorAll('[data-dcheck]')) b.addEventListener('click', () => this.checkTravel(it.id, dof.motions[+b.dataset.dcheck]));
+    for (const b of box.querySelectorAll('[data-dfollow]')) {
+      b.addEventListener('click', () => {
+        const mo = dof.motions[+b.dataset.dfollow];
+        try { this.setFollow(it.id, mo, this.limitsOf(it, mo)?.follow ? null : {}); } catch (e) { this.hooks.toast(e.message, 'warning', 6000); }
+      });
+    }
+    for (const el of box.querySelectorAll('[data-dfollowat]')) {
+      el.addEventListener('change', () => { const mo = dof.motions[+el.dataset.dfollowat], f = this.limitsOf(it, mo)?.follow; if (f) this.setFollow(it.id, mo, { ...f, at: el.value }); });
+    }
   }
 
   /** A motion's limits set ({min, max}; a turn within ±180°) or taken off (null); a part outside them is put back
@@ -3317,9 +3338,61 @@ export class Assembly {
     if (!it) return;
     from = from || [...it.matrix];
     const M = motionMatrix(mo, mo.kind === 'turn' ? (amount * Math.PI) / 180 : amount).multiply(new THREE.Matrix4().fromArray(from)), was = [...it.matrix];
+    const follows = this.followers(id, mo).length > 0;
+    let p0 = 0;
+    if (follows) { try { p0 = this.motionPos(id, mo); } catch { p0 = 0; } }
     it.matrix = this.holdPart(id, M).toArray();
     this.applyMates({ id, was, mo, amount }); // (in a closed loop the others follow it from where it was)
+    if (follows) { let p1 = p0; try { p1 = this.motionPos(id, mo); } catch { /* (as it was) */ } this.followDirection(id, mo, mo.kind === 'turn' ? this.stepTo(mo, p0, p1) : p1 - p0); }
     if (final) this.commit(); else if (!quiet) this.draw();
+  }
+
+  /** ↕ The parts that go by the direction part `id` moves along motion `mo` (a check valve's ball, a ratchet's pawl):
+   *  [{it, key, lim}] — their travel's `follow`. */
+  followers(id, mo) {
+    const out = [];
+    for (const it of this.doc.instances) {
+      for (const [key, lim] of Object.entries(it.travel || {})) if (lim?.follow?.part === id && (!lim.follow.key || lim.follow.key === mo?.key)) out.push({ it, key, lim });
+    }
+    return out;
+  }
+
+  /** ↕ Part `id` has just moved by `delta` along `mo`: each part that goes by its direction is put at its stop — its
+   *  rule's end (`at`) while it goes forward (delta > 0), the other end while it goes back; still: where it is. */
+  followDirection(id, mo, delta) {
+    if (Math.abs(delta) < 1e-9) return;
+    for (const { it, key, lim } of this.followers(id, mo)) {
+      let d = null;
+      try { d = this.motionsOf(it.id, true); } catch { d = null; }
+      const fm = d?.motions.find((x) => x.key === key);
+      if (!fm) continue;
+      const end = delta > 0 ? lim.follow.at : lim.follow.at === 'max' ? 'min' : 'max', p = this.motionPos(it.id, fm);
+      if (Math.abs(lim[end] - p) < 1e-6) continue;
+      const was = [...it.matrix], step = this.stepTo(fm, p, lim[end], lim);
+      it.matrix = this.holdPart(it.id, motionMatrix(fm, (fm.kind === 'turn' ? Math.PI / 180 : 1) * step).multiply(new THREE.Matrix4().fromArray(was))).toArray();
+      this.applyMates({ id: it.id, was, mo: fm, amount: step }); // (the parts on it go along)
+    }
+  }
+
+  /** ↕ A motion with limits goes by a driver's direction (rule {part, key, at: 'max' | 'min'}) or not (null) -> the
+   *  rule. The driver when not given: the first mechanism's driver that is another part. */
+  setFollow(id, mo, rule) {
+    if (mo.via) id = mo.via;
+    const it = this.inst(id), lim = it?.travel?.[mo.key];
+    if (!lim) throw new Error(t('Set its limits first (⇤⇥): the two stops it goes between.'));
+    if (!rule) { delete lim.follow; this.commit(); return null; }
+    let { part, key, at } = rule;
+    if (!part) {
+      const m = (this.mech?.list || []).filter((x) => x.driver && x.driver.part !== id) // (a slide along its own first: a piston for its valve)
+        .sort((a, b) => (b.driver.mo.kind === 'move' ? Math.abs(b.driver.mo.dir.clone().normalize().dot(mo.dir.clone().normalize())) : 0) - (a.driver.mo.kind === 'move' ? Math.abs(a.driver.mo.dir.clone().normalize().dot(mo.dir.clone().normalize())) : 0))[0];
+      if (!m) throw new Error(t('Nothing drives it: it goes by the direction of a part that moves (a piston) — make that one move first.'));
+      ({ part } = m.driver);
+      key = key || m.driver.mo.key;
+    }
+    if (!this.inst(part) || part === id) throw new Error(t('It goes by the direction of another part that moves.'));
+    lim.follow = { part, ...(key ? { key } : {}), at: at === 'min' ? 'min' : 'max' };
+    this.commit();
+    return lim.follow;
   }
 
   /** The selected part turned to an angle (degrees) about X / Y / Z, about its own centre (the other two angles
@@ -3712,7 +3785,7 @@ export class Assembly {
       if (!d) return loop;
       if (!d.count) return lp?.free ? { moves_with_loop: lp.id } : { fully_held: true, ...loop };
       const it = this.inst(id);
-      return { ...loop, free: d.motions.map((m) => m.label), at: d.motions.map((m) => { const l = this.limitsOf(it, m); return { motion: m.label, [m.kind === 'turn' ? 'deg' : 'mm']: +this.motionPos(id, m).toFixed(2), ...(l ? { min: l.min, max: l.max } : {}) }; }) };
+      return { ...loop, free: d.motions.map((m) => m.label), at: d.motions.map((m) => { const l = this.limitsOf(it, m); return { motion: m.label, [m.kind === 'turn' ? 'deg' : 'mm']: +this.motionPos(id, m).toFixed(2), ...(l ? { min: l.min, max: l.max } : {}), ...(l?.follow ? { follows: { part: l.follow.part, at_forward: l.follow.at } } : {}) }; }) };
     } catch { return {}; }
   }
 
@@ -3921,14 +3994,20 @@ export class Assembly {
         return { text: `${j.id} ◎ Concentric: the pin ${x.pin.face} of ${x.pin.part} (${x.pin.name}, Ø${x.pin.d}) in the hole ${x.hole.face} of ${x.hole.part} (${x.hole.name}, Ø${x.hole.d}). ${JSON.stringify({ loops: s.loops || [], mechanisms: s.mechanisms || [] })}` };
       },
       remove_from_assembly: async ({ part }) => { need(); this.removeInst(part); return { text: JSON.stringify(this.summary()) }; },
-      set_travel: async ({ part, motion = 0, min, max, speed, loop }) => {
+      set_travel: async ({ part, motion = 0, min, max, speed, loop, follow }) => {
         need();
         await settle();
-        const { it, mo } = this.motionFor(part, motion), only = min === undefined && max === undefined && (speed !== undefined || loop !== undefined);
+        const { it, mo } = this.motionFor(part, motion), only = min === undefined && max === undefined && (speed !== undefined || loop !== undefined || follow !== undefined);
         let l = only ? this.limitsOf(it, mo) : min === null || max === null || (min === undefined && max === undefined) ? this.setTravel(it.id, mo, null)
           : this.setTravel(it.id, mo, { min: +(min ?? this.limitsOf(it, mo)?.min ?? 0), max: +(max ?? this.limitsOf(it, mo)?.max ?? 0) });
         if (l && (speed !== undefined || loop !== undefined)) l = this.setPlay(it.id, mo, { speed, loop });
-        return { text: `${it.id} — ${mo.label}: ${l ? `limits ${l.min} … ${l.max} ${mo.kind === 'turn' ? '°' : 'mm'}${l.speed ? `, ▶ ${l.speed}×` : ''}${l.loop ? ', ▶ again and again' : ''}` : 'no limits'}; now at ${+this.motionPos(it.id, mo).toFixed(2)}.` };
+        if (follow !== undefined) { // ↕ by a driver's direction: {part, motion?, at: "max" | "min"} or null
+          let key = null;
+          if (follow?.part && follow.motion !== undefined && follow.motion !== null) key = this.motionFor(follow.part, follow.motion).mo.key;
+          this.setFollow(it.id, mo, follow ? { part: follow.part || null, key, at: follow.at } : null);
+          l = this.limitsOf(it, mo);
+        }
+        return { text: `${it.id} — ${mo.label}: ${l ? `limits ${l.min} … ${l.max} ${mo.kind === 'turn' ? '°' : 'mm'}${l.speed ? `, ▶ ${l.speed}×` : ''}${l.loop ? ', ▶ again and again' : ''}${l.follow ? `, ↕ by ${l.follow.part}'s direction: at ${l.follow.at} while it goes forward, at ${l.follow.at === 'max' ? 'min' : 'max'} while it goes back` : ''}` : 'no limits'}; now at ${+this.motionPos(it.id, mo).toFixed(2)}.` };
       },
       lock_motion: async ({ part, motion = 0 }) => {
         need();

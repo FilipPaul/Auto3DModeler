@@ -64,8 +64,9 @@ function listOf(asm) {
     const onClosing = new Set(mates.filter((m) => closing.has(m.move)).map((m) => m.onto)); // (the crank and the slider the rod is on)
     out.push({ parts: l.parts, closed: l.closed, drivers: l.parts.filter((x) => !closing.has(x)).flatMap(own), onClosing });
   }
+  const follows = (it) => Object.values(it.travel || {}).find((l) => l?.follow && asm.inst(l.follow.part)); // (↕ by a driver's direction: part of the driver's mechanism)
   for (const it of asm.doc.instances) {
-    if (seen.has(it.id) || it.fastener || it.fixed) continue;
+    if (seen.has(it.id) || it.fastener || it.fixed || follows(it)) continue;
     const ds = own(it.id).filter(({ mo }) => /:(turn|along)$/.test(mo.key || '') || asm.limitsOf(it, mo));
     if (ds.length) out.push({ parts: [it.id], closed: true, drivers: ds, onClosing: new Set() });
   }
@@ -84,6 +85,10 @@ function listOf(asm) {
     B.onClosing.forEach((x) => A.onClosing.add(x));
     A.train = true;
     out.splice(out.indexOf(B), 1);
+  }
+  for (const it of asm.doc.instances) { // ↕ a part going by a driver's direction moves with its mechanism
+    const f = follows(it), m = f && out.find((q) => q.parts.includes(f.follow.part));
+    if (m && !m.parts.includes(it.id)) m.parts.push(it.id);
   }
   return out.filter((m) => m.drivers.length || !m.closed).map((m, k) => {
     const rec = recOf(asm, m.parts), rank = (d) => {
@@ -158,10 +163,12 @@ export function traceOf(asm, m, n = 36) {
   }
   if (!f) return null;
   const snap = asm.doc.instances.map((x) => [x.id, [...x.matrix], structuredClone(x.hang)]), xs = [], ys = [];
+  const back = !m.full && Object.values(asm.inst(f.part)?.travel || {}).some((l) => l?.follow); // (↕ it goes by the direction: there and back, both stops)
   try {
     const p0 = posOf(asm, m);
-    for (let k = 0; k <= n; k++) {
-      const v = m.full ? p0 + (360 * k) / n : m.min + ((m.max - m.min) * k) / n;
+    if (back) driveTo(asm, m, m.min - 1, false, true); // (it comes to min going back)
+    for (let k = 0; k <= (back ? 2 * n : n); k++) {
+      const q = back && k > n ? 2 * n - k : k, v = m.full ? p0 + (360 * k) / n : m.min + ((m.max - m.min) * q) / n;
       const r = driveTo(asm, m, m.full ? ((v % 360) + 360) % 360 : v, false, true);
       if (r.stopped && !m.full) continue;
       xs.push(m.full ? ((v % 360) + 360) % 360 : r.at);
@@ -172,7 +179,7 @@ export function traceOf(asm, m, n = 36) {
     asm.checkJoints();
     asm.draw();
   }
-  return xs.length > 1 ? { label: `${asm.partName(asm.inst(f.part)?.part)} — ${f.mo.label}`, unit: f.mo.kind === 'turn' ? '°' : 'mm', xs, ys } : null;
+  return xs.length > 1 ? { label: `${asm.partName(asm.inst(f.part)?.part)} — ${f.mo.label}`, unit: f.mo.kind === 'turn' ? '°' : 'mm', xs, ys, ...(back ? { back: true } : {}) } : null;
 }
 
 /** The ⚙ Mechanism widget of assembly `asm` (its hooks: render() from Assembly.render, open(), summary() for the AI). */
@@ -239,7 +246,7 @@ export class MechanismPanel {
   traceSvg(m, tr, at) {
     const W = 240, Hh = 64, x0 = Math.min(...tr.xs), x1 = Math.max(...tr.xs), y0 = Math.min(...tr.ys), y1 = Math.max(...tr.ys);
     const X = (v) => 4 + ((v - x0) / (x1 - x0 || 1)) * (W - 8), Y = (v) => Hh - 4 - ((v - y0) / (y1 - y0 || 1)) * (Hh - 8);
-    const pts = tr.xs.map((x, i) => [x, tr.ys[i]]).sort((a, b) => a[0] - b[0]).map(([x, y]) => `${X(x).toFixed(1)},${Y(y).toFixed(1)}`).join(' ');
+    const pts = tr.xs.map((x, i) => [x, tr.ys[i]]).sort((a, b) => (tr.back ? 0 : a[0] - b[0])).map(([x, y]) => `${X(x).toFixed(1)},${Y(y).toFixed(1)}`).join(' ');
     return `<div class="mc-trace"><div class="mc-tlabel" data-no-i18n>${esc(tr.label)}: ${fmt(y0)} … ${fmt(y1)} ${tr.unit}</div>
       <svg viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none"><polyline points="${pts}"/><line class="mc-now" x1="${X(at).toFixed(1)}" x2="${X(at).toFixed(1)}" y1="0" y2="${Hh}"/></svg></div>`;
   }

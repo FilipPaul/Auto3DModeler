@@ -7,6 +7,19 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Assembly: ↕ by the driver's direction — check valves (2026-10-29)** (report 2026-10-29-203234: the pump's balls
+  could not move by the stroke's direction). A motion's limits may carry `follow: {part, key?, at: "max" | "min"}`:
+  Assembly.moveFree measures the moved part's position along that motion before and after (any move: a slider, ▶,
+  a drag, the AI) and followDirection puts each follower at `at` when it went forward, at the other end when it went
+  back (still: stays). mechanism.js lists a follower in its driver's mechanism, not as one of its own; traceOf goes
+  there and back for it (the curve drawn in order: a loop showing both stops). The row of a slide with limits:
+  "↕ Podle směru pohonu" (the driver: the mechanism whose driver slides most nearly along it) and "<driver> vpřed → na
+  max / na min". AI: set_travel `follow` ({part, motion?, at} | null), get_assembly `at[].follows`. Left out: a
+  keyframe table (the driver's position → the part's) — not needed for valves; a crank's full turn only goes forward,
+  so a valve on a crank-driven piston follows the crank, not the piston (the rule takes the driver's own motion).
+  Tests: e2e_assembly_ball_spring (one click picks the piston; forward → max, back → min; the AI's rule at min; ▶ only
+  at the stops, both seen; the trace has both; null takes it off).
+
 - **Assembly: 〰 springs (2026-10-29)** (the app's AI, report 2026-10-29-203234: in a pump's mechanism the spring was a
   rigid part, the piston passed through it). assembly/springs.js: `springs: [{id, part, face (its end that reaches),
   onto, ontoFace, k?}]` — not a joint that holds (its part is held by its own joints). Free length: its modelled length

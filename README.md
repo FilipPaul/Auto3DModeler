@@ -877,6 +877,12 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   screenshots); its model stays as it is, its free length is its modelled length. Its row: *free 20 mm · now 16 mm ·
   compressed 4 mm*, and with its stiffness **k** (N/mm, the one input) the force (*2 N*). Collisions between the spring
   and the parts it is joined to are not counted.
+- **↕ By the driver's direction** (a check valve's ball, a pawl): a part with one slide between two limits (⇤⇥ — its
+  stops, e.g. seated / lifted) gets **↕ By the driver's direction** in its motion's row: one click and it goes by the
+  piston (the mechanism's driver sliding along it) — while the piston goes forward it sits at one stop, going back at
+  the other (*Piston forward → at max / at min* chooses which). It moves with the piston's ⚙ mechanism (its slider, ▶,
+  a drag), and 📈 Trace goes there and back, so both stops show. Not for a crank turning round and round (it always
+  goes forward).
 - **🔒 Lock a motion where it is**: 🔒 by a motion in the part's Moves keeps it — a joint's turn or distance, a new
   flush / gap / parallel joint where faces line up, else **its own joint keeps it** (a touch's slides on the face one
   by one, a ball's slide along its axis; a ball's turn locks all three of its turns). The joint's row says

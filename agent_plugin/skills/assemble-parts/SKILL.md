@@ -45,6 +45,11 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    its limits (where along it: get_assembly `at`), then `check_travel {part, motion}` tells whether it hits anything
    on the way; `move_free {part, motion, to}` puts it at a position (it stops at the limits). `lock_motion {part,
    motion}` keeps one free motion where it is — also a touch's slides on the face (one by one) and a ball's turns.
+   A check valve's ball (or a pawl) that sits at one stop or the other by the way the piston goes: join it so it has one
+   slide (`ball` on its seat's axis), `set_travel {part, motion, min, max}` = its two stops (seated / lifted), then
+   `set_travel {part, motion, follow: {part: <the piston>, at: "max" | "min"}}` — where it sits while the piston moves
+   forward (its value grows); back: the other stop. It then moves with the piston's mechanism (drive_mechanism, ▶, trace).
+   A part that only rides along: `rigid`. A crank's full turn always goes forward — the rule is for a to-and-fro driver.
    A sub-assembly placed in this one keeps its own motions: get_assembly lists them in its `inner` (part "I3/I2");
    `move_free {part: "I3/I2", …}` moves that part here only — the sub-assembly's own tab stays as it is. Its own
    mechanisms (a crank loop, gears) are in get_assembly `mechanisms` too (`inside: "I3"`, parts "I3/I2"):
