@@ -1560,6 +1560,10 @@ A thickness can be given in the drawing as a note like `t=18mm`; otherwise set i
   dimensions, objects, shapes, design layers, bends, outline edits and the AI's changes (each AI change is its own
   step). A drag or a scrub is one step (a step is recorded when the rebuild has settled). Opening another part
   starts a new history.
+- **Mouse side buttons**: back ◀ = Undo, forward ▶ = Redo, in every workspace (3D model, sketch, assembly, sheet,
+  2D drawing) — the same as `Ctrl+Z` / `Ctrl+Y`; in a text field they do nothing. They never take the browser off the
+  page, and neither does the browser's Back (Alt+←, a touchpad swipe, the toolbar's ←): the app stays open. There is
+  no "leave the page?" question — the project is kept on the server when the tab closes (autosave).
 - **Select and delete**: click any object in the 3D view — a hole, post, bar, text, profile offset or band, a
   design layer's mask — to select it (it is highlighted and opened in the Part tab); `Delete` removes it, `Esc`
   deselects. Objects of a cookie-cutter / solid preset belong to the preset (use *Edit as 3D objects →* to change
