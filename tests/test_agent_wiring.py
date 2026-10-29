@@ -12,6 +12,7 @@ import re
 import subprocess
 import sys
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from auto3d.agent_tools import BROWSER_TOOLS, LOCAL_TOOLS, SYSTEM_PROMPT, TOOL_NAMES, TOOLS, mcp_tool_list
@@ -109,6 +110,67 @@ class TestWiring(unittest.TestCase):
         self.assertFalse(unnamed, "tools no skill and not the system prompt names")
         topics = next(t for t in TOOLS if t["name"] == "get_guide")["inputSchema"]["properties"]["topic"]["enum"]
         self.assertEqual(sorted(topics), sorted(guides()))
+
+
+class TestProjectTools(unittest.TestCase):
+    """list_demos / open_demo and open_file of a project file: the server reads them and hands the page a version 3
+    project (load_project) — the page's side is in tools/e2e_agent.py."""
+
+    def setUp(self):
+        import server
+        self.server, self.sent = server, []
+        self._call = server.RELAY.call
+        server.RELAY.call = lambda cmd, args=None, timeout=150.0: (self.sent.append((cmd, args)), {"text": "Opened."})[1]
+
+    def tearDown(self):
+        self.server.RELAY.call = self._call
+
+    def call(self, tool, **args):
+        r = self.server.app.test_client().post("/api/agent/call", json={"tool": tool, "args": args}).get_json()
+        return r["content"][0]["text"], r["isError"]
+
+    def test_demos(self):
+        text, err = self.call("list_demos")
+        rows = json.loads(text)
+        self.assertFalse(err)
+        self.assertTrue(any(d["file"] == "klikovy-mechanismus.a3d.json" for d in rows))
+        self.assertTrue(all(d["name"] and d["name_cs"] and d["parts"] for d in rows))
+        text, err = self.call("open_demo", name="crank")  # (words of its English name)
+        self.assertFalse(err, text)
+        cmd, args = self.sent[-1]
+        self.assertEqual(cmd, "load_project")
+        self.assertEqual(args["project"]["version"], 3)
+        self.assertTrue(any(p["kind"] == "assembly" for p in args["project"]["parts"]))
+        self.call("open_demo", name="Čtyřkloubový mechanismus")  # (its Czech name)
+        self.assertEqual(len(self.sent), 2)
+        text, err = self.call("open_demo", name="spaceship")
+        self.assertTrue(err)
+        self.assertIn("klikovy-mechanismus.a3d.json", text)  # (it names the ones there are)
+        self.assertEqual(len(self.sent), 2)
+
+    def test_open_a_project_file(self):
+        import base64
+        import tempfile
+        from auto3d.modeler import blobs
+        data = b"solid j-aicov test blob\n"
+        sha = __import__("hashlib").sha256(data).hexdigest()
+        proj = {"app": "Auto3DModeler", "version": 3, "project_name": "Saved", "parts": [{"id": "p1", "name": "Plate", "kind": "model", "data": {"features": []}}],
+                "blobs": {sha: base64.b64encode(data).decode()}, "versions": {"x": 1}}
+        with tempfile.TemporaryDirectory() as tmp, unittest.mock.patch.object(blobs, "DIR", Path(tmp) / "blobs"):
+            f = Path(tmp) / "saved.a3d.json"
+            f.write_text(json.dumps(proj), encoding="utf-8")
+            text, err = self.call("open_file", path=str(f))
+            self.assertFalse(err, text)
+            cmd, args = self.sent[-1]
+            self.assertEqual(cmd, "load_project")
+            self.assertEqual(args["project"]["parts"][0]["name"], "Plate")
+            self.assertNotIn("blobs", args["project"])
+            self.assertEqual(args["versions"], {"x": 1})  # (the 🕘 history goes along, the page bundles it in)
+            self.assertEqual(blobs.get(sha), data)  # (its imported files are in the store again)
+            f.write_text("{not json", encoding="utf-8")
+            text, err = self.call("open_file", path=str(f))
+            self.assertTrue(err)
+            self.assertIn("not a project file", text)
 
 
 if __name__ == "__main__":

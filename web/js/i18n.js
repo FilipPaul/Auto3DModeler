@@ -1284,6 +1284,8 @@ const CS = {
   'Locked 🔒 — unlock the joint to change it': 'Zamčeno 🔒 — vazbu odemkněte, chcete-li ji změnit',
   'The angle its turn is locked at, against the other part — to turn both, use Moves of the part they are on': 'Úhel, na kterém je otočení zamčené vůči druhému dílu — oba otočíte v Pohybech dílu, na kterém jsou',
   'reading the 2D drawing': 'čte 2D výkres', 'finding shapes': 'hledá tvary', 'setting the layers': 'nastavuje hladiny', 'sizing shapes': 'mění velikost tvarů', 'making something of the drawing': 'dělá něco z výkresu', 'measuring': 'měří', 'setting the view': 'nastavuje pohled', 'renaming a part': 'přejmenovává díl', 'deleting a part': 'maže díl', 'changing a joint': 'mění vazbu', 'removing a joint': 'odebírá vazbu', 'bolting parts together': 'sešroubovává díly',
+  'looking at the demo projects': 'prohlíží demo projekty', 'opening a demo project': 'otevírá demo projekt',
+  'adding the missing joint': 'přidává chybějící vazbu',
   'deleting shapes': 'maže tvary', 'drawing shapes': 'kreslí tvary', 'setting the drawing units': 'nastavuje jednotky výkresu',
   "setting a motion's limits": 'nastavuje meze pohybu', 'checking a motion for collisions': 'kontroluje kolize po dráze pohybu',
   'colouring a part': 'barví díl', 'painting faces': 'barví plochy', 'moving a part': 'posouvá díl', 'saving to the library': 'ukládá do knihovny', 'writing a problem report': 'píše hlášení o problému',

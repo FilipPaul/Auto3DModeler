@@ -45,7 +45,7 @@ import { bomOf, bomCsv, instanceTree } from './bom.js';
 import { openBomWindow } from './bomview.js';
 import { stepsAtBar, rolledText } from '../modeler/steptree.js';
 import { kindIcon, fromLibrary } from '../parts.js';
-import { MechanismPanel, driveTo } from './mechanism.js';
+import { MechanismPanel, driveTo, traceOf } from './mechanism.js';
 import { saveAnimation } from './anim.js';
 import { startDrag } from './drag.js';
 import { isPin } from './missing.js';
@@ -3329,12 +3329,15 @@ export class Assembly {
       parts: this.doc.instances.map((it) => {
         const b = this.bodyOf(it)?.body, m = new THREE.Matrix4().fromArray(it.matrix);
         const bb = b ? new THREE.Box3(new THREE.Vector3(...b.bbox.slice(0, 3)), new THREE.Vector3(...b.bbox.slice(3))).applyMatrix4(m) : null;
+        const mg = b?.sub ? b.mass_g : this.massOf(it.part); // (as the ⊕ centre of mass weighs it)
         return { id: it.id, part: it.part, name: this.partName(it.part), ...(it.fixed ? { fixed: true } : {}), position: new THREE.Vector3().setFromMatrixPosition(m).toArray().map((v) => +v.toFixed(3)),
-          bbox: bb ? [...bb.min.toArray(), ...bb.max.toArray()].map((v) => +v.toFixed(3)) : null, error: this.bodies[it.part]?.error, ...this.freeOf(it.id), ...this.innerOf(it) };
+          bbox: bb ? [...bb.min.toArray(), ...bb.max.toArray()].map((v) => +v.toFixed(3)) : null, ...(Number.isFinite(mg) ? { mass_g: +mg.toFixed(2) } : {}),
+          error: this.bodies[it.part]?.error, ...this.freeOf(it.id), ...this.innerOf(it) };
       }),
       ...(() => { const mp = this.massProps(); return mp.cog ? { mass_g: mp.mass_g, cog_mm: mp.cog, ...(mp.unknown ? { parts_without_mass: mp.unknown } : {}) } : {}; })(),
       ...(this.loops?.some((l) => this.mechanismOf(l.parts[0])) ? { loops: this.loopsSummary() } : {}),
       ...(this.mech?.list.length ? { mechanisms: this.mech.summary() } : {}),
+      ...(this.mech?.missing ? { missing_joint: this.missingSummary() } : {}),
       ...(this.doc.couplings?.length ? { couplings: couplingsSummary(this) } : {}),
       joints: (this.doc.mates || []).map((m) => ({ id: m.id, ...(m.name ? { name: m.name } : {}), type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
         ...(m.type === 'axis' ? { distance: Number.isFinite(m.dist) ? m.dist : null } : { gap: m.gap || 0 }), ...(m.type !== 'parallel' ? { rotation_locked: Number.isFinite(m.angle) } : {}), ...(m.broken ? { broken: true } : {}),
@@ -3345,6 +3348,12 @@ export class Assembly {
         material: r.material, mass_g_each: r.mass === null || !Number.isFinite(r.mass) ? null : +r.mass.toFixed(2),
         ...(r.lib ? { maker: r.lib.maker || undefined, pn: r.lib.pn || undefined, bought: true } : {}) })),
     };
+  }
+
+  /** For the AI: "One joint is missing" (mechanism.js) — the hole and the pin that would close a loop. */
+  missingSummary() {
+    const x = this.mech.missing, one = (q) => ({ part: q.inst, name: this.partName(this.inst(q.inst)?.part), face: q.name, d: +q.d.toFixed(2) });
+    return { hole: one(x.hole), pin: one(x.pin), add: 'add_missing_joint (◎ Concentric of the pin in the hole: the loop closes)' };
   }
 
   /** For the AI: the BOM of an assembly (this one, or any by id / name) -> {assembly, mode, parts, pieces, mass_g, rows}. */
@@ -3417,11 +3426,15 @@ export class Assembly {
         this.commit();
         return { text: JSON.stringify(this.summary()) };
       },
-      place_part: async ({ part, x, y, z, turn }) => {
+      place_part: async ({ part, x, y, z, turn, fixed }) => {
         need();
         const it = this.inst(part);
         if (!it) throw new Error(`No part ${part} in the assembly.`);
         this.sel = it.id;
+        if (fixed !== undefined && fixed !== null && !!fixed !== !!it.fixed) { // 📌 as its panel's: a part that hangs on its joints is not fixed itself
+          if (fixed && (this.doc.mates || []).some((m) => m.move === it.id)) throw new Error(`${part} hangs on its joints — fix the part it is joined to instead (get_assembly joints).`);
+          this.toggleFixed(it.id);
+        }
         if ((x ?? y ?? z) !== undefined || turn) {
           if (!this.mayMove(it.id, false)) throw new Error(it.fixed ? `${part} is fixed in place 📌 — joints bring other parts to it; the user frees it (📌 in its panel) to move it.` : `${part} is held by a locked joint — the user has to unlock it first.`);
         }
@@ -3460,6 +3473,19 @@ export class Assembly {
         await this.addBolt(plan, true);
         return { text: `Added ${plan.text}; holes drilled: ${plan.holes.map((h) => `Ø${h.d} ${h.through ? 'through' : `${h.depth} mm deep`} in ${this.partName(h.part)} (${h.inst})`).join(', ')}. ${JSON.stringify(this.summary())}` };
       },
+      add_missing_joint: async () => {
+        need();
+        await settle();
+        this.mech.render();
+        if (!this.mech.missing) throw new Error('No joint is missing: no free pin of one moving part sits by a free hole of the same Ø in another one (get_assembly loops / mechanisms).');
+        const x = this.missingSummary(), n = (this.doc.mates || []).length;
+        this.mech.addMissing();
+        await settle();
+        const j = (this.doc.mates || []).length > n ? this.doc.mates[this.doc.mates.length - 1] : null;
+        if (!j) throw new Error('The joint could not be added (the parts may already hang on each other the other way).');
+        const s = this.summary();
+        return { text: `${j.id} ◎ Concentric: the pin ${x.pin.face} of ${x.pin.part} (${x.pin.name}, Ø${x.pin.d}) in the hole ${x.hole.face} of ${x.hole.part} (${x.hole.name}, Ø${x.hole.d}). ${JSON.stringify({ loops: s.loops || [], mechanisms: s.mechanisms || [] })}` };
+      },
       remove_from_assembly: async ({ part }) => { need(); this.removeInst(part); return { text: JSON.stringify(this.summary()) }; },
       set_travel: async ({ part, motion = 0, min, max, speed, loop }) => {
         need();
@@ -3476,7 +3502,7 @@ export class Assembly {
         const { it, mo } = this.motionFor(part, motion), text = this.lockMotion(it.id, mo);
         return { text: `${text}. ${JSON.stringify(this.summary().parts.find((x) => x.id === (mo.via || it.id)))}` };
       },
-      drive_mechanism: async ({ mechanism, to, driver, name, play } = {}) => {
+      drive_mechanism: async ({ mechanism, to, driver, name, play, trace } = {}) => {
         need();
         await settle();
         this.mech.render();
@@ -3498,9 +3524,16 @@ export class Assembly {
           r = driveTo(this, m, +to, true);
           m = again();
         }
+        let tr = null;
+        if (trace) { // 📈 how a follower moves over the driver's travel (the parts end where they were)
+          this.mech.stop(false);
+          tr = traceOf(this, m, Math.max(4, Math.min(360, Number.parseInt(trace, 10) || 36)));
+          if (tr) { this.mech.traces[m.key] = tr; this.mech.more.add(m.key); this.mech.draw(); } // (its 📈 shown in ⚙ Mechanism too)
+        }
         if (play === true) this.mech.play(m); else if (play === false) this.mech.stop();
+        const trText = trace ? (tr ? ` 📈 Trace of ${tr.label} over the driver (${m.turn ? '°' : 'mm'} -> ${tr.unit}): ${JSON.stringify(tr.xs.map((v, i) => [+v.toFixed(2), +tr.ys[i].toFixed(3)]))}.` : ' 📈 No trace: it has no other part that slides or turns.') : '';
         const s = this.mech.summary().find((x) => x.id === m.id), where = this.summary().parts.filter((x) => m.parts.includes(x.id)).map((x) => ({ id: x.id, name: x.name, position: x.position, ...(x.at ? { at: x.at } : {}) }));
-        return { text: `${m.id} “${m.name}”, driven by ${m.driver.part} — ${m.driver.mo.label}: at ${s.at} ${m.turn ? '°' : 'mm'} (${m.min} … ${m.max}${m.full ? ', a full turn' : ''})${r?.stopped ? ' — stopped: it cannot go further that way (a dead point or its end)' : ''}${this.mech.playing?.key === m.key ? '; ▶ playing (play: false stops it)' : ''}. Its parts: ${JSON.stringify(where)}` };
+        return { text: `${m.id} “${m.name}”, driven by ${m.driver.part} — ${m.driver.mo.label}: at ${s.at} ${m.turn ? '°' : 'mm'} (${m.min} … ${m.max}${m.full ? ', a full turn' : ''})${r?.stopped ? ' — stopped: it cannot go further that way (a dead point or its end)' : ''}${this.mech.playing?.key === m.key ? '; ▶ playing (play: false stops it)' : ''}. Its parts: ${JSON.stringify(where)}${trText}` };
       },
       record_animation: async ({ mechanism, format = 'gif', caption = true } = {}) => {
         need();

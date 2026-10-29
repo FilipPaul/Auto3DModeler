@@ -333,6 +333,47 @@ try:
     r = json.loads(tool("restore_version", id=first)[0])
     print(f"    restored: volume {json.loads(tool('get_model')[0])['body']['volume_mm3']} expected 1000 | undo: {r['undo']}")
     print("    a bad id:", tool("restore_version", id="../x")[0][:80])
+    # ---- 🎬 demos (list_demos, open_demo) and a project file (open_file .a3d.json): the crank – rod – slider
+    rows = json.loads(tool("list_demos")[0])
+    print("    demos:", [x["file"] for x in rows])
+    tool("open_demo", name="crank")
+    parts = json.loads(tool("list_parts")[0])
+    asm = next(p for p in parts if p["kind"] == "assembly")
+    tool("open_part", id=asm["id"])
+    a = json.loads(tool("get_assembly")[0])
+    masses = [p.get("mass_g") for p in a["parts"]]
+    print(f"    crank demo: {len(parts)} parts | mechanisms {[m['name'] for m in a.get('mechanisms', [])]} | each part's mass {masses} | "
+          f"their sum is the assembly's {a.get('mass_g')}: {abs(sum(x or 0 for x in masses) - (a.get('mass_g') or -1)) < 0.05}")
+    # 📈 the slider's stroke over a full turn of the crank: about twice the crank's throw (its hole to its pin)
+    t, _ = tool("drive_mechanism", trace=True)
+    import re
+    pts = json.loads(re.search(r"\): (\[\[.*\]\])\.", t).group(1))
+    throw = json.loads(tool("measure", a={"part": "I2", "face": "F3:hole:0"}, b={"part": "I2", "face": "F5:side:c1"})[0])["axes_apart"]
+    stroke = max(y for _, y in pts) - min(y for _, y in pts)
+    print(f"    trace: {len(pts)} points, stroke {stroke:.3f} | 2 × throw {2 * throw:.3f} | match: {2 * throw * 0.98 < stroke < 2 * throw * 1.1}")
+    # ➕ the missing joint: the rod's pin joint to the slider taken away -> named, added back -> the mechanism again
+    rod_pin = next(j["id"] for j in a["joints"] if j["part"] == "I3" and j["onto"] == "I4")
+    tool("remove_joint", id=rod_pin)
+    a = json.loads(tool("get_assembly")[0])
+    print(f"    missing_joint: {a.get('missing_joint')} | mechanisms {len(a.get('mechanisms', []))}")
+    r = tool("add_missing_joint")[0]
+    a = json.loads(tool("get_assembly")[0])
+    print(f"    added: {r[:120]} | missing now {a.get('missing_joint')} | closed loop: {any(lp['closed'] for lp in a.get('loops', []))}")
+    print("    add_missing_joint, none missing:", tool("add_missing_joint")[0][:80])
+    # 📌 fixed in place: the base freed and fixed again; the crank hangs on its joints (refused)
+    tool("place_part", part="I1", fixed=False)
+    print("    I1 freed:", not next(p for p in json.loads(tool("get_assembly")[0])["parts"] if p["id"] == "I1").get("fixed"))
+    tool("place_part", part="I1", fixed=True)
+    print("    I1 fixed again:", next(p for p in json.loads(tool("get_assembly")[0])["parts"] if p["id"] == "I1").get("fixed"))
+    print("    I2 fixed (it hangs on its joints):", tool("place_part", part="I2", fixed=True)[0][:80])
+    # a saved project file opens the same way (the demo's own file)
+    t, _ = tool("open_file", path=str(ROOT / "demos" / "ctyrkloubovy-mechanismus.a3d.json"))
+    print(f"    project file: {t[:120]}")
+    # every browser tool has its handler in the page (tests/test_agent_wiring.py reads the sources; this asks the page)
+    sys.path.insert(0, str(ROOT))
+    from auto3d.agent_tools import BROWSER_TOOLS
+    have = set(d.execute_script("return Object.keys(window.__app.agentHandlers)"))
+    print(f"    the page's handlers: {len(have)} | browser tools without one: {sorted(BROWSER_TOOLS - have)}")
     # teaching: a ring and a tip at a control (gone on clear), and the reports written so far
     tool("gui_highlight", control="Save project", text="Save your work here.", step="1/1")
     print("    highlighted:", d.execute_script("return document.querySelector('.teach-tip')?.textContent.replace(/\\s+/g, ' ').trim()"))

@@ -2264,6 +2264,15 @@ const agentHandlers = {
     const names = Object.values(r.tree.parts).map((p) => p.name);
     return { text: `Opened ${name} as the assembly “${r.top.name}”: ${r.parts} different parts (${names.slice(0, 12).join(', ')}${names.length > 12 ? ' …' : ''}), ${r.placements} placements, ${r.subs} sub-assemblies; each part is a 3D model of the project (a solid step). get_assembly lists the placed parts.` };
   },
+  load_project: async ({ project: proj, versions: hist }) => { // a project file / a 🎬 demo from the server (open_file, open_demo)
+    await openLoaded(proj);
+    if (hist) { // 🕘 saved with its version history: into the new project's store
+      await api(`/api/versions/${encodeURIComponent(autosave.id)}/bundle`, { versions: hist }).catch((e) => toast(e.message, 'warning', 7000));
+      await versions?.changed();
+    }
+    const kinds = { model: '3D model', assembly: 'assembly' };
+    return { text: `Opened the project “${state.projectName || project.current?.name || ''}”: ${project.parts.length} part(s) — ${project.parts.map((p) => `${p.name} (${kinds[p.kind] || 'quick part'})`).join(', ')}; on screen: ${project.current?.name}.` };
+  },
   load: async ({ data, editor }) => {
     await loadParsed(data);
     if (editor) state.outlineEditor = editor;
@@ -2460,7 +2469,7 @@ initParams({ project, modeler, assembly, toast });
 // 3D model parts: their own tools; the shared ones (screenshot, export, undo, get_part) follow the part on screen
 const MODEL = modelHandlers({ modeler, project, getWorkspace: () => state.workspace });
 const SHARED = { get_screenshot: 'model_screenshot', get_body: 'model_body', undo: 'model_undo' };
-const ANYWHERE = new Set(['load', 'load_drawing', 'load_solid', 'load_step_assembly', 'ask_user', 'sheet_open', 'get_sheet', 'sheet_edit', 'export_data', 'list_parts', 'open_part', 'duplicate_part', 'new_model', 'new_assembly']);
+const ANYWHERE = new Set(['load', 'load_project', 'load_drawing', 'load_solid', 'load_step_assembly', 'ask_user', 'sheet_open', 'get_sheet', 'sheet_edit', 'export_data', 'list_parts', 'open_part', 'duplicate_part', 'new_model', 'new_assembly']);
 for (const [name, fn] of Object.entries(agentHandlers)) {
   if (ANYWHERE.has(name)) continue;
   agentHandlers[name] = async (...args) => {
