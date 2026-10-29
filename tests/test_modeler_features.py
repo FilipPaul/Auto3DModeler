@@ -461,6 +461,54 @@ class TestFeatures(unittest.TestCase):
         r, _ = vol(*b)
         self.assertIn("at most", r["features"][-1]["issues"][0])
 
+    def test_extrude_draft_of_round_scallops(self):
+        """🐛 A profile of 14 small arcs (the AI's bite, r 3.4–4.7): tilting a straight prism's walls one by one gave no
+        valid solid (its cut "removed nothing") — the drafted prism is built in one (LocOpe_DPrism). Cut 5 deep with
+        25° and added 5 high: the volume ∫ area(profile shrunk by h·tan 25°) dh (between sharp and round corners);
+        watertight, the same through STEP. Too steep for the profile: the most that fits is told, never an empty cut."""
+        from shapely.geometry import Polygon
+        from auto3d.modeler import kernel as K
+        from test_modeler_kernel import watertight
+        pts = {"p1": [16, 33], "p2": [14.42, 38.64], "p3": [9.98, 43.16], "p4": [3.56, 45.67], "p5": [-3.56, 45.67],
+               "p6": [-9.98, 43.16], "p7": [-14.42, 38.64], "p8": [-16, 33], "p9": [-14.42, 27.36], "p10": [-9.98, 22.84],
+               "p11": [-3.56, 20.33], "p12": [3.56, 20.33], "p13": [9.98, 22.84], "p14": [14.42, 27.36]}
+        centres = [[13.593934872, 35.367272535], [10.65050074, 39.377925506], [5.746484191, 41.797083071], [0, 42.597392638],
+                   [-5.746484191, 41.797083071], [-10.65050074, 39.377925506], [-13.593934872, 35.367272535],
+                   [-13.593934872, 30.632727465], [-10.65050074, 26.622074494], [-5.746484191, 24.202916929],
+                   [0, 23.402607362], [5.746484191, 24.202916929], [10.65050074, 26.622074494], [13.593934872, 30.632727465]]
+        pts.update({f"c{i + 1}": c for i, c in enumerate(centres)})
+        arcs = [{"id": f"a{i + 1}", "t": "arc", "c": f"c{i + 1}", "a": f"p{i + 1}", "b": f"p{(i + 1) % 14 + 1}"} for i in range(14)]
+        ring = [q for i in range(14) for q in K.arc_points(centres[i], pts[f"p{i + 1}"], pts[f"p{(i + 1) % 14 + 1}"], 1)[:-1]]
+        shape = Polygon(ring)
+        k = math.tan(math.radians(25))
+
+        def frustum(d):  # ∫₀ᵈ area(shape shrunk by h·tan 25°) dh, Simpson over 20 steps: (sharp corners, round corners)
+            hs = np.linspace(0, d, 21)
+            w = np.array([1] + [4, 2] * 9 + [4, 1]) * d / 60
+            return [float(w @ [shape.buffer(-h * k, **kw).area for h in hs]) for kw in ({"join_style": "mitre"}, {})]
+        block = [{"id": "S1", "type": "sketch", "plane": {"datum": "XY"},
+                  "points": {"q1": [-30, 10], "q2": [30, 10], "q3": [30, 56], "q4": [-30, 56]},
+                  "entities": [{"id": f"l{i + 1}", "t": "line", "a": f"q{i + 1}", "b": f"q{i % 4 + 2 if i < 3 else 1}"} for i in range(4)]},
+                 {"id": "E1", "type": "extrude", "sketch": "S1", "op": "add", "d": 10}]
+        sk = {"id": "S2", "type": "sketch", "plane": {"datum": "XY", "offset": 10}, "points": pts, "entities": arcs}
+        v0 = 60 * 46 * 10
+        lo, hi = sorted(frustum(5))
+        for op, sign in (("cut", -1), ("add", 1)):
+            f = {"id": "E2", "type": "extrude", "sketch": "S2", "op": op, "d": 5, "draft": 25}
+            r, v = vol(*block, sk, f)
+            self.assertTrue(r["ok"], r["features"])
+            self.assertFalse(r["features"][-1]["warnings"])
+            self.assertTrue(lo * 0.999 < sign * (v - v0) < hi * 1.001, (op, v - v0, lo, hi))
+            self.assertTrue(watertight(r["body"], apex=True))  # (round corners: cones from the sketch's corners)
+            names = {x.get("name") for x in r["body"]["faces"]}
+            self.assertTrue({"E2:end", "E2:side:a1", "E2:side:a14"} <= names, names)
+            st, _ = doc.evaluate([*block, sk, f])
+            self.assertAlmostEqual(K.volume(K.from_step(K.to_step(st.body.shape))), v, delta=v * 1e-6)
+        # 11 deep at 25°: the scallops' walls meet before the far end — refused with the most that fits, not an empty cut
+        r, _ = vol(*block, sk, {"id": "E2", "type": "extrude", "sketch": "S2", "op": "cut", "d": 11, "draft": 25})
+        self.assertFalse(r["ok"])
+        self.assertIn("at most", r["features"][-1]["issues"][0])
+
     def test_revolve(self):
         # a 10 x 20 rectangle beside the vertical axis (x 5..15) spun a full turn: a tube
         pts = {"a": [5, 0], "b": [15, 0], "c": [15, 20], "d": [5, 20]}

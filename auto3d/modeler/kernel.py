@@ -580,6 +580,52 @@ def prism_body(face, edge_names, vec, fid, start=None):
     return Body(shape, names)
 
 
+def drafted_prism(face, edge_names, vec, angle, fid):
+    """Extrude a face along vec with its walls leaning in by `angle` degrees going away from it (negative: out), named
+    as prism_body's. Built as one drafted prism (LocOpe_DPrism: the profile offset along the height, its corners
+    rounded where walls part) — for when tilting a straight prism's walls one by one (draft, sharp corners) gives no
+    valid solid: a profile of small round scallops at 10° or more (its cut removed nothing). None when it cannot be
+    built either."""
+    from OCP.BRepCheck import BRepCheck_Analyzer
+    from OCP.LocOpe import LocOpe_DPrism
+    v = np.asarray(vec, float)
+    L, a = float(np.linalg.norm(v)), math.radians(float(angle))
+    pln = flat_plane(TopoDS.Face(face))
+    if pln is None or L < 1e-9 or not abs(a) < math.pi / 4:
+        return None
+    d = pln.Axis().Direction()
+    along = float(np.dot([d.X(), d.Y(), d.Z()], v / L))
+    if abs(abs(along) - 1) > 1e-6:  # (it goes square to its plane only: an extrude's)
+        return None
+    s = 1.0 if along > 0 else -1.0  # (it goes along the plane's own normal for a positive height, leaning in for a positive angle)
+    try:
+        mk = LocOpe_DPrism(TopoDS.Face(face), s * L / math.cos(a), s * a)  # (the height is along the slanted wall)
+        ok = mk.IsDone()
+        shape = mk.Shape() if ok else None
+    except Exception:  # noqa: BLE001 — OpenCASCADE throws when the walls cannot be offset
+        ok, shape = False, None
+    if not ok or solids(shape) != 1 or not BRepCheck_Analyzer(shape).IsValid():
+        return None
+    p = GProp_GProps()
+    BRepGProp.SurfaceProperties_s(TopoDS.Face(face), p)
+    straight = p.Mass() * L  # (leaning in: less than the straight prism; out: more)
+    if not 0 < volume(shape) or (volume(shape) < straight) != (a > 0):
+        return None
+    names = {f"{fid}:start": list(_subshapes(mk.FirstShape(), TopAbs_FACE)),  # (shells of its first / last faces)
+             f"{fid}:end": list(_subshapes(mk.LastShape(), TopAbs_FACE))}
+    u, c0 = v / L, np.asarray(_centroid(face))
+    ends = names[f"{fid}:end"]  # (walls leaning in that meet before the far end: a point, not the extrude asked for)
+    if not ends or any(abs(float(np.dot(np.asarray(_centroid(f)) - c0, u)) - L) > 1e-6 * (1 + L) for f in ends):
+        return None
+    for e, n in edge_names:
+        gen = [g for g in mk.Shapes(e) if g.ShapeType() == TopAbs_FACE]
+        if gen:
+            names.setdefault(f"{fid}:side:{n}", []).extend(gen)
+    rm = _face_map(shape)
+    names = {k: [f for f in fs if not f.IsNull() and rm.Contains(f)] for k, fs in names.items()}
+    return Body(shape, {k: fs for k, fs in names.items() if fs})
+
+
 def prism_up_to_next(face, edge_names, u, body, fid, op):
     """Extrude a face along the unit vector u up to the next face of the body its whole profile meets ("up to next"):
     the profile extruded far, then an add keeps what of it is outside the body from the sketch to there (a boss up to
@@ -879,6 +925,12 @@ def draft(body, of, angle, fid):
                 new.append(g)
         if new:
             names[n] = new
+    # OCCT tilts each wall as it is: a wall that would close up before the far end (a rounded scallop of r 3.4 leaning
+    # in 25° over 11 mm) comes back "done" but not a valid solid — a cut with it removed nothing, without a word
+    # (checked after ModifiedShape: before it, OCCT's result of a good draft does not pass the check yet)
+    from OCP.BRepCheck import BRepCheck_Analyzer
+    if not BRepCheck_Analyzer(res).IsValid() or not volume(res) > 0:
+        raise KernelError("A draft cannot be made for this profile — try a smaller angle or no draft.")
     return Body(res, names)
 
 

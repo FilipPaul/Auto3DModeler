@@ -14,6 +14,16 @@ Date: 2026-10-25. Written by the architect agent.
   the quick rule when its volume is within CENTRE_TOL 0.5 % of GK's (it integrates the moments too), else from GK with
   CGFlag. The bottle: [0, 0, 31.67]. Tests: test_mass_props (a hemisphere at 3r/8, as arcs and as a 13-point spline;
   a shelled hemisphere at 3/8·(R⁴ − r⁴)/(R³ − r³); a spline cup solid and shelled against its mesh's centroid).
+  **A drafted cut of 14 small arcs removed nothing** (25°, 11 deep): BRepOffsetAPI_DraftAngle tilts each wall as it is
+  and came back "done" with no valid solid (BRepCheck fails from 10° there; at 10–17° it was valid-looking but cut the
+  wrong amount). `kernel.draft` now refuses a result that is not a valid solid, and an extrude's draft then builds
+  one drafted prism with LocOpe_DPrism (`kernel.drafted_prism`: the profile offset along the height, rounded where
+  walls part; the height passed along the slanted wall, d / cos a; refused when the walls meet before the far end).
+  The plain draft stays first (sharp corners, the prismatoid tests). A loft to the offset wire was not taken: the
+  offset of this profile changes its edges (the scallops vanish), which a ruled loft cannot follow. The report's
+  bite at 25° × 11 mm: "at most 23.14°" (the scallops close up past that); 5 mm deep at 25° cuts / adds
+  ∫ area(profile shrunk by h·tan 25°) dh. Tests: test_extrude_draft_of_round_scallops (cut and add, STEP, refused
+  when too steep).
 
 - **Icons at an extrude's height (2026-10-29)** (the owner: "u kliknutí na dimenzi vysunutí … pár ikonek … směr, k
   ploše a další ploše"): clicking the "↕ 10" label on the part opens the size editor with one line of 16 px stroke

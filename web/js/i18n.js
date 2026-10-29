@@ -1625,7 +1625,7 @@ const CS = {
   'origin: "centre", "corner", "world" or {point: <a point step>}.': 'origin: "centre", "corner", "world" nebo {point: <krok bodu>}.',
   'Its sketch has no closed shape to extrude.': 'Jeho skica nemá žádný uzavřený tvar k vysunutí.',
   'draft angle': 'úhel úkosu',
-  'The walls could not be tilted by that angle here — try a smaller angle.': 'Stěny tu nešlo o tento úhel naklonit — zkuste menší úhel.',
+  'A draft cannot be made for this profile — try a smaller angle or no draft.': 'Úkos se pro tento profil nedá vytvořit — zkuste menší úhel nebo bez úkosu.',
   'Its sketch has no closed shape to revolve.': 'Jeho skica nemá žádný uzavřený tvar k rotaci.',
   'A loft goes through at least two sketches — choose them.': 'Šablonování prochází aspoň dvěma skicami — vyberte je.',
   'A sketch of the loft is missing or has a problem.': 'Některá skica šablonování chybí nebo má problém.',

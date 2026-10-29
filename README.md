@@ -467,7 +467,8 @@ SolidWorks. It has only the tools that need almost no input.
      another). It is the other way of going both ways to *Both sides*: ticking one unticks the other.
    - **Draft** (0° to start with) tapers the side walls: they lean in going away from the sketch (negative: out), for
      a boss or a pocket that comes out of a mould. With *Both sides* / *＋ Other side* each side tapers away from the
-     sketch; not with *Through all* or *Up to next*.
+     sketch; not with *Through all* or *Up to next*. A profile of small round bumps drafts too (its corners come out
+     rounded); an angle so steep that the walls would meet before the far end is refused with the most that fits.
    - OK, or Enter, adds the step.
 3. **✏ Sketch** again and **click a flat face** of the part to sketch on it. On a face, Extrude starts as
    **Cut**, ready for holes and pockets.

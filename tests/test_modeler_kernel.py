@@ -30,10 +30,13 @@ def extrude(fid, sk, d=10, op="add", **kw):
 RECT = {"id": "e1", "t": "rect", "cx": 20, "cy": 10, "w": 40, "h": 20}
 
 
-def watertight(body):
-    """Every triangle edge is shared by exactly two triangles (vertices compared after rounding)."""
+def watertight(body, apex=False):
+    """Every triangle edge is shared by exactly two triangles (vertices compared after rounding). apex: triangles of no
+    area (two corners in one point: OCCT's mesh of a cone at its apex) left out first."""
     tri = np.frombuffer(body["positions"], np.float32).reshape(-1, 3, 3)
     keys = np.round(tri.astype(float), 4)
+    if apex:
+        keys = [t for t in keys if len({tuple(x) for x in t}) == 3]
     edges = Counter()
     for t in keys:
         for a, b in ((0, 1), (1, 2), (2, 0)):
