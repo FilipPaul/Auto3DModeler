@@ -1138,10 +1138,13 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   space puts a point there (in the plane facing you, through the last point). A live preview follows the mouse with
   the length (*Délka 1 284 mm*). **Esc / Enter / ✓ Done** keeps the points. Points on a part **stick to it**: they
   follow when it moves (a mechanism, a drag, 💥 Explode). Afterwards *✎ Edit points*: drag a point (onto another face
-  or in space), click the cable to put a point there, click a point and press Delete. The route is straight lines
-  with every corner rounded to the minimum radius; a corner whose legs are too short for it gets the largest radius
-  that fits and is **marked red with ⚠ *ohyb R 6 mm < min 15 mm*** in the view and the panel — never bent tighter
-  silently. *⚠ Goes through Motor I3* when its centre line passes through a part. It is drawn as tubes (loose wires
+  or in space), click the cable to put a point there, click a point and press Delete. The cable **shapes itself to the
+  minimum radius**: straight lines with every corner an arc of that radius, tangent to both legs; two corners clicked
+  close together (a 6 mm step) are moved apart along the legs around them until both arcs fit — the ends stay where
+  you clicked. Only where nothing fits (a short leg at an end of the cable, a U turn narrower than 2 × R) it bends
+  with the largest radius that does, and a small quiet note sits on that spot (*⚠ R 6 mm — na 15 není místo*, the
+  panel: *Bod 3: na R 15 mm není místo, ohnuto R 6 mm*) — never bent tighter silently. The length (panel, tree,
+  BOM) is the shaped path's. *⚠ Goes through Motor I3* when its centre line passes through a part. It is drawn as tubes (loose wires
   twisted round the centre line in their colours, a ribbon flat, a sleeve corrugated), listed in the assembly tree
   (*🔌 Svazek 1 · 4 × Ø1,5 · 1 284 mm*), in the **BOM** a line per wire or cable with its length + a reserve (5 %, under
   *More*) rounded up to 10 mm — *Vodič Ø1,5 mm hnědý — 1 350 mm* — and in the **STEP / GLB / IGES** exports (a part

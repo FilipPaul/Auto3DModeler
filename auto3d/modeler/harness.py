@@ -1,6 +1,7 @@
 """🔌 Cable harnesses (the assembly's 🔌 Cable harness, web/js/assembly/harness.js): the route through the clicked
-points — a polyline with each corner rounded to the minimum bend radius (straight lines + arcs; a corner whose
-segments are too short for it gets the largest radius that fits and is reported) —, its length, a bundle's outer Ø
+points shaped to the minimum bend radius — a polyline with each corner an arc of that radius (straight lines + arcs;
+two corners too close for it moved apart along their outer legs; only a corner that nothing makes fit gets the
+largest radius that does and is reported) —, its length, a bundle's outer Ø
 from its wires' circle packing, and the solid for STEP / GLB / the drawing: a circle (one per wire, a ribbon's
 rectangle) swept along the route (kernel.pipe_body). The browser does the same math for its live preview.
 
@@ -59,16 +60,10 @@ def outer_d(f):
     return float(f.get("d") or 6)
 
 
-def route(points, r_min):
-    """The route through `points` ([x, y, z] each): each corner rounded with r_min where its segments leave room for
-    it, else with the largest radius that fits (the room of a segment shared by two corners split by what each wants)
-    -> {"segments": [("line", a, b) | ("arc", a, m, b, centre, r, angle)], "length", "bends": [{"at": corner index,
-    "r", "ok", "angle" (degrees turned)}]}."""
-    P = [np.asarray(p, float) for p in points]
-    P = [p for k, p in enumerate(P) if k == 0 or np.linalg.norm(p - P[k - 1]) > 1e-6]  # (a point twice: once)
-    if len(P) < 2:
-        return {"segments": [], "length": 0.0, "bends": [], "start": None}
-    r_min = max(0.0, float(r_min or 0))
+def _fit(P, r_min):
+    """The corners of the polyline P rounded with r_min where its legs leave room, else with the largest radius that
+    fits (a leg shared by two corners split by what each wants) -> (L, U, turn, want, T: how far each corner's arc
+    reaches along its legs, R: its radius)."""
     L = [float(np.linalg.norm(P[k + 1] - P[k])) for k in range(len(P) - 1)]
     U = [(P[k + 1] - P[k]) / L[k] for k in range(len(P) - 1)]
     turn = [0.0] + [math.acos(max(-1.0, min(1.0, float(U[i - 1] @ U[i])))) for i in range(1, len(P) - 1)] + [0.0]
@@ -81,19 +76,82 @@ def route(points, r_min):
             return L[k] if b <= 0 else min(a, L[k])
         return L[k] * (a / (a + b)) if math.isfinite(a + b) else (L[k] / 2 if math.isinf(a) and math.isinf(b) else (L[k] if math.isinf(a) else 0.0))
 
-    segs, bends, at, length = [], [], P[0], 0.0
+    T, R = [0.0] * len(P), [0.0] * len(P)
+    for i in range(1, len(P) - 1):
+        if turn[i] > 1e-9:
+            T[i] = min(want[i], room(i, i - 1), room(i, i))
+            R[i] = T[i] / math.tan(turn[i] / 2) if turn[i] < math.pi - 1e-9 else 0.0
+    return L, U, turn, want, T, R
+
+
+def _spread(P, r_min):
+    """Two corners too close for r_min (the leg between them too short for both arcs: an S or a double bend) moved
+    apart along their outer legs — the middle leg longer, both arcs r_min — as little as that needs and as far as the
+    corners beyond leave room; when no move makes them fit, the move that bends them least tight (a U turn: none, its
+    radius is half the gap whatever). The ends stay. -> the points the arcs are fitted to."""
+    P = [p.copy() for p in P]
+    tight = r_min * (1 - 1e-6)
+    for i in range(1, len(P) - 2):
+        L, U, turn, want, T, R = _fit(P, r_min)
+        if not (1e-9 < turn[i] < math.pi - 1e-9 and 1e-9 < turn[i + 1] < math.pi - 1e-9) or min(R[i], R[i + 1]) >= tight:
+            continue
+        if T[i] + T[i + 1] < L[i] * (1 - 1e-9):  # (not the leg between them that is short)
+            continue
+        smax = min(L[i - 1] - (want[i - 1] if i > 1 else 0.0), L[i + 1] - (want[i + 2] if i + 2 < len(P) - 1 else 0.0)) * (1 - 1e-9)
+        if not smax > 1e-9:
+            continue
+        a0, b0, ua, ub = P[i].copy(), P[i + 1].copy(), U[i - 1], U[i + 1]
+
+        def worst(s):  # the tighter of the two arcs with both corners moved s apart
+            Q = list(P)
+            Q[i], Q[i + 1] = a0 - ua * s, b0 + ub * s
+            R2 = _fit(Q, r_min)[5]
+            return min(R2[i], R2[i + 1])
+
+        n = 32
+        f = [worst(smax * k / n) for k in range(n + 1)]
+        k = next((k for k in range(1, n + 1) if f[k] >= tight), None)
+        if k is not None:  # the least move that fits, bisected (to where both arcs are r_min to the last digits)
+            lo, hi = smax * (k - 1) / n, smax * k / n
+            for _ in range(60):
+                mid = (lo + hi) / 2
+                lo, hi = (lo, mid) if worst(mid) >= r_min * (1 - 1e-13) else (mid, hi)
+            s = hi
+        else:
+            k = max(range(n + 1), key=lambda k: f[k])
+            s = smax * k / n if f[k] > f[0] * (1 + 1e-3) else 0.0
+        P[i], P[i + 1] = a0 - ua * s, b0 + ub * s
+    return P
+
+
+def route(points, r_min):
+    """The route through `points` ([x, y, z] each), shaped to the minimum bend radius: each corner an arc of r_min
+    tangent to both legs; two corners too close for that moved apart along their outer legs until they fit (_spread);
+    only where nothing fits (a short end leg, a U turn narrower than 2 × r_min) the largest radius that does — reported
+    -> {"segments": [("line", a, b) | ("arc", a, m, b, centre, r, angle)], "length", "bends": [{"at": corner index,
+    "r", "ok", "angle" (degrees turned)}]}."""
+    P = [np.asarray(p, float) for p in points]
+    P = [p for k, p in enumerate(P) if k == 0 or np.linalg.norm(p - P[k - 1]) > 1e-6]  # (a point twice: once)
+    if len(P) < 2:
+        return {"segments": [], "length": 0.0, "bends": [], "start": None}
+    r_min = max(0.0, float(r_min or 0))
+    if r_min > 0:
+        P = _spread(P, r_min)
+    L, U, turn, want, Ts, Rs = _fit(P, r_min)
+    segs, bends, at, length, station = [], [], P[0], 0.0, [0.0] * len(P)
     for i in range(1, len(P) - 1):
         a = turn[i]
         if a <= 1e-9:
+            station[i] = length + float(np.linalg.norm(P[i] - at))
             continue
-        T = min(want[i], room(i, i - 1), room(i, i))
-        r = T / math.tan(a / 2) if a < math.pi - 1e-9 else 0.0
+        T, r = Ts[i], Rs[i]
         ok = r >= r_min * (1 - 1e-6)
         bends.append({"at": i, "r": r, "ok": ok, "angle": math.degrees(a)})
         A, B = P[i] - U[i - 1] * T, P[i] + U[i] * T
         if np.linalg.norm(A - at) > 1e-9:
             segs.append(("line", at, A))
             length += float(np.linalg.norm(A - at))
+        station[i] = length + r * a / 2  # (a corner's place along the cable: its arc's middle)
         if r > 1e-9:
             w = U[i] - U[i - 1]
             w /= np.linalg.norm(w)
@@ -105,7 +163,8 @@ def route(points, r_min):
     if np.linalg.norm(P[-1] - at) > 1e-9:
         segs.append(("line", at, P[-1]))
         length += float(np.linalg.norm(P[-1] - at))
-    return {"segments": segs, "length": length, "bends": bends, "start": U[0]}
+    station[-1] = length
+    return {"segments": segs, "length": length, "bends": bends, "start": U[0], "station": station}
 
 
 def _start_frame(t):

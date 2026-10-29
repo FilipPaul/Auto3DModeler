@@ -3,7 +3,9 @@ it -> a click on the PCB's top -> "🔌 Vést kabel odsud" in the suggestions ->
 clicked (the PCB's top, the box's top, the motor's top) -> Esc keeps them: one harness, 4 wires, its length as the
 kernel's math has it (auto3d/modeler/harness.py from the same points), the tree's row, BOM lines with the colours and
 lengths (+5 %, rounded up to 10 mm) -> the motor moved: its point follows (and on 💥 Explode) -> a point dragged with
-the mouse -> a corner too tight: ⚠ in the view and the panel -> a point deleted (Delete) -> undo -> STEP export holds
+the mouse -> a corner with no room for the radius: a quiet ⚠ note in the view and the panel (no red over the cable) ->
+a Z clicked with two sharp corners 6 mm apart: shaped to the radius, no note, the drawn tube's centre on arcs of R
+-> a point deleted (Delete) -> undo -> STEP export holds
 the four wires -> the AI's add_harness / edit_harness / get_assembly.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
@@ -209,15 +211,40 @@ try:
     p2b = world_points()[2]
     check("a point dragged onto the box's top", js(f"return {T}.get('H1').points[2].inst") == "I1" and math.dist(p2b, [90, 20, 10 + HM.bundle_d(4, 1.5) / 2 + 0.5]) < 1.5, (p2, p2b))
 
-    # 6. a corner too tight: ⚠ in the view and the panel
+    # 6. a corner with no room for the radius (its leg ends at the cable's start): a quiet ⚠ note, no red over it
     typein("#asmRight input[data-hn=r]", "80")
     warn = [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-warn")]
     bad = [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-bad")]
-    check("R 80: a too-tight corner marked ⚠ in the view", any("ohyb R" in w and "< min 80 mm" in w for w in warn), warn)
-    check("…and in the panel", any("ohyb R" in b for b in bad), bad)
+    check("R 80: the corner with no room noted ⚠ in the view", any("na 80 není místo" in w for w in warn), warn)
+    check("…and in the panel", any("na R 80 mm není místo" in b for b in bad), bad)
+    check("…quietly: no red over the cable", not js(f"return {T}.group.children.some(o => o.material?.color?.getHex() === 0xff4d4d)"))
     d.save_screenshot(f"{OUT}/harness_5_tight.png")
     typein("#asmRight input[data-hn=r]", "")  # (empty: the rule of thumb again)
     check("R empty: the rule of thumb 5 × Ø, no ⚠", js(f"return window.__hn.rMinOf({T}.get('H1'))") == math.ceil(5 * HM.bundle_d(4, 1.5)) and not d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-warn"))
+
+    # 6b. a Z clicked in space with two sharp corners 6 mm apart, R 15: shaped — the corners moved apart along the
+    # outer legs until both arcs are R 15 —, no note; the tube's rings centred on lines and on arcs of R 15
+    js(f"{T}.finish(false)")
+    r = call("add_harness", type="cable", d=4, r_min=15, points=[{"xyz": [0, 140, 60]}, {"xyz": [60, 140, 60]}, {"xyz": [60, 146, 60]}, {"xyz": [120, 146, 60]}])
+    check("a Z with sharp corners: H2 cable", r.startswith("H2 cable"), r[:120])
+    js(f"{T}.sel = 'H2'; {A}.render(); {A}.draw()")
+    time.sleep(0.5)
+    check("…shaped: no ⚠ note, no red", not d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-warn") and not d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-bad")
+          and not js(f"return {T}.group.children.some(o => o.material?.color?.getHex() === 0xff4d4d)"))
+    rings = js(f"""const m = {T}.group.children.find(o => o.userData.harness === 'H2' && o.geometry?.type === 'TubeGeometry'), g = m.geometry, p = g.attributes.position, k = g.parameters.radialSegments, out = [];
+      for (let i = 0; i <= g.parameters.tubularSegments; i++) {{ let x = 0, y = 0, z = 0; for (let j = 0; j < k; j++) {{ const q = i * (k + 1) + j; x += p.getX(q); y += p.getY(q); z += p.getZ(q); }} out.push([x / k, y / k, z / k]); }}
+      return out;""")
+    zr = HM.route([[0, 140, 60], [60, 140, 60], [60, 146, 60], [120, 146, 60]], 15)
+    arcs = [s for s in zr["segments"] if s[0] == "arc"]
+    on = lambda q: min([abs(math.dist(q, s[4]) - s[5]) for s in arcs] + [abs(q[1] - 140), abs(q[1] - 146)])  # noqa: E731  (on an arc or on a leg)
+    on_arc = [q for q in rings if 140 + 1e-3 < q[1] < 146 - 1e-3]
+    check("…the drawn tube bends on arcs of R 15 (its rings' centres)", len(arcs) == 2 and all(abs(s[5] - 15) < 1e-6 for s in arcs) and len(on_arc) >= 4
+          and max(on(q) for q in rings) < 0.05, (len(on_arc), max(on(q) for q in rings)))
+    check("…its length as the kernel's", abs(page_length("H2") - zr["length"]) < 1e-6, (page_length("H2"), zr["length"]))
+    d.save_screenshot(f"{OUT}/harness_5b_shaped.png")
+    call("edit_harness", id="H2", remove=True)
+    js(f"{T}.sel = 'H1'; {T}.editPoints('H1')")
+    time.sleep(0.4)
 
     # 7. a point chosen (clicked) and deleted with Delete; undo brings it back
     click_at(world_points()[1])

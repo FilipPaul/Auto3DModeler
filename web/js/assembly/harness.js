@@ -1,9 +1,9 @@
 // 🔌 Cable harnesses in the assembly: choose what runs (one cable, loose wires, a ribbon cable, a sleeve), its Ø and
 // the minimum bend radius, then click the points it passes — on a part's face (it lies on it: Ø/2 + 0.5 mm off), a
 // hole's centre (it goes through), or in space. A point on a part sticks to it (the placed part + its own
-// coordinates): it follows when the part moves (mechanisms, dragging, explode). The route: a polyline with every corner
-// rounded to the minimum radius (straight lines + arcs); a corner whose legs are too short for it gets the largest
-// radius that fits, drawn red with ⚠. Drawn as tubes (wires twisted round the centre line, a sleeve corrugated, a
+// coordinates): it follows when the part moves (mechanisms, dragging, explode). The route is shaped to the minimum
+// bend radius: every corner an arc of it (straight lines + arcs), two corners too close for that moved apart along
+// their outer legs; only a corner nothing makes fit gets the largest radius that does and a quiet ⚠ note. Drawn as tubes (wires twisted round the centre line, a sleeve corrugated, a
 // ribbon flat), listed in the assembly tree, in the BOM (a line per wire / cable, its length + a reserve, rounded up),
 // exported to STEP / GLB / the drawing as a "harness" step of its own part (auto3d/modeler/harness.py: the same math).
 //
@@ -77,13 +77,10 @@ const lift = (h) => (h.kind === 'ribbon' ? (+h.d || 1) / 2 : outerD(h) / 2) + CL
 export const autoRmin = (h) => (h.kind === 'ribbon' ? 10 : Math.ceil((h.kind === 'sleeve' ? 3 : 5) * outerD(h)));
 export const rMinOf = (h) => (Number.isFinite(+h.r_min) && h.r_min !== null && h.r_min !== '' ? +h.r_min : autoRmin(h));
 
-/** The route through world points (THREE.Vector3): each corner rounded with rMin where its legs leave room, else with
- *  the largest radius that fits -> {segs: [{t: 'line' | 'arc', a, b, len, (arc) c, r, ang, axis}], length, bends:
- *  [{at (the point's number in pts), r, ok, angle (deg), p}]}. */
-export function route(pts, rMin) {
-  const P = [], idx = [];
-  pts.forEach((p, k) => { if (!P.length || p.distanceTo(P[P.length - 1]) > 1e-6) { P.push(p.clone()); idx.push(k); } });
-  if (P.length < 2) return { segs: [], length: 0, bends: [] };
+/** The corners of the polyline P rounded with rMin where its legs leave room, else with the largest radius that fits
+ *  (a leg shared by two corners split by what each wants) -> {L, U, turn, want, T (how far each arc reaches along its
+ *  legs), R (its radius)}. */
+function fit(P, rMin) {
   const L = [], U = [];
   for (let k = 0; k + 1 < P.length; k++) { const v = P[k + 1].clone().sub(P[k]); L.push(v.length()); U.push(v.divideScalar(L[k])); }
   const turn = P.map((_, i) => (i === 0 || i === P.length - 1 ? 0 : Math.acos(Math.max(-1, Math.min(1, U[i - 1].dot(U[i]))))));
@@ -94,13 +91,68 @@ export function route(pts, rMin) {
     if (Number.isFinite(a + b)) return L[k] * (a / (a + b));
     return a === Infinity && b === Infinity ? L[k] / 2 : a === Infinity ? L[k] : 0;
   };
+  const T = P.map(() => 0), R = P.map(() => 0);
+  for (let i = 1; i + 1 < P.length; i++) {
+    if (turn[i] <= 1e-9) continue;
+    T[i] = Math.min(want[i], room(i, i - 1), room(i, i));
+    R[i] = turn[i] < Math.PI - 1e-9 ? T[i] / Math.tan(turn[i] / 2) : 0;
+  }
+  return { L, U, turn, want, T, R };
+}
+
+/** Two corners too close for rMin (the leg between them too short for both arcs: an S or a double bend) moved apart
+ *  along their outer legs — the middle leg longer, both arcs rMin — as little as that needs and as far as the corners
+ *  beyond leave room; when no move makes them fit, the move that bends them least tight (a U turn: none). The ends
+ *  stay. As harness.py's _spread. -> the points the arcs are fitted to. */
+function spread(P0, rMin) {
+  const P = P0.map((p) => p.clone()), tight = rMin * (1 - 1e-6), ok = (a) => a > 1e-9 && a < Math.PI - 1e-9;
+  for (let i = 1; i + 2 < P.length; i++) {
+    const { L, U, turn, want, T, R } = fit(P, rMin);
+    if (!ok(turn[i]) || !ok(turn[i + 1]) || Math.min(R[i], R[i + 1]) >= tight) continue;
+    if (T[i] + T[i + 1] < L[i] * (1 - 1e-9)) continue; // (not the leg between them that is short)
+    const smax = Math.min(L[i - 1] - (i > 1 ? want[i - 1] : 0), L[i + 1] - (i + 2 < P.length - 1 ? want[i + 2] : 0)) * (1 - 1e-9);
+    if (!(smax > 1e-9)) continue;
+    const a0 = P[i].clone(), b0 = P[i + 1].clone(), ua = U[i - 1], ub = U[i + 1];
+    const moved = (s) => { const Q = P.slice(); Q[i] = a0.clone().addScaledVector(ua, -s); Q[i + 1] = b0.clone().addScaledVector(ub, s); return Q; };
+    const worst = (s) => { const R2 = fit(moved(s), rMin).R; return Math.min(R2[i], R2[i + 1]); };
+    const n = 32, f = [];
+    for (let k = 0; k <= n; k++) f.push(worst((smax * k) / n));
+    let k = f.findIndex((x, j) => j > 0 && x >= tight), s = 0;
+    if (k > 0) { // the least move that fits, bisected (to where both arcs are rMin to the last digits)
+      let lo = (smax * (k - 1)) / n, hi = (smax * k) / n;
+      for (let it = 0; it < 60; it++) { const mid = (lo + hi) / 2; if (worst(mid) >= rMin * (1 - 1e-13)) hi = mid; else lo = mid; }
+      s = hi;
+    } else {
+      k = f.reduce((b, x, j) => (x > f[b] ? j : b), 0);
+      s = f[k] > f[0] * (1 + 1e-3) ? (smax * k) / n : 0;
+    }
+    const Q = moved(s);
+    P[i] = Q[i]; P[i + 1] = Q[i + 1];
+  }
+  return P;
+}
+
+/** The route through world points (THREE.Vector3), shaped to the minimum bend radius: each corner an arc of rMin
+ *  tangent to both legs; two corners too close for that moved apart along their outer legs until they fit (spread);
+ *  only where nothing fits (a short end leg, a U turn narrower than 2 × rMin) the largest radius that does, ok false
+ *  -> {segs: [{t: 'line' | 'arc', a, b, len, (arc) c, r, ang, axis}], length, bends: [{at (the point's number in
+ *  pts), r, ok, angle (deg), p}]}. The same math as auto3d/modeler/harness.py. */
+export function route(pts, rMin) {
+  let P = [];
+  const idx = [];
+  pts.forEach((p, k) => { if (!P.length || p.distanceTo(P[P.length - 1]) > 1e-6) { P.push(p.clone()); idx.push(k); } });
+  if (P.length < 2) return { segs: [], length: 0, bends: [] };
+  rMin = Math.max(0, +rMin || 0);
+  const clicked = P;
+  if (rMin > 0) P = spread(P, rMin);
+  const { U, turn, T: Ts, R: Rs } = fit(P, rMin);
   const segs = [], bends = [];
   let at = P[0], length = 0;
   for (let i = 1; i + 1 < P.length; i++) {
     const a = turn[i];
     if (a <= 1e-9) continue;
-    const T = Math.min(want[i], room(i, i - 1), room(i, i)), r = a < Math.PI - 1e-9 ? T / Math.tan(a / 2) : 0;
-    bends.push({ at: idx[i], r, ok: r >= rMin * (1 - 1e-6), angle: (a * 180) / Math.PI, p: P[i] });
+    const T = Ts[i], r = Rs[i];
+    bends.push({ at: idx[i], r, ok: r >= rMin * (1 - 1e-6), angle: (a * 180) / Math.PI, p: clicked[i] });
     const A = P[i].clone().addScaledVector(U[i - 1], -T), B = P[i].clone().addScaledVector(U[i], T);
     if (A.distanceTo(at) > 1e-9) { segs.push({ t: 'line', a: at, b: A, len: A.distanceTo(at) }); length += A.distanceTo(at); }
     if (r > 1e-9) {
@@ -519,7 +571,8 @@ export class HarnessTool {
 
   // ---------------------------------------------------------------- drawing
   /** Each harness drawn (made again only when its points or settings changed); the one chosen lit, its points shown
-   *  while chosen or edited, a corner too tight red with ⚠, the next point's preview while clicking. */
+   *  while chosen or edited, a quiet ⚠ note on a corner with no room for the radius, the next point's preview while
+   *  clicking. */
   draw() {
     const v = this.asm.view;
     if (!v) return;
@@ -591,11 +644,6 @@ export class HarnessTool {
         }
         add(new THREE.Mesh(geo, mat(colourOf(sleeve ? 'black' : h.color)[1], extra.length ? { transparent: true, opacity: 0.85 } : {})));
       }
-      for (const g of r.segs) { // a bend tighter than the minimum: red over it, ⚠ with its radius
-        if (g.t !== 'arc' || r.bends[g.bend]?.ok) continue;
-        const arc = new RouteCurve([g], g.len);
-        add(new THREE.Mesh(new THREE.TubeGeometry(arc, 12, D / 2 * 1.35 + 0.3, 12, false), new THREE.MeshBasicMaterial({ color: 0xff4d4d, transparent: true, opacity: 0.55, depthWrite: false, clippingPlanes: clip })));
-      }
       const label = (cls, text, at) => { // (a label just above its spot: CSS2D places the outer box, the inner one is lifted)
         const el = document.createElement('div'), sp = document.createElement('span');
         el.style.pointerEvents = 'none';
@@ -606,10 +654,11 @@ export class HarnessTool {
         o.position.copy(at);
         return add(o);
       };
-      r.bends.forEach((b, k) => {
-        if (b.ok) return;
+      const real = all.length - extra.length;
+      r.bends.forEach((b, k) => { // (none while the corner hangs on the point under the mouse: it is not clicked yet)
+        if (b.ok || (extra.length && b.at >= real - 1)) return;
         const g = r.segs.find((x) => x.bend === k); // (on its arc's middle; a sharp turn back: at its point)
-        label('hn-warn', `⚠ ${t2('bend R {r} mm < min {min} mm', { r: num(b.r), min: num(rMinOf(h)) })}`, g ? new RouteCurve([g], g.len).getPoint(0.5) : b.p);
+        label('hn-warn', `⚠ ${t2('R {r} mm — no room for {min}', { r: num(b.r), min: num(rMinOf(h)) })}`, g ? new RouteCurve([g], g.len).getPoint(0.5) : b.p);
       });
       if (on) label('hn-tag', `🔌 ${mmText(r.length)} mm`, curve.getPoint(0.5)); // its length at its middle
     }
@@ -686,7 +735,7 @@ export class HarnessTool {
       ${field('r', 'Min. bend R', rMinOf(h), 'mm', 'The smallest radius it may bend round — every corner is rounded at least this much (rule of thumb: 5 × Ø)', `min="0" placeholder="${autoRmin(h)}"`)}
       <div class="mp-facts hn-facts"><span>Ø</span><b data-no-i18n>${num(outerD(h))} mm</b><span>${esc(t('Points'))}</span><b>${(h.points || []).length}</b></div>
       <p class="mp-count hn-len">${esc(this.lengthText(h))}</p>
-      ${bad.map((b) => `<p class="hint bad hn-bad">⚠ ${esc(t2('Point {p}: bend R {r} mm < min {min} mm', { p: b.at + 1, r: num(b.r), min: num(rMinOf(h)) }))}</p>`).join('')}
+      ${bad.map((b) => `<p class="hint hn-bad">⚠ ${esc(t2('Point {p}: no room for R {min} mm, bent R {r} mm', { p: b.at + 1, r: num(b.r), min: num(rMinOf(h)) }))}</p>`).join('')}
       ${thr.length ? `<p class="hint bad hn-thr">⚠ ${esc(t2('Goes through {parts}', { parts: thr.join(', ') }))}</p>` : ''}
       <details class="hn-more" ${this.moreOpen ? 'open' : ''}><summary>${esc(t('More'))}</summary>${more}
         ${field('reserve', 'Reserve', Number.isFinite(+h.reserve) ? +h.reserve : 5, '%', 'Added to its length in the BOM (cut longer), rounded up to 10 mm', 'min="0" max="100"')}</details>
@@ -726,9 +775,9 @@ export class HarnessTool {
   rows(list) {
     for (const h of this.list()) {
       const pts = (h.points || []).map((p) => pointAt(this.asm, h, p)).filter(Boolean), r = route(pts, rMinOf(h)), row = document.createElement('div');
-      row.className = `mt-item hn-row${h.id === this.sel ? ' on' : ''}${r.bends.some((b) => !b.ok) ? ' bad' : ''}`;
+      row.className = `mt-item hn-row${h.id === this.sel ? ' on' : ''}`;
       row.dataset.harness = h.id;
-      row.innerHTML = `<span class="mt-icon">🔌</span><span class="mt-name" data-no-i18n></span><span class="mt-what" data-no-i18n></span>${r.bends.some((b) => !b.ok) ? '<span class="mt-warn">⚠</span>' : ''}
+      row.innerHTML = `<span class="mt-icon">🔌</span><span class="mt-name" data-no-i18n></span><span class="mt-what" data-no-i18n></span>${r.bends.some((b) => !b.ok) ? `<span class="mt-warn soft" title="${esc(t('A corner has no room for the minimum bend radius'))}">⚠</span>` : ''}
         <span class="mt-acts"><button class="mini" data-a="edit" title="${esc(t('Edit points'))}">✎</button><button class="mini danger" data-a="del" title="${esc(t('Delete the harness (Delete)'))}">✕</button></span>`;
       row.querySelector('.mt-name').textContent = nameOf(h);
       row.querySelector('.mt-what').textContent = `${specOf(h)} · ${mmText(r.length)} mm`;

@@ -27,10 +27,14 @@ Date: 2026-10-25. Written by the architect agent.
   toolbar, suggestions, panel, tree, draw, pointer, keys, history, summary, handlers, stepTree): assembly JSON
   `harnesses` [{id H…, kind cable | wires | ribbon | sleeve, d, color, wires [{d, color}], pitch, r_min (none: 5 × Ø),
   reserve %, points [{inst, at (in the part), n (its face's normal: lies on it, Ø/2 + 0.5 off; none: a hole's centre)} |
-  {xyz}]}] — a point on a part follows it (the drawn mesh's matrix: mechanisms, drags, explode). The route: the
-  polyline with each corner rounded to r_min where its legs leave room (a leg shared by two corners split by what each
-  wants), else the largest radius that fits — flagged, red + ⚠ "ohyb R 6 mm < min 15 mm"; lines + arcs, its length
-  live. Drawn as TubeGeometry along a by-length curve (wires twisted round the centre, a ribbon flat — ExtrudeGeometry
+  {xyz}]}] — a point on a part follows it (the drawn mesh's matrix: mechanisms, drags, explode). The route (2026-10-30
+  shaped by default, the owner: "by default se má tvarovat podle radiusu"): each corner an arc of r_min tangent to both
+  legs; two corners whose shared leg is too short for both arcs (an S / Z step, two 45° turns) moved apart along their
+  outer legs — the least move that fits, scanned + bisected, bounded by what the corners beyond want (route → _spread
+  / spread, the same in Python and JS); only what nothing fixes (a short end leg, a U narrower than 2 r_min) gets the
+  largest radius that fits (a leg shared by two corners split by what each wants) and a quiet amber note on the spot
+  "R 6 mm — na 15 není místo" (no red overlay; none while the corner hangs on the point under the mouse); lines +
+  arcs, its length live. Drawn as TubeGeometry along a by-length curve (wires twisted round the centre, a ribbon flat — ExtrudeGeometry
   turned level at its start —, a sleeve corrugated); ⚠ through a part: the centre line's samples tested by ray parity
   against the parts' meshes. BOM (bom.js): a line per wire / cable "Vodič Ø1,5 mm hnědý — 1 350 mm" (+ reserve, up to
   10 mm), kind harness, no position. Export: a part per harness with one step {type: "harness"} (doc.py ->
@@ -38,7 +42,8 @@ Date: 2026-10-25. Written by the architect agent.
   MakePipeShell along lines + arcs, one solid per wire, faces <id>:w<k>:… painted their colours) — STEP / IGES / GLB
   and the assembly's drawing sheet (sheet.js flatten). AI: add_harness / edit_harness, get_assembly `harnesses`
   (length, bends_too_tight, through_parts); the assemble-parts skill. Demo *Řídicí box s motorem*. Tests:
-  tests/test_harness.py (straight, L = straight parts + πR/2, a tight corner flagged, bundle Ø 1 / 3 / 7, cable volume
+  tests/test_harness.py (straight, L = straight parts + πR/2, an L sampled G1 with curvature radius ≥ R, a Z / two
+  45° turns shaped to R, only a U turn flagged, bundle Ø 1 / 3 / 7, cable volume
   π(d/2)²·L + watertight + STEP round trip, 4 wire solids, ribbon / sleeve, errors), tools/e2e_harness.py.
   Left out: a sleeve is solid in STEP (not hollow); wires are laid side by side in STEP (twisted only on screen); the
   through-a-part check tests the centre line, not the Ø; a point on a part inside a moved sub-assembly is on the

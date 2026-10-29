@@ -8,6 +8,8 @@ Run:  py -m unittest tests.test_harness -v
 import math
 import unittest
 
+import numpy as np
+
 from auto3d.modeler import available
 from auto3d.modeler import harness as H
 from test_modeler_kernel import watertight
@@ -16,6 +18,42 @@ OCC = available("occ")
 if OCC:
     from auto3d.modeler import doc
     from auto3d.modeler import kernel as K
+
+
+def sample(r, n):
+    """n + 1 points evenly along a route's segments (G1 checked on the way: each piece starts where the last ended,
+    in the direction it ended)."""
+    pieces, last = [], None
+    for s in r["segments"]:
+        a, b = np.asarray(s[1]), np.asarray(s[3] if s[0] == "arc" else s[2])
+        if s[0] == "line":
+            f, ln, t0, t1 = (lambda u, a=a, b=b: a + (b - a) * u), float(np.linalg.norm(b - a)), (b - a), (b - a)
+        else:
+            c, rad, ang = np.asarray(s[4]), s[5], s[6]
+            x, y = (a - c) / rad, (b - c) - ((b - c) @ ((a - c) / rad)) * (a - c) / rad
+            y /= np.linalg.norm(y)
+            f, ln = (lambda u, c=c, x=x, y=y, rad=rad, ang=ang: c + rad * (x * math.cos(ang * u) + y * math.sin(ang * u))), rad * ang
+            t0, t1 = y, -x * math.sin(ang) + y * math.cos(ang)
+        if last is not None:
+            assert np.linalg.norm(last[0] - a) < 1e-9 and np.dot(last[1] / np.linalg.norm(last[1]), t0 / np.linalg.norm(t0)) > 1 - 1e-9, "not G1"
+        last = (b, t1)
+        pieces.append((f, ln))
+    total, out = sum(ln for _, ln in pieces), []
+    for k in range(n + 1):
+        s = total * k / n
+        for f, ln in pieces:
+            if s <= ln + 1e-12 or (f, ln) == pieces[-1]:
+                out.append(f(min(1.0, s / ln)))
+                break
+            s -= ln
+    return out
+
+
+def circum_r(p, q, s):
+    """The radius of the circle through three points (inf: in a line)."""
+    a, b, c = np.linalg.norm(q - s), np.linalg.norm(p - s), np.linalg.norm(p - q)
+    area2 = np.linalg.norm(np.cross(q - p, s - p))
+    return math.inf if area2 < 1e-12 else a * b * c / (2 * area2)
 
 
 class TestRoute(unittest.TestCase):
@@ -42,12 +80,35 @@ class TestRoute(unittest.TestCase):
         arc = next(s for s in r["segments"] if s[0] == "arc")
         self.assertTrue(all(abs(a - e) < 1e-9 for a, e in zip(arc[4], [90, 0, 10])))  # (its centre: R in from both legs)
 
-    def test_tight_corner_flagged(self):
-        """A 6 mm long leg between two right angles leaves room for R 3 (half of it each), not the minimum 15."""
-        r = H.route([[0, 0, 0], [50, 0, 0], [50, 6, 0], [100, 6, 0]], 15)
+    def test_l_shaped_curvature(self):
+        """An L clicked as 3 points at 90°: the path is G1 (each piece leaves in the direction the last one ended) and
+        its curvature radius ≥ R everywhere (sampled: the circle through 3 neighbouring samples); length = the straight
+        legs − 2R + πR/2."""
+        R = 12
+        r = H.route([[0, 0, 0], [60, 0, 0], [60, 45, 0]], R)
+        self.assertAlmostEqual(r["length"], 60 + 45 - 2 * R + math.pi * R / 2, places=9)
+        self.assertTrue(all(b["ok"] for b in r["bends"]))
+        pts = sample(r, 400)
+        self.assertGreaterEqual(min(circum_r(*pts[k - 1:k + 2]) for k in range(1, len(pts) - 1)), R * (1 - 1e-3))
+
+    def test_close_corners_shaped(self):
+        """A 6 mm step between two right angles (a Z): no longer bent tight — the corners move apart until both arcs
+        are R 15, the ends stay, the path is G1 with curvature radius ≥ 15 everywhere, nothing reported."""
+        R = 15
+        r = H.route([[0, 0, 0], [50, 0, 0], [50, 6, 0], [100, 6, 0]], R)
+        self.assertEqual([b["ok"] for b in r["bends"]], [True, True])
+        self.assertTrue(all(abs(s[5] - R) < 1e-6 for s in r["segments"] if s[0] == "arc"))
+        pts = sample(r, 600)
+        self.assertLess(math.dist(pts[0], [0, 0, 0]) + math.dist(pts[-1], [100, 6, 0]), 1e-9)
+        self.assertGreaterEqual(min(circum_r(*pts[k - 1:k + 2]) for k in range(1, len(pts) - 1)), R * (1 - 1e-3))
+        two45 = H.route([[0, 0, 0], [40, 0, 0], [43, 3, 0], [43, 50, 0]], R)  # (two 45° turns 4 mm apart)
+        self.assertEqual([b["ok"] for b in two45["bends"]], [True, True])
+
+    def test_tight_corner_only_the_exception(self):
+        """A U turn 6 mm wide cannot bend R 15 whatever moves: R 3 (half the gap), reported; a wide one is not."""
+        r = H.route([[0, 0, 0], [50, 0, 0], [50, 6, 0], [0, 6, 0]], 15)
         self.assertEqual([b["ok"] for b in r["bends"]], [False, False])
         self.assertAlmostEqual(r["bends"][0]["r"], 3)
-        self.assertLess(r["length"], 106)  # (still a route: the largest bends that fit)
         wide = H.route([[0, 0, 0], [50, 0, 0], [50, 40, 0], [100, 40, 0]], 15)
         self.assertEqual([b["ok"] for b in wide["bends"]], [True, True])
 

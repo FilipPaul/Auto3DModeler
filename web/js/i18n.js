@@ -1153,7 +1153,8 @@ const CS = {
   '🔌 Click the points the harness passes: a face of a part, a hole\'s centre, or in space — Esc / Enter / ✓ Done keeps them.':
     '🔌 Naklikejte body, kudy svazek vede: plocha dílu, střed díry, nebo v prostoru — Esc / Enter / ✓ Hotovo je ponechá.',
   'A harness needs at least two points — none was kept.': 'Svazek potřebuje aspoň dva body — nic nebylo ponecháno.',
-  'bend R {r} mm < min {min} mm': 'ohyb R {r} mm < min {min} mm', 'Point {p}: bend R {r} mm < min {min} mm': 'Bod {p}: ohyb R {r} mm < min {min} mm',
+  'R {r} mm — no room for {min}': 'R {r} mm — na {min} není místo', 'Point {p}: no room for R {min} mm, bent R {r} mm': 'Bod {p}: na R {min} mm není místo, ohnuto R {r} mm',
+  'A corner has no room for the minimum bend radius': 'Roh nemá místo na minimální poloměr ohybu',
   'Length {l} mm': 'Délka {l} mm', 'Goes through {parts}': 'Prochází dílem {parts}', 'Its colour': 'Jeho barva', Wires: 'Vodiče', 'How many wires': 'Kolik vodičů',
   'The sleeve\'s outer Ø': 'Vnější Ø chráničky', 'The cable\'s Ø': 'Ø kabelu', 'Wire Ø': 'Ø vodiče', 'Each wire\'s Ø (with its insulation)': 'Ø každého vodiče (s izolací)',
   Pitch: 'Rozteč', 'The spacing of its wires: the width = wires × pitch': 'Rozteč vodičů: šířka = vodiče × rozteč', 'Min. bend R': 'Min. poloměr ohybu',
