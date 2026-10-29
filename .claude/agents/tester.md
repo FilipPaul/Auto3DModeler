@@ -125,6 +125,8 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_slider_grow.py <url> <dir>` covers soft vs hard ranges (pattern count 10 typed past its "2 – 4+": kept,
    the slider grown, a warning, 10 holes' volume; the label editor takes 24; fillet 15 held at ≈ 9.94 saying why, in
    the panel and the label editor; draft 50° held at 44.5°).
+   `tools/e2e_thread_default.py <url> <dir>` covers a new thread shown at once as cosmetic (tapped M5 by the tool:
+   the plain Ø4.2 volume, the lines drawn, a toast, 🔩 Real thread (slower) in the panel; Ctrl+Z; the AI's tapped M4).
    `tools/e2e_hole_select.py <url> <dir>` covers choosing / editing a hole without arming its placing (row clicked:
    no tool, ◎ not lit, a click adds nothing; ✎ edit: no preview, no hole on a click until ＋ Add position; OK: 2 holes).
    `tools/e2e_esc_keeps.py <url> <dir>` covers Esc keeping what was placed (sketch line: 2 segments stay; ◎ Hole: 1

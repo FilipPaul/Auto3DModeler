@@ -450,6 +450,9 @@ const CS = {
   'Hole — click on a flat face where it goes (click again for more holes). Enter / Esc = done (keeps them), Cancel = throw away.': 'Díra — klikněte na rovnou plochu, kam patří (dalším kliknutím přidáte další). Enter / Esc = hotovo (ponechá je), Zrušit = zahodit.',
   'Fillet — click the edges (or a face: all its edges). Enter / Esc = done (keeps them), Cancel = throw away.': 'Zaoblení — klikněte na hrany (nebo na plochu: všechny její hrany). Enter / Esc = hotovo (ponechá je), Zrušit = zahodit.',
   'Chamfer — click the edges (or a face: all its edges). Enter / Esc = done (keeps them), Cancel = throw away.': 'Zkosení — klikněte na hrany (nebo na plochu: všechny její hrany). Enter / Esc = hotovo (ponechá je), Zrušit = zahodit.',
+  // a new thread: cosmetic, shown at once
+  '🔩 The thread shows as light lines (cosmetic). A real, cut thread: 🔩 Real thread (slower) in the hole’s panel.': '🔩 Závit je zobrazen lehkými čarami (kosmetický). Skutečný vyříznutý závit: 🔩 Skutečný závit (pomalejší) v panelu díry.',
+  'Thread': 'Závit', 'Real thread (slower)': 'Skutečný závit (pomalejší)',
   // an edited hole / text places by click only once asked
   'Hole — change its settings; ＋ Add position to click more holes. Enter = OK, Esc = Cancel.': 'Díra — změňte její nastavení; ＋ Přidat pozici a kliknutím přidáte další díry. Enter = OK, Esc = Zrušit.',
   'Text / picture — change it; ⌖ Move by clicking to put it elsewhere. Enter = OK, Esc = Cancel.': 'Text / obrázek — upravte ho; ⌖ Přesunout kliknutím a dáte ho jinam. Enter = OK, Esc = Zrušit.',

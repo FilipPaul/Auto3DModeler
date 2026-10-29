@@ -1739,6 +1739,17 @@ export class Modeler {
     return `<div class="field mp-threads"><label title="${esc(t('How the threads of its threaded holes show'))}">🔩 ${esc(t('Threads'))}</label><div class="seg">${b('hidden', 'Hidden', 'Plain holes at the tap drill (the threads are on the drawing)')}${b('cosmetic', 'Cosmetic', 'Thin helix lines on the holes — view only, quick')}${b('real', 'Real', 'The threads cut into the solid (ISO metric, 60°) — in STEP / STL / 3MF exports and the print split; slower')}</div></div>${note}`;
   }
 
+  /** 🔩 A thread just made (a tapped hole new since the last undo step — the tools, a type switched, the AI) is seen at
+   *  once: threads hidden -> shown as cosmetic lines (in the same undo step), saying so; real ones stay one choice away
+   *  (🔩 Real thread in the hole's panel, 🔩 Threads in the Part panel). Parts as they were opened keep their setting. */
+  showNewThreads() {
+    if (this.part.threads === 'cosmetic' || this.part.threads === 'real') return;
+    const had = new Set((this.history.base?.features || []).filter((f) => f.type === 'hole' && f.thread).map((f) => f.id));
+    if (!this.part.features.some((f) => f.type === 'hole' && f.thread && !f.suppressed && !had.has(f.id))) return;
+    this.part.threads = 'cosmetic';
+    this.hooks.toast(t('🔩 The thread shows as light lines (cosmetic). A real, cut thread: 🔩 Real thread (slower) in the hole’s panel.'), 'info', 5000);
+  }
+
   /** 🔩 Show all threads (the suggestions table): asked once — cosmetic lines or real geometry. */
   async askThreads() {
     const mode = await choose(t('Show the threads as'), [
@@ -1953,6 +1964,7 @@ export class Modeler {
   /** Record a step in the undo history and rebuild. */
   commit() {
     this.fixBar();
+    this.showNewThreads();
     this.history.commit();
     this.render();
     this.rebuild();
@@ -2997,6 +3009,9 @@ export class Modeler {
         ${f.head ? `<div class="field"><label>Head Ø</label><input type="number" step="any" min="0" data-k="head_d" value="${fmt(f.head_d)}"><span class="unit">mm</span></div>` : ''}
         ${f.head === 'cbore' ? `<div class="field"><label>Head depth</label><input type="number" step="any" min="0" data-k="head_depth" value="${fmt(f.head_depth)}"><span class="unit">mm</span></div>` : ''}
       </details>` : ''}
+      ${kind === 'tapped' ? `<div class="field mp-thr-hole"><label title="${esc(t('How the threads of its threaded holes show'))}">🔩 ${esc(t('Thread'))}</label><div class="seg">
+        <button data-thr="cosmetic" class="${this.part.threads !== 'real' ? 'on' : ''}" title="${esc(t('Thin helix lines on the holes — view only, quick'))}">${esc(t('Cosmetic'))}</button>
+        <button data-thr="real" class="${this.part.threads === 'real' ? 'on' : ''}" title="${esc(t('The threads cut into the solid (ISO metric, 60°) — in STEP / STL / 3MF exports and the print split; slower'))}">${esc(t('Real thread (slower)'))}</button></div></div>` : ''}
       ${dh ? '' : this.teardropRow(f)}
       ${!std || f.fit ? `<div class="field"><label>Fit</label><select data-k="fit" title="An ISO 286 fit for the hole — shown on the 2D drawing (Ø8 H7 and its deviations); the model keeps the nominal size">
         ${['', 'H6', 'H7', 'H8', 'H9'].map((v) => `<option value="${v}" ${v === (f.fit || '') ? 'selected' : ''}>${v || '—'}</option>`).join('')}</select></div>` : ''}
@@ -3024,6 +3039,7 @@ export class Modeler {
     box.querySelector('[data-a=turnflat]')?.addEventListener('click', () => { f.flat_angle = ((f.flat_angle || 0) + 90) % 360; if (!f.flat_angle) delete f.flat_angle; this.rebuild(); });
     box.querySelector('.m-holesizes')?.addEventListener('toggle', (e) => { this.holeSizesOpen = e.target.open; });
     box.querySelector('[data-a=addpos]')?.addEventListener('click', () => this.armPlace());
+    for (const el of box.querySelectorAll('.mp-thr-hole [data-thr]')) el.addEventListener('click', () => { this.setThreads(el.dataset.thr).then(() => this.cmd && this.renderProps()); });
     const dep = box.querySelector('[data-k=depth]');
     if (dep) num(dep, (v) => { if (v > 0) f.depth = v; });
     box.querySelector('[data-k=through]').addEventListener('change', (e) => { f.through = e.target.checked; this.renderProps(); this.rebuild(); });

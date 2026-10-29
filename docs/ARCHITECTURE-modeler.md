@@ -7,6 +7,11 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **A new thread is cosmetic and seen at once (2026-10-29)**: `commit()` -> `showNewThreads`: a hole step with a
+  thread that the last undo step did not have (the Hole tool's Tapped, a type switched, the AI's add / edit) turns
+  the part's threads from hidden to `cosmetic` in the same undo step, with a toast; real threads stay one choice away
+  (the tapped hole's panel: *🔩 Thread — Cosmetic / Real thread (slower)*, the Part panel's 🔩 Threads). Parts as
+  opened keep their setting. Tests: e2e_thread_default (new), e2e_model_threads (the new holes show cosmetic first).
 - **Choosing a hole never arms its placing (2026-10-29)**: an edited hole / text step (✎, double-click) opens its
   panel with `cmd.place` off (`PLACES`): no preview at the mouse, a click places nothing (a notice says how) until
   **＋ Add position** (a hole) / **⌖ Move by clicking** (a text / picture) — `armPlace`, a toggle; new ones place at

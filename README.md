@@ -491,7 +491,10 @@ SolidWorks. It has only the tools that need almost no input.
    / 6 / 8: 2.5 / 3.5 / 5.5 / 7.5, else 0.9 × Ø — and it follows the Ø while you have not changed it); the flat faces
    the face's x direction, ⇄ turns it 90°. The drawing says *Ø5 D4.5 THRU*. A head that would not
    fit — wider than the face around the hole, or as deep as the part there (it would cut through) — is refused,
-   with the most that fits. The drawing's callout says it: *Ø5.5 ⌴ Ø10 ↧ 5.4*, *M5 ↧ 10*. Its thread is not drawn on the part unless you ask: click the
+   with the most that fits. The drawing's callout says it: *Ø5.5 ⌴ Ø10 ↧ 5.4*, *M5 ↧ 10*. **A new thread shows at
+   once as cosmetic lines** (a tapped hole made by the tool, its type switched, or the AI: the part's threads were
+   hidden -> cosmetic, a toast says so; the hole's panel has *🔩 Thread: Cosmetic / Real thread (slower)*); parts
+   opened keep their setting. To hide them or choose again: click the
    part (no tool on) and choose **🔩 Show all threads** under *The part*, then how: *Cosmetic (light)* draws a thin
    helix at the thread's pitch on each threaded hole's wall and a thin ring at its major Ø on the face (view only: the
    solid, its volume and exports stay as they are; quick, it may stay on). *Real geometry (slower)* cuts a true ISO
