@@ -7,6 +7,14 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **A placed part's panel in Czech, each action once done** (AI report 2026-10-29-015647): the panel's "◆ Open its
+  part", "📌 Fix in place" were one text with their icon (not in the dictionary: English) — now t() on the words; the
+  joint names' tooltip translated before data-no-i18n (a named joint's) skips it; the suggestions table left out the
+  chosen part's actions the panel already has (Assembly.inPanel: chosen alone, not an inner part, no paint / bolt); the
+  turn rows read ↻ X / ↻ Y / ↻ Z and gui_state names a row's inputs by it (.as-rot; an empty label: the row's name, not
+  "input"); a motion is named by its joint's own name, a library / imported part's face by what it is
+  (partFaceText: "the round face Ø22", "a flat face"). tools/e2e_assembly_panel_cs.py.
+
 - **gui_action safe with changed panels; ⧉ its own part undone takes the copy done** (AI report 2026-10-29-015635):
   the AI gave a value to control n 63 — a slider in its last gui_state, a button after a part was chosen — and the
   button was clicked (a copy made). Now a value for a button (or anything but a slider / box / choice; a checkbox takes

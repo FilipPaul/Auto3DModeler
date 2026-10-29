@@ -375,8 +375,12 @@ Never report "works" without having run it; report failures with their output.
    restarted after constraints.py changes.
    `tools/e2e_suggest.py <url> <dir>` covers the suggestions table (a sketch line: its length, h, v, construction —
    bottom left; + a crossing line: angle, parallel, perpendicular, equal (Equal made); a line + a circle: tangent, from
-   its centre; Esc: gone; an assembly part: open, join, simplified, own part, take out; + a second: join them (picking
-   faces, the table gone), measure, collisions).
+   its centre; Esc: gone; an assembly part chosen: no table — its panel has its actions, each once; + a second: join
+   them (picking faces, the table gone), measure, collisions).
+   `tools/e2e_assembly_panel_cs.py <url> <dir>` covers a placed part's panel in Czech (the arm on a library bearing:
+   ◆ Otevřít jeho díl, 📌 Ukotvit na místě, ✕ Vyjmout — no English, each action once on screen; its turn named by the
+   bearing's readable face "válcová plocha Ø22", then by the joint's own name; the joint names' tooltips in Czech; the
+   base's turn sliders / boxes named ↻ X / ↻ Y / ↻ Z in gui_state).
    `tools/e2e_floatboxes.py <url> <dir>` covers the floating boxes with real mouse drags (the suggestions table, 🖨
    Print check, 📏 Measure, ✂ Section: dragged by the header / ⠿ strip they move; the corner grip resizes them; the
    section's Y button still works and the bar stays put; after a reload each opens where it was left, at its size;
@@ -406,7 +410,8 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_ai_gui.py <url> <dir>` covers the AI's GUI testing: gui_action at a point of the 3D view (the lid
    picked, an empty corner: none), Delete / ctrl+z keys, gui_state on a sheet (dims, views, cells), a dimension
    clicked + Delete + ctrl+z, a view dragged 20 mm by at_mm / drag_to, a double-click on the title cell (its field
-   focused), nothing given / a wrong point refused.
+   focused), nothing given / a wrong point refused; a part chosen in the list: the answer has the new controls, a
+   value given to ⧉ Make it its own part refused, clicked: a copy, ctrl+z: the copy out of the project, redo: back.
    `tools/e2e_assembly_lever.py <url> <dir>` covers a lever fixed on a bearing on a shaft (the arm moves "— with
    Bearing": move_free and its slider turn the bearing, the arm goes along), 🔓 free / 🔒 locked on a touch joint
    (locked: the bearing fully held), a joint named by double-click and by edit_joint, and Explode with Respect joints

@@ -1,8 +1,8 @@
 """The suggestions table for what is selected (bottom left of the view), with REAL mouse input: a sketch's rectangle and
 circle -> ⬚ a line: "A line" — its length, horizontal, vertical, construction -> Ctrl+click a crossing line: the angle
 between them, parallel, perpendicular, equal -> "Equal" made -> Ctrl+click a circle + a line: tangent -> Esc: gone ->
-an assembly: a part chosen: open its part, join it … -> Ctrl+click a second: join them, measure, collisions -> "Join
-them": picking faces.
+an assembly: a part chosen: no table (its panel has its actions — each once on screen) -> Ctrl+click a second: join
+them, measure, collisions -> "Join them": picking faces.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_suggest.py http://127.0.0.1:5199 <out dir>
 """

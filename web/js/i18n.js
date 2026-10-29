@@ -1026,6 +1026,7 @@ const CS = {
   'It can still move {n} way(s) — the ways its joints leave free. Slide, then let go: it stays there.': 'Může se ještě pohybovat {n} způsoby — ty, které mu vazby nechávají volné. Posuňte jezdcem a pusťte: díl tam zůstane.',
   '…and {n} more way(s) that are not a plain move or turn.': '…a ještě {n} další způsoby, které nejsou prostým posunem ani otočením.',
   'Along the axis of {face} ({part})': 'Podél osy: {face} ({part})', 'Turn about the axis of {face} ({part})': 'Otočit kolem osy: {face} ({part})',
+  'the round face Ø{d}': 'válcová plocha Ø{d}', 'a flat face': 'rovinná plocha',
   'Along {axis} (on {face})': 'Podél {axis} (po: {face})', 'Along {face}': 'Po: {face}', 'Turn on {face} ({part})': 'Otočit na: {face} ({part})',
   'Away from {face}': 'Od: {face}', 'Along {axis}': 'Podél {axis}', 'Turn about {axis}': 'Otočit kolem {axis}',
   'held by its joints.': 'drží ho jeho vazby.', 'where its own origin is, and how it is turned.': 'kde je jeho vlastní počátek a jak je natočený.',

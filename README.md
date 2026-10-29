@@ -770,6 +770,9 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   faces: ◎ Concentric; two flat: Touch, Flush, Gap, Parallel …; round and flat: Tangent) — one click makes it.
 - **📌 Fixed in place**: the first part put in an assembly is fixed (📌 in the list): it is not moved by hand, and a
   joint made from it moves the other part. 📌 in a part's panel (or the Suggested table) fixes or frees any part.
+  A chosen part's actions are in its panel only (the Suggested table leaves them out — each action once on screen);
+  its free motions are named by the joint's own name when you gave it one, a library or imported part's face by what
+  it is ("the round face Ø22"), not by its steps' names; the turn sliders under X / Y / Z are ↻ X / ↻ Y / ↻ Z.
 - **📏 Measure** (assembly): click a spot, then another — the distance and Δx / Δy / Δz (corners snap); two parallel
   flat faces also give the gap between them, two round faces how far apart their axes are.
 - **⧉ Duplicate as a new part** (a 3D model's *Part* panel) copies it into a new, independent part (its own tab);

@@ -42,11 +42,14 @@ export function guiControls(where = 'all') {
     if (seen.has(el) || el.closest('#aiDrawer, #tab-ai, .ai-drawer') || !shown(el)) continue;
     if (el.tagName === 'INPUT' && el.type === 'hidden') continue;
     seen.add(el);
-    const lab = el.closest('label'), row = el.closest('[data-jrow], .as-dof, .field');
+    const lab = el.closest('label'), row = el.closest('[data-jrow], .as-dof, .as-rot, .field');
     const isPart = el.matches('.as-list .mt-item'), isStep = el.matches('#modelLeft .mt-item'); // (an assembly's part, a model's step)
     let label = (isPart || isStep ? `${el.querySelector('.mt-name')?.textContent || ''} ${el.querySelector('.mt-what')?.textContent || ''}${isStep ? ` [${el.dataset.id}]` : ''}`
       : el.tagName === 'INPUT' || el.tagName === 'SELECT' ? (lab?.textContent || el.placeholder || el.dataset.k || '') : el.textContent || el.title || '').replace(/\s+/g, ' ').trim();
-    if ((el.tagName === 'INPUT' || el.tagName === 'SELECT') && row && row !== lab) label = `${(row.querySelector('label, .as-jt')?.textContent || '').replace(/\s+/g, ' ').trim()} › ${label}`.trim();
+    if ((el.tagName === 'INPUT' || el.tagName === 'SELECT') && row && row !== lab) { // (its row's name first: "↻ X", a joint's, a motion's)
+      const name = (row.querySelector('label, .as-jt')?.textContent || '').replace(/\s+/g, ' ').trim();
+      label = label && label !== name ? `${name} › ${label}`.trim() : name;
+    }
     const dimRow = el.tagName === 'BUTTON' && el.closest('.sk-dim, .sk-label'); // (a sketch dimension's 🔒 / 🔓 / ✕: which one)
     if (dimRow) label = `${(dimRow.querySelector('.sk-val, :scope > span')?.textContent || '').replace(/\s+/g, ' ').trim()} › ${label}`;
     if (!label) label = el.getAttribute('aria-label') || el.title || el.className || el.tagName.toLowerCase();
