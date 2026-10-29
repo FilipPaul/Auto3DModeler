@@ -1,9 +1,11 @@
-"""A chosen Hole step: its type and size in the suggestions, its fields in the right panel, in headless Edge with real
-mouse clicks: a 60 × 40 × 10 block, an M5 ⌴ counterbore hole (◎ Hole) and a Ø8 round pocket cut by an extrude ->
-a click on the hole's wall: "Type: ⌴ Counterbore ▾" and "Size: M5 ▾" in the top rows, the right panel shows the
-hole step (its Type / Size, no tool open), its row in the list marked -> Type ▾ offers all 6 kinds (the current ✓) ->
-⌵ Countersink: the countersink's exact volume -> Size ▾ offers exactly M3 M4 ✓M5 M6 M8 -> M6: the M6 countersink's
-volume -> Ctrl+Z: M5 again -> a click on the pocket's wall: no Type / Size rows (not a Hole step).
+"""A chosen Hole step: its types and sizes as rows of the suggestions, its fields in the right panel, in headless Edge
+with real mouse clicks: a 60 × 40 × 10 block, an M5 ⌴ counterbore hole (◎ Hole) and a Ø8 round pocket cut by an
+extrude -> a click on the hole's wall: its properties each a section of compact rows, no popup — Shape (the 4, ⌴
+Counterbore ✓), Thread (🔩 Add thread M5), Depth (through all ⇄ to a depth), Size (exactly M3 M4 ✓M5 M6 M8); the right panel shows the hole step, its row in the list marked
+-> one click ⌵ Countersink: its exact volume -> one click M6: the M6 countersink's volume -> Ctrl+Z: M5 again -> its
+rim: the same rows above the edge's -> the pocket's wall: no Shape / Size -> 🔩 Add thread M5: a threaded countersink,
+shown; Thread: hide -> hidden; the depth row both ways -> at 1280 × 800 the table scrolls inside (no scrollbar, a fade at the hidden edge), its head in sight,
+all the choices shown past the top N.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
   PYTHONIOENCODING=utf-8 py tools/e2e_hole_suggest.py http://127.0.0.1:5199 <out dir>
@@ -80,14 +82,14 @@ def row(start):
     return next(b for b in d.find_elements(By.CSS_SELECTOR, "#modelViewport .view-suggest .vs-list button[data-sg]") if any(" ".join(b.text.split()).split(" ", 1)[-1].startswith(s) for s in start))
 
 
-def options():
-    wait("return !!document.querySelector('.choose-back')")
-    return [" ".join(b.text.split()) for b in d.find_elements(By.CSS_SELECTOR, ".choose-back .choose-opts button")]
-
-
-def pick_option(text):
-    next(b for b in d.find_elements(By.CSS_SELECTOR, ".choose-back .choose-opts button") if text in b.text).click()
-    time.sleep(0.4)
+def table():
+    """The suggestions table as [[section, [[row text, current?], ...]], ...] (rows before any section: under "")."""
+    return js("""const out = [];
+      for (const el of document.querySelectorAll('#modelViewport .view-suggest .vs-list > *')) {
+        if (el.classList.contains('vs-sec')) out.push([el.textContent.trim(), []]);
+        else if (el.dataset.sg !== undefined) { if (!out.length) out.push(['', []]); out[out.length - 1][1].push([el.textContent.split(/\\s+/).join(' ').trim(), el.classList.contains('on')]); }
+      }
+      return out;""")
 
 
 def frustum(R, r, h):
@@ -118,38 +120,40 @@ try:
     js(f"{M}.view.setView('iso')")
     time.sleep(0.8)
 
-    # ---- a click on the hole's wall
+    # ---- a click on the hole's wall: its types and sizes as rows (no second popup)
     o = wall_of("F3", [15, 20, 7])
     print("the hole's wall at", o)
     click_off(o)
-    r = rows()
-    print("rows:", r[:6])
-    check("“Type: ⌴ Counterbore ▾” and “Size: M5 ▾” in the top 3 rows",
-          any(("Type:" in x or "Typ:" in x) and "Counterbore" in x or "Válcové" in x for x in r[:3]) and any(("Size:" in x or "Velikost:" in x) and "M5" in x for x in r[:3]))
+    t = table()
+    print("table:", t[:4])
+    check("Shape is the first section: the 4 shapes as rows, ⌴ Counterbore ✓", t and t[0][0] in ("Shape", "Tvar") and len(t[0][1]) == 4
+          and [x for x, on in t[0][1] if on] and "Counterbore" in [x for x, on in t[0][1] if on][0] and sum(on for _, on in t[0][1]) == 1)
+    dep = dict(t).get("Depth") or dict(t).get("Hloubka") or []
+    check("Depth: one row, through all ⇄ to a depth", len(dep) == 1 and "⇄" in dep[0][0])
+    sizes = dict(t).get("Size") or dict(t).get("Velikost") or []
+    check("Size: exactly M3 M4 ✓M5 M6 M8 as rows", [x.split()[-1].rstrip("✓") for x, _ in sizes] == ["M3", "M4", "M5", "M6", "M8"] and [on for _, on in sizes] == [False, False, True, False, False])
+    thr = dict(t).get("Thread") or dict(t).get("Závit") or []
+    check("Thread: 🔩 Add thread M5 (not threaded yet)", len(thr) == 1 and "M5" in thr[0][0] and ("Add thread" in thr[0][0] or "Přidat závit" in thr[0][0]))
+    check("no popup to open", not js("return !!document.querySelector('.choose-back')"))
+    h = js("return [...document.querySelectorAll('#modelViewport .view-suggest .vs-pin-row')].map(b => b.getBoundingClientRect().height)")
+    check(f"compact rows (~24 px: {sorted(set(round(x) for x in h))})", h and all(22 <= x <= 27 for x in h))
     check("the hole step chosen, no tool open", js(f"return {M}.selected") == "F3" and js(f"return !{M}.cmd"))
-    panel = js("return [document.querySelector('#modelRight h2')?.textContent, !!document.querySelector('#modelRight [data-k=hole_type]'), document.querySelector('#modelRight [data-k=standard]')?.value]")
+    panel = js("return [document.querySelector('#modelRight h2')?.textContent, document.querySelector('#modelRight .m-hshape [data-shape].on')?.dataset.shape, document.querySelector('#modelRight [data-k=standard]')?.value]")
     print("right panel:", panel)
-    check("the right panel shows the hole step (its Type, Size M5)", panel[0] == "Hole 1" and panel[1] and panel[2] == "M5")
+    check("the right panel shows the hole step (its shape ⌴, Size M5)", panel == ["Hole 1", "counterbore", "M5"])
     check("its row in the list is marked", js("return !!document.querySelector('#modelLeft .mt-item.on[data-id=F3]')"))
     d.save_screenshot(f"{OUT}/hole_suggest.png")
 
-    # ---- Type ▾: all six kinds; ⌵ Countersink
-    row(["Type:", "Typ:"]).click()
-    ts = options()
-    print("types offered:", ts)
-    check("all 6 types offered, the current one ✓", len(ts) == 6 and sum(x.startswith("✓") for x in ts) == 1 and "Counterbore" in next(x for x in ts if x.startswith("✓")))
-    pick_option("Countersink")
+    # ---- one click: ⌵ Countersink
+    row(["Countersink", "Kuželové"]).click()
     settled()
     v = vol()
     f3 = js(f"return {M}.part.features.find(f => f.id === 'F3')")
     check(f"⌵ Countersink: its exact volume ({v:.2f} vs {BASE - CSK5:.2f})", f3["head"] == "csk" and abs(v - (BASE - CSK5)) < 0.5)
+    check("the table again: Countersink ✓", any("Countersink" in x or "Kuželové" in x for x, on in table()[0][1] if on))
 
-    # ---- Size ▾: two below and two above
-    row(["Size:", "Velikost:"]).click()
-    ss = options()
-    print("sizes offered:", ss)
-    check("the sizes: exactly M3 M4 ✓M5 M6 M8", ss == ["M3", "M4", "✓ M5", "M6", "M8"])
-    pick_option("M6")
+    # ---- one click: M6
+    row(["M6"]).click()
     settled()
     v = vol()
     check(f"M6: the M6 countersink's volume ({v:.2f} vs {BASE - CSK6:.2f})", abs(v - (BASE - CSK6)) < 0.5)
@@ -166,18 +170,59 @@ try:
       const e = b.edges[i], [sx, sy] = v.toScreen(new V(e.pts[0], e.pts[1], e.pts[2]));
       return [Math.round(sx - Math.floor(r.left + r.width / 2)), Math.round(sy - Math.floor(r.top + r.height / 2))];""")
     click_off(o)
-    r = rows()
-    print("rim rows:", r[:5])
-    check("its rim: the hole chosen, Type / Size above Fillet", js(f"return {M}.selected") == "F3" and len(r) > 2 and any(s in r[0] for s in ("Type:", "Typ:")) and any("Fillet" in x or "Zaobl" in x for x in r))
+    t = table()
+    print("rim table:", [s for s, _ in t])
+    check("its rim: the hole chosen, Shape / Size above Fillet", js(f"return {M}.selected") == "F3" and t and t[0][0] in ("Shape", "Tvar")
+          and any("Fillet" in x or "Zaobl" in x for _, rs in t for x, _ in rs))
 
     # ---- the pocket's wall: not a Hole step
     js(f"{M}.selectStep(null)")
     o = wall_of("F5", [45, 20, 7])
     click_off(o)
-    r = rows()
-    print("pocket rows:", r[:6])
-    check("the round pocket: no Type / Size rows", r and not any(x.split(" ", 1)[-1].startswith(("Type:", "Typ:", "Size:", "Velikost:")) for x in r))
-    check("the right panel is the part's again", js("return !document.querySelector('#modelRight [data-k=hole_type]')"))
+    t = table()
+    print("pocket sections:", [s for s, _ in t])
+    check("the round pocket: no Shape / Size rows", t and not any(s in ("Shape", "Tvar", "Size", "Velikost") for s, _ in t))
+    check("the right panel is the part's again", js("return !document.querySelector('#modelRight .m-hshape')"))
+
+    # ---- 🔩 a thread: added, then shown / hidden
+    js(f"{M}.selectStep('F3'); {M}.suggestStep('F3')")
+    time.sleep(0.5)
+    row(["Add thread", "Přidat závit"]).click()
+    settled()
+    f3 = js(f"return {M}.part.features.find(f => f.id === 'F3')")
+    thr = dict(table()).get("Thread") or dict(table()).get("Závit") or []
+    print("thread rows:", thr, "| threads:", js(f"return {M}.part.threads"))
+    check("🔩 Add thread M5: a threaded M5 countersink (the tap drill), shown (cosmetic)", f3.get("thread") == "M5" and f3.get("shape") == "countersink" and f3.get("d") == 4.2
+          and js(f"return {M}.part.threads") == "cosmetic")
+    check("its rows: With thread M5 ✓ · Thread: hide · Real thread", len(thr) == 3 and thr[0][1] and "M5" in thr[0][0] and any("hide" in x or "skrýt" in x for x, _ in thr) and any("Real" in x or "Skutečný" in x for x, _ in thr))
+    row(["Thread: hide", "Závit: skrýt"]).click()
+    settled()
+    thr = dict(table()).get("Thread") or dict(table()).get("Závit") or []
+    check("Thread: hide -> hidden, the row says show", not js(f"return {M}.part.threads") and any("show" in x or "zobrazit" in x for x, _ in thr))
+    row(["Through all", "Skrz vše"]).click()
+    settled()
+    check("the depth row: to a depth (10)", js(f"return {M}.part.features.find(f => f.id === 'F3').through") is False)
+    row(["To a depth", "Do hloubky"]).click()
+    settled()
+    check("…and through all again", js(f"return {M}.part.features.find(f => f.id === 'F3').through") is True)
+
+    # ---- a small window: the table scrolls inside (no scrollbar, a fade), its head stays
+    d.set_window_size(1280, 800)
+    time.sleep(0.8)
+    js(f"{M}.selectStep(null); {M}.selectStep('F3'); {M}.suggestStep('F3')")
+    time.sleep(0.8)
+    sc = js("""const b = document.querySelector('#modelViewport .view-suggest'), l = b.querySelector('.vs-list'), h = b.querySelector('.vs-head'), vr = b.parentElement.getBoundingClientRect(), br = b.getBoundingClientRect();
+      return { sh: l.scrollHeight, ch: l.clientHeight, bar: l.offsetWidth - l.clientWidth, fadeB: l.classList.contains('fade-b'), head: h.getBoundingClientRect().top >= vr.top && h.getBoundingClientRect().bottom <= vr.bottom,
+        inside: br.top >= vr.top - 1 && br.bottom <= vr.bottom + 1, rows: l.querySelectorAll('button[data-sg]').length, pinned: l.querySelectorAll('.vs-pin-row').length };""")
+    print("1280 × 800:", sc)
+    check("1280 × 800: the rows scroll inside the table, the head in sight", sc["sh"] > sc["ch"] + 5 and sc["head"] and sc["inside"])
+    check("no scrollbar, a fade at the bottom", sc["bar"] == 0 and sc["fadeB"])
+    check(f"the choices past the top N all shown ({sc['pinned']} pinned of {sc['rows']})", sc["pinned"] >= 13)
+    d.save_screenshot(f"{OUT}/hole_suggest_small.png")
+    js("const l = document.querySelector('#modelViewport .view-suggest .vs-list'); l.scrollTop = l.scrollHeight")
+    time.sleep(0.4)
+    check("scrolled down: the fade at the top", js("return document.querySelector('#modelViewport .view-suggest .vs-list').classList.contains('fade-t')"))
+    d.save_screenshot(f"{OUT}/hole_suggest_small_end.png")
 finally:
     errs = [e["message"] for e in d.get_log("browser") if e["level"] == "SEVERE"]
     print("console errors:", errs)

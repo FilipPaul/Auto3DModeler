@@ -115,18 +115,20 @@ const showingAll = () => { try { return sessionStorage.getItem(ALL_KEY) === '1';
 const setShowingAll = (on) => { try { if (on) sessionStorage.setItem(ALL_KEY, '1'); else sessionStorage.removeItem(ALL_KEY); } catch { /* private window */ } };
 
 /** The rows to show: the same action twice (icon and label) once; more than the limit: only the most relevant ones
- *  (rank: lower first — none: its place in the list), kept in the list's order, under their sections. */
+ *  (rank: lower first — none: its place in the list), kept in the list's order, under their sections. A row with
+ *  `always` (a chosen hole's types and sizes: a choice to see whole) always shows and does not count to the limit. */
 function pickRows(items, all) {
-  const seen = new Set(), acts = [];
+  const seen = new Set(), acts = [], pinned = [];
   items.forEach((it, i) => {
     if (it.section !== undefined) return;
     const key = `${it.icon || ''}|${it.label}`;
     if (seen.has(key)) return;
     seen.add(key);
-    acts.push({ i, r: Number.isFinite(it.rank) ? it.rank : i });
+    if (it.always) pinned.push(i);
+    else acts.push({ i, r: Number.isFinite(it.rank) ? it.rank : i });
   });
   const over = acts.length > suggestLimit();
-  const keep = new Set((over && !all ? [...acts].sort((a, b) => a.r - b.r || a.i - b.i).slice(0, suggestLimit()) : acts).map((a) => a.i));
+  const keep = new Set([...pinned, ...(over && !all ? [...acts].sort((a, b) => a.r - b.r || a.i - b.i).slice(0, suggestLimit()) : acts).map((a) => a.i)]);
   let sec = null;
   const rows = [];
   items.forEach((it, i) => {
@@ -135,11 +137,11 @@ function pickRows(items, all) {
     if (sec) { rows.push(sec); sec = null; } // (a heading only above rows that show)
     rows.push({ ...it, i });
   });
-  return { rows, total: acts.length, over, ranked: [...acts].sort((a, b) => a.r - b.r || a.i - b.i).map((a) => a.i) };
+  return { rows, total: acts.length + pinned.length, over, ranked: [...pinned, ...[...acts].sort((a, b) => a.r - b.r || a.i - b.i).map((a) => a.i)] };
 }
 
 /** Show (or with no items: remove) the table in `viewport`: title (what is selected), items [{icon, label, title,
- *  run, danger, rank} or {section}], hint (a line under it), refs (what is selected, as the AI's tools name it: ✨ puts
+ *  run, danger, rank, always (shown past the limit), on (the current choice: ✓)} or {section}], hint (a line under it), refs (what is selected, as the AI's tools name it: ✨ puts
  *  it in the chat). More rows than the user's limit (suggestLimit): the most relevant ones, then ⋯ Show all (n). */
 export function showSuggest(viewport, title, items, hint = '', refs = '') {
   let box = viewport.querySelector(':scope > .view-suggest');
@@ -158,7 +160,7 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
   box.innerHTML = `<div class="vs-head"><button class="vs-pin" title="${esc(t('Dock it in the left panel — always in sight (or drag its header there)'))}">📌</button><b title="${esc(title)}">${esc(title)}</b><button class="vs-set${setting ? ' on' : ''}" title="${esc(t('How many suggestions show before ⋯ Show all — click to change'))}">${esc(t('Top {n}').replace('{n}', suggestLimit()))}</button>${refs && askAI ? `<button class="vs-ai" title="${esc(t('Ask the AI about it — what is selected goes into the chat'))}">✨</button>` : ''}</div>
     ${setting ? `<label class="vs-top" title="${esc(t('The most relevant suggestions first; the rest under ⋯ Show all'))}">${esc(t('Show first'))} <input type="number" min="3" max="30" step="1" value="${suggestLimit()}"> ${esc(t('suggestions'))}</label>` : ''}
     <div class="vs-list">${rows.map((it) => (it.section !== undefined ? `<div class="vs-sec">${esc(it.section)}</div>` // (a heading: what the rows under it act on)
-      : `<button data-sg="${it.i}" class="${it.danger ? 'danger' : ''}" title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span></button>`)).join('')}${!over ? ''
+      : `<button data-sg="${it.i}" class="${it.danger ? 'danger' : ''}${it.always ? ' vs-pin-row' : ''}${it.on ? ' on' : ''}" title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span>${it.on ? '<span class="vs-on">✓</span>' : ''}</button>`)).join('')}${!over ? ''
       : all ? `<button class="vs-more" data-sg-fewer title="${esc(t('Only the most relevant suggestions'))}"><span class="vs-i">▴</span> <span>${esc(t('Fewer'))}</span></button>`
         : `<button class="vs-more" data-sg-all title="${esc(t('Everything that can be done with what is selected'))}"><span class="vs-i">⋯</span> <span>${esc(t('Show all'))} (${total})</span></button>`}</div>
     ${hint ? `<p class="vs-hint">${esc(hint)}</p>` : ''}`;
@@ -183,6 +185,7 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
   box.sgOpts = { kind: 'suggest', handle: '.vs-head', min: [170, 90], onDefault: (b) => cornerPlace(b, viewport) };
   leftDock.placeSuggest(box, viewport); // (floating: moved / resized / remembered; or docked in the left column)
   if (keep) box.querySelector(`[data-sg="${keep}"]`)?.focus();
+  scrollFades(box.querySelector('.vs-list'));
   return box;
 }
 
@@ -210,6 +213,20 @@ export function runSuggestion(box, i) {
   row.click();
   if (opened) setShowingAll(false);
   return true;
+}
+
+/** A table's rows taller than its box scroll (wheel, touch) with no scrollbar: a soft fade at the edge where more rows
+ *  are hidden says so (.fade-t / .fade-b, kept up to date as it scrolls or its box changes size). */
+function scrollFades(list) {
+  if (!list) return;
+  const mark = () => {
+    const more = list.scrollHeight - list.clientHeight > 1;
+    list.classList.toggle('fade-t', more && list.scrollTop > 1);
+    list.classList.toggle('fade-b', more && list.scrollTop < list.scrollHeight - list.clientHeight - 1);
+  };
+  list.addEventListener('scroll', mark, { passive: true });
+  if (window.ResizeObserver) new ResizeObserver(mark).observe(list);
+  requestAnimationFrame(mark);
 }
 
 // ---------------------------------------------------------------------------------------------- the keyboard

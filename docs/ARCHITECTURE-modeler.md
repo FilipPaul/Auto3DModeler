@@ -21,7 +21,45 @@ Date: 2026-10-25. Written by the architect agent.
   the text giving the table's box. No separate get_suggestions tool: pick + gui_state answer "what would the table
   offer here". The prompt and the skills (ui-tester: suggestion-first, rank_pos judged; teach-the-user: lead through the
   table's rows; model-a-part, assemble-parts) teach it. Tests: test_agent (schemas), e2e_ai_suggest.
-
+- **A hole's properties each on its own (2026-10-29)** (the owner: "typ díry … a to, jestli má nebo nemá závit, by
+  mělo být nesloučené"): a hole step is `shape` (plain | counterbore | countersink | d_flat) + `thread` (absent /
+  "M5"; the AI may give true or {standard, kind: cosmetic | real} — kind sets the part's 🔩 threads, which stay one
+  setting per part) + `through` / `depth` + `standard` (or a plain `d`). Threaded: the hole is the tap drill, else the
+  ISO 273 clearance Ø; the head the size's — so a threaded counterbore, a threaded countersink work. Old files: the
+  single `hole_type` (clearance = plain M5, tapped = plain threaded M5 …) is still read — holes.py `spec` / `resolve`
+  (Python) and holes.js `holeSpec` read both, `setHole` writes the new form (no migration needed: the old one builds
+  the same solid, test_old_files_build_the_same). The kernel and the drawing take resolve's output (thread "M5", head
+  cbore / csk, hole_type d_flat) unchanged; the callout of a threaded counterbore is "M5 ↧ 10 ⌴ Ø10 ↧ 5.4" (ISO
+  order: size, depth, head — as before for any head). UI: `holePropsHtml` / `bindHoleProps` — 4 short rows (Shape:
+  4 icons, Thread: Threaded + Cosmetic / Real, Depth: Through all / To a depth + mm, Size: M2…M20 or Custom Ø) in the
+  Hole panel and the chosen step's panel; the suggestions: Shape (4), Thread (With thread M5 ✓ / Add thread M5, show /
+  hide, real / cosmetic), Depth (one row), Size (±2). AI: add_feature / edit_feature hole {shape, thread, standard}
+  (agent_tools schema, model-a-part skill), the old hole_type still taken. Left out: a thread depth of its own (the
+  thread runs the hole's depth), a fine / coarse clearance choice (none existed). Tests: test_hole_standard
+  (test_properties, test_old_files_build_the_same, test_combinations), e2e_model_hole_standard (rewritten: shape
+  icons, Threaded, To a depth, a threaded counterbore's volume and callout, the AI's threaded M3 countersink),
+  e2e_hole_suggest, e2e_model_hole_dflat / _head, e2e_thread_default, e2e_select_from_point updated.
+- **A hole's dimensions typed again (2026-10-29)** (the owner: "nemůžu nyní v 3D návrhu zadávat kóty k dírám"). Cause:
+  since 0e17470 an edited hole opens without placing, and in the tool its numbers on the part were display-only
+  (`.hole-dim` pointer-events none; the chosen step's clickable tags are hidden while a tool is open), so a click on
+  a distance only said "click ＋ Add position first" — the panel fields were the only way; and a hole snapped to a
+  face's middle ({mid}) had no number to type at all (only 🎯). Now: the hole tool's labels (each half of a {mid}
+  too) and its Ø / ↓ depth labels open the size editor when not placing (`openDimEdit` with `edit.tool`: `applyDim`
+  previews into `cmd.feature`, no undo step, Cancel puts the step back; while placing they stay out of the mouse's
+  way — the panel takes the numbers); `setHoleDist` is the one path (panel field, tool label, chosen step's tag): a
+  {mid} typed becomes {edge: its left / lower edge, d}. The panel's {mid} row has a number too; a chosen hole's
+  {mid} gets its ↔ / ↕ tag. Tests: e2e_hole_dims (new).
+- **A chosen hole's choices inline (2026-10-29)** (the owner: "velikosti a typy díry … v další vyskakovací tabulce …
+  ukaž všechny možnosti … jen když jich bude moc, tak scroll"; "u díry mi v suggestion chybí zobrazit závit"; "nikdy
+  nezobrazuj scroll bar"): `holeItems` replaces the Type ▾ / Size ▾ rows (and their `choose` popups) with sections of
+  rows — Type (the six kinds, icon + short name), Size (`holeSizes`, ±2), Thread (a tapped hole: Thread: show / hide,
+  Real thread ↔ Cosmetic — `setThreads`, the table shown again; else 🔩 Add thread M… — `threadFor`: its screw size,
+  else the M size whose tap drill is nearest its Ø), the current one ✓; one click = `setHoleType` / `setHoleSize`, one
+  undo step. suggest.js: a row with `always` shows past the top N (not counted), `on` ticks it (.vs-pin-row: 24 px
+  rows); a table's rows scroll with no scrollbar (`scrollbar-width: none`), `scrollFades` puts a fade at the edge
+  where rows are hidden (.fade-t / .fade-b; the table grows to the view's height first, no fixed height). Tests:
+  e2e_hole_suggest (rewritten: 6 + 5 rows without a popup, one click countersink / M6 exact volumes, Add thread M5,
+  Thread: hide; 1280 × 800: scrolls inside, no scrollbar, the fades), e2e_ux_model / e2e_select_from_point updated.
 - **✂ Section view fixed and capped (2026-10-29)** (the AI's report: a revolved pump body cut at y = 0 showed whole, with
   a jagged ring at z = 0). Causes: a Y cut kept the half toward the iso / front cameras (x and z kept the far half), so
   the part looked uncut; a face lying in the cut (the bottom at z = 0) z-fought with the clip plane — the jagged ring;

@@ -22,8 +22,10 @@ Part JSON (in the project file, `parts[].model`):
       "keep": "both" | "above" | "below"},   (both: two bodies; above: the side the plane's normal points to)
      {"id": "F6", "type": "hole", "plane": {"face": {"name": "F2:end"}, "frame": ...}, "points": [[u, v]], "d": 5,
       "through": true, "depth": 10},   (+ "teardrop": true: a sideways hole with a 45° point on top, printable)
-      (+ "hole_type": "clearance" | "counterbore" | "countersink" | "tapped", "standard": "M5": sized from holes.py;
-       "hole_type": "d_flat", "flat": 4.5, "flat_angle": 0: a D hole, its size across the flat, the flat facing +x)
+      (+ "shape": "plain" | "counterbore" | "countersink" | "d_flat", "thread": false | "M5" | {"standard", "kind"},
+       "standard": "M5": sized from holes.py — threaded: the tap drill, else the clearance Ø; the old "hole_type":
+       "clearance" | "counterbore" | "countersink" | "tapped" is still read; a D hole: "flat": 4.5, "flat_angle": 0,
+       its size across the flat, the flat facing +x)
      {"id": "F10", "type": "point", "at": {"vertex": {"faces": [...], "fp": [x, y, z]}} | {"centre": <edge ref>} |
       {"mid": <edge ref>} | {"xyz": [x, y, z]}}]}   (a reference point: a corner, a round edge's centre, an edge's middle)
 
