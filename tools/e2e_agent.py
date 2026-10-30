@@ -344,6 +344,7 @@ try:
     # 🔌 its first point (on the flange) a connection point by itself; disconnect_points / connect_points
     print("    point_list[0] connection (an end on a part):", json.loads(tool("get_assembly")[0])["harnesses"][0]["point_list"][0].get("connection"))
     print("    edit_harness disconnect_points [1]:", "connection" not in json.loads(tool("edit_harness", id="H1", disconnect_points=[1])[0].split(". ", 1)[1])["point_list"][0])
+    print("    edit_harness auto_fix (🪄):", tool("edit_harness", id="H1", auto_fix=True)[0][:90])
     print("    edit_harness connect_points [1]:", json.loads(tool("edit_harness", id="H1", connect_points=[1])[0].split(". ", 1)[1])["point_list"][0].get("connection"))
     # 📎 a clip on its first point (on the flange's top): the point then on the clip; ⛓ its span through a chain put in
     t, _ = tool("edit_harness", id="H1", clip={"point": 1})

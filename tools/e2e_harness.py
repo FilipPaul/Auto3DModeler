@@ -905,6 +905,38 @@ try:
     check("…its suggestions: 🔌 Připojovací bod ✓", any("Připojovací bod" in r and "✓" in r for r in rows), rows)
     call("edit_harness", id=hk, remove=True)
 
+    # 26. 🪄 Opravit kabel automaticky: a cable 🔒 too short for its ends and with its middle point (in space) inside the
+    # tall block — taut and through a part; the panel's 🪄 clears both in one undo step (its locked ends not moved);
+    # undo, then the AI's edit_harness auto_fix does the same
+    bb = js("""const m = window.__app.assembly.view.meshes.find(m => window.__app.assembly.partName(window.__app.assembly.inst(m.userData.inst)?.part) === 'Blok');
+      if (!m) return null; m.geometry.computeBoundingBox(); const q = m.geometry.boundingBox.clone().applyMatrix4(m.matrix); return [m.userData.inst, q.min.toArray(), q.max.toArray()];""")
+    bi, bmin, bmax = bb[0], bb[1], bb[2]
+    cx, cy, cz = (bmin[0] + bmax[0]) / 2, (bmin[1] + bmax[1]) / 2, bmax[2] - 30
+    hf = call("add_harness", type="cable", d=6, r_min=20, points=[{"xyz": [cx - 70, cy, cz]}, {"xyz": [cx, cy, cz]}, {"xyz": [cx + 70, cy, cz]}], length=110).split(" ")[0]
+    js(f"{T}.sel = '{hf}'; {T}.pt = null; {T}.span = null; {A}.sel = null; {T}.checkThrough(); {A}.render(); {A}.draw()")
+    time.sleep(1.0)
+    f = next(x for x in json.loads(call("get_assembly"))["harnesses"] if x["id"] == hf)
+    check("26. a crafted cable: taut and through the block", f.get("taut") and bi in (f.get("through_parts") or []) + (f.get("still_hits") or []) + [c.split(" ")[-1] for c in f.get("through_parts") or []], {k: f.get(k) for k in ("taut", "through_parts", "still_hits")})
+    rows = table()
+    check("…🪄 Opravit kabel automaticky offered (suggestions, panel)", any("Opravit kabel automaticky" in r for r in rows) and d.find_elements(By.CSS_SELECTOR, "#asmRight [data-hx=fix]"), rows)
+    ends0 = js(f"return [{T}.get('{hf}').points[0], {T}.get('{hf}').points[2]]")
+    n_undo = js(f"return {A}.history.undo.length")
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-hx=fix]").click()
+    time.sleep(1.5)
+    js(f"{T}.checkThrough()")
+    time.sleep(0.4)
+    f = next(x for x in json.loads(call("get_assembly"))["harnesses"] if x["id"] == hf)
+    toast = js("return [...document.querySelectorAll('.toast, .toasts > *')].map(e => e.textContent).join(' | ')")
+    check("…clicked: not taut, clear of the block, one undo step, said how it went", not f.get("taut") and not f.get("through_parts") and not f.get("still_hits")
+          and js(f"return {A}.history.undo.length") == n_undo + 1 and "Opraveno" in toast, [{k: f.get(k) for k in ("taut", "through_parts", "still_hits", "length_locked_mm")}, toast])
+    d.save_screenshot(f"{OUT}/harness_16_autofix.png")
+    js(f"{A}.history.go(-1)")
+    time.sleep(0.8)
+    r = call("edit_harness", id=hf, auto_fix=True)
+    f = next(x for x in json.loads(call("get_assembly"))["harnesses"] if x["id"] == hf)
+    check("…undo, then edit_harness auto_fix: the same, told", "Opraveno" in r and not f.get("taut") and not f.get("through_parts") and not f.get("still_hits"), r[:200])
+    call("edit_harness", id=hf, remove=True)
+
     # 17. saved and reloaded: the locks kept
     keep = js(f"return JSON.stringify({T}.list().map(h => [h.points.map(p => [p.inst || null, !!p.on, p.face || null, p.clip || null]), h.spans || null]))")
     js("return window.__app.autosave.saveNow()")

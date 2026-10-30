@@ -1024,6 +1024,7 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .hnc-m { grid-column: 2 / 4; color: var(--muted); font-size: 11px; }
 .hnc-all { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-top: 1px solid var(--line); font-size: 11.5px; flex: none; cursor: pointer; }
 .hn-lenrow { display: flex; align-items: center; gap: 6px; }
+.hn-fix { margin: 4px 0 6px; border-color: #d2a8ff88; }
 .hn-lenrow .hn-len { margin: 0; flex: 1; }
 .hn-lock.on { border-color: #d2a8ff; }
 p.hn-taut { color: #ff9b94; }

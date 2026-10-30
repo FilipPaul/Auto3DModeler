@@ -1243,7 +1243,11 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   unless you switch them off. **➰ Editing a loop**: while a span's length is typed (or its row is under the mouse) that span
   is lit blue in the view and the rest of the cable dimmed; a slider beside the number runs from the tightest the
   span can be to 3 × the distance between its points (or that + 300 mm) — the cable follows live, letting go is one
-  Ctrl+Z. **⛓ Route through an energy chain**: choose a span (the length between two rows, or the cable
+  Ctrl+Z. **🪄 Opravit kabel automaticky** (panel and suggestions, whenever the harness has a warning):
+  lengthens a locked length or a span's own length that is too short (+5 mm), moves free points (in space, not
+  connection points) apart or drops one for a too tight bend, moves a free point off a part or puts a point in round
+  it, moves the next point out of a too short lead-out — keeping what clears the most, in one Ctrl+Z, and says how it
+  went (*Opraveno 2 z 2*). **⛓ Route through an energy chain**: choose a span (the length between two rows, or the cable
   clicked again) and pick a chain of the assembly, or one from the library sized for the bundle (its opening ≥ Ø + 2,
   its bend ≥ the minimum radius) — put in at the span's first point, its fixed end 🔗 fixed to that point's part. The
   cable goes into the chain at the end nearer the span's first point and keeps that end as the chain rolls. It runs the chain's path as it is laid

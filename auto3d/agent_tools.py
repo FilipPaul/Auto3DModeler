@@ -653,7 +653,9 @@ TOOLS = [
                     "cable follows the chain's path as its moving end goes (travel, a part it moves with, ▶); no id: a chain "
                     "from the library sized for the bundle (opening, bend ≥ r_min) is put in at the span's first point, its fixed "
                     "end 🔗 fixed to that point's part; the span enters the chain at the end nearer its first point and keeps it; id "
-                    "null: not through a chain any more. One undo step; answers it as add_harness does.",
+                    "null: not through a chain any more. 🪄 auto_fix: true fixes its warnings by itself where it can (a taut cable: "
+                    "its locked / span length longer; too tight a bend, through a part, too close to an end: free points — in space, "
+                    "not connection points — moved or dropped, points put in round a part) and says what is left. One undo step; answers it as add_harness does.",
      "inputSchema": _obj({"id": STR, "type": {"type": "string", "enum": ["wires", "cable", "ribbon", "sleeve"]},
                           "points": {"type": "array", "items": _obj({"part": STR, "face": STR, "point": POINT, "xyz": POINT})},
                           "add_points": {"type": "array", "items": _obj({"part": STR, "face": STR, "point": POINT, "xyz": POINT})},
@@ -664,6 +666,7 @@ TOOLS = [
                           "lock_points": {"type": "array", "items": {"type": "integer", "minimum": 1}},
                           "spans": {"type": "array", "items": _obj({"from": {"type": "integer", "minimum": 1}, "length": {"type": ["number", "null"]}}, ["from"])},
                           "unlock_points": {"type": "array", "items": {"type": "integer", "minimum": 1}},
+                          "auto_fix": {"type": "boolean"},
                           "clip": _obj({"point": {"type": "integer", "minimum": 1}, "item": STR, "size": STR}, ["point"]),
                           "chain": _obj({"span": {"type": "integer", "minimum": 1}, "id": {"type": ["string", "null"]}}, ["span"]),
                           "set_points": {"type": "array", "items": _obj({"n": {"type": "integer", "minimum": 1}, "part": STR, "face": STR, "point": POINT, "xyz": POINT}, ["n"])},

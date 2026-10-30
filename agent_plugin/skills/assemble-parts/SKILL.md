@@ -135,7 +135,9 @@ seated in its receptacle, its stroke as its slide's limits), joined Concentric.
    `size` pick one — any size that holds the bundle; on a point that has a clip it is swapped, the point kept). Where
    the cable plugs into a part (a connector, a probe's tail, a gland) that point is a connection point — the ends on a
    part are by default (`point_list` `connection`); `edit_harness {id, connect_points: [3]}` / `disconnect_points`.
-   The cable may enter that part near it: no `through_at` / `still_hits` / `too_close` for it there. Through
+   The cable may enter that part near it: no `through_at` / `still_hits` / `too_close` for it there. A harness with
+   warnings (taut, bends_too_tight, through_parts, too_close): `edit_harness {id, auto_fix: true}` fixes what it can
+   without moving locked or connection points and says what is left. Through
    an energy chain: `edit_harness {id, chain: {span: 2, id: "C1"}}` (no id:
    one sized for the bundle is put in) — the cable then follows the chain's moving end. The chain itself (library_add
    an e-chain: its first link at the fixed end — join it to the frame; one put in by edit_harness chain is joined for you): `edit_chain {id: "C1", links, travel, moves_with:

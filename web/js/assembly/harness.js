@@ -1327,16 +1327,19 @@ export class HarnessTool {
   avoidAll() {
     const v = this.asm.view, meshes = (v?.meshes || []).filter((m) => m.visible !== false);
     let changed = false;
-    for (const h of this.list()) {
-      const { ok, n0, n1, chains } = inputsAt(this.asm, h);
-      if (ok.length < 2) continue;
-      const key = keyOf(h, ok, n0, n1, chains);
-      if (AVOID.get(h)?.key === key) continue;
-      const own = new Set([...(h.points || []).map((p) => p.clip).filter(Boolean), ...(h.spans || []).map((s) => chainRec(this.asm, s.chain || '')?.part).filter(Boolean)]); // (its clips and chains: it runs through them)
-      AVOID.set(h, { key, ...avoidRoute(h, ok, n0, n1, meshes.filter((m) => !own.has(m.userData.inst)), chains) });
-      changed = true;
-    }
+    for (const h of this.list()) changed = this.avoidOne(h, meshes) || changed;
     if (changed) { this.draw(); if ((this.sel || this.edit) && !this.sliding) this.asm.renderProps(); }
+  }
+
+  /** The detours of one harness worked out for its points now (kept: unchanged) -> worked out again? */
+  avoidOne(h, meshes = (this.asm.view?.meshes || []).filter((m) => m.visible !== false)) {
+    const { ok, n0, n1, chains } = inputsAt(this.asm, h);
+    if (ok.length < 2) return false;
+    const key = keyOf(h, ok, n0, n1, chains);
+    if (AVOID.get(h)?.key === key) return false;
+    const own = new Set([...(h.points || []).map((p) => p.clip).filter(Boolean), ...(h.spans || []).map((s) => chainRec(this.asm, s.chain || '')?.part).filter(Boolean)]); // (its clips and chains: it runs through them)
+    AVOID.set(h, { key, ...avoidRoute(h, ok, n0, n1, meshes.filter((m) => !own.has(m.userData.inst)), chains) });
+    return true;
   }
 
   /** ⚠ Where a harness's centre line goes through a part (a ray from the spot crosses the part's faces an odd
@@ -1345,10 +1348,22 @@ export class HarnessTool {
     const v = this.asm.view, was = JSON.stringify([...this.through]), wasAt = JSON.stringify([...(this.throughAt || [])]);
     this.through = new Map();
     this.throughAt = new Map(); // harness id -> [{inst, name, span (1: between points 1 and 2), at}]
-    const ray = new THREE.Raycaster(), dir = new THREE.Vector3(0.3017, 0.2081, 0.9304).normalize();
     for (const h of this.list()) {
+      const at = this.throughOf(h);
+      if (!at.length) continue;
+      this.through.set(h.id, at.map((c) => c.name));
+      this.throughAt.set(h.id, at);
+    }
+    if (JSON.stringify([...this.throughAt]) !== wasAt) this.draw(); // (its ⚠ spots)
+    if (JSON.stringify([...this.through]) !== was && (this.sel || this.edit) && !this.sliding) this.asm.renderProps();
+  }
+
+  /** ⚠ Where harness h's centre line goes through a part -> [{inst, name, span (1: between points 1 and 2), at}]. */
+  throughOf(h) {
+    const v = this.asm.view, ray = new THREE.Raycaster(), dir = new THREE.Vector3(0.3017, 0.2081, 0.9304).normalize();
+    {
       const pts = (h.points || []).map((p) => pointAt(this.asm, h, p)).filter(Boolean), r = routeAt(this.asm, h);
-      if (!r.segs.length) continue;
+      if (!r.segs.length) return [];
       const curve = new RouteCurve(r.segs, r.length), n = Math.min(240, Math.max(8, Math.ceil(r.length / 3))), hit = new Map();
       const skip = excuser(h, (h.points || []).map((p) => pointAt(this.asm, h, p))); // (🔌 the parts it plugs into, there)
       for (let i = 1; i < n; i++) {
@@ -1359,18 +1374,135 @@ export class HarnessTool {
           if (ray.intersectObject(m, false).length % 2) hit.set(m.userData.inst, w.clone()); // (its first spot inside)
         }
       }
-      if (!hit.size) continue;
+      if (!hit.size) return [];
       const ln = new THREE.Line3(), q = new THREE.Vector3(), legOf = (w) => { // (the span of the clicked points it is nearest)
         let leg = 0, ld = Infinity;
         for (let k = 0; k + 1 < pts.length; k++) { const dd = ln.set(pts[k], pts[k + 1]).closestPointToPoint(w, true, q).distanceTo(w); if (dd < ld) { ld = dd; leg = k; } }
         return leg;
       };
-      const at = [...hit].map(([id, w]) => ({ inst: id, name: `${this.asm.partName(this.asm.inst(id)?.part)} ${id}`, span: legOf(w) + 1, at: w.toArray().map((x) => +x.toFixed(1)) }));
-      this.through.set(h.id, at.map((c) => c.name));
-      this.throughAt.set(h.id, at);
+      return [...hit].map(([id, w]) => ({ inst: id, name: `${this.asm.partName(this.asm.inst(id)?.part)} ${id}`, span: legOf(w) + 1, at: w.toArray().map((x) => +x.toFixed(1)) }));
     }
-    if (JSON.stringify([...this.throughAt]) !== wasAt) this.draw(); // (its ⚠ spots)
-    if (JSON.stringify([...this.through]) !== was && (this.sel || this.edit) && !this.sliding) this.asm.renderProps();
+  }
+
+  // ---------------------------------------------------------------- 🪄 auto-fix
+  /** The warnings of harness h as its parts stand (its detours worked out first) -> {r, taut, bends, hits (parts),
+   *  short, n (all of them)}. */
+  warnings(h) {
+    this.avoidOne(h);
+    const r = routeAt(this.asm, h), hits = new Set([...r.clashes.map((c) => c.inst), ...this.throughOf(h).map((c) => c.inst)]);
+    const w = { r, taut: r.taut.length, bends: r.bends.filter((b) => !b.ok).length, hits: hits.size, hitList: [...hits], short: r.short.length };
+    return { ...w, n: w.taut + w.bends + w.hits + w.short };
+  }
+
+  /** Any ⚠ on harness h now (from what was worked out last: no new work)? */
+  warned(h) {
+    const r = routeAt(this.asm, h);
+    return !!(r.taut.length || r.bends.some((b) => !b.ok) || r.clashes.length || r.short.length || this.through.get(h.id)?.length);
+  }
+
+  /** 🪄 Fix harness h by itself: tries, in turn, what clears warnings without moving its locked or connection points —
+   *  a taut cable: its locked length / the span's own length longer by what it is short + 5 mm; a bend too tight: a
+   *  free point dropped or moved apart; through a part: a free point moved off it or a point put in round it; a point
+   *  too close to an end: moved out — keeping each change that leaves fewer warnings. One undo step -> {before, after,
+   *  left: {taut, bends, hits, short}}. */
+  autoFix(id) {
+    const h = this.get(id);
+    if (!h) return null;
+    const a = this.asm, w0 = this.warnings(h);
+    let cur = w0;
+    if (!w0.n) return { before: 0, after: 0, left: w0 };
+    const margin = 5;
+    const snap = () => structuredClone({ points: h.points, spans: h.spans, length_locked: h.length_locked });
+    const put = (x) => { for (const k of ['points', 'spans', 'length_locked']) { if (x[k] === undefined) delete h[k]; else h[k] = structuredClone(x[k]); } };
+    const free = (i) => { const p = h.points[i]; return !!p && !p.inst && !p.clip && !connOf(h, i); }; // (in space: not 🔒 on a part, not a clip's, not 🔌)
+    const world = () => h.points.map((p) => pointAt(a, h, p));
+    const move = (i, w) => { const before = h.points.slice(); h.points[i] = { xyz: w.toArray().map((x) => +x.toFixed(3)), ...(h.points[i].conn !== undefined ? { conn: h.points[i].conn } : {}) }; keepSpans(h, before); };
+    const drop = (i) => { const before = h.points.slice(); h.points.splice(i, 1); keepSpans(h, before); };
+    const insert = (i, w) => { const before = h.points.slice(); h.points.splice(i, 0, { xyz: w.toArray().map((x) => +x.toFixed(3)) }); keepSpans(h, before); };
+    const lengthen = (r) => { // (taut: its locked length / its span's own length longer by what it is short + a margin)
+      let any = false;
+      for (const x of r.taut) {
+        if (x.span === null || x.span === undefined) { if (lockedOf(h)) { h.length_locked = +(lockedOf(h) + x.short + margin).toFixed(1); any = true; } } else if (spansOf(h)[x.span]) { spanSet(h, x.span, { length: +(spansOf(h)[x.span] + x.short + margin).toFixed(1) }); any = true; }
+      }
+      return any;
+    };
+    const best = (tries0) => { // (each change weighed — a cable it pulls taut lengthened as well —, the best kept if it leaves fewer warnings)
+      const keep = snap(), taut0 = cur.taut;
+      const tries = tries0.map((fn) => () => { fn(); const w = this.warnings(h); if (w.taut > taut0) lengthen(w.r); });
+      let win = null;
+      for (const fn of tries) {
+        try { fn(); } catch { put(keep); continue; }
+        const w = this.warnings(h);
+        if (w.n < (win?.w.n ?? cur.n)) win = { fn, w };
+        put(keep);
+      }
+      if (!win) { this.warnings(h); return false; }
+      win.fn();
+      cur = this.warnings(h);
+      return true;
+    };
+    const D = outerD(h), R = rMinOf(h);
+    for (let round = 0; round < 8 && cur.n; round++) {
+      const P = world(), cats = [[], [], [], []]; // (taut, bends, through a part, lead-outs: the first kind whose change helps)
+      let tries = cats[0];
+      for (const x of cur.r.taut) { // taut: longer by what it is short (+ a margin), or not locked any more
+        if (x.span === null || x.span === undefined) { if (lockedOf(h)) { tries.push(() => { h.length_locked = +(lockedOf(h) + x.short + margin).toFixed(1); }); tries.push(() => { delete h.length_locked; }); } } else {
+          const k = x.span, L = spansOf(h)[k];
+          if (L) { tries.push(() => spanSet(h, k, { length: +(L + x.short + margin).toFixed(1) })); tries.push(() => spanSet(h, k, { length: null })); }
+        }
+      }
+      tries = cats[1];
+      for (const b of cur.r.bends.filter((x) => !x.ok)) { // a bend too tight: a free point dropped, or it / its neighbours moved apart
+        const k = b.at;
+        if (free(k) && h.points.length > 2 && k > 0 && k < h.points.length - 1) tries.push(() => drop(k));
+        for (const j of [k - 1, k, k + 1]) {
+          if (!free(j) || !P[j]) continue;
+          const mid = (P[j - 1] && P[j + 1] ? P[j - 1].clone().add(P[j + 1]).multiplyScalar(0.5) : null);
+          for (const f of [1.5, 2.5]) if (mid && mid.distanceTo(P[j]) > 1e-6) tries.push(() => move(j, mid.clone().lerp(P[j], f)));
+          for (const nb of [j - 1, j + 1]) if (P[nb] && P[nb].distanceTo(P[j]) > 1e-6) tries.push(() => move(j, P[j].clone().add(P[j].clone().sub(P[nb]).setLength(2 * R))));
+        }
+      }
+      tries = cats[2];
+      if (cur.hits) { // through a part: a free point moved off it to a side of its box, or a point put in round it
+        const meshes = (a.view?.meshes || []).filter((m) => cur.hitList.includes(m.userData.inst));
+        const spots = [...(this.throughOf(h) || []).map((c) => ({ inst: c.inst, at: V(c.at), span: c.span - 1 })), ...cur.r.clashes.map((c) => ({ inst: c.inst, at: V(c.at), span: null }))];
+        const sides = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].map(V);
+        const outOf = (box, w, d) => { const q = w.clone(), k = d.x ? 'x' : d.y ? 'y' : 'z'; q[k] = (d[k] > 0 ? box.max[k] : box.min[k]) + d[k] * (D / 2 + CLEAR + 2); return q; };
+        for (const m of meshes) {
+          const box = new THREE.Box3().setFromObject(m);
+          P.forEach((w, i) => { if (w && free(i) && box.clone().expandByScalar(D).containsPoint(w)) for (const d of sides) tries.push(() => move(i, outOf(box, w, d))); });
+          for (const c of spots.filter((x) => x.inst === m.userData.inst).slice(0, 3)) {
+            let k = c.span;
+            if (k === null) { let bd = Infinity; const ln = new THREE.Line3(), q = new THREE.Vector3(); for (let j = 0; j + 1 < P.length; j++) if (P[j] && P[j + 1]) { const dd = ln.set(P[j], P[j + 1]).closestPointToPoint(c.at, true, q).distanceTo(c.at); if (dd < bd) { bd = dd; k = j; } } }
+            if (k !== null && k >= 0) for (const d of sides) tries.push(() => insert(k + 1, outOf(box, c.at, d)));
+          }
+        }
+      }
+      tries = cats[3];
+      if (cur.short) { // a point too close to an end on a face: moved out along that face's normal
+        const need = leadOf(h), ends = [[0, 1], [h.points.length - 1, h.points.length - 2]];
+        for (const [e, j] of ends) {
+          const n = normalAt(a, h.points[e]);
+          if (!n || !free(j) || !P[e] || !P[j]) continue;
+          tries.push(() => move(j, P[j].clone().addScaledVector(n, need + D)));
+          tries.push(() => move(j, P[e].clone().addScaledVector(n, need + D)));
+        }
+      }
+      if (!cats.some((x) => x.length && best(x))) break;
+    }
+    const fixed = w0.n - cur.n;
+    if (fixed > 0) { a.commit(); this.draw(); } else put(snap());
+    return { before: w0.n, after: cur.n, left: { taut: cur.taut, bends: cur.bends, hits: cur.hits, short: cur.short } };
+  }
+
+  /** 🪄 Run it and say how it went: "Fixed 3 of 4 — left: 1 × through a part". */
+  autoFixSay(id) {
+    const x = this.autoFix(id);
+    if (!x) return null;
+    const left = [['taut', 'taut'], ['bends', 'too tight a bend'], ['hits', 'through a part'], ['short', 'too close to an end']].filter(([k]) => x.left[k]).map(([k, w]) => `${x.left[k]} × ${t(w)}`).join(', ');
+    const text = !x.before ? t('Nothing to fix') : `🪄 ${t2('Fixed {a} of {b}', { a: x.before - x.after, b: x.before })}${left ? ` — ${t('left')}: ${left}` : ''}`;
+    this.asm.hooks.toast(text, x.after ? 'warning' : 'ok', 6000);
+    return { ...x, text };
   }
 
   lengthText(h) {
@@ -1409,6 +1541,7 @@ export class HarnessTool {
       ${r.totalIgnored ? `<p class="hint">${esc(t('The spans\' own lengths win over the locked length'))}</p>` : ''}
       ${bad.map((b) => `<p class="hint hn-bad">⚠ ${esc(t2('Point {p}: no room for R {min} mm, bent R {r} mm', { p: b.at + 1, r: num(b.r), min: num(rMinOf(h)) }))}</p>`).join('')}
       ${thr.length ? `<p class="hint bad hn-thr">⚠ ${esc(t2('Goes through {parts}', { parts: (this.throughAt.get(h.id) || []).map((c) => `${c.name} (${t2('span {a}–{b}', { a: c.span, b: c.span + 1 })})`).join(', ') || thr.join(', ') }))}</p>` : ''}
+      ${this.warned(h) ? `<button class="btn small hn-fix" data-hx="fix" title="${esc(t('Tries by itself what clears the warnings — a longer locked length, free points moved off the parts or apart — without moving locked or connection points; one undo step'))}">🪄 ${esc(t('Fix the cable automatically'))}</button>` : ''}
       ${this.pointsList(h)}
       <details class="hn-more" ${this.moreOpen ? 'open' : ''}><summary>${esc(t('More'))}</summary>${more}
         ${field('reserve', 'Reserve', Number.isFinite(+h.reserve) ? +h.reserve : 5, '%', 'Added to its length in the BOM (cut longer), rounded up to 10 mm', 'min="0" max="100"')}</details>
@@ -1441,6 +1574,7 @@ export class HarnessTool {
     box.querySelector('[data-hx=undoPt]')?.addEventListener('click', () => this.editPts(h, (P) => P.pop()));
     box.querySelector('[data-hx=edit]')?.addEventListener('click', () => this.editPoints(h.id));
     box.querySelector('[data-hx=lock]')?.addEventListener('click', () => this.lockLength(h.id));
+    box.querySelector('[data-hx=fix]')?.addEventListener('click', () => this.autoFixSay(h.id));
     box.querySelector('[data-hx=del]')?.addEventListener('click', () => this.remove(h.id));
     this.pointsHandlers(h, box);
     return true;
@@ -1627,6 +1761,7 @@ export class HarnessTool {
     show(vp, `🔌 ${nameOf(h)}`, [
       ...(this.span !== null && this.span + 1 < (h.points || []).length ? [{ icon: '➰', label: t('Loop / slack'), rank: -1, title: t2('Span {a}–{b}: type its length — longer makes a loop of slack that keeps the bend radius', { a: this.span + 1, b: this.span + 2 }),
         run: () => { this.spanEdit = this.span; this.asm.render(); this.asm.draw(); this.asm.$('#asmRight input[data-slen]')?.focus(); this.asm.$('#asmRight input[data-slen]')?.select(); } }] : []),
+      ...(this.warned(h) ? [{ icon: '🪄', label: t('Fix the cable automatically'), rank: -0.5, title: t('Tries by itself what clears the warnings — a longer locked length, free points moved off the parts or apart — without moving locked or connection points; one undo step'), run: () => this.autoFixSay(h.id) }] : []),
       ...this.clipItems(h),
       ...this.connItems(h),
       ...this.chainItems(h),
@@ -1829,6 +1964,7 @@ export function harnessHandlers(asm) {
         if (a.clip.item && !c) throw new Error(`clip: “${a.clip.item}” does not hold a bundle of Ø${num(outerD(h))} mm — clipsFor lists: ${clipsFor(outerD(h)).map((x) => `${x.item.id} ${x.size}`).join(', ')}.`);
         await asm.harnessTool.clipAt(h, i, c);
       }
+      if (a.auto_fix) { const x = asm.harnessTool.autoFixSay(h.id); const ans = answer(h); return { text: `🪄 ${x.text}. ${ans.text}` }; } // 🪄
       if (a.chain) await asm.harnessTool.chainSpan(h, +a.chain.span - 1, a.chain.id === undefined ? undefined : a.chain.id); // ⛓ {span: number, id: C… | null}
       return answer(h);
     },
