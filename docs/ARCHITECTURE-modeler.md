@@ -22,6 +22,32 @@ Date: 2026-10-25. Written by the architect agent.
   the rod dragged to its spot 60° on — the crank there, the spot 0.2 px off the mouse, the formula held, one Ctrl+Z;
   the slider 40 px — 13 mm, the crank turns; the crank; a click chooses; limits 30 … 150° held by 8 drags of the rod and
   the slider, both stops reached; the four-bar's coupler), e2e_assembly_dragcue (⚙ over the crank and rod unchosen).
+- **💾 Built parts kept on disk; kernel processes started with the server (2026-10-30)** (the big-assembly measurements'
+  next costs: after a restart the 160-hole base took 4.7 s in each process that needed it, and the first collision
+  check built the parts again and computed every pair). auto3d/modeler/partcache.py, in A3D_DATA/cache/parts: doc.evaluate
+  keeps the evaluated State + status of a part that took ≥ MIN_SECONDS (0.05 s), had no failed step and is not heavy
+  (≤ kernel.HEAVY_FACES; big files: filecache) — pickled, every OCCT shape in it (the body, its named faces, sketch
+  faces, tools, refs) a reference into one BinTools file (kernel.write_shapes / read_shapes: shared sub-shapes stay
+  shared, so `names` are the very faces built: F2:side:l1 … byte-identical); its mesh beside it (body.ckey,
+  _tessellated). On a memory miss evaluate looks on disk for the longest prefix. Key: sha1 of doc._key(the steps:
+  sizes, blob shas) and the stamp (partcache VERSION, every auto3d/modeler/*.py, the OCP version) — an edit, another
+  file, a new app version: another key, the old entries age out (LRU by file time, 500 MB). kernel.interference's
+  pairs go there too (store=partcache: p<key>.pair + the overlaps' B-rep). Only in the kernel processes (worker._main
+  turns partcache.ON; A3D_PARTCACHE=0 off) — the tests that mock a step to fail are not answered from disk.
+  Pool.warm (server.main, launcher): the kernel processes start with the server (1.4–3.5 s each, before: on the first
+  frame). Measured (tools/e2e_big_assembly.py --files, the server restarted before each "cold" run, software GL):
+
+  | | before cold | after cold (cache filled) | first start ever | before warm | after warm |
+  |---|---|---|---|---|---|
+  | big-150 first frame | 4.12 s | 0.72 s | 0.79 s | 0.76 s | 0.69 s |
+  | big-150 first collision check | 605 ms | 538 ms | 581 ms | 162 ms | 158 ms |
+  | big-500 first frame | 10.99 s | 0.86 s | 6.99 s | 0.82 s | 0.78 s |
+  | big-500 first collision check | 11 529 ms | 621 ms | 8 226 ms | 304 ms | 404 ms* |
+
+  (*warm collision checks vary 210–400 ms run to run, before and after.) tests/test_partcache.py: the round trip of a
+  plate with holes, a rounded part and an imported STEP (names on the same faces, volume, bbox, mesh bytes, a step
+  added on it named as on a fresh build, STEP write → read), a new key on an edit / another blob / another app
+  version, a damaged entry, the LRU cap, the collision pairs; test_kernel_pool: Pool.warm.
 
 - **🏗 Big assemblies measured, the costs that showed fixed (2026-10-30)** (the owner: make large assemblies work well,
   measure first). tools/make_big_assembly.py builds three through the app (parts with the AI tools, the many fastener
@@ -50,7 +76,7 @@ Date: 2026-10-25. Written by the architect agent.
     triangles with the studio's reflections), picking (BVH per geometry already: 0.03 ms), body fetch (per part,
     parallel, cached: first frame 0.3–1.4 s), the joint solve (≤ 2.4 ms), autosave (≤ 0.1 s), lazy loading (`package:
     2`: not needed — the files are 20–50 kB, the parts are rebuilt). Next: the kernel's first build after a server
-    start (the 160-hole base 4 s, in each process that needs it), SwiftShader frames, the first collision check.
+    start and the first collision check (done: 💾 built parts kept on disk, above), SwiftShader frames.
   They are 🎬 demos too (Velká sestava — 150 dílů, … 500 dílů, Soukolí — 30 kol).
 
 - **💾 Project files are `.a3d` packages (2026-10-30)** (the owner: a real 35 MB `.a3d.json` was 35 MB of base64 STEP;

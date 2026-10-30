@@ -2432,14 +2432,16 @@ def _pair_key(fa, fb):
     return (fa[0], fb[0], tuple(np.round(rel, 6).ravel().tolist()))
 
 
-def interference(shapes, min_volume=1e-3, only=None, quick=False, frames=None):
+def interference(shapes, min_volume=1e-3, only=None, quick=False, frames=None, store=None):
     """Where placed solids overlap: shapes [(key, shape)] -> [{a, b, volume (mm³), bbox (of the overlap), approx?}], the
     biggest first. Parts whose boxes do not meet are not computed (the boxes sorted along x: only the ones that reach
     into each other along it are compared — 500 parts are not 125 000 pairs); touching faces (no volume) are not a
     clash. only: a set of keys — just the pairs with one of them. quick: a pair whose solids meet in more than
     QUICK_PAIRS places (two big imported boards) is told by their boxes (`approx`), not computed (that takes half a
     minute). frames: {key: (its part's own key, its placement m16)} — a pair computed before standing alike is taken
-    from _PAIRS (the check after each change computes only the pairs that moved)."""
+    from _PAIRS (the check after each change computes only the pairs that moved). store: where pairs are kept beyond
+    this process (partcache: pair(ck) -> (volume, overlaps) or None, keep_pair(ck, volume, overlaps)) — the first check
+    after a start computes only the pairs never checked."""
     global _PAIRS
     if _PAIRS is None:
         from collections import OrderedDict
@@ -2462,6 +2464,10 @@ def interference(shapes, min_volume=1e-3, only=None, quick=False, frames=None):
         if only is not None and ka not in only and kb not in only:
             continue
         ck = _pair_key(frames[ka], frames[kb]) if frames and ka in frames and kb in frames else None
+        if ck is not None and ck not in _PAIRS and store is not None:
+            got = store.pair(ck)
+            if got is not None:
+                _PAIRS[ck] = got
         if ck is not None and ck in _PAIRS:  # (computed before, standing alike: its overlaps moved to where a is now)
             _PAIRS.move_to_end(ck)
             v, local = _PAIRS[ck]
@@ -2509,6 +2515,8 @@ def interference(shapes, min_volume=1e-3, only=None, quick=False, frames=None):
         if ck is not None:  # (kept in a's own frame: found again wherever the two stand alike)
             back = np.linalg.inv(np.array(list(map(float, frames[ka][1])), float).reshape(4, 4).T)
             _PAIRS[ck] = (v, [placed(c, back.T.ravel().tolist()) for c in commons] if v > min_volume else [])
+            if store is not None:
+                store.keep_pair(ck, *_PAIRS[ck])
             while len(_PAIRS) > PAIRS:
                 _PAIRS.popitem(last=False)
         if v > min_volume:
@@ -2788,6 +2796,40 @@ def read_brep(path):
     if not BinTools.Read_s(shape, str(path)) or shape.IsNull():
         raise OSError(f"could not read {path}")  # (filecache's own file: read the STEP again, nothing to tell)
     return shape
+
+
+def is_shape(x):
+    """Is x an OpenCASCADE shape (a solid, a face …)? (partcache keeps them apart from the plain data)"""
+    from OCP.TopoDS import TopoDS_Shape
+    return isinstance(x, TopoDS_Shape)
+
+
+def write_shapes(shapes, path):
+    """Many shapes to one write_brep file, in order — the faces they share stay shared (a body and its named faces:
+    the same faces when read back). -> [their kinds] for read_shapes."""
+    kinds = ["null" if s.IsNull() else type(s).__name__ for s in shapes]
+    write_brep(compound([s for s in shapes if not s.IsNull()]), path)
+    return kinds
+
+
+def read_shapes(path, kinds):
+    """write_shapes' shapes back: each as the kind it was (a TopoDS_Face as a face …); a null shape as one."""
+    from OCP.TopoDS import TopoDS_Iterator, TopoDS_Shape
+    cast = {"TopoDS_Face": TopoDS.Face, "TopoDS_Solid": TopoDS.Solid, "TopoDS_Shell": TopoDS.Shell,
+            "TopoDS_Compound": TopoDS.Compound, "TopoDS_CompSolid": TopoDS.CompSolid, "TopoDS_Edge": TopoDS.Edge,
+            "TopoDS_Wire": TopoDS.Wire, "TopoDS_Vertex": TopoDS.Vertex}
+    whole = read_brep(path)
+    it, out = TopoDS_Iterator(whole), []  # (the iterator does not hold the compound: kept here while it runs)
+    for k in kinds:
+        if k == "null":
+            out.append(TopoDS_Shape())
+            continue
+        if not it.More():
+            raise OSError(f"{path}: fewer shapes than kept")
+        s = it.Value()
+        out.append(cast[k](s) if k in cast else s)
+        it.Next()
+    return out
 
 
 def _read_xcaf(data: bytes, kind="step", files=None):

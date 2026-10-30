@@ -58,8 +58,9 @@ def _main(conn):
         os.dup2(devnull, 1)
     except OSError:
         pass
-    from . import doc, packed, printsplit
+    from . import doc, packed, partcache, printsplit
     from .kernel import KernelError
+    partcache.ON = os.environ.get("A3D_PARTCACHE", "1").strip().lower() not in ("0", "false", "no", "off")  # (built parts on disk)
     ops = {"rebuild": doc.rebuild, "rebuild_bin": lambda a: packed.pack(doc.rebuild(a, True)),  # (the browser's: packed.py)
            "threads_bin": lambda a: packed.pack(doc.rebuild(a, True)),  # (🔩 a part's real threads, cut while it is edited)
            "export": lambda a: doc.export(a["part"], a["fmt"], a.get("name") or "part"),
@@ -70,7 +71,8 @@ def _main(conn):
            "sheet": lambda a: doc.sheet(a["part"], a.get("preset") or "medium", a.get("paper"), a.get("per_view"), bool(a.get("section")), bool(a.get("simple"))),
            "assembly_sheet": lambda a: doc.assembly_sheet(a["instances"], a.get("paper"), a.get("explode") or 0, bool(a.get("simple")), a.get("base")),
            "limits": lambda a: doc.limits(a["features"], a["id"]), "import_solid": doc.import_solid,
-           "import_assembly": doc.import_assembly, "print_pieces": printsplit.pieces}
+           "import_assembly": doc.import_assembly, "print_pieces": printsplit.pieces,
+           "ping": lambda a: True}  # (Pool.warm: the process started, nothing done)
     while True:
         try:
             op, arg, seq = conn.recv()
@@ -400,6 +402,21 @@ class Pool:
         if job["rid"]:
             progress.cancel(job["rid"])
         return True
+
+    def warm(self):
+        """Start the kernel processes now, side by side, in the background (the server's start): a process takes 1–4 s
+        to start (Python, OpenCASCADE, the modeller) — paid before a project is opened, not by its first frame."""
+        from . import available
+        if not available("occ"):
+            return
+
+        def start(w):
+            try:
+                w.run("ping", None, timeout=60)
+            except Exception:  # noqa: BLE001 — (it starts with its first job then)
+                pass
+        for w in self.workers:
+            threading.Thread(target=start, args=(w,), name=f"warm-kernel-{w.index}", daemon=True).start()
 
     def close(self):
         for w in self.workers:

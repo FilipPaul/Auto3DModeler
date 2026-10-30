@@ -51,6 +51,7 @@ import numpy as np
 
 from . import holes as HOLES
 from . import kernel as K
+from . import partcache
 from .holes import PITCH, THREADS  # (ISO metric coarse threads: the tap drill, the pitch)
 
 DATUMS = {
@@ -1246,6 +1247,15 @@ def evaluate(features):
             _cache.move_to_end(_key(features[:i]))
             start = i
             break
+    if partcache.ON and start < len(features):  # (not all here: built before, maybe in another process or before a restart — partcache)
+        for i in range(len(features), start, -1):
+            hit = partcache.state(partcache.key(_key(features[:i])))
+            if hit:
+                _cache[_key(features[:i])] = hit
+                st, status = hit[0].copy(), list(hit[1])
+                start = i
+                break
+    t0 = time.perf_counter()
     for i in range(start, len(features)):
         f = features[i]
         s = {"id": f.get("id"), "ok": True, "issues": [], "warnings": []}
@@ -1264,6 +1274,13 @@ def evaluate(features):
         _cache[_key(features[: i + 1])] = (st.copy(), list(status))
         while len(_cache) > CACHE_SIZE:
             _cache.popitem(last=False)
+    if (partcache.ON and start < len(features) and time.perf_counter() - t0 >= partcache.MIN_SECONDS and all(s["ok"] for s in status)
+            and (st.body is None or K.face_count(st.body.shape) <= K.HEAVY_FACES)):
+        # slow to build (and nothing failed — a file not here yet is not kept as a failure): kept for the next start
+        k = partcache.key(_key(features))
+        if st.body is not None:
+            st.body.ckey = k  # (its mesh is kept with it: _tessellated)
+        partcache.keep_state(k, _cache[_key(features)])
     return st, status
 
 
@@ -1444,10 +1461,15 @@ def _tessellated(body, light=False):
             return dict(mesh)
     src = getattr(body, "src", None)  # (an imported file's solid as it is: its mesh from disk when it was made before)
     mesh = filecache.mesh(src, light) if src else None
+    ck = getattr(body, "ckey", None)  # (a part kept built on disk: its mesh kept with it — partcache)
+    if mesh is None and ck:
+        mesh = partcache.mesh(ck, light)
     if mesh is None:
         mesh = K.tessellate(body, light)
         if src:
             filecache.keep_mesh(src, light, mesh)
+        if ck:
+            partcache.keep_mesh(ck, light, mesh)
     _tess.insert(0, ((body, light), mesh))
     del _tess[6:]
     return dict(mesh)
@@ -1761,7 +1783,7 @@ def assembly_clashes(instances, quick=False):
         m = inst.get("matrix") or [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
         shapes.append((inst.get("id"), K.placed(st.body.shape, m)))
         frames[inst.get("id")] = (_built_key(inst.get("part"), keys), m)
-    return K.interference(shapes, quick=quick, frames=frames)
+    return K.interference(shapes, quick=quick, frames=frames, store=partcache)  # (pairs checked before a restart: partcache)
 
 
 def _built_key(part, keys=None):

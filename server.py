@@ -2211,6 +2211,7 @@ def main():
     if not args.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     print(f"Auto3DModeler running at {url}")
+    MODEL_WORKER.warm()  # (the kernel processes started now, not by the first part opened)
     app.run(host="127.0.0.1", port=args.port, debug=False, threaded=True)
 
 

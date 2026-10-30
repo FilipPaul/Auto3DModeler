@@ -228,6 +228,7 @@ class App:
             logging.getLogger("werkzeug").setLevel(logging.WARNING)
         self.httpd = make_server("127.0.0.1", self.port, server.app, threaded=True)
         threading.Thread(target=self.httpd.serve_forever, name="http", daemon=True).start()
+        server.MODEL_WORKER.warm()  # (the kernel processes started now, not by the first part opened)
         write_instance(self.data, self.url)
         print(f"{APP} running at {self.url} (data: {self.data})", flush=True)
 

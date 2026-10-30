@@ -232,6 +232,19 @@ class TestPoolProcesses(unittest.TestCase):
         self.assertIsNot(wa, wb)
         return a, b, wa, wb
 
+    def test_started_with_the_server(self):
+        """Pool.warm (the server's start): every process started in the background, no job left in the list; the
+        first part then goes to a process already running."""
+        self.pool.warm()
+        end = time.time() + 60
+        while time.time() < end and not all(w.proc and w.proc.is_alive() and not w.busy() for w in self.pool.workers):
+            time.sleep(0.05)
+        self.assertTrue(all(w.proc and w.proc.is_alive() for w in self.pool.workers))
+        self.assertEqual(self.pool.list_jobs(), [])
+        pids = {w.proc.pid for w in self.pool.workers}
+        self.assertAlmostEqual(self.pool.run("rebuild", block(40))["body"]["volume"], 8000, delta=1e-3)
+        self.assertEqual({w.proc.pid for w in self.pool.workers}, pids)
+
     def test_crash_restarts_only_that_worker(self):
         """A process that dies mid-job: that job fails clearly, the jobs waiting for it too; the other process keeps
         running (the same pid); the part's next job starts a new one."""
