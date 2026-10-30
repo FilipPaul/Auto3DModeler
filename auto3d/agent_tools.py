@@ -189,7 +189,8 @@ TOOLS = [
     {"name": "get_model", "where": "browser",
      "description": "The 3D model on screen: its steps in order (id, type, values, ok / issues / warnings), the body's "
                     "size, volume, surface area, mass (its material) and centre of mass (cog_mm, the part's coordinates). "
-                    "Call it first and after changes. When the user rolled the tree back: rollback {after, "
+                    "Call it first and after changes. A hole step: its shape, standard, thread, through / depth, points, its distances "
+                    "(from) and 🔒 lock. When the user rolled the tree back: rollback {after, "
                     "rolled_back: [ids]} and those steps rolled_back: true — the body is as after that step.",
      "inputSchema": _obj({})},
     {"name": "find_refs", "where": "browser",
@@ -243,14 +244,14 @@ TOOLS = [
                     "true or \"M5\" or {standard, kind: \"cosmetic\" | \"real\"} (threaded: the hole is the tap drill, M5: Ø4.2; any shape but D — a "
                     "threaded counterbore too), through true / false + depth — no d / head needed (d, head_d, head_depth given change the table's); "
                     "edit_feature {standard: \"M6\"} resizes it, {thread: true} threads it, {shape: \"countersink\"} changes its head; "
-                    "{shape: \"plain\", thread: false} with no standard is a plain Ø d hole. (The old hole_type \"clearance\" / \"counterbore\" / "
-                    "\"countersink\" / \"tapped\" / \"simple\" / \"d_flat\" is still taken.) "
+                    "{shape: \"plain\", thread: false} with no standard is a plain Ø d hole. (The old single hole_type \"clearance\" / \"counterbore\" / "
+                    "\"countersink\" / \"tapped\" / \"simple\" / \"d_flat\" is still read — write shape + thread + standard instead.) "
                     "shape \"d_flat\" = a D hole for a shaft with a flat (no standard, no thread): d + flat (the size across the flat, from "
                     "the flat to the far side: Ø5 -> 4.5 by default, Ø3 / 4 / 6 / 8 -> 2.5 / 3.5 / 5.5 / 7.5, else 0.9 × d), the flat "
                     "facing the face's +x, flat_angle (degrees) turns it; the drawing says Ø5 D4.5; "
-                    "head: \"cbore\" (a counterbore: head_d, head_depth — default 1.8 × d, d; d of a thread: its nominal Ø, M3: 3) or \"csk\" (a countersink: head_d, "
+                    "Without a standard, the sizes as given: head \"cbore\" (a counterbore: head_d, head_depth — default 1.8 × d, d; d of a thread: its nominal Ø, M3: 3) or \"csk\" (a countersink: head_d, "
                     "head_angle — default 2 × d, 90°) for a screw's head; "
-                    "thread: \"M5\" (ISO metric M2 … M20: drilled with its tap drill, labelled M5 on the drawing — no d needed); "
+                    "thread: \"M5\" alone (ISO metric M2 … M20: drilled with its tap drill, labelled M5 on the drawing — no d needed); "
                     "teardrop: true (a hole that goes sideways — its axis level with the bed — gets a 45° point on top, so it "
                     "prints lying on its side without support; still Ø d on the drawing; refused on a hole going up / down and with "
                     "csk, a cbore gets the point too); "
@@ -258,7 +259,11 @@ TOOLS = [
                     "of that face (d signed along the face's x / y; the hole keeps it when the part changes), or {axis: <a round face's "
                     "name, find_refs kind \"axis\">, d} = from that face's axis (square to the face, or running straight across x / y), "
                     "or {mid: [<edge ref>, <edge ref>]} = midway between two parallel straight edges of that face (the middle "
-                    "line: it stays in the middle when the part gets wider; both x and y = the face's centre).\n"
+                    "line: it stays in the middle when the part gets wider; both x and y = the face's centre). get_model lists them per hole "
+                    "(from: [{x: {d, from: edge | axis | mid | hole, ref}, y: …}]); edit_feature {points, from} moves a hole and re-measures it. "
+                    "lock: 🔒 the positions the user cannot drag (the app lets a made hole be dragged on its face with snapping; a "
+                    "typed distance locks that way): true (all, both ways), false (none) or [{x: true, y: true} | {x: true} | null, …] "
+                    "per position (get_model `lock`) — lock what the user gave as a size, so a drag cannot change it.\n"
                     "- fillet: edges [refs from find_refs], r. chamfer: edges, d. chain (default true, the panel's ⛓ Whole "
                     "chain): each edge comes with the edges that go on smoothly (tangent) from it — one edge of a rounded "
                     "outline or of a hole's rim picks all of it; OpenCASCADE rounds a tangent chain whole anyway, so chain: "
@@ -298,7 +303,8 @@ TOOLS = [
                     "project's parameters (get_parameters / set_parameter): \"L / 2\", \"D + 0.2\" — the step keeps the "
                     "expression and follows when the parameter changes; \"L = 100\" makes (or sets) L at once.",
      "inputSchema": _obj({"type": {"type": "string", "enum": ["sketch", "extrude", "revolve", "hole", "fillet", "chamfer", "shell", "pattern", "loft", "sweep", "decal", "mirror", "draft", "rib", "point", "solid", "split"]},
-                          "name": STR, "plane": {}, "shapes": {"type": "array"}, "lock": {"type": "boolean"},
+                          "name": STR, "plane": {}, "shapes": {"type": "array"},
+                          "lock": {"description": "a sketch: false = its sizes left free (default true); a hole: 🔒 its positions — true (all, both ways), false, or [{x: true, y: true} | null, …] per position"},
                           "sketch": STR, "d": VAL, "op": {"type": "string", "enum": ["add", "cut", "ref"]}, "through": {"type": "boolean"},
                           "symmetric": {"type": "boolean"}, "flip": {"type": "boolean"}, "axis": {}, "angle": VAL,
                           "face": STR, "points": {"type": "array"}, "depth": VAL, "edges": {"type": "array"}, "r": VAL, "chain": {"type": "boolean"},
@@ -506,8 +512,9 @@ TOOLS = [
                     "countersunk, pan, cheese, hex heads), screws for plastics, nuts, washers, heat-set inserts (ruthex), bearings (608-2Z…, "
                     "LMxUU), standoffs, panel parts (LEDs, push buttons, USB / RJ45), SMC cylinders / fittings / valves, SICK inductive "
                     "sensors, NEMA 17 / 23 steppers, ICT / FCT test probes (pogo pins: INGUN GKS-100 / 075 / 050, KESACON MPI) and their "
-                    "receptacles (INGUN KS-100 / KS-050), and the user's own parts. query: words like \"M3 socket\", \"608\", \"cylinder 16\", "
-                    "\"probe 1.27\", \"GKS-100 crown\", an order code, "
+                    "receptacles (INGUN KS-100 / KS-050), cable clips (HellermannTyton P-clamps H1P–H8P, MB tie mounts, T18R / T30R / T50R "
+                    "cable ties) and igus energy chains (E2.10, E2.15, 14, 10), and the user's own parts. query: words like \"M3 socket\", \"608\", \"cylinder 16\", "
+                    "\"probe 1.27\", \"GKS-100 crown\", \"P-clamp\", \"e-chain\", an order code, "
                     "\"inductive M12\". -> items (item id, sizes, lengths / strokes, an example with its part number). Use it BEFORE "
                     "drawing a bought part yourself.",
      "inputSchema": _obj({"query": STR, "category": STR}, ["query"])},
@@ -515,7 +522,9 @@ TOOLS = [
      "description": "Put a library part in: item (its id from library_search), size (one of its sizes), length (or stroke, one of its "
                     "values). to: \"assembly\" (into the assembly on screen — the same part again is used again: two screws = two "
                     "placed, one part) or \"model\" (a new 3D model tab). In an assembly it returns the placed id (I…) and its flat / "
-                    "round faces for snap_faces.",
+                    "round faces for snap_faces. An energy chain goes in as its first link (the fixed end — join it to the frame) and "
+                    "becomes a chain C… (get_assembly `chains`; edit_chain sets its links, travel and the part it moves with). A "
+                    "cable clip for a harness point: edit_harness clip (it picks and places one).",
      "inputSchema": _obj({"item": STR, "size": STR, "length": NUM, "to": {"type": "string", "enum": ["assembly", "model"]}}, ["item"])},
     {"name": "library_pair", "where": "browser",
      "description": "Put in what goes with a placed library part (library_search lists it as goes_with): a screw's nut / washer / "
@@ -553,12 +562,14 @@ TOOLS = [
     {"name": "set_travel", "where": "browser",
      "description": "Limits of a free motion of a joined part (a cylinder's stroke, a slide's ends, a door's swing): part = I…, motion "
                     "= its number or words of its name (as for move_free), min and max = where along it (mm, or degrees: −360 … 360, up to a full turn "
-                    "for a turn; get_assembly `at` says where it is now). min / max null: no limits. The part is put inside them. speed (0.25 … 4, 1 = about 3 s there and back) and loop (true: again and again) set how the app's ▶ plays it. "
+                    "for a turn; get_assembly `at` says where it is now). min / max \"here\" = that end where the part is now (the app's ⇤ Set min "
+                    "here / Set max here ⇥: move_free it there first, then set it; the other end kept, or as far again past it). min / max null: no limits. The part is put inside them. speed (0.25 … 4, 1 = about 3 s there and back) and loop (true: again and again) set how the app's ▶ plays it. "
                     "follow = ↕ a check valve's ball / a pawl: it sits at one of its two stops by the direction another part is driven — {part: the driver (a piston; "
                     "none: the mechanism's driver sliding along it), motion: its motion (optional), at: \"max\" | \"min\" (where it sits while the driver moves "
                     "forward — its value grows; going back it sits at the other end)}; null takes it off. The part then moves with the driver's mechanism "
                     "(drive_mechanism, ▶, a drag; trace goes there and back).",
-     "inputSchema": _obj({"part": STR, "motion": {}, "min": {"type": ["number", "null"]}, "max": {"type": ["number", "null"]}, "speed": NUM, "loop": {"type": "boolean"},
+     "inputSchema": _obj({"part": STR, "motion": {}, "min": {"type": ["number", "string", "null"], "description": "a number, \"here\" or null"},
+                          "max": {"type": ["number", "string", "null"], "description": "a number, \"here\" or null"}, "speed": NUM, "loop": {"type": "boolean"},
                           "follow": {"type": ["object", "null"], "properties": {"part": STR, "motion": {}, "at": {"type": "string", "enum": ["max", "min"]}}}}, ["part"])},
     {"name": "lock_motion", "where": "browser",
      "description": "Lock one free motion of a joined part where it is now (the app's 🔒 by a motion): part = I…, motion = its "
@@ -615,7 +626,11 @@ TOOLS = [
     {"name": "edit_harness", "where": "browser",
      "description": "Change a cable harness of the assembly on screen (id H… from get_assembly `harnesses` or add_harness): any field of "
                     "add_harness (type, count, wire_d, wires, d, color, r_min, pitch, reserve, name); points replaces its points, "
-                    "add_points appends to them; remove: true deletes it. 🔒 length_locked: true locks its length as it is now "
+                    "add_points appends to them; one point by its number (1 = the first, as `point_list`): set_points [{n, part, face} | "
+                    "{n, part, point} | {n, xyz}] puts it elsewhere (a flat face: on its centre — a pin's top on its axis; a round face: "
+                    "on the hole's axis), remove_points [n, …] takes them out, insert_points {after: n (0 = before the first), points: "
+                    "[…]} puts new ones in between, order [n, …] = every point number once in the new order (a span's own length "
+                    "stays with its two points while they stay neighbours); remove: true deletes the harness. 🔒 length_locked: true locks its length as it is now "
                     "(false: unlocked), or length: <mm> locks it at that (null: unlocked) — when its ends move (a part dragged, "
                     "drive_mechanism) the cable keeps that length: the slack sags (keeping r_min); too far apart it goes straight "
                     "and the answer / get_assembly say `taut` {short_mm}. lock_points / unlock_points: point numbers (1 = the first, "
@@ -624,7 +639,9 @@ TOOLS = [
                     "lock and xyz. ➰ spans: [{from: a point number, length: mm}] gives the cable between that point and the next its "
                     "own length — longer than now: a loop of slack that keeps r_min and holds that length when the parts move "
                     "(no length: as it is now; null: none of its own); they win over length_locked; too far apart: `taut` with its "
-                    "span. `through_at` where it goes through a part (part, span \"2–3\": between points 2 and 3, xyz). "
+                    "span. `through_at` where it goes through a part (part, span \"2–3\": between points 2 and 3, xyz); it keeps clear of "
+                    "the parts by itself — `detour_points` (how many it put in), `still_hits` (parts it could not clear: add a point "
+                    "round them), `spans_not_kept`. "
                     "📎 clip: {point: n} puts a cable clip from the library on point n (it must lie on a part's face) — the "
                     "snuggest for the bundle's Ø, or {item, size} as the library names them — along the cable; the point then "
                     "runs on the clip's axis, locked to it (`point_list` says `clip`: its placed part). ⛓ chain: {span: n, id: "
@@ -643,7 +660,22 @@ TOOLS = [
                           "spans": {"type": "array", "items": _obj({"from": {"type": "integer", "minimum": 1}, "length": {"type": ["number", "null"]}}, ["from"])},
                           "unlock_points": {"type": "array", "items": {"type": "integer", "minimum": 1}},
                           "clip": _obj({"point": {"type": "integer", "minimum": 1}, "item": STR, "size": STR}, ["point"]),
-                          "chain": _obj({"span": {"type": "integer", "minimum": 1}, "id": {"type": ["string", "null"]}}, ["span"])}, ["id"])},
+                          "chain": _obj({"span": {"type": "integer", "minimum": 1}, "id": {"type": ["string", "null"]}}, ["span"]),
+                          "set_points": {"type": "array", "items": _obj({"n": {"type": "integer", "minimum": 1}, "part": STR, "face": STR, "point": POINT, "xyz": POINT}, ["n"])},
+                          "remove_points": {"type": "array", "items": {"type": "integer", "minimum": 1}},
+                          "insert_points": _obj({"after": {"type": "integer", "minimum": 0},
+                                                 "points": {"type": "array", "items": _obj({"part": STR, "face": STR, "point": POINT, "xyz": POINT})}}, ["after", "points"]),
+                          "order": {"type": "array", "items": {"type": "integer", "minimum": 1}}}, ["id"])},
+    {"name": "edit_chain", "where": "browser",
+     "description": "⛓ Change an energy chain of the assembly on screen (an igus e-chain put in by library_add: id C… from get_assembly "
+                    "`chains`, or its first link's I…; the app's chain rows in its first link's panel): links (how many — its length; igus "
+                    "orders by the link), travel (mm along the runs from above the fixed end: where the moving end is; held in its reach), "
+                    "moves_with (a placed part I…, e.g. the carriage: its moving end then goes along as that part moves — a drag, "
+                    "move_free, drive_mechanism, ▶; null: its own travel again, kept where it is), name, remove: true (not a chain any "
+                    "more: only its first link stays). A cable routed through it (edit_harness chain) follows. Answers its links, length, "
+                    "travel and reach (reach_ok false: add links).",
+     "inputSchema": _obj({"id": STR, "links": {"type": "integer", "minimum": 2}, "travel": NUM, "moves_with": {"type": ["string", "null"]},
+                          "name": STR, "remove": {"type": "boolean"}}, ["id"])},
     {"name": "save_to_library", "where": "browser",
      "description": "Keep the 3D model on screen in the user's parts library (to use again in any project); a library part being "
                     "changed (opened with ✎ Edit in the library) is saved back over itself when no name is given: name, category (e.g. "
@@ -726,7 +758,8 @@ TOOLS = [
      "description": "Change the drawing sheet on screen: preset light / medium / full (the automatic dimensions), view_presets {Front | Top | "
                     "Right: light / medium / full / null} (a view's own, null: as the sheet), paper A4 / A3 / null, "
                     "views {Front | Top | Right | Iso: true / false}, remove [dimension ids], restore true (the deleted automatic ones "
-                    "back), move {id: {side (h: t / b; v: l / r), off (mm from the view on the paper), ang, len (a Ø / R leader)}}, "
+                    "back), move {id: {side (h: t / b; v: l / r), off (mm from the view on the paper), ang, len (a Ø / R leader)} | {view: \"Right\"} (⇄ the same "
+                    "linear size moved to another view that shows both its ends — it gets a new id, said in done; a view it cannot go in: the error lists those it can)}, "
                     "add [{view, a, b, dir (h / v; else by the points), pre (text before, e.g. \"4×\")} | {view, circle (its key; a hole's: its whole callout), "
                     "count, post (e.g. \"H7\")} or {view, edges: [<edge>, <edge>]} (two edges meeting at an angle: the angle) or {missing: <check id>, view (one of its views; none: the best)}], complete true (every size the check finds missing added), drop_twice true (dimensions giving a size twice removed), texts {title, number (drawing no.), drawn (drawn by), note, company, address, tolstd (the tolerance standard), surface (roughness, e.g. \"Ra 3,2\"), checked, approved, material (an assembly's sheet; a part's comes from its model)} (the title block's own; \"\" clears) and all_sheets true (the project-wide ones of them — drawn, checked, approved, company, address, tolstd, surface, an assembly's material — on every sheet of the assembly's drawing set; title, number and note stay this sheet's), "
                     "template \"<name>\" (the title block's template — get_sheet lists them; Modern is the default), template_all true (that template on every drawing of the assembly's drawing set, new ones too), "
@@ -851,9 +884,30 @@ TOOLS = [
      "description": "Set the 3D view (model or assembly) before get_screenshot: view iso / top / front / right; section {axis x / y / "
                     "z, offset mm, flip} to look inside — the half toward the iso / front / right / top camera goes, the cut "
                     "faces are filled brick red (null or \"off\": no cut); explode 0 … 1 (an assembly pulled apart); sizes all / "
-                    "locked / none (the size labels).",
+                    "locked / none (the 3D model's size labels — the bottom row's 📏 Dimensions is all / none); joints true / false (an "
+                    "assembly's joint symbols — the bottom row's 🔗 Joints; remembered).",
      "inputSchema": _obj({"view": {"type": "string", "enum": ["iso", "top", "front", "right"]}, "section": {}, "explode": NUM,
-                          "sizes": {"type": "string", "enum": ["all", "locked", "none"]}})},
+                          "sizes": {"type": "string", "enum": ["all", "locked", "none"]}, "joints": {"type": "boolean"}})},
+    {"name": "set_layout", "where": "browser",
+     "description": "The app's widgets in the workspace on screen — what the user does by dragging a widget's header and in its ⋯ "
+                    "menu: no arguments = the layout now (widgets [{widget, title, where: left / right / float / behind ☰, folded, "
+                    "auto_height, rows}], the suggestions table's closed / auto). widget = its name or title (project — the ☰ "
+                    "project tree, panel — the workspace's own: the step tree / the assembly's parts, suggestions, properties — the "
+                    "right panel, and the workspace's own: mech ⚙ Mechanism, measure-… 📏 Measurements, versions-…, params-…, "
+                    "mexport, abom, stitle …) with place \"left\" | \"right\" (docked in that side panel; at: its position, 1 = the "
+                    "top) | \"float\" (over the view) | \"hidden\" (the project tree back behind ☰), fold true / false (to its header), "
+                    "auto_height true / false (↕ grows to its content), rows n | \"all\" (a list's first n rows, then ⋯ More). "
+                    "suggestions {closed: true (✕: a 💡 button in the view's corner instead) / false (open), auto: true / false (opens "
+                    "by itself on a selection)}. reset: true = ↺ Default layout. Only when the user asks to arrange the screen.",
+     "inputSchema": _obj({"widget": STR, "place": {"type": "string", "enum": ["left", "right", "float", "hidden"]}, "at": {"type": "integer", "minimum": 1},
+                          "fold": {"type": "boolean"}, "auto_height": {"type": "boolean"}, "rows": {"type": ["integer", "string", "null"]},
+                          "suggestions": _obj({"closed": {"type": "boolean"}, "auto": {"type": "boolean"}}), "reset": {"type": "boolean"}})},
+    {"name": "new_project", "where": "browser",
+     "description": "📄 Start a new, empty project in this window (the app's Open ▾ › 📄 New project) — only when the user asks for "
+                    "one. The project on screen is kept first (Open ▾ › 🕘 Recent projects opens it again); the page then loads afresh "
+                    "(a moment), this chat goes on. new_window: true = ⧉ in a window of its own instead (this one stays; the tools keep "
+                    "working on this window).",
+     "inputSchema": _obj({"new_window": {"type": "boolean"}})},
     {"name": "rename_part", "where": "browser", "description": "Rename a part of the project (id or name from list_parts).",
      "inputSchema": _obj({"id": STR, "name": STR}, ["id", "name"])},
     {"name": "delete_part", "where": "browser",
@@ -898,7 +952,9 @@ The project holds parts, as tabs in the app's top bar (list_parts, open_part); t
 - The GUI: gui_state lists what the user sees (buttons, sliders, their state; a sheet's dimensions / views / cells); gui_action clicks / slides one as the user would, clicks / drags at a point of the view (at, at_mm on a sheet) and presses keys (Delete, Enter, Escape, ctrl+z) — use them to tell the user where something is and to check the GUI behaves like the tools. gui_highlight points at a control (or a spot of the view) with a short tip and can wait until the user clicks it. get_screenshot {ui: true} shows the window as the user sees it (the table, panels, labels).
 - **The suggestions table** is how the user works: they select something (a face, an edge, a part, a dimension) and a small table in the view's corner offers what fits it, the most relevant rows first, the rest under ⋯ Show all. gui_state returns it as `suggestions` (title, what it is about, rows with their n, more = hidden rows); gui_action {pick: "F2:end"} selects a face (an assembly's part: "I2") as a click would, gui_action {suggest: "<label>"} runs a row. When you tell the user how to do something, point at the row they will see (gui_highlight its n) rather than at a toolbar button.
 - Assemblies also: edit_joint / remove_joint, measure (between faces; a row of the user's 📏 Measurements table too — list_measurements reads that table, clear_measurements empties it, in a 3D model too), move_free, lock_motion (fix one free motion where it is); set_travel (a free motion's limits: a cylinder's stroke) and check_travel (collisions along it); drive_mechanism (a whole mechanism by its driver: a crank's turn, every part follows; ▶ play), record_animation (one cycle of it saved as a GIF / video) and name_motion (a motion's own name); the view for screenshots: set_view (iso / top / front / right, a section, explode, size labels). The project: rename_part, duplicate_part (an independent copy to change), delete_part (only when asked), save_to_library (the 3D model kept in the user's library); list_demos / open_demo (🎬 ready-made mechanisms, only when asked; a saved project file: open_file). 🕘 Versions of the project: list_versions, save_version {label} (before a risky change), compare_versions {a, b}, restore_version (only when asked; it can be undone), create_variant {from, name} (a branch to try another design), switch_variant, take_part (one part from another variant), rename_variant, delete_variant (only when asked). Files: export stl / step / iges / glb / obj / pdf / 3mf (in colours, for multi-material printing) / bom (CSV) / dxf / project (the whole project as a .a3d.json file).
-- **The parts library** holds real, bought parts with their maker and part number (screws, nuts, washers, inserts, bearings, standoffs, panel parts, SMC pneumatics, SICK sensors, stepper motors, the user's own): library_search, library_add.
+- **The parts library** holds real, bought parts with their maker and part number (screws, nuts, washers, inserts, bearings, standoffs, panel parts, SMC pneumatics, SICK sensors, stepper motors, INGUN / KESACON test probes and receptacles, cable clips and tie mounts, igus energy chains, the user's own): library_search, library_add; library_pair puts in what goes with a placed one (a screw's nut and washers, a probe's receptacle).
+- **Cables** in an assembly: add_harness / edit_harness (points on faces or in space, locked or not; insert / remove / reorder points, a span's own length, a locked total length, a clip on a point, a span through an energy chain); edit_chain (a chain's links, travel, the part it moves with).
+- **The screen**: set_layout (the widgets docked left / right / floating, folded, their heights and rows; the suggestions table closed / opening by itself) and set_view joints (the joint symbols) — only when the user asks; new_project starts an empty project (only when asked; the one on screen is kept).
 - Both: get_screenshot, check_print, export, undo. Opening a file or tracing a picture adds a new quick part tab.
 
 **Before a new design** (a new part, device or assembly) load auto3d:start-a-design and, for what the user has not said yet, ask with ask_user (buttons in the chat, your recommendation first): what it is for — automation / a machine (made to be manufactured, standard, library parts), a functional 3D-printed part, or a graphic / decorative 3D model; whether it is 3D printed; and whether it must be easy for a person to edit (simple sketches, few sizes each) or may be built any way that reaches the goal. Then load the skills that brief asks for.

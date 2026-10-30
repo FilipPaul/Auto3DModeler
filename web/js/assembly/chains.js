@@ -176,3 +176,41 @@ export function chainsSummary(asm) {
       ...(p ? { reach_ok: p.ok, fixed_end: p.fixed.o.map(r3), moving_end: p.moving.o.map(r3), lower_run_mm: r3(p.lower), upper_run_mm: r3(p.upper) } : { broken: true }) };
   });
 }
+
+// ------------------------------------------------------------------ for the AI
+/** edit_chain (the assembly on screen): a chain's links, the travel of its moving end, the part it moves with, its
+ *  name, or not a chain any more — what its panel does, one undo step. */
+export function chainHandlers(asm) {
+  return {
+    edit_chain: async ({ id, links, travel, moves_with, name, remove } = {}) => {
+      if (!asm.active) throw new Error('No assembly is on screen — new_assembly, or open_part an assembly.');
+      const rec = chainOf(asm, id) || (asm.doc.chains || []).find((c) => c.name === id);
+      if (!rec) throw new Error(`No energy chain “${id}” — get_assembly lists them (\`chains\`, ids C…); library_search "chain" + library_add put one in.`);
+      if (remove) {
+        asm.doc.chains = asm.doc.chains.filter((c) => c !== rec);
+        if (!asm.doc.chains.length) delete asm.doc.chains;
+        asm.commit();
+        return { text: `${rec.id} is not a chain any more: only its first link ${rec.part} stays (a plain part).` };
+      }
+      const keep = structuredClone(rec);
+      try {
+        if (links !== undefined) { const n = Math.round(+links); if (!(n >= 2)) throw new Error('links: how many links, 2 or more (igus orders by the link).'); rec.links = n; }
+        if (moves_with !== undefined) {
+          if (moves_with && (!asm.inst(moves_with) || moves_with === rec.part)) throw new Error(`moves_with: a placed part (I…) other than its first link ${rec.part} — get_assembly lists them; null: its own travel.`);
+          followPart(asm, rec, moves_with || null);
+        }
+        if (travel !== undefined) {
+          if (rec.follow) throw new Error(`${rec.id} moves with ${rec.follow.inst} — its travel follows that part (move it: move_free / drive_mechanism), or moves_with: null first.`);
+          if (!Number.isFinite(+travel)) throw new Error('travel: mm along the runs from above the fixed end.');
+          const r = travelRange({ ...rec.dims, links: rec.links });
+          rec.travel = Math.trunc(Math.max(r.min, Math.min(r.max, +travel)) * 1000) / 1000; // (held in its reach: 3 decimals, toward 0 — never a hair past it)
+        }
+        if (name !== undefined) { if (String(name ?? '').trim()) rec.name = String(name).trim(); else delete rec.name; }
+      } catch (e) { Object.assign(rec, keep); if (!keep.follow) delete rec.follow; if (!keep.name) delete rec.name; throw e; }
+      asm.commit();
+      drawChains(asm);
+      const s = chainsSummary(asm).find((c) => c.id === rec.id), r = travelRange({ ...rec.dims, links: rec.links });
+      return { text: `${rec.id}: ${s.links} links (${s.length_mm} mm), travel ${s.travel_mm} mm (it reaches ${+r.min.toFixed(1)} … ${+r.max.toFixed(1)})${s.moves_with ? `, moves with ${s.moves_with}` : ''}${s.reach_ok === false ? ' — ⚠ the moving end is past its reach: add links' : ''}. ${JSON.stringify(s)}` };
+    },
+  };
+}

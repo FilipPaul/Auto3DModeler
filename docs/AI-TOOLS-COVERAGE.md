@@ -28,6 +28,8 @@ The check found 12 tools the chat showed by their raw name and 3 no skill named 
 | Demo projects | 📂 Open ▾ → (🎬 Demo projekty…) | `list_demos`, `open_demo` | ok (was gui) |
 | Recent projects | (🕘 Nedávné projekty…) | — | gui (the user's own list) |
 | Save the project to a file | (Uložit projekt) | `export {format: "project", history}` | ok (was gui) |
+| New project (the one on screen kept) | Open ▾ › (📄 Nový projekt), Ctrl+Alt+N | `new_project {new_window}` | ok (2026-10-30, was gui) |
+| Widgets: docked left / right, floating, folded, ↕ automatic height, rows; the suggestions closed / automatic | a widget's header drag, its ⋯ menu; the table's ✕ / 💡 Automaticky | `set_layout` | ok (2026-10-30, was gui) |
 | Export STL / STEP / IGES / GLB / OBJ / PDF / 3MF / BOM / DXF | (Export ▾) | `export` | ok |
 | Part tabs: list, open, rename, duplicate, delete | tabs, ☰, part panel (⧉ Duplikovat jako nový díl) | `list_parts`, `open_part`, `rename_part`, `duplicate_part`, `delete_part` | ok |
 | A part in a window of its own | ⧉ | — | gui (layout) |
@@ -145,7 +147,7 @@ The check found 12 tools the chat showed by their raw name and 3 no skill named 
 
 ## Left to `gui_action` on purpose
 
-Layout and view-only controls (widget docking, opacity, folding, a part's own window, the language, planes / ⊕
-shown, explode per part, simplified look) — the AI does not need them; `gui_state` / `gui_action` reach them when a
+Layout and view-only controls (opacity, a part's own window, the language, planes / ⊕ shown, explode per part,
+simplified look; docking / folding / rows: `set_layout` since 2026-10-30) — the AI does not need them; `gui_state` / `gui_action` reach them when a
 user asks. Sketch snap filters: the AI gives exact coordinates and never snaps. Tools that need many inputs (split
 joints for printing, bending) stay in the GUI (CLAUDE.md: more than ~2 inputs is deferred).

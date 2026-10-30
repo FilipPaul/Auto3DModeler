@@ -7,9 +7,10 @@ import { paintedFaces } from './modeler/paint.js';
 import { sectionMiddle } from './modeler/sectionbar.js';
 import { parseScale, DEFAULT_TPL } from './sheet/sheet.js';
 import { tolText } from './sheet/sheetsuggest.js';
+import { otherViews, moveDim } from './sheet/dimcandidates.js';
 import { propagates } from './sheet/tbedit.js';
 import { animState } from './assembly/anim.js';
-import { suggestTables, runSuggestion } from './suggest.js';
+import { suggestTables, runSuggestion, setShowKind, showSnapFilters, showKinds } from './suggest.js';
 import { t } from './i18n.js';
 
 const b64 = (s, T) => { if (typeof s !== 'string') return s; const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new T(u.buffer); };
@@ -753,6 +754,13 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       for (const [id, o] of Object.entries(move || {})) {
         const d = ed.allDims().find((x) => x.id === id);
         if (!d) throw new Error(`No dimension ${id} — get_sheet lists them.`);
+        if (o?.view !== undefined) { // ⇄ the same size in another view (the suggestions' "Move to another view")
+          const cs = otherViews(ed, d), want = String(o.view).toLowerCase(), c = cs.find((x) => x.view.toLowerCase() === want || String(ed.viewName(x.view)).toLowerCase() === want);
+          if (!c) throw new Error(`${id} cannot go in ${o.view}${cs.length ? ` — it can go in: ${cs.map((x) => x.view).join(', ')}` : ' — no other view shows both its ends (only a linear dimension moves)'}.`);
+          moveDim(ed, d, c);
+          done.push(`${id} moved to ${c.view} (now ${ed.sel})`);
+          continue;
+        }
         const keep = {};
         if (o.side !== undefined) { if (!(d.dir === 'h' ? ['t', 'b'] : ['l', 'r']).includes(o.side)) throw new Error(`side of ${id}: ${d.dir === 'h' ? '"t" (above) or "b" (below)' : '"l" (left) or "r" (right)'}.`); keep.side = o.side; }
         if (o.off !== undefined) keep.off = Math.max(3, +o.off);
@@ -760,7 +768,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         if (o.len !== undefined) keep.len = Math.max(2, +o.len);
         ed.setDim(d, { ...(ed.d.dims[id] || {}), ...keep });
       }
-      if (Object.keys(move || {}).length) done.push(`${Object.keys(move).length} moved`);
+      if (Object.values(move || {}).some((o) => o?.view === undefined)) done.push(`${Object.values(move).filter((o) => o?.view === undefined).length} moved`);
       for (const [id, f] of Object.entries(fits || {})) { ed.setFit(id, f || ''); done.push(`${id} ${f || 'no fit'}`); }
       for (const [id, o] of Object.entries(dims || {})) { // a dimension's tolerance (±0.1, +0.2/−0.1) and reference (in brackets)
         const d = ed.allDims().find((x) => x.id === id);
@@ -875,7 +883,7 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
     },
 
     // ---------------------------------------------------------------- the view (then get_screenshot)
-    set_view: async ({ view, section, explode, sizes }) => {
+    set_view: async ({ view, section, explode, sizes, joints }) => {
       const ws = state.workspace;
       if (ws !== 'model' && ws !== 'assembly') throw new Error('The view is set in a 3D model or an assembly.');
       const host = ws === 'model' ? modeler : assembly, v = host.view;
@@ -899,7 +907,13 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
         assembly.draw();
       }
       if (sizes) modeler.setSizeMode(sizes);
-      return ok(`View${view ? ` ${view}` : ''}${host.section ? `, cut along ${host.section.axis} at ${r3(host.section.offset)} mm` : ''}${ws === 'assembly' && assembly.explode ? `, exploded ${assembly.explode}` : ''} — get_screenshot to look.`);
+      if (joints !== undefined) { // 🔗 the bottom row's Show: Joints (the joints' symbols; remembered)
+        if (ws !== 'assembly') throw new Error('joints is for an assembly (the symbols of its joints in the view).');
+        setShowKind('joints', !!joints);
+        showSnapFilters(assembly.els.viewport);
+        assembly.drawJointTags();
+      }
+      return ok(`View${view ? ` ${view}` : ''}${host.section ? `, cut along ${host.section.axis} at ${r3(host.section.offset)} mm` : ''}${ws === 'assembly' && assembly.explode ? `, exploded ${assembly.explode}` : ''}${ws === 'assembly' ? `, joint symbols ${showKinds().joints ? 'shown' : 'hidden'}` : ''}${ws === 'model' ? `, sizes ${modeler.sizeMode || 'as set'}` : ''} — get_screenshot to look.`);
     },
 
     // ---------------------------------------------------------------- the project's parts

@@ -20,6 +20,10 @@ export function showKinds() {
   try { saved = JSON.parse(localStorage.getItem(SHOW_KEY) || 'null'); } catch { saved = null; }
   return { joints: true, ...(saved || {}) };
 }
+/** One of them switched (remembered) — the bottom row's Show: button, or the AI (set_view joints). */
+export function setShowKind(key, on) {
+  try { localStorage.setItem(SHOW_KEY, JSON.stringify({ ...showKinds(), [key]: !!on })); } catch { /* private window */ }
+}
 /** The hover filters: what lights up under the mouse with no tool on — {edges, points} (remembered). */
 export function hoverKinds() {
   let saved = null;

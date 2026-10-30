@@ -1345,6 +1345,12 @@ can open them.
   chamfer and shell. It finds faces and edges by description (`find_refs`: "the top face", "the edges of that
   face", "the round edges"), changes, deletes or turns off steps, and prepares a printing copy. Example: *"make a
   50 × 30 × 4 mm plate with a 5 mm hole in the middle and 2 mm rounded corners"*.
+- **What you do by hand, it can do too**: lock a hole's position against dragging (*"lock the holes where they
+  are"*), set a motion's min / max where the part is now (*"set the max here"*), put a cable's points in, take them out
+  or reorder them (*"add a point between 2 and 3"*), set an energy chain's links, travel and the carriage it moves with,
+  move a drawing's dimension to another view, show / hide the joint symbols, arrange the widgets (*"dock the
+  suggestions on the right"*, *"close the suggestions"*) and start a new project — only when you ask for the layout or
+  a new project; the project on screen is kept.
 - **Smooth shapes**: a sketch can hold **smooth curves** (splines through points) besides lines and arcs — draw one
   with **〰 Spline** (S) in the sketch toolbar: click the points it goes through, Enter / double-click ends it, its first
   point closes it, a line's end joins it. The AI draws

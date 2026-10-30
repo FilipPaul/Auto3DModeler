@@ -35,7 +35,10 @@ maker numbers.
   get_sheet marks them hole_position); `get_sheet {points: "Top"}` and `sheet_edit {add: [...]}` for a
   dimension the preset left out — a size the check misses: `sheet_edit {add: [{missing: "<id>", view}]}` (its `views`:
   every view it can go in, the best first; the user's view when they name one, e.g. the right view), `sheet_edit {remove: [...]}` for clutter, `sheet_edit {dims: {<id>: {tol: "±0.1"}}}` for a
-  size that needs its own tolerance (`ref: true`: a reference dimension, in brackets; a Ø takes `fits` instead); then `export {format: "pdf"}` on the sheet (and `"dxf"` when the
+  size that needs its own tolerance (`ref: true`: a reference dimension, in brackets; a Ø takes `fits` instead: `sheet_edit
+  {fits: {<id>: "H7"}}`; `{tol: null}` = the general tolerance again), a surface's roughness symbol `sheet_edit {roughness:
+  [{view, edge, ra: 1.6, process: "remove"}]}` (the general one: `texts.surface`), a size in a better view `sheet_edit
+  {move: {<id>: {view: "Right"}}}` (the same size there, a new id; the error lists the views it can go in); then `export {format: "pdf"}` on the sheet (and `"dxf"` when the
   user's drafting program — AutoCAD, SolidWorks, Solid Edge — should take it: the paper 1:1, real dimensions).
   Say the material and the finish (e.g. "AlMg3, anodised").
   The assembly's sheet: its check asks only for the overall sizes and where the base part's mounting holes are (its

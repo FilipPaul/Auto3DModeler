@@ -660,6 +660,13 @@ Never report "works" without having run it; report failures with their output.
    reached through ⋯ Show all (the table back to its top rows); an unknown label refused with the offered rows;
    get_screenshot {ui: true} draws the table where it is (its box differs from the view with the table hidden); an
    assembly's part picked (its table, a row run); a sheet's dimension (its table, the ui screenshot names it).
+   `tools/e2e_ai_features.py <url> <dir>` covers the AI's reach into the 2026-10-29 / 30 features (45 checks): a hole's
+   shape / thread / standard and 🔒 lock (get_model lock + from, per position, off, refused), a sheet's size moved to
+   another view (sheet_edit move {view}, a wrong view refused), the crank's set_travel min / max "here", set_view
+   joints (the bottom row follows), set_layout (widgets listed, docked right, folded, auto height, rows, the
+   suggestions closed / automatic, reset), edit_harness insert / set / order / remove points (a span's length kept
+   with its points, wrong numbers refused), library_search clips and chains, edit_chain (links, travel held in its
+   reach, moves_with, refused while following, remove), new_project (the page starts again, the tools reach it).
    `tools/e2e_stale_notice.py <url> <dir>` covers ⟳ New version in the top bar: a server started with
    `A3D_FAKE_HEAD=fa4e000` (its checkout "moved on") -> /api/version stale, the report text with both commits; the
    notice in Czech "⟳ Nová verze — restartujte aplikaci" with its tooltip, in the top bar; English after a switch; no

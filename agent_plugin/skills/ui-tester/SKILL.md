@@ -44,6 +44,14 @@ Then the toolbar path, for every step above (sketch, extrude, hole, pattern, fil
   must be Czech (English words left = a ui problem: list them); **EN** switches back. Do this once per workspace.
 - **Intuitive**: the panel opens with good defaults (works with one click), says in plain words what to pick, the
   OK / Finish / Cancel buttons are bottom-right of the view, an error says how to fix it.
+- **The newer features** (once each, when the user did not narrow the test): a hole dragged on its face
+  (`gui_action {at, drag_to}` on a made hole — it snaps; a 🔒 locked size holds) and its Shape / Thread / Depth / Size
+  rows in the table; a mechanism's ⇤ min / max ⇥ in ⚙ Mechanism vs `set_travel {min: "here"}`; a cable harness's points
+  list (＋ between, ✕, ↑ ↓) vs `edit_harness {insert_points, remove_points, order}`, 📎 a clip, ⛓ a chain (`edit_chain`);
+  a sheet's ± / fit / Ra chips and ⇄ Move to another view vs `sheet_edit {dims, fits, roughness, move: {id: {view}}}`;
+  the widgets' ⋯ menus (dock, float, ↕ Automatic height, Rows) and the suggestions' ✕ / Automatically vs `set_layout`;
+  the bottom row's 🔗 Joints / 📏 Dimensions vs `set_view {joints, sizes}`; the 📏 Measurements table vs
+  `list_measurements`; 🕘 Versions (graph, variants) vs `list_versions`; ⏺ recording vs `get_recording`.
 Undo your test clicks you do not need (`undo`) so the designs stay clean.
 
 ## 3. Report each problem — once

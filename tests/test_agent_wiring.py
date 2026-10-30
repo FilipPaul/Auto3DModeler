@@ -36,6 +36,9 @@ HANDLER_BLOCKS = [
     ("assembly/assembly.js", "  handlers() {"),
     ("assembly/harness.js", "export function harnessHandlers("),
     ("recorder.js", "export function recordHandlers("),
+    ("assembly/chains.js", "export function chainHandlers("),
+    ("leftdock.js", "export function layoutHandlers("),
+    ("newproject.js", "export function newProjectHandlers("),
 ]
 # the page's handlers that are no AI tool of their own: the server's relays (open_file -> load …) and the 3D model's
 # versions of the shared tools (app.js SHARED: get_screenshot / undo follow the part on screen)

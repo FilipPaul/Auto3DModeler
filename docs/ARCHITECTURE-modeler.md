@@ -23,6 +23,49 @@ Date: 2026-10-25. Written by the architect agent.
   a face end's lead is max(r_min, Ø) + Ø long — the next point (a clip) beyond it. tests/test_demos.py (their chain,
   locks, clips, span, limits), tools/e2e_cable_demos.py (each opened from 🎬; at −max / 0 / max: no taut / through /
   still_hits / too-tight bend, 🔒 length and ➰ span kept, no overlaps; the chain's moving end with the carriage; ▶).
+- **AI tools for the new features (2026-10-30)** (the owner: after a batch of features the in-app AI must reach every
+  one). The features of 2026-10-29 / 30 checked against agent_tools.py, the page's handlers, the skills and the system
+  prompt; gaps a user would plausibly ask for filled (existing tools extended first, three small new ones):
+
+  | Feature | Tool | Status |
+  |---|---|---|
+  | Hole shape / thread / depth / size as separate properties | add_feature / edit_feature {shape, thread, standard, through, depth} | ok; stale text fixed (hole_type = the old form; head / thread alone = sizes as given) |
+  | Hole dimensions (distances from edges / axis / middle) | add_feature / edit_feature `from`; get_model `from` | **added** to get_model (per position {d, from, ref}) |
+  | Hole dragged on its face with snap | edit_feature {points, from}; gui_action {at, drag_to} | ok (ui-tester line) |
+  | Hole position locks `f.lock[i] = {x, y}` | add_feature / edit_feature `lock` (true / false / per position); get_model `lock` | **added** |
+  | Thread rows in the suggestions | gui_action suggest; edit_feature thread / set_look threads | ok |
+  | Mechanism min / max, "set min / max here" | set_travel {min, max: number \| "here"} | **added** "here" (Assembly.limitHere) |
+  | Ball joints, springs, check valves | snap_faces ball / seat / spring / rigid; set_travel follow | ok |
+  | Two-face joint in either order; ∥ on an axis | snap_faces (swaps; turns about the pin) | ok (described) |
+  | Probes and receptacles; library_pair; screws + nuts + washers | library_search, library_add, library_pair {role \| set} | ok; system prompt lists them now |
+  | Cable clips; igus chains | library_search (clips / chains named), library_add; edit_harness clip | description **fixed** |
+  | Chain travel, links, moves with | edit_chain {links, travel, moves_with, name, remove} | **new tool** |
+  | Harness points: locks | edit_harness lock_points / unlock_points | ok |
+  | Harness points: insert / delete / reorder / move | edit_harness insert_points, remove_points, order, set_points | **added** |
+  | Axis snap ("point at the centre of this face") | add_harness / edit_harness {part, face} (a flat face's frame centre, a hole's axis) | ok (described) |
+  | Span lengths, loops, locked total, taut | edit_harness spans, length_locked / length; taut | ok |
+  | Collisions with their spans | through_at, still_hits, detour_points | ok (description names them now) |
+  | Clips at points; chains on spans | edit_harness clip / chain | ok |
+  | Tolerance, fit, roughness chips | sheet_edit dims.tol, fits, roughness, texts.surface | ok (drawing lines in automation-design) |
+  | Missing dimensions with views | get_sheet check.missing, sheet_edit add {missing, view} | ok |
+  | A dimension moved to another view | sheet_edit move {id: {view}} (otherViews / moveDim) | **added** |
+  | Title block edits | sheet_edit texts, template, title_style … | ok |
+  | Dock widgets: layout, autosize, rows | set_layout {widget, place, at, fold, auto_height, rows, reset} | **new tool** (leftdock.js layoutHandlers) |
+  | Suggestions closed / opened, Automatically | set_layout {suggestions: {closed, auto}}; gui_state suggestions | **added** |
+  | Bottom row: Joints / Dimensions | set_view {joints} (setShowKind) / set_view {sizes} | **added** joints |
+  | 📏 Measurements table | measure, list_measurements, clear_measurements | ok |
+  | Versions graph, variants | list_versions … delete_variant | ok |
+  | ⏺ Recording | start_recording, stop_recording, get_recording, get_recording_screenshot | ok |
+  | 📄 New project | new_project {new_window} (newproject.js newProjectHandlers: answered, then the page starts again) | **new tool** |
+  | Right-click OK; mouse side buttons | — (OK / undo tools do it) | no AI need |
+
+  Wiring: TOOL_LABEL + Czech (edit_chain, set_layout, new_project; the missing Czech of routing / changing a cable),
+  tests/test_agent_wiring.py HANDLER_BLOCKS (chains.js, leftdock.js, newproject.js), skills — model-a-part (hole
+  properties, locks), assemble-parts (min / max here, points, chains, joints shown), automation-design (fits, roughness,
+  move to a view), teach-the-user (the screen itself), ui-tester (the newer features' GUI vs tool). Test:
+  tools/e2e_ai_features.py (45 checks, through /api/agent/call). Left out: get_sheet listing each dimension's other
+  views (the move error lists them); a chain's own MCP tool for adding one (library_add does).
+
 - **⇤⇥ Limits where the owner looks (2026-10-30)** (the owner: "v mechanismech chybí nastavení min max limitů").
   mechanism.js: under each row's slider limHtml — "⇤ min … max ° ⇥" as borderless inputs (typed in place, Enter / Tab
   sets, Esc as it was), "full turn", or "no limits" + ⇤⇥ Limits (MechanismPanel.firstLimits: the free stretch around

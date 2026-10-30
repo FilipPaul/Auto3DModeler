@@ -56,7 +56,12 @@ If the brief says "any way that reaches the goal", you may use one detailed prof
      A hole for a screw: `standard: "M5"` + its own properties instead of `d` — `shape: "plain"` (default) /
      `"counterbore"` / `"countersink"`, `thread: true` for a threaded hole (the tap drill Ø4.2; without: the clearance
      Ø5.5), `through` or `depth` — the ISO sizes are filled in (M5 counterbore: Ø5.5 with ⌴ Ø10 ↧ 5.4; threaded:
-     Ø4.2 with the same head; the drawing says so). (The old `hole_type: "clearance" | "tapped" | …` still works.)
+     Ø4.2 with the same head; the drawing says so). Each property changes on its own: `edit_feature {id, fields:
+     {standard: "M6"}}`, `{thread: true}`, `{shape: "countersink"}`, `{through: false, depth: 8}`. (The old single
+     `hole_type: "clearance" | "tapped" | …` is still read — write shape + thread + standard.)
+     The user can drag a made hole on its face (it snaps to corners, middles, centres); a size they typed is 🔒 locked
+     against that. `get_model` gives each hole's distances (`from`) and `lock`; `lock: true` (or `[{x: true}, …]` per
+     position) in add_feature / edit_feature locks positions you placed by a size the user asked for.
      A hole for a D-shaft (a knob, a stepper motor's shaft): `shape: "d_flat", d: 5, flat: 4.5` (the size across
      the flat; left out: the common D-shaft's — Ø5: 4.5); the flat faces the face's +x, `flat_angle: 90` turns it.
    - Pockets / bosses: a sketch with `plane: {face: "<face name>"}` (its origin is the face's centre), then

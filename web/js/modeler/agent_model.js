@@ -314,6 +314,21 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
     }
     return out;
   }) : from);
+  /** 🔒 A hole's positions locked (the user's drag keeps them — holedrag.js; the kernel ignores it): true = every
+   *  position both ways, false / null = none, [{x, y} | true | null, …] per position -> f.lock, or null. */
+  const holeLock = (lock, n) => {
+    if (!lock) return null;
+    if (lock !== true && !Array.isArray(lock)) throw new Error('lock: true (every position, both ways), false (none) or [{x: true, y: true} | null, …] — one per position.');
+    const one = (q) => (q === true ? { x: true, y: true } : q && typeof q === 'object' ? Object.fromEntries(['x', 'y'].filter((k) => q[k]).map((k) => [k, true])) : {});
+    const out = Array.from({ length: n }, (_, i) => { const q = one(lock === true ? true : lock[i]); return Object.keys(q).length ? q : null; });
+    return out.some(Boolean) ? out : null;
+  };
+  /** A hole's stored distances, short for the AI: per position {x, y: {d, from: "edge" | "axis" | "mid" | "hole", ref}}. */
+  const fromInfo = (from) => (from || []).map((s) => Object.fromEntries(['x', 'y'].filter((k) => s?.[k]).map((k) => {
+    const q = s[k], kind = ['edge', 'axis', 'mid', 'hole'].find((x) => q[x] !== undefined);
+    const ref = kind === 'edge' ? `${q.edge.a}|${q.edge.b}` : kind === 'axis' ? q.axis.face : kind === 'mid' ? q.mid.map((e) => `${e.a}|${e.b}`) : kind === 'hole' ? q.hole : undefined;
+    return [k, { d: q.d, ...(kind ? { from: kind } : {}), ...(ref !== undefined ? { ref } : {}) }];
+  })));
 
   /** A feature from the AI's description -> the feature JSON the modeler stores. */
   const build = (spec) => {
@@ -379,7 +394,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
             : { d: spec.d ?? 5, ...(spec.thread ? { thread: spec.thread } : {}), ...headOf(spec, spec.thread ? parseFloat(spec.thread.slice(1)) : spec.d ?? 5) };
       return { ...base, plane, points, ...sizes,
         through: spec.through !== false, depth: spec.depth ?? 10, ...(spec.from ? { from: holeFrom(spec.from) } : {}), ...(fitOf(spec.fit) ? { fit: fitOf(spec.fit) } : {}),
-        ...(spec.teardrop ? { teardrop: true } : {}) };
+        ...(spec.teardrop ? { teardrop: true } : {}), ...(holeLock(spec.lock, points.length) ? { lock: holeLock(spec.lock, points.length) } : {}) };
     }
     if (type === 'rib') {
       const sk = spec.sketch || [...m.sketches()].pop()?.id;
@@ -569,7 +584,8 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         if (f.plane?.origin) out.origin = f.plane.origin;
         const W = f.type === 'hole' && f.plane?.origin === 'world' ? worldToUV(f.plane.frame) : null; // (as given: world X / Y)
         if (f.type === 'hole') Object.assign(out, { face: f.plane?.face?.name, ...(f.shape || f.hole_type ? { shape: holeSpec(f).shape, standard: holeSpec(f).standard || undefined } : {}), ...(holeSpec(f).shape === 'd_flat' ? { flat: f.flat, ...(f.flat_angle ? { flat_angle: f.flat_angle } : {}) } : {}), d: f.d, ...(f.thread ? { thread: f.thread } : {}), points: W ? f.points.map(([u, v]) => [u, W.flip ? -v : v]) : f.points, through: f.through !== false, depth: f.depth, ...(f.fit ? { fit: f.fit } : {}),
-          ...(f.head ? { head: f.head, head_d: f.head_d, ...(f.head_depth ? { head_depth: f.head_depth } : {}), ...(f.head_angle ? { head_angle: f.head_angle } : {}) } : {}), ...(f.teardrop ? { teardrop: true } : {}) });
+          ...(f.head ? { head: f.head, head_d: f.head_d, ...(f.head_depth ? { head_depth: f.head_depth } : {}), ...(f.head_angle ? { head_angle: f.head_angle } : {}) } : {}), ...(f.teardrop ? { teardrop: true } : {}),
+          ...(f.from?.some(Boolean) ? { from: fromInfo(f.from) } : {}), ...(f.lock ? { lock: f.lock } : {}) });
         if (f.type === 'shell') Object.assign(out, { t: f.t, open_faces: f.faces.map((x) => x.name) });
         if (f.type === 'loft') Object.assign(out, { sketches: f.sketches, op: f.op });
         if (f.type === 'sweep') Object.assign(out, { profile: f.profile, path: f.path, op: f.op });
@@ -740,6 +756,7 @@ export function modelHandlers({ modeler: m, project, getWorkspace }) {
         if ('head' in fields && !fields.head) for (const k of ['head', 'head_d', 'head_depth', 'head_angle']) delete f[k]; // (its head taken off)
         if ('teardrop' in fields && !fields.teardrop) delete f.teardrop; // (round again)
         if ('chain' in fields && fields.chain !== false) delete f.chain; // (⛓ on again: the default)
+        if (f.type === 'hole' && !next.lock) delete f.lock; // (🔒 taken off — or its positions gone)
         if (f.type === 'extrude') { // up to next / up to a face / a distance: one at a time; d2 off (or symmetric on): no other side
           if (!next.upto_next) delete f.upto_next;
           if (fields.upto_next || ('up_to' in fields && !fields.up_to)) delete f.upto;
