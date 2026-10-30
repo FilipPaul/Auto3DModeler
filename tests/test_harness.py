@@ -160,6 +160,20 @@ class TestRoute(unittest.TestCase):
         self.assertTrue(both["total_ignored"])
         self.assertAlmostEqual(both["length"], 140, delta=0.5)
 
+    def test_span_with_a_lead(self):
+        """➰ A span that starts at an end on a face (its lead straight up, then on): its own length kept all the same
+        (its slack on its other leg, the lead straight); the whole cable locked: the lead stays straight too."""
+        free = lambda p, rad: None  # noqa: E731  (nothing round it)
+        pts, R = [[0, 0, 10], [120, 0, 10], [120, 80, 10]], 15
+        base = H.avoid(pts, R, 6, free, normals=[[0, 0, 1], None, None])
+        r = H.avoid(pts, R, 6, free, normals=[[0, 0, 1], None, None], spans={0: base["spans"][0] + 40})
+        self.assertAlmostEqual(r["spans"][0], base["spans"][0] + 40, delta=0.5)
+        self.assertEqual(r["dropped"], [])
+        self.assertTrue(np.allclose(r["points"][1], base["points"][1]))  # (the lead as it was)
+        t = H.avoid(pts, R, 6, free, normals=[[0, 0, 1], None, None], total=base["length"] + 60)
+        self.assertAlmostEqual(t["length"], base["length"] + 60, delta=0.5)
+        self.assertTrue(all(b["ok"] for b in t["bends"]), t["bends"])
+
     def test_bundle(self):
         for n, k in ((1, 1), (3, 2.155), (7, 3)):
             self.assertAlmostEqual(H.bundle_d(n, 1.5), k * 1.5, places=2)
@@ -236,6 +250,77 @@ class TestSolid(unittest.TestCase):
             self.assertFalse(r["ok"])
             self.assertIn(why, " ".join(r["features"][0]["issues"]))
 
+
+def sd_cylinder(p, r, h):
+    """Signed distance from p to a cylinder round the z axis, radius r, z 0 … h (< 0 inside)."""
+    q = (math.hypot(p[0], p[1]) - r, abs(p[2] - h / 2) - h / 2)
+    return min(max(q[0], q[1]), 0.0) + math.hypot(max(q[0], 0.0), max(q[1], 0.0))
+
+
+def sd_box(p, lo, hi):
+    """Signed distance from p to an axis-aligned box lo … hi (< 0 inside)."""
+    c, e = [(a + b) / 2 for a, b in zip(lo, hi)], [(b - a) / 2 for a, b in zip(lo, hi)]
+    q = [abs(p[i] - c[i]) - e[i] for i in range(3)]
+    return min(max(q), 0.0) + math.sqrt(sum(max(x, 0.0) ** 2 for x in q))
+
+
+def prober(sd):
+    """probe(p, rad) for avoid from a signed distance: too near -> out along its gradient to rad clear."""
+    def probe(p, rad):
+        s = sd(p)
+        if s >= rad:
+            return None
+        g = np.array([sd(p + e) - sd(p - e) for e in np.eye(3) * 1e-4]) / 2e-4
+        return g / (np.linalg.norm(g) or 1) * (rad - s)
+    return probe
+
+
+@unittest.skipUnless(OCC, "OCP not installed")
+class TestAvoid(unittest.TestCase):
+    """The cable kept clear of other bodies: its end on a pin's top leaves it square (a lead), a span through a box's
+    corner goes round it; the clicked points stay; the tube built from the result does not touch them (the kernel's
+    least distance > 0)."""
+
+    def tube(self, r, d):
+        st, _ = doc.evaluate([{"id": "H1", "type": "harness", "kind": "cable", "points": [list(map(float, p)) for p in r["points"]], "d": d, "r_min": 15}])
+        return st.body.shape
+
+    def body(self, sketch, height):
+        """A body extruded from a sketch on XY: points + entities (as the modeller's sketch step)."""
+        pts, ents = sketch
+        st, _ = doc.evaluate([{"id": "S1", "type": "sketch", "plane": {"datum": "XY"}, "points": pts, "entities": ents},
+                              {"id": "E1", "type": "extrude", "sketch": "S1", "op": "add", "d": height}])
+        return st.body.shape
+
+    def test_end_on_a_pin(self):
+        d, R, lift = 6, 15, 3.5
+        start, end = [0, 0, 30 + lift], [60, 0, 5]
+        r = H.avoid([start, end], R, d, prober(lambda p: sd_cylinder(p, 10, 30)), normals=[[0, 0, 1], None])
+        up = r["points"][1]  # (straight up first, as far as the bend down to the other end needs)
+        self.assertTrue(np.allclose(up[:2], [0, 0]) and up[2] - start[2] >= H.lead_of(R, d) and np.isclose(up[2] - start[2], H.lead_of(R, d, np.array(start, float), np.array([0, 0, 1.0]), end)), up)
+        self.assertTrue(np.allclose(r["points"][0], start) and np.allclose(r["points"][-1], end))
+        self.assertEqual(r["clashes"], [])
+        self.assertTrue(all(b["ok"] for b in r["bends"]), r["bends"])
+        gap = K.min_distance(self.tube(r, d), self.body(({"c": [0, 0]}, [{"id": "k", "t": "circle", "c": "c", "r": 10}]), 30))
+        self.assertGreater(gap["distance"], 0.0)
+        self.assertFalse(gap.get("overlap"))
+        straight = H.route([start, end], R)  # (without it: the straight cable goes into the pin)
+        self.assertTrue(any(sd_cylinder(p, 10, 30) < d / 2 for p in H.samples(straight, 1.0)))
+
+    def test_span_through_a_box_corner(self):
+        d, R = 6, 15
+        a, b = [-20, 30, 20], [30, -20, 20]  # (straight: through the corner x, y < 10 of the box 0 … 40)
+        sd = lambda p: sd_box(p, [0, 0, 0], [40, 40, 40])  # noqa: E731
+        self.assertTrue(any(sd(p) < 0 for p in H.samples(H.route([a, b], R), 1.0)))
+        r = H.avoid([a, b], R, d, prober(sd))
+        self.assertTrue(np.allclose(r["points"][0], a) and np.allclose(r["points"][-1], b))  # (the anchors kept)
+        self.assertGreater(len(r["points"]), 2)  # (a detour put in)
+        self.assertEqual(r["clashes"], [])
+        self.assertTrue(all(b_["ok"] for b_ in r["bends"]), r["bends"])
+        s = sample(r, 1500)
+        self.assertGreaterEqual(min(circum_r(*s[k - 1:k + 2]) for k in range(1, len(s) - 1)), R * (1 - 1e-3))
+        gap = K.min_distance(self.tube(r, d), self.body(({"p1": [0, 0], "p2": [40, 0], "p3": [40, 40], "p4": [0, 40]}, [{"id": f"l{i + 1}", "t": "line", "a": f"p{i + 1}", "b": f"p{(i + 1) % 4 + 1}"} for i in range(4)]), 40))
+        self.assertGreater(gap["distance"], 0.0)
 
 if __name__ == "__main__":
     unittest.main()

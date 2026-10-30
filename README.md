@@ -1165,7 +1165,13 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   with its length now (left as it is: that length is locked). Longer makes a loop of slack there that keeps the bend
   radius, out of the corners (down where nothing else decides), exactly that long; when the parts move the span keeps
   it, pulled too far it goes straight with *⚠ Úsek 3–4 je napnutý — krátký o 12 mm*. The spans' lengths win over a
-  locked length of the whole cable (the panel says so). *⚠ Goes through Motor I3* when its centre line passes through a part. It is drawn as tubes (loose wires
+  locked length of the whole cable (the panel says so).
+  **It keeps clear of the parts**: an end on a face leaves it straight out (as far as its bend needs), so the bundle
+  never sits in the part it starts on, and where a span would go through or graze another part the cable goes round
+  it — a point of its own put in beside the part (and moved further out until the bend clears it), your clicked
+  points staying where they are. This is worked out a moment after a change (while you drag, the cable follows at
+  once and settles round the parts when you stop). Where it cannot get clear, a small *⚠ kabel koliduje s Blok I6*
+  sits at the spot. A span with its own length that needs a detour loses that length (the AI is told). *⚠ Goes through Motor I3* when its centre line passes through a part. It is drawn as tubes (loose wires
   twisted round the centre line in their colours, a ribbon flat, a sleeve corrugated), listed in the assembly tree
   (*🔌 Svazek 1 · 4 × Ø1,5 · 1 284 mm*), in the **BOM** a line per wire or cable with its length + a reserve (5 %, under
   *More*) rounded up to 10 mm — *Vodič Ø1,5 mm hnědý — 1 350 mm* — and in the **STEP / GLB / IGES** exports (a part

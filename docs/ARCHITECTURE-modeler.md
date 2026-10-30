@@ -59,7 +59,23 @@ Date: 2026-10-25. Written by the architect agent.
   (totalIgnored, said in the panel); too short: that span straight, taut {span, short}. editPts keeps a span while its
   two points stay neighbours. UI: this.span (the chosen cable clicked again: cableNear's leg; the list's length
   between two rows), the suggestion ➰ Smyčka / volná délka -> one input (empty: its length now). The step's `spans`
-  give STEP the same. AI: edit_harness spans [{from: point number, length | null}], get_assembly `spans`. Drawn as TubeGeometry along a by-length curve (wires twisted round the centre, a ribbon flat — ExtrudeGeometry
+  give STEP the same. AI: edit_harness spans [{from: point number, length | null}], get_assembly `spans`.
+  Clear of the parts (2026-10-30, the owner: "kabel by měl … nenarážet do ostatních objektů"): leads — an end with a
+  face normal gets a point out along it, lead_of = r_min · tan(half the turn to the next point, ≤ 160°) + Ø (at least
+  r_min + Ø) —; avoid / avoidRoute — the shaped route sampled every rad / 2 (rad = Ø/2 + 0.5), each sample probed
+  (Python: a callable, the tests' signed distances; the browser: the parts' meshes — inside by ray parity, out through
+  the nearest of 14 directions; outside nearer than rad: away), the deepest hit of each leg becomes a detour point
+  (push + rad / 2) or moves the leg's own detour point further out, shaped again, ≤ 6 rounds; the clicked points stay.
+  The browser keeps the result per harness for the points it was worked out for (AVOID, keyed by the points, end
+  normals, r_min, Ø, lengths): avoidAll runs 400 ms after a change with checkThrough, so a drag shows the leads at once
+  and the detours when it stops. routeAt / docRoute -> routeOf -> routeE (shape on the expanded points, bends / spans /
+  taut told back by the clicked points). The export sends those points (harnessStep) — STEP is the drawn cable.
+  Markers "kabel koliduje s …" where it still goes through / grazes a part; get_assembly detour_points, still_hits,
+  spans_not_kept. The detours are found on the taut route; a locked length's slack then bows on the legs but the
+  leads (`still`, sent in the step too); a span with its own length gets no detours (its length wins, a hit is
+  told) and, holding a lead, its slack on its longest other leg (its target corrected until the whole span is
+  right). A bow sits in the straight part of its leg (between the end corners' arcs), so the length grows smoothly
+  with its depth. A bend within 3 % of r_min counts as kept (no note for a lead's corner a hair tighter). Drawn as TubeGeometry along a by-length curve (wires twisted round the centre, a ribbon flat — ExtrudeGeometry
   turned level at its start —, a sleeve corrugated); ⚠ through a part: the centre line's samples tested by ray parity
   against the parts' meshes. BOM (bom.js): a line per wire / cable "Vodič Ø1,5 mm hnědý — 1 350 mm" (+ reserve, up to
   10 mm), kind harness, no position. Export: a part per harness with one step {type: "harness"} (doc.py ->
@@ -70,7 +86,9 @@ Date: 2026-10-25. Written by the architect agent.
   tests/test_harness.py (straight, L = straight parts + πR/2, an L sampled G1 with curvature radius ≥ R, a Z / two
   45° turns shaped to R, only a U turn flagged, 🔒 400 mm kept ± 0.5 with the ends moved closer (curvature ≥ R,
   sagging), taut with the shortfall moved apart, a locked cable's solid π(d/2)²·L + STEP, fewer than 2 points, a
-  span 140 mm with its ends 100 / 130 apart (± 0.5, curvature ≥ R) and 150 (taut by 10), its solid, bundle Ø 1 / 3 / 7, cable volume
+  span 140 mm with its ends 100 / 130 apart (± 0.5, curvature ≥ R) and 150 (taut by 10), its solid, an end on a
+  pin's top (lead straight up, the tube's least distance to the pin > 0), a span through a box's corner (a detour,
+  anchors kept, curvature ≥ R, least distance > 0), bundle Ø 1 / 3 / 7, cable volume
   π(d/2)²·L + watertight + STEP round trip, 4 wire solids, ribbon / sleeve, errors), tools/e2e_harness.py.
   Left out: a sleeve is solid in STEP (not hollow); wires are laid side by side in STEP (twisted only on screen); the
   through-a-part check tests the centre line, not the Ø; a point on a part inside a moved sub-assembly is on the

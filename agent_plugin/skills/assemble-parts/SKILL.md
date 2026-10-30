@@ -115,7 +115,9 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    axis, so the length holds as the joint turns). `through_at` says where it goes through a part (the span between
    two points, the spot) — add a point there to lead it round. A service loop between two points:
    `edit_harness {id, spans: [{from: 3, length: 180}]}` (the cable from point 3 to 4 that long: slack that keeps
-   r_min and holds as the parts move; no length: as it is now; null: none). STEP / GLB exports and the assembly drawing include it.
+   r_min and holds as the parts move; no length: as it is now; null: none). The cable keeps clear of the parts by
+   itself (its ends leave their faces straight out, a span goes round a part in its way): `detour_points` says how
+   many it put in, `still_hits` names parts it could not get clear of — add a point to lead it round those. STEP / GLB exports and the assembly drawing include it.
 
 Files for the user: `export {format: "step"}` (the whole assembly as a STEP assembly — SolidWorks, CATIA and Solid
 Edge open it as an assembly tree, a product per part, sub-assemblies nested), `"iges"` (every part placed in one IGES —

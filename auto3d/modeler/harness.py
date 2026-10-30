@@ -1,15 +1,16 @@
 """🔌 Cable harnesses (the assembly's 🔌 Cable harness, web/js/assembly/harness.js): the route through the clicked
 points shaped to the minimum bend radius — a polyline with each corner an arc of that radius (straight lines + arcs;
 two corners too close for it moved apart along their outer legs; only a corner that nothing makes fit gets the
-largest radius that does and is reported) —, its length, a bundle's outer Ø
-from its wires' circle packing, and the solid for STEP / GLB / the drawing: a circle (one per wire, a ribbon's
-rectangle) swept along the route (kernel.pipe_body). The browser does the same math for its live preview.
+largest radius that does and is reported) —, its length, a bundle's outer Ø from its wires' circle packing, its ends
+leaving their faces square and its detours round other bodies (leads, avoid), and the solid for STEP / GLB / the
+drawing: a circle (one per wire, a ribbon's rectangle) swept along the route (kernel.pipe_body). The browser does the same math for its live preview.
 
 A harness as a step of a part (an assembly's export makes one part per harness, placed where it is):
   {"id": "H1", "type": "harness", "kind": "cable" | "wires" | "ribbon" | "sleeve", "points": [[x, y, z], …] (the
    route's centre line), "d": Ø of a cable / sleeve, "wires": [{"d": 1.5, "color": "brown"}] (loose wires, a ribbon's
    count), "pitch": 1.27 (a ribbon's wire spacing), "r_min": 15, "length": 400 (🔒 its locked length: the slack sags,
-   see shape)}
+   see shape), "spans": [{"from", "length"}] (➰ a span's own length), "still": [legs the slack leaves straight: the
+   ends' leads]}
 """
 import math
 
@@ -146,7 +147,7 @@ def route(points, r_min):
             station[i] = length + float(np.linalg.norm(P[i] - at))
             continue
         T, r = Ts[i], Rs[i]
-        ok = r >= r_min * (1 - 1e-6)
+        ok = r >= r_min * 0.97  # (3 % under it: within what a bend of a cable is made to — not worth a note)
         bends.append({"at": i, "r": r, "ok": ok, "angle": math.degrees(a)})
         A, B = P[i] - U[i - 1] * T, P[i] + U[i] * T
         if np.linalg.norm(A - at) > 1e-9:
@@ -171,7 +172,8 @@ def route(points, r_min):
 def _sag(a, b, before=None, after=None):
     """Which way a span's slack bows (square to it): out of the corners at its ends — the way the cable comes in
     (before: the leg before it), away from where it goes on (after: the leg after it) —, so the bow leaves its ends
-    without a sharp turn; with little of that (an end span, a straight run), down (−z) as it hangs; a vertical span
+    without a sharp turn; its corners turning opposite ways (an S: out of one is into the other), square to their
+    plane, the downward side; with little of that (an end span, a straight run), down (−z) as it hangs; a vertical span
     with nothing to go by: along x."""
     u = (b - a) / np.linalg.norm(b - a)
     sq = lambda g: g - (g @ u) * u  # noqa: E731  (the part of g square to the span)
@@ -180,6 +182,11 @@ def _sag(a, b, before=None, after=None):
         n += sq(before / np.linalg.norm(before))
     if after is not None:
         n -= sq(after / np.linalg.norm(after))
+    if before is not None and after is not None and np.linalg.norm(n) < 0.5 and np.linalg.norm(sq(before / np.linalg.norm(before))) > 0.5:
+        side = np.cross(u, sq(before / np.linalg.norm(before)))
+        if np.linalg.norm(side) > 1e-6:
+            side /= np.linalg.norm(side)
+            return -side if side[2] > 0 else side
     n += 0.25 * sq(np.array([0, 0, -1.0]))
     if np.linalg.norm(n) > 0.05:
         return n / np.linalg.norm(n)
@@ -190,28 +197,34 @@ def _sag(a, b, before=None, after=None):
 
 
 def _bowed(P, h, r_min):
-    """The points with each span k bowed h[k] mm (0: straight): two points put in, at the span's middle ± a quarter of
-    it + h / 2 (no more than r_min: a deep loop on a short span reaches out past its ends) and h off it the way it hangs (_sag)
-    — a flat-bottomed bow the corners round at r_min -> (points, where each point of P went)."""
+    """The points with each span k bowed h[k] mm (0: straight): two points put in, in the middle of its straight part
+    (between the arcs of its end corners) ± a quarter of that + h / 2 (no more than r_min: a deep loop on a short span
+    reaches out past it) and h off it the way it hangs (_sag) — a flat-bottomed bow the corners round at r_min; a
+    shallow bow leaves the end corners as they were (its length grows smoothly with h) -> (points, where each point of
+    P went)."""
     out, where = [P[0]], [0]
+    T = _fit(P, r_min)[4] if r_min > 0 and len(P) > 2 else [0.0] * len(P)
     for k in range(len(P) - 1):
         a, b = P[k], P[k + 1]
         if h[k] > 1e-9:
             L, n = float(np.linalg.norm(b - a)), _sag(a, b, P[k] - P[k - 1] if k > 0 else None, P[k + 2] - P[k + 1] if k + 2 < len(P) else None)
-            u, w = (b - a) / L, min(r_min, L / 4 + h[k] / 2) if r_min > 0 else L / 4
-            out += [a + u * (L / 2 - w) + n * h[k], a + u * (L / 2 + w) + n * h[k]]
+            s0, s1 = (T[k], L - T[k + 1]) if L - T[k] - T[k + 1] > 1e-6 else (0.0, L)  # (its straight part)
+            m, f = (s0 + s1) / 2, s1 - s0
+            u, w = (b - a) / L, min(r_min, f / 4 + h[k] / 2) if r_min > 0 else f / 4
+            out += [a + u * (m - w) + n * h[k], a + u * (m + w) + n * h[k]]
         out.append(b)
         where.append(len(out) - 1)
     return out, where
 
 
-def shape(points, r_min, spans=None, total=None):
+def shape(points, r_min, spans=None, total=None, still=()):
     """The route with slack: a span (the cable between points k and k + 1) given its own length gets a bow that hangs
     the way gravity pulls (_bowed), as deep as makes it that long (its length: from corner to corner, each corner's
     place the middle of its arc — they add up to the whole); the whole cable given a length (total) bows all its spans
     alike (each as deep as it is long) — the spans' own lengths win when both are given. Too short for its ends: the
     span (the cable) straight, taut, reported with how much it is short.
-    spans: {k: length} -> route(…) + {"spans": [length of each span], "taut": [{"span": k | None, "short": mm}],
+    spans: {k: length}; still: legs the whole cable's slack leaves straight (an end's lead) -> route(…) + {"spans":
+    [length of each span], "taut": [{"span": k | None, "short": mm}],
     "total_ignored": spans and total both given}."""
     P = [np.asarray(p, float) for p in points]
     keep = [k for k, p in enumerate(P) if k == 0 or np.linalg.norm(p - P[k - 1]) > 1e-6]
@@ -241,7 +254,7 @@ def shape(points, r_min, spans=None, total=None):
                     continue
                 h[k] = _solve(lambda x: run(h[:k] + [x] + h[k + 1:])["spans"][k], v, float(np.linalg.norm(P[k + 1] - P[k])))
     elif len(P) >= 2 and total and float(total) > 0:
-        legs = [float(np.linalg.norm(P[k + 1] - P[k])) for k in range(len(P) - 1)]
+        legs = [0.0 if k in still else float(np.linalg.norm(P[k + 1] - P[k])) for k in range(len(P) - 1)]
         L0 = run(h)["length"]
         if L0 > float(total) + 0.5:
             taut.append({"span": None, "short": L0 - float(total)})
@@ -269,6 +282,149 @@ def _solve(f, target, scale):
     return (lo + hi) / 2
 
 
+def leads(points, normals=None, r_min=0.0, d=0.0):
+    """An end of the cable on a face leaves it square: a point out along that face's normal (normals: one per point,
+    None where it is not on a face) put in after the first point / before the last, as far out as the bend towards the
+    next point needs at r_min (lead_of) -> (points, where each given point went)."""
+    P = [np.asarray(p, float) for p in points]
+    out, where = list(P), list(range(len(P)))
+    if len(P) < 2 or not normals:
+        return out, where
+    n0, n1 = normals[0], normals[-1]
+    if n1 is not None and np.linalg.norm(n1) > 1e-9:
+        n = np.asarray(n1, float) / np.linalg.norm(n1)
+        out.insert(len(out) - 1, P[-1] + n * lead_of(r_min, d, P[-1], n, P[-2]))
+        where[-1] += 1
+    if n0 is not None and np.linalg.norm(n0) > 1e-9:
+        n = np.asarray(n0, float) / np.linalg.norm(n0)
+        out.insert(1, P[0] + n * lead_of(r_min, d, P[0], n, P[1]))
+        where = [0] + [w + 1 for w in where[1:]]
+    return out, where
+
+
+def lead_of(r_min, d, p=None, n=None, nxt=None):
+    """How far an end goes straight out of its face (at p, its normal n) before it bends towards nxt: room for that
+    bend at r_min (r_min · tan of half its turn, the turn at most 160°; at least a right angle's), + Ø."""
+    r_min, d = float(r_min or 0), float(d)
+    L = max(r_min, d) + d
+    if p is None or nxt is None:
+        return L
+    for _ in range(3):  # (further out, the turn towards nxt changes a little: again)
+        v = np.asarray(nxt, float) - (p + n * L)
+        if np.linalg.norm(v) < 1e-9:
+            break
+        turn = math.acos(max(-1.0, min(1.0, float(n @ v / np.linalg.norm(v)))))
+        L = max(max(r_min, d), r_min * math.tan(min(turn, math.radians(160)) / 2)) + d
+    return L
+
+
+def samples(r, step):
+    """Points every ~step mm along a route's segments -> [np.array]."""
+    out = []
+    for s in r["segments"]:
+        a = np.asarray(s[1], float)
+        if s[0] == "line":
+            b = np.asarray(s[2], float)
+            n = max(1, int(math.ceil(np.linalg.norm(b - a) / step)))
+            out += [a + (b - a) * (k / n) for k in range(n)]
+        else:
+            c, rad, ang, b = np.asarray(s[4], float), s[5], s[6], np.asarray(s[3], float)
+            x = (a - c) / rad
+            y = (b - c) - ((b - c) @ x) * x
+            y /= np.linalg.norm(y)
+            n = max(2, int(math.ceil(rad * ang / step)))
+            out += [c + rad * (x * math.cos(ang * k / n) + y * math.sin(ang * k / n)) for k in range(n)]
+    if r["segments"]:
+        last = r["segments"][-1]
+        out.append(np.asarray(last[3] if last[0] == "arc" else last[2], float))
+    return out
+
+
+def _leg_of(E, p):
+    """The leg of the polyline E nearest to p (its index: from E[k] to E[k + 1])."""
+    best, bd = 0, math.inf
+    for k in range(len(E) - 1):
+        a, b = E[k], E[k + 1]
+        ab = b - a
+        t = 0.0 if ab @ ab < 1e-12 else max(0.0, min(1.0, float((p - a) @ ab / (ab @ ab))))
+        dd = float(np.linalg.norm(a + ab * t - p))
+        if dd < bd:
+            best, bd = k, dd
+    return best
+
+
+def avoid(points, r_min, d, probe, normals=None, spans=None, total=None, clear=0.5, rounds=6):
+    """The route kept clear of the other bodies: the ends on a face leave it square (leads), then the shaped route
+    sampled and every sample too near a body (probe(p, rad) -> how far and which way to move p so that a tube of
+    radius rad there is clear, or None) pushed out: for each leg the deepest one becomes a point of its own, the
+    route shaped again — a few rounds. The clicked points stay as they are (anchors). A span with its own length that
+    gets a point put in keeps none (said in "dropped"). -> shape(…) of the points + {"points": the points it runs
+    through, "where": where each given point went, "clashes": [spots still too near], "spans" per given span,
+    "dropped": [spans whose own length could not be kept]}."""
+    rad = float(d) / 2 + clear
+    E, where = leads(points, normals, r_min, d)
+    detour = [False] * len(E)  # (the points put in round a body: they may move further out)
+
+    def hits(r):
+        out = []
+        for p in samples(r, max(0.5, rad / 3)):
+            push = probe(p, float(d) / 2 + clear / 2)  # (lying on a face, Ø/2 + clear off it, is fine: only nearer than Ø/2 + clear/2 counts)
+            if push is not None and np.linalg.norm(push) > 1e-9:
+                out.append((p, np.asarray(push, float)))
+        return out
+
+    for _ in range(rounds):
+        r = shape(E, r_min)  # (round the bodies as it runs taut: a locked length's slack then sags in the room left)
+        best = {}
+        for p, push in hits(r):
+            k = _leg_of(E, p)
+            if any(where[j] <= k < where[j + 1] for j in (spans or {}) if j + 1 < len(where)):
+                continue  # (a leg of a span with its own length: that length wins, a hit there is told)
+            if k not in best or np.linalg.norm(push) > np.linalg.norm(best[k][1]):
+                best[k] = (p, push)
+        if not best:
+            break
+        for k in sorted(best, reverse=True):
+            p, push = best[k]
+            out = push / np.linalg.norm(push) * (np.linalg.norm(push) + rad / 2)  # (half a radius to spare: the arcs cut in)
+            near = [j for j in (k, k + 1) if detour[j] and np.linalg.norm(E[j] - p) < 2 * r_min + rad]
+            if near:  # (by a detour point of its own: that one further out — one corner round the body, not a cluster)
+                j = min(near, key=lambda j: np.linalg.norm(E[j] - p))
+                E[j] = E[j] + out
+                continue
+            E.insert(k + 1, p + out)
+            detour.insert(k + 1, True)
+            where = [w + 1 if w > k else w for w in where]
+    still = ([0] if normals and normals[0] is not None else []) + ([len(E) - 2] if normals and normals[-1] is not None else [])
+    leg_of, own = {}, {}
+    for k, v in (spans or {}).items():  # (a span of several legs — a lead in it: its slack on its longest other leg)
+        legs = [j for j in range(where[k], where[k + 1]) if j not in still] if k + 1 < len(where) else []
+        if legs:
+            leg_of[k] = max(legs, key=lambda j: np.linalg.norm(E[j + 1] - E[j]))
+            own[leg_of[k]] = float(v)
+    r = shape(E, r_min, own, total, still)  # (its leads stay straight)
+    for _ in range(4):  # (that leg's length set so that the whole span is its length: its other legs' share taken off)
+        off = 0
+        for k, j in leg_of.items():
+            dl = float(spans[k]) - sum(r["spans"][where[k]:where[k + 1]])
+            if abs(dl) > 0.05 and own[j] + dl > 0 and not any(t["span"] == j for t in r["taut"]):
+                own[j] += dl
+                off += 1
+        if not off:
+            break
+        r = shape(E, r_min, own, total, still)
+    back = lambda i: max(k for k, w in enumerate(where) if w <= i)  # noqa: E731  (a point of E -> the given point before it)
+    r["bends"] = [dict(b, at=back(b["at"])) for b in r["bends"]]
+    r["taut"] = [dict(t, span=None if t["span"] is None else back(t["span"])) for t in r["taut"]]
+    r["points"], r["where"] = E, where
+    r["clashes"] = [p for p, _ in hits(r)]
+    r["spans"] = [sum(r["spans"][where[k]:where[k + 1]]) for k in range(len(where) - 1)] if len(E) > 1 else []
+    r["dropped"] = [k for k in (spans or {}) if k not in leg_of]
+    r["own"] = own
+    r["detours"] = sum(detour)
+    return r
+
+
 def _start_frame(t):
     """The route's first direction t and two directions across it (x: the most level one)."""
     x = np.cross(t, [0, 0, 1.0])
@@ -288,7 +444,7 @@ def solid(f, fid):
     if len(pts) < 2:
         raise K.KernelError("A harness needs at least two points.")
     spans = {int(s["from"]): float(s["length"]) for s in f.get("spans") or [] if s.get("length")}
-    r = shape(pts, f.get("r_min") or 0, spans, f.get("length"))
+    r = shape(pts, f.get("r_min") or 0, spans, f.get("length"), f.get("still") or ())
     if any(b["r"] <= 1e-9 for b in r["bends"]):
         raise K.KernelError("The harness turns back on itself at a point — move that point.")
     if not r["segments"] or r["length"] < 1e-6:

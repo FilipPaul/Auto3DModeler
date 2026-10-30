@@ -1164,7 +1164,7 @@ const CS = {
   'Point to the centre of this face / hole': 'Bod do středu této plochy / díry',
   'On its axis: the length stays the same as a joint turns about it': 'Na její ose: délka se nemění, když se kloub kolem ní otáčí',
   'with the next point {l} mm': 's dalším bodem {l} mm',
-  'Loop / slack': 'Smyčka / volná délka', 'Span {a}–{b} is taut — {x} mm short': 'Úsek {a}–{b} je napnutý — krátký o {x} mm',
+  'Loop / slack': 'Smyčka / volná délka', 'the cable hits {part}': 'kabel koliduje s {part}', 'Span {a}–{b} is taut — {x} mm short': 'Úsek {a}–{b} je napnutý — krátký o {x} mm',
   'Span {a}–{b}: type its length — longer makes a loop of slack that keeps the bend radius': 'Úsek {a}–{b}: zadejte jeho délku — delší udělá smyčku volné délky, která drží poloměr ohybu',
   'The cable\'s length between these two points: longer than now makes a loop of slack (empty: as it is now)': 'Délka kabelu mezi těmito dvěma body: delší než teď udělá smyčku volné délky (prázdné: zamknout aktuální délku)',
   'No length of its own': 'Bez vlastní délky', '➰ A loop / slack here: type this span\'s length': '➰ Smyčka / volná délka zde: zadejte délku úseku',
