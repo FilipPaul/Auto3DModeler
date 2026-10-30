@@ -59,19 +59,20 @@ def press(el):
 
 # Where to click a face, as a user aims: a round face (a hole, a pin's rim) — the point of its rim nearest the eye; a
 # flat or round face — where the hover lights it up, nearest the middle of what is seen of it (screen px from the
-# canvas' middle). What a click there picks is what the app's hover shows (idleSnap / roundEdgeAt / pickInst).
+# canvas' middle). What a click there picks is what the app's hover shows (idleSnap / roundEdgeAt / pickInst); a spot
+# under a panel (the floating suggestions) is not aimed at — the user sees the panel there, not the part.
 AIM = """
 const a = %s, v = a.view, [inst, name, kind] = arguments, it = a.inst(inst), b = a.bodyOf(it).body, m = new (v.camera.matrix.constructor)().fromArray(it.matrix);
 const r = v.renderer.domElement.getBoundingClientRect(), cx = Math.floor(r.left + r.width / 2), cy = Math.floor(r.top + r.height / 2);
 const P = new (v.camera.position.constructor)();
 const scr = (x, y, z) => { P.set(x, y, z).applyMatrix4(m); const [sx, sy] = v.toScreen(P.clone()); return [sx, sy, P.distanceTo(v.camera.position)]; };
 const ids = new Set(b.faces.filter(f => f.name === name).map(f => f.id)), idx = b.faces.map((f, i) => ids.has(f.id) ? i : -1).filter(i => i >= 0);
-const what = (sx, sy) => { const h = v.pickInst(sx, sy); if (a.idleSnap({ clientX: sx, clientY: sy }, h)?.snap) return null; const f = v.roundEdgeAt(sx, sy) || h; return f?.face ? f.inst + ':' + f.face.name : null; };
+const open = (sx, sy) => document.elementFromPoint(sx, sy) === v.renderer.domElement;
+const what = (sx, sy) => { if (!open(sx, sy)) return null; const h = v.pickInst(sx, sy); if (a.idleSnap({ clientX: sx, clientY: sy }, h)?.snap) return null; const f = v.roundEdgeAt(sx, sy) || h; return f?.face ? f.inst + ':' + f.face.name : null; };
 let out = [];
 if (kind === 'rim') {
   for (const e of b.edges || []) { if (!(e.faces || []).some(i => idx.includes(i))) continue; const p = e.pts; for (let k = 0; k + 2 < p.length; k += 3) out.push(scr(p[k], p[k + 1], p[k + 2])); }
-  out.sort((p, q) => p[2] - q[2]);
-  out = out.slice(0, 1);
+  out = out.filter(([sx, sy]) => open(sx, sy)).sort((p, q) => p[2] - q[2]).slice(0, 1);
 } else {
   const PF = b._P || (b._P = (typeof b.positions === 'string' ? new Float32Array(Uint8Array.from(atob(b.positions), c => c.charCodeAt(0)).buffer) : b.positions));
   const FF = b._F || (b._F = (typeof b.face_ids === 'string' ? new Uint32Array(Uint8Array.from(atob(b.face_ids), c => c.charCodeAt(0)).buffer) : b.face_ids));
