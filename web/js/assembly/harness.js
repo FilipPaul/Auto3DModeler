@@ -263,7 +263,8 @@ export function slackOf(h, r) {
   const tt = tightSpans(h, r);
   return (r.spans || []).map((L, k) => { const x = r.taut.find((q) => q.span === k); return x ? -x.short : Math.max(0, L - (tt[k] ?? L)); });
 }
-export const slackText = (x) => (x > 0.05 ? t2('slack {x} mm', { x: num(Math.round(x * 10) / 10) }) : t('taut'));
+/** ↔ A span's slack in words: under half a millimetre (the shape's rounding) it is taut. */
+export const slackText = (x) => (x >= 0.5 ? t2('slack {x} mm', { x: num(Math.round(x * 10) / 10) }) : t('taut'));
 export const spanTight = (h, r, k) => tightSpans(h, r)[k] ?? r?.spans?.[k] ?? 0;
 
 /** A point's face normal in the world (a point lying on a part's face) -> Vector3 or null. */
@@ -1339,7 +1340,7 @@ export class HarnessTool {
       if (showKinds().slack && on && !extra.length && r.spans?.length > 0) { // ↔ each span's slack at its middle (taut: red) — of the harness chosen
         const sl = slackOf(h, r);
         let s0 = 0;
-        r.spans.forEach((L, k) => { label(`hn-slack${sl[k] > 0.05 ? '' : ' tight'}`, `↔ ${slackText(sl[k])}`, curve.getPoint((s0 + L / 2) / r.length), t2('Span {a}–{b}: {x} longer than the tightest it could be', { a: k + 1, b: k + 2, x: `${num(Math.round(Math.max(0, sl[k]) * 10) / 10)} mm` })); s0 += L; });
+        r.spans.forEach((L, k) => { label(`hn-slack${sl[k] >= 0.5 ? '' : ' tight'}`, `↔ ${slackText(sl[k])}`, curve.getPoint((s0 + L / 2) / r.length), t2('Span {a}–{b}: {x} longer than the tightest it could be', { a: k + 1, b: k + 2, x: `${num(Math.round(Math.max(0, sl[k]) * 10) / 10)} mm` })); s0 += L; });
       }
       const own = extra.length ? routeAt(this.asm, h).length : r.length; // (its own length: not to the point under the mouse)
       if (on) label('hn-tag', `🔌 ${lockedOf(h) ? '🔒 ' : ''}${mmText(own)} mm`, curve.getPoint(taut ? 0.3 : 0.5)); // its length at its middle
@@ -1650,7 +1651,7 @@ export class HarnessTool {
     const r = routeAt(this.asm, h), own = spansOf(h), slack = showKinds().slack ? slackOf(h, r) : null;
     const ins = (i) => `<div class="hn-span ${i === this.span ? 'on' : ''}" data-span="${i}"><button class="hn-ins" data-pins="${i}" title="${esc(t2('A point between {a} and {b}', { a: i + 1, b: i + 2 }))}">＋</button>
       ${this.spanEdit === i ? `<input type="number" step="any" min="0" data-slen="${i}" value="${+(own[i] ?? r.spans?.[i] ?? 0).toFixed(1)}" title="${esc(t('The cable\'s length between these two points: longer than now makes a loop of slack (empty: as it is now)'))}"><span class="unit">mm</span>${this.slider(h, i, r)}${own[i] ? `<button class="mini" data-sclear="${i}" title="${esc(t('No length of its own'))}">✕</button>` : ''}`
-        : `<button class="hn-slen" data-sloop="${i}" title="${esc(t('➰ A loop / slack here: type this span\'s length'))}">${own[i] ? '➰ ' : ''}${mmText(r.spans?.[i] ?? 0)} mm${own[i] ? ' 🔒' : ''}</button>${slack ? `<span class="hn-sl${slack[i] > 0.05 ? '' : ' tight'}" title="${esc(t('How much longer this span is than the tightest it could be'))}">↔ ${esc(slackText(slack[i] ?? 0))}</span>` : ''}`}
+        : `<button class="hn-slen" data-sloop="${i}" title="${esc(t('➰ A loop / slack here: type this span\'s length'))}">${own[i] ? '➰ ' : ''}${mmText(r.spans?.[i] ?? 0)} mm${own[i] ? ' 🔒' : ''}</button>${slack ? `<span class="hn-sl${slack[i] >= 0.5 ? '' : ' tight'}" title="${esc(t('How much longer this span is than the tightest it could be'))}">↔ ${esc(slackText(slack[i] ?? 0))}</span>` : ''}`}
       ${chainOfSpan(h, i) ? `<span class="hn-chain" data-no-i18n title="${esc(t('Routed through this energy chain: it follows its moving end'))}">⛓ ${esc(chainOfSpan(h, i))}</span><button class="mini" data-snochain="${i}" title="${esc(t('Not through the chain any more'))}">✕</button>` : ''}</div>`;
     return `<details class="hn-pts" ${this.ptsOpen === false ? '' : 'open'}><summary>${esc(t('Points'))} (${n})<button class="mini hn-slk ${showKinds().slack ? 'on' : ''}" data-hx="slack" title="${esc(t('↔ Slack: how much longer each span is than the tightest it could be — in the view and here (also Show: ↔ Slack in the bottom row)'))}">↔ ${esc(t('Slack'))}</button></summary>
       ${P.map((p, i) => row(p, i) + (i < n - 1 ? ins(i) : '')).join('')}
