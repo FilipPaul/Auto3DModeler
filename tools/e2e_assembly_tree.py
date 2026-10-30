@@ -159,6 +159,40 @@ try:
     row("Frame").click()
     time.sleep(0.2)
     check(js(f"return [{A}.sel, {A}.sel2, {A}.selInner]") == ["I1", None, None], "a top row still chooses its part")
+    # the mouse over a row: its part's lines lit in the view (seen through), nothing drawn anew; off the list: as before
+    looks = f"""return Object.fromEntries([...{A}.view.placed].map(([id, p]) => [id, p.lines.material === {A}.view.edgeMaterial ? 'edge'
+        : p.lines.material === {A}.view.litEdge ? 'lit' : p.lines.material === {A}.view.chosenEdge ? 'chosen' : '?']))"""
+    check(js(looks) == {"I1": "chosen", "I2": "edge", "I3": "edge", "I4": "edge"}, "the chosen part's lines blue (seen through), the others as they were")
+    js(f"{A}.__drawn = 0; const dr = {A}.draw.bind({A}); {A}.draw = () => {{ {A}.__drawn++; dr(); }}")
+    ActionChains(d).move_to_element(row("Lever I4")).perform()
+    time.sleep(0.2)
+    check(js(looks)["I4"] == "lit" and js(f"return {A}.__drawn") == 0, "a sub-assembly's row under the mouse: its lines lit (all its parts), nothing drawn anew")
+    ActionChains(d).move_to_element(row("Arm", 1)).perform()
+    time.sleep(0.2)
+    check(js(looks)["I4"] == "lit", "a part inside it under the mouse: its placement's lines lit")
+    ActionChains(d).move_to_element(row("Lid unit I2")).perform()
+    time.sleep(0.2)
+    lk = js(looks)
+    check(lk["I2"] == "lit" and lk["I4"] == "edge", "another row: that one lit, the last one not")
+    ActionChains(d).move_to_element(d.find_element(By.CSS_SELECTOR, "#asmViewport canvas")).perform()
+    time.sleep(0.2)
+    check(js(looks) == {"I1": "chosen", "I2": "edge", "I3": "edge", "I4": "edge"}, "the mouse off the list: no lines lit")
+    js(f"{A}.view.lightLines(null)")
+    # a click on a row: the same highlight as a click on the part in the view
+    row("Lid unit I3").click()
+    time.sleep(0.3)
+    from_tree = js(f"""const p = {A}.view.placed.get('I3'); return [p.mesh.material.emissive.getHex(), p.lines.material === {A}.view.chosenEdge]""")
+    js(f"{A}.choose(null)")
+    time.sleep(0.2)
+    xy = js(f"""const v = {A}.view, m = v.placed.get('I3').mesh, r = v.renderer.domElement.getBoundingClientRect();
+        for (let y = r.top + 5; y < r.bottom; y += 6) for (let x = r.left + 5; x < r.right; x += 6) if (v.pickInst(x, y)?.inst === 'I3' && document.elementFromPoint(x, y) === v.renderer.domElement) return [x - r.left - r.width / 2, y - r.top - r.height / 2];
+        return null;""")
+    ActionChains(d).move_to_element_with_offset(d.find_element(By.CSS_SELECTOR, "#asmViewport canvas"), int(xy[0]), int(xy[1])).click().perform()
+    time.sleep(0.3)
+    from_view = js(f"""const p = {A}.view.placed.get('I3'); return [{A}.sel, p.mesh.material.emissive.getHex(), p.lines.material === {A}.view.chosenEdge]""")
+    print("highlight from the tree / the view:", from_tree, from_view)
+    check(from_view[0] == "I3" and from_tree == from_view[1:] and from_tree[0] != 0 and from_tree[1], "a row clicked: the part glows and its lines show, as when clicked in the view")
+    js(f"{A}.choose('I1')")
     # ▾ folds Lid unit; reload: Lever stays open
     row("Lid unit I2").find_element(By.CSS_SELECTOR, ".as-twist").click()
     time.sleep(0.3)

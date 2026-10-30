@@ -8,6 +8,9 @@ and kernel call — printed, kept as JSON, and held to budgets.
   A3D_DATA=<a scratch folder> py server.py --port 5199 --no-browser
   PYTHONIOENCODING=utf-8 py tools/e2e_big_assembly.py http://127.0.0.1:5199 <out dir> [--files a.a3d b.a3d …] [--profile] [--gpu] [--build]
 
+The full UI is timed too, with the page in Czech (the owner's): a click on a part, on another, on empty space, Esc,
+a click on a row of the parts tree — from the press to the handlers' end, to the next painted frame, the long tasks.
+
 --build: the assembly built now through the app (tools/make_big_assembly.py) and saved in <out dir>, not the demo;
 --files: measure these .a3d files instead (made before by make_big_assembly.py; no budgets checked, a mechanism file is
 driven too); --profile: a CDP CPU profile of opening each (<out>/<name>.cpuprofile, its top functions printed); --gpu:
@@ -25,7 +28,8 @@ from make_big_assembly import Builder, big150  # noqa: E402
 # budgets for the 150-part assembly in headless Edge. Software GL (SwiftShader, the default): a frame of its 93 000
 # triangles with the studio's reflections takes ~150 ms on the CPU (6 fps measured; merging every part into one draw
 # call gave only +30 %) — so the frame rate's budget there is low; with a GPU (--gpu) it is 60 fps
-BUDGET = {"interactive_s": 8.0, "orbit_fps": 4, "pick_ms": 50, "select_ms": 100, "hover_ms": 50, "drag_move_ms": 50}
+BUDGET = {"interactive_s": 8.0, "orbit_fps": 4, "pick_ms": 50, "select_ms": 100, "hover_ms": 50, "drag_move_ms": 50,
+          "ui_ms": 100}  # (the whole UI's answer to a click / Esc, in Czech: the handlers, the panels, their translation)
 
 URL = sys.argv[1].rstrip("/")
 OUT = Path(sys.argv[2])
@@ -168,6 +172,13 @@ def measure(b, path, mechanism=False):
     res["select_ms"] = stats(sel)
     js("window.__app.assembly.choose(null)")
 
+    # ---- the whole UI in Czech, as the owner uses it (the default docks, the suggestions, the parts tree): a click on a
+    # part, on another, on empty space, Esc, a click on a row of the tree, Esc -> from the press to the handlers' end
+    # (Event Timing: the input's delay + every handler, the translation of what they changed too), to the next painted
+    # frame, and the long tasks. (A text the tables do not hold was matched against every pattern each time: 2.5 s a
+    # click on big-500, 11 s on big-150.)
+    res.update(ui_timings(b, pts))
+
     # ---- the joint solve: every joint applied again
     res["solve_ms"] = stats(js("const A = window.__app.assembly, out = []; for (let i = 0; i < 5; i++) { const t = performance.now(); A.applyMates(); out.push(performance.now() - t); } return out;"))
     res["draw_ms"] = stats(js("const A = window.__app.assembly, out = []; for (let i = 0; i < 5; i++) { const t = performance.now(); A.draw(); out.push(performance.now() - t); } return out;"))
@@ -233,6 +244,82 @@ def measure(b, path, mechanism=False):
     return res
 
 
+UI_PROBE = """
+if (!window.__ui) {
+  window.__ui = { ev: [], long: [], t0: 0 };
+  new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__ui.ev.push([e.startTime, e.processingEnd, e.duration, e.processingEnd - e.processingStart]); }).observe({ type: 'event', durationThreshold: 16 });
+  new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__ui.long.push([e.startTime, e.duration]); }).observe({ type: 'longtask' });
+  for (const ty of ['pointerdown', 'keydown']) window.addEventListener(ty, () => { if (!window.__ui.t0) window.__ui.t0 = performance.now(); }, true);
+}
+window.__ui.ev = []; window.__ui.long = []; window.__ui.t0 = 0;
+"""
+
+
+def ui_timings(b, pts):
+    """The full UI's select / deselect / Esc / tree click with the page in Czech -> {ui_<what>_<work | paint | long>: stats}."""
+    d, js = b.d, b.js
+    b.run("const I = await import('/js/i18n.js'); I.setLang('cs');")
+    time.sleep(1.5)
+    empty = js("""const v = window.__app.assembly.view, r = v.renderer.domElement.getBoundingClientRect();
+      for (let y = r.top + 60; y < r.bottom - 20; y += 23) for (let x = r.left + 40; x < r.right - 40; x += 37)
+        if (document.elementFromPoint(x, y) === v.renderer.domElement && !v.pickInst(x, y)) return [x, y];
+      return null;""")
+    seen = [p for p in pts if js("return document.elementFromPoint(arguments[0], arguments[1]) === window.__app.assembly.view.renderer.domElement", p[0], p[1])]
+
+    def click(x, y):  # (as a mouse: the browser's own input, its hit test and pointer capture)
+        for ty in ("mouseMoved", "mousePressed", "mouseReleased"):
+            d.execute_cdp_cmd("Input.dispatchMouseEvent", {"type": ty, "x": x, "y": y, "button": "none" if ty == "mouseMoved" else "left", "clickCount": 1})
+
+    def esc():
+        for ty in ("keyDown", "keyUp"):
+            d.execute_cdp_cmd("Input.dispatchKeyEvent", {"type": ty, "key": "Escape", "code": "Escape", "windowsVirtualKeyCode": 27})
+
+    def row(k):
+        xy = js("""const rows = [...document.querySelectorAll('.as-list > .mt-item')].filter((r) => r.offsetParent), r = rows[arguments[0]];
+          r.scrollIntoView({ block: 'nearest' }); const b = r.querySelector('.mt-name').getBoundingClientRect(); return [b.left + 5, b.top + b.height / 2, r.dataset.inst];""", k)
+        click(xy[0], xy[1])
+        return xy[2]
+
+    out, right = {}, {}
+    for i in range(3):
+        p, q = seen[(i * 5) % len(seen)], seen[(i * 5 + 2) % len(seen)]
+        for what, fn, want in (("select", lambda: click(p[0], p[1]), p[2]), ("select2", lambda: click(q[0], q[1]), q[2]),
+                               ("deselect", lambda: click(*empty), None), ("select", lambda: click(p[0], p[1]), p[2]),
+                               ("esc", esc, None), ("tree", lambda: row(1 + i), "row"), ("esc", esc, None)):
+            js(UI_PROBE)
+            got = fn()
+            time.sleep(0.6)
+            r = js("""const u = window.__ui, t0 = u.t0, ev = u.ev.filter((e) => e[0] >= t0 - 1);
+              return { work: ev.reduce((s, e) => s + e[3], 0), paint: ev.length ? Math.max(...ev.map((e) => e[0] + e[2])) - t0 : 0,
+                long: Math.max(0, ...u.long.filter((l) => l[0] >= t0 - 5).map((l) => l[1])), sel: window.__app.assembly.sel };""")
+            # (a click on a part: a part chosen — a small one in front of the point's part may take the click; the tree's
+            # row: its part; empty space, Esc: none)
+            ok = r["sel"] == got if want == "row" else bool(r["sel"]) if want else r["sel"] is None
+            if not ok:
+                print(f"  (full UI, {what}: {r['sel']} chosen, not {got if want == 'row' else want})")
+            right[what] = right.get(what, True) and ok
+            for k in ("work", "paint", "long"):
+                out.setdefault(f"ui_{what}_{k}", []).append(r[k])
+    # a row of the tree clicked: its part's lines blue (seen through); the mouse over rows: their lines lit, nothing drawn anew
+    row(4)
+    time.sleep(0.4)
+    right["tree_lines"] = js("const A = window.__app.assembly; return A.view.placed.get(A.sel)?.lines.material === A.view.chosenEdge")
+    lit = js("""const A = window.__app.assembly, v = A.view, rows = [...document.querySelectorAll('.as-list > .mt-item')].filter((r) => r.offsetParent).slice(5, 25), out = [];
+      let drawn = 0; const dr = A.draw; A.draw = (...a) => { drawn++; return dr.apply(A, a); };
+      let ok = true;
+      for (const r of rows) { const t = performance.now(); r.querySelector('.mt-name').dispatchEvent(new PointerEvent('pointerover', { bubbles: true })); out.push(performance.now() - t);
+        ok = ok && v.placed.get(r.dataset.inst)?.lines.material === v.litEdge; }
+      document.querySelector('.as-list').dispatchEvent(new PointerEvent('pointerleave'));
+      A.draw = dr;
+      return { ms: out, ok: ok && ![...v.placed.values()].some((p) => p.lines.material === v.litEdge), drawn };""")
+    right["tree_hover_lines"] = lit["ok"] and lit["drawn"] == 0
+    b.run("const I = await import('/js/i18n.js'); I.setLang('en');")
+    res = {k: stats(v) for k, v in out.items()}
+    res["ui_tree_hover_ms"] = stats(lit["ms"])
+    res["ui_chosen_right"] = right
+    return res
+
+
 def show(res):
     print(f"\n== {res['file']}: {res.get('top')} placed ({res.get('all')} with the sub-assemblies' parts), {res.get('joints')} joints, "
           f"{res.get('calls')} draw calls, {res.get('triangles')} triangles")
@@ -272,6 +359,16 @@ try:
         check(f"hover under {BUDGET['hover_ms']} ms", r["hover_ms"].get("p50", 1e9) < BUDGET["hover_ms"], r["hover_ms"])
         check(f"select under {BUDGET['select_ms']} ms", r["select_ms"].get("p50", 1e9) < BUDGET["select_ms"], r["select_ms"])
         check(f"a drag step under {BUDGET['drag_move_ms']} ms", r.get("drag_move_ms", {}).get("p50", 1e9) < BUDGET["drag_move_ms"], r.get("drag_move_ms"))
+        for what in ("select", "select2", "deselect", "esc", "tree"):
+            w, lt = r[f"ui_{what}_work"], r[f"ui_{what}_long"]
+            check(f"full UI in Czech, {what}: its handlers under {BUDGET['ui_ms']} ms", w.get("p50", 1e9) < BUDGET["ui_ms"], f"work {w}, paint {r[f'ui_{what}_paint']}, long {lt}")
+        if GPU:  # (SwiftShader draws a frame in ~150 ms on the page's thread: the paint and long tasks held only on a GPU)
+            check(f"full UI, a click to its painted frame under {BUDGET['ui_ms']} ms, no long task over it",
+                  all(r[f"ui_{w}_paint"].get("p50", 1e9) < BUDGET["ui_ms"] and r[f"ui_{w}_long"].get("max", 1e9) < BUDGET["ui_ms"] for w in ("select", "select2", "deselect", "esc", "tree")),
+                  {w: (r[f"ui_{w}_paint"].get("p50"), r[f"ui_{w}_long"].get("max")) for w in ("select", "select2", "deselect", "esc", "tree")})
+        check("full UI: each click / Esc chose what it should; a tree row clicked: its lines blue, hovered: lit, nothing drawn anew",
+              all(r["ui_chosen_right"].values()), r["ui_chosen_right"])
+        check(f"the mouse over a tree row under {BUDGET['hover_ms']} ms", r["ui_tree_hover_ms"].get("max", 1e9) < BUDGET["hover_ms"], r["ui_tree_hover_ms"])
         unmet = b.js("return window.__app.assembly.unmet().length")
         check("every part drawn, every joint holds", r["top"] > 90 and unmet == 0, f"{r['top']} placed, {unmet} not held")
         check("collisions, BOM, autosave and a version: no error", all(isinstance(r[k], float) for k in ("collisions_s", "bom_s", "autosave_s", "version_s")),

@@ -2712,6 +2712,7 @@ function balanced(v) {
 
 function byPattern(k, accept) {
   for (const { re, cs, parts, loose } of compiled) {
+    if (!parts.every((p) => k.includes(p))) continue; // (its own words missing: no match — the regex not run)
     const m = k.match(re);
     // a value holding the pattern's own words means two texts were joined ("background (2 colours), background (3 colours)")
     if (!m || !accept(m) || m.slice(1).some((v) => !balanced(v) || parts.some((p) => v.includes(p)))) continue;
@@ -2729,9 +2730,24 @@ function byPattern(k, accept) {
   return null;
 }
 
+// t()'s answers, per text (the tables do not change; another language clears it): a text not in them — a part's
+// name, a Czech text set again — was matched against every pattern each time, its values again inside (a long
+// tooltip: seconds; 500 placed parts' rows walked again on each choice)
+const memo = new Map();
+
 /** The text in the current language (a value inside a pattern is translated too when it is a known text). */
 export function t(text) {
   if (lang === 'en' || !text) return text;
+  let r = memo.get(text);
+  if (r === undefined) {
+    if (memo.size > 20000) memo.clear();
+    r = translate(text);
+    memo.set(text, r);
+  }
+  return r;
+}
+
+function translate(text) {
   if (text.trim().includes('\n')) { // a tooltip of several lines: line by line
     const lines = text.split('\n'), tr = lines.map(t);
     if (tr.some((l, i) => l !== lines[i])) return tr.join('\n');
@@ -2879,6 +2895,7 @@ export function initI18n() {
 export function setLang(l) {
   if (l === lang) return;
   lang = l;
+  memo.clear();
   try { localStorage.setItem(KEY, l); } catch { /* ignore */ }
   document.documentElement.lang = l;
   if (l === 'en') restore(document.body);

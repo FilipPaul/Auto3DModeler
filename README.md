@@ -1003,6 +1003,10 @@ part's rolled-up `total`.
   lights it in the view and shows it in the panel: its **Moves inside** the sub-assembly when that one's own joints
   leave it free (moved in this placement only), *Open its part*, *Open* the sub-assembly or *Choose the whole* one;
   Ctrl+click takes its sub-assembly as the second part. The top rows work as before.
+  **The mouse over a row lights its part's outline in the view** (a sub-assembly's row or a part in it: the whole
+  sub-assembly; a hidden 👁 part does not light up), seen through the parts in front of it; a chosen part — from the
+  list or the view — shows its outline in blue the same way, so a screw inside a plate chosen in the list shows where
+  it is.
 
 **＋ New assembly** (in the ＋ menu next to the part tabs) opens an assembly tab (◇), where the parts of the project
 are placed together — 3D models ◆, quick parts ▤ (drawings, pictures, imports: they go in as their solid) and other
@@ -1353,7 +1357,9 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   once however often it is placed, parts that look alike share their look, a click or the mouse looks only at the parts
   near it, choosing a part keeps the parts list as it is, and a geared mechanism moves only what hangs on each gear.
   Measured with `tools/e2e_big_assembly.py` on the benchmark assemblies of `tools/make_big_assembly.py` (also 🎬 demos):
-  choosing a part in a 521-part assembly takes ~50 ms, hovering < 25 ms, opening it about a second.
+  choosing a part in a 521-part assembly takes ~50 ms, hovering < 25 ms, opening it about a second. In Czech too: a
+  click on a part, on empty space, Esc or a row of the parts list is painted in 40–80 ms (it took 2.5 s on the
+  521-part rack, 11 s on the 150-part one, while each text the panels showed again was looked up anew).
 - **🎨 Paint** colours faces of the placed parts (▢ Faces) or whole parts (◆ Whole parts) in this assembly: click
   them, Ctrl+click for more, pick a colour. The parts keep their own colours in their tabs and other assemblies.
 - **✂ Section** cuts every part along X, Y or Z (a slider moves the cut, ⇄ shows the other side); each part's cut
