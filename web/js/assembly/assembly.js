@@ -809,7 +809,7 @@ export class Assembly {
         title: t('Its drawing sheet: views and dimensions, ready to print as PDF — it follows the part'), run: () => this.hooks.openSheet(a.part) }] : []), // (as 📄 Drawing in the bar does for the assembly)
       ...(this.hooks.duplicatePart ? [{ icon: '⧉', label: t('Make it its own part'), rank: 13, title: t('A copy of its part for this place only'), run: () => this.ownPart(a.id) }] : []),
       { icon: '✕', label: t('Take it out'), rank: 7, danger: true, title: t('Out of the assembly (Delete) — Ctrl+Z brings it back'), run: () => this.removeInst(a.id) },
-      ...displayItems(this, [a.id]), // (👁 Hide / show…: always in sight, its choices as rows under it)
+      ...displayItems(this, [a.id]), // (👁 Hide / show…: always in sight, its choices in a list beside it)
     ];
   }
 
@@ -1334,12 +1334,10 @@ export class Assembly {
 
   /** A part clicked: chosen alone, or (Ctrl) as the second one — the joints between the two are shown. */
   choose(id, more = false) {
-    const was = `${this.sel}|${this.sel2}`;
     this.selInner = null;
     if (id && this.harnessTool) this.harnessTool.sel = null; // (a part chosen: not the harness)
     if (more && this.sel && id && id !== this.sel) this.sel2 = this.sel2 === id ? null : id;
     else { this.sel = id || null; this.sel2 = null; }
-    if (`${this.sel}|${this.sel2}` !== was) this.visOpen = false; // (👁 Hide / show…: folded again for other parts)
     this.visPreview = null;
     this.cueParts = null; // (the drag cue: found again at the next mouse move, for what is chosen now)
     cueLabel(this.els.viewport, null, '');

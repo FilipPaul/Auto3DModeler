@@ -1368,6 +1368,11 @@ body.view-acts .toast-stack { bottom: 84px; }
 .vs-list button.vs-pin-row { padding: 3px 8px; min-height: 24px; box-sizing: border-box; }
 .vs-list button.on { color: var(--accent); }
 .vs-list button .vs-on { margin-left: auto; color: var(--accent); font-weight: 600; }
+.vs-list button .vs-arr { margin-left: auto; padding-left: 8px; color: var(--muted); font-size: 15px; line-height: 1; } /* (a row with its own choices: a list beside it) */
+.vs-list button.vs-flyopen { background: #2b3440; box-shadow: inset 2px 0 0 var(--accent); } /* (its list open: the row stays lit) */
+.vs-list button.vs-flyopen .vs-arr { color: var(--accent); }
+.sg-fly { min-width: 0; max-height: calc(100vh - 8px); overflow-y: auto; scrollbar-width: none; }
+.sg-fly:focus { outline: none; }
 .vs-list button:focus-visible { outline: none; background: #2b3440; box-shadow: inset 2px 0 0 var(--accent); } /* (the row the keyboard is on) */
 /* suggestMenu: the same rows as a small menu at a place (a tab's right-click) */
 .sg-menu { position: fixed; z-index: 60; min-width: 200px; max-width: 320px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px #0009; overflow: hidden; }

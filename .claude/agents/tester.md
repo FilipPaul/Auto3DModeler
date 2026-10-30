@@ -813,7 +813,9 @@ Never report "works" without having run it; report failures with their output.
    goes on; drive_mechanism / get_assembly / check_travel tell the bands, collisions: false / true; reload keeps it;
    ⚠ off: nothing red; a demo opens with it off; no console errors). Needs a server restarted after backend changes.
    `tools/e2e_hide_parts.py <url> <dir>` covers 👁 hiding parts (Czech, the robot arm demo, real clicks: with 3 rows
-   the table still shows ✎ Upravit díl zde and 👁 Skrýt / zobrazit…; 👁 opens its choices as rows, hover previews;
+   the table still shows ✎ Upravit díl zde and 👁 Skrýt / zobrazit…; 👁 opens its choices in a list beside the row —
+   inside the window, the table not scrolled, no rows appended, the row lit; hovering Skrýt / Zprůhlednit previews;
+   Esc, a click on the row again, a click elsewhere close it; keys → ↓ ↑ ← Enter Esc; a click on a choice closes it;
    Skrýt — not drawn, a click there picks the part behind, the tree row struck through, "👁 1 skryté · Zobrazit vše";
    Zprůhlednit — opacity 0.25, a click takes the part behind; izolovat; Zprůhlednit ostatní; 👁 / Alt+click in the
    tree; two parts with Ctrl+click; H / Shift+H / Alt+H; a face picked: both rows, acting on its part; mechanisms,

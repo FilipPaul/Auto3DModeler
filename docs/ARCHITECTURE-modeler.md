@@ -7,6 +7,15 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **👁 Hide / show… opens a list beside its row (2026-10-30)** (the owner, on the 150-part demo: its choices appended
+  at the end of a 22-row table, out of sight — "I would rather expect a NEW selection list to pop up"). suggest.js: a
+  row item with `sub: [items]` shows › and opens subMenu — suggestMenu(…, {beside: row, focus, cls: 'sg-fly'}): an
+  in-app list in <body>, by the table's right side (left where there is no room), its first choice level with the row,
+  kept in the window; the row lit (.vs-flyopen) while open, also when the table is drawn again (the same title and
+  label; else it closes); choices preview through `hover` (taken back on close), a click runs one and closes it; Esc /
+  a click elsewhere / the row again close it; keys: → (or Enter) opens it on its first choice, ↑ ↓, Enter, ← / Esc
+  back on the row. visibility.js displayItems: one row with `sub` (asm.visOpen gone). The only "…" row that unfolded
+  inline; the hole type / size chips and `always` rows stay inline. tools/e2e_hide_parts.py (real mouse, keys).
 - **⏺ The wheel over a floating box is not "view zoom" (2026-10-30)** (the owner's recording of the 150-part demo:
   scrolling the suggestions table showed as `view zoom +1 / -3 / +5 / -5` — the table did scroll, the log was wrong).
   recorder.js onWheel: over a box on the view (.fb-box, .lw-widget, .sg-menu, .view-suggest) a `scroll {in: its title,

@@ -1,6 +1,8 @@
 """👁 Hiding parts of an assembly, in headless Edge, in Czech, with real clicks, on the robot arm demo: the suggestions
 for a chosen part always show "✎ Upravit díl zde" and "👁 Skrýt / zobrazit…" (also with only 3 rows) -> 👁 opens its
-choices as rows (hovering Skrýt previews it) -> Skrýt: the part is not drawn, a click on its spot picks what is behind
+choices in a small list beside the row (not in the table: fully in the window, the table not scrolled, the row lit;
+hovering Skrýt / Zprůhlednit previews it; Esc, a click elsewhere, a click on the row again close it; ↑ ↓ Enter Esc → ←)
+-> Skrýt (a click closes the list): the part is not drawn, a click on its spot picks what is behind
 it, its row in the tree struck through, "👁 1 skryté · Zobrazit vše" over the tree -> Zobrazit vše -> Zprůhlednit: its
 material see-through (opacity < 1), a click there takes the part behind it -> Skrýt ostatní (izolovat): only it ->
 Zobrazit vše over the tree -> 👁 in the tree hides / shows a part, Alt+click: see-through -> two parts (Ctrl+click):
@@ -114,10 +116,29 @@ def choose_in_tree(inst, ctrl=False):
     time.sleep(0.4)
 
 
+FLY = ".sg-fly"
+
+
+def fly_labels():
+    """The choices of the list open beside 👁 Skrýt / zobrazit… (none: [])."""
+    return [b.text.strip() for b in d.find_elements(By.CSS_SELECTOR, f"{FLY} .vs-list button[data-sg]") if b.is_displayed()]
+
+
+def fly_row(label, exact=False):
+    return next(b for b in d.find_elements(By.CSS_SELECTOR, f"{FLY} .vs-list button[data-sg]") if (b.text.strip().endswith(label) if exact else label in b.text))
+
+
 def open_eye_rows():
-    if not any("Skrýt ostatní" in x for x in labels()):
-        sg_row("Skrýt / zobrazit…").click()
+    if not d.find_elements(By.CSS_SELECTOR, FLY):
+        ActionChains(d).move_to_element(sg_row("Skrýt / zobrazit…")).click().perform()
         time.sleep(0.4)
+
+
+def pick(label, exact=False):
+    """A choice of 👁's list clicked with the mouse (the list opened first)."""
+    open_eye_rows()
+    ActionChains(d).move_to_element(fly_row(label, exact)).click().perform()
+    time.sleep(0.5)
 
 
 def key(k, mod=None):
@@ -168,32 +189,96 @@ try:
           "with 3 rows: ✎ Upravit díl zde and 👁 Skrýt / zobrazit… shown, the rest under ⋯ Ukázat vše")
     check(not any("Odemknout" in x for x in ls), "no separate “Odemknout a upravit” row")
 
-    # 2. 👁 opens its choices as rows in the table
-    sg_row("Skrýt / zobrazit…").click()
+    # 2. 👁 opens its choices in a list beside the row (not appended to the table)
+    n_rows = len(labels())
+    scroll0 = js(f"return document.querySelector('{SG} .vs-list').scrollTop")
+    eye_row = sg_row("Skrýt / zobrazit…")
+    check("›" in eye_row.text and not d.find_elements(By.CSS_SELECTOR, FLY), f"👁 Skrýt / zobrazit… shows › (its own list), closed {eye_row.text!r}")
+    ActionChains(d).move_to_element(eye_row).click().perform()
     time.sleep(0.4)
-    ls = labels()
+    ls = fly_labels()
     print("  👁 open:", ls)
     check(all(any(w in x for x in ls) for w in ("Skrýt", "Zprůhlednit", "Skrýt ostatní (izolovat)", "Zprůhlednit ostatní"))
-          and not any("Zobrazit vše" in x for x in ls) and not d.find_elements(By.CSS_SELECTOR, ".sg-menu, .modal"),
-          "👁: Skrýt, Zprůhlednit, Skrýt ostatní (izolovat), Zprůhlednit ostatní as rows (no popup); no Zobrazit vše yet")
+          and not any("Zobrazit vše" in x for x in ls), "👁: Skrýt, Zprůhlednit, Skrýt ostatní (izolovat), Zprůhlednit ostatní in its list; no Zobrazit vše yet")
+    check(len(labels()) == n_rows and not any("Zprůhlednit" in x for x in labels()), "the table itself unchanged: no rows appended to it")
+    geo = js(f"""const f = document.querySelector('{FLY}'), r = f.getBoundingClientRect(), t = document.querySelector('{SG}').getBoundingClientRect(),
+        row = [...document.querySelectorAll('{SG} [data-sg]')].find(b => b.textContent.includes('zobrazit')).getBoundingClientRect(),
+        first = f.querySelector('[data-sg]').getBoundingClientRect();
+      return {{left: r.left, right: r.right, top: r.top, bottom: r.bottom, tl: t.left, tr: t.right, rowTop: row.top, firstTop: first.top,
+        w: innerWidth, h: innerHeight, scroll: document.querySelector('{SG} .vs-list').scrollTop, inBody: f.parentElement === document.body,
+        lit: [...document.querySelectorAll('{SG} [data-sg]')].find(b => b.textContent.includes('zobrazit')).classList.contains('vs-flyopen')}}""")
+    print("  the list:", geo)
+    check(geo["inBody"] and (abs(geo["left"] - geo["tr"]) < 6 or abs(geo["right"] - geo["tl"]) < 6), "the list is an element of the page, right next to the table (its right or left side)")
+    check(geo["left"] >= 0 and geo["top"] >= 0 and geo["right"] <= geo["w"] and geo["bottom"] <= geo["h"], "…fully inside the window")
+    check(abs(geo["firstTop"] - geo["rowTop"]) < 4 or geo["bottom"] >= geo["h"] - 6, "…its first choice level with the row (or pushed up by the window's bottom)")
+    check(geo["scroll"] == scroll0, "the table not scrolled")
+    check(geo["lit"], "the row stays lit while its list is open")
     d.save_screenshot(f"{OUT}/hide_rows.png")
-    hide = next(b for b in d.find_elements(By.CSS_SELECTOR, f"{SG} .vs-list button[data-sg]") if b.text.strip().endswith("Skrýt"))
-    ActionChains(d).move_to_element(hide).perform()
+    ActionChains(d).move_to_element(fly_row("Skrýt", exact=True)).perform()
     time.sleep(0.4)
     check("I2" not in shown_ids() and not display(), "hovering Skrýt previews it (the arm not drawn, nothing set)")
+    ActionChains(d).move_to_element(fly_row("Zprůhlednit", exact=True)).perform()
+    time.sleep(0.4)
+    op = js(f"const m = {A}.view.meshes.find(m => m.userData.inst === 'I2'); return [m.material.opacity, m.visible]")
+    check(op[0] < 1 and op[1] and not display(), f"hovering Zprůhlednit previews it (see-through {op}, nothing set)")
     ActionChains(d).move_to_element(tree_row("I1")).perform()
     time.sleep(0.4)
-    check("I2" in shown_ids(), "the mouse off the row: the arm back")
+    op = js(f"const m = {A}.view.meshes.find(m => m.userData.inst === 'I2'); return [m.material.opacity, m.visible]")
+    check("I2" in shown_ids() and op[0] == 1, f"the mouse off the list: the arm back {op}")
+    check(d.find_elements(By.CSS_SELECTOR, FLY), "…and the list still open")
+    d.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
+    time.sleep(0.3)
+    check(not d.find_elements(By.CSS_SELECTOR, FLY) and js(f"return {A}.sel") == "I2", "Esc closes the list (the part stays chosen)")
+    check(not d.find_elements(By.CSS_SELECTOR, f"{SG} .vs-flyopen"), "…and the row is no longer lit")
+    open_eye_rows()
+    ActionChains(d).move_to_element(sg_row("Skrýt / zobrazit…")).click().perform()
+    time.sleep(0.3)
+    check(not d.find_elements(By.CSS_SELECTOR, FLY), "a click on the row again closes it")
+    open_eye_rows()
+    ActionChains(d).move_to_element(d.find_element(By.CSS_SELECTOR, "#asmLeft .lw-head, #asmLeft")).click().perform()
+    time.sleep(0.3)
+    check(not d.find_elements(By.CSS_SELECTOR, FLY), "a click elsewhere closes it")
+    choose_in_tree("I2")
+
+    # 2b. the keyboard: ↓ to the row, → opens its list on its first choice, ↓ ↑, ← back on the row, Enter opens, Esc closes
+    eye_row = sg_row("Skrýt / zobrazit…")
+    js("arguments[0].focus()", eye_row)
+    key(Keys.ARROW_RIGHT)
+    foc = lambda: js("const a = document.activeElement; return a ? [a.closest('.sg-fly') ? 'fly' : a.closest('.view-suggest') ? 'table' : 'other', a.textContent.trim()] : null")
+    f = foc()
+    check(d.find_elements(By.CSS_SELECTOR, FLY) and f[0] == "fly" and f[1].endswith("Skrýt"), f"→ opens the list, on its first choice {f}")
+    check("I2" not in shown_ids() and not display(), "…which previews it")
+    key(Keys.ARROW_DOWN)
+    f = foc()
+    check(f[0] == "fly" and f[1].endswith("Zprůhlednit") and "I2" in shown_ids(), f"↓: the next choice {f}")
+    key(Keys.ARROW_UP)
+    check(foc()[1].endswith("Skrýt"), "↑: back")
+    key(Keys.ARROW_LEFT)
+    f = foc()
+    check(not d.find_elements(By.CSS_SELECTOR, FLY) and f[0] == "table" and "zobrazit" in f[1] and "I2" in shown_ids(), f"←: the list closed, back on its row, no preview {f}")
+    key(Keys.ENTER)
+    check(d.find_elements(By.CSS_SELECTOR, FLY) and foc()[0] == "fly", "Enter on the row opens the list")
+    key(Keys.ESCAPE)
+    f = foc()
+    check(not d.find_elements(By.CSS_SELECTOR, FLY) and f[0] == "table" and js(f"return {A}.sel") == "I2" and not display(), f"Esc closes it, back on the row, nothing set {f}")
+    key(Keys.ARROW_RIGHT)
+    key(Keys.ARROW_DOWN)
+    key(Keys.ENTER)
+    check(display() == {"I2": "clear"} and not d.find_elements(By.CSS_SELECTOR, FLY), f"→ ↓ Enter: Zprůhlednit applied, the list closed {display()}")
+    key("H", Keys.SHIFT)
+    choose_in_tree("I2")
 
     # 3. Skrýt: not drawn, a click there picks what is behind it, the tree strikes it through, the note over the tree
-    hide = next(b for b in d.find_elements(By.CSS_SELECTOR, f"{SG} .vs-list button[data-sg]") if b.text.strip().endswith("Skrýt"))
-    hide.click()
-    time.sleep(0.5)
+    pick("Skrýt", exact=True)
     check(display() == {"I2": "hidden"} and "I2" not in shown_ids(), f"Skrýt: the arm hidden {display()}")
+    check(not d.find_elements(By.CSS_SELECTOR, FLY), "a click on a choice closes the list")
     check("as-hidden" in tree_row("I2").get_attribute("class"), "the tree: its row dimmed / struck through")
     note = d.find_element(By.CSS_SELECTOR, "#asmLeft .as-vis")
     check(note.is_displayed() and "1 skryté" in note.text and "Zobrazit vše" in note.text, f"the note over the tree: {note.text!r}")
-    check(any("Zobrazit vše" in x for x in labels()), "the table: Zobrazit vše now")
+    open_eye_rows()
+    check(any("Zobrazit vše" in x for x in fly_labels()), "👁's list: Zobrazit vše now")
+    d.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
+    time.sleep(0.3)
     js(f"{A}.choose(null)")
     time.sleep(0.3)
     click_view(p2[0], p2[1])
@@ -208,9 +293,7 @@ try:
 
     # 5. Zprůhlednit: see-through, a click there takes the part behind it
     choose_in_tree("I2")
-    open_eye_rows()
-    sg_row("Zprůhlednit").click()
-    time.sleep(0.5)
+    pick("Zprůhlednit", exact=True)
     op = js(f"const m = {A}.view.meshes.find(m => m.userData.inst === 'I2'); return [m.material.opacity, m.material.transparent, m.visible]")
     check(display() == {"I2": "clear"} and op[0] < 1 and op[1] and op[2], f"Zprůhlednit: opacity {op}")
     check("as-clear" in tree_row("I2").get_attribute("class") and "1 průhledné" in d.find_element(By.CSS_SELECTOR, "#asmLeft .as-vis").text, "the tree: see-through row, the note says so")
@@ -221,22 +304,16 @@ try:
 
     # 6. Skrýt ostatní (izolovat), then Zobrazit vše in the table
     choose_in_tree("I2")
-    open_eye_rows()
-    sg_row("Skrýt ostatní (izolovat)").click()
-    time.sleep(0.5)
+    pick("Skrýt ostatní (izolovat)")
     check(shown_ids() == ["I2"] and display() == {"I1": "hidden", "I3": "hidden", "I4": "hidden"}, f"izolovat: only the arm {shown_ids()}")
     d.save_screenshot(f"{OUT}/hide_isolated.png")
-    sg_row("Zobrazit vše").click()
-    time.sleep(0.5)
-    check(not display() and len(shown_ids()) == 4, "Zobrazit vše in the table: everything back")
+    pick("Zobrazit vše")
+    check(not display() and len(shown_ids()) == 4, "Zobrazit vše in 👁's list: everything back")
 
     # 7. Zprůhlednit ostatní
-    open_eye_rows()
-    sg_row("Zprůhlednit ostatní").click()
-    time.sleep(0.5)
+    pick("Zprůhlednit ostatní")
     check(display() == {"I1": "clear", "I3": "clear", "I4": "clear"}, f"Zprůhlednit ostatní: {display()}")
-    sg_row("Zobrazit vše").click()
-    time.sleep(0.4)
+    pick("Zobrazit vše")
 
     # 8. 👁 in the tree
     eye = lambda: tree_row("I3").find_element(By.CSS_SELECTOR, ".as-eye")
@@ -263,10 +340,8 @@ try:
     choose_in_tree("I3", ctrl=True)
     check(js(f"return [{A}.sel, {A}.sel2]") == ["I2", "I3"], "Ctrl+click: two parts chosen")
     check(any("Skrýt / zobrazit…" in x for x in labels()), "the two parts' table: 👁 Skrýt / zobrazit… too")
-    open_eye_rows()
     print("  chosen:", js(f"return [{A}.sel, {A}.sel2]"), labels())
-    next(b for b in d.find_elements(By.CSS_SELECTOR, f"{SG} .vs-list button[data-sg]") if b.text.strip().endswith("Skrýt")).click()
-    time.sleep(0.5)
+    pick("Skrýt", exact=True)
     check(display() == {"I2": "hidden", "I3": "hidden"}, f"Skrýt with two chosen: both hidden {display()}")
 
     # 10. H / Shift+H / Alt+H
@@ -294,9 +369,7 @@ try:
     ls = labels()
     check(len(fp) == 1 and fp[0][0] == "I3" and any("Upravit díl zde" in x for x in ls) and any("Skrýt / zobrazit…" in x for x in ls),
           "a face picked: ✎ Upravit díl zde and 👁 Skrýt / zobrazit… among the rows shown")
-    open_eye_rows()
-    next(b for b in d.find_elements(By.CSS_SELECTOR, f"{SG} .vs-list button[data-sg]") if b.text.strip().endswith("Skrýt")).click()
-    time.sleep(0.5)
+    pick("Skrýt", exact=True)
     check(display() == {"I3": "hidden"}, f"Skrýt from the face's table: its part hidden {display()}")
     key("H", Keys.SHIFT)
 

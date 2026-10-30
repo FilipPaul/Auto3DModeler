@@ -2,7 +2,7 @@
 // in the bottom-left corner of the view — small, out of the way, gone when nothing is selected. Its header drags it
 // elsewhere in the view (that place is remembered) or into the left panel, where it stays docked (📌 too) — leftdock.js.
 // The keyboard: ↓ / ↑ into it and between its rows, Enter runs one, Esc leaves it. suggestMenu: the same rows as a
-// small menu at a place (a tab's right-click).
+// small menu at a place (a tab's right-click); a row with choices of its own (sub, "…") opens them in such a menu beside it.
 import { t } from './i18n.js';
 import { leftDock } from './leftdock.js';
 import { scrollFade } from './floatbox.js';
@@ -218,7 +218,8 @@ function pickRows(items, all) {
 
 /** Show (or with no items: remove) the table in `viewport`: title (what is selected), items [{icon, label, title,
  *  run, danger, rank, always (shown past the limit), on (the current choice: ✓), id (a message may point at its row:
- *  pointat.js {suggest: id}), hover?: (on) => … (shows what it would do)}, {section} or {icon, label, title, rank, chips: [{label, title, on, primary, run}]} (a row of
+ *  pointat.js {suggest: id}), hover?: (on) => … (shows what it would do), sub ([items]: its choices — a click opens
+ *  them in a small list beside the row, subMenu; no run)}, {section} or {icon, label, title, rank, chips: [{label, title, on, primary, run}]} (a row of
  *  values to pick with one click — a tolerance, a roughness; on: the current one, ✓)], hint (a line under it), refs (what is selected, as the AI's tools name it: ✨ puts
  *  it in the chat). More rows than the user's limit (suggestLimit): the most relevant ones, then ⋯ Show all (n). */
 export function showSuggest(viewport, title, items, hint = '', refs = '') {
@@ -245,11 +246,11 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
     <div class="vs-list">${rows.map((it) => (it.section !== undefined ? `<div class="vs-sec">${esc(it.section)}</div>` // (a heading: what the rows under it act on)
       : it.chips ? `<div class="vs-chips" title="${esc(it.title || '')}">${it.label ? `<span class="vs-cl"><span class="vs-i">${it.icon || '•'}</span> ${esc(it.label)}</span>` : ''}<div class="vs-cg">${it.chips.map((c, j) => // (a row of values, one click each: the current one ✓)
         `<button class="chip${c.on ? ' on' : ''}${c.primary ? ' vs-pri' : ''}" data-sgc="${it.i}:${j}" title="${esc(c.title || '')}">${c.on ? '✓ ' : ''}${esc(c.label)}</button>`).join('')}</div></div>`
-      : `<button data-sg="${it.i}"${it.id ? ` data-sgid="${esc(it.id)}"` : ''} class="${it.danger ? 'danger' : ''}${it.always ? ' vs-pin-row' : ''}${it.on ? ' on' : ''}" title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span>${it.on ? '<span class="vs-on">✓</span>' : ''}</button>`)).join('')}${!over ? ''
+      : `<button data-sg="${it.i}"${it.id ? ` data-sgid="${esc(it.id)}"` : ''} class="${it.danger ? 'danger' : ''}${it.always ? ' vs-pin-row' : ''}${it.on ? ' on' : ''}${it.sub ? ' vs-sub' : ''}"${it.sub ? ' aria-haspopup="menu"' : ''} title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span>${it.sub ? '<span class="vs-arr">›</span>' : it.on ? '<span class="vs-on">✓</span>' : ''}</button>`)).join('')}${!over ? ''
       : all ? `<button class="vs-more" data-sg-fewer title="${esc(t('Only the most relevant suggestions'))}"><span class="vs-i">▴</span> <span>${esc(t('Fewer'))}</span></button>`
         : `<button class="vs-more" data-sg-all title="${esc(t('Everything that can be done with what is selected'))}"><span class="vs-i">⋯</span> <span>${esc(t('Show all'))} (${total})</span></button>`}</div>
     ${hint ? `<p class="vs-hint">${esc(hint)}</p>` : ''}`;
-  for (const b of box.querySelectorAll('[data-sg]')) b.addEventListener('click', () => items[+b.dataset.sg].run());
+  for (const b of box.querySelectorAll('[data-sg]')) b.addEventListener('click', (e) => (items[+b.dataset.sg].sub ? subMenu(b, items[+b.dataset.sg], !e.detail) : items[+b.dataset.sg].run())); // (a row with choices: its list; by the keyboard — no mouse — on its first choice)
   for (const b of box.querySelectorAll('[data-sgc]')) b.addEventListener('click', () => { const [i, j] = b.dataset.sgc.split(':').map(Number); items[i].chips[j].run(); });
   for (const b of box.querySelectorAll('[data-sg]')) { // a row with hover(on): shows what it would do while the mouse (or the keyboard) is on it
     const it = items[+b.dataset.sg];
@@ -283,7 +284,26 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
   leftDock.placeSuggest(box, viewport); // (floating: moved / resized / remembered; or docked in the left column)
   scrollFade(box.querySelector('.vs-list')); // (no scrollbar: a fade where rows are hidden)
   if (keep) box.querySelector(`[data-sg="${keep}"]`)?.focus();
+  const fly = document.querySelector('.sg-fly');
+  if (fly?.owner === box) { // (drawn again with a row's list open: the list stays by the same row, lit; the row gone or something else selected — the list too)
+    const row = fly.title === title && [...box.querySelectorAll('[data-sg]')].find((b) => items[+b.dataset.sg].sub && items[+b.dataset.sg].label === fly.key);
+    if (row) { fly.row = row; row.classList.add('vs-flyopen'); } else fly.close();
+  }
   return box;
+}
+
+/** A row's choices (it.sub) in a small list beside the row — to the right of the table, or to its left where there is
+ *  no room; level with the row, inside the window. The row stays lit while it is open; a click on it again closes it.
+ *  A choice previews what it does under the mouse (hover), runs on a click and the list closes; Esc, ← or a click
+ *  elsewhere close it. keys: opened by the keyboard — its first choice in the keyboard's hand. -> the list. */
+function subMenu(row, it, keys = false) {
+  const open = document.querySelector('.sg-fly');
+  if (open?.key === it.label && open.owner === row.closest('.view-suggest')) { open.close(); return open; }
+  const m = suggestMenu(row, '', it.sub, { beside: row, focus: keys, cls: 'sg-fly' });
+  m.owner = row.closest('.view-suggest');
+  m.key = it.label;
+  m.title = m.owner?.sg?.title;
+  return m;
 }
 
 /** The suggestion tables the user sees now (floating, docked, a menu), for the AI: [{box, title, hint, refs, docked,
@@ -336,36 +356,72 @@ function onKeys(e) {
     rows[n].focus();
     return;
   }
+  if (e.key === 'ArrowLeft' && box?.classList.contains('sg-fly')) { e.preventDefault(); e.stopPropagation(); box.close(true); return; } // (←: back on its row)
   if (!box || !a.matches(ROWS)) return;
-  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); a.click(); }
+  if (e.key === 'ArrowRight' && a.classList.contains('vs-sub')) { // (→ on a row with choices: its list, on its first one)
+    e.preventDefault();
+    e.stopPropagation();
+    if (a.classList.contains('vs-flyopen')) document.querySelector('.sg-fly')?.querySelector(ROWS)?.focus(); else a.click();
+  } else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); a.click(); }
   else if (e.key === 'Escape') {
-    a.blur();
-    if (box.classList.contains('sg-menu')) { e.stopPropagation(); box.close?.(); }
+    if (box.classList.contains('sg-menu')) { e.stopPropagation(); box.close?.(true); } else a.blur();
   }
 }
 window.addEventListener('keydown', onKeys, true);
 
 /** A small menu of suggestions at a place (a tab right-clicked, long-pressed): the table's look and keys. at: an element
- *  (under it) or {x, y}; items as showSuggest's ({icon, label, title, run, danger} or {section}). Closes on a pick, a
- *  click elsewhere, Esc. -> the menu element. */
-export function suggestMenu(at, title, items) {
+ *  (under it) or {x, y}; items as showSuggest's ({icon, label, title, run, danger, hover} or {section}). Closes on a
+ *  pick, a click elsewhere, Esc. opts: beside (a row: the menu by its table's side, level with it — subMenu), focus
+ *  (false: the menu itself in the keyboard's hand, not its first row), cls (a class more). -> the menu element. */
+export function suggestMenu(at, title, items, opts = {}) {
   document.querySelector('.sg-menu')?.close();
   const box = document.createElement('div');
-  box.className = 'sg-menu';
+  box.className = `sg-menu${opts.cls ? ` ${opts.cls}` : ''}`;
   box.dataset.noI18n = '';
+  box.tabIndex = -1;
   box.setAttribute('role', 'menu');
   box.sg = { title, hint: '', refs: '', items, ranked: items.map((it, i) => (it.section === undefined ? i : -1)).filter((i) => i >= 0), shown: items.map((_, i) => i) };
   box.innerHTML = `${title ? `<div class="vs-head"><b title="${esc(title)}">${esc(title)}</b></div>` : ''}<div class="vs-list">${items.map((it, i) => (it.section !== undefined
     ? `<div class="vs-sec">${esc(it.section)}</div>`
     : `<button data-sg="${i}" role="menuitem" class="${it.danger ? 'danger' : ''}" title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span>${it.key ? `<kbd class="vs-key">${esc(it.key)}</kbd>` : ''}</button>`)).join('')}</div>`;
-  const off = (e) => { if (!box.contains(e.target)) box.close(); };
-  box.close = () => { document.removeEventListener('pointerdown', off, true); box.remove(); };
+  let shown = null; // (the choice previewed now: its preview taken back when the menu closes)
+  const off = (e) => { if (!box.contains(e.target) && !box.row?.contains(e.target)) box.close(); }; // (its row: its own click closes it)
+  const escKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); box.close(true); } }; // (the menu itself in hand: not the app's Esc)
+  box.close = (back = false) => {
+    document.removeEventListener('pointerdown', off, true);
+    document.removeEventListener('keydown', escKey, true);
+    if (shown) { const h = shown; shown = null; h.hover(false); }
+    box.remove();
+    box.row?.classList.remove('vs-flyopen');
+    if (back && box.row?.isConnected) box.row.focus(); // (Esc / ←: back on its row)
+  };
   for (const b of box.querySelectorAll('[data-sg]')) b.addEventListener('click', () => { box.close(); items[+b.dataset.sg].run(); });
+  for (const b of box.querySelectorAll('[data-sg]')) { // (a choice with hover(on): what it would do, while the mouse or the keyboard is on it)
+    const it = items[+b.dataset.sg];
+    if (!it.hover) continue;
+    const on = () => { if (shown && shown !== it) shown.hover(false); shown = it; it.hover(true); };
+    const offIt = () => { if (shown === it) { shown = null; it.hover(false); } };
+    b.addEventListener('mouseenter', on);
+    b.addEventListener('mouseleave', offIt);
+    b.addEventListener('focus', on);
+    b.addEventListener('blur', offIt);
+  }
   document.body.appendChild(box);
-  const r = at instanceof Element ? at.getBoundingClientRect() : { left: at.x, bottom: at.y }, w = box.offsetWidth, h = box.offsetHeight;
-  box.style.left = `${Math.max(4, Math.min(innerWidth - w - 4, r.left))}px`;
-  box.style.top = `${Math.max(4, r.bottom + h + 4 > innerHeight ? r.bottom - h - 4 : r.bottom + 2)}px`;
+  const w = box.offsetWidth, h = box.offsetHeight;
+  if (opts.beside) { // by the table's side (right, or left where there is no room), its first row level with the row
+    box.row = opts.beside;
+    box.row.classList.add('vs-flyopen');
+    const r = opts.beside.getBoundingClientRect(), side = (opts.beside.closest('.view-suggest, .sg-menu') || opts.beside).getBoundingClientRect();
+    const first = box.querySelector(ROWS), dy = first ? first.getBoundingClientRect().top - box.getBoundingClientRect().top : 0;
+    box.style.left = `${Math.max(4, side.right + 2 + w <= innerWidth - 4 ? side.right + 2 : side.left - w - 2)}px`;
+    box.style.top = `${Math.max(4, Math.min(innerHeight - h - 4, r.top - dy))}px`;
+  } else {
+    const r = at instanceof Element ? at.getBoundingClientRect() : { left: at.x, bottom: at.y };
+    box.style.left = `${Math.max(4, Math.min(innerWidth - w - 4, r.left))}px`;
+    box.style.top = `${Math.max(4, r.bottom + h + 4 > innerHeight ? r.bottom - h - 4 : r.bottom + 2)}px`;
+  }
   setTimeout(() => document.addEventListener('pointerdown', off, true), 0);
-  box.querySelector(ROWS)?.focus();
+  document.addEventListener('keydown', escKey, true);
+  if (opts.focus === false) box.focus({ preventScroll: true }); else box.querySelector(ROWS)?.focus();
   return box;
 }

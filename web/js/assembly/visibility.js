@@ -2,7 +2,7 @@
 // only: a hidden part is not drawn, picked or snapped to; a see-through one is drawn at 25 % and picked only when nothing
 // else is under the mouse. Collisions, mechanisms, the BOM, exports and drawings do not change. Kept in the assembly's
 // document as `display` {inst id: 'hidden' | 'clear'} (saved with it, not an undo step). The suggestions table's
-// 👁 Hide / show… opens its choices as rows (hover: a preview); 👁 in the parts list; H / Shift+H / Alt+H.
+// 👁 Hide / show… opens its choices in a list beside it (hover: a preview); 👁 in the parts list; H / Shift+H / Alt+H.
 import { t } from '../i18n.js';
 import { changed } from '../history.js';
 
@@ -59,29 +59,26 @@ export function statesFor(asm, how, ids) {
 /** The chosen parts (one, or two with Ctrl+click). */
 const chosen = (asm) => [asm.sel, asm.sel2].filter((id) => id && asm.inst(id));
 
-/** 👁 rows of the suggestions table for the chosen parts `ids`: 👁 Hide / show… always; open, its choices under it
- *  (each previews what it does while the mouse is on it). */
+/** 👁 row of the suggestions table for the chosen parts `ids`: 👁 Hide / show…, always; a click opens its choices in a
+ *  small list beside it (each previews what it does while the mouse is on it). */
 export function displayItems(asm, ids) {
   if (!ids.length) return [];
   const st = ids.map((id) => asm.doc.display?.[id] || null), any = displayed(asm), some = any.hidden.length + any.clear.length;
-  const row = { icon: '👁', label: t('Hide / show…'), always: true, rank: 30, on: !!asm.visOpen,
-    title: t('Hide it, make it see-through, show only it … — display only (H hides, Shift+H shows all, Alt+H isolates)'), run: () => { asm.visOpen = !asm.visOpen; asm.visPreview = null; asm.draw(); } };
-  if (!asm.visOpen) return [row];
-  const opt = (icon, label, title, how) => ({ icon, label: t(label), title: t(title), always: true, rank: 30,
+  const opt = (icon, label, title, how) => ({ icon, label: t(label), title: t(title),
     hover: (on) => { // (not right after a click: the table drawn again puts the focus back on the row there — a preview of the opposite)
       if (on && performance.now() - (asm.visSet || 0) < 400) return;
       asm.visPreview = on ? statesFor(asm, how, ids) : null;
       asm.draw();
     },
     run: () => setDisplay(asm, statesFor(asm, how, ids)) });
-  return [row,
-    { section: `👁 ${t('Display')}` },
+  return [{ icon: '👁', label: t('Hide / show…'), always: true, rank: 30, // (its choices in a list beside it — suggest.js subMenu)
+    title: t('Hide it, make it see-through, show only it … — display only (H hides, Shift+H shows all, Alt+H isolates)'), sub: [
     st.every((s) => s === 'hidden') ? opt('👁', 'Show it', 'Draw it again (H)', 'show') : opt('🚫', 'Hide it', 'Not drawn, not picked — a click there takes what is behind it (H)', 'hidden'),
     st.every((s) => s === 'clear') ? opt('◼', 'Solid again', 'Not see-through any more', 'show') : opt('◐', 'Make see-through', 'Drawn see-through (25 %) — a click takes it only when nothing else is there', 'clear'),
     opt('◎', 'Hide the others (isolate)', 'Only it is shown (Alt+H)', 'isolate'),
     opt('◌', 'Others see-through', 'The other parts see-through around it', 'clearOthers'),
     ...(some ? [opt('👁', 'Show all parts', 'Every part drawn again, solid (Shift+H)', 'all')] : []),
-  ];
+  ] }];
 }
 
 /** H: the chosen parts hidden (all hidden already: shown); Shift+H: everything shown; Alt+H: only the chosen ones shown.

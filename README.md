@@ -1191,8 +1191,10 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   locked part is unlocked by that click. From a picked face, that face is chosen in the part too: ✏ Sketch on this
   face, ◎ Hole here are one click away.
 - **👁 Hide parts** (display only): the Suggested table always shows **👁 Hide / show…** for a chosen part (or a face
-  of it, or two parts with Ctrl+click); a click opens its choices as rows — **Hide**, **Make see-through** (25 %),
-  **Hide the others (isolate)**, **Others see-through**, **Show all parts** — each previewed while the mouse is on it.
+  of it, or two parts with Ctrl+click); a click opens its choices in a small list right next to that row (to the
+  table's right, or left where there is no room) — **Hide**, **Make see-through** (25 %), **Hide the others
+  (isolate)**, **Others see-through**, **Show all parts** — each previewed while the mouse is on it; a click applies
+  one and closes the list, Esc or a click elsewhere closes it. Keys: → opens it, ↑ ↓ move, Enter applies, ← / Esc back.
   👁 at the start of a row in the parts list hides / shows it (Alt+click: see-through); a hidden row is struck through, a
   sub-assembly hides all its parts. Keys: **H** hides the chosen part(s) (again: shows), **Shift+H** shows all, **Alt+H**
   isolates. A hidden part is not drawn, picked or snapped to (a click there takes what is behind it); a see-through
