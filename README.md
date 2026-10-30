@@ -1194,8 +1194,11 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   (assembly list, its tab too).
 - **Colour and see-through**: a 3D model's *Part* panel sets its colour and how see-through it is (also in every
   assembly); in an assembly a placed part can have its own (*Look*, ↺ back to its part's).
-- The panel of a selected part has its x / y / z position, **Turn** sliders for X / Y / Z (any angle; they catch at
-  0, ±90 and ±180°, or type an exact angle), its joints, *Join it to another part*, **◆ Open its part** (its part's
+- The panel of a selected part has **Position** sliders for X / Y / Z (its origin along the assembly's axes, in mm:
+  whole mm while sliding, 0.1 mm with Shift, an exact number typed in the box; the slider spans ± the assembly's size
+  or ± twice the part's, centred on where it is, and centres again when let go at an end; live while sliding, one undo
+  step on letting go; they follow the part when it is dragged), **Turn** sliders for X / Y / Z (the same axes; any
+  angle; they catch at 0, ±90 and ±180°, or type an exact angle), its joints, *Join it to another part*, **◆ Open its part** (its part's
   own tab, to change it), *Reset its place* and *Take it out*. Moving or turning a joined part by hand asks before it breaks its joints (locked ones never break).
 - **🔩 Screw / pin through parts** (🔩 Fasteners → *Screw / pin through parts…*; 🔩 Screw / pin in the 🔗 Joint row opens the same
   panel, ready for the click): click a point on

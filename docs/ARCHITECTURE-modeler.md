@@ -588,6 +588,12 @@ Date: 2026-10-25. Written by the architect agent.
   shapes lay in memory — a copy of the body flipped it, so the suite's earlier tests did too. The invalid inside was
   cut out and passed `_thin_wall`. `_hollowed` now drops an inside BRepCheck finds invalid. Test:
   test_shell_the_other_way_not_by_chance (the lip body copied 24 × never hollowed; the bitten cylinder always, alike).
+- **⇄ Position sliders (2026-10-30)**: a part placed by hand has Poloha X / Y / Z sliders above Natočení (assembly.js
+  renderProps `row`): its origin on the assembly's axes (the turns' Euler angles are on them too, said in the tooltip),
+  step 1 mm on whole-mm ends, Shift 0.1 mm, the number field exact; live (`setPos(k, v, false)`: draw only, asked once per
+  slide like setRot), one undo step on letting go. `posRange`: ± max(the assembly's size, 2 × the part's), centred on
+  the part, kept per part and axis while inside, centred again at an end. `syncPos` (in draw) keeps them on a part
+  dragged in the view. Test: tools/e2e_manual_position.py.
 - **🎬 Demo "Pumpička" (2026-10-29)**: the AI's pump rebuilt as a stand-in (tools/make_demos.py pumpicka): a turned
   body (an inlet Ø4 with a 45° seat under a bore Ø20, see-through), a piston with a hollow rod and a 45° seat for the
   outlet ball (concentric in the bore, its turn locked, 6 mm stroke "Zmáčknutí tlačítka"), a 〰 spring Ø18/12 × 20 from
