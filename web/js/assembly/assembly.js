@@ -41,7 +41,7 @@ import { newRid, trackProgress, cancelRid, wasCancelled } from '../progressbox.j
 import { busy } from '../busy.js';
 import { threadSegments } from '../modeler/view.js';
 import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss, frameNow, slideNow, orbitOf, axisDistanceNow } from './joints.js';
-import { snapNear, snapPoints } from '../modeler/view.js';
+import { snapNear, snapPoints, ringPx } from '../modeler/view.js';
 import { showSuggest, showSnapFilters, snapKinds, hoverKinds, showKinds } from '../suggest.js';
 import { floatBox } from '../floatbox.js';
 import { MeasureTool, snapWins } from '../measure.js';
@@ -78,6 +78,7 @@ const facingAway = (a, b) => !!(a.face?.normal && b.face?.normal && a.face.norma
 const tidy = (a) => a.map((v) => (Math.abs(v - Math.round(v)) < 1e-9 ? Math.round(v) : +v.toFixed(9))); // (a matrix: whole numbers kept whole)
 const COLORS = [0xd9dee6, 0x9ecbff, 0xffd8a8, 0xb5f5c5, 0xe2c6ff, 0xffc2c2, 0xfff3b0];
 const NO_CLIP = []; // (no ✂ section: the parts' materials share this empty list)
+const RING_PX = 9; // (a ring smaller on the screen (radius, px): its centre and quadrants are neither shown nor taken by a click)
 
 const b64 = (s, T) => { // (a binary answer's arrays come as typed arrays already: modeler/packed.js)
   if (typeof s !== 'string') return s;
@@ -331,7 +332,7 @@ class AsmView extends ModelView {
     const h = this.pickInst(clientX, clientY), r = this.renderer.domElement.getBoundingClientRect();
     const kinds = snapKinds(), s = this.withOrigin(snapNear(this.nearMouse(clientX, clientY, px, r).map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), this.camera, r, clientX, clientY, px, kinds, (p) => this.sees(p)), clientX, clientY, px, kinds); // (⊕ the origin too)
     if (!s && !h?.point) return null;
-    return { point: s ? s.point : h.point.clone(), corner: s?.kind === 'corner', snap: s?.kind || null, face: s ? null : h?.face || null, inst: s ? s.inst : h.inst };
+    return { point: s ? s.point : h.point.clone(), corner: s?.kind === 'corner', snap: s?.kind || null, face: s ? null : h?.face || null, inst: s ? s.inst : h.inst, ...(s?.r ? { r: s.r } : {}) }; // (r: a ring's radius)
   }
 
   /** A round edge near the mouse (within px) and in sight (not behind a part's surface: a hole inside a thin plate seen
@@ -728,7 +729,10 @@ export class Assembly {
     const fp = (this.facePicks || []).filter((q) => this.inst(q.inst));
     if (fp.length) { this.suggestFaces(vp, fp); return; }
     const name = (it) => `${this.partName(it.part)} ${it.id}`;
-    const refs = `${t('in the assembly')} “${this.hooks.safeName?.() || ''}”: ${[a, b].filter(Boolean).map((x) => `${t('part')} ${x.id} “${this.partName(x.part)}”`).join(', ')}`;
+    const sp = !b && this.snapPick?.inst === a.id ? this.snapPick : null, p = sp?.point; // (a snap point clicked on it)
+    const xyz = p ? [p.x, p.y, p.z].map((v) => fmt(+v.toFixed(3))).join(', ') : '';
+    const kind = sp ? `${t({ corner: 'A corner', midpoint: 'An edge midpoint', centre: 'A centre', quadrant: 'A quadrant', origin: 'Origin' }[sp.snap])}${sp.r ? ` Ø${fmt(+(2 * sp.r).toFixed(2))}` : ''}` : ''; // (a ring's: its Ø)
+    const refs = `${t('in the assembly')} “${this.hooks.safeName?.() || ''}”: ${[a, b].filter(Boolean).map((x) => `${t('part')} ${x.id} “${this.partName(x.part)}”`).join(', ')}${sp ? ` — ${t('the point')} (${xyz}) — ${kind.toLowerCase()}` : ''}`;
     const show = (title, items, hint) => showSuggest(vp, title, items.map((x) => ({ ...x, run: async () => { await x.run(); this.renderSuggest(); } })), hint, refs); // (an action started: the table follows)
     if (b) {
       const pins = pinFits(this, a.id, 3).filter((f) => f.hole === b.id || f.pin === b.id), on = restOn(this, a.id, b.id) || restOn(this, b.id, a.id);
@@ -746,8 +750,6 @@ export class Assembly {
       ]);
       return;
     }
-    const sp = this.snapPick?.inst === a.id ? this.snapPick : null, p = sp?.point;
-    const xyz = p ? [p.x, p.y, p.z].map((v) => fmt(+v.toFixed(3))).join(', ') : '', kind = sp ? t({ corner: 'A corner', midpoint: 'An edge midpoint', centre: 'A centre', quadrant: 'A quadrant' }[sp.snap]) : '';
     show(sp ? `${name(a)} · ${kind}` : name(a), [
       ...(sp ? [
         { section: kind },
@@ -3961,16 +3963,19 @@ export class Assembly {
     v.setHoverEdges(eh ? [{ pts: eh.edge.pts, matrix: mesh.matrix }] : [], eh ? `${mesh.uuid}:${eh.i}` : '');
     const fi = h0.face ? body.faces.findIndex((f) => f.id === h0.face.id) : -1, kinds = snapKinds();
     if (!hk.points || fi < 0) { v.setHoverSnaps([]); return; }
-    const key = `${mesh.uuid}:${fi}|${Object.entries(kinds).map(([k, on]) => (on ? k : '')).join('')}`;
-    if (key !== v.hoverSnapKey) v.setHoverSnaps(snapPoints(body.edges.filter((ed) => ed.faces.includes(fi)), mesh.matrix, kinds), key);
+    // the dots: what a click there takes (idleSnap) — a small ring's centre and quadrants left out, as there
+    const r = v.renderer.domElement.getBoundingClientRect(), pts = snapPoints(body.edges.filter((ed) => ed.faces.includes(fi)), mesh.matrix, kinds).filter((q) => ringPx(q, v.camera, r) >= RING_PX);
+    const key = `${mesh.uuid}:${fi}|${Object.entries(kinds).map(([k, on]) => (on ? k : '')).join('')}|${pts.length}`;
+    if (key !== v.hoverSnapKey) v.setHoverSnaps(pts, key);
   }
 
-  /** The snap point a plain click (no tool on) takes: a corner, an edge's middle, a centre within 5 px (📏 Measure: 10)
-   *  — but on a hole's or pin's round face, or near its rim, only a corner: the click picks that face then (a thin side
-   *  or a small pin seen from afar would be all snap circles; joining wants the face). */
+  /** The snap point a plain click (no tool on) takes, before the face under it: a corner, an edge's middle, a centre, a
+   *  quadrant within 5 px (📏 Measure: 10) — the one lit while hovered (the same call). A small ring's centre and
+   *  quadrants (under RING_PX on the screen: a thin pin seen from afar would be all snap points) are not: the click
+   *  picks its round face then. */
   idleSnap(e, h) {
     const sp = this.view.measurePoint(e.clientX, e.clientY, 5);
-    if (sp?.snap && sp.snap !== 'corner' && sp.snap !== 'origin' && (h?.face?.type === 'cylinder' || this.view.roundEdgeAt(e.clientX, e.clientY))) return null;
+    if (sp?.snap && ringPx(sp, this.view.camera, this.view.renderer.domElement.getBoundingClientRect()) < RING_PX) return null;
     return sp;
   }
 

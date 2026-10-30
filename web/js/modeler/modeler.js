@@ -843,7 +843,7 @@ export class Modeler {
    *  then measure from it, copy it, ask the AI; an edge's middle (edge `ei` under it): round / bevel that edge. */
   pickSnap(sp, ei = -1, at = null) {
     const p = sp.point, xyz = [p.x, p.y, p.z].map((v) => fmt(+v.toFixed(3))).join(', ');
-    const kind = sp.snap === 'point' ? sp.name : t({ corner: 'A corner', midpoint: 'An edge midpoint', centre: 'A centre', quadrant: 'A quadrant', origin: 'Origin' }[sp.snap]);
+    const kind = sp.snap === 'point' ? sp.name : `${t({ corner: 'A corner', midpoint: 'An edge midpoint', centre: 'A centre', quadrant: 'A quadrant', origin: 'Origin' }[sp.snap])}${sp.r ? ` Ø${fmt(+(2 * sp.r).toFixed(2))}` : ''}`; // (a ring's: its Ø)
     if (sp.snap === 'point') this.selectStep(sp.id); // a reference point: its step chosen
     this.view.setMeasure([p]);
     const ref = ei >= 0 && this.edgeRef(ei);
