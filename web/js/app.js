@@ -2058,15 +2058,18 @@ function toggleChat(open = !state.chatOpen) {
   placeChat();
   if (open) $('aiDrawer').querySelector('textarea')?.focus();
 }
+/** The chat in sight wherever the user is, the workspace kept: the quick part's ✨ AI tab, else the drawer (the start screen too). */
+function showChat() {
+  if ($('tab-ai').parentElement === $('aiDrawer')) { if ($('aiDrawer').hidden) toggleChat(true); } else switchTab('ai');
+  $('tab-ai').querySelector('textarea')?.focus();
+}
 $('aiBtn').addEventListener('click', () => {
-  if (state.workspace === 'quick' && !document.body.classList.contains('start-open')) { // (the quick part: the chat is its left panel's ✨ AI tab)
-    switchTab('ai');
-    $('tab-ai').querySelector('textarea')?.focus();
-  } else toggleChat();
+  if (state.workspace === 'quick' && !document.body.classList.contains('start-open')) showChat(); // (the quick part: the chat is its left panel's ✨ AI tab)
+  else toggleChat();
 });
 // ✨ in the Suggested table: what is selected goes into the chat (the AI's tools know these ids)
 setAskAI((refs) => {
-  toggleChat(true);
+  showChat();
   const ta = $('tab-ai').querySelector('textarea');
   if (!ta) return;
   ta.value = `${ta.value.trim() ? `${ta.value.trimEnd()}\n` : ''}[${t('Selected')} ${refs}] `;
@@ -2277,7 +2280,7 @@ const agentHandlers = {
     if (!String(question || '').trim() || !Array.isArray(options) || options.length < 2) throw new Error('question, and 2–5 options [{label, description}] (recommended: the number of yours, 0 = the first).');
     const opts = options.slice(0, 5).map((o) => (typeof o === 'string' ? { label: o } : { label: String(o.label || ''), description: o.description ? String(o.description) : undefined }));
     if (opts.some((o) => !o.label)) throw new Error('Each option needs a label.');
-    if (state.workspace === 'quick') document.querySelector('.tab[data-tab=ai]')?.click(); else if ($('aiDrawer').hidden) toggleChat(true); // (the chat in sight)
+    showChat(); // (the chat in sight, also on the start screen: its drawer)
     window.__chat?.ask({ question: String(question), options: opts, recommended: Math.max(0, Math.min(opts.length - 1, Number.parseInt(recommended, 10) || 0)) });
     return { text: 'Shown in the app\'s chat as buttons (your recommended one first, marked ★). End your turn now and wait: the user\'s choice comes as their next message ("<question> → <option>"). Several questions: one ask_user each in this turn, then end it — the answers come together.' };
   },
@@ -2670,7 +2673,7 @@ initStart({
   newPart: () => project.newModel(),
   openFiles: (files) => openFiles(files),
   demos: () => showDemos({ open: openLoaded, toast }),
-  askAI: () => toggleChat(true),
+  askAI: () => showChat(),
   onChange: () => { placeChat(); updateTopButtons(); },
 });
 initWindowDrop((files, { shift }) => openFiles(files, { shift }));

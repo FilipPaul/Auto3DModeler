@@ -44,7 +44,8 @@ try:
         {"label": "Graphic / decorative"}])[:80])
     ai("ask_user", question="Easy to edit by a person?", options=["Yes — simple sketches", "Any way that reaches the goal"])
     time.sleep(0.5)
-    print("chat in sight:", js("return document.getElementById('tab-ai').offsetParent !== null"))
+    print("chat in sight:", js("return document.getElementById('tab-ai').offsetParent !== null"),
+          "| where the user was kept (start screen, workspace):", js("return [document.body.classList.contains('start-open'), window.__app.state.workspace]"))
     print("cards:", cards())
     print("recommended first and marked:", d.find_elements(By.CSS_SELECTOR, ".ai-msg.ask .ai-opt")[0].get_attribute("class"))
     d.save_screenshot(f"{OUT}/ask.png")
