@@ -387,13 +387,19 @@ restore_version, create_variant, rename_variant and delete_variant.
 **🎬 Demo projects** (Open ▾ → *Demo projects…*): ready-made projects that show whole mechanisms moving — a crank –
 rod – slider (*Klikový mechanismus*), a four-bar linkage (*Čtyřkloubový mechanismus*: the crank turns round, the
 rocker swings), a robot arm (*Robotické rameno*: an open chain — turn the arm and the forearm and gripper go
-along) and gears with a rack (*Převodovka s hřebenem*: a pinion Ø30 turns a wheel Ø60 at i = 2:1 and moves a rack
-π·30 mm a turn — ⚙ couplings) and a pump (*Pumpička*: press the button — the piston compresses the 〰 spring, the
-outlet ball lifts and the inlet ball sits on its seat; let go: the other way round — ↕ check valves). Each is listed with what it shows (in Czech or English) and opens as a new project — a copy, the demo stays
-π·30 mm a turn — ⚙ couplings) and a control box with a motor (*Řídicí box s motorem*: a PCB and a motor joined by
-a 🔌 harness of 4 loose wires; the motor turns a pulley). Each is listed with what it shows (in Czech or English) and opens as a new project — a copy, the demo stays
-as it is — on its assembly with ⚙ Mechanism ready (Czech motion names, ▶). The files are in `demos/` (built through
-the app by `tools/make_demos.py`) and go into the Windows build.
+along), gears with a rack (*Převodovka s hřebenem*: a pinion Ø30 turns a wheel Ø60 at i = 2:1 and moves a rack
+π·30 mm a turn — ⚙ couplings), a pump (*Pumpička*: press the button — the piston compresses the 〰 spring, the
+outlet ball lifts and the inlet ball sits on its seat; let go: the other way round — ↕ check valves), a control box
+with a motor (*Řídicí box s motorem*: a PCB and a motor joined by a 🔌 harness of 4 loose wires; the motor turns a
+pulley) and two cable routings: a gantry carriage (*Portálový pojezd*: a carriage on a beam, ±150 mm, with a NEMA 17
+stepper; its 🔒 cable runs from the box in two HellermannTyton 📎 P-clips along the base, through an igus E2.15 ⛓
+energy chain whose moving end goes with the carriage, and a clip on the carriage to the motor — ▶: the chain rolls,
+the cable follows at the same length) and a swinging arm (*Otočné rameno s kabelem*: an arm on a hinge, −90 … +90°,
+with a SICK M12 sensor at its tip wired with 4 loose wires — brown, blue, black, white — from the controller; a ➰
+loop of slack arches across the hinge onto the arm, two MB tie mounts hold the wires on it — ▶: the loop takes up the
+swing, never taut, clear of the box and the arm). Each is listed with what it shows (in Czech or English) and opens
+as a new project — a copy, the demo stays as it is — on its assembly with ⚙ Mechanism ready (Czech motion names,
+▶). The files are in `demos/` (built through the app by `tools/make_demos.py`) and go into the Windows build.
 
 **Panels**: drag the edge between a side panel and the view (or the AI chat's left edge) to make it wider or narrower;
 the widths are remembered, a double-click on an edge gives the usual width again.

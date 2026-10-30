@@ -87,6 +87,49 @@ class TestDemoFiles(unittest.TestCase):
             rules[b] = lim["follow"]["at"]
         self.assertNotEqual(rules["I4"], rules["I5"])  # (both seats open upwards: the inlet lifts going up, the outlet going down)
 
+    def test_gantry_routes_its_cable_through_the_chain(self):
+        """🎬 Portálový pojezd: an igus chain whose moving end goes with the carriage, a 🔒 cable from the box through it
+        to the motor, held by P-clips (the carriage's clip joined to the carriage: it goes along)."""
+        proj = demos.load(DEMOS, "portalovy-pojezd.a3d.json")
+        asm = next(p for p in proj["parts"] if p["kind"] == "assembly")["assembly"]
+        inst = {i["id"]: i for i in asm["instances"]}
+        (ch,) = asm["chains"]
+        self.assertIn("E2.15", ch["dims"]["pn"])
+        self.assertEqual(ch["follow"]["inst"], "I3")  # (the carriage)
+        (h,) = asm["harnesses"]
+        self.assertGreater(h["length_locked"], 0)
+        self.assertEqual([s.get("chain") for s in h["spans"]], [ch["id"]])
+        clips = [p["clip"] for p in h["points"] if p.get("clip")]
+        self.assertEqual(len(clips), 3)
+        names = {p["id"]: p["name"] for p in proj["parts"]}
+        for c in clips:
+            self.assertIn("P-clamp", names[inst[c]["part"]])
+        for p in h["points"]:
+            self.assertIn(p["inst"], inst)  # (every point locked to a part)
+        rigid = {m["move"]: m["onto"] for m in asm["mates"] if m["type"] == "rigid"}
+        self.assertEqual(rigid.get(clips[-1]), "I3")
+        (lim,) = inst["I3"]["travel"].values()
+        self.assertEqual((lim["min"], lim["max"]), (-150, 150))
+
+    def test_arm_has_a_service_loop_across_its_hinge(self):
+        """🎬 Otočné rameno s kabelem: 4 coloured loose wires from the controller to the sensor, a ➰ span of its own
+        length from the controller to the arm, tie mounts joined to the arm, the arm's swing −90 … 90°."""
+        proj = demos.load(DEMOS, "otocne-rameno-s-kabelem.a3d.json")
+        asm = next(p for p in proj["parts"] if p["kind"] == "assembly")["assembly"]
+        inst = {i["id"]: i for i in asm["instances"]}
+        (h,) = asm["harnesses"]
+        self.assertEqual(h["kind"], "wires")
+        self.assertEqual([w["color"] for w in h["wires"]], ["brown", "blue", "black", "white"])
+        (span,) = h["spans"]
+        self.assertEqual(span["from"], 0)
+        self.assertGreater(span["length"], 100)
+        rigid = {m["move"]: m["onto"] for m in asm["mates"] if m["type"] == "rigid"}
+        clips = [p["clip"] for p in h["points"] if p.get("clip")]
+        self.assertEqual(len(clips), 2)
+        self.assertTrue(all(rigid.get(c) == "I2" for c in clips))  # (on the arm: they swing with it)
+        (lim,) = inst["I2"]["travel"].values()
+        self.assertEqual((lim["min"], lim["max"]), (-90, 90))
+
     def test_bad_names_refused(self):
         for bad in ("../server.py", "nope.a3d.json", "klikovy-mechanismus.json", "sub/x.a3d.json", None):
             with self.subTest(name=bad), self.assertRaises(demos.DemoError):

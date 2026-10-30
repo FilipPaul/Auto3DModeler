@@ -7,6 +7,22 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **🎬 Two cable demos (2026-10-30)** (the owner: two demos that show cable routing nicely). tools/make_demos.py builds
+  them through the AI tools, from real library parts: *Portálový pojezd* (portalovy-pojezd) — a carriage on a 60 mm
+  beam (a touch, its turn and cross slide locked: ⚙ "Pojezd vozíku" −150 … 150 mm), a NEMA 17 (rigid on it), an igus
+  E2.15.16.038 chain of 16 links (its fixed end on the base below the moving end's middle, `followPart` → the
+  carriage: the moving end on a block of the carriage, the upper run just above its plate), a Ø7 orange cable from the
+  box's gland — two H4P P-clips on pads of the base (a P-clip holds the cable F = 10 mm off its screw: the pads 10 mm
+  aside), the span through the chain, an H4P on the carriage — to the motor's side, 🔒 721.2 mm at every travel;
+  *Otočné rameno s kabelem* — an arm on a column's pin (⚙ "Otáčení ramene" −90 … 90°), a SICK IME12 in its tip (axis +
+  slide locked), 4 loose wires brown / blue / black / white from a gland on the controller's top: ➰ span 1–2 150 mm (it
+  leaves the gland upwards, so the slack bows up and comes onto the arm from above — a gland on the box's side made it
+  sag through the arm's edge at ±90°), two MB3A tie mounts on the arm. Learned on the way: a clip is put in loose (no
+  joint) — on a moving part the demo joins it 🔗 rigid to it, else it stays behind; a span through a chain takes the
+  chain's path from the end nearer its first point — that point must stay nearer the fixed end over the whole travel;
+  a face end's lead is max(r_min, Ø) + Ø long — the next point (a clip) beyond it. tests/test_demos.py (their chain,
+  locks, clips, span, limits), tools/e2e_cable_demos.py (each opened from 🎬; at −max / 0 / max: no taut / through /
+  still_hits / too-tight bend, 🔒 length and ➰ span kept, no overlaps; the chain's moving end with the carriage; ▶).
 - **⇤⇥ Limits where the owner looks (2026-10-30)** (the owner: "v mechanismech chybí nastavení min max limitů").
   mechanism.js: under each row's slider limHtml — "⇤ min … max ° ⇥" as borderless inputs (typed in place, Enter / Tab
   sets, Esc as it was), "full turn", or "no limits" + ⇤⇥ Limits (MechanismPanel.firstLimits: the free stretch around

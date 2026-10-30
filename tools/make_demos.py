@@ -10,6 +10,8 @@ project as the app saves it, with its "demo" record (auto3d/demos.py).
   prevodovka-s-hrebenem    gears and a rack: a pinion Ø30 turns a wheel Ø60 (i = 2:1) and moves a rack π·30 mm a turn
   pumpicka                 a pump: a piston on a 〰 spring, two ↕ check-valve balls (an inlet in the body, an outlet in the piston)
   ridici-box-s-motorem     a box with a PCB and a motor joined by a 🔌 4-wire harness; the motor turns a pulley
+  portalovy-pojezd         a carriage on a beam with a stepper: its 🔒 cable in 📎 P-clips through an igus ⛓ energy chain
+  otocne-rameno-s-kabelem  an arm on a hinge with a sensor: 4 loose wires, a ➰ loop across the hinge, 📎 tie mounts
 """
 import json
 import math
@@ -67,6 +69,14 @@ def bar(name, w, h, t, holes=(), pins=(), hole_d=8, pin_d=8, pin_h=10):
         call("add_feature", type="extrude", sketch="F4" if holes else "F3", d=pin_h)  # (the sketch just made)
 
 
+def block(sketches):
+    """A new model's steps: extrudes one after another, [(x, y, w, h, z0, dz)] — a rectangle at x, y (its corner) on the
+    plane z = z0, dz up (sketch F1, extrude F2, the next F3, F4 …)."""
+    for k, (x, y, w, h, z0, dz) in enumerate(sketches):
+        call("add_feature", type="sketch", plane="XY" if not z0 else {"datum": "XY", "offset": z0}, shapes=[{"rect": {"x": x, "y": y, "w": w, "h": h}}])
+        call("add_feature", type="extrude", sketch=f"F{2 * k + 1}", d=dz)
+
+
 def assembly(name, parts):
     call("new_assembly", name=name)
     for p in parts:
@@ -84,6 +94,13 @@ def rounds(i, kind):
 
 def axis(i, face):
     return js(f"return {A}.worldFace(arguments[0], arguments[1]).axis.o.toArray()", i, face)
+
+
+def facing(i, n, step="F2"):
+    """A placed part's flat face of extrude `step` looking along n (world, e.g. [1, 0, 0])."""
+    return js(f"""const it = {A}.inst(arguments[0]), b = {A}.bodies[it.part].body;
+      return [...new Set(b.faces.map(f => f.name))].filter(x => x.startsWith(arguments[2] + ':')).find(x => {{ const f = {A}.worldFace(arguments[0], x);
+        return f.normal && f.normal.x * arguments[1][0] + f.normal.y * arguments[1][1] + f.normal.z * arguments[1][2] > 0.99; }})""", i, n, step)
 
 
 def snap(**a):
@@ -350,5 +367,131 @@ try:
             "order": 5, "name": "Control box with a motor", "name_cs": "Řídicí box s motorem",
             "text": "A PCB and a motor in a box, joined by a 🔌 cable harness of 4 loose wires (red, black, blue, brown) routed over the box — its length, the bends at the minimum radius, a BOM line per wire. Click the harness: edit its points, change it to a cable; ▶ turns the motor's pulley.",
             "text_cs": "Deska plošných spojů a motor v krabici, spojené 🔌 kabelovým svazkem ze 4 volných drátů (červený, černý, modrý, hnědý) vedeným nad krabicí — jeho délka, ohyby na minimální poloměr, řádek kusovníku na každý drát. Klikněte na svazek: upravte body, změňte ho na kabel; ▶ otáčí řemenicí motoru."})
+    # ---------------------------------------------------------------- a gantry carriage: a cable through a ⛓ energy chain
+    if want("portalovy-pojezd"):
+        fresh()
+        # the base 640 × 220 with two 3 mm pads for the cable's clips (a P-clip holds the cable 10 mm off its screw: on
+        # y 50, the chain's lane)
+        call("new_model", name="Základna")
+        block([(0, 0, 640, 220, 0, 10), (210, 30, 20, 20, 10, 3), (340, 30, 20, 20, 10, 3)])
+        call("new_model", name="Nosník")  # (the linear guide: a beam 60 high — the carriage rides above the chain's upper run)
+        block([(0, 0, 500, 30, 0, 60)])
+        # the carriage 200 × 170 × 12 (x from its middle) over the beam and the chain's lane (y 25 here): a 4 mm block
+        # under the chain's moving end (x 60 … 80) and a pad for the cable's clip, its axis on the chain's level
+        call("new_model", name="Vozík")
+        block([(-100, 0, 200, 170, 0, 12), (55, 10, 30, 30, 12, 4), (10, 5, 20, 20, 12, 11.8)])
+        call("new_model", name="Rozvodnice")  # (a box with a cable gland low on its +x side)
+        block([(0, 0, 70, 60, 0, 60), (70, 22, 10, 16, 8, 14)])
+        assembly("Portálový pojezd", ["Základna", "Nosník", "Vozík", "Rozvodnice"])
+        call("place_part", part="I2", x=80, y=160, z=10)
+        call("place_part", part="I2", fixed=True)
+        call("place_part", part="I4", x=15, y=20, z=10)
+        call("place_part", part="I4", fixed=True)
+        snap(type="touch", move={"part": "I3", "face": "F2:start"}, onto={"part": "I2", "face": "F2:end"}, name="vozík na nosníku")
+        call("lock_motion", part="I3", motion=motion("I3", "Turn"))  # (the touch leaves two slides and a turn: the turn locked,
+        pos = lambda i: next(p for p in json.loads(call("get_assembly"))["parts"] if p["id"] == i)["position"]  # noqa: E731
+        k = motion("I3", "along Y")  # the carriage moved across to the chain's lane, there locked)
+        y0 = pos("I3")[1]
+        call("move_free", part="I3", motion=k, amount=25 - y0)
+        if abs(pos("I3")[1] - 25) > 1e-6:
+            call("move_free", part="I3", motion=k, amount=2 * (y0 - 25))
+        call("lock_motion", part="I3", motion=motion("I3", "along Y"))
+        along = motion("I3", "Slide")
+        call("name_motion", part="I3", motion=along, name="Pojezd vozíku")
+        call("set_travel", part="I3", motion="Pojezd vozíku", min=-150, max=150)
+        call("move_free", part="I3", motion=along, to=0)
+        xc, yc, zc = pos("I3")
+        # a NEMA 17 stepper on the carriage, in the chain's lane: its +x side (the cable's end) toward the chain
+        call("library_add", item="nema17", size="34 mm", to="assembly")
+        call("place_part", part="I5", x=xc - 75, y=yc + 25, z=zc + 12)
+        snap(type="rigid", move={"part": "I5"}, onto={"part": "I3"}, name="motor na vozíku")
+        # ⛓ an igus E2.15 chain (Bi 16, R 38): its fixed end on the base below the moving end's middle, its lower run on
+        # the base; its moving end on the carriage's block (x + 60), moving with the carriage
+        call("library_add", item="igus-e2-15", size="Bi 16", length=38, to="assembly")
+        ha, links = 19.3, 16  # (its outer height; 16 links reach ±200 mm)
+        call("place_part", part="I6", x=xc + 60, y=yc + 25, z=10 + ha / 2)
+        call("place_part", part="I6", fixed=True)
+        js(f"""const a = {A}, rec = a.doc.chains.find(c => c.part === 'I6'); rec.links = arguments[0]; rec.name = 'Energetický řetěz';
+          return import('./js/assembly/chains.js').then(C => {{ C.followPart(a, rec, 'I3'); a.commit(); C.drawChains(a); }})""", links)
+        print(" ", json.dumps(json.loads(call("get_assembly")).get("chains")))
+        # 🔌 the motor's cable: from the box's gland along the base (two P-clips), through the chain, a clip on the
+        # carriage, to the motor — every point locked to its part
+        print(" ", call("add_harness", type="cable", d=7, color="orange", name="Kabel motoru", points=[
+            {"part": "I4", "face": facing("I4", [1, 0, 0], "F4")}, {"part": "I1", "face": "F4:end"}, {"part": "I1", "face": "F6:end"},
+            {"part": "I3", "face": "F6:end"}, {"part": "I5", "face": facing("I5", [1, 0, 0])}])[:600])
+        call("edit_harness", id="H1", chain={"span": 3, "id": "C1"})
+        for k in (2, 3):
+            call("edit_harness", id="H1", clip={"point": k, "item": "ht-hp-pclamp"})
+        call("move_free", part="I3", motion=along, to=150)  # (the carriage's clip along +x: from the base's clip to the motor)
+        call("edit_harness", id="H1", clip={"point": 4, "item": "ht-hp-pclamp"})
+        clip = js(f"return {A}.doc.harnesses[0].points[3].clip")  # (a clip is put in loose: joined, it goes with the carriage)
+        snap(type="rigid", move={"part": clip}, onto={"part": "I3"}, name="příchytka na vozíku")
+        call("move_free", part="I3", motion=along, to=0)
+        print(" ", call("edit_harness", id="H1", length_locked=True)[:1200])
+        for i, color in (("I1", "#c9ced6"), ("I2", "#8f99a6"), ("I3", "#4a90d9"), ("I4", "#5b6470")):
+            call("set_look", part=i, color=color)
+        print(call("drive_mechanism", driver={"part": "I3", "motion": 0}, name="Portálový pojezd", to=-60)[:140])
+        js(f"{A}.harnessTool.sel = null; {A}.render(); {A}.draw()")
+        save("portalovy-pojezd.a3d.json", "Portálový pojezd", {
+            "order": 6, "name": "Gantry carriage", "name_cs": "Portálový pojezd",
+            "text": "A carriage on a rail (⚙ travel ±150 mm) with a NEMA 17 stepper; its cable runs from the box along the base in two 📎 P-clips (HellermannTyton H4P), through an igus E2.15 ⛓ energy chain and a clip on the carriage to the motor. ▶: the chain rolls with the carriage and the cable follows it — its 🔒 length stays the same.",
+            "text_cs": "Vozík na kolejnici (⚙ pojezd ±150 mm) s krokovým motorem NEMA 17; jeho kabel vede z rozvodnice po základně ve dvou 📎 P-příchytkách (HellermannTyton H4P), energetickým řetězem igus E2.15 ⛓ a příchytkou na vozíku k motoru. ▶: řetěz se odvaluje s vozíkem a kabel ho následuje — jeho 🔒 délka zůstává stejná."})
+    # ---------------------------------------------------------------- a swinging arm: a ➰ service loop across its hinge
+    if want("otocne-rameno-s-kabelem"):
+        fresh()
+        # the base 480 × 440 with a column Ø40, 80 high, and a pin Ø16 on it (the hinge at x 260, y 220)
+        call("new_model", name="Základna")
+        block([(0, 0, 480, 440, 0, 10)])
+        for k, (dia, z0, dz) in enumerate(((40, 10, 80), (16, 90, 10))):
+            call("add_feature", type="sketch", plane={"datum": "XY", "offset": z0}, shapes=[{"circle": {"x": 260, "y": 220, "d": dia}}])
+            call("add_feature", type="extrude", sketch=f"F{3 + 2 * k}", d=dz)
+        # the arm 270 × 40 × 10 (x from its hinge): a hole Ø16 on the pin, a hole Ø12 for the sensor 200 out, two pads for
+        # tie mounts (one behind the hinge: the cable comes onto the arm near its axis)
+        call("new_model", name="Rameno")
+        block([(-45, -20, 270, 40, 0, 10), (-36, -8, 16, 16, 10, 1), (92, -8, 16, 16, 10, 1)])
+        call("add_feature", type="hole", face="F2:end", points=[[110, 0]], d=12)  # (from the top's middle, x 90)
+        call("add_feature", type="hole", face="F2:end", points=[[-90, 0]], d=16)
+        call("new_model", name="Řídicí jednotka")  # (a controller box 120 × 90 × 80, a cable gland on its top by the hinge)
+        block([(0, 0, 120, 90, 0, 80), (98, 37, 16, 16, 80, 10)])
+        assembly("Otočné rameno s kabelem", ["Základna", "Rameno", "Řídicí jednotka"])
+        call("place_part", part="I3", x=30, y=175, z=10)
+        call("place_part", part="I3", fixed=True)
+        radius = lambda i, n: js(f"return {A}.worldFace(arguments[0], arguments[1]).radius", i, n)  # noqa: E731
+        pin = min(rounds("I1", "side"), key=lambda n: radius("I1", n))
+        snap(type="axis", move={"part": "I2", "face": max(rounds("I2", "hole"), key=lambda n: radius("I2", n))}, onto={"part": "I1", "face": pin}, name="rameno na čepu")
+        snap(type="touch", move={"part": "I2", "face": "F2:start"}, onto={"part": "I1", "face": facing("I1", [0, 0, 1], "F4")})
+        turn = motion("I2", "Turn")
+        call("name_motion", part="I2", motion=turn, name="Otáčení ramene")
+        call("move_free", part="I2", motion=turn, to=0)
+        call("set_travel", part="I2", motion="Otáčení ramene", min=-90, max=90)
+        # a SICK IME12 sensor in the arm's tip (its thread in the hole), its sensing face down, 15 mm below the arm
+        call("library_add", item="sick-ime", size="M12, 4 mm", to="assembly")
+        snap(type="axis", move={"part": "I4", "face": "F2:side:l2"}, onto={"part": "I2", "face": min(rounds("I2", "hole"), key=lambda n: radius("I2", n))}, lock_rotation=True, name="snímač v rameni")
+        box = lambda i: next(p for p in json.loads(call("get_assembly"))["parts"] if p["id"] == i)["bbox"]  # noqa: E731
+        k, z0 = motion("I4", "Slide"), box("I4")[2]
+        call("move_free", part="I4", motion=k, amount=75 - z0)
+        if abs(box("I4")[2] - 75) > 1e-6:
+            call("move_free", part="I4", motion=k, amount=2 * (z0 - 75))
+        call("lock_motion", part="I4", motion=k)
+        top = js(f"""const it = {A}.inst('I4'), b = {A}.bodies[it.part].body;
+          return b.faces.filter(f => f.type === 'plane' && f.normal[2] > 0.99).sort((p, q) => q.centroid[2] - p.centroid[2])[0].name""")
+        # 🔌 four loose wires (a PNP sensor's: brown +, blue −, black signal, white) from the controller's gland to the
+        # sensor: ➰ a loop of slack arching over to the arm (up out of the gland: it comes onto the arm from above), two
+        # tie mounts on the arm
+        print(" ", call("add_harness", type="wires", wires=[{"color": c, "d": 1.5} for c in ("brown", "blue", "black", "white")], name="Kabel snímače", points=[
+            {"part": "I3", "face": "F4:end"}, {"part": "I2", "face": "F4:end"}, {"part": "I2", "face": "F6:end"},
+            {"part": "I4", "face": top}])[:600])
+        for k in (2, 3):  # (a tie mount is put in loose: on the arm it goes with the arm)
+            call("edit_harness", id="H1", clip={"point": k, "item": "ht-mb-mount"})
+            snap(type="rigid", move={"part": js(f"return {A}.doc.harnesses[0].points[arguments[0]].clip", k - 1)}, onto={"part": "I2"}, name="příchytka na rameni")
+        print(" ", call("edit_harness", id="H1", spans=[{"from": 1, "length": 150}])[:1200])
+        for i, color in (("I1", "#c9ced6"), ("I2", "#e8a33d"), ("I3", "#5b6470")):
+            call("set_look", part=i, color=color)
+        print(call("drive_mechanism", driver={"part": "I2", "motion": 0}, name="Otočné rameno", to=40)[:140])
+        js(f"{A}.harnessTool.sel = null; {A}.render(); {A}.draw()")
+        save("otocne-rameno-s-kabelem.a3d.json", "Otočné rameno s kabelem", {
+            "order": 7, "name": "Swinging arm with a cable", "name_cs": "Otočné rameno s kabelem",
+            "text": "An arm on a hinge (⚙ −90 … +90°) with a SICK sensor at its tip, wired with 4 loose wires (brown, blue, black, white) from the controller: a ➰ loop of slack arching across the hinge onto the arm, two adhesive 📎 tie mounts (HellermannTyton MB3A) on the arm. ▶ swings the arm — the loop takes up the motion and never goes taut; the wires keep clear of the box and the arm.",
+            "text_cs": "Rameno na čepu (⚙ −90 … +90°) se snímačem SICK na konci, zapojeným 4 volnými vodiči (hnědý, modrý, černý, bílý) z řídicí jednotky: ➰ smyčka rezervy obloukem přes kloub na rameno, na rameni dvě samolepicí 📎 příchytky (HellermannTyton MB3A). ▶ rameno kývá — smyčka pohyb vyrovná a nikdy se nenapne; vodiče se vyhnou krabici i rameni."})
 finally:
     d.quit()
