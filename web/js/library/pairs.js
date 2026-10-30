@@ -13,7 +13,7 @@ import { partsAlong, isStandard } from '../assembly/fasteners.js';
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 /** What a companion is to the part it goes with (the words of the suggestions). */
 export const ROLE_NAMES = { nut: 'Nut', washer: 'Washer', insert: 'Insert', screw: 'Screw', standoff: 'Standoff', receptacle: 'Receptacle', probe: 'Probe',
-  'auto switch': 'Auto switch', cylinder: 'Cylinder', part: 'Part' };
+  'auto switch': 'Auto switch', cylinder: 'Cylinder', clip: 'Clip', tie: 'Cable tie', mount: 'Tie mount', part: 'Part' };
 const roleName = (r) => t(ROLE_NAMES[r] || r);
 const itemName = (it) => (getLang() === 'cs' && it.name_cs) || t(it.name);
 
@@ -68,12 +68,16 @@ export function libOf(items, data) {
 
 const num = (v, vars, d = 0) => { try { return v === undefined ? d : evaluate(v, vars); } catch { return d; } };
 
-/** The companion's own length (a screw put through a nut: the shortest that comes out of it) or undefined. */
-function lengthFor(comp, hostTop) {
+/** Where a 📎 clip's screw head sits (its mount's seat, along its own Z) or null: not a clip. */
+const seatOf = (host) => (host?.item.mount?.seat !== undefined ? num(host.item.mount.seat, host.vars, null) : null);
+
+/** The companion's own length (a screw put through a nut: the shortest that comes out of it) or undefined. seat: a
+ *  clip's (the screw goes through it into the part under it, 1.5 d deep). */
+function lengthFor(comp, hostTop, seat = null) {
   const ls = lengthsOf(comp.item, comp.size);
   if (!ls) return undefined;
   const d = num('d', varsOf(comp.item, comp.size), 3);
-  const need = comp.back === 'standoff' ? Math.max(1.5 * d, 4) : hostTop + 1; // (into a standoff's thread: 1.5 d; else through it)
+  const need = comp.back === 'standoff' ? Math.max(1.5 * d, 4) : seat !== null ? seat + 1.5 * d : hostTop + 1; // (into a standoff's thread: 1.5 d; else through it)
   return ls.values.find((v) => v >= need - 1e-6) ?? ls.values[ls.values.length - 1];
 }
 
@@ -83,12 +87,13 @@ function placeOf(asm, hostIt, host, comp, compTop, length) {
   const hv = host.vars, top = topOf(bodyOf(asm, hostIt));
   if (host.item.kind === 'receptacle' && comp.role === 'probe') return { z: num('zp', hv), slot: 'probe' };
   if (host.item.kind === 'probe' && comp.role === 'receptacle') return { z: -num('zp', varsOf(comp.item, comp.size)), slot: 'receptacle' };
-  if (comp.role === 'screw') return { z: top - (length ?? compTop), slot: 'screw' }; // (its head on the part's top)
-  if (comp.role === 'auto switch' || comp.role === 'cylinder') return null; // (no place on an axis: beside it)
+  if (comp.role === 'screw') return { z: (seatOf(host) ?? top) - (length ?? compTop), slot: 'screw' }; // (its head on the part's top; a clip's: on its seat)
+  if (['auto switch', 'cylinder', 'tie', 'mount'].includes(comp.role)) return null; // (no place on an axis: beside it)
   if (host.item.kind === 'standoff' || host.item.id.startsWith('standoff')) return { z: -compTop, slot: 'nut' }; // (a nut on its male end, below)
   // a screw: its seat (under the head) at z = L; washer under the head, the nut at the end of what it holds
   const L = num('L', hv, top), pairs = asm.doc.instances.filter((i) => i.pair?.host === hostIt.id);
   const headWasher = pairs.find((i) => i.pair.slot === 'head'), hw = headWasher ? topOf(bodyOf(asm, headWasher)) : 0;
+  if (comp.role === 'clip') return { z: L - hw - num(comp.item.mount?.seat, varsOf(comp.item, comp.size)), slot: 'clip' }; // (📎 its seat under the head)
   if (comp.role === 'washer' && !headWasher) return { z: L - compTop, slot: 'head' };
   // what it holds: parts along its axis from under the head (and its washer) down, touching one after another
   const M = new THREE.Matrix4().fromArray(hostIt.matrix), seat = new THREE.Vector3(0, 0, L - hw).applyMatrix4(M);
@@ -116,7 +121,7 @@ export async function addCompanion(asm, items, hostId, comp, hooks) {
   const hostIt = asm.inst(hostId), host = libOf(items, asm.hooks.partData(hostIt?.part));
   if (!hostIt || !host) throw new Error(t('That part is not a library part.'));
   await asm.refresh();
-  const length = lengthFor(comp, topOf(bodyOf(asm, hostIt)));
+  const length = lengthFor(comp, topOf(bodyOf(asm, hostIt)), comp.role === 'screw' ? seatOf(host) : null);
   const built = buildPart(comp.item, comp.size, length);
   const pid = hooks.addPart(built.name, built.data);
   const before = new Set(asm.doc.instances.map((i) => i.id));

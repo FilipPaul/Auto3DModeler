@@ -16,6 +16,43 @@ Date: 2026-10-25. Written by the architect agent.
   assembly.js: the part panel's button reads "⇤⇥ Limits" (translated tooltips), ⇤ here / here ⇥ next to min / max;
   partItems → limitItems (the driving motion, else one with limits, else a turn / slide on an axis): Limits of its
   motion… (on + the panel's min focused), Min here / Max here. No new AI tool (set_travel). tools/e2e_mech_limits.py.
+- **📎 Cable clips and ⛓ energy chains (2026-10-30)** (the owner: "do toolu kabelů umožni vést kabelovým
+  Schlepperem… a taky pro dané body nějaké běžně dostupné komerční chytky na kabely"). library/cableparts.json — only
+  parts whose drawn sizes are all in the makers' data (links per part, no vendor CAD files):
+  HellermannTyton HP P-clamps H1P–H8P (D, F, WT, W 10, FH 4.2 from the 2024 catalogue p. 232 + the product pages),
+  MB3A / MB4A / MB5A tie mounts (L, W, H, G, F, FH: the MB series page), T18R / T30R / T50R ties (L, W, T, the head
+  where given, bundle Ø); igus e-chains E2.10, E2.15, 14, 10 (pitch, hi, ha, the Bi and R lists and the article
+  numbers from igus.eu / igus.com; Ba = Bi + the side walls of the one fully published article per series — the
+  cross-section drawing shows the same side parts at every width). Left out: DIN 3016 / DIN 72571 rubber-lined metal
+  clamps (no complete drawing found), igus mounting brackets (their sizes are not on the pages), screw-on tie mounts
+  other than MB (the MB ones have holes), profile-slot clamps, E2.26 / 2400 (no cross-section drawing found).
+  Item data: `cable` {axis {o, d, d2}, dmin, dmax}, `mount` {kind, o, n, screw, hole, seat, holes}, `chain` {pitch,
+  Bi, Ba, hi, ha, R, dmax}; pairs: P-clamp ↔ ISO 7045 M4 (pairs.js: a clip's screw head on its mount `seat`, its
+  length seat + 1.5 d), MB mounts ↔ T18R. build.js: `{R:03}` in texts; the second choice's own name (R) kept as the
+  part's `library.length`. auto3d/cableparts.py = the same math (tests).
+  **The API for the harness** (web/js/library/cableparts.js; app.js calls `useLibrary({items, addPart})`):
+  - `clipsFor(d)` -> [{item, size, dmin, dmax, kind, mount, label}] — per clip item its smallest size that holds Ø d,
+    the snug ones first (Ø6: H3P, then MB3A); `cableRange(item, size)`, `clipFrames(item, size, dc)`.
+  - `placeClip(asm, choice, point, normal, cableDir, {d})` -> {inst, part, size, axis: {o, d}} — the clip's mount
+    point on `point`, its mount normal against the face's `normal`, its cable axis along `cableDir` (laid onto the
+    face); `axis` is where the cable then runs (world): move the harness point there. `clipMatrix(frames, …)` pure.
+  - `chainPath(chain, moving)` -> {segs (line, arc, line), points, pointAt(s), length, lower, upper, travel, ok,
+    links [{a, b}], fixed / moving {o, d (along the path), n}} — `moving` a travel or a world point; in the world when
+    `chain.matrix` is given. In an assembly: assembly/chains.js `chainRoute(asm, "C1" | first link "I4")` (the same,
+    laid out now), `travelOf`, `chainsSummary`.
+  - Wiring for the harness job: on a harness point **📎 Clip here** = clipsFor(bundle Ø) -> placeClip(point, its face's
+    normal, the cable's direction there) -> the point moved onto `axis.o`; on a span **⛓ Route through an energy chain**
+    = the span's points replaced by chainRoute(...).points (fixed end -> moving end), re-read each draw so the cable
+    moves with the moving end.
+  assembly/chains.js: a chain item put into an assembly (the 📚 window or library_add) is its first link placed + a
+  record `chains` [{id, part, links, dims, travel, follow {inst, base, at}}]; the other links drawn as one
+  InstancedMesh (chainPath's pins, y across kept in the bend), red when out of reach; its panel: Links, Travel slider,
+  Moves with (a part: its moves along the runs move the end), ✕; the BOM counts its links (linksOf, bom.js);
+  get_assembly `chains`; undo; the view's fit takes the links. Not done: the other links in STEP / collisions (only the
+  first link is a kernel part), a chain MCP tool of its own (library_add puts one in; get_assembly reports it).
+  Tests: test_cableparts (frames and ranges of every clip size, clips_for, catalogue numbers, the U = 2 × run + πR and
+  its ends for two travels, each part built by the kernel to its sizes), e2e_library_cableparts (ALL OK),
+  e2e_library_build 317/317.
 
 - **🔗 Library parts that go with each other (2026-10-29)** (the owner: "i u šroubů napáruj matice + podložky … a
   projdi knihovnu, jestli tam nejsou další věci k párování"). An item's `pairs` [{ref, role, back, size: "same" | a

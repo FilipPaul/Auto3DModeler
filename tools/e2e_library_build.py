@@ -81,6 +81,9 @@ try:
     print("CDQ2B12 stroke 5:", find("smc-cdq2b", "Ø12", 5).get("size3"), "(32 × 32 × 31.5 + 5) | pn", find("smc-cdq2b", "Ø12", 5).get("pn"))
     print("CDQ2B50 stroke 100:", find("smc-cdq2b", "Ø50", 100).get("size3"), "(64 × 64 × 48.5 + 100)")
     print("D-M9BW:", find("smc-d-m9", "2-wire, 2-colour").get("pn"), find("smc-d-m9", "2-wire, 2-colour").get("size3"))
+    print("igus E2.15 Bi 20 R 48 link:", find("igus-e2-15", "Bi 20", 48).get("pn"), find("igus-e2-15", "Bi 20", 48).get("size3"), "(E2.15.20.048.0, 20 × 27.8 × 19.3)")
+    print("igus 10 Bi 15 R 28:", find("igus-10", "Bi 15", 28).get("pn"), "(10.015.028.0)")
+    print("HellermannTyton H4P:", find("ht-hp-pclamp", "H4P").get("pn"), find("ht-hp-pclamp", "H4P").get("size3"), "(H4P-PA66-NA, 20.2 × 10 × 10.4)")
 finally:
     print("console errors:", [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     d.quit()
