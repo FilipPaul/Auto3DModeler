@@ -23,6 +23,7 @@ import numpy as np
 from flask import Flask, Response, jsonify, request, send_file, send_from_directory, stream_with_context
 
 from auto3d import progress
+from auto3d import timings
 from auto3d.agent import ROUTE, ChatSession, Relay, find_claude
 from auto3d.ai_history import HistoryError, delete_state, list_states, load_state, save_state
 from auto3d import chat_history
@@ -69,6 +70,22 @@ def _request_label():
     body = request.get_json(silent=True) if request.is_json else None
     what = (body or {}).get("what") if isinstance(body, dict) else None
     progress.begin_request(what or unquote(request.headers.get("X-A3D-Tab", "")) or None, request.headers.get("X-A3D-Req"))
+    request.environ["a3d.t0"] = time.perf_counter()
+
+
+@app.after_request
+def _request_time(resp):
+    """Each API request's time and size by its route (GET /api/timings)."""
+    t0 = request.environ.get("a3d.t0")
+    if t0 is not None and request.path.startswith("/api/") and request.url_rule is not None:
+        timings.note(f"{request.method} {request.url_rule.rule}", (time.perf_counter() - t0) * 1000, resp.calculate_content_length() or 0)
+    return resp
+
+
+@app.get("/api/timings")
+def api_timings():
+    """How long the requests and the kernel's calls took since the start (?reset=1: and clear them)."""
+    return jsonify(timings.report(reset=request.args.get("reset") == "1"))
 
 
 @app.get("/")
@@ -814,7 +831,8 @@ def attachment(filename: str) -> str:
 def _model_call(op, arg, timeout=120):
     """Run a kernel op in its part's worker process (worker.Pool) -> (result, None) or (None, error response)."""
     try:
-        return MODEL_WORKER.run(op, arg, timeout), None
+        with timings.timed(f"kernel {op}"):
+            return MODEL_WORKER.run(op, arg, timeout), None
     except progress.Cancelled:  # (✕ Stop in the jobs list, or the request's Cancel)
         return None, (jsonify({"error": "Cancelled.", "cancelled": True}), 409)
     except KernelUnavailable as exc:
