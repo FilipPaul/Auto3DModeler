@@ -80,11 +80,11 @@ export class Modeler {
     this.sk = null;     // the open sketch (a Sketcher)
     this.selected = null; // feature id selected in the tree
     this.history = new History({
-      capture: () => ({ features: this.part.features, rollback: this.part.rollback ?? null, look: { color: this.part.color, opacity: this.part.opacity, paint: this.part.paint, threads: this.part.threads } }),
+      capture: () => ({ features: this.part.features, rollback: this.part.rollback ?? null, look: { color: this.part.color, opacity: this.part.opacity, paint: this.part.paint, threads: this.part.threads, hidden_dims: this.part.hidden_dims } }),
       restore: async (s) => {
         this.part.features = s.features;
         if (s.rollback) this.part.rollback = s.rollback; else delete this.part.rollback;
-        for (const k of ['color', 'opacity', 'paint', 'threads']) { if (s.look?.[k] === undefined) delete this.part[k]; else this.part[k] = s.look[k]; }
+        for (const k of ['color', 'opacity', 'paint', 'threads', 'hidden_dims']) { if (s.look?.[k] === undefined) delete this.part[k]; else this.part[k] = s.look[k]; }
         this.closeAll();
         this.render();
         await this.rebuild();
@@ -237,7 +237,7 @@ export class Modeler {
       this.view.setPlaneArrow(this.cmd?.feature.type === 'split' ? this.splitFrame() : null, t('this side'), false); // (✂ Split: which side is "this side")
       showSnapFilters(this.els.viewport, !!this.result?.body && (!this.cmd || ['hole', 'decal'].includes(this.cmd.feature.type)), { // (📏 Show: Dimensions = Sizes All / None)
         show: ['dims'], isOn: () => this.sizeMode !== 'none',
-        toggle: () => { if (this.sizeMode === 'none') this.setSizeMode(this.sizesBefore || 'all'); else { this.sizesBefore = this.sizeMode; this.setSizeMode('none'); } } }); // (what 📏 Measure catches, and a hole / text placed on a face — not while other features are made)
+        toggle: () => { if (this.sizeMode === 'none') this.setSizeMode(this.sizesBefore || 'all', true); else { this.sizesBefore = this.sizeMode; this.setSizeMode('none'); } } }); // (what 📏 Measure catches, and a hole / text placed on a face — not while other features are made)
       if (this.cmd || this.measuring || this.painting) this.dropSuggest(); // (a tool at work: not the face's)
       const canExtrude = this.sketches().length > 0;
       bar.innerHTML = `
@@ -1428,11 +1428,11 @@ export class Modeler {
   /** 🏷 Sizes: All / 🔒 Locked / None — the size labels on the sketch and on the part (remembered). */
   sizesHtml() {
     const b = (k, label, title) => `<button data-sz="${k}" class="${this.sizeMode === k ? 'on' : ''}" title="${title}">${label}</button>`;
-    return `<div class="m-sizes"><span title="Which sizes are shown on the sketch and on the part">🏷 Sizes</span><div class="seg">${b('all', 'All', 'Every size')}${b('locked', '🔒 Locked', 'Only the sizes you locked (and a step\'s own, like an extrude\'s height)')}${b('none', 'None', 'No sizes — a clean view')}</div></div>`;
+    return `<div class="m-sizes"><span title="Which sizes are shown on the sketch and on the part">🏷 Sizes</span><div class="seg">${b('all', 'All', 'Every size (and the ones hidden one by one)')}${b('locked', '🔒 Locked', 'Only the sizes you locked (and a step\'s own, like an extrude\'s height)')}${b('none', 'None', 'No sizes — a clean view')}</div></div>`;
   }
 
   bindSizes(box) {
-    for (const b of box.querySelectorAll('[data-sz]')) b.addEventListener('click', () => this.setSizeMode(b.dataset.sz));
+    for (const b of box.querySelectorAll('[data-sz]')) b.addEventListener('click', () => this.setSizeMode(b.dataset.sz, b.dataset.sz === 'all'));
     box.querySelector('[data-a=bigAll]')?.addEventListener('click', () => {
       const id = this.sk?.f?.id;
       if (this.bigAll.has(id)) this.bigAll.delete(id); else this.bigAll.add(id);
@@ -1440,7 +1440,9 @@ export class Modeler {
     });
   }
 
-  setSizeMode(m) {
+  /** unhide: the sizes hidden one by one (☐ Show in a size's editor) come back — All clicked, 📏 switched on (an undo step). */
+  setSizeMode(m, unhide = false) {
+    if (unhide && this.part.hidden_dims?.length) { delete this.part.hidden_dims; this.history.commit(); this.hooks.onChange?.(); }
     this.sizeMode = SIZE_MODES.includes(m) ? m : 'all';
     try { localStorage.setItem(SIZES_KEY, this.sizeMode); } catch { /* ignore */ }
     for (const b of document.querySelectorAll('.m-sizes [data-sz]')) b.classList.toggle('on', b.dataset.sz === this.sizeMode);
@@ -1464,9 +1466,11 @@ export class Modeler {
     this.dimStep = step ? step.id : null;
     if (!keepEdit) this.closeDimEdit();
     if (!step || this.mode !== 'part' || this.sizeMode === 'none') { this.view.setTags([]); return; }
-    const tags = [], lines = [];
+    const tags = [], lines = [], hidden = new Set(this.part.hidden_dims || []);
     this.dimTagEls = []; // ([label, its size] — the editor opens again on it after an icon's change)
     const add = (p, text, edit, title = '') => {
+      edit.key = edit.key || (edit.sketch ? `${edit.sketch.id}:${JSON.stringify([edit.sketch.spec.t, edit.sketch.spec.e, edit.sketch.spec.a, edit.sketch.spec.b])}` : `${edit.stepId}:${edit.field}`);
+      if (hidden.has(edit.key)) return; // (☐ Show in its editor: Sizes All brings it back)
       const el = document.createElement('div');
       el.className = 'm-dimtag';
       el.textContent = text;
@@ -1510,8 +1514,9 @@ export class Modeler {
             lines.push([P3(fr, ...q), at]);
             const on = holeLocked(f, i, axis);
             add(P3(fr, (q[0] + p[0]) / 2, (q[1] + p[1]) / 2), `${on ? '🔒 ' : ''}${k ? '↕' : '↔'} ${fmt(dist)}`, {
-              label: 'Distance', min: 0, get: () => dist,
+              label: 'Distance', min: 0, get: () => dist, key: `${f.id}:at${i}${axis}`,
               set: (v) => this.setHoleDist(f, i, axis, v, r.mid ? r.mid[0] : null),
+              lock: { on, set: (x) => setHoleLock(f, i, axis, x) }, // (🔒 in its editor: dragging the hole keeps it)
             }, `${f.name}: ${on ? 'locked' : 'click to type it (it is then locked)'}`);
           }
         }
@@ -1641,7 +1646,7 @@ export class Modeler {
       if ((spec.a === 'O' || spec.b === 'O') && Math.abs(v) < 1e-9) return; // "on the origin"
       const [u, w] = at(spec);
       add(P3(fr, u, w), `${d && !d.free ? '🔒 ' : ''}${label(spec, v)}`, { label: { len: 'Length', dia: 'Diameter', rad: 'Radius' }[spec.t] || 'Distance', min: spec.t === 'dx' || spec.t === 'dy' ? -1e6 : 0.1,
-        get: () => Math.abs(v), sketch: { id: sk0.id, spec } }, `${sk0.name}: ${d && !d.free ? 'locked' : 'click to type it (it is then locked)'}`);
+        get: () => Math.abs(v), sketch: { id: sk0.id, spec }, lock: { on: !!d && !d.free } }, `${sk0.name}: ${d && !d.free ? 'locked' : 'click to type it (it is then locked)'}`);
     };
     for (const d of sk.dims) if (d.t !== 'bw') tag({ t: d.t, e: d.e, a: d.a, b: d.b });
     if (!this.sizeShown(false, sk0)) return; // the shapes' own (free) sizes
@@ -1673,11 +1678,13 @@ export class Modeler {
     box.innerHTML = `<div class="m-dimedit-t">${esc(t(edit.label || 'Size'))}</div>
       <div class="m-dimedit-row"><input type="text" class="px-in" autocomplete="off" spellcheck="false" step="${step}" value="${esc(ex0 ?? fmt(v0))}" title="${esc(t('A number — or an expression of the project’s parameters: L, L/2 + 5, =D. “L = 100” makes the parameter L.'))}"><span class="unit">${edit.unit || (edit.int ? '' : 'mm')}</span></div>
       <input type="range" min="${edit.int ? lo : 0}" max="${Math.max(hi, v0)}" step="${edit.int ? 1 : step}" value="${v0}">
+      ${edit.tool ? '' : `<div class="m-dimedit-checks">${edit.lock ? `<label title="${esc(t('Locked: the size holds at its number. Unticked: it only measures (a reference) — the other sizes drive it'))}"><input type="checkbox" data-c="lock" ${edit.lock.on ? 'checked' : ''}> 🔒 ${esc(t('Locked'))}</label>` : ''}
+        <label title="${esc(t('Show this size in the view — unticked it is hidden (🏷 Sizes: All brings it back)'))}"><input type="checkbox" data-c="show" checked> ${esc(t('Show'))}</label></div>`}
       <div class="m-dimedit-why mp-warn" hidden></div>
-      <div class="m-dimedit-acts"><button class="btn small primary" data-a="ok">OK</button><button class="btn small" data-a="cancel">Cancel</button>
+      <div class="m-dimedit-acts"><button class="btn small primary" data-a="ok" data-rclick-ok>OK</button><button class="btn small" data-a="cancel">Cancel</button>
         <button class="btn small" data-a="restore" disabled title="${esc(t('Back to the size it had when this was opened'))}" data-no-i18n>↺ ${fmt(v0)}</button></div>`;
     const vr = this.els.viewport.getBoundingClientRect(), r = el.getBoundingClientRect();
-    Object.assign(box.style, { left: `${Math.min(r.left - vr.left, vr.width - 220)}px`, top: `${Math.min(r.bottom - vr.top + 6, vr.height - (edit.icons ? 172 : 140))}px` });
+    Object.assign(box.style, { left: `${Math.min(r.left - vr.left, vr.width - 220)}px`, top: `${Math.min(r.bottom - vr.top + 6, vr.height - (edit.icons ? 172 : 140) - (edit.tool ? 0 : 22))}px` });
     for (const t2 of ['pointerdown', 'pointerup']) box.addEventListener(t2, (ev) => ev.stopPropagation());
     this.els.viewport.appendChild(box);
     floatBox(box, this.els.viewport, { kind: 'dimedit', handle: '.m-dimedit-t', remember: 'size', min: [170, 100] }); // (opens by the size clicked)
@@ -1730,9 +1737,13 @@ export class Modeler {
       }
     };
     const back = box.querySelector('[data-a=restore]'), moved = () => { back.disabled = Math.abs(read().value - v0) < 1e-9; };
+    const lockBox = box.querySelector('[data-c=lock]'), showBox = box.querySelector('[data-c=show]');
+    const typed = () => { if (lockBox) lockBox.checked = true; }; // (a size typed is locked)
+    lockBox?.addEventListener('change', () => { if (!lockBox.checked && !back.disabled) back.click(); }); // (freed: back to what it measures)
     num.addEventListener('input', () => {
       const v = read().value, w = why(v);
       moved();
+      typed();
       whyBox.hidden = !w;
       whyBox.textContent = w;
       if (!valid(v)) return;
@@ -1740,16 +1751,29 @@ export class Modeler {
       slider.value = v;
       preview(v);
     });
-    slider.addEventListener('input', () => { const v = Math.max(parseFloat(slider.value), edit.min > 0 ? edit.min : 0); num.value = fmt(v); moved(); preview(v); });
+    slider.addEventListener('input', () => { const v = Math.max(parseFloat(slider.value), edit.min > 0 ? edit.min : 0); num.value = fmt(v); moved(); typed(); preview(v); });
     back.addEventListener('click', () => { num.value = fmt(v0); slider.value = v0; moved(); preview(v0); num.focus(); num.select(); }); // (the editor stays open)
+    // OK: the number (locked) — or ☐ 🔒 Locked: the size freed, it only measures; ☐ Show: hidden. One undo step.
     const ok = async () => {
-      const r0 = read();
+      const free = lockBox && !lockBox.checked, hide = showBox && !showBox.checked;
+      const r0 = free ? { value: v0 } : read();
       if (r0.error) { this.hooks.toast(r0.error, 'warning', 6000); return; }
-      if (!valid(r0.value)) { this.hooks.toast(why(r0.value) || 'That size does not fit here.', 'warning'); return; }
-      const r = read(true), v = r.value;
+      if (!free && !valid(r0.value)) { this.hooks.toast(why(r0.value) || 'That size does not fit here.', 'warning'); return; }
+      const r = free ? r0 : read(true), v = r.value;
       while (busy) await new Promise((res) => setTimeout(res, 20));
       this.closeDimEdit();
-      if (await this.applyDim(edit, v, true, r.expr) === false) { this.part.features = before; this.rebuild(); }
+      if (!free) {
+        if (await this.applyDim(edit, v, !hide, r.expr) === false) { this.part.features = before; this.rebuild(); return; }
+        if (!hide) return;
+      } else {
+        this.freeDim(edit);
+        if (!hide && JSON.stringify(before) === JSON.stringify(this.part.features)) { this.reshowDims(); return; } // (it was free already)
+      }
+      if (hide) this.part.hidden_dims = [...new Set([...(this.part.hidden_dims || []), edit.key])];
+      this.commit();
+      await this.inflight;
+      this.reshowDims();
+      if (hide) this.hooks.toast(t('The size is hidden — 🏷 Sizes: All shows it again.'), 'info');
     };
     const cancel = async () => {
       while (busy) await new Promise((res) => setTimeout(res, 20));
@@ -1765,6 +1789,19 @@ export class Modeler {
   }
 
   closeDimEdit() { this.dimEdit?.remove(); this.dimEdit = null; }
+
+  /** ☐ 🔒 Locked in a size's editor: the size freed — a hole's distance is no longer kept when it is dragged; a
+   *  sketch's shape size loses its lock, a distance stays as a reference that only measures (as in the sketch). */
+  freeDim(edit) {
+    if (edit.lock?.set) { edit.lock.set(false); return; }
+    const sk = edit.sketch && this.part.features.find((g) => g.id === edit.sketch.id);
+    if (!sk) return;
+    const S = new Sketcher(this, structuredClone(upgradeSketch(sk)), false), d = S.findDim(edit.sketch.spec);
+    if (!d) return;
+    if (['len', 'dia', 'rad'].includes(d.t)) S.f.dims = S.f.dims.filter((x) => x !== d);
+    else Object.assign(d, { free: true, v: +S.measure(d).toFixed(6) });
+    sk.dims = S.f.dims;
+  }
 
   /** 𝑥 The expression a size in the view is set by (a step's number, a sketch's locked size), or null. */
   dimExpr(edit) {

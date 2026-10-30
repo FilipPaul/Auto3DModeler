@@ -629,7 +629,10 @@ circle's centre: *◯ Select the circle*) and in an assembly (a hole's centre on
 round face chosen, Concentric and the other joints offered). A click on a face pops up the tools for it — sketch on it, a hole or text there, round / bevel its edges,
 hollow it out with it open, edit / turn off / delete its step — and shows that step's **sizes on the part** (the
 sketch's sizes on its plane, the height, Ø, R, the wall…). Click a size: a number and a **slider** — the part
-follows while you slide; Enter / OK keeps it (one undo step), Esc goes back. Every number in a tool's panel
+follows while you slide; Enter / OK keeps it (one undo step), Esc goes back. Under the number, **☑ 🔒 Locked**
+(untick it and OK: the size is free — it only measures, the 🔒 on the label goes; a hole's distance is then no longer
+kept when the hole is dragged) and **☑ Show** (untick it: that one size is hidden on the part, saved with it;
+🏷 Sizes: **All** or 📏 in the bottom row bring the hidden ones back); Ctrl+Z undoes either. Every number in a tool's panel
 (Extrude, Revolve, Fillet, Chamfer, Hole, Shell, Pattern, Text) has a **slider** under it too — slide and watch.
 The sliders run only over the values that **work**: the kernel tries the step with the part as it is and finds the
 range (the biggest rounding the edges allow, a wall up to what the part can take, a blind hole up to the part's
