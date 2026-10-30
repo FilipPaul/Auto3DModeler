@@ -3050,21 +3050,24 @@ export class Modeler {
     return g ? `${what} ${g.name}` : name;
   }
 
-  clickHole(e) {
-    const f = this.cmd.feature, h = this.view.pick(e.clientX, e.clientY);
+  /** A click while the Hole tool is open (h: what is under it — given when it was picked earlier: sameHoleOn). An
+   *  edited hole (placing off) on its own face: ＋ Add a hole here offered (the suggestions' first row, the toast's
+   *  button); another flat face: one step's holes are on one face — ＋ Same hole on this face offered. */
+  clickHole(e, h = this.view.pick(e.clientX, e.clientY)) {
+    const f = this.cmd.feature;
     if (this.holePick) { this.pickHoleRef(e); return; }
     if (this.dimEdit) { this.closeDimEdit(); return; } // (a size being typed: the click ends that, it keeps what is shown)
-    if (!this.cmd.place) { this.hooks.toast(t('To add a hole here, click ＋ Add position first.'), 'info', 3000); return; }
     if (!h?.face) return;
     if (h.face.type !== 'plane') { this.hooks.toast('Holes go on flat faces — click a flat face.', 'warning'); return; }
     if (f.plane && (f.plane.face?.name !== h.face.name || h.face.normal.some((v, k) => Math.abs(v - f.plane.frame.n[k]) > 1e-6))) {
-      this.hooks.toast('The holes of one step go on one face — press OK, then make another Hole for the other face.', 'warning', 6000);
+      if (!h.face.name?.startsWith(`${f.id}:`)) this.offerSameHole(e, h);
       return;
     }
     if (!f.plane) f.plane = { face: h.face.ref || null, frame: h.face.frame };
     // snapped (facesnap.js): a corner, an edge's middle, a centre, another hole, in line with one of them …, else a 0.5 mm grid
-    const at = this.faceSpot(e, f);
+    const at = this.faceSpot(e, f, h);
     if (!at) return;
+    if (!this.cmd.place) { this.offerHoleHere(e, h); return; } // (an edited hole: a click alone adds none — offered, one click)
     const [u, v] = at.s.uv;
     f.points.push([u, v]);
     // placed from the nearest edges of the face (left / right and below / above): it keeps that distance
@@ -3078,6 +3081,50 @@ export class Modeler {
     this.spotKey = null;
     this.renderProps();
     this.rebuild();
+  }
+
+  /** An edited hole's face clicked with placing off (opening a step never arms it): ＋ Add a hole here — that spot
+   *  placed and ＋ Add position on (more clicks add more) — the suggestions' first row and the toast's button. */
+  offerHoleHere(e, h) {
+    const f = this.cmd.feature, spot = { clientX: e.clientX, clientY: e.clientY, shiftKey: e.shiftKey, altKey: e.altKey }, label = t('Add a hole here');
+    const run = () => {
+      this.dropSuggest();
+      if (this.cmd?.feature !== f) return;
+      if (!this.cmd.place) this.armPlace();
+      this.clickHole(spot, h);
+    };
+    const sg = showSuggest(this.els.viewport, `${f.name} · ${t('its face')}`, [
+      { id: 'holeHere', icon: '＋', label, rank: 0, title: t('A hole of this step where you clicked — then each click adds one more (＋ Add position stops it)'), run },
+      { id: 'addPos', icon: '＋', label: t('Add position'), rank: 1, title: t('Then click on the face where another hole goes (click again for more); click this again to stop'), run: () => { this.dropSuggest(); if (this.cmd && !this.cmd.place) this.armPlace(); } }]);
+    if (sg) sg.dataset.from = 'face';
+    this.hooks.toast(t('A hole here? ＋ Add a hole here — or ＋ Add position, then click for more.'), 'info', 5000, { point: { suggest: 'holeHere' }, action: { label: `＋ ${label}`, run } });
+  }
+
+  /** Another flat face clicked while a Hole step is open: the step's holes stay on their face — ＋ Same hole on this
+   *  face (the suggestions' first row, the toast's button) ends this step (OK) and starts a new one there. */
+  offerSameHole(e, h) {
+    const f = this.cmd.feature, spot = { e: { clientX: e.clientX, clientY: e.clientY, shiftKey: e.shiftKey, altKey: e.altKey }, h };
+    const run = () => this.sameHoleOn(spot), label = t('Same hole on this face');
+    const sg = showSuggest(this.els.viewport, `${f.name} · ${t('another face')}`, [
+      { id: 'sameHole', icon: '＋', label, rank: 0, title: t('This hole is done (OK) — a new Hole step on the face you clicked, of the same type, size and thread, where you clicked'), run },
+      { id: 'okHole', icon: '✓', label: t('OK — the hole is done'), rank: 1, title: t('The holes of one step are on one face: this step ends here'), run: () => { this.dropSuggest(); this.okCommand(); } }]);
+    if (sg) sg.dataset.from = 'face';
+    this.hooks.toast(t('The holes of one step are on one face — this face gets a Hole step of its own.'), 'info', 7000, { point: { suggest: 'sameHole' }, action: { label: `＋ ${label}`, run } });
+  }
+
+  /** ＋ Same hole on this face: the open Hole step done (OK), a new one on the face of `spot` ({e, h}: the click and what
+   *  it picked) with the same type, size, thread, depth — its first hole where the click was. */
+  sameHoleOn({ e, h }) {
+    if (this.cmd?.feature.type !== 'hole') return;
+    const same = structuredClone(this.cmd.feature);
+    for (const k of ['id', 'name', 'plane', 'points', 'from', 'lock', 'suppressed']) delete same[k]; // (its place: not the size)
+    this.dropSuggest();
+    this.okCommand();
+    if (this.cmd) return; // (OK refused: the step stays open)
+    const f = { ...same, id: this.newId(), name: this.nextName('hole'), plane: null, points: [] };
+    this.openCommand(f, true);
+    this.clickHole(e, h);
+    if (f.points.length) this.hooks.toast(t2('{name}: the same hole on this face — click for more, Enter = OK.', { name: f.name }), 'ok', 4000);
   }
 
   /** Hole i placed (or dragged — holedrag.js) onto snap s: what a coordinate came from becomes what it is measured
@@ -3101,8 +3148,7 @@ export class Modeler {
 
   /** The spot on a flat face under the mouse, snapped (facesnap.js) — for f a hole (on its face only) or a text /
    *  picture: {h, fr, s} (s: facesnap's snap, in fr's coordinates), or null. Shift / Alt: not snapped. */
-  faceSpot(e, f) {
-    const h = this.view.pick(e.clientX, e.clientY);
+  faceSpot(e, f, h = this.view.pick(e.clientX, e.clientY)) {
     if (!h?.face || h.face.type !== 'plane' || h.face.name?.startsWith(`${f.id}:`)) return null;
     let fr = h.face.frame;
     if (f.type === 'hole' && f.plane) {

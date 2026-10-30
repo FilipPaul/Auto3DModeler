@@ -529,7 +529,9 @@ const CS = {
   // an edited hole / text places by click only once asked
   'Hole — change its settings; ＋ Add position to click more holes. Enter = OK, Esc = Cancel.': 'Díra — změňte její nastavení; ＋ Přidat pozici a kliknutím přidáte další díry. Enter = OK, Esc = Zrušit.',
   'Text / picture — change it; ⌖ Move by clicking to put it elsewhere. Enter = OK, Esc = Cancel.': 'Text / obrázek — upravte ho; ⌖ Přesunout kliknutím a dáte ho jinam. Enter = OK, Esc = Zrušit.',
-  'To add a hole here, click ＋ Add position first.': 'Chcete-li sem přidat díru, klikněte nejdřív na ＋ Přidat pozici.',
+  'A hole here? ＋ Add a hole here — or ＋ Add position, then click for more.': 'Díra sem? ＋ Přidat díru sem — nebo ＋ Přidat pozici a klikáním přidávejte další.',
+  'Add a hole here': 'Přidat díru sem', 'its face': 'její plocha',
+  'A hole of this step where you clicked — then each click adds one more (＋ Add position stops it)': 'Díra tohoto kroku tam, kam jste klikli — pak každé kliknutí přidá další (＋ Přidat pozici to ukončí)',
   'To move it by clicking, click ⌖ Move by clicking first.': 'Chcete-li ho přesunout kliknutím, klikněte nejdřív na ⌖ Přesunout kliknutím.',
   'Add position': 'Přidat pozici', 'Move by clicking': 'Přesunout kliknutím',
   'Then click on the face where another hole goes (click again for more); click this again to stop': 'Pak klikněte na plochu, kam patří další díra (dalším kliknutím další); dalším kliknutím sem přidávání ukončíte',
@@ -561,7 +563,11 @@ const CS = {
   "Holes (from the face's centre)": 'Díry (od středu plochy)', 'Remove this hole': 'Odebrat tuto díru', 'No holes yet — click on a face.': 'Zatím žádné díry — klikněte na plochu.',
   'Click at least one edge first.': 'Nejprve klikněte alespoň na jednu hranu.', 'Click on a flat face where the hole goes.': 'Klikněte na rovnou plochu, kam patří díra.',
   'Holes go on flat faces — click a flat face.': 'Díry patří na rovné plochy — klikněte na rovnou plochu.',
-  'The holes of one step go on one face — press OK, then make another Hole for the other face.': 'Díry jednoho kroku jsou na jedné ploše — stiskněte OK a pro druhou plochu udělejte další Díru.',
+  'The holes of one step are on one face — this face gets a Hole step of its own.': 'Díry jednoho kroku jsou na jedné ploše — tato plocha dostane vlastní krok Díra.',
+  'Same hole on this face': 'Stejná díra na této ploše', 'another face': 'jiná plocha', 'OK — the hole is done': 'OK — díra je hotová',
+  'This hole is done (OK) — a new Hole step on the face you clicked, of the same type, size and thread, where you clicked': 'Tato díra je hotová (OK) — nový krok Díra na ploše, na kterou jste klikli, stejného typu, velikosti a závitu, tam, kam jste klikli',
+  'The holes of one step are on one face: this step ends here': 'Díry jednoho kroku jsou na jedné ploše: tento krok tady končí',
+  '{name}: the same hole on this face — click for more, Enter = OK.': '{name}: stejná díra na této ploše — kliknutím přidáte další, Enter = OK.',
   'Click: show me where': 'Kliknutím ukážu, kde to je',
   'Click ✏ Sketch, then a flat face of the part, to add a pocket or a boss — or ◎ Hole, ◜ Fillet, ◸ Chamfer. Double-click a step to change it.':
     'Klikněte na ✏ Skica a pak na rovnou plochu dílu — přidáte kapsu nebo výstupek — nebo použijte ◎ Díra, ◜ Zaoblení, ◸ Zkosení. Dvojklikem na krok ho změníte.',

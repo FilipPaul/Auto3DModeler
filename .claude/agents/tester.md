@@ -145,6 +145,11 @@ Never report "works" without having run it; report failures with their output.
    panel -> centre at (8, 6), its labels out of the mouse's way while placing; editing: its ↔ label on the part typed,
    its ↕ field, its Ø label -> at (20, 15), Ø7 volume; chosen: its Ø tag typed; a hole kept in the middle: its field
    shows 20, typed 12 -> measured from the left edge).
+   `tools/e2e_hole_second_face.py <url> <dir>` covers editing a hole and clicking (Czech, real clicks: 2× M3 tapped on a
+   block, a pad beside: ✎ Upravit díru from the rim; its own face clicked: none added, ＋ Přidat díru sem first (ringed)
+   and in the toast, that row: a third hole, ＋ Přidat pozici on; the pad's top: the step unchanged, ＋ Stejná díra na
+   této ploše first (ringed), the toast's text points again, its button: the step done, a new M3 tapped step on the pad
+   with one hole; Enter: the volume down by π·1.25²·(10 + 18); Ctrl+Z, the same through the row; no console errors).
    `tools/e2e_hole_drag.py <url> <dir>` covers a made hole dragged on its face (Czech, real mouse: the move cursor and
    hint; dragged onto the face's centre: ring, snap named, live 30 / 20, exactly (30, 20) kept in the middle, the step's
    other hole stays, one undo step; Ctrl+Z back; Esc mid-drag: stays, no undo step; in line with the centre: (22, 20);

@@ -7,6 +7,14 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **＋ Same hole on this face (2026-10-30)** (report 111217: editing 2× M3 on one pad, a click on the second pad only
+  warned "press OK, then make another Hole"; the way on was unclear). One Hole step stays on one face (the kernel's
+  hole has one plane — simpler than many faces per step). Modeler.clickHole(e, h): another flat face ->
+  offerSameHole: the suggestions' first row `sameHole` "＋ Same hole on this face" (+ ✓ OK) and a toast with the same
+  button, pointing at the row (pointat.js); sameHoleOn: OK, then a new Hole step with the step's settings (all but id,
+  name, plane, points, from, lock) on that face, its first hole at the click (the pick kept: clickHole's `h`). An edited
+  hole's own face with placing off (still never armed by opening it — e2e_hole_select): offerHoleHere — "＋ Add a hole
+  here" first (that spot, then ＋ Add position on), "＋ Add position" next, the toast's button. tools/e2e_hole_second_face.py.
 - **☝ A message points at the control it names (2026-10-30)** (report 111438: "klikněte nejdřív na ＋ Přidat
   pozici" — the user searched the panel for it). web/js/pointat.js: `pointAt(target, {key, again, ms})` — target an
   element, a CSS selector (the first one on screen) or `{suggest: id}` (a suggestions row from an item's `id`:
