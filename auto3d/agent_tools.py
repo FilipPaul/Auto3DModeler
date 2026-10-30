@@ -719,11 +719,19 @@ TOOLS = [
                     "expected (what should have happened / how it should work), steps (the tool calls / what you did), "
                     "workaround (what you did instead, if anything). A report whose title says the same as one written before is "
                     "not written again — you get the similar one(s) instead; again: true only when yours is really another problem. "
-                    "The project on screen (and a ⏺ recording of the last 30 min) goes along with it, so it can be reproduced.",
+                    "The project on screen (and a ⏺ recording of the last 30 min) goes along with it, so it can be reproduced. "
+                    "screenshots (optional, at most 4): pictures showing the state of the app when that helps — a UI bug, a "
+                    "layout or visibility problem (a button that is not there, a menu covering another), a rendering glitch; not "
+                    "for measuring. Look first (get_screenshot {ui: true}) to check what the user sees, then attach: \"last\" "
+                    "(your last get_screenshot: exactly what you looked at), an id it gave (\"s3\"), \"ui\" (the whole window "
+                    "now) or \"view\" (the 3D view or sheet, fitted); each may be {shot, caption} — a few words on what it shows "
+                    "(\"the ⋯ menu covers the OK button\"). They are saved next to the report and shown in it.",
      "inputSchema": _obj({"title": STR, "what": STR, "kind": {"type": "string", "enum": ["bug", "tool request", "ui"]}, "expected": STR, "steps": STR,
-                          "workaround": STR, "again": {"type": "boolean"}}, ["title", "what"])},
+                          "workaround": STR, "again": {"type": "boolean"},
+                          "screenshots": {"type": "array", "maxItems": 4, "items": {"anyOf": [STR, _obj({"shot": STR, "caption": STR}, ["shot"])]}}},
+                         ["title", "what"])},
     {"name": "list_reports", "where": "server",
-     "description": "The problem reports written so far (RealSWReports, newest first): their title, kind and date — all, those of "
+     "description": "The problem reports written so far (RealSWReports, newest first): their title, kind and date (and the project, recording and screenshots attached) — all, those of "
                     "a kind (bug / tool request / ui), or those about `search` (words of a title, the most alike first). Look "
                     "before you report or suggest something, so nothing is filed twice.",
      "inputSchema": _obj({"search": STR, "kind": {"type": "string", "enum": ["bug", "tool request", "ui"]}})},
@@ -1009,6 +1017,6 @@ Never open a file or the sample on your own: work on the part that is open. If n
 
 Smooth, round shapes (vases, knobs, handles, toys, bottles): draw the outline as a sketch `profile` with `{smooth: [...]}` parts and revolve it (or extrude it) — one clean smooth surface instead of many small faces. Colours: set_look (the whole part) and paint_faces (single faces) — the model keeps them, also in assemblies.
 
-If something does not behave as expected — a tool fails although your call was right, a result is wrong (sizes, positions, a joint, a colour that does not show) — call report_problem {kind: "bug"} at once with what happened, what you expected and the steps, then tell the user and carry on (or work around it). When no tool fits your work and you have to find a workaround (several calls for one thing, guessing, asking the user to click for you), write report_problem {kind: "tool request"}: the tool you would want — its name, inputs and what it returns — and the workaround you used. When the user cannot find something in the app, or a control did what they did not expect, write report_problem {kind: "ui"}: what they tried and how it should work. Do not report your own mistakes that you could fix yourself. Report each thing once: list_reports {search} shows what is reported already (report_problem also refuses a title like an earlier one and names it).
+If something does not behave as expected — a tool fails although your call was right, a result is wrong (sizes, positions, a joint, a colour that does not show) — call report_problem {kind: "bug"} at once with what happened, what you expected and the steps, then tell the user and carry on (or work around it). When no tool fits your work and you have to find a workaround (several calls for one thing, guessing, asking the user to click for you), write report_problem {kind: "tool request"}: the tool you would want — its name, inputs and what it returns — and the workaround you used. When the user cannot find something in the app, or a control did what they did not expect, write report_problem {kind: "ui"}: what they tried and how it should work. A problem you can see (a control missing, a layout or rendering glitch): look with get_screenshot {ui: true}, then attach it — report_problem screenshots: ["last"] (with a caption); only when it helps. Do not report your own mistakes that you could fix yourself. Report each thing once: list_reports {search} shows what is reported already (report_problem also refuses a title like an earlier one and names it).
 
 Answer in the user's language, briefly. You can only use the tools listed — no files or shell."""

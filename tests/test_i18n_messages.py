@@ -15,8 +15,8 @@ ROOT = Path(__file__).resolve().parent.parent
 # the sources whose messages reach the page (the MCP server and the AI tool schemas speak to Claude, not the page)
 SOURCES = [ROOT / "server.py", *sorted((ROOT / "auto3d").glob("*.py")), *sorted((ROOT / "auto3d" / "modeler").glob("*.py"))]
 SKIP_FILES = {"mcp_server.py", "agent_tools.py"}
-# functions whose answers go to Claude only (the MCP tools in server.py)
-FOR_CLAUDE = re.compile(r"^(tool_|_mcp|_file$)")
+# functions whose answers go to Claude only (the MCP tools in server.py, report_problem's helpers)
+FOR_CLAUDE = re.compile(r"^(tool_|_mcp|_file$|_report_|_shot_file$)")
 # errors whose text the server shows (raised, then sent as {"error": str(e)} or as an issue of a step)
 ERRORS = {"KernelError", "Unsizable", "KernelFailed", "ValueError", "ImportError_", "TemplateError", "SketchError", "ProjectError",
           "LibraryError", "HistoryError", "AutosaveError", "VersionError", "RuntimeError"}

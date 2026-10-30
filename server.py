@@ -1648,6 +1648,91 @@ def _report_attachments(args: dict) -> tuple[dict | None, dict | None]:
     return (proj if isinstance(proj, dict) and proj.get("parts") else None), (rec if isinstance(rec, dict) and rec.get("events") else None)
 
 
+# the AI's screenshots in this conversation (get_screenshot's pictures, by the window whose chat took them): a report
+# can attach "last" (what the AI just looked at) or one by its id (s3)
+SHOTS: dict[str, list[tuple[str, str]]] = {}  # client -> [(id, base64 picture)], the oldest first
+SHOTS_KEPT, SHOT_IDS = 12, __import__("itertools").count(1)
+
+
+def _keep_shot(image: str, client: str) -> str:
+    """Remember one of the AI's screenshots (of the window `client`'s chat) -> its id (s1, s2 …)."""
+    sid = f"s{next(SHOT_IDS)}"
+    kept = SHOTS.setdefault(client, [])
+    kept.append((sid, image))
+    del kept[:-SHOTS_KEPT]
+    return sid
+
+
+def _shot_file(image: str) -> tuple[bytes, str]:
+    """A screenshot (base64 PNG / JPEG) as a report's picture file -> (its bytes, ".png" / ".webp"): at most
+    reports.SHOT_PX across, under about reports.SHOT_BYTES (a PNG, else a WebP, smaller until it fits)."""
+    from auto3d import reports
+    img = cv2.imdecode(np.frombuffer(base64.b64decode(image.split(",")[-1]), np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        raise ValueError("not a picture")
+    while True:
+        s = min(1.0, reports.SHOT_PX / max(img.shape[:2]))
+        if s < 1:
+            img = cv2.resize(img, (round(img.shape[1] * s), round(img.shape[0] * s)), interpolation=cv2.INTER_AREA)
+        data = cv2.imencode(".png", img, [cv2.IMWRITE_PNG_COMPRESSION, 9])[1].tobytes()
+        if len(data) <= reports.SHOT_BYTES:
+            return data, ".png"
+        for q in (90, 75, 60):
+            data = cv2.imencode(".webp", img, [cv2.IMWRITE_WEBP_QUALITY, q])[1].tobytes()
+            if len(data) <= reports.SHOT_BYTES:
+                return data, ".webp"
+        img = cv2.resize(img, (img.shape[1] * 3 // 4, img.shape[0] * 3 // 4), interpolation=cv2.INTER_AREA)
+
+
+SHOT_NAMES = {"ui": "the whole window", "view": "the view", "last": "the AI's last screenshot"}
+
+
+def _report_shots(args: dict) -> tuple[list[tuple[str, str]], list[str]]:
+    """report_problem's screenshots -> ([(base64 picture, caption)], notes on what could not be attached). Each item:
+    "ui" / "view" (taken now by the page, as get_screenshot takes them), "last" / an id ("s3": one the AI took), or
+    {shot, caption}; {image: base64} gives the picture itself (a test)."""
+    from auto3d import reports
+    items = args.get("screenshots") or []
+    items = [items] if isinstance(items, (str, dict)) else items if isinstance(items, list) else []
+    items = [it if isinstance(it, dict) else {"shot": str(it)} for it in items]
+    notes = [f"only {reports.SHOTS_MAX} screenshots go with a report — the rest left out"] if len(items) > reports.SHOTS_MAX else []
+    items = items[:reports.SHOTS_MAX]
+    kept, got = SHOTS.get(ROUTE.get() or "", []), {}
+    live = [str(it.get("shot") or "").strip().lower() for it in items if not it.get("image") and str(it.get("shot") or "").strip().lower() in ("ui", "view")]
+    if live:  # (the page takes them in one go, the AI's last picture left as it was)
+        try:
+            res = RELAY.call("report_shots", {"shots": live}, timeout=60).get("images") or []
+        except Exception as exc:  # (no page open)
+            res = [{"error": str(exc).rstrip(".")}] * len(live)
+        got = dict(enumerate(res))
+    out, n = [], 0
+    for it in items:
+        shot = str(it.get("shot") or "").strip()
+        caption = re.sub(r"[\[\]\s]+", " ", str(it.get("caption") or "")).strip()[:200]
+        if it.get("image"):
+            image = str(it["image"])
+        elif shot.lower() in ("ui", "view"):
+            r = got.get(n) or {}
+            n += 1
+            image = r.get("image") if isinstance(r, dict) else None
+            if not image:
+                notes.append(f"{shot}: {r.get('error') if isinstance(r, dict) and r.get('error') else 'no picture'}")
+                continue
+        elif shot.lower() == "last" or re.fullmatch(r"s\d+", shot.lower()):
+            hit = kept[-1:] if shot.lower() == "last" else [k for k in kept if k[0] == shot.lower()]
+            if not hit:
+                notes.append(f"{shot}: " + (f"no such screenshot (yours: {', '.join(k[0] for k in kept)})" if kept else "you have taken no get_screenshot yet"))
+                continue
+            image = hit[0][1]
+            if shot.lower() == "last":
+                shot = hit[0][0]
+        else:
+            notes.append(f"{shot or '?'}: not a screenshot — \"ui\", \"view\", \"last\" or an id (s3)")
+            continue
+        out.append((image, caption or SHOT_NAMES.get(shot.lower(), f"the AI's screenshot {shot}")))
+    return out, notes
+
+
 def _shown(path: Path) -> str:
     """A report's file as said to the AI: from the app's folder when it is in it."""
     try:
@@ -1697,13 +1782,33 @@ def tool_report_problem(args):
         attached.append("the recording of moves")
         parts.append(f"- **Recording:** `{att.name}` (⏺ the user's moves: {len(rec['events'])} events over {rec.get('seconds', 0)} s, "
                      f"{'still running' if rec.get('running') else 'stopped'}; without screenshots)")
+    # screenshots the AI chose (the state of the app: a missing button, a glitch): <base>.shot-1.png … shown in the .md
+    shots, notes = _report_shots(args)
+    pics = []
+    for image, caption in shots:
+        try:
+            data, ext = _shot_file(image)
+        except Exception as exc:  # (not a picture)
+            notes.append(f"{caption}: {exc}")
+            continue
+        att = path.with_name(f"{path.stem}{reports.SHOT_EXT}{len(pics) + 1}{ext}")
+        att.write_bytes(data)
+        pics.append((att.name, caption))
+    if pics:
+        attached.append(f"{len(pics)} screenshot{'s' if len(pics) > 1 else ''}")
+        parts.append(f"- **Screenshots:** {len(pics)} (below): " + ", ".join(f"`{n}`" for n, _ in pics))
     parts += ["", "## What happened", "", what]
     for key, head in (("expected", "What was expected"), ("steps", "Steps"), ("workaround", "Workaround")):
         if str(args.get(key) or "").strip():
             parts += ["", f"## {head}", "", str(args[key]).strip()]
+    if pics:
+        parts += ["", "## Screenshots"]
+        for i, (name, caption) in enumerate(pics, 1):
+            parts += ["", f"![{caption}]({name})", f"*{i}. {caption}*"]
     path.write_text(LF.join(parts) + LF, encoding="utf-8")
-    with_ = f" — with {' and '.join(attached)}" if attached else ""
-    return {"text": f"Reported: {_shown(path)}{with_} — thank you. Tell the user, then carry on."}
+    with_ = f" — with {', '.join(attached[:-1])} and {attached[-1]}" if len(attached) > 1 else f" — with {attached[0]}" if attached else ""
+    left = f" Not attached: {'; '.join(notes)}." if notes else ""
+    return {"text": f"Reported: {_shown(path)}{with_} — thank you.{left} Tell the user, then carry on."}
 
 
 def tool_list_reports(args):
@@ -1714,7 +1819,8 @@ def tool_list_reports(args):
     if not rows:
         return {"text": "No reports" + (" match" if args.get("search") or kind else " yet") + "."}
     return {"text": json.dumps([{"title": r["title"], "kind": r["kind"], "date": r["date"], **({"project": r["project"]} if r["project"] else {}),
-                                 **({"recording": r["recording"]} if r["recording"] else {})} for r in rows], ensure_ascii=False)}
+                                 **({"recording": r["recording"]} if r["recording"] else {}),
+                                 **({"screenshots": r["shots"]} if r["shots"] else {})} for r in rows], ensure_ascii=False)}
 
 
 def _solid_from_path(args: dict) -> dict:
@@ -1766,7 +1872,10 @@ def api_agent_call():
         return jsonify(_mcp_result(f"{tool} failed: {exc}", error=True))
     finally:
         ROUTE.reset(route)
-    return jsonify(_mcp_result(res.get("text", ""), res.get("image"), bool(res.get("error"))))
+    text = res.get("text", "")
+    if tool == "get_screenshot" and res.get("image"):  # (kept: report_problem can attach it — "last" or its id)
+        text += f"\n(Screenshot {_keep_shot(res['image'], str(body.get('client') or ''))}: report_problem screenshots can attach it.)"
+    return jsonify(_mcp_result(text, res.get("image"), bool(res.get("error"))))
 
 
 @app.get("/api/agent/poll")

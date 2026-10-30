@@ -292,6 +292,8 @@ let lastShot = null;
 /** Remember get_screenshot's picture: {kind: 'view' (a 3D view: view, w, h and the camera that drew it — as
  *  view.cameraState()), 'ui' (the window: w, h, k — picture px per page px) or 'sheet' (w, h, svg: () => the sheet's)}. */
 export function noteShot(s) { lastShot = s; }
+/** The AI's last picture as noted (to put back after a picture it did not ask for: a report's screenshots). */
+export const lastShotNow = () => lastShot;
 
 /** Where points the AI gives (at / drag_to) are on the page: [x, y] of the last get_screenshot picture — its pixels, or
  *  0 … 1 across and down it (both at most 1: fractions) — when it shows what is on screen; else 0 … 1 across and down

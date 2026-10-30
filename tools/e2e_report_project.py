@@ -1,7 +1,9 @@
 """The AI's problem report carries the project, in headless Edge (tool calls through the server's /api/agent/call, as
 the MCP server sends them): a small part (sketch + extrude), a second one and an assembly of both -> ⏺ a recording of a
-few clicks, stopped -> report_problem: the .md, <base>.a3d.json.gz (the project) and <base>.recording.json next to
-it, the .md's Project / Recording lines; list_reports says so -> a new empty project -> the .gz opened through 📂 Open ›
+few clicks, stopped -> get_screenshot {ui: true} (its id) -> report_problem with screenshots ["last", {shot: "view",
+caption}]: the .md, <base>.a3d.json.gz (the project), <base>.recording.json and <base>.shot-1/2.png (valid pictures of a
+sensible size) next to it, the .md's Project / Recording / Screenshots lines and its image links; list_reports says
+so -> a new empty project -> the .gz opened through 📂 Open ›
 File… (the page's file input): the same parts and the same steps -> no console errors. Exits 1 on a failed check.
 
 Run it against a server whose reports go to a folder of its own (not the repository's RealSWReports):
@@ -11,10 +13,13 @@ Run it against a server whose reports go to a folder of its own (not the reposit
 import gzip
 import json
 import os
+import re
 import sys
 import time
 import urllib.request
 
+import cv2
+import numpy as np
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 
@@ -87,9 +92,14 @@ try:
     d.find_element(By.TAG_NAME, "body").click()
     print("stop_recording:", ai("stop_recording")[:40])
 
-    r = ai("report_problem", title="Test report with the project", what="Nothing is wrong — the test checks the attachments.", steps="report_problem {…}")
+    # the AI looks at the window first, then attaches what it saw and the view as it is now
+    shot = ai("get_screenshot", ui=True)
+    sid = re.search(r"\(Screenshot (s\d+): report_problem", shot)
+    check("get_screenshot gives an id", bool(sid), shot[-80:])
+    r = ai("report_problem", title="Test report with the project", what="Nothing is wrong — the test checks the attachments.", steps="report_problem {…}",
+           screenshots=["last", {"shot": "view", "caption": "the assembly Box, fitted"}])
     print("report_problem:", r)
-    check("written with both", "with the project and the recording of moves" in r, r[-80:])
+    check("written with all", "with the project, the recording of moves and 2 screenshots" in r and "Not attached" not in r, r[-120:])
     md = r.split("Reported: ")[1].split(" — ")[0]
     md = md if os.path.isabs(md) else os.path.join(ROOT, md)
     check("reports outside the repository (A3D_REPORTS)", not os.path.abspath(md).startswith(os.path.join(ROOT, "RealSWReports")), md)
@@ -107,8 +117,23 @@ try:
     events = json.load(open(rec, encoding="utf-8"))["events"]
     check("the recording's events", events[0]["kind"] == "start" and events[-1]["kind"] == "stop" and any(e["kind"] == "click" for e in events),
           [e["kind"] for e in events])
+    # the screenshots: the window as the AI saw it, the 3D view — real pictures, linked from the .md
+    shots = sorted(f for f in os.listdir(os.path.dirname(md)) if f.startswith(os.path.basename(md)[:-3] + ".shot-"))
+    print("  screenshots:", [(f, os.path.getsize(os.path.join(os.path.dirname(md), f))) for f in shots])
+    check("two screenshots next to it", len(shots) == 2, shots)
+    for i, f in enumerate(shots, 1):
+        raw = open(os.path.join(os.path.dirname(md), f), "rb").read()
+        img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+        kind = "png" if raw[:8] == b"\x89PNG\r\n\x1a\n" else "webp" if raw[8:12] == b"WEBP" else "?"
+        check(f"shot {i} is a picture of a sensible size", img is not None and kind != "?" and 400 <= max(img.shape[:2]) <= 1600
+              and 5000 < len(raw) <= 1 << 20, (kind, None if img is None else img.shape[:2], len(raw)))
+        check(f"shot {i} has some contents", img is not None and float(img.std()) > 5, None if img is None else round(float(img.std()), 1))
+    check("the .md links them", f"![the AI's screenshot {sid.group(1) if sid else '?'}]({shots[0] if shots else '?'})" in text
+          and f"![the assembly Box, fitted]({shots[-1] if shots else '?'})" in text and "- **Screenshots:** 2 (below)" in text,
+          [ln for ln in text.splitlines() if ".shot-" in ln])
     row = json.loads(ai("list_reports", search="report with the project"))[0]
-    check("list_reports says what is attached", row.get("project") == os.path.basename(gz) and row.get("recording") == os.path.basename(rec), row)
+    check("list_reports says what is attached", row.get("project") == os.path.basename(gz) and row.get("recording") == os.path.basename(rec)
+          and row.get("screenshots") == shots, row)
 
     # a new, empty project (the page starts again); then the attached project opened as the user would: 📂 Open › File…
     js("document.getElementById('newProjectBtn').click()")

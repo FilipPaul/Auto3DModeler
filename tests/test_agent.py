@@ -270,6 +270,55 @@ class TestMcpServer(unittest.TestCase):
             self.assertNotIn("with the", r["text"])
             self.assertEqual(len(list((Path(tmp) / "R").glob("*.gz"))), 1)
 
+    def test_report_with_screenshots(self):
+        """report_problem screenshots: the pictures saved next to the report (<base>.shot-1.png …, at most 1600 px
+        across, under 1 MB — a large noisy one as WebP; at most 4), shown in the .md with their captions; "last" / an
+        id: the AI's own get_screenshot; what cannot be attached is said; list_reports names them."""
+        import tempfile
+        from unittest import mock
+        import cv2
+        import numpy as np
+        import server
+        from auto3d import reports
+
+        def png(w, h, noise=False):
+            img = np.random.default_rng(1).integers(0, 255, (h, w, 3), np.uint8) if noise else np.full((h, w, 3), (40, 120, 200), np.uint8)
+            return base64.b64encode(cv2.imencode(".png", img)[1].tobytes()).decode()
+
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(server, "REPORTS", Path(tmp) / "R"), mock.patch.object(server, "ROOT", Path(tmp)), \
+                mock.patch.object(server, "SHOTS", {}):
+            first, last = server._keep_shot(png(300, 200), ""), server._keep_shot(png(1200, 900), "")
+            self.assertEqual(server.SHOTS[""][-1][0], last)
+            r = server.tool_report_problem({"title": "The OK button is hidden", "what": "the ⋯ menu covers it", "kind": "ui", "project": None,
+                                            "screenshots": ["last", {"shot": first, "caption": "before: the [OK] button"},
+                                                            {"shot": "ui", "image": png(3200, 2000, noise=True), "caption": "the whole window"},
+                                                            "s999", "garbage"]})
+            self.assertIn("with 3 screenshots", r["text"])
+            self.assertIn("Not attached: only 4 screenshots go with a report", r["text"])
+            self.assertIn("s999: no such screenshot", r["text"])
+            md = next((Path(tmp) / "R").glob("*.md"))
+            files = [md.with_name(f"{md.stem}.shot-{i}{ext}") for i, ext in ((1, ".png"), (2, ".png"), (3, ".webp"))]
+            self.assertTrue(all(f.exists() for f in files), [f.name for f in (Path(tmp) / "R").iterdir()])
+            sizes = [cv2.imdecode(np.frombuffer(f.read_bytes(), np.uint8), cv2.IMREAD_COLOR).shape[:2] for f in files]
+            self.assertEqual(sizes[:2], [(900, 1200), (200, 300)])
+            self.assertLessEqual(max(sizes[2]), 1600)  # (the 3200 px window scaled down, a WebP under 1 MB)
+            self.assertTrue(all(f.stat().st_size <= reports.SHOT_BYTES for f in files))
+            text = md.read_text(encoding="utf-8")
+            self.assertIn(f"- **Screenshots:** 3 (below): `{files[0].name}`, `{files[1].name}`, `{files[2].name}`", text)
+            self.assertIn(f"![the AI's screenshot {last}]({files[0].name})", text)
+            self.assertIn(f"![before: the OK button]({files[1].name})\n*2. before: the OK button*", text)  # (no brackets in a caption)
+            self.assertIn(f"## Screenshots\n\n![", text)
+            row = json.loads(server.tool_list_reports({})["text"])[0]
+            self.assertEqual(row["screenshots"], [f.name for f in files])
+            self.assertEqual(reports.read(Path(tmp) / "R")[0]["shots"], [f.name for f in files])
+            # "ui" / "view" with no page open, "last" with none taken: written without them, said why
+            server.SHOTS.clear()
+            r = server.tool_report_problem({"title": "Something else entirely here", "what": "y", "project": None, "screenshots": ["view", "last"]})
+            self.assertNotIn("with", r["text"].split(" — thank you")[0])
+            self.assertIn("view: The app is not open in a browser", r["text"])
+            self.assertIn("last: you have taken no get_screenshot yet", r["text"])
+            self.assertEqual(len(list((Path(tmp) / "R").glob("*.shot-*"))), 3)
+
     def test_report_titles_alike(self):
         from auto3d.reports import similarity, SIMILAR
         same = [("Paint does not show in the assembly", "Painted faces are not shown in an assembly"),

@@ -1468,8 +1468,13 @@ can open them.
   with a note of its name and size) — open it with 📂 Open ▾ › File… (the app reads `.a3d.json.gz`). A ⏺ recording
   of moves running or stopped in the last 30 minutes goes along as `<report>.recording.json` (its events, without the
   screenshots). The report's lines *Project:* / *Recording:* name them; `list_reports` says which reports have them.
-  Both are git-ignored (`RealSWReports/*.gz`, `*.recording.json`); `A3D_REPORTS=<folder>` sends a (test) server's
-  reports elsewhere.
+  When a picture helps (a button that is not there, a menu covering another, a rendering glitch) the AI attaches
+  **screenshots** (up to 4): what it just looked at (`"last"` — or an earlier one by the id get_screenshot gives,
+  `"s3"`), the whole window (`"ui"`) or the 3D view / sheet (`"view"`), each with a short caption. They are saved as
+  `<report>.shot-1.png` … (at most 1600 px across, under 1 MB — a WebP when a PNG would be larger) and shown in the
+  report under *Screenshots* (Markdown image links: VS Code's preview and GitHub show them).
+  All are git-ignored (`RealSWReports/*.gz`, `*.recording.json`, `*.png`, `*.webp`); `A3D_REPORTS=<folder>` sends a
+  (test) server's reports elsewhere.
 - **⟳ New version — restart the app**: a small mark in the top bar when the app's files were updated but its server
   still runs the code it started with (checked every minute and when the window comes to the front); its tooltip
   says what to do. *⟳ New version — reload the page*: the server was restarted under an older page (a click reloads
