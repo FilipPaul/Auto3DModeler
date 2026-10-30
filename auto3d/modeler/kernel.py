@@ -2619,15 +2619,17 @@ def _step_ascii(data: bytes) -> bytes:
     r"""A STEP file in plain ASCII: a character beyond it (×, č …) as STEP's own \X2\00D7\X0\ (\X4\ beyond U+FFFF),
     which every STEP reader decodes — OCCT writes the UTF-8 bytes, which older readers show as "Ã—"."""
     text = data.decode("utf-8", errors="replace")
-    if text.isascii():
-        return data
+    return data if text.isascii() else _escaped(text).encode("ascii")
 
+
+def _escaped(text):
+    r"""Text with every character beyond ASCII as STEP's \X2\hhhh\X0\ (\X4\ beyond U+FFFF)."""
     def code(m):
         s = m.group(0)
         if all(ord(c) <= 0xFFFF for c in s):
             return "\\X2\\" + "".join("%04X" % ord(c) for c in s) + "\\X0\\"
         return "\\X4\\" + "".join("%08X" % ord(c) for c in s) + "\\X0\\"
-    return re.sub(r"[^\x00-\x7f]+", code, text).encode("ascii")
+    return re.sub(r"[^\x00-\x7f]+", code, text)
 
 
 def _ascii(text):
@@ -2845,12 +2847,12 @@ def _read_xcaf(data: bytes, kind="step", files=None):
     with tempfile.TemporaryDirectory(prefix="a3d-") as tmp:
         path = os.path.abspath(os.path.join(tmp, "__a3d_main" + (".igs" if kind == "iges" else ".step")))
         with open(path, "wb") as fh:
-            fh.write(data)
+            fh.write(data if kind == "iges" else step_names_ascii(data))
         for name, blob in (files or {}).items():
             base = os.path.basename(str(name).replace("\\", "/"))
             if base and not base.startswith("__a3d_main"):
                 with open(os.path.join(tmp, base), "wb") as fh:
-                    fh.write(blob)
+                    fh.write(step_names_ascii(blob) if re.search(r"\.(stp|step|p21)$", base, re.I) else blob)
         doc = TDocStd_Document(TCollection_ExtendedString(kind))
         r = IGESCAFControl_Reader() if kind == "iges" else STEPCAFControl_Reader()
         r.SetColorMode(True)
@@ -2859,6 +2861,54 @@ def _read_xcaf(data: bytes, kind="step", files=None):
             raise KernelError(f"The {kind.upper()} file could not be read.")
         r.Transfer(doc)
     return doc, XCAFDoc_DocumentTool.ShapeTool_s(doc.Main())
+
+
+# Letters that are rare in the languages of a code page: what its bytes give when the names are in the other one (a
+# Czech ě ř ů ň ď read as Western are ì ø ù ò ï; a French à û ì read as Central are ŕ ű ĺ). Bytes a page lacks count too.
+_RARE = {"cp1250": set("ŕĺăţőűŔĹĂŢŐŰ") | {chr(0xFFFD)}, "cp1252": set("ìòøùïðþÌÒØÙÏÐÞ") | {chr(0xFFFD)}}
+
+
+def _utf8(raw: bytes):
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
+def step_codepage(data: bytes):
+    """The legacy code page of a STEP file's raw 8-bit names (those not in UTF-8): "cp1250" (Central European, as the
+    Czech Solid Edge writes them) unless Western European ("cp1252") gives fewer unlikely letters ("Crème brûlée");
+    None when every name is ASCII or UTF-8."""
+    legacy = [m.group(0) for m in re.finditer(rb"[\x80-\xff]+", data) if _utf8(m.group(0)) is None]
+    if not legacy:
+        return None
+    high = b" ".join(legacy)
+    rare = {cp: sum(c in _RARE[cp] for c in high.decode(cp, errors="replace")) for cp in _RARE}
+    return "cp1252" if rare["cp1252"] < rare["cp1250"] else "cp1250"
+
+
+def step_names_ascii(data: bytes) -> bytes:
+    r"""A STEP file as its writer meant it, for any reader: each string holding raw 8-bit bytes (not the standard, but
+    Solid Edge writes them so) put as STEP's own \X2\…\X0\ escapes — as UTF-8 where its bytes are UTF-8, else in the
+    file's legacy code page (step_codepage). One Solid Edge file has both: its PRODUCT names in Windows-1250
+    ('HLAVN\xCD PROFIL'), its placements' in UTF-8 — read all as UTF-8, "HLAVNÍ PROFIL" lost the Í and the space."""
+    if data.isascii():
+        return data
+    cp = step_codepage(data) or "cp1250"
+
+    def legacy(raw):  # (a byte the code page lacks: kept as its Latin-1 character, not lost)
+        try:
+            return raw.decode(cp)
+        except UnicodeDecodeError:
+            return "".join(bytes([b]).decode(cp, errors="ignore") or chr(b) for b in raw)
+
+    def text(m):
+        raw = m.group(0)
+        u = _utf8(raw)
+        return _escaped(legacy(raw) if u is None else u).encode("ascii")
+    # (only strings hold such bytes: from a quote to the next one — a whole string, or the part of one between its
+    # '' — each decoded on its own; a match starts at a quote only, so the 25 MB file is read once)
+    return re.sub(rb"'[^'\x80-\xff]*[\x80-\xff][^']*", text, data)
 
 
 def external_refs(data: bytes):

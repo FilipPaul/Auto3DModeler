@@ -7,6 +7,17 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Czech names from a Solid Edge STEP read right (fix, 2026-10-30)** (the owner's "Sestava ICT M1556.stp": "HLAVNÍ
+  PROFIL LEVÝ" showed as "HLAVN‹PROFIL LEV", "vzpěry 1" as "vzp뱹 1"). The file holds raw 8-bit strings (its header:
+  "strings as raw bytes, not using required /X/ escapes") and both kinds in one file: PRODUCT names in Windows-1250,
+  NEXT_ASSEMBLY_USAGE_OCCURRENCE names in UTF-8 — OCCT read all as UTF-8 and ate the byte after each bad one (its
+  read.step.codepage is one page for the whole file, so it cannot fix that). kernel.step_names_ascii (used by
+  _read_xcaf for the file and its referenced part files): each quoted string with such bytes becomes STEP's own
+  \X2\ escapes — UTF-8 where its bytes are UTF-8, else the file's legacy page (step_codepage: cp1250 unless cp1252
+  gives fewer unlikely letters; a byte the page lacks kept as Latin-1); the cache's stamp (kernel.py's hash) makes
+  cached imports new. Parts list, tree, split and BOM all come from it. Tests: test_export_names.TestImportedNames
+  (cp1250 + \X2\ / \X\ / \S\ / \X4\ escapes, UTF-8 and cp1250 in one file, cp1252, the export → import round trip of
+  "Plynová vzpěra Ř Í Ý"); the owner's file: 61 Czech names, none with U+FFFD or Hangul.
 - **⏳ The loading card (2026-10-30)** (the owner: "When I drag/drop a new large STEP … it does not say anything … I need
   to see the info BEFORE that freeze!"). The busy box was a small pill top-right of the viewport (none on the start
   screen) and the server stage said "Building the 3D model" while it read the file. busy.js: busy(text, {delay}) ->

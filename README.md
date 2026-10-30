@@ -25,7 +25,8 @@ Use **📂 Open ▾** to open a file. It offers:
   own export: all its objects, placed as in the file). A **STEP assembly** — what
   SolidWorks, CATIA and Solid Edge export (their own SLDASM / CATProduct / ASM files are closed; save as STEP AP214 /
   AP242 there) — asks first: **Open as an assembly** makes a 3D model part per different part (a screw used 22 times
-  is one part), an assembly ◇ with a placed part per placement, sub-assemblies nested, the file's names and colours;
+  is one part), an assembly ◇ with a placed part per placement, sub-assemblies nested, the file's names and colours
+  (Czech names too: Solid Edge writes them as raw Windows-1250 bytes, they read as "HLAVNÍ PROFIL LEVÝ");
   **Open as one body** opens it as before. A big tree (an assembled board: hundreds of parts) offers one body first
   and, as an assembly, shows its parts 🪶 simplified. An assembly STEP whose parts are files of their own (CATIA
   writes it so): pick it **with its part files** at once (or drop them all) — they open as one assembly;
