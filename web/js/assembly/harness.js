@@ -248,6 +248,16 @@ function routeE(h, E, where, clashes = [], still = []) {
   return r;
 }
 
+/** ➰ How long each span (from point k to k + 1) is at its tightest: the route through the same points (its leads and
+ *  detours) with no span's own length and no locked length — straight legs and r_min arcs (r: routeAt's) -> [mm]. */
+export function tightSpans(h, r) {
+  if (!r?.points?.length || !r.where) return r?.spans || [];
+  const h0 = { ...h, spans: (h.spans || []).filter((x) => x.chain).map((x) => ({ from: x.from, chain: x.chain })) };
+  delete h0.length_locked;
+  return routeE(h0, r.points.map((p) => p.clone()), r.where.slice(), [], r.still || []).spans;
+}
+export const spanTight = (h, r, k) => tightSpans(h, r)[k] ?? r?.spans?.[k] ?? 0;
+
 /** A point's face normal in the world (a point lying on a part's face) -> Vector3 or null. */
 function normalAt(asm, p, M = null) {
   if (!p?.inst || !p.n) return null;
@@ -760,6 +770,7 @@ export class HarnessTool {
     this.hl = null; // its point under the mouse in the panel's list (lit in the view)
     this.span = null; // its span chosen (the cable clicked between two points, or its row): ➰ a loop there
     this.spanEdit = null; // the span whose length is being typed
+    this.spanHl = null; // its span row under the mouse (lit in the view)
     this.altDepth = 0; // Alt + click: how many faces behind the front one (again at the same spot: one further)
     this.adopted = new WeakSet(); // the harnesses whose points in space were looked at: one lying on a face is locked to it
     this.clips = new ClipPick(this); // 📎 a clip's ghost where it would go, the pick list
@@ -1188,7 +1199,7 @@ export class HarnessTool {
       this.adopt(h);
       const pts = (h.points || []).map((p) => pointAt(this.asm, h, p));
       const extra = this.hoverWorld(h);
-      const key = JSON.stringify([h.kind, h.d, h.color, h.wires, h.pitch, h.r_min, h.length_locked, [...pts, ...extra].map((p) => p && p.toArray().map((x) => x.toFixed(3))), this.sel === h.id, this.edit === h.id, this.pt, this.hl, JSON.stringify(this.throughAt?.get(h.id) || []), AVOID.get(h)?.key || '', (h.points || []).map((p, i) => +connOf(h, i)).join(''), JSON.stringify((h.spans || []).filter((s) => s.chain).map((s) => chainRoute(this.asm, s.chain)?.moving.o || null)), this.asm.view.clip?.length || 0]);
+      const key = JSON.stringify([h.kind, h.d, h.color, h.wires, h.pitch, h.r_min, h.length_locked, [...pts, ...extra].map((p) => p && p.toArray().map((x) => x.toFixed(3))), this.sel === h.id, this.edit === h.id, this.pt, this.hl, this.litSpan(h), JSON.stringify(this.throughAt?.get(h.id) || []), AVOID.get(h)?.key || '', (h.points || []).map((p, i) => +connOf(h, i)).join(''), JSON.stringify((h.spans || []).filter((s) => s.chain).map((s) => chainRoute(this.asm, s.chain)?.moving.o || null)), this.asm.view.clip?.length || 0]);
       const was = this.built.get(h.id);
       if (was?.key === key) continue;
       if (was) for (const o of was.objs) { this.group.remove(o); o.geometry?.dispose(); if (o.isCSS2DObject) o.element.remove(); }
@@ -1202,6 +1213,13 @@ export class HarnessTool {
     v.invalidate();
     clearTimeout(this.clashTimer);
     this.clashTimer = setTimeout(() => { this.avoidAll(); this.checkThrough(); }, 400);
+  }
+
+  /** ➰ The span lit in the view (its row under the mouse, its length being typed, or the span chosen) or null. */
+  litSpan(h) {
+    if (this.sel !== h.id && this.edit !== h.id) return null;
+    const k = this.spanHl ?? this.spanEdit ?? this.span;
+    return k !== null && k !== undefined && k + 1 < (h.points || []).length ? k : null;
   }
 
   drawNow() { this.draw(); const el = this.asm.$('.hn-len'); if (el) el.textContent = this.lengthText(this.get(this.edit || this.sel)); }
@@ -1252,6 +1270,14 @@ export class HarnessTool {
           geo.computeVertexNormals();
         }
         add(new THREE.Mesh(geo, mat(colourOf(sleeve ? 'black' : h.color)[1], extra.length ? { transparent: true, opacity: 0.85 } : {})));
+      }
+      const lit = this.litSpan(h);
+      if (lit !== null && !extra.length && r.spans?.[lit] > 0) { // ➰ that span lit (a brighter, thicker tube over it), the rest of the cable dimmed
+        for (const o of objs) if (o.material) Object.assign(o.material, { transparent: true, opacity: 0.35, depthWrite: false });
+        const s0 = r.spans.slice(0, lit).reduce((a, b) => a + b, 0), s1 = s0 + r.spans[lit], m = Math.max(8, Math.min(240, Math.ceil(r.spans[lit] / 2)));
+        const seg = Array.from({ length: m + 1 }, (_, k) => curve.getPoint((s0 + ((s1 - s0) * k) / m) / r.length));
+        const o = add(new THREE.Mesh(new THREE.TubeGeometry(new PolyCurve(seg), m, D * 0.65, 12, false), new THREE.MeshStandardMaterial({ color: 0x58a6ff, emissive: 0x1d4f8f, roughness: 0.4, transparent: true, opacity: 0.9, clippingPlanes: clip })));
+        o.userData.litSpan = lit;
       }
       const label = (cls, text, at) => { // (a label just above its spot: CSS2D places the outer box, the inner one is lifted)
         const el = document.createElement('div'), sp = document.createElement('span');
@@ -1310,7 +1336,7 @@ export class HarnessTool {
       AVOID.set(h, { key, ...avoidRoute(h, ok, n0, n1, meshes.filter((m) => !own.has(m.userData.inst)), chains) });
       changed = true;
     }
-    if (changed) { this.draw(); if (this.sel || this.edit) this.asm.renderProps(); }
+    if (changed) { this.draw(); if ((this.sel || this.edit) && !this.sliding) this.asm.renderProps(); }
   }
 
   /** ⚠ Where a harness's centre line goes through a part (a ray from the spot crosses the part's faces an odd
@@ -1344,7 +1370,7 @@ export class HarnessTool {
       this.throughAt.set(h.id, at);
     }
     if (JSON.stringify([...this.throughAt]) !== wasAt) this.draw(); // (its ⚠ spots)
-    if (JSON.stringify([...this.through]) !== was && (this.sel || this.edit)) this.asm.renderProps();
+    if (JSON.stringify([...this.through]) !== was && (this.sel || this.edit) && !this.sliding) this.asm.renderProps();
   }
 
   lengthText(h) {
@@ -1439,7 +1465,7 @@ export class HarnessTool {
     };
     const r = routeAt(this.asm, h), own = spansOf(h);
     const ins = (i) => `<div class="hn-span ${i === this.span ? 'on' : ''}" data-span="${i}"><button class="hn-ins" data-pins="${i}" title="${esc(t2('A point between {a} and {b}', { a: i + 1, b: i + 2 }))}">＋</button>
-      ${this.spanEdit === i ? `<input type="number" step="any" min="0" data-slen="${i}" value="${+(own[i] ?? r.spans?.[i] ?? 0).toFixed(1)}" title="${esc(t('The cable\'s length between these two points: longer than now makes a loop of slack (empty: as it is now)'))}"><span class="unit">mm</span>${own[i] ? `<button class="mini" data-sclear="${i}" title="${esc(t('No length of its own'))}">✕</button>` : ''}`
+      ${this.spanEdit === i ? `<input type="number" step="any" min="0" data-slen="${i}" value="${+(own[i] ?? r.spans?.[i] ?? 0).toFixed(1)}" title="${esc(t('The cable\'s length between these two points: longer than now makes a loop of slack (empty: as it is now)'))}"><span class="unit">mm</span>${this.slider(h, i, r)}${own[i] ? `<button class="mini" data-sclear="${i}" title="${esc(t('No length of its own'))}">✕</button>` : ''}`
         : `<button class="hn-slen" data-sloop="${i}" title="${esc(t('➰ A loop / slack here: type this span\'s length'))}">${own[i] ? '➰ ' : ''}${mmText(r.spans?.[i] ?? 0)} mm${own[i] ? ' 🔒' : ''}</button>`}
       ${chainOfSpan(h, i) ? `<span class="hn-chain" data-no-i18n title="${esc(t('Routed through this energy chain: it follows its moving end'))}">⛓ ${esc(chainOfSpan(h, i))}</span><button class="mini" data-snochain="${i}" title="${esc(t('Not through the chain any more'))}">✕</button>` : ''}</div>`;
     return `<details class="hn-pts" ${this.ptsOpen === false ? '' : 'open'}><summary>${esc(t('Points'))} (${n})</summary>
@@ -1448,8 +1474,33 @@ export class HarnessTool {
       ${(this.orphans || []).filter((c) => this.asm.inst(c)).map((c) => `<p class="hint hn-orphan">📎 ${esc(t2('The clip {id} stays in the assembly', { id: `${this.asm.partName(this.asm.inst(c).part)} ${c}` }))} <button class="mini danger" data-rmclip="${c}">✕ ${esc(t('Remove it too'))}</button></p>`).join('')}`;
   }
 
+  /** ➰ A slider for span i's length: from the tightest it can be (its shape with no slack) to 3 × the distance between
+   *  its points or that + 300 mm, whichever is longer. */
+  slider(h, i, r) {
+    const a = pointAt(this.asm, h, h.points[i]), b = pointAt(this.asm, h, h.points[i + 1]);
+    if (!a || !b) return '';
+    const chord = a.distanceTo(b), lo = Math.ceil(spanTight(h, r, i) * 10) / 10, hi = Math.max(lo + 10, 3 * chord, chord + 300), v = spansOf(h)[i] ?? r.spans?.[i] ?? lo;
+    return `<input type="range" class="hn-sslide" data-sslide="${i}" min="${lo.toFixed(1)}" max="${hi.toFixed(1)}" step="0.5" value="${Math.min(hi, Math.max(lo, v)).toFixed(1)}" title="${esc(t('Drag: the span\'s length, live — from the tightest it can be'))}">`;
+  }
+
   pointsHandlers(h, box) {
     const P = () => h.points;
+    for (const el of box.querySelectorAll('.hn-span')) { // (a span's row under the mouse: lit in the view)
+      el.addEventListener('pointerenter', () => { this.spanHl = +el.dataset.span; this.draw(); });
+      el.addEventListener('pointerleave', () => { if (this.spanHl === +el.dataset.span) { this.spanHl = null; this.draw(); } });
+    }
+    for (const sl of box.querySelectorAll('input[data-sslide]')) { // ➰ dragged: the length live (a frame at most), let go: one undo step
+      const i = +sl.dataset.sslide, num0 = box.querySelector(`input[data-slen="${i}"]`);
+      let raf = 0;
+      sl.addEventListener('keydown', (ev) => ev.stopPropagation());
+      sl.addEventListener('input', () => {
+        this.sliding = true; // (the panel not drawn again under the mouse meanwhile)
+        if (num0) num0.value = (+sl.value).toFixed(1);
+        if (raf) return;
+        raf = requestAnimationFrame(() => { raf = 0; spanSet(h, i, { length: +(+sl.value).toFixed(1) }); this.drawNow(); });
+      });
+      sl.addEventListener('change', () => { cancelAnimationFrame(raf); raf = 0; this.sliding = false; this.setSpan(h.id, i, +sl.value); });
+    }
     box.querySelector('.hn-pts')?.addEventListener('toggle', (e) => { this.ptsOpen = e.target.open; });
     for (const el of box.querySelectorAll('.hn-pt')) {
       el.addEventListener('pointerenter', () => { this.hl = +el.dataset.pt; this.draw(); });

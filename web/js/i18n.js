@@ -1224,6 +1224,7 @@ const CS = {
   'The cable plugs into this part here (a connector, a probe\'s tail, a gland): it may enter it — no collision, no lead-out note for it': 'Kabel se do tohoto dílu zde připojuje (konektor, konec sondy, průchodka): smí do něj vstoupit — bez kolize a bez upozornění na výstup',
   '🔌 Connection point: the cable plugs into this part here — it may enter it (no collision, no lead-out note for it) — click: an ordinary point': '🔌 Připojovací bod: kabel se do dílu zde připojuje — smí do něj vstoupit (bez kolize a upozornění na výstup) — kliknutím obyčejný bod',
   '🔌 Make it a connection point: the cable plugs into this part here (a connector, a probe\'s tail, a gland)': '🔌 Udělat z něj připojovací bod: kabel se do dílu zde připojuje (konektor, konec sondy, průchodka)',
+  'Drag: the span\'s length, live — from the tightest it can be': 'Táhněte: délka úseku, živě — od nejkratší možné',
   'P-clips': 'P-příchytky', 'Tie mounts': 'Podložky pro pásky', 'Cable ties': 'Stahovací pásky',
   'on a tie mount': 'na podložku', 'adhesive or screw {s}': 'lepicí nebo šroub {s}', adhesive: 'lepicí', 'screw {s}': 'šroub {s}', screwed: 'na šroub',
   'Ø {d} max — too small': 'Ø {d} max — malá', 'Ø {d} min — too loose': 'Ø {d} min — velká', 'Goes round the bundle on a tie mount': 'Obepíná svazek na podložce',

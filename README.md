@@ -1240,7 +1240,10 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   i ji* in the panel. **🔌 Connection point** (*Připojovací bod*, 🔌 in the point's row or its suggestion): where the
   cable plugs into a part — a connector, a probe's tail, a gland. The cable may enter that part near the point: no
   collision note for it there and no lead-out note. The ends of a harness that sit on a part are connection points
-  unless you switch them off. **⛓ Route through an energy chain**: choose a span (the length between two rows, or the cable
+  unless you switch them off. **➰ Editing a loop**: while a span's length is typed (or its row is under the mouse) that span
+  is lit blue in the view and the rest of the cable dimmed; a slider beside the number runs from the tightest the
+  span can be to 3 × the distance between its points (or that + 300 mm) — the cable follows live, letting go is one
+  Ctrl+Z. **⛓ Route through an energy chain**: choose a span (the length between two rows, or the cable
   clicked again) and pick a chain of the assembly, or one from the library sized for the bundle (its opening ≥ Ø + 2,
   its bend ≥ the minimum radius) — put in at the span's first point, its fixed end 🔗 fixed to that point's part. The
   cable goes into the chain at the end nearer the span's first point and keeps that end as the chain rolls. It runs the chain's path as it is laid

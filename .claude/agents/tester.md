@@ -732,7 +732,8 @@ Never report "works" without having run it; report failures with their output.
    the point's 📎 in the panel -> Vyměnit příchytku (✓ on H3P) -> MB3A: the point kept on its axis, H3P out, one undo
    step, undo back; 🔌 an end on the box's top a connection point by itself (no
    lead-out note), disconnect_points -> the note; an end inside the box on it: no collision, disconnected: through the
-   box, the row's 🔌 back on (one undo step), the suggestion ✓; the clip on the point: the point on the clip's axis, the
+   box, the row's 🔌 back on (one undo step), the suggestion ✓; ➰ its length edited: that span lit, the rest dimmed; the
+   slider from the tightest, dragged with the mouse: live, no undo step, let go: one, undo; a span row hovered: lit; the clip on the point: the point on the clip's axis, the
    list's 📎, get_assembly clip, the point deleted -> "the clip stays" ✕, undo ×2; ⛓ a span through a chain put in
    from the library (sized: Bi ≥ Ø + 2, R ≥ r_min): the cable on its path, its length = harness.py's, the moving end
    moved 80 -> it follows, undo, edit_harness chain null / id; reload keeps clips and chains; a point clicked + Delete, Ctrl+Z, Enter; STEP export
