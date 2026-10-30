@@ -728,7 +728,18 @@ Never report "works" without having run it; report failures with their output.
    harness.py's shape, kept as the pin moves, "Úsek 3–4 je napnutý" too far, edit_harness spans; saved + reloaded:
    parts, locks, faces, spans kept; the owner's case — a cable between two pins' tops with a tall block between:
    leads straight up, a detour round the block, the bundle clear of every body (signed distances in Python), nothing
-   reported hit; 📎 a clip on a point on the PCB (the suggestion, snuggest first): the point on the clip's axis, the
+   reported hit; 📎 the mouse on a clip's suggestion row: its ghost at the point (mount on the face, axis along the
+   cable, label with name / Ø / šroub M4), off the row: gone; ⋯ Vybrat ze seznamu: grouped, the fitting ones first,
+   H1P greyed *Ø 3,2 max — malá* (no ghost, no click), a row previews, H3P clicked: put exactly where its ghost was;
+   the point's 📎 in the panel -> Vyměnit příchytku (✓ on H3P) -> MB3A: the point kept on its axis, H3P out, one undo
+   step, undo back; 🔌 an end on the box's top a connection point by itself (no
+   lead-out note), disconnect_points -> the note; an end inside the box on it: no collision, disconnected: through the
+   box, the row's 🔌 back on (one undo step), the suggestion ✓; ➰ its length edited: that span lit, the rest dimmed; the
+   slider from the tightest, dragged with the mouse: live, no undo step, let go: one, undo; a span row hovered: lit; 🪄 a crafted cable taut and through the block: the panel's
+   🪄 clears both in one undo step, toast *Opraveno*; undo, edit_harness auto_fix the same; ⚠ several notes at one spot: no two rects overlap, short
+   with tooltips; Zobrazit: ⚠ Varování kabelů off: none, the panel counts them, still off after the reload; ↔ Vůle off at first, on: a span ➰ 140 over 100: slack 40 in
+   the view, panel and get_assembly, the motor 20 closer: it grows, no overlaps, remembered after the reload, the panel's ↔
+   off; the clip on the point: the point on the clip's axis, the
    list's 📎, get_assembly clip, the point deleted -> "the clip stays" ✕, undo ×2; ⛓ a span through a chain put in
    from the library (sized: Bi ≥ Ø + 2, R ≥ r_min): the cable on its path, its length = harness.py's, the moving end
    moved 80 -> it follows, undo, edit_harness chain null / id; reload keeps clips and chains; a point clicked + Delete, Ctrl+Z, Enter; STEP export

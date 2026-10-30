@@ -98,6 +98,22 @@ def clips_for(items: list, d: float) -> list:
     return sorted(out, key=lambda c: (c["dmax"] - c["dmin"], c["dmax"] - d))
 
 
+def clip_choices(items: list, d: float) -> list:
+    """Every size of every clip, tie mount and tie for a bundle of Ø d (the 📎 pick list) -> [{item, size, dmin, dmax,
+    kind, mount, fits, why: None | "small" (dmax < d) | "large" (dmin > d) | "tie" (it goes round the bundle on a tie
+    mount)}]: the ones that hold it first, snug first (as clips_for), then the others in their order."""
+    fit, rest = [], []
+    for it in items:
+        if it.get("kind") not in (*CLIP_KINDS, "tie") or not it.get("sizes") or not it.get("cable"):
+            continue
+        for k in it["sizes"]:
+            lo, hi = cable_range(it, k)
+            why = "tie" if it["kind"] == "tie" else "small" if d > hi + 1e-9 else "large" if d < lo - 1e-9 else None
+            (rest if why else fit).append({"item": it["id"], "size": k, "dmin": lo, "dmax": hi, "kind": it["kind"],
+                                           "mount": (it.get("mount") or {}).get("kind"), "fits": not why, "why": why})
+    return sorted(fit, key=lambda c: (c["dmax"] - c["dmin"], c["dmax"] - d)) + rest
+
+
 # ------------------------------------------------------------------ energy chains
 def chain_of(item: dict, size: str, R=None, links: int | None = None) -> dict:
     """A chain item's choice -> its numbers {pitch, Bi, Ba, hi, ha, R, dmax, links}."""
@@ -148,4 +164,4 @@ def point_at(chain: dict, travel: float, s: float) -> tuple:
     return [a - w, 0.0, 2 * R], [-1.0, 0.0, 0.0]
 
 
-__all__ = ["vars_of", "num", "cable_range", "clip_frames", "clips_for", "chain_of", "default_links", "travel_range", "chain_path", "point_at", "ParamError"]
+__all__ = ["vars_of", "num", "cable_range", "clip_frames", "clips_for", "clip_choices", "chain_of", "default_links", "travel_range", "chain_path", "point_at", "ParamError"]

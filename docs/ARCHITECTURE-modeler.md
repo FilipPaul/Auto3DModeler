@@ -331,7 +331,32 @@ Date: 2026-10-25. Written by the architect agent.
   📎 ⛓ (2026-10-30, with library/cableparts.js and assembly/chains.js): a point {inst, at, clip} sits on a clip's axis
   (clipAt: clipsFor(outerD) — the snuggest, or the one chosen in the suggestions — placeClip on the face point (the
   point minus its lift) along the neighbours' direction, then the point at axis.o in the clip's frame, locked to it);
-  editPts notices a clip whose point went (this.orphans: "the clip stays" + ✕). A span {from, chain: C…} (spanSet
+  editPts notices a clip whose point went (this.orphans: "the clip stays" + ✕). 📎 preview and pick list (2026-10-30, assembly/clippick.js — the
+  owner: "u výběru příchytek by mělo jít vidět preview příchytky … a taky výběr ze seznamu"): a clip row's hover(on)
+  (the suggestions, the list; focus too) -> ClipPick.ghost: clipPose (the point's face spot, normal and the cable's
+  way; a point with a clip: from that clip's mount frame) -> cableparts clipPlace (the same matrix placeClip puts it
+  at) on a see-through yellow mesh + edges from clipGeometry (the kernel's body, cached per item|size; only moved),
+  a CSS2D label (name · Ø range · mountText). The list (floatBox kind 'clips'): clipChoices(Ø) — every clip / tie
+  mount / tie size, the fitting ones first, the rest greyed with why (small / large / tie) — grouped by type, ↑ ↓
+  through it; a click clipAt (a point with a clip: swapped — the new one put in, the point moved onto it, the old one
+  removed, one undo step); ☐ for all points on faces: clipAll (one undo step). It closes when the chosen point
+  changes, on Esc, ✕ or a pick. auto3d/cableparts.py clip_choices (test_cableparts). ↔ Slack (2026-10-30): slackOf(h, r) = spans − tightSpans (taut: − short); labels hn-slack at each span's middle
+  (unstacked with the notes), the rows' hn-sl; showKinds().slack (default off), the panel's ↔ switch the same;
+  harnessFacts span_slack_mm, spans[].slack_mm. ⚠ Notes (2026-10-30): short text + title; showKinds().warnings (suggest.js, the bottom row's Show: group, shown
+  when the assembly has harnesses) — off: no hn-warn / hn-clash / hn-note, the panel's hn-hidden count; unstack()
+  after every frame's CSS2D labels (labels.render wrapped): bottom-up, a label over one placed before is lifted; a
+  harness not chosen: one hn-sum "⚠ n" (all in its title). 🪄 Auto-fix (2026-10-30): warnings(h) = avoidOne + routeAt + throughOf (taut, bends, parts hit, short leads);
+  autoFix tries per round the first kind that has tries (taut: lengthen / unlock; bends: drop / move free points;
+  hits: free points to a side of the part's box, a point put in round it; short: the next free point out along the
+  normal), each try lengthened when it pulls the cable taut, keeps the best that lowers the count, ≤ 8 rounds, one
+  commit. AI edit_harness auto_fix. ➰ Loop editing (2026-10-30): litSpan (the row under the mouse, the span being typed, the span chosen) -> a blue
+  tube over that stretch of the route (by its spans' lengths along the RouteCurve), the rest's materials at 0.35;
+  tightSpans(h, r): routeE through the same E (leads, detours) with no own lengths and no lock; the slider's range
+  [tightest, max(3 × chord, chord + 300)], 'input' -> spanSet + drawNow once a frame (this.sliding keeps the panel),
+  'change' -> setSpan (one undo step). 🔌 Connection points (2026-10-30): a point {conn: true | false}; connOf: said, else an end on a part (not a clip);
+  excuser(h, pts) excuses a connection point's part within max(lead, 5 Ø) + Ø of it — probe() skips it (no detour),
+  throughOf skips its samples, shortLeads leaves that end out. Row 🔌 / suggestion toggle (setConn, one undo step);
+  lockPoint keeps conn; AI edit_harness connect_points / disconnect_points, point_list `connection`. A span {from, chain: C…} (spanSet
   keeps length and chain on one entry): spanChains reads chainRoute now, from the end nearer the span's first point;
   expandE puts the path into the points before the span's last point (tag 'chain': no slack, no detours, its hits not
   told); the AVOID key holds the path's ends and the draw key the moving end, so a chain moved re-shapes the cable.

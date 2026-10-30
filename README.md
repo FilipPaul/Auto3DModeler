@@ -1238,11 +1238,31 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   points staying where they are. This is worked out a moment after a change (while you drag, the cable follows at
   once and settles round the parts when you stop). Where it cannot get clear, a small *⚠ kabel koliduje s Blok I6*
   sits at the spot. A span with its own length that needs a detour loses that length (the AI is told).
-  **📎 Clip here**: choose a point lying on a face (click it, or 📎 in its row) and the suggestions offer the clips of
-  the library that hold the bundle, the snuggest first (the rest under *Ukázat vše*); the clip goes on the face along
+  **📎 Clip here**: choose a point lying on a face (click it) and the suggestions offer the clips of
+  the library that hold the bundle, the snuggest first (the rest under *Ukázat vše*); pointing at a row (or moving
+  through the rows with the keyboard) shows a see-through yellow ghost of that clip where it would go, with a small
+  label — *H3P P-clamp · Ø 5–6,5 mm · šroub M4*. The clip goes on the face along
   the cable, 🔗 fixed to the part it was put on (on a carriage or an arm it goes along), and the point moves onto the
-  clip's axis, locked to it — one step, one Ctrl+Z. Deleting the clip takes its joint with it. Deleting the point leaves the clip with *✕ Odebrat
-  i ji* in the panel. **⛓ Route through an energy chain**: choose a span (the length between two rows, or the cable
+  clip's axis, locked to it — one step, one Ctrl+Z. *⋯ Vybrat ze seznamu…* (or 📎 in the point's row) opens a compact
+  list of every clip, tie mount and tie, grouped by type: the ones that hold the bundle first (Ø range, how it is
+  fixed), the others greyed with why (*Ø 3,2 max — malá*); point at a row to preview it, click to put it in; *☐ Pro
+  všechny body na plochách* puts the same clip on every point on a face that has none yet (one Ctrl+Z). On a point
+  that has a clip the same list (*📎 Vyměnit příchytku…*) swaps it for another, the point kept — one step. Deleting the clip takes its joint with it. Deleting the point leaves the clip with *✕ Odebrat
+  i ji* in the panel. **🔌 Connection point** (*Připojovací bod*, 🔌 in the point's row or its suggestion): where the
+  cable plugs into a part — a connector, a probe's tail, a gland. The cable may enter that part near the point: no
+  collision note for it there and no lead-out note. The ends of a harness that sit on a part are connection points
+  unless you switch them off. **➰ Editing a loop**: while a span's length is typed (or its row is under the mouse) that span
+  is lit blue in the view and the rest of the cable dimmed; a slider beside the number runs from the tightest the
+  span can be to 3 × the distance between its points (or that + 300 mm) — the cable follows live, letting go is one
+  Ctrl+Z. **🪄 Opravit kabel automaticky** (panel and suggestions, whenever the harness has a warning):
+  lengthens a locked length or a span's own length that is too short (+5 mm), moves free points (in space, not
+  connection points) apart or drops one for a too tight bend, moves a free point off a part or puts a point in round
+  it, moves the next point out of a too short lead-out — keeping what clears the most, in one Ctrl+Z, and says how it
+  went (*Opraveno 2 z 2*). The warning notes in the view are short (*⚠ R 0,33 / 4*, *⚠ napnuto, chybí 4,4 mm*, *⚠
+  Předloktí I3*; the whole sentence in their tooltip) and stack instead of covering each other; a harness that is not chosen shows one *⚠ 3* with all of them in its tooltip; **Zobrazit: ⚠ Varování
+  kabelů** in the bottom row hides them (remembered) — the harness's panel then counts them. **↔ Vůle** (the panel's *Body* header, or Zobrazit: ↔ Vůle in the bottom row; off at first,
+  remembered): the chosen harness's slack per span — how much longer it is than the tightest it could be — at its middle (*vůle 12,4
+  mm*, *napnuto* in red) and in the span rows; get_assembly gives `span_slack_mm`. **⛓ Route through an energy chain**: choose a span (the length between two rows, or the cable
   clicked again) and pick a chain of the assembly, or one from the library sized for the bundle (its opening ≥ Ø + 2,
   its bend ≥ the minimum radius) — put in at the span's first point, its fixed end 🔗 fixed to that point's part. The
   cable goes into the chain at the end nearer the span's first point and keeps that end as the chain rolls. It runs the chain's path as it is laid
