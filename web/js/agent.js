@@ -293,7 +293,7 @@ export class ChatPanel {
     for (const r of box.querySelectorAll('.ai-conv')) {
       r.addEventListener('click', async (e) => {
         if (e.target.closest('.ai-conv-x')) {
-          if (!confirm(t('Delete this conversation? It cannot be brought back.'))) return;
+          if (!(await confirmIn(t('Delete this conversation? It cannot be brought back.'), { ok: t('Delete'), danger: true }))) return;
           await fetch(`/api/chat/conversations/${encodeURIComponent(r.dataset.id)}`, { method: 'DELETE' });
           this.showConvs(true);
           return;
