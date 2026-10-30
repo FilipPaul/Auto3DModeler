@@ -1444,6 +1444,9 @@ can open them.
   text). At an error and when a step is done it takes a small screenshot (at most one every 5 s) with your last clicks
   marked. The AI reads it with `get_recording` (`since`, `last`, `paths: false`) and `get_recording_screenshot`; in
   the chat a stopped recording goes with your next message in one click: **📎 Attach the recording (n events)**.
+  Recording does not slow the app down: orbiting, clicking, typing and dragging feel the same with it on (well under
+  a millisecond per event; the log is saved in small pieces when the browser is idle, the screenshots are taken in
+  the background).
 - **/uiTester and /suggest** in the AI chat: **/uiTester** makes Claude the app's tester — it designs a few test parts
   (sketch, extrude, hole, pattern, fillet; an assembly with joints; a drawing sheet), checks for every feature that
   its button exists, is reachable, does what the tool does and is in Czech, writes a report for each problem and ends

@@ -6,7 +6,9 @@ Esc -> Ctrl+Z -> a drag with the button held (one drag event: its points, from /
 -> get_recording (the page's handler and /api/agent/call): the events in order with their ids and the toast's text,
 paths: false leaves the points out, a screenshot (get_recording_screenshot) -> ■ Zastavit hides the pill -> the chat's
 📎 Přiložit záznam (n událostí) -> the AI's start_recording: "(spustila AI)" -> a reload: it goes on (a reload event)
--> stop_recording. Console errors: none.
+-> stop_recording -> cheap: a long recording (2000 events, 12 pictures), a 2 s orbit, 25 clicks + 25 keys, an error:
+under 2 ms per recorder handler call, no recorder run over 50 ms (the CDP profiler), the session's copy a small header
+and chunks. Console errors: none.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_recording.py http://127.0.0.1:5199 <out dir>
 """
@@ -286,6 +288,74 @@ try:
           and any(e["kind"] == "reload" for e in r["events"]) and r["started_by"] == "ai", (p, r["events"][-3:]))
     t = call("stop_recording")["text"]
     check("stop_recording: stopped", pill() is None and "Stopped" in t, t)
+
+    print("10. cheap while the user works: a long recording (2000 events, 12 pictures), a 2 s orbit, 50 clicks / keys, an error")
+    call("start_recording", reason="perf")
+    js("import('/js/recorder.js').then(m => { window.__rec = m.recorder; })")
+    wait("return !!window.__rec")
+    js("""const r = window.__rec, path = Array.from({length: 40}, (_, k) => [k / 40, 0.5]);
+      for (let k = 0; k < 2000; k++) r.push(k % 5 ? 'click' : 'drag', k % 5 ? {button: 'left', at: [0.3, 0.4], px: [300, 400], on: 'face F2:end'}
+        : {button: 'left', of: 'view', path, path_px: path.map(([x, y]) => [x * 1000, y * 800])});
+      const big = 'iVBOR' + 'A'.repeat(150000); for (let k = 0; k < 12; k++) r.shots.push({id: 'P' + k, i: r.n - 1, t: 0, data: big});
+      r.save(true); r.lastShot = {}; r.cost = {ms: 0, max: 0, n: 0}; window.__lt = [];
+      new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__lt.push(Math.round(e.duration)); }).observe({type: 'longtask'});""")
+    time.sleep(1.5)
+    js("window.__rec.cost = {ms: 0, max: 0, n: 0}; window.__lt = [];")
+    n0 = js("return window.__rec.n")
+    d.execute_cdp_cmd("Profiler.enable", {})
+    d.execute_cdp_cmd("Profiler.setSamplingInterval", {"interval": 100})
+    d.execute_cdp_cmd("Profiler.start", {})
+    vc = js("return [...document.querySelectorAll('section.viewport canvas')].find((c) => c.offsetParent && c.getBoundingClientRect().width > 100)")
+    ActionChains(d, duration=0).move_to_element_with_offset(vc, 200, -120).perform()
+    ch = ActionChains(d, duration=16).click_and_hold()
+    for k in range(120):  # (2 s of orbiting)
+        ch.move_by_offset(-4 if k < 60 else 4, 2 if k < 60 else -2).pause(0.016)
+    ch.release().perform()
+    for k in range(25):  # (on the view itself, not on a table / a panel over it)
+        o = js("""const c = arguments[0].getBoundingClientRect(), cx = Math.floor(c.left + c.width / 2), cy = Math.floor(c.top + c.height / 2);
+          for (let j = 0; j < 40; j++) { const dx = -300 + ((arguments[1] * 20 + j * 37) % 600), dy = 150 - (j * 23) % 300;
+            const el = document.elementFromPoint(cx + dx, cy + dy); if (el === arguments[0]) return [dx, dy]; } return [0, 0];""", vc, k)
+        ActionChains(d, duration=0).move_to_element_with_offset(vc, *o).click().perform()
+        ActionChains(d).send_keys(Keys.ESCAPE).perform()
+        time.sleep(0.05)
+    js("const t = document.createElement('div'); t.className = 'toast error'; t.textContent = 'Test: an error'; document.getElementById('toasts').appendChild(t); setTimeout(() => t.remove(), 1500)")
+    time.sleep(3)  # (the copy written, the picture taken)
+    prof = d.execute_cdp_cmd("Profiler.stop", {})["profile"]
+    parent = {c: n["id"] for n in prof["nodes"] for c in n.get("children", [])}
+    nodes = {n["id"]: n for n in prof["nodes"]}
+    mine = {}
+    for nid in sorted(nodes):  # (a node is the recorder's when it or a caller is in recorder.js / its screenshot)
+        k, chain = nid, []
+        while k is not None and k not in mine:
+            chain.append(k)
+            cf = nodes[k]["callFrame"]
+            if "recorder.js" in cf["url"] or cf["functionName"] == "screenshotUI":
+                mine[k] = True
+                break
+            k = parent.get(k)
+        hit = k is not None and mine.get(k, False)
+        for c in chain:
+            mine.setdefault(c, hit)
+    total = run = longest = 0.0
+    for s, dt in zip(prof["samples"], prof["timeDeltas"]):
+        if mine.get(s):
+            total += dt / 1000
+            run += dt / 1000
+            longest = max(longest, run)
+        else:
+            run = 0
+    cost = js("return window.__rec.cost")
+    got = js("""const r = window.__rec, h = JSON.parse(sessionStorage.getItem('a3d.rec'));
+      return {n: r.n, keys: r.events.filter((e) => e.kind === 'key').length, clicks: r.events.slice(-80).filter((e) => e.kind === 'click').length,
+        drag: r.events.slice(-80).filter((e) => e.kind === 'drag').length, shot: r.events.slice(-5).some((e) => e.kind === 'toast' && e.shot),
+        header: sessionStorage.getItem('a3d.rec').length, chunks: h.chunks.length, stored: h.chunks.every((c) => sessionStorage.getItem('a3d.rec.c' + c)), lt: window.__lt};""")
+    print(f"    recorder: {cost['n']} handler calls, {cost['ms']:.1f} ms, max {cost['max']:.1f} ms; CPU in it {total:.1f} ms, longest burst {longest:.1f} ms; long tasks {got['lt']}")
+    check("all recorded: the orbit (a drag), 25 clicks, 25 keys, the error with its picture",
+          got["n"] - n0 >= 51 and got["drag"] >= 1 and got["clicks"] >= 25 and got["shot"], got)
+    check("under 2 ms per event in the recorder's handlers (max under 16 ms)", cost["n"] and cost["ms"] / cost["n"] < 2 and cost["max"] < 16, cost)
+    check("no long task from the recorder (its longest run under 50 ms), its total CPU under 150 ms", longest < 50 and total < 150, (longest, total))
+    check("the session's copy: a small header and chunks of events (not the whole log rewritten)", got["header"] < 5000 and got["chunks"] in (20, 21) and got["stored"], got)
+    call("stop_recording")
 finally:
     errs = [e["message"] for e in d.get_log("browser") if e["level"] == "SEVERE"]
     check("no console errors", not errs, errs)

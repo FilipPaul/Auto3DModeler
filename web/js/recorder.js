@@ -7,12 +7,20 @@
 // a step done), at most one every 5 s, with the clicks / the drag that led to them marked. Hooked centrally: the
 // document's pointer / click / key / change events, History (history.js watchers), the suggestions table
 // (a3d:select) and the toast stack (a MutationObserver) — no calls sprinkled through the workspaces.
+// Cheap while the user works (it once made the app lag): an event costs well under a millisecond — what is under the
+// cursor only on a press / a release, a drag's samples kept as plain numbers, the session's copy written at most once a
+// second when the browser is idle and only its newest chunk of events (never the whole log, never the pictures again),
+// a screenshot taken when idle, the page walked in slices, encoded off the main thread.
 import { t } from './i18n.js';
 import { History } from './history.js';
 
-const KEY = 'a3d.rec', SHOTS_KEY = 'a3d.recShots';
+const KEY = 'a3d.rec', SHOTS_KEY = 'a3d.recShots', PART = 'a3d.rec.'; // the header; (old copies: the pictures); its chunks / pictures
 const MAX = 2000, MAX_SHOTS = 12, SHOT_GAP_MS = 5000, SHOT_W = 800; // events kept; screenshots kept / how often / how wide
 const PATH_MS = 50, PATH_PX = 8, DRAG_PX = 5;                       // a drag's samples: every 50 ms and 8 px; a click moves less than 5 px
+const CHUNK = 100, SAVE_MS = 1000;                                  // events per stored chunk; the copy written at most once a second
+const chunkKey = (c) => `${PART}c${c}`, shotKey = (id) => `${PART}s${id}`;
+const PASSIVE = { capture: true, passive: true }; // (the page's events heard first, never held up or stopped)
+const idle = (fn, timeout = 1000) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout }) : setTimeout(fn, 1));
 const MODS = (e) => ['ctrl', 'shift', 'alt'].filter((m) => e[`${m}Key`] || (m === 'ctrl' && e.metaKey));
 const OFF = '#aiDrawer, #tab-ai, .ai-drawer, .rec-pill, #recBtn'; // (the chat and the recording's own controls: not recorded)
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -24,8 +32,8 @@ const short = (v, n = 60) => { const s = typeof v === 'string' ? v : JSON.string
 const viewEl = () => [...document.querySelectorAll('section.viewport')].find((v) => v.offsetParent && v.getBoundingClientRect().width > 0);
 /** A screen point -> {at: [x, y] 0 … 1 across and down the view (as gui_action's at) or none outside it, px: in the
  *  pixels of get_screenshot {ui: true} (the window, scaled to at most 1400 px wide)}. */
-function placeOf(x, y) {
-  const v = viewEl()?.getBoundingClientRect(), k = Math.min(1, 1400 / innerWidth);
+function placeOf(x, y, v = viewEl()?.getBoundingClientRect()) {
+  const k = Math.min(1, 1400 / innerWidth);
   const inView = v && x >= v.left && x <= v.right && y >= v.top && y <= v.bottom;
   return { ...(inView ? { at: [r3((x - v.left) / v.width), r3((y - v.top) / v.height)] } : {}), px: [Math.round(x * k), Math.round(y * k)] };
 }
@@ -61,26 +69,86 @@ class Recorder {
     this.listeners = new Set();
     this.ctx = null;
     this.where = '';
+    this.dirty = new Set(); // the chunks of events changed since the last write
+    this.stored = new Set(); // the chunks / the pictures in the session's copy
+    this.cost = { ms: 0, max: 0, n: 0 }; // the time the recording took from the page (its handlers): the e2e test reads it
+  }
+
+  /** fn timed into this.cost (a handler of the page's events). */
+  timed(fn) {
+    return (...a) => {
+      if (!this.on) return fn(...a);
+      const t0 = performance.now();
+      try { return fn(...a); } finally { const ms = performance.now() - t0; this.cost.ms += ms; this.cost.n++; if (ms > this.cost.max) this.cost.max = ms; }
+    };
   }
 
   // ------------------------------------------------------------------ the session's copy (a reload goes on)
+  // a3d.rec: the header (state, its chunks, its pictures' ids); a3d.rec.c<k>: events k·100 … k·100+99; a3d.rec.s<id>: a picture
   load() {
     try {
       const s = JSON.parse(sessionStorage.getItem(KEY) || 'null');
-      if (s) Object.assign(this, { on: !!s.on, by: s.by || 'user', reason: s.reason || '', t0: s.t0 || 0, tEnd: s.tEnd || 0, n: s.n || 0, events: s.events || [], sent: s.sent ?? -1, nShot: s.nShot || 0 });
-      this.shots = JSON.parse(sessionStorage.getItem(SHOTS_KEY) || '[]');
+      if (!s) return;
+      Object.assign(this, { on: !!s.on, by: s.by || 'user', reason: s.reason || '', t0: s.t0 || 0, tEnd: s.tEnd || 0, n: s.n || 0, sent: s.sent ?? -1, nShot: s.nShot || 0 });
+      const chunks = s.chunks || [];
+      this.events = s.events || chunks.flatMap((c) => JSON.parse(sessionStorage.getItem(chunkKey(c)) || '[]')).filter((e) => e.i >= (s.first || 0)); // (the oldest chunk: from the first kept)
+      this.shots = s.shots ? s.shots.map((x) => ({ ...x, data: sessionStorage.getItem(shotKey(x.id)) })).filter((x) => x.data)
+        : JSON.parse(sessionStorage.getItem(SHOTS_KEY) || '[]'); // (a copy of before the chunks)
+      this.stored = new Set([...chunks.map(chunkKey), ...this.shots.map((x) => shotKey(x.id))]);
+      if (!s.chunks) for (const e of this.events) this.dirty.add(Math.floor(e.i / CHUNK));
     } catch { /* private window, a broken copy: a fresh start */ }
   }
 
+  /** The session's copy: at most once a second, when the browser is idle (now: at once — a stop, leaving the page). */
   save(now = false) {
-    clearTimeout(this.saveTimer);
-    const go = () => {
-      try { sessionStorage.setItem(KEY, JSON.stringify({ on: this.on, by: this.by, reason: this.reason, t0: this.t0, tEnd: this.tEnd, n: this.n, events: this.events, sent: this.sent, nShot: this.nShot })); } catch { /* full */ }
-      for (;;) { // (the pictures: the oldest go when they do not fit)
-        try { sessionStorage.setItem(SHOTS_KEY, JSON.stringify(this.shots)); break; } catch { if (!this.shots.length) break; this.shots.shift(); }
+    if (now) { clearTimeout(this.saveTimer); this.saveTimer = 0; this.write(); return; }
+    if (this.saveTimer) return;
+    this.saveTimer = setTimeout(() => idle(() => { this.saveTimer = 0; this.write(); }), SAVE_MS);
+  }
+
+  /** An event changed after it was added (a click named by its control, a picture of it): its chunk written again. */
+  touch(e) {
+    if (e) this.dirty.add(Math.floor(e.i / CHUNK));
+    this.save();
+  }
+
+  /** Write the changed chunks, the new pictures and the header; drop what is no longer kept (the oldest pictures go when
+   *  the session's storage is full). */
+  write() {
+    const put = (key, val) => {
+      for (;;) {
+        try { sessionStorage.setItem(key, val); this.stored.add(key); return true; } catch {
+          const old = this.shots.find((x) => this.stored.has(shotKey(x.id)) && shotKey(x.id) !== key);
+          if (!old) return false;
+          this.shots.splice(this.shots.indexOf(old), 1);
+          this.drop(shotKey(old.id));
+        }
       }
     };
-    if (now) go(); else this.saveTimer = setTimeout(go, 400);
+    const first = this.events[0]?.i ?? this.n, c0 = Math.floor(first / CHUNK);
+    const chunks = this.events.length ? Array.from({ length: Math.floor((this.n - 1) / CHUNK) - c0 + 1 }, (_, j) => c0 + j) : [];
+    for (const c of [...this.dirty].sort((a, b) => a - b)) {
+      if (c < c0) continue;
+      put(chunkKey(c), JSON.stringify(this.events.slice(Math.max(0, c * CHUNK - first), Math.max(0, (c + 1) * CHUNK - first))));
+    }
+    this.dirty.clear();
+    for (const x of [...this.shots]) if (!this.stored.has(shotKey(x.id)) && !put(shotKey(x.id), x.data)) this.shots.splice(this.shots.indexOf(x), 1); // (not even alone: not kept)
+    const keep = new Set([...chunks.map(chunkKey), ...this.shots.map((x) => shotKey(x.id))]);
+    for (const key of [...this.stored]) if (!keep.has(key) && key !== KEY) this.drop(key);
+    put(KEY, JSON.stringify({ on: this.on, by: this.by, reason: this.reason, t0: this.t0, tEnd: this.tEnd, n: this.n, sent: this.sent, nShot: this.nShot, first,
+      chunks, shots: this.shots.filter((x) => this.stored.has(shotKey(x.id))).map(({ id, i, t: s }) => ({ id, i, t: s })) }));
+  }
+
+  drop(key) { try { sessionStorage.removeItem(key); } catch { /* gone */ } this.stored.delete(key); }
+
+  /** A new recording: the old one's chunks and pictures out of the session's copy. */
+  clear() {
+    try {
+      for (const key of Object.keys(sessionStorage)) if (key.startsWith(PART)) sessionStorage.removeItem(key);
+      sessionStorage.removeItem(SHOTS_KEY);
+    } catch { /* none */ }
+    this.stored.clear();
+    this.dirty.clear();
   }
 
   listen(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
@@ -90,6 +158,7 @@ class Recorder {
   start(by = 'user', reason = '') {
     if (this.on) return false;
     Object.assign(this, { on: true, by, reason, t0: Date.now(), tEnd: 0, n: 0, events: [], shots: [], nShot: 0, lastShot: {}, sent: -1, where: '' });
+    this.clear();
     this.push('start', { by, ...(reason ? { reason } : {}) });
     this.save(true);
     this.changed();
@@ -137,7 +206,7 @@ class Recorder {
     const e = { i: this.n++, t: +((Date.now() - this.t0) / 1000).toFixed(1), kind, ...data, ws: cx.ws, ...(cx.part ? { part: cx.part } : {}), ...(cx.step ? { step: cx.step } : {}) };
     this.events.push(e);
     if (this.events.length > MAX) this.events.splice(0, this.events.length - MAX);
-    this.save();
+    this.touch(e);
     this.changed();
     return e;
   }
@@ -156,15 +225,16 @@ class Recorder {
     this.btn?.addEventListener('click', () => (this.on ? this.stop('user') : this.start('user')));
     this.listen(() => this.draw());
     window.addEventListener('a3d:lang', () => this.draw(true));
-    setInterval(() => { if (this.on) { this.noticeSwitch(); this.draw(); } }, 1000); // (the time; a switch with nothing done after it)
+    setInterval(this.timed(() => { if (this.on) { this.noticeSwitch(); this.draw(); } }), 1000); // (the time; a switch with nothing done after it)
     this.draw(true);
     this.hookPointer();
     this.hookKeys();
     this.hookToasts();
-    History.watchers.add((h, dir) => { try { this.onHistory(h, dir); } catch { /* the recording never breaks an undo */ } });
-    window.addEventListener('a3d:select', (e) => this.onSelect(e.detail));
+    History.watchers.add(this.timed((h, dir) => { try { this.onHistory(h, dir); } catch { /* the recording never breaks an undo */ } }));
+    window.addEventListener('a3d:select', this.timed((e) => this.onSelect(e.detail)));
     window.addEventListener('pagehide', () => this.save(true));
-    window.addEventListener('wheel', (e) => this.onWheel(e), { capture: true, passive: true });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.save(true); });
+    window.addEventListener('wheel', this.timed((e) => this.onWheel(e)), PASSIVE);
   }
 
   /** The indicator at the top centre of the view (every workspace) and the top bar's ⏺. */
@@ -182,16 +252,25 @@ class Recorder {
       p.querySelector('.rec-stop').addEventListener('click', (e) => { e.stopPropagation(); this.stop('user'); });
       for (const ev of ['pointerdown', 'pointerup', 'dblclick']) p.addEventListener(ev, (x) => x.stopPropagation());
     }
-    p.querySelector('.rec-time').textContent = `· ${clock(this.seconds)}`;
-    p.querySelector('.rec-by').textContent = this.by === 'ai' ? `(${t('started by the AI')})` : '';
-    p.title = this.reason ? `${t('Started by the AI')}: ${this.reason}` : t('Your clicks, commands, values and the app\'s messages are kept for the AI (not plain mouse movement)');
+    const set = (el, k, v) => { if (el[k] !== v) el[k] = v; }; // (the page not touched when nothing changed — every event draws)
+    set(p.querySelector('.rec-time'), 'textContent', `· ${clock(this.seconds)}`);
+    set(p.querySelector('.rec-by'), 'textContent', this.by === 'ai' ? `(${t('started by the AI')})` : '');
+    set(p, 'title', this.reason ? `${t('Started by the AI')}: ${this.reason}` : t('Your clicks, commands, values and the app\'s messages are kept for the AI (not plain mouse movement)'));
+    if (!this.placing) this.placing = requestAnimationFrame(() => { this.placing = 0; this.place(); });
+  }
+
+  /** The indicator's place: at the top centre of the view on screen. */
+  place() {
+    const p = this.pill;
+    if (!p || !this.on) return;
     const v = viewEl()?.getBoundingClientRect() || document.querySelector('main.layout')?.getBoundingClientRect();
     if (!v) return;
     // under the view's toolbar and its hint line (what to click next), not over them
     const below = [...(viewEl()?.querySelectorAll(':scope > .m-cmdbar, :scope > .m-hint:not([hidden])') || [])].map((el) => el.getBoundingClientRect()).filter((r) => r.height);
     const top = Math.max(v.top, ...below.map((r) => r.bottom));
-    p.style.left = `${Math.round(v.left + v.width / 2)}px`;
-    p.style.top = `${Math.round(top + 6)}px`;
+    const left = `${Math.round(v.left + v.width / 2)}px`, tp = `${Math.round(top + 6)}px`;
+    if (p.style.left !== left) p.style.left = left;
+    if (p.style.top !== tp) p.style.top = tp;
   }
 
   /** What is under a screen point, as the AI's tools name it: a face ("F2:end"), an edge ("edge F2:end|F1:side:0"), a
@@ -235,44 +314,46 @@ class Recorder {
 
   hookPointer() {
     // a press: where, which button, the keys held, what is under it; held and moved: its path (sampled); let go: one
-    // event — a click (or a double-click), or a drag with its points
-    document.addEventListener('pointerdown', (e) => {
+    // event — a click (or a double-click), or a drag with its points. What is under the cursor: only on the press and the
+    // release; the samples: plain numbers (the view's box read once, on the press), made into places on the release
+    document.addEventListener('pointerdown', this.timed((e) => {
       if (!this.on || e.pointerType === 'touch' && !e.isPrimary) return;
       if (e.target.closest?.(OFF)) { this.down = null; return; }
-      const p = placeOf(e.clientX, e.clientY);
       this.down = { x: e.clientX, y: e.clientY, x1: e.clientX, y1: e.clientY, tm: performance.now(), button: ['left', 'middle', 'right'][e.button] || `button ${e.button}`,
-        mods: MODS(e), under: this.underAt(e.clientX, e.clientY), el: e.target, path: [p], far: false, of: null };
-    }, true);
-    document.addEventListener('pointermove', (e) => {
+        mods: MODS(e), under: this.underAt(e.clientX, e.clientY), el: e.target, box: viewEl()?.getBoundingClientRect(), pts: [e.clientX, e.clientY], far: false, of: null };
+    }), PASSIVE);
+    document.addEventListener('pointermove', (e) => { // (not timed: a few comparisons per move)
       const d = this.down;
-      if (!d || !this.on || !e.buttons) return;
-      const now = performance.now();
-      if (!d.far && Math.hypot(e.clientX - d.x, e.clientY - d.y) >= DRAG_PX) d.far = true;
-      if (d.far && now - d.tm >= PATH_MS && Math.hypot(e.clientX - d.x1, e.clientY - d.y1) >= PATH_PX) {
-        d.path.push(placeOf(e.clientX, e.clientY));
-        Object.assign(d, { x1: e.clientX, y1: e.clientY, tm: now });
+      if (!d || !e.buttons) return;
+      const x = e.clientX, y = e.clientY;
+      if (!d.far && Math.hypot(x - d.x, y - d.y) >= DRAG_PX) d.far = true;
+      if (d.far && Math.hypot(x - d.x1, y - d.y1) >= PATH_PX && e.timeStamp - d.tm >= PATH_MS) {
+        d.pts.push(x, y);
+        d.x1 = x; d.y1 = y; d.tm = e.timeStamp;
         if (!d.of) d.of = this.dragKind();
       }
-    }, true);
-    const up = (e) => {
+    }, PASSIVE);
+    const up = this.timed((e) => {
       const d = this.down;
       this.down = null;
       if (!d || !this.on) return;
-      const p = placeOf(e.clientX, e.clientY), ctl = d.el?.closest?.('button, a, .chip, .mt-item, [data-sg], [data-sgc]');
+      const p = placeOf(e.clientX, e.clientY, d.box), ctl = d.el?.closest?.('button, a, .chip, .mt-item, [data-sg], [data-sgc]');
       if (d.far) {
-        d.path.push(p);
+        const path = [];
+        for (let j = 0; j < d.pts.length; j += 2) path.push(placeOf(d.pts[j], d.pts[j + 1], d.box));
+        path.push(p);
         this.push('drag', { button: d.button, ...(d.mods.length ? { keys: d.mods } : {}), of: d.of || this.dragKind(),
-          from: d.under, to: this.underAt(e.clientX, e.clientY), path: d.path.map((q) => q.at || null), path_px: d.path.map((q) => q.px) });
+          from: d.under, to: this.underAt(e.clientX, e.clientY), path: path.map((q) => q.at || null), path_px: path.map((q) => q.px) });
         return;
       }
       const ev = { button: d.button, ...(d.mods.length ? { keys: d.mods } : {}), ...p, ...(d.under ? { on: d.under } : {}) };
       this.lastClick = { e: this.push('click', ev), el: ctl, tm: Date.now() };
-    };
-    document.addEventListener('pointerup', up, true);
-    document.addEventListener('pointercancel', () => { this.down = null; }, true);
+    });
+    document.addEventListener('pointerup', up, PASSIVE);
+    document.addEventListener('pointercancel', () => { this.down = null; }, PASSIVE);
     // a click: a control pressed (with the mouse: added to its click event; with the keyboard: its own) — a suggestion
     // row run, a command, OK / Cancel …
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', this.timed((e) => {
       if (!this.on || e.target.closest?.(OFF)) return;
       const el = e.target.closest?.('button, a, .chip, .mt-item, [role=menuitem], label.menu-item');
       if (!el) return;
@@ -283,34 +364,34 @@ class Recorder {
         delete lc.e.on; // (the control names it)
         if (what.kind === 'suggest') Object.assign(lc.e, { kind: 'suggest', row: what.row, table: what.table, ...(what.about ? { about: what.about } : {}) });
         else lc.e.control = what.control;
-        this.save();
+        this.touch(lc.e);
         return;
       }
       const { kind, ...rest } = what;
       this.push(kind, { ...rest, ...(e.detail === 0 ? { via: 'keyboard' } : {}) });
-    }, true);
+    }), PASSIVE);
     document.addEventListener('dblclick', (e) => {
       const lc = this.lastClick;
-      if (this.on && lc?.e && Date.now() - lc.tm < 600 && !e.target.closest?.(OFF)) { lc.e.double = true; this.save(); }
-    }, true);
+      if (this.on && lc?.e && Date.now() - lc.tm < 600 && !e.target.closest?.(OFF)) { lc.e.double = true; this.touch(lc.e); }
+    }, PASSIVE);
     // a value typed / chosen in a field: when it is let go (its change), or typing stopped for a moment (a panel drawn
     // anew while typing never sends its change); the same value of the same field once
     const valueOf = (el) => (el.type === 'checkbox' || el.type === 'radio' ? el.checked : el.type === 'file' ? [...(el.files || [])].map((f) => f.name).join(', ')
       : el.tagName === 'SELECT' ? (el.selectedOptions[0]?.textContent?.trim() || el.value) : el.value);
     const field = (e) => { const el = e.target; return this.on && el.matches?.('input, select, textarea') && !el.closest(OFF) ? el : null; };
-    document.addEventListener('input', (e) => {
+    document.addEventListener('input', this.timed((e) => {
       const el = field(e);
       if (!el || el.type === 'checkbox' || el.type === 'radio' || el.type === 'file') return;
       this.typed = { field: nameOf(el), value: valueOf(el) };
       clearTimeout(this.typedTimer);
-      this.typedTimer = setTimeout(() => this.flushTyped(), 900);
-    }, true);
-    document.addEventListener('change', (e) => {
+      this.typedTimer = setTimeout(this.timed(() => this.flushTyped()), 900);
+    }), PASSIVE);
+    document.addEventListener('change', this.timed((e) => {
       const el = field(e);
       if (!el) return;
       this.typed = { field: nameOf(el), value: valueOf(el) };
       this.flushTyped();
-    }, true);
+    }), PASSIVE);
   }
 
   /** The value being typed, as an event (not twice). */
@@ -319,27 +400,27 @@ class Recorder {
     const v = this.typed;
     this.typed = null;
     if (!v || !this.on) return;
-    const last = [...this.events].reverse().find((e) => e.kind === 'value');
-    if (last && last.field === v.field && last.value === v.value && this.events.length - this.events.indexOf(last) < 4) return;
+    const ev = this.events, last = [ev[ev.length - 1], ev[ev.length - 2], ev[ev.length - 3]].find((e) => e?.kind === 'value'); // (the last value of the last three events)
+    if (last && last.field === v.field && last.value === v.value) return;
     this.push('value', v);
   }
 
   hookKeys() {
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', this.timed((e) => {
       if (!this.on || e.repeat || ['Control', 'Shift', 'Alt', 'Meta'].includes(e.key) || e.target.closest?.(OFF)) return;
       const typing = e.target.matches?.('input:not([type=checkbox]):not([type=range]), textarea, [contenteditable]');
       const named = ['Escape', 'Enter', 'Delete', 'Tab'].includes(e.key) || /^F\d+$/.test(e.key);
       if (typing && (!named || e.key === 'Tab')) return; // (letters, Ctrl+A … in a field: its value when it is set)
       const key = [...MODS(e).filter((m) => m !== 'shift' || e.key.length > 1), e.key === ' ' ? 'Space' : e.key.length === 1 ? e.key.toLowerCase() : e.key].join('+');
       this.push('key', { key, ...(typing ? { in: nameOf(e.target) } : {}) });
-    }, true);
+    }), PASSIVE);
   }
 
   /** Every message of the app (toasts): its text, an error / a refusal with a screenshot. */
   hookToasts() {
     const stack = document.getElementById('toasts');
     if (!stack) return;
-    new MutationObserver((muts) => {
+    new MutationObserver(this.timed((muts) => {
       if (!this.on) return;
       for (const m of muts) for (const n of m.addedNodes) {
         if (n.nodeType !== 1 || !n.classList.contains('toast')) continue;
@@ -348,7 +429,7 @@ class Recorder {
         const ev = this.push('toast', { level: kind, text: text.slice(0, 400) });
         if (ev && (kind === 'error' || kind === 'warning')) this.shoot(ev);
       }
-    }).observe(stack, { childList: true });
+    })).observe(stack, { childList: true });
   }
 
   /** What is selected (the suggestions table's refs, as the AI's tools name it), when it changed. */
@@ -363,7 +444,7 @@ class Recorder {
   onWheel(e) {
     if (!this.on || !e.target.closest?.('section.viewport') || e.target.closest(OFF)) return;
     const last = this.events[this.events.length - 1];
-    if (last?.kind === 'view' && Date.now() - (this.wheelAt || 0) < 1500) { last.zoom += e.deltaY < 0 ? 1 : -1; this.save(); } // (one event while it goes on)
+    if (last?.kind === 'view' && Date.now() - (this.wheelAt || 0) < 1500) { last.zoom += e.deltaY < 0 ? 1 : -1; this.touch(last); } // (one event while it goes on)
     else this.push('view', { zoom: e.deltaY < 0 ? 1 : -1, ...placeOf(e.clientX, e.clientY) });
     this.wheelAt = Date.now();
   }
@@ -397,41 +478,42 @@ class Recorder {
 
   // ------------------------------------------------------------------ screenshots
   /** A small picture of the window for event `ev` (at most one every 5 s): the clicks of the last 5 s and the drag that
-   *  led to it marked in red. */
-  async shoot(ev) {
+   *  led to it marked in red. Taken when the browser is idle, the page walked in slices, encoded off the main thread. */
+  shoot(ev) {
     const why = ev?.kind === 'toast' ? 'msg' : 'step'; // (an error is not kept from its picture by a step done just before)
     if (!ev || Date.now() - (this.lastShot[why] || 0) < SHOT_GAP_MS || this.shooting) return;
     this.lastShot[why] = Date.now();
     this.shooting = true;
-    try {
-      const { screenshotUI } = await import('./agent_more.js');
-      const r = await screenshotUI();
-      const img = await new Promise((ok, fail) => { const i = new Image(); i.onload = () => ok(i); i.onerror = fail; i.src = `data:image/png;base64,${r.image}`; });
-      const k = Math.min(1, SHOT_W / img.width), c = document.createElement('canvas');
-      c.width = Math.round(img.width * k);
-      c.height = Math.round(img.height * k);
-      const g = c.getContext('2d');
-      g.drawImage(img, 0, 0, c.width, c.height);
-      g.strokeStyle = '#ff3b30';
-      g.fillStyle = '#ff3b30';
-      g.lineWidth = 2;
-      const since = Date.now() - SHOT_GAP_MS, recent = this.events.filter((x) => x.kind === 'click' || x.kind === 'suggest' || x.kind === 'drag').filter((x) => this.t0 + x.t * 1000 >= since);
-      for (const x of recent) {
-        if (x.kind === 'drag') {
-          g.beginPath();
-          x.path_px.forEach(([px, py], j) => (j ? g.lineTo(px * k, py * k) : g.moveTo(px * k, py * k)));
-          g.stroke();
-          const [ex, ey] = x.path_px[x.path_px.length - 1];
-          g.beginPath(); g.arc(ex * k, ey * k, 4, 0, 7); g.fill();
-        } else if (x.px) { g.beginPath(); g.arc(x.px[0] * k, x.px[1] * k, 7, 0, 7); g.stroke(); }
-      }
-      const id = `S${++this.nShot}`;
-      this.shots.push({ id, i: ev.i, t: ev.t, data: c.toDataURL('image/png').split(',')[1] });
-      if (this.shots.length > MAX_SHOTS) this.shots.shift();
-      ev.shot = id;
-      this.save();
-    } catch { /* no picture this time */ }
-    this.shooting = false;
+    idle(() => this.snap(ev).catch(() => { /* no picture this time */ }).finally(() => { this.shooting = false; }));
+  }
+
+  async snap(ev) {
+    const { screenshotUI } = await import('./agent_more.js');
+    const { canvas: c, k } = await screenshotUI({ canvas: true, width: SHOT_W, slice: 8 });
+    const f = k / Math.min(1, 1400 / innerWidth), g = c.getContext('2d'); // (the events' px: of a picture at most 1400 px wide)
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.strokeStyle = '#ff3b30';
+    g.fillStyle = '#ff3b30';
+    g.lineWidth = 2;
+    const since = (Date.now() - SHOT_GAP_MS - this.t0) / 1000, recent = [];
+    for (let j = this.events.length - 1; j >= 0 && this.events[j].t >= since; j--) if (['click', 'suggest', 'drag'].includes(this.events[j].kind)) recent.push(this.events[j]);
+    for (const x of recent) {
+      if (x.kind === 'drag') {
+        g.beginPath();
+        x.path_px.forEach(([px, py], j) => (j ? g.lineTo(px * f, py * f) : g.moveTo(px * f, py * f)));
+        g.stroke();
+        const [ex, ey] = x.path_px[x.path_px.length - 1];
+        g.beginPath(); g.arc(ex * f, ey * f, 4, 0, 7); g.fill();
+      } else if (x.px) { g.beginPath(); g.arc(x.px[0] * f, x.px[1] * f, 7, 0, 7); g.stroke(); }
+    }
+    const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
+    const data = await new Promise((ok, fail) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = fail; r.readAsDataURL(blob); });
+    if (!this.events.includes(ev)) return; // (a new recording meanwhile)
+    const id = `S${++this.nShot}`;
+    this.shots.push({ id, i: ev.i, t: ev.t, data });
+    if (this.shots.length > MAX_SHOTS) this.shots.shift();
+    ev.shot = id;
+    this.touch(ev);
   }
 
   endDrag() { this.down = null; }

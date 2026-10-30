@@ -208,8 +208,16 @@ Date: 2026-10-25. Written by the architect agent.
   e2e_assembly_parallel_axis (the solver alone in one pass, and the assembly).
 - **⏺ Recording of moves (2026-10-30)** (the owner: "the AI should see what I do — look what I'm doing, this is the
   problem"). web/js/recorder.js: the top bar's ⏺ (#recBtn) or the AI's start_recording {reason} starts it; it runs until
-  stopped (■ Stop in the pill, ⏺, stop_recording), across workspaces / parts and a reload (sessionStorage a3d.rec: the
-  newest 2000 events, a `reload` event). The pill: fixed, at the top centre of the visible view under its toolbar and
+  stopped (■ Stop in the pill, ⏺, stop_recording), across workspaces / parts and a reload (sessionStorage: the
+  newest 2000 events, a `reload` event). Cheap (2026-10-30, the owner: "with recording on it is almost impossible to
+  do anything"): the copy was the whole log + every picture JSON-stringified on each event (35–60 ms per save with a
+  long recording) and a screenshot one 70 ms task — now a3d.rec is a small header, a3d.rec.c<k> chunks of 100 events
+  (only the changed ones written, at most once a second, in requestIdleCallback; at once on pagehide / hidden),
+  a3d.rec.s<id> one key per picture (written once); a drag's samples are numbers (the view's box read on the press),
+  what is under the cursor only on press / release; the pill's text set only when it changes, placed in an animation
+  frame; screenshots when idle via screenshotUI {canvas, width, slice} (the page walked as a generator in 8 ms slices,
+  no PNG round trip, no noteShot) and toBlob; capture listeners passive; recorder.cost times its handlers. Headless
+  Edge, robot arm demo, a full log: longest recorder run 62 → 1 ms per interaction, a screenshot 72 → 14 ms. The pill: fixed, at the top centre of the visible view under its toolbar and
   hint, red, a slow pulsing dot, the time, "(started by the AI)". Hooked centrally: document pointer events (capture) —
   a click {button, keys, at 0 … 1 of the view, px of get_screenshot {ui: true}, on: what is under it as the tools name
   it (modeler view.pick / pickEdge -> edgeRef / measurePoint snaps, a sketch point [u, v], assembly pickInst, a sheet's

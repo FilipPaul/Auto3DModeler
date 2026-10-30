@@ -153,10 +153,12 @@ function pointOf(state, modeler, assembly, what) {
 /** The window as the user sees it, as a picture (the AI chat left out): the 3D view / the sheet as drawn on screen
  *  and the page over it — the suggestions table, panels, labels, bars — drawn box by box from the page (backgrounds,
  *  borders, text, the fields' values; no HTML-to-canvas library is in the app), at most 1400 px wide -> get_screenshot's
- *  answer {text (where the table is on it), image}. */
-export async function screenshotUI() {
+ *  answer {text (where the table is on it), image}. For the recording of moves (recorder.js): {canvas: true, width, slice}
+ *  -> {canvas, k} — at most `width` px wide, not encoded, the page walked in slices of `slice` ms with a pause between
+ *  them (no long task while the user works). */
+export async function screenshotUI({ canvas: raw = false, width = 1400, slice = 0 } = {}) {
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-  const W = innerWidth, H = innerHeight, k = Math.min(1, 1400 / W), skip = '#aiDrawer, #tab-ai, .ai-drawer, script, style, link, template';
+  const W = innerWidth, H = innerHeight, k = Math.min(1, width / W), skip = '#aiDrawer, #tab-ai, .ai-drawer, script, style, link, template';
   const c = document.createElement('canvas');
   c.width = Math.round(W * k);
   c.height = Math.round(H * k);
@@ -183,7 +185,8 @@ export async function screenshotUI() {
     ctx.fillText(s, r.left, r.top + r.height / 2);
   };
   const later = []; // (what floats over the rest — z-index above 0: the table, panels over the view — drawn after it)
-  const walk = (el, clip, over = false) => {
+  function* walk(el, clip, over = false) { // (a generator: one step per box — walked at once, or in slices)
+    yield;
     if (el.matches(skip)) return;
     const cs = getComputedStyle(el);
     if (cs.display === 'none' || +cs.opacity === 0) return;
@@ -209,7 +212,7 @@ export async function screenshotUI() {
     if (['CANVAS', 'IMG', 'INPUT', 'SELECT', 'TEXTAREA'].includes(tag) || sheets.has(el) || el instanceof SVGElement) return;
     const inner = cs.overflow !== 'visible' && r.width ? cut(clip, r) : clip;
     for (const n of el.childNodes) {
-      if (n.nodeType === 1) walk(n, inner, over);
+      if (n.nodeType === 1) yield* walk(n, inner, over);
       else if (n.nodeType === 3 && vis && n.textContent.trim()) {
         const range = document.createRange();
         range.selectNodeContents(n);
@@ -233,9 +236,16 @@ export async function screenshotUI() {
         ctx.restore();
       }
     }
-  };
-  walk(document.body, [0, 0, W, H]);
-  for (const [, el, clip] of later.sort((a, b) => a[0] - b[0])) walk(el, clip, true);
+  }
+  function* all() {
+    yield* walk(document.body, [0, 0, W, H]);
+    for (const [, el, clip] of later.sort((a, b) => a[0] - b[0])) yield* walk(el, clip, true);
+  }
+  let t0 = performance.now();
+  for (const _ of all()) { // eslint-disable-line no-unused-vars
+    if (slice && performance.now() - t0 > slice) { await new Promise((r) => setTimeout(r)); t0 = performance.now(); }
+  }
+  if (raw) return { canvas: c, k };
   const sg = suggestTables()[0], box = sg && !sg.box.classList.contains('lw-off') ? sg.box.getBoundingClientRect() : null;
   const at = box ? { suggestions_box: [box.left, box.top, box.right, box.bottom].map((v) => Math.round(v * k)) } : {};
   noteShot({ kind: 'ui', w: c.width, h: c.height, k }); // (gui_action's at: a point of this picture)
