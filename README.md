@@ -1581,7 +1581,8 @@ can open them.
   stop it. It keeps a compact log in the browser session (the newest 2000 events): your clicks — where (in the view
   and on the screenshot), which button and keys, and what was under the mouse as the AI's tools name it (face F2:end,
   an edge, a part I2, a dimension) —, drags as one event with their path (sampled; no plain mouse movement), keys
-  (Esc, Enter, Ctrl+Z …), values typed, suggestion rows run, what is selected, undo / redo, steps added / changed /
+  (Esc, Enter, Ctrl+Z …), the wheel (a zoom of the view only over the view itself; over the suggestions or a panel
+  floating on it: a scroll of that box), values typed, suggestion rows run, what is selected, undo / redo, steps added / changed /
   deleted, joints added, workspace and part switches, and every message the app shows (errors and refusals with their
   text). At an error and when a step is done it takes a small screenshot (at most one every 5 s) with your last clicks
   marked. The AI reads it with `get_recording` (`since`, `last`, `paths: false`) and `get_recording_screenshot`; in

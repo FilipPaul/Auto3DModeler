@@ -718,6 +718,7 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_recording.py <url> <dir>` covers ⏺ the recording of moves (in Czech, real mouse): the top bar's ⏺ ->
    the red pill at the top centre of the 3D view; a block made through the table (a line's length typed 0: the error
    toast, ✓ Hotovo, the extrude's 10, OK), the top face clicked, ◎ Díra sem, Esc, Ctrl+Z, a drag with the button held;
+   the wheel over the suggestions table: a "scroll" of it, not a view zoom; over the empty view: a zoom;
    an assembly: the pill there too; get_recording (handler and /api/agent/call) has them in order — the click's place
    (at 0 … 1, px) and face, the row's table and what was selected, the toast's text with a screenshot, the drag as one
    event with its points (paths: false: without them), last / since; get_recording_screenshot; ■ Zastavit hides it;

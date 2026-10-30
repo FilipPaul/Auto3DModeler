@@ -2,7 +2,8 @@
 "Nahrávám pohyby · 0:00 · ■ Zastavit" at the top centre of the 3D view -> a block made through the UI (✏ Skica na
 rovině from the table, a rectangle clicked, ✓ Hotovo, the extrude's distance typed 0 -> OK: the error toast, then 10 -> OK)
 -> the top face clicked (a click event with its place, the button and the face under it) -> a table row run (◎ Díra) ->
-Esc -> Ctrl+Z -> a drag with the button held (one drag event: its points, from / to) -> an assembly: the pill there too
+Esc -> Ctrl+Z -> a drag with the button held (one drag event: its points, from / to) -> the wheel over the
+suggestions table: a scroll of it, not a zoom; over the empty view: a zoom -> an assembly: the pill there too
 -> get_recording (the page's handler and /api/agent/call): the events in order with their ids and the toast's text,
 paths: false leaves the points out, a screenshot (get_recording_screenshot) -> ■ Zastavit hides the pill -> the chat's
 📋 Kopírovat záznam: the clipboard (CDP-granted, read back) has the header (version, commit, window …) and the events as
@@ -25,6 +26,7 @@ from pathlib import Path
 
 from selenium import webdriver
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.actions.wheel_input import ScrollOrigin
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
@@ -216,6 +218,24 @@ try:
         ch.move_by_offset(-18, 9).pause(0.07)
     ch.release().perform()
     time.sleep(0.6)
+
+    print("4b. the wheel over the suggestions table (it scrolls), then over the empty view (it zooms)")
+    spot = next((o for o in (off_xyz(q) for q in ((5, 5, 10), (-8, 6, 10), (10, -5, 10), (0, 0, 10))) if free_spot(o)), None)
+    click(spot)
+    lst = wait("return document.querySelector('#modelViewport .view-suggest .vs-list')")
+    time.sleep(0.5)  # (a new wheel event after 1.5 s: not added to the drag's)
+    ActionChains(d).scroll_from_origin(ScrollOrigin.from_element(lst), 0, 120).perform()
+    time.sleep(0.3)
+    ActionChains(d).scroll_from_origin(ScrollOrigin.from_element(lst), 0, -120).perform()
+    time.sleep(1.8)
+    empty = next(o for o in ((-300, -150), (300, -150), (-300, 150), (300, 150), (0, -200)) if free_spot(o))
+    ActionChains(d).scroll_from_origin(ScrollOrigin.from_element(canvas(), *empty), 0, -120).perform()
+    time.sleep(0.6)
+    wh = [e for e in recording()["events"] if e["kind"] in ("view", "scroll")]
+    print("    the wheel's events:", wh)
+    check("the wheel over the table: logged as a scroll of it (Navrhované / its title), not as a zoom of the view",
+          len(wh) == 2 and wh[0]["kind"] == "scroll" and wh[0].get("in") and wh[0].get("by") == 0, wh)
+    check("the wheel over the empty view: a zoom of it", len(wh) == 2 and wh[1]["kind"] == "view" and wh[1].get("zoom", 0) > 0, wh)
 
     print("5. an assembly: the pill goes along")
     call("new_assembly", name="Sestava")

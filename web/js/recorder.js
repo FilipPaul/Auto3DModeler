@@ -28,6 +28,7 @@ const chunkKey = (c) => `${PART}c${c}`, shotKey = (id) => `${PART}s${id}`;
 const PASSIVE = { capture: true, passive: true }; // (the page's events heard first, never held up or stopped)
 const idle = (fn, timeout = 1000) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout }) : setTimeout(fn, 1));
 const MODS = (e) => ['ctrl', 'shift', 'alt'].filter((m) => e[`${m}Key`] || (m === 'ctrl' && e.metaKey));
+const ZOOMS = 'canvas, .sh-stage'; // (what the wheel zooms: a view's canvas, the drawing sheet's stage)
 const OFF = '#aiDrawer, #tab-ai, .ai-drawer, .rec-pill, #recBtn, .rec-copy'; // (the chat and the recording's own controls: not recorded)
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const r3 = (v) => +(+v).toFixed(3);
@@ -478,7 +479,15 @@ class Recorder {
 
   onWheel(e) {
     if (!this.on || !e.target.closest?.('section.viewport') || e.target.closest(OFF)) return;
-    const last = this.events[this.events.length - 1];
+    const last = this.events[this.events.length - 1], box = e.target.closest('.fb-box, .lw-widget, .sg-menu, .view-suggest');
+    if (box) { // (over a box floating on the view — the suggestions, a widget: its list scrolled, not the view zoomed)
+      const name = (box.querySelector('.vs-head > b, .lw-head > b, .mpc-head') || box).textContent.replace(/\s+/g, ' ').trim().slice(0, 60);
+      if (last?.kind === 'scroll' && last.in === name && Date.now() - (this.wheelAt || 0) < 1500) { last.by += e.deltaY > 0 ? 1 : -1; this.touch(last); }
+      else this.push('scroll', { in: name, by: e.deltaY > 0 ? 1 : -1, ...placeOf(e.clientX, e.clientY) });
+      this.wheelAt = Date.now();
+      return;
+    }
+    if (!e.target.closest(ZOOMS)) return; // (a label, a button over the view: not a zoom of it)
     if (last?.kind === 'view' && Date.now() - (this.wheelAt || 0) < 1500) { last.zoom += e.deltaY < 0 ? 1 : -1; this.touch(last); } // (one event while it goes on)
     else this.push('view', { zoom: e.deltaY < 0 ? 1 : -1, ...placeOf(e.clientX, e.clientY) });
     this.wheelAt = Date.now();
@@ -652,6 +661,7 @@ class Recorder {
     else if (kind === 'key') body = `${r.key}${r.in ? ` in ${q(r.in)}` : ''}`;
     else if (kind === 'press') body = `button ${q(r.control)}${r.via ? ` (${r.via})` : ''}`;
     else if (kind === 'view') body = `zoom ${r.zoom > 0 ? '+' : ''}${r.zoom} ${place(r)}`;
+    else if (kind === 'scroll') body = `${q(r.in)} ${r.by > 0 ? 'down' : 'up'} ${Math.abs(r.by)} ${place(r)}`;
     else body = Object.entries(r).map(([k, v]) => `${k}: ${short(v, 160)}`).join(', ');
     return `${mark} ${tm.padStart(6)}  ${kind.padEnd(13)} ${body}${shot ? ` [screenshot ${shot} left out]` : ''}`;
   }

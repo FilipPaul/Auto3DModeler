@@ -7,6 +7,11 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⏺ The wheel over a floating box is not "view zoom" (2026-10-30)** (the owner's recording of the 150-part demo:
+  scrolling the suggestions table showed as `view zoom +1 / -3 / +5 / -5` — the table did scroll, the log was wrong).
+  recorder.js onWheel: over a box on the view (.fb-box, .lw-widget, .sg-menu, .view-suggest) a `scroll {in: its title,
+  by: steps down}` event (merged while it goes on); a `view {zoom}` only when the wheel reached what zooms (a canvas,
+  the sheet's stage). get_recording's description lists it. tools/e2e_recording.py 4b: both, with the real wheel.
 - **e2e_mechanism_by_mouse green again (2026-10-30)**: its first Ctrl+click (the base's pin) failed since 7b16693
   (👁 Hide / show… and an always-shown ✎ made the floating suggestions two rows taller: the pin's spot the test aimed
   at was under the panel — the click went to the panel's edge, not the view). The app picks fine; the test's AIM now
