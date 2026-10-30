@@ -754,7 +754,15 @@ Never report "works" without having run it; report failures with their output.
    put into an assembly as that solid with its part number; stroke 20 still drawn; ✕ -> drawn again) and a drawn
    part's own colours per step (the rod).
    `tools/e2e_library_build.py <url> <dir>` builds EVERY library part in every size (shortest and longest length) in
-   the kernel — run it after changing library/*.json (253 builds with the test probes; catalogue sizes spot-checked).
+   the kernel — run it after changing library/*.json (317 builds with the cable parts; catalogue sizes spot-checked).
+   `tools/e2e_library_cableparts.py <url> <dir>` covers 📎 cable clips and ⛓ energy chains (the groups Cable clips /
+   Cable ties / Energy chains by maker; igus E2.15 Bi 20 R 38: E2.15.20.038.0, a link 20 × 27.8 × 19.3 -> into an
+   assembly: its first link + the U drawn (one instanced mesh), the ⛓ rows; chainPath = 2 × run + πR, the moving end
+   at its travel for 0 and 120; the Travel slider -> 150, the U redrawn; clipsFor(6) -> H3P then MB3A; placeClip on a
+   point and on a wall (the cable's axis where it belongs); ＋ Screw M4 on the clip, its head on the seat; an M4 × 10
+   screw ＋ Clip: H1P with its seat under the head; Moves with
+   the clip: moved 100 -> travel +100; the parts list counts the links; get_assembly chains; undo; in Czech:
+   library_add igus 14 -> 14.2.048.0, the rows translated; no console errors).
    `tools/e2e_library_probes.py <url> <dir>` covers the test probes in Czech (📚 Knihovna -> Testovací jehly (pogo
    pins) -> the INGUN heading opens -> GKS-100 214 130 A 2000: Czech description, Rozměry podle katalogu, datasheet /
    STEP links, preview Ø1.37 × 33.4, Patří k: its receptacle -> into an assembly -> its table: ＋ Pouzdro KS-100 30 ->

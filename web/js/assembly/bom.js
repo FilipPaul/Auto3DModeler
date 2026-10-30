@@ -7,6 +7,7 @@
 import { isStandard } from './fasteners.js';
 import { printed } from '../modeler/materials.js';
 import { harnessBom } from './harness.js';
+import { linksOf } from '../library/cableparts.js';
 
 /** Make or buy, by the part's library facts and its material (the one place the browser decides it; the server's
  *  auto3d/modeler/materials.made_how is the same rule): a library or standard part (screws, nuts, inserts, pins) is
@@ -67,7 +68,7 @@ export function bomOf(ctx, aid, { mode = 'summary', numbering = null } = {}) {
   const level = (id, times, stack) => {
     if (stack.has(id)) return [];
     const inner = new Set(stack).add(id), groups = new Map();
-    for (const it of ctx.partData(id)?.instances || []) groups.set(it.part, (groups.get(it.part) || 0) + 1);
+    for (const it of ctx.partData(id)?.instances || []) groups.set(it.part, (groups.get(it.part) || 0) + linksOf(ctx.partData(id), it)); // (⛓ a chain: its links)
     return [...groups].map(([part, qty]) => {
       const f = fact(part), total = qty * times;
       return { pos: nums.get(part) ?? null, ...f, qty, total, in: id, children: f.kind === 'assembly' ? level(part, total, inner) : null };

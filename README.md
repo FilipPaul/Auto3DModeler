@@ -898,6 +898,19 @@ nut (and its washer) under the parts the screw holds (nothing held: right under 
 a probe seated in its receptacle at the maker's installation height, its slide named *Stroke* and limited to the
 probe's stroke (⚙ Mechanism shows it pushed in). Each is joined Concentric.
 
+**📎 Cable clips and ⛓ energy chains.** Under **Cable clips**, **Cable ties** and **Energy chains**: HellermannTyton
+HP plastic P-clamps H1P–H8P (cable Ø up to 3.2 … 14 mm, screw M4 — ＋ Screw M4 puts an ISO 7045 pan head through
+its hole, the head on the clip), MB3A / MB4A / MB5A self-adhesive tie mounts (19, 28, 37.7 mm square, two screw holes
+too), T18R / T30R / T50R cable ties, and igus e-chains (energy chains, *Schleppkette*) of the series E2.10, E2.15, 14
+and 10 — choose the inner width Bi and the bend radius R from the catalogue's lists. Each says 📐 *Dimensions per
+catalogue* and links the maker's page. Each clip knows the cable Ø it holds, how it is fixed (screw, adhesive) and
+where the cable runs through it, so the harness can put the right one on a point. An energy chain put into an
+assembly lays itself out as a **U** from its first link (its fixed end — move it, join it like any part): the lower
+run, the bend of radius R, the upper run to the moving end. Its panel has **Links** (its length; igus orders by the
+link — the parts list counts them), **Travel** (a slider: the moving end goes, the U rolls) and **Moves with** (a part
+its moving end is fixed to, e.g. a carriage: when that part moves — dragged, its slide, ⚙ Mechanism ▶ — the chain
+rolls along). Too far for its links: drawn red, *add links*.
+
 Search (e.g. *M3*, *608*, *SMC*, *SICK*), choose the size (and length or stroke), and see it in 3D. Then **⤵ Put into
 the assembly** on screen (the same part is used again when you put it in twice) or **◆ Open as a new 3D model**.
 Parts marked **≈ outline** are drawn from their catalogue sizes as an envelope, so check the maker's drawing for

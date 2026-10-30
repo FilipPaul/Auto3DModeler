@@ -59,11 +59,13 @@ export function evaluate(expr, vars = {}) {
   return v;
 }
 
-/** `text` with {name} replaced by the values (numbers rounded). */
-export const fill = (text, vars) => String(text || '').replace(/\{(\w+)\}/g, (_, k) => {
+/** `text` with {name} replaced by the values (numbers rounded); {name:03} pads a whole number with zeros to 3 digits
+ *  (a part number such as igus E2.15.10.028.0). */
+export const fill = (text, vars) => String(text || '').replace(/\{(\w+)(?::0(\d))?\}/g, (_, k, pad) => {
   const v = vars[k];
   if (v === undefined) return '';
-  return typeof v === 'number' ? String(+v.toFixed(3)) : String(v);
+  const s = typeof v === 'number' ? String(+v.toFixed(3)) : String(v);
+  return pad ? s.padStart(+pad, '0') : s;
 });
 
 // ------------------------------------------------------------------ choices
@@ -116,7 +118,8 @@ export function buildPart(item, sizeKey = sizesOf(item)[0]?.key, length) {
   const vars = varsOf(item, sizeKey, length), features = [], paint = [];
   let n = 0;
   const id = () => `F${++n}`;
-  const real = item.models?.[modelKey(sizeKey, lengthsOf(item, sizeKey) ? vars.L : undefined)];
+  const second = lengthsOf(item, sizeKey), chosen = second ? vars[second.param] : undefined; // (the second choice: a length, a stroke, a bend radius R)
+  const real = item.models?.[modelKey(sizeKey, chosen)];
   if (real) features.push({ id: id(), type: 'solid', name: real.file.replace(/\.[^.]+$/, ''), blob: real.blob, file: real.file, op: 'add' });
   // a part saved from a 3D model: its own steps, as they are
   else if (item.features?.length) features.push(...structuredClone(item.features));
@@ -155,7 +158,7 @@ export function buildPart(item, sizeKey = sizesOf(item)[0]?.key, length) {
       ...(item.color && !real ? { color: item.color } : {}),
       ...(!real && (paint.length || item.paint?.length) ? { paint: [...paint, ...structuredClone(item.paint || [])] } : {}),
       material: item.material || undefined,
-      library: { id: item.id, item: item.name, category: item.category, size: sizeKey, ...(vars.L !== undefined && lengthsOf(item, sizeKey) ? { length: vars.L } : {}),
+      library: { id: item.id, item: item.name, category: item.category, size: sizeKey, ...(chosen !== undefined ? { length: chosen } : {}),
         maker: item.maker || '', pn, description: fill(item.description || item.name, vars), order, approx: !!item.approx && !real, standard: item.standard || '',
         ...(item.description_cs ? { description_cs: fill(item.description_cs, vars) } : {}), ...(item.accuracy ? { accuracy: item.accuracy } : {}),
         ...(Object.keys(links).length ? { links } : {}),
@@ -187,7 +190,7 @@ const MECHANICAL = ['misumi', 'rs', 'conrad', 'tme'], ELECTRONIC = ['mouser', 'f
 export function shopLinks(pn, lib = {}) {
   if (!pn) return [];
   const q = encodeURIComponent(pn), top = String(lib.category || '').split(' / ')[0];
-  const electronic = ['Panel', 'Sensors', 'Test probes', 'Receptacles'].includes(top) && lib.maker !== 'SMC';
+  const electronic = ['Panel', 'Sensors', 'Test probes', 'Receptacles', 'Cable clips', 'Cable ties'].includes(top) && lib.maker !== 'SMC';
   const keys = [...new Set([MAKER_SHOP[lib.maker], ...(electronic ? ELECTRONIC : MECHANICAL)].filter(Boolean))];
   return keys.map((k) => ({ shop: SHOPS[k].shop, url: SHOPS[k].url.replace('{q}', q) }));
 }

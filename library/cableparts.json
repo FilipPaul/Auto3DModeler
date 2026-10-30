@@ -1,0 +1,874 @@
+{
+ "library": "Cable clips, ties and energy chains",
+ "about": "Commercial cable clips and holders (HellermannTyton HP plastic P-clamps, MB self-adhesive tie mounts, T-series cable ties) and igus e-chains (energy chains / cable carriers): the sizes from the makers' catalogues and product pages (links per part; the makers' CAD files are not copied here). Each clip carries its cable frame (cable: the axis the cable runs along, the Ø range) and its mounting (mount: the face it sits on, the screw); a chain carries its link sizes (chain) — web/js/library/cableparts.js places clips on a harness point and lays a chain out as a U.",
+ "items": [
+  {
+   "id": "ht-hp-pclamp",
+   "category": "Cable clips / HellermannTyton / HP P-clamps",
+   "name": "HellermannTyton HP plastic P-clamp (screw M4)",
+   "name_cs": "HellermannTyton HP plastová příchytka P (šroub M4)",
+   "maker": "HellermannTyton",
+   "series": "HP",
+   "kind": "clip",
+   "title": "HellermannTyton {type} P-clamp Ø{D}",
+   "pn": "{type}-PA66-NA",
+   "description": "HellermannTyton {type}-PA66-NA (item {art}) — plastic P-clamp, HP series, PA66 natural: holds a cable or bundle up to Ø{D} mm; band {W} mm wide, wall {WT} mm; screw hole Ø{FH} mm (M4) {F} mm from the loop's centre. Dimensions per catalogue (HellermannTyton catalogue 2024 p. 232 and the product page). cable clamp clip příchytka kabelová spona",
+   "description_cs": "HellermannTyton {type}-PA66-NA (č. {art}) — plastová příchytka tvaru P, řada HP, PA66 přírodní: drží kabel nebo svazek do Ø{D} mm; pásek široký {W} mm, stěna {WT} mm; otvor pro šroub Ø{FH} mm (M4) {F} mm od středu oka. Rozměry podle katalogu (katalog HellermannTyton 2024 s. 232 a stránka výrobku).",
+   "accuracy": "catalogue",
+   "datasheet": "https://www.hellermanntyton.com/shared/assets/HT_Automotive_Cat_2024_1_12_232-232_COM.pdf",
+   "page": "{page}",
+   "order": {
+    "hellermanntyton": "{art}"
+   },
+   "color": "#ece4d2",
+   "material": "PA",
+   "vars": {
+    "W": 10.0,
+    "FH": 4.2
+   },
+   "sizes": {
+    "H1P": {
+     "type": "H1P",
+     "art": "211-60019",
+     "D": 3.2,
+     "F": 8.5,
+     "WT": 0.8,
+     "page": "https://www.hellermanntyton.com/products/clips-clamps-and-plugs/h1p/211-60019"
+    },
+    "H2P": {
+     "type": "H2P",
+     "art": "211-60029",
+     "D": 5.0,
+     "F": 9.5,
+     "WT": 1.0,
+     "page": "https://www.hellermanntyton.com/products/clips-clamps-and-plugs/h2p/211-60029"
+    },
+    "H3P": {
+     "type": "H3P",
+     "art": "211-60039",
+     "D": 6.5,
+     "F": 10.0,
+     "WT": 1.0,
+     "page": "https://www.hellermanntyton.com/products/clips-clamps-and-plugs/h3p/211-60039"
+    },
+    "H4P": {
+     "type": "H4P",
+     "art": "211-60049",
+     "D": 8.0,
+     "F": 10.0,
+     "WT": 1.2,
+     "page": "https://www.hellermanntyton.com/products/clips-clamps-and-plugs/h4p/211-60049"
+    },
+    "H5P": {
+     "type": "H5P",
+     "art": "211-60059",
+     "D": 9.5,
+     "F": 11.0,
+     "WT": 1.2,
+     "page": "https://www.hellermanntyton.com/products/clips-clamps-and-plugs/h5p/211-60059"
+    },
+    "H6P": {
+     "type": "H6P",
+     "art": "211-60069",
+     "D": 11.0,
+     "F": 13.0,
+     "WT": 1.2,
+     "page": "https://www.hellermanntyton.com/products/clips-clamps-and-plugs/h6p/211-60069"
+    },
+    "H7P": {
+     "type": "H7P",
+     "art": "211-60079",
+     "D": 12.5,
+     "F": 14.0,
+     "WT": 1.2,
+     "page": "https://www.hellermanntyton.com/products/clips-clamps-and-plugs/h7p/211-60079"
+    },
+    "H8P": {
+     "type": "H8P",
+     "art": "211-60089",
+     "D": 14.0,
+     "F": 15.0,
+     "WT": 1.5,
+     "page": "https://www.hellermanntyton.com/products/clips-clamps-and-plugs/h8p/211-60089"
+    }
+   },
+   "cable": {
+    "axis": {
+     "o": [
+      "-F",
+      0,
+      "WT + D/2"
+     ],
+     "d": [
+      0,
+      1,
+      0
+     ]
+    },
+    "dmax": "D"
+   },
+   "mount": {
+    "kind": "screw",
+    "o": [
+     0,
+     0,
+     0
+    ],
+    "n": [
+     0,
+     0,
+     -1
+    ],
+    "screw": "M4",
+    "hole": "FH",
+    "seat": "2*WT"
+   },
+   "shape": [
+    {
+     "extrude": {
+      "circle": {
+       "d": "D + 2*WT",
+       "x": "-F",
+       "y": "WT + D/2"
+      }
+     },
+     "holes": [
+      {
+       "circle": {
+        "d": "D",
+        "x": "-F",
+        "y": "WT + D/2"
+       }
+      }
+     ],
+     "plane": "XZ",
+     "z": "-W/2",
+     "h": "W"
+    },
+    {
+     "extrude": {
+      "rect": {
+       "w": "F",
+       "h": "W",
+       "x": "-F/2",
+       "y": 0
+      }
+     },
+     "z": 0,
+     "h": "2*WT"
+    },
+    {
+     "extrude": {
+      "circle": {
+       "d": "W"
+      }
+     },
+     "z": 0,
+     "h": "2*WT"
+    },
+    {
+     "extrude": {
+      "circle": {
+       "d": "D",
+       "x": "-F",
+       "y": "WT + D/2"
+      }
+     },
+     "plane": "XZ",
+     "z": "-W/2",
+     "h": "W",
+     "op": "cut"
+    },
+    {
+     "extrude": {
+      "circle": {
+       "d": "FH"
+      }
+     },
+     "z": "2*WT",
+     "h": "-2*WT",
+     "op": "cut"
+    }
+   ],
+   "pairs": [
+    {
+     "ref": "iso7045",
+     "role": "screw",
+     "back": "clip",
+     "size": "M4"
+    }
+   ]
+  },
+  {
+   "id": "ht-mb-mount",
+   "category": "Cable clips / HellermannTyton / MB tie mounts",
+   "name": "HellermannTyton MB cable tie mount, self-adhesive",
+   "name_cs": "HellermannTyton MB podložka pro stahovací pásku, samolepicí",
+   "maker": "HellermannTyton",
+   "series": "MB",
+   "kind": "tie mount",
+   "title": "HellermannTyton {type} tie mount {L}×{W}",
+   "pn": "{type}-PA66-WH",
+   "description": "HellermannTyton {type}-PA66-WH (item {art}) — square cable tie mount, self-adhesive (or screwed: two holes Ø{FH} mm, {F} mm apart, {screw}), PA66 white: {L} × {W} mm, {H} mm high; for ties {ties} up to {G} mm wide, 4-way entry; the bundle (Ø{dmin}–{dmax} mm with the library's ties) lies on top, tied down. Dimensions per catalogue (HellermannTyton MB series page and the product page); the tie channels are not drawn. adhesive mount base sokl lepicí",
+   "description_cs": "HellermannTyton {type}-PA66-WH (č. {art}) — čtvercová podložka pro stahovací pásku, samolepicí (nebo na šrouby: dva otvory Ø{FH} mm, rozteč {F} mm, {screw}), PA66 bílá: {L} × {W} mm, výška {H} mm; pro pásky {ties} šířky do {G} mm, vstup ze 4 stran; svazek (Ø{dmin}–{dmax} mm s páskami z knihovny) leží nahoře, stažený páskou. Rozměry podle katalogu (HellermannTyton, řada MB a stránka výrobku); kanálky pro pásku nejsou kresleny.",
+   "accuracy": "catalogue",
+   "datasheet": "https://www.hellermanntyton.com/shared/assets/PDP_PS_MB_Series__com.pdf",
+   "page": "{page}",
+   "order": {
+    "hellermanntyton": "{art}"
+   },
+   "color": "#f2f2ee",
+   "material": "PA",
+   "vars": {
+    "dmin": 1.5
+   },
+   "sizes": {
+    "MB3A": {
+     "type": "MB3A",
+     "art": "151-28349",
+     "L": 19.0,
+     "W": 19.0,
+     "H": 3.8,
+     "G": 4.1,
+     "F": 13.2,
+     "FH": 3.1,
+     "screw": "M3",
+     "ties": "T18 - T30",
+     "dmax": 35.0,
+     "page": "https://www.hellermanntyton.com/products/cable-tie-mounts/mb3a/151-28349"
+    },
+    "MB4A": {
+     "type": "MB4A",
+     "art": "151-28469",
+     "L": 28.0,
+     "W": 28.0,
+     "H": 4.7,
+     "G": 5.4,
+     "F": 20.2,
+     "FH": 4.0,
+     "screw": "M3",
+     "ties": "T18 - T50",
+     "dmax": 50.0,
+     "page": "https://www.hellermanntyton.com/products/cable-tie-mounts/mb4a/151-28469"
+    },
+    "MB5A": {
+     "type": "MB5A",
+     "art": "151-28529",
+     "L": 37.7,
+     "W": 37.7,
+     "H": 7.1,
+     "G": 8.9,
+     "F": 25.3,
+     "FH": 4.8,
+     "screw": "M4",
+     "ties": "T18 - T150",
+     "dmax": 50.0,
+     "page": "https://www.hellermanntyton.com/products/cable-tie-mounts/mb5a/151-28529"
+    }
+   },
+   "cable": {
+    "axis": {
+     "o": [
+      0,
+      0,
+      "H + dc/2"
+     ],
+     "d": [
+      1,
+      0,
+      0
+     ],
+     "d2": [
+      0,
+      1,
+      0
+     ]
+    },
+    "dmin": "dmin",
+    "dmax": "dmax",
+    "tie": true
+   },
+   "mount": {
+    "kind": "adhesive",
+    "o": [
+     0,
+     0,
+     0
+    ],
+    "n": [
+     0,
+     0,
+     -1
+    ],
+    "screw": "screw",
+    "hole": "FH",
+    "holes": [
+     [
+      "-F/2",
+      0
+     ],
+     [
+      "F/2",
+      0
+     ]
+    ]
+   },
+   "shape": [
+    {
+     "extrude": {
+      "rect": {
+       "w": "L",
+       "h": "W"
+      }
+     },
+     "holes": [
+      {
+       "circle": {
+        "d": "FH",
+        "x": "-F/2"
+       }
+      },
+      {
+       "circle": {
+        "d": "FH",
+        "x": "F/2"
+       }
+      }
+     ],
+     "z": 0,
+     "h": "H"
+    }
+   ],
+   "pairs": [
+    {
+     "ref": "ht-t-tie",
+     "role": "tie",
+     "back": "mount",
+     "size": "T18R"
+    }
+   ]
+  },
+  {
+   "id": "ht-t-tie",
+   "category": "Cable ties / HellermannTyton / T-series",
+   "name": "HellermannTyton T-series cable tie",
+   "name_cs": "HellermannTyton stahovací páska řady T",
+   "maker": "HellermannTyton",
+   "series": "T",
+   "kind": "tie",
+   "title": "HellermannTyton {type} cable tie {L}×{W}",
+   "pn": "{pn}",
+   "description": "HellermannTyton {pn} (item {art}) — cable tie, inside serrated, {mat}: {L} × {W} mm, {T} mm thick; bundle Ø{dmin}–{dmax} mm. Drawn straight, as supplied (the head where the catalogue gives its size). Dimensions per catalogue (the product page). zip tie stahovací páska",
+   "description_cs": "HellermannTyton {pn} (č. {art}) — stahovací páska, vnitřní ozubení, {mat}: {L} × {W} mm, tloušťka {T} mm; svazek Ø{dmin}–{dmax} mm. Kreslena rovná, jak se dodává (hlava tam, kde katalog dává její rozměry). Rozměry podle katalogu (stránka výrobku).",
+   "accuracy": "catalogue",
+   "datasheet": "{page}",
+   "page": "{page}",
+   "order": {
+    "hellermanntyton": "{art}"
+   },
+   "color": "#ece4d2",
+   "material": "PA",
+   "sizes": {
+    "T18R": {
+     "type": "T18R",
+     "art": "111-01866",
+     "pn": "T18R-PA66HS-NA",
+     "L": 100.0,
+     "W": 2.5,
+     "T": 1.0,
+     "hl": 4.8,
+     "hw": 4.45,
+     "hh": 3.7,
+     "dmin": 1.5,
+     "dmax": 22.0,
+     "mat": "PA66HS natural",
+     "page": "https://www.hellermanntyton.com/products/cable-ties-inside-serrated/t18r/111-01866"
+    },
+    "T30R": {
+     "type": "T30R",
+     "art": "111-03259",
+     "pn": "T30R-PA66HS-NA",
+     "L": 150.0,
+     "W": 3.5,
+     "T": 1.2,
+     "hl": 0,
+     "hw": 0,
+     "hh": 0,
+     "dmin": 1.5,
+     "dmax": 35.0,
+     "mat": "PA66HS natural",
+     "page": "https://www.hellermanntyton.com/products/cable-ties-inside-serrated/t30r/111-03259"
+    },
+    "T50R": {
+     "type": "T50R",
+     "art": "111-00525",
+     "pn": "T50R-PA46-NA",
+     "L": 202.0,
+     "W": 4.6,
+     "T": 1.2,
+     "hl": 7.3,
+     "hw": 7.6,
+     "hh": 5.9,
+     "dmin": 1.5,
+     "dmax": 50.0,
+     "mat": "PA46 natural",
+     "page": "https://www.hellermanntyton.com/products/cable-ties-inside-serrated/t50r/111-00525"
+    }
+   },
+   "cable": {
+    "dmin": "dmin",
+    "dmax": "dmax"
+   },
+   "mount": {
+    "kind": "tie"
+   },
+   "shape": [
+    {
+     "extrude": {
+      "rect": {
+       "w": "L",
+       "h": "W",
+       "x": "L/2"
+      }
+     },
+     "z": 0,
+     "h": "T"
+    },
+    {
+     "extrude": {
+      "rect": {
+       "w": "hl",
+       "h": "hw",
+       "x": "-hl/2"
+      }
+     },
+     "z": 0,
+     "h": "hh",
+     "when": "hh"
+    }
+   ]
+  },
+  {
+   "id": "igus-e2-10",
+   "category": "Energy chains / igus / E2.10",
+   "name": "igus e-chain E2.10 (energy chain)",
+   "name_cs": "igus energetický řetěz E2.10",
+   "maker": "igus",
+   "series": "E2.10",
+   "kind": "chain",
+   "title": "igus E2.10 e-chain Bi {Bi} R {R}",
+   "pn": "E2.10.{code}.{R:03}.0",
+   "description": "igus E2.10.{code}.{R:03}.0 — e-chain series E2.10 (E2.1 micro, one-piece, openable from both sides along the outer radius): inner width Bi {Bi} mm, inner height hi {hi} mm, outer width Ba {Ba} mm, outer height ha {ha} mm, pitch {p} mm, bend radius R {R} mm (the U is 2R + ha high); cables up to Ø{dmax} mm. Ordered by the link (the number of links in the assembly). Dimensions per catalogue (igus product page: Bi, R, pitch, hi, ha; Ba = Bi + 7.4 mm, the side walls of the published Bi 10 article, Ba 17.4 — the cross-section drawing: the same side parts at every width). The item is one link; in an assembly it lays out as a U. energy chain cable carrier drag chain Schleppkette energetický řetěz kabelový vlek",
+   "description_cs": "igus E2.10.{code}.{R:03}.0 — energetický řetěz řady E2.10: vnitřní šířka Bi {Bi} mm, vnitřní výška hi {hi} mm, vnější šířka Ba {Ba} mm, vnější výška ha {ha} mm, rozteč {p} mm, poloměr ohybu R {R} mm (smyčka U je vysoká 2R + ha); kabely do Ø{dmax} mm. Objednává se po článcích (počet článků v sestavě). Rozměry podle katalogu (stránka výrobku igus: Bi, R, rozteč, hi, ha; Ba = Bi + 7.4 mm, bočnice publikovaného článku Bi 10, Ba 17.4 — řez: stejné bočnice při každé šířce). Položka je jeden článek; v sestavě se rozloží do U.",
+   "accuracy": "catalogue",
+   "datasheet": "https://www.igus.eu/product/series-E2-10",
+   "page": "https://www.igus.eu/product/series-E2-10?artnr=E2.10.{code}.{R:03}.0",
+   "order": {
+    "igus": "E2.10.{code}.{R:03}.0"
+   },
+   "color": "#3a3d42",
+   "material": "PA",
+   "vars": {
+    "p": 20.0,
+    "hi": 10.1,
+    "ha": 15.0,
+    "side": 7.4,
+    "dmax": 8.0
+   },
+   "sizes": {
+    "Bi 6": {
+     "Bi": 6.0,
+     "Ba": 13.4,
+     "code": "06"
+    },
+    "Bi 10": {
+     "Bi": 10.0,
+     "Ba": 17.4,
+     "code": "10"
+    },
+    "Bi 16": {
+     "Bi": 16.0,
+     "Ba": 23.4,
+     "code": "16"
+    },
+    "Bi 20": {
+     "Bi": 20.0,
+     "Ba": 27.4,
+     "code": "20"
+    },
+    "Bi 30": {
+     "Bi": 30.0,
+     "Ba": 37.4,
+     "code": "30"
+    },
+    "Bi 40": {
+     "Bi": 40.0,
+     "Ba": 47.4,
+     "code": "40"
+    },
+    "Bi 50": {
+     "Bi": 50.0,
+     "Ba": 57.4,
+     "code": "50"
+    }
+   },
+   "lengths": {
+    "name": "Bend radius",
+    "param": "R",
+    "values": [
+     18,
+     28,
+     38
+    ]
+   },
+   "chain": {
+    "pitch": "p",
+    "Bi": "Bi",
+    "Ba": "Ba",
+    "hi": "hi",
+    "ha": "ha",
+    "R": "R",
+    "dmax": "dmax"
+   },
+   "cable": {
+    "dmax": "dmax"
+   },
+   "shape": [
+    {
+     "extrude": {
+      "rect": {
+       "w": "Ba",
+       "h": "ha"
+      }
+     },
+     "holes": [
+      {
+       "rect": {
+        "w": "Bi",
+        "h": "hi"
+       }
+      }
+     ],
+     "plane": "YZ",
+     "z": 0,
+     "h": "p"
+    }
+   ]
+  },
+  {
+   "id": "igus-e2-15",
+   "category": "Energy chains / igus / E2.15",
+   "name": "igus e-chain E2.15 (energy chain)",
+   "name_cs": "igus energetický řetěz E2.15",
+   "maker": "igus",
+   "series": "E2.15",
+   "kind": "chain",
+   "title": "igus E2.15 e-chain Bi {Bi} R {R}",
+   "pn": "E2.15.{code}.{R:03}.0",
+   "description": "igus E2.15.{code}.{R:03}.0 — e-chain series E2.15 (E2.1 micro, openable from both sides along the outer radius): inner width Bi {Bi} mm, inner height hi {hi} mm, outer width Ba {Ba} mm, outer height ha {ha} mm, pitch {p} mm, bend radius R {R} mm (the U is 2R + ha high); cables up to Ø{dmax} mm. Ordered by the link (the number of links in the assembly). Dimensions per catalogue (igus product page: Bi, R, pitch, hi, ha; Ba = Bi + 7.8 mm, the side walls of the published Bi 10 article, Ba 17.8 — the cross-section drawing: the same side parts at every width). The item is one link; in an assembly it lays out as a U. energy chain cable carrier drag chain Schleppkette energetický řetěz kabelový vlek",
+   "description_cs": "igus E2.15.{code}.{R:03}.0 — energetický řetěz řady E2.15: vnitřní šířka Bi {Bi} mm, vnitřní výška hi {hi} mm, vnější šířka Ba {Ba} mm, vnější výška ha {ha} mm, rozteč {p} mm, poloměr ohybu R {R} mm (smyčka U je vysoká 2R + ha); kabely do Ø{dmax} mm. Objednává se po článcích (počet článků v sestavě). Rozměry podle katalogu (stránka výrobku igus: Bi, R, rozteč, hi, ha; Ba = Bi + 7.8 mm, bočnice publikovaného článku Bi 10, Ba 17.8 — řez: stejné bočnice při každé šířce). Položka je jeden článek; v sestavě se rozloží do U.",
+   "accuracy": "catalogue",
+   "datasheet": "https://www.igus.eu/product/series-E2-15",
+   "page": "https://www.igus.eu/product/series-E2-15?artnr=E2.15.{code}.{R:03}.0",
+   "order": {
+    "igus": "E2.15.{code}.{R:03}.0"
+   },
+   "color": "#3a3d42",
+   "material": "PA",
+   "vars": {
+    "p": 20.0,
+    "hi": 14.4,
+    "ha": 19.3,
+    "side": 7.8,
+    "dmax": 12.5
+   },
+   "sizes": {
+    "Bi 10": {
+     "Bi": 10.0,
+     "Ba": 17.8,
+     "code": "10"
+    },
+    "Bi 13": {
+     "Bi": 13.0,
+     "Ba": 20.8,
+     "code": "13"
+    },
+    "Bi 16": {
+     "Bi": 16.0,
+     "Ba": 23.8,
+     "code": "16"
+    },
+    "Bi 20": {
+     "Bi": 20.0,
+     "Ba": 27.8,
+     "code": "20"
+    },
+    "Bi 30": {
+     "Bi": 30.0,
+     "Ba": 37.8,
+     "code": "30"
+    },
+    "Bi 40": {
+     "Bi": 40.0,
+     "Ba": 47.8,
+     "code": "40"
+    },
+    "Bi 50": {
+     "Bi": 50.0,
+     "Ba": 57.8,
+     "code": "50"
+    }
+   },
+   "lengths": {
+    "name": "Bend radius",
+    "param": "R",
+    "values": [
+     28,
+     38,
+     48
+    ]
+   },
+   "chain": {
+    "pitch": "p",
+    "Bi": "Bi",
+    "Ba": "Ba",
+    "hi": "hi",
+    "ha": "ha",
+    "R": "R",
+    "dmax": "dmax"
+   },
+   "cable": {
+    "dmax": "dmax"
+   },
+   "shape": [
+    {
+     "extrude": {
+      "rect": {
+       "w": "Ba",
+       "h": "ha"
+      }
+     },
+     "holes": [
+      {
+       "rect": {
+        "w": "Bi",
+        "h": "hi"
+       }
+      }
+     ],
+     "plane": "YZ",
+     "z": 0,
+     "h": "p"
+    }
+   ]
+  },
+  {
+   "id": "igus-14",
+   "category": "Energy chains / igus / 14",
+   "name": "igus e-chain 14 (energy chain)",
+   "name_cs": "igus energetický řetěz 14",
+   "maker": "igus",
+   "series": "14",
+   "kind": "chain",
+   "title": "igus 14 e-chain Bi {Bi} R {R}",
+   "pn": "14.{code}.{R:03}.0",
+   "description": "igus 14.{code}.{R:03}.0 — e-chain series 14 (E2 mini, one-piece): inner width Bi {Bi} mm, inner height hi {hi} mm, outer width Ba {Ba} mm, outer height ha {ha} mm, pitch {p} mm, bend radius R {R} mm (the U is 2R + ha high); cables up to Ø{dmax} mm. Ordered by the link (the number of links in the assembly). Dimensions per catalogue (igus product page: Bi, R, pitch, hi, ha; Ba = Bi + 11.0 mm, the side walls of the published Bi 15 article, Ba 26.0 — the cross-section drawing: the same side parts at every width). The item is one link; in an assembly it lays out as a U. energy chain cable carrier drag chain Schleppkette energetický řetěz kabelový vlek",
+   "description_cs": "igus 14.{code}.{R:03}.0 — energetický řetěz řady 14: vnitřní šířka Bi {Bi} mm, vnitřní výška hi {hi} mm, vnější šířka Ba {Ba} mm, vnější výška ha {ha} mm, rozteč {p} mm, poloměr ohybu R {R} mm (smyčka U je vysoká 2R + ha); kabely do Ø{dmax} mm. Objednává se po článcích (počet článků v sestavě). Rozměry podle katalogu (stránka výrobku igus: Bi, R, rozteč, hi, ha; Ba = Bi + 11.0 mm, bočnice publikovaného článku Bi 15, Ba 26.0 — řez: stejné bočnice při každé šířce). Položka je jeden článek; v sestavě se rozloží do U.",
+   "accuracy": "catalogue",
+   "datasheet": "https://www.igus.eu/product/series-14",
+   "page": "https://www.igus.eu/product/series-14?artnr=14.{code}.{R:03}.0",
+   "order": {
+    "igus": "14.{code}.{R:03}.0"
+   },
+   "color": "#3a3d42",
+   "material": "PA",
+   "vars": {
+    "p": 30.5,
+    "hi": 20.0,
+    "ha": 25.0,
+    "side": 11.0,
+    "dmax": 16.0
+   },
+   "sizes": {
+    "Bi 15": {
+     "Bi": 15.0,
+     "Ba": 26.0,
+     "code": "1"
+    },
+    "Bi 25": {
+     "Bi": 25.0,
+     "Ba": 36.0,
+     "code": "2"
+    },
+    "Bi 38": {
+     "Bi": 38.0,
+     "Ba": 49.0,
+     "code": "3"
+    },
+    "Bi 50": {
+     "Bi": 50.0,
+     "Ba": 61.0,
+     "code": "4"
+    }
+   },
+   "lengths": {
+    "name": "Bend radius",
+    "param": "R",
+    "values": [
+     28,
+     38,
+     48,
+     75,
+     100,
+     125
+    ]
+   },
+   "chain": {
+    "pitch": "p",
+    "Bi": "Bi",
+    "Ba": "Ba",
+    "hi": "hi",
+    "ha": "ha",
+    "R": "R",
+    "dmax": "dmax"
+   },
+   "cable": {
+    "dmax": "dmax"
+   },
+   "shape": [
+    {
+     "extrude": {
+      "rect": {
+       "w": "Ba",
+       "h": "ha"
+      }
+     },
+     "holes": [
+      {
+       "rect": {
+        "w": "Bi",
+        "h": "hi"
+       }
+      }
+     ],
+     "plane": "YZ",
+     "z": 0,
+     "h": "p"
+    }
+   ]
+  },
+  {
+   "id": "igus-10",
+   "category": "Energy chains / igus / 10",
+   "name": "igus e-chain 10 (energy chain)",
+   "name_cs": "igus energetický řetěz 10",
+   "maker": "igus",
+   "series": "10",
+   "kind": "chain",
+   "title": "igus 10 e-chain Bi {Bi} R {R}",
+   "pn": "10.{code}.{R:03}.0",
+   "description": "igus 10.{code}.{R:03}.0 — e-chain series 10 (E2 mini): inner width Bi {Bi} mm, inner height hi {hi} mm, outer width Ba {Ba} mm, outer height ha {ha} mm, pitch {p} mm, bend radius R {R} mm (the U is 2R + ha high); cables up to Ø{dmax} mm. Ordered by the link (the number of links in the assembly). Dimensions per catalogue (igus product page: Bi, R, pitch, hi, ha; Ba = Bi + 14.0 mm, the side walls of the published Bi 80 article, Ba 94.0 — the cross-section drawing: the same side parts at every width). The item is one link; in an assembly it lays out as a U. energy chain cable carrier drag chain Schleppkette energetický řetěz kabelový vlek",
+   "description_cs": "igus 10.{code}.{R:03}.0 — energetický řetěz řady 10: vnitřní šířka Bi {Bi} mm, vnitřní výška hi {hi} mm, vnější šířka Ba {Ba} mm, vnější výška ha {ha} mm, rozteč {p} mm, poloměr ohybu R {R} mm (smyčka U je vysoká 2R + ha); kabely do Ø{dmax} mm. Objednává se po článcích (počet článků v sestavě). Rozměry podle katalogu (stránka výrobku igus: Bi, R, rozteč, hi, ha; Ba = Bi + 14.0 mm, bočnice publikovaného článku Bi 80, Ba 94.0 — řez: stejné bočnice při každé šířce). Položka je jeden článek; v sestavě se rozloží do U.",
+   "accuracy": "catalogue",
+   "datasheet": "https://www.igus.eu/product/series-10",
+   "page": "https://www.igus.eu/product/series-10?artnr=10.{code}.{R:03}.0",
+   "order": {
+    "igus": "10.{code}.{R:03}.0"
+   },
+   "color": "#3a3d42",
+   "material": "PA",
+   "vars": {
+    "p": 30.5,
+    "hi": 18.0,
+    "ha": 23.0,
+    "side": 14.0,
+    "dmax": 16.0
+   },
+   "sizes": {
+    "Bi 15": {
+     "Bi": 15.0,
+     "Ba": 29.0,
+     "code": "015"
+    },
+    "Bi 25": {
+     "Bi": 25.0,
+     "Ba": 39.0,
+     "code": "025"
+    },
+    "Bi 38": {
+     "Bi": 38.0,
+     "Ba": 52.0,
+     "code": "038"
+    },
+    "Bi 50": {
+     "Bi": 50.0,
+     "Ba": 64.0,
+     "code": "050"
+    },
+    "Bi 63": {
+     "Bi": 63.0,
+     "Ba": 77.0,
+     "code": "5"
+    },
+    "Bi 80": {
+     "Bi": 80.0,
+     "Ba": 94.0,
+     "code": "6"
+    },
+    "Bi 100": {
+     "Bi": 100.0,
+     "Ba": 114.0,
+     "code": "7"
+    }
+   },
+   "lengths": {
+    "name": "Bend radius",
+    "param": "R",
+    "values": [
+     28,
+     38,
+     48,
+     75,
+     100,
+     110,
+     125,
+     145,
+     180
+    ]
+   },
+   "chain": {
+    "pitch": "p",
+    "Bi": "Bi",
+    "Ba": "Ba",
+    "hi": "hi",
+    "ha": "ha",
+    "R": "R",
+    "dmax": "dmax"
+   },
+   "cable": {
+    "dmax": "dmax"
+   },
+   "shape": [
+    {
+     "extrude": {
+      "rect": {
+       "w": "Ba",
+       "h": "ha"
+      }
+     },
+     "holes": [
+      {
+       "rect": {
+        "w": "Bi",
+        "h": "hi"
+       }
+      }
+     ],
+     "plane": "YZ",
+     "z": 0,
+     "h": "p"
+    }
+   ]
+  }
+ ]
+}

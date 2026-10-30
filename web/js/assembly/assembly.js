@@ -22,6 +22,7 @@
 //   widget's names, drivers and speeds (mechanism.js); "couplings": ⚙ gear pairs, ⛓ belts, ▤ racks — one part's turn
 //   tied to another's by a ratio (couplings.js); "springs": 〰 a spring part drawn as long as it reaches (springs.js)
 //   "harnesses": 🔌 cable harnesses routed through points (harness.js)
+//   "chains": ⛓ energy chains — a library chain's first link placed, the rest drawn on as a U (chains.js)
 //   an instance's "pair": {"host": "I3", "role": "nut", "slot": "nut"} — 🔗 a library companion put onto that part
 //   (library/pairs.js: a screw's nut / washers, a probe in its receptacle)
 import * as THREE from 'three';
@@ -60,6 +61,8 @@ import { isPin } from './missing.js';
 import { pinFits, restOn } from './smart.js';
 import { springMatrix, addSpring, springIgnores, springsHtml, bindSpringRows, updateSpringRows, springsSummary } from './springs.js';
 import { HarnessTool, harnessHandlers, harnessFacts, withHarnesses } from './harness.js';
+import { drawChains, chainsHtml, bindChainRows, tidyChains, chainsSummary } from './chains.js';
+import { linksOf } from '../library/cableparts.js';
 import { COUPLING_TYPES, couplingOptions, addCoupling, followCouplings, couplingsHtml, bindCouplingRows, couplingsSummary, ratioText, coupledWith } from './couplings.js';
 
 const fmt = (v) => (+(+v).toFixed(3)).toString();
@@ -257,6 +260,7 @@ class AsmView extends ModelView {
   fitBox() {
     const box = new THREE.Box3();
     for (const m of this.meshes || []) box.expandByObject(m);
+    for (const m of this.scene.getObjectByName('chains')?.children || []) if (m.count) box.expandByObject(m); // (⛓ the energy chains' links)
     return box.isEmpty() ? new THREE.Box3().setFromObject(this.datumGroup) : box;
   }
 
@@ -325,7 +329,7 @@ export class Assembly {
     this.jointType = 'touch';
     this.explode = 0;
     this.history = new History({
-      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [], ...(this.doc.mechs?.length ? { mechs: this.doc.mechs } : {}), ...(this.doc.couplings?.length ? { couplings: this.doc.couplings } : {}), ...(this.doc.springs?.length ? { springs: this.doc.springs } : {}), ...(this.doc.harnesses?.length ? { harnesses: this.doc.harnesses } : {}) }),
+      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [], ...(this.doc.mechs?.length ? { mechs: this.doc.mechs } : {}), ...(this.doc.couplings?.length ? { couplings: this.doc.couplings } : {}), ...(this.doc.springs?.length ? { springs: this.doc.springs } : {}), ...(this.doc.harnesses?.length ? { harnesses: this.doc.harnesses } : {}), ...(this.doc.chains?.length ? { chains: this.doc.chains } : {}) }),
       restore: async (s) => {
         this.mech?.stop(false);
         this.doc.instances = s.instances; this.doc.mates = s.mates || []; this.doc.bolts = s.bolts || []; this.mode = 'idle'; this.bolt = null;
@@ -333,6 +337,7 @@ export class Assembly {
         if (s.couplings) this.doc.couplings = s.couplings; else delete this.doc.couplings;
         if (s.springs) this.doc.springs = s.springs; else delete this.doc.springs;
         if (s.harnesses) this.doc.harnesses = s.harnesses; else delete this.doc.harnesses;
+        if (s.chains) this.doc.chains = s.chains; else delete this.doc.chains;
         this.syncDrills(); // the holes drilled for bolts: back as they were
         this.tidyCopies(); // (⧉ its own part undone: its copy goes too)
         this.render();
@@ -1111,7 +1116,7 @@ export class Assembly {
     const rows = {};
     for (const it of this.doc.instances) {
       const r = (rows[it.part] = rows[it.part] || { part: it.part, name: this.partName(it.part), qty: 0 });
-      r.qty++;
+      r.qty += linksOf(this.doc, it); // (⛓ an energy chain: its links)
       const data = this.hooks.partData(it.part);
       r.lib = data?.library || null;
       r.material = data?.material || 'PLA';
@@ -1211,7 +1216,7 @@ export class Assembly {
         ${this.flexHtml(it)}
         ${inner ? this.innerHtml(it, inner) : ''}
         ${place}
-        ${this.jointsHtml(it.id)}${couplingsHtml(this, it.id)}${springsHtml(this, it.id)}
+        ${this.jointsHtml(it.id)}${couplingsHtml(this, it.id)}${springsHtml(this, it.id)}${chainsHtml(this, it.id)}
         <details class="as-more" ${this.moreOpen ? 'open' : ''}><summary title="${esc(t('Its colour, see-through, simplified, and editing it from here'))}">🎨 ${esc(t('Look and editing'))}</summary>
           ${this.editHtml(it)}${this.lookHtml(it)}</details>`;
       if (missHere) this.mech.bindMissing(box);
@@ -1238,6 +1243,7 @@ export class Assembly {
       this.bindJointRows(box);
       bindCouplingRows(this, box, renameInPlace);
       bindSpringRows(this, box, renameInPlace);
+      bindChainRows(this, box); // (⛓ an energy chain's first link: its links, travel, the part it moves with)
       this.bindLook(box, it);
       box.querySelector('[data-a=editHere]')?.addEventListener('click', () => this.editInPlace(it.id));
       box.querySelector('[data-a=editLock]')?.addEventListener('click', () => this.toggleEditable(it.part));
@@ -2355,6 +2361,7 @@ export class Assembly {
     this.showCog();
     if (this.doc.springs) updateSpringRows(this, this.$('.mp-body')); // (〰 its length now, while the parts move)
     this.harnessTool.draw(); // (🔌 the harnesses: their points on the parts as drawn now)
+    drawChains(this); // (⛓ the energy chains' links, laid out as their moving ends are now)
   }
 
   /** The faces' prefix of the inner part chosen in the list ("I2/") when `it` is its placement, else null. */
@@ -2625,6 +2632,7 @@ export class Assembly {
     this.doc.mates = mates;
     if (this.doc.couplings) { this.doc.couplings = this.doc.couplings.filter((c) => this.inst(c.a) && this.inst(c.b)); if (!this.doc.couplings.length) delete this.doc.couplings; }
     if (this.doc.springs) { this.doc.springs = this.doc.springs.filter((x) => this.inst(x.part) && this.inst(x.onto)); if (!this.doc.springs.length) delete this.doc.springs; }
+    tidyChains(this); // (⛓ a chain whose first link is gone)
     const before = new Map(this.doc.instances.map((i) => [i.id, [...i.matrix]]));
     this.placeAll(mates);
     if (this.closeLoops(before, drive)) this.placeAll(mates);
@@ -3866,6 +3874,7 @@ export class Assembly {
       ...(this.doc.couplings?.length ? { couplings: couplingsSummary(this) } : {}),
       ...(this.doc.springs?.length ? { springs: springsSummary(this) } : {}),
       ...(this.doc.harnesses?.length ? { harnesses: this.doc.harnesses.map((h) => harnessFacts(this, h)) } : {}),
+      ...(this.doc.chains?.length ? { chains: chainsSummary(this) } : {}),
       joints: (this.doc.mates || []).map((m) => ({ id: m.id, ...(m.name ? { name: m.name } : {}), type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
         ...(m.type === 'axis' ? { distance: Number.isFinite(m.dist) ? m.dist : null } : { gap: m.gap || 0 }), ...(m.type !== 'parallel' ? { rotation_locked: Number.isFinite(m.angle) } : {}), ...(m.broken ? { broken: true } : {}),
         ...(m.slides?.length || (m.rot && m.type !== 'rigid') ? { locked_motions: (m.slides?.length || 0) + (m.rot && m.type !== 'rigid' ? 1 : 0) } : {}),

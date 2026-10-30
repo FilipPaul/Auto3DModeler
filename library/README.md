@@ -50,6 +50,15 @@ A file holds `{"items": [ … ]}` (or one item on its own). An item:
   key: M5 with M5) or one size key, `qty` how many. Write it on one side only: the library mirrors it on the other
   (`mirror: true`). The window shows them as *Goes with*, a placed part offers them (＋ Nut M5, ＋ Set …) and puts them
   on its axis where they go (library/pairs.js).
+- **cable / mount** (📎 a cable clip, `kind` "clip" / "tie mount" / "tie"): in the part's own coordinates, numbers
+  or formulas (`dc`: the cable's Ø) — `cable: {axis: {o, d, d2}, dmin, dmax}` the axis the cable runs along (`d2`: a
+  second way, 4-way tie mounts) and the Ø it holds (no `dmin`: from the next smaller size's `dmax`); `mount: {kind:
+  "screw" | "adhesive" | "tie", o, n, screw: "M4", hole, seat, holes}` the point on the face it is fixed on, `n` out of
+  the part into that face, the screw head's `seat`. web/js/library/cableparts.js (clipsFor, placeClip) uses them.
+- **chain** (⛓ an energy chain, `kind` "chain"): `{pitch, Bi, Ba, hi, ha, R, dmax}` — the names of its values (R the
+  bend radius to the centre line, the second choice: `lengths: {name: "Bend radius", param: "R", values}`). Its
+  `shape` is one link (x 0…pitch on the centre line); in an assembly it is laid out as a U (assembly/chains.js).
+- A text's `{R:03}` pads a whole number with zeros (`E2.15.{code}.{R:03}.0` -> E2.15.20.038.0).
 - **shape**: the steps, in order. A number may be a formula: `"L + k"`, `"dk / 2"`, `"max(d*0.2, 0.3)"`
   (`+ - * / ^ ( )`, `min max sqrt sin cos tan abs round`, `pi`).
   - `{"revolve": [[r, z], …]}`: a half-section, r out from the Z axis and z up, turned all the way round. Add

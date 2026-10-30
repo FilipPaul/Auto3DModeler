@@ -16,6 +16,8 @@ import { moreHandlers, colouredGroups, screenshotUI, noteShot } from './agent_mo
 import { teachHandlers } from './agent_teach.js';
 import { buildPart, sizesOf, lengthsOf } from './library/build.js';
 import { addCompanion, pairRows, goesWith, companions } from './library/pairs.js';
+import { useLibrary } from './library/cableparts.js';
+import { libraryChain } from './assembly/chains.js';
 import { Project } from './parts.js';
 import { Modeler } from './modeler/modeler.js';
 import { modelHandlers } from './modeler/agent_model.js';
@@ -2715,7 +2717,7 @@ const libPart = (name, data) => project.parts.find((p) => p.kind === 'model' && 
   || project.addBackground(name, structuredClone(data));
 // 🔗 the library's items, kept for the assembly's suggestions (a placed library part offers its companions)
 let libCache = [];
-const loadLibCache = () => libraryItems().then((items) => { libCache = items; assembly.renderSuggest?.(); }).catch(() => {});
+const loadLibCache = () => libraryItems().then((items) => { libCache = items; useLibrary({ items, addPart: libPart }); assembly.renderSuggest?.(); }).catch(() => {}); // (📎 ⛓ cableparts.js: the clips, chains)
 loadLibCache();
 /** Companions in, one after another, onto the placed part `hostId` -> the results (pairs.js addCompanion). */
 async function addPairs(hostId, list) {
@@ -2747,7 +2749,9 @@ const library = new LibraryBrowser({
   },
   async insertIntoAssembly(name, data) {
     await assembly.insert(libPart(name, data));
-    toast(t2('{name} is in the assembly — join it with 🔗 Joint.', { name }), 'ok', 5000);
+    const chain = libraryChain(assembly, assembly.sel, data, libCache.length ? libCache : await libraryItems()); // (⛓ an energy chain: laid out as a U)
+    if (chain) toast(t2('⛓ {name}: {n} links laid out as a U from this link (its fixed end) — slide its travel or let it move with a part, in its panel.', { name, n: chain.links }), 'ok', 7000);
+    else toast(t2('{name} is in the assembly — join it with 🔗 Joint.', { name }), 'ok', 5000);
   },
   /** 🔗 Goes with: this part and its companion put in together, the companion on its axis where it goes. */
   async insertPair(name, data, comp) {
