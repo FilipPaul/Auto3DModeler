@@ -90,19 +90,22 @@ def open_demo(k):
     wait("return document.querySelectorAll('.demos [data-demo]').length")
     rows = d.find_elements(By.CSS_SELECTOR, ".demos [data-demo]")
     f = rows[k].get_attribute("data-demo")
+    was = js("return window.__app.autosave.id")
     rows[k].find_element(By.CSS_SELECTOR, "[data-open]").click()
-    wait(f"return window.__app.state.workspace === 'assembly' && {A}.doc.instances.length > 1 && {A}.doc.instances.every(i => {A}.bodies[i.part]?.body) && {A}.mech.list.length")
+    # opened: a new project's id comes once it is all loaded (the last demo's assembly, still on screen, passes the rest)
+    wait(f"return window.__app.autosave.id !== {json.dumps(was)} && window.__app.state.workspace === 'assembly' && {A}.doc.instances.length > 1 && {A}.doc.instances.every(i => {A}.bodies[i.part]?.body) && {A}.mech.list.length")
     time.sleep(0.8)
     return f
 
 
-def play(k=0, secs=2.5, look=None):
-    """▶ on row k for a while: which parts moved, the joints' worst miss, look() each time."""
+def play(k=0, secs=2.5, look=None, until=None):
+    """▶ on row k for a while: which parts moved, the joints' worst miss, look() each time. A loaded machine looks less
+    often: on past `secs` till it has looked 6 times (a minute at most) and until() holds (4 × `secs` at most)."""
     m0 = mats()
     d.find_element(By.CSS_SELECTOR, f"[data-mcplay='{k}']").click()
     moved, w, n = set(), 0, 0
-    end = time.time() + secs
-    while time.time() < end:
+    start = time.time()
+    while time.time() < start + secs or (n < 6 and time.time() < start + 60) or (until and not until() and time.time() < start + 4 * secs):
         w = max(w, worst())
         if look:
             look()
@@ -117,22 +120,31 @@ def play(k=0, secs=2.5, look=None):
 
 
 def drag_turn(inst, centre, deg=80):
-    """The part dragged round `centre` (x, y) by `deg` in the top view, grabbed on its top half-way out."""
+    """The part dragged round `centre` (x, y) by `deg` in the top view, grabbed on its top half-way out. ▶ leaves it
+    wherever the time ran out — the crank under its rod (at 180°) has no spot in sight, and a press on the rod drags
+    nothing (only the chosen part drags): its mechanism is then driven on a quarter turn at a time till one shows."""
     js(f"{A}.choose(arguments[0]); {A}.view.setView('top')", inst)
     time.sleep(0.8)
     cv = js(f"return {A}.view.renderer.domElement")
-    bb = js(f"const it = {A}.inst(arguments[0]), b = {A}.bodies[it.part].body, M = new window.__V.M4().fromArray(it.matrix), box = new window.__V.B3(new window.__V.V3(...b.bbox.slice(0, 3)), new window.__V.V3(...b.bbox.slice(3))).applyMatrix4(M); return [box.min.toArray(), box.max.toArray()]", inst)
-    top = bb[1][2] - 0.2
-    far = max(((x, y) for x in (bb[0][0], bb[1][0]) for y in (bb[0][1], bb[1][1])), key=lambda p: math.hypot(p[0] - centre[0], p[1] - centre[1]))
-    a0 = math.atan2(far[1] - centre[1], far[0] - centre[0])
-    big = math.hypot(far[0] - centre[0], far[1] - centre[1])
     tries = [(f, t) for f in (0.55, 0.7, 0.4, 0.85, 0.25) for t in range(0, 360, 15)]  # (a spot of it the view shows: not under another part or a table)
 
     def scr(a, rr):
         p = [centre[0] + rr * math.cos(a), centre[1] + rr * math.sin(a), top]
         return js(f"const r = arguments[0].getBoundingClientRect(), v = new window.__V.V3(...arguments[1]).project({A}.view.camera); return [(v.x + 1) / 2 * r.width - r.width / 2, (1 - v.y) / 2 * r.height - r.height / 2]", cv, p)
-    ok = js(f"const r = arguments[0].getBoundingClientRect(); return arguments[1].map(([x, y]) => {{ const cx = r.left + r.width / 2 + x, cy = r.top + r.height / 2 + y; return document.elementFromPoint(cx, cy) === arguments[0] && {A}.view.pickInst(cx, cy)?.inst === arguments[2]; }})",
-            cv, [scr(a0 + math.radians(t), f * big) for f, t in tries], inst)
+    for turn in range(5):
+        if turn:
+            print(f"  (no spot of {inst} in sight: its mechanism driven to {90 * turn}°)", call("drive_mechanism", mechanism=inst, to=90 * turn)[:60])
+            time.sleep(0.3)
+        bb = js(f"const it = {A}.inst(arguments[0]), b = {A}.bodies[it.part].body, M = new window.__V.M4().fromArray(it.matrix), box = new window.__V.B3(new window.__V.V3(...b.bbox.slice(0, 3)), new window.__V.V3(...b.bbox.slice(3))).applyMatrix4(M); return [box.min.toArray(), box.max.toArray()]", inst)
+        top = bb[1][2] - 0.2
+        far = max(((x, y) for x in (bb[0][0], bb[1][0]) for y in (bb[0][1], bb[1][1])), key=lambda p: math.hypot(p[0] - centre[0], p[1] - centre[1]))
+        a0 = math.atan2(far[1] - centre[1], far[0] - centre[0])
+        big = math.hypot(far[0] - centre[0], far[1] - centre[1])
+        # (the press goes to whole pixels from the canvas' middle: that spot and 3 px round it on the part, not at its edge)
+        ok = js(f"const r = arguments[0].getBoundingClientRect(), on = (cx, cy) => document.elementFromPoint(cx, cy) === arguments[0] && {A}.view.pickInst(cx, cy)?.inst === arguments[2]; return arguments[1].map(([x, y]) => {{ const cx = r.left + r.width / 2 + Math.trunc(x), cy = r.top + r.height / 2 + Math.trunc(y); return [[0, 0], [3, 0], [-3, 0], [0, 3], [0, -3]].every(([dx, dy]) => on(cx + dx, cy + dy)); }})",
+                cv, [scr(a0 + math.radians(t), f * big) for f, t in tries], inst)
+        if True in ok:
+            break
     f, t = tries[ok.index(True)] if True in ok else tries[0]
     a0, rr = a0 + math.radians(t), f * big
     gx, gy = scr(a0, rr)
@@ -203,7 +215,7 @@ try:
     s1, s2 = rounds("I1", "side")
     cpin, rpin = rounds("I2", "side")[0], rounds("I4", "side")[0]
     b_, c_ = 70, 50
-    fb = {"off": 0, "branch": set(), "swing": [], "turn": []}
+    fb = {"off": 0, "branch": set(), "swing": []}
 
     def closed_form():
         (ox, oy), (qx, qy), (px, py), (bx, by) = axes(("I1", s1), ("I1", s2), ("I2", cpin), ("I4", rpin))
@@ -216,12 +228,19 @@ try:
         fb["off"] = max(fb["off"], min(e))
         fb["branch"].add(e.index(min(e)))
         fb["swing"].append(math.degrees(math.atan2(by - qy, bx - qx)))
-        fb["turn"].append(math.degrees(math.atan2(py - oy, px - ox)))
-    moved, w, n = play(0, secs=4.5, look=closed_form)
+
+    # the crank's angle every frame, kept in the page (a loaded machine looks from here once a second or less)
+    js(f"const a = arguments[0], b = arguments[1]; window.__turn = []; const s = () => {{ if (!window.__turn) return; const o = {A}.worldFace('I1', a).axis.o, p = {A}.worldFace('I2', b).axis.o; window.__turn.push(Math.atan2(p.y - o.y, p.x - o.x) * 180 / Math.PI); requestAnimationFrame(s); }}; s();", s1, cpin)
+
+    def went():  # (all the way round: 10 of the 12 30°-sectors seen, or its steps from frame to frame add up to a turn)
+        t = js("return window.__turn")
+        return len({round(x / 30) for x in t}), abs(sum((q - p + 180) % 360 - 180 for p, q in zip(t, t[1:])))
+    moved, w, n = play(0, secs=4.5, look=closed_form, until=lambda: (lambda g: g[0] >= 10 or g[1] >= 360)(went()))
     sw = max(fb["swing"]) - min(fb["swing"])
-    turned = len({round(t / 30) for t in fb["turn"]})
+    turned, total = went()
+    js("window.__turn = null")
     check(moved == {"I2", "I3", "I4"} and w < 0.05 and fb["off"] < 0.05 and len(fb["branch"]) == 1, f"▶: {sorted(moved)} moved, joints off {w:.4f} mm, the rocker's pin off the closed form {fb['off']:.4f} mm, one branch {fb['branch']}")
-    check(turned >= 10 and 20 < sw < 120, f"the crank went all the way round ({turned} of 12 30°-sectors), the rocker swung {sw:.1f}°")
+    check((turned >= 10 or total >= 360) and 20 < sw < 120, f"the crank went all the way round ({turned} of 12 30°-sectors, {total:.0f}° in all), the rocker swung {sw:.1f}°")
     d.save_screenshot(f"{OUT}/demo_fourbar.png")
     moved = drag_turn("I2", ax("I1", s1), deg=70)
     fb["off"] = 0
@@ -285,7 +304,7 @@ try:
         z, piston = js(f"""const m = {A}.view.meshes.find(x => x.userData.inst === 'I3').matrix.elements; return [Math.hypot(m[8], m[9], m[10]), {A}.inst('I2').matrix[14]]""")
         sp["off"] = max(sp["off"], abs(z - (piston - 10) / 20))
         sp["scales"].add(round(z, 2))
-    moved, w, n = play(0, secs=3, look=spring)
+    moved, w, n = play(0, secs=3, look=spring, until=lambda: len(sp["scales"]) > 3)
     check({"I2", "I4", "I5"} <= moved and w < 0.05 and sp["off"] < 1e-3 and len(sp["scales"]) > 3, f"▶: {sorted(moved)} moved (the piston and both balls), joints off {w:.4f} mm, the spring drawn at the piston ({sp['off']:.5f} off, {len(sp['scales'])} lengths)")
     d.save_screenshot(f"{OUT}/demo_pump.png")
 
