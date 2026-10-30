@@ -1,4 +1,5 @@
-"""✕ Cancel of heavy work, with real clicks in headless Edge — each time: the busy box says Cancelling… once and is gone
+"""✕ Cancel of heavy work, with real clicks in headless Edge — each time: the busy box (or the loading card, busy.js, which
+takes its stage and Cancel while it is up: a file opened, a sheet that takes a while) says Cancelling… once and is gone
 within ~2 s, its text never goes back to Building, the kernel process doing the job is stopped (no process of the
 server keeps working), and the page does not send the job again:
 1. the 44 MB board imported (Open → CAD / 3D file) → Cancel in the busy box;
@@ -109,10 +110,13 @@ def call(tool, **args):
     return js(f"return {H}[arguments[0]](arguments[1]).then(r => r.text).catch(e => 'ERROR ' + e.message)", tool, args)
 
 
-# every change of the busy boxes (the app's and the 3D model's), with its time
+# every change of the busy boxes (the app's — or the loading card while it is up — and the 3D model's), with its time
 LOG = """window.__blog = []; const T = performance.now(); let last = '';
-const look = () => { const b = document.getElementById('busy'), m = document.querySelector('#modelViewport .m-busy');
-  const s = [b.hidden ? '' : b.querySelector('.busy-text').textContent, !m || m.hidden ? '' : m.querySelector('span').textContent];
+window.__card = () => { const c = document.getElementById('loadCard'); return c && !c.hidden ? c : null; };
+window.__boxOff = () => document.getElementById("busy").hidden && !window.__card();
+const look = () => { const b = document.getElementById('busy'), m = document.querySelector('#modelViewport .m-busy'), c = window.__card();
+  const s = [c ? c.querySelector('.load-step').textContent || c.querySelector('.load-text').textContent : b.hidden ? '' : b.querySelector('.busy-text').textContent,
+    !m || m.hidden ? '' : m.querySelector('span').textContent];
   const k = s.join('|'); if (k !== last) { last = k; window.__blog.push([Math.round(performance.now() - T), ...s]); } };
 new MutationObserver(look).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['hidden'] });
 window.__blogT = setInterval(look, 50);
@@ -132,7 +136,10 @@ def after_cancel(entries, t_click, col=0):
 
 
 def cancel_click(selector):
+    """#busyCancel: the Cancel on screen — the loading card's while it is up, else the busy box's."""
     t = js("return window.__blogAt()")
+    if selector == "#busyCancel" and js("return !!window.__card()"):
+        selector = "#loadCard .load-cancel"
     d.find_element(By.CSS_SELECTOR, selector).click()
     return t
 
@@ -146,10 +153,10 @@ try:
     print("1. the 44 MB board imported, Cancel after 3 s")
     js(LOG)
     d.find_element(By.ID, "cadInput").send_keys(os.path.abspath(BOARD))
-    wait("return !document.getElementById('busy').hidden", 30)
+    wait("return !window.__boxOff()", 30)
     time.sleep(3)
     t = cancel_click("#busyCancel")
-    gone = wait("return document.getElementById('busy').hidden && window.__blogAt()", 10) - t
+    gone = wait("return window.__boxOff() && window.__blogAt()", 10) - t
     texts = after_cancel(log(), t)
     print("   busy texts after the click:", texts, f"| gone after {gone / 1000:.2f} s")
     check("the import's busy box is gone within 2 s", gone < 2000)
@@ -180,7 +187,7 @@ try:
     d.save_screenshot(os.path.join(OUT, "cancel_jobs_list.png"))
     t0 = time.time()
     row.find_element(By.CSS_SELECTOR, "[data-stop]").click()
-    wait("return document.getElementById('jobsBtn').hidden && document.getElementById('busy').hidden", 10)
+    wait("return document.getElementById('jobsBtn').hidden && window.__boxOff()", 10)
     print(f"   ⚙ gone after {time.time() - t0:.2f} s")
     check("✕ Stop ends it: the indicator and the busy box are gone within 3 s", time.time() - t0 < 3)
     texts = after_cancel(log(), 0)
@@ -238,22 +245,22 @@ try:
     d.find_element(By.ID, "cadInput").send_keys(os.path.abspath(EVENT))
     wait("return !!document.querySelector('.choose-back')", 120)
     next(o for o in d.find_elements(By.CSS_SELECTOR, ".choose-back .choose-opts button") if o.text.startswith("Open as an assembly")).click()
-    wait("return window.__app.state.workspace === 'assembly' && document.getElementById('busy').hidden", 180)
+    wait("return window.__app.state.workspace === 'assembly' && window.__boxOff()", 180)
     time.sleep(1)
     js(LOG)
     d.find_element(By.CSS_SELECTOR, "#asmViewport [data-a=sheet]").click()
-    wait("return window.__app.state.workspace === 'sheet' && !document.getElementById('busy').hidden", 30)
+    wait("return window.__app.state.workspace === 'sheet' && !window.__boxOff()", 30)
     time.sleep(3)
-    check("the busy box shows in the sheet (it was in the hidden quick-part view)", js("return document.getElementById('busy').getClientRects().length > 0"))
+    check("the busy box shows in the sheet (it was in the hidden quick-part view)", js("return [document.getElementById('busy'), window.__card()].some((b) => b && !b.hidden && b.getClientRects().length > 0)"))
     d.save_screenshot(os.path.join(OUT, "cancel_sheet_busy.png"))
     t = cancel_click("#busyCancel")
-    gone = wait("return document.getElementById('busy').hidden && window.__blogAt()", 10) - t
+    gone = wait("return window.__boxOff() && window.__blogAt()", 10) - t
     texts = after_cancel(log(), t)
     print("   busy texts after the click:", texts, f"| gone after {gone / 1000:.2f} s")
     check("the sheet's busy box is gone within 2 s", gone < 2000)
     check("its text: Cancelling…, then nothing — never Making / Building again", texts == ["Cancelling…", ""])
     time.sleep(3)
-    check("not made again on its own", js("return document.getElementById('busy').hidden") and len([u for _, u in js("return window.__sent") if "/api/sheet" in u]) == 1)
+    check("not made again on its own", js("return window.__boxOff()") and len([u for _, u in js("return window.__sent") if "/api/sheet" in u]) == 1)
     check("the sheet says Cancelled, with ↻ Try again", "Cancelled" in d.find_element(By.CSS_SELECTOR, "#shViewport .sh-stage").text
           and bool(d.find_elements(By.CSS_SELECTOR, "#shViewport [data-a=retry]")))
     idle_kernel("after the sheet's Cancel")
@@ -261,9 +268,9 @@ try:
     d.find_element(By.CSS_SELECTOR, "#shViewport [data-a=retry]").click()
     time.sleep(1)
     check("↻ Try again makes it again", len([u for _, u in js("return window.__sent") if "/api/sheet" in u]) == n + 1
-          and not js("return document.getElementById('busy').hidden"))
-    js("document.getElementById('busyCancel').click()")
-    wait("return document.getElementById('busy').hidden", 10)
+          and not js("return window.__boxOff()"))
+    js("(window.__card()?.querySelector('.load-cancel') || document.getElementById('busyCancel')).click()")
+    wait("return window.__boxOff()", 10)
 
     errs = [m["message"] for m in d.get_log("browser") if m["level"] == "SEVERE" and "favicon" not in m["message"] and "409" not in m["message"]]
     check(f"no console errors {errs[:3]}", not errs)

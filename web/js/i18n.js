@@ -1623,6 +1623,13 @@ const CS = {
   'Click a point (an orange dot) or the line of a circle.': 'Klikněte na bod (oranžová tečka) nebo na čáru kružnice.', 'Now another point of the same view.': 'Teď další bod ve stejném pohledu.',
   'A drawing sheet of this part to edit: its views and dimensions (light / medium / full), moved, deleted, added — it follows the part when it changes': 'Výkres tohoto dílu k úpravám: pohledy a kóty (lehká / střední / plná), posouvat, mazat, přidávat — sleduje díl, když se změní',
   'Open its part in its own tab (to change it — the assembly follows)': 'Otevřít jeho díl ve vlastní záložce (k úpravě — sestava ho bude sledovat)',
+  // the loading card (busy.js): a file opening, a project, a demo, an export …
+  'Loading {name} ({size})…': 'Načítám {name} ({size})…', 'Uploading to the server…': 'Nahrávám na server…', 'Reading the {kind} file…': 'Čtu soubor {kind}…',
+  'Making the mesh…': 'Tvořím síť…', 'Drawing…': 'Kreslím…', 'Drawing the 3D model…': 'Kreslím 3D model…', 'Reading the drawing…': 'Čtu výkres…',
+  'Reading the project…': 'Čtu projekt…', 'Opening the parts…': 'Otevírám díly…', 'Opening {name}…': 'Otevírám {name}…', 'the demo': 'ukázku',
+  'Exporting {fmt}…': 'Exportuji {fmt}…', 'Preparing the print…': 'Připravuji tisk…', 'Checking collisions: {n} parts…': 'Kontroluji kolize: {n} dílů…',
+  'Opening the assembly: {n} placed parts…': 'Otevírám sestavu: {n} vložených dílů…',
+  'Reading the file — the CAD kernel makes it a solid': 'Čtu soubor — CAD jádro z něj dělá těleso', "Reading the assembly's parts": 'Čtu díly sestavy', 'The server did not answer — is it running?': 'Server neodpověděl — běží?',
   'Making the drawings…': 'Dělám výkresy…', '{n} pages: {pages}': 'Stran: {n} — {pages}', 'The assembly has no parts to draw.': 'Sestava nemá díly ke kreslení.',
   'Sub-assembly': 'Podsestava', in: 'v', 'Pos.': 'Poz.', Sheet: 'List', 'Part number': 'Objednací číslo', bought: 'nakupovaný', more: 'další',
   '📄 Drawings (PDF)': '📄 Výkresy (PDF)',

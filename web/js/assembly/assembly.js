@@ -38,6 +38,7 @@ import { ModelView } from '../modeler/view.js';
 import { accelerate } from '../modeler/bvh.js';
 import { fetchRebuild } from '../modeler/packed.js';
 import { newRid, trackProgress, cancelRid, wasCancelled } from '../progressbox.js';
+import { busy } from '../busy.js';
 import { threadSegments } from '../modeler/view.js';
 import { JOINT_TYPES, applyJoint, spinOf, axialGap, jointMiss, frameNow, slideNow, orbitOf, axisDistanceNow } from './joints.js';
 import { snapNear, snapPoints } from '../modeler/view.js';
@@ -71,6 +72,7 @@ import { COUPLING_TYPES, couplingOptions, addCoupling, followCouplings, coupling
 const fmt = (v) => (+(+v).toFixed(3)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+const BIG_OPEN = 30; // (an assembly of more placed parts opens with the loading card: building and drawing them takes a while)
 const ID = () => new THREE.Matrix4().identity().toArray();
 const facingAway = (a, b) => !!(a.face?.normal && b.face?.normal && a.face.normal.dot(b.face.normal) < 0); // (two picked faces: {face} each)
 const tidy = (a) => a.map((v) => (Math.abs(v - Math.round(v)) < 1e-9 ? Math.round(v) : +v.toFixed(9))); // (a matrix: whole numbers kept whole)
@@ -1621,6 +1623,7 @@ export class Assembly {
     const rid = (this.clashRid = newRid('c'));
     this.clashBusy = true;
     if (this.clashPanel) this.renderProps(); // (in the background: the panel on screen stays as it is)
+    const card = quick ? null : busy(t2('Checking collisions: {n} parts…', { n: this.doc.instances.length }), { delay: 500 }); // (asked for: said)
     try {
       const res = await fetch('/api/assembly/clashes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instances: this.flatParts(), quick, rid }) });
       const r = await res.json();
@@ -1633,7 +1636,7 @@ export class Assembly {
       if (run !== this.clashRun) return;
       this.clashes = null;
       if (this.clashPanel) this.hooks.toast(e.message, 'error', 6000);
-    }
+    } finally { card?.done(); }
     this.clashBusy = false;
     if (this.focusClash) this.focusClash = (this.clashes || []).find((c) => c.a === this.focusClash.a && c.b === this.focusClash.b) || null; // (moved: the new box)
     this.updateClashButton();
@@ -4634,7 +4637,9 @@ export class Assembly {
     this.history.reset();
     this.ms.reset(); // (its measurements: this assembly's)
     this.render();
-    await this.refresh();
+    const n = this.doc.instances.length, card = n > BIG_OPEN ? busy(t2('Opening the assembly: {n} placed parts…', { n })) : null;
+    if (card) { card.step('Building the parts…'); await card.painted; }
+    try { await this.refresh(); } finally { card?.done(); }
     this.view.setView('iso');
   }
 

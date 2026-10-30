@@ -35,6 +35,8 @@ KINDS = {"rebuild": "Building a part", "rebuild_bin": "Building a part", "thread
          "assembly_clashes": "Checking collisions", "assembly_clearance": "Measuring a clearance", "assembly_sweep": "Checking a motion", "sheet": "Making a drawing",
          "assembly_sheet": "Making a drawing", "limits": "Working out limits", "import_solid": "Importing a file",
          "import_assembly": "Reading an assembly", "print_pieces": "Splitting for print"}
+# what the page's progress says while the kernel works on a job (an import: not "Building the 3D model")
+STAGES = {"import_solid": "Reading the file — the CAD kernel makes it a solid", "import_assembly": "Reading the assembly's parts"}
 
 
 def _stop_asked(job):
@@ -244,7 +246,7 @@ class Worker:
             return self._run(op, arg, timeout, seq)
 
     def _run(self, op, arg, timeout, seq):
-        progress.report("Building the 3D model")
+        progress.report(STAGES.get(op, "Building the 3D model"))
         if not (self.proc and self.proc.is_alive()):
             self._start()
         try:

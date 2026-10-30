@@ -25,7 +25,7 @@ import { Modeler } from './modeler/modeler.js';
 import { modelHandlers } from './modeler/agent_model.js';
 import { rollbackNote } from './modeler/steptree.js';
 import { Assembly } from './assembly/assembly.js';
-import { askHowToOpen, addTree, treeSize } from './assembly/stepfile.js';
+import { askHowToOpen, addTree, treeSize, hasTree } from './assembly/stepfile.js';
 import { DrawingEditor, drawingToCleanSketch } from './drawing2d/editor.js';
 import { SheetEditor, partHash } from './sheet/sheet.js';
 import { isStandard } from './assembly/fasteners.js';
@@ -41,6 +41,7 @@ import { setAskAI } from './suggest.js';
 import { changed as projectChanged } from './history.js';
 import { nextFrames } from './frames.js';
 import { trackProgress, newRid } from './progressbox.js'; // (slow requests: the busy box with Cancel)
+import { busy, busyFile, busyAside, painted, postWithProgress } from './busy.js'; // (a file opening, an export …: the loading card)
 import { initJobs } from './jobs.js';
 import { initParams, paramHandlers } from './paramsui.js';
 import { showDemos } from './demos.js';
@@ -190,7 +191,10 @@ function toast(msg, kind = 'info', ms = 4500, { point, action } = {}) {
 async function api(path, body, method) {
   const opts = method ? { method } : body instanceof FormData ? { method: 'POST', body }
     : body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {};
-  const res = await fetch(path, opts);
+  return checked(await fetch(path, opts));
+}
+/** A response that is not OK -> its error thrown. */
+async function checked(res) {
   if (!res.ok) {
     let msg = `${res.status} ${res.statusText}`;
     try { msg = (await res.json()).error || msg; } catch { /* binary */ }
@@ -198,6 +202,13 @@ async function api(path, body, method) {
   }
   return res;
 }
+/** api()'s POST of a form with its upload on the loading card b (a bar), then reading: what the server does with it. */
+async function upload(path, fd, b, reading) {
+  b.step('Uploading to the server…', 0);
+  return checked(await postWithProgress(path, fd, { onUp: (f) => b.step('Uploading to the server…', f), onSent: () => b.step(reading) }));
+}
+/** "Reading the STEP file…" — what the server does with a file of that name. */
+const readingText = (name) => t2('Reading the {kind} file…', { kind: (name.match(/\.(\w+)$/)?.[1] || '').toUpperCase().replace('STP', 'STEP').replace('IGS', 'IGES') });
 
 const SAVE_TYPES = {
   json: ['JSON file', 'application/json'], a3d: ['Auto3DModeler project', 'application/zip'], stl: ['STL 3D model', 'model/stl'], step: ['STEP CAD model', 'model/step'],
@@ -208,6 +219,7 @@ const SAVE_TYPES = {
 /** Save a file where the user chooses (name + folder: the browser's Save dialog, Edge / Chrome), else as a
  *  download. Resolves to the chosen file name, or null when the dialog was cancelled. */
 async function download(blob, name, { id = 'auto3d-export' } = {}) {
+  busyAside(); // (the loading card, "Exporting STEP…": not over the dialog while a name is chosen)
   if (window.showSaveFilePicker) {
     const ext = name.split('.').pop().toLowerCase();
     const [description, mime] = SAVE_TYPES[ext] || ['File', blob.type || 'application/octet-stream'];
@@ -384,9 +396,14 @@ async function loadPart(data, { switching = false } = {}) {
 async function openPdf(file) {
   const fd = new FormData();
   fd.append('file', file);
+  const b = busyFile(file);
+  await b.painted;
   try {
-    await loadParsed(await (await api('/api/parse', fd)).json());
-  } catch (e) { toast(e.message, 'error', 8000); }
+    const data = await (await upload('/api/parse', fd, b, 'Reading the drawing…')).json();
+    b.step('Drawing…');
+    await painted(); // (that step on screen before the work)
+    await loadParsed(data);
+  } catch (e) { toast(e.message, 'error', 8000); } finally { b.done(); }
 }
 
 /** Picture -> outline wizard -> new outline model. */
@@ -510,51 +527,63 @@ $('imgInput').addEventListener('change', (e) => { if (e.target.files[0]) openIma
 
 const IMPORT_RE = /\.(dxf|dwg|stl|obj|3mf|step|stp)$/i;
 /** DXF / DWG drawings (-> an outline in real mm) and STL / OBJ / 3MF / STEP 3D files (-> a sliced part). */
-async function openImport(file) {
+async function openImport(file, b = busyFile(file)) {
   const fd = new FormData();
   const rid = newRid();
   fd.append('rid', rid);
   fd.append('file', file);
+  await b.painted; // (on screen before the work)
   const stop = trackProgress(rid, `Uploading ${file.name}…`);
   let data;
   try {
-    data = await (await api('/api/import', fd)).json();
+    data = await (await upload('/api/import', fd, b, readingText(file.name))).json();
   } catch (e) {
     stop();
+    b.done();
     toast(e.message, /cancel/i.test(e.message) ? 'info' : 'error', 9000);
     return;
   }
   stop();
-  try { await loadParsed(data); } catch (e) { toast(e.message, 'error', 9000); }
+  b.step('Drawing…');
+  await painted(); // (that step on screen before the work)
+  try { await loadParsed(data); } catch (e) { toast(e.message, 'error', 9000); } finally { b.done(); }
 }
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 // CAD data (STEP, IGES) opens as a 3D model with its exact solid; a mesh (STL / OBJ / 3MF, mostly for printing) as a quick part
 const OPEN_SOLID_RE = /\.(step|stp|igs|iges)$/i;
 /** A STEP / IGES / STL / OBJ file made a solid by the kernel (kept on the server by its hash) -> {blob, name, faces,
  *  bbox, volume, op?, warning?} — an IGES of surfaces that do not close: op "ref" (a reference body) and why. */
-async function importSolid(file, more = []) {
+async function importSolid(file, more = [], b = null) {
   const fd = new FormData(), rid = newRid();
   fd.append('rid', rid);
   for (const f of [file, ...more]) fd.append('file', f); // (more: the part files an assembly STEP refers to)
   const stop = trackProgress(rid, `Reading ${file.name}…`);
-  try { return await (await api('/api/model/import', fd)).json(); } finally { stop(); }
+  try { return await (await (b ? upload('/api/model/import', fd, b, readingText(file.name)) : api('/api/model/import', fd))).json(); } finally { stop(); }
 }
 /** The step of a 3D model that is that solid: joined (add), cut out of the part (cut), or a reference (ref). */
 const solidStep = (r, id = 'F1', op = r.op || 'add') => ({ id, type: 'solid', name: r.name.replace(/\.[^.]+$/, ''), blob: r.blob, file: r.name, op });
 /** Open a 3D file as a 3D model part: the exact solid, then sketches, holes … on it (a big mesh: a sliced quick part). */
 async function openSolid(file, more = []) {
-  let r;
-  try { r = await importSolid(file, more); } catch (e) {
+  let r, b = busyFile(file); // (at once, on the drop: the reading below may take a while)
+  await b.painted;
+  try { r = await importSolid(file, more, b); } catch (e) {
     if (/MESH_TOO_BIG/.test(e.message)) {
       toast(t('This mesh is too big to become an exact solid — it opens as a quick part (sliced), as before.'), 'info', 7000);
-      await openImport(file);
-    } else toast(e.message.replace(/^MESH_TOO_BIG /, ''), /cancel/i.test(e.message) ? 'info' : 'error', 9000);
+      await openImport(file, b);
+    } else {
+      b.done();
+      toast(e.message.replace(/^MESH_TOO_BIG /, ''), /cancel/i.test(e.message) ? 'info' : 'error', 9000);
+    }
     return;
   }
+  if (hasTree(r)) b.done(); // (a question first: the card back after it)
   const how = await askHowToOpen(r); // a STEP assembly (SolidWorks, CATIA, Solid Edge …): as an assembly, or one body
-  if (!how) return;
+  if (!how) { b.done(); return; }
   if (how === 'assembly') { await openStepAssembly(r); return; }
-  await project.newModel({ features: [solidStep(r)] }, r.name.replace(/\.[^.]+$/, ''));
+  if (hasTree(r)) b = busyFile(file);
+  b.step('Making the mesh…');
+  await painted(); // (that step on screen before the work)
+  try { await project.newModel({ features: [solidStep(r)] }, r.name.replace(/\.[^.]+$/, '')); } finally { b.done(); }
   toast(t2('{name} is open as a 3D model ({faces} faces) — sketch on its faces, add holes, or ask the AI to build on it.', { name: r.name, faces: r.faces }), 'ok', 7000);
   if (r.warning) toast(t(r.warning), r.op === 'ref' ? 'warning' : 'info', 10000); // (an IGES: sewn, or only a reference body)
   return r;
@@ -573,8 +602,11 @@ async function importTree(r) {
 /** A STEP assembly opened as an assembly of the project (its own tab). */
 async function openStepAssembly(r) {
   let res;
-  try { res = await importTree(r); } catch (e) { toast(e.message, /cancel/i.test(e.message) ? 'info' : 'error', 9000); return null; }
-  await project.newAssembly(res.top.name, res.top.data);
+  const b = busy(t2('Reading the assembly of {name}…', { name: r.name }));
+  await b.painted;
+  try { res = await importTree(r); } catch (e) { b.done(); toast(e.message, /cancel/i.test(e.message) ? 'info' : 'error', 9000); return null; }
+  b.step('Building the parts…');
+  try { await project.newAssembly(res.top.name, res.top.data); } finally { b.done(); }
   const n = treeSize(res.tree);
   toast(t2('{name} is open as an assembly: {parts} parts, {subs} sub-assemblies — each part a 3D model of the project.', { name: r.name, ...n }), 'ok', 8000);
   return { ...res, ...n };
@@ -585,13 +617,17 @@ const DRAWING_RE = /\.(dxf|dwg|zip|tgz|tar|gbr|ger|gtl|gbl|gto|gbo|gts|gbs|gtp|g
 async function openDrawing(file, more = []) {
   const fd = new FormData();
   for (const f of [file, ...more]) fd.append('file', f);
+  const b = busyFile(file);
+  await b.painted;
   try {
-    const d = await (await api('/api/drawing/import', fd)).json();
+    const d = await (await upload('/api/drawing/import', fd, b, readingText(file.name))).json();
+    b.step('Drawing…');
+    await painted(); // (that step on screen before the work)
     await project.newDrawing(d, file.name.replace(/\.(tar\.gz|[^.]+)$/i, ''));
     toast(d.pcb ? t2('{name}: a board of {k} layers ({n} shapes) — the copper on top, its outline and holes are shown; 👁 shows the others. ⬇ DXF saves the shown layers.', { name: file.name, n: d.entities.length, k: d.layers.length })
       : t2('{name}: {n} shapes on {k} layers — look, measure, tidy it up; Use ▾ makes a sketch or a quick part of it.', { name: file.name, n: d.entities.length, k: d.layers.length }), 'ok', 8000);
     for (const msg of d.issues || []) toast(msg, 'info', 8000);
-  } catch (e) { toast(e.message, 'error', 9000); }
+  } catch (e) { toast(e.message, 'error', 9000); } finally { b.done(); }
 }
 $('cadInput').addEventListener('change', (e) => {
   const all = [...e.target.files], f = all[0];
@@ -1691,12 +1727,18 @@ document.addEventListener('click', (e) => { if (!e.target.closest('#openMenuWrap
 document.addEventListener('click', () => $('exportBtn').parentElement.classList.remove('open'));
 $('exportMenu').addEventListener('click', async (e) => {
   const fmtName = e.target.dataset.fmt;
-  if (fmtName === '3mf' && (state.workspace === 'model' || state.workspace === 'assembly')) { $('exportBtn').parentElement.classList.remove('open'); export3mf(); return; }
-  if (fmtName && state.workspace === 'model') { $('exportBtn').parentElement.classList.remove('open'); modeler.export(fmtName); return; }
-  if (fmtName && state.workspace === 'assembly') { $('exportBtn').parentElement.classList.remove('open'); assembly.export(fmtName); return; }
-  if (fmtName && state.workspace === 'sheet') { $('exportBtn').parentElement.classList.remove('open'); ({ pdf: () => sheet.exportPdf(), dxf: () => sheet.exportDxf(), print: () => sheet.printPdf() })[fmtName]?.(); return; }
-  if (fmtName && state.workspace === 'drawing') { $('exportBtn').parentElement.classList.remove('open'); if (fmtName === 'dxf') drawing2d.exportDxf(); return; }
-  if (!fmtName || !state.solution) return;
+  if (!fmtName) return;
+  const b = busy(fmtName === 'print' ? 'Preparing the print…' : t2('Exporting {fmt}…', { fmt: fmtName.toUpperCase() }), { delay: 300 });
+  try { await exportAs(fmtName); } finally { b.done(); }
+});
+/** ⬇ Export in the workspace on screen. */
+async function exportAs(fmtName) {
+  if (fmtName === '3mf' && (state.workspace === 'model' || state.workspace === 'assembly')) { $('exportBtn').parentElement.classList.remove('open'); await export3mf(); return; }
+  if (state.workspace === 'model') { $('exportBtn').parentElement.classList.remove('open'); await modeler.export(fmtName); return; }
+  if (state.workspace === 'assembly') { $('exportBtn').parentElement.classList.remove('open'); await assembly.export(fmtName); return; }
+  if (state.workspace === 'sheet') { $('exportBtn').parentElement.classList.remove('open'); await ({ pdf: () => sheet.exportPdf(), dxf: () => sheet.exportDxf(), print: () => sheet.printPdf() })[fmtName]?.(); return; }
+  if (state.workspace === 'drawing') { $('exportBtn').parentElement.classList.remove('open'); if (fmtName === 'dxf') await drawing2d.exportDxf(); return; }
+  if (!state.solution) return;
   const base = safeName();
   const open = state.model.issues.filter((i) => (i.severity !== 'info') && !(RESOLVABLE.has(i.code) && i.params.every((p) => state.userSet.has(p) || !param(p))));
   try {
@@ -1710,7 +1752,7 @@ $('exportMenu').addEventListener('click', async (e) => {
     toast(open.length ? `Exported ${fmtName.toUpperCase()} (in mm). Note: ${open.length} unresolved check(s) — estimated values may be wrong.`
       : `Exported ${fmtName.toUpperCase()} (in mm).`, open.length ? 'warning' : 'ok', 6000);
   } catch (err) { toast(`Export failed: ${err.message}`, 'error'); }
-});
+}
 
 /** ⬇ 3MF in colours: the model, or the whole assembly — an object per colour (each gets its filament in the slicer). */
 async function export3mf() {
@@ -1929,7 +1971,10 @@ function partDataNow(id) {
 }
 const sheet = new SheetEditor({ left: $('shLeft'), viewport: $('shViewport'), right: $('shRight') }, {
   toast, download, safeName: () => tabName(), onChange: () => updateTopButtons(),
-  progress: (rid, label) => trackProgress(rid, label), // (a sheet being made: the progress bar with Cancel)
+  progress: (rid, label) => { // (a sheet being made: the progress bar with Cancel — on the loading card when it takes a while)
+    const b = busy(label, { delay: 500 }), stop = trackProgress(rid, label);
+    return () => { stop(); b.done(); };
+  },
   partData: (id) => partDataNow(id),
   partName: (id) => project.parts.find((q) => q.id === id)?.name || null,
   kindOf: (id) => project.parts.find((q) => q.id === id)?.kind,
@@ -1970,7 +2015,8 @@ function drawingCtx() {
 }
 async function drawingSetPdf(aid, { quiet = false } = {}) {
   const ctx = drawingCtx();
-  const busy = quiet ? null : toast(t('Making the drawings…'), 'info', 60000);
+  const b = quiet ? null : busy('Making the drawings…');
+  await b?.painted;
   try {
     const set = await sheet.drawingSet(aid, ctx);
     const res = await fetch('/api/sheet/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ svgs: set.svgs, name: tabName() }) });
@@ -1980,7 +2026,7 @@ async function drawingSetPdf(aid, { quiet = false } = {}) {
     await download(blob, `${tabName()} — drawings.pdf`);
     toast(t2('{n} pages: {pages}', { n: set.svgs.length, pages: set.pages.join(', ') }), 'ok', 7000);
     return { blob, set };
-  } catch (e) { if (quiet) throw e; toast(e.message, 'error', 8000); return null; } finally { busy?.remove?.(); }
+  } catch (e) { if (quiet) throw e; toast(e.message, 'error', 8000); return null; } finally { b?.done(); }
 }
 
 // a part changed: its sheets (closed ones too) get a new revision and the date — made again when opened
@@ -2150,23 +2196,28 @@ $('saveBtn').addEventListener('click', async () => {
 
 /** A project file (.a3d, a ZIP) opened by the server as it is (its imported files back into the store, binary) ->
  *  {project (version 3), versions}. */
-async function readProjectFile(file) {
-  const res = await fetch('/api/project/open', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file });
+async function readProjectFile(file, b = null) {
+  const res = b ? await postWithProgress('/api/project/open', file, { headers: { 'Content-Type': 'application/octet-stream' },
+    onUp: (f) => b.step('Uploading to the server…', f), onSent: () => b.step('Reading the project…') })
+    : await fetch('/api/project/open', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file });
   const out = await res.json().catch(() => ({ error: `${res.status} ${res.statusText}` }));
   if (!res.ok || out.error) throw new Error(out.error || `${res.status} ${res.statusText}`);
   return out;
 }
 
 async function openProject(file) {
+  const b = busyFile(file);
+  await b.painted;
   try {
-    const { project: proj, versions: history } = await readProjectFile(file);
+    const { project: proj, versions: history } = await readProjectFile(file, b);
+    b.step('Opening the parts…');
     await openLoaded(proj);
     if (history) { // 🕘 saved with its version history: into the new project's store
       await api(`/api/versions/${encodeURIComponent(autosave.id)}/bundle`, { versions: history }).catch((e) => toast(e.message, 'warning', 7000));
       await versions?.changed();
     }
     toast(proj.parts.length > 1 ? `Project loaded — ${proj.parts.length} parts (tabs in the top bar).` : 'Project loaded.', 'ok');
-  } catch (e) { toast(e.message, 'error'); }
+  } catch (e) { toast(e.message, 'error'); } finally { b.done(); }
 }
 
 /** A project (version 3) on screen as a new one: the one there kept first, then a fresh autosave record for it. */
@@ -2177,6 +2228,13 @@ async function openLoaded(proj) {
   await project.loadAll(proj);
   autosave?.fresh();
   showProjectName();
+}
+/** A 🎬 demo on screen (openLoaded), with the loading card while its parts are made. */
+async function openDemo(proj) {
+  const b = busy(t2('Opening {name}…', { name: proj.project_name || t('the demo') }));
+  b.step('Opening the parts…');
+  await b.painted;
+  try { await openLoaded(proj); } finally { b.done(); }
 }
 $('projectInput').addEventListener('change', (e) => { if (e.target.files[0]) openProject(e.target.files[0]); e.target.value = ''; });
 
@@ -2656,7 +2714,7 @@ try { $('saveWithVersions').checked = localStorage.getItem('a3d.saveVersions') =
 $('saveWithVersions').addEventListener('change', (e) => { try { localStorage.setItem('a3d.saveVersions', e.target.checked ? '1' : '0'); } catch { /* private window */ } });
 
 $('recentBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); autosave.showRecent(); });
-$('demoBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); showDemos({ open: openLoaded, toast }); }); // 🎬 (demos.js)
+$('demoBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); showDemos({ open: openDemo, toast }); }); // 🎬 (demos.js)
 if (!opened.has('sample') && !opened.has('project') && !opened.has('new')) setTimeout(() => autosave.offerLast(), 600);
 // 📄 New project (Open ▾, the project widget's ⋯, Ctrl+Alt+N): the one on screen kept, this window starts empty;
 // ✕ Close project (Open ▾, the ⋯, 📄's box): the same, back to the start screen with it first in 🕘 Recent projects
@@ -2699,7 +2757,7 @@ initStart({
   project,
   newPart: () => project.newModel(),
   openFiles: (files) => openFiles(files),
-  demos: () => showDemos({ open: openLoaded, toast }),
+  demos: () => showDemos({ open: openDemo, toast }),
   askAI: () => showChat(),
   onChange: (on) => { placeChat(); updateTopButtons(); if (on) autosave?.fillStart($('startRecent')); },
 });
