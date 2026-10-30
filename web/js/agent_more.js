@@ -830,8 +830,13 @@ export function moreHandlers({ state, project, modeler, assembly, drawing2d, she
       }
       if (gap !== undefined) { m.gap = +gap; if (m.type === 'touch' && +gap) m.type = 'gap'; }
       if (distance !== undefined) {
-        if (m.type !== 'axis') throw new Error('distance is for a concentric (axis) joint; flat joints take gap.');
-        if (distance === null) { delete m.dist; delete m.side; } else { if (!m.side) m.side = 1; m.dist = +distance; }
+        if (m.type === 'axis_distance') { // ↔ between the axes: always a distance
+          if (!(+distance >= 0) || distance === null) throw new Error('distance of an axis_distance joint is a number of mm, 0 or more.');
+          m.dist = +distance;
+        } else {
+          if (m.type !== 'axis') throw new Error('distance is for a concentric (axis) or axis_distance joint; flat joints take gap.');
+          if (distance === null) { delete m.dist; delete m.side; } else { if (!m.side) m.side = 1; m.dist = +distance; }
+        }
       }
       if (lock_rotation !== undefined) { if (lock_rotation) m.angle = Math.round(a.spinNow(m)); else delete m.angle; }
       if (angle !== undefined) { if (m.type === 'angle') m.value = Math.max(0, Math.min(180, +angle)); else m.angle = +angle; }

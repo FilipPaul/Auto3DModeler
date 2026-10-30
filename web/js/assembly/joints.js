@@ -2,6 +2,10 @@
 //   touch    — a flat face on a flat face, facing each other (gap: mm apart; the first joint also centres them)
 //   flush    — two flat faces in one plane, facing the same way (gap: offset along the normal)
 //   axis     — concentric: a round face on a round face, on one axis (a pin in a hole); it can still slide along it
+//   axis_distance — two round faces with their axes parallel, `dist` mm apart (two probes side by side); it turns about
+//              its own axis and slides along it; its swing round the other axis is kept (`angle`, from the other part's
+//              x direction) unless freed. A round face and a flat face: the axis parallel to the face, `dist` mm from it
+//              on the `side` it stood (+1: the way the face looks)
 //   parallel — two flat faces parallel (turns only)
 //   perp     — two flat faces at right angles (turns only)
 //   angle    — two flat faces at an angle (`value` degrees between their directions; turns only)
@@ -27,6 +31,7 @@ export const JOINT_TYPES = {
   gap: { icon: '↔', name: 'Gap', faces: 'plane', hint: 'a flat face facing another one, a distance apart' },
   flush: { icon: '▭', name: 'Flush', faces: 'plane', hint: 'two flat faces in one plane, facing the same way' },
   axis: { icon: '◎', name: 'Concentric', faces: 'cylinder', hint: 'two round faces on one axis (a pin in a hole, a shaft in a bearing)' },
+  axis_distance: { icon: '↔', name: 'Axis distance', faces: 'axisd', hint: 'two round faces with their axes parallel, a distance apart (two probes side by side) — or an axis along a flat face. The same height: add ▭ Flush on their ends' },
   parallel: { icon: '∥', name: 'Parallel', faces: 'plane', hint: 'two flat faces parallel (it only turns)' },
   perp: { icon: '⟂', name: 'Perpendicular', faces: 'plane', hint: 'two flat faces at right angles (it only turns)' },
   angle: { icon: '∠', name: 'Angle', faces: 'plane', hint: 'two flat faces at an angle you set (it only turns)' },
@@ -92,10 +97,65 @@ const pivotOf = (fixed, first, p) => (!first && fixed?.o ? V(fixed.o) : p);
 /** How far (degrees) the moving part is turned about a joint's direction, from the other part: the angle between
  *  their own x directions (or y, when x runs along it) seen along `dir`. */
 export function spinOf(fB, fA, dir) {
-  const d = V(dir).normalize();
-  const pick = (f) => { const x = V(f.xdir).projectOnPlane(d); return x.length() > 1e-6 ? x.normalize() : V(f.ydir).projectOnPlane(d).normalize(); };
-  const a = pick(fA), b = pick(fB);
+  const d = V(dir).normalize(), a = across(fA, d), b = across(fB, d);
   return (Math.atan2(new THREE.Vector3().crossVectors(a, b).dot(d), a.dot(b)) * 180) / Math.PI;
+}
+
+/** A part's own x direction (or y, when x runs along d) across the direction d, from a face of it (world). */
+function across(f, d) {
+  const x = V(f.xdir).projectOnPlane(d);
+  return x.length() > 1e-6 ? x.normalize() : V(f.ydir).projectOnPlane(d).normalize();
+}
+
+/** ↔ Two round faces: the shortest way from fA's axis to fB's, across fA's axis (world). */
+const axisOffset = (fB, fA) => V(fB.axis.o).sub(V(fA.axis.o)).projectOnPlane(V(fA.axis.d).normalize());
+
+/** ↔ Where fB's axis stands round fA's: degrees about fA's axis from the other part's x direction (what an axis
+ *  distance's 🔒 keeps); 0 when the axes are one. */
+export function orbitOf(fB, fA) {
+  const dA = V(fA.axis.d).normalize(), p = axisOffset(fB, fA), a = across(fA, dA);
+  if (p.length() < 1e-9) return 0;
+  p.normalize();
+  return (Math.atan2(new THREE.Vector3().crossVectors(a, p).dot(dA), a.dot(p)) * 180) / Math.PI;
+}
+
+/** ↔ The direction across fA's axis `deg` round it (orbitOf's way). */
+function orbitDir(fA, deg) {
+  const dA = V(fA.axis.d).normalize();
+  return across(fA, dA).applyAxisAngle(dA, (deg * Math.PI) / 180);
+}
+
+/** ↔ The distance an axis distance joint measures now, its faces as placed: between the two axes, or (a round face and
+ *  a flat one) of the axis from the face, signed (+: the way the face looks) -> mm, or null when the faces do not fit. */
+export function axisDistanceNow(fB, fA) {
+  if (fA.axis && fB.axis) return axisOffset(fB, fA).length();
+  const cyl = fB.axis ? fB : fA, pl = cyl === fB ? fA : fB;
+  if (!cyl.axis || !pl.normal) return null;
+  return V(cyl.axis.o).sub(V(pl.centroid)).dot(V(pl.normal).normalize());
+}
+
+/** ↔ How far an axis distance joint is from holding -> {deg (the axes askew / the axis off the face's plane), mm (off
+ *  the distance; with the swing 🔒, off where it is kept), res (jointResidual's numbers)}, or null. */
+function axisDistanceMiss(j, fB, fA, S) {
+  const d = Math.max(0, +j.dist || 0), ang = (a, b) => (V(a).normalize().angleTo(V(b).normalize()) * 180) / Math.PI;
+  if (fA.axis && fB.axis) {
+    const dA = V(fA.axis.d).normalize(), p = axisOffset(fB, fA), a = ang(fB.axis.d, dA), x = new THREE.Vector3().crossVectors(V(fB.axis.d).normalize(), dA);
+    const res = [x.x * S, x.y * S, x.z * S]; // (askew; either way along is fine)
+    let mm;
+    if (Number.isFinite(j.angle)) { // its swing kept: the axis right there
+      const e = p.clone().sub(orbitDir(fA, j.angle).multiplyScalar(d));
+      mm = e.length();
+      res.push(e.x, e.y, e.z);
+    } else {
+      mm = Math.abs(p.length() - d);
+      res.push(p.length() - d);
+    }
+    return { deg: Math.min(a, 180 - a), mm, res };
+  }
+  const cyl = fB.axis ? fB : fA, pl = cyl === fB ? fA : fB;
+  if (!cyl.axis || !pl.normal) return null;
+  const n = V(pl.normal).normalize(), off = axisDistanceNow(fB, fA) - (j.side || 1) * d;
+  return { deg: Math.abs(90 - ang(cyl.axis.d, n)), mm: Math.abs(off), res: [off, V(cyl.axis.d).normalize().dot(n) * S] };
 }
 
 /** Turn M about the line (point, dir) so that the spin is `deg`. */
@@ -147,6 +207,10 @@ export function jointMiss(j, fB, fA) {
       mm = Math.max(mm, Math.abs(now - j.dist));
     }
     dir = dA;
+  } else if (type === 'axis_distance') {
+    const r = axisDistanceMiss(j, fB, fA, 1);
+    if (!r) return null;
+    ({ mm, deg } = r);
   } else if (type === 'tangent') {
     const cyl = fB.type === 'cylinder' ? fB : fA, pl = cyl === fB ? fA : fB;
     if (!cyl.axis || !pl.normal || !cyl.radius) return null;
@@ -191,6 +255,8 @@ export function jointResidual(j, fB, fA, S = 50) {
     const e = Number.isFinite(j.dist) ? axialEnds(fB, fA) : null;
     if (e) { const side = j.side || (e.b[0] + e.b[1] >= e.a[0] + e.a[1] ? 1 : -1); out.push((side > 0 ? e.b[0] - e.a[1] : e.a[0] - e.b[1]) - j.dist); }
     dir = dA;
+  } else if (type === 'axis_distance') {
+    out.push(...(axisDistanceMiss(j, fB, fA, S)?.res || []));
   } else if (type === 'tangent') {
     const cyl = fB.type === 'cylinder' ? fB : fA, pl = cyl === fB ? fA : fB;
     if (!cyl.axis || !pl.normal || !cyl.radius) return out;
@@ -339,6 +405,28 @@ function placeJoint(M, j, faceAt, fA, first, fixed, centre = first) {
     }
     if (Number.isFinite(j.angle)) M = spinTo(M, faceAt, fA, fA.axis.o, dA, j.angle); // turned about the axis
     return { M, fixed: { dir: dA, flippable: true, o: V(fA.axis.o) } }; // (o: a later joint turns it about this axis)
+  }
+  if (type === 'axis_distance') {
+    const d = Math.max(0, +j.dist || 0), side = j.side || 1;
+    if (fA.axis && fB.axis) { // the axes parallel (the way round they are), d apart: where its swing is kept, else the least move
+      const dA = V(fA.axis.d).normalize(), dB = V(fB.axis.d).normalize();
+      M = turnAbout(M, pivotOf(fixed, first, V(fB.axis.o)), turnFor(dB, dB.dot(dA) >= 0 ? dA : dA.clone().negate(), first ? null : fixed));
+      const p = axisOffset(faceAt(M), fA), u = Number.isFinite(j.angle) ? orbitDir(fA, j.angle) : p.length() > 1e-9 ? p.clone().normalize() : across(fA, dA);
+      M = shift(M, u.multiplyScalar(d).sub(p));
+      return { M, fixed: { dir: dA, flippable: true, o: V(faceAt(M).axis.o) } }; // (a later joint turns it about its own axis: it stays d away)
+    }
+    if (!(fA.axis && fB.normal) && !(fB.axis && fA.normal)) throw new Error('Axis distance joins two round faces, or a round face and a flat face.');
+    if (fB.axis) { // its axis along the other part's flat face, d from it
+      const nA = V(fA.normal).normalize();
+      M = turnAbout(M, pivotOf(fixed, first, V(fB.axis.o)), turnToAngle(V(fB.axis.d), nA, 90, first ? null : fixed));
+      M = shift(M, nA.clone().multiplyScalar(side * d - axisDistanceNow(faceAt(M), fA)));
+      return { M, fixed: { dir: nA } };
+    }
+    // its flat face along the other part's axis, the axis d from it
+    const dA = V(fA.axis.d).normalize();
+    M = turnAbout(M, pivotOf(fixed, first, V(fB.centroid)), turnToAngle(V(fB.normal), dA, 90, first ? null : fixed));
+    M = shift(M, V(faceAt(M).normal).normalize().multiplyScalar(axisDistanceNow(faceAt(M), fA) - side * d));
+    return { M, fixed: { dir: dA, flippable: true } };
   }
   if (type === 'tangent') {
     const cyl = fB.type === 'cylinder' ? fB : fA, pl = fB.type === 'cylinder' ? fA : fB;

@@ -315,6 +315,8 @@ try:
     print("    name_motion, not joined:", tool("name_motion", part="I1", motion=0, name="Turn")[0][:100])
     # ⚙ a coupling (snap_faces type gear / belt / rack): flat faces refused, it says why
     print("    snap_faces gear, flat faces:", tool("snap_faces", type="gear", move={"part": "I3", "face": "F2:end"}, onto={"part": "I1", "face": "I1/F2:start"})[0][:100])
+    # ↔ an axis distance wants a round face: two flat faces refused (it says why)
+    print("    snap_faces axis_distance, flat faces:", tool("snap_faces", type="axis_distance", distance=20, move={"part": "I3", "face": "F2:end"}, onto={"part": "I1", "face": "I1/F2:start"})[0][:100])
     # ● a ball joint wants a ball: flat faces refused (it says why); 🔗 rigid needs no faces; 〰 a spring's row in get_assembly
     print("    snap_faces ball, flat faces:", tool("snap_faces", type="ball", move={"part": "I3", "face": "F2:end"}, onto={"part": "I2", "face": "I1/F2:start"})[0][:100])
     print("    snap_faces rigid, no faces:", tool("snap_faces", type="rigid", move={"part": "I3"}, onto={"part": "I2"})[0][:60])

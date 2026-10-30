@@ -28,7 +28,11 @@ seated in its receptacle, its stroke as its slide's limits), joined Concentric.
    first extrude, `F2:start` its bottom; `find_refs` in the part (open_part it) tells the rest. A wrong name
    answers with the list of faces. `type` picks the joint: `touch` (default), `gap` (with `gap` mm), `flush`, `axis`
    (concentric round faces — a pin / screw / shaft in a hole; with `gap` the distance along the axis between their
-   facing ends, e.g. two plates with holes 30 mm apart; `lock_rotation: true` keeps the turn), `parallel`, `perp`, `angle` (`value` degrees between
+   facing ends, e.g. two plates with holes 30 mm apart; `lock_rotation: true` keeps the turn), `axis_distance` (two round
+   faces — pins, probes, holes, cones — with their axes parallel, `distance` mm apart, e.g. two test probes 20 mm apart;
+   without `distance`: as far apart as they are now; its swing round the other axis is kept unless `lock_rotation:
+   false`; a round face and a flat face: the axis along the face, `distance` mm from it; the same height: add a `flush`
+   on their ends; `edit_joint {id, distance}` changes it), `parallel`, `perp`, `angle` (`value` degrees between
    the faces' directions), `tangent` (a round face on a flat one: a roller on a plate), `ball` (a ball's spherical face —
    a revolved half circle — with its centre on the axis of a hole or a cone: it slides along it and turns; onto another
    ball: a ball joint, 3 turns), `seat` (the ball seated in a conical seat or on the edge of a smaller hole: a valve

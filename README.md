@@ -974,7 +974,12 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
 - **🔗 Joint** (a button per kind in the bar — one click starts it, lit while you pick the faces; click it again or Esc to stop): choose how the part is held — **Touch** (S: a flat face onto a flat face, centred), **Gap** (facing,
   a distance apart), **Flush** (in one plane), **Concentric** (two round faces on one axis: a pin in a hole; its
   **↕ distance** is the gap along the axis between the facing ends of the two round faces — two plates with holes
-  joined this way get it filled in (touching) and you type e.g. 30; empty = it slides),
+  joined this way get it filled in (touching) and you type e.g. 30; empty = it slides), **↔ Axis distance** (two
+  round faces — pins, probes, holes, cones — with their axes parallel, a distance apart: two test probes 20 mm apart;
+  it starts at the distance they have now and is typed or slid in the panel; the part still turns about its own axis
+  and slides along it, its swing round the other axis is kept where it stands — 🔓 in its row frees it; a round face
+  and a flat face: the axis along the face, the distance from it; the same height: add ▭ Flush on their ends. The
+  ↔ Gap tool clicked on a round face becomes this one),
   **Parallel**, **Perpendicular**, **Angle** (two flat faces at the angle you type), **Tangent** (a round face on a
   flat one), **● Ball joint** (a ball — a revolved half circle — with its centre on the axis of a hole or a cone: it
   slides along the axis and turns any way; onto another ball: one centre, it only turns), **◉ Ball in seat** (a valve
@@ -1149,7 +1154,8 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   makes it. Ranked, the likely one first:
   - **a hole and a pin**: *◎ Concentric + seat · Ø10* (on one axis and down on the face around the pin — Concentric +
     Touch in one step, so each pivot of a mechanism is three clicks: the hole's rim, Ctrl+click the pin, this), then
-    *◎ Concentric only · Ø10* (the seat is offered while the moving part has no other joints);
+    *◎ Concentric only · Ø10* (the seat is offered while the moving part has no other joints), then *↔ Axis distance
+    20 mm* (the axes parallel, as far apart as they are now — two probes side by side);
   - **two flat faces facing up** (a part's top, Ctrl+click the base's top): *⧉ Put Slider on Base* — its underside
     goes onto the base, no turning the view to click a face you cannot see; then Touch, Flush …;
   - **two side faces facing the same way**: ▭ Flush first; on a part that is joined already it keeps the offset as the
