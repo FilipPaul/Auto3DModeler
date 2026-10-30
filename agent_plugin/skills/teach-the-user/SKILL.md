@@ -38,6 +38,7 @@ and let them click. Do the step yourself only when they ask you to.
 opening by itself; the bottom row's 🔗 Joints / 📏 Dimensions): show the widget's ⋯ menu or header (dragging it docks /
 floats it) and the bottom row's buttons; only when they ask you to arrange it, `set_layout` (no arguments: the layout
 now) / `set_view {joints, sizes}` do it. 📄 New project is under Open ▾ (Ctrl+Alt+N); `new_project` only when asked.
+✕ Close project (Open ▾, or the project widget's ⋯) saves it and goes back to the start screen; `close_project` only when asked.
 
 **Watching instead of showing:** when the user says "look what I'm doing" / "podívej se, co dělám" (a problem they
 want you to see), `start_recording {reason}` and tell them to go ahead; when they say they are done,

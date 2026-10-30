@@ -25,8 +25,8 @@ export function choose(text, options, { cls = '' } = {}) {
 /** Yes / no in the page (never the browser's own confirm dialog: no pop-ups outside the app): text: the question
  *  (translated here, as the old dialog was); ok: the yes button's word; danger: it deletes / loses something
  *  -> true (yes) / false (Cancel, Esc, ✕). */
-export async function confirmIn(text, { ok = 'OK', danger = false } = {}) {
-  return (await choose(t(text), [{ value: true, primary: true, danger, label: ok }, { value: false, label: 'Cancel' }], { cls: 'confirm' })) === true;
+export async function confirmIn(text, { ok = 'OK', cancel = 'Cancel', danger = false } = {}) {
+  return (await choose(t(text), [{ value: true, primary: true, danger, label: ok }, { value: false, label: cancel }], { cls: 'confirm' })) === true;
 }
 
 /** A short text to type (a name, a scale): text: the question; value: what it starts with; check(v) -> an error

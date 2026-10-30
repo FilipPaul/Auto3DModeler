@@ -2658,7 +2658,8 @@ $('saveWithVersions').addEventListener('change', (e) => { try { localStorage.set
 $('recentBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); autosave.showRecent(); });
 $('demoBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); showDemos({ open: openLoaded, toast }); }); // 🎬 (demos.js)
 if (!opened.has('sample') && !opened.has('project') && !opened.has('new')) setTimeout(() => autosave.offerLast(), 600);
-// 📄 New project (Open ▾, the project widget's ⋯, Ctrl+Alt+N): the one on screen kept, this window starts empty
+// 📄 New project (Open ▾, the project widget's ⋯, Ctrl+Alt+N): the one on screen kept, this window starts empty;
+// ✕ Close project (Open ▾, the ⋯, 📄's box): the same, back to the start screen with it first in 🕘 Recent projects
 const newProject = initNewProject({
   autosave, toast,
   name: () => state.projectName || project.current?.name || '',
@@ -2667,6 +2668,7 @@ const newProject = initNewProject({
 });
 $('newProjectBtn').addEventListener('click', (e) => { $('openMenuWrap').classList.remove('open'); newProject.start(e.ctrlKey || e.metaKey || e.shiftKey); }); // (Ctrl+click: a new window)
 $('newProjectWinBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); newProject.start(true); });
+$('closeProjectBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); newProject.close(); }); // ✕ (no shortcut: Ctrl+W is the browser's)
 initMouseBack(); // the mouse's side buttons: Undo / Redo; the browser's Back stays in the app (after ?new is read)
 // 📄 New project in the top bar: a small box first — what happens to the project on screen, then here / a new window
 const npEsc = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -2678,15 +2680,18 @@ $('newProjTopBtn').addEventListener('click', (e) => {
     pop.innerHTML = `<div class="np-say">${empty ? npEsc(t('This project is empty — a new one starts here.'))
       : t2('The project “{name}” on screen is saved and stays in Open ▾ › 🕘 Recent projects — nothing is lost.', { name: npEsc(name) })}</div>
       <button data-np="here" title="${npEsc(t('Start a new, empty project in this window — the one on screen is kept (🕘 Recent projects opens it again) (Ctrl+Alt+N)'))}">📄 ${npEsc(t('New project here'))} <span class="menu-key">Ctrl+Alt+N</span></button>
-      <button data-np="win" title="${npEsc(t('A new, empty project in a window of its own — this one stays as it is, side by side'))}">⧉ ${npEsc(t('In a new window (this one stays open)'))}</button>`;
+      <button data-np="win" title="${npEsc(t('A new, empty project in a window of its own — this one stays as it is, side by side'))}">⧉ ${npEsc(t('In a new window (this one stays open)'))}</button>
+      ${empty ? '' : `<button data-np="close" title="${npEsc(t('Save the project and close it — back to the start screen; 🕘 Recent projects opens it again'))}">✕ ${npEsc(t('Close project'))}</button>`}`;
     pop.querySelector('[data-np=here]').addEventListener('click', () => { wrap.classList.remove('open'); newProject.start(); });
     pop.querySelector('[data-np=win]').addEventListener('click', () => { wrap.classList.remove('open'); newProject.start(true); });
+    pop.querySelector('[data-np=close]')?.addEventListener('click', () => { wrap.classList.remove('open'); newProject.close(); });
   }
 });
 document.addEventListener('click', (e) => { if (!e.target.closest('#newProjWrap')) $('newProjWrap').classList.remove('open'); });
 leftDock.projectMenu = () => [
   ['📄', t('New project'), t('Start a new, empty project in this window — the one on screen is kept (🕘 Recent projects opens it again) (Ctrl+Alt+N)'), () => newProject.start()],
   ['⧉', t('New project in a new window'), t('A new, empty project in a window of its own — this one stays as it is, side by side'), () => newProject.start(true)],
+  ['✕', t('Close project'), t('Save the project and close it — back to the start screen; 🕘 Recent projects opens it again'), () => newProject.close()],
 ];
 
 // ------------------------------------------------------------------ the start screen and files dropped anywhere
@@ -2894,7 +2899,7 @@ Object.assign(agentHandlers, moreHandlers({ state, project, modeler, assembly, d
 Object.assign(agentHandlers, teachHandlers()); // gui_highlight: the AI shows the user where to click
 recorder.init({ state, project, modeler, assembly, toast }); // ⏺ the recording of moves: the top bar's ⏺, the indicator, the hooks (toast: 📋 copied)
 Object.assign(agentHandlers, recordHandlers()); // (start_recording, stop_recording, get_recording, get_recording_screenshot)
-Object.assign(agentHandlers, layoutHandlers(), newProject.handlers()); // (set_layout: the widgets; new_project)
+Object.assign(agentHandlers, layoutHandlers(), newProject.handlers()); // (set_layout: the widgets; new_project, close_project)
 const exportData = agentHandlers.export_data; // (+ the project file, as Save project writes it: export {format: "project"})
 agentHandlers.export_data = async (args = {}) => (args.format === 'project'
   ? { text: 'ok', data: { name: safeName(), ...(await projectPackage({ history: !!args.history })) } } : exportData(args)); // (the server packs the .a3d)

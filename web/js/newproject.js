@@ -2,10 +2,13 @@
 // starts again with an empty one — the start screen, a new autosave record. The page is loaded afresh (nothing of the
 // old project lingers in the workspaces); a toast says where the old one is and ↶ opens it again. ⧉ New project in a
 // new window: this one stays as it is. Ctrl+Alt+N (Ctrl+N is the browser's own new window).
+// ✕ Close project: the same, its picture drawn first — the start screen again, the closed project first in 🕘 Recent
+// projects (one click opens it again). The chat and a ⏺ recording go on; the undo history goes with the page. No
+// shortcut: Ctrl+W (Ctrl+Shift+W) closes the browser's tab or window.
 import { t } from './i18n.js';
 import { confirmIn } from './choose.js';
 
-const AFTER = 'a3d.newProject'; // sessionStorage: {name, id} of the project kept — the toast after the fresh load
+const AFTER = 'a3d.newProject'; // sessionStorage: {name, id, closed} of the project kept — the toast after the fresh load
 const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 
 /** hooks: {autosave, name() -> the project's name ('' when empty), empty() -> nothing in it, keepChat(), toast} */
@@ -27,12 +30,30 @@ export function initNewProject(hooks) {
     return null;
   }
 
+  /** ✕ Close project: kept (saved now, its picture drawn) -> the start screen; not kept: “Close anyway” / “Back”. */
+  async function close() {
+    const empty = hooks.empty();
+    if (!empty) {
+      await hooks.autosave.saveNow();
+      if (hooks.autosave.kept()) await hooks.autosave.keepThumb({ force: true });
+      else if (!(await confirmIn('The project could not be saved on the server (see “⚠ Not saved”). Close it anyway? Its last changes would be lost.', { ok: 'Close anyway', cancel: 'Back', danger: true }))) return false;
+    }
+    try { sessionStorage.setItem(AFTER, JSON.stringify({ name: hooks.name(), id: empty ? '' : hooks.autosave.id, closed: true })); } catch { /* private window */ }
+    hooks.keepChat?.();
+    location.assign(url());
+    return true;
+  }
+
   // the fresh page: where the old project is, ↶ to open it again
   if (new URLSearchParams(location.search).has('new')) {
     history.replaceState(null, '', location.pathname); // (a reload later: an ordinary start)
     let was = null;
     try { was = JSON.parse(sessionStorage.getItem(AFTER) || 'null'); sessionStorage.removeItem(AFTER); } catch { was = null; }
-    if (was?.id) {
+    if (was?.closed) {
+      if (was.id) hooks.autosave.first = was.id; // (🕘 Recent projects: it first)
+      hooks.toast(was.id ? tv('“{name}” is closed — it is first in 🕘 Recent projects, one click opens it again.', { name: was.name || t('Project') })
+        : t('The project is closed.'), 'ok', 6000).dataset.noI18n = '';
+    } else if (was?.id) {
       const el = hooks.toast(tv('The previous project “{name}” is kept — Open ▾ › 🕘 Recent projects.', { name: was.name || t('Project') }), 'ok', 9000);
       el.dataset.noI18n = '';
       const b = document.createElement('button');
@@ -54,11 +75,12 @@ export function initNewProject(hooks) {
     e.preventDefault();
     start(false);
   });
-  return { start, handlers: () => newProjectHandlers(start, hooks) };
+  return { start, close, handlers: () => newProjectHandlers(start, hooks, close) };
 }
 
-/** new_project: as 📄 New project — answered first, the page starts again a moment later (the chat goes on). */
-export function newProjectHandlers(start, hooks) {
+/** new_project: as 📄 New project; close_project: as ✕ Close project — answered first, the page starts again a moment
+ *  later (the chat goes on). */
+export function newProjectHandlers(start, hooks, close) {
   return {
     new_project: async ({ new_window } = {}) => {
       if (new_window) {
@@ -69,6 +91,16 @@ export function newProjectHandlers(start, hooks) {
       const name = hooks.name();
       setTimeout(() => start(false), 300); // (after this answer is sent: the page loads afresh)
       return { text: `The project “${name || 'Project'}” is kept (Open ▾ › 🕘 Recent projects) and this window starts a new, empty one — wait a moment, then list_parts (empty) and new_model / new_assembly.` };
+    },
+    close_project: async () => {
+      const name = hooks.name(), empty = hooks.empty();
+      if (!empty) {
+        await hooks.autosave.saveNow();
+        if (!hooks.autosave.kept()) throw new Error('The project could not be saved on the server (“⚠ Not saved”) — not closed. Tell the user; they can close it anyway with Open ▾ › ✕ Close project.');
+      }
+      setTimeout(() => close(), 300); // (after this answer is sent: the page loads afresh)
+      return { text: empty ? 'The empty project is closed — the start screen shows (wait a moment).'
+        : `The project “${name || 'Project'}” is saved and closed — the start screen shows it first in 🕘 Recent projects (the user's one click on it opens it again). Wait a moment before the next tool.` };
     },
   };
 }

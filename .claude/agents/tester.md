@@ -332,6 +332,11 @@ Never report "works" without having run it; report failures with their output.
    the slider far past them; the four-bar's coupler dragged (the rocker at the closed form); no console errors.
    `tools/e2e_new_project_btn.py <url> <dir>` covers 📄 Nový projekt in the top bar next to ＋ Nový 3D model (Czech): its box
    says the open project is saved and stays in 🕘 Recent projects (by name), offers here / a new window -> the start screen.
+   `tools/e2e_close_project.py <url> <dir>` covers ✕ Zavřít projekt (Czech): in Otevřít ▾, the project widget's ⋯ and 📄's
+   box; a block made, the project renamed -> the start screen, no part, no name, no undo, the toast; the closed project
+   first in the start screen's 🕘 row (though another was saved later) with its picture, first in the 🕘 dialog; one
+   click opens it again (name, id, steps); a failed save asks „Zavřít i tak" / „Zpět" (Zpět: it stays); the AI's
+   close_project; an empty project closes too; no console errors, no native dialogs.
    `tools/e2e_mouse_back.py <url> <dir>` covers the mouse's side buttons and the browser's Back (Czech): ◀ (button 3) over
    the 3D view undoes a block's extrude, ▶ (4) redoes it, once per press, mousedown / mouseup / auxclick prevented; over a
    text field nothing; history.back() twice -> the same page (not reloaded), the project still there, the guard on top.

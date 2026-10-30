@@ -951,6 +951,14 @@ Date: 2026-10-25. Written by the architect agent.
   toast „Předchozí projekt „…“ je uložen — Otevřít ▾ › 🕘 Nedávné projekty" with ↶ Otevřít znovu (autosave.open: its
   own id). ⧉ Nový projekt v novém okně: window.open(?new). The window's title is the project's name (showProjectName).
   tests: tools/e2e_new_project.py.
+- **✕ Close project done** (the owner, 2026-10-30: "chybí mi možnost zavřít projekt"): newproject.js close() —
+  Otevřít ▾ › ✕ Zavřít projekt, the project widget's ⋯ menu and the box of 📄 Nový projekt (no new top-bar button; no
+  shortcut: Ctrl+W / Ctrl+Shift+W are the browser's). Saved first (autosave.saveNow, then keepThumb({force}) — its
+  picture now); not saved: confirmIn „Zavřít i tak" / „Zpět" (confirmIn got a `cancel` label). Then as 📄: the page
+  loads afresh with ?new (the workspaces empty, the undo history gone; the chat — keepChatClient — and a ⏺ recording —
+  sessionStorage — go on); sessionStorage {closed} sets autosave.first, so the closed project heads the start screen's
+  🕘 row and the 🕘 dialog even when its kept time is older than another's. AI: close_project (refused when not saved).
+  tests: tools/e2e_close_project.py, e2e_agent (close_project last).
 - **Mouse side buttons = Undo / Redo; Back stays in the app done** (the owner, 2026-10-30: "boční tlačítka na myši
   … místo back na stránce, což v browseru zavře program"): web/js/mouseback.js — buttons 3 / 4 stopped on mousedown /
   mouseup / auxclick (document, capture); on the press a Ctrl+Z / Ctrl+Y keydown on the body, so every workspace's own

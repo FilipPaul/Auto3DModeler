@@ -491,6 +491,12 @@ try:
     print("    stopped, the pill gone:", d.execute_script("return document.querySelector('.rec-pill').hidden"))
     print("    an unknown shot:", tool("get_recording_screenshot", id="S9")[1].get("isError"))
     tool("list_reports", search="sketch")
+    # ✕ close_project (the last: the page starts again on the start screen, the project first in 🕘 Recent projects)
+    tool("close_project")
+    end = time.time() + 60
+    while time.time() < end and not d.execute_script("return !!window.__app?.autosave && document.readyState === 'complete' && document.body.classList.contains('start-open') && window.__app.project.parts.length === 0"):
+        time.sleep(0.25)
+    print("    closed: the start screen, no part:", d.execute_script("return document.body.classList.contains('start-open') && window.__app.project.parts.length === 0"))
 finally:
     print("console errors:", [e["message"] for e in d.get_log("browser") if e["level"] == "SEVERE"])
     mcp.stdin.close()
