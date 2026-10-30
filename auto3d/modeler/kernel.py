@@ -67,8 +67,13 @@ _BOPS = {"common": BRepAlgoAPI_Common, "cut": BRepAlgoAPI_Cut, "fuse": BRepAlgoA
 
 def bop(op, args, tools):
     """args ∩ / − / ∪ tools: op "common" / "cut" / "fuse", args and tools a shape or a list of shapes -> the built
-    BRepAlgoAPI operation (IsDone, Shape and its history for _carry). Every boolean of the kernel goes through here."""
+    BRepAlgoAPI operation (IsDone, Shape and its history for _carry). Every boolean of the kernel goes through here.
+    Non-destructive: the arguments are left as they were (a sub-shape whose tolerance has to grow is copied into the
+    result) — the steps' shapes are kept and used again (doc's prefix cache: every preview of a step cuts the same
+    earlier body), and a destructive boolean grew their tolerances in place: a hole dragged near a pin's rim left its
+    edge 12 mm "thick", after which a Ø4 hole down the pin's axis cut nothing (app report)."""
     mk = _BOPS[op]()
+    mk.SetNonDestructive(True)
     a, b = _C.List_TopoDS_Shape(), _C.List_TopoDS_Shape()
     for s in args if isinstance(args, (list, tuple)) else [args]:
         a.Append(s)

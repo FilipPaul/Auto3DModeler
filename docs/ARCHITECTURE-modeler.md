@@ -7,6 +7,15 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Booleans leave their arguments alone (2026-10-30)** (app reports: a Ø4 hole down a pin cut nothing, then −891 mm³
+  and two solids; a Ø4 cut through −227.9 and two solids; a 3 mm slot cut +189.8). kernel.bop ran OCCT's booleans
+  destructively: an argument's edge whose tolerance had to grow was grown in place — on the steps' bodies that doc's
+  prefix cache keeps and every preview cuts again. Two hole previews grazing the pin's rim grew its top edge to 12 mm,
+  and every later cut of that body went wrong. bop now sets SetNonDestructive (a sub-shape to change is copied into
+  the result; the history still names it for _carry). tests/test_kept_shapes.py: the report's part, the previews,
+  then the hole (through and 24 deep), the cut and the slot — analytic volumes, one watertight solid, STEP read back;
+  the kept body's tolerance unchanged (the three tests reproduce the report's numbers without the fix).
+
 - **🔗 Library parts that go with each other (2026-10-29)** (the owner: "i u šroubů napáruj matice + podložky … a
   projdi knihovnu, jestli tam nejsou další věci k párování"). An item's `pairs` [{ref, role, back, size: "same" | a
   key, qty}], written on one side; auto3d/library.py link_pairs mirrors them (`mirror`, `from_size`) and drops a
