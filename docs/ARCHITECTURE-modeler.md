@@ -1010,6 +1010,11 @@ Date: 2026-10-25. Written by the architect agent.
   (e2e_cancel's thread cut saw it as a third /api/model/rebuild right after the version save; there since the
   pictures came in). Modeler.bodyBuiltOf(features): the body on screen when built of exactly these steps; app.js's
   thumb() takes it, bodyOf (thumbs.js) only for other parts. tests: tools/e2e_cancel.py (nothing sent again).
+- **A 🎬 demo opens named in the app's language done**: every demo file's project_name is its Czech name (make_demos
+  save), so a demo opened in English was kept as „Velká sestava — 150 dílů" — e2e_i18n listed it, back in English, in
+  the start screen's 🕘 row (its title). app.js projectNameOf(proj): the demo record's name / name_cs by getLang(),
+  used by openLoaded (the menu, a dropped .a3d, the AI's open_demo) and the Opening … card; the demo files unchanged.
+  tests: tools/e2e_demos.py (the project named in English), e2e_i18n (no Czech left).
 - **Mouse side buttons = Undo / Redo; Back stays in the app done** (the owner, 2026-10-30: "boční tlačítka na myši
   … místo back na stránce, což v browseru zavře program"): web/js/mouseback.js — buttons 3 / 4 stopped on mousedown /
   mouseup / auxclick (document, capture); on the press a Ctrl+Z / Ctrl+Y keydown on the body, so every workspace's own

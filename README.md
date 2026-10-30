@@ -434,7 +434,7 @@ swing, never taut, clear of the box and the arm). Three big assemblies show that
 blocks, brackets, a STEP housing, screws, washers and nuts — 105 joints), *Velká sestava — 500 dílů (spojovací
 materiál)* (521 placed parts, mostly fasteners: 40 plates with 4 screws, washers and nuts each) and *Soukolí — 30 kol*
 (a gear train of 30 discs, each geared to the next: one ⚙ mechanism of 30 moving parts). Each is listed with what it shows (in Czech or English) and opens
-as a new project — a copy, the demo stays as it is — on its assembly with ⚙ Mechanism ready (Czech motion names,
+as a new project named in the app's language — a copy, the demo stays as it is — on its assembly with ⚙ Mechanism ready (Czech motion names,
 ▶). The files are in `demos/` (built through the app by `tools/make_demos.py`) and go into the Windows build.
 
 **Panels**: drag the edge between a side panel and the view (or the AI chat's left edge) to make it wider or narrower;

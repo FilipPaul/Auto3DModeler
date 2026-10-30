@@ -1,4 +1,4 @@
-import { initI18n, t } from './i18n.js';
+import { initI18n, t, getLang } from './i18n.js';
 import { confirmIn } from './choose.js';
 import { Viewer } from './viewer.js';
 import { DrawingView } from './drawing.js';
@@ -2221,8 +2221,12 @@ async function openProject(file) {
   } catch (e) { toast(e.message, 'error'); } finally { b.done(); }
 }
 
+/** A 🎬 demo's name in the app's language (its file holds both: its `demo` record), else the project's name. */
+const projectNameOf = (proj) => (proj.demo && (getLang() === 'cs' ? proj.demo.name_cs : proj.demo.name)) || proj.project_name;
+
 /** A project (version 3) on screen as a new one: the one there kept first, then a fresh autosave record for it. */
 async function openLoaded(proj) {
+  proj.project_name = projectNameOf(proj);
   delete proj.demo;
   state.projectName = proj.project_name;
   await autosave?.saveNow(); // (the one on screen kept first)
@@ -2232,7 +2236,7 @@ async function openLoaded(proj) {
 }
 /** A 🎬 demo on screen (openLoaded), with the loading card while its parts are made. */
 async function openDemo(proj) {
-  const b = busy(t2('Opening {name}…', { name: proj.project_name || t('the demo') }));
+  const b = busy(t2('Opening {name}…', { name: projectNameOf(proj) || t('the demo') }));
   b.step('Opening the parts…');
   await b.painted;
   try { await openLoaded(proj); } finally { b.done(); }

@@ -184,6 +184,8 @@ try:
     # 1. the crank – rod – slider
     f = open_demo(0)
     pid0 = js("return window.__app.autosave.id")
+    named = js("return window.__app.state.projectName")
+    check(named == listing[0]["name"], f"the project is named in the app's language: “{named}”")
     a = json.loads(call("get_assembly"))
     m = a["mechanisms"][0]
     print("  mechanism:", m["name"], "·", m["driver"]["label"])
