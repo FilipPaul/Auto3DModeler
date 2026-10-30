@@ -5,6 +5,7 @@ in its colour with its 🎨 painted faces; an assembly's IGES a named body per p
 the material. The CAD tests are skipped without the CAD kernel.
 """
 import json
+import re
 import struct
 import unittest
 from collections import Counter
@@ -146,6 +147,71 @@ class TestColours(unittest.TestCase):
         self.assertEqual((how, colours), ("solid", {}))  # (no colour of its own: none written)
         with self.assertRaises(K.KernelError):
             doc.assembly_step(tree={"root": "A", "parts": {}, "assemblies": {"A": {"name": "A", "instances": [{"ref": "X", "matrix": I16}]}}}, fmt="iges")
+
+
+@unittest.skipUnless(OCC, "OCP not installed")
+class TestImportedNames(unittest.TestCase):
+    """Names as other programs write them, read right: STEP's escapes, UTF-8, and the raw Windows-1250 bytes Solid Edge
+    writes ("HLAVN\\xCD PROFIL LEV\\xDD": read as UTF-8 it was "HLAVN‹PROFIL LEV", the space lost)."""
+
+    def step(self, **names):
+        """The machine assembly's STEP with its names (Plate, Post, Machine, Sub) put as these raw bytes."""
+        t = machine()
+        t["parts"]["P1"]["name"], t["parts"]["P2"]["name"] = "QPLATE", "QPOST"
+        t["assemblies"]["A1"]["name"], t["assemblies"]["A2"]["name"] = "QMACH", "QSUB"
+        data = doc.assembly_step(tree=t, name="QMACH")
+        for k, v in names.items():
+            data = data.replace(k.encode(), v)
+        return data
+
+    def assertClean(self, got):
+        self.assertFalse(any("�" in n or any("가" <= c <= "힣" for c in n) for n in got), got)
+
+    def test_raw_cp1250_and_escapes(self):
+        data = self.step(QPLATE=b"HLAVN\xcd PROFIL LEV\xdd", QPOST=b"U-011_Kostka plyn. vzp\xecry 1",
+                         QMACH=b"Sestava \\X2\\0158\\X0\\\\X\\EDzen\\X2\\00ED\\X0\\", QSUB=b"P\\S\\a \\X4\\0001F600\\X0\\")
+        self.assertEqual(K.step_codepage(data), "cp1250")
+        got = names(data)
+        for n in ("HLAVNÍ PROFIL LEVÝ", "U-011_Kostka plyn. vzpěry 1", "Sestava Řízení", "Pá 😀"):
+            self.assertIn(n, got)
+        self.assertClean(got)
+        self.assertTrue(K.step_names_ascii(data).isascii())
+
+    def test_utf8_and_cp1250_in_one_file(self):
+        """Solid Edge's file: PRODUCT names in Windows-1250, its placements' (NEXT_ASSEMBLY_USAGE_OCCURRENCE) in UTF-8."""
+        data = self.step(QPLATE=b"HLAVN\xcd PROFIL LEV\xdd")
+        data = re.sub(rb"(NEXT_ASSEMBLY_USAGE_OCCURRENCE\('[^']*',')[^']*'", lambda m: m.group(1) + "Plynová vzpěra-TĚLO".encode() + b"'", data)
+        got = names(data)
+        self.assertIn("HLAVNÍ PROFIL LEVÝ", got)
+        self.assertIn("Plynová vzpěra-TĚLO", got)
+        self.assertClean(got)
+        self.assertNotIn("Ã", "".join(got))
+
+    def test_utf8_and_cp1252(self):
+        data = self.step(QPLATE="Plynová vzpěra Ř".encode(), QPOST="Ž".encode())
+        self.assertIsNone(K.step_codepage(data))
+        self.assertIn("Plynová vzpěra Ř", names(data))
+        data = self.step(QPLATE="Crème brûlée à la façade".encode("cp1252"))
+        self.assertEqual(K.step_codepage(data), "cp1252")
+        self.assertIn("Crème brûlée à la façade", names(data))
+        self.assertEqual(K.step_codepage(self.step(QPLATE="Řídicí deska Ťukadlo".encode("cp1250"))), "cp1250")
+        self.assertIsNone(K.step_codepage(self.step()))  # (plain ASCII)
+        self.assertIn("A\x83B Ď", names(self.step(QPLATE=b"A\x83B \xcf")))  # (a byte cp1250 lacks: kept, not lost)
+
+    def test_tree_and_round_trip(self):
+        name = "Plynová vzpěra Ř Í Ý"
+        tree = K.read_step_tree(self.step(QPLATE=name.encode("cp1250"), QSUB=b"Sestava \xf8\xedzen\xed"))
+        self.assertIn(name, [p["name"] for p in tree["parts"].values()])
+        self.assertIn("Sestava řízení", [a["name"] for a in tree["assemblies"].values()])
+        step = doc.export({"features": plate_with_hole()}, "step", name)
+        self.assertTrue(step.isascii())  # (as STEP's \X2\ escapes: Solid Edge and others read them)
+        self.assertIn(b"\\X2\\", step)
+        self.assertEqual(names(step), [name])
+        t = machine()  # the name read from the Solid Edge file, written into an assembly and read back
+        t["parts"]["P1"]["name"] = next(p["name"] for p in tree["parts"].values() if p["name"] == name)
+        again = doc.assembly_step(tree=t, name="Sestava")
+        self.assertTrue(again.isascii())
+        self.assertIn(name, names(again))
 
 
 class TestBomMade(unittest.TestCase):
