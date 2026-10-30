@@ -1758,6 +1758,11 @@ const CS = {
   'Cancelled — the drawing was not made.': 'Zrušeno — výkres nebyl vytvořen.', 'Splitting the part…': 'Dělím díl…', 'Splitting the part': 'Dělím díl',
   // ⚙ N in the top bar: what is working now (jobs.js, GET /api/jobs)
   'Working now — click: what runs, with ✕ Stop': 'Pracuje se — klikněte: co běží, s ✕ Zastavit', 'Working now': 'Právě běží',
+  // ⟳ New version (stale.js)
+  '⟳ New version — restart the app': '⟳ Nová verze — restartujte aplikaci', '⟳ New version — reload the page': '⟳ Nová verze — načtěte stránku znovu',
+  'The app\'s files were updated, but its server still runs the older code it started with — new tools may be missing. Close the app and start it again.':
+    'Soubory aplikace se aktualizovaly, ale její server stále běží se starším kódem, se kterým byl spuštěn — nové nástroje mohou chybět. Zavřete aplikaci a spusťte ji znovu.',
+  'The app\'s server runs newer code than this page — reload the page (F5) to use it.': 'Server aplikace běží s novějším kódem než tato stránka — načtěte stránku znovu (F5).',
   'Stop this job (the part stays as it was)': 'Zastavit tuto úlohu (díl zůstane, jak byl)', 'Stopping…': 'Zastavuji…', waiting: 'čeká',
   Working: 'Pracuji', 'Building a part': 'Sestavení dílu', 'Building a quick part': 'Sestavení rychlého dílu', Exporting: 'Export',
   'Exporting an assembly': 'Export sestavy', 'Checking collisions': 'Kontrola kolizí', 'Checking a motion': 'Kontrola pohybu',

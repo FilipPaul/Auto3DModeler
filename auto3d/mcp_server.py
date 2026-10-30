@@ -27,6 +27,8 @@ from auto3d.guides import guide, guides  # noqa: E402
 SERVER_INFO = {"name": "auto3d", "version": "1.0"}
 PROTOCOL = "2025-06-18"
 CALL_TIMEOUT = 180  # seconds: building a part with many objects or tracing a big picture can take a while
+OLDER_SERVER = ("Unknown tool {tool}: this app server is older than the tool list (the code moved on since it started) "
+                "— tell the user to restart the app (close it and start it again), then call the tool again.")
 CLIENT = None  # --client: the app window whose chat started this server (its calls go there only)
 
 
@@ -43,11 +45,16 @@ def call_app(url: str, name: str, args: dict) -> dict:
         socket.create_connection((u.hostname, u.port or 80), timeout=3).close()
     except OSError as exc:
         return _unreachable(url, exc)
-    body = json.dumps({"tool": name, "args": args, **({"client": CLIENT} if CLIENT else {})}).encode()
+    listed = name in {t["name"] for t in mcp_tool_list()}  # (the app server, started earlier, may not know it yet)
+    body = json.dumps({"tool": name, "args": args, "listed": listed, **({"client": CLIENT} if CLIENT else {})}).encode()
     req = urllib.request.Request(f"{url}/api/agent/call", data=body, headers={"Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=CALL_TIMEOUT) as r:
-            return json.loads(r.read().decode())
+            res = json.loads(r.read().decode())
+        text = (res.get("content") or [{}])[0].get("text", "")
+        if listed and res.get("isError") and text == f"Unknown tool {name}.":  # an app server older than this answer
+            res["content"][0]["text"] = OLDER_SERVER.format(tool=name)
+        return res
     except urllib.error.HTTPError as exc:
         try:
             return json.loads(exc.read().decode())

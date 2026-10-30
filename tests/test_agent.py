@@ -66,7 +66,7 @@ class TestMcpServer(unittest.TestCase):
         self.assertEqual(resps[3]["result"]["content"][0]["text"], 'ran add_object {"kind": "cylinder", "x": 5}')
         self.assertEqual(resps[4]["result"], {})
         self.assertEqual(resps[5]["error"]["code"], -32601)
-        self.assertEqual(StubApp.calls[-1], {"tool": "add_object", "args": {"kind": "cylinder", "x": 5}})
+        self.assertEqual(StubApp.calls[-1], {"tool": "add_object", "args": {"kind": "cylinder", "x": 5}, "listed": True})
 
     def test_the_chat_window_goes_with_each_call(self):
         """--client (a window's chat): every tool call names that window, so the app sends it there only."""
@@ -77,13 +77,45 @@ class TestMcpServer(unittest.TestCase):
         msg = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "get_part", "arguments": {}}}
         p.communicate((json.dumps(msg) + "\n").encode(), timeout=30)
         srv.shutdown()
-        self.assertEqual(StubApp.calls[-1], {"tool": "get_part", "args": {}, "client": "win-A"})
+        self.assertEqual(StubApp.calls[-1], {"tool": "get_part", "args": {}, "listed": True, "client": "win-A"})
         from auto3d.agent import ChatSession
         cmd = ChatSession("http://127.0.0.1:1", "win-A").command("claude")
         args = json.loads(cmd[cmd.index("--mcp-config") + 1])["mcpServers"]["auto3d"]["args"]
         self.assertEqual(args[args.index("--client") + 1], "win-A")
         cmd = ChatSession("http://127.0.0.1:1").command("claude")  # (no window: no --client)
         self.assertNotIn("--client", json.loads(cmd[cmd.index("--mcp-config") + 1])["mcpServers"]["auto3d"]["args"])
+
+    def test_older_app_server(self):
+        """A tool the MCP server lists but the app server (started before a merge) does not know: the AI is told to
+        have the app restarted, not only "Unknown tool" — said by the app server, and by the MCP server for an old one."""
+        from auto3d import mcp_server
+
+        class Old(StubApp):
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                out = json.dumps({"content": [{"type": "text", "text": f"Unknown tool {body['tool']}."}], "isError": True}).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(out)))
+                self.end_headers()
+                self.wfile.write(out)
+        srv = HTTPServer(("127.0.0.1", 0), Old)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        url = f"http://127.0.0.1:{srv.server_address[1]}"
+        try:
+            r = mcp_server.call_app(url, "add_harness", {})
+            self.assertTrue(r["isError"])
+            self.assertIn("this app server is older than the tool list", r["content"][0]["text"])
+            self.assertIn("restart the app", r["content"][0]["text"])
+            self.assertEqual(mcp_server.call_app(url, "no_such_tool", {})["content"][0]["text"], "Unknown tool no_such_tool.")
+        finally:
+            srv.shutdown()
+        import server
+        c = server.app.test_client()
+        r = c.post("/api/agent/call", json={"tool": "brand_new_tool", "args": {}, "listed": True}).get_json()
+        self.assertTrue(r["isError"])
+        self.assertIn("this app server is older than the tool list", r["content"][0]["text"])
+        r = c.post("/api/agent/call", json={"tool": "brand_new_tool", "args": {}}).get_json()
+        self.assertEqual(r["content"][0]["text"], "Unknown tool brand_new_tool.")
 
     def test_app_not_running_is_a_tool_error(self):
         import socket
@@ -231,6 +263,31 @@ class TestMcpServer(unittest.TestCase):
         r = server.app.test_client().get("/api/version").get_json()
         self.assertEqual(r["version"], version.VERSION)
         self.assertEqual(r["text"], version.text())
+        self.assertEqual(r["stale"], bool(version.stale()))
+        from unittest import mock
+        with mock.patch.object(version, "head", return_value="fa4e000"), mock.patch.object(version, "build", return_value={
+                "version": version.VERSION, "commit": "92d0e37", "date": "2026-10-27", "branch": "main", "dirty": False}):
+            r = server.app.test_client().get("/api/version").get_json()  # (the checkout moved on since the server started)
+            self.assertTrue(r["stale"])
+            self.assertEqual(r["head"], "fa4e000")
+            self.assertIn("checkout now at fa4e000 — restart the app", r["text"])
+
+    def test_report_says_the_page_build(self):
+        """A report written while a page loaded at another commit polls: its version line says that page's commit."""
+        import tempfile
+        from unittest import mock
+        import server
+        from auto3d import version
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(server, "REPORTS", Path(tmp) / "R"), mock.patch.object(server, "ROOT", Path(tmp)),                 mock.patch.dict(server.PAGE_BUILDS, {"win-B": "0aa1111"}), mock.patch.object(version, "build", return_value={
+                    "version": version.VERSION, "commit": "92d0e37", "date": "2026-10-27", "branch": "main", "dirty": False}),                 mock.patch.object(version, "head", return_value="92d0e37"):
+            from auto3d.agent import ROUTE
+            route = ROUTE.set("win-B")
+            try:
+                server.tool_report_problem({"title": "Stale page", "what": "x"})
+            finally:
+                ROUTE.reset(route)
+            text = next((Path(tmp) / "R").glob("*.md")).read_text(encoding="utf-8")
+            self.assertIn("(main @ 92d0e37, 2026-10-27; page loaded at 0aa1111 — reload it)", text)
 
     def test_tool_schemas(self):
         for t in mcp_tool_list():

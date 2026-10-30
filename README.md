@@ -1326,7 +1326,14 @@ can open them.
   **ui** note (you could not find something, or a control surprised you). It cannot write files itself (no file
   tools), so the server writes them — with the **app version** it
   came from (`auto3d/version.py`: VERSION and the git commit, e.g. *0.9.0 (main @ 2900fde, 2026-10-27)*; also
-  `/api/version`).
+  `/api/version`). When the checkout moved on since the server started (a merge, a pull), the line says both — *0.9.0
+  (server started at main @ 92d0e37, …; checkout now at 1e35a8d — restart the app to run it)* — and the page's commit
+  when the browser page was loaded with another one.
+- **⟳ New version — restart the app**: a small mark in the top bar when the app's files were updated but its server
+  still runs the code it started with (checked every minute and when the window comes to the front); its tooltip
+  says what to do. *⟳ New version — reload the page*: the server was restarted under an older page (a click reloads
+  it). Not in the built app. A tool the AI knows but the running server does not answers "this app server is older
+  than the tool list — restart the app" instead of only "Unknown tool".
 - **The AI asks with buttons**: before a new design it asks (unless you said it) what it is for — *automation / a
   machine*, a *functional 3D print* or a *graphic / decorative* model —, whether it is 3D printed, and whether it must
   be *easy for a person to edit* (simple sketches with few sizes each) or may be built any way. The question shows in
