@@ -180,6 +180,30 @@ class TestServer(unittest.TestCase):
             self.assertEqual(cl.delete(f"/api/chat/conversations/{c['id']}").status_code, 404)
             server.CHATS.pop("tw1", None)
 
+    def test_events_stream_at_once(self):
+        """The chat's events reach the page as they come: the request timings must not read the endless stream first
+        (they did: the page got nothing — no message of the user, no answer, the chat looked dead)."""
+        import threading
+        import server
+        server.CHATS.pop("tw2", None)
+        server._chat("tw2").emit({"type": "status", "text": "hello"})
+        got = []
+
+        def read():
+            resp = server.app.test_client().get("/api/chat/events?client=tw2", buffered=False)
+            it = iter(resp.response)
+            while not any(b"hello" in c for c in got):
+                got.append(next(it))
+            resp.close()
+
+        t = threading.Thread(target=read, daemon=True)
+        t.start()
+        t.join(10)
+        self.assertFalse(t.is_alive(), "the event stream sent nothing")
+        self.assertTrue(got[0].startswith(b"retry:"), got)
+        self.assertIn(b'"text": "hello"', got[-1])
+        server.CHATS.pop("tw2", None)
+
 
 if __name__ == "__main__":
     unittest.main()

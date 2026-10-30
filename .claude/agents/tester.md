@@ -40,6 +40,10 @@ Never report "works" without having run it; report failures with their output.
    back, the list (date, title, zpráv: n, Czech), the first opened (messages, tool lines, the photo's thumbnail, a
    note), a message resumes its Claude session (--resume), a gone session -> a new one with the summary and a note, ✕
    with a confirm; no console errors.
+   `tools/e2e_chat_send.py <url> <dir>` covers the chat's basic path with the stand-in Claude Code (its own server:
+   `AUTO3D_CLAUDE=<absolute path>/tools/fake_claude.py CLAUDE_CONFIG_DIR=<scratch>/claude`): typed + Enter -> the
+   user's bubble at once, then the answer; the Send button; Stop during a slow answer stops it; the next message is
+   answered; no console errors.
    `tools/e2e_ai_history.py <url> <dir>` covers 🕘 AI history (two AI turns through /api/agent/call -> a state each
    with its message and tool count, a replayed turn keeps nothing, the list, Load the first -> the plate without the
    hole, the hand-renamed project kept "before loading"; it deletes the states it made).

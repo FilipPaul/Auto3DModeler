@@ -171,14 +171,16 @@ try:
 
     print("9. ✕ deletes one (with a confirm)")
     rs = rows()
-    js("window.__asked = []; window.confirm = (q) => { window.__asked.push(q); return true; }")
     js(f"document.querySelector(\"#tab-ai .ai-conv[data-id='{first['id']}'] .ai-conv-x\").click()")
+    asked = wait("return document.querySelector('.choose.confirm p')?.textContent", 5)  # (the app's own dialog, not the browser's)
+    check("asked first (Czech)", "Smazat tuto konverzaci" in (asked or ""), asked)
+    js("document.querySelector('.choose.confirm .btn.primary').click()")
     wait(f"return !document.querySelector(\"#tab-ai .ai-conv[data-id='{first['id']}']\")")
-    check("asked first (Czech)", "Smazat tuto konverzaci" in (js("return window.__asked[0]") or ""), js("return window.__asked"))
     check("one left, in the list and on the server", [r["id"] for r in rows()] == [second["id"]]
           and [c["id"] for c in http("GET", "/api/chat/conversations")["conversations"]] == [second["id"]])
-    js("window.confirm = () => false")
     js(f"document.querySelector(\"#tab-ai .ai-conv[data-id='{second['id']}'] .ai-conv-x\").click()")
+    wait("return document.querySelector('.choose.confirm')", 5)
+    js("[...document.querySelectorAll('.choose.confirm .btn')].pop().click()")  # (Zrušit)
     time.sleep(0.5)
     check("a confirm said no: kept", len(http("GET", "/api/chat/conversations")["conversations"]) == 1)
 finally:
