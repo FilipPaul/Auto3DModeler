@@ -18,6 +18,25 @@ Date: 2026-10-25. Written by the architect agent.
   = asm.visPreview); the parts list's 👁 (first in the row: no shift on hover), `.as-vis` note, H / Shift+H / Alt+H; a
   tree click drops an old face pick. AI: set_visibility, get_assembly hidden / transparent. tools/e2e_hide_parts.py.
 
+- **🕘 Previous conversations (2026-10-30)** (the owner: "Historie chatu by měla být obnovitelná"). auto3d/chat_history.py keeps each
+  conversation in `data/chats/` (`<id>.json` the events — user with photo links, AI text, tool lines, error results,
+  notes —, `<id>.meta.json` the list's: date, the first message as the title, messages, the project's autosave id /
+  name, Claude Code's session id; the last 200). ChatSession: a conversation made with the first message (the page
+  sends `project`), kept after each message / answer / exit; `--no-session-persistence` dropped, the init's
+  `session_id` kept; `open(id)` replays its events (`old`: no busy, no 🕘 History save) and the next message starts
+  `claude --resume <session>` when `~/.claude/projects/*/<session>.jsonl` (or $CLAUDE_CONFIG_DIR) is there, else a new
+  session primed with `summary()` (a `note` says so); a resume that fails anyway (exit before its init) is retried
+  that way with the same message. A ■ Stop now resumes too. /api/chat/conversations (GET, DELETE /<id>), /api/chat/open,
+  status `conversation`. Page: the bar under the chat's head — the title, 🕘 Previous conversations (this project's
+  first, ✕ with a confirm), ＋ New conversation; the conversation id in sessionStorage (with the window's client id): a
+  reload after a server restart opens it again. tools/fake_claude.py stands in for Claude Code (AUTO3D_CLAUDE=*.py runs
+  it with Python; `auth status` too). tests/test_chat_history.py, tools/e2e_chat_history.py.
+- **📎 The recording always attachable in the chat (2026-10-30)** (an app report: no way to attach the last recording in
+  the open chat). Why the chip was missing: a recording kept over a reload never told the chat (recorder.init did not
+  call changed()), and once attached it was hidden for good. Now offered whenever a stopped recording exists; the last
+  3 kept (the earlier two as their chat text in sessionStorage `a3d.recPast`, archived by start()) with ▾ (time ·
+  length · events; recordings(), describe(), forChat(max, id)); the pill's ➤ Stop and send to the AI (event
+  `a3d:rec-send`: the chat in sight, that recording sent now). tools/e2e_recording.py 8b / 8c.
 - **⇤⇥ One side of a limit at a time (2026-10-30)** (the owner: clear min and max separately). A motion's `travel`
   record may hold only `min` or only `max`: the other side is open. dof.js clampLim (drag.js, the panel's slider,
   move_free, setTravel's put-back) and travelOf (both ends for what needs them: a turn a full turn from the stop — in

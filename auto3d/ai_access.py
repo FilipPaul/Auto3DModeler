@@ -139,8 +139,9 @@ def _no_window() -> int:
 
 def claude_status(exe: str, env: dict | None = None) -> dict:
     """`claude auth status --json` -> its dict ({"loggedIn", "authMethod", "email" …}); {} when it cannot tell."""
+    from .agent import run_claude
     try:
-        r = subprocess.run([exe, "auth", "status", "--json"], capture_output=True, text=True, timeout=20,
+        r = subprocess.run([*run_claude(exe), "auth", "status", "--json"], capture_output=True, text=True, timeout=20,
                            creationflags=_no_window(), env=env)
         return json.loads(r.stdout or "{}")
     except (OSError, subprocess.SubprocessError, ValueError):

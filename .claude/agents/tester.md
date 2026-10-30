@@ -34,6 +34,12 @@ Never report "works" without having run it; report failures with their output.
    the 3D view follows, remembered after a reload, double-click = usual width, a smallest width).
    `tools/e2e_chat_scroll.py <url> <dir>` covers the AI chat while Claude works (the panel keeps its place and size,
    the wheel scrolls the log up, new text leaves it there; at the bottom it follows).
+   `tools/e2e_chat_history.py <url> <dir> <claude config dir>` covers 🕘 Previous conversations with the stand-in Claude
+   Code (tools/fake_claude.py; its own server: `AUTO3D_CLAUDE=tools/fake_claude.py CLAUDE_CONFIG_DIR=<scratch>/claude`):
+   two conversations (＋ Nová konverzace), a reload keeps the one on screen, a reload after the server lost it brings it
+   back, the list (date, title, zpráv: n, Czech), the first opened (messages, tool lines, the photo's thumbnail, a
+   note), a message resumes its Claude session (--resume), a gone session -> a new one with the summary and a note, ✕
+   with a confirm; no console errors.
    `tools/e2e_ai_history.py <url> <dir>` covers 🕘 AI history (two AI turns through /api/agent/call -> a state each
    with its message and tool count, a replayed turn keeps nothing, the list, Load the first -> the plate without the
    hole, the hand-renamed project kept "before loading"; it deletes the states it made).
@@ -677,7 +683,9 @@ Never report "works" without having run it; report failures with their output.
    an assembly: the pill there too; get_recording (handler and /api/agent/call) has them in order — the click's place
    (at 0 … 1, px) and face, the row's table and what was selected, the toast's text with a screenshot, the drag as one
    event with its points (paths: false: without them), last / since; get_recording_screenshot; ■ Zastavit hides it;
-   the chat's 📎 Přiložit záznam (n událostí); start_recording: "(spustila AI)"; a reload goes on; cheap: with a full
+   the chat's 📎 Přiložit záznam (n událostí) — also after a reload, the events in the next message (caught before the
+   server), still offered once sent; ➤ Zastavit a poslat AI on the pill (stopped, the chat in sight, sent); ▾ the last
+   recordings (time, length, events), the older one sent; start_recording: "(spustila AI)"; a reload goes on; cheap: with a full
    log (2000 events, 12 pictures) a 2 s orbit + 25 clicks + 25 keys + an error: under 2 ms per handler call, no recorder
    run over 50 ms (CDP profiler), the session copy a small header + chunks; no console errors.
    `tools/e2e_ai_gui.py <url> <dir>` covers the AI's GUI testing: gui_action at a point of the 3D view (the lid

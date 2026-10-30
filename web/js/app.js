@@ -2709,6 +2709,8 @@ const chat = new ChatPanel($('tab-ai'), { toast,
     aiHistory.save(prompt, n);
   },
   onHistory: () => aiHistory.open(),
+  project: () => ({ id: autosave?.id || '', name: state.projectName || '' }), // (🕘 a conversation is kept with its project)
+  onShow: () => showChat(),
   onUndo: () => ({ model: modeler, assembly }[state.workspace]?.history || history).go(-1),
   canUndo: () => ({ model: modeler, assembly }[state.workspace]?.history || history).canUndo() });
 window.__chat = chat;
