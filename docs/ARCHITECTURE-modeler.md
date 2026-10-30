@@ -515,6 +515,11 @@ Date: 2026-10-25. Written by the architect agent.
   be offset as a whole even without the bite (no shell back; likely its 1 mm lip at the neck, gone at 2 mm), so it
   gets that issue — the AI's
   workaround (shell first, then the bite and a plug) stays the way. Tests: test_shell_after_a_side_bite.
+  **That test failed 1 full-suite run in 3**: MakeOffsetShape is not repeatable where a face vanishes t in (the
+  lip): the same body gave no shell or an invalid "inside" (155 000 mm³, where 2 mm in is 138 000), by where its
+  shapes lay in memory — a copy of the body flipped it, so the suite's earlier tests did too. The invalid inside was
+  cut out and passed `_thin_wall`. `_hollowed` now drops an inside BRepCheck finds invalid. Test:
+  test_shell_the_other_way_not_by_chance (the lip body copied 24 × never hollowed; the bitten cylinder always, alike).
 - **🎬 Demo "Pumpička" (2026-10-29)**: the AI's pump rebuilt as a stand-in (tools/make_demos.py pumpicka): a turned
   body (an inlet Ø4 with a 45° seat under a bore Ø20, see-through), a piston with a hollow rod and a 45° seat for the
   outlet ball (concentric in the bore, its turn locked, 6 mm stroke "Zmáčknutí tlačítka"), a 〰 spring Ø18/12 × 20 from

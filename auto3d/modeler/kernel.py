@@ -954,6 +954,7 @@ def _hollowed(body, faces, t, fid):
     intersections worked out) — opened at the flat faces: the inside moved t·1.5 out through each, kept within that
     face's slab t·1.5 deep. Inner walls named inner:k. None when that is no thin wall either (_thin_wall)."""
     from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeSolid
+    from OCP.BRepCheck import BRepCheck_Analyzer
     from OCP.BRepOffset import BRepOffset_Skin
     from OCP.BRepOffsetAPI import BRepOffsetAPI_MakeOffsetShape
     from OCP.GeomAbs import GeomAbs_Arc
@@ -971,6 +972,11 @@ def _hollowed(body, faces, t, fid):
         fix = ShapeFix_Solid(BRepBuilderAPI_MakeSolid(TopoDS.Shell(shells[0])).Solid())
         fix.Perform()
         inside = fix.Solid()
+        if not BRepCheck_Analyzer(inside).IsValid():
+            # an inside that is no valid solid is one OCCT got wrong (a face that vanishes t in: a lip thinner than the
+            # wall) — and it got it so by chance: the same body offset again gave nothing or that, by where its shapes
+            # lay in memory (the full test suite failed 1 run in 3). Never used, so a shell does not hang on luck
+            return None
         if volume(inside) < 0:
             inside = inside.Reversed()
         if not 0 < volume(inside) < volume(body.shape):

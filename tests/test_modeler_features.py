@@ -686,6 +686,40 @@ class TestFeatures(unittest.TestCase):
         _, v0 = vol(*lip, *bite)
         self.assertAlmostEqual(v, v0, delta=1e-6)
 
+    def test_shell_the_other_way_not_by_chance(self):
+        """🐛 test_shell_after_a_side_bite failed 1 full-suite run in 3: the lip body's inside (offset 2 mm in, its 1 mm
+        lip vanishing) came back from OpenCASCADE now empty, now as an invalid solid — by where the shapes lay in
+        memory: the same body copied gave either. The invalid one was cut out and taken. Now an inside that is no
+        valid solid is never used: the lip body, copied again and again, is never hollowed; the bitten cylinder always
+        is, to the same volume."""
+        from OCP.BRepBuilderAPI import BRepBuilderAPI_Copy
+        from auto3d.modeler import kernel as K
+
+        def turned(pts):
+            keys = [f"p{i + 1}" for i in range(len(pts))]
+            ents = [{"id": f"l{i + 1}", "t": "line", "a": keys[i], "b": keys[(i + 1) % len(pts)]} for i in range(len(pts))]
+            return [{"id": "F1", "type": "sketch", "plane": {"datum": "XZ"}, "points": dict(zip(keys, pts)), "entities": ents},
+                    {"id": "F2", "type": "revolve", "sketch": "F1", "axis": "y", "angle": 360, "op": "add"}]
+        bite = [{"id": "C1", "type": "sketch", "plane": {"datum": "YZ", "offset": 35}, "points": {"c": [0, 30]},
+                 "entities": [{"id": "k1", "t": "circle", "c": "c", "r": 10}]},
+                {"id": "F7", "type": "extrude", "sketch": "C1", "op": "cut", "d": 8}]
+
+        def hollowed(features, top):
+            st, _ = doc.evaluate(features)
+            faces = K.find_faces(st.body, [{"name": top, "fp": [0, 0, 60]}])
+            out = []
+            for _ in range(24):  # (a copy: the same body, its shapes elsewhere in memory)
+                cp = BRepBuilderAPI_Copy(st.body.shape)
+                body = K.Body(cp.Shape(), {n: [cp.ModifiedShape(f) for f in fs] for n, fs in st.body.names.items()})
+                h = K._hollowed(body, [cp.ModifiedShape(f) for f in faces], 2.0, "F3")
+                out.append(None if h is None else round(K.volume(h.shape), 3))
+            return out
+        lip = turned([[0, 0], [30, 0], [30, 57], [31, 57], [31, 59], [30, 59], [30, 60], [0, 60]])
+        self.assertEqual(hollowed([*lip, *bite], "F2:side:l7"), [None] * 24)
+        cyl = hollowed([*turned([[0, 0], [30, 0], [30, 60], [0, 60]]), *bite], "F2:side:l3")
+        self.assertEqual(len(set(cyl)), 1, cyl)
+        self.assertAlmostEqual(cyl[0], 26985, delta=1)
+
     def test_mirror(self):
         # the box (0..40 in x) mirrored across YZ: a copy at -40..0, joined -> twice the volume, 80 wide
         r, v = vol(*box(), {"id": "M1", "type": "mirror", "of": "body", "plane": {"datum": "YZ"}, "copy": True})
