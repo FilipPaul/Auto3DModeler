@@ -12,7 +12,10 @@
 //
 // The API (for the harness: 📎 Clip here on a point, ⛓ Route through an energy chain on a span):
 //   useLibrary({items, addPart})                      the library's items and how a part gets into the project (app.js)
-//   clipsFor(d, items?) -> [{item, size, dmin, dmax, kind, mount, label}]     the clips for a bundle Ø d, snug first
+//   clipsFor(d, items?) -> [{item, size, dmin, dmax, kind, mount, screw, label}] the clips for a bundle Ø d, snug first
+//   clipChoices(d, items?) -> every clip / tie mount / tie size, the ones that hold Ø d first, the rest with `why` not
+//   clipPlace(choice, point, normal, cableDir, {d}) -> {M, frames, size, axis}  where it would go (the preview's place)
+//   clipGeometry(item, size) -> Promise<{geo, edges}>                           its mesh, built by the kernel once
 //   placeClip(asm, choice, point, normal, cableDir, {d}) -> {inst, part, size, axis: {o, d} (world)}
 //   chainPath(chain, moving) -> {points, segs, length, lower, upper, travel, ok, fixed, moving, links, pointAt(s)}
 //   chainsFor(d, rMin) -> [{item, size, R, label, Bi, dmax}]   the chains a bundle of Ø d fits, the smallest first
@@ -20,6 +23,7 @@
 //   chainOf(item, size, R, links) -> the chain's numbers; travelRange(chain) -> {min, max}
 import * as THREE from 'three';
 import { evaluate, varsOf, sizesOf, lengthsOf, buildPart } from './build.js';
+import { fetchRebuild } from '../modeler/packed.js';
 
 const CLIP_KINDS = ['clip', 'tie mount'];
 let lib = { items: [], addPart: null };
@@ -69,11 +73,69 @@ export function clipsFor(d, items = lib.items) {
     for (const s of sizesOf(it)) {
       const r = cableRange(it, s.key);
       if (d < r.dmin - 1e-9 || d > r.dmax + 1e-9) continue;
-      out.push({ item: it, size: s.key, ...r, kind: it.kind, mount: it.mount?.kind || 'screw', label: buildPart(it, s.key).name });
+      out.push({ item: it, size: s.key, ...r, kind: it.kind, mount: it.mount?.kind || 'screw', screw: it.mount?.screw ? word(it.mount.screw, varsOf(it, s.key)) : null, label: buildPart(it, s.key).name });
       break; // (the sizes in order: the smallest that holds it)
     }
   }
   return out.sort((a, b) => (a.dmax - a.dmin) - (b.dmax - b.dmin) || (a.dmax - d) - (b.dmax - d));
+}
+
+/** Every size of every clip, tie mount and tie of the library for a bundle of Ø d (the 📎 pick list) -> [{item, size,
+ *  dmin, dmax, kind, mount, screw, label, fits, why: null | 'small' (dmax < d) | 'large' (dmin > d) | 'tie' (it goes
+ *  round the bundle on a tie mount: not put on a face by itself)}] — the ones that hold it first (snug first, as
+ *  clipsFor), then the others, each kind's sizes in their order. */
+export function clipChoices(d, items = lib.items) {
+  const fit = [], rest = [];
+  for (const it of items || []) {
+    if (![...CLIP_KINDS, 'tie'].includes(it.kind) || !it.cable) continue;
+    for (const s of sizesOf(it)) {
+      const r = cableRange(it, s.key), screw = it.mount?.screw ? word(it.mount.screw, varsOf(it, s.key)) : null;
+      const why = it.kind === 'tie' ? 'tie' : d > r.dmax + 1e-9 ? 'small' : d < r.dmin - 1e-9 ? 'large' : null;
+      (why ? rest : fit).push({ item: it, size: s.key, ...r, kind: it.kind, mount: it.mount?.kind || 'screw', screw, label: buildPart(it, s.key).name, fits: !why, why });
+    }
+  }
+  fit.sort((a, b) => (a.dmax - a.dmin) - (b.dmax - b.dmin) || (a.dmax - d) - (b.dmax - d));
+  return [...fit, ...rest];
+}
+
+/** A clip item of the library by its id (a placed clip's part: data.library.id). */
+export const clipItem = (id) => (lib.items || []).find((it) => it.id === id && CLIP_KINDS.includes(it.kind)) || null;
+
+/** Where a clip would go (nothing put in): choice {item, size} or an item (its size by opts.d) on `point` (a face with
+ *  the outward `normal`), the cable along `cableDir` -> {M (THREE.Matrix4), frames, size, axis: {o, d} (world) | null}. */
+export function clipPlace(choice, point, normal, cableDir, opts = {}) {
+  const item = choice.item || choice, size = choice.size || clipsFor(opts.d, [item])[0]?.size || sizesOf(item)[0]?.key;
+  const frames = clipFrames(item, size, opts.d), M = clipMatrix(frames, point, normal, cableDir);
+  const axis = frames.axis ? { o: new THREE.Vector3(...frames.axis.o).applyMatrix4(M).toArray(), d: new THREE.Vector3(...frames.axis.d).transformDirection(M).toArray() } : null;
+  return { M, frames, size, axis };
+}
+
+const GEOS = new Map(); // item id|size -> Promise<{geo, edges}> (each clip's mesh built once; a preview only moves it)
+const typed = (s, T) => { // (a binary answer's arrays come typed already; a JSON one as base64)
+  if (typeof s !== 'string') return s;
+  const bin = atob(s), bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new T(bytes.buffer);
+};
+
+/** 📎 A clip's mesh in its own coordinates (as a placed part's), built by the kernel once per item and size ->
+ *  Promise<{geo (triangles), edges (line segments)}>. A failed build is forgotten (tried again next time). */
+export function clipGeometry(item, size) {
+  const key = `${item.id}|${size}`;
+  if (!GEOS.has(key)) {
+    GEOS.set(key, (async () => {
+      const { res, r } = await fetchRebuild({ features: buildPart(item, size).data.features });
+      if (!res.ok || !r.body) throw new Error(r.error || 'No solid.');
+      const geo = new THREE.BufferGeometry(), seg = [];
+      geo.setAttribute('position', new THREE.BufferAttribute(typed(r.body.positions, Float32Array), 3));
+      geo.computeVertexNormals();
+      for (const { pts } of r.body.edges || []) for (let i = 0; i + 5 < pts.length; i += 3) seg.push(pts[i], pts[i + 1], pts[i + 2], pts[i + 3], pts[i + 4], pts[i + 5]);
+      const edges = new THREE.BufferGeometry();
+      edges.setAttribute('position', new THREE.Float32BufferAttribute(seg, 3));
+      return { geo, edges };
+    })().catch((e) => { GEOS.delete(key); throw e; }));
+  }
+  return GEOS.get(key);
 }
 
 /** Where a clip goes (its own frames -> the world): its mount point on `point`, its mount normal into the face
@@ -96,9 +158,8 @@ export function clipMatrix(frames, point, normal, cableDir) {
  *  `cableDir`. choice: {item, size} (from clipsFor) or an item (its size chosen by opts.d, the bundle Ø).
  *  -> {inst, part, size, axis: {o, d} (where the cable runs through it, in the world)}. */
 export async function placeClip(asm, choice, point, normal, cableDir, opts = {}) {
-  const item = choice.item || choice, size = choice.size || clipsFor(opts.d, [item])[0]?.size || sizesOf(item)[0]?.key;
   if (!lib.addPart) throw new Error('The library is not ready (useLibrary).');
-  const frames = clipFrames(item, size, opts.d), M = clipMatrix(frames, point, normal, cableDir);
+  const item = choice.item || choice, { M, size, axis } = clipPlace(choice, point, normal, cableDir, opts);
   const built = buildPart(item, size), pid = lib.addPart(built.name, built.data);
   const before = new Set(asm.doc.instances.map((i) => i.id));
   await asm.insert(pid);
@@ -108,7 +169,6 @@ export async function placeClip(asm, choice, point, normal, cableDir, opts = {})
   if (asm.doc.instances.length > 1) delete it.fixed; // (held where it is put; the first part of all stays fixed)
   asm.applyMates?.();
   asm.commit();
-  const axis = frames.axis ? { o: new THREE.Vector3(...frames.axis.o).applyMatrix4(M).toArray(), d: new THREE.Vector3(...frames.axis.d).transformDirection(M).toArray() } : null;
   return { inst: it.id, part: pid, size, axis };
 }
 

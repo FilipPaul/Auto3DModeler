@@ -446,7 +446,7 @@ try:
     n0 = pts_n()
     spot = next(s for s in ([120, 80, 10], [100, 90, 10], [150, 90, 10], [20, 10, 10], [80, 5, 10], [150, 60, 10]) if js(f"""
       const v = {A}.view, V = v.camera.position.constructor, [sx, sy] = v.toScreen(new V(...arguments[0])), h = v.ray(sx, sy).intersectObjects(v.meshes, false);
-      return h.length >= 2 && h[0].object.userData.inst === 'I1' && Math.abs(h[0].point.z - 10) < 1e-3 && h[1].object.userData.inst === 'I1' && Math.abs(h[1].point.z) < 1e-3;""", s))
+      return document.elementFromPoint(sx, sy) === v.renderer.domElement && h.length >= 2 && h[0].object.userData.inst === 'I1' && Math.abs(h[0].point.z - 10) < 1e-3 && h[1].object.userData.inst === 'I1' && Math.abs(h[1].point.z) < 1e-3;""", s))
     cv = d.find_element(By.CSS_SELECTOR, "#asmViewport canvas")
     ActionChains(d, duration=30).move_to_element_with_offset(cv, *offset(spot)).perform()
     time.sleep(0.3)
@@ -593,8 +593,69 @@ try:
     rows = table()
     clips = [x for x in rows if "Příchytka sem" in x]
     check("20. a point on a face chosen: 📎 Příchytka sem, the snuggest first (2–3 in the table)", 1 <= len(clips) <= 3 and js("return window.__cp.clipsFor(6)[0].label") in clips[0], rows)
-    js("for (const b of document.querySelectorAll('#asmViewport .view-suggest .vs-list button')) if (b.textContent.includes('Příchytka sem')) { b.click(); break; }")
+    # 📎 the preview: the mouse on a clip's row -> its ghost where it would go (the point on its axis, along the cable),
+    # a label (name, Ø, mounting); off the row -> gone
+    def ghost():
+        return js(f"""const g = {A}.view.scene.getObjectByName('clipGhost'), s = {T}.clips.shown;
+          return {{ n: g ? g.children.filter(o => !o.isCSS2DObject).length : 0, s, label: g ? (g.children.find(o => o.isCSS2DObject)?.element.textContent || '') : '' }};""")
+
+    def cable_dir():
+        """The cable's way at point 2 laid onto its face (as a clip takes it), and the point (world)."""
+        return js(f"""const h = {T}.get('{hid}'), P = h.points.map(p => window.__hnPoint(h, p)), n = {T}.clipPose(h, 1).n;
+          const d = P[2].clone().sub(P[0]); d.sub(n.clone().multiplyScalar(d.dot(n))).normalize(); return [d.toArray(), P[1].toArray(), n.toArray()];""")
+    row = next(b for b in d.find_elements(By.CSS_SELECTOR, "#asmViewport .view-suggest .vs-list button") if "Příchytka sem" in b.text)
+    ActionChains(d, duration=50).move_to_element(row).perform()
+    g = None
+    end = time.time() + 30
+    while time.time() < end and not (g := ghost())["s"]:
+        time.sleep(0.1)
+    cd, p1, nrm = cable_dir()
+    along = abs(sum(a * b for a, b in zip(g["s"]["axis"]["d"], cd))) if g and g["s"] else 0
+    on_face = abs(sum((a - b) * c for a, b, c in zip(g["s"]["matrix"][12:15], p1, nrm))) if g and g["s"] else 99  # (its mount point: the point's spot on the face)
+    near = math.dist(g["s"]["axis"]["o"], p1) if g and g["s"] else 99
+    ghost_m = g["s"]["matrix"] if g and g["s"] else None
+    check("20a. the mouse on 📎 Příchytka sem: a ghost of that clip at the point, along the cable", g and g["n"] >= 1 and along > 0.999 and near < 15 and abs(on_face - 3.5) < 1e-3 and g["s"]["key"] == "ht-hp-pclamp|H3P", [g, along, near, on_face])
+    check("…its label: the name, the cable Ø and the mounting", g and "H3P" in g["label"] and "Ø" in g["label"] and "šroub M4" in g["label"], g and g["label"])
+    d.save_screenshot(f"{OUT}/harness_12_clip_ghost.png")
+    ActionChains(d, duration=50).move_to_element_with_offset(d.find_element(By.CSS_SELECTOR, "#asmViewport canvas"), 300, -300).perform()
+    time.sleep(0.4)
+    g = ghost()
+    check("…the mouse off the row: the ghost gone", g["n"] == 0 and not g["s"], g)
+    # ⋯ Vybrat ze seznamu…: grouped, the fitting ones first, the too small ones greyed with why; a row previews, a click puts it
+    js("for (const b of document.querySelectorAll('#asmViewport .view-suggest .vs-list button')) if (b.textContent.includes('Vybrat ze seznamu')) { b.click(); break; }")
+    box = wait("return document.querySelector('#asmViewport .hn-clips')", 10)
+    lst = js("""return [...document.querySelectorAll('#asmViewport .hn-clips .hnc-list > *')].map(e => e.classList.contains('hnc-sec') ? ['sec', e.textContent]
+      : ['row', e.querySelector('.hnc-n').textContent.trim(), e.classList.contains('off'), e.querySelector('.hnc-m').textContent])""")
+    secs = [x[1] for x in lst if x[0] == "sec"]
+    groups, cur = {}, None
+    for x in lst:
+        if x[0] == "sec":
+            cur = x[1]
+            groups[cur] = []
+        else:
+            groups[cur].append(x)
+    first_ok = all(not any(not a[2] for a in g_[k + 1:] if b[2]) for g_ in groups.values() for k, b in enumerate(g_))
+    h1p = next((x for x in lst if x[0] == "row" and x[1].startswith("H1P")), None)
+    check("20b. ⋯ Vybrat ze seznamu: grouped (P-příchytky, podložky, pásky), the fitting ones first", secs == ["P-příchytky", "Podložky pro pásky", "Stahovací pásky"] and first_ok
+          and groups["P-příchytky"][0][1].startswith("H3P") and not groups["P-příchytky"][0][2], lst)
+    check("…the too small ones greyed: “Ø 3,2 max — malá”", h1p and h1p[2] and "Ø 3,2 max — malá" in h1p[3], h1p)
+    mb = d.find_element(By.XPATH, "//div[contains(@class,'hn-clips')]//button[contains(@class,'hnc-row')][.//span[@class='hnc-n' and starts-with(normalize-space(.),'MB3A')]]")
+    ActionChains(d, duration=50).move_to_element(mb).perform()
+    wait(f"return {T}.clips.shown?.key === 'ht-mb-mount|MB3A'", 30)
+    check("…a list row pointed at: its ghost", ghost()["n"] >= 1)
+    d.save_screenshot(f"{OUT}/harness_13_clip_list.png")
+    off = d.find_element(By.XPATH, "//div[contains(@class,'hn-clips')]//button[contains(@class,'off')][.//span[@class='hnc-n' and starts-with(normalize-space(.),'H1P')]]")
+    ActionChains(d, duration=50).move_to_element(off).click().perform()
+    time.sleep(0.4)
+    check("…a greyed row: no ghost, a click puts nothing in", not js(f"return {T}.get('{hid}').points[1].clip") and not js(f"return {T}.clips.shown") and js("return !!document.querySelector('#asmViewport .hn-clips')"))
+    h3p = d.find_element(By.XPATH, "//div[contains(@class,'hn-clips')]//button[contains(@class,'hnc-row')][.//span[@class='hnc-n' and starts-with(normalize-space(.),'H3P')]]")
+    ActionChains(d, duration=50).move_to_element(h3p).click().perform()
     cid = wait(f"return {T}.get('{hid}').points[1].clip", 30)
+    time.sleep(0.5)
+    placed = js(f"return {A}.inst('{cid}').matrix")
+    check("…put exactly where its ghost was", ghost_m and max(abs(a - b) for a, b in zip(placed, ghost_m)) < 1e-6, [placed, ghost_m])
+    check("…a list row clicked: that clip put in, the list and the ghost gone", js(f"return window.__app.project.parts.find(q => q.id === {A}.inst('{cid}').part).data.library.size") == "H3P"
+          and not js("return document.querySelector('#asmViewport .hn-clips')") and ghost()["n"] == 0)
     on_axis = js(f"""const a = {A}, h = {T}.get('{hid}'), p = h.points[1], it = a.inst(p.clip), lib = window.__app.project.parts.find(q => q.id === it.part).data.library;
       const item = window.__cp.clipsFor(6).find(c => c.item.id === lib.id).item, f = window.__cp.clipFrames(item, lib.size, window.__hn.outerD(h));
       const V = a.view.camera.position.constructor, M = new (a.view.camera.matrix.constructor)().fromArray(it.matrix), o = new V(...f.axis.o).applyMatrix4(M);
@@ -605,6 +666,27 @@ try:
     check("…the list shows 📎 and the clip's part", lst and "📎" in lst[1] and cid in lst[1], lst)
     f = json.loads(call("get_assembly"))["harnesses"][-1]
     check("…get_assembly: point 2 clip", f["point_list"][1].get("clip") == cid, f["point_list"][1])
+    # 🔁 swapped from the point's 📎 in the panel: the same list, the clip there ✓; another clicked -> the point kept, the
+    # clip replaced (the old one out), one undo step; undo -> the old one back
+    n_pts, n_undo = js(f"return {T}.get('{hid}').points.length"), js(f"return {A}.history.undo.length")
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-pclip='1']").click()
+    wait("return document.querySelector('#asmViewport .hn-clips')", 10)
+    head = js("return document.querySelector('#asmViewport .hn-clips .hnc-head b').textContent + ' | ' + (document.querySelector('#asmViewport .hn-clips .hnc-row.on')?.textContent || '')")
+    check("20c. the point's 📎 in the panel: “Vyměnit příchytku”, the clip there ✓", "Vyměnit příchytku" in head and "H3P" in head.split("|")[1], head)
+    mb = d.find_element(By.XPATH, "//div[contains(@class,'hn-clips')]//button[contains(@class,'hnc-row')][.//span[@class='hnc-n' and starts-with(normalize-space(.),'MB3A')]]")
+    ActionChains(d, duration=50).move_to_element(mb).click().perform()
+    wait(f"return {T}.get('{hid}').points[1].clip !== '{cid}'", 30)
+    time.sleep(0.5)
+    nid = js(f"return {T}.get('{hid}').points[1].clip")
+    gap = js(f"""const a = {A}, h = {T}.get('{hid}'), p = h.points[1], it = a.inst(p.clip), lib = window.__app.project.parts.find(q => q.id === it.part).data.library;
+      const f = window.__cp.clipFrames(window.__cp.clipChoices(6).find(c => c.item.id === lib.id).item, lib.size, 6);
+      const V = a.view.camera.position.constructor, M = new (a.view.camera.matrix.constructor)().fromArray(it.matrix);
+      return [window.__hnPoint(h, p).distanceTo(new V(...f.axis.o).applyMatrix4(M)), lib.size];""")
+    check("…swapped: the point kept (on the MB3A's axis), the H3P out, one undo step", nid and js(f"return {T}.get('{hid}').points.length") == n_pts and gap[1] == "MB3A" and gap[0] < 1e-3
+          and not js(f"return !!{A}.inst('{cid}')") and js(f"return {A}.history.undo.length") == n_undo + 1, [nid, gap, js(f"return {A}.history.undo.length"), n_undo])
+    js(f"{A}.history.go(-1)")
+    time.sleep(0.6)
+    check("…undo: the H3P back on the point, the MB3A gone", js(f"const h = {T}.get('{hid}'); return h.points[1].clip === '{cid}' && !!{A}.inst('{cid}') && !{A}.inst('{nid}')"))
     d.find_element(By.CSS_SELECTOR, "#asmRight [data-pdel='1']").click()
     time.sleep(0.5)
     orphan = d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-orphan")

@@ -113,6 +113,23 @@ class TestClipData(unittest.TestCase):
         self.assertEqual(C.clips_for(its, 60.0), [])
         self.assertEqual(C.clips_for(its, 0), [])
 
+    def test_clip_choices(self):
+        """The 📎 pick list for Ø6: the ones that hold it first (the snug P-clamp, then the tie mounts), then every other
+        size with its reason — the smaller P-clamps too small, the larger ones too loose, the ties only on a mount."""
+        its = items()
+        got = C.clip_choices(its, 6.0)
+        fit = [(c["item"], c["size"]) for c in got if c["fits"]]
+        self.assertEqual(fit[0], ("ht-hp-pclamp", "H3P"))
+        self.assertEqual(fit[:2], [(c["item"], c["size"]) for c in C.clips_for(its, 6.0)][:2])
+        self.assertTrue(all(c["fits"] for c in got[:len(fit)]) and not any(c["fits"] for c in got[len(fit):]))  # (the fitting first)
+        self.assertEqual(len(got), sum(len(it["sizes"]) for it in its if it["kind"] in ("clip", "tie mount", "tie")))
+        why = {c["size"]: c["why"] for c in got}
+        self.assertEqual((why["H1P"], why["H2P"], why["H4P"], why["T18R"]), ("small", "small", "large", "tie"))
+        small = next(c for c in got if c["size"] == "H1P")
+        self.assertLess(small["dmax"], 6.0)
+        self.assertTrue(all(c["dmin"] - 1e-9 <= 6.0 <= c["dmax"] + 1e-9 for c in got if c["fits"]))
+        self.assertTrue(all(c["why"] for c in C.clip_choices(its, 60.0)))  # (nothing holds Ø60)
+
     def test_pairs(self):
         its = {it["id"]: it for it in L.load(APP, Path("/nonexistent"))["items"]}
         screw = next(p for p in its["ht-hp-pclamp"]["pairs"] if p["role"] == "screw")

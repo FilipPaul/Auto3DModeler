@@ -1227,10 +1227,16 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   points staying where they are. This is worked out a moment after a change (while you drag, the cable follows at
   once and settles round the parts when you stop). Where it cannot get clear, a small *⚠ kabel koliduje s Blok I6*
   sits at the spot. A span with its own length that needs a detour loses that length (the AI is told).
-  **📎 Clip here**: choose a point lying on a face (click it, or 📎 in its row) and the suggestions offer the clips of
-  the library that hold the bundle, the snuggest first (the rest under *Ukázat vše*); the clip goes on the face along
+  **📎 Clip here**: choose a point lying on a face (click it) and the suggestions offer the clips of
+  the library that hold the bundle, the snuggest first (the rest under *Ukázat vše*); pointing at a row (or moving
+  through the rows with the keyboard) shows a see-through yellow ghost of that clip where it would go, with a small
+  label — *H3P P-clamp · Ø 5–6,5 mm · šroub M4*. The clip goes on the face along
   the cable, 🔗 fixed to the part it was put on (on a carriage or an arm it goes along), and the point moves onto the
-  clip's axis, locked to it — one step, one Ctrl+Z. Deleting the clip takes its joint with it. Deleting the point leaves the clip with *✕ Odebrat
+  clip's axis, locked to it — one step, one Ctrl+Z. *⋯ Vybrat ze seznamu…* (or 📎 in the point's row) opens a compact
+  list of every clip, tie mount and tie, grouped by type: the ones that hold the bundle first (Ø range, how it is
+  fixed), the others greyed with why (*Ø 3,2 max — malá*); point at a row to preview it, click to put it in; *☐ Pro
+  všechny body na plochách* puts the same clip on every point on a face that has none yet (one Ctrl+Z). On a point
+  that has a clip the same list (*📎 Vyměnit příchytku…*) swaps it for another, the point kept — one step. Deleting the clip takes its joint with it. Deleting the point leaves the clip with *✕ Odebrat
   i ji* in the panel. **⛓ Route through an energy chain**: choose a span (the length between two rows, or the cable
   clicked again) and pick a chain of the assembly, or one from the library sized for the bundle (its opening ≥ Ø + 2,
   its bend ≥ the minimum radius) — put in at the span's first point, its fixed end 🔗 fixed to that point's part. The

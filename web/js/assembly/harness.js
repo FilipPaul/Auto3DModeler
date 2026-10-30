@@ -23,8 +23,9 @@
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/CSS2DRenderer.js';
 import { t, getLang } from '../i18n.js';
-import { clipsFor, placeClip, chainsFor, placeChain } from '../library/cableparts.js';
+import { clipsFor, clipChoices, clipFrames, clipItem, placeClip, chainsFor, placeChain } from '../library/cableparts.js';
 import { chainRoute, chainOf as chainRec, addChain, drawChains } from './chains.js';
+import { ClipPick } from './clippick.js';
 
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -742,6 +743,7 @@ export class HarnessTool {
     this.spanEdit = null; // the span whose length is being typed
     this.altDepth = 0; // Alt + click: how many faces behind the front one (again at the same spot: one further)
     this.adopted = new WeakSet(); // the harnesses whose points in space were looked at: one lying on a face is locked to it
+    this.clips = new ClipPick(this); // 📎 a clip's ghost where it would go, the pick list
     asm.els.viewport.addEventListener('pointerleave', () => { if (this.hover) { this.hover = null; this.drawNow(); } }); // (no preview with the mouse elsewhere)
     asm.els.viewport.addEventListener('pointerdown', (e) => this.down(e), true); // (before the part's drag and the view's turning)
   }
@@ -827,22 +829,62 @@ export class HarnessTool {
     try { this.asm.fixTogether(inst, host); } catch { /* (held where it is put) */ }
   }
 
+  /** 📎 Where a clip on point i of harness h goes -> {face (the point on the face, world), n (its outward normal), dir
+   *  (the cable's way there: from the point before to the one after, or null), D (the bundle's Ø), host (the part it is
+   *  fixed to), old / current (a point with a clip already: that clip I… and its {item, size} — it is swapped)} or null
+   *  (a point in space or in a hole: no clip there). */
+  clipPose(h, i) {
+    const a = this.asm, p = h.points?.[i], D = outerD(h);
+    if (!p?.inst) return null;
+    const pts = h.points.map((q) => pointAt(a, h, q)), w = pts[i];
+    if (!w) return null;
+    const dir = (pts[i + 1] || w).clone().sub(pts[i - 1] || w), out = { D, dir: dir.lengthSq() > 1e-9 ? dir : null };
+    if (p.clip) { // (its mounting face and normal from the clip that is there)
+      const it = a.inst(p.clip), lib = it && a.hooks.partData(it.part)?.library, item = lib && clipItem(lib.id);
+      if (!item) return null;
+      const f = clipFrames(item, lib.size, D), M = new THREE.Matrix4().fromArray(it.matrix);
+      return { ...out, face: V(f.mount.o || [0, 0, 0]).applyMatrix4(M), n: V(f.mount.n || [0, 0, -1]).transformDirection(M).negate(),
+        host: (a.doc.mates || []).find((m) => m.move === p.clip && m.type === 'rigid')?.onto || null, old: p.clip, current: { item: lib.id, size: lib.size } };
+    }
+    if (!p.n) return null;
+    const n = normalAt(a, p);
+    return { ...out, face: w.clone().addScaledVector(n, -lift(h)), n, host: this.hostOf(p) };
+  }
+
   /** 📎 A clip on point i of harness h (it lies on a part's face): choice (clipsFor's; default the snuggest for its
    *  bundle) placed there with the cable along its way, 🔗 fixed to that part (it goes with it), the point then on the
-   *  clip's axis, locked to the clip — one undo step. -> the clip's placed part (I…). */
+   *  clip's axis, locked to the clip — one undo step. A point with a clip already: that one swapped for it (taken out),
+   *  the point kept. -> the clip's placed part (I…). */
   async clipAt(h, i, choice = null) {
-    const a = this.asm, p = h.points?.[i];
-    if (!p?.inst || !p.n) throw new Error(t('A clip goes on a point lying on a part\'s face.'));
-    const D = outerD(h), c = choice || clipsFor(D)[0];
-    if (!c) throw new Error(t2('No clip in the library holds a bundle of Ø{d} mm.', { d: num(D) }));
-    const pts = h.points.map((q) => pointAt(a, h, q)), w = pts[i], n = normalAt(a, p), face = w.clone().addScaledVector(n, -lift(h));
-    const dir = (pts[i + 1] || w).clone().sub(pts[i - 1] || w);
-    const mark = a.history.mark(), r = await placeClip(a, c, face, n, dir.lengthSq() > 1e-9 ? dir : null, { d: D });
-    this.fixOn(r.inst, this.hostOf(p));
-    const o = r.axis ? V(r.axis.o) : face;
+    const a = this.asm, pose = this.clipPose(h, i);
+    if (!pose) throw new Error(t('A clip goes on a point lying on a part\'s face.'));
+    const c = choice || clipsFor(pose.D)[0];
+    if (!c) throw new Error(t2('No clip in the library holds a bundle of Ø{d} mm.', { d: num(pose.D) }));
+    this.clips.close();
+    const mark = a.history.mark(), r = await placeClip(a, c, pose.face, pose.n, pose.dir, { d: pose.D });
+    this.fixOn(r.inst, pose.host);
+    const o = r.axis ? V(r.axis.o) : pose.face;
     this.editPts(h, (P) => { P[i] = { inst: r.inst, at: localOf(a, r.inst, o), clip: r.inst }; });
+    if (pose.old && a.inst(pose.old) && !h.points.some((q) => q.clip === pose.old)) { // (🔁 swapped: the old clip goes)
+      this.orphans = (this.orphans || []).filter((x) => x !== pose.old);
+      a.removeInst(pose.old);
+    }
     a.history.squash(mark);
     return r.inst;
+  }
+
+  /** 📎 The same clip on every point of harness h that lies on a face and has none yet — one undo step -> how many. */
+  async clipAll(h, choice) {
+    const a = this.asm, mark = a.history.mark();
+    let n = 0;
+    for (let i = 0; i < (h.points || []).length; i++) {
+      const p = h.points[i];
+      if (!p.inst || !p.n || p.clip) continue;
+      await this.clipAt(h, i, choice);
+      n++;
+    }
+    a.history.squash(mark);
+    return n;
   }
 
   /** ⛓ Span k of harness h routed through chain `id` (C… or its first link I…); none given: one from the library put in,
@@ -1097,6 +1139,7 @@ export class HarnessTool {
       return e.key === 'Delete';
     }
     if (!this.sel) return false;
+    if (e.key === 'Escape' && this.clips.box) { this.clips.close(); return true; } // (📎 the pick list first)
     if (e.key === 'Escape') { this.sel = null; this.pt = null; this.asm.render(); this.asm.draw(); return true; }
     if (e.key === 'Delete') {
       const h = this.get(this.sel);
@@ -1363,7 +1406,7 @@ export class HarnessTool {
       return `<div class="hn-pt ${i === this.pt ? 'on' : ''}" data-pt="${i}">
         <div class="hn-pt1"><b>${i + 1}</b><span class="hn-pw" data-no-i18n title="${esc(where)}">${esc(where)}</span>
           ${on?.inst ? `<button class="mini hn-plock ${p.inst ? 'on' : ''}" data-plock="${i}" title="${esc(t(p.inst ? 'Locked on its part: it moves with it — click: it stays in space' : 'Stays in space — click: lock it on its part, it moves with it'))}">${p.inst ? '🔒' : '🔓'}</button>` : ''}
-          ${p.inst && p.n && !p.clip ? `<button class="mini" data-pclip="${i}" title="${esc(t('📎 A clip here: the snuggest for the bundle, along the cable — the point then on its axis'))}">📎</button>` : ''}
+          ${p.inst && (p.n || p.clip) ? `<button class="mini${p.clip ? ' on' : ''}" data-pclip="${i}" title="${esc(t(p.clip ? '📎 Swap the clip: pick another from the list — the point stays' : '📎 A clip here: pick one from the list (point at a row: preview) — the point then on its axis'))}">📎</button>` : ''}
           <button class="mini" data-pmove="${i}:-1" ${i ? '' : 'disabled'} title="${esc(t('Earlier'))}">↑</button><button class="mini" data-pmove="${i}:1" ${i < n - 1 ? '' : 'disabled'} title="${esc(t('Later'))}">↓</button><button class="mini danger" data-pdel="${i}" title="${esc(t('Delete the point'))}">✕</button></div>
         <div class="hn-pt2">${xyz}</div></div>`;
     };
@@ -1385,7 +1428,7 @@ export class HarnessTool {
       el.addEventListener('pointerenter', () => { this.hl = +el.dataset.pt; this.draw(); });
       el.addEventListener('pointerleave', () => { if (this.hl === +el.dataset.pt) { this.hl = null; this.draw(); } });
     }
-    for (const b of box.querySelectorAll('[data-pclip]')) b.addEventListener('click', () => this.clipAt(h, +b.dataset.pclip).catch((e) => this.asm.hooks.toast(e.message, 'warning', 6000)));
+    for (const b of box.querySelectorAll('[data-pclip]')) b.addEventListener('click', () => { this.pt = +b.dataset.pclip; this.asm.render(); this.asm.draw(); this.clips.open(h, this.pt); }); // (📎 the pick list)
     for (const b of box.querySelectorAll('[data-snochain]')) b.addEventListener('click', () => this.setSpanChain(h.id, +b.dataset.snochain, null));
     for (const b of box.querySelectorAll('[data-rmclip]')) b.addEventListener('click', () => { this.orphans = (this.orphans || []).filter((c) => c !== b.dataset.rmclip); this.asm.removeInst(b.dataset.rmclip); });
     for (const b of box.querySelectorAll('[data-sloop]')) b.addEventListener('click', () => { this.span = +b.dataset.sloop; this.spanEdit = this.span; this.asm.render(); this.asm.draw(); this.asm.$('#asmRight input[data-slen]')?.focus(); });
@@ -1489,6 +1532,7 @@ export class HarnessTool {
   /** The Suggested table while a harness is edited or chosen -> shown? */
   suggest(vp, show) {
     const h = this.get(this.edit || this.sel);
+    if (this.clips.at && (this.clips.at.h !== h?.id || this.clips.at.i !== this.pt)) this.clips.close(); // (📎 its list: for the point chosen only)
     if (!h) return false;
     if (this.edit) {
       show(vp, `🔌 ${nameOf(h)}`, [
@@ -1517,13 +1561,18 @@ export class HarnessTool {
   }
 
   /** 📎 Clip here (the chosen point, lying on a part's face): the clips for its bundle, the snuggest first — two or
-   *  three in the table, the rest under Show all. -> [suggestions]. */
+   *  three in the table, the rest under Show all —, each previewed in the view while pointed at, and ⋯ Choose from the
+   *  list; a point with a clip: 📎 Swap the clip (the list). -> [suggestions]. */
   clipItems(h) {
     const i = this.pt, p = i !== null ? h.points?.[i] : null;
-    if (!p?.inst || !p.n || p.clip) return [];
-    const err = (e) => this.asm.hooks.toast(e.message, 'warning', 6000);
-    return clipsFor(outerD(h)).map((c, k) => ({ icon: '📎', label: `${t('Clip here')}: ${c.label}`, rank: k < 3 ? 0.4 + k * 0.05 : 20 + k,
-      title: t2('Holds Ø{a}–{b} mm — put on the face at point {n}, the cable along it; the point then on its axis', { a: num(c.dmin), b: num(c.dmax), n: i + 1 }), run: () => this.clipAt(h, i, c).catch(err) }));
+    if (!p?.inst || !(p.n || p.clip)) return [];
+    const err = (e) => this.asm.hooks.toast(e.message, 'warning', 6000), list = () => this.clips.open(h, i);
+    if (p.clip) return [{ icon: '📎', label: t('Swap the clip…'), rank: 0.45, title: t('Pick another clip from the list (point at a row: preview) — the point stays'), run: list }];
+    const fit = clipsFor(outerD(h));
+    return [...fit.map((c, k) => ({ icon: '📎', label: `${t('Clip here')}: ${c.label}`, rank: k < 3 ? 0.4 + k * 0.05 : 20 + k,
+      title: t2('Holds Ø{a}–{b} mm — put on the face at point {n}, the cable along it; the point then on its axis', { a: num(c.dmin), b: num(c.dmax), n: i + 1 }),
+      hover: (on) => (on ? this.clips.ghost(h, i, c) : this.clips.hide()), run: () => this.clipAt(h, i, c).catch(err) })),
+    ...(clipChoices(outerD(h)).length ? [{ icon: '⋯', label: t('Choose from the list…'), rank: 0.56, title: t('Every clip, tie mount and tie — the ones that hold the bundle first; point at a row: preview'), run: list }] : [])];
   }
 
   /** ⛓ Route through an energy chain (the chosen span): each chain of the assembly, or one from the library sized for
@@ -1683,7 +1732,7 @@ export function harnessHandlers(asm) {
       asm.harnessTool.sel = h.id;
       asm.commit();
       if (a.clip) { // 📎 {point: number, item?, size?}: a clip there (the snuggest for its bundle)
-        const i = +a.clip.point - 1, c = a.clip.item ? clipsFor(outerD(h)).find((x) => x.item.id === a.clip.item && (!a.clip.size || x.size === a.clip.size)) : null;
+        const i = +a.clip.point - 1, c = a.clip.item ? (a.clip.size ? clipChoices(outerD(h)).filter((x) => x.fits) : clipsFor(outerD(h))).find((x) => x.item.id === a.clip.item && (!a.clip.size || x.size === a.clip.size)) : null;
         if (a.clip.item && !c) throw new Error(`clip: “${a.clip.item}” does not hold a bundle of Ø${num(outerD(h))} mm — clipsFor lists: ${clipsFor(outerD(h)).map((x) => `${x.item.id} ${x.size}`).join(', ')}.`);
         await asm.harnessTool.clipAt(h, i, c);
       }

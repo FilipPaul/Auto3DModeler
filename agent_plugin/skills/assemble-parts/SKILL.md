@@ -131,7 +131,8 @@ seated in its receptacle, its stroke as its slide's limits), joined Concentric.
    itself (its ends leave their faces straight out, a span goes round a part in its way): `detour_points` says how
    many it put in, `still_hits` names parts it could not get clear of — add a point to lead it round those.
    Fix it down with a clip: `edit_harness {id, clip: {point: 3}}` (a point on a face; the snuggest clip for its Ø, the
-   point then on the clip's axis; the clip is 🔗 fixed to that part, so it moves with a carriage or an arm). Through
+   point then on the clip's axis; the clip is 🔗 fixed to that part, so it moves with a carriage or an arm; `item` /
+   `size` pick one — any size that holds the bundle; on a point that has a clip it is swapped, the point kept). Through
    an energy chain: `edit_harness {id, chain: {span: 2, id: "C1"}}` (no id:
    one sized for the bundle is put in) — the cable then follows the chain's moving end. The chain itself (library_add
    an e-chain: its first link at the fixed end — join it to the frame; one put in by edit_harness chain is joined for you): `edit_chain {id: "C1", links, travel, moves_with:
