@@ -15,7 +15,7 @@
 //   Assembly JSON: "mechs": [{"parts": ["I2", "I3", …], "name": "the user's", "drive": {"part": "I3", "key": "J3:turn"},
 //   "speed": 2}] — found again by the parts they share; a free motion's own name: an instance's
 //   "moveNames": {"J3:turn": "crank"} (Assembly.nameMotion; shown wherever the motion is).
-import { t } from '../i18n.js';
+import { t, getLang } from '../i18n.js';
 import { renameInPlace } from '../rename.js';
 import { leftDock } from '../leftdock.js';
 import { missingJoint } from './missing.js';
@@ -54,6 +54,14 @@ export function mechanisms(asm) {
     out = [...out.filter((m) => !m.parts.some((x) => taken.has(x))), ...deep];
   }
   return out.map((m, k) => ({ ...m, id: `M${k + 1}` }));
+}
+
+/** What the mechanisms (and the missing joint) are found from: the placed parts (where they are, their limits), the
+ *  joints, couplings, loops, the parts' bodies and names — the same key: the same mechanisms. */
+function foundKey(asm) {
+  return JSON.stringify([asm.doc.instances, asm.doc.mates || null, asm.doc.couplings || null, asm.doc.mechs || null, asm.doc.springs || null,
+    (asm.loops || []).map((l) => [l.id, l.parts, l.closed, l.stopped]), Object.entries(asm.bodies || {}).map(([k, b]) => [k, b?.key]),
+    asm.hooks.parts().map((p) => [p.id, p.name]), getLang()]);
 }
 
 /** The engine a mechanism moves in: with parts inside a sub-assembly, the assembly's flat one (Assembly.flatAsm). */
@@ -208,8 +216,14 @@ export class MechanismPanel {
 
   /** The mechanisms found again and the widget drawn (or hidden: none, or closed). */
   render() {
-    try { this.list = this.asm.active === false ? [] : mechanisms(this.asm); } catch { this.list = []; }
-    if (!this.playing) try { this.missing = this.asm.active === false ? null : missingJoint(this.asm); } catch { this.missing = null; } // (▶: the joints stay as they are)
+    // found again only when the assembly changed (a part chosen redraws everything: 500 parts' motions were worked out
+    // on every click)
+    const key = this.asm.active === false || this.playing ? null : foundKey(this.asm);
+    if (key === null || key !== this.found) {
+      try { this.list = this.asm.active === false ? [] : mechanisms(this.asm); } catch { this.list = []; }
+      if (!this.playing) try { this.missing = this.asm.active === false ? null : missingJoint(this.asm); } catch { this.missing = null; } // (▶: the joints stay as they are)
+      this.found = key;
+    }
     if (!this.missing && this.asm.hoverMissing) { this.asm.hoverMissing = null; this.asm.drawMarks(); }
     if (this.playing && !this.list.some((m) => m.key === this.playing.key)) this.stop(false);
     for (const id of this.warned) if (!(this.asm.doc.mates || []).some((j) => j.id === id && j.broken)) this.warned.delete(id); // (fixed: broken again later, said again)

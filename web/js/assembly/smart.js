@@ -3,19 +3,32 @@
 // the fixed part (its underside onto it). Plain geometry over the assembly's bodies, no UI (assembly.js shows them).
 import { isPin } from './missing.js';
 
-/** A placed part's round faces not used by a concentric joint yet: [{inst, name, face (world), d, pin}]. */
-export function freeRounds(asm, it) {
-  const body = asm.bodyOf(it)?.body;
-  if (!body?.faces || it.fastener) return [];
-  const used = new Set((asm.doc.mates || []).filter((m) => m.type === 'axis').flatMap((m) => [`${m.move}|${m.face}`, `${m.onto}|${m.ontoFace}`]));
+/** A body's round faces with an axis, once per body (kept on it): [{name, d, pin}] — pin null (neither) left out. */
+function roundsOf(body) {
+  if (body._rounds) return body._rounds;
   const out = [];
   for (const name of new Set(body.faces.filter((f) => f.type === 'cylinder' && f.radius && f.axis).map((f) => f.name))) {
-    if (used.has(`${it.id}|${name}`)) continue;
     const pin = isPin(body, name);
-    if (pin === null) continue;
+    if (pin !== null) out.push({ name, d: 2 * body.faces.find((f) => f.name === name && f.radius).radius, pin });
+  }
+  return (body._rounds = out);
+}
+
+/** The round faces used by concentric joints: a set of "inst|face". */
+const usedRounds = (asm) => new Set((asm.doc.mates || []).filter((m) => m.type === 'axis').flatMap((m) => [`${m.move}|${m.face}`, `${m.onto}|${m.ontoFace}`]));
+
+/** A placed part's round faces not used by a concentric joint yet: [{inst, name, face (world), d, pin}]. used: the
+ *  used ones (usedRounds), when known; want(d, pin): only those (its world face is the costly part — a base plate
+ *  with 160 holes, 500 placed parts). */
+export function freeRounds(asm, it, used = usedRounds(asm), want = null) {
+  const body = asm.bodyOf(it)?.body;
+  if (!body?.faces || it.fastener) return [];
+  const out = [];
+  for (const r of roundsOf(body)) {
+    if (used.has(`${it.id}|${r.name}`) || (want && !want(r.d, r.pin))) continue;
     let face;
-    try { face = asm.worldFace(it.id, name); } catch { continue; }
-    out.push({ inst: it.id, name, face, d: 2 * face.radius, pin });
+    try { face = asm.worldFace(it.id, r.name); } catch { continue; }
+    out.push({ inst: it.id, name: r.name, face, d: 2 * face.radius, pin: r.pin });
   }
   return out;
 }
@@ -29,13 +42,14 @@ const fits = (p, h) => p <= h + 1e-3 && h - p <= 0.6;
 export function pinFits(asm, id, max = 2) {
   const a = asm.inst(id);
   if (!a || a.fastener) return [];
-  const mine = freeRounds(asm, a);
+  const used = usedRounds(asm), mine = freeRounds(asm, a, used);
   if (!mine.length) return [];
-  const joined = (x) => (asm.doc.mates || []).some((m) => m.move === x);
+  const moving = new Set((asm.doc.mates || []).map((m) => m.move)), joined = (x) => moving.has(x);
+  const fitsMine = (d, pin) => mine.some((p) => p.pin !== pin && fits(p.pin ? p.d : d, p.pin ? d : p.d)); // (by Ø first: only those placed)
   const best = new Map();
   for (const b of asm.doc.instances) {
     if (b.id === id || b.fastener) continue;
-    for (const q of freeRounds(asm, b)) {
+    for (const q of freeRounds(asm, b, used, fitsMine)) {
       for (const p of mine) {
         if (p.pin === q.pin || !fits(p.pin ? p.d : q.d, p.pin ? q.d : p.d)) continue;
         const apart = p.face.axis.o.distanceTo(q.face.axis.o);

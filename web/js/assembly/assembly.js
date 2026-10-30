@@ -28,7 +28,7 @@
 //   (library/pairs.js: a screw's nut / washers, a probe in its receptacle)
 import * as THREE from 'three';
 import { History } from '../history.js';
-import { t } from '../i18n.js';
+import { t, getLang } from '../i18n.js';
 import { toolGroup } from '../toolgroups.js';
 import { fitBar } from '../compactbar.js';
 import { renameInPlace } from '../rename.js';
@@ -280,7 +280,7 @@ class AsmView extends ModelView {
    *  the face — with that face (world) and the part: {point, corner, face, inst} or null. */
   measurePoint(clientX, clientY, px = 10) {
     const h = this.pickInst(clientX, clientY), r = this.renderer.domElement.getBoundingClientRect();
-    const s = snapNear(this.shown().map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), this.camera, r, clientX, clientY, px, snapKinds(), (p) => this.sees(p));
+    const s = snapNear(this.nearMouse(clientX, clientY, px, r).map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), this.camera, r, clientX, clientY, px, snapKinds(), (p) => this.sees(p));
     if (!s && !h?.point) return null;
     return { point: s ? s.point : h.point.clone(), corner: s?.kind === 'corner', snap: s?.kind || null, face: s ? null : h?.face || null, inst: s ? s.inst : h.inst };
   }
@@ -292,7 +292,7 @@ class AsmView extends ModelView {
     const r = this.renderer.domElement.getBoundingClientRect(), v = new THREE.Vector3();
     const screen = (x, y, z, m) => { v.set(x, y, z).applyMatrix4(m).project(this.camera); return [(v.x + 1) / 2 * r.width + r.left, (1 - v.y) / 2 * r.height + r.top, v.z]; };
     const near = []; // (each round edge's nearest spot to the mouse: the nearest one in sight wins)
-    for (const mesh of this.shown()) {
+    for (const mesh of this.nearMouse(clientX, clientY, px, r)) {
       const { inst, body } = mesh.userData, m = mesh.matrix;
       for (const e of body.edges || []) {
         const cyl = (e.faces || []).map((i) => body.faces[i]).find((f) => f?.type === 'cylinder');
@@ -315,6 +315,24 @@ class AsmView extends ModelView {
     const nm = new THREE.Matrix3().getNormalMatrix(best.m);
     return { inst: best.inst, px: best.px, face: { ...best.cyl, centroid: new THREE.Vector3(...best.cyl.centroid).applyMatrix4(best.m),
       normal: best.cyl.normal ? new THREE.Vector3(...best.cyl.normal).applyMatrix3(nm).normalize() : null }, edge: true };
+  }
+
+  /** The shown parts that come within px of the mouse on the screen (their bounding spheres): what a snap or an edge
+   *  under the mouse can be on — the others' edges are not projected (500 placed parts: every click and hover). */
+  nearMouse(clientX, clientY, px, r = this.renderer.domElement.getBoundingClientRect()) {
+    const out = [], v = new THREE.Vector3(), s = new THREE.Sphere(), cam = this.camera;
+    cam.updateMatrixWorld();
+    const f = r.height / 2 / Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2); // (px per unit at distance 1)
+    for (const m of this.shown()) {
+      if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
+      s.copy(m.geometry.boundingSphere).applyMatrix4(m.matrix);
+      const depth = -v.copy(s.center).applyMatrix4(cam.matrixWorldInverse).z;
+      if (depth <= s.radius * 1.01) { out.push(m); continue; } // (the camera inside or at it: kept)
+      v.copy(s.center).project(cam);
+      const x = r.left + (v.x + 1) / 2 * r.width, y = r.top + (1 - v.y) / 2 * r.height;
+      if (Math.hypot(x - clientX, y - clientY) <= (s.radius * f) / (depth - s.radius) + px) out.push(m);
+    }
+    return out;
   }
 
   /** A point (world) in sight: no part's surface on the line of sight before it (a hole's rim or centre inside a thin
@@ -899,7 +917,16 @@ export class Assembly {
     return [{ id: 'Q1', type: 'solid', name: p.name, step: btoa(bin) }];
   }
   partName(id) { return this.hooks.parts().find((p) => p.id === id)?.name || id; }
-  inst(id) { return this.doc.instances.find((i) => i.id === id); }
+  inst(id) { // (by an index of the ids, checked on each use: the list is changed in many places — made again when it is off)
+    if (id === null || id === undefined) return undefined;
+    const list = this.doc.instances;
+    if (this.instAt?.list !== list || this.instAt.map.size !== list.length) this.instAt = { list, map: new Map(list.map((it, i) => [it.id, i])) };
+    const k = this.instAt.map.get(id);
+    if (k !== undefined && list[k]?.id === id) return list[k];
+    const it = list.find((i) => i.id === id); // (not in the index: none, or the list was changed in place — then made again)
+    if (it || k !== undefined) this.instAt = null;
+    return it;
+  }
 
   /** A placed part's body: a sub-assembly whose parts were moved inside it (its `inner`) has its own. */
   bodyOf(it) { return (it?.inner && this.bodies[this.bodyKey(it)]) || this.bodies[it?.part]; }
@@ -1012,8 +1039,12 @@ export class Assembly {
   renderList() {
     const list = this.$('.as-list'), open = this.openPaths();
     this.$('.as-start').hidden = this.doc.instances.length > 0;
-    list.innerHTML = '';
     list.classList.toggle('exploding', this.explode > 0);
+    // a part chosen changes only which rows are lit: the rows are kept (500 placed parts: made anew, 25 ms and a layout)
+    const key = this.doc.harnesses?.length ? null : this.listKey(open); // (🔌 a harness's row shows its length: always anew)
+    if (key && key === this.listWas && list.isConnected && list.childElementCount) { this.litRows(list); displayNote(this, this.$('.as-vis')); return; }
+    this.listWas = key;
+    list.innerHTML = '';
     for (const it of this.doc.instances) {
       const b = this.bodies[it.part];
       const row = document.createElement('div');
@@ -1034,7 +1065,7 @@ export class Assembly {
       if (b?.error) row.title = b.error;
       row.addEventListener('click', (e) => {
         const a = e.target.closest('[data-a]')?.dataset.a;
-        if (a === 'dup') return this.insert(it.part, it);
+        if (a === 'dup') return this.insert(it.part, this.inst(it.id) || it); // (the rows outlive a move: where it is now)
         if (a === 'rename') {
           renameInPlace(row.querySelector('.mt-name'), (n) => { this.hooks.renamePart?.(it.part, n); this.render(); this.hooks.onChange?.(); });
           return null;
@@ -1052,6 +1083,27 @@ export class Assembly {
     }
     this.harnessTool.rows(list); // (🔌 its harnesses under the parts)
     displayNote(this, this.$('.as-vis')); // (👁 "2 hidden · Show all")
+  }
+
+  /** What the parts list's rows show, but which is chosen (renderList: the same -> only the lit rows change). */
+  listKey(open) {
+    const subs = this.doc.instances.filter((it) => this.kindOf(it.part) === 'assembly').map((it) => JSON.stringify(instanceTree(this.bomCtx(), it.part, it.id)));
+    return JSON.stringify([this.hooks.selfId?.(), getLang(), [...open], subs, this.doc.display || {}, this.doc.instances.map((it) => [it.id, it.part, this.partName(it.part),
+      this.partIcon(it.part), !!it.fixed, !!it.stay, this.bodies[it.part]?.error || ''])]);
+  }
+
+  /** The chosen part's row lit (and a part chosen inside a sub-assembly), the others not. */
+  litRows(list) {
+    for (const row of list.children) {
+      if (row.dataset.inst) {
+        const id = row.dataset.inst;
+        row.classList.toggle('on', id === this.sel || id === this.sel2);
+        row.classList.toggle('has-inner', id === this.sel && this.selInner?.top === id);
+      } else if (row.dataset.path) {
+        const top = row.dataset.path.split('/')[0];
+        row.classList.toggle('on', this.sel === top && this.selInner?.top === top && this.selInner.path === row.dataset.path.slice(top.length + 1));
+      }
+    }
   }
 
   /** ▸ / ▾ on a sub-assembly's row; folded: how many parts are in it (all levels). */
@@ -4096,7 +4148,11 @@ export class Assembly {
     if (!it) throw new Error(`No part ${instId} in the assembly — see get_assembly.`);
     const b = this.bodyOf(it)?.body;
     if (!b) throw new Error(`${instId} has no solid.`);
-    const f = b.faces.filter((x) => x.name === name || (x.names || []).includes(name)).sort((p, q) => q.area - p.area)[0];
+    if (!b._byName) { // (each name's face — the biggest of its pieces —, once per body: a joint looks its faces up on every solve)
+      b._byName = new Map();
+      for (const x of b.faces) for (const n of [x.name, ...(x.names || [])]) if (!(b._byName.get(n)?.area >= x.area)) b._byName.set(n, x);
+    }
+    const f = b._byName.get(name);
     if (!f) {
       const flat = [...new Set(b.faces.filter((x) => ['plane', 'cylinder', 'sphere', 'cone'].includes(x.type)).map((x) => x.name))];
       throw new Error(`${instId} has no face “${name}”. Its flat, round, ball and cone faces: ${flat.join(', ')} (find_refs in its part tells which is which).`);

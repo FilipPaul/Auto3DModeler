@@ -33,13 +33,23 @@ export function datumFrame(plane) {
 /** The snap points of edges: an edge's ends (corner), its middle (midpoint), a round edge's centre (centre) —
  *  matrix: where the part is placed; kinds: the snap filters -> [{point, kind}]. */
 export function snapPoints(edges, matrix = null, kinds = null) {
-  const memo = edges && SNAPS.get(edges), key = `${matrix ? matrix.elements.join() : ''}|${kinds ? Object.entries(kinds).map(([k, v]) => (v ? k : '')).join() : '*'}`;
-  if (memo?.key === key) return memo.pts.map(({ point, kind }) => ({ point: point.clone(), kind }));
+  const key = `${matrix ? matrix.elements.join() : ''}|${kinds ? Object.entries(kinds).map(([k, v]) => (v ? k : '')).join() : '*'}`;
+  const memo = edges && memoOf(SNAPS, edges), had = memo?.get(key);
+  if (had) return had.map(({ point, kind }) => ({ point: point.clone(), kind }));
   const pts = pointsOf(edges, matrix, kinds);
-  if (edges) SNAPS.set(edges, { key, pts: pts.map(({ point, kind }) => ({ point: point.clone(), kind })) });
+  if (memo) keep(memo, key, pts.map(({ point, kind }) => ({ point: point.clone(), kind })));
   return pts;
 }
-const SNAPS = new WeakMap(); // edge list -> {key, pts} (hovering asks for the same points again and again)
+const SNAPS = new WeakMap(); // edge list -> key -> pts (hovering asks for the same points again and again)
+
+/** A memo's map for an edge list — one per place the list is drawn at: the parts placed many times share their part's
+ *  edges (500 screws of four kinds), so one record per list was made again for every placed part on every hover. */
+function memoOf(memos, edges) {
+  let m = memos.get(edges);
+  if (!m) memos.set(edges, (m = new Map()));
+  return m;
+}
+const keep = (memo, key, v) => { if (memo.size >= 1024) memo.clear(); memo.set(key, v); return v; };
 
 function pointsOf(edges, matrix, kinds) {
   const out = [], push = (point, kind) => { if (!kinds || kinds[kind]) out.push({ point, kind }); };
@@ -86,8 +96,9 @@ export function snapNear(list, camera, rect, clientX, clientY, px = 10, kinds = 
   const cam = camKey(camera, rect);
   for (const { edges, matrix, inst } of list) {
     // the points on the screen, kept while the camera, the part and the filters stay (the mouse moves over a still view)
-    const key = `${cam}|${matrix ? matrix.elements.join() : ''}|${kinds ? Object.entries(kinds).map(([k, v]) => (v ? k : '')).join() : '*'}`;
-    let memo = edges && SNAP_SCREEN.get(edges);
+    const mk = `${matrix ? matrix.elements.join() : ''}|${kinds ? Object.entries(kinds).map(([k, v]) => (v ? k : '')).join() : '*'}`, key = `${cam}|${mk}`;
+    const memos = edges && memoOf(SNAP_SCREEN, edges);
+    let memo = memos?.get(mk);
     if (memo?.key !== key) {
       const pts = snapPoints(edges, matrix, kinds), scr = new Float64Array(pts.length * 3), q = new THREE.Vector3();
       pts.forEach(({ point: p }, k) => {
@@ -97,7 +108,7 @@ export function snapNear(list, camera, rect, clientX, clientY, px = 10, kinds = 
         scr[k * 3 + 2] = q.z;
       });
       memo = { key, pts, scr };
-      if (edges) SNAP_SCREEN.set(edges, memo);
+      if (memos) keep(memos, mk, memo);
     }
     const { pts, scr } = memo;
     for (let k = 0; k < pts.length; k++) {
@@ -108,7 +119,7 @@ export function snapNear(list, camera, rect, clientX, clientY, px = 10, kinds = 
   }
   return best;
 }
-const SNAP_SCREEN = new WeakMap(); // edge list -> {key, pts, scr: x, y, z on the screen per point}
+const SNAP_SCREEN = new WeakMap(); // edge list -> its placement and filters -> {key, pts, scr: x, y, z on the screen per point}
 
 /** The camera as it looks now (its place, its lens) and the canvas: a key that changes when anything moves on screen. */
 export function camKey(camera, rect) {
