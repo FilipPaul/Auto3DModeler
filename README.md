@@ -727,6 +727,15 @@ most 4, and one more only while 2 GB of memory are free for it (the size is in `
 `A3D_WORKERS=1` is one process for everything, as before. A process that crashes, runs out of time or is
 cancelled is restarted alone; one that grows past 3 GB (`A3D_WORKER_MB`) is restarted between jobs.
 
+Built parts are kept on disk too, so a restart does not build them again: a part that took a moment to build (the
+big demo's base plate with 160 holes: almost 5 s) is kept in the data folder (`cache/parts`) with its mesh, and read
+back in milliseconds — after a restart, and in every kernel process, not only the one that built it. The collision
+check keeps the pairs of parts it has compared there as well, so the first check after a start is quick for parts
+that have not moved. A part is found by what it is made of (its steps, sizes and imported files) and the app's
+version: an edit, another file or a new version of the app builds it anew. What is read back is the exact solid
+with the same face names, so later steps, measurements and exports are as from a fresh build. The folder is kept
+under 500 MB, the parts used least lately dropped first; deleting it is safe. `A3D_PARTCACHE=0` turns it off.
+
 Coming next ([plan](docs/ARCHITECTURE-modeler.md)):
 - arcs, sizes between any two points, and equal / parallel / perpendicular rules;
 - AI tools for models;

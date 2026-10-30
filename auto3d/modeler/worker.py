@@ -58,8 +58,9 @@ def _main(conn):
         os.dup2(devnull, 1)
     except OSError:
         pass
-    from . import doc, packed, printsplit
+    from . import doc, packed, partcache, printsplit
     from .kernel import KernelError
+    partcache.ON = os.environ.get("A3D_PARTCACHE", "1").strip().lower() not in ("0", "false", "no", "off")  # (built parts on disk)
     ops = {"rebuild": doc.rebuild, "rebuild_bin": lambda a: packed.pack(doc.rebuild(a, True)),  # (the browser's: packed.py)
            "threads_bin": lambda a: packed.pack(doc.rebuild(a, True)),  # (🔩 a part's real threads, cut while it is edited)
            "export": lambda a: doc.export(a["part"], a["fmt"], a.get("name") or "part"),
