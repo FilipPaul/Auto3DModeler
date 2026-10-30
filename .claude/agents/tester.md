@@ -774,6 +774,12 @@ Never report "works" without having run it; report failures with their output.
    the note comes and goes (a screenshot mid-collision); ⋯ Zastavit při kolizi: ▶ stops at the band's start, ▶ again
    goes on; drive_mechanism / get_assembly / check_travel tell the bands, collisions: false / true; reload keeps it;
    ⚠ off: nothing red; a demo opens with it off; no console errors). Needs a server restarted after backend changes.
+   `tools/e2e_mech_broken_joint.py <url> <dir>` covers ⚙ Ovládat mechanismus bringing the widget and a broken joint
+   (Czech: an arm on a pin; the widget folded -> the row unfolds it, rings its row, focuses the slider; floating behind
+   the suggestions -> raised; a new hole at the arm's other end and the first deleted: J1 broken — the row and the
+   joint list say "vazba J1 je přerušená — plocha F3:hole:0 chybí" with 🔧 Opravit vazbu, get_assembly gone_face /
+   broken_joints; the slider: one warning, again: none more; 🔧, a click on the new hole's rim: J1 on F4:hole:0, the
+   hole on the pin's axis, no warning; no console errors).
    `tools/e2e_mechanism_anim.py <url> <dir>` covers 🎬 Save animation (the crank demo: ⋯ shows it with GIF / video and
    the name caption; a GIF saved — the progress line counts the frames, the page answers meanwhile, ≥ 20 frames of the
    view's size, looping, each frame differs from the one before, the parts back where they were, gui_state

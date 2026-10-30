@@ -1951,10 +1951,10 @@ export class Assembly {
           <button class="mini" data-jflip="${m.id}" title="Turn it the other way round">⇅</button>`
         : ['perp', 'ball', 'seat', 'rigid'].includes(m.type) ? '<span></span>'
         : `${m.type === 'angle' ? `<label class="as-jv">∠ <input type="number" step="any" data-jval="${m.id}" value="${fmt(m.value || 0)}"> °</label>` : ''}<button class="mini" data-jflip="${m.id}" title="Turn it the other way round">⇅</button>`;
-      const spin = Math.round(Number.isFinite(m.angle) ? m.angle : this.spinNow(m)), why = this.whyNot(m);
+      const spin = Math.round(Number.isFinite(m.angle) ? m.angle : this.spinNow(m)), why = this.whyNot(m), gone = m.broken && this.goneFace(m);
       const turns = !['parallel', 'ball', 'seat', 'rigid'].includes(m.type), rot = Number.isFinite(m.angle); // (a ball turns any way: its moves in the part's panel)
       return `<div class="as-jrow ${m.broken || why ? 'bad' : ''} ${m.locked ? 'locked' : ''}" data-jrow="${m.id}"><span class="as-jt">${t.icon} <span class="as-jname ${m.name ? 'own' : ''}" data-jname="${m.id}" title="${dbl}" ${m.name ? 'data-no-i18n' : ''}>${esc(m.name || t.name)}</span> <i>${m.id}</i></span>
-        <span class="as-jw"><b data-no-i18n>${esc(this.partName(a?.part))}</b> <i>${m.move}</i>${m.type === 'rigid' ? '' : ` · ${esc(this.faceText(m.move, m.face))}`} → <b data-no-i18n>${esc(this.partName(b?.part))}</b> <i>${m.onto}</i>${m.type === 'rigid' ? ` · ${asThey}` : ` · ${esc(this.faceText(m.onto, m.ontoFace))}`}${m.broken ? ' — ⚠ a face is gone' : ''}</span>
+        <span class="as-jw"><b data-no-i18n>${esc(this.partName(a?.part))}</b> <i>${m.move}</i>${m.type === 'rigid' ? '' : ` · ${esc(this.faceText(m.move, m.face))}`} → <b data-no-i18n>${esc(this.partName(b?.part))}</b> <i>${m.onto}</i>${m.type === 'rigid' ? ` · ${asThey}` : ` · ${esc(this.faceText(m.onto, m.ontoFace))}`}${m.broken ? ` — ⚠ ${esc(gone ? t2('face {face} is gone', { face: gone.face }) : t2('a face is gone', {}))}${gone ? ` <button class="mini" data-jfix="${m.id}" title="${esc(t2('Click the face that takes its place — the joint holds again', {}))}">🔧 ${esc(t2('Fix the joint', {}))}</button>` : ''}` : ''}</span>
         ${why ? `<span class="as-jwhy" data-no-i18n>⚠ ${esc(why)}</span>` : ''}
         ${val}<span class="as-jbtn"><button class="mini ${m.locked ? 'on' : ''}" data-jlock="${m.id}" title="${m.locked ? 'Locked: moving the part by hand cannot break it — click to unlock' : 'Lock it: then it cannot be broken by moving the part'}">${m.locked ? '🔒' : '🔓'}</button><button class="mini danger" data-jdel="${m.id}" title="Remove this joint (the part stays where it is)" ${m.locked ? 'disabled' : ''}>✕</button></span>
         ${m.slides?.length || (m.rot && m.type !== 'rigid') ? `<span class="as-jv as-jlocks" title="${lockTip}">🔒 ${esc(t2('{n} locked', { n: (m.slides?.length || 0) + (m.rot && m.type !== 'rigid' ? 1 : 0) }))} <button class="mini" data-junlock="${m.id}" ${m.locked ? 'disabled' : ''}>✕</button></span>` : ''}
@@ -2001,6 +2001,47 @@ export class Assembly {
     this.health = h;
     this.whyCache = new Map();
     return h;
+  }
+
+  /** A broken joint's face that is gone (a feature edit took it) -> {inst, face, side: 'move' | 'onto'}, or null (both
+   *  there — or a part not built yet). */
+  goneFace(m) {
+    for (const [side, inst, face] of [['move', m.move, m.face], ['onto', m.onto, m.ontoFace]]) {
+      if (!this.bodyOf(this.inst(inst))?.body) continue;
+      try { this.worldFace(inst, face); } catch { return { inst, face, side }; }
+    }
+    return null;
+  }
+
+  /** 🔧 Fix a joint whose face is gone: a click on the part, on a face of the joint's kind, takes the gone one's place
+   *  (clickJoint -> fixFace). Esc cancels. */
+  repairJoint(id) {
+    const m = (this.doc.mates || []).find((x) => x.id === id), g = m && this.goneFace(m);
+    if (!g) return;
+    this.mech?.stop(false);
+    this.startJoint(m.type || 'touch');
+    this.repair = { m, ...g };
+    if (g.side === 'onto') { this.mode = 'joint-to'; this.jointFrom = { inst: m.move, face: this.worldFace(m.move, m.face) }; }
+    else this.jointFrom = { inst: m.move, face: null };
+    this.hint(t2('🔧 {id}: click the face of {part} that takes the place of {face} — Esc cancels.', { id: m.id, part: `${this.partName(this.inst(g.inst)?.part)} ${g.inst}`, face: g.face }));
+    this.renderBar();
+    this.draw();
+  }
+
+  /** The face clicked for a joint being fixed (repairJoint): it takes the gone one's place, the joint holds again. */
+  fixFace(h) {
+    const { m, side, face } = this.repair;
+    this.repair = null;
+    if (side === 'move') m.face = h.face.name; else m.ontoFace = h.face.name;
+    delete m.broken;
+    delete m.centred; // (placed anew on the new face)
+    this.mode = 'idle';
+    this.jointFrom = null;
+    this.hoverFace = null;
+    this.hint('');
+    this.applyMates();
+    this.hooks.toast(t2('{id} holds again: {face} instead of {gone}.', { id: m.id, face: this.faceText(side === 'move' ? m.move : m.onto, h.face.name), gone: face }), 'ok', 4000);
+    this.commit();
   }
 
   /** The joints that do not hold now. */
@@ -2090,6 +2131,7 @@ export class Assembly {
       row.addEventListener('mouseleave', () => { this.hoverJoint = null; this.drawMarks(); });
     }
     for (const el of box.querySelectorAll('[data-fdel]')) el.addEventListener('click', () => this.removeFastener(el.dataset.fdel));
+    for (const el of box.querySelectorAll('[data-jfix]')) el.addEventListener('click', () => this.repairJoint(el.dataset.jfix));
     for (const row of box.querySelectorAll('[data-jrow]')) {
       row.addEventListener('mouseenter', () => { this.hoverJoint = row.dataset.jrow; this.drawMarks(); });
       row.addEventListener('mouseleave', () => { this.hoverJoint = null; this.drawMarks(); });
@@ -3589,6 +3631,7 @@ export class Assembly {
   startJoint(type = 'touch', from = null) {
     if (this.doc.instances.length < 2) return;
     this.sel2 = null;
+    this.repair = null;
     this.jointType = type;
     this.mode = 'joint-from';
     this.jointFrom = from ? { inst: from, face: null } : null;
@@ -3598,6 +3641,7 @@ export class Assembly {
 
   cancelJoint() {
     this.mode = 'idle';
+    this.repair = null;
     this.jointFrom = null;
     this.hoverFace = null;
     this.hint('');
@@ -3624,6 +3668,7 @@ export class Assembly {
   /** The face under the mouse fits the joint being made? */
   faceFits(h) {
     if (!h?.face) return false;
+    if (this.repair && h.inst !== this.repair.inst) return false; // (🔧 fixing a joint: a face of the part whose face is gone)
     const want = JOINT_TYPES[this.jointType].faces;
     // a screw / pin: the second part is clicked anywhere (its hole is often hidden under the first part)
     if (this.jointType === 'fastener' && this.mode === 'joint-to') return h.inst !== this.jointFrom?.inst;
@@ -3679,9 +3724,11 @@ export class Assembly {
       const kind = JOINT_TYPES[this.jointType].faces;
       const want = kind === 'cylinder' ? 'a round face (a hole, a pin)' : kind === 'mixed' ? (this.mode === 'joint-to' ? 'the other kind of face (round ↔ flat)' : 'a round or a flat face')
         : kind === 'ball' ? 'a ball and a hole, a cone or another ball' : kind === 'any' ? 'a flat face or a hole' : 'a flat face';
-      if (h) this.hooks.toast(this.mode === 'joint-to' && h.inst === this.jointFrom?.inst ? 'Now a face of the other part.' : `Click ${want}.`, 'info', 2500);
+      if (h) this.hooks.toast(this.repair && h.inst !== this.repair.inst ? t2('A face of {part}, please.', { part: `${this.partName(this.inst(this.repair.inst)?.part)} ${this.repair.inst}` })
+        : this.mode === 'joint-to' && h.inst === this.jointFrom?.inst ? 'Now a face of the other part.' : `Click ${want}.`, 'info', 2500);
       return;
     }
+    if (this.repair) { this.fixFace(h); return; }
     if (this.mode === 'joint-from' && this.jointType === 'fastener' && h.face.type === 'plane') { this.startBolt(h); return; } // a new bolt, drilled
     if (this.mode === 'joint-from') {
       this.jointFrom = { inst: h.inst, face: h.face };
@@ -3995,7 +4042,7 @@ export class Assembly {
       ...(this.doc.harnesses?.length ? { harnesses: this.doc.harnesses.map((h) => harnessFacts(this, h)) } : {}),
       ...(this.doc.chains?.length ? { chains: chainsSummary(this) } : {}),
       joints: (this.doc.mates || []).map((m) => ({ id: m.id, ...(m.name ? { name: m.name } : {}), type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
-        ...(m.type === 'axis' ? { distance: Number.isFinite(m.dist) ? m.dist : null } : { gap: m.gap || 0 }), ...(m.type !== 'parallel' ? { rotation_locked: Number.isFinite(m.angle) } : {}), ...(m.broken ? { broken: true } : {}),
+        ...(m.type === 'axis' ? { distance: Number.isFinite(m.dist) ? m.dist : null } : { gap: m.gap || 0 }), ...(m.type !== 'parallel' ? { rotation_locked: Number.isFinite(m.angle) } : {}), ...(m.broken ? { broken: true, ...(this.goneFace(m) ? { gone_face: this.goneFace(m).face } : {}) } : {}),
         ...(m.slides?.length || (m.rot && m.type !== 'rigid') ? { locked_motions: (m.slides?.length || 0) + (m.rot && m.type !== 'rigid' ? 1 : 0) } : {}),
         ...(m.locked ? { locked: true } : {}), ...(this.inst(m.move)?.fastener ? { fastener: this.inst(m.move).fastener.id } : {}), ...(this.whyNot(m) ? { not_held: this.whyNot(m) } : {}) })),
       fasteners: [...new Map(this.doc.instances.filter((i) => i.fastener).map((i) => [i.fastener.id, i.fastener])).values()].map((f) => ({ id: f.id, text: f.text,

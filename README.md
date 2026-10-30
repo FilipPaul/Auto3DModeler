@@ -1055,7 +1055,12 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   where it is). Every part of the mechanism follows live. The driver is the crank by default (a full turn, else the
   part the closing rod is on); **⋯** picks another driver, the speed (½× 1× 2×), **⚠ Check the travel** (collisions over
   the whole turn) and **📈 Trace** (a curve: how the slider moves over the crank's turn). Nothing shows in an
-  assembly without one.
+  assembly without one. *Drive the mechanism* always brings the widget to you — unfolded, raised when floating,
+  scrolled to, its row ringed for a moment and its slider ready for the arrow keys.
+- **⚠ A broken joint is said** (*"⚠ vazba J1 je přerušená — plocha F8:hole:0 chybí"*): when a part's edit takes the
+  face a joint holds (a hole deleted or moved to a new step), the mechanism's row and the joint list say which joint
+  and which face, with **🔧 Opravit vazbu**: click the face that takes its place (on the part named in the hint) and the
+  joint holds again. Driving the mechanism while a joint is broken warns once (the part is not held there).
 - **⇤⇥ Limits in ⚙ Mechanism** (*"Meze"*): under each slider the driver's range — *"⇤ −45 … 90 ° ⇥"*, *"full turn"*
   or *"no limits"*. **⇤⇥ Limits** switches them on around where it is (±90°, ±10 mm — or, after ⚠ Check the travel
   found a collision, the stretch around it that is free); click a value and type it in place (Enter), the **✕** by

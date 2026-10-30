@@ -75,6 +75,9 @@ seated in its receptacle, its stroke as its slide's limits), joined Concentric.
    the parts near where they go before the last joint (it closes the loop the shortest way). `closed: false` /
    "cannot close": a part is too short or too long for that place. get_assembly `missing_joint` {hole, pin}: the
    parts almost make a loop and one pin in a hole would close it — `add_missing_joint` adds that ◎ Concentric.
+   A joint with `broken: true` lost a face (a part's edit took it — `gone_face` names it; get_assembly `mechanisms`
+   lists them as `broken_joints`): its part is not held there. Tell the user; the app's 🔧 Opravit vazbu (the joint
+   row, the mechanism row) re-picks the face, or `snap_faces` the joint again with the new face.
    How a follower moves over the driver's travel (a slider's stroke, a rocker's swing): `drive_mechanism {mechanism,
    trace: true}` -> [[driver, follower], …] (the app's 📈 Trace). `place_part {part, fixed: true}` = 📌 fixed in place.
    The whole mechanism by one value: get_assembly `mechanisms` (each with its driver — a crank's full turn by default —

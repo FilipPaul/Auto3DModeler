@@ -7,6 +7,15 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⚙ Drive the mechanism brings the widget; a broken joint is said (2026-10-30)** (report 112402: the row did
+  nothing visible with ⚙ Mechanism open low in the dock; J1's hole face was gone after a Hole edit and nothing said so
+  while driving). MechanismPanel.open: pointAt the row (unfolded, raised, scrolled to, ringed) and its slider focused.
+  A joint's `broken` (holdPart: applyJoint threw) now says which face: Assembly.goneFace(m) -> {inst, face, side};
+  the mechanism row `.mc-broken` "⚠ joint J1 is broken — face F3:hole:0 is gone" + 🔧 Fix the joint, the joint list's
+  row the same, get_assembly joints `gone_face`, mechanisms `broken_joints`. 🔧: Assembly.repairJoint — the joint's
+  own pick (startJoint of its type; the side whose face is gone; faceFits only on that part) -> fixFace puts the
+  clicked face in, drops broken / centred, applyMates, one undo step. Driving (slider, number, ▶) with a broken joint
+  warns once per joint (toast with 🔧, pointing at the row's button). tools/e2e_mech_broken_joint.py.
 - **＋ Same hole on this face (2026-10-30)** (report 111217: editing 2× M3 on one pad, a click on the second pad only
   warned "press OK, then make another Hole"; the way on was unclear). One Hole step stays on one face (the kernel's
   hole has one plane — simpler than many faces per step). Modeler.clickHole(e, h): another flat face ->
