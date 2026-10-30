@@ -5,7 +5,9 @@ rovině from the table, a rectangle clicked, ✓ Hotovo, the extrude's distance 
 Esc -> Ctrl+Z -> a drag with the button held (one drag event: its points, from / to) -> an assembly: the pill there too
 -> get_recording (the page's handler and /api/agent/call): the events in order with their ids and the toast's text,
 paths: false leaves the points out, a screenshot (get_recording_screenshot) -> ■ Zastavit hides the pill -> the chat's
-📎 Přiložit záznam (n událostí) -> the AI's start_recording: "(spustila AI)" -> a reload: it goes on (a reload event)
+📎 Přiložit záznam (n událostí) -> a reload: still offered, attached -> the events in the next message (caught before the
+server), still offered -> ➤ Zastavit a poslat AI on the pill: stopped and sent -> ▾ the last two recordings, the older one
+sent -> the AI's start_recording: "(spustila AI)" -> a reload: it goes on (a reload event)
 -> stop_recording -> cheap: a long recording (2000 events, 12 pictures), a 2 s orbit, 25 clicks + 25 keys, an error:
 under 2 ms per recorder handler call, no recorder run over 50 ms (the CDP profiler), the session's copy a small header
 and chunks. Console errors: none.
@@ -272,6 +274,66 @@ try:
     chip = js("return document.querySelector('#aiDrawer .ai-rec button')?.textContent")
     check("one click: it goes with the message", chip and "Záznam se pošle" in chip, chip)
     d.find_element(By.ID, "aiBtn").click()
+    time.sleep(0.3)
+
+    print("8b. after a reload the chat still offers it; attaching puts the events in the next message (sent: still offered)")
+    d.refresh()
+    wait("return !!window.__app && !!window.__chat")
+    time.sleep(1.5)
+    js("window.__chat.onShow()")
+    time.sleep(0.4)
+    chip = js("const b = document.querySelector('#tab-ai .ai-rec .ai-rec-btn'); return b && b.offsetParent ? b.textContent : null")
+    check("after a reload: 📎 Přiložit záznam (n událostí)", chip and f"({r['count']} událostí)" in chip, chip)
+    # (the message is caught before the server: no AI needed)
+    js("""window.__sent = []; window.__chat.access = {state: 'ok'}; window.__fetch0 = window.__fetch0 || window.fetch;
+      window.fetch = (u, o) => { if (String(u).startsWith('/api/chat/send')) { window.__sent.push(JSON.parse(o.body).text); return Promise.resolve(new Response('{"ok":true}')); }
+        return window.__fetch0(u, o); };""")
+    d.find_element(By.CSS_SELECTOR, "#tab-ai .ai-rec .ai-rec-btn").click()
+    ta = d.find_element(By.CSS_SELECTOR, "#tab-ai textarea")
+    ta.send_keys("Co jsem dělal?")
+    ta.send_keys(Keys.ENTER)
+    sent = wait("return window.__sent[0]", 10)
+    js("window.__chat.setBusy(false)")
+    check("the message: the text, then the recording's events", sent.startswith("Co jsem dělal?") and f"[⏺ Recording of my moves: {r['count']} events" in sent
+          and " stop — by: user" in sent, sent[:300])
+    chip = js("return document.querySelector('#tab-ai .ai-rec .ai-rec-btn')?.textContent")
+    check("sent once: still offered (always there while a stopped recording exists)", chip and "Přiložit záznam" in chip, chip)
+
+    print("8c. ➤ Zastavit a poslat AI on the pill; ▾ the last recordings")
+    first_count = r["count"]
+    js("document.getElementById('recBtn').click()")
+    time.sleep(0.4)
+    for k in range(3):
+        js("document.body.dispatchEvent(new KeyboardEvent('keydown', {key: 'F9', bubbles: true}))")
+        time.sleep(0.1)
+    p = pill()
+    check("the pill: ■ Zastavit and ➤ Zastavit a poslat AI", p and "Zastavit a poslat AI" in p["text"], p)
+    js("window.__chat.$('textarea').value = ''")
+    ActionChains(d).move_to_element(d.find_element(By.CSS_SELECTOR, ".rec-pill .rec-send")).click().perform()
+    sent = wait("return window.__sent[1]", 10)
+    js("window.__chat.setBusy(false)")
+    second = recording()
+    check("stopped and sent at once: the new recording, the chat in sight", pill() is None and sent.startswith("Podívej se, co jsem dělal(a).")
+          and f"[⏺ Recording of my moves: {second['count']} events" in sent and js("return !!document.querySelector('#tab-ai textarea').offsetParent"), sent[:200])
+    more = d.find_elements(By.CSS_SELECTOR, "#tab-ai .ai-rec .ai-rec-more")
+    check("▾ there (two recordings kept)", bool(more))
+    if more:
+        more[0].click()
+        time.sleep(0.2)
+        items = js("return [...document.querySelectorAll('#tab-ai .ai-rec-menu button')].map(b => b.textContent)")
+        check("the menu: the last recordings with time, length, events", len(items) == 2 and f"{second['count']} událostí" in items[0]
+              and f"{first_count} událostí" in items[1] and all(":" in x for x in items), items)
+        d.find_elements(By.CSS_SELECTOR, "#tab-ai .ai-rec-menu button")[1].click()
+        chip = js("return document.querySelector('#tab-ai .ai-rec .ai-rec-btn')?.textContent")
+        check("the older one chosen: it goes with the message", chip and "Záznam se pošle" in chip, chip)
+        ta = d.find_element(By.CSS_SELECTOR, "#tab-ai textarea")
+        ta.send_keys("A tohle předtím")
+        ta.send_keys(Keys.ENTER)
+        sent = wait("return window.__sent[2]", 10)
+        js("window.__chat.setBusy(false)")
+        check("the older recording's events in the message", f"[⏺ Recording of my moves: {first_count} events" in sent, sent[:200])
+    js("window.fetch = window.__fetch0")
+    d.find_element(By.ID, "aiBtn").click() if js("return !document.getElementById('aiDrawer').hidden") else None
     time.sleep(0.3)
 
     print("9. the AI starts it: (spustila AI); a reload goes on")

@@ -1484,7 +1484,10 @@ can open them.
   deleted, joints added, workspace and part switches, and every message the app shows (errors and refusals with their
   text). At an error and when a step is done it takes a small screenshot (at most one every 5 s) with your last clicks
   marked. The AI reads it with `get_recording` (`since`, `last`, `paths: false`) and `get_recording_screenshot`; in
-  the chat a stopped recording goes with your next message in one click: **📎 Attach the recording (n events)**.
+  the chat a stopped recording goes with your next message in one click: **📎 Attach the recording (n events)** —
+  offered whenever a stopped recording exists (also after a reload, and after it was sent once); **▾** picks one of
+  the last 3 recordings (time · length · events). **➤ Stop and send to the AI** on the red pill stops the recording,
+  opens the chat and sends it at once.
   Recording does not slow the app down: orbiting, clicking, typing and dragging feel the same with it on (well under
   a millisecond per event; the log is saved in small pieces when the browser is idle, the screenshots are taken in
   the background).

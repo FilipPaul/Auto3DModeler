@@ -228,21 +228,39 @@ export class ChatPanel {
     this.connect();
     recorder.listen(() => this.renderRec()); // (⏺ a stopped recording: 📎 attached to the next message with one click)
     window.addEventListener('a3d:lang', () => { this.renderRec(); this.renderConv(); });
+    // ⏺ "Stop and send to the AI": the chat in sight, that recording with the next message — sent now unless Claude is busy
+    window.addEventListener('a3d:rec-send', (e) => {
+      this.onShow?.();
+      this.recOn = e.detail?.id ?? recorder.recordings()[0]?.id ?? null;
+      this.recMenu = false;
+      this.renderRec();
+      if (!this.busy) this.send();
+    });
     this.renderRec();
   }
 
-  /** 📎 Attach the recording (n events): a stopped recording of moves goes with the next message (a click; again: not). */
+  /** 📎 Attach the recording (n events): a stopped recording of moves goes with the next message (a click; again: not) —
+   *  the last one; ▾ an earlier one (the last 3 are kept, with their time and length). */
   renderRec() {
-    const box = this.$('.ai-rec'), n = recorder.attachable();
-    if (!n) this.recOn = false;
-    const key = n ? `${n}|${this.recOn}|${t('Attach')}` : '';
+    const box = this.$('.ai-rec'), recs = recorder.recordings();
+    if (!recs.some((r) => r.id === this.recOn)) this.recOn = null;
+    if (recs.length < 2) this.recMenu = false;
+    const key = recs.length ? JSON.stringify([recs.map((r) => [r.id, r.count, r.sent]), this.recOn, !!this.recMenu, t('Attach')]) : '';
     if (key === box.dataset.key) return;
     box.dataset.key = key;
-    box.hidden = !n;
-    box.innerHTML = !n ? '' : this.recOn
-      ? `<button type="button" class="btn small on" title="${escapeHtml(t('Click: the recording does not go with the message'))}">📎 ${escapeHtml(t('The recording goes with the message'))} ✕</button>`
-      : `<button type="button" class="btn small" title="${escapeHtml(t('Your recorded moves go with the next message — the AI reads what you did'))}">📎 ${escapeHtml(t('Attach the recording ({n} events)').replace('{n}', n))}</button>`;
-    box.querySelector('button')?.addEventListener('click', () => { this.recOn = !this.recOn; this.renderRec(); this.$('textarea').focus(); });
+    box.hidden = !recs.length;
+    if (!recs.length) { box.innerHTML = ''; return; }
+    const on = recs.find((r) => r.id === this.recOn);
+    box.innerHTML = (on
+      ? `<button type="button" class="btn small on ai-rec-btn" title="${escapeHtml(`${recorder.describe(on)} — ${t('Click: the recording does not go with the message')}`)}">📎 ${escapeHtml(t('The recording goes with the message'))} ✕</button>`
+      : `<button type="button" class="btn small ai-rec-btn" title="${escapeHtml(`${recorder.describe(recs[0])} — ${t('Your recorded moves go with the next message — the AI reads what you did')}`)}">📎 ${escapeHtml(tn('Attach the recording ({n} events)', recs[0].count))}</button>`)
+      + (recs.length > 1 ? `<button type="button" class="btn small ai-rec-more" title="${escapeHtml(t('Choose one of the last recordings'))}">▾</button>` : '')
+      + (this.recMenu ? `<div class="ai-rec-menu">${recs.map((r) => `<button type="button" class="${r.id === this.recOn ? 'on' : ''}" data-id="${r.id}">⏺ ${escapeHtml(recorder.describe(r))}${r.sent ? ' ✓' : ''}</button>`).join('')}</div>` : '');
+    box.querySelector('.ai-rec-btn').addEventListener('click', () => { this.recOn = on ? null : recs[0].id; this.recMenu = false; this.renderRec(); this.$('textarea').focus(); });
+    box.querySelector('.ai-rec-more')?.addEventListener('click', () => { this.recMenu = !this.recMenu; this.renderRec(); });
+    for (const b of box.querySelectorAll('.ai-rec-menu button')) {
+      b.addEventListener('click', () => { this.recOn = +b.dataset.id; this.recMenu = false; this.renderRec(); this.$('textarea').focus(); });
+    }
   }
 
   // ------------------------------------------------------------------ 🕘 previous conversations (kept on the server)
@@ -486,12 +504,12 @@ export class ChatPanel {
   async send() {
     const ta = this.$('textarea');
     let text = ta.value.trim();
-    if ((!text && !this.photos.length && !this.recOn) || this.busy) return;
+    if ((!text && !this.photos.length && this.recOn == null) || this.busy) return;
     if (this.access && this.access.state !== 'ok') { this.showAccess(true); return; } // (set it up first: the typed text stays)
     const photos = this.photos;
-    if (this.recOn) { text = `${text || t('Look at what I did.')}
+    if (this.recOn !== null && this.recOn !== undefined) { text = `${text || t('Look at what I did.')}
 
-${recorder.forChat()}`; this.recOn = false; } // (⏺ the recording with it)
+${recorder.forChat(60, this.recOn)}`; this.recOn = null; this.renderRec(); } // (⏺ the recording with it)
     ta.value = '';
     this.photos = [];
     this.renderPhotos();

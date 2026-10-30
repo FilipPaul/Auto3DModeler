@@ -15,6 +15,7 @@ import { t } from './i18n.js';
 import { History } from './history.js';
 
 const KEY = 'a3d.rec', SHOTS_KEY = 'a3d.recShots', PART = 'a3d.rec.'; // the header; (old copies: the pictures); its chunks / pictures
+const PAST_KEY = 'a3d.recPast', MAX_PAST = 2;                       // the recordings before the last one, as the chat's text (the last 3 in all)
 const MAX = 2000, MAX_SHOTS = 12, SHOT_GAP_MS = 5000, SHOT_W = 800; // events kept; screenshots kept / how often / how wide
 const PATH_MS = 50, PATH_PX = 8, DRAG_PX = 5;                       // a drag's samples: every 50 ms and 8 px; a click moves less than 5 px
 const CHUNK = 100, SAVE_MS = 1000;                                  // events per stored chunk; the copy written at most once a second
@@ -66,6 +67,7 @@ class Recorder {
     this.nShot = 0;
     this.lastShot = {};    // when the last picture was taken: of a message, of a step done
     this.sent = -1;        // the last event index attached to a chat message
+    this.past = [];        // the recordings before this one, newest first: [{id, t0, seconds, count, sent, text}] (the chat's 📎 ▾)
     this.listeners = new Set();
     this.ctx = null;
     this.where = '';
@@ -87,6 +89,7 @@ class Recorder {
   // a3d.rec: the header (state, its chunks, its pictures' ids); a3d.rec.c<k>: events k·100 … k·100+99; a3d.rec.s<id>: a picture
   load() {
     try {
+      this.past = JSON.parse(sessionStorage.getItem(PAST_KEY) || '[]');
       const s = JSON.parse(sessionStorage.getItem(KEY) || 'null');
       if (!s) return;
       Object.assign(this, { on: !!s.on, by: s.by || 'user', reason: s.reason || '', t0: s.t0 || 0, tEnd: s.tEnd || 0, n: s.n || 0, sent: s.sent ?? -1, nShot: s.nShot || 0 });
@@ -157,6 +160,10 @@ class Recorder {
   // ------------------------------------------------------------------ start / stop
   start(by = 'user', reason = '') {
     if (this.on) return false;
+    if (this.events.length > 2) { // the one before: kept for the chat's 📎 ▾ (as its text — the events themselves go)
+      this.past = [{ id: this.t0, t0: this.t0, seconds: this.seconds, count: this.events.length, sent: this.sent >= this.n - 1, text: this.chatText() }, ...this.past].slice(0, MAX_PAST);
+      try { sessionStorage.setItem(PAST_KEY, JSON.stringify(this.past)); } catch { /* full: not kept */ }
+    }
     Object.assign(this, { on: true, by, reason, t0: Date.now(), tEnd: 0, n: 0, events: [], shots: [], nShot: 0, lastShot: {}, sent: -1, where: '' });
     this.clear();
     this.push('start', { by, ...(reason ? { reason } : {}) });
@@ -235,6 +242,7 @@ class Recorder {
     window.addEventListener('pagehide', () => this.save(true));
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.save(true); });
     window.addEventListener('wheel', this.timed((e) => this.onWheel(e)), PASSIVE);
+    this.changed(); // (a recording kept over a reload: the chat offers its 📎)
   }
 
   /** The indicator at the top centre of the view (every workspace) and the top bar's ⏺. */
@@ -248,8 +256,10 @@ class Recorder {
     if (!this.on) return;
     if (full || !p.firstChild || p.dataset.lang !== t('Recording moves')) {
       p.dataset.lang = t('Recording moves');
-      p.innerHTML = `<span class="rec-dot"></span><b>${esc(t('Recording moves'))}</b><span class="rec-time"></span><span class="rec-by"></span><button type="button" class="rec-stop" title="${esc(t('Stop the recording — the AI can read it then'))}">■ ${esc(t('Stop'))}</button>`;
+      p.innerHTML = `<span class="rec-dot"></span><b>${esc(t('Recording moves'))}</b><span class="rec-time"></span><span class="rec-by"></span><button type="button" class="rec-stop" title="${esc(t('Stop the recording — the AI can read it then'))}">■ ${esc(t('Stop'))}</button><button type="button" class="rec-stop rec-send" title="${esc(t('Stop the recording and send it to the AI chat now'))}">➤ ${esc(t('Stop and send to the AI'))}</button>`;
       p.querySelector('.rec-stop').addEventListener('click', (e) => { e.stopPropagation(); this.stop('user'); });
+      // (the chat hears it: opens, attaches this recording and sends — agent.js)
+      p.querySelector('.rec-send').addEventListener('click', (e) => { e.stopPropagation(); if (this.stop('user')) window.dispatchEvent(new CustomEvent('a3d:rec-send', { detail: { id: this.t0 } })); });
       for (const ev of ['pointerdown', 'pointerup', 'dblclick']) p.addEventListener(ev, (x) => x.stopPropagation());
     }
     const set = (el, k, v) => { if (el[k] !== v) el[k] = v; }; // (the page not touched when nothing changed — every event draws)
@@ -543,17 +553,42 @@ class Recorder {
     return `${clock(s)}${where ? ` [${where}]` : ''} ${kind}${bits ? ` — ${bits}` : ''}`;
   }
 
-  /** The stopped recording for a chat message: what it is, then its last events as lines. */
-  forChat(max = 60) {
-    const list = this.read({ paths: false }), cut = list.slice(-max);
+  /** A stopped recording for a chat message (id: one of recordings(); none: the last one) — marked sent. */
+  forChat(max = 60, id = null) {
+    const old = id !== null && id !== this.t0 ? this.past.find((r) => r.id === id) : null;
+    if (old) {
+      old.sent = true;
+      try { sessionStorage.setItem(PAST_KEY, JSON.stringify(this.past)); } catch { /* full */ }
+      this.changed();
+      return old.text;
+    }
+    const text = this.chatText(max);
     this.sent = this.n - 1;
     this.save(true);
     this.changed();
+    return text;
+  }
+
+  /** The recording as the chat's text: what it is, then its last events as lines. */
+  chatText(max = 60) {
+    const list = this.read({ paths: false }), cut = list.slice(-max);
     return `[⏺ Recording of my moves: ${list.length} events over ${clock(this.seconds)}${cut.length < list.length ? ` — the last ${cut.length} below; get_recording for all` : ''}${this.shots.length ? `; screenshots ${this.shots.map((x) => x.id).join(', ')} (get_recording_screenshot)` : ''}]\n${cut.map((e) => this.line(e)).join('\n')}`;
   }
 
   /** A stopped recording not attached to a message yet: how many events it has (else 0). */
   attachable() { return !this.on && this.events.length > 2 && this.sent < this.n - 1 ? this.events.length : 0; }
+
+  /** The stopped recordings the chat can attach, newest first (the last 3): [{id, t0, seconds, count, sent}]. */
+  recordings() {
+    const now = !this.on && this.events.length > 2 ? [{ id: this.t0, t0: this.t0, seconds: this.seconds, count: this.events.length, sent: this.sent >= this.n - 1 }] : [];
+    return [...now, ...this.past];
+  }
+
+  /** A recording in a few words: "11:24 · 0:22 · 22 events". */
+  describe(r) {
+    const at = new Date(r.t0).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return `${at} · ${clock(r.seconds)} · ${t('{n} events').replace('{n}', r.count)}`;
+  }
 }
 
 export const recorder = new Recorder();
