@@ -1642,7 +1642,7 @@ export class HarnessTool {
       return `<div class="hn-pt ${i === this.pt ? 'on' : ''}" data-pt="${i}">
         <div class="hn-pt1"><b>${i + 1}</b><span class="hn-pw" data-no-i18n title="${esc(where)}">${esc(where)}</span>
           ${on?.inst ? `<button class="mini hn-plock ${p.inst ? 'on' : ''}" data-plock="${i}" title="${esc(t(p.inst ? 'Locked on its part: it moves with it — click: it stays in space' : 'Stays in space — click: lock it on its part, it moves with it'))}">${p.inst ? '🔒' : '🔓'}</button>` : ''}
-          ${on?.inst ? `<button class="mini hn-pconn ${connOf(h, i) ? 'on' : ''}" data-pconn="${i}" title="${esc(t(connOf(h, i) ? '🔌 Connection point: the cable plugs into this part here — it may enter it (no collision, no lead-out note for it) — click: an ordinary point' : '🔌 Make it a connection point: the cable plugs into this part here (a connector, a probe\'s tail, a gland)'))}">🔌</button>` : ''}
+          ${on?.inst && !p.clip ? `<button class="mini hn-pconn ${connOf(h, i) ? 'on' : ''}" data-pconn="${i}" title="${esc(t(connOf(h, i) ? '🔌 Connection point: the cable plugs into this part here — it may enter it (no collision, no lead-out note for it) — click: an ordinary point' : '🔌 Make it a connection point: the cable plugs into this part here (a connector, a probe\'s tail, a gland)'))}">🔌</button>` : ''}
           ${p.inst && (p.n || p.clip) ? `<button class="mini${p.clip ? ' on' : ''}" data-pclip="${i}" title="${esc(t(p.clip ? '📎 Swap the clip: pick another from the list — the point stays' : '📎 A clip here: pick one from the list (point at a row: preview) — the point then on its axis'))}">📎</button>` : ''}
           <button class="mini" data-pmove="${i}:-1" ${i ? '' : 'disabled'} title="${esc(t('Earlier'))}">↑</button><button class="mini" data-pmove="${i}:1" ${i < n - 1 ? '' : 'disabled'} title="${esc(t('Later'))}">↓</button><button class="mini danger" data-pdel="${i}" title="${esc(t('Delete the point'))}">✕</button></div>
         <div class="hn-pt2">${xyz}</div></div>`;
@@ -1843,7 +1843,7 @@ export class HarnessTool {
   /** 🔌 Connection point (the chosen point, on a part): on / off. -> [suggestions]. */
   connItems(h) {
     const i = this.pt, p = i !== null ? h.points?.[i] : null;
-    if (!(p?.inst || p?.on?.inst)) return [];
+    if (!(p?.inst || p?.on?.inst) || p.clip) return []; // (not on a clip: the cable runs through it)
     return [{ icon: '🔌', label: t('Connection point'), rank: 0.6, on: connOf(h, i), title: t('The cable plugs into this part here (a connector, a probe\'s tail, a gland): it may enter it — no collision, no lead-out note for it'), run: () => this.setConn(h, i) }];
   }
 
