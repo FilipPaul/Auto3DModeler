@@ -1159,7 +1159,13 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   *◎ Bod do středu této plochy / díry* in the suggestions moves the chosen (or last) point to its face's centre.
   **Alt + click** picks the face behind the one you see (a groove underneath, the inside of a hole; again at the same
   spot: the next one behind). Dragging a point snaps to hole and face centres. Where the cable goes through a part,
-  a small *⚠ Motor I3* sits at the spot and the panel names the span (*úsek 3–4*). *⚠ Goes through Motor I3* when its centre line passes through a part. It is drawn as tubes (loose wires
+  a small *⚠ Motor I3* sits at the spot and the panel names the span (*úsek 3–4*).
+  **➰ A loop / slack between two points**: choose a span (click the chosen cable between two points, or the length
+  between two rows of the points list) and *➰ Smyčka / volná délka* asks for one thing — the span's length, filled in
+  with its length now (left as it is: that length is locked). Longer makes a loop of slack there that keeps the bend
+  radius, out of the corners (down where nothing else decides), exactly that long; when the parts move the span keeps
+  it, pulled too far it goes straight with *⚠ Úsek 3–4 je napnutý — krátký o 12 mm*. The spans' lengths win over a
+  locked length of the whole cable (the panel says so). *⚠ Goes through Motor I3* when its centre line passes through a part. It is drawn as tubes (loose wires
   twisted round the centre line in their colours, a ribbon flat, a sleeve corrugated), listed in the assembly tree
   (*🔌 Svazek 1 · 4 × Ø1,5 · 1 284 mm*), in the **BOM** a line per wire or cable with its length + a reserve (5 %, under
   *More*) rounded up to 10 mm — *Vodič Ø1,5 mm hnědý — 1 350 mm* — and in the **STEP / GLB / IGES** exports (a part

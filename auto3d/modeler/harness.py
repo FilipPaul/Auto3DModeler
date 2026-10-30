@@ -190,15 +190,15 @@ def _sag(a, b, before=None, after=None):
 
 
 def _bowed(P, h, r_min):
-    """The points with each span k bowed h[k] mm (0: straight): two points put in, at the span's middle ± r_min (a
-    short span: ± a quarter of it) and h off it the way it hangs (_sag) — a flat-bottomed bow the corners round at
-    r_min -> (points, where each point of P went)."""
+    """The points with each span k bowed h[k] mm (0: straight): two points put in, at the span's middle ± a quarter of
+    it + h / 2 (no more than r_min: a deep loop on a short span reaches out past its ends) and h off it the way it hangs (_sag)
+    — a flat-bottomed bow the corners round at r_min -> (points, where each point of P went)."""
     out, where = [P[0]], [0]
     for k in range(len(P) - 1):
         a, b = P[k], P[k + 1]
         if h[k] > 1e-9:
             L, n = float(np.linalg.norm(b - a)), _sag(a, b, P[k] - P[k - 1] if k > 0 else None, P[k + 2] - P[k + 1] if k + 2 < len(P) else None)
-            u, w = (b - a) / L, min(r_min, L / 4) if r_min > 0 else L / 4
+            u, w = (b - a) / L, min(r_min, L / 4 + h[k] / 2) if r_min > 0 else L / 4
             out += [a + u * (L / 2 - w) + n * h[k], a + u * (L / 2 + w) + n * h[k]]
         out.append(b)
         where.append(len(out) - 1)

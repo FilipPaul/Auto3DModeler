@@ -140,6 +140,26 @@ class TestRoute(unittest.TestCase):
         self.assertEqual(len(r["taut"]), 1)
         self.assertAlmostEqual(r["taut"][0]["short"], straight - 400)
 
+    def test_span_length(self):
+        """➰ A span given 140 mm with its ends 100 apart: a loop of slack 140 (± 0.5), every bend ≥ R; ends moved to 130
+        apart: still 140, shaped again; to 150: straight, taut, short by 10. Its neighbours keep their own lengths."""
+        R = 15
+        for gap in (100, 130):
+            pts = [[-60, 0, 50], [0, 0, 50], [gap, 0, 50], [gap, 0, 120]]
+            r = H.shape(pts, R, spans={1: 140})
+            self.assertAlmostEqual(r["spans"][1], 140, delta=0.5)
+            self.assertAlmostEqual(sum(r["spans"]), r["length"], places=6)
+            self.assertEqual(r["taut"], [])
+            self.assertTrue(all(b["ok"] for b in r["bends"]), r["bends"])
+            s = sample(r, 1500)
+            self.assertGreaterEqual(min(circum_r(*s[k - 1:k + 2]) for k in range(1, len(s) - 1)), R * (1 - 1e-3))
+        r = H.shape([[-60, 0, 50], [0, 0, 50], [150, 0, 50], [150, 0, 120]], R, spans={1: 140})
+        self.assertEqual([t["span"] for t in r["taut"]], [1])
+        self.assertAlmostEqual(r["taut"][0]["short"], H.shape([[-60, 0, 50], [0, 0, 50], [150, 0, 50], [150, 0, 120]], R)["spans"][1] - 140)
+        both = H.shape([[0, 0, 0], [100, 0, 0]], R, spans={0: 140}, total=300)  # (the span's own length wins)
+        self.assertTrue(both["total_ignored"])
+        self.assertAlmostEqual(both["length"], 140, delta=0.5)
+
     def test_bundle(self):
         for n, k in ((1, 1), (3, 2.155), (7, 3)):
             self.assertAlmostEqual(H.bundle_d(n, 1.5), k * 1.5, places=2)
@@ -183,6 +203,13 @@ class TestSolid(unittest.TestCase):
         self.assertTrue(watertight(r["body"]))
         st, _ = doc.evaluate([f])
         self.assertAlmostEqual(K.volume(K.from_step(K.to_step(st.body.shape))), v, delta=v * 2e-3)
+        # ➰ its first span 150 mm (100 straight): the solid as long as the shaped route
+        g = dict(f, length=None, spans=[{"from": 0, "length": 150}])
+        L = H.shape(self.L_ROUTE, 30, spans={0: 150})["length"]
+        r = doc.rebuild({"features": [g]})
+        self.assertTrue(r["ok"], r["features"])
+        self.assertAlmostEqual(r["body"]["volume"], math.pi * (d / 2) ** 2 * L, delta=L * 30 * 2e-3)
+        self.assertTrue(watertight(r["body"]))
 
     def test_loose_wires(self):
         wires = [{"d": 1.5, "color": c} for c in ("red", "black", "blue", "brown")]

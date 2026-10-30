@@ -9,7 +9,9 @@
 //
 // Assembly JSON: "harnesses": [{"id": "H1", "kind": "cable" | "wires" | "ribbon" | "sleeve", "d": 6 (cable / sleeve Ø),
 //   "color": "black", "wires": [{"d": 1.5, "color": "brown"}] (loose wires, a ribbon's count), "pitch": 1.27,
-//   "r_min": 30 (not said: the rule of thumb, autoRmin), "reserve": 5 (%), "name": "…",
+//   "r_min": 30 (not said: the rule of thumb, autoRmin), "reserve": 5 (%), "name": "…", "length_locked": 400 (🔒 mm),
+//   "spans": [{"from": 2, "length": 140}] (➰ the cable between points from and from + 1 (0-based) that long: a loop of
+//   slack there; they win over length_locked),
 //   "points": [{"inst": "I2", "at": [x, y, z] (in the part), "n": [x, y, z] (its face's normal: the cable lies on it;
 //   none: right there, a hole's centre), "face": "F2:end" (its name, for the list)} (🔒 locked on the part: it moves with
 //   it) | {"xyz": [x, y, z]} (in space) | {"xyz", "on": {inst, at, n, face}} (🔓 a point of a part unlocked: it stays in
@@ -137,8 +139,10 @@ function spread(P0, rMin) {
 
 /** A harness's locked length (🔒, mm) or null. */
 export const lockedOf = (h) => (+h.length_locked > 0 ? +h.length_locked : null);
-/** A harness's route through its world points: shaped to its radius, with its locked length's slack. */
-export function routeOf(h, pts) { return shape(pts, rMinOf(h), null, lockedOf(h)); }
+/** ➰ A harness's spans with their own length -> {from: length} (from: 0-based, the span to the next point). */
+export const spansOf = (h) => Object.fromEntries((h.spans || []).filter((s) => +s.length > 0 && Number.isInteger(+s.from)).map((s) => [+s.from, +s.length]));
+/** A harness's route through its world points: shaped to its radius, with its spans' and its locked length's slack. */
+export function routeOf(h, pts) { return shape(pts, rMinOf(h), spansOf(h), lockedOf(h)); }
 
 /** The route through world points (THREE.Vector3), shaped to the minimum bend radius: each corner an arc of rMin
  *  tangent to both legs; two corners too close for that moved apart along their outer legs until they fit (spread);
@@ -195,15 +199,15 @@ function sag(a, b, before = null, after = null) {
   return null;
 }
 
-/** The points with each span k bowed h[k] mm (0: straight): two points put in, at the span's middle ± rMin (a short
- *  span: ± a quarter of it) and h off it the way it hangs (sag) — a flat-bottomed bow the corners round at rMin
- *  -> {Q, where (where each point of P went)}. */
+/** The points with each span k bowed h[k] mm (0: straight): two points put in, at the span's middle ± a quarter of
+ *  it + h / 2 (no more than rMin: a deep loop on a short span reaches out past its ends) and h off it the way it hangs (sag)
+ *  — a flat-bottomed bow the corners round at rMin -> {Q, where (where each point of P went)}. */
 function bowed(P, h, rMin) {
   const Q = [P[0]], where = [0];
   for (let k = 0; k + 1 < P.length; k++) {
     const a = P[k], b = P[k + 1];
     if (h[k] > 1e-9) {
-      const L = a.distanceTo(b), n = sag(a, b, k > 0 ? a.clone().sub(P[k - 1]) : null, k + 2 < P.length ? P[k + 2].clone().sub(b) : null), u = b.clone().sub(a).divideScalar(L), w = rMin > 0 ? Math.min(rMin, L / 4) : L / 4;
+      const L = a.distanceTo(b), n = sag(a, b, k > 0 ? a.clone().sub(P[k - 1]) : null, k + 2 < P.length ? P[k + 2].clone().sub(b) : null), u = b.clone().sub(a).divideScalar(L), w = rMin > 0 ? Math.min(rMin, L / 4 + h[k] / 2) : L / 4;
       Q.push(a.clone().addScaledVector(u, L / 2 - w).addScaledVector(n, h[k]), a.clone().addScaledVector(u, L / 2 + w).addScaledVector(n, h[k]));
     }
     Q.push(b);
@@ -370,7 +374,8 @@ export function docPoints(doc, h) {
 /** A harness as the kernel's step (auto3d/modeler/harness.py), its points in the assembly's frame. */
 export function harnessStep(doc, h) {
   return { id: h.id, type: 'harness', kind: h.kind, points: docPoints(doc, h).map((p) => p.toArray().map((v) => +v.toFixed(4))), d: +h.d || (h.kind === 'ribbon' ? 1 : 6),
-    wires: (h.wires || []).map((w) => ({ d: +w.d || 1.5, color: w.color })), pitch: +h.pitch || 1.27, r_min: rMinOf(h), ...(lockedOf(h) ? { length: lockedOf(h) } : {}) };
+    wires: (h.wires || []).map((w) => ({ d: +w.d || 1.5, color: w.color })), pitch: +h.pitch || 1.27, r_min: rMinOf(h), ...(lockedOf(h) ? { length: lockedOf(h) } : {}),
+    ...(h.spans?.length ? { spans: h.spans.map((s) => ({ from: +s.from, length: +s.length })) } : {}) };
 }
 
 /** Each harness of an assembly as a part placed where it is, for the drawing sheet: [{id, part: {features}, matrix}]. */
@@ -390,6 +395,10 @@ export function withHarnesses(asm, tree) {
   }
   return tree;
 }
+
+/** "The cable is taut — 12 mm short" / "Span 2–3 is taut — 12 mm short" (a shape's taut entry). */
+const tautText = (x) => (x.span === null || x.span === undefined ? t2('The cable is taut — {x} mm short', { x: num(Math.round(x.short * 10) / 10) })
+  : t2('Span {a}–{b} is taut — {x} mm short', { a: x.span + 1, b: x.span + 2, x: num(Math.round(x.short * 10) / 10) }));
 
 /** "Harness 1" (its own name when it has one). */
 export const nameOf = (h) => h.name || t2('Harness {n}', { n: String(h.id).replace(/\D/g, '') || h.id });
@@ -425,7 +434,9 @@ export function harnessFacts(asm, h) {
     return { n: i + 1, ...(on?.inst ? { part: on.inst, locked: !!p.inst } : { part: null }), ...(on?.face ? { face: on.face } : {}), xyz: w ? w.toArray().map((x) => +x.toFixed(2)) : null }; });
   return { id: h.id, name: nameOf(h), type: h.kind, d_mm: +outerD(h).toFixed(3), r_min_mm: rMinOf(h), points: (h.points || []).length, point_list: list, length_mm: +r.length.toFixed(1),
     ...(h.kind === 'wires' || h.kind === 'ribbon' ? { wires: (h.wires || []).map((w) => ({ d: +w.d || 1.5, color: w.color })) } : { color: h.color || 'black' }),
-    ...(lockedOf(h) ? { length_locked_mm: lockedOf(h) } : {}), ...(r.taut.length ? { taut: { short_mm: +r.taut[0].short.toFixed(1) } } : {}),
+    ...(lockedOf(h) ? { length_locked_mm: lockedOf(h) } : {}), ...(r.taut.length ? { taut: { short_mm: +r.taut[0].short.toFixed(1), ...(r.taut[0].span !== null ? { span: `${r.taut[0].span + 1}–${r.taut[0].span + 2}` } : {}) } } : {}),
+    ...(h.spans?.length ? { spans: h.spans.map((s) => ({ from: +s.from + 1, to: +s.from + 2, length_mm: +s.length, now_mm: +(r.spans[s.from] ?? 0).toFixed(1) })) } : {}),
+    ...(r.totalIgnored ? { note: 'the spans\' own lengths win over length_locked' } : {}),
     ...(r.bends.some((b) => !b.ok) ? { bends_too_tight: r.bends.filter((b) => !b.ok).map((b) => ({ point: b.at + 1, r_mm: +b.r.toFixed(1), min_mm: rMinOf(h) })) } : {}),
     ...(tool?.through.get(h.id)?.length ? { through_parts: tool.through.get(h.id), through_at: (tool.throughAt?.get(h.id) || []).map((c) => ({ part: c.inst, span: `${c.span}–${c.span + 1}`, xyz: c.at })) } : {}) };
 }
@@ -449,6 +460,8 @@ export class HarnessTool {
     this.built = new Map(); // harness id -> {key, objs}
     this.taut = new Set(); // the harnesses pulled taut (🔒 their length too short for their ends)
     this.hl = null; // its point under the mouse in the panel's list (lit in the view)
+    this.span = null; // its span chosen (the cable clicked between two points, or its row): ➰ a loop there
+    this.spanEdit = null; // the span whose length is being typed
     this.altDepth = 0; // Alt + click: how many faces behind the front one (again at the same spot: one further)
     this.adopted = new WeakSet(); // the harnesses whose points in space were looked at: one lying on a face is locked to it
     asm.els.viewport.addEventListener('pointerleave', () => { if (this.hover) { this.hover = null; this.drawNow(); } }); // (no preview with the mouse elsewhere)
@@ -503,8 +516,25 @@ export class HarnessTool {
 
   /** Its points changed by fn(points) — one undo step (the spans' own lengths keep to their points). */
   editPts(h, fn) {
+    const before = (h.points || []).slice(), n = before.length;
     fn(h.points);
+    if (h.spans?.length && h.points.length !== n) { // (a point put in or taken out: a span keeps its length while its two points are still neighbours)
+      h.spans = h.spans.map((s) => { const i = h.points.indexOf(before[s.from]); return i >= 0 && h.points[i + 1] === before[s.from + 1] ? { ...s, from: i } : null; }).filter(Boolean);
+      if (!h.spans.length) delete h.spans;
+    }
+    this.span = null;
+    this.spanEdit = null;
     this.asm.commit();
+  }
+
+  /** ➰ Span `from` (to the next point) given its own length (null: none) — one undo step. */
+  setSpan(id, from, length) {
+    this.set(id, (x) => {
+      x.spans = (x.spans || []).filter((s) => +s.from !== from);
+      if (length > 0) x.spans.push({ from, length: +(+length).toFixed(1) });
+      x.spans.sort((a, b) => a.from - b.from);
+      if (!x.spans.length) delete x.spans;
+    });
   }
 
   /** ✓ Done (Esc, Enter): the points so far are kept; fewer than two — nothing is kept. */
@@ -697,7 +727,10 @@ export class HarnessTool {
     }
     if (a.measuring || a.painting || a.mode !== 'idle' || a.bolt) return false;
     const hit = this.pick(e);
-    if (!hit) { if (this.sel) { this.sel = null; this.pt = null; } return false; }
+    if (!hit) { if (this.sel) { this.sel = null; this.pt = null; this.span = null; } return false; }
+    const near = hit === this.sel ? this.cableNear(this.get(hit), e, 14) : null; // (the chosen one clicked again: the span there)
+    this.span = near ? near.leg : null;
+    this.spanEdit = null;
     this.sel = hit;
     this.pt = null;
     a.sel = null;
@@ -780,7 +813,7 @@ export class HarnessTool {
     const all = [...pts.filter(Boolean), ...extra], r = routeOf(h, all), D = outerD(h);
     const add = (o) => { o.userData.harness = h.id; this.group.add(o); objs.push(o); return o; };
     const taut = r.taut.length ? r.taut[0] : null; // (🔒 too short for its ends: straight, drawn red)
-    if (taut && !this.taut.has(h.id) && !extra.length) this.asm.hooks.toast(`🔌 ${nameOf(h)}: ${t2('The cable is taut — {x} mm short', { x: num(Math.round(taut.short * 10) / 10) })}`, 'warning', 4000); // (a limit, as a collision: said once)
+    if (taut && !this.taut.has(h.id) && !extra.length) this.asm.hooks.toast(`🔌 ${nameOf(h)}: ${tautText(taut)}`, 'warning', 4000); // (a limit, as a collision: said once)
     if (taut) this.taut.add(h.id); else this.taut.delete(h.id);
     const mat = (hex, extraOpts = {}) => new THREE.MeshStandardMaterial({ color: taut ? 0xd0312d : hex, roughness: 0.5, metalness: 0.05, emissive: taut ? 0x3a0808 : on ? 0x0e2a4a : 0x000000, clippingPlanes: clip, ...extraOpts });
     if (r.segs.length && r.length > 1e-6) {
@@ -837,7 +870,7 @@ export class HarnessTool {
         const g = r.segs.find((x) => x.bend === k); // (on its arc's middle; a sharp turn back: at its point)
         label('hn-warn', `⚠ ${t2('R {r} mm — no room for {min}', { r: num(b.r), min: num(rMinOf(h)) })}`, g ? new RouteCurve([g], g.len).getPoint(0.5) : b.p);
       });
-      if (taut) label('hn-warn hn-taut', `⚠ ${t2('The cable is taut — {x} mm short', { x: num(Math.round(taut.short * 10) / 10) })}`, curve.getPoint(0.5));
+      if (taut) label('hn-warn hn-taut', `⚠ ${tautText(taut)}`, curve.getPoint(0.5));
       for (const c of this.throughAt?.get(h.id) || []) label('hn-clash', `⚠ ${c.name}`, V(c.at)); // (where it goes through a part)
       const own = extra.length ? routeOf(h, pts.filter(Boolean)).length : r.length; // (its own length: not to the point under the mouse)
       if (on) label('hn-tag', `🔌 ${lockedOf(h) ? '🔒 ' : ''}${mmText(own)} mm`, curve.getPoint(taut ? 0.3 : 0.5)); // its length at its middle
@@ -927,7 +960,8 @@ export class HarnessTool {
       ${field('r', 'Min. bend R', rMinOf(h), 'mm', 'The smallest radius it may bend round — every corner is rounded at least this much (rule of thumb: 5 × Ø)', `min="0" placeholder="${autoRmin(h)}"`)}
       <div class="mp-facts hn-facts"><span>Ø</span><b data-no-i18n>${num(outerD(h))} mm</b><span>${esc(t('Points'))}</span><b>${(h.points || []).length}</b></div>
       <div class="hn-lenrow"><p class="mp-count hn-len">${esc(this.lengthText(h))}</p><button class="mini hn-lock ${lockedOf(h) ? 'on' : ''}" data-hx="lock" title="${esc(t(lockedOf(h) ? 'Unlock its length: it follows its points again' : 'Lock its length as it is now: when its ends move, the cable keeps it — slack sags, too far pulls it taut'))}">${lockedOf(h) ? '🔒' : '🔓'}</button></div>
-      ${r.taut.length ? `<p class="hint hn-taut">⚠ ${esc(t2('The cable is taut — {x} mm short', { x: num(Math.round(r.taut[0].short * 10) / 10) }))}</p>` : ''}
+      ${r.taut.map((x) => `<p class="hint hn-taut">⚠ ${esc(tautText(x))}</p>`).join('')}
+      ${r.totalIgnored ? `<p class="hint">${esc(t('The spans\' own lengths win over the locked length'))}</p>` : ''}
       ${bad.map((b) => `<p class="hint hn-bad">⚠ ${esc(t2('Point {p}: no room for R {min} mm, bent R {r} mm', { p: b.at + 1, r: num(b.r), min: num(rMinOf(h)) }))}</p>`).join('')}
       ${thr.length ? `<p class="hint bad hn-thr">⚠ ${esc(t2('Goes through {parts}', { parts: (this.throughAt.get(h.id) || []).map((c) => `${c.name} (${t2('span {a}–{b}', { a: c.span, b: c.span + 1 })})`).join(', ') || thr.join(', ') }))}</p>` : ''}
       ${this.pointsList(h)}
@@ -959,7 +993,7 @@ export class HarnessTool {
     for (const s of box.querySelectorAll('select[data-hc]')) s.addEventListener('change', () => this.set(h.id, (x) => { if (s.dataset.hc === 'c') x.color = s.value; else x.wires[+s.dataset.hc].color = s.value; }));
     box.querySelector('.hn-more').addEventListener('toggle', (e) => { this.moreOpen = e.target.open; });
     box.querySelector('[data-hx=done]')?.addEventListener('click', () => this.finish());
-    box.querySelector('[data-hx=undoPt]')?.addEventListener('click', () => { h.points.pop(); this.asm.commit(); });
+    box.querySelector('[data-hx=undoPt]')?.addEventListener('click', () => this.editPts(h, (P) => P.pop()));
     box.querySelector('[data-hx=edit]')?.addEventListener('click', () => this.editPoints(h.id));
     box.querySelector('[data-hx=lock]')?.addEventListener('click', () => this.lockLength(h.id));
     box.querySelector('[data-hx=del]')?.addEventListener('click', () => this.remove(h.id));
@@ -982,7 +1016,10 @@ export class HarnessTool {
           <button class="mini" data-pmove="${i}:-1" ${i ? '' : 'disabled'} title="${esc(t('Earlier'))}">↑</button><button class="mini" data-pmove="${i}:1" ${i < n - 1 ? '' : 'disabled'} title="${esc(t('Later'))}">↓</button><button class="mini danger" data-pdel="${i}" title="${esc(t('Delete the point'))}">✕</button></div>
         <div class="hn-pt2">${xyz}</div></div>`;
     };
-    const ins = (i) => `<button class="hn-ins" data-pins="${i}" title="${esc(t2('A point between {a} and {b}', { a: i + 1, b: i + 2 }))}">＋</button>`;
+    const r = routeOf(h, P.map((p) => pointAt(this.asm, h, p)).filter(Boolean)), own = spansOf(h);
+    const ins = (i) => `<div class="hn-span ${i === this.span ? 'on' : ''}" data-span="${i}"><button class="hn-ins" data-pins="${i}" title="${esc(t2('A point between {a} and {b}', { a: i + 1, b: i + 2 }))}">＋</button>
+      ${this.spanEdit === i ? `<input type="number" step="any" min="0" data-slen="${i}" value="${+(own[i] ?? r.spans?.[i] ?? 0).toFixed(1)}" title="${esc(t('The cable\'s length between these two points: longer than now makes a loop of slack (empty: as it is now)'))}"><span class="unit">mm</span>${own[i] ? `<button class="mini" data-sclear="${i}" title="${esc(t('No length of its own'))}">✕</button>` : ''}`
+        : `<button class="hn-slen" data-sloop="${i}" title="${esc(t('➰ A loop / slack here: type this span\'s length'))}">${own[i] ? '➰ ' : ''}${mmText(r.spans?.[i] ?? 0)} mm${own[i] ? ' 🔒' : ''}</button>`}</div>`;
     return `<details class="hn-pts" ${this.ptsOpen === false ? '' : 'open'}><summary>${esc(t('Points'))} (${n})</summary>
       ${P.map((p, i) => row(p, i) + (i < n - 1 ? ins(i) : '')).join('')}
       ${n ? `<button class="btn small danger hn-clear" data-hx="clearPts" title="${esc(t('Delete all its points and click new ones'))}">🗑 ${esc(t('Delete all points'))}</button>` : ''}</details>`;
@@ -994,6 +1031,17 @@ export class HarnessTool {
     for (const el of box.querySelectorAll('.hn-pt')) {
       el.addEventListener('pointerenter', () => { this.hl = +el.dataset.pt; this.draw(); });
       el.addEventListener('pointerleave', () => { if (this.hl === +el.dataset.pt) { this.hl = null; this.draw(); } });
+    }
+    for (const b of box.querySelectorAll('[data-sloop]')) b.addEventListener('click', () => { this.span = +b.dataset.sloop; this.spanEdit = this.span; this.asm.render(); this.asm.draw(); this.asm.$('#asmRight input[data-slen]')?.focus(); });
+    for (const b of box.querySelectorAll('[data-sclear]')) b.addEventListener('click', () => this.setSpan(h.id, +b.dataset.sclear, null));
+    for (const inp of box.querySelectorAll('input[data-slen]')) {
+      inp.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') inp.blur(); if (ev.key === 'Escape') { this.spanEdit = null; this.asm.render(); } });
+      inp.addEventListener('change', () => { // (empty: its length as it is now, locked)
+        const i = +inp.dataset.slen, raw = String(inp.value).replace(',', '.').trim(), v = raw === '' ? routeOf(h, P().map((p) => pointAt(this.asm, h, p)).filter(Boolean)).spans[i] : parseFloat(raw);
+        this.spanEdit = null;
+        if (!(v > 0)) { this.asm.render(); return; }
+        this.setSpan(h.id, i, v);
+      });
     }
     for (const b of box.querySelectorAll('[data-pdel]')) b.addEventListener('click', () => { this.pt = null; this.hl = null; this.editPts(h, (Q) => Q.splice(+b.dataset.pdel, 1)); });
     for (const b of box.querySelectorAll('[data-pmove]')) b.addEventListener('click', () => {
@@ -1089,7 +1137,7 @@ export class HarnessTool {
     if (this.edit) {
       show(vp, `🔌 ${nameOf(h)}`, [
         { icon: '✓', label: t('Done'), title: t('Keep the points (Esc, Enter)'), run: () => this.finish() },
-        ...((h.points || []).length ? [{ icon: '↶', label: t('Take the last point away'), run: () => { h.points.pop(); this.asm.commit(); } }] : []),
+        ...((h.points || []).length ? [{ icon: '↶', label: t('Take the last point away'), run: () => this.editPts(h, (P) => P.pop()) }] : []),
         ...(this.pt !== null ? [{ icon: '✕', label: t2('Delete point {n}', { n: this.pt + 1 }), danger: true, title: 'Delete', run: () => { const i = this.pt; this.pt = null; this.editPts(h, (P) => P.splice(i, 1)); } }] : []),
         ...this.centreItem(h),
       ], t('Click a face, a hole\'s centre or in space: the next point'));
@@ -1097,6 +1145,8 @@ export class HarnessTool {
     }
     const len = this.lengthText(h);
     show(vp, `🔌 ${nameOf(h)}`, [
+      ...(this.span !== null && this.span + 1 < (h.points || []).length ? [{ icon: '➰', label: t('Loop / slack'), rank: -1, title: t2('Span {a}–{b}: type its length — longer makes a loop of slack that keeps the bend radius', { a: this.span + 1, b: this.span + 2 }),
+        run: () => { this.spanEdit = this.span; this.asm.render(); this.asm.draw(); this.asm.$('#asmRight input[data-slen]')?.focus(); this.asm.$('#asmRight input[data-slen]')?.select(); } }] : []),
       { icon: '✎', label: t('Edit points'), rank: 0, title: t('Click more points, drag them, add one on the cable'), run: () => this.editPoints(h.id) },
       { icon: '📏', label: len, rank: 1, title: t('Copy its length'), run: () => { navigator.clipboard?.writeText(String(Math.round(routeOf(h, (h.points || []).map((p) => pointAt(this.asm, h, p)).filter(Boolean)).length))).catch(() => {}); this.asm.hooks.toast(len, 'info', 2500); } },
       ...Object.entries(KINDS).filter(([k]) => k !== h.kind).map(([k, x], i) => ({ icon: x.icon, label: t2('Make it: {kind}', { kind: t(x.name) }), rank: 3 + i, title: t(x.hint), run: () => this.set(h.id, (y) => { y.kind = k; if (k === 'ribbon') { y.wires = wiresOf(Math.max(y.wires?.length || 0, 10), 1.5); y.d = 1; } else if (y.d <= 2 || (k === 'sleeve' && y.d < 8)) y.d = k === 'sleeve' ? 10 : 6; }) })),
@@ -1174,6 +1224,16 @@ export function harnessHandlers(asm) {
     if (a.name !== undefined) { if (String(a.name).trim()) h.name = String(a.name).trim(); else delete h.name; }
     if (a.points !== undefined) h.points = a.points.map(toPoint);
     if (a.add_points !== undefined) h.points.push(...a.add_points.map((q, k) => toPoint(q, h.points.length + k)));
+    for (const s of a.spans || []) { // ➰ {from: point number (1 = the first), length: mm | null}
+      const i = +s.from - 1;
+      if (!(i >= 0 && i + 1 < h.points.length)) throw new Error(`spans: from ${s.from} — a span runs from a point to the next: 1 … ${h.points.length - 1}.`);
+      h.spans = (h.spans || []).filter((x) => +x.from !== i);
+      const L = s.length === undefined ? routeOf(h, (h.points || []).map((p) => pointAt(asm, h, p)).filter(Boolean)).spans[i] : s.length;
+      if (L !== null && !(+L > 0)) throw new Error('spans: length in mm (> 0; null: none of its own).');
+      if (L !== null) h.spans.push({ from: i, length: +(+L).toFixed(1) });
+      h.spans.sort((x, y) => x.from - y.from);
+      if (!h.spans.length) delete h.spans;
+    }
     for (const [key, lock] of [['lock_points', true], ['unlock_points', false]]) {
       for (const k of a[key] || []) {
         const p = h.points[+k - 1];
@@ -1187,7 +1247,7 @@ export function harnessHandlers(asm) {
   const answer = (h) => {
     asm.harnessTool.checkThrough();
     const f = harnessFacts(asm, h);
-    return { text: `${f.id} ${f.type}, Ø${f.d_mm} mm, ${f.length_mm} mm long through ${f.points} points${f.bends_too_tight ? ` — ⚠ bends tighter than R ${f.r_min_mm}: ${f.bends_too_tight.map((b) => `point ${b.point} R ${b.r_mm}`).join(', ')} (spread the points out or lower r_min)` : ''}${f.through_parts ? ` — ⚠ goes through ${f.through_parts.join(', ')}` : ''}${f.taut ? ` — ⚠ 🔒 taut: its ends are ${f.taut.short_mm} mm too far apart for its locked ${f.length_locked_mm} mm` : ''}. ${JSON.stringify(f)}` };
+    return { text: `${f.id} ${f.type}, Ø${f.d_mm} mm, ${f.length_mm} mm long through ${f.points} points${f.bends_too_tight ? ` — ⚠ bends tighter than R ${f.r_min_mm}: ${f.bends_too_tight.map((b) => `point ${b.point} R ${b.r_mm}`).join(', ')} (spread the points out or lower r_min)` : ''}${f.through_parts ? ` — ⚠ goes through ${f.through_parts.join(', ')}` : ''}${f.taut ? ` — ⚠ 🔒 taut${f.taut.span ? ` (span ${f.taut.span})` : ''}: ${f.taut.short_mm} mm short` : ''}. ${JSON.stringify(f)}` };
   };
   return {
     add_harness: async (a = {}) => {

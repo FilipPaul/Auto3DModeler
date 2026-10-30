@@ -11,7 +11,8 @@ keeps its length (the slack sags, as harness.py's shape), moved far away: taut, 
 🗑 all + undo), a pin's top clicked off its axis: on the axis; that point 🔒 on the pin follows it, 🔓 stays in space;
 a point dragged onto the pin: on its axis; Alt + click: the box's bottom (hidden); ◎ to the face's centre; the length
 label not changed by ✎; where it goes through a part (span, spot, ⚠ in the view); a point in space on a face taken as
-locked; saved + reloaded: the locks kept holds
+locked; ➰ a span's own length (the suggestion, one input): a loop that long, kept as the pin moves, taut too far,
+edit_harness spans; saved + reloaded: the locks and spans kept holds
 the four wires -> the AI's add_harness / edit_harness / get_assembly.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
@@ -477,8 +478,51 @@ try:
     check("edit_harness lock_points: on its part again", js(f"return {T}.get('H2').points[0].inst") == "I1", r[:100])
     call("edit_harness", id="H2", unlock_points=[1])
 
+    # 18. ➰ a span's own length: a cable from the pin's top to the box's top and up; its first span chosen,
+    # "Smyčka / volná délka" in the suggestions, its length typed (40 mm more): a loop of slack that long; the pin
+    # moved: the span keeps it; moved too far: that span taut
+    def span_len(hid, k):
+        return js(f"const h = {T}.get(arguments[0]); return window.__hn.routeOf(h, h.points.map(p => window.__hn.pointAt(window.__app.assembly, h, p)).filter(Boolean)).spans[arguments[1]]", hid, k)
+
+    js(f"{T}.finish(false)")
+    r = call("add_harness", type="cable", d=4, r_min=10, points=[{"part": "I4", "face": "F2:end"}, {"part": "I1", "face": "F2:end"}, {"xyz": [80, 50, 60]}])
+    hid = r.split(" ")[0]
+    js(f"{T}.sel = arguments[0]; {T}.span = 0; {A}.sel = null; {A}.render(); {A}.draw()", hid)
+    time.sleep(0.4)
+    rows = table()
+    check("18. a span chosen: ➰ Smyčka / volná délka offered", any("Smyčka / volná délka" in r for r in rows), rows)
+    js("for (const b of document.querySelectorAll('#asmViewport .view-suggest .vs-list button')) if (b.textContent.includes('Smyčka')) { b.click(); break; }")
+    time.sleep(0.4)
+    inp = d.find_element(By.CSS_SELECTOR, "#asmRight input[data-slen='0']")
+    L0 = span_len(hid, 0)
+    check("…one input: the span's length, as it is now", abs(float(inp.get_attribute("value")) - L0) < 0.06, (inp.get_attribute("value"), L0))
+    want_span = round(L0 + 40, 1)
+    ActionChains(d).key_down(Keys.CONTROL).send_keys("a").key_up(Keys.CONTROL).send_keys(str(want_span)).send_keys(Keys.ENTER).perform()
+    time.sleep(0.6)
+    check("…typed 40 mm more: the span that long (± 0.5), a loop of slack", js(f"return {T}.get(arguments[0]).spans", hid) == [{"from": 0, "length": want_span}] and abs(span_len(hid, 0) - want_span) <= 0.5,
+          (js(f"return {T}.get(arguments[0]).spans", hid), span_len(hid, 0)))
+    pw = js(f"const h = {T}.get(arguments[0]); return h.points.map(p => window.__hnPoint(h, p).toArray())", hid)
+    py_sp = HM.shape(pw, 10, spans={0: want_span})
+    check("…as harness.py's shape, every bend ≥ R", abs(py_sp["spans"][0] - span_len(hid, 0)) < 1e-3 and all(b["ok"] for b in py_sp["bends"]), [round(b["r"], 2) for b in py_sp["bends"]])
+    d.save_screenshot(f"{OUT}/harness_8_loop.png")
+    call("place_part", part="I4", x=55, y=20, z=10)
+    time.sleep(0.6)
+    check("the pin moved: the span keeps its length", abs(span_len(hid, 0) - want_span) <= 0.5, span_len(hid, 0))
+    call("place_part", part="I4", x=-250, y=20, z=10)
+    time.sleep(0.6)
+    js(f"{T}.sel = arguments[0]; {A}.render(); {A}.draw()", hid)
+    time.sleep(0.4)
+    tt = [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-taut")]
+    check("…moved too far: that span taut, with how much it is short", any("Úsek 1–2 je napnutý — krátký o" in x for x in tt), tt)
+    call("place_part", part="I4", x=40, y=20, z=10)
+    time.sleep(0.4)
+    r = call("edit_harness", id=hid, spans=[{"from": 1, "length": None}])
+    check("edit_harness spans length null: no length of its own", not js(f"return {T}.get(arguments[0]).spans", hid), r[:120])
+    r = call("edit_harness", id=hid, spans=[{"from": 2, "length": 120}])
+    check("edit_harness spans: set, listed", '"spans":[{"from":2,"to":3' in r, r[-260:])
+
     # 17. saved and reloaded: the locks kept
-    keep = js(f"return JSON.stringify({T}.list().map(h => h.points.map(p => [p.inst || null, !!p.on, p.face || null])))")
+    keep = js(f"return JSON.stringify({T}.list().map(h => [h.points.map(p => [p.inst || null, !!p.on, p.face || null]), h.spans || null]))")
     js("return window.__app.autosave.saveNow()")
     time.sleep(1)
     d.refresh()
@@ -489,8 +533,8 @@ try:
     call("open_part", id="Pohon")
     wait(f"return {A}.active && Object.values({A}.bodies).every(b => b.body)", 60)
     time.sleep(1)
-    got = js(f"return JSON.stringify({T}.list().map(h => h.points.map(p => [p.inst || null, !!p.on, p.face || null])))")
-    check("17. reloaded: every point's part, lock and face kept", got == keep, (keep, got))
+    got = js(f"return JSON.stringify({T}.list().map(h => [h.points.map(p => [p.inst || null, !!p.on, p.face || null]), h.spans || null]))")
+    check("17. reloaded: every point's part, lock and face, the spans' lengths kept", got == keep, (keep, got))
 finally:
     errs = [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"]
     print("console errors:", errs)

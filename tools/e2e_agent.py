@@ -336,6 +336,11 @@ try:
     print("    edit_harness unlock_points [1]:", json.loads(tool("edit_harness", id="H1", unlock_points=[1])[0].split(". ", 1)[1])["point_list"][0])
     print("    edit_harness lock_points [1]:", json.loads(tool("edit_harness", id="H1", lock_points=[1])[0].split(". ", 1)[1])["point_list"][0])
     print("    lock_points on a point in space:", tool("edit_harness", id="H1", lock_points=[2])[0][:90])
+    # ➰ its only span 40 mm longer than it is: a loop of slack, listed in `spans`; then none of its own again
+    t, _ = tool("edit_harness", id="H1", spans=[{"from": 1, "length": json.loads(tool("get_assembly")[0])["harnesses"][0]["length_mm"] + 40}])
+    print("    edit_harness spans +40:", json.loads(t.split(". ", 1)[1]).get("spans"))
+    print("    edit_harness spans from 5 (no such span):", tool("edit_harness", id="H1", spans=[{"from": 5, "length": 100}])[0][:90])
+    tool("edit_harness", id="H1", spans=[{"from": 1, "length": None}])
     tool("open_part", id="Flange")
     tool("prepare_print")
     tool("check_print")

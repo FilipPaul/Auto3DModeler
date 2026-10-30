@@ -113,7 +113,9 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
    point on a part is 🔒 locked (moves with it); `edit_harness {id, unlock_points: [3]}` leaves it in space,
    `lock_points` sticks it back. A flat face given as `{part, face}` puts the point on its centre (a pin's top: on its
    axis, so the length holds as the joint turns). `through_at` says where it goes through a part (the span between
-   two points, the spot) — add a point there to lead it round. STEP / GLB exports and the assembly drawing include it.
+   two points, the spot) — add a point there to lead it round. A service loop between two points:
+   `edit_harness {id, spans: [{from: 3, length: 180}]}` (the cable from point 3 to 4 that long: slack that keeps
+   r_min and holds as the parts move; no length: as it is now; null: none). STEP / GLB exports and the assembly drawing include it.
 
 Files for the user: `export {format: "step"}` (the whole assembly as a STEP assembly — SolidWorks, CATIA and Solid
 Edge open it as an assembly tree, a product per part, sub-assemblies nested), `"iges"` (every part placed in one IGES —
