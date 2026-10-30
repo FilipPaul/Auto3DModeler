@@ -1032,6 +1032,12 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   part the closing rod is on); **⋯** picks another driver, the speed (½× 1× 2×), **⚠ Check the travel** (collisions over
   the whole turn) and **📈 Trace** (a curve: how the slider moves over the crank's turn). Nothing shows in an
   assembly without one.
+- **⇤⇥ Limits in ⚙ Mechanism** (*"Meze"*): under each slider the driver's range — *"⇤ −45 … 90 ° ⇥"*, *"full turn"*
+  or *"no limits"*. **⇤⇥ Limits** switches them on around where it is (±90°, ±10 mm — or, after ⚠ Check the travel
+  found a collision, the stretch around it that is free); click a value and type it in place (Enter), **✕** takes
+  them off. The slider and ▶ keep to them at once. **⋯ → ⇤ Set min here / Set max here ⇥**: move it there (the
+  slider, or drag the part), click. The same in a part's panel (**⇤⇥ Limits**, *⇤ here* / *here ⇥*) and in its
+  suggestions (*Limits of its motion…*, *Min here*, *Max here*).
 - **🎬 Save animation** (⚙ Mechanism ⋯, *"Uložit animaci"*): one click records one full cycle of the mechanism — a
   full turn of its driver, else there and back, at the speed ▶ plays it — from the view as it is, and downloads it.
   **GIF** by default (loops, plays everywhere — phones, chats, e-mail; 20 frames a second) or **Video** (MP4 or WebM,

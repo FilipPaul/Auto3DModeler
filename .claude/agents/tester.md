@@ -711,6 +711,11 @@ Never report "works" without having run it; report failures with their output.
    get_assembly, the part panel, gui_state, undo / redo, the project saved and opened again —; drive_mechanism to /
    driver / name, name_motion; ✕ and the toolbar button; ⋯ drivers, 📈 trace, ⚠ the travel; Czech labels; a plain
    assembly: no widget, no button). Prints ALL OK / FAILED, exit code 1 on a failure.
+   `tools/e2e_mech_limits.py <url> <dir>` covers ⇤⇥ limits in ⚙ Mechanism (Czech, real clicks: an arm on a pin with a
+   post in its way — "bez mezí", ⚠ Check the travel then ⇤⇥ Meze: limits clear of the post; min / max typed in the
+   row = limitsOf, the slider's range; ▶ stays within them; the slider to 30° + ⋯ "Nastavit max. sem ⇥"; ✕; the
+   part's suggestions Meze pohybu… (the panel's min focused) / Min. sem / Max. sem, its "⇤⇥ Meze" button and ⇤ sem /
+   sem ⇥; autosave + reload keeps them; no console errors). Prints ALL OK / FAILED, exit code 1 on a failure.
    `tools/e2e_mechanism_anim.py <url> <dir>` covers 🎬 Save animation (the crank demo: ⋯ shows it with GIF / video and
    the name caption; a GIF saved — the progress line counts the frames, the page answers meanwhile, ≥ 20 frames of the
    view's size, looping, each frame differs from the one before, the parts back where they were, gui_state

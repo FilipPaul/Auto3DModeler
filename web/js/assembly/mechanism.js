@@ -1,7 +1,8 @@
 // ⚙ Mechanism: the assembly's mechanisms, each driven by one slider — a closed loop (a crank – rod – slider) by one of
 // its parts' free motions (the crank's turn by default: the others follow, the loop solver of loops.js), or a part's
 // own turn / slide on its own (a hinge, a wheel, a slide with limits). ▶ plays it on and on: a full turn round and
-// round, else to and fro — back at a dead point (a slider pushing a crank). ⋯: another driver, the speed, ⚠ the travel
+// round, else to and fro — back at a dead point (a slider pushing a crank); under the slider the driver's limits
+// (⇤ min … max ⇥ typed in place, ⇤⇥ Limits / ✕: Assembly.setTravel) — ▶ keeps to them. ⋯: ⇤ / ⇥ set here, another driver, the speed, ⚠ the travel
 // checked for collisions, 📈 a trace (how a follower moves over the driver's travel) and 🎬 an animation saved (anim.js).
 // A widget of the left column (leftdock.js: docked or floating), there only while the assembly has a mechanism; ✕
 // closes it, ⚙ Mechanism in the toolbar opens it again. Parts coupled by gears, a belt or a rack (couplings.js) are one
@@ -190,6 +191,7 @@ export class MechanismPanel {
     this.closed = false; // (✕: until ⚙ Mechanism opens it again)
     this.notes = {}; // mechanism key -> {text, bad} (⚠ the travel)
     this.traces = {}; // mechanism key -> a trace (📈)
+    this.checked = {}; // mechanism key -> ⚠ the travel checked: {min, max, n, hits} (⇤⇥ Limits start where it was free)
     this.more = new Set(); // the mechanisms whose ⋯ is open
     this.box = leftDock.addWidget('mech', 'assembly', { title: '⚙ Mechanism', h: 230, close: () => this.close() });
   }
@@ -232,7 +234,10 @@ export class MechanismPanel {
         <input type="number" step="any" data-mcn="${k}" value="${fmt(at)}"><span class="unit">${u}</span>
         <button class="mini mc-play ${play ? 'on' : ''}" data-mcplay="${k}" title="${esc(t(play ? 'Pause: it stays where it is' : 'Play: the whole mechanism moves, on and on'))}">${play ? '⏸' : '▶'}</button>
         <button class="mini mc-moreb ${open ? 'on' : ''}" data-mcmore="${k}" title="${esc(t('More: what drives it, how fast, ⚠ check the travel, 📈 trace'))}">⋯</button></div>
+      ${this.limHtml(m, k, u)}
       ${open ? `<div class="mc-more">
+        ${this.limEditable(m) ? `<div class="mc-acts mc-here"><button class="btn small" data-mchere="${k}:min" title="${esc(t('Min where it is now: move it there first (the slider, or drag it), then click'))}">${esc(t('⇤ Set min here'))}</button>
+          <button class="btn small" data-mchere="${k}:max" title="${esc(t('Max where it is now: move it there first (the slider, or drag it), then click'))}">${esc(t('Set max here ⇥'))}</button></div>` : ''}
         ${m.drivers.length > 1 ? `<label class="mc-drv">${esc(t('Driven by'))} <select data-mcdrv="${k}">${m.drivers.map((d, i) => `<option value="${i}" ${d === m.driver ? 'selected' : ''} data-no-i18n>${esc(e.partName(e.inst(d.part)?.part))} ${d.part} · ${d.mo.kind === 'turn' ? '↻' : '↔'} ${esc(d.mo.label)}</option>`).join('')}</select></label>` : ''}
         <div class="mc-acts"><select class="as-dspeed" data-mcspeed="${k}" title="${esc(t('How fast ▶ plays'))}">${SPEEDS.map(([v, l]) => `<option value="${v}" ${m.speed === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
           <button class="btn small" data-mccheck="${k}" title="${esc(t('Move it over its whole travel in small steps and check for collisions on the way'))}">${esc(t('⚠ Check the travel'))}</button>
@@ -242,7 +247,39 @@ export class MechanismPanel {
         ${tr ? this.traceSvg(m, tr, at) : ''}</div>` : ''}</div>`;
   }
 
-  /** 📈 The trace as a small curve: the driver across, the follower up; a line where the driver is now. */
+  /** Its driver's limits can be set here (not one inside a ⚙ moving sub-assembly: its own assembly has them). */
+  limEditable(m) { return !!m.driver?.mo.key && !m.flat; }
+
+  /** ⇤⇥ The driver's range under its slider: "⇤ −45 … 90 ° ⇥" (a value clicked: typed in place; ✕ takes them off), a full
+   *  turn's "Full turn", or "No limits" with ⇤⇥ Limits to switch them on. */
+  limHtml(m, k, u) {
+    if (!m.driver) return '';
+    const ed = this.limEditable(m);
+    if (!m.lim) return `<div class="mc-lim"><span class="mc-limtxt">${esc(t('no limits'))}</span>${ed ? `<button class="mini mc-limadd" data-mclimadd="${k}" title="${esc(t('Limits: how far it may go each way — they start around where it is (where ⚠ Check the travel found it free), then type them'))}">${esc(t('⇤⇥ Limits'))}</button>` : ''}</div>`;
+    const v = (end) => (ed ? `<input type="number" step="any" class="mc-limv" data-mclim="${k}:${end}" value="${fmt(m.lim[end])}" aria-label="${end}" title="${esc(t('Click to type it — ▶ and the slider keep to it'))}">` : `<span data-no-i18n>${fmt(m.lim[end])}</span>`);
+    return `<div class="mc-lim on">${m.full ? `<span class="mc-limtxt">${esc(t('full turn'))}</span>` : ''}<span class="mc-limr">⇤ ${v('min')} … ${v('max')} <span class="unit">${u}</span> ⇥</span>${ed
+      ? `<button class="mini mc-limoff" data-mclimoff="${k}" title="${esc(t('Take the limits off: it moves freely again'))}">✕</button>` : ''}</div>`;
+  }
+
+  /** ⇤⇥ The limits a driver starts with: the stretch around where it is that ⚠ Check the travel found free (when it found
+   *  a collision), else Assembly.firstLimits (a turn ±90°, a slide ±10 mm). */
+  firstLimits(m) {
+    const e = engOf(this.asm, m), c = this.checked[m.key], d = m.driver;
+    if (c?.hits?.length) {
+      const span = c.max - c.min, step = span / c.n, round = span >= 360;
+      let p = e.motionPos(d.part, d.mo);
+      if (round) p = ((p - c.min) % 360 + 360) % 360 + c.min;
+      if (!c.hits.some((h) => p >= h.from - 1e-6 && p <= h.to + 1e-6)) {
+        const below = c.hits.filter((h) => h.to < p), above = c.hits.filter((h) => h.from > p);
+        const lo = below.length ? Math.max(...below.map((h) => h.to)) + step : round ? Math.max(...c.hits.map((h) => h.to)) + step - 360 : c.min; // (a full turn: past 0 round to the last one)
+        const hi = above.length ? Math.min(...above.map((h) => h.from)) - step : round ? Math.min(...c.hits.map((h) => h.from)) - step + 360 : c.max;
+        if (hi > lo) return { min: +lo.toFixed(2), max: +hi.toFixed(2) };
+      }
+    }
+    return e.firstLimits(d.part, d.mo);
+  }
+
+  /** 📈 The trace as a small curve:the driver across, the follower up; a line where the driver is now. */
   traceSvg(m, tr, at) {
     const W = 240, Hh = 64, x0 = Math.min(...tr.xs), x1 = Math.max(...tr.xs), y0 = Math.min(...tr.ys), y1 = Math.max(...tr.ys);
     const X = (v) => 4 + ((v - x0) / (x1 - x0 || 1)) * (W - 8), Y = (v) => Hh - 4 - ((v - y0) / (y1 - y0 || 1)) * (Hh - 8);
@@ -306,6 +343,7 @@ export class MechanismPanel {
     for (const s of this.box.querySelectorAll('[data-mcspeed]')) {
       s.addEventListener('change', () => { const m = row(s, 'mcspeed'), rec = recOf(engOf(asm, m), m.parts, true), v = +s.value; if (v === 1) delete rec.speed; else rec.speed = v; if (this.playing?.key === m.key) this.playing.speed = v; asm.history.commit(); this.render(); });
     }
+    this.bindLimits(row);
     for (const b of this.box.querySelectorAll('[data-mccheck]')) b.addEventListener('click', () => this.check(row(b, 'mccheck')).catch(() => {}));
     for (const b of this.box.querySelectorAll('[data-mctrace]')) {
       b.addEventListener('click', () => { const m = row(b, 'mctrace'); this.stop(); if (this.traces[m.key]) delete this.traces[m.key]; else this.traces[m.key] = traceOf(asm, m) || null; this.draw(); });
@@ -327,6 +365,36 @@ export class MechanismPanel {
         renameInPlace(el, (n) => asm.nameMotion(m.driver.part, m.driver.mo, n));
         el.addEventListener('blur', () => { if (!el.textContent.trim()) this.draw(); }, { once: true });
       });
+    }
+  }
+
+  /** ⇤⇥ The limits' controls: a value typed (Enter or away: set, Esc: as it was), ⇤⇥ Limits, ✕, ⇤ / ⇥ here. */
+  bindLimits(row) {
+    const asm = this.asm, set = (m, lim) => { this.stop(false); asm.setTravel(m.driver.part, m.driver.mo, lim); };
+    for (const el of this.box.querySelectorAll('[data-mclim]')) {
+      const [k, end] = el.dataset.mclim.split(':'), m = this.list[+k], was = el.value;
+      el.addEventListener('focus', () => el.select());
+      el.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') el.blur(); if (ev.key === 'Escape') { el.value = was; el.blur(); } });
+      el.addEventListener('change', () => {
+        const v = parseFloat(String(el.value).replace(',', '.').replace('−', '-'));
+        if (!Number.isFinite(v) || !m.lim) { el.value = was; return; }
+        setTimeout(() => { // (Tab to the other value: it is there again, focused, after the row is drawn anew)
+          const to = document.activeElement?.dataset?.mclim;
+          set(m, { min: m.lim.min, max: m.lim.max, [end]: v });
+          if (to) this.box.querySelector(`[data-mclim="${to}"]`)?.focus();
+        });
+      });
+    }
+    for (const b of this.box.querySelectorAll('[data-mclimadd]')) {
+      b.addEventListener('click', () => {
+        const m = row(b, 'mclimadd');
+        set(m, this.firstLimits(m));
+        this.box.querySelector(`[data-mckey="${CSS.escape(m.key)}"] [data-mclim$=":min"]`)?.focus(); // (type them next)
+      });
+    }
+    for (const b of this.box.querySelectorAll('[data-mclimoff]')) b.addEventListener('click', () => set(row(b, 'mclimoff'), null));
+    for (const b of this.box.querySelectorAll('[data-mchere]')) {
+      b.addEventListener('click', () => { const [k, end] = b.dataset.mchere.split(':'), m = this.list[+k]; this.stop(false); asm.limitHere(m.driver.part, m.driver.mo, end); });
     }
   }
 
@@ -394,7 +462,8 @@ export class MechanismPanel {
     this.more.add(m.key);
     this.draw();
     try {
-      const e = engOf(this.asm, m), r = await e.checkTravel(m.driver.part, m.driver.mo, 24, { min: m.full ? 0 : m.min, max: m.full ? 360 : m.max });
+      const range = { min: m.full ? 0 : m.min, max: m.full ? 360 : m.max }, e = engOf(this.asm, m), r = await e.checkTravel(m.driver.part, m.driver.mo, 24, range);
+      this.checked[m.key] = { ...range, n: 24, hits: r.hits || [] };
       const note = e.travelNote;
       this.notes[m.key] = { text: `${name}: ${note?.text || (r.free ? '✓' : '⚠')}`, bad: !r.free };
       this.render();
