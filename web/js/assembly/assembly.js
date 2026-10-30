@@ -60,7 +60,7 @@ import { startDrag, dragCue, dragValue, cueLabel, firstTip, tipSeen } from './dr
 import { isPin } from './missing.js';
 import { pinFits, restOn } from './smart.js';
 import { springMatrix, addSpring, springIgnores, springsHtml, bindSpringRows, updateSpringRows, springsSummary } from './springs.js';
-import { HarnessTool, harnessHandlers, harnessFacts, withHarnesses } from './harness.js';
+import { HarnessTool, harnessHandlers, harnessFacts, withHarnesses, settleEntries } from './harness.js';
 import { drawChains, chainsHtml, bindChainRows, tidyChains, chainsSummary } from './chains.js';
 import { linksOf } from '../library/cableparts.js';
 import { COUPLING_TYPES, couplingOptions, addCoupling, followCouplings, couplingsHtml, bindCouplingRows, couplingsSummary, ratioText, coupledWith } from './couplings.js';
@@ -4240,6 +4240,7 @@ export class Assembly {
     this.mode = 'idle';
     this.explode = 0;
     Object.assign(this.harnessTool, { edit: null, sel: null, pt: null, hover: null });
+    settleEntries(this); // (⛓ an older file's cable through a chain: the end it enters decided once, now)
     this.history.reset();
     this.ms.reset(); // (its measurements: this assembly's)
     this.render();

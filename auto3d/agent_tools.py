@@ -626,11 +626,13 @@ TOOLS = [
                     "(no length: as it is now; null: none of its own); they win over length_locked; too far apart: `taut` with its "
                     "span. `through_at` where it goes through a part (part, span \"2–3\": between points 2 and 3, xyz). "
                     "📎 clip: {point: n} puts a cable clip from the library on point n (it must lie on a part's face) — the "
-                    "snuggest for the bundle's Ø, or {item, size} as the library names them — along the cable; the point then "
+                    "snuggest for the bundle's Ø, or {item, size} as the library names them — along the cable, 🔗 fixed to that part "
+                    "(it moves with it); the point then "
                     "runs on the clip's axis, locked to it (`point_list` says `clip`: its placed part). ⛓ chain: {span: n, id: "
                     "\"C1\"} routes the span from point n to n + 1 through that energy chain (get_assembly `chains`): the "
                     "cable follows the chain's path as its moving end goes (travel, a part it moves with, ▶); no id: a chain "
-                    "from the library sized for the bundle (opening, bend ≥ r_min) is put in at the span's first point; id "
+                    "from the library sized for the bundle (opening, bend ≥ r_min) is put in at the span's first point, its fixed "
+                    "end 🔗 fixed to that point's part; the span enters the chain at the end nearer its first point and keeps it; id "
                     "null: not through a chain any more. One undo step; answers it as add_harness does.",
      "inputSchema": _obj({"id": STR, "type": {"type": "string", "enum": ["wires", "cable", "ribbon", "sleeve"]},
                           "points": {"type": "array", "items": _obj({"part": STR, "face": STR, "point": POINT, "xyz": POINT})},

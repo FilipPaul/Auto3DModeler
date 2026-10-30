@@ -52,6 +52,13 @@ export class History {
     return true;
   }
 
+  /** Where the steps are now (for squash). */
+  mark() { return this.undo.length; }
+
+  /** The steps recorded since mark m made one: a single undo takes all of them back (an action of several commits —
+   *  a part put in, then joined). */
+  squash(m) { if (this.undo.length > m + 1) this.undo.splice(m + 1); }
+
   canUndo() { return this.undo.length > 0 || !!History.first?.(-1, this, true); }
   canRedo() { return this.redo.length > 0 || !!History.first?.(1, this, true); }
 
