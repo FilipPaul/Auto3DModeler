@@ -313,6 +313,9 @@ Never report "works" without having run it; report failures with their output.
    text field nothing; history.back() twice -> the same page (not reloaded), the project still there, the guard on top.
    `tools/e2e_dims_toggle.py <url> <dir>` covers 📏 Show: Dimensions in the 3D model's bottom row (Czech): the part's sizes
    hidden / shown, kept in step with the left panel's Rozměry (Vše / Žádné) both ways, the mode before restored, a reload.
+   `tools/e2e_dim_popup.py <url> <dir>` covers a size's editor on the part (Czech, real clicks): an extrude's 🔒 16 label ->
+   ☐ Zamčeno -> OK: no 🔒, the sketch's lock gone -> Ctrl+Z back -> ☐ Zobrazit: the label gone (part.hidden_dims) ->
+   Rozměry: Vše brings it back -> a hole's 🔒 ↔ distance freed (f.lock) and locked again by a right-click (= OK).
    `tools/e2e_joint_toggle.py <url> <dir>` covers 🔗 Show: Joints in the assembly's bottom row (Czech): the crank demo's
    joint symbols shown -> switched off: none -> after a reload still off (remembered) -> on again: back.
    `tools/e2e_mechanism_by_mouse.py <url> <dir>` replays building the crank – rod – slider by mouse only (Czech, 1600×1000):

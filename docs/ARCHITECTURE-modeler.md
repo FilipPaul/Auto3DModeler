@@ -76,6 +76,13 @@ Date: 2026-10-25. Written by the architect agent.
   kind, ms, {point, action})`: `point` rings the control, a click on the toast's text points again (it stays);
   `action: {label, run}` a button that does it. Modeler `hint(text, point)`. Wired: ✏ Sketch (Draw a sketch first), ⌖
   Move by clicking, 🔓 unlock (Edit it here), the red joints. tools/e2e_point_at_control.py.
+- **☑ 🔒 Locked / ☑ Show in a size's editor on the part (2026-10-30)** (an app report: no way to unlock or hide a
+  dimension from its popup). Modeler.openDimEdit: a row under the slider (not for the open tool's own labels). Locked
+  (a sketch's size, a hole's distance): unticked + OK = freeDim — a shape's own len / Ø / R loses its dim (as
+  Sketcher.toggleLock), a distance becomes `free` (a reference), a hole's `f.lock` axis goes; typing / sliding ticks it
+  again (typed = locked). Show: unticked + OK = the label's key (`<sketch id>:[t,e,a,b]`, `<step>:<field>`,
+  `<hole>:at<i><axis>`) in `part.hidden_dims` (saved, in the undo snapshot); 🏷 Sizes: All and 📏 switched on clear it
+  (an undo step). One undo step per OK; OK marked data-rclick-ok (right-click in the view). tools/e2e_dim_popup.py.
 - **⇤⇥ One side of a limit at a time (2026-10-30)** (the owner: clear min and max separately). A motion's `travel`
   record may hold only `min` or only `max`: the other side is open. dof.js clampLim (drag.js, the panel's slider,
   move_free, setTravel's put-back) and travelOf (both ends for what needs them: a turn a full turn from the stop — in
