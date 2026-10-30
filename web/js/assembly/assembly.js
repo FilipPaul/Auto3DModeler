@@ -75,6 +75,7 @@ const ID = () => new THREE.Matrix4().identity().toArray();
 const facingAway = (a, b) => !!(a.face?.normal && b.face?.normal && a.face.normal.dot(b.face.normal) < 0); // (two picked faces: {face} each)
 const tidy = (a) => a.map((v) => (Math.abs(v - Math.round(v)) < 1e-9 ? Math.round(v) : +v.toFixed(9))); // (a matrix: whole numbers kept whole)
 const COLORS = [0xd9dee6, 0x9ecbff, 0xffd8a8, 0xb5f5c5, 0xe2c6ff, 0xffc2c2, 0xfff3b0];
+const NO_CLIP = []; // (no ✂ section: the parts' materials share this empty list)
 
 const b64 = (s, T) => { // (a binary answer's arrays come as typed arrays already: modeler/packed.js)
   if (typeof s !== 'string') return s;
@@ -86,12 +87,14 @@ const b64 = (s, T) => { // (a binary answer's arrays come as typed arrays alread
 /** The 3D view with several parts, each with its own placement. */
 class AsmView extends ModelView {
   setBodies(list) {
-    // each body's triangles, normals and edge lines are made once and kept while it is drawn (a hover, the explode
-    // slider, a part chosen draw everything again: only the materials and placements change)
-    const was = this.shapes || new Map();
+    // each body's triangles, normals and edge lines are made once and kept while it is drawn; each placed part's mesh
+    // is kept too and its materials shared by the parts that look alike (a hover, the explode slider, a part chosen
+    // draw everything again: only the materials and placements change — 500 parts: no 500 new materials a time)
+    const was = this.shapes || new Map(), had = this.placed || new Map();
     this.shapes = new Map();
-    for (const o of [...this.bodyGroup.children]) this.bodyGroup.remove(o);
+    this.placed = new Map(); // placed part id -> {mesh, lines, threads} (kept from one draw to the next)
     this.meshes = [];
+    const keep = new Set();
     let box = null;
     for (const it of list) {
       if (!it.body) continue;
@@ -107,13 +110,8 @@ class AsmView extends ModelView {
       }
       this.shapes.set(it.body, sh);
       const pos = sh.base.attributes.position.array, ids = sh.ids;
-      let geo = sh.base;
+      let geo = sh.base, painting = false;
       const o = it.see ? Math.min(Number.isFinite(it.opacity) ? it.opacity : 1, CLEAR) : Number.isFinite(it.opacity) ? it.opacity : 1; // (👁 see-through: 25 %)
-      // a chosen part keeps its own colours and painted faces: it glows blue (it was drawn all blue — its look hidden)
-      const fin = it.finish || { metalness: 0.05, roughness: 0.55 }; // (a metal part: metallic)
-      const mat = new THREE.MeshStandardMaterial({ color: it.colour || COLORS[it.color % COLORS.length], roughness: fin.roughness, metalness: fin.metalness, envMapIntensity: fin.metalness > 0.5 ? 1 : 0.35,
-        side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, emissive: it.clash ? 0x6a0d0d : it.selected ? (it.moving ? 0x2f6fc4 : 0x1e4f86) : it.hover ? 0x1b2a44 : it.moving ? 0x18304f : 0x000000, // (moving: a drag here moves it — drag.js dragCue)
-        transparent: o < 1, opacity: o, depthWrite: o >= 1, clippingPlanes: this.clip || [] });
       const painted = paintedFaces(it.body.faces, it.paint || []);
       const fromFile = !it.ownColour ? it.body.faces.filter((f) => f.color) : [];
       const lit = it.lit ? it.body.faces.filter((f) => f.name.startsWith(it.lit)) : []; // (a part inside a sub-assembly chosen in the list)
@@ -136,38 +134,46 @@ class AsmView extends ModelView {
           if (sh.coloured.size >= 6) { for (const g of sh.coloured.values()) g.dispose(); sh.coloured.clear(); }
           sh.coloured.set(key, geo);
         }
-        mat.vertexColors = true;
-        mat.color.set(0xffffff);
+        painting = true;
       }
-      const mesh = accelerate(new THREE.Mesh(geo, mat));
+      // a chosen part keeps its own colours and painted faces: it glows blue (it was drawn all blue — its look hidden)
+      const mat = this.lookMaterial({ colour: painting ? 0xffffff : it.colour || COLORS[it.color % COLORS.length], finish: it.finish || { metalness: 0.05, roughness: 0.55 }, // (a metal part: metallic)
+        emissive: it.clash ? 0x6a0d0d : it.selected ? (it.moving ? 0x2f6fc4 : 0x1e4f86) : it.hover ? 0x1b2a44 : it.moving ? 0x18304f : 0x000000, opacity: o, vertexColors: painting }); // (moving: a drag here moves it — drag.js dragCue)
+      let p = had.get(it.id);
+      if (!p || this.placed.has(it.id)) p = { mesh: accelerate(new THREE.Mesh(geo, mat)) };
+      const { mesh } = p;
+      mesh.geometry = geo;
+      mesh.material = mat;
       mesh.matrixAutoUpdate = false;
       mesh.matrix.fromArray(it.matrix);
       if (it.explode) mesh.matrix.premultiply(new THREE.Matrix4().makeTranslation(...it.explode));
       mesh.userData = { inst: it.id, faceIds: ids, body: it.body, see: !!it.see };
       mesh.visible = !it.hidden; // (👁 hidden: kept for what hangs on it — a cable's points — but not drawn or picked)
-      this.bodyGroup.add(mesh);
-      const lines = new THREE.LineSegments(sh.edges, this.edgeMaterial);
-      lines.matrixAutoUpdate = false;
-      lines.matrix.copy(mesh.matrix);
-      lines.visible = !it.hidden;
-      this.bodyGroup.add(lines);
+      if (!p.lines) { p.lines = new THREE.LineSegments(sh.edges, this.edgeMaterial); p.lines.matrixAutoUpdate = false; }
+      p.lines.geometry = sh.edges;
+      p.lines.matrix.copy(mesh.matrix);
+      p.lines.visible = !it.hidden;
       if (it.threads === 'cosmetic' && !sh.threads) { // 🔩 its part's cosmetic threads
         const thr = threadSegments(it.body.threads);
         sh.threads = new THREE.BufferGeometry();
         sh.threads.setAttribute('position', new THREE.Float32BufferAttribute(thr, 3));
       }
       if (it.threads === 'cosmetic' && sh.threads.attributes.position.count) {
-        const tl = new THREE.LineSegments(sh.threads, this.threadMaterial);
-        tl.matrixAutoUpdate = false;
-        tl.matrix.copy(mesh.matrix);
-        tl.visible = !it.hidden;
-        this.bodyGroup.add(tl);
-      }
+        if (!p.threads) { p.threads = new THREE.LineSegments(sh.threads, this.threadMaterial); p.threads.matrixAutoUpdate = false; }
+        p.threads.geometry = sh.threads;
+        p.threads.matrix.copy(mesh.matrix);
+        p.threads.visible = !it.hidden;
+      } else p.threads = null;
+      this.placed.set(it.id, p);
+      for (const x of [mesh, p.lines, p.threads]) if (x) { keep.add(x); if (x.parent !== this.bodyGroup) this.bodyGroup.add(x); x.updateMatrixWorld(true); }
       this.meshes.push(mesh);
-      mesh.updateMatrixWorld(true);
-      const bb = new THREE.Box3().setFromObject(mesh);
+      const bb = new THREE.Box3().setFromObject(mesh, false);
       box = box ? box.union(bb) : bb;
     }
+    const kids = this.bodyGroup.children; // (the ones not drawn any more taken out — in one pass: 1000 removes one by one go through the list each)
+    let n = 0;
+    for (const x of kids) { if (keep.has(x)) kids[n++] = x; else x.parent = null; }
+    kids.length = n;
     for (const [body, sh] of was) { // (bodies no longer drawn: their shapes freed)
       if (this.shapes.has(body)) continue;
       for (const g of [sh.base, sh.edges, sh.threads, ...sh.coloured.values()]) g?.dispose();
@@ -177,6 +183,23 @@ class AsmView extends ModelView {
     if (box) { const s = box.getSize(new THREE.Vector3()); this.size = Math.max(s.x, s.y, s.z, 1); this.sizeOrigin(); }
     this.showDatums(!this.meshes.length);
     this.invalidate();
+  }
+
+  /** A part's material for a look {colour, finish, emissive, opacity, vertexColors} — one for all the parts that look
+   *  alike (made once, kept; its cut is the view's ✂ section). */
+  lookMaterial(lk) {
+    const fin = lk.finish, key = `${lk.colour}|${fin.roughness}|${fin.metalness}|${lk.emissive}|${lk.opacity}|${lk.vertexColors ? 1 : 0}`;
+    this.looks ||= new Map();
+    let mat = this.looks.get(key);
+    if (!mat) {
+      if (this.looks.size > 256) { for (const m of this.looks.values()) m.dispose(); this.looks.clear(); } // (a long session's many looks: made again as needed)
+      mat = new THREE.MeshStandardMaterial({ color: lk.colour, roughness: fin.roughness, metalness: fin.metalness, envMapIntensity: fin.metalness > 0.5 ? 1 : 0.35,
+        side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, emissive: lk.emissive,
+        transparent: lk.opacity < 1, opacity: lk.opacity, depthWrite: lk.opacity >= 1, vertexColors: !!lk.vertexColors, clippingPlanes: this.clip || NO_CLIP });
+      this.looks.set(key, mat);
+    }
+    if (mat.clippingPlanes !== (this.clip || NO_CLIP)) { mat.clippingPlanes = this.clip || NO_CLIP; mat.needsUpdate = true; } // (✂ cut since it was made)
+    return mat;
   }
 
   /** ✂ The section: the same cut on every part (and on the marks over them). */
