@@ -2154,6 +2154,12 @@ export class Modeler {
     return mode ? this.setThreads(mode) : null;
   }
 
+  /** The body on screen when it was built of exactly these steps, else null — a picture of the part (the autosave's,
+   *  the project file's: thumbs.js) then takes it instead of asking the kernel for the same part again. */
+  bodyBuiltOf(features) {
+    return this.result?.body && this.resultKey?.startsWith(`[${JSON.stringify(features)},`) ? this.result.body : null;
+  }
+
   /** What the rebuild asks for: real threads only with no tool and no sketch open (else cosmetic lines — each preview
    *  would cut them again). */
   threadsShown() { return this.part.threads === 'real' && (this.cmd || this.mode !== 'part') ? 'cosmetic' : this.part.threads; }

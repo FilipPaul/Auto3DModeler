@@ -1837,10 +1837,11 @@ const project = new Project($('partTabs'), {
   openWindow: (id) => windows.open(id).catch((e) => toast(e.message, 'warning', 7000)),
   showNone: (on) => document.body.classList.toggle('none-open', on), // the last tab closed
   windowId: () => windows?.wid, // (tabs dragged between windows)
-  async thumb(p, size) { // the tree's hover preview: what is in the part (size [w, h]: the project file's picture)
+  async thumb(p, size) { // the tree's hover preview: what is in the part (size [w, h]: the project file's picture; the part
+    // on screen as built there — no second build of it)
     const data = project.dataOf(p);
     if (p.kind === 'sheet') return data?.built ? svgPicture(sheet.svgOf(data)) : null;
-    if (p.kind === 'model') return data?.features?.length ? picture([{ body: await bodyOf(data.features), color: 0xa98be0 }], `m${JSON.stringify(data.features).length}:${p.id}:${JSON.stringify(data.features)}`, size) : null;
+    if (p.kind === 'model') return data?.features?.length ? picture([{ body: modeler.bodyBuiltOf(data.features) || await bodyOf(data.features), color: 0xa98be0 }], `m${JSON.stringify(data.features).length}:${p.id}:${JSON.stringify(data.features)}`, size) : null;
     if (p.kind !== 'assembly') return null;
     const list = [], walk = async (asm, M, depth, inner = null) => { // (sub-assemblies' parts too, placed — moved inside them: `inner`)
       for (const it of asm?.instances || []) {

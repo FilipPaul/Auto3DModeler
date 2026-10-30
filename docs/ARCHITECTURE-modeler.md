@@ -1005,6 +1005,11 @@ Date: 2026-10-25. Written by the architect agent.
   closes the EventSource on pagehide, back on pageshow (persisted); the server ends a poll as soon as the page hangs
   up (server._hung_up: the socket reads as closed — Relay.poll(hung_up=)), so a gone page takes no call. tests:
   tools/e2e_reload_stall.py, test_agent (poll / hang-up); e2e_close_project waits 8 s for the picture, not 45.
+- **A part's picture takes the body on screen done**: the autosave's picture of the project (and the project file's)
+  asked the kernel for a light build of the 3D model on screen — a second build of the same part after each autosave
+  (e2e_cancel's thread cut saw it as a third /api/model/rebuild right after the version save; there since the
+  pictures came in). Modeler.bodyBuiltOf(features): the body on screen when built of exactly these steps; app.js's
+  thumb() takes it, bodyOf (thumbs.js) only for other parts. tests: tools/e2e_cancel.py (nothing sent again).
 - **Mouse side buttons = Undo / Redo; Back stays in the app done** (the owner, 2026-10-30: "boční tlačítka na myši
   … místo back na stránce, což v browseru zavře program"): web/js/mouseback.js — buttons 3 / 4 stopped on mousedown /
   mouseup / auxclick (document, capture); on the press a Ctrl+Z / Ctrl+Y keydown on the body, so every workspace's own
