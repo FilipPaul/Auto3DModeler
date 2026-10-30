@@ -994,6 +994,10 @@ part's rolled-up `total`.
   lights it in the view and shows it in the panel: its **Moves inside** the sub-assembly when that one's own joints
   leave it free (moved in this placement only), *Open its part*, *Open* the sub-assembly or *Choose the whole* one;
   Ctrl+click takes its sub-assembly as the second part. The top rows work as before.
+  **The mouse over a row lights its part's outline in the view** (a sub-assembly's row or a part in it: the whole
+  sub-assembly; a hidden 👁 part does not light up), seen through the parts in front of it; a chosen part — from the
+  list or the view — shows its outline in blue the same way, so a screw inside a plate chosen in the list shows where
+  it is.
 
 **＋ New assembly** (in the ＋ menu next to the part tabs) opens an assembly tab (◇), where the parts of the project
 are placed together — 3D models ◆, quick parts ▤ (drawings, pictures, imports: they go in as their solid) and other

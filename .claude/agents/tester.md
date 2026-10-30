@@ -284,7 +284,9 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_assembly_tree.py <url> <dir>` covers the assembly's list as a tree with real clicks (Machine = Frame +
    Lid unit ×2 + Lever: folded nodes "· 3 part(s)"; ▸ opens Lever, its Base / Arm indented; the Arm chosen: only it lit
    blue, "I2 inside Lever (I4)", its slider turns it (inner); Choose the whole Lever; a pin in Lid unit "holds it in
-   place"; Ctrl+click an inner row; ▾ folds; Lever still open after saving and reopening the project).
+   place"; Ctrl+click an inner row; the mouse over a row lights its part's lines (a sub-assembly's: its placement; off
+   the list: none; nothing drawn anew), the chosen part's lines blue — a row clicked gives the same glow and lines as a
+   click on the part in the view; ▾ folds; Lever still open after saving and reopening the project).
    `tools/e2e_bom.py <url> <dir>` covers the 📋 BOM rolled up through the hierarchy (Machine = Base + Lid unit ×2 (Lid,
    Pin ×3, screw ×2) + Hinge (Bracket, Pin) + 4 screws directly): get_bom totals Base 1, Lid 2, Pin 7, Bracket 1, screw
    8, `from`, make / buy by material, the structured tree, Lid unit alone, parts_list `total`; the 📋 BOM window

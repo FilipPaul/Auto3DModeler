@@ -151,6 +151,8 @@ class AsmView extends ModelView {
       mesh.visible = !it.hidden; // (👁 hidden: kept for what hangs on it — a cable's points — but not drawn or picked)
       if (!p.lines) { p.lines = new THREE.LineSegments(sh.edges, this.edgeMaterial); p.lines.matrixAutoUpdate = false; }
       p.lines.geometry = sh.edges;
+      p.chosen = !!it.selected;
+      this.lineLook(p, it.id);
       p.lines.matrix.copy(mesh.matrix);
       p.lines.visible = !it.hidden;
       if (it.threads === 'cosmetic' && !sh.threads) { // 🔩 its part's cosmetic threads
@@ -185,6 +187,27 @@ class AsmView extends ModelView {
     this.invalidate();
   }
 
+  /** The parts whose lines light up (a row of the parts tree under the mouse: its part, a sub-assembly's whole) — only
+   *  the lines' material changes, nothing is drawn anew; null: none. */
+  lightLines(ids) {
+    const was = this.linesLit || new Set(), now = new Set(ids || []);
+    if (was.size === now.size && [...now].every((id) => was.has(id))) return;
+    this.linesLit = now;
+    for (const id of new Set([...was, ...now])) { const p = this.placed?.get(id); if (p?.lines) this.lineLook(p, id); }
+    this.invalidate();
+  }
+
+  /** A placed part's lines: chosen (blue; the same however it was chosen — the view, the tree, the AI), lit from the
+   *  tree (the hover's colour) — both seen through the parts in front of it (a screw inside a plate chosen in the tree
+   *  shows where it is) —, else the usual dark edges. */
+  lineLook(p, id) {
+    this.litEdge ||= new THREE.LineBasicMaterial({ color: 0x6cb6ff, depthTest: false, transparent: true, opacity: 0.95 });
+    this.chosenEdge ||= new THREE.LineBasicMaterial({ color: 0x3b82f6, depthTest: false, transparent: true, opacity: 0.75 });
+    const m = p.chosen ? this.chosenEdge : this.linesLit?.has(id) ? this.litEdge : this.edgeMaterial;
+    p.lines.material = m;
+    p.lines.renderOrder = m === this.edgeMaterial ? 0 : 2; // (over the parts: drawn last)
+  }
+
   /** A part's material for a look {colour, finish, emissive, opacity, vertexColors} — one for all the parts that look
    *  alike (made once, kept; its cut is the view's ✂ section). */
   lookMaterial(lk) {
@@ -207,6 +230,7 @@ class AsmView extends ModelView {
     super.setSection(sec);
     this.clip = this.material.clippingPlanes;
     for (const g of [this.bodyGroup, this.markGroup]) g?.traverse((o) => { if (o.material && o.material !== this.edgeMaterial) { o.material.clippingPlanes = this.clip; o.material.needsUpdate = true; } });
+    for (const m of [this.litEdge, this.chosenEdge]) if (m) { m.clippingPlanes = this.clip; m.needsUpdate = true; }
     this.invalidate();
   }
 
@@ -1063,10 +1087,17 @@ export class Assembly {
     const list = this.$('.as-list'), open = this.openPaths();
     this.$('.as-start').hidden = this.doc.instances.length > 0;
     list.classList.toggle('exploding', this.explode > 0);
+    if (!list.__lights) { // (the mouse over a row: its part's lines lit in the view — inside a sub-assembly: its placement's)
+      list.__lights = true;
+      const light = (row) => this.view.lightLines(row ? [row.dataset.inst || row.dataset.path.split('/')[0]] : null);
+      list.addEventListener('pointerover', (e) => light(e.target.closest?.('[data-inst], [data-path]')));
+      list.addEventListener('pointerleave', () => light(null));
+    }
     // a part chosen changes only which rows are lit: the rows are kept (500 placed parts: made anew, 25 ms and a layout)
     const key = this.doc.harnesses?.length ? null : this.listKey(open); // (🔌 a harness's row shows its length: always anew)
     if (key && key === this.listWas && list.isConnected && list.childElementCount) { this.litRows(list); displayNote(this, this.$('.as-vis')); return; }
     this.listWas = key;
+    this.view.lightLines(null); // (the row under the mouse goes: its lines too — the next move lights the new one)
     list.innerHTML = '';
     for (const it of this.doc.instances) {
       const b = this.bodies[it.part];

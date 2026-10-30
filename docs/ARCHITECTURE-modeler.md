@@ -46,6 +46,11 @@ Date: 2026-10-25. Written by the architect agent.
     → 40, a tree row 2628 → 48 ms p50), big-150 11 500 → 50–80 ms. Not culprits by the profile: the parts list (kept),
     the suggestions (≤ 14 ms), the panels, layout (≤ 12 ms a click, no forced-reflow loop). e2e_big_assembly times
     the full UI in Czech (real input, default docks) with budgets.
+  - The parts tree lights its parts in the view (the owner: a part chosen in the list was not highlighted — it was, by
+    the glow, but a screw inside a plate or under the suggestions box shows none): AsmView.lineLook — a chosen part's
+    lines blue, a row under the mouse its part's lines the hover colour (lightLines: one pointerover listener on the
+    list, a sub-assembly's / its inner row: the placement), both depthTest off (seen through), only the kept lines'
+    material swapped (no draw; 0.1 ms on big-500); hidden (👁) parts do not light up. e2e_assembly_tree, e2e_big_assembly.
 
 - **💾 Project files are `.a3d` packages (2026-10-30)** (the owner: a real 35 MB `.a3d.json` was 35 MB of base64 STEP;
   an own extension). auto3d/package.py: a ZIP — `project.json` (the project, `"format": "a3d-package", "package": 1`,

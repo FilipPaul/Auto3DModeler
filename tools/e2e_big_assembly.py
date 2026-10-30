@@ -300,8 +300,22 @@ def ui_timings(b, pts):
             right[what] = right.get(what, True) and ok
             for k in ("work", "paint", "long"):
                 out.setdefault(f"ui_{what}_{k}", []).append(r[k])
+    # a row of the tree clicked: its part's lines blue (seen through); the mouse over rows: their lines lit, nothing drawn anew
+    row(4)
+    time.sleep(0.4)
+    right["tree_lines"] = js("const A = window.__app.assembly; return A.view.placed.get(A.sel)?.lines.material === A.view.chosenEdge")
+    lit = js("""const A = window.__app.assembly, v = A.view, rows = [...document.querySelectorAll('.as-list > .mt-item')].filter((r) => r.offsetParent).slice(5, 25), out = [];
+      let drawn = 0; const dr = A.draw; A.draw = (...a) => { drawn++; return dr.apply(A, a); };
+      let ok = true;
+      for (const r of rows) { const t = performance.now(); r.querySelector('.mt-name').dispatchEvent(new PointerEvent('pointerover', { bubbles: true })); out.push(performance.now() - t);
+        ok = ok && v.placed.get(r.dataset.inst)?.lines.material === v.litEdge; }
+      document.querySelector('.as-list').dispatchEvent(new PointerEvent('pointerleave'));
+      A.draw = dr;
+      return { ms: out, ok: ok && ![...v.placed.values()].some((p) => p.lines.material === v.litEdge), drawn };""")
+    right["tree_hover_lines"] = lit["ok"] and lit["drawn"] == 0
     b.run("const I = await import('/js/i18n.js'); I.setLang('en');")
     res = {k: stats(v) for k, v in out.items()}
+    res["ui_tree_hover_ms"] = stats(lit["ms"])
     res["ui_chosen_right"] = right
     return res
 
@@ -352,7 +366,9 @@ try:
             check(f"full UI, a click to its painted frame under {BUDGET['ui_ms']} ms, no long task over it",
                   all(r[f"ui_{w}_paint"].get("p50", 1e9) < BUDGET["ui_ms"] and r[f"ui_{w}_long"].get("max", 1e9) < BUDGET["ui_ms"] for w in ("select", "select2", "deselect", "esc", "tree")),
                   {w: (r[f"ui_{w}_paint"].get("p50"), r[f"ui_{w}_long"].get("max")) for w in ("select", "select2", "deselect", "esc", "tree")})
-        check("full UI: each click / Esc chose what it should", all(r["ui_chosen_right"].values()), r["ui_chosen_right"])
+        check("full UI: each click / Esc chose what it should; a tree row clicked: its lines blue, hovered: lit, nothing drawn anew",
+              all(r["ui_chosen_right"].values()), r["ui_chosen_right"])
+        check(f"the mouse over a tree row under {BUDGET['hover_ms']} ms", r["ui_tree_hover_ms"].get("max", 1e9) < BUDGET["hover_ms"], r["ui_tree_hover_ms"])
         unmet = b.js("return window.__app.assembly.unmet().length")
         check("every part drawn, every joint holds", r["top"] > 90 and unmet == 0, f"{r['top']} placed, {unmet} not held")
         check("collisions, BOM, autosave and a version: no error", all(isinstance(r[k], float) for k in ("collisions_s", "bom_s", "autosave_s", "version_s")),
