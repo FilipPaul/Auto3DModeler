@@ -1247,7 +1247,9 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   lengthens a locked length or a span's own length that is too short (+5 mm), moves free points (in space, not
   connection points) apart or drops one for a too tight bend, moves a free point off a part or puts a point in round
   it, moves the next point out of a too short lead-out — keeping what clears the most, in one Ctrl+Z, and says how it
-  went (*Opraveno 2 z 2*). **⛓ Route through an energy chain**: choose a span (the length between two rows, or the cable
+  went (*Opraveno 2 z 2*). The warning notes in the view are short (*⚠ R 0,33 / 4*, *⚠ napnuto, chybí 4,4 mm*, *⚠
+  Předloktí I3*; the whole sentence in their tooltip) and stack instead of covering each other; a harness that is not chosen shows one *⚠ 3* with all of them in its tooltip; **Zobrazit: ⚠ Varování
+  kabelů** in the bottom row hides them (remembered) — the harness's panel then counts them. **⛓ Route through an energy chain**: choose a span (the length between two rows, or the cable
   clicked again) and pick a chain of the assembly, or one from the library sized for the bundle (its opening ≥ Ø + 2,
   its bend ≥ the minimum radius) — put in at the span's first point, its fixed end 🔗 fixed to that point's part. The
   cable goes into the chain at the end nearer the span's first point and keeps that end as the chain rolls. It runs the chain's path as it is laid

@@ -28,6 +28,7 @@ import { t, getLang } from '../i18n.js';
 import { clipsFor, clipChoices, clipFrames, clipItem, placeClip, chainsFor, placeChain } from '../library/cableparts.js';
 import { chainRoute, chainOf as chainRec, addChain, drawChains } from './chains.js';
 import { ClipPick } from './clippick.js';
+import { showKinds } from '../suggest.js';
 
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -1192,14 +1193,19 @@ export class HarnessTool {
   draw() {
     const v = this.asm.view;
     if (!v) return;
-    if (!this.group) { this.group = new THREE.Group(); v.scene.add(this.group); }
+    if (!this.group) {
+      this.group = new THREE.Group();
+      v.scene.add(this.group);
+      const draw = v.labels.render.bind(v.labels);
+      v.labels.render = (scene, camera) => { draw(scene, camera); this.unstack(); }; // (the notes kept apart: after each frame's labels)
+    }
     const seen = new Set();
     for (const h of this.list()) {
       seen.add(h.id);
       this.adopt(h);
       const pts = (h.points || []).map((p) => pointAt(this.asm, h, p));
       const extra = this.hoverWorld(h);
-      const key = JSON.stringify([h.kind, h.d, h.color, h.wires, h.pitch, h.r_min, h.length_locked, [...pts, ...extra].map((p) => p && p.toArray().map((x) => x.toFixed(3))), this.sel === h.id, this.edit === h.id, this.pt, this.hl, this.litSpan(h), JSON.stringify(this.throughAt?.get(h.id) || []), AVOID.get(h)?.key || '', (h.points || []).map((p, i) => +connOf(h, i)).join(''), JSON.stringify((h.spans || []).filter((s) => s.chain).map((s) => chainRoute(this.asm, s.chain)?.moving.o || null)), this.asm.view.clip?.length || 0]);
+      const key = JSON.stringify([h.kind, h.d, h.color, h.wires, h.pitch, h.r_min, h.length_locked, [...pts, ...extra].map((p) => p && p.toArray().map((x) => x.toFixed(3))), this.sel === h.id, this.edit === h.id, this.pt, this.hl, this.litSpan(h), JSON.stringify(this.throughAt?.get(h.id) || []), AVOID.get(h)?.key || '', (h.points || []).map((p, i) => +connOf(h, i)).join(''), JSON.stringify((h.spans || []).filter((s) => s.chain).map((s) => chainRoute(this.asm, s.chain)?.moving.o || null)), this.asm.view.clip?.length || 0, showKinds().warnings]);
       const was = this.built.get(h.id);
       if (was?.key === key) continue;
       if (was) for (const o of was.objs) { this.group.remove(o); o.geometry?.dispose(); if (o.isCSS2DObject) o.element.remove(); }
@@ -1220,6 +1226,25 @@ export class HarnessTool {
     if (this.sel !== h.id && this.edit !== h.id) return null;
     const k = this.spanHl ?? this.spanEdit ?? this.span;
     return k !== null && k !== undefined && k + 1 < (h.points || []).length ? k : null;
+  }
+
+  /** The harnesses' labels in the view kept apart: in screen order, one that covers a label placed before it is lifted
+   *  above it (a few notes at one corner stack up instead of over each other). */
+  unstack() {
+    const els = [...(this.group?.children || [])].filter((o) => o.isCSS2DObject && o.visible !== false).map((o) => o.element.firstChild).filter((e) => e?.isConnected && e.offsetParent !== null);
+    if (els.length < 2) { for (const e of els) e.style.translate = ''; return; }
+    for (const e of els) e.style.translate = '';
+    const boxes = els.map((e) => ({ e, r: e.getBoundingClientRect() })).sort((a, b) => b.r.top - a.r.top || a.r.left - b.r.left), put = [];
+    for (const x of boxes) {
+      let dy = 0;
+      for (let k = 0; k < 12; k++) {
+        const top = x.r.top - dy, hit = put.find((q) => x.r.left < q.right && x.r.right > q.left && top < q.bottom && top + x.r.height > q.top);
+        if (!hit) break;
+        dy += top + x.r.height - hit.top + 2;
+      }
+      if (dy) x.e.style.translate = `0 ${-dy}px`;
+      put.push({ left: x.r.left, right: x.r.right, top: x.r.top - dy, bottom: x.r.bottom - dy });
+    }
   }
 
   drawNow() { this.draw(); const el = this.asm.$('.hn-len'); if (el) el.textContent = this.lengthText(this.get(this.edit || this.sel)); }
@@ -1279,26 +1304,29 @@ export class HarnessTool {
         const o = add(new THREE.Mesh(new THREE.TubeGeometry(new PolyCurve(seg), m, D * 0.65, 12, false), new THREE.MeshStandardMaterial({ color: 0x58a6ff, emissive: 0x1d4f8f, roughness: 0.4, transparent: true, opacity: 0.9, clippingPlanes: clip })));
         o.userData.litSpan = lit;
       }
-      const label = (cls, text, at) => { // (a label just above its spot: CSS2D places the outer box, the inner one is lifted)
+      const label = (cls, text, at, full = '') => { // (a label just above its spot: CSS2D places the outer box, the inner one is lifted; full: its whole text, a tooltip)
         const el = document.createElement('div'), sp = document.createElement('span');
         el.style.pointerEvents = 'none';
-        sp.className = cls;
+        sp.className = `${cls} hn-lbl`;
         sp.textContent = text;
+        if (full) { sp.title = full; sp.style.pointerEvents = 'auto'; }
         el.appendChild(sp);
         const o = new CSS2DObject(el);
         o.position.copy(at);
         return add(o);
       };
-      const real = all.length - extra.length;
-      r.bends.forEach((b, k) => { // (none while the corner hangs on the point under the mouse: it is not clicked yet)
+      const real = all.length - extra.length, warn = showKinds().warnings !== false, notes = [], note = (...x) => notes.push(x); // (⚠ Cable warnings off in the bottom row: none in the view)
+      if (warn) r.bends.forEach((b, k) => { // (none while the corner hangs on the point under the mouse: it is not clicked yet)
         if (b.ok || (extra.length && b.at >= real - 1)) return;
         const g = r.segs.find((x) => x.bend === k); // (on its arc's middle; a sharp turn back: at its point)
-        label('hn-warn', `⚠ ${t2('R {r} mm — no room for {min}', { r: num(b.r), min: num(rMinOf(h)) })}`, g ? new RouteCurve([g], g.len).getPoint(0.5) : b.p);
+        note('hn-warn', `⚠ R ${num(b.r)} / ${num(rMinOf(h))}`, g ? new RouteCurve([g], g.len).getPoint(0.5) : b.p, `⚠ ${t2('R {r} mm — no room for {min}', { r: num(b.r), min: num(rMinOf(h)) })}`);
       });
-      if (taut) label('hn-warn hn-taut', `⚠ ${tautText(taut)}`, curve.getPoint(0.5));
-      if (!extra.length) for (const x of r.short) label('hn-note', t2('too close — the cable needs a straight lead-out of {x} mm', { x: num(Math.round(x.need)) }), x.p); // (quiet: where the next point is)
-      const marks = [...(this.throughAt?.get(h.id) || []).map((c) => ({ at: c.at, name: c.name })), ...r.clashes.filter((c, i, all) => all.findIndex((x) => x.inst === c.inst) === i && !(this.throughAt?.get(h.id) || []).some((x) => x.inst === c.inst)).map((c) => ({ at: c.at, name: `${this.asm.partName(this.asm.inst(c.inst)?.part)} ${c.inst}` }))];
-      for (const c of marks) label('hn-clash', `⚠ ${t2('the cable hits {part}', { part: c.name })}`, V(c.at)); // (where it could not get clear of a part)
+      if (taut && warn) note('hn-warn hn-taut', `⚠ ${t2('taut, {x} mm short', { x: num(Math.round(taut.short * 10) / 10) })}`, curve.getPoint(0.5), `⚠ ${tautText(taut)}`);
+      if (!extra.length && warn) for (const x of r.short) note('hn-note', t2('lead-out {x} mm', { x: num(Math.round(x.need)) }), x.p, t2('too close — the cable needs a straight lead-out of {x} mm', { x: num(Math.round(x.need)) })); // (quiet: where the next point is)
+      const marks = warn ? [...(this.throughAt?.get(h.id) || []).map((c) => ({ at: c.at, name: c.name })), ...r.clashes.filter((c, i, all) => all.findIndex((x) => x.inst === c.inst) === i && !(this.throughAt?.get(h.id) || []).some((x) => x.inst === c.inst)).map((c) => ({ at: c.at, name: `${this.asm.partName(this.asm.inst(c.inst)?.part)} ${c.inst}` }))] : [];
+      for (const c of marks) note('hn-clash', `⚠ ${c.name}`, V(c.at), `⚠ ${t2('the cable hits {part}', { part: c.name })}`); // (where it could not get clear of a part)
+      if (on || notes.length < 2) for (const x of notes) label(...x); // (the harness chosen: each note at its spot; another: one ⚠ n, every note in its tooltip)
+      else label('hn-warn hn-sum', `⚠ ${notes.length}`, notes[0][2], notes.map((x) => x[3] || x[1]).join('\n'));
       const own = extra.length ? routeAt(this.asm, h).length : r.length; // (its own length: not to the point under the mouse)
       if (on) label('hn-tag', `🔌 ${lockedOf(h) ? '🔒 ' : ''}${mmText(own)} mm`, curve.getPoint(taut ? 0.3 : 0.5)); // its length at its middle
     }
@@ -1392,6 +1420,12 @@ export class HarnessTool {
     const r = routeAt(this.asm, h), hits = new Set([...r.clashes.map((c) => c.inst), ...this.throughOf(h).map((c) => c.inst)]);
     const w = { r, taut: r.taut.length, bends: r.bends.filter((b) => !b.ok).length, hits: hits.size, hitList: [...hits], short: r.short.length };
     return { ...w, n: w.taut + w.bends + w.hits + w.short };
+  }
+
+  /** How many ⚠ notes harness h has in the view (from what was worked out last). */
+  warnCount(h) {
+    const r = routeAt(this.asm, h), parts = new Set([...r.clashes.map((c) => c.inst), ...(this.throughAt?.get(h.id) || []).map((c) => c.inst)]);
+    return r.taut.length + r.bends.filter((b) => !b.ok).length + r.short.length + parts.size;
   }
 
   /** Any ⚠ on harness h now (from what was worked out last: no new work)? */
@@ -1540,6 +1574,7 @@ export class HarnessTool {
       ${r.taut.map((x) => `<p class="hint hn-taut">⚠ ${esc(tautText(x))}</p>`).join('')}
       ${r.totalIgnored ? `<p class="hint">${esc(t('The spans\' own lengths win over the locked length'))}</p>` : ''}
       ${bad.map((b) => `<p class="hint hn-bad">⚠ ${esc(t2('Point {p}: no room for R {min} mm, bent R {r} mm', { p: b.at + 1, r: num(b.r), min: num(rMinOf(h)) }))}</p>`).join('')}
+      ${showKinds().warnings === false && this.warnCount(h) ? `<p class="hint hn-hidden" title="${esc(t('Show: ⚠ Cable warnings in the bottom row shows them'))}">⚠ ${esc(t2('{n} warnings hidden in the view', { n: this.warnCount(h) }))}</p>` : ''}
       ${thr.length ? `<p class="hint bad hn-thr">⚠ ${esc(t2('Goes through {parts}', { parts: (this.throughAt.get(h.id) || []).map((c) => `${c.name} (${t2('span {a}–{b}', { a: c.span, b: c.span + 1 })})`).join(', ') || thr.join(', ') }))}</p>` : ''}
       ${this.warned(h) ? `<button class="btn small hn-fix" data-hx="fix" title="${esc(t('Tries by itself what clears the warnings — a longer locked length, free points moved off the parts or apart — without moving locked or connection points; one undo step'))}">🪄 ${esc(t('Fix the cable automatically'))}</button>` : ''}
       ${this.pointsList(h)}

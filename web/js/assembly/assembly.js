@@ -381,7 +381,7 @@ export class Assembly {
     this.$ = (s) => viewport.querySelector(s) || left.querySelector(s) || right.querySelector(s);
   }
 
-  render() { this.mech?.render(); this.renderBar(); this.renderList(); this.renderProps(); this.renderStatus(); this.renderSuggest(); showSnapFilters(this.els.viewport, this.doc.instances.length > 0, { show: ['joints'], onShow: () => this.drawJointTags() }); }
+  render() { this.mech?.render(); this.renderBar(); this.renderList(); this.renderProps(); this.renderStatus(); this.renderSuggest(); showSnapFilters(this.els.viewport, this.doc.instances.length > 0, { show: ['joints', ...(this.doc.harnesses?.length ? ['warnings'] : [])], onShow: () => { this.drawJointTags(); this.harnessTool.draw(); this.renderProps(); } }); }
 
   /** The suggestions for faces picked with no tool on: one face — the joints it can start (then a face of another
    *  part); two faces of two parts (Ctrl+click) — the joints that fit them (two round: concentric; two flat: touch,
