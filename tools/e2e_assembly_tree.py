@@ -3,7 +3,7 @@ arm turning on it) and "Lid unit" (a lid and 2 pins) inside "Machine" (Lid unit 
 placed sub-assembly a folded node "▸ … · n part(s)" -> ▸ opens it (its parts indented, their ids) -> a click on an inner
 part: it is lit in the view, the panel names it ("I2 inside Lever"), shows its Moves inside (the arm) -> a slider
 turns it here -> ◇ Choose the whole Lever -> an inner part of Lid unit: no moves, "holds it in place" -> Ctrl+click
-an inner row picks its placement as the second part -> ▾ folds it -> opened nodes remembered after a reload -> the
+an inner row adds that row (its placement among the chosen parts) -> ▾ folds it -> opened nodes remembered after a reload -> the
 top rows still choose, 💥 and 📌 as before.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_assembly_tree.py http://127.0.0.1:5199 <out dir>
@@ -149,12 +149,12 @@ try:
     time.sleep(0.4)
     panel = d.find_element(By.CSS_SELECTOR, "#asmRight .mp-body").text
     check(js(f"return {A}.selInner") == {"top": "I2", "path": "I3"} and "holds it in place" in panel, "a pin in Lid unit: chosen, 'Lid unit holds it in place'")
-    # Ctrl+click an inner row: its placement as the second part
+    # Ctrl+click an inner row: that row added (its placement among the chosen parts)
     js(f"{A}.choose('I1')")
     time.sleep(0.2)
     ActionChains(d).key_down(Keys.CONTROL).click(row("Lid I1", 1)).key_up(Keys.CONTROL).perform()
     time.sleep(0.3)
-    check(js(f"return [{A}.sel, {A}.sel2]") == ["I1", "I2"], "Ctrl+click on an inner row: its placement as the second part")
+    check(js(f"return [{A}.selKeys(), {A}.selIds()]") == [["I1", "I2/I1"], ["I1", "I2"]], "Ctrl+click on an inner row: that row added, its placement among the chosen parts")
     # the top rows as before
     row("Frame").click()
     time.sleep(0.2)

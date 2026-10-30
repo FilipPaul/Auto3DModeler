@@ -725,6 +725,7 @@ export class Assembly {
     if (this.mode !== 'idle' || this.measuring || this.painting || this.bolt || (!a && (this.clashPanel || this.fastenerPanel))) { showSuggest(vp, '', []); return; }
     if (this.harnessTool.suggest(vp, showSuggest)) return; // (🔌 a harness edited or chosen)
     if (!a) { this.suggestAssembly(vp); return; } // (nothing chosen: what to do next with the whole assembly)
+    if (this.picks) { this.suggestMany(vp); return; } // (several: what to do with them all)
     const fp = (this.facePicks || []).filter((q) => this.inst(q.inst));
     if (fp.length) { this.suggestFaces(vp, fp); return; }
     const name = (it) => `${this.partName(it.part)} ${it.id}`;
@@ -763,6 +764,25 @@ export class Assembly {
         { section: name(a) }] : []),
       ...this.partItems(a), // (the owner's choice: a click shows its actions in the table, as everywhere)
     ], t('Ctrl+click another part: what fits the two'));
+  }
+
+  /** The suggestions for several chosen parts (Ctrl / Shift+click): hide / see-through, take them out, one of them. */
+  suggestMany(vp) {
+    const ids = this.selIds(), first = this.inst(ids[0]);
+    const refs = `${t('in the assembly')} “${this.hooks.safeName?.() || ''}”: ${ids.map((id) => `${t('part')} ${id}`).join(', ')}`;
+    showSuggest(vp, t2('{n} parts chosen', { n: ids.length }), [
+      { icon: '✕', label: t2('Take them out ({n})', { n: ids.length }), rank: 7, danger: true, title: t('Out of the assembly — Ctrl+Z brings them back'), run: () => this.removeMany(ids) },
+      { icon: '◆', label: `${t('Only')} ${this.partName(first.part)} ${first.id}`, rank: 9, run: () => this.choose(first.id) },
+      ...displayItems(this, ids), // (👁 all of them hidden, see-through, isolated …)
+    ].map((x) => (x.sub ? x : { ...x, run: async () => { await x.run(); this.renderSuggest(); } })), t('Ctrl+click adds or takes out a part'), refs);
+  }
+
+  /** Several placed parts taken out at once: one undo step. */
+  removeMany(ids) {
+    const mk = this.history.mark();
+    for (const id of ids) if (this.inst(id)) this.removeInst(id);
+    this.history.squash(mk);
+    this.select([]);
   }
 
   /** A round edge's centre / quadrant picked on a part (sp: {point, snap, inst}) -> the round faces those edges bound
@@ -1094,6 +1114,13 @@ export class Assembly {
       const light = (row) => this.view.lightLines(row ? [row.dataset.inst || row.dataset.path.split('/')[0]] : null);
       list.addEventListener('pointerover', (e) => light(e.target.closest?.('[data-inst], [data-path]')));
       list.addEventListener('pointerleave', () => light(null));
+      list.addEventListener('mousedown', (e) => { if (e.shiftKey) e.preventDefault(); }); // (Shift+click: a range of rows, not the page's text)
+      this.els.left.addEventListener('click', (e) => { // (a click beside the rows: none chosen)
+        const on = e.target.closest('.mt-item, button, input, select, a, details, .as-vis, .mt-head, .mt-start, .lw-widget');
+        if (!this.selKeys().length || (on && this.els.left.contains(on))) return;
+        this.facePicks = [];
+        this.select([]);
+      });
     }
     // a part chosen changes only which rows are lit: the rows are kept (500 placed parts: made anew, 25 ms and a layout)
     const key = this.doc.harnesses?.length ? null : this.listKey(open); // (🔌 a harness's row shows its length: always anew)
@@ -1105,7 +1132,7 @@ export class Assembly {
       const b = this.bodies[it.part];
       const row = document.createElement('div');
       const shown = this.doc.display?.[it.id];
-      row.className = `mt-item${it.id === this.sel || it.id === this.sel2 ? ' on' : ''}${b?.error ? ' bad' : ''}${shown ? ` as-${shown}` : ''}`;
+      row.className = `mt-item${b?.error ? ' bad' : ''}${shown ? ` as-${shown}` : ''}`; // (lit: litRows)
       row.dataset.inst = it.id;
       // (👁 first: in one place whether the hover's buttons show or not)
       row.innerHTML = `${eyeHtml(this, it.id)}<span class="mt-icon">${this.partIcon(it.part)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>
@@ -1116,7 +1143,6 @@ export class Assembly {
       row.querySelector('.mt-what').textContent = `${it.id}${it.fixed ? ' 📌' : ''}`;
       const kids = this.kindOf(it.part) === 'assembly' ? instanceTree(this.bomCtx(), it.part, it.id) : null;
       if (kids) this.twist(row, it.id, kids, open);
-      if (it.id === this.sel && this.selInner?.top === it.id) row.classList.add('has-inner');
       if (it.fixed) row.title = t('Fixed in place 📌');
       if (b?.error) row.title = b.error;
       row.addEventListener('click', (e) => {
@@ -1130,13 +1156,13 @@ export class Assembly {
         if (a === 'boom') return this.toggleStay(it.id, e.ctrlKey || e.metaKey);
         if (a === 'eye') return clickEye(this, it.id, e.altKey); // (👁 hidden / shown; Alt: see-through)
         if (a === 'twist') return this.toggleOpen(it.id);
-        if (this.facePicks?.length || this.snapPick) { this.facePicks = []; this.snapPick = null; this.view.setMeasure([]); this.drawMarks(); } // (the part chosen in the list: not a face picked before in the view)
-        this.choose(it.id, e.ctrlKey || e.metaKey);
+        this.clickRow(it.id, e);
         return null;
       });
       list.appendChild(row);
       if (kids && open.has(it.id)) this.innerRows(list, it, kids, 1, open);
     }
+    this.litRows(list);
     this.harnessTool.rows(list); // (🔌 its harnesses under the parts)
     displayNote(this, this.$('.as-vis')); // (👁 "2 hidden · Show all")
   }
@@ -1148,17 +1174,14 @@ export class Assembly {
       this.partIcon(it.part), !!it.fixed, !!it.stay, this.bodies[it.part]?.error || ''])]);
   }
 
-  /** The chosen part's row lit (and a part chosen inside a sub-assembly), the others not. */
+  /** The chosen rows lit (a part chosen inside a sub-assembly: its placement's row marked too), the others not. */
   litRows(list) {
+    const keys = new Set(this.selKeys());
     for (const row of list.children) {
-      if (row.dataset.inst) {
-        const id = row.dataset.inst;
-        row.classList.toggle('on', id === this.sel || id === this.sel2);
-        row.classList.toggle('has-inner', id === this.sel && this.selInner?.top === id);
-      } else if (row.dataset.path) {
-        const top = row.dataset.path.split('/')[0];
-        row.classList.toggle('on', this.sel === top && this.selInner?.top === top && this.selInner.path === row.dataset.path.slice(top.length + 1));
-      }
+      const key = row.dataset.inst || row.dataset.path;
+      if (!key) continue;
+      row.classList.toggle('on', keys.has(key));
+      if (row.dataset.inst) row.classList.toggle('has-inner', key === this.sel && this.selInner?.top === key);
     }
   }
 
@@ -1184,7 +1207,7 @@ export class Assembly {
   innerRows(list, top, nodes, depth, open) {
     for (const n of nodes) {
       const inner = n.path.slice(top.id.length + 1), row = document.createElement('div');
-      row.className = `mt-item as-inner-row${this.sel === top.id && this.selInner?.top === top.id && this.selInner.path === inner ? ' on' : ''}`;
+      row.className = 'mt-item as-inner-row';
       row.style.setProperty('--depth', depth);
       row.dataset.path = n.path;
       row.innerHTML = `<span class="mt-icon">${this.partIcon(n.part)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>`;
@@ -1195,7 +1218,7 @@ export class Assembly {
       if (n.children) this.twist(row, n.path, n.children, open);
       row.addEventListener('click', (e) => {
         if (e.target.closest('[data-a=twist]')) { this.toggleOpen(n.path); return; }
-        this.chooseInner(top.id, inner, e.ctrlKey || e.metaKey);
+        this.clickRow(n.path, e);
       });
       list.appendChild(row);
       if (n.children && open.has(n.path)) this.innerRows(list, top, n.children, depth + 1, open);
@@ -1223,10 +1246,27 @@ export class Assembly {
    *  inside it) lit in the view; Ctrl: its placement as the second part (the joints between the two). */
   chooseInner(top, path, more = false) {
     if (more) { this.choose(top, true); return; }
-    this.choose(top);
-    this.selInner = { top, path };
-    this.render();
-    this.draw();
+    this.select([`${top}/${path}`]);
+  }
+
+  /** A click on a row of the parts list (key: "I3", or "I3/I2" inside a sub-assembly): alone — that part; Ctrl — added
+   *  or taken out; Shift — every row from the last one clicked to this one, as the list shows them (Ctrl+Shift: added
+   *  to what is chosen). */
+  clickRow(key, e) {
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (this.facePicks?.length || this.snapPick) { this.facePicks = []; this.snapPick = null; this.view.setMeasure([]); this.drawMarks(); } // (the part chosen in the list: not a face picked before in the view)
+    if (e.shiftKey && this.rowAnchor) {
+      const rows = [...this.$('.as-list').querySelectorAll(':scope > [data-inst], :scope > [data-path]')].map((r) => r.dataset.inst || r.dataset.path);
+      const i = rows.indexOf(this.rowAnchor), j = rows.indexOf(key);
+      if (i >= 0 && j >= 0) {
+        const range = rows.slice(Math.min(i, j), Math.max(i, j) + 1);
+        this.select(ctrl ? [...this.selKeys(), ...range.filter((k) => !this.selKeys().includes(k))] : range);
+        return;
+      }
+    }
+    this.rowAnchor = key;
+    if (ctrl) { const keys = this.selKeys(); this.select(keys.includes(key) ? keys.filter((k) => k !== key) : [...keys, key]); return; }
+    this.select([key]);
   }
 
   /** 💥 Which parts move in Explode: one on / off, or (only) just this one moves — and again: all of them. */
@@ -1334,12 +1374,38 @@ export class Assembly {
     return all;
   }
 
-  /** A part clicked: chosen alone, or (Ctrl) as the second one — the joints between the two are shown. */
+  // What is chosen: `sel` (a part; with `selInner` a part inside it), `sel2` (Ctrl: the second one — the joints between
+  // the two), `picks` (more rows at once: "I3" and "I3/I2", the list's order). Setting sel / sel2 drops the picks.
+  get sel() { return this._sel; }
+  set sel(v) { this._sel = v; this.picks = null; }
+  get sel2() { return this._sel2; }
+  set sel2(v) { this._sel2 = v; this.picks = null; }
+
+  /** The chosen rows: placed parts ("I3") and parts inside a sub-assembly ("I3/I2"). */
+  selKeys() {
+    if (this.picks) return this.picks;
+    if (this.sel && this.selInner?.top === this.sel) return [`${this.sel}/${this.selInner.path}`];
+    return [this.sel, this.sel2].filter((id) => id && this.inst(id));
+  }
+
+  /** The chosen placed parts, once each (a part inside a sub-assembly: its placement). */
+  selIds() { return [...new Set(this.selKeys().map((k) => String(k).split('/')[0]))].filter((id) => this.inst(id)); }
+
+  /** A part clicked: chosen alone, or (Ctrl) added to what is chosen / taken out of it — two: the joints between them. */
   choose(id, more = false) {
-    this.selInner = null;
-    if (id && this.harnessTool) this.harnessTool.sel = null; // (a part chosen: not the harness)
-    if (more && this.sel && id && id !== this.sel) this.sel2 = this.sel2 === id ? null : id;
-    else { this.sel = id || null; this.sel2 = null; }
+    if (more && id) { const keys = this.selKeys(); this.select(keys.includes(id) ? keys.filter((k) => k !== id) : [...keys, id]); return; }
+    this.select(id ? [id] : []);
+  }
+
+  /** These rows chosen ("I3", "I3/I2"): none, one, two placed parts (the pair), or more (picks). */
+  select(keys) {
+    keys = [...new Set(keys.map(String))].filter((k) => this.inst(k.split('/')[0]));
+    const pair = keys.length === 2 && keys.every((k) => !k.includes('/'));
+    this._sel = keys.length ? keys[0].split('/')[0] : null;
+    this._sel2 = pair ? keys[1] : null;
+    this.selInner = keys.length === 1 && keys[0].includes('/') ? { top: this._sel, path: keys[0].slice(this._sel.length + 1) } : null;
+    this.picks = keys.length > 1 && !pair ? keys : null;
+    if (keys.length && this.harnessTool) this.harnessTool.sel = null; // (a part chosen: not the harness)
     this.visPreview = null;
     this.cueParts = null; // (the drag cue: found again at the next mouse move, for what is chosen now)
     cueLabel(this.els.viewport, null, '');
@@ -1358,13 +1424,21 @@ export class Assembly {
     return `<details class="as-jfold" ${this.jointsOpen || bad ? 'open' : ''}><summary title="${esc(t('Every joint and coupling — a part clicked shows only its own'))}">🔗 ${esc(t2('Joints ({n})', { n }))}${bad ? ' <span class="as-jbad">⚠</span>' : ''}</summary>${html}</details>`;
   }
 
+  /** The panel for several chosen parts (Ctrl / Shift+click): which they are; what to do with them: the suggestions. */
+  renderMany(box) {
+    const ids = this.selIds();
+    box.innerHTML = `<h2>${esc(t2('{n} parts chosen', { n: ids.length }))}</h2>
+      <p class="hint">${esc(t('Ctrl+click adds or takes out a part, Shift+click in the list chooses the rows between — what can be done with them all is in the suggestions.'))}</p>
+      <ul class="as-many">${ids.map((id) => `<li><span data-no-i18n>${esc(this.partName(this.inst(id).part))}</span> <i>${id}</i></li>`).join('')}</ul>`;
+  }
+
   renderPair(box) {
     const a = this.inst(this.sel), b = this.inst(this.sel2), js = this.shownJoints();
     box.innerHTML = `<h2><span data-no-i18n>${esc(this.partName(a.part))}</span> ↔ <span data-no-i18n>${esc(this.partName(b.part))}</span></h2>
       <p class="hint">${esc(t2(js.length ? '{a} and {b} — the joints between them.' : '{a} and {b} — no joints between them yet.', { a: a.id, b: b.id }))}</p>
       ${js.length ? this.jointsHtml(null, js) : ''}
       <div class="row-actions wrap"><button class="btn small primary" data-a="joinPair">🔗 Join them</button><button class="btn small" data-a="onlyA">${esc(this.partName(a.part))} ${a.id}</button><button class="btn small" data-a="onlyB">${esc(this.partName(b.part))} ${b.id}</button></div>
-      <p class="hint">Ctrl+click another part to compare it instead, a click alone shows one part.</p>`;
+      <p class="hint">Ctrl+click another part to add it (Shift+click in the list: the rows between), a click alone shows one part.</p>`;
     this.bindJointRows(box);
     box.querySelector('[data-a=joinPair]').addEventListener('click', () => this.startJoint('touch', a.id));
     box.querySelector('[data-a=onlyA]').addEventListener('click', () => this.choose(a.id));
@@ -1377,6 +1451,7 @@ export class Assembly {
     if (this.harnessTool.panel(box)) return; // (🔌 a harness edited or chosen)
     if (this.painting) { this.renderPaint(box); return; }
     if (this.clashPanel && !it) { this.renderClashes(box); return; }
+    if (this.picks && !this.bolt && this.mode === 'idle') { this.renderMany(box); return; }
     if (this.sel2 && it && this.inst(this.sel2) && !this.bolt && this.mode === 'idle') { this.renderPair(box); return; }
     if (this.bolt) { this.renderBolt(box); return; }
     this.view.setGhost([]);
@@ -2614,7 +2689,7 @@ export class Assembly {
       const lit = this.innerLit(it);
       const shown = displayOf(this, it.id); // (👁 hidden / see-through: display only — visibility.js)
       return { id: it.id, body: this.bodyOf(it)?.body, matrix: (this.doc.springs && springMatrix(this, it)) || it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part), ...look, threads: this.hooks.partData(it.part)?.threads,
-        ...(lit ? { lit } : {}), hidden: shown === 'hidden', see: shown === 'clear', selected: (it.id === this.sel && !lit) || it.id === this.sel2 || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst, moving: !!this.cueParts?.includes(it.id), clash: clashing.has(it.id),
+        ...(lit ? { lit } : {}), hidden: shown === 'hidden', see: shown === 'clear', selected: (it.id === this.sel && !lit) || it.id === this.sel2 || !!this.picks?.some((k) => k.split('/')[0] === it.id) || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst, moving: !!this.cueParts?.includes(it.id), clash: clashing.has(it.id),
         explode: along ? along.get(it.id)?.toArray() || null : this.explode && c ? away(c).multiplyScalar(this.explode * 1.2).toArray() : null };
     }));
     this.drawMarks();
@@ -4199,7 +4274,9 @@ export class Assembly {
       const had = this.facePicks || [];
       if (more && !pick && had.length && !h) return; // (a Ctrl+click beside the parts: the face picked first stays)
       this.facePicks = !pick ? [] : more && had.length === 1 && had[0].inst !== pick.inst ? [had[0], pick] : [pick]; // (Ctrl: the other part's face)
-      this.choose(this.snapPick ? sp.inst : h?.inst || pick?.inst || null, more);
+      const hitId = this.snapPick ? sp.inst : h?.inst || pick?.inst || null;
+      this.choose(hitId, more && !(hitId === this.sel && this.selKeys().length === 1)); // (Ctrl on the one chosen part: another face of it)
+      if (more && this.picks) this.facePicks = []; // (three parts or more: what fits them all, not a face's joints)
       this.drawMarks();
     });
     window.addEventListener('keydown', (e) => this.key(e));

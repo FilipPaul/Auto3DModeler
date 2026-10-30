@@ -7,6 +7,18 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **Several parts chosen in an assembly: Ctrl / Shift+click (2026-10-30)** (the owner: "selecting parts must be very
+  easy"). One chosen set for the list and the view: `sel` / `sel2` (the pair: the joints between two) as before, and
+  `picks` — the rows ("I3", "I3/I2" inside a sub-assembly) when more are chosen; sel / sel2 are setters that drop the
+  picks, so the many places that set them stay right. select(keys) sets it all and draws once; selKeys() / selIds()
+  read it (visibility.js `chosen` too: 👁 and H work on them all). clickRow: Ctrl toggles, Shift the range from the
+  last clicked row (rowAnchor) in the list's order, Ctrl+Shift adds it; Shift's mousedown preventDefault (no page
+  text). litRows only toggles classes (the rows are kept: 500 parts, a click 15–30 ms in headless Edge). renderMany /
+  suggestMany: "Vybráno dílů: n", ✕ take them out (removeMany: one undo step), ◆ only one, 👁. Esc / a click beside the
+  rows: none. Changed: Ctrl+click on a third part adds it (it replaced the second one); Ctrl+click on an inner row adds
+  that row (it took its placement as the second part). Tests: tools/e2e_assembly_multiselect.py (new),
+  e2e_assembly_tree updated.
+
 - **🔒 A lock moves nothing, at the value its slider shows (2026-10-30)** (the AI's report: lock_motion of a concentric
   slide answered "locked at -5.8 mm" while the slide read -20 mm, and swung the strut, a sub-assembly's inner stroke
   and another one's hinge leaf; undo left them moved). Causes: the answer gave the joint's own number (the gap between

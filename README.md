@@ -1026,7 +1026,12 @@ part's rolled-up `total`.
   (*Lid unit I2 · 3 parts*). Which ones are open is remembered per assembly. A click on a part inside a sub-assembly
   lights it in the view and shows it in the panel: its **Moves inside** the sub-assembly when that one's own joints
   leave it free (moved in this placement only), *Open its part*, *Open* the sub-assembly or *Choose the whole* one;
-  Ctrl+click takes its sub-assembly as the second part. The top rows work as before.
+  Ctrl+click adds that row to what is chosen. The top rows work as before.
+  **Several parts at once**: a click chooses one, **Ctrl+click** adds or takes out a part (in the list or in the
+  view: the same set), **Shift+click** in the list chooses every row from the last one clicked to this one, as the
+  list shows them (rows inside an open sub-assembly too), **Ctrl+Shift+click** adds such a range. The chosen rows and
+  parts are lit; the panel says *Vybráno dílů: 5*, and the suggestions work on them all (👁 hide / see-through /
+  isolate, H, ✕ *Take them out* — one Ctrl+Z). Esc or a click beside the rows chooses none.
   **The mouse over a row lights its part's outline in the view** (a sub-assembly's row or a part in it: the whole
   sub-assembly; a hidden 👁 part does not light up), seen through the parts in front of it; a chosen part — from the
   list or the view — shows its outline in blue the same way, so a screw inside a plate chosen in the list shows where

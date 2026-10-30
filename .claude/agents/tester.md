@@ -905,6 +905,12 @@ Never report "works" without having run it; report failures with their output.
    a flag fixed onto the crank of "Pohon" placed in "Stroj": the inner mechanism driven 10° and 25° more turns the
    flag that much about the shaft, every corner of it, the joint held; back at the start it is where it was; an older
    file's joint measured against the sub-assembly's directions opens unmoved, measured again (fr 2), and follows).
+   `tools/e2e_assembly_multiselect.py <url> <dir>` covers several parts chosen (Czech, real clicks with keys held: a
+   plate, the crank demo as "Pohon" with its rows open, three flags — a click one, Ctrl+click adds / takes out,
+   Shift+click every row between across Pohon's rows, again fewer, Ctrl+Shift adds a range; the rows lit = the chosen
+   set = the view's lit parts; no page text selected; "Vybráno dílů: 3" and the suggestions Vyjmout je (3) / Skrýt;
+   Ctrl+click in the view adds; H hides / shows them all; Vyjmout je (3) and one undo; Esc and a click beside the rows
+   clear; the 500-part demo: each click's handlers < 100 ms, a real Shift+click 56 rows).
    `tools/e2e_assembly_lock_still.py <url> <dir>` covers 🔒 a lock that moves nothing (Czech: a flag concentric on
    the inner crank's pin of "Pohon" in "Stroj", slid 3 mm and turned: lock_motion of its slide says "3 mm" as
    get_assembly showed, the 🔒 of its turn in the panel says its degrees, no placement or inner place moved, two

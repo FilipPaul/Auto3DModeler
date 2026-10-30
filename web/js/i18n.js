@@ -1559,7 +1559,7 @@ const CS = {
   'held by its joints.': 'drží ho jeho vazby.', 'where its own origin is, and how it is turned.': 'kde je jeho vlastní počátek a jak je natočený.',
   'the top of': 'horní plocha', 'the bottom of': 'spodní plocha', 'a wall of': 'stěna', 'hole of': 'díra', 'a rounding of': 'zaoblení', 'a hole bottom of': 'dno díry', 'a face of': 'plocha', 'face': 'plocha',
   'the joints between them': 'vazby mezi nimi', ': none yet': ': zatím žádné',
-  '🔗 Join them': '🔗 Spojit je', 'Ctrl+click another part to compare it instead, a click alone shows one part.': 'Ctrl+klik na jiný díl ho porovná místo tohoto, samotný klik ukáže jeden díl.',
+  '🔗 Join them': '🔗 Spojit je', 'Ctrl+click another part to add it (Shift+click in the list: the rows between), a click alone shows one part.': 'Ctrl+klik na další díl ho přidá (Shift+klik v seznamu: řádky mezi), samotný klik ukáže jeden díl.',
   'Place it by hand (breaks its joints)': 'Umístit ručně (zruší jeho vazby)',
   '⚠ Collisions': '⚠ Kolize', 'Check where parts overlap (go into each other) — the pairs, how much, marked in red; checked again after every change while it is open': 'Zkontrolovat, kde se díly překrývají (zasahují do sebe) — dvojice, o kolik, vyznačené červeně; při otevřeném panelu se kontroluje po každé změně',
   'Where parts go into each other (touching faces are fine). Checked again after every change while this is open.': 'Kde díly zasahují do sebe (dotýkající se plochy nevadí). Při otevřeném panelu se kontroluje po každé změně znovu.',
@@ -2387,6 +2387,11 @@ const CS = {
     'Dřívější relaci Clauda nešlo obnovit — nová relace dostala krátké shrnutí této konverzace.',
   'starting to record your moves': 'spouští záznam vašich pohybů', 'stopping the recording': 'zastavuje záznam', 'reading your recorded moves': 'čte vaše nahrané pohyby',
   'looking at a recorded screenshot': 'prohlíží snímek ze záznamu',
+  // several parts chosen in an assembly (Ctrl / Shift+click)
+  '{n} parts chosen': 'Vybráno dílů: {n}', 'Take them out ({n})': 'Vyjmout je ({n})', 'Out of the assembly — Ctrl+Z brings them back': 'Ze sestavy ven — Ctrl+Z je vrátí',
+  'Ctrl+click adds or takes out a part': 'Ctrl+klik přidá nebo odebere díl',
+  'Ctrl+click adds or takes out a part, Shift+click in the list chooses the rows between — what can be done with them all is in the suggestions.':
+    'Ctrl+klik přidá nebo odebere díl, Shift+klik v seznamu vybere řádky mezi — co jde se všemi udělat, je v návrzích.',
 };
 
 // ---------------------------------------------------------------------------- texts with values ({} = a value; {1}, {2} … in the Czech text)
