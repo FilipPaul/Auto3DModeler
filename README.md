@@ -537,7 +537,10 @@ SolidWorks. It has only the tools that need almost no input.
    at once) with ✎ Edit the hole and ＋ Add position, and its row in the list is marked. (A round cut made by an
    extrude is not a Hole step: its faces keep their usual suggestions.) **✎ Editing** it opens its panel without placing —
    the mouse shows no new hole and a click adds none until **＋ Add position** (an edited text / picture: **⌖ Move by
-   clicking**). Its numbers on the part — each ↔ / ↕ distance, its Ø and depth — are **typed by a click** (a number
+   clicking**) — a click on its face offers **＋ Add a hole here** first in the suggestions and in the message (one
+   click: a hole where you clicked, then each click adds one more). A click on **another** flat face: the holes of one
+   step are on one face, so the first suggestion (and the message's button) is **＋ Same hole on this face** — the step
+   is done and a new Hole step of the same type, size and thread starts on that face, its first hole where you clicked. Its numbers on the part — each ↔ / ↕ distance, its Ø and depth — are **typed by a click** (a number
    and a slider, the part follows; OK of the tool keeps it), also a hole kept in the middle of a face (typed, it is
    measured from the left / lower edge). While you move
    the mouse the hole is shown where it would go, with its distances to the nearest edges, and it **snaps** like a
@@ -1057,7 +1060,12 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   where it is). Every part of the mechanism follows live. The driver is the crank by default (a full turn, else the
   part the closing rod is on); **⋯** picks another driver, the speed (½× 1× 2×), **⚠ Check the travel** (collisions over
   the whole turn) and **📈 Trace** (a curve: how the slider moves over the crank's turn). Nothing shows in an
-  assembly without one.
+  assembly without one. *Drive the mechanism* always brings the widget to you — unfolded, raised when floating,
+  scrolled to, its row ringed for a moment and its slider ready for the arrow keys.
+- **⚠ A broken joint is said** (*"⚠ vazba J1 je přerušená — plocha F8:hole:0 chybí"*): when a part's edit takes the
+  face a joint holds (a hole deleted or moved to a new step), the mechanism's row and the joint list say which joint
+  and which face, with **🔧 Opravit vazbu**: click the face that takes its place (on the part named in the hint) and the
+  joint holds again. Driving the mechanism while a joint is broken warns once (the part is not held there).
 - **⇤⇥ Limits in ⚙ Mechanism** (*"Meze"*): under each slider the driver's range — *"⇤ −45 … 90 ° ⇥"*, *"full turn"*
   or *"no limits"*. **⇤⇥ Limits** switches them on around where it is (±90°, ±10 mm — or, after ⚠ Check the travel
   found a collision, the stretch around it that is free); click a value and type it in place (Enter), the **✕** by
@@ -1500,6 +1508,12 @@ can open them.
   through the app's own buttons step by step (`gui_highlight`): a pulsing ring around the control (or a spot of the 3D
   view) with a short tip, the rest of the screen dimmed a little. Nothing is blocked — you click the control itself;
   the tip goes when you click it, press **Esc** or ✕, and Claude waits for your click before it shows the next step.
+- **Messages point at the control they name**: when a message asks you to use a control — *"Nejprve nakreslete skicu
+  (✏ Skica)"*, *"klikněte nejdřív na ⌖ Přesunout kliknutím"*, a row of the suggestions — that control gets the same
+  pulsing ring for a few seconds (no dimming) and is brought into view: a folded widget unfolds, a floating one comes to
+  the front, the suggestions open, its panel scrolls to it. In moderation: one ring at a time, gone on your next click,
+  and the same message again right away does not point again — click the message's text (*"Kliknutím ukážu, kde to
+  je"*) to see it once more.
 - **⏺ Recording of moves — "look what I'm doing"**: the **⏺** in the top bar (or the AI, when you ask it to watch:
   `start_recording`) records what you do, so the AI sees the problem instead of you describing it. While it runs, a
   small red pill at the top of the view says **⏺ Recording moves · 0:42 · ■ Stop** (with "(started by the AI)" when the

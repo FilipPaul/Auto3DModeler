@@ -217,7 +217,8 @@ function pickRows(items, all) {
 }
 
 /** Show (or with no items: remove) the table in `viewport`: title (what is selected), items [{icon, label, title,
- *  run, danger, rank, always (shown past the limit), on (the current choice: ✓), hover?: (on) => … (shows what it would do)}, {section} or {icon, label, title, rank, chips: [{label, title, on, primary, run}]} (a row of
+ *  run, danger, rank, always (shown past the limit), on (the current choice: ✓), id (a message may point at its row:
+ *  pointat.js {suggest: id}), hover?: (on) => … (shows what it would do)}, {section} or {icon, label, title, rank, chips: [{label, title, on, primary, run}]} (a row of
  *  values to pick with one click — a tolerance, a roughness; on: the current one, ✓)], hint (a line under it), refs (what is selected, as the AI's tools name it: ✨ puts
  *  it in the chat). More rows than the user's limit (suggestLimit): the most relevant ones, then ⋯ Show all (n). */
 export function showSuggest(viewport, title, items, hint = '', refs = '') {
@@ -244,7 +245,7 @@ export function showSuggest(viewport, title, items, hint = '', refs = '') {
     <div class="vs-list">${rows.map((it) => (it.section !== undefined ? `<div class="vs-sec">${esc(it.section)}</div>` // (a heading: what the rows under it act on)
       : it.chips ? `<div class="vs-chips" title="${esc(it.title || '')}">${it.label ? `<span class="vs-cl"><span class="vs-i">${it.icon || '•'}</span> ${esc(it.label)}</span>` : ''}<div class="vs-cg">${it.chips.map((c, j) => // (a row of values, one click each: the current one ✓)
         `<button class="chip${c.on ? ' on' : ''}${c.primary ? ' vs-pri' : ''}" data-sgc="${it.i}:${j}" title="${esc(c.title || '')}">${c.on ? '✓ ' : ''}${esc(c.label)}</button>`).join('')}</div></div>`
-      : `<button data-sg="${it.i}" class="${it.danger ? 'danger' : ''}${it.always ? ' vs-pin-row' : ''}${it.on ? ' on' : ''}" title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span>${it.on ? '<span class="vs-on">✓</span>' : ''}</button>`)).join('')}${!over ? ''
+      : `<button data-sg="${it.i}"${it.id ? ` data-sgid="${esc(it.id)}"` : ''} class="${it.danger ? 'danger' : ''}${it.always ? ' vs-pin-row' : ''}${it.on ? ' on' : ''}" title="${esc(it.title || '')}"><span class="vs-i">${it.icon || '•'}</span> <span>${esc(it.label)}</span>${it.on ? '<span class="vs-on">✓</span>' : ''}</button>`)).join('')}${!over ? ''
       : all ? `<button class="vs-more" data-sg-fewer title="${esc(t('Only the most relevant suggestions'))}"><span class="vs-i">▴</span> <span>${esc(t('Fewer'))}</span></button>`
         : `<button class="vs-more" data-sg-all title="${esc(t('Everything that can be done with what is selected'))}"><span class="vs-i">⋯</span> <span>${esc(t('Show all'))} (${total})</span></button>`}</div>
     ${hint ? `<p class="vs-hint">${esc(hint)}</p>` : ''}`;

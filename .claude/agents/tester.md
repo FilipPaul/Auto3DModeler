@@ -151,6 +151,11 @@ Never report "works" without having run it; report failures with their output.
    panel -> centre at (8, 6), its labels out of the mouse's way while placing; editing: its ↔ label on the part typed,
    its ↕ field, its Ø label -> at (20, 15), Ø7 volume; chosen: its Ø tag typed; a hole kept in the middle: its field
    shows 20, typed 12 -> measured from the left edge).
+   `tools/e2e_hole_second_face.py <url> <dir>` covers editing a hole and clicking (Czech, real clicks: 2× M3 tapped on a
+   block, a pad beside: ✎ Upravit díru from the rim; its own face clicked: none added, ＋ Přidat díru sem first (ringed)
+   and in the toast, that row: a third hole, ＋ Přidat pozici on; the pad's top: the step unchanged, ＋ Stejná díra na
+   této ploše first (ringed), the toast's text points again, its button: the step done, a new M3 tapped step on the pad
+   with one hole; Enter: the volume down by π·1.25²·(10 + 18); Ctrl+Z, the same through the row; no console errors).
    `tools/e2e_hole_drag.py <url> <dir>` covers a made hole dragged on its face (Czech, real mouse: the move cursor and
    hint; dragged onto the face's centre: ring, snap named, live 30 / 20, exactly (30, 20) kept in the middle, the step's
    other hole stays, one undo step; Ctrl+Z back; Esc mid-drag: stays, no undo step; in line with the centre: (22, 20);
@@ -660,6 +665,10 @@ Never report "works" without having run it; report failures with their output.
    window (--client <window id>, as its chat starts it) lists and changes only its own window's project; a call for
    no window goes to the window in use; the second window closed: its chat's call fails at once ("… was closed"),
    the first one's still works; a reload and 📄 New project keep the window's chat id, a new window has its own.
+   `tools/e2e_point_at_control.py <url> <dir>` covers a message pointing at the control it names (Czech: E with no
+   sketch -> "Nejprve nakreslete skicu (✏ Skica)" and a ring on ✏ Skica, no dimming; gone in ~3 s; the same message at
+   once: no ring; a click on the toast's text: the ring again, the toast stays; a press elsewhere: gone; a step row in
+   the folded step-tree widget: unfolded, ringed, one ring at a time; no console errors). Prints ALL OK / FAILED.
    `tools/e2e_ai_teach.py <url> <dir>` covers the AI's gui_highlight: a ring around ✏ Sketch with its tip (the rest
    dimmed, nothing blocked), a click elsewhere keeps it, the user's real click starts the sketch and removes it (the
    next call says "the user clicked it"), Escape closes it without cancelling the sketch, a new tip replaces the old,
@@ -785,6 +794,12 @@ Never report "works" without having run it; report failures with their output.
    tree; two parts with Ctrl+click; H / Shift+H / Alt+H; a face picked: both rows, acting on its part; mechanisms,
    BOM, collisions unchanged; set_visibility / get_assembly / get_screenshot; reload keeps it; ✎ from a picked face
    opens the part in place with that face chosen; no console errors).
+   `tools/e2e_mech_broken_joint.py <url> <dir>` covers ⚙ Ovládat mechanismus bringing the widget and a broken joint
+   (Czech: an arm on a pin; the widget folded -> the row unfolds it, rings its row, focuses the slider; floating behind
+   the suggestions -> raised; a new hole at the arm's other end and the first deleted: J1 broken — the row and the
+   joint list say "vazba J1 je přerušená — plocha F3:hole:0 chybí" with 🔧 Opravit vazbu, get_assembly gone_face /
+   broken_joints; the slider: one warning, again: none more; 🔧, a click on the new hole's rim: J1 on F4:hole:0, the
+   hole on the pin's axis, no warning; no console errors).
    `tools/e2e_mechanism_anim.py <url> <dir>` covers 🎬 Save animation (the crank demo: ⋯ shows it with GIF / video and
    the name caption; a GIF saved — the progress line counts the frames, the page answers meanwhile, ≥ 20 frames of the
    view's size, looping, each frame differs from the one before, the parts back where they were, gui_state

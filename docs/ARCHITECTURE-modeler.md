@@ -50,6 +50,32 @@ Date: 2026-10-25. Written by the architect agent.
   the toast says ▭ Flush on the ends gives the same height. AI: snap_faces `type: "axis_distance"` with `distance`
   (default: as they are; lock_rotation false frees the swing), get_assembly `distance`, edit_joint `distance`.
   tools/e2e_assembly_axis_distance.py.
+- **⚙ Drive the mechanism brings the widget; a broken joint is said (2026-10-30)** (report 112402: the row did
+  nothing visible with ⚙ Mechanism open low in the dock; J1's hole face was gone after a Hole edit and nothing said so
+  while driving). MechanismPanel.open: pointAt the row (unfolded, raised, scrolled to, ringed) and its slider focused.
+  A joint's `broken` (holdPart: applyJoint threw) now says which face: Assembly.goneFace(m) -> {inst, face, side};
+  the mechanism row `.mc-broken` "⚠ joint J1 is broken — face F3:hole:0 is gone" + 🔧 Fix the joint, the joint list's
+  row the same, get_assembly joints `gone_face`, mechanisms `broken_joints`. 🔧: Assembly.repairJoint — the joint's
+  own pick (startJoint of its type; the side whose face is gone; faceFits only on that part) -> fixFace puts the
+  clicked face in, drops broken / centred, applyMates, one undo step. Driving (slider, number, ▶) with a broken joint
+  warns once per joint (toast with 🔧, pointing at the row's button). tools/e2e_mech_broken_joint.py.
+- **＋ Same hole on this face (2026-10-30)** (report 111217: editing 2× M3 on one pad, a click on the second pad only
+  warned "press OK, then make another Hole"; the way on was unclear). One Hole step stays on one face (the kernel's
+  hole has one plane — simpler than many faces per step). Modeler.clickHole(e, h): another flat face ->
+  offerSameHole: the suggestions' first row `sameHole` "＋ Same hole on this face" (+ ✓ OK) and a toast with the same
+  button, pointing at the row (pointat.js); sameHoleOn: OK, then a new Hole step with the step's settings (all but id,
+  name, plane, points, from, lock) on that face, its first hole at the click (the pick kept: clickHole's `h`). An edited
+  hole's own face with placing off (still never armed by opening it — e2e_hole_select): offerHoleHere — "＋ Add a hole
+  here" first (that spot, then ＋ Add position on), "＋ Add position" next, the toast's button. tools/e2e_hole_second_face.py.
+- **☝ A message points at the control it names (2026-10-30)** (report 111438: "klikněte nejdřív na ＋ Přidat
+  pozici" — the user searched the panel for it). web/js/pointat.js: `pointAt(target, {key, again, ms})` — target an
+  element, a CSS selector (the first one on screen) or `{suggest: id}` (a suggestions row from an item's `id`:
+  suggest.js `data-sgid`); `reveal(el)` unfolds its widget (leftDock.fold), raises a floating one (fb-front), opens
+  closed suggestions / `<details>`, scrolls to it; the AI's gui_highlight ring (`.teach-ring.pt-ring`, no dimming),
+  ~2.6 s, gone on the next press, one at a time, the same key again within 8 s not pointed again. app.js `toast(msg,
+  kind, ms, {point, action})`: `point` rings the control, a click on the toast's text points again (it stays);
+  `action: {label, run}` a button that does it. Modeler `hint(text, point)`. Wired: ✏ Sketch (Draw a sketch first), ⌖
+  Move by clicking, 🔓 unlock (Edit it here), the red joints. tools/e2e_point_at_control.py.
 - **⇤⇥ One side of a limit at a time (2026-10-30)** (the owner: clear min and max separately). A motion's `travel`
   record may hold only `min` or only `max`: the other side is open. dof.js clampLim (drag.js, the panel's slider,
   move_free, setTravel's put-back) and travelOf (both ends for what needs them: a turn a full turn from the stop — in

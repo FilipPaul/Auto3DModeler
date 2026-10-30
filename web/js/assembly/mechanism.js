@@ -5,7 +5,8 @@
 // (⇤ min … max ⇥ typed in place, ⇤⇥ Limits / ✕: Assembly.setTravel) — ▶ keeps to them. ⋯: ⇤ / ⇥ set here, another driver, the speed, ⚠ the travel
 // checked for collisions, 📈 a trace (how a follower moves over the driver's travel) and 🎬 an animation saved (anim.js).
 // The row's ⚠ (off by default): collisions shown while it moves — red parts, a note in the view, red bands under the
-// slider; ⋯ Stop at a collision (mechclash.js).
+// slider; ⋯ Stop at a collision (mechclash.js). A joint of its parts that lost its face (a feature edit took it — the
+// part then moves freely there) says so in its row, with 🔧 Fix the joint (Assembly.repairJoint); driving it warns once.
 // A widget of the left column (leftdock.js: docked or floating), there only while the assembly has a mechanism; ✕
 // closes it, ⚙ Mechanism in the toolbar opens it again. Parts coupled by gears, a belt or a rack (couplings.js) are one
 // mechanism: its driver turns them all. A ⚙ moving sub-assembly's own mechanisms are listed too ("Crank (in Drive)"),
@@ -21,6 +22,7 @@ import { missingJoint } from './missing.js';
 import { animHtml, bindAnim } from './anim.js';
 import { travelOf } from './dof.js';
 import { clashOn, clashBarHtml, clashesNow, refreshScans, setClash, bandsOf } from './mechclash.js';
+import { pointAt } from '../pointat.js';
 
 const fmt = (v) => (+(+v).toFixed(2)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -200,6 +202,7 @@ export class MechanismPanel {
     this.checked = {}; // mechanism key -> ⚠ the travel checked: {min, max, n, hits} (⇤⇥ Limits start where it was free)
     this.more = new Set(); // the mechanisms whose ⋯ is open
     this.scans = {}; // mechanism key -> its travel scanned for ⚠ collisions while it moves (mechclash.js)
+    this.warned = new Set(); // the broken joints driving has warned about (once each)
     this.box = leftDock.addWidget('mech', 'assembly', { title: '⚙ Mechanism', h: 230, close: () => this.close() });
   }
 
@@ -209,6 +212,7 @@ export class MechanismPanel {
     if (!this.playing) try { this.missing = this.asm.active === false ? null : missingJoint(this.asm); } catch { this.missing = null; } // (▶: the joints stay as they are)
     if (!this.missing && this.asm.hoverMissing) { this.asm.hoverMissing = null; this.asm.drawMarks(); }
     if (this.playing && !this.list.some((m) => m.key === this.playing.key)) this.stop(false);
+    for (const id of this.warned) if (!(this.asm.doc.mates || []).some((j) => j.id === id && j.broken)) this.warned.delete(id); // (fixed: broken again later, said again)
     const on = this.list.length > 0 && !this.closed;
     leftDock.show('mech', on);
     if (on) this.draw();
@@ -222,8 +226,35 @@ export class MechanismPanel {
     this.render();
     this.asm.renderBar();
     if (this.missing) this.asm.renderProps(); // (the "missing joint" line: here now, not in the part panel)
-    const row = part && this.box.querySelector(`[data-mckey="${CSS.escape(this.list.find(of)?.key || '')}"]`);
-    row?.scrollIntoView({ block: 'nearest' });
+    // brought to the user — open low in the column, folded, behind another box: unfolded, raised, scrolled to, a ring
+    // on it, its slider focused (⚙ Drive the mechanism looked like it did nothing when the widget was open already)
+    const row = (part && this.box.querySelector(`[data-mckey="${CSS.escape(this.list.find(of)?.key || '')}"]`)) || this.box.querySelector('.mc-row');
+    const w = this.box.closest('.lw-widget');
+    if (!w || w.hidden) return;
+    pointAt(row || w, { again: true });
+    row?.querySelector('input[type=range]')?.focus({ preventScroll: true });
+  }
+
+  /** The joints of mechanism m's parts whose face is gone -> [{j: the joint, inst, face, side}] (Assembly.goneFace). */
+  broken(m) {
+    const e = engOf(this.asm, m);
+    return (e.doc.mates || []).filter((j) => j.broken && (m.parts.includes(j.move) || m.parts.includes(j.onto))).map((j) => ({ j, ...e.goneFace?.(j) })).filter((x) => x.face);
+  }
+
+  /** ⚠ A row's broken joints: what is gone, 🔧 Fix the joint. */
+  brokenHtml(m) {
+    return this.broken(m).map(({ j, face }) => `<p class="mp-count bad mc-broken" data-no-i18n>${esc(t2('⚠ joint {id} is broken — face {face} is gone', { id: `${j.id}${j.name ? ` “${j.name}”` : ''}`, face }))}
+      ${m.flat ? '' : `<button class="btn small" data-mcfix="${esc(j.id)}" title="${esc(t('Click the face that takes its place — the joint holds again'))}">🔧 ${esc(t('Fix the joint'))}</button>`}</p>`).join('');
+  }
+
+  /** Driven with a broken joint: said once (each joint), the row's 🔧 Fix the joint pointed at. */
+  warnBroken(m) {
+    const b = this.broken(m).filter(({ j }) => !this.warned.has(j.id));
+    if (!b.length) return;
+    b.forEach(({ j }) => this.warned.add(j.id));
+    const { j, face } = b[0], fix = m.flat ? null : { label: `🔧 ${t('Fix the joint')}`, run: () => this.asm.repairJoint(j.id) };
+    this.asm.hooks.toast(t2('{name} moves with joint {id} broken (face {face} is gone) — its part is not held there.', { name: m.name, id: j.id, face }), 'warning', 8000,
+      { point: `[data-mcfix="${CSS.escape(j.id)}"]`, ...(fix ? { action: fix } : {}) });
   }
 
   close() { this.stop(); this.closed = true; leftDock.show('mech', false); this.asm.renderBar(); if (this.missing) this.asm.renderProps(); }
@@ -233,11 +264,12 @@ export class MechanismPanel {
     const e = engOf(this.asm, m), dbl = esc(t('Double-click: give it your own name')), dblM = esc(t('Double-click: give this motion your own name'));
     const head = `<label><span class="mc-name ${m.own ? 'own' : ''}" data-mcname="${k}" title="${dbl}" data-no-i18n>⚙ ${esc(m.name)}</span>${m.driver
       ? ` <span class="mc-what" ${m.flat ? '' : `data-mcmo="${k}" title="${dblM}"`} data-no-i18n>· ${m.turn ? '↻' : '↔'} ${esc(m.driver.mo.label)}</span>` : ''}</label>`;
-    if (!m.closed) return `<div class="as-dof mc-row bad" data-mckey="${esc(m.key)}">${head}<p class="mp-count bad">${esc(t2('⚠ The closed loop {parts} cannot close here — a part is too short or too long for this place.', { parts: m.parts.join('–') }))}</p></div>`;
+    if (!m.closed) return `<div class="as-dof mc-row bad" data-mckey="${esc(m.key)}">${head}${this.brokenHtml(m)}<p class="mp-count bad">${esc(t2('⚠ The closed loop {parts} cannot close here — a part is too short or too long for this place.', { parts: m.parts.join('–') }))}</p></div>`;
     let at = 0;
     try { at = posOf(this.asm, m); } catch { at = 0; }
     const u = m.turn ? '°' : 'mm', play = this.playing?.key === m.key, note = this.notes[m.key], open = this.more.has(m.key), tr = this.traces[m.key];
-    return `<div class="as-dof mc-row ${play ? 'on' : ''}" data-mckey="${esc(m.key)}">${head}
+    const broken = this.brokenHtml(m);
+    return `<div class="as-dof mc-row ${play ? 'on' : ''} ${broken ? 'bad' : ''}" data-mckey="${esc(m.key)}">${head}${broken}
       <div class="as-dofrow"><span class="mc-slw"><input type="range" data-mcv="${k}" min="${m.min}" max="${m.max}" step="${m.turn ? 1 : 0.5}" value="${fmt(at)}" aria-label="${esc(m.name)}">${clashBarHtml(this, m)}</span>
         <input type="number" step="any" data-mcn="${k}" value="${fmt(at)}"><span class="unit">${u}</span>
         <button class="mini mc-play ${play ? 'on' : ''}" data-mcplay="${k}" title="${esc(t(play ? 'Pause: it stays where it is' : 'Play: the whole mechanism moves, on and on'))}">${play ? '⏸' : '▶'}</button>
@@ -334,14 +366,15 @@ export class MechanismPanel {
     const asm = this.asm, row = (el, a) => this.list[+el.dataset[a]];
     for (const sl of this.box.querySelectorAll('[data-mcv]')) {
       const m = row(sl, 'mcv'), num = this.box.querySelector(`[data-mcn="${sl.dataset.mcv}"]`);
-      sl.addEventListener('input', () => { this.stop(false); num.value = fmt(+sl.value); driveTo(asm, m, +sl.value); this.mark(m); });
+      sl.addEventListener('input', () => { this.stop(false); num.value = fmt(+sl.value); driveTo(asm, m, +sl.value); this.mark(m); this.warnBroken(m); });
       sl.addEventListener('change', () => { driveTo(asm, m, +sl.value, true); });
     }
     for (const num of this.box.querySelectorAll('[data-mcn]')) {
       num.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') num.blur(); });
-      num.addEventListener('change', () => { const v = parseFloat(String(num.value).replace(',', '.')); if (Number.isFinite(v)) { this.stop(false); driveTo(asm, row(num, 'mcn'), v, true); } });
+      num.addEventListener('change', () => { const v = parseFloat(String(num.value).replace(',', '.')); if (Number.isFinite(v)) { this.stop(false); driveTo(asm, row(num, 'mcn'), v, true); this.warnBroken(row(num, 'mcn')); } });
     }
     for (const b of this.box.querySelectorAll('[data-mcplay]')) b.addEventListener('click', () => { const m = row(b, 'mcplay'); if (this.playing?.key === m.key) this.stop(); else this.play(m); });
+    for (const b of this.box.querySelectorAll('[data-mcfix]')) b.addEventListener('click', () => { this.stop(false); asm.repairJoint(b.dataset.mcfix); });
     for (const b of this.box.querySelectorAll('[data-mcclash]')) b.addEventListener('click', () => { const m = row(b, 'mcclash'); setClash(this, m, !clashOn(m)); });
     for (const c of this.box.querySelectorAll('[data-mcstop]')) c.addEventListener('change', () => setClash(this, row(c, 'mcstop'), true, c.checked));
     for (const b of this.box.querySelectorAll('[data-mcmore]')) b.addEventListener('click', () => { const m = row(b, 'mcmore'); if (this.more.has(m.key)) this.more.delete(m.key); else this.more.add(m.key); this.draw(); });
@@ -449,6 +482,7 @@ export class MechanismPanel {
     try { at = posOf(this.asm, m); } catch { return; }
     const p = this.playing = { key: m.key, dir: 1, v: at, last: performance.now(), speed: m.speed, hit: clashesNow(this, m).length > 0 };
     this.draw();
+    this.warnBroken(m);
     const frame = (now) => {
       if (this.playing !== p) return;
       const mm = this.list.find((x) => x.key === p.key);
@@ -505,7 +539,8 @@ export class MechanismPanel {
       const e = engOf(this.asm, m), idx = (d) => { let x = null; try { x = e.motionsOf(d.part, true)?.motions.findIndex((q) => q.key === d.mo.key); } catch { x = null; } return x; };
       return { id: m.id, name: m.name, parts: m.parts, ...(m.inside ? { inside: m.inside } : {}), ...(m.closed ? {} : { closed: false }),
         ...(m.driver ? { driver: { part: m.driver.part, motion: idx(m.driver), label: m.driver.mo.label }, at, min: m.min, max: m.max, unit: m.turn ? 'deg' : 'mm', ...(m.full ? { full_turn: true } : {}),
-          drivers: m.drivers.map((d) => `${d.part} motion ${idx(d)}: ${d.mo.label}`) } : {}), ...this.clashSummary(m) };
+          drivers: m.drivers.map((d) => `${d.part} motion ${idx(d)}: ${d.mo.label}`) } : {}), ...this.clashSummary(m),
+        ...(this.broken(m).length ? { broken_joints: this.broken(m).map(({ j, face }) => ({ id: j.id, gone_face: face })) } : {}) };
     });
   }
 
