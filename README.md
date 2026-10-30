@@ -1032,7 +1032,18 @@ part's rolled-up `total`.
   (*Lid unit I2 · 3 parts*). Which ones are open is remembered per assembly. A click on a part inside a sub-assembly
   lights it in the view and shows it in the panel: its **Moves inside** the sub-assembly when that one's own joints
   leave it free (moved in this placement only), *Open its part*, *Open* the sub-assembly or *Choose the whole* one;
-  Ctrl+click takes its sub-assembly as the second part. The top rows work as before.
+  Ctrl+click adds that row to what is chosen. The top rows work as before.
+  **Several parts at once**: a click chooses one, **Ctrl+click** adds or takes out a part (in the list or in the
+  view: the same set), **Shift+click** in the list chooses every row from the last one clicked to this one, as the
+  list shows them (rows inside an open sub-assembly too), **Ctrl+Shift+click** adds such a range. The chosen rows and
+  parts are lit; the panel says *Vybráno dílů: 5*, and the suggestions work on them all (👁 hide / see-through /
+  isolate, H, ✕ *Take them out* — one Ctrl+Z). Esc or a click beside the rows chooses none.
+  **🔗 Spojit pevně (n dílů)** (Fix together) makes them **one rigid group** as they are now — nothing moves: they go
+  with the part they are on as one body (a mechanism driven, a drag, the solver). The base: a 📌 fixed one of them, else
+  the one joined to the rest of the assembly, else the biggest; a part inside a sub-assembly chosen too (Ctrl+click
+  its row, e.g. a hinge leaf) is the base — the group swings with it. The joints panel shows the group as **one row**
+  (*Brána (60 dílů)*: double-click renames it, ◆ chooses its parts, ✕ dissolves it — the parts stay). The AI:
+  `fix_together {parts | all_except, to, name}`, get_assembly `groups`, `remove_joint {id: "R1"}`.
   **The mouse over a row lights its part's outline in the view** (a sub-assembly's row or a part in it: the whole
   sub-assembly; a hidden 👁 part does not light up), seen through the parts in front of it; a chosen part — from the
   list or the view — shows its outline in blue the same way, so a screw inside a plate chosen in the list shows where
@@ -1204,12 +1215,15 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   default) switches it: off, it is 🧱 rigid — one body, no inner motion (offered back in its suggestions). The AI:
   get_assembly / gui_state `mechanisms` with `inside: "I3"`, `drive_mechanism {mechanism: "I3"}`, `move_free
   {part: "I3/I2"}`, `place_part {part: "I3", rigid: true}`.
+  A part 🔗 fixed onto a part inside a sub-assembly (a gate frame on a hinge leaf) turns with that part, not only
+  shifts: driving the hinge 10° swings the frame 10° about the pin.
   A part on a face is centred on it once, when the joint is made; after that it keeps where it slid, and goes along
   with the part it hangs on.
 - **🔒 Lock a motion**: the 🔒 next to a free way fixes it where the part is — its joint's turn or distance along the
   axis is set, or else a new joint is added onto the part it is joined to (flat faces across a move: *Flush* / *Gap*
-  at the distance they are; flat faces along a turn: *Parallel*). A toast says which joint did it; a flat-face joint
-  may hold its turn too. The AI: `lock_motion`.
+  at the distance they are; flat faces along a turn: *Parallel*). A toast says which joint did it and where the motion
+  is locked, as its slider reads (*-20 mm*); a flat-face joint may hold its turn too. Locking moves no part (nor any
+  part inside a sub-assembly), and one Ctrl+Z takes the lock back. The AI: `lock_motion`.
 - **🪶 Simplified** (a placed part's *Look*): the part is shown with a coarser mesh and less data — quicker to load
   and to show; its joints still work, its edges cannot be picked; collisions and drawings use the full part. A big
   imported part (thousands of faces: an assembled PCB, a maker's STEP) is simplified by itself; untick it for its

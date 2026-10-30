@@ -322,6 +322,13 @@ try:
     print("    snap_faces rigid, no faces:", tool("snap_faces", type="rigid", move={"part": "I3"}, onto={"part": "I2"})[0][:60])
     print("    lock_motion, fixed together:", tool("lock_motion", part="I3", motion=0)[0][:80])
     print("    set_travel follow, no limits:", tool("set_travel", part="I3", motion=0, follow={"at": "max"})[0][:100])
+    # 🔗 many parts as one rigid group in one call (fix_together): listed as `groups`, renamed, dissolved
+    print("    fix_together, no parts:", tool("fix_together")[0][:80])
+    t = tool("fix_together", all_except=[], to="I1", name="Rack frame")[0]
+    g = json.loads(tool("get_assembly")[0]).get("groups") or [{}]
+    print(f"    fix_together all onto I1: {t[:70]} | groups {g} | ok: {g[0].get('base') == 'I1' and sorted(g[0].get('parts', [])) == ['I2', 'I3']}")
+    print("    edit_joint R1 name:", tool("edit_joint", id="R1", name="Rám")[0][:80])
+    print("    remove_joint R1 (dissolved):", tool("remove_joint", id="R1")[0][:80], "| no groups:", "groups" not in json.loads(tool("get_assembly")[0]))
     # 🔌 a cable harness: 3 loose wires from the flange's top up to a point in space (its length), changed to 2, a
     # wrong id refused, listed by get_assembly
     t, _ = tool("add_harness", type="wires", count=3, points=[{"part": "I3", "face": "F2:end"}, {"xyz": [0, 0, 120]}])

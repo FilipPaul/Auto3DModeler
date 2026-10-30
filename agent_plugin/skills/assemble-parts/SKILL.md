@@ -65,6 +65,9 @@ seated in its receptacle, its stroke as its slide's limits), joined Concentric.
    app's ⇤ Set min here / Set max here ⇥, after `move_free {part, motion, to}`), then `check_travel {part, motion}` tells whether it hits anything
    on the way; `move_free {part, motion, to}` puts it at a position (it stops at the limits). `lock_motion {part,
    motion}` keeps one free motion where it is — also a touch's slides on the face (one by one) and a ball's turns.
+   Many parts that must move as one (a gate frame with its screws, nuts, handle …): one call, `fix_together {parts:
+   [...] | all_except: [...], to: <the base, also "I3/I2" inside a sub-assembly>, name}` — one 🔗 rigid group (get_assembly
+   `groups`), not a rigid snap_faces per part; `remove_joint {id: "R1"}` dissolves it.
    A check valve's ball (or a pawl) that sits at one stop or the other by the way the piston goes: join it so it has one
    slide (`ball` on its seat's axis), `set_travel {part, motion, min, max}` = its two stops (seated / lifted), then
    `set_travel {part, motion, follow: {part: <the piston>, at: "max" | "min"}}` — where it sits while the piston moves

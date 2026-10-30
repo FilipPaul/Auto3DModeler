@@ -18,6 +18,49 @@ Date: 2026-10-25. Written by the architect agent.
   cached imports new. Parts list, tree, split and BOM all come from it. Tests: test_export_names.TestImportedNames
   (cp1250 + \X2\ / \X\ / \S\ / \X4\ escapes, UTF-8 and cp1250 in one file, cp1252, the export → import round trip of
   "Plynová vzpěra Ř Í Ý"); the owner's file: 61 Czech names, none with U+FFFD or Hangul.
+- **🔗 Many parts fixed together: one rigid group (2026-10-30)** (the AI's request: ~60 gate parts had to follow the
+  frame — 60 rigid snap_faces, unreadable). doc.groups [{id R…, name}]; each member a 🔗 rigid joint onto the base
+  with `group` (fr: 2), so placeAll / the flat engine / drag / loops treat them as before; the members are derived
+  from the joints (groupParts: base first), tidyGroups drops empty ones. fixGroup(ids, {to, name}): the base `to`
+  ("I60" or "I37/I14" — a part inside a sub-assembly: the group turns with it), else a 📌 one, else the one joined
+  outside, else the biggest; 📌 parts and parts the base hangs on left out; a member's own rigid joints / old group
+  replaced; faces: the biggest of a part that does not move inside its sub-assembly; nothing moves, one commit.
+  The joints panel: one row (gRow: "Brána (60 dílů)", double-click renames, ◆ chooses its parts, ✕ dissolveGroup);
+  the suggestion for several chosen parts "🔗 Spojit pevně (n dílů)" (an inner row among them: the base). The AI:
+  fix_together {parts | all_except, to, name}; get_assembly `groups` {id, name, base, parts} (their joints left out
+  of `joints`); edit_joint {id: R…, name}; remove_joint {id: R…} dissolves. Not done: 📦 a sub-assembly made from the
+  chosen parts (keeping their places) — a follow-up. Tests: tools/e2e_assembly_groups.py (new), e2e_agent.
+
+- **Several parts chosen in an assembly: Ctrl / Shift+click (2026-10-30)** (the owner: "selecting parts must be very
+  easy"). One chosen set for the list and the view: `sel` / `sel2` (the pair: the joints between two) as before, and
+  `picks` — the rows ("I3", "I3/I2" inside a sub-assembly) when more are chosen; sel / sel2 are setters that drop the
+  picks, so the many places that set them stay right. select(keys) sets it all and draws once; selKeys() / selIds()
+  read it (visibility.js `chosen` too: 👁 and H work on them all). clickRow: Ctrl toggles, Shift the range from the
+  last clicked row (rowAnchor) in the list's order, Ctrl+Shift adds it; Shift's mousedown preventDefault (no page
+  text). litRows only toggles classes (the rows are kept: 500 parts, a click 15–30 ms in headless Edge). renderMany /
+  suggestMany: "Vybráno dílů: n", ✕ take them out (removeMany: one undo step), ◆ only one, 👁. Esc / a click beside the
+  rows: none. Changed: Ctrl+click on a third part adds it (it replaced the second one); Ctrl+click on an inner row adds
+  that row (it took its placement as the second part). Tests: tools/e2e_assembly_multiselect.py (new),
+  e2e_assembly_tree updated.
+
+- **🔒 A lock moves nothing, at the value its slider shows (2026-10-30)** (the AI's report: lock_motion of a concentric
+  slide answered "locked at -5.8 mm" while the slide read -20 mm, and swung the strut, a sub-assembly's inner stroke
+  and another one's hinge leaf; undo left them moved). Causes: the answer gave the joint's own number (the gap between
+  the round faces' ends), not motionPos; every try solved the assembly again and a failed try put back only the
+  joints — the parts stayed where that solve left them (a solve that did not keep its places, e.g. the inner-part
+  frames fixed above). lockMotion now notes every placement (matrix, `inner`, hang) first and puts them back after
+  each try, the bodies of sub-assemblies whose inner places changed merged again; one commit = one undo step; the
+  text says motionPos. Tests: tools/e2e_assembly_lock_still.py (new).
+
+- **🔗 Fixed onto a part inside a sub-assembly: it turns with it (2026-10-30)** (the AI's report: a gate frame fixed
+  onto a hinge leaf inside "Sestava pant L" only shifted when the hinge turned 10°). Cause: worldFace gave a merged
+  sub-assembly's face ("I14/F1:f5") the sub-assembly's own directions (xdir / ydir), so a 🔗 rigid joint's rot / pos
+  (and locks, kept turns) measured against a frame that did not turn with the leaf — and the flat engine (flatAsm),
+  where the leaf is a part of its own, measured against the leaf's: the two disagreed. Now worldFace takes the
+  directions of the part the face is on (innerFrame: placement × its place in it, its `inner`, through the levels).
+  innerFrames(): an older file's joints on such faces are measured again where the parts are (when they hold there),
+  marked `fr: 2` — nothing moves. Tests: tools/e2e_assembly_rigid_inner.py (new).
+
 - **⏳ The loading card (2026-10-30)** (the owner: "When I drag/drop a new large STEP … it does not say anything … I need
   to see the info BEFORE that freeze!"). The busy box was a small pill top-right of the viewport (none on the start
   screen) and the server stage said "Building the 3D model" while it read the file. busy.js: busy(text, {delay}) ->

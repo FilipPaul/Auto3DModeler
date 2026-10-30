@@ -421,7 +421,7 @@ export class Assembly {
     this.jointType = 'touch';
     this.explode = 0;
     this.history = new History({
-      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [], ...(this.doc.mechs?.length ? { mechs: this.doc.mechs } : {}), ...(this.doc.couplings?.length ? { couplings: this.doc.couplings } : {}), ...(this.doc.springs?.length ? { springs: this.doc.springs } : {}), ...(this.doc.harnesses?.length ? { harnesses: this.doc.harnesses } : {}), ...(this.doc.chains?.length ? { chains: this.doc.chains } : {}) }),
+      capture: () => ({ instances: this.doc.instances, mates: this.doc.mates, bolts: this.doc.bolts || [], ...(this.doc.mechs?.length ? { mechs: this.doc.mechs } : {}), ...(this.doc.couplings?.length ? { couplings: this.doc.couplings } : {}), ...(this.doc.springs?.length ? { springs: this.doc.springs } : {}), ...(this.doc.harnesses?.length ? { harnesses: this.doc.harnesses } : {}), ...(this.doc.chains?.length ? { chains: this.doc.chains } : {}), ...(this.doc.groups?.length ? { groups: this.doc.groups } : {}) }),
       restore: async (s) => {
         this.mech?.stop(false);
         this.doc.instances = s.instances; this.doc.mates = s.mates || []; this.doc.bolts = s.bolts || []; this.mode = 'idle'; this.bolt = null;
@@ -430,6 +430,7 @@ export class Assembly {
         if (s.springs) this.doc.springs = s.springs; else delete this.doc.springs;
         if (s.harnesses) this.doc.harnesses = s.harnesses; else delete this.doc.harnesses;
         if (s.chains) this.doc.chains = s.chains; else delete this.doc.chains;
+        if (s.groups) this.doc.groups = s.groups; else delete this.doc.groups;
         this.syncDrills(); // the holes drilled for bolts: back as they were
         this.tidyCopies(); // (⧉ its own part undone: its copy goes too)
         this.render();
@@ -708,6 +709,85 @@ export class Assembly {
     return nj;
   }
 
+  /** 🔗 Several parts fixed together as they are now: one rigid group (doc.groups {id R…, name}) — each part 🔗 fixed
+   *  onto the base by a joint of the group (`group`), its one row in the joints panel stands for them all. The base:
+   *  `to` ("I60", or "I37/I14": a part inside a sub-assembly — the group turns with it), else a 📌 fixed one of them,
+   *  else the one joined to the rest of the assembly, else the biggest. Left out: 📌 fixed parts (they stay anyway) and
+   *  parts the base hangs on (they hold it). A part's own 🔗 rigid joints and its place in another group go (this one
+   *  takes over); its other joints stay. Nothing moves; one undo step -> {group, parts, skipped}. */
+  fixGroup(ids, { to = null, name = null } = {}) {
+    const [top, inner] = to ? String(to).split(/\/(.*)/s) : [null, null];
+    if (to && !this.inst(top)) throw new Error(`No part ${top} in the assembly — get_assembly lists them (I1, I2 …).`);
+    for (const id of ids) if (!this.inst(id)) throw new Error(`No part ${id} in the assembly — get_assembly lists them (I1, I2 …).`);
+    const all = [...new Set([...(top ? [top] : []), ...ids])], vol = (id) => this.bodyOf(this.inst(id))?.body?.volume || 0;
+    if (all.length < 2) throw new Error('Fix at least two parts together.');
+    const out = (id) => (this.doc.mates || []).some((m) => m.move === id && !m.group && !all.includes(m.onto));
+    const base = top || all.find((id) => this.inst(id).fixed) || all.find(out) || [...all].sort((a, b) => vol(b) - vol(a))[0];
+    const hangsOn = (a, b) => { // (a held through joints on b)
+      const seen = new Set(), stack = [a];
+      while (stack.length) {
+        const x = stack.pop();
+        if (x === b) return true;
+        if (seen.has(x)) continue;
+        seen.add(x);
+        stack.push(...(this.doc.mates || []).filter((m) => m.move === x).map((m) => m.onto));
+      }
+      return false;
+    };
+    const parts = all.filter((id) => id !== base && !this.inst(id).fixed && !hangsOn(base, id)), skipped = all.filter((id) => id !== base && !parts.includes(id));
+    if (!parts.length) throw new Error(`Nothing to fix onto ${base}: ${skipped.join(', ')} ${skipped.length > 1 ? 'are' : 'is'} 📌 fixed or hold${skipped.length > 1 ? '' : 's'} it.`);
+    const faces = (id, pre = null) => { // (the biggest face — of a part that does not move inside a sub-assembly; `pre`: of that inner part)
+      const it = this.inst(id), flex = this.kindOf(it.part) === 'assembly' && !it.rigid ? this.flexOf(it) : new Set();
+      const ok = (f) => (pre ? String(f.name).startsWith(`${pre}/`) : !flex.has(String(f.name).split('/')[0]));
+      const name = [...(this.bodyOf(it)?.body?.faces || [])].filter(ok).sort((p, q) => q.area - p.area)[0]?.name;
+      if (!name) throw new Error(pre ? `${id} has no part ${pre} with faces — get_assembly lists its inner parts.` : `${id} has no solid yet.`);
+      return name;
+    };
+    const ontoFace = faces(base, inner);
+    const set = new Set(parts);
+    this.doc.mates = (this.doc.mates || []).filter((m) => !(set.has(m.move) && (m.type === 'rigid' || m.group)));
+    const n = Math.max(0, ...(this.doc.groups || []).map((g) => parseInt(String(g.id).slice(1), 10) || 0)) + 1;
+    const own = inner && this.innerList(this.inst(base)).find((x) => x.id === inner.split('/')[0]); // (the base inside a sub-assembly: its name)
+    const g = { id: `R${n}`, name: String(name || '').trim() || this.partName((own || this.inst(base)).part) };
+    let k = Math.max(0, ...(this.doc.mates || []).map((x) => parseInt(String(x.id || '').slice(1), 10) || 0));
+    const fA = this.worldFace(base, ontoFace), made = parts.map((id) => {
+      const m = { id: `J${++k}`, type: 'rigid', group: g.id, move: id, face: faces(id), onto: base, ontoFace, gap: 0, fr: 2 };
+      return Object.assign(m, frameNow(this.worldFace(id, m.face), fA));
+    });
+    this.doc.mates = [...this.doc.mates, ...made];
+    this.doc.groups = [...(this.doc.groups || []), g];
+    this.applyMates();
+    this.commit();
+    return { group: g, base, parts, skipped };
+  }
+
+  /** 🔗 Groups with no joints left (their parts taken out, their base gone) dropped; a joint whose group is gone is a
+   *  plain 🔗 rigid joint. */
+  tidyGroups() {
+    if (!this.doc.groups && !(this.doc.mates || []).some((m) => m.group)) return;
+    const used = new Set((this.doc.mates || []).map((m) => m.group).filter(Boolean));
+    this.doc.groups = (this.doc.groups || []).filter((g) => used.has(g.id));
+    if (!this.doc.groups.length) delete this.doc.groups;
+    for (const m of this.doc.mates || []) if (m.group && !this.doc.groups?.some((g) => g.id === m.group)) delete m.group;
+  }
+
+  /** A group's parts (the base first) -> [ids]. */
+  groupParts(gid) {
+    const mine = (this.doc.mates || []).filter((m) => m.group === gid);
+    return mine.length ? [mine[0].onto, ...mine.map((m) => m.move)] : [];
+  }
+
+  /** ✕ A rigid group dissolved: its joints go, its parts stay where they are (each free again, or held by its own
+   *  other joints). One undo step. */
+  dissolveGroup(gid) {
+    if (!(this.doc.groups || []).some((g) => g.id === gid)) throw new Error(`No group ${gid} — get_assembly lists them (groups).`);
+    this.doc.mates = (this.doc.mates || []).filter((m) => m.group !== gid);
+    this.doc.groups = this.doc.groups.filter((g) => g.id !== gid);
+    if (!this.doc.groups.length) delete this.doc.groups;
+    this.applyMates();
+    this.commit();
+  }
+
   /** 〰 A spring: the spring part's end face ({inst, face}) reaches face b of another part (springs.js) — one undo step,
    *  a word on what it does -> the record or null. */
   makeSpring(a, b, k = null) {
@@ -726,6 +806,7 @@ export class Assembly {
     if (this.mode !== 'idle' || this.measuring || this.painting || this.bolt || (!a && (this.clashPanel || this.fastenerPanel))) { showSuggest(vp, '', []); return; }
     if (this.harnessTool.suggest(vp, showSuggest)) return; // (🔌 a harness edited or chosen)
     if (!a) { this.suggestAssembly(vp); return; } // (nothing chosen: what to do next with the whole assembly)
+    if (this.picks) { this.suggestMany(vp); return; } // (several: what to do with them all)
     const fp = (this.facePicks || []).filter((q) => this.inst(q.inst));
     if (fp.length) { this.suggestFaces(vp, fp); return; }
     const name = (it) => `${this.partName(it.part)} ${it.id}`;
@@ -765,6 +846,27 @@ export class Assembly {
         { section: name(a) }] : []),
       ...this.partItems(a), // (the owner's choice: a click shows its actions in the table, as everywhere)
     ], t('Ctrl+click another part: what fits the two'));
+  }
+
+  /** The suggestions for several chosen parts (Ctrl / Shift+click): hide / see-through, take them out, one of them. */
+  suggestMany(vp) {
+    const ids = this.selIds(), first = this.inst(ids[0]);
+    const refs = `${t('in the assembly')} “${this.hooks.safeName?.() || ''}”: ${ids.map((id) => `${t('part')} ${id}`).join(', ')}`;
+    showSuggest(vp, t2('{n} parts chosen', { n: ids.length }), [
+      { icon: '🔗', label: t2('Fix together ({n} parts)', { n: ids.length }), rank: 0, title: t('One rigid group, as they are now: they move as one body with the part they are on (mechanisms, dragging) — one row in the joints, ✕ there dissolves it'),
+        run: () => { try { const inner = this.selKeys().filter((k) => k.includes('/')), r = this.fixGroup(ids, { to: inner.length === 1 ? inner[0] : null }); this.hooks.toast(t2('{name}: {n} parts fixed together on {base} — they move as one (✕ in its row dissolves it; Ctrl+Z: back).', { name: r.group.name, n: r.parts.length + 1, base: this.partName(this.inst(r.base).part) }), 'ok', 5000); } catch (e) { this.hooks.toast(e.message, 'warning', 6000); } } },
+      { icon: '✕', label: t2('Take them out ({n})', { n: ids.length }), rank: 7, danger: true, title: t('Out of the assembly — Ctrl+Z brings them back'), run: () => this.removeMany(ids) },
+      { icon: '◆', label: `${t('Only')} ${this.partName(first.part)} ${first.id}`, rank: 9, run: () => this.choose(first.id) },
+      ...displayItems(this, ids), // (👁 all of them hidden, see-through, isolated …)
+    ].map((x) => (x.sub ? x : { ...x, run: async () => { await x.run(); this.renderSuggest(); } })), t('Ctrl+click adds or takes out a part'), refs);
+  }
+
+  /** Several placed parts taken out at once: one undo step. */
+  removeMany(ids) {
+    const mk = this.history.mark();
+    for (const id of ids) if (this.inst(id)) this.removeInst(id);
+    this.history.squash(mk);
+    this.select([]);
   }
 
   /** A round edge's centre / quadrant picked on a part (sp: {point, snap, inst}) -> the round faces those edges bound
@@ -1096,6 +1198,13 @@ export class Assembly {
       const light = (row) => this.view.lightLines(row ? [row.dataset.inst || row.dataset.path.split('/')[0]] : null);
       list.addEventListener('pointerover', (e) => light(e.target.closest?.('[data-inst], [data-path]')));
       list.addEventListener('pointerleave', () => light(null));
+      list.addEventListener('mousedown', (e) => { if (e.shiftKey) e.preventDefault(); }); // (Shift+click: a range of rows, not the page's text)
+      this.els.left.addEventListener('click', (e) => { // (a click beside the rows: none chosen)
+        const on = e.target.closest('.mt-item, button, input, select, a, details, .as-vis, .mt-head, .mt-start, .lw-widget');
+        if (!this.selKeys().length || (on && this.els.left.contains(on))) return;
+        this.facePicks = [];
+        this.select([]);
+      });
     }
     // a part chosen changes only which rows are lit: the rows are kept (500 placed parts: made anew, 25 ms and a layout)
     const key = this.doc.harnesses?.length ? null : this.listKey(open); // (🔌 a harness's row shows its length: always anew)
@@ -1107,7 +1216,7 @@ export class Assembly {
       const b = this.bodies[it.part];
       const row = document.createElement('div');
       const shown = this.doc.display?.[it.id];
-      row.className = `mt-item${it.id === this.sel || it.id === this.sel2 ? ' on' : ''}${b?.error ? ' bad' : ''}${shown ? ` as-${shown}` : ''}`;
+      row.className = `mt-item${b?.error ? ' bad' : ''}${shown ? ` as-${shown}` : ''}`; // (lit: litRows)
       row.dataset.inst = it.id;
       // (👁 first: in one place whether the hover's buttons show or not)
       row.innerHTML = `${eyeHtml(this, it.id)}<span class="mt-icon">${this.partIcon(it.part)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>
@@ -1118,7 +1227,6 @@ export class Assembly {
       row.querySelector('.mt-what').textContent = `${it.id}${it.fixed ? ' 📌' : ''}`;
       const kids = this.kindOf(it.part) === 'assembly' ? instanceTree(this.bomCtx(), it.part, it.id) : null;
       if (kids) this.twist(row, it.id, kids, open);
-      if (it.id === this.sel && this.selInner?.top === it.id) row.classList.add('has-inner');
       if (it.fixed) row.title = t('Fixed in place 📌');
       if (b?.error) row.title = b.error;
       row.addEventListener('click', (e) => {
@@ -1132,13 +1240,13 @@ export class Assembly {
         if (a === 'boom') return this.toggleStay(it.id, e.ctrlKey || e.metaKey);
         if (a === 'eye') return clickEye(this, it.id, e.altKey); // (👁 hidden / shown; Alt: see-through)
         if (a === 'twist') return this.toggleOpen(it.id);
-        if (this.facePicks?.length || this.snapPick) { this.facePicks = []; this.snapPick = null; this.view.setMeasure([]); this.drawMarks(); } // (the part chosen in the list: not a face picked before in the view)
-        this.choose(it.id, e.ctrlKey || e.metaKey);
+        this.clickRow(it.id, e);
         return null;
       });
       list.appendChild(row);
       if (kids && open.has(it.id)) this.innerRows(list, it, kids, 1, open);
     }
+    this.litRows(list);
     this.harnessTool.rows(list); // (🔌 its harnesses under the parts)
     displayNote(this, this.$('.as-vis')); // (👁 "2 hidden · Show all")
   }
@@ -1150,17 +1258,14 @@ export class Assembly {
       this.partIcon(it.part), !!it.fixed, !!it.stay, this.bodies[it.part]?.error || ''])]);
   }
 
-  /** The chosen part's row lit (and a part chosen inside a sub-assembly), the others not. */
+  /** The chosen rows lit (a part chosen inside a sub-assembly: its placement's row marked too), the others not. */
   litRows(list) {
+    const keys = new Set(this.selKeys());
     for (const row of list.children) {
-      if (row.dataset.inst) {
-        const id = row.dataset.inst;
-        row.classList.toggle('on', id === this.sel || id === this.sel2);
-        row.classList.toggle('has-inner', id === this.sel && this.selInner?.top === id);
-      } else if (row.dataset.path) {
-        const top = row.dataset.path.split('/')[0];
-        row.classList.toggle('on', this.sel === top && this.selInner?.top === top && this.selInner.path === row.dataset.path.slice(top.length + 1));
-      }
+      const key = row.dataset.inst || row.dataset.path;
+      if (!key) continue;
+      row.classList.toggle('on', keys.has(key));
+      if (row.dataset.inst) row.classList.toggle('has-inner', key === this.sel && this.selInner?.top === key);
     }
   }
 
@@ -1186,7 +1291,7 @@ export class Assembly {
   innerRows(list, top, nodes, depth, open) {
     for (const n of nodes) {
       const inner = n.path.slice(top.id.length + 1), row = document.createElement('div');
-      row.className = `mt-item as-inner-row${this.sel === top.id && this.selInner?.top === top.id && this.selInner.path === inner ? ' on' : ''}`;
+      row.className = 'mt-item as-inner-row';
       row.style.setProperty('--depth', depth);
       row.dataset.path = n.path;
       row.innerHTML = `<span class="mt-icon">${this.partIcon(n.part)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>`;
@@ -1197,7 +1302,7 @@ export class Assembly {
       if (n.children) this.twist(row, n.path, n.children, open);
       row.addEventListener('click', (e) => {
         if (e.target.closest('[data-a=twist]')) { this.toggleOpen(n.path); return; }
-        this.chooseInner(top.id, inner, e.ctrlKey || e.metaKey);
+        this.clickRow(n.path, e);
       });
       list.appendChild(row);
       if (n.children && open.has(n.path)) this.innerRows(list, top, n.children, depth + 1, open);
@@ -1225,10 +1330,27 @@ export class Assembly {
    *  inside it) lit in the view; Ctrl: its placement as the second part (the joints between the two). */
   chooseInner(top, path, more = false) {
     if (more) { this.choose(top, true); return; }
-    this.choose(top);
-    this.selInner = { top, path };
-    this.render();
-    this.draw();
+    this.select([`${top}/${path}`]);
+  }
+
+  /** A click on a row of the parts list (key: "I3", or "I3/I2" inside a sub-assembly): alone — that part; Ctrl — added
+   *  or taken out; Shift — every row from the last one clicked to this one, as the list shows them (Ctrl+Shift: added
+   *  to what is chosen). */
+  clickRow(key, e) {
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (this.facePicks?.length || this.snapPick) { this.facePicks = []; this.snapPick = null; this.view.setMeasure([]); this.drawMarks(); } // (the part chosen in the list: not a face picked before in the view)
+    if (e.shiftKey && this.rowAnchor) {
+      const rows = [...this.$('.as-list').querySelectorAll(':scope > [data-inst], :scope > [data-path]')].map((r) => r.dataset.inst || r.dataset.path);
+      const i = rows.indexOf(this.rowAnchor), j = rows.indexOf(key);
+      if (i >= 0 && j >= 0) {
+        const range = rows.slice(Math.min(i, j), Math.max(i, j) + 1);
+        this.select(ctrl ? [...this.selKeys(), ...range.filter((k) => !this.selKeys().includes(k))] : range);
+        return;
+      }
+    }
+    this.rowAnchor = key;
+    if (ctrl) { const keys = this.selKeys(); this.select(keys.includes(key) ? keys.filter((k) => k !== key) : [...keys, key]); return; }
+    this.select([key]);
   }
 
   /** 💥 Which parts move in Explode: one on / off, or (only) just this one moves — and again: all of them. */
@@ -1336,12 +1458,38 @@ export class Assembly {
     return all;
   }
 
-  /** A part clicked: chosen alone, or (Ctrl) as the second one — the joints between the two are shown. */
+  // What is chosen: `sel` (a part; with `selInner` a part inside it), `sel2` (Ctrl: the second one — the joints between
+  // the two), `picks` (more rows at once: "I3" and "I3/I2", the list's order). Setting sel / sel2 drops the picks.
+  get sel() { return this._sel; }
+  set sel(v) { this._sel = v; this.picks = null; }
+  get sel2() { return this._sel2; }
+  set sel2(v) { this._sel2 = v; this.picks = null; }
+
+  /** The chosen rows: placed parts ("I3") and parts inside a sub-assembly ("I3/I2"). */
+  selKeys() {
+    if (this.picks) return this.picks;
+    if (this.sel && this.selInner?.top === this.sel) return [`${this.sel}/${this.selInner.path}`];
+    return [this.sel, this.sel2].filter((id) => id && this.inst(id));
+  }
+
+  /** The chosen placed parts, once each (a part inside a sub-assembly: its placement). */
+  selIds() { return [...new Set(this.selKeys().map((k) => String(k).split('/')[0]))].filter((id) => this.inst(id)); }
+
+  /** A part clicked: chosen alone, or (Ctrl) added to what is chosen / taken out of it — two: the joints between them. */
   choose(id, more = false) {
-    this.selInner = null;
-    if (id && this.harnessTool) this.harnessTool.sel = null; // (a part chosen: not the harness)
-    if (more && this.sel && id && id !== this.sel) this.sel2 = this.sel2 === id ? null : id;
-    else { this.sel = id || null; this.sel2 = null; }
+    if (more && id) { const keys = this.selKeys(); this.select(keys.includes(id) ? keys.filter((k) => k !== id) : [...keys, id]); return; }
+    this.select(id ? [id] : []);
+  }
+
+  /** These rows chosen ("I3", "I3/I2"): none, one, two placed parts (the pair), or more (picks). */
+  select(keys) {
+    keys = [...new Set(keys.map(String))].filter((k) => this.inst(k.split('/')[0]));
+    const pair = keys.length === 2 && keys.every((k) => !k.includes('/'));
+    this._sel = keys.length ? keys[0].split('/')[0] : null;
+    this._sel2 = pair ? keys[1] : null;
+    this.selInner = keys.length === 1 && keys[0].includes('/') ? { top: this._sel, path: keys[0].slice(this._sel.length + 1) } : null;
+    this.picks = keys.length > 1 && !pair ? keys : null;
+    if (keys.length && this.harnessTool) this.harnessTool.sel = null; // (a part chosen: not the harness)
     this.visPreview = null;
     this.cueParts = null; // (the drag cue: found again at the next mouse move, for what is chosen now)
     cueLabel(this.els.viewport, null, '');
@@ -1360,13 +1508,21 @@ export class Assembly {
     return `<details class="as-jfold" ${this.jointsOpen || bad ? 'open' : ''}><summary title="${esc(t('Every joint and coupling — a part clicked shows only its own'))}">🔗 ${esc(t2('Joints ({n})', { n }))}${bad ? ' <span class="as-jbad">⚠</span>' : ''}</summary>${html}</details>`;
   }
 
+  /** The panel for several chosen parts (Ctrl / Shift+click): which they are; what to do with them: the suggestions. */
+  renderMany(box) {
+    const ids = this.selIds();
+    box.innerHTML = `<h2>${esc(t2('{n} parts chosen', { n: ids.length }))}</h2>
+      <p class="hint">${esc(t('Ctrl+click adds or takes out a part, Shift+click in the list chooses the rows between — what can be done with them all is in the suggestions.'))}</p>
+      <ul class="as-many">${ids.map((id) => `<li><span data-no-i18n>${esc(this.partName(this.inst(id).part))}</span> <i>${id}</i></li>`).join('')}</ul>`;
+  }
+
   renderPair(box) {
     const a = this.inst(this.sel), b = this.inst(this.sel2), js = this.shownJoints();
     box.innerHTML = `<h2><span data-no-i18n>${esc(this.partName(a.part))}</span> ↔ <span data-no-i18n>${esc(this.partName(b.part))}</span></h2>
       <p class="hint">${esc(t2(js.length ? '{a} and {b} — the joints between them.' : '{a} and {b} — no joints between them yet.', { a: a.id, b: b.id }))}</p>
       ${js.length ? this.jointsHtml(null, js) : ''}
       <div class="row-actions wrap"><button class="btn small primary" data-a="joinPair">🔗 Join them</button><button class="btn small" data-a="onlyA">${esc(this.partName(a.part))} ${a.id}</button><button class="btn small" data-a="onlyB">${esc(this.partName(b.part))} ${b.id}</button></div>
-      <p class="hint">Ctrl+click another part to compare it instead, a click alone shows one part.</p>`;
+      <p class="hint">Ctrl+click another part to add it (Shift+click in the list: the rows between), a click alone shows one part.</p>`;
     this.bindJointRows(box);
     box.querySelector('[data-a=joinPair]').addEventListener('click', () => this.startJoint('touch', a.id));
     box.querySelector('[data-a=onlyA]').addEventListener('click', () => this.choose(a.id));
@@ -1379,6 +1535,7 @@ export class Assembly {
     if (this.harnessTool.panel(box)) return; // (🔌 a harness edited or chosen)
     if (this.painting) { this.renderPaint(box); return; }
     if (this.clashPanel && !it) { this.renderClashes(box); return; }
+    if (this.picks && !this.bolt && this.mode === 'idle') { this.renderMany(box); return; }
     if (this.sel2 && it && this.inst(this.sel2) && !this.bolt && this.mode === 'idle') { this.renderPair(box); return; }
     if (this.bolt) { this.renderBolt(box); return; }
     this.view.setGhost([]);
@@ -2109,7 +2266,8 @@ export class Assembly {
     const all = list || (this.doc.mates || []).filter((m) => id === null || m.move === id || m.onto === id);
     if (!all.length) return id === null ? '' : '<p class="hint">Not joined to anything — it stays where you put it.</p>';
     const fast = (m) => this.inst(m.move)?.fastener?.id, groups = [...new Set(all.map(fast).filter(Boolean))];
-    const js = all.filter((m) => !fast(m)), bad = all.filter((m) => this.health?.get(m.id)?.ok === false).length;
+    const grp = (m) => (m.group && this.doc.groups?.some((g) => g.id === m.group) ? m.group : null), rigids = [...new Set(all.map(grp).filter(Boolean))];
+    const js = all.filter((m) => !fast(m) && !grp(m)), bad = all.filter((m) => this.health?.get(m.id)?.ok === false).length;
     const dbl = esc(t('Double-click: give it your own name')), asThey = esc(t('as they are')), lockTip = esc(t('Motions of the part locked on this joint where they were (🔒 by a motion in Moves) — ✕ frees them')); // (translated here: a joint's own name is not, nor its tooltip then)
     const fRow = (gid) => {
       const f = this.doc.instances.find((i) => i.fastener?.id === gid).fastener, mine = (this.doc.mates || []).filter((m) => fast(m) === gid);
@@ -2119,7 +2277,13 @@ export class Assembly {
         <span class="as-jw"><b data-no-i18n>${esc(f.text || '')}</b> · ${esc(t('through'))} <span data-no-i18n>${esc(into.join(', '))}</span>${off.length ? ` — ⚠ ${esc(t('it does not sit in its holes'))}` : ''}</span>
         <span class="as-jbtn"><button class="mini danger" data-fdel="${gid}" title="${esc(f.bolt ? 'Take it out, with the holes drilled for it' : 'Take it out (its screw, nut / insert)')}">✕</button></span></div>`;
     };
-    return `<h3>Joints</h3>${bad ? `<p class="mp-count bad as-jbad">⚠ ${esc(t2('{n} joint(s) do not hold — see the red ones.', { n: bad }))}</p>` : ''}<datalist id="as-ticks"><option value="-180"></option><option value="-90"></option><option value="0"></option><option value="90"></option><option value="180"></option></datalist><div class="as-joints">${groups.map(fRow).join('')}${js.map((m) => {
+    const gRow = (gid) => { // (🔗 a rigid group: one row for all its parts)
+      const g = this.doc.groups.find((x) => x.id === gid), ps = this.groupParts(gid), base = this.inst(ps[0]);
+      return `<div class="as-jrow as-grow" data-grow="${gid}"><span class="as-jt">🔗 <span class="as-jname own" data-gname="${gid}" title="${dbl}" data-no-i18n>${esc(t2('{name} ({n} parts)', { name: g.name, n: ps.length }))}</span> <i>${gid}</i></span>
+        <span class="as-jw">${esc(t('fixed together on'))} <b data-no-i18n>${esc(this.partName(base?.part))}</b> <i>${ps[0]}</i></span>
+        <span class="as-jbtn"><button class="mini" data-gpick="${gid}" title="${esc(t('Choose its parts'))}">◆</button><button class="mini danger" data-gdel="${gid}" title="${esc(t('Dissolve the group: its parts stay where they are, each free again'))}">✕</button></span></div>`;
+    };
+    return `<h3>Joints</h3>${bad ? `<p class="mp-count bad as-jbad">⚠ ${esc(t2('{n} joint(s) do not hold — see the red ones.', { n: bad }))}</p>` : ''}<datalist id="as-ticks"><option value="-180"></option><option value="-90"></option><option value="0"></option><option value="90"></option><option value="180"></option></datalist><div class="as-joints">${rigids.map(gRow).join('')}${groups.map(fRow).join('')}${js.map((m) => {
       const t = JOINT_TYPES[m.type || 'touch'] || JOINT_TYPES.touch, a = this.inst(m.move), b = this.inst(m.onto);
       const val = m.type === 'touch' || m.type === 'gap' || m.type === 'flush' || !m.type
         ? `<label class="as-jv">${m.type === 'flush' ? 'offset' : 'gap'} <input type="number" step="any" data-jgap="${m.id}" value="${fmt(m.gap || 0)}"> mm</label>`
@@ -2309,6 +2473,21 @@ export class Assembly {
       row.addEventListener('mouseleave', () => { this.hoverJoint = null; this.drawMarks(); });
     }
     for (const el of box.querySelectorAll('[data-fdel]')) el.addEventListener('click', () => this.removeFastener(el.dataset.fdel));
+    for (const row of box.querySelectorAll('[data-grow]')) {
+      const ids = (this.doc.mates || []).filter((m) => m.group === row.dataset.grow).map((m) => m.id);
+      row.addEventListener('mouseenter', () => { this.hoverJoint = ids; this.drawMarks(); });
+      row.addEventListener('mouseleave', () => { this.hoverJoint = null; this.drawMarks(); });
+    }
+    for (const el of box.querySelectorAll('[data-gdel]')) el.addEventListener('click', () => { this.dissolveGroup(el.dataset.gdel); this.hooks.toast(t('Group dissolved — its parts stay where they are (Ctrl+Z: back).'), 'info', 4000); });
+    for (const el of box.querySelectorAll('[data-gpick]')) el.addEventListener('click', () => this.select(this.groupParts(el.dataset.gpick)));
+    for (const el of box.querySelectorAll('[data-gname]')) {
+      el.addEventListener('dblclick', (ev) => {
+        ev.stopPropagation();
+        const g = this.doc.groups.find((x) => x.id === el.dataset.gname);
+        el.textContent = g.name;
+        renameInPlace(el, (n) => { const v = String(n || '').trim(); if (v) g.name = v; this.commit(); });
+      });
+    }
     for (const el of box.querySelectorAll('[data-jfix]')) el.addEventListener('click', () => this.repairJoint(el.dataset.jfix));
     for (const row of box.querySelectorAll('[data-jrow]')) {
       row.addEventListener('mouseenter', () => { this.hoverJoint = row.dataset.jrow; this.drawMarks(); });
@@ -2616,7 +2795,7 @@ export class Assembly {
       const lit = this.innerLit(it);
       const shown = displayOf(this, it.id); // (👁 hidden / see-through: display only — visibility.js)
       return { id: it.id, body: this.bodyOf(it)?.body, matrix: (this.doc.springs && springMatrix(this, it)) || it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part), ...look, threads: this.hooks.partData(it.part)?.threads,
-        ...(lit ? { lit } : {}), hidden: shown === 'hidden', see: shown === 'clear', selected: (it.id === this.sel && !lit) || it.id === this.sel2 || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst, moving: !!this.cueParts?.includes(it.id), clash: clashing.has(it.id),
+        ...(lit ? { lit } : {}), hidden: shown === 'hidden', see: shown === 'clear', selected: (it.id === this.sel && !lit) || it.id === this.sel2 || !!this.picks?.some((k) => k.split('/')[0] === it.id) || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst, moving: !!this.cueParts?.includes(it.id), clash: clashing.has(it.id),
         explode: along ? along.get(it.id)?.toArray() || null : this.explode && c ? away(c).multiplyScalar(this.explode * 1.2).toArray() : null };
     }));
     this.drawMarks();
@@ -2777,6 +2956,7 @@ export class Assembly {
     if (fid) return this.removeFastener(fid); // a screw goes with its nut and its holes
     this.doc.instances = this.doc.instances.filter((i) => i.id !== id);
     this.doc.mates = (this.doc.mates || []).filter((m) => m.move !== id && m.onto !== id);
+    this.tidyGroups(); // (🔗 a group whose base went: dissolved)
     if (this.doc.display?.[id]) delete this.doc.display[id]; // (👁 not passed on to a part put in later with its id)
     if (this.sel === id) this.sel = null;
     if (this.sel2 === id) this.sel2 = null;
@@ -2983,6 +3163,8 @@ export class Assembly {
     if (this.doc.couplings) { this.doc.couplings = this.doc.couplings.filter((c) => this.inst(c.a) && this.inst(c.b)); if (!this.doc.couplings.length) delete this.doc.couplings; }
     if (this.doc.springs) { this.doc.springs = this.doc.springs.filter((x) => this.inst(x.part) && this.inst(x.onto)); if (!this.doc.springs.length) delete this.doc.springs; }
     tidyChains(this); // (⛓ a chain whose first link is gone)
+    this.tidyGroups();
+    this.innerFrames(); // (an older file's joints on a sub-assembly's parts: measured against those parts once)
     const before = new Map(this.doc.instances.map((i) => [i.id, [...i.matrix]]));
     this.placeAll(mates);
     if (this.closeLoops(before, drive)) this.placeAll(mates);
@@ -3596,24 +3778,41 @@ export class Assembly {
 
   /** 🔒 One free motion locked where the part is now: its joint's turn (angle) or distance along the axis (dist) set,
    *  else a new joint between faces of the parts it is joined to — flat faces across a move (flush / gap / touch, at
-   *  the distance they are), or flat faces along a turn (parallel). -> what was done (a text); throws when none
-   *  holds it. */
+   *  the distance they are), or flat faces along a turn (parallel). Locked where it is: no part moves (a try that would
+   *  move one is put back — every part, the places inside sub-assemblies too); one undo step. -> what was done (a
+   *  text, with where the motion is, as its slider reads); throws when none holds it. */
   lockMotion(id, mo) {
     if (mo.via) id = mo.via; // (fixed on another part: that one is locked)
     const count = () => { try { return this.motionsOf(id, true)?.count ?? 0; } catch { return 0; } };
     const before = count(), keep = structuredClone(this.doc.mates || []), dir = mo.dir.clone().normalize();
+    const places = this.doc.instances.map((it) => [it, [...it.matrix], structuredClone(it.inner), structuredClone(it.hang)]);
+    const putBack = () => { // (every part where it was: a solve after the lock moves none)
+      for (const [it, m, inner, hang] of places) {
+        const was = JSON.stringify(it.inner || null);
+        it.matrix = [...m];
+        if (inner) it.inner = structuredClone(inner); else delete it.inner;
+        if (hang) it.hang = structuredClone(hang); else delete it.hang;
+        if (JSON.stringify(it.inner || null) !== was) this.mergeAssembly(it.part, new Set(), it);
+      }
+      this.flatCache = null;
+      this.checkJoints();
+    };
+    let at = null;
+    try { at = this.motionPos(id, mo); } catch { at = null; }
+    const now = (v) => fmt(+(Number.isFinite(at) ? at : v).toFixed(2)); // (the value its slider and get_assembly show)
     const tried = (what) => {
       this.applyMates();
-      if (count() < before) { this.commit(); return what; }
-      this.doc.mates = structuredClone(keep);
-      this.applyMates();
+      const ok = count() < before;
+      if (!ok) this.doc.mates = structuredClone(keep);
+      putBack();
+      if (ok) { this.commit(); return what; }
       return null;
     };
     const m = mo.ref && (this.doc.mates || []).find((x) => x.id === mo.ref);
     if (m && !m.locked) { // its own joint first
       if (mo.kind === 'turn' && /:(turn|spin)$/.test(mo.key) && !Number.isFinite(m.angle)) {
         m.angle = +this.spinNow(m).toFixed(3); // (where it is: not rounded to a whole degree)
-        const r = tried(t2('{id}: its turn locked at {deg}°', { id: m.id, deg: m.angle }));
+        const r = tried(t2('{id}: its turn locked at {deg}°', { id: m.id, deg: now(m.angle) }));
         if (r) return r;
       }
       if (mo.kind === 'move' && /:along$/.test(mo.key) && m.type === 'axis' && !Number.isFinite(m.dist)) {
@@ -3621,7 +3820,7 @@ export class Assembly {
         try { g = axialGap(this.worldFace(m.move, m.face), this.worldFace(m.onto, m.ontoFace)); } catch { g = null; }
         if (g) {
           Object.assign(m, { side: g.side, dist: +g.dist.toFixed(4) });
-          const r = tried(t2('{id}: its distance along the axis locked at {mm} mm', { id: m.id, mm: m.dist }));
+          const r = tried(t2('{id}: its distance along the axis locked at {mm} mm', { id: m.id, mm: now(m.dist) }));
           if (r) return r;
         }
       }
@@ -4186,7 +4385,9 @@ export class Assembly {
       const had = this.facePicks || [];
       if (more && !pick && had.length && !h) return; // (a Ctrl+click beside the parts: the face picked first stays)
       this.facePicks = !pick ? [] : more && had.length === 1 && had[0].inst !== pick.inst ? [had[0], pick] : [pick]; // (Ctrl: the other part's face)
-      this.choose(this.snapPick ? sp.inst : h?.inst || pick?.inst || null, more);
+      const hitId = this.snapPick ? sp.inst : h?.inst || pick?.inst || null;
+      this.choose(hitId, more && !(hitId === this.sel && this.selKeys().length === 1)); // (Ctrl on the one chosen part: another face of it)
+      if (more && this.picks) this.facePicks = []; // (three parts or more: what fits them all, not a face's joints)
       this.drawMarks();
     });
     window.addEventListener('keydown', (e) => this.key(e));
@@ -4216,8 +4417,11 @@ export class Assembly {
   }
 
   // ------------------------------------------------------------------ for the AI
-  /** A face of a placed part by its name (as find_refs names it in the part's own model), in world coordinates. */
-  worldFace(instId, name, matrix = null) {
+  /** A face of a placed part by its name (as find_refs names it in the part's own model), in world coordinates. Its
+   *  own directions (xdir / ydir: what a 🔗 rigid joint, a lock and a kept turn measure against) are its part's: a
+   *  face of a part inside a sub-assembly ("I14/F1:f5") turns with that part (sub-assembly × the part's place in it).
+   *  legacy: the sub-assembly's directions instead (how joints made before 2026-10-30 measured; innerFrames). */
+  worldFace(instId, name, matrix = null, legacy = false) {
     const it = this.inst(instId);
     if (!it) throw new Error(`No part ${instId} in the assembly — see get_assembly.`);
     const b = this.bodyOf(it)?.body;
@@ -4232,8 +4436,9 @@ export class Assembly {
       throw new Error(`${instId} has no face “${name}”. Its flat, round, ball and cone faces: ${flat.join(', ')} (find_refs in its part tells which is which).`);
     }
     const m = matrix || new THREE.Matrix4().fromArray(it.matrix), nm = new THREE.Matrix3().getNormalMatrix(m);
+    const fm = b.sub && !legacy ? new THREE.Matrix3().getNormalMatrix(this.innerFrame(it, name, m)) : nm;
     const out = { ...f, centroid: new THREE.Vector3(...f.centroid).applyMatrix4(m),
-      xdir: new THREE.Vector3(1, 0, 0).applyMatrix3(nm).normalize(), ydir: new THREE.Vector3(0, 1, 0).applyMatrix3(nm).normalize() };
+      xdir: new THREE.Vector3(1, 0, 0).applyMatrix3(fm).normalize(), ydir: new THREE.Vector3(0, 1, 0).applyMatrix3(fm).normalize() };
     if (f.type === 'plane') out.normal = new THREE.Vector3(...f.normal).applyMatrix3(nm).normalize();
     if (f.type === 'cylinder' && f.axis) {
       out.axis = { o: new THREE.Vector3(...f.axis.o).applyMatrix4(m), d: new THREE.Vector3(...f.axis.d).applyMatrix3(nm).normalize() };
@@ -4245,6 +4450,52 @@ export class Assembly {
       out.axis = { o: out.cone.apex.clone(), d: out.cone.d.clone() };
     }
     return out;
+  }
+
+  /** The frame of the part a sub-assembly's face is on ("I14/F1:f5", "I3/I14/F1:f5": through the levels), placement
+   *  `it` at M: M × that part's place in it (its `inner` where it was moved here) -> THREE.Matrix4 (M itself for a
+   *  face of a part that is not a sub-assembly). */
+  innerFrame(it, name, M) {
+    const F = M.clone(), path = String(name).split('/').slice(0, -1);
+    let host = it;
+    for (const k of path) {
+      if (this.kindOf(host.part) !== 'assembly') break;
+      const own = (this.hooks.partData(host.part)?.instances || []).find((x) => x.id === k), at = host.inner?.[k] || own?.matrix;
+      if (!own || !at) break;
+      F.multiply(new THREE.Matrix4().fromArray(at));
+      host = { ...own, ...(host.inner?.[k] ? { matrix: at } : {}) };
+    }
+    return F;
+  }
+
+  /** Joints onto (or of) a face inside a sub-assembly made before its faces turned with their own part (worldFace):
+   *  what they keep — a 🔗 rigid joint's rot / pos, a lock's slides, a kept turn (angle) — measured again against the
+   *  part's own directions, where the parts are now (when it holds there); then marked (`fr: 2`). The parts do not
+   *  move. Waits until the parts are built. */
+  innerFrames() {
+    if (this.owner || this.flatOf) return;
+    const inner = (id, f) => String(f).includes('/') && this.kindOf(this.inst(id)?.part) === 'assembly';
+    for (const m of this.doc.mates || []) {
+      if (m.fr === 2 || !(inner(m.move, m.face) || inner(m.onto, m.ontoFace))) continue;
+      if (!m.rot && !m.pos && !m.slides?.length && !Number.isFinite(m.angle)) { m.fr = 2; continue; }
+      if (!this.bodyOf(this.inst(m.move))?.body || !this.bodyOf(this.inst(m.onto))?.body) continue; // (not built yet: later)
+      let o, n;
+      try {
+        o = [this.worldFace(m.move, m.face, null, true), this.worldFace(m.onto, m.ontoFace, null, true)];
+        n = [this.worldFace(m.move, m.face), this.worldFace(m.onto, m.ontoFace)];
+      } catch { m.fr = 2; continue; } // (a face gone: as it is)
+      if (jointMiss(m, ...o)?.ok) {
+        const now = frameNow(...n), [x, y] = [o[1].xdir, o[1].ydir], z = new THREE.Vector3().crossVectors(x, y).normalize();
+        if (m.rot) m.rot = now.rot;
+        if (m.pos) m.pos = now.pos;
+        if (m.slides?.length) m.slides = m.slides.map((s) => slideNow(n[0], n[1], x.clone().multiplyScalar(s.d[0]).addScaledVector(y, s.d[1]).addScaledVector(z, s.d[2])));
+        if (Number.isFinite(m.angle)) {
+          const dir = m.type === 'axis_distance' ? null : n[1].axis?.d || n[1].normal;
+          if (m.type === 'axis_distance') { if (n[0].axis && n[1].axis) m.angle = +orbitOf(...n).toFixed(3); } else if (dir) m.angle = +spinOf(n[0], n[1], dir).toFixed(3);
+        }
+      }
+      m.fr = 2;
+    }
   }
 
   /** How far a round face (all its pieces of that name) reaches along its axis: [from, to] mm from the axis' origin
@@ -4324,7 +4575,8 @@ export class Assembly {
       ...(this.doc.harnesses?.length ? { harnesses: this.doc.harnesses.map((h) => harnessFacts(this, h)) } : {}),
       ...(this.doc.chains?.length ? { chains: chainsSummary(this) } : {}),
       ...(() => { const v = displayed(this); return { ...(v.hidden.length ? { hidden: v.hidden } : {}), ...(v.clear.length ? { transparent: v.clear } : {}) }; })(), // (👁 display only)
-      joints: (this.doc.mates || []).map((m) => ({ id: m.id, ...(m.name ? { name: m.name } : {}), type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
+      ...(this.doc.groups?.length ? { groups: this.doc.groups.map((g) => { const ps = this.groupParts(g.id); return { id: g.id, name: g.name, base: ps[0], parts: ps.slice(1) }; }) } : {}),
+      joints: (this.doc.mates || []).filter((m) => !m.group).map((m) => ({ id: m.id, ...(m.name ? { name: m.name } : {}), type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
         ...(m.type === 'axis' ? { distance: Number.isFinite(m.dist) ? m.dist : null } : m.type === 'axis_distance' ? { distance: +m.dist || 0, ...(m.side === -1 ? { side: -1 } : {}) } : { gap: m.gap || 0 }), ...(m.type !== 'parallel' ? { rotation_locked: Number.isFinite(m.angle) } : {}), ...(m.broken ? { broken: true, ...(this.goneFace(m) ? { gone_face: this.goneFace(m).face } : {}) } : {}),
         ...(m.slides?.length || (m.rot && m.type !== 'rigid') ? { locked_motions: (m.slides?.length || 0) + (m.rot && m.type !== 'rigid' ? 1 : 0) } : {}),
         ...(m.locked ? { locked: true } : {}), ...(this.inst(m.move)?.fastener ? { fastener: this.inst(m.move).fastener.id } : {}), ...(this.whyNot(m) ? { not_held: this.whyNot(m) } : {}) })),
@@ -4521,6 +4773,19 @@ export class Assembly {
           l = this.limitsOf(it, mo);
         }
         return { text: `${it.id} — ${mo.label}: ${l ? `limits ${l.min ?? 'open (no min)'} … ${l.max ?? 'open (no max)'} ${mo.kind === 'turn' ? '°' : 'mm'}${l.speed ? `, ▶ ${l.speed}×` : ''}${l.loop ? ', ▶ again and again' : ''}${l.follow ? `, ↕ by ${l.follow.part}'s direction: at ${l.follow.at} while it goes forward, at ${l.follow.at === 'max' ? 'min' : 'max'} while it goes back` : ''}` : 'no limits'}; now at ${+this.motionPos(it.id, mo).toFixed(2)}.` };
+      },
+      fix_together: async ({ parts, all_except: except, to, name } = {}) => {
+        need();
+        await settle();
+        let ids = parts;
+        if (except !== undefined && except !== null) {
+          if (!Array.isArray(except)) throw new Error('all_except: a list of placed parts (I…) left out.');
+          const out = new Set([...except, ...(to ? [String(to).split('/')[0]] : [])]);
+          ids = this.doc.instances.map((i) => i.id).filter((id) => !out.has(id));
+        }
+        if (!Array.isArray(ids) || !ids.length) throw new Error('parts: the placed parts to fix together (I…), or all_except: [the ones left out] — get_assembly lists them.');
+        const r = this.fixGroup(ids, { to: to || null, name: name || null });
+        return { text: `${r.group.id} 🔗 “${r.group.name}”: ${r.parts.length} part(s) fixed onto ${to || r.base} as they are now — they move with it as one body (drive_mechanism, move_free, a drag); remove_joint {id: "${r.group.id}"} dissolves it.${r.skipped.length ? ` Left out: ${r.skipped.join(', ')} (📌 fixed, or ${r.base} hangs on them).` : ''} ${JSON.stringify({ groups: this.summary().groups })}` };
       },
       lock_motion: async ({ part, motion = 0 }) => {
         need();

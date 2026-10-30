@@ -56,8 +56,8 @@ export function statesFor(asm, how, ids) {
   return out;
 }
 
-/** The chosen parts (one, or two with Ctrl+click). */
-const chosen = (asm) => [asm.sel, asm.sel2].filter((id) => id && asm.inst(id));
+/** The chosen parts (one, or more with Ctrl / Shift+click). */
+const chosen = (asm) => asm.selIds();
 
 /** 👁 row of the suggestions table for the chosen parts `ids`: 👁 Hide / show…, always; a click opens its choices in a
  *  small list beside it (each previews what it does while the mouse is on it). */
