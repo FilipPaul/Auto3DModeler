@@ -43,7 +43,7 @@ import { snapNear, snapPoints } from '../modeler/view.js';
 import { showSuggest, showSnapFilters, snapKinds, hoverKinds, showKinds } from '../suggest.js';
 import { floatBox } from '../floatbox.js';
 import { MeasureTool, snapWins } from '../measure.js';
-import { freeMotions, motionMatrix } from './dof.js';
+import { freeMotions, motionMatrix, clampLim, travelOf } from './dof.js';
 import { findLoops, solveLoop, loopFreedom, worstMiss, screwBetween, stepsBetween } from './loops.js';
 import { fastenerModel, findCandidates, planBolt, isStandard, BOLT_KINDS, SIZES } from './fasteners.js';
 import { MATERIALS } from '../modeler/modeler.js';
@@ -722,6 +722,8 @@ export class Assembly {
       { icon: '⇤⇥', label: t('Limits of its motion…'), rank: 2.5, title: `${what} — ${t(lim ? 'Its min and max: type them in the part panel' : 'How far it may go each way: min and max around where it is, then type them')}`, run: fields },
       ...(lim ? [{ icon: '⇤', label: t('Min here'), rank: 2.6, title: `${what} — ${t('Min where it is now: move it there first (the slider, or drag it), then click')}`, run: () => this.limitHere(a.id, mo, 'min') },
         { icon: '⇥', label: t('Max here'), rank: 2.7, title: `${what} — ${t('Max where it is now: move it there first (the slider, or drag it), then click')}`, run: () => this.limitHere(a.id, mo, 'max') }] : []),
+      ...['min', 'max'].filter((k) => Number.isFinite(lim?.[k])).map((k, j) => ({ icon: '✕', label: t(k === 'min' ? 'Clear min' : 'Clear max'), rank: 2.8 + j / 10,
+        title: `${what} — ${t(k === 'min' ? 'Take the min off: it goes freely that way' : 'Take the max off: it goes freely that way')}`, run: () => this.clearEnd(a.id, mo, k) })),
     ];
   }
 
@@ -3099,11 +3101,12 @@ export class Assembly {
     }
     const nm = new THREE.Matrix3().getNormalMatrix(M);
     const own = { xdir: new THREE.Vector3(1, 0, 0).applyMatrix3(nm).normalize(), ydir: new THREE.Vector3(0, 1, 0).applyMatrix3(nm).normalize() };
-    const deg = spinOf(own, fA || { xdir: new THREE.Vector3(1, 0, 0), ydir: new THREE.Vector3(0, 1, 0) }, d), lim = this.limitsOf(it, mo);
+    const given = this.limitsOf(it, mo), lim = travelOf(given, true), deg = spinOf(own, fA || { xdir: new THREE.Vector3(1, 0, 0), ydir: new THREE.Vector3(0, 1, 0) }, d);
     if (!lim) return deg;
-    // within its limits (they may span up to a full turn, e.g. 0 … 270°): the turn round that lies in them
-    const c = [deg - 360, deg, deg + 360];
-    return c.find((x) => x >= lim.min - 1e-6 && x <= lim.max + 1e-6) ?? c.sort((p, q) => Math.abs(p - (lim.min + lim.max) / 2) - Math.abs(q - (lim.min + lim.max) / 2))[0];
+    // within its limits (they may span up to a full turn, e.g. 0 … 270°; one side open: a full turn from the other, that
+    // end left out — at the stop it is the stop): the turn round that lies in them
+    const c = [deg - 360, deg, deg + 360, deg - 720, deg + 720], lo = Number.isFinite(given.min) ? 1e-6 : -1e-6, hi = Number.isFinite(given.max) ? 1e-6 : -1e-6;
+    return c.find((x) => x >= lim.min - lo && x <= lim.max + hi) ?? c.sort((p, q) => Math.abs(p - (lim.min + lim.max) / 2) - Math.abs(q - (lim.min + lim.max) / 2))[0];
   }
 
   /** A free motion's own name (shown wherever the motion is: its row, ⚙ Mechanism, the AI's lists); empty: its own
@@ -3117,8 +3120,17 @@ export class Assembly {
     return v;
   }
 
-  /** A motion's limits on its part ({min, max}) or null. */
+  /** A motion's limits on its part ({min, max}; one side may be open: {min} or {max}) or null. */
   limitsOf(it, mo) { const x = mo.via ? this.inst(mo.via) : it; return (mo.key && x?.travel?.[mo.key]) || null; }
+
+  /** A motion's travel with both ends (dof.travelOf: one side open — a turn a full turn from the other, a slide its
+   *  part's size past where it is) or null (no limits). */
+  travelOf(id, mo, lim = this.limitsOf(this.inst(id), mo)) {
+    if (!lim) return null;
+    let p = 0;
+    try { p = this.motionPos(id, mo); } catch { p = 0; }
+    return travelOf(lim, mo.kind === 'turn', p, Math.max(10, Math.round(this.loopPart(mo.via || id)?.L || 0)));
+  }
 
   /** The amount to go from position p0 to v (a turn the short way round). */
   stepTo(mo, p0, v, lim = null) { const a = v - p0; return mo.kind === 'turn' && !lim ? ((((a + 180) % 360) + 360) % 360) - 180 : a; } // (within limits: as it is)
@@ -3130,15 +3142,17 @@ export class Assembly {
     let pos = 0;
     try { pos = +this.motionPos(it.id, mo).toFixed(2); } catch { /* not built */ }
     const span = Math.max(10, Math.round(size));
-    const lo = lim ? lim.min : turn ? -180 : Math.floor(pos - span), hi = lim ? lim.max : turn ? 180 : Math.ceil(pos + span);
+    const T = travelOf(lim, turn, pos, span), lo = T ? T.min : turn ? -180 : Math.floor(pos - span), hi = T ? T.max : turn ? 180 : Math.ceil(pos + span);
+    const end = (k) => (Number.isFinite(lim?.[k]) ? `<label>${k} <input type="number" step="any" data-d${k}="${i}" value="${fmt(lim[k])}"></label><button class="mini as-dx" data-dclear="${i}:${k}" title="${esc(t(k === 'min' ? 'Take the min off: it goes freely that way' : 'Take the max off: it goes freely that way'))}">✕</button>`
+      : `<label>${k} <button class="mini as-dopen" data-dopen="${i}:${k}" title="${esc(t(k === 'min' ? 'No min: it goes freely that way — click: min where it is now' : 'No max: it goes freely that way — click: max where it is now'))}">∞</button></label>`);
     const note = this.travelNote?.inst === it.id && this.travelNote.key === mo.key ? this.travelNote : null;
     return `<div class="as-dof" data-dofrow="${i}"><label>${turn ? '↻' : '↔'} <span class="as-mname ${mo.name ? 'own' : ''}" data-mname="${i}" title="${esc(`${mo.detail ? `${mo.detail} · ` : ''}${t('Double-click: give this motion your own name')}`)}" ${mo.name ? 'data-no-i18n' : ''}>${esc(mo.label)}</span></label>
       <div class="as-dofrow"><input type="range" data-dof="${i}" min="${lo}" max="${hi}" step="${turn ? 1 : 0.5}" value="${pos}">
       <input type="number" step="any" data-dofn="${i}" value="${fmt(pos)}"><span class="unit">${u}</span>${only ? '</div></div>' : `
       <button class="mini as-dlim ${lim ? 'on' : ''}" data-dlim="${i}" title="${esc(t(lim ? 'Its limits — click to take them off (it moves freely again)' : 'Limits: how far it may go each way (a cylinder\'s stroke, a slide\'s ends, a door\'s swing)'))}">${esc(t('⇤⇥ Limits'))}</button>
       <button class="mini" data-dlock="${i}" title="Lock it where it is: a joint holds this motion (its joint's turn or distance, or a new flush / gap / parallel joint)">🔒</button></div>
-      ${lim ? `<div class="as-doflim"><label>min <input type="number" step="any" data-dmin="${i}" value="${fmt(lim.min)}"></label>
-        <label>max <input type="number" step="any" data-dmax="${i}" value="${fmt(lim.max)}"></label><span class="unit">${u}</span>
+      ${lim ? `<div class="as-doflim">${end('min')}
+        ${end('max')}<span class="unit">${u}</span>
         <button class="mini" data-dhere="${i}:min" title="${esc(t('Min where it is now: move it there first (the slider, or drag it), then click'))}">${esc(t('⇤ here'))}</button>
         <button class="mini" data-dhere="${i}:max" title="${esc(t('Max where it is now: move it there first (the slider, or drag it), then click'))}">${esc(t('here ⇥'))}</button>
         <button class="mini ${this.playing?.key === mo.key ? 'on' : ''}" data-dplay="${i}" title="Play: from min to max and back">${this.playing?.key === mo.key ? '■' : '▶'}</button>
@@ -3164,7 +3178,7 @@ export class Assembly {
       let from = null, p0 = 0;
       const go = (v, final) => {
         const lim = this.limitsOf(it, mo);
-        if (lim) v = Math.max(lim.min, Math.min(lim.max, v));
+        v = clampLim(lim, v); // (one side open: free that way)
         if (!from) { from = [...this.inst(mo.via || it.id).matrix]; p0 = this.motionPos(it.id, mo); }
         this.moveFree(it.id, mo, this.stepTo(mo, p0, v, lim), from, final);
         if (final) from = null;
@@ -3190,6 +3204,8 @@ export class Assembly {
       });
     }
     for (const b of box.querySelectorAll('[data-dhere]')) b.addEventListener('click', () => { const [i, end] = b.dataset.dhere.split(':'); this.limitHere(it.id, dof.motions[+i], end); });
+    for (const b of box.querySelectorAll('[data-dopen]')) b.addEventListener('click', () => { const [i, end] = b.dataset.dopen.split(':'); this.limitHere(it.id, dof.motions[+i], end); });
+    for (const b of box.querySelectorAll('[data-dclear]')) b.addEventListener('click', () => { const [i, end] = b.dataset.dclear.split(':'); this.clearEnd(it.id, dof.motions[+i], end); });
     for (const el of box.querySelectorAll('[data-dmin], [data-dmax]')) {
       el.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') el.blur(); });
       el.addEventListener('change', () => {
@@ -3219,27 +3235,44 @@ export class Assembly {
     }
   }
 
-  /** A motion's limits set ({min, max}; a turn within ±180°) or taken off (null); a part outside them is put back
-   *  inside. -> the limits. */
+  /** A motion's limits set ({min, max}; one of them left out / null: that side open, it goes freely that way) or taken
+   *  off (null, or neither); a part outside them is put back inside. -> the limits. */
   setTravel(id, mo, lim) {
     if (mo.via) id = mo.via; // (the limits are the part's it is fixed on)
     const it = this.inst(id);
     if (!mo.key) throw new Error('This motion cannot have limits.');
     this.travelNote = null;
-    if (!lim) {
+    const num = (v) => (v === null || v === undefined || v === '' || !Number.isFinite(+v) ? null : +v);
+    let min = num(lim?.min), max = num(lim?.max);
+    if (min === null && max === null) {
       if (it.travel) delete it.travel[mo.key];
       if (it.travel && !Object.keys(it.travel).length) delete it.travel;
       this.commit();
       return null;
     }
-    let { min, max } = lim;
-    if (mo.kind === 'turn') { min = Math.max(-360, min); max = Math.min(360, max); } // (up to a full turn)
-    if (min > max) [min, max] = [max, min];
-    if (mo.kind === 'turn' && max - min > 360) max = min + 360; // (one turn at most: past it a turn's place is the same again)
-    it.travel = { ...(it.travel || {}), [mo.key]: { ...(it.travel?.[mo.key] || {}), min: +min, max: +max } }; // (its speed / repeat kept)
-    const p = this.motionPos(id, mo), into = Math.max(min, Math.min(max, p));
-    if (Math.abs(into - p) > 1e-6) { this.moveFree(id, mo, this.stepTo(mo, p, into, it.travel[mo.key]), [...it.matrix], true); } else this.commit();
+    if (mo.kind === 'turn') { if (min !== null) min = Math.max(-360, min); if (max !== null) max = Math.min(360, max); } // (up to a full turn)
+    if (min !== null && max !== null) {
+      if (min > max) [min, max] = [max, min];
+      if (mo.kind === 'turn' && max - min > 360) max = min + 360; // (one turn at most: past it a turn's place is the same again)
+    }
+    const rec = { ...(it.travel?.[mo.key] || {}) }; // (its speed / repeat kept)
+    delete rec.min;
+    delete rec.max;
+    if (min !== null) rec.min = min;
+    if (max !== null) rec.max = max;
+    if (min === null || max === null) delete rec.follow; // (↕ by a driver's direction: it goes between two stops)
+    it.travel = { ...(it.travel || {}), [mo.key]: rec };
+    const p = this.motionPos(id, mo), into = clampLim(rec, p);
+    if (Math.abs(into - p) > 1e-6) { this.moveFree(id, mo, this.stepTo(mo, p, into, rec), [...it.matrix], true); } else this.commit();
     return it.travel[mo.key];
+  }
+
+  /** ✕ One end of a motion's limits taken off (end 'min' | 'max'): that way it goes freely; the last one: no limits.
+   *  -> the limits. */
+  clearEnd(id, mo, end) {
+    const lim = { ...(this.limitsOf(this.inst(id), mo) || {}) };
+    delete lim[end];
+    return this.setTravel(id, mo, lim);
   }
 
   /** ⇤⇥ The limits a motion starts with when they are switched on: around where it is — a turn ±90° (within ±180°), a
@@ -3358,8 +3391,8 @@ export class Assembly {
   playTravel(id, mo) {
     if (this.playing) { this.playing.stop = true; return; }
     if (mo.via) id = mo.via;
-    const it = this.inst(id), lim = this.limitsOf(it, mo);
-    if (!lim) return;
+    const it = this.inst(id), lim = this.limitsOf(it, mo), T = this.travelOf(id, mo, lim); // (one side open: a turn round to the stop, a slide its size)
+    if (!lim || !T) return;
     const snap = this.doc.instances.map((x) => [x.id, [...x.matrix], structuredClone(x.hang)]), from = [...it.matrix], p0 = this.motionPos(id, mo);
     const play = (this.playing = { key: mo.key, stop: false });
     let k = 0, last = performance.now();
@@ -3377,13 +3410,13 @@ export class Assembly {
         this.renderProps();
         return;
       }
-      const v = lim.min + (lim.max - lim.min) * (0.5 - 0.5 * Math.cos(2 * Math.PI * k)), was = [...it.matrix]; // min -> max -> min
+      const v = T.min + (T.max - T.min) * (0.5 - 0.5 * Math.cos(2 * Math.PI * k)), was = [...it.matrix]; // min -> max -> min
       it.matrix = this.holdPart(id, motionMatrix(mo, ((mo.kind === 'turn' ? Math.PI / 180 : 1) * this.stepTo(mo, p0, v, lim))).multiply(new THREE.Matrix4().fromArray(from)), true).toArray();
       this.applyMates({ id, was });
       this.draw();
       requestAnimationFrame(frame);
     };
-    it.matrix = this.holdPart(id, motionMatrix(mo, ((mo.kind === 'turn' ? Math.PI / 180 : 1) * this.stepTo(mo, p0, lim.min, lim))).multiply(new THREE.Matrix4().fromArray(from)), true).toArray();
+    it.matrix = this.holdPart(id, motionMatrix(mo, ((mo.kind === 'turn' ? Math.PI / 180 : 1) * this.stepTo(mo, p0, T.min, lim))).multiply(new THREE.Matrix4().fromArray(from)), true).toArray();
     this.applyMates({ id, was: from }); // (a closed loop follows it to min)
     requestAnimationFrame(frame);
   }
@@ -3394,7 +3427,7 @@ export class Assembly {
    *  instead of its limits (⚙ Mechanism: a crank's full turn). */
   async checkTravel(id, mo, n = 24, range = null) {
     if (mo.via) id = mo.via;
-    const it = this.inst(id), lim = range || this.limitsOf(it, mo);
+    const it = this.inst(id), lim = range || this.travelOf(id, mo); // (one side open: as far as ▶ goes that way)
     if (!lim) throw new Error('Set its limits first (⇤⇥).');
     const u = mo.kind === 'turn' ? '°' : 'mm';
     this.travelNote = { inst: id, key: mo.key, text: t('Checking the travel…') };
@@ -3488,7 +3521,7 @@ export class Assembly {
       const fm = d?.motions.find((x) => x.key === key);
       if (!fm) continue;
       const end = delta > 0 ? lim.follow.at : lim.follow.at === 'max' ? 'min' : 'max', p = this.motionPos(it.id, fm);
-      if (Math.abs(lim[end] - p) < 1e-6) continue;
+      if (!Number.isFinite(lim[end]) || Math.abs(lim[end] - p) < 1e-6) continue;
       const was = [...it.matrix], step = this.stepTo(fm, p, lim[end], lim);
       it.matrix = this.holdPart(it.id, motionMatrix(fm, (fm.kind === 'turn' ? Math.PI / 180 : 1) * step).multiply(new THREE.Matrix4().fromArray(was))).toArray();
       this.applyMates({ id: it.id, was, mo: fm, amount: step }); // (the parts on it go along)
@@ -3500,7 +3533,7 @@ export class Assembly {
   setFollow(id, mo, rule) {
     if (mo.via) id = mo.via;
     const it = this.inst(id), lim = it?.travel?.[mo.key];
-    if (!lim) throw new Error(t('Set its limits first (⇤⇥): the two stops it goes between.'));
+    if (!lim || !Number.isFinite(lim.min) || !Number.isFinite(lim.max)) throw new Error(t('Set its limits first (⇤⇥): the two stops it goes between.'));
     if (!rule) { delete lim.follow; this.commit(); return null; }
     let { part, key, at } = rule;
     if (!part) {
@@ -4137,8 +4170,9 @@ export class Assembly {
         for (const [k, v] of [['min', min], ['max', max]]) if (v !== undefined && v !== null && v !== 'here' && !Number.isFinite(+v)) throw new Error(`${k}: a number (mm, or degrees for a turn), "here" (where it is now) or null.`);
         if (here.length) { this.limitHere(it.id, mo, here[0]); if (here[0] === 'min') min = undefined; else max = undefined; }
         const only = min === undefined && max === undefined && (here.length || speed !== undefined || loop !== undefined || follow !== undefined);
-        let l = only ? this.limitsOf(it, mo) : min === null || max === null || (min === undefined && max === undefined) ? this.setTravel(it.id, mo, null)
-          : this.setTravel(it.id, mo, { min: +(min ?? this.limitsOf(it, mo)?.min ?? 0), max: +(max ?? this.limitsOf(it, mo)?.max ?? 0) });
+        const cur = this.limitsOf(it, mo), side = (v, k) => (v === null ? null : v === undefined ? cur?.[k] ?? null : +v); // (null: that side open; left out: as it is)
+        let l = only ? cur : (min === null && max === null) || (min === undefined && max === undefined) ? this.setTravel(it.id, mo, null)
+          : this.setTravel(it.id, mo, { min: side(min, 'min'), max: side(max, 'max') });
         if (l && (speed !== undefined || loop !== undefined)) l = this.setPlay(it.id, mo, { speed, loop });
         if (follow !== undefined) { // ↕ by a driver's direction: {part, motion?, at: "max" | "min"} or null
           let key = null;
@@ -4146,7 +4180,7 @@ export class Assembly {
           this.setFollow(it.id, mo, follow ? { part: follow.part || null, key, at: follow.at } : null);
           l = this.limitsOf(it, mo);
         }
-        return { text: `${it.id} — ${mo.label}: ${l ? `limits ${l.min} … ${l.max} ${mo.kind === 'turn' ? '°' : 'mm'}${l.speed ? `, ▶ ${l.speed}×` : ''}${l.loop ? ', ▶ again and again' : ''}${l.follow ? `, ↕ by ${l.follow.part}'s direction: at ${l.follow.at} while it goes forward, at ${l.follow.at === 'max' ? 'min' : 'max'} while it goes back` : ''}` : 'no limits'}; now at ${+this.motionPos(it.id, mo).toFixed(2)}.` };
+        return { text: `${it.id} — ${mo.label}: ${l ? `limits ${l.min ?? 'open (no min)'} … ${l.max ?? 'open (no max)'} ${mo.kind === 'turn' ? '°' : 'mm'}${l.speed ? `, ▶ ${l.speed}×` : ''}${l.loop ? ', ▶ again and again' : ''}${l.follow ? `, ↕ by ${l.follow.part}'s direction: at ${l.follow.at} while it goes forward, at ${l.follow.at === 'max' ? 'min' : 'max'} while it goes back` : ''}` : 'no limits'}; now at ${+this.motionPos(it.id, mo).toFixed(2)}.` };
       },
       lock_motion: async ({ part, motion = 0 }) => {
         need();

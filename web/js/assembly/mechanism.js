@@ -19,6 +19,7 @@ import { renameInPlace } from '../rename.js';
 import { leftDock } from '../leftdock.js';
 import { missingJoint } from './missing.js';
 import { animHtml, bindAnim } from './anim.js';
+import { travelOf } from './dof.js';
 import { clashOn, clashBarHtml, clashesNow, refreshScans, setClash, bandsOf } from './mechclash.js';
 
 const fmt = (v) => (+(+v).toFixed(2)).toString();
@@ -119,14 +120,16 @@ function recOf(asm, parts, make = false) {
   return rec;
 }
 
-/** A driver's travel: its limits; a turn without them a full turn (0 … 360°); a slide without them its size each way. */
+/** A driver's travel: its limits; a turn without them a full turn (0 … 360°); a slide without them its size each way;
+ *  one side open (dof.travelOf): a turn a full turn from the other (round to its stop), a slide its size that way. */
 function rangeOf(asm, d) {
   const lim = asm.limitsOf(asm.inst(d.part), d.mo), turn = d.mo.kind === 'turn';
-  if (lim) return { min: lim.min, max: lim.max, full: turn && lim.max - lim.min >= FULL, turn, lim };
-  if (turn) return { min: 0, max: 360, full: true, turn };
+  if (lim && Number.isFinite(lim.min) && Number.isFinite(lim.max)) return { min: lim.min, max: lim.max, full: turn && lim.max - lim.min >= FULL, turn, lim };
+  if (turn && !lim) return { min: 0, max: 360, full: true, turn };
   let p = 0;
   try { p = asm.motionPos(d.part, d.mo); } catch { p = 0; }
   const span = Math.max(10, Math.round(asm.loopPart(d.part).L));
+  if (lim) return { ...travelOf(lim, turn, p, span), full: false, turn, lim };
   return { min: Math.floor(p - span), max: Math.ceil(p + span), full: false, turn };
 }
 
@@ -263,9 +266,11 @@ export class MechanismPanel {
     if (!m.driver) return '';
     const ed = this.limEditable(m);
     if (!m.lim) return `<div class="mc-lim"><span class="mc-limtxt">${esc(t('no limits'))}</span>${ed ? `<button class="mini mc-limadd" data-mclimadd="${k}" title="${esc(t('Limits: how far it may go each way — they start around where it is (where ⚠ Check the travel found it free), then type them'))}">${esc(t('⇤⇥ Limits'))}</button>` : ''}</div>`;
-    const v = (end) => (ed ? `<input type="number" step="any" class="mc-limv" data-mclim="${k}:${end}" value="${fmt(m.lim[end])}" aria-label="${end}" title="${esc(t('Click to type it — ▶ and the slider keep to it'))}">` : `<span data-no-i18n>${fmt(m.lim[end])}</span>`);
-    return `<div class="mc-lim on">${m.full ? `<span class="mc-limtxt">${esc(t('full turn'))}</span>` : ''}<span class="mc-limr">⇤ ${v('min')} … ${v('max')} <span class="unit">${u}</span> ⇥</span>${ed
-      ? `<button class="mini mc-limoff" data-mclimoff="${k}" title="${esc(t('Take the limits off: it moves freely again'))}">✕</button>` : ''}</div>`;
+    const v = (end) => (!Number.isFinite(m.lim[end]) // (that side open: ∞ — a click sets it where it is now)
+      ? (ed ? `<button class="mini mc-limopen" data-mclimset="${k}:${end}" title="${esc(t(end === 'min' ? 'No min: it goes freely that way — click: min where it is now' : 'No max: it goes freely that way — click: max where it is now'))}">∞</button>` : '<span>∞</span>')
+      : ed ? `<input type="number" step="any" class="mc-limv" data-mclim="${k}:${end}" value="${fmt(m.lim[end])}" aria-label="${end}" title="${esc(t('Click to type it — ▶ and the slider keep to it'))}"><button class="mini mc-limoff" data-mclimoff="${k}:${end}" title="${esc(t(end === 'min' ? 'Take the min off: it goes freely that way' : 'Take the max off: it goes freely that way'))}">✕</button>`
+        : `<span data-no-i18n>${fmt(m.lim[end])}</span>`);
+    return `<div class="mc-lim on">${m.full ? `<span class="mc-limtxt">${esc(t('full turn'))}</span>` : ''}<span class="mc-limr">⇤ ${v('min')} … ${v('max')} <span class="unit">${u}</span> ⇥</span></div>`;
   }
 
   /** ⇤⇥ The limits a driver starts with: the stretch around where it is that ⚠ Check the travel found free (when it found
@@ -401,7 +406,12 @@ export class MechanismPanel {
         this.box.querySelector(`[data-mckey="${CSS.escape(m.key)}"] [data-mclim$=":min"]`)?.focus(); // (type them next)
       });
     }
-    for (const b of this.box.querySelectorAll('[data-mclimoff]')) b.addEventListener('click', () => set(row(b, 'mclimoff'), null));
+    for (const b of this.box.querySelectorAll('[data-mclimoff]')) { // ✕ by a value: that side open
+      b.addEventListener('click', () => { const [k, end] = b.dataset.mclimoff.split(':'), m = this.list[+k]; this.stop(false); asm.clearEnd(m.driver.part, m.driver.mo, end); });
+    }
+    for (const b of this.box.querySelectorAll('[data-mclimset]')) { // ∞: that side set where it is now
+      b.addEventListener('click', () => { const [k, end] = b.dataset.mclimset.split(':'), m = this.list[+k]; this.stop(false); asm.limitHere(m.driver.part, m.driver.mo, end); });
+    }
     for (const b of this.box.querySelectorAll('[data-mchere]')) {
       b.addEventListener('click', () => { const [k, end] = b.dataset.mchere.split(':'), m = this.list[+k]; this.stop(false); asm.limitHere(m.driver.part, m.driver.mo, end); });
     }

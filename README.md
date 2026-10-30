@@ -1055,10 +1055,13 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   assembly without one.
 - **⇤⇥ Limits in ⚙ Mechanism** (*"Meze"*): under each slider the driver's range — *"⇤ −45 … 90 ° ⇥"*, *"full turn"*
   or *"no limits"*. **⇤⇥ Limits** switches them on around where it is (±90°, ±10 mm — or, after ⚠ Check the travel
-  found a collision, the stretch around it that is free); click a value and type it in place (Enter), **✕** takes
-  them off. The slider and ▶ keep to them at once. **⋯ → ⇤ Set min here / Set max here ⇥**: move it there (the
-  slider, or drag the part), click. The same in a part's panel (**⇤⇥ Limits**, *⇤ here* / *here ⇥*) and in its
-  suggestions (*Limits of its motion…*, *Min here*, *Max here*).
+  found a collision, the stretch around it that is free); click a value and type it in place (Enter), the **✕** by
+  a value takes that side off — *"⇤ −45 ✕ … ∞ ⇥"*: it goes freely that way (a turn round to its stop, a slide as far
+  as it likes; ▶ and ⚠ Check the travel go a full turn / the part's size that way), **∞** sets it again where the part
+  is now. The slider and ▶ keep to them at once. **⋯ → ⇤ Set min here / Set max here ⇥**: move it there (the
+  slider, or drag the part), click. The same in a part's panel (**⇤⇥ Limits**, *⇤ here* / *here ⇥*, ✕ / ∞ by each
+  value) and in its suggestions (*Limits of its motion…*, *Min here*, *Max here*, *✕ Clear min* / *✕ Clear max*). The
+  AI: `set_travel {min: null}` or `{max: null}` clears one side, both null all.
 - **⚠ Collisions while it moves** (the **⚠** next to ▶ in a ⚙ Mechanism row, *"Kolize"*; off by default, kept with
   the assembly): the driver's travel is checked once in the background (about every 2° or 0.5 mm; again after an
   edit), then ▶, the slider and a drag show it live — the parts in a collision glow red with the overlap boxed, a note

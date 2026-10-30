@@ -7,6 +7,15 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⇤⇥ One side of a limit at a time (2026-10-30)** (the owner: clear min and max separately). A motion's `travel`
+  record may hold only `min` or only `max`: the other side is open. dof.js clampLim (drag.js, the panel's slider,
+  move_free, setTravel's put-back) and travelOf (both ends for what needs them: a turn a full turn from the stop — in
+  motionPos the open end left out, so at the stop it reads the stop —, a slide the part's size past where it is):
+  ▶ (playTravel), ⚠ Check the travel, the mechanism's range (mechanism.js rangeOf). setTravel takes {min?, max?}
+  (`follow` needs both stops: dropped), clearEnd(id, mo, end). UI: ⚙ Mechanism "⇤ −45 ✕ … ∞ ⇥" (✕ by each value; ∞ =
+  limitHere), the part panel's min / max with ✕ / ∞, suggestions ✕ Clear min / ✕ Clear max. AI: set_travel min /
+  max null clears that side (both null: off). tools/e2e_mech_limits.py extended, e2e_assembly_travel (a slide; its
+  motion="axis" calls fixed to motion=0).
 - **⚠ Collisions while a mechanism moves (2026-10-30)** (the owner: collisions no longer seemed highlighted while a
   mechanism runs). Found: there never was a live highlight — the ⚠ Collisions panel tints the pairs it last computed
   and checks again only after a change is committed (a drop, ⏸), so during a drag / ▶ / the slider the tints stayed

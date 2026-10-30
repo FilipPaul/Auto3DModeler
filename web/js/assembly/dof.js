@@ -6,6 +6,21 @@
 import * as THREE from 'three';
 
 const V = (a) => (a instanceof THREE.Vector3 ? a.clone() : new THREE.Vector3(...a));
+const has = (v) => Number.isFinite(v);
+
+/** v kept within a motion's limits ({min?, max?}: a side without one is open — it goes freely that way). */
+export const clampLim = (lim, v) => (lim ? Math.max(has(lim.min) ? lim.min : -Infinity, Math.min(has(lim.max) ? lim.max : Infinity, v)) : v);
+
+/** A motion's travel with both ends ({min, max}) from its limits: both set — as they are; one side open — a turn up to a
+ *  full turn from the other (round to the stop again), a slide `reach` past where it is (p), as one without limits;
+ *  none: null. */
+export function travelOf(lim, turn, p = 0, reach = 10) {
+  const lo = has(lim?.min), hi = has(lim?.max);
+  if (lo && hi) return { min: lim.min, max: lim.max };
+  if (!lo && !hi) return null;
+  if (turn) return lo ? { min: lim.min, max: lim.min + 360 } : { min: lim.max - 360, max: lim.max };
+  return lo ? { min: lim.min, max: Math.ceil(Math.max(p, lim.min) + reach) } : { min: Math.floor(Math.min(p, lim.max) - reach), max: lim.max };
+}
 
 /** A move along d (mm) or a turn about the line (p, d) (radians) -> the matrix that does it. */
 export function motionMatrix(mo, amount) {

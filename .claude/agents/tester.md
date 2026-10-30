@@ -740,9 +740,11 @@ Never report "works" without having run it; report failures with their output.
    assembly: no widget, no button). Prints ALL OK / FAILED, exit code 1 on a failure.
    `tools/e2e_mech_limits.py <url> <dir>` covers ⇤⇥ limits in ⚙ Mechanism (Czech, real clicks: an arm on a pin with a
    post in its way — "bez mezí", ⚠ Check the travel then ⇤⇥ Meze: limits clear of the post; min / max typed in the
-   row = limitsOf, the slider's range; ▶ stays within them; the slider to 30° + ⋯ "Nastavit max. sem ⇥"; ✕; the
-   part's suggestions Meze pohybu… (the panel's min focused) / Min. sem / Max. sem, its "⇤⇥ Meze" button and ⇤ sem /
-   sem ⇥; autosave + reload keeps them; no console errors). Prints ALL OK / FAILED, exit code 1 on a failure.
+   row = limitsOf, the slider's range; ▶ stays within them; the slider to 30° + ⋯ "Nastavit max. sem ⇥"; ✕ by max only:
+   min holds, past the old max free, the slider −45 … 315, ∞ sets max here again; ✕ by both; the part's suggestions
+   Meze pohybu… (the panel's min focused) / Min. sem / Max. sem, its "⇤⇥ Meze" button and ⇤ sem / sem ⇥; the panel's
+   ✕ by min / ∞, past max held; the table's Zrušit min. / Zrušit max.; set_travel {max: null}, {min: null, max};
+   autosave + reload keeps a one-sided limit; no console errors). Prints ALL OK / FAILED, exit code 1 on a failure.
    `tools/e2e_mech_collisions.py <url> <dir>` covers ⚠ collisions while a mechanism moves (Czech: an arm on a pin, a
    separate post in its way — ⚠ off by default: the slider into the post shows nothing; ⚠ on: one red band under the
    slider, at the angles where the kernel's own check finds the post (inside: yes, 4° out: no) and around ⚠ Check the

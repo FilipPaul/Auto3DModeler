@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { t } from '../i18n.js';
 import { posOf } from './mechanism.js';
+import { clampLim } from './dof.js';
 
 /** How the chosen part `id` moves when dragged -> {part, mo, mech} or null (it cannot move: a drag turns the view).
  *  A part of a closed loop drives the loop's driver; a gear of a train its own turn (mech: the mechanism it is in, the
@@ -67,7 +68,7 @@ export function startDrag(asm, id, e) {
       if (a === null || Math.abs(a - done) < 1e-3) return;
       const lim = eng.limitsOf(eng.inst(mo.via || part), mo);
       let step = a - done;
-      if (lim) { const p = eng.motionPos(part, mo); step = Math.max(lim.min, Math.min(lim.max, p + step)) - p; }
+      if (lim) { const p = eng.motionPos(part, mo); step = clampLim(lim, p + step) - p; } // (one side open: free that way)
       eng.moveFree(part, mo, step, null, false);
       done = a;
       moved = true;

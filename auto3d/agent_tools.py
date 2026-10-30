@@ -563,7 +563,7 @@ TOOLS = [
      "description": "Limits of a free motion of a joined part (a cylinder's stroke, a slide's ends, a door's swing): part = I…, motion "
                     "= its number or words of its name (as for move_free), min and max = where along it (mm, or degrees: −360 … 360, up to a full turn "
                     "for a turn; get_assembly `at` says where it is now). min / max \"here\" = that end where the part is now (the app's ⇤ Set min "
-                    "here / Set max here ⇥: move_free it there first, then set it; the other end kept, or as far again past it). min / max null: no limits. The part is put inside them. speed (0.25 … 4, 1 = about 3 s there and back) and loop (true: again and again) set how the app's ▶ plays it. "
+                    "here / Set max here ⇥: move_free it there first, then set it; the other end kept, or as far again past it). One side alone (only min, or min: null to clear it) leaves the other open: it goes freely that way (a turn round to its stop, a slide as far as it likes; get_assembly shows only the side set); both null (or neither given): no limits. The part is put inside them. speed (0.25 … 4, 1 = about 3 s there and back) and loop (true: again and again) set how the app's ▶ plays it. "
                     "follow = ↕ a check valve's ball / a pawl: it sits at one of its two stops by the direction another part is driven — {part: the driver (a piston; "
                     "none: the mechanism's driver sliding along it), motion: its motion (optional), at: \"max\" | \"min\" (where it sits while the driver moves "
                     "forward — its value grows; going back it sits at the other end)}; null takes it off. The part then moves with the driver's mechanism "

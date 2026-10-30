@@ -3,7 +3,9 @@ on the base in its way) -> ⚙ Mechanism shows "bez mezí" under its slider -> �
 around where it is, clear of the post -> min / max typed in the row (limitsOf matches) -> ▶ plays within them -> the
 slider to 30°, ⋯ "Nastavit max. sem ⇥": max 30 -> ✕ takes them off ("bez mezí") -> the part chosen: the Suggested
 table offers "Meze pohybu…" (the part panel's min field focused, "⇤⇥ Meze" on its button) and "Min. sem" / "Max. sem"
--> autosaved, the page reloaded, the project restored: the limits kept -> no console errors.
+-> one side at a time: ✕ by max (min still holds: past the old max it goes, below min it stops; "∞" sets max here
+again), the same in the part's panel (✕ by min, ∞), the table's "Zrušit min." / "Zrušit max.", set_travel {max: null}
+-> autosaved, the page reloaded, the project restored: the one-sided limit kept -> no console errors.
 
   PYTHONIOENCODING=utf-8 py tools/e2e_mech_limits.py http://127.0.0.1:5199 <out dir>
 """
@@ -55,7 +57,8 @@ def widget():
 
 def lim():
     """The arm's turn limits {min, max} (Assembly.limitsOf) or None."""
-    return js(f"const a = {A}, m = a.mech.list[0]; const l = a.limitsOf(a.inst(m.driver.part), m.driver.mo); return l && {{min: l.min, max: l.max}}")
+    l = js(f"const a = {A}, m = a.mech.list[0]; const l = a.limitsOf(a.inst(m.driver.part), m.driver.mo); return l && {{min: l.min, max: l.max}}")
+    return l and {k: v for k, v in l.items() if v is not None}  # (one side open: only the other)
 
 
 def pos():
@@ -166,10 +169,29 @@ try:
     check(l2 and l2["min"] == -45 and abs(l2["max"] - 30) < 0.01, f"Nastavit max. sem: {l2}")
     d.save_screenshot(f"{OUT}/mech_limits_here.png")
 
-    # ✕ takes them off
-    d.find_element(By.CSS_SELECTOR, "[data-mclimoff='0']").click()
+    # ✕ by max: only max off — min still holds
+    d.find_element(By.CSS_SELECTOR, "[data-mclimoff='0:max']").click()
     time.sleep(0.5)
-    check(lim() is None and "bez mezí" in limtext(), f"✕: no limits again ({limtext()!r})")
+    check(lim() == {"min": -45}, f"✕ by max: only min left {lim()}")
+    opn = d.find_elements(By.CSS_SELECTOR, "[data-mclimset='0:max']")
+    check(len(opn) == 1 and opn[0].text == "∞" and opn[0].get_attribute("title").startswith("Bez max."), f"the row: ⇤ −45 ✕ … ∞ ⇥ ({limtext()!r})")
+    print(" ", call("move_free", part="I2", motion=0, to=60)[:60])
+    check(abs(pos() - 60) < 0.5, f"past the old max (30): at {pos():.1f}°")
+    tx = call("move_free", part="I2", motion=0, to=-80)
+    check(abs(pos() + 45) < 0.5 and "stopped at its limit -45 … open" in tx, f"below min: held at {pos():.1f}° ({tx[tx.find('(stopped'):][:40]!r})")
+    js("const s = document.querySelector(arguments[0]); s.value = 50; s.dispatchEvent(new Event('input')); s.dispatchEvent(new Event('change'))", "[data-mcv='0']")
+    time.sleep(0.5)
+    sl = d.find_element(By.CSS_SELECTOR, "[data-mcv='0']")
+    check(sl.get_attribute("min") == "-45" and float(sl.get_attribute("max")) >= 300 and abs(pos() - 50) < 0.5, f"the slider: −45 … {sl.get_attribute('max')}, at {pos():.1f}°")
+    d.save_screenshot(f"{OUT}/mech_limits_onesided.png")
+    d.find_element(By.CSS_SELECTOR, "[data-mclimset='0:max']").click()
+    time.sleep(0.5)
+    check(lim() == {"min": -45, "max": 50}, f"∞ clicked: max here again {lim()}")
+    d.find_element(By.CSS_SELECTOR, "[data-mclimoff='0:min']").click()
+    time.sleep(0.4)
+    d.find_element(By.CSS_SELECTOR, "[data-mclimoff='0:max']").click()
+    time.sleep(0.5)
+    check(lim() is None and "bez mezí" in limtext(), f"✕ by both: no limits again ({limtext()!r})")
     d.find_element(By.CSS_SELECTOR, "[data-mclimadd='0']").click()  # (on again, for the rest)
     time.sleep(0.5)
 
@@ -194,6 +216,36 @@ try:
     check(l3 and abs(l3["min"] - p) < 0.01, f"Min. sem (at {p:.2f}): {l3}")
     d.save_screenshot(f"{OUT}/mech_limits_suggest.png")
 
+    # one side at a time in the part's panel and the table
+    call("set_travel", part="I2", motion=0, min=-30, max=60)
+    time.sleep(0.4)
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-dclear='0:min']").click()
+    time.sleep(0.5)
+    check(lim() == {"max": 60}, f"the part panel's ✕ by min: {lim()}")
+    o = d.find_elements(By.CSS_SELECTOR, "#asmRight [data-dopen='0:min']")
+    check(len(o) == 1 and o[0].text == "∞" and not d.find_elements(By.CSS_SELECTOR, "#asmRight [data-dmin='0']"), "the panel: min ∞, no min field")
+    call("move_free", part="I2", motion=0, to=-120)
+    check(abs(pos() + 120) < 0.5, f"below the old min (−30): at {pos():.1f}°")
+    call("move_free", part="I2", motion=0, to=90)
+    check(abs(pos() - 60) < 0.5, f"past max: held at {pos():.1f}°")
+    call("move_free", part="I2", motion=0, to=-20)
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-dopen='0:min']").click()
+    time.sleep(0.5)
+    l5 = lim()
+    check(l5 and abs(l5["min"] + 20) < 0.05 and l5["max"] == 60, f"the panel's ∞: min here again {l5}")
+    r = rows()
+    check(any("Zrušit min." in k for k in r) and any("Zrušit max." in k for k in r), f"the table offers ✕ Zrušit min. / ✕ Zrušit max. {[k for k in r if 'Zrušit' in k]}")
+    next(e for k, e in r.items() if "Zrušit max." in k).click()
+    time.sleep(0.5)
+    r = rows()
+    check(set(lim()) == {"min"} and any("Zrušit min." in k for k in r) and not any("Zrušit max." in k for k in r), f"Zrušit max.: {lim()}, the table offers only Zrušit min.")
+    call("set_travel", part="I2", motion=0, min=-30, max=60)
+    tx = call("set_travel", part="I2", motion=0, max=None)
+    check(lim() == {"min": -30} and "open (no max)" in tx, f"set_travel {{max: null}}: {lim()} — {tx[:70]!r}")
+    tx = call("set_travel", part="I2", motion=0, min=None, max=40)
+    check(lim() == {"max": 40}, f"set_travel {{min: null, max: 40}}: {lim()}")
+    l3 = lim()
+
     # a reload keeps them
     js("return window.__app.autosave.saveNow()")
     time.sleep(0.5)
@@ -207,7 +259,8 @@ try:
     time.sleep(0.5)
     l4 = lim()
     check(l4 == l3, f"after a reload: {l4}")
-    check(widget() is not None and [e.get_attribute("value") for e in d.find_elements(By.CSS_SELECTOR, "[data-mclim]")] == [f"{+round(l3['min'], 2):g}", f"{l3['max']:g}"], "the widget shows them again")
+    check(widget() is not None and [e.get_attribute("value") for e in d.find_elements(By.CSS_SELECTOR, "[data-mclim]")] == [f"{l3['max']:g}"]
+          and len(d.find_elements(By.CSS_SELECTOR, "[data-mclimset='0:min']")) == 1, "the widget shows it again: ∞ … 40")
 
     errs = [e["message"] for e in d.get_log("browser") if e["level"] == "SEVERE" and "favicon" not in e["message"] and "/api/ai/access" not in e["message"]]
     check(not errs, f"no console errors {errs[:3]}")
