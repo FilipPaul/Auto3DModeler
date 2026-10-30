@@ -11,7 +11,8 @@ Only 3D model parts go into an assembly (quick parts do not). Build each made pa
 Test fixtures (ICT / FCT): spring-loaded **test probes** and their **receptacles** are there too — INGUN GKS-100 /
 GKS-075 / GKS-050, KS-100 / KS-050, KESACON MPI — found by maker, grid (`"probe 1.27"`), head style (`"crown"`,
 `"korunka"`) or order code (`"GKS-100 214 130 A 2000"`, `"GKS-100-0008"`); each size is an exact order code, all its
-sizes per the maker's datasheet.
+sizes per the maker's datasheet. Cable clips (HellermannTyton P-clamps, MB tie mounts, T…R ties) and igus energy
+chains (E2.10, E2.15, 14, 10) are there too — `library_search {query: "P-clamp"}` / `{query: "e-chain"}`.
 **What goes with a library part** (library_search's `goes_with`): `library_pair {part: "I3", role: "nut"}` (or
 `"washer"`, `"insert"`, `"screw"`, `"receptacle"`, `"probe"`), `{part, set: true}` = a nut and two washers for a screw —
 each put on the part's axis where it goes (a washer under the head, the nut under the parts the screw holds; a probe
@@ -54,7 +55,8 @@ seated in its receptacle, its stroke as its slide's limits), joined Concentric.
    "Slide: Slider" — two of a kind say how: "Slide: Lid (along X)") or that it is `fully_held` — a hinge or slide keeps its one way free, the rest is held.
    `check_collisions` lists parts that go into each other (fix the made part: a hole, a pocket).
    A part that moves (a cylinder's rod, a slide, a door): `set_travel {part, motion, min, max}` gives its free motion
-   its limits (where along it: get_assembly `at`), then `check_travel {part, motion}` tells whether it hits anything
+   its limits (where along it: get_assembly `at`; `min: "here"` / `max: "here"` = that end where the part is now — the
+   app's ⇤ Set min here / Set max here ⇥, after `move_free {part, motion, to}`), then `check_travel {part, motion}` tells whether it hits anything
    on the way; `move_free {part, motion, to}` puts it at a position (it stops at the limits). `lock_motion {part,
    motion}` keeps one free motion where it is — also a touch's slides on the face (one by one) and a ball's turns.
    A check valve's ball (or a pawl) that sits at one stop or the other by the way the piston goes: join it so it has one
@@ -114,7 +116,9 @@ seated in its receptacle, its stroke as its slide's limits), joined Concentric.
    `through_parts` names parts its centre line goes through (add a point round them). Points on a part move with it.
    The answer and get_assembly `harnesses` give its length; get_bom lists a line per wire with its length + the
    reserve (5 %). `edit_harness {id, …}` changes any of these (`points` replaces them, `add_points` appends, `remove:
-   true` deletes it). Corners are shaped to r_min (two close corners moved apart), so `bends_too_tight` is only the
+   true` deletes it); one point by its number (as `point_list`): `set_points: [{n: 2, part, face}]` moves it (a flat
+   face: its centre; a round face: the hole's axis), `remove_points: [3]`, `insert_points: {after: 2, points: [{xyz}]}`
+   (0 = before the first), `order: [1, 3, 2, 4]` — a span's own length stays with its two points. Corners are shaped to r_min (two close corners moved apart), so `bends_too_tight` is only the
    exception. To test moving parts with a real cable, lock its length: `edit_harness {id, length_locked: true}` (as it
    is now) or `{length: 400}` — then drag / drive_mechanism: the slack sags, and a cable pulled too far is reported
    `taut: {short_mm}` (a limit of the motion). The answer's `point_list` names each point's part, face and lock: a
@@ -128,7 +132,12 @@ seated in its receptacle, its stroke as its slide's limits), joined Concentric.
    many it put in, `still_hits` names parts it could not get clear of — add a point to lead it round those.
    Fix it down with a clip: `edit_harness {id, clip: {point: 3}}` (a point on a face; the snuggest clip for its Ø, the
    point then on the clip's axis). Through an energy chain: `edit_harness {id, chain: {span: 2, id: "C1"}}` (no id:
-   one sized for the bundle is put in) — the cable then follows the chain's moving end. STEP / GLB exports and the assembly drawing include it.
+   one sized for the bundle is put in) — the cable then follows the chain's moving end. The chain itself (library_add
+   an e-chain: its first link at the fixed end — join it to the frame): `edit_chain {id: "C1", links, travel, moves_with:
+   "I5"}` (the carriage: its moving end goes along as that part moves; null: its own travel), get_assembly `chains`
+   (reach_ok false: add links). STEP / GLB exports and the assembly drawing include it.
+   The joints' symbols in the view: `set_view {joints: false}` hides them (the bottom row's 🔗 Joints) — for a clean
+   screenshot.
 
 Files for the user: `export {format: "step"}` (the whole assembly as a STEP assembly — SolidWorks, CATIA and Solid
 Edge open it as an assembly tree, a product per part, sub-assemblies nested), `"iges"` (every part placed in one IGES —

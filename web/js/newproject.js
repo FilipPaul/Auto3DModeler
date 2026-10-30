@@ -53,5 +53,21 @@ export function initNewProject(hooks) {
     e.preventDefault();
     start(false);
   });
-  return { start };
+  return { start, handlers: () => newProjectHandlers(start, hooks) };
+}
+
+/** new_project: as 📄 New project — answered first, the page starts again a moment later (the chat goes on). */
+export function newProjectHandlers(start, hooks) {
+  return {
+    new_project: async ({ new_window } = {}) => {
+      if (new_window) {
+        if (!start(true)) throw new Error('The browser blocked the new window — the user allows pop-ups for this page, or clicks ⧉ New project in a new window.');
+        return { text: 'A new, empty project opened in a window of its own; this one stays as it is (the tools keep working on this window).' };
+      }
+      if (hooks.empty()) return { text: 'This project is empty already — nothing to keep; go on in it (new_model / new_assembly).' };
+      const name = hooks.name();
+      setTimeout(() => start(false), 300); // (after this answer is sent: the page loads afresh)
+      return { text: `The project “${name || 'Project'}” is kept (Open ▾ › 🕘 Recent projects) and this window starts a new, empty one — wait a moment, then list_parts (empty) and new_model / new_assembly.` };
+    },
+  };
 }

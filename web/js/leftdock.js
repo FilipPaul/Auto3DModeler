@@ -894,3 +894,60 @@ class LeftDock {
 }
 
 export const leftDock = new LeftDock();
+
+// ---------------------------------------------------------------------------------------------- for the AI
+const WHERE = { dock: 'left', right: 'right', float: 'float', popup: 'behind ☰' };
+const ALIAS = { suggestions: 'suggest', suggested: 'suggest', properties: 'props', tree: 'project' };
+
+/** set_layout: the widgets of the workspace on screen (what the user does by dragging headers and in a widget's ⋯
+ *  menu) and the suggestions table's ✕ / Automatically. */
+export function layoutHandlers(dock = leftDock) {
+  const list = () => {
+    const ws = dock.ws(), me = dock.my(ws);
+    const names = ['project', 'panel', 'suggest', 'props', ...Object.keys(dock.extra).filter((w) => dock.extra[w].ws === ws && dock.extra[w].on)];
+    return names.filter((w) => w !== 'panel' && w !== 'props' ? true : !!dock.widgets?.[w][ws]).map((w) => {
+      const el = w === 'suggest' ? dock.widgets.suggest : dock.widgetEl(w, ws), m = dock.mode(w, ws);
+      return { widget: w, title: el?.querySelector(':scope > .lw-head > b')?.textContent || w, where: WHERE[m] || m,
+        ...(dock.isFold(me, w) ? { folded: true } : {}), ...(dock.isAuto(w, me) ? { auto_height: true } : {}), ...(dock.rowSel(w, ws) ? { rows: dock.rowsLimit(w, ws) || 'all' } : {}) };
+    });
+  };
+  const answer = (done) => { const sg = dock.sgState(); return { text: JSON.stringify({ ...(done.length ? { done } : {}), workspace: dock.ws(), widgets: list(), suggestions: { closed: sg.closed, auto: sg.auto } }) }; };
+  return {
+    set_layout: async ({ widget, place, at, fold, auto_height, rows, suggestions, reset } = {}) => {
+      if (!dock.layout) throw new Error('The app has no widgets yet — open a part first.');
+      const done = [];
+      if (reset) { dock.reset(); done.push('↺ default layout'); }
+      let w = null;
+      if (widget !== undefined && widget !== null && widget !== '') {
+        const want = String(widget).trim().toLowerCase(), all = list();
+        w = ALIAS[want] || all.find((x) => x.widget.toLowerCase() === want)?.widget || all.find((x) => x.title.toLowerCase().includes(want))?.widget;
+        if (!w) throw new Error(`No widget “${widget}” in this workspace — it has: ${all.map((x) => `${x.widget} (${x.title})`).join(', ')}.`);
+      }
+      const needW = (k) => { if (!w) throw new Error(`${k}: say which widget (widget: its name or title — set_layout {} lists them).`); };
+      if (place !== undefined) {
+        needW('place');
+        if (place === 'left' || place === 'right') { dock.dock(w, at === undefined ? undefined : Math.max(0, Math.round(+at) - 1), place === 'left' ? 'dock' : 'right'); if (w === 'suggest') for (const x of document.querySelectorAll('.view-suggest')) dock.placeSuggest(x, x.parentElement); }
+        else if (place === 'float') dock.float(w);
+        else if (place === 'hidden') { if (w !== 'project') throw new Error('Only the project tree hides behind ☰ — fold another one (fold: true), or close the suggestions (suggestions: {closed: true}).'); dock.unpin(); }
+        else throw new Error('place: "left", "right", "float" or "hidden" (the project tree behind ☰).');
+        done.push(`${w} ${place}`);
+      }
+      if (fold !== undefined) { needW('fold'); dock.fold(w, !!fold); done.push(`${w} ${fold ? 'folded' : 'unfolded'}`); }
+      if (auto_height !== undefined) { needW('auto_height'); dock.setAuto(w, !!auto_height); done.push(`${w} automatic height ${auto_height ? 'on' : 'off'}`); }
+      if (rows !== undefined) {
+        needW('rows');
+        if (!dock.rowSel(w)) throw new Error(`${w} is not a list — it has no Rows setting.`);
+        dock.setRows(w, rows === null || rows === 'all' ? 0 : rows);
+        done.push(`${w} rows ${dock.rowsLimit(w) || 'all'}`);
+      }
+      if (suggestions && typeof suggestions === 'object') { // ✕ closed (a 💡 button instead) / open; Automatically: opens on a selection by itself
+        const { closed, auto } = suggestions;
+        dock.setSg({ ...(closed !== undefined ? { closed: !!closed } : {}), ...(auto !== undefined ? { auto: !!auto } : {}), ...(auto && closed === undefined ? { closed: false } : {}) });
+        window.dispatchEvent(new CustomEvent('a3d:suggest-rows'));
+        done.push(`suggestions ${closed !== undefined ? (closed ? 'closed' : 'open') : ''}${auto !== undefined ? ` automatically ${auto ? 'on' : 'off'}` : ''}`.trim());
+      }
+      await new Promise((r) => setTimeout(r, 80)); // (the rows cut, the heights fitted: a frame later)
+      return answer(done);
+    },
+  };
+}

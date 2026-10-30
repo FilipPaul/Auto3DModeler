@@ -758,10 +758,7 @@ export class HarnessTool {
   editPts(h, fn) {
     const before = (h.points || []).slice(), n = before.length;
     fn(h.points);
-    if (h.spans?.length && h.points.length !== n) { // (a point put in or taken out: a span keeps its length while its two points are still neighbours)
-      h.spans = h.spans.map((s) => { const i = h.points.indexOf(before[s.from]); return i >= 0 && h.points[i + 1] === before[s.from + 1] ? { ...s, from: i } : null; }).filter(Boolean);
-      if (!h.spans.length) delete h.spans;
-    }
+    if (h.points.length !== n) keepSpans(h, before);
     const gone = before.map((p) => p.clip).filter((c) => c && !h.points.some((p) => p.clip === c) && this.asm.inst(c)); // (📎 its point taken away: the clip stays — offered to go too)
     this.orphans = [...new Set([...(this.orphans || []).filter((c) => this.asm.inst(c)), ...gone])];
     this.span = null;
@@ -1509,6 +1506,14 @@ export class HarnessTool {
   }
 }
 
+/** Harness h's points changed from `before` (the same point objects, some put in, taken out or moved): a span keeps
+ *  its length / chain while its two points are still neighbours, else it goes. */
+function keepSpans(h, before) {
+  if (!h.spans?.length) return;
+  h.spans = h.spans.map((s) => { const i = h.points.indexOf(before[s.from]); return i >= 0 && h.points[i + 1] === before[s.from + 1] ? { ...s, from: i } : null; }).filter(Boolean);
+  if (!h.spans.length) delete h.spans;
+}
+
 // ------------------------------------------------------------------ for the AI
 /** add_harness / edit_harness (the assembly on screen). */
 export function harnessHandlers(asm) {
@@ -1547,6 +1552,28 @@ export function harnessHandlers(asm) {
     if (a.name !== undefined) { if (String(a.name).trim()) h.name = String(a.name).trim(); else delete h.name; }
     if (a.points !== undefined) h.points = a.points.map(toPoint);
     if (a.add_points !== undefined) h.points.push(...a.add_points.map((q, k) => toPoint(q, h.points.length + k)));
+    // one point by its number: put somewhere else / taken out / put in after one / all in another order (as the panel's
+    // points list: x y z typed, ✕, ＋ between, ↑ ↓) — the spans' own lengths keep to their points
+    const at = (k, key, n = h.points.length) => { const i = Math.round(+k) - 1; if (!(i >= 0 && i < n)) throw new Error(`${key}: point ${k} — it has ${n} (1 … ${n}).`); return i; };
+    for (const q of [].concat(a.set_points || [])) { const i = at(q?.n, 'set_points'); h.points[i] = toPoint(q, i); }
+    const before = h.points.slice();
+    if (a.remove_points !== undefined) {
+      const gone = new Set([].concat(a.remove_points).map((k) => at(k, 'remove_points')));
+      h.points = h.points.filter((_, i) => !gone.has(i));
+    }
+    if (a.insert_points !== undefined) {
+      const { after, points } = a.insert_points || {};
+      if (!Array.isArray(points) || !points.length) throw new Error('insert_points: {after: a point number (0 = before the first), points: [{part, face} | {part, point} | {xyz}, …]}.');
+      const i = after === 0 ? 0 : at(after, 'insert_points.after') + 1;
+      h.points.splice(i, 0, ...points.map((q, k) => toPoint(q, i + k)));
+    }
+    if (a.order !== undefined) {
+      const o = [].concat(a.order).map((k) => at(k, 'order'));
+      if (o.length !== h.points.length || new Set(o).size !== o.length) throw new Error(`order: every point number once, in the new order (1 … ${h.points.length}).`);
+      const P = h.points.slice();
+      h.points = o.map((i) => P[i]);
+    }
+    if (a.remove_points !== undefined || a.insert_points !== undefined || a.order !== undefined) keepSpans(h, before);
     for (const s of a.spans || []) { // ➰ {from: point number (1 = the first), length: mm | null}
       const i = +s.from - 1;
       if (!(i >= 0 && i + 1 < h.points.length)) throw new Error(`spans: from ${s.from} — a span runs from a point to the next: 1 … ${h.points.length - 1}.`);

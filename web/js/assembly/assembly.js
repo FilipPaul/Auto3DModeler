@@ -61,7 +61,7 @@ import { isPin } from './missing.js';
 import { pinFits, restOn } from './smart.js';
 import { springMatrix, addSpring, springIgnores, springsHtml, bindSpringRows, updateSpringRows, springsSummary } from './springs.js';
 import { HarnessTool, harnessHandlers, harnessFacts, withHarnesses } from './harness.js';
-import { drawChains, chainsHtml, bindChainRows, tidyChains, chainsSummary } from './chains.js';
+import { drawChains, chainsHtml, bindChainRows, tidyChains, chainsSummary, chainHandlers } from './chains.js';
 import { linksOf } from '../library/cableparts.js';
 import { COUPLING_TYPES, couplingOptions, addCoupling, followCouplings, couplingsHtml, bindCouplingRows, couplingsSummary, ratioText, coupledWith } from './couplings.js';
 
@@ -4126,7 +4126,12 @@ export class Assembly {
       set_travel: async ({ part, motion = 0, min, max, speed, loop, follow }) => {
         need();
         await settle();
-        const { it, mo } = this.motionFor(part, motion), only = min === undefined && max === undefined && (speed !== undefined || loop !== undefined || follow !== undefined);
+        const { it, mo } = this.motionFor(part, motion);
+        const here = ['min', 'max'].filter((k) => ({ min, max })[k] === 'here'); // (⇤ / ⇥ "set min / max here": where it is now)
+        if (here.length === 2) throw new Error('min and max cannot both be "here" — move it to the other end first (move_free), then set that one.');
+        for (const [k, v] of [['min', min], ['max', max]]) if (v !== undefined && v !== null && v !== 'here' && !Number.isFinite(+v)) throw new Error(`${k}: a number (mm, or degrees for a turn), "here" (where it is now) or null.`);
+        if (here.length) { this.limitHere(it.id, mo, here[0]); if (here[0] === 'min') min = undefined; else max = undefined; }
+        const only = min === undefined && max === undefined && (here.length || speed !== undefined || loop !== undefined || follow !== undefined);
         let l = only ? this.limitsOf(it, mo) : min === null || max === null || (min === undefined && max === undefined) ? this.setTravel(it.id, mo, null)
           : this.setTravel(it.id, mo, { min: +(min ?? this.limitsOf(it, mo)?.min ?? 0), max: +(max ?? this.limitsOf(it, mo)?.max ?? 0) });
         if (l && (speed !== undefined || loop !== undefined)) l = this.setPlay(it.id, mo, { speed, loop });
@@ -4194,6 +4199,7 @@ export class Assembly {
         return { text: v ? `${mo.via || it.id}: the motion “${mo.auto || mo.label}” is called “${v}” now (get_assembly, its panel and ⚙ Mechanism show it).` : `${mo.via || it.id}: the motion has its own words again (“${mo.auto || mo.label}”).` };
       },
       ...harnessHandlers(this), // (🔌 add_harness, edit_harness)
+      ...chainHandlers(this), // (⛓ edit_chain)
       check_travel: async ({ part, motion = 0 }) => {
         need();
         await settle();

@@ -34,6 +34,11 @@ and let them click. Do the step yourself only when they ask you to.
 5. **End**: `gui_highlight {clear: true}` if a tip is still shown, then one line of what they learned and the
    shortcut, if any.
 
+**The screen itself** (a widget docked left / right or floating, folded, its rows; the suggestions table closed or
+opening by itself; the bottom row's 🔗 Joints / 📏 Dimensions): show the widget's ⋯ menu or header (dragging it docks /
+floats it) and the bottom row's buttons; only when they ask you to arrange it, `set_layout` (no arguments: the layout
+now) / `set_view {joints, sizes}` do it. 📄 New project is under Open ▾ (Ctrl+Alt+N); `new_project` only when asked.
+
 **Watching instead of showing:** when the user says "look what I'm doing" / "podívej se, co dělám" (a problem they
 want you to see), `start_recording {reason}` and tell them to go ahead; when they say they are done,
 `get_recording` (`stop_recording` if it still runs; `get_recording_screenshot {id}` for a shot) — the clicks, picks,

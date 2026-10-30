@@ -29,7 +29,7 @@ import { DrawingEditor, drawingToCleanSketch } from './drawing2d/editor.js';
 import { SheetEditor, partHash } from './sheet/sheet.js';
 import { isStandard } from './assembly/fasteners.js';
 import { initSplitters } from './splitters.js';
-import { leftDock } from './leftdock.js';
+import { leftDock, layoutHandlers } from './leftdock.js';
 import { Autosave } from './autosave.js';
 import { Windows } from './windows.js';
 import { actionDock } from './actiondock.js';
@@ -2869,6 +2869,7 @@ Object.assign(agentHandlers, moreHandlers({ state, project, modeler, assembly, d
 Object.assign(agentHandlers, teachHandlers()); // gui_highlight: the AI shows the user where to click
 recorder.init({ state, project, modeler, assembly }); // ⏺ the recording of moves: the top bar's ⏺, the indicator, the hooks
 Object.assign(agentHandlers, recordHandlers()); // (start_recording, stop_recording, get_recording, get_recording_screenshot)
+Object.assign(agentHandlers, layoutHandlers(), newProject.handlers()); // (set_layout: the widgets; new_project)
 const exportData = agentHandlers.export_data; // (+ the project file, as Save project writes it: export {format: "project"})
 agentHandlers.export_data = async (args = {}) => (args.format === 'project'
   ? { text: 'ok', data: { name: safeName(), project: await savedProject({ history: !!args.history }) } } : exportData(args));
