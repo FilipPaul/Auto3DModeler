@@ -719,7 +719,10 @@ Never report "works" without having run it; report failures with their output.
    harness.py's shape, kept as the pin moves, "Úsek 3–4 je napnutý" too far, edit_harness spans; saved + reloaded:
    parts, locks, faces, spans kept; the owner's case — a cable between two pins' tops with a tall block between:
    leads straight up, a detour round the block, the bundle clear of every body (signed distances in Python), nothing
-   reported hit; a point clicked + Delete, Ctrl+Z, Enter; STEP export
+   reported hit; 📎 a clip on a point on the PCB (the suggestion, snuggest first): the point on the clip's axis, the
+   list's 📎, get_assembly clip, the point deleted -> "the clip stays" ✕, undo ×2; ⛓ a span through a chain put in
+   from the library (sized: Bi ≥ Ø + 2, R ≥ r_min): the cable on its path, its length = harness.py's, the moving end
+   moved 80 -> it follows, undo, edit_harness chain null / id; reload keeps clips and chains; a point clicked + Delete, Ctrl+Z, Enter; STEP export
    with 3 parts + 4 wire solids; add_harness / edit_harness / get_assembly). Prints ALL OK / FAILED, exit code 1 on a
    failure.
    `tools/e2e_assembly_mechanism.py <url> <dir>` covers ⚙ Mechanism (the same crank – rod – slider: the widget shows

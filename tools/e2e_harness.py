@@ -13,7 +13,9 @@ a point dragged onto the pin: on its axis; Alt + click: the box's bottom (hidden
 label not changed by ✎; where it goes through a part (span, spot, ⚠ in the view); a point in space on a face taken as
 locked; ➰ a span's own length (the suggestion, one input): a loop that long, kept as the pin moves, taut too far,
 edit_harness spans; the owner's case — ends on two pins' tops leave them straight up, the span round a tall block
-between them (Python checks the bundle clear of every body); saved + reloaded: the locks and spans kept holds
+between them (Python checks the bundle clear of every body); 📎 a clip on a point (the suggestion): the point on its
+axis, deleted -> "the clip stays" ✕, undo; ⛓ a span through a chain put in from the library: the cable on its path, the
+moving end moved -> it follows, undo, edit_harness chain; saved + reloaded: the locks, spans, clips and chains kept holds
 the four wires -> the AI's add_harness / edit_harness / get_assembly.
 
 usage (server running, e.g. `py server.py --port 5199 --no-browser`):
@@ -121,6 +123,7 @@ try:
       window.__hnPoint = (h, p) => m.pointAt(window.__app.assembly, h, p);
       window.__hnLength = (id) => m.routeAt(window.__app.assembly, window.__app.assembly.harnessTool.get(id)).length;
       window.__hn = m; })""")
+    js("""import('/js/assembly/chains.js').then((k) => { window.__hnChain = (id) => { const r = k.chainRoute(window.__app.assembly, id); return r && { points: r.points, moving: r.moving.o }; }; })""")
     wait("return !!window.__hn")
     call("new_model", name="Krabice")
     call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 160, "h": 100}}])
@@ -577,8 +580,80 @@ try:
     d.save_screenshot(f"{OUT}/harness_9_avoid.png")
     call("edit_harness", id=hid, remove=True)
 
+    # 20. 📎 a clip on a point on the PCB's top (the suggestion, snuggest first): placed, the point on its axis; the
+    # point taken away -> "the clip stays" with ✕ Remove it too; ⛓ a span through an energy chain put in from the
+    # library: the cable runs its path, its length with it; the chain's moving end moved: the cable follows, undo back
+    wait("return window.__hn && import('/js/library/cableparts.js').then(m => (window.__cp = m, m.clipsFor(6).length > 0 && m.chainsFor(6, 30).length > 0))", 60)
+    r = call("add_harness", type="cable", d=6, points=[{"xyz": [-40, 70, 40]}, {"part": "I2", "face": "F2:end"}, {"xyz": [40, 140, 45]}])
+    hid = r.split(" ")[0]
+    js(f"{T}.sel = arguments[0]; {T}.pt = 1; {T}.span = null; {A}.sel = null; {A}.render(); {A}.draw()", hid)
+    time.sleep(0.5)
+    rows = table()
+    clips = [x for x in rows if "Příchytka sem" in x]
+    check("20. a point on a face chosen: 📎 Příchytka sem, the snuggest first (2–3 in the table)", 1 <= len(clips) <= 3 and js("return window.__cp.clipsFor(6)[0].label") in clips[0], rows)
+    js("for (const b of document.querySelectorAll('#asmViewport .view-suggest .vs-list button')) if (b.textContent.includes('Příchytka sem')) { b.click(); break; }")
+    cid = wait(f"return {T}.get('{hid}').points[1].clip", 30)
+    on_axis = js(f"""const a = {A}, h = {T}.get('{hid}'), p = h.points[1], it = a.inst(p.clip), lib = window.__app.project.parts.find(q => q.id === it.part).data.library;
+      const item = window.__cp.clipsFor(6).find(c => c.item.id === lib.id).item, f = window.__cp.clipFrames(item, lib.size, window.__hn.outerD(h));
+      const V = a.view.camera.position.constructor, M = new (a.view.camera.matrix.constructor)().fromArray(it.matrix), o = new V(...f.axis.o).applyMatrix4(M);
+      return [window.__hnPoint(h, p).distanceTo(o), lib.id, lib.size];""")
+    check("…the clip placed, the point on its axis (locked to it)", cid and on_axis[0] < 1e-3, [cid, on_axis])
+    lst = [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-pt .hn-pw")]
+    check("…the list shows 📎 and the clip's part", lst and "📎" in lst[1] and cid in lst[1], lst)
+    f = json.loads(call("get_assembly"))["harnesses"][-1]
+    check("…get_assembly: point 2 clip", f["point_list"][1].get("clip") == cid, f["point_list"][1])
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-pdel='1']").click()
+    time.sleep(0.5)
+    orphan = d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-orphan")
+    check("the point deleted: “the clip stays” with ✕ Remove it too", orphan and "zůstala" in orphan[0].text and js(f"return !!{A}.inst('{cid}')"), [e.text for e in orphan])
+    orphan[0].find_element(By.CSS_SELECTOR, "[data-rmclip]").click()
+    time.sleep(0.5)
+    check("…removed: the clip is out of the assembly", not js(f"return !!{A}.inst('{cid}')"))
+    for _ in range(2):
+        js(f"{A}.history.go(-1)")
+        time.sleep(0.5)
+    check("undo ×2: the clip and the point on it back", js(f"const h = {T}.get('{hid}'); return h.points.length === 3 && h.points[1].clip === '{cid}' && !!{A}.inst('{cid}')"))
+    # ⛓ span 1–2 chosen: Vést energetickým řetězem (one from the library, sized for Ø6 at R ≥ r_min)
+    js(f"{T}.sel = '{hid}'; {T}.pt = null; {T}.span = 0; {A}.sel = null; {A}.render(); {A}.draw()")
+    time.sleep(0.5)
+    rows = table()
+    check("a span chosen: ⛓ Vést energetickým řetězem offered", any("Vést energetickým řetězem" in x for x in rows), rows)
+    L_before = page_length(hid)
+    js("for (const b of document.querySelectorAll('#asmViewport .view-suggest .vs-list button')) if (b.textContent.includes('energetickým řetězem')) { b.click(); break; }")
+    ch = wait(f"return {T}.get('{hid}').spans?.find(s => s.chain)?.chain", 60)
+    wait(f"return Object.values({A}.bodies).every(b => b.body)", 60)
+    time.sleep(1.0)
+    path = js(f"return window.__hnChain('{ch}')")
+    rt = js(f"const r = window.__hn.routeAt({A}, {T}.get('{hid}')); return {{ L: r.length, pts: r.points.map(p => p.toArray()) }}")
+    on_path = all(min(math.dist(q, x) for x in rt["pts"]) < 1e-6 for q in path["points"])
+    check("…a chain put in (C…), the cable runs along its path, its length with it", ch and on_path and rt["L"] > L_before + 50 and abs(page_length(hid) - kernel_route(hid)["length"]) < 1e-3,
+          [ch, on_path, L_before, rt["L"]])
+    sp = js(f"return window.__hn.routeAt({A}, {T}.get('{hid}')).spans")
+    check("…its spans told right (each > 0, together its length)", len(sp) == 2 and min(sp) > 1 and abs(sum(sp) - rt["L"]) < 1e-3, sp)
+    dims = js(f"return {A}.doc.chains.find(c => c.id === '{ch}').dims")
+    check("…sized for the bundle: opening ≥ Ø + 2, bend ≥ r_min, cables up to ≥ Ø", dims["Bi"] >= 8 and dims["R"] >= 30 and dims["dmax"] >= 6, dims)
+    f = json.loads(call("get_assembly"))["harnesses"][-1]
+    check("…get_assembly: the span's chain", any(x.get("chain") == ch for x in f.get("spans", [])), f.get("spans"))
+    d.save_screenshot(f"{OUT}/harness_10_chain.png")
+    L1, o1 = page_length(hid), path["moving"]
+    js(f"const a = {A}, c = a.doc.chains.find(c => c.id === '{ch}'); c.travel = 80; a.commit();")
+    time.sleep(1.0)
+    path2 = js(f"return window.__hnChain('{ch}')")
+    rt2 = js(f"const r = window.__hn.routeAt({A}, {T}.get('{hid}')); return {{ L: r.length, pts: r.points.map(p => p.toArray()) }}")
+    follows = all(min(math.dist(q, x) for x in rt2["pts"]) < 1e-6 for q in path2["points"])
+    check("the chain's moving end moved 80: the cable follows it, its length updated", math.dist(path2["moving"], o1) > 70 and follows and abs(rt2["L"] - L1) > 1 and abs(page_length(hid) - kernel_route(hid)["length"]) < 1e-3,
+          [o1, path2["moving"], L1, rt2["L"]])
+    d.save_screenshot(f"{OUT}/harness_11_chain_moved.png")
+    js(f"{A}.history.go(-1)")
+    time.sleep(0.8)
+    check("undo: the chain's end back, the cable's length with it", abs(page_length(hid) - L1) < 1e-3, [page_length(hid), L1])
+    r = call("edit_harness", id=hid, chain={"span": 1, "id": None})
+    check("edit_harness chain id null: not through it any more", not js(f"return {T}.get('{hid}').spans?.some(s => s.chain)"), r[:100])
+    r = call("edit_harness", id=hid, chain={"span": 1, "id": ch})
+    check("edit_harness chain {span, id}: through it again", js(f"return {T}.get('{hid}').spans?.[0]?.chain") == ch, r[:100])
+
     # 17. saved and reloaded: the locks kept
-    keep = js(f"return JSON.stringify({T}.list().map(h => [h.points.map(p => [p.inst || null, !!p.on, p.face || null]), h.spans || null]))")
+    keep = js(f"return JSON.stringify({T}.list().map(h => [h.points.map(p => [p.inst || null, !!p.on, p.face || null, p.clip || null]), h.spans || null]))")
     js("return window.__app.autosave.saveNow()")
     time.sleep(1)
     d.refresh()
@@ -589,8 +664,14 @@ try:
     call("open_part", id="Pohon")
     wait(f"return {A}.active && Object.values({A}.bodies).every(b => b.body)", 60)
     time.sleep(1)
-    got = js(f"return JSON.stringify({T}.list().map(h => [h.points.map(p => [p.inst || null, !!p.on, p.face || null]), h.spans || null]))")
-    check("17. reloaded: every point's part, lock and face, the spans' lengths kept", got == keep, (keep, got))
+    got = js(f"return JSON.stringify({T}.list().map(h => [h.points.map(p => [p.inst || null, !!p.on, p.face || null, p.clip || null]), h.spans || null]))")
+    check("17. reloaded: every point's part, lock, face and clip, the spans' lengths and chains kept", json.loads(got) == json.loads(keep), (keep, got))
+    js("""import('/js/assembly/harness.js').then((m) => { window.__hn = m; }); import('/js/assembly/chains.js').then((k) => { window.__hnChain = (id) => { const r = k.chainRoute(window.__app.assembly, id); return r && { points: r.points, moving: r.moving.o }; }; })""")
+    wait("return !!window.__hnChain && !!window.__hn")
+    again = js(f"""const a = {A}, h = a.harnessTool.list().find(x => x.spans?.some(s => s.chain)); if (!h) return null;
+      const c = window.__hnChain(h.spans.find(s => s.chain).chain), r = window.__hn.routeAt(a, h).points.map(p => p.toArray());
+      return c.points.every(q => r.some(x => Math.hypot(q[0] - x[0], q[1] - x[1], q[2] - x[2]) < 1e-6));""")
+    check("…and the reloaded cable runs along its chain again", again is True, again)
 finally:
     errs = [e["message"][:200] for e in d.get_log("browser") if e["level"] == "SEVERE"]
     print("console errors:", errs)

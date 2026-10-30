@@ -11,15 +11,19 @@
 //   "color": "black", "wires": [{"d": 1.5, "color": "brown"}] (loose wires, a ribbon's count), "pitch": 1.27,
 //   "r_min": 30 (not said: the rule of thumb, autoRmin), "reserve": 5 (%), "name": "…", "length_locked": 400 (🔒 mm),
 //   "spans": [{"from": 2, "length": 140}] (➰ the cable between points from and from + 1 (0-based) that long: a loop of
-//   slack there; they win over length_locked),
+//   slack there; they win over length_locked; "chain": "C1" — ⛓ the span routed through that energy chain: the cable
+//   runs along the chain's path as it is laid out now, from the end nearer its first point),
 //   "points": [{"inst": "I2", "at": [x, y, z] (in the part), "n": [x, y, z] (its face's normal: the cable lies on it;
 //   none: right there, a hole's centre), "face": "F2:end" (its name, for the list)} (🔒 locked on the part: it moves with
 //   it) | {"xyz": [x, y, z]} (in space) | {"xyz", "on": {inst, at, n, face}} (🔓 a point of a part unlocked: it stays in
-//   space; 🔒 again: it sticks to the part where it is then)]}]. A loaded point in space that lies on a face (Ø/2 + 0.5
-//   off it) is taken as locked to it (adopt).
+//   space; 🔒 again: it sticks to the part where it is then) | {"inst": "I7", "at": …, "clip": "I7"} (📎 on the axis of
+//   the clip placed there, locked to it)]}]. A loaded point in space that lies on a face (Ø/2 + 0.5 off it) is taken as
+//   locked to it (adopt).
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/CSS2DRenderer.js';
 import { t, getLang } from '../i18n.js';
+import { clipsFor, placeClip, chainsFor, placeChain } from '../library/cableparts.js';
+import { chainRoute, chainOf as chainRec, addChain, drawChains } from './chains.js';
 
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -168,19 +172,40 @@ export function leads(h, pts, n0, n1) {
   return { E, where };
 }
 
-// harness -> {key, E, where, clashes}: the detours round the parts worked out last (avoid), for the points they were
-// worked out for (key) — the route uses them while its points are those, else only its leads (a drag: no waiting)
+/** The points the cable runs through before its detours: the given points, the leads at its ends on faces, and the
+ *  paths of its spans routed through an energy chain (chains: {k: [Vector3], from span k's first point's side}) ->
+ *  {E, where (where each given point went), tag: per point 'p' | 'lead' | 'chain'}. */
+function expandE(h, pts, n0, n1, chains = {}) {
+  const { E, where } = leads(h, pts, n0, n1), tag = E.map((_, i) => (where.includes(i) ? 'p' : 'lead'));
+  for (const k of Object.keys(chains).map(Number).sort((a, b) => b - a)) {
+    if (!chains[k]?.length || k + 1 >= where.length) continue;
+    const at = where[k + 1] - (k + 1 === where.length - 1 && tag[where[k + 1] - 1] === 'lead' ? 1 : 0); // (before the point after it, or its lead)
+    const path = chains[k].filter((p, i, all) => p.distanceTo(E[at - 1]) > 1e-6 && p.distanceTo(E[at]) > 1e-6 && (!i || p.distanceTo(all[i - 1]) > 1e-6)); // (a point twice: once — the route counts each once)
+    if (!path.length) continue;
+    E.splice(at, 0, ...path.map((p) => p.clone()));
+    tag.splice(at, 0, ...path.map(() => 'chain'));
+    for (let i = 0; i < where.length; i++) if (where[i] >= at) where[i] += path.length;
+  }
+  return { E, where, tag };
+}
+
+/** The legs of E the slack and the detours leave as they are: a lead, a leg inside an energy chain. */
+const stillOf = (tag) => tag.slice(1).map((_, k) => k).filter((k) => (tag[k] === 'chain' && tag[k + 1] === 'chain') || (k === 0 && tag[1] === 'lead') || (k === tag.length - 2 && tag[k] === 'lead'));
+
+// harness -> {key, E, where, tag, clashes}: the detours round the parts worked out last (avoid), for the points they
+// were worked out for (key) — the route uses them while its points are those, else only its leads (a drag: no waiting)
 const AVOID = new WeakMap();
-const keyOf = (h, pts, n0, n1) => JSON.stringify([pts.map((p) => p.toArray().map((x) => +x.toFixed(2))), n0?.toArray().map((x) => +x.toFixed(3)), n1?.toArray().map((x) => +x.toFixed(3)), rMinOf(h), outerD(h), lockedOf(h), h.spans || null]);
+const keyOf = (h, pts, n0, n1, chains = {}) => JSON.stringify([pts.map((p) => p.toArray().map((x) => +x.toFixed(2))), n0?.toArray().map((x) => +x.toFixed(3)), n1?.toArray().map((x) => +x.toFixed(3)), rMinOf(h), outerD(h), lockedOf(h), h.spans || null,
+  Object.entries(chains).map(([k, P]) => [k, P[0].toArray().map((x) => +x.toFixed(2)), P[P.length - 1].toArray().map((x) => +x.toFixed(2))])]);
 
 /** A harness's route through its world points (pts; n0 / n1: its ends' face normals): its leads, the detours worked
  *  out for these points, shaped to its radius with its spans' and its locked length's slack -> shape(…) with its
  *  bends, spans and taut spans told by the given points + {points (the points it runs through), where, dropped
  *  (spans whose own length a detour broke), clashes}. */
-export function routeOf(h, pts, n0 = null, n1 = null) {
-  const c = AVOID.get(h), hit = c && c.key === keyOf(h, pts, n0, n1);
-  const { E, where } = hit ? { E: c.E.map((p) => p.clone()), where: c.where.slice() } : leads(h, pts, n0, n1);
-  const r = routeE(h, E, where, hit ? c.clashes : [], [...(n0 ? [0] : []), ...(n1 ? [E.length - 2] : [])]);
+export function routeOf(h, pts, n0 = null, n1 = null, chains = {}) {
+  const c = AVOID.get(h), hit = c && c.key === keyOf(h, pts, n0, n1, chains);
+  const { E, where, tag } = hit ? { E: c.E.map((p) => p.clone()), where: c.where.slice(), tag: c.tag.slice() } : expandE(h, pts, n0, n1, chains);
+  const r = routeE(h, E, where, hit ? c.clashes : [], stillOf(tag));
   r.detours = hit ? c.detours : 0;
   return r;
 }
@@ -227,15 +252,37 @@ function normalAt(asm, p, M = null) {
 
 /** A harness's route as its parts are drawn (extra: the point under the mouse, after its last). */
 export function routeAt(asm, h, extra = []) {
+  const { ok, n0, n1, chains } = inputsAt(asm, h, extra);
+  return routeOf(h, [...ok, ...extra], n0, n1, chains);
+}
+
+/** What a harness's route is worked out from, as its parts are drawn: its points, its ends' face normals, the paths of
+ *  its spans through an energy chain (read now: the chain's moving end where it is). */
+function inputsAt(asm, h, extra = []) {
   const P = h.points || [], pts = P.map((p) => pointAt(asm, h, p)), ok = pts.filter(Boolean);
-  return routeOf(h, [...ok, ...extra], pts[0] ? normalAt(asm, P[0]) : null, !extra.length && pts.length > 1 && pts[pts.length - 1] ? normalAt(asm, P[P.length - 1]) : null);
+  return { ok, n0: pts[0] ? normalAt(asm, P[0]) : null, n1: !extra.length && pts.length > 1 && pts[pts.length - 1] ? normalAt(asm, P[P.length - 1]) : null, chains: ok.length === pts.length ? spanChains(asm, h, pts) : {} };
+}
+
+/** ⛓ The spans routed through an energy chain -> {k: [Vector3]}: the chain's centre line as it is laid out now, from
+ *  the end nearer the span's first point. */
+function spanChains(asm, h, pts) {
+  const out = {};
+  for (const s of h.spans || []) {
+    const a = pts[+s.from], r = s.chain && a && pts[+s.from + 1] ? chainRoute(asm, s.chain) : null;
+    if (!r?.points?.length) continue;
+    const P = r.points.map((p) => V(p));
+    out[+s.from] = a.distanceTo(P[0]) <= a.distanceTo(P[P.length - 1]) ? P : P.reverse();
+  }
+  return out;
 }
 
 /** A harness's route as its placed parts stand in the assembly document (the BOM, the export). */
 export function docRoute(doc, h) {
   const mats = new Map((doc.instances || []).map((it) => [it.id, new THREE.Matrix4().fromArray(it.matrix)]));
-  const P = h.points || [], M = (p) => (p?.inst ? mats.get(p.inst) || null : null);
-  return routeOf(h, docPoints(doc, h), normalAt(null, P[0], M(P[0]) || undefined), P.length > 1 ? normalAt(null, P[P.length - 1], M(P[P.length - 1]) || undefined) : null);
+  const P = h.points || [], M = (p) => (p?.inst ? mats.get(p.inst) || null : null), pts = docPoints(doc, h);
+  const asDoc = { doc, inst: (id) => (doc.instances || []).find((i) => i.id === id) || null }; // (chains.js reads only these)
+  return routeOf(h, pts, normalAt(null, P[0], M(P[0]) || undefined), P.length > 1 ? normalAt(null, P[P.length - 1], M(P[P.length - 1]) || undefined) : null,
+    pts.length === P.length ? spanChains(asDoc, h, pts) : {});
 }
 
 /** Every direction a sample looks for the parts round it (to the faces, the edges and the corners of a cube: 26). */
@@ -292,12 +339,12 @@ function legOfE(E, p) {
 /** The route kept clear of the parts (as harness.py's avoid): its leads, then the shaped route sampled and every
  *  sample too near a part pushed out — for each leg the deepest one becomes a point of its own, shaped again, a few
  *  rounds. The clicked points stay (anchors). -> {E, where, clashes: [{at, inst}] still too near}. */
-function avoidRoute(h, pts, n0, n1, meshes, rounds = 6) {
+function avoidRoute(h, pts, n0, n1, meshes, chains = {}, rounds = 6) {
   const rad = outerD(h) / 2 + CLEAR, boxes = meshes.map((m) => new THREE.Box3().setFromObject(m).expandByScalar(rad));
-  let { E, where } = leads(h, pts, n0, n1);
+  let { E, where, tag } = expandE(h, pts, n0, n1, chains);
   const detour = E.map(() => false), r0 = rMinOf(h), own = spansOf(h); // (the points put in round a part: they may move further out)
   const hits = (r) => sampleRoute(r, Math.max(0.5, rad / 3)).map((p) => ({ p, x: probe(meshes, boxes, p, outerD(h) / 2 + CLEAR / 2) })).filter((s) => s.x && s.x.push.length() > 1e-9);
-  const kept = (k) => Object.keys(own).some((j) => where[+j] <= k && k < where[+j + 1]); // (a leg of a span with its own length: that length wins, a hit there is told)
+  const kept = (k) => (tag[k] === 'chain' && tag[k + 1] === 'chain') || Object.keys(own).some((j) => where[+j] <= k && k < where[+j + 1]); // (a leg in a chain, or of a span with its own length: that length wins, a hit there is told)
   for (let i = 0; i < rounds; i++) {
     const best = new Map();
     for (const s of hits(shape(E, rMinOf(h)))) { const k = legOfE(E, s.p); if (!kept(k) && (!best.has(k) || s.x.push.length() > best.get(k).x.push.length())) best.set(k, s); }
@@ -308,10 +355,11 @@ function avoidRoute(h, pts, n0, n1, meshes, rounds = 6) {
       if (near.length) { const j = near.reduce((a, b) => (E[a].distanceTo(s.p) <= E[b].distanceTo(s.p) ? a : b)); E[j] = E[j].clone().add(out); continue; } // (its own detour point further out: one corner round the part)
       E.splice(k + 1, 0, s.p.clone().add(out));
       detour.splice(k + 1, 0, true);
+      tag.splice(k + 1, 0, 'det');
       where = where.map((w) => (w > k ? w + 1 : w));
     }
   }
-  return { E, where, detours: detour.filter(Boolean).length, clashes: hits(routeE(h, E, where, [], [...(n0 ? [0] : []), ...(n1 ? [E.length - 2] : [])])).map((s) => ({ at: s.p.toArray().map((x) => +x.toFixed(1)), inst: s.x.inst })) };
+  return { E, where, tag, detours: detour.filter(Boolean).length, clashes: hits(routeE(h, E, where, [], stillOf(tag))).filter((s) => !kept(legOfE(E, s.p)) || !(tag[legOfE(E, s.p)] === 'chain')).map((s) => ({ at: s.p.toArray().map((x) => +x.toFixed(1)), inst: s.x.inst })) };
 }
 
 /** The route through world points (THREE.Vector3), shaped to the minimum bend radius: each corner an arc of rMin
@@ -579,6 +627,17 @@ export function withHarnesses(asm, tree) {
 const tautText = (x) => (x.span === null || x.span === undefined ? t2('The cable is taut — {x} mm short', { x: num(Math.round(x.short * 10) / 10) })
   : t2('Span {a}–{b} is taut — {x} mm short', { a: x.span + 1, b: x.span + 2, x: num(Math.round(x.short * 10) / 10) }));
 
+/** A span's own entry changed: {length: mm | null, chain: C… | null} (null: taken off; an entry with nothing left goes). */
+function spanSet(h, from, change) {
+  const list = h.spans || [], s = { ...(list.find((x) => +x.from === from) || { from }) };
+  for (const [k, v] of Object.entries(change)) { if (v === null || v === undefined) delete s[k]; else s[k] = v; }
+  h.spans = [...list.filter((x) => +x.from !== from), ...(s.length > 0 || s.chain ? [s] : [])].sort((a, b) => a.from - b.from);
+  if (!h.spans.length) delete h.spans;
+}
+
+/** ⛓ The chain span k of a harness is routed through (its id) or null. */
+const chainOfSpan = (h, k) => (h.spans || []).find((s) => +s.from === k)?.chain || null;
+
 /** "Harness 1" (its own name when it has one). */
 export const nameOf = (h) => h.name || t2('Harness {n}', { n: String(h.id).replace(/\D/g, '') || h.id });
 /** What it is in short: "4 × Ø1.5", "Ø6", "10 × 1.27". */
@@ -610,11 +669,11 @@ export function harnessBom(doc) {
 export function harnessFacts(asm, h) {
   const r = routeAt(asm, h), tool = asm.harnessTool;
   const list = (h.points || []).map((p, i) => { const w = pointAt(asm, h, p), on = p.inst ? p : p.on;
-    return { n: i + 1, ...(on?.inst ? { part: on.inst, locked: !!p.inst } : { part: null }), ...(on?.face ? { face: on.face } : {}), xyz: w ? w.toArray().map((x) => +x.toFixed(2)) : null }; });
+    return { n: i + 1, ...(on?.inst ? { part: on.inst, locked: !!p.inst } : { part: null }), ...(on?.face ? { face: on.face } : {}), ...(p.clip ? { clip: p.clip } : {}), xyz: w ? w.toArray().map((x) => +x.toFixed(2)) : null }; });
   return { id: h.id, name: nameOf(h), type: h.kind, d_mm: +outerD(h).toFixed(3), r_min_mm: rMinOf(h), points: (h.points || []).length, point_list: list, length_mm: +r.length.toFixed(1),
     ...(h.kind === 'wires' || h.kind === 'ribbon' ? { wires: (h.wires || []).map((w) => ({ d: +w.d || 1.5, color: w.color })) } : { color: h.color || 'black' }),
     ...(lockedOf(h) ? { length_locked_mm: lockedOf(h) } : {}), ...(r.taut.length ? { taut: { short_mm: +r.taut[0].short.toFixed(1), ...(r.taut[0].span !== null ? { span: `${r.taut[0].span + 1}–${r.taut[0].span + 2}` } : {}) } } : {}),
-    ...(h.spans?.length ? { spans: h.spans.map((s) => ({ from: +s.from + 1, to: +s.from + 2, length_mm: +s.length, now_mm: +(r.spans[s.from] ?? 0).toFixed(1) })) } : {}),
+    ...(h.spans?.length ? { spans: h.spans.map((s) => ({ from: +s.from + 1, to: +s.from + 2, ...(+s.length > 0 ? { length_mm: +s.length } : {}), ...(s.chain ? { chain: s.chain } : {}), now_mm: +(r.spans[s.from] ?? 0).toFixed(1) })) } : {}),
     ...(r.totalIgnored ? { note: 'the spans\' own lengths win over length_locked' } : {}),
     ...(r.detours ? { detour_points: r.detours } : {}), ...(r.dropped.length ? { spans_not_kept: r.dropped.map((k) => `${k + 1}–${k + 2}`) } : {}),
     ...(r.clashes.length ? { still_hits: [...new Set(r.clashes.map((c) => c.inst))] } : {}),
@@ -703,19 +762,53 @@ export class HarnessTool {
       h.spans = h.spans.map((s) => { const i = h.points.indexOf(before[s.from]); return i >= 0 && h.points[i + 1] === before[s.from + 1] ? { ...s, from: i } : null; }).filter(Boolean);
       if (!h.spans.length) delete h.spans;
     }
+    const gone = before.map((p) => p.clip).filter((c) => c && !h.points.some((p) => p.clip === c) && this.asm.inst(c)); // (📎 its point taken away: the clip stays — offered to go too)
+    this.orphans = [...new Set([...(this.orphans || []).filter((c) => this.asm.inst(c)), ...gone])];
     this.span = null;
     this.spanEdit = null;
     this.asm.commit();
   }
 
   /** ➰ Span `from` (to the next point) given its own length (null: none) — one undo step. */
-  setSpan(id, from, length) {
-    this.set(id, (x) => {
-      x.spans = (x.spans || []).filter((s) => +s.from !== from);
-      if (length > 0) x.spans.push({ from, length: +(+length).toFixed(1) });
-      x.spans.sort((a, b) => a.from - b.from);
-      if (!x.spans.length) delete x.spans;
-    });
+  setSpan(id, from, length) { this.set(id, (x) => spanSet(x, from, { length: length > 0 ? +(+length).toFixed(1) : null })); }
+
+  /** ⛓ Span `from` routed through chain `chain` (its id C…; null: not any more) — one undo step. */
+  setSpanChain(id, from, chain) { this.set(id, (x) => spanSet(x, from, { chain: chain || null })); }
+
+  /** 📎 A clip on point i of harness h (it lies on a part's face): choice (clipsFor's; default the snuggest for its
+   *  bundle) placed there with the cable along its way, the point then on the clip's axis, locked to the clip. ->
+   *  the clip's placed part (I…). */
+  async clipAt(h, i, choice = null) {
+    const a = this.asm, p = h.points?.[i];
+    if (!p?.inst || !p.n) throw new Error(t('A clip goes on a point lying on a part\'s face.'));
+    const D = outerD(h), c = choice || clipsFor(D)[0];
+    if (!c) throw new Error(t2('No clip in the library holds a bundle of Ø{d} mm.', { d: num(D) }));
+    const pts = h.points.map((q) => pointAt(a, h, q)), w = pts[i], n = normalAt(a, p), face = w.clone().addScaledVector(n, -lift(h));
+    const dir = (pts[i + 1] || w).clone().sub(pts[i - 1] || w);
+    const r = await placeClip(a, c, face, n, dir.lengthSq() > 1e-9 ? dir : null, { d: D });
+    const o = r.axis ? V(r.axis.o) : face;
+    this.editPts(h, (P) => { P[i] = { inst: r.inst, at: localOf(a, r.inst, o), clip: r.inst }; });
+    return r.inst;
+  }
+
+  /** ⛓ Span k of harness h routed through chain `id` (C… or its first link I…); none given: one from the library put in,
+   *  sized for its bundle (its opening, its bend ≥ the harness's radius), its fixed end at the span's first point ->
+   *  the chain's id. */
+  async chainSpan(h, k, id = undefined) {
+    const a = this.asm, P = h.points || [];
+    if (!(k >= 0 && k + 1 < P.length)) throw new Error(t2('A span runs from a point to the next: 1 … {n}.', { n: P.length - 1 }));
+    if (id === null) { this.setSpanChain(h.id, k, null); return null; }
+    let rec = id ? chainRec(a, id) : null;
+    if (id && !rec) throw new Error(t2('No energy chain “{id}” in the assembly.', { id }));
+    if (!rec) {
+      const c = chainsFor(outerD(h), rMinOf(h))[0];
+      if (!c) throw new Error(t2('No energy chain in the library takes a bundle of Ø{d} mm bent at R {r} mm or more.', { d: num(outerD(h)), r: num(rMinOf(h)) }));
+      const A = pointAt(a, h, P[k]), B = pointAt(a, h, P[k + 1]), placed = await placeChain(a, c, A, B.clone().sub(A));
+      rec = addChain(a, placed.inst, placed.dims);
+      drawChains(a);
+    }
+    this.setSpanChain(h.id, k, rec.id);
+    return rec.id;
   }
 
   /** ✓ Done (Esc, Enter): the points so far are kept; fewer than two — nothing is kept. */
@@ -970,7 +1063,7 @@ export class HarnessTool {
       this.adopt(h);
       const pts = (h.points || []).map((p) => pointAt(this.asm, h, p));
       const extra = this.hoverWorld(h);
-      const key = JSON.stringify([h.kind, h.d, h.color, h.wires, h.pitch, h.r_min, h.length_locked, [...pts, ...extra].map((p) => p && p.toArray().map((x) => x.toFixed(3))), this.sel === h.id, this.edit === h.id, this.pt, this.hl, JSON.stringify(this.throughAt?.get(h.id) || []), AVOID.get(h)?.key || '', this.asm.view.clip?.length || 0]);
+      const key = JSON.stringify([h.kind, h.d, h.color, h.wires, h.pitch, h.r_min, h.length_locked, [...pts, ...extra].map((p) => p && p.toArray().map((x) => x.toFixed(3))), this.sel === h.id, this.edit === h.id, this.pt, this.hl, JSON.stringify(this.throughAt?.get(h.id) || []), AVOID.get(h)?.key || '', JSON.stringify((h.spans || []).filter((s) => s.chain).map((s) => chainRoute(this.asm, s.chain)?.moving.o || null)), this.asm.view.clip?.length || 0]);
       const was = this.built.get(h.id);
       if (was?.key === key) continue;
       if (was) for (const o of was.objs) { this.group.remove(o); o.geometry?.dispose(); if (o.isCSS2DObject) o.element.remove(); }
@@ -1083,11 +1176,12 @@ export class HarnessTool {
     const v = this.asm.view, meshes = (v?.meshes || []).filter((m) => m.visible !== false);
     let changed = false;
     for (const h of this.list()) {
-      const P = h.points || [], pts = P.map((p) => pointAt(this.asm, h, p)), ok = pts.filter(Boolean);
+      const { ok, n0, n1, chains } = inputsAt(this.asm, h);
       if (ok.length < 2) continue;
-      const n0 = pts[0] ? normalAt(this.asm, P[0]) : null, n1 = pts[pts.length - 1] ? normalAt(this.asm, P[P.length - 1]) : null, key = keyOf(h, ok, n0, n1);
+      const key = keyOf(h, ok, n0, n1, chains);
       if (AVOID.get(h)?.key === key) continue;
-      AVOID.set(h, { key, ...avoidRoute(h, ok, n0, n1, meshes) });
+      const own = new Set([...(h.points || []).map((p) => p.clip).filter(Boolean), ...(h.spans || []).map((s) => chainRec(this.asm, s.chain || '')?.part).filter(Boolean)]); // (its clips and chains: it runs through them)
+      AVOID.set(h, { key, ...avoidRoute(h, ok, n0, n1, meshes.filter((m) => !own.has(m.userData.inst)), chains) });
       changed = true;
     }
     if (changed) { this.draw(); if (this.sel || this.edit) this.asm.renderProps(); }
@@ -1206,21 +1300,24 @@ export class HarnessTool {
     const P = h.points || [], n = P.length;
     const row = (p, i) => {
       const w = pointAt(this.asm, h, p), on = p.inst ? p : p.on, part = on?.inst ? `${this.asm.partName(this.asm.inst(on.inst)?.part)} ${on.inst}` : '';
-      const where = part ? `${part}${on.face ? ` · ${on.face}` : on.n ? '' : ` · ${t('centre')}`}` : t('free point');
+      const where = p.clip ? `📎 ${part}` : part ? `${part}${on.face ? ` · ${on.face}` : on.n ? '' : ` · ${t('centre')}`}` : t('free point');
       const xyz = (w || V([0, 0, 0])).toArray().map((x, k) => `<input type="number" step="any" data-pxyz="${i}:${k}" value="${+x.toFixed(2)}" title="${'xyz'[k]} (mm)">`).join('');
       return `<div class="hn-pt ${i === this.pt ? 'on' : ''}" data-pt="${i}">
         <div class="hn-pt1"><b>${i + 1}</b><span class="hn-pw" data-no-i18n title="${esc(where)}">${esc(where)}</span>
           ${on?.inst ? `<button class="mini hn-plock ${p.inst ? 'on' : ''}" data-plock="${i}" title="${esc(t(p.inst ? 'Locked on its part: it moves with it — click: it stays in space' : 'Stays in space — click: lock it on its part, it moves with it'))}">${p.inst ? '🔒' : '🔓'}</button>` : ''}
+          ${p.inst && p.n && !p.clip ? `<button class="mini" data-pclip="${i}" title="${esc(t('📎 A clip here: the snuggest for the bundle, along the cable — the point then on its axis'))}">📎</button>` : ''}
           <button class="mini" data-pmove="${i}:-1" ${i ? '' : 'disabled'} title="${esc(t('Earlier'))}">↑</button><button class="mini" data-pmove="${i}:1" ${i < n - 1 ? '' : 'disabled'} title="${esc(t('Later'))}">↓</button><button class="mini danger" data-pdel="${i}" title="${esc(t('Delete the point'))}">✕</button></div>
         <div class="hn-pt2">${xyz}</div></div>`;
     };
     const r = routeAt(this.asm, h), own = spansOf(h);
     const ins = (i) => `<div class="hn-span ${i === this.span ? 'on' : ''}" data-span="${i}"><button class="hn-ins" data-pins="${i}" title="${esc(t2('A point between {a} and {b}', { a: i + 1, b: i + 2 }))}">＋</button>
       ${this.spanEdit === i ? `<input type="number" step="any" min="0" data-slen="${i}" value="${+(own[i] ?? r.spans?.[i] ?? 0).toFixed(1)}" title="${esc(t('The cable\'s length between these two points: longer than now makes a loop of slack (empty: as it is now)'))}"><span class="unit">mm</span>${own[i] ? `<button class="mini" data-sclear="${i}" title="${esc(t('No length of its own'))}">✕</button>` : ''}`
-        : `<button class="hn-slen" data-sloop="${i}" title="${esc(t('➰ A loop / slack here: type this span\'s length'))}">${own[i] ? '➰ ' : ''}${mmText(r.spans?.[i] ?? 0)} mm${own[i] ? ' 🔒' : ''}</button>`}</div>`;
+        : `<button class="hn-slen" data-sloop="${i}" title="${esc(t('➰ A loop / slack here: type this span\'s length'))}">${own[i] ? '➰ ' : ''}${mmText(r.spans?.[i] ?? 0)} mm${own[i] ? ' 🔒' : ''}</button>`}
+      ${chainOfSpan(h, i) ? `<span class="hn-chain" data-no-i18n title="${esc(t('Routed through this energy chain: it follows its moving end'))}">⛓ ${esc(chainOfSpan(h, i))}</span><button class="mini" data-snochain="${i}" title="${esc(t('Not through the chain any more'))}">✕</button>` : ''}</div>`;
     return `<details class="hn-pts" ${this.ptsOpen === false ? '' : 'open'}><summary>${esc(t('Points'))} (${n})</summary>
       ${P.map((p, i) => row(p, i) + (i < n - 1 ? ins(i) : '')).join('')}
-      ${n ? `<button class="btn small danger hn-clear" data-hx="clearPts" title="${esc(t('Delete all its points and click new ones'))}">🗑 ${esc(t('Delete all points'))}</button>` : ''}</details>`;
+      ${n ? `<button class="btn small danger hn-clear" data-hx="clearPts" title="${esc(t('Delete all its points and click new ones'))}">🗑 ${esc(t('Delete all points'))}</button>` : ''}</details>
+      ${(this.orphans || []).filter((c) => this.asm.inst(c)).map((c) => `<p class="hint hn-orphan">📎 ${esc(t2('The clip {id} stays in the assembly', { id: `${this.asm.partName(this.asm.inst(c).part)} ${c}` }))} <button class="mini danger" data-rmclip="${c}">✕ ${esc(t('Remove it too'))}</button></p>`).join('')}`;
   }
 
   pointsHandlers(h, box) {
@@ -1230,6 +1327,9 @@ export class HarnessTool {
       el.addEventListener('pointerenter', () => { this.hl = +el.dataset.pt; this.draw(); });
       el.addEventListener('pointerleave', () => { if (this.hl === +el.dataset.pt) { this.hl = null; this.draw(); } });
     }
+    for (const b of box.querySelectorAll('[data-pclip]')) b.addEventListener('click', () => this.clipAt(h, +b.dataset.pclip).catch((e) => this.asm.hooks.toast(e.message, 'warning', 6000)));
+    for (const b of box.querySelectorAll('[data-snochain]')) b.addEventListener('click', () => this.setSpanChain(h.id, +b.dataset.snochain, null));
+    for (const b of box.querySelectorAll('[data-rmclip]')) b.addEventListener('click', () => { this.orphans = (this.orphans || []).filter((c) => c !== b.dataset.rmclip); this.asm.removeInst(b.dataset.rmclip); });
     for (const b of box.querySelectorAll('[data-sloop]')) b.addEventListener('click', () => { this.span = +b.dataset.sloop; this.spanEdit = this.span; this.asm.render(); this.asm.draw(); this.asm.$('#asmRight input[data-slen]')?.focus(); });
     for (const b of box.querySelectorAll('[data-sclear]')) b.addEventListener('click', () => this.setSpan(h.id, +b.dataset.sclear, null));
     for (const inp of box.querySelectorAll('input[data-slen]')) {
@@ -1338,6 +1438,7 @@ export class HarnessTool {
         ...((h.points || []).length ? [{ icon: '↶', label: t('Take the last point away'), run: () => this.editPts(h, (P) => P.pop()) }] : []),
         ...(this.pt !== null ? [{ icon: '✕', label: t2('Delete point {n}', { n: this.pt + 1 }), danger: true, title: 'Delete', run: () => { const i = this.pt; this.pt = null; this.editPts(h, (P) => P.splice(i, 1)); } }] : []),
         ...this.centreItem(h),
+        ...this.clipItems(h),
       ], t('Click a face, a hole\'s centre or in space: the next point'));
       return true;
     }
@@ -1345,6 +1446,8 @@ export class HarnessTool {
     show(vp, `🔌 ${nameOf(h)}`, [
       ...(this.span !== null && this.span + 1 < (h.points || []).length ? [{ icon: '➰', label: t('Loop / slack'), rank: -1, title: t2('Span {a}–{b}: type its length — longer makes a loop of slack that keeps the bend radius', { a: this.span + 1, b: this.span + 2 }),
         run: () => { this.spanEdit = this.span; this.asm.render(); this.asm.draw(); this.asm.$('#asmRight input[data-slen]')?.focus(); this.asm.$('#asmRight input[data-slen]')?.select(); } }] : []),
+      ...this.clipItems(h),
+      ...this.chainItems(h),
       { icon: '✎', label: t('Edit points'), rank: 0, title: t('Click more points, drag them, add one on the cable'), run: () => this.editPoints(h.id) },
       { icon: '📏', label: len, rank: 1, title: t('Copy its length'), run: () => { navigator.clipboard?.writeText(String(Math.round(routeAt(this.asm, h).length))).catch(() => {}); this.asm.hooks.toast(len, 'info', 2500); } },
       ...Object.entries(KINDS).filter(([k]) => k !== h.kind).map(([k, x], i) => ({ icon: x.icon, label: t2('Make it: {kind}', { kind: t(x.name) }), rank: 3 + i, title: t(x.hint), run: () => this.set(h.id, (y) => { y.kind = k; if (k === 'ribbon') { y.wires = wiresOf(Math.max(y.wires?.length || 0, 10), 1.5); y.d = 1; } else if (y.d <= 2 || (k === 'sleeve' && y.d < 8)) y.d = k === 'sleeve' ? 10 : 6; }) })),
@@ -1353,6 +1456,28 @@ export class HarnessTool {
       { icon: '✕', label: t('Delete the harness'), rank: 2, danger: true, title: 'Delete', run: () => this.remove(h.id) },
     ], t('Ø, bend radius and colours: in the panel on the right'));
     return true;
+  }
+
+  /** 📎 Clip here (the chosen point, lying on a part's face): the clips for its bundle, the snuggest first — two or
+   *  three in the table, the rest under Show all. -> [suggestions]. */
+  clipItems(h) {
+    const i = this.pt, p = i !== null ? h.points?.[i] : null;
+    if (!p?.inst || !p.n || p.clip) return [];
+    const err = (e) => this.asm.hooks.toast(e.message, 'warning', 6000);
+    return clipsFor(outerD(h)).map((c, k) => ({ icon: '📎', label: `${t('Clip here')}: ${c.label}`, rank: k < 3 ? 0.4 + k * 0.05 : 20 + k,
+      title: t2('Holds Ø{a}–{b} mm — put on the face at point {n}, the cable along it; the point then on its axis', { a: num(c.dmin), b: num(c.dmax), n: i + 1 }), run: () => this.clipAt(h, i, c).catch(err) }));
+  }
+
+  /** ⛓ Route through an energy chain (the chosen span): each chain of the assembly, or one from the library sized for
+   *  the bundle put in; through one already: not any more. -> [suggestions]. */
+  chainItems(h) {
+    const k = this.span;
+    if (k === null || k + 1 >= (h.points || []).length) return [];
+    const err = (e) => this.asm.hooks.toast(e.message, 'warning', 6000), now = chainOfSpan(h, k);
+    if (now) return [{ icon: '⛓', label: t2('Not through chain {id} any more', { id: now }), rank: 0.5, run: () => this.setSpanChain(h.id, k, null) }];
+    const fit = chainsFor(outerD(h), rMinOf(h)).slice(0, 2);
+    return [...(this.asm.doc.chains || []).map((c, j) => ({ icon: '⛓', label: `${t('Route through an energy chain')}: ${c.id}`, rank: 0.45 + j * 0.01, title: t2('Span {a}–{b} along chain {id}: the cable follows its moving end', { a: k + 1, b: k + 2, id: c.id }), run: () => this.chainSpan(h, k, c.id).catch(err) })),
+      ...fit.map((c, j) => ({ icon: '⛓', label: `${t('Route through an energy chain')}: ${c.label}`, rank: (this.asm.doc.chains || []).length ? 3 + j : 0.45 + j * 0.05, title: t2('Put a chain from the library in (opening {Bi} mm, bend R {R}) at the span\'s first point and route the cable through it', { Bi: num(c.Bi), R: num(c.R) }), run: () => this.chainSpan(h, k).catch(err) }))];
   }
 
   /** ◎ The chosen point (else the last one) to the centre of the face it sits on — a pin's top, a ring round a
@@ -1425,12 +1550,9 @@ export function harnessHandlers(asm) {
     for (const s of a.spans || []) { // ➰ {from: point number (1 = the first), length: mm | null}
       const i = +s.from - 1;
       if (!(i >= 0 && i + 1 < h.points.length)) throw new Error(`spans: from ${s.from} — a span runs from a point to the next: 1 … ${h.points.length - 1}.`);
-      h.spans = (h.spans || []).filter((x) => +x.from !== i);
       const L = s.length === undefined ? routeAt(asm, h).spans[i] : s.length;
       if (L !== null && !(+L > 0)) throw new Error('spans: length in mm (> 0; null: none of its own).');
-      if (L !== null) h.spans.push({ from: i, length: +(+L).toFixed(1) });
-      h.spans.sort((x, y) => x.from - y.from);
-      if (!h.spans.length) delete h.spans;
+      spanSet(h, i, { length: L === null ? null : +(+L).toFixed(1) });
     }
     for (const [key, lock] of [['lock_points', true], ['unlock_points', false]]) {
       for (const k of a[key] || []) {
@@ -1472,6 +1594,12 @@ export function harnessHandlers(asm) {
       if ((h.points || []).length < 2) { Object.assign(h, keep); throw new Error('A harness keeps at least two points.'); }
       asm.harnessTool.sel = h.id;
       asm.commit();
+      if (a.clip) { // 📎 {point: number, item?, size?}: a clip there (the snuggest for its bundle)
+        const i = +a.clip.point - 1, c = a.clip.item ? clipsFor(outerD(h)).find((x) => x.item.id === a.clip.item && (!a.clip.size || x.size === a.clip.size)) : null;
+        if (a.clip.item && !c) throw new Error(`clip: “${a.clip.item}” does not hold a bundle of Ø${num(outerD(h))} mm — clipsFor lists: ${clipsFor(outerD(h)).map((x) => `${x.item.id} ${x.size}`).join(', ')}.`);
+        await asm.harnessTool.clipAt(h, i, c);
+      }
+      if (a.chain) await asm.harnessTool.chainSpan(h, +a.chain.span - 1, a.chain.id === undefined ? undefined : a.chain.id); // ⛓ {span: number, id: C… | null}
       return answer(h);
     },
   };

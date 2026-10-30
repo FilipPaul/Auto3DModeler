@@ -625,7 +625,13 @@ TOOLS = [
                     "own length — longer than now: a loop of slack that keeps r_min and holds that length when the parts move "
                     "(no length: as it is now; null: none of its own); they win over length_locked; too far apart: `taut` with its "
                     "span. `through_at` where it goes through a part (part, span \"2–3\": between points 2 and 3, xyz). "
-                    "One undo step; answers it as add_harness does.",
+                    "📎 clip: {point: n} puts a cable clip from the library on point n (it must lie on a part's face) — the "
+                    "snuggest for the bundle's Ø, or {item, size} as the library names them — along the cable; the point then "
+                    "runs on the clip's axis, locked to it (`point_list` says `clip`: its placed part). ⛓ chain: {span: n, id: "
+                    "\"C1\"} routes the span from point n to n + 1 through that energy chain (get_assembly `chains`): the "
+                    "cable follows the chain's path as its moving end goes (travel, a part it moves with, ▶); no id: a chain "
+                    "from the library sized for the bundle (opening, bend ≥ r_min) is put in at the span's first point; id "
+                    "null: not through a chain any more. One undo step; answers it as add_harness does.",
      "inputSchema": _obj({"id": STR, "type": {"type": "string", "enum": ["wires", "cable", "ribbon", "sleeve"]},
                           "points": {"type": "array", "items": _obj({"part": STR, "face": STR, "point": POINT, "xyz": POINT})},
                           "add_points": {"type": "array", "items": _obj({"part": STR, "face": STR, "point": POINT, "xyz": POINT})},
@@ -635,7 +641,9 @@ TOOLS = [
                           "length_locked": {"type": "boolean"}, "length": {"type": ["number", "null"]},
                           "lock_points": {"type": "array", "items": {"type": "integer", "minimum": 1}},
                           "spans": {"type": "array", "items": _obj({"from": {"type": "integer", "minimum": 1}, "length": {"type": ["number", "null"]}}, ["from"])},
-                          "unlock_points": {"type": "array", "items": {"type": "integer", "minimum": 1}}}, ["id"])},
+                          "unlock_points": {"type": "array", "items": {"type": "integer", "minimum": 1}},
+                          "clip": _obj({"point": {"type": "integer", "minimum": 1}, "item": STR, "size": STR}, ["point"]),
+                          "chain": _obj({"span": {"type": "integer", "minimum": 1}, "id": {"type": ["string", "null"]}}, ["span"])}, ["id"])},
     {"name": "save_to_library", "where": "browser",
      "description": "Keep the 3D model on screen in the user's parts library (to use again in any project); a library part being "
                     "changed (opened with ✎ Edit in the library) is saved back over itself when no name is given: name, category (e.g. "

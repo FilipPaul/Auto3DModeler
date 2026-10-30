@@ -125,7 +125,10 @@ seated in its receptacle, its stroke as its slide's limits), joined Concentric.
    `edit_harness {id, spans: [{from: 3, length: 180}]}` (the cable from point 3 to 4 that long: slack that keeps
    r_min and holds as the parts move; no length: as it is now; null: none). The cable keeps clear of the parts by
    itself (its ends leave their faces straight out, a span goes round a part in its way): `detour_points` says how
-   many it put in, `still_hits` names parts it could not get clear of — add a point to lead it round those. STEP / GLB exports and the assembly drawing include it.
+   many it put in, `still_hits` names parts it could not get clear of — add a point to lead it round those.
+   Fix it down with a clip: `edit_harness {id, clip: {point: 3}}` (a point on a face; the snuggest clip for its Ø, the
+   point then on the clip's axis). Through an energy chain: `edit_harness {id, chain: {span: 2, id: "C1"}}` (no id:
+   one sized for the bundle is put in) — the cable then follows the chain's moving end. STEP / GLB exports and the assembly drawing include it.
 
 Files for the user: `export {format: "step"}` (the whole assembly as a STEP assembly — SolidWorks, CATIA and Solid
 Edge open it as an assembly tree, a product per part, sub-assemblies nested), `"iges"` (every part placed in one IGES —

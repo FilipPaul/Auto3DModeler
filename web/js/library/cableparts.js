@@ -15,6 +15,8 @@
 //   clipsFor(d, items?) -> [{item, size, dmin, dmax, kind, mount, label}]     the clips for a bundle Ø d, snug first
 //   placeClip(asm, choice, point, normal, cableDir, {d}) -> {inst, part, size, axis: {o, d} (world)}
 //   chainPath(chain, moving) -> {points, segs, length, lower, upper, travel, ok, fixed, moving, links, pointAt(s)}
+//   chainsFor(d, rMin) -> [{item, size, R, label, Bi, dmax}]   the chains a bundle of Ø d fits, the smallest first
+//   placeChain(asm, choice, at, dir) -> {inst, data, dims}       its first link put in, its fixed end at `at`
 //   chainOf(item, size, R, links) -> the chain's numbers; travelRange(chain) -> {min, max}
 import * as THREE from 'three';
 import { evaluate, varsOf, sizesOf, lengthsOf, buildPart } from './build.js';
@@ -118,6 +120,43 @@ export function chainOf(item, sizeKey = sizesOf(item)[0]?.key, R, links) {
   c.pn = buildPart(item, sizeKey, c.R).data.library.pn;
   c.links = links || defaultLinks(c);
   return c;
+}
+
+/** ⛓ The energy chains a bundle of Ø d goes through (its opening Bi ≥ d + clear, its cables up to Ø ≥ d, its bend
+ *  R ≥ rMin): per chain item its smallest size and bend radius that do -> [{item, size, R, label, Bi, dmax}], the
+ *  smallest opening first (for the cable harness: ⛓ Route through an energy chain). */
+export function chainsFor(d, rMin = 0, items = lib.items, clear = 2) {
+  const out = [];
+  if (!(d > 0)) return out;
+  for (const it of items || []) {
+    if (it.kind !== 'chain' || !it.chain) continue;
+    found: for (const s of sizesOf(it)) {
+      for (const R of [...(lengthsOf(it, s.key)?.values || [undefined])].sort((a, b) => a - b)) {
+        const c = chainOf(it, s.key, R);
+        if (c.Bi >= d + clear && c.dmax >= d && c.R >= rMin) { out.push({ item: it, size: s.key, R: c.R, label: buildPart(it, s.key, R).name, Bi: c.Bi, dmax: c.dmax }); break found; }
+      }
+    }
+  }
+  return out.sort((a, b) => a.Bi - b.Bi || a.R - b.R);
+}
+
+/** ⛓ A chain of the library put in (its first link a placed part): its fixed end at `at` (world), its runs along
+ *  `dir` laid level (its bend above them) -> {inst, data, dims (chainOf)}. The caller makes it a chain (chains.js
+ *  addChain) — one undo step with the insert. */
+export async function placeChain(asm, choice, at, dir) {
+  if (!lib.addPart) throw new Error('The library is not ready (useLibrary).');
+  const built = buildPart(choice.item, choice.size, choice.R), pid = lib.addPart(built.name, built.data);
+  const before = new Set(asm.doc.instances.map((i) => i.id));
+  await asm.insert(pid);
+  const it = asm.doc.instances.find((i) => !before.has(i.id));
+  if (!it) throw new Error('It could not be put in.');
+  const x = new THREE.Vector3(...(dir?.isVector3 ? dir.toArray() : dir || [1, 0, 0])).setZ(0);
+  if (x.lengthSq() < 1e-9) x.set(1, 0, 0);
+  x.normalize();
+  const z = new THREE.Vector3(0, 0, 1), y = z.clone().cross(x);
+  it.matrix = new THREE.Matrix4().makeBasis(x, y, z).setPosition(...(at?.isVector3 ? at.toArray() : at)).toArray();
+  if (asm.doc.instances.length > 1) delete it.fixed;
+  return { inst: it.id, data: built.data, dims: chainOf(choice.item, choice.size, choice.R) };
 }
 
 /** Links for a travel (the fixed end in the middle of it): half the travel + the bend + two links, whole links. */

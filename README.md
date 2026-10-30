@@ -1219,7 +1219,14 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   it — a point of its own put in beside the part (and moved further out until the bend clears it), your clicked
   points staying where they are. This is worked out a moment after a change (while you drag, the cable follows at
   once and settles round the parts when you stop). Where it cannot get clear, a small *⚠ kabel koliduje s Blok I6*
-  sits at the spot. A span with its own length that needs a detour loses that length (the AI is told). *⚠ Goes through Motor I3* when its centre line passes through a part. It is drawn as tubes (loose wires
+  sits at the spot. A span with its own length that needs a detour loses that length (the AI is told).
+  **📎 Clip here**: choose a point lying on a face (click it, or 📎 in its row) and the suggestions offer the clips of
+  the library that hold the bundle, the snuggest first (the rest under *Ukázat vše*); the clip goes on the face along
+  the cable and the point moves onto the clip's axis, locked to it. Deleting the point leaves the clip with *✕ Odebrat
+  i ji* in the panel. **⛓ Route through an energy chain**: choose a span (the length between two rows, or the cable
+  clicked again) and pick a chain of the assembly, or one from the library sized for the bundle (its opening ≥ Ø + 2,
+  its bend ≥ the minimum radius) — put in at the span's first point. The cable then runs the chain's path as it is laid
+  out, so it follows the moving end (its travel slider, a part it moves with, ▶), and its length counts the chain. *⚠ Goes through Motor I3* when its centre line passes through a part. It is drawn as tubes (loose wires
   twisted round the centre line in their colours, a ribbon flat, a sleeve corrugated), listed in the assembly tree
   (*🔌 Svazek 1 · 4 × Ø1,5 · 1 284 mm*), in the **BOM** a line per wire or cable with its length + a reserve (5 %, under
   *More*) rounded up to 10 mm — *Vodič Ø1,5 mm hnědý — 1 350 mm* — and in the **STEP / GLB / IGES** exports (a part

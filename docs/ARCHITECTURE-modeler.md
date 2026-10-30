@@ -226,7 +226,18 @@ Date: 2026-10-25. Written by the architect agent.
   leads (`still`, sent in the step too); a span with its own length gets no detours (its length wins, a hit is
   told) and, holding a lead, its slack on its longest other leg (its target corrected until the whole span is
   right). A bow sits in the straight part of its leg (between the end corners' arcs), so the length grows smoothly
-  with its depth. A bend within 3 % of r_min counts as kept (no note for a lead's corner a hair tighter). Drawn as TubeGeometry along a by-length curve (wires twisted round the centre, a ribbon flat — ExtrudeGeometry
+  with its depth. A bend within 3 % of r_min counts as kept (no note for a lead's corner a hair tighter).
+  📎 ⛓ (2026-10-30, with library/cableparts.js and assembly/chains.js): a point {inst, at, clip} sits on a clip's axis
+  (clipAt: clipsFor(outerD) — the snuggest, or the one chosen in the suggestions — placeClip on the face point (the
+  point minus its lift) along the neighbours' direction, then the point at axis.o in the clip's frame, locked to it);
+  editPts notices a clip whose point went (this.orphans: "the clip stays" + ✕). A span {from, chain: C…} (spanSet
+  keeps length and chain on one entry): spanChains reads chainRoute now, from the end nearer the span's first point;
+  expandE puts the path into the points before the span's last point (tag 'chain': no slack, no detours, its hits not
+  told); the AVOID key holds the path's ends and the draw key the moving end, so a chain moved re-shapes the cable.
+  chainSpan with no id: chainsFor(outerD, r_min)[0] (Bi ≥ Ø + 2, dmax ≥ Ø, R ≥ r_min; the smallest), placeChain at the
+  span's first point, its runs along the span, addChain. The step sends the points with the path (STEP has it).
+  avoidAll leaves the harness's own clips and chains out of the probed parts. AI: edit_harness clip {point, item?,
+  size?}, chain {span, id | null}; point_list `clip`, spans `chain`. Drawn as TubeGeometry along a by-length curve (wires twisted round the centre, a ribbon flat — ExtrudeGeometry
   turned level at its start —, a sleeve corrugated); ⚠ through a part: the centre line's samples tested by ray parity
   against the parts' meshes. BOM (bom.js): a line per wire / cable "Vodič Ø1,5 mm hnědý — 1 350 mm" (+ reserve, up to
   10 mm), kind harness, no position. Export: a part per harness with one step {type: "harness"} (doc.py ->

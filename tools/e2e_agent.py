@@ -341,6 +341,12 @@ try:
     print("    edit_harness spans +40:", json.loads(t.split(". ", 1)[1]).get("spans"))
     print("    edit_harness spans from 5 (no such span):", tool("edit_harness", id="H1", spans=[{"from": 5, "length": 100}])[0][:90])
     tool("edit_harness", id="H1", spans=[{"from": 1, "length": None}])
+    # 📎 a clip on its first point (on the flange's top): the point then on the clip; ⛓ its span through a chain put in
+    t, _ = tool("edit_harness", id="H1", clip={"point": 1})
+    print("    edit_harness clip point 1:", json.loads(t.split(". ", 1)[1])["point_list"][0] if not t.startswith("ERROR") else t[:120])
+    t, _ = tool("edit_harness", id="H1", chain={"span": 1})
+    print("    edit_harness chain span 1:", json.loads(t.split(". ", 1)[1]).get("spans") if not t.startswith("ERROR") else t[:120])
+    print("    edit_harness clip on a point in space:", tool("edit_harness", id="H1", clip={"point": 2})[0][:100])
     tool("open_part", id="Flange")
     tool("prepare_print")
     tool("check_print")
