@@ -589,8 +589,12 @@ TOOLS = [
                     "its own name (\"\": the default again); play = true / false: ▶ on and on / stop. It answers where its parts went. "
                     "trace: true (or a number of steps, default 36) = the app's 📈 Trace: how another part of it (the first that "
                     "slides, else turns) moves over the driver's whole travel — [[driver, follower], …] (a slider's stroke, a "
-                    "rocker's swing); the parts end where they were.",
-     "inputSchema": _obj({"mechanism": STR, "to": NUM, "driver": {}, "name": STR, "play": {"type": "boolean"}, "trace": {"type": ["boolean", "integer"]}})},
+                    "rocker's swing); the parts end where they were. collisions: true / false = the widget's ⚠ (off by default): "
+                    "collisions shown while it moves — the parts in one glow red with a note, red bands under its slider; it answers "
+                    "the collision bands over the driver's travel [{from, to, with: [part ids]}] and what collides where it is now; "
+                    "stop_at_collision: true = ▶ pauses where a collision starts (get_assembly `mechanisms` say both).",
+     "inputSchema": _obj({"mechanism": STR, "to": NUM, "driver": {}, "name": STR, "play": {"type": "boolean"}, "trace": {"type": ["boolean", "integer"]},
+                          "collisions": {"type": "boolean"}, "stop_at_collision": {"type": "boolean"}})},
     {"name": "record_animation", "where": "browser",
      "description": "Save one full cycle of a mechanism's motion as an animation (the app's ⚙ Mechanism ⋯ → 🎬 Save animation): "
                     "a full turn of its driver, else there and back, from the 3D view as set_view left it (the 3D only, with the "
@@ -606,7 +610,8 @@ TOOLS = [
      "inputSchema": _obj({"part": STR, "motion": {}, "name": STR}, ["part", "name"])},
     {"name": "check_travel", "where": "browser",
      "description": "Move a part with limits (set_travel) from min to max in small steps and check for collisions on the way (the parts "
-                    "on it go along): free all the way, or which part it hits and between which positions. It ends where it was.",
+                    "on it go along): free all the way, or which part it hits and between which positions, and the collision bands (the "
+                    "stretches of steps with one). It ends where it was.",
      "inputSchema": _obj({"part": STR, "motion": {}}, ["part"])},
     {"name": "add_harness", "where": "browser",
      "description": "🔌 Route a cable harness through points in the assembly on screen (the app's 🔌 Cable harness): type \"wires\" (loose "

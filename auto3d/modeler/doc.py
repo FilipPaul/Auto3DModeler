@@ -1779,10 +1779,10 @@ def assembly_clearance(instances, a=None):
             **({"overlap": True} if r.get("overlap") else {})}
 
 
-def assembly_sweep(instances, steps):
+def assembly_sweep(instances, steps, quick=False):
     """Collisions along a motion: instances as for assembly_clashes (where they are at the start), steps [{at,
     matrices: {id: [16]}}] (the parts that moved, where they are at that step) -> [{at, clashes}] — only the
-    clashes of a part that moved. Each solid is built once."""
+    clashes of a part that moved. Each solid is built once; quick: as for assembly_clashes (a scan while it moves)."""
     base = {}
     for inst in instances or []:
         try:
@@ -1795,7 +1795,7 @@ def assembly_sweep(instances, steps):
     for step in steps or []:
         moved = {k: m for k, m in (step.get("matrices") or {}).items() if k in base}
         shapes = [(k, K.placed(base[k], moved[k]) if k in moved else s) for k, s in still.items()]
-        out.append({"at": step.get("at"), "clashes": K.interference(shapes, only=set(moved))})
+        out.append({"at": step.get("at"), "clashes": K.interference(shapes, only=set(moved), quick=quick)})
     return out
 
 

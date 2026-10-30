@@ -7,6 +7,18 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⚠ Collisions while a mechanism moves (2026-10-30)** (the owner: collisions no longer seemed highlighted while a
+  mechanism runs). Found: there never was a live highlight — the ⚠ Collisions panel tints the pairs it last computed
+  and checks again only after a change is committed (a drop, ⏸), so during a drag / ▶ / the slider the tints stayed
+  where they were. New, off by default (the owner): web/js/assembly/mechclash.js — a row's ⚠ in ⚙ Mechanism (the
+  record's `clash`, ⋯ "Zastavit při kolizi" `clashStop`) scans the driver's travel once (driveTo quiet at ≤ 180 steps,
+  ~2° / 0.5 mm, POST /api/assembly/sweep with `quick`; again when the still parts, joints or travel change: a
+  signature), then Assembly.draw looks up the nearest step (no kernel call per frame): both parts' red glow + the
+  overlap box, a `.mc-clashnote` in the view (depth = the overlap box's size along the moving part's way there), red
+  bands under the slider (`.mc-clashbar`); ▶ pauses where one starts. Pairs of two moving parts are skipped (as
+  checkTravel). Measured: ▶ 60 fps on / off in the crank, robot arm and swinging-arm demos (gantry 48–52, as without);
+  scans 1.7–5 s in the background. AI: drive_mechanism `collisions`, `stop_at_collision` (answers the bands),
+  get_assembly `collision_bands` / `collisions_now`, check_travel's bands. tools/e2e_mech_collisions.py.
 - **📎 A clip goes with its part; a chain span keeps its end (2026-10-30)** (the demo builder's findings). clipAt:
   placeClip, then 🔗 `fixTogether(clip, the point's part)` (HarnessTool.fixOn / hostOf: a clip's point -> the part
   its clip is fixed to), then the point — one undo step (History.mark / squash: the steps since a mark made one).

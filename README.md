@@ -1059,6 +1059,14 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   them off. The slider and ▶ keep to them at once. **⋯ → ⇤ Set min here / Set max here ⇥**: move it there (the
   slider, or drag the part), click. The same in a part's panel (**⇤⇥ Limits**, *⇤ here* / *here ⇥*) and in its
   suggestions (*Limits of its motion…*, *Min here*, *Max here*).
+- **⚠ Collisions while it moves** (the **⚠** next to ▶ in a ⚙ Mechanism row, *"Kolize"*; off by default, kept with
+  the assembly): the driver's travel is checked once in the background (about every 2° or 0.5 mm; again after an
+  edit), then ▶, the slider and a drag show it live — the parts in a collision glow red with the overlap boxed, a note
+  in the view says *"⚠ Kolize: Rameno × Sloupek (−10 mm)"* (how deep, along the way it moves), and red bands under the
+  slider show where on the travel it happens. **⋯ → Stop at a collision** (*"Zastavit při kolizi"*) pauses ▶ where
+  one starts (▶ again goes on through). Two parts that both move are not checked against each other. Playback stays
+  at 60 fps in the demos. The AI: `drive_mechanism {collisions: true, stop_at_collision}` answers the collision bands;
+  `check_travel` tells them too.
 - **🎬 Save animation** (⚙ Mechanism ⋯, *"Uložit animaci"*): one click records one full cycle of the mechanism — a
   full turn of its driver, else there and back, at the speed ▶ plays it — from the view as it is, and downloads it.
   **GIF** by default (loops, plays everywhere — phones, chats, e-mail; 20 frames a second) or **Video** (MP4 or WebM,

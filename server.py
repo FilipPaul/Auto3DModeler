@@ -1116,11 +1116,11 @@ def api_sheet_dxf():
 
 @app.post("/api/assembly/sweep")
 def api_assembly_sweep():
-    """{instances: [...as for clashes, at the start], steps: [{at, matrices: {id: [16]}}]} -> {steps: [{at, clashes}]}
+    """{instances: [...as for clashes, at the start], steps: [{at, matrices: {id: [16]}}], quick} -> {steps: [{at, clashes}]}
     — the collisions of the moving parts at each step of a motion."""
     body = request.get_json(force=True)
     steps = (body.get("steps") or [])[:200]
-    data, err = _model_call("assembly_sweep", {"instances": body.get("instances") or [], "steps": steps})
+    data, err = _model_call("assembly_sweep", {"instances": body.get("instances") or [], "steps": steps, "quick": bool(body.get("quick"))})
     if err:
         return err
     return jsonify({"steps": data})

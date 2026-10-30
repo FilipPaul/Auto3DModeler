@@ -55,6 +55,7 @@ import { openBomWindow } from './bomview.js';
 import { stepsAtBar, rolledText } from '../modeler/steptree.js';
 import { kindIcon, fromLibrary } from '../parts.js';
 import { MechanismPanel, driveTo, traceOf } from './mechanism.js';
+import { liveClashes, setClash, clashOn, scanDone, bandsOf } from './mechclash.js';
 import { saveAnimation } from './anim.js';
 import { startDrag, dragCue, dragValue, cueLabel, firstTip, tipSeen } from './drag.js';
 import { isPin } from './missing.js';
@@ -2379,7 +2380,7 @@ export class Assembly {
       return v.length() > 1e-6 * (1 + size) ? v : new THREE.Vector3(0, 0, Math.max(size, 10) * 0.5);
     };
     const focus = this.clashPanel ? this.focusClash : null;
-    const shownClashes = this.clashPanel ? (focus ? [focus] : this.hoverClash ? [this.hoverClash] : this.clashes || []) : [];
+    const shownClashes = [...(this.clashPanel ? (focus ? [focus] : this.hoverClash ? [this.hoverClash] : this.clashes || []) : []), ...(focus ? [] : liveClashes(this.mech))]; // (+ ⚙ a mechanism's ⚠ while it moves)
     const clashing = new Set(shownClashes.flatMap((c) => [this.topOf(c.a), this.topOf(c.b)]));
     this.view.setClashBoxes(shownClashes.map((c) => c.bbox));
     const along = this.explode && this.explodeRespect ? this.explodeAlong(centres, away) : null;
@@ -3437,13 +3438,17 @@ export class Assembly {
         hits.set(other, h);
       }
     });
-    const list = [...hits.values()];
+    const list = [...hits.values()], bands = [];
+    r.steps.forEach((s, k) => { // (the stretches of steps with a collision: [from, to])
+      const moving = new Set(Object.keys(steps[k].matrices)), hit = s.clashes.some((c) => !(moving.has(c.a) && moving.has(c.b)) && !springIgnores(this, c.a, c.b));
+      if (hit && bands.length && bands.at(-1).k === k - 1) Object.assign(bands.at(-1), { to: s.at, k }); else if (hit) bands.push({ from: s.at, to: s.at, k });
+    });
     const text = list.length
       ? list.map((h) => t2('⚠ It hits {part} ({id}) from {a} to {b} {u} — up to {v} mm³.', { part: this.partName(this.inst(h.with)?.part), id: h.with, a: fmt(h.from), b: fmt(h.to), u, v: fmt(+h.volume.toFixed(1)) })).join(' ')
       : t2('✓ Free all the way, {a} to {b} {u} — nothing in its way.', { a: fmt(lim.min), b: fmt(lim.max), u });
     this.travelNote = { inst: id, key: mo.key, text, bad: !!list.length };
     this.renderProps();
-    return list.length ? { hits: list } : { free: true };
+    return list.length ? { hits: list, bands: bands.map(({ from, to }) => [from, to]) } : { free: true };
   }
 
   /** Move a joined part by one of its free motions (mm or degrees) from where it was (from: its matrix then);
@@ -4149,7 +4154,7 @@ export class Assembly {
         const { it, mo } = this.motionFor(part, motion), text = this.lockMotion(it.id, mo);
         return { text: `${text}. ${JSON.stringify(this.summary().parts.find((x) => x.id === (mo.via || it.id)))}` };
       },
-      drive_mechanism: async ({ mechanism, to, driver, name, play, trace } = {}) => {
+      drive_mechanism: async ({ mechanism, to, driver, name, play, trace, collisions, stop_at_collision } = {}) => {
         need();
         await settle();
         this.mech.render();
@@ -4164,6 +4169,17 @@ export class Assembly {
         if (name !== undefined && name !== null) { const v = String(name).trim(), rec = this.mech.recFor(m); if (v) rec.name = v; else delete rec.name; delete rec.of; }
         if ((driver !== undefined && driver !== null) || (name !== undefined && name !== null)) { this.commit(); m = again(); }
         if (!m.closed) throw new Error(`${m.id} “${m.name}” cannot close where its parts are — a part is too short or too long (get_assembly loops).`);
+        if ((typeof collisions === 'boolean' && collisions !== clashOn(m)) || (typeof stop_at_collision === 'boolean' && stop_at_collision !== !!m.rec?.clashStop)) { // ⚠ collisions while it moves
+          setClash(this.mech, m, collisions ?? (clashOn(m) || !!stop_at_collision), typeof stop_at_collision === 'boolean' ? stop_at_collision : undefined);
+          m = again();
+        }
+        let clashText = '';
+        if (clashOn(m)) {
+          const sc = await scanDone(this.mech, m);
+          m = again();
+          const bands = sc ? bandsOf(sc) : [];
+          clashText = ` ⚠ Collisions shown while it moves${m.rec?.clashStop ? ' (▶ stops at one)' : ''}: ${bands.length ? `collision bands over its travel (${m.turn ? '°' : 'mm'}): ${JSON.stringify(bands)}` : 'none over its whole travel'}.`;
+        }
         let r = null;
         if (to !== undefined && to !== null) {
           if (!Number.isFinite(+to)) throw new Error('to: where its driver goes (degrees for a turn, mm for a slide).');
@@ -4178,9 +4194,11 @@ export class Assembly {
           if (tr) { this.mech.traces[m.key] = tr; this.mech.more.add(m.key); this.mech.draw(); } // (its 📈 shown in ⚙ Mechanism too)
         }
         if (play === true) this.mech.play(m); else if (play === false) this.mech.stop();
+        const now = this.mech.clashSummary(m).collisions_now;
+        if (now) clashText += ` Colliding where it is now: ${JSON.stringify(now)}.`;
         const trText = trace ? (tr ? ` 📈 Trace of ${tr.label} over the driver (${m.turn ? '°' : 'mm'} -> ${tr.unit}): ${JSON.stringify(tr.xs.map((v, i) => [+v.toFixed(2), +tr.ys[i].toFixed(3)]))}.` : ' 📈 No trace: it has no other part that slides or turns.') : '';
         const s = this.mech.summary().find((x) => x.id === m.id), where = this.summary().parts.filter((x) => m.parts.includes(x.id)).map((x) => ({ id: x.id, name: x.name, position: x.position, ...(x.at ? { at: x.at } : {}) }));
-        return { text: `${m.id} “${m.name}”, driven by ${m.driver.part} — ${m.driver.mo.label}: at ${s.at} ${m.turn ? '°' : 'mm'} (${m.min} … ${m.max}${m.full ? ', a full turn' : ''})${r?.stopped ? ' — stopped: it cannot go further that way (a dead point or its end)' : ''}${this.mech.playing?.key === m.key ? '; ▶ playing (play: false stops it)' : ''}. Its parts: ${JSON.stringify(where)}${trText}` };
+        return { text: `${m.id} “${m.name}”, driven by ${m.driver.part} — ${m.driver.mo.label}: at ${s.at} ${m.turn ? '°' : 'mm'} (${m.min} … ${m.max}${m.full ? ', a full turn' : ''})${r?.stopped ? ' — stopped: it cannot go further that way (a dead point or its end)' : ''}${this.mech.playing?.key === m.key ? '; ▶ playing (play: false stops it)' : ''}. Its parts: ${JSON.stringify(where)}${trText}${clashText}` };
       },
       record_animation: async ({ mechanism, format = 'gif', caption = true } = {}) => {
         need();
@@ -4204,7 +4222,7 @@ export class Assembly {
         need();
         await settle();
         const { it, mo } = this.motionFor(part, motion), r = await this.checkTravel(it.id, mo);
-        return { text: `${it.id} — ${mo.label} over ${JSON.stringify(this.limitsOf(it, mo))}: ${r.free ? 'free all the way.' : `hits ${r.hits.map((h) => `${h.with} (${this.partName(this.inst(h.with)?.part)}) from ${h.from} to ${h.to}, up to ${+h.volume.toFixed(1)} mm³`).join('; ')}.`}` };
+        return { text: `${it.id} — ${mo.label} over ${JSON.stringify(this.limitsOf(it, mo))}: ${r.free ? 'free all the way.' : `hits ${r.hits.map((h) => `${h.with} (${this.partName(this.inst(h.with)?.part)}) from ${h.from} to ${h.to}, up to ${+h.volume.toFixed(1)} mm³`).join('; ')}. Collision bands (the steps with one): ${JSON.stringify(r.bands)}.`}` };
       },
     };
   }

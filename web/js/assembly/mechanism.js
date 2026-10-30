@@ -4,6 +4,8 @@
 // round, else to and fro — back at a dead point (a slider pushing a crank); under the slider the driver's limits
 // (⇤ min … max ⇥ typed in place, ⇤⇥ Limits / ✕: Assembly.setTravel) — ▶ keeps to them. ⋯: ⇤ / ⇥ set here, another driver, the speed, ⚠ the travel
 // checked for collisions, 📈 a trace (how a follower moves over the driver's travel) and 🎬 an animation saved (anim.js).
+// The row's ⚠ (off by default): collisions shown while it moves — red parts, a note in the view, red bands under the
+// slider; ⋯ Stop at a collision (mechclash.js).
 // A widget of the left column (leftdock.js: docked or floating), there only while the assembly has a mechanism; ✕
 // closes it, ⚙ Mechanism in the toolbar opens it again. Parts coupled by gears, a belt or a rack (couplings.js) are one
 // mechanism: its driver turns them all. A ⚙ moving sub-assembly's own mechanisms are listed too ("Crank (in Drive)"),
@@ -17,6 +19,7 @@ import { renameInPlace } from '../rename.js';
 import { leftDock } from '../leftdock.js';
 import { missingJoint } from './missing.js';
 import { animHtml, bindAnim } from './anim.js';
+import { clashOn, clashBarHtml, clashesNow, refreshScans, setClash, bandsOf } from './mechclash.js';
 
 const fmt = (v) => (+(+v).toFixed(2)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -193,6 +196,7 @@ export class MechanismPanel {
     this.traces = {}; // mechanism key -> a trace (📈)
     this.checked = {}; // mechanism key -> ⚠ the travel checked: {min, max, n, hits} (⇤⇥ Limits start where it was free)
     this.more = new Set(); // the mechanisms whose ⋯ is open
+    this.scans = {}; // mechanism key -> its travel scanned for ⚠ collisions while it moves (mechclash.js)
     this.box = leftDock.addWidget('mech', 'assembly', { title: '⚙ Mechanism', h: 230, close: () => this.close() });
   }
 
@@ -205,6 +209,7 @@ export class MechanismPanel {
     const on = this.list.length > 0 && !this.closed;
     leftDock.show('mech', on);
     if (on) this.draw();
+    refreshScans(this);
   }
 
   open(part = null) {
@@ -230,9 +235,10 @@ export class MechanismPanel {
     try { at = posOf(this.asm, m); } catch { at = 0; }
     const u = m.turn ? '°' : 'mm', play = this.playing?.key === m.key, note = this.notes[m.key], open = this.more.has(m.key), tr = this.traces[m.key];
     return `<div class="as-dof mc-row ${play ? 'on' : ''}" data-mckey="${esc(m.key)}">${head}
-      <div class="as-dofrow"><input type="range" data-mcv="${k}" min="${m.min}" max="${m.max}" step="${m.turn ? 1 : 0.5}" value="${fmt(at)}" aria-label="${esc(m.name)}">
+      <div class="as-dofrow"><span class="mc-slw"><input type="range" data-mcv="${k}" min="${m.min}" max="${m.max}" step="${m.turn ? 1 : 0.5}" value="${fmt(at)}" aria-label="${esc(m.name)}">${clashBarHtml(this, m)}</span>
         <input type="number" step="any" data-mcn="${k}" value="${fmt(at)}"><span class="unit">${u}</span>
         <button class="mini mc-play ${play ? 'on' : ''}" data-mcplay="${k}" title="${esc(t(play ? 'Pause: it stays where it is' : 'Play: the whole mechanism moves, on and on'))}">${play ? '⏸' : '▶'}</button>
+        <button class="mini mc-clashb ${clashOn(m) ? 'on' : ''}" data-mcclash="${k}" title="${esc(t(clashOn(m) ? 'Collisions shown while it moves — click: off' : 'Collisions: show where parts hit while it moves (▶, the slider, a drag) — red parts, red bands under the slider'))}">⚠</button>
         <button class="mini mc-moreb ${open ? 'on' : ''}" data-mcmore="${k}" title="${esc(t('More: what drives it, how fast, ⚠ check the travel, 📈 trace'))}">⋯</button></div>
       ${this.limHtml(m, k, u)}
       ${open ? `<div class="mc-more">
@@ -242,6 +248,7 @@ export class MechanismPanel {
         <div class="mc-acts"><select class="as-dspeed" data-mcspeed="${k}" title="${esc(t('How fast ▶ plays'))}">${SPEEDS.map(([v, l]) => `<option value="${v}" ${m.speed === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
           <button class="btn small" data-mccheck="${k}" title="${esc(t('Move it over its whole travel in small steps and check for collisions on the way'))}">${esc(t('⚠ Check the travel'))}</button>
           ${m.parts.length > 1 ? `<button class="btn small ${tr ? 'on' : ''}" data-mctrace="${k}" title="${esc(t('How another part of it moves over the travel: a curve'))}">📈 ${esc(t('Trace'))}</button>` : ''}</div>
+        ${clashOn(m) ? `<label class="mc-cstop" title="${esc(t('▶ pauses where a collision starts'))}"><input type="checkbox" data-mcstop="${k}" ${m.rec?.clashStop ? 'checked' : ''}> ${esc(t('Stop at a collision'))}</label>` : ''}
         ${animHtml(this, m, k)}
         ${note ? `<p class="mp-count as-dofnote ${note.bad ? 'bad' : ''}" data-no-i18n>${esc(note.text)}</p>` : ''}
         ${tr ? this.traceSvg(m, tr, at) : ''}</div>` : ''}</div>`;
@@ -330,6 +337,8 @@ export class MechanismPanel {
       num.addEventListener('change', () => { const v = parseFloat(String(num.value).replace(',', '.')); if (Number.isFinite(v)) { this.stop(false); driveTo(asm, row(num, 'mcn'), v, true); } });
     }
     for (const b of this.box.querySelectorAll('[data-mcplay]')) b.addEventListener('click', () => { const m = row(b, 'mcplay'); if (this.playing?.key === m.key) this.stop(); else this.play(m); });
+    for (const b of this.box.querySelectorAll('[data-mcclash]')) b.addEventListener('click', () => { const m = row(b, 'mcclash'); setClash(this, m, !clashOn(m)); });
+    for (const c of this.box.querySelectorAll('[data-mcstop]')) c.addEventListener('change', () => setClash(this, row(c, 'mcstop'), true, c.checked));
     for (const b of this.box.querySelectorAll('[data-mcmore]')) b.addEventListener('click', () => { const m = row(b, 'mcmore'); if (this.more.has(m.key)) this.more.delete(m.key); else this.more.add(m.key); this.draw(); });
     for (const s of this.box.querySelectorAll('[data-mcdrv]')) {
       s.addEventListener('change', () => {
@@ -428,7 +437,7 @@ export class MechanismPanel {
     this.stop(false);
     let at;
     try { at = posOf(this.asm, m); } catch { return; }
-    const p = this.playing = { key: m.key, dir: 1, v: at, last: performance.now(), speed: m.speed };
+    const p = this.playing = { key: m.key, dir: 1, v: at, last: performance.now(), speed: m.speed, hit: clashesNow(this, m).length > 0 };
     this.draw();
     const frame = (now) => {
       if (this.playing !== p) return;
@@ -442,6 +451,9 @@ export class MechanismPanel {
       const r = driveTo(this.asm, mm, v);
       if (r.stopped) { p.dir = -p.dir; p.v = r.at; } else p.v = v;
       this.mark(mm, r.at);
+      const hit = mm.rec?.clashStop && clashesNow(this, mm).length > 0; // (⋯ Stop at a collision: where one starts, not while in it)
+      if (hit && !p.hit) { this.stop(); return; }
+      p.hit = hit;
       requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
@@ -483,8 +495,16 @@ export class MechanismPanel {
       const e = engOf(this.asm, m), idx = (d) => { let x = null; try { x = e.motionsOf(d.part, true)?.motions.findIndex((q) => q.key === d.mo.key); } catch { x = null; } return x; };
       return { id: m.id, name: m.name, parts: m.parts, ...(m.inside ? { inside: m.inside } : {}), ...(m.closed ? {} : { closed: false }),
         ...(m.driver ? { driver: { part: m.driver.part, motion: idx(m.driver), label: m.driver.mo.label }, at, min: m.min, max: m.max, unit: m.turn ? 'deg' : 'mm', ...(m.full ? { full_turn: true } : {}),
-          drivers: m.drivers.map((d) => `${d.part} motion ${idx(d)}: ${d.mo.label}`) } : {}) };
+          drivers: m.drivers.map((d) => `${d.part} motion ${idx(d)}: ${d.mo.label}`) } : {}), ...this.clashSummary(m) };
     });
+  }
+
+  /** ⚠ on: {collisions: true, stop_at_collision?, collision_bands: [{from, to, with}] (once scanned), collisions_now}. */
+  clashSummary(m) {
+    if (!clashOn(m)) return {};
+    const sc = this.scans[m.key], now = clashesNow(this, m);
+    return { collisions: true, ...(m.rec?.clashStop ? { stop_at_collision: true } : {}), collision_bands: sc?.steps ? bandsOf(sc) : 'being checked',
+      ...(now.length ? { collisions_now: now.map((c) => ({ a: c.a, b: c.b, volume: +c.volume.toFixed(2), depth: +c.depth.toFixed(2) })) } : {}) };
   }
 
   /** The mechanism the AI means: its id (M1), name or a part of it; none: the first. */

@@ -1123,6 +1123,16 @@ input.px-in.px-bad, .px-box input.px-bad { border-color: #f0883e !important; out
 .mc-trace svg { display: block; width: 100%; height: 64px; background: var(--panel-2); border-radius: 4px; }
 .mc-trace polyline { fill: none; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .mc-trace .mc-now { stroke: #e3b341; stroke-width: 1; vector-effect: non-scaling-stroke; }
+/* ⚠ collisions while a mechanism moves (mechclash.js): red bands under its slider, the row's ⚠, the note in the view */
+.mc-slw { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; }
+.mc-slw input[type=range] { flex: 1; min-width: 0; width: 100%; }
+.mc-clashbar { position: absolute; left: 7px; right: 7px; bottom: -4px; height: 4px; border-radius: 2px; background: #2ea04333; pointer-events: none; }
+.mc-clashbar.busy { background: repeating-linear-gradient(90deg, #8b949e44 0 6px, transparent 6px 12px); }
+.mc-clashbar i { position: absolute; top: 0; bottom: 0; background: #f85149; border-radius: 2px; }
+.mc-clashb.on { color: #f85149; border-color: #f85149; }
+.mc-cstop { display: inline-flex; align-items: center; gap: 4px; margin: 0; font-size: 11.5px; color: var(--muted); }
+.mc-clashnote { position: absolute; top: 96px; left: 50%; transform: translateX(-50%); z-index: 3; pointer-events: none; white-space: nowrap;
+  background: #2a1214ee; border: 1px solid #f85149; color: #ffd7d5; border-radius: 8px; padding: 4px 12px; font-size: 12.5px; }
 .as-jspin .as-jrot { margin-left: 4px; white-space: nowrap; }
 .as-jspin .as-jrot.on { border-color: #d29922; color: #f2cc60; }
 .m-cmdbar .as-exrespect { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
