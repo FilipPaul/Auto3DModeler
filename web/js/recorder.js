@@ -552,6 +552,14 @@ class Recorder {
     return `[⏺ Recording of my moves: ${list.length} events over ${clock(this.seconds)}${cut.length < list.length ? ` — the last ${cut.length} below; get_recording for all` : ''}${this.shots.length ? `; screenshots ${this.shots.map((x) => x.id).join(', ')} (get_recording_screenshot)` : ''}]\n${cut.map((e) => this.line(e)).join('\n')}`;
   }
 
+  /** The recording for the AI's problem report (the events, without the screenshots): one running or stopped in the
+   *  last `recentMin` minutes, else null. */
+  forReport(recentMin = 30) {
+    if (!this.events.length || (!this.on && !(this.tEnd && Date.now() - this.tEnd < recentMin * 60000))) return null;
+    return { running: this.on, started_by: this.by, ...(this.reason ? { reason: this.reason } : {}), started: new Date(this.t0).toISOString(),
+      seconds: Math.round(this.seconds), count: this.events.length, dropped: this.events[0].i, screenshots: this.shots.length, events: this.read() };
+  }
+
   /** A stopped recording not attached to a message yet: how many events it has (else 0). */
   attachable() { return !this.on && this.events.length > 2 && this.sent < this.n - 1 ? this.events.length : 0; }
 }

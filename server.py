@@ -1630,7 +1630,28 @@ def tool_export(args):
     return {"text": f"Exported {len(data) // 1024} kB to {target}"}
 
 
-REPORTS = (DATA if getattr(__import__("sys"), "frozen", False) else ROOT) / "RealSWReports"  # the AI's reports of things that did not behave as expected (the built app: in the user's data)
+REPORTS = Path(__import__("os").environ.get("A3D_REPORTS") or (DATA if getattr(__import__("sys"), "frozen", False) else ROOT) / "RealSWReports")  # the AI's reports of things that did not behave as expected (the built app: in the user's data; A3D_REPORTS: a test server's)
+
+
+def _report_attachments(args: dict) -> tuple[dict | None, dict | None]:
+    """(the project, the ⏺ recording) to go with a report: given in args (a test), else asked from the page — the
+    project as Save project writes it and a recording running or stopped in the last 30 min. None: none / no page."""
+    if "project" in args or "recording" in args:
+        return args.get("project") or None, args.get("recording") or None
+    try:
+        got = RELAY.call("report_attachments", {}, timeout=60)
+    except Exception:  # (no page open, an older page: the report is written without them)
+        return None, None
+    proj, rec = got.get("project"), got.get("recording")
+    return (proj if isinstance(proj, dict) and proj.get("parts") else None), (rec if isinstance(rec, dict) and rec.get("events") else None)
+
+
+def _shown(path: Path) -> str:
+    """A report's file as said to the AI: from the app's folder when it is in it."""
+    try:
+        return path.relative_to(ROOT).as_posix()
+    except ValueError:
+        return str(path)
 
 
 def tool_report_problem(args):
@@ -1654,13 +1675,33 @@ def tool_report_problem(args):
     path = REPORTS / f"{time.strftime('%Y-%m-%d-%H%M%S', now)}-{'request-' if kind == 'tool request' else 'ui-' if kind == 'ui' else ''}{slug}.md"
     from auto3d import version
     parts = [f"# {title}", "", f"- **Kind:** {kind}", f"- **Date:** {time.strftime('%Y-%m-%d %H:%M:%S', now)}", f"- **App version:** {version.text(PAGE_BUILDS.get(ROUTE.get() or '') or PAGE_BUILDS.get('', ''))}",
-             "- **Reported by:** the AI agent (MCP report_problem)", "",
-             "## What happened", "", what]
+             "- **Reported by:** the AI agent (MCP report_problem)"]
+    # the project on screen (compacted) and a recent ⏺ recording next to it, so someone else can reproduce the problem
+    proj, rec = _report_attachments(args)
+    attached = []
+    if proj:
+        data, left = reports.compact_project(proj)
+        att = path.with_name(path.stem + reports.PROJECT_EXT)
+        att.write_bytes(data)
+        attached.append("the project")
+        names = ", ".join(str(q.get("name") or q.get("id") or "?") for q in proj["parts"])
+        out = "; ".join(f"{x['name'] or x['blob'][:12]} ({x['bytes'] // 1024} kB)" for x in left)
+        parts.append(f"- **Project:** `{att.name}` (open it in the app: 📂 Open ▾ › File…) — {len(proj['parts'])} part(s): {names}; "
+                     f"{max(1, len(data) // 1024)} kB" + (f"; imported files left out: {out}" if left else ""))
+    if rec:
+        att = path.with_name(path.stem + reports.RECORDING_EXT)
+        rec = {k: v for k, v in rec.items() if k != "shots"}  # (the events only — no screenshots)
+        att.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
+        attached.append("the recording of moves")
+        parts.append(f"- **Recording:** `{att.name}` (⏺ the user's moves: {len(rec['events'])} events over {rec.get('seconds', 0)} s, "
+                     f"{'still running' if rec.get('running') else 'stopped'}; without screenshots)")
+    parts += ["", "## What happened", "", what]
     for key, head in (("expected", "What was expected"), ("steps", "Steps"), ("workaround", "Workaround")):
         if str(args.get(key) or "").strip():
             parts += ["", f"## {head}", "", str(args[key]).strip()]
     path.write_text(LF.join(parts) + LF, encoding="utf-8")
-    return {"text": f"Reported: {path.relative_to(ROOT).as_posix()} — thank you. Tell the user, then carry on."}
+    with_ = f" — with {' and '.join(attached)}" if attached else ""
+    return {"text": f"Reported: {_shown(path)}{with_} — thank you. Tell the user, then carry on."}
 
 
 def tool_list_reports(args):
@@ -1670,7 +1711,8 @@ def tool_list_reports(args):
     rows = reports.search(REPORTS, str(args.get("search") or ""), kind if kind in ("bug", "tool request", "ui") else "")
     if not rows:
         return {"text": "No reports" + (" match" if args.get("search") or kind else " yet") + "."}
-    return {"text": json.dumps([{"title": r["title"], "kind": r["kind"], "date": r["date"]} for r in rows], ensure_ascii=False)}
+    return {"text": json.dumps([{"title": r["title"], "kind": r["kind"], "date": r["date"], **({"project": r["project"]} if r["project"] else {}),
+                                 **({"recording": r["recording"]} if r["recording"] else {})} for r in rows], ensure_ascii=False)}
 
 
 def _solid_from_path(args: dict) -> dict:

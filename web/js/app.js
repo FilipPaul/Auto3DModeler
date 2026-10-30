@@ -617,7 +617,7 @@ function openFiles(all, { shift = false, onView = false } = {}) {
   if (!f) return;
   if (all.length > 1 && all.every((x) => /\.(step|stp)$/i.test(x.name))) { openSolid(f, all.slice(1)); return; } // (an assembly and its part files)
   if (all.length > 1 && all.every((x) => DRAWING_RE.test(x.name) || /\.txt$/i.test(x.name))) { openDrawing(f, all.slice(1)); return; } // (a Gerber set)
-  if (/\.json$/i.test(f.name)) openProject(f);
+  if (/\.json(\.gz)?$/i.test(f.name)) openProject(f);
   else if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') openPdf(f);
   else if (OPEN_SOLID_RE.test(f.name) && !shift) openSolid(f); // Shift: a sliced quick part, as before
   else if (DRAWING_RE.test(f.name) && !shift) openDrawing(f); // Shift: straight to a quick part, as before
@@ -2104,8 +2104,8 @@ function projectFile() {
 
 /** The project file as Save project writes it: its imported files, and 🕘 its versions when "with version history" is
  *  ticked (a version of it made first: a save point). */
-async function savedProject({ history = $('saveWithVersions')?.checked } = {}) {
-  await versions?.save('', { auto: true, force: true }).catch(() => null);
+async function savedProject({ history = $('saveWithVersions')?.checked, savePoint = true } = {}) {
+  if (savePoint) await versions?.save('', { auto: true, force: true }).catch(() => null);
   const proj = projectFile();
   proj.blobs = await projectBlobs(proj);
   if (history && autosave?.id) proj.versions = (await (await api(`/api/versions/${encodeURIComponent(autosave.id)}/bundle`)).json()).versions || undefined;
@@ -2139,7 +2139,9 @@ async function projectBlobs(proj) {
 
 async function openProject(file) {
   try {
-    const raw = JSON.parse(await file.text());
+    // (.a3d.json.gz: a project attached to an AI problem report, gzip-compressed)
+    const text = /\.gz$/i.test(file.name) ? await new Response(file.stream().pipeThrough(new DecompressionStream('gzip'))).text() : await file.text();
+    const raw = JSON.parse(text);
     // its imported files back to the server first (by their hash)
     for (const [sha, b] of Object.entries(raw.blobs || {})) {
       const bin = atob(b), u = new Uint8Array(bin.length);
@@ -2628,6 +2630,9 @@ var versions = new Versions({
 });
 versions.changed();
 Object.assign(agentHandlers, versions.handlers()); // (list_versions, save_version, restore_version, compare_versions, create_variant: anywhere)
+// report_problem (a server tool) asks the page for what goes with the report: the project as Save project writes it
+// (without its version history; the server compacts it) and a ⏺ recording of the last 30 min
+agentHandlers.report_attachments = async () => ({ text: 'ok', project: await savedProject({ history: false, savePoint: false }), recording: recorder.forReport() });
 $('saveMenuBtn').addEventListener('click', (e) => { e.stopPropagation(); $('saveMenuWrap').classList.toggle('open'); });
 document.addEventListener('click', (e) => { if (!e.target.closest('#saveMenuWrap')) $('saveMenuWrap').classList.remove('open'); });
 try { $('saveWithVersions').checked = localStorage.getItem('a3d.saveVersions') === '1'; } catch { /* private window */ }

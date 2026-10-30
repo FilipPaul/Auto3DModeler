@@ -192,7 +192,7 @@ class TestFrozen(unittest.TestCase):
             (Path(tmp) / "BUILD.json").write_text(json.dumps({"commit": "abc1234", "branch": "main", "date": "2026-10-29"}))
             version.build.cache_clear()
             try:
-                self.assertEqual(version.text(), f"{version.VERSION} (main @ abc1234, 2026-10-29)")
+                self.assertEqual(version.text(), f"{version.VERSION} (portable, built from main @ abc1234, 2026-10-29)")
             finally:
                 version.build.cache_clear()
             self.assertEqual(version.head(), "")  # (the built app: no git, never stale)
