@@ -2,7 +2,8 @@
 and whether a new report says the same as one of them — so the AI does not file one thing twice. Standard library only.
 
 Next to a report: the project on screen when it was written (<base>.a3d.json.gz — the Save project file, compacted, so
-someone else can open it and reproduce the problem) and a ⏺ recording of the user's moves (<base>.recording.json).
+someone else can open it and reproduce the problem), a ⏺ recording of the user's moves (<base>.recording.json) and the
+screenshots the AI chose to show the state of the app (<base>.shot-1.png …, shown in the .md).
 """
 from __future__ import annotations
 
@@ -18,7 +19,8 @@ STOP = set("a an the of in on at to for and or with without is are be not no doe
 SIMILAR = 0.6  # how alike two titles must be to count as the same report
 KEEP_FILE = 3 << 20  # bytes: an imported file (a blob) larger than this is left out of an attached project
 CAP = 5 << 20        # bytes: about how large an attached project (gzip) may get — the largest imported files go first
-PROJECT_EXT, RECORDING_EXT = ".a3d.json.gz", ".recording.json"
+PROJECT_EXT, RECORDING_EXT, SHOT_EXT = ".a3d.json.gz", ".recording.json", ".shot-"  # (<base>.shot-1.png / .webp)
+SHOTS_MAX, SHOT_PX, SHOT_BYTES = 4, 1600, 1 << 20  # screenshots: at most this many per report, px across, bytes each
 
 
 def _stem(w: str) -> str:
@@ -46,8 +48,8 @@ def similarity(a: str, b: str) -> float:
 
 
 def read(folder: Path) -> list[dict]:
-    """Every report in the folder, newest first: [{file, title, kind, date, project, recording}] (project / recording:
-    the file attached to it, else '')."""
+    """Every report in the folder, newest first: [{file, title, kind, date, project, recording, shots}] (project /
+    recording: the file attached to it, else ''; shots: its screenshots' files, in order)."""
     out = []
     if not folder.is_dir():
         return out
@@ -62,7 +64,9 @@ def read(folder: Path) -> list[dict]:
         proj, rec = f.with_name(f.stem + PROJECT_EXT), f.with_name(f.stem + RECORDING_EXT)
         out.append({"file": f.name, "title": title, "kind": kind.group(1).strip() if kind else "bug",
                     "date": date.group(1).strip() if date else f.name[:10],
-                    "project": proj.name if proj.exists() else "", "recording": rec.name if rec.exists() else ""})
+                    "project": proj.name if proj.exists() else "", "recording": rec.name if rec.exists() else "",
+                    "shots": sorted((s.name for s in folder.glob(f"{f.stem}{SHOT_EXT}*") if s.suffix in (".png", ".webp")),
+                                    key=lambda n: int(re.sub(r"\D", "", n.rsplit(SHOT_EXT, 1)[1]) or 0))})
     out.sort(key=lambda r: r["file"], reverse=True)
     return out
 

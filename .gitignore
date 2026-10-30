@@ -11,9 +11,11 @@ __pycache__/
 !demos/*.a3d.json
 data/
 
-# what goes with the AI's problem reports (the project, the recording of moves): never committed by accident
+# what goes with the AI's problem reports (the project, the recording of moves, screenshots): never committed by accident
 RealSWReports/*.gz
 RealSWReports/*.recording.json
+RealSWReports/*.png
+RealSWReports/*.webp
 
 # agents' own copies of the repository (git worktrees)
 .claude/worktrees/

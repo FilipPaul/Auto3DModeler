@@ -2926,6 +2926,13 @@ Date: 2026-10-25. Written by the architect agent.
   overrides the folder; .gitignore RealSWReports/*.gz, *.recording.json. version.text in the built app: "0.9.0
   (portable, built from main @ abc1234, …)". tests: test_agent test_report_with_project, test_launcher
   test_build_stamp; tools/e2e_report_project.py (11 checks).
+  Screenshots in a report (done): report_problem `screenshots` (≤ reports.SHOTS_MAX 4): "last" / "s<n>" (server.py
+  keeps the AI's get_screenshot pictures per window, SHOTS, 12 each; get_screenshot's text says the id), "ui" / "view"
+  (the page's report_shots handler takes them as get_screenshot does, the AI's last picture — gui_action's at — put
+  back), each {shot, caption}; written as `<base>.shot-<i>.png` (≤ 1600 px, ≤ 1 MB, else WebP) with a *Screenshots:* line
+  and a ## Screenshots section of image links; what could not be attached is said in the answer. reports.read /
+  list_reports give the files; .gitignore RealSWReports/*.png, *.webp. tests: test_agent test_report_with_screenshots;
+  tools/e2e_report_project.py (7 more checks).
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); ~~dimensions of hole positions drawn on the 2D drawing (not only listed)~~ (done); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

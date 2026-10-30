@@ -12,7 +12,7 @@ import { ChatPanel, startBridge, bridgeStats, CLIENT, keepChatClient } from './a
 import { AiHistory } from './aihistory.js';
 import { LibraryBrowser, saveToLibrary, libraryItems, matchScore, itemFromModel } from './library/browser.js';
 import { repaint } from './modeler/paint.js';
-import { moreHandlers, colouredGroups, screenshotUI, noteShot } from './agent_more.js';
+import { moreHandlers, colouredGroups, screenshotUI, noteShot, lastShotNow } from './agent_more.js';
 import { teachHandlers } from './agent_teach.js';
 import { recorder, recordHandlers } from './recorder.js';
 import { buildPart, sizesOf, lengthsOf } from './library/build.js';
@@ -2638,6 +2638,16 @@ Object.assign(agentHandlers, versions.handlers()); // (list_versions, save_versi
 // report_problem (a server tool) asks the page for what goes with the report: the project as Save project writes it
 // (without its version history; the server compacts it) and a ⏺ recording of the last 30 min
 agentHandlers.report_attachments = async () => ({ text: 'ok', project: await savedProject({ history: false, savePoint: false }), recording: recorder.forReport() });
+// and the screenshots it asked for: "ui" (the window) / "view" (the 3D view or the sheet, fitted) — taken as get_screenshot
+// takes them, the AI's last picture kept (gui_action's at stays a point of it)
+agentHandlers.report_shots = async ({ shots = [] }) => {
+  const keep = lastShotNow(), images = [];
+  for (const s of shots.slice(0, 4)) {
+    try { images.push({ image: (await agentHandlers.get_screenshot(s === 'ui' ? { ui: true } : {})).image }); } catch (e) { images.push({ error: String(e.message || e) }); }
+  }
+  noteShot(keep);
+  return { text: 'ok', images };
+};
 $('saveMenuBtn').addEventListener('click', (e) => { e.stopPropagation(); $('saveMenuWrap').classList.toggle('open'); });
 document.addEventListener('click', (e) => { if (!e.target.closest('#saveMenuWrap')) $('saveMenuWrap').classList.remove('open'); });
 try { $('saveWithVersions').checked = localStorage.getItem('a3d.saveVersions') === '1'; } catch { /* private window */ }

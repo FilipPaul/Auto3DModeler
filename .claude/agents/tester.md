@@ -458,8 +458,9 @@ Never report "works" without having run it; report failures with their output.
    assembly's bars: each group in one run, one colour per group, the groups' colours differ; screenshots of the bars).
    `tools/e2e_report_project.py <url> <dir>` covers the project attached to an AI problem report (run the server with
    `A3D_REPORTS=<scratch>/reports`: a part, a second one and an assembly, a ⏺ recording of clicks, stopped ->
-   report_problem writes the .md, `<base>.a3d.json.gz` and `<base>.recording.json`, the Project / Recording lines,
-   list_reports names them -> a new project, the .gz opened through 📂 Open › File…: the same parts and steps; no
+   report_problem writes the .md, `<base>.a3d.json.gz` and `<base>.recording.json`, the Project / Recording lines;
+   get_screenshot {ui: true} then screenshots ["last", {shot: "view", caption}]: `<base>.shot-1/2.png` valid pictures
+   of a sensible size, linked from the .md; list_reports names them all -> a new project, the .gz opened through 📂 Open › File…: the same parts and steps; no
    console errors). Exits 1 on a failed check.
    `tools/e2e_ai_reports.py <url> <dir>` covers the fixes from the AI's reports (a zoomed-out view: get_screenshot
    fitted again, fit: false kept; set_view section "off": no cut; gui_state's step rows and a choice's text; the Snap

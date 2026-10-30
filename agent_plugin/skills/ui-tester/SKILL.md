@@ -61,6 +61,9 @@ Undo your test clicks you do not need (`undo`) so the designs stay clean.
 - Hard to find, English left in Czech, a surprising control, no good default → `report_problem {kind: "ui", …}`.
 - A tool missing (you had to work around it, or a GUI feature has no tool) or a GUI control missing (a tool has no
   button) → `report_problem {kind: "tool request", …}` with the tool / control you would want: name, inputs, result.
+- A problem you can see (a control not there, a menu covering another, a rendering glitch): look with
+  `get_screenshot {ui: true}`, then attach that picture — `screenshots: [{shot: "last", caption: "<what it shows>"}]`
+  (or `"view"` for the 3D view / sheet). Only when the picture helps; up to 4.
 - If report_problem answers "a similar report exists", it is known — count it as known, do not force it.
 
 ## 4. End with a summary table
