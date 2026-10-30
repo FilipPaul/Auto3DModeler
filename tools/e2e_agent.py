@@ -406,7 +406,7 @@ try:
     tool("export", format="step", path=str(Path(OUT) / "agent_from_file.step"))
     print("    STEP of it:", (Path(OUT) / "agent_from_file.step").stat().st_size, "bytes")
     print("    no such file:", tool("add_feature", type="solid", path=str(Path(OUT) / "nope.step"))[0][:80])
-    # ---- 🎬 demos (list_demos, open_demo) and a project file (open_file .a3d.json): the crank – rod – slider
+    # ---- 🎬 demos (list_demos, open_demo) and a project file (open_file .a3d): the crank – rod – slider
     rows = json.loads(tool("list_demos")[0])
     print("    demos:", [x["file"] for x in rows])
     tool("open_demo", name="crank")
@@ -447,12 +447,14 @@ try:
     tool("set_visibility", show_all=True)
     print("    show_all: nothing hidden:", "hidden" not in json.loads(tool("get_assembly")[0]))
     # a saved project file opens the same way (the demo's own file)
-    t, _ = tool("open_file", path=str(ROOT / "demos" / "ctyrkloubovy-mechanismus.a3d.json"))
+    t, _ = tool("open_file", path=str(ROOT / "demos" / "ctyrkloubovy-mechanismus.a3d"))
     print(f"    project file: {t[:120]}")
     # ... and the project on screen saved as one (export format project), then opened again: the same parts
-    proj = Path(OUT) / "agent_project.a3d.json"
+    proj = Path(OUT) / "agent_project.a3d"
     tool("export", format="project", path=str(proj))
-    saved = json.loads(proj.read_text(encoding="utf-8"))
+    sys.path.insert(0, str(ROOT))
+    from auto3d import package
+    saved = package.load(proj)["project"]
     tool("open_file", path=str(proj))
     again = [p["name"] for p in json.loads(tool("list_parts")[0])]
     print(f"    export project: {saved['app']} v{saved['version']} {[p['name'] for p in saved['parts']]} | opened again the same: {again == [p['name'] for p in saved['parts']]}")

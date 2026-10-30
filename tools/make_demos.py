@@ -1,6 +1,6 @@
-"""Build the 🎬 demo projects (demos/*.a3d.json) through the app, as a user (or the AI) would: 3D models from sketches
+"""Build the 🎬 demo projects (demos/*.a3d) through the app, as a user (or the AI) would: 3D models from sketches
 and extrudes, an assembly with joints, the motions named in Czech, the mechanism's driver and name set — then the
-project as the app saves it, with its "demo" record (auto3d/demos.py).
+project as the app saves it (an .a3d package with its iso picture), with its "demo" record (auto3d/demos.py).
 
   PYTHONIOENCODING=utf-8 py tools/make_demos.py http://127.0.0.1:5199 [<out folder, default demos/ (or -)>] [<name> …]
 
@@ -17,13 +17,14 @@ import json
 import math
 import sys
 import time
+import urllib.request
 from pathlib import Path
 
 from selenium import webdriver
 
 URL = sys.argv[1]
 OUT = Path(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] != "-" else Path(__file__).resolve().parent.parent / "demos"
-ONLY = set(sys.argv[3:])  # (only these demos, by file name without .a3d.json — none: all)
+ONLY = set(sys.argv[3:])  # (only these demos, by file name without .a3d — none: all)
 opts = webdriver.EdgeOptions()
 opts.add_argument("--headless=new")
 opts.add_argument("--window-size=1600,1000")
@@ -123,9 +124,12 @@ def save(file, active_name, meta):
     pid = next(p["id"] for p in proj["parts"] if p["name"] == active_name)
     proj["active"] = {"part": pid}
     proj["demo"] = meta
+    thumb = d.execute_async_script("window.__app.projectThumb().then(arguments[arguments.length - 1], () => arguments[arguments.length - 1](null))")
+    req = urllib.request.Request(f"{URL.rstrip('/')}/api/project/package", json.dumps({"project": proj, "thumbnail": thumb}).encode("utf-8"),
+                                 {"Content-Type": "application/json"})
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / file).write_text(json.dumps(proj, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    print(f"  saved {OUT / file} ({(OUT / file).stat().st_size // 1024} kB)")
+    (OUT / file).write_bytes(urllib.request.urlopen(req, timeout=120).read())
+    print(f"  saved {OUT / file} ({(OUT / file).stat().st_size // 1024} kB{', with its picture' if thumb else ''})")
 
 
 try:
@@ -151,7 +155,7 @@ try:
         for j, n in (("J1", "klika na čepu základny"), ("J3", "ojnice na čepu kliky"), ("J7", "ojnice na čepu smýkadla")):
             js(f"{A}.doc.mates.find(m => m.id === arguments[0]).name = arguments[1]", j, n)
         print(call("drive_mechanism", driver={"part": "I2", "motion": 0}, name="Klikový mechanismus", to=40)[:140])
-        save("klikovy-mechanismus.a3d.json", "Klikový mechanismus", {
+        save("klikovy-mechanismus.a3d", "Klikový mechanismus", {
             "order": 1, "name": "Crank – rod – slider", "name_cs": "Klikový mechanismus",
             "text": "A crank turns, the rod pushes the slider to and fro — one slider (⚙ Mechanism) moves all three parts; ▶ plays it. Drag the crank in the view: the rest follows.",
             "text_cs": "Klika se otáčí, ojnice posouvá smýkadlo tam a zpět — jeden posuvník (⚙ Mechanismus) hýbe všemi třemi díly; ▶ ho přehraje. Táhněte kliku v pohledu: ostatní ji následují."})
@@ -192,7 +196,7 @@ try:
         call("name_motion", part="I2", motion=motion("I2", "Turn"), name="Otáčení kliky")
         call("name_motion", part="I4", motion=motion("I4", "Turn"), name="Kývání vahadla")
         print(call("drive_mechanism", driver={"part": "I2", "motion": 0}, name="Čtyřkloubový mechanismus", to=60)[:140])
-        save("ctyrkloubovy-mechanismus.a3d.json", "Čtyřkloubový mechanismus", {
+        save("ctyrkloubovy-mechanismus.a3d", "Čtyřkloubový mechanismus", {
             "order": 2, "name": "Four-bar linkage", "name_cs": "Čtyřkloubový mechanismus",
             "text": "The crank turns all the way round, the coupler swings the rocker to and fro (a crank–rocker: crank 20, coupler 70, rocker 50 mm on a 60 mm base).",
             "text_cs": "Klika se otáčí dokola, spojnice kýve vahadlem tam a zpět (klika–vahadlo: klika 20, spojnice 70, vahadlo 50 mm na základně 60 mm)."})
@@ -223,7 +227,7 @@ try:
         call("drive_mechanism", mechanism="I2", name="Rameno")
         call("drive_mechanism", mechanism="I3", name="Loket", to=60)
         print(call("drive_mechanism", mechanism="I2", to=30)[:140])
-        save("roboticke-rameno.a3d.json", "Robotické rameno", {
+        save("roboticke-rameno.a3d", "Robotické rameno", {
             "order": 3, "name": "Robot arm", "name_cs": "Robotické rameno",
             "text": "An open chain: turn the arm and the forearm with the gripper goes along; bend the elbow and the gripper follows it. Each joint has its own slider and ▶.",
             "text_cs": "Otevřený řetězec: otočte ramenem a předloktí s chapadlem jdou s ním; ohněte loket a chapadlo ho následuje. Každý kloub má svůj posuvník a ▶."})
@@ -265,7 +269,7 @@ try:
         call("name_motion", part="I4", motion=0, name="Posuv hřebene")
         call("set_travel", part="I2", motion="Otáčení pastorku", min=-120, max=120)
         print(call("drive_mechanism", driver={"part": "I2", "motion": 0}, name="Převodovka s hřebenem", to=0)[:140])
-        save("prevodovka-s-hrebenem.a3d.json", "Převodovka s hřebenem", {
+        save("prevodovka-s-hrebenem.a3d", "Převodovka s hřebenem", {
             "order": 4, "name": "Gears and a rack", "name_cs": "Převodovka s hřebenem",
             "text": "A pinion Ø30 turns a wheel Ø60 (⚙ i = 2:1 — half as fast, the other way) and moves a rack π·30 mm a turn — one slider (⚙ Mechanism) moves all three; ▶ plays it. Drag the wheel or push the rack in the view: the others follow.",
             "text_cs": "Pastorek Ø30 otáčí kolem Ø60 (⚙ i = 2:1 — polovičními otáčkami, opačně) a posouvá hřeben o π·30 mm na otáčku — jeden posuvník (⚙ Mechanismus) hýbe všemi třemi; ▶ ho přehraje. Táhněte kolo nebo hřeben v pohledu: ostatní je následují."})
@@ -325,7 +329,7 @@ try:
         for i, color in (("I2", "#e8a33d"), ("I3", "#4a90d9"), ("I4", "#d94a4a"), ("I5", "#3fb950")):
             call("set_look", part=i, color=color)
         print(call("drive_mechanism", mechanism="I2", name="Pumpička", to=at + (-3 if up else 3))[:160])
-        save("pumpicka.a3d.json", "Pumpička", {
+        save("pumpicka.a3d", "Pumpička", {
             "order": 5, "name": "Pump", "name_cs": "Pumpička",
             "text": "Press the button: the piston compresses the spring (〰 drawn as long as it is: free 20 mm, now, the force), the outlet ball lifts and the inlet ball sits on its seat; let go: the other way round — check valves (↕ by the piston's direction). ▶ plays it, 📈 Trace shows a ball's two stops.",
             "text_cs": "Zmáčkněte tlačítko: píst stlačí pružinu (〰 kreslená tak dlouhá, jaká je: volná 20 mm, teď, síla), výtlačná kulička se zvedne a sací dosedne do sedla; pusťte: naopak — zpětné ventily (↕ podle směru pístu). ▶ to přehraje, 📈 Průběh ukáže oba dorazy kuličky."})
@@ -363,7 +367,7 @@ try:
                    points=[{"part": "I2", "face": "F2:end"}, {"xyz": [62, 50, 34]}, {"xyz": [95, 18, 34]}, {"part": "I3", "face": "F2:side:l1"}])[:160])
         print(call("drive_mechanism", driver={"part": "I4", "motion": 0}, name="Motor", to=0)[:140])
         js(f"{A}.harnessTool.sel = null; {A}.render(); {A}.draw()")
-        save("ridici-box-s-motorem.a3d.json", "Řídicí box s motorem", {
+        save("ridici-box-s-motorem.a3d", "Řídicí box s motorem", {
             "order": 5, "name": "Control box with a motor", "name_cs": "Řídicí box s motorem",
             "text": "A PCB and a motor in a box, joined by a 🔌 cable harness of 4 loose wires (red, black, blue, brown) routed over the box — its length, the bends at the minimum radius, a BOM line per wire. Click the harness: edit its points, change it to a cable; ▶ turns the motor's pulley.",
             "text_cs": "Deska plošných spojů a motor v krabici, spojené 🔌 kabelovým svazkem ze 4 volných drátů (červený, černý, modrý, hnědý) vedeným nad krabicí — jeho délka, ohyby na minimální poloměr, řádek kusovníku na každý drát. Klikněte na svazek: upravte body, změňte ho na kabel; ▶ otáčí řemenicí motoru."})
@@ -430,7 +434,7 @@ try:
             call("set_look", part=i, color=color)
         print(call("drive_mechanism", driver={"part": "I3", "motion": 0}, name="Portálový pojezd", to=-60)[:140])
         js(f"{A}.harnessTool.sel = null; {A}.render(); {A}.draw()")
-        save("portalovy-pojezd.a3d.json", "Portálový pojezd", {
+        save("portalovy-pojezd.a3d", "Portálový pojezd", {
             "order": 6, "name": "Gantry carriage", "name_cs": "Portálový pojezd",
             "text": "A carriage on a rail (⚙ travel ±150 mm) with a NEMA 17 stepper; its cable runs from the box along the base in two 📎 P-clips (HellermannTyton H4P), through an igus E2.15 ⛓ energy chain and a clip on the carriage to the motor. ▶: the chain rolls with the carriage and the cable follows it — its 🔒 length stays the same.",
             "text_cs": "Vozík na kolejnici (⚙ pojezd ±150 mm) s krokovým motorem NEMA 17; jeho kabel vede z rozvodnice po základně ve dvou 📎 P-příchytkách (HellermannTyton H4P), energetickým řetězem igus E2.15 ⛓ a příchytkou na vozíku k motoru. ▶: řetěz se odvaluje s vozíkem a kabel ho následuje — jeho 🔒 délka zůstává stejná."})
@@ -486,7 +490,7 @@ try:
             call("set_look", part=i, color=color)
         print(call("drive_mechanism", driver={"part": "I2", "motion": 0}, name="Otočné rameno", to=40)[:140])
         js(f"{A}.harnessTool.sel = null; {A}.render(); {A}.draw()")
-        save("otocne-rameno-s-kabelem.a3d.json", "Otočné rameno s kabelem", {
+        save("otocne-rameno-s-kabelem.a3d", "Otočné rameno s kabelem", {
             "order": 7, "name": "Swinging arm with a cable", "name_cs": "Otočné rameno s kabelem",
             "text": "An arm on a hinge (⚙ −90 … +90°) with a SICK sensor at its tip, wired with 4 loose wires (brown, blue, black, white) from the controller: a ➰ loop of slack arching across the hinge onto the arm, two adhesive 📎 tie mounts (HellermannTyton MB3A) on the arm. ▶ swings the arm — the loop takes up the motion and never goes taut; the wires keep clear of the box and the arm.",
             "text_cs": "Rameno na čepu (⚙ −90 … +90°) se snímačem SICK na konci, zapojeným 4 volnými vodiči (hnědý, modrý, černý, bílý) z řídicí jednotky: ➰ smyčka rezervy obloukem přes kloub na rameno, na rameni dvě samolepicí 📎 příchytky (HellermannTyton MB3A). ▶ rameno kývá — smyčka pohyb vyrovná a nikdy se nenapne; vodiče se vyhnou krabici i rameni."})

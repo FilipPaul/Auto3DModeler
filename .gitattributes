@@ -5,3 +5,5 @@ samples/ExportFromOurApp/README.md text
 samples/ToImportToOurApp/** -text
 samples/ToImportToOurApp/README.md text
 samples/ToImportToOurApp/samples.json text
+# project files (.a3d: a ZIP) — never line-ending converted
+*.a3d binary

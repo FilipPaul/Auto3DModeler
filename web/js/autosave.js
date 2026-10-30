@@ -1,15 +1,20 @@
 // Autosave: the project on screen kept on the server (data/projects/) a few seconds after each change — a closed tab or
-// a browser crash loses nothing — and 🕘 Recent projects to open again (the last one offered when the app starts empty).
+// a browser crash loses nothing — and 🕘 Recent projects to open again (the last one offered when the app starts empty),
+// each with its picture (drawn after a save, at most every few minutes: THUMB_EVERY).
 import { t } from './i18n.js';
 import { confirmIn } from './choose.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const tv = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const when = (s) => new Date(s * 1000).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const THUMB_EVERY = 3 * 60e3; // ms: the kept project's picture drawn again at most this often
+/** A kept project's picture (its meta's `thumb`: the time it was drawn), else a box. */
+export const thumbHtml = (p, cls) => (p.thumb ? `<img class="${cls}" alt="" src="/api/projects/${encodeURIComponent(p.id)}/thumb?${p.thumb}">` : `<span class="${cls} pj-none">📦</span>`);
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
 
 export class Autosave {
   /** hooks: {project() -> the project file or null (nothing to keep), restore(project) (opens it), toast, status(el),
+   *  thumb() -> a PNG data URL of the part on screen or null,
    *  saved() (kept: 🕘 an automatic version may follow), elsewhere() -> Set of the project ids open in other windows}. paused: nothing kept (🕘 a version previewed is on screen). */
   constructor(hooks, { delay = 3000 } = {}) {
     this.hooks = hooks;
@@ -54,11 +59,25 @@ export class Autosave {
       this.savedAt = r.time;
       this.showStatus();
       this.hooks.saved?.();
+      this.keepThumb();
       return r;
     } catch (e) {
       this.showStatus(e.message);
       return null;
     }
+  }
+
+  /** The kept project's picture: drawn after a save when this project has none yet or it is older than THUMB_EVERY. */
+  async keepThumb() {
+    if (!this.hooks.thumb || this.thumbing || (this.thumbFor === this.id && Date.now() - this.thumbAt < THUMB_EVERY)) return;
+    const id = this.id;
+    this.thumbing = true;
+    try {
+      const url = await this.hooks.thumb().catch(() => null);
+      if (!url?.startsWith('data:image/png') || id !== this.id) return; // (nothing to draw yet: tried again after the next save)
+      const res = await fetch(`/api/projects/${encodeURIComponent(id)}/thumb`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ thumbnail: url }) });
+      if (res.ok) [this.thumbFor, this.thumbAt] = [id, Date.now()];
+    } catch { /* (the server away: next time) */ } finally { this.thumbing = false; }
   }
 
   showStatus(error) {
@@ -98,7 +117,7 @@ export class Autosave {
     if (!last || this.hooks.project()?.parts?.length) return;
     const bar = document.createElement('div');
     bar.className = 'restore-bar';
-    bar.innerHTML = `<span>Continue where you left off:</span> <b data-no-i18n>${esc(last.name)}</b> <i data-no-i18n>${esc(when(last.time))}</i> <i>${last.parts.length} part(s)</i>
+    bar.innerHTML = `<span>Continue where you left off:</span> ${thumbHtml(last, 'rb-thumb')} <b data-no-i18n>${esc(last.name)}</b> <i data-no-i18n>${esc(when(last.time))}</i> <i>${last.parts.length} part(s)</i>
       <button class="btn small primary" data-a="open">Open</button><button class="btn small" data-a="recent">🕘 Recent projects…</button><button class="mini" data-a="x" title="Close">✕</button>`;
     bar.querySelector('[data-a=open]').addEventListener('click', async () => { bar.remove(); try { await this.open(last.id); this.hooks.toast(tv('“{name}” is open again.', { name: last.name }), 'ok'); } catch (e) { this.hooks.toast(e.message, 'error'); } });
     bar.querySelector('[data-a=recent]').addEventListener('click', () => { bar.remove(); this.showRecent(); });
@@ -106,6 +125,23 @@ export class Autosave {
     const top = document.querySelector('body > .topbar');
     if (top) top.after(bar); else document.body.prepend(bar);
     this.bar = bar;
+  }
+
+  /** The start screen's last projects (up to 4, not the one on screen) as pictures to click: `el` filled, hidden when none. */
+  async fillStart(el) {
+    if (!el) return;
+    let list = [];
+    try { list = (await this.recent()).filter((p) => p.id !== this.id).slice(0, 4); } catch { list = []; }
+    el.hidden = !list.length;
+    if (!list.length) { el.innerHTML = ''; return; }
+    el.innerHTML = `<span>${esc(t('🕘 Recent projects'))}</span><div class="st-recent-row">${list.map((p) => `<button class="st-proj" data-id="${esc(p.id)}" title="${esc(t('Open'))}: ${esc(p.name)}">
+      ${thumbHtml(p, '')}<b data-no-i18n>${esc(p.name)}</b><i data-no-i18n>${esc(when(p.time))}</i></button>`).join('')}</div>`;
+    for (const b of el.querySelectorAll('.st-proj')) {
+      b.addEventListener('click', async () => {
+        const p = list.find((x) => x.id === b.dataset.id);
+        try { await this.open(p.id); this.hooks.toast(tv('“{name}” is open again.', { name: p.name }), 'ok'); } catch (e) { this.hooks.toast(e.message, 'error'); }
+      });
+    }
   }
 
   async showRecent() {
@@ -127,7 +163,7 @@ export class Autosave {
       const box = back.querySelector('.aih-list'), list = await this.recent().catch(() => []);
       const open = await (this.hooks.elsewhere?.() || new Set()); // (open in another window: said on its row)
       if (!list.length) { box.innerHTML = '<p class="hint">Nothing kept yet.</p>'; return; }
-      box.innerHTML = list.map((p) => `<div class="aih-row" data-id="${esc(p.id)}"><div class="aih-text">
+      box.innerHTML = list.map((p) => `<div class="aih-row" data-id="${esc(p.id)}">${thumbHtml(p, 'aih-thumb')}<div class="aih-text">
           <span class="aih-when"><span data-no-i18n>${esc(when(p.time))}</span>${p.id === this.id ? ' · <b>on screen</b>' : open.has(p.id) ? ' · <b>open in another window</b>' : ''}</span>
           <span class="aih-prompt" data-no-i18n>${esc(p.name)}</span><span class="aih-parts" data-no-i18n>${esc(p.parts.map((x) => x.name).join(', '))}</span></div>
         <span class="aih-acts"><button class="btn small primary" data-open ${p.id === this.id ? 'disabled' : ''}>Open</button>

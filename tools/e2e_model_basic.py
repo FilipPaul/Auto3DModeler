@@ -19,6 +19,9 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from auto3d import package  # noqa: E402  (the saved .a3d read back)
+
 URL, OUT = sys.argv[1], sys.argv[2]
 opts = webdriver.EdgeOptions()
 opts.add_argument("--headless=new")
@@ -184,7 +187,7 @@ try:
 
     # export STL (Save dialog stubbed)
     js("""window.__saved = null; window.showSaveFilePicker = async (o) => ({ name: o.suggestedName,
-      createWritable: async () => ({ write: async (b) => { window.__saved = { size: b.size, text: b.type === 'application/json' ? await b.text() : null }; }, close: async () => {} }) });""")
+      createWritable: async () => ({ write: async (b) => { const u = new Uint8Array(await b.arrayBuffer()); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); window.__saved = { size: b.size, text: b.type === 'application/zip' ? btoa(s) : null }; }, close: async () => {} }) });""")
     d.find_element(By.ID, "exportBtn").click()
     d.find_element(By.CSS_SELECTOR, "[data-fmt=stl]").click()
     wait("return window.__saved")
@@ -203,10 +206,11 @@ try:
     js("window.__saved = null")
     d.find_element(By.ID, "saveBtn").click()
     wait("return window.__saved?.text")
-    proj = json.loads(js("return window.__saved.text"))
+    raw = __import__("base64").b64decode(js("return window.__saved.text"))
+    proj = package.load(raw)["project"]
     print("saved:", [(p["id"], p["kind"], p["name"], len(p.get("model", {}).get("features", []))) for p in proj["parts"]])
-    path = Path(OUT) / "model_project.a3d.json"
-    path.write_text(json.dumps(proj), encoding="utf-8")
+    path = Path(OUT) / "model_project.a3d"
+    path.write_bytes(raw)
     d.get(URL)
     wait("return !!window.__app")
     d.find_element(By.ID, "projectInput").send_keys(str(path))

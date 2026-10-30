@@ -40,7 +40,7 @@ them. To make them again, start a server and run
 | `sheet_base_plate.dxf` | The same sheet as DXF (AutoCAD 2010, mm, the paper 1:1) | Solid Edge Draft, AutoCAD, LibreCAD, ShareCAD.org | Layers `visible`, `hidden` (dashed), `dims`, `text`, `frame`; the dimensions are **real DIMENSION entities** that measure 80, 50, 10 …; the countersink callout keeps its ⌵ and ×. |
 | `sheet_frame.pdf` | The Frame's assembly drawing, A4, scale 1:2 | A PDF viewer | Front / Top / iso views, balloons 1–3, the parts list (Base plate 1, ◇ Post pair 2, ISO 10642 M6×16 4 with its part number) with each part's material; the title block's material "—". |
 | `sheet_frame.dxf` | The assembly drawing as DXF | A DXF viewer | Overall sizes 80, 56, 50 as dimensions; the parts list as text. |
-| `project_frame.a3d.json` | The whole project (💾 Save project): 3 parts, 2 assemblies, 2 sheets | Our app: Open → Project…, or drop it on the window | The tabs Base plate, Post, Post pair, Frame, ISO 10642 M6×16 and the two drawings come back as they were. |
+| `project_frame.a3d` | The whole project (💾 Save project; a ZIP: project.json + thumbnail.png): 3 parts, 2 assemblies, 2 sheets | Our app: Open → Project…, or drop it on the window | The tabs Base plate, Post, Post pair, Frame, ISO 10642 M6×16 and the two drawings come back as they were. |
 
 ## Export check — what to try
 

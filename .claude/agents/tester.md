@@ -181,6 +181,11 @@ Never report "works" without having run it; report failures with their output.
    autosave, the AI history and library tests do not land in the user's data/ (recent projects, own parts).
    `tools/e2e_autosave.py <url> <dir>` covers autosave (kept a few seconds after a change, "✓ Saved"; a reload offers it,
    Open brings the parts and steps back under the same project; a change keeps one project; 🕘 Recent projects; ✕ forgets).
+   `tools/e2e_project_package.py <url> <dir>` covers 💾 Save project as an `.a3d` (a ZIP): an imported STEP, a sketched
+   part and an assembly -> the download `<name>.a3d` with project.json, `blobs/<the STEP's name>` byte for byte, a 512 px
+   iso thumbnail.png -> opened on a fresh page: the same parts, steps, assembly, the STEP back in the store -> 🕘 Recent
+   projects and the start screen show each project's picture (img, loaded, not blank; a click opens it) -> the 🎬 demo
+   cards' pictures -> a file that is no project said in a toast; no console errors.
    `tools/e2e_reported.py <url> <dir>` covers the AI's reports in RealSWReports (a sketch's new plane keeps its shapes, a
    mirror's new `of` keeps its plane, a chosen part keeps its colours) and the joint's ↕ gap slider (17 -> the part up 17,
    0 catches, typed, undo).
@@ -465,9 +470,9 @@ Never report "works" without having run it; report failures with their output.
    assembly's bars: each group in one run, one colour per group, the groups' colours differ; screenshots of the bars).
    `tools/e2e_report_project.py <url> <dir>` covers the project attached to an AI problem report (run the server with
    `A3D_REPORTS=<scratch>/reports`: a part, a second one and an assembly, a ⏺ recording of clicks, stopped ->
-   report_problem writes the .md, `<base>.a3d.json.gz` and `<base>.recording.json`, the Project / Recording lines;
+   report_problem writes the .md, `<base>.a3d` (with its picture) and `<base>.recording.json`, the Project / Recording lines;
    get_screenshot {ui: true} then screenshots ["last", {shot: "view", caption}]: `<base>.shot-1/2.png` valid pictures
-   of a sensible size, linked from the .md; list_reports names them all -> a new project, the .gz opened through 📂 Open › File…: the same parts and steps; no
+   of a sensible size, linked from the .md; list_reports names them all -> a new project, the .a3d opened through 📂 Open › File…: the same parts and steps; no
    console errors). Exits 1 on a failed check.
    `tools/e2e_ai_reports.py <url> <dir>` covers the fixes from the AI's reports (a zoomed-out view: get_screenshot
    fitted again, fit: false kept; set_view section "off": no cut; gui_state's step rows and a choice's text; the Snap
@@ -1032,7 +1037,8 @@ Never report "works" without having run it; report failures with their output.
      sketch mode and every command panel.
    - AI: tools/e2e_agent.py builds the skill example part through the MCP process and compares the
      volume; check the chat `init` event lists the Skill tool and the auto3d:* skills.
-   - Old project files (v1/v2 .a3d.json) must open unchanged in the Quick part workspace.
+   - Project files are `.a3d` packages (auto3d/package.py); a v1/v2 project inside one still opens in the Quick part
+     workspace (e2e_project.py). The old `.a3d.json` files are no longer opened (the owner, 2026-10-30).
    - Intuitiveness: for every new flow, count the clicks from an empty app to a printable result and
      report it; flag any step where a first-time user would not know what to do next.
 

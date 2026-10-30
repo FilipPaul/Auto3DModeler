@@ -16,6 +16,9 @@ from selenium import webdriver
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from auto3d import package  # noqa: E402  (the saved .a3d read back)
+
 URL, IMG, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
 opts = webdriver.EdgeOptions()
 opts.add_argument("--headless=new")
@@ -140,12 +143,12 @@ try:
 
     # save -> reload -> open: the layer picture comes back (Edit outline still available)
     js("""window.__saved = null; const orig = URL.createObjectURL;
-      URL.createObjectURL = (b) => { b.text().then((t) => { window.__saved = t; }); return orig(b); };""")
+      URL.createObjectURL = (b) => { (async () => { const u = new Uint8Array(await b.arrayBuffer()); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); window.__saved = btoa(s); })(); return orig(b); };""")
     js("document.getElementById('saveBtn').click()")
-    saved = wait("return window.__saved")
-    proj = json.loads(saved)
-    path = Path(OUT) / "picklayers.a3d.json"
-    path.write_text(saved, encoding="utf-8")
+    saved = __import__("base64").b64decode(wait("return window.__saved"))
+    proj = package.load(saved)["project"]
+    path = Path(OUT) / "picklayers.a3d"
+    path.write_bytes(saved)
     part = proj["parts"][0]["classic"] if "parts" in proj else proj  # a v3 file keeps the quick part under parts[].classic
     print("saved: layer_pictures", list(part.get("layer_pictures", {}).keys()), "| objects", [o["name"] for o in part["model"]["objects"]])
     d.get(URL)

@@ -108,7 +108,7 @@ try:
 
     # ---- rename the project in the top bar, save with the Save dialog (stubbed: headless has no dialog)
     js("""window.__picked = null; window.showSaveFilePicker = async (o) => { window.__picked = {name: o.suggestedName, id: o.id};
-      return { name: 'Renamed in dialog.a3d.json', createWritable: async () => ({ write: async (b) => { window.__picked.size = b.size; }, close: async () => {} }) }; };""")
+      return { name: 'Renamed in dialog.a3d', createWritable: async () => ({ write: async (b) => { window.__picked.size = b.size; }, close: async () => {} }) }; };""")
     name = d.find_element(By.ID, "fileName")
     name.click(); time.sleep(0.2)
     ActionChains(d).key_down(Keys.CONTROL).send_keys("a").key_up(Keys.CONTROL).send_keys("Plate with holes").send_keys(Keys.ENTER).perform()

@@ -138,7 +138,7 @@ class TestProjectTools(unittest.TestCase):
         text, err = self.call("list_demos")
         rows = json.loads(text)
         self.assertFalse(err)
-        self.assertTrue(any(d["file"] == "klikovy-mechanismus.a3d.json" for d in rows))
+        self.assertTrue(any(d["file"] == "klikovy-mechanismus.a3d" for d in rows))
         self.assertTrue(all(d["name"] and d["name_cs"] and d["parts"] for d in rows))
         text, err = self.call("open_demo", name="crank")  # (words of its English name)
         self.assertFalse(err, text)
@@ -150,20 +150,20 @@ class TestProjectTools(unittest.TestCase):
         self.assertEqual(len(self.sent), 2)
         text, err = self.call("open_demo", name="spaceship")
         self.assertTrue(err)
-        self.assertIn("klikovy-mechanismus.a3d.json", text)  # (it names the ones there are)
+        self.assertIn("klikovy-mechanismus.a3d", text)  # (it names the ones there are)
         self.assertEqual(len(self.sent), 2)
 
     def test_open_a_project_file(self):
-        import base64
         import tempfile
+        from auto3d import package
         from auto3d.modeler import blobs
         data = b"solid j-aicov test blob\n"
         sha = __import__("hashlib").sha256(data).hexdigest()
-        proj = {"app": "Auto3DModeler", "version": 3, "project_name": "Saved", "parts": [{"id": "p1", "name": "Plate", "kind": "model", "data": {"features": []}}],
-                "blobs": {sha: base64.b64encode(data).decode()}, "versions": {"x": 1}}
+        proj = {"app": "Auto3DModeler", "version": 3, "project_name": "Saved",
+                "parts": [{"id": "p1", "name": "Plate", "kind": "model", "model": {"features": [{"id": "F1", "type": "solid", "blob": sha, "file": "pin.stl"}]}}]}
         with tempfile.TemporaryDirectory() as tmp, unittest.mock.patch.object(blobs, "DIR", Path(tmp) / "blobs"):
-            f = Path(tmp) / "saved.a3d.json"
-            f.write_text(json.dumps(proj), encoding="utf-8")
+            f = Path(tmp) / "saved.a3d"
+            f.write_bytes(package.write(proj, {sha: data}.get, {"x": 1})[0])
             text, err = self.call("open_file", path=str(f))
             self.assertFalse(err, text)
             cmd, args = self.sent[-1]
@@ -172,7 +172,7 @@ class TestProjectTools(unittest.TestCase):
             self.assertNotIn("blobs", args["project"])
             self.assertEqual(args["versions"], {"x": 1})  # (the 🕘 history goes along, the page bundles it in)
             self.assertEqual(blobs.get(sha), data)  # (its imported files are in the store again)
-            f.write_text("{not json", encoding="utf-8")
+            f.write_text("{not a zip", encoding="utf-8")
             text, err = self.call("open_file", path=str(f))
             self.assertTrue(err)
             self.assertIn("not a project file", text)

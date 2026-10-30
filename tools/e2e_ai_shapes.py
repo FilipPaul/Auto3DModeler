@@ -100,7 +100,7 @@ try:
     if path and os.path.exists(path):
         text = open(path, encoding="utf-8").read()
         print("  the report:", text.splitlines()[0], "|", [ln for ln in text.splitlines() if ln.startswith("- **Date")][0][:40])
-        for ext in ("", ".a3d.json.gz", ".recording.json"):  # (with the project / the recording attached to it)
+        for ext in ("", ".a3d", ".recording.json"):  # (with the project / the recording attached to it)
             if os.path.exists(path[:-3] + ext if ext else path):
                 os.remove(path[:-3] + ext if ext else path)
         try:

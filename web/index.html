@@ -42,14 +42,14 @@
           <label class="menu-item" title="DXF / DWG drawings, PCB data (a Gerber set or an ODB++ job: a .zip / .tgz, or several Gerber / drill files) and STL / OBJ / 3MF / STEP / IGES 3D files">CAD / PCB / 3D file (DXF, DWG, Gerber, ODB++, STL, OBJ, 3MF, STEP, IGES)…<input type="file" id="cadInput" multiple accept=".dxf,.dwg,.stl,.obj,.3mf,.step,.stp,.igs,.iges,.zip,.tgz,.tar,.gz,.gbr,.ger,.gtl,.gbl,.gto,.gbo,.gts,.gbs,.gtp,.gbp,.gko,.gm1,.gml,.gm,.g1,.g2,.g3,.g4,.cmp,.sol,.plc,.pls,.stc,.sts,.art,.pho,.drl,.xln,.drd,.exc,.ncd,.txt" hidden></label>
           <button id="sampleBtn" title="Load initial draft.pdf">Sample drawing</button>
           <div class="menu-sep"></div>
-          <label class="menu-item" title="A project saved with Save project (.a3d.json) — all its parts">Project…<input type="file" id="projectInput" accept=".json,.gz,application/json" hidden></label>
+          <label class="menu-item" title="A project saved with Save project (.a3d) — all its parts">Project…<input type="file" id="projectInput" accept=".a3d" hidden></label>
           <button id="recentBtn" title="The projects kept on the server (autosaved a few seconds after each change)">🕘 Recent projects…</button>
           <button id="demoBtn" title="Ready-made projects to try — mechanisms that move as a whole; each opens as a new copy">🎬 Demo projects…</button>
         </div>
       </div>
       <button class="btn" id="libBtn" title="Parts library: real parts to use — screws, nuts, inserts, bearings, standoffs, panel parts, SMC pneumatics, SICK sensors, stepper motors (with their part numbers)">📚 Library</button>
       <span class="sep"></span>
-      <button class="btn" id="saveBtn" disabled title="Save all parts of the project in one file (.a3d.json)">Save project</button>
+      <button class="btn" id="saveBtn" disabled title="Save all parts of the project in one file (.a3d)">Save project</button>
       <div class="menu save-menu" id="saveMenuWrap"><button class="btn caret" id="saveMenuBtn" title="Options of Save project">▾</button>
         <div class="menu-list"><label class="menu-item" title="The file also holds the project's 🕘 versions and variants — opening it brings them back (a bigger file)"><input type="checkbox" id="saveWithVersions"> with version history</label></div></div>
       <span class="sep"></span>
@@ -88,7 +88,8 @@
           <button class="st-card" data-start="demo" title="Ready-made projects to try — mechanisms that move; each opens as a new copy"><span class="st-i">🎬</span><b>Demo</b><span class="st-sub">A ready-made mechanism to try</span></button>
           <button class="st-card" data-start="ai" title="Describe the part in your own words — Claude makes it in the app"><span class="st-i">✨</span><b>Ask the AI</b><span class="st-sub">Describe the part, Claude makes it</span></button>
         </div>
-        <input type="file" id="anyInput" multiple hidden accept=".a3d.json,.json,.pdf,image/*,.dxf,.dwg,.stl,.obj,.3mf,.step,.stp,.igs,.iges,.zip,.tgz,.tar,.gz,.gbr,.ger,.gtl,.gbl,.gto,.gbo,.gts,.gbs,.gtp,.gbp,.gko,.gm1,.gml,.gm,.g1,.g2,.g3,.g4,.cmp,.sol,.plc,.pls,.stc,.sts,.art,.pho,.drl,.xln,.drd,.exc,.ncd,.txt">
+        <div class="st-recent" id="startRecent" hidden></div>
+        <input type="file" id="anyInput" multiple hidden accept=".a3d,.pdf,image/*,.dxf,.dwg,.stl,.obj,.3mf,.step,.stp,.igs,.iges,.zip,.tgz,.tar,.gz,.gbr,.ger,.gtl,.gbl,.gto,.gbo,.gts,.gbs,.gtp,.gbp,.gko,.gm1,.gml,.gm,.g1,.g2,.g3,.g4,.cmp,.sol,.plc,.pls,.stc,.sts,.art,.pho,.drl,.xln,.drd,.exc,.ncd,.txt">
       </div>
     </div>
     <aside class="panel left quick-only">

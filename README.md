@@ -355,8 +355,10 @@ screen in two windows shows the change in both), and the project is saved the sa
 
 **Autosave**: the project is kept on the server (`data/projects/`) a few seconds after each change — "✓ Saved 22:31" by
 the project's name says so — so a closed tab or a browser crash loses nothing. **Open ▾ → 🕘 Recent projects…** lists
-the kept projects to open again (✕ forgets one; **🧹 Clean up empty projects** deletes, after asking, every one with
-nothing in it that still has the name the app gave it — the one on screen stays); when the app starts empty, the last one is offered in a strip under the top bar (it goes once a part is opened or made).
+the kept projects to open again, each with its picture (an iso view of its 3D model / assembly, drawn after a save at
+most every 3 minutes: `data/projects/<id>.png`) (✕ forgets one; **🧹 Clean up empty projects** deletes, after asking, every one with
+nothing in it that still has the name the app gave it — the one on screen stays); when the app starts empty, the last one is offered in a strip under the top bar (it goes once a part is opened or made)
+and the start screen shows the last four as pictures to click.
 *Save project* still writes a file to keep or send.
 
 **📄 New project** (**Open ▾ → 📄 New project**, **Ctrl+Alt+N** — Ctrl+N is the browser's own new window — or the
@@ -418,8 +420,20 @@ from it), ⌂ for the usual iso view — the part stays fitted. The face, edge o
 works in a sketch too.
 On a narrow view (a small window, wide side panels) the command bars show only their tools' icons — the name is in
 the tooltip — so they keep to two rows; a wider view brings the names back.
-*Save project* stores all the parts in one file (project version 3). Older project files still open, as a
-project with one part. The plan for the coming 3D model workspace (sketches → extrude / revolve / fillet …,
+*Save project* stores all the parts in one file, **`<name>.a3d`**. It is a ZIP (rename it to `.zip` to look inside,
+as with .3mf or .docx):
+- `project.json` — the project: parts, assemblies, sheets, parameters, harnesses (`"format": "a3d-package"`);
+- `blobs/<file name>` — every imported file (STEP, IGES, STL …) **byte for byte the original file, under its original
+  name** (two files of one name: the second as `blobs/<sha-256>.<ext>`) — take a STEP out and use it in another CAD;
+  a file changed there and put back opens with the change;
+- `versions/` — 🕘 the version history, when saved *with version history*;
+- `thumbnail.png` — an iso picture of the 3D model / assembly on screen (512 × 384; a drawn box for a project without
+  one), shown on the 🎬 demo cards.
+
+The imported files are stored binary (no base64) and STEP / IGES text deflated: a real 35 MB `.a3d.json` with two STEP
+boards became a 4.4 MB `.a3d`. Open a project with 📂 Open ▾ › Project… (or File…, or drop it on the window). The
+older `.a3d.json` / `.a3d.json.gz` files are no longer opened. The app registers nothing with Windows; its Open dialogs
+list `.a3d`. The plan for the coming 3D model workspace (sketches → extrude / revolve / fillet …,
 light assemblies) is in [docs/ARCHITECTURE-modeler.md](docs/ARCHITECTURE-modeler.md). Its optional packages
 are listed in `requirements-modeler.txt`; the app works without them.
 
@@ -1464,9 +1478,9 @@ can open them.
   picture — its pixels — is what `gui_action` / `gui_highlight` `at` take, clicked through the camera that drew it, so
   an edge aimed at in the picture is the edge picked however the view on screen is shaped),
   parts renamed or deleted, and files: `export` stl / step / pdf / **3mf** / **bom** / **dxf** / **project** (the
-  whole project as a .a3d.json, as *Save project*).
+  whole project as an .a3d, as *Save project*).
 - **Demos, project files, variants, mechanisms**: ask "open the crank demo, tell me its mass and save a GIF of it" —
-  the AI opens a 🎬 demo (`list_demos`, `open_demo`) or a saved project (`open_file` of a .a3d.json), reads each placed
+  the AI opens a 🎬 demo (`list_demos`, `open_demo`) or a saved project (`open_file` of an .a3d), reads each placed
   part's mass, traces how the slider moves over a turn of the crank (`drive_mechanism {trace: true}`, the 📈 Trace),
   adds the joint the *One joint is missing* line offers (`add_missing_joint`), fixes a part in place
   (`place_part {fixed}`), switches 🕘 variants and takes a part from another one (`switch_variant`, `take_part`), and
@@ -1483,9 +1497,9 @@ can open them.
   (server started at main @ 92d0e37, …; checkout now at 1e35a8d — restart the app to run it)* — and the page's commit
   when the browser page was loaded with another one; the portable / installed app says the commit it was built from:
   *0.9.0 (portable, built from main @ abc1234, 2026-10-30)*. Each report carries the **project** on screen, so someone
-  else can reproduce it: `<report>.a3d.json.gz` next to the `.md` (the Save project file, gzip-compressed, without
-  its version history; an imported file over 3 MB — then the largest ones until it is under about 5 MB — left out
-  with a note of its name and size) — open it with 📂 Open ▾ › File… (the app reads `.a3d.json.gz`). A ⏺ recording
+  else can reproduce it: `<report>.a3d` next to the `.md` (the Save project file, without its version history; an
+  imported file over 3 MB — then the largest ones until it is under about 5 MB — left out with a note of its name and
+  size) — open it with 📂 Open ▾ › File…. A ⏺ recording
   of moves running or stopped in the last 30 minutes goes along as `<report>.recording.json` (its events, without the
   screenshots). The report's lines *Project:* / *Recording:* name them; `list_reports` says which reports have them.
   When a picture helps (a button that is not there, a menu covering another, a rendering glitch) the AI attaches
@@ -1872,7 +1886,7 @@ open on the back, pieces are exported back-face up so the pockets face upwards; 
 embossed design this is reported instead. Integral joints make pieces longer, which the split planner
 accounts for.
 
-Projects (model, edited/added dimensions, design layers) can be saved/loaded as `.a3d.json`.
+Projects (model, edited/added dimensions, design layers) can be saved/loaded as `.a3d` (a ZIP: see *Save project* above).
 
 ## Windows program for customers (no Python)
 

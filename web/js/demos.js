@@ -1,5 +1,5 @@
 // 🎬 Demo projects (Open ▾ → Demo projects…): the ready-made projects of demos/ (served read-only: /api/demos), each
-// with its name and what it shows, in the app's language. A click opens one as a new project — a copy: the demo
+// with its picture, its name and what it shows, in the app's language. A click opens one as a new project — a copy: the demo
 // file itself never changes (auto3d/demos.py).
 import { t, getLang } from './i18n.js';
 
@@ -25,7 +25,7 @@ export async function showDemos({ open, toast }) {
   try { list = (await (await fetch('/api/demos')).json()).demos || []; } catch { list = []; }
   if (!list.length) { box.innerHTML = `<p class="hint">${esc(t('No demo projects found.'))}</p>`; return; }
   const cs = getLang() === 'cs';
-  box.innerHTML = list.map((d) => `<div class="aih-row" data-demo="${esc(d.file)}"><div class="aih-text">
+  box.innerHTML = list.map((d) => `<div class="aih-row" data-demo="${esc(d.file)}">${d.thumb ? `<img class="aih-thumb" alt="" src="/api/demos/${encodeURIComponent(d.file)}/thumb">` : ''}<div class="aih-text">
       <span class="aih-prompt" data-no-i18n><b>${esc(cs ? d.name_cs : d.name)}</b></span>
       <span class="aih-when" data-no-i18n>${esc(cs ? d.text_cs : d.text)}</span>
       <span class="aih-parts" data-no-i18n>${esc(d.parts.join(', '))}</span></div>

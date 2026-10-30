@@ -14,6 +14,9 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.actions.wheel_input import ScrollOrigin
 from selenium.webdriver.common.by import By
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from auto3d import package  # noqa: E402  (the saved .a3d read back)
+
 URL, IMG, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
 opts = webdriver.EdgeOptions()
 opts.add_argument("--headless=new")
@@ -120,12 +123,12 @@ try:
 
     # save the project (capture the download), reload, open it
     js("""window.__saved = null; window.showSaveFilePicker = async (o) => ({ name: o.suggestedName,
-      createWritable: async () => ({ write: async (b) => { window.__saved = await b.text(); }, close: async () => {} }) });""")
+      createWritable: async () => ({ write: async (b) => { const u = new Uint8Array(await b.arrayBuffer()); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); window.__saved = btoa(s); }, close: async () => {} }) });""")
     js("document.getElementById('saveBtn').click()")
-    saved = wait("return window.__saved")
-    proj = (lambda p: next(q for q in p["parts"] if q["id"] == p["active"]["part"])["classic"])(json.loads(saved))  # project v3: the part on screen
-    path = Path(OUT) / "roundtrip.a3d.json"
-    path.write_text(saved, encoding="utf-8")
+    saved = __import__("base64").b64decode(wait("return window.__saved"))
+    proj = (lambda p: next(q for q in p["parts"] if q["id"] == p["active"]["part"])["classic"])(package.load(saved)["project"])  # project v3: the part on screen
+    path = Path(OUT) / "roundtrip.a3d"
+    path.write_bytes(saved)
     print(f"project saved: {len(saved) // 1024} kB, outline_editor: mask {bool(proj.get('outline_editor', {}).get('mask'))}, "
           f"hints.seeds {len(proj['outline_editor']['hints']['seeds'])}, picture {bool(proj['preview'].get('image'))}")
     d.get(URL)

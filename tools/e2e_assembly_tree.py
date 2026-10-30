@@ -165,12 +165,12 @@ try:
     kept = json.loads(js("return localStorage.getItem('a3d.asmTree')"))
     print("remembered:", kept)
     check(list(kept.values()) == [["I4"]], "▾ folds it again; the open ones kept per assembly")
-    path = os.path.abspath(os.path.join(OUT, "tree.a3d.json"))
-    with open(path, "w", encoding="utf-8") as f:
+    path = os.path.abspath(os.path.join(OUT, "tree.a3d"))
+    with open(path, "wb") as f:
         js("""window.__saved = null; window.showSaveFilePicker = async (o) => ({ name: o.suggestedName,
-          createWritable: async () => ({ write: async (b) => { window.__saved = await b.text(); }, close: async () => {} }) });""")
+          createWritable: async () => ({ write: async (b) => { const u = new Uint8Array(await b.arrayBuffer()); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); window.__saved = btoa(s); }, close: async () => {} }) });""")
         d.find_element(By.ID, "saveBtn").click()
-        f.write(wait("return window.__saved", 30))
+        f.write(__import__("base64").b64decode(wait("return window.__saved", 30)))
     d.get(URL)
     wait("return !!window.__app")
     d.find_element(By.ID, "projectInput").send_keys(path)

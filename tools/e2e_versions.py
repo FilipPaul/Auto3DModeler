@@ -229,8 +229,11 @@ try:
     proj = js("return window.__app.savedProject({ history: true })")
     nv = len((proj.get("versions") or {}).get("versions") or [])
     check(nv >= 5 and proj["versions"]["objects"], f"the project file holds {nv} versions and their objects ({len(json.dumps(proj)) // 1024} kB)")
-    js("""const f = new File([JSON.stringify(arguments[0])], 'kvadr.a3d.json', {type: 'application/json'}), dt = new DataTransfer();
-      dt.items.add(f); const i = document.getElementById('projectInput'); i.files = dt.files; i.dispatchEvent(new Event('change'));""", proj)
+    a3d = js("""return window.__app.savedProject({ history: false }).then((p) => fetch('/api/project/package', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: p, versions_of: window.__app.autosave.id }) }))
+      .then((r) => r.arrayBuffer()).then((buf) => { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s); })""")
+    js("""const b = Uint8Array.from(atob(arguments[0]), (c) => c.charCodeAt(0)), f = new File([b], 'kvadr.a3d', {type: 'application/zip'}), dt = new DataTransfer();
+      dt.items.add(f); const i = document.getElementById('projectInput'); i.files = dt.files; i.dispatchEvent(new Event('change'));""", a3d)
     wait(f"return window.__app.autosave.id !== arguments[0]".replace("arguments[0]", json.dumps(pid)), 20)
     wait(f"return {V}.pid === window.__app.autosave.id && {V}.data?.versions?.some(m => m.label === 'B')", 20)
     labels = [x["label"] for x in rows()]

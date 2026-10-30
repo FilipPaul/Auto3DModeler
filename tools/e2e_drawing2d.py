@@ -8,6 +8,7 @@ usage (server running, e.g. `py server.py --port 5199 --no-browser`):
   PYTHONIOENCODING=utf-8 py tools/e2e_drawing2d.py http://127.0.0.1:5199 <out dir> [<a .dxf> — else a test plate is made]
 """
 import json
+import os
 import sys
 import time
 
@@ -15,6 +16,9 @@ from selenium import webdriver
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from auto3d import package  # noqa: E402  (the saved .a3d read back)
 
 URL, OUT = sys.argv[1], sys.argv[2]
 DXF = sys.argv[3] if len(sys.argv) > 3 else None
@@ -142,14 +146,15 @@ try:
     print("as a quick part:", js("return window.__app.state.model.kind || window.__app.state.model.source"), "| size", [round(v, 2) for v in sol["bbox"]], "| volume", round(sol["volume"], 1))
 
     js("""window.__saved = []; window.showSaveFilePicker = async (o) => ({ name: o.suggestedName,
-      createWritable: async () => ({ write: async (b) => { window.__saved.push(await b.text()); }, close: async () => {} }) });""")
+      createWritable: async () => ({ write: async (b) => { const u = new Uint8Array(await b.arrayBuffer()); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); window.__saved.push(btoa(s)); }, close: async () => {} }) });""")
     d.find_element(By.ID, "saveBtn").click()
     wait("return window.__saved.length === 1", 30)
-    proj = json.loads(js("return window.__saved[0]"))
+    raw = __import__("base64").b64decode(js("return window.__saved[0]"))
+    proj = package.load(raw)["project"]
     print("saved:", [(p["kind"], p["name"]) for p in proj["parts"]])
-    path = f"{OUT}/dw_project.a3d.json"
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(proj, fh)
+    path = f"{OUT}/dw_project.a3d"
+    with open(path, "wb") as fh:
+        fh.write(raw)
     d.find_element(By.ID, "projectInput").send_keys(path)
     wait("return [...document.querySelectorAll('.toast')].some(t => t.textContent.includes('Project loaded'))", 30)
     next(t for t in d.find_elements(By.CSS_SELECTOR, "#partTabs .part-tab") if t.text.startswith("plate") and "3D" not in t.text).click()

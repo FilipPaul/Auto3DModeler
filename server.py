@@ -179,6 +179,77 @@ def api_project_migrate():
         return jsonify({"error": str(e)}), 400
 
 
+def _package_of(proj: dict, versions_of=None, thumbnail=None) -> tuple[bytes, list[str]]:
+    """A project (Save project's JSON) -> the .a3d package (auto3d/package.py): its imported files from the blob store,
+    🕘 the version history of the project `versions_of` (its autosave id) when given, its picture (a PNG data URL; none:
+    a drawn box — a project of quick parts or drawings only)."""
+    from auto3d import package
+    from auto3d.modeler import blobs
+    hist = versions.bundle(VERSIONS, versions_of) if versions_of else None
+    return package.write(proj, blobs.get, hist or proj.get("versions"), _png_of(thumbnail) or _box_png())
+
+
+def _png_of(url) -> bytes | None:
+    """A PNG data URL -> its bytes (anything else: None)."""
+    if isinstance(url, str) and url.startswith("data:image/png;base64,"):
+        try:
+            data = base64.b64decode(url.split(",", 1)[1], validate=True)
+        except ValueError:
+            return None
+        return data if data[:8] == b"\x89PNG\r\n\x1a\n" else None
+    return None
+
+
+def _box_png(w=512, h=384) -> bytes:
+    """The picture of a project with no 3D part to draw: a box in iso, outlined."""
+    img = np.full((h, w, 3), (46, 38, 33), np.uint8)
+    c, r = np.array([w / 2, h / 2]), min(w, h) * 0.2
+    iso = lambda x, y, z: (c + r * np.array([(x - y) * 0.866, (x + y) * 0.5 - z])).astype(np.int32)
+    top = [iso(-1, -1, 1), iso(1, -1, 1), iso(1, 1, 1), iso(-1, 1, 1)]
+    left = [iso(-1, 1, 1), iso(1, 1, 1), iso(1, 1, -1), iso(-1, 1, -1)]
+    right = [iso(1, -1, 1), iso(1, 1, 1), iso(1, 1, -1), iso(1, -1, -1)]
+    for poly, col in ((top, (224, 139, 169)), (left, (170, 100, 125)), (right, (130, 75, 95))):
+        cv2.fillPoly(img, [np.array(poly)], col, cv2.LINE_AA)
+        cv2.polylines(img, [np.array(poly)], True, (250, 220, 230), 2, cv2.LINE_AA)
+    return cv2.imencode(".png", img)[1].tobytes()
+
+
+def _project_from(data: bytes) -> tuple[dict, dict | None]:
+    """A project file's bytes (.a3d) -> (the project as version 3, its 🕘 version history or None); its imported files
+    put into the blob store. Raises ValueError (package.PackageError, ProjectError) when it is no project."""
+    from auto3d import package
+    from auto3d.modeler import blobs
+    got = package.load(data)
+    return migrate_project(package.store(got, blobs.put)), got["versions"]
+
+
+@app.post("/api/project/package")
+def api_project_package():
+    """{project, versions_of?, thumbnail?} -> the project file as Save project writes it: <name>.a3d (a ZIP)."""
+    b = request.get_json(force=True, silent=True) or {}
+    if not isinstance(b.get("project"), dict):
+        return jsonify({"error": "No project."}), 400
+    try:
+        data, missing = _package_of(b["project"], b.get("versions_of"), b.get("thumbnail"))
+    except versions.VersionError as e:
+        return jsonify({"error": str(e)}), 400
+    res = Response(data, mimetype="application/zip")
+    res.headers["X-Missing-Files"] = str(len(missing))  # (imported files no longer in the store: left out)
+    return res
+
+
+@app.post("/api/project/open")
+def api_project_open():
+    """A project file's bytes (.a3d) -> {project (version 3), versions}: its imported files back in the blob store,
+    binary — the browser opens what comes back."""
+    data = request.get_data()
+    try:
+        proj, hist = _project_from(data)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"project": proj, "versions": hist})
+
+
 DEMOS = ROOT / "demos"  # 🎬 ready-made projects (auto3d/demos.py): read-only, opened as a copy
 
 
@@ -189,10 +260,21 @@ def api_demos():
 
 @app.get("/api/demos/<name>")
 def api_demo(name):
+    from auto3d.modeler import blobs
     try:
-        return jsonify(demos.load(DEMOS, name))
+        return jsonify(demos.load(DEMOS, name, blobs.put))
     except demos.DemoError as e:
         return jsonify({"error": str(e)}), 404
+
+
+@app.get("/api/demos/<name>/thumb")
+def api_demo_thumb(name):
+    """A demo's picture (its .a3d's thumbnail.png) for its card."""
+    try:
+        data = demos.thumbnail(DEMOS, name)
+    except demos.DemoError as e:
+        return jsonify({"error": str(e)}), 404
+    return Response(data, mimetype="image/png") if data else (jsonify({"error": "No picture."}), 404)
 
 
 LIBRARY_APP = ROOT / "library"            # 📚 the app's parts library (auto3d/library.py)
@@ -273,6 +355,28 @@ def api_project_autosave(pid):
         return jsonify({"error": str(e)}), 400
     except OSError as e:  # (the disk: the last kept state stays; the next autosave tries again)
         return jsonify({"error": str(e.strerror or e)}), 503
+
+
+@app.post("/api/projects/<pid>/thumb")
+def api_project_thumb_put(pid):
+    """{thumbnail: a PNG data URL} -> kept as the kept project's picture (🕘 Recent projects, the start screen)."""
+    png = _png_of((request.get_json(force=True, silent=True) or {}).get("thumbnail"))
+    if not png:
+        return jsonify({"error": "Not a PNG picture."}), 400
+    try:
+        return jsonify({"thumb": autosave.save_thumb(PROJECTS, pid, png)})
+    except autosave.AutosaveError as e:
+        return jsonify({"error": str(e)}), 404
+    except OSError as e:
+        return jsonify({"error": str(e.strerror or e)}), 503
+
+
+@app.get("/api/projects/<pid>/thumb")
+def api_project_thumb(pid):
+    try:
+        return send_file(autosave.thumb_path(PROJECTS, pid), mimetype="image/png", max_age=0)
+    except autosave.AutosaveError as e:
+        return jsonify({"error": str(e)}), 404
 
 
 @app.get("/api/projects")
@@ -1379,7 +1483,7 @@ def tool_open_file(args):
         return {"text": _load_drawing({**read_gerber_set(files), "source": raw.name}, raw.name)}
     p = _file(args["path"])
     ext = p.suffix.lower()
-    if p.name.lower().endswith(".a3d.json"):  # a saved project: on screen as a new project (the one there is kept)
+    if ext == ".a3d":  # a saved project: on screen as a new one (the one there is kept)
         return {"text": _open_project_file(p)}
     if ext in (".igs", ".iges"):  # IGES (older CAD exchange): a 3D model part with the file's solid
         from auto3d.modeler import blobs
@@ -1411,21 +1515,10 @@ def _load_project(proj: dict, versions=None) -> str:
 
 
 def _open_project_file(p: Path) -> str:
-    """A project file (.a3d.json, as Save project writes it): its imported files back into the blob store, then the
-    project (any version -> 3) on screen; its 🕘 version history too when it was saved with it."""
-    from auto3d.modeler import blobs
-    try:
-        raw = json.loads(p.read_text(encoding="utf-8"))
-    except ValueError as e:
-        raise ValueError(f"{p.name} is not a project file: {e}") from e
-    for b in (raw.pop("blobs", None) or {}).values():
-        blobs.put(base64.b64decode(b))
-    versions = raw.pop("versions", None)
-    try:
-        proj = migrate_project(raw)
-    except ProjectError as e:
-        raise ValueError(str(e)) from e
-    return _load_project(proj, versions)
+    """A project file (.a3d, as Save project writes it): its imported files back into the blob store, then the project
+    (any version -> 3) on screen; its 🕘 version history too when it was saved with it."""
+    proj, hist = _project_from(p.read_bytes())
+    return _load_project(proj, hist)
 
 
 def _demo_named(name: str) -> dict:
@@ -1447,7 +1540,8 @@ def tool_list_demos(args):
 
 def tool_open_demo(args):
     d = _demo_named(args.get("name", ""))
-    text = _load_project(demos.load(DEMOS, d["file"]))
+    from auto3d.modeler import blobs
+    text = _load_project(demos.load(DEMOS, d["file"], blobs.put))
     return {"text": f"Demo “{d['name']}” ({d['name_cs']}) opened as a new project (a copy; the project that was on screen is kept in "
                     f"🕘 Recent projects). {text}"}
 
@@ -1555,21 +1649,25 @@ def _from_page(fmt):
 def tool_export(args):
     fmt = args.get("format", "stl")
     if fmt not in ("stl", "step", "iges", "glb", "obj", "pdf", "3mf", "bom", "dxf", "project"):
-        raise ValueError("format: stl, step, iges, glb (glTF with colours), obj, pdf (a 2D drawing of a 3D model), 3mf (with colours), bom (an assembly's CSV), dxf (a 2D drawing or a sheet) or project (the .a3d.json)")
+        raise ValueError("format: stl, step, iges, glb (glTF with colours), obj, pdf (a 2D drawing of a 3D model), 3mf (with colours), bom (an assembly's CSV), dxf (a 2D drawing or a sheet) or project (the .a3d package)")
     if fmt == "project":  # the whole project as Save project writes it (its imported files in it; its 🕘 history when asked)
         res = RELAY.call("export_data", {"format": "project", "history": bool(args.get("history"))}, timeout=600)
         if res.get("error"):
             raise ValueError(res.get("text") or "No project to save.")
         d = res.get("data") or {}
         p = d.get("project") or {}
-        data = json.dumps(p, ensure_ascii=False).encode("utf-8")
+        data, missing = _package_of(p, d.get("versions_of"), d.get("thumbnail"))
         name = re.sub(r'[\\/:*?"<>|]+', "_", d.get("name") or "project").strip() or "project"
         target = Path(args["path"]).expanduser() if args.get("path") else Path.home() / "Downloads"
         if target.is_dir() or not target.suffix:
             target.mkdir(parents=True, exist_ok=True)
-            target = target / f"{name}.a3d.json"
+            target = target / f"{name}.a3d"
+        elif target.name.lower().endswith(".json"):  # (an old name, .a3d.json: the file is a package now)
+            target = target.with_name(re.sub(r"(\.a3d)?\.json$", "", target.name, flags=re.I) + ".a3d")
         target.write_bytes(data)
-        return {"text": f"Saved the project ({len(p.get('parts') or [])} parts{', with its version history' if p.get('versions') else ''}; "
+        hist = bool(d.get("versions_of") or p.get("versions"))
+        return {"text": f"Saved the project ({len(p.get('parts') or [])} parts{', with its version history' if hist else ''}"
+                        f"{f'; {len(missing)} imported file(s) were not here and are left out' if missing else ''}; "
                         f"{max(1, len(data) // 1024)} kB) to {target} — open_file opens it again."}
     if fmt == "pdf":  # a drawing sheet on screen: the sheet as it is drawn
         res = RELAY.call("export_data", {"format": "pdf"})
@@ -1635,17 +1733,19 @@ def tool_export(args):
 REPORTS = Path(__import__("os").environ.get("A3D_REPORTS") or (DATA if getattr(__import__("sys"), "frozen", False) else ROOT) / "RealSWReports")  # the AI's reports of things that did not behave as expected (the built app: in the user's data; A3D_REPORTS: a test server's)
 
 
-def _report_attachments(args: dict) -> tuple[dict | None, dict | None]:
-    """(the project, the ⏺ recording) to go with a report: given in args (a test), else asked from the page — the
-    project as Save project writes it and a recording running or stopped in the last 30 min. None: none / no page."""
+def _report_attachments(args: dict) -> tuple[dict | None, dict | None, bytes | None]:
+    """(the project, the ⏺ recording, the project's picture) to go with a report: given in args (a test), else asked
+    from the page — the project as Save project writes it and a recording running or stopped in the last 30 min. None:
+    none / no page."""
     if "project" in args or "recording" in args:
-        return args.get("project") or None, args.get("recording") or None
+        return args.get("project") or None, args.get("recording") or None, None
     try:
         got = RELAY.call("report_attachments", {}, timeout=60)
     except Exception:  # (no page open, an older page: the report is written without them)
-        return None, None
+        return None, None, None
     proj, rec = got.get("project"), got.get("recording")
-    return (proj if isinstance(proj, dict) and proj.get("parts") else None), (rec if isinstance(rec, dict) and rec.get("events") else None)
+    return ((proj if isinstance(proj, dict) and proj.get("parts") else None), (rec if isinstance(rec, dict) and rec.get("events") else None),
+            _png_of(got.get("thumbnail")))
 
 
 # the AI's screenshots in this conversation (get_screenshot's pictures, by the window whose chat took them): a report
@@ -1764,10 +1864,11 @@ def tool_report_problem(args):
     parts = [f"# {title}", "", f"- **Kind:** {kind}", f"- **Date:** {time.strftime('%Y-%m-%d %H:%M:%S', now)}", f"- **App version:** {version.text(PAGE_BUILDS.get(ROUTE.get() or '') or PAGE_BUILDS.get('', ''))}",
              "- **Reported by:** the AI agent (MCP report_problem)"]
     # the project on screen (compacted) and a recent ⏺ recording next to it, so someone else can reproduce the problem
-    proj, rec = _report_attachments(args)
+    proj, rec, pic = _report_attachments(args)
     attached = []
     if proj:
-        data, left = reports.compact_project(proj)
+        from auto3d.modeler import blobs
+        data, left = reports.compact_project(proj, blobs.get, thumbnail=pic or _box_png())  # (its imported files from the store, binary)
         att = path.with_name(path.stem + reports.PROJECT_EXT)
         att.write_bytes(data)
         attached.append("the project")

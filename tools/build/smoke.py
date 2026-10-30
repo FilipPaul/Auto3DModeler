@@ -89,8 +89,9 @@ def main():
         step = post(f"{url}/api/model/export/step", {"part": block(), "name": "block"})
         assert step[:20].startswith(b"ISO-10303-21"), step[:80]
         print(f"STEP export: {len(step)} bytes")
-        dm = json.loads(get(f"{url}/api/demos"))["demos"]  # 🎬 demos/ went into the build and opens
+        dm = json.loads(get(f"{url}/api/demos"))["demos"]  # 🎬 demos/ (.a3d packages) went into the build and opens
         assert dm and json.loads(get(f"{url}/api/demos/{dm[0]['file']}")).get("parts"), dm
+        assert dm[0]["thumb"] and get(f"{url}/api/demos/{dm[0]['file']}/thumb")[1:4] == b"PNG", dm[0]  # (its card's picture)
         print(f"demo projects: {', '.join(d['name'] for d in dm)}")
         ok = True
     finally:

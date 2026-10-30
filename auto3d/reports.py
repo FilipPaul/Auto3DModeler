@@ -1,25 +1,26 @@
 """The AI's problem reports (RealSWReports/*.md, written by the server's report_problem): what is reported already,
 and whether a new report says the same as one of them — so the AI does not file one thing twice. Standard library only.
 
-Next to a report: the project on screen when it was written (<base>.a3d.json.gz — the Save project file, compacted, so
+Next to a report: the project on screen when it was written (<base>.a3d — the Save project file, compacted, so
 someone else can open it and reproduce the problem), a ⏺ recording of the user's moves (<base>.recording.json) and the
 screenshots the AI chose to show the state of the app (<base>.shot-1.png …, shown in the .md).
 """
 from __future__ import annotations
 
-import gzip
 import json
 import re
 from difflib import SequenceMatcher
 from pathlib import Path
+
+from auto3d import package
 
 # words that say nothing about which problem it is
 STOP = set("a an the of in on at to for and or with without is are be not no does do it its this that from by as when "
            "can cannot should into than then one".split())
 SIMILAR = 0.6  # how alike two titles must be to count as the same report
 KEEP_FILE = 3 << 20  # bytes: an imported file (a blob) larger than this is left out of an attached project
-CAP = 5 << 20        # bytes: about how large an attached project (gzip) may get — the largest imported files go first
-PROJECT_EXT, RECORDING_EXT, SHOT_EXT = ".a3d.json.gz", ".recording.json", ".shot-"  # (<base>.shot-1.png / .webp)
+CAP = 5 << 20        # bytes: about how large an attached project (.a3d) may get — the largest imported files go first
+PROJECT_EXT, RECORDING_EXT, SHOT_EXT = ".a3d", ".recording.json", ".shot-"  # (<base>.shot-1.png / .webp)
 SHOTS_MAX, SHOT_PX, SHOT_BYTES = 4, 1600, 1 << 20  # screenshots: at most this many per report, px across, bytes each
 
 
@@ -89,43 +90,30 @@ def search(folder: Path, query: str = "", kind: str = "", limit: int = 40) -> li
     return rows[:limit]
 
 
-def _files(proj: dict) -> dict:
-    """The imported files' names by their hash (the ▣ Solid steps that use them)."""
-    out = {}
-    for p in proj.get("parts") or []:
-        for f in ((p.get("model") or {}).get("features") or []) if isinstance(p.get("model"), dict) else []:
-            if isinstance(f, dict) and f.get("blob"):
-                out.setdefault(f["blob"], f.get("file") or "")
-    return out
-
-
-def compact_project(proj: dict, keep_file: int | None = None, cap: int | None = None) -> tuple[bytes, list[dict]]:
-    """A project file (as Save project writes it) for a report -> (its gzip bytes, what was left out). Everything that
+def compact_project(proj: dict, get, keep_file: int | None = None, cap: int | None = None, thumbnail: bytes | None = None) -> tuple[bytes, list[dict]]:
+    """A project (as Save project writes it) for a report -> (its .a3d bytes, what was left out). Everything that
     rebuilds it stays (parts, features, sketches, assemblies, cables, joints, sheets); left out: the version history
     and an imported file over `keep_file` bytes (KEEP_FILE) — then the largest ones until it is under about `cap` (CAP) — each replaced
-    by a note in the file's "left_out" (its name and size)."""
+    by a note in the file's "left_out" (its name and size). The imported files come from `get(sha) -> bytes` (the blob store);
+    `thumbnail`: its picture (PNG bytes)."""
     keep_file, cap = KEEP_FILE if keep_file is None else keep_file, CAP if cap is None else cap
-    proj = dict(proj)
-    proj.pop("versions", None)
-    blobs, names = dict(proj.get("blobs") or {}), _files(proj)
-    size = {sha: len(b) * 3 // 4 - b[-2:].count("=") for sha, b in blobs.items() if isinstance(b, str)}  # (base64)
+    names, files = package.files(proj), {}
+    for sha in names:
+        try:
+            files[sha] = get(sha)
+        except (KeyError, OSError, ValueError):
+            continue
+    size = {sha: len(b) for sha, b in files.items()}
     left = []
 
     def leave(sha):
-        blobs.pop(sha, None)
+        files.pop(sha, None)
         left.append({"what": "imported file", "blob": sha, "name": names.get(sha, ""), "bytes": size.get(sha, 0)})
 
     for sha in [s for s, n in size.items() if n > keep_file]:
         leave(sha)
     while True:
-        out = {**proj, "blobs": blobs, **({"left_out": left} if left else {})}
-        data = gzip.compress(json.dumps(out, ensure_ascii=False, separators=(",", ":")).encode("utf-8"), 6)
-        if len(data) <= cap or not blobs:
+        data, _ = package.write({**proj, **({"left_out": left} if left else {})}, files.get, thumbnail=thumbnail)
+        if len(data) <= cap or not files:
             return data, left
-        leave(max(blobs, key=lambda s: size.get(s, 0)))
-
-
-def read_project(path: Path) -> dict:
-    """An attached project (.a3d.json.gz) back as the project file."""
-    return json.loads(gzip.decompress(Path(path).read_bytes()).decode("utf-8"))
-
+        leave(max(files, key=lambda s: size.get(s, 0)))

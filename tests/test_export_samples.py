@@ -22,7 +22,7 @@ import ezdxf
 import fitz
 import numpy as np
 
-from auto3d import importers
+from auto3d import importers, package
 from auto3d.modeler import available
 from auto3d.project import migrate
 
@@ -185,7 +185,7 @@ class TestSheets(unittest.TestCase):
 
 class TestProject(unittest.TestCase):
     def test_opens(self):
-        p = migrate(json.loads(read("project_frame.a3d.json")))
+        p = migrate(package.load(DIR / "project_frame.a3d")["project"])
         self.assertEqual((p["version"], p["project_name"]), (3, "Frame"))
         self.assertEqual(Counter(x["kind"] for x in p["parts"]), {"model": 3, "assembly": 2, "sheet": 2})
         plate = next(x for x in p["parts"] if x["name"] == "Base plate")["model"]
@@ -222,7 +222,7 @@ class TestCad(unittest.TestCase):
         # 🔩 real threads: the grooves cut into the 4 holes, as the project's plate rebuilds with them
         shape = K.from_step(read("part_base_plate_real_threads.step"))
         self.assertEqual(K.solids(shape), 1)
-        plate = next(x for x in migrate(json.loads(read("project_frame.a3d.json")))["parts"] if x["name"] == "Base plate")["model"]
+        plate = next(x for x in migrate(package.load(DIR / "project_frame.a3d")["project"])["parts"] if x["name"] == "Base plate")["model"]
         real = doc.rebuild({**plate, "threads": "real"})["body"]["volume"]
         self.assertAlmostEqual(K.volume(shape), real, delta=1e-2)
         self.assertTrue(PLATE - 120 < real < PLATE - 60, real)  # (4 × M6 × 10: about 94 mm³ of grooves)

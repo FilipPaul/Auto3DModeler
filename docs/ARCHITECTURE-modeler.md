@@ -7,6 +7,22 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **💾 Project files are `.a3d` packages (2026-10-30)** (the owner: a real 35 MB `.a3d.json` was 35 MB of base64 STEP;
+  an own extension). auto3d/package.py: a ZIP — `project.json` (the project, `"format": "a3d-package", "package": 1`,
+  `blob_files` {sha: entry}), `blobs/<original name>` (each imported file byte for byte; the same name twice or none:
+  `blobs/<sha>.<ext>`; STEP / IGES deflated, pictures / 3MF stored), `versions/index.json` + `versions/objects/<sha>`
+  (🕘 with version history), `thumbnail.png` (512 × 384 iso of the 3D model / assembly on screen, thumbs.js picture's
+  size; none: the server's drawn box). One project.json, not parts/<id>.json: a project opens whole and the parts are
+  small next to the files; lazy loading later = `package: 2` with stubs. The server packs and unpacks (Python zipfile:
+  no vendored JS zip): POST /api/project/package {project, versions_of, thumbnail} -> the ZIP (X-Missing-Files),
+  POST /api/project/open (the file's bytes) -> {project v3, versions}, the files into the blob store (a file changed in
+  the package gets its new hash, the steps follow). open_file / export project / report_problem (`<base>.a3d`, its
+  picture from the page) use it; the old `.a3d.json` / `.gz` are no longer opened (the owner). Demos are `.a3d` (made
+  by tools/make_demos.py with their picture; /api/demos/<f>/thumb, shown on the cards); samples/ExportFromOurApp's
+  project_frame.a3d. Kept projects get a picture (`data/projects/<id>.png`, POST/GET /api/projects/<id>/thumb, drawn
+  after an autosave at most every 3 min): 🕘 Recent projects, the restore strip and the start screen's last four.
+  The owner's file: 35.07 MB -> 4.37 MB. tests/test_package.py, tools/e2e_project_package.py.
+
 - **👁 Hide parts; ✎ Edit the part here always in sight (2026-10-30)** (the owner: suggestions should always offer
   editing the part in place and hiding it; hiding did not exist). web/js/assembly/visibility.js: the assembly doc's
   `display` {inst: 'hidden' | 'clear'} (saved, outside the history — display only), draw() passes hidden / see to

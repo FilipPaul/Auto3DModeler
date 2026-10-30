@@ -1,16 +1,15 @@
 """The AI's problem report carries the project, in headless Edge (tool calls through the server's /api/agent/call, as
 the MCP server sends them): a small part (sketch + extrude), a second one and an assembly of both -> ⏺ a recording of a
 few clicks, stopped -> get_screenshot {ui: true} (its id) -> report_problem with screenshots ["last", {shot: "view",
-caption}]: the .md, <base>.a3d.json.gz (the project), <base>.recording.json and <base>.shot-1/2.png (valid pictures of a
+caption}]: the .md, <base>.a3d (the project), <base>.recording.json and <base>.shot-1/2.png (valid pictures of a
 sensible size) next to it, the .md's Project / Recording / Screenshots lines and its image links; list_reports says
-so -> a new empty project -> the .gz opened through 📂 Open ›
+so -> a new empty project -> the .a3d opened through 📂 Open ›
 File… (the page's file input): the same parts and the same steps -> no console errors. Exits 1 on a failed check.
 
 Run it against a server whose reports go to a folder of its own (not the repository's RealSWReports):
   A3D_DATA=<scratch>/data A3D_REPORTS=<scratch>/reports py server.py --port 5199 --no-browser
   PYTHONIOENCODING=utf-8 py tools/e2e_report_project.py http://127.0.0.1:5199 <out dir>
 """
-import gzip
 import json
 import os
 import re
@@ -103,17 +102,20 @@ try:
     md = r.split("Reported: ")[1].split(" — ")[0]
     md = md if os.path.isabs(md) else os.path.join(ROOT, md)
     check("reports outside the repository (A3D_REPORTS)", not os.path.abspath(md).startswith(os.path.join(ROOT, "RealSWReports")), md)
-    gz, rec = md[:-3] + ".a3d.json.gz", md[:-3] + ".recording.json"
-    check(".md / .a3d.json.gz / .recording.json exist", all(os.path.exists(p) for p in (md, gz, rec)))
+    gz, rec = md[:-3] + ".a3d", md[:-3] + ".recording.json"
+    check(".md / .a3d / .recording.json exist", all(os.path.exists(p) for p in (md, gz, rec)))
     text = open(md, encoding="utf-8").read()
     proj_line = next((ln for ln in text.splitlines() if ln.startswith("- **Project:**")), "")
     rec_line = next((ln for ln in text.splitlines() if ln.startswith("- **Recording:**")), "")
     print("  ", proj_line, "\n  ", rec_line)
     check("the Project line", f"`{os.path.basename(gz)}` (open it in the app: 📂 Open ▾ › File…) — 3 part(s): Plate, Lid, Box" in proj_line)
     check("the Recording line", f"`{os.path.basename(rec)}`" in rec_line and "stopped" in rec_line)
-    saved = json.loads(gzip.decompress(open(gz, "rb").read()))
-    check("the .gz is a project", saved.get("app") == "Auto3DModeler" and saved.get("version") == 3 and "versions" not in saved,
-          f"{os.path.getsize(gz)} B, {[p['name'] for p in saved['parts']]}")
+    sys.path.insert(0, ROOT)
+    from auto3d import package
+    got = package.load(open(gz, "rb").read())
+    saved = got["project"]
+    check("the .a3d is a project with its picture", saved.get("app") == "Auto3DModeler" and saved.get("version") == 3 and got["versions"] is None
+          and (got["thumbnail"] or b"")[1:4] == b"PNG", f"{os.path.getsize(gz)} B, {[p['name'] for p in saved['parts']]}")
     events = json.load(open(rec, encoding="utf-8"))["events"]
     check("the recording's events", events[0]["kind"] == "start" and events[-1]["kind"] == "stop" and any(e["kind"] == "click" for e in events),
           [e["kind"] for e in events])

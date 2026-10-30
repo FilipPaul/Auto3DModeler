@@ -8,11 +8,15 @@ usage (server running, e.g. `py server.py --port 5199 --no-browser`):
   PYTHONIOENCODING=utf-8 py tools/e2e_model_solid.py http://127.0.0.1:5199 <out dir> <a .step file> [<a bigger .step>]
 """
 import json
+import os
 import sys
 import time
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from auto3d import package  # noqa: E402  (the saved .a3d read back)
 
 URL, OUT, STEP = sys.argv[1], sys.argv[2], sys.argv[3]
 BIG = sys.argv[4] if len(sys.argv) > 4 else None
@@ -129,14 +133,16 @@ try:
 
     # the project file carries the STEP
     js("""window.__saved = []; window.showSaveFilePicker = async (o) => ({ name: o.suggestedName,
-      createWritable: async () => ({ write: async (b) => { window.__saved.push(await b.text()); }, close: async () => {} }) });""")
+      createWritable: async () => ({ write: async (b) => { const u = new Uint8Array(await b.arrayBuffer()); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); window.__saved.push(btoa(s)); }, close: async () => {} }) });""")
     d.find_element(By.ID, "saveBtn").click()
     wait("return window.__saved.length === 1", 60)
-    proj = json.loads(js("return window.__saved[0]"))
-    print("saved project: parts", len(proj["parts"]), "| files carried", {k: len(v) for k, v in (proj.get("blobs") or {}).items()})
-    path = f"{OUT}/solid_project.a3d.json"
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(proj, fh)
+    raw = __import__("base64").b64decode(js("return window.__saved[0]"))
+    got = package.load(raw)
+    proj = got["project"]
+    print("saved project: parts", len(proj["parts"]), "| files carried", {k: len(v) for k, v in got["blobs"].items()})
+    path = f"{OUT}/solid_project.a3d"
+    with open(path, "wb") as fh:
+        fh.write(raw)
     d.find_element(By.ID, "projectInput").send_keys(path)
     wait("return window.__app.project.parts.length === %d && document.querySelector('.toast')?.textContent.includes('Project loaded')" % len(proj["parts"]), 60)
     first = next(p for p in proj["parts"] if p["kind"] == "model")

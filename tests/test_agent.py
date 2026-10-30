@@ -222,36 +222,38 @@ class TestMcpServer(unittest.TestCase):
             self.assertEqual(server.tool_list_reports({"search": "screenshot"})["text"], "No reports match.")
 
     def test_report_with_project(self):
-        """A report carries the project on screen (<base>.a3d.json.gz: the Save project file, compacted — an imported
-        file over the limit left out with a note) and a recent ⏺ recording (<base>.recording.json, no screenshots);
-        the .md points to both, list_reports / reports.read say they are there."""
-        import gzip
+        """A report carries the project on screen (<base>.a3d: the Save project file, compacted — an imported file over
+        the limit left out with a note; the others binary, from the blob store) and a recent ⏺ recording
+        (<base>.recording.json, no screenshots); the .md points to both, list_reports / reports.read say they are there."""
         import tempfile
         from unittest import mock
         import server
-        from auto3d import project, reports
-        big, small = base64.b64encode(b"x" * 2000).decode(), base64.b64encode(b"solid").decode()
+        from auto3d import package, project, reports
+        from auto3d.modeler import blobs
+        big, small = b"x" * 2000, b"solid"
+        store = {"aa11": big, "bb22": small}
         proj = {"app": "Auto3DModeler", "version": 3, "project_name": "Bracket", "unit": "mm", "parameters": [], "active": {"part": "P1"},
                 "parts": [{"id": "P1", "kind": "model", "name": "Plate", "model": {"features": [
                               {"id": "F1", "type": "sketch", "plane": "XY"}, {"id": "F2", "type": "extrude", "sketch": "F1", "d": 8},
                               {"id": "F3", "type": "solid", "blob": "aa11", "file": "motor.step"}, {"id": "F4", "type": "solid", "blob": "bb22", "file": "pin.stl"}]}},
                           {"id": "P2", "kind": "assembly", "name": "Assembly 1", "assembly": {"instances": [{"id": "I1", "part": "P1"}], "joints": []}}],
-                "assets": {}, "assemblies": [], "blobs": {"aa11": big, "bb22": small}, "versions": [{"id": "v1"}]}
+                "assets": {}, "assemblies": [], "versions": [{"id": "v1"}]}
         rec = {"running": False, "started_by": "user", "seconds": 12, "count": 2, "events": [{"i": 0, "t": 0, "kind": "start"}, {"i": 1, "t": 12, "kind": "stop"}],
                "shots": [{"id": "1", "data": "AAAA"}]}
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(server, "REPORTS", Path(tmp) / "R"), mock.patch.object(server, "ROOT", Path(tmp)), \
-                mock.patch.object(reports, "KEEP_FILE", 1000):
+                mock.patch.object(reports, "KEEP_FILE", 1000), mock.patch.object(blobs, "get", lambda sha: store[sha]):
             r = server.tool_report_problem({"title": "Extrude goes the wrong way", "what": "x", "project": proj, "recording": rec})
             self.assertIn("with the project and the recording of moves", r["text"])
             md = next((Path(tmp) / "R").glob("*.md"))
-            gz, js = md.with_name(md.stem + ".a3d.json.gz"), md.with_name(md.stem + ".recording.json")
+            gz, js = md.with_name(md.stem + ".a3d"), md.with_name(md.stem + ".recording.json")
             self.assertTrue(gz.exists() and js.exists())
-            got = json.loads(gzip.decompress(gz.read_bytes()))
+            pk = package.load(gz.read_bytes())
+            got = pk["project"]
             self.assertEqual(project.migrate(got)["parts"][0]["model"]["features"], proj["parts"][0]["model"]["features"])  # (a valid project)
             self.assertEqual(got["parts"][1]["assembly"], proj["parts"][1]["assembly"])
-            self.assertEqual(got["blobs"], {"bb22": small})  # the big imported file left out, with a note; no version history
+            self.assertEqual(pk["blobs"], {"bb22": small})  # the big imported file left out, with a note; no version history
             self.assertEqual(got["left_out"], [{"what": "imported file", "blob": "aa11", "name": "motor.step", "bytes": 2000}])
-            self.assertNotIn("versions", got)
+            self.assertIsNone(pk["versions"])
             saved = json.loads(js.read_text(encoding="utf-8"))
             self.assertEqual(saved["events"], rec["events"])
             self.assertNotIn("shots", saved)
@@ -262,13 +264,13 @@ class TestMcpServer(unittest.TestCase):
             row = json.loads(server.tool_list_reports({})["text"])[0]
             self.assertEqual((row["project"], row["recording"]), (gz.name, js.name))
             # the cap: the largest imported files go first until the file is small enough
-            data, left = reports.compact_project(proj, keep_file=10 ** 9, cap=200)
+            data, left = reports.compact_project(proj, store.get, keep_file=10 ** 9, cap=200)
             self.assertEqual([x["blob"] for x in left], ["aa11", "bb22"])
-            self.assertEqual(json.loads(gzip.decompress(data))["blobs"], {})
+            self.assertEqual(package.load(data)["blobs"], {})
             # without a page (no project, no recording): only the .md, as before
             r = server.tool_report_problem({"title": "Something else entirely here", "what": "y"})
             self.assertNotIn("with the", r["text"])
-            self.assertEqual(len(list((Path(tmp) / "R").glob("*.gz"))), 1)
+            self.assertEqual(len(list((Path(tmp) / "R").glob("*.a3d"))), 1)
 
     def test_report_with_screenshots(self):
         """report_problem screenshots: the pictures saved next to the report (<base>.shot-1.png …, at most 1600 px

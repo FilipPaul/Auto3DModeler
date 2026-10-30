@@ -1,6 +1,7 @@
 """Autosave: the project on screen kept on the server (data/projects/) a few seconds after each change, so a closed tab
 or a browser crash loses nothing — and the recent projects to open again. One file per project (the latest state) and
-a small meta file for the list; the oldest go beyond MAX_PROJECTS.
+a small meta file for the list, and its picture (<id>.png: the page draws it at most every few minutes); the oldest go
+beyond MAX_PROJECTS.
 """
 import json
 import os
@@ -92,8 +93,33 @@ def recent(folder: Path) -> list:
         except (OSError, ValueError):
             continue
         if (Path(folder) / f"{m.get('id')}.json").exists():
+            png = Path(folder) / f"{m.get('id')}.png"
+            if png.exists():
+                m["thumb"] = int(png.stat().st_mtime)  # (its picture: /api/projects/<id>/thumb?<this>)
             out.append(m)
     return sorted(out, key=lambda m: m.get("time", 0), reverse=True)
+
+
+def save_thumb(folder: Path, pid: str, png: bytes) -> int:
+    """The kept project's picture (PNG bytes) -> its time."""
+    p = Path(folder) / f"{_check(pid)}.png"
+    if not (Path(folder) / f"{pid}.json").exists():
+        raise AutosaveError("No such project.")
+    with _lock(pid):
+        tmp = p.with_name(f"{p.name}.{os.getpid()}-{threading.get_ident()}.tmp")
+        tmp.write_bytes(png)
+        try:
+            tmp.replace(p)
+        finally:
+            tmp.unlink(missing_ok=True)
+    return int(p.stat().st_mtime)
+
+
+def thumb_path(folder: Path, pid: str) -> Path:
+    p = Path(folder) / f"{_check(pid)}.png"
+    if not p.exists():
+        raise AutosaveError("No picture.")
+    return p
 
 
 def load(folder: Path, pid: str) -> dict:
@@ -147,5 +173,5 @@ def cleanup(folder: Path, keep=None, dry_run=False) -> list:
 
 
 def delete(folder: Path, pid: str) -> None:
-    for suffix in (".json", ".meta.json"):
+    for suffix in (".json", ".meta.json", ".png"):
         (Path(folder) / f"{_check(pid)}{suffix}").unlink(missing_ok=True)

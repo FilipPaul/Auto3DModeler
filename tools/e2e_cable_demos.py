@@ -113,12 +113,12 @@ try:
     d.get(URL)
     wait("return !!window.__app")
     listing = {x["file"]: x for x in json.loads(urllib.request.urlopen(f"{URL}/api/demos").read())["demos"]}
-    for f, cs in (("portalovy-pojezd.a3d.json", "Portálový pojezd"), ("otocne-rameno-s-kabelem.a3d.json", "Otočné rameno s kabelem")):
+    for f, cs in (("portalovy-pojezd.a3d", "Portálový pojezd"), ("otocne-rameno-s-kabelem.a3d", "Otočné rameno s kabelem")):
         x = listing.get(f) or {}
         check(x.get("name_cs") == cs and x.get("text") and x.get("text_cs") and x.get("name") != cs, f"🎬 lists {f}: “{x.get('name')}” / “{x.get('name_cs')}”, its texts")
 
     # 1. the gantry: a carriage, a ⛓ chain whose moving end goes with it, a 🔒 cable through the chain
-    open_demo("portalovy-pojezd.a3d.json")
+    open_demo("portalovy-pojezd.a3d")
     a = json.loads(call("get_assembly"))
     m = a["mechanisms"][0]
     check(m["name"] == "Portálový pojezd" and m["driver"]["label"] == "Pojezd vozíku" and (m["min"], m["max"]) == (-150, 150),
@@ -142,7 +142,7 @@ try:
     check(moved and went, f"▶ moves the carriage ({moved}) and the cable's points with it ({went})")
 
     # 2. the arm: four loose wires, a ➰ loop across the hinge, tie mounts on the arm
-    open_demo("otocne-rameno-s-kabelem.a3d.json")
+    open_demo("otocne-rameno-s-kabelem.a3d")
     a = json.loads(call("get_assembly"))
     m = a["mechanisms"][0]
     check(m["name"] == "Otočné rameno" and m["driver"]["label"] == "Otáčení ramene" and (m["min"], m["max"]) == (-90, 90),

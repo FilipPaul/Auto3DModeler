@@ -18,6 +18,9 @@ from selenium import webdriver
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from auto3d import package  # noqa: E402  (the saved .a3d read back)
+
 URL, IMG, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -169,11 +172,11 @@ try:
     print(f"STL dimension {val:.2f} -> {val * 2:.2f}: scale {s1[0]} %, size_x {s1[1]:.1f}, volume {s1[2]:.0f} (x{s1[2] / js('return 1') / 1:.0f}), dim now {s1[3]:.2f}")
     d.save_screenshot(f"{OUT}/u3_stl.png")
     js("""window.__saved = null; window.showSaveFilePicker = async (o) => ({ name: o.suggestedName,
-      createWritable: async () => ({ write: async (b) => { window.__saved = await b.text(); }, close: async () => {} }) });""")
+      createWritable: async () => ({ write: async (b) => { const u = new Uint8Array(await b.arrayBuffer()); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); window.__saved = btoa(s); }, close: async () => {} }) });""")
     js("document.getElementById('saveBtn').click()")
-    saved = wait("return window.__saved")
-    proj = (lambda p: next(q for q in p["parts"] if q["id"] == p["active"]["part"])["classic"])(json.loads(saved))  # project v3: the part on screen
-    path = Path(OUT) / "stl_project.a3d.json"; path.write_text(saved, encoding="utf-8")
+    saved = __import__("base64").b64decode(wait("return window.__saved"))
+    proj = (lambda p: next(q for q in p["parts"] if q["id"] == p["active"]["part"])["classic"])(package.load(saved)["project"])  # project v3: the part on screen
+    path = Path(OUT) / "stl_project.a3d"; path.write_bytes(saved)
     print(f"STL project: {len(saved) // 1024} kB, import_file {bool(proj.get('import_file'))}, point dims {len(proj['model']['point_dims'])}")
     d.get(URL); wait("return !!window.__app")
     upload("projectInput", path.resolve()); loaded()

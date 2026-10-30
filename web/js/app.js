@@ -200,7 +200,7 @@ async function api(path, body, method) {
 }
 
 const SAVE_TYPES = {
-  json: ['Auto3DModeler project', 'application/json'], stl: ['STL 3D model', 'model/stl'], step: ['STEP CAD model', 'model/step'],
+  json: ['JSON file', 'application/json'], a3d: ['Auto3DModeler project', 'application/zip'], stl: ['STL 3D model', 'model/stl'], step: ['STEP CAD model', 'model/step'],
   glb: ['GLB 3D preview', 'model/gltf-binary'], zip: ['ZIP of pieces', 'application/zip'], pdf: ['PDF drawing', 'application/pdf'],
   igs: ['IGES CAD model', 'model/iges'], dxf: ['DXF drawing', 'image/vnd.dxf'], obj: ['OBJ 3D mesh', 'model/obj'],
   csv: ['CSV table', 'text/csv'], xlsx: ['Excel workbook', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
@@ -623,7 +623,7 @@ function openFiles(all, { shift = false, onView = false } = {}) {
   if (!f) return;
   if (all.length > 1 && all.every((x) => /\.(step|stp)$/i.test(x.name))) { openSolid(f, all.slice(1)); return; } // (an assembly and its part files)
   if (all.length > 1 && all.every((x) => DRAWING_RE.test(x.name) || /\.txt$/i.test(x.name))) { openDrawing(f, all.slice(1)); return; } // (a Gerber set)
-  if (/\.json(\.gz)?$/i.test(f.name)) openProject(f);
+  if (/\.a3d$/i.test(f.name)) openProject(f);
   else if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') openPdf(f);
   else if (OPEN_SOLID_RE.test(f.name) && !shift) openSolid(f); // Shift: a sliced quick part, as before
   else if (DRAWING_RE.test(f.name) && !shift) openDrawing(f); // Shift: straight to a quick part, as before
@@ -1795,10 +1795,10 @@ const project = new Project($('partTabs'), {
   openWindow: (id) => windows.open(id).catch((e) => toast(e.message, 'warning', 7000)),
   showNone: (on) => document.body.classList.toggle('none-open', on), // the last tab closed
   windowId: () => windows?.wid, // (tabs dragged between windows)
-  async thumb(p) { // the tree's hover preview: what is in the part
+  async thumb(p, size) { // the tree's hover preview: what is in the part (size [w, h]: the project file's picture)
     const data = project.dataOf(p);
     if (p.kind === 'sheet') return data?.built ? svgPicture(sheet.svgOf(data)) : null;
-    if (p.kind === 'model') return data?.features?.length ? picture([{ body: await bodyOf(data.features), color: 0xa98be0 }], `m${JSON.stringify(data.features).length}:${p.id}:${JSON.stringify(data.features)}`) : null;
+    if (p.kind === 'model') return data?.features?.length ? picture([{ body: await bodyOf(data.features), color: 0xa98be0 }], `m${JSON.stringify(data.features).length}:${p.id}:${JSON.stringify(data.features)}`, size) : null;
     if (p.kind !== 'assembly') return null;
     const list = [], walk = async (asm, M, depth, inner = null) => { // (sub-assemblies' parts too, placed — moved inside them: `inner`)
       for (const it of asm?.instances || []) {
@@ -1809,7 +1809,7 @@ const project = new Project($('partTabs'), {
       }
     };
     await walk(data, null, 0);
-    return picture(list, `a${p.id}:${JSON.stringify(list.map((x) => x.matrix))}:${list.length}`);
+    return picture(list, `a${p.id}:${JSON.stringify(list.map((x) => x.matrix))}:${list.length}`, size);
   },
   projectId: () => autosave?.id,
   tookTab: (id, win) => windows?.tell({ took: id, win }), // (the window it came from lets it go)
@@ -2108,59 +2108,58 @@ function projectFile() {
   return { app: 'Auto3DModeler', version: 3, project_name: state.projectName, unit: state.model?.unit || 'mm', ...project.toJSON(), assets: {}, assemblies: [] };
 }
 
-/** The project file as Save project writes it: its imported files, and 🕘 its versions when "with version history" is
- *  ticked (a version of it made first: a save point). */
+/** The project as Save project writes it (its imported files are added by the server, from its store), 🕘 its versions
+ *  when "with version history" is ticked (a version of it made first: a save point). */
 async function savedProject({ history = $('saveWithVersions')?.checked, savePoint = true } = {}) {
   if (savePoint) await versions?.save('', { auto: true, force: true }).catch(() => null);
   const proj = projectFile();
-  proj.blobs = await projectBlobs(proj);
   if (history && autosave?.id) proj.versions = (await (await api(`/api/versions/${encodeURIComponent(autosave.id)}/bundle`)).json()).versions || undefined;
   return proj;
 }
 
+/** The project's picture in iso (a PNG data URL, size [w, h] px): the 3D model / assembly on screen, else the project's
+ *  first one; null when there is none or it is not drawn within `ms` (its bodies come light from the server). */
+async function projectThumb(size = [512, 384], ms = 8000) {
+  const is3d = (p) => p && (p.kind === 'model' || p.kind === 'assembly');
+  const p = is3d(project.current) ? project.current : project.parts.find(is3d);
+  if (!p) return null;
+  const url = await Promise.race([project.hooks.thumb(p, size).catch(() => null), new Promise((ok) => setTimeout(() => ok(null), ms))]);
+  return url?.startsWith('data:image/png') ? url : null;
+}
+
+/** What the server packs into the .a3d file (a ZIP: project.json, the imported files binary, the 🕘 versions, the
+ *  project's picture — a drawn box when it has no 3D part). */
+async function projectPackage({ history = $('saveWithVersions')?.checked, savePoint = true } = {}) {
+  const proj = await savedProject({ history: false, savePoint });
+  return { project: proj, versions_of: (history && autosave?.id) || null, thumbnail: await projectThumb() };
+}
+
 $('saveBtn').addEventListener('click', async () => {
-  const proj = await savedProject();
-  const saved = await download(new Blob([JSON.stringify(proj)], { type: 'application/json' }), `${safeName()}.a3d.json`, { id: 'auto3d-project' });
-  if (!saved) return;
-  // a name changed in the Save dialog becomes the project's name
-  const n = saved.replace(/\.a3d\.json$|\.json$/i, '');
-  if (n && n !== state.projectName) { state.projectName = n; showProjectName(); }
-  toast(`Project saved as ${saved}.`, 'ok');
+  try {
+    const res = await api('/api/project/package', await projectPackage());
+    const missing = +res.headers.get('X-Missing-Files') || 0;
+    const saved = await download(new Blob([await res.arrayBuffer()], { type: 'application/zip' }), `${safeName()}.a3d`, { id: 'auto3d-project' });
+    if (!saved) return;
+    // a name changed in the Save dialog becomes the project's name
+    const n = saved.replace(/\.a3d(\.json)?$|\.json$/i, '');
+    if (n && n !== state.projectName) { state.projectName = n; showProjectName(); }
+    if (missing) toast(t2('Project saved as {name} — {n} imported file(s) were missing on this computer and are left out.', { name: saved, n: missing }), 'warning', 8000);
+    else toast(`Project saved as ${saved}.`, 'ok');
+  } catch (e) { toast(e.message, 'error'); }
 });
 
-/** The imported files (by hash) the project's 3D models use, base64 — so the project opens on another computer. */
-async function projectBlobs(proj) {
-  const shas = new Set(proj.parts.flatMap((p) => (p.model?.features || []).filter((f) => f.type === 'solid' && f.blob).map((f) => f.blob)));
-  const out = {};
-  for (const sha of shas) {
-    const res = await fetch(`/api/blob/${sha}`);
-    if (!res.ok) continue;
-    const u = new Uint8Array(await res.arrayBuffer());
-    let s = '';
-    for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000));
-    out[sha] = btoa(s);
-  }
+/** A project file (.a3d, a ZIP) opened by the server as it is (its imported files back into the store, binary) ->
+ *  {project (version 3), versions}. */
+async function readProjectFile(file) {
+  const res = await fetch('/api/project/open', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file });
+  const out = await res.json().catch(() => ({ error: `${res.status} ${res.statusText}` }));
+  if (!res.ok || out.error) throw new Error(out.error || `${res.status} ${res.statusText}`);
   return out;
 }
 
 async function openProject(file) {
   try {
-    // (.a3d.json.gz: a project attached to an AI problem report, gzip-compressed)
-    const text = /\.gz$/i.test(file.name) ? await new Response(file.stream().pipeThrough(new DecompressionStream('gzip'))).text() : await file.text();
-    const raw = JSON.parse(text);
-    // its imported files back to the server first (by their hash)
-    for (const [sha, b] of Object.entries(raw.blobs || {})) {
-      const bin = atob(b), u = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
-      await fetch('/api/blob', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: u });
-      void sha;
-    }
-    delete raw.blobs;
-    const history = raw.versions;
-    delete raw.versions;
-    const res = await api('/api/project/migrate', raw);
-    const proj = await res.json();
-    if (proj.error) throw new Error(proj.error);
+    const { project: proj, versions: history } = await readProjectFile(file);
     await openLoaded(proj);
     if (history) { // 🕘 saved with its version history: into the new project's store
       await api(`/api/versions/${encodeURIComponent(autosave.id)}/bundle`, { versions: history }).catch((e) => toast(e.message, 'warning', 7000));
@@ -2579,6 +2578,7 @@ var autosave = new Autosave({
   },
   onId: (id) => { windows?.connect(id); versions?.changed(); },
   elsewhere: () => windows.openElsewhere(), // (the projects open in the app's other windows)
+  thumb: () => projectThumb([320, 240]),
 });
 
 // OK / Cancel, ✓ Finish sketch, Done: in the bottom-right corner of each view; a right-click in the view = its OK
@@ -2638,7 +2638,8 @@ versions.changed();
 Object.assign(agentHandlers, versions.handlers()); // (list_versions, save_version, restore_version, compare_versions, create_variant: anywhere)
 // report_problem (a server tool) asks the page for what goes with the report: the project as Save project writes it
 // (without its version history; the server compacts it) and a ⏺ recording of the last 30 min
-agentHandlers.report_attachments = async () => ({ text: 'ok', project: await savedProject({ history: false, savePoint: false }), recording: recorder.forReport() });
+agentHandlers.report_attachments = async () => ({ text: 'ok', project: await savedProject({ history: false, savePoint: false }), recording: recorder.forReport(),
+  thumbnail: await projectThumb([512, 384], 4000) }); // (its imported files: the server's store)
 // and the screenshots it asked for: "ui" (the window) / "view" (the 3D view or the sheet, fitted) — taken as get_screenshot
 // takes them, the AI's last picture kept (gui_action's at stays a point of it)
 agentHandlers.report_shots = async ({ shots = [] }) => {
@@ -2695,8 +2696,9 @@ initStart({
   openFiles: (files) => openFiles(files),
   demos: () => showDemos({ open: openLoaded, toast }),
   askAI: () => showChat(),
-  onChange: () => { placeChat(); updateTopButtons(); },
+  onChange: (on) => { placeChat(); updateTopButtons(); if (on) autosave?.fillStart($('startRecent')); },
 });
+if (document.body.classList.contains('start-open')) autosave?.fillStart($('startRecent')); // (the app starts on it)
 initWindowDrop((files, { shift }) => openFiles(files, { shift }));
 $('openAnyBtn').addEventListener('click', () => { $('openMenuWrap').classList.remove('open'); $('anyInput').click(); });
 // Ctrl+O: open a file · Ctrl+S: save the project (not while typing)
@@ -2895,7 +2897,7 @@ Object.assign(agentHandlers, recordHandlers()); // (start_recording, stop_record
 Object.assign(agentHandlers, layoutHandlers(), newProject.handlers()); // (set_layout: the widgets; new_project)
 const exportData = agentHandlers.export_data; // (+ the project file, as Save project writes it: export {format: "project"})
 agentHandlers.export_data = async (args = {}) => (args.format === 'project'
-  ? { text: 'ok', data: { name: safeName(), project: await savedProject({ history: !!args.history }) } } : exportData(args));
+  ? { text: 'ok', data: { name: safeName(), ...(await projectPackage({ history: !!args.history })) } } : exportData(args)); // (the server packs the .a3d)
 
 // the AI and the look of parts: the whole part's colour / see-through, single faces; a joined part moved its free ways;
 // the model on screen kept in the library
@@ -2974,4 +2976,4 @@ Object.assign(agentHandlers, {
   },
 });
 
-window.__app = { client: CLIENT, state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, library, autosave, versions, savedProject, windows, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d, sheet };
+window.__app = { client: CLIENT, state, viewer, layers, printPanel, dimTool, bends, outlinePanel, wizard, chat, aiHistory, library, autosave, versions, savedProject, projectThumb, windows, agentHandlers, featureAt, history, modeler, project, assembly, drawing2d, sheet };

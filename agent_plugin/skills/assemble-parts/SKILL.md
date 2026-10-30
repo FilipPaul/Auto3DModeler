@@ -97,7 +97,7 @@ seated in its receptacle, its stroke as its slide's limits), joined Concentric.
    `record_animation {mechanism, format: "gif" | "video"}` saves one full cycle in the data folder (it answers the path).
    Ready-made mechanisms (a crank – rod – slider, a four-bar, gears with a rack, a robot arm, a pump: a spring and check valves) to show or start from:
    `list_demos`, `open_demo {name: "crank"}` — only when the user asks (a new project; the one on screen is kept in
-   🕘 Recent projects). A saved project file (.a3d.json) opens with `open_file {path}` the same way.
+   🕘 Recent projects). A saved project file (.a3d) opens with `open_file {path}` the same way.
    **Gears, belts, a rack**: two parts that each turn on their own pin are coupled by `snap_faces {type: "gear" |
    "belt", move: {part, face: its rim}, onto: {part, face: the other rim}}` (the rims: the pitch circles; a gear pair
    turns opposite ways, a belt the same way; `value` = the ratio, default Ø onto / Ø move), a pinion and a sliding rack

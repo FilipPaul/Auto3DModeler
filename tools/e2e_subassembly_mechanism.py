@@ -61,7 +61,7 @@ def call(t, **a):
 def load_demo(f):
     with urllib.request.urlopen(f"{URL}/api/demos/{f}") as r:
         p = json.loads(r.read())
-    js("return fetch('/api/project/migrate', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(arguments[0])}).then(r => r.json()).then(p => window.__app.project.loadAll(p))", p)
+    js("return window.__app.project.loadAll(arguments[0])", p)  # (the server gives it as version 3)
     time.sleep(2)
 
 
@@ -118,7 +118,7 @@ try:
     d.get(URL)
     wait("return !!window.__app")
     js("localStorage.removeItem('auto3d-lang')")
-    load_demo("klikovy-mechanismus.a3d.json")
+    load_demo("klikovy-mechanismus.a3d")
     wait(f"return {A}.doc.instances.length === 4 && {A}.doc.instances.every(i => {A}.bodyOf(i)?.body)")
     pin_d = js(f"return 2 * {A}.worldFace('I4', 'F4:side:c1').radius")
     call("rename_part", id="Klikový mechanismus", name="Pohon")
@@ -312,7 +312,7 @@ try:
     call("place_part", part="I2", rigid=False)
 
     # the gearbox with a rack as a sub-assembly: its couplings work in the parent
-    load_demo("prevodovka-s-hrebenem.a3d.json")
+    load_demo("prevodovka-s-hrebenem.a3d")
     wait(f"return {A}.doc.instances.length === 4 && {A}.doc.instances.every(i => {A}.bodyOf(i)?.body)")
     call("new_model", name="Deska")
     call("add_feature", type="sketch", plane="XY", shapes=[{"rect": {"x": 0, "y": 0, "w": 400, "h": 300}}])

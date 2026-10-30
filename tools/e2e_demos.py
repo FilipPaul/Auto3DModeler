@@ -175,7 +175,7 @@ try:
     a = json.loads(call("get_assembly"))
     m = a["mechanisms"][0]
     print("  mechanism:", m["name"], "·", m["driver"]["label"])
-    check(f == "klikovy-mechanismus.a3d.json" and m["name"] == "Klikový mechanismus" and m["driver"]["label"] == "Otáčení kliky", f"{f}: ⚙ {m['name']}, driven by “{m['driver']['label']}”")
+    check(f == "klikovy-mechanismus.a3d" and m["name"] == "Klikový mechanismus" and m["driver"]["label"] == "Otáčení kliky", f"{f}: ⚙ {m['name']}, driven by “{m['driver']['label']}”")
     shaft, pin, spin = rounds("I1", "side")[0], rounds("I2", "side")[0], rounds("I4", "side")[0]
     R, L = 25, 100
     off = [0]
@@ -251,7 +251,7 @@ try:
     m = a["mechanisms"][0]
     cs = {c["type"]: c for c in a.get("couplings", [])}
     print("  mechanism:", m["name"], "·", m["driver"]["label"], "| couplings:", [(c["id"], c["type"], c["ratio"]) for c in cs.values()])
-    check(f == "prevodovka-s-hrebenem.a3d.json" and len(a["mechanisms"]) == 1 and m["name"] == "Převodovka s hřebenem" and m["driver"]["label"] == "Otáčení pastorku"
+    check(f == "prevodovka-s-hrebenem.a3d" and len(a["mechanisms"]) == 1 and m["name"] == "Převodovka s hřebenem" and m["driver"]["label"] == "Otáčení pastorku"
           and sorted(m["parts"]) == ["I2", "I3", "I4"], f"{f}: one ⚙ {m['name']} of {m['parts']}, driven by “{m['driver']['label']}”")
     check(cs.get("gear", {}).get("ratio") == 2 and cs["gear"].get("way") == "opposite" and abs(cs.get("rack", {}).get("ratio", 0) - math.pi * 30) < 1e-3, "its couplings: a gear pair 2:1 and a rack π·30 mm per turn")
 
@@ -277,7 +277,7 @@ try:
     f = open_demo(4)
     a = json.loads(call("get_assembly"))
     m = a["mechanisms"][0]
-    check(f == "pumpicka.a3d.json" and len(a["mechanisms"]) == 1 and m["name"] == "Pumpička" and m["driver"]["label"] == "Zmáčknutí tlačítka"
+    check(f == "pumpicka.a3d" and len(a["mechanisms"]) == 1 and m["name"] == "Pumpička" and m["driver"]["label"] == "Zmáčknutí tlačítka"
           and {"I2", "I4", "I5"} <= set(m["parts"]) and a.get("springs"), f"{f}: one ⚙ {m['name']} of {m['parts']}, driven by “{m['driver']['label']}”, a spring")
     sp = {"off": 0, "scales": set()}
 

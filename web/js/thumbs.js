@@ -26,16 +26,18 @@ export async function bodyOf(features) {
   return b;
 }
 
-/** Bodies drawn together in iso: [{body, matrix (16 numbers) or none, color}] -> a PNG data URL (or null). */
-export function picture(list, key) {
+/** Bodies drawn together in iso: [{body, matrix (16 numbers) or none, color}] -> a PNG data URL (or null); `px`
+ *  [w, h] px (default the tree's 220 × 160; the project file's picture is larger). */
+export function picture(list, key, px = [W, H]) {
+  if (key) key = `${px}:${key}`;
   if (key && pics.has(key)) return pics.get(key);
   const items = list.filter((x) => x.body?.positions);
   if (!items.length) return null;
   if (!R) {
     R = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
     R.setPixelRatio(1);
-    R.setSize(W, H);
   }
+  R.setSize(px[0], px[1]);
   const scene = new THREE.Scene(), box = new THREE.Box3(), geos = [];
   scene.add(new THREE.AmbientLight(0xffffff, 0.75));
   const sun = new THREE.DirectionalLight(0xffffff, 1.1);
@@ -52,7 +54,7 @@ export function picture(list, key) {
     box.expandByObject(mesh);
   }
   const c = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3()).length() || 1;
-  const cam = new THREE.PerspectiveCamera(30, W / H, size / 100, size * 10);
+  const cam = new THREE.PerspectiveCamera(30, px[0] / px[1], size / 100, size * 10);
   cam.up.set(0, 0, 1);
   cam.position.copy(c).addScaledVector(new THREE.Vector3(1, -1.25, 0.95).normalize(), size * 1.9);
   cam.lookAt(c);

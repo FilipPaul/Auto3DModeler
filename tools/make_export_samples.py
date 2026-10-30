@@ -161,8 +161,8 @@ try:
     js("document.getElementById('saveBtn').click()")
     wait("return window.__saved.length >= 1", 60)
     name, b64 = js("return window.__saved[window.__saved.length - 1]")
-    (OUT / "project_frame.a3d.json").write_bytes(base64.b64decode(b64))
-    check(name.endswith(".a3d.json"), f"the project saved ({name})")
+    (OUT / "project_frame.a3d").write_bytes(base64.b64decode(b64))
+    check(name.endswith(".a3d"), f"the project saved ({name})")
 
     errs = [m["message"] for m in d.get_log("browser") if m["level"] == "SEVERE" and "favicon" not in m["message"]]
     check(not errs, f"no console errors {errs[:3]}")

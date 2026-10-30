@@ -1,12 +1,11 @@
-"""🎬 The demo projects (demos/*.a3d.json, auto3d/demos.py): each opens as a valid project with its assembly ready —
-joints between its placed parts, Czech motion names, a named mechanism — and the server serves them read-only."""
-import json
+"""🎬 The demo projects (demos/*.a3d, auto3d/demos.py): each opens as a valid project with its assembly ready —
+joints between its placed parts, Czech motion names, a named mechanism, its picture — and the server serves them read-only."""
 import math
 import tempfile
 import unittest
 from pathlib import Path
 
-from auto3d import demos
+from auto3d import demos, package
 
 ROOT = Path(__file__).resolve().parent.parent
 DEMOS = ROOT / "demos"
@@ -16,10 +15,12 @@ class TestDemoFiles(unittest.TestCase):
     def test_listing(self):
         lst = demos.listing(DEMOS)
         self.assertGreaterEqual(len(lst), 3)
-        self.assertEqual([d["file"] for d in lst][:3], ["klikovy-mechanismus.a3d.json", "ctyrkloubovy-mechanismus.a3d.json", "roboticke-rameno.a3d.json"])
+        self.assertEqual([d["file"] for d in lst][:3], ["klikovy-mechanismus.a3d", "ctyrkloubovy-mechanismus.a3d", "roboticke-rameno.a3d"])
         for d in lst:
             self.assertTrue(d["name"] and d["name_cs"] and d["text"] and d["text_cs"], d)
             self.assertNotEqual(d["name"], d["name_cs"])
+            self.assertTrue(d["thumb"], d)  # (its card's picture)
+            self.assertEqual(demos.thumbnail(DEMOS, d["file"])[:8], b"\x89PNG\r\n\x1a\n")
 
     def test_each_loads_with_its_mechanism(self):
         for d in demos.listing(DEMOS):
@@ -46,18 +47,18 @@ class TestDemoFiles(unittest.TestCase):
                 self.assertLess((DEMOS / d["file"]).stat().st_size, 50_000)
 
     def test_crank_slider_closes_its_loop(self):
-        asm = next(p for p in demos.load(DEMOS, "klikovy-mechanismus.a3d.json")["parts"] if p["kind"] == "assembly")["assembly"]
+        asm = next(p for p in demos.load(DEMOS, "klikovy-mechanismus.a3d")["parts"] if p["kind"] == "assembly")["assembly"]
         rod = [m for m in asm["mates"] if m["move"] == "I3" and m["type"] == "axis"]
         self.assertEqual({m["onto"] for m in rod}, {"I2", "I4"})  # (the rod on the crank's pin and on the slider's pin)
 
     def test_four_bar_closes_its_loop(self):
-        asm = next(p for p in demos.load(DEMOS, "ctyrkloubovy-mechanismus.a3d.json")["parts"] if p["kind"] == "assembly")["assembly"]
+        asm = next(p for p in demos.load(DEMOS, "ctyrkloubovy-mechanismus.a3d")["parts"] if p["kind"] == "assembly")["assembly"]
         coupler = [m for m in asm["mates"] if m["move"] == "I3" and m["type"] == "axis"]
         self.assertEqual({m["onto"] for m in coupler}, {"I2", "I4"})
         self.assertEqual(sorted(m["onto"] for m in asm["mates"] if m["move"] in ("I2", "I4") and m["type"] == "axis"), ["I1", "I1"])
 
     def test_gearbox_couples_its_wheels(self):
-        asm = next(p for p in demos.load(DEMOS, "prevodovka-s-hrebenem.a3d.json")["parts"] if p["kind"] == "assembly")["assembly"]
+        asm = next(p for p in demos.load(DEMOS, "prevodovka-s-hrebenem.a3d")["parts"] if p["kind"] == "assembly")["assembly"]
         ids = {i["id"] for i in asm["instances"]}
         cs = {c["type"]: c for c in asm["couplings"]}
         self.assertEqual(set(cs), {"gear", "rack"})
@@ -73,7 +74,7 @@ class TestDemoFiles(unittest.TestCase):
     def test_pump_has_a_spring_and_two_valves(self):
         """🎬 Pumpička: a 〰 spring from the body's bore to the piston, two balls ● on their seats' axes going ↕ by the
         piston's direction — one opening while the piston goes up, the other while it goes down."""
-        asm = next(p for p in demos.load(DEMOS, "pumpicka.a3d.json")["parts"] if p["kind"] == "assembly")["assembly"]
+        asm = next(p for p in demos.load(DEMOS, "pumpicka.a3d")["parts"] if p["kind"] == "assembly")["assembly"]
         inst = {i["id"]: i for i in asm["instances"]}
         (s,) = asm["springs"]
         self.assertEqual((s["part"], s["onto"]), ("I3", "I2"))
@@ -90,7 +91,7 @@ class TestDemoFiles(unittest.TestCase):
     def test_gantry_routes_its_cable_through_the_chain(self):
         """🎬 Portálový pojezd: an igus chain whose moving end goes with the carriage, a 🔒 cable from the box through it
         to the motor, held by P-clips (the carriage's clip joined to the carriage: it goes along)."""
-        proj = demos.load(DEMOS, "portalovy-pojezd.a3d.json")
+        proj = demos.load(DEMOS, "portalovy-pojezd.a3d")
         asm = next(p for p in proj["parts"] if p["kind"] == "assembly")["assembly"]
         inst = {i["id"]: i for i in asm["instances"]}
         (ch,) = asm["chains"]
@@ -114,7 +115,7 @@ class TestDemoFiles(unittest.TestCase):
     def test_arm_has_a_service_loop_across_its_hinge(self):
         """🎬 Otočné rameno s kabelem: 4 coloured loose wires from the controller to the sensor, a ➰ span of its own
         length from the controller to the arm, tie mounts joined to the arm, the arm's swing −90 … 90°."""
-        proj = demos.load(DEMOS, "otocne-rameno-s-kabelem.a3d.json")
+        proj = demos.load(DEMOS, "otocne-rameno-s-kabelem.a3d")
         asm = next(p for p in proj["parts"] if p["kind"] == "assembly")["assembly"]
         inst = {i["id"]: i for i in asm["instances"]}
         (h,) = asm["harnesses"]
@@ -131,7 +132,7 @@ class TestDemoFiles(unittest.TestCase):
         self.assertEqual((lim["min"], lim["max"]), (-90, 90))
 
     def test_bad_names_refused(self):
-        for bad in ("../server.py", "nope.a3d.json", "klikovy-mechanismus.json", "sub/x.a3d.json", None):
+        for bad in ("../server.py", "nope.a3d", "klikovy-mechanismus.json", "klikovy-mechanismus.a3d.json", "sub/x.a3d", None):
             with self.subTest(name=bad), self.assertRaises(demos.DemoError):
                 demos.load(DEMOS, bad)
 
@@ -139,11 +140,12 @@ class TestDemoFiles(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(demos.listing(tmp), [])
             self.assertEqual(demos.listing(Path(tmp) / "none"), [])
-            (Path(tmp) / "broken.a3d.json").write_text("{not json", encoding="utf-8")
+            (Path(tmp) / "broken.a3d").write_text("{not a zip", encoding="utf-8")
             self.assertEqual(demos.listing(tmp), [])
-            (Path(tmp) / "x.a3d.json").write_text(json.dumps({"app": "nope"}), encoding="utf-8")
+            (Path(tmp) / "x.a3d").write_bytes(package.write({"app": "nope"}, None)[0])
             with self.assertRaises(demos.DemoError):
-                demos.load(tmp, "x.a3d.json")
+                demos.load(tmp, "x.a3d")
+            self.assertIsNone(demos.thumbnail(tmp, "x.a3d"))  # (no picture in it)
 
 
 class TestDemoRoutes(unittest.TestCase):
@@ -155,7 +157,10 @@ class TestDemoRoutes(unittest.TestCase):
         proj = c.get(f"/api/demos/{lst[0]['file']}").get_json()
         self.assertEqual(proj["version"], 3)
         self.assertEqual(c.get("/api/demos/..%2Fserver.py").status_code, 404)
-        self.assertEqual(c.get("/api/demos/nope.a3d.json").status_code, 404)
+        self.assertEqual(c.get("/api/demos/nope.a3d").status_code, 404)
+        pic = c.get(f"/api/demos/{lst[0]['file']}/thumb")
+        self.assertEqual((pic.status_code, pic.mimetype, pic.data[1:4]), (200, "image/png", b"PNG"))
+        self.assertEqual(c.get("/api/demos/nope.a3d/thumb").status_code, 404)
         self.assertIn(c.post(f"/api/demos/{lst[0]['file']}", json={}).status_code, (405,))  # (no writing)
 
 
