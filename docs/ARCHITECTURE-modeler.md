@@ -7,6 +7,27 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **⇤⇥ One side of a limit at a time (2026-10-30)** (the owner: clear min and max separately). A motion's `travel`
+  record may hold only `min` or only `max`: the other side is open. dof.js clampLim (drag.js, the panel's slider,
+  move_free, setTravel's put-back) and travelOf (both ends for what needs them: a turn a full turn from the stop — in
+  motionPos the open end left out, so at the stop it reads the stop —, a slide the part's size past where it is):
+  ▶ (playTravel), ⚠ Check the travel, the mechanism's range (mechanism.js rangeOf). setTravel takes {min?, max?}
+  (`follow` needs both stops: dropped), clearEnd(id, mo, end). UI: ⚙ Mechanism "⇤ −45 ✕ … ∞ ⇥" (✕ by each value; ∞ =
+  limitHere), the part panel's min / max with ✕ / ∞, suggestions ✕ Clear min / ✕ Clear max. AI: set_travel min /
+  max null clears that side (both null: off). tools/e2e_mech_limits.py extended, e2e_assembly_travel (a slide; its
+  motion="axis" calls fixed to motion=0).
+- **⚠ Collisions while a mechanism moves (2026-10-30)** (the owner: collisions no longer seemed highlighted while a
+  mechanism runs). Found: there never was a live highlight — the ⚠ Collisions panel tints the pairs it last computed
+  and checks again only after a change is committed (a drop, ⏸), so during a drag / ▶ / the slider the tints stayed
+  where they were. New, off by default (the owner): web/js/assembly/mechclash.js — a row's ⚠ in ⚙ Mechanism (the
+  record's `clash`, ⋯ "Zastavit při kolizi" `clashStop`) scans the driver's travel once (driveTo quiet at ≤ 180 steps,
+  ~2° / 0.5 mm, POST /api/assembly/sweep with `quick`; again when the still parts, joints or travel change: a
+  signature), then Assembly.draw looks up the nearest step (no kernel call per frame): both parts' red glow + the
+  overlap box, a `.mc-clashnote` in the view (depth = the overlap box's size along the moving part's way there), red
+  bands under the slider (`.mc-clashbar`); ▶ pauses where one starts. Pairs of two moving parts are skipped (as
+  checkTravel). Measured: ▶ 60 fps on / off in the crank, robot arm and swinging-arm demos (gantry 48–52, as without);
+  scans 1.7–5 s in the background. AI: drive_mechanism `collisions`, `stop_at_collision` (answers the bands),
+  get_assembly `collision_bands` / `collisions_now`, check_travel's bands. tools/e2e_mech_collisions.py.
 - **📎 A clip goes with its part; a chain span keeps its end (2026-10-30)** (the demo builder's findings). clipAt:
   placeClip, then 🔗 `fixTogether(clip, the point's part)` (HarnessTool.fixOn / hostOf: a clip's point -> the part
   its clip is fixed to), then the point — one undo step (History.mark / squash: the steps since a mark made one).

@@ -1873,6 +1873,10 @@ class TestAssemblyClashes(unittest.TestCase):
         self.assertEqual(hits[30], [("I1", "I2", 10 * 20 * 10)])
         self.assertEqual(hits[50], [("I1", "I2", 10 * 20 * 10)])
         self.assertEqual(hits[80], [])
+        quick = doc.assembly_sweep(inst, steps, quick=True)  # (⚙ a mechanism's ⚠ scan: the same for small parts)
+        self.assertEqual([[(c["a"], c["b"], c["volume"]) for c in s["clashes"]] for s in quick], [hits[s["at"]] for s in r])
+        b = quick[2]["clashes"][0]["bbox"]  # (the overlap's box: how deep it goes, mechclash.js depthOf)
+        self.assertEqual([round(b[q + 3] - b[q], 3) for q in range(3)], [10, 20, 10])
 
 
 @unittest.skipUnless(OCC, "OCP not installed")

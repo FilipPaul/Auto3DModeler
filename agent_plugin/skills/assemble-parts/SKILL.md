@@ -79,7 +79,10 @@ seated in its receptacle, its stroke as its slide's limits), joined Concentric.
    trace: true}` -> [[driver, follower], …] (the app's 📈 Trace). `place_part {part, fixed: true}` = 📌 fixed in place.
    The whole mechanism by one value: get_assembly `mechanisms` (each with its driver — a crank's full turn by default —
    where it is and its travel) -> `drive_mechanism {mechanism, to}` (every part follows; `play: true` runs it on and on
-   in the app's ⚙ Mechanism, `driver` picks another driver). Name the motions in the user's words
+   in the app's ⚙ Mechanism, `driver` picks another driver). When the user wants to see where it hits something:
+   `drive_mechanism {mechanism, collisions: true}` (the widget's ⚠, off by default) — the parts in a collision glow red
+   while it moves and it answers the collision bands over the travel; `stop_at_collision: true` pauses ▶ at the first
+   one. Name the motions in the user's words
    (`name_motion {part, motion, name: "Otáčení kliky"}`, `drive_mechanism {name}` for the mechanism) — the names show
    everywhere and work as `motion` in move_free / set_travel. To show it moving: `set_view` as it should be seen, then
    `record_animation {mechanism, format: "gif" | "video"}` saves one full cycle in the data folder (it answers the path).

@@ -2934,10 +2934,11 @@ Object.assign(agentHandlers, {
     const { it, mo, eng } = assembly.motionFor(part, motion, true), p = eng.motionPos(it.id, mo), lim = eng.limitsOf(it, mo); // (eng: a sub-assembly's, for a part inside it)
     if (!Number.isFinite(+amount) && !Number.isFinite(+to)) throw new Error('amount (mm for a move, degrees for a turn) or to (where along it).');
     let goal = Number.isFinite(+to) && to !== null && to !== undefined ? +to : p + +amount;
-    const stopped = lim && (goal < lim.min || goal > lim.max);
-    if (lim) goal = Math.max(lim.min, Math.min(lim.max, goal));
+    const lo = Number.isFinite(lim?.min) ? lim.min : -Infinity, hi = Number.isFinite(lim?.max) ? lim.max : Infinity; // (one side open: free that way)
+    const stopped = goal < lo || goal > hi;
+    goal = Math.max(lo, Math.min(hi, goal));
     eng.moveFree(it.id, mo, eng.stepTo(mo, p, goal, lim), null, true);
-    return { text: `${part} moved: ${mo.label}, now at ${+eng.motionPos(it.id, mo).toFixed(2)} ${mo.kind === 'turn' ? '°' : 'mm'}${stopped ? ` (stopped at its limit ${lim.min} … ${lim.max})` : ''}${eng.loops?.some((l) => l.stopped) ? ' (stopped: its closed loop cannot follow it further — a dead point)' : ''}. ${JSON.stringify(assembly.summary().parts.find((x) => x.id === assembly.topOf(part)))}` };
+    return { text: `${part} moved: ${mo.label}, now at ${+eng.motionPos(it.id, mo).toFixed(2)} ${mo.kind === 'turn' ? '°' : 'mm'}${stopped ? ` (stopped at its limit ${lim.min ?? 'open'} … ${lim.max ?? 'open'})` : ''}${eng.loops?.some((l) => l.stopped) ? ' (stopped: its closed loop cannot follow it further — a dead point)' : ''}. ${JSON.stringify(assembly.summary().parts.find((x) => x.id === assembly.topOf(part)))}` };
   },
   save_to_library: async ({ name, category = 'My parts', maker = '', pn = '' }) => {
     if (state.workspace !== 'model' || !modeler.part.features.length) throw new Error('Open the 3D model to keep (it needs steps).');
