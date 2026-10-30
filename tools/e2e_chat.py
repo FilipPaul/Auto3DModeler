@@ -20,8 +20,9 @@ js = d.execute_script
 try:
     d.get(URL)
     time.sleep(2)
-    js("document.querySelector('.tab[data-tab=ai]').click()")
+    d.find_element(By.ID, "aiBtn").click()  # (as a user: ✨ AI — the start screen opens the chat in its drawer)
     time.sleep(0.5)
+    print("chat in sight:", js("return document.getElementById('tab-ai').offsetParent !== null"))
     print("status:", js("return document.querySelector('.ai-status').textContent"))
     ta = d.find_element(By.CSS_SELECTOR, ".ai-form textarea")
     ta.send_keys(MESSAGE)
