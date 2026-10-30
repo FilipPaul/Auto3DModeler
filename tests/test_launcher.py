@@ -195,6 +195,33 @@ class TestFrozen(unittest.TestCase):
                 self.assertEqual(version.text(), f"{version.VERSION} (main @ abc1234, 2026-10-29)")
             finally:
                 version.build.cache_clear()
+            self.assertEqual(version.head(), "")  # (the built app: no git, never stale)
+
+    def test_moved_head(self):
+        """The checkout moved on since the server started: the report's version says both commits (and the page's)."""
+        from auto3d import version
+        answers = {("rev-parse", "--short", "HEAD"): "92d0e37", ("log", "-1", "--format=%cs"): "2026-10-27",
+                   ("rev-parse", "--abbrev-ref", "HEAD"): "main", ("status", "--porcelain", "--untracked-files=no"): ""}
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(version, "ROOT", Path(tmp)), \
+                mock.patch.object(version, "_git", side_effect=lambda *a: answers[a]), mock.patch.dict("os.environ", {"A3D_FAKE_HEAD": ""}):
+            version.build.cache_clear()
+            version._head["at"] = -version.HEAD_TTL
+            try:
+                self.assertEqual(version.text(), f"{version.VERSION} (main @ 92d0e37, 2026-10-27)")
+                self.assertEqual(version.stale(), "")
+                answers[("rev-parse", "--short", "HEAD")] = "1e35a8d"  # (a merge: the server keeps its start commit)
+                self.assertEqual(version.head(), "92d0e37")  # (asked again only after HEAD_TTL)
+                version._head["at"] = -version.HEAD_TTL
+                self.assertEqual(version.stale(), "1e35a8d")
+                self.assertEqual(version.text(), f"{version.VERSION} (server started at main @ 92d0e37, 2026-10-27; "
+                                                  f"checkout now at 1e35a8d — restart the app to run it)")
+                self.assertTrue(version.text("0aa1111").endswith("; page loaded at 0aa1111 — reload it)"))
+                self.assertNotIn("page loaded", version.text("92d0e37"))
+                with mock.patch.dict("os.environ", {"A3D_FAKE_HEAD": "fa4e000"}):
+                    self.assertEqual(version.stale(), "fa4e000")
+            finally:
+                version.build.cache_clear()
+                version._head["at"] = -version.HEAD_TTL
 
 
 if __name__ == "__main__":

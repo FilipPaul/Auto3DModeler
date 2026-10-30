@@ -39,6 +39,7 @@ from auto3d.extract import render_page_png
 from auto3d.joints import joint_catalog
 from auto3d.importers import DRAWING_FORMATS, MESH_FORMATS, ImportError_, dwg_to_dxf, read_dxf
 from auto3d.meshpart import mesh_model, register, solve_mesh
+from auto3d.mcp_server import OLDER_SERVER  # ("Unknown tool …: this app server is older than the tool list")
 from auto3d.outline import add_objects, apply_shapes, detect_outlines, outline_from_mask, outline_model, preset_objects, solve_outline
 from auto3d.modeler import status as modeler_status
 from auto3d.modeler.worker import WORKER as MODEL_WORKER, KernelFailed, KernelUnavailable
@@ -1652,7 +1653,7 @@ def tool_report_problem(args):
     REPORTS.mkdir(parents=True, exist_ok=True)
     path = REPORTS / f"{time.strftime('%Y-%m-%d-%H%M%S', now)}-{'request-' if kind == 'tool request' else 'ui-' if kind == 'ui' else ''}{slug}.md"
     from auto3d import version
-    parts = [f"# {title}", "", f"- **Kind:** {kind}", f"- **Date:** {time.strftime('%Y-%m-%d %H:%M:%S', now)}", f"- **App version:** {version.text()}",
+    parts = [f"# {title}", "", f"- **Kind:** {kind}", f"- **Date:** {time.strftime('%Y-%m-%d %H:%M:%S', now)}", f"- **App version:** {version.text(PAGE_BUILDS.get(ROUTE.get() or '') or PAGE_BUILDS.get('', ''))}",
              "- **Reported by:** the AI agent (MCP report_problem)", "",
              "## What happened", "", what]
     for key, head in (("expected", "What was expected"), ("steps", "Steps"), ("workaround", "Workaround")):
@@ -1693,11 +1694,15 @@ SERVER_TOOLS = {"open_file": tool_open_file, "report_problem": tool_report_probl
                 "use_outline": tool_use_outline, "export": tool_export, "list_demos": tool_list_demos, "open_demo": tool_open_demo}
 
 
+PAGE_BUILDS: dict[str, str] = {}  # window (client id) -> the commit its page was loaded with ("": the latest any said)
+
+
 @app.get("/api/version")
 def api_version():
-    """The app's version and the git commit it runs from."""
+    """The app's version and the git commit it runs from; head: the checkout's commit now, stale: true when it moved
+    on since the server started (the page shows ⟳ New version — restart the app)."""
     from auto3d import version
-    return jsonify({**version.build(), "text": version.text()})
+    return jsonify({**version.build(), "text": version.text(), "head": version.head(), "stale": bool(version.stale())})
 
 
 @app.post("/api/agent/call")
@@ -1706,8 +1711,8 @@ def api_agent_call():
     page (also through a server tool: open_file …) goes to that window only."""
     body = request.get_json(force=True)
     tool, args = body.get("tool", ""), body.get("args") or {}
-    if tool not in TOOL_NAMES:
-        return jsonify(_mcp_result(f"Unknown tool {tool}.", error=True))
+    if tool not in TOOL_NAMES:  # listed: the MCP server (newer code, started by the chat) knows it — this server is older
+        return jsonify(_mcp_result(OLDER_SERVER.format(tool=tool) if body.get("listed") else f"Unknown tool {tool}.", error=True))
     route = ROUTE.set(str(body.get("client") or "") or None)
     try:
         if tool == "add_feature" and args.get("type") == "solid" and args.get("path"):
@@ -1722,7 +1727,9 @@ def api_agent_call():
 
 @app.get("/api/agent/poll")
 def api_agent_poll():
-    """The page long-polls for tool calls to apply."""
+    """The page long-polls for tool calls to apply. ?build=: the commit the page was loaded with (said in reports)."""
+    if request.args.get("build"):
+        PAGE_BUILDS[request.args.get("client") or ""] = PAGE_BUILDS[""] = request.args["build"][:40]
     cmd = RELAY.poll(20.0, request.args.get("client") or None, request.args.get("active", "1") == "1")
     return jsonify(cmd) if cmd else ("", 204)
 

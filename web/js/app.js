@@ -44,9 +44,11 @@ import { Versions } from './versions.js';
 import { initStart, initWindowDrop } from './start.js';
 import { initNewProject } from './newproject.js';
 import { initMouseBack } from './mouseback.js';
+import { initStaleNotice } from './stale.js';
 
 initI18n();  // Czech / English: translates the page as it is built
 initJobs(() => project.current?.name); // ⚙ N in the top bar: what is working now, with ✕ Stop
+initStaleNotice(); // ⟳ New version: the server runs older code than the checkout (restart the app) / the page (reload)
 
 const $ = (id) => document.getElementById(id);
 const UNIT_TO_M = { mm: 0.001, cm: 0.01, m: 1, in: 0.0254 };

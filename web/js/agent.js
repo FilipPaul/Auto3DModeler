@@ -5,6 +5,7 @@
 
 import { t } from './i18n.js';
 import { recorder } from './recorder.js';
+import { pageBuild } from './stale.js';
 
 const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -70,7 +71,7 @@ export function startBridge(handlers) {
       try {
         poller = new AbortController();
         const active = document.visibilityState === 'visible' ? 1 : 0;
-        const res = await fetch(`/api/agent/poll?client=${encodeURIComponent(client)}&active=${active}`, { signal: poller.signal });
+        const res = await fetch(`/api/agent/poll?client=${encodeURIComponent(client)}&active=${active}${pageBuild() ? `&build=${pageBuild()}` : ''}`, { signal: poller.signal });
         if (res.status === 200) cmd = await res.json();
       } catch (e) {
         if (e.name !== 'AbortError') await new Promise((r) => setTimeout(r, 2000));

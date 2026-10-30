@@ -757,6 +757,11 @@ body.resizing iframe, body.resizing canvas { pointer-events: none; }
 .aih { width: min(640px, calc(100vw - 32px)); max-width: none; }
 .autosave-state { font-size: 11px; color: var(--muted); white-space: nowrap; margin-left: 6px; }
 .autosave-state.bad { color: #f85149; }
+/* ⟳ New version: the server runs older code (web/js/stale.js) — small, it blocks nothing */
+.stale-note { font: inherit; font-size: 11px; white-space: nowrap; margin-left: 8px; padding: 1px 7px; border-radius: 9px; cursor: help;
+  color: #d29922; background: transparent; border: 1px solid #d29922; }
+.stale-note[data-kind=page] { cursor: pointer; }
+.stale-note[hidden] { display: none; }
 /* "Continue where you left off": a strip under the top bar, in the page's flow (it covers nothing) */
 .restore-bar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 6px 14px;
   background: var(--panel-2); border-bottom: 1px solid var(--accent); }

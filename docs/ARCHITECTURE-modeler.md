@@ -2590,6 +2590,16 @@ Date: 2026-10-25. Written by the architect agent.
   "kept on this sheet only"). tools/e2e_title_inline.py (Czech, real mouse / keys: the box over the cell in its font,
   D-100 on the sheet and in the PDF and not asked, Esc, Tab -> Kontroloval and the question, Ano -> all 3 pages of the
   set's PDF say F. Paul, D-100 on one; the mass cell computed; the suggestion row; the panel; the AI; every style).
+- **A server older than its checkout says so done:** the app server runs for hours while main moves on. version.head()
+  (the checkout's HEAD, `git rev-parse` at most every 30 s; A3D_FAKE_HEAD for tests; '' in the built app) and stale();
+  a report's version line says both commits when they differ ("server started at main @ 92d0e37, …; checkout now at
+  1e35a8d — restart the app to run it") and the page's commit when it is another one (the page sends it with its AI
+  polls: ?build=, server.PAGE_BUILDS). /api/version has head / stale; web/js/stale.js shows a small ⟳ New version —
+  restart the app (or — reload the page: the server restarted under an old page) in the top bar, asked every minute
+  and on focus. A tool the MCP server lists but the app server does not know: "this app server is older than the tool
+  list; restart the app" (the MCP server sends listed: true; it also rewrites an old server's "Unknown tool").
+  tests: test_launcher test_moved_head, test_agent test_older_app_server / test_report_says_the_page_build;
+  tools/e2e_stale_notice.py.
 - **The later list is done.** Ideas for after it (each to be kept simple, ≤ 2 inputs): ~~hole / sketch distances from
   round faces (a shaft's axis)~~ (done); ~~dimensions of hole positions drawn on the 2D drawing (not only listed)~~ (done); joint types in
   assemblies beyond face-on-face (axis on axis for pins in holes); a sketch mirror line; draft angle on extrudes.

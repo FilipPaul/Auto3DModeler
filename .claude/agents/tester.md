@@ -660,6 +660,10 @@ Never report "works" without having run it; report failures with their output.
    reached through ⋯ Show all (the table back to its top rows); an unknown label refused with the offered rows;
    get_screenshot {ui: true} draws the table where it is (its box differs from the view with the table hidden); an
    assembly's part picked (its table, a row run); a sheet's dimension (its table, the ui screenshot names it).
+   `tools/e2e_stale_notice.py <url> <dir>` covers ⟳ New version in the top bar: a server started with
+   `A3D_FAKE_HEAD=fa4e000` (its checkout "moved on") -> /api/version stale, the report text with both commits; the
+   notice in Czech "⟳ Nová verze — restartujte aplikaci" with its tooltip, in the top bar; English after a switch; no
+   console errors. Needs its own server started with that env var.
    `tools/e2e_recording.py <url> <dir>` covers ⏺ the recording of moves (in Czech, real mouse): the top bar's ⏺ ->
    the red pill at the top centre of the 3D view; a block made through the table (a line's length typed 0: the error
    toast, ✓ Hotovo, the extrude's 10, OK), the top face clicked, ◎ Díra sem, Esc, Ctrl+Z, a drag with the button held;
