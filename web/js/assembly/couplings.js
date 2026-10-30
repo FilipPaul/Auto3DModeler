@@ -172,7 +172,7 @@ export function followCouplings(asm, before, drive) {
         if (!it) continue;
         const prev = [...it.matrix], snap = new Map(asm.doc.instances.map((x) => [x.id, [...x.matrix]]));
         it.matrix = asm.holdPart(id, motionMatrix(q.mo, q.mo.kind === 'turn' ? (amt * Math.PI) / 180 : amt).multiply(Mat(prev))).toArray();
-        asm.placeAll(mates);
+        asm.placeAll(mates, id); // (what hangs on it goes along — not the whole train again for each gear)
         if (asm.closeLoops(snap, { id, was: prev })) asm.placeAll(mates);
         moved = true;
       }

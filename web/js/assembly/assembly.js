@@ -2958,15 +2958,26 @@ export class Assembly {
 
   /** Each joined part placed by its joints, after the parts it hangs on. A part goes along with the part it hangs on
    *  (its first joint's) as that one moved, then its joints set what they fix — so where it slid or turned freely
-   *  stays. */
-  placeAll(mates) {
-    const movers = [...new Set(mates.map((m) => m.move))], done = new Set();
-    for (let pass = 0; pass <= movers.length && done.size < movers.length; pass++) {
+   *  stays. from: only the parts that hang on this one (through others too) — the rest did not move (a gear turned by
+   *  its neighbour: its own shaft and what is on it, not the whole train again for every gear). */
+  placeAll(mates, from = null) {
+    const byMove = new Map(), done = new Set(); // (each part's joints, found once: 500 parts × their joints on every solve)
+    for (const m of mates) { if (!byMove.has(m.move)) byMove.set(m.move, []); byMove.get(m.move).push(m); }
+    let movers = [...byMove.keys()];
+    if (from) {
+      const on = new Set([from]);
+      for (let grew = true; grew;) { grew = false; for (const m of mates) if (on.has(m.onto) && !on.has(m.move)) { on.add(m.move); grew = true; } }
+      movers = movers.filter((x) => on.has(x) && x !== from);
+      for (const x of byMove.keys()) if (!on.has(x) || x === from) done.add(x); // (as placed: their supports for the others)
+    }
+    let left = movers.length;
+    for (let pass = 0; pass <= movers.length && left > 0; pass++) {
       for (const id of movers) {
         if (done.has(id)) continue;
-        const mine = mates.filter((m) => m.move === id);
-        if (mine.some((m) => movers.includes(m.onto) && !done.has(m.onto) && m.onto !== id)) continue; // its support first
+        const mine = byMove.get(id);
+        if (mine.some((m) => byMove.has(m.onto) && !done.has(m.onto) && m.onto !== id)) continue; // its support first
         done.add(id);
+        left--;
         const it = this.inst(id);
         if (!this.bodyOf(it)?.body || mine.some((m) => !this.bodyOf(this.inst(m.onto))?.body)) continue; // not built yet
         const rigid = mine.filter((m) => !this.insideMate(m));
