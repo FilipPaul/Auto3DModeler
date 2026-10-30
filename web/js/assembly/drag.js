@@ -1,19 +1,36 @@
 // A part dragged in the assembly's view: the chosen part moves the way its joints leave free — a turn follows the
 // mouse round its axis, a slide along its line — and every part joined to it follows (Assembly.moveFree: the parts on
-// it go along, a closed loop is solved, coupled gears turn). A part of a closed loop drives the loop's driver
-// (mechanism.js); a gear of a train turns by its own axis. A part inside a ⚙ moving sub-assembly (the sub-assembly
-// chosen, the part grabbed) moves by its own joints there, in the assembly's flat engine (Assembly.flatAsm). The cue:
-// over the chosen part that can move, the arrow carries a badge with the motion (↻ / ↔ / ⚙), the part and the parts that go
-// with it glow; while dragging, the value at the cursor.
+// it go along, a closed loop is solved, coupled gears turn). Any part of a ⚙ mechanism (two parts or more: a loop, a
+// train) drags too, chosen or not: by its own motion when the mechanism can be driven by it (the crank's turn, the
+// slider's slide, the rocker's swing: the others follow), else (a rod, a coupler, a part fixed on one) the mechanism's
+// driver goes where the grabbed point comes nearest the mouse (seekDrag). A part inside a ⚙ moving sub-assembly (the
+// sub-assembly chosen, the part grabbed) moves by its own joints there, in the assembly's flat engine
+// (Assembly.flatAsm). A drag starts past SLOP px (less: a click, it chooses) and is one undo step. The cue: over a part
+// that drags, the arrow carries a badge with the motion (↻ / ↔ / ⚙), the part and the parts that go with it glow;
+// while dragging, the value at the cursor.
 import * as THREE from 'three';
 import { t } from '../i18n.js';
-import { posOf } from './mechanism.js';
+import { posOf, driveTo, engOf } from './mechanism.js';
 import { clampLim } from './dof.js';
 
-/** How the chosen part `id` moves when dragged -> {part, mo, mech} or null (it cannot move: a drag turns the view).
- *  A part of a closed loop drives the loop's driver; a gear of a train its own turn (mech: the mechanism it is in, the
- *  others follow); else its own free motion (an axis' turn first, then a slide along it). The press (startDrag) and
- *  the cursor's cue (dragCue) both ask this, so they never disagree. */
+const SLOP = 4; // (px the mouse goes before a press drags — as Assembly.bindPointer tells a click)
+
+/** The ⚙ mechanism (two parts or more, driven) part `id` moves with: one of its parts, or a part fixed on one (a weight
+ *  on the crank) — or null (a part moving on its own is a mechanism of its own: it drags when chosen, as any part). */
+export function mechOf(asm, id, seen = new Set()) {
+  if (!id || seen.has(id) || !asm.mech?.list.some((x) => x.parts.length > 1)) return null; // (no mechanism: asked on every hover)
+  seen.add(id);
+  const m = (asm.mech?.list || []).find((x) => x.parts.includes(id));
+  if (m) return m.parts.length > 1 && m.closed && m.driver ? m : null;
+  if (asm.inst(id)?.fixed) return null;
+  for (const j of asm.doc.mates || []) if (j.move === id) { const on = mechOf(asm, j.onto, seen); if (on) return on; }
+  return null;
+}
+
+/** How part `id` moves when dragged -> {part, mo, mech, drives, grab} or null (it cannot move: a drag turns the view).
+ *  A part of a mechanism (mechOf): its own motion the mechanism can be driven by (drives: the driver's own), else the
+ *  driver, sought after the mouse (grab: the part grabbed); else its own free motion (an axis' turn first, then a
+ *  slide along it). The press (startDrag) and the cursor's cue (dragCue) both ask this, so they never disagree. */
 export function dragPlan(asm, id) {
   const it = asm.inst(id), key = it && `${id}|${it.matrix}|${JSON.stringify(asm.doc.mates || [])}|${JSON.stringify(asm.doc.couplings || [])}|${asm.mech?.list.map((x) => x.key).join(';')}`;
   if (key && asm._dragMemo?.key === key) return asm._dragMemo.plan; // (the cursor asks on every mouse move: once per change)
@@ -24,24 +41,45 @@ export function dragPlan(asm, id) {
 
 /** eng: the assembly, or its flat engine for a part inside a moving sub-assembly (Assembly.flatAsm). */
 function planOf(asm, id, eng = asm) {
-  const mk = (asm.mech?.list || []).find((x) => x.parts.includes(id) && x.closed && x.driver && x.parts.length > 1) || null;
-  const m = mk && (!mk.train || (eng.loops || []).some((l) => l.parts.includes(id))) ? mk : null; // (⚙ a gear of a train: its own turn, the others follow)
-  if (m) return { part: m.driver.part, mo: m.driver.mo, mech: mk, drives: true };
   let d = null;
   try { d = eng.motionsOf(id); } catch { d = null; }
-  const mo = d?.count ? d.motions.find((q) => q.kind === 'turn' && /:turn$/.test(q.key || '')) || d.motions.find((q) => /:along$/.test(q.key || '')) || d.motions[0] : null;
-  return mo ? { part: id, mo, mech: mk, drives: false } : null;
+  const pick = (ms) => ms.find((q) => q.kind === 'turn' && /:turn$/.test(q.key || '')) || ms.find((q) => /:along$/.test(q.key || '')) || ms[0] || null;
+  const mk = mechOf(asm, id);
+  if (mk) { // (its own motion when the mechanism goes by it — fixed on a part: that one's — else the driver, sought)
+    const own = pick((d?.motions || []).filter((q) => mk.drivers.some((x) => x.part === (q.via || id) && x.mo.key === q.key)));
+    if (own) return { part: id, mo: own, mech: mk, drives: (own.via || id) === mk.driver.part && own.key === mk.driver.mo.key };
+    return { part: mk.driver.part, mo: mk.driver.mo, mech: mk, drives: true, grab: id };
+  }
+  const mo = d?.count ? pick(d.motions) : null;
+  return mo ? { part: id, mo, mech: null, drives: false } : null;
 }
 
-/** The chosen part dragged in the view the way it can move (dragPlan): a turn follows the mouse round its axis, a
- *  slide along its line (through the grabbed point); the rest follows (Assembly.moveFree). e: the press ->
- *  {part, mo, move(e), end() -> moved?} or null (it cannot move, or the press is not on it: the view turns). */
-export function startDrag(asm, id, e) {
-  const hit = asm.view.ray(e.clientX, e.clientY).intersectObjects(asm.view.shown(), false)[0];
+/** A press on the view (e) -> the drag of the part under it (startDrag) or null (the view turns): the chosen part, or
+ *  any part of a ⚙ mechanism (mechOf). */
+export function pressDrag(asm, e) {
+  const hit = asm.view.ray(e.clientX, e.clientY).intersectObjects(asm.view.shown(), false)[0], id = hit?.object.userData.inst;
+  if (!id || (id !== asm.sel && !mechOf(asm, id))) return null;
+  return startDrag(asm, id, e, hit);
+}
+
+/** Part `id` dragged in the view the way it can move (dragPlan): a turn follows the mouse round its axis, a slide
+ *  along its line (through the grabbed point); the rest follows (Assembly.moveFree; pushed by another part than its
+ *  driver, a mechanism stops at the driver's limits); a part of a mechanism with no motion of its own seeks (seekDrag).
+ *  Nothing moves until the mouse has gone SLOP px. e: the press (hit: what the ray hit there) ->
+ *  {id, part, mo, plan, move(e), end() -> moved?} or null (it cannot move, or the press is not on it: the view turns). */
+export function startDrag(asm, id, e, hit = null) {
+  hit ||= asm.view.ray(e.clientX, e.clientY).intersectObjects(asm.view.shown(), false)[0];
   if (!hit || hit.object.userData.inst !== id) return null;
   const inner = asm.innerPartAt?.(id, hit), eng = inner?.eng || asm; // (a part moving inside a sub-assembly: "I3/I2", both levels' joints)
   const plan = inner ? planOf(asm, inner.id, eng) : dragPlan(asm, id);
   if (!plan) return null;
+  const x0 = e.clientX, y0 = e.clientY;
+  let live = false;
+  const far = (ev) => live || (live = Math.hypot(ev.clientX - x0, ev.clientY - y0) > SLOP); // (a click is not a drag)
+  if (plan.grab) {
+    const s = seekDrag(asm, plan, hit.point, inner?.id || id);
+    return { id, part: plan.part, mo: plan.mo, plan, move: (ev) => { if (far(ev)) s.move(ev); }, end: () => s.end() };
+  }
   const { part, mo, mech: mk } = plan;
   const P0 = hit.point.clone(), n = mo.dir.clone().normalize(), o = mo.point ? mo.point.clone() : null;
   const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(n, P0), a0 = o ? P0.clone().sub(o).projectOnPlane(n) : new THREE.Vector3();
@@ -62,19 +100,94 @@ export function startDrag(asm, id, e) {
     return (n.dot(w) - b * ray.direction.dot(w)) / den;
   };
   return {
-    part, mo, plan,
+    id, part, mo, plan,
     move(ev) {
+      if (!far(ev)) return;
       const a = amountAt(ev);
       if (a === null || Math.abs(a - done) < 1e-3) return;
       const lim = eng.limitsOf(eng.inst(mo.via || part), mo);
       let step = a - done;
       if (lim) { const p = eng.motionPos(part, mo); step = clampLim(lim, p + step) - p; } // (one side open: free that way)
-      eng.moveFree(part, mo, step, null, false);
+      const m = mk && (asm.mech.list.find((x) => x.key === mk.key) || mk), dl = m && !plan.drives && m.lim ? m.lim : null; // (the slider pushed: the crank's limits hold too)
+      const e1 = dl && engOf(asm, m), was = dl && snapOf(e1);
+      eng.moveFree(part, mo, step, null, false, !!dl);
+      if (dl) {
+        const p = posOf(asm, m), q = clampLim(dl, p);
+        if (Math.abs(q - p) > 1e-6) { back(e1, was); driveTo(asm, m, q); } else asm.draw(); // (past its stop: the driver at its stop)
+      }
       done = a;
       moved = true;
-      if (mk) asm.mech.mark(asm.mech.list.find((x) => x.key === mk.key) || mk);
+      if (m) asm.mech.mark(m);
     },
     end() { if (moved) eng.commit(); return moved; },
+  };
+}
+
+/** Where the parts of engine `e` are, to put them back (back). */
+const snapOf = (e) => e.doc.instances.map((x) => [x.id, [...x.matrix], structuredClone(x.hang)]);
+function back(e, snap) { for (const [iid, mat, hang] of snap) { const x = e.inst(iid); if (x) { x.matrix = mat; x.hang = hang; } } }
+const wrap = (a) => ((((a + 180) % 360) + 360) % 360) - 180; // (a turn the short way round)
+const round360 = (a) => ((a % 360) + 360) % 360;
+
+/** A part of mechanism plan.mech with no motion of its own (a rod, a coupler, a part fixed on one: `grab`) dragged:
+ *  the driver goes where the grabbed point P0 (world) comes nearest the mouse. At the first move the driver's travel
+ *  is swept once from where it is (quiet; the parts back after): the point's path on screen, a step about every 4° /
+ *  1 mm, each way to its limits or a dead point (one branch, as ▶ goes). Each move then takes the mouse's nearest spot
+ *  on that path — near where the driver is when that is about as near (the path may cross itself on screen) — and the
+ *  driver goes there in steps no longer than the path's (the loop keeps its branch). -> {move(e), end() -> moved?} */
+function seekDrag(asm, plan, P0, grab) {
+  const key = plan.mech.key, cur = () => asm.mech.list.find((x) => x.key === key) || plan.mech;
+  const e0 = engOf(asm, cur()), local = P0.clone().applyMatrix4(new THREE.Matrix4().fromArray(e0.inst(grab).matrix).invert());
+  let path = null, at = 0, moved = false;
+  const sweep = (m) => {
+    const e = engOf(asm, m), snap = snapOf(e), p0 = posOf(asm, m), span = m.full ? 360 : m.max - m.min;
+    const n = Math.max(24, Math.min(120, Math.ceil(span / (m.turn ? 4 : 1)))), h = span / n, pts = [];
+    const look = (v, k) => { const [x, y] = asm.view.toScreen(local.clone().applyMatrix4(new THREE.Matrix4().fromArray(e.inst(grab).matrix))); pts.push({ v, k, x, y }); };
+    try {
+      if (m.full) { // (round from where it is: step k at p0 + k·h, the last one next to the first)
+        for (let k = 0; k < n; k++) { if (!driveTo(asm, m, round360(p0 + k * h), false, true).stopped) look(p0 + k * h, k); }
+      } else {
+        for (const dir of [1, -1]) {
+          back(e, snap);
+          for (let k = dir > 0 ? 0 : 1; ; k++) {
+            const v = Math.max(m.min, Math.min(m.max, p0 + dir * k * h)), r = driveTo(asm, m, v, false, true);
+            if (r.stopped) break; // (a dead point: no further that way)
+            look(r.at, dir * k);
+            if (v <= m.min || v >= m.max) break;
+          }
+        }
+        pts.sort((a, b) => a.k - b.k);
+      }
+    } finally { back(e, snap); e.checkJoints(); }
+    return { pts, full: m.full, n, h };
+  };
+  const off = (v) => (path.full ? Math.abs(wrap(v - at)) : Math.abs(v - at));
+  const seek = (cx, cy) => { // the driver's value whose point is nearest the mouse (cx, cy) — near `at` when about as near
+    const P = path.pts, cand = P.length === 1 ? [{ v: P[0].v, d: 0 }] : [];
+    for (let i = 0; i < P.length; i++) {
+      const A = P[i], B = P[i + 1] || (path.full ? P[0] : null), next = B && (B === P[0] ? A.k === path.n - 1 && B.k === 0 : B.k - A.k === 1);
+      if (!next) continue; // (a gap: a dead point between)
+      const dx = B.x - A.x, dy = B.y - A.y, L = dx * dx + dy * dy, s = L > 1e-9 ? Math.max(0, Math.min(1, ((cx - A.x) * dx + (cy - A.y) * dy) / L)) : 0;
+      const vb = B === P[0] ? A.v + path.h : B.v;
+      cand.push({ v: A.v + s * (vb - A.v), d: Math.hypot(A.x + s * dx - cx, A.y + s * dy - cy) });
+    }
+    if (!cand.length) return null;
+    const best = cand.reduce((a, b) => (b.d < a.d ? b : a)), here = cand.filter((c) => off(c.v) <= path.h * 6).reduce((a, b) => (!a || b.d < a.d ? b : a), null);
+    return (here && here.d <= best.d + 12 ? here : best).v;
+  };
+  return {
+    move(ev) {
+      const m = cur();
+      if (!path) { path = sweep(m); at = posOf(asm, m); }
+      const v = seek(ev.clientX, ev.clientY);
+      if (v === null || off(v) < 1e-3) return;
+      const span = path.full ? wrap(v - at) : v - at, k = Math.max(1, Math.ceil(Math.abs(span) / path.h));
+      for (let i = 1; i <= k; i++) { const w = at + (span * i) / k; driveTo(asm, m, path.full ? round360(w) : w, false, i < k); } // (drawn once, at the end)
+      at = path.full ? round360(at + span) : at + span;
+      moved = true;
+      asm.mech.mark(m);
+    },
+    end() { if (moved) engOf(asm, cur()).commit(); return moved; },
   };
 }
 
@@ -116,10 +229,10 @@ export function moveCursor(kind, deg = 0, on = false) {
   return cache.get(key);
 }
 
-/** The parts a drag of the chosen part `id` moves (dragPlan): its mechanism's, else it and the parts joined onto it. */
+/** The parts a drag of part `id` moves (dragPlan): its mechanism's (and it), else it and the parts joined onto it. */
 export function movingParts(asm, id, plan = dragPlan(asm, id)) {
   if (!plan) return [];
-  if (plan.mech) return [...plan.mech.parts];
+  if (plan.mech) return [...new Set([...plan.mech.parts, id])];
   const out = new Set([plan.mo.via || id, id]);
   for (let grew = true; grew;) {
     grew = false;
@@ -129,9 +242,10 @@ export function movingParts(asm, id, plan = dragPlan(asm, id)) {
 }
 
 /** The cue over part `inst` (the mouse's) -> {cursor, kind, parts (the ones that move), plan} or null (it does not
- *  drag there: the normal cursor, the view turns). Only the chosen part drags (startDrag), so only it gets the cue. */
+ *  drag there: the normal cursor, the view turns). The chosen part and any part of a ⚙ mechanism drag (pressDrag), so
+ *  they get the cue. */
 export function dragCue(asm, inst, on = false) {
-  if (!inst || inst !== asm.sel || asm.sel2) return null;
+  if (!inst || asm.sel2 || (inst !== asm.sel && !mechOf(asm, inst))) return null;
   const plan = dragPlan(asm, inst);
   if (!plan) return null;
   const kind = plan.mech ? 'mech' : plan.mo.kind === 'turn' ? 'turn' : 'slide';

@@ -315,9 +315,15 @@ Never report "works" without having run it; report failures with their output.
    zoomed out, one more already seen -> the camera stays).
    `tools/e2e_assembly_dragcue.py <url> <dir>` covers the drag cue (Czech): over the chosen part a drag moves, the
    cursor is the arrow with the motion's badge (↻ a pin in a hole, ↔ a lid on a base, ⚙ the crank demo's crank; the
-   svg's data-cue, the hotspot 1 1 at the arrow's tip) and the parts that move glow; nothing chosen, the 📌 fixed base, a fully held part, a part not chosen: the normal cursor; the first-time
+   svg's data-cue, the hotspot 1 1 at the arrow's tip) and the parts that move glow; nothing chosen, the 📌 fixed base, a fully held part, a part not chosen: the normal cursor
+   — but ⚙ over any part of a mechanism (the crank, the rod) chosen or not; the first-time
    hint "Táhněte — pohne mechanismem"; dragging: the filled cursor and "↻ 3°" at the cursor (= ⚙ Mechanism's value),
    the slider at the formula; screenshots with the cursor drawn in and the cursors 4× (cue_icons.png).
+   `tools/e2e_drag_mechanism_any_part.py <url> <dir>` covers dragging any part of a mechanism (Czech, real mouse drags,
+   nothing chosen): the crank demo's rod (no motion of its own) dragged to where its spot is 60° on — the crank there,
+   the spot under the mouse, the slider at the formula; one Ctrl+Z restores; the slider dragged along its line (the
+   crank turns); the crank as before; a click only chooses; the crank's limits 30 … 150° held by drags of the rod and
+   the slider far past them; the four-bar's coupler dragged (the rocker at the closed form); no console errors.
    `tools/e2e_new_project_btn.py <url> <dir>` covers 📄 Nový projekt in the top bar next to ＋ Nový 3D model (Czech): its box
    says the open project is saved and stays in 🕘 Recent projects (by name), offers here / a new window -> the start screen.
    `tools/e2e_mouse_back.py <url> <dir>` covers the mouse's side buttons and the browser's Back (Czech): ◀ (button 3) over

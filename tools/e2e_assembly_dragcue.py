@@ -2,7 +2,8 @@
 symbol (drag.js dragCue — the same check as the press: dragPlan) and the part and the parts that go with it glow;
 elsewhere the normal cursor (the view turns). A pin in a base's hole (turns and slides): ↻ over it; nothing chosen, the
 📌 fixed base: no cue -> 🔒 both its motions locked (fully held): no cue -> a lid on the base: ↔ along its slide -> the
-crank demo: the crank chosen, over it ⚙ (a mechanism: the crank, the rod and the slider glow), the first-time hint
+crank demo: nothing chosen, over the crank already ⚙ (any part of a mechanism drags) -> the crank chosen, over it ⚙
+(a mechanism: the crank, the rod and the slider glow; over the rod too), the first-time hint
 "Táhněte — pohne mechanismem" at the cursor -> pressed and dragged: the cursor filled, the value at the cursor ("↻ 52°")
 the same as ⚙ Mechanism's, the slider at r·cosθ + √(L² − r²sin²θ) -> let go: back to the cue, the hint not shown any
 more. Screenshots with the cursor drawn in (headless Edge shows no OS cursor) and the three cursors 4× enlarged.
@@ -188,7 +189,8 @@ def crank():
     wait(f"return window.__app.state.workspace === 'assembly' && {A}.doc.instances.length === 4 && {A}.doc.instances.every(i => {A}.bodies[i.part]?.body) && {A}.mech?.list.length")
     time.sleep(1)
     js("localStorage.removeItem('a3d.dragTip')")
-    check(kind(hover("I2")) == "", f"nothing chosen: the normal cursor over the crank ({cursor()!r})")
+    check(kind(hover("I2")) == "mech", f"nothing chosen: ⚙ over the crank all the same (a part of a mechanism) — {kind(cursor())!r}")
+    js("localStorage.removeItem('a3d.dragTip')")
     js(f"{A}.choose('I2')")
     time.sleep(0.6)
     at = spot("I2")
@@ -199,7 +201,7 @@ def crank():
     check(tip() == ("Táhněte — pohne mechanismem", False), f"the first-time hint at the cursor: {tip()}")
     shot("cue_mech", at)
     rod = spot("I3")
-    check(kind(hover(at=rod)) == "", f"over the rod (not chosen: a drag there turns the view): the normal cursor ({cursor()[:20]!r})")
+    check(kind(hover(at=rod)) == "mech", f"over the rod (not chosen, but of the mechanism: a drag there drives it): ⚙ — {kind(cursor())!r}")
     hover(at=at)
     th0, _ = state()
     ch = ActionChains(d, duration=60)
