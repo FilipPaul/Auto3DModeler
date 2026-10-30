@@ -1249,7 +1249,9 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   it, moves the next point out of a too short lead-out — keeping what clears the most, in one Ctrl+Z, and says how it
   went (*Opraveno 2 z 2*). The warning notes in the view are short (*⚠ R 0,33 / 4*, *⚠ napnuto, chybí 4,4 mm*, *⚠
   Předloktí I3*; the whole sentence in their tooltip) and stack instead of covering each other; a harness that is not chosen shows one *⚠ 3* with all of them in its tooltip; **Zobrazit: ⚠ Varování
-  kabelů** in the bottom row hides them (remembered) — the harness's panel then counts them. **⛓ Route through an energy chain**: choose a span (the length between two rows, or the cable
+  kabelů** in the bottom row hides them (remembered) — the harness's panel then counts them. **↔ Vůle** (the panel's *Body* header, or Zobrazit: ↔ Vůle in the bottom row; off at first,
+  remembered): the chosen harness's slack per span — how much longer it is than the tightest it could be — at its middle (*vůle 12,4
+  mm*, *napnuto* in red) and in the span rows; get_assembly gives `span_slack_mm`. **⛓ Route through an energy chain**: choose a span (the length between two rows, or the cable
   clicked again) and pick a chain of the assembly, or one from the library sized for the bundle (its opening ≥ Ø + 2,
   its bend ≥ the minimum radius) — put in at the span's first point, its fixed end 🔗 fixed to that point's part. The
   cable goes into the chain at the end nearer the span's first point and keeps that end as the chain rolls. It runs the chain's path as it is laid

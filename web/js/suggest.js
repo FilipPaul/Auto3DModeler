@@ -15,11 +15,11 @@ export const setAskAI = (fn) => { askAI = fn; };
 
 const SNAP_KEY = 'a3d.snap3d', HOVER_KEY = 'a3d.hover3d', SHOW_KEY = 'a3d.show3d';
 /** What the view shows besides the parts: {joints — an assembly's joint symbols, warnings — the cable harnesses' ⚠
- *  notes} (remembered). */
+ *  notes, slack — each harness span's slack} (remembered). */
 export function showKinds() {
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(SHOW_KEY) || 'null'); } catch { saved = null; }
-  return { joints: true, warnings: true, ...(saved || {}) };
+  return { joints: true, warnings: true, slack: false, ...(saved || {}) };
 }
 /** One of them switched (remembered) — the bottom row's Show: button, or the AI (set_view joints). */
 export function setShowKind(key, on) {
@@ -61,6 +61,7 @@ export function showSnapFilters(viewport, on = true, opts = viewport.snapOpts ||
   const hk = hoverKinds(), HV = [['edges', '⟋', 'Edges'], ['points', '•', 'Snap points']];
   const sk = { ...showKinds(), ...(opts.isOn ? Object.fromEntries((opts.show || []).map((key) => [key, opts.isOn(key)])) : {}) };
   const SH = [['joints', '🔗', 'Joints', "the joints' symbols in the view — click to hide or show them"],
+    ['slack', '↔', 'Slack', "how much longer each span of a cable is than the tightest it could be — click to hide or show it"],
     ['warnings', '⚠', 'Cable warnings', "the cable harnesses' warning notes in the view — click to hide or show them (the harness's panel still counts them)"],
     ['dims', '📏', 'Dimensions', "the part's sizes on the view — click to hide or show them (as Sizes: All / None)"]];
   bar.innerHTML = `<span class="skf-t">${esc(t('Snap'))}:</span>${F.map(([key, i, l]) => `<button class="${k[key] ? 'on' : ''}" data-snap="${key}" title="${esc(`${t(l)}: ${t(key === 'guides' ? 'Line up a hole or a text with corners, midpoints and centres while placing it — click to switch' : 'What 📏 Measure and a click catch — click to switch')}`)}">${i} <span class="skf-l">${esc(t(l))}</span></button>`).join('')}

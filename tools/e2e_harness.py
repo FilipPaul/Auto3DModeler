@@ -960,6 +960,37 @@ try:
     check("…switched off: no notes in the view, the panel counts them", gone == 0 and hid and "Skrytá varování" in hid[0], [gone, hid])
     keep_w = hw
 
+    # 27. ↔ the slack of each span: a span ➰ 140 mm long between points 100 mm apart -> 140 − its tightest, in the
+    # view (Zobrazit: ↔ Vůle, off at first), the panel and get_assembly; the motor moved: it changes; remembered (below)
+    hs_ = call("add_harness", type="cable", d=4, r_min=10, points=[{"part": "I3", "face": "F2:end"}, {"xyz": [0, 0, 0]}]).split(" ")[0]
+    p3 = js(f"const h = {T}.get('{hs_}'); return window.__hnPoint(h, h.points[0]).toArray()")  # (on the motor's top)
+    call("edit_harness", id=hs_, points=[{"part": "I3", "face": "F2:end"}, {"xyz": [p3[0] + 60, p3[1], p3[2] + 80]}, {"xyz": [p3[0] + 160, p3[1], p3[2] + 80]}], spans=[{"from": 1, "length": 140}])
+    js(f"{T}.sel = '{hs_}'; {T}.pt = null; {T}.span = null; {A}.sel = null; {A}.render(); {A}.draw()")
+    time.sleep(0.8)
+    check("27. ↔ Vůle off at first: no slack labels", not d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-slack"))
+    d.find_element(By.CSS_SELECTOR, "#asmViewport .snap-filters [data-show=slack]").click()
+    time.sleep(0.8)
+    tight = js(f"const a = {A}, h = {T}.get('{hs_}'); return window.__hn.spanTight(h, window.__hn.routeAt(a, h), 0)")
+    f = next(x for x in json.loads(call("get_assembly"))["harnesses"] if x["id"] == hs_)
+    sl = f["span_slack_mm"][0]
+    labels = [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-slack")]
+    panel = [e.text for e in d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-sl")]
+    check("…on: span 1–2 (➰ 140, its points 100 apart): slack = 140 − its tightest, in the view, the panel and get_assembly",
+          100 - 0.5 < tight < 140 and sl > 5 and abs(sl - (140 - tight)) < 0.15 and f["spans"][0]["slack_mm"] == sl and any(f"vůle {str(round(sl, 1)).replace('.', ',')} mm" in x for x in labels) and len(labels) == 2 and panel and f"vůle {str(round(sl, 1)).replace('.', ',')}" in panel[0],
+          [tight, sl, labels, panel, f.get("spans")])
+    m3 = js(f"return {A}.inst('I3').matrix.slice(12, 15)")
+    call("place_part", part="I3", x=m3[0], y=m3[1], z=m3[2] + 20)
+    time.sleep(0.8)
+    f = next(x for x in json.loads(call("get_assembly"))["harnesses"] if x["id"] == hs_)
+    check("…the motor moved 20 mm closer: the slack grows (the tightest shorter, the span still 140)", f["span_slack_mm"][0] > sl + 5, [sl, f["span_slack_mm"]])
+    js(f"{A}.history.go(-1)")
+    time.sleep(0.5)
+    d.save_screenshot(f"{OUT}/harness_17_slack.png")
+    rects = js("""return [...document.querySelectorAll('#asmViewport .hn-lbl')].filter(e => e.offsetParent).map(e => { const r = e.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom, e.textContent]; })""")
+    over = [(a[4], b[4]) for i, a in enumerate(rects) for b in rects[i + 1:] if a[0] < b[2] - 0.5 and b[0] < a[2] - 0.5 and a[1] < b[3] - 0.5 and b[1] < a[3] - 0.5]
+    check("…its labels and the notes not over each other", not over, over)
+    keep_s = hs_
+
     # 17. saved and reloaded: the locks kept
     keep = js(f"return JSON.stringify({T}.list().map(h => [h.points.map(p => [p.inst || null, !!p.on, p.face || null, p.clip || null]), h.spans || null]))")
     js("return window.__app.autosave.saveNow()")
@@ -983,6 +1014,15 @@ try:
     time.sleep(0.8)
     check("…on again: the notes back", js("return document.querySelectorAll('#asmViewport .hn-warn, #asmViewport .hn-clash, #asmViewport .hn-note').length") > 0)
     call("edit_harness", id=keep_w, remove=True)
+    js(f"{T}.sel = '{keep_s}'; {A}.render(); {A}.draw()")
+    time.sleep(0.8)
+    btn = d.find_element(By.CSS_SELECTOR, "#asmViewport .snap-filters [data-show=slack]")
+    check("27. …↔ Vůle on is remembered after a reload", "on" in btn.get_attribute("class") and d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-slack"))
+    d.find_element(By.CSS_SELECTOR, "#asmRight [data-hx=slack]").click()
+    time.sleep(0.6)
+    check("…the panel's ↔ Vůle switches it off: no labels, the bottom row's off too", not d.find_elements(By.CSS_SELECTOR, "#asmViewport .hn-slack") and not d.find_elements(By.CSS_SELECTOR, "#asmRight .hn-sl")
+          and "on" not in d.find_element(By.CSS_SELECTOR, "#asmViewport .snap-filters [data-show=slack]").get_attribute("class"))
+    call("edit_harness", id=keep_s, remove=True)
     js("""import('/js/assembly/harness.js').then((m) => { window.__hn = m; }); import('/js/assembly/chains.js').then((k) => { window.__hnChain = (id) => { const r = k.chainRoute(window.__app.assembly, id); return r && { points: r.points, moving: r.moving.o }; }; })""")
     wait("return !!window.__hnChain && !!window.__hn")
     again = js(f"""const a = {A}, h = a.harnessTool.list().find(x => x.spans?.some(s => s.chain)); if (!h) return null;

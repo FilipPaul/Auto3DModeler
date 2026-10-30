@@ -1025,6 +1025,12 @@ body.chat-open .toast-stack { right: calc(min(var(--chat-w, 440px), 100vw) + var
 .hnc-all { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-top: 1px solid var(--line); font-size: 11.5px; flex: none; cursor: pointer; }
 .hn-lenrow { display: flex; align-items: center; gap: 6px; }
 .hn-hidden { color: #e3b341; }
+.hn-slack { display: inline-block; font-size: 10px; line-height: 1; padding: 2px 5px; border-radius: 6px; white-space: nowrap; transform: translateY(-18px); background: #1d2633b3; border: 1px solid #58a6ff55; color: #a5d0ff; }
+.hn-slack.tight { border-color: #f8514988; color: #ff9b94; }
+.hn-sl { font-size: 10.5px; color: #a5d0ff; }
+.hn-sl.tight { color: #ff9b94; }
+.hn-pts summary .hn-slk { float: right; font-size: 10.5px; padding: 0 5px; }
+.hn-slk.on { border-color: #58a6ff; color: #cfe3ff; }
 .hn-lbl[title] { cursor: help; }
 .hn-fix { margin: 4px 0 6px; border-color: #d2a8ff88; }
 .hn-lenrow .hn-len { margin: 0; flex: 1; }

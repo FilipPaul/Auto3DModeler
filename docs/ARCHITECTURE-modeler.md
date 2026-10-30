@@ -311,7 +311,9 @@ Date: 2026-10-25. Written by the architect agent.
   mount / tie size, the fitting ones first, the rest greyed with why (small / large / tie) — grouped by type, ↑ ↓
   through it; a click clipAt (a point with a clip: swapped — the new one put in, the point moved onto it, the old one
   removed, one undo step); ☐ for all points on faces: clipAll (one undo step). It closes when the chosen point
-  changes, on Esc, ✕ or a pick. auto3d/cableparts.py clip_choices (test_cableparts). ⚠ Notes (2026-10-30): short text + title; showKinds().warnings (suggest.js, the bottom row's Show: group, shown
+  changes, on Esc, ✕ or a pick. auto3d/cableparts.py clip_choices (test_cableparts). ↔ Slack (2026-10-30): slackOf(h, r) = spans − tightSpans (taut: − short); labels hn-slack at each span's middle
+  (unstacked with the notes), the rows' hn-sl; showKinds().slack (default off), the panel's ↔ switch the same;
+  harnessFacts span_slack_mm, spans[].slack_mm. ⚠ Notes (2026-10-30): short text + title; showKinds().warnings (suggest.js, the bottom row's Show: group, shown
   when the assembly has harnesses) — off: no hn-warn / hn-clash / hn-note, the panel's hn-hidden count; unstack()
   after every frame's CSS2D labels (labels.render wrapped): bottom-up, a label over one placed before is lifted; a
   harness not chosen: one hn-sum "⚠ n" (all in its title). 🪄 Auto-fix (2026-10-30): warnings(h) = avoidOne + routeAt + throughOf (taut, bends, parts hit, short leads);

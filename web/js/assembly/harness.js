@@ -28,7 +28,7 @@ import { t, getLang } from '../i18n.js';
 import { clipsFor, clipChoices, clipFrames, clipItem, placeClip, chainsFor, placeChain } from '../library/cableparts.js';
 import { chainRoute, chainOf as chainRec, addChain, drawChains } from './chains.js';
 import { ClipPick } from './clippick.js';
-import { showKinds } from '../suggest.js';
+import { showKinds, setShowKind } from '../suggest.js';
 
 const t2 = (text, vars) => t(text).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -257,6 +257,13 @@ export function tightSpans(h, r) {
   delete h0.length_locked;
   return routeE(h0, r.points.map((p) => p.clone()), r.where.slice(), [], r.still || []).spans;
 }
+/** ↔ The slack of each span: how much longer its cable is than the tightest it could be (tightSpans) — a taut span:
+ *  minus what it is short -> [mm]. */
+export function slackOf(h, r) {
+  const tt = tightSpans(h, r);
+  return (r.spans || []).map((L, k) => { const x = r.taut.find((q) => q.span === k); return x ? -x.short : Math.max(0, L - (tt[k] ?? L)); });
+}
+export const slackText = (x) => (x > 0.05 ? t2('slack {x} mm', { x: num(Math.round(x * 10) / 10) }) : t('taut'));
 export const spanTight = (h, r, k) => tightSpans(h, r)[k] ?? r?.spans?.[k] ?? 0;
 
 /** A point's face normal in the world (a point lying on a part's face) -> Vector3 or null. */
@@ -736,12 +743,14 @@ export function harnessBom(doc) {
 /** For the AI and the tree: a harness's facts as the parts stand now. */
 export function harnessFacts(asm, h) {
   const r = routeAt(asm, h), tool = asm.harnessTool;
+  const sl = slackOf(h, r);
   const list = (h.points || []).map((p, i) => { const w = pointAt(asm, h, p), on = p.inst ? p : p.on;
     return { n: i + 1, ...(on?.inst ? { part: on.inst, locked: !!p.inst } : { part: null }), ...(on?.face ? { face: on.face } : {}), ...(p.clip ? { clip: p.clip } : {}), ...(connOf(h, i) ? { connection: true } : {}), xyz: w ? w.toArray().map((x) => +x.toFixed(2)) : null }; });
   return { id: h.id, name: nameOf(h), type: h.kind, d_mm: +outerD(h).toFixed(3), r_min_mm: rMinOf(h), points: (h.points || []).length, point_list: list, length_mm: +r.length.toFixed(1),
     ...(h.kind === 'wires' || h.kind === 'ribbon' ? { wires: (h.wires || []).map((w) => ({ d: +w.d || 1.5, color: w.color })) } : { color: h.color || 'black' }),
     ...(lockedOf(h) ? { length_locked_mm: lockedOf(h) } : {}), ...(r.taut.length ? { taut: { short_mm: +r.taut[0].short.toFixed(1), ...(r.taut[0].span !== null ? { span: `${r.taut[0].span + 1}–${r.taut[0].span + 2}` } : {}) } } : {}),
-    ...(h.spans?.length ? { spans: h.spans.map((s) => ({ from: +s.from + 1, to: +s.from + 2, ...(+s.length > 0 ? { length_mm: +s.length } : {}), ...(s.chain ? { chain: s.chain } : {}), now_mm: +(r.spans[s.from] ?? 0).toFixed(1) })) } : {}),
+    ...(h.spans?.length ? { spans: h.spans.map((s) => ({ from: +s.from + 1, to: +s.from + 2, ...(+s.length > 0 ? { length_mm: +s.length } : {}), ...(s.chain ? { chain: s.chain } : {}), now_mm: +(r.spans[s.from] ?? 0).toFixed(1), slack_mm: +(sl[s.from] ?? 0).toFixed(1) })) } : {}),
+    span_slack_mm: sl.map((x) => +x.toFixed(1)),
     ...(r.totalIgnored ? { note: 'the spans\' own lengths win over length_locked' } : {}),
     ...(r.detours ? { detour_points: r.detours } : {}), ...(r.dropped.length ? { spans_not_kept: r.dropped.map((k) => `${k + 1}–${k + 2}`) } : {}),
     ...(r.clashes.length ? { still_hits: [...new Set(r.clashes.map((c) => c.inst))] } : {}),
@@ -1205,7 +1214,7 @@ export class HarnessTool {
       this.adopt(h);
       const pts = (h.points || []).map((p) => pointAt(this.asm, h, p));
       const extra = this.hoverWorld(h);
-      const key = JSON.stringify([h.kind, h.d, h.color, h.wires, h.pitch, h.r_min, h.length_locked, [...pts, ...extra].map((p) => p && p.toArray().map((x) => x.toFixed(3))), this.sel === h.id, this.edit === h.id, this.pt, this.hl, this.litSpan(h), JSON.stringify(this.throughAt?.get(h.id) || []), AVOID.get(h)?.key || '', (h.points || []).map((p, i) => +connOf(h, i)).join(''), JSON.stringify((h.spans || []).filter((s) => s.chain).map((s) => chainRoute(this.asm, s.chain)?.moving.o || null)), this.asm.view.clip?.length || 0, showKinds().warnings]);
+      const key = JSON.stringify([h.kind, h.d, h.color, h.wires, h.pitch, h.r_min, h.length_locked, [...pts, ...extra].map((p) => p && p.toArray().map((x) => x.toFixed(3))), this.sel === h.id, this.edit === h.id, this.pt, this.hl, this.litSpan(h), JSON.stringify(this.throughAt?.get(h.id) || []), AVOID.get(h)?.key || '', (h.points || []).map((p, i) => +connOf(h, i)).join(''), JSON.stringify((h.spans || []).filter((s) => s.chain).map((s) => chainRoute(this.asm, s.chain)?.moving.o || null)), this.asm.view.clip?.length || 0, showKinds().warnings, showKinds().slack]);
       const was = this.built.get(h.id);
       if (was?.key === key) continue;
       if (was) for (const o of was.objs) { this.group.remove(o); o.geometry?.dispose(); if (o.isCSS2DObject) o.element.remove(); }
@@ -1327,6 +1336,11 @@ export class HarnessTool {
       for (const c of marks) note('hn-clash', `⚠ ${c.name}`, V(c.at), `⚠ ${t2('the cable hits {part}', { part: c.name })}`); // (where it could not get clear of a part)
       if (on || notes.length < 2) for (const x of notes) label(...x); // (the harness chosen: each note at its spot; another: one ⚠ n, every note in its tooltip)
       else label('hn-warn hn-sum', `⚠ ${notes.length}`, notes[0][2], notes.map((x) => x[3] || x[1]).join('\n'));
+      if (showKinds().slack && on && !extra.length && r.spans?.length > 0) { // ↔ each span's slack at its middle (taut: red) — of the harness chosen
+        const sl = slackOf(h, r);
+        let s0 = 0;
+        r.spans.forEach((L, k) => { label(`hn-slack${sl[k] > 0.05 ? '' : ' tight'}`, `↔ ${slackText(sl[k])}`, curve.getPoint((s0 + L / 2) / r.length), t2('Span {a}–{b}: {x} longer than the tightest it could be', { a: k + 1, b: k + 2, x: `${num(Math.round(Math.max(0, sl[k]) * 10) / 10)} mm` })); s0 += L; });
+      }
       const own = extra.length ? routeAt(this.asm, h).length : r.length; // (its own length: not to the point under the mouse)
       if (on) label('hn-tag', `🔌 ${lockedOf(h) ? '🔒 ' : ''}${mmText(own)} mm`, curve.getPoint(taut ? 0.3 : 0.5)); // its length at its middle
     }
@@ -1610,6 +1624,7 @@ export class HarnessTool {
     box.querySelector('[data-hx=edit]')?.addEventListener('click', () => this.editPoints(h.id));
     box.querySelector('[data-hx=lock]')?.addEventListener('click', () => this.lockLength(h.id));
     box.querySelector('[data-hx=fix]')?.addEventListener('click', () => this.autoFixSay(h.id));
+    box.querySelector('[data-hx=slack]')?.addEventListener('click', (e) => { e.preventDefault(); setShowKind('slack', !showKinds().slack); this.asm.render(); this.draw(); }); // (↔ the same switch as the bottom row's)
     box.querySelector('[data-hx=del]')?.addEventListener('click', () => this.remove(h.id));
     this.pointsHandlers(h, box);
     return true;
@@ -1632,12 +1647,12 @@ export class HarnessTool {
           <button class="mini" data-pmove="${i}:-1" ${i ? '' : 'disabled'} title="${esc(t('Earlier'))}">↑</button><button class="mini" data-pmove="${i}:1" ${i < n - 1 ? '' : 'disabled'} title="${esc(t('Later'))}">↓</button><button class="mini danger" data-pdel="${i}" title="${esc(t('Delete the point'))}">✕</button></div>
         <div class="hn-pt2">${xyz}</div></div>`;
     };
-    const r = routeAt(this.asm, h), own = spansOf(h);
+    const r = routeAt(this.asm, h), own = spansOf(h), slack = showKinds().slack ? slackOf(h, r) : null;
     const ins = (i) => `<div class="hn-span ${i === this.span ? 'on' : ''}" data-span="${i}"><button class="hn-ins" data-pins="${i}" title="${esc(t2('A point between {a} and {b}', { a: i + 1, b: i + 2 }))}">＋</button>
       ${this.spanEdit === i ? `<input type="number" step="any" min="0" data-slen="${i}" value="${+(own[i] ?? r.spans?.[i] ?? 0).toFixed(1)}" title="${esc(t('The cable\'s length between these two points: longer than now makes a loop of slack (empty: as it is now)'))}"><span class="unit">mm</span>${this.slider(h, i, r)}${own[i] ? `<button class="mini" data-sclear="${i}" title="${esc(t('No length of its own'))}">✕</button>` : ''}`
-        : `<button class="hn-slen" data-sloop="${i}" title="${esc(t('➰ A loop / slack here: type this span\'s length'))}">${own[i] ? '➰ ' : ''}${mmText(r.spans?.[i] ?? 0)} mm${own[i] ? ' 🔒' : ''}</button>`}
+        : `<button class="hn-slen" data-sloop="${i}" title="${esc(t('➰ A loop / slack here: type this span\'s length'))}">${own[i] ? '➰ ' : ''}${mmText(r.spans?.[i] ?? 0)} mm${own[i] ? ' 🔒' : ''}</button>${slack ? `<span class="hn-sl${slack[i] > 0.05 ? '' : ' tight'}" title="${esc(t('How much longer this span is than the tightest it could be'))}">↔ ${esc(slackText(slack[i] ?? 0))}</span>` : ''}`}
       ${chainOfSpan(h, i) ? `<span class="hn-chain" data-no-i18n title="${esc(t('Routed through this energy chain: it follows its moving end'))}">⛓ ${esc(chainOfSpan(h, i))}</span><button class="mini" data-snochain="${i}" title="${esc(t('Not through the chain any more'))}">✕</button>` : ''}</div>`;
-    return `<details class="hn-pts" ${this.ptsOpen === false ? '' : 'open'}><summary>${esc(t('Points'))} (${n})</summary>
+    return `<details class="hn-pts" ${this.ptsOpen === false ? '' : 'open'}><summary>${esc(t('Points'))} (${n})<button class="mini hn-slk ${showKinds().slack ? 'on' : ''}" data-hx="slack" title="${esc(t('↔ Slack: how much longer each span is than the tightest it could be — in the view and here (also Show: ↔ Slack in the bottom row)'))}">↔ ${esc(t('Slack'))}</button></summary>
       ${P.map((p, i) => row(p, i) + (i < n - 1 ? ins(i) : '')).join('')}
       ${n ? `<button class="btn small danger hn-clear" data-hx="clearPts" title="${esc(t('Delete all its points and click new ones'))}">🗑 ${esc(t('Delete all points'))}</button>` : ''}</details>
       ${(this.orphans || []).filter((c) => this.asm.inst(c)).map((c) => `<p class="hint hn-orphan">📎 ${esc(t2('The clip {id} stays in the assembly', { id: `${this.asm.partName(this.asm.inst(c).part)} ${c}` }))} <button class="mini danger" data-rmclip="${c}">✕ ${esc(t('Remove it too'))}</button></p>`).join('')}`;
