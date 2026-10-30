@@ -1130,7 +1130,20 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   full data. It counts for every copy of the part in the assembly.
 - **✎ Edit it here** (a placed part's panel, or double-click it): its part opens in the full 3D modeler with the rest
   of the assembly see-through around it, in place; *◇ Back to the assembly* returns. It is **🔒 Locked** per part
-  until you unlock it (🔓 Editable from here), so nothing is changed by accident.
+  until you unlock it (🔓 Editable from here), so nothing is changed by accident. The Suggested table always shows
+  **✎ Edit the part here** for a chosen part — or a face, edge or point picked on it — however few rows it shows; a
+  locked part is unlocked by that click. From a picked face, that face is chosen in the part too: ✏ Sketch on this
+  face, ◎ Hole here are one click away.
+- **👁 Hide parts** (display only): the Suggested table always shows **👁 Hide / show…** for a chosen part (or a face
+  of it, or two parts with Ctrl+click); a click opens its choices as rows — **Hide**, **Make see-through** (25 %),
+  **Hide the others (isolate)**, **Others see-through**, **Show all parts** — each previewed while the mouse is on it.
+  👁 at the start of a row in the parts list hides / shows it (Alt+click: see-through); a hidden row is struck through, a
+  sub-assembly hides all its parts. Keys: **H** hides the chosen part(s) (again: shows), **Shift+H** shows all, **Alt+H**
+  isolates. A hidden part is not drawn, picked or snapped to (a click there takes what is behind it); a see-through
+  one is picked only when nothing else is under the mouse. "👁 2 hidden · Show all" sits over the parts list while any
+  are. Collisions, mechanisms, the BOM, exports and drawings are not changed; it is saved with the assembly (not an
+  undo step). The AI: `set_visibility {hide, transparent, show, isolate, others, show_all}`; get_assembly lists
+  `hidden` / `transparent`.
 - **Joints with no tool on**: click a face (or a hole's / pin's rim) — it lights up and the Suggested table offers the
   joints it can start; **Ctrl+click a face of another part** and it offers the joints that fit the two — one click
   makes it. Ranked, the likely one first:

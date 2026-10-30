@@ -216,7 +216,9 @@ try:
     tb = table("#asmViewport")
     print("a part:", tb)
     check("a placed part: 🔗 Join it, ◆ Open its part first", tb and "Join it to another part" in tb[1] and "Open its part" in tb[2])
-    check("…no Show all (fewer than 8)", len(rows(tb)) <= 8 and not more_row("#asmViewport"))
+    check("…no Show all (fewer than 8; ✎ Edit the part here and 👁 Hide / show… always there, not counted)",
+          len([r for r in rows(tb) if "Edit the part here" not in r and "Hide / show" not in r]) <= 8 and not more_row("#asmViewport")
+          and any("Edit the part here" in r for r in tb) and any("Hide / show" in r for r in tb))
     js(f"{A}.choose('I2', true)")
     time.sleep(0.4)
     print("+ another part:", table("#asmViewport"))

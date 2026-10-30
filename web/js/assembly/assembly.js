@@ -57,6 +57,7 @@ import { kindIcon, fromLibrary } from '../parts.js';
 import { MechanismPanel, driveTo, traceOf } from './mechanism.js';
 import { liveClashes, setClash, clashOn, scanDone, bandsOf } from './mechclash.js';
 import { saveAnimation } from './anim.js';
+import { CLEAR, displayOf, displayed, displayItems, displayKey, eyeHtml, clickEye, displayNote, setVisibility } from './visibility.js';
 import { startDrag, dragCue, dragValue, cueLabel, firstTip, tipSeen } from './drag.js';
 import { isPin } from './missing.js';
 import { pinFits, restOn } from './smart.js';
@@ -106,7 +107,7 @@ class AsmView extends ModelView {
       this.shapes.set(it.body, sh);
       const pos = sh.base.attributes.position.array, ids = sh.ids;
       let geo = sh.base;
-      const o = Number.isFinite(it.opacity) ? it.opacity : 1;
+      const o = it.see ? Math.min(Number.isFinite(it.opacity) ? it.opacity : 1, CLEAR) : Number.isFinite(it.opacity) ? it.opacity : 1; // (👁 see-through: 25 %)
       // a chosen part keeps its own colours and painted faces: it glows blue (it was drawn all blue — its look hidden)
       const fin = it.finish || { metalness: 0.05, roughness: 0.55 }; // (a metal part: metallic)
       const mat = new THREE.MeshStandardMaterial({ color: it.colour || COLORS[it.color % COLORS.length], roughness: fin.roughness, metalness: fin.metalness, envMapIntensity: fin.metalness > 0.5 ? 1 : 0.35,
@@ -141,11 +142,13 @@ class AsmView extends ModelView {
       mesh.matrixAutoUpdate = false;
       mesh.matrix.fromArray(it.matrix);
       if (it.explode) mesh.matrix.premultiply(new THREE.Matrix4().makeTranslation(...it.explode));
-      mesh.userData = { inst: it.id, faceIds: ids, body: it.body };
+      mesh.userData = { inst: it.id, faceIds: ids, body: it.body, see: !!it.see };
+      mesh.visible = !it.hidden; // (👁 hidden: kept for what hangs on it — a cable's points — but not drawn or picked)
       this.bodyGroup.add(mesh);
       const lines = new THREE.LineSegments(sh.edges, this.edgeMaterial);
       lines.matrixAutoUpdate = false;
       lines.matrix.copy(mesh.matrix);
+      lines.visible = !it.hidden;
       this.bodyGroup.add(lines);
       if (it.threads === 'cosmetic' && !sh.threads) { // 🔩 its part's cosmetic threads
         const thr = threadSegments(it.body.threads);
@@ -156,6 +159,7 @@ class AsmView extends ModelView {
         const tl = new THREE.LineSegments(sh.threads, this.threadMaterial);
         tl.matrixAutoUpdate = false;
         tl.matrix.copy(mesh.matrix);
+        tl.visible = !it.hidden;
         this.bodyGroup.add(tl);
       }
       this.meshes.push(mesh);
@@ -217,8 +221,8 @@ class AsmView extends ModelView {
   /** The box round every placed part as shown (exploded too) -> [x0, y0, z0, x1, y1, z1] or null. */
   shownBox() {
     if (!this.meshes?.length) return null;
-    const b = new THREE.Box3();
-    for (const m of this.meshes) b.union(new THREE.Box3().setFromObject(m));
+    const b = new THREE.Box3(), shown = this.shown();
+    for (const m of shown.length ? shown : this.meshes) b.union(new THREE.Box3().setFromObject(m));
     return [b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z].map((v) => +v.toFixed(3));
   }
 
@@ -228,7 +232,7 @@ class AsmView extends ModelView {
     this.clear(this.markGroup);
     for (const mk of marks) {
       const mesh = (this.meshes || []).find((m) => m.userData.inst === mk.inst);
-      if (!mesh) continue;
+      if (!mesh?.visible) continue;
       const want = new Set(mk.faces), pos = mesh.geometry.attributes.position.array, ids = mesh.userData.faceIds, out = [];
       for (let t = 0; t < ids.length; t++) if (want.has(ids[t])) for (let k = 0; k < 9; k++) out.push(pos[t * 9 + k]);
       if (!out.length) continue;
@@ -259,9 +263,14 @@ class AsmView extends ModelView {
     this.invalidate();
   }
 
+  /** The parts a click, a snap or the mouse can reach: the shown ones (👁 a hidden part is not picked). */
+  shown() { return (this.meshes || []).filter((m) => m.visible); }
+  /** The shown parts that hide what is behind them (not 👁 see-through). */
+  solids() { return this.shown().filter((m) => !m.userData.see); }
+
   fitBox() {
-    const box = new THREE.Box3();
-    for (const m of this.meshes || []) box.expandByObject(m);
+    const box = new THREE.Box3(), shown = this.shown();
+    for (const m of shown.length ? shown : this.meshes || []) box.expandByObject(m);
     for (const m of this.scene.getObjectByName('chains')?.children || []) if (m.count) box.expandByObject(m); // (⛓ the energy chains' links)
     return box.isEmpty() ? new THREE.Box3().setFromObject(this.datumGroup) : box;
   }
@@ -270,7 +279,7 @@ class AsmView extends ModelView {
    *  the face — with that face (world) and the part: {point, corner, face, inst} or null. */
   measurePoint(clientX, clientY, px = 10) {
     const h = this.pickInst(clientX, clientY), r = this.renderer.domElement.getBoundingClientRect();
-    const s = snapNear((this.meshes || []).map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), this.camera, r, clientX, clientY, px, snapKinds(), (p) => this.sees(p));
+    const s = snapNear(this.shown().map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), this.camera, r, clientX, clientY, px, snapKinds(), (p) => this.sees(p));
     if (!s && !h?.point) return null;
     return { point: s ? s.point : h.point.clone(), corner: s?.kind === 'corner', snap: s?.kind || null, face: s ? null : h?.face || null, inst: s ? s.inst : h.inst };
   }
@@ -282,7 +291,7 @@ class AsmView extends ModelView {
     const r = this.renderer.domElement.getBoundingClientRect(), v = new THREE.Vector3();
     const screen = (x, y, z, m) => { v.set(x, y, z).applyMatrix4(m).project(this.camera); return [(v.x + 1) / 2 * r.width + r.left, (1 - v.y) / 2 * r.height + r.top, v.z]; };
     const near = []; // (each round edge's nearest spot to the mouse: the nearest one in sight wins)
-    for (const mesh of this.meshes || []) {
+    for (const mesh of this.shown()) {
       const { inst, body } = mesh.userData, m = mesh.matrix;
       for (const e of body.edges || []) {
         const cyl = (e.faces || []).map((i) => body.faces[i]).find((f) => f?.type === 'cylinder');
@@ -312,13 +321,14 @@ class AsmView extends ModelView {
   sees(p) {
     const q = p.clone().project(this.camera), ray = new THREE.Raycaster();
     ray.setFromCamera(new THREE.Vector2(q.x, q.y), this.camera);
-    const at = p.clone().sub(ray.ray.origin).dot(ray.ray.direction), hit = ray.intersectObjects(this.meshes || [], false)[0];
+    const at = p.clone().sub(ray.ray.origin).dot(ray.ray.direction), hit = ray.intersectObjects(this.solids(), false)[0];
     return !hit || hit.distance >= at - Math.max(0.02, at * 1e-3);
   }
 
-  /** What is under the mouse: {inst, face (in world coordinates)} or null. */
+  /** What is under the mouse: {inst, face (in world coordinates)} or null — a 👁 see-through part only when nothing
+   *  solid is there. */
   pickInst(clientX, clientY) {
-    const h = this.ray(clientX, clientY).intersectObjects(this.meshes || [], false)[0];
+    const hits = this.ray(clientX, clientY).intersectObjects(this.shown(), false), h = hits.find((x) => !x.object.userData.see) || hits[0];
     if (!h) return null;
     const { inst, faceIds, body } = h.object.userData, fid = faceIds[h.faceIndex];
     const f = body.faces[fid]?.id === fid ? body.faces[fid] : body.faces.find((x) => x.id === fid);
@@ -372,7 +382,7 @@ export class Assembly {
 
   build() {
     const { left, viewport, right } = this.els;
-    left.innerHTML = `<div class="mt-head"><b>Assembly</b><span class="mt-sub">its parts</span></div><div class="as-list"></div>
+    left.innerHTML = `<div class="mt-head"><b>Assembly</b><span class="mt-sub">its parts</span></div><div class="as-vis" hidden></div><div class="as-list"></div>
       <div class="mt-start as-start" hidden><p><b>Put parts together</b></p><ol><li><b>＋ A part</b> — click it in Suggested (bottom left) or use ＋ Insert part</li>
       <li><b>◎ Where it goes</b> — the part just put in suggests it: into a hole, onto a pin, on the base (or click a face, Ctrl+click another)</li>
       <li><b>⚙ Mechanism</b> — shows by itself once the joints let the parts move</li></ol></div>`;
@@ -634,6 +644,7 @@ export class Assembly {
         { icon: '📏', label: t('Measure between them'), run: () => this.toggleMeasure() },
         { icon: '⚠', label: t('Check for collisions'), run: () => this.checkClashes() },
         { icon: '◆', label: `${t('Only')} ${name(a)}`, run: () => this.choose(a.id) },
+        ...displayItems(this, [a.id, b.id]), // (👁 both hidden, see-through, isolated …)
       ]);
       return;
     }
@@ -688,18 +699,21 @@ export class Assembly {
       ...(flex ? [a.rigid ? { icon: '⚙', label: t('Moving sub-assembly'), rank: 0.8, title: t('Its own mechanisms work here too — ⚙ Mechanism, dragging its parts, ▶'), run: () => this.setRigid(a.id, false) }
         : { icon: '🧱', label: t('Make it rigid'), rank: 9.5, title: t('It moves as one body, its parts stay where they are in it'), run: () => this.setRigid(a.id, true) }] : []),
       { icon: '🔗', label: t(joined ? 'Join it to one more part' : 'Join it to another part'), rank: 3, title: t('Click a face of it, then a face of the other part — the joints that fit the two'), run: () => this.startJoint('touch', a.id) },
-      ...(this.hooks.openPart ? [{ icon: this.kindOf(a.part) === 'assembly' ? '◇' : '◆', label: t('Open its part'), rank: 4, title: t('Change it in its own tab (the assembly follows)'), run: () => this.hooks.openPart(a.part) }] : []),
+      ...(this.hooks.openPart ? [{ icon: this.kindOf(a.part) === 'assembly' ? '◇' : '◆', label: t('Open its part'), rank: 4, ...(model && this.hooks.editInPlace ? {} : { always: true }), // (no ✎ Edit here: this one in sight)
+        title: t('Change it in its own tab (the assembly follows)'), run: () => this.hooks.openPart(a.part) }] : []),
       ...(free ? [{ icon: '↻', label: t('Turn it 90°'), rank: 5, title: t('About the up axis (Z), through its middle — or slide ↻ in the panel'), run: () => this.turn('z') },
         { icon: '⤵', label: t('Lay it on its side'), rank: 11, title: t('Turn it 90° about X, through its middle'), run: () => this.turn('x') }] : []),
-      ...(this.hooks.editInPlace && model ? [this.editable(a.part)
-        ? { icon: '✎', label: t('Edit it here'), rank: 6, title: t('Change its part here, the rest of the assembly see-through around it'), run: () => this.editInPlace(a.id) }
-        : { icon: '🔓', label: t('Unlock and edit it here'), rank: 9, title: t('Its part can be changed from this assembly then'), run: () => { this.toggleEditable(a.part); this.editInPlace(a.id); } }] : []),
+      ...(this.hooks.editInPlace && model ? [{ icon: '✎', label: t('Edit the part here'), always: true, // (always in sight: locked, it is unlocked first)
+        title: t(this.editable(a.part) ? 'Change its part here, the rest of the assembly see-through around it'
+          : 'Change its part here, the rest of the assembly see-through around it — it is unlocked for this assembly first (🔒 in its panel locks it again)'),
+        run: () => { if (!this.editable(a.part)) this.toggleEditable(a.part); this.editInPlace(a.id, this.facePicks?.find((q) => q.inst === a.id)?.face?.name); } }] : []), // (from a picked face: that face chosen in the part)
       ...(joined && !a.fixed ? [] : [{ icon: '📌', label: t(a.fixed ? 'Free it (not fixed)' : 'Fix in place'), rank: 5.5, title: t('A fixed part stays put: joints bring the other parts to it'), run: () => this.toggleFixed(a.id) }]), // (a joined part hangs on its joints: not fixed)
       { icon: '🏷', label: t('Rename'), rank: 8, title: t('Rename its part (its tab too)'), run: () => this.renameSel(a.id) },
       ...(this.hooks.openSheet && !a.fastener ? [{ icon: '📄', label: t(this.kindOf(a.part) === 'assembly' ? 'Drawing of the assembly' : 'Drawing of the part'), rank: 6.5,
         title: t('Its drawing sheet: views and dimensions, ready to print as PDF — it follows the part'), run: () => this.hooks.openSheet(a.part) }] : []), // (as 📄 Drawing in the bar does for the assembly)
       ...(this.hooks.duplicatePart ? [{ icon: '⧉', label: t('Make it its own part'), rank: 13, title: t('A copy of its part for this place only'), run: () => this.ownPart(a.id) }] : []),
       { icon: '✕', label: t('Take it out'), rank: 7, danger: true, title: t('Out of the assembly (Delete) — Ctrl+Z brings it back'), run: () => this.removeInst(a.id) },
+      ...displayItems(this, [a.id]), // (👁 Hide / show…: always in sight, its choices as rows under it)
     ];
   }
 
@@ -972,9 +986,11 @@ export class Assembly {
     for (const it of this.doc.instances) {
       const b = this.bodies[it.part];
       const row = document.createElement('div');
-      row.className = `mt-item${it.id === this.sel || it.id === this.sel2 ? ' on' : ''}${b?.error ? ' bad' : ''}`;
+      const shown = this.doc.display?.[it.id];
+      row.className = `mt-item${it.id === this.sel || it.id === this.sel2 ? ' on' : ''}${b?.error ? ' bad' : ''}${shown ? ` as-${shown}` : ''}`;
       row.dataset.inst = it.id;
-      row.innerHTML = `<span class="mt-icon">${this.partIcon(it.part)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>
+      // (👁 first: in one place whether the hover's buttons show or not)
+      row.innerHTML = `${eyeHtml(this, it.id)}<span class="mt-icon">${this.partIcon(it.part)}</span><span class="mt-name" data-no-i18n></span><span class="mt-what"></span>
         ${b?.error ? '<span class="mt-warn">⚠</span>' : ''}
         <span class="mt-acts"><button class="mini" data-a="rename" title="Rename its part (its tab too)">🏷</button><button class="mini" data-a="dup" title="One more of this part">⧉</button><button class="mini danger" data-a="del" title="Take it out of the assembly">✕</button></span>
         <button class="mini as-boom${it.stay ? ' off' : ''}" data-a="boom" title="${it.stay ? 'Stays in place when exploded — click to let it move' : 'Moves when exploded — click to keep it in place (Ctrl+click: only this one moves)'}">💥</button>`;
@@ -994,7 +1010,9 @@ export class Assembly {
         }
         if (a === 'del') return this.removeInst(it.id);
         if (a === 'boom') return this.toggleStay(it.id, e.ctrlKey || e.metaKey);
+        if (a === 'eye') return clickEye(this, it.id, e.altKey); // (👁 hidden / shown; Alt: see-through)
         if (a === 'twist') return this.toggleOpen(it.id);
+        if (this.facePicks?.length || this.snapPick) { this.facePicks = []; this.snapPick = null; this.view.setMeasure([]); this.drawMarks(); } // (the part chosen in the list: not a face picked before in the view)
         this.choose(it.id, e.ctrlKey || e.metaKey);
         return null;
       });
@@ -1002,6 +1020,7 @@ export class Assembly {
       if (kids && open.has(it.id)) this.innerRows(list, it, kids, 1, open);
     }
     this.harnessTool.rows(list); // (🔌 its harnesses under the parts)
+    displayNote(this, this.$('.as-vis')); // (👁 "2 hidden · Show all")
   }
 
   /** ▸ / ▾ on a sub-assembly's row; folded: how many parts are in it (all levels). */
@@ -1033,6 +1052,7 @@ export class Assembly {
       row.querySelector('.mt-name').textContent = this.partName(n.part);
       row.querySelector('.mt-what').textContent = n.id;
       row.title = t2('In {sub} — a click shows it in the view', { sub: this.partName(top.part) });
+      if (this.doc.display?.[top.id]) row.classList.add(`as-${this.doc.display[top.id]}`); // (👁 its sub-assembly hidden / see-through: it too)
       if (n.children) this.twist(row, n.path, n.children, open);
       row.addEventListener('click', (e) => {
         if (e.target.closest('[data-a=twist]')) { this.toggleOpen(n.path); return; }
@@ -1177,10 +1197,13 @@ export class Assembly {
 
   /** A part clicked: chosen alone, or (Ctrl) as the second one — the joints between the two are shown. */
   choose(id, more = false) {
+    const was = `${this.sel}|${this.sel2}`;
     this.selInner = null;
     if (id && this.harnessTool) this.harnessTool.sel = null; // (a part chosen: not the harness)
     if (more && this.sel && id && id !== this.sel) this.sel2 = this.sel2 === id ? null : id;
     else { this.sel = id || null; this.sel2 = null; }
+    if (`${this.sel}|${this.sel2}` !== was) this.visOpen = false; // (👁 Hide / show…: folded again for other parts)
+    this.visPreview = null;
     this.cueParts = null; // (the drag cue: found again at the next mouse move, for what is chosen now)
     cueLabel(this.els.viewport, null, '');
     const cv = this.view?.renderer?.domElement;
@@ -1623,7 +1646,7 @@ export class Assembly {
       return it ? { kind: 'part', inst: it.id, id: it.id, at: h.point?.clone(), tip: this.partName(it.part) } : null;
     }
     const mp = v.measurePoint(e.clientX, e.clientY);
-    const eh = snapWins(v, mp, e) ? null : v.edgeAt((v.meshes || []).map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), e.clientX, e.clientY, 6, v.meshes);
+    const eh = snapWins(v, mp, e) ? null : v.edgeAt(v.shown().map((m) => ({ edges: m.userData.body.edges, matrix: m.matrix, inst: m.userData.inst })), e.clientX, e.clientY, 6, v.solids());
     if (mp?.snap && !eh) return { kind: 'point', p: mp.point.clone(), snap: mp.snap, inst: mp.inst };
     if (eh) {
       const body = (v.meshes || []).find((m) => m.userData.inst === eh.inst)?.userData.body, names = eh.edge.faces.map((k) => body?.faces[k]?.name || '');
@@ -1866,8 +1889,9 @@ export class Assembly {
       <span class="hint">${ed ? 'Every copy of its part changes (here and in other assemblies).' : 'Unlock it to change its part from here — locked, it cannot be changed by accident.'}</span>`;
   }
 
-  /** Open a placed part's model in the 3D modeler, in place: the other parts shown see-through around it. */
-  async editInPlace(instId) {
+  /** Open a placed part's model in the 3D modeler, in place: the other parts shown see-through around it — with `face`
+   *  (its name in the part, picked here): that face chosen there, its suggestions ready. */
+  async editInPlace(instId, face = null) {
     const it = this.inst(instId);
     if (!it || !this.hooks.editInPlace) return;
     if (this.kindOf(it.part) !== 'model') { this.hooks.toast('Only 3D model parts can be changed here — open a quick part in its own tab.', 'info', 4000); return; }
@@ -1875,7 +1899,7 @@ export class Assembly {
     const Mi = new THREE.Matrix4().fromArray(it.matrix).invert();
     const context = this.doc.instances.filter((o) => o.id !== instId && this.bodyOf(o)?.body).map((o) => ({
       positions: this.bodyOf(o).body.positions, matrix: Mi.clone().multiply(new THREE.Matrix4().fromArray(o.matrix)).toArray() }));
-    await this.hooks.editInPlace(it.part, { context, back: this.hooks.selfId?.(), assembly: this.hooks.parts().find((p) => p.id === this.hooks.selfId?.())?.name, inst: instId });
+    await this.hooks.editInPlace(it.part, { context, back: this.hooks.selfId?.(), assembly: this.hooks.parts().find((p) => p.id === this.hooks.selfId?.())?.name, inst: instId, ...(face ? { face } : {}) });
   }
 
   /** Colour and see-through of a placed part: its own here (↺ back to its part's). */
@@ -2237,6 +2261,7 @@ export class Assembly {
     const tags = [];
     if (this.mode === 'idle' && !this.painting && !this.measuring && showKinds().joints) { // (🔗 Show: Joints off in the bottom row: none)
       for (const m of this.shownJoints()) {
+        if (displayOf(this, m.move) === 'hidden' || displayOf(this, m.onto) === 'hidden') continue; // (👁 a hidden part's joints: not shown)
         let a, b;
         try { a = this.worldFace(m.move, m.face).centroid; b = this.worldFace(m.onto, m.ontoFace).centroid; } catch { continue; }
         const jt = JOINT_TYPES[m.type || 'touch'] || JOINT_TYPES.touch, el = document.createElement('div');
@@ -2391,8 +2416,9 @@ export class Assembly {
       const look = this.lookOf(it);
       if (focus && !clashing.has(it.id)) look.opacity = Math.min(look.opacity ?? 1, 0.12); // the rest see-through
       const lit = this.innerLit(it);
+      const shown = displayOf(this, it.id); // (👁 hidden / see-through: display only — visibility.js)
       return { id: it.id, body: this.bodyOf(it)?.body, matrix: (this.doc.springs && springMatrix(this, it)) || it.matrix, color: this.modelParts().findIndex((p) => p.id === it.part), ...look, threads: this.hooks.partData(it.part)?.threads,
-        ...(lit ? { lit } : {}), selected: (it.id === this.sel && !lit) || it.id === this.sel2 || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst, moving: !!this.cueParts?.includes(it.id), clash: clashing.has(it.id),
+        ...(lit ? { lit } : {}), hidden: shown === 'hidden', see: shown === 'clear', selected: (it.id === this.sel && !lit) || it.id === this.sel2 || it.id === this.jointFrom?.inst, hover: it.id === this.hoverInst, moving: !!this.cueParts?.includes(it.id), clash: clashing.has(it.id),
         explode: along ? along.get(it.id)?.toArray() || null : this.explode && c ? away(c).multiplyScalar(this.explode * 1.2).toArray() : null };
     }));
     this.drawMarks();
@@ -2552,6 +2578,7 @@ export class Assembly {
     if (fid) return this.removeFastener(fid); // a screw goes with its nut and its holes
     this.doc.instances = this.doc.instances.filter((i) => i.id !== id);
     this.doc.mates = (this.doc.mates || []).filter((m) => m.move !== id && m.onto !== id);
+    if (this.doc.display?.[id]) delete this.doc.display[id]; // (👁 not passed on to a part put in later with its id)
     if (this.sel === id) this.sel = null;
     if (this.sel2 === id) this.sel2 = null;
     this.commit();
@@ -3649,7 +3676,7 @@ export class Assembly {
     const v = this.view, mesh = h0?.inst ? (v.meshes || []).find((m) => m.userData.inst === h0.inst) : null, hk = hoverKinds();
     if (!mesh) { v.clearHoverMarks(); return; }
     const body = mesh.userData.body, src = [{ edges: body.edges, matrix: mesh.matrix, inst: h0.inst }];
-    const eh = hk.edges ? v.edgeAt(src, e.clientX, e.clientY, 7, v.meshes) : null;
+    const eh = hk.edges ? v.edgeAt(src, e.clientX, e.clientY, 7, v.solids()) : null;
     v.setHoverEdges(eh ? [{ pts: eh.edge.pts, matrix: mesh.matrix }] : [], eh ? `${mesh.uuid}:${eh.i}` : '');
     const fi = h0.face ? body.faces.findIndex((f) => f.id === h0.face.id) : -1, kinds = snapKinds();
     if (!hk.points || fi < 0) { v.setHoverSnaps([]); return; }
@@ -3886,6 +3913,7 @@ export class Assembly {
       return;
     }
     if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y')) { e.preventDefault(); this.history.go(k === 'y' || e.shiftKey ? 1 : -1); return; }
+    if (k === 'h' && displayKey(this, e)) { e.preventDefault(); return; } // (👁 H hides, Shift+H shows all, Alt+H isolates)
     if (k === 's' && !e.ctrlKey) this.startJoint('touch', this.sel);
     if (e.key === 'Delete' && this.sel) this.removeInst(this.sel);
   }
@@ -3994,6 +4022,7 @@ export class Assembly {
       ...(this.doc.springs?.length ? { springs: springsSummary(this) } : {}),
       ...(this.doc.harnesses?.length ? { harnesses: this.doc.harnesses.map((h) => harnessFacts(this, h)) } : {}),
       ...(this.doc.chains?.length ? { chains: chainsSummary(this) } : {}),
+      ...(() => { const v = displayed(this); return { ...(v.hidden.length ? { hidden: v.hidden } : {}), ...(v.clear.length ? { transparent: v.clear } : {}) }; })(), // (👁 display only)
       joints: (this.doc.mates || []).map((m) => ({ id: m.id, ...(m.name ? { name: m.name } : {}), type: m.type || 'touch', part: m.move, face: m.face, onto: m.onto, onto_face: m.ontoFace,
         ...(m.type === 'axis' ? { distance: Number.isFinite(m.dist) ? m.dist : null } : { gap: m.gap || 0 }), ...(m.type !== 'parallel' ? { rotation_locked: Number.isFinite(m.angle) } : {}), ...(m.broken ? { broken: true } : {}),
         ...(m.slides?.length || (m.rot && m.type !== 'rigid') ? { locked_motions: (m.slides?.length || 0) + (m.rot && m.type !== 'rigid' ? 1 : 0) } : {}),
@@ -4028,6 +4057,7 @@ export class Assembly {
     const settle = () => this.refresh();
     return {
       get_assembly: async () => { need(); await settle(); return { text: JSON.stringify(this.summary()) }; },
+      set_visibility: async (args = {}) => { need(); return { text: setVisibility(this, args) }; },
       get_bom: async ({ assembly: which, mode = 'summary' } = {}) => {
         const self = this.active ? this.hooks.selfId?.() : null;
         const a = which ? this.hooks.parts().find((p) => p.kind === 'assembly' && (p.id === which || p.name === which)) : null;

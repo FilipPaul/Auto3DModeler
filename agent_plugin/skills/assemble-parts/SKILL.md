@@ -42,6 +42,8 @@ seated in its receptacle, its stroke as its slide's limits), joined Concentric.
    offers its joints (Touch…, Gap…, Concentric…), two faces picked offer what joins them. To show them how, select it
    (`gui_action {pick: "I2"}` or `{pick: "I2 F2:end"}`), read `gui_state {where: "suggest"}` and point at the row
    with `gui_highlight {control: <its n>}`.
+   A part in the way of what you want to show or check: `set_visibility {hide: ["I3"]}` (or `transparent: [...]`,
+   `isolate: ["I2"]`, `show_all: true`) — display only, saved with the assembly; get_assembly `hidden` / `transparent`.
 4. Fine-tune with `place_part {part, x, y, z}` (its origin in mm) and `turn: "x" | "y" | "z"` (90° about its
    centre). Check the bounding boxes from `get_assembly` and look with `get_screenshot`.
 5. **Fasteners through parts with no holes**: join the parts so they touch, then `bolt_parts {part, face, x, y, kind,

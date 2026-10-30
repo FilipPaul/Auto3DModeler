@@ -1009,7 +1009,7 @@ export class HarnessTool {
       const at = sp?.snap === 'centre' && sp.inst ? local(sp.inst, sp.point) : null;
       return at ? { p: { inst: sp.inst, at: at.toArray().map((x) => +x.toFixed(4)) }, w: sp.point.clone(), what: 'centre' } : null;
     };
-    const ray = v.ray(e.clientX, e.clientY), hits = ray.intersectObjects(v.meshes || [], false);
+    const ray = v.ray(e.clientX, e.clientY), hits = ray.intersectObjects(v.shown(), false); // (👁 not a hidden part)
     const depth = e.altKey ? Math.min(this.altDepth, hits.length - 1) : 0, hit = hits[Math.max(0, depth)]; // (Alt: a face behind the front one)
     if (!hit?.face) return centre() || this.inSpace(ray, ref);
     if (hit.face) {
@@ -1169,7 +1169,7 @@ export class HarnessTool {
     for (const [, b] of this.built) objs.push(...b.objs.filter((o) => o.isMesh && o.userData.harness));
     const hh = ray.intersectObjects(objs, false)[0];
     if (!hh) return null;
-    const part = ray.intersectObjects(v.meshes || [], false)[0];
+    const part = ray.intersectObjects(v.solids(), false)[0];
     return !part || hh.distance <= part.distance + 1e-6 ? hh.object.userData.harness : null;
   }
 

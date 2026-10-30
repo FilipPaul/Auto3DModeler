@@ -4476,6 +4476,17 @@ export class Modeler {
       <button class="btn small primary" data-a="ctxBack">◇ ${esc(t('Back to the assembly'))}</button>`;
     bar.querySelector('[data-a=ctxBack]').addEventListener('click', () => this.hooks.backTo?.(ctx.back));
     this.els.viewport.appendChild(bar);
+    if (ctx.face) this.pickFaceNamed(ctx.face); // (✎ from a face picked in the assembly: that face chosen here too)
+  }
+
+  /** A face chosen by its name once the part is built (✎ Edit the part here from a face picked in an assembly): its
+   *  suggestions — a sketch on it, a hole — one click away. Not there (renamed, not built in ~15 s): nothing chosen. */
+  pickFaceNamed(name, tries = 0) {
+    const f = (this.view.body?.faces || []).find((x) => x.name === name || (x.names || []).includes(name)), fs = f && this.stepFaces(f);
+    if (!fs) { if (tries < 150 && this.context?.face === name) setTimeout(() => this.pickFaceNamed(name, tries + 1), 100); return; }
+    const p = this.view.camera.position.clone().set(...f.centroid), q = p.clone().project(this.view.camera), r = this.view.renderer.domElement.getBoundingClientRect();
+    this.picks = [{ kind: 'face', step: fs.step, face: f, point: p }];
+    this.faceTable({ face: f, point: p }, fs, { clientX: r.left + (q.x + 1) / 2 * r.width, clientY: r.top + (1 - q.y) / 2 * r.height });
   }
 
   load(data, { then } = {}) {

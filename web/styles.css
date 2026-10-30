@@ -1089,6 +1089,17 @@ p.hn-taut { color: #ff9b94; }
 .as-dofnote.bad { color: #f85149; }
 .as-list.exploding .as-boom, .as-boom.off, .mt-item:hover .as-boom { display: inline-block; }
 .as-boom.off { filter: grayscale(1); opacity: .45; }
+/* 👁 hidden / see-through parts (assembly/visibility.js): the eye on hover, or always when not shown as they are */
+.as-eye { visibility: hidden; flex: none; }
+.mt-item:hover .as-eye, .as-eye.hidden, .as-eye.clear { visibility: visible; }
+.as-eye.hidden { filter: grayscale(1); opacity: .5; text-decoration: line-through; }
+.as-eye.clear { opacity: .6; }
+.mt-item.as-hidden .mt-name, .mt-item.as-hidden .mt-what, .mt-item.as-hidden .mt-icon { opacity: .45; text-decoration: line-through; }
+.mt-item.as-clear .mt-name, .mt-item.as-clear .mt-icon { opacity: .65; font-style: italic; }
+.as-vis { display: flex; align-items: center; gap: 4px; margin: 0 2px 6px; padding: 3px 8px; border-radius: 6px; background: var(--panel-2); color: var(--muted); font-size: 12px; }
+.as-vis[hidden] { display: none; }
+.as-vis .as-showall { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: inherit; }
+.as-vis .as-showall:hover { text-decoration: underline; }
 .mt-start { color: var(--muted); padding: 14px 6px; line-height: 1.6; }
 .mt-start ol { padding-left: 20px; margin: 6px 0; }
 

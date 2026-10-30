@@ -37,7 +37,7 @@ function planOf(asm, id, eng = asm) {
  *  slide along its line (through the grabbed point); the rest follows (Assembly.moveFree). e: the press ->
  *  {part, mo, move(e), end() -> moved?} or null (it cannot move, or the press is not on it: the view turns). */
 export function startDrag(asm, id, e) {
-  const hit = asm.view.ray(e.clientX, e.clientY).intersectObjects(asm.view.meshes || [], false)[0];
+  const hit = asm.view.ray(e.clientX, e.clientY).intersectObjects(asm.view.shown(), false)[0];
   if (!hit || hit.object.userData.inst !== id) return null;
   const inner = asm.innerPartAt?.(id, hit), eng = inner?.eng || asm; // (a part moving inside a sub-assembly: "I3/I2", both levels' joints)
   const plan = inner ? planOf(asm, inner.id, eng) : dragPlan(asm, id);
