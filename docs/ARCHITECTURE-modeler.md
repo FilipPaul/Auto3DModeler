@@ -7,6 +7,19 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **↔ Axis distance between two round faces (2026-10-30)** (the AI's report: two INGUN GKS-100 probes parallel 20 mm
+  apart — the Gap joint took only flat faces, "Klikněte na rovnou plochu"). joints.js `axis_distance`: two round faces
+  (cylinders, cones, holes) with their axes parallel, `dist` mm apart; a round face and a flat face: the axis parallel
+  to the face, `dist` from it on its `side`. Free: a turn about its own axis (motionsOf's `:own` candidate) and the
+  slide along the axes; the swing round the other axis is kept by default (`angle`, orbitOf: degrees about the other
+  axis from the other part's x direction, as it stood) — a distance between axes is set to place things side by side,
+  a swing round the neighbour on a drag is rarely meant; the row's ↻ slider swings it, 🔓 frees it. jointMiss /
+  jointResidual (the loop solve) / placeJoint handle it; a later joint turns it about its own axis (`fixed.o`).
+  UI: two round faces picked -> "↔ Axis distance 20 mm" (the distance now) right under ◎ Concentric; a round and a
+  flat face: in the list; the ↔ Gap tool on a round face becomes it; the joint row: the distance field + a 0 … slider;
+  the toast says ▭ Flush on the ends gives the same height. AI: snap_faces `type: "axis_distance"` with `distance`
+  (default: as they are; lock_rotation false frees the swing), get_assembly `distance`, edit_joint `distance`.
+  tools/e2e_assembly_axis_distance.py.
 - **⇤⇥ One side of a limit at a time (2026-10-30)** (the owner: clear min and max separately). A motion's `travel`
   record may hold only `min` or only `max`: the other side is open. dof.js clampLim (drag.js, the panel's slider,
   move_free, setTravel's put-back) and travelOf (both ends for what needs them: a turn a full turn from the stop — in

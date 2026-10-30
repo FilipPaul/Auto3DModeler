@@ -460,6 +460,10 @@ TOOLS = [
      "description": "Join a placed part to another one with a joint that holds: move = {part: <placed id I…>, face: <face name>}, "
                     "onto = {part, face}. type: \"touch\" (flat faces meet, centred — the default), \"gap\" (flat faces facing, gap mm "
                     "apart), \"flush\" (flat faces in one plane, gap = offset), \"axis\" (concentric: two round faces on one axis, a pin in a hole; gap = the distance along the axis between the facing ends of the two round faces — two plates with holes 30 mm apart: gap 30; lock_rotation: true keeps its turn), "
+                    "\"axis_distance\" (two round faces — cylinders, cones, holes — with their axes parallel, distance mm apart: two probes "
+                    "side by side; without distance: as far apart as they are now; it still turns about its own axis and slides along it, "
+                    "its swing round the other axis is kept as it stands unless lock_rotation: false; a round face and a flat face: the axis "
+                    "parallel to the face, distance mm from it; the same height: add a flush on their ends), "
                     "\"parallel\", \"perp\" (perpendicular), \"angle\" (value = degrees between the faces' directions), \"tangent\" "
                     "(a round face touching a flat one), \"ball\" (a ball's spherical face — e.g. a revolved half circle — with its centre on "
                     "the axis of a hole / a cone of the other part: it slides along that axis and turns any way; onto another ball: one centre, "
@@ -475,8 +479,8 @@ TOOLS = [
                     "\"rack\" (move = the pinion's round face, onto = the rack's flat face along its axis: the rack slides π·Ø per turn); value = the ratio (gear / belt: turns of move's part per one turn of onto's, default Ø onto / Ø move; rack: mm per turn, default π·Ø). "
                     "Turning one (move_free, drive_mechanism) turns the other; the coupled parts are one mechanism. get_assembly lists them as `couplings` (ids G…; edit_joint {id, ratio, flip} / remove_joint).",
      "inputSchema": _obj({"move": _obj({"part": STR, "face": STR}, ["part"]), "onto": _obj({"part": STR, "face": STR}, ["part"]),
-                          "type": {"type": "string", "enum": ["touch", "gap", "flush", "axis", "parallel", "perp", "angle", "tangent", "ball", "seat", "rigid", "spring", "gear", "belt", "rack"]}, "gap": NUM,
-                          "value": NUM, "lock_rotation": {"type": "boolean"}, "name": STR}, ["move", "onto"])},
+                          "type": {"type": "string", "enum": ["touch", "gap", "flush", "axis", "axis_distance", "parallel", "perp", "angle", "tangent", "ball", "seat", "rigid", "spring", "gear", "belt", "rack"]}, "gap": NUM,
+                          "distance": NUM, "value": NUM, "lock_rotation": {"type": "boolean"}, "name": STR}, ["move", "onto"])},
     {"name": "bolt_parts", "where": "browser",
      "description": "Fasten parts that have no holes yet: a screw goes in at a point of a flat face of a placed part (part = I…, face = its "
                     "name, x / y mm from the face's middle) and straight through the parts touching under it; the holes are drilled "
@@ -794,7 +798,7 @@ TOOLS = [
                           "bom_style": {"type": ["string", "null"], "enum": ["A", "B", "C", "D", "E", "modern", None]}})},
     {"name": "edit_joint", "where": "browser",
      "description": "Change a joint of the assembly on screen (id J… from get_assembly): gap (mm, flat joints), distance (mm along "
-                    "the axis for a concentric joint, null = it slides freely), lock_rotation (true / false), angle (degrees: the "
+                    "the axis for a concentric joint, null = it slides freely; mm between the axes for an axis_distance joint), lock_rotation (true / false), angle (degrees: the "
                     "turn about the joint, or for an angle joint the angle), flip (true: the other way round), locked (true: "
                     "moving by hand cannot break it), name (the user's own name of the joint, e.g. \"bearing on the shaft\"; "
                     "empty: none). A coupling (id G…: gear / belt / rack): ratio (its number), flip (true: the other way round), name.",

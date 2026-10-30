@@ -897,6 +897,12 @@ Never report "works" without having run it; report failures with their output.
    `tools/e2e_assembly_twoface.py <url> <dir>` covers two faces picked with real clicks in the "wrong" order (the
    parent's side, Ctrl+click the child's): ∥ / ⟂ / ∠ in the table's top rows, ∥ joins them (the child moves, not
    refused), one face: ∥ in the rows shown; Esc unpicks two faces, also with a table row or a panel slider focused.
+   `tools/e2e_assembly_axis_distance.py <url> <dir>` covers ↔ Axis distance, in Czech with real clicks: the solver
+   alone (one pass from askew: parallel 20.000 apart, its swing kept at 30°, an axis 7.5 from a flat face, the loop
+   numbers 0), two GKS-100 probes' barrels (click, Ctrl+click) -> "↔ Vzdálenost os 20 mm" next to ◎ -> parallel and
+   20 apart; free: its own turn + the slide; ▭ on the bottoms; the panel's field 25 / slider / field; the ↔ Mezera tool
+   on a round face becomes ↔ Vzdálenost os; a reload keeps it; snap_faces / get_assembly / edit_joint; a loop (a
+   plate slid, the first probe turned) holds; no console errors.
    `tools/e2e_assembly_concentric.py <url> <dir>` covers ◎ Concentric with a distance (two plates' holes: filled in
    touching, typed 30 -> 30 apart, still 30 when the lower plate thickens, cleared -> free), ↻🔒 the rotation lock
    (45° typed) and the AI's snap_faces axis with gap + lock_rotation.
