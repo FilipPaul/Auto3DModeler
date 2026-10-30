@@ -7,6 +7,15 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **🔗 Fixed onto a part inside a sub-assembly: it turns with it (2026-10-30)** (the AI's report: a gate frame fixed
+  onto a hinge leaf inside "Sestava pant L" only shifted when the hinge turned 10°). Cause: worldFace gave a merged
+  sub-assembly's face ("I14/F1:f5") the sub-assembly's own directions (xdir / ydir), so a 🔗 rigid joint's rot / pos
+  (and locks, kept turns) measured against a frame that did not turn with the leaf — and the flat engine (flatAsm),
+  where the leaf is a part of its own, measured against the leaf's: the two disagreed. Now worldFace takes the
+  directions of the part the face is on (innerFrame: placement × its place in it, its `inner`, through the levels).
+  innerFrames(): an older file's joints on such faces are measured again where the parts are (when they hold there),
+  marked `fr: 2` — nothing moves. Tests: tools/e2e_assembly_rigid_inner.py (new).
+
 - **⏳ The loading card (2026-10-30)** (the owner: "When I drag/drop a new large STEP … it does not say anything … I need
   to see the info BEFORE that freeze!"). The busy box was a small pill top-right of the viewport (none on the start
   screen) and the server stage said "Building the 3D model" while it read the file. busy.js: busy(text, {delay}) ->

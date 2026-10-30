@@ -2981,6 +2981,7 @@ export class Assembly {
     if (this.doc.couplings) { this.doc.couplings = this.doc.couplings.filter((c) => this.inst(c.a) && this.inst(c.b)); if (!this.doc.couplings.length) delete this.doc.couplings; }
     if (this.doc.springs) { this.doc.springs = this.doc.springs.filter((x) => this.inst(x.part) && this.inst(x.onto)); if (!this.doc.springs.length) delete this.doc.springs; }
     tidyChains(this); // (⛓ a chain whose first link is gone)
+    this.innerFrames(); // (an older file's joints on a sub-assembly's parts: measured against those parts once)
     const before = new Map(this.doc.instances.map((i) => [i.id, [...i.matrix]]));
     this.placeAll(mates);
     if (this.closeLoops(before, drive)) this.placeAll(mates);
@@ -4211,8 +4212,11 @@ export class Assembly {
   }
 
   // ------------------------------------------------------------------ for the AI
-  /** A face of a placed part by its name (as find_refs names it in the part's own model), in world coordinates. */
-  worldFace(instId, name, matrix = null) {
+  /** A face of a placed part by its name (as find_refs names it in the part's own model), in world coordinates. Its
+   *  own directions (xdir / ydir: what a 🔗 rigid joint, a lock and a kept turn measure against) are its part's: a
+   *  face of a part inside a sub-assembly ("I14/F1:f5") turns with that part (sub-assembly × the part's place in it).
+   *  legacy: the sub-assembly's directions instead (how joints made before 2026-10-30 measured; innerFrames). */
+  worldFace(instId, name, matrix = null, legacy = false) {
     const it = this.inst(instId);
     if (!it) throw new Error(`No part ${instId} in the assembly — see get_assembly.`);
     const b = this.bodyOf(it)?.body;
@@ -4227,8 +4231,9 @@ export class Assembly {
       throw new Error(`${instId} has no face “${name}”. Its flat, round, ball and cone faces: ${flat.join(', ')} (find_refs in its part tells which is which).`);
     }
     const m = matrix || new THREE.Matrix4().fromArray(it.matrix), nm = new THREE.Matrix3().getNormalMatrix(m);
+    const fm = b.sub && !legacy ? new THREE.Matrix3().getNormalMatrix(this.innerFrame(it, name, m)) : nm;
     const out = { ...f, centroid: new THREE.Vector3(...f.centroid).applyMatrix4(m),
-      xdir: new THREE.Vector3(1, 0, 0).applyMatrix3(nm).normalize(), ydir: new THREE.Vector3(0, 1, 0).applyMatrix3(nm).normalize() };
+      xdir: new THREE.Vector3(1, 0, 0).applyMatrix3(fm).normalize(), ydir: new THREE.Vector3(0, 1, 0).applyMatrix3(fm).normalize() };
     if (f.type === 'plane') out.normal = new THREE.Vector3(...f.normal).applyMatrix3(nm).normalize();
     if (f.type === 'cylinder' && f.axis) {
       out.axis = { o: new THREE.Vector3(...f.axis.o).applyMatrix4(m), d: new THREE.Vector3(...f.axis.d).applyMatrix3(nm).normalize() };
@@ -4240,6 +4245,52 @@ export class Assembly {
       out.axis = { o: out.cone.apex.clone(), d: out.cone.d.clone() };
     }
     return out;
+  }
+
+  /** The frame of the part a sub-assembly's face is on ("I14/F1:f5", "I3/I14/F1:f5": through the levels), placement
+   *  `it` at M: M × that part's place in it (its `inner` where it was moved here) -> THREE.Matrix4 (M itself for a
+   *  face of a part that is not a sub-assembly). */
+  innerFrame(it, name, M) {
+    const F = M.clone(), path = String(name).split('/').slice(0, -1);
+    let host = it;
+    for (const k of path) {
+      if (this.kindOf(host.part) !== 'assembly') break;
+      const own = (this.hooks.partData(host.part)?.instances || []).find((x) => x.id === k), at = host.inner?.[k] || own?.matrix;
+      if (!own || !at) break;
+      F.multiply(new THREE.Matrix4().fromArray(at));
+      host = { ...own, ...(host.inner?.[k] ? { matrix: at } : {}) };
+    }
+    return F;
+  }
+
+  /** Joints onto (or of) a face inside a sub-assembly made before its faces turned with their own part (worldFace):
+   *  what they keep — a 🔗 rigid joint's rot / pos, a lock's slides, a kept turn (angle) — measured again against the
+   *  part's own directions, where the parts are now (when it holds there); then marked (`fr: 2`). The parts do not
+   *  move. Waits until the parts are built. */
+  innerFrames() {
+    if (this.owner || this.flatOf) return;
+    const inner = (id, f) => String(f).includes('/') && this.kindOf(this.inst(id)?.part) === 'assembly';
+    for (const m of this.doc.mates || []) {
+      if (m.fr === 2 || !(inner(m.move, m.face) || inner(m.onto, m.ontoFace))) continue;
+      if (!m.rot && !m.pos && !m.slides?.length && !Number.isFinite(m.angle)) { m.fr = 2; continue; }
+      if (!this.bodyOf(this.inst(m.move))?.body || !this.bodyOf(this.inst(m.onto))?.body) continue; // (not built yet: later)
+      let o, n;
+      try {
+        o = [this.worldFace(m.move, m.face, null, true), this.worldFace(m.onto, m.ontoFace, null, true)];
+        n = [this.worldFace(m.move, m.face), this.worldFace(m.onto, m.ontoFace)];
+      } catch { m.fr = 2; continue; } // (a face gone: as it is)
+      if (jointMiss(m, ...o)?.ok) {
+        const now = frameNow(...n), [x, y] = [o[1].xdir, o[1].ydir], z = new THREE.Vector3().crossVectors(x, y).normalize();
+        if (m.rot) m.rot = now.rot;
+        if (m.pos) m.pos = now.pos;
+        if (m.slides?.length) m.slides = m.slides.map((s) => slideNow(n[0], n[1], x.clone().multiplyScalar(s.d[0]).addScaledVector(y, s.d[1]).addScaledVector(z, s.d[2])));
+        if (Number.isFinite(m.angle)) {
+          const dir = m.type === 'axis_distance' ? null : n[1].axis?.d || n[1].normal;
+          if (m.type === 'axis_distance') { if (n[0].axis && n[1].axis) m.angle = +orbitOf(...n).toFixed(3); } else if (dir) m.angle = +spinOf(n[0], n[1], dir).toFixed(3);
+        }
+      }
+      m.fr = 2;
+    }
   }
 
   /** How far a round face (all its pieces of that name) reaches along its axis: [from, to] mm from the axis' origin

@@ -1198,6 +1198,8 @@ its parts'; the STEP keeps it as a sub-assembly; an assembly cannot go into itse
   default) switches it: off, it is 🧱 rigid — one body, no inner motion (offered back in its suggestions). The AI:
   get_assembly / gui_state `mechanisms` with `inside: "I3"`, `drive_mechanism {mechanism: "I3"}`, `move_free
   {part: "I3/I2"}`, `place_part {part: "I3", rigid: true}`.
+  A part 🔗 fixed onto a part inside a sub-assembly (a gate frame on a hinge leaf) turns with that part, not only
+  shifts: driving the hinge 10° swings the frame 10° about the pin.
   A part on a face is centred on it once, when the joint is made; after that it keeps where it slid, and goes along
   with the part it hangs on.
 - **🔒 Lock a motion**: the 🔒 next to a free way fixes it where the part is — its joint's turn or distance along the

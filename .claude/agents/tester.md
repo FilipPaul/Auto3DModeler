@@ -901,6 +901,10 @@ Never report "works" without having run it; report failures with their output.
    "I2/I2", get_assembly / gui_state `inside`; a loop through both levels (a rod and a slider of Stroj on the inner
    crank) by the formula; 🧱 rigid in its panel: no inner mechanism, move_free refused, a drag does nothing, the
    suggestion turns it back; the gearbox demo as a sub-assembly: 2:1 and π·Ø per turn; exit code 1 on a failure).
+   `tools/e2e_assembly_rigid_inner.py <url> <dir>` covers 🔗 a part fixed onto a part inside a sub-assembly (Czech:
+   a flag fixed onto the crank of "Pohon" placed in "Stroj": the inner mechanism driven 10° and 25° more turns the
+   flag that much about the shaft, every corner of it, the joint held; back at the start it is where it was; an older
+   file's joint measured against the sub-assembly's directions opens unmoved, measured again (fr 2), and follows).
    `tools/e2e_assembly_lockmotion.py <url> <dir>` covers 🔒 lock a motion (a pin in a hole: its turn -> the joint's
    angle, its slide -> the joint's distance, fully held and not moved; a lid on a base: Along X -> a new Flush joint
    of side faces, not moved; the AI's lock_motion, and on a held part refused).
