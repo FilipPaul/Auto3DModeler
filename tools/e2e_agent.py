@@ -437,6 +437,13 @@ try:
     tool("place_part", part="I1", fixed=True)
     print("    I1 fixed again:", next(p for p in json.loads(tool("get_assembly")[0])["parts"] if p["id"] == "I1").get("fixed"))
     print("    I2 fixed (it hangs on its joints):", tool("place_part", part="I2", fixed=True)[0][:80])
+    # 👁 display only: I3 hidden, I2 see-through -> get_assembly says so; show_all: none
+    tool("set_visibility", hide=["I3"], transparent=["I2"])
+    a = json.loads(tool("get_assembly")[0])
+    print(f"    set_visibility: hidden {a.get('hidden')} transparent {a.get('transparent')} | ok: {a.get('hidden') == ['I3'] and a.get('transparent') == ['I2']}")
+    print("    set_visibility, no such part:", tool("set_visibility", hide=["I99"])[0][:80])
+    tool("set_visibility", show_all=True)
+    print("    show_all: nothing hidden:", "hidden" not in json.loads(tool("get_assembly")[0]))
     # a saved project file opens the same way (the demo's own file)
     t, _ = tool("open_file", path=str(ROOT / "demos" / "ctyrkloubovy-mechanismus.a3d.json"))
     print(f"    project file: {t[:120]}")

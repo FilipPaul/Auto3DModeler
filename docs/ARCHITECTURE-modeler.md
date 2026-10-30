@@ -7,6 +7,17 @@ Date: 2026-10-25. Written by the architect agent.
 
 ## Progress (2026-10-28)
 
+- **👁 Hide parts; ✎ Edit the part here always in sight (2026-10-30)** (the owner: suggestions should always offer
+  editing the part in place and hiding it; hiding did not exist). web/js/assembly/visibility.js: the assembly doc's
+  `display` {inst: 'hidden' | 'clear'} (saved, outside the history — display only), draw() passes hidden / see to
+  AsmView.setBodies (hidden: mesh.visible false, kept in `meshes` for what hangs on it; clear: opacity 0.25);
+  AsmView.shown() / solids() feed every pick (pickInst — a see-through part only when nothing solid is hit —, sees,
+  measurePoint, roundEdgeAt, edgeAt, drag.js, the harness's clicks, the hover snaps), fitBox / shownBox the shown ones.
+  The table: `always` rows ✎ Edit the part here (unlocks first; from a picked face that face is chosen in the modeler:
+  ctx.face -> Modeler.pickFaceNamed -> faceTable) and 👁 Hide / show… (asm.visOpen: its choices as `always` rows, hover
+  = asm.visPreview); the parts list's 👁 (first in the row: no shift on hover), `.as-vis` note, H / Shift+H / Alt+H; a
+  tree click drops an old face pick. AI: set_visibility, get_assembly hidden / transparent. tools/e2e_hide_parts.py.
+
 - **⇤⇥ One side of a limit at a time (2026-10-30)** (the owner: clear min and max separately). A motion's `travel`
   record may hold only `min` or only `max`: the other side is open. dof.js clampLim (drag.js, the panel's slider,
   move_free, setTravel's put-back) and travelOf (both ends for what needs them: a turn a full turn from the stop — in

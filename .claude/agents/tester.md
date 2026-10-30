@@ -765,6 +765,13 @@ Never report "works" without having run it; report failures with their output.
    the note comes and goes (a screenshot mid-collision); ⋯ Zastavit při kolizi: ▶ stops at the band's start, ▶ again
    goes on; drive_mechanism / get_assembly / check_travel tell the bands, collisions: false / true; reload keeps it;
    ⚠ off: nothing red; a demo opens with it off; no console errors). Needs a server restarted after backend changes.
+   `tools/e2e_hide_parts.py <url> <dir>` covers 👁 hiding parts (Czech, the robot arm demo, real clicks: with 3 rows
+   the table still shows ✎ Upravit díl zde and 👁 Skrýt / zobrazit…; 👁 opens its choices as rows, hover previews;
+   Skrýt — not drawn, a click there picks the part behind, the tree row struck through, "👁 1 skryté · Zobrazit vše";
+   Zprůhlednit — opacity 0.25, a click takes the part behind; izolovat; Zprůhlednit ostatní; 👁 / Alt+click in the
+   tree; two parts with Ctrl+click; H / Shift+H / Alt+H; a face picked: both rows, acting on its part; mechanisms,
+   BOM, collisions unchanged; set_visibility / get_assembly / get_screenshot; reload keeps it; ✎ from a picked face
+   opens the part in place with that face chosen; no console errors).
    `tools/e2e_mechanism_anim.py <url> <dir>` covers 🎬 Save animation (the crank demo: ⋯ shows it with GIF / video and
    the name caption; a GIF saved — the progress line counts the frames, the page answers meanwhile, ≥ 20 frames of the
    view's size, looping, each frame differs from the one before, the parts back where they were, gui_state

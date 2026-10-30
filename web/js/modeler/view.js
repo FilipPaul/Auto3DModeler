@@ -975,7 +975,7 @@ export class ModelView {
     this.clear(this.hoverSnapGroup);
     this.invalidate();
     // only the points the camera sees (one behind the part is left out; the camera moves only by a drag, which clears these)
-    const solids = this.meshes || (this.mesh ? [this.mesh] : []), cam = this.camera.position, rc = new THREE.Raycaster(), slack = this.size * 0.01;
+    const solids = (this.meshes || (this.mesh ? [this.mesh] : [])).filter((m) => m.visible), cam = this.camera.position, rc = new THREE.Raycaster(), slack = this.size * 0.01;
     const seen = points.slice(0, 600).map((p) => p.point).filter((p) => {
       const dist = p.distanceTo(cam);
       rc.set(cam, p.clone().sub(cam).normalize());
